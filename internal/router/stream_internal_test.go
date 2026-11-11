@@ -17,6 +17,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"testing"
 	"testing/iotest"
 	"testing/synctest"
@@ -54,6 +55,17 @@ func TestTheRequestStreamTellsOfEachRequestAsItGoes(t *testing.T) {
 				{Kind: StreamFirst, Attempt: 1, Session: "one", Model: opus, Account: "work"},
 				{Kind: StreamDone, Attempt: 1, Session: "one", Model: opus, Account: "work", Status: http.StatusOK,
 					Chars: claudetest.AnswerChars("Hello, ", "world ☃"), Tokens: &claudetest.AnswerTokens},
+			},
+		},
+		{
+			name:    "a streamed answer the upstream broke off after it began",
+			session: "one",
+			work:    []answer{brokenOff(claudetest.MessageStart, claudetest.TextDelta("Hello, "))},
+			want: []StreamEvent{
+				{Kind: StreamSent, Attempt: 1, Session: "one", Model: opus, Account: "work"},
+				{Kind: StreamFirst, Attempt: 1, Session: "one", Model: opus, Account: "work"},
+				{Kind: StreamDone, Attempt: 1, Session: "one", Model: opus, Account: "work", Status: http.StatusOK,
+					Chars: len("Hello, "), Broken: true},
 			},
 		},
 		{
@@ -916,6 +928,17 @@ func streamed(pause time.Duration, pieces ...string) answer {
 	return func(r *http.Request) *http.Response {
 		resp := respond(r, http.StatusOK, http.Header{"Content-Type": {"text/event-stream"}}, "")
 		resp.Body, resp.ContentLength = io.NopCloser(&paced{ctx: r.Context(), pause: pause, pieces: slices.Clone(pieces)}), -1
+		return resp
+	}
+}
+
+// brokenOff answers with a stream of events, its pieces, then breaks it off,
+// as a connection reset mid-answer does.
+func brokenOff(pieces ...string) answer {
+	return func(r *http.Request) *http.Response {
+		resp := respond(r, http.StatusOK, http.Header{"Content-Type": {"text/event-stream"}}, "")
+		resp.Body = io.NopCloser(io.MultiReader(strings.NewReader(strings.Join(pieces, "")), iotest.ErrReader(syscall.ECONNRESET)))
+		resp.ContentLength = -1
 		return resp
 	}
 }

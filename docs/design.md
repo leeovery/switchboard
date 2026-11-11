@@ -463,7 +463,8 @@ Learned from TeamClaude (MIT, Node) and taken as ideas, not code:
   be read 400, whoever is left to read it, as a client that closed its side of the connection
   still reads, neither going upstream nor counting towards the router's health, though each has
   its line in the request ledger (see The request ledger). Replay only happens before response
-  headers have been sent; a failure mid-stream is passed through and Claude Code retries. Nor is
+  headers have been sent; a failure mid-stream is passed through, its line in the request ledger
+  `broken` and a failure of the router's health (see Health), and Claude Code retries. Nor is
   a request that couldn't reach the upstream at all replayed elsewhere: that isn't the account's
   fault. Claude Code gets a 502 and retries.
 - **Uploaded files (pending):** Claude Code uploads files on its own token, the primary's. Should a
@@ -1743,7 +1744,7 @@ argument Claude Code's own, so `claude --help` is Claude Code's (see Launching).
 | `status [--session <id>] [--json \| --pretty] [--probe] [--refresh]` | Accounts, windows, sessions, pin, what holds an account back, reserves, pressure, the priming schedule, and router health, read as `usage` reads them, and from the router, the sessions it has routed in the last hour: a line each, with its id cut short, the account each of its models goes to, its own pin, and when it was last seen. When the `claude` a shell runs from `PATH` isn't switchboard, so the sessions it starts don't go through the router, the first line says so, pointing to `setup`. Its JSON is the status document, which is what an agent reads (see The data verbs). `-r`, `--refresh` has the router first read every account it may, as `usage --refresh` does. `--session` prints one line, on a terminal or off one, as a statusline asks: the id of the account the router sends a session's requests to, the one its last-used model went to; or with `--json`, `/sessions/{id}`'s answer. `<id>` is the session's id, or as much of it as is unique among those sessions, as `pin --session` takes it, and it needs the router, taking neither `--probe` nor `--refresh` |
 | `usage [--5h] [--week] [--<model>] [--by window\|account] [--probe] [--refresh] [--json \| --pretty]` | Every account's windows as they stand, printed once into the scrollback with the time they were read, to hold against one printed earlier: see `usage`, the printout. `--by` lays them out by window, each window's rows together, or by account, each account's windows together, over `[usage] by` (see Config); by window where neither says. `--5h`, `--week`, and a flag for each model's own window, named for its model, as `--fable` is for Fable's week, print the windows given alone, with the header and the key line. Its JSON is the status document, as `status --json` prints it, read as its flags say (see The data verbs). It reads the router while it answers; `--probe` probes instead. `-r`, `--refresh` has the router first read every account it may, as the dashboard's `R` does, and waits for it, ten seconds at most; without the router, or with `--probe`, every account is probed anyway |
 | `dashboard [interval] [--no-notify] [--probe]` | The dashboard, full screen until `q`: see Dashboard. It needs a terminal, and refuses without one. It reads the router while it answers, which reads idle accounts itself, on its rounds, and `R` has it read them at once (see Live updates). Without the router, or with `--probe`, it probes every account instead, each interval: 30m unless given, 5m at the least, as a duration, such as `15m`, or a number of minutes. `--no-notify` has it post none of the notifications it posts while it probes without the router (see Notifications) |
-| `requests [--session <id>] [--account <id>] [--since <when>] [--json \| --pretty]` | The request ledger's lines (see The request ledger): today's, unless `--since` reaches further back, oldest first, under the day each arrived on, a line each with the time, the session's id cut short, the model, the account, the status, the tokens in and out, and how long the request took. `--session` keeps a session's own, by its id or as much of it as is unique among the sessions read, failing, listing them, for as much as starts several; `--account` keeps an account's own; `--since` starts at a day (`2026-10-01`), a time today (`14:00`), as the clocks first read it that day, so `00:00` is the day's first instant, or a duration ago (`3h`, `2d`, a day being 24 hours), and one still to come is refused. Its JSON is each line as the ledger holds it, a JSON object a line, fields a later release added included (see The data verbs). It reads the ledger's files, so it needs no router |
+| `requests [--session <id>] [--account <id>] [--since <when>] [--json \| --pretty]` | The request ledger's lines (see The request ledger): today's, unless `--since` reaches further back, oldest first, under the day each arrived on, a line each with the time, the session's id cut short, the model, the account, the status, `canceled`, `cut off` or `broken off` after it where its line says so, the tokens in and out, and how long the request took. `--session` keeps a session's own, by its id or as much of it as is unique among the sessions read, failing, listing them, for as much as starts several; `--account` keeps an account's own; `--since` starts at a day (`2026-10-01`), a time today (`14:00`), as the clocks first read it that day, so `00:00` is the day's first instant, or a duration ago (`3h`, `2d`, a day being 24 hours), and one still to come is refused. Its JSON is each line as the ledger holds it, a JSON object a line, fields a later release added included (see The data verbs). It reads the ledger's files, so it needs no router |
 | `history [--since <when>] [--windows] [--json \| --pretty]` | The request ledger's days: the last 30 unless `--since` says otherwise, from the day it falls on; of each with requests, a row for each account and model with its requests, those that went upstream and those the router answered itself (see The request ledger), its tokens, sessions and worth, at today's prices, then each account's sessions, moves, limits reached, weeks reset, as `week reset 10:00`, and windows' highest use, of an account that served no request that day only where it reached a limit, or one of its weeks reset; today's from its lines, as far as it's gone. Then, where any of those days has requests, over them, the totals Accounts and History count, each account's plan and its worth against it, each week's peaks, Weeks' verdicts on the accounts (see Accounts, History), and the prices worth is at; where none has, `no requests since <day>`, then the days with notes. `--windows` prints in their place each account's windows' use over those days, a line each time a window's use, its reset or its status changed, as the readings history holds it (see Files). Its JSON (see The data verbs) is `{"prices_as_of": "2026-10-07", "days": [{"version": 6, "day": "2026-10-05", "lines": 424, "bytes": {"plain": 0, "compressed": 41208}, "accounts": […]}], "year": {…}, "months": […], "weeks": […], "tokens": […], "totals": {…}, "plans": […], "capacity": {…}}`, `prices_as_of` the day the price table was read from Anthropic's pricing page, `prices_from_config` true where the config prices a model or a plan in the table's place and left out otherwise, and each day's summary as the ledger holds it, every day asked for from the first the ledger holds, so the last is today's, one of no requests, the readings history telling of no account that day, without `accounts`, with each model's `worth` in US dollars added, exactly, left out where the model is unpriced, and beside it `unpriced`, the counts in its `usage` the worth leaves out, and `no_usage` where requests went upstream without usage, and `too_large` where the worth passes what it's counted in, where there are any (see The request ledger). It reads the ledger's files and the readings history's, so it needs no router |
 | `sessions [<id>] [--json \| --pretty]` | Today's sessions, as Sessions' List has them: those running, the oldest started first, then those that ended today, the latest ended first, a line each with its id cut short and its directory, the account it's on, its model, what it's doing, asking, answering or idle since it was last seen, or when it ended, when it started, its requests and their worth today, and how it came to its account; then a line summing them. `<id>`, a session's id or as much of it as is unique among the sessions read, as `requests --session` takes it, prints that session as its page has it: where it runs and why, each account it ran on, its turns, newest first, and its totals (see A session's page). Its JSON: see The data verbs. It reads the ledger's files, and the router's sessions where it answers |
 | `events [--since <when>] [-f] [--json \| --pretty]` | The router's events, as the Log's Events have them (see The Log): today's, unless `--since` reaches further back, as `requests` takes it, oldest first, under the day each happened on, a line each, each event once, as it last stood, with the time, the session, if any, cut short, the kind, the account, and what happened. `-f`, `--follow` then prints a line each time the router files one, a changed event again, until interrupted, as `logs --follow` follows a log. Its JSON: see The data verbs. It reads the events' files, which outlast a restart (see The router's events), so it needs no router |
@@ -3455,7 +3456,7 @@ where it fits** says, and where they don't fit, it's stacked, as **Stacked** say
   week's bold `text.secondary` and the rest `text.faint`. For `all accounts`, every account's days
   together, marked where any hit a limit.
 - **WEEKS,** row 23: the weeks' peaks, a `step` apart from `cx`, each `usage`'s bar of the week's
-  peak, `7 × dw − 5` wide, 9 cells at 160, and a cell on, the peak, `text.muted`, or at 100 bold
+  peak, `7 × dw − 5` wide, 9 cells at 160, and a cell on, the peak, `text.muted`, or at its cap bold
   `state.destructive`; for `all accounts`, each week the mean of the accounts' peaks. On row 25,
   from the panel's left, the verdict, as History's Weeks gives it (see History), bold in its colour,
   then `   limit hit 3 of the last 7 weeks · 9% left at a reset, on average` in `text.muted`, to the
@@ -3765,9 +3766,12 @@ alone, never by what's shown, so `v` and `<` `>` never move BY MONTH (settled 21
   32, the families' dots, flowed as wide.
 
 **Weeks** is how full each account's week got, and whether there are as many accounts as the use
-needs. **Short** is a week in which some account hit its week's limit, its peak at 100%. Weeks takes
-its form for many accounts, as `history-weeks-ten-160` draws it, where the verdict can name one to
-drop, one fewer being short on no more weeks than now; otherwise its form for few.
+needs. **Short** is a week in which some account hit its week's limit, its peak at its cap, where the
+router stops sending it new sessions: 100% less its reserve, the reserve the config has now, as a
+week's own isn't recorded beyond the moments an account was held at its cap, and 100% without one.
+What a week had left at its reset is left of its limit, not of its cap: the window's own reading.
+Weeks takes its form for many accounts, as `history-weeks-ten-160` draws it, where the verdict can
+name one to drop, one fewer being short on no more weeks than now; otherwise its form for few.
 
 - **The capacity verdict** leads, rows 6 to 8:
   - The headline, bold: `<n> is one more than you need`, in `state.positive`, where one fewer would
@@ -3794,7 +3798,7 @@ drop, one fewer being short on no more weeks than now; otherwise its form for fe
 - **The replay** treats each of the last 7 whole weeks alone. Without an account, its peak, times
   its plan's size, is shared among the rest by their sizes, each one's peak rising by its share;
   with one more, of the plan most of the accounts have, every peak falls in proportion, the same use
-  over more room. A replayed week is short where any account would reach 100%. `with one fewer`
+  over more room. A replayed week is short where any account would reach its cap. `with one fewer`
   drops the account whose loss makes the fewest weeks short, and of those that tie, the one used
   least over the weeks shown. Plans' sizes are in Pro weeks, `pro` 1, `max` 5 and `ultra` 10 (see
   The request ledger); an account without a `plan` counts as the plan most of the accounts have,
@@ -3833,7 +3837,7 @@ drop, one fewer being short on no more weeks than now; otherwise its form for fe
   `short on 3 of 7 weeks`, bold `text.secondary`, and with many accounts `   with ten accounts`
   after it, in `text.subtle`. From row 14, a row an account: its name and marks at column 0; each
   week's peak, right-aligned in the week's first 5 cells, in its level's colour, as `usage`
-  colours a percentage, but bold only at 100%, in `state.destructive`; and this week's so far,
+  colours a percentage, but bold only at its cap, in `state.destructive`; and this week's so far,
   `34%…`, bold `text.secondary`. In the verdict's column, the account's verdict, bold, then, with
   few accounts, `  9% left` and `  without it: short 6 of 7`, in `text.subtle`, and with many,
   `   9% left at a reset`, with no `without it`.
@@ -3851,7 +3855,7 @@ drop, one fewer being short on no more weeks than now; otherwise its form for fe
   the start of its week's cells, filled from the bottom to its peak, its top cell in eighths, each row in
   the ramp's colour at its height (`viz.ramp.1`–`viz.ramp.4`, as a bar's cells take it) mixed 75%
   from the canvas toward it, and 45% for this week; a week with no use is `▁▁▁▁▁` in `text.faint`.
-  Under each column, its peak centred in its week's 6 cells, `text.muted`, 100% bold
+  Under each column, its peak centred in its week's 6 cells, `text.muted`, at its cap bold
   `state.destructive`, and this week's, `59%…`, in `text.secondary`. Beside each block, in the
   verdict's column: for `all accounts`, the
   headline, then `as now: …`, then `with one fewer: …   with one more: …`, then the estimate's line;
@@ -3859,9 +3863,11 @@ drop, one fewer being short on no more weeks than now; otherwise its form for fe
   `text.muted`, then `without it, the rest: ` in `text.subtle` and `short on 6 of 7` in
   `text.muted`. The weeks' first days go under the last block.
 - **The legend,** row 34:
-  `each week at its peak   ·   100% it hit its limit   ·   34%… this week, so far`, each mark as
+  `each week at its peak   ·   at its cap: limit hit   ·   34%… this week, so far`, each mark as
   it's drawn and the words in `text.faint`; under the columns,
-  `short: a week some account hit its limit   ·   ` leads it.
+  `short: a week some account hit its limit   ·   ` leads it. A peak is at its cap where it hit
+  its limit as Weeks counts one, as `views` marks it; `all accounts`' where every account's known
+  that week is.
 - **Each column is one of the account's own weeks,** from one reset of its week window to the next,
   placed under the first day of the calendar week it began nearest. More accounts than fit scroll,
   `j/k` or the wheel.
@@ -7002,28 +7008,31 @@ The launcher routes a new session whenever the router answers its health check s
 proxy listens, healthy or not; otherwise it starts nothing, unless told to go direct (see
 Launching). The harder case is a router that is running but failing requests: sessions already
 routed through it fail until they restart. The router tracks the requests it has routed over the
-last 5 minutes, and those it failed itself: a 502 for an upstream it couldn't reach, or for a
-refusal with no account left to fail over to. The upstream's own 429s and 5xx, passed through, don't
-count against it, and nor does a failure of a request that arrived before the router last noticed
-the Mac wake, which may have gone out on a connection the sleep left dead (see The router looking
-after itself). It's unhealthy once it has failed 5 of them at least, and half at least: `GET
-/health` then answers `ok: false` with a `reason`, the status document's `router` object says the
-same, and the log notes the turn, and the turn back, at warn and info. Its health is judged whenever
-it's asked for, and at the router's look at the accounts every 15 seconds too, so the turn back is
-told of as the failures leave the 5 minutes, though no request comes. `status` and the dashboard
-show trouble loudly: they read an unhealthy router's document all the same, `status`'s router line
-reading `from the router: unhealthy, <reason>  ·  <sessions>  ·  <routing>`, the dashboard's status
-line `● unhealthy`, in red (see The page), and the Log's Events the reason, in the router's `health`
+last 5 minutes, and those that failed: a 502 of its own, for an upstream it couldn't reach, or for
+a refusal with no account left to fail over to; or an answer the upstream broke off after it began,
+as a connection reset or lost mid-answer does, `broken` in the request ledger. The upstream's own
+429s and 5xx, passed through whole, don't count against it, and nor does a failure of a request that
+arrived before the router last noticed the Mac wake, which may have gone out on a connection the
+sleep left dead (see The router looking after itself). It's unhealthy once 5 of them at least have
+failed, and half at least: `GET /health` then answers `ok: false` with a `reason`, the status
+document's `router` object says the same, and the log notes the turn, and the turn back, at warn and
+info. Its health is judged whenever it's asked for, and at the router's look at the accounts every
+15 seconds too, so the turn back is told of as the failures leave the 5 minutes, though no request
+comes. `status` and the dashboard show trouble loudly: they read an unhealthy router's document all
+the same, `status`'s router line reading
+`from the router: unhealthy, <reason>  ·  <sessions>  ·  <routing>`, the dashboard's status line
+`● unhealthy`, in red (see The page), and the Log's Events the reason, in the router's `health`
 event (see The Log).
 
 Sessions don't fall back to going direct automatically. A running Claude Code can't change where it
 sends its requests mid-session, and the failures that count against the router, an upstream it can't
-reach and refusals with no account left, would meet a direct connection too. So a new launch goes
-through an unhealthy router all the same, saying so on stderr: its trouble is upstream, which a
-direct connection wouldn't escape, and it turns healthy again only as its failures leave the 5
-minutes or requests that succeed outnumber them, so stopping the launch would block work for nothing
-(the owner's call, 27 October 2026). Only a router that can't be routed through, down or not saying
-where it listens, stops a launch, or has it go direct where it's told to.
+reach, refusals with no account left and answers broken off, would meet a direct connection too. So
+a new launch goes through an unhealthy router all the same, saying so on stderr: its trouble is
+upstream, which a direct connection wouldn't escape, and it turns healthy again only as its
+failures leave the 5 minutes or requests that succeed outnumber them, so stopping the launch would
+block work for nothing (the owner's call, 27 October 2026). Only a router that can't be routed
+through, down or not saying where it listens, stops a launch, or has it go direct where it's told
+to.
 
 ## Notifications
 
@@ -7197,9 +7206,11 @@ from the first day a router that has it runs, so nothing before then is in it.
     answers a body it can't read whoever is left to read it, 400 or 413, but nothing else once a
     request has ended. `canceled`: true where its client went away before its end. `cut_off`:
     true where the router cut it off as it stopped, once the 30 seconds it gives requests in
-    flight had passed; `canceled` is then false, as the client didn't go. Whichever came first is
-    the one given. `attempts`: how many times it went upstream, 0 where the router answered it
-    itself.
+    flight had passed; `canceled` is then false, as the client didn't go. `broken`: true where the
+    upstream broke its answer off after it began, as a connection reset or lost mid-answer does,
+    its client and the router still there: `status` is the one the answer began with, though it
+    was cut short. Whichever came first is the one given. `attempts`: how many times it went
+    upstream, 0 where the router answered it itself.
   - `first_ms` and `total_ms`: how long after it arrived its answer's first byte passed on to the
     client, and its end. `first_ms` is left out where the client got no answer of the upstream's,
     as where the router answered it itself.
@@ -7305,12 +7316,13 @@ from the first day a router that has it runs, so nothing before then is in it.
     `minutes_at_limit`; and 1 before it. A release that summarises a day
     otherwise, or keeps more of it, writes another, so the summaries written before it can be told:
     a day whose summary is of an older version is read, and summarised again from its lines and its
-    readings while either is kept, once, on the first round under the new version, as the round's
-    stamp holds the summary's version (see below), knowing no less than it, as any summary
-    written again does, every field of it. So a day whose readings the history has pruned is
-    summarised again from its lines, and keeps what the summary before took from the readings; one
-    whose lines are pruned, from its readings, and keeps its requests as the summary before gave
-    them; and one whose lines and readings are both gone keeps the summary it has. So too the days
+    readings while either is kept, once, from the first round under the new version on, eight
+    days a round, as the round's stamp holds the summary's version (see below), knowing no less
+    than it, as any summary written again does, every field of it. So a day whose readings the
+    history has pruned is summarised again from its lines, and keeps what the summary before took
+    from the readings; one whose lines are pruned, from its readings, and keeps its requests as the
+    summary before gave them; and one whose lines and readings are both gone keeps the summary it
+    has. So too the days
     summarised under version 2, from 8 to 11 October 2026, may keep small over-counts from a
     reading read late, in their rises, resets and limits, which version 3's rule for the climb
     would count otherwise: a summary written again knows no less, as what it held can't always be
@@ -7320,14 +7332,29 @@ from the first day a router that has it runs, so nothing before then is in it.
     it's summarised again, as a summary written again knows no less, and its worth prices it: a few
     tokens a day, a fraction of a cent, where the views over its lines leave it out. And a day
     summarised before version 6 gains its models' `hours` as it's summarised again from its lines;
-    one whose lines are gone has none, never as many of none, as its readings can't give them. The
-    first round under a new version reads each kept day's lines once, some 0.37 seconds a day of
-    16,000 lines on an M1 Max, and holds up both writers, the ledger's and the readings history's:
-    whichever's round makes it, the other's waits on it to summarise. So what's noted meanwhile
-    waits in their queues, a few seconds for the weeks of lines kept, dropping none, and under three
-    minutes for a year of them, which fills the ledger's 8,192 lines only at 55 requests a second,
-    but the history's 1,024 answers' readings at 7, so a busier router drops readings. A
-    reader that meets an older version's summary, its lines kept, summarises the day from its
+    one whose lines are gone has none, never as many of none, as its readings can't give them. A
+    new version reads each kept day's lines once, some 0.37 seconds a day of 16,000 lines on an M1
+    Max, under three minutes for a year of them, so a round summarises again eight days at most, the
+    oldest first, some three seconds of the heaviest, their readings read from the week before the
+    first on, some fifteen days of them, a tenth of a second more, and holds up the writer whose
+    round it is that long at most. The ledger's makes the next round at once, writing what's noted
+    meanwhile first, so no line waits on more than a round's eight days. The readings history's,
+    which has the ledger summarise before each prune, waits on the eight a round of the ledger's may
+    be summarising, then has it summarise again first, whole, each day due whose summary reads
+    readings that prune takes, of the day itself or of its week before: a handful, the days beside
+    where the history's files begin, or a few more for each day the router was off, whatever older
+    days the ledger keeps beyond the history. Then eight more, leaving the rest to the ledger's
+    rounds. A day's first summary is never left for a later round either, so no day that can be
+    summarised as the prune comes is summarised, the first time or again, from fewer readings than
+    it would have been. One that can't, as one of its files can't be opened, or its readings can't
+    all be read for now, is warned of, and summarised later from what's left. A day that can't be
+    summarised counts for none of the eight, so days that keep failing never keep the rest from
+    their turn, and is tried, and warned of, once a pass of rounds made back to back, as it was once
+    a round before, but again before a prune that takes its readings. The digesting waits for the
+    last of them: a round kicks it only once it leaves no day for a later one. Until a day's turn
+    comes, History and `history` read it from its lines, as below, with the same figures, at the
+    cost of the read. A reader that meets
+    an older version's summary, its lines kept, summarises the day from its
     lines, as it does today's; and one whose lines are gone it takes as it stands, whatever its
     version, as only the router writes summaries again, a reader knowing of the rest what they
     never counted, rather than taking it for none. Versions 2, 3, 4 and 6 only add fields, and
@@ -7357,13 +7384,13 @@ from the first day a router that has it runs, so nothing before then is in it.
     a limit reached by use outside the router keeps its minutes. Its `models` are its requests by
     the model each asked for, one without a `model` holding those whose bodies couldn't be read, in
     the order of their names: `upstream` counts those that spend quota that went upstream, and
-    `no_usage` those of them whose answers gave no usage, as one canceled, cut off or an error
-    gives none, so what they spent is unknown, and their worth unpriced, never taken for none (see
-    Worth); since version 6, `hours` counts those `upstream` counts by the local hour each arrived
-    in, as its `at` gives it, 24 counts from midnight's on, which sum to it, for WHEN YOU WORK (see
-    Graphs): an hour the clocks skip has none, and one they repeat counts both; they're left out
-    where they were never counted, as in a summary of an older version, never given as none;
-    `unsent` counts those the router answered itself, never sending them; `checks` counts
+    `no_usage` those of them whose answers gave no usage, as one canceled, cut off, broken off or
+    an error gives none, so what they spent is unknown, and their worth unpriced, never taken for
+    none (see Worth); since version 6, `hours` counts those `upstream` counts by the local hour each
+    arrived in, as its `at` gives it, 24 counts from midnight's on, which sum to it, for WHEN YOU
+    WORK (see Graphs): an hour the clocks skip has none, and one they repeat counts both; they're
+    left out where they were never counted, as in a summary of an older version, never given as
+    none; `unsent` counts those the router answered itself, never sending them; `checks` counts
     Claude Code's quota checks, and `counts` the counts of tokens, however each went; `sessions`
     counts the sessions they were of, but for the checks', as Claude Code sends one as it resumes a
     session under an id it never uses again, and since version 4 `session_ids` names them, in
@@ -7459,7 +7486,7 @@ from the first day a router that has it runs, so nothing before then is in it.
   pruned, to when the day began. The stamp holds the summary's version too, a second later than
   that time for each version past the first, which a file system that keeps whole seconds keeps: a
   day whose summary is of an older version is read, and summarised again from its lines and its
-  readings while either is kept, once, on the first round under the new version. A summary of
+  readings while either is kept, once, from the first round under the new version on. A summary of
   version 2 of a day with neither file was never stamped, so the first round of version 3 reads it.
   A day with no plain file, whose compressed file still gives that time, or with neither file,
   costs a look at its files and its summary's, reading none of them: compressing a day writes its
@@ -7720,7 +7747,7 @@ from the first day a router that has it runs, so nothing before then is in it.
   seam, the side its JSON and each chunk of rows its JSON lines, which the ledger carries as
   they're given and never reads.
   - **Its head says what it was built from,** as a digest's does: the version of its envelope, the
-    ledger's, 3, and of its side and rows, the views' (`views.RowsVersion`, 2); its day, and the
+    ledger's, 3, and of its side and rows, the views' (`views.RowsVersion`, 3); its day, and the
     day's start and end in the time zone it was built in, as nanoseconds; the `lines` of the summary
     it was built against; how many lines the day's read gave; `rests_on`, each day beside it whose
     files gave it a line, as a change of time zone files one, with the lines the ledger kept of
@@ -7859,8 +7886,8 @@ from the first day a router that has it runs, so nothing before then is in it.
     tokens, the thinking within the output, and the turns of the model asked for, which the usage's
     own counts sum, cost nothing more.
   - A request that went upstream and spends quota, but whose answer gave no usage, as one
-    canceled, cut off or an error gives none, spent what can't be known: the worth names it
-    unpriced, as `no_usage`, a request's own or a summary's model's day's, never priced as free.
+    canceled, cut off, broken off or an error gives none, spent what can't be known: the worth names
+    it unpriced, as `no_usage`, a request's own or a summary's model's day's, never priced as free.
   - Claude Code's quota check is worth nothing, whatever it spent, in every view and every
     summary, as it isn't work done for the session, as the Log's hiding it says: its usage is
     priced by none, and a summary leaves it out (see `version`; the owner's call, 15 October
@@ -8695,11 +8722,15 @@ the formula's caveats name it, to run first.
 - **What goes, in this order:** the service, as `service uninstall` takes it away (the router
   stopped once its requests in flight are done, the LaunchAgent, the router's copy and the
   notifications' app), first, so no router brings the skill back up to date as it goes; the line
-  setup added to the shell's startup file, found by its mark as setup finds it, and switchboard's
-  own files for each shell that line hands off to, completion's with them; switchboard's own entry
-  in Claude Code's SessionStart hooks, every other setting and hook left as it is; the skill, in
-  Claude Code's config directory; and the `claude` link in switchboard's bin directory, the
-  directory too once empty.
+  setup added to the shell's startup file, found by its mark as setup finds it, in each file it
+  may be in, a zsh or fish login shell asked where it reads its own as setup asks it, never told
+  by uninstall's own environment, and where it can't be asked, or there's no `$SHELL`, uninstall
+  says it couldn't look there rather than that the line's not there, and an interrupt as it asks
+  stops it there, saying running it again finishes; and switchboard's own files for each shell
+  that line hands off to, completion's with them; switchboard's own entry in Claude Code's
+  SessionStart hooks, every other setting and hook left as it is; the skill, in Claude Code's
+  config directory; and the `claude` link in switchboard's bin directory, the directory too once
+  empty.
 - **What stays, unless `--all`:** the config, the accounts' token files and everything recorded in
   the state directory: the ledger, the readings, the events, the logs and the router's state. A
   reinstall then carries on where it left off, and the history, which nothing can bring back, goes
@@ -9207,7 +9238,7 @@ HTTP over `control.sock` (mode 0600, so file permissions are the authentication)
 | `POST /sessions/{id}/pin`, `DELETE /sessions/{id}/pin` | Set (`{"account": "work", "by": "dashboard"}`) or clear (`?by=dashboard`) one session's own pin, answering as `/sessions/{id}` does. `by`, `cli` or `dashboard`, says who did, for the `pin` or `auto` event it's told as (see The router's events); without it, the event names no one, and a router from before passes it over. 404 for a session never seen; pinning to an account nothing can go out on is a 400 |
 | `POST /pin`, `DELETE /pin` | Set (`{"accounts": ["work", "side"], "move": false, "force": false, "by": "cli"}`) or clear (`?by=cli`, with `&force=true` to clear every session's own pin too) the global pin, answering with the status document. `account`, naming one account, is taken as well, as a switchboard from before pins named several sends it, and sent beside `accounts` with a pin of one account, as such a router reads a pin, one still running between an upgrade and its restart. `by`, `cli` or `dashboard`, says who did, for the `pin` or `auto` event it's told as (see The router's events); without it, the event names no one, and a router from before passes it over. Pinning no account, or any account nothing can go out on, is a 400, saying why (see Pinning), and pins nothing |
 | `GET /history?window=<key>&step=<duration>` | Every account's use of a window over its current length, from the readings history and the readings since: `{"window": "7d", "step": "30m", "accounts": [{"id": "work", "start": …, "points": [{at, utilization}]}]}`, `start` when the account's window started, its reset less its length, or its `restarted_at`, and a point each step from it to now, at most 1,000, each the last reading at or before it, left out where none was; an account whose window isn't running, or wasn't read, has no points, and one whose window has reset since it was read has no `start` either. A window whose length can't be read, or a step that isn't a duration, isn't more than 0, or would take more than 1,000 steps over the window's whole length, is a 400, saying what to give, the least step included. The dashboard's charts ask for `5h` at 5-minute steps and the weeks at 30-minute steps, with each full read |
-| `GET /stream` | The requests as they happen, for the dashboard's views of what's in flight: the Overview's ROUTING and SESSIONS, Accounts' Detail, Sessions, the Log and a session's page. Held open, `application/x-ndjson`, a line of JSON an event, every one `{at, kind, request, attempt, session, dir, model, account, prompt, class, agent_id}` and what its kind adds, `request` the router's id for the request, counting up from a random start, and unique while it runs, `attempt` which time it went upstream, `session` and `model` cut to 200 bytes, `dir` the directory the request's session was started in, as its line in the ledger will give it, the home as `~` and cut as a line's is (see The request ledger), left out where the request names none, `account` the account it goes out on, or, of `first` and `done`, the one whose answer the client got, and `prompt`, `class` and `agent_id` as its line in the ledger will give them, each left out where the request carries none, so a session's page counts a request into its turn as it's sent (see A session's page). It opens with an `inflight` for each request already in flight, adding `sent_at`, `first_at` and `chars`, and `verdict`, the last of `limited`, `throttled` or `refused` told of it on the account it went out on last, with that answer's `status`; then `sent` as one goes upstream; `first` at its answer's first byte; `progress`, with `chars`, the characters of its text, thinking and tool input so far, a quarter second after its answer streams more, then every quarter second while it does, as the API counts tokens only as an answer ends; `done` as it ends, told before the router has finished with the request, with `status`, its final `chars`, and `tokens`, the closing usage's counts, `{input, output, cache_read, cache_write}`, left out without one; `limited`, a 429 at a limit, `throttled`, a 429 sent again on the account, and `refused`, a 401 or 403, each with `status`; and `moved`, with `from`, `to` and `reason`, its `account` the `to`, which a request every account refused tells as it takes its session back, `back where it was before its request`. `limited` and `refused` are told once the router has judged the answer a limit or a refusal of the account: a 429 from before a reset made by hand, which goes out again on the same account, or a 401 to a token replaced since, which goes out again on it once, then on another, are neither. A request the router knows for Claude Code's quota check carries `check: true`. A token count carries `count: true`. Requests that never go upstream, and those passed through, aren't on it. Reading the counts reads a copy of the answer's stream as it passes, decoded where it's gzip or deflate, as the request asked for one of those alone (see Proxy rules), never changing or holding the bytes passed on; an answer in another encoding goes uncounted, its bytes untouched. A reader that falls 256 events behind is dropped, and reconnects, and one that takes more than 10 seconds over a write is cut off. A stream ends as the control API closes; a restart in place ends it first, after its drain, once each reader has written what it was told of, waiting half a second at most, so its readers see the requests the router finished, and the dashboard reconnects to the router it becomes, while one that can't replace itself, and exits for launchd to start it again, ends it as the control API closes, as stopping does, its readers writing what they were told of within the second the control API gives the requests it accepted (see The router looking after itself) |
+| `GET /stream` | The requests as they happen, for the dashboard's views of what's in flight: the Overview's ROUTING and SESSIONS, Accounts' Detail, Sessions, the Log and a session's page. Held open, `application/x-ndjson`, a line of JSON an event, every one `{at, kind, request, attempt, session, dir, model, account, prompt, class, agent_id}` and what its kind adds, `request` the router's id for the request, counting up from a random start, and unique while it runs, `attempt` which time it went upstream, `session` and `model` cut to 200 bytes, `dir` the directory the request's session was started in, as its line in the ledger will give it, the home as `~` and cut as a line's is (see The request ledger), left out where the request names none, `account` the account it goes out on, or, of `first` and `done`, the one whose answer the client got, and `prompt`, `class` and `agent_id` as its line in the ledger will give them, each left out where the request carries none, so a session's page counts a request into its turn as it's sent (see A session's page). It opens with an `inflight` for each request already in flight, adding `sent_at`, `first_at` and `chars`, and `verdict`, the last of `limited`, `throttled` or `refused` told of it on the account it went out on last, with that answer's `status`; then `sent` as one goes upstream; `first` at its answer's first byte; `progress`, with `chars`, the characters of its text, thinking and tool input so far, a quarter second after its answer streams more, then every quarter second while it does, as the API counts tokens only as an answer ends; `done` as it ends, told before the router has finished with the request, with `status`, its final `chars`, `tokens`, the closing usage's counts, `{input, output, cache_read, cache_write}`, left out without one, and `broken: true` where the upstream broke its answer off after it began, as its line in the ledger will give it; `limited`, a 429 at a limit, `throttled`, a 429 sent again on the account, and `refused`, a 401 or 403, each with `status`; and `moved`, with `from`, `to` and `reason`, its `account` the `to`, which a request every account refused tells as it takes its session back, `back where it was before its request`. `limited` and `refused` are told once the router has judged the answer a limit or a refusal of the account: a 429 from before a reset made by hand, which goes out again on the same account, or a 401 to a token replaced since, which goes out again on it once, then on another, are neither. A request the router knows for Claude Code's quota check carries `check: true`. A token count carries `count: true`. Requests that never go upstream, and those passed through, aren't on it. Reading the counts reads a copy of the answer's stream as it passes, decoded where it's gzip or deflate, as the request asked for one of those alone (see Proxy rules), never changing or holding the bytes passed on; an answer in another encoding goes uncounted, its bytes untouched. A reader that falls 256 events behind is dropped, and reconnects, and one that takes more than 10 seconds over a write is cut off. A stream ends as the control API closes; a restart in place ends it first, after its drain, once each reader has written what it was told of, waiting half a second at most, so its readers see the requests the router finished, and the dashboard reconnects to the router it becomes, while one that can't replace itself, and exits for launchd to start it again, ends it as the control API closes, as stopping does, its readers writing what they were told of within the second the control API gives the requests it accepted (see The router looking after itself) |
 | `GET /import` | `{"running": true}` while an import runs, else `false`, which `import` asks before it stages (see Export and import) |
 | `POST /import` | Take in the history `import` copied into `<state dir>/import/`, between the router's rounds, then run a round, answering with what it took in, `{"folders", "days": {"added", "merged", "past_keep"}, "lines", "summaries"}`, and removing `import/`; a 409 while another import runs (see Export and import) |
 | `POST /refresh` | Probe the accounts nothing has been read of for longer than `{"max_age": "30m"}`, and those that can take no request anyway, however lately they were read, but for those whose 5-hour window has lapsed and that can take a request (see Priming), sharing the probes choices and the router's rounds make and waiting a minute after one ended, as they do; wait 10 seconds at most for them, and answer with the status document. The dashboard asks on `R`, and a minute after a window on screen resets |

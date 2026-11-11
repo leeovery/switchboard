@@ -72,13 +72,17 @@ func (l *requestLedger) tendNow(ctx context.Context) error {
 	return l.opened.Load().TendNow(ctx)
 }
 
-// summariseEnded has the ledger, once it's opened, summarise the days that
-// have ended at now, as ledger.Ledger.SummariseEnded says: the readings
-// history's writer has it do so just before each prune of its files, so no
-// reading a summary needs goes before its day is summarised.
-func (l *requestLedger) summariseEnded(now time.Time) {
+// summariseBeforePrune has the ledger, once it's opened, summarise the days
+// that have ended at now, as ledger.Ledger's SummariseBeforePrune says,
+// before a prune of the readings history that keeps a day's readings keep:
+// the history's writer has it do so just before each prune of its files,
+// handing it the keep the prune goes by, so no reading a summary needs goes
+// before its day is summarised, and waits on a part of the days to summarise
+// again alone, never on every kept day, as under a new version, which the
+// ledger's own rounds go on with.
+func (l *requestLedger) summariseBeforePrune(now time.Time, keep time.Duration) {
 	if opened := l.opened.Load(); opened != nil {
-		opened.SummariseEnded(now)
+		opened.SummariseBeforePrune(now, keep)
 	}
 }
 
@@ -102,6 +106,7 @@ func (p *proxy) line(ex *exchange, h http.Header, f finish) *ledger.Line {
 		Status:   ex.status,
 		Canceled: f.canceled,
 		CutOff:   f.cutOff,
+		Broken:   f.broken,
 		Attempts: ex.attempts,
 		TotalMS:  f.took.Milliseconds(),
 		Agent:    h.Get("User-Agent"),

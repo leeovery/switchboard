@@ -45,7 +45,7 @@ func (f detailFramed) row() views.AccountsRow {
 		row.Days = append(row.Days, views.StripDay{Level: max(int(level-'0'), 0), Limit: limits[i] == 'x'})
 	}
 	for i, p := range f.peaks {
-		row.Peaks = append(row.Peaks, views.WeekPeak{Share: new(float64(p) / 100), Open: i == len(f.peaks)-1})
+		row.Peaks = append(row.Peaks, views.WeekPeak{Share: new(float64(p) / 100), Open: i == len(f.peaks)-1, AtCap: p >= 100})
 	}
 	return row
 }

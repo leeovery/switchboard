@@ -10,23 +10,26 @@ import (
 )
 
 // WEEKS says a week's peak as a whole percentage without its sign, in
-// text.muted, at 100 bold state.destructive, and a dash where it isn't
-// known, its bar then empty.
+// text.muted, at its cap bold state.destructive, as views marks it, never by
+// its figure alone, and a dash where it isn't known, its bar then empty.
 func TestWEEKSSaysEachWeeksPeak(t *testing.T) {
 	tests := []struct {
 		name  string
 		share *float64
+		atCap bool
 		want  line
 		empty bool
 	}{
 		{name: "under its limit", share: new(0.344), want: line{{"34", mutedInk}}},
-		{name: "rounding to its limit", share: new(0.996), want: line{{"100", exhaustedInk}}},
-		{name: "at its limit", share: new(1.0), want: line{{"100", exhaustedInk}}},
+		{name: "rounding to its limit, short of it", share: new(0.996), want: line{{"100", mutedInk}}},
+		{name: "at its limit", share: new(1.0), atCap: true, want: line{{"100", exhaustedInk}}},
+		{name: "a reserved account's 96%, at its cap", share: new(0.96), atCap: true, want: line{{"96", exhaustedInk}}},
+		{name: "a reserved account's 94%, short of its cap", share: new(0.94), want: line{{"94", mutedInk}}},
 		{name: "not known", want: line{noFigure}, empty: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := views.WeekPeak{Share: tt.share}
+			p := views.WeekPeak{Share: tt.share, AtCap: tt.atCap}
 			if got := peakSaid(p); !slices.Equal(got, tt.want) {
 				t.Errorf("peakSaid = %v, want %v", got, tt.want)
 			}

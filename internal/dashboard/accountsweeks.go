@@ -72,14 +72,14 @@ func peakBar(p views.WeekPeak) usageBar {
 }
 
 // peakSaid says a week's peak as WEEKS does, a whole percentage without its
-// sign, this week's so far too: in text.muted, or at 100 bold
+// sign, this week's so far too: in text.muted, or at its cap bold
 // state.destructive; a dash where it isn't known.
 func peakSaid(p views.WeekPeak) line {
 	if p.Share == nil {
 		return line{noFigure}
 	}
 	peak := prose.WholePercent(*p.Share)
-	if peak >= 100 {
+	if p.AtCap {
 		return line{{strconv.Itoa(peak), exhaustedInk}}
 	}
 	return line{{strconv.Itoa(peak), mutedInk}}

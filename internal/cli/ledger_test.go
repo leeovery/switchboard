@@ -291,6 +291,28 @@ func TestRequestsPrintsTheLedgersLinesOldestFirst(t *testing.T) {
 	}
 }
 
+func TestRequestsSaysHowARequestEndedEarlyAfterItsStatus(t *testing.T) {
+	ended := func(request string, minute int, how func(*ledger.Line)) ledger.Line {
+		l := ledger.Line{At: october(7, 13, minute, 0), Request: request, Kind: ledger.KindMessage, Session: sessionA, Model: "claude-opus-5-5",
+			Account: "work", Reason: "sticky", Status: 200, Attempts: 1, TotalMS: 2000}
+		how(&l)
+		return l
+	}
+	deps := sessionsDepsOf(t, map[string][]ledger.Line{"2026-10-07": {
+		ended("e1", 0, func(l *ledger.Line) { l.Canceled = true }),
+		ended("e2", 1, func(l *ledger.Line) { l.CutOff = true }),
+		ended("e3", 2, func(l *ledger.Line) { l.Broken = true }),
+	}})
+	const want = `Wed 7 Oct 2026, so far
+  13:00:00  5b0e7c1a  claude-opus-5-5  work  200 canceled      2.0s
+  13:01:00  5b0e7c1a  claude-opus-5-5  work  200 cut off       2.0s
+  13:02:00  5b0e7c1a  claude-opus-5-5  work  200 broken off    2.0s
+`
+	if got := run(t, deps, "requests", "--pretty"); got.stdout != want || got.code != 0 {
+		t.Errorf("switchboard requests --pretty printed\n%s(%d, %s)\nwant\n%s", got.stdout, got.code, got.stderr, want)
+	}
+}
+
 func TestRequestsHeadsEachRequestByTheDayItFallsOnInNowsZone(t *testing.T) {
 	deps, _ := ledgerDeps(t)
 	deps.Now = func() time.Time { return ledgerNow.In(behindLocal()) }

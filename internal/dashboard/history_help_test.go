@@ -90,7 +90,7 @@ func TestHistoryHelpKeysEachMarkAsThePageDrawsIt(t *testing.T) {
 	}{
 		{"BY MONTH", bar},
 		{"BY MONTH", line{{"—", faintInk}}},
-		{"WEEKS", line{{"100%", ink{token: theme.StateDestructive, bold: true}}}},
+		{"WEEKS", line{{atItsCap, ink{token: theme.StateDestructive, bold: true}}}},
 		{"WEEKS", line{{"34%…", ink{token: theme.TextSecondary, bold: true}}}},
 		{"WEEKS", line{{"▁▁▁▁▁", faintInk}}},
 		{"WEEKS", line{{"—", faintInk}}},

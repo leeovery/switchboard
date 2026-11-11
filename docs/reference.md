@@ -154,6 +154,7 @@ line keeps everything about a request except its content. It never holds any of 
 | `status` | The answer's status. `0` where the request ended before an answer came. |
 | `canceled` | Set where the client went away before the end. |
 | `cut_off` | Set where the router cut the request off as it stopped. |
+| `broken` | Set where the upstream broke the answer off after it began. |
 | `attempts` | How many times the request went upstream. `0` where the router answered it itself. |
 | `first_ms` | How long after the request arrived its answer's first byte passed on to the client, in milliseconds. |
 | `total_ms` | How long after the request arrived its answer ended, in milliseconds. |
@@ -266,6 +267,13 @@ one before it. That holds even when the history has since let the day's readings
 file has lost some of its lines, which can't be told apart from the lines filed since. So the
 summary's counts are then the least there were. A model's `hours` come whole from whichever summary
 counted more of its requests upstream, so they still add up to `upstream`.
+
+A release that summarises days in a different way summarises every kept day again, once, eight
+days at a time, the oldest first, so no request's line or reading waits on them all. A day whose
+readings the history is about to let go goes first, so it's still summarised with them, unless it
+can't be summarised then, as when one of its files can't be opened. Until a day's turn comes,
+`history` and the dashboard work it out from its lines as they read it, as they do today's, with
+the same figures.
 
 ### Kept for good
 
@@ -547,8 +555,8 @@ against it, are those of the accounts whose plans are known alone.
   many weeks are short without `drop` and without the account whose loss then makes the fewest
   weeks short.
 - Each account's `verdict`, over the account's own whole `weeks`, with:
-  - `limits`: the weeks the account hit its limit in.
-  - `left_at_reset`: what it had left at a reset, on average.
+  - `limits`: the weeks the account hit its limit in, its peak at its cap.
+  - `left_at_reset`: what it had left at a reset, on average: left of its limit, not of its cap.
   - `without_it`: how many weeks the rest would have been short in without it.
 - Then `all`, for every account together, with the verdict `room to spare together` or
   `little to spare together`.

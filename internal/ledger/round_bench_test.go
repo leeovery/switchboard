@@ -54,7 +54,8 @@ func BenchmarkARoundOverAYearOfHeavyDays(b *testing.B) {
 }
 
 // BenchmarkSummarisingAYearOfHeavyDaysAgain times what a release that moves
-// the summaries' version on costs, once: the router's first round under it,
+// the summaries' version on costs, once: the router's first rounds under it,
+// a part of the days each, as SummariseEnded makes them one after another,
 // over 400 days that have ended, the ledger's keep and the readings
 // history's, each a heavy day, as heavyDay gives it, with a day of the
 // history's readings beside it, as heavyReadings gives them, its summary of

@@ -123,6 +123,7 @@ var odds = []struct {
 	{"counted toward no one", func(_ *ledger.Line, r *lineRecord) bool { return r.session != "" && r.countedSession == "" }},
 	{"a client gone", func(_ *ledger.Line, r *lineRecord) bool { return r.canceled }},
 	{"cut off by its router", func(_ *ledger.Line, r *lineRecord) bool { return r.cutOff }},
+	{"broken off by its upstream", func(_ *ledger.Line, r *lineRecord) bool { return r.broken }},
 	{"its answer's own model", func(_ *ledger.Line, r *lineRecord) bool { return r.served != "" }},
 }
 
@@ -280,6 +281,7 @@ var fieldsStored = []fieldStored{
 	{field: "status", set: func(r *lineRecord) { r.status = 529 }, want: `{"sc":529}`},
 	{field: "canceled", set: func(r *lineRecord) { r.canceled = true }, want: `{"cn":true}`},
 	{field: "cutOff", set: func(r *lineRecord) { r.cutOff = true }, want: `{"co":true}`},
+	{field: "broken", set: func(r *lineRecord) { r.broken = true }, want: `{"bo":true}`},
 	{field: "attempts", set: func(r *lineRecord) { r.attempts = 2 }, want: `{"at":2}`},
 	{field: "firstMS", set: func(r *lineRecord) { r.firstMS = new(int64(0)) }, want: `{"fm":0}`},
 	{field: "totalMS", set: func(r *lineRecord) { r.totalMS = 11_800 }, want: `{"tm":11800}`},

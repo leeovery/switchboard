@@ -61,12 +61,13 @@ func mondaysDeps(t *testing.T, mondays []mondayPeaks) cli.Deps {
 func TestHistoryPrintsEachWeeksPeaksAndWeeksVerdicts(t *testing.T) {
 	deps := weeksDeps(t)
 
-	// Of three whole weeks, work hit its limit in one; without either
-	// account, the other's peak rising by all of its, as both count as one,
-	// on no plan, that week alone is short, so side, used less, is the one to
-	// drop; two fewer would leave none, so one more keeps its place. This
-	// week's so far is work's highest since Monday's reset, today's; side's
-	// isn't known.
+	// Of three whole weeks, work hit its limit, its cap at 90%, in one. Both
+	// count as one, on no plan: without side, work's peaks rise by all of
+	// side's, to 120%, 90% and 60%, so two weeks are short at its cap; without
+	// work, side's rise to the same, short at its limit in one alone, so work
+	// is the one to drop. Two fewer would leave none, so one more keeps its
+	// place. This week's so far is work's highest since Monday's reset,
+	// today's; side's isn't known.
 	want := `
 Weeks at their peaks  14 Sep  21 Sep  28 Sep  5 Oct
   work                100%    60%     50%     41%…
@@ -76,9 +77,9 @@ Weeks at their peaks  14 Sep  21 Sep  28 Sep  5 Oct
 Weeks: two is one more than you need
   as now: short on 1 of 3 weeks  ·  with one fewer: short on 1  ·  with one more: short on none
   work: ends most weeks with room  ·  limit hit 1 of 3 weeks  ·  30% left at a reset, on average  ·  without it, the rest: short on 1
-  side: barely used  ·  limit hit 0 of 3 weeks  ·  80% left at a reset, on average  ·  without it, the rest: short on 1
+  side: barely used  ·  limit hit 0 of 3 weeks  ·  80% left at a reset, on average  ·  without it, the rest: short on 2
   all accounts: room to spare together  ·  55% left at a reset, on average
-  side is the one to drop
+  work is the one to drop
   an estimate, from replaying these weeks with one account fewer or more
 ` + historyPricedAt
 	got := run(t, deps, "history", "--pretty", "--since", "2026-09-14")
@@ -154,10 +155,10 @@ func TestHistoryJSONGivesEachWeeksPeaksAndTheCapacity(t *testing.T) {
 			`{"week":"2026-09-21","accounts":[{"account":"work","peaks":{"7d":0.6}},{"account":"side","peaks":{"7d":0.3}},{"all":true,"peaks":{"7d":0.45}}]},` +
 			`{"week":"2026-09-28","accounts":[{"account":"work","peaks":{"7d":0.5}},{"account":"side","peaks":{"7d":0.1}},{"all":true,"peaks":{"7d":0.3}}]},` +
 			`{"week":"2026-10-05","accounts":[{"account":"work","peaks":{"7d":0.41},"open":["7d"],"limits":{"5h":1}},{"account":"side","open":["7d"]},{"all":true,"peaks":{"7d":0.41},"open":["7d"]}]}]`)},
-		{block: "capacity", got: doc.Capacity, want: json.RawMessage(`{"weeks":3,"short":1,"with_one_fewer":1,"with_one_more":0,"drop":"side",` +
+		{block: "capacity", got: doc.Capacity, want: json.RawMessage(`{"weeks":3,"short":1,"with_one_fewer":1,"with_one_more":0,"drop":"work",` +
 			`"verdict":"one more than you need","accounts":[` +
 			`{"account":"work","verdict":"ends most weeks with room","weeks":3,"limits":1,"left_at_reset":0.3,"without_it":1},` +
-			`{"account":"side","verdict":"barely used","weeks":3,"limits":0,"left_at_reset":0.8,"without_it":1},` +
+			`{"account":"side","verdict":"barely used","weeks":3,"limits":0,"left_at_reset":0.8,"without_it":2},` +
 			`{"all":true,"verdict":"room to spare together","weeks":3,"limits":1,"left_at_reset":0.55}]}`)},
 	}
 	for _, tt := range tests {

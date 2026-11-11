@@ -178,10 +178,12 @@ func TestTheCapacityIsTheOneWeeksDraws(t *testing.T) {
 			t.Errorf("%s's verdict is %q, %d limits, %v left, want %q, %d, %d%%", a.Account, a.Verdict, a.Limits, a.LeftAtReset, w.verdict, w.limits, w.left)
 		}
 	}
-	// The ten's replay: 3 each, where the Paper frame drew 4, 4 and 6.
+	// The ten's replay: 3 as now and with one fewer, and 4 with two fewer,
+	// where the Paper frame drew 4, 4 and 6. Without spare and extra, work's
+	// 94% week rises past its cap, 95%, though not to its limit.
 	ten := historyFrom(tenWorld(), eightWeeks).Capacity
-	if ten.Weeks != 7 || ten.Short != 3 || ten.WithOneFewer == nil || *ten.WithOneFewer != 3 || ten.WithTwoFewer == nil || *ten.WithTwoFewer != 3 {
-		t.Errorf("the ten's capacity is %+v, want short on 3 of 7 weeks as now, with one fewer and with two fewer", ten)
+	if ten.Weeks != 7 || ten.Short != 3 || ten.WithOneFewer == nil || *ten.WithOneFewer != 3 || ten.WithTwoFewer == nil || *ten.WithTwoFewer != 4 {
+		t.Errorf("the ten's capacity is %+v, want short on 3 of 7 weeks as now and with one fewer, and 4 with two fewer", ten)
 	}
 	if ten.Verdict != views.OneMoreThanYouNeed || ten.Drop != "spare" {
 		t.Errorf("of the ten, the verdict is %q, dropping %q, want %q, dropping spare", ten.Verdict, ten.Drop, views.OneMoreThanYouNeed)

@@ -3,6 +3,7 @@ package router
 import (
 	"compress/gzip"
 	"compress/zlib"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -43,9 +44,11 @@ type tap struct {
 	told  chan struct{}
 
 	// firstAt is when the answer's first byte passed on to the client, zero
-	// while none has. Only the handler's goroutine, which reads the body,
-	// touches it.
+	// while none has, and broke is set once reading the body failed short of
+	// its end. Only the handler's goroutine, which reads the body, touches
+	// them.
 	firstAt time.Time
+	broke   bool
 	// reply is what the counting read of the answer for the request ledger,
 	// and tokens the tokens its closing usage gave, as the stream's done
 	// tells of them: nil when none came, or the counting gave the answer up.
@@ -85,6 +88,9 @@ func (t *tap) Read(p []byte) (int, error) {
 			t.firstAt = time.Now()
 		}
 		t.pass(p[:n])
+	}
+	if err != nil && !errors.Is(err, io.EOF) {
+		t.broke = true
 	}
 	return n, err
 }

@@ -256,25 +256,34 @@ func TestRemovingTheLineNamesALinkedFileItCantRead(t *testing.T) {
 func TestTheStartupFilesTheLineMayBeIn(t *testing.T) {
 	const home = "/home/tester"
 	tests := []struct {
-		name string
-		sh   shell.Shell
-		env  map[string]string
-		want []string
+		name      string
+		sh        shell.Shell
+		configDir string
+		want      []string
 	}{
 		{name: "zsh", sh: shell.Zsh, want: []string{home + "/.zshrc"}},
-		{name: "zsh, with a ZDOTDIR", sh: shell.Zsh, env: map[string]string{"ZDOTDIR": "/home/tester/.config/zsh"}, want: []string{home + "/.config/zsh/.zshrc", home + "/.zshrc"}},
-		{name: "zsh, with a ZDOTDIR of the home", sh: shell.Zsh, env: map[string]string{"ZDOTDIR": home}, want: []string{home + "/.zshrc"}},
-		{name: "zsh, with a relative ZDOTDIR, passed over", sh: shell.Zsh, env: map[string]string{"ZDOTDIR": "zsh"}, want: []string{home + "/.zshrc"}},
+		{name: "zsh, saying a ZDOTDIR", sh: shell.Zsh, configDir: "/home/tester/.config/zsh", want: []string{home + "/.config/zsh/.zshrc", home + "/.zshrc"}},
+		{name: "zsh, saying the home", sh: shell.Zsh, configDir: home, want: []string{home + "/.zshrc"}},
+		{name: "zsh, saying a relative directory, passed over", sh: shell.Zsh, configDir: "zsh", want: []string{home + "/.zshrc"}},
 		{name: "bash: every file a login bash may read first", sh: shell.Bash, want: []string{home + "/.bash_profile", home + "/.bash_login", home + "/.profile"}},
+		{name: "bash, whatever's said", sh: shell.Bash, configDir: "/data/bash", want: []string{home + "/.bash_profile", home + "/.bash_login", home + "/.profile"}},
 		{name: "fish", sh: shell.Fish, want: []string{home + "/.config/fish/config.fish"}},
-		{name: "fish, with an XDG_CONFIG_HOME", sh: shell.Fish, env: map[string]string{"XDG_CONFIG_HOME": "/data/config"}, want: []string{"/data/config/fish/config.fish", home + "/.config/fish/config.fish"}},
+		{name: "fish, saying its configuration directory", sh: shell.Fish, configDir: "/data/config/fish", want: []string{"/data/config/fish/config.fish", home + "/.config/fish/config.fish"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := shell.StartupFiles(tt.sh, home, func(key string) string { return tt.env[key] }); !slices.Equal(got, tt.want) {
+			if got := shell.StartupFiles(tt.sh, home, tt.configDir); !slices.Equal(got, tt.want) {
 				t.Errorf("StartupFiles() = %q, want %q", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestWhetherTheShellSaysWhereItReadsItsStartupFile(t *testing.T) {
+	for sh, want := range map[shell.Shell]bool{shell.Zsh: true, shell.Fish: true, shell.Bash: false, "": false, "tcsh": false} {
+		if got := shell.SaysWhere(sh); got != want {
+			t.Errorf("SaysWhere(%q) = %v, want %v", sh, got, want)
+		}
 	}
 }
 
@@ -282,7 +291,6 @@ func TestRemovingTheLines(t *testing.T) {
 	home := t.TempDir()
 	dir := filepath.Join(home, ".local", "share", "switchboard", "shell")
 	zdotdir := filepath.Join(home, ".config", "zsh")
-	getenv := func(key string) string { return map[string]string{"ZDOTDIR": zdotdir}[key] }
 	const theirs = "export EDITOR=vi\n"
 	files := map[string]shell.Shell{
 		filepath.Join(zdotdir, ".zshrc"):                      shell.Zsh,
@@ -296,7 +304,7 @@ func TestRemovingTheLines(t *testing.T) {
 	indented := "if true; then\n  " + shell.Line(shell.Bash, shell.InitFile(dir, shell.Bash), home) + "\nfi\n"
 	write(t, filepath.Join(home, ".bash_profile"), indented)
 
-	lines, err := shell.RemoveLines(home, dir, getenv)
+	lines, err := shell.RemoveLines(home, dir, shell.Zsh, zdotdir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -312,9 +320,26 @@ func TestRemovingTheLines(t *testing.T) {
 	}
 	checkFile(t, filepath.Join(home, ".bash_profile"), indented)
 
-	if lines, err := shell.RemoveLines(home, dir, getenv); err != nil || lines.Removed != nil {
+	if lines, err := shell.RemoveLines(home, dir, shell.Zsh, zdotdir); err != nil || lines.Removed != nil {
 		t.Errorf("RemoveLines(), again = %q, %v; want none taken out", lines, err)
 	}
+}
+
+func TestRemovingTheLinesLooksWhereTheLoginShellSaysForItAlone(t *testing.T) {
+	home := t.TempDir()
+	dir := filepath.Join(home, ".local", "share", "switchboard", "shell")
+	said := filepath.Join(home, "elsewhere")
+	// fish's config.fish where zsh says it reads its startup file: not
+	// fish's, so not looked at.
+	fish := filepath.Join(said, "config.fish")
+	line := shell.Line(shell.Fish, shell.InitFile(dir, shell.Fish), home) + "\n"
+	write(t, fish, line)
+
+	lines, err := shell.RemoveLines(home, dir, shell.Zsh, said)
+	if err != nil || lines.Removed != nil {
+		t.Errorf("RemoveLines() = %q, %v; want none taken out", lines, err)
+	}
+	checkFile(t, fish, line)
 }
 
 func TestRemovingTheLinesGoesOnPastAFileItCant(t *testing.T) {
@@ -326,7 +351,7 @@ func TestRemovingTheLinesGoesOnPastAFileItCant(t *testing.T) {
 	}
 	write(t, filepath.Join(home, ".bash_profile"), shell.Line(shell.Bash, shell.InitFile(dir, shell.Bash), home)+"\n")
 
-	lines, err := shell.RemoveLines(home, dir, func(string) string { return "" })
+	lines, err := shell.RemoveLines(home, dir, "", "")
 	if err == nil || !strings.Contains(err.Error(), filepath.Join(home, ".zshrc")) {
 		t.Errorf("RemoveLines() error = %v, want it to name the .zshrc it can't read", err)
 	}

@@ -152,7 +152,7 @@ func (f Frame) detailHelp() helpPart {
 		glyphs: append(shadesHelp("a day", "days", f.byDaySwatch),
 			glyph{drawn: f.daySwatch(dayInk(2), 2, true, f.detailDays()), means: daysLimitNote},
 			glyph{drawn: dayToCome(f.detailDays()), means: "a day still to come"},
-			glyph{drawn: line{{"100", exhaustedInk}}, means: "a week it hit its limit"},
+			glyph{drawn: line{{atItsCap, exhaustedInk}}, means: "a week it hit its limit"},
 		),
 	}
 }

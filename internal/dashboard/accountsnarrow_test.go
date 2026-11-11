@@ -39,7 +39,7 @@ func phonePage(t *testing.T) *views.AccountsPage {
 	days := slices.Concat(make([]views.StripDay, 7*len(page.Weeks)-len(phoneDays)), phoneDays)
 	var peaks []views.WeekPeak
 	for i, p := range []float64{1, 0.94, 1, 0.81, 1, 0.34} {
-		peaks = append(peaks, views.WeekPeak{Share: new(p), Open: i == 5})
+		peaks = append(peaks, views.WeekPeak{Share: new(p), Open: i == 5, AtCap: p >= 1})
 	}
 	for i := range page.Rows {
 		page.Rows[i].Days, page.Rows[i].Peaks = days, peaks

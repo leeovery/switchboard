@@ -247,11 +247,13 @@ func TestAWritersPruningComesJustBeforeEachPruneAlone(t *testing.T) {
 		rounds := 0
 		var prunings []string
 		var held []bool
+		var keeps []time.Duration
 		w := NewWriter(f, linesNoted, WriterOptions{Queue: 1, Keep: twoWeeks, Now: func() time.Time { return start.Add(time.Since(began)) }, Items: "readings",
 			Round: func(time.Time) { rounds++ },
-			Pruning: func(now time.Time) {
+			Pruning: func(now time.Time, keep time.Duration) {
 				prunings = append(prunings, DateOf(now))
 				held = append(held, holdsDay(f, old))
+				keeps = append(keeps, keep)
 			}})
 		stop := running(t, w)
 		tomorrow := DayStart(start.Local(), 1)
@@ -265,8 +267,47 @@ func TestAWritersPruningComesJustBeforeEachPruneAlone(t *testing.T) {
 			t.Errorf("the writer's Pruning came on %q, the day past keeping there for each = %v; want on %q alone, the first before the prune it went at",
 				prunings, held, want)
 		}
+		if want := []time.Duration{twoWeeks, twoWeeks}; !slices.Equal(keeps, want) {
+			t.Errorf("the writer's Pruning was handed the keeps %v, want %v: the one its prune goes by", keeps, want)
+		}
 		if rounds <= len(prunings) {
 			t.Errorf("the writer made %d rounds, want one every %v, more than its prunes", rounds, pruneLook)
+		}
+	})
+}
+
+func TestARoundAskedForAgainComesAtOnceOnceWhatsQueuedIsWritten(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		f := readingsHistory(t.TempDir())
+		began := time.Now()
+		var w *Writer[noted]
+		var rounds []time.Time
+		// held is what start's plain file held as each round began.
+		var held []string
+		w = NewWriter(f, linesNoted, WriterOptions{Queue: 4, Keep: twoWeeks, Now: func() time.Time { return start.Add(time.Since(began)) }, Items: "readings",
+			Round: func(now time.Time) {
+				rounds = append(rounds, now)
+				data, _ := os.ReadFile(f.path(plainFile(DateOf(start))))
+				held = append(held, string(data))
+				switch len(rounds) {
+				case 1:
+					w.Note(noted{at: start, text: "one"})
+					w.RoundAgain()
+				case 2:
+					// Asked for twice before it's made, it's made once.
+					w.RoundAgain()
+					w.RoundAgain()
+				}
+			}})
+		stop := running(t, w)
+
+		synctest.Wait()
+		stop()
+		if want := []time.Time{start, start, start}; !slices.EqualFunc(rounds, want, time.Time.Equal) {
+			t.Errorf("rounds were made at %v, want %v: as the writer started, then each asked for again at once, never waiting %v", rounds, want, pruneLook)
+		}
+		if want := []string{"", linesOf("one"), linesOf("one")}; !slices.Equal(held, want) {
+			t.Errorf("start's plain file held %q as each round began, want %q: what was noted during a round written before the next", held, want)
 		}
 	})
 }

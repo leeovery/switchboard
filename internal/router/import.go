@@ -178,7 +178,10 @@ func (r *Router) importStaged(ctx context.Context) (Imported, error) {
 
 // takeStaged takes in the folders staged in dir, in the order staged, as
 // importFolder takes each in; then has the ledger make its round at once, so
-// the days taken in are summarised and digested. It fails with
+// the days taken in are summarised: each first summary, and eight of those
+// summarised again, as days whose lines merged or of an older version, before
+// it returns, the rest in the rounds the ledger makes at once after, and the
+// days digested once none is left. It fails with
 // errNothingStaged where dir holds no folder, and as importFolder does.
 func (r *Router) takeStaged(ctx context.Context, dir string) (Imported, error) {
 	folders, err := stagedFolders(dir)
