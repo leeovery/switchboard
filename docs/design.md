@@ -515,7 +515,9 @@ routed, as the new primary's, while it has a usable token (see Accounts and toke
 ## Pools
 
 **Designed, not yet built** (the owner's calls, 10 and 11 November 2026). Until it's built, the
-other sections describe switchboard with a single pool, as it runs today.
+other sections describe switchboard with a single pool, as it runs today. It's built on Account
+identity, which lands first: accounts are known by the ids switchboard makes, shown by their labels,
+and never numbered.
 
 A pool is a set of accounts fenced to one or more directories. A session started inside those
 directories is routed across that pool's accounts and no others. Accounts that aren't in a pool make
@@ -535,15 +537,16 @@ flags are needed and no new words appear on screen.
 
 ```toml
 [[account]]
-id      = "acme-1"
+id      = "k3f9"           # made by switchboard (see Account identity)
 label   = "Acme 1"
-pool    = "acme"           # no pool: the default pool
+pool    = "q7mt"           # its pool's id; no pool: the default pool
 primary = true             # the pool's primary
 plan    = "ultra"
 
 [[pool]]
-id   = "acme"              # for good, as an account's id is: the request ledger records it
-dirs = ["~/Code/acme"]     # one or more, written absolute or from ~
+id    = "q7mt"             # made by switchboard, for good: the request ledger records it
+label = "Acme"             # what every screen calls it
+dirs  = ["~/Code/acme"]    # one or more, written absolute or from ~
 ```
 
 - **An account is in one pool at a time:** the one its `pool` names, or the default pool when it
@@ -559,9 +562,16 @@ dirs = ["~/Code/acme"]     # one or more, written absolute or from ~
   is a separate step: removing the pool.
 - **Removing a pool that still has accounts is refused.** Its accounts are moved to another pool or
   removed first, so one edit can never put a client's accounts into the default pool.
-- **Ids:** a pool's id takes an account id's characters, is never `default`, which names the default
-  pool wherever a pool is named, and is kept for good, as the request ledger records it. An account
-  naming a pool that isn't configured is an invalid config, saying which.
+- **A pool is known as an account is** (see Account identity): by an id switchboard makes as the
+  pool is made, 4 characters, lowercase letters and digits, a letter first, random, as no
+  organization stands behind a pool, and never one the accounts record holds; and shown by its
+  label, free text, changed whenever, no two pools' alike, ignoring case, and never `default`.
+  Commands name a pool by its id, as they name an account by its, and `default` names the default
+  pool wherever a pool is named. The accounts record keeps every pool this Mac has had, with its
+  label once it's removed, as it keeps every account, so History names a removed pool. An account
+  naming a pool that isn't configured is an invalid config, saying which. A pool known as an account
+  is, rather than by a name the user types, follows account identity, proposed on 11 November 2026
+  for the owner to confirm.
 
 ### The primary, a pool each
 
@@ -603,14 +613,14 @@ pool for its whole life:
 
 - **Routed:** Claude Code starts on the pool's primary's token. If that isn't usable, it starts on
   the token of the pool's first account with a usable token. If no account in the pool has one, the
-  launch refuses, saying so: `switchboard: pool acme has no account with a usable token — not
+  launch refuses, saying so: `switchboard: pool Acme has no account with a usable token — not
   starting claude`. Every launch names its pool to the router in a header, `X-Switchboard-Pool`,
   even the default pool's, alongside the pin and directory headers (see Launching). It also sets
   `SWITCHBOARD_POOL` in the session's environment, for the skill. The header is cleared on every
   path where the pin header is.
 - **`--account`** must name an account in the start directory's pool. One in another pool is
-  refused, saying which pool each is in, for example: `account acme-1 is in pool acme; this
-  directory is in the default pool`.
+  refused, saying which pool each is in, for example: `Acme 1 (k3f9) is in pool Acme; this directory
+  is in the default pool`.
 - **A router that doesn't know the pools counts as down.** The router reports in its health answer
   the pools it routes for, with their accounts and primaries. Until those match the config's, `run`
   waits for the router to take them up, 5 seconds at most. If they still don't match, it treats the
@@ -652,8 +662,8 @@ pool for its whole life:
   errors, with a status Claude Code neither retries nor takes for a login to renew; which one is
   tested on Claude Code itself when it's built.
 - **A removed account's token** counts, for the week Accounts and tokens gives it, as the primary's
-  of the pool the account was in, rather than today's primary's. So a session that started on it
-  stays routed inside its pool.
+  of the pool the account was in, which the accounts record keeps with it, rather than today's
+  primary's. So a session that started on it stays routed inside its pool.
 - **An account that moves to another pool** takes its sessions off at once. A session on it whose
   pool it has left moves on its next request, its cache's warmth disregarded. A session on a model
   whose thinking is bound to its account loses that thinking, the cost of a rare move (the owner's
@@ -669,9 +679,9 @@ pool for its whole life:
 ### Pinning in a pool
 
 - **Each pool has its own pin,** set and cleared as today's single pin is. Pinning accounts pins
-  them in the pool they're in, so `pin acme-1 acme-2` needs no flag. Accounts given from two pools
-  are refused, saying which pool each is in. `pin auto` clears the default pool's pin, and `pin auto
-  --pool acme` clears acme's.
+  them in the pool they're in, so `pin k3f9 m2x7` needs no flag. Accounts given from two pools are
+  refused, saying which pool each is in. `pin auto` clears the default pool's pin, and `pin auto
+  --pool q7mt` clears Acme's.
 - **`--move` and `--force`** act inside the pin's pool alone. `--force` clears the own pins of that
   pool's sessions only.
 - **A session's own pin**, from `pin --session` or `run --account`, must name an account in the
@@ -689,10 +699,10 @@ pool's demand with it, and the day rate learns its new pool's within a day.
 
 ### What's recorded
 
-- **Request lines record their pool:** `pool`, written for any pool but the default and left out for
-  the default pool, so every line from before pools reads as the default pool's. It's recorded at
-  the time of the request, because an account's pool can change and the config keeps no history of
-  it.
+- **Request lines record their pool:** `pool`, its id, written for any pool but the default and left
+  out for the default pool, so every line from before pools reads as the default pool's. It's
+  recorded at the time of the request, because an account's pool can change and the config keeps no
+  history of it.
 - **Day summaries** split each account's day by pool as well as by model, as an account can move
   partway through a day. That's a new summary version, so the days whose lines are still kept are
   summarised again, once.
@@ -717,13 +727,14 @@ time: the requests and the Log, sessions, what work was worth, and History's tot
   from the directory it's run in, because that could act on a pool its user didn't know they were in
   (the owner's call, 10 November 2026).
 - **Managing pools:** `pool` lists the pools, with their directories, accounts and primaries. `pool
-  add <id> <dir>...` makes one, `pool dirs <id> <dir>...` replaces its directories, and `pool remove
-  <id>` removes one that has no accounts. `accounts add` and `accounts edit` take `--pool <id>`,
-  `default` included, and `--primary` makes an account its pool's primary. `accounts` adds a pool
-  column once a second pool exists.
+  add <label> <dir>...` makes one, switchboard making its id, as `accounts add <label>` makes an
+  account's; `pool edit <id>` changes its label with `--label` and replaces its directories with
+  `--dirs`; and `pool remove <id>` removes one that has no accounts. `accounts add` and `accounts
+  edit` take `--pool <id>`, `default` included, and `--primary` makes an account its pool's primary.
+  `accounts` adds each account's pool once a second pool exists.
 - **The skill** tells Claude, in a session where `SWITCHBOARD_POOL` is set, to pass `--pool
-  "$SWITCHBOARD_POOL"` to the verbs, so that a session reads its own pool, named explicitly. It also
-  says that artifacts live on the session's pool's primary.
+  "$SWITCHBOARD_POOL"`, the pool's id, to the verbs, so that a session reads its own pool, named
+  explicitly. It also says that artifacts live on the session's pool's primary.
 
 ### The dashboard in a pool
 
@@ -733,16 +744,18 @@ time: the requests and the Log, sessions, what work was worth, and History's tot
 - **`P` cycles the pools,** everywhere, once a second pool exists. Changing pool starts the
   dashboard's view afresh, as a router change does, so nothing it remembered of one pool carries
   into the next.
-- **The title row names the pool shown,** once a second pool exists. Accounts are numbered within
-  the pool, in the config's order.
+- **The title row names the pool shown,** by its label, once a second pool exists. The pool's
+  accounts keep the config's order, unnumbered, as every screen has them (see Account identity).
 - **A pool with no accounts** draws a page that says so, with how to add one.
 - **Notifications** name the pool once a second pool exists. Paper settles how each of these looks.
 
 ### Setup with pools
 
-- **Adding an account** asks for its pool as a fourth field, after its id, label and plan: the
-  default pool, an existing pool, or a new one. A new pool opens a card for its id and directories,
-  and the first account in a pool becomes its primary.
+- **Adding an account** asks for its pool as a third field, after its label and plan: the default
+  pool, an existing pool, or a new one. A new pool opens a card for its label and directories, and
+  the first account in a pool becomes its primary.
+- **Setup's accounts table** groups the accounts by pool, the default pool's first, each pool under
+  its label and directories, once a second pool exists.
 - **Editing an account** moves it to another pool and makes it its pool's primary.
 - Pools with no accounts are removed with `pool remove`.
 
