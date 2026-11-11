@@ -14,6 +14,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/cli"
 	"github.com/leeovery/switchboard/internal/export"
+	"github.com/leeovery/switchboard/internal/identity"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/router"
 )
@@ -433,6 +434,28 @@ func TestImportPassesOverAFolderTheRouterWouldRefuseThenCarriesOn(t *testing.T) 
 	}
 	if got := run(t, deps, "import", dir); got != want {
 		t.Errorf("switchboard import = %+v, want %+v", got, want)
+	}
+	wantStaged(t, state, asStaged, filepath.Join("1", "export.json"), filepath.Join("1", "ledger", "requests-2026-10-02.jsonl.gz"))
+}
+
+// This Mac's own folder exported before switchboard made account ids, as
+// its install id tells, is imported, and another Mac's whose accounts record
+// doesn't read is passed over, said by its path and why.
+func TestImportTakesThisMacsFolderFromBeforeIDsAndPassesOverOneWhoseRecordDoesntRead(t *testing.T) {
+	deps, state := importDeps(t)
+	writeStateFile(t, state, "install-id", []byte("0123456789abcdef\n"))
+	dir := t.TempDir()
+	own := importFolder(t, filepath.Join(dir, "mac-0123456789abcdef"))
+	writeStateFile(t, own, "export.json", []byte(`{"version":1,"install":"0123456789abcdef","exported_at":"2026-10-09T14:42:07Z"}`+"\n"))
+	damaged := filepath.Join(dir, "mac-fedcba9876543210")
+	writeStateFile(t, damaged, "export.json", []byte(`{"version":1,"install":"fedcba9876543210","exported_at":"2026-10-09T14:42:07Z","ids":true,"accounts":true}`+"\n"))
+	writeStateFile(t, damaged, filepath.Base(identity.NewFile(damaged).Path()), []byte("not a record\n"))
+	post, asStaged := answeringAsStaged(t, state, router.Imported{Folders: 1, Days: router.ImportedDays{Added: 1}})
+	(&imports{post: post}).serve(t, state)
+
+	got := run(t, deps, "import", dir)
+	if got.code != 0 || got.stdout != "imported 1 folder: 1 day added\n" || !strings.HasPrefix(got.stderr, "switchboard: passed over "+damaged+": its accounts record doesn't read: ") {
+		t.Errorf("switchboard import = %+v, want this Mac's folder imported, the other passed over as its record doesn't read", got)
 	}
 	wantStaged(t, state, asStaged, filepath.Join("1", "export.json"), filepath.Join("1", "ledger", "requests-2026-10-02.jsonl.gz"))
 }

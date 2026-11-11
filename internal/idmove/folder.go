@@ -83,44 +83,66 @@ const (
 	ownBeforeIDs
 )
 
+// told is a Mac's folder as classify tells it: its kind, its export.json,
+// and, where it carries one, its Mac's accounts record.
+type told struct {
+	kind     folderKind
+	manifest export.Manifest
+	record   identity.Record
+}
+
 // classify tells how the accounts of the Mac's folder at dir, as export
-// writes one, are told, by its export.json, which it returns, and whether it
-// holds an accounts record. It fails, with an error matching ErrUnsynced or
+// writes one, are told, by its export.json and the accounts record it holds,
+// if any. It fails, with an error matching ErrStagedRecord, ErrUnsynced or
 // ErrBeforeIDs, where they can't be, as those say; and where its export.json
 // doesn't read, or this Mac's install id is needed and can't be had.
-func classify(dir string, here Here) (folderKind, export.Manifest, error) {
+func classify(dir string, here Here) (told, error) {
 	m, err := export.ReadManifest(dir)
 	if err != nil {
-		return 0, m, fmt.Errorf("read the export.json of a folder to import: %w", err)
+		return told{}, fmt.Errorf("read the export.json of a folder to import: %w", err)
 	}
+	f := told{manifest: m}
 	_, err = os.Lstat(identity.NewFile(dir).Path())
 	switch {
 	case err == nil:
-		return carriesRecord, m, nil
+		f.kind = carriesRecord
+		if f.record, err = identity.NewFile(dir).Read(); err != nil {
+			return f, fmt.Errorf("%w: %w", ErrStagedRecord, err)
+		}
+		return f, nil
 	case !errors.Is(err, fs.ErrNotExist):
-		return 0, m, fmt.Errorf("%w: %w", ErrStagedRecord, err)
+		return f, fmt.Errorf("%w: %w", ErrStagedRecord, err)
 	case m.Accounts:
-		return 0, m, ErrUnsynced
+		return f, ErrUnsynced
 	case m.IDs:
-		return recordless, m, nil
+		f.kind = recordless
+		return f, nil
 	}
 	install, err := here.Install()
 	switch {
 	case err != nil:
-		return 0, m, fmt.Errorf("read this Mac's install id: %w", err)
+		return f, fmt.Errorf("read this Mac's install id: %w", err)
 	case m.Install != install:
-		return 0, m, ErrBeforeIDs
+		return f, ErrBeforeIDs
 	}
-	return ownBeforeIDs, m, nil
+	f.kind = ownBeforeIDs
+	return f, nil
 }
 
 // Refusal is why an import into the Mac here would refuse the Mac's folder
 // at dir, as export writes one, as JoinFolder refuses it: an error matching
-// ErrUnsynced or ErrBeforeIDs, or nil where it wouldn't. It fails, too, as
-// classify does.
+// ErrStagedRecord, ErrUnsynced or ErrBeforeIDs, or nil where it wouldn't. It
+// fails, too, as classify does.
 func Refusal(dir string, here Here) error {
-	_, _, err := classify(dir, here)
+	_, err := classify(dir, here)
 	return err
+}
+
+// Refused reports whether err, as Refusal or JoinFolder gives it, is a
+// folder refused, as ErrStagedRecord, ErrUnsynced and ErrBeforeIDs are,
+// rather than one that couldn't be told.
+func Refused(err error) bool {
+	return errors.Is(err, ErrStagedRecord) || errors.Is(err, ErrUnsynced) || errors.Is(err, ErrBeforeIDs)
 }
 
 // JoinFolder joins the accounts the folder at dir names into record, the
@@ -129,40 +151,38 @@ func Refusal(dir string, here Here) error {
 // record's ids, as RenameFolder renames it, as classify tells the folder:
 //   - one carrying its Mac's accounts record has each id it names renamed by
 //     that record's former ids, the ids its own Mac made, then onto this
-//     Mac's, as identity's Join joins the record into record, taking its
-//     labels where it isn't this Mac's own;
+//     Mac's, as identity's Join joins the record into record, as this Mac's
+//     own where it is, taking its labels where it's another Mac's;
 //   - one exported with ids by a Mac with no record joins nothing and has
 //     nothing renamed;
 //   - this Mac's own, exported before switchboard made ids, is renamed by
 //     the former ids record keeps.
 //
 // It fails, record as it was, as classify does, saying which folder, by its
-// install, of a folder that's refused, and with ErrStagedRecord wrapped where
-// its record can't be read.
+// install, of a folder that's refused.
 func JoinFolder(dir string, record *identity.Record, here Here) (Renames, error) {
-	kind, m, err := classify(dir, here)
+	f, err := classify(dir, here)
 	switch {
-	case errors.Is(err, ErrStagedRecord), errors.Is(err, ErrUnsynced), errors.Is(err, ErrBeforeIDs):
-		return Renames{}, fmt.Errorf("the folder %s can't be taken in: %w", export.FolderName(m.Install), err)
+	case Refused(err):
+		return Renames{}, fmt.Errorf("the folder %s can't be taken in: %w", export.FolderName(f.manifest.Install), err)
 	case err != nil:
 		return Renames{}, err
-	case kind == recordless:
+	case f.kind == recordless:
 		return Renames{}, nil
-	case kind == ownBeforeIDs:
+	case f.kind == ownBeforeIDs:
 		return Renames{steps: []renames{formerIDs(*record)}}, nil
 	}
-	other, err := identity.NewFile(dir).Read()
-	if err != nil {
-		return Renames{}, fmt.Errorf("the folder %s can't be taken in: %w: %w", export.FolderName(m.Install), ErrStagedRecord, err)
-	}
-	// Where this Mac's install can't be had, no label is taken, as from its
-	// own folder, rather than the import refused.
+	// Where this Mac's install can't be had, the folder is joined as another
+	// Mac's, but no label is taken, as from its own, rather than the import
+	// refused.
 	install, installErr := here.Install()
-	mapped, err := record.Join(other, identity.JoinAs{Configured: here.Accounts, From: m.Install, Labels: installErr == nil && m.Install != install})
+	own := installErr == nil && f.manifest.Install == install
+	as := identity.JoinAs{Configured: here.Accounts, From: f.manifest.Install, Own: own, Labels: installErr == nil && !own}
+	mapped, err := record.Join(f.record, as)
 	if err != nil {
 		return Renames{}, err
 	}
-	return Renames{steps: []renames{formerIDs(other), renames(mapped)}}, nil
+	return Renames{steps: []renames{formerIDs(f.record), renames(mapped)}}, nil
 }
 
 // formerIDs are the ids record's accounts had before switchboard made ids,

@@ -42,7 +42,8 @@ one it doesn't know is added, named by its label. A folder exported before
 switchboard made ids holds no record: this Mac's own is taken in under the
 ids its accounts have now, and another Mac's is passed over, saying so, until
 it's exported again from that Mac once it runs this version. A folder whose
-record hasn't synced yet is passed over too, to import again once it has.
+record hasn't synced yet is passed over too, to import again once it has, and
+one whose record doesn't read.
 
 It copies the folders into the state directory, then has the router take
 them in, waiting however long that takes, so it needs the router running:
@@ -146,7 +147,7 @@ func foldersIn(errOut io.Writer, state, dir string) ([]string, error) {
 	var folders []string
 	for _, folder := range found {
 		switch refused := idmove.Refusal(folder, here); {
-		case errors.Is(refused, idmove.ErrBeforeIDs), errors.Is(refused, idmove.ErrUnsynced):
+		case idmove.Refused(refused):
 			passed = append(passed, folder+": "+refused.Error())
 		case refused != nil:
 			err = cmp.Or(err, refused)

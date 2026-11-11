@@ -195,10 +195,16 @@ func TestAFolderThatCantBeRenamedExactlyIsRefused(t *testing.T) {
 func TestThisMacsInstallIsAskedForOnlyWhereAFolderNeedsIt(t *testing.T) {
 	broken := idmove.Here{Install: func() (string, error) { return "", fs.ErrPermission }}
 	f := newFolder(t, otherWithID)
-	putRecord(t, f.state, []identity.Entry{{ID: workID, Organization: workOrganization, Added: now, Was: work}})
-	record := thisMac()
+	putRecord(t, f.state, []identity.Entry{
+		{ID: workID, Organization: workOrganization, Added: now, Was: work},
+		{ID: "p4m2", Organization: "test-org-home", Label: "family", Added: now, Configured: true},
+	})
+	record := identity.Record{Accounts: append(thisMac().Accounts, identity.Entry{ID: "p4m2", Organization: "test-org-home", Label: "home", Added: now})}
 	if _, err := idmove.JoinFolder(f.state, &record, broken); err != nil {
 		t.Errorf("JoinFolder of another Mac's folder with its record, this Mac's install not to be had = %v, want it joined", err)
+	}
+	if e, _ := record.ByID("p4m2"); e.Label != "home" {
+		t.Errorf("joined, this Mac's install not to be had, home is labelled %q, want its label here, home", e.Label)
 	}
 	if _, err := idmove.JoinFolder(newFolder(t, thisBefore).state, &record, broken); !errors.Is(err, fs.ErrPermission) {
 		t.Errorf("JoinFolder of this Mac's folder from before ids, its install not to be had = %v, want why", err)
@@ -256,13 +262,46 @@ func TestALabelIsTakenFromAnotherMacsFolderAlone(t *testing.T) {
 	}
 }
 
-// A folder whose record doesn't read is refused, the record as it was.
+// In this Mac's own folder, carrying its record, an account of an id this
+// Mac holds is that account, though only this Mac knows its organization,
+// as one a token told it since it exported: none of its lines is renamed.
+// In another Mac's, it's another, taken in under another id.
+func TestThisMacsOwnFolderIsJoinedByItsIDs(t *testing.T) {
+	for _, tt := range []struct {
+		name    string
+		install string
+		same    bool
+	}{
+		{name: "this Mac's", install: thisInstall, same: true},
+		{name: "another Mac's", install: otherInstall, same: false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			f := newFolder(t, export.Manifest{Install: tt.install, IDs: true, Accounts: true})
+			putRecord(t, f.state, []identity.Entry{{ID: "k3f9", Added: now}})
+			spare := identity.Entry{ID: "k3f9", Organization: "test-org-spare", Added: now}
+			record := identity.Record{Accounts: append(thisMac().Accounts, spare)}
+			rename, err := idmove.JoinFolder(f.state, &record, here)
+			if err != nil {
+				t.Fatalf("JoinFolder: %v", err)
+			}
+			if got := rename.Of("k3f9") == "k3f9" && len(record.Accounts) == len(thisMac().Accounts)+1; got != tt.same {
+				t.Errorf("joined, k3f9 is renamed %s, the record %+v; want it the account here: %t", rename.Of("k3f9"), record.Accounts, tt.same)
+			}
+		})
+	}
+}
+
+// A folder whose record doesn't read is refused, saying which folder, the
+// record as it was, as Refusal says it is.
 func TestAFolderWhoseRecordDoesntReadIsRefused(t *testing.T) {
 	f := newFolder(t, otherWithID)
 	writeFile(t, identity.NewFile(f.state).Path(), "not a record\n")
+	if err := idmove.Refusal(f.state, here); !errors.Is(err, idmove.ErrStagedRecord) || !idmove.Refused(err) {
+		t.Errorf("Refusal = %v, want ErrStagedRecord", err)
+	}
 	record := thisMac()
-	if _, err := idmove.JoinFolder(f.state, &record, here); !errors.Is(err, idmove.ErrStagedRecord) {
-		t.Errorf("JoinFolder = %v, want ErrStagedRecord", err)
+	if _, err := idmove.JoinFolder(f.state, &record, here); !errors.Is(err, idmove.ErrStagedRecord) || !strings.Contains(err.Error(), "the folder mac-"+otherInstall+" can't be taken in") {
+		t.Errorf("JoinFolder = %v, want ErrStagedRecord, saying which folder", err)
 	}
 	if !slices.Equal(record.Accounts, thisMac().Accounts) {
 		t.Errorf("refused, the record is %+v, want it as it was", record.Accounts)

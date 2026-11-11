@@ -214,10 +214,11 @@ func (x *exporting) summaries(src, dst string) error {
 // says, so a Mac that doesn't configure it names it all the same, making the
 // folder as x.mkdir does: where it differs from the one there, and with the
 // state record's modification time. Where the state directory has none, it
-// removes the folder's, so the folder reads as exported before switchboard
-// made ids, as its days then are. It reports whether the folder holds the
-// record, counts for no day, and fails where the record can't be read, as an
-// import of the folder needs it to take in the accounts its days name.
+// removes the folder's, so the folder, its export.json marked as exported
+// with ids made, reads as one whose Mac has no account to join. It reports
+// whether the folder holds the record, counts for no day, and fails where
+// the record can't be read, as an import of the folder needs it to take in
+// the accounts its days name.
 func (x *exporting) record(state, folder string, configured config.Accounts) (bool, error) {
 	src, dst := identity.NewFile(state), identity.NewFile(folder).Path()
 	info, err := os.Stat(src.Path())
