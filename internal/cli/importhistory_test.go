@@ -221,7 +221,7 @@ func TestImportStagesTheFoldersBeforeTheRouterIsAskedToTakeThemIn(t *testing.T) 
 	if got, want := run(t, deps, "import", dir), (result{stdout: "imported 2 folders: 1 day added\n"}); got != want {
 		t.Errorf("switchboard import = %+v, want %+v", got, want)
 	}
-	wantStaged(t, state, asStaged, filepath.Join("1", "ledger", "requests-2026-10-02.jsonl.gz"), filepath.Join("2", "ledger", "requests-2026-10-02.jsonl.gz"))
+	wantStaged(t, state, asStaged, filepath.Join("1", "export.json"), filepath.Join("1", "ledger", "requests-2026-10-02.jsonl.gz"), filepath.Join("2", "export.json"), filepath.Join("2", "ledger", "requests-2026-10-02.jsonl.gz"))
 }
 
 func TestImportTakesARelativeFolderFromTheWorkingDirectory(t *testing.T) {
@@ -237,7 +237,7 @@ func TestImportTakesARelativeFolderFromTheWorkingDirectory(t *testing.T) {
 	if got, want := run(t, deps, "import", "backups"), (result{stdout: "imported 1 folder: nothing new\n"}); got != want {
 		t.Errorf("switchboard import backups = %+v, want %+v", got, want)
 	}
-	wantStaged(t, state, asStaged, filepath.Join("1", "ledger", "requests-2026-10-02.jsonl.gz"))
+	wantStaged(t, state, asStaged, filepath.Join("1", "export.json"), filepath.Join("1", "ledger", "requests-2026-10-02.jsonl.gz"))
 }
 
 func TestImportWithoutTheRouterStagesNothing(t *testing.T) {
@@ -378,7 +378,7 @@ func TestImportRemovesWhatAnImportCutShortLeftThenStages(t *testing.T) {
 	if got := run(t, deps, "import", importFolder(t, t.TempDir())); got.code != 0 {
 		t.Fatalf("switchboard import = %+v, want it to import", got)
 	}
-	wantStaged(t, state, asStaged, filepath.Join("1", "ledger", "requests-2026-10-02.jsonl.gz"))
+	wantStaged(t, state, asStaged, filepath.Join("1", "export.json"), filepath.Join("1", "ledger", "requests-2026-10-02.jsonl.gz"))
 }
 
 func TestImportFromAFolderOfNoMacsFolderFails(t *testing.T) {
@@ -409,7 +409,7 @@ func TestImportSaysWhichFolderItPassedOverAsItsExportJSONDoesntReadThenCarriesOn
 	if got := run(t, deps, "import", dir); got != want {
 		t.Errorf("switchboard import = %+v, want %+v", got, want)
 	}
-	wantStaged(t, state, asStaged, filepath.Join("1", "ledger", "requests-2026-10-02.jsonl.gz"))
+	wantStaged(t, state, asStaged, filepath.Join("1", "export.json"), filepath.Join("1", "ledger", "requests-2026-10-02.jsonl.gz"))
 }
 
 func TestImportOfNothingButFoldersWhoseExportJSONDoesntReadSaysSoThenFails(t *testing.T) {

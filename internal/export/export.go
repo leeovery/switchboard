@@ -95,10 +95,11 @@ type Leftover struct {
 
 // Export exports the history into the Mac's folder in dir, making each as
 // it's needed, the user's alone, as NoParents says, and removing first what
-// writes cut short left in it, as removeLeftovers says: each day's file of
-// lines, as dayLines.export says, each day's summary, copied as copyFile
-// says, and the accounts record, as exporting.record writes it; then
-// export.json, saying when. A day's file that can't be read is
+// writes cut short left in it, as removeLeftovers says: the accounts record,
+// as exporting.record writes it, first, so the days a sync carries are never
+// ahead of the record that names their accounts; each day's file of lines,
+// as dayLines.export says; each day's summary, copied as copyFile says; then
+// export.json, saying when, and whether it wrote the record. A day's file that can't be read is
 // passed over, and named in the result, as is a file writes cut short left
 // that can't be removed. It fails where dir is a file, or
 // anything in it can't be made or written, and where the state directory's
@@ -126,6 +127,10 @@ func (e Exporter) Export(dir string) (Result, error) {
 		return Result{}, fmt.Errorf("can't export into %s: %w", dir, err)
 	}
 	x := exporting{written: make(map[string]bool), mkdir: e.making(folder), unremoved: e.removeLeftovers(folder)}
+	recorded, err := x.record(e.StateDir, folder, e.Accounts)
+	if err != nil {
+		return Result{}, fmt.Errorf("can't export into %s: %w", dir, err)
+	}
 	for _, lines := range e.lines(folder, x.mkdir) {
 		if err := x.lines(lines); err != nil {
 			return Result{}, fmt.Errorf("can't export into %s: %w", dir, err)
@@ -134,10 +139,7 @@ func (e Exporter) Export(dir string) (Result, error) {
 	if err := x.summaries(ledger.Dir(e.StateDir), ledger.Dir(folder)); err != nil {
 		return Result{}, fmt.Errorf("can't export into %s: %w", dir, err)
 	}
-	if err := x.record(e.StateDir, folder, e.Accounts); err != nil {
-		return Result{}, fmt.Errorf("can't export into %s: %w", dir, err)
-	}
-	if err := writeManifest(folder, id, e.Now()); err != nil {
+	if err := writeManifest(folder, id, e.Now(), recorded); err != nil {
 		return Result{}, fmt.Errorf("can't export into %s: %w", dir, err)
 	}
 	return x.result(folder), nil
@@ -213,40 +215,40 @@ func (x *exporting) summaries(src, dst string) error {
 // folder as x.mkdir does: where it differs from the one there, and with the
 // state record's modification time. Where the state directory has none, it
 // removes the folder's, so the folder reads as exported before switchboard
-// made ids, as its days then are. It counts for no day, and fails where the
-// record can't be read, as an import of the folder needs it to take in the
-// accounts its days name.
-func (x *exporting) record(state, folder string, configured config.Accounts) error {
+// made ids, as its days then are. It reports whether the folder holds the
+// record, counts for no day, and fails where the record can't be read, as an
+// import of the folder needs it to take in the accounts its days name.
+func (x *exporting) record(state, folder string, configured config.Accounts) (bool, error) {
 	src, dst := identity.NewFile(state), identity.NewFile(folder).Path()
 	info, err := os.Stat(src.Path())
 	if errors.Is(err, fs.ErrNotExist) {
 		if err := os.Remove(dst); err != nil && !errors.Is(err, fs.ErrNotExist) {
-			return fmt.Errorf("remove the accounts record exported before: %w", err)
+			return false, fmt.Errorf("remove the accounts record exported before: %w", err)
 		}
-		return nil
+		return false, nil
 	}
 	if err != nil {
-		return fmt.Errorf("export the accounts record: %w", err)
+		return false, fmt.Errorf("export the accounts record: %w", err)
 	}
 	record, err := src.Read()
 	if err != nil {
-		return fmt.Errorf("export the accounts record: %w", err)
+		return false, fmt.Errorf("export the accounts record: %w", err)
 	}
 	data, err := labelled(record, configured).Encode()
 	if err != nil {
-		return fmt.Errorf("export the accounts record: %w", err)
+		return false, fmt.Errorf("export the accounts record: %w", err)
 	}
 	if was, err := os.ReadFile(dst); err == nil && bytes.Equal(was, data) {
-		return nil
+		return true, nil
 	}
 	err = writeFile(dst, info.ModTime(), x.mkdir, func(w io.Writer) error {
 		_, err := w.Write(data)
 		return err
 	})
 	if err != nil {
-		return fmt.Errorf("export the accounts record: %w", err)
+		return false, fmt.Errorf("export the accounts record: %w", err)
 	}
-	return nil
+	return true, nil
 }
 
 // labelled is record with each account configured labelled as configured

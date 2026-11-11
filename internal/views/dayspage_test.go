@@ -172,6 +172,25 @@ func TestDaysByAccountStripsAnAccountRemovedByItsLastLabel(t *testing.T) {
 	}
 }
 
+// An account removed here that another Mac still used after, whose days were
+// imported, has its strip run to the last day it records anything on.
+func TestDaysRunsARemovedAccountsStripToItsLastDayUsed(t *testing.T) {
+	days := daysFrom("2026-08-10",
+		day("2026-09-03", rose("h7c2", map[string]float64{"7d": 0.4})),
+		day("2026-09-10", rose("h7c2", map[string]float64{"7d": 0.2})),
+		day("2026-10-06", rose("work", map[string]float64{"7d": 0.5})),
+	)
+	in := input(days)
+	in.Accounts = config.Accounts{{ID: "work"}}
+	in.Removed = status.RemovedAccounts{{ID: "h7c2", Label: "team", Removed: onAt("2026-09-04", "16:00").UTC()}}
+
+	got := views.NewPast(in, days).Days().ByAccount
+	// The eight weeks start on 17 Aug: 10 Sep is their 25th day.
+	if len(got) != 2 || got[1].Gone != 25 || got[1].Days[24].Level == 0 {
+		t.Errorf("BY ACCOUNT is %+v, want the removed team's strip gone from the 26th day, after 10 Sep, its last used", got)
+	}
+}
+
 // inZone has the test's local time zone the one given until it ends. A test
 // that calls it mustn't run in parallel.
 func inZone(t *testing.T, zone *time.Location) {

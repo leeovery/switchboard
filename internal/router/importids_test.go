@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/leeovery/switchboard/internal/export"
 	"github.com/leeovery/switchboard/internal/identity"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
@@ -15,6 +16,9 @@ import (
 // workID is the id switchboard made for the account the tests' lines name as
 // work, its id before switchboard made ids.
 const workID = "b6s7"
+
+// otherInstall is the install of another Mac than the tests' routers'.
+const otherInstall = "fedcba9876543210"
 
 // movedWork is the account work as an accounts record keeps it once it's
 // moved onto workID.
@@ -42,6 +46,22 @@ func readRecord(t *testing.T, root string) identity.Record {
 	return record
 }
 
+// wantRecord fails the test where the accounts record in root doesn't hold
+// the accounts given, each by its id, organization, label, removal and id
+// before.
+func wantRecord(t *testing.T, root string, want ...identity.Entry) {
+	t.Helper()
+	got := readRecord(t, root).Accounts
+	same := len(got) == len(want)
+	for i := 0; same && i < len(got); i++ {
+		g, w := got[i], want[i]
+		same = g.ID == w.ID && g.Organization == w.Organization && g.Label == w.Label && g.Removed.Equal(w.Removed) && g.Was == w.Was
+	}
+	if !same {
+		t.Errorf("the Mac's accounts record is\n%+v\nwant\n%+v", got, want)
+	}
+}
+
 // named is lines with the account work named by id.
 func named(lines []string, id string) []string {
 	renamed := make([]string, len(lines))
@@ -66,11 +86,18 @@ func wantHeld(t *testing.T, cfg router.Config, date string, want []string) {
 	}
 }
 
-// A folder exported before the move names the accounts by their old ids: its
-// days are taken in under the ids the Mac's record made, a line the Mac holds
-// under the new id the same line as it, staged under the old, and a day's
-// summary counting the account under its new id.
-func TestAFolderExportedBeforeTheMoveIsTakenInUnderTheNewIDs(t *testing.T) {
+// stageOthers marks the first folder staged in cfg's state directory another
+// Mac's export, holding its accounts record where accounts says so.
+func stageOthers(t *testing.T, cfg router.Config, accounts bool) {
+	t.Helper()
+	stageManifest(t, folder(cfg, 1), export.Manifest{Install: otherInstall, Accounts: accounts})
+}
+
+// A folder this Mac exported before the move names the accounts by their old
+// ids: its days are taken in under the ids the Mac's record made, a line the
+// Mac holds under the new id the same line as it, staged under the old, and
+// a day's summary counting the account under its new id.
+func TestThisMacsFolderExportedBeforeTheMoveIsTakenInUnderTheNewIDs(t *testing.T) {
 	cfg := importConfig(t)
 	putRecord(t, cfg.StateDir, movedWork)
 	date, pastKeep := dateOf(10), dateOf(60)
@@ -97,20 +124,20 @@ func TestAFolderExportedBeforeTheMoveIsTakenInUnderTheNewIDs(t *testing.T) {
 	if len(copied.Accounts) != 1 || copied.Accounts[0].Account != workID {
 		t.Errorf("once imported, the summary of %s counts %+v, want the account under %s", pastKeep, copied.Accounts, workID)
 	}
-	if got := readRecord(t, cfg.StateDir); !slices.Equal(got.Accounts, []identity.Entry{movedWork}) {
-		t.Errorf("once imported, the Mac's accounts record is %+v, want it as it was", got.Accounts)
-	}
+	wantRecord(t, cfg.StateDir, movedWork)
 	checkUnstaged(t, cfg)
 }
 
-// A folder exported after the move carries its accounts record, which joins
-// the Mac's: its days under the new ids are taken in as they are, and those
-// it kept from before the move, under the old ids, moved onto the new by the
-// record it carries, as on a Mac whose own record never knew them.
+// A folder another Mac exported after the move carries its accounts record,
+// which joins the Mac's: its days under the new ids are taken in as they
+// are, and those it kept from before the move, under the old ids, moved onto
+// the new by the record it carries; the account joins without its id before,
+// that Mac's own name for it.
 func TestAFolderExportedAfterTheMoveIsTakenInByTheRecordItCarries(t *testing.T) {
 	cfg := importConfig(t)
 	putRecord(t, cfg.StateDir)
 	before, after := dateOf(20), dateOf(10)
+	stageOthers(t, cfg, true)
 	putRecord(t, folder(cfg, 1), movedWork)
 	stageLines(t, folder(cfg, 1), requestLines, before, requestLines.linesOf(before, 1)...)
 	stageLines(t, folder(cfg, 1), requestLines, after, asMoved(requestLines.linesOf(after, 2))...)
@@ -121,102 +148,128 @@ func TestAFolderExportedAfterTheMoveIsTakenInByTheRecordItCarries(t *testing.T) 
 	}
 	wantHeld(t, cfg, before, asMoved(requestLines.linesOf(before, 1)))
 	wantHeld(t, cfg, after, asMoved(requestLines.linesOf(after, 2)))
-	if got := readRecord(t, cfg.StateDir); !slices.Equal(got.Accounts, []identity.Entry{movedWork}) {
-		t.Errorf("once imported, the Mac's accounts record is %+v, want the folder's account joined to it", got.Accounts)
-	}
+	wantRecord(t, cfg.StateDir, identity.Entry{ID: workID, Organization: "test-org-work"})
 }
 
-// A folder another Mac exported before the move, naming an account this one
-// never had, takes it in as removed, under an id of its own; the folder that
-// Mac exports after the move, which names the account under the id it made
-// for it there, has it taken in under the same id here, so a day the two
-// folders both hold counts once.
-func TestAnAccountTakenInBeforeTheMoveIsTheOneTheFolderAfterNames(t *testing.T) {
+// A folder another Mac exported before the move is refused, saying to export
+// it again from that Mac, nothing taken in: its ids are that Mac's own names.
+// Exported again once that Mac has moved, it's taken in by the record it
+// carries.
+func TestAnotherMacsFolderFromBeforeTheMoveIsRefusedUntilExportedAgain(t *testing.T) {
 	cfg := importConfig(t)
 	putRecord(t, cfg.StateDir, movedWork)
 	date := dateOf(10)
-	lines := requestLines.linesOf(date, 1, 2)
+	lines := named(requestLines.linesOf(date, 1, 2), "team")
 	runRouter(t, cfg)
 	client := router.NewClient(router.SocketPath(cfg.StateDir))
 
-	stageLines(t, folder(cfg, 1), requestLines, date, named(lines, "team")...)
+	stageOthers(t, cfg, false)
+	stageLines(t, folder(cfg, 1), requestLines, date, lines...)
+	_, err := client.Import(t.Context())
+	if err == nil || !strings.Contains(err.Error(), "nothing was imported, as a folder was exported from another Mac before switchboard made account ids: export it again from that Mac") {
+		t.Errorf("Import() of another Mac's folder from before the move = %v, want it refused, saying to export it again", err)
+	}
+	wantHeld(t, cfg, date, nil)
+	wantRecord(t, cfg.StateDir, movedWork)
+
+	stageOthers(t, cfg, true)
+	putRecord(t, folder(cfg, 1), identity.Entry{ID: "r7kq", Label: "team", Added: stagedOn, Removed: stagedOn, Was: "team"})
+	stageLines(t, folder(cfg, 1), requestLines, date, lines...)
+	if _, err := client.Import(t.Context()); err != nil {
+		t.Fatalf("Import() of the folder exported again: %v", err)
+	}
+	wantHeld(t, cfg, date, named(requestLines.linesOf(date, 1, 2), "r7kq"))
+	wantRecord(t, cfg.StateDir, movedWork, identity.Entry{ID: "r7kq", Label: "team", Removed: stagedOn})
+}
+
+// This Mac's folder exported before the move, then again after it, holding
+// a day of both, has the day taken in once, under the ids the move made, the
+// record as it was.
+func TestThisMacsFolderBeforeAndAfterTheMoveCountsADayOnce(t *testing.T) {
+	cfg := importConfig(t)
+	team := identity.Entry{ID: "h7c2", Label: "team", Added: stagedOn, Removed: stagedOn, Was: "team"}
+	putRecord(t, cfg.StateDir, movedWork, team)
+	date := dateOf(10)
+	worked, teamed := requestLines.linesOf(date, 1), requestLines.linesOf(date, 2)
+	runRouter(t, cfg)
+	client := router.NewClient(router.SocketPath(cfg.StateDir))
+
+	stageLines(t, folder(cfg, 1), requestLines, date, slices.Concat(worked, named(teamed, "team"))...)
 	if _, err := client.Import(t.Context()); err != nil {
 		t.Fatalf("Import() of the folder from before the move: %v", err)
 	}
-	team, ok := readRecord(t, cfg.StateDir).ByWas("team")
-	if !ok || team.Label != "team" || team.Removed.IsZero() {
-		t.Fatalf("once the folder from before the move is imported, the Mac's record holds team as %+v, want it removed, labelled team", team)
+	install, err := export.InstallID(cfg.StateDir)
+	if err != nil {
+		t.Fatal(err)
 	}
-
-	putRecord(t, folder(cfg, 1), identity.Entry{ID: "r7kq", Label: "team", Added: stagedOn, Removed: stagedOn, Was: "team"})
-	stageLines(t, folder(cfg, 1), requestLines, date, named(lines, "r7kq")...)
+	stageManifest(t, folder(cfg, 1), export.Manifest{Install: install, Accounts: true})
+	putRecord(t, folder(cfg, 1), movedWork, team)
+	stageLines(t, folder(cfg, 1), requestLines, date, slices.Concat(asMoved(worked), named(teamed, "h7c2"))...)
 	if _, err := client.Import(t.Context()); err != nil {
 		t.Fatalf("Import() of the folder from after the move: %v", err)
 	}
-	wantHeld(t, cfg, date, named(lines, team.ID))
-	if got := readRecord(t, cfg.StateDir).Accounts; !slices.Equal(got, []identity.Entry{movedWork, team}) {
-		t.Errorf("once both folders are imported, the Mac's record is %+v, want team in it once", got)
-	}
+	wantHeld(t, cfg, date, slices.Concat(asMoved(worked), named(teamed, "h7c2")))
+	wantRecord(t, cfg.StateDir, movedWork, team)
 }
 
-// One account the Mac knows under another id than the Mac a folder comes
-// from has it under is taken in under the Mac's id: a removed account each
-// gave a random id of its own, matched by the id it had before, and a
-// subscription each had under another id before, matched by its
-// organization.
-func TestAnAccountUnderAnotherIDOnTheMacExportedFromIsTakenInUnderThisMacs(t *testing.T) {
-	side := identity.Entry{ID: "m2x7", Label: "side", Added: stagedOn, Removed: stagedOn, Was: "side"}
+// A folder whose export.json says it holds its accounts record, which a sync
+// hasn't carried yet, is refused, saying so, nothing taken in; once the
+// record arrives, it's taken in.
+func TestAFolderWhoseRecordHasntSyncedIsRefusedUntilItHas(t *testing.T) {
+	cfg := importConfig(t)
+	putRecord(t, cfg.StateDir, movedWork)
+	date := dateOf(10)
+	runRouter(t, cfg)
+	client := router.NewClient(router.SocketPath(cfg.StateDir))
+
+	stageOthers(t, cfg, true)
+	stageLines(t, folder(cfg, 1), requestLines, date, asMoved(requestLines.linesOf(date, 1))...)
+	_, err := client.Import(t.Context())
+	if err == nil || !strings.Contains(err.Error(), "nothing was imported, as a folder's accounts record hasn't synced yet") {
+		t.Errorf("Import() of a folder whose record hasn't synced = %v, want it refused, saying so", err)
+	}
+	wantHeld(t, cfg, date, nil)
+
+	stageOthers(t, cfg, true)
+	putRecord(t, folder(cfg, 1), movedWork)
+	stageLines(t, folder(cfg, 1), requestLines, date, asMoved(requestLines.linesOf(date, 1))...)
+	if _, err := client.Import(t.Context()); err != nil {
+		t.Fatalf("Import() once the record synced: %v", err)
+	}
+	wantHeld(t, cfg, date, asMoved(requestLines.linesOf(date, 1)))
+}
+
+// A subscription the other Mac has under another id, and had under another
+// before, is taken in under this Mac's id, matched by its organization.
+func TestAnAccountUnderAnotherIDThereIsTakenInUnderThisMacsByItsOrganization(t *testing.T) {
+	cfg := importConfig(t)
 	personal := identity.Entry{ID: "qgr2", Organization: "test-org-personal", Added: stagedOn, Was: "personal"}
-	tests := []struct {
-		name   string
-		own    identity.Entry
-		staged identity.Entry
-		// was is the id the folder's days from before the move name it by.
-		was string
-	}{
-		{
-			name:   "removed on both Macs",
-			own:    side,
-			staged: identity.Entry{ID: "r7kq", Label: "side", Added: stagedOn, Removed: stagedOn, Was: "side"},
-			was:    "side",
-		},
-		{
-			name:   "another id before on each Mac",
-			own:    personal,
-			staged: identity.Entry{ID: "z9k4", Organization: "test-org-personal", Added: stagedOn, Was: "home"},
-			was:    "home",
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			cfg := importConfig(t)
-			putRecord(t, cfg.StateDir, tt.own)
-			before, after := dateOf(20), dateOf(10)
-			put(t, requestLines.files(cfg.StateDir).CompressedPath(after), gzipOf(t, named(requestLines.linesOf(after, 1), tt.own.ID)...), now)
-			putRecord(t, folder(cfg, 1), tt.staged)
-			stageLines(t, folder(cfg, 1), requestLines, before, named(requestLines.linesOf(before, 1), tt.was)...)
-			stageLines(t, folder(cfg, 1), requestLines, after, named(requestLines.linesOf(after, 1, 2), tt.staged.ID)...)
+	putRecord(t, cfg.StateDir, personal)
+	before, after := dateOf(20), dateOf(10)
+	put(t, requestLines.files(cfg.StateDir).CompressedPath(after), gzipOf(t, named(requestLines.linesOf(after, 1), "qgr2")...), now)
+	stageOthers(t, cfg, true)
+	putRecord(t, folder(cfg, 1), identity.Entry{ID: "z9k4", Organization: "test-org-personal", Added: stagedOn, Was: "home"})
+	stageLines(t, folder(cfg, 1), requestLines, before, named(requestLines.linesOf(before, 1), "home")...)
+	stageLines(t, folder(cfg, 1), requestLines, after, named(requestLines.linesOf(after, 1, 2), "z9k4")...)
 
-			importNow(t, cfg)
-			wantHeld(t, cfg, before, named(requestLines.linesOf(before, 1), tt.own.ID))
-			wantHeld(t, cfg, after, named(requestLines.linesOf(after, 1, 2), tt.own.ID))
-			if got := readRecord(t, cfg.StateDir).Accounts; len(got) != 1 || got[0].ID != tt.own.ID {
-				t.Errorf("once imported, the Mac's record is %+v, want the account in it once, under %s", got, tt.own.ID)
-			}
-		})
-	}
+	importNow(t, cfg)
+	wantHeld(t, cfg, before, named(requestLines.linesOf(before, 1), "qgr2"))
+	wantHeld(t, cfg, after, named(requestLines.linesOf(after, 1, 2), "qgr2"))
+	wantRecord(t, cfg.StateDir, personal)
 }
 
-// A day staged cut short, as one synced part of the way, is taken in of its
-// lines up to the damage, under the new ids, warning of it, rather than
-// failing the import.
+// A day staged cut short, as one synced part of the way, is taken in of
+// every line that reads before the damage, under the new ids, and none
+// after it, warning of it, rather than failing the import.
 func TestADayStagedCutShortIsTakenInUnderTheNewIDsUpToTheDamage(t *testing.T) {
 	log := logstest.Capture(t)
 	cfg := importConfig(t)
 	putRecord(t, cfg.StateDir, movedWork)
 	date := dateOf(10)
-	whole := gzipOf(t, requestLines.linesOf(date, 1, 2)...)
-	put(t, requestLines.files(folder(cfg, 1)).CompressedPath(date), whole[:len(whole)-4], stagedOn)
+	after := gzipOf(t, requestLines.linesOf(date, 3)...)
+	staged := append(gzipOf(t, requestLines.linesOf(date, 1, 2)...), after[:12]...)
+	put(t, requestLines.files(folder(cfg, 1)).CompressedPath(date), staged, stagedOn)
+	markOwn(t, folder(cfg, 1))
 
 	importNow(t, cfg)
 	wantHeld(t, cfg, date, asMoved(requestLines.linesOf(date, 1, 2)))
@@ -226,37 +279,12 @@ func TestADayStagedCutShortIsTakenInUnderTheNewIDsUpToTheDamage(t *testing.T) {
 	checkUnstaged(t, cfg)
 }
 
-// A folder whose accounts record contradicts the Mac's, one of its accounts
-// two of the Mac's, one by its id and the other by its id before, is
-// refused, saying so: nothing taken in, the Mac's record as it was, and what
-// was staged removed.
-func TestAFolderWhoseAccountsRecordDisagreesIsRefused(t *testing.T) {
-	cfg := importConfig(t)
-	putRecord(t, cfg.StateDir, movedWork, identity.Entry{ID: "qgr2", Organization: "test-org-personal", Added: stagedOn, Was: "personal"})
-	was := stateOf(t, identity.NewFile(cfg.StateDir).Path())
-	date := dateOf(10)
-	putRecord(t, folder(cfg, 1), identity.Entry{ID: workID, Added: stagedOn, Was: "personal"})
-	stageLines(t, folder(cfg, 1), requestLines, date, requestLines.linesOf(date, 1)...)
-	runRouter(t, cfg)
-
-	_, err := router.NewClient(router.SocketPath(cfg.StateDir)).Import(t.Context())
-	if err == nil || !strings.Contains(err.Error(), "nothing was imported, as the accounts records disagree") {
-		t.Errorf("Import() error = %v, want it refused, saying the accounts records disagree", err)
-	}
-	if got := held(t, requestLines.files(cfg.StateDir), date); len(got) > 0 {
-		t.Errorf("refused, the request ledger holds %q, want nothing taken in", got)
-	}
-	if got := stateOf(t, identity.NewFile(cfg.StateDir).Path()); got != was {
-		t.Errorf("refused, the Mac's accounts record is\n%s\nwant it as it was\n%s", got.data, was.data)
-	}
-	checkUnstaged(t, cfg)
-}
-
 // A folder whose accounts record doesn't read is refused, saying so, nothing
 // taken in.
 func TestAFolderWhoseAccountsRecordDoesntReadIsRefused(t *testing.T) {
 	cfg := importConfig(t)
 	date := dateOf(10)
+	stageOthers(t, cfg, true)
 	put(t, identity.NewFile(folder(cfg, 1)).Path(), []byte("not a record\n"), stagedOn)
 	stageLines(t, folder(cfg, 1), requestLines, date, requestLines.linesOf(date, 1)...)
 	runRouter(t, cfg)
@@ -265,8 +293,6 @@ func TestAFolderWhoseAccountsRecordDoesntReadIsRefused(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "nothing was imported, as the accounts record of a folder staged to import doesn't read") {
 		t.Errorf("Import() error = %v, want it refused, saying the folder's accounts record doesn't read", err)
 	}
-	if got := held(t, requestLines.files(cfg.StateDir), date); len(got) > 0 {
-		t.Errorf("refused, the request ledger holds %q, want nothing taken in", got)
-	}
+	wantHeld(t, cfg, date, nil)
 	checkUnstaged(t, cfg)
 }

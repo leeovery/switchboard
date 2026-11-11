@@ -9,12 +9,12 @@ import (
 	"io"
 	"io/fs"
 	"os"
-	"slices"
 	"strings"
-	"time"
 
 	"github.com/leeovery/switchboard/internal/atomicfile"
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dayfile"
+	"github.com/leeovery/switchboard/internal/export"
 	"github.com/leeovery/switchboard/internal/identity"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/linescan"
@@ -23,9 +23,18 @@ import (
 // lineEnding ends each line of a staged file written anew.
 var lineEnding = []byte{'\n'}
 
-// ErrStagedRecord is what joining a folder whose accounts record doesn't
-// read fails with, wrapped.
-var ErrStagedRecord = errors.New("the accounts record of a folder staged to import doesn't read")
+// What joining a folder staged to import fails with, wrapped, where it can't
+// tell which of this Mac's accounts the folder's are.
+var (
+	// ErrStagedRecord is the folder's accounts record not reading.
+	ErrStagedRecord = errors.New("the accounts record of a folder staged to import doesn't read")
+	// ErrBeforeIDs is a folder another Mac exported before switchboard made
+	// account ids, whose ids are that Mac's own names for its accounts.
+	ErrBeforeIDs = errors.New("a folder was exported from another Mac before switchboard made account ids: export it again from that Mac once it runs this version of switchboard, then import that")
+	// ErrUnsynced is a folder whose export.json says it holds the accounts
+	// record, which it doesn't, as one a sync hasn't carried whole yet.
+	ErrUnsynced = errors.New("a folder's accounts record hasn't synced yet: import it again once it has")
+)
 
 // Renames are how a folder staged to import has the accounts it names
 // renamed onto the ids of this Mac's accounts record, as JoinFolder works
@@ -52,61 +61,65 @@ func (r Renames) none() bool {
 	return true
 }
 
+// Here is the Mac a folder staged to import is joined to: its install, as
+// export's InstallID names it, the accounts it configures, and where a random
+// id is drawn from, crypto/rand's where it's nil.
+type Here struct {
+	Install  string
+	Accounts config.Accounts
+	Random   io.Reader
+}
+
 // JoinFolder joins the accounts the folder at dir names into record, the
 // folder laid out as a state directory lays out its history, as import
 // stages an exported one, and returns how its history is renamed onto
 // record's ids, as RenameFolder renames it:
 //   - a folder holding an accounts record, as export writes one from this
-//     build on, has it joined, as identity's Join joins one, each id the
-//     folder names renamed by the record's own former ids, then onto
-//     record's id for the account where Join maps it;
-//   - one holding none was exported before switchboard made ids, so every id
-//     it names is one an account had before: each record knows neither as
-//     an id nor as a former id goes into it as removed, as the move puts an
-//     account removed before ids were made, under a random id drawn from
-//     random, crypto/rand's where it's nil, its old id its label.
+//     build on, has each id it names renamed by that record's former ids, the
+//     ids its own Mac made, then onto this Mac's, as identity's Join joins the
+//     record into record;
+//   - one holding none, exported before switchboard made ids, is taken only
+//     where it's this Mac's own, as its export.json says: its ids are then
+//     those record knows as former ids, renamed by them.
 //
-// Then every id is renamed by record's former ids. It fails, record as it
-// was, with ErrStagedRecord wrapped where the folder's record can't be read,
-// identity.ErrConflict where it contradicts record, and where the folder's
-// history can't be listed.
-func JoinFolder(dir string, record *identity.Record, random io.Reader, now time.Time) (Renames, error) {
+// It fails, record as it was, with ErrStagedRecord wrapped where the folder's
+// record can't be read; ErrUnsynced where its export.json says it holds one
+// it doesn't; ErrBeforeIDs where it holds none and is another Mac's; and
+// where its export.json can't be read, or a random id drawn.
+func JoinFolder(dir string, record *identity.Record, here Here) (Renames, error) {
 	staged := identity.NewFile(dir)
-	if _, err := os.Lstat(staged.Path()); errors.Is(err, fs.ErrNotExist) {
-		added := identity.Record{Accounts: slices.Clone(record.Accounts)}
-		if err := addFormer(dir, &added, random, now); err != nil {
-			return Renames{}, err
-		}
-		*record = added
-		return Renames{steps: []renames{formerIDs(added)}}, nil
+	_, err := os.Lstat(staged.Path())
+	switch {
+	case err == nil:
+		return joinRecord(staged, record, here)
+	case !errors.Is(err, fs.ErrNotExist):
+		return Renames{}, fmt.Errorf("%w: %w", ErrStagedRecord, err)
 	}
+	m, err := export.ReadManifest(dir)
+	switch {
+	case err != nil:
+		return Renames{}, fmt.Errorf("read the export.json of a folder staged to import: %w", err)
+	case m.Accounts:
+		return Renames{}, ErrUnsynced
+	case m.Install != here.Install:
+		return Renames{}, ErrBeforeIDs
+	}
+	return Renames{steps: []renames{formerIDs(*record)}}, nil
+}
+
+// joinRecord joins the accounts record staged into record, as identity's
+// Join joins it, and returns how the folder it's in is renamed: by its
+// former ids, then as Join maps its ids.
+func joinRecord(staged identity.File, record *identity.Record, here Here) (Renames, error) {
 	other, err := staged.Read()
 	if err != nil {
 		return Renames{}, fmt.Errorf("%w: %w", ErrStagedRecord, err)
 	}
-	mapped, err := record.Join(other)
+	mapped, err := record.Join(other, here.Accounts, (&Mover{Random: here.Random}).random())
 	if err != nil {
 		return Renames{}, err
 	}
-	return Renames{steps: []renames{formerIDs(other), renames(mapped), formerIDs(*record)}}, nil
-}
-
-// addFormer adds to record each id the history in dir names that it knows
-// neither as an id nor as a former id, as an account removed before ids were
-// made, as the move adds one, by the days the history tells of it on.
-func addFormer(dir string, record *identity.Record, random io.Reader, now time.Time) error {
-	m := &Mover{StateDir: dir, Random: random}
-	seen, err := m.historyAccounts()
-	if err != nil {
-		return fmt.Errorf("read the accounts a folder staged to import names: %w", err)
-	}
-	d := &deciding{record: record, seen: seen, now: now, random: m.random(), decided: make(map[string]bool)}
-	for _, was := range d.removedBefore() {
-		if err := d.removed(was); err != nil {
-			return err
-		}
-	}
-	return nil
+	return Renames{steps: []renames{formerIDs(other), renames(mapped)}}, nil
 }
 
 // formerIDs are the ids record's accounts had before switchboard made ids,
@@ -166,27 +179,33 @@ func RenameFolder(ctx context.Context, dir string, rename Renames) error {
 // where its compressed file, or of the request ledger its summary, names one
 // renamed, its file first written anew of what reads where it reads short,
 // then rewritten as day rewrites it, its lines as a whole, or, where day is
-// nil, as files' Rewrite rewrites them. It stops, failing, once ctx ends.
+// nil, as files' Rewrite rewrites them. A day whose file reads none of its
+// lines, as one whose start is damaged, is left as it is, warned of, for the
+// import to pass over as it passes over any it can't read. It stops,
+// failing, once ctx ends.
 func renameStagedDay(ctx context.Context, files *dayfile.Files, n names, date string, rename Renames, day func(line func([]byte) []byte) error) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
 	path := files.CompressedPath(date)
-	renamed, short, err := scanStaged(path, files.LineMax, n, rename)
+	scan, err := scanStaged(path, files.LineMax, n, rename)
 	if err != nil {
 		return err
 	}
-	if day != nil && !renamed {
-		renamed, err = summaryRenamed(files.Dir, date, rename)
+	if day != nil && !scan.renamed {
+		scan.renamed, err = summaryRenamed(files.Dir, date, rename)
 		if err != nil {
 			return err
 		}
 	}
-	if !renamed {
+	switch {
+	case !scan.renamed:
 		return nil
-	}
-	if short != nil {
-		logger.Warn(files.Name+" staged to import read short; its lines up to the damage are taken in", "file", path, "error", short)
+	case scan.short != nil && !scan.read:
+		logger.Warn(files.Name+" staged to import doesn't read, so it's left as it is", "file", path, "error", scan.short)
+		return nil
+	case scan.short != nil:
+		logger.Warn(files.Name+" staged to import read short; its lines up to the damage are taken in", "file", path, "error", scan.short)
 		if err := healStaged(path, files.LineMax); err != nil {
 			return fmt.Errorf("rename the %s of %s staged to import: %w", files.Name, date, err)
 		}
@@ -199,23 +218,33 @@ func renameStagedDay(ctx context.Context, files *dayfile.Files, n names, date st
 	return err
 }
 
+// stagedScan is what reading a staged compressed file found: whether a line
+// names an account renamed, whether any line read, and why it read short,
+// where it did.
+type stagedScan struct {
+	renamed, read bool
+	short         error
+}
+
 // scanStaged reads the staged compressed file at path, a line at a time, as
-// import reads one, and reports whether a line names an account rename
-// renames, as n says where, and why it read short, where it did. A file
-// that isn't there names none; one that can't be opened fails.
-func scanStaged(path string, most int, n names, rename Renames) (renamed bool, short, err error) {
+// import reads one, finding what stagedScan says of it, n saying where a
+// line names accounts. A file that isn't there names none; one that can't
+// be opened fails.
+func scanStaged(path string, most int, n names, rename Renames) (stagedScan, error) {
 	file, err := os.Open(path)
 	if errors.Is(err, fs.ErrNotExist) {
-		return false, nil, nil
+		return stagedScan{}, nil
 	}
 	if err != nil {
-		return false, nil, err
+		return stagedScan{}, err
 	}
 	defer func() { _ = file.Close() }()
-	short = eachStaged(file, most, func(line []byte) {
-		n.visit(line, func(id string) { renamed = renamed || rename.Of(id) != id })
+	var scan stagedScan
+	scan.short = eachStaged(file, most, func(line []byte) {
+		scan.read = true
+		n.visit(line, func(id string) { scan.renamed = scan.renamed || rename.Of(id) != id })
 	})
-	return renamed, short, nil
+	return scan, nil
 }
 
 // summaryRenamed reports whether the request ledger's summary of the day

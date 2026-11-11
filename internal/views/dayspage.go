@@ -35,9 +35,10 @@ type DaysPage struct {
 // Share, its share of the eight weeks' worth; and of an account, Limits, the
 // 5-hour limits it hit; Label, Other and Removed, naming it, as status's
 // AccountName has them; Primary, set on the primary; and Gone, the place
-// among its days of the first after the one it was removed on, from which on
-// it has none: len(Days) where that's after them all, or it wasn't removed,
-// and 0 where it's before them.
+// among its days of the first after the one it was removed on, or after the
+// last it records anything on where that's later, from which on it has none:
+// len(Days) where that's after them all, or it wasn't removed, and 0 where
+// it's before them.
 type DaysStrip struct {
 	Of      string
 	Days    []StripDay
@@ -204,6 +205,7 @@ func (w weekDays) byAccount(accounts config.Accounts, removed status.RemovedAcco
 			strips[i].Days[d].Limit = n > 0
 			strips[i].Limits += n
 		}
+		strips[i].Gone = max(strips[i].Gone, strips[i].lastRecorded()+1)
 	}
 	return slices.DeleteFunc(strips, func(s DaysStrip) bool { return s.Other && !s.recorded() })
 }
@@ -211,7 +213,20 @@ func (w weekDays) byAccount(accounts config.Accounts, removed status.RemovedAcco
 // recorded reports whether the strip records anything of its account: a day
 // its week rose, or a 5-hour limit.
 func (s DaysStrip) recorded() bool {
-	return s.Limits > 0 || slices.ContainsFunc(s.Days, func(d StripDay) bool { return d.Level > 0 })
+	return s.lastRecorded() >= 0
+}
+
+// lastRecorded is the place among the strip's days of the last that records
+// anything of its account, as recorded says: -1 where none does. An account
+// removed here may still have been used on another Mac, whose days were
+// imported, after the day it was removed on.
+func (s DaysStrip) lastRecorded() int {
+	for d, day := range slices.Backward(s.Days) {
+		if day.Level > 0 || day.Limit {
+			return d
+		}
+	}
+	return -1
 }
 
 // after is the place among the weeks' days of the first after the local day

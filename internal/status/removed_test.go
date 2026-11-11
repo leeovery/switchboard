@@ -110,3 +110,14 @@ func TestAnAccountIsNamedByTheLabelItsConfiguredOrRecordedBy(t *testing.T) {
 		t.Errorf("Named(h7c2) of the moment a minute on = %+v, want %+v", got, tests[2].want)
 	}
 }
+
+// Ids are compared ignoring case, as a config edited by hand may spell one.
+func TestAnAccountIsNamedWhateverTheCaseOfItsID(t *testing.T) {
+	removed := status.RemovedAccounts{{ID: "h7c2", Label: "team"}}
+	if got := removed.Named(config.Accounts{{ID: "B6S7", Label: "Work"}}, "b6s7"); got != (status.AccountName{Label: "Work"}) {
+		t.Errorf("Named(b6s7) of B6S7 configured = %+v, want it configured, labelled Work", got)
+	}
+	if got := removed.Named(nil, "H7C2"); got != (status.AccountName{Label: "team", Other: true}) {
+		t.Errorf("Named(H7C2) = %+v, want the account kept as h7c2, labelled team", got)
+	}
+}

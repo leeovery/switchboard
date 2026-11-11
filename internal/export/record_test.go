@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/export"
 	"github.com/leeovery/switchboard/internal/identity"
 )
 
@@ -92,6 +93,31 @@ func TestTheAccountsRecordIsExportedLabelledCountingForNoDay(t *testing.T) {
 	}
 }
 
+// The accounts record is written before any day's lines, so a sync carrying
+// the export in its order never has the days ahead of the record naming their
+// accounts; and export.json says the folder holds it.
+func TestTheAccountsRecordIsWrittenBeforeTheDaysAndSaidHeld(t *testing.T) {
+	state, dir := t.TempDir(), t.TempDir()
+	putRecord(t, state, summarisedAt, work)
+	writeFile(t, filepath.Join(state, requests.compressed("", day1)), gzipOf(t, linesOf(`{"n":1}`)), compressedAt)
+	var folder string
+	looked := 0
+	x := export.WithLooked(exporter(state), func(string) {
+		looked++
+		if _, err := os.Stat(accountsRecord(folder)); err != nil {
+			t.Errorf("as the day's lines are looked at, the folder's accounts record: %v, want it written", err)
+		}
+	})
+	folder = folderOf(t, state, dir)
+
+	if _, err := x.Export(dir); err != nil || looked != 1 {
+		t.Fatalf("Export() = %v, looking at %d days, want the day exported", err, looked)
+	}
+	if m, err := export.ReadManifest(folder); err != nil || !m.Accounts {
+		t.Errorf("the folder's export.json reads %+v (%v), want it to say the folder holds the accounts record", m, err)
+	}
+}
+
 // A state directory without an accounts record exports none, and removes the
 // one exported before, so the folder reads as exported before switchboard
 // made ids, as its days then are.
@@ -107,6 +133,9 @@ func TestNoAccountsRecordExportsNone(t *testing.T) {
 	wantResult(t, exportInto(t, state, dir), state, dir, 0, 1)
 	if _, err := os.Lstat(accountsRecord(folderOf(t, state, dir))); !errors.Is(err, fs.ErrNotExist) {
 		t.Errorf("the folder holds an accounts record (%v), want none", err)
+	}
+	if m, err := export.ReadManifest(folderOf(t, state, dir)); err != nil || m.Accounts {
+		t.Errorf("the folder's export.json reads %+v (%v), want it not to say the folder holds the accounts record", m, err)
 	}
 }
 

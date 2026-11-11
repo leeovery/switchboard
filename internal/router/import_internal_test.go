@@ -17,8 +17,8 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/dayfile"
+	"github.com/leeovery/switchboard/internal/export"
 	"github.com/leeovery/switchboard/internal/identity"
-	"github.com/leeovery/switchboard/internal/idmove"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/readings"
@@ -71,6 +71,20 @@ func stageFile(t *testing.T, path string, data []byte) {
 	}
 }
 
+// stageOwn gives the folder staged first in the state directory given the
+// export.json of that install's own export, as one exported before
+// switchboard made ids, and returns the folder.
+func stageOwn(t *testing.T, stateDir string) string {
+	t.Helper()
+	folder := filepath.Join(ImportDir(stateDir), "1")
+	install, err := export.InstallID(stateDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stageFile(t, filepath.Join(folder, "export.json"), []byte(`{"version":1,"install":"`+install+`","exported_at":"2026-09-20T09:30:00Z"}`+"\n"))
+	return folder
+}
+
 // readingOn is a reading of work's session taken at at, as a line of the
 // readings history.
 func readingOn(at time.Time) string {
@@ -98,7 +112,7 @@ func newHeldImporting(t *testing.T) *heldImporting {
 	t.Helper()
 	cfg := importingConfig(t)
 	h := &heldImporting{r: newTestRouterOf(t, cfg), dir: cfg.StateDir, date: dayfile.DateOf(start.AddDate(0, 0, -10))}
-	staged := readings.Files(readings.Dir(filepath.Join(ImportDir(h.dir), "1")), logger)
+	staged := readings.Files(readings.Dir(stageOwn(t, h.dir)), logger)
 	stageFile(t, staged.CompressedPath(h.date), gzipOf(t, readingOn(start.AddDate(0, 0, -10))))
 	busy, released := make(chan struct{}), make(chan struct{})
 	h.release = sync.OnceFunc(func() { close(released) })
@@ -257,7 +271,7 @@ func pastKeeping(t *testing.T) (cfg Config, summary string) {
 	// them.
 	older := dayfile.DateOf(day.AddDate(0, 0, -10))
 	stageFile(t, ledger.SummaryFile(ledger.Dir(cfg.StateDir), older), []byte(`{"version":6,"day":"`+older+`","lines":0}`+"\n"))
-	folder := filepath.Join(ImportDir(cfg.StateDir), "1")
+	folder := stageOwn(t, cfg.StateDir)
 	stagedReadings := readings.Files(readings.Dir(folder), logger)
 	stageFile(t, stagedReadings.CompressedPath(weekBefore), gzipOf(t, readingOn(day.AddDate(0, 0, -9))))
 	stageFile(t, stagedReadings.CompressedPath(date), gzipOf(t, readingOn(day)))
@@ -347,9 +361,34 @@ func TestAnAccountsRecordStagedThatDisagreesIsAConflict(t *testing.T) {
 	}
 }
 
-func TestAnAccountsRecordStagedThatDoesntReadIsTheFolders(t *testing.T) {
-	if got := importStatus(fmt.Errorf("nothing was imported, as %w", idmove.ErrStagedRecord)); got != http.StatusUnprocessableEntity {
-		t.Errorf("importStatus() of an accounts record staged that doesn't read = %d, want 422", got)
+// A folder whose accounts can't be told is answered as the folder's fault: a
+// 422 where its record doesn't read, or it's another Mac's from before
+// switchboard made ids; a 409, to try again, where its record hasn't synced.
+func TestAFolderWhoseAccountsCantBeToldIsAnsweredAsTheFolders(t *testing.T) {
+	const otherInstall = `"install":"fedcba9876543210","exported_at":"2026-09-20T09:30:00Z"`
+	tests := []struct {
+		name     string
+		manifest string
+		record   string
+		want     int
+	}{
+		{name: "a record that doesn't read", manifest: `{"version":1,` + otherInstall + `,"accounts":true}`, record: "not a record\n", want: http.StatusUnprocessableEntity},
+		{name: "another Mac's from before ids", manifest: `{"version":1,` + otherInstall + `}`, want: http.StatusUnprocessableEntity},
+		{name: "a record that hasn't synced", manifest: `{"version":1,` + otherInstall + `,"accounts":true}`, want: http.StatusConflict},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := importingConfig(t)
+			folder := filepath.Join(ImportDir(cfg.StateDir), "1")
+			stageFile(t, filepath.Join(folder, "export.json"), []byte(tt.manifest+"\n"))
+			if tt.record != "" {
+				stageFile(t, identity.NewFile(folder).Path(), []byte(tt.record))
+			}
+			_, err := newTestRouterOf(t, cfg).joinStaged([]string{folder})
+			if got := importStatus(err); err == nil || got != tt.want {
+				t.Errorf("joinStaged() = %v, answered %d, want %d", err, got, tt.want)
+			}
+		})
 	}
 }
 

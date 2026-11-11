@@ -46,10 +46,10 @@ func RemovedOf(record identity.Record, configured config.Accounts) RemovedAccoun
 	return removed
 }
 
-// Of returns the removed account with the given id, reporting false where
-// it's none of them.
+// Of returns the removed account with the given id, ids compared ignoring
+// case, reporting false where it's none of them.
 func (r RemovedAccounts) Of(id string) (RemovedAccount, bool) {
-	i := slices.IndexFunc(r, func(a RemovedAccount) bool { return a.ID == id })
+	i := slices.IndexFunc(r, func(a RemovedAccount) bool { return strings.EqualFold(a.ID, id) })
 	if i < 0 {
 		return RemovedAccount{}, false
 	}
@@ -70,9 +70,9 @@ type AccountName struct {
 }
 
 // Named names the account with the given id, configured as configured says,
-// as AccountName has it.
+// ids compared ignoring case, as AccountName has it.
 func (r RemovedAccounts) Named(configured config.Accounts, id string) AccountName {
-	if i := slices.IndexFunc(configured, func(a config.Account) bool { return a.ID == id }); i >= 0 {
+	if i := slices.IndexFunc(configured, func(a config.Account) bool { return strings.EqualFold(a.ID, id) }); i >= 0 {
 		return AccountName{Label: cmp.Or(configured[i].Label, id)}
 	}
 	return r.named(id)

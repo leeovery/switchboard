@@ -24,6 +24,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/events"
+	"github.com/leeovery/switchboard/internal/export"
 	"github.com/leeovery/switchboard/internal/identity"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
@@ -156,7 +157,34 @@ func stageLines(t *testing.T, folder string, kind lineKind, date string, lines .
 	t.Helper()
 	data := gzipOf(t, lines...)
 	put(t, kind.files(folder).CompressedPath(date), data, stagedOn)
+	markOwn(t, folder)
 	return data
+}
+
+// markOwn gives folder, a folder staged in the import directory of a state
+// directory, the export.json of that install's own export, as one exported
+// before switchboard made ids, where it has none.
+func markOwn(t *testing.T, folder string) {
+	t.Helper()
+	if _, err := os.Stat(filepath.Join(folder, "export.json")); err == nil {
+		return
+	}
+	install, err := export.InstallID(filepath.Dir(filepath.Dir(folder)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	stageManifest(t, folder, export.Manifest{Install: install})
+}
+
+// stageManifest writes the export.json m says in folder.
+func stageManifest(t *testing.T, folder string, m export.Manifest) {
+	t.Helper()
+	m.Version, m.ExportedAt = export.Version, stagedOn
+	data, err := json.Marshal(m)
+	if err != nil {
+		t.Fatal(err)
+	}
+	put(t, filepath.Join(folder, "export.json"), append(data, '\n'), stagedOn)
 }
 
 // summaryOf is a summary of the local day with the given date, as the router
@@ -476,6 +504,7 @@ func TestAStagedSummaryThatDoesntReadAsItsDaysIsLeftOut(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := importConfig(t)
 			put(t, ledger.SummaryFile(ledger.Dir(folder(cfg, 1)), date), []byte(tt.summary), stamped(stagedOn))
+			markOwn(t, folder(cfg, 1))
 
 			if got := importNow(t, cfg); got.Summaries != 0 {
 				t.Errorf("Import() = %+v, want no summary copied in", got)

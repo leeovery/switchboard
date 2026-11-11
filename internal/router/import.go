@@ -143,14 +143,16 @@ func (r *Router) serveImportRunning(w http.ResponseWriter, _ *http.Request) {
 }
 
 // importStatus is the status POST /import answers err with: 409 while another
-// import runs, and where an accounts record staged disagrees with the Mac's,
-// 422 where one doesn't read, 400 with nothing staged, 503 while the router
-// can't import, as it stops, and 500 where a day couldn't be taken in.
+// import runs, where an accounts record staged disagrees with the Mac's, and
+// where a folder's hasn't synced yet; 422 where one doesn't read, and where a
+// folder another Mac exported before switchboard made ids has none; 400 with
+// nothing staged, 503 while the router can't import, as it stops, and 500
+// where a day couldn't be taken in.
 func importStatus(err error) int {
 	switch {
-	case errors.Is(err, export.ErrImportRunning), errors.Is(err, identity.ErrConflict):
+	case errors.Is(err, export.ErrImportRunning), errors.Is(err, identity.ErrConflict), errors.Is(err, idmove.ErrUnsynced):
 		return http.StatusConflict
-	case errors.Is(err, idmove.ErrStagedRecord):
+	case errors.Is(err, idmove.ErrStagedRecord), errors.Is(err, idmove.ErrBeforeIDs):
 		return http.StatusUnprocessableEntity
 	case errors.Is(err, errNothingStaged):
 		return http.StatusBadRequest
@@ -225,15 +227,20 @@ func (r *Router) takeStaged(ctx context.Context, dir string) (Imported, error) {
 // joinStaged joins the accounts each of folders names to the state
 // directory's accounts record, in the order staged, as idmove's JoinFolder
 // joins them, writing the record where that changed it, and returns how each
-// folder is renamed onto its ids, in the same order. It fails, writing
-// nothing, as JoinFolder does: with idmove.ErrStagedRecord wrapped where a
-// folder's record can't be read, and identity.ErrConflict where one
-// contradicts the state directory's.
+// folder is renamed onto its ids, in the same order, this Mac being the
+// router's install, as export's InstallID names it, and its accounts. It
+// fails, writing nothing, where the install's id can't be had, and as
+// JoinFolder does, as importStatus tells.
 func (r *Router) joinStaged(folders []string) ([]idmove.Renames, error) {
+	install, err := export.InstallID(r.cfg.StateDir)
+	if err != nil {
+		return nil, fmt.Errorf("read this Mac's install id: %w", err)
+	}
+	here := idmove.Here{Install: install, Accounts: r.cfg.Accounts}
 	renames := make([]idmove.Renames, len(folders))
-	err := identity.NewFile(r.cfg.StateDir).Change(func(record *identity.Record, _ func() error) error {
+	err = identity.NewFile(r.cfg.StateDir).Change(func(record *identity.Record, _ func() error) error {
 		for i, folder := range folders {
-			rename, err := idmove.JoinFolder(folder, record, nil, r.cfg.Now())
+			rename, err := idmove.JoinFolder(folder, record, here)
 			if err != nil {
 				return fmt.Errorf("nothing was imported, as %w", err)
 			}
