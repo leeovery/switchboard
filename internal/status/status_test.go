@@ -1607,6 +1607,24 @@ func TestADocumentWithoutEventsSaysNothingOfThem(t *testing.T) {
 	}
 }
 
+func TestAnAccountSaysItsTokenIsAnotherSubscriptionsOnlyWhereItIs(t *testing.T) {
+	tests := []struct {
+		account status.Account
+		want    string
+	}{
+		{
+			account: status.Account{ID: "work", Label: "Work", TokenForeign: true, Error: "its token is another subscription's"},
+			want:    `{"id":"work","label":"Work","token_set":false,"token_foreign":true,"error":"its token is another subscription's"}`,
+		},
+		{account: status.Account{ID: "work", Label: "Work", TokenSet: true}, want: `{"id":"work","label":"Work","token_set":true}`},
+	}
+	for _, tt := range tests {
+		if got, err := json.Marshal(tt.account); err != nil || string(got) != tt.want {
+			t.Errorf("Marshal() = %s, %v, want %s", got, err, tt.want)
+		}
+	}
+}
+
 func TestADocumentWithNothingWorkedOutSaysNothingOfIt(t *testing.T) {
 	doc := status.Document{Source: status.SourceRouter, ComingUp: []status.Upcoming{}, Accounts: []status.Account{{
 		ID: "work", Label: "Work", TokenSet: true, Windows: []quota.Window{{Key: "5h", Label: "Session", Utilization: 0.4}},

@@ -58,7 +58,7 @@ func (s accountSide) side() side {
 // moved a session onto it, or pinned it.
 func (s accountSide) tells(e status.Event) bool {
 	switch e.Kind {
-	case status.EventStarted, status.EventPressure, status.EventPrimed, status.EventRoom:
+	case status.EventStarted, status.EventPressure, status.EventForeign, status.EventPrimed, status.EventRoom:
 		return e.Account == s.id
 	case status.EventCap, status.EventLimit, status.EventRefused:
 		return e.Account == s.id || s.cameFrom(e)

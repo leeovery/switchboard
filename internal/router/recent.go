@@ -150,6 +150,8 @@ func (r *recent) take(e Event, now time.Time) {
 		r.limitLifted(e, now)
 	case RefusalLifted:
 		r.lifted(e, now)
+	case ForeignToken:
+		r.add(status.Event{Kind: status.EventForeign, Account: e.Account}, now)
 	case HealthChanged:
 		r.add(status.Event{Kind: status.EventHealth, Reason: e.Reason}, now)
 	case Primed:

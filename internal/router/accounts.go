@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/tokens"
 )
 
@@ -45,6 +46,11 @@ type secret struct {
 	// none as it was last looked at: the account keeps its token unless the
 	// file holds none at the next look either.
 	missed bool
+	// foreign is set once a probe on the token the account holds finds it's
+	// another subscription's, until a probe on a token it holds finds one of
+	// its own, whatever its file holds meanwhile: nothing goes out on it
+	// till then.
+	foreign bool
 	// former are the tokens the account had before this one, in the order
 	// they were replaced, and those it took up from accounts removed from the
 	// config.
@@ -148,22 +154,38 @@ func (s *secret) get() tokens.Token {
 	return s.token
 }
 
-// usable reports whether the account has a usable token.
+// usable reports whether the account has a usable token of its own.
 func (s *secret) usable() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.unusable == nil && !s.foreign
+}
+
+// holding reports whether the account's file holds a usable token, its own
+// or another subscription's.
+func (s *secret) holding() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.unusable == nil
 }
 
-// problem says why the account has no usable token, or is "" while it has
-// one.
-func (s *secret) problem() string {
+// lacks says why the account has no usable token of its own: why its file
+// holds none, or, while it holds one, whether that's another subscription's.
+// It's nil and false while it has one.
+func (s *secret) lacks() (unusable error, foreign bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.unusable == nil {
-		return ""
-	}
-	return s.unusable.Error()
+	return s.unusable, s.unusable == nil && s.foreign
+}
+
+// disown notes whether the token the account holds is another subscription's,
+// as a probe on it found, and reports whether that changed.
+func (s *secret) disown(foreign bool) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	changed := s.foreign != foreign
+	s.foreign = foreign
+	return changed
 }
 
 // is reports whether token is the account's token. The comparison takes as
@@ -173,16 +195,37 @@ func (s *secret) is(token string) bool {
 	return subtle.ConstantTimeCompare([]byte(s.get().Reveal()), []byte(token)) == 1
 }
 
-// hasToken reports whether the account has a usable token, which requests
-// can go out on.
+// hasToken reports whether the account has a usable token of its own, which
+// requests can go out on.
 func (a account) hasToken() bool {
 	return a.secret.usable()
 }
 
-// problem says why the account has no usable token, or is "" while it has
-// one.
+// holdsToken reports whether the account has a usable token, its own or
+// another subscription's, which a probe can go out on.
+func (a account) holdsToken() bool {
+	return a.secret.holding()
+}
+
+// problem says why the account has no usable token of its own, or is "" while
+// it has one.
 func (a account) problem() string {
-	return a.secret.problem()
+	problem, _ := a.lacks()
+	return problem
+}
+
+// lacks says why the account has no usable token of its own, and whether
+// that's as the one it holds is another subscription's: "" and false while it
+// has one.
+func (a account) lacks() (problem string, foreign bool) {
+	unusable, foreign := a.secret.lacks()
+	switch {
+	case unusable != nil:
+		return unusable.Error(), false
+	case foreign:
+		return prose.ForeignTokenFix(a.ID), true
+	}
+	return "", false
 }
 
 // token returns the account's token as the router holds it now: the one it
@@ -245,9 +288,17 @@ func (as accounts) find(match func(account) bool) (account, bool) {
 	return as[i], true
 }
 
-// sendable returns the accounts with a token, which requests can go out on.
+// sendable returns the accounts with a token of their own, which requests can
+// go out on.
 func (as accounts) sendable() accounts {
 	return slices.DeleteFunc(slices.Clone(as), func(a account) bool { return !a.hasToken() })
+}
+
+// withToken returns the accounts with a token, their own or another
+// subscription's, which probes can go out on: a probe is how an account
+// whose token is another's comes to take requests again.
+func (as accounts) withToken() accounts {
+	return slices.DeleteFunc(slices.Clone(as), func(a account) bool { return !a.holdsToken() })
 }
 
 // only returns the accounts with the ids given, in order.

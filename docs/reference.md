@@ -323,6 +323,7 @@ event can change, so when you read one that changed, take its last version.
 - `cap`: a window at its reserve.
 - `limit`.
 - `refused`.
+- `foreign`: an account's token found to be another subscription's.
 - `primed`.
 - `room`: an account with room again.
 - `pin` and `auto`: routing set by hand, and routing given back.
@@ -406,7 +407,9 @@ Each entry in `accounts` holds these:
 
 - The account's `id` and `label`, whether it's the `primary`, its `reserve`, and its `plan` as
   configured, `pro`, `max` or `ultra`, left out where it isn't known.
-- Whether its token is set, and when it was read.
+- Whether its token is set, and when it was read. From the router only, `token_foreign` where its
+  token is another subscription's, so it takes no requests till it has its own; `token_set` is
+  `false` then, and its `error` says what puts it right.
 - `token_taken` and `token_good_until`: when switchboard took its token, and when the token's year,
   counted from then, is up, 365 days on, each left out where that isn't known.
 - Its `windows`, each with its use, reset and status, its even pace (`pace`) and its `allowance`. A

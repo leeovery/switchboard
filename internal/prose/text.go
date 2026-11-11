@@ -50,6 +50,30 @@ func MoveFailed(why string) string {
 	return "the router couldn't make it, and tries again in a minute: " + Clean(why)
 }
 
+// ForeignToken says an account's token is another subscription's, as the
+// router finds it probing the account, which takes no requests till it has
+// one of its own.
+const ForeignToken = "its token is another subscription's"
+
+// AddAsOwn is the other way to put right an account whose token is another
+// subscription's, said after giving it its own: that subscription added as
+// an account of its own.
+const AddAsOwn = "or add that subscription as an account of its own"
+
+// AccountsToken is the command that gives the account with the given id its
+// token, as in "switchboard accounts token work".
+func AccountsToken(id string) string {
+	return "switchboard accounts token " + Clean(id)
+}
+
+// ForeignTokenFix says the token of the account with the given id is another
+// subscription's, as ForeignToken says, and what puts it right: "its token is
+// another subscription's: give it its own with switchboard accounts token
+// work, or add that subscription as an account of its own".
+func ForeignTokenFix(id string) string {
+	return ForeignToken + ": give it its own with " + AccountsToken(id) + ", " + AddAsOwn
+}
+
 // Version words a release's version as it's shown, such as v0.2.10: a
 // version that isn't a release's number, such as a build's "dev", as it is.
 func Version(version string) string {

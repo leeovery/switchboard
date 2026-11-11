@@ -43,6 +43,16 @@ func TestHowAnAccountStandsWithTheRouter(t *testing.T) {
 			want:    status.Routing{Kind: status.RoutingTokenless, Says: "no token", Clauses: []string{"switchboard accounts token work"}, Short: []string{"no token"}},
 		},
 		{
+			name: "its token another subscription's",
+			account: with(readNow(0.2, 0.3, 0), func(a *status.Account) {
+				a.TokenSet, a.TokenForeign, a.Error = false, true, "its token is another subscription's"
+			}),
+			want: status.Routing{
+				Kind: status.RoutingTokenless, Says: "its token is another subscription's",
+				Clauses: []string{"switchboard accounts token work", "or add that subscription as an account of its own"}, Short: []string{"not its token"},
+			},
+		},
+		{
 			name:    "at a limit holding back every request, its last read failing: the limit",
 			account: with(with(readNow(1, 0.3, 0), limited("5h")), failing),
 			want:    status.Routing{Kind: status.RoutingLimited, Says: "limit reached", Clauses: []string{"back 17:10"}, Short: []string{"limit reached", "17:10"}, Back: at(1, 17, 10).UTC()},

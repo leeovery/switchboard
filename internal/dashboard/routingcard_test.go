@@ -112,6 +112,8 @@ func TestAnAccountIsOpenOrClosedAndWhy(t *testing.T) {
 	familyRefused.Refused = status.Refusal{Until: now.Add(time.Hour).UTC(), Status: 429, Family: "fable"}
 	tokenless := readAccount("tokenless")
 	tokenless.TokenSet = false
+	foreign := readAccount("foreign")
+	foreign.TokenSet, foreign.TokenForeign = false, true
 	capped := readAccount("capped", sessionOf(0.95, 2*time.Hour), weekOf(0.4, 3*quota.Day))
 	capped.Reserve = 0.1
 	unread := readAccount("unread")
@@ -133,6 +135,7 @@ func TestAnAccountIsOpenOrClosedAndWhy(t *testing.T) {
 		{name: "held at its limit, its cap holding it longer: till it's back", account: limitedCapped, want: RoutingRow{Reason: "at its limit till 15:12"}},
 		{name: "its token refused", account: refused, want: RoutingRow{Reason: "token refused (401)"}},
 		{name: "without a token", account: tokenless, want: RoutingRow{Reason: "no token"}},
+		{name: "its token another subscription's", account: foreign, want: RoutingRow{Reason: "not its token"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

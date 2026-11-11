@@ -312,7 +312,8 @@ Beside the ledger's lines, the router files its events, so they outlast a restar
 line for each version of an event. These are the events it files:
 
 - A session started or moved.
-- An account under pressure, at its cap, at its limit, refused, primed, or with room again.
+- An account under pressure, at its cap, at its limit, refused, primed, or with room again, or its
+  token found to be another subscription's.
 - Routing set by hand.
 - A restart falling due.
 - The router's own health turning.

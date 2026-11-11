@@ -69,6 +69,13 @@ type usage struct {
 	// probe that ends meanwhile went out on a token it no longer holds, as
 	// one on the token before did.
 	tokenless bool
+	// unchecked is set from as the account goes out on another token, or
+	// gains one, or the router starts on another than the state file kept it
+	// holding, until a probe on it ends: its rounds probe it, as onRounds
+	// says, so a token replaced by hand with another subscription's is found
+	// so within a round, however lately the account was read. It's kept in
+	// memory alone.
+	unchecked bool
 	// failures are the windows the last probe expected and couldn't read,
 	// each until it's read.
 	failures []quota.Failure
@@ -515,16 +522,20 @@ func (u *usage) liftedSince(id string, was []limit, now time.Time) []LimitLifted
 // probes' error and backoff, as any reading does: none can have come since
 // the account took up its token, as its probes go out one at a time. A
 // probe a request of which was answered with success, on whichever token,
-// reads the account whole, as take has it. The state file keeps how a probe
-// on the account's own token went, its error with nothing shaped like a token
-// in it, as a routine change, and a reading that reads otherwise than before,
-// or retires a window or has one back, as news.
+// reads the account whole, as take has it. A probe on the token the account
+// holds, however it went, checks that token, as unchecked says. The state file
+// keeps how a probe on the account's own token went, its error with nothing
+// shaped like a token in it, as a routine change, and a reading that reads
+// otherwise than before, or retires a window or has one back, as news.
 func (s *state) recordProbe(id string, probed quota.Probe, err error, sent moment, from readings.Source) probeTaken {
 	at := s.now().UTC()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	u := s.usage[id]
 	taken := probeTaken{tokenGone: sent < u.afresh || u.tokenless}
+	if !taken.tokenGone {
+		u.unchecked = false
+	}
 	if err != nil {
 		if !taken.tokenGone {
 			u.probed, u.ended, u.probeErr = at, at, redact.Text(err.Error())
@@ -650,12 +661,12 @@ func (s *state) refuse(id string, status int, by string, sent moment) (time.Time
 
 // tokenReplaced notes that the account with the given id goes out on another
 // token from now on: the upstream's refusals of the one before no longer hold
-// it back, its probes start afresh, as probesAfresh says, and neither how a
-// probe sent before, still out on the one before, goes, though what it reads
-// stands, as recordProbe says, nor the upstream's refusal of the token a
-// request sent before went out on, as refuse says, is the account's. It
-// returns the news of the refusals lifting, and reports false when none was
-// in force.
+// it back, its probes start afresh, as probesAfresh says, the token's to be
+// checked, as unchecked says, and neither how a probe sent before, still out
+// on the one before, goes, though what it reads stands, as recordProbe says,
+// nor the upstream's refusal of the token a request sent before went out on,
+// as refuse says, is the account's. It returns the news of the refusals
+// lifting, and reports false when none was in force.
 func (s *state) tokenReplaced(id string) (RefusalLifted, bool) {
 	now := s.now()
 	s.mu.Lock()
@@ -664,21 +675,21 @@ func (s *state) tokenReplaced(id string) (RefusalLifted, bool) {
 	held := u.refused.inForce(now)
 	u.refused = nil
 	u.probesAfresh()
-	u.afresh = s.mark()
+	u.afresh, u.unchecked = s.mark(), true
 	return RefusalLifted{Account: id}, held
 }
 
 // tokenGained notes that the account with the given id has a usable token
 // again, or for the first time: its probes start afresh, as probesAfresh
-// says. A token it had before, back unchanged, excuses none of the failures
-// of the probes and requests still out on it: only another does, which
-// tokenReplaced notes.
+// says, and the token's to be checked, as unchecked says. A token it had
+// before, back unchanged, excuses none of the failures of the probes and
+// requests still out on it: only another does, which tokenReplaced notes.
 func (s *state) tokenGained(id string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	u := s.usage[id]
 	u.probesAfresh()
-	u.tokenless = false
+	u.tokenless, u.unchecked = false, true
 }
 
 // tokenLost notes that the account with the given id has no usable token:
@@ -902,11 +913,14 @@ func (s *state) rounding(clears func(id string, now time.Time) bool) func(id str
 }
 
 // onRounds reports whether the router's rounds probe the account with the
-// given id at now, as usage's onRounds says.
+// given id at now, as usage's onRounds says, foreign where the token it holds
+// is another subscription's.
 func (s *state) onRounds(id string, now time.Time) (due, ifClear bool) {
+	a, _ := s.accounts.byID(id)
+	_, foreign := a.secret.lacks()
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.usage[id].onRounds(s.policy, now)
+	return s.usage[id].onRounds(s.policy, foreign, now)
 }
 
 // onRounds reports, as policy judges the account's windows at now, whether
@@ -915,19 +929,22 @@ func (s *state) onRounds(id string, now time.Time) (due, ifClear bool) {
 // which the caller says. Nothing is due while its token is refused, nor until
 // retryAfter has passed since its last probe ended. Then a week of its about
 // to reset unread, as weekEnding says, is due whatever its other windows
-// read; else the account must have gone unread for unreadFor, and is due
-// where a probe of it is harmless, as harmless says, and due if clear where
-// it isn't.
-func (u *usage) onRounds(policy score.Policy, now time.Time) (due, ifClear bool) {
+// read; else the account must have gone unread for unreadFor, or hold a token
+// unchecked, and is due where a probe of it is harmless, as harmless says,
+// and due if clear where it isn't. One whose token is another subscription's,
+// as foreign says, is due whatever its windows read: it takes no request till
+// a probe finds it a token of its own, and a probe on the token it was found
+// on starts none of its windows.
+func (u *usage) onRounds(policy score.Policy, foreign bool, now time.Time) (due, ifClear bool) {
 	switch {
 	case u.refused.inForce(now) || now.Sub(u.probed) < retryAfter(u.misses):
 		return false, false
 	case u.weekEnding(now):
 		return true, false
-	case now.Sub(u.updated) < unreadFor:
+	case now.Sub(u.updated) < unreadFor && !u.unchecked:
 		return false, false
 	}
-	harmless := u.harmless(policy, now)
+	harmless := foreign || u.harmless(policy, now)
 	return harmless, !harmless
 }
 
@@ -1398,8 +1415,9 @@ func (u *usage) standing(a account, policy score.Policy, now time.Time) standing
 }
 
 // status is the account as configured, with its usage as last read, standing
-// as it does at now as policy judges, or why there's none, and the limit and
-// the refusal in force on it then, if any are.
+// as it does at now as policy judges, or why there's none, as where its token
+// is another subscription's, and the limit and the refusal in force on it
+// then, if any are.
 func (u *usage) status(a account, policy score.Policy, now time.Time) status.Account {
 	st, _ := u.statusOf(a, policy, now)
 	return st
@@ -1410,7 +1428,7 @@ func (u *usage) status(a account, policy score.Policy, now time.Time) status.Acc
 func (u *usage) statusOf(a account, policy score.Policy, now time.Time) (st status.Account, yearOf string) {
 	st = status.Configured(a.Account)
 	if !a.hasToken() {
-		st.Error = a.problem()
+		st.Error, st.TokenForeign = a.lacks()
 		return st, ""
 	}
 	st.TokenSet = true
@@ -1537,14 +1555,15 @@ func (s *state) recall(saved savedUsage, holding func(id string) bool) (changed 
 // reading, the windows retired, as retire has them, each absent from before
 // every moment, and, where it holds the token it held then, as held says, how
 // its probes went, which a stopped router's probes count for as they would
-// have, had it run on. A window kept without when it was read, as a router
-// from before kept them, wasn't read as far as is known. What a file edited
-// by hand can hold is taken as the router would have kept it: a window kept
-// both read and retired was read; one retired that shared says no model
-// shares wasn't retired; a probe kept as ending after now, as before the
-// clock was set back, ended now; a count of misses runs from none to
-// backingOff; and an error has nothing shaped like a token in it. It reports
-// whether it took the probes otherwise than they were kept, or left them out.
+// have, had it run on; else its token's to be checked, as unchecked says. A
+// window kept without when it was read, as a router from before kept them,
+// wasn't read as far as is known. What a file edited by hand can hold is
+// taken as the router would have kept it: a window kept both read and
+// retired was read; one retired that shared says no model shares wasn't
+// retired; a probe kept as ending after now, as before the clock was set
+// back, ended now; a count of misses runs from none to backingOff; and an
+// error has nothing shaped like a token in it. It reports whether it took the
+// probes otherwise than they were kept, or left them out.
 func (u *usage) recall(kept savedReading, held bool, shared func(key string) bool, now time.Time) (changed bool) {
 	for _, w := range kept.Windows {
 		u.windows[w.Key] = w
@@ -1560,5 +1579,6 @@ func (u *usage) recall(kept savedReading, held bool, shared func(key string) boo
 		u.probed, u.misses = score.Earlier(kept.Probed.UTC(), now), min(max(kept.Misses, 0), backingOff)
 		u.probeErr = redact.Text(kept.ProbeError)
 	}
+	u.unchecked = !held
 	return !u.probed.Equal(kept.Probed) || u.misses != kept.Misses || u.probeErr != kept.ProbeError
 }

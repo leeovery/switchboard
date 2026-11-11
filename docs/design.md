@@ -2953,6 +2953,7 @@ and the pool's room then is judged there, as POOL says. The focus GRAPHS followe
   | State | Words | Colour | Short |
   |---|---|---|---|
   | No usable token (settled in the plan) | `✕ no token · switchboard accounts token work` | `state.destructive` | `no token` |
+  | Its token another subscription's (see Account identity) | `✕ its token is another subscription's · switchboard accounts token work · or add that subscription as an account of its own` | `state.destructive` | `not its token` |
   | A limit holds it back from every request | `■ limit reached · back 15:54` | `state.destructive` | `limit reached · 15:54` |
   | A limit holds back some models alone (settled in the plan) | `■ Fable wk limit · back Mon 21:00 · other models still come here` | `accent.attention` | `Fable wk limit` |
   | Its token refused | `■ refused (401) · its token needs renewing` | `state.destructive` | `refused (401)` |
@@ -3093,6 +3094,7 @@ at every width.
   | `╎` in `accent.attention` | `cap` | `work reached its cap: 3 sessions moved to side` |
   | `■` in `state.destructive` | `limit` | `personal reached its 5-hour limit: 2 sessions moved to side` |
   | `■` in `state.destructive` | `refused` | `work refused (401): 2 sessions moved to side` |
+  | `■` in `state.destructive` | `foreign` | `work's token is another subscription's`; short, `work's token isn't its own` |
   | `◇` in `text.subtle` | `primed` | `side primed: its 5-hour window started` |
   | `✓` in `state.positive` | `room`, room again | `work open again: its 5-hour window reset` |
   | `●` in `accent.key` | `pin` | `pin set by hand: new sessions go to personal` |
@@ -3100,9 +3102,10 @@ at every width.
   | `!` in `accent.attention` | `restart` | `restart due: the config changed`; held, `restart held: <why the binary refuses>` |
   | `⊕` in `state.destructive`, or `state.positive` well again | `health` | `the router turned unhealthy: <why>`; `the router is healthy again` |
 
-  A mark is one a kind, but for `■`, which a limit and a refusal share, their words telling them
-  apart; the Log's Events mark each kind the same (see The Log). The sessions a limit, a cap or a
-  refusal moved fold into its line, counted, as its event's `count` and `to` give them; a move shows
+  A mark is one a kind, but for `■`, which a limit, a refusal and a token another subscription's
+  share, each closing its account, their words telling them apart; the Log's Events mark each kind
+  the same (see The Log). The sessions a limit, a cap or a refusal moved fold into its line,
+  counted, as its event's `count` and `to` give them; a move shows
   alone only where the line it's folded into isn't among those shown. Each sentence takes the
   fullest of its two forms that fits whole in LATELY's room, its column or, folded, what its heading
   holds (`latelyTold`), and is cut only where even the short one doesn't fit, so its names and
@@ -5556,18 +5559,19 @@ cursor's on alone. Its title, in its top edge: `LOG · REQUESTS · WHAT IT SHOWS
 - **Events:**
   - row 9: `Pick which events it shows.`;
   - row 11: `EVENTS` at `x`, `today` at `x+14` and `ONLY` at `x+58`, in `text.subtle`;
-  - rows 12 to 23, a kind each, in this order: its tick and name; today's count right-aligned in 5
+  - rows 12 to 24, a kind each, in this order: its tick and name; today's count right-aligned in 5
     from `x+14`, in `text.secondary`, `text.faint` at 0; and at `x+21` what it is, in `text.muted`:
     `started` a session first seen; `moved` a session moved to another account; `pressure` an
     account under pressure; `cap` an account at its cap; `limit` an account at its limit; `refused`
-    an account's token refused; `primed` a window started early; `open` an account with room
-    again; `pin` routing set by hand; `auto` routing given back to the router; `restart` a restart
-    of the router falling due; `health` the router unhealthy, or well again;
+    an account's token refused; `foreign` an account's token not its own; `primed` a window
+    started early; `open` an account with room again; `pin` routing set by hand; `auto` routing
+    given back to the router; `restart` a restart of the router falling due; `health` the router
+    unhealthy, or well again;
   - **ONLY:** `accounts` and their ticks (row 12); `sessions` and `every one, unless some are
     ticked` (13); today's sessions from `x+59`, rows 14 to 19, as Requests' list, counting their
     events today (`2 events`, `1 event`); then the `▼ 5 more today   / finds one from another day`
     line (20). No models and no `failed`, which an event has neither of;
-  - row 25: `It shows all ` `20` ` of today's events.`
+  - row 26: `It shows all ` `20` ` of today's events.`
 - **Its keys,** on row 27, right-aligned two cells in from the edge, three spaces apart:
 
   `←→ side   ↑↓ move   space tick   enter apply   esc cancel`
@@ -5610,6 +5614,7 @@ session shows down to 98 columns, and a phone's 52 show `at`, `event`, `account`
 | `╎` `accent.attention` | `cap` | the account | `95% of its 5-hour window: its 3 sessions move to side as their next requests come` |
 | `■` `state.destructive` | `limit` | the account | `its 5-hour window, till 23:58: its session moves to side` |
 | `■` `state.destructive` | `refused` | the account | `its token refused (401), till 14:00: its 2 sessions move to side`, or a request refused alone, `its opus requests refused (403), till 14:00` (settled in the plan) |
+| `■` `state.destructive` | `foreign` | the account | `its token is another subscription's`, its card headed `work's token is another subscription's` (see Account identity) |
 | `◇` `text.subtle` | `primed` | the account | `its 5-hour window started, resets at 12:05` |
 | `✓` `state.positive` | `open` | the account | `its 5-hour window reset` |
 | `●` `accent.key` | `pin` | the accounts it names | `new sessions go there, set from the command line`; with `--move`, `new and running sessions go there, …`; a session's own pin, `this session goes there, set from the dashboard` (settled in the plan) |
@@ -5620,8 +5625,8 @@ session shows down to 98 columns, and a phone's 52 show `at`, `event`, `account`
 - **The windows a limit or a cap began with:** its `what happened` names those alone, as LATELY's
   line does, a window that joined it later listed in its card (the owner's call, 15 October 2026).
 - **A mark a kind:** the marks are LATELY's (see The Overview) and the Log's own, each a cell wide
-  in JetBrains Mono, regular and bold, one a kind but for `■`: a limit and a token refused both
-  close their account, as ROUTING marks them, and their words tell them apart. `✕` is a single
+  in JetBrains Mono, regular and bold, one a kind but for `■`: a limit, a token refused and a token
+  another subscription's each close their account, and their words tell them apart. `✕` is a single
   request's refusal, on a cord or a row (`✕ 429`), never an event's. `○` is never one: it says not
   read, or not live. `◔`, `!` and `⊕`, which no frame draws, are JetBrains Mono's, regular and bold,
   and `refused` keeps the `■` the Overview's frame 3 draws (settled in the plan).
@@ -6443,7 +6448,8 @@ past the accounts there are does nothing. Past nine accounts, an account is pick
   (see Pinning), so an account at its cap can be picked, and takes new sessions up to its limit.
 - **Red where Anthropic closed it:** a limit holding back its every request, `at its limit till
   15:54`; or its token refused, `token refused (401)`; and red too an account with no usable token,
-  `no token`, which the router refuses a pin to (settled in the plan).
+  `no token`, which the router refuses a pin to (settled in the plan), or `not its token` where its
+  token is another subscription's (see Account identity).
 - **An account that can't take a session can't be picked,** in either card: its row stays, with its
   reason and when it's back, in red, but no box or button, and its number does nothing. A session
   pinned to one would only yield. `switchboard pin` can still set such a pin, ahead of a reset, as a
@@ -9376,7 +9382,7 @@ probing.
 | `restart` | *router* A restart it has due: `{reason, since, in_flight, exporting, by_hand}`, `reason` why, `config changed`, `upgraded` or `time zone changed`, `since` when it found it due, `in_flight` how many requests it had in flight as it gave the document, `exporting` the folder of the export of the history under way then, which the restart waits for, the folder configured still or not, left out while none is (see On a schedule), and `by_hand` set when it was run by hand, with `serve`, and restarts only when it's run again; and `held` why its binary refuses to start, as it said, which holds the restart until the config file or the binary changes, left out while it isn't held. Left out while none is due (see The router looking after itself) |
 | `export` | *router* How the export on a schedule stands, since the router started: `{dir, at, error, running}`, `dir` the folder `[export] dir` names, resolved, `at` when an export into it last succeeded, `error` why the last failed, in plain words, and `running` when the export under way began, as one waiting on macOS's prompt waits; `at` left out before one has succeeded, `error` once one succeeds, and `running` while none is under way. Left out where `[export] dir` isn't set (see On a schedule) |
 | `sessions` | *router* How many sessions have been routed in the last hour, each counted once, however many accounts its models went to; left out at 0 |
-| `events` | *router* What's happened lately, newest first, 50 at most, kept in memory, so a restart starts them afresh, though the router files every one (see The router's events): `[{id, at, kind, account, accounts, session, model, from, to, reason, held, windows, until, since, count, limit, forced_by, reserve, status, family, move, force, by}]`, `id` rising by one an event, from 1 as the router starts, so a reader tells which are new; `kind` one of `started`, `pressure`, `cap`, `limit`, `moved`, `refused`, `primed`, `room`, `pin`, `auto`, `restart` and `health`, each with the fields The router's events gives it. The Overview's LATELY reads the newest, folding the moves a limit, a cap or a refusal counts into its line where that's among them, and the Log's Events lists each (see The Overview, The Log). Left out when there are none |
+| `events` | *router* What's happened lately, newest first, 50 at most, kept in memory, so a restart starts them afresh, though the router files every one (see The router's events): `[{id, at, kind, account, accounts, session, model, from, to, reason, held, windows, until, since, count, limit, forced_by, reserve, status, family, move, force, by}]`, `id` rising by one an event, from 1 as the router starts, so a reader tells which are new; `kind` one of `started`, `pressure`, `cap`, `limit`, `moved`, `refused`, `foreign`, `primed`, `room`, `pin`, `auto`, `restart` and `health`, each with the fields The router's events gives it. The Overview's LATELY reads the newest, folding the moves a limit, a cap or a refusal counts into its line where that's among them, and the Log's Events lists each (see The Overview, The Log). Left out when there are none |
 | `pool` | The accounts new sessions can go to now, as one, as `usage` and the Overview end their windows with it (see `usage`, the printout): `{accounts, pinned, windows}`. `accounts` their ids, in the config's order: those the global pin names, `pinned` then set, else every account; probing, every account, as the pin isn't known. `windows` a window each that any of them has, shortest first, but one every model shares that fewer than two of them have, and not all, as a verified Ultra account has no 5-hour window (see `usage`, the printout): `{key, label, of, room, used, pace}`, `of` how many of them have the window or may have it, as one not yet read may, `room` its room summed in accounts' worth, `1.5` being an account and a half: each account's room to its cap, `1 − reserve` (to its limit without a reserve, or where the global pin names it, as a pin spends the reserve), and none in the 5-hour window of an account at its limit or its cap, nor in any window of one without a usable token, whose token is refused, or that hasn't been read; `used` what its bar fills to, its accounts' mean use of it, as each one's window has it, leaving out one without a usable token, not read, or whose token is refused, and left out itself where none is left; and `pace` the even paces of its accounts' windows that are running, averaged. Left out with one account, whose own windows say the same |
 | `coming_up` | What's coming to the accounts after the document was built, soonest first, as the Overview's and Runway's COMING UP list it: `[{at, account, kind, window, cap, refused}]`, `kind` one of `back` (the account has room again: its limit lifting; with `cap` set, the window at its cap resetting; or with `refused` set, its token's refusal ending, where that lifts after its limit and its cap; `window` set where a limit holds back only a model's requests, as a model's own week's), `runs_out` (`window` runs out before it resets, by its projection (see `usage`, the printout), the 5-hour window at its recent rate whenever there is one: at the account's cap, `cap` set, where its reserve holds it back, else at its limit), `reset` (`window` resets: each window's next, but one whose reset brings the account back, which `back` tells, and a model's own window only where its reset isn't its week's) and `prime` (*router* the account's next prime, as `prime` gives it). Left out when nothing is coming |
 | `demand` | *router* The pool's use as the forecast takes it (see Forecasting run-outs): `{day, hours, hold, learning}`. `day` is the day's rate, in Pro weeks an hour; `hours` the hours with room it's measured over, 24 at the most, and 0 where it's the pool's fast rate; `hold` the hold curve, `[{hours, share}]`, the share of an account's fast rate still on it at 1, 3, 6, 12, 24 and 48 hours on; `learning` `true` while the curve is the default, with less than a day of answers in it, and left out once it's measured. Left out when the router has read no account |
@@ -9390,7 +9396,8 @@ Each account:
 | `primary` | `true` on the primary; left out otherwise |
 | `reserve` | Its reserve; left out at 0 |
 | `plan` | Its plan, as configured: `pro`, `max` or `ultra`; left out when it isn't known |
-| `token_set` | Whether its token file is present and usable |
+| `token_set` | Whether its token file is present and usable: `false` where it holds another subscription's token |
+| `token_foreign` | *router* `true` where the router found its token another subscription's, a probe on it naming another organization than the account's (see Account identity): it takes no requests till it has a token of its own, and `error` says what puts it right. Left out otherwise |
 | `token_taken` | When switchboard took its token, as the record it wrote beside the token says (see Accounts and tokens); left out when that isn't known, as of a token written by anything else |
 | `token_good_until` | When its token's year is up: `token_taken` and 365 days, a setup token's lifetime; left out with `token_taken` |
 | `fetched_at` | When its usage was last read; left out when it never was |

@@ -1146,6 +1146,29 @@ func TestAnAccountIsOutOfQuotaWhereALimitOrItsCapHoldsItBackFromEveryRequest(t *
 	}
 }
 
+// An account whose token the router found another subscription's takes no
+// requests: it stands as one without a usable token, saying its token is
+// another's and what puts it right, and new sessions go elsewhere.
+func TestAnAccountWhoseTokenIsAnotherSubscriptionsTakesNoRequests(t *testing.T) {
+	foreign := status.Account{ID: "work", Label: "work", TokenForeign: true, Error: "its token is another subscription's"}
+	side := readAt("side", windowIn("5h", 0.6, 3*time.Hour), windowIn("7d", 0.5, 2*day))
+	m := statustest.Router(policy, nil, statustest.Routed{Account: foreign}, statustest.Routed{Account: side}).WorkedOut(policy).At(built.Add(time.Minute), policy)
+	work := m.Accounts[0]
+	if work.TokenSet || work.CanRise || work.Next {
+		t.Errorf("work has TokenSet = %v, CanRise = %v, Next = %v; want none: it takes no requests", work.TokenSet, work.CanRise, work.Next)
+	}
+	want := status.Routing{
+		Kind: status.RoutingTokenless, Says: "its token is another subscription's",
+		Clauses: []string{"switchboard accounts token work", "or add that subscription as an account of its own"}, Short: []string{"not its token"},
+	}
+	if !reflect.DeepEqual(work.Routing, want) {
+		t.Errorf("work's routing is %+v, want %+v", work.Routing, want)
+	}
+	if m.Next != "side" {
+		t.Errorf("new sessions go to %q, want side", m.Next)
+	}
+}
+
 func TestAMomentAtAnotherNowIsItsDocumentAtThatNow(t *testing.T) {
 	for _, hm := range statustest.HardMoments(policy) {
 		t.Run(hm.Name, func(t *testing.T) {

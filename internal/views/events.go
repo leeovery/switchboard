@@ -148,6 +148,7 @@ var tellers = map[string]func(e status.Event, f eventFact, at time.Time) (accoun
 	status.EventCap:      loggedCap,
 	status.EventLimit:    loggedLimit,
 	status.EventRefused:  loggedRefusal,
+	status.EventForeign:  loggedForeign,
 	status.EventPrimed:   loggedPrime,
 	status.EventRoom:     loggedRoom,
 	status.EventPin:      loggedPin,
@@ -217,6 +218,12 @@ func loggedRefusal(e status.Event, f eventFact, at time.Time) (status.Words, sta
 		what += " (" + strconv.Itoa(e.Status) + ")"
 	}
 	return account(e.Account), append(clause(what+till(e.Until, at)), moving(f, false)...)
+}
+
+// loggedForeign tells of an account's token found to be another
+// subscription's: "its token is another subscription's".
+func loggedForeign(e status.Event, _ eventFact, _ time.Time) (status.Words, status.Words) {
+	return account(e.Account), clause(prose.ForeignToken)
 }
 
 // loggedPrime tells of a prime starting an account's window: "its 5-hour

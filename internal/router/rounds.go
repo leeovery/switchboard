@@ -37,13 +37,14 @@ const (
 	onItsRounds = "on its rounds"
 )
 
-// rounds are the router's own probes of the accounts it can send on, around
-// the clock, whatever else reads them: of each one nothing has read lately,
-// but one whose 5-hour window has lapsed and that can take a request only
-// where the window a probe starts would reset before its next prime; and of
-// each one whose week is about to reset unread, whatever the priming
-// schedule, as state's onRounds says. A probe of an account under way, as a
-// choice's or a prime's, serves its rounds too.
+// rounds are the router's own probes of the accounts it can send on, and
+// those whose token is another subscription's, around the clock, whatever
+// else reads them: of each one nothing has read lately, or whose token it
+// hasn't probed since taking it up, but one whose 5-hour window has lapsed
+// and that can take a request only where the window a probe starts would
+// reset before its next prime; and of each one whose week is about to reset
+// unread, whatever the priming schedule, as state's onRounds says. A probe of
+// an account under way, as a choice's or a prime's, serves its rounds too.
 type rounds struct {
 	accounts accounts
 	state    *state
@@ -76,11 +77,11 @@ func (r *rounds) run(ctx context.Context) {
 	}
 }
 
-// look probes each account with a usable token that its rounds find due, as
-// rounding says, and waits for those probes, roundWait at most, or until ctx
-// ends.
+// look probes each account with a usable token, its own or another
+// subscription's, that its rounds find due, as rounding says, and waits for
+// those probes, roundWait at most, or until ctx ends.
 func (r *rounds) look(ctx context.Context) {
-	r.probes.await(ctx, r.accounts.sendable(), r.state.rounding(r.clears), roundWait, onItsRounds)
+	r.probes.await(ctx, r.accounts.withToken(), r.state.rounding(r.clears), roundWait, onItsRounds)
 }
 
 // retryAfter is how long the router's rounds wait after a probe of an

@@ -2,12 +2,14 @@ package router
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"slices"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/readings"
 )
@@ -35,9 +37,13 @@ type probes struct {
 	// transport is the router's, which the probes go upstream on.
 	transport http.RoundTripper
 	state     *state
-	now       func() time.Time
-	// emit hears of each prime that starts its window, and each limit a
-	// probe's reading lifts early.
+	// organizations hold the organization each probe's answer names to its
+	// account's.
+	organizations organizations
+	now           func() time.Time
+	// emit hears of each prime that starts its window, each limit a probe's
+	// reading lifts early, and each account's token a probe finds another
+	// subscription's.
 	emit func(Event)
 	// ctx ends when the router stops, cutting short the probes under way.
 	ctx    context.Context
@@ -50,10 +56,10 @@ type probes struct {
 	stopped bool
 }
 
-func newProbes(prober Prober, transport http.RoundTripper, state *state, now func() time.Time, emit func(Event)) *probes {
+func newProbes(prober Prober, transport http.RoundTripper, state *state, organizations organizations, now func() time.Time, emit func(Event)) *probes {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &probes{
-		prober: prober, transport: transport, state: state, now: now, emit: emit,
+		prober: prober, transport: transport, state: state, organizations: organizations, now: now, emit: emit,
 		ctx: ctx, cancel: cancel, running: make(map[string]*run),
 	}
 }
@@ -236,7 +242,10 @@ func (p *probes) stop() {
 }
 
 // probe reads an account's usage, as r, and notes how that went, telling of
-// each of the account's limits lifting early where its reading shows it.
+// each of the account's limits lifting early where its reading shows it. The
+// organization its answer names is held to the account's, as organizations
+// hold it: a probe on another subscription's token read nothing of the
+// account's, and failed, as far as the account goes.
 func (p *probes) probe(a account, r *run) {
 	// sent is marked before the token is read, so a token the account takes up
 	// after the read is marked after sent, and recordProbe judges this probe
@@ -248,11 +257,41 @@ func (p *probes) probe(a account, r *run) {
 		// Stopped mid-probe: its failure says nothing of the account.
 		return
 	}
+	organization := probed.Organization
+	held := p.organizations.hold(a.ID, organization)
+	if held == heldForeign {
+		probed, err = quota.Probe{}, errors.New(prose.ForeignTokenFix(a.ID))
+	}
 	taken := p.state.recordProbe(a.ID, probed, err, sent, p.sourceOf(r))
 	for _, lifted := range taken.lifted {
 		p.emit(lifted)
 	}
+	if !taken.tokenGone {
+		p.owning(a, held, organization)
+	}
 	p.told(r)(a, went{probed: probed, err: err, at: at, took: took, tokenGone: taken.tokenGone, warn: taken.warn})
+}
+
+// owning notes whether the token the account holds is its own, as a probe on
+// it found, the organization its answer named held as organizations held it,
+// recording one held new as the account's: another subscription's has the
+// account take no requests, and tells of it, till a probe on a token it holds
+// finds its own. One held to nothing changes nothing.
+func (p *probes) owning(a account, held ownership, organization string) {
+	if held == heldNew {
+		held = p.organizations.take(a.ID, organization)
+	}
+	switch held {
+	case heldForeign:
+		if a.secret.disown(true) {
+			logger.Warn("token is another subscription's; nothing will go out on the account till it has its own", "account", a.ID)
+			p.emit(ForeignToken{Account: a.ID})
+		}
+	case heldOwn, heldNew:
+		if a.secret.disown(false) {
+			logger.Info("token is the account's own again; requests can go out on it", "account", a.ID)
+		}
+	}
 }
 
 // logProbe logs how a probe of an account went: one that failed on a token

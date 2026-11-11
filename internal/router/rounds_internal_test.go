@@ -703,8 +703,6 @@ func TestAProbeOnTheTokenBeforeTellsOfTheAccountsUsageAlone(t *testing.T) {
 		wantWeek     float64
 		wantLogs     [][]string
 		unwantedLogs [][]string
-		// wantDue is whether side is due on the next round, a minute on.
-		wantDue bool
 	}{
 		{
 			name:         "refused, which says nothing of the token side goes out on now",
@@ -712,7 +710,6 @@ func TestAProbeOnTheTokenBeforeTellsOfTheAccountsUsageAlone(t *testing.T) {
 			wantWeek:     week.Utilization,
 			wantLogs:     [][]string{{"level=DEBUG", `msg="probe on a token the account no longer holds failed; its failure isn't kept"`, "account=side", `error="HTTP 401 · Invalid bearer token"`}},
 			unwantedLogs: [][]string{{`msg="probe failed"`}},
-			wantDue:      true,
 		},
 		{
 			name:     "reading its windows, which read the same on either token, but its Fable week",
@@ -723,8 +720,6 @@ func TestAProbeOnTheTokenBeforeTellsOfTheAccountsUsageAlone(t *testing.T) {
 				{"level=DEBUG", `msg="window unread"`, "account=side", "window=7d_oi"},
 			},
 			unwantedLogs: [][]string{{"level=WARN", `msg="window unread"`}},
-			// The probe read side a minute before, as the rounds count it.
-			wantDue: false,
 		},
 	}
 	for _, o := range outcomes {
@@ -780,12 +775,11 @@ func TestAProbeOnTheTokenBeforeTellsOfTheAccountsUsageAlone(t *testing.T) {
 						}
 					}
 
+					// Whatever the probe on the token before read, the token
+					// side goes out on now is its rounds' to check.
 					clock.now = start.Add(roundEvery)
-					if got := due("side", clock.now); got != o.wantDue {
-						t.Fatalf("side due on the next round = %v, want %v", got, o.wantDue)
-					}
-					if !o.wantDue {
-						return
+					if !due("side", clock.now) {
+						t.Fatal("side not due on the next round, want the token it goes out on now probed")
 					}
 					before := prober.counts()[tt.token]
 					r.rounds.look(t.Context())

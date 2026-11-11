@@ -20,6 +20,18 @@ func TestVersion(t *testing.T) {
 	}
 }
 
+func TestAForeignTokenIsSaidWithWhatPutsItRight(t *testing.T) {
+	tests := []struct{ id, want string }{
+		{"work", "its token is another subscription's: give it its own with switchboard accounts token work, or add that subscription as an account of its own"},
+		{"wo\x1brk", "its token is another subscription's: give it its own with switchboard accounts token wo rk, or add that subscription as an account of its own"},
+	}
+	for _, tt := range tests {
+		if got := prose.ForeignTokenFix(tt.id); got != tt.want {
+			t.Errorf("ForeignTokenFix(%q) = %q, want %q", tt.id, got, tt.want)
+		}
+	}
+}
+
 func TestList(t *testing.T) {
 	tests := []struct {
 		items []string
