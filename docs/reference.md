@@ -445,8 +445,8 @@ reason, assigned_at, last_seen}`. These fields need saying more of:
 ## `history`'s JSON
 
 `history`'s JSON is `{"schema", "prices_as_of", "days", "year", "months", "weeks", "tokens",
-"totals", "plans", "capacity"}`. Each block covers the days asked for since the ledger began, oldest first and today's
-last.
+"totals", "plans", "capacity", "removed"}`. Each block covers the days asked for since the ledger
+began, oldest first and today's last.
 
 ### `prices_as_of`
 
@@ -509,8 +509,9 @@ Each week's tokens:
   below.
 - `by_account`, in the config's order, each by its `account` and `label`.
 - `by_model`, each model version by its id, with the accounts it ran `on`, the account it was worth
-  most on first, and their labels, `on_labels`, in the same order. A model of quota checks or counts of tokens alone, which wasn't used, is in neither,
-  nor is an account that sent them alone.
+  most on first, and their labels, `on_labels`, in the same order. A model of quota checks or
+  counts of tokens alone, which wasn't used, is in neither, nor is an account that sent them
+  alone.
 
 ### `totals`
 
@@ -558,12 +559,19 @@ against it, are those of the accounts whose plans are known alone.
 - `with_two_fewer`: with three accounts or more, where the verdict is one more than you need, how
   many weeks are short without `drop` and without the account whose loss then makes the fewest
   weeks short.
-- Each account's `verdict`, by its `account` and `label`, over the account's own whole `weeks`, with:
+- Each account's `verdict`, by its `account` and `label`, over the account's own whole `weeks`,
+  with:
   - `limits`: the weeks the account hit its limit in, its peak at its cap.
   - `left_at_reset`: what it had left at a reset, on average: left of its limit, not of its cap.
   - `without_it`: how many weeks the rest would have been short in without it.
 - Then `all`, for every account together, with the verdict `room to spare together` or
   `little to spare together`.
+
+### `removed`
+
+Each account removed that the days name, as the accounts record keeps it, `{id, label, removed}`:
+its id, the label it showed last, and when it was removed. An account only another Mac configures,
+never removed here, has no `removed`. The list is empty where the days name none.
 
 ### Worth
 
@@ -581,8 +589,8 @@ Every `worth` is exact, with `unpriced` beside it naming what the worth leaves o
 
 ### With `--windows`
 
-`history --windows` prints `{"schema": 1, "windows": [{"account", "label", "window", "readings"}]}`. Each reading is
-`{at, utilization, resets_at, status, source}`.
+`history --windows` prints `{"schema": 1, "windows": [{"account", "label", "window",
+"readings"}]}`. Each reading is `{at, utilization, resets_at, status, source}`.
 
 ## `sessions`' JSON
 
@@ -592,8 +600,8 @@ Every `worth` is exact, with `unpriced` beside it naming what the worth leaves o
 
 - Its whole id, its directory, `account` and its `label`, and model.
 - Whether it's `running`.
-- For a running session: when it was last seen, each of its models' `account`, its `label`, and why, what it's
-  doing, and its `move_cost`, what moving it now would cost.
+- For a running session: when it was last seen, each of its models' `account`, its `label`, and
+  why, what it's doing, and its `move_cost`, what moving it now would cost.
 - For an ended session: when it `ended`.
 - When it `started`.
 - Its `requests` today, their `worth` in US dollars, and what the worth leaves `unpriced`.
@@ -616,7 +624,8 @@ Given a session, `sessions` prints that session's page:
   window.
 - **`moves`:** Each `{at, model, from, to, from_label, to_label, reason, written, cost}`.
 - **`turns`:** Newest first, each `{turn, started, ended, requests, tools, read, written, out,
-  worth, accounts, labels}`, `labels` the labels of `accounts`, in the same order. `ended` is left out of a turn still going.
+  worth, accounts, labels}`, `labels` the labels of `accounts`, in the same order. `ended` is left
+  out of a turn still going.
 - **`totals`:** `{turns, requests, from_cache, worth, unpriced}`.
 
 Every `worth` is exact, and left out where nothing was priced. `unpriced` names what the worth

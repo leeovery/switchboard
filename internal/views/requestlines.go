@@ -2,6 +2,7 @@ package views
 
 import (
 	"iter"
+	"strings"
 
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/status"
@@ -41,15 +42,15 @@ func RequestLines(lines iter.Seq[ledger.Held], n status.Namer) iter.Seq[RequestL
 	}
 }
 
-// OnAccount are those of lines of the account with the given id, every one
-// for "".
+// OnAccount are those of lines of the account with the given id, ignoring
+// case, every one for "".
 func OnAccount(lines iter.Seq[ledger.Held], account string) iter.Seq[ledger.Held] {
 	if account == "" {
 		return lines
 	}
 	return func(yield func(ledger.Held) bool) {
 		for h := range lines {
-			if h.Account == account && !yield(h) {
+			if strings.EqualFold(h.Account, account) && !yield(h) {
 				return
 			}
 		}

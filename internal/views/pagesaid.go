@@ -134,9 +134,10 @@ func (p SessionPage) Where(now time.Time) WhereSaid {
 // but every time it names at its widest, as prose.PastWidest and
 // prose.LaterWidest say them: as its page measures what it says, so the
 // measure moves only as the session moves or ends, never as the clock moves
-// the day of a time it names.
+// the day of a time it names. Of a page named, each account it names is
+// named so, as Where names it.
 func (p SessionPage) WhereSaidWidest(now time.Time) WhereSaid {
-	return p.where(now, datesWidest)
+	return p.where(now, datesWidest).named(p.names)
 }
 
 // DoingSaidWidest is each thing a session of its kind can say it's doing,

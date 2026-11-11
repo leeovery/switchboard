@@ -142,7 +142,7 @@ func TestTheVerbsJSONGivesEachAccountsLabelBesideItsID(t *testing.T) {
 // Weeks' account to drop is named by its label in history's text.
 func TestHistoryNamesTheAccountToDropByItsLabel(t *testing.T) {
 	history := views.History{Days: aDayOfARequest, Capacity: views.Capacity{
-		Weeks: 7, Verdict: views.OneMoreThanYouNeed, Drop: "m2x7", DropLabel: "side", DropName: status.AccountName{Label: "side"},
+		Weeks: 7, Verdict: views.OneMoreThanYouNeed, DropName: status.AccountName{Label: "side"},
 		Accounts: []views.AccountVerdict{{Account: "b6s7", Label: "work", Weeks: 7}, {Account: "m2x7", Label: "side", Weeks: 7}, {All: true, Weeks: 7}},
 	}}
 	var out bytes.Buffer
@@ -154,20 +154,48 @@ func TestHistoryNamesTheAccountToDropByItsLabel(t *testing.T) {
 	}
 }
 
-// requests --account takes an account's id, in any case, of one configured
-// or one the accounts record keeps; it refuses anything else, a label among
-// them, saying what it takes, rather than printing no requests.
+// requests --account takes an account's id, in any case. A label of an
+// account configured or kept in the accounts record, in any case, it refuses,
+// naming the id of every account labelled so; any other it takes as an id,
+// one nothing knows giving no requests.
 func TestRequestsTakesAnAccountByItsIDAlone(t *testing.T) {
 	for _, given := range []string{labelledID, strings.ToUpper(removedLabelledID)} {
 		if got := run(t, namedDeps(t), "requests", "--pretty", "--account", given); got.code != 0 || strings.Count(got.stdout, " 200 ") != 1 {
 			t.Errorf("switchboard requests --account %s = %+v, want its one request", given, got)
 		}
 	}
-	for _, given := range []string{"work", "team", "zzzz"} {
-		got := run(t, namedDeps(t), "requests", "--account", given)
-		if want := "no account " + given + ": give its id, as switchboard accounts lists it"; got.code == 0 || !strings.Contains(got.stderr, want) {
-			t.Errorf("switchboard requests --account %s = %+v, want it refused: %q", given, got, want)
+	if got := run(t, namedDeps(t), "requests", "--pretty", "--account", "zzzz"); got.code != 0 || got.stdout != "no requests since Wed 7 Oct 2026 00:00\n" {
+		t.Errorf("switchboard requests --account zzzz = %+v, want no requests", got)
+	}
+	twice := namedDeps(t)
+	writeStateFile(t, stateDir(t, twice), "accounts.json", []byte(`{"version":1,"accounts":[`+
+		`{"id":"`+removedLabelledID+`","label":"team","added":"2026-08-01T09:00:00Z","removed":"2026-10-05T12:00:00Z"},`+
+		`{"id":"k3f9","label":"Team","added":"2026-06-01T09:00:00Z","removed":"2026-07-01T12:00:00Z"}]}`+"\n"))
+	tests := []struct {
+		deps        cli.Deps
+		given, want string
+	}{
+		{deps: namedDeps(t), given: "Work", want: "Work is a label: give its id, " + labelledID},
+		{deps: namedDeps(t), given: "TEAM", want: "TEAM is a label: give its id, " + removedLabelledID},
+		{deps: twice, given: "team", want: "team is a label: give its id, " + removedLabelledID + " or k3f9"},
+	}
+	for _, tt := range tests {
+		if got := run(t, tt.deps, "requests", "--account", tt.given); got.code == 0 || !strings.Contains(got.stderr, tt.want) {
+			t.Errorf("switchboard requests --account %s = %+v, want it refused: %q", tt.given, got, tt.want)
 		}
+	}
+}
+
+// requests reads the accounts record only where it names an account: its
+// JSON, without --account, warns of no damaged record.
+func TestRequestsJSONReadsNoAccountsRecord(t *testing.T) {
+	deps := namedDeps(t)
+	writeStateFile(t, stateDir(t, deps), "accounts.json", []byte("{\n"))
+	if got := run(t, deps, "requests", "--json"); got.code != 0 {
+		t.Fatalf("switchboard requests --json = %+v, want its lines", got)
+	}
+	if log := readLog(t, deps, "cli.log"); strings.Contains(log, "accounts record") {
+		t.Errorf("cli.log reads\n%s\nwant no accounts record read", log)
 	}
 }
 

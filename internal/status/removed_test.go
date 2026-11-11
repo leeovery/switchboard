@@ -126,18 +126,40 @@ func TestAnAccountIsNamedWhateverTheCaseOfItsID(t *testing.T) {
 	}
 }
 
-// Names find an account given by its id, ignoring case, as the config or the
-// accounts record spells it, and nothing else, a label among them.
-func TestNamesFindAnAccountByItsIDWhateverItsCase(t *testing.T) {
+// Names know an account by its id, ignoring case, configured or kept in the
+// accounts record, and no other, a label among them.
+func TestNamesKnowAnAccountByItsIDWhateverItsCase(t *testing.T) {
 	names := status.NamesOf(config.Accounts{{ID: "B6S7", Label: "work"}}, status.RemovedAccounts{{ID: "h7c2", Label: "team"}})
-	for given, want := range map[string]string{"b6s7": "B6S7", "B6S7": "B6S7", "H7C2": "h7c2"} {
-		if got, ok := names.ID(given); !ok || got != want {
-			t.Errorf("ID(%s) = %q, %t; want %s", given, got, ok, want)
+	for _, given := range []string{"b6s7", "B6S7", "H7C2"} {
+		if !names.Knows(given) {
+			t.Errorf("Knows(%s) = false, want true", given)
 		}
 	}
 	for _, given := range []string{"work", "team", "zzzz"} {
-		if got, ok := names.ID(given); ok {
-			t.Errorf("ID(%s) = %q, want none", given, got)
+		if names.Knows(given) {
+			t.Errorf("Knows(%s) = true, want false", given)
+		}
+	}
+}
+
+// Names find the accounts labelled as given, ignoring case: those configured,
+// then those the accounts record keeps, a label removed given again naming
+// each; an account unlabelled is labelled by nothing, not its id.
+func TestNamesFindTheAccountsLabelledSo(t *testing.T) {
+	names := status.NamesOf(config.Accounts{{ID: "b6s7", Label: "Team"}, {ID: "side"}},
+		status.RemovedAccounts{{ID: "h7c2", Label: "team"}, {ID: "k3f9", Label: "TEAM"}, {ID: "p4m2", Label: "home"}})
+	tests := []struct {
+		label string
+		want  []string
+	}{
+		{label: "team", want: []string{"b6s7", "h7c2", "k3f9"}},
+		{label: "HOME", want: []string{"p4m2"}},
+		{label: "side"},
+		{label: "zzzz"},
+	}
+	for _, tt := range tests {
+		if got := names.Labelled(tt.label); !slices.Equal(got, tt.want) {
+			t.Errorf("Labelled(%s) = %q, want %q", tt.label, got, tt.want)
 		}
 	}
 }

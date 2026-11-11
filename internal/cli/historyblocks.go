@@ -335,7 +335,7 @@ func writeCapacity(out io.Writer, c views.Capacity) error {
 	for _, v := range c.Accounts {
 		lines = append(lines, "  "+verdictText(v))
 	}
-	if c.Drop != "" {
+	if c.DropName.Label != "" {
 		lines = append(lines, "  "+views.ToDrop(c.DropName.Said()))
 	}
 	lines = append(lines, "  "+views.EstimateOfOneFewerOrMore)

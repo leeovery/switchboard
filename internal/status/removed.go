@@ -116,15 +116,29 @@ func (n Names) Named(id string) AccountName {
 	return n.removed.Named(n.configured, id)
 }
 
-// ID is the id of the account given by its id, ignoring case, as the config
-// configures it or the accounts record keeps it, reporting false where
-// neither has it.
-func (n Names) ID(given string) (string, bool) {
-	if i := slices.IndexFunc(n.configured, func(a config.Account) bool { return strings.EqualFold(a.ID, given) }); i >= 0 {
-		return n.configured[i].ID, true
+// Knows reports whether an account has the given id, ignoring case: one the
+// config configures, or one the accounts record keeps.
+func (n Names) Knows(id string) bool {
+	_, removed := n.removed.Of(id)
+	return removed || slices.ContainsFunc(n.configured, func(a config.Account) bool { return strings.EqualFold(a.ID, id) })
+}
+
+// Labelled are the ids of the accounts labelled as given, ignoring case: those
+// configured, in the config's order, then those the accounts record keeps, in
+// its order, as a label removed may have been given again.
+func (n Names) Labelled(label string) []string {
+	var ids []string
+	for _, a := range n.configured {
+		if a.Label != "" && strings.EqualFold(a.Label, label) {
+			ids = append(ids, a.ID)
+		}
 	}
-	a, ok := n.removed.Of(given)
-	return a.ID, ok
+	for _, a := range n.removed {
+		if a.Label != "" && strings.EqualFold(a.Label, label) {
+			ids = append(ids, a.ID)
+		}
+	}
+	return ids
 }
 
 // Named names the account with the given id, configured as configured says,

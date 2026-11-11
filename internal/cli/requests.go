@@ -6,6 +6,7 @@ import (
 	"iter"
 	"slices"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -42,7 +43,7 @@ the ledger's files, so it needs no router.
 --since starts at a day, as 2026-10-01, a time today, as 14:00, or how long
 ago, as 3h or 2d. --session keeps a session's own requests, named by its id or
 as much of it as is unique among the sessions read, and --account an
-account's.
+account's, by its id: a label is refused.
 
 On a terminal, requests prints its lines as text. Anywhere else, as in a pipe
 or an agent's shell, it prints each as the ledger holds it, with "schema": 1
@@ -127,10 +128,11 @@ func (a *app) requests(out io.Writer, opts requestsOptions) error {
 	if err != nil {
 		return err
 	}
-	names := namesIn(dir, cfg)
-	account, err := accountAsked(names, opts.account)
-	if err != nil {
-		return err
+	names := sync.OnceValue(func() status.Names { return namesIn(dir, cfg) })
+	if opts.account != "" {
+		if err := notALabel(names(), opts.account); err != nil {
+			return err
+		}
 	}
 	lines := reader.Lines(from)
 	if opts.session != "" {
@@ -140,25 +142,27 @@ func (a *app) requests(out io.Writer, opts requestsOptions) error {
 		}
 		lines = slices.Values(held)
 	}
-	lines = views.OnAccount(lines, account)
+	lines = views.OnAccount(lines, opts.account)
 	if a.printsJSON(opts.form, out) {
 		return writeLines(out, lines)
 	}
-	return writeRequests(out, views.RequestLines(lines, names), from, now)
+	return writeRequests(out, views.RequestLines(lines, names()), from, now)
 }
 
-// accountAsked is the id of the account --account gives, by its id, ignoring
-// case, as names know it: "" where it gives none. It fails for one that
-// neither the config configures nor the accounts record keeps, as a label.
-func accountAsked(names status.Names, given string) (string, error) {
-	if given == "" {
-		return "", nil
+// notALabel fails where the account given, as --account gives one, is no
+// account's id but some account's label, ignoring case, as names know them,
+// naming the id of each account labelled so, as a label removed may have
+// been given again. Any other is taken as an id, as one names can't know,
+// where the accounts record can't be read.
+func notALabel(names status.Names, given string) error {
+	ids := names.Labelled(given)
+	if len(ids) == 0 || names.Knows(given) {
+		return nil
 	}
-	id, ok := names.ID(given)
-	if !ok {
-		return "", fmt.Errorf("no account %s: give its id, as switchboard accounts lists it", prose.Clean(redact.Text(given)))
+	for i, id := range ids {
+		ids[i] = prose.Clean(id)
 	}
-	return id, nil
+	return fmt.Errorf("%s is a label: give its id, %s", prose.Clean(redact.Text(given)), prose.ListOr(ids))
 }
 
 // writeLines writes each of lines as the ledger holds it, its schema first, a
