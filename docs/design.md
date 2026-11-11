@@ -3433,7 +3433,7 @@ where it fits** says, and where they don't fit, it's stacked, as **Stacked** say
   week's bold `text.secondary` and the rest `text.faint`. For `all accounts`, every account's days
   together, marked where any hit a limit.
 - **WEEKS,** row 23: the weeks' peaks, a `step` apart from `cx`, each `usage`'s bar of the week's
-  peak, `7 × dw − 5` wide, 9 cells at 160, and a cell on, the peak, `text.muted`, or at 100 bold
+  peak, `7 × dw − 5` wide, 9 cells at 160, and a cell on, the peak, `text.muted`, or at its cap bold
   `state.destructive`; for `all accounts`, each week the mean of the accounts' peaks. On row 25,
   from the panel's left, the verdict, as History's Weeks gives it (see History), bold in its colour,
   then `   limit hit 3 of the last 7 weeks · 9% left at a reset, on average` in `text.muted`, to the
@@ -3743,9 +3743,12 @@ alone, never by what's shown, so `v` and `<` `>` never move BY MONTH (settled 21
   32, the families' dots, flowed as wide.
 
 **Weeks** is how full each account's week got, and whether there are as many accounts as the use
-needs. **Short** is a week in which some account hit its week's limit, its peak at 100%. Weeks takes
-its form for many accounts, as `history-weeks-ten-160` draws it, where the verdict can name one to
-drop, one fewer being short on no more weeks than now; otherwise its form for few.
+needs. **Short** is a week in which some account hit its week's limit, its peak at its cap, where the
+router stops sending it new sessions: 100% less its reserve, the reserve the config has now, as a
+week's own isn't recorded beyond the moments an account was held at its cap, and 100% without one.
+What a week had left at its reset is left of its limit, not of its cap: the window's own reading.
+Weeks takes its form for many accounts, as `history-weeks-ten-160` draws it, where the verdict can
+name one to drop, one fewer being short on no more weeks than now; otherwise its form for few.
 
 - **The capacity verdict** leads, rows 6 to 8:
   - The headline, bold: `<n> is one more than you need`, in `state.positive`, where one fewer would
@@ -3772,7 +3775,7 @@ drop, one fewer being short on no more weeks than now; otherwise its form for fe
 - **The replay** treats each of the last 7 whole weeks alone. Without an account, its peak, times
   its plan's size, is shared among the rest by their sizes, each one's peak rising by its share;
   with one more, of the plan most of the accounts have, every peak falls in proportion, the same use
-  over more room. A replayed week is short where any account would reach 100%. `with one fewer`
+  over more room. A replayed week is short where any account would reach its cap. `with one fewer`
   drops the account whose loss makes the fewest weeks short, and of those that tie, the one used
   least over the weeks shown. Plans' sizes are in Pro weeks, `pro` 1, `max` 5 and `ultra` 10 (see
   The request ledger); an account without a `plan` counts as the plan most of the accounts have,
@@ -3811,7 +3814,7 @@ drop, one fewer being short on no more weeks than now; otherwise its form for fe
   `short on 3 of 7 weeks`, bold `text.secondary`, and with many accounts `   with ten accounts`
   after it, in `text.subtle`. From row 14, a row an account: its name and marks at column 0; each
   week's peak, right-aligned in the week's first 5 cells, in its level's colour, as `usage`
-  colours a percentage, but bold only at 100%, in `state.destructive`; and this week's so far,
+  colours a percentage, but bold only at its cap, in `state.destructive`; and this week's so far,
   `34%…`, bold `text.secondary`. In the verdict's column, the account's verdict, bold, then, with
   few accounts, `  9% left` and `  without it: short 6 of 7`, in `text.subtle`, and with many,
   `   9% left at a reset`, with no `without it`.
@@ -3829,7 +3832,7 @@ drop, one fewer being short on no more weeks than now; otherwise its form for fe
   the start of its week's cells, filled from the bottom to its peak, its top cell in eighths, each row in
   the ramp's colour at its height (`viz.ramp.1`–`viz.ramp.4`, as a bar's cells take it) mixed 75%
   from the canvas toward it, and 45% for this week; a week with no use is `▁▁▁▁▁` in `text.faint`.
-  Under each column, its peak centred in its week's 6 cells, `text.muted`, 100% bold
+  Under each column, its peak centred in its week's 6 cells, `text.muted`, at its cap bold
   `state.destructive`, and this week's, `59%…`, in `text.secondary`. Beside each block, in the
   verdict's column: for `all accounts`, the
   headline, then `as now: …`, then `with one fewer: …   with one more: …`, then the estimate's line;
@@ -3837,9 +3840,11 @@ drop, one fewer being short on no more weeks than now; otherwise its form for fe
   `text.muted`, then `without it, the rest: ` in `text.subtle` and `short on 6 of 7` in
   `text.muted`. The weeks' first days go under the last block.
 - **The legend,** row 34:
-  `each week at its peak   ·   100% it hit its limit   ·   34%… this week, so far`, each mark as
+  `each week at its peak   ·   at its cap: limit hit   ·   34%… this week, so far`, each mark as
   it's drawn and the words in `text.faint`; under the columns,
-  `short: a week some account hit its limit   ·   ` leads it.
+  `short: a week some account hit its limit   ·   ` leads it. A peak is at its cap where it hit
+  its limit as Weeks counts one, as `views` marks it; `all accounts`' where every account's known
+  that week is.
 - **Each column is one of the account's own weeks,** from one reset of its week window to the next,
   placed under the first day of the calendar week it began nearest. More accounts than fit scroll,
   `j/k` or the wheel.

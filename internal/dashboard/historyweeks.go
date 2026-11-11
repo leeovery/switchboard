@@ -732,9 +732,13 @@ func (w weeksDrawn) shortOn(n int, k ink) []part {
 	return saidParts(views.ShortOutOf(n, w.page.Capacity.Weeks), k)
 }
 
+// atItsCap keys a peak drawn as one that hit its limit, as Weeks counts one,
+// in the legend and the help cards.
+const atItsCap = "at its cap"
+
 // legend is the key to how the peaks are drawn, each mark as it's drawn, a
-// figure, and the words in text.faint; the columns' led by what short
-// means.
+// peak at its cap as its words, and the words in text.faint; the columns'
+// led by what short means.
 func (w weeksDrawn) legend() []part {
 	var l []part
 	if w.columns {
@@ -742,7 +746,7 @@ func (w weeksDrawn) legend() []part {
 	}
 	return append(l,
 		wordsIn("each week at its peak", faintInk), wordsIn("   ·   ", faintInk),
-		figureIn(views.Peak(1, false), exhaustedInk), wordsIn(" it hit its limit", faintInk), wordsIn("   ·   ", faintInk),
+		wordsIn(atItsCap, exhaustedInk), wordsIn(": limit hit", faintInk), wordsIn("   ·   ", faintInk),
 		figureIn(views.Peak(0.34, true), w.thisWeekInk()), wordsIn(" this week, so far", faintInk),
 	)
 }
@@ -818,7 +822,7 @@ func (w weeksDrawn) peak(row views.WeeksRow, p views.WeekPeak) part {
 }
 
 // peakPart is a week's peak as a percentage, a figure: in its level's colour
-// as usage colours one, but bold only at 100%, in state.destructive; this
+// as usage colours one, but bold only at its cap, in state.destructive; this
 // week's so far, "34%…", in the ink given, as the number n; and — in
 // text.faint where it isn't known.
 func peakPart(p views.WeekPeak, open ink, n Number) part {
@@ -829,7 +833,7 @@ func peakPart(p views.WeekPeak, open ink, n Number) part {
 	switch {
 	case p.Open:
 		return figurePart(line{{text, open}}, n)
-	case prose.WholePercent(*p.Share) >= 100:
+	case p.AtCap:
 		return figureIn(text, exhaustedInk)
 	}
 	return figureIn(text, usedInk(*p.Share, ink{token: theme.VizRamp1}))
@@ -854,7 +858,7 @@ func (w weeksDrawn) block(c *canvas, look Look, y int, row views.WeeksRow) {
 }
 
 // columnPeak is a week's peak as the columns draw it under its column, a
-// figure: text.muted, at 100% bold state.destructive, this week's so far
+// figure: text.muted, at its cap bold state.destructive, this week's so far
 // text.secondary, which brightens as it changes; and — in text.faint where
 // it isn't known.
 func (w weeksDrawn) columnPeak(row views.WeeksRow, p views.WeekPeak) part {
@@ -865,7 +869,7 @@ func (w weeksDrawn) columnPeak(row views.WeeksRow, p views.WeekPeak) part {
 	switch {
 	case p.Open:
 		return figurePart(line{{text, secondaryInk}}, w.number(row))
-	case prose.WholePercent(*p.Share) >= 100:
+	case p.AtCap:
 		return figureIn(text, exhaustedInk)
 	}
 	return figureIn(text, mutedInk)

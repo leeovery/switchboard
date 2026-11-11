@@ -5,7 +5,7 @@
 HISTORY    Year  Weeks  Days  Tokens  [ ]  ────────────────────────────────────────────────────────────────────────────────────────────────────────  eight weeks
 
 ten is one more than you need
-as now: short on 3 of the last 7 weeks, work and team each time   ·   with one fewer: short on 3 of 7, the same weeks   ·   with two fewer: short on 3 of 7
+as now: short on 3 of the last 7 weeks, work and team each time   ·   with one fewer: short on 3 of 7, the same weeks   ·   with two fewer: short on 4 of 7
 spare is the one to drop: $100/mo, 6% used on average, and nothing ran short without it   an estimate, from replaying these weeks
 
               10 Aug  17 Aug  24 Aug  31 Aug   7 Sep  14 Sep  21 Sep  28 Sep over the last 7 weeks
@@ -32,6 +32,6 @@ studio          45%     50%     62%     48%     55%     58%     52%    41%…  p
 
 
 
-each week at its peak   ·   100% it hit its limit   ·   34%… this week, so far
+each week at its peak   ·   at its cap: limit hit   ·   34%… this week, so far
 
 tab views   [ ] view    v split: table    p pin    ? help  q quit

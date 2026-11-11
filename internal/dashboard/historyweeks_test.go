@@ -33,7 +33,7 @@ func weeksRow(id string, peaks []int, verdict string, limits, left, withoutIt in
 		row.WithoutIt = new(withoutIt)
 	}
 	for i, p := range peaks {
-		row.Peaks = append(row.Peaks, views.WeekPeak{Share: new(float64(p) / 100), Open: i == len(peaks)-1})
+		row.Peaks = append(row.Peaks, views.WeekPeak{Share: new(float64(p) / 100), Open: i == len(peaks)-1, AtCap: p >= 100})
 	}
 	return row
 }
@@ -311,8 +311,11 @@ func TestWeeksTablesVerdictsSayEachAccountsWeeks(t *testing.T) {
 	}
 }
 
+// A peak is bold state.destructive where it hit its limit, at its cap, as
+// views marks it, and never by its figure alone.
 func TestWeeksPeaksAreColouredByLevelThisWeeksSoFarBold(t *testing.T) {
 	peak := func(share float64, open bool) views.WeekPeak { return views.WeekPeak{Share: new(share), Open: open} }
+	atCap := func(share float64) views.WeekPeak { return views.WeekPeak{Share: new(share), AtCap: true} }
 	tests := []struct {
 		name string
 		peak views.WeekPeak
@@ -321,7 +324,10 @@ func TestWeeksPeaksAreColouredByLevelThisWeeksSoFarBold(t *testing.T) {
 		{name: "under 70%", peak: peak(0.69, false), want: line{{"69%", ink{token: theme.VizRamp1}}}},
 		{name: "from 70%", peak: peak(0.70, false), want: line{{"70%", ink{token: theme.VizRamp2}}}},
 		{name: "from 90%, as shown", peak: peak(0.895, false), want: line{{"90%", ink{token: theme.VizRamp4}}}},
-		{name: "at its limit", peak: peak(1, false), want: line{{"100%", exhaustedInk}}},
+		{name: "at its limit", peak: atCap(1), want: line{{"100%", exhaustedInk}}},
+		{name: "a reserved account's 96%, at its cap", peak: atCap(0.96), want: line{{"96%", exhaustedInk}}},
+		{name: "a reserved account's 94%, short of its cap", peak: peak(0.94, false), want: line{{"94%", ink{token: theme.VizRamp4}}}},
+		{name: "99.6%, said 100% but short of its limit", peak: peak(0.996, false), want: line{{"100%", ink{token: theme.VizRamp4}}}},
 		{name: "not known", peak: views.WeekPeak{Open: true}, want: line{{"—", faintInk}}},
 	}
 	w := weeksDrawn{page: threeWeeks()}
@@ -332,6 +338,27 @@ func TestWeeksPeaksAreColouredByLevelThisWeeksSoFarBold(t *testing.T) {
 	}
 	if so := w.peak(w.page.Accounts[0], peak(0.34, true)).said; len(so) != 1 || so[0].text != "34%…" || so[0].ink.token != theme.TextSecondary || !so[0].ink.bold {
 		t.Errorf("this week's peak so far is %+v, want 34%%… in bold text.secondary", so)
+	}
+}
+
+// Under a column, a peak is bold state.destructive where it hit its limit,
+// at its cap, as views marks it, and never by its figure alone.
+func TestWeeksColumnsPeaksAreInkedAtTheirCap(t *testing.T) {
+	tests := []struct {
+		name string
+		peak views.WeekPeak
+		want line
+	}{
+		{name: "at its limit", peak: views.WeekPeak{Share: new(1.0), AtCap: true}, want: line{{"100%", exhaustedInk}}},
+		{name: "a reserved account's 96%, at its cap", peak: views.WeekPeak{Share: new(0.96), AtCap: true}, want: line{{"96%", exhaustedInk}}},
+		{name: "a reserved account's 94%, short of its cap", peak: views.WeekPeak{Share: new(0.94)}, want: line{{"94%", mutedInk}}},
+		{name: "99.6%, said 100% but short of its limit", peak: views.WeekPeak{Share: new(0.996)}, want: line{{"100%", mutedInk}}},
+	}
+	w := weeksDrawn{page: threeWeeks()}
+	for _, tt := range tests {
+		if got := w.columnPeak(w.page.Accounts[0], tt.peak).said; !slices.Equal(got, tt.want) {
+			t.Errorf("%s: under the column is %+v, want %+v", tt.name, got, tt.want)
+		}
 	}
 }
 
@@ -369,8 +396,8 @@ func TestWeeksLegendKeysEachMarkAsItsDrawn(t *testing.T) {
 		want  string
 		this  ink
 	}{
-		{shape: WeeksTable, want: "each week at its peak   ·   100% it hit its limit   ·   34%… this week, so far", this: strongInk},
-		{shape: WeeksColumns, want: "short: a week some account hit its limit   ·   each week at its peak   ·   100% it hit its limit   ·   34%… this week, so far", this: secondaryInk},
+		{shape: WeeksTable, want: "each week at its peak   ·   at its cap: limit hit   ·   34%… this week, so far", this: strongInk},
+		{shape: WeeksColumns, want: "short: a week some account hit its limit   ·   each week at its peak   ·   at its cap: limit hit   ·   34%… this week, so far", this: secondaryInk},
 	}
 	for _, tt := range tests {
 		f := weeksFrame(threeWeeks(), tt.shape, 160, 37, Look{})
@@ -379,8 +406,8 @@ func TestWeeksLegendKeysEachMarkAsItsDrawn(t *testing.T) {
 		if got := textOf(c.rows(Look{}))[foot]; got != tt.want {
 			t.Errorf("shape %d: the legend on row %d reads %q, want %q", tt.shape, foot+1, got, tt.want)
 		}
-		if this, limit := inkOf(c.cells[foot], "34%…"), inkOf(c.cells[foot], "100%"); this != tt.this || limit != exhaustedInk {
-			t.Errorf("shape %d: the legend's 34%%… is in %+v and 100%% in %+v, want %+v and %+v", tt.shape, this, limit, tt.this, exhaustedInk)
+		if this, limit := inkOf(c.cells[foot], "34%…"), inkOf(c.cells[foot], atItsCap); this != tt.this || limit != exhaustedInk {
+			t.Errorf("shape %d: the legend's 34%%… is in %+v and %s in %+v, want %+v and %+v", tt.shape, this, atItsCap, limit, tt.this, exhaustedInk)
 		}
 	}
 }
@@ -526,7 +553,7 @@ func TestWeeksColumnsFillFromTheBottomTheirTopCellInEighths(t *testing.T) {
 		{name: "72%: two rows whole and an eighth", look: nord, peak: views.WeekPeak{Share: new(0.72)}, want: [columnRows]string{"▁▁▁▁▁"}, under: " 72%"},
 		{name: "a look that can't blend fills in blocks", peak: views.WeekPeak{Share: new(0.72)}, want: [columnRows]string{"▁▁▁▁▁", "█████", "█████"}, under: " 72%"},
 		{name: "filled to the whole percent under it", look: nord, peak: views.WeekPeak{Share: new(0.7267)}, want: [columnRows]string{"▂▂▂▂▂"}, under: " 73%"},
-		{name: "over its limit", look: nord, peak: views.WeekPeak{Share: new(1.3)}, under: " 130%"},
+		{name: "over its limit", look: nord, peak: views.WeekPeak{Share: new(1.3), AtCap: true}, under: " 130%"},
 		{name: "no use", look: nord, peak: views.WeekPeak{Share: new(0.0)}, want: [columnRows]string{2: "▁▁▁▁▁"}, under: "  0%"},
 		{name: "not known", look: nord, under: "  —"},
 	}

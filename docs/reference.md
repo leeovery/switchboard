@@ -499,8 +499,8 @@ against it, are those of the accounts whose plans are known alone.
   many weeks are short without `drop` and without the account whose loss then makes the fewest
   weeks short.
 - Each account's `verdict`, over the account's own whole `weeks`, with:
-  - `limits`: the weeks the account hit its limit in.
-  - `left_at_reset`: what it had left at a reset, on average.
+  - `limits`: the weeks the account hit its limit in, its peak at its cap.
+  - `left_at_reset`: what it had left at a reset, on average: left of its limit, not of its cap.
   - `without_it`: how many weeks the rest would have been short in without it.
 - Then `all`, for every account together, with the verdict `room to spare together` or
   `little to spare together`.

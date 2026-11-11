@@ -32,6 +32,6 @@ side                                                                  ▃▃▃�
 
 
 
-short: a week some account hit its limit   ·   each week at its peak   ·   100% it hit its limit   ·   34%… this week, so far
+short: a week some account hit its limit   ·   each week at its peak   ·   at its cap: limit hit   ·   34%… this week, so far
 
 tab views   [ ] view    v split: columns    p pin    ? help  q quit

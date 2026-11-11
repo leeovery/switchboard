@@ -32,6 +32,6 @@ side            22%     35%     41%     30%     52%     47%     60%    78%…  p
 
 
 
-each week at its peak   ·   100% it hit its limit   ·   34%… this week, so far
+each week at its peak   ·   at its cap: limit hit   ·   34%… this week, so far
 
 tab views   [ ] view    v split: table    p pin    ? help  q quit
