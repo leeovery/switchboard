@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/atomicfile"
@@ -66,6 +67,11 @@ func (f File) Read() (Record, error) {
 // what it read before this one's change. Nothing is written where the file
 // can't be read or is damaged, as Read says, or where change fails, its error
 // returned as it is, or leaves a record Read would find damaged.
+//
+// Decide inside change, by the record it's given, so what's decided still
+// holds when it's written. change must never call Update on the record
+// itself: a second lock in one process waits on the first for good. Where the
+// config's lock is held too, it's taken first.
 func (f File) Update(change func(*Record) error) error {
 	unlock, err := f.lock()
 	if err != nil {
@@ -155,23 +161,40 @@ func stamp(t time.Time) time.Time {
 }
 
 // check fails, saying why, where the record is none switchboard keeps: an
-// account without an id switchboard makes, or a time it was added, or two
-// with one id, organization or id they had before switchboard made ids.
-// Accounts are named by their places, as what's damaged could be anything.
+// account that isn't one, as Entry.check says; two with one id, organization
+// or id they had before switchboard made ids; or one whose id another had
+// before. Ids are compared ignoring case. Accounts are named by their places,
+// as what's damaged could be anything.
 func (r Record) check() error {
 	for i, e := range r.Accounts {
-		switch {
-		case !wellFormed(e.ID):
-			return fmt.Errorf("account #%d has no id switchboard makes", i+1)
-		case e.Added.IsZero():
-			return fmt.Errorf("account #%d has no time it was added", i+1)
+		if err := e.check(); err != nil {
+			return fmt.Errorf("account #%d %w", i+1, err)
 		}
 	}
 	return errors.Join(
-		r.unique("id", func(e Entry) string { return e.ID }),
+		r.unique("id", func(e Entry) string { return strings.ToLower(e.ID) }),
 		r.unique("organization", func(e Entry) string { return e.Organization }),
-		r.unique("former id", func(e Entry) string { return e.Was }),
+		r.unique("former id", func(e Entry) string { return strings.ToLower(e.Was) }),
+		r.noIDFormer(),
 	)
+}
+
+// check fails, saying why, where the account is none switchboard keeps:
+// without an id switchboard makes, or a time it was added; or removed before
+// it was added, or without a label.
+func (e Entry) check() error {
+	removed := !e.Removed.IsZero()
+	switch {
+	case !wellFormed(e.ID):
+		return errors.New("has no id switchboard makes")
+	case e.Added.IsZero():
+		return errors.New("has no time it was added")
+	case removed && e.Removed.Before(e.Added):
+		return errors.New("was removed before it was added")
+	case removed && e.Label == "":
+		return errors.New("was removed without a label")
+	}
+	return nil
 }
 
 // unique fails where two accounts have the same of what key gives, "" being
@@ -187,6 +210,23 @@ func (r Record) unique(what string, key func(Entry) string) error {
 			return fmt.Errorf("accounts #%d and #%d have the same %s", first+1, i+1, what)
 		}
 		seen[k] = i
+	}
+	return nil
+}
+
+// noIDFormer fails where an account's id is one another had before
+// switchboard made ids, in any case, naming them by their places.
+func (r Record) noIDFormer() error {
+	had := make(map[string]int, len(r.Accounts))
+	for i, e := range r.Accounts {
+		if e.Was != "" {
+			had[strings.ToLower(e.Was)] = i
+		}
+	}
+	for i, e := range r.Accounts {
+		if j, ok := had[strings.ToLower(e.ID)]; ok && j != i {
+			return fmt.Errorf("account #%d's id is the one account #%d had before switchboard made ids", i+1, j+1)
+		}
 	}
 	return nil
 }

@@ -34,7 +34,7 @@ func TestDeriveIsTheSameEverywhere(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.organization, func(t *testing.T) {
-			if got := (identity.Record{}).Derive(tt.organization); got != tt.want {
+			if got := (identity.Record{}).Derive(tt.organization, nil); got != tt.want {
 				t.Errorf("Derive(%q) = %q, want %q", tt.organization, got, tt.want)
 			}
 		})
@@ -48,8 +48,8 @@ func TestDerivedIDsAreShapedAsIDsAre(t *testing.T) {
 	var ids []string
 	for n := range 2000 {
 		organization := fmt.Sprintf("test-org-%d", n)
-		id := identity.Record{}.Derive(organization)
-		if again := (identity.Record{}).Derive(organization); again != id {
+		id := identity.Record{}.Derive(organization, nil)
+		if again := (identity.Record{}).Derive(organization, nil); again != id {
 			t.Fatalf("Derive(%q) = %q, then %q", organization, id, again)
 		}
 		ids = append(ids, id)
@@ -57,15 +57,17 @@ func TestDerivedIDsAreShapedAsIDsAre(t *testing.T) {
 	checkShaped(t, ids)
 }
 
-// An id the record holds for another account lengthens the one derived by a
-// character, spelled on from the same hash, as many times as it takes; one it
-// holds for the organization itself is its own.
-func TestDeriveLengthensAnIDTheRecordHoldsForAnother(t *testing.T) {
+// An id the record holds for another account, or a configured account has,
+// lengthens the one derived by a character, spelled on from the same hash, as
+// many times as it takes; the one the record has for the organization itself
+// is its own, whatever it is.
+func TestDeriveLengthensAnIDHeldByAnother(t *testing.T) {
 	const work = "test-org-work"
 	tests := []struct {
 		name         string
 		organization string
 		held         []identity.Entry
+		configured   []string
 		want         string
 	}{
 		{
@@ -117,6 +119,44 @@ func TestDeriveLengthensAnIDTheRecordHoldsForAnother(t *testing.T) {
 			want:         "b6s7e",
 		},
 		{
+			name:         "held a character longer by the organization itself, nothing holding its shortest",
+			organization: work,
+			held:         []identity.Entry{{ID: "b6s7e", Organization: work}},
+			want:         "b6s7e",
+		},
+		{
+			name:         "the organization's random id, given before its organization was known",
+			organization: work,
+			held:         []identity.Entry{{ID: "xk2m", Organization: work}},
+			want:         "xk2m",
+		},
+		{
+			name:         "the organization's, a configured account having it too",
+			organization: work,
+			held:         []identity.Entry{{ID: "b6s7", Organization: work}},
+			configured:   []string{"b6s7"},
+			want:         "b6s7",
+		},
+		{
+			name:         "a configured account's the record doesn't hold",
+			organization: work,
+			configured:   []string{"qgr2", "b6s7"},
+			want:         "b6s7e",
+		},
+		{
+			name:         "a configured account's, in another case",
+			organization: work,
+			configured:   []string{"B6S7"},
+			want:         "b6s7e",
+		},
+		{
+			name:         "a configured account's, and the record's for another a character longer",
+			organization: work,
+			held:         []identity.Entry{{ID: "b6s7e", Organization: "test-org-personal"}},
+			configured:   []string{"b6s7"},
+			want:         "b6s7eh",
+		},
+		{
 			name:         "the word pin takes for routing",
 			organization: reservedOrganization,
 			want:         "auto3",
@@ -124,7 +164,7 @@ func TestDeriveLengthensAnIDTheRecordHoldsForAnother(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := (identity.Record{Accounts: tt.held}).Derive(tt.organization); got != tt.want {
+			if got := (identity.Record{Accounts: tt.held}).Derive(tt.organization, tt.configured); got != tt.want {
 				t.Errorf("Derive(%q) = %q, want %q", tt.organization, got, tt.want)
 			}
 		})
@@ -136,24 +176,25 @@ func TestRandomIDsAreShapedAsIDsAre(t *testing.T) {
 	seeded := rand.NewChaCha8([32]byte{})
 	ids := make([]string, 2000)
 	for i := range ids {
-		ids[i] = random(t, identity.Record{}, seeded)
+		ids[i] = random(t, identity.Record{}, nil, seeded)
 	}
 	checkShaped(t, ids)
 }
 
 // A random id is never one the record holds, as an id or as one an account
-// had before switchboard made ids, in any case, nor the word pin takes for
-// routing: it's drawn again.
-func TestRandomIDsAreNeverOnesTheRecordHolds(t *testing.T) {
+// had before switchboard made ids, nor one a configured account has, in any
+// case, nor the word pin takes for routing: it's drawn again.
+func TestRandomIDsAreNeverOnesHeld(t *testing.T) {
 	reserved := sha256.Sum256([]byte(reservedOrganization))
 	first, second, third := draw(1), draw(2), draw(3)
-	firstID, secondID := random(t, identity.Record{}, bytes.NewReader(first)), random(t, identity.Record{}, bytes.NewReader(second))
-	thirdID := random(t, identity.Record{}, bytes.NewReader(third))
+	firstID, secondID := random(t, identity.Record{}, nil, bytes.NewReader(first)), random(t, identity.Record{}, nil, bytes.NewReader(second))
+	thirdID := random(t, identity.Record{}, nil, bytes.NewReader(third))
 	tests := []struct {
-		name  string
-		held  []identity.Entry
-		draws [][]byte
-		want  string
+		name       string
+		held       []identity.Entry
+		configured []string
+		draws      [][]byte
+		want       string
 	}{
 		{name: "held by none", draws: [][]byte{first, second}, want: firstID},
 		{name: "an account's", held: []identity.Entry{{ID: firstID, Organization: "test-org-work"}}, draws: [][]byte{first, second}, want: secondID},
@@ -167,10 +208,12 @@ func TestRandomIDsAreNeverOnesTheRecordHolds(t *testing.T) {
 		},
 		{name: "two drawn in turn", held: []identity.Entry{{ID: firstID}, {ID: secondID}}, draws: [][]byte{first, second, third}, want: thirdID},
 		{name: "the word pin takes for routing", draws: [][]byte{reserved[:], second}, want: secondID},
+		{name: "a configured account's the record doesn't hold", configured: []string{"qgr2", firstID}, draws: [][]byte{first, second}, want: secondID},
+		{name: "a configured account's, in another case", configured: []string{strings.ToUpper(firstID)}, draws: [][]byte{first, second}, want: secondID},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := random(t, identity.Record{Accounts: tt.held}, bytes.NewReader(slices.Concat(tt.draws...)))
+			got := random(t, identity.Record{Accounts: tt.held}, tt.configured, bytes.NewReader(slices.Concat(tt.draws...)))
 			if got != tt.want {
 				t.Errorf("Random() = %q, want %q", got, tt.want)
 			}
@@ -179,10 +222,11 @@ func TestRandomIDsAreNeverOnesTheRecordHolds(t *testing.T) {
 }
 
 // Random fails where what it draws from does, as when it runs out before
-// drawing an id the record doesn't hold.
+// drawing an id that isn't held, and where it draws only held ones, giving up
+// rather than drawing for good.
 func TestRandomFailsWhereItsDrawDoes(t *testing.T) {
 	first := draw(1)
-	held := identity.Record{Accounts: []identity.Entry{{ID: random(t, identity.Record{}, bytes.NewReader(first))}}}
+	held := identity.Record{Accounts: []identity.Entry{{ID: random(t, identity.Record{}, nil, bytes.NewReader(first))}}}
 	tests := []struct {
 		name   string
 		record identity.Record
@@ -191,10 +235,11 @@ func TestRandomFailsWhereItsDrawDoes(t *testing.T) {
 		{name: "nothing to draw", rand: bytes.NewReader(nil)},
 		{name: "too little", rand: bytes.NewReader(first[:8])},
 		{name: "run out past one held", record: held, rand: bytes.NewReader(first)},
+		{name: "drawing a held one for good", record: held, rand: endless(1)},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			id, err := tt.record.Random(tt.rand)
+			id, err := tt.record.Random(tt.rand, nil)
 			if id != "" || err == nil {
 				t.Errorf("Random() = %q, %v; want no id, and why", id, err)
 			}
@@ -208,10 +253,21 @@ func draw(b byte) []byte {
 	return bytes.Repeat([]byte{b}, sha256.Size)
 }
 
-// random returns the random id the record gives, drawn from rand.
-func random(t *testing.T, record identity.Record, rand io.Reader) string {
+// endless draws the byte it is, for good.
+type endless byte
+
+func (e endless) Read(p []byte) (int, error) {
+	for i := range p {
+		p[i] = byte(e)
+	}
+	return len(p), nil
+}
+
+// random returns the random id the record gives, drawn from rand, the
+// configured accounts' ids being configured.
+func random(t *testing.T, record identity.Record, configured []string, rand io.Reader) string {
 	t.Helper()
-	id, err := record.Random(rand)
+	id, err := record.Random(rand, configured)
 	if err != nil {
 		t.Fatal(err)
 	}

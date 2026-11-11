@@ -152,6 +152,29 @@ func TestADamagedRecordIsAnErrorAndLeftAsItWas(t *testing.T) {
 			data: `{"version": 1, "accounts": [{"id": "b6s7", "was": "work", "added": "2026-09-01T12:00:00Z"},
 				{"id": "qgr2", "was": "work", "added": "2026-09-01T12:00:00Z"}]}`,
 		},
+		{
+			name: "two accounts with ids before differing only in case",
+			data: `{"version": 1, "accounts": [{"id": "b6s7", "was": "work", "added": "2026-09-01T12:00:00Z"},
+				{"id": "qgr2", "was": "Work", "added": "2026-09-01T12:00:00Z"}]}`,
+		},
+		{
+			name: "an account's id another had before",
+			data: `{"version": 1, "accounts": [{"id": "b6s7", "added": "2026-09-01T12:00:00Z"},
+				{"id": "qgr2", "was": "b6s7", "added": "2026-09-01T12:00:00Z"}]}`,
+		},
+		{
+			name: "an account's id another had before, in another case",
+			data: `{"version": 1, "accounts": [{"id": "qgr2", "was": "WORK", "added": "2026-09-01T12:00:00Z"},
+				{"id": "work", "added": "2026-09-01T12:00:00Z"}]}`,
+		},
+		{
+			name: "an account removed before it was added",
+			data: `{"version": 1, "accounts": [{"id": "m2x7", "label": "side", "added": "2026-10-20T07:45:00Z", "removed": "2026-09-01T12:00:00Z"}]}`,
+		},
+		{
+			name: "an account removed without a label",
+			data: `{"version": 1, "accounts": [{"id": "m2x7", "added": "2026-09-01T12:00:00Z", "removed": "2026-10-20T07:45:00Z"}]}`,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

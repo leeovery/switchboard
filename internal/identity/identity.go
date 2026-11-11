@@ -7,6 +7,7 @@ package identity
 
 import (
 	"slices"
+	"strings"
 	"time"
 )
 
@@ -34,10 +35,10 @@ type Entry struct {
 	Was string `json:"was,omitempty"`
 }
 
-// ByID returns the account with the given id, reporting false where the
-// record has none.
+// ByID returns the account with the given id, in any case, reporting false
+// where the record has none.
 func (r Record) ByID(id string) (Entry, bool) {
-	return r.find(func(e Entry) bool { return e.ID == id })
+	return r.find(func(e Entry) bool { return strings.EqualFold(e.ID, id) })
 }
 
 // ByOrganization returns the account of the given organization, reporting
@@ -46,10 +47,10 @@ func (r Record) ByOrganization(organization string) (Entry, bool) {
 	return r.find(func(e Entry) bool { return organization != "" && e.Organization == organization })
 }
 
-// ByWas returns the account that had the given id before switchboard made
-// ids, reporting false where the record has none, as for "".
+// ByWas returns the account that had the given id, in any case, before
+// switchboard made ids, reporting false where the record has none, as for "".
 func (r Record) ByWas(was string) (Entry, bool) {
-	return r.find(func(e Entry) bool { return was != "" && e.Was == was })
+	return r.find(func(e Entry) bool { return was != "" && strings.EqualFold(e.Was, was) })
 }
 
 // Removed returns the accounts that have been removed, in the record's

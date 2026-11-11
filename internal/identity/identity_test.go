@@ -15,9 +15,9 @@ var (
 	removed = time.Date(2026, 10, 20, 7, 45, 0, 0, time.UTC)
 )
 
-// Each lookup finds the account the record has by what it's given, and none
-// for what no account has, nor for "", which many have of an organization or
-// an id before switchboard made ids.
+// Each lookup finds the account the record has by what it's given, an id in
+// any case, and none for what no account has, nor for "", which many have of
+// an organization or an id before switchboard made ids.
 func TestTheRecordsLookups(t *testing.T) {
 	record := identity.Record{Accounts: []identity.Entry{
 		{ID: "b6s7", Organization: "test-org-work", Added: added},
@@ -32,6 +32,7 @@ func TestTheRecordsLookups(t *testing.T) {
 		want string
 	}{
 		{name: "by id", lookup: func() (identity.Entry, bool) { return record.ByID("qgr2") }, want: "qgr2"},
+		{name: "by id, in another case", lookup: func() (identity.Entry, bool) { return record.ByID("QGR2") }, want: "qgr2"},
 		{name: "by an id none has", lookup: func() (identity.Entry, bool) { return record.ByID("zzzz") }},
 		{name: "by no id", lookup: func() (identity.Entry, bool) { return record.ByID("") }},
 		{name: "by an id one had before", lookup: func() (identity.Entry, bool) { return record.ByID("personal") }},
@@ -39,6 +40,7 @@ func TestTheRecordsLookups(t *testing.T) {
 		{name: "by an organization none has", lookup: func() (identity.Entry, bool) { return record.ByOrganization("test-org-other") }},
 		{name: "by no organization", lookup: func() (identity.Entry, bool) { return record.ByOrganization("") }},
 		{name: "by the id before", lookup: func() (identity.Entry, bool) { return record.ByWas("side") }, want: "m2x7"},
+		{name: "by the id before, in another case", lookup: func() (identity.Entry, bool) { return record.ByWas("Side") }, want: "m2x7"},
 		{name: "by an id before none had", lookup: func() (identity.Entry, bool) { return record.ByWas("other") }},
 		{name: "by no id before", lookup: func() (identity.Entry, bool) { return record.ByWas("") }},
 		{name: "by an id made, as one before", lookup: func() (identity.Entry, bool) { return record.ByWas("b6s7") }},
