@@ -243,7 +243,7 @@ func TestATraceUnderASlideOverKeepsNowsEndAndItsRate(t *testing.T) {
 		scale float64
 	}{
 		{name: "ROUTING, two rows an account", width: 160, shown: SectionsNamed([]string{"routing"}), scale: 16},
-		{name: "ROUTING two rows an account", width: 82, shown: SectionsNamed([]string{"routing"}), scale: 16},
+		{name: "ROUTING two rows an account", width: 80, shown: SectionsNamed([]string{"routing"}), scale: 16},
 		{name: "beside USAGE's blocks", width: 160, shown: SectionsNamed([]string{"usage", "routing"}), by: ByAccount, scale: 18},
 		{name: "SESSIONS", width: 160, shown: SectionsNamed([]string{"sessions"}), scale: 16},
 	}
@@ -355,7 +355,7 @@ func TestEveryTraceOnScreenSharesTheBusiestColumnAsItsScale(t *testing.T) {
 		{name: "ROUTING's accounts', side's newest", width: 160, height: 60, shown: SectionsNamed([]string{"routing"}), want: 16},
 		{name: "and the running sessions', side-1's, on two accounts at once, never gone's", width: 160, height: 60, shown: routingAndSessions, want: 24},
 		{name: "the sessions' alone, ROUTING hidden", width: 160, height: 60, shown: SectionsNamed([]string{"sessions"}), want: 24},
-		{name: "two rows a session, where SESSIONS draws no trace: ROUTING's alone", width: 82, height: 60, shown: routingAndSessions, want: 16},
+		{name: "two rows a session, where SESSIONS draws no trace: ROUTING's alone", width: 80, height: 60, shown: routingAndSessions, want: 16},
 		{name: "beside USAGE's blocks, the pool's, its accounts' summed", width: 160, height: 60, by: ByAccount, want: 30},
 		{name: "SESSIONS folded, its rows run short: ROUTING's alone", width: 160, height: 16, shown: routingAndSessions, want: 16},
 		{name: "ROUTING folded too: none, the least", width: 160, height: 11, shown: routingAndSessions, want: leastScale},
