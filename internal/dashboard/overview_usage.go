@@ -73,10 +73,10 @@ func (f Frame) usageIn(s section, form usageViews, beside func(*canvas, blocksBe
 // room for ROUTING beside them. Its key line names the
 // marks the accounts carry, its form judged by those they may. An account
 // out of the pool at now is faint, as overviewGauge draws its windows and
-// overviewNames its name.
+// namesOf its name.
 func (f Frame) overviewBlock(doc status.Document, now time.Time) usageBlock {
 	m := f.Moment(doc, now)
-	names := overviewNames(m)
+	names := namesOf(m)
 	b := blockOf(m, f.Width, f.Look, f.By, f.overviewWindows(doc, now), names)
 	b.marks, b.markable = keyMarks(names), markable(names)
 	if f.By == ByAccount && f.Width >= besideWidth {
@@ -114,19 +114,8 @@ func (f Frame) windowNamer(m status.Moment) func(key string) string {
 	return func(key string) string { return windowNamed(m, key).Name }
 }
 
-// overviewNames are the names of m's accounts as the Overview names them
-// wherever it does: as namesOf has them, but faint, number, label and marks,
-// where an account is out of the pool.
-func overviewNames(m status.Moment) []accountName {
-	names := namesOf(m)
-	for i := range names {
-		names[i].faint = names[i].out
-	}
-	return names
-}
-
 // overviewNamed is the account of m with the given id as the Overview names
-// it in a line, in k: its label, as names, overviewNames' of m, have it,
+// it in a line, in k: its label, as names, namesOf's of m, have it,
 // faint where it's out of the pool; where m lacks it, its id, cleaned.
 func overviewNamed(m status.Moment, names []accountName, id string, k ink) span {
 	if i := place(m, id); i > 0 {

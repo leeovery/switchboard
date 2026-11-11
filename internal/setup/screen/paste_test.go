@@ -197,7 +197,7 @@ func TestEnterSavesTheTokenPasted(t *testing.T) {
 		if h.model.paste != nil {
 			t.Fatalf("saved, the paste card is %s, want it closed", pasteSaid(h.model.paste))
 		}
-		if got := h.rows()[firstRow+2]; !strings.HasPrefix(got, "▌ 2  personal") || !strings.HasSuffix(got, "expires 27 Oct 2027  ·  365 days left") {
+		if got := h.rows()[firstRow+2]; !strings.HasPrefix(got, "▌   Personal") || !strings.HasSuffix(got, "expires 27 Oct 2027  ·  365 days left") {
 			t.Errorf("personal's row reads %q, want it chosen, its token a year from today", got)
 		}
 	})
@@ -223,7 +223,7 @@ func TestEnterSavesTheTokenPasted(t *testing.T) {
 		if review := h.model.status.review; review == nil || len(review.Accounts) != 4 || h.model.chosen != 3 {
 			t.Fatalf("saved, the review is %+v, row %d chosen; want team added, its row chosen", review, h.model.chosen)
 		}
-		if got := h.rows()[firstRow+6]; !strings.HasPrefix(got, "▌ 4  team") || !strings.HasSuffix(got, "expires 27 Oct 2027  ·  365 days left") {
+		if got := h.rows()[firstRow+6]; !strings.HasPrefix(got, "▌   team") || !strings.HasSuffix(got, "expires 27 Oct 2027  ·  365 days left") {
 			t.Errorf("team's row reads %q, want it chosen, its token a year from today", got)
 		}
 	})
@@ -410,7 +410,7 @@ func TestAPastedTokenThroughSetupIsSavedOnlyOnceItsChecked(t *testing.T) {
 				t.Errorf("side's token was taken %v (%v), want today, %v, so it lasts a year from today", taken, err, start)
 			}
 			rows := h.rows()
-			if i := slices.IndexFunc(rows, func(row string) bool { return strings.HasPrefix(row, "▌ 3  side") }); i < 0 || !strings.HasSuffix(rows[i], "expires 27 Oct 2027  ·  365 days left") {
+			if i := slices.IndexFunc(rows, func(row string) bool { return strings.HasPrefix(row, "▌   side") }); i < 0 || !strings.HasSuffix(rows[i], "expires 27 Oct 2027  ·  365 days left") {
 				t.Errorf("the page reads\n%s\nwant side's row chosen, its token a year from today", strings.Join(rows, "\n"))
 			}
 			if strings.Contains(log.String(), tt.saved) {

@@ -65,18 +65,18 @@ func tenRouting() status.Document {
 func TestROUTINGsFormsLayItsRowsOut(t *testing.T) {
 	doc, sessions := autoRouting()
 	lane := func(n int) string { return strings.Repeat(traceLane, n) }
-	// On a row an account, at 120, the words are 40 cells, its sessions at 58
-	// and its trace 41 cells from column 71, its rate ending at the last
-	// column; on two, at 82, its trace is from the name column to 62.
+	// On a row an account, at 120, the words are 41 cells, its sessions at 57
+	// and its trace 42 cells from column 70, its rate ending at the last
+	// column; on two, at 80, its trace is from the name column to 60.
 	wide := func(name, state, sessions string) map[int]string {
-		return map[int]string{0: name, 16: state, 58: sessions}
+		return map[int]string{0: name, 14: state, 57: sessions}
 	}
 	traced := func(texts map[int]string) string {
-		texts[71], texts[115] = lane(41), "0/min"
+		texts[70], texts[115] = lane(42), "0/min"
 		return textsAt(120, texts)
 	}
 	work, personal, side := "● at its cap · back 17:10", "● open", "● open · new sessions come here"
-	caption := textsAt(120, map[int]string{71: "requests a minute, last 30 minutes"})
+	caption := textsAt(120, map[int]string{70: "requests a minute, last 30 minutes"})
 	tests := []struct {
 		name  string
 		width int
@@ -86,27 +86,27 @@ func TestROUTINGsFormsLayItsRowsOut(t *testing.T) {
 		{
 			name: "size 1: a row an account, the caption under the last", width: 120, rows: 4,
 			want: []string{
-				traced(wide("1 work", work, "0 sessions")),
-				traced(wide("2 personal ◆", personal, "2 sessions")),
-				traced(wide("3 side ▲", side, "4 sessions")),
+				traced(wide("work", work, "0 sessions")),
+				traced(wide("personal ◆", personal, "2 sessions")),
+				traced(wide("side ▲", side, "4 sessions")),
 				caption,
 			},
 		},
 		{
 			name: "size 2: two rows of trace an account, its rate on the second, and a blank row, the caption on the last", width: 120, rows: 9,
 			want: []string{
-				textsAt(120, wide("1 work", work, "0 sessions")), traced(map[int]string{}), "",
-				textsAt(120, wide("2 personal ◆", personal, "2 sessions")), traced(map[int]string{}), "",
-				textsAt(120, wide("3 side ▲", side, "4 sessions")), traced(map[int]string{}),
+				textsAt(120, wide("work", work, "0 sessions")), traced(map[int]string{}), "",
+				textsAt(120, wide("personal ◆", personal, "2 sessions")), traced(map[int]string{}), "",
+				textsAt(120, wide("side ▲", side, "4 sessions")), traced(map[int]string{}),
 				caption,
 			},
 		},
 		{
-			name: "its row's parts not fitting a row: two rows an account and a blank row, its short state, its trace to 20 cells short of the edge", width: 82, rows: 8,
+			name: "its row's parts not fitting a row: two rows an account and a blank row, its short state, its trace to 20 cells short of the edge", width: 80, rows: 8,
 			want: []string{
-				" 1 work         ● at its cap · 17:10", textsAt(82, map[int]string{16: lane(46), 65: "0 sessions  0/min"}), "",
-				" 2 personal ◆   ● open", textsAt(82, map[int]string{16: lane(46), 65: "2 sessions  0/min"}), "",
-				" 3 side ▲       ● open · next", textsAt(82, map[int]string{16: lane(46), 65: "4 sessions  0/min"}),
+				" work         ● at its cap · 17:10", textsAt(80, map[int]string{14: lane(46), 63: "0 sessions  0/min"}), "",
+				" personal ◆   ● open", textsAt(80, map[int]string{14: lane(46), 63: "2 sessions  0/min"}), "",
+				" side ▲       ● open · next", textsAt(80, map[int]string{14: lane(46), 63: "4 sessions  0/min"}),
 			},
 		},
 	}
@@ -137,20 +137,20 @@ func TestAnAccountsStateIsCutByWholeClausesBeforeWhatFollowsIt(t *testing.T) {
 		want         string
 	}{
 		{
-			name: "whole, ending two cells or more before its sessions at 79", doc: capped(false), width: 173, trace: 92,
-			want: textsAt(92, map[int]string{0: "1 work", 16: "● at its cap · back 17:10 · new sessions go elsewhere", 79: "0 sessions"}),
+			name: "whole, ending two cells or more before its sessions at 77", doc: capped(false), width: 173, trace: 90,
+			want: textsAt(90, map[int]string{0: "work", 14: "● at its cap · back 17:10 · new sessions go elsewhere", 77: "0 sessions"}),
 		},
 		{
-			name: "pinned: the pin left off its words, as ● pinned at 68 says it, to end two cells or more before the mark", doc: capped(true), width: 173, trace: 92,
-			want: textsAt(92, map[int]string{0: "1 work", 16: "● at its cap", 68: "● pinned", 79: "0 sessions"}),
+			name: "pinned: the pin left off its words, as ● pinned at 66 says it, to end two cells or more before the mark", doc: capped(true), width: 173, trace: 90,
+			want: textsAt(90, map[int]string{0: "work", 14: "● at its cap", 66: "● pinned", 77: "0 sessions"}),
 		},
 		{
-			name: "pinned at 85, ● pinned left off, its lead with no room beside it: its words say the pin", doc: capped(true), width: 85, trace: 53,
-			want: textsAt(53, map[int]string{0: "1 work", 16: "● at its cap · pinned", 40: "0 sessions"}),
+			name: "pinned at 83, ● pinned left off, its lead with no room beside it: its words say the pin", doc: capped(true), width: 83, trace: 51,
+			want: textsAt(51, map[int]string{0: "work", 14: "● at its cap · pinned", 38: "0 sessions"}),
 		},
 		{
-			name: "pinned at 100: ● pinned beside its lead", doc: capped(true), width: 100, trace: 61,
-			want: textsAt(61, map[int]string{0: "1 work", 16: "● at its cap", 37: "● pinned", 48: "0 sessions"}),
+			name: "pinned at 100: ● pinned beside its lead", doc: capped(true), width: 100, trace: 60,
+			want: textsAt(60, map[int]string{0: "work", 14: "● at its cap", 36: "● pinned", 47: "0 sessions"}),
 		},
 	}
 	for _, tt := range tests {
@@ -243,10 +243,10 @@ func TestARowsFormsComeWidestFirst(t *testing.T) {
 
 // From the first row an account to 100 columns, and at 108 and 120, a state
 // keeps its time wherever a form holds it whole: work at its cap, a name
-// column of 16, from 83, in its short form until its words to when it's
-// back fit from 89; and of ten accounts, a name column of 17, team at its
-// limit, from 84, its words cut to their lead in under 23 cells, then its
-// short form from 87, until its words fit whole from 96.
+// column of 14, from 81, in its short form until its words to when it's
+// back fit from 87; and of ten accounts, a name column of 14 too, team at
+// its limit, from 81, its words cut to their lead in under 23 cells, then
+// its short form from 84, until its words fit whole from 93.
 func TestARowsStateKeepsItsTime(t *testing.T) {
 	doc, _ := autoRouting()
 	tests := []struct {
@@ -256,17 +256,17 @@ func TestARowsStateKeepsItsTime(t *testing.T) {
 		from  int
 		want  func(width int) string
 	}{
-		{name: "work at its cap", doc: doc, label: "1 work", from: 83, want: func(width int) string {
-			if width >= 89 {
+		{name: "work at its cap", doc: doc, label: "work", from: 81, want: func(width int) string {
+			if width >= 87 {
 				return "● at its cap · back 17:10"
 			}
 			return "● at its cap · 17:10"
 		}},
-		{name: "team at its limit, of ten", doc: tenRouting(), label: "team", from: 84, want: func(width int) string {
+		{name: "team at its limit, of ten", doc: tenRouting(), label: "team", from: 81, want: func(width int) string {
 			switch {
-			case width >= 96:
+			case width >= 93:
 				return "■ limit reached · back 15:30"
-			case width >= 87:
+			case width >= 84:
 				return "■ limit reached · 15:30"
 			}
 			return "■ limit reached"
@@ -324,15 +324,15 @@ func accountRow(t *testing.T, doc status.Document, label string, width int) (str
 // ● pinned; then the rest. So the mark shows where the words beside it keep
 // their lead whole and, where it has a time, that too; else it's left off,
 // and the words take its cells, saying the pin where their forms carry it,
-// as at its cap the pin spends: with a name column of 16, at 84 and 85,
-// where its lead has no room beside the mark; where they don't, as at 83,
+// as at its cap the pin spends: with a name column of 14, at 82 and 83,
+// where its lead has no room beside the mark; where they don't, as at 81,
 // the row doesn't, ROUTING's heading naming the accounts pinned. Of ten
-// accounts, a name column of 17, from 100 columns: team at its limit keeps
-// its time, the mark left off, until its short form fits beside it from
-// 108; lab under pressure, until its words fit whole beside it from 120.
-// (Narrower, where neither shows its time, the sweep of every width holds
-// them.) Where new sessions go, the mark shows beside its lead, or its short
-// form, from 83.
+// accounts, a name column of 14 too, from 97 columns: team at its limit
+// keeps its time, the mark left off, until its short form fits beside it
+// from 105; lab under pressure, until its words fit whole beside it from
+// 117. (Narrower, where neither shows its time, the sweep of every width
+// holds them.) Where new sessions go, the mark shows beside its lead, or its
+// short form, from 81.
 // And a model's requests refused keep its family wherever its lead fits,
 // never giving way to a short form narrower than it.
 func TestPinnedShowsOnARowWhereItsWordsKeepTheirLeadAndTime(t *testing.T) {
@@ -355,28 +355,28 @@ func TestPinnedShowsOnARowWhereItsWordsKeepTheirLeadAndTime(t *testing.T) {
 		label string
 		want  map[int]drawn
 	}{
-		{name: "at its cap the pin spends", doc: capped, label: "1 work", want: map[int]drawn{
-			83: {"● at its cap", false}, 85: {"● at its cap · pinned", false},
-			86: {"● at its cap", true}, 100: {"● at its cap", true}, 173: {"● at its cap", true},
+		{name: "at its cap the pin spends", doc: capped, label: "work", want: map[int]drawn{
+			81: {"● at its cap", false}, 83: {"● at its cap · pinned", false},
+			84: {"● at its cap", true}, 100: {"● at its cap", true}, 173: {"● at its cap", true},
 		}},
-		{name: "where new sessions go, pinned", doc: pinnedRouting(), label: "2 personal", want: map[int]drawn{
-			83: {"● open", true}, 90: {"● open · next", true},
+		{name: "where new sessions go, pinned", doc: pinnedRouting(), label: "personal", want: map[int]drawn{
+			81: {"● open", true}, 88: {"● open · next", true},
 		}},
-		{name: "at its limit, pinned, of ten", doc: ten, label: "team", want: banded(100, 117, func(width int) drawn {
+		{name: "at its limit, pinned, of ten", doc: ten, label: "team", want: banded(97, 114, func(width int) drawn {
 			switch {
-			case width >= 108:
+			case width >= 105:
 				return drawn{"■ limit reached · 15:30", true}
-			case width >= 96:
+			case width >= 93:
 				return drawn{"■ limit reached · back 15:30", false}
 			}
 			return drawn{"■ limit reached · 15:30", false}
 		})},
-		{name: "under pressure, pinned, of ten", doc: ten, label: "lab", want: banded(100, 121, func(width int) drawn {
-			return drawn{"● under pressure · out ~16:05", width >= 120}
+		{name: "under pressure, pinned, of ten", doc: ten, label: "lab", want: banded(97, 118, func(width int) drawn {
+			return drawn{"● under pressure · out ~16:05", width >= 117}
 		})},
-		{name: "a model's requests refused, unpinned, its family kept wherever its lead fits", doc: refused, label: "3 side", want: map[int]drawn{
-			84: {"■ refused (403, opus)", false}, 108: {"■ refused (403, opus)", false}, 142: {"■ refused (403, opus)", false},
-			145: {"■ refused (403, opus) · other models still come here", false},
+		{name: "a model's requests refused, unpinned, its family kept wherever its lead fits", doc: refused, label: "side", want: map[int]drawn{
+			82: {"■ refused (403, opus)", false}, 108: {"■ refused (403, opus)", false}, 140: {"■ refused (403, opus)", false},
+			143: {"■ refused (403, opus) · other models still come here", false},
 		}},
 	}
 	for _, tt := range tests {
@@ -457,7 +457,7 @@ func TestThePinIsSaidOnceWhereTheMarkShows(t *testing.T) {
 		name  string
 		frame Frame
 	}{
-		{name: "two rows an account", frame: Frame{Width: 82, Height: 40, View: Overview, Policy: claudeLike, Sections: SectionsNamed([]string{"routing"})}},
+		{name: "two rows an account", frame: Frame{Width: 80, Height: 40, View: Overview, Policy: claudeLike, Sections: SectionsNamed([]string{"routing"})}},
 		{name: "beside USAGE's blocks", frame: Frame{Width: 160, Height: 40, View: Overview, Policy: claudeLike, By: ByAccount, Sections: SectionsNamed([]string{"usage", "routing"})}},
 	}
 	for _, tt := range tests {
@@ -643,7 +643,7 @@ func TestROUTINGIsBesideUSAGEOnlyWhereBothShowByAccountFrom150Columns(t *testing
 		{name: "by account, beside USAGE", frame: Frame{Width: 150, By: ByAccount}, least: 0, most: 0},
 		{name: "by account under 150 columns", frame: Frame{Width: 149, By: ByAccount}, least: 6, most: 11},
 		{name: "by account, USAGE hidden", frame: Frame{Width: 160, By: ByAccount, Sections: Sections{}.Toggled(SectionUsage)}, least: 6, most: 11},
-		{name: "its row's parts not fitting a row", frame: Frame{Width: 82}, least: 10, most: 10},
+		{name: "its row's parts not fitting a row", frame: Frame{Width: 80}, least: 10, most: 10},
 	}
 	for _, tt := range tests {
 		if s := tt.frame.routingSection(doc, routedAt); s.least != tt.least || s.most != tt.most {
@@ -851,12 +851,12 @@ func TestAnAccountsStateNewlyChangedIsCued(t *testing.T) {
 			f := Frame{Width: 160, Height: 40, Look: tt.look, View: Overview, Policy: claudeLike, Changed: map[string]float64{"work": 0.25}}
 			c := newCanvas(f.Width, 4)
 			f.routingSection(doc, routedAt).draw(c, bounds{width: f.Width, rows: 4})
-			for x := 16; x < 16+words; x++ {
+			for x := 14; x < 14+words; x++ {
 				if got := c.at(x, 0).ink; got.on != tt.want.on || got.bold != tt.want.bold {
 					t.Errorf("column %d of work's state is in %+v, want on %+v, bold %t", x, got, tt.want.on, tt.want.bold)
 				}
 			}
-			if after := c.at(16+words, 0).ink; after.on != (hue{}) || after.bold {
+			if after := c.at(14+words, 0).ink; after.on != (hue{}) || after.bold {
 				t.Errorf("the cell after work's state is in %+v, want it not cued", after)
 			}
 			if personal := c.at(16, 1).ink; personal.on != (hue{}) || personal.bold {

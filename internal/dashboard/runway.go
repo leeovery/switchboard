@@ -158,8 +158,8 @@ func (r RunwayShown) runwayParts() []flex.Part {
 }
 
 // labelsColumn is Runway's label column shown as r, its gap after it: with
-// the account column collapsed, the widest of its labels beside a lane, a
-// number and its marks or the widest use, 100%, and collapsedGap, whatever
+// the account column collapsed, the widest of its labels beside a lane, its
+// marks, or the widest use, 100%, and collapsedGap, whatever
 // the width; else its accounts' names' column, as runwayLabelsOf has it, its
 // natural no less than the widest use under a name, as runwayUseCells has
 // it.

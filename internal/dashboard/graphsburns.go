@@ -10,7 +10,7 @@ import (
 
 // burnCards draws the cards of the burn-down section placed, of the moment
 // m, as laid out: each of the configured accounts it charts, as laid's
-// charted has them, in the config's order, numbered as graphsNamed has it,
+// charted has them, in the config's order, named as graphsNamed has it,
 // where laid's cards places it, as burnCardDrawn draws it, so one the
 // moment doesn't hold yet, having no lane, draws its label alone, no words,
 // as a card does before its lanes are built, and its chart empty but for

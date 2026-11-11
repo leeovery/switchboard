@@ -67,9 +67,8 @@ type Moment struct {
 
 // AccountNow is an account of a document as it stands at a moment.
 type AccountNow struct {
-	// ID and Label are as configured, Place is its number, its place in the
-	// document, from 1, as Numbering numbers it, and Primary is set on the
-	// primary.
+	// ID and Label are as configured, Place is its place in the document,
+	// from 1, and Primary is set on the primary.
 	ID, Label string
 	Place     int
 	Primary   bool
@@ -325,13 +324,12 @@ func (m Moment) At(now time.Time) Moment {
 // HeldMoment is a document's moment, worked out the first time it's asked
 // for, and known by the document it's of, by when that was built, the time
 // it's at, and the policy it's judged by: for every look at the one document
-// at the one time, by the one policy, to share. It numbers the document's
-// accounts, and knows the windows every model shares each of them lacks,
-// without working the moment out, for a look to lay out by.
+// at the one time, by the one policy, to share. It knows the windows every
+// model shares each of the document's accounts lacks, without working the
+// moment out, for a look to lay out by.
 type HeldMoment struct {
 	generated, now time.Time
 	policy         score.Policy
-	numbering      Numbering
 	// lacks are the keys of the windows every model shares that each of the
 	// document's accounts lacks, by its id, as lacking has them.
 	lacks  map[string][]string
@@ -342,7 +340,7 @@ type HeldMoment struct {
 // it.
 func (d Document) HoldAt(now time.Time, policy score.Policy) *HeldMoment {
 	return &HeldMoment{
-		generated: d.GeneratedAt, now: now, policy: policy, numbering: d.numbering(), lacks: d.lacking(policy),
+		generated: d.GeneratedAt, now: now, policy: policy, lacks: d.lacking(policy),
 		moment: sync.OnceValue(func() Moment { return d.At(now, policy) }),
 	}
 }
@@ -351,7 +349,7 @@ func (d Document) HoldAt(now time.Time, policy score.Policy) *HeldMoment {
 // look at its document at its Now, by its policy, to share.
 func (m Moment) Held() *HeldMoment {
 	return &HeldMoment{
-		generated: m.doc.GeneratedAt, now: m.Now, policy: m.policy, numbering: m.numbering(), lacks: m.lacking(),
+		generated: m.doc.GeneratedAt, now: m.Now, policy: m.policy, lacks: m.lacking(),
 		moment: func() Moment { return m },
 	}
 }

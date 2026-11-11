@@ -6,9 +6,9 @@ ACCOUNTS  ───────────────────────�
 
   No accounts yet. Add each Claude subscription you want switchboard to route across.
 
-     ACCOUNT         LABEL         PLAN       RESERVE    TOKEN
+    ACCOUNT         PLAN       RESERVE    TOKEN
 
-▌ +  add an account                     ╭─ ADD AN ACCOUNT ─────────────────────────────────────────────────────────────╮
+▌ + add an account                      ╭─ ADD AN ACCOUNT ─────────────────────────────────────────────────────────────╮
                                         │                                                                              │
                                         │  Each account is one Claude subscription: a Pro, Max or Ultra plan.          │
                                         │                                                                              │

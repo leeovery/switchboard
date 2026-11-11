@@ -59,8 +59,8 @@ func names(m status.Moment, ids []string) string {
 	return prose.List(listed)
 }
 
-// place is the account's place in m, counting from 1 in the order they're
-// configured, as the digit that pins it numbers it: 0 where m lacks it.
+// place is the account's place in m, counting from 1 in the document's
+// order: 0 where m lacks it.
 func place(m status.Moment, id string) int {
 	a, _ := m.Account(id)
 	return a.Place

@@ -439,18 +439,19 @@ func TestTheRoutingCardsOrdersReachTheRouter(t *testing.T) {
 	run(t, srv.deps, "dashboard")
 	m := watching(t, *cfg)
 
-	// Personal, the second, has no token, so its number picks nothing.
-	m = pressed(m, "p", "2", "3", "m", "enter")
+	// Personal, the second, has no token, so space on it picks nothing.
+	m = pressed(m, "p", "down", "down", "space", "down", "space", "m", "enter")
 	if got, want := srv.status(t).Pin, (status.Pin{Accounts: []string{"side"}, Since: testNow, Move: true}); !reflect.DeepEqual(got, want) {
-		t.Errorf("once p 2 3 m enter were pressed, the router's pin = %+v, want %+v", got, want)
+		t.Errorf("once side was ticked on the card, personal tried, and m and enter were pressed, the router's pin = %+v, want %+v", got, want)
 	}
 	if e := srv.told(t); e.Kind != status.EventPin || !e.Move || e.By != "dashboard" {
 		t.Errorf("once pinned, the router told of %+v, want a pin moving the sessions running, by the dashboard", e)
 	}
 
-	pressed(m, "p", "0", "enter")
+	// The card opens on side, the account picked, three rows under auto.
+	pressed(m, "p", "up", "up", "up", "space", "enter")
 	if got := srv.status(t).Pin; !got.IsZero() {
-		t.Errorf("once p 0 enter were pressed, the router's pin = %+v, want none", got)
+		t.Errorf("once auto was picked on the card and enter pressed, the router's pin = %+v, want none", got)
 	}
 	if e := srv.told(t); e.Kind != status.EventAuto || e.By != "dashboard" {
 		t.Errorf("once unpinned, the router told of %+v, want an auto by the dashboard", e)
@@ -458,7 +459,7 @@ func TestTheRoutingCardsOrdersReachTheRouter(t *testing.T) {
 }
 
 // A session's page, opened by a click on its row in the Overview's SESSIONS,
-// pins the session alone through its card, as p, its account's number and
+// pins the session alone through its card, as p, ↓ to its account, space and
 // enter pick it, the router's pin for new sessions untouched.
 func TestASessionsPageOpenedByAClickPinsItAlone(t *testing.T) {
 	srv := newServeSetup(t, fakeClaudeAPI(t), map[string]string{"NO_COLOR": "1"})
@@ -476,11 +477,12 @@ func TestASessionsPageOpenedByAClickPinsItAlone(t *testing.T) {
 		t.Fatalf("the screen is\n%s\nwant SESSIONS showing %s", ansi.Strip(m.View().Content), sessionOne[:4])
 	}
 	m = delivered(m, tea.MouseClickMsg{X: x, Y: y, Button: tea.MouseLeft})
-	// Personal, the second, has no token, so side is the third.
-	pressed(m, "p", "3", "enter")
+	// The card opens on auto, the session pinned to none: side is three rows
+	// under it.
+	pressed(m, "p", "down", "down", "down", "space", "enter")
 
 	if got := srv.session(t, sessionOne).Pin; got != "side" {
-		t.Errorf("once p 3 enter were pressed on its page, the session's own pin = %q, want side", got)
+		t.Errorf("once side was picked on its page's card and enter pressed, the session's own pin = %q, want side", got)
 	}
 	if e := srv.told(t); e.Kind != status.EventPin || e.Session != sessionOne || e.By != "dashboard" {
 		t.Errorf("once pinned, the router told of %+v, want the session's pin by the dashboard", e)
@@ -514,10 +516,13 @@ func watching(t *testing.T, cfg watch.Config) watch.Model {
 
 // pressed presses the keys given, in turn, as the terminal sends them.
 func pressed(m watch.Model, keys ...string) watch.Model {
+	named := map[string]tea.KeyPressMsg{
+		"enter": {Code: tea.KeyEnter}, "up": {Code: tea.KeyUp}, "down": {Code: tea.KeyDown}, "space": {Code: tea.KeySpace, Text: " "},
+	}
 	for _, k := range keys {
-		key := tea.KeyPressMsg{Code: []rune(k)[0], Text: k}
-		if k == "enter" {
-			key = tea.KeyPressMsg{Code: tea.KeyEnter}
+		key, ok := named[k]
+		if !ok {
+			key = tea.KeyPressMsg{Code: []rune(k)[0], Text: k}
 		}
 		m = delivered(m, key)
 	}

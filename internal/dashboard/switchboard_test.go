@@ -401,7 +401,7 @@ func TestACallSaysItsSessionWhatItsDoingAndWhereItCameFrom(t *testing.T) {
 // first row says so in text.faint, and its lines stand with every jack free.
 func TestWithNoSessionRunningTheLinesStandAlone(t *testing.T) {
 	c := boardFrame(160, 37, Look{}, SessionsShown{}, Traffic{}).page(usageWorld(), routedAt)
-	if got := rowOf(c, 6); !strings.HasPrefix(got, noSessionsRunning+strings.Repeat(" ", 65)+freeJack+" 1 work") {
+	if got := rowOf(c, 6); !strings.HasPrefix(got, noSessionsRunning+strings.Repeat(" ", 65)+freeJack+" work") {
 		t.Errorf("the view's first row reads %q, want %q, then work's line", got, noSessionsRunning)
 	}
 	if got := c.at(0, 6).ink; got != faintInk {
@@ -879,23 +879,23 @@ func namedOf(cells int) func(*status.Document) {
 	}
 }
 
-// The lines' names are a column of names, at least 8 cells of label, at
-// their natural the widest, beside the state words, at least leastStanding,
-// as the sweep can't see a cut beside the cords: each name is whole wherever
-// the lines' row holds it, what follows it, and the words' least, else
-// narrowed toward its least, the name column's 16 with personal's number
-// and marks; and each account's lead, ● at its cap, ■ limit reached and
-// ● open, is whole wherever the names' least leaves it room. A line of one
-// row has its week's bar, 21 cells to its words, between. Of names of 8, 14
-// and 22 cells, at every width from 100 to 220, at each step.
+// The lines' names are a column of names, at least 8 cells of label, at their
+// natural the widest, beside the state words, at least leastStanding, as the
+// sweep can't see a cut beside the cords: each name is whole wherever the
+// lines' row holds it, what follows it, and the words' least, else narrowed
+// toward its least, the name column's 14 with personal's marks; and each
+// account's lead, ● at its cap, ■ limit reached and ● open, is whole wherever
+// the names' least leaves it room. A line of one row has its week's bar, 21
+// cells to its words, between. Of names of 8, 14 and 22 cells, at every width
+// from 100 to 220, at each step.
 func TestTheLinesNamesAndStateLeadsAreWholeWhereTheyFit(t *testing.T) {
 	t.Parallel()
-	const namesLeast = 16
+	const namesLeast = 14
 	leads := []string{"● at its cap", "■ limit reached", "● open"}
 	seen := map[string]bool{}
 	for _, cells := range []int{8, 14, 22} {
 		doc := usageWorld(namedOf(cells), personalAtItsLimit(atClock(14, 12, 0), atClock(15, 54, 0), 0))
-		named := map[string]int{"1 ": cells + 6, "2 ": cells + 8, "3 ": cells + 6}
+		named := map[string]int{"work": cells + 4, "personal": cells + 6, "side": cells + 4}
 		for width := 100; width <= 220; width++ {
 			for _, height := range []int{44, 24, 15, 14} {
 				f := boardFrame(width, height, Look{}, boardOf(boardLook{calls: longCalls()}), Traffic{})
@@ -904,13 +904,13 @@ func TestTheLinesNamesAndStateLeadsAreWholeWhereTheyFit(t *testing.T) {
 				if laid.step >= oneRowStep {
 					row -= oneRowBar + afterBar
 				}
-				text := strings.Join(textOf(f.Draw(doc, routedAt)), "\n")
+				rows := textOf(f.Draw(doc, routedAt))
+				text := strings.Join(rows, "\n")
 				column := max(namesLeast, row-leastStanding)
-				for i, a := range doc.Accounts {
-					number := strconv.Itoa(i+1) + " "
-					whole := named[number] <= column
+				for _, a := range doc.Accounts {
+					whole := named[a.ID] <= column
 					seen[fmt.Sprintf("names whole %t", whole)] = true
-					if strings.Contains(text, number+a.Label) != whole {
+					if namedWhole(rows, laid.columns.lines, a.Label) != whole {
 						t.Fatalf("at %dx%d, step %d, names of %d, %d cells for name and words: %q whole %t, want %t", width, height, laid.step, cells, row, a.Label, !whole, whole)
 					}
 				}
@@ -929,6 +929,15 @@ func TestTheLinesNamesAndStateLeadsAreWholeWhereTheyFit(t *testing.T) {
 	if len(seen) != 3 {
 		t.Errorf("the lines drawn %v, want names whole and cut, and leads whole", seen)
 	}
+}
+
+// namedWhole reports whether a row of rows names the label given whole from
+// column x, as a line's name row does.
+func namedWhole(rows []string, x int, label string) bool {
+	return slices.ContainsFunc(rows, func(r string) bool {
+		cells := []rune(r)
+		return len(cells) > x && strings.HasPrefix(string(cells[x:])+" ", label+" ")
+	})
 }
 
 // columnsDrawn are where the Switchboard of doc puts a call's parts and its

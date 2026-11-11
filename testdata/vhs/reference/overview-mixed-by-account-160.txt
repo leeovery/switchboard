@@ -4,23 +4,23 @@
 
 USAGE  ─────────────────────────────────────────────────────────────────────────────────────────────── u   ROUTING   auto ──────────────────────────────────── r
 
-1 work          Week                      ▍         ┃                   ╎   34%  out ~Sun                  ● open
+work          Week                                 ┃                    ╎   34%  out ~Sun                  ● open
                                                                                                            0 sessions
-                5-hour    no limit                                                                         ▂▄▅▄▁▂▂▂▂▂▄▅▆▅▄▃▃▃▂▂▂▂▂▁▂▂▁▂▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁   0/min
+              5-hour    no limit                                                                           ▂▄▅▄▁▂▂▂▂▂▄▅▆▅▄▃▃▃▂▂▂▂▂▁▂▂▁▂▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁   0/min
 
-2 personal ◆    Week                                     ┃                  66%  out ~Sat                  ● open
+personal ◆    Week                                      ┃                   66%  out ~Sat                  ● open
                                                                                                            2 sessions
-                5-hour    no limit                                                                         ▁▂▂▂▂▁▁▁▁▁▁▁▁▂▂▁▁▁▁▁▁▁▁▁▁▁▃▅▅▄▂▁▁▁▁▁▁▁▁▁▁▁▂▁▂   3/min
+              5-hour    no limit                                                                           ▁▂▂▂▂▁▁▁▁▁▁▁▁▂▂▁▁▁▁▁▁▁▁▁▁▁▃▅▅▄▂▁▁▁▁▁▁▁▁▁▁▁▂▁▂   3/min
 
-3 side ▲        Week                            ┃              ▌            78%  out ~Fri                  ● open · new sessions come here
+side ▲        Week                             ┃                            78%  out ~Fri                  ● open · new sessions come here
                                                                                                            4 sessions
-                5-hour          ▎ ┃                                         13%  21%/h till 18:50          ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▂▄▇     ▇ ▆▅▄▄▅▅▆  11/min
+              5-hour          ▌  ┃                                          13%  21%/h till 18:50          ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▂▄▇     ▇ ▆▅▄▄▅▅▆  11/min
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Σ pool          Week                                ┃ ▌                     59%  1.2 of 3 left             3 open
+Σ pool        Week                                 ┃ ▋                      59%  1.2 of 3 left             3 open
                                                                                                            6 sessions
                                                                                                            ▄▆▇▆▃▃▃▃▂▂▄▆▇▇▅▄▃▃▂▂▂▂▂▁▂▂▄         ▇ ▆▅▄▅▇▆▇  14/min
 
-                ┃ even pace: where you would be now, used evenly    ╎ cap: work at 95%    ◆ primary    ▲ new sessions go here
+              ┃ even pace: where you would be now, used evenly    ╎ cap: work at 95%    ◆ primary    ▲ new sessions go here
 
 COMING UP  ─────────────────────────────────────────────────────────── c          LATELY  ──────────────────────────────────────────────────────────────────── l
 

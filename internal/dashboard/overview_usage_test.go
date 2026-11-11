@@ -145,19 +145,19 @@ func TestUSAGEScrollsWholeARowAtATimeItsWindowsHeadingKept(t *testing.T) {
 	}{
 		{
 			name: "at the top, the rows below said", scroll: 0,
-			want: map[int]string{2: " 1 a1 ▲", 4: " 2 a2", 12: " 6 a6", 13: "", 14: "▼ 11 more below"},
+			want: map[int]string{2: "a1 ▲", 4: "a2", 12: "a6", 13: "", 14: "▼ 11 more below"},
 		},
 		{
 			name: "a row down, the blank under the heading under it", scroll: 1,
-			want: map[int]string{1: " 1 a1 ▲", 3: " 2 a2", 13: " 7 a7", 14: "▲ 1 more above · ▼ 10 more below"},
+			want: map[int]string{1: "a1 ▲", 3: "a2", 13: "a7", 14: "▲ 1 more above · ▼ 10 more below"},
 		},
 		{
 			name: "four rows down, a2 under the heading", scroll: 4,
-			want: map[int]string{1: "", 2: " 3 a3", 4: " 4 a4", 12: " 8 a8", 14: "▲ 4 more above · ▼ 7 more below"},
+			want: map[int]string{1: "", 2: "a3", 4: "a4", 12: "a8", 14: "▲ 4 more above · ▼ 7 more below"},
 		},
 		{
 			name: "past the end, no further than shows the key line", scroll: 99,
-			want: map[int]string{1: " 6 a6", 9: "10 a10", 10: "────", 11: " Σ pool", 12: "", 13: key, 14: "▲ 11 more above"},
+			want: map[int]string{1: "a6", 9: "a10", 10: "────", 11: "Σ pool", 12: "", 13: key, 14: "▲ 11 more above"},
 		},
 	}
 	for _, tt := range tests {
@@ -175,7 +175,7 @@ func TestUSAGEScrollsWholeARowAtATimeItsWindowsHeadingKept(t *testing.T) {
 	}
 }
 
-// Stacked at 120 columns, the usage world's three windows are 32 rows laid
+// Stacked at 118 columns, the usage world's three windows are 32 rows laid
 // out whole: the week's heading on row 0, its accounts on 2, 4 and 6, its
 // pool on 8; the 5-hour's heading on 10, its accounts on 12, 14 and 16; Fable
 // week's on 20, its accounts on 22, 24 and 26, its pool on 28; the key line
@@ -185,18 +185,18 @@ func TestUSAGEScrollsWholeARowAtATimeItsWindowsHeadingKept(t *testing.T) {
 // row, the pool's, the heading gives way, as none of its rows would show
 // under it; and the blank row between two windows is neither's.
 func TestStackedUSAGEKeepsEachWindowsHeadingOverItsRowsAndHandsItOn(t *testing.T) {
-	f := frameOf(120, 60)
+	f := frameOf(118, 60)
 	tests := []struct {
 		scroll int
 		want   map[int]string
 	}{
-		{scroll: 0, want: map[int]string{0: "WEEK", 2: " 1 work"}},
-		{scroll: 3, want: map[int]string{0: "WEEK", 1: " 2 personal", 3: " 3 side", 5: " Σ pool"}},
+		{scroll: 0, want: map[int]string{0: "WEEK", 2: " work"}},
+		{scroll: 3, want: map[int]string{0: "WEEK", 1: " personal", 3: " side", 5: " Σ pool"}},
 		{scroll: 8, want: map[int]string{0: " Σ pool", 1: "", 2: "5-HOUR"}},
-		{scroll: 9, want: map[int]string{0: "", 1: "5-HOUR", 3: " 1 work"}},
-		{scroll: 13, want: map[int]string{0: "5-HOUR", 1: " 2 personal"}},
-		{scroll: 23, want: map[int]string{0: "FABLE WEEK", 1: " 2 personal", 5: " Σ pool"}},
-		{scroll: 99, want: map[int]string{0: "FABLE WEEK", 1: " 3 side", 4: "", 5: "┃ even pace", 7: "▲ 25 more above"}},
+		{scroll: 9, want: map[int]string{0: "", 1: "5-HOUR", 3: " work"}},
+		{scroll: 13, want: map[int]string{0: "5-HOUR", 1: " personal"}},
+		{scroll: 23, want: map[int]string{0: "FABLE WEEK", 1: " personal", 5: " Σ pool"}},
+		{scroll: 99, want: map[int]string{0: "FABLE WEEK", 1: " side", 4: "", 5: "┃ even pace", 7: "▲ 25 more above"}},
 	}
 	for _, tt := range tests {
 		t.Run(fmt.Sprintf("scrolled %d", tt.scroll), func(t *testing.T) {
@@ -274,10 +274,11 @@ func rowsOut(above, below int) string {
 
 // usageHeading matches a row of USAGE laid out whole that heads the rows
 // under it: a window's heading, stacked; the windows' headings over the
-// matrix; a block's name on a row of its own, by account; or the pool's rule.
+// matrix; a block's name, its marks after it, on a row of its own, by
+// account; or the pool's rule.
 // windowHeading matches the windows' alone.
 var (
-	usageHeading  = regexp.MustCompile(`^([A-Z0-9 -]+|\s+5-HOUR\s.*|\s?(\d+|Σ) \S+|─+)$`)
+	usageHeading  = regexp.MustCompile(`^([A-Z0-9 -]+|\s+5-HOUR\s.*|\S+( [◆▲])*|Σ \S+|─+)$`)
 	windowHeading = regexp.MustCompile(`^([A-Z0-9 -]+|\s+5-HOUR\s.*)$`)
 )
 
@@ -309,7 +310,7 @@ func TestUSAGEScrollsWholeARowAtATimeInEveryLayout(t *testing.T) {
 		rows  int
 	}{
 		{name: "one account's three windows, stacked under 150 columns", width: 80, doc: usageWorld(workAlone), rows: 11},
-		{name: "three accounts' three windows, stacked", width: 120, doc: usageWorld(), rows: 14},
+		{name: "three accounts' three windows, stacked", width: 118, doc: usageWorld(), rows: 14},
 		{name: "ten accounts in the matrix", width: 160, doc: manyRead(10), rows: 7},
 		{name: "by account under 110 columns, each block's name on a row of its own", width: 80, by: ByAccount, doc: usageWorld(), rows: 12},
 		{name: "by account from 150 columns, ROUTING beside", width: 160, by: ByAccount, doc: usageWorld(), rows: 12},
@@ -518,7 +519,7 @@ func TestUSAGEHasItsBigBarsWhereTheyFitByWindowWhereItsWindowsSitSideBySide(t *t
 			f.By = tt.by
 			rows, _ := usageBody(f, threeRouted(), now, tt.rows)
 			beside := f.overviewBlock(threeRouted(), now).sideBySide()
-			if big := rows[0] == "WEEK" && strings.HasPrefix(rows[2], " 1 work") && beside; big != tt.big {
+			if big := rows[0] == "WEEK" && strings.HasPrefix(rows[2], " work") && beside; big != tt.big {
 				t.Errorf("in %d rows, USAGE's big bars show: %v, want %v; its first rows read %q", tt.rows, big, tt.big, rows[:3])
 			}
 		})
@@ -589,7 +590,7 @@ func TestUSAGEsBlocksAreABlankRowApart(t *testing.T) {
 		apart, key int
 	}{
 		{name: "the big bars", f: at(160, ByWindow), apart: 1, key: 1},
-		{name: "stacked at 120", f: at(120, ByWindow), apart: 1, key: 1},
+		{name: "stacked at 118", f: at(118, ByWindow), apart: 1, key: 1},
 		{name: "stacked at 80", f: at(80, ByWindow), apart: 1, key: 1},
 		{name: "stacked on a phone", f: at(52, ByWindow), apart: 1, key: 1},
 		{name: "by account, ROUTING beside", f: at(160, ByAccount), apart: 1, key: 1},
@@ -664,7 +665,7 @@ func TestUSAGEsKeyLineNamesTheMarksTheAccountsCarry(t *testing.T) {
 		want  []string
 	}{
 		{name: "from 150 columns, four cells apart after the cap's", doc: trio(), width: 160, want: []string{pace + "    ╎ cap: work at 95%    ◆ primary    ▲ new sessions go here"}},
-		{name: "narrower, on the second line", doc: trio(), width: 120, want: []string{pace, "╎ cap: work at 95%    ◆ primary    ▲ new sessions go here"}},
+		{name: "narrower, on the second line", doc: trio(), width: 118, want: []string{pace, "╎ cap: work at 95%    ◆ primary    ▲ new sessions go here"}},
 		{name: "at 100, four cells apart", doc: trio(), width: 100, want: []string{pace, "╎ cap: work at 95%    ◆ primary    ▲ new sessions go here"}},
 		{name: "at 99, four cells apart, the long form fitting", doc: trio(), width: 99, want: []string{pace, "╎ cap: work at 95%    ◆ primary    ▲ new sessions go here"}},
 		{name: "at 73, on a phone, four cells apart, the long form fitting", doc: trio(), width: 73, want: []string{pace, "╎ cap: work at 95%    ◆ primary    ▲ new sessions go here"}},
@@ -674,12 +675,12 @@ func TestUSAGEsKeyLineNamesTheMarksTheAccountsCarry(t *testing.T) {
 		{name: "at 54, a cell short of the long form: ▲ new, four cells apart", doc: trio(), width: 54, want: []string{pace, "╎ cap: work at 95%    ◆ primary    ▲ new"}},
 		{name: "at 52, ▲ new", doc: trio(), width: 52, want: []string{pace, "╎ cap: work at 95%    ◆ primary    ▲ new"}},
 		{name: "at 52 with no cap, the long form fitting, four cells apart", doc: trio(account("work", func(a *status.Account) { a.Reserve = 0 })), width: 52, want: []string{pace, "◆ primary    ▲ new sessions go here"}},
-		{name: "one line where it fits beside the name column at its widest", doc: trio(), width: 125, want: []string{pace + "    ╎ cap: work at 95%    ◆ primary    ▲ new sessions go here"}},
-		{name: "a cell short of it, one line, its gaps narrowed to three", doc: trio(), width: 124, want: []string{pace + "   ╎ cap: work at 95%   ◆ primary   ▲ new sessions go here"}},
-		{name: "one line where it fits with its gaps at their least", doc: trio(), width: 122, want: []string{pace + "   ╎ cap: work at 95%   ◆ primary   ▲ new sessions go here"}},
-		{name: "a cell short of it, two lines", doc: trio(), width: 121, want: []string{pace, "╎ cap: work at 95%    ◆ primary    ▲ new sessions go here"}},
-		{name: "a cell short of it, two lines though new sessions go nowhere, as they may", doc: trio(nowhere), width: 121, want: []string{pace, "╎ cap: work at 95%    ◆ primary"}},
-		{name: "a cell short of it, two lines though nothing read draws the cap's mark, as a read may", doc: trio(account("work", func(a *status.Account) { a.FetchedAt, a.Windows = time.Time{}, nil })), width: 121, want: []string{pace, "◆ primary    ▲ new sessions go here"}},
+		{name: "one line where it fits beside the name column at its widest", doc: trio(), width: 123, want: []string{pace + "    ╎ cap: work at 95%    ◆ primary    ▲ new sessions go here"}},
+		{name: "a cell short of it, one line, its gaps narrowed to three", doc: trio(), width: 122, want: []string{pace + "   ╎ cap: work at 95%   ◆ primary   ▲ new sessions go here"}},
+		{name: "one line where it fits with its gaps at their least", doc: trio(), width: 120, want: []string{pace + "   ╎ cap: work at 95%   ◆ primary   ▲ new sessions go here"}},
+		{name: "a cell short of it, two lines", doc: trio(), width: 119, want: []string{pace, "╎ cap: work at 95%    ◆ primary    ▲ new sessions go here"}},
+		{name: "a cell short of it, two lines though new sessions go nowhere, as they may", doc: trio(nowhere), width: 119, want: []string{pace, "╎ cap: work at 95%    ◆ primary"}},
+		{name: "a cell short of it, two lines though nothing read draws the cap's mark, as a read may", doc: trio(account("work", func(a *status.Account) { a.FetchedAt, a.Windows = time.Time{}, nil })), width: 119, want: []string{pace, "◆ primary    ▲ new sessions go here"}},
 		{name: "no primary, no ◆, one line where that fits", doc: trio(noPrimary), width: 120, want: []string{pace + "    ╎ cap: work at 95%    ▲ new sessions go here"}},
 		{name: "no cap, the marks alone, one line where they fit", doc: trio(account("work", func(a *status.Account) { a.Reserve = 0 })), width: 120, want: []string{pace + "    ◆ primary    ▲ new sessions go here"}},
 	}
@@ -872,21 +873,35 @@ func TestAcrossAResetBetweenReadsUSAGEAndROUTINGCountTheSamePool(t *testing.T) {
 	}
 }
 
-func TestAnAccountOutOfThePoolIsNamedFaintOnTheOverviewAlone(t *testing.T) {
+// An account out of the pool is named faint, its label bold text.faint and
+// its marks text.faint, on the Overview and in the printout alike; one in
+// the pool keeps its inks.
+func TestAnAccountOutOfThePoolIsNamedFaintOnTheOverviewAndInThePrintout(t *testing.T) {
 	doc := trio(pinnedTo("side"))
 	faintLabel := ink{token: theme.TextFaint, bold: true}
-	tests := []struct {
-		name                 string
-		row                  usageRow
-		number, label, marks ink
-	}{
-		{name: "on the Overview", row: frameOf(160, 60).overviewBlock(doc, printNow).rows[1], number: faintInk, label: faintLabel, marks: faintInk},
-		{name: "in the printout, its number alone", row: printBlock(doc, 160, Look{}).rows[1], number: faintInk, label: titleInk, marks: primaryInk},
+	for name, block := range map[string]usageBlock{"on the Overview": frameOf(160, 60).overviewBlock(doc, printNow), "in the printout": printBlock(doc, 160, Look{})} {
+		t.Run(name, func(t *testing.T) {
+			if got := block.rows[1].name; len(got) != 2 || got[0].ink != faintLabel || got[1].ink != faintInk {
+				t.Errorf("personal, out of the pool, is named %+v, want its label in %+v and ◆ in %+v", got, faintLabel, faintInk)
+			}
+			if got := block.rows[2].name; len(got) != 2 || got[0].ink != titleInk || got[1].ink != accentInk {
+				t.Errorf("side, in the pool, is named %+v, want its label in %+v and ▲ in %+v", got, titleInk, accentInk)
+			}
+		})
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.row.name; len(got) != 3 || got[0].ink != tt.number || got[1].ink != tt.label || got[2].ink != tt.marks {
-				t.Errorf("personal, out of the pool, is named %+v, want its number in %+v, its label in %+v and ◆ in %+v", got, tt.number, tt.label, tt.marks)
+}
+
+// Where the router sends new sessions outside a pin, as when none of its
+// accounts has room, the account they go to is out of the pool: its label
+// faint, but its ▲ in accent.mode still, saying where they go, on the
+// Overview and in the printout alike.
+func TestTheAccountNewSessionsGoToKeepsItsMarkOutOfThePool(t *testing.T) {
+	doc := trio(pinnedTo("personal"))
+	faintLabel := ink{token: theme.TextFaint, bold: true}
+	for name, block := range map[string]usageBlock{"on the Overview": frameOf(160, 60).overviewBlock(doc, printNow), "in the printout": printBlock(doc, 160, Look{})} {
+		t.Run(name, func(t *testing.T) {
+			if got := block.rows[2].name; len(got) != 2 || got[0].ink != faintLabel || got[1] != (span{" ▲", accentInk}) {
+				t.Errorf("side, out of the pool, new sessions going to it, is named %+v, want its label in %+v and ▲ in %+v", got, faintLabel, accentInk)
 			}
 		})
 	}
@@ -920,10 +935,10 @@ func TestUSAGEsBarsFillAsFarAsTheyveEasedTheirPercentagesAsRead(t *testing.T) {
 	f := frameOf(160, 60)
 	f.Eased = map[Ref]float64{{Account: "work", Window: "7d"}: 0}
 	rows, _ := usageBody(f, threeRouted(), now, 11)
-	if got := colAt(rows[2], 14, 42); strings.TrimSpace(got) != "┃" {
+	if got := colAt(rows[2], 12, 43); strings.TrimSpace(got) != "┃" {
 		t.Errorf("work's week bar, easing from nothing, reads %q, want its track and even pace's mark alone", got)
 	}
-	if got := colAt(rows[2], 14+42+1, 4); got != " 34%" {
+	if got := colAt(rows[2], 12+43+1, 4); got != " 34%" {
 		t.Errorf("work's week percentage reads %q, want the reading's, 34%%", got)
 	}
 }
@@ -983,9 +998,9 @@ func TestByAccountUSAGEsBarsLeaveROUTINGItsRoomBesideThem(t *testing.T) {
 		doc                 status.Document
 		names, bar, routing int
 	}{
-		{name: "the sample's 16-cell name column: 48 cells, ROUTING from 107", width: 160, doc: trio(), names: 16, bar: 48, routing: 107},
-		{name: "a wider name column takes its cells from the bars", width: 160, doc: trio(long), names: 20, bar: 44, routing: 107},
-		{name: "under 150 columns, usage's own bars", width: 149, doc: trio(), names: 16, bar: 0},
+		{name: "the sample's 14-cell name column: 50 cells, ROUTING from 107", width: 160, doc: trio(), names: 14, bar: 50, routing: 107},
+		{name: "a wider name column takes its cells from the bars", width: 160, doc: trio(long), names: 18, bar: 46, routing: 107},
+		{name: "under 150 columns, usage's own bars", width: 149, doc: trio(), names: 14, bar: 0},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1061,8 +1076,8 @@ func TestROUTINGBesideUSAGEsBlocksFollowsThemAsTheyScroll(t *testing.T) {
 		scroll int
 		want   map[int][2]string
 	}{
-		{scroll: 2, want: map[int][2]string{2: {"2 a2", "2 sessions"}, 6: {"3 a3", "3 sessions"}, 18: {"6 a6", "6 sessions"}}},
-		{scroll: 99, want: map[int][2]string{0: {"7 a7", "7 sessions"}, 12: {"10 a10", "10 sessions"}, 16: {"Σ pool", "55 sessions"}}},
+		{scroll: 2, want: map[int][2]string{2: {"a2", "2 sessions"}, 6: {"a3", "3 sessions"}, 18: {"a6", "6 sessions"}}},
+		{scroll: 99, want: map[int][2]string{0: {"a7", "7 sessions"}, 12: {"a10", "10 sessions"}, 16: {"Σ pool", "55 sessions"}}},
 	}
 	for _, tt := range tests {
 		f.Scroll = tt.scroll
@@ -1109,7 +1124,7 @@ func TestTheOverviewShowsEachAccountsRowsUnderTheWindowsEveryModelSharesBeforeAn
 				f.By, f.WindowName = by, printName
 				rows, _ := usageBody(f, doc, now, 40)
 				text := strings.Join(rows, "\n")
-				for _, want := range append([]string{"1 work", "2 personal", "3 side"}, names[by]...) {
+				for _, want := range append([]string{"work", "personal", "side"}, names[by]...) {
 					if !strings.Contains(text, want) {
 						t.Errorf("USAGE has no %q:\n%s", want, text)
 					}
@@ -1138,7 +1153,7 @@ func TestROUTINGBesideUSAGEDrawsNothingAndHasNoTargetsOfItsOwn(t *testing.T) {
 }
 
 // namedOn are the cells of the first row of c to name an account as given,
-// its number, label and marks, from the first.
+// its label and marks, from the first.
 func namedOn(c *canvas, named string) []cell {
 	for y, row := range textOf(c.rows(Look{})) {
 		if before, _, found := strings.Cut(row, named); found {
@@ -1159,7 +1174,7 @@ func TestAnAccountOutOfThePoolIsNamedFaintWhereverTheOverviewNamesIt(t *testing.
 		t.Run(name, func(t *testing.T) {
 			c := newCanvas(f.Width, 12)
 			s.draw(c, bounds{width: f.Width, rows: 12})
-			out, in := namedOn(c, "2 personal ◆"), namedOn(c, "3 side ▲")
+			out, in := namedOn(c, "personal ◆"), namedOn(c, "side ▲")
 			if out == nil || in == nil {
 				t.Fatalf("%s names personal on %v and side on %v, want both named", name, out, in)
 			}
@@ -1168,7 +1183,7 @@ func TestAnAccountOutOfThePoolIsNamedFaintWhereverTheOverviewNamesIt(t *testing.
 					t.Errorf("personal, out of the pool, has cell %d of its name in %s, want text.faint", i, here.ink.token)
 				}
 			}
-			if label := in[2].ink.token; label == theme.TextFaint {
+			if label := in[0].ink.token; label == theme.TextFaint {
 				t.Errorf("side, in the pool, is labelled in %s, want it as USAGE names it", label)
 			}
 		})

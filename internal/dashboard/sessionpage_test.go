@@ -396,7 +396,7 @@ func TestASessionsPageAtEachSize(t *testing.T) {
 		},
 		{
 			name: "ten accounts at 37 rows: every one, the story's columns four rows tall", shown: ranOn(moved(), 10), width: 160, height: 37,
-			want: map[int]string{18: "account-a       12:00 – 12:00", 27: "account-j       12:09 – now", 29: "TURNS    "},
+			want: map[int]string{18: "account-a     12:00 – 12:00", 27: "account-j     12:09 – now", 29: "TURNS    "},
 		},
 		{
 			name: "ten accounts at 24 rows, the story folded: three and seven more", shown: ranOn(moved(), 10), width: 160, height: 24,
@@ -507,7 +507,7 @@ func TestANarrowWidePageCutsItsRowsBeforeTheirRightParts(t *testing.T) {
 		t.Errorf("row 8 reads\n%q\nwant the model that doesn't fit left out whole, after\n%q", rows[7], want)
 	}
 	rows = pageText(pageFrame(t, shown, 130, 37))
-	if want := "≈ 9 of week · 31 of 5-hour · 2 of Fable week" + strings.Repeat(" ", 13) + "$114.10"; !strings.HasSuffix(rows[20], want) {
+	if want := "≈ 9 of week · 31 of 5-hour · 2 of Fable week" + strings.Repeat(" ", 15) + "$114.10"; !strings.HasSuffix(rows[20], want) {
 		t.Errorf("row 21 reads\n%q\nwant its points in their short words, whole where the wide don't fit, ending\n%q", rows[20], want)
 	}
 	if want := "≈ 9 points of its week · 31 of its 5-hour · 2 of its Fable week"; !strings.Contains(pageText(pageFrame(t, shown, 160, 37))[20], want) {
@@ -515,7 +515,7 @@ func TestANarrowWidePageCutsItsRowsBeforeTheirRightParts(t *testing.T) {
 	}
 	f := pageFrame(t, shown, 58, 37)
 	d, narrow := pageDrawn(f, pageDoc())
-	if row, want := strings.TrimRight(string(narrow[d.l.accountsAt+1]), " "), "≈ 9 of week · 31 of 5-hour"+strings.Repeat(" ", 9)+"$114.10"; !strings.HasSuffix(row, want) {
+	if row, want := strings.TrimRight(string(narrow[d.l.accountsAt+1]), " "), "≈ 9 of week · 31 of 5-hour"+strings.Repeat(" ", 11)+"$114.10"; !strings.HasSuffix(row, want) {
 		t.Errorf("at 58 columns, its row reads\n%q\nwant Fable week's points left out whole, ending\n%q", row, want)
 	}
 }
@@ -743,13 +743,52 @@ func TestASessionsPageNamesItsAccountsByTheirLabels(t *testing.T) {
 	shown := moved()
 	shown.Story = movedStory()
 	text := strings.Join(textOf(pageFrame(t, shown, 160, 37).Draw(doc, sessionNow)), "\n")
-	for _, want := range []string{"moved from office: office reached its cap", "office reached its cap → side · 182k", "─ office ─", "1 office "} {
+	for _, want := range []string{"moved from office: office reached its cap", "office reached its cap → side · 182k", "─ office ─", "\noffice  "} {
 		if !strings.Contains(text, want) {
 			t.Errorf("the page doesn't say %q:\n%s", want, text)
 		}
 	}
 	if strings.Contains(text, "work") {
 		t.Errorf("the page names work by its id:\n%s", text)
+	}
+}
+
+// A session's page names an account the pool leaves out faint on its row,
+// as the Overview does, and one in the pool in its own inks; and its heading
+// names the account it runs on so, its label faint where the pool leaves it
+// out.
+func TestASessionsPageNamesAnAccountOutOfThePoolFaint(t *testing.T) {
+	pinnedTo := func(id string) status.Document {
+		return pageDocChanged(func(d *status.Document) {
+			d.Pin = status.Pin{Accounts: []string{id}, Since: sessionNow.Add(-time.Hour).UTC()}
+		})
+	}
+	shown := moved()
+	for _, tt := range []struct {
+		pinned string
+		faint  bool
+	}{{pinned: "side"}, {pinned: "work", faint: true}} {
+		doc := pinnedTo(tt.pinned)
+		c := pageFrame(t, shown, 160, 37).At(doc, sessionNow).page(doc, sessionNow)
+		label := namedOn(c, "on side")
+		if label == nil {
+			t.Fatalf("pinned to %s, the heading doesn't say on side", tt.pinned)
+		}
+		for i, here := range label[len("on "):] {
+			if got := here.ink.token == theme.TextFaint; got != tt.faint {
+				t.Errorf("pinned to %s, cell %d of side's label in the heading is in %s, want text.faint: %t", tt.pinned, i, here.ink.token, tt.faint)
+			}
+		}
+	}
+	doc := pinnedTo("side")
+	at := pageFrame(t, shown, 160, 37).At(doc, sessionNow)
+	c, d := at.page(doc, sessionNow), at.sessionDrawn(doc, sessionNow)
+	for i, s := range shown.Page.Stays(sessionNow) {
+		for x := range ansi.StringWidth(d.nameOf(s.Account).label) {
+			if got := c.at(x, d.l.accountsAt+i).ink.token; (got == theme.TextFaint) != (s.Account != "side") {
+				t.Errorf("%s's row has cell %d of its label in %s, want text.faint: %t, as the pool leaves it out", s.Account, x, got, s.Account != "side")
+			}
+		}
 	}
 }
 

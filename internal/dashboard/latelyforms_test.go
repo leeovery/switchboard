@@ -24,7 +24,7 @@ const (
 
 // formsOf are the forms latelyTold tells m's sentences in, in cells cells.
 func formsOf(m status.Moment, sentences []views.Sentence, cells int) []latelyForm {
-	names, leads := overviewNames(m), latelyLeads(m, sentences)
+	names, leads := namesOf(m), latelyLeads(m, sentences)
 	if len(leads) > 0 {
 		leads[0][0].ink = secondaryInk
 	}
@@ -67,7 +67,7 @@ func TestLATELYTellsEachSentenceInTheFullestOfItsFormsThatFitsWhole(t *testing.T
 	doc.Events = latelyEvents([]string{"work", "personal", "side"})
 	m := doc.At(now, claudeLike)
 	sentences := views.Lately(m, mostLines)
-	names, leads := overviewNames(m), latelyLeads(m, sentences)
+	names, leads := namesOf(m), latelyLeads(m, sentences)
 	for cells := range 100 {
 		for i, form := range formsOf(m, sentences, cells) {
 			s, lead := sentences[i], leads[i].width()

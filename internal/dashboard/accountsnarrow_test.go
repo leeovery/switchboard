@@ -200,7 +200,7 @@ func TestTurnedCompareAndStackedDetailSayADashForEachFigureOfAPeriodWithNothingR
 func TestStackedDetailOfAllAccounts(t *testing.T) {
 	rows := textOf(phoneText(t, 52, 60, AccountsDetail, "", phonePage(t), nil).Draw(phoneDoc(), routedAt))
 	for y, want := range map[int]string{
-		9:  "◂ 0 all accounts ▸             ↑↓ an account, or all",
+		9:  "◂ all accounts ▸               ↑↓ an account, or all",
 		10: "2 open · 1 at cap",
 		15: "5-hour   █████████┃▎            49%  1.5 of 3 left",
 		20: "requests  5,410           worth     $635",
@@ -274,7 +274,7 @@ func TestStackedDetailOfAnAccountNotReadYet(t *testing.T) {
 	f := phoneText(t, 52, 41, AccountsDetail, "added", nil, nil)
 	f.Accounts.Accounts = append(slices.Clone(threeFramed), config.Account{ID: "added"})
 	rows := textOf(f.Draw(phoneDoc(), routedAt))
-	if !strings.HasPrefix(rows[9], "◂ 4 added ▸") || rows[10] != "○ not read" {
+	if !strings.HasPrefix(rows[9], "◂ added ▸") || rows[10] != "○ not read" {
 		t.Errorf("Detail of an account not read yet heads\n%s\n%s", rows[9], rows[10])
 	}
 }
@@ -284,8 +284,8 @@ func TestStackedDetailOfAnAccountNotReadYet(t *testing.T) {
 func TestStackedDetailOfOneAccountNamesItAlone(t *testing.T) {
 	f := phoneText(t, 52, 41, AccountsDetail, "", nil, nil)
 	f.Accounts.Accounts = threeFramed[:1]
-	if got := textOf(f.Draw(phoneDoc(), routedAt))[f.top()]; got != "1 work" {
-		t.Errorf("the picker is %q, want %q", got, "1 work")
+	if got := textOf(f.Draw(phoneDoc(), routedAt))[f.top()]; got != "work" {
+		t.Errorf("the picker is %q, want %q", got, "work")
 	}
 }
 
@@ -296,10 +296,10 @@ func TestStackedDetailsPickerSaysItsKeysWhereTheyFit(t *testing.T) {
 		width int
 		want  string
 	}{
-		{width: 52, want: "◂ 2 personal ◆ ▸               ↑↓ an account, or all"},
-		{width: 60, want: "◂ 2 personal ◆ ▸                       ↑↓ an account, or all"},
-		{width: 38, want: "◂ 2 personal ◆ ▸ ↑↓ an account, or all"},
-		{width: 37, want: "◂ 2 personal ◆ ▸"},
+		{width: 52, want: "◂ personal ◆ ▸                 ↑↓ an account, or all"},
+		{width: 60, want: "◂ personal ◆ ▸                         ↑↓ an account, or all"},
+		{width: 36, want: "◂ personal ◆ ▸ ↑↓ an account, or all"},
+		{width: 35, want: "◂ personal ◆ ▸"},
 	}
 	for _, tt := range tests {
 		f := phoneText(t, tt.width, 41, AccountsDetail, "personal", nil, nil)
@@ -317,7 +317,7 @@ func TestStackedDetailsPickerNamesALabelPastALabelsMostWhole(t *testing.T) {
 	f.Accounts.Accounts = slices.Clone(threeFramed)
 	f.Accounts.Accounts[1].Label = long
 	doc := usageWorld(extraOff, func(d *status.Document) { d.Events, d.Accounts[1].Label = onAuto(), long })
-	if got, want := textOf(f.Draw(doc, routedAt))[f.top()], "◂ 2 "+long+" ◆ ▸"; !strings.HasPrefix(got, want) {
+	if got, want := textOf(f.Draw(doc, routedAt))[f.top()], "◂ "+long+" ◆ ▸"; !strings.HasPrefix(got, want) {
 		t.Errorf("the picker is %q, want it to start %q", got, want)
 	}
 }
@@ -394,7 +394,7 @@ func TestDetailsStackedBodyFollowsTheWidth(t *testing.T) {
 	top := f.top()
 	f.detailStackedBody(phoneDoc(), routedAt).draw(c, top)
 	rows := textOf(c.rows(Look{}))
-	if want := "◂ 1 work ▸" + strings.Repeat(" ", 89) + "↑↓ an account, or all"; rows[top] != want {
+	if want := "◂ work ▸" + strings.Repeat(" ", 91) + "↑↓ an account, or all"; rows[top] != want {
 		t.Errorf("the picker at 120 columns is %q, want %q", rows[top], want)
 	}
 	if !strings.HasPrefix(rows[top+15], "BY MODEL  ") {

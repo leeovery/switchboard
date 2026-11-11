@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/setup"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
@@ -55,11 +56,11 @@ func TestTheAccountsPageIsFrame3sTable(t *testing.T) {
 	want := map[int]string{
 		4:                "ACCOUNTS  " + strings.Repeat("─", 138) + "  3 accounts",
 		6:                "  Each token was checked with the API just now.",
-		accountsHeadsRow: "     ACCOUNT         LABEL         PLAN       RESERVE    TOKEN",
-		accountsFirstRow: "  1  work ◆          Work          Ultra      5%         " + strings.Repeat("╌", 24) + "  working · expiry date unknown",
-		12:               "  2  personal        Personal      not set    none       " + strings.Repeat("█", 23) + "   expires 19 Oct 2026  ·  21 days left",
-		14:               "▌ 3  side            Side          Pro        none       ✗ rejected: revoked or expired",
-		accountsAddRow:   "  +  add an account",
+		accountsHeadsRow: "    ACCOUNT         PLAN       RESERVE    TOKEN",
+		accountsFirstRow: "    Work ◆          Ultra      5%         " + strings.Repeat("╌", 24) + "  working · expiry date unknown",
+		12:               "    Personal        not set    none       " + strings.Repeat("█", 23) + "   expires 19 Oct 2026  ·  21 days left",
+		14:               "▌   Side            Pro        none       ✗ rejected: revoked or expired",
+		accountsAddRow:   "  + add an account",
 	}
 	for y, w := range want {
 		if got := rowOf(c, y); got != w {
@@ -79,28 +80,26 @@ func TestTheAccountsPagesInks(t *testing.T) {
 		x, y int
 		want ink
 	}{
-		{"a head, subtle", 5, accountsHeadsRow, dimInk},
-		{"a number, subtle", 2, accountsFirstRow, dimInk},
-		{"an id, bold text.primary", 5, accountsFirstRow, titleInk},
-		{"the primary's ◆, muted", 10, accountsFirstRow, mutedInk},
-		{"a label, muted", 21, accountsFirstRow, mutedInk},
-		{"a plan, text.secondary", 35, accountsFirstRow, secondaryInk},
-		{"a reserve, text.secondary", 46, accountsFirstRow, secondaryInk},
-		{"a year unknown's bar, faint", 57, accountsFirstRow, faintInk},
-		{"its words, muted", 83, accountsFirstRow, mutedInk},
-		{"a plan not set, faint", 35, 12, faintInk},
-		{"a reserve of none, faint", 46, 12, faintInk},
-		{"expires, muted", 83, 12, mutedInk},
-		{"the date, text.secondary", 91, 12, secondaryInk},
-		{"the dot, faint", 105, 12, faintInk},
-		{"days left under 30, bold accent.attention", 108, 12, alertInk},
+		{"a head, subtle", 4, accountsHeadsRow, dimInk},
+		{"a label, bold text.primary", 4, accountsFirstRow, titleInk},
+		{"the primary's ◆, muted", 9, accountsFirstRow, mutedInk},
+		{"a plan, text.secondary", 20, accountsFirstRow, secondaryInk},
+		{"a reserve, text.secondary", 31, accountsFirstRow, secondaryInk},
+		{"a year unknown's bar, faint", 42, accountsFirstRow, faintInk},
+		{"its words, muted", 68, accountsFirstRow, mutedInk},
+		{"a plan not set, faint", 20, 12, faintInk},
+		{"a reserve of none, faint", 31, 12, faintInk},
+		{"expires, muted", 68, 12, mutedInk},
+		{"the date, text.secondary", 76, 12, secondaryInk},
+		{"the dot, faint", 90, 12, faintInk},
+		{"days left under 30, bold accent.attention", 93, 12, alertInk},
 		{"the row chosen's ▌, accent.key on bg.selection", 0, 14, ink{token: theme.AccentKey, on: reviewChosenOn}},
-		{"its id on bg.selection", 5, 14, on(titleInk)},
-		{"a refusal's ✗, bold state.destructive", 57, 14, on(exhaustedInk)},
-		{"its words, text.secondary", 59, 14, on(secondaryInk)},
+		{"its label on bg.selection", 4, 14, on(titleInk)},
+		{"a refusal's ✗, bold state.destructive", 42, 14, on(exhaustedInk)},
+		{"its words, text.secondary", 44, 14, on(secondaryInk)},
 		{"its blank cells to the edge on bg.selection", 159, 14, on(ink{})},
 		{"+, bold accent.key", 2, accountsAddRow, keyInk},
-		{"add an account, muted", 5, accountsAddRow, mutedInk},
+		{"add an account, muted", 4, accountsAddRow, mutedInk},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -116,7 +115,7 @@ func TestAYearsBarFillsTheDaysGoneAlongTheRamp(t *testing.T) {
 	review := frame3Review()
 	c, _ := accountsScreen(review, 0).page(160, 37, look)
 	for i := range 24 {
-		k := inkAt(c, 57+i, 12)
+		k := inkAt(c, 42+i, 12)
 		want := hue{token: theme.VizTrack}
 		if i < 23 {
 			want = hue{ramp: true, at: along(i, 24)}
@@ -187,14 +186,50 @@ func TestATokensWordsWhereItsNotToldByItsYear(t *testing.T) {
 	}
 }
 
+// A note leads with its account's label, cleaned, or its id where it has
+// none; and two accounts' notes, neither labelled, are a blank row apart.
+func TestANoteLeadsWithItsAccountsLabelElseItsID(t *testing.T) {
+	plan := func(id, label string) setup.Note {
+		return setup.Note{Need: setup.NeedPlan, Account: id, Label: label, Says: "has no plan set.", Press: "Press e to set one."}
+	}
+	for _, tt := range []struct {
+		name string
+		note setup.Note
+		want string
+	}{
+		{name: "labelled", note: plan("work", "Work"), want: "Work has no plan set. Press e to set one."},
+		{name: "without a label", note: plan("work", ""), want: "work has no plan set. Press e to set one."},
+		{name: "a label with an escape, cleaned", note: plan("work", "Wo\x1b[2Jrk"), want: prose.Clean("Wo\x1b[2Jrk") + " has no plan set. Press e to set one."},
+	} {
+		if got := noteLines(tt.note)[0].plain(); got != tt.want {
+			t.Errorf("%s, the note reads %q, want %q", tt.name, got, tt.want)
+		}
+	}
+	review := setup.Review{At: now, Accounts: []setup.Reviewed{
+		{ID: "work", Plan: "pro", Primary: true, Token: setup.TokenStanding{State: setup.TokenWorking}},
+		{ID: "side", Token: setup.TokenStanding{State: setup.TokenWorking}},
+		{ID: "spare", Token: setup.TokenStanding{State: setup.TokenWorking}},
+	}}
+	c := setupDrawn(accountsScreen(review, 0), 160, 37)
+	var notes []string
+	for y := range 37 {
+		if row := rowOf(c, y); strings.Contains(row, "has no plan set") || (len(notes) > 0 && len(notes) < 3) {
+			notes = append(notes, strings.TrimSpace(row))
+		}
+	}
+	if len(notes) < 3 || !strings.HasPrefix(notes[0], "side ") || notes[1] != "" || !strings.HasPrefix(notes[2], "spare ") {
+		t.Errorf("the notes read %q, want side's, a blank row, then spare's", notes)
+	}
+}
+
 func TestTheReviewsNotes(t *testing.T) {
 	c := setupDrawn(accountsScreen(frame3Review(), 2), 160, 37)
 	want := []string{
-		"  side has no working token, so no requests are routed to it.",
+		"  Side has no working token, so no requests are routed to it.",
 		"  Press t to create a new one, approving it in the browser signed in to Side.",
 		"",
-		"  personal has a token that expires 19 Oct 2026: 21 days left. Press t to create a new one, approving it in the browser signed in to Personal.",
-		"  personal has no plan set, so History can't value its usage. Press e to set one.",
+		"  Personal has a token that expires 19 Oct 2026: 21 days left. Press t to create a new one, approving it in the browser signed in to Personal.",
+		"  Personal has no plan set, so History can't value its usage. Press e to set one.",
 	}
 	for i, w := range want {
 		if got := rowOf(c, accountsNotesRow+i); got != w {
@@ -211,7 +246,7 @@ func TestTheReviewsNotes(t *testing.T) {
 		x, y int
 		want ink
 	}{
-		{"an id, bold text.primary", 2, accountsNotesRow, titleInk},
+		{"a label, bold text.primary", 2, accountsNotesRow, titleInk},
 		{"what stops its requests, text.secondary", 7, accountsNotesRow, secondaryInk},
 		{"how to see to it, muted", 2, accountsNotesRow + 1, mutedInk},
 		{"what's missing besides, muted", 11, accountsNotesRow + 4, mutedInk},
@@ -311,7 +346,8 @@ func TestAccountsThatCouldntBeReadSayWhy(t *testing.T) {
 }
 
 func TestTheTableNarrowsItsPaddingThenItsBarThenItsLabels(t *testing.T) {
-	long := frame3Review()
+	wide, long := frame3Review(), frame3Review()
+	wide.Accounts[1].Label = "Personal and family"
 	long.Accounts[1].Label = strings.TrimSpace(strings.Repeat("Personal ", 8))
 	tests := []struct {
 		name   string
@@ -320,10 +356,10 @@ func TestTheTableNarrowsItsPaddingThenItsBarThenItsLabels(t *testing.T) {
 		// want is the personal's row.
 		want string
 	}{
-		{"at setup's least, the padding gone, the bar narrowed", frame3Review(), 95,
-			"  2  personal  Personal  not set  none     " + strings.Repeat("█", 13) + "   expires 19 Oct 2026  ·  21 days left"},
+		{"at setup's least, the padding gone, the bar narrowed", wide, 95,
+			"    Personal and family  not set  none     " + strings.Repeat("█", 13) + "   expires 19 Oct 2026  ·  21 days left"},
 		{"a long label, cut to what's left", long, 95,
-			"  2  personal  Personal…   not set  none     " + strings.Repeat("█", 11) + "   expires 19 Oct 2026  ·  21 days left"},
+			"    Personal Personal Pe…  not set  none     " + strings.Repeat("█", 11) + "   expires 19 Oct 2026  ·  21 days left"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -335,26 +371,26 @@ func TestTheTableNarrowsItsPaddingThenItsBarThenItsLabels(t *testing.T) {
 	}
 }
 
-func TestLongIDsAreCutBeforeAnyDaysLeftAre(t *testing.T) {
+func TestLongLabelsAreCutBeforeAnyDaysLeftAre(t *testing.T) {
 	review := frame3Review()
-	review.Accounts[0].ID = strings.Repeat("w", 29)
-	review.Accounts[1].ID = strings.Repeat("p", 16)
+	review.Accounts[0].Label = strings.Repeat("w", 29)
+	review.Accounts[1].Label = strings.Repeat("p", 26)
 	review.Accounts[1].Token.Year = yearLeft(5)
-	review.Accounts[2].ID = strings.Repeat("s", 40)
+	review.Accounts[2].Label = strings.Repeat("s", 40)
 	review.Accounts[2].Token = setup.TokenStanding{State: setup.TokenWorking, Year: yearLeft(200)}
 	c := setupDrawn(accountsScreen(review, 0), 95, 25)
 	for i, words := range []string{"working · expiry date unknown", "  ·  5 days left", "  ·  200 days left"} {
 		row := rowOf(c, accountsFirstRow+2*i)
 		if !strings.HasSuffix(row, words) || !strings.Contains(row, "…") {
-			t.Errorf("at setup's least, a long id's row reads\n%q\nwant its id cut and its words whole, ending %q", row, words)
+			t.Errorf("at setup's least, a long label's row reads\n%q\nwant its label cut and its words whole, ending %q", row, words)
 		}
 	}
 	if row := rowOf(c, accountsFirstRow); !strings.Contains(row, "… ◆") {
-		t.Errorf("the primary's row reads %q, want its id cut and ◆ kept", row)
+		t.Errorf("the primary's row reads %q, want its label cut and ◆ kept", row)
 	}
 }
 
-func TestLongIDsAreCutBeforeATokensWordsToldInPlaceOfItsBar(t *testing.T) {
+func TestLongLabelsAreCutBeforeATokensWordsToldInPlaceOfItsBar(t *testing.T) {
 	tests := []struct {
 		name  string
 		token setup.TokenStanding
@@ -368,16 +404,15 @@ func TestLongIDsAreCutBeforeATokensWordsToldInPlaceOfItsBar(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			review := frame3Review()
 			for i := range review.Accounts {
-				review.Accounts[i].ID = strings.Repeat(string(rune('a'+i)), 40)
-				review.Accounts[i].Label = strings.Repeat("L", 30)
+				review.Accounts[i].Label = strings.Repeat(string(rune('a'+i)), 44)
 				review.Accounts[i].Token = tt.token
 			}
 			c := setupDrawn(accountsScreen(review, 0), 95, 25)
 			for i, a := range review.Accounts {
 				row := rowOf(c, accountsFirstRow+2*i)
-				cut := !strings.Contains(row, a.ID) && strings.Contains(row, a.ID[:4]+"…")
+				cut := !strings.Contains(row, a.Label) && strings.Contains(row, a.Label[:4]+"…")
 				if !strings.HasSuffix(row, tt.words) || cut != tt.cut || a.Primary != strings.Contains(row, " ◆") {
-					t.Errorf("at setup's least, a long id's row reads\n%q\nwant its id cut %v, ◆ kept on the primary, and its token's words whole, ending %q", row, tt.cut, tt.words)
+					t.Errorf("at setup's least, a long label's row reads\n%q\nwant its label cut %v, ◆ kept on the primary, and its token's words whole, ending %q", row, tt.cut, tt.words)
 				}
 			}
 		})
@@ -428,9 +463,9 @@ func TestTheChosenRowIsScrolledToAsLittleAsShowsIt(t *testing.T) {
 				t.Errorf("scrolled to %d, want %d", got, tt.want)
 			}
 			s.Scroll = got
-			row := fmt.Sprintf("▌ %-2d  acct%02d", tt.chosen+1, tt.chosen+1)
+			row := fmt.Sprintf("▌   acct%02d", tt.chosen+1)
 			if tt.chosen == 12 {
-				row = "▌ +   add an account"
+				row = "▌ + add an account"
 			}
 			rows := textOf(s.Draw(95, 25, Look{}))
 			if !containsPrefix(rows[6:22], row) {
@@ -459,7 +494,7 @@ func TestScrolledIntoTheTableItsHeadsAreKeptAndWhatsOutOfViewNamesNoKeys(t *test
 	s := accountsScreen(manyReviewed(12), 8)
 	s.Scroll = 6
 	rows := textOf(s.Draw(95, 25, Look{}))
-	if !strings.HasPrefix(rows[6], "      ACCOUNT ") {
+	if !strings.HasPrefix(rows[6], "    ACCOUNT ") {
 		t.Errorf("scrolled 6 rows, the page's first row reads %q, want the table's heads, kept", rows[6])
 	}
 	if got := rows[22]; got != "▲ 6 more above   ·   ▼ 7 more below" {

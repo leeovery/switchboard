@@ -2,7 +2,6 @@ package dashboard
 
 import (
 	"slices"
-	"strconv"
 	"strings"
 	"time"
 
@@ -192,17 +191,13 @@ func (t reviewTable) draw(c *canvas, y, width int) (next int, kept []keptHeading
 	return next, []keptHeading{{at: y, end: add + 1}}, chosen
 }
 
-// The table's parts, as columns lays them out: an account's number, its id,
-// its label, its plan and its reserve, each but the number padded out to the
-// frames' width, as pads have them; then its token, its year's bar and the
-// words after it.
+// The table's parts, as columns lays them out: an account's label, its plan
+// and its reserve, each padded out to the frames' width, as pads have them;
+// then its token, its year's bar and the words after it.
 const (
 	reviewIndent = iota
-	reviewNumber
-	reviewID
-	reviewIDPad
-	reviewLabel
-	reviewLabelPad
+	reviewAccount
+	reviewAccountPad
 	reviewPlan
 	reviewPlanPad
 	reviewReserve
@@ -211,12 +206,11 @@ const (
 	reviewWords
 )
 
-// The table's figures: the frames' widths of its id, label, plan and
-// reserve columns, padding them out where they're narrower; the gap between
-// its columns; and a year's bar, whole and at its least.
+// The table's figures: the frames' widths of its account, plan and reserve
+// columns, padding them out where they're narrower; the gap between its
+// columns; and a year's bar, whole and at its least.
 const (
-	framedID       = 14
-	framedLabel    = 12
+	framedLabel    = 14
 	framedPlan     = 9
 	framedReserve  = 9
 	reviewGap      = 2
@@ -225,42 +219,39 @@ const (
 )
 
 // The turns the table's parts narrow in, as the room runs short: first the
-// columns' padding; then a year's bar; then the labels, cut; then the ids,
-// cut; and last, the words after a token's bar, to their shortest forms, as
-// wordsOf has them, so the days left are the last a row gives up.
+// columns' padding; then a year's bar; then the labels, cut; and last, the
+// words after a token's bar, to their shortest forms, as wordsOf has them, so
+// the days left are the last a row gives up.
 const (
 	padsNarrow = iota + 1
 	barNarrows
 	labelsNarrow
-	idsNarrow
 	wordsNarrow
 )
 
 // The heads of the table's columns.
 const (
 	accountHead = "ACCOUNT"
-	labelHead   = "LABEL"
 	planHead    = "PLAN"
 	reserveHead = "RESERVE"
 	tokenHead   = "TOKEN"
 )
 
 // columns lays the table's parts out across width cells: from setupIndent,
-// the number, as wide as the widest; two cells on, the id, then its label,
-// plan and reserve, each a gap apart, as wide as its widest, head and all,
-// padded out to the frames' width; then a gap on, a year's bar, and a gap
-// on, the words after it, as wide as the widest. The labels, then the ids,
-// narrow to their heads, cut, in the turns after the bar's; then the words,
-// to the widest of their shortest forms. The bar and the words are as wide,
-// whole and at their least, as what's told in place of a bar, as toldForBar
-// has it, so an id narrows before that's cut.
+// a gap on, the account's label, then its plan and reserve, each a gap
+// apart, as wide as its widest, head and all, padded out to the frames'
+// width; then a gap on, a year's bar, and a gap on, the words after it, as
+// wide as the widest. The labels narrow to their head, cut, in the turn after
+// the bar's; then the words, to the widest of their shortest forms. The bar
+// and the words are as wide, whole and at their least, as what's told in
+// place of a bar, as toldForBar has it, so a label narrows before that's
+// cut.
 func (t reviewTable) columns(width int) []flex.Span {
-	number := ansi.StringWidth(strconv.Itoa(len(t.review.Accounts)))
-	id, label := ansi.StringWidth(accountHead), ansi.StringWidth(labelHead)
+	account := ansi.StringWidth(accountHead)
 	plan, reserve := ansi.StringWidth(planHead), ansi.StringWidth(reserveHead)
 	var words, leastWords int
 	for _, a := range t.review.Accounts {
-		id, label = max(id, idCells(a)), max(label, ansi.StringWidth(a.Label))
+		account = max(account, accountCells(a))
 		plan, reserve = max(plan, planShown(a).width()), max(reserve, reserveShown(a).width())
 		if forms := t.wordsOf(a); len(forms) > 0 {
 			words, leastWords = max(words, forms[0].width()), max(leastWords, forms[len(forms)-1].width())
@@ -269,11 +260,8 @@ func (t reviewTable) columns(width int) []flex.Span {
 	}
 	spans, _ := flex.Lay(width, []flex.Part{
 		reviewIndent:     {Least: setupIndent, Natural: setupIndent},
-		reviewNumber:     {Least: number, Natural: number},
-		reviewID:         {Least: ansi.StringWidth(accountHead), Natural: id, Narrows: idsNarrow, Gap: reviewGap},
-		reviewIDPad:      framedPad(framedID, id),
-		reviewLabel:      {Least: ansi.StringWidth(labelHead), Natural: label, Narrows: labelsNarrow, Gap: reviewGap},
-		reviewLabelPad:   framedPad(framedLabel, label),
+		reviewAccount:    {Least: ansi.StringWidth(accountHead), Natural: account, Narrows: labelsNarrow, Gap: reviewGap},
+		reviewAccountPad: framedPad(framedLabel, account),
 		reviewPlan:       reviewColumn(plan),
 		reviewPlanPad:    framedPad(framedPlan, plan),
 		reviewReserve:    reviewColumn(reserve),
@@ -301,7 +289,7 @@ func (t reviewTable) heads(c *canvas, y int, cols []flex.Span) {
 	for _, h := range []struct {
 		at   int
 		head string
-	}{{reviewID, accountHead}, {reviewLabel, labelHead}, {reviewPlan, planHead}, {reviewReserve, reserveHead}, {reviewBar, tokenHead}} {
+	}{{reviewAccount, accountHead}, {reviewPlan, planHead}, {reviewReserve, reserveHead}, {reviewBar, tokenHead}} {
 		c.line(cols[h.at].At, y, line{{h.head, dimInk}}.fit(cols[h.at].Size))
 	}
 }
@@ -309,16 +297,12 @@ func (t reviewTable) heads(c *canvas, y int, cols []flex.Span) {
 // reviewChosenOn is the surface the row chosen is drawn on.
 var reviewChosenOn = hue{token: theme.BgSelection}
 
-// row draws the account a, i-th of the table's, along row y, width cells
-// wide, at the columns cols: its number, subtle; its id, bold text.primary,
-// and ◆ after the primary's; its label, muted, cut to its column; its plan
-// and its reserve; and its token, as token has it. The row chosen is on
-// bg.selection across the width, ▌ in accent.key at its first cell.
+// row draws the account a, i-th of the table's, along row y, width cells wide,
+// at the columns cols: its label, bold text.primary, and ◆ after the primary's;
+// its plan and its reserve; and its token, as token has it. The row chosen is
+// on bg.selection across the width, ▌ in accent.key at its first cell.
 func (t reviewTable) row(c *canvas, y, width int, cols []flex.Span, i int, a setup.Reviewed) {
-	c.line(cols[reviewNumber].At, y, line{{strconv.Itoa(i + 1), dimInk}})
-	c.line(cols[reviewID].At, y, idShown(a, cols[reviewID].Size))
-	label := cols[reviewLabel]
-	c.line(label.At, y, line{{a.Label, mutedInk}}.fit(label.Size))
+	c.line(cols[reviewAccount].At, y, accountShown(a, cols[reviewAccount].Size))
 	c.line(cols[reviewPlan].At, y, planShown(a))
 	c.line(cols[reviewReserve].At, y, reserveShown(a))
 	t.token(c, y, width, cols, a)
@@ -327,23 +311,24 @@ func (t reviewTable) row(c *canvas, y, width int, cols []flex.Span, i int, a set
 	}
 }
 
-// primaryMark is what follows the primary's id.
+// primaryMark is what follows the primary's label.
 var primaryMark = line{{" ◆", mutedInk}}
 
-// idShown is the account's id as its row has it, cells wide at most: bold
-// text.primary, cut where it's wider, and primaryMark after the primary's,
-// kept whole.
-func idShown(a setup.Reviewed, cells int) line {
-	id := line{{a.ID, titleInk}}
+// accountShown is the account's label as its row has it, as labelled has
+// it, cells wide at most: bold text.primary, cut where it's wider, and
+// primaryMark after the primary's, kept whole.
+func accountShown(a setup.Reviewed, cells int) line {
+	label := line{{labelled(a.Label, a.ID), titleInk}}
 	if !a.Primary {
-		return id.fit(cells)
+		return label.fit(cells)
 	}
-	return append(id.fit(cells-primaryMark.width()), primaryMark...)
+	return append(label.fit(cells-primaryMark.width()), primaryMark...)
 }
 
-// idCells is how wide the account's id is, as idShown has it whole.
-func idCells(a setup.Reviewed) int {
-	cells := ansi.StringWidth(a.ID)
+// accountCells is how wide the account's label is, as accountShown has it
+// whole.
+func accountCells(a setup.Reviewed) int {
+	cells := ansi.StringWidth(labelled(a.Label, a.ID))
 	if a.Primary {
 		cells += primaryMark.width()
 	}
@@ -482,15 +467,15 @@ func reviewChosen(c *canvas, y, width int) {
 }
 
 // addRow draws + add an account along row y, width cells wide: + in bold
-// accent.key at the number's column, and its words at the id's, muted, or
-// text.primary where it's the row chosen.
+// accent.key at setupIndent, and its words at the account's column, muted,
+// or text.primary where it's the row chosen.
 func (t reviewTable) addRow(c *canvas, y, width int, cols []flex.Span) {
 	words := mutedInk
 	if t.adding() {
 		words = ink{token: theme.TextPrimary}
 	}
-	c.line(cols[reviewNumber].At, y, line{{"+", keyInk}})
-	c.line(cols[reviewID].At, y, line{{addAccount, words}}.fit(width-cols[reviewID].At))
+	c.line(setupIndent, y, line{{"+", keyInk}})
+	c.line(cols[reviewAccount].At, y, line{{addAccount, words}}.fit(width-cols[reviewAccount].At))
 	if t.adding() {
 		reviewChosen(c, y, width)
 	}
@@ -516,7 +501,7 @@ func (t reviewTable) notes(c *canvas, y, width int) int {
 	return y
 }
 
-// noteLines are the note's lines, the id of its account leading it, bold
+// noteLines are the note's lines, the label of its account leading it, bold
 // text.primary, where it's of one: a note of what stops an account's
 // requests, or enter, its words in text.secondary, and how to see to it on
 // a line of its own, muted; any other, muted, how to see to it after its
@@ -524,7 +509,7 @@ func (t reviewTable) notes(c *canvas, y, width int) int {
 func noteLines(n setup.Note) []line {
 	var lead line
 	if n.Account != "" {
-		lead = line{{n.Account, titleInk}, {" ", mutedInk}}
+		lead = line{{labelled(n.Label, n.Account), titleInk}, {" ", mutedInk}}
 	}
 	if n.Need == setup.NeedToken || n.Need == setup.NeedPrimary {
 		return []line{append(lead, span{n.Says, secondaryInk}), {{n.Press, mutedInk}}}
