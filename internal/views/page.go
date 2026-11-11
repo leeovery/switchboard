@@ -20,9 +20,11 @@ import (
 type SessionPage struct {
 	// Session, Dir, Account, Model, Running, LastSeen, Models, State,
 	// MoveCost and Ended are as the List has them.
-	Session  string              `json:"session"`
-	Dir      string              `json:"dir,omitempty"`
-	Account  string              `json:"account,omitempty"`
+	Session string `json:"session"`
+	Dir     string `json:"dir,omitempty"`
+	Account string `json:"account,omitempty"`
+	// AccountName names Account, as the page's Named names it.
+	status.AccountName
 	Model    string              `json:"model,omitempty"`
 	Running  bool                `json:"running,omitempty"`
 	LastSeen time.Time           `json:"last_seen,omitzero"`
@@ -34,6 +36,8 @@ type SessionPage struct {
 	// the sessions, as its last listing had it: "" where it has none, or
 	// the router doesn't list it.
 	Pin string `json:"pin,omitempty"`
+	// PinLabel is Pin's label, as the page's Named names it.
+	PinLabel string `json:"pin_label,omitempty"`
 	// Started is when its first request came, and Resumed the latest time it
 	// came back after an IdleHour or more without one: zero where it never
 	// did.
@@ -70,7 +74,9 @@ type SessionPage struct {
 // of the account's windows they took, by its key, an estimate, as pointsOf
 // shares them out: none where no window of it was read.
 type SessionAccount struct {
-	Account  string    `json:"account"`
+	Account string `json:"account"`
+	// AccountName names Account, as the page's Named names it.
+	status.AccountName
 	From     time.Time `json:"from"`
 	To       time.Time `json:"to"`
 	Requests int       `json:"requests"`
@@ -84,13 +90,17 @@ type SessionAccount struct {
 // and what writing its context again there cost, nil where its cache would
 // have run out anyway, or that isn't known.
 type SessionMove struct {
-	At      time.Time           `json:"at"`
-	Model   string              `json:"model"`
-	From    string              `json:"from"`
-	To      string              `json:"to"`
-	Reason  string              `json:"reason"`
-	Written int                 `json:"written"`
-	Cost    *ledger.Picodollars `json:"cost,omitempty"`
+	At    time.Time `json:"at"`
+	Model string    `json:"model"`
+	From  string    `json:"from"`
+	To    string    `json:"to"`
+	// FromLabel and ToLabel are From's and To's labels, as the page's
+	// Named names them.
+	FromLabel string              `json:"from_label,omitempty"`
+	ToLabel   string              `json:"to_label,omitempty"`
+	Reason    string              `json:"reason"`
+	Written   int                 `json:"written"`
+	Cost      *ledger.Picodollars `json:"cost,omitempty"`
 	// Rewrote is set where its session's next request of its conversation
 	// wrote its context again on the account it moved to, its cache not yet
 	// run out, priced or not, as Cost isn't where the price table can't
@@ -119,6 +129,9 @@ type Turn struct {
 	Out      int         `json:"out"`
 	Worth
 	Accounts []string `json:"accounts"`
+	// Labels are Accounts' labels, in their order, as the page's Named
+	// names them.
+	Labels []string `json:"labels"`
 }
 
 // ToolCalls are a tool's calls, by its name, and how many times it was
@@ -346,4 +359,27 @@ func movesOf(s *story) []SessionMove {
 		moves[i] = SessionMove{At: m.at.UTC(), Model: m.model, From: m.from, To: m.to, Reason: m.reason, Written: m.written, Cost: m.cost, Rewrote: m.rewrote != nil}
 	}
 	return moves
+}
+
+// Named is the page with every account it gives named as n names it.
+func (p SessionPage) Named(n status.Namer) SessionPage {
+	p.AccountName = namedOf(n, p.Account)
+	p.PinLabel = namedOf(n, p.Pin).Label
+	p.Models, p.Goes = modelAccountsNamed(p.Models, n), modelAccountsNamed(p.Goes, n)
+	p.Accounts = slices.Clone(p.Accounts)
+	for i, a := range p.Accounts {
+		p.Accounts[i].AccountName = namedOf(n, a.Account)
+	}
+	p.Moves = slices.Clone(p.Moves)
+	for i, m := range p.Moves {
+		p.Moves[i].FromLabel, p.Moves[i].ToLabel = namedOf(n, m.From).Label, namedOf(n, m.To).Label
+	}
+	p.Turns = slices.Clone(p.Turns)
+	for i, t := range p.Turns {
+		p.Turns[i].Labels = make([]string, len(t.Accounts))
+		for j, id := range t.Accounts {
+			p.Turns[i].Labels[j] = namedOf(n, id).Label
+		}
+	}
+	return p
 }

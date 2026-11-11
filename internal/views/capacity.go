@@ -7,6 +7,7 @@ import (
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/score"
+	"github.com/leeovery/switchboard/internal/status"
 )
 
 // Weeks' headlines, by whether there are as many accounts as the use needs:
@@ -81,7 +82,8 @@ type Capacity struct {
 // judges: its limits the weeks some account hit its limit in, and its share
 // left every account's weeks', on average.
 type AccountVerdict struct {
-	Account     string   `json:"account,omitempty"`
+	Account string `json:"account,omitempty"`
+	status.AccountName
 	All         bool     `json:"all,omitempty"`
 	Verdict     string   `json:"verdict,omitempty"`
 	Weeks       int      `json:"weeks"`
@@ -129,7 +131,7 @@ func (j judging) capacity() Capacity {
 	several := len(accounts) > 1
 	for x, a := range accounts {
 		v := j.records[x].verdict(c.Verdict == OneMoreThanYouNeed && without[x] <= c.Short)
-		v.Account = a.ID
+		v.Account, v.AccountName = a.ID, status.ConfiguredName(a)
 		if several {
 			v.WithoutIt = &without[x]
 		}

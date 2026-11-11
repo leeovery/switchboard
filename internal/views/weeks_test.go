@@ -65,19 +65,19 @@ func TestWeeksPlaceEachAccountsOwnWeeksUnderTheWeekTheyBeganNearest(t *testing.T
 			// week still running, begun on the 1st, is under this week, so
 			// the 28th has none until it ends.
 			name: "weeks from Monday", days: onThursdays, weekStarts: time.Monday,
-			want: `[{"week":"2026-09-14","accounts":[{"account":"work","peaks":{"7d":0.6}},{"account":"side"},{"all":true,"peaks":{"7d":0.6}}]},` +
-				`{"week":"2026-09-21","accounts":[{"account":"work","peaks":{"7d":1},"limits":{"7d":1}},{"account":"side"},{"all":true,"peaks":{"7d":1}}]},` +
-				`{"week":"2026-09-28","accounts":[{"account":"work"},{"account":"side"},{"all":true}]},` +
-				`{"week":"2026-10-05","accounts":[{"account":"work","peaks":{"7d":0.25},"open":["7d"]},{"account":"side"},` +
+			want: `[{"week":"2026-09-14","accounts":[{"account":"work","label":"work","peaks":{"7d":0.6}},{"account":"side","label":"side"},{"all":true,"peaks":{"7d":0.6}}]},` +
+				`{"week":"2026-09-21","accounts":[{"account":"work","label":"work","peaks":{"7d":1},"limits":{"7d":1}},{"account":"side","label":"side"},{"all":true,"peaks":{"7d":1}}]},` +
+				`{"week":"2026-09-28","accounts":[{"account":"work","label":"work"},{"account":"side","label":"side"},{"all":true}]},` +
+				`{"week":"2026-10-05","accounts":[{"account":"work","label":"work","peaks":{"7d":0.25},"open":["7d"]},{"account":"side","label":"side"},` +
 				`{"all":true,"peaks":{"7d":0.25},"open":["7d"]}]}]`,
 		},
 		{
 			// A week from a Thursday is nearer the Sunday after it.
 			name: "weeks from Sunday", days: onThursdays, weekStarts: time.Sunday,
-			want: `[{"week":"2026-09-13","accounts":[{"account":"work","peaks":{"7d":0.3},"limits":{"5h":1}},{"account":"side"},{"all":true,"peaks":{"7d":0.3}}]},` +
-				`{"week":"2026-09-20","accounts":[{"account":"work","peaks":{"7d":0.6}},{"account":"side"},{"all":true,"peaks":{"7d":0.6}}]},` +
-				`{"week":"2026-09-27","accounts":[{"account":"work","peaks":{"7d":1},"limits":{"7d":1}},{"account":"side"},{"all":true,"peaks":{"7d":1}}]},` +
-				`{"week":"2026-10-04","accounts":[{"account":"work","peaks":{"7d":0.25},"open":["7d"]},{"account":"side"},` +
+			want: `[{"week":"2026-09-13","accounts":[{"account":"work","label":"work","peaks":{"7d":0.3},"limits":{"5h":1}},{"account":"side","label":"side"},{"all":true,"peaks":{"7d":0.3}}]},` +
+				`{"week":"2026-09-20","accounts":[{"account":"work","label":"work","peaks":{"7d":0.6}},{"account":"side","label":"side"},{"all":true,"peaks":{"7d":0.6}}]},` +
+				`{"week":"2026-09-27","accounts":[{"account":"work","label":"work","peaks":{"7d":1},"limits":{"7d":1}},{"account":"side","label":"side"},{"all":true,"peaks":{"7d":1}}]},` +
+				`{"week":"2026-10-04","accounts":[{"account":"work","label":"work","peaks":{"7d":0.25},"open":["7d"]},{"account":"side","label":"side"},` +
 				`{"all":true,"peaks":{"7d":0.25},"open":["7d"]}]}]`,
 		},
 		{
@@ -92,10 +92,10 @@ func TestWeeksPlaceEachAccountsOwnWeeksUnderTheWeekTheyBeganNearest(t *testing.T
 				"2026-09-30": {resets: []ledger.Reset{reset("7d", "2026-09-30", "13:30", 0.4)}},
 				"2026-10-06": {highest: map[string]float64{"7d": 0.1}},
 			}),
-			want: `[{"week":"2026-09-14","accounts":[{"account":"work","peaks":{"7d":0.5}},{"account":"side"},{"all":true,"peaks":{"7d":0.5}}]},` +
-				`{"week":"2026-09-21","accounts":[{"account":"work","peaks":{"7d":0.9}},{"account":"side"},{"all":true,"peaks":{"7d":0.9}}]},` +
-				`{"week":"2026-09-28","accounts":[{"account":"work"},{"account":"side"},{"all":true}]},` +
-				`{"week":"2026-10-05","accounts":[{"account":"work","peaks":{"7d":0.1},"open":["7d"]},{"account":"side"},` +
+			want: `[{"week":"2026-09-14","accounts":[{"account":"work","label":"work","peaks":{"7d":0.5}},{"account":"side","label":"side"},{"all":true,"peaks":{"7d":0.5}}]},` +
+				`{"week":"2026-09-21","accounts":[{"account":"work","label":"work","peaks":{"7d":0.9}},{"account":"side","label":"side"},{"all":true,"peaks":{"7d":0.9}}]},` +
+				`{"week":"2026-09-28","accounts":[{"account":"work","label":"work"},{"account":"side","label":"side"},{"all":true}]},` +
+				`{"week":"2026-10-05","accounts":[{"account":"work","label":"work","peaks":{"7d":0.1},"open":["7d"]},{"account":"side","label":"side"},` +
 				`{"all":true,"peaks":{"7d":0.1},"open":["7d"]}]}]`,
 		},
 		{
@@ -116,10 +116,10 @@ func TestWeeksPlaceEachAccountsOwnWeeksUnderTheWeekTheyBeganNearest(t *testing.T
 				"2026-10-01": {resets: []ledger.Reset{reset("7d_oi", "2026-10-01", "10:00", 0.9)}},
 				"2026-10-05": {resets: []ledger.Reset{reset("7d", "2026-10-05", "00:30", 0.3)}, limits: []ledger.Limit{limit("5h", "2026-10-05", "00:10")}},
 			}),
-			want: `[{"week":"2026-09-21","accounts":[{"account":"work","peaks":{"7d":0.4,"7d_oi":0.9},"limits":{"7d_oi":1}},{"account":"side"},` +
+			want: `[{"week":"2026-09-21","accounts":[{"account":"work","label":"work","peaks":{"7d":0.4,"7d_oi":0.9},"limits":{"7d_oi":1}},{"account":"side","label":"side"},` +
 				`{"all":true,"peaks":{"7d":0.4,"7d_oi":0.9}}]},` +
-				`{"week":"2026-09-28","accounts":[{"account":"work","peaks":{"7d":0.3},"limits":{"5h":1}},{"account":"side"},{"all":true,"peaks":{"7d":0.3}}]},` +
-				`{"week":"2026-10-05","accounts":[{"account":"work","open":["7d","7d_oi"]},{"account":"side"},{"all":true,"open":["7d","7d_oi"]}]}]`,
+				`{"week":"2026-09-28","accounts":[{"account":"work","label":"work","peaks":{"7d":0.3},"limits":{"5h":1}},{"account":"side","label":"side"},{"all":true,"peaks":{"7d":0.3}}]},` +
+				`{"week":"2026-10-05","accounts":[{"account":"work","label":"work","open":["7d","7d_oi"]},{"account":"side","label":"side"},{"all":true,"open":["7d","7d_oi"]}]}]`,
 		},
 		{
 			// The week that reset on the 24th, a day of no requests a summary
@@ -132,10 +132,10 @@ func TestWeeksPlaceEachAccountsOwnWeeksUnderTheWeekTheyBeganNearest(t *testing.T
 				"2026-10-01": {resets: []ledger.Reset{reset("7d", "2026-10-01", "10:00", 0.8)}},
 				"2026-10-03": {highest: map[string]float64{"7d": 0.2}},
 			}),
-			want: `[{"week":"2026-09-14","accounts":[{"account":"work"},{"account":"side"},{"all":true}]},` +
-				`{"week":"2026-09-21","accounts":[{"account":"work","peaks":{"7d":0.8}},{"account":"side"},{"all":true,"peaks":{"7d":0.8}}]},` +
-				`{"week":"2026-09-28","accounts":[{"account":"work"},{"account":"side"},{"all":true}]},` +
-				`{"week":"2026-10-05","accounts":[{"account":"work","peaks":{"7d":0.2},"open":["7d"]},{"account":"side"},` +
+			want: `[{"week":"2026-09-14","accounts":[{"account":"work","label":"work"},{"account":"side","label":"side"},{"all":true}]},` +
+				`{"week":"2026-09-21","accounts":[{"account":"work","label":"work","peaks":{"7d":0.8}},{"account":"side","label":"side"},{"all":true,"peaks":{"7d":0.8}}]},` +
+				`{"week":"2026-09-28","accounts":[{"account":"work","label":"work"},{"account":"side","label":"side"},{"all":true}]},` +
+				`{"week":"2026-10-05","accounts":[{"account":"work","label":"work","peaks":{"7d":0.2},"open":["7d"]},{"account":"side","label":"side"},` +
 				`{"all":true,"peaks":{"7d":0.2},"open":["7d"]}]}]`,
 		},
 		{
@@ -148,7 +148,7 @@ func TestWeeksPlaceEachAccountsOwnWeeksUnderTheWeekTheyBeganNearest(t *testing.T
 				"2026-10-06": {highest: map[string]float64{"7d": 0.7}, rise: map[string]float64{"7d": 0.1}},
 				"2026-10-07": {highest: map[string]float64{"7d": 0.8}, rise: map[string]float64{"7d": 0.15}, resets: []ledger.Reset{reset("7d", "2026-10-07", "09:00", 0.8)}},
 			}),
-			want: `[{"week":"2026-10-05","accounts":[{"account":"work","peaks":{"7d":0.05},"open":["7d"]},{"account":"side"},` +
+			want: `[{"week":"2026-10-05","accounts":[{"account":"work","label":"work","peaks":{"7d":0.05},"open":["7d"]},{"account":"side","label":"side"},` +
 				`{"all":true,"peaks":{"7d":0.05},"open":["7d"]}]}]`,
 		},
 		{
@@ -156,7 +156,7 @@ func TestWeeksPlaceEachAccountsOwnWeeksUnderTheWeekTheyBeganNearest(t *testing.T
 			days: daysFrom("2026-10-05", ledger.Summary{Version: 1, Day: "2026-10-06", Accounts: []ledger.AccountDay{
 				{Account: "work", Models: []ledger.ModelDay{sent("claude-opus-5-5", 1, inputUsage)}, Sessions: 1, Highest: map[string]float64{"7d": 0.4}},
 			}}),
-			want: `[{"week":"2026-10-05","accounts":[{"account":"work"},{"account":"side"},{"all":true}]}]`,
+			want: `[{"week":"2026-10-05","accounts":[{"account":"work","label":"work"},{"account":"side","label":"side"},{"all":true}]}]`,
 		},
 	}
 	for _, tt := range tests {
@@ -217,16 +217,16 @@ func TestAWeekThatResetOnADayOfNoRequestsHasItsPeakFromItsSummary(t *testing.T) 
 			// The week that ended on the 24th began a week before, under the
 			// 14th; the one that ended on the 1st, under the 21st.
 			name: "each reset, and the peak before it, from the quiet day's summary", days: days,
-			want: `[{"week":"2026-09-14","accounts":[{"account":"work","peaks":{"7d":0.7}},{"all":true,"peaks":{"7d":0.7}}]},` +
-				`{"week":"2026-09-21","accounts":[{"account":"work","peaks":{"7d":0.55}},{"all":true,"peaks":{"7d":0.55}}]},` +
-				`{"week":"2026-09-28","accounts":[{"account":"work"},{"all":true}]},` +
-				`{"week":"2026-10-05","accounts":[{"account":"work","peaks":{"7d":0.1},"open":["7d"]},{"all":true,"peaks":{"7d":0.1},"open":["7d"]}]}]`,
+			want: `[{"week":"2026-09-14","accounts":[{"account":"work","label":"work","peaks":{"7d":0.7}},{"all":true,"peaks":{"7d":0.7}}]},` +
+				`{"week":"2026-09-21","accounts":[{"account":"work","label":"work","peaks":{"7d":0.55}},{"all":true,"peaks":{"7d":0.55}}]},` +
+				`{"week":"2026-09-28","accounts":[{"account":"work","label":"work"},{"all":true}]},` +
+				`{"week":"2026-10-05","accounts":[{"account":"work","label":"work","peaks":{"7d":0.1},"open":["7d"]},{"all":true,"peaks":{"7d":0.1},"open":["7d"]}]}]`,
 		},
 		{
 			name: "no week known, where the quiet days gave no account, as before", days: quiet,
-			want: `[{"week":"2026-09-14","accounts":[{"account":"work"},{"all":true}]},{"week":"2026-09-21","accounts":[{"account":"work"},{"all":true}]},` +
-				`{"week":"2026-09-28","accounts":[{"account":"work"},{"all":true}]},` +
-				`{"week":"2026-10-05","accounts":[{"account":"work"},{"all":true}]}]`,
+			want: `[{"week":"2026-09-14","accounts":[{"account":"work","label":"work"},{"all":true}]},{"week":"2026-09-21","accounts":[{"account":"work","label":"work"},{"all":true}]},` +
+				`{"week":"2026-09-28","accounts":[{"account":"work","label":"work"},{"all":true}]},` +
+				`{"week":"2026-10-05","accounts":[{"account":"work","label":"work"},{"all":true}]}]`,
 		},
 	}
 	for _, tt := range tests {
@@ -265,7 +265,7 @@ func TestAWeekBegunAfterADipHasItsPeakSoFarFromWhatItRoseToSinceIt(t *testing.T)
 		read("2026-10-06", "18:00", 0.05, "2026-10-08", "10:00"), read("2026-10-07", "09:00", 0, "2026-10-08", "10:00"),
 		read("2026-10-07", "12:00", 0.03, "2026-10-14", "12:00"),
 	})
-	want := `[{"week":"2026-10-05","accounts":[{"account":"work","peaks":{"7d":0.03},"open":["7d"]},{"all":true,"peaks":{"7d":0.03},"open":["7d"]}]}]`
+	want := `[{"week":"2026-10-05","accounts":[{"account":"work","label":"work","peaks":{"7d":0.03},"open":["7d"]},{"all":true,"peaks":{"7d":0.03},"open":["7d"]}]}]`
 	in := input(days)
 	in.Accounts = config.Accounts{{ID: "work"}}
 	if got := jsonOf(t, views.NewHistory(in).Weeks); got != want {
@@ -297,9 +297,9 @@ func TestAWeekStillRunningIsUnderThisWeekAndNeverReplayed(t *testing.T) {
 			days: daysTo("2026-09-21", now,
 				worksReset("2026-09-24", "00:30", 0.5), worksReset("2026-10-01", "00:30", 1),
 				day("2026-10-06", windowsDay{highest: map[string]float64{"7d": 1}}.of("work"))),
-			weeks: `[{"week":"2026-09-21","accounts":[{"account":"work","peaks":{"7d":1}},{"all":true,"peaks":{"7d":1}}]},` +
-				`{"week":"2026-09-28","accounts":[{"account":"work"},{"all":true}]},` +
-				`{"week":"2026-10-05","accounts":[{"account":"work","peaks":{"7d":1},"open":["7d"]},{"all":true,"peaks":{"7d":1},"open":["7d"]}]}]`,
+			weeks: `[{"week":"2026-09-21","accounts":[{"account":"work","label":"work","peaks":{"7d":1}},{"all":true,"peaks":{"7d":1}}]},` +
+				`{"week":"2026-09-28","accounts":[{"account":"work","label":"work"},{"all":true}]},` +
+				`{"week":"2026-10-05","accounts":[{"account":"work","label":"work","peaks":{"7d":1},"open":["7d"]},{"all":true,"peaks":{"7d":1},"open":["7d"]}]}]`,
 			replayed: 1, short: 1,
 		},
 		{
@@ -312,8 +312,8 @@ func TestAWeekStillRunningIsUnderThisWeekAndNeverReplayed(t *testing.T) {
 			days: daysTo("2026-09-28", saturday,
 				worksReset("2026-10-02", "18:00", 0.6), worksReset("2026-10-09", "18:00", 0.8),
 				day("2026-10-10", windowsDay{highest: map[string]float64{"7d": 0.1}}.of("work"))),
-			weeks: `[{"week":"2026-09-28","accounts":[{"account":"work","peaks":{"7d":0.6}},{"all":true,"peaks":{"7d":0.6}}]},` +
-				`{"week":"2026-10-05","accounts":[{"account":"work","peaks":{"7d":0.1},"open":["7d"]},{"all":true,"peaks":{"7d":0.1},"open":["7d"]}]}]`,
+			weeks: `[{"week":"2026-09-28","accounts":[{"account":"work","label":"work","peaks":{"7d":0.6}},{"all":true,"peaks":{"7d":0.6}}]},` +
+				`{"week":"2026-10-05","accounts":[{"account":"work","label":"work","peaks":{"7d":0.1},"open":["7d"]},{"all":true,"peaks":{"7d":0.1},"open":["7d"]}]}]`,
 			replayed: 1, short: 0,
 		},
 	}
@@ -350,8 +350,8 @@ func TestTheWeekBeforeTheDaysAskedForGivesTheirWeeksResetsAlone(t *testing.T) {
 	// This week's so far is the week begun on the 3rd's; the week that ended
 	// then, under the 28th, ended before the days asked for, as did side's
 	// limit, and work's request is none of theirs.
-	want := `[{"week":"2026-09-28","accounts":[{"account":"work"},{"account":"side"},{"all":true}]},` +
-		`{"week":"2026-10-05","accounts":[{"account":"work","peaks":{"7d":0.2},"open":["7d"]},{"account":"side"},` +
+	want := `[{"week":"2026-09-28","accounts":[{"account":"work","label":"work"},{"account":"side","label":"side"},{"all":true}]},` +
+		`{"week":"2026-10-05","accounts":[{"account":"work","label":"work","peaks":{"7d":0.2},"open":["7d"]},{"account":"side","label":"side"},` +
 		`{"all":true,"peaks":{"7d":0.2},"open":["7d"]}]}]`
 	if got := jsonOf(t, history.Weeks); got != want {
 		t.Errorf("the weeks are\n%s\nwant\n%s", got, want)
@@ -379,9 +379,9 @@ func TestAWeekIsPlacedByTheDateItBeganOnAcrossAClockChange(t *testing.T) {
 
 	// Each Thursday's week is its own calendar week's, either side of the
 	// change, never the one before it under the next.
-	want := `[{"week":"2026-10-19","accounts":[{"account":"work","peaks":{"7d":0.6}},{"all":true,"peaks":{"7d":0.6}}]},` +
-		`{"week":"2026-10-26","accounts":[{"account":"work","peaks":{"7d":0.8}},{"all":true,"peaks":{"7d":0.8}}]},` +
-		`{"week":"2026-11-02","accounts":[{"account":"work","open":["7d"]},{"all":true,"open":["7d"]}]}]`
+	want := `[{"week":"2026-10-19","accounts":[{"account":"work","label":"work","peaks":{"7d":0.6}},{"all":true,"peaks":{"7d":0.6}}]},` +
+		`{"week":"2026-10-26","accounts":[{"account":"work","label":"work","peaks":{"7d":0.8}},{"all":true,"peaks":{"7d":0.8}}]},` +
+		`{"week":"2026-11-02","accounts":[{"account":"work","label":"work","open":["7d"]},{"all":true,"open":["7d"]}]}]`
 	if got := jsonOf(t, views.NewHistory(in).Weeks); got != want {
 		t.Errorf("the weeks are\n%s\nwant\n%s", got, want)
 	}
@@ -394,7 +394,7 @@ func TestEveryAccountsPeakIsTheMeanOfThoseThatHaveOne(t *testing.T) {
 	))
 
 	// Spare's week isn't known: it's no peak of none.
-	want := `{"week":"2026-09-28","accounts":[{"account":"work","peaks":{"7d":0.6}},{"account":"side","peaks":{"7d":0.3}},{"account":"spare"},` +
+	want := `{"week":"2026-09-28","accounts":[{"account":"work","label":"work","peaks":{"7d":0.6}},{"account":"side","label":"side","peaks":{"7d":0.3}},{"account":"spare","label":"spare"},` +
 		`{"all":true,"peaks":{"7d":0.45}}]}`
 	if got := jsonOf(t, views.NewHistory(input(days)).Weeks[0]); got != want {
 		t.Errorf("the week is\n%s\nwant\n%s", got, want)

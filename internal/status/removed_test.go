@@ -121,3 +121,57 @@ func TestAnAccountIsNamedWhateverTheCaseOfItsID(t *testing.T) {
 		t.Errorf("Named(H7C2) = %+v, want the account kept as h7c2, labelled team", got)
 	}
 }
+
+// The verbs' text names an account by its label, cleaned, and one removed
+// says when, as Days does: "team (removed 4 Sep)"; one only another Mac
+// configures, never removed, by its label alone.
+func TestAnAccountsNameIsSaidByItsLabelAndWhenItWasRemoved(t *testing.T) {
+	tests := []struct {
+		name status.AccountName
+		want string
+	}{
+		{name: status.AccountName{Label: "work"}, want: "work"},
+		{name: status.AccountName{Label: "team", Other: true, Removed: "removed 4 Sep"}, want: "team (removed 4 Sep)"},
+		{name: status.AccountName{Label: "home", Other: true}, want: "home"},
+		{name: status.AccountName{Label: "side\nproject"}, want: "side project"},
+	}
+	for _, tt := range tests {
+		if got := tt.name.Said(); got != tt.want {
+			t.Errorf("%+v.Said() = %q, want %q", tt.name, got, tt.want)
+		}
+	}
+}
+
+// Names name accounts as RemovedAccounts' Named does, and their zero value
+// names each by its id; a configured account unlabelled is named by its id.
+func TestNamesNameAccountsAsTheConfigAndTheRecordDo(t *testing.T) {
+	removed := status.RemovedAccounts{{ID: "h7c2", Label: "team", Removed: time.Date(2026, 9, 4, 16, 30, 0, 0, time.UTC)}}
+	configured := config.Accounts{{ID: "work", Label: "Work"}, {ID: "side"}}
+	names := status.NamesOf(configured, removed)
+	for _, id := range []string{"work", "side", "h7c2", "qgr2"} {
+		if got, want := names.Named(id), removed.Named(configured, id); got != want {
+			t.Errorf("Named(%s) = %+v, want %+v", id, got, want)
+		}
+		if got := (status.Names{}).Named(id); got != (status.AccountName{Label: id}) {
+			t.Errorf("Named(%s) of no names = %+v, want it named by its id", id, got)
+		}
+	}
+	if got := status.ConfiguredName(configured[1]); got != (status.AccountName{Label: "side"}) {
+		t.Errorf("ConfiguredName(side, unlabelled) = %+v, want it named by its id", got)
+	}
+}
+
+// Words name each account they name by its id as the names given say it,
+// leaving the rest, and the words given, as they are.
+func TestWordsNameTheirAccountsAsTheNamesGivenSayThem(t *testing.T) {
+	removed := status.RemovedAccounts{{ID: "h7c2", Label: "team", Removed: time.Date(2026, 9, 4, 16, 30, 0, 0, time.UTC)}}
+	names := status.NamesOf(config.Accounts{{ID: "c4rf", Label: "work"}}, removed)
+	w := status.Words{status.Plain("moved from "), status.Named("c4rf"), status.Plain(" to "), status.Named("h7c2")}
+	named := w.Named(names)
+	if got, want := named.String(), "moved from work to team ("+removed[0].Said()+")"; got != want {
+		t.Errorf("Named().String() = %q, want %q", got, want)
+	}
+	if named[1].Kind != status.PartAccount || w[1].Text != "c4rf" {
+		t.Errorf("Named() = %+v of %+v, want each account still a PartAccount, and the words given unchanged", named, w)
+	}
+}

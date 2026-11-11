@@ -52,13 +52,10 @@ const NoAccount = "no account"
 
 // AccountTokens are an account's tokens in a week, and their worth, then by
 // model version. The account is left out of those the router answered with
-// none. Label names it, and Other is set on one that isn't configured, as
-// status's AccountName has them: the JSON names an account by its id alone,
-// as everywhere.
+// none. Its AccountName names it.
 type AccountTokens struct {
 	Account string `json:"account,omitempty"`
-	Label   string `json:"-"`
-	Other   bool   `json:"-"`
+	status.AccountName
 	Tokens
 	Worth
 	ByModel []ModelTokens `json:"by_model,omitempty"`
@@ -159,11 +156,10 @@ func (t accountTally) of(id string) *talliedAccount {
 // after, by id, each named as removed's Named names it, and with its model
 // versions.
 func (t accountTally) list(configured config.Accounts, removed status.RemovedAccounts) []AccountTokens {
-	listed := make([]AccountTokens, 0, len(t))
+	listed, names := make([]AccountTokens, 0, len(t)), status.NamesOf(configured, removed)
 	for _, id := range slices.SortedFunc(maps.Keys(t), byConfig(configured)) {
 		account := t[id].AccountTokens
-		n := removed.Named(configured, id)
-		account.Label, account.Other = n.Label, n.Other
+		account.AccountName = namedOf(names, id)
 		account.ByModel = t[id].models.list()
 		listed = append(listed, account)
 	}

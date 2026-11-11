@@ -57,23 +57,70 @@ func (r RemovedAccounts) Of(id string) (RemovedAccount, bool) {
 }
 
 // AccountName is what an account is called wherever it's named by its id.
+// Embedded beside an account's id, it gives the verbs' JSON its label.
 type AccountName struct {
 	// Label names it: as configured, where it's configured; else as the
 	// accounts record keeps it; else its id.
-	Label string
+	Label string `json:"label,omitempty"`
 	// Other is set on an account the accounts record keeps that isn't
 	// configured: one removed, or one only another Mac configures.
-	Other bool
+	Other bool `json:"-"`
 	// Removed says when it was removed, as RemovedAccount's Said says: "" of
 	// one never removed.
-	Removed string
+	Removed string `json:"-"`
+}
+
+// ConfiguredName names the account configured as a is, as AccountName has
+// it.
+func ConfiguredName(a config.Account) AccountName {
+	return namedAs(a.Label, a.ID)
+}
+
+// namedAs names a configured account by its label, else its id.
+func namedAs(label, id string) AccountName {
+	return AccountName{Label: cmp.Or(label, id)}
+}
+
+// Said is the account as the verbs' text names it, cleaned, as it's from
+// elsewhere: its label, and of one removed, when, as "team (removed 4 Sep)".
+func (n AccountName) Said() string {
+	label := prose.Clean(n.Label)
+	if n.Removed == "" {
+		return label
+	}
+	return label + " (" + n.Removed + ")"
+}
+
+// Namer names accounts by their ids, as AccountName has it: a Moment does,
+// and Names.
+type Namer interface {
+	Named(id string) AccountName
+}
+
+// Names name the configured accounts and the accounts removed, as
+// RemovedAccounts' Named does, for a reader with no document to name them
+// by. Their zero value names every account by its id.
+type Names struct {
+	configured config.Accounts
+	removed    RemovedAccounts
+}
+
+// NamesOf are the names of the accounts configured, and of the accounts
+// removed, as RemovedOf gives them.
+func NamesOf(configured config.Accounts, removed RemovedAccounts) Names {
+	return Names{configured: configured, removed: removed}
+}
+
+// Named names the account with the given id, as AccountName has it.
+func (n Names) Named(id string) AccountName {
+	return n.removed.Named(n.configured, id)
 }
 
 // Named names the account with the given id, configured as configured says,
 // ids compared ignoring case, as AccountName has it.
 func (r RemovedAccounts) Named(configured config.Accounts, id string) AccountName {
 	if i := slices.IndexFunc(configured, func(a config.Account) bool { return strings.EqualFold(a.ID, id) }); i >= 0 {
-		return AccountName{Label: cmp.Or(configured[i].Label, id)}
+		return namedAs(configured[i].Label, id)
 	}
 	return r.named(id)
 }
@@ -93,7 +140,7 @@ func (r RemovedAccounts) named(id string) AccountName {
 // removed its document was given, as Document's WithRemoved gives them.
 func (m Moment) Named(id string) AccountName {
 	if a, ok := m.Account(id); ok {
-		return AccountName{Label: cmp.Or(a.Label, id)}
+		return namedAs(a.Label, id)
 	}
 	return m.doc.removed.named(id)
 }

@@ -83,7 +83,7 @@ func (m Model) builtLogPanel(now time.Time) Model {
 	if basis := m.panelBasis(p, now); !m.log.built.panel.same(basis) {
 		p, m.log.built.panel = m.panelFigures(p, now), &basis
 	}
-	p.Accounts = m.moment(now).Accounts
+	p.Moment = m.moment(now)
 	m.log.panel = p
 	return m
 }

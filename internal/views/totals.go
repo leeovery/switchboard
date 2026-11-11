@@ -33,7 +33,8 @@ type Totals struct {
 // requests no account answered among them, a session once however many
 // accounts it ran on, and give no share left at a reset, nor its run out.
 type AccountTotals struct {
-	Account        string             `json:"account,omitempty"`
+	Account string `json:"account,omitempty"`
+	status.AccountName
 	All            bool               `json:"all,omitempty"`
 	Requests       int                `json:"requests"`
 	Sessions       int                `json:"sessions"`
@@ -127,7 +128,7 @@ func accountTotalsOf(before, days []Day, accounts config.Accounts, v versions) T
 	index := make(map[string]int, len(accounts))
 	tallies := make([]*totalling, len(accounts)+1)
 	for i, a := range accounts {
-		index[a.ID], tallies[i] = i, newTotalling(AccountTotals{Account: a.ID})
+		index[a.ID], tallies[i] = i, newTotalling(AccountTotals{Account: a.ID, AccountName: status.ConfiguredName(a)})
 		tallies[i].before = accountDays(before, a.ID)
 	}
 	all := len(accounts)

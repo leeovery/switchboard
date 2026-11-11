@@ -6,10 +6,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
+// A day's accounts are each named as the names given name it: work and
+// side configured, and spare removed, kept labelled team.
 func TestADaysAccountsAreThoseThatServedARequestOrWhoseDayWasEventful(t *testing.T) {
 	at := func(hour int) time.Time { return time.Date(2026, 10, 6, hour, 0, 0, 0, time.UTC) }
 	worth := ledger.Picodollars(80_000_000_000)
@@ -28,6 +32,8 @@ func TestADaysAccountsAreThoseThatServedARequestOrWhoseDayWasEventful(t *testing
 	limited := ledger.PricedAccount{Account: "side", Limits: []ledger.Limit{{Window: "5h", At: at(15)}}, Highest: map[string]float64{"5h": 1}}
 	weekReset := ledger.PricedAccount{Account: "spare", Resets: []ledger.Reset{{Window: "7d", At: at(10)}}}
 	idle := ledger.PricedAccount{Account: "idle", Highest: map[string]float64{"5h": 0.2}, Resets: []ledger.Reset{{Window: "5h", At: at(9)}}}
+	team := status.RemovedAccount{ID: "spare", Label: "team", Removed: at(12).AddDate(0, 0, -30)}
+	names := status.NamesOf(config.Accounts{{ID: "work", Label: "Work"}, {ID: "side"}}, status.RemovedAccounts{team})
 	days := []views.Day{
 		{Day: "2026-10-05", Accounts: []ledger.PricedAccount{idle}},
 		{Day: "2026-10-06", Accounts: []ledger.PricedAccount{unanswered, idle, limited, weekReset, served}},
@@ -38,9 +44,9 @@ func TestADaysAccountsAreThoseThatServedARequestOrWhoseDayWasEventful(t *testing
 	want := []views.DayAccounts{
 		{Date: "2026-10-06", Accounts: []views.DayAccount{
 			{Sessions: 1, Models: []views.DayModel{{Requests: 1, Sessions: 1}}},
-			{Account: "side", Limits: []views.WindowAt{{Window: "5h", At: at(15)}}, Highest: []views.WindowUse{{Window: "5h", Use: 1}}},
-			{Account: "spare", WeeksReset: []views.WindowAt{{Window: "7d", At: at(10)}}},
-			{Account: "work", Sessions: 2, MovedOff: 1,
+			{Account: "side", Label: "side", Limits: []views.WindowAt{{Window: "5h", At: at(15)}}, Highest: []views.WindowUse{{Window: "5h", Use: 1}}},
+			{Account: "spare", Label: "team", Other: true, Removed: team.Said(), WeeksReset: []views.WindowAt{{Window: "7d", At: at(10)}}},
+			{Account: "work", Label: "Work", Sessions: 2, MovedOff: 1,
 				Models: []views.DayModel{
 					{Model: "claude-opus-5-5", Geo: "us", Requests: 3, Tokens: 12 + 3120 + 182340 + 845, Sessions: 2, Amount: &worth},
 					{Model: "claude-opus-9", Requests: 1, Sessions: 1, Unpriced: []string{"claude-opus-9"}},
@@ -52,7 +58,7 @@ func TestADaysAccountsAreThoseThatServedARequestOrWhoseDayWasEventful(t *testing
 		}},
 		{Date: "2026-10-08", Accounts: []views.DayAccount{{Sessions: 1, Models: []views.DayModel{{Requests: 1, Sessions: 1}}}}},
 	}
-	if got := views.DayAccountsOf(days); !reflect.DeepEqual(got, want) {
+	if got := views.DayAccountsOf(days, names); !reflect.DeepEqual(got, want) {
 		t.Errorf("DayAccountsOf =\n%+v\nwant\n%+v", got, want)
 	}
 }

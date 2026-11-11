@@ -139,7 +139,7 @@ func (a *app) requests(out io.Writer, opts requestsOptions) error {
 	if a.printsJSON(opts.form, out) {
 		return writeLines(out, lines)
 	}
-	return writeRequests(out, views.RequestLines(lines), from, now)
+	return writeRequests(out, views.RequestLines(lines, namesIn(dir, cfg)), from, now)
 }
 
 // writeLines writes each of lines as the ledger holds it, its schema first, a
@@ -164,11 +164,11 @@ func writeRequests(out io.Writer, rows iter.Seq[views.RequestLine], from, now ti
 
 // requestRow is the row of the request r, at now: when it arrived, to the
 // second in now's time zone, its session's id cut short, the model it asked
-// for, the account that answered it, its status, its tokens in and out, and
-// how long it took.
+// for, the account that answered it, as its Said names it, its status, its
+// tokens in and out, and how long it took.
 func requestRow(r views.RequestLine, now time.Time) []string {
 	return []string{prose.ToTheSecond(now, r.At), orNone(status.ShortID(prose.Clean(r.Session))), orNone(prose.Clean(r.Model)),
-		orNone(prose.Clean(r.Account)), answered(r.RequestRow), tokensInOut(r), took(r.Took)}
+		orNone(r.Said()), answered(r.RequestRow), tokensInOut(r), took(r.Took)}
 }
 
 // answered says how a request was answered: its status, and whether its

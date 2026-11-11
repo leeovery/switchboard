@@ -39,7 +39,9 @@ type ListedSession struct {
 	// thread's, the model the router saw last, and its account, else its
 	// latest request's.
 	Account string `json:"account,omitempty"`
-	Model   string `json:"model,omitempty"`
+	// AccountName names Account, as the List's Named names it.
+	status.AccountName
+	Model string `json:"model,omitempty"`
 	// Running is set while the router lists it, and left out otherwise.
 	Running bool `json:"running,omitempty"`
 	// LastSeen, Models, State and MoveCost are of one running alone:
@@ -81,7 +83,9 @@ type ListedSession struct {
 type SessionModel struct {
 	Model   string `json:"model"`
 	Account string `json:"account"`
-	Reason  string `json:"reason"`
+	// AccountName names Account, as the List's Named names it.
+	status.AccountName
+	Reason string `json:"reason"`
 	// Since is when it went to the account, or was pinned there, as the
 	// router lists it, as cameAt has it: zero where that isn't known. It's
 	// the views' alone.
@@ -93,10 +97,12 @@ type SessionModel struct {
 // context again there cost, nil where its cache would have run out anyway,
 // or that isn't known.
 type Move struct {
-	At     time.Time           `json:"at"`
-	From   string              `json:"from"`
-	Reason string              `json:"reason"`
-	Cost   *ledger.Picodollars `json:"cost,omitempty"`
+	At   time.Time `json:"at"`
+	From string    `json:"from"`
+	// FromLabel is From's label, as the List's Named names it.
+	FromLabel string              `json:"from_label,omitempty"`
+	Reason    string              `json:"reason"`
+	Cost      *ledger.Picodollars `json:"cost,omitempty"`
 }
 
 // SessionsToday sums the List's sessions: how many there are, their requests
@@ -147,6 +153,38 @@ type ListLive struct {
 func ListSessions(src SessionSources) SessionList {
 	held, _ := HoldSessions(src.Prices).Fed(src.Ledger, Taken{}, ListWanted(src.Running, src.Stream), src.Now)
 	return held.List(ListLive{Running: src.Running, Unlisted: src.Unlisted, Stream: src.Stream, Now: src.Now})
+}
+
+// Named is the List with every account it gives named as n names it.
+func (l SessionList) Named(n status.Namer) SessionList {
+	l.Sessions = slices.Clone(l.Sessions)
+	for i, s := range l.Sessions {
+		l.Sessions[i] = s.named(n)
+	}
+	return l
+}
+
+// named is the session with every account it gives named as n names it,
+// those its routing's words name among them.
+func (s ListedSession) named(n status.Namer) ListedSession {
+	s.AccountName = namedOf(n, s.Account)
+	s.Models = modelAccountsNamed(s.Models, n)
+	s.Routing.Words = s.Routing.Words.Named(n)
+	if s.Moved != nil {
+		moved := *s.Moved
+		moved.FromLabel = namedOf(n, moved.From).Label
+		s.Moved = &moved
+	}
+	return s
+}
+
+// modelAccountsNamed are the models given, each one's account named as n names it.
+func modelAccountsNamed(models []SessionModel, n status.Namer) []SessionModel {
+	named := slices.Clone(models)
+	for i, m := range named {
+		named[i].AccountName = namedOf(n, m.Account)
+	}
+	return named
 }
 
 // listOf is the List of the sessions by lists, as the router lists them,

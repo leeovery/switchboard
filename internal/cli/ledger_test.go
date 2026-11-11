@@ -17,6 +17,7 @@ import (
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/readings"
+	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
@@ -656,17 +657,17 @@ const historyBlocks = `"year":{"cuts":[1,1,4],"days":[{"day":"2026-10-04","reque
 	`{"day":"2026-10-06","requests":1,"level":3},{"day":"2026-10-07","requests":4,"level":4}]},` +
 	`"months":[{"month":"2026-10","requests":6,"worth":0.171772,"unpriced":["claude-opus-9","no_usage"],"plans":{"known":0,"of":2},"limits":{"5h":1},` +
 	`"by_family":[{"family":"opus","worth":0.171772,"unpriced":["claude-opus-9","no_usage"]}]}],` +
-	`"weeks":[{"week":"2026-09-28","accounts":[{"account":"work"},{"account":"side"},{"all":true}]},` +
-	`{"week":"2026-10-05","accounts":[{"account":"work","limits":{"5h":1}},{"account":"side"},{"all":true}]}],` +
+	`"weeks":[{"week":"2026-09-28","accounts":[{"account":"work","label":"work"},{"account":"side","label":"side"},{"all":true}]},` +
+	`{"week":"2026-10-05","accounts":[{"account":"work","label":"work","limits":{"5h":1}},{"account":"side","label":"side"},{"all":true}]}],` +
 	`"tokens":[{"week":"2026-09-28","input":12,"output":845,"cache_write":3120,"cache_read":182340,"total":186317,"worth":0.078376,"plans":{"known":0,"of":2},` +
-	`"by_account":[{"account":"work","input":12,"output":845,"cache_write":3120,"cache_read":182340,"total":186317,"worth":0.078376,` +
+	`"by_account":[{"account":"work","label":"work","input":12,"output":845,"cache_write":3120,"cache_read":182340,"total":186317,"worth":0.078376,` +
 	`"by_model":[{"model":"claude-opus-5-5","input":12,"output":845,"cache_write":3120,"cache_read":182340,"total":186317,"worth":0.078376}]}],` +
 	`"by_model":[{"model":"claude-opus-5-5","on":["work"],"input":12,"output":845,"cache_write":3120,"cache_read":182340,"total":186317,"worth":0.078376}]},` +
 	`{"week":"2026-10-05","input":117,"output":905,"cache_write":3120,"cache_read":202340,"total":206482,"worth":0.093396,"unpriced":["claude-opus-9","no_usage"],"plans":{"known":0,"of":2},` +
-	`"by_account":[{"account":"work","input":112,"output":855,"cache_write":3120,"cache_read":182340,"total":186427,"worth":0.078376,"unpriced":["claude-opus-9"],` +
+	`"by_account":[{"account":"work","label":"work","input":112,"output":855,"cache_write":3120,"cache_read":182340,"total":186427,"worth":0.078376,"unpriced":["claude-opus-9"],` +
 	`"by_model":[{"model":"claude-opus-5-5","input":12,"output":845,"cache_write":3120,"cache_read":182340,"total":186317,"worth":0.078376},` +
 	`{"model":"claude-opus-9","input":100,"output":10,"cache_write":0,"cache_read":0,"total":110,"unpriced":["claude-opus-9"]}]},` +
-	`{"account":"side","input":5,"output":50,"cache_write":0,"cache_read":20000,"total":20055,"worth":0.01502,"unpriced":["no_usage"],` +
+	`{"account":"side","label":"side","input":5,"output":50,"cache_write":0,"cache_read":20000,"total":20055,"worth":0.01502,"unpriced":["no_usage"],` +
 	`"by_model":[{"model":"claude-opus-5-5","input":5,"output":50,"cache_write":0,"cache_read":20000,"total":20055,"worth":0.01502,"unpriced":["no_usage"]}]},` +
 	`{"input":0,"output":0,"cache_write":0,"cache_read":0,"total":0,"worth":0,` +
 	`"by_model":[{"model":"claude-opus-5-5","input":0,"output":0,"cache_write":0,"cache_read":0,"total":0,"worth":0}]}],` +
@@ -676,20 +677,20 @@ const historyBlocks = `"year":{"cuts":[1,1,4],"days":[{"day":"2026-10-04","reque
 	// Every account's counts the requests no account answered, and session B
 	// once, though it ran on side and on none. Work's 5-hour window ran out on
 	// the 6th, in the run its last reset ended.
-	`"totals":{"accounts":[{"account":"work","requests":3,"sessions":2,"moved_on":0,"moved_off":1,"limits":{"5h":1},"minutes_at_cap":74,"minutes_at_limit":56,` +
+	`"totals":{"accounts":[{"account":"work","label":"work","requests":3,"sessions":2,"moved_on":0,"moved_off":1,"limits":{"5h":1},"minutes_at_cap":74,"minutes_at_limit":56,` +
 	`"left_at_reset":{"5h":0},"ran_out":{"5h":"2026-10-06"},"worth":0.156752,"unpriced":["claude-opus-9"],"by_model":[{"model":"claude-opus-5-5","share":1,"worth":0.156752},` +
 	`{"model":"claude-opus-9","unpriced":["claude-opus-9"]}],` +
 	`"busiest_day":"2026-10-07","longest_run":1},` +
-	`{"account":"side","requests":2,"sessions":1,"moved_on":1,"moved_off":0,"minutes_at_cap":0,"minutes_at_limit":0,"left_at_reset":{"5h":0.9},` +
+	`{"account":"side","label":"side","requests":2,"sessions":1,"moved_on":1,"moved_off":0,"minutes_at_cap":0,"minutes_at_limit":0,"left_at_reset":{"5h":0.9},` +
 	`"worth":0.01502,"unpriced":["no_usage"],"by_model":[{"model":"claude-opus-5-5","share":1,"worth":0.01502,"unpriced":["no_usage"]}],` +
 	`"busiest_day":"2026-10-06","longest_run":2},` +
 	`{"all":true,"requests":6,"sessions":3,"moved_on":1,"moved_off":1,"limits":{"5h":1},"minutes_at_cap":74,"minutes_at_limit":56,` +
 	`"worth":0.171772,"unpriced":["claude-opus-9","no_usage"],"by_model":[{"model":"claude-opus-5-5","share":1,"worth":0.171772,"unpriced":["no_usage"]},` +
 	`{"model":"claude-opus-9","unpriced":["claude-opus-9"]}],` +
 	`"busiest_day":"2026-10-07","longest_run":2}]},` +
-	`"plans":[{"account":"work","worth":0.156752,"unpriced":["claude-opus-9"]},{"account":"side","worth":0.01502,"unpriced":["no_usage"]},{"all":true,"plans":{"known":0,"of":2}}],` +
+	`"plans":[{"account":"work","label":"work","worth":0.156752,"unpriced":["claude-opus-9"]},{"account":"side","label":"side","worth":0.01502,"unpriced":["no_usage"]},{"all":true,"plans":{"known":0,"of":2}}],` +
 	`"capacity":{"weeks":0,"short":0,"with_one_fewer":0,"with_one_more":0,"accounts":[` +
-	`{"account":"work","weeks":0,"limits":0,"without_it":0},{"account":"side","weeks":0,"limits":0,"without_it":0},{"all":true,"weeks":0,"limits":0}]},"removed":[]`
+	`{"account":"work","label":"work","weeks":0,"limits":0,"without_it":0},{"account":"side","label":"side","weeks":0,"limits":0,"without_it":0},{"all":true,"weeks":0,"limits":0}]},"removed":[]`
 
 func TestHistoryJSONPrintsEachDaysSummaryWithEachModelsWorth(t *testing.T) {
 	deps, _ := ledgerDeps(t)
@@ -814,8 +815,8 @@ func TestHistoryJSONPricesThePlansAndStartsTheWeeksAsTheConfigSays(t *testing.T)
 	// plans are priced from then to today, 4 days at 12/365 of a month:
 	// work's costs them, and side's isn't known, so every account's worth
 	// against them is over 1 of the 2 plans.
-	want := `[{"account":"work","plan":"ultra","price":200,"cost":26.301369863014,"against":0.005959841666666598,"worth":0.156752,"unpriced":["claude-opus-9"]},` +
-		`{"account":"side","worth":0.01502,"unpriced":["no_usage"]},` +
+	want := `[{"account":"work","label":"work","plan":"ultra","price":200,"cost":26.301369863014,"against":0.005959841666666598,"worth":0.156752,"unpriced":["claude-opus-9"]},` +
+		`{"account":"side","label":"side","worth":0.01502,"unpriced":["no_usage"]},` +
 		`{"all":true,"price":200,"cost":26.301369863014,"against":0.005959841666666598,"plans":{"known":1,"of":2},"worth":0.156752,"unpriced":["claude-opus-9"]}]`
 	var plans bytes.Buffer
 	if err := json.Compact(&plans, doc.Plans); err != nil || plans.String() != want {
@@ -948,7 +949,7 @@ func TestHistoryReportsASummaryOfADayThatIsntOne(t *testing.T) {
 	}
 
 	var out bytes.Buffer
-	err := cli.WriteHistory(&out, views.History{Days: days}, ledger.Pricing, october(6, 0, 0, 0), ledgerNow)
+	err := cli.WriteHistory(&out, views.History{Days: days}, status.Names{}, ledger.Pricing, october(6, 0, 0, 0), ledgerNow)
 	if err == nil || !strings.Contains(err.Error(), `"2026-13-45"`) || out.Len() > 0 {
 		t.Errorf("history of a summary of 2026-13-45 printed\n%s(%v)\nwant nothing printed, and the summary's day reported", out.String(), err)
 	}

@@ -56,16 +56,16 @@ func TestCapacityIsWeeksVerdictsFromReplayingEachWholeWeek(t *testing.T) {
 			name: "about right", accounts: workAndSide,
 			peaks: map[string][]float64{"work": {1, 0.6, 0.5, 0.5, 0.4, 0.7, 0.4}, "side": {0.5, 0.5, 0.6, 0.3, 0.3, 0.2, 0.5}},
 			want: `{"weeks":7,"short":1,"with_one_fewer":3,"with_one_more":0,"verdict":"about right","accounts":[` +
-				`{"account":"work","verdict":"plenty to spare most weeks","weeks":7,"limits":1,"left_at_reset":0.4142857142857143,"without_it":3},` +
-				`{"account":"side","verdict":"plenty to spare most weeks","weeks":7,"limits":0,"left_at_reset":0.5857142857142857,"without_it":3},` +
+				`{"account":"work","label":"work","verdict":"plenty to spare most weeks","weeks":7,"limits":1,"left_at_reset":0.4142857142857143,"without_it":3},` +
+				`{"account":"side","label":"side","verdict":"plenty to spare most weeks","weeks":7,"limits":0,"left_at_reset":0.5857142857142857,"without_it":3},` +
 				`{"all":true,"verdict":"room to spare together","weeks":7,"limits":1,"left_at_reset":0.5}]}`,
 		},
 		{
 			name: "one too few: short on 4 or more of 7, and one more would halve it", accounts: workAndSide,
 			peaks: map[string][]float64{"work": {1, 1, 1, 1, 0.5, 0.6, 1}, "side": {1, 0.9, 1, 0.8, 0.4, 0.5, 0.9}},
 			want: `{"weeks":7,"short":5,"with_one_fewer":6,"with_one_more":0,"verdict":"one too few","accounts":[` +
-				`{"account":"work","verdict":"hits its limit most weeks","weeks":7,"limits":5,"left_at_reset":0.12857142857142856,"without_it":6},` +
-				`{"account":"side","verdict":"ends most weeks with room","weeks":7,"limits":2,"left_at_reset":0.21428571428571427,"without_it":6},` +
+				`{"account":"work","label":"work","verdict":"hits its limit most weeks","weeks":7,"limits":5,"left_at_reset":0.12857142857142856,"without_it":6},` +
+				`{"account":"side","label":"side","verdict":"ends most weeks with room","weeks":7,"limits":2,"left_at_reset":0.21428571428571427,"without_it":6},` +
 				`{"all":true,"verdict":"little to spare together","weeks":7,"limits":5,"left_at_reset":0.17142857142857143}]}`,
 		},
 		{
@@ -80,9 +80,9 @@ func TestCapacityIsWeeksVerdictsFromReplayingEachWholeWeek(t *testing.T) {
 			peaks: map[string][]float64{"work": {0.5, 0.6, 0.4, 0.5, 0.6, 0.5, 0.4}, "side": {0.2, 0.2, 0.3, 0.2, 0.2, 0.3, 0.2},
 				"spare": {0.05, 0.1, 0, 0.05, 0.1, 0.05, 0}},
 			want: `{"weeks":7,"short":0,"with_one_fewer":0,"with_two_fewer":0,"with_one_more":0,"drop":"spare","verdict":"one more than you need","accounts":[` +
-				`{"account":"work","verdict":"plenty to spare most weeks","weeks":7,"limits":0,"left_at_reset":0.5,"without_it":5},` +
-				`{"account":"side","verdict":"barely used","weeks":7,"limits":0,"left_at_reset":0.7714285714285715,"without_it":0},` +
-				`{"account":"spare","verdict":"could go","weeks":7,"limits":0,"left_at_reset":0.95,"without_it":0},` +
+				`{"account":"work","label":"work","verdict":"plenty to spare most weeks","weeks":7,"limits":0,"left_at_reset":0.5,"without_it":5},` +
+				`{"account":"side","label":"side","verdict":"barely used","weeks":7,"limits":0,"left_at_reset":0.7714285714285715,"without_it":0},` +
+				`{"account":"spare","label":"spare","verdict":"could go","weeks":7,"limits":0,"left_at_reset":0.95,"without_it":0},` +
 				`{"all":true,"verdict":"room to spare together","weeks":7,"limits":0,"left_at_reset":0.7404761904761905}]}`,
 		},
 		{
@@ -92,8 +92,8 @@ func TestCapacityIsWeeksVerdictsFromReplayingEachWholeWeek(t *testing.T) {
 			name: "a tie in the replay: the account used less is dropped", accounts: workAndSide,
 			peaks: map[string][]float64{"work": {1, 0.6, 1, 0.5, 1, 0.7, 0.4}, "side": {0.2, 0.3, 0.1, 0.2, 0.3, 0.1, 0.2}},
 			want: `{"weeks":7,"short":3,"with_one_fewer":3,"with_one_more":0,"drop":"side","verdict":"one more than you need","accounts":[` +
-				`{"account":"work","verdict":"hits its limit most weeks","weeks":7,"limits":3,"left_at_reset":0.2571428571428571,"without_it":3},` +
-				`{"account":"side","verdict":"barely used","weeks":7,"limits":0,"left_at_reset":0.8,"without_it":3},` +
+				`{"account":"work","label":"work","verdict":"hits its limit most weeks","weeks":7,"limits":3,"left_at_reset":0.2571428571428571,"without_it":3},` +
+				`{"account":"side","label":"side","verdict":"barely used","weeks":7,"limits":0,"left_at_reset":0.8,"without_it":3},` +
 				`{"all":true,"verdict":"room to spare together","weeks":7,"limits":3,"left_at_reset":0.5285714285714286}]}`,
 		},
 		{
@@ -103,8 +103,8 @@ func TestCapacityIsWeeksVerdictsFromReplayingEachWholeWeek(t *testing.T) {
 			name: "short most weeks, one fewer no worse: one too few", accounts: workAndSide,
 			peaks: map[string][]float64{"work": {1, 1, 1, 1, 1, 1, 1}, "side": {0, 0, 0, 0, 0, 0, 0}},
 			want: `{"weeks":7,"short":7,"with_one_fewer":7,"with_one_more":0,"verdict":"one too few","accounts":[` +
-				`{"account":"work","verdict":"hits its limit most weeks","weeks":7,"limits":7,"left_at_reset":0,"without_it":7},` +
-				`{"account":"side","verdict":"barely used","weeks":7,"limits":0,"left_at_reset":1,"without_it":7},` +
+				`{"account":"work","label":"work","verdict":"hits its limit most weeks","weeks":7,"limits":7,"left_at_reset":0,"without_it":7},` +
+				`{"account":"side","label":"side","verdict":"barely used","weeks":7,"limits":0,"left_at_reset":1,"without_it":7},` +
 				`{"all":true,"verdict":"room to spare together","weeks":7,"limits":7,"left_at_reset":0.5}]}`,
 		},
 		{
@@ -115,8 +115,8 @@ func TestCapacityIsWeeksVerdictsFromReplayingEachWholeWeek(t *testing.T) {
 			name: "short every week, one more short on 4 of 7: too few, none to drop", accounts: workAndSide,
 			peaks: map[string][]float64{"work": {2, 2, 2, 2, 1, 1, 1}, "side": {0, 0, 0, 0, 0, 0, 0}},
 			want: `{"weeks":7,"short":7,"with_one_fewer":7,"with_one_more":4,"verdict":"too few","accounts":[` +
-				`{"account":"work","verdict":"hits its limit most weeks","weeks":7,"limits":7,"left_at_reset":0,"without_it":7},` +
-				`{"account":"side","verdict":"barely used","weeks":7,"limits":0,"left_at_reset":1,"without_it":7},` +
+				`{"account":"work","label":"work","verdict":"hits its limit most weeks","weeks":7,"limits":7,"left_at_reset":0,"without_it":7},` +
+				`{"account":"side","label":"side","verdict":"barely used","weeks":7,"limits":0,"left_at_reset":1,"without_it":7},` +
 				`{"all":true,"verdict":"room to spare together","weeks":7,"limits":7,"left_at_reset":0.5}]}`,
 		},
 		{
@@ -125,8 +125,8 @@ func TestCapacityIsWeeksVerdictsFromReplayingEachWholeWeek(t *testing.T) {
 			name: "short on 4 of 7, one more not halving it: too few, none to drop", accounts: workAndSide,
 			peaks: map[string][]float64{"work": {2, 2, 2, 1, 0.5, 0.5, 0.5}, "side": {0, 0, 0, 0, 0, 0, 0}},
 			want: `{"weeks":7,"short":4,"with_one_fewer":4,"with_one_more":3,"verdict":"too few","accounts":[` +
-				`{"account":"work","verdict":"hits its limit most weeks","weeks":7,"limits":4,"left_at_reset":0.21428571428571427,"without_it":4},` +
-				`{"account":"side","verdict":"barely used","weeks":7,"limits":0,"left_at_reset":1,"without_it":4},` +
+				`{"account":"work","label":"work","verdict":"hits its limit most weeks","weeks":7,"limits":4,"left_at_reset":0.21428571428571427,"without_it":4},` +
+				`{"account":"side","label":"side","verdict":"barely used","weeks":7,"limits":0,"left_at_reset":1,"without_it":4},` +
 				`{"all":true,"verdict":"room to spare together","weeks":7,"limits":4,"left_at_reset":0.6071428571428571}]}`,
 		},
 		{
@@ -134,8 +134,8 @@ func TestCapacityIsWeeksVerdictsFromReplayingEachWholeWeek(t *testing.T) {
 			name: "short on 4 of 7, one more halving it: one too few", accounts: workAndSide,
 			peaks: map[string][]float64{"work": {2, 2, 1, 1, 0.5, 0.5, 0.5}, "side": {0, 0, 0, 0, 0, 0, 0}},
 			want: `{"weeks":7,"short":4,"with_one_fewer":4,"with_one_more":2,"verdict":"one too few","accounts":[` +
-				`{"account":"work","verdict":"hits its limit most weeks","weeks":7,"limits":4,"left_at_reset":0.21428571428571427,"without_it":4},` +
-				`{"account":"side","verdict":"barely used","weeks":7,"limits":0,"left_at_reset":1,"without_it":4},` +
+				`{"account":"work","label":"work","verdict":"hits its limit most weeks","weeks":7,"limits":4,"left_at_reset":0.21428571428571427,"without_it":4},` +
+				`{"account":"side","label":"side","verdict":"barely used","weeks":7,"limits":0,"left_at_reset":1,"without_it":4},` +
 				`{"all":true,"verdict":"room to spare together","weeks":7,"limits":4,"left_at_reset":0.6071428571428571}]}`,
 		},
 		{
@@ -145,8 +145,8 @@ func TestCapacityIsWeeksVerdictsFromReplayingEachWholeWeek(t *testing.T) {
 			name: "an account on no plan counts as the plan most of the others have", accounts: config.Accounts{{ID: "work", Plan: "ultra"}, {ID: "side"}},
 			peaks: map[string][]float64{"work": {0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5}, "side": {0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6}},
 			want: `{"weeks":7,"short":0,"with_one_fewer":7,"with_one_more":0,"verdict":"about right","accounts":[` +
-				`{"account":"work","verdict":"plenty to spare most weeks","weeks":7,"limits":0,"left_at_reset":0.5,"without_it":7},` +
-				`{"account":"side","verdict":"plenty to spare most weeks","weeks":7,"limits":0,"left_at_reset":0.4,"without_it":7},` +
+				`{"account":"work","label":"work","verdict":"plenty to spare most weeks","weeks":7,"limits":0,"left_at_reset":0.5,"without_it":7},` +
+				`{"account":"side","label":"side","verdict":"plenty to spare most weeks","weeks":7,"limits":0,"left_at_reset":0.4,"without_it":7},` +
 				`{"all":true,"verdict":"room to spare together","weeks":7,"limits":0,"left_at_reset":0.45}]}`,
 		},
 		{
@@ -156,15 +156,15 @@ func TestCapacityIsWeeksVerdictsFromReplayingEachWholeWeek(t *testing.T) {
 			name: "weeks some account's peak isn't known in", accounts: workAndSide,
 			peaks: map[string][]float64{"work": {1, 1, 1, 1, 0.5, 0.4, 0.3}, "side": {0.2, 0.3, 0.1}},
 			want: `{"weeks":3,"short":0,"with_one_fewer":0,"with_one_more":0,"drop":"side","verdict":"one more than you need","accounts":[` +
-				`{"account":"work","verdict":"hits its limit most weeks","weeks":7,"limits":4,"left_at_reset":0.2571428571428571,"without_it":0},` +
-				`{"account":"side","verdict":"barely used","weeks":3,"limits":0,"left_at_reset":0.8,"without_it":0},` +
+				`{"account":"work","label":"work","verdict":"hits its limit most weeks","weeks":7,"limits":4,"left_at_reset":0.2571428571428571,"without_it":0},` +
+				`{"account":"side","label":"side","verdict":"barely used","weeks":3,"limits":0,"left_at_reset":0.8,"without_it":0},` +
 				`{"all":true,"verdict":"room to spare together","weeks":3,"limits":0,"left_at_reset":0.7}]}`,
 		},
 		{
 			name: "one account: none fewer, and none without it", accounts: workAlone,
 			peaks: map[string][]float64{"work": {1, 1, 1, 1, 0.5, 0.2, 0.3}},
 			want: `{"weeks":7,"short":4,"with_one_more":0,"verdict":"one too few","accounts":[` +
-				`{"account":"work","verdict":"hits its limit most weeks","weeks":7,"limits":4,"left_at_reset":0.2857142857142857},` +
+				`{"account":"work","label":"work","verdict":"hits its limit most weeks","weeks":7,"limits":4,"left_at_reset":0.2857142857142857},` +
 				`{"all":true,"verdict":"room to spare together","weeks":7,"limits":4,"left_at_reset":0.2857142857142857}]}`,
 		},
 		{
@@ -172,7 +172,7 @@ func TestCapacityIsWeeksVerdictsFromReplayingEachWholeWeek(t *testing.T) {
 			name: "two weeks: the thresholds of 7 in proportion", accounts: workAlone,
 			peaks: map[string][]float64{"work": {1, 0.3}},
 			want: `{"weeks":2,"short":1,"with_one_more":0,"verdict":"about right","accounts":[` +
-				`{"account":"work","verdict":"hits its limit most weeks","weeks":2,"limits":1,"left_at_reset":0.35},` +
+				`{"account":"work","label":"work","verdict":"hits its limit most weeks","weeks":2,"limits":1,"left_at_reset":0.35},` +
 				`{"all":true,"verdict":"room to spare together","weeks":2,"limits":1,"left_at_reset":0.35}]}`,
 		},
 		{
@@ -180,7 +180,7 @@ func TestCapacityIsWeeksVerdictsFromReplayingEachWholeWeek(t *testing.T) {
 			name: "three weeks: the thresholds of 7 in proportion", accounts: workAlone,
 			peaks: map[string][]float64{"work": {1, 0.3, 0.2}},
 			want: `{"weeks":3,"short":1,"with_one_more":0,"verdict":"about right","accounts":[` +
-				`{"account":"work","verdict":"plenty to spare most weeks","weeks":3,"limits":1,"left_at_reset":0.5},` +
+				`{"account":"work","label":"work","verdict":"plenty to spare most weeks","weeks":3,"limits":1,"left_at_reset":0.5},` +
 				`{"all":true,"verdict":"room to spare together","weeks":3,"limits":1,"left_at_reset":0.5}]}`,
 		},
 	}
@@ -210,7 +210,7 @@ func TestCapacityJudgesEachAccountAtItsCap(t *testing.T) {
 			name: "a reserved account peaking past its cap is short, and short of it isn't", accounts: config.Accounts{reserved("work")},
 			peaks: map[string][]float64{"work": {0.96, 0.94, 0.5}},
 			want: `{"weeks":3,"short":1,"with_one_more":0,"verdict":"about right","accounts":[` +
-				`{"account":"work","verdict":"ends most weeks with room","weeks":3,"limits":1,"left_at_reset":0.2},` +
+				`{"account":"work","label":"work","verdict":"ends most weeks with room","weeks":3,"limits":1,"left_at_reset":0.2},` +
 				`{"all":true,"verdict":"little to spare together","weeks":3,"limits":1,"left_at_reset":0.2}]}`,
 		},
 		{
@@ -220,8 +220,8 @@ func TestCapacityJudgesEachAccountAtItsCap(t *testing.T) {
 			name: "a replay without an account hands a reserved one no load past its cap", accounts: config.Accounts{{ID: "work"}, reserved("side")},
 			peaks: map[string][]float64{"work": slices.Repeat([]float64{0.46}, 7), "side": slices.Repeat([]float64{0.5}, 7)},
 			want: `{"weeks":7,"short":0,"with_one_fewer":0,"with_one_more":0,"drop":"side","verdict":"one more than you need","accounts":[` +
-				`{"account":"work","verdict":"plenty to spare most weeks","weeks":7,"limits":0,"left_at_reset":0.54,"without_it":7},` +
-				`{"account":"side","verdict":"plenty to spare most weeks","weeks":7,"limits":0,"left_at_reset":0.5,"without_it":0},` +
+				`{"account":"work","label":"work","verdict":"plenty to spare most weeks","weeks":7,"limits":0,"left_at_reset":0.54,"without_it":7},` +
+				`{"account":"side","label":"side","verdict":"plenty to spare most weeks","weeks":7,"limits":0,"left_at_reset":0.5,"without_it":0},` +
 				`{"all":true,"verdict":"room to spare together","weeks":7,"limits":0,"left_at_reset":0.52}]}`,
 		},
 		{
@@ -230,7 +230,7 @@ func TestCapacityJudgesEachAccountAtItsCap(t *testing.T) {
 			name: "a replay with one more judges a reserved account at its cap", accounts: config.Accounts{reserved("work")},
 			peaks: map[string][]float64{"work": {1.9, 0.5}},
 			want: `{"weeks":2,"short":1,"with_one_more":1,"verdict":"about right","accounts":[` +
-				`{"account":"work","verdict":"hits its limit most weeks","weeks":2,"limits":1,"left_at_reset":0.25},` +
+				`{"account":"work","label":"work","verdict":"hits its limit most weeks","weeks":2,"limits":1,"left_at_reset":0.25},` +
 				`{"all":true,"verdict":"room to spare together","weeks":2,"limits":1,"left_at_reset":0.25}]}`,
 		},
 	}
@@ -304,7 +304,7 @@ func TestCapacityReplaysOnlyWholeWeeksTheDaysSpan(t *testing.T) {
 		},
 	}
 	want := `{"weeks":0,"short":0,"with_one_fewer":0,"with_one_more":0,"accounts":[` +
-		`{"account":"work","weeks":0,"limits":0,"without_it":0},{"account":"side","weeks":0,"limits":0,"without_it":0},{"all":true,"weeks":0,"limits":0}]}`
+		`{"account":"work","label":"work","weeks":0,"limits":0,"without_it":0},{"account":"side","label":"side","weeks":0,"limits":0,"without_it":0},{"all":true,"weeks":0,"limits":0}]}`
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			in := input(tt.days)

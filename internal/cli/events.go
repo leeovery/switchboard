@@ -87,7 +87,7 @@ func (a *app) events(ctx context.Context, out io.Writer, opts eventsOptions) err
 		follower = newEventsFollower(events.Files(ledger.Dir(dir), logger), dayfile.DateOf(now), a.Now)
 		today = follower.listing()
 	}
-	printer := a.eventsPrinter(out, opts.form)
+	printer := a.eventsPrinter(out, opts.form, dir)
 	held := events.NewReader(dir, a.Now, logger).HeldTailing(printer.readFrom(from), startOfDay(now, -1), today)
 	if err := printer.list(held, from, now); err != nil || follower == nil {
 		return err
@@ -106,12 +106,27 @@ type eventsPrinter interface {
 	follow(h events.Held) error
 }
 
-// eventsPrinter returns the printer of the form f chooses, printing to out.
-func (a *app) eventsPrinter(out io.Writer, f formFlags) eventsPrinter {
+// eventsPrinter returns the printer of the form f chooses, printing to out,
+// its text naming accounts as the config and the accounts record in the
+// state directory dir name them.
+func (a *app) eventsPrinter(out io.Writer, f formFlags, dir string) eventsPrinter {
 	if a.printsJSON(f, out) {
 		return eventsJSON{out: out}
 	}
-	return &eventsText{out: out, now: a.Now, telling: views.NewTelling(status.NameOfKey)}
+	return &eventsText{out: out, now: a.Now, telling: views.NewTelling(status.NameOfKey), names: a.eventNames(dir)}
+}
+
+// eventNames are the names of the accounts the config configures and of
+// those removed that the accounts record in the state directory dir keeps:
+// each account named by its id, warning, where the config can't be loaded,
+// so the events print all the same.
+func (a *app) eventNames(dir string) status.Names {
+	cfg, err := a.loadConfig()
+	if err != nil {
+		logger.Warn("can't load the config, so the events name each account by its id", "error", err)
+		return status.Names{}
+	}
+	return namesIn(dir, cfg)
 }
 
 // eventsJSON prints each event as the router files it, its schema first, a
@@ -149,6 +164,8 @@ type eventsText struct {
 	out     io.Writer
 	now     func() time.Time
 	telling *views.Telling
+	// names name the accounts the events name.
+	names status.Names
 	// day is the day of the last heading printed: zero before one is. widths
 	// are the columns every row printed is aligned to: its time's as wide as
 	// prose.DatedWidth, and each as wide as the widest cell of the rows listed
@@ -173,10 +190,10 @@ func (p *eventsText) list(held iter.Seq[events.Held], from, now time.Time) error
 			continue
 		}
 		rows = append(rows, r)
-		p.widths = widths(p.widths, indented(eventRow(r, now)))
+		p.widths = widths(p.widths, indented(p.row(r, now)))
 	}
 	at := func(r views.EventRow) time.Time { return r.At }
-	row := func(r views.EventRow) []string { return eventRow(r, now) }
+	row := func(r views.EventRow) []string { return p.row(r, now) }
 	table, err := writeDays(p.out, slices.Values(rows), at, row, "events", from, now, p.widths)
 	p.day = table.day
 	return err
@@ -188,7 +205,7 @@ func (p *eventsText) list(held iter.Seq[events.Held], from, now time.Time) error
 func (p *eventsText) follow(h events.Held) error {
 	now := p.now()
 	told := p.telling.Row(h, now)
-	row := indented(eventRow(told, now))
+	row := indented(p.row(told, now))
 	if p.day.IsZero() || !prose.SameDay(now, p.day, told.At) {
 		p.day = dayOf(now, told.At)
 		if err := (dayTable{day: p.day}).writeHeading(p.out, now, false); err != nil {
@@ -199,11 +216,12 @@ func (p *eventsText) follow(h events.Held) error {
 	return writeRow(p.out, row, p.widths)
 }
 
-// eventRow is the row of the event r, at now: when it happened, as
-// prose.Dated says every time of an event, its session's id cut short, its
-// kind, its account and what happened, as views.Telling tells them.
-func eventRow(r views.EventRow, now time.Time) []string {
-	return []string{prose.Dated(now, r.At), status.ShortID(prose.Clean(r.Session)), r.Kind, r.Account.String(), r.What.String()}
+// row is the row of the event r, at now: when it happened, as prose.Dated
+// says every time of an event, its session's id cut short, its kind, its
+// account and what happened, as views.Telling tells them, each account named
+// as the printer's names name it.
+func (p *eventsText) row(r views.EventRow, now time.Time) []string {
+	return []string{prose.Dated(now, r.At), status.ShortID(prose.Clean(r.Session)), r.Kind, r.Account.Named(p.names).String(), r.What.Named(p.names).String()}
 }
 
 // eventsFollower follows the router's events' files, a day's at a time, as
