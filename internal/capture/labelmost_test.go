@@ -95,7 +95,7 @@ var labelledViews = []page{
 // of LATELY's or a session's story beside the list, as "came from work: work
 // came under pressure".
 var sayings = []string{
-	`new( sessions)? → ▲ %s`, `cap: %s at `, `time %s alone`, `^\s*%s alone`, `◂ \d+ %s ▸`, `│ +\d+ %s +●`,
+	`new( sessions)? → ▲ %s`, `cap: %s at `, `time %s alone`, `^\s*%s alone`, `◂ %s ▸`, `│ +%s +●`,
 	`%s reached its cap`, `%s came under`, `moved to %s`, `started on %s,`, `came from %s:`,
 }
 

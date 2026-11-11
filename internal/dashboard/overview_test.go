@@ -116,7 +116,7 @@ func TestEachSectionsLeastAndMostRows(t *testing.T) {
 		{name: "ROUTING: a + 3, to 3a + 2", section: at(160, ByWindow).routingSection(doc, now), least: 6, most: 11},
 		{name: "ROUTING by account under 150 columns: a section of its own", section: at(149, ByAccount).routingSection(doc, now), least: 6, most: 11},
 		{name: "ROUTING by account from 150 columns: beside USAGE, no rows of its own", section: at(150, ByAccount).routingSection(doc, now), least: 0, most: 0},
-		{name: "ROUTING where its row's parts don't fit a row: two rows an account, 3a + 1", section: at(80, ByWindow).routingSection(doc, now), least: 10, most: 10},
+		{name: "ROUTING where its row's parts don't fit a row: two rows an account, 3a + 1", section: at(78, ByWindow).routingSection(doc, now), least: 10, most: 10},
 		{name: "SESSIONS: a row saying none runs", section: at(160, ByWindow).sessionsSection(doc, now), least: 3, most: 3},
 		{name: "SESSIONS: a session and how many more, to a row a session on each account its models go to", section: running.sessionsSection(doc, now), least: 4, most: 8},
 		{name: "SESSIONS on a phone: a session's two rows and how many more, to two rows a session", section: phone.sessionsSection(doc, now), least: 5, most: 14},
