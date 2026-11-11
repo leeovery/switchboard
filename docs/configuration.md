@@ -38,19 +38,19 @@ week_starts      = "monday"  # optional: the day calendar weeks start on
 when_router_down = "stop"    # optional: with the router down, claude stops, or "direct"
 
 [[account]]
-id      = "work"        # for good: letters, digits, '-' and '_'; its token is tokens/work
-label   = "Work"
+id      = "b6s7"        # written by switchboard, from the account's subscription; its token is tokens/b6s7
+label   = "Work"        # what every screen shows
 primary = true          # the account the browser and the Claude apps are signed into
 reserve = 0.1           # optional, on any account: the share of every window the router leaves unused
 plan    = "ultra"       # optional, on any account: its plan, pro, max or ultra
 
 [[account]]
-id    = "personal"
+id    = "k2m9"
 label = "Personal"
 plan  = "max"
 
 [[account]]
-id    = "side"
+id    = "q4tx"
 label = "Side"
 
 [prime]
@@ -120,20 +120,28 @@ cache_write_1h = 6.4
 
 ## `[[account]]` keys
 
-The config has one `[[account]]` table for each subscription, and at least one.
+The config has one `[[account]]` table for each subscription, and at least one. Add and remove
+accounts with [`setup`](commands.md#setup) or [`accounts`](commands.md#accounts), which write the
+table, its `id` among it: switchboard makes each account's id from its subscription (see
+[Accounts and their ids](how-it-works.md#accounts-and-their-ids)). The other keys are yours to
+edit, by hand or with `accounts edit`.
 
 | Key | Default | Description |
 |---|---|---|
-| `id` | Required | The account's permanent name. It's also the name of the account's token file. |
-| `label` | The id | What the account is shown as, at most 100 characters. It can't hold anything shaped like a token. |
+| `id` | Required | The account's id, which switchboard writes as it adds the account, and every record and command names it by. It's also the name of the account's token file. Don't change it by hand. |
+| `label` | Required | What the account is shown as, at most 100 characters, and no other account's, ignoring case. It can't hold anything shaped like a token. A config edited by hand without one still loads, the account shown by its id. |
 | `primary` | The first account | Marks the account the browser and the Claude apps are signed into: [the primary](how-it-works.md#the-primary). At most one account can set it. |
 | `reserve` | `0` | The share of every window the router leaves unused: `0`, or more than `0` and less than `1`. [`accounts edit <id> --reserve <percent>`](commands.md#accounts) sets it, as a percentage. See [Reserves](how-it-works.md#reserves). |
 | `plan` | None (unknown) | The plan the account's subscription is on: `pro`, `max` or `ultra`. The names the plans had before Anthropic renamed them, `max5x` for `max` and `max20x` for `ultra`, still load. |
 
-An `id` must follow these rules:
+The ids switchboard makes are 4 lowercase letters and digits, a letter first, or a character
+longer where 4 clash. A config from before switchboard made ids loads too, and the router moves its
+accounts onto ids as it first starts (see
+[Upgrading to account ids](how-it-works.md#upgrading-to-account-ids)). Any `id` must follow these
+rules:
 
 - It starts with a letter or digit, followed by letters, digits, `-` and `_`.
-- It's unique, ignoring case, because macOS gives `work` and `Work` one token file.
+- It's unique, ignoring case, because macOS gives `b6s7` and `B6S7` one token file.
 - It isn't `auto`.
 - It holds nothing shaped like a token.
 
@@ -256,7 +264,7 @@ A plan name or a kind of token that switchboard doesn't know is an error, as any
 ## Tokens
 
 Each account's token lives in a file of its own, `<state dir>/tokens/<id>`, such as
-`~/.local/state/switchboard/tokens/work`. The file holds the token alone, and whitespace around the
+`~/.local/state/switchboard/tokens/b6s7`. The file holds the token alone, and whitespace around the
 token is ignored. Switchboard reads no token from the environment.
 
 ### Token file permissions
@@ -360,18 +368,18 @@ While the router runs, it posts desktop notifications, whether or not a dashboar
 
 - **Limits:** An account hits a limit. The notification waits 5 seconds for the sessions the limit
   moves, then tells of them together, such as
-  `work · Work hit its Session limit, back at Mon 18:10 — 3 sessions moved to side · Side`.
-- **Room again:** An account has room again, such as `work · Work has room again`.
+  `b6s7 · Work hit its Session limit, back at Mon 18:10 — 3 sessions moved to q4tx · Side`.
+- **Room again:** An account has room again, such as `b6s7 · Work has room again`.
 - **Warnings:** A window passes the share set in `warning`. It's posted once until the
   window resets, such as
-  `work · Work: Week at 91%`.
+  `b6s7 · Work: Week at 91%`.
 - **Moves:** Every other move, such as
-  `session 18bb978f moved from work · Work to side · Side (rescored after 1h 2m idle)`. These are
+  `session 18bb978f moved from b6s7 · Work to q4tx · Side (rescored after 1h 2m idle)`. These are
   off unless you turn them on.
 
 It also tells you when an account's token nears the end of its year, whatever the keys say: once
 when 30 days or fewer are left, and again at 7, such as
-`work · Work: token expires 17 Nov 2026 · 21 days left — switchboard setup makes a new one`, or
+`b6s7 · Work: token expires 17 Nov 2026 · 21 days left — switchboard setup makes a new one`, or
 `token expired …` once it's past. A router started with a token already within either tells only
 the nearest. A restart doesn't tell either again, and a new token starts afresh.
 
