@@ -630,6 +630,66 @@ func (c *losingChooser) Choose(ctx context.Context, req Request) Choice {
 	return choice
 }
 
+func TestAnAccountAReplayMovesOnToThatLosesItsTokenBeforeTheRequestGoesOutIsChosenAgain(t *testing.T) {
+	clock := &testClock{now: start}
+	read := tokenstest.Files{"work": workToken, "personal": personalToken, "side": sideToken}.Read
+	r := newHeldRouter(t, clock, &stubProber{}, read, heldWork, heldSide)
+	defer r.probes.stop()
+	// Each has room, side's quota needing using sooner than personal's.
+	r.state.record("work", []quota.Window{session, laterWeek}, r.state.mark())
+	r.state.record("personal", []quota.Window{session, laterWeek}, r.state.mark())
+	r.state.record("side", []quota.Window{session, soonWeek}, r.state.mark())
+	one := key{session: "one", model: opus}
+	assign(r.sessions, one, "", decision{account: "work", reason: reasonNew}, start)
+	side, _ := r.accounts.byID("side")
+	r.proxy.chooser = &losingChooser{Chooser: r.proxy.chooser, lost: side}
+	upstream := &scriptedUpstream{answers: map[string][]answer{workToken: {limitHit}, personalToken: {served}, sideToken: {served}}}
+	r.proxy.transport = upstream
+
+	// Work's limit moves the request on, to side, which loses its token as
+	// it's chosen.
+	if rec := routeOn(t, r, "one", workToken); rec.Code != http.StatusOK {
+		t.Errorf("answered %d, want 200: personal has room", rec.Code)
+	}
+	if sent := upstream.sentWith(); !slices.Equal(sent, []string{workToken, personalToken}) {
+		t.Errorf("the request went out on %q, want work's token, then personal's", sent)
+	}
+	if got := r.sessions.lookup(one).current; got.Account != "personal" {
+		t.Errorf("the session is on %q, want personal", got.Account)
+	}
+}
+
+func TestAClientIsTheAccountWhoseOwnTokenItSendsBeforeOneFoundHoldingIt(t *testing.T) {
+	tests := []struct {
+		name string
+		// side is the token side's file holds; work's holds side's, found
+		// another subscription's, and gone has it hold none since, for two
+		// looks.
+		side string
+		gone bool
+		want string
+	}{
+		{name: "the account holding it its own, after the one found holding it", side: sideToken, want: "side"},
+		{name: "the one found holding it, where none holds it its own", side: sideOwnToken, want: "work"},
+		{name: "the one found holding it, its file gone since, where none holds it its own", side: sideOwnToken, gone: true, want: "work"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			as := resolve(testConfigured, tokenstest.Files{"work": sideToken, "side": tt.side}.Read, unrecorded)
+			work, _ := as.byID("work")
+			work.secret.disown(hash(sideToken), true)
+			if tt.gone {
+				for range 2 {
+					work.secret.reload(tokens.Token{}, tokenstest.Missing("work"), takenNote{}, start)
+				}
+			}
+			if got, ok := as.byToken(sideToken, start); !ok || got.ID != tt.want {
+				t.Errorf("a client sending side's token is %q (found: %v), want %s", got.ID, ok, tt.want)
+			}
+		})
+	}
+}
+
 func TestAChoiceOfAnAccountThatLosesItsTokenBeforeTheRequestGoesOutIsMadeAgain(t *testing.T) {
 	tests := []struct {
 		name string

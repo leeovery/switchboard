@@ -271,6 +271,24 @@ func TestAnInstallIDThatDoesntReadFailsNoImportThatDoesntNeedIt(t *testing.T) {
 	wantHeld(t, cfg, date, asMoved(requestLines.linesOf(date, 1)))
 }
 
+// An import judges the accounts this Mac configures by its config file as it
+// stands, as the record is kept in step with, never by the config the router
+// started with: an account added to the config since, which the record holds
+// as configured here, takes no label or organization from another Mac.
+func TestAnImportJudgesTheAccountsConfiguredByTheConfigTheRecordFollows(t *testing.T) {
+	cfg := importConfig(t)
+	putRecord(t, cfg.StateDir, movedWork)
+	configuring(&cfg, workID)
+	path := filepath.Join(t.TempDir(), "config.toml")
+	put(t, path, []byte("[[account]]\nid = \""+workID+"\"\n\n[[account]]\nid = \"h7c2\"\n"), now)
+	cfg.ConfigFile = router.Watch(path)
+	stageOthers(t, cfg, true)
+	putRecord(t, folder(cfg, 1), identity.Entry{ID: "h7c2", Organization: "test-org-team", Label: "Team", Added: stagedOn, Configured: true})
+
+	importNow(t, cfg)
+	wantRecord(t, cfg.StateDir, movedWork, identity.Entry{ID: "h7c2"})
+}
+
 // A subscription the other Mac has under another id, and had under another
 // before, is taken in under this Mac's id, matched by its organization.
 func TestAnAccountUnderAnotherIDThereIsTakenInUnderThisMacsByItsOrganization(t *testing.T) {

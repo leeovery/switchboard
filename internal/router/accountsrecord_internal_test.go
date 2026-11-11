@@ -2,6 +2,7 @@ package router
 
 import (
 	"os"
+	"path/filepath"
 	"slices"
 	"testing"
 	"time"
@@ -198,5 +199,36 @@ func TestAnAccountConfiguredUnderAnIDTheRecordHoldsForAnotherIsLeftOut(t *testin
 	}
 	if !log.Has("level=WARN", "left out of the record", "account=side") {
 		t.Errorf("log reads\n%s\nwant side told left out", log)
+	}
+}
+
+func TestTheRecordIsKeptInStepWithTheConfigAsItStandsUnderTheRecordsLock(t *testing.T) {
+	clock := &testClock{now: start}
+	cfg := testConfig(clock.read, &stubProber{}, testTokens.Read)
+	cfg.StateDir = t.TempDir()
+	// The config and the record as accounts remove side, then accounts add
+	// n4p8, left them, each under the record's lock.
+	path := filepath.Join(t.TempDir(), "config.toml")
+	writeFile(t, path, "[[account]]\nid = \"work\"\nlabel = \"Work\"\n\n[[account]]\nid = \"personal\"\nlabel = \"Personal\"\n\n[[account]]\nid = \"n4p8\"\nlabel = \"Team\"\n")
+	cfg.ConfigFile = Watch(path)
+	removedSide := heldSide
+	removedSide.Label, removedSide.Removed = "Side", start
+	addedTeam := identity.Entry{ID: "n4p8", Added: start}
+	if err := identity.NewFile(cfg.StateDir).Update(func(r *identity.Record) error {
+		r.Accounts = []identity.Entry{heldWork, livePersonal, removedSide, addedTeam}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	r := newTestRouterOf(t, cfg)
+
+	// Upkeep's look read the config before either was saved, and keeps the
+	// record in step only once it holds the record's lock.
+	clock.now = start.Add(time.Minute)
+	configure(r, testConfigured)
+	for _, want := range []identity.Entry{removedSide, addedTeam} {
+		if e := entryOf(t, r, want.ID); e != want {
+			t.Errorf("the record holds %+v, want %+v, as the config under the lock has it", e, want)
+		}
 	}
 }

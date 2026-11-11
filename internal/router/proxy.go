@@ -343,8 +343,9 @@ func (p *ignoredPins) honoured(account string) {
 // rechosen is choice, the chooser's for req, unless it names an account that
 // can no longer be sent on, as a probe found its token another
 // subscription's, or its file gone, since the chooser chose it: then the
-// chooser takes back what it chose, which came to nothing, and is asked
-// again, as next asks it, once an account at most.
+// chooser takes back what it chose for req, which came to nothing, and is
+// asked again, once an account at most. A request's first choice is had so,
+// and each after, as next has it.
 func (p *proxy) rechosen(ctx context.Context, req Request, choice Choice) Choice {
 	for range len(p.accounts) {
 		if a, ok := p.accounts.byID(choice.Account); !ok || a.hasToken() {
@@ -407,10 +408,10 @@ func (p *proxy) reserved(w http.ResponseWriter, ex *exchange, choice Choice) {
 }
 
 // next asks the chooser which account a request goes out on after those it
-// has been tried on, and returns it with the choice, which says why. It
-// reports false when none other has room for it.
+// has been tried on, as rechosen has it, and returns it with the choice,
+// which says why. It reports false when none other has room for it.
 func (p *proxy) next(ctx context.Context, req Request) (account, Choice, bool) {
-	choice := p.chooser.Choose(ctx, req)
+	choice := p.rechosen(ctx, req, p.chooser.Choose(ctx, req))
 	a, ok := p.accounts.byID(choice.Account)
 	if _, tried := req.attempt(a.ID); choice.NoRoom || !ok || !a.hasToken() || tried {
 		return account{}, Choice{}, false

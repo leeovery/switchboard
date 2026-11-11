@@ -197,22 +197,23 @@ func (s *secret) disown(sum string, foreign bool) bool {
 	return true
 }
 
-// sentBy reports whether a client sending token, whose hash is sum, is the
-// account's by the token it holds: while its file holds a usable token, and,
-// while a probe has found that token another subscription's, whether its
-// file holds it still or not, so a client sending it is never passed through
-// on it. Each comparison takes as long however much of the token, or its
-// hash, matches, so response times can't give it away a byte at a time.
-func (s *secret) sentBy(token, sum string) bool {
+// sends reports whether token is the usable token of the account's own it
+// holds, which requests go out on. The comparison takes as long however much
+// of the token matches, so response times can't give it away a byte at a
+// time.
+func (s *secret) sends(token string) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	switch {
-	case s.foreign != "":
-		return subtle.ConstantTimeCompare([]byte(s.foreign), []byte(sum)) == 1
-	case s.unusable == nil:
-		return subtle.ConstantTimeCompare([]byte(s.token.Reveal()), []byte(token)) == 1
-	}
-	return false
+	return s.unusable == nil && s.foreign == "" && subtle.ConstantTimeCompare([]byte(s.token.Reveal()), []byte(token)) == 1
+}
+
+// disowns reports whether sum is the hash of the token the account holds
+// that a probe found another subscription's, whether its file holds it still
+// or not. The comparison takes as long however much of the hash matches.
+func (s *secret) disowns(sum string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.foreign != "" && subtle.ConstantTimeCompare([]byte(s.foreign), []byte(sum)) == 1
 }
 
 // hasToken reports whether the account has a usable token of its own, which
@@ -284,23 +285,29 @@ func (as accounts) byID(id string) (account, bool) {
 	return as[i], true
 }
 
-// byToken returns the account whose token is token, as sentBy says, or was
-// until it was replaced, while the account has a usable token and the one
-// before still counts as the account's at now: a client started before
-// carries on sending it. An account's token now wins over one another
-// account had before. One whose token is another subscription's is found by
-// it too, so its client's requests are routed, never sent on as they came.
-// Each comparison takes as long however much of the token matches, so
-// response times can't give a token away a byte at a time.
+// byToken returns the account a client sending token is: the first that
+// holds it, usable and its own, as sends says; else the first a probe found
+// holding it another subscription's, as disowns says, so its client's
+// requests are routed, never passed through on it; else the first that had
+// it until it was replaced, while the account has a usable token and the one
+// before still counts as the account's at now, as a client started before
+// carries on sending it. Each comparison takes as long however much of the
+// token matches, so response times can't give a token away a byte at a time.
 func (as accounts) byToken(token string, now time.Time) (account, bool) {
 	if token == "" {
 		return account{}, false
 	}
 	sum := hash(token)
-	if a, ok := as.find(func(a account) bool { return a.secret.sentBy(token, sum) }); ok {
-		return a, true
+	for _, match := range []func(account) bool{
+		func(a account) bool { return a.secret.sends(token) },
+		func(a account) bool { return a.secret.disowns(sum) },
+		func(a account) bool { return a.holdsToken() && a.secret.was(sum, now) },
+	} {
+		if a, ok := as.find(match); ok {
+			return a, true
+		}
 	}
-	return as.find(func(a account) bool { return a.holdsToken() && a.secret.was(sum, now) })
+	return account{}, false
 }
 
 // find returns the first account that match reports true of.

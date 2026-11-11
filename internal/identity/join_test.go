@@ -118,6 +118,41 @@ func cmpMap(m map[string]string) map[string]string {
 	return m
 }
 
+// An account removed here named by its id alone, as the router names one
+// that left the config while no router ran, takes the label another record
+// names it by, configured there or removed, from this Mac's own export too;
+// any other label it has here it keeps.
+func TestJoiningARecordNamesAnAccountRemovedHereByItsIDAlone(t *testing.T) {
+	later := removed.Add(24 * time.Hour)
+	bare := identity.Entry{ID: "m2x7", Organization: "test-org-side", Label: "m2x7", Added: added, Removed: removed}
+	tests := []struct {
+		name  string
+		here  identity.Entry
+		other identity.Entry
+		own   bool
+		want  string
+	}{
+		{name: "removed there too", here: bare, other: identity.Entry{ID: "m2x7", Organization: "test-org-side", Label: "Side", Added: added, Removed: later}, want: "Side"},
+		{name: "configured there", here: bare, other: identity.Entry{ID: "m2x7", Organization: "test-org-side", Label: "Side", Added: added, Configured: true}, want: "Side"},
+		{name: "under another id there, matched by its organization", here: bare, other: identity.Entry{ID: "z9k4", Organization: "test-org-side", Label: "Side", Added: added, Removed: later}, want: "Side"},
+		{name: "from this Mac's own export, as it was configured here then", here: bare, other: identity.Entry{ID: "m2x7", Organization: "test-org-side", Label: "Side", Added: added, Configured: true}, own: true, want: "Side"},
+		{name: "named by its id alone there too", here: bare, other: identity.Entry{ID: "m2x7", Organization: "test-org-side", Label: "M2X7", Added: added, Removed: later}, want: "m2x7"},
+		{name: "named otherwise here", here: identity.Entry{ID: "m2x7", Organization: "test-org-side", Label: "Spare", Added: added, Removed: removed}, other: identity.Entry{ID: "m2x7", Organization: "test-org-side", Label: "Side", Added: added, Removed: later}, want: "Spare"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			as := joinAs
+			as.Own, as.Labels = tt.own, !tt.own
+			record, _ := joined(t, identity.Record{Accounts: []identity.Entry{tt.here}}, as, tt.other)
+			want := tt.here
+			want.Label = tt.want
+			if !slices.Equal(record.Accounts, []identity.Entry{want}) {
+				t.Errorf("joined\n%+v\nwant\n%+v", record.Accounts, []identity.Entry{want})
+			}
+		})
+	}
+}
+
 // No label is taken from this Mac's own export, which may be older than a
 // label another Mac gave since.
 func TestJoiningThisMacsOwnRecordTakesNoLabel(t *testing.T) {

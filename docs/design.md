@@ -463,7 +463,9 @@ Learned from TeamClaude (MIT, Node) and taken as ideas, not code:
   `count_tokens`, carrying the token of an account the router found holding another
   subscription's, or one it had before, is routed as that account's, never passed through on it,
   and goes out on another account. So is one carrying the token found so after the account's file
-  has lost it, while the finding stands. Where none can take it, as every other is without a token
+  has lost it, while the finding stands. An account whose own token it is takes the request as its
+  client's first, as where one account's file was given another's token. Where none can take it,
+  as every other is without a token
   or refused it lately, switchboard answers 503, shaped as the API shapes its errors and marked
   `X-Should-Retry: false`, saying why the account can't take it and what puts it right; nothing
   goes out, and the request's session stays where it was, moved nowhere (see Account identity). A
@@ -857,7 +859,11 @@ holds the formats below; the screens as signed off in Paper (see The screens, be
   its token file left as the router leaves one today; one configured again is live again, as
   `accounts add` makes it. An id that clashes with another account's, or one an account had before
   ids were made, ignoring case, is left out and logged; an account only another Mac configures, as
-  an import keeps it, is left as it is.
+  an import keeps it, is left as it is. It reads the config under the record's lock, as `accounts
+  add` and `remove` save the config with the record under it, so it never acts on the config as it
+  stood a moment before either; an import judges which accounts are configured here by the same
+  config. An account marked removed under its id alone, as one that left the config while no router
+  ran, takes its label from the next import whose record names it otherwise.
 - **Removing:** `accounts remove <id>` takes the account out of the config and deletes its token, as
   today, and the accounts record keeps it, marked removed, with its label. History, Accounts and
   the verbs name it by that label, marked removed, as the Paper frames draw it, so it's told apart

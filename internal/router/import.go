@@ -236,12 +236,14 @@ func (r *Router) takeStaged(ctx context.Context, dir string) (Imported, error) {
 // joins them, writing the record where that changed it, and returns how each
 // folder is renamed onto its ids, in the same order, this Mac being the
 // router's install, as export's InstallID names it, read only where a folder
-// needs it, and its accounts. It fails, writing nothing, as JoinFolder does,
-// as importStatus tells.
+// needs it, and its accounts, as the config the record is kept in step with
+// makes them under the record's lock, as accountsRecord's followed gives
+// them. It fails, writing nothing, as JoinFolder does, as importStatus tells.
 func (r *Router) joinStaged(folders []string) ([]idmove.Renames, error) {
-	here := idmove.Here{Install: sync.OnceValues(func() (string, error) { return export.InstallID(r.cfg.StateDir) }), Accounts: r.cfg.Accounts}
+	here := idmove.Here{Install: sync.OnceValues(func() (string, error) { return export.InstallID(r.cfg.StateDir) })}
 	renames := make([]idmove.Renames, len(folders))
 	err := identity.NewFile(r.cfg.StateDir).Change(func(record *identity.Record, _ func() error) error {
+		here.Accounts = r.upkeep.record.followed()
 		for i, folder := range folders {
 			rename, err := idmove.JoinFolder(folder, record, here)
 			if err != nil {
