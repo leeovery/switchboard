@@ -1,6 +1,7 @@
 // Package export copies the history in the state directory, what can't be
 // built again, into a folder: the request ledger's lines, the days'
-// summaries, the readings history and the router's events, into a folder of
+// summaries, the readings history, the router's events and the accounts
+// record, which names the accounts the rest name by their ids, into a folder of
 // the Mac's own in it, mac-<install id>, laid out as the state directory lays
 // them out, each day's lines in one compressed file, and an export.json
 // saying whose folder it is. It writes a file only where it has changed
@@ -19,6 +20,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/events"
+	"github.com/leeovery/switchboard/internal/identity"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/readings"
 )
@@ -86,8 +88,8 @@ type Leftover struct {
 // Export exports the history into the Mac's folder in dir, making each as
 // it's needed, the user's alone, as NoParents says, and removing first what
 // writes cut short left in it, as removeLeftovers says: each day's file of
-// lines, as dayLines.export says, and each day's summary, copied as copyFile
-// says; then export.json, saying when. A day's file that can't be read is
+// lines, as dayLines.export says, and each day's summary and the accounts
+// record, copied as copyFile says; then export.json, saying when. A day's file that can't be read is
 // passed over, and named in the result, as is a file writes cut short left
 // that can't be removed. It fails where dir is a file, or
 // anything in it can't be made or written, and where the state directory's
@@ -121,6 +123,9 @@ func (e Exporter) Export(dir string) (Result, error) {
 		}
 	}
 	if err := x.summaries(ledger.Dir(e.StateDir), ledger.Dir(folder)); err != nil {
+		return Result{}, fmt.Errorf("can't export into %s: %w", dir, err)
+	}
+	if err := x.record(e.StateDir, folder); err != nil {
 		return Result{}, fmt.Errorf("can't export into %s: %w", dir, err)
 	}
 	if err := writeManifest(folder, id, e.Now()); err != nil {
@@ -189,6 +194,18 @@ func (x *exporting) summaries(src, dst string) error {
 		if err := x.note("the request ledger's summary of "+date, date, did, err); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+// record copies the accounts record in the state directory at state into
+// the Mac's folder at folder, as copyFile copies it, making the folder as
+// x.mkdir does: none where there's none. It counts for no day, and fails
+// where the record can't be read, as an import of the folder needs it to
+// take in the accounts its days name.
+func (x *exporting) record(state, folder string) error {
+	if _, err := copyFile(identity.NewFile(state).Path(), identity.NewFile(folder).Path(), x.mkdir); err != nil {
+		return fmt.Errorf("export the accounts record: %w", err)
 	}
 	return nil
 }

@@ -10,6 +10,7 @@ import (
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/status"
 )
 
 // DaysPage is Days as the dashboard draws it: the eight weeks to this one, a
@@ -22,7 +23,8 @@ type DaysPage struct {
 	ToCome int
 	// ByModel are the families used in the eight weeks, a strip each, in the
 	// version table's order; ByAccount the configured accounts, in the
-	// config's.
+	// config's, then those removed that the eight weeks record anything of,
+	// in the accounts record's.
 	ByModel   []DaysStrip
 	ByAccount []DaysStrip
 }
@@ -32,7 +34,11 @@ type DaysPage struct {
 // eight weeks' from the first, those still to come among them; of a family,
 // Share, its share of the eight weeks' worth; and of an account, Limits, the
 // 5-hour limits it hit, Label, its label, as the config gives it, and
-// Primary, set on the primary.
+// Primary, set on the primary. Of an account removed, Label is the label it
+// showed last, Removed says when it was removed, as RemovedAccount's Said
+// says it, and Gone is the place among its days of the first after the one
+// it was removed on, from which on it has none: len(Days) where that's after
+// them all, and 0 where it's before them.
 type DaysStrip struct {
 	Of      string
 	Days    []StripDay
@@ -40,6 +46,8 @@ type DaysStrip struct {
 	Limits  int
 	Label   string
 	Primary bool
+	Removed string
+	Gone    int
 }
 
 // StripDay is a day of a strip: its level, 0 to 4, on the strips' scale; and
@@ -52,9 +60,7 @@ type StripDay struct {
 // Recorded reports whether anything is recorded in the eight weeks: a
 // family's use, or an account's week rising or its 5-hour limit.
 func (p DaysPage) Recorded() bool {
-	return len(p.ByModel) > 0 || slices.ContainsFunc(p.ByAccount, func(s DaysStrip) bool {
-		return s.Limits > 0 || slices.ContainsFunc(s.Days, func(d StripDay) bool { return d.Level > 0 })
-	})
+	return len(p.ByModel) > 0 || slices.ContainsFunc(p.ByAccount, DaysStrip.recorded)
 }
 
 // weekDays are the days of the weeks to this one, as Days and Accounts' BY
@@ -95,7 +101,7 @@ func daysPageOf(in HistoryInput, days []Day) DaysPage {
 		Weeks:     weekDates(w.first, weeksShown),
 		ToCome:    len(w.days) - 1 - w.today,
 		ByModel:   w.byFamily(versions{table: in.Prices, family: in.Family}),
-		ByAccount: w.byAccount(in.Accounts, in.WeekWindow),
+		ByAccount: w.byAccount(in.Accounts, in.Removed, in.WeekWindow),
 	}
 }
 
@@ -171,27 +177,48 @@ func (w weekDays) addModel(families map[string]*familyDays, v versions, i int, m
 }
 
 // byAccount are BY ACCOUNT's strips: a configured account each, in the
-// config's order, by its label, the primary marked, each day the points of
-// its week, the window with the key week, it used that day, every account on
-// one scale; and the 5-hour limits it hit, each day and in all.
-func (w weekDays) byAccount(accounts config.Accounts, week string) []DaysStrip {
-	rises := make([][]float64, len(accounts))
-	limits := make([][]int, len(accounts))
+// config's order, by its label, the primary marked; then each account
+// removed, by the label it showed last, said removed, where the eight weeks
+// record anything of it. Each day is the points of its week, the window with
+// the key week, it used that day, every account on one scale; and the
+// 5-hour limits it hit, each day and in all.
+func (w weekDays) byAccount(accounts config.Accounts, removed status.RemovedAccounts, week string) []DaysStrip {
+	strips := make([]DaysStrip, 0, len(accounts)+len(removed))
+	for _, a := range accounts {
+		strips = append(strips, DaysStrip{Of: a.ID, Label: a.Label, Primary: a.Primary})
+	}
+	for _, a := range removed {
+		strips = append(strips, DaysStrip{Of: a.ID, Label: a.Label, Removed: a.Said(), Gone: w.after(a.Removed)})
+	}
+	rises := make([][]float64, len(strips))
+	limits := make([][]int, len(strips))
 	var active []float64
-	for i, a := range accounts {
-		rises[i], limits[i] = w.risesOf(a.ID, week)
+	for i, s := range strips {
+		rises[i], limits[i] = w.risesOf(s.Of, week)
 		active = appendActive(active, rises[i])
 	}
 	cuts := quarterCuts(active)
-	strips := make([]DaysStrip, len(accounts))
-	for i, a := range accounts {
-		strips[i] = DaysStrip{Of: a.ID, Label: a.Label, Primary: a.Primary, Days: levelled(rises[i], cuts)}
+	for i := range strips {
+		strips[i].Days = levelled(rises[i], cuts)
 		for d, n := range limits[i] {
 			strips[i].Days[d].Limit = n > 0
 			strips[i].Limits += n
 		}
 	}
-	return strips
+	return slices.DeleteFunc(strips, func(s DaysStrip) bool { return s.Removed != "" && !s.recorded() })
+}
+
+// recorded reports whether the strip records anything of its account: a day
+// its week rose, or a 5-hour limit.
+func (s DaysStrip) recorded() bool {
+	return s.Limits > 0 || slices.ContainsFunc(s.Days, func(d StripDay) bool { return d.Level > 0 })
+}
+
+// after is the place among the weeks' days of the first after the local day
+// of t: len(w.days) where that's after them all, and 0 where it's before
+// them.
+func (w weekDays) after(t time.Time) int {
+	return min(max(w.index(dayfile.CivilOf(t))+1, 0), len(w.days))
 }
 
 // risesOf are, of the account with the given id, each day's rise of the

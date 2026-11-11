@@ -37,8 +37,10 @@ type AccountsShown struct {
 	Shown  AccountsView
 	Period views.AccountsPeriod
 	// Accounts are the configured accounts, in the config's order: Compare's
-	// columns and Detail's list.
+	// columns and Detail's list; and Removed the accounts removed, as
+	// status.RemovedOf gives them, which Detail's LATELY may name.
 	Accounts config.Accounts
+	Removed  status.RemovedAccounts
 	// Focused is set once ← or → has put Compare's focus on a column, and
 	// Focus is its account, by id, "" for all accounts; First is the place
 	// among the accounts of the first Compare shows, as its columns scroll

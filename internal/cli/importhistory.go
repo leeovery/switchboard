@@ -33,6 +33,12 @@ or one that counts no line where the folder's counts some. A day's lines
 past keeping, as [ledger] keep and [history] keep say, are left out, and its
 summary taken in as that says.
 
+A folder's accounts record joins this Mac's, and an import whose record
+disagrees with it, as one naming an account of this Mac's under another id,
+is refused, taking nothing in. Accounts a folder names by the ids they had
+before switchboard made them, as one exported before then does, are taken in
+under the ids made.
+
 It copies the folders into the state directory, then has the router take
 them in, waiting however long that takes, so it needs the router running:
 start it with switchboard service install (or switchboard serve). An import

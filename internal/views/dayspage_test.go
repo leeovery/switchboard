@@ -8,6 +8,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
@@ -124,6 +125,42 @@ func TestDaysByAccountIsAStripAnAccountOnOneScaleOfItsWeek(t *testing.T) {
 	}
 	if got := views.NewPast(in, days).Days().ByAccount; !reflect.DeepEqual(got, want) {
 		t.Errorf("BY ACCOUNT is\n%+v\nwant\n%+v", got, want)
+	}
+}
+
+// BY ACCOUNT strips an account removed after the configured, where the eight
+// weeks record anything of it, by the label it showed last, said removed,
+// told apart from a configured account given that label since; its days
+// after the one it was removed on its own none. One removed that the eight
+// weeks record nothing of has no strip.
+func TestDaysByAccountStripsAnAccountRemovedByItsLastLabel(t *testing.T) {
+	days := daysFrom("2026-08-10",
+		day("2026-08-20", rose("h7c2", map[string]float64{"7d": 0.2})),
+		day("2026-09-03", rose("h7c2", map[string]float64{"7d": 0.4}, limit("5h", "2026-09-03", "10:00"))),
+		day("2026-10-06", rose("work", map[string]float64{"7d": 0.5})),
+	)
+	in := input(days)
+	in.Accounts = config.Accounts{{ID: "work", Label: "team"}}
+	in.Removed = status.RemovedAccounts{
+		{ID: "h7c2", Label: "team", Removed: onAt("2026-09-04", "16:00").UTC()},
+		{ID: "k3f9", Label: "spare", Removed: onAt("2026-09-10", "09:00").UTC()},
+	}
+
+	got := views.NewPast(in, days).Days().ByAccount
+	if len(got) != 2 {
+		t.Fatalf("BY ACCOUNT is %+v, want work's strip, then the removed team's alone", got)
+	}
+	if work := got[0]; work.Of != "work" || work.Label != "team" || work.Removed != "" || work.Days[50].Level == 0 {
+		t.Errorf("BY ACCOUNT's first strip is %+v, want work's, labelled team, not removed", work)
+	}
+	team := got[1]
+	// The eight weeks start on 17 Aug: 20 Aug is their 4th day, 3 Sep their
+	// 18th, and 5 Sep, the day after the one team was removed on, their 20th.
+	if team.Of != "h7c2" || team.Label != "team" || team.Removed != "removed 4 Sep" || team.Gone != 19 || team.Limits != 1 {
+		t.Errorf("the removed team's strip is %+v, want it labelled team, removed 4 Sep, gone from the 20th day, with 1 5-hour limit", team)
+	}
+	if team.Days[3].Level == 0 || team.Days[17].Level == 0 || !team.Days[17].Limit {
+		t.Errorf("the removed team's days are %+v, want its week's rises on the 4th and 18th, its limit on the 18th", team.Days)
 	}
 }
 

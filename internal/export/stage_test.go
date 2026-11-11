@@ -187,6 +187,7 @@ func TestStageLaysOutEachFolderNumberedInOrderAsTheRouterReadsIt(t *testing.T) {
 		kinds[2].compressed(one, day2): {gzipOf(t, linesOf(`{"n":3}`)), compressedAt},
 		requests.compressed(two, day2): {gzipOf(t, linesOf(`{"n":4}`)), appendedAt},
 		summary(two, "2025-10-02"):     {[]byte("{\"version\":5}\n"), summarisedAt},
+		accountsRecord(one):            {[]byte("{\"version\":1,\"accounts\":[]}\n"), summarisedAt},
 	}
 	for path, f := range files {
 		writeFile(t, path, f.data, f.modified)

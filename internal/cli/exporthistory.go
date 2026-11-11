@@ -20,9 +20,9 @@ func newExportCommand(a *app) *cobra.Command {
 		Short: "Copy this Mac's history into a folder of its own in <dir>",
 		Long: `Copy this Mac's history into a folder of its own in <dir>, mac-<id>,
 named by this install's id, which the first export makes: the request
-ledger's lines, the days' summaries, the readings history and the router's
-events, each day's lines in one compressed file, and export.json, saying
-whose folder it is and when it was exported. Kept in a folder Dropbox or
+ledger's lines, the days' summaries, the readings history, the router's
+events and the accounts record, each day's lines in one compressed file, and
+export.json, saying whose folder it is and when it was exported. Kept in a folder Dropbox or
 iCloud Drive syncs, the history outlasts the Mac.
 
 A day exported before, and unchanged since, is left as it is, and nothing in

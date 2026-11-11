@@ -131,8 +131,11 @@ type Config struct {
 	WindowName func(key string) string
 	// Accounts are the configured accounts, whose plans History prices its
 	// worth against, and WeekStarts the day its calendar weeks start on.
+	// Removed are the accounts removed, as status.RemovedOf gives them, which
+	// History and Accounts' Detail name by the label each showed last.
 	Accounts   config.Accounts
 	WeekStarts time.Weekday
+	Removed    status.RemovedAccounts
 	// WeekWindow is the key of the window a week long every model shares,
 	// the accounts' own weeks, which History's Weeks counts; and Family reads
 	// a model's family from its id, for one the version table doesn't name.
@@ -475,6 +478,7 @@ func New(ctx context.Context, cfg Config) Model {
 		keeping:     keeping{gate: new(prefsGate)},
 	}
 	m.accounts.shown.Accounts, m.past.page.Accounts = cfg.Accounts, cfg.Accounts
+	m.accounts.shown.Removed = cfg.Removed
 	if m.after == nil {
 		m.after = after
 	}

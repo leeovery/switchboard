@@ -9,21 +9,24 @@ import (
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/status"
 )
 
 // History is what History's views and Accounts' build over the days asked
 // for, block by block, each oldest first, as history prints them: the days,
 // Year's grid, BY MONTH's rows, Weeks' weeks, Tokens' weeks, the accounts'
-// totals and plans, and Weeks' verdicts.
+// totals and plans, and Weeks' verdicts; and the accounts removed that the
+// days name, each by the label it showed last.
 type History struct {
-	Days     []Day       `json:"days"`
-	Year     Year        `json:"year"`
-	Months   []Month     `json:"months"`
-	Weeks    []Week      `json:"weeks"`
-	Tokens   []TokenWeek `json:"tokens"`
-	Totals   Totals      `json:"totals"`
-	Plans    []PlanCost  `json:"plans"`
-	Capacity Capacity    `json:"capacity"`
+	Days     []Day                  `json:"days"`
+	Year     Year                   `json:"year"`
+	Months   []Month                `json:"months"`
+	Weeks    []Week                 `json:"weeks"`
+	Tokens   []TokenWeek            `json:"tokens"`
+	Totals   Totals                 `json:"totals"`
+	Plans    []PlanCost             `json:"plans"`
+	Capacity Capacity               `json:"capacity"`
+	Removed  status.RemovedAccounts `json:"removed,omitempty"`
 }
 
 // HistoryInput is what a History is built from.
@@ -41,8 +44,10 @@ type HistoryInput struct {
 	// name the models' versions and families.
 	Prices ledger.Table
 	// Accounts are the configured accounts, whose plans the worth is priced
-	// against.
+	// against, and Removed the accounts removed, as status.RemovedOf gives
+	// them, which the days may name too.
 	Accounts config.Accounts
+	Removed  status.RemovedAccounts
 	// WeekStarts is the day the calendar's weeks start on.
 	WeekStarts time.Weekday
 	// WeekWindow is the key of the window a week long every model shares,
@@ -80,11 +85,29 @@ func NewHistory(in HistoryInput) History {
 		Year:     yearOf(days),
 		Months:   monthsOf(days, p, v, counted, today),
 		Weeks:    weeksOf(placed, in.Accounts),
-		Tokens:   tokensOf(days, p, v, counted, in.WeekStarts),
+		Tokens:   tokensOf(days, p, in.Removed, v, counted, in.WeekStarts),
 		Totals:   accountTotalsOf(before, days, in.Accounts, v),
 		Plans:    plansOf(days, p, pricedOver(asked, last.Format(time.DateOnly), counted, whole)),
 		Capacity: capacityOf(placed, wholeWeek(days, weekOf(to, in.WeekStarts)), in.Accounts, p, in.WeekWindow),
+		Removed:  removedNamed(in.Removed, days),
 	}
+}
+
+// removedNamed are the accounts of removed that days name, in removed's
+// order: none where they name none.
+func removedNamed(removed status.RemovedAccounts, days []Day) status.RemovedAccounts {
+	var named status.RemovedAccounts
+	for _, a := range removed {
+		if slices.ContainsFunc(days, func(d Day) bool { return d.names(a.ID) }) {
+			named = append(named, a)
+		}
+	}
+	return named
+}
+
+// names reports whether the day names the account with the given id.
+func (d Day) names(id string) bool {
+	return slices.ContainsFunc(d.Accounts, func(a ledger.PricedAccount) bool { return a.Account == id })
 }
 
 // countedFrom is the date of the first day counted of the days asked for

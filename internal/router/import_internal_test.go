@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/dayfile"
+	"github.com/leeovery/switchboard/internal/identity"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/readings"
@@ -336,6 +337,12 @@ func TestAnImportRetriedAfterOneCutShortTakesTheSummaryStagedOverARoundsBetween(
 	}
 	if got := linesCounted(t, summary); got != 2 {
 		t.Errorf("once the import was retried, the day's summary counts %d lines, want the one staged, of its 2 requests, in place of the round's of its readings alone", got)
+	}
+}
+
+func TestAnAccountsRecordStagedThatDisagreesIsAConflict(t *testing.T) {
+	if got := importStatus(fmt.Errorf("nothing was imported, as %w", identity.ErrConflict)); got != http.StatusConflict {
+		t.Errorf("importStatus() of an accounts record that disagrees = %d, want 409", got)
 	}
 }
 
