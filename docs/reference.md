@@ -11,6 +11,7 @@ directly, agents included. Each format is described field by field.
 - [The request ledger](#the-request-ledger)
 - [The day's summary](#the-days-summary)
 - [The router's events](#the-routers-events)
+- [Why a request went where it did](#why-a-request-went-where-it-did)
 - [The status document](#the-status-document)
 - [`status --session`'s JSON](#status---sessions-json)
 - [`history`'s JSON](#historys-json)
@@ -18,10 +19,24 @@ directly, agents included. Each format is described field by field.
 
 ## Rules for every format
 
-- **New fields:** Fields may be added to any format, but never renamed. When you read one, pass
-  over the fields you don't know.
+- **New fields:** Fields may be added to any format, but never renamed, and while the schema below
+  stands, a field's meaning and units never change. When you read one, pass over the fields you
+  don't know.
+- **The schema:** The object `status`, `usage`, `history` and `sessions` each print carries
+  `"schema": 1` as the first field at its top level. `requests` and `events` print each stored
+  line with `"schema": 1` put first; the line's own fields follow, as stored, as
+  [the request ledger](#the-request-ledger) and [the router's events](#the-routers-events) list
+  them. The files themselves hold no schema. The number goes up only where a field's meaning or
+  units change, or a field is removed. Fields are added without it.
 - **Accounts:** Accounts appear by their ids, never by a token. Their labels appear only in the
   status document's `accounts`.
+- **Reasons:** The reasons a request went where it did, and the reasons an account couldn't serve
+  it, are fixed words. See [Why a request went where it did](#why-a-request-went-where-it-did).
+- **Not a contract:** The text the commands print for a person, on a terminal or with `--pretty`,
+  and that of a command without `--json`, can change in any release: read `--json` instead. The
+  exception is `status --session`, which prints the bare id of the session's account on a line of
+  its own, for a statusline to read, and always will. `prefs.json`, the dashboard's own file, can
+  change too, as can the files the table below says are switchboard's own.
 
 ## Where things live
 
@@ -75,15 +90,15 @@ The state directory holds these files:
 |---|---|
 | `state.json` | The router's state that outlasts a restart: each session's account, the pins, each account's last readings, how long use stays on its account, which the weeks' forecast goes by, and the SHA-256 hashes of the account's token and of the tokens it replaced. See [Tokens](configuration.md#tokens). |
 | `control.sock` | The router's control API, which the commands and the dashboard talk to. |
-| `prefs.json` | What the dashboard remembers. See [`dashboard`](dashboard.md) and [Themes](dashboard.md#themes). |
+| `prefs.json` | What the dashboard remembers. It's the dashboard's own file, and its form can change with any release. See [`dashboard`](dashboard.md) and [Themes](dashboard.md#themes). |
 | `tokens/<id>` | Each account's token. See [Tokens](configuration.md#tokens). |
 | `tokens/<id>.taken` | When switchboard took each of the account's latest tokens, with each token's SHA-256 hash. See [When each token was taken](configuration.md#when-each-token-was-taken). |
 | `logs/` | `router.log`, `cli.log` and `launchd.log`. See [The logs](troubleshooting.md#the-logs). |
 | `history/readings-<date>.jsonl` | The [readings history](#the-readings-history), one file for each day. |
 | `ledger/requests-<date>.jsonl` | The [request ledger](#the-request-ledger)'s lines, one file for each day. |
 | `ledger/day-<date>.json` | Each [day's summary](#the-days-summary). |
-| `ledger/digest-<date>.json.gz` | Each day's digest: every session the day's summary names, as it stood at the day's end, its page among it, so the dashboard and `sessions` needn't read every day a session ran. Its form is switchboard's own, and can change with any release. Deleting it is safe: until the router writes it again, the day's lines are read instead. |
-| `ledger/parts-<date>.gz` | Each day's parts, beside its digest: what each session's page gained that day, its turns and the subagents it first saw in one gzip stream, then when its requests went upstream in another, each of them pointed at by the digest, so the router, building the next day's digest, never reads those times. Its form is switchboard's own too. Deleting it is safe: the router writes it again with the day's digest. Until then, or where one is damaged, a session's page rests on an older digest, or reads the session's lines whole instead. |
+| `ledger/digest-<date>.json.gz` | Each day's digest: every session the day's summary names, as it stood at the day's end, its page among it, so the dashboard and `sessions` needn't read every day a session ran. Its form is switchboard's own, and can change with any release, and it's kept as long as the day's lines. Deleting it is safe: until the router writes it again, the day's lines are read instead. |
+| `ledger/parts-<date>.gz` | Each day's parts, beside its digest: what each session's page gained that day, its turns and the subagents it first saw in one gzip stream, then when its requests went upstream in another, each of them pointed at by the digest, so the router, building the next day's digest, never reads those times. Its form is switchboard's own too, and it's kept as long as the day's lines. Deleting it is safe: the router writes it again with the day's digest. Until then, or where one is damaged, a session's page rests on an older digest, or reads the session's lines whole instead. |
 | `ledger/logday-<date>.json.gz` | Each day's head: every session whose requests the day's lines hold, with the directory it ran in, so the Log's find needn't read every day's lines, and where each chunk of the day's rows lies in its rows file. Its form is switchboard's own too, and it's kept as long as the day's lines. Deleting it is safe: until the router writes it again, the find, the Log and a turn read the day's lines instead. |
 | `ledger/rows-<date>.gz` | Each day's rows, beside its head: a row for each of the day's lines, as the Log shows it, without a price, 256 rows to a gzip stream, each checked against the CRC its head records, so the Log reads a day back, and a turn its own days, without reading the day's lines. Its form is switchboard's own too, and it's kept as long as the day's lines. Deleting it is safe: until the router writes it again with the day's head, the day's lines are read instead. |
 | `ledger/events-<date>.jsonl` | The [router's events](#the-routers-events), one file for each day. |
@@ -96,7 +111,8 @@ compressed file, use `gzip -dc`.
 
 Each file of lines is kept as long as its `keep` setting says. See
 [`[history]` keys](configuration.md#history-keys) and [`[ledger]` keys](configuration.md#ledger-keys).
-The events are kept as long as the ledger's lines.
+The events are kept as long as `[ledger] keep` says too. A day's ledger lines past it are kept
+until the day's summary stands, but its events aren't, so they can go first.
 
 ## The readings history
 
@@ -132,9 +148,9 @@ line keeps everything about a request except its content. It never holds any of 
 | `dir` | The directory `run` started Claude Code in, with your home shown as `~`. |
 | `model` | The model the request asked for. |
 | `account` | The account whose answer the client got, by its id alone. Left out where the router answered the request itself. |
-| `reason` | Why the request went to that account, in the words of the log's routed line. |
+| `reason` | Why the request went to that account, in the words of the log's routed line. See [Why a request went where it did](#why-a-request-went-where-it-did). |
 | `from` | The account the session was on before, where the request moved it. |
-| `tried` | The accounts the request went out on that couldn't serve it, in the order tried, each `{account, why}`. |
+| `tried` | The accounts the request went out on that couldn't serve it, in the order tried, each `{account, why}`, `why` one of [the whys](#the-whys) a line can hold. |
 | `status` | The answer's status. `0` where the request ended before an answer came. |
 | `canceled` | Set where the client went away before the end. |
 | `cut_off` | Set where the router cut the request off as it stopped. |
@@ -283,7 +299,7 @@ event can change, so when you read one that changed, take its last version.
 | `model` | The model whose requests did so. |
 | `from` | The account a session moved from. |
 | `to` | The account a session moved to. Also, where the sessions a limit, a cap or a refusal moved all went to one account, that account. |
-| `reason` | Why: why a session went to its account, why a restart is due, or why the router turned unhealthy. |
+| `reason` | Why: why a session went to its account, as [Why a request went where it did](#why-a-request-went-where-it-did) gives it; or, in words for a person, why a restart is due, or why the router turned unhealthy. |
 | `held` | On a restart, why the binary the router would become refuses to start, which holds the restart. |
 | `windows` | The keys of the windows the event is of. |
 | `joined` | On a limit or a cap, when each window that came to be held by it after it began did so, by the window's key. See below. |
@@ -317,11 +333,51 @@ event can change, so when you read one that changed, take its last version.
 `joined` shows, for example, the 5-hour window joining a cap of Fable's week. It's left out where
 no window joined. A window that `joined` leaves out was held from `at`.
 
+## Why a request went where it did
+
+A request's `reason` says why it went to its account. It's in the ledger's lines, in the events
+of a session starting or moving, in `status --session`'s assignments, and in `sessions`' models,
+moves and `moved`. A ledger line's `tried` says why each account it left couldn't serve it, with a
+`why`.
+
+These words are fixed: none is ever reworded, as years of lines hold them. A release can add one, so
+pass over one you don't know. In the forms below, `<id>` is an account's id.
+
+### The reasons
+
+| Reason | Why |
+|---|---|
+| `new` | A new session's first account. |
+| `pinned` | The session's own pin. |
+| `pinned (global)` | One of the global pin's accounts, chosen afresh. |
+| `moved by pin` | A global pin set with `--move`. |
+| `sticky` | The session's account, its cache warm. |
+| `bound` | The session's account, idle past its cache's hour, kept as its model's thinking is bound to it. |
+| `unsessioned` | A request without a session id. |
+| `no account has room` | None can take it: it goes where the API will say why, or switchboard answers 429 itself. |
+| `client` | The router kept the client's own token, as the account chosen had no token it could send on. |
+| `back where it was before its request` | Every account the request went out on refused it, so its session goes back to the account it was on. |
+| `moved: <id> <why>` | The session's account, `<id>`, can't serve the request, for one of [the whys](#the-whys). |
+| `pin yields: <id> <why>` | The session's own pin to `<id>` yielded, as `<id>` can't serve the request, for one of [the whys](#the-whys). |
+| `rescored after <idle> idle` | A session idle past its cache's hour, chosen afresh. `<idle>` is how long it was idle, as `5d 12h`, `6d`, `4h 57m`, `7m` or `now`. |
+| `compacted: <id> would reset with <n>% of its week left` | A session's first request after its compaction, moved to `<id>`, as its week would otherwise reset with `<n>`% of it unused. |
+| `<reason>, <id> under pressure` | Any reason above, where passing over `<id>`, under pressure, changed the choice. |
+
+### The whys
+
+| Why | What held the account back |
+|---|---|
+| `hit its limit` | It answered the request with its limit reached. |
+| `was refused` | It refused the request. |
+| `has a new token` | It refused the request's token, as it had taken up a new one, and the request went on elsewhere. |
+| `is at its reserve` | It has reached its reserve. A reason alone gives it, never `tried`. |
+| `has no room` | It has no room for the request otherwise. A reason alone gives it, never `tried`. |
+
 ## The status document
 
 [`status`](commands.md#status) and [`usage`](commands.md#usage) print this document as JSON:
-`{"generated_at", "source", "fallback", "best", "primary", "prime", "pin", "router", "restart",
-"export", "sessions", "events", "pool", "coming_up", "demand", "accounts"}`.
+`{"schema", "generated_at", "source", "fallback", "best", "primary", "prime", "pin", "router",
+"restart", "export", "sessions", "events", "pool", "coming_up", "demand", "accounts"}`.
 
 - Times are in UTC, except the priming schedule's times of day, which are local.
 - Utilizations are fractions, and can pass 1.
@@ -341,7 +397,7 @@ no window joined. A window that `joined` leaves out was held from `at`.
 | `export` | How the router's hourly export into [`[export]`](configuration.md#export-keys)'s `dir` stands: `dir`, the folder; `at`, when an export last succeeded; `error`, why the last failed, in plain words; and `running`, when the export under way began. Each of `at`, `error` and `running` is left out when there's none, and `export` where `dir` isn't set. |
 | `sessions` | How many sessions the router has routed in the last hour. |
 | `events` | What's happened lately, newest first. |
-| `pool` | The room new sessions can go to, summed across the pool's accounts, and their mean use. Each window gives `of`, how many of the pool's accounts have it, an account not read yet, or without a usable token, counting as having it. The pool keeps a window only where at least two of its accounts have it, or all of them do. |
+| `pool` | The room new sessions can go to, summed across the pool's accounts, and their mean use. Each account's room is to its cap, `1 − reserve`, but that of an account the global pin names is to its limit, as the pin spends its reserve. Each window gives `of`, how many of the pool's accounts have it, an account not read yet, or without a usable token, counting as having it. The pool keeps a window only where at least two of its accounts have it, or all of them do. |
 | `coming_up` | Each limit, cap or refused token lifting, window running out or resetting, and prime, soonest first. |
 | `demand` | The pool's use as the weeks' forecast takes it (see [Where a week runs out](how-it-works.md#where-a-week-runs-out)), from the router only: `day`, the pool's rate over the last day, in Pro weeks an hour; `hours`, the hours with room it's measured over, 24 at most, and 0 where it's the pool's fast rate instead; `hold`, `[{hours, share}]`, the share of an account's fast rate still on it 1, 3, 6, 12, 24 and 48 hours on; and `learning`, `true` while the router has less than a day of answers, so `hold` is its default, all of an account's use staying on it, left out once it's measured. Left out when the router has read no account. |
 | `accounts` | Each account, in the config's order. See below. |
@@ -365,8 +421,8 @@ Each entry in `accounts` holds these:
 
 ## `status --session`'s JSON
 
-`status --session`'s JSON is `{"session", "pin", "assignments", "account"}`, of one session the
-router has seen.
+`status --session`'s JSON is `{"schema", "session", "pin", "assignments", "account"}`, of one
+session the router has seen.
 
 - **`session`:** The session's whole id.
 - **`pin`:** The session's own pin, where it has one.
@@ -385,8 +441,8 @@ reason, assigned_at, last_seen}`. These fields need saying more of:
 
 ## `history`'s JSON
 
-`history`'s JSON is `{"prices_as_of", "days", "year", "months", "weeks", "tokens", "totals", "plans",
-"capacity"}`. Each block covers the days asked for since the ledger began, oldest first and today's
+`history`'s JSON is `{"schema", "prices_as_of", "days", "year", "months", "weeks", "tokens",
+"totals", "plans", "capacity"}`. Each block covers the days asked for since the ledger began, oldest first and today's
 last.
 
 ### `prices_as_of`
@@ -521,12 +577,12 @@ Every `worth` is exact, with `unpriced` beside it naming what the worth leaves o
 
 ### With `--windows`
 
-`history --windows` prints `{"windows": [{"account", "window", "readings"}]}`. Each reading is
+`history --windows` prints `{"schema": 1, "windows": [{"account", "window", "readings"}]}`. Each reading is
 `{at, utilization, resets_at, status, source}`.
 
 ## `sessions`' JSON
 
-`sessions`' JSON is `{"generated_at", "prices_as_of", "sessions", "today"}`.
+`sessions`' JSON is `{"schema", "generated_at", "prices_as_of", "sessions", "today"}`.
 
 `sessions` lists each session, with these:
 

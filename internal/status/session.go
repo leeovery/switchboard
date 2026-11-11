@@ -23,8 +23,10 @@ const (
 )
 
 // The reasons the router gives for where a session's requests go, as an
-// Assignment's Reason and an Event's give them, that the dashboard reads
-// too.
+// Assignment's Reason, an Event's and a ledger line's give them, that the
+// dashboard reads too. They're stored for years, and read back, so they're
+// never reworded: docs/reference.md lists every one, as the reasons' guard
+// holds it to, and a new one is only ever added.
 const (
 	// ReasonNew is a new session's first account.
 	ReasonNew = "new"
@@ -57,6 +59,13 @@ const (
 	// ReasonBack is a session going back to the account it was on before a
 	// request every account it went out on refused.
 	ReasonBack = "back where it was before its request"
+	// ReasonUnsessioned is the account of a request without a session id.
+	ReasonUnsessioned = "unsessioned"
+	// ReasonNoRoom is where a request goes when no account has room for it.
+	ReasonNoRoom = "no account has room"
+	// ReasonClient is the client's own token, kept as the router was handed
+	// an account it can't send on.
+	ReasonClient = "client"
 )
 
 // rescoredIdle ends the reason Rescored gives.
@@ -119,7 +128,9 @@ func idledIn(count int, unit string, rest int, restUnit string) string {
 }
 
 // Why an account can't take a request, as the reasons for leaving it, after
-// ReasonMovedOff or ReasonPinYields and the account, give it.
+// ReasonMovedOff or ReasonPinYields and the account, give it, and those of
+// them a ledger line's tried gives too: WhyLimit, WhyRefused and WhyNewToken.
+// They're never reworded, as the reasons aren't.
 const (
 	// WhyReserve is an account held back by its reserve alone.
 	WhyReserve = "is at its reserve"
@@ -129,6 +140,9 @@ const (
 	WhyRefused = "was refused"
 	// WhyNoRoom is an account with no room for the request otherwise.
 	WhyNoRoom = "has no room"
+	// WhyNewToken is an account that refused the request's token, as it had
+	// taken up a new one.
+	WhyNewToken = "has a new token"
 )
 
 // What a request of an assignment's model in flight is doing, as an

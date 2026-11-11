@@ -311,34 +311,24 @@ type Export struct {
 // next request.
 type Pin struct {
 	// Accounts are the ids of the accounts pinned, in the order configured.
-	Accounts []string
-	Since    time.Time
-	Move     bool
+	Accounts []string  `json:"accounts"`
+	Since    time.Time `json:"since"`
+	Move     bool      `json:"move"`
 }
 
-// pinJSON is a Pin as JSON gives it. Account is the first of its accounts,
-// which a switchboard from before pins named several reads a pin by, and
-// writes it with alone.
-type pinJSON struct {
+// pinRead is a pin as JSON may give it: Account names its one account, as a
+// switchboard from before pins named several wrote it.
+type pinRead struct {
 	Accounts []string  `json:"accounts"`
 	Account  string    `json:"account"`
 	Since    time.Time `json:"since"`
 	Move     bool      `json:"move"`
 }
 
-// MarshalJSON gives the pin as JSON, its first account as its account too.
-func (p Pin) MarshalJSON() ([]byte, error) {
-	j := pinJSON{Accounts: p.Accounts, Since: p.Since, Move: p.Move}
-	if len(p.Accounts) > 0 {
-		j.Account = p.Accounts[0]
-	}
-	return json.Marshal(j)
-}
-
 // UnmarshalJSON reads a pin, one that names its account alone, as a
 // switchboard from before pins named several wrote it, as a pin to that one.
 func (p *Pin) UnmarshalJSON(data []byte) error {
-	var j pinJSON
+	var j pinRead
 	if err := json.Unmarshal(data, &j); err != nil {
 		return err
 	}

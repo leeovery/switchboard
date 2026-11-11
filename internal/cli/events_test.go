@@ -123,6 +123,13 @@ func eventJSON(t *testing.T, lines ...events.Line) string {
 	return b.String()
 }
 
+// printedJSON is what events prints as JSON of lines: each as the router
+// files it, as eventJSON gives it, its schema first.
+func printedJSON(t *testing.T, lines ...events.Line) string {
+	t.Helper()
+	return withSchema(eventJSON(t, lines...))
+}
+
 // todaysEvents is what events prints of today's events, each time as every
 // time of an event is said: today's by its time of day, in a column as wide
 // as a time with its weekday.
@@ -189,9 +196,9 @@ func TestEventsJSONPrintsEachEventAsTheRouterFilesIt(t *testing.T) {
 		args []string
 		want string
 	}{
-		{name: "today's, oldest first", want: eventJSON(t, sessionStarted, workPressed, pinned, restartDue, routerUnwell)},
+		{name: "today's, oldest first", want: printedJSON(t, sessionStarted, workPressed, pinned, restartDue, routerUnwell)},
 		{name: "from a day, each as it last stood", args: []string{"--since", "2026-10-06"},
-			want: eventJSON(t, limitMoved, sessionMoved, sessionStarted, workPressed, pinned, restartDue, routerUnwell)},
+			want: printedJSON(t, limitMoved, sessionMoved, sessionStarted, workPressed, pinned, restartDue, routerUnwell)},
 		{name: "none", args: []string{"--since", "12:45"}},
 	}
 	for _, tt := range tests {
@@ -227,7 +234,7 @@ func TestEventsTellAMoveAfterMidnightWhenThePressureToldTheDayBeforeRunsOut(t *t
 	for _, tt := range []struct {
 		forms []printForm
 		want  string
-	}{{forms: prettyForms(), want: text}, {forms: jsonForms(), want: eventJSON(t, moved...)}} {
+	}{{forms: prettyForms(), want: text}, {forms: jsonForms(), want: printedJSON(t, moved...)}} {
 		for _, form := range tt.forms {
 			t.Run(form.name, func(t *testing.T) {
 				if got := form.run(t, deps, "events"); got.stdout != tt.want || got.code != 0 {
@@ -279,10 +286,10 @@ func TestEventsJSONKeepsTheFieldsALaterReleaseAdded(t *testing.T) {
 	fileLines(t, deps, "2026-10-07", listed)
 	stdout, interrupt := follow(t, deps, offATerminal, "events", "-f")
 
-	stdout.waitFor(t, listed)
+	stdout.waitFor(t, withSchema(listed))
 	followed := withALaterField(eventJSON(t, pinned))
 	fileLines(t, deps, "2026-10-07", followed)
-	stdout.waitFor(t, listed+followed)
+	stdout.waitFor(t, withSchema(listed+followed))
 
 	if code, stderr := interrupt(); code != 0 || stderr != "" {
 		t.Errorf("switchboard events -f exited %d, printing %q on stderr, once interrupted; want 0 and nothing", code, stderr)
@@ -293,15 +300,15 @@ func TestEventsFollowPrintsEachLineAsItsFiled(t *testing.T) {
 	deps := eventsDeps(t)
 	stdout, interrupt := follow(t, deps, offATerminal, "events", "--since", "12:00", "-f")
 
-	listed := eventJSON(t, restartDue, routerUnwell)
+	listed := printedJSON(t, restartDue, routerUnwell)
 	stdout.waitFor(t, listed)
 	primed := eventLine(runTwo, 2, status.Event{At: october(7, 13, 10, 0), Kind: status.EventPrimed, Account: "side", Windows: []string{"5h"}, Until: october(7, 18, 10, 0)})
 	fileEvent(t, deps, "2026-10-07", primed)
-	stdout.waitFor(t, listed+eventJSON(t, primed))
+	stdout.waitFor(t, listed+printedJSON(t, primed))
 	pressedAgain := workPressed
 	pressedAgain.Until = october(7, 12, 45, 0)
 	fileEvent(t, deps, "2026-10-07", pressedAgain)
-	stdout.waitFor(t, listed+eventJSON(t, primed, pressedAgain))
+	stdout.waitFor(t, listed+printedJSON(t, primed, pressedAgain))
 
 	if code, stderr := interrupt(); code != 0 || stderr != "" {
 		t.Errorf("switchboard events -f exited %d, printing %q on stderr, once interrupted; want 0 and nothing", code, stderr)
@@ -323,7 +330,7 @@ func TestEventsFollowPrintsAnEventFiledAsItStartsOnce(t *testing.T) {
 		want func(t *testing.T) string
 	}{
 		{form: offATerminal, want: func(t *testing.T) string {
-			return eventJSON(t, append([]events.Line{sessionStarted, workPressed, pinned, restartDue, routerUnwell}, filedAsItStarts...)...)
+			return printedJSON(t, append([]events.Line{sessionStarted, workPressed, pinned, restartDue, routerUnwell}, filedAsItStarts...)...)
 		}},
 		{form: onATerminal, want: func(*testing.T) string {
 			want := todaysEvents
@@ -405,7 +412,7 @@ func TestEventsFollowPrintsNothingAgainAsTheDayIsCompressed(t *testing.T) {
 	deps := eventsDeps(t)
 	stdout, interrupt := follow(t, deps, offATerminal, "events", "--since", "12:00", "-f")
 
-	listed := eventJSON(t, restartDue, routerUnwell)
+	listed := printedJSON(t, restartDue, routerUnwell)
 	stdout.waitFor(t, listed)
 	// The router filed a last line under the day, and the day was compressed,
 	// before the follower looked again, as over a quiet weekend.
@@ -424,11 +431,11 @@ func TestEventsFollowPrintsNothingAgainAsTheDayIsCompressed(t *testing.T) {
 	if err := os.Remove(plain); err != nil {
 		t.Fatal(err)
 	}
-	stdout.waitFor(t, listed+eventJSON(t, last))
+	stdout.waitFor(t, listed+printedJSON(t, last))
 	// Long enough for a few more looks, which find nothing new.
 	time.Sleep(50 * time.Millisecond)
 
-	if code, stderr := interrupt(); code != 0 || stderr != "" || stdout.String() != listed+eventJSON(t, last) {
+	if code, stderr := interrupt(); code != 0 || stderr != "" || stdout.String() != listed+printedJSON(t, last) {
 		t.Errorf("switchboard events -f exited %d, printing\n%s\nand %q on stderr, once interrupted; want 0, the day's lines each once, and nothing",
 			code, stdout.String(), stderr)
 	}
@@ -441,7 +448,7 @@ func TestEventsFollowPrintsALineFiledUnderTheDayAfterOnce(t *testing.T) {
 		form          printForm
 		listed, filed string
 	}{
-		{form: offATerminal, listed: eventJSON(t, routerUnwell), filed: eventJSON(t, early)},
+		{form: offATerminal, listed: printedJSON(t, routerUnwell), filed: printedJSON(t, early)},
 		{form: onATerminal, listed: `Wed 7 Oct 2026, so far
   12:30        health    unhealthy: most requests failing
 `, filed: "  Wed 23:58    health    healthy again\n"},

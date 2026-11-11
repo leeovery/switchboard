@@ -62,9 +62,6 @@ var trafficSessions = map[string]trafficSession{
 	"4b0e": {id4B0E, "~/Code/infra"}, "8a2c": {id8A2C, "~/Code/docs"}, "d28c": {idD28C, "~/Code/switchboard"},
 }
 
-// reasonUnsessioned is the router's reason for a request of no session's.
-const reasonUnsessioned = "unsessioned"
-
 // traffic is the Log's traffic of the day now falls on, and of the day before
 // where its sessions began, oldest first, as log1.traffic made it, for the
 // sessions whose lines the session pages' model doesn't make: each asking as
@@ -156,7 +153,7 @@ func (r routing) request(l *ledger.Line) {
 		l.Reason = status.ReasonNew
 		return
 	case l.Session == "":
-		l.Reason = reasonUnsessioned
+		l.Reason = status.ReasonUnsessioned
 		return
 	}
 	key := [2]string{l.Session, l.Model}

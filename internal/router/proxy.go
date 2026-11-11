@@ -323,7 +323,7 @@ func (p *proxy) chosen(ex *exchange, choice Choice, client account) (account, st
 		return a, choice.Reason
 	}
 	logger.Error("chooser picked an account it can't send on; keeping the client's", "id", ex.id, "picked", choice.Account)
-	return client, "client"
+	return client, status.ReasonClient
 }
 
 // reserved answers a request that no account can take without spending its

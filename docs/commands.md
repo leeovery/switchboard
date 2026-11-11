@@ -45,6 +45,28 @@ If you paste a token by mistake, what you see depends on where it went:
 - Where a command goes, as `switchboard <token>`, or as `help`'s topic, as
   `switchboard help <token>`, it's repeated as given, in saying there's no such command or topic.
 
+## Exit status
+
+| Status | When |
+|---|---|
+| `0` | The command did what it was asked. |
+| `1` | It failed, for any reason, saying why on stderr. |
+| `130` | You interrupted it, as with ctrl+c, while it asked you for something, made a token, or installed the service. A command with nothing to finish ends at the interrupt itself, which a shell reports as 130 too. |
+| `78` | `serve --check`, which a router asks of the switchboard it's about to become, found that the router couldn't start. A router reads this status across versions, so it never changes. |
+
+Some commands have more to say:
+
+- `run`, and so `claude`, becomes Claude Code once it has started it, so its status is Claude
+  Code's own. It's `1` only where switchboard couldn't start Claude Code.
+- `status` exits `1` where the config can't be read, even after printing the router's document.
+- `status --session` exits `1` where the router isn't running or hasn't seen the session, so a
+  statusline can tell.
+- `service status` exits `0` whatever it finds, the router down included. It's `1` only where it
+  can't look.
+- `events -f`, `logs -f` and `dashboard` exit `0` when interrupted, and so does `serve`, once
+  it has stopped, when interrupted or terminated.
+- `hook session-start` always exits `0`.
+
 ## Everyday
 
 ### `usage`
@@ -1063,7 +1085,7 @@ switchboard requests [--session <id>] [--account <id>] [--since <when>] [--json 
 | `--session <id>` | Keep that session's requests. Name the session by its id, or as much of it as is unique among the sessions read. |
 | `--account <id>` | Keep that account's requests. |
 | `--since <when>` | Start at a day (`2026-10-01`), a time today (`14:00`), or a while ago (`3h`, `2d`). |
-| `--json` | Print each line as the ledger holds it, a JSON object a line, even on a terminal. It does so off a terminal anyway. See [The request ledger](reference.md#the-request-ledger). |
+| `--json` | Print each line as the ledger holds it, with `"schema": 1` put first, a JSON object a line, even on a terminal. It does so off a terminal anyway. See [The request ledger](reference.md#the-request-ledger). |
 | `--pretty` | Print the text, even off a terminal, as it does on one. |
 
 The requests are listed oldest first, under the day each arrived on. Each request gets a line,
@@ -1326,7 +1348,7 @@ switchboard events [--since <when>] [-f] [--json | --pretty]
 |---|---|
 | `--since <when>` | Start at a day (`2026-10-01`), a time today (`14:00`), or a while ago (`3h`, `2d`). |
 | `-f`, `--follow` | Then go on printing a line each time the router files one, until interrupted. A changed event is printed again, whole. |
-| `--json` | Print each event as the router files it, a JSON object a line, with its `run` and `id`, even on a terminal. It does so off a terminal anyway. Of an event printed again, the last line is how it stands. See [The router's events](reference.md#the-routers-events). |
+| `--json` | Print each event as the router files it, with `"schema": 1` put first, a JSON object a line, with its `run` and `id`, even on a terminal. It does so off a terminal anyway. Of an event printed again, the last line is how it stands. See [The router's events](reference.md#the-routers-events). |
 | `--pretty` | Print the text, even off a terminal, as it does on one. |
 
 The events cover:

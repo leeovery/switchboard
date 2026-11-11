@@ -3,7 +3,6 @@ package cli
 import (
 	"cmp"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -156,11 +155,4 @@ func sessionError(err error) error {
 		return expected{err}
 	}
 	return err
-}
-
-// writeJSON writes v as indented JSON, ending with a newline.
-func writeJSON(w io.Writer, v any) error {
-	enc := json.NewEncoder(w)
-	enc.SetIndent("", "  ")
-	return enc.Encode(v)
 }

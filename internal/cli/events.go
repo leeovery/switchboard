@@ -45,9 +45,10 @@ ago, as 3h or 2d. -f, --follow then prints a line each time the router files
 one, a changed event again, whole, until interrupted.
 
 On a terminal, events prints its lines as text. Anywhere else, as in a pipe or
-an agent's shell, it prints each event as the router files it, a JSON object a
-line, with its run and id, so a reader of a changed one takes the last. --json
-prints the JSON, and --pretty the text, wherever stdout is.`,
+an agent's shell, it prints each event as the router files it, with "schema": 1
+put first, a JSON object a line, with its run and id, so a reader of a changed
+one takes the last. --json prints the JSON, and --pretty the text, wherever
+stdout is.`,
 		Args: a.ledgerArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			ctx := cmd.Context()
@@ -110,8 +111,8 @@ func (a *app) eventsPrinter(out io.Writer, f formFlags) eventsPrinter {
 	return &eventsText{out: out, now: a.Now, telling: views.NewTelling(status.NameOfKey)}
 }
 
-// eventsJSON prints each event as the router files it, a JSON object a line,
-// fields a later release added included.
+// eventsJSON prints each event as the router files it, its schema first, a
+// JSON object a line, fields a later release added included.
 type eventsJSON struct {
 	out io.Writer
 }
@@ -136,8 +137,7 @@ func (p eventsJSON) follow(h events.Held) error {
 	if err != nil {
 		return fmt.Errorf("print an event: %w", err)
 	}
-	_, err = fmt.Fprintf(p.out, "%s\n", data)
-	return err
+	return writeStored(p.out, data)
 }
 
 // eventsText prints the events as text, under the day each happened on, a

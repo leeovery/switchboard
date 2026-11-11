@@ -45,9 +45,9 @@ as much of it as is unique among the sessions read, and --account an
 account's.
 
 On a terminal, requests prints its lines as text. Anywhere else, as in a pipe
-or an agent's shell, it prints each as the ledger holds it, a JSON object a
-line, for an agent or a script to read. --json prints the JSON, and --pretty
-the text, wherever stdout is.`,
+or an agent's shell, it prints each as the ledger holds it, with "schema": 1
+put first, a JSON object a line, for an agent or a script to read. --json
+prints the JSON, and --pretty the text, wherever stdout is.`,
 		Args: a.ledgerArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return a.requests(cmd.OutOrStdout(), opts)
@@ -139,10 +139,11 @@ func (a *app) requests(out io.Writer, opts requestsOptions) error {
 	return writeRequests(out, views.RequestLines(lines), from, now)
 }
 
-// writeLines writes each of lines as the ledger holds it, a line each.
+// writeLines writes each of lines as the ledger holds it, its schema first, a
+// line each.
 func writeLines(out io.Writer, lines iter.Seq[ledger.Held]) error {
 	for h := range lines {
-		if _, err := fmt.Fprintf(out, "%s\n", h.JSON); err != nil {
+		if err := writeStored(out, h.JSON); err != nil {
 			return err
 		}
 	}
