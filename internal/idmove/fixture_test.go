@@ -307,10 +307,12 @@ func (e answeredError) APIStatus() int { return e.status }
 // organizations, by the fixture's clock, drawing random ids from a source
 // that draws the same each time, and asking again, and looking again at a
 // token, at once; an answer naming no organization counting once two looks
-// agree, timed by a clock that ticks, so it has lasted by then.
+// agree, timed by a clock that ticks past Lasts each time it's read, so it
+// has lasted by then. Lasts is twice Retry, so the waits to ask again never
+// grow.
 func (f fixture) mover(o idmove.Organizations) *idmove.Mover {
 	m := &idmove.Mover{ConfigPath: f.config, StateDir: f.state, Tokens: f.tokens, Organizations: o,
-		Now: clock, Random: rand.NewChaCha8([32]byte{7}), Retry: time.Millisecond, Again: time.Millisecond, Lasts: time.Nanosecond}
+		Now: clock, Random: rand.NewChaCha8([32]byte{7}), Retry: time.Millisecond, Again: time.Millisecond, Lasts: 2 * time.Millisecond}
 	m.ClockedBy(ticking())
 	return m
 }

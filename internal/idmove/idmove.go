@@ -195,14 +195,15 @@ func (m *Mover) Run(ctx context.Context) error {
 
 // AskAgain is how long to wait to run the move again where the API didn't
 // answer, having waited wait the time before: Retry the first time, for
-// zero, then twice as long each time, half Lasts at the most, so a refusal
-// that lasts is heard again before lasting takes the time between for a gap
-// it may have stopped in.
+// zero, then twice as long each time; half Lasts at the most, the first time
+// too, so a refusal that lasts is heard again before lasting takes the time
+// between for a gap it may have stopped in.
 func (m *Mover) AskAgain(wait time.Duration) time.Duration {
+	most := m.lasts() / 2
 	if wait <= 0 {
-		return cmp.Or(m.Retry, firstRetry)
+		return min(cmp.Or(m.Retry, firstRetry), most)
 	}
-	return min(wait*2, max(m.lasts()/2, wait))
+	return min(wait*2, most)
 }
 
 // RunBeside runs the move once, as Run does, beside a router that keeps the

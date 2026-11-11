@@ -106,6 +106,32 @@ func TestTheMoveSaysWhatHoldsItUpWhileItWaitsToRunAgain(t *testing.T) {
 	}
 }
 
+// The move waits as its mover says where the API didn't answer, and the
+// retry's wait where it failed otherwise: a run waiting the other's wait, an
+// hour, wouldn't run again before the test's deadline.
+func TestTheMoveWaitsAsItsMoverSaysOnlyWhereTheAPIDidntAnswer(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		err         error
+		retry, wait time.Duration
+	}{
+		{name: "the API not answering", err: idmove.ErrUnanswered, retry: time.Hour, wait: time.Millisecond},
+		{name: "failing", err: errors.New("the disk is full"), retry: time.Millisecond, wait: time.Hour},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			mover := &answeringMover{answers: []error{tc.err}, wait: tc.wait}
+			m := newMoving(mover)
+			m.retry = tc.retry
+			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+			defer cancel()
+			m.run(ctx, func() idmove.History { return idmove.History{} })
+			if mover.runs != 2 || m.owed() {
+				t.Errorf("the move ran %d times, still owed %t, want it run again after the %v wait, and done", mover.runs, m.owed(), min(tc.retry, tc.wait))
+			}
+		})
+	}
+}
+
 func TestTheMoveAsksTheAPIAgainAfterTheWaitsItsMoverGives(t *testing.T) {
 	mover := &answeringMover{answers: []error{idmove.ErrUnanswered, errors.New("the disk is full"), idmove.ErrUnanswered, idmove.ErrUnanswered}, wait: time.Millisecond}
 	m := newMoving(mover)

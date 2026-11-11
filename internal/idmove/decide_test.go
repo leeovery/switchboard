@@ -54,6 +54,9 @@ func TestAStrayTokenFileHoldsTheMoveUpNowhere(t *testing.T) {
 		// it, so it's no account another Mac moved.
 		{name: "a configured account without one, by an id the history names, the API silent for the stray", configure: fixtureConfig, orgs: silentForTheStray, spoil: work, wantAsked: 1},
 		{name: "the accounts another Mac moved, each joined by a token file the API answered for, the API silent for the stray", configure: movedConfig, orgs: silentForTheStray, wantAsked: 1},
+		// Work's token takes the id the config names it by too, as its
+		// organization spells it.
+		{name: "an account configured by the id another Mac moved it onto too, its token here answered for, the API silent for the stray", configure: fixtureConfig + "\n[[account]]\nid = \"" + workID + "\"\n", orgs: silentForTheStray, wantAsked: 1},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			f := newFixture(t)
@@ -229,6 +232,9 @@ func TestAConfigMergedBeforeTheMoveToNameAnAccountByBothItsIDsHasItTakeTheOtherM
 		old   = "[[account]]\nid = \"work\"\nlabel = \"Work\"\nprimary = true\nplan = \"max\"\nreserve = 0.1\n\n"
 		other = "[[account]]\nid = \"personal\"\n\n"
 		moved = "[[account]]\nid = \"" + workID + "\"\n\n"
+		// As the other Mac's move wrote it, the plan and the reserve changed
+		// there since.
+		movedThere = "[[account]]\nid = \"" + workID + "\"\nlabel = \"Work\"\nplan = \"ultra\"\nreserve = 0.2\n\n"
 	)
 	wantWork := config.Account{ID: workID, Label: "Work", Primary: true, Plan: "max", Reserve: 0.1}
 	wantPersonal := config.Account{ID: personalID, Label: personal}
@@ -238,6 +244,8 @@ func TestAConfigMergedBeforeTheMoveToNameAnAccountByBothItsIDsHasItTakeTheOtherM
 	}{
 		{name: "the new id after the old", configure: old + other + moved, want: config.Accounts{wantPersonal, wantWork}},
 		{name: "the new id before the old", configure: moved + old + other, want: config.Accounts{wantWork, wantPersonal}},
+		{name: "the new id as the other Mac wrote it", configure: old + other + movedThere,
+			want: config.Accounts{wantPersonal, {ID: workID, Label: "Work", Primary: true, Plan: "ultra", Reserve: 0.2}}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			f := newFixture(t)
@@ -267,6 +275,55 @@ func TestAConfigMergedBeforeTheMoveToNameAnAccountByBothItsIDsHasItTakeTheOtherM
 	}
 }
 
+// Two organizations whose ids clash at four characters: another Mac moved
+// the first's account onto its four, and the second's, those held, onto its
+// five, which start with them.
+const (
+	clashing, clashingLater     = "test-org-clash-17", "test-org-clash-616"
+	clashingID, clashingLaterID = "q1ie", "q1iew"
+)
+
+// A config merged with another Mac's, that names two accounts whose
+// organizations' ids clash by their old ids and the new: each account's token
+// takes the longest id its organization spells, so neither takes the other's,
+// whichever the config names first.
+func TestAnAccountTakesTheLongestIDItsOrganizationSpellsOfThoseAnotherMacMoved(t *testing.T) {
+	const (
+		first  = "[[account]]\nid = \"first\"\n\n"
+		later  = "[[account]]\nid = \"later\"\n\n"
+		moved  = "[[account]]\nid = \"" + clashingID + "\"\n\n[[account]]\nid = \"" + clashingLaterID + "\"\n"
+		tokenA = "test-token-first"
+		tokenB = "test-token-later"
+	)
+	for _, tc := range []struct{ name, configure string }{
+		{"the first's old id first", fixtureConfig + "\n" + first + later + moved},
+		{"the later's old id first", fixtureConfig + "\n" + later + first + moved},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newFixture(t)
+			writeFile(t, f.config, tc.configure)
+			f.token(t, "first", tokenA)
+			f.token(t, "later", tokenB)
+			o := answering()
+			o.of[tokenA], o.of[tokenB] = clashing, clashingLater
+			f.runBounded(t, o)
+
+			record := f.record(t)
+			for was, want := range map[string]identity.Entry{
+				"first": {ID: clashingID, Organization: clashing},
+				"later": {ID: clashingLaterID, Organization: clashingLater},
+			} {
+				if e, ok := record.ByWas(was); !ok || e.ID != want.ID || e.Organization != want.Organization {
+					t.Errorf("%s moved onto %+v, want %s, its organization's, as the other Mac moved it", was, e, want.ID)
+				}
+			}
+			if got, want := f.configuredIDs(t), []string{workID, personalID, clashingID, clashingLaterID}; !slices.Equal(got, want) {
+				t.Errorf("moved, the config configures %q, want %q", got, want)
+			}
+		})
+	}
+}
+
 func TestTheMoveAsksTheAPIAgainAfterWaitsThatDoubleToHalfItsLasts(t *testing.T) {
 	for _, tc := range []struct {
 		name  string
@@ -275,7 +332,7 @@ func TestTheMoveAsksTheAPIAgainAfterWaitsThatDoubleToHalfItsLasts(t *testing.T) 
 	}{
 		{name: "as it comes", want: []time.Duration{30 * time.Second, time.Minute, 2 * time.Minute, 4 * time.Minute, 5 * time.Minute, 5 * time.Minute}},
 		{name: "a shorter Lasts", mover: idmove.Mover{Retry: time.Second, Lasts: 10 * time.Second}, want: []time.Duration{time.Second, 2 * time.Second, 4 * time.Second, 5 * time.Second, 5 * time.Second}},
-		{name: "a first wait past half Lasts", mover: idmove.Mover{Retry: time.Minute, Lasts: time.Minute}, want: []time.Duration{time.Minute, time.Minute}},
+		{name: "a first wait past half Lasts", mover: idmove.Mover{Retry: time.Minute, Lasts: time.Minute}, want: []time.Duration{30 * time.Second, 30 * time.Second}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var waits []time.Duration

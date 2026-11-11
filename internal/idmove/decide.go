@@ -481,15 +481,38 @@ func (d *deciding) anyTokenless() bool {
 
 // mayJoinAStray reports whether a configured account to decide that has no
 // token it can use may be one another Mac moved, as madeElsewhere says, that
-// no token file the API named the organization of joins, as joins has it: so
-// a token file the API didn't answer for may.
+// neither a configured account's token takes, as taken has it, nor a token
+// file the API named the organization of joins, as joins has it: so a token
+// file the API didn't answer for may.
 func (d *deciding) mayJoinAStray() bool {
 	tokenless := d.tokenless()
-	joins := d.joins(tokenless)
+	taken, joins := d.taken(tokenless), d.joins(tokenless)
 	return slices.ContainsFunc(tokenless, func(id string) bool {
 		_, joined := joins[id]
-		return d.madeElsewhere(id) && !joined
+		return d.madeElsewhere(id) && !taken[id] && !joined
 	})
+}
+
+// taken are those of the configured accounts given, which have no token they
+// can use, that the tokens of the configured accounts to decide take, as idOf
+// has them do, in the config's order: each token whose organization neither
+// the record nor a token before it holds takes the one spelledBy gives of
+// those not taken yet.
+func (d *deciding) taken(tokenless []string) map[string]bool {
+	taken := make(map[string]bool)
+	organizations := make(map[string]bool)
+	for _, was := range d.withTokens() {
+		organization := d.answers[was].organization
+		if _, held := d.record.ByOrganization(organization); organization == "" || held || organizations[organization] {
+			continue
+		}
+		organizations[organization] = true
+		free := slices.DeleteFunc(slices.Clone(tokenless), func(id string) bool { return taken[id] })
+		if id, ok := d.spelledBy(organization, free); ok {
+			taken[id] = true
+		}
+	}
+	return taken
 }
 
 // madeElsewhere reports whether the configured account with the given id may
@@ -587,7 +610,7 @@ func (d *deciding) idOf(organization, was string) (id, known string, returning b
 	e, ok := d.record.ByOrganization(organization)
 	switch {
 	case !ok:
-		if id, spelled := d.spelledBy(organization); spelled {
+		if id, spelled := d.spelledBy(organization, d.tokenless()); spelled {
 			return id, organization, false, nil
 		}
 		return d.record.Derive(organization, d.held()), organization, false, nil
@@ -599,20 +622,22 @@ func (d *deciding) idOf(organization, was string) (id, known string, returning b
 	return id, "", false, err
 }
 
-// spelledBy returns the configured account to decide, without a token it can
-// use, that may be one another Mac moved, as madeElsewhere says, whose id the
-// given organization spells, as Spells has it: the account of the
-// organization here, which a config merged with the other Mac's names by
-// both its ids, so it takes the other Mac's, and the two Macs agree.
-func (d *deciding) spelledBy(organization string) (string, bool) {
-	tokenless := d.tokenless()
-	i := slices.IndexFunc(tokenless, func(id string) bool {
-		return d.madeElsewhere(id) && identity.Spells(organization, id)
-	})
-	if i < 0 {
-		return "", false
+// spelledBy returns the one of the configured accounts given, which have no
+// token they can use, that may be one another Mac moved, as madeElsewhere
+// says, whose id the given organization spells, as Spells has it, the
+// longest: the account of the organization here, which a config merged with
+// the other Mac's names by both its ids, so it takes the other Mac's, and the
+// two Macs agree. The longest, as the ids an organization spells nest, each
+// the start of a longer, and Derive spells a longer only where the shorter is
+// held, as by another organization's.
+func (d *deciding) spelledBy(organization string, tokenless []string) (string, bool) {
+	var spelled string
+	for _, id := range tokenless {
+		if len(id) > len(spelled) && d.madeElsewhere(id) && identity.Spells(organization, id) {
+			spelled = id
+		}
 	}
-	return tokenless[i], true
+	return spelled, spelled != ""
 }
 
 // join decides the ids of those of the configured accounts given, which have
