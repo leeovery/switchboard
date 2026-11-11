@@ -82,7 +82,7 @@ func TestAFirstRunOpensTheAddCardAndWaitsForAnAccount(t *testing.T) {
 	if want := "  No accounts yet. Add each Claude subscription you want switchboard to route across."; rows[firstUnderHeading] != want {
 		t.Errorf("the page's line reads %q, want %q", rows[firstUnderHeading], want)
 	}
-	if got := rows[firstRow]; !strings.HasPrefix(got, "▌ +  add an account") {
+	if got := rows[firstRow]; !strings.HasPrefix(got, "▌ + add an account") {
 		t.Errorf("the first row reads %q, want + add an account, chosen", got)
 	}
 	if got := rows[keyRow]; !strings.Contains(got, "enter add an account") {

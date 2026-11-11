@@ -166,7 +166,7 @@ func TestRunwayHelpSaysWhatItsRulesAre(t *testing.T) {
 		{"the 5-hour leaving out a week running out", "the 5-hour view leaves out a week running out"},
 		{"the use under a name", "its use of the view's window"},
 		{"the labels collapsed", "a collapses the labels, to give the lanes more room"},
-		{"a collapsed label", "its number and its marks alone, as 2 ◆, and under them its use, as 66%"},
+		{"a collapsed label", "its marks alone, as ◆, and under them its use, as 66%"},
 		{"the pool's room collapsed", "under Σ, of how many of the pool's accounts have the window, as 1.2/3"},
 		{"a stale account", "read 14:20 where its last read failed; and not read before its first"},
 		{"a refused token's use faded", "and the use of one whose token is refused"},

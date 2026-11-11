@@ -6,18 +6,18 @@
 
 SESSIONS   Switchboard  List
 
-1 work          ● at its cap · 17:10
+work          ● at its cap · 17:10
  Week       ▏ ┃       34%   5-hour       ┃    ▍  95%
 
 
-2 personal ◆    ● open
+personal ◆    ● open
  Week          ▉┃     66%   5-hour     ▋   ┃     39%
 
   41e0 docs                    idle 34s
   9c2e website                 idle 9m
 
 
-3 side ▲        ● open · next
+side ▲        ● open · next
  Week        ┃   ▍    78%   5-hour  ▌┃           13%
 
   c61b mobile                  ↓ answering

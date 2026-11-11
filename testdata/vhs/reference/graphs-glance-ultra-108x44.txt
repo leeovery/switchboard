@@ -4,7 +4,7 @@
 
 WEEK  ──────────────────────────────────────────────────────────────────────────────────────────────────── w
 
-1 work   66% left  ·  caps ~Sat  ·  resets Sun 21:00    2 personal ◆                   34% left  ·  out ~Sat
+work     66% left  ·  caps ~Sat  ·  resets Sun 21:00    personal ◆                     34% left  ·  out ~Sat
     ▇▆▄▃▃▃▃▃▂▁              │                                     ▇▅▄▃▃▃▃▂                │
                    ▇▆▅▅▅▅▅▄▃⣀⡀                                            ▇▄▂▂▂▂▂         │
                             │⠈⠑⠒⠤⢄⡀                                              ▇▄▁      │
@@ -12,7 +12,7 @@ WEEK  ────────────────────────�
                             ⢀ ⢀ ⢀ ⢀ ⢀ ⢀ ⠉⠑⠢⠤✕⣀⣀⣀⣀⣀⣀⣀                                      │   ⠈⠉⠑⠒⠤⠤⣀✕⣀⣀⣀⣀⣀⣀
 ╵Mon    ╵Tue   ╵Wed    ╵Thu   ╵Fri    ╵Sat   ╵Sun             ╵Mon    ╵Tue   ╵Wed    ╵Thu   ╵Fri   ╵Sat
 
-3 side ▲  22% left  ·  out ~Fri  ·  resets Mon 10:00
+side ▲    22% left  ·  out ~Fri  ·  resets Mon 10:00
  ▆▄▃▃▃▃▂                │
         ▇▄▁▁▁▁▁         │
                ▆▂       │
@@ -24,15 +24,15 @@ WEEK  ────────────────────────�
 
 GLANCE  ────────────────────────────────────────────────────────────────────────────────────────────────── g
 
-                WEEK
+              WEEK
 
-1 work            ▇▇▆▆▆▆▅▄▃▂▁✕▁▁  66%  out ~Sat
+work            ▇▇▆▆▆▆▅▄▃▂▁✕▁▁  66%  out ~Sat
 
-2 personal ◆        ▇▇▅▅▃▃▃▂▁▁✕   34%  out ~Sat
+personal ◆        ▇▇▅▅▃▃▃▂▁▁✕   34%  out ~Sat
 
-3 side ▲        ▇▇▆▅▅▃▃▂▁✕        22%  out ~Fri
-───────────────────────────────────────────────────────────────
-Σ pool          ▄▄▆▇▇▅▅▄▃▂▁▁▁▃▃▅ 1.2 of 3 left
+side ▲        ▇▇▆▅▅▃▃▂▁✕        22%  out ~Fri
+─────────────────────────────────────────────────────────────
+Σ pool        ▄▄▆▇▇▅▅▄▃▂▁▁▁▃▃▅ 1.2 of 3 left
 
 ▆ room left, start to reset    ▆ heading    ✕ runs out
 66% room left now

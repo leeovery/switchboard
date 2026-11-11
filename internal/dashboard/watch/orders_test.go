@@ -130,7 +130,7 @@ func TestARefusalLandingUnderAnotherCardWaitsForThePageToShow(t *testing.T) {
 			h := routedHarness(t, routerDocument(three()...))
 			h.start()
 			h.source.refuse = refusal
-			h.keyed("p 2")
+			h.keyed("p @2")
 			answer := h.update(namedKeys["enter"])
 			h.keyed("esc " + tt.opens)
 			h.deliver(answer...)

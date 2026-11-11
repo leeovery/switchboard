@@ -13,7 +13,7 @@ func TestAFixturesKeysOpenThePickerOverTheOverviewOnTheThemeBeforeTheFrames(t *t
 	f.keys = append(keysOf("t"), tea.KeyPressMsg{Code: tea.KeyUp})
 	frame := ansi.Strip(f.Frame(f.Size))
 
-	for _, want := range []string{"│ Themes", "│ ▌ horizon", "│   nord                     ●", "USAGE", "1 work"} {
+	for _, want := range []string{"│ Themes", "│ ▌ horizon", "│   nord                     ●", "USAGE", "work"} {
 		if !strings.Contains(frame, want) {
 			t.Errorf("the frame\n%s\nhas no %q", frame, want)
 		}

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"math"
 	"slices"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -126,8 +125,8 @@ func (f Frame) compareParts() []flex.Part {
 // an account: where its parts, as compareParts has them, fit at their
 // leasts; else it's turned, a row an account. With fewer than two accounts
 // there's nothing to compare, and it's never wide. Its form, its focus, help
-// and the watch all choose by it. Its parts are the configured accounts', as
-// the frame's numbering numbers them, so it never changes as the reads do.
+// and the watch all choose by it. Its parts are the configured accounts', so
+// it never changes as the reads do.
 func (f Frame) CompareWide() bool {
 	if len(f.Accounts.Accounts) < comparedAlways {
 		return false
@@ -160,17 +159,16 @@ func compareBars(column int) (share, week int) {
 }
 
 // leastCompared are the fewest cells a column of Compare takes: leastColumn,
-// or, where it's more, the widest account's head and a cell: its number and
-// a space, then its name whole, at most compareNameMost, each numbered as
-// the frame's numbering numbers it; so no account's name is cut where
-// another's column would show it whole. Or, where it's more, the widest of
-// its rows' shortest forms and a cell, as compareFigures has them, so no
-// figure is cut at a column's least.
+// or, where it's more, the widest account's head and a cell: its name whole,
+// at most compareNameMost; so no account's name is cut where another's
+// column would show it whole. Or, where it's more, the widest of its rows'
+// shortest forms and a cell, as compareFigures has them, so no figure is cut
+// at a column's least.
 func (f Frame) leastCompared() int {
 	n, widest := len(f.Accounts.Accounts), 0
-	for _, a := range f.numbering().Configured(f.Accounts.Accounts) {
-		named := accountName{label: name(a), primary: a.Primary}
-		widest = max(widest, len(strconv.Itoa(a.Place))+1+min(wholeName(named), compareNameMost))
+	for _, a := range f.Accounts.Accounts {
+		named := accountName{label: labelled(a.Label, a.ID), primary: a.Primary}
+		widest = max(widest, min(wholeName(named), compareNameMost))
 	}
 	for _, figure := range compareFigures(n) {
 		widest = max(widest, partsWidth(figure))
@@ -259,8 +257,8 @@ func compareBound(accounts int, all bool) views.AccountsRow {
 	}
 }
 
-// wholeName are the cells the name takes unnumbered, its label whole and its
-// marks: a name's natural width.
+// wholeName are the cells the name takes, its label whole and its marks: a
+// name's natural width.
 func wholeName(n accountName) int {
 	return ansi.StringWidth(n.label) + n.marks().width()
 }
@@ -301,7 +299,7 @@ type compared struct {
 // compareColumn is a column of Compare: from column x, its values cut to
 // width cells and its heads to head cells, its column's less a cell, but
 // all accounts' values, to the frame's edge; of an account, by its id, as it
-// stands, numbered, where the moment has it, what's told of its token's year,
+// stands, where the moment has it, what's told of its token's year,
 // where anything is, as views.TokenNoteOf has it, and its row of the
 // period's page; or, of all accounts, every account's.
 type compareColumn struct {
@@ -378,24 +376,18 @@ func (f Frame) compareState() []line {
 		return nil
 	}
 	moves := line{
-		{comparedShown(f.numbering(), f.Accounts.Accounts, f.compareFirst(), shown), faintInk},
+		{comparedShown(len(f.Accounts.Accounts), f.compareFirst(), shown), faintInk},
 		{"  ·  ", faintInk}, {"←→", keyInk}, {" moves along them", faintInk},
 	}
 	return []line{slices.Concat(moves, line{{"; all accounts stays put", faintInk}}), moves}
 }
 
-// comparedShown says which of the configured accounts given, numbered as n
-// numbers them, Compare shows, shown of them from the place among them first,
-// from 0: by the first's number and the last's, as "accounts 2–5 of 9",
-// where every account is numbered by its place in the config, as n's InPlace
-// has it; else how many, as "4 of 9 accounts", at every scroll alike, as the
-// numbers then don't each stand at their own place, and a range of them
-// wouldn't tell what lies past it.
-func comparedShown(n status.Numbering, configured config.Accounts, first, shown int) string {
-	if !n.InPlace(configured) {
-		return fmt.Sprintf("%d of %d accounts", shown, len(configured))
-	}
-	return fmt.Sprintf("accounts %d–%d of %d", first+1, first+shown, len(configured))
+// comparedShown says which of the configured accounts, of their count,
+// Compare shows, shown of them from the place among them first, from 0: by
+// the first's place in the config's order and the last's, as "accounts 2–5
+// of 9".
+func comparedShown(configured, first, shown int) string {
+	return fmt.Sprintf("accounts %d–%d of %d", first+1, first+shown, configured)
 }
 
 // columns are Compare's columns: each account's shown, from the first, then
@@ -532,11 +524,11 @@ func (cp compared) filled() map[Ref]float64 {
 	return filled
 }
 
-// heads draws the columns' heads from row top: each account's number, its
-// name and its marks, as usage names an account, but for ▲, as Accounts
+// heads draws the columns' heads from row top: each account's name and its
+// marks, as usage names an account, but for ▲, as Accounts
 // shows no routing, under them its state in a word, and under that what's
 // told of its token's year, where anything is, short, as tokenShortForms
-// fits it; all accounts', 0 and its name, and its accounts' states counted;
+// fits it; all accounts', its name, and its accounts' states counted;
 // the focused column's on bg.selection, and over it, a state cued as it
 // changes, a warning showing through the focus.
 func (cp compared) heads(c *canvas, top int, columns []compareColumn) {
@@ -558,16 +550,15 @@ func (cp compared) heads(c *canvas, top int, columns []compareColumn) {
 	}
 }
 
-// named is the column's head in the cells given: an account's number, its
-// name, at most compareNameMost cells with its marks however wide its column,
-// cut short to keep its number and marks, and its marks but ▲; all accounts',
-// 0 and its name.
+// named is the column's head in the cells given: an account's name, at most
+// compareNameMost cells with its marks however wide its column, cut short to
+// keep its marks, and its marks but ▲; all accounts', its name.
 func (cp compared) named(col compareColumn, cells int) line {
 	if col.all {
-		return line{{"0", dimInk}, {" all accounts", strongInk}}.fit(cells)
+		return allAccountsNamed.fit(cells)
 	}
-	named := accountName{number: strconv.Itoa(col.account.Place), label: name(col.account), primary: col.account.Primary}
-	return named.labelIn(min(cells-len(named.number)-1, compareNameMost) - named.marks().width())
+	named := accountName{label: name(col.account), primary: col.account.Primary}
+	return named.labelIn(min(cells, compareNameMost) - named.marks().width())
 }
 
 // stands is how the column's account stands, in the cells given: its state

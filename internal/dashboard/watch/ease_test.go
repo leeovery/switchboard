@@ -168,6 +168,12 @@ func tenWith(change func(*status.Account), ids ...string) status.Document {
 	return doc.WorkedOut(policy)
 }
 
+// headsARow reports whether a row of the view starts with the label given,
+// as an account's name heads its row of USAGE.
+func headsARow(view, label string) bool {
+	return slices.ContainsFunc(strings.Split(ansi.Strip(view), "\n"), func(row string) bool { return strings.HasPrefix(row, label+" ") })
+}
+
 // tenOnAShortScreen is a model of a source whose router answers with doc,
 // of tenWith's ten accounts, showing USAGE alone on a terminal 17 rows tall,
 // started and settled, studio scrolled out of view.
@@ -178,7 +184,7 @@ func tenOnAShortScreen(t *testing.T, doc status.Document) *harness {
 	h.update(tea.WindowSizeMsg{Width: 160, Height: 17})
 	h.start()
 	h.settle()
-	if view := h.view(); strings.Contains(view, "10 studio") {
+	if view := h.view(); headsARow(view, "studio") {
 		t.Fatalf("the screen is\n%s\nwant USAGE too short for studio, scrolled out of view", view)
 	}
 	return h
@@ -249,7 +255,7 @@ func TestTheScreenUpdateDrawsIsTheScreenDrawnAfresh(t *testing.T) {
 	h.start()
 	h.answer(darkBackground)
 	h.settle()
-	if view := h.view(); strings.Contains(view, "10 studio") {
+	if view := h.view(); headsARow(view, "studio") {
 		t.Fatalf("the screen is\n%s\nwant USAGE too short for studio, scrolled out of view", view)
 	}
 	read := func(moved ...string) func() {

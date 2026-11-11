@@ -81,11 +81,11 @@ type happening struct {
 // names them.
 func (f Frame) upcoming(doc status.Document, now time.Time) []happening {
 	m := f.Moment(doc, now)
-	return comingTeller{moment: m, names: overviewNames(m), window: f.windowNamer(m)}.happenings(m.ComingUp)
+	return comingTeller{moment: m, names: namesOf(m), window: f.windowNamer(m)}.happenings(m.ComingUp)
 }
 
 // comingTeller tells of the things coming up of a document at a moment, as
-// COMING UP says them: its accounts named as names, overviewNames' of the
+// COMING UP says them: its accounts named as names, namesOf's of the
 // moment, have them; its windows as window names them; and the window a
 // request starts as the policy the moment was judged by says, unnamed but
 // where namesStarted is set, as Runway names it, as in "lab's 5-hour runs

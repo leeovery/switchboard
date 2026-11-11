@@ -225,7 +225,7 @@ func (f Frame) drawRunning(c *canvas, m status.Moment, form runningForm, listed 
 	}
 	shown := form.shown(len(listed), body.rows)
 	at := form.laid()
-	names, named := overviewNames(m), ""
+	names, named := namesOf(m), ""
 	for i, r := range listed[:shown] {
 		if r.Blank() {
 			continue

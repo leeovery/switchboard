@@ -170,7 +170,7 @@ func TestTheHeaderLeavesOffWholePartsBeforeCuttingAny(t *testing.T) {
 
 func TestByAccountLeavesABlankLineUnderTheHeader(t *testing.T) {
 	rows := printed(trio(), 160, ByAccount)
-	if rows[1] != "" || !strings.HasPrefix(rows[2], "1 work") {
+	if rows[1] != "" || !strings.HasPrefix(rows[2], "work") {
 		t.Errorf("by account, the printout starts %q, want the header, a blank line, then work's block", rows[:3])
 	}
 }
@@ -200,7 +200,7 @@ func TestAPrintoutWithoutColourTellsStateByGlyphsAndBold(t *testing.T) {
 			t.Fatalf("row %d is drawn %q, want no colour", i, r)
 		}
 	}
-	if got, want := colAt(ansi.Strip(rows[4]), 16, 16), "████████┃██████╎"; got != want {
+	if got, want := colAt(ansi.Strip(rows[4]), 14, 17), "█████████┃██████╎"; got != want {
 		t.Errorf("work's 5-hour bar reads %q, want %q: its fill in blocks, its marks over it", got, want)
 	}
 	if !strings.Contains(rows[4], "\x1b[1mwork") {
@@ -241,9 +241,9 @@ func afterKeyLine(t *testing.T, rows []string) []string {
 func TestThePrintoutEndsWithTheTokensWhoseYearIsNearlyUp(t *testing.T) {
 	want := []string{
 		"",
-		"1 work  token expires 22 Oct 2026 · 21 days left — switchboard setup makes a new one",
-		"2 personal ◆  token expires 1 Oct 2026 · last day — switchboard setup makes a new one",
-		"3 side ▲  token expired 1 Oct 2026 — switchboard setup makes a new one",
+		"work  token expires 22 Oct 2026 · 21 days left — switchboard setup makes a new one",
+		"personal ◆  token expires 1 Oct 2026 · last day — switchboard setup makes a new one",
+		"side ▲  token expired 1 Oct 2026 — switchboard setup makes a new one",
 	}
 	for _, by := range []By{ByWindow, ByAccount} {
 		rows := textOf(printed(trio(nearlyUp...), 160, by))
@@ -267,8 +267,8 @@ func TestThePrintoutsTokenLineWrapsAsDetailsDoes(t *testing.T) {
 	rows := textOf(printed(trio(nearlyUp[0]), 52, ByWindow))
 	want := []string{
 		"",
-		" 1 work  token expires 22 Oct 2026 · 21 days left —",
-		"         switchboard setup makes a new one",
+		" work  token expires 22 Oct 2026 · 21 days left —",
+		"       switchboard setup makes a new one",
 	}
 	if got := afterKeyLine(t, rows); strings.Join(got, "\n") != strings.Join(want, "\n") {
 		t.Errorf("at 52 columns, after the key line the printout reads\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
@@ -284,12 +284,12 @@ func TestThePrintoutsTokenLineNamesItsAccountAsItsRowDoes(t *testing.T) {
 		rows := textOf(printed(doc, 52, by))
 		after := afterKeyLine(t, rows)
 		block := rows[:len(rows)-len(after)]
-		i := slices.IndexFunc(block, func(r string) bool { return strings.HasPrefix(strings.TrimLeft(r, " "), "1 x") })
+		i := slices.IndexFunc(block, func(r string) bool { return strings.HasPrefix(strings.TrimLeft(r, " "), "x") })
 		if i < 0 {
 			t.Fatalf("by %d at 52 columns, no row names work:\n%s", by, strings.Join(block, "\n"))
 		}
 		indent := len(block[i]) - len(strings.TrimLeft(block[i], " "))
-		named := "1 " + strings.Fields(block[i])[1]
+		named := strings.Fields(block[i])[0]
 		if !strings.HasSuffix(named, "…") || len([]rune(named)) >= 30 {
 			t.Fatalf("by %d at 52 columns, work's row names it %q, want its label cut with …", by, named)
 		}
@@ -311,9 +311,9 @@ func TestThePrintoutsTokenLinesAreInkedAsDetailsAre(t *testing.T) {
 		name string
 		inks tokenInks
 	}{
-		{"1 work  ", tokenInks{words: "token expires", warns: "21 days left", command: "switchboard setup", warning: alertInk}},
-		{"2 personal ◆  ", tokenInks{words: "token expires", warns: "last day", command: "switchboard setup", warning: exhaustedInk}},
-		{"3 side ▲  ", tokenInks{words: "token ", warns: "expired", command: "switchboard setup", warning: exhaustedInk}},
+		{"work  ", tokenInks{words: "token expires", warns: "21 days left", command: "switchboard setup", warning: alertInk}},
+		{"personal ◆  ", tokenInks{words: "token expires", warns: "last day", command: "switchboard setup", warning: exhaustedInk}},
+		{"side ▲  ", tokenInks{words: "token ", warns: "expired", command: "switchboard setup", warning: exhaustedInk}},
 	} {
 		checkTokenInks(t, c, ansi.StringWidth(tt.name), rowWith(textOf(c.rows(Look{})), tt.name), tt.inks)
 	}

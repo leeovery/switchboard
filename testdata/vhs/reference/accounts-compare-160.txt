@@ -4,7 +4,7 @@
 
 ACCOUNTS    Compare  Detail  [ ]  ───────────────────────────────────────────────────────────────────────────────────────────────────────────────  < this week >
 
-                          1 work                            2 personal ◆                     3 side                           0 all accounts
+                          work                              personal ◆                       side                             all accounts
                           ● at cap                          ● open                           ● open                           2 open · 1 at cap
 
 WEEK USED                         ▏    ┃         ╎  34%                    ▉┃         66%               ┃      ▊       78%                 ┃▎           59%

@@ -86,7 +86,7 @@ type linesDrawn struct {
 
 // linesDrawn are the Switchboard's lines of m, laid out as laid lays them.
 func (f Frame) linesDrawn(m status.Moment, laid boardLayout) linesDrawn {
-	d := linesDrawn{f: f, m: m, laid: laid, names: overviewNames(m), windows: f.listedWindows(m), beside: f.besideWindows(m)}
+	d := linesDrawn{f: f, m: m, laid: laid, names: namesOf(m), windows: f.listedWindows(m), beside: f.besideWindows(m)}
 	d.column = d.nameColumn()
 	return d
 }
@@ -99,7 +99,7 @@ func (d linesDrawn) nameColumn() int {
 }
 
 // nameParts are the parts of a line's row its name heads, as flex lays them:
-// the name column, its names with their numbers, their marks and nameGap, as
+// the name column, its names with their marks and nameGap, as
 // accountsColumn has it; from oneRowStep, where the line takes one row, its
 // week's bar, oneRowBar cells, and afterBar on to its words; and its words,
 // at least leastStanding, which take the rest. So a name is whole wherever
@@ -153,7 +153,7 @@ func (d linesDrawn) line(c *canvas, a status.AccountNow, n accountName, y int) {
 	}
 }
 
-// nameRow draws a's name row along row y: its number, name and marks, then
+// nameRow draws a's name row along row y: its name and marks, then
 // from the name column, its state in ROUTING's words, or short, their short
 // form, ending where the pin's mark needs the room, as stands has them.
 func (d linesDrawn) nameRow(c *canvas, a status.AccountNow, n accountName, y int, short bool) {
@@ -294,7 +294,7 @@ func windowsBeside(c *canvas, look Look, x, y, bar int, labels []int, windows []
 	}
 }
 
-// oneRow draws a's line on row y alone: its number, name and marks, cut to
+// oneRow draws a's line on row y alone: its name and marks, cut to
 // the name column; from it, its week's bar, oneRowBar cells, a cell and its
 // percentage; and afterBar cells on from its bar, how it stands, short where
 // the lines are narrower than their widest, as stands has it.

@@ -20,7 +20,7 @@ const (
 )
 
 // glanceLaid is GLANCE laid out across a width, of the configured accounts,
-// in the config's order, as numbered, whatever the reads say, so it holds
+// in the config's order, whatever the reads say, so it holds
 // still as they come: the accounts; the windows it draws, in runwayWindows'
 // order; the cells of its name column and of each window's words; whether
 // its windows stack, the week's rows then the 5-hour's; the width it takes;
@@ -36,13 +36,12 @@ type glanceLaid struct {
 }
 
 // layGlance is GLANCE laid out width cells wide, of the configured accounts
-// given, numbered as n numbers them, drawing the windows given: side by
-// side, as glanceRow lays them, where their parts fit at their leasts; else
-// stacked, a window a row. It takes no more than its natural, as it doesn't
-// grow, and its key is flowed in what it takes, its items glanceKeyApart
-// apart, an item never broken.
-func layGlance(n status.Numbering, accounts config.Accounts, windows []views.RunwayWindow, width int) glanceLaid {
-	names := configuredNames(n, accounts)
+// given, drawing the windows given: side by side, as glanceRow lays them,
+// where their parts fit at their leasts; else stacked, a window a row. It
+// takes no more than its natural, as it doesn't grow, and its key is flowed
+// in what it takes, its items glanceKeyApart apart, an item never broken.
+func layGlance(accounts config.Accounts, windows []views.RunwayWindow, width int) glanceLaid {
+	names := configuredNames(accounts)
 	l := glanceLaid{accounts: accounts, windows: windows}
 	row := glanceRowOf(names, len(windows))
 	column, words, ok := row.lay(width)
@@ -56,22 +55,25 @@ func layGlance(n status.Numbering, accounts config.Accounts, windows []views.Run
 }
 
 // glancePart is GLANCE across the cells flex lays it in, as Graphs' planner
-// lays it beside WHEN YOU WORK, of the configured accounts given, numbered
-// as n numbers them, drawing the windows given: its natural its windows side
-// by side, every part at its natural; its least its windows stacked, every
-// part at its least; and its most its natural, as it doesn't grow.
-func glancePart(n status.Numbering, accounts config.Accounts, windows []views.RunwayWindow) flex.Part {
-	names := configuredNames(n, accounts)
+// lays it beside WHEN YOU WORK, of the configured accounts given, drawing
+// the windows given: its natural its windows side by side, every part at its
+// natural; its least its windows stacked, every part at its least; and its
+// most its natural, as it doesn't grow.
+func glancePart(accounts config.Accounts, windows []views.RunwayWindow) flex.Part {
+	names := configuredNames(accounts)
 	natural := glanceRowOf(names, len(windows)).natural()
 	return flex.Part{Least: glanceRowOf(names, 1).least(), Natural: natural, Most: natural}
 }
 
 // configuredNames are the configured accounts' names, as the config names
-// and marks them, in its order, numbered as n numbers them and aligned as
-// graphsNamed aligns them, as a row of GLANCE heads each, whatever the reads
-// say: ▲'s cells kept on every one, as accountName's cells keeps them.
-func configuredNames(n status.Numbering, accounts config.Accounts) []accountName {
-	return namesAt(n.Configured(accounts), n.Held())
+// and marks them, in its order, as a row of GLANCE heads each, whatever the
+// reads say: ▲'s cells kept on every one, as accountName's cells keeps them.
+func configuredNames(accounts config.Accounts) []accountName {
+	names := make([]accountName, len(accounts))
+	for i, a := range accounts {
+		names[i] = accountName{label: labelled(a.Label, a.ID), primary: a.Primary}
+	}
+	return names
 }
 
 // glanceRow is a row of GLANCE, windows windows across, as flex lays it: its
@@ -275,15 +277,14 @@ func (g glance) row(c *canvas, l glanceLaid, x, y int, windows []int, r glanceLi
 
 // lines are GLANCE's rows of the moment, as l lays them out: each configured
 // account's, in the config's order, as graphsNamed has it, so one the
-// moment doesn't hold yet is one not read yet, numbered and named as Runway
-// numbers and names it, faint where it's out of the pool, as the Overview
-// names it, and each window it draws as accountGauge has it; and the
-// pool's, as poolLine has it.
+// moment doesn't hold yet is one not read yet, named as Runway names it,
+// faint where it's out of the pool, as the Overview names it, and each
+// window it draws as accountGauge has it; and the pool's, as poolLine has
+// it.
 func (g glance) lines(l glanceLaid) ([]glanceLine, *glanceLine) {
 	accounts, names := graphsNamed(g.m, l.accounts)
 	lines := make([]glanceLine, len(accounts))
 	for i, a := range accounts {
-		names[i].faint = names[i].out
 		lines[i].name = names[i].line(l.column)
 		_, known := g.m.Account(a.ID)
 		for _, w := range l.windows {

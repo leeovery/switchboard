@@ -23,8 +23,8 @@ import (
 // esc, enter, s, f and / act as logKey says; tab and shift-tab show the next
 // tab and the one before, as turn has it; and t opens the theme picker. esc,
 // whatever the page does with it, drops a session's page asked to open, as
-// unasked has it. The rest do nothing: the number keys and m among them,
-// which act in the routing card alone.
+// unasked has it. The rest do nothing: space and m among them, which act in
+// the routing card alone.
 func (m Model) pageKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	k := key.String()
 	if k == "esc" {

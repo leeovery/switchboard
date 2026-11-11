@@ -124,11 +124,11 @@ func TestEachFieldOfTheEditCardIsSaved(t *testing.T) {
 		want setup.Edit
 		row  string
 	}{
-		{name: "its label", keys: []string{"backspace", "backspace", "backspace", "backspace", "backspace", "backspace", "backspace", "backspace", "H", "o", "m", "e"}, want: setup.Edit{Label: new("Home")}, row: "  2  personal        Home"},
-		{name: "its plan", keys: []string{"tab", "left", "left"}, want: setup.Edit{Plan: new("max")}, row: "  2  personal        Personal      Max"},
-		{name: "its plan, no further than the first", keys: []string{"tab", "left", "left", "left", "left", "left"}, want: setup.Edit{Plan: new("pro")}, row: "  2  personal        Personal      Pro"},
-		{name: "the primary", keys: []string{"tab", "tab", "right"}, want: setup.Edit{Primary: true}, row: "  2  personal ◆      Personal"},
-		{name: "its reserve", keys: []string{"tab", "tab", "tab", "backspace", "backspace", "backspace", "backspace", "5", "%"}, want: setup.Edit{Reserve: new("5%")}, row: "  2  personal        Personal      not set    5%"},
+		{name: "its label", keys: []string{"backspace", "backspace", "backspace", "backspace", "backspace", "backspace", "backspace", "backspace", "H", "o", "m", "e"}, want: setup.Edit{Label: new("Home")}, row: "    Home            not set"},
+		{name: "its plan", keys: []string{"tab", "left", "left"}, want: setup.Edit{Plan: new("max")}, row: "    Personal        Max"},
+		{name: "its plan, no further than the first", keys: []string{"tab", "left", "left", "left", "left", "left"}, want: setup.Edit{Plan: new("pro")}, row: "    Personal        Pro"},
+		{name: "the primary", keys: []string{"tab", "tab", "right"}, want: setup.Edit{Primary: true}, row: "    Personal ◆      not set"},
+		{name: "its reserve", keys: []string{"tab", "tab", "tab", "backspace", "backspace", "backspace", "backspace", "5", "%"}, want: setup.Edit{Reserve: new("5%")}, row: "    Personal        not set    5%"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -201,7 +201,7 @@ func TestEscClosesTheEditCardSavingNothing(t *testing.T) {
 	if h.steps.reviews != reviews {
 		t.Errorf("esc read the accounts again, want nothing asked")
 	}
-	if got := h.rows()[firstRow+2]; !strings.HasPrefix(got, "▌ 2  personal        Personal      not set") {
+	if got := h.rows()[firstRow+2]; !strings.HasPrefix(got, "▌   Personal        not set") {
 		t.Errorf("personal's row reads %q, want it as it was", got)
 	}
 }
@@ -359,7 +359,7 @@ func TestPMakesTheChosenAccountThePrimary(t *testing.T) {
 	if len(steps.edits) != 1 || steps.edits[0].id != "personal" || !sameEdit(steps.edits[0].edit, setup.Edit{Primary: true}) {
 		t.Fatalf("p gave EditAccount %+v, want personal made the primary", steps.edits)
 	}
-	if got := h.rows()[firstRow+2]; !strings.HasPrefix(got, "▌ 2  personal ◆") {
+	if got := h.rows()[firstRow+2]; !strings.HasPrefix(got, "▌   Personal ◆") {
 		t.Errorf("personal's row reads %q, want it marked the primary, still chosen", got)
 	}
 	if rows := strings.Join(h.rows(), "\n"); strings.Contains(rows, "No account is the primary") {
@@ -396,7 +396,7 @@ func TestPMovesThePrimarysMark(t *testing.T) {
 	if got := h.rows()[firstRow]; strings.Contains(got, "◆") {
 		t.Errorf("work's row reads %q, want its mark taken off", got)
 	}
-	if got := h.rows()[firstRow+4]; !strings.HasPrefix(got, "▌ 3  side ◆") {
+	if got := h.rows()[firstRow+4]; !strings.HasPrefix(got, "▌   Side ◆") {
 		t.Errorf("side's row reads %q, want it marked the primary", got)
 	}
 	h.pressAndDeliver("p")
@@ -445,10 +445,10 @@ func TestRAsksBeforeRemovingTheAccount(t *testing.T) {
 	if title, _ := h.card(); title != "" {
 		t.Errorf("removed, the card %q is still open", title)
 	}
-	if got := h.rows()[firstRow+4]; !strings.HasPrefix(got, "  +  add an account") {
+	if got := h.rows()[firstRow+4]; !strings.HasPrefix(got, "  + add an account") {
 		t.Errorf("the row after personal's reads %q, want + add an account, side gone", got)
 	}
-	if got := h.rows()[firstRow+2]; !strings.HasPrefix(got, "▌ 2  personal") {
+	if got := h.rows()[firstRow+2]; !strings.HasPrefix(got, "▌   Personal") {
 		t.Errorf("personal's row reads %q, want it chosen, the last account left, never + add an account", got)
 	}
 }
@@ -459,7 +459,7 @@ func TestEscKeepsTheAccount(t *testing.T) {
 	if len(h.steps.removes) != 0 || h.model.remove != nil {
 		t.Errorf("esc removed %v, or left the card open", h.steps.removes)
 	}
-	if got := h.rows()[firstRow+2]; !strings.HasPrefix(got, "▌ 2  personal") {
+	if got := h.rows()[firstRow+2]; !strings.HasPrefix(got, "▌   Personal") {
 		t.Errorf("personal's row reads %q, want it kept, chosen", got)
 	}
 }
@@ -467,7 +467,7 @@ func TestEscKeepsTheAccount(t *testing.T) {
 func TestRemovingThePrimaryLeavesNoneMarked(t *testing.T) {
 	h := removing(t, frame3Steps(), 0)
 	h.pressAndDeliver("enter")
-	if got := h.rows()[firstRow]; !strings.HasPrefix(got, "▌ 1  personal ") || strings.Contains(got, "◆") {
+	if got := h.rows()[firstRow]; !strings.HasPrefix(got, "▌   Personal ") || strings.Contains(got, "◆") {
 		t.Errorf("the first row reads %q, want personal, chosen, as the one after work, unmarked", got)
 	}
 	if rows := strings.Join(h.rows(), "\n"); !strings.Contains(rows, "No account is the primary") {
@@ -494,7 +494,7 @@ func TestRemovingTheLastAccountIsRefusedSayingWhy(t *testing.T) {
 		t.Error("the card closed, or the step failed: want the card kept, saying why")
 	}
 	h.pressAndDeliver("esc")
-	if got := h.rows()[firstRow]; !strings.HasPrefix(got, "▌ 1  work") {
+	if got := h.rows()[firstRow]; !strings.HasPrefix(got, "▌   Work") {
 		t.Errorf("the first row reads %q, want work kept", got)
 	}
 }
@@ -511,7 +511,7 @@ func TestTheChosenRowFollowsItsAccount(t *testing.T) {
 		h.pressAndDeliver("down")
 		h.model.remove = &removeCard{id: "work", name: "Work"}
 		h.pressAndDeliver("enter")
-		if got := h.rows()[firstRow+2]; !strings.HasPrefix(got, "▌ 2  side") {
+		if got := h.rows()[firstRow+2]; !strings.HasPrefix(got, "▌   Side") {
 			t.Errorf("the second row reads %q, want side, still chosen", got)
 		}
 	})
@@ -553,7 +553,7 @@ func TestTheChosenRowFollowsItsAccount(t *testing.T) {
 		if got := h.model.chosen; got != 1 {
 			t.Fatalf("row %d is chosen, want side's, 1", got)
 		}
-		if got := chosenRowOf(h.rows()); !strings.HasPrefix(got, "▌ 2  side") {
+		if got := chosenRowOf(h.rows()); !strings.HasPrefix(got, "▌   Side") {
 			t.Errorf("the chosen row shown reads %q, want side's, scrolled into view", got)
 		}
 	})

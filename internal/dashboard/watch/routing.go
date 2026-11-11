@@ -148,10 +148,9 @@ func (m Model) picks(mo status.Moment) []string {
 
 // routingKey acts on a key while the routing card is open, which takes
 // every key but ctrl+c: ↑ and ↓ move between its rows; space picks the row
-// the cursor is on, and a number the row it numbers, the cursor going there;
-// m ticks or clears moving the sessions running, on new sessions' card;
-// enter applies the picks; and esc closes the card, changing nothing. The
-// rest do nothing.
+// the cursor is on; m ticks or clears moving the sessions running, on new
+// sessions' card; enter applies the picks; and esc closes the card,
+// changing nothing. The rest do nothing.
 func (m Model) routingKey(key string) (tea.Model, tea.Cmd) {
 	now := m.now()
 	mo := m.moment(now)
@@ -171,8 +170,6 @@ func (m Model) routingKey(key string) (tea.Model, tea.Cmd) {
 		r = r.picking(rows, r.cursor)
 	case "m":
 		r = r.ticking()
-	default:
-		r = r.numbered(rows, key)
 	}
 	m.routing = r
 	return m, nil
@@ -185,18 +182,6 @@ func (r routing) ticking() routing {
 		r.move, r.refused = !r.move, nil
 	}
 	return r
-}
-
-// numbered is r with the row the key numbers picked, the cursor going
-// there, where the row takes it, as takes says: a number past the accounts
-// there are, or an account's that can't be picked and isn't, does nothing.
-func (r routing) numbered(rows []dashboard.RoutingRow, key string) routing {
-	i := slices.IndexFunc(rows, func(row dashboard.RoutingRow) bool { return row.Key == key })
-	if i < 0 || !r.takes(rows[i]) {
-		return r
-	}
-	r.cursor = i
-	return r.picking(rows, i)
 }
 
 // picking is r with the row with the given index picked, where it takes it,
@@ -218,7 +203,7 @@ func (r routing) picking(rows []dashboard.RoutingRow, i int) routing {
 	return r
 }
 
-// takes reports whether the row takes space and its number: where it can be
+// takes reports whether the row takes space: where it can be
 // picked; or where it can't, while it's picked, as a pin from the command
 // line can pick it, to clear it, never to pick it again.
 func (r routing) takes(row dashboard.RoutingRow) bool {

@@ -198,9 +198,9 @@ func TestReviewOfFrame3(t *testing.T) {
 
 	review.Accounts = checked
 	notes := []setup.Note{
-		{Need: setup.NeedToken, Account: "side", Says: "has no working token, so no requests are routed to it.", Press: "Press t to create a new one, approving it in the browser signed in to Side.", Key: "t"},
-		{Need: setup.NeedNewToken, Account: "personal", Says: "has a token that expires 17 Nov 2026: 21 days left.", Press: "Press t to create a new one, approving it in the browser signed in to Personal.", Key: "t"},
-		{Need: setup.NeedPlan, Account: "personal", Says: "has no plan set, so History can't value its usage.", Press: "Press e to set one.", Key: "e"},
+		{Need: setup.NeedToken, Account: "side", Label: "Side", Says: "has no working token, so no requests are routed to it.", Press: "Press t to create a new one, approving it in the browser signed in to Side.", Key: "t"},
+		{Need: setup.NeedNewToken, Account: "personal", Label: "Personal", Says: "has a token that expires 17 Nov 2026: 21 days left.", Press: "Press t to create a new one, approving it in the browser signed in to Personal.", Key: "t"},
+		{Need: setup.NeedPlan, Account: "personal", Label: "Personal", Says: "has no plan set, so History can't value its usage.", Press: "Press e to set one.", Key: "e"},
 	}
 	if got := review.Notes(); !slices.Equal(got, notes) {
 		t.Errorf("the notes are\n%+v\nwant\n%+v", got, notes)
@@ -268,16 +268,16 @@ func TestReviewsNotes(t *testing.T) {
 		token setup.TokenStanding
 		want  []setup.Note
 	}{
-		{"no token", setup.TokenStanding{}, []setup.Note{{Need: setup.NeedToken, Account: "work", Says: "has no working token, so no requests are routed to it.", Press: newToken, Key: "t"}}},
-		{"refused", setup.TokenStanding{State: setup.TokenNotTaken, Year: gone}, []setup.Note{{Need: setup.NeedToken, Account: "work", Says: "has no working token, so no requests are routed to it.", Press: newToken, Key: "t"}}},
-		{"unreadable", setup.TokenStanding{State: setup.TokenUnreadable, Why: "the token file <path> isn't a file: replace it with one holding the token"}, []setup.Note{{Need: setup.NeedToken, Account: "work", Says: "has a token setup can't read: the token file <path> isn't a file: replace it with one holding the token", Press: "Put that right, or press t to create a new one, approving it in the browser signed in to Work.", Key: "t"}}},
+		{"no token", setup.TokenStanding{}, []setup.Note{{Need: setup.NeedToken, Account: "work", Label: "Work", Says: "has no working token, so no requests are routed to it.", Press: newToken, Key: "t"}}},
+		{"refused", setup.TokenStanding{State: setup.TokenNotTaken, Year: gone}, []setup.Note{{Need: setup.NeedToken, Account: "work", Label: "Work", Says: "has no working token, so no requests are routed to it.", Press: newToken, Key: "t"}}},
+		{"unreadable", setup.TokenStanding{State: setup.TokenUnreadable, Why: "the token file <path> isn't a file: replace it with one holding the token"}, []setup.Note{{Need: setup.NeedToken, Account: "work", Label: "Work", Says: "has a token setup can't read: the token file <path> isn't a file: replace it with one holding the token", Press: "Put that right, or press t to create a new one, approving it in the browser signed in to Work.", Key: "t"}}},
 		{"unchecked, kept", setup.TokenStanding{State: setup.TokenUnchecked, Why: "HTTP 529"}, nil},
-		{"unchecked, in its last 30 days", setup.TokenStanding{State: setup.TokenUnchecked, Why: "HTTP 529", Year: lastDay}, []setup.Note{{Need: setup.NeedNewToken, Account: "work", Says: "has a token that expires 27 Oct 2026: last day.", Press: newToken, Key: "t"}}},
+		{"unchecked, in its last 30 days", setup.TokenStanding{State: setup.TokenUnchecked, Why: "HTTP 529", Year: lastDay}, []setup.Note{{Need: setup.NeedNewToken, Account: "work", Label: "Work", Says: "has a token that expires 27 Oct 2026: last day.", Press: newToken, Key: "t"}}},
 		{"working, its date unknown", working(status.TokenYear{}), nil},
 		{"31 days left", working(ample), nil},
-		{"30 days left", working(status.TokenYear{GoodUntil: frameClock.AddDate(0, 0, 30)}), []setup.Note{{Need: setup.NeedNewToken, Account: "work", Says: "has a token that expires 26 Nov 2026: 30 days left.", Press: newToken, Key: "t"}}},
-		{"its last day", working(lastDay), []setup.Note{{Need: setup.NeedNewToken, Account: "work", Says: "has a token that expires 27 Oct 2026: last day.", Press: newToken, Key: "t"}}},
-		{"read, its year up", setup.TokenStanding{State: setup.TokenRead, Year: gone}, []setup.Note{{Need: setup.NeedNewToken, Account: "work", Says: "has a token that expired 27 Oct 2026.", Press: newToken, Key: "t"}}},
+		{"30 days left", working(status.TokenYear{GoodUntil: frameClock.AddDate(0, 0, 30)}), []setup.Note{{Need: setup.NeedNewToken, Account: "work", Label: "Work", Says: "has a token that expires 26 Nov 2026: 30 days left.", Press: newToken, Key: "t"}}},
+		{"its last day", working(lastDay), []setup.Note{{Need: setup.NeedNewToken, Account: "work", Label: "Work", Says: "has a token that expires 27 Oct 2026: last day.", Press: newToken, Key: "t"}}},
+		{"read, its year up", setup.TokenStanding{State: setup.TokenRead, Year: gone}, []setup.Note{{Need: setup.NeedNewToken, Account: "work", Label: "Work", Says: "has a token that expired 27 Oct 2026.", Press: newToken, Key: "t"}}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

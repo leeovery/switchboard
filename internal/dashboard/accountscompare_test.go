@@ -231,12 +231,12 @@ func TestCompareShowsAColumnAnAccountAsManyAsFitAllAccountsLast(t *testing.T) {
 		frame func(t *testing.T) (Frame, status.Document)
 		want  map[string]int
 	}{
-		{name: "three at 200, 43 each, 2 over", frame: three(200), want: map[string]int{"1 work": 26, "2 personal": 70, "3 side": 113, "0 all accounts": 156}},
-		{name: "three at 122, 24 each", frame: three(122), want: map[string]int{"1 work": 26, "2 personal": 50, "3 side": 74, "0 all accounts": 98}},
-		{name: "three at 100: two shown, 24 each, 2 over", frame: three(100), want: map[string]int{"1 work": 26, "2 personal": 51, "3 side": -1, "0 all accounts": 75}},
-		{name: "ten at 200: eight shown, 19 each, 3 over", frame: ten(200, 0), want: map[string]int{"1 work": 26, "2 personal": 46, "3 side": 66, "8 extra": 161, "9 ops": -1, "0 all accounts": 180}},
-		{name: "ten at 160, from the fourth", frame: ten(160, 3), want: map[string]int{"3 side": -1, "4 client": 26, "9 ops": 121, "10 studio": -1, "0 all accounts": 140}},
-		{name: "ten at 160, from further than leaves six", frame: ten(160, 8), want: map[string]int{"4 client": -1, "5 spare": 26, "10 studio": 121, "0 all accounts": 140}},
+		{name: "three at 200, 43 each, 2 over", frame: three(200), want: map[string]int{"work": 26, "personal": 70, "side": 113, "all accounts": 156}},
+		{name: "three at 122, 24 each", frame: three(122), want: map[string]int{"work": 26, "personal": 50, "side": 74, "all accounts": 98}},
+		{name: "three at 100: two shown, 24 each, 2 over", frame: three(100), want: map[string]int{"work": 26, "personal": 51, "side": -1, "all accounts": 75}},
+		{name: "ten at 200: eight shown, 19 each, 3 over", frame: ten(200, 0), want: map[string]int{"work": 26, "personal": 46, "side": 66, "extra": 161, "ops": -1, "all accounts": 180}},
+		{name: "ten at 160, from the fourth", frame: ten(160, 3), want: map[string]int{"side": -1, "client": 26, "ops": 121, "studio": -1, "all accounts": 140}},
+		{name: "ten at 160, from further than leaves six", frame: ten(160, 8), want: map[string]int{"client": -1, "spare": 26, "studio": 121, "all accounts": 140}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -327,10 +327,10 @@ func TestComparesColumnsScrollToShowTheFocusNoFurtherThanTheyMust(t *testing.T) 
 }
 
 // Each head is cut to its column less a cell: a name past the most a column
-// holds whole with …, keeping its number and its marks. An account the config
-// holds and the document doesn't yet, as one just added in place of the
-// tenth, which the router still holds, stands not read, its week empty and
-// its extra usage a dash, numbered after the document's ten.
+// holds whole with …, keeping its marks. An account the config holds and the
+// document doesn't yet, as one just added in place of the tenth, which the
+// router still holds, stands not read, its week empty and its extra usage a
+// dash, its label alone.
 func TestComparesHeadsKeepToTheirColumns(t *testing.T) {
 	configured := append(slices.Clone(tenFramed[:9]), config.Account{ID: "added"})
 	f, doc := tenOnCompare(t, 160, 37, 4)
@@ -340,7 +340,7 @@ func TestComparesHeadsKeepToTheirColumns(t *testing.T) {
 		row, column int
 		want        string
 	}{
-		{row: 6, column: 121, want: "11 added           "},
+		{row: 6, column: 121, want: "added              "},
 		{row: 7, column: 121, want: "○ not read         "},
 		{row: 9, column: 121, want: "              —    "},
 		{row: 31, column: 121, want: "—                  "},
@@ -352,27 +352,24 @@ func TestComparesHeadsKeepToTheirColumns(t *testing.T) {
 	}
 }
 
-// The heading says which accounts Compare shows by the range of their
-// numbers only where every configured account's number is its place in the
-// config: where the config and the router agree, one added at the config's
-// end that the router doesn't hold yet, or the last removed while the router
-// still holds it, none of which numbers an account past the count or out of
-// order. Anywhere else it counts them, at every scroll alike: with the first
-// or a middle one removed while the router holds it; with the config
-// reordered, 3, 4, 1, 2, or with its last two swapped, out of order only
-// past the first columns shown; and with one removed and another added.
-func TestComparesHeadingSaysWhichAccountsItShowsByTheirNumbers(t *testing.T) {
+// The heading says which accounts Compare shows by the range of their places
+// in the config's order, as no number on screen can disagree with it: where
+// the config and the router agree, one added at the config's end that the
+// router doesn't hold yet, or the last removed while the router still holds
+// it; with the first or a middle one removed while the router holds it; with
+// the config reordered, 3, 4, 1, 2, or with its last two swapped; and with
+// one removed and another added.
+func TestComparesHeadingSaysWhichAccountsItShowsByTheirPlaces(t *testing.T) {
 	ten, four := usageWorld(tenCompared, extraOff), usageWorld(tenCompared, extraOff, heldFirst(4))
 	tests := []struct {
 		name       string
 		configured config.Accounts
 		doc        status.Document
 		width      int
-		ranged     bool
 	}{
-		{name: "ten, the config and the router agreeing", configured: tenFramed, doc: ten, width: 160, ranged: true},
-		{name: "four, one added at the end", configured: slices.Concat(tenFramed[:3], configured("added")), doc: usageWorld(extraOff), width: 90, ranged: true},
-		{name: "nine of ten, the last removed", configured: tenFramed[:9], doc: ten, width: 160, ranged: true},
+		{name: "ten, the config and the router agreeing", configured: tenFramed, doc: ten, width: 160},
+		{name: "four, one added at the end", configured: slices.Concat(tenFramed[:3], configured("added")), doc: usageWorld(extraOff), width: 90},
+		{name: "nine of ten, the last removed", configured: tenFramed[:9], doc: ten, width: 160},
 		{name: "three of four, the first removed", configured: tenFramed[1:4], doc: four, width: 90},
 		{name: "nine of ten, the first removed", configured: tenFramed[1:], doc: ten, width: 160},
 		{name: "nine of ten, the fifth removed", configured: slices.Concat(tenFramed[:4], tenFramed[5:]), doc: ten, width: 160},
@@ -391,10 +388,7 @@ func TestComparesHeadingSaysWhichAccountsItShowsByTheirNumbers(t *testing.T) {
 			}
 			for first := range n - shown + 1 {
 				f.Accounts.First = first
-				want := fmt.Sprintf("%d of %d accounts", shown, n)
-				if tt.ranged {
-					want = fmt.Sprintf("accounts %d–%d of %d", first+1, first+shown, n)
-				}
+				want := fmt.Sprintf("accounts %d–%d of %d", first+1, first+shown, n)
 				if rowWith(textOf(f.Draw(tt.doc, routedAt)), want+"  ·  ") < 0 {
 					t.Errorf("scrolled to the %d-th, no row says %q", first+1, want)
 				}
@@ -409,7 +403,7 @@ func heldFirst(n int) func(*status.Document) {
 }
 
 // A name is at most 24 cells, its marks among them, however wide its column:
-// one past it is cut with …, keeping its number and marks, as a phone's is.
+// one past it is cut with …, keeping its marks, as a phone's is.
 func TestComparesNamesAreCutToTheMostHoweverWideTheirColumn(t *testing.T) {
 	const long = "personal-account-of-mine-and-then-some"
 	tests := []struct {
@@ -426,7 +420,7 @@ func TestComparesNamesAreCutToTheMostHoweverWideTheirColumn(t *testing.T) {
 			f.Accounts.Accounts[1].Label = long
 			account("personal", func(a *status.Account) { a.Label = long })(&doc)
 			heads := f.Draw(doc.WorkedOut(claudeLike), routedAt)[6]
-			if at := columnOf(heads, "2 personal-account-of-m… ◆ "); at < 0 {
+			if at := columnOf(heads, "personal-account-of-m… ◆ "); at < 0 {
 				t.Errorf("personal's head isn't cut to 24 cells with its marks, in %q", heads)
 			}
 		})
@@ -444,8 +438,8 @@ func TestComparesColumnsHoldTheWidestNameWhole(t *testing.T) {
 		width int
 		want  map[string]int
 	}{
-		{name: "at 108, two shown", width: 108, want: map[string]int{"1 work-team-plan": 26, "2 personal-research ◆": 53, "3 side": -1, "0 all accounts": 80}},
-		{name: "at 138, every one shown", width: 138, want: map[string]int{"1 work-team-plan": 26, "2 personal-research ◆": 54, "3 side-hustle-consulting": 82, "0 all accounts": 110}},
+		{name: "at 108, two shown", width: 108, want: map[string]int{"work-team-plan": 26, "personal-research ◆": 53, "side": -1, "all accounts": 80}},
+		{name: "at 138, every one shown", width: 138, want: map[string]int{"work-team-plan": 26, "personal-research ◆": 54, "side-hustle-consulting": 82, "all accounts": 110}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -482,7 +476,7 @@ func TestAllAccountsCountsTheConfiguredAccountsStates(t *testing.T) {
 			f, doc := threeCompared(t, 200, 37)
 			f.Accounts.Accounts = tt.configured
 			rows := f.Draw(doc, routedAt)
-			x := columnOf(rows[6], "0 all accounts")
+			x := columnOf(rows[6], "all accounts")
 			if got := strings.TrimSpace(ansi.Cut(rows[7], x, f.Width)); got != tt.want {
 				t.Errorf("all accounts' states read %q, want %q", got, tt.want)
 			}
@@ -506,7 +500,7 @@ func TestAllAccountsExtraUsageCountsTheConfiguredAccounts(t *testing.T) {
 	compare, _ := threeCompared(t, 200, 37)
 	compare.Accounts.Accounts = added
 	rows := textOf(compare.Draw(usageWorld(extraOff, workOn), routedAt))
-	x := columnOf(rows[6], "0 all accounts")
+	x := columnOf(rows[6], "all accounts")
 	if got := strings.TrimSpace(ansi.Cut(rows[rowWith(rows, "extra usage")], x, compare.Width)); got != want {
 		t.Errorf("Compare's all accounts' extra usage reads %q, want %q", got, want)
 	}
@@ -605,11 +599,11 @@ func TestCompareScrollsItsRowsUnderItsHeadsHeld(t *testing.T) {
 	}{
 		{
 			name: "at the top",
-			want: map[int]string{6: "                          1 work", 9: "WEEK USED", 26: "  at cap or limit", 27: "▼ 7 more below · j/k"},
+			want: map[int]string{6: "                          work", 9: "WEEK USED", 26: "  at cap or limit", 27: "▼ 7 more below · j/k"},
 		},
 		{
 			name: "scrolled to the foot", scroll: 7,
-			want: map[int]string{6: "                          1 work", 9: "  ● Fable 5.1", 26: "  against its price", 27: "▲ 7 more above · j/k"},
+			want: map[int]string{6: "                          work", 9: "  ● Fable 5.1", 26: "  against its price", 27: "▲ 7 more above · j/k"},
 		},
 		{
 			name: "past the foot, as far as it goes", scroll: 12,
@@ -938,7 +932,7 @@ func TestComparesLabelsColumnHoldsItsLabelsAndCutsAVersionsName(t *testing.T) {
 	if got, want := drawn[12], "  ● "+prose.Cut("Opus 5.5 with a name long past the most", labels-versionAt); got != want {
 		t.Errorf("the version's name reads %q, want %q", got, want)
 	}
-	if got := columnOf(rows[6], "1 work"); got != labels+labelsGap {
+	if got := columnOf(rows[6], "work"); got != labels+labelsGap {
 		t.Errorf("work's column starts at %d, want %d, 2 cells after the labels'", got, labels+labelsGap)
 	}
 }

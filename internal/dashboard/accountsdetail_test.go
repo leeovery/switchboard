@@ -380,12 +380,12 @@ func TestDetailsListScrollsWithTheChoice(t *testing.T) {
 			if page != 6 {
 				t.Fatalf("the list shows %d accounts, want 6", page)
 			}
-			if got := listCells(rows[top]); got != "0 all accounts" {
+			if got := listCells(rows[top]); got != "all accounts" {
 				t.Errorf("the list's top row reads %q, want all accounts", got)
 			}
 			for i := range page {
 				a := tt.want + i
-				if got, want := listCells(rows[top+(i+1)*listApart]), fmt.Sprintf("%d %s", a+1, configured[a].ID); !strings.HasPrefix(got, want) {
+				if got, want := listCells(rows[top+(i+1)*listApart]), configured[a].ID+" "; !strings.HasPrefix(got, want) {
 					t.Errorf("the list's row %d reads %q, want %q", i+1, got, want)
 				}
 			}
@@ -406,10 +406,10 @@ func TestDetailListsAnAccountTheDocumentLacksAsNotRead(t *testing.T) {
 	f := detailFrame(Look{}, configured, "added", "", nil, nil)
 	rows := textOf(f.Draw(doc, routedAt))
 	top := f.top()
-	if got, want := listCells(rows[top+4*listApart]), "4 lab         ○"; got != want {
+	if got, want := listCells(rows[top+4*listApart]), "lab           ○"; got != want {
 		t.Errorf("the list's fourth row reads %q, want %q", got, want)
 	}
-	if got, want := panelCells(rows[top]), "4 lab   ○ not read"; got != want {
+	if got, want := panelCells(rows[top]), "lab   ○ not read"; got != want {
 		t.Errorf("the head reads %q, want %q", got, want)
 	}
 	d := f.detailDrawn(doc, routedAt, laidIn(f, doc))
@@ -423,7 +423,7 @@ func TestDetailListsAnAccountTheDocumentLacksAsNotRead(t *testing.T) {
 		t.Errorf("the list's last target is %+v, want added's, on its row", last)
 	}
 	all := textOf(detailFrame(Look{}, configured, "", "", nil, nil).Draw(doc, routedAt))
-	if got, want := panelCells(all[top]), "0 all accounts   2 open · 1 at cap · 1 not read"; got != want {
+	if got, want := panelCells(all[top]), "all accounts   2 open · 1 at cap · 1 not read"; got != want {
 		t.Errorf("all accounts' head reads %q, want %q, added counted not read", got, want)
 	}
 }
@@ -451,7 +451,7 @@ func TestDetailsPanelScrollsTheListHeld(t *testing.T) {
 	f.Scroll = scrolling.Most
 	rows := textOf(f.Draw(doc, routedAt))
 	top := f.top()
-	if got := listCells(rows[top]); got != "0 all accounts" {
+	if got := listCells(rows[top]); got != "all accounts" {
 		t.Errorf("scrolled, the list's top row reads %q, want all accounts", got)
 	}
 	for y := top; y < top+f.viewRows(); y++ {
@@ -1066,7 +1066,7 @@ func TestDetailsVerdictFitsToTheWeeksEdge(t *testing.T) {
 }
 
 // Detail's list fits its name column to the names by the rule USAGE fits
-// its own by, nameColumn: the widest, number, label and ◆, and a gap, at
+// its own by, nameColumn: the widest, label and ◆, and a gap, at
 // least 14 cells and at most 24, its dots, its light, its │ and the panel
 // moving over with it. A long label is cut with … to what the panel leaves
 // the list, as the list gives way first.
@@ -1079,12 +1079,12 @@ func TestDetailsListFitsItsNameColumnToTheNames(t *testing.T) {
 		names        int
 		listed, head string
 	}{
-		{name: "the frames' names", width: 160, names: 14, listed: "2 personal ◆", head: "2 personal ◆"},
-		{name: "a long name, room to spare", width: 200, label: long, names: 22, listed: "2 personal-account ◆", head: "2 personal-account ◆"},
-		{name: "a long name, 4 cells past the panel's natural", width: 145, label: long, names: 18, listed: "2 personal-ac… ◆", head: "2 personal-account ◆"},
-		{name: "a long name, the panel at its natural", width: 141, label: long, names: 14, listed: "2 persona… ◆", head: "2 personal-account ◆"},
-		{name: "a long name, the cells the weeks leave", width: 138, label: long, names: 16, listed: "2 personal-… ◆", head: "2 personal-account ◆"},
-		{name: "a name past the most", width: 200, label: longest, names: 24, listed: "2 personal-account-… ◆", head: "2 " + longest + " ◆"},
+		{name: "the frames' names", width: 160, names: 14, listed: "personal ◆", head: "personal ◆"},
+		{name: "a long name, room to spare", width: 200, label: long, names: 20, listed: "personal-account ◆", head: "personal-account ◆"},
+		{name: "a long name, 4 cells past the panel's natural", width: 145, label: long, names: 18, listed: "personal-acco… ◆", head: "personal-account ◆"},
+		{name: "a long name, the panel at its natural", width: 141, label: long, names: 14, listed: "personal-… ◆", head: "personal-account ◆"},
+		{name: "a long name, the cells the weeks leave", width: 138, label: long, names: 16, listed: "personal-ac… ◆", head: "personal-account ◆"},
+		{name: "a name past the most", width: 200, label: longest, names: 24, listed: "personal-account-of… ◆", head: longest + " ◆"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1357,7 +1357,7 @@ func TestDetailCuesAStateNewlyChangedAndAFreshLine(t *testing.T) {
 	d := f.detailDrawn(doc, routedAt, laidIn(f, doc))
 	c := d.panel()
 	rows := textOf(c.rows(Look{}))
-	state := d.l.panel + listName(d.account, 1).fitted(d.f.edge()).width() + headApart
+	state := d.l.panel + listName(d.account).fitted(d.f.edge()).width() + headApart
 	if []rune(rows[0])[state] == ' ' {
 		t.Fatalf("the head reads %q, want its state from column %d", rows[0], state)
 	}

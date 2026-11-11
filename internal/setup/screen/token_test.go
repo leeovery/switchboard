@@ -235,7 +235,7 @@ func TestATokenMadeIsKeptThroughEsc(t *testing.T) {
 	if got := h.steps.replacedOf("personal"); got != 1 {
 		t.Errorf("personal's token was replaced %d times, want once, esc or not", got)
 	}
-	if got := h.rows()[firstRow+2]; !strings.HasPrefix(got, "▌ 2  personal") || !strings.HasSuffix(got, "expires 27 Oct 2027  ·  365 days left") {
+	if got := h.rows()[firstRow+2]; !strings.HasPrefix(got, "▌   Personal") || !strings.HasSuffix(got, "expires 27 Oct 2027  ·  365 days left") {
 		t.Errorf("personal's row reads %q, want it chosen, its token a year from today", got)
 	}
 }
@@ -586,7 +586,7 @@ func TestATokenMadeAddsTheAccount(t *testing.T) {
 	if want := "  Add each Claude subscription you want switchboard to route across."; rows[firstUnderHeading] != want {
 		t.Errorf("the page's line reads %q, want %q", rows[firstUnderHeading], want)
 	}
-	if got := rows[firstRow]; !strings.HasPrefix(got, "▌ 1  work ◆") || !strings.HasSuffix(got, "expires 27 Oct 2027  ·  365 days left") {
+	if got := rows[firstRow]; !strings.HasPrefix(got, "▌   Work ◆") || !strings.HasSuffix(got, "expires 27 Oct 2027  ·  365 days left") {
 		t.Errorf("the first row reads %q, want work, chosen, its token a year from today", got)
 	}
 	if got := rows[keyRow]; !strings.Contains(got, "enter next: Priming") {
@@ -613,7 +613,7 @@ func TestTheRowChosenMovesToTheAccountAdded(t *testing.T) {
 	if review := h.model.status.review; review == nil || len(review.Accounts) != 4 || h.model.chosen != 3 {
 		t.Fatalf("saved, the review is %+v, row %d chosen; want team added, its row chosen", review, h.model.chosen)
 	}
-	if got := h.rows()[firstRow+6]; !strings.HasPrefix(got, "▌ 4  team") {
+	if got := h.rows()[firstRow+6]; !strings.HasPrefix(got, "▌   team") {
 		t.Errorf("team's row reads %q, want it chosen", got)
 	}
 }
@@ -1077,7 +1077,7 @@ func TestATokenMadeThroughSetupIsSavedOnlyOnceItsChecked(t *testing.T) {
 				t.Errorf("side's token was taken %v (%v), want today, %v, so it lasts a year from today", taken, err, start)
 			}
 			rows := h.rows()
-			if i := slices.IndexFunc(rows, func(row string) bool { return strings.HasPrefix(row, "▌ 3  side") }); i < 0 || !strings.HasSuffix(rows[i], "expires 27 Oct 2027  ·  365 days left") {
+			if i := slices.IndexFunc(rows, func(row string) bool { return strings.HasPrefix(row, "▌   side") }); i < 0 || !strings.HasSuffix(rows[i], "expires 27 Oct 2027  ·  365 days left") {
 				t.Errorf("the page reads\n%s\nwant side's row chosen, its token a year from today", strings.Join(rows, "\n"))
 			}
 		})

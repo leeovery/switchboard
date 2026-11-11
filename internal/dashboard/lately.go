@@ -174,7 +174,7 @@ func (f Frame) freshen(c *canvas, id, x, y, end int) {
 // are never cut while its short form fits. Detail's tells them in full, as
 // accountLatelyLines has them.
 func latelyTold(m status.Moment, sentences []views.Sentence, cells int) []line {
-	names := overviewNames(m)
+	names := namesOf(m)
 	lines := latelyLeads(m, sentences)
 	for i, s := range sentences {
 		if i == 0 {
@@ -222,7 +222,7 @@ func latelyLeads(m status.Moment, sentences []views.Sentence) []line {
 
 // saidLine is a sentence's words as LATELY draws them: its subject in bold
 // text.primary, its object in bold text.secondary, and its other words in
-// text.muted, each account it names named as names, overviewNames' of m, have
+// text.muted, each account it names named as names, namesOf's of m, have
 // it.
 func saidLine(m status.Moment, names []accountName, s views.Said) line {
 	var l line
