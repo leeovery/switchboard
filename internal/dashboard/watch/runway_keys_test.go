@@ -98,6 +98,27 @@ func TestRunwaysKeyLinesAreTheDesigns(t *testing.T) {
 	}
 }
 
+// Runway's key line words a as collapse, its word faint while the labels are
+// collapsed, as a hidden section's is, and in colour while they're expanded,
+// collapsed and expanded again alike.
+func TestRunwaysCollapseKeyIsFaintWhileCollapsed(t *testing.T) {
+	for _, tt := range []struct {
+		keys      string
+		collapsed bool
+	}{
+		{keys: "", collapsed: false},
+		{keys: "a", collapsed: true},
+		{keys: "a a", collapsed: false},
+	} {
+		h := runwayKeysHarness(t, routerDocument(three()...), 0, tt.keys)
+		want := dashboard.Key{Key: "a", Does: "collapse", Hidden: tt.collapsed}
+		groups := h.model.live(h.clock.now).KeyLine.Groups
+		if !slices.ContainsFunc(groups, func(g []dashboard.Key) bool { return slices.Contains(g, want) }) {
+			t.Errorf("after %q, the key line's groups are\n%+v\nwant %+v among them", tt.keys, groups, want)
+		}
+	}
+}
+
 // Help over Runway lists its keys first, as the key line words them: tab,
 // < > where Runway offers another window, and ←→, a, p, t in colour, R, ?
 // and q.

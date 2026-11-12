@@ -4880,8 +4880,9 @@ lanes more room, at every width, and `a` again expands them; expanded is the def
 preferences file keeps it (the owner's call, 17 October 2026). The key line says `a collapse`
 (the owner's call, 12 November 2026).
 
-- **No label column** (the owner's call, 12 November 2026): the lanes, the axis over them and the
-  pool's lane start at column 0, at every width, and take the frame to its edge.
+- **No label column:** the lanes and the pool's lane start at column 0, at every width, and take
+  the frame to its edge (the owner's call, 12 November 2026). The axis follows them from column 0,
+  its `now` never starting before it, so it reads whole where now's column is the first.
 - **No marks:** no `◆`, `▲` or `Σ`. The status line says where new sessions go, and collapsed is
   for a reader who knows the lanes (the owner's call, 12 November 2026).
 - **The use,** on the row under the lane, its words row, from column 0, under the lane's first
@@ -4892,10 +4893,10 @@ preferences file keeps it (the owner's call, 17 October 2026). The key line says
   2026).
 - **The words under the lane** are as expanded, but where a stretch's words would start within
   the use or less than two cells after it, they start two cells after it, as in
-  `100%  out Tue 17:54  ·  back Sun 01:00`; words starting further on keep their column. Words
-  that don't fit from where they start drop whole parts from the end, and a week's `resets` that
-  can't end at its `│` clear of the use is left unsaid, as one that can't clear the words before
-  (the owner's call, 12 November 2026).
+  `100%  out Tue 17:54  ·  back Sun 01:00`; words starting further on keep their column (the
+  owner's call, 12 November 2026). Words that don't fit from where they start drop whole parts
+  from the end, and a week's `resets` that can't end at its `│` clear of the use is left unsaid,
+  as one that can't clear the words before.
 - **The pool's lane,** from column 0, with nothing at its start, and on the row of its own under
   the lane, from column 0, its room short: the room bold `text.secondary` and `/3`, of how many
   accounts the pool is, in `text.muted`, as `1.2/3`, where the expanded lane says `Σ pool` and

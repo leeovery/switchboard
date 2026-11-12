@@ -320,10 +320,9 @@ func TestThePoolsLaneIsntDrawnForAMomentOfNoAccounts(t *testing.T) {
 // With the account column collapsed, the pool's lane starts at column 0,
 // without Σ, and on the row of its own under the lane, from column 0, its
 // room short, the room the expanded lane words, of how many accounts the
-// pool is: the
-// room bold text.secondary, brightening as it changes, and "/3" in
-// text.muted, at every width; and where it has no room to say, as on a day
-// stepped back to, nothing under it.
+// pool is: the room bold text.secondary, brightening as it changes, and "/3"
+// in text.muted, at every width; and where it has no room to say, as on a
+// day stepped back to, nothing under it.
 func TestCollapsedThePoolsRoomIsSaidShortUnderItsLane(t *testing.T) {
 	doc, pinned := framesDoc(), framesDoc()
 	pinned.Pin = status.Pin{Accounts: []string{"personal", "side"}, Since: routedClock(1, 13, 40)}
