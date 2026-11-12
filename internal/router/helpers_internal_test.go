@@ -227,8 +227,8 @@ func (r *Router) readOf(pool string) poolRead {
 	return r.state.poolReadOf(r.state.pools.current(), pool)
 }
 
-// poolPin returns the pin of the pool with the given id, as r's pools stand
-// now: zero where it has none.
+// poolPin returns the pin of the pool with the given id, as r holds it:
+// zero where it has none.
 func (r *Router) poolPin(pool string) status.Pin {
-	return r.sessions.pinsNow().of(r.state.pools.current(), pool)
+	return r.sessions.pinsNow()[pool]
 }

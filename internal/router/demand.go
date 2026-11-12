@@ -142,18 +142,18 @@ func (s *state) recallPins(ps pins) {
 }
 
 // pinnedIn returns the ids of the accounts the pin of the pool with the given
-// id names. s.mu must be held, the pools regrouped.
+// id names. s.mu must be held.
 func (s *state) pinnedIn(pool string) []string {
-	return s.pins.of(s.grouped, pool).Accounts
+	return s.pins[pool].Accounts
 }
 
 // pinnedAt returns what gives the ids of the accounts the pin of each pool
 // named at at, as seed takes up the history: those it names now from when
 // it was set, and none before, as no pin that may have held then is kept.
-// s.mu must be held, the pools regrouped, as what it returns is called.
+// s.mu must be held as what it returns is called.
 func (s *state) pinnedAt(at time.Time) func(pool string) []string {
 	return func(pool string) []string {
-		if pin := s.pins.of(s.grouped, pool); !at.Before(pin.Since) {
+		if pin := s.pins[pool]; !at.Before(pin.Since) {
 			return pin.Accounts
 		}
 		return nil

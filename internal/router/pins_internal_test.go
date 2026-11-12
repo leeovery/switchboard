@@ -2,6 +2,7 @@ package router
 
 import (
 	"encoding/json"
+	"fmt"
 	"maps"
 	"net/http"
 	"os"
@@ -60,13 +61,19 @@ func newPairedRouterOf(t *testing.T, now func() time.Time, accounts config.Accou
 	return r, upstream
 }
 
-// moveAccount has r's pools put the account with the given id in the pool
-// given from now on, as a config that moves it would once followed.
+// moveAccount has r's pools follow a config that puts the account with the
+// given id in the pool given, and the rest as r's pools last followed them.
 func moveAccount(r *Router, id, pool string) {
-	moved := *r.state.pools.current()
-	moved.poolOf = maps.Clone(moved.poolOf)
-	moved.poolOf[id] = pool
-	r.state.pools.table.Store(moved.stored())
+	m := r.state.pools
+	m.mu.Lock()
+	accounts, pools := slices.Clone(m.accounts), m.pools
+	m.mu.Unlock()
+	for i := range accounts {
+		if accounts[i].ID == id {
+			accounts[i].Pool = pool
+		}
+	}
+	m.follow(accounts, pools)
 }
 
 // askedOK has r's control API answer a request of method for target, with
@@ -323,7 +330,7 @@ func TestAPinKeptFromBeforePoolsIsItsAccountsPools(t *testing.T) {
 	}{
 		{name: "Acme's accounts", accounts: `["extra", "personal"]`, want: map[string][]string{acmePool: {"personal", "extra"}}},
 		{name: "Default's accounts", accounts: `["side"]`, want: map[string][]string{defaultPool: {"side"}}},
-		{name: "accounts of both pools, the first's", accounts: `["side", "extra"]`, want: map[string][]string{defaultPool: {"side", "extra"}}},
+		{name: "accounts of both pools: the first's, naming its own alone", accounts: `["side", "extra"]`, want: map[string][]string{defaultPool: {"side"}}},
 		{name: "an account no longer configured beside Acme's", accounts: `["gone", "extra"]`, want: map[string][]string{acmePool: {"extra"}}},
 	}
 	for _, tt := range tests {
@@ -426,53 +433,160 @@ func TestAPinFromBeforePoolsIsThePoolsItsAccountsAreIn(t *testing.T) {
 }
 
 func TestEachPoolsPinStandsAsAnotherIsSetOrCleared(t *testing.T) {
-	table := newPoolTable(pairedAccounts(), testPools, defaultPool)
-	before := status.Pin{Accounts: []string{"extra"}, Since: start}
+	side := status.Pin{Accounts: []string{"side"}, Since: start}
 	tests := []struct {
 		name string
-		ps   pins
 		do   func(ps pins) pins
 		want pins
 	}{
 		{
-			name: "Default pinned beside a pin from before pools of Acme's",
-			ps:   pins{"": before},
-			do:   func(ps pins) pins { return ps.with(table, defaultPool, status.Pin{Accounts: []string{"side"}}) },
-			want: pins{defaultPool: {Accounts: []string{"side"}}, acmePool: before},
+			name: "Default pinned beside Acme's",
+			do:   func(ps pins) pins { return ps.with(defaultPool, side) },
+			want: pins{defaultPool: side, acmePool: {Accounts: []string{"extra"}}},
 		},
 		{
-			name: "Acme pinned over a pin from before pools of its own",
-			ps:   pins{"": before},
-			do:   func(ps pins) pins { return ps.with(table, acmePool, status.Pin{Accounts: []string{"personal"}}) },
+			name: "Acme pinned over its own",
+			do:   func(ps pins) pins { return ps.with(acmePool, status.Pin{Accounts: []string{"personal"}}) },
 			want: pins{acmePool: {Accounts: []string{"personal"}}},
 		},
 		{
-			name: "Acme unpinned, its pin from before pools",
-			ps:   pins{"": before},
+			name: "Acme unpinned",
 			do: func(ps pins) pins {
-				next, _ := ps.without(table, acmePool)
+				next, _ := ps.without(acmePool)
 				return next
 			},
 			want: pins{},
 		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ps := pins{acmePool: {Accounts: []string{"extra"}}}
+			was := maps.Clone(ps)
+			if got := tt.do(ps); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("got %+v, want %+v", got, tt.want)
+			}
+			if !reflect.DeepEqual(ps, was) {
+				t.Errorf("the pins changed under it, to %+v, want them as they were, %+v: they're replaced whole", ps, was)
+			}
+		})
+	}
+}
+
+func TestEachPoolsPinIsFittedToThePools(t *testing.T) {
+	pooled := newPoolTable(pairedAccounts(), testPools, acmePool)
+	unpooledTable := newPoolTable(config.Accounts{{ID: "work"}, {ID: "side"}}, nil, "")
+	pin := func(since time.Time, ids ...string) status.Pin {
+		return status.Pin{Accounts: ids, Since: since, Move: true}
+	}
+	tests := []struct {
+		name  string
+		table *poolTable
+		ps    pins
+		want  pins
+		// logged are what the log says of what's left out, each in order.
+		logged []string
+	}{
 		{
-			name: "Default unpinned beside Acme's",
-			ps:   pins{defaultPool: {Accounts: []string{"side"}}, acmePool: before},
-			do: func(ps pins) pins {
-				next, _ := ps.without(table, defaultPool)
-				return next
-			},
-			want: pins{acmePool: before},
+			name:  "each pin naming its own pool's accounts",
+			table: pooled,
+			ps:    pins{defaultPool: pin(start, "work", "side"), acmePool: pin(start, "extra")},
+			want:  pins{defaultPool: pin(start, "work", "side"), acmePool: pin(start, "extra")},
+		},
+		{
+			name:  "a pin from before pools, its accounts in one pool: that pool's",
+			table: pooled,
+			ps:    pins{"": pin(start, "side")},
+			want:  pins{defaultPool: pin(start, "side")},
+		},
+		{
+			name:   "a pin from before pools, its accounts in two: the first's, naming its own alone",
+			table:  pooled,
+			ps:     pins{"": pin(start, "side", "extra")},
+			want:   pins{acmePool: pin(start, "extra")},
+			logged: []string{"dropped from its pool's pin: the account is no longer in the pool"},
+		},
+		{
+			name:   "a pin from before pools beside a later one of its pool's own: the pool's stands",
+			table:  pooled,
+			ps:     pins{"": pin(start, "side"), defaultPool: pin(start.Add(time.Minute), "work")},
+			want:   pins{defaultPool: pin(start.Add(time.Minute), "work")},
+			logged: []string{"pin dropped: a later one holds in its pool"},
+		},
+		{
+			name:   "a pin from before pools beside one of its pool's own as late: the pool's stands",
+			table:  pooled,
+			ps:     pins{"": pin(start, "side"), defaultPool: pin(start, "work")},
+			want:   pins{defaultPool: pin(start, "work")},
+			logged: []string{"pin dropped: a later one holds in its pool"},
+		},
+		{
+			name:   "a pin from before pools later than its pool's own: it stands",
+			table:  pooled,
+			ps:     pins{"": pin(start.Add(time.Minute), "side"), defaultPool: pin(start, "work")},
+			want:   pins{defaultPool: pin(start.Add(time.Minute), "side")},
+			logged: []string{"pin dropped: a later one holds in its pool"},
+		},
+		{
+			name:   "a pool's pin naming an account another pool holds: left out of it",
+			table:  pooled,
+			ps:     pins{defaultPool: pin(start, "work", "extra")},
+			want:   pins{defaultPool: pin(start, "work")},
+			logged: []string{"dropped from its pool's pin: the account is no longer in the pool"},
+		},
+		{
+			name:   "a pool's pin naming none of its accounts: gone",
+			table:  pooled,
+			ps:     pins{defaultPool: pin(start, "extra"), acmePool: pin(start, "personal")},
+			want:   pins{acmePool: pin(start, "personal")},
+			logged: []string{"dropped from its pool's pin: the account is no longer in the pool"},
+		},
+		{
+			name:   "the pin of a pool no longer configured: gone",
+			table:  pooled,
+			ps:     pins{"gone": pin(start, "work"), acmePool: pin(start, "personal")},
+			want:   pins{acmePool: pin(start, "personal")},
+			logged: []string{"pin dropped: its pool is no longer configured"},
+		},
+		{
+			name:  "a config from before pools: its pin as it is",
+			table: unpooledTable,
+			ps:    pins{"": pin(start, "work", "side")},
+			want:  pins{"": pin(start, "work", "side")},
+		},
+		{
+			name:   "a config from before pools: a pool's pin gone",
+			table:  unpooledTable,
+			ps:     pins{defaultPool: pin(start, "work")},
+			want:   pins{},
+			logged: []string{"pin dropped: its pool is no longer configured"},
+		},
+		{
+			name:  "none",
+			table: pooled,
+			want:  pins{},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			logged := logstest.Capture(t)
 			was := maps.Clone(tt.ps)
-			if got := tt.do(tt.ps); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("got %+v, want %+v", got, tt.want)
+			got, changed := tt.ps.fitted(tt.table)
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("fitted() = %+v, want %+v", got, tt.want)
+			}
+			if want := !maps.EqualFunc(tt.ps, tt.want, samePin); changed != want {
+				t.Errorf("fitted() reported changed %t, want %t", changed, want)
 			}
 			if !reflect.DeepEqual(tt.ps, was) {
 				t.Errorf("the pins changed under it, to %+v, want them as they were, %+v: they're replaced whole", tt.ps, was)
+			}
+			warned := slices.DeleteFunc(logged.Lines(), func(line string) bool { return !strings.Contains(line, "level=WARN") })
+			matched := len(warned) == len(tt.logged)
+			for i := range min(len(warned), len(tt.logged)) {
+				matched = matched && strings.Contains(warned[i], `msg="`+tt.logged[i]+`"`)
+			}
+			if !matched {
+				t.Errorf("the log warns %q, want a line of each of %q", warned, tt.logged)
 			}
 		})
 	}
@@ -537,11 +651,11 @@ func TestAPinSetRacesAChangeToThePools(t *testing.T) {
 }
 
 // keptPinOf returns the pin of the pool with the given id the state's copy
-// holds, as the pools stand now.
+// holds: zero where it has none.
 func keptPinOf(r *Router, pool string) status.Pin {
 	r.state.mu.Lock()
 	defer r.state.mu.Unlock()
-	return r.state.pins.of(r.state.pools.current(), pool)
+	return r.state.pins[pool]
 }
 
 func TestTheStateHoldsThePinsTheSessionsDo(t *testing.T) {
@@ -555,5 +669,114 @@ func TestTheStateHoldsThePinsTheSessionsDo(t *testing.T) {
 		if got, want := keptPinOf(r, pool), r.poolPin(pool); !reflect.DeepEqual(got, want) {
 			t.Errorf("the state holds pool %s's pin as %+v, want the sessions', %+v", pool, got, want)
 		}
+	}
+}
+
+// autosOf returns the events r keeps of routing given back to it, as pin auto
+// files them.
+func autosOf(r *Router) []status.Event {
+	return slices.DeleteFunc(r.recent.events(), func(e status.Event) bool { return e.Kind != status.EventAuto })
+}
+
+func TestAnAccountLeavingItsPoolLeavesThePoolsPin(t *testing.T) {
+	log := logstest.Capture(t)
+	path := filepath.Join(t.TempDir(), "state.json")
+	r, upstream := newPairedRouter(t, at(start))
+	r.file.load(path)
+	askedOK(t, r, http.MethodPost, "/pin", `{"accounts": ["side"]}`)
+
+	// Side moves to Acme: it leaves Default's pin, which goes with it, and
+	// isn't Acme's pin either.
+	moveAccount(r, "side", acmePool)
+	for _, pool := range []string{defaultPool, acmePool} {
+		if got := r.poolPin(pool); !got.IsZero() {
+			t.Errorf("pool %s's pin is %+v once side moved to Acme, want none", pool, got)
+		}
+		if got := keptPinOf(r, pool); !got.IsZero() {
+			t.Errorf("the state holds pool %s's pin as %+v once side moved to Acme, want none", pool, got)
+		}
+	}
+	if want := []string{"level=WARN", `msg="dropped from its pool's pin: the account is no longer in the pool"`, "pool=" + defaultPool, "account=side"}; !log.Has(want...) {
+		t.Errorf("log reads\n%s\nwant a line with %q", log, want)
+	}
+	if got, want := newSessionsIn(t, r, upstream, "moved"), []string{"work", "personal"}; !slices.Equal(got, want) {
+		t.Errorf("once side moved to Acme, new sessions in Default and Acme went out on %q, want %q: neither pinned", got, want)
+	}
+
+	// Side comes back: Default's pin doesn't come back with it, nor does a
+	// restart bring it back.
+	moveAccount(r, "side", defaultPool)
+	if got := r.poolPin(defaultPool); !got.IsZero() {
+		t.Errorf("Default's pin is %+v once side came back, want none", got)
+	}
+	if got, want := newSessionsIn(t, r, upstream, "back"), []string{"work", "personal"}; !slices.Equal(got, want) {
+		t.Errorf("once side came back, new sessions in Default and Acme went out on %q, want %q: neither pinned", got, want)
+	}
+	r.file.save()
+	if data, err := os.ReadFile(path); err != nil || strings.Contains(string(data), `"pin`) {
+		t.Errorf("the state file holds\n%s\n%v, want no pin", data, err)
+	}
+}
+
+func TestPinAutoForAPoolWhosePinsAccountsHaveLeftItFilesNothing(t *testing.T) {
+	logstest.Capture(t)
+	r, _ := newPairedRouter(t, at(start))
+	askedOK(t, r, http.MethodPost, "/pin", `{"accounts": ["side"]}`)
+	moveAccount(r, "side", acmePool)
+
+	askedOK(t, r, http.MethodDelete, withPool("/pin", defaultPool), "")
+	if got := autosOf(r); len(got) != 0 {
+		t.Errorf("pin auto for Default filed %+v, want nothing: its pin went as side left it", got)
+	}
+}
+
+func TestAPinFromBeforePoolsStaysInItsPoolAsItsAccountMoves(t *testing.T) {
+	for _, restart := range []bool{false, true} {
+		t.Run(fmt.Sprintf("restarted %t", restart), func(t *testing.T) {
+			log := logstest.Capture(t)
+			state := filepath.Join(t.TempDir(), "state.json")
+			path := filepath.Join(t.TempDir(), "config.toml")
+			writeConfigFile(t, path, unpooledTOML("work", "personal", "side"))
+			cfg := testConfig(at(start), &stubProber{}, poolTokens.Read)
+			cfg.Accounts, cfg.ConfigFile = config.Accounts{{ID: "work", Label: "work"}, {ID: "personal", Label: "personal"}, {ID: "side", Label: "side"}}, Watch(path)
+			r := newTestRouterOf(t, cfg)
+			r.file.load(state)
+			askedOK(t, r, http.MethodPost, "/pin", `{"accounts": ["side"]}`)
+
+			// The pools come in, side in Default: the pin is Default's, once
+			// and for all.
+			writeConfigFile(t, path, poolsTOML(defaultPool, defaultTOML, acmeTOML))
+			r.upkeep.look()
+			if got := r.sessions.pinsNow(); len(got) != 1 || !slices.Equal(got[defaultPool].Accounts, []string{"side"}) {
+				t.Fatalf("once the pools came in, the pins are %+v, want Default's alone, naming side", got)
+			}
+			if restart {
+				r.file.save()
+				r, path = newWatchingPoolsRouter(t, "")
+				r.file.load(state)
+			}
+
+			// Side moves to Acme: the pin stays Default's, and goes as side
+			// leaves it.
+			writeConfigFile(t, path, poolsTOML(acmePool, defaultTOML, acmeTOML))
+			r.upkeep.look()
+			upstream := servingAll(served, served, served)
+			r.proxy.transport = upstream
+			readWeeks(r, map[string]quota.Window{"work": soonWeek, "personal": soonWeek, "side": laterWeek})
+			routeIn(t, r, personalToken, "acme", acmePool, nil)
+			routeIn(t, r, workToken, "default", defaultPool, nil)
+
+			if got, want := upstream.sent(), []string{"personal", "work"}; !slices.Equal(got, want) {
+				t.Errorf("Acme's new session and Default's went out on %q, want %q: neither pinned", got, want)
+			}
+			for _, pool := range []string{defaultPool, acmePool} {
+				if doc := statusIn(t, r, pool); !doc.Pin.IsZero() {
+					t.Errorf("pool %s's document holds pin %+v, want none", pool, doc.Pin)
+				}
+			}
+			if want := []string{"level=WARN", `msg="dropped from its pool's pin: the account is no longer in the pool"`, "pool=" + defaultPool, "account=side"}; !log.Has(want...) {
+				t.Errorf("log reads\n%s\nwant a line with %q", log, want)
+			}
+		})
 	}
 }

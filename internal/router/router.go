@@ -411,6 +411,7 @@ func New(cfg Config) (*Router, error) {
 		notifications: notices,
 		started:       cfg.Now().UTC(),
 	}
+	pools.swapped = r.repool
 	r.exports = newExports(cfg, r.tendHistory, r.restartComing, r.moving.owed)
 	r.upkeep = newUpkeep(cfg, accounts, state, changes, primer, inFlight, awake, r.exports, newAccountsRecord(cfg, accounts, moving.owed), emit)
 	return r, nil

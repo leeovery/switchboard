@@ -110,21 +110,15 @@ func (rd poolRead) routes(pool string) bool {
 	return rd.every || rd.pools.of(pool) == rd.pool
 }
 
-// pin returns the pin of the pool read, of the pools' pins given: naming the
-// accounts it holds now alone, as one that has left the pool is no pin for a
-// request in it, and zero where it names none of them. A read of every
-// account's names those each pool's pin names among its own accounts, of the
+// pin returns the pin of the pool read, of the pools' pins given, as fitted
+// keeps each to its own pool's accounts. A read of every account's names
+// those each pool's pin names among its own accounts, as spends says, of the
 // accounts given, in their order.
 func (rd poolRead) pin(ps pins, as accounts) status.Pin {
 	if rd.every {
 		return status.Pin{Accounts: as.held(func(id string) bool { return ps.spends(rd.pools, id) }).configured().IDs()}
 	}
-	pin := ps.of(rd.pools, rd.pool)
-	pin.Accounts = slices.DeleteFunc(slices.Clone(pin.Accounts), func(id string) bool { return !rd.holds(id) })
-	if pin.IsZero() {
-		return status.Pin{}
-	}
-	return pin
+	return ps[rd.pool]
 }
 
 // demandOf returns the id of the pool whose demand the read carries: the

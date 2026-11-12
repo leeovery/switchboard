@@ -4,7 +4,6 @@ import (
 	"cmp"
 	"maps"
 	"slices"
-	"strings"
 	"sync"
 	"time"
 
@@ -142,7 +141,7 @@ func (f found) pin(launched string) (string, time.Time) {
 // view's pools have it, pinned as its session's own pin has it in that pool,
 // as pinIn says.
 func (f found) situation(req Request, now time.Time, accounts view) situation {
-	on := situation{req: req, now: now, current: f.current, assigned: f.assigned, pin: f.pins.of(accounts.pools, accounts.pool), accounts: accounts}
+	on := situation{req: req, now: now, current: f.current, assigned: f.assigned, pin: f.pins[accounts.pool], accounts: accounts}
 	on.req.Pool = accounts.pool
 	on.req.Pin, on.pinnedAt, on.unpooled = f.pinIn(req.Pin, accounts)
 	return on
@@ -326,34 +325,45 @@ func (s *sessions) pinsNow() pins {
 
 // setPin sets the pin of the pool rd reads, as with says, and with force,
 // clears the own pin of every session in that pool at once, as clearOwn
-// does. It returns how many sessions had one, and the pins as it leaves
-// them.
-func (s *sessions) setPin(rd poolRead, pin status.Pin, force bool) (cleared int, now pins) {
+// does. It returns how many sessions had one.
+func (s *sessions) setPin(rd poolRead, pin status.Pin, force bool) (cleared int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.pins = s.pins.with(rd.pools, rd.pool, pin)
+	s.pins = s.pins.with(rd.pool, pin)
 	if force {
 		cleared = s.clearOwn(rd.routes)
 	}
 	s.changed()
-	return cleared, s.pins
+	return cleared
 }
 
 // unpin clears the pin of the pool rd reads, as without says, and with
 // force, the own pin of every session in that pool, as clearOwn does. It
-// returns the pool's pin as it was, how many sessions had a pin of their
-// own, and the pins as it leaves them.
-func (s *sessions) unpin(rd poolRead, force bool) (was status.Pin, cleared int, now pins) {
+// returns the pool's pin as it was, and how many sessions had a pin of their
+// own.
+func (s *sessions) unpin(rd poolRead, force bool) (was status.Pin, cleared int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.pins, was = s.pins.without(rd.pools, rd.pool)
+	s.pins, was = s.pins.without(rd.pool)
 	if force {
 		cleared = s.clearOwn(rd.routes)
 	}
 	if !was.IsZero() || cleared > 0 {
 		s.changed()
 	}
-	return was, cleared, s.pins
+	return was, cleared
+}
+
+// fit fits each pool's pin to the pools as t has them, as fitted says, and
+// returns the pins as it leaves them.
+func (s *sessions) fit(t *poolTable) pins {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if next, changed := s.pins.fitted(t); changed {
+		s.pins = next
+		s.changed()
+	}
+	return s.pins
 }
 
 // poolOf returns the pool the session with the given id was last routed
@@ -586,10 +596,10 @@ func (s *sessions) saved() savedSessions {
 // starts at now, the pools as t has them, but for what can no longer be
 // used: assignments gone unused for forgetAfter, any assignment, session's
 // own pin or pool's pin to an account no longer configured, of the accounts
-// given, and the pin of a pool t doesn't have. One to an account without a
-// usable token stands, as its token file may only have been caught as it's
-// rewritten: while the account has none, choices pass it over. It reports
-// whether it left anything out.
+// given, each pool's pin fitted to the pools, as recallPins says. One to an
+// account without a usable token stands, as its token file may only have
+// been caught as it's rewritten: while the account has none, choices pass it
+// over. It reports whether it left anything out, or fitted any pin.
 func (s *sessions) recall(saved savedSessions, accounts accounts, now time.Time, t *poolTable) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -631,31 +641,24 @@ func (s *sessions) recallOwnPins(saved map[string]ownPin, accounts accounts) (dr
 	return dropped
 }
 
-// recallPins takes in each pool's pin saved, as t has the pools, and the
-// one pin of a state file from before pools as its pool's, as settled says,
-// but for the accounts each names no longer configured, the pin going with
-// the last of them, as recalledPin says, and the pin of a pool t doesn't
-// have, which it logs. It reports whether it left any out. s.mu must be
-// held.
-func (s *sessions) recallPins(saved savedSessions, accounts accounts, t *poolTable) (dropped bool) {
+// recallPins takes in each pool's pin saved, but for the accounts each names
+// no longer configured, the pin going with the last of them, as recalledPin
+// says, fitted to the pools as t has them, as fitted says: the one pin of a
+// state file from before pools settled as its home pool's, each pin left
+// naming its own pool's accounts alone, and the pin of a pool t doesn't have
+// gone. It reports whether that changed any. s.mu must be held.
+func (s *sessions) recallPins(saved savedSessions, accounts accounts, t *poolTable) (changed bool) {
 	kept := make(pins)
 	for pool, pin := range saved.everyPin() {
 		pin, left := recalledPin(pin, accounts)
-		dropped = dropped || left
+		changed = changed || left
 		if !pin.IsZero() {
 			kept[pool] = pin
 		}
 	}
-	kept = kept.settled(t)
-	for pool, pin := range kept {
-		if !t.within(pool) {
-			logger.Warn("pin dropped: its pool is no longer configured", "pool", pool, "accounts", strings.Join(pin.Accounts, ","))
-			delete(kept, pool)
-			dropped = true
-		}
-	}
-	s.pins = kept
-	return dropped
+	fitted, refitted := kept.fitted(t)
+	s.pins = fitted
+	return changed || refitted
 }
 
 // recalledPin returns the pin saved but for its accounts no longer

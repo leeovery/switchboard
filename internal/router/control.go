@@ -626,27 +626,52 @@ func (r *Router) unpin(rd poolRead, force bool, by By) {
 	}
 }
 
-// pinTo sets the pin of the pool rd reads, as the sessions' setPin does, and
-// tells the state, which judges the pool's room by it, as repin says: one
-// step, under pinning, so no other change of the pins comes between the two.
-// It returns how many sessions had a pin of their own, cleared with force.
+// pinTo sets the pin of the pool rd reads, as the sessions' setPin does, the
+// pins fitted to the pools as they stand now and told the state, as fitPins
+// does: one step, under pinning, so no other change of the pins comes
+// between them. It returns how many sessions had a pin of their own, cleared
+// with force.
 func (r *Router) pinTo(rd poolRead, pin status.Pin, force bool) (cleared int) {
 	r.pinning.Lock()
 	defer r.pinning.Unlock()
-	cleared, now := r.sessions.setPin(rd, pin, force)
-	r.state.repin(now)
+	cleared = r.sessions.setPin(rd, pin, force)
+	r.fitPins()
 	return cleared
 }
 
 // clearPin clears the pin of the pool rd reads, as the sessions' unpin does,
-// and tells the state, as pinTo does. It returns the pin as it was, and how
-// many sessions had a pin of their own, cleared with force.
+// the pins fitted and told the state, as pinTo has them. It returns the pin
+// as it was, and how many sessions had a pin of their own, cleared with
+// force.
 func (r *Router) clearPin(rd poolRead, force bool) (was status.Pin, cleared int) {
 	r.pinning.Lock()
 	defer r.pinning.Unlock()
-	was, cleared, now := r.sessions.unpin(rd, force)
-	r.state.repin(now)
+	was, cleared = r.sessions.unpin(rd, force)
+	r.fitPins()
 	return was, cleared
+}
+
+// repool has the router take up the pools as membership has just replaced
+// them: each pool's priming schedule worked out again, as the primer's
+// replan does, so none shows another's slots, and each pool's pin fitted to
+// them, as fitPins does, under pinning, so a pin never follows its accounts
+// into another pool, nor names one that has left its pool.
+func (r *Router) repool() {
+	if r.primer != nil {
+		r.primer.replan()
+	}
+	r.pinning.Lock()
+	defer r.pinning.Unlock()
+	r.fitPins()
+}
+
+// fitPins fits each pool's pin to the pools as they stand now, as the
+// sessions' fit does, and tells the state, which judges each pool's room by
+// its pin, as repin says. The pools are read with pinning held, so a pin set
+// against pools since replaced is fitted, here or by the repool after them.
+// r.pinning must be held.
+func (r *Router) fitPins() {
+	r.state.repin(r.sessions.fit(r.state.pools.current()))
 }
 
 // pinSession sends the requests of the session with the given id to the
