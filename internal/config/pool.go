@@ -215,7 +215,7 @@ func readPools(written []filePool, homeDir func() (string, error)) (Pools, error
 func ReadPools(pools []NewPool, homeDir func() (string, error)) (Pools, error) {
 	written := make([]filePool, len(pools))
 	for i, p := range pools {
-		written[i] = filePool{ID: p.ID, Label: p.Label, Dirs: p.Dirs}
+		written[i] = filePool(p)
 	}
 	return readPools(written, homeDir)
 }

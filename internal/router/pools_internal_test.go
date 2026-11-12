@@ -1599,7 +1599,7 @@ func TestAnAccountIsKnownByTheIDTheRouterHasItByWhicheverItsNamedBy(t *testing.T
 	holding := func(ids ...string) accounts {
 		held := make(accounts, len(ids))
 		for i, id := range ids {
-			held[i] = account{Account: config.Account{ID: id}}
+			held[i] = account{ID: id}
 		}
 		return held
 	}
