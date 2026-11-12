@@ -607,7 +607,7 @@ func (m *Mover) moveHistory(ctx context.Context) error {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		if err := h.Ledger.RenameDay(date, renamingLines(lineNames, rename.of), rename.of); err != nil {
+		if err := h.Ledger.RenameDay(date, renamingLines(lineNames, rename.of), ledger.Renaming{Account: rename.of}); err != nil {
 			return err
 		}
 		if err := m.stopped(h.Ledger.Files().Name + " " + date); err != nil {

@@ -178,13 +178,10 @@ type Ledger struct {
 // can't be done with them to logger; and digests them as the options given
 // say, none without them.
 func Open(dir string, keep time.Duration, now func() time.Time, history History, caps Caps, logger *slog.Logger, opts ...Option) *Ledger {
-	l := &Ledger{days: days{files: Files(dir, logger), history: history, caps: caps, logger: logger}}
+	o := optionsOf(opts)
+	l := &Ledger{days: days{files: Files(dir, logger), history: history, caps: caps, logger: logger, firstPool: o.firstPool}}
 	l.writer = dayfile.NewWriter(l.days.files, l.lines, dayfile.WriterOptions{Queue: queue, Keep: keep, Now: now, Items: "lines", Round: l.round,
 		Spare: func(date string) bool { return !l.days.settled(date) }})
-	var o options
-	for _, opt := range opts {
-		opt(&o)
-	}
 	if o.digester != nil {
 		l.digesting = newDigesting(o.digester, l.days, now)
 	}
@@ -562,12 +559,14 @@ func (l *Ledger) overdue(day dueDay) bool {
 
 // days are the ledger's days where they lie, in its directory: their lines,
 // and their summaries beside them, summarised with the readings history, and
-// the accounts' caps, what can't be done with them logged.
+// the accounts' caps, what can't be done with them logged; and what gives
+// the first pool's id, as FirstPool says, nil for none.
 type days struct {
-	files   *dayfile.Files
-	history History
-	caps    Caps
-	logger  *slog.Logger
+	files     *dayfile.Files
+	history   History
+	caps      Caps
+	logger    *slog.Logger
+	firstPool func() string
 }
 
 // errNotTheDaysSummary is the error of a summary held of a day that doesn't
@@ -948,11 +947,11 @@ func (d days) stamp(date string, stat dayfile.DayStat, version int) {
 // ReadDay counts, and the readings history, as history reads it ahead, where
 // the day's reach says its summary reads them, as Summarise makes it,
 // knowing no less than the summary held of it, which it replaces, where
-// there's one, as made says; warning of how many of the lines couldn't be
-// read as one, where any couldn't. Where one of the day's files can't be
-// opened, it fails, giving the summary of those that could be all the same;
-// and with fs.ErrNotExist where the day has none, giving the summary of its
-// readings alone.
+// there's one, as made says, held as heldPooled has it; warning of how many
+// of the lines couldn't be read as one, where any couldn't. Where one of the
+// day's files can't be opened, it fails, giving the summary of those that
+// could be all the same; and with fs.ErrNotExist where the day has none,
+// giving the summary of its readings alone.
 func (d days) summarise(day dueDay, history *ahead) (Summary, error) {
 	var lines, unread int
 	var read error
@@ -970,7 +969,7 @@ func (d days) summarise(day dueDay, history *ahead) (Summary, error) {
 	if unread > 0 {
 		d.logger.Warn("request ledger lines unread", "day", day.date, "lines", unread)
 	}
-	return summary.made(lines, day.held), read
+	return summary.made(lines, d.heldPooled(summary, day.held)), read
 }
 
 // lineIn returns the line a line of the ledger holds, reporting false for one

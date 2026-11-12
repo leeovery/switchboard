@@ -229,8 +229,8 @@ func RenameFolder(ctx context.Context, dir string, rename Renames) error {
 	for _, date := range dates {
 		day := stagedDay{
 			files: h.Ledger.Files(), names: lineNames, date: date,
-			lines:   func(line func([]byte) []byte) error { return h.Ledger.RenameDay(date, line, rename.Of) },
-			summary: func() error { return h.Ledger.RenameSummary(date, rename.Of) },
+			lines:   func(line func([]byte) []byte) error { return h.Ledger.RenameDay(date, line, ledger.Renaming{Account: rename.Of}) },
+			summary: func() error { return h.Ledger.RenameSummary(date, ledger.Renaming{Account: rename.Of}) },
 		}
 		if err := renameStagedDay(ctx, day, rename); err != nil {
 			return err
