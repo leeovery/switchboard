@@ -2,6 +2,7 @@ package idmove_test
 
 import (
 	"bytes"
+	"cmp"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -963,6 +964,36 @@ func TestHealingWritesTheIDsAloneWhereThePoolsCantBeWritten(t *testing.T) {
 		if _, err := f.tokens.Read(id); err != nil {
 			t.Errorf("the config names %s, whose token file can't be read: %v", id, err)
 		}
+	}
+}
+
+// A config that changes at every edit the move makes of it is given up on
+// once the move has tried configTries times, saying what it was writing.
+func TestTheMoveToPoolsGivingUpOnAConfigThatKeepsChangingSaysWhatItWasWriting(t *testing.T) {
+	tests := []struct {
+		name string
+		// putBack is what the config changes to, "" for as the move onto the
+		// ids left it.
+		putBack, want string
+	}{
+		{name: "put back from before both moves", putBack: fixtureConfig, want: "write the accounts' new ids and the pools in the config"},
+		{name: "on the new ids", want: "write the pools in the config"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := newIDsFixture(t)
+			putBack := cmp.Or(tt.putBack, readFile(t, f.config))
+			mover := f.poolMover()
+			edits := 0
+			mover.OnEditing(func() {
+				edits++
+				writeFile(t, f.config, putBack+fmt.Sprintf("\n# edit %d\n", edits))
+			})
+
+			if err := mover.Run(t.Context()); err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Errorf("Run() = %v, want it saying %q", err, tt.want)
+			}
+		})
 	}
 }
 
