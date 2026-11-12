@@ -604,6 +604,18 @@ func TestUnaidedPassesASessionsRoutingOnInItsOwnPoolAlone(t *testing.T) {
 				return l.RunUnread(ctx, r, nil, errUnread)
 			},
 		},
+		{
+			name: "within a session of its own pool, the router found routing by fences the config file no longer writes",
+			from: elsewhere,
+			dir:  homeDir + "/Code/site",
+			launch: func(ctx context.Context, l launch.Launcher) error {
+				rt := otherPools(pooledConfig(), func(ps []router.RoutedPool) []router.RoutedPool {
+					ps[1].Dirs = []string{homeDir + "/Code/acme-old"}
+					return ps
+				})
+				return l.RunUnread(ctx, unreadPooledRoute(rt, launch.Written{Pools: pools}, ""), nil, errUnread)
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1041,6 +1053,126 @@ func TestOnItsOwnLoginClaudeNeverStartsInsideAFence(t *testing.T) {
 	}
 }
 
+func TestOnItsOwnLoginClaudeNeverStartsWhileAPoolsDirectoryCantBePlaced(t *testing.T) {
+	// acmeWriting is Acme, read from a config that breaks its rules, writing
+	// dir, which couldn't be placed as it was read.
+	acmeWriting := func(dir string) config.Pools {
+		return config.Pools{defaultPool, {ID: acmePool.ID, Label: acmePool.Label, WrittenDirs: []string{dir}, Unplaced: []string{dir}}}
+	}
+	tests := []struct {
+		name  string
+		pools config.Pools
+		dir   string
+		// noHome has the launch know no home directory; wantWhy is why
+		// stderr hears it's refused, "" where claude starts.
+		noHome  bool
+		wantWhy string
+	}{
+		{
+			name:    "a relative directory, outside where it may lead",
+			pools:   acmeWriting("Code/acme"),
+			dir:     elsewhere,
+			wantWhy: `can't tell which pool ~/Code/other is in: pool Acme's directory "Code/acme" can't be placed`,
+		},
+		{
+			name:    "one in the home directory, placed in the launch's, inside it",
+			pools:   acmeWriting("~/Code/acme"),
+			dir:     acmeDir + "/api",
+			wantWhy: "~/Code/acme/api is in pool Acme, where claude never starts on its own login",
+		},
+		{name: "one in the home directory, placed in the launch's, outside it", pools: acmeWriting("~/Code/acme"), dir: elsewhere},
+		{
+			name:    "one in the home directory, with none known",
+			pools:   acmeWriting("~/Code/acme"),
+			dir:     elsewhere,
+			noHome:  true,
+			wantWhy: `can't tell which pool ` + elsewhere + ` is in: pool Acme's directory "~/Code/acme" can't be placed`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := newHarness(t, "HOME=/home/tester")
+			h.launcher.Dir = tt.dir
+			if tt.noHome {
+				h.launcher.Home = ""
+			}
+
+			err := h.launcher.Direct(nil, tt.pools)
+			if tt.wantWhy == "" {
+				if err != nil || len(h.starts) != 1 {
+					t.Errorf("Direct() error = %v, starting %q; want claude started", err, h.starts)
+				}
+				return
+			}
+			if !errors.Is(err, launch.ErrNotStarted) || len(h.starts) > 0 {
+				t.Errorf("Direct() error = %v, starting %q; want %v, nothing started", err, h.starts, launch.ErrNotStarted)
+			}
+			if said, want := h.stderr.String(), "switchboard: "+tt.wantWhy+" — not starting claude\n"; said != want {
+				t.Errorf("said %q on stderr, want %q", said, want)
+			}
+		})
+	}
+}
+
+func TestWithOnePoolUnfencedClaudeStartsUnaidedAsBeforePools(t *testing.T) {
+	oneUnfenced := func() *config.Config {
+		return &config.Config{
+			WhenRouterDown: config.Direct,
+			Accounts:       config.Accounts{{ID: "work", Label: "Work", Pool: defaultPool.ID, Primary: true}},
+			Pools:          config.Pools{defaultPool},
+		}
+	}
+	tokenless := func(r launch.Router) launch.Route {
+		route := pooledRoute(oneUnfenced(), r, "")
+		route.Token = tokenstest.Files{}.Read
+		return route
+	}
+	starts := []struct {
+		name   string
+		launch func(ctx context.Context, l launch.Launcher) error
+	}{
+		{name: "no usable token", launch: func(ctx context.Context, l launch.Launcher) error { return l.Run(ctx, tokenless(healthy()), nil) }},
+		{
+			name: "the router not found",
+			launch: func(_ context.Context, l launch.Launcher) error {
+				return l.RouterUnfound(tokenless(nil), nil, errors.New("locate state directory: no home directory"))
+			},
+		},
+		{
+			name: "the config unreadable",
+			launch: func(_ context.Context, l launch.Launcher) error {
+				return l.Unaided(nil, config.Pools{defaultPool}, launch.CouldntReadConfig, errUnread)
+			},
+		},
+	}
+	session := routedSession(t, []string{"HOME=" + homeDir}, "")
+	for _, start := range starts {
+		t.Run(start.name+", the user's own token kept", func(t *testing.T) {
+			h := newHarness(t, "HOME=/home/tester", "CLAUDE_CODE_OAUTH_TOKEN=test-token-own")
+			h.launcher.Dir = acmeDir
+
+			if err := start.launch(t.Context(), h.launcher); err != nil {
+				t.Fatalf("launch error = %v", err)
+			}
+			if got := h.environment(t)["CLAUDE_CODE_OAUTH_TOKEN"]; got != "test-token-own" {
+				t.Errorf("started on the token %q, want the user's own kept", got)
+			}
+		})
+		t.Run(start.name+", within a session from before pools, passed on", func(t *testing.T) {
+			within := newHarness(t, session...)
+			within.launcher.Dir = acmeDir
+
+			if err := start.launch(t.Context(), within.launcher); err != nil {
+				t.Fatalf("launch error = %v", err)
+			}
+			env := within.environment(t)
+			if got, want := env["ANTHROPIC_BASE_URL"], envMap(session)["ANTHROPIC_BASE_URL"]; got != want || env["CLAUDE_CODE_OAUTH_TOKEN"] != envMap(session)["CLAUDE_CODE_OAUTH_TOKEN"] {
+				t.Errorf("started at %q on %q, want the session's router and token passed on", got, env["CLAUDE_CODE_OAUTH_TOKEN"])
+			}
+		})
+	}
+}
+
 func TestOnItsOwnLoginClaudeStartsAnywhereWithoutAFence(t *testing.T) {
 	h := newHarness(t, "HOME=/home/tester")
 
@@ -1300,10 +1432,12 @@ func TestRunUnreadRoutesByTheConfigFilesPoolsAlone(t *testing.T) {
 		written launch.Written
 		dir     string
 		// wantSaid is what stderr hears; wantStarted whether claude starts,
-		// and wantPool the pool its environment names, "" for none.
+		// wantPool the pool its environment names, and wantToken its token,
+		// each "" for none.
 		wantSaid    string
 		wantStarted bool
 		wantPool    string
+		wantToken   string
 	}{
 		{
 			name:        "a router reporting the pools written: through it",
@@ -1313,15 +1447,66 @@ func TestRunUnreadRoutesByTheConfigFilesPoolsAlone(t *testing.T) {
 			wantSaid:    throughRunning,
 			wantStarted: true,
 			wantPool:    "q7mt",
+			wantToken:   acme1Token,
 		},
 		{
-			name:        "a router reporting the pools written, which break the config's rules: through it, by its pools",
-			router:      healthy().reporting(pooledConfig()),
+			name: "a router reporting the pools written, which break the config's rules: through it, by its pools and accounts",
+			router: otherPools(pooledConfig(), func(ps []router.RoutedPool) []router.RoutedPool {
+				ps[1].Primary = "acme2"
+				return ps
+			}),
 			written:     unchecked,
 			dir:         acmeDir,
 			wantSaid:    throughRunning,
 			wantStarted: true,
 			wantPool:    "q7mt",
+			wantToken:   acme2Token,
+		},
+		{
+			name:     "a router whose fences aren't those written, which break the config's rules: refused inside a written fence",
+			router:   moved(),
+			written:  unchecked,
+			dir:      acmeDir,
+			wantSaid: insideFence,
+		},
+		{
+			name:     "a router with a pool those written, which break the config's rules, don't have: refused inside its fence too",
+			router:   healthy().reporting(withClient()),
+			written:  unchecked,
+			dir:      "/Volumes/Client/site",
+			wantSaid: unrouted + " — /Volumes/Client/site is in pool Client, where claude never starts on its own login — not starting claude\n",
+		},
+		{
+			name:    "pools written that break the config's rules, repeating an id the router has once: never routed by",
+			router:  healthy().reporting(withClient()),
+			written: launch.Written{Pools: config.Pools{defaultPool, acmePool, {ID: "Q7MT", Label: "Acme again", Dirs: acmePool.Dirs}}, Unchecked: true},
+			dir:     "/Volumes/Client/site",
+			// Routed by the router's pools, it would start in Client.
+			wantSaid: unrouted + " — /Volumes/Client/site is in pool Client, where claude never starts on its own login — not starting claude\n",
+		},
+		{
+			name:     "pools written with a directory that can't be placed: never routed by, and claude never on its own login",
+			router:   healthy().reporting(pooledConfig()),
+			written:  launch.Written{Pools: config.Pools{defaultPool, {ID: acmePool.ID, Label: acmePool.Label, Unplaced: []string{"Code/acme"}}}, Unchecked: true},
+			dir:      elsewhere,
+			wantSaid: unrouted + ` — can't tell which pool ~/Code/other is in: pool Acme's directory "Code/acme" can't be placed — not starting claude` + "\n",
+		},
+		{
+			name:     "pools written with a directory that can't be placed, the router down",
+			router:   notRunning(),
+			written:  launch.Written{Pools: config.Pools{defaultPool, {ID: acmePool.ID, Label: acmePool.Label, Unplaced: []string{"Code/acme"}}}, Unchecked: true},
+			dir:      elsewhere,
+			wantSaid: unreadSaid + `can't tell which pool ~/Code/other is in: pool Acme's directory "Code/acme" can't be placed — not starting claude` + "\n",
+		},
+		{
+			name:        "pools written with a directory in the home directory, read without one, placed in the launch's",
+			router:      healthy().reporting(pooledConfig()),
+			written:     launch.Written{Pools: config.Pools{defaultPool, {ID: acmePool.ID, Label: acmePool.Label, Unplaced: []string{"~/Code/acme"}}}, Unchecked: true},
+			dir:         acmeDir,
+			wantSaid:    throughRunning,
+			wantStarted: true,
+			wantPool:    "q7mt",
+			wantToken:   acme1Token,
 		},
 		{
 			name:     "a router whose fences aren't those written, inside a written fence: refused",
@@ -1382,6 +1567,7 @@ func TestRunUnreadRoutesByTheConfigFilesPoolsAlone(t *testing.T) {
 			wantSaid:    throughRunning,
 			wantStarted: true,
 			wantPool:    "q7mt",
+			wantToken:   workToken,
 		},
 		{
 			name:     "a router from before pools, one written, fenced, outside it: refused",
@@ -1416,11 +1602,20 @@ func TestRunUnreadRoutesByTheConfigFilesPoolsAlone(t *testing.T) {
 			if err != nil {
 				t.Fatalf("RunUnread() error = %v", err)
 			}
-			if pool := h.environment(t)["SWITCHBOARD_POOL"]; pool != tt.wantPool {
-				t.Errorf("started in pool %q, want %q", pool, tt.wantPool)
+			env := h.environment(t)
+			if env["SWITCHBOARD_POOL"] != tt.wantPool || env["CLAUDE_CODE_OAUTH_TOKEN"] != tt.wantToken {
+				t.Errorf("started in pool %q on %q, want pool %q on %q", env["SWITCHBOARD_POOL"], env["CLAUDE_CODE_OAUTH_TOKEN"], tt.wantPool, tt.wantToken)
 			}
 		})
 	}
+}
+
+// withClient is pooledConfig with Client too, side its account.
+func withClient() *config.Config {
+	cfg := pooledConfig()
+	cfg.Pools = append(cfg.Pools, clientPool)
+	cfg.Accounts[2].Pool = clientPool.ID
+	return cfg
 }
 
 // unpooledConfig is pooledConfig's accounts naming no pools, as a config put
@@ -1517,6 +1712,21 @@ func TestRunAfterTheMoveToPoolsNeverLaunchesAConfigNamingNoneAsItIs(t *testing.T
 				}
 			})
 		})
+	}
+}
+
+func TestRunAfterTheMoveAsksTheRouterOnceForThePoolsAndHowItIs(t *testing.T) {
+	h := newHarness(t, "HOME=/home/tester")
+	h.launcher.Dir = acmeDir
+	rt := healthy().reporting(pooledConfig())
+	r := pooledRoute(unpooledConfig(), rt, "")
+	r.Moved = true
+
+	if err := h.launcher.Run(t.Context(), r, nil); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if _, routed := h.environment(t)["ANTHROPIC_BASE_URL"]; !routed || rt.asks != 1 {
+		t.Errorf("started routed: %v, asking the router %d times; want routed, asked once", routed, rt.asks)
 	}
 }
 

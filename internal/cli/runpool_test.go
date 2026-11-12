@@ -341,6 +341,12 @@ func TestRunWithoutAConfigItCanReadNorTheRouterReadsTheConfigsPools(t *testing.T
 			wantSaid:    "starting claude without it\n",
 			wantStarted: true,
 		},
+		{
+			name:     "anywhere, a directory of the pools that can't be placed",
+			config:   strings.Replace(invalidPooled, `dirs  = ["~/Code/acme"]`, `dirs  = ["Code/acme"]`, 1),
+			dir:      "Code/project",
+			wantSaid: `can't tell which pool ~/Code/project is in: pool Acme's directory "Code/acme" can't be placed — not starting claude` + "\n",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -361,16 +367,31 @@ func TestRunWithoutAConfigItCanReadNorTheRouterReadsTheConfigsPools(t *testing.T
 }
 
 func TestRunOnItsOwnLoginWithoutAConfigItCanReadNeverStartsInsideAFence(t *testing.T) {
-	const inside = "switchboard: ~/Code/acme/api is in pool Acme, where claude never starts on its own login — not starting claude\n"
+	const inside = "~/Code/acme/api is in pool Acme, where claude never starts on its own login"
+	// The pools, breaking the config's rules: Acme's directory relative, and
+	// Acme unfenced beside Default.
+	relative := strings.Replace(pooledAccounts, `dirs  = ["~/Code/acme"]`, `dirs  = ["Code/acme"]`, 1)
+	twoUnfenced := strings.Replace(pooledAccounts, "dirs  = [\"~/Code/acme\"]\n", "", 1)
 	tests := []struct {
 		name   string
 		config string
-		// answering has the router answer with pooledAccounts' pools.
+		// answering has the router answer with pooledAccounts' pools; dir is
+		// where claude starts in the home directory, and wantWhy why it's
+		// refused.
 		answering bool
+		dir       string
+		wantWhy   string
 	}{
-		{name: "the router answering: its fences, the config file's unreadable", config: "[[pool]\n", answering: true},
-		{name: "the router down: the config file's fences", config: invalidPooled},
-		{name: "the router down: the fences of pools that break the config's rules", config: invalidPools},
+		{name: "the router answering: its fences, the config file's unreadable", config: "[[pool]\n", answering: true, dir: "Code/acme/api", wantWhy: inside},
+		{name: "the router down: the config file's fences", config: invalidPooled, dir: "Code/acme/api", wantWhy: inside},
+		{name: "the router down: the fences of pools that break the config's rules", config: invalidPools, dir: "Code/acme/api", wantWhy: inside},
+		{name: "the router answering: its fences too, of pools that break the config's rules", config: twoUnfenced, answering: true, dir: "Code/acme/api", wantWhy: inside},
+		{
+			name:    "the router down: anywhere, a directory of the pools that can't be placed",
+			config:  relative,
+			dir:     "Code/project",
+			wantWhy: `can't tell which pool ~/Code/project is in: pool Acme's directory "Code/acme" can't be placed`,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -378,10 +399,11 @@ func TestRunOnItsOwnLoginWithoutAConfigItCanReadNeverStartsInsideAFence(t *testi
 			if tt.answering {
 				serveHealth(t, srv.deps, pooledHealth(t, srv.deps))
 			}
-			startingIn(t, &srv.deps, "Code/acme/api")
+			startingIn(t, &srv.deps, tt.dir)
 			handed := recordHandOffs(t, &srv.deps)
 
-			if got, want := run(t, srv.deps, "run", "--direct"), (result{stderr: inside, code: 1}); got != want {
+			want := result{stderr: "switchboard: " + tt.wantWhy + " — not starting claude\n", code: 1}
+			if got := run(t, srv.deps, "run", "--direct"); got != want {
 				t.Errorf("switchboard run --direct = %+v, want %+v", got, want)
 			}
 			if len(handed.made) != 0 {

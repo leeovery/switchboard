@@ -199,28 +199,28 @@ func (a *app) runUnread(ctx context.Context, l launch.Launcher, opts runOptions,
 // ownLoginPools returns the pools a launch on Claude Code's own login is
 // refused inside the fences of: the config's; where it can't be read, those
 // the config file writes, read whatever else in it is wrong (see
-// writtenPools), else the running router's, as its health answer reports
-// them, asked once, as RunUnread keeps its own login out of them; and where
-// it names none once the move to pools is done, the router's, else those the
-// accounts record keeps. None where none of those can be had.
+// writtenPools), and the running router's, as its health answer reports
+// them, asked once, as launch.Written's Fences takes them, as RunUnread
+// keeps its own login out of them; and where it names none once the move to
+// pools is done, the router's, else those the accounts record keeps. None
+// where none of those can be had.
 func (a *app) ownLoginPools(ctx context.Context) config.Pools {
 	cfg, err := a.loadConfig()
-	switch {
-	case err != nil:
+	if err != nil {
 		logger.Debug("can't read the config for its pools", "error", err)
-		if written := a.writtenPools(); len(written.Pools) > 0 {
-			return written.Pools
-		}
-	case len(cfg.Pools) > 0 || !a.poolsMoved():
+		return a.writtenPools().Fences(func() config.Pools {
+			pools, _ := a.routersPools(ctx)
+			return pools
+		})
+	}
+	if len(cfg.Pools) > 0 || !a.poolsMoved() {
 		return cfg.Pools
 	}
 	if pools, reported := a.routersPools(ctx); reported {
 		return pools
 	}
-	if err == nil {
-		if kept, ok := a.keptPools(cfg); ok {
-			return kept.Pools
-		}
+	if kept, ok := a.keptPools(cfg); ok {
+		return kept.Pools
 	}
 	return nil
 }

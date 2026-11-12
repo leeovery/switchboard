@@ -231,7 +231,11 @@ func (l Launcher) RunUnread(ctx context.Context, r Route, args []string, unread 
 		return err
 	}
 	h, state := r.health(ctx)
-	fences := r.Written.fences(h)
+	r.Written.Pools = l.placedInHome(r.Written.Pools)
+	fences := r.Written.Fences(func() config.Pools {
+		pools, _ := RoutedPools(h)
+		return pools
+	})
 	cant := cantTakePart{couldnt: CouldntReadConfig, err: unread}
 	if !state.routable() {
 		logger.Info("the router can't be routed through", "router", state.name, "reason", state.reason, "asked", state.asked)
@@ -239,7 +243,7 @@ func (l Launcher) RunUnread(ctx context.Context, r Route, args []string, unread 
 	}
 	if why := r.Written.unroutedBy(h); why != "" {
 		logger.Warn("the router doesn't route by the config file's pools", "router", state.name, "reason", why)
-		return l.unaided(path, args, cant.besides(routerUnpooled), false, fences)
+		return l.unaided(path, args, cant.besides(routerUnpooled), true, fences)
 	}
 	if r.Config, err = r.routersConfig(ctx, h); err != nil {
 		logger.Warn("can't read which accounts the router routes for", "error", err)
@@ -499,30 +503,28 @@ func (l Launcher) unaided(path string, args []string, cant cantTakePart, foundDo
 // does the session; only this launch couldn't take part. But where this
 // launch, foundDown, found that router couldn't be routed through, and as
 // within a session pointed at a gateway of its own since, it's the user's
-// own, so Claude Code isn't sent to a router that can't take it. With pools,
-// the session's is passed on only where it's in the pool a session started
-// in Dir is in, as its PoolEnv names it: else that router would route this
-// claude in the session's pool. And where it isn't passed on, Claude Code's
-// token goes too, as a session's, run's or the user's, can't be told apart,
-// and would go out on an account of another pool's.
+// own, so Claude Code isn't sent to a router that can't take it. Where a
+// pool of pools is fenced, the session's is passed on only where it's in the
+// pool a session started in Dir is in, as its PoolEnv names it: else that
+// router would route this claude in the session's pool. And where it isn't
+// passed on, Claude Code's token goes too, as a session's, run's or the
+// user's, can't be told apart, and would go out on an account of another
+// pool's. Where none is, it's as without pools: no session can leave a pool.
 func (l Launcher) unaidedEnv(foundDown bool, pools config.Pools) environ {
 	env := environ(l.Environ)
-	if env.routedByRun() && !foundDown && l.inSessionsPool(env, pools) {
+	fenced := slices.ContainsFunc(pools, config.Pool.Fenced)
+	if env.routedByRun() && !foundDown && (!fenced || l.inSessionsPool(env, pools)) {
 		return env
 	}
-	if len(pools) == 0 {
+	if !fenced {
 		return env.unmarked()
 	}
 	return env.unmarked().without(claude.TokenEnv)
 }
 
 // inSessionsPool reports whether env, a session's, names, in PoolEnv, the
-// pool of pools a session started in Dir is in, as sessionPool finds it:
-// true without pools.
+// pool of pools a session started in Dir is in, as sessionPool finds it.
 func (l Launcher) inSessionsPool(env environ, pools config.Pools) bool {
-	if len(pools) == 0 {
-		return true
-	}
 	p, why := l.sessionPool(pools)
 	return why == "" && strings.EqualFold(env.get(PoolEnv), p.ID)
 }

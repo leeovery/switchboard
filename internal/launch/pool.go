@@ -178,21 +178,36 @@ func (l Launcher) sessionPool(pools config.Pools) (config.Pool, string) {
 // ownLoginBarred says why Claude Code doesn't start on its own login in Dir,
 // of pools, which would go out on whatever account it's signed into: Dir is
 // in a fenced pool, as fencesHolding finds it, or isn't known while a pool is
-// fenced. It says "" where it can start so.
+// fenced; or a pool writes a directory that can't be placed, even in Home,
+// which may hold Dir. It says "" where it can start so.
 func (l Launcher) ownLoginBarred(pools config.Pools) string {
 	if l.Dir == "" && slices.ContainsFunc(pools, config.Pool.Fenced) {
 		return unknownDir
 	}
-	held := l.fencesHolding(pools)
-	if len(held) == 0 {
-		return ""
+	pools = l.placedInHome(pools)
+	if held := l.fencesHolding(pools); len(held) > 0 {
+		return l.where() + " is in " + poolsNamed(held) + ", where claude never starts on its own login"
 	}
-	return l.where() + " is in " + poolsNamed(held) + ", where claude never starts on its own login"
+	if i := slices.IndexFunc(pools, func(p config.Pool) bool { return len(p.Unplaced) > 0 }); i >= 0 {
+		return "can't tell which pool " + l.where() + " is in: pool " + poolSaid(pools[i]) + "'s directory " + prose.Quoted(pools[i].Unplaced[0]) + " can't be placed"
+	}
+	return ""
+}
+
+// placedInHome returns pools as config.Pool's PlacedIn leaves each one, its
+// Unplaced directories placed in Home where they can be, as one starting ~/
+// can be where Home is known.
+func (l Launcher) placedInHome(pools config.Pools) config.Pools {
+	placed := make(config.Pools, len(pools))
+	for i, p := range pools {
+		placed[i] = p.PlacedIn(l.Home)
+	}
+	return placed
 }
 
 // fencesHolding returns the fenced pools of pools that hold Dir, in their
-// order: those with a directory that Dir, as given or with its links
-// resolved, is within, the directory as written or with its own links
+// order, each id once: those with a directory that Dir, as given or with its
+// links resolved, is within, the directory as written or with its own links
 // resolved. No two pools' directories overlap as written, but they can once
 // links are resolved, so more than one can.
 func (l Launcher) fencesHolding(pools config.Pools) config.Pools {
@@ -200,11 +215,16 @@ func (l Launcher) fencesHolding(pools config.Pools) config.Pools {
 	var held config.Pools
 	for _, p := range pools {
 		fence := config.Pool{Dirs: l.alsoResolved(p.Dirs...)}
-		if p.Fenced() && slices.ContainsFunc(starts, fence.Covers) {
+		if p.Fenced() && slices.ContainsFunc(starts, fence.Covers) && !slices.ContainsFunc(held, sameID(p.ID)) {
 			held = append(held, p)
 		}
 	}
 	return held
+}
+
+// sameID matches a pool with the given id, ignoring case.
+func sameID(id string) func(config.Pool) bool {
+	return func(p config.Pool) bool { return strings.EqualFold(p.ID, id) }
 }
 
 // alsoResolved returns paths, each followed by itself with its links
@@ -341,7 +361,15 @@ func (r routing) has(id string) bool {
 
 // fencesDiffer says how the router's pools aren't pools: "" where they're
 // the same pools, by id, each with the same directories, links unresolved.
+// Pools that repeat an id, ignoring case, as pools read unchecked can, are
+// never the router's: two of them could match one of its pools, and leave
+// another unmatched.
 func (r routing) fencesDiffer(pools config.Pools) string {
+	for i, p := range pools {
+		if slices.ContainsFunc(pools[:i], sameID(p.ID)) {
+			return "the config's pools repeat the id " + prose.Quoted(p.ID)
+		}
+	}
 	if len(r) != len(pools) {
 		return "its pools aren't the config's"
 	}
@@ -395,35 +423,44 @@ func (r routing) samePrimary(routed router.RoutedPool, pool string, accounts con
 
 // Written is the pools the config file writes, as read where the config
 // can't be: Pools, read by every rule the config holds them to; or, where
-// they break one, Unchecked, each pool's id, label and directories, as many
-// as can be found, which keep Claude Code's own login out of their fences,
-// but are never routed by.
+// they break one, Unchecked, each pool's id, label and directories, those
+// that can't be placed Unplaced, which keep Claude Code's own login out of
+// their fences, and out of every directory while one can't be placed, but
+// are never routed by.
 type Written struct {
 	Pools     config.Pools
 	Unchecked bool
 }
 
-// fences returns the pools Claude Code's own login is kept out of the fences
-// of where the config can't be read: w's, where the file writes any, as the
-// user would have them, else the router's, as its health answer h reports
-// them.
-func (w Written) fences(h router.Health) config.Pools {
-	if len(w.Pools) > 0 {
+// Fences returns the pools Claude Code's own login is kept out of the fences
+// of where the config can't be read, routers returning the router's, as its
+// health answer reports them, asked only where they're needed: w's, where
+// the file writes any by the config's rules, as the user would have them;
+// w's and the router's, where they break those rules, which only ever keeps
+// it out of more; else the router's.
+func (w Written) Fences(routers func() config.Pools) config.Pools {
+	switch {
+	case len(w.Pools) > 0 && !w.Unchecked:
 		return w.Pools
+	case len(w.Pools) > 0:
+		return append(slices.Clone(w.Pools), routers()...)
 	}
-	pools, _ := RoutedPools(h)
-	return pools
+	return routers()
 }
 
 // unroutedBy says why the router, as its health answer h reports the pools
 // it routes for, isn't routed through where the config can't be read, its
-// file writing w: "" where it is. One reporting pools, of several, would
-// pass the pool on to the API; or its pools aren't w's, by id and
-// directories, where w has any, as fencesDiffer compares them, as the router
-// would route by fences the user has since changed. One reporting none
-// routes every account in one pool, which isn't w's where w has several, or
-// any that break the config's rules.
+// file writing w: "" where it is. Where w has a directory that can't be
+// placed, the fences the user would have aren't known. One reporting pools,
+// of several, would pass the pool on to the API; or its pools aren't w's, by
+// id and directories, where w has any, as fencesDiffer compares them, as the
+// router would route by fences the user has since changed. One reporting
+// none routes every account in one pool, which isn't w's where w has
+// several, or any that break the config's rules.
 func (w Written) unroutedBy(h router.Health) string {
+	if slices.ContainsFunc(w.Pools, func(p config.Pool) bool { return len(p.Unplaced) > 0 }) {
+		return "the config file writes a directory that can't be placed"
+	}
 	if _, reported := RoutedPools(h); reported {
 		switch {
 		case len(h.Pools) > 1 && !h.StripsOwnHeaders:
