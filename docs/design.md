@@ -8027,7 +8027,8 @@ from the first day a router that has it runs, so nothing before then is in it.
     its windows, its `highest`, `rise`, `resets`, `limits`, minutes and `read_before`, stay the
     account's, once, whatever pool it's in.
     - `pool`: the id of the pool all the account's work that day was in, left out where its lines
-      named none, as every line did before pools, and where its work was in more than one pool.
+      named none, as every line did before pools, where its work was in more than one pool, and
+      where it did no work.
     - `pools`: where its work was in more than one pool, each pool's, in the order of their ids,
       that of the lines that named none first, its `pool` left out: its `models`, `sessions`,
       `session_ids`, `moved_on` and `moved_off`, counted of the pool's lines alone as the account's

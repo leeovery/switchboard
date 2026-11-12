@@ -287,7 +287,7 @@ An hour after each day ends, the router summarises the day beside its lines, in
 | Field | Description |
 |---|---|
 | `account` | The account, by its id alone. Left out of the requests no account answered. |
-| `pool` | The pool all the account's work that day was in, by its id. Left out where its requests named no pool, or were in more than one. |
+| `pool` | The pool all the account's work that day was in, by its id. Left out where its requests named no pool, or were in more than one, or where it did no work: a pool only a move of no session named isn't among its pools. |
 | `models` | The account's requests, by the model each asked for. See below. |
 | `sessions`, `session_ids` | The sessions the account's requests were of, and their ids. |
 | `moved_on` | The sessions its requests moved onto the account. |
