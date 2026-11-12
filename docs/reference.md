@@ -159,9 +159,18 @@ readable by its owner alone, and kept for good, a few hundred bytes an account:
 
 Since pools, `pools` lists every pool this Mac has had, each with its `id`, its `label` once it's
 removed, `added` and `removed`, `first` on the first pool, where the history from before pools is,
-`configured` as on an account, and `written`, the pool's `label` and `dirs` as the config last
-wrote them. A config put back from before pools is given its pools back from these, each account
-in the pool it was in.
+`configured` as on an account, `here` while this Mac's config has it, never on a pool only another
+Mac's config has, and `written`, the pool as this Mac's config last wrote it: its `label`, its
+`dirs`, and `primary`, the id of its primary account, the one it marks, else its first, with
+`primary_known` set once the config has said which, so a pool without a `primary` had no
+account. A copy an export writes holds neither `here` nor `written`.
+
+A config put back from before pools is given its pools back from these: the pools marked `here`,
+as last written, each account in the pool it was in, an account in none, as one added since, in the
+unfenced pool, and each pool's primary marked, or left unmarked, as the config last had it. Where
+every pool is fenced, an account in none has no pool to go to: the config is left as it is, and
+tried again each time the router looks at it, the log saying so once; meanwhile the router routes
+every account as the config would be given back, that one in no pool, so no session uses it.
 
 Each `id`, `organization` and `was` is held by one account at most, ids compared ignoring case. A
 record that doesn't read, as one damaged or edited wrongly by hand, is left as it is and never
@@ -335,6 +344,10 @@ request was in:
 - **The work splits by pool:** its `models`, `sessions`, `session_ids`, `moved_on` and `moved_off`.
   Each entry in `pools` has those of one pool's requests, and that pool's id as its `pool`. The
   requests that named no pool come first, without a `pool`.
+- **Once the move to pools is done, work in no pool is the first pool's:** requests filed without
+  a pool since, as by a release from before pools after a downgrade, or by a router handing over
+  to another, are summarised in the first pool, and work a summary still holds in no pool is read
+  as the first pool's.
 - **The windows stay the account's:** its `highest`, `rise`, `resets`, `limits`, minutes and
   `read_before`, given once, whatever pool it's in.
 

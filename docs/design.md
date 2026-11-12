@@ -750,21 +750,33 @@ read as a pool by its leaving one out (the owner's call, 11 November 2026).
     the router builds from these are built again. The router takes the pools up as soon as the
     move writes them, before any file is moved, and every line it files from then names a pool,
     the first for a request naming none, even a request it began routing before.
+  - **Work in no pool, once the move's done, is the first pool's,** everywhere the ledger is read:
+    lines filed without a pool after it, as by a release from before pools after a downgrade, by
+    a router draining as another takes over and appending to a day already moved, or pins filed
+    before pins name their pool, and a summary's work in none, as one of a day before pools whose
+    lines were lost since, so which pool they were in can't be told. A day is summarised with it
+    in the first pool, and a pool read from a summary counts what's left in none as the first's.
+    A day summarised again splits its summary before as its lines split, whatever its version,
+    where they count no less; where they count less, as some were lost, each pool knows no less
+    than before and the day's whole is its pools' sum, so a day's pools always add up to it.
   - **Healed:** once the move's done, a config that names no pool, as one put back by hand or by a
     repository it's kept in, is given its pools back, as Account identity's `Heal` writes the ids
     back: every pool the accounts record keeps as this Mac's config's, in the record's order, with
     its id, and its label, directories and primary as the config last wrote them, and each account
     in the pool the record last had it in. An account it has in none goes to the unfenced pool
-    written back, never a fenced one; where every pool written is fenced, the first pool is
-    written back too, unfenced, to hold it, labelled as the record last knew it, and where the
-    first is among the fenced ones, the config is left as it is, the router keeping the pools it
-    last had. So the record keeps how the config writes each pool, each pool's primary and each
-    account's pool, removed or not, kept in step with the config as it keeps labels, and a config
-    with no pools changes none of it. A pool is this Mac's only by this Mac's config: one an
-    import brings in is never written back here. Putting every account in the first pool would
-    drop a client's pool and its fence, and run the client's sessions on the owner's accounts. The
-    router heals as it starts, before it reads the config, and as it looks at the config, so a
-    config put back is healed within seconds; until then it keeps the pools it last had.
+    written back, never a fenced one; where every pool written is fenced, it has no pool to go to,
+    and the config is left as it is. So the record keeps how the config writes each pool, each
+    pool's primary, marked or not, and each account's pool, removed or not, kept in step with the
+    config as it keeps labels, and a config with no pools changes none of it. A pool is this Mac's
+    only by this Mac's config, as the record marks it: one an import brings in is never written
+    back here, nor marked this Mac's till its config has it. Putting every account in the first
+    pool would drop a client's pool and its fence, and run the client's sessions on the owner's
+    accounts. One owner, in `idmove`, gives the pools a config naming none is to have, and the
+    router routes by the same while the config names none: each account in the pool the heal
+    would put it in, one with no pool to go to in none, so no session uses it, never a pool it
+    wasn't in. The router heals as it starts, before it reads the config, and at each look at the
+    config till it's healed, whether or not it changed, saying once for each config that it
+    couldn't, so a config put back is healed within seconds.
   - It's proved before release on a copy of the owner's own history, taken with his word, never on
     the real one: every file moved, every day's totals the same before and after, and the
     dashboard and the verbs reading it whole.
@@ -773,7 +785,11 @@ read as a pool by its leaving one out (the owner's call, 11 November 2026).
   folder in, its pools join this Mac's record as its accounts do: matched by id, else added as the
   other Mac keeps them, their labels and removals with them. A folder from before pools, of version
   2 or 1, has its lines, pin events and summaries given this Mac's first pool as `import` takes
-  them in.
+  them in. So each Mac gives the days from before pools its own first pool, and a request line or
+  an event alike but for its pool is one as an import merges a day, the line held standing: a
+  folder taken in before its Mac moved and again after never doubles a day. A summary is never
+  merged, copied in only where this Mac knows nothing of the day, so one under another pool never
+  adds to what's held.
 
 Moving an account rewrites nothing: the past stands as it was. Views that show accounts go by which
 pool each account is in now: windows, Runway, the day strips, Graphs. Views that show work go by the
