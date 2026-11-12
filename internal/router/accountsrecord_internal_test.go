@@ -155,12 +155,15 @@ func TestThePoolsConfiguredAreRecordedAndOneThatLeftMarkedRemovedWithTheLabelItH
 	}
 
 	// As the router starts: the pools the config file makes, a directory
-	// in the home among them, are added, as the config writes them, and
-	// each account keeps its pool.
+	// in the home among them, are added, this Mac's, as the config writes
+	// them with their primaries, and each account keeps its pool.
 	clock.now = start.Add(time.Minute)
 	r.upkeep.keepRecord()
 	client := identity.PoolWritten{Label: "Client", Dirs: []string{"~/Code/client"}}
-	want := []identity.PoolEntry{{ID: "b2n8", Added: clock.now}, {ID: "h4w2", Added: clock.now, Written: client}}
+	want := []identity.PoolEntry{
+		{ID: "b2n8", Added: clock.now, Here: true, Written: identity.PoolWritten{Primary: "work"}},
+		{ID: "h4w2", Added: clock.now, Here: true, Written: client},
+	}
 	if got := pools(); !slices.EqualFunc(got, want, identity.PoolEntry.Equal) {
 		t.Errorf("the record's pools are %+v, want %+v", got, want)
 	}
@@ -178,7 +181,7 @@ func TestThePoolsConfiguredAreRecordedAndOneThatLeftMarkedRemovedWithTheLabelItH
 	clock.now = start.Add(time.Hour)
 	writeFile(t, path, accounts+"\n[[pool]]\nid = \"b2n8\"\n")
 	configure(r, without("side"))
-	want[1].Label, want[1].Removed = "Client", clock.now
+	want[1].Label, want[1].Removed, want[1].Here = "Client", clock.now, false
 	if got := pools(); !slices.EqualFunc(got, want, identity.PoolEntry.Equal) {
 		t.Errorf("the record's pools are %+v, want %+v", got, want)
 	}
@@ -199,7 +202,7 @@ func TestAPoolThatLeftTheConfigBeforeTheFirstLookIsLabelledAsTheRouterStartedWit
 	writeFile(t, path, "[[account]]\nid = \"work\"\npool = \"b2n8\"\n\n[[account]]\nid = \"personal\"\npool = \"b2n8\"\n\n[[account]]\nid = \"side\"\npool = \"b2n8\"\n\n[[pool]]\nid = \"b2n8\"\n")
 	cfg.ConfigFile = Watch(path)
 	if err := identity.NewFile(cfg.StateDir).Update(func(r *identity.Record) error {
-		r.Pools = []identity.PoolEntry{{ID: "b2n8", Added: start}, {ID: "h4w2", Added: start}}
+		r.Pools = []identity.PoolEntry{{ID: "b2n8", Added: start, Here: true}, {ID: "h4w2", Added: start, Here: true}}
 		return nil
 	}); err != nil {
 		t.Fatal(err)
@@ -212,7 +215,10 @@ func TestAPoolThatLeftTheConfigBeforeTheFirstLookIsLabelledAsTheRouterStartedWit
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []identity.PoolEntry{{ID: "b2n8", Added: start}, {ID: "h4w2", Label: "Client", Added: start, Removed: clock.now}}
+	want := []identity.PoolEntry{
+		{ID: "b2n8", Added: start, Here: true, Written: identity.PoolWritten{Primary: "work"}},
+		{ID: "h4w2", Label: "Client", Added: start, Removed: clock.now},
+	}
 	if !slices.EqualFunc(record.Pools, want, identity.PoolEntry.Equal) {
 		t.Errorf("the record's pools are %+v, want %+v", record.Pools, want)
 	}
