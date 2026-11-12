@@ -271,14 +271,14 @@ func (m *membership) follow(accounts config.Accounts, pools config.Pools) {
 }
 
 // made returns the pools a config makes of the accounts and pools it
-// configures. A config with pools makes them. One with none, from before the
-// move to pools, makes none, every account in the one pool there is, as
-// before pools; but once the move is done, or the router has routed within
-// pools, a config naming none has lost them, as one put back by hand or from
-// a repository it's kept in, which upkeep's heal gives them back: meanwhile
-// the pools stand as kept says, so no pool's work goes out on another's
-// accounts, whether or not the heal can be written, and the log says how,
-// once for each way they stand. m.mu must be held.
+// configures. A config with pools makes them. One with none, before the move
+// to pools is done, makes none, every account in the one pool there is, as
+// before pools; but once it's done, a config naming none has lost them, as
+// one put back by hand or from a repository it's kept in, which upkeep's
+// heal gives them back: meanwhile the pools stand as kept says, so no pool's
+// work goes out on another's accounts, whether or not the heal can be
+// written, and the log says how, once for each way they stand. m.mu must be
+// held.
 func (m *membership) made(accounts config.Accounts, pools config.Pools) *poolTable {
 	if len(pools) > 0 {
 		m.told, m.said = newPoolTable(accounts, pools, m.first(), m.idNow), ""
@@ -295,17 +295,20 @@ func (m *membership) made(accounts config.Accounts, pools config.Pools) *poolTab
 	return kept
 }
 
-// kept returns the pools a config of accounts naming none keeps, and what
-// the log says of them: those the accounts record keeps, as keptTable gives
-// them, the pools the heal writes back, so the router routes as the config
-// will be, whether it started on the config or found it at a look; else,
-// where the record can't be read, or keeps no pool of this Mac's config,
-// those the router routes within, as last told, but for accounts that have
-// left the config, and those new to them, in none, as keeping says; else,
-// the move to pools done, none at all, closed, nothing routed, as which pool
-// each account is in can't be told. Before the move, with no pools told,
-// it's nil. m.mu must be held.
+// kept returns the pools a config of accounts naming none keeps once the
+// move to pools is done, and what the log says of them: those the accounts
+// record keeps, as keptTable gives them, the pools the heal writes back, so
+// the router routes as the config will be, whether it started on the config
+// or found it at a look; else, where the record can't be read, or keeps no
+// pool of this Mac's config, those the router routes within, as last told,
+// but for accounts that have left the config, and those new to them, in
+// none, as keeping says; else none at all, closed, nothing routed, as which
+// pool each account is in can't be told. Before the move is done it's nil,
+// and says nothing. m.mu must be held.
 func (m *membership) kept(accounts config.Accounts) (*poolTable, string) {
+	if !m.moved() {
+		return nil, ""
+	}
 	const lost = "the config names no pools"
 	why := "the accounts record can't be read"
 	if r, ok := m.record(); ok {
@@ -319,9 +322,6 @@ func (m *membership) kept(accounts config.Accounts) (*poolTable, string) {
 	if m.told != nil {
 		return m.told.keeping(accounts, m.idNow), lost + ", and " + why + "; the pools stand as the router last routed within them, " +
 			"an account new to them in none, till the config is given them again"
-	}
-	if !m.moved() {
-		return nil, ""
 	}
 	closed := lost + " and " + why + ", so the pool each account is in can't be told"
 	return closedTable(closed), closed + "; nothing is routed till that's put right"
