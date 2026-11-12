@@ -35,7 +35,9 @@ type Prefs struct {
 	Tab string `json:"tab,omitempty"`
 	// Sections name the Overview's sections shown, of usage, routing,
 	// sessions, coming and lately: nil, as a file without them reads, for
-	// those shown at first, and none, kept as [], for none.
+	// those shown at first, and none, kept as [], for none. A list naming
+	// only sections the dashboard doesn't know, as a later build's or one
+	// since retired, opens on those shown at first.
 	Sections []string `json:"sections,omitzero"`
 	// By names how the Overview's windows are grouped, window or account, as
 	// b last left it: "" for the config's [usage] by.
@@ -64,8 +66,9 @@ type Prefs struct {
 // GraphsPrefs are what the Graphs tab shows: Sections, the names of its
 // sections shown, of week, pool, glance and when: nil, as a file
 // without them reads, for those shown at first, and none, kept as [], for
-// none. A name the dashboard doesn't know, as a later build's section, shows
-// nothing.
+// none. A name the dashboard doesn't know, as a later build's section or the
+// 5-hour since dropped, shows nothing; a list naming only such sections opens
+// on those shown at first.
 type GraphsPrefs struct {
 	Sections []string `json:"sections,omitzero"`
 }
@@ -196,8 +199,20 @@ func (f PrefsFile) read() (Prefs, map[string]json.RawMessage) {
 	for _, key := range slices.Concat(prefsKeys, retiredKeys) {
 		delete(others, key)
 	}
-	p.Sections = slices.DeleteFunc(p.Sections, func(name string) bool { return slices.Contains(retiredSections, name) })
+	p.Sections = withoutRetired(p.Sections)
 	return p, others
+}
+
+// withoutRetired are the Overview's sections kept, those retiredSections
+// names left out: nil, as none kept, where that leaves none of a list that
+// named some, so the Overview opens on those shown at first; kept empty,
+// empty, for none.
+func withoutRetired(sections []string) []string {
+	kept := slices.DeleteFunc(sections, func(name string) bool { return slices.Contains(retiredSections, name) })
+	if len(kept) == 0 && len(sections) > 0 {
+		return nil
+	}
+	return kept
 }
 
 // setAside sets the corrupt preferences file aside, as moveAside does.

@@ -236,10 +236,11 @@ func (g glance) poolLine(names []accountName) *glanceLine {
 // accountGauge is account a's week, of Runway's view of it, as GLANCE draws
 // it, known where the moment holds the account, else as one not read yet: its
 // sparkline, its burn-down card's, as burnCardOf has it from its trail, its
-// ✕ where a hold began as heldSince has it; the room it has left, as
-// roomFigure has it, or where nothing's read of it or the account has no
-// usable token, — in text.faint, as usage's figure; and usage's words for
-// it, as wordsOf has them, faint where it's out of the pool.
+// ✕ where a hold began as heldSince has it, empty where it lacks the week;
+// the room it has left, as roomFigure has it, or where nothing's read of it,
+// the account has no usable token, or it lacks the window, — in text.faint,
+// as usage's figure; and usage's words for it, as wordsOf has them, faint
+// where it's out of the pool.
 func (g glance) accountGauge(a status.AccountNow, known bool) glanceGauge {
 	key := GraphsWindow.KeyIn(g.m)
 	win, _ := a.Window(key)

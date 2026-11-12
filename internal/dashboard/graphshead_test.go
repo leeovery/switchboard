@@ -301,8 +301,11 @@ func TestACardsHeadLaysItsWordsUnderItsLabelOrBesideIt(t *testing.T) {
 // as its lane has it at now, as Runway cues the words under its lane.
 func TestACardsHeadIsDrawnItsWordsCuedAsRunwayCuesThem(t *testing.T) {
 	week := runwayLive(views.RunwayWeek)
-	capped := cardLane(0.95, stretchOf(week.Timeline, views.CellCapped, routedClock(1, 14, 31), routedClock(1, 17, 10), 0, 20))
-	capped.Cells = slices.Repeat([]views.Cell{views.CellCapped}, 136)
+	held := weekStretch(week.Timeline, views.CellCapped, routedClock(1, 14, 31), routedClock(1, 17, 10))
+	capped := cardLane(0.95, held)
+	for c := held.First; c <= held.Last; c++ {
+		capped.Cells[c] = views.CellCapped
+	}
 	tests := []struct {
 		name    string
 		changed map[string]float64
