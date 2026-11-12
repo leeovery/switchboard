@@ -736,7 +736,12 @@ read as a pool by its leaving one out (the owner's call, 11 November 2026).
     `Default`, and writes it to the config in one edit with every account's `pool`, as Account
     identity's move writes the ids. The accounts record notes it as the first pool. Where the config
     has pools already, as where another Mac sharing it moved first, the first pool in the config's
-    order is this Mac's first, and the config isn't written.
+    order is this Mac's first, and the config isn't written. Its id is random, as every pool's is:
+    the config carries it to every Mac that shares it, as Account identity says those Macs upgrade
+    together. A Mac that moves on a shared config before the first pool has reached it makes one of
+    its own, and the configs differ till one is kept; that Mac's history before pools then stays
+    under its own first pool, shown removed, which harms nothing but its name (the owner's call, 12
+    November 2026).
   - **The files:** every request line, every pin event and every day's summary is given the first
     pool's id, written anew and swapped in, a day's files at a time, holding off their writers, as
     Account identity's move writes them. A line that names a pool already is left as it is, so a
