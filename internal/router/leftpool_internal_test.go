@@ -526,7 +526,7 @@ func TestWhetherARequestsTokenHasLeftItsPool(t *testing.T) {
 	// which has left the config; gone left it before the router started.
 	withoutPersonal := slices.DeleteFunc(pooledAccounts(), func(a config.Account) bool { return a.ID == "personal" })
 	of := func(id, removed string) sender {
-		return sender{account: account{Account: config.Account{ID: id}}, removed: removed}
+		return sender{ID: id, removed: removed}
 	}
 	tests := []struct {
 		name string
