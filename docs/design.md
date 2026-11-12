@@ -750,15 +750,17 @@ read as a pool by its leaving one out (the owner's call, 11 November 2026).
     the router builds from these are built again. The router takes the pools up as soon as the
     move writes them, before any file is moved, and every line it files from then names a pool,
     the first for a request naming none, even a request it began routing before.
-  - **Work in no pool, once the move's done, is the first pool's,** everywhere the ledger is read:
+  - **Work in no pool, once the move's done, is the first pool's,** everywhere the history is read:
     lines filed without a pool after it, as by a release from before pools after a downgrade, by
     a router draining as another takes over and appending to a day already moved, or pins filed
     before pins name their pool, and a summary's work in none, as one of a day before pools whose
     lines were lost since, so which pool they were in can't be told. A day is summarised with it
     in the first pool, and a pool read from a summary counts what's left in none as the first's.
     A day summarised again splits its summary before as its lines split, whatever its version,
-    where they count no less; where they count less, as some were lost, each pool knows no less
-    than before and the day's whole is its pools' sum, so a day's pools always add up to it.
+    where they count no less. Where they count less, as some were lost, a summary from before
+    pools, whose split can't be told, keeps the whole in its one pool; one since has each pool
+    know no less than before, and the whole no less than its pools' sum. So a day's pools always
+    add up to its whole.
   - **Healed:** once the move's done, a config that names no pool, as one put back by hand or by a
     repository it's kept in, is given its pools back, as Account identity's `Heal` writes the ids
     back: every pool the accounts record keeps as this Mac's config's, in the record's order, with
