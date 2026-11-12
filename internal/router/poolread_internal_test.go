@@ -776,7 +776,7 @@ func TestAPoolNamedWithoutAValueNamesNone(t *testing.T) {
 
 func TestTheHealedFirstPoolKeepsItsLabelFromTheAccountsRecord(t *testing.T) {
 	logstest.Capture(t)
-	m := newMembership(func() config.Pool { return config.Pool{ID: defaultPool, Label: "Default"} }, sameID)
+	m := newMembership(func() config.Pool { return config.Pool{ID: defaultPool, Label: "Default"} }, sameID, noPoolKnown)
 	m.follow(config.Accounts(testConfigured), nil)
 	if got := m.current().reported(nil); len(got) != 1 || got[0].ID != defaultPool || got[0].Label != "Default" {
 		t.Errorf("the healed pools report %+v, want Default by its label", got)
