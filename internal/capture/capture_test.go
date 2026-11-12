@@ -187,7 +187,7 @@ func TestAFixtureIsDrawnAtItsMoment(t *testing.T) {
 		"78%  out ~Fri                      ▌ ┃                                    13%  21%/h till 18:50",
 		// What the router tells of lately, none picked out as new, the first
 		// look having seen them all.
-		"14:41  ▲ c61b started on side",
+		"14:41  ▲ mobile started on side",
 	} {
 		if !strings.Contains(frame, want) {
 			t.Errorf("the frame\n%s\nhas no %q", frame, want)

@@ -19,12 +19,12 @@ import (
 // account, so neither tells them. Each tells a session that started on the
 // router's best, as its reason says, ", the best", as it started, wherever ▲
 // marks since. Each is told in full alone, its Short its Full, as stacked
-// Detail tells LATELY in full too.
-func AccountLately(m status.Moment, id string, n int) []Sentence {
+// Detail tells LATELY in full too. Each names a session as Lately does.
+func AccountLately(m status.Moment, id string, n int, dirs SessionDirs) []Sentence {
 	if id == "" {
-		return toldFrom(m, n, everyAccount)
+		return toldFrom(m, n, everyAccount, dirs)
 	}
-	return toldFrom(m, n, accountSide{id: id}.side())
+	return toldFrom(m, n, accountSide{id: id}.side(), dirs)
 }
 
 // unnamed are the kinds of events that name no account.
@@ -96,7 +96,7 @@ func (s accountSide) tell(t latelyTeller, e status.Event, f eventFact) (string, 
 func (s accountSide) told(t latelyTeller, e status.Event, f eventFact) (string, Said) {
 	switch e.Kind {
 	case status.EventStarted:
-		return e.Kind, Said{Subject: session(e.Session), Words: clause(" started here"), Rest: t.startedWhy(e, f, true)}
+		return e.Kind, Said{Subject: t.session(e.Session), Words: clause(" started here"), Rest: t.startedWhy(e, f, true)}
 	case status.EventMoved:
 		return e.Kind, t.cameHere(e, f)
 	case status.EventPressure:
@@ -108,7 +108,7 @@ func (s accountSide) told(t latelyTeller, e status.Event, f eventFact) (string, 
 		full, _ := befell(e, f)
 		return e.Kind, heldBack(nil, e, f, full, false)
 	case status.EventPin:
-		return e.Kind, s.pinnedHere(e)
+		return e.Kind, s.pinnedHere(t, e)
 	case status.EventForeign:
 		return e.Kind, Said{Words: clause(prose.ForeignToken)}
 	}
@@ -116,11 +116,11 @@ func (s accountSide) told(t latelyTeller, e status.Event, f eventFact) (string, 
 	return e.Kind, Said{Words: clause(full)}
 }
 
-// cameHere tells of a session's model moving onto the account: "db8a came
+// cameHere tells of a session's model moving onto the account: "api came
 // from personal", and why, in the views' words, as in ": personal came under
 // pressure".
 func (t latelyTeller) cameHere(e status.Event, f eventFact) Said {
-	said := Said{Subject: session(e.Session), Words: clause(" came from "), Object: account(e.From)}
+	said := Said{Subject: t.session(e.Session), Words: clause(" came from "), Object: account(e.From)}
 	if why := status.EventWords(e.Reason, t.facts(f, e.From, e.To)); len(why) > 0 {
 		said.Rest = slices.Concat(clause(": "), why)
 	}
@@ -148,10 +148,10 @@ func cameFromHeld(e status.Event, f eventFact) Said {
 
 // pinnedHere tells of routing set by hand to the account: the global pin,
 // "pinned here, by hand", or with others, "pinned with side, by hand"; or a
-// session's own pin, "c61b pinned here, by hand".
-func (s accountSide) pinnedHere(e status.Event) Said {
+// session's own pin, "api pinned here, by hand", the session named as t names it.
+func (s accountSide) pinnedHere(t latelyTeller, e status.Event) Said {
 	if e.Session != "" {
-		return Said{Subject: session(e.Session), Words: clause(" pinned here, by hand")}
+		return Said{Subject: t.session(e.Session), Words: clause(" pinned here, by hand")}
 	}
 	others := slices.DeleteFunc(pinnedNames(e), func(name string) bool { return name == s.id })
 	if len(others) == 0 {

@@ -40,13 +40,13 @@ Mon 10:00  side's week resets                                   in 3d 19h
 
 LATELY  ─────────────────────────────────────────────────────────────── l
 
-14:41  ▲ c61b started on side
+14:41  ▲ mobile started on side
 14:31  ■ work refused (401): 3 sessions moved to side
-14:12  ▲ 7f3a started on work
-13:22  ▸ db8a moved personal → work: personal came under pressure
-12:47  ▲ 41e0 started on personal
-12:02  ▲ d28c started on work
-11:55  ▲ 9c2e started on personal
+14:12  ▲ api started on work
+13:22  ▸ infra moved personal → work: personal came under pressure
+12:47  ▲ docs started on personal
+12:02  ▲ switchboard started on work
+11:55  ▲ website started on personal
 10:02  ▲ 5b19 started on personal
 09:40  ▲ 3d7a started on work
 09:12  ▲ e0c4 started on work

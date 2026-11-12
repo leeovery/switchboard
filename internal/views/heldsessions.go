@@ -1075,6 +1075,15 @@ func (h HeldSessions) namingOf(id string) naming {
 	return naming{}
 }
 
+// dirOf is the directory the lines h holds of the session with the given id
+// last name: "" where it holds none of them, or they name none.
+func (h HeldSessions) dirOf(id string) string {
+	if s, ok := h.sessions[id]; ok {
+		return s.story.dir
+	}
+	return ""
+}
+
 // StreamWanted is what the stream s wants of the store, whatever reader
 // reads it: each session's requests it tells of pinned, as pinsOf has it.
 func StreamWanted(s Stream) SessionsWanted {

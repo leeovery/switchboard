@@ -3221,8 +3221,8 @@ at every width.
 
   | Mark | Event | As |
   |---|---|---|
-  | `▲` in `accent.mode` | `started` | `c61b started on side`, and why where it wasn't the router's best: `: personal is at its limit`; under a pin, `c61b started on personal, as pinned` |
-  | `▸` in `accent.key` | `moved` | `db8a moved personal → work: personal came under pressure` |
+  | `▲` in `accent.mode` | `started` | `api started on side`, and why where it wasn't the router's best: `: personal is at its limit`; under a pin, `api started on personal, as pinned` |
+  | `▸` in `accent.key` | `moved` | `infra moved personal → work: personal came under pressure` |
   | `◔` in `accent.attention` | `pressure` | `personal came under pressure: its 5-hour runs out ~16:05` |
   | `╎` in `accent.attention` | `cap` | `work reached its cap: 3 sessions moved to side` |
   | `■` in `state.destructive` | `limit` | `personal reached its 5-hour limit: 2 sessions moved to side` |
@@ -3250,7 +3250,11 @@ at every width.
   room only grows with the width but where LATELY moves beside COMING UP, its column halving, the
   one width a sentence may take its shorter form. A limit's or a cap's line names the windows it began
   with, as it began: `work reached its Fable week limit`, a 5-hour that joined it later left to the
-  Log's card (the owner's call, 15 October 2026).
+  Log's card (the owner's call, 15 October 2026). A session is named by the last part of the
+  directory it runs in, `api`, as the Log names one (`views.SessionDirName`), the router's listing
+  giving it, else the lines the watch holds, and by its short id, `c61b`, where neither names one:
+  account ids are four characters too, so a short id read as an account's. The Log's card heads
+  its event the same way.
 
 **By account** (`b`) pivots the page; `[usage] by` sets its default (see The page, "What's
 remembered").
@@ -3369,7 +3373,7 @@ ones:
 
 - `SESSIONS   6 running: 2 on personal, 4 on side   no room at 37 rows`, the count in
   `text.muted` and `no room at 37 rows` in `text.subtle`;
-- `COMING UP   16:30  personal's 5-hour resets  …` and `LATELY   14:41  ▲ c61b started on side  …`,
+- `COMING UP   16:30  personal's 5-hour resets  …` and `LATELY   14:41  ▲ api started on side  …`,
   side by side, each its first row as drawn, then `  …` in `text.subtle`;
 - `ROUTING   auto   no room at 33 rows`.
 
@@ -3710,11 +3714,11 @@ where it fits** says, and where they don't fit, it's stacked, as **Stacked** say
 - **LATELY,** row 27: the account's last three events, newest first, from `cx`, in LATELY's marks,
   but told from the account's side, which they leave unnamed:
   `14:31  ╎ reached its cap: 3 sessions moved to side`; a move onto it, `▸ 3 sessions came from
-  work: work reached its cap`; `14:12  ▲ 7f3a started here`, or, where it started on the router's
-  best, `c61b started here, the best`; `◔ came under pressure: out ~16:05 at this pace`; a pin
+  work: work reached its cap`; `14:12  ▲ api started here`, or, where it started on the router's
+  best, `api started here, the best`; `◔ came under pressure: out ~16:05 at this pace`; a pin
   naming it with others, `● pinned with side, by hand`; and `12:10  ◇ primed: its 5-hour window
   started`. For `all accounts`, the last three of every account's, each naming its account, as the
-  Overview's LATELY does: `c61b started on side, the best`.
+  Overview's LATELY does: `api started on side, the best`.
 - **With sessions running** on the chosen account: `SESSIONS`, and `now` in `text.faint`, at the
   panel's left on row 27, and from row 28 a row a session: `▸`, bold `accent.key`, before the one
   selected; `●` while busy, in `state.positive`, or `○`, in `text.subtle`; the id, bold,

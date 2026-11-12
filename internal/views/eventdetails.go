@@ -186,10 +186,11 @@ func holdsBack(kind string) bool {
 	return kind == status.EventLimit || kind == status.EventCap || kind == status.EventRefused
 }
 
-// headline is what happened, as the card's title says it.
+// headline is what happened, as the card's title says it, its session named
+// by its directory where its row names one.
 func (d detailing) headline() status.Words {
 	e := d.event
-	who, id := account(e.Account), session(e.Session)
+	who, id := account(e.Account), sessionNamed(e.Session, d.row.Dir)
 	switch e.Kind {
 	case status.EventStarted:
 		return slices.Concat(id, clause(" started on "), who)

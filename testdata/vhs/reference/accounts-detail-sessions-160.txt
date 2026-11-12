@@ -26,7 +26,7 @@ ACCOUNTS    Compare  Detail  [ ]  ───────────────�
                     │   plenty to spare most weeks   limit hit 0 of the last 7 weeks · 59% left at a reset, on average
                     │
                     │   SESSIONS  now                                   LATELY
-                    │     ● c61b  opus    ↓ ~1.2k  now                  14:41  ▲ c61b started here, the best
+                    │     ● c61b  opus    ↓ ~1.2k  now                  14:41  ▲ mobile started here, the best
                     │   ▸ ● d28c  opus    ↑ ask    now                  14:31  ▸ 3 sessions came from work: work reached its cap
                     │     ○ 7f3a  sonnet  idle      1m                  13:50  ◇ primed: its 5-hour window started
                     │     ○ db8a  opus    idle      4m

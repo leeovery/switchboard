@@ -937,7 +937,7 @@ func TestStackedDetailTellsLATELYInFullToTheEdge(t *testing.T) {
 // Stacked Detail picks out each event of LATELY while it's fresh.
 func TestStackedDetailPicksOutAFreshEvent(t *testing.T) {
 	f := phoneFrame(t, 41, AccountsDetail, "work", phonePage(t))
-	newest := views.AccountLately(f.Moment(phoneDoc(), routedAt), "work", 1)[0]
+	newest := views.AccountLately(f.Moment(phoneDoc(), routedAt), "work", 1, f.sessionDirs())[0]
 	f.Fresh = map[int]float64{newest.ID: 0.25}
 	c := f.At(phoneDoc(), routedAt).page(phoneDoc(), routedAt)
 	if c.at(0, 36).ink.on.token != theme.BgAttention || c.at(0, 37).ink.on.token == theme.BgAttention {

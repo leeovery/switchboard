@@ -652,7 +652,7 @@ const latelyLines = 3
 // has them, their words cut to the cells given, each cut short of the
 // frame's edge and picked out while it's fresh; or why it has none.
 func (d detailDrawn) lately(c *canvas, y, x, words int) {
-	sentences := views.AccountLately(d.m, d.id, latelyLines)
+	sentences := views.AccountLately(d.m, d.id, latelyLines, d.f.sessionDirs())
 	if len(sentences) == 0 {
 		d.f.quietly(c, d.m, x, y, d.f.edge())
 		return

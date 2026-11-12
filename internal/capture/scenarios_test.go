@@ -72,7 +72,7 @@ func TestEachTapePlaysItsScenarioAsItsCuesAreTimedFor(t *testing.T) {
 				{at: 21.5, says: []string{"SESSIONS    Switchboard"}},
 				{at: 24.5, says: []string{"HISTORY    Year"}},
 				{at: 27.5, says: []string{"ACCOUNTS    Compare"}},
-				{at: 30, says: []string{"7 sessions", "ROUTING   auto", "▲ b3e9 started on side"}},
+				{at: 30, says: []string{"7 sessions", "ROUTING   auto", "▲ cli started on side"}},
 			},
 		},
 		{
@@ -80,14 +80,14 @@ func TestEachTapePlaysItsScenarioAsItsCuesAreTimedFor(t *testing.T) {
 			keys: []press{{9, keysOf("p")}, {10.5, tickBelow(3)}, {12, keysOf("m")}, {14.5, []tea.KeyPressMsg{enterKey}}},
 			shows: []shows{
 				{at: 0, says: []string{"auto  ·  6 sessions  ·  new sessions → ▲ side", "ROUTING   auto"}},
-				{at: 5.5, says: []string{"7 sessions", "▲ b3e9 started on side"}},
+				{at: 5.5, says: []string{"7 sessions", "▲ cli started on side"}},
 				{at: 13, says: []string{"The 2 sessions running elsewhere move there too.", "Rebuilding their caches costs ≈ $"}},
 				{at: 15.5, says: []string{
 					"pinned to side  ·  7 sessions", "ROUTING   pinned to side since 14:42   p back to auto",
 					"● pin set by hand: new and running sessions go to side",
 				}},
-				{at: 20.5, says: []string{"▸ 41e0 moved personal → side: pinned to side"}, not: []string{"9c2e moved"}},
-				{at: 25.5, says: []string{"pinned to side  ·  7 sessions", "▸ 9c2e moved personal → side: pinned to side"}},
+				{at: 20.5, says: []string{"▸ docs moved personal → side: pinned to side"}, not: []string{"website moved"}},
+				{at: 25.5, says: []string{"pinned to side  ·  7 sessions", "▸ website moved personal → side: pinned to side"}},
 			},
 		},
 		{

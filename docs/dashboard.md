@@ -184,10 +184,11 @@ COMING UP where they don't.
   `16:30  personal's 5-hour resets  in 1h 48m`. A run-out's row is in the theme's attention colour.
 - **LATELY** is what the router has done, newest first. Each event is marked, such as
   `14:31  ╎ work reached its cap: 3 sessions moved to side`. When a limit, a cap or a refusal moves
-  sessions, those sessions are folded into that event's line. Where a line doesn't fit whole, it
-  takes a shorter form, `work at its cap: 3 moved to side`. An account found holding another
-  subscription's token is told as `work's token is another subscription's`, or `work: wrong
-  token` where that doesn't fit.
+  sessions, those sessions are folded into that event's line. A session is named by the folder
+  it runs in, as in `api moved personal → work`, or by its short id where that isn't known.
+  Where a line doesn't fit whole, it takes a shorter form, `work at its cap: 3 moved to side`. An
+  account found holding another subscription's token is told as `work's token is another
+  subscription's`, or `work: wrong token` where that doesn't fit.
 
 ### By account
 

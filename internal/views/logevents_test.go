@@ -143,7 +143,7 @@ func TestTheLogsEventsMarkEachEventAsLATELYDoes(t *testing.T) {
 			for _, row := range eventsOf(hm, views.ReadEvents(nil, hm.From, hm.Now).Look(m, hm.Run)).Rows {
 				marked[row.Key] = row
 			}
-			for _, s := range views.Lately(m, len(hm.Live)) {
+			for _, s := range views.Lately(m, len(hm.Live), views.SessionDirs{}) {
 				row, ok := marked[views.EventKey{Run: hm.Run, ID: s.ID}]
 				if !ok {
 					continue

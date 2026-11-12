@@ -25,10 +25,10 @@ type Sentence struct {
 }
 
 // Said is a sentence of LATELY's in the parts it's drawn in: its subject, as
-// "work", "c61b" or "pin"; the words said of it; its object, where it has
+// "work", "api" or "pin"; the words said of it; its object, where it has
 // one, as "side" or "3 sessions"; and the words after that. Each names
-// accounts apart, by id, as status.Words do, and a session as status.ShownID
-// names it.
+// accounts apart, by id, as status.Words do, and a session by its directory,
+// as latelyTeller's session names it.
 type Said struct {
 	Subject, Words, Object, Rest status.Words
 }
@@ -42,9 +42,10 @@ func (s Said) String() string {
 // them at its Now, the newest first, n at most: those of the kinds it tells
 // of, the sessions a limit, a cap or a refusal moved folded into its line,
 // counted, a move showing alone only where the line it's folded into isn't
-// among those shown.
-func Lately(m status.Moment, n int) []Sentence {
-	return toldFrom(m, n, overview)
+// among those shown. Each names a session by its directory, as dirs give it,
+// else by its id.
+func Lately(m status.Moment, n int, dirs SessionDirs) []Sentence {
+	return toldFrom(m, n, overview, dirs)
 }
 
 // side is a side LATELY tells events from: tells reports whether it tells of
@@ -70,16 +71,16 @@ var overview = side{
 
 // toldFrom are the events of the document m is a moment of that from tells
 // of, as it tells them at m's Now, the newest first, n at most, the sessions
-// a limit, a cap or a refusal moved folded into its line, as Lately has
-// them.
-func toldFrom(m status.Moment, n int, from side) []Sentence {
+// a limit, a cap or a refusal moved folded into its line, and each session
+// named, as Lately has them.
+func toldFrom(m status.Moment, n int, from side, dirs SessionDirs) []Sentence {
 	var told []status.Event
 	for _, e := range m.Events {
 		if from.tells(e) {
 			told = append(told, e)
 		}
 	}
-	t, facts := latelyTeller{now: m.Now}, latelyFacts(m)
+	t, facts := latelyTeller{now: m.Now, dirs: dirs}, latelyFacts(m)
 	shown := unfolded(told, n)
 	sentences := make([]Sentence, len(shown))
 	for i, e := range shown {
@@ -144,9 +145,10 @@ func foldedInto(e status.Event) int {
 }
 
 // latelyTeller tells LATELY's sentences at now, each event's facts given as
-// latelyFacts works them out.
+// latelyFacts works them out, each session named as dirs name it.
 type latelyTeller struct {
-	now time.Time
+	now  time.Time
+	dirs SessionDirs
 }
 
 // latelyTellers tell an event of each kind LATELY tells of, its facts given,
@@ -167,11 +169,11 @@ var latelyTellers = map[string]func(t latelyTeller, e status.Event, f eventFact)
 	status.EventHealth:   latelyTeller.turned,
 }
 
-// started tells of a session starting: "c61b started on side", and why,
+// started tells of a session starting: "api started on side", and why,
 // where it wasn't on the router's best: ", as pinned" where a pin sent it,
 // else the reason in the views' words, as ": personal came under pressure".
 func (t latelyTeller) started(e status.Event, f eventFact) (Said, Said) {
-	s := Said{Subject: session(e.Session), Words: clause(" started on "), Object: account(e.Account), Rest: t.startedWhy(e, f, false)}
+	s := Said{Subject: t.session(e.Session), Words: clause(" started on "), Object: account(e.Account), Rest: t.startedWhy(e, f, false)}
 	return s, s
 }
 
@@ -192,7 +194,7 @@ func (t latelyTeller) startedWhy(e status.Event, f eventFact, saysBest bool) sta
 	return slices.Concat(clause(": "), status.EventWords(e.Reason, t.facts(f, "", e.Account)))
 }
 
-// moved tells of a session's model moving: "db8a moved personal → work", and
+// moved tells of a session's model moving: "api moved personal → work", and
 // why, in the views' words, its object the account the reason names first,
 // as in ": personal came under pressure".
 func (t latelyTeller) moved(e status.Event, f eventFact) (Said, Said) {
@@ -202,7 +204,7 @@ func (t latelyTeller) moved(e status.Event, f eventFact) (Said, Said) {
 		words = append(words, status.Plain(": "))
 	}
 	before, object, after := atAccount(why)
-	s := Said{Subject: session(e.Session), Words: slices.Concat(words, before), Object: object, Rest: after}
+	s := Said{Subject: t.session(e.Session), Words: slices.Concat(words, before), Object: object, Rest: after}
 	return s, s
 }
 
@@ -279,13 +281,13 @@ func befell(e status.Event, f eventFact) (full, short string) {
 
 // pinned tells of routing set by hand: the global pin, "pin set by hand: new
 // sessions go to personal", or with its move, "new and running sessions";
-// or a session's own, "pin set by hand: c61b goes to side". Short, it's "pin
+// or a session's own, "pin set by hand: api goes to side". Short, it's "pin
 // set: …".
-func (latelyTeller) pinned(e status.Event, _ eventFact) (Said, Said) {
+func (t latelyTeller) pinned(e status.Event, _ eventFact) (Said, Said) {
 	who, accounts := "new sessions go to ", pinnedTo(e)
 	switch {
 	case e.Session != "":
-		who, accounts = status.ShownID(e.Session)+" goes to ", account(e.Account)
+		who, accounts = t.session(e.Session).String()+" goes to ", account(e.Account)
 	case e.Move:
 		who = "new and running sessions go to "
 	}
@@ -295,11 +297,11 @@ func (latelyTeller) pinned(e status.Event, _ eventFact) (Said, Said) {
 }
 
 // unpinned tells of routing given back to the router: "new sessions back to
-// auto", or of a session's own pin cleared, "c61b back to auto".
-func (latelyTeller) unpinned(e status.Event, _ eventFact) (Said, Said) {
+// auto", or of a session's own pin cleared, "api back to auto".
+func (t latelyTeller) unpinned(e status.Event, _ eventFact) (Said, Said) {
 	who := clause("new sessions")
 	if e.Session != "" {
-		who = session(e.Session)
+		who = t.session(e.Session)
 	}
 	s := Said{Subject: who, Words: clause(" back to auto")}
 	return s, s
@@ -379,11 +381,8 @@ func pinnedNames(e status.Event) []string {
 	return cleaned([]string{e.Account})
 }
 
-// session is the session with the given id, named as status.ShownID names
-// it: none for "".
-func session(id string) status.Words {
-	if prose.Clean(id) == "" {
-		return nil
-	}
-	return clause(status.ShownID(id))
+// session is the session with the given id, named as sessionNamed names it,
+// in the directory t's dirs give it: none for "".
+func (t latelyTeller) session(id string) status.Words {
+	return sessionNamed(id, t.dirs.of(id))
 }

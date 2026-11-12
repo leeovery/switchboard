@@ -73,7 +73,7 @@ func eventMark(kind string, well bool) span {
 // afresh asks for them, as latelyTelling tells them.
 func (f Frame) latelySection(doc status.Document, now time.Time) section {
 	m := f.Moment(doc, now)
-	told := latelyTelling(m)
+	told := latelyTelling(m, f.sessionDirs())
 	return section{
 		Section: SectionLately, least: linesRows(0), readIn: latelyLeast(labelsLeast(widestLabel(m))),
 		lines: func() int { return len(told(mostLines)) },
@@ -94,8 +94,8 @@ func (f Frame) latelySection(doc status.Document, now time.Time) section {
 // mostLines at most, each n told once: those it has in mostLines, where
 // they're told and all fit; else told for n, as a move folded into a line
 // that doesn't show then shows alone, so the first n of them aren't always
-// them.
-func latelyTelling(m status.Moment) func(n int) []views.Sentence {
+// them. Its sessions are named as dirs name them.
+func latelyTelling(m status.Moment, dirs views.SessionDirs) func(n int) []views.Sentence {
 	var mu sync.Mutex
 	told := make(map[int][]views.Sentence)
 	return func(n int) []views.Sentence {
@@ -106,7 +106,7 @@ func latelyTelling(m status.Moment) func(n int) []views.Sentence {
 			return all
 		}
 		if _, ok := told[n]; !ok {
-			told[n] = views.Lately(m, n)
+			told[n] = views.Lately(m, n, dirs)
 		}
 		return told[n]
 	}
@@ -241,4 +241,10 @@ func saidLine(m status.Moment, names []accountName, s views.Said) line {
 		}
 	}
 	return l
+}
+
+// sessionDirs are what LATELY names the frame's sessions by: the router's
+// listing it holds, and the sessions the watch holds.
+func (f Frame) sessionDirs() views.SessionDirs {
+	return views.SessionDirsOf(f.Sessions, f.Held)
 }

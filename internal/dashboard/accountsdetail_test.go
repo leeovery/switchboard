@@ -1351,7 +1351,7 @@ func TestDetailsBYMODELStandsUnderUSAGEAndTHISWEEK(t *testing.T) {
 func TestDetailCuesAStateNewlyChangedAndAFreshLine(t *testing.T) {
 	doc := usageWorld(extraOff, happened(onAuto()...))
 	f := detailFrame(Screen(builtin(t, "nord")), framedAccounts, "work", "", nil, nil)
-	told := views.AccountLately(f.Moment(doc, routedAt), "work", latelyLines)[0]
+	told := views.AccountLately(f.Moment(doc, routedAt), "work", latelyLines, f.sessionDirs())[0]
 	f.StateChanged, f.Fresh = map[string]float64{"work": 0.25}, map[int]float64{told.ID: 0.5}
 	f.Changed = map[string]float64{"personal": 0.25}
 	d := f.detailDrawn(doc, routedAt, laidIn(f, doc))
