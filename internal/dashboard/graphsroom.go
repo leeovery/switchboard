@@ -8,12 +8,14 @@ import (
 	"github.com/leeovery/switchboard/internal/views"
 )
 
-// A burn-down section's cards across: leastCardCells, the fewest cells a card
-// is across, as a week's days read ╵Mon in and a 5-hour's hours ╵13:00, each
-// whole; and cardGap, the cells between two side by side.
+// WEEK's cards across: leastCardCells, the fewest cells a card is across, as
+// a week's days read ╵Mon in, each whole; cardGap, the cells between two side
+// by side; and mostCardsAcross, the most side by side, as a narrower card
+// makes every drop look like a cliff.
 const (
-	leastCardCells = 35
-	cardGap        = 4
+	leastCardCells  = 35
+	cardGap         = 4
+	mostCardsAcross = 2
 )
 
 // The rows a Graphs chart takes, the cards' and POOL's alike: leastChart at
@@ -24,39 +26,14 @@ const (
 )
 
 // graphsGiven is all that lays Graphs out, so the page holds still as reads
-// come, changing only on a key, a resize, the config, the router's accounts,
-// or an account's 5-hour window going or coming back: the frame's width and
-// its view's rows; the sections shown, those offered alone; the configured
-// accounts, in the config's order, and those that
-// have, or may have, the 5-hour, as fiveHourCharted has them; whether Graphs
-// offers the 5-hour, as GraphsOffers has it of 5-HOUR; and the look, which
-// words POOL's key.
+// come, changing only on a key, a resize or the config: the frame's width
+// and its view's rows; the sections shown; the configured accounts, in the
+// config's order; and the look, which words POOL's key.
 type graphsGiven struct {
-	width, rows    int
-	shown          GraphsSections
-	accounts       config.Accounts
-	fiveHour       config.Accounts
-	offersFiveHour bool
-	look           Look
-}
-
-// charted are the configured accounts the burn-down section lays out a card
-// for, in the config's order: 5-HOUR's, those that have, or may have, the
-// 5-hour; WEEK's, every one.
-func (g graphsGiven) charted(section GraphsSection) config.Accounts {
-	if section == GraphsFiveHour {
-		return g.fiveHour
-	}
-	return g.accounts
-}
-
-// glanceWindows are the windows GLANCE draws, in runwayWindows' order: every
-// one but the 5-hour where Graphs doesn't offer it.
-func (g graphsGiven) glanceWindows() []views.RunwayWindow {
-	if g.offersFiveHour {
-		return runwayWindows
-	}
-	return slices.DeleteFunc(slices.Clone(runwayWindows), func(w views.RunwayWindow) bool { return w == views.RunwayFiveHour })
+	width, rows int
+	shown       GraphsSections
+	accounts    config.Accounts
+	look        Look
 }
 
 // graphsStep is a step of the room Graphs' sections take: whether every
@@ -95,20 +72,18 @@ const glanceWhenGap = 10
 
 // graphsShape is what of Graphs' layout no step of room changes: the
 // sections shown, in the page's order, each a unit of its own but GLANCE and
-// WHEN YOU WORK side by side, which share one; the columns of a row of cards,
-// as every configured account's lie, so a section of fewer keeps the
-// columns of one of all; the accounts each burn-down section shown lays out
-// a card for, as charted has them; the width; POOL as its key words it, as
-// poolKeyed has it; GLANCE's and WHEN YOU WORK's columns where they sit side
-// by side, as glanceBesideWhen lays them, nil where they don't; GLANCE laid
-// out across its columns, as layGlance lays it; the rows WHEN YOU WORK's body
-// takes across its columns; the place of the pool's line among the units, -1
-// where there's none; the legend's lines; and the rows the sections show in,
-// over the legend.
+// WHEN YOU WORK side by side, which share one; the columns of a row of WEEK's
+// cards, as cardsAcross lays them; the configured accounts, a card each; the
+// width; POOL as its key words it, as poolKeyed has it; GLANCE's and WHEN YOU
+// WORK's columns where they sit side by side, as glanceBesideWhen lays them,
+// nil where they don't; GLANCE laid out across its columns, as layGlance
+// lays it; the rows WHEN YOU WORK's body takes across its columns; the place
+// of the pool's line among the units, -1 where there's none; the legend's
+// lines; and the rows the sections show in, over the legend.
 type graphsShape struct {
 	units    [][]GraphsSection
 	across   []flex.Span
-	charted  map[GraphsSection]config.Accounts
+	accounts config.Accounts
 	width    int
 	pool     poolStacked
 	paired   []flex.Span
@@ -120,34 +95,28 @@ type graphsShape struct {
 }
 
 // shape is the shape the given lays Graphs out in: GLANCE and WHEN YOU WORK
-// side by side where both show and glanceBesideWhen fits them; the pool's
-// line after the last burn-down section shown, where there's a pool; and the
-// legend while a burn-down section shows, as burnLegend flows it, keeping
-// the sections a row over it at the least.
+// side by side where both show and glanceBesideWhen fits them; and while
+// WEEK shows, the pool's line after it, where there's a pool, and the legend,
+// as burnLegend flows it, keeping the sections a row over it at the least.
 func (g graphsGiven) shape() graphsShape {
-	s := graphsShape{charted: map[GraphsSection]config.Accounts{}, width: g.width, pool: poolKeyed(g.accounts, g.look), paired: g.paired(), poolPart: -1}
-	last := -1
+	s := graphsShape{accounts: g.accounts, width: g.width, pool: poolKeyed(g.accounts, g.look), paired: g.paired(), poolPart: -1}
 	for _, section := range EveryGraphsSection() {
 		switch {
 		case !g.shown.Has(section):
 		case section == GraphsWhen && s.paired != nil:
 			s.units[len(s.units)-1] = append(s.units[len(s.units)-1], section)
 		default:
-			if burnsDown(section) {
-				last = len(s.units)
-				s.charted[section] = g.charted(section)
-			}
 			s.units = append(s.units, []GraphsSection{section})
 		}
 	}
 	s.across = cardsAcross(len(g.accounts), g.width)
-	s.glance, s.when = layGlance(g.accounts, g.glanceWindows(), s.columns(GraphsGlance).Size), whenRows(s.columns(GraphsWhen).Size, g.look)
-	if last >= 0 {
+	s.glance, s.when = layGlance(g.accounts, s.columns(GraphsGlance).Size), whenRows(s.columns(GraphsWhen).Size, g.look)
+	if g.shown.Has(GraphsWeek) {
 		s.legend = burnLegend(g.width, g.reserved())
 		s.legend = s.legend[:min(len(s.legend), max(g.rows-1, 0))]
-	}
-	if last >= 0 && pooled(g.accounts) {
-		s.poolPart = last + 1
+		if pooled(g.accounts) {
+			s.poolPart = 1 + slices.IndexFunc(s.units, func(u []GraphsSection) bool { return u[0] == GraphsWeek })
+		}
 	}
 	s.room = max(g.rows-len(s.legend), 0)
 	return s
@@ -159,21 +128,21 @@ func (g graphsGiven) paired() []flex.Span {
 	if !g.shown.Has(GraphsGlance) || !g.shown.Has(GraphsWhen) {
 		return nil
 	}
-	if spans, ok := glanceBesideWhen(g.accounts, g.glanceWindows(), g.width); ok {
+	if spans, ok := glanceBesideWhen(g.accounts, g.width); ok {
 		return spans
 	}
 	return nil
 }
 
 // glanceBesideWhen lays GLANCE and WHEN YOU WORK side by side width cells wide,
-// of the configured accounts given, GLANCE drawing the windows given, reporting
-// whether both fit at their naturals with glanceWhenGap between: GLANCE from
-// column 0 at its natural, as glancePart has it; WHEN YOU WORK after it, from
-// its natural, as hoursPart has it, to the width's end, as every section takes
-// the width.
-func glanceBesideWhen(accounts config.Accounts, windows []views.RunwayWindow, width int) ([]flex.Span, bool) {
-	glance, when := atNatural(glancePart(accounts, windows)), atNatural(hoursPart())
-	when.Most, when.Gap = 0, glanceWhenGap
+// of the configured accounts given, reporting whether both fit at their
+// naturals with glanceWhenGap between: GLANCE from column 0, as glancePart
+// has it; WHEN YOU WORK after it, as hoursPart has it, to the width's end, as
+// every section takes the width; each growing from its natural, sharing
+// what's spare evenly.
+func glanceBesideWhen(accounts config.Accounts, width int) ([]flex.Span, bool) {
+	glance, when := atNatural(glancePart(accounts)), atNatural(hoursPart())
+	when.Gap = glanceWhenGap
 	return flex.Lay(width, glance, when)
 }
 
@@ -202,17 +171,14 @@ func (g graphsGiven) reserved() bool {
 	return slices.ContainsFunc(g.accounts, func(a config.Account) bool { return a.Reserve > 0 })
 }
 
-// burnsDown reports whether the section is a burn-down's, WEEK or 5-HOUR.
-func burnsDown(s GraphsSection) bool {
-	return s == GraphsWeek || s == GraphsFiveHour
-}
-
 // cardsAcross are the columns of a row of k cards across width cells: as
-// many side by side as are leastCardCells or more, cardGap apart, each as
-// wide as they share the room, the odd cells left at the end, as chartRow
-// lays them; narrower than one, a card across the width.
+// many side by side as are leastCardCells or more, mostCardsAcross at the
+// most, cardGap apart, each as wide as they share the room, the odd cells
+// left at the end, as chartRow lays them; narrower than one, a card across
+// the width. A row of fewer, as an odd count's last, keeps these columns, so
+// every card is as wide and the same burn draws the same slope.
 func cardsAcross(k, width int) []flex.Span {
-	if spans := chartsFitting(max(k, 1), width, cardGap, leastCardCells); len(spans) > 0 {
+	if spans := chartsFitting(min(max(k, 1), mostCardsAcross), width, cardGap, leastCardCells); len(spans) > 0 {
 		return spans
 	}
 	return []flex.Span{{Size: max(width, 0)}}
@@ -262,9 +228,9 @@ func whenRows(width int, look Look) int {
 }
 
 // rowsOf are the rows the section takes at the step, its heading's and the
-// blank row under it among them: a burn-down's rows of cards, a blank row
-// between two; POOL's chart, its axis and its key; and GLANCE's and WHEN YOU
-// WORK's bodies, each across its columns.
+// blank row under it among them: WEEK's rows of cards, a blank row between
+// two; POOL's chart, its axis and its key; and GLANCE's and WHEN YOU WORK's
+// bodies, each across its columns.
 func (s graphsShape) rowsOf(section GraphsSection, step graphsStep) int {
 	switch section {
 	case GraphsPool:
@@ -274,14 +240,14 @@ func (s graphsShape) rowsOf(section GraphsSection, step graphsStep) int {
 	case GraphsWhen:
 		return sectionHead + s.when
 	}
-	down := s.cardsDown(section)
+	down := s.cardsDown()
 	return sectionHead + down*step.cardRows() + max(down-1, 0)
 }
 
-// cardsDown are the rows of cards the burn-down section lays out, as many
+// cardsDown are the rows of cards WEEK lays out, a card an account, as many
 // across each as the shape's columns.
-func (s graphsShape) cardsDown(section GraphsSection) int {
-	return (len(s.charted[section]) + len(s.across) - 1) / len(s.across)
+func (s graphsShape) cardsDown() int {
+	return (len(s.accounts) + len(s.across) - 1) / len(s.across)
 }
 
 // graphsLaid is Graphs laid out at a step of room, as laidAt lays it: the
@@ -324,9 +290,19 @@ func GraphsPoolColumns(width int) int {
 	return max(width, 0)
 }
 
+// GraphsGlanceColumns are the columns GLANCE's sparklines take on a terminal
+// width cells wide, with the sections given shown, of the configured
+// accounts given, as layGraphs lays it out: the watch builds the pool's room
+// over the week's span across them.
+func GraphsGlanceColumns(width int, sections GraphsSections, accounts config.Accounts) int {
+	g := graphsGiven{width: width, shown: sections, accounts: accounts}
+	s := graphsShape{width: width, paired: g.paired()}
+	return layGlance(accounts, s.columns(GraphsGlance).Size).spark
+}
+
 // laidAt lays the shape's sections out at the step, by flex, down the rows
 // over the legend: each unit the rows its tallest takes, the pool's line a
-// row of its own after the last burn-down, a blank row between each two.
+// row of its own after WEEK, a blank row between each two.
 func (s graphsShape) laidAt(step graphsStep) graphsLaid {
 	parts := make([]flex.Part, 0, len(s.units)+1)
 	for _, unit := range s.units {
@@ -378,30 +354,21 @@ func layGraphs(g graphsGiven) graphsLaid {
 	return laid
 }
 
-// graphsLaid is Graphs as layGraphs lays it out in the frame's view, the
-// sections it offers alone, as graphsOffered has them, GLANCE's 5-hour with
-// them, and 5-HOUR's cards those of the accounts fiveHourCharted has, at the
-// moment the frame holds.
+// graphsLaid is Graphs as layGraphs lays it out in the frame's view.
 func (f Frame) graphsLaid() graphsLaid {
-	return layGraphs(graphsGiven{
-		width: f.Width, rows: f.viewRows(), shown: f.graphsOffered(), accounts: f.Graphs.Accounts,
-		fiveHour: fiveHourCharted(f.Graphs.Accounts, f.held, f.Policy), offersFiveHour: f.graphsOffers(GraphsFiveHour), look: f.Look,
-	})
+	return layGraphs(graphsGiven{width: f.Width, rows: f.viewRows(), shown: f.Graphs.Sections, accounts: f.Graphs.Accounts, look: f.Look})
 }
 
 // paged is how the sections laid out, drawn whole, page a row at a time in
 // the rows over the legend: each heading shown with the first row under its
-// blank row, or not at all, and so each head row of GLANCE's parts, as its
-// windows stacked have one each.
+// blank row, or not at all, and so GLANCE's head row, its window's name.
 func (l graphsLaid) paged() rowsPaged {
 	var heads []headed
 	for _, s := range l.sections {
 		heads = append(heads, headed{at: s.at, first: s.at + sectionHead})
 		if s.section == GraphsGlance {
-			for _, at := range l.glance.heads() {
-				at += s.at + sectionHead
-				heads = append(heads, headed{at: at, first: at + sectionHead})
-			}
+			at := s.at + sectionHead
+			heads = append(heads, headed{at: at, first: at + sectionHead})
 		}
 	}
 	slices.SortStableFunc(heads, func(a, b headed) int { return a.at - b.at })
@@ -416,12 +383,11 @@ type cardLaid struct {
 	chart        bounds
 }
 
-// cards are where the burn-down section placed lays the card of each account
-// it charts, as charted has them, in the config's order: as many across as
-// cardsAcross has, in their columns, the rest on the rows under, a blank row
-// between two rows of cards.
+// cards are where WEEK, placed, lays the card of each configured account, in
+// the config's order: as many across as cardsAcross has, in their columns,
+// the rest on the rows under, a blank row between two rows of cards.
 func (l graphsLaid) cards(placed graphsPlaced) []cardLaid {
-	cards := make([]cardLaid, len(l.charted[placed.section]))
+	cards := make([]cardLaid, len(l.accounts))
 	per := len(l.across)
 	for i := range cards {
 		col, y := l.across[i%per], placed.at+sectionHead+i/per*(l.cardRows()+1)

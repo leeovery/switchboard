@@ -4,33 +4,33 @@
 
 WEEK  ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── w
 
-work                                                  personal ◆                                            side ▲
-66% left  ·  caps ~Sat  ·  resets Sun 21:00           34% left  ·  out ~Sat  ·  resets Sun 02:00            22% left  ·  out ~Fri  ·  resets Mon 10:00
+work                                                                              personal ◆
+66% left  ·  caps ~Sat  ·  resets Sun 21:00                                       34% left  ·  out ~Sat  ·  resets Sun 02:00
 
-    ▃                      │                                    ▂                     │                     ▆                      │
-     ▅                     │                                     ▂                    │                      ▅                     │
-      ▇▆▆▆▆▃               │                                      ▆▆▆▆▆               │                       ▇▄▄▄▄                │
-            ▆▂             │                                           ▂              │                            ▆               │
-                  ▇▄       │                                                          │                                            │
-                     ▅▅▅▅▂ │                                            ▅             │                                            │
-                          ▆⡀                                             ▁▁▁▁▁        │                              ▆             │
-                           ⠈⢄                                                         │                                   ▂        │
-                           │ ⠢                                                        │                                            │
-                           │  ⠑⡀                                               ▄      │                                    ▁       │
-                           │   ⠈⢄                                                     │                                            │
-                           │     ⠢                                              ▆▆▆▆▆▂│                                     ▃      │
-                           │      ⠑⡀                                                  ⢄                                      ▂▂▂▂  │
-                           │       ⠈⢄                                                 │⠑⢄                                        ▄ │
-                           │         ⠢                                                │  ⠑⢄                                       ▃│
-                           │          ⠑⠄                                              │    ⠢⡀                                      ⠑⢄
-                           │           ⠈⢂                                             │     ⠈⠢⡀                                    │ ⠑⢄
-                           │             ⠡⡀                                           │       ⠈⢂                                   │   ⠢⡀
-                           │⠈ ⠈ ⠈ ⠈ ⠈ ⠈ ⠈ ✕⠉⠉⠉⠉⠉⠉⠉                                    │         ⠑✕⣀⣀⣀⣀⣀⣀                           │    ⠈⠢✕⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀
-╵Mon    ╵Tue   ╵Wed   ╵Thu   ╵Fri   ╵Sat   ╵Sun             ╵Mon   ╵Tue   ╵Wed   ╵Thu    ╵Fri   ╵Sat            ╵Tue   ╵Wed   ╵Thu   ╵Fri   ╵Sat   ╵Sun
+      ▇▅▄▂                                │                                                      ▇▅▄▂                               │
+                  ▆▅▄▃▃▃▃▃▃▃▃▁▁           │                                                                 ▆▃                      │
+                               ▇▆▆▆▆▆▆▆▅▄▃⣀                                                                   ▇▄▁▁▁▁▁▁▁             │
+                                          │⠉⠑⠢⠤⣀                                                                       ▇▄▁          │
+                                          │     ⠉⠑⠢⠤⣀                                                                     ▅▂▂▂▂▂▂▂▁ │
+                                          │          ⠉⠑⠢⠤⣀                                                                          ⠒⠒⠤⢄⣀⡀
+                                          │               ⠉⠑⠢⠤⣀                                                                     │    ⠈⠉⠒⠢⠤⢄⣀
+                                          ⠠ ⠠ ⠠ ⠠ ⠠ ⠠ ⠠ ⠠ ⠠ ⠠ ⠠⠉⠑⠢✕⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤                                                      │           ⠉⠑⠒⠢⠤⣀✕⣀⣀⣀⣀⣀⣀⣀⣀⣀
+ ╵Mon       ╵Tue       ╵Wed       ╵Thu       ╵Fri        ╵Sat       ╵Sun                    ╵Mon       ╵Tue       ╵Wed       ╵Thu       ╵Fri       ╵Sat
+
+side ▲
+22% left  ·  out ~Fri  ·  resets Mon 10:00
+
+▇▅▄▂                                │
+           ▆▃                       │
+             ▇▄                     │
+                      ▆▂            │
+                        ▆▂          │
+                          ▅▅▅▅▅▅▅▃  │
+                                   ▇⠒⠢⠤⣀⡀
+                                    │   ⠈⠉⠑⠒⠤⢄⣀✕⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀
+      ╵Tue       ╵Wed       ╵Thu       ╵Fri        ╵Sat       ╵Sun       ╵Mon
 
 Σ pool   week 1.2 of 3 left
-
-
 
 ▆▆ room left   ⠂⠄⡀ where it's heading   ✕ runs out   ⠠ ⠠ reserve
 

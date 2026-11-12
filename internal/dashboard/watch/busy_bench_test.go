@@ -387,8 +387,8 @@ func BenchmarkTheBusyDashboard(b *testing.B) {
 		shown []string
 	}{
 		{"a look on Graphs, a reading gained", nil},
-		{"a look on Graphs with POOL, a reading gained", []string{"week", "5-hour", "pool"}},
-		{"a look on Graphs with GLANCE, a reading gained", []string{"week", "5-hour", "glance"}},
+		{"a look on Graphs with POOL, a reading gained", []string{"week", "pool"}},
+		{"a look on Graphs with GLANCE, a reading gained", []string{"week", "glance"}},
 	} {
 		b.Run(on.name, func(b *testing.B) {
 			h := w.onGraphs(b, on.shown...)

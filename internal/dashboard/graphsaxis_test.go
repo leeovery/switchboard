@@ -53,32 +53,6 @@ func TestAWeeksAxisPicksOutToday(t *testing.T) {
 	}
 }
 
-func TestAFiveHoursAxisTicksEachWholeHourGivingWayAsItNarrows(t *testing.T) {
-	// From 11:00 for five hours.
-	start := time.Date(2026, 10, 1, 11, 0, 0, 0, time.UTC)
-	tests := []struct {
-		name  string
-		width int
-		want  string
-	}{
-		{name: "ten columns an hour", width: 50, want: "╵11:00    ╵12:00    ╵13:00    ╵14:00    ╵15:00"},
-		{name: "seven: each whole", width: 35, want: "╵11:00 ╵12:00 ╵13:00 ╵14:00 ╵15:00"},
-		{name: "under seven: the hour alone", width: 30, want: "╵11   ╵12   ╵13   ╵14   ╵15"},
-		{name: "three: a tick whose label meets the next left out", width: 15, want: "╵11   ╵13   ╵15"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, c := axisOf(start, 5*time.Hour, start.Add(90*time.Minute), tt.width)
-			if got != tt.want {
-				t.Errorf("the axis is\n%q\nwant\n%q", got, tt.want)
-			}
-			if k := c.at(1, 1).ink; k != dimInk {
-				t.Errorf("an hour is in %+v, want text.subtle", k)
-			}
-		})
-	}
-}
-
 func TestACardsAxisTicksInNowsTimeZoneAsTheClocksChange(t *testing.T) {
 	london, err := time.LoadLocation("Europe/London")
 	if err != nil {
@@ -97,12 +71,6 @@ func TestACardsAxisTicksInNowsTimeZoneAsTheClocksChange(t *testing.T) {
 			name: "a week over the clocks going back", start: time.Date(2026, 10, 22, 0, 0, 0, 0, london), length: 7 * quota.Day, width: 168,
 			want: "╵Thu" + strings.Repeat(" ", 20) + "╵Fri" + strings.Repeat(" ", 20) + "╵Sat" + strings.Repeat(" ", 20) +
 				"╵Sun" + strings.Repeat(" ", 21) + "╵Mon" + strings.Repeat(" ", 20) + "╵Tue" + strings.Repeat(" ", 20) + "╵Wed",
-		},
-		{
-			// Ten columns an hour from midnight: 01:00 is read twice, ticked
-			// the first time, and 02:00 comes two hours after it.
-			name: "a 5-hour over the clocks going back", start: time.Date(2026, 10, 25, 0, 0, 0, 0, london), length: 5 * time.Hour, width: 50,
-			want: "╵00:00    ╵01:00              ╵02:00    ╵03:00",
 		},
 	}
 	for _, tt := range tests {

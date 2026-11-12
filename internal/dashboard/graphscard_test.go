@@ -498,19 +498,13 @@ func TestACardRunningOutAtItsReserveCrossesOnTheReservesRow(t *testing.T) {
 	}
 }
 
-// A window the moment gives no span, not read, not started, or of an
-// account without a usable token, is charted over its length from now:
-// empty but for now's line, in its first column, over its axis from now;
-// no reserve, though the account keeps one; and, held by a limit naming no
-// window while it has lapsed, no heading along the floor, nor ✕, though
-// when the hold began is told.
+// A week the moment gives no span, not read, or of an account without a
+// usable token, is charted over its length from now: empty but for now's
+// line, in its first column, over its axis from now; no reserve, though the
+// account keeps one; and no ✕, though when a hold began is told.
 func TestACardWithNothingToDrawIsEmptyButForNowsLineFromNow(t *testing.T) {
 	unread := trio(func(d *status.Document) { d.Accounts[0].FetchedAt = time.Time{} })
 	tokenless := trio(func(d *status.Document) { d.Accounts[0].TokenSet = false })
-	work, _ := trio().Account("work")
-	session, _ := work.Window("5h")
-	lapsed := session.ResetsAt.Add(time.Second)
-	held := trio(func(d *status.Document) { d.Accounts[0].Limit = status.Limit{Until: lapsed.Add(48 * time.Hour)} })
 	tests := []struct {
 		name  string
 		doc   status.Document
@@ -521,9 +515,7 @@ func TestACardWithNothingToDrawIsEmptyButForNowsLineFromNow(t *testing.T) {
 		axis  string
 	}{
 		{name: "not read", doc: unread, at: printNow, key: "7d", kind: status.WindowUnread, width: 35, axis: " ╵Fri ╵Sat ╵Sun ╵Mon ╵Tue ╵Wed ╵Thu"},
-		{name: "without a usable token", doc: tokenless, at: printNow, key: "5h", kind: status.WindowTokenless, width: 35, axis: "  ╵15:00 ╵16:00 ╵17:00 ╵18:00"},
-		{name: "not started", doc: trio(), at: lapsed, key: "5h", kind: status.WindowNotStarted, width: 20, axis: "   ╵17 ╵18 ╵19 ╵20"},
-		{name: "held by a limit while it has lapsed", doc: held, at: lapsed, key: "5h", kind: status.WindowLimited, width: 20, axis: "   ╵17 ╵18 ╵19 ╵20"},
+		{name: "without a usable token", doc: tokenless, at: printNow, key: "7d", kind: status.WindowTokenless, width: 35, axis: " ╵Fri ╵Sat ╵Sun ╵Mon ╵Tue ╵Wed ╵Thu"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

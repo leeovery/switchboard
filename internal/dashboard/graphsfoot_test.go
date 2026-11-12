@@ -9,21 +9,19 @@ import (
 	"github.com/leeovery/switchboard/internal/theme"
 )
 
-// The pool's line says both windows' room as Runway's pool lane words it,
-// the week's first, three cells apart, after Σ pool; pinned, · pinned after
-// the first; and where it doesn't fit, whole parts go from the end, the
-// 5-hour's first, then the pin, then the week's.
-func TestGraphsPoolsLineSaysBothWindowsRoomDroppingWholePartsFromTheEnd(t *testing.T) {
+// The pool's line says the week's room as Runway's pool lane words it,
+// three cells after Σ pool, and nothing of the 5-hour; pinned, · pinned
+// after it; and where it doesn't fit, whole parts go from the end, the pin
+// first, then the week's.
+func TestGraphsPoolsLineSaysTheWeeksRoomDroppingWholePartsFromTheEnd(t *testing.T) {
 	tests := []struct {
 		name  string
 		width int
 		want  string
 	}{
-		{name: "whole", width: 160, want: "Σ pool   week 1.4 of 3 left   5-hour 1.3 of 3 left"},
-		{name: "a cell short", width: 49, want: "Σ pool   week 1.4 of 3 left"},
+		{name: "whole", width: 160, want: "Σ pool   week 1.4 of 3 left"},
 		{name: "the week's a cell short", width: 26, want: "Σ pool"},
-		{name: "pinned, whole", width: 160, want: "Σ pool   week 1.6 of 2 left · pinned   5-hour 0.5 of 2 left"},
-		{name: "pinned, the 5-hour's gone", width: 58, want: "Σ pool   week 1.6 of 2 left · pinned"},
+		{name: "pinned, whole", width: 160, want: "Σ pool   week 1.6 of 2 left · pinned"},
 		{name: "pinned, the pin gone", width: 35, want: "Σ pool   week 1.6 of 2 left"},
 	}
 	f := graphsFrame(160, 37, GraphsSections{})
@@ -34,29 +32,6 @@ func TestGraphsPoolsLineSaysBothWindowsRoomDroppingWholePartsFromTheEnd(t *testi
 		}
 		if got := f.poolLine(f.Moment(doc, now), tt.width).plain(); got != tt.want {
 			t.Errorf("%s, %d cells: the pool's line reads %q, want %q", tt.name, tt.width, got, tt.want)
-		}
-	}
-}
-
-// The pool's line says each window's room of as many of its accounts as
-// have or may have it, as the pool's window counts them, not as many as it
-// has: a verified Ultra account among three leaves its 5-hour of two; and
-// it says nothing of a window the pool lacks, as the 5-hour where one of
-// three has it.
-func TestGraphsPoolsLineSaysEachWindowsRoomOfTheAccountsWithIt(t *testing.T) {
-	tests := []struct {
-		name    string
-		lacking []string
-		want    string
-	}{
-		{name: "one without the 5-hour", lacking: []string{"side"}, want: "Σ pool   week 1.4 of 3 left   5-hour 0.4 of 2 left"},
-		{name: "one alone with the 5-hour", lacking: []string{"work", "personal"}, want: "Σ pool   week 1.4 of 3 left"},
-	}
-	f := graphsFrame(160, 37, GraphsSections{})
-	for _, tt := range tests {
-		m := f.Moment(withoutFiveHour(threeRouted(), tt.lacking...), now)
-		if got := f.poolLine(m, 160).plain(); got != tt.want {
-			t.Errorf("%s: the pool's line reads %q, want %q", tt.name, got, tt.want)
 		}
 	}
 }
@@ -98,7 +73,7 @@ func TestGraphsPoolsLineIsInkedAsTheDesignHasIt(t *testing.T) {
 		}
 		return l[i].ink
 	}
-	for text, want := range map[string]ink{"Σ": dimInk, "pool": noteInk, "week": dimInk, "5-hour": dimInk, "of 3 left": mutedInk} {
+	for text, want := range map[string]ink{"Σ": dimInk, "pool": noteInk, "week": dimInk, "of 3 left": mutedInk} {
 		if got := inked(text); got != want {
 			t.Errorf("the pool's line has %q in %+v, want %+v", text, got, want)
 		}
@@ -138,8 +113,8 @@ func TestGraphsLegendIsV01sFlowedWholeTheReserveOnlyWhereThereIsOne(t *testing.T
 }
 
 // The legend is the view's last rows, over the blank row before the key
-// line, while a burn-down section shows; the rest of the rows over it blank.
-func TestGraphsLegendIsTheViewsLastRowsWhileABurnDownShows(t *testing.T) {
+// line, while WEEK shows; the rest of the rows over it blank.
+func TestGraphsLegendIsTheViewsLastRowsWhileWeekShows(t *testing.T) {
 	tests := []struct {
 		name   string
 		width  int
@@ -148,8 +123,8 @@ func TestGraphsLegendIsTheViewsLastRowsWhileABurnDownShows(t *testing.T) {
 	}{
 		{name: "at first, wide", width: 160, legend: []string{"▆▆ room left   ⠂⠄⡀ where it's heading   ✕ runs out   ⠠ ⠠ reserve"}},
 		{name: "at first, at 52", width: 52, legend: []string{"▆▆ room left   ⠂⠄⡀ where it's heading   ✕ runs out", "⠠ ⠠ reserve"}},
-		{name: "5-HOUR alone", width: 160, shown: GraphsSectionsNamed([]string{"5-hour"}), legend: []string{"▆▆ room left   ⠂⠄⡀ where it's heading   ✕ runs out   ⠠ ⠠ reserve"}},
-		{name: "no burn-down", width: 160, shown: GraphsSectionsNamed([]string{"pool", "glance"})},
+		{name: "WEEK among others", width: 160, shown: GraphsSectionsNamed([]string{"week", "glance"}), legend: []string{"▆▆ room left   ⠂⠄⡀ where it's heading   ✕ runs out   ⠠ ⠠ reserve"}},
+		{name: "no WEEK", width: 160, shown: GraphsSectionsNamed([]string{"pool", "glance"})},
 	}
 	for _, tt := range tests {
 		f := graphsFrame(tt.width, 80, tt.shown)

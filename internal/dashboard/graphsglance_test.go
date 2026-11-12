@@ -41,13 +41,18 @@ func trioTrails() Trails {
 }
 
 // glanceOf is GLANCE of doc at printNow, its trails trioTrails, the pool's
-// room over each window's span built from no readings history, so known
-// from now's column, drawn in look.
+// room over the week's span across sparkCells built from no readings
+// history, so known from now's column, drawn in look.
 func glanceOf(doc status.Document, look Look) glance {
+	return glanceAcross(doc, look, sparkCells)
+}
+
+// glanceAcross is glanceOf, the pool's room over the week's span built
+// across the columns given.
+func glanceAcross(doc status.Document, look Look, columns int) glance {
 	m := doc.At(printNow, printPolicy)
-	pools := map[views.RunwayWindow]views.PoolSpan{}
-	for _, w := range runwayWindows {
-		pools[w] = views.PoolSpan{}.Look(views.PoolRoomFrom{Moment: m, Key: w.KeyIn(m), Columns: sparkCells})
+	pools := map[views.RunwayWindow]views.PoolSpan{
+		GraphsWindow: views.PoolSpan{}.Look(views.PoolRoomFrom{Moment: m, Key: GraphsWindow.KeyIn(m), Columns: columns}),
 	}
 	return glance{m: m, trails: trioTrails(), pools: pools, look: look}
 }
@@ -56,7 +61,7 @@ func glanceOf(doc status.Document, look Look) glance {
 // numbered as its moment numbers them, from the top left of a canvas of its
 // own extra rows taller than it takes.
 func glanceIn(g glance, accounts config.Accounts, width, extra int) (*canvas, glanceLaid) {
-	l := layGlance(accounts, runwayWindows, width)
+	l := layGlance(accounts, width)
 	return glanceDrawnIn(g, l, width, extra), l
 }
 
@@ -77,54 +82,54 @@ func glanceRows(c *canvas) []string {
 	return rows
 }
 
-func TestGlanceIsAsWideAsItsPartsWholeAndNeverGrows(t *testing.T) {
-	// The names, personal ◆ with ▲'s cells kept, and their gap, 14; each
-	// window's sparkline, a cell, its figure and two cells, 23, and its
-	// words at their widest in full, 24; 3 between the two windows.
-	// Stacked, a window a row, at every part's least: the names 14, as
-	// personal is no longer than a label's least, 23 and the short words 14.
-	if got, want := glancePart(trioConfigured(), runwayWindows), (flex.Part{Least: 51, Natural: 111, Most: 111}); got != want {
+// GLANCE takes the width: its sparklines grow with it from sparkCells, its
+// names, figures and words keeping what they take whole.
+func TestGlanceGrowsItsSparklinesToTheWidth(t *testing.T) {
+	// The names, personal ◆ with ▲'s cells kept, and their gap, 14; the
+	// sparkline 16 at its least, a cell, its figure and two cells, 7; and
+	// the words at their widest in full, 24. At its least, the names 14, as
+	// personal is no longer than a label's least, and the short words 14.
+	if got, want := glancePart(trioConfigured()), (flex.Part{Least: 51, Natural: 61, Grows: true}); got != want {
 		t.Errorf("GLANCE's part is %+v, want %+v", got, want)
 	}
 	if fullWidest() != 24 {
 		t.Fatalf("the widest words in full are %d cells, want 24, as the figures above count them", fullWidest())
 	}
-	for _, width := range []int{111, 160, 220} {
-		if l := layGlance(trioConfigured(), runwayWindows, width); l.width != 111 || l.stacked {
-			t.Errorf("at %d columns GLANCE takes %d, stacked %v, want 111 side by side: it doesn't grow", width, l.width, l.stacked)
+	for _, width := range []int{61, 62, 113, 160, 220} {
+		l := layGlance(trioConfigured(), width)
+		if l.width != width || l.column != 14 || l.words != 24 || l.spark != width-45 {
+			t.Errorf("at %d columns GLANCE takes %d, its names %d, its words %d, its sparklines %d; want %d, 14, 24 and %d",
+				width, l.width, l.column, l.words, l.spark, width, width-45)
 		}
 	}
 }
 
-// Narrowing, GLANCE's words take usage's short forms first, then its names
-// narrow toward their least; where that doesn't fit, its windows stack, a
-// window a row, its parts narrowing likewise, and where even that doesn't
-// fit, its words take what's left.
-func TestGlanceNarrowsItsWordsThenItsNamesThenStacks(t *testing.T) {
+// Narrowing from its natural, GLANCE's words take usage's short forms first,
+// then its names narrow toward their least, its sparklines at their least;
+// and where even that doesn't fit, its words take what's left.
+func TestGlanceNarrowsItsWordsThenItsNames(t *testing.T) {
 	// personal-research, the primary, is 17 cells: its name 23 with its
 	// marks and gap, 14 at its least.
 	accounts := config.Accounts{{ID: "work", Label: "work"}, {ID: "personal", Label: "personal-research", Primary: true}, {ID: "side", Label: "side"}}
 	tests := []struct {
-		name                  string
-		width                 int
-		column, words, across int
-		stacked               bool
+		name                 string
+		width                int
+		column, spark, words int
 	}{
-		{name: "whole", width: 120, column: 23, words: 24, across: 120},
-		{name: "its words narrowing", width: 110, column: 23, words: 19, across: 110},
-		{name: "its words short", width: 100, column: 23, words: 14, across: 100},
-		{name: "its names narrowing", width: 97, column: 20, words: 14, across: 97},
-		{name: "its names at their least", width: 91, column: 14, words: 14, across: 91},
-		{name: "stacked whole", width: 90, column: 23, words: 24, across: 70, stacked: true},
-		{name: "stacked, its words short and its names narrowing", width: 58, column: 21, words: 14, across: 58, stacked: true},
-		{name: "stacked, its words cut", width: 50, column: 14, words: 13, across: 50, stacked: true},
+		{name: "growing", width: 120, column: 23, spark: 66, words: 24},
+		{name: "whole", width: 70, column: 23, spark: 16, words: 24},
+		{name: "its words narrowing", width: 65, column: 23, spark: 16, words: 19},
+		{name: "its words short", width: 60, column: 23, spark: 16, words: 14},
+		{name: "its names narrowing", width: 58, column: 21, spark: 16, words: 14},
+		{name: "its names at their least", width: 51, column: 14, spark: 16, words: 14},
+		{name: "its words cut", width: 50, column: 14, spark: 16, words: 13},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			l := layGlance(accounts, runwayWindows, tt.width)
-			if l.column != tt.column || l.words != tt.words || l.width != tt.across || l.stacked != tt.stacked {
-				t.Errorf("at %d columns: names %d, words %d, across %d, stacked %v; want %d, %d, %d, %v",
-					tt.width, l.column, l.words, l.width, l.stacked, tt.column, tt.words, tt.across, tt.stacked)
+			l := layGlance(accounts, tt.width)
+			if l.column != tt.column || l.spark != tt.spark || l.words != tt.words || l.width != tt.width {
+				t.Errorf("at %d columns: names %d, sparklines %d, words %d, across %d; want %d, %d, %d, %d",
+					tt.width, l.column, l.spark, l.words, l.width, tt.column, tt.spark, tt.words, tt.width)
 			}
 		})
 	}
@@ -136,33 +141,7 @@ func TestGlanceDrawsEveryAccountAndThePoolAsItsWidthLaysThemOut(t *testing.T) {
 		width int
 		want  []string
 	}{
-		{name: "whole", width: 113, want: []string{
-			"              WEEK                                              5-HOUR",
-			"",
-			"work          ▇▇▇▇▇▆▆▆▆▅▅▄▄▄▃▃  66%  19%/day till Sun 21:00     ▄▄▄▄▄▁▁▁▁▁▁▁▁▁▁▁   5%  at cap · back 17:10",
-			"",
-			"personal ◆    ▆▆▆▆▆▄▄▄▄▂▂▁✕     34%  out ~Sat                   ▇▇▇▇▇▆▆▆▅▄▄▄▃▃▂▂  61%  25%/h till 17:10",
-			"",
-			"side ▲        ▆▆▆▆▆▃▃▃▃▁✕       22%  out ~Fri                           ▇▇▇▇▆▆▆▆  87%  35%/h till 17:10",
-			strings.Repeat("─", 111),
-			"Σ pool                ▃▃▂▂▁▁▁▁ 1.2 of 3 left                            ▄▄▄▃▃▃▃▃ 1.5 of 3 left",
-			"",
-			"▆ room left, start to reset    ▆ heading    ✕ runs out    66% room left now",
-		}},
-		{name: "its words short", width: 100, want: []string{
-			"              WEEK                                        5-HOUR",
-			"",
-			"work          ▇▇▇▇▇▆▆▆▆▅▅▄▄▄▃▃  66%  19%/day · Sun        ▄▄▄▄▄▁▁▁▁▁▁▁▁▁▁▁   5%  back 17:10",
-			"",
-			"personal ◆    ▆▆▆▆▆▄▄▄▄▂▂▁✕     34%  out ~Sat             ▇▇▇▇▇▆▆▆▅▄▄▄▃▃▂▂  61%  25%/h till 17:10",
-			"",
-			"side ▲        ▆▆▆▆▆▃▃▃▃▁✕       22%  out ~Fri                     ▇▇▇▇▆▆▆▆  87%  35%/h till 17:10",
-			strings.Repeat("─", 100),
-			"Σ pool                ▃▃▂▂▁▁▁▁ 1.2 of 3 left                      ▄▄▄▃▃▃▃▃ 1.5 of 3 left",
-			"",
-			"▆ room left, start to reset    ▆ heading    ✕ runs out    66% room left now",
-		}},
-		{name: "stacked on a phone", width: 73, want: []string{
+		{name: "at its natural", width: 61, want: []string{
 			"              WEEK",
 			"",
 			"work          ▇▇▇▇▇▆▆▆▆▅▅▄▄▄▃▃  66%  19%/day till Sun 21:00",
@@ -173,20 +152,10 @@ func TestGlanceDrawsEveryAccountAndThePoolAsItsWidthLaysThemOut(t *testing.T) {
 			strings.Repeat("─", 61),
 			"Σ pool                ▃▃▂▂▁▁▁▁ 1.2 of 3 left",
 			"",
-			"              5-HOUR",
-			"",
-			"work          ▄▄▄▄▄▁▁▁▁▁▁▁▁▁▁▁   5%  at cap · back 17:10",
-			"",
-			"personal ◆    ▇▇▇▇▇▆▆▆▅▄▄▄▃▃▂▂  61%  25%/h till 17:10",
-			"",
-			"side ▲                ▇▇▇▇▆▆▆▆  87%  35%/h till 17:10",
-			strings.Repeat("─", 61),
-			"Σ pool                ▄▄▄▃▃▃▃▃ 1.5 of 3 left",
-			"",
 			"▆ room left, start to reset    ▆ heading    ✕ runs out",
 			"66% room left now",
 		}},
-		{name: "stacked on the narrowest phone", width: 52, want: []string{
+		{name: "on the narrowest phone", width: 52, want: []string{
 			"              WEEK",
 			"",
 			"work          ▇▇▇▇▇▆▆▆▆▅▅▄▄▄▃▃  66%  19%/day · Sun",
@@ -196,16 +165,6 @@ func TestGlanceDrawsEveryAccountAndThePoolAsItsWidthLaysThemOut(t *testing.T) {
 			"side ▲        ▆▆▆▆▆▃▃▃▃▁✕       22%  out ~Fri",
 			strings.Repeat("─", 52),
 			"Σ pool                ▃▃▂▂▁▁▁▁ 1.2 of 3 left",
-			"",
-			"              5-HOUR",
-			"",
-			"work          ▄▄▄▄▄▁▁▁▁▁▁▁▁▁▁▁   5%  back 17:10",
-			"",
-			"personal ◆    ▇▇▇▇▇▆▆▆▅▄▄▄▃▃▂▂  61%  25%/h · 17:10",
-			"",
-			"side ▲                ▇▇▇▇▆▆▆▆  87%  35%/h · 17:10",
-			strings.Repeat("─", 52),
-			"Σ pool                ▄▄▄▃▃▃▃▃ 1.5 of 3 left",
 			"",
 			"▆ room left, start to reset    ▆ heading",
 			"✕ runs out    66% room left now",
@@ -218,6 +177,38 @@ func TestGlanceDrawsEveryAccountAndThePoolAsItsWidthLaysThemOut(t *testing.T) {
 				t.Errorf("GLANCE at %d columns is\n%s\nwant\n%s", tt.width, strings.Join(got, "\n"), strings.Join(tt.want, "\n"))
 			}
 		})
+	}
+}
+
+// Wider than its natural, every row's sparkline, the pool's among them, runs
+// from the name column across the cells the layout gives it, as its gauge
+// draws it that wide; and each row's figure and words follow it, lined up
+// down the rows.
+func TestGlancesSparklinesGrowWithTheWidthTheirWordsLinedUp(t *testing.T) {
+	for _, width := range []int{61, 80, 113, 160, 220} {
+		l := layGlance(trioConfigured(), width)
+		g := glanceAcross(trio(), Look{}, l.spark)
+		c := glanceDrawnIn(g, l, width, 0)
+		accounts, pool := g.lines(l)
+		rows := map[int]glanceLine{8: *pool}
+		for i, a := range accounts {
+			rows[2+2*i] = a
+		}
+		for y, r := range rows {
+			want := newCanvas(l.spark, 1)
+			r.gauge.spark.spark(want, Look{}, 0, 0, l.spark)
+			cells := []rune(rowOf(c, y) + strings.Repeat(" ", width))
+			if got := strings.TrimRight(string(cells[l.column:l.column+l.spark]), " "); got != rowOf(want, 0) {
+				t.Errorf("at %d columns, row %d's sparkline reads %q, want %q, its gauge's %d cells wide", width, y, got, rowOf(want, 0), l.spark)
+			}
+		}
+		figure, words := l.column+l.spark+1, l.column+l.spark+afterBar
+		for y, want := range map[int][2]string{2: {"66%", "19%/day till Sun 21:00"}, 4: {"34%", "out ~Sat"}, 6: {"22%", "out ~Fri"}} {
+			cells := []rune(rowOf(c, y) + strings.Repeat(" ", width))
+			if got := [2]string{strings.TrimSpace(string(cells[figure : figure+percentCells])), strings.TrimSpace(string(cells[words:]))}; got != want {
+				t.Errorf("at %d columns, row %d's figure and words read %q, want %q, from %d and %d", width, y, got, want, figure, words)
+			}
+		}
 	}
 }
 
@@ -243,9 +234,9 @@ func TestGlancesNamesNarrowOnceItsWordsAreShort(t *testing.T) {
 	long := func(a *status.Account) { a.Label = "personal-research" }
 	accounts := trioConfigured()
 	accounts[1].Label = "personal-research"
-	c, l := glanceIn(glanceOf(trio(account("personal", long)), Look{}), accounts, 97, 0)
+	c, l := glanceIn(glanceOf(trio(account("personal", long)), Look{}), accounts, 57, 0)
 	if l.column != 20 || l.words != shortCells {
-		t.Fatalf("at 97 columns the names take %d and the words %d, want 20 and %d", l.column, l.words, shortCells)
+		t.Fatalf("at 57 columns the names take %d and the words %d, want 20 and %d", l.column, l.words, shortCells)
 	}
 	want := "personal-rese… ◆    ▆▆▆▆▆▄▄▄▄▂▂▁✕     34%  out ~Sat"
 	if got := rowOf(c, 4); !strings.HasPrefix(got, want) {
@@ -253,33 +244,30 @@ func TestGlancesNamesNarrowOnceItsWordsAreShort(t *testing.T) {
 	}
 }
 
-// GLANCE's inks: each window's name over its sparkline in text.subtle; an
-// account's label bold text.primary, its marks
-// as usage's; its room's figure as usage colours a use; its words as usage
-// inks them; the rule in border; Σ in text.subtle and pool in
-// text.secondary; and the pool's room bold text.secondary.
+// GLANCE's inks: the week's name over its sparklines in text.subtle; an
+// account's label bold text.primary, its marks as usage's; its room's figure
+// as usage colours a use; its words as usage inks them; the rule in border;
+// Σ in text.subtle and pool in text.secondary; and the pool's room bold
+// text.secondary.
 func TestGlanceInksItsPartsAsUsageDoes(t *testing.T) {
 	c, l := glanceIn(glanceOf(trio(), Look{}), trioConfigured(), 113, 0)
-	group := l.group()
+	figure := l.column + l.spark + 1
 	tests := []struct {
 		name string
 		x, y int
 		want ink
 	}{
 		{name: "WEEK", x: 14, y: 0, want: dimInk},
-		{name: "5-HOUR", x: 14 + group, y: 0, want: dimInk},
 		{name: "work's label", x: 0, y: 2, want: titleInk},
 		{name: "personal's ◆", x: 9, y: 4, want: primaryInk},
 		{name: "side's ▲", x: 5, y: 6, want: accentInk},
-		{name: "work's week's room, 66%", x: 32, y: 2, want: ink{token: theme.VizRamp1, bold: true}},
-		{name: "work's 5-hour's room, 5%", x: 14 + group + 19, y: 2, want: ink{token: theme.VizRamp4, bold: true}},
-		{name: "work's week's words", x: 37, y: 2, want: mutedInk},
-		{name: "work's 5-hour's words", x: 14 + group + 23, y: 2, want: warningInk},
+		{name: "work's week's room, 66%", x: figure + 1, y: 2, want: ink{token: theme.VizRamp1, bold: true}},
+		{name: "work's week's words", x: figure + 6, y: 2, want: mutedInk},
 		{name: "the rule", x: 0, y: 7, want: borderInk},
 		{name: "Σ", x: 0, y: 8, want: dimInk},
 		{name: "pool", x: 2, y: 8, want: noteInk},
-		{name: "the pool's room", x: 31, y: 8, want: strongInk},
-		{name: "of 3 left", x: 35, y: 8, want: mutedInk},
+		{name: "the pool's room", x: figure, y: 8, want: strongInk},
+		{name: "of 3 left", x: figure + 4, y: 8, want: mutedInk},
 	}
 	for _, tt := range tests {
 		if got := c.at(tt.x, tt.y).ink; got != tt.want {
@@ -318,23 +306,24 @@ func TestASparklineIsTheCardsRoomInARowOfEighths(t *testing.T) {
 	}
 }
 
-// A sparkline's ✕ is where the moment has the window run out, its column of
-// the window's span across sparkCells; none where it doesn't.
+// A sparkline's ✕ is where the moment has the week run out, its column of
+// the week's span across the sparkline's cells; none where it doesn't.
 func TestGlancesSparklinesAgreeWithTheMoment(t *testing.T) {
 	g := glanceOf(trio(), Look{})
 	for _, a := range g.m.Accounts {
-		for _, key := range []string{"7d", "5h"} {
+		for _, cells := range []int{sparkCells, 40} {
+			key := GraphsWindow.KeyIn(g.m)
 			w, _ := a.Window(key)
-			c := newCanvas(sparkCells, 1)
-			burnCardOf(a, key, g.trails[Ref{Account: a.ID, Window: key}], printNow).spark(c, Look{}, 0, 0, sparkCells)
-			x, _, crossed := crossOn(c, sparkCells, 1)
+			c := newCanvas(cells, 1)
+			g.accountGauge(a, true).spark.spark(c, Look{}, 0, 0, cells)
+			x, _, crossed := crossOn(c, cells, 1)
 			if crossed != w.RunsOut {
-				t.Errorf("%s's %s has ✕ %v, want %v", a.ID, key, crossed, w.RunsOut)
+				t.Errorf("%s's week, %d cells, has ✕ %v, want %v", a.ID, cells, crossed, w.RunsOut)
 				continue
 			}
-			tl := views.Timeline{Start: w.Start, End: w.Start.Add(w.Length), Columns: sparkCells}
+			tl := views.Timeline{Start: w.Start, End: w.Start.Add(w.Length), Columns: cells}
 			if want := tl.Column(w.Out.At); crossed && x != want {
-				t.Errorf("%s's %s has ✕ in column %d, want %d, where Out.At falls", a.ID, key, x, want)
+				t.Errorf("%s's week, %d cells, has ✕ in column %d, want %d, where Out.At falls", a.ID, cells, x, want)
 			}
 		}
 	}
@@ -376,7 +365,7 @@ func TestGlanceSaysEachAccountsStateAsItsCardDoes(t *testing.T) {
 			if accounts == nil {
 				accounts = trioConfigured()
 			}
-			c, _ := glanceIn(glanceOf(tt.doc, Look{}), accounts, 113, 0)
+			c, _ := glanceIn(glanceOf(tt.doc, Look{}), accounts, 61, 0)
 			if row := rowOf(c, tt.row); !strings.HasPrefix(row, tt.want) {
 				t.Fatalf("the row is %q, want it to start %q", row, tt.want)
 			}
@@ -398,13 +387,13 @@ func TestGlanceSaysEachAccountsStateAsItsCardDoes(t *testing.T) {
 	}
 }
 
-// The pool's row, under usage's rule, has each window's sparkline of the
-// pool's room over its span, each column its room of all its accounts' in
+// The pool's row, under usage's rule, has the sparkline of the pool's room
+// over the week's span, each column its room of all its accounts' in
 // eighths, before now's column in a lasting window's ink, from now's as it
-// heads; and its room, as usage words it, pinned after the first. With one
-// account there's no pool, nor a row for it; with two configured that the
-// document doesn't hold yet, its rows are kept, blank.
-func TestGlancesPoolRowIsThePoolsRoomOverEachWindowsSpan(t *testing.T) {
+// heads; and its room, as usage words it, pinned after it. With one account
+// there's no pool, nor a row for it; with two configured that the document
+// doesn't hold yet, its rows are kept, blank.
+func TestGlancesPoolRowIsThePoolsRoomOverTheWeeksSpan(t *testing.T) {
 	start := printNow.Add(-8 * time.Hour)
 	used := []float64{1, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.75, 0.75, 1, 1, 1, 1, 1, 1}
 	span := views.PoolSpan{Timeline: views.Timeline{Start: start, End: start.Add(16 * time.Hour), Columns: sparkCells, Now: printNow}, Of: 3}
@@ -423,7 +412,7 @@ func TestGlancesPoolRowIsThePoolsRoomOverEachWindowsSpan(t *testing.T) {
 		t.Errorf("from now it's in %+v, want %+v", got, want)
 	}
 
-	pinned, _ := glanceIn(glanceOf(trio(pinnedTo("personal", "side")), Look{}), trioConfigured(), 113, 0)
+	pinned, _ := glanceIn(glanceOf(trio(pinnedTo("personal", "side")), Look{}), trioConfigured(), 61, 0)
 	if got, want := rowOf(pinned, 8), "Σ pool                ▂▂▁▁▁    0.6 of 2 left · pinned"; !strings.HasPrefix(got, want) || strings.Count(got, "pinned") != 1 {
 		t.Errorf("pinned, the pool's row is %q, want it to start %q, pinned once", got, want)
 	}
@@ -466,7 +455,7 @@ func TestGlancesKeySaysWhatItsMarksMean(t *testing.T) {
 		{outMark, outInk}, {" runs out", mutedInk}, {"    ", ink{}},
 		{"66%", strongInk}, {" room left now", mutedInk},
 	}
-	if got := layGlance(trioConfigured(), runwayWindows, 113).key; len(got) != 1 || got[0].width() != want.width() || got[0].plain() != want.plain() {
+	if got := layGlance(trioConfigured(), 113).key; len(got) != 1 || got[0].width() != want.width() || got[0].plain() != want.plain() {
 		t.Fatalf("the key is %v, want one row, %q", got, want.plain())
 	}
 	c, l := glanceIn(glanceOf(trio(), Look{}), trioConfigured(), 113, 0)
@@ -482,7 +471,7 @@ func TestGlancesKeySaysWhatItsMarksMean(t *testing.T) {
 			x++
 		}
 	}
-	if got := len(layGlance(trioConfigured(), runwayWindows, 52).key); got != 2 {
+	if got := len(layGlance(trioConfigured(), 52).key); got != 2 {
 		t.Errorf("at 52 columns the key takes %d rows, want 2", got)
 	}
 }
@@ -490,97 +479,24 @@ func TestGlancesKeySaysWhatItsMarksMean(t *testing.T) {
 // The rows the planner counts GLANCE taking are what it draws at every
 // width: its key's last row on the last of them, with every row of its key
 // whole, and nothing under them; of a pool, one account, and four with a
-// name at a label's most; and of each without the 5-hour, its column gone.
+// name at a label's most.
 func TestGlanceTakesTheRowsThePlannerCountsAtEveryWidth(t *testing.T) {
 	four := append(trioConfigured(), config.Account{ID: "lab", Label: "research-lab-and-consult"})
 	for _, accounts := range []config.Accounts{trioConfigured(), trioConfigured()[:1], four} {
-		for _, fiveHour := range []config.Accounts{accounts, nil} {
-			for width := 28; width <= 220; width++ {
-				given := graphsGiven{width: width, rows: 200, shown: GraphsSectionsNamed([]string{"glance"}), accounts: accounts, fiveHour: fiveHour, offersFiveHour: fiveHour != nil}
-				l := given.shape().glance
-				counted := l.rows()
-				rows := glanceRows(glanceDrawnIn(glanceOf(trio(), Look{}), l, width, 3))
-				key := rows[counted-len(l.key) : counted]
-				for i, k := range l.key {
-					if key[i] != strings.TrimRight(k.plain(), " ") {
-						t.Fatalf("of %d accounts, %d windows, at %d columns, the key's row %d is %q, want %q, on the last of the %d rows counted", len(accounts), len(l.windows), width, i, key[i], k.plain(), counted)
-					}
-				}
-				if rows[counted-len(l.key)-1] != "" || slices.ContainsFunc(rows[counted:], func(r string) bool { return r != "" }) {
-					t.Fatalf("of %d accounts, %d windows, at %d columns, GLANCE is\n%s\nwant its key on the last of %d rows, under a blank row", len(accounts), len(l.windows), width, strings.Join(rows, "\n"), counted)
+		for width := 28; width <= 220; width++ {
+			given := graphsGiven{width: width, rows: 200, shown: GraphsSectionsNamed([]string{"glance"}), accounts: accounts}
+			l := given.shape().glance
+			counted := l.rows()
+			rows := glanceRows(glanceDrawnIn(glanceOf(trio(), Look{}), l, width, 3))
+			key := rows[counted-len(l.key) : counted]
+			for i, k := range l.key {
+				if key[i] != strings.TrimRight(k.plain(), " ") {
+					t.Fatalf("of %d accounts, at %d columns, the key's row %d is %q, want %q, on the last of the %d rows counted", len(accounts), width, i, key[i], k.plain(), counted)
 				}
 			}
-		}
-	}
-}
-
-// GLANCE has a column, its heading over it, for each window some configured
-// account has or may have, as Graphs offers 5-HOUR: the week always, and the
-// 5-hour only while any account has it, as the moment the frame holds has
-// it; with none on it, its column goes, and GLANCE narrows to the week's.
-func TestGlanceHasAColumnOnlyForAWindowSomeAccountHas(t *testing.T) {
-	tests := []struct {
-		name    string
-		lacking []string
-		want    []views.RunwayWindow
-	}{
-		{name: "every account with the 5-hour", want: runwayWindows},
-		{name: "side alone with it", lacking: []string{"work", "personal"}, want: runwayWindows},
-		{name: "none with it", lacking: trioIDs, want: []views.RunwayWindow{views.RunwayWeek}},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			doc := withoutFiveHour(trio(), tt.lacking...)
-			f := graphsFrame(160, 120, GraphsSectionsNamed([]string{"glance"})).At(doc, printNow)
-			laid := f.graphsLaid().glance
-			if !slices.Equal(laid.windows, tt.want) {
-				t.Fatalf("GLANCE draws %q, want %q", laid.windows, tt.want)
+			if rows[counted-len(l.key)-1] != "" || slices.ContainsFunc(rows[counted:], func(r string) bool { return r != "" }) {
+				t.Fatalf("of %d accounts, at %d columns, GLANCE is\n%s\nwant its key on the last of %d rows, under a blank row", len(accounts), width, strings.Join(rows, "\n"), counted)
 			}
-			if got, want := laid.width, glancePart(f.Graphs.Accounts, tt.want).Natural; got != want {
-				t.Errorf("GLANCE takes %d cells, want %d, its natural of the windows it draws", got, want)
-			}
-			text := textOf(f.Draw(doc, printNow))
-			head := slices.IndexFunc(text, func(r string) bool { return strings.Contains(r, "WEEK") })
-			if head < 0 || strings.Contains(text[head], "5-HOUR") != slices.Contains(tt.want, views.RunwayFiveHour) {
-				t.Errorf("GLANCE's head row is %q, want 5-HOUR on it %t", text[max(head, 0)], slices.Contains(tt.want, views.RunwayFiveHour))
-			}
-		})
-	}
-}
-
-// Of an account without the 5-hour, GLANCE's 5-HOUR column has its
-// sparkline empty, no figure, and usage's words for it in text.subtle where
-// the other accounts' words go: no 5-hour limit where the column's words fit
-// it, else no limit, at every width, side by side or stacked. Of a pool
-// that lacks the 5-hour, as where side alone has it, its row's 5-HOUR column
-// is blank, no span and no room.
-func TestGlanceSaysAnAccountWithoutTheFiveHourHasNoLimit(t *testing.T) {
-	g := glanceOf(withoutFiveHour(trio(), "work", "personal"), Look{})
-	for width := 52; width <= 113; width++ {
-		c, l := glanceIn(g, trioConfigured(), width, 0)
-		x, head := l.column+l.group(), 0
-		if l.stacked {
-			x, head = l.column, l.heads()[1]
-		}
-		row, figure := head+2, x+sparkCells+1
-		words := figure + percentCells + 2
-		want := "no 5-hour limit"
-		if l.words < len(want) {
-			want = "no limit"
-		}
-		cells := []rune(rowOf(c, row) + strings.Repeat(" ", width))
-		if got := strings.TrimRight(string(cells[words:words+l.words]), " "); got != want {
-			t.Errorf("at %d columns, work's 5-hour words are %q, want %q, in %d cells", width, got, want, l.words)
-		}
-		if got := c.at(words, row).ink; got != dimInk {
-			t.Errorf("at %d columns, its words are in %+v, want text.subtle", width, got)
-		}
-		if blank := strings.TrimSpace(string(cells[x:words])); blank != "" {
-			t.Errorf("at %d columns, its sparkline and figure read %q, want them empty", width, blank)
-		}
-		pool := head + 2*len(trioIDs) + 2
-		if blank := strings.TrimSpace(string([]rune(rowOf(c, pool) + strings.Repeat(" ", width))[x:])); blank != "" {
-			t.Errorf("at %d columns, the pool's 5-hour reads %q, want it blank, the pool lacking it", width, blank)
 		}
 	}
 }

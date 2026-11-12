@@ -1,11 +1,9 @@
 package dashboard
 
 import (
-	"slices"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
-	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -17,9 +15,6 @@ type GraphsSection int
 const (
 	// GraphsWeek is WEEK: a burn-down card an account, over its week.
 	GraphsWeek GraphsSection = iota
-	// GraphsFiveHour is 5-HOUR: a burn-down card an account, over its
-	// 5-hour window.
-	GraphsFiveHour
 	// GraphsPool is POOL: the pool's room over Runway's week, each account's
 	// stacked.
 	GraphsPool
@@ -32,16 +27,15 @@ const (
 )
 
 // graphsSections are Graphs' sections' words, and those shown at first:
-// WEEK and 5-HOUR.
+// WEEK.
 var graphsSections = sectionList{
 	words: []sectionWording{
-		GraphsWeek:     {key: "w", word: "week", heading: "WEEK", name: "week"},
-		GraphsFiveHour: {key: "f", word: "5-hour", heading: "5-HOUR", name: "5-hour"},
-		GraphsPool:     {key: "o", word: "pool", heading: "POOL", name: "pool"},
-		GraphsGlance:   {key: "g", word: "glance", heading: "GLANCE", name: "glance"},
-		GraphsWhen:     {key: "h", word: "when", heading: "WHEN YOU WORK", name: "when"},
+		GraphsWeek:   {key: "w", word: "week", heading: "WEEK", name: "week"},
+		GraphsPool:   {key: "o", word: "pool", heading: "POOL", name: "pool"},
+		GraphsGlance: {key: "g", word: "glance", heading: "GLANCE", name: "glance"},
+		GraphsWhen:   {key: "h", word: "when", heading: "WHEN YOU WORK", name: "when"},
 	},
-	first: 1<<GraphsWeek | 1<<GraphsFiveHour,
+	first: 1 << GraphsWeek,
 }
 
 // list is Graphs' sections' words.
@@ -84,111 +78,35 @@ func GraphsSectionsNamed(names []string) GraphsSections {
 	return shownNamed[GraphsSection](names)
 }
 
-// burnDowns are the windows Graphs' burn-down sections chart, by section,
-// each over Runway's live view of it.
-var burnDowns = map[GraphsSection]views.RunwayWindow{GraphsWeek: views.RunwayWeek, GraphsFiveHour: views.RunwayFiveHour}
+// GraphsWindow is the window Graphs charts, WEEK's cards and GLANCE's
+// sparklines alike: the week, over Runway's live view of it.
+const GraphsWindow = views.RunwayWeek
 
 // GraphsWindows are the windows whose lanes Graphs reads with the sections
-// given shown, in the order the page first draws them: a burn-down
-// section's each, and GLANCE's every one, as its ✕ is placed as a card's;
-// none where neither a burn-down section nor GLANCE shows.
+// given shown: the week's, while WEEK or GLANCE shows, as GLANCE places its
+// ✕ as a card's; none else.
 func GraphsWindows(sections GraphsSections) []views.RunwayWindow {
-	var windows []views.RunwayWindow
-	for _, s := range EveryGraphsSection() {
-		if !sections.Has(s) {
-			continue
-		}
-		for _, w := range sectionWindows(s) {
-			if !slices.Contains(windows, w) {
-				windows = append(windows, w)
-			}
-		}
-	}
-	return windows
-}
-
-// sectionWindows are the windows of Runway's live view the section draws of
-// lanes: a burn-down's, its window; GLANCE's, each it draws; none else.
-func sectionWindows(s GraphsSection) []views.RunwayWindow {
-	if w, ok := burnDowns[s]; ok {
-		return []views.RunwayWindow{w}
-	}
-	if s == GraphsGlance {
-		return runwayWindows
+	if sections.Has(GraphsWeek) || sections.Has(GraphsGlance) {
+		return []views.RunwayWindow{GraphsWindow}
 	}
 	return nil
 }
 
-// GraphsOffers reports whether Graphs offers the section, laying it out and
-// listing and taking its key, of the configured accounts given, at the moment
-// h holds, without working the moment out, as policy names its windows:
-// 5-HOUR only as fiveHourOffered has it; every other section always.
-func GraphsOffers(s GraphsSection, accounts config.Accounts, h *status.HeldMoment, policy score.Policy) bool {
-	return s != GraphsFiveHour || fiveHourOffered(accounts, h, policy)
-}
-
-// fiveHourOffered reports whether Graphs offers the 5-hour, the window a
-// request starts, as policy names it, of the configured accounts given, at
-// the moment h holds: where some account h holds has, or may have, it, as
-// its AnyHas has it, as Runway offers its 5-hour; and there's a card to
-// draw, some configured account having, or maybe having, it, as
-// fiveHourCharted has them, or none being configured. It offers less than
-// AnyHas allows where the config has dropped the one account held with it,
-// till the router holds the config's accounts.
-func fiveHourOffered(accounts config.Accounts, h *status.HeldMoment, policy score.Policy) bool {
-	return h.AnyHas(policy.Started) && (len(accounts) == 0 || len(fiveHourCharted(accounts, h, policy)) > 0)
-}
-
-// fiveHourCharted are the configured accounts given that 5-HOUR lays out a
-// card for, in the config's order: those that have, or may have, the
-// 5-hour, the window a request starts, as policy names it, at the moment h
-// holds, as its Has has them.
-func fiveHourCharted(accounts config.Accounts, h *status.HeldMoment, policy score.Policy) config.Accounts {
-	return slices.DeleteFunc(slices.Clone(accounts), func(a config.Account) bool { return !h.Has(policy.Started, a.ID) })
-}
-
-// graphsOffered are the sections shown as Graphs shows them at the moment
-// the frame holds: those its Sections show that it offers, as graphsOffers
-// has them, so one kept shown that it doesn't offer, as 5-HOUR where no
-// account has the 5-hour, is laid out as hidden, the preferences keeping it
-// all the same.
-func (f Frame) graphsOffered() GraphsSections {
-	shown := f.Graphs.Sections
-	for _, s := range EveryGraphsSection() {
-		if shown.Has(s) && !f.graphsOffers(s) {
-			shown = shown.Toggled(s)
-		}
-	}
-	return shown
-}
-
-// graphsOffers reports whether Graphs offers the section, as GraphsOffers
-// has it of the configured accounts at the moment the frame holds.
-func (f Frame) graphsOffers(s GraphsSection) bool {
-	return GraphsOffers(s, f.Graphs.Accounts, f.held, f.Policy)
-}
-
-// GraphsGlanceColumns are the columns GLANCE's pool's sparklines take, as
-// the watch builds the pool's room over each window's span across them.
-const GraphsGlanceColumns = sparkCells
-
-// GraphsShown is what the Graphs tab shows: its sections shown, as w, f, o, g
-// and h show and hide them, and the preferences keep, those it offers alone
-// laid out, as graphsOffered has them; the configured accounts, in the
-// config's order, which alone, with the frame's size, its look, which words
-// POOL's key, the sections laid out, and those of the accounts that have the
-// 5-hour, lay the page out, as layGraphs has it; WHEN YOU WORK's
-// page, whose weeks its heading says, as the watch built it at the last look
-// on Graphs, nil where the ledger's days weren't read then, or WHEN YOU WORK
-// was hidden; and Runway's lanes over its live view of each window a
-// burn-down section or GLANCE shown draws, as GraphsWindows has them, by the
-// window, as the watch built them at the look, which its cards say what
-// Runway says of each account by, and GLANCE places its ✕ by, none till it's
-// built them; POOL's stack, as the watch built it at the last look on Graphs
-// with POOL shown, held while it hides, none stacked till it's built it; and
-// the pool's room over each window's span, by the window, as GLANCE draws it
-// beside Σ pool, as the watch built it at the last look on Graphs with
-// GLANCE shown, held while it hides, none till it's built it.
+// GraphsShown is what the Graphs tab shows: its sections shown, as w, o, g
+// and h show and hide them, and the preferences keep; the configured
+// accounts, in the config's order, which alone, with the frame's size, its
+// look, which words POOL's key, and the sections shown, lay the page out, as
+// layGraphs has it; WHEN YOU WORK's page, whose weeks its heading says, as
+// the watch built it at the last look on Graphs, nil where the ledger's days
+// weren't read then, or WHEN YOU WORK was hidden; and Runway's lanes over its
+// live view of the week while WEEK or GLANCE shows, as GraphsWindows has
+// them, by the window, as the watch built them at the look, which its cards
+// say what Runway says of each account by, and GLANCE places its ✕ by, none
+// till it's built them; POOL's stack, as the watch built it at the last look
+// on Graphs with POOL shown, held while it hides, none stacked till it's
+// built it; and the pool's room over the week's span, by the window, as
+// GLANCE draws it beside Σ pool, as the watch built it at the last look on
+// Graphs with GLANCE shown, held while it hides, none till it's built it.
 type GraphsShown struct {
 	Sections GraphsSections
 	Accounts config.Accounts
@@ -219,9 +137,9 @@ func pooled(accounts config.Accounts) bool {
 // in the rows over the legend, scrolled as the frame has it, a row at a
 // time, as paged pages them; and the legend on the view's last rows.
 func (f Frame) graphsTab(c *canvas, doc status.Document, now time.Time, top int) {
-	if f.graphsOffered().none() {
+	if f.Graphs.Sections.none() {
 		view := newCanvas(f.Width, f.viewRows())
-		everythingHidden(view, f.Width, f.Graphs.Sections.TogglesOf(f.graphsOffers))
+		everythingHidden(view, f.Width, f.Graphs.Sections.Toggles())
 		c.paste(view, 0, top, view.height())
 		return
 	}
@@ -236,22 +154,22 @@ func (f Frame) graphsTab(c *canvas, doc status.Document, now time.Time, top int)
 
 // graphsDrawn draws the sections of the moment m as laid out, whole, on c:
 // each heading across its columns, as headSection draws it, saying what
-// graphsSays has it say, under a burn-down's, its cards, as burnCards draws
-// them, and under POOL's, GLANCE's and WHEN YOU WORK's, their bodies, as
+// graphsSays has it say, under WEEK's, its cards, as burnCards draws them,
+// and under POOL's, GLANCE's and WHEN YOU WORK's, their bodies, as
 // poolDrawn, glanceDrawn and whenDrawn draw them; and the pool's line, where
 // there's one, as poolLine words it.
 func (f Frame) graphsDrawn(c *canvas, m status.Moment, laid graphsLaid) {
 	for i, s := range laid.sections {
 		says := f.graphsSays(s.section, i == 0)
 		headSection(c, s.head(), s.section.heading(), s.section.Key(), func(cells int) line { return says.fit(cells) })
-		switch {
-		case burnsDown(s.section):
+		switch s.section {
+		case GraphsWeek:
 			f.burnCards(c, m, laid, s)
-		case s.section == GraphsPool:
+		case GraphsPool:
 			f.poolDrawn(c, m.Now, laid, s)
-		case s.section == GraphsGlance:
+		case GraphsGlance:
 			f.glanceDrawn(c, m, laid, s)
-		case s.section == GraphsWhen:
+		case GraphsWhen:
 			f.whenDrawn(c, s)
 		}
 	}
@@ -283,7 +201,7 @@ var graphsOut = outForm{above: " above", below: " below", gap: " · ", inks: sub
 // past what shows, how many of their rows are out of view, as outOfView says
 // it in graphsOut's form.
 func (f Frame) graphsState(c *canvas) {
-	if f.graphsOffered().none() {
+	if f.Graphs.Sections.none() {
 		return
 	}
 	paged := f.graphsLaid().paged()
@@ -295,7 +213,7 @@ func (f Frame) graphsState(c *canvas) {
 // scrolled to each offset given, as their laying out pages them: none where
 // every one is hidden.
 func (f Frame) graphsScrolling() func(offset int) Scrolling {
-	if f.graphsOffered().none() {
+	if f.Graphs.Sections.none() {
 		return func(int) Scrolling { return Scrolling{} }
 	}
 	return f.graphsLaid().paged().scrolling
@@ -305,7 +223,7 @@ func (f Frame) graphsScrolling() func(offset int) Scrolling {
 // shows, across its columns, scrolled as the frame has it, a click on which
 // is a press of its key, which hides it.
 func (f Frame) graphsTargets() []Target {
-	if f.graphsOffered().none() {
+	if f.Graphs.Sections.none() {
 		return nil
 	}
 	laid := f.graphsLaid()
