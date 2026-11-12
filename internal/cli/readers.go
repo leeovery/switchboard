@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/config"
@@ -33,6 +34,8 @@ type stateReaders struct {
 	readings views.Readings
 	events   views.Events
 	removed  status.RemovedAccounts
+	// dir is the state directory they read in.
+	dir string
 }
 
 // newStateReaders returns readers of the request ledger, the readings history
@@ -54,6 +57,7 @@ func (a *app) newStateReaders(cfg *config.Config) (stateReaders, error) {
 		readings: readings.NewReader(dir, logger),
 		events:   events.NewReader(dir, a.Now, logger),
 		removed:  removedIn(dir, cfg),
+		dir:      dir,
 	}, nil
 }
 
@@ -68,6 +72,27 @@ func removedIn(dir string, cfg *config.Config) status.RemovedAccounts {
 		return nil
 	}
 	return status.RemovedOf(record, cfg.Accounts)
+}
+
+// poolLabelsIn labels a pool by its id, as status.PoolLabels does, of the
+// pools cfg configures and those the accounts record in the state directory
+// dir keeps: of the configured alone, warning, where the record can't be
+// read. The record is read once, and only to label a pool the config doesn't
+// configure.
+func poolLabelsIn(dir string, cfg *config.Config) func(id string) string {
+	kept := sync.OnceValue(func() func(string) string {
+		record, err := identity.NewFile(dir).Read()
+		if err != nil {
+			logger.Warn("can't read the accounts record, so the pools removed are named by their ids", "error", err)
+		}
+		return status.PoolLabels(cfg.Pools, record)
+	})
+	return func(id string) string {
+		if p, ok := cfg.Pools.ByID(id); ok {
+			return p.Label
+		}
+		return kept()(id)
+	}
 }
 
 // readers has wc read the request ledger, the readings history and the

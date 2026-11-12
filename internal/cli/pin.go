@@ -157,10 +157,7 @@ func (a *app) inPool(doc status.Document) string {
 	if err != nil {
 		return ""
 	}
-	if named := poolNamed(cfg.Pools, doc.PoolLabel); named != "" {
-		return " in " + named
-	}
-	return ""
+	return inPoolNamed(cfg.Pools, doc.PoolLabel)
 }
 
 // pinSession pins the session given, by as much of its id as is unique, to

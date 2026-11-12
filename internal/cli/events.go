@@ -24,9 +24,9 @@ import (
 
 // eventsOptions are the events command's flags.
 type eventsOptions struct {
-	since  string
-	follow bool
-	form   formFlags
+	since, pool string
+	follow      bool
+	form        formFlags
 }
 
 func newEventsCommand(a *app) *cobra.Command {
@@ -43,6 +43,11 @@ files, so it needs no router.
 --since starts at a day, as 2026-10-01, a time today, as 14:00, or how long
 ago, as 3h or 2d. -f, --follow then prints a line each time the router files
 one, a changed event again, whole, until interrupted.
+
+It lists one pool's events: a session's start or move, and a pin, by the
+pool each was filed in, one from before pools the first pool's; what befell
+an account, by the pool it's in now; and the router's own in every pool. ` + readingAPool + `
+Without a config to read, it lists every event.
 
 On a terminal, events prints its lines as text. Anywhere else, as in a pipe or
 an agent's shell, it prints each event as the router files it, with "schema": 1
@@ -62,6 +67,7 @@ stdout is.`,
 	}
 	cmd.Flags().StringVar(&opts.since, "since", "", "start at `WHEN`: "+sinceForms+" (default today's start)")
 	cmd.Flags().BoolVarP(&opts.follow, "follow", "f", false, "go on printing events as they're filed, until interrupted")
+	addPoolFlag(cmd, &opts.pool, "list the events of")
 	opts.form.add(cmd)
 	return cmd
 }
@@ -76,6 +82,10 @@ func (a *app) events(ctx context.Context, out io.Writer, opts eventsOptions) err
 	if err := historyMoved(dir); err != nil {
 		return err
 	}
+	pool, label, err := a.eventsPool(dir, opts.pool)
+	if err != nil {
+		return err
+	}
 	now := a.Now()
 	from, err := sinceOr(opts.since, now, startOfDay(now, 0))
 	if err != nil {
@@ -87,12 +97,35 @@ func (a *app) events(ctx context.Context, out io.Writer, opts eventsOptions) err
 		follower = newEventsFollower(events.Files(ledger.Dir(dir), logger), dayfile.DateOf(now), a.Now)
 		today = follower.listing()
 	}
-	printer := a.eventsPrinter(out, opts.form)
+	printer := a.eventsPrinter(out, opts.form, label)
 	held := events.NewReader(dir, a.Now, logger).HeldTailing(printer.readFrom(from), startOfDay(now, -1), today)
-	if err := printer.list(held, from, now); err != nil || follower == nil {
+	if err := printer.list(pool.Events(held), from, now); err != nil || follower == nil {
 		return err
 	}
-	return follower.run(ctx, logs.PollEvery(a.FollowEvery), printer.follow)
+	return follower.run(ctx, logs.PollEvery(a.FollowEvery), func(h events.Held) error {
+		if !pool.Shows(h.Event) {
+			return nil
+		}
+		return printer.follow(h)
+	})
+}
+
+// eventsPool is how events reads the pool named, as readPool has it, of the
+// files in the state directory dir, and what labels a pool they name, as
+// poolLabelsIn has it: every pool's where none is named and the config can't
+// be read, as events reads without one, the pools labelled as the accounts
+// record keeps them.
+func (a *app) eventsPool(dir, named string) (views.PoolRead, func(pool string) string, error) {
+	cfg, err := a.loadConfig()
+	switch {
+	case err != nil && named == "":
+		logger.Debug("can't load the config, so every pool's events are listed", "error", err)
+		return views.PoolRead{}, poolLabelsIn(dir, &config.Config{}), nil
+	case err != nil:
+		return views.PoolRead{}, nil, err
+	}
+	pool, err := readPool(cfg, dir, named)
+	return pool.read, poolLabelsIn(dir, cfg), err
 }
 
 // eventsPrinter prints the router's events in a form.
@@ -107,18 +140,21 @@ type eventsPrinter interface {
 }
 
 // eventsPrinter returns the printer of the form f chooses, printing to out,
-// its text naming accounts as accountNames names them.
-func (a *app) eventsPrinter(out io.Writer, f formFlags) eventsPrinter {
+// its text naming accounts as accountNames names them, its JSON labelling a
+// pool as label does.
+func (a *app) eventsPrinter(out io.Writer, f formFlags, label func(pool string) string) eventsPrinter {
 	if a.printsJSON(f, out) {
-		return eventsJSON{out: out}
+		return eventsJSON{out: out, label: label}
 	}
 	return &eventsText{out: out, now: a.Now, telling: views.NewTelling(status.NameOfKey), names: a.accountNames()}
 }
 
 // eventsJSON prints each event as the router files it, its schema first, a
-// JSON object a line, fields a later release added included.
+// JSON object a line, fields a later release added included, and the label
+// of the pool it names, as label labels it.
 type eventsJSON struct {
-	out io.Writer
+	out   io.Writer
+	label func(pool string) string
 }
 
 // readFrom is from: an event printed as the router filed it tells nothing
@@ -141,7 +177,11 @@ func (p eventsJSON) follow(h events.Held) error {
 	if err != nil {
 		return fmt.Errorf("print an event: %w", err)
 	}
-	return writeStored(p.out, data)
+	var poolLabel string
+	if h.Pool != "" {
+		poolLabel = p.label(h.Pool)
+	}
+	return writeStoredInPool(p.out, data, poolLabel)
 }
 
 // eventsText prints the events as text, under the day each happened on, a

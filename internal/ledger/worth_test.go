@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -448,6 +449,31 @@ func TestASummaryIsPricedModelByModel(t *testing.T) {
 	if string(got) != want {
 		t.Errorf("the priced summary is\n%s\nwant\n%s: each model's worth beside it, none where the model is unpriced, and the requests that went "+
 			"upstream without usage named unpriced, never free", got, want)
+	}
+}
+
+func TestAnAccountsDayInEachPoolIsPricedAsTheWholeIsAndLabelledAsItsReaderNamesIt(t *testing.T) {
+	spent := usage(`{"input_tokens":1000,"output_tokens":100}`)
+	opus := func(upstream int) ledger.ModelDay {
+		return ledger.ModelDay{Model: "claude-opus-5-5", Upstream: upstream, Sessions: 1, Usage: spent}
+	}
+	summary := ledger.Summary{Version: 7, Day: date, Lines: 2, Accounts: []ledger.AccountDay{{
+		Account: "work", Work: ledger.Work{Sessions: 2, Models: []ledger.ModelDay{opus(2)}},
+		Pools: []ledger.PoolDay{{Pool: "b2n8", Work: ledger.Work{Sessions: 1, Models: []ledger.ModelDay{opus(1)}}}, {Pool: "q7mt", Work: ledger.Work{Sessions: 1, Models: []ledger.ModelDay{opus(1)}}}},
+	}}}
+	label := func(pool string) string { return map[string]string{"b2n8": "Default", "q7mt": "Acme"}[pool] }
+
+	got, err := json.Marshal(ledger.Pricing.Priced(summary, today).Accounts[0].Named(label))
+	if err != nil {
+		t.Fatal(err)
+	}
+	model := `"model":"claude-opus-5-5","upstream":1,"no_usage":0,"unsent":0,"checks":0,"counts":0,"sessions":1,"usage":{"input_tokens":1000,"output_tokens":100}`
+	want := `{"account":"work","sessions":2,"moved_on":0,"moved_off":0,` +
+		`"models":[{` + strings.Replace(model, `"upstream":1`, `"upstream":2`, 1) + `,"worth":0.006}],"pools":[` +
+		`{"pool":"b2n8","sessions":1,"moved_on":0,"moved_off":0,"pool_label":"Default","models":[{` + model + `,"worth":0.006}]},` +
+		`{"pool":"q7mt","sessions":1,"moved_on":0,"moved_off":0,"pool_label":"Acme","models":[{` + model + `,"worth":0.006}]}]}`
+	if string(got) != want {
+		t.Errorf("the account's day priced is\n%s\nwant\n%s", got, want)
 	}
 }
 

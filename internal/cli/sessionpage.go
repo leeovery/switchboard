@@ -29,7 +29,7 @@ func (a *app) sessionPage(ctx context.Context, out, errOut io.Writer, given stri
 	if err != nil {
 		return err
 	}
-	running, unlisted := a.routedSessions(ctx, errOut, "showing the session from the ledger alone, as not running")
+	running, unlisted := a.routedSessions(ctx, errOut, "", "showing the session from the ledger alone, as not running")
 	now := a.Now()
 	read := views.ReadSessions(readers.ledger, running, now, given)
 	named := views.NamedAmong(given, read.Named(running))

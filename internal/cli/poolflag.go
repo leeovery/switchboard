@@ -3,12 +3,15 @@ package cli
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/idmove"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/router"
+	"github.com/leeovery/switchboard/internal/views"
 )
 
 // readingAPool says, in the help of the verbs that take --pool, which pool
@@ -43,6 +46,31 @@ func askedPool(pools config.Pools, named string) (config.Pool, error) {
 	return p, nil
 }
 
+// filedPool is the pool a verb reads the recorded files of, as each line
+// recorded its pool at the time, and how the views read it: zero, every
+// pool's, in a config with no pools.
+type filedPool struct {
+	config.Pool
+	read views.PoolRead
+}
+
+// readPool returns the pool of cfg's pools a verb reading the files in the
+// state directory dir reads, as askedPool has it, named or not, failing as it
+// does, saying --pool names one.
+func readPool(cfg *config.Config, dir, named string) (filedPool, error) {
+	p, err := askedPool(cfg.Pools, named)
+	if err != nil || p.ID == "" {
+		return filedPool{}, poolFlagNeeded(err)
+	}
+	inPool := func(pool string) func(account string) bool {
+		return func(account string) bool {
+			a, ok := cfg.Accounts.ByID(account)
+			return ok && (pool == "" || strings.EqualFold(a.Pool, pool))
+		}
+	}
+	return filedPool{Pool: p, read: views.PoolRead{ID: p.ID, First: idmove.FirstPoolID(dir), In: inPool(p.ID), Pooled: inPool("")}}, nil
+}
+
 // poolNamed names the pool with the given label, as prose.Pool does, where
 // pools are more than one, so a verb's text says which it tells of: "" where
 // there's one or none, as no screen names a pool till there's a second.
@@ -51,6 +79,16 @@ func poolNamed(pools config.Pools, label string) string {
 		return ""
 	}
 	return prose.Pool(label)
+}
+
+// inPoolNamed names the pool with the given label after what a verb says of
+// it, as " in pool Acme", where pools are more than one, as poolNamed names
+// it: "" where there's one or none.
+func inPoolNamed(pools config.Pools, label string) string {
+	if named := poolNamed(pools, label); named != "" {
+		return " in " + named
+	}
+	return ""
 }
 
 // poolFlagNeeded is err, where it's a router.PoolNeeded, saying --pool is
