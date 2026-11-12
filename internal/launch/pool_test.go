@@ -1891,6 +1891,11 @@ func TestRunRoutesThroughARouterThatFailsClosedWhileItsWaitedFor(t *testing.T) {
 
 func TestRunUnreadNeverStartsOnItsOwnLoginInsideAFenceTheRecordKeeps(t *testing.T) {
 	kept := func(*config.Config) (*config.Config, bool) { return pooledConfig(), true }
+	const unpooled = unreadSaid + "the running router doesn't route by the config's pools — "
+	// fromBefore is a router from before pools naming every account, which
+	// would be routed through on them, every account in one pool, as before
+	// pools.
+	fromBefore := func() *fakeRouter { return healthy().naming("work", pooledConfig().Accounts...) }
 	tests := []struct {
 		name   string
 		router *fakeRouter
@@ -1906,15 +1911,36 @@ func TestRunUnreadNeverStartsOnItsOwnLoginInsideAFenceTheRecordKeeps(t *testing.
 			router:   closedRouter(),
 			kept:     kept,
 			dir:      acmeDir,
-			wantSaid: unreadSaid + "the running router doesn't say which accounts it routes for — ~/Code/acme is in pool Acme, where claude never starts on its own login — not starting claude\n",
+			wantSaid: unpooled + "~/Code/acme is in pool Acme, where claude never starts on its own login — not starting claude\n",
 		},
 		{
 			name:        "the router failed closed, outside every fence the record keeps: without switchboard",
 			router:      closedRouter(),
 			kept:        kept,
 			dir:         elsewhere,
-			wantSaid:    unreadSaid + "the running router doesn't say which accounts it routes for — starting claude without it\n",
+			wantSaid:    unpooled + "starting claude without it\n",
 			wantStarted: true,
+		},
+		{
+			name:     "a router from before pools, inside a fence the record keeps: refused, never routed without its pools",
+			router:   fromBefore(),
+			kept:     kept,
+			dir:      acmeDir,
+			wantSaid: unpooled + "~/Code/acme is in pool Acme, where claude never starts on its own login — not starting claude\n",
+		},
+		{
+			name:        "a router from before pools, outside every fence the record keeps: without switchboard",
+			router:      fromBefore(),
+			kept:        kept,
+			dir:         elsewhere,
+			wantSaid:    unpooled + "starting claude without it\n",
+			wantStarted: true,
+		},
+		{
+			name:     "a router from before pools, the record keeping none: refused anywhere",
+			router:   fromBefore(),
+			dir:      elsewhere,
+			wantSaid: unpooled + "can't tell which pool ~/Code/other is in: neither the config, the router nor the accounts record names any pools — not starting claude\n",
 		},
 		{
 			name:     "the router down, inside a fence the record keeps: refused",

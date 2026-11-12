@@ -515,8 +515,10 @@ func (w Written) Fences(routers func() config.Pools) config.Pools {
 // id and directories, where w has any, as fencesDiffer compares them, as the
 // router would route by fences the user has since changed. One reporting
 // none routes every account in one pool, which isn't w's where w has
-// several, or any that break the config's rules.
-func (w Written) unroutedBy(h router.Health) string {
+// several, or any that break the config's rules; nor, once the move to pools
+// is done, moved, where w has none, as the pools there are, which the
+// accounts record keeps, may be fenced.
+func (w Written) unroutedBy(h router.Health, moved bool) string {
 	if slices.ContainsFunc(w.Pools, func(p config.Pool) bool { return len(p.Unplaced) > 0 }) {
 		return "the config file writes a directory that can't be placed"
 	}
@@ -534,6 +536,8 @@ func (w Written) unroutedBy(h router.Health) string {
 		return "it reports no pools, and the config file writes several"
 	case w.Unchecked && len(w.Pools) > 0:
 		return "it reports no pools, and the config file's break its rules"
+	case moved && len(w.Pools) == 0:
+		return "it reports no pools, and the config file writes none once the move to pools is done"
 	}
 	return ""
 }

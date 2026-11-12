@@ -220,7 +220,8 @@ const (
 // as Run's does, and the session's pool is decided, and refused, as Run
 // decides it. Where the router can't be routed through, or none of the
 // accounts it names has a usable token, or it doesn't route by the pools the
-// config file writes (see Written's unroutedBy), it starts Unaided, as for a
+// config file writes, nor, once the move to pools is done, reports any where
+// the file writes none (see Written's unroutedBy), it starts Unaided, as for a
 // config that can't be read, Stderr hearing, of a router that answers, why it
 // couldn't be routed through: what only the config says, such as
 // when_router_down, isn't known. Unaided, it refuses inside a fenced pool's
@@ -249,7 +250,7 @@ func (l Launcher) RunUnread(ctx context.Context, r Route, args []string, unread 
 		logger.Info("the router can't be routed through", "router", state.name, "reason", state.reason, "asked", state.asked)
 		return aside(cant, true)
 	}
-	if why := r.Written.unroutedBy(h); why != "" {
+	if why := r.Written.unroutedBy(h, r.Moved); why != "" {
 		logger.Warn("the router doesn't route by the config file's pools", "router", state.name, "reason", why)
 		return aside(cant.besides(routerUnpooled), true)
 	}
