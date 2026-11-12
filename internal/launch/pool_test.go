@@ -3,6 +3,7 @@ package launch_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -1809,19 +1810,82 @@ func TestRunThroughARouterThatFailedClosedNeverGoesPastIt(t *testing.T) {
 	}
 }
 
-func TestBeforeTheMoveARouterListingNoPoolsCountsAsDown(t *testing.T) {
-	h := newHarness(t, "HOME=/home/tester")
-	h.launcher.Dir = acmeDir
-	healthyNone := healthy()
-	healthyNone.health.ReportsPools = true
-	r := pooledRoute(pooledConfig(), healthyNone, "")
-	r.Patience.TakeUp = time.Millisecond
+// A healthy router listing no pools routes by a config from before pools,
+// every account in one pool, before the move to pools or after it, as in the
+// moment before its look follows the move: it's compared, never taken for one
+// that failed closed.
+func TestAHealthyRouterListingNoPoolsCountsAsDown(t *testing.T) {
+	const differs = "switchboard: the router doesn't route by the config's pools ("
+	for _, moved := range []bool{false, true} {
+		for _, down := range []config.RouterDown{config.Direct, config.Stop} {
+			t.Run(fmt.Sprintf("moved: %v, when_router_down %s", moved, down), func(t *testing.T) {
+				synctest.Test(t, func(t *testing.T) {
+					h := newHarness(t, "HOME=/home/tester")
+					h.launcher.Dir = acmeDir
+					healthyNone := healthy()
+					healthyNone.health.ReportsPools = true
+					cfg := pooledConfig()
+					cfg.WhenRouterDown = down
+					r := pooledRoute(cfg, healthyNone, "")
+					r.Moved = moved
 
-	if err := h.launcher.Run(t.Context(), r, nil); err != nil {
-		t.Fatalf("Run() error = %v", err)
+					err := h.launcher.Run(t.Context(), r, nil)
+					if said := h.stderr.String(); !strings.HasPrefix(said, differs) {
+						t.Errorf("said %q on stderr, want it to start %q", said, differs)
+					}
+					if down == config.Stop {
+						if !errors.Is(err, launch.ErrNotStarted) || len(h.starts) > 0 {
+							t.Errorf("Run() error = %v, starting %q; want %v, nothing started", err, h.starts, launch.ErrNotStarted)
+						}
+						return
+					}
+					if err != nil {
+						t.Fatalf("Run() error = %v", err)
+					}
+					env := h.environment(t)
+					if _, routed := env["ANTHROPIC_BASE_URL"]; routed || env["CLAUDE_CODE_OAUTH_TOKEN"] != acme1Token {
+						t.Errorf("started routed: %v, on %q; want direct on the pool's primary's token, as the router would route across the pools", routed, env["CLAUDE_CODE_OAUTH_TOKEN"])
+					}
+				})
+			})
+		}
 	}
-	if _, routed := h.environment(t)["ANTHROPIC_BASE_URL"]; routed {
-		t.Errorf("started routed through a router of no pools, want direct on the pool's token, as it would route across them")
+}
+
+// A router that fails closed while it's waited for to take the pools up is
+// routed through then, whatever when_router_down says, never counted down
+// when the wait runs out.
+func TestRunRoutesThroughARouterThatFailsClosedWhileItsWaitedFor(t *testing.T) {
+	for _, down := range []config.RouterDown{config.Direct, config.Stop} {
+		t.Run("when_router_down "+string(down), func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				h := newHarness(t, "HOME=/home/tester")
+				h.launcher.Dir = acmeDir
+				cfg := pooledConfig()
+				cfg.WhenRouterDown = down
+				rt := &changingRouter{began: time.Now(), at: 1500 * time.Millisecond, after: closedRouter().health}
+				rt.before = otherPools(cfg, func(ps []router.RoutedPool) []router.RoutedPool {
+					ps[1].Dirs = []string{homeDir + "/Code/acme-old"}
+					return ps
+				}).health
+				r := pooledRoute(cfg, rt, "")
+				r.Moved = true
+
+				if err := h.launcher.Run(t.Context(), r, nil); err != nil {
+					t.Fatalf("Run() error = %v", err)
+				}
+				if want := "switchboard: the router is unhealthy (" + closed + ") — starting claude through it all the same\n"; h.stderr.String() != want {
+					t.Errorf("said %q on stderr, want %q", h.stderr.String(), want)
+				}
+				env := h.environment(t)
+				if env["ANTHROPIC_BASE_URL"] != "http://"+proxyAddr || env["SWITCHBOARD_POOL"] != "q7mt" {
+					t.Errorf("started at %q in pool %q, want through the router in pool q7mt", env["ANTHROPIC_BASE_URL"], env["SWITCHBOARD_POOL"])
+				}
+				if waited := time.Since(rt.began); waited != 1600*time.Millisecond {
+					t.Errorf("waited %v, want 1.6s, till the first answer after it failed closed", waited)
+				}
+			})
+		})
 	}
 }
 
