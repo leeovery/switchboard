@@ -141,7 +141,8 @@ func TestDashboardShowsTheOverviewsSectionsKept(t *testing.T) {
 		{name: "none kept: those shown at first", prefs: `{"tab": "overview"}`, want: []string{"usage", "routing", "coming", "lately"}},
 		{name: "those kept", prefs: `{"sections": ["routing", "usage"]}`, want: []string{"usage", "routing"}},
 		{name: "v0.2.7's, GRAPHS among them and its burn-down: the rest", prefs: `{"graphs": "burn-down", "sections": ["usage", "graphs", "routing", "lately"]}`, want: []string{"usage", "routing", "lately"}},
-		{name: "v0.2.7's, GRAPHS alone: none", prefs: `{"sections": ["graphs"]}`, want: []string{}},
+		{name: "v0.2.7's, GRAPHS alone: those shown at first", prefs: `{"sections": ["graphs"]}`, want: []string{"usage", "routing", "coming", "lately"}},
+		{name: "names only of none: those shown at first", prefs: `{"sections": ["graphs", "a-later-section"]}`, want: []string{"usage", "routing", "coming", "lately"}},
 		{name: "none shown, kept as none", prefs: `{"sections": []}`, want: []string{}},
 		{name: "one a later switchboard names passed over", prefs: `{"sections": ["usage", "a-later-section"]}`, want: []string{"usage"}},
 	}

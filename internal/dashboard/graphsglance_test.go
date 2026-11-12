@@ -8,6 +8,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard/flex"
+	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
@@ -330,13 +331,16 @@ func TestGlancesSparklinesAgreeWithTheMoment(t *testing.T) {
 }
 
 // Each account's row says how it stands as its card does: not read, or
-// without a usable token, its sparkline empty, its figure —, and usage's
-// words for it; stale, its sparkline faded and its figure in text.subtle;
-// out of the pool, faint, its name, figure and words in text.faint, its
-// sparkline faded; and one the config has that the document doesn't hold
-// yet, as one not read.
+// without a usable token, or lacking the week, as one whose reads carry the
+// 5-hour alone, its sparkline empty, its figure —, and usage's words for it;
+// stale, its sparkline faded and its figure in text.subtle; out of the pool,
+// faint, its name, figure and words in text.faint, its sparkline faded; and
+// one the config has that the document doesn't hold yet, as one not read.
 func TestGlanceSaysEachAccountsStateAsItsCardDoes(t *testing.T) {
 	unread := trio(account("work", func(a *status.Account) { a.FetchedAt = time.Time{} }))
+	weekless := trio(account("work", func(a *status.Account) {
+		a.Windows = slices.DeleteFunc(a.Windows, func(w quota.Window) bool { return w.Key == "7d" })
+	}))
 	tokenless := trio(account("work", func(a *status.Account) { a.TokenSet = false }))
 	stale := trio(account("work", func(a *status.Account) { a.Error = "usage endpoint answered 500" }))
 	out := trio(pinnedTo("personal", "side"))
@@ -355,6 +359,7 @@ func TestGlanceSaysEachAccountsStateAsItsCardDoes(t *testing.T) {
 	}{
 		{name: "not read", doc: unread, row: 2, want: "work                              —  not read yet", figure: faintInk, words: dimInk, label: titleInk},
 		{name: "without a usable token", doc: tokenless, row: 2, want: "work                              —  no token", figure: faintInk, words: errorInk, label: titleInk},
+		{name: "lacking the week", doc: weekless, row: 2, want: "work                              —  no week limit", figure: faintInk, words: dimInk, label: titleInk},
 		{name: "stale", doc: stale, row: 2, want: "work          ▇▇▇▇▇▆▆▆▆         66%  not read since 14:42", spark: &faded, figure: dimInk, words: dimInk, label: titleInk},
 		{name: "out of the pool", doc: out, row: 2, want: "work          ▇▇▇▇▇▆▆▆▆▅▅▄▄▄▃▃  66%  19%/day till Sun 21:00", spark: &faded, figure: ink{token: theme.TextFaint, bold: true}, words: faintInk, label: ink{token: theme.TextFaint, bold: true}},
 		{name: "not in the document yet", doc: trio(), accounts: added, row: 8, want: "spare                             —  not read yet", figure: faintInk, words: dimInk, label: titleInk},
