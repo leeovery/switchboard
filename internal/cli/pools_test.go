@@ -9,23 +9,23 @@ import (
 	"github.com/leeovery/switchboard/internal/router"
 )
 
-// fencedAccounts are threeAccounts in two pools, each fenced: work in
-// Default, personal and side in Acme.
+// fencedAccounts are threeAccounts in two pools, each fenced: personal and
+// side in Default, work in Acme.
 const fencedAccounts = `
 [[account]]
 id    = "work"
 label = "Work"
-pool  = "b2n8"
+pool  = "q7mt"
 
 [[account]]
 id    = "personal"
 label = "Personal"
-pool  = "q7mt"
+pool  = "b2n8"
 
 [[account]]
 id    = "side"
 label = "Side"
-pool  = "q7mt"
+pool  = "b2n8"
 
 [[pool]]
 id    = "b2n8"
@@ -61,12 +61,12 @@ func TestASessionIsFoundByAPrefixInAFencedPoolWithEveryPoolFenced(t *testing.T) 
 	srv.start(t)
 	srv.routeInAcme(t, sessionThree)
 
-	if got, want := run(t, srv.deps, "status", "--session", "18bb"), (result{stdout: "side\n"}); got != want {
+	if got, want := run(t, srv.deps, "status", "--session", "18bb"), (result{stdout: "work\n"}); got != want {
 		t.Errorf("switchboard status --session 18bb = %+v, want %+v", got, want)
 	}
-	want := result{stdout: "session 18bb978f goes to side from its next request\n"}
-	if got := run(t, srv.deps, "pin", "side", "--session", "18bb"); got != want {
-		t.Errorf("switchboard pin side --session 18bb = %+v, want %+v", got, want)
+	want := result{stdout: "session 18bb978f goes to work from its next request\n"}
+	if got := run(t, srv.deps, "pin", "work", "--session", "18bb"); got != want {
+		t.Errorf("switchboard pin work --session 18bb = %+v, want %+v", got, want)
 	}
 }
 
@@ -76,8 +76,8 @@ func TestPinningAFencedPoolsAccountSaysWhereItsNewSessionsGo(t *testing.T) {
 	srv.writeConfig(t)
 	srv.start(t)
 
-	if got, want := run(t, srv.deps, "pin", "side"), (result{stdout: "new sessions go to side\n"}); got != want {
-		t.Errorf("switchboard pin side = %+v, want %+v", got, want)
+	if got, want := run(t, srv.deps, "pin", "work"), (result{stdout: "new sessions go to work · Work\n"}); got != want {
+		t.Errorf("switchboard pin work = %+v, want %+v", got, want)
 	}
 }
 

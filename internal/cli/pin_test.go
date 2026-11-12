@@ -362,8 +362,8 @@ func TestPinSessionTheRouterClosesAsItsAsked(t *testing.T) {
 		_ = conn.Close()
 	}
 	serveRouter(t, srv.socket(), new(atomic.Int64), map[string]http.HandlerFunc{
-		"GET /sessions": func(w http.ResponseWriter, _ *http.Request) {
-			_ = json.NewEncoder(w).Encode([]status.Session{{ID: sessionOne, Assignments: []status.Assignment{}}})
+		"GET /sessions/{id}": func(w http.ResponseWriter, _ *http.Request) {
+			_ = json.NewEncoder(w).Encode(status.Session{ID: sessionOne, Assignments: []status.Assignment{}})
 		},
 		"POST /sessions/{id}/pin":   closeUnread,
 		"DELETE /sessions/{id}/pin": closeUnread,
