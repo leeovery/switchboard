@@ -115,7 +115,9 @@ type decision struct {
 //
 // Every account it chooses among is in the request's pool, as the view of
 // them holds no other: the client's account is fallen back to only where
-// it's in the pool, and a pin naming no account in it is no pin for it.
+// it's in the pool, a pin naming no account in it is no pin for it, and a
+// session on an account that has left it moves off it, its cache's warmth
+// disregarded, as why says.
 //
 // Where step 3 keeps the session at the first request after its compaction,
 // as compacted says, it moves instead where step 4 would send a new session,
@@ -282,16 +284,19 @@ func chosen(c score.Choice, reason string) decision {
 }
 
 // why says why the account is being chosen afresh, which account the choice
-// prefers, and whether the session has to leave its own: a session that has
-// idled keeps to its own when another is only a little ahead, so near-equal
-// accounts don't trade places, and moves by choice; one that hasn't is chosen
-// afresh as its account can't take the request.
+// prefers, and whether the session has to leave its own: one whose account
+// has left the request's pool leaves it, however its cache stands; a session
+// that has idled keeps to its own when another is only a little ahead, so
+// near-equal accounts don't trade places, and moves by choice; one that
+// hasn't is chosen afresh as its account can't take the request.
 func (s situation) why() (reason, preferred string, forced bool) {
 	switch {
 	case s.req.Session == "":
 		return reasonUnsessioned, "", false
 	case !s.assigned:
 		return reasonNew, "", false
+	case s.accounts.left(s.current.Account):
+		return status.ReasonMovedOff + s.current.Account + " " + whyLeftPool, "", true
 	case s.movesFree():
 		return status.Rescored(s.now.Sub(s.current.LastSeen)), s.current.Account, false
 	default:

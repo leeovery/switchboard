@@ -40,7 +40,7 @@ const (
 	whyNewToken  = status.WhyNewToken
 	whyReset     = "was reset by hand"
 	whyTokenless = "has no usable token"
-	whyLeftPool  = "left the pool"
+	whyLeftPool  = status.WhyLeftPool
 )
 
 // reasonBack is why a session goes back to the account it was on before a

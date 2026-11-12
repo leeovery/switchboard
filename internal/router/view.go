@@ -76,6 +76,13 @@ func (v view) pooled(id string) bool {
 	return slices.Contains(v.members, id)
 }
 
+// left reports whether the account with the given id has left the request's
+// pool: there are pools, and it isn't one of the pool's, as one moved to
+// another, or out of the config, isn't.
+func (v view) left(id string) bool {
+	return v.pool != "" && !v.pooled(id)
+}
+
 // has reports whether the request can go out on the account with the given id.
 func (v view) has(id string) bool {
 	_, ok := v.candidate(id)

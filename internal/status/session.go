@@ -129,8 +129,8 @@ func idledIn(count int, unit string, rest int, restUnit string) string {
 
 // Why an account can't take a request, as the reasons for leaving it, after
 // ReasonMovedOff or ReasonPinYields and the account, give it, and those of
-// them a ledger line's tried gives too: WhyLimit, WhyRefused and WhyNewToken.
-// They're never reworded, as the reasons aren't.
+// them a ledger line's tried gives too: WhyLimit, WhyRefused, WhyNewToken and
+// WhyLeftPool. They're never reworded, as the reasons aren't.
 const (
 	// WhyReserve is an account held back by its reserve alone.
 	WhyReserve = "is at its reserve"
@@ -143,6 +143,9 @@ const (
 	// WhyNewToken is an account that refused the request's token, as it had
 	// taken up a new one.
 	WhyNewToken = "has a new token"
+	// WhyLeftPool is an account that has left the request's pool, moved to
+	// another or out of the config.
+	WhyLeftPool = "left the pool"
 )
 
 // What a request of an assignment's model in flight is doing, as an

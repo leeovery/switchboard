@@ -43,7 +43,7 @@ func reasonForms() []string {
 }
 
 // whys are every why an account can't take a request.
-var whys = []string{WhyLimit, WhyRefused, WhyNewToken, WhyReserve, WhyNoRoom}
+var whys = []string{WhyLimit, WhyRefused, WhyNewToken, WhyLeftPool, WhyReserve, WhyNoRoom}
 
 // The reasons and whys are stored for years, in the ledger, the events,
 // state.json and /sessions, and read back, so the reference lists every one
