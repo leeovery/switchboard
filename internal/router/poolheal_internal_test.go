@@ -10,7 +10,9 @@ import (
 	"testing"
 
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/identity"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
+	"github.com/leeovery/switchboard/internal/quota"
 )
 
 // movedToPools marks the move to pools done in stateDir, its accounts record
@@ -75,7 +77,7 @@ func TestAConfigThatLosesItsPoolsIsGivenThemBackAtTheLookAsTheyLastStood(t *test
 	}
 }
 
-func TestAConfigThatCantBeGivenItsPoolsBackIsToldOfOnceForEachConfig(t *testing.T) {
+func TestAConfigThatCantBeGivenItsPoolsBackIsTriedAtEachLookToldOfOnceForEachConfig(t *testing.T) {
 	log := logstest.Capture(t)
 	stateDir := t.TempDir()
 	r, path := newWatchingPoolsRouter(t, stateDir)
@@ -97,6 +99,53 @@ func TestAConfigThatCantBeGivenItsPoolsBackIsToldOfOnceForEachConfig(t *testing.
 	r.upkeep.look()
 	if n := timesLogged(log, "level=WARN", "couldn't write the pools back in the config"); n != 2 {
 		t.Errorf("the log says the config couldn't be healed %d times, want again for a config changed since\n%s", n, log)
+	}
+
+	// What held the heal up passes, the config as it was: the next look
+	// heals it.
+	noteFirstPool(t, stateDir, defaultPool)
+	r.upkeep.look()
+	if got := membersOf(t, path); !maps.Equal(got, map[string]string{"work": defaultPool, "personal": defaultPool}) {
+		t.Errorf("once the heal could be written, the config has the accounts in the pools %v, want each in the first, the unfenced one", got)
+	}
+}
+
+func TestARouterStartedOnAConfigItCouldntHealKeepsAClientsAccountInItsPool(t *testing.T) {
+	log := logstest.Capture(t)
+	stateDir := t.TempDir()
+	// Every pool fenced, and side, in none of them, has none to go to: the
+	// heal as the router starts couldn't be written.
+	err := identity.NewFile(stateDir).Update(func(r *identity.Record) error {
+		r.Accounts = []identity.Entry{{ID: "work", Added: start, Pool: defaultPool}, {ID: "personal", Added: start, Pool: acmePool}}
+		r.Pools = []identity.PoolEntry{
+			{ID: defaultPool, Added: start, First: true, Here: true, Written: identity.PoolWritten{Label: "Default", Dirs: []string{"/work/own"}}},
+			{ID: acmePool, Added: start, Here: true, Written: identity.PoolWritten{Label: "Acme", Dirs: []string{"/work/acme"}}},
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, filepath.Join(stateDir, "pools.moved"), "")
+	path := filepath.Join(t.TempDir(), "config.toml")
+	writeConfigFile(t, path, unpooledTOML("work", "personal", "side"))
+	cfg := testConfig(at(start), &stubProber{}, poolTokens.Read)
+	cfg.ConfigFile, cfg.StateDir = Watch(path), stateDir
+	r := newTestRouterOf(t, cfg)
+	// Side's quota needs using first, then personal's, then work's.
+	readWeeks(r, map[string]quota.Window{"side": soonWeek, "personal": laterWeek, "work": latestWeek})
+	upstream := servingAll(served, served, served)
+	r.proxy.transport = upstream
+
+	r.upkeep.look()
+	routeIn(t, r, workToken, "one", "", nil)
+	routeIn(t, r, workToken, "two", acmePool, nil)
+
+	if sent, want := upstream.sent(), []string{"work", "personal"}; !slices.Equal(sent, want) {
+		t.Errorf("the requests went out on %q, want %q: the first's on work alone, Acme's on personal, side in no pool", sent, want)
+	}
+	if n := timesLogged(log, "level=WARN", "couldn't write the pools back in the config"); n != 1 {
+		t.Errorf("the log says the config couldn't be healed %d times, want once\n%s", n, log)
 	}
 }
 

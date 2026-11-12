@@ -159,9 +159,9 @@ func TestThePoolsConfiguredAreRecordedAndOneThatLeftMarkedRemovedWithTheLabelItH
 	// them with their primaries, and each account keeps its pool.
 	clock.now = start.Add(time.Minute)
 	r.upkeep.keepRecord()
-	client := identity.PoolWritten{Label: "Client", Dirs: []string{"~/Code/client"}}
+	client := identity.PoolWritten{Label: "Client", Dirs: []string{"~/Code/client"}, PrimaryKnown: true}
 	want := []identity.PoolEntry{
-		{ID: "b2n8", Added: clock.now, Here: true, Written: identity.PoolWritten{Primary: "work"}},
+		{ID: "b2n8", Added: clock.now, Here: true, Written: identity.PoolWritten{Primary: "work", PrimaryKnown: true}},
 		{ID: "h4w2", Added: clock.now, Here: true, Written: client},
 	}
 	if got := pools(); !slices.EqualFunc(got, want, identity.PoolEntry.Equal) {
@@ -216,7 +216,7 @@ func TestAPoolThatLeftTheConfigBeforeTheFirstLookIsLabelledAsTheRouterStartedWit
 		t.Fatal(err)
 	}
 	want := []identity.PoolEntry{
-		{ID: "b2n8", Added: start, Here: true, Written: identity.PoolWritten{Primary: "work"}},
+		{ID: "b2n8", Added: start, Here: true, Written: identity.PoolWritten{Primary: "work", PrimaryKnown: true}},
 		{ID: "h4w2", Label: "Client", Added: start, Removed: clock.now},
 	}
 	if !slices.EqualFunc(record.Pools, want, identity.PoolEntry.Equal) {

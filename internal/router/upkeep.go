@@ -118,8 +118,9 @@ func (u *upkeep) look() {
 	u.tokens.look()
 	u.restarts.look()
 	u.tokens.retire(u.restarts.configured())
-	if accounts, pools, changed := u.restarts.configuredPools(); changed {
-		u.heal.look(accounts, pools)
+	accounts, pools, changed := u.restarts.configuredPools()
+	u.heal.look(accounts, pools, changed)
+	if changed {
 		u.pools.follow(accounts, pools)
 	}
 	if e, changed := u.restarts.configuredExport(); changed {

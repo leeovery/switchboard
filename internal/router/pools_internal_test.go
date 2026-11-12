@@ -1214,11 +1214,29 @@ func TestThePoolsAreNamedOnlyWhereThereAreSeveral(t *testing.T) {
 	}
 }
 
+// readingRecord returns what reads the accounts record given.
+func readingRecord(record identity.Record) func() (identity.Record, bool) {
+	return func() (identity.Record, bool) { return record, true }
+}
+
+// recordOfThePools is the accounts record of a router that followed
+// pooledAccounts in testPools once the move to pools noted Default first:
+// each pool this Mac's, as written, and each account in its pool.
+func recordOfThePools() identity.Record {
+	return identity.Record{
+		Accounts: []identity.Entry{{ID: "work", Added: start, Pool: defaultPool}, {ID: "personal", Added: start, Pool: acmePool}, {ID: "side", Added: start, Pool: defaultPool}},
+		Pools: []identity.PoolEntry{
+			{ID: defaultPool, Added: start, First: true, Here: true, Written: identity.PoolWritten{Label: "Default", Primary: "work", PrimaryKnown: true}},
+			{ID: acmePool, Added: start, Here: true, Written: identity.PoolWritten{Label: "Acme", Dirs: []string{"/work/acme"}, Primary: "personal", PrimaryKnown: true}},
+		},
+	}
+}
+
 func TestThePoolsAreFollowedAsTheyChangeTheFirstReadAfreshWithThem(t *testing.T) {
 	reads := 0
-	m := newMembership(func() string {
+	m := newMembership(func() (identity.Record, bool) {
 		reads++
-		return acmePool
+		return identity.Record{Pools: []identity.PoolEntry{{ID: acmePool, Added: start, First: true, Here: true}}}, true
 	}, sameID)
 	accounts := pooledAccounts()
 
@@ -1265,10 +1283,10 @@ func TestAConfigThatLosesItsPoolsKeepsThemOnceTheMoveIsDone(t *testing.T) {
 	lost := config.Accounts{{ID: "work", Label: "Work"}, {ID: "personal", Label: "Personal"}}
 	tests := []struct {
 		name string
-		// first is the first pool the accounts record notes, "" for none;
-		// pooled has the router follow the pools before they're lost.
-		first  string
-		pooled bool
+		// recorded has the accounts record keep the pools, as
+		// recordOfThePools; pooled has the router follow the pools before
+		// they're lost.
+		recorded, pooled bool
 		// pool is what each account is in once the pools are lost, by id, ""
 		// for none, where a request naming pool goes.
 		pool string
@@ -1281,26 +1299,34 @@ func TestAConfigThatLosesItsPoolsKeepsThemOnceTheMoveIsDone(t *testing.T) {
 			pool: acmePool, want: map[string]bool{"work": true, "personal": true, "side": true},
 		},
 		{
-			name: "once the router has followed pools: they stand, but for side, which left",
+			name: "once the router has followed pools, the record unread: they stand, but for side, which left",
 			pool: defaultPool, pooled: true, want: map[string]bool{"work": true, "personal": false, "side": false}, warned: true,
 		},
 		{
-			name: "once the router has followed pools: Acme stands",
+			name: "once the router has followed pools, the record unread: Acme stands",
 			pool: acmePool, pooled: true, want: map[string]bool{"work": false, "personal": true, "side": false}, warned: true,
 		},
 		{
-			name: "started on it once the record notes a first: every account in that pool, as the restart heals the config",
-			pool: defaultPool, first: defaultPool, want: map[string]bool{"work": true, "personal": true, "side": false}, warned: true,
+			name: "started on it: the first as the record keeps it, but for side, which left",
+			pool: defaultPool, recorded: true, want: map[string]bool{"work": true, "personal": false, "side": false}, warned: true,
 		},
 		{
-			name: "started on it once the record notes a first: no account in another",
-			pool: acmePool, first: defaultPool, want: map[string]bool{"work": false, "personal": false, "side": false}, warned: true,
+			name: "started on it: Acme as the record keeps it",
+			pool: acmePool, recorded: true, want: map[string]bool{"work": false, "personal": true, "side": false}, warned: true,
+		},
+		{
+			name: "once the router has followed pools: Acme as the record keeps it",
+			pool: acmePool, recorded: true, pooled: true, want: map[string]bool{"work": false, "personal": true, "side": false}, warned: true,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			log := logstest.Capture(t)
-			m := newMembership(func() string { return tt.first }, sameID)
+			record := noRecord
+			if tt.recorded {
+				record = readingRecord(recordOfThePools())
+			}
+			m := newMembership(record, sameID)
 			if tt.pooled {
 				m.follow(pooledAccounts(), testPools)
 			}
@@ -1327,7 +1353,7 @@ func TestAConfigThatLosesItsPoolsKeepsThemOnceTheMoveIsDone(t *testing.T) {
 
 func TestAConfigThatLosesItsPoolsAgainIsWarnedOfAgain(t *testing.T) {
 	log := logstest.Capture(t)
-	m := newMembership(noFirst, sameID)
+	m := newMembership(noRecord, sameID)
 
 	for range 2 {
 		m.follow(pooledAccounts(), testPools)
@@ -1341,7 +1367,7 @@ func TestAConfigThatLosesItsPoolsAgainIsWarnedOfAgain(t *testing.T) {
 
 func TestAConfigThatLosesItsPoolsKeepsThoseMadeLast(t *testing.T) {
 	logstest.Capture(t)
-	m := newMembership(noFirst, sameID)
+	m := newMembership(noRecord, sameID)
 	all := config.Accounts{{ID: "work"}, {ID: "personal"}, {ID: "side"}}
 	moved := pooledAccounts()
 	moved[2].Pool = acmePool
@@ -1360,10 +1386,10 @@ func TestAConfigThatLosesItsPoolsKnowsItsAccountsByTheirIDsNow(t *testing.T) {
 	idNow := func(id string) string { return strings.TrimPrefix(id, "old-") }
 	tests := []struct {
 		name string
-		// first is the first pool the accounts record notes, "" for none;
-		// pooled has the router follow the pools before they're lost.
-		first  string
-		pooled bool
+		// recorded has the accounts record keep the pools, as
+		// recordOfThePools; pooled has the router follow the pools before
+		// they're lost.
+		recorded, pooled bool
 		// lost is the config without pools, by its accounts' ids.
 		lost []string
 		// want is the pool each account is in once it's followed, "" for
@@ -1381,15 +1407,24 @@ func TestAConfigThatLosesItsPoolsKnowsItsAccountsByTheirIDsNow(t *testing.T) {
 			want: map[string]string{"work": defaultPool, "personal": acmePool, "side": defaultPool},
 		},
 		{
-			name:  "started on it, by the ids they had: each in the first",
-			first: defaultPool, lost: []string{"old-work", "old-personal", "old-side"},
-			want: map[string]string{"work": defaultPool, "personal": defaultPool, "side": defaultPool},
+			name:     "started on it, by the ids they had: each in its pool, as the record keeps it",
+			recorded: true, lost: []string{"old-work", "old-personal", "old-side"},
+			want: map[string]string{"work": defaultPool, "personal": acmePool, "side": defaultPool},
+		},
+		{
+			name:     "started on it, naming an account the record doesn't have: that one in the unfenced pool",
+			recorded: true, lost: []string{"work", "personal", "newcomer"},
+			want: map[string]string{"work": defaultPool, "personal": acmePool, "side": "", "newcomer": defaultPool},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			logstest.Capture(t)
-			m := newMembership(func() string { return tt.first }, idNow)
+			record := noRecord
+			if tt.recorded {
+				record = readingRecord(recordOfThePools())
+			}
+			m := newMembership(record, idNow)
 			if tt.pooled {
 				m.follow(pooledAccounts(), testPools)
 			}
