@@ -426,9 +426,9 @@ func (s *stream) tellProgress(stop <-chan struct{}) bool {
 // serveStream answers GET /stream, of the requests routed within the pool rd
 // reads: those in flight as the reader joins, then every event of the stream
 // as it comes, a line of JSON each, until the reader goes or is dropped, the
-// stream ends, or the control API closes; or, for a reader that named no
-// pool, until the pool the verbs act on is another, as following says, for
-// it to join again and be told of that pool's.
+// stream ends, or the control API closes; or until the pool it named, or the
+// one the verbs act on where it named none, is another, as following says,
+// for it to join again and be told of that pool's.
 func (r *Router) serveStream(w http.ResponseWriter, req *http.Request, rd poolRead) {
 	inFlight, reader := r.stream.join()
 	defer r.stream.leave(reader)
@@ -436,7 +436,7 @@ func (r *Router) serveStream(w http.ResponseWriter, req *http.Request, rd poolRe
 	if !writeEvents(w, routedIn(rd, inFlight)) {
 		return
 	}
-	named := poolNamed(req) != ""
+	named := poolNamed(req)
 	for {
 		select {
 		case <-req.Context().Done():
@@ -444,7 +444,7 @@ func (r *Router) serveStream(w http.ResponseWriter, req *http.Request, rd poolRe
 		case <-rd.pools.replaced:
 			var still bool
 			if rd, still = r.following(rd, named); !still {
-				logger.Debug("ended a reader's request stream, as the pool the verbs act on is another")
+				logger.Debug("ended a reader's request stream, as the pool it asked for is another")
 				return
 			}
 		case e, open := <-reader.events:
@@ -456,16 +456,15 @@ func (r *Router) serveStream(w http.ResponseWriter, req *http.Request, rd poolRe
 }
 
 // following returns the pool a reader of the stream reads, rd, as the pools
-// stand now, once they've changed, reporting whether it reads it still: a
-// reader that named its pool always does; one that named none does while
-// the pool the verbs act on is the one it was answered for, which a config
-// that comes to have pools, or another unfenced pool, changes.
-func (r *Router) following(rd poolRead, named bool) (poolRead, bool) {
+// stand now, once they've changed, reporting whether it reads it still: while
+// the pool named, "" for none, is the one it was answered for, as the pools
+// now answer for it. A config that comes to have pools changes that for
+// every reader; another unfenced pool, for one that named none; and its
+// pool's removal, for one that named it.
+func (r *Router) following(rd poolRead, named string) (poolRead, bool) {
 	t := r.state.pools.current()
-	if !named {
-		if pool, err := t.asked(""); err != nil || pool != rd.pool {
-			return poolRead{}, false
-		}
+	if pool, err := t.asked(named); err != nil || pool != rd.pool {
+		return poolRead{}, false
 	}
 	return r.state.poolReadOf(t, rd.pool), true
 }
