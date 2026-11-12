@@ -38,6 +38,16 @@ type usageSource struct {
 	patience launch.Patience
 }
 
+// inPool returns the source reading the router's document, sessions,
+// windows' history and request stream of the pool with the given id, as the
+// router's client's InPool asks: "" for the one the verbs act on.
+func (s usageSource) inPool(pool string) usageSource {
+	if s.router != nil {
+		s.router = s.router.InPool(pool)
+	}
+	return s
+}
+
 // Read reads the router's document, having the router refresh first when r
 // asks, when the router answers its health check, as patiently as run asks
 // it, healthy or not, and says which router it was, as its health check
