@@ -3,7 +3,7 @@ package status
 import "slices"
 
 // AllNow is every account at a moment, taken together, as all accounts has
-// them: whatever the global pin names, and whatever holds any of them back.
+// them: whatever the pool's pin names, and whatever holds any of them back.
 type AllNow struct {
 	// Windows are a window each that the use of is known on any account, in
 	// the order the owner reads windows listed, as CompareWindows has it.

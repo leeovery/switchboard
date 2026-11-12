@@ -124,9 +124,9 @@ type Document struct {
 	Primary string `json:"primary,omitempty"`
 	// Prime is the priming schedule: zero when priming is off.
 	Prime Prime `json:"prime,omitzero"`
-	// Pin is the router's global pin as it holds in the pool, naming the
-	// pool's accounts alone: zero when it names none of them, and in a
-	// document that isn't the router's.
+	// Pin is the pool's pin, as the router holds it, naming the pool's
+	// accounts alone: zero when it names none of them, and in a document
+	// that isn't the router's.
 	Pin Pin `json:"pin,omitzero"`
 	// Router is the router's health: zero in a document that isn't the
 	// router's.
@@ -211,9 +211,9 @@ const (
 	// EventRoom is an account that could take no request, at its limit or its
 	// cap, having room again.
 	EventRoom = "room"
-	// EventPin is routing set by hand: the global pin, or a session's own.
+	// EventPin is routing set by hand: the pool's pin, or a session's own.
 	EventPin = "pin"
-	// EventAuto is routing given back to the router: the global pin cleared,
+	// EventAuto is routing given back to the router: the pool's pin cleared,
 	// or a session's own.
 	EventAuto = "auto"
 	// EventRestart is a restart falling due, or held, as the router's binary
@@ -235,10 +235,10 @@ type Event struct {
 	// Account is the account it befell: the one a session started on, or that
 	// came under pressure, reached its cap or its limit, was refused, had its
 	// token found another subscription's, was primed or has room again. Of a
-	// pin, the first of the global pin's Accounts, or the one a session's own
+	// pin, the first of the pool's pin's Accounts, or the one a session's own
 	// pin names; of an auto, the one a session's own named.
 	Account string `json:"account,omitempty"`
-	// Accounts are the accounts the global pin names, in the order
+	// Accounts are the accounts the pool's pin names, in the order
 	// configured, as it's set or cleared.
 	Accounts []string `json:"accounts,omitempty"`
 	// Pool is the id of the pool whose pin it is, of a pin's or an auto's
@@ -298,9 +298,9 @@ type Event struct {
 	// request refused alone, the model family the refusal holds back.
 	Status int    `json:"status,omitzero"`
 	Family string `json:"family,omitempty"`
-	// Move and Force are, of a global pin set, that it moves the running
-	// sessions too, and that it cleared every session's own pin; Force is the
-	// latter of a global pin cleared, too.
+	// Move and Force are, of a pool's pin set, that it moves the pool's
+	// running sessions too, and that it cleared the own pin of every session
+	// in the pool; Force is the latter of a pool's pin cleared, too.
 	Move  bool `json:"move,omitzero"`
 	Force bool `json:"force,omitzero"`
 	// By says who set or cleared a pin, such as "cli": "" where what did
@@ -590,7 +590,7 @@ type Pressure struct {
 	Since  time.Time `json:"since,omitzero"`
 	// RunsOut is when, at Rate, the window reaches where the account's room
 	// ends: where its reserve starts, or its limit, without one or where the
-	// global pin spends it. Zero when it never does, at no rate, and when it
+	// pool's pin spends it. Zero when it never does, at no rate, and when it
 	// has already.
 	RunsOut time.Time `json:"runs_out,omitzero"`
 	// Under is set when RunsOut comes before the window resets.
@@ -787,7 +787,7 @@ func (d Document) runOutOf(a Account, w quota.Window, now time.Time, policy scor
 }
 
 // reserveHolds reports whether the account's reserve holds it back once its
-// use reaches it: it has one, and the global pin doesn't name it, as a pin
+// use reaches it: it has one, and the pool's pin doesn't name it, as a pin
 // spends it.
 func (d Document) reserveHolds(a Account) bool {
 	return a.Reserve > 0 && !d.Pin.Has(a.ID)

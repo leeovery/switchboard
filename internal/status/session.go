@@ -197,7 +197,7 @@ type Assignment struct {
 	Account string `json:"account"`
 	// Auto is the account the session's next request of the model would go
 	// to were the session to have no pin of its own, as the router's own
-	// rule chooses it, the global pin counting: "" where the router can't
+	// rule chooses it, the pool's pin counting: "" where the router can't
 	// say, as where no account has room for the request, and from a router
 	// from before it said.
 	Auto string `json:"auto,omitempty"`

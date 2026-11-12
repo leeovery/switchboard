@@ -78,7 +78,7 @@ func (s AccountState) Glyph() string {
 // State is the state in a word of an account that stands as k with the
 // router: held back from some models' requests alone, by a limit, a refusal
 // or its cap in a model's own window, it's open, as it is to the rest, and
-// idle, open; its cap, the global pin spending it or not, at cap; and
+// idle, open; its cap, the pool's pin spending it or not, at cap; and
 // without a usable token, or nothing read of it, not read.
 func (k RoutingKind) State() AccountState {
 	switch k {

@@ -69,7 +69,7 @@ type Facts struct {
 	// as the ledger's line says.
 	From string
 	// To is the account the session went to, or is on: the pin's, for a move
-	// by pin or a global pin, and the one the choice found had the most room,
+	// by pin or a pool's pin, and the one the choice found had the most room,
 	// for a session rescored.
 	To string
 	// Until is when the account a choice passed over under pressure runs out
