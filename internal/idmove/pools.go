@@ -398,15 +398,19 @@ func (m *PoolMover) takeUp() error {
 
 // FirstPool is the ledger's option that has it know the first pool, as
 // ledger.FirstPool says, as the accounts record in the state directory given
-// notes it as the ledger asks: none where the record can't be read, which is
-// logged once, or notes none.
+// notes it as the ledger asks, once the move to pools is done there: none
+// before, where the record can't be read, which is logged once, or where it
+// notes none.
 func FirstPool(stateDir string) ledger.Option {
 	var warned atomic.Bool
 	return ledger.FirstPool(func() string {
+		if !PoolsMoved(stateDir) {
+			return ""
+		}
 		record, err := identity.NewFile(stateDir).Read()
 		if err != nil {
 			if !warned.Swap(true) {
-				logger.Warn("can't read the accounts record, so a day's summary whose work in no pool its lines moved to the first pool can't tell it", "error", err)
+				logger.Warn("can't read the accounts record, so a day's work in no pool can't be given the first pool's", "error", err)
 			}
 			return ""
 		}

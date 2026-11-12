@@ -291,7 +291,7 @@ func TestEveryDaysTotalsByAccountAreTheSameMovedToPools(t *testing.T) {
 		t.Errorf("yesterday's summary is of version %d, want it summarised again from its lines, as version 7", s.Version)
 	}
 	for _, a := range s.Accounts {
-		if in := a.InPool(first); !slicesOfModelsEqual(in.Models, a.Models) || a.Pools != nil {
+		if in := a.InPool(first, ""); !slicesOfModelsEqual(in.Models, a.Models) || a.Pools != nil {
 			t.Errorf("yesterday's day of %q is %+v, want its whole work in the first pool alone", a.Account, a)
 		}
 	}
@@ -366,7 +366,7 @@ func TestFirstPoolGivesADaySummarisedBeforePoolsSinceTheMoveTheRecordsFirstPool(
 		t.Fatal(err)
 	}
 	for _, a := range s.Accounts {
-		if in := a.InPool(first); len(a.Models) > 0 && (!slicesOfModelsEqual(in.Models, a.Models) || a.Pools != nil) {
+		if in := a.InPool(first, ""); len(a.Models) > 0 && (!slicesOfModelsEqual(in.Models, a.Models) || a.Pools != nil) {
 			t.Errorf("summarised again, yesterday's day of %q is %+v, want its whole work in the first pool alone", a.Account, a)
 		}
 	}

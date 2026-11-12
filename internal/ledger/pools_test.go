@@ -206,7 +206,7 @@ func TestEachPoolsWorkIsThatOfTheLinesThatNamedItAloneAndItsWindowsItsAccounts(t
 			got := summarised(t, history, routed...)
 			for _, pool := range poolsOf(routed) {
 				alone := summarised(t, history, slices.DeleteFunc(slices.Clone(routed), func(l ledger.Line) bool { return l.Pool != pool })...)
-				for _, a := range got.InPool(pool).Accounts {
+				for _, a := range got.InPool(pool, "").Accounts {
 					if want := workOf(alone, whole, a.Account); !reflect.DeepEqual(a.Work, want) {
 						t.Errorf("%q's work in pool %q is\n%+v\nwant that of the pool's lines alone\n%+v", a.Account, pool, a.Work, want)
 					}
@@ -283,15 +283,15 @@ func TestTheDayOfTheRequestsNoAccountAnsweredSplitsByPoolToo(t *testing.T) {
 		t.Fatalf("the day of no account is %+v, want it split between no pool and %q", none, acme)
 	}
 	for pool, want := range map[string][]string{"": {"one"}, acme: {"three", "two"}} {
-		a, ok := find(got.InPool(pool), "")
+		a, ok := find(got.InPool(pool, ""), "")
 		if !ok || !slices.Equal(a.SessionIDs, want) || len(a.Models) != 1 || a.Models[0].Unsent != len(want) {
 			t.Errorf("the day of no account in pool %q is %+v, want the %d requests of %q the router answered itself there", pool, a, len(want), want)
 		}
 	}
-	if a, ok := find(got.InPool(first), ""); ok {
+	if a, ok := find(got.InPool(first, ""), ""); ok {
 		t.Errorf("the day in a pool the router answered nothing itself in holds a day of no account, %+v; want none", a)
 	}
-	if a, _ := find(got.InPool(""), "work"); !reflect.DeepEqual(a.Work, noWork) {
+	if a, _ := find(got.InPool("", ""), "work"); !reflect.DeepEqual(a.Work, noWork) {
 		t.Errorf("work's day in no pool is %+v, want no work, as it served none outside %q", a, acme)
 	}
 }
@@ -306,11 +306,28 @@ func TestASummaryBeforePoolsReadsAsItDidAndAsOneOfNoPool(t *testing.T) {
 		t.Fatalf("the day's summary, its lines gone, reads as\n%s\nwant it as it's written\n%s", got, held)
 	}
 	day := days[0]
-	if got := day.InPool(""); !reflect.DeepEqual(got, day) {
+	if got := day.InPool("", ""); !reflect.DeepEqual(got, day) {
 		t.Errorf("the day in no pool is\n%+v\nwant the whole of it\n%+v", got, day)
 	}
-	if a, ok := find(day.InPool(acme), "work"); !ok || !reflect.DeepEqual(a.Work, noWork) || !sameWindows(a, accountOf(day, "work")) {
+	if a, ok := find(day.InPool(acme, ""), "work"); !ok || !reflect.DeepEqual(a.Work, noWork) || !sameWindows(a, accountOf(day, "work")) {
 		t.Errorf("work's day in pool %q is %+v, want no work, and its windows as they are", acme, a)
+	}
+}
+
+// Once the move to pools is done, work in no pool left in a summary, as one
+// of a day whose lines are gone, is the first pool's: counted in it,
+// alongside the first's own, and in no pool of its own.
+func TestASummarysWorkInNoPoolIsTheFirstPoolsOnceTheMoveIsDone(t *testing.T) {
+	day := summarised(t, noReadings, asked("1", on(0, 9, 0)), inPool(asked("2", on(0, 10, 0)), first), inPool(asked("3", on(0, 11, 0)), acme))
+
+	if a, _ := find(day.InPool(first, first), "work"); len(a.Models) != 1 || a.Models[0].Upstream != 2 {
+		t.Errorf("work's day in the first pool is %+v, want its request in no pool counted with the first's own, two", a)
+	}
+	if a, _ := find(day.InPool("", first), "work"); len(a.Models) != 0 {
+		t.Errorf("work's day in no pool is %+v, want none, its work there the first pool's", a)
+	}
+	if a, _ := find(day.InPool(acme, first), "work"); len(a.Models) != 1 || a.Models[0].Upstream != 1 {
+		t.Errorf("work's day in %q is %+v, want its one request there alone", acme, a)
 	}
 }
 
@@ -319,6 +336,11 @@ func TestAPoolsWorkKnowsNoLessWhenItsDayIsSummarisedAgain(t *testing.T) {
 	held := `{"version":7,"day":"2026-10-05","lines":3,"accounts":[{"account":"work","pool":"` + acme + `",` +
 		workJSON(on(0, 9, 0), on(0, 10, 0), on(0, 11, 0)) + `}]}`
 	inFirst := func(request string, minute int) ledger.Line { return inPool(asked(request, on(0, 14, minute)), first) }
+	checkInFirst := func(request string, minute int) ledger.Line {
+		l := inFirst(request, minute)
+		l.Kind = ledger.KindCheck
+		return l
+	}
 	tests := []struct {
 		name  string
 		lines []ledger.Line
@@ -328,14 +350,21 @@ func TestAPoolsWorkKnowsNoLessWhenItsDayIsSummarisedAgain(t *testing.T) {
 		pools map[string]int
 	}{
 		{
-			name:  "two of the pool's requests lost since, and three in another filed since: each pool's the more of the two",
+			name:  "two of the pool's requests lost since, and three in another filed since: the lines counting no less, their split stands",
 			lines: []ledger.Line{inPool(asked("1", on(0, 9, 0)), acme), inFirst("4", 0), inFirst("5", 1), inFirst("6", 2)},
-			want:  4, pools: map[string]int{acme: 3, first: 3},
+			want:  4, pools: map[string]int{acme: 1, first: 3},
 		},
 		{
-			name:  "every one of the pool's requests lost since, and four in another filed since: the pool kept as it was",
+			name:  "every one of the pool's requests lost since, and four in another filed since: the lines counting no less, their split stands",
 			lines: []ledger.Line{inFirst("4", 0), inFirst("5", 1), inFirst("6", 2), inFirst("7", 3)},
-			want:  4, pools: map[string]int{acme: 3, first: 4},
+			want:  4, pools: map[string]int{first: 4},
+		},
+		{
+			// The checks have its lines number more than held's: fewer, the
+			// summary stands, as to a damaged file.
+			name:  "two of the pool's requests lost since, and one in another filed since, with two checks: each pool's the more of the two, the whole their sum",
+			lines: []ledger.Line{inPool(asked("1", on(0, 9, 0)), acme), inFirst("4", 0), checkInFirst("5", 1), checkInFirst("6", 2)},
+			want:  4, pools: map[string]int{acme: 3, first: 1},
 		},
 	}
 	for _, tt := range tests {
@@ -350,10 +379,7 @@ func TestAPoolsWorkKnowsNoLessWhenItsDayIsSummarisedAgain(t *testing.T) {
 					t.Fatal(err)
 				}
 				work := accountOf(got, "work")
-				pools := make(map[string]int)
-				for _, p := range work.Pools {
-					pools[p.Pool] = p.Models[0].Upstream
-				}
+				pools := upstreamByPool(work)
 				if len(work.Models) != 1 || work.Models[0].Upstream != tt.want || !reflect.DeepEqual(pools, tt.pools) {
 					t.Fatalf("work's day is %+v, its requests upstream by pool %v; want %d in all, %v", work, pools, tt.want, tt.pools)
 				}

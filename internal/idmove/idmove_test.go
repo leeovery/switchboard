@@ -557,7 +557,7 @@ func (f fixture) tallies(t *testing.T) map[string]int {
 				counts["summary.rise."+window+"|"+date+"|"+a.Account] += int(math.Round(rise * 1000))
 			}
 			for _, pool := range poolsOf(a) {
-				for _, m := range a.InPool(pool).Models {
+				for _, m := range a.InPool(pool, "").Models {
 					counts["summary.pools|"+date+"|"+a.Account] += m.Upstream + m.Unsent
 				}
 			}
