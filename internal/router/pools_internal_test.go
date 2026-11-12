@@ -1410,3 +1410,41 @@ func TestAConfigThatLosesItsPoolsKnowsItsAccountsByTheirIDsNow(t *testing.T) {
 		})
 	}
 }
+
+func TestAConfigPutBackWithAnAccountTheRouterLacksWakesNoReaderAndChangesSafely(t *testing.T) {
+	m := newMembership(noFirst, sameID)
+	m.follow(pooledAccounts(), testPools)
+	pooled := m.current()
+
+	// The config is put back from before pools, still listing an account
+	// removed since, so what it makes of the accounts can't be told.
+	putBack := config.Accounts{{ID: "work", Label: "Work"}, {ID: "personal", Label: "Personal"}, {ID: "lapsed", Label: "Lapsed"}}
+	m.follow(putBack, nil)
+	relabelled := slices.Clone(putBack)
+	relabelled[0].Label = "Work Corp"
+	m.follow(relabelled, nil)
+
+	if isClosed(pooled.replaced) || m.current() != pooled {
+		t.Fatal("the pools were replaced where nothing in them changed, waking their readers")
+	}
+
+	m.follow(relabelled[:2], nil)
+	m.follow(relabelled[:1], nil)
+	m.follow(putBack[:1], nil)
+	if !isClosed(pooled.replaced) {
+		t.Fatal("the pools weren't replaced once accounts had left them")
+	}
+	if m.current().serves(acmePool, "personal") || !m.current().serves(defaultPool, "work") {
+		t.Error("the pools don't stand as the config leaves them: work alone, in Default")
+	}
+}
+
+// isClosed reports whether ch is closed.
+func isClosed(ch chan struct{}) bool {
+	select {
+	case <-ch:
+		return true
+	default:
+		return false
+	}
+}

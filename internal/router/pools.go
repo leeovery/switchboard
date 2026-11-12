@@ -2,6 +2,7 @@ package router
 
 import (
 	"cmp"
+	"maps"
 	"slices"
 	"sync"
 	"sync/atomic"
@@ -114,8 +115,8 @@ func (t *poolTable) serves(named, id string) bool {
 // primaries and the first stand. Each is known by the id it has now, as
 // idNow gives it, as a config put back from before switchboard made ids
 // names it by the one it had. Where one given is an account the table
-// doesn't have, it's the table whole: what the config makes of the accounts
-// can't be told.
+// doesn't have, it's the table whole, a copy of it: what the config makes of
+// the accounts can't be told.
 func (t *poolTable) keeping(accounts config.Accounts, idNow func(id string) string) *poolTable {
 	kept := &poolTable{
 		pools: t.pools, first: t.first, primary: t.primary, poolOf: make(map[string]string, len(accounts)),
@@ -125,7 +126,9 @@ func (t *poolTable) keeping(accounts config.Accounts, idNow func(id string) stri
 		id := idNow(a.ID)
 		pool, ok := t.poolOf[id]
 		if !ok {
-			return t
+			whole := *t
+			whole.replaced = make(chan struct{})
+			return &whole
 		}
 		kept.poolOf[id] = pool
 	}
@@ -221,9 +224,19 @@ func (m *membership) follow(accounts config.Accounts, pools config.Pools) {
 	if m.followed && slices.Equal(accounts, m.accounts) && identicalPools(pools, m.pools) {
 		return
 	}
-	was := m.table.Swap(m.made(accounts, pools))
-	close(was.replaced)
+	// A table that changes nothing leaves the current one standing, so its
+	// readers aren't woken, nor its replaced closed twice where what made the
+	// table gave the current one back.
+	if made := m.made(accounts, pools); !made.sameAs(m.table.Load()) {
+		close(m.table.Swap(made).replaced)
+	}
 	m.accounts, m.pools, m.followed = slices.Clone(accounts), slices.Clone(pools), true
+}
+
+// sameAs reports whether t makes the same pools as u: the same pools, each
+// account in the same one, the same primaries and the same first.
+func (t *poolTable) sameAs(u *poolTable) bool {
+	return identicalPools(t.pools, u.pools) && maps.Equal(t.poolOf, u.poolOf) && t.first == u.first && maps.Equal(t.primary, u.primary)
 }
 
 // made returns the pools a config makes of the accounts and pools it
