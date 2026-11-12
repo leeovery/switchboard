@@ -76,7 +76,7 @@ func (p Printout) Draw(m status.Moment) []string {
 
 // tokens draws from row y a line for each of m's accounts whose token's year
 // is up within status.TokenWarning days, or is up, in the document's order:
-// its name, as block's row says it, at its row's column, as nameAt has it,
+// its name, as block's row has it standalone, at its row's column, as nameAt has it,
 // then nameGap cells on, what Detail tells of its token's year, as
 // views.TokenNoteOf has it, wrapped to the edge as Detail wraps it, each
 // line after the first under the first's start.
@@ -86,7 +86,7 @@ func (p Printout) tokens(c *canvas, m status.Moment, block usageBlock, y int) {
 		if !noted {
 			continue
 		}
-		at := c.line(block.nameAt(), y, block.rows[i].said) + nameGap
+		at := c.line(block.nameAt(), y, block.rows[i].standalone) + nameGap
 		for _, l := range tokenNoteLines(note, noted, p.Width-at) {
 			c.line(at, y, l)
 			y++

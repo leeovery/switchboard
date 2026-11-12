@@ -168,10 +168,10 @@ type section struct {
 	// heading has no room for them all.
 	keyed bool
 	draw  func(c *canvas, body bounds)
-	// namesAt is the column its names start at, its body drawn in the
-	// bounds given, where they stand in the name column the Overview's
-	// sections share: nil where they stand in none.
-	namesAt func(body bounds) int
+	// ownNameStart is the column its own form starts its names at, its body
+	// drawn in the bounds given, where they stand in the name column the
+	// Overview's sections share: nil where they stand in none.
+	ownNameStart func(body bounds) int
 	// drawNamed draws its body as draw does, but its names from the column
 	// given, the page's, as pageNamesAt has it: nil where its names follow
 	// no other section's.
@@ -923,15 +923,17 @@ func (f Frame) drawSections(c *canvas, laid []planned) {
 }
 
 // pageNamesAt is the column the names of the sections laid out start at,
-// of those sharing the Overview's name column, so their labels and marks
-// stand in one column: a cell in where any shown starts its own a cell in,
-// as USAGE's windows stacked under their headings or a section's two rows
-// an account; else column 0.
+// every one sharing the Overview's name column, USAGE, ROUTING and
+// SESSIONS, so their labels and marks stand in one column: a cell in where
+// any shown starts its own a cell in, as USAGE's windows stacked under their
+// headings or two rows an account; else column 0. A section folded counts
+// as it would draw, so the names hold still as the frame's height folds and
+// unfolds it.
 func pageNamesAt(laid []planned) int {
 	at := 0
 	for _, p := range laid {
-		if !p.fold && p.namesAt != nil {
-			at = max(at, p.namesAt(p.body))
+		if p.ownNameStart != nil {
+			at = max(at, p.ownNameStart(p.body))
 		}
 	}
 	return at
@@ -941,7 +943,7 @@ func pageNamesAt(laid []planned) int {
 // column own gives in the body drawn, as its own form has them, or from the
 // page's, as drawSections gives it.
 func (s section) namedFrom(own func(body bounds) int, draw func(c *canvas, body bounds, at int)) section {
-	s.namesAt, s.drawNamed = own, draw
+	s.ownNameStart, s.drawNamed = own, draw
 	s.draw = func(c *canvas, body bounds) { draw(c, body, own(body)) }
 	return s
 }

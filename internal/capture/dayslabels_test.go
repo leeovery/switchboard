@@ -47,13 +47,16 @@ func TestDaysLabelsReadWholeAtTheOwnersSizes(t *testing.T) {
 }
 
 // cutHead is the row after the head given: its label, then its ◆, where it
-// has one, after as many spaces as the column puts before it; reporting
-// false where the row doesn't start so.
+// has one, after a space at least, as many as the column puts before it;
+// reporting false where the row doesn't start so.
 func cutHead(row, head string) (string, bool) {
 	label, marked := strings.CutSuffix(head, " ◆")
 	rest, whole := strings.CutPrefix(row, label)
 	if !whole || !marked {
 		return rest, whole
+	}
+	if !strings.HasPrefix(rest, " ") {
+		return rest, false
 	}
 	return strings.CutPrefix(strings.TrimLeft(rest, " "), "◆")
 }

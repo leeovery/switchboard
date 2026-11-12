@@ -529,9 +529,10 @@ func TestAColumnsMarksStandRightAlignedAtItsEnd(t *testing.T) {
 	}
 }
 
-// Detail's list, History's rows and a session's stays draw their names as
-// a column of names does, their marks right-aligned at its end; the
-// session's stays cutting a label to keep its own marks alone, as before.
+// The helpers Detail's list, History's rows and a session's stays draw their
+// names with lay them out as a column of names does, their marks
+// right-aligned at its end; the stays' cutting a label to keep its own marks
+// alone, as before. The frames hold the views themselves to it.
 func TestEveryColumnOfNamesRightAlignsItsMarks(t *testing.T) {
 	n := accountName{label: "personal", primary: true}
 	tests := []struct {
@@ -580,8 +581,9 @@ func TestANameSaidAloneKeepsItsMarksBesideItsLabel(t *testing.T) {
 // starts its own a cell in, as USAGE's windows stacked under their headings
 // or two rows an account; else column 0. As the frames show it, the phone's
 // included; with the week alone, as an Ultra plan has it, its USAGE stacked
-// beside a ROUTING a row an account; and on a tall frame, its big bars
-// stacked so.
+// beside a ROUTING a row an account; on a tall frame, its big bars stacked
+// so; and by account on a phone, USAGE following ROUTING's two rows a cell
+// in, its names over their windows keeping their marks beside them.
 func TestTheOverviewsNamesStandInOneColumn(t *testing.T) {
 	doc, sessions, stream := overviewWorld()
 	weekAlone := doc
@@ -595,8 +597,12 @@ func TestTheOverviewsNamesStandInOneColumn(t *testing.T) {
 		name          string
 		doc           status.Document
 		width, height int
+		by            By
 		sections      []string
 		at, named     int
+		// apart says USAGE says its names on rows of their own, its marks
+		// beside its labels, so only the labels share a column.
+		apart bool
 	}{
 		{name: "a phone", doc: doc, width: 52, height: 61, at: 1, named: 6},
 		{name: "a phone, wider", doc: doc, width: 73, height: 61, at: 1, named: 6},
@@ -605,10 +611,14 @@ func TestTheOverviewsNamesStandInOneColumn(t *testing.T) {
 		{name: "the week alone, stacked beside ROUTING a row an account", doc: weekAlone, width: 108, height: 44, at: 1, named: 4},
 		{name: "big bars on a tall tablet", doc: doc, width: 108, height: 80, sections: everyNamed, at: 1, named: 6},
 		{name: "big bars on a tall desktop", doc: doc, width: 160, height: 80, sections: everyNamed, at: 1, named: 6},
+		{name: "by account on a phone, the names over their windows", doc: doc, width: 52, height: 61, by: ByAccount, at: 1, named: 4, apart: true},
+		{name: "by account on a phone, the names beside their windows", doc: doc, width: 58, height: 61, by: ByAccount, at: 1, named: 4},
+		{name: "by account on the owner's phone", doc: doc, width: 73, height: 61, by: ByAccount, at: 1, named: 4},
+		{name: "by account, two rows an account at their widest", doc: doc, width: 80, height: 61, by: ByAccount, at: 1, named: 4},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			f := Frame{Width: tt.width, Height: tt.height, View: Overview, Policy: claudeLike, Sessions: sessions, Stream: stream}
+			f := Frame{Width: tt.width, Height: tt.height, View: Overview, Policy: claudeLike, By: tt.by, Sessions: sessions, Stream: stream}
 			if tt.sections != nil {
 				f.Sections = SectionsNamed(tt.sections)
 			}
@@ -625,7 +635,7 @@ func TestTheOverviewsNamesStandInOneColumn(t *testing.T) {
 			if len(labels) != 1 || labels[tt.at] == 0 {
 				t.Errorf("the labels start at columns %v, want column %d alone", labels, tt.at)
 			}
-			if len(marks) != 1 {
+			if !tt.apart && len(marks) != 1 {
 				t.Errorf("the marks stand at columns %v, want one column", marks)
 			}
 			if named < tt.named {
@@ -1382,10 +1392,13 @@ func TestEveryAccountKeepsItsRowsBeforeAnyWindowIsRead(t *testing.T) {
 		for _, width := range []int{160, 80} {
 			t.Run(fmt.Sprintf("by %d at %d columns", by, width), func(t *testing.T) {
 				text := strings.Join(printed(doc, width, by), "\n")
-				for _, want := range append([]string{"work", "personal", "◆"}, names[by]...) {
+				for _, want := range append([]string{"work"}, names[by]...) {
 					if !strings.Contains(text, want) {
 						t.Errorf("the printout has no %q:\n%s", want, text)
 					}
+				}
+				if !regexp.MustCompile(`personal +◆`).MatchString(text) {
+					t.Errorf("the printout names personal without its ◆:\n%s", text)
 				}
 				if got := strings.Count(text, "not read yet"); got != 4 {
 					t.Errorf("the printout reads \"not read yet\" %d times, want 4, each account's 5-hour window and week:\n%s", got, text)

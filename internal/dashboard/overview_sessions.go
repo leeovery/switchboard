@@ -82,7 +82,7 @@ func (f Frame) sessionsSection(doc status.Document, now time.Time) section {
 	}
 	base.least, base.most, base.between = sessionsRows(len(running), form.rows)
 	listing := func(listed []views.Running) section {
-		s := base.namedFrom(func(bounds) int { return form.columns.namesAt() }, func(c *canvas, body bounds, at int) {
+		s := base.namedFrom(func(bounds) int { return form.columns.nameStart() }, func(c *canvas, body bounds, at int) {
 			f.drawRunning(c, m, form, listed, body, at)
 		})
 		s.targets = func(body bounds) []Target { return form.targets(listed, body) }
@@ -146,7 +146,7 @@ func (f Frame) holdRunning(doc status.Document, now time.Time) Frame {
 
 // runningForm is how SESSIONS draws a session running: the rows it takes;
 // where its row lies across the frame, as ROUTING's does, its account's
-// name starting where the columns' namesAt has it in its own form; and on
+// name starting where the columns' nameStart has it in its own form; and on
 // two rows, the cells its id and directory take.
 type runningForm struct {
 	rows       int
@@ -267,10 +267,10 @@ func familiesCells() int {
 
 // drawRunning draws the sessions listed, of the moment m, in the form, in
 // the body's bounds: as many as fit, a blank row for each the list leaves
-// blank, each account's name from column namesAt on the first of its
+// blank, each account's name from column namesFrom on the first of its
 // sessions drawn, and the last row saying how many more run where they don't
 // all fit; or, with none running, a row saying so.
-func (f Frame) drawRunning(c *canvas, m status.Moment, form runningForm, listed []views.Running, body bounds, namesAt int) {
+func (f Frame) drawRunning(c *canvas, m status.Moment, form runningForm, listed []views.Running, body bounds, namesFrom int) {
 	if runningIn(listed) == 0 {
 		c.line(0, body.y, line{{noSessionsRunning, faintInk}})
 		return
@@ -284,7 +284,7 @@ func (f Frame) drawRunning(c *canvas, m status.Moment, form runningForm, listed 
 		}
 		y := body.y + i*form.rows
 		if r.Account != named {
-			c.line(namesAt, y, names[place(m, r.Account)-1].line(at.names))
+			c.line(namesFrom, y, names[place(m, r.Account)-1].line(at.names))
 			named = r.Account
 		}
 		f.drawSession(c, m, r, at, y)

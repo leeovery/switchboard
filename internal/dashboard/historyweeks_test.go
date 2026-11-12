@@ -771,7 +771,11 @@ func TestWeeksVerdictsReadWholeWhereAWeekCanGiveWay(t *testing.T) {
 					if w.columns {
 						said = w.accountAside(row)
 					}
-					plains := []string{w.named(row.Account)}
+					name := w.name(row).plain()
+					if !strings.HasPrefix(name, w.named(row.Account)) {
+						t.Errorf("shape %d at %d columns: %s is named %q in its column, want its label whole", shape, width, row.Account, name)
+					}
+					plains := []string{name}
 					for _, l := range said {
 						plains = append(plains, fitParts(math.MaxInt, l...).plain())
 					}
