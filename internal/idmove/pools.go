@@ -229,7 +229,7 @@ func (m *PoolMover) configure() (bool, error) {
 // as the config last wrote it, its id, label and directories; has each
 // account in the pool the record last had it in, as the config last had it,
 // known as recorded finds it; and marks each pool's primary as the config
-// last did. An account the
+// last did, as restorePrimaries says. An account the
 // record has in none of them goes to the unfenced pool written, never a
 // fenced one, as a client's is; where none is unfenced, the first pool is
 // written back to hold it, unfenced, labelled as the record last knew it,
@@ -294,11 +294,17 @@ func recorded(record identity.Record, id string) (identity.Entry, bool) {
 
 // restorePrimaries marks in draft, its pools written back, each pool's
 // primary as record has the config last mark it, the account it marked
-// where the config has that account in that pool still, and no other.
+// where the config has that account in that pool still, and no other. A
+// pool whose primary the record doesn't know, as one the move to pools
+// notes and the record hasn't been kept in step with since, keeps the marks
+// draft has.
 func restorePrimaries(draft *config.Draft, record identity.Record) error {
 	cfg := draft.Config()
 	for _, a := range cfg.Accounts {
 		p, _ := record.PoolByID(a.Pool)
+		if p.Written.Primary == "" {
+			continue
+		}
 		e, ok := recorded(record, a.ID)
 		marked := ok && strings.EqualFold(p.Written.Primary, e.ID)
 		var err error
