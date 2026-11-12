@@ -574,42 +574,64 @@ func TestANameSaidAloneKeepsItsMarksBesideItsLabel(t *testing.T) {
 	}
 }
 
-// USAGE's and ROUTING's marks stand in the one column, as the two share the
-// name column, at the frames' sizes, the phone's included: of the week and
-// the 5-hour alone, as the frames show them, so USAGE's names start where
-// ROUTING's do. Stacked USAGE starts its names a cell in, so where it stacks
-// beside a ROUTING a row an account, as a tall frame's big bars do, its
-// labels and marks stand a cell right of ROUTING's.
-func TestUSAGEAndROUTINGsMarksStandInOneColumn(t *testing.T) {
-	doc := trio(func(d *status.Document) {
-		for i := range d.Accounts {
-			d.Accounts[i].Windows = d.Accounts[i].Windows[:2]
-		}
-	})
-	for width, height := range map[int]int{52: 61, 73: 61, 108: 44, 160: 37} {
-		f := Frame{Width: width, Height: height, View: Overview, Policy: printPolicy}
-		at := map[int]int{}
-		for _, row := range textOf(f.overviewDrawn(doc, printNow).rows(Look{})) {
-			trimmed := strings.TrimLeft(row, " ")
-			if !strings.HasPrefix(trimmed, "personal ") && !strings.HasPrefix(trimmed, "side ") {
-				continue
+// The Overview's sections that share its name column, USAGE, ROUTING and
+// SESSIONS, start their names at the one column, so their labels stand in
+// one column and their marks in another: a cell in wherever any of them
+// starts its own a cell in, as USAGE's windows stacked under their headings
+// or two rows an account; else column 0. As the frames show it, the phone's
+// included; with the week alone, as an Ultra plan has it, its USAGE stacked
+// beside a ROUTING a row an account; and on a tall frame, its big bars
+// stacked so.
+func TestTheOverviewsNamesStandInOneColumn(t *testing.T) {
+	doc, sessions, stream := overviewWorld()
+	weekAlone := doc
+	weekAlone.Accounts = slices.Clone(doc.Accounts)
+	for i := range weekAlone.Accounts {
+		weekAlone.Accounts[i].Windows = weekAlone.Accounts[i].Windows[1:]
+	}
+	weekAlone = weekAlone.WorkedOut(claudeLike)
+	everyNamed := []string{"usage", "routing", "sessions"}
+	tests := []struct {
+		name          string
+		doc           status.Document
+		width, height int
+		sections      []string
+		at, named     int
+	}{
+		{name: "a phone", doc: doc, width: 52, height: 61, at: 1, named: 6},
+		{name: "a phone, wider", doc: doc, width: 73, height: 61, at: 1, named: 6},
+		{name: "a tablet", doc: doc, width: 108, height: 44, named: 4},
+		{name: "a desktop", doc: doc, width: 160, height: 37, named: 4},
+		{name: "the week alone, stacked beside ROUTING a row an account", doc: weekAlone, width: 108, height: 44, at: 1, named: 4},
+		{name: "big bars on a tall tablet", doc: doc, width: 108, height: 80, sections: everyNamed, at: 1, named: 6},
+		{name: "big bars on a tall desktop", doc: doc, width: 160, height: 80, sections: everyNamed, at: 1, named: 6},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := Frame{Width: tt.width, Height: tt.height, View: Overview, Policy: claudeLike, Sessions: sessions, Stream: stream}
+			if tt.sections != nil {
+				f.Sections = SectionsNamed(tt.sections)
 			}
-			cells := []rune(row)
-			for i, r := range cells {
-				if r == '◆' || r == '▲' {
-					at[i]++
-					break
+			labels, marks, named := map[int]int{}, map[int]int{}, 0
+			for _, row := range textOf(f.overviewDrawn(tt.doc, routedAt).rows(Look{})) {
+				label := len(row) - len(strings.TrimLeft(row, " "))
+				if !strings.HasPrefix(row[label:], "personal ") && !strings.HasPrefix(row[label:], "side ") {
+					continue
 				}
+				named++
+				labels[label]++
+				marks[slices.IndexFunc([]rune(row), func(r rune) bool { return r == '◆' || r == '▲' })]++
 			}
-		}
-		if len(at) != 1 {
-			t.Errorf("at %d columns the marks stand at columns %v, want one column", width, at)
-		}
-		for _, n := range at {
-			if n < 4 {
-				t.Errorf("at %d columns %d names carry a mark, want USAGE's two at least and ROUTING's two", width, n)
+			if len(labels) != 1 || labels[tt.at] == 0 {
+				t.Errorf("the labels start at columns %v, want column %d alone", labels, tt.at)
 			}
-		}
+			if len(marks) != 1 {
+				t.Errorf("the marks stand at columns %v, want one column", marks)
+			}
+			if named < tt.named {
+				t.Errorf("%d rows name personal or side, want %d at least: USAGE's and ROUTING's, and SESSIONS' where it shows", named, tt.named)
+			}
+		})
 	}
 }
 

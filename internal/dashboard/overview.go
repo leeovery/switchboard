@@ -166,10 +166,18 @@ type section struct {
 	// keyed reports whether its description is items blank spans apart, as
 	// a key's, which give way whole, as fitItems cuts them, where its
 	// heading has no room for them all.
-	keyed   bool
-	draw    func(c *canvas, body bounds)
-	folded  headingWords
-	targets func(body bounds) []Target
+	keyed bool
+	draw  func(c *canvas, body bounds)
+	// namesAt is the column its names start at, its body drawn in the
+	// bounds given, where they stand in the name column the Overview's
+	// sections share: nil where they stand in none.
+	namesAt func(body bounds) int
+	// drawNamed draws its body as draw does, but its names from the column
+	// given, the page's, as pageNamesAt has it: nil where its names follow
+	// no other section's.
+	drawNamed func(c *canvas, body bounds, at int)
+	folded    headingWords
+	targets   func(body bounds) []Target
 	// scrolling is how far the body scrolls in rows rows, scrolled offset
 	// down, a row at a time, as USAGE's does where its accounts are many:
 	// Most, the furthest, and Page, how many show at once from the offset.
@@ -901,12 +909,41 @@ func (f Frame) overviewDrawn(doc status.Document, now time.Time) *canvas {
 // drawSections draws the sections as they're laid out: each its heading, and
 // under one that doesn't fold, its body, within its body's bounds.
 func (f Frame) drawSections(c *canvas, laid []planned) {
+	at := pageNamesAt(laid)
 	for _, p := range laid {
 		f.sectionHeading(c, p)
-		if !p.fold {
+		switch {
+		case p.fold:
+		case p.drawNamed != nil:
+			p.drawNamed(c.within(p.body), p.body, at)
+		default:
 			p.draw(c.within(p.body), p.body)
 		}
 	}
+}
+
+// pageNamesAt is the column the names of the sections laid out start at,
+// of those sharing the Overview's name column, so their labels and marks
+// stand in one column: a cell in where any shown starts its own a cell in,
+// as USAGE's windows stacked under their headings or a section's two rows
+// an account; else column 0.
+func pageNamesAt(laid []planned) int {
+	at := 0
+	for _, p := range laid {
+		if !p.fold && p.namesAt != nil {
+			at = max(at, p.namesAt(p.body))
+		}
+	}
+	return at
+}
+
+// namedFrom is s drawing its body as draw does, its names starting at the
+// column own gives in the body drawn, as its own form has them, or from the
+// page's, as drawSections gives it.
+func (s section) namedFrom(own func(body bounds) int, draw func(c *canvas, body bounds, at int)) section {
+	s.namesAt, s.drawNamed = own, draw
+	s.draw = func(c *canvas, body bounds) { draw(c, body, own(body)) }
+	return s
 }
 
 // leastRule is the fewest cells of rule a section's heading keeps between

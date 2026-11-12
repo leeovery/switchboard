@@ -2308,10 +2308,14 @@ order the view's section gives.
   list whatever the labels' lengths, as `personal   ◆` over `side       ▲`. The column is no wider
   for it, and a label cut short keeps its marks there. The Overview's USAGE and ROUTING, Detail's
   list, History's Weeks and Days, Sessions' Switchboard, a session's stays, Runway's label column
-  and Graphs' GLANCE draw their names so (`accountName`'s `line`). A name said alone, in a heading,
-  a sentence or on a line of its own, as a card's head, Compare's columns, Detail's heading, a
-  session's header, `usage --by account`'s name above its windows and its token lines, keeps its
-  marks right after its label: there's no column to align to.
+  and Graphs' GLANCE draw their names so (`accountName`'s `line`). On the Overview, USAGE,
+  ROUTING and SESSIONS, which share the name column, start their names at one column, so labels
+  and marks line up across them: a cell in wherever any of them shown starts its own a cell in,
+  as USAGE's windows stacked under their headings or two rows an account, else column 0
+  (`pageNamesAt`). A name said alone, in a heading, a sentence or on a line of its own, as a
+  card's head, Compare's columns, Detail's heading, a session's header, `usage --by account`'s
+  name above its windows and its token lines, keeps its marks right after its label: there's no
+  column to align to.
 - **A figure has a stated bound and is never cut:** it's given its bound's cells, and past the
   bound it says so, as `999+` and `$9999.99+`.
 - **A live view's form never hangs on its data.** Its naturals come from what's configured, the
