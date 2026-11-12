@@ -150,10 +150,11 @@ func (s usageSource) everyPool(ctx context.Context) ([]status.Document, error) {
 	if s.router == nil {
 		return nil, errRouterDown
 	}
-	if _, fallback, ok := s.answers(ctx); !ok {
+	health, fallback, ok := s.answers(ctx)
+	if !ok {
 		return nil, fmt.Errorf("the router doesn't answer: %s", fallback.Router)
 	}
-	return s.router.StatusInEveryPool(ctx)
+	return s.router.StatusInEveryPool(ctx, health)
 }
 
 // History asks the router for every account's use of the window with the

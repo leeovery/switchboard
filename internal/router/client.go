@@ -163,7 +163,11 @@ func (c *Client) Moving(ctx context.Context) (status.Moving, error) {
 // Sessions asks of each: those of the one pool there is, where it reports
 // none, as a router from before pools.
 func (c *Client) SessionsInEveryPool(ctx context.Context) ([]status.Session, error) {
-	listed, err := inEveryPool(ctx, c, (*Client).Sessions)
+	h, err := c.Health(ctx)
+	if err != nil {
+		return nil, err
+	}
+	listed, err := inEveryPool(ctx, c, h, (*Client).Sessions)
 	if err != nil {
 		return nil, err
 	}
@@ -173,20 +177,16 @@ func (c *Client) SessionsInEveryPool(ctx context.Context) ([]status.Session, err
 }
 
 // StatusInEveryPool asks for the status document of every pool the router's
-// health answer reports, in their order, as Status asks for each: the one
+// health answer h reports, in their order, as Status asks for each: the one
 // there is, where it reports none, as a router from before pools.
-func (c *Client) StatusInEveryPool(ctx context.Context) ([]status.Document, error) {
-	return inEveryPool(ctx, c, (*Client).Status)
+func (c *Client) StatusInEveryPool(ctx context.Context, h Health) ([]status.Document, error) {
+	return inEveryPool(ctx, c, h, (*Client).Status)
 }
 
-// inEveryPool asks read of c in every pool the router's health answer
+// inEveryPool asks read of c in every pool the router's health answer h
 // reports, in their order, and returns what each answered: once, naming none,
 // where it reports none.
-func inEveryPool[T any](ctx context.Context, c *Client, read func(*Client, context.Context) (T, error)) ([]T, error) {
-	h, err := c.Health(ctx)
-	if err != nil {
-		return nil, err
-	}
+func inEveryPool[T any](ctx context.Context, c *Client, h Health, read func(*Client, context.Context) (T, error)) ([]T, error) {
 	pools := []string{""}
 	if len(h.Pools) > 0 {
 		pools = pools[:0]
@@ -196,6 +196,7 @@ func inEveryPool[T any](ctx context.Context, c *Client, read func(*Client, conte
 	}
 	answers := make([]T, len(pools))
 	for i, pool := range pools {
+		var err error
 		if answers[i], err = read(c.InPool(pool), ctx); err != nil {
 			return nil, err
 		}
