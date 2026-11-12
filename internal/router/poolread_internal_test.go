@@ -15,6 +15,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
@@ -378,8 +379,9 @@ func TestEachPoolsDocumentShowsTheEventsOfItsPoolItsAccountsAndNone(t *testing.T
 		{Kind: status.EventMoved, Session: "one", From: "side", To: "work"},
 		{Kind: status.EventMoved, Session: "two", To: "personal"},
 		// An account that has left the config, held till the restart, is in
-		// no pool.
+		// no pool, and so is a pool that has left it.
 		{Kind: status.EventCap, Account: "lapsed"},
+		{Kind: status.EventAuto, Pool: unconfigured},
 	}
 	r.recent.change(func() {
 		for _, e := range happened {
@@ -391,8 +393,8 @@ func TestEachPoolsDocumentShowsTheEventsOfItsPoolItsAccountsAndNone(t *testing.T
 		pool string
 		want []string
 	}{
-		{pool: defaultPool, want: []string{status.EventCap, status.EventMoved, status.EventPressure, status.EventPin, status.EventRestart}},
-		{pool: acmePool, want: []string{status.EventCap, status.EventMoved, status.EventAuto, status.EventPin, status.EventLimit, status.EventRestart}},
+		{pool: defaultPool, want: []string{status.EventAuto, status.EventCap, status.EventMoved, status.EventPressure, status.EventPin, status.EventRestart}},
+		{pool: acmePool, want: []string{status.EventAuto, status.EventCap, status.EventMoved, status.EventAuto, status.EventPin, status.EventLimit, status.EventRestart}},
 	}
 	for _, tt := range tests {
 		var kinds []string
@@ -688,11 +690,18 @@ func TestTheStreamOpensWithThePoolsRequestsInFlightAlone(t *testing.T) {
 	}
 }
 
+// streamWait is how long openStream keeps a stream open at most.
+const streamWait = 30 * time.Second
+
 // openStream opens r's request stream, served by srv, asking for the pool
-// given, "" for none, and returns its body, open till the test ends.
+// given, "" for none, and returns its body, open till the test ends, or for
+// streamWait at most, so a stream that goes on where it should have ended
+// fails the test rather than holding it till the run's timeout.
 func openStream(t *testing.T, srv *httptest.Server, pool string) io.ReadCloser {
 	t.Helper()
-	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, srv.URL+withPool("/stream", pool), nil)
+	ctx, cancel := context.WithTimeout(t.Context(), streamWait)
+	t.Cleanup(cancel)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+withPool("/stream", pool), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -834,4 +843,53 @@ func TestAStreamThatNamedAPoolEndsOnceThePoolsAnswerForItWithAnother(t *testing.
 	if rest, err := io.ReadAll(spare); err != nil || len(rest) != 0 {
 		t.Errorf("the stream that named Spare told of %q, %v, once Spare was gone, want it ended", rest, err)
 	}
+}
+
+func TestASessionsMoveShowsInThePoolItsRequestWasRoutedWithin(t *testing.T) {
+	tests := []struct {
+		name string
+		// config is the config file side's session moves off it under; after,
+		// where it's not "", the one that follows the move.
+		config, after string
+	}{
+		{name: "side moved to Acme", config: poolsTOML(acmePool, defaultTOML, acmeTOML)},
+		{name: "side dropped from the config", config: poolsTOML("", defaultTOML, acmeTOML)},
+		{
+			name: "work, which it moved to, moved to Acme since", config: poolsTOML(acmePool, defaultTOML, acmeTOML),
+			after: strings.Replace(poolsTOML(acmePool, defaultTOML, acmeTOML), "pool = \""+defaultPool+"\"", "pool = \""+acmePool+"\"", 1),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			logstest.Capture(t)
+			r, path := newWatchingPoolsRouter(t, "")
+			readWeeks(r, map[string]quota.Window{"side": soonWeek, "work": laterWeek, "personal": latestWeek})
+			routeIn(t, r, sideToken, "one", defaultPool, nil)
+
+			writeConfigFile(t, path, tt.config)
+			r.upkeep.look()
+			routeIn(t, r, workToken, "one", defaultPool, nil)
+			if tt.after != "" {
+				writeConfigFile(t, path, tt.after)
+				r.upkeep.look()
+			}
+
+			for pool, want := range map[string][]string{defaultPool: {"one"}, acmePool: nil} {
+				if got := movedSessions(statusIn(t, r, pool).Events); !slices.Equal(got, want) {
+					t.Errorf("pool %s's document shows the moves of the sessions %q, want %q", pool, got, want)
+				}
+			}
+		})
+	}
+}
+
+// movedSessions returns the session of each move among events, in order.
+func movedSessions(events []status.Event) []string {
+	var sessions []string
+	for _, e := range events {
+		if e.Kind == status.EventMoved {
+			sessions = append(sessions, e.Session)
+		}
+	}
+	return sessions
 }

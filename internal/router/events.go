@@ -68,6 +68,9 @@ type Moved struct {
 	Reason  string
 	Held    Hold
 	Limit   int
+	// Pool is the id of the pool the request was routed within, as the
+	// accounts' view had it: none in a config from before pools.
+	Pool string
 }
 
 // Hold is what held a request back on an account it couldn't go out on,

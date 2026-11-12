@@ -125,7 +125,7 @@ func (rd poolRead) pin(global status.Pin) status.Pin {
 // that names a pool, where it's the pool read; one that names an account in
 // a pool, where it's in the pool read now, as its windows go; and every one
 // that names neither, as the router's own, its restarts and its exports do,
-// or names an account in none, as one that has left the config.
+// or names only a pool or an account that has left the config.
 func (rd poolRead) events(all []status.Event) []status.Event {
 	if rd.every || len(rd.pools.pools) == 0 {
 		return all
@@ -141,7 +141,7 @@ func (rd poolRead) events(all []status.Event) []status.Event {
 
 // shows reports whether the pool read shows the event e, as events says.
 func (rd poolRead) shows(e status.Event) bool {
-	if e.Pool != "" {
+	if _, in := rd.pools.pools.ByID(e.Pool); in {
 		return rd.routes(e.Pool)
 	}
 	id := befell(e)
@@ -153,13 +153,14 @@ func (rd poolRead) shows(e status.Event) bool {
 
 // befell returns the account the event e befell, as a pool read shows it by:
 // the one it names; else the first the global pin names; else the one a
-// session moved from, or to where it moved from none; "" for none.
+// session moved to, where its session stays, or from, where it moved to
+// none; "" for none.
 func befell(e status.Event) string {
 	var pinned string
 	if len(e.Accounts) > 0 {
 		pinned = e.Accounts[0]
 	}
-	return cmp.Or(e.Account, pinned, e.From, e.To)
+	return cmp.Or(e.Account, pinned, e.To, e.From)
 }
 
 // prime returns the priming schedule as the pool read shows it: the slots of
