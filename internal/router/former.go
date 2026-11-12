@@ -297,19 +297,16 @@ func (as accounts) holding(saved map[string]savedTokens) func(id string) bool {
 
 // recall takes in what the state file kept of the accounts' tokens, as the
 // router starts at now, noting in the log each account whose token was
-// replaced while the router was away. Each configured account takes back the
-// tokens a primary took up from it as it left the config, and the primary h
-// gives each account no longer configured adopts its tokens, as adopt says.
-// It reports whether what's to be kept now differs from what was.
+// replaced while the router was away. The primary h gives each account no
+// longer configured adopts its tokens, as adopt says; then each configured
+// account takes back the tokens any account took up from it as it left the
+// config, those just adopted among them, as an account removed while the
+// router was away may have held some of one configured again. It reports
+// whether what's to be kept now differs from what was.
 func (as accounts) recall(saved map[string]savedTokens, h heirs, now time.Time) bool {
 	for _, a := range as {
 		if a.secret.recall(saved[a.ID], now) {
 			logger.Info("token replaced while the router was away; the one before still counts as the account's", "account", a.ID)
-		}
-	}
-	for _, a := range as {
-		if as.reclaim(a, now) {
-			logger.Info("account configured again; its tokens are its own again", "account", a.ID)
 		}
 	}
 	for _, id := range slices.Sorted(maps.Keys(saved)) {
@@ -318,6 +315,11 @@ func (as accounts) recall(saved map[string]savedTokens, h heirs, now time.Time) 
 		}
 		if heir, ok := as.heir(h, id); ok {
 			adopt(heir, id, saved[id], now)
+		}
+	}
+	for _, a := range as {
+		if as.reclaim(a, now) {
+			logger.Info("account configured again; its tokens are its own again", "account", a.ID)
 		}
 	}
 	return !maps.EqualFunc(as.kept(), saved, savedTokens.equal)

@@ -703,6 +703,8 @@ func TestASessionKeptWhereItStartedSaysSoWhetherTheRouterAnswersOrNot(t *testing
 		return &status.Session{ID: paged, Assignments: []status.Assignment{{Model: opus, Account: account, Reason: reason, AssignedAt: local(12, 20, 0), LastSeen: local(12, 40, 0)}}}
 	}
 	pressed := status.PassingOver(status.ReasonNew, "personal")
+	strayed := filedAs("p3", line(paged, opus, "", status.ReasonTokenLeftPool, local(12, 45, 0), ""))
+	strayed.Status = 400
 	tests := []struct {
 		name   string
 		lines  []ledger.Line
@@ -723,6 +725,9 @@ func TestASessionKeptWhereItStartedSaysSoWhetherTheRouterAnswersOrNot(t *testing
 				asked("p3", "side", status.ReasonSticky, local(12, 40, 0))},
 			routed: listing("side", "rescored after 2h idle"),
 			said:   "on [side] since 12:20, rescored after 2h idle: [side] had the most room", short: "rescored after 2h idle"},
+		{name: "kept, then a request switchboard refused itself, of no account",
+			lines:  []ledger.Line{first, asked("p2", "side", status.ReasonSticky, local(12, 40, 0)), strayed},
+			routed: listing("side", status.ReasonNew), said: "on [side] since it started: sticky", short: "sticky"},
 		{name: "its first request alone", lines: []ledger.Line{first},
 			routed: listing("side", status.ReasonNew), said: "on [side] since it started"},
 		{name: "listed new on another account than a request kept it on",
@@ -752,6 +757,25 @@ func TestASessionKeptWhereItStartedSaysSoWhetherTheRouterAnswersOrNot(t *testing
 				}
 			}
 		})
+	}
+}
+
+// A session the router doesn't list gives why its model goes where it does
+// from its lines of an account alone: a request switchboard answered itself,
+// of none, as one refused as its token left its pool, says nothing of it.
+func TestASessionUnlistedSaysWhyItsModelGoesWhereItDoesFromItsLinesOfAnAccount(t *testing.T) {
+	moved := status.ReasonMovedOff + "work " + status.WhyNoRoom
+	asked := filedAs("p1", stopped("end_turn", took(time.Minute, serving(p1, ledger.ClassMain, line(paged, opus, "side", moved, local(12, 20, 0), hourUsage)))))
+	strayed := filedAs("p2", line(paged, opus, "", status.ReasonTokenLeftPool, local(12, 45, 0), ""))
+	strayed.Status = 400
+	held := views.HoldPage(paged, views.ReadSessions(summarisedLedger([]ledger.Line{asked, strayed}), nil, now, paged), ledger.Pricing, kept90, now)
+	page, ok := held.Page(views.PageLive{Now: now})
+	if !ok {
+		t.Fatal("no page")
+	}
+	want := []views.SessionModel{{Model: opus, Account: "side", Reason: moved}}
+	if !slices.Equal(page.Goes, want) {
+		t.Errorf("the page's model goes %+v, want %+v", page.Goes, want)
 	}
 }
 

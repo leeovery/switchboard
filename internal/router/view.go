@@ -83,7 +83,7 @@ func (v view) pooled(id string) bool {
 // pool, one of pools to tell apart: it isn't one of the pool's, as one moved
 // to another, or out of the config, isn't. Of one pool alone, which nothing
 // names, none has: one out of the config is one the request can't go out on,
-// as before pools.
+// as any other with no room.
 func (v view) left(id string) bool {
 	return v.apart && !v.pooled(id)
 }
