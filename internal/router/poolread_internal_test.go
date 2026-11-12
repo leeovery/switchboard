@@ -830,7 +830,7 @@ func TestAPoolNamedWithoutAValueNamesNone(t *testing.T) {
 func TestThePoolsKeptOfAConfigNamingNoneKeepTheirLabelsFromTheAccountsRecord(t *testing.T) {
 	logstest.Capture(t)
 	first := identity.PoolEntry{ID: defaultPool, Added: start, First: true, Here: true, Written: identity.PoolWritten{Label: "Default"}}
-	m := newMembership(readingRecord(identity.Record{Pools: []identity.PoolEntry{first}}), alwaysMoved, sameID, nil)
+	m := newMembership(readingRecord(identity.Record{Pools: []identity.PoolEntry{first}}), alwaysMoved, asGiven, nil)
 	m.follow(config.Accounts(testConfigured), nil)
 	if got := m.current().reported(nil); len(got) != 1 || got[0].ID != defaultPool || got[0].Label != "Default" {
 		t.Errorf("the kept pools report %+v, want Default by its label", got)
