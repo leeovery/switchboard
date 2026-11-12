@@ -295,14 +295,14 @@ func pastKeeping(t *testing.T) (cfg Config, summary string) {
 	// the days after from their readings, where the readings history covers
 	// them.
 	older := dayfile.DateOf(day.AddDate(0, 0, -10))
-	stageFile(t, ledger.SummaryFile(ledger.Dir(cfg.StateDir), older), []byte(`{"version":6,"day":"`+older+`","lines":0}`+"\n"))
+	stageFile(t, ledger.SummaryFile(ledger.Dir(cfg.StateDir), older), []byte(`{"version":7,"day":"`+older+`","lines":0}`+"\n"))
 	folder := stageOwn(t, cfg.StateDir)
 	stagedReadings := readings.Files(readings.Dir(folder), logger)
 	stageFile(t, stagedReadings.CompressedPath(weekBefore), gzipOf(t, readingOn(day.AddDate(0, 0, -9))))
 	stageFile(t, stagedReadings.CompressedPath(date), gzipOf(t, readingOn(day)))
 	stageFile(t, ledger.Files(ledger.Dir(folder), logger).CompressedPath(date),
 		gzipOf(t, `{"at":"`+day.UTC().Format(time.RFC3339)+`","request":"staged","kind":"message","account":"work","status":200}`+"\n"))
-	stageFile(t, ledger.SummaryFile(ledger.Dir(folder), date), []byte(`{"version":6,"day":"`+date+`","lines":2,"accounts":[{"account":"work"}]}`+"\n"))
+	stageFile(t, ledger.SummaryFile(ledger.Dir(folder), date), []byte(`{"version":7,"day":"`+date+`","lines":2,"accounts":[{"account":"work"}]}`+"\n"))
 	return cfg, ledger.SummaryFile(ledger.Dir(cfg.StateDir), date)
 }
 

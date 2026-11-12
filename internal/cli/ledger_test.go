@@ -90,7 +90,7 @@ func hoursJSON(hours ...int) string {
 
 // heldSummary is the summary the ledger holds of the 4th, as the router wrote
 // it.
-var heldSummary = `{"version":6,"day":"2026-10-04","lines":1,"accounts":[{"account":"work","models":[{"model":"claude-opus-5-5","upstream":1,"no_usage":0,"unsent":0,` +
+var heldSummary = `{"version":7,"day":"2026-10-04","lines":1,"accounts":[{"account":"work","models":[{"model":"claude-opus-5-5","upstream":1,"no_usage":0,"unsent":0,` +
 	`"checks":0,"counts":0,` + hoursJSON(9) + `,"sessions":1,"session_ids":["` + sessionA + `"],` +
 	`"usage":{"cache_creation":{"ephemeral_1h_input_tokens":3120,"ephemeral_5m_input_tokens":0},` +
 	`"cache_creation_input_tokens":3120,"cache_read_input_tokens":182340,"input_tokens":12,"output_tokens":845}}],"sessions":1,` +
@@ -698,14 +698,14 @@ func TestHistoryJSONPrintsEachDaysSummaryWithEachModelsWorth(t *testing.T) {
 	// at is t as the JSON gives it.
 	at := func(t time.Time) string { return t.UTC().Format(time.RFC3339) }
 	want := `{"schema":1,"prices_as_of":"2026-10-11","days":[` +
-		`{"version":6,"day":"2026-10-04","lines":1,"accounts":[{"account":"work","sessions":1,"session_ids":["` + sessionA + `"],"moved_on":0,"moved_off":0,` +
+		`{"version":7,"day":"2026-10-04","lines":1,"accounts":[{"account":"work","sessions":1,"session_ids":["` + sessionA + `"],"moved_on":0,"moved_off":0,` +
 		`"highest":{"5h":0.5},"rise":{"5h":0.2},"resets":[],"minutes_at_cap":0,"minutes_at_limit":0,` +
 		`"models":[{"model":"claude-opus-5-5","upstream":1,"no_usage":0,"unsent":0,"checks":0,"counts":0,` + hoursJSON(9) +
 		`,"sessions":1,"session_ids":["` + sessionA + `"],` +
 		`"usage":{"cache_creation":{"ephemeral_1h_input_tokens":3120,"ephemeral_5m_input_tokens":0},"cache_creation_input_tokens":3120,"cache_read_input_tokens":182340,` +
 		`"input_tokens":12,"output_tokens":845},"worth":0.078376}]}],"by_family":[{"family":"opus","worth":0.078376}]},` +
-		`{"version":6,"day":"2026-10-05","lines":0},` +
-		`{"version":6,"day":"2026-10-06","lines":1,"accounts":[{"account":"side","sessions":1,"session_ids":["` + sessionB + `"],"moved_on":1,"moved_off":0,` +
+		`{"version":7,"day":"2026-10-05","lines":0},` +
+		`{"version":7,"day":"2026-10-06","lines":1,"accounts":[{"account":"side","sessions":1,"session_ids":["` + sessionB + `"],"moved_on":1,"moved_off":0,` +
 		`"highest":{"5h":0.1},"rise":{"5h":0.1},"resets":[],"minutes_at_cap":0,"minutes_at_limit":0,` +
 		`"models":[{"model":"claude-opus-5-5","upstream":1,"no_usage":0,"unsent":0,"checks":0,"counts":0,` + hoursJSON(22) +
 		`,"sessions":1,"session_ids":["` + sessionB + `"],` +
@@ -717,7 +717,7 @@ func TestHistoryJSONPrintsEachDaysSummaryWithEachModelsWorth(t *testing.T) {
 		`"resets":[{"window":"5h","at":"` + at(limit.ResetsAt) + `","before":1}],` +
 		`"limits":[{"window":"5h","at":"` + at(limit.At) + `","resets_at":"` + at(limit.ResetsAt) + `"}],"minutes_at_cap":74,"minutes_at_limit":56}],` +
 		`"by_family":[{"family":"opus","worth":0.01502}]},` +
-		`{"version":6,"day":"2026-10-07","lines":6,"accounts":[` +
+		`{"version":7,"day":"2026-10-07","lines":6,"accounts":[` +
 		// The requests no account answered, of no window the readings
 		// history held.
 		`{"sessions":1,"session_ids":["` + sessionB + `"],"moved_on":0,"moved_off":0,` +
@@ -763,7 +763,7 @@ func TestHistoryJSONPrintsEachDaysSummaryWithEachModelsWorth(t *testing.T) {
 func TestHistoryJSONGivesTheHoursOfEachDayThatCountedThem(t *testing.T) {
 	deps, _ := ledgerDeps(t)
 	// The 3rd, summarised before version 6, its lines pruned since.
-	uncounted := strings.NewReplacer(`"version":6,"day":"2026-10-04"`, `"version":5,"day":"2026-10-03"`, ","+hoursJSON(9), "").Replace(heldSummary)
+	uncounted := strings.NewReplacer(`"version":7,"day":"2026-10-04"`, `"version":5,"day":"2026-10-03"`, ","+hoursJSON(9), "").Replace(heldSummary)
 	writeStateFile(t, ledger.Dir(stateDir(t, deps)), "day-2026-10-03.json", []byte(uncounted+"\n"))
 
 	got := jsonForms()[0].run(t, deps, "history", "--since", "2026-10-03")
@@ -1028,7 +1028,7 @@ func TestTheLedgersCommandsNeedNeitherTheRouterNorTheLedger(t *testing.T) {
 		}
 		days = append(days, compact.String())
 	}
-	if want := []string{`{"version":6,"day":"2026-10-07","lines":0}`}; !slices.Equal(days, want) {
+	if want := []string{`{"version":7,"day":"2026-10-07","lines":0}`}; !slices.Equal(days, want) {
 		t.Errorf("switchboard history --json printed the days\n%s\nwant today's alone, of no requests: there's no ledger to hold a day before it", strings.Join(days, "\n"))
 	}
 }

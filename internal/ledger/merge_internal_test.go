@@ -96,3 +96,43 @@ func TestMergedDaysOfFiguresOneNeverReadAreTheOthers(t *testing.T) {
 		t.Errorf("mergedDays() = %+v, want the minutes and rises the one that read them gave, and none never read of either", got)
 	}
 }
+
+func TestMergedDaysMergeTheirWorkInEachPoolAsInEveryPoolTogether(t *testing.T) {
+	work := func(upstream int, session string) Work {
+		return Work{Models: []ModelDay{{Model: "claude-opus-5-5", Upstream: upstream, Sessions: 1, SessionIDs: []string{session}}}, Sessions: 1,
+			SessionIDs: []string{session}}
+	}
+	tests := []struct {
+		name string
+		a, b AccountDay
+		want AccountDay
+	}{
+		{
+			name: "both in one pool: named by it",
+			a:    AccountDay{Account: "wk7q", Pool: "q7mt", Work: work(1, "s1")},
+			b:    AccountDay{Account: "wk7q", Pool: "q7mt", Work: work(2, "s2")},
+			want: AccountDay{Account: "wk7q", Pool: "q7mt", Work: mergedWork(work(1, "s1"), work(2, "s2"))},
+		},
+		{
+			name: "one in a pool, the other split between it and none: each pool's merged, and every pool's together",
+			a:    AccountDay{Account: "wk7q", Pool: "q7mt", Work: work(1, "s1")},
+			b: AccountDay{Account: "wk7q", Work: mergedWork(work(2, "s2"), work(3, "s3")),
+				Pools: []PoolDay{{Work: work(2, "s2")}, {Pool: "q7mt", Work: work(3, "s3")}}},
+			want: AccountDay{Account: "wk7q", Work: mergedWork(work(1, "s1"), mergedWork(work(2, "s2"), work(3, "s3"))),
+				Pools: []PoolDay{{Work: work(2, "s2")}, {Pool: "q7mt", Work: mergedWork(work(1, "s1"), work(3, "s3"))}}},
+		},
+		{
+			name: "one of no work, as of the readings alone: the other's pool",
+			a:    AccountDay{Account: "wk7q", Work: Work{SessionIDs: []string{}}},
+			b:    AccountDay{Account: "wk7q", Pool: "q7mt", Work: work(2, "s2")},
+			want: AccountDay{Account: "wk7q", Pool: "q7mt", Work: mergedWork(Work{SessionIDs: []string{}}, work(2, "s2"))},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := mergedDays(tt.a, tt.b); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("mergedDays() =\n%+v\nwant\n%+v", got, tt.want)
+			}
+		})
+	}
+}

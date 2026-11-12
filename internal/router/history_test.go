@@ -833,8 +833,8 @@ func TestTheHistoryHasTheLedgerSummariseAgainTheDaysWhoseReadingsItPrunesFirst(t
 			t.Fatal("the day's readings are kept, want them pruned, as the day is past keeping")
 		}
 		summary, err := os.ReadFile(ledger.SummaryFile(ledgerDir, date))
-		if err != nil || !strings.HasPrefix(string(summary), `{"version":6,`) || !strings.Contains(string(summary), `"highest":{"5h":0.4}`) {
-			t.Errorf("the day's summary is %s (%v), want it summarised again, as version 6, with its session's highest use, from the readings "+
+		if err != nil || !strings.HasPrefix(string(summary), `{"version":7,`) || !strings.Contains(string(summary), `"highest":{"5h":0.4}`) {
+			t.Errorf("the day's summary is %s (%v), want it summarised again, as version 7, with its session's highest use, from the readings "+
 				"history before they were pruned", summary, err)
 		}
 	})
@@ -884,7 +884,7 @@ func TestTheHistoryWaitsOnAPartOfTheDaysToSummariseAgainBeforeItPrunesNeverOnThe
 		stop()
 		var again int
 		for _, date := range dates {
-			if summary, err := os.ReadFile(ledger.SummaryFile(ledgerDir, date)); err == nil && strings.HasPrefix(string(summary), `{"version":6,`) {
+			if summary, err := os.ReadFile(ledger.SummaryFile(ledgerDir, date)); err == nil && strings.HasPrefix(string(summary), `{"version":7,`) {
 				again++
 			}
 		}

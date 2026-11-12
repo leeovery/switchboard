@@ -65,7 +65,8 @@ var (
 	rawTypes = []string{
 		"events.Held", "events.Line",
 		"ledger.AccountDay", "ledger.Answer", "ledger.Held", "ledger.Hints", "ledger.Line", "ledger.ModelDay",
-		"ledger.Priced", "ledger.PricedModel", "ledger.Reply", "ledger.Shape", "ledger.Spend", "ledger.Summary", "ledger.Tried",
+		"ledger.PoolDay", "ledger.Priced", "ledger.PricedModel", "ledger.Reply", "ledger.Shape", "ledger.Spend", "ledger.Summary", "ledger.Tried",
+		"ledger.Work",
 		"quota.Tokens",
 		"readings.Reading",
 		"router.StreamEvent",

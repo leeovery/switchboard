@@ -278,6 +278,8 @@ See [`claude`](commands.md#claude).
 An hour after each day ends, the router summarises the day beside its lines, in
 `ledger/day-<date>.json`: `{"version", "day", "lines", "bytes", "accounts"}`.
 
+- **`version`:** `7` since pools. A summary from before them, of version 6 or older, holds all its
+  work in no pool.
 - **`lines`:** How many lines the summary was made from.
 - **`bytes`:** How large the day's files were then.
 - **`accounts`:** Each entry is one account's day, with the fields below.
@@ -285,10 +287,12 @@ An hour after each day ends, the router summarises the day beside its lines, in
 | Field | Description |
 |---|---|
 | `account` | The account, by its id alone. Left out of the requests no account answered. |
+| `pool` | The pool all the account's work that day was in, by its id. Left out where its requests named no pool, or were in more than one, or where it did no work: a pool only a move of no session named isn't among its pools. |
 | `models` | The account's requests, by the model each asked for. See below. |
 | `sessions`, `session_ids` | The sessions the account's requests were of, and their ids. |
 | `moved_on` | The sessions its requests moved onto the account. |
 | `moved_off` | The sessions its requests moved off the account. |
+| `pools` | Where the account's work was in more than one pool, each pool's. See below. |
 | `highest` | Each window's highest use that day, by the window's key. |
 | `rise` | How far each window's use rose that day, from the history. |
 | `resets` | The account's window resets that day, each `{window, at, before}`, where `before` is the use before the reset. |
@@ -312,6 +316,21 @@ Each entry in `models` counts its requests by how they went:
 
 Each entry also has the requests' `sessions` and `session_ids`, their `usage` summed field for
 field, and `inference_geo` where they asked for one.
+
+### Pools
+
+An account can move to another pool partway through a day, so its day splits by the pool each
+request was in:
+
+- **The work splits by pool:** its `models`, `sessions`, `session_ids`, `moved_on` and `moved_off`.
+  Each entry in `pools` has those of one pool's requests, and that pool's id as its `pool`. The
+  requests that named no pool come first, without a `pool`.
+- **The windows stay the account's:** its `highest`, `rise`, `resets`, `limits`, minutes and
+  `read_before`, given once, whatever pool it's in.
+
+The account's own `models`, sessions and moves are always its work in every pool together, so
+adding up accounts' days gives the same totals however the day splits. The day of the requests no
+account answered splits the same way.
 
 ### Which accounts get a day
 
