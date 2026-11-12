@@ -45,8 +45,14 @@ type EventsRead struct {
 // from EventsFrom of the local day first falls on to the end of now's day,
 // each as it last stands.
 func ReadEvents(filed Events, first, now time.Time) EventsRead {
-	r := EventsRead{since: EventsFrom(first), held: make(map[eventKey]Event)}
-	r.file(filed, r.since, dayfile.DayStart(now.Local(), 1))
+	return ReadEventsFrom(filed, EventsFrom(first), now)
+}
+
+// ReadEventsFrom reads, through filed, the router's files' events of the
+// span from since to the end of now's day, each as it last stands.
+func ReadEventsFrom(filed Events, since, now time.Time) EventsRead {
+	r := EventsRead{since: since, held: make(map[eventKey]Event)}
+	r.file(filed, since, dayfile.DayStart(now.Local(), 1))
 	return r
 }
 
@@ -83,7 +89,13 @@ func (r EventsRead) Took(f EventsFiled) EventsRead {
 // given, as the Log no longer shows the days before it: the events before
 // then let go of, those after kept as they stand.
 func (r EventsRead) From(day LedgerDay) EventsRead {
-	since := EventsFrom(day.Start)
+	return r.Reaching(EventsFrom(day.Start))
+}
+
+// Reaching is r reaching back no further than since: the events before then
+// let go of, those after kept as they stand; r itself where it reaches no
+// further already.
+func (r EventsRead) Reaching(since time.Time) EventsRead {
 	if !since.After(r.since) {
 		return r
 	}
@@ -98,7 +110,14 @@ func (r EventsRead) From(day LedgerDay) EventsRead {
 // as Took has it: the files' events from then up to when r began. It finds
 // nothing where r reaches that far already.
 func (r EventsRead) Back(filed Events, first time.Time) EventsFiled {
-	since := EventsFrom(first)
+	return r.BackTo(filed, EventsFrom(first))
+}
+
+// BackTo is what r reaching back, through filed, to since finds, where
+// that's before it reaches, to be taken in as Took has it: the files' events
+// from then up to when r began. It finds nothing where r reaches that far
+// already.
+func (r EventsRead) BackTo(filed Events, since time.Time) EventsFiled {
 	if !since.Before(r.since) {
 		return EventsFiled{since: r.since}
 	}

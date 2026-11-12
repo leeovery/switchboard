@@ -5061,11 +5061,12 @@ rows are spare. Its lines are the accounts' spans and resets, soonest first:
 No prime is listed (settled in the plan). The lines aren't capped: where they don't fit, Runway
 compacts, and then cuts them.
 
-LATELY's lines are the account events of the status document's, as the Overview's LATELY words them
-(`views.RunwayLately`, beside the Overview's): a cap, a limit, a refusal, coming under pressure and
-room again, newest first, no further back than a week before now; the sessions a cap, a limit or a
-refusal moved folded into its line, as `3 sessions moved to side`; no session's start or move
-alone, and no marks. Each line is the time, padded to the longest shown, in `text.secondary`; two
+LATELY's lines are the account events of the router's events held (see What it reads, below), as
+the Overview's LATELY words them (`views.RunwayLately`, beside the Overview's): a cap, a limit, a
+refusal, coming under pressure and room again, newest first, no further back than a week before
+now; the sessions a cap, a limit or a refusal moved folded into its line, as `3 sessions moved to
+side`, each router run's own; no session's start or move alone, and no marks. Each line is the
+time, padded to the longest shown, in `text.secondary`; two
 blanks; the account bold `text.primary`, what befell it in `text.muted` and its object, as
 `3 sessions` or `~Sat 06:10`, bold `text.secondary`; and how long ago, right-aligned at the
 column's end, in `text.subtle`: `11m ago`, `1h 38m ago`, `1d 4h ago`, `3d ago` (prose's `Ago`). Its
@@ -5179,8 +5180,14 @@ stepping back and how far it reaches, the minutes a column, COMING UP, and LATEL
   history, a reading of each window at each look (the owner's call, 14 October 2026).
 - **A run-out, `~16:05`:** the projection, as `usage` projects (see `usage`, the printout).
 - **COMING UP:** the same, soonest first, as the Overview's COMING UP reads it.
-- **LATELY:** the router's events the status document holds, its newest 50, at each look, as the
-  Overview's LATELY reads them; never the event files, so a look reads no day gone again.
+- **LATELY:** the router's events over the week it tells, a week before now, read once off the
+  events' files as Runway's live view first shows, off the draw path, as the Log's Events read
+  them, and the status document's newest 50 taken in at each look, kept as the router restarts
+  (`EventsRead`). The Log's Events and LATELY share the one read, so neither reads again a day's
+  file the other read, and a look, a redraw or a midnight reads none again: a day that closes
+  while the dashboard runs was read as today's. Till the files are read, LATELY tells the
+  document's events. The Log letting go of its days lets go of none of LATELY's week. The
+  Overview's LATELY reads the document's alone.
 - **The pool:** its accounts, every one on auto, or those the `pin` names.
 - **A week stepped back to:** the readings history, each change of a window's use, its reset and its
   status, a limit running from a reading `rejected` to its window's reset; each day's summary's
@@ -7272,8 +7279,8 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
     reads again every day between, costing what the find's pick cost before: some 3.3 s and 280 MB
     8 days back, 8.4 s and 706 MB 22 days back.
 - **Events:** live, the status document's `events`, the newest 50, read at each look, each new one
-  known by its `id`; the past, the events' files, read as the Log's Events, LATELY or a session's
-  page reach back past them (see The router's events). A router restarted tells its events afresh,
+  known by its `id`; the past, the events' files, read as the Log's Events, Runway's LATELY or a
+  session's page reach back past them (see The router's events). A router restarted tells its events afresh,
   while the files keep what it told before. Without the router, there are no live events, and the
   Log and LATELY show what the files hold (settled in the plan).
 - **A router from before milestone 7,** as one still running between an upgrade and its restart:

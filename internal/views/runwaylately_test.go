@@ -10,9 +10,11 @@ import (
 	"github.com/leeovery/switchboard/internal/views"
 )
 
-// runwayLately are doc's events as Runway's LATELY tells them at now.
+// runwayLately are doc's events, held as told by one run, as Runway's LATELY
+// tells them at now.
 func runwayLately(doc status.Document, now time.Time) []views.Sentence {
-	return views.RunwayLately(doc.At(now, claude.Policy()))
+	m := doc.At(now, claude.Policy())
+	return views.RunwayLately(m, views.EventsSince(time.Time{}, m, at(9, 0), nil))
 }
 
 // fullOf are the sentences given in full.
@@ -85,5 +87,24 @@ func TestRunwaysLATELYFoldsTheMovesALimitACapOrARefusalForcedIntoItsLine(t *test
 				t.Errorf("the line reads %q, short %q; want %q, %q: its moves counted in it", full, short, tt.full, tt.short)
 			}
 		})
+	}
+}
+
+// Runway's LATELY tells the events held, as the router's files and every
+// look gave them, not the document's alone: a router keeps its newest 50,
+// and a router restarted tells its own afresh, its ids from 1 again, each
+// event told of its own run.
+func TestRunwaysLATELYTellsTheEventsHeldOfEveryRun(t *testing.T) {
+	now := at(16, 0)
+	before, after := at(8, 0), at(12, 0)
+	limit := func(id int, at time.Time, account, window string) views.Event {
+		return views.Event{Event: status.Event{ID: id, At: at, Kind: status.EventLimit, Account: account, Windows: []string{window}}}
+	}
+	held := []views.Event{limit(1, at(9, 0), "work", "5h"), limit(1, at(13, 0), "side", "7d")}
+	held[0].Key, held[1].Key = views.EventKey{Run: before, ID: 1}, views.EventKey{Run: after, ID: 1}
+	m := latelyOf(status.Event{At: at(15, 0), Kind: status.EventRoom, Account: "side"}).At(now, claude.Policy())
+	want := []string{"side reached its week limit", "work reached its 5-hour limit"}
+	if got := fullOf(views.RunwayLately(m, held)); !slices.Equal(got, want) {
+		t.Errorf("Runway's LATELY tells %q, want %q: the events held, newest first, each its own run's", got, want)
 	}
 }

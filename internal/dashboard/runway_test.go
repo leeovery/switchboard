@@ -253,7 +253,7 @@ func runwayFramedAt(t *testing.T, name string, width, height int) (Frame, status
 	f := Frame{
 		Width: width, Height: height, Look: Screen(builtin(t, "nord")), View: Runway, Policy: claude.Policy(),
 		Runway: RunwayShown{
-			Back: rm.Day, Timeline: tl, Lanes: &lanes, Coming: views.RunwayComing(m), Lately: views.RunwayLately(m),
+			Back: rm.Day, Timeline: tl, Lanes: &lanes, Coming: views.RunwayComing(m), Lately: runwayLatelyOf(m),
 		},
 	}
 	return f, doc, rm.Now

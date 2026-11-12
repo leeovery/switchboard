@@ -241,7 +241,7 @@ func (m Model) runwaySaw(look status.Moment) Model {
 // views.Lanes builds them from the last look's, of the readings and the
 // ledger's days they're judged by, as readingsOf and runwayDays have them;
 // COMING UP, as views.RunwayComing has it; and LATELY, as views.RunwayLately
-// has it, of the router's events the moment holds, no file read for them.
+// has it, of the router's events held, as latelyHeld has them.
 func (m Model) runwayBuilt() Model {
 	if m.view != dashboard.Runway || m.session != nil || m.runwayTab.builtAt != nil && m.runwayTab.builtAt == m.taking.moment {
 		return m
@@ -255,7 +255,7 @@ func (m Model) runwayBuilt() Model {
 	})
 	lanes := t.lanes
 	t.shown.Timeline, t.shown.Lanes = tl, &lanes
-	t.shown.Coming, t.shown.Lately = views.RunwayComing(mo), views.RunwayLately(mo)
+	t.shown.Coming, t.shown.Lately = views.RunwayComing(mo), views.RunwayLately(mo, m.latelyHeld(mo))
 	t.builtAt = m.taking.moment
 	m.runwayTab = t
 	return m

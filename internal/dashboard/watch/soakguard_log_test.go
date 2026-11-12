@@ -97,10 +97,10 @@ func TestTheLogHoldsOnlyWhatItShows(t *testing.T) {
 		t.Errorf("paged back, the Log read the days %v, want the day before, %s, among them", g.daysRead[g.pagedFrom:g.followedFrom], yesterday)
 	}
 	if m.log.page.Stands[dashboard.LogRequests].Paused() || m.log.from.Date != today || held(m.log.read, "days") != 1 ||
-		m.log.events.Since().Before(views.EventsFrom(midnight)) {
+		m.events.read.Since().Before(views.EventsFrom(midnight)) {
 		t.Errorf("following again, the Log is paused %t, spans from %s, its read holding %d days, its Events since %v; want it following, from %s, "+
 			"its read holding today's alone, its Events none before %v",
-			m.log.page.Stands[dashboard.LogRequests].Paused(), m.log.from.Date, held(m.log.read, "days"), m.log.events.Since(), today, views.EventsFrom(midnight))
+			m.log.page.Stands[dashboard.LogRequests].Paused(), m.log.from.Date, held(m.log.read, "days"), m.events.read.Since(), today, views.EventsFrom(midnight))
 	}
 	if len(g.checks) > 0 {
 		t.Errorf("no read of the ledger landed after %v to hold the Log's Requests to one read whole at", g.checks)

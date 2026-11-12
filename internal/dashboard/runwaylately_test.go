@@ -13,6 +13,12 @@ import (
 	"github.com/leeovery/switchboard/internal/views"
 )
 
+// runwayLatelyOf are the events of the document m is a moment of, held as
+// one router told them, as Runway's LATELY tells them.
+func runwayLatelyOf(m status.Moment) []views.Sentence {
+	return views.RunwayLately(m, views.EventsSince(time.Time{}, m, time.Time{}, nil))
+}
+
 // LATELY goes beside COMING UP where both columns hold a whole line, COMING
 // UP its natural 72 in the Overview's COMING UP column and LATELY its least,
 // 43, in the Overview's LATELY column: from 159 columns. Else it goes under
@@ -65,7 +71,7 @@ func TestLatelysColumnIsTheOverviewsBesideComingUpElseOneItShares(t *testing.T) 
 	for _, tt := range tests {
 		t.Run(strconv.Itoa(tt.width), func(t *testing.T) {
 			f := latelyFrame(tt.width, 53, 4, 0)
-			f.Runway.Lately = views.RunwayLately(m)
+			f.Runway.Lately = runwayLatelyOf(m)
 			coming, lately := f.runwayColumns(m, runwayFit{place: tt.place, latelyLines: 10})
 			if lately != tt.lately || !slices.Equal(coming, tt.coming) {
 				t.Errorf("at %d columns, LATELY laid %d, its column is %+v and COMING UP's %+v, want %+v and %+v", tt.width, tt.place, lately, coming, tt.lately, tt.coming)
@@ -84,7 +90,7 @@ func TestStackedComingUpAndLatelyWidenTogetherForTheirLinesToReadWhole(t *testin
 	stacked := runwayFit{place: latelyStacked, latelyLines: 10}
 	f := latelyFrame(108, 53, 0, 0)
 	f.Runway.Coming = []status.Upcoming{{At: routedClock(2, 16, 20), Account: "side", Kind: status.UpcomingRunsOut, Window: "7d"}}
-	f.Runway.Lately = views.RunwayLately(long)
+	f.Runway.Lately = runwayLatelyOf(long)
 	coming, lately := f.runwayColumns(long, stacked)
 	if lately.Size <= runwayComingWidth || lately.Size >= f.Width || !slices.Equal(coming, []flex.Span{lately}) {
 		t.Fatalf("with a long name at 108, LATELY's column is %+v and COMING UP's %+v; want one they share, wider than 72, narrower than the frame", lately, coming)
@@ -254,7 +260,7 @@ func TestLatelysLinesAreItsAccountEventsWholeOrShortTheirAgoAtTheEnd(t *testing.
 	for _, tt := range tests {
 		t.Run(strconv.Itoa(tt.cells), func(t *testing.T) {
 			var got []string
-			for _, l := range runwayLatelyLines(m, views.RunwayLately(m), tt.cells) {
+			for _, l := range runwayLatelyLines(m, runwayLatelyOf(m), tt.cells) {
 				got = append(got, l.plain())
 			}
 			if !slices.Equal(got, tt.want) {
@@ -270,7 +276,7 @@ func TestLatelysLinesAreItsAccountEventsWholeOrShortTheirAgoAtTheEnd(t *testing.
 func TestLatelysLinesAreInkedAsTheDesignSays(t *testing.T) {
 	m := latelyMoment(slices.Clone(runwayEvents[:1])...)
 	c := newCanvas(72, 1)
-	c.line(0, 0, runwayLatelyLines(m, views.RunwayLately(m), 72)[0])
+	c.line(0, 0, runwayLatelyLines(m, runwayLatelyOf(m), 72)[0])
 	for _, tt := range []struct {
 		name string
 		x    int
@@ -297,7 +303,7 @@ func TestRunwayDrawsLatelyInItsColumnOrWhyItHasNone(t *testing.T) {
 		sentence []views.Sentence
 		want     []string
 	}{
-		{name: "its lines", sentence: views.RunwayLately(m), want: []string{"LATELY", "14:31      work reached its cap: 3 sessions moved to side                     11m ago"}},
+		{name: "its lines", sentence: runwayLatelyOf(m), want: []string{"LATELY", "14:31      work reached its cap: 3 sessions moved to side                     11m ago"}},
 		{name: "none", want: []string{"LATELY", "nothing lately"}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {

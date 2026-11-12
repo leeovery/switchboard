@@ -437,7 +437,9 @@ not all, there's no pool's lane.
 
 COMING UP lists what happens next, soonest first, and LATELY what befell each account over the
 week gone, newest first: a cap, a limit, a refused token, coming under pressure, and room again,
-the sessions each moved said in its line, and how long ago at its end, such as `11m ago`. Where
+the sessions each moved said in its line, and how long ago at its end, such as `11m ago`. It
+reads the whole week off the router's files of events once, as Runway first shows, and keeps it
+as the router restarts; till then it shows the router's newest events. Where
 the screen is wide enough for both, from 159 columns, LATELY sits at the left and COMING UP at the
 right, the past and what's coming as the lanes lie, each down to the legend. Narrower, COMING UP
 sits under the pool's lane with LATELY under it, wherever LATELY's heading and two lines fit,

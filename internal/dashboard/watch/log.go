@@ -1,7 +1,6 @@
 package watch
 
 import (
-	"cmp"
 	"slices"
 	"time"
 
@@ -17,23 +16,20 @@ import (
 // it holds at each change, as builtLog has it, and what each of its builds
 // was last made of; once opened, as the Log first shows, the ledger's lines
 // read for its Requests, and which read it was last built of while hidden,
-// as keptHidden has it, holding none of its lines, and the router's events for its Events, over the
-// local days from from, today's grown at each look since and the days
-// before read back as the tables want them; the figures of those days,
-// which their rules say; how many times what it holds has changed, as
-// grown and looked change it, and of those, how many times what its
-// Requests read has, as grown changes it; when each day the Requests await
-// a line on was last read for it; how far back the lines of the filter the
-// page's Reach gives reach, as the days' summaries told; the oldest day the
-// ledger keeps, and the oldest the Events read back to, none known till
-// each is said, and the date of the day both were last said on; who told
-// the events the Events last took in, and when; when the router's files are
-// to be read again from for the events a document skipped, as Skips has
-// it, none while none did; whether a read for it is under way, one at a
-// time; whether a failure to say how far back its tables read has been
-// logged, the once; its details card, while it's open; the panel of what a
-// table shows, while f has it open; and its find's walk back through the
-// days.
+// as keptHidden has it, holding none of its lines, over the local days from
+// from, today's grown at each look since and the days before read back as
+// the tables want them, its Events of the events the watch holds, as
+// heldEvents has them; the figures of those days, which their rules say;
+// how many times what it holds has changed, as grown changes it, and of
+// those, how many times what its Requests read has; when each day the
+// Requests await a line on was last read for it; how far back the lines of
+// the filter the page's Reach gives reach, as the days' summaries told; the
+// oldest day the ledger keeps, and the oldest the Events read back to, none
+// known till each is said, and the date of the day both were last said on;
+// whether a read for it is under way, one at a time; whether a failure to
+// say how far back its tables read has been logged, the once; its details
+// card, while it's open; the panel of what a table shows, while f has it
+// open; and its find's walk back through the days.
 type logTab struct {
 	page       dashboard.LogPage
 	lines      views.LogLines
@@ -41,7 +37,6 @@ type logTab struct {
 	opened     bool
 	read       views.LogRead
 	kept       views.LogGen
-	events     views.EventsRead
 	totals     []views.DayTotals
 	held       int
 	lined      int
@@ -52,8 +47,6 @@ type logTab struct {
 	oldest     views.OldestDay
 	filed      views.OldestDay
 	boundedOn  string
-	told       logTold
-	skipped    time.Time
 	reading    bool
 	warned     bool
 	card       logCarding
@@ -79,8 +72,9 @@ func openingLog(columns dashboard.LogTicks) logTab {
 // view, built as the page shows it, as fills has it; the details card,
 // where it's open, of what it holds; and while it's open, the panel of what
 // a table shows, as builtLogPanel has it. Built, it lets go of the days its
-// tables no longer show, as lettingGo has it, and is built again of what it
-// holds then.
+// tables no longer show, as lettingGo has it, and the events held those
+// before them, as eventsLetGo has it, and is built again of what it holds
+// then.
 func (m Model) builtLog(now time.Time) Model {
 	if !m.log.opened {
 		return m
@@ -101,7 +95,7 @@ func (m Model) builtLog(now time.Time) Model {
 	m = m.followedByLogCard().builtLogPanel(now)
 	if day, ok := m.log.lettingGo(rows); ok {
 		m.log = m.log.spanningFrom(day)
-		return m.builtLog(now)
+		return m.eventsLetGo(now).builtLog(now)
 	}
 	return m
 }
@@ -167,14 +161,14 @@ func (t logTab) fills() bool {
 	return t.page.Shown != dashboard.LogRequests || t.served()
 }
 
-// spanningFrom is the Log spanning the days from the one given, a later one than
-// it spans from: its read, its events and the figures of its days holding
-// none of those before, as From has it, what each holds counted changed;
-// and each of its tables unfilled that, as it will show, filled its view
-// from one of those, as Unfilled has it, so it reads back to fill it again.
+// spanningFrom is the Log spanning the days from the one given, a later one
+// than it spans from: its read and the figures of its days holding none of
+// those before, as From has it, what each holds counted changed; and each
+// of its tables unfilled that, as it will show, filled its view from one of
+// those, as Unfilled has it, so it reads back to fill it again.
 func (t logTab) spanningFrom(day views.LedgerDay) logTab {
 	t.page = t.page.Unfilled(day)
-	t.from, t.read, t.events = day, t.read.From(day), t.events.From(day)
+	t.from, t.read = day, t.read.From(day)
 	t.totals = slices.DeleteFunc(slices.Clone(t.totals), func(d views.DayTotals) bool { return d.Date < day.Date })
 	t.lined++
 	t.held++
@@ -245,7 +239,7 @@ func (m Model) logSources(filter views.LogFilter, now time.Time) views.LogSource
 func (m Model) logEventSources(filter views.EventFilter, now time.Time) views.LogEventSources {
 	t := m.log
 	return views.LogEventSources{
-		From: t.from.Start, Events: t.events, Held: m.held, Read: t.read, Filter: filter, Names: m.cfg.WindowName, Totals: t.totals, Oldest: t.oldest,
+		From: t.from.Start, Events: m.events.read, Held: m.held, Read: t.read, Filter: filter, Names: m.cfg.WindowName, Totals: t.totals, Oldest: t.oldest,
 		Filed: t.filed, Now: now,
 	}
 }
@@ -259,39 +253,12 @@ func (m Model) logStream(now time.Time) views.Stream {
 	return m.traffic.stream(now)
 }
 
-// looked is the Log's events with those the document look is a moment of
-// gives taken in, told by the router from, while it answers, as answering
-// says: a probed document's tell of none, and once the router's gone, the
-// document on screen is stale, its files read in its place. Who told them,
-// and when, is noted, as logTold has it, the first router's alone till its
-// files are read again. Where the document skips events the router told
-// since the last, as Skips has it, its files are to be read again from when
-// the last was built, or where that's not noted, as since they were read
-// again, from where the events begin, the earliest such moment kept till
-// they are.
-func (t logTab) looked(look status.Moment, from router.Health, answering bool) logTab {
-	if !t.opened || !look.Routed || !answering {
-		return t
-	}
-	if t.events.Skips(look, from.StartedAt) && t.skipped.IsZero() {
-		t.skipped = cmp.Or(t.told.at, t.events.Since())
-	}
-	events, changed := t.events.Looked(look, from.StartedAt)
-	t.events = events
-	if changed {
-		t.held++
-	}
-	if t.told.at.IsZero() || t.told.run.Equal(from.StartedAt) {
-		t.told = logTold{run: from.StartedAt, at: look.ReadAt}
-	}
-	return t
-}
-
-// lookedLog is m with the Log's events taken in from the document look is a
-// moment of, read from the router from, and the page built afresh at its
-// moment while the Log shows, so a number a look changes on it brightens.
+// lookedLog is m with the events held taken in from the document look is a
+// moment of, read from the router from, as looked has it, and the Log's
+// page built afresh at its moment while the Log shows, so a number a look
+// changes on it brightens.
 func (m Model) lookedLog(look status.Moment, from router.Health) Model {
-	m.log = m.log.looked(look, from, m.answering())
+	m.events = m.events.looked(look, from, m.answering())
 	if m.view != dashboard.Log {
 		return m
 	}

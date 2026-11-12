@@ -194,15 +194,19 @@ func TestTheListIsTodaysSessionsAsTheRouterAndTheLedgerTellThem(t *testing.T) {
 // The router tells each session started as its first answer comes, 0.7s
 // after its first request, and each move of a session's own conversation as
 // the request that moved it came: the lines of the auto world's records are
-// the ones its events tell of.
+// the ones its events tell of, from the first line the records hold, the
+// router before the one running's among them.
 func TestTheRoutersEventsTellOfTheSessionsLines(t *testing.T) {
-	now := localMoment()
 	held, told := autoWorld().records().lines, autoWorld().records().events
 	lines := make([]ledger.Line, len(held))
 	for i, h := range held {
 		lines[i] = h.Line
 	}
+	first := slices.MinFunc(lines, func(a, b ledger.Line) int { return a.At.Compare(b.At) }).At
 	for _, e := range told {
+		if e.At.Before(first) {
+			continue
+		}
 		switch e.Kind {
 		case status.EventStarted:
 			i := slices.IndexFunc(lines, func(l ledger.Line) bool { return l.Session == e.Session })
@@ -222,7 +226,7 @@ func TestTheRoutersEventsTellOfTheSessionsLines(t *testing.T) {
 		moved := slices.ContainsFunc(told, func(e events.Line) bool {
 			return e.Kind == status.EventMoved && e.Session == l.Session && e.At.Equal(l.At)
 		})
-		if l.From != "" && l.Class == classMain && l.At.After(routerRun(now)) && !moved {
+		if l.From != "" && l.Class == classMain && !moved {
 			t.Errorf("%s's line of %v moved it %s → %s, with no event of it", short(l.Session), l.At, l.From, l.Account)
 		}
 	}

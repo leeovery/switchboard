@@ -28,9 +28,9 @@ Wed 23:58  personal open again: its 5-hour window reset            14h 43m ago  
 Wed 21:40  side under pressure: out ~Wed 23:50                     17h 02m ago          ~Fri       side's week runs out at its pace                     in 1d 1h
 Wed 19:12  personal at its limit: 1 moved to side                  19h 29m ago          ~Sat       personal's week runs out at its pace                in 1d 15h
 Wed 17:10  work open again: its 5-hour window reset                21h 32m ago          Sun 02:00  personal's week resets                              in 2d 11h
-Wed 13:36  work reached its 5-hour limit                             1d 1h ago          Sun 21:00  work's week resets                                   in 3d 6h
+Wed 16:02  work reached its cap: 1 session moved to side           22h 40m ago          Sun 21:00  work's week resets                                   in 3d 6h
 Wed 10:05  side open again: its 5-hour window reset                  1d 4h ago          Mon 10:00  side's week resets                                  in 3d 19h
-Wed 08:40  side reached its 5-hour limit                             1d 6h ago
+Wed 08:40  side at its limit: 2 moved to personal                    1d 6h ago
 
 █ room    █ room, but it runs out at its pace    ─ at its cap    ─ at its limit    ▂ the pool at its limit    │ its week resets
 a column 63 minutes · the past dimmed

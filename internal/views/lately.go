@@ -45,7 +45,7 @@ func (s Said) String() string {
 // among those shown. Each names a session by its directory, as dirs give it,
 // else by its id.
 func Lately(m status.Moment, n int, dirs SessionDirs) []Sentence {
-	return toldFrom(m, n, overview, dirs)
+	return toldFrom(m, given(m), n, overview, dirs)
 }
 
 // side is a side LATELY tells events from: tells reports whether it tells of
@@ -69,61 +69,74 @@ var overview = side{
 	},
 }
 
-// toldFrom are the events of the document m is a moment of that from tells
-// of, as it tells them at m's Now, the newest first, n at most, the sessions
-// a limit, a cap or a refusal moved folded into its line, and each session
-// named, as Lately has them.
-func toldFrom(m status.Moment, n int, from side, dirs SessionDirs) []Sentence {
-	var told []status.Event
-	for _, e := range m.Events {
-		if from.tells(e) {
+// given are the events the status document m is a moment of gives, in its
+// order, the newest first, each keyed by its id alone, as they're all of the
+// one router's run.
+func given(m status.Moment) []Event {
+	events := make([]Event, len(m.Events))
+	for i, e := range m.Events {
+		events[i] = Event{Key: EventKey{ID: e.ID}, Event: e}
+	}
+	return events
+}
+
+// toldFrom are the events given, the newest first, that from tells of, as
+// it tells them at m's Now, n at most, the sessions a limit, a cap or a
+// refusal moved folded into its line, and each session named, as Lately has
+// them.
+func toldFrom(m status.Moment, events []Event, n int, from side, dirs SessionDirs) []Sentence {
+	var told []Event
+	for _, e := range events {
+		if from.tells(e.Event) {
 			told = append(told, e)
 		}
 	}
-	t, facts := latelyTeller{now: m.Now, dirs: dirs}, latelyFacts(m)
+	t, facts := latelyTeller{now: m.Now, dirs: dirs}, latelyFacts(m, events)
 	shown := unfolded(told, n)
 	sentences := make([]Sentence, len(shown))
 	for i, e := range shown {
-		kind, full, short := from.tell(t, e, facts[e.ID])
-		sentences[i] = Sentence{ID: e.ID, At: e.At, Kind: kind, Well: wellAgain(e), Full: full, Short: short}
+		kind, full, short := from.tell(t, e.Event, facts[e.Key.same()])
+		sentences[i] = Sentence{ID: e.Key.ID, At: e.Event.At, Kind: kind, Well: wellAgain(e.Event), Full: full, Short: short}
 	}
 	return sentences
 }
 
-// latelyFacts are the facts of the events of the document m is a moment of,
-// by their ids, worked out over them in the order the router told them, by
-// their ids, each window named as m names it.
-func latelyFacts(m status.Moment) map[int]eventFact {
-	told := slices.SortedFunc(slices.Values(m.Events), func(a, b status.Event) int { return cmp.Compare(a.ID, b.ID) })
+// latelyFacts are the facts of the events given, by their keys, worked out
+// over them in the order the routers told them, by run and id, each window
+// named as m names it.
+func latelyFacts(m status.Moment, events []Event) map[eventKey]eventFact {
+	told := slices.SortedFunc(slices.Values(events), func(a, b Event) int {
+		return cmp.Or(a.Key.Run.Compare(b.Key.Run), cmp.Compare(a.Key.ID, b.Key.ID))
+	})
 	facts := eventFacts{name: m.NameOf}
-	byID := make(map[int]eventFact, len(told))
+	byKey := make(map[eventKey]eventFact, len(told))
 	for _, e := range told {
-		byID[e.ID] = facts.take(e)
+		byKey[e.Key.same()] = facts.take(e.Event)
 	}
-	return byID
+	return byKey
 }
 
 // unfolded are as many of events as n allows, in their order, the newest
 // first, but a move folded into the line of the event that forced it, as
-// foldedInto says, while that line is among them: a move whose line doesn't
-// show, as it's too old to, shows itself.
-func unfolded(events []status.Event, n int) []status.Event {
-	alone := make(map[int]bool)
+// foldedInto says, of its run, while that line is among them: a move whose
+// line doesn't show, as it's too old to, shows itself.
+func unfolded(events []Event, n int) []Event {
+	alone := make(map[eventKey]bool)
 	for {
-		var kept []status.Event
-		lines := make(map[int]bool)
+		var kept []Event
+		lines := make(map[eventKey]bool)
 		for _, e := range events {
 			if len(kept) >= n {
 				break
 			}
-			if into := foldedInto(e); into != 0 && !alone[into] {
+			if into, ok := lineOf(e); ok && !alone[into] {
 				continue
 			}
-			kept, lines[e.ID] = append(kept, e), true
+			kept, lines[e.Key.same()] = append(kept, e), true
 		}
 		more := false
 		for _, e := range events {
-			if into := foldedInto(e); into != 0 && !alone[into] && !lines[into] {
+			if into, ok := lineOf(e); ok && !alone[into] && !lines[into] {
 				alone[into], more = true, true
 			}
 		}
@@ -131,6 +144,13 @@ func unfolded(events []status.Event, n int) []status.Event {
 			return kept
 		}
 	}
+}
+
+// lineOf is the key of the event whose line the move e is folded into, of
+// its run, as foldedInto has it: false where it's folded into none.
+func lineOf(e Event) (eventKey, bool) {
+	into := foldedInto(e.Event)
+	return EventKey{Run: e.Key.Run, ID: into}.same(), into != 0
 }
 
 // foldedInto is the id of the event whose line a move is folded into, as one

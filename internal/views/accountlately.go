@@ -22,9 +22,9 @@ import (
 // Detail tells LATELY in full too. Each names a session as Lately does.
 func AccountLately(m status.Moment, id string, n int, dirs SessionDirs) []Sentence {
 	if id == "" {
-		return toldFrom(m, n, everyAccount, dirs)
+		return toldFrom(m, given(m), n, everyAccount, dirs)
 	}
-	return toldFrom(m, n, accountSide{id: id}.side(), dirs)
+	return toldFrom(m, given(m), n, accountSide{id: id}.side(), dirs)
 }
 
 // unnamed are the kinds of events that name no account.

@@ -269,35 +269,78 @@ func countsItsMoves(t *testing.T, by status.Event, told []status.Event) {
 	}
 }
 
-// The auto world's router numbers its events in the order they came, the
-// week gone's first, as weekGone has them: its limits, the week gone's
-// seven, then yesterday's personal's; its caps, the week gone's two, then
-// work's today; and each move counted in what forced it.
-func TestTheAutoWorldsRouterNumbersItsDayAsTheLogHasIt(t *testing.T) {
-	told := autoEvents(worldsNow().now)
-	ids := func(kind string) []int {
-		var got []int
-		for _, e := range told {
-			if e.Kind == kind {
-				got = append(got, e.ID)
-			}
+// idsOf are the ids of the events told of the kind given, in their order.
+func idsOf(told []status.Event, kind string) []int {
+	var got []int
+	for _, e := range told {
+		if e.Kind == kind {
+			got = append(got, e.ID)
 		}
-		return got
 	}
-	if got := ids(status.EventLimit); !slices.Equal(got, []int{2, 5, 10, 12, 14, 18, 20, 25}) {
-		t.Errorf("the limits are told as %v, want the week gone's, then yesterday's personal's as 25", got)
-	}
-	if got := ids(status.EventCap); !slices.Equal(got, []int{8, 16, 46}) {
-		t.Errorf("the caps are told as %v, want the week gone's, then work's as 46", got)
-	}
+	return got
+}
+
+// forcedByOf are the ids of the events each move told is counted in, in
+// their order.
+func forcedByOf(told []status.Event) []int {
 	var forcedBy []int
 	for _, e := range told {
 		if e.Kind == status.EventMoved {
 			forcedBy = append(forcedBy, e.ForcedBy)
 		}
 	}
-	if want := []int{25, 0, 46, 46, 46}; !slices.Equal(forcedBy, want) {
-		t.Errorf("the moves are counted in %v, want %v: 8a2c's in personal's limit, db8a's afresh in none, and the cap's", forcedBy, want)
+	return forcedBy
+}
+
+// The auto world's router numbers its events in the order they came, from
+// its start: its limit, yesterday's personal's; its cap, work's today, after
+// the accounts came under pressure; and each move counted in what forced
+// it.
+func TestTheAutoWorldsRouterNumbersItsDayAsTheLogHasIt(t *testing.T) {
+	told := autoEvents(worldsNow().now)
+	if got := idsOf(told, status.EventLimit); !slices.Equal(got, []int{5}) {
+		t.Errorf("the limits are told as %v, want yesterday's personal's as 5", got)
+	}
+	if got := idsOf(told, status.EventCap); !slices.Equal(got, []int{26}) {
+		t.Errorf("the caps are told as %v, want work's as 26", got)
+	}
+	if got, want := forcedByOf(told), []int{5, 0, 26, 26, 26}; !slices.Equal(got, want) {
+		t.Errorf("the moves are counted in %v, want %v: 8a2c's in personal's limit, db8a's afresh in none, and the cap's", got, want)
+	}
+}
+
+// The router before the auto world's told the week gone's events, numbered
+// from its own start, each move counted in what forced it, as many as it
+// says, b9c4's in work's cap yesterday at 16:02, as its lines tell; its
+// files hold them, under its run, before the auto world's router's own,
+// whose document tells none of them.
+func TestTheRouterBeforeToldTheWeekGone(t *testing.T) {
+	worlds := worldsNow()
+	told := ofTheRun(happenings{worlds.now}.weekGone())
+	if got, want := idsOf(told, status.EventLimit), []int{2, 7, 17, 21, 26, 33}; !slices.Equal(got, want) {
+		t.Errorf("the week gone's limits are told as %v, want %v", got, want)
+	}
+	if got, want := idsOf(told, status.EventCap), []int{13, 29, 37}; !slices.Equal(got, want) {
+		t.Errorf("the week gone's caps are told as %v, want %v", got, want)
+	}
+	for _, by := range told {
+		if forces(by.Kind) {
+			countsItsMoves(t, by, told)
+		}
+	}
+	b9c4 := slices.IndexFunc(told, func(e status.Event) bool { return e.Session == idB9C4 })
+	if b9c4 < 0 || told[b9c4].ForcedBy != 37 || told[b9c4].To != "side" || !told[b9c4].At.After(clockAt(worlds.now, -1, 16, 2, 0)) {
+		t.Errorf("b9c4's move is %+v, want it off work to side, counted in work's cap at 16:02 yesterday", told)
+	}
+	files := routerEvents(worlds.now)
+	if len(files) != len(told)+len(autoEvents(worlds.now)) || !files[0].Run.Equal(lastRun(worlds.now)) || !files[len(told)].Run.Equal(routerRun(worlds.now)) {
+		t.Errorf("the files hold %d events, the first of run %v; want the week gone's %d of %v, then the router running's of %v",
+			len(files), files[0].Run, len(told), lastRun(worlds.now), routerRun(worlds.now))
+	}
+	for _, e := range worlds.auto().document(worlds.now).Events {
+		if e.At.Before(routerRun(worlds.now)) {
+			t.Errorf("the router's document tells %+v, from before it started at %v", e, routerRun(worlds.now))
+		}
 	}
 }
 
