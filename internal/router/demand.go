@@ -45,15 +45,18 @@ func (s *state) sizesIn(t *poolTable) map[string]float64 {
 // it brings none of its old pool's demand, while its old pool's day rate
 // keeps what it took in, as that pool's use; each account is sized among its
 // pool's, as sizesIn says; and as the pools first come in, the day rate of
-// the one pool there was is the first pool's, as all work before pools was.
-// The day rate of a pool no longer configured goes. s.mu must be held.
+// the one pool of a config from before pools is the first pool's, as all
+// work before pools was. The day rate of a pool no longer configured goes. A
+// closed table, which can't tell which pool any account is in, leaves the
+// pools as last reckoned, so no pool's demand goes while nothing is routed.
+// s.mu must be held.
 func (s *state) regroup() *poolTable {
 	t := s.pools.current()
-	if t == s.grouped {
-		return t
+	if t == s.grouped || t.closed != "" {
+		return s.grouped
 	}
 	s.forgetMoved(s.grouped, t)
-	if !s.grouped.pooled() && t.pooled() {
+	if s.grouped.within("") && t.pooled() {
 		s.days[t.first] = s.days[""]
 	}
 	maps.DeleteFunc(s.days, func(pool string, _ forecast.Day) bool { return !t.within(pool) })

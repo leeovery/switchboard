@@ -953,3 +953,147 @@ func TestAPoolsPinSpendsTheReserveOfItsOwnAccountsAloneAsTheCapsAreTold(t *testi
 		t.Errorf("the caps told are of %q, want side's alone: Acme's pin spends extra's reserve, and no pin side's", capped)
 	}
 }
+
+// pinnedAccounts returns the accounts each pool's pin r holds names, by the
+// pool's id.
+func pinnedAccounts(r *Router) map[string][]string {
+	pinned := make(map[string][]string)
+	for pool, pin := range r.sessions.pinsNow() {
+		pinned[pool] = pin.Accounts
+	}
+	return pinned
+}
+
+func TestAClosedTableLeavesEachPoolsPinStandingTillThePoolsComeBack(t *testing.T) {
+	log := logstest.Capture(t)
+	path := filepath.Join(t.TempDir(), "config.toml")
+	writeConfigFile(t, path, unpooledTOML("work", "personal", "side"))
+	cfg := testConfig(at(start), &stubProber{}, poolTokens.Read)
+	cfg.Accounts = config.Accounts{{ID: "work", Label: "work"}, {ID: "personal", Label: "personal"}, {ID: "side", Label: "side"}}
+	cfg.ConfigFile, cfg.StateDir = Watch(path), movedWithoutRecord(t)
+	r := newTestRouterOf(t, cfg)
+	r.proxy.transport = servingAll(served, served, served)
+	if r.state.pools.current().closed == "" {
+		t.Fatalf("the pools are %+v, want them closed: the move is done, the config names none, and no record tells them", r.state.pools.current())
+	}
+
+	// The state file keeps each pool's pin: they stand while nothing is
+	// routed, and nothing more can be pinned.
+	state := filepath.Join(t.TempDir(), "state.json")
+	writeFile(t, state, `{"version": 1, "pins": {"`+defaultPool+`": {"accounts": ["side"], "since": "2026-09-28T12:00:00Z"}, "`+acmePool+`": {"accounts": ["personal"], "since": "2026-09-28T12:00:00Z"}}, "sessions": []}`)
+	r.file.load(state)
+	want := map[string][]string{defaultPool: {"side"}, acmePool: {"personal"}}
+	if got := pinnedAccounts(r); !reflect.DeepEqual(got, want) {
+		t.Errorf("while the pools are closed, the pins are %q, want %q, as kept", got, want)
+	}
+	if rec := askControl(t, r, http.MethodPost, "/pin", `{"accounts": ["work"]}`); rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "nothing can be pinned") {
+		t.Errorf("pinning while the pools are closed answered %d %s, want 400, saying nothing can be pinned", rec.Code, rec.Body)
+	}
+
+	// The config has its pools again: each pin stands in its own.
+	writeConfigFile(t, path, poolsTOML(defaultPool, defaultTOML, acmeTOML))
+	r.upkeep.look()
+	if got := pinnedAccounts(r); !reflect.DeepEqual(got, want) {
+		t.Errorf("once the pools came back, the pins are %q, want %q, as they stood", got, want)
+	}
+	for pool, ids := range want {
+		if doc := statusIn(t, r, pool); !slices.Equal(doc.Pin.Accounts, ids) {
+			t.Errorf("pool %s's document holds pin %+v, want %q's", pool, doc.Pin, ids)
+		}
+	}
+	if got := givenBack(r); len(got) != 0 {
+		t.Errorf("the router gave routing back as %+v, want never: no pin went", got)
+	}
+	if log.Has(`msg="pin dropped`) || log.Has(`msg="dropped from its pool's pin`) {
+		t.Errorf("log reads\n%s\nwant no pin, nor account of one, dropped", log)
+	}
+}
+
+func TestAPinAndTheDayRateFromBeforePoolsOutlastAClosedSpellAsThePoolsComeIn(t *testing.T) {
+	logstest.Capture(t)
+	path := filepath.Join(t.TempDir(), "config.toml")
+	writeConfigFile(t, path, unpooledTOML("work", "personal", "side"))
+	clock := &testClock{now: start}
+	cfg := testConfig(clock.read, &stubProber{}, poolTokens.Read)
+	cfg.Accounts, cfg.ConfigFile = config.Accounts{{ID: "work", Label: "work"}, {ID: "personal", Label: "personal"}, {ID: "side", Label: "side"}}, Watch(path)
+	r := newTestRouterOf(t, cfg)
+	askedOK(t, r, http.MethodPost, "/pin", `{"accounts": ["side"]}`)
+	readWeekAt(r, "work", 0.4)
+	clock.now = start.Add(10 * time.Minute)
+	readWeekAt(r, "work", 0.42)
+	clock.now = start.Add(2 * time.Hour)
+	want := demandIn(r, "")
+
+	// The move to pools is done, but the config names none and no record
+	// tells them: nothing is routed, and the pin from before pools stands.
+	r.state.pools.moved = alwaysMoved
+	r.upkeep.look()
+	if r.state.pools.current().closed == "" {
+		t.Fatalf("the pools are %+v, want them closed", r.state.pools.current())
+	}
+	if got := pinnedAccounts(r); !reflect.DeepEqual(got, map[string][]string{"": {"side"}}) {
+		t.Errorf("while the pools are closed, the pins are %q, want the one from before pools, naming side, as it stood", got)
+	}
+
+	// The pools come in: the pin and the day rate are the first pool's.
+	writeConfigFile(t, path, poolsTOML(defaultPool, defaultTOML, acmeTOML))
+	r.upkeep.look()
+	if got := pinnedAccounts(r); !reflect.DeepEqual(got, map[string][]string{defaultPool: {"side"}}) {
+		t.Errorf("once the pools came in, the pins are %q, want Default's alone, naming side", got)
+	}
+	if got := demandIn(r, defaultPool); !sameDemand(got, want) {
+		t.Errorf("Default's demand is %+v, want %+v, the pool's before pools, kept through the closed spell", got, want)
+	}
+}
+
+func TestAPinFromBeforePoolsIsTheFirstPoolsOnceTheMoveTakesItsPoolsUp(t *testing.T) {
+	logstest.Capture(t)
+	path := filepath.Join(t.TempDir(), "config.toml")
+	writeConfigFile(t, path, unpooledTOML("work", "personal", "side"))
+	cfg := testConfig(at(start), &stubProber{}, poolTokens.Read)
+	cfg.Accounts, cfg.ConfigFile = config.Accounts{{ID: "work", Label: "work"}, {ID: "personal", Label: "personal"}, {ID: "side", Label: "side"}}, Watch(path)
+	r := newTestRouterOf(t, cfg)
+	state := filepath.Join(t.TempDir(), "state.json")
+	writeFile(t, state, `{"version": 1, "pin": {"accounts": ["side", "work"], "since": "2026-09-28T12:00:00Z", "move": true}, "sessions": []}`)
+	r.file.load(state)
+
+	// The move writes the first pool in the config, every account in it, and
+	// has the router take it up.
+	writeConfigFile(t, path, accountTOML("work", defaultPool, true)+accountTOML("personal", defaultPool, false)+accountTOML("side", defaultPool, false)+defaultTOML)
+	if !r.takeUpPools() {
+		t.Fatal("takeUpPools() = false, want the router routing in the pools")
+	}
+	if got, want := pinnedAccounts(r), map[string][]string{defaultPool: {"work", "side"}}; !reflect.DeepEqual(got, want) {
+		t.Errorf("once the move's pools were taken up, the pins are %q, want %q: the first pool's, as the move gives every pin event of the history", got, want)
+	}
+	r.file.save()
+	data, err := os.ReadFile(state)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var saved map[string]json.RawMessage
+	if err := json.Unmarshal(data, &saved); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := saved["pin"]; ok || !strings.Contains(string(saved["pins"]), `"`+defaultPool+`"`) {
+		t.Errorf("the state file holds\n%s\nwant the first pool's pin, and none from before pools", data)
+	}
+}
+
+func TestAPinFitsToTheAccountsAConfigNamesByTheIDsTheyHadBefore(t *testing.T) {
+	log := logstest.Capture(t)
+	r, path := newWatchingPoolsRouter(t, "", func(cfg *Config) { cfg.Formerly = formerlyOld })
+	askedOK(t, r, http.MethodPost, "/pin", `{"accounts": ["side"]}`)
+	askedOK(t, r, http.MethodPost, "/pin", `{"accounts": ["personal"]}`)
+
+	// A config put back from before switchboard made ids names each account
+	// by the id it had.
+	writeConfigFile(t, path, accountTOML("old-work", defaultPool, true)+accountTOML("old-personal", acmePool, true)+accountTOML("old-side", defaultPool, false)+defaultTOML+acmeTOML)
+	r.upkeep.look()
+	if got, want := pinnedAccounts(r), map[string][]string{defaultPool: {"side"}, acmePool: {"personal"}}; !reflect.DeepEqual(got, want) {
+		t.Errorf("the pins are %q, want %q: each account the one the config names by the id it had", got, want)
+	}
+	if log.Has(`msg="pin dropped`) || log.Has(`msg="dropped from its pool's pin`) {
+		t.Errorf("log reads\n%s\nwant no pin, nor account of one, dropped", log)
+	}
+}

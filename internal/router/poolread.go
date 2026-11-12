@@ -288,10 +288,13 @@ func (t *poolTable) poolOfAll(ids []string, as accounts) (string, error) {
 
 // pinStands fails, saying why, unless a pin of the accounts with the given
 // ids, of as, stands whole as the pin of the pool with the given id, as t
-// has the pools and fitted fits it: where they're in another pool, as when
-// the pools have moved them since the pool was read, or in several, or one
-// is in none.
+// has the pools and fitted fits it: where t is closed, as shut says; where
+// they're in another pool, as when the pools have moved them since the pool
+// was read, or in several, or one is in none.
 func (t *poolTable) pinStands(pool string, ids []string, as accounts) error {
+	if err := t.shut(); err != nil {
+		return err
+	}
 	in, err := t.poolOfAll(ids, as)
 	if err != nil {
 		return err
@@ -302,11 +305,23 @@ func (t *poolTable) pinStands(pool string, ids []string, as accounts) error {
 	return nil
 }
 
+// shut fails, saying why, where t is closed: nothing is routed, so nothing
+// can be pinned, as no account is in any pool.
+func (t *poolTable) shut() error {
+	if t.closed == "" {
+		return nil
+	}
+	return fmt.Errorf("%s: nothing can be pinned till it can", t.closed)
+}
+
 // sessionMay fails, saying which pool each is in, unless a session in the
 // pool given, as its request named it, "" for none, can be pinned to the
 // account a: one in the session's pool, as every account is in a config
-// from before pools.
+// from before pools; none, where t is closed, as shut says.
 func (t *poolTable) sessionMay(pool string, a account) error {
+	if err := t.shut(); err != nil {
+		return err
+	}
 	in := t.of(pool)
 	switch at, placed := t.in(a.ID); {
 	case !placed:

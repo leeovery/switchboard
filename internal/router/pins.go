@@ -58,8 +58,13 @@ func (g gonePin) unpinned() Unpinned {
 // pool t doesn't have goes. Where two come to be one pool's, the pin from
 // before pools beside the pool's own, the later stands, the pool's own where
 // they're as late. It notes in the log each account a pin leaves out, and
-// each pin that goes.
+// each pin that goes. A closed table, which can't tell which pool any account
+// is in, fits nothing: the pins stand as they are while nothing is routed,
+// so none is lost before the pools come back.
 func (ps pins) fitted(t *poolTable) (next pins, gone []gonePin, changed bool) {
+	if t.closed != "" {
+		return ps, nil, false
+	}
 	next = make(pins, len(ps))
 	keep := func(from, into string, pin status.Pin) {
 		if g, went := next.fit(t, from, into, pin); went {
