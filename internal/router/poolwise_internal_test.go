@@ -137,7 +137,7 @@ func TestEachPoolsRoomIsJudgedByItsOwnAccountsAndPin(t *testing.T) {
 			readWeekAt(r, "side", 0.95)
 			readWeekAt(r, "personal", 0.5)
 			if tt.pinned != "" {
-				r.pinTo(r.readOf(tt.pinPool), status.Pin{Accounts: []string{tt.pinned}, Since: start}, false)
+				pinnedIn(t, r, tt.pinPool, status.Pin{Accounts: []string{tt.pinned}, Since: start})
 			}
 			for pool, want := range tt.want {
 				if got := roomIn(r.state, pool, start); got != want {

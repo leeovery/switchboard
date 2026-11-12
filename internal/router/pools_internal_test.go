@@ -204,7 +204,7 @@ func TestARequestNeverGoesOutOnAnotherPoolsAccount(t *testing.T) {
 	tests := []struct {
 		name string
 		// setUp readies the router beyond its readings.
-		setUp func(r *Router)
+		setUp func(t *testing.T, r *Router)
 		// work and side are their answers, served where they're nil; token
 		// is the one the request carries, work's unless it says; headers are
 		// what it carries beside.
@@ -223,30 +223,30 @@ func TestARequestNeverGoesOutOnAnotherPoolsAccount(t *testing.T) {
 		{name: "a choice afresh", wantSent: []string{"work"}, wantCode: http.StatusOK, wantReason: reasonNew},
 		{
 			name: "a session on another pool's account, its cache warm: chosen afresh in its own",
-			setUp: func(r *Router) {
+			setUp: func(t *testing.T, r *Router) {
 				assign(r.sessions, key{session: "one", model: opus}, "", decision{account: "personal", reason: reasonNew}, start.Add(-5*time.Minute))
 			},
 			wantSent: []string{"work"}, wantCode: http.StatusOK,
 		},
 		{
 			name: "another pool's pin: no pin for it",
-			setUp: func(r *Router) {
-				r.pinTo(r.readOf(acmePool), status.Pin{Accounts: []string{"personal"}, Since: start}, false)
+			setUp: func(t *testing.T, r *Router) {
+				pinnedIn(t, r, acmePool, status.Pin{Accounts: []string{"personal"}, Since: start})
 			},
 			wantSent: []string{"work"}, wantCode: http.StatusOK, wantReason: reasonNew,
 		},
 		{
 			name: "another pool's pin moving its running sessions: the session stays",
-			setUp: func(r *Router) {
+			setUp: func(t *testing.T, r *Router) {
 				assign(r.sessions, key{session: "one", model: opus}, "", decision{account: "work", reason: reasonNew}, start.Add(-5*time.Minute))
-				r.pinTo(r.readOf(acmePool), status.Pin{Accounts: []string{"personal"}, Since: start, Move: true}, false)
+				pinnedIn(t, r, acmePool, status.Pin{Accounts: []string{"personal"}, Since: start, Move: true})
 			},
 			wantSent: []string{"work"}, wantCode: http.StatusOK, wantReason: reasonSticky,
 		},
 		{
 			name: "its pool's pin naming an account since moved to another pool: no pin for it",
-			setUp: func(r *Router) {
-				r.pinTo(r.readOf(defaultPool), status.Pin{Accounts: []string{"side"}, Since: start}, false)
+			setUp: func(t *testing.T, r *Router) {
+				pinnedIn(t, r, defaultPool, status.Pin{Accounts: []string{"side"}, Since: start})
 				moveAccount(r, "side", acmePool)
 			},
 			wantSent: []string{"work"}, wantCode: http.StatusOK, wantReason: reasonNew,
@@ -259,7 +259,7 @@ func TestARequestNeverGoesOutOnAnotherPoolsAccount(t *testing.T) {
 		},
 		{
 			name: "the session pinned to another pool's account as it runs: no pin for it",
-			setUp: func(r *Router) {
+			setUp: func(t *testing.T, r *Router) {
 				assign(r.sessions, key{session: "one", model: opus}, "", decision{account: "work", reason: reasonNew}, start.Add(-5*time.Minute))
 				r.sessions.pinSession("one", "personal")
 			},
@@ -268,7 +268,7 @@ func TestARequestNeverGoesOutOnAnotherPoolsAccount(t *testing.T) {
 		},
 		{
 			name: "the session pinned to another pool's account as it runs, launched pinned to one of its own: the one it launched with",
-			setUp: func(r *Router) {
+			setUp: func(t *testing.T, r *Router) {
 				assign(r.sessions, key{session: "one", model: opus}, "", decision{account: "work", reason: reasonNew}, start.Add(-5*time.Minute))
 				r.sessions.pinSession("one", "personal")
 			},
@@ -289,14 +289,16 @@ func TestARequestNeverGoesOutOnAnotherPoolsAccount(t *testing.T) {
 			wantSent: []string{"work", "side"}, wantCode: http.StatusBadGateway,
 		},
 		{
-			name:     "no room in the pool: the client's account, in the pool, for the upstream to say why",
-			setUp:    func(r *Router) { readWeeks(r, map[string]quota.Window{"work": spentWeek, "side": spentWeek}) },
+			name: "no room in the pool: the client's account, in the pool, for the upstream to say why",
+			setUp: func(_ *testing.T, r *Router) {
+				readWeeks(r, map[string]quota.Window{"work": spentWeek, "side": spentWeek})
+			},
 			work:     limitHit,
 			wantSent: []string{"work"}, wantCode: http.StatusTooManyRequests,
 		},
 		{
 			name: "no room in the pool, the client's account another pool's as it's chosen: one of the pool's, for the upstream to say why",
-			setUp: func(r *Router) {
+			setUp: func(t *testing.T, r *Router) {
 				readWeeks(r, map[string]quota.Window{"work": spentWeek, "side": spentWeek})
 				leavingAsChosen(r, "personal", defaultPool)
 			},
@@ -306,13 +308,13 @@ func TestARequestNeverGoesOutOnAnotherPoolsAccount(t *testing.T) {
 		},
 		{
 			name:     "every account of the pool refused it lately, the client's account in the pool: on that all the same",
-			setUp:    func(r *Router) { forbidOpus(r, "work", "side") },
+			setUp:    func(t *testing.T, r *Router) { forbidOpus(r, "work", "side") },
 			work:     forbidden,
 			wantSent: []string{"work"}, wantCode: http.StatusBadGateway,
 		},
 		{
 			name: "every account of the pool refused it lately, the client's account another pool's as it's chosen: answered by switchboard",
-			setUp: func(r *Router) {
+			setUp: func(t *testing.T, r *Router) {
 				forbidOpus(r, "work", "side")
 				leavingAsChosen(r, "personal", defaultPool)
 			},
@@ -326,7 +328,7 @@ func TestARequestNeverGoesOutOnAnotherPoolsAccount(t *testing.T) {
 			r := newPoolsRouter(t, at(start), true)
 			readPersonalFirst(r)
 			if tt.setUp != nil {
-				tt.setUp(r)
+				tt.setUp(t, r)
 			}
 			upstream := servingAll(orServed(tt.work), served, orServed(tt.side))
 			r.proxy.transport = upstream

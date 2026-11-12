@@ -227,6 +227,15 @@ func (r *Router) readOf(pool string) poolRead {
 	return r.state.poolReadOf(r.state.pools.current(), pool)
 }
 
+// pinnedIn has r set pin as the pin of the pool with the given id, as
+// pinTo does, failing the test where it refuses.
+func pinnedIn(t *testing.T, r *Router, pool string, pin status.Pin) {
+	t.Helper()
+	if _, err := r.pinTo(r.readOf(pool), pin, false); err != nil {
+		t.Fatalf("pinTo(%s, %+v) = %v", pool, pin, err)
+	}
+}
+
 // poolPin returns the pin of the pool with the given id, as r holds it:
 // zero where it has none.
 func (r *Router) poolPin(pool string) status.Pin {

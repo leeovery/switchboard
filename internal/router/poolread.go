@@ -2,6 +2,7 @@ package router
 
 import (
 	"cmp"
+	"errors"
 	"fmt"
 	"net/http"
 	"slices"
@@ -258,7 +259,7 @@ func (t *poolTable) poolOfAll(ids []string, as accounts) (string, error) {
 		if !ok {
 			continue
 		}
-		in, pooled := t.poolOf[id]
+		in, pooled := t.in(id)
 		if !pooled {
 			return "", fmt.Errorf("%s is in no pool, as the config no longer has it, so it can't be pinned", accountSaid(a.Account))
 		}
@@ -271,6 +272,22 @@ func (t *poolTable) poolOfAll(ids []string, as accounts) (string, error) {
 		}
 	}
 	return pool, nil
+}
+
+// pinStands fails, saying why, unless a pin of the accounts with the given
+// ids, of as, stands whole as the pin of the pool with the given id, as t
+// has the pools and fitted fits it: where they're in another pool, as when
+// the pools have moved them since the pool was read, or in several, or one
+// is in none.
+func (t *poolTable) pinStands(pool string, ids []string, as accounts) error {
+	in, err := t.poolOfAll(ids, as)
+	if err != nil {
+		return err
+	}
+	if in != pool {
+		return errors.New("the accounts to pin have just moved pool, as the config changed: pin them again")
+	}
+	return nil
 }
 
 // sessionMay fails, saying which pool each is in, unless a session in the

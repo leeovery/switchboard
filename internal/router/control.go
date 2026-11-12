@@ -119,8 +119,8 @@ type Restart struct {
 }
 
 // By says who set or cleared a pin, for the event the router tells it as:
-// ByCLI or ByDashboard, or "" where it doesn't say, as a switchboard from
-// before doesn't.
+// ByCLI or ByDashboard, ByRouter, or "" where it doesn't say, as a
+// switchboard from before doesn't.
 type By string
 
 const (
@@ -128,6 +128,9 @@ const (
 	ByCLI By = "cli"
 	// ByDashboard is the dashboard's routing card.
 	ByDashboard By = "dashboard"
+	// ByRouter is the router itself, dropping a pin the pools no longer
+	// leave standing, which no one asking may say.
+	ByRouter By = "router"
 )
 
 // check fails, saying what to give, for anyone but ByCLI, ByDashboard or no
@@ -588,8 +591,9 @@ func (g *glances) of(pool, model string) view {
 // accounts the request names, with Move, every running session of the pool
 // on another account too, and with Force, clears the own pin of every
 // session in the pool, as pinTo has it, telling it as Pinned. It fails,
-// saying why, for anyone asking but ByCLI or ByDashboard, for no account, or
-// for one nothing can go out on, and then tells nothing.
+// saying why, for anyone asking but ByCLI or ByDashboard, for no account,
+// for one nothing can go out on, or for accounts the pools have moved since
+// rd was read, as pinTo says, and then tells nothing.
 func (r *Router) pin(rd poolRead, p PinRequest) error {
 	if err := p.By.check(); err != nil {
 		return err
@@ -598,7 +602,10 @@ func (r *Router) pin(rd poolRead, p PinRequest) error {
 	if err != nil {
 		return err
 	}
-	cleared := r.pinTo(rd, status.Pin{Accounts: ids, Since: r.cfg.Now().UTC(), Move: p.Move}, p.Force)
+	cleared, err := r.pinTo(rd, status.Pin{Accounts: ids, Since: r.cfg.Now().UTC(), Move: p.Move}, p.Force)
+	if err != nil {
+		return err
+	}
 	attrs := append(poolSaid(rd.pool), "accounts", strings.Join(ids, ","), "move", p.Move)
 	if p.Force {
 		attrs = append(attrs, "force", true, "sessions_unpinned", cleared)
@@ -630,13 +637,19 @@ func (r *Router) unpin(rd poolRead, force bool, by By) {
 // pins fitted to the pools as they stand now and told the state, as fitPins
 // does: one step, under pinning, so no other change of the pins comes
 // between them. It returns how many sessions had a pin of their own, cleared
-// with force.
-func (r *Router) pinTo(rd poolRead, pin status.Pin, force bool) (cleared int) {
+// with force. It fails, changing nothing, unless the pin's accounts are all
+// in that pool as the pools stand now, as pinStands says, so a pin that
+// wouldn't stand as asked is never answered as set.
+func (r *Router) pinTo(rd poolRead, pin status.Pin, force bool) (cleared int, err error) {
 	r.pinning.Lock()
 	defer r.pinning.Unlock()
+	t := r.state.pools.current()
+	if err = t.pinStands(rd.pool, pin.Accounts, r.accounts); err != nil {
+		return 0, err
+	}
 	cleared = r.sessions.setPin(rd, pin, force)
-	r.fitPins()
-	return cleared
+	r.fitPins(t)
+	return cleared, nil
 }
 
 // clearPin clears the pin of the pool rd reads, as the sessions' unpin does,
@@ -647,7 +660,7 @@ func (r *Router) clearPin(rd poolRead, force bool) (was status.Pin, cleared int)
 	r.pinning.Lock()
 	defer r.pinning.Unlock()
 	was, cleared = r.sessions.unpin(rd, force)
-	r.fitPins()
+	r.fitPins(r.state.pools.current())
 	return was, cleared
 }
 
@@ -662,16 +675,21 @@ func (r *Router) repool() {
 	}
 	r.pinning.Lock()
 	defer r.pinning.Unlock()
-	r.fitPins()
+	r.fitPins(r.state.pools.current())
 }
 
-// fitPins fits each pool's pin to the pools as they stand now, as the
-// sessions' fit does, and tells the state, which judges each pool's room by
-// its pin, as repin says. The pools are read with pinning held, so a pin set
-// against pools since replaced is fitted, here or by the repool after them.
-// r.pinning must be held.
-func (r *Router) fitPins() {
-	r.state.repin(r.sessions.fit(r.state.pools.current()))
+// fitPins fits each pool's pin to the pools as t has them, as the sessions'
+// fit does, tells the state, which judges each pool's room by its pin, as
+// repin says, and tells each pin the fit dropped whole as Unpinned, by the
+// router. t is read with pinning held, so a pin set against pools since
+// replaced is fitted, here or by the repool after them. r.pinning must be
+// held.
+func (r *Router) fitPins(t *poolTable) {
+	ps, gone := r.sessions.fit(t)
+	r.state.repin(ps)
+	for _, g := range gone {
+		r.emit(g.unpinned())
+	}
 }
 
 // pinSession sends the requests of the session with the given id to the

@@ -63,10 +63,13 @@ type stateFile struct {
 	// heirs say which account the tokens of each account the router was
 	// started without count as, as the config it was started from makes them.
 	heirs heirs
+	// emit tells the events loading the file calls for: each pool's pin it
+	// drops whole, as Unpinned.
+	emit func(Event)
 }
 
 func newStateFile(now func() time.Time, changes *changes, sessions *sessions, accounts accounts, state *state, told *yearsTold, heirs heirs) *stateFile {
-	return &stateFile{write: writeState, now: now, changes: changes, sessions: sessions, accounts: accounts, state: state, told: told, heirs: heirs}
+	return &stateFile{write: writeState, now: now, changes: changes, sessions: sessions, accounts: accounts, state: state, told: told, heirs: heirs, emit: func(Event) {}}
 }
 
 // changes are the changes the state file lacks. Noting one never blocks, and
@@ -190,15 +193,19 @@ type savedReading struct {
 // load takes in the state file at path, as the router starts, the pools as
 // they stand then, and keeps in it from then on what the router knows that
 // should outlast it, telling the state each pool's pin it kept, as recallPins
-// says. What it held that can no longer be used is left out, and the file is
-// to be written again without it.
+// says, and emit each the pools left no longer standing. What it held that
+// can no longer be used is left out, and the file is to be written again
+// without it.
 func (f *stateFile) load(path string) {
 	f.path = path
 	now := f.now()
 	saved := f.read(now)
 	tokens := f.accounts.recall(saved.Tokens, f.heirs, now)
-	sessions := f.sessions.recall(saved.savedSessions, f.accounts, now, f.state.pools.current())
+	sessions, unpinned := f.sessions.recall(saved.savedSessions, f.accounts, now, f.state.pools.current())
 	f.state.recallPins(f.sessions.pinsNow())
+	for _, gone := range unpinned {
+		f.emit(gone.unpinned())
+	}
 	usage := f.state.recall(saved.savedUsage, f.accounts.holding(saved.Tokens))
 	told := f.told.recall(saved.TokenYears, f.accounts.includes)
 	if tokens || sessions || usage || told {

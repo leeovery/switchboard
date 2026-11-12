@@ -355,15 +355,16 @@ func (s *sessions) unpin(rd poolRead, force bool) (was status.Pin, cleared int) 
 }
 
 // fit fits each pool's pin to the pools as t has them, as fitted says, and
-// returns the pins as it leaves them.
-func (s *sessions) fit(t *poolTable) pins {
+// returns the pins as it leaves them, and each it dropped whole.
+func (s *sessions) fit(t *poolTable) (pins, []gonePin) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if next, changed := s.pins.fitted(t); changed {
+	next, gone, changed := s.pins.fitted(t)
+	if changed {
 		s.pins = next
 		s.changed()
 	}
-	return s.pins
+	return s.pins, gone
 }
 
 // poolOf returns the pool the session with the given id was last routed
@@ -599,14 +600,15 @@ func (s *sessions) saved() savedSessions {
 // given, each pool's pin fitted to the pools, as recallPins says. One to an
 // account without a usable token stands, as its token file may only have
 // been caught as it's rewritten: while the account has none, choices pass it
-// over. It reports whether it left anything out, or fitted any pin.
-func (s *sessions) recall(saved savedSessions, accounts accounts, now time.Time, t *poolTable) bool {
+// over. It reports whether it left anything out, or fitted any pin, and
+// returns each pool's pin the fit dropped whole.
+func (s *sessions) recall(saved savedSessions, accounts accounts, now time.Time, t *poolTable) (bool, []gonePin) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	assignments := s.recallAssignments(saved.Sessions, accounts, now)
 	ownPins := s.recallOwnPins(saved.SessionPins, accounts)
-	pins := s.recallPins(saved, accounts, t)
-	return assignments || ownPins || pins
+	pins, gone := s.recallPins(saved, accounts, t)
+	return assignments || ownPins || pins, gone
 }
 
 // recallAssignments takes in the assignments saved, but those gone unused for
@@ -646,8 +648,9 @@ func (s *sessions) recallOwnPins(saved map[string]ownPin, accounts accounts) (dr
 // says, fitted to the pools as t has them, as fitted says: the one pin of a
 // state file from before pools settled as its home pool's, each pin left
 // naming its own pool's accounts alone, and the pin of a pool t doesn't have
-// gone. It reports whether that changed any. s.mu must be held.
-func (s *sessions) recallPins(saved savedSessions, accounts accounts, t *poolTable) (changed bool) {
+// gone. It reports whether that changed any, and returns each pin the fit
+// dropped whole. s.mu must be held.
+func (s *sessions) recallPins(saved savedSessions, accounts accounts, t *poolTable) (changed bool, gone []gonePin) {
 	kept := make(pins)
 	for pool, pin := range saved.everyPin() {
 		pin, left := recalledPin(pin, accounts)
@@ -656,9 +659,9 @@ func (s *sessions) recallPins(saved savedSessions, accounts accounts, t *poolTab
 			kept[pool] = pin
 		}
 	}
-	fitted, refitted := kept.fitted(t)
+	fitted, gone, refitted := kept.fitted(t)
 	s.pins = fitted
-	return changed || refitted
+	return changed || refitted, gone
 }
 
 // recalledPin returns the pin saved but for its accounts no longer

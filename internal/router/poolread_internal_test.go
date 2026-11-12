@@ -253,7 +253,7 @@ func TestAPinIsAnsweredForThePoolOfTheAccountsItPins(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			r := pooledRouter(t, pooledAccounts(), bothFenced)
-			r.pinTo(r.readOf(defaultPool), status.Pin{Accounts: []string{"side"}, Since: start}, false)
+			pinnedIn(t, r, defaultPool, status.Pin{Accounts: []string{"side"}, Since: start})
 
 			rec := askControl(t, r, http.MethodPost, withPool("/pin", tt.asked), tt.body)
 			if tt.refused != "" {
@@ -283,7 +283,7 @@ func TestAPinIsAnsweredForThePoolOfTheAccountsItPins(t *testing.T) {
 func TestARefusedUnpinChangesNothing(t *testing.T) {
 	logstest.Capture(t)
 	r := pooledRouter(t, pooledAccounts(), bothFenced)
-	r.pinTo(r.readOf(defaultPool), status.Pin{Accounts: []string{"side"}, Since: start}, false)
+	pinnedIn(t, r, defaultPool, status.Pin{Accounts: []string{"side"}, Since: start})
 
 	askControl(t, r, http.MethodDelete, "/pin", "")
 	if got := r.poolPin(defaultPool); !slices.Equal(got.Accounts, []string{"side"}) {
@@ -350,8 +350,8 @@ func TestEachPoolsDocumentHoldsItsOwnPin(t *testing.T) {
 	logstest.Capture(t)
 	r := pooledRouter(t, pooledAccounts(), testPools)
 	readPersonalFirst(r)
-	r.pinTo(r.readOf(defaultPool), status.Pin{Accounts: []string{"side"}, Since: start, Move: true}, false)
-	r.pinTo(r.readOf(acmePool), status.Pin{Accounts: []string{"personal"}, Since: start.Add(time.Minute)}, false)
+	pinnedIn(t, r, defaultPool, status.Pin{Accounts: []string{"side"}, Since: start, Move: true})
+	pinnedIn(t, r, acmePool, status.Pin{Accounts: []string{"personal"}, Since: start.Add(time.Minute)})
 
 	tests := []struct {
 		pool string
