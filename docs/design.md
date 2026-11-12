@@ -578,9 +578,10 @@ dirs  = ["~/Code/acme"]    # one or more, written absolute or from ~; none: the 
   organization stands behind a pool, and never one the accounts record holds; and shown by its
   label, free text, changed whenever, and no two pools' alike, ignoring case. Commands name a pool
   by its id, as they name an account by its. The accounts record keeps every pool this Mac has had,
-  with its label once it's removed, as it keeps every account, so History names a removed pool. A
-  pool is known as an account is, rather than by a name the user types, so a pool can be relabelled
-  and its history holds (the owner's call, 11 November 2026).
+  with its label once it's removed, as it keeps every account, kept in step with the config by the
+  router as Account identity keeps accounts, so History names a removed pool. A pool is known as an
+  account is, rather than by a name the user types, so a pool can be relabelled and its history
+  holds (the owner's call, 11 November 2026).
 - **The first pool** is made by setup as it adds the first account, on a new install, and by the
   move to pools on an install from before them (see What's recorded). It's labelled `Default`, and
   no screen names a pool until there's a second.
@@ -724,26 +725,36 @@ read as a pool by its leaving one out (the owner's call, 11 November 2026).
 - **Readings** stay per account: an account's windows are its own, whatever pool it's in.
 - **Moving to pools, once:** the history is rewritten with the first pool, where all work before
   pools was, so it holds one form, as Account identity's move holds it. The router does it as it
-  first starts on a build with pools, under the config's lock, before anything reads the history; it
-  routes throughout, and the dashboard and the verbs wait on the history till it's done, saying so.
-  - Where the config has no pools, it makes the first: a random id, labelled `Default`, every
-    account's `pool` written to it, as Account identity's move writes ids into the config. The
-    accounts record notes it as the first pool. Where several Macs share a config, the first Mac to
-    move writes the pool, and the others find it there and take the first pool in the config's
-    order as theirs; a Mac still on an earlier build can't read a config with pools, so the Macs
-    sharing a config upgrade together.
-  - Then every request line, every pin event and every day's summary is given the first pool's id,
-    written anew beside the old and swapped in, a file at a time, as Account identity's move writes
-    them: a stop part way loses nothing, and the move runs again from where it stopped, a line that
-    names a pool already left as it is. A day whose lines are still kept is summarised again from
-    them, and an older one is rewritten as it stands. The files the router builds from these are
-    built again.
-  - It's proved before release on a copy of the owner's own history, as Account identity's move is:
-    every file moved, every day's totals the same before and after.
-  - Where Account identity isn't yet released when pools are, the two moves are one, a single pass
-    over the history.
-- **Export and import** copy the files as they are. A folder exported before the move is given the
-  first pool as `import` takes it in, as it moves a folder's old ids over.
+  first starts on a build with pools, once Account identity's move is done, by that move's
+  machinery: beside its routing, a step at a time, what's decided written to the accounts record,
+  under the record's lock, before anything else changes, so a stop anywhere carries on to the same
+  end the next time; `pools.moved` in the state directory marks it done. It routes throughout. The
+  dashboard says what holds the move up, and opens once it's done; the verbs that read the history,
+  and `import`, refuse meanwhile, saying the same; and the status document's `moving` says how it
+  stands. No step waits on the API.
+  - **The first pool:** where the config has no pools, the move makes the first, labelled
+    `Default`, and writes it to the config in one edit with every account's `pool`, as Account
+    identity's move writes the ids. The accounts record notes it as the first pool. Where the config
+    has pools already, as where another Mac sharing it moved first, the first pool in the config's
+    order is this Mac's first, and the config isn't written.
+  - **The files:** every request line, every pin event and every day's summary is given the first
+    pool's id, written anew and swapped in, a day's files at a time, holding off their writers, as
+    Account identity's move writes them. A line that names a pool already is left as it is, so a
+    file moved reads the same moved again. A day whose lines are still kept is summarised again
+    from them, in the new summary version, and an older one is rewritten as it stands. The files
+    the router builds from these are built again.
+  - **Healed:** once the move's done, a config that names no pool, as one put back by hand or by a
+    repository it's kept in, is given the first pool again as the router starts, every account in
+    it, as Account identity's `Heal` writes the ids back.
+  - It's proved before release on a copy of the owner's own history, taken with his word, never on
+    the real one: every file moved, every day's totals the same before and after, and the
+    dashboard and the verbs reading it whole.
+- **Export and import:** an export carries the pools in the accounts record, and `export.json` is
+  version 3, so a switchboard from before pools refuses a folder whose lines name them. Taking a
+  folder in, its pools join this Mac's record as its accounts do: matched by id, else added as the
+  other Mac keeps them, their labels and removals with them. A folder from before pools, of version
+  2 or 1, has its lines, pin events and summaries given this Mac's first pool as `import` takes
+  them in.
 
 Moving an account rewrites nothing: the past stands as it was. Views that show accounts go by which
 pool each account is in now: windows, Runway, the day strips, Graphs. Views that show work go by the
@@ -772,6 +783,8 @@ totals.
   saying which pool already is. `accounts add` and `accounts edit` take `--pool <id>`, `accounts
   add` without it adding to the pool the verbs act on, and `--primary` makes an account its pool's
   primary. `accounts` adds each account's pool once a second pool exists.
+- **The verbs' JSON** gives a pool by its id and its label, as `pool` and `pool_label`, wherever it
+  gives one, as it gives each account's id and label.
 - **The skill** tells Claude to pass `--pool "$SWITCHBOARD_POOL"`, the session's pool's id, to the
   verbs, so that a session reads its own pool, named explicitly. It also says that artifacts live on
   the session's pool's primary.
