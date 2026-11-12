@@ -1282,9 +1282,9 @@ func TestThePoolsAreNamedOnlyWhereThereAreSeveral(t *testing.T) {
 
 func TestThePoolsAreFollowedAsTheyChangeTheFirstReadAfreshWithThem(t *testing.T) {
 	reads := 0
-	m := newMembership(func() string {
+	m := newMembership(func() config.Pool {
 		reads++
-		return acmePool
+		return config.Pool{ID: acmePool}
 	}, sameID, noPoolKnown)
 	accounts := pooledAccounts()
 
@@ -1366,7 +1366,7 @@ func TestAConfigThatLosesItsPoolsKeepsThemOnceTheMoveIsDone(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			log := logstest.Capture(t)
-			m := newMembership(func() string { return tt.first }, sameID, noPoolKnown)
+			m := newMembership(func() config.Pool { return config.Pool{ID: tt.first} }, sameID, noPoolKnown)
 			if tt.pooled {
 				m.follow(pooledAccounts(), testPools)
 			}
@@ -1455,7 +1455,7 @@ func TestAConfigThatLosesItsPoolsKnowsItsAccountsByTheirIDsNow(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			logstest.Capture(t)
-			m := newMembership(func() string { return tt.first }, idNow, noPoolKnown)
+			m := newMembership(func() config.Pool { return config.Pool{ID: tt.first} }, idNow, noPoolKnown)
 			if tt.pooled {
 				m.follow(pooledAccounts(), testPools)
 			}

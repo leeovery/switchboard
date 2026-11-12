@@ -385,6 +385,11 @@ func (as accounts) sendable() accounts {
 	return slices.DeleteFunc(slices.Clone(as), func(a account) bool { return !a.hasToken() })
 }
 
+// held returns the accounts holds reports true of, by their ids, in order.
+func (as accounts) held(holds func(id string) bool) accounts {
+	return slices.DeleteFunc(slices.Clone(as), func(a account) bool { return !holds(a.ID) })
+}
+
 // only returns the accounts with the ids given, in order.
 func (as accounts) only(ids []string) accounts {
 	return slices.DeleteFunc(slices.Clone(as), func(a account) bool { return !slices.Contains(ids, a.ID) })

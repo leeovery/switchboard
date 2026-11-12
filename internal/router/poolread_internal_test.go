@@ -473,7 +473,7 @@ func TestAConfigWithNoPoolsIsAnsweredAsBeforeWhateverPoolIsAsked(t *testing.T) {
 	readPersonalFirst(r)
 	routeIn(t, r, workToken, "one", "", nil)
 
-	whole, err := json.Marshal(r.assembled(everyAccount()).WorkedOut(r.cfg.Policy))
+	whole, err := json.Marshal(r.assembled(r.state.everyAccount()).WorkedOut(r.cfg.Policy))
 	if err != nil {
 		t.Fatal(err)
 	}

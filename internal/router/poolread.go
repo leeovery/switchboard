@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"slices"
 
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/redact"
 	"github.com/leeovery/switchboard/internal/status"
@@ -35,17 +36,20 @@ type RoutedPool struct {
 
 // poolRead is what a reader of the control API is answered for: one pool, as
 // one reading of the pools has it, whose accounts, primary, pin, sessions
-// and requests the router's answers hold, and no other's. In a config from
+// and requests the router's answers hold, and no other's; or, for an answer
+// of an account whatever pool it's in, every account. In a config from
 // before pools, it's every account.
 type poolRead struct {
 	pools *poolTable
 	// pool is the id of the pool read, as pools spells it: "" in a config
-	// from before pools.
+	// from before pools, and of every account.
 	pool string
-	// primary is the id of the pool's primary, as primaryOf has it: "" in a
-	// config from before pools, whose accounts keep the primary the router
-	// started with.
-	primary string
+	// every is set where every account is read, whatever pool it's in.
+	every bool
+	// primaries are the ids of the primary of each pool, as primaryOf has
+	// them, which the accounts read are marked by: nil in a config from
+	// before pools, whose accounts keep the primary the router started with.
+	primaries map[string]bool
 }
 
 // poolAsked returns what the reader of req asks to be answered for: the
@@ -54,29 +58,46 @@ type poolRead struct {
 // is named and every pool is fenced.
 func (r *Router) poolAsked(req *http.Request) (poolRead, error) {
 	t := r.state.pools.current()
-	pool, err := t.asked(req.URL.Query().Get(PoolQuery))
+	pool, err := t.asked(poolNamed(req))
 	if err != nil {
 		return poolRead{}, err
 	}
-	return r.poolReadOf(t, pool), nil
+	return r.state.poolReadOf(t, pool), nil
+}
+
+// poolNamed returns the id of the pool req names, as ?pool= gives it: ""
+// where it names none, or gives the parameter no value.
+func poolNamed(req *http.Request) string {
+	return req.URL.Query().Get(PoolQuery)
 }
 
 // poolReadOf returns the poolRead of the pool with the given id, as t has the
 // pools.
-func (r *Router) poolReadOf(t *poolTable, pool string) poolRead {
-	return poolRead{pools: t, pool: pool, primary: t.primaryOf(pool, r.accounts)}
+func (s *state) poolReadOf(t *poolTable, pool string) poolRead {
+	return poolRead{pools: t, pool: pool, primaries: t.primaries(s.accounts)}
 }
 
-// everyAccount is a poolRead of every account the router has, as a config
-// from before pools makes them: for an answer of one account, whatever pool
-// it's in.
-func everyAccount() poolRead {
-	return poolRead{pools: newPoolTable(nil, nil, "")}
+// everyAccount is a poolRead of every account the router has, whatever pool
+// it's in, as the pools stand now: for an answer of one account, and for
+// what the router judges of every account at once.
+func (s *state) everyAccount() poolRead {
+	t := s.pools.current()
+	return poolRead{pools: t, every: true, primaries: t.primaries(s.accounts)}
 }
 
-// holds reports whether the account with the given id is in the pool read.
+// holds reports whether the account with the given id is read.
 func (rd poolRead) holds(id string) bool {
-	return rd.pools.holds(rd.pool, id)
+	return rd.every || rd.pools.holds(rd.pool, id)
+}
+
+// primary reports whether the account with the given id is its pool's
+// primary, as the pools stand, reporting false where the pools say nothing
+// of it, in a config from before pools.
+func (rd poolRead) primary(id string) (primary, known bool) {
+	if rd.primaries == nil {
+		return false, false
+	}
+	return rd.primaries[id], true
 }
 
 // routes reports whether work recorded as in the pool given, as a request's
@@ -97,16 +118,45 @@ func (rd poolRead) pin(global status.Pin) status.Pin {
 	return global
 }
 
-// events returns those of the events given that the pool read shows: every
-// event that names no pool, and those that name it.
+// events returns those of the events given that the pool read shows: one
+// that names a pool, where it's the pool read; one that names an account,
+// where the account is in the pool now, as its windows go; and every one
+// that names neither, as the router's own, its restarts and its exports do.
 func (rd poolRead) events(all []status.Event) []status.Event {
+	if rd.every || len(rd.pools.pools) == 0 {
+		return all
+	}
 	var shown []status.Event
 	for _, e := range all {
-		if e.Pool == "" || rd.routes(e.Pool) {
+		if rd.shows(e) {
 			shown = append(shown, e)
 		}
 	}
 	return shown
+}
+
+// shows reports whether the pool read shows the event e, as events says.
+func (rd poolRead) shows(e status.Event) bool {
+	switch {
+	case e.Pool != "":
+		return rd.routes(e.Pool)
+	case e.Account != "":
+		return rd.holds(e.Account)
+	case len(e.Accounts) > 0:
+		return rd.holds(e.Accounts[0])
+	}
+	return true
+}
+
+// prime returns the priming schedule as the pool read shows it: the slots of
+// its accounts alone. The stagger is every pool's together, till each pool
+// staggers its own.
+func (rd poolRead) prime(p status.Prime) status.Prime {
+	if rd.every || len(rd.pools.pools) == 0 {
+		return p
+	}
+	p.Slots = slices.DeleteFunc(slices.Clone(p.Slots), func(s status.Slot) bool { return !rd.holds(s.Account) })
+	return p
 }
 
 // named returns the id and the label of the pool read: both "" in a config
@@ -154,22 +204,34 @@ func (t *poolTable) listed() string {
 // routed returns the accounts of as in the pool with the given id, in their
 // order: those the router has, of those the pools put in it.
 func (t *poolTable) routed(pool string, as accounts) accounts {
-	return slices.DeleteFunc(slices.Clone(as), func(a account) bool { return !t.holds(pool, a.ID) })
+	return as.held(func(id string) bool { return t.holds(pool, id) })
 }
 
 // primaryOf returns the id of the primary of the pool with the given id, of
 // as, the accounts the router has: the one the config makes it, where the
-// router has it, else the pool's first, as the config's would be without
-// it; "" where the pool has none of as, and in a config from before pools.
+// router has it, else the pool's first, as config.PrimaryIndex has it; ""
+// where the pool has none of as, and in a config from before pools.
 func (t *poolTable) primaryOf(pool string, as accounts) string {
 	in := t.routed(pool, as)
 	if len(t.pools) == 0 || len(in) == 0 {
 		return ""
 	}
-	if i := slices.IndexFunc(in, func(a account) bool { return a.ID == t.primary[pool] }); i >= 0 {
-		return in[i].ID
+	return in[config.PrimaryIndex(in, func(a account) bool { return a.ID == t.primary[pool] })].ID
+}
+
+// primaries returns the ids of each pool's primary, of as, the accounts the
+// router has, as primaryOf has them: nil in a config from before pools.
+func (t *poolTable) primaries(as accounts) map[string]bool {
+	if len(t.pools) == 0 {
+		return nil
 	}
-	return in[0].ID
+	primaries := make(map[string]bool, len(t.pools))
+	for _, p := range t.pools {
+		if id := t.primaryOf(p.ID, as); id != "" {
+			primaries[id] = true
+		}
+	}
+	return primaries
 }
 
 // reported returns the pools as GET /health reports them, in the config's

@@ -1349,7 +1349,7 @@ func startedAgain(held, kept quota.Window, at time.Time) quota.Window {
 // document is documentOf every account, as a config from before pools has
 // them, those given pinned.
 func (s *state) document(pinned ...string) status.Document {
-	return s.documentOf(everyAccount(), pinned)
+	return s.documentOf(s.everyAccount(), pinned)
 }
 
 // documentOf reports the usage of every account of the pool rd reads as the
@@ -1384,8 +1384,8 @@ func (s *state) statuses(now time.Time, rd poolRead, pinned []string) []status.A
 		}
 		u := s.usage[a.ID]
 		st := u.status(a, s.policy, now)
-		if rd.primary != "" {
-			st.Primary = a.ID == rd.primary
+		if primary, known := rd.primary(a.ID); known {
+			st.Primary = primary
 		}
 		if a.hasToken() {
 			st.Pressure = u.pressure(a, s.policy, slices.Contains(pinned, a.ID), now)
