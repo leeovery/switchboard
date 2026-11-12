@@ -555,7 +555,7 @@ func (r *Router) pinSession(id, account string, by By) error {
 		return unknownSession(id)
 	}
 	logger.Info("pinned session", "session", status.ShortID(id), "account", account)
-	r.emit(Pinned{Account: account, Session: id, By: by})
+	r.emit(Pinned{Account: account, Session: id, Dir: r.sessions.dir(id), By: by})
 	return nil
 }
 
@@ -570,7 +570,7 @@ func (r *Router) unpinSession(id string, by By) error {
 	}
 	logger.Info("unpinned session", "session", status.ShortID(id))
 	if was != "" {
-		r.emit(Unpinned{Account: was, Session: id, By: by})
+		r.emit(Unpinned{Account: was, Session: id, Dir: r.sessions.dir(id), By: by})
 	}
 	return nil
 }

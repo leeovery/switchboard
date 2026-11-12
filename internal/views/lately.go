@@ -28,7 +28,7 @@ type Sentence struct {
 // "work", "api" or "pin"; the words said of it; its object, where it has
 // one, as "side" or "3 sessions"; and the words after that. Each names
 // accounts apart, by id, as status.Words do, and a session by its directory,
-// as latelyTeller's session names it.
+// else by its short id, as latelyTeller's session names it.
 type Said struct {
 	Subject, Words, Object, Rest status.Words
 }
@@ -173,7 +173,7 @@ var latelyTellers = map[string]func(t latelyTeller, e status.Event, f eventFact)
 // where it wasn't on the router's best: ", as pinned" where a pin sent it,
 // else the reason in the views' words, as ": personal came under pressure".
 func (t latelyTeller) started(e status.Event, f eventFact) (Said, Said) {
-	s := Said{Subject: t.session(e.Session), Words: clause(" started on "), Object: account(e.Account), Rest: t.startedWhy(e, f, false)}
+	s := Said{Subject: t.session(e), Words: clause(" started on "), Object: account(e.Account), Rest: t.startedWhy(e, f, false)}
 	return s, s
 }
 
@@ -200,11 +200,11 @@ func (t latelyTeller) startedWhy(e status.Event, f eventFact, saysBest bool) sta
 func (t latelyTeller) moved(e status.Event, f eventFact) (Said, Said) {
 	words := status.Words{status.Plain(" moved "), status.Named(e.From), status.Plain(" → "), status.Named(e.To)}
 	why := status.EventWords(e.Reason, t.facts(f, e.From, e.To))
-	if len(why) > 0 {
+	if why.String() != "" {
 		words = append(words, status.Plain(": "))
 	}
 	before, object, after := atAccount(why)
-	s := Said{Subject: t.session(e.Session), Words: slices.Concat(words, before), Object: object, Rest: after}
+	s := Said{Subject: t.session(e), Words: slices.Concat(words, before), Object: object, Rest: after}
 	return s, s
 }
 
@@ -287,7 +287,7 @@ func (t latelyTeller) pinned(e status.Event, _ eventFact) (Said, Said) {
 	who, accounts := "new sessions go to ", pinnedTo(e)
 	switch {
 	case e.Session != "":
-		who, accounts = t.session(e.Session).String()+" goes to ", account(e.Account)
+		who, accounts = t.session(e).String()+" goes to ", account(e.Account)
 	case e.Move:
 		who = "new and running sessions go to "
 	}
@@ -301,7 +301,7 @@ func (t latelyTeller) pinned(e status.Event, _ eventFact) (Said, Said) {
 func (t latelyTeller) unpinned(e status.Event, _ eventFact) (Said, Said) {
 	who := clause("new sessions")
 	if e.Session != "" {
-		who = t.session(e.Session)
+		who = t.session(e)
 	}
 	s := Said{Subject: who, Words: clause(" back to auto")}
 	return s, s
@@ -381,8 +381,8 @@ func pinnedNames(e status.Event) []string {
 	return cleaned([]string{e.Account})
 }
 
-// session is the session with the given id, named as sessionNamed names it,
-// in the directory t's dirs give it: none for "".
-func (t latelyTeller) session(id string) status.Words {
-	return sessionNamed(id, t.dirs.of(id))
+// session is the session the event e names, named as sessionNamed names it,
+// in the directory t's dirs give it: none where e names none.
+func (t latelyTeller) session(e status.Event) status.Words {
+	return sessionNamed(e.Session, t.dirs.of(e))
 }

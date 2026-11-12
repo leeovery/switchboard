@@ -48,8 +48,8 @@ a limit is reset by hand, the router sees it. Without the router, or with
 With --session, print the label of the account the router sends a Claude Code
 session's requests to, the one its last-used model went to, as a statusline
 asks, on a terminal or off one; or with --json, the session's every model and
-why it went where it did, each account by its id. It needs the router running: start it with
-switchboard service install (or switchboard serve).
+why it went where it did, each account by its id. It needs the router
+running: start it with switchboard service install (or switchboard serve).
 
 ` + namingASession,
 		Args: func(cmd *cobra.Command, args []string) error {

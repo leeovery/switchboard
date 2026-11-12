@@ -38,7 +38,7 @@ Sun 02:00  personal's week resets       in 2d 11h       13:22  ▸ infra moved p
 Sun 21:00  work's week resets            in 3d 6h       12:47  ▲ docs started on personal
 Mon 10:00  side's week resets           in 3d 19h       12:02  ▲ switchboard started on work
                                                         11:55  ▲ website started on personal
-                                                        10:02  ▲ 5b19 started on personal
-                                                        09:40  ▲ 3d7a started on work
+                                                        10:02  ▲ mobile started on personal
+                                                        09:40  ▲ docs started on work
 
 tab views     u usage  r routing  s sessions  c coming up  l lately  b by: window     p pin  ? help  q quit

@@ -47,11 +47,11 @@ LATELY  ────────────────────────
 12:47  ▲ docs started on personal
 12:02  ▲ switchboard started on work
 11:55  ▲ website started on personal
-10:02  ▲ 5b19 started on personal
-09:40  ▲ 3d7a started on work
-09:12  ▲ e0c4 started on work
-08:31  ▲ a8f1 started on side
-07:58  ▲ 2b6d started on work
+10:02  ▲ mobile started on personal
+09:40  ▲ docs started on work
+09:12  ▲ infra started on work
+08:31  ▲ website started on side
+07:58  ▲ api started on work
 
 
 

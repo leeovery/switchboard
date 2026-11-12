@@ -209,6 +209,10 @@ func TestDetailsLATELYNamesASessionByItsDirectory(t *testing.T) {
 		{event: status.Event{Kind: status.EventMoved, From: "personal", To: "side", Reason: status.Rescored(15 * time.Hour)}, full: " came from personal: rescored after 15h idle"},
 		{event: status.Event{Kind: status.EventPin, Account: "side"}, full: " pinned here, by hand"},
 	}
+	cameOfNoReason := latelyOf(status.Event{At: at(15, 0), Kind: status.EventMoved, Session: session, From: "personal", To: "side"}).At(at(16, 0), claude.Policy())
+	if got := views.AccountLately(cameOfNoReason, "side", 1, views.SessionDirs{}); len(got) != 1 || got[0].Full.String() != "c61b came from personal" {
+		t.Errorf("side's LATELY = %+v, want %q, no colon after a reason that says nothing", got, "c61b came from personal")
+	}
 	for _, e := range events {
 		e.event.At, e.event.Session = at(15, 0), session
 		m := latelyOf(e.event).At(at(16, 0), claude.Policy())

@@ -8,9 +8,9 @@ import (
 	"github.com/leeovery/switchboard/internal/status"
 )
 
-// SessionDirs are what LATELY names its sessions by: the sessions the router
-// lists, and those the watch holds. Their zero value names every session by
-// its id.
+// SessionDirs are what LATELY names its sessions by, beside the directory
+// an event gives: the sessions the router lists, and those the watch holds.
+// Their zero value names a session by its event's directory alone.
 type SessionDirs struct {
 	routed []status.Session
 	held   HeldSessions
@@ -22,16 +22,19 @@ func SessionDirsOf(routed []status.Session, held HeldSessions) SessionDirs {
 	return SessionDirs{routed: routed, held: held}
 }
 
-// of is the directory the session with the given id runs in, as the List
-// has it: as the router gives it, where it lists it; else as the lines held
-// last name it; "" where neither names one.
-func (d SessionDirs) of(id string) string {
-	if i := slices.IndexFunc(d.routed, func(s status.Session) bool { return s.ID == id }); i >= 0 {
-		if dir := routedDir(d.routed[i]); dir != "" {
-			return dir
-		}
+// of is the directory the session an event names ran in: as the event gives
+// it, so a line's name never changes once told; else as the List has it, as
+// listedDir says, of the router's listing and the lines held; "" where none
+// names one.
+func (d SessionDirs) of(e status.Event) string {
+	if e.Dir != "" {
+		return e.Dir
 	}
-	return d.held.dirOf(id)
+	var routed status.Session
+	if i := slices.IndexFunc(d.routed, func(s status.Session) bool { return s.ID == e.Session }); i >= 0 {
+		routed = d.routed[i]
+	}
+	return listedDir(routed, d.held.dirOf(e.Session))
 }
 
 // sessionNamed is the session with the given id, running in dir, named in a

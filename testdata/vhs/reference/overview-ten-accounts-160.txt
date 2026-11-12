@@ -46,8 +46,8 @@ studio        ● open                                                         2
 
 COMING UP  ─────────────────────────────────────────────────────────── c          LATELY  ──────────────────────────────────────────────────────────────────── l
 
-15:30   team back from its limit                                  in 48m          14:41  ▲ c61b started on side
+15:30   team back from its limit                                  in 48m          14:41  ▲ mobile started on side
 ~16:05  lab runs out at its pace                               in 1h 24m          14:31  ╎ work reached its cap: 3 sessions moved to side
-16:20   studio's 5-hour resets                                 in 1h 38m          14:12  ▲ 7f3a started on work
+16:20   studio's 5-hour resets                                 in 1h 38m          14:12  ▲ api started on work
 
 tab views     u usage  r routing  s sessions  c coming up  l lately  b by: window     p pin  ? help  q quit

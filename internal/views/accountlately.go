@@ -96,7 +96,7 @@ func (s accountSide) tell(t latelyTeller, e status.Event, f eventFact) (string, 
 func (s accountSide) told(t latelyTeller, e status.Event, f eventFact) (string, Said) {
 	switch e.Kind {
 	case status.EventStarted:
-		return e.Kind, Said{Subject: t.session(e.Session), Words: clause(" started here"), Rest: t.startedWhy(e, f, true)}
+		return e.Kind, Said{Subject: t.session(e), Words: clause(" started here"), Rest: t.startedWhy(e, f, true)}
 	case status.EventMoved:
 		return e.Kind, t.cameHere(e, f)
 	case status.EventPressure:
@@ -120,8 +120,8 @@ func (s accountSide) told(t latelyTeller, e status.Event, f eventFact) (string, 
 // from personal", and why, in the views' words, as in ": personal came under
 // pressure".
 func (t latelyTeller) cameHere(e status.Event, f eventFact) Said {
-	said := Said{Subject: t.session(e.Session), Words: clause(" came from "), Object: account(e.From)}
-	if why := status.EventWords(e.Reason, t.facts(f, e.From, e.To)); len(why) > 0 {
+	said := Said{Subject: t.session(e), Words: clause(" came from "), Object: account(e.From)}
+	if why := status.EventWords(e.Reason, t.facts(f, e.From, e.To)); why.String() != "" {
 		said.Rest = slices.Concat(clause(": "), why)
 	}
 	return said
@@ -151,7 +151,7 @@ func cameFromHeld(e status.Event, f eventFact) Said {
 // session's own pin, "api pinned here, by hand", the session named as t names it.
 func (s accountSide) pinnedHere(t latelyTeller, e status.Event) Said {
 	if e.Session != "" {
-		return Said{Subject: t.session(e.Session), Words: clause(" pinned here, by hand")}
+		return Said{Subject: t.session(e), Words: clause(" pinned here, by hand")}
 	}
 	others := slices.DeleteFunc(pinnedNames(e), func(name string) bool { return name == s.id })
 	if len(others) == 0 {

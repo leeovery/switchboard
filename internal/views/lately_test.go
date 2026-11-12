@@ -189,8 +189,10 @@ func TestLATELYNamesAccountsApartAndASessionByItsFirstFourCharacters(t *testing.
 }
 
 // LATELY names a session by its directory's last part, as the Log does: as
-// the router lists it, else as the lines held last name it; by its short id
-// where neither names one. Its subject is a plain part, as the short id's is.
+// its event carries it, so a line's name never changes as its session cools;
+// else as the router lists it, else as the lines held last name it; by its
+// short id where none names one. Its subject is a plain part, as the short
+// id's is.
 func TestLATELYNamesASessionByItsDirectory(t *testing.T) {
 	const session = "c61b2f8d-04a7"
 	now := at(16, 0)
@@ -202,9 +204,13 @@ func TestLATELYNamesASessionByItsDirectory(t *testing.T) {
 	held := listHeldOf([]ledger.Line{in("/code/infra", line(session, opus, "work", status.ReasonNew, now.Add(-time.Hour), hourUsage))}, nil, now)
 	tests := []struct {
 		name string
+		// dir is the directory the event carries: none for "".
+		dir  string
 		dirs views.SessionDirs
 		want string
 	}{
+		{name: "the event naming its directory before the router and the lines held", dir: "/code/web", dirs: views.SessionDirsOf(routed("/code/api"), held), want: "web"},
+		{name: "the event naming its directory, its session cooled, unlisted and unheld", dir: "/code/web", want: "web"},
 		{name: "the router naming its directory", dirs: views.SessionDirsOf(routed("/code/api"), views.HeldSessions{}), want: "api"},
 		{name: "the router naming it before the lines held", dirs: views.SessionDirsOf(routed("/code/api"), held), want: "api"},
 		{name: "the lines held naming it, the router not", dirs: views.SessionDirsOf(routed(""), held), want: "infra"},
@@ -223,18 +229,27 @@ func TestLATELYNamesASessionByItsDirectory(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			for _, e := range events {
-				e.event.At, e.event.Session = now.Add(-time.Minute), session
+				e.event.At, e.event.Session, e.event.Dir = now.Add(-time.Minute), session, tt.dir
 				got := views.Lately(latelyOf(e.event).At(now, claude.Policy()), 1, tt.dirs)
 				if len(got) != 1 || got[0].Full.String() != tt.want+e.full || !slices.Equal(got[0].Full.Subject, status.Words{{Text: tt.want}}) {
 					t.Errorf("Lately() = %+v, want %q, its subject %q, plain", got, tt.want+e.full, tt.want)
 				}
 			}
-			pin := status.Event{At: now.Add(-time.Minute), Kind: status.EventPin, Account: "side", Session: session}
+			pin := status.Event{At: now.Add(-time.Minute), Kind: status.EventPin, Account: "side", Session: session, Dir: tt.dir}
 			got := views.Lately(latelyOf(pin).At(now, claude.Policy()), 1, tt.dirs)
 			if want := "pin set by hand: " + tt.want + " goes to side"; len(got) != 1 || got[0].Full.String() != want {
 				t.Errorf("Lately() = %+v, want %q", got, want)
 			}
 		})
+	}
+}
+
+// A move whose reason says nothing ends at its accounts, with no colon after
+// them.
+func TestLATELYTellsAMoveOfNoReasonWithoutAColon(t *testing.T) {
+	moved := sentenceOf(t, status.Event{At: at(13, 0), Kind: status.EventMoved, Session: "db8a71e3", From: "personal", To: "work"}, at(16, 0))
+	if got, want := moved.Full.String(), "db8a moved personal → work"; got != want {
+		t.Errorf("the move reads %q, want %q", got, want)
 	}
 }
 
