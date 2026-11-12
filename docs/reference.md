@@ -101,6 +101,7 @@ The state directory holds these files:
 | `accounts.json` | The [accounts record](#the-accounts-record): every account this Mac has had, removed ones among them, kept for good. |
 | `accounts.lock` | The file a change to the accounts record holds a lock on. It's left there, as the lock goes with the process that held it. |
 | `accounts.moved` | Marks the move of the history onto the accounts' ids done, holding when it was. See [Upgrading to account ids](how-it-works.md#upgrading-to-account-ids). |
+| `pools.moved` | Marks the move of the history to pools done, holding when it was: every request line, pin event and day's summary from before pools given the first pool. |
 | `logs/` | `router.log`, `cli.log` and `launchd.log`. See [The logs](troubleshooting.md#the-logs). |
 | `history/readings-<date>.jsonl` | The [readings history](#the-readings-history), one file for each day. |
 | `ledger/requests-<date>.jsonl` | The [request ledger](#the-request-ledger)'s lines, one file for each day. |
@@ -487,7 +488,7 @@ pass over one you don't know. In the forms below, `<id>` is an account's id.
 | `pin` | The global pin: the accounts it names, since when, and whether it moved the running sessions. |
 | `router` | The router's health over the last 5 minutes. |
 | `restart` | A restart the router has due, and, as `held`, why the binary it would become refuses to start, where that holds it; as `exporting`, the folder of the export under way that the restart waits for, left out while none does. |
-| `moving` | How the move of the accounts and their history onto the ids switchboard makes stands, while the router owes it, as after the upgrade that made them: `stage`, `running`, `awaiting api`, `awaiting restart` or `failed`; and, where it awaits the API, `account`, the account by the id it had, whose token's subscription the API hasn't named, where that's known, and `why`, which is also why it failed. Left out where no move is owed. See [Upgrading to account ids](how-it-works.md#upgrading-to-account-ids). |
+| `moving` | How the move of the accounts and their history onto the ids switchboard makes stands, while the router owes it, as after the upgrade that made them, then the move of the history to pools that follows it: `move`, `pools` for the move to pools, left out for the move onto the ids; `stage`, `running`, `awaiting api`, `awaiting restart` or `failed`, the move to pools awaiting a restart while the router hasn't taken up the first pool its config now holds, and never the API; and, where it awaits the API, `account`, the account by the id it had, whose token's subscription the API hasn't named, where that's known, and `why`, which is also why it failed. Left out where no move is owed. See [Upgrading to account ids](how-it-works.md#upgrading-to-account-ids). |
 | `export` | How the router's hourly export into [`[export]`](configuration.md#export-keys)'s `dir` stands: `dir`, the folder; `at`, when an export last succeeded; `error`, why the last failed, in plain words; and `running`, when the export under way began. Each of `at`, `error` and `running` is left out when there's none, and `export` where `dir` isn't set. |
 | `sessions` | How many sessions the router has routed in the last hour. |
 | `events` | What's happened lately, newest first. |

@@ -184,7 +184,7 @@ func TestNoProbesOrganizationIsHeldWhileTheMoveOntoTheIDsIsOwed(t *testing.T) {
 			clock := &testClock{now: start}
 			prober := &stubProber{readings: map[string]quota.Probe{sideToken: orgProbed(tt.organization)}}
 			r := newHeldRouter(t, clock, prober, testTokens.Read, tt.record...)
-			r.moving.standing(status.Moving{Stage: status.MoveRunning})
+			r.moving.standing(status.Moving{Stage: status.MoveRunning, Move: status.MovingIDs})
 
 			probeNow(r, "side")
 			wantForeign(t, r, false)

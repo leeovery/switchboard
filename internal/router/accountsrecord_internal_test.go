@@ -238,7 +238,7 @@ func TestAnAccountPutBackInTheConfigIsLiveAgain(t *testing.T) {
 func TestTheRecordIsKeptInStepWithTheConfigOnlyOnceTheMoveIsDone(t *testing.T) {
 	clock := &testClock{now: start}
 	r := newHeldRouter(t, clock, &stubProber{}, testTokens.Read, heldWork, heldSide)
-	r.moving.standing(status.Moving{Stage: status.MoveRunning})
+	r.moving.standing(status.Moving{Stage: status.MoveRunning, Move: status.MovingIDs})
 	path := identity.NewFile(r.cfg.StateDir).Path()
 	before, err := os.ReadFile(path)
 	if err != nil {

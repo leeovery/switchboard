@@ -14,6 +14,7 @@ import (
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/identity"
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/status"
 )
 
 const (
@@ -88,6 +89,20 @@ func PoolsPending(stateDir string) bool {
 	}
 	_, err := os.Lstat(ledger.Dir(stateDir))
 	return err == nil
+}
+
+// Owed is the move the history in the state directory given waits on, as
+// status.Moving's Move names it: the move onto the accounts' ids, as Pending
+// says, then the move to pools, as PoolsPending says; "" where it waits on
+// neither.
+func Owed(stateDir string) string {
+	switch {
+	case Pending(stateDir):
+		return status.MovingIDs
+	case PoolsPending(stateDir):
+		return status.MovingPools
+	}
+	return ""
 }
 
 // Run moves the history to pools, as PoolMover says, unless it's done, and
@@ -236,6 +251,23 @@ func (m *PoolMover) awaitPools() error {
 		return nil
 	}
 	return ErrAwaitingPools
+}
+
+// FirstPool is the ledger's option that gives the work of a day's summary
+// from before pools the first pool, where the day's lines name a pool, as
+// ledger.FirstPool says, the first pool as the accounts record in the state
+// directory given notes it as the ledger asks: none where the record can't be
+// read, which is logged, or notes none.
+func FirstPool(stateDir string) ledger.Option {
+	return ledger.FirstPool(func() string {
+		record, err := identity.NewFile(stateDir).Read()
+		if err != nil {
+			logger.Warn("can't read the accounts record, so a day's summary from before pools keeps its work in no pool", "error", err)
+			return ""
+		}
+		first, _ := record.FirstPool()
+		return first.ID
+	})
 }
 
 // moveHistory gives each line of the history that names no pool the first

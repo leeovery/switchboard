@@ -15,6 +15,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/events"
 	"github.com/leeovery/switchboard/internal/handover"
+	"github.com/leeovery/switchboard/internal/idmove"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/logs"
 	"github.com/leeovery/switchboard/internal/readings"
@@ -115,11 +116,12 @@ func (r *Router) socket() (string, error) {
 	return path, checkSocketPath(path)
 }
 
-// openLedger keeps the request ledger in dir from now on, and the router's
-// events beside it, as long as the ledger's lines, those heard before filed
-// as they now stand.
+// openLedger keeps the request ledger in dir from now on, a day's summary
+// from before pools giving its work the first pool, as idmove.FirstPool
+// says, and the router's events beside it, as long as the ledger's lines,
+// those heard before filed as they now stand.
 func (r *Router) openLedger(dir string) {
-	r.ledger.open(dir, ledger.HistoryIn(r.history.files))
+	r.ledger.open(dir, ledger.HistoryIn(r.history.files), idmove.FirstPool(r.cfg.StateDir))
 	r.eventFiles = events.Open(dir, r.ledger.keep, r.cfg.Now, logger)
 	r.recent.fileTo(r.eventFiles, r.started)
 }
@@ -232,7 +234,7 @@ func (r *Router) serve(ctx context.Context, ls listeners) error {
 	}
 	looked.Go(func() { r.rounds.run(looking) })
 	looked.Go(func() { r.exports.run(looking, r.upkeep.firstLook()) })
-	looked.Go(func() { r.moving.run(looking, r.historyFiles) })
+	looked.Go(func() { r.moving.run(looking, r.historyFiles, r.routesInPools) })
 	// The requests still in flight as the router stops change what's to be
 	// saved, and what's to be told of, and each has its line in the ledger,
 	// so writing and notifying outlast ctx, as keeping and filing do.

@@ -108,7 +108,7 @@ func (a *app) serve(ctx context.Context, root *cobra.Command) error {
 		return nil
 	}
 	cfg.ConfigFile, cfg.Binary, cfg.From, cfg.Zone = configFile, binary, from, zone
-	cfg.Move = a.mover(path, stateDir, files, cfg)
+	cfg.Move, cfg.PoolMove = a.mover(path, stateDir, files, cfg), a.poolMover(path, stateDir)
 	tighten(files)
 	a.refreshSkill()
 	a.refreshShellFiles(root)

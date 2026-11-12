@@ -36,9 +36,10 @@ func newRequestLedger(settings config.Ledger, caps ledger.Caps, digester ledger.
 }
 
 // open has the ledger kept in dir from now on, its days summarised with the
-// readings history, and digested with its digester.
-func (l *requestLedger) open(dir string, history ledger.History) {
-	l.opened.Store(ledger.Open(dir, l.keep, l.now, history, l.caps, logger, ledger.Digesting(l.digester)))
+// readings history, and digested with its digester, as the options given
+// say besides.
+func (l *requestLedger) open(dir string, history ledger.History, opts ...ledger.Option) {
+	l.opened.Store(ledger.Open(dir, l.keep, l.now, history, l.caps, logger, append(opts, ledger.Digesting(l.digester))...))
 }
 
 // note queues a request's line for run to write. It never waits.

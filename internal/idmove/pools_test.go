@@ -337,6 +337,33 @@ func TestADamagedCompressedDayIsMovedToPoolsUpToItsDamage(t *testing.T) {
 	}
 }
 
+// A day summarised by a release before pools since the move, as a downgrade
+// leaves it, all its work in no pool while its lines name the first, is the
+// first pool's work summarised again by a ledger with FirstPool: the first
+// pool the accounts record notes.
+func TestFirstPoolGivesADaySummarisedBeforePoolsSinceTheMoveTheRecordsFirstPool(t *testing.T) {
+	f := newIDsFixture(t)
+	first := f.pooled(t)
+	dir := ledger.Dir(f.state)
+	path := ledger.SummaryFile(dir, yesterday)
+	downgraded := strings.ReplaceAll(strings.Replace(readFile(t, path), `"version":7`, `"version":6`, 1), `"pool":"`+first+`",`, "")
+	if strings.Contains(downgraded, first) {
+		t.Fatalf("yesterday's summary, as a release before pools writes it, still names the first pool:\n%s", downgraded)
+	}
+	writeFile(t, path, downgraded)
+
+	ledger.Open(dir, dayfile.Forever, clock, ledger.HistoryIn(readingsFiles(f.state)), fixtureCaps, logs.For("test"), idmove.FirstPool(f.state)).SummariseEnded(now)
+	var s ledger.Summary
+	if err := json.Unmarshal([]byte(readFile(t, path)), &s); err != nil {
+		t.Fatal(err)
+	}
+	for _, a := range s.Accounts {
+		if in := a.InPool(first); len(a.Models) > 0 && (!slicesOfModelsEqual(in.Models, a.Models) || a.Pools != nil) {
+			t.Errorf("summarised again, yesterday's day of %q is %+v, want its whole work in the first pool alone", a.Account, a)
+		}
+	}
+}
+
 func TestTheMoveToPoolsWaitsOnTheMoveOntoTheIDs(t *testing.T) {
 	f := newFixture(t)
 	before := f.snapshot(t)
