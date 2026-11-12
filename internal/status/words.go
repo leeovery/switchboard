@@ -542,22 +542,33 @@ func cutAccount(reason, start string) (account, why string, ok bool) {
 	return account, why, started && cut
 }
 
-// Said says how the move of the accounts and their history onto the ids
-// switchboard makes stands, as the status, the dashboard and the commands
-// that read the history say it: that the history waits on it, then what holds
-// it up.
+// Said says how the move stands, as the status, the dashboard and the
+// commands that read the history say it: that the history waits on it, as
+// Waits says, then what holds it up, in the words of its move.
 func (m Moving) Said() string {
+	restart, upgrade := prose.MoveWaitsRestart, prose.MoveWaitsUpgrade
+	if m.Move == MovingPools {
+		restart, upgrade = prose.MoveWaitsPools, prose.MoveWaitsPoolsUpgrade
+	}
 	held := map[string]string{
 		MoveRunning:         prose.MoveRunning,
 		MoveAwaitingAPI:     prose.MoveWaitsAPI(m.Account, m.Why),
-		MoveAwaitingRestart: prose.MoveWaitsRestart,
+		MoveAwaitingRestart: restart,
 		MoveNoRouter:        prose.MoveWaitsRouter,
 		MoveUntold:          prose.MoveWaitsUntold,
-		MoveOlderRouter:     prose.MoveWaitsUpgrade,
+		MoveOlderRouter:     upgrade,
 		MoveFailed:          prose.MoveFailed(m.Why),
 	}[m.Stage]
 	if held == "" {
-		return prose.HistoryMoving
+		return m.Waits()
 	}
-	return prose.HistoryMoving + ": " + held
+	return m.Waits() + ": " + held
+}
+
+// Waits says the history waits on the move, whatever holds it up.
+func (m Moving) Waits() string {
+	if m.Move == MovingPools {
+		return prose.HistoryMovingPools
+	}
+	return prose.HistoryMoving
 }

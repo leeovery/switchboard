@@ -49,9 +49,10 @@ type Follower struct {
 // stateDir, by now's clock, which summarises days with the accounts' caps as
 // caps gives them, and rests the sessions it reads on the states digests
 // hold of the version body, as their builder gives it, what it can't read
-// logged to logger.
-func NewFollower(stateDir string, now func() time.Time, caps Caps, body int, logger *slog.Logger) *Follower {
+// logged to logger; and knows the first pool as the options given say.
+func NewFollower(stateDir string, now func() time.Time, caps Caps, body int, logger *slog.Logger, opts ...Option) *Follower {
 	d, history := daysIn(stateDir, caps, logger)
+	d.firstPool = optionsOf(opts).firstPool
 	return &Follower{days: d, history: history, now: now, body: body, followed: make(map[string]*followedDay), heads: make(map[string]heldHead)}
 }
 
@@ -456,11 +457,11 @@ func (d *liveDay) counting(logger *slog.Logger, held int) (noMore, exactly bool)
 // summary returns the day summarised from its lines as last read, and the
 // readings history as it's read now, where reads reports its summary reads
 // them, as of asOf, as Reader.Days summarises a day from its lines, knowing
-// no less than held, where it's given: its tally, and the line the day's
-// plain file ends in, cut short, where it reads as one, as a read of the day
-// whole would read it. So the minutes at each account's cap and at a limit,
-// and each window's last reading standing, move on with the clock, as
-// summarising the day afresh moves them.
+// no less than held, where it's given, the two fitted as fitted says: its
+// tally, and the line the day's plain file ends in, cut short, where it
+// reads as one, as a read of the day whole would read it. So the minutes at each account's
+// cap and at a limit, and each window's last reading standing, move on with
+// the clock, as summarising the day afresh moves them.
 func (d *liveDay) summary(f *Follower, held *Summary, asOf time.Time, reads bool) Summary {
 	t, n := d.tally.clone(), d.tallied
 	if cut, ok := d.lines.Cut(); ok {
@@ -478,7 +479,9 @@ func (d *liveDay) summary(f *Follower, held *Summary, asOf time.Time, reads bool
 		}
 		return slices.Values(d.history.Read())
 	}
-	return t.day(d.date, n, read, held, f.days.caps, asOf).made(lines, held)
+	made := t.day(d.date, n, read, held, f.days.caps, asOf)
+	made, held = f.days.fitted(made, held)
+	return made.made(lines, held)
 }
 
 // tailed is the ledger's files of a local day, by its date, read as they

@@ -439,7 +439,7 @@ func TestAPinFromBeforePoolsHoldsInItsPoolOnceThePoolsAreTakenUp(t *testing.T) {
 }
 
 func TestAPinFromBeforePoolsIsThePoolsItsAccountsAreIn(t *testing.T) {
-	table := newPoolTable(pairedAccounts(), testPools, acmePool)
+	table := newPoolTable(pairedAccounts(), testPools, acmePool, sameID)
 	tests := []struct {
 		name string
 		ids  []string
@@ -499,8 +499,8 @@ func TestEachPoolsPinStandsAsAnotherIsSetOrCleared(t *testing.T) {
 }
 
 func TestEachPoolsPinIsFittedToThePools(t *testing.T) {
-	pooled := newPoolTable(pairedAccounts(), testPools, acmePool)
-	unpooledTable := newPoolTable(config.Accounts{{ID: "work"}, {ID: "side"}}, nil, "")
+	pooled := newPoolTable(pairedAccounts(), testPools, acmePool, sameID)
+	unpooledTable := newPoolTable(config.Accounts{{ID: "work"}, {ID: "side"}}, nil, "", sameID)
 	pin := func(since time.Time, ids ...string) status.Pin {
 		return status.Pin{Accounts: ids, Since: since, Move: true}
 	}

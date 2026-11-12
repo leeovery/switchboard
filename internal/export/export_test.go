@@ -513,11 +513,11 @@ func TestExportJSONSaysWhoseFolderItIsAndWhenItWasExported(t *testing.T) {
 	}
 
 	got, err := export.ReadManifest(r.Folder)
-	if want := exportNow.Truncate(time.Second); err != nil || got.Version != 2 || got.Install != id || !got.ExportedAt.Equal(want) {
-		t.Errorf("ReadManifest() = %+v, %v; want version 2, install %s, exported at %v", got, err, id, want)
+	if want := exportNow.Truncate(time.Second); err != nil || got.Version != 3 || got.Install != id || !got.ExportedAt.Equal(want) {
+		t.Errorf("ReadManifest() = %+v, %v; want version 3, install %s, exported at %v", got, err, id, want)
 	}
 	data, err := os.ReadFile(filepath.Join(r.Folder, "export.json"))
-	if want := `{"version":2,"install":"` + id + `","exported_at":"2026-10-09T14:42:07Z","ids":true}` + "\n"; err != nil || string(data) != want {
+	if want := `{"version":3,"install":"` + id + `","exported_at":"2026-10-09T14:42:07Z","ids":true}` + "\n"; err != nil || string(data) != want {
 		t.Errorf("export.json holds %q (%v), want %q", data, err, want)
 	}
 }

@@ -17,8 +17,12 @@ const (
 	// account ids were made, so a switchboard from before them, which reads
 	// version 1, refuses a folder this one exports, whose days name accounts
 	// by ids it has no token files for. A folder of version 1, from before
-	// them or after, is read as its export.json's IDs says.
-	Version = 2
+	// them or after, is read as its export.json's IDs says. 3 since pools, so
+	// a switchboard from before them refuses a folder whose lines name them.
+	Version = 3
+	// poolsVersion is the version of export.json from which a folder's lines
+	// name their pools.
+	poolsVersion = 3
 	// folderPrefix begins the name of a Mac's folder, before its install's
 	// id.
 	folderPrefix = "mac-"
@@ -38,6 +42,12 @@ type Manifest struct {
 	ExportedAt time.Time `json:"exported_at"`
 	IDs        bool      `json:"ids,omitzero"`
 	Accounts   bool      `json:"accounts,omitzero"`
+}
+
+// BeforePools reports whether a switchboard from before pools exported the
+// folder, as one of version 2 or 1 did, whose lines name no pool.
+func (m Manifest) BeforePools() bool {
+	return m.Version < poolsVersion
 }
 
 // Folder returns the folder of the install with the given id in dir:

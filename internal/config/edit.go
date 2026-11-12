@@ -277,6 +277,29 @@ func (d *Draft) SetPrimary(id string) error {
 	return d.take(doc, want, change)
 }
 
+// UnmarkPrimary takes primary off the account with the given id, removing the
+// lines that mark it, so its pool's primary is its first account, where no
+// other is marked. It fails, matching ErrNotConfigured, when no account has
+// the id.
+func (d *Draft) UnmarkPrimary(id string) error {
+	i := d.index(id)
+	switch {
+	case i < 0:
+		return NotConfigured(id)
+	case !d.file.Accounts[i].Primary:
+		return nil
+	}
+	change := fmt.Sprintf("take primary off account %q", id)
+	tables, err := d.accountTables(change)
+	if err != nil {
+		return err
+	}
+	want := d.file
+	want.Accounts = slices.Clone(d.file.Accounts)
+	want.Accounts[i].Primary = false
+	return d.take(d.doc.without(d.doc.linesOf(primaryKey, tables[i])), want, change)
+}
+
 // SetPrimeDay sets the day [prime] gives, which turns priming on: in place of
 // the day it gives, else as the first key of its table, else in a [prime]
 // table made at the end. "" takes the day out, turning priming off, and

@@ -8,6 +8,7 @@ import (
 	"github.com/leeovery/switchboard/internal/dashboard/watch"
 	"github.com/leeovery/switchboard/internal/events"
 	"github.com/leeovery/switchboard/internal/identity"
+	"github.com/leeovery/switchboard/internal/idmove"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/readings"
@@ -49,7 +50,7 @@ func (a *app) newStateReaders(cfg *config.Config) (stateReaders, error) {
 		return stateReaders{}, err
 	}
 	return stateReaders{
-		ledger:   ledger.NewFollower(dir, a.Now, caps(cfg), views.DigestVersion, logger),
+		ledger:   ledger.NewFollower(dir, a.Now, caps(cfg), views.DigestVersion, logger, idmove.FirstPool(dir)),
 		readings: readings.NewReader(dir, logger),
 		events:   events.NewReader(dir, a.Now, logger),
 		removed:  removedIn(dir, cfg),

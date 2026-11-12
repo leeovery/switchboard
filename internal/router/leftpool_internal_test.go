@@ -14,6 +14,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/identity"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
@@ -482,7 +483,7 @@ func TestTheHeirOfAnAccountThatLeavesTheConfigIsTheFirstOfItsCandidatesTheRouter
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := heirs{accounts: tt.accounts, pools: tt.pools, first: func() config.Pool { return config.Pool{ID: tt.first} }, poolWas: func(string) string { return tt.was }}
+			h := heirs{accounts: tt.accounts, pools: tt.pools, first: func() string { return tt.first }, poolWas: func(string) string { return tt.was }}
 			ids := tt.held
 			if ids == nil {
 				ids = everyone
@@ -506,10 +507,10 @@ func unmarked(accounts config.Accounts) config.Accounts {
 
 func TestTheFirstPoolIsReadForAnHeirOnlyWhereNeededOnceALook(t *testing.T) {
 	reads := 0
-	m := newMembership(func() config.Pool {
+	m := newMembership(func() (identity.Record, bool) {
 		reads++
-		return config.Pool{}
-	}, sameID, noPoolKnown)
+		return identity.Record{}, true
+	}, never, sameID, nil)
 	m.follow(heirTestAccounts(), testPools)
 	as := held("work", "extra", "personal", "side")
 
@@ -527,14 +528,15 @@ func TestTheFirstPoolIsReadForAnHeirOnlyWhereNeededOnceALook(t *testing.T) {
 	}
 }
 
+// keepingGoneIn reads an accounts record that keeps gone, removed, in the
+// pool with the given id, "" for none.
+func keepingGoneIn(pool string) func() (identity.Record, bool) {
+	return readingRecord(identity.Record{Accounts: []identity.Entry{{ID: "gone", Added: start, Removed: start, Pool: pool}}})
+}
+
 func TestAnHeirIsOfThePoolTheAccountsRecordKeepsWhereThePoolsCantTell(t *testing.T) {
 	// Gone left the config before the router started; personal is in Acme.
-	m := newMembership(noFirst, sameID, func(id string) string {
-		if id == "gone" {
-			return acmePool
-		}
-		return ""
-	})
+	m := newMembership(keepingGoneIn(acmePool), never, sameID, nil)
 	h := m.heirs(heirTestAccounts(), testPools)
 	m.follow(heirTestAccounts(), testPools)
 	as := held("work", "extra", "personal", "side")
@@ -544,6 +546,42 @@ func TestAnHeirIsOfThePoolTheAccountsRecordKeepsWhereThePoolsCantTell(t *testing
 	}
 	if heir, _ := as.heir(h, "side"); heir.ID != "work" {
 		t.Errorf("side's heir is %q, want work, Default's primary, as the pools followed since the heirs were made have side in Default", heir.ID)
+	}
+}
+
+func TestThePoolsTheAccountsRecordKeepsAreTakenUpOnceItReadsThoughTheConfigStaysTheSame(t *testing.T) {
+	// Work, and gone, which left the config before the router started, each
+	// with the id it had before switchboard made ids, as old-<id>.
+	record := identity.Record{Accounts: []identity.Entry{
+		{ID: "work", Added: start, Was: "old-work", Pool: defaultPool},
+		{ID: "gone", Added: start, Removed: start, Was: "old-gone", Pool: acmePool},
+	}}
+	readable := false
+	m := newMembership(func() (identity.Record, bool) { return record, readable }, never, sameID, nil)
+	m.follow(pooledAccounts(), testPools)
+	unread := m.current()
+	if pool := unread.poolIn("old-gone"); pool != "" {
+		t.Fatalf("with the record unread, old-gone is in pool %q, want none known", pool)
+	}
+
+	readable = true
+	m.follow(pooledAccounts(), testPools)
+	read := m.current()
+	if want := map[string]string{"gone": acmePool, "old-gone": acmePool}; !maps.Equal(read.recorded, want) {
+		t.Errorf("once the record reads, the pools it keeps are %v, want %v: gone's by both its ids, and none of an account the pools have", read.recorded, want)
+	}
+	if !isClosed(unread.replaced) {
+		t.Error("the table made with the record unread wasn't replaced once it read")
+	}
+
+	// The record comes to tell of an account the pools have, then can't be
+	// read: neither changes what the table reads of it.
+	record.Accounts = append(record.Accounts, identity.Entry{ID: "side", Added: start, Pool: acmePool})
+	m.follow(pooledAccounts(), testPools)
+	readable = false
+	m.follow(pooledAccounts(), testPools)
+	if m.current() != read || isClosed(read.replaced) {
+		t.Errorf("the table was replaced, recorded %v, want it standing", m.current().recorded)
 	}
 }
 
@@ -580,12 +618,7 @@ func TestWhetherARequestsTokenHasLeftItsPool(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m := newMembership(noFirst, sameID, func(id string) string {
-				if id == "gone" {
-					return tt.recorded
-				}
-				return ""
-			})
+			m := newMembership(keepingGoneIn(tt.recorded), never, sameID, nil)
 			if tt.unpooled {
 				m.follow(testConfigured, nil)
 			} else {
@@ -744,11 +777,11 @@ func TestTheSessionsOfAnAccountThatLeftTheConfigStayInItsPoolAsTheConfigChangesA
 func TestATableKnowsThePoolEachAccountThatLeftTheTablesBeforeItWasInLast(t *testing.T) {
 	without := func(ids ...string) *poolTable {
 		accounts := slices.DeleteFunc(pooledAccounts(), func(a config.Account) bool { return slices.Contains(ids, a.ID) })
-		return newPoolTable(accounts, testPools, "")
+		return newPoolTable(accounts, testPools, "", sameID)
 	}
 	every := without()
-	noPersonal := without("personal").after(every)
-	noSide := without("personal", "side").after(noPersonal)
+	noPersonal := without("personal").after(every, nil)
+	noSide := without("personal", "side").after(noPersonal, nil)
 	tests := []struct {
 		name string
 		got  *poolTable
@@ -756,9 +789,9 @@ func TestATableKnowsThePoolEachAccountThatLeftTheTablesBeforeItWasInLast(t *test
 	}{
 		{name: "personal leaves", got: noPersonal, want: map[string]string{"personal": acmePool}},
 		{name: "side leaves after: personal's carried across", got: noSide, want: map[string]string{"personal": acmePool, "side": defaultPool}},
-		{name: "personal configured again: side's alone", got: without("side").after(noSide), want: map[string]string{"side": defaultPool}},
-		{name: "none leaves: personal's still carried", got: without("personal").after(noPersonal), want: map[string]string{"personal": acmePool}},
-		{name: "side leaves a config from before pools: nothing known", got: without("side").after(newPoolTable(testConfigured, nil, "")), want: map[string]string{}},
+		{name: "personal configured again: side's alone", got: without("side").after(noSide, nil), want: map[string]string{"side": defaultPool}},
+		{name: "none leaves: personal's still carried", got: without("personal").after(noPersonal, nil), want: map[string]string{"personal": acmePool}},
+		{name: "side leaves a config from before pools: nothing known", got: without("side").after(newPoolTable(testConfigured, nil, "", sameID), nil), want: map[string]string{}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -810,7 +843,7 @@ func TestTheTokensOfAnAccountRemovedWhileTheRouterWasAwayCountAsItsPoolsPrimarys
 			as := resolve(pooledAccounts(), poolTokens.Read, unrecorded)
 			changes := newChanges()
 			usage := newState(as, unpooled(), testPolicy, claude.Provider{}.Family, at(start), changes.note, changes.routine)
-			h := heirs{accounts: pooledAccounts(), pools: testPools, first: noFirst, poolWas: func(id string) string {
+			h := heirs{accounts: pooledAccounts(), pools: testPools, first: func() string { return "" }, poolWas: func(id string) string {
 				if id == "gone" {
 					return tt.was
 				}
@@ -827,14 +860,17 @@ func TestTheTokensOfAnAccountRemovedWhileTheRouterWasAwayCountAsItsPoolsPrimarys
 	}
 }
 
-func TestARouterStartedWithoutAnAccountGivesItsTokensToTheFirstPoolsPrimaryAsTheRecordNotesIt(t *testing.T) {
-	// The state file keeps gone's token, which the config no longer has,
-	// nor the accounts record its pool.
+func TestARouterStartedWithoutAnAccountGivesItsTokensToItsPoolsPrimaryAsTheRecordKeepsIt(t *testing.T) {
+	// The state file keeps gone's token, which the config no longer has.
 	tests := []struct {
-		name, first string
-		want        string
+		// first is the first pool the accounts record notes, and recorded
+		// the pool it keeps gone in, "" for none.
+		name, first, recorded string
+		want                  string
 	}{
-		{name: "the record noting Acme the first pool: personal's, Acme's primary", first: acmePool, want: "personal"},
+		{name: "the record keeping gone in Acme: personal's, Acme's primary", first: defaultPool, recorded: acmePool, want: "personal"},
+		{name: "the record keeping gone in a pool gone since: work's, the first's primary", first: defaultPool, recorded: "z5k2", want: "work"},
+		{name: "the record noting Acme the first pool, gone in none: personal's, Acme's primary", first: acmePool, want: "personal"},
 		{name: "the record noting none: work's, the config's first's primary", want: "work"},
 	}
 	for _, tt := range tests {
@@ -843,6 +879,12 @@ func TestARouterStartedWithoutAnAccountGivesItsTokensToTheFirstPoolsPrimaryAsThe
 			stateDir := t.TempDir()
 			if tt.first != "" {
 				noteFirstPool(t, stateDir, tt.first)
+			}
+			if err := identity.NewFile(stateDir).Update(func(rec *identity.Record) error {
+				rec.Accounts = append(rec.Accounts, identity.Entry{ID: "gone", Label: "Gone", Added: start, Removed: start, Pool: tt.recorded})
+				return nil
+			}); err != nil {
+				t.Fatal(err)
 			}
 			path := filepath.Join(stateDir, stateFileName)
 			putState(t, path, savedState{Version: stateVersion, Tokens: map[string]savedTokens{"gone": {SHA256: hash(goneToken)}}})

@@ -425,12 +425,12 @@ func (as accounts) heir(h heirs, id string) (account, bool) {
 type heirs struct {
 	accounts config.Accounts
 	pools    config.Pools
-	// first reads the first pool, as the accounts record notes it, zero
-	// where it notes none, the config's first standing in; and poolWas
+	// first reads the id of the first pool, as the accounts record notes
+	// it, "" where it notes none, the config's first standing in; and poolWas
 	// gives the id of the pool the account with the id given was in, "" where
 	// that isn't known. Each is read only where there are pools, and first
 	// only where the pool the account was in gives no heir.
-	first   func() config.Pool
+	first   func() string
 	poolWas func(id string) string
 }
 
@@ -446,7 +446,7 @@ func (h heirs) candidates(id string) iter.Seq[config.Account] {
 		if len(h.pools) > 0 {
 			pools := []func() string{
 				func() string { return h.poolWas(id) },
-				func() string { return firstPool(h.pools, h.first().ID) },
+				func() string { return firstPool(h.pools, h.first()) },
 			}
 			for _, pool := range pools {
 				if primary, ok := h.accounts.PrimaryOf(pool()); ok && !yield(primary) {

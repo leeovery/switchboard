@@ -67,7 +67,7 @@ func summaryIn(t *testing.T, dir string) []byte {
 
 func TestRenamingADayRenamesItsLinesAndItsSummarysAccountsInOrder(t *testing.T) {
 	dir := summarisedDay(t)
-	if err := openedIn(dir, on(3, 10, 0)).RenameDay(date, renamedLine, renamedID); err != nil {
+	if err := openedIn(dir, on(3, 10, 0)).RenameDay(date, renamedLine, ledger.Renaming{Account: renamedID}); err != nil {
 		t.Fatalf("RenameDay() = %v", err)
 	}
 	var summary ledger.Summary
@@ -96,7 +96,7 @@ func TestRenamingADayRenamesItsLinesAndItsSummarysAccountsInOrder(t *testing.T) 
 
 func TestARenamedSummaryStandsWithoutItsLinesCountedAgain(t *testing.T) {
 	dir := summarisedDay(t)
-	if err := openedIn(dir, on(3, 10, 0)).RenameDay(date, renamedLine, renamedID); err != nil {
+	if err := openedIn(dir, on(3, 10, 0)).RenameDay(date, renamedLine, ledger.Renaming{Account: renamedID}); err != nil {
 		t.Fatalf("RenameDay() = %v", err)
 	}
 	renamed := summaryIn(t, dir)
@@ -117,11 +117,11 @@ func TestARenamedSummaryStandsWithoutItsLinesCountedAgain(t *testing.T) {
 func TestRenamingADayAlreadyRenamedChangesNothing(t *testing.T) {
 	dir := summarisedDay(t)
 	l := openedIn(dir, on(3, 10, 0))
-	if err := l.RenameDay(date, renamedLine, renamedID); err != nil {
+	if err := l.RenameDay(date, renamedLine, ledger.Renaming{Account: renamedID}); err != nil {
 		t.Fatalf("RenameDay() = %v", err)
 	}
 	summary, plain := summaryIn(t, dir), readDay(t, dir, on(0, 10, 0))
-	if err := l.RenameDay(date, renamedLine, renamedID); err != nil {
+	if err := l.RenameDay(date, renamedLine, ledger.Renaming{Account: renamedID}); err != nil {
 		t.Fatalf("RenameDay() again = %v", err)
 	}
 	if !bytes.Equal(summaryIn(t, dir), summary) || readDay(t, dir, on(0, 10, 0)) != plain {
@@ -134,7 +134,7 @@ func TestRenamingADayOfASummaryAloneRenamesItsSummary(t *testing.T) {
 	if err := os.Remove(dayFile(dir, on(0, 10, 0))); err != nil {
 		t.Fatal(err)
 	}
-	if err := openedIn(dir, on(3, 10, 0)).RenameDay(date, renamedLine, renamedID); err != nil {
+	if err := openedIn(dir, on(3, 10, 0)).RenameDay(date, renamedLine, ledger.Renaming{Account: renamedID}); err != nil {
 		t.Fatalf("RenameDay() = %v", err)
 	}
 	if got := summaryIn(t, dir); !bytes.Contains(got, []byte(`"account":"wk7q"`)) || bytes.Contains(got, []byte(`"work"`)) {
@@ -151,7 +151,7 @@ func TestRenamingADaysSummaryAloneLeavesItsFiles(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := openedIn(dir, on(3, 10, 0)).RenameSummary(date, renamedID); err != nil {
+	if err := openedIn(dir, on(3, 10, 0)).RenameSummary(date, ledger.Renaming{Account: renamedID}); err != nil {
 		t.Fatalf("RenameSummary() = %v", err)
 	}
 	if got := summaryIn(t, dir); !bytes.Contains(got, []byte(`"account":"wk7q"`)) || bytes.Contains(got, []byte(`"work"`)) {
@@ -184,7 +184,7 @@ func TestASummaryThatRenamedNamesAnAccountTwiceMergesItsDaysTheirLinesPrunedOrNo
 				}
 			}
 
-			if err := openedIn(dir, on(3, 10, 0)).RenameDay(date, func(line []byte) []byte { return line }, inEitherCase); err != nil {
+			if err := openedIn(dir, on(3, 10, 0)).RenameDay(date, func(line []byte) []byte { return line }, ledger.Renaming{Account: inEitherCase}); err != nil {
 				t.Fatalf("RenameDay() = %v", err)
 			}
 			summariseAt(dir, t.TempDir(), on(3, 11, 0))
@@ -220,7 +220,7 @@ func TestASummaryOfAnOlderVersionRenamedIsSummarisedAgainFromItsLines(t *testing
 			tt.lay(t, dir)
 			markOfVersion(t, dir, ofVersion(summaryOf(date, 2, windowsRead{highest: `{"5h":0.9}`}, theTwo...), 5), 5)
 			l := openedIn(dir, on(3, 10, 0))
-			if err := l.RenameDay(date, renamedLine, renamedID); err != nil {
+			if err := l.RenameDay(date, renamedLine, ledger.Renaming{Account: renamedID}); err != nil {
 				t.Fatalf("RenameDay() = %v", err)
 			}
 			var renamed ledger.Summary

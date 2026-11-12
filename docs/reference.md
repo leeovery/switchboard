@@ -101,6 +101,7 @@ The state directory holds these files:
 | `accounts.json` | The [accounts record](#the-accounts-record): every account this Mac has had, removed ones among them, kept for good. |
 | `accounts.lock` | The file a change to the accounts record holds a lock on. It's left there, as the lock goes with the process that held it. |
 | `accounts.moved` | Marks the move of the history onto the accounts' ids done, holding when it was. See [Upgrading to account ids](how-it-works.md#upgrading-to-account-ids). |
+| `pools.moved` | Marks the move of the history to pools done, holding when it was: every request line, pin event and day's summary from before pools given the first pool. |
 | `logs/` | `router.log`, `cli.log` and `launchd.log`. See [The logs](troubleshooting.md#the-logs). |
 | `history/readings-<date>.jsonl` | The [readings history](#the-readings-history), one file for each day. |
 | `ledger/requests-<date>.jsonl` | The [request ledger](#the-request-ledger)'s lines, one file for each day. |
@@ -154,6 +155,28 @@ readable by its owner alone, and kept for good, a few hundred bytes an account:
   exported before then, and to put back an old id a config or a pin still names.
 - `configured`: in the copy an export writes alone, set on each account the exporting Mac
   configures, whose `label` is then its config's, so a Mac that imports it names it all the same.
+- `pool`: the id of the pool the config last had the account in, kept once it's removed.
+
+Since pools, `pools` lists every pool this Mac has had, each with its `id`, its `label` once it's
+removed, `added` and `removed`, `first` on the first pool, where the history from before pools is,
+`configured` as on an account, `here` while this Mac's config has it, never on a pool only another
+Mac's config has, and `written`, the pool as this Mac's config last wrote it: its `label`, its
+`dirs`, and `primary`, the id of its primary account, the one it marks, else its first, with
+`primary_known` set once the config has said which, so a pool without a `primary` had no
+account. A copy an export writes holds neither `here` nor `written`.
+
+A config put back from before pools is given its pools back from these: the pools marked `here`,
+as last written, each account in the pool it was in, an account in none, as one added since, in the
+unfenced pool, and each pool's primary marked as the config last had it, a pool it had no account
+in keeping the marks the config gives. The router does this as it starts, and as it finds the
+config naming no pools, writing the accounts' ids back first; where it can't, as where every pool
+is fenced and an account in none has no pool to go to, the config is left as it is, tried again
+each minute, the log saying so once. Writing the config is a convenience: whether or not it can be
+written, the router routes every account as the config would be given back, one with no pool to go
+to in none, so no session uses it. Where the record can't be read, the pools stand as the router
+last routed within them; and where it never routed within any, as one started on such a config, it
+routes nothing, answering every request with switchboard's refusal saying why, and reports itself
+unhealthy.
 
 Each `id`, `organization` and `was` is held by one account at most, ids compared ignoring case. A
 record that doesn't read, as one damaged or edited wrongly by hand, is left as it is and never
@@ -167,12 +190,14 @@ Each Mac's folder an [export](commands.md#export) writes holds `export.json`, wr
 every other file has been:
 
 ```json
-{"version": 2, "install": "0123456789abcdef", "exported_at": "2026-11-12T09:00:00Z", "ids": true, "accounts": true}
+{"version": 3, "install": "0123456789abcdef", "exported_at": "2026-11-12T09:00:00Z", "ids": true, "accounts": true}
 ```
 
-- `version`: `2` since switchboard made account ids. A switchboard from before them reads version
-  1 alone, so it refuses a folder this one exports, whose days name accounts by ids it has no token
-  files for. One newer than this switchboard's is refused, saying to upgrade.
+- `version`: `3` since pools, `2` since switchboard made account ids. A switchboard from before
+  pools reads version 2 at most, so it refuses a folder this one exports, whose days name pools;
+  one from before ids reads version 1 alone, refusing a folder whose days name accounts by ids it
+  has no token files for. One newer than this switchboard's is refused, saying to upgrade. A
+  folder of version 2 or 1 has its days given this Mac's first pool as they're imported.
 - `install`: the id of the install whose folder it is, as `install-id` holds it.
 - `exported_at`: when it was last exported to, in UTC, to the second.
 - `ids`: `true` where a switchboard that makes account ids exported it, so its days name accounts
@@ -325,6 +350,10 @@ request was in:
 - **The work splits by pool:** its `models`, `sessions`, `session_ids`, `moved_on` and `moved_off`.
   Each entry in `pools` has those of one pool's requests, and that pool's id as its `pool`. The
   requests that named no pool come first, without a `pool`.
+- **Once the move to pools is done, work in no pool is the first pool's:** requests filed without
+  a pool since, as by a release from before pools after a downgrade, or by a router handing over
+  to another, are summarised in the first pool, and work a summary still holds in no pool is read
+  as the first pool's.
 - **The windows stay the account's:** its `highest`, `rise`, `resets`, `limits`, minutes and
   `read_before`, given once, whatever pool it's in.
 
@@ -490,7 +519,7 @@ pass over one you don't know. In the forms below, `<id>` is an account's id.
 | `pin` | The global pin: the accounts it names, since when, and whether it moved the running sessions. |
 | `router` | The router's health over the last 5 minutes. |
 | `restart` | A restart the router has due, and, as `held`, why the binary it would become refuses to start, where that holds it; as `exporting`, the folder of the export under way that the restart waits for, left out while none does. |
-| `moving` | How the move of the accounts and their history onto the ids switchboard makes stands, while the router owes it, as after the upgrade that made them: `stage`, `running`, `awaiting api`, `awaiting restart` or `failed`; and, where it awaits the API, `account`, the account by the id it had, whose token's subscription the API hasn't named, where that's known, and `why`, which is also why it failed. Left out where no move is owed. See [Upgrading to account ids](how-it-works.md#upgrading-to-account-ids). |
+| `moving` | How the move of the accounts and their history onto the ids switchboard makes stands, while the router owes it, as after the upgrade that made them, then the move of the history to pools that follows it: `move`, `pools` for the move to pools, left out for the move onto the ids; `stage`, `running`, `awaiting api`, `awaiting restart` or `failed`, the move to pools awaiting a restart while the router hasn't taken up the first pool its config now holds, and never the API; and, where it awaits the API, `account`, the account by the id it had, whose token's subscription the API hasn't named, where that's known, and `why`, which is also why it failed. Left out where no move is owed. See [Upgrading to account ids](how-it-works.md#upgrading-to-account-ids). |
 | `export` | How the router's hourly export into [`[export]`](configuration.md#export-keys)'s `dir` stands: `dir`, the folder; `at`, when an export last succeeded; `error`, why the last failed, in plain words; and `running`, when the export under way began. Each of `at`, `error` and `running` is left out when there's none, and `export` where `dir` isn't set. |
 | `sessions` | How many sessions the router has routed in the last hour. |
 | `events` | What's happened lately, newest first. |

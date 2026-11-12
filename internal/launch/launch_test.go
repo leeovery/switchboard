@@ -36,8 +36,10 @@ const (
 	// proxyAddr is where a healthy router says its proxy listens, which isn't
 	// where the config says: the router's word is the one that counts.
 	proxyAddr = "127.0.0.1:4848"
-	// unhealthy is why an unhealthy router says it is.
+	// unhealthy is why an unhealthy router says it is, and closed why one
+	// that routes nothing does.
 	unhealthy = "5 of the 8 requests in the last 5 minutes failed"
+	closed    = "the config names no pools and the accounts record can't be read, so the pool each account is in can't be told"
 	// homeDir is the user's home directory, and project a directory in it
 	// that Claude Code starts in.
 	homeDir = "/home/tester"
@@ -552,6 +554,14 @@ func TestARouterThatAnswersRoutesWhateverTheRouterDownSettingSays(t *testing.T) 
 			r:        unhealthyRouter(),
 			wantSaid: "switchboard: the router is unhealthy (" + unhealthy + ") — starting claude through it all the same\n",
 			wantLog:  []string{"level=WARN", "router=unhealthy", `reason="` + unhealthy + `"`},
+		},
+		{
+			// Never down, so never gone round, whatever the setting says:
+			// started directly, its sessions would leave their pools.
+			name:     "routing nothing, as it can't tell which pool an account is in",
+			r:        closedRouter(),
+			wantSaid: "switchboard: the router is unhealthy (" + closed + ") — starting claude through it all the same\n",
+			wantLog:  []string{"level=WARN", "router=unhealthy", `reason="` + closed + `"`},
 		},
 	}
 	for _, rt := range routers {
@@ -2126,6 +2136,15 @@ func healthy() *fakeRouter {
 func unhealthyRouter() *fakeRouter {
 	r := healthy()
 	r.health.OK, r.health.Reason = false, unhealthy
+	return r
+}
+
+// closedRouter answers as a router that routes nothing, as it can't tell
+// which pool any account is in: unhealthy, saying why, reporting pools, none
+// of them.
+func closedRouter() *fakeRouter {
+	r := healthy()
+	r.health.OK, r.health.Reason, r.health.ReportsPools = false, closed, true
 	return r
 }
 

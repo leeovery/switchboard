@@ -36,9 +36,10 @@ func newRequestLedger(settings config.Ledger, caps ledger.Caps, digester ledger.
 }
 
 // open has the ledger kept in dir from now on, its days summarised with the
-// readings history, and digested with its digester.
-func (l *requestLedger) open(dir string, history ledger.History) {
-	l.opened.Store(ledger.Open(dir, l.keep, l.now, history, l.caps, logger, ledger.Digesting(l.digester)))
+// readings history, and digested with its digester, as the options given
+// say besides.
+func (l *requestLedger) open(dir string, history ledger.History, opts ...ledger.Option) {
+	l.opened.Store(ledger.Open(dir, l.keep, l.now, history, l.caps, logger, append(opts, ledger.Digesting(l.digester))...))
 }
 
 // note queues a request's line for run to write. It never waits.
@@ -88,8 +89,8 @@ func (l *requestLedger) summariseBeforePrune(now time.Time, keep time.Duration) 
 
 // line is the request ledger's line of the routed request ex, once it's
 // done, as f finished it, h its header: its account, reason and from those
-// of the account whose answer the client got, as it was picked. The answer's
-// counting is done with it.
+// of the account whose answer the client got, as it was picked, and its pool
+// as linePool names it. The answer's counting is done with it.
 func (p *proxy) line(ex *exchange, h http.Header, f finish) *ledger.Line {
 	answering := ex.answering()
 	line := &ledger.Line{
@@ -98,7 +99,7 @@ func (p *proxy) line(ex *exchange, h http.Header, f finish) *ledger.Line {
 		Kind:     ex.kind(),
 		Session:  ex.req.Session,
 		Dir:      ex.req.Dir,
-		Pool:     ex.pool,
+		Pool:     p.linePool(ex),
 		Model:    ex.req.Model,
 		Account:  answering.account,
 		Reason:   answering.reason,
@@ -119,6 +120,19 @@ func (p *proxy) line(ex *exchange, h http.Header, f finish) *ledger.Line {
 		line.FirstMS, line.Reply = ex.tap.firstMS(ex.started), ex.tap.reply
 	}
 	return line
+}
+
+// linePool returns the pool the line of the routed request ex names: the
+// pool it was resolved in; else, where it was resolved in none, as the pools
+// stood before the router took them up, and the pools stand now, the one it's
+// in as they stand, the first where it names none. So no line filed once the
+// move to pools has the router take them up names none, which the move,
+// having moved the day's lines already, wouldn't move.
+func (p *proxy) linePool(ex *exchange) string {
+	if t := p.pools.current(); ex.pool == "" && len(t.pools) > 0 {
+		return t.of(ex.req.Pool)
+	}
+	return ex.pool
 }
 
 // kind is what the routed request asked, as the request ledger has it: a
