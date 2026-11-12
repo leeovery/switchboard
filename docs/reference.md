@@ -450,6 +450,7 @@ pass over one you don't know. In the forms below, `<id>` is an account's id.
 | `no account has room` | None can take it: it goes where the API will say why, or switchboard answers 429 itself. |
 | `client` | The router kept the client's own token, as the account chosen had no token it could send on. |
 | `back where it was before its request` | Every account the request went out on refused it, so its session goes back to the account it was on. |
+| `token has left its pool` | Switchboard refused the request, telling its session to exit and resume: its token is of an account no longer in the request's pool, or the config no longer has the pool. |
 | `moved: <id> <why>` | The session's account, `<id>`, can't serve the request, for one of [the whys](#the-whys). |
 | `pin yields: <id> <why>` | The session's own pin to `<id>` yielded, as `<id>` can't serve the request, for one of [the whys](#the-whys). |
 | `rescored after <idle> idle` | A session idle past its cache's hour, chosen afresh. `<idle>` is how long it was idle, as `5d 12h`, `6d`, `4h 57m`, `7m` or `now`. |

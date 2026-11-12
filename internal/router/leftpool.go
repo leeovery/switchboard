@@ -27,16 +27,17 @@ const resumeToCarryOn = " — exit and resume it to carry on in the pool its dir
 
 // strayed answers the routed request ex, sent by s, where its session's token
 // has left the pool the request is in, as strays says of the pools as they
-// stand now, and reports whether it did, as refuseStrayed says: the pool's
-// own accounts would serve it, while what Claude Code sends that never
-// reaches the router goes out on the account the session started on.
+// stand now, and reports whether it did, as refuseStrayed says, its ledger
+// line and routed line giving the reason that says so: the pool's own
+// accounts would serve it, while what Claude Code sends that never reaches
+// the router goes out on the account the session started on.
 func (p *proxy) strayed(w http.ResponseWriter, ex *exchange, s sender) bool {
 	pools := p.pools.current()
 	pool, left := p.strays(pools, ex.req.Pool, s)
 	if !left {
 		return false
 	}
-	ex.pool, ex.status = pool, leftPool.status
+	ex.pool, ex.status, ex.reason = pool, leftPool.status, status.ReasonTokenLeftPool
 	p.refuseStrayed(w, pools, pool, s, ex.req.Session, "id", ex.id)
 	return true
 }

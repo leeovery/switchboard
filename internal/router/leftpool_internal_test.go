@@ -125,9 +125,12 @@ func TestASessionWhoseTokensAccountLeavesItsPoolIsRefusedWhileOneInThePoolItJoin
 	if len(got) != 2 {
 		t.Fatalf("the ledger holds %d lines, want Acme's and Default's", len(got))
 	}
-	if l := got[0]; l.Pool != acmePool || l.Status != leftPool.status || l.Account != "" || l.Session != "one" {
-		t.Errorf("Acme's line is of pool %q, session %q, answered %d on %q, want of %s, session one, answered %d on no account",
-			l.Pool, l.Session, l.Status, l.Account, acmePool, leftPool.status)
+	if l := got[0]; l.Pool != acmePool || l.Status != leftPool.status || l.Account != "" || l.Session != "one" || l.Reason != status.ReasonTokenLeftPool {
+		t.Errorf("Acme's line is of pool %q, session %q, answered %d on %q for %q, want of %s, session one, answered %d on no account for %q",
+			l.Pool, l.Session, l.Status, l.Account, l.Reason, acmePool, leftPool.status, status.ReasonTokenLeftPool)
+	}
+	if routed := []string{"msg=routed", "session=one", "status=400", `reason="` + status.ReasonTokenLeftPool + `"`}; !log.Has(routed...) {
+		t.Errorf("log reads\n%s\nwant a line with %q", log, routed)
 	}
 	if a := r.sessions.lookup(key{session: "one", model: opus}); a.assigned {
 		t.Errorf("Acme's session is assigned to %s, want it remembered nowhere: nothing was chosen for it", a.current.Account)

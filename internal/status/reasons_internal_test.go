@@ -33,7 +33,7 @@ const (
 func reasonForms() []string {
 	return []string{
 		ReasonNew, ReasonPinned, ReasonGlobalPin, ReasonMovedByPin, ReasonSticky, ReasonBound,
-		ReasonUnsessioned, ReasonNoRoom, ReasonClient, ReasonBack,
+		ReasonUnsessioned, ReasonNoRoom, ReasonClient, ReasonBack, ReasonTokenLeftPool,
 		ReasonMovedOff + placedID + " " + placedWhy,
 		ReasonPinYields + placedID + " " + placedWhy,
 		ReasonRescored + placedIdle + rescoredIdle,

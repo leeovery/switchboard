@@ -66,6 +66,10 @@ const (
 	// ReasonClient is the client's own token, kept as the router was handed
 	// an account it can't send on.
 	ReasonClient = "client"
+	// ReasonTokenLeftPool is a request switchboard refused, telling its
+	// session to exit and resume, as its token is of an account no longer in
+	// the request's pool, or the config no longer has the pool.
+	ReasonTokenLeftPool = "token has left its pool"
 )
 
 // rescoredIdle ends the reason Rescored gives.
