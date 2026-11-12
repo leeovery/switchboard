@@ -184,22 +184,50 @@ func (t *poolTable) asked(named string) (string, error) {
 		if p, ok := t.pools.Implicit(); ok {
 			return p.ID, nil
 		}
-		return "", fmt.Errorf("every pool is fenced: give the pool to read, %s", t.listed())
+		return "", NeedPool("", t.pools)
 	}
 	if p, ok := t.pools.ByID(named); ok {
 		return p.ID, nil
 	}
-	return "", fmt.Errorf("there's no pool %q: give %s", redact.Text(named), t.listed())
+	return "", NeedPool(named, t.pools)
 }
 
-// listed names every pool as a reader names one, as in "pool=b2n8
-// (Default) or pool=q7mt (Acme)".
-func (t *poolTable) listed() string {
-	named := make([]string, len(t.pools))
-	for i, p := range t.pools {
-		named[i] = PoolQuery + "=" + prose.Clean(p.ID) + " (" + prose.Clean(p.Label) + ")"
+// PoolNamed is a pool as a refusal for want of one names it.
+type PoolNamed struct {
+	ID    string `json:"id"`
+	Label string `json:"label"`
+}
+
+// PoolNeeded is why a read of a pool can't be answered without the pool
+// named, as the router refuses one, and as a document built by probing
+// can't be built: none is named, and there's none the verbs act on, as where
+// every pool is fenced; or the one named, Named, isn't configured. Pools are
+// those that are, to name one of. It's never a router that's down, nor one
+// to read in its place.
+type PoolNeeded struct {
+	Named string
+	Pools []PoolNamed
+}
+
+// NeedPool is the PoolNeeded of a read naming the pool given, "" for none,
+// of pools.
+func NeedPool(named string, pools config.Pools) PoolNeeded {
+	need := PoolNeeded{Named: named, Pools: make([]PoolNamed, len(pools))}
+	for i, p := range pools {
+		need.Pools[i] = PoolNamed{ID: p.ID, Label: p.Label}
 	}
-	return prose.ListOr(named)
+	return need
+}
+
+func (e PoolNeeded) Error() string {
+	named := make([]string, len(e.Pools))
+	for i, p := range e.Pools {
+		named[i] = prose.Clean(p.ID) + " (" + prose.Clean(p.Label) + ")"
+	}
+	if e.Named == "" {
+		return "every pool is fenced: name the pool to read, " + prose.ListOr(named)
+	}
+	return fmt.Sprintf("there's no pool %q: name %s", redact.Text(e.Named), prose.ListOr(named))
 }
 
 // poolOfAll returns the id of the pool the accounts with the given ids are

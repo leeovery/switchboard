@@ -25,7 +25,7 @@ var (
 	onePool        = config.Pools{testPools[0]}
 	bothFenced     = config.Pools{{ID: defaultPool, Label: "Default", Dirs: []string{"/work/default"}, WrittenDirs: []string{"/work/default"}}, testPools[1]}
 	unconfigured   = "z5k2"
-	poolsNamedSaid = "pool=" + defaultPool + " (Default) or pool=" + acmePool + " (Acme)"
+	poolsNamedSaid = defaultPool + " (Default) or " + acmePool + " (Acme)"
 )
 
 // inDefault is pooledAccounts with every account in Default, work its
@@ -132,7 +132,7 @@ func TestEachReadIsAnsweredForThePoolItAsksForElseTheOneTheVerbsActOn(t *testing
 		{name: "no pools, one not configured asked: as without", accounts: testConfigured, asked: unconfigured},
 		{name: "one pool, none asked: the only one", accounts: inDefault(), pools: onePool, want: defaultPool},
 		{name: "one pool, it asked", accounts: inDefault(), pools: onePool, asked: defaultPool, want: defaultPool},
-		{name: "one pool, one not configured asked", accounts: inDefault(), pools: onePool, asked: acmePool, refused: "pool=" + defaultPool + " (Default)"},
+		{name: "one pool, one not configured asked", accounts: inDefault(), pools: onePool, asked: acmePool, refused: defaultPool + " (Default)"},
 		{name: "one unfenced, none asked: the unfenced", accounts: pooledAccounts(), pools: testPools, want: defaultPool},
 		{name: "one unfenced, the fenced asked", accounts: pooledAccounts(), pools: testPools, asked: acmePool, want: acmePool},
 		{name: "one unfenced, asked ignoring case", accounts: pooledAccounts(), pools: testPools, asked: "Q7MT", want: acmePool},
