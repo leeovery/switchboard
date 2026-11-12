@@ -1126,7 +1126,21 @@ func (s *serveSetup) writeConfig(t *testing.T) {
 
 // putConfig is writeConfig, from any goroutine.
 func (s *serveSetup) putConfig() error {
-	content := fmt.Sprintf("listen   = %q\nupstream = %q\n", s.listen, s.upstream) + threeInFirstPool + s.extra
+	return s.putConfigOf(threeInFirstPool)
+}
+
+// writeUnpooled is writeConfig, threeAccounts in no pools, as a config from
+// before pools.
+func (s *serveSetup) writeUnpooled(t *testing.T) {
+	t.Helper()
+	if err := s.putConfigOf(threeAccounts); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// putConfigOf is putConfig, the config's accounts and pools those given.
+func (s *serveSetup) putConfigOf(accounts string) error {
+	content := fmt.Sprintf("listen   = %q\nupstream = %q\n", s.listen, s.upstream) + accounts + s.extra
 	return os.WriteFile(s.config, []byte(content), 0o600)
 }
 

@@ -266,6 +266,7 @@ func TestServeMovesTheAccountsAndTheirHistoryOntoTheirIDsAcrossTheRestartItCalls
 // before pools heals it.
 func TestServeMovesTheHistoryToPoolsTakingTheFirstPoolUpAtOnce(t *testing.T) {
 	srv := newServeSetup(t, fakeClaudeAPI(t), nil)
+	srv.writeUnpooled(t)
 	if err := os.Remove(filepath.Join(srv.state, poolsMark)); err != nil {
 		t.Fatal(err)
 	}
@@ -304,7 +305,7 @@ func TestServeMovesTheHistoryToPoolsTakingTheFirstPoolUpAtOnce(t *testing.T) {
 	if got := stop(); got.code != 0 {
 		t.Fatalf("switchboard serve = %+v, want exit status 0", got)
 	}
-	srv.writeConfig(t)
+	srv.writeUnpooled(t)
 	srv.start(t)
 	srv.waitForStatus(t, func(status.Document) bool { return true })
 	cfg, err := config.Load(srv.config, nil)
@@ -313,5 +314,33 @@ func TestServeMovesTheHistoryToPoolsTakingTheFirstPoolUpAtOnce(t *testing.T) {
 	}
 	if pool, ok := cfg.Pools.ByID(first.ID); !ok || pool.Label != "Default" || len(cfg.Pools) != 1 {
 		t.Errorf("the config put back holds the pools %+v, want it healed with the first, %s, labelled Default", cfg.Pools, first.ID)
+	}
+}
+
+// A router starting on a config it can't heal starts all the same, and
+// tells of the heal serve tried as it started, once.
+func TestServeStartedOnAConfigItCantHealTellsOfItOnce(t *testing.T) {
+	srv := newServeSetup(t, fakeClaudeAPI(t), nil)
+	// No look runs to try the heal again: what's told is serve's.
+	srv.deps.WatchEvery = time.Hour
+	// Moved to pools, the accounts record noting no first pool to heal with.
+	srv.writeUnpooled(t)
+	was, err := os.ReadFile(srv.config)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	stop := srv.start(t)
+	srv.waitForStatus(t, func(status.Document) bool { return true })
+	if got := stop(); got.code != 0 {
+		t.Fatalf("switchboard serve = %+v, want exit status 0", got)
+	}
+
+	if data, err := os.ReadFile(srv.config); err != nil || string(data) != string(was) {
+		t.Errorf("the config reads %s (%v), want it as it was, as none could be healed", data, err)
+	}
+	log := srv.routerLog(t)
+	if n := strings.Count(log, "couldn't heal the config"); n != 1 || !hasLine(log, "level=WARN", "couldn't heal the config", "notes no first pool") {
+		t.Errorf("router.log reads\n%s\nwant it said once that the config couldn't be healed, as the accounts record notes no first pool", log)
 	}
 }

@@ -115,28 +115,21 @@ func (a *app) awaitMove(ctx context.Context, out io.Writer, stateDir string) err
 	return nil
 }
 
-// heal writes the accounts' new ids back in the config file at path, where
-// the move onto them is done in the state directory given and the config
-// names any by the id it had before, as idmove.Heal does; then the pools the
-// accounts record keeps, each account in the pool it was in, where the move
-// to pools is done there and the config names no pool, as idmove.HealPools
-// does: as a router starts, before it reads the config, so it starts on the
-// ids the token files are named by, in the pools it had, the config read in
-// the home directory homeDir returns. Where it can't write the ids, which is
-// logged, the router starts all the same, the accounts' tokens not found by
-// the old ids; where it can't write the pools, it returns why, for the router
-// to tell of and try again, as router.Config's Unhealed says, the router
-// routing within the pools the accounts record keeps meanwhile.
+// heal heals the config file at path as idmove.HealConfig does, the
+// accounts' new ids written back where the config names any by the id it
+// had before, then the pools the accounts record keeps where it names none,
+// as a router starts, before it reads the config, so it starts on the ids
+// the token files are named by, in the pools it had, the config read in the
+// home directory homeDir returns. Where it can't, the router starts all the
+// same, routing within the pools the accounts record keeps, and it returns
+// why, for the router to tell of and try again, as router.Config's Unhealed
+// says.
 func heal(path, stateDir string, homeDir func() (string, error)) error {
-	healed, err := idmove.Heal(path, stateDir, homeDir)
-	switch {
-	case err != nil:
-		logger.Warn("couldn't write the accounts' new ids back in the config, which names them by those they had before", "path", path, "error", err)
-	case healed:
+	ids, pools, err := idmove.HealConfig(path, stateDir, homeDir)
+	if ids {
 		logger.Info("wrote the accounts' new ids back in the config, which named them by those they had before", "path", path)
 	}
-	pooled, err := idmove.HealPools(path, stateDir, homeDir)
-	if pooled {
+	if pools {
 		logger.Info("wrote the pools back in the config, which named none, each account in the pool it was in", "path", path)
 	}
 	return err

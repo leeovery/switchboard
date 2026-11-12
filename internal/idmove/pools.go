@@ -378,6 +378,22 @@ func HealPools(configPath, stateDir string, homeDir func() (string, error)) (boo
 	return m.configure()
 }
 
+// HealConfig heals the config file at configPath as a router does as it
+// starts, before it reads it, and as it finds it naming no pools: the
+// accounts' new ids written back, as Heal writes them, then the pools, as
+// HealPools writes them, so the file it leaves names each account in its
+// pool by its id now. Where the ids can't be written it fails, writing no
+// pools, so the file never holds pools keyed by the ids the accounts had
+// before. It reports whether it wrote the ids, and whether it wrote the
+// pools.
+func HealConfig(configPath, stateDir string, homeDir func() (string, error)) (ids, pools bool, err error) {
+	if ids, err = Heal(configPath, stateDir, homeDir); err != nil {
+		return false, false, fmt.Errorf("write the accounts' new ids back first: %w", err)
+	}
+	pools, err = HealPools(configPath, stateDir, homeDir)
+	return ids, pools, err
+}
+
 // writeFirst writes the first pool the accounts record notes to a config
 // without pools, every account in it, as configure writes it, as the move's
 // step.
