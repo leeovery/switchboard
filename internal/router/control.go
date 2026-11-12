@@ -449,9 +449,9 @@ func historyAsked(req *http.Request) (historyAsk, error) {
 
 // refresh probes the accounts of the pool rd reads it can send on that
 // nothing has been read of for longer than age, and those that can take no
-// request anyway, as refreshing says, sharing any probe of them already under way, and waits for
-// those probes: for refreshWait at most, or until ctx ends, after which they
-// go on without it. One holding the token a probe found another
+// request anyway, as refreshing says, sharing any probe of them already
+// under way, and waits for those probes: for refreshWait at most, or until
+// ctx ends, after which they go on without it. One holding the token a probe found another
 // subscription's isn't probed again till it takes up another, as on its
 // rounds.
 func (r *Router) refresh(ctx context.Context, age time.Duration, rd poolRead) {

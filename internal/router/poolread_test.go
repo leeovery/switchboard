@@ -197,7 +197,11 @@ func TestAClientReadsEveryPoolTheRouterReports(t *testing.T) {
 	if want := []string{"in-q7mt", "in-b2n8"}; err != nil || !slices.Equal(ids, want) {
 		t.Errorf("SessionsInEveryPool() = %q, %v; want %q, the one seen last first", ids, err, want)
 	}
-	docs, err := client.StatusInEveryPool(t.Context())
+	h, err := client.Health(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	docs, err := client.StatusInEveryPool(t.Context(), h)
 	var of []string
 	for _, doc := range docs {
 		of = append(of, doc.PoolID)
