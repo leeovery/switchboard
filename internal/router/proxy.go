@@ -462,7 +462,11 @@ func (p *proxy) reserved(w http.ResponseWriter, ex *exchange, choice Choice) {
 // as whyClosed has it, as the limit the answer reads as isn't. A request
 // whose client's account is outside its pool as it arrives strayed refuses,
 // so this answers one whose account left the pool between that check and a
-// choice, as the pools changed.
+// choice, as the pools changed; or, with nothing changed, one on a token of
+// an account that has left the config, which strays lets in, as its pool, or
+// none known, is the request's, while the account its tokens went to, its
+// client's, is in another pool, and the request's pool has none to fall back
+// to.
 func (p *proxy) closed(w http.ResponseWriter, ex *exchange, choice Choice) {
 	ex.reason, ex.status = choice.Reason, http.StatusTooManyRequests
 	pools := p.pools.current()
