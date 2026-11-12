@@ -56,7 +56,7 @@ func (e Edited) Changed() bool {
 // config file has the given id, and as config.Edit does for a config file it
 // can't read.
 func (r Registry) Configured(id string) error {
-	draft, err := config.Edit(r.ConfigPath)
+	draft, err := config.Edit(r.ConfigPath, r.HomeDir)
 	if err != nil {
 		return err
 	}
@@ -71,7 +71,7 @@ func (r Registry) Configured(id string) error {
 // ErrNoLabel or ErrLabelTaken for a label that's none, or another configured
 // account's, as CheckNew has them.
 func (r Registry) Edit(id string, change Change) (Edited, error) {
-	draft, err := config.Edit(r.ConfigPath)
+	draft, err := config.Edit(r.ConfigPath, r.HomeDir)
 	if err != nil {
 		return Edited{}, err
 	}

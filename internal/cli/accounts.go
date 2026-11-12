@@ -695,7 +695,7 @@ func (a *app) accountFiles() (accounts.Registry, error) {
 	if err != nil {
 		return accounts.Registry{}, err
 	}
-	return accounts.Registry{ConfigPath: path, Tokens: files, Record: identity.NewFile(dir), Prober: a.prober, Now: a.Now}, nil
+	return accounts.Registry{ConfigPath: path, HomeDir: a.HomeDir, Tokens: files, Record: identity.NewFile(dir), Prober: a.prober, Now: a.Now}, nil
 }
 
 // prober checks a token with the API at upstream, as a probe does.

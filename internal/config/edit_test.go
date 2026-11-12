@@ -189,7 +189,7 @@ primary = true
 			if got := readFile(t, path); got != tt.want {
 				t.Errorf("the config reads\n%s\nwant\n%s", got, tt.want)
 			}
-			cfg, err := config.Load(path)
+			cfg, err := load(path)
 			if err != nil {
 				t.Fatalf("Load() error = %v", err)
 			}
@@ -297,7 +297,7 @@ label = "Personal"
 			if got := readFile(t, path); got != tt.want {
 				t.Errorf("the config reads\n%s\nwant\n%s", got, tt.want)
 			}
-			cfg, err := config.Load(path)
+			cfg, err := load(path)
 			if err != nil {
 				t.Fatalf("Load() error = %v", err)
 			}
@@ -358,7 +358,7 @@ func TestEditsLoadAsMeant(t *testing.T) {
 			t.Fatalf("%s: error = %v", step.name, err)
 		}
 		save(t, draft)
-		cfg, err := config.Load(path)
+		cfg, err := load(path)
 		if err != nil {
 			t.Fatalf("%s: Load() error = %v", step.name, err)
 		}
@@ -452,7 +452,7 @@ func TestEditsKeepTheWeeksStartThePlansTheLayoutAndThePrices(t *testing.T) {
 			t.Fatalf("%s: error = %v", step.name, err)
 		}
 		save(t, draft)
-		cfg, err := config.Load(path)
+		cfg, err := load(path)
 		if err != nil {
 			t.Fatalf("%s: Load() error = %v", step.name, err)
 		}
@@ -774,7 +774,7 @@ primary = true
 			if got := readFile(t, path); got != tt.want {
 				t.Errorf("the config reads\n%s\nwant\n%s", got, tt.want)
 			}
-			cfg, err := config.Load(path)
+			cfg, err := load(path)
 			if err != nil {
 				t.Fatalf("Load() error = %v", err)
 			}
@@ -902,7 +902,7 @@ func TestSetPrimeDay(t *testing.T) {
 			if got := readFile(t, path); got != tt.want {
 				t.Errorf("the config reads\n%s\nwant\n%s", got, tt.want)
 			}
-			cfg, err := config.Load(path)
+			cfg, err := load(path)
 			if err != nil {
 				t.Fatalf("Load() error = %v", err)
 			}
@@ -956,7 +956,7 @@ func TestSetPrimeDayClears(t *testing.T) {
 			if got := readFile(t, path); got != tt.want {
 				t.Errorf("the config reads\n%s\nwant\n%s", got, tt.want)
 			}
-			cfg, err := config.Load(path)
+			cfg, err := load(path)
 			if err != nil {
 				t.Fatalf("Load() error = %v", err)
 			}
@@ -1059,7 +1059,7 @@ func TestEditRefusesAConfigItCantRead(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			path := writeConfig(t, tt.config)
 
-			_, err := config.Edit(path)
+			_, err := editConfig(path)
 			if want := strings.ReplaceAll(tt.wantErr, "%s", path); err == nil || !strings.HasPrefix(err.Error(), want) {
 				t.Errorf("Edit() error = %v, want one starting %q", err, want)
 			}
@@ -1082,7 +1082,7 @@ func TestSaveMakesTheConfigWithItsDirectory(t *testing.T) {
 		t.Errorf("the config reads\n%s\nwant\n%s", readFile(t, path), want)
 	}
 	checkMode(t, path, 0o644)
-	if cfg, err := config.Load(path); err != nil || cfg.Upstream != "https://api.anthropic.com" {
+	if cfg, err := load(path); err != nil || cfg.Upstream != "https://api.anthropic.com" {
 		t.Errorf("Load() = %+v, %v, want the config with its defaults", cfg, err)
 	}
 }
@@ -1190,7 +1190,7 @@ func TestEditRefusesALoopOfLinks(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.toml")
 	loopOfLinks(t, path)
 
-	_, err := config.Edit(path)
+	_, err := editConfig(path)
 	if err == nil || !strings.HasPrefix(err.Error(), "read config: ") {
 		t.Errorf("Edit() error = %v, want it to fail reading the config", err)
 	}
@@ -1261,7 +1261,7 @@ func TestSaveRefusesAConfigChangedMeanwhile(t *testing.T) {
 // edit returns a draft of the config file at path.
 func edit(t *testing.T, path string) *config.Draft {
 	t.Helper()
-	draft, err := config.Edit(path)
+	draft, err := editConfig(path)
 	if err != nil {
 		t.Fatalf("Edit() error = %v", err)
 	}

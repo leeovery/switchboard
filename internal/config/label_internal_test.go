@@ -55,11 +55,11 @@ func FuzzTakeLabel(f *testing.F) {
 		f.Add(given)
 	}
 	f.Fuzz(func(t *testing.T, given string) {
-		label, err := takeLabel("work", given)
+		label, err := takeLabel(accountKind, "work", given)
 		if err != nil {
 			return
 		}
-		if again, err := takeLabel("work", label); err != nil || again != label {
+		if again, err := takeLabel(accountKind, "work", label); err != nil || again != label {
 			t.Fatalf("takeLabel(%q) = %q, then takeLabel of that = %q, %v; want it as it was", given, label, again, err)
 		}
 		if got, want := prose.Quoted(label), `"`+markEscaper.Replace(label)+`"`; got != want {

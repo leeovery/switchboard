@@ -122,7 +122,7 @@ func TestTheConfigsPriceOfAPlanByItsOldNamePricesIt(t *testing.T) {
 	if err := os.WriteFile(path, []byte("[[account]]\nid = \"work\"\n\n[prices.plans]\nmax20x = 180\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	cfg, err := config.Load(path)
+	cfg, err := config.Load(path, nil)
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
 	}

@@ -27,6 +27,7 @@ func (a *app) mover(path, stateDir string, files tokens.Store, cfg router.Config
 		ConfigPath:    path,
 		StateDir:      stateDir,
 		Tokens:        files,
+		HomeDir:       a.HomeDir,
 		Organizations: organizations{a.prober(cfg.Upstream)},
 		Routing:       cfg.Accounts.IDs(),
 		Now:           a.Now,
@@ -106,10 +107,11 @@ func (a *app) awaitMove(ctx context.Context, out io.Writer, stateDir string) err
 // the move onto them is done in the state directory given and the config
 // names any by the id it had before, as idmove.Heal does: as a router starts,
 // before it reads the config, so it starts on the ids the token files are
-// named by. Where it can't, which is logged, the router starts all the same,
-// the accounts' tokens not found by the old ids.
-func heal(path, stateDir string) {
-	healed, err := idmove.Heal(path, stateDir)
+// named by, the config read in the home directory homeDir returns. Where it
+// can't, which is logged, the router starts all the same, the accounts'
+// tokens not found by the old ids.
+func heal(path, stateDir string, homeDir func() (string, error)) {
+	healed, err := idmove.Heal(path, stateDir, homeDir)
 	switch {
 	case err != nil:
 		logger.Warn("couldn't write the accounts' new ids back in the config, which names them by those they had before", "path", path, "error", err)

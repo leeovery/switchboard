@@ -57,7 +57,7 @@ type JoinAs struct {
 // It fails, changing nothing, with ErrConflict wrapped where r, joined,
 // breaks the record's rules, as check says.
 func (r *Record) Join(other Record, as JoinAs) (map[string]string, error) {
-	j := joining{record: Record{Accounts: slices.Clone(r.Accounts)}, as: as, configured: as.Configured.IDs(), staged: other.ids()}
+	j := joining{record: r.clone(), as: as, configured: as.Configured.IDs(), staged: other.ids()}
 	mapped := make(map[string]string)
 	for _, e := range other.Accounts {
 		if id := j.join(e); !strings.EqualFold(id, e.ID) {

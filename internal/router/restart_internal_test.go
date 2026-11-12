@@ -321,7 +321,7 @@ func TestAnUpgradesBinaryJudgesTheConfigInPlaceOfTheRunningVersion(t *testing.T)
 			r.look()
 			wantHeld := tt.wantHeld
 			if tt.wantHeldAsRunning {
-				_, err := config.Load(s.config)
+				_, err := config.Load(s.config, noHome)
 				wantHeld = err.Error()
 			}
 
@@ -1275,7 +1275,7 @@ func TestARestartAskedForIsRefusedWhenAFileChangesAsItsChecked(t *testing.T) {
 				r.ask = nil
 				r.load = func(path string) (*config.Config, error) {
 					tt.change(t, s)
-					return config.Load(path)
+					return config.Load(path, noHome)
 				}
 			}
 

@@ -243,7 +243,7 @@ func (r *Router) joinStaged(folders []string) ([]idmove.Renames, error) {
 	here := idmove.Here{Install: sync.OnceValues(func() (string, error) { return export.InstallID(r.cfg.StateDir) })}
 	renames := make([]idmove.Renames, len(folders))
 	err := identity.NewFile(r.cfg.StateDir).Change(func(record *identity.Record, _ func() error) error {
-		here.Accounts = r.upkeep.record.followed()
+		here.Accounts, _ = r.upkeep.record.followed()
 		for i, folder := range folders {
 			rename, err := idmove.JoinFolder(folder, record, here)
 			if err != nil {

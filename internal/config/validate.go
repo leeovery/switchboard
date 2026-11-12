@@ -170,7 +170,6 @@ func checkAccounts(accounts []fileAccount) error {
 			firsts[folded] = a.ID
 		}
 	}
-	errs = append(errs, checkPrimaries(accounts))
 	return errors.Join(errs...)
 }
 
@@ -188,7 +187,7 @@ func caseClash(first, id string) error {
 // check reports what's wrong with the account at index i of the file.
 func (a fileAccount) check(i int) error {
 	name := a.name(i)
-	return errors.Join(checkID(name, a.ID), checkLabel(name, a.Label), checkReserve(name, a.Reserve), checkPlan(name, a.Plan))
+	return errors.Join(checkID(accountKind, name, a.ID), checkLabel(accountKind, name, a.Label), checkReserve(name, a.Reserve), checkPlan(name, a.Plan))
 }
 
 // name identifies the account in errors: by its id, else by its position.
@@ -214,19 +213,27 @@ func accountNamed(id string) string {
 // CheckID fails with a WrongID, saying why, unless id is one an account can
 // have.
 func CheckID(id string) error {
-	return checkID(accountNamed(id), id)
+	return checkID(accountKind, accountNamed(id), id)
 }
 
-func checkID(account, id string) error {
+// What an id or a label is of, as their errors name it.
+const (
+	accountKind = "account"
+	poolKind    = "pool"
+)
+
+// checkID fails with a WrongID, naming the account or pool, of the kind
+// given, as name does, unless id is one it can have.
+func checkID(kind, name, id string) error {
 	switch {
 	case id == "":
-		return wrongID(account, "is required")
+		return wrongID(name, "is required")
 	case redact.HoldsToken(id):
-		return wrongID(account, "looks like a token, which an id mustn't, as it shows wherever the account does")
+		return wrongID(name, "looks like a token, which an id mustn't, as it shows wherever the "+kind+" does")
 	case !idPattern.MatchString(id):
-		return wrongID(account, "must start with a letter or digit and contain only letters, digits, '-' and '_'")
+		return wrongID(name, "must start with a letter or digit and contain only letters, digits, '-' and '_'")
 	case strings.EqualFold(id, ReservedID):
-		return wrongID(account, "is reserved for switchboard pin "+ReservedID)
+		return wrongID(name, "is reserved for switchboard pin "+ReservedID)
 	}
 	return nil
 }
@@ -324,8 +331,9 @@ func wrongLabel(account, why string) error {
 // such as an Arabic number sign, which joins the character after it, so
 // that character can draw as nothing; and when nothing of it would show but
 // it isn't "", which shows the account by its id, matching ErrBlankLabel.
-// Then it's checked as checkLabel checks one.
-func takeLabel(account, given string) (string, error) {
+// Then it's checked as checkLabel checks one, of the kind given, the
+// account or pool name names.
+func takeLabel(kind, account, given string) (string, error) {
 	switch {
 	case !utf8.ValidString(given):
 		return "", wrongLabel(account, "isn't UTF-8 text, as a config's text must be")
@@ -341,7 +349,7 @@ func takeLabel(account, given string) (string, error) {
 	if given != "" && !strings.ContainsFunc(label, shows) {
 		return "", &WrongLabel{account: account, Why: blankWhy, is: ErrBlankLabel}
 	}
-	if err := checkLabel(account, label); err != nil {
+	if err := checkLabel(kind, account, label); err != nil {
 		return "", err
 	}
 	return label, nil
@@ -351,7 +359,7 @@ func takeLabel(account, given string) (string, error) {
 // takes it: "" for "". As the account has no id yet, a WrongLabel it fails
 // with names none.
 func TakeLabel(given string) (string, error) {
-	return takeLabel("", given)
+	return takeLabel(accountKind, "", given)
 }
 
 // keptIfAMark is what prose.MapUnseen makes of an unseen character of a label
@@ -384,14 +392,15 @@ func shows(r rune) bool {
 }
 
 // checkLabel keeps anything that looks like a token out of a label, and keeps
-// a label to mostLabelCharacters. It never quotes the label, which could be
+// a label to mostLabelCharacters, the label of an account or a pool, of the
+// kind given, which name names. It never quotes the label, which could be
 // anything.
-func checkLabel(account, label string) error {
+func checkLabel(kind, name, label string) error {
 	switch length := utf8.RuneCountInString(label); {
 	case redact.HoldsToken(label):
-		return wrongLabel(account, "looks like a token, which a label mustn't, as it shows wherever the account does")
+		return wrongLabel(name, "looks like a token, which a label mustn't, as it shows wherever the "+kind+" does")
 	case length > mostLabelCharacters:
-		return wrongLabel(account, fmt.Sprintf("is %d characters: must be at most %d", length, mostLabelCharacters))
+		return wrongLabel(name, fmt.Sprintf("is %d characters: must be at most %d", length, mostLabelCharacters))
 	}
 	return nil
 }
@@ -475,18 +484,26 @@ func checkPlan(account, plan string) error {
 	return fmt.Errorf("%s: %w", account, wrongValue("plan", plan, "must be "+planNames()+", the plan the account's subscription is on"))
 }
 
-// checkPrimaries reports more than one account marked primary, naming each.
+// checkPrimaries reports more than one account marked primary in a pool,
+// naming each, or among every account in a config from before pools.
 func checkPrimaries(accounts []fileAccount) error {
-	var marked []string
-	for i, a := range accounts {
-		if a.Primary {
-			marked = append(marked, a.name(i))
+	var errs []error
+	for _, in := range byPool(accounts, func(a fileAccount) string { return a.Pool }) {
+		var marked []string
+		for _, i := range in {
+			if accounts[i].Primary {
+				marked = append(marked, accounts[i].name(i))
+			}
+		}
+		switch pool := accounts[in[0]].Pool; {
+		case len(marked) < 2:
+		case pool != "":
+			errs = append(errs, fmt.Errorf("primary is set on %s in %s: only one account in a pool can be its primary, the one the browser and the Claude apps use for it", prose.List(marked), poolNamed(pool)))
+		default:
+			errs = append(errs, fmt.Errorf("primary is set on %s: only one account can be the primary, the one the browser and the Claude apps use", prose.List(marked)))
 		}
 	}
-	if len(marked) < 2 {
-		return nil
-	}
-	return fmt.Errorf("primary is set on %s: only one account can be the primary, the one the browser and the Claude apps use", prose.List(marked))
+	return errors.Join(errs...)
 }
 
 // ParseDay reads a day as [prime] gives it: two times of day, HH:MM, joined

@@ -170,7 +170,7 @@ type Review struct {
 // Review reads every configured account and its token, checking none with
 // the API, so the review shows at once: none on a first run.
 func (s *Setup) Review() (Review, error) {
-	draft, err := config.Edit(s.Accounts.ConfigPath)
+	draft, err := config.Edit(s.Accounts.ConfigPath, s.Accounts.HomeDir)
 	if err != nil {
 		return Review{}, err
 	}
@@ -217,7 +217,7 @@ func marked(draft *config.Draft, cfg *config.Config) Review {
 // matching config.ErrNotConfigured, when no account has the id, and with
 // ctx's error once ctx is done.
 func (s *Setup) ReviewOf(ctx context.Context, id string) (Reviewed, error) {
-	draft, err := config.Edit(s.Accounts.ConfigPath)
+	draft, err := config.Edit(s.Accounts.ConfigPath, s.Accounts.HomeDir)
 	if err != nil {
 		return Reviewed{}, err
 	}

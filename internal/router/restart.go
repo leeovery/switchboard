@@ -122,10 +122,12 @@ type restarts struct {
 }
 
 // newRestarts returns the restarts of a router started from the config file,
-// the binary it upgrades from, and the time zone's file, as Watch found them.
+// the binary it upgrades from, and the time zone's file, as Watch found them,
+// reading the config file with no home directory, as restartsFor gives it.
 func newRestarts(file, binary, zone Watched, supervised bool, inFlight *inFlight, now func() time.Time, emit func(Event)) *restarts {
+	load := loading(noHome)
 	return &restarts{
-		config:     &configFile{path: file.path, seen: file.found, valid: true},
+		config:     &configFile{path: file.path, seen: file.found, valid: true, load: load},
 		binary:     &ledFile{path: binary.path, running: binary.found, differs: binary.differs, news: "the binary leads to another file, as after an upgrade"},
 		zone:       &ledFile{path: zone.path, running: zone.found, news: "the time zone's file leads to another, as in another time zone"},
 		supervised: supervised,
@@ -133,9 +135,15 @@ func newRestarts(file, binary, zone Watched, supervised bool, inFlight *inFlight
 		exports:    noExports{},
 		now:        now,
 		emit:       emit,
-		load:       config.Load,
+		load:       load,
 		restarted:  make(chan struct{}),
 	}
+}
+
+// loading returns what reads the config file at a path, as config.Load does,
+// in the home directory homeDir returns.
+func loading(homeDir func() (string, error)) func(path string) (*config.Config, error) {
+	return func(path string) (*config.Config, error) { return config.Load(path, homeDir) }
 }
 
 // exportsUnderWay are the exports a restart in place waits on: quiet returns
@@ -168,6 +176,8 @@ func (noExports) release() {}
 func restartsFor(cfg Config, inFlight *inFlight, emit func(Event)) *restarts {
 	binary, own := cfg.upgradesFrom()
 	r := newRestarts(cfg.ConfigFile, binary, cfg.Zone, cfg.Supervised, inFlight, cfg.Now, emit)
+	r.load = loading(cfg.HomeDir)
+	r.config.load = r.load
 	r.ask, r.own = asking(cfg), own
 	if own != nil {
 		r.stage = own.StageNext
@@ -927,6 +937,8 @@ type configFile struct {
 	changed  bool
 	accounts config.Accounts
 	export   config.Export
+	// load reads the config file at path, as restarts' load does.
+	load func(path string) (*config.Config, error)
 }
 
 // look looks at the config file again, and reads it once it has changed:
@@ -940,7 +952,7 @@ func (c *configFile) look() {
 		c.missed = false
 		return
 	}
-	cfg, err := config.Load(c.path)
+	cfg, err := c.load(c.path)
 	switch {
 	case err != nil && !c.missed:
 		c.missed = true

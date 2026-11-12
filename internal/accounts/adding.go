@@ -104,7 +104,7 @@ func (e *UnansweredError) Error() string {
 // added as it answers. Nothing is saved where the API refuses the token, or
 // doesn't answer for it.
 func (r Registry) Add(ctx context.Context, account config.NewAccount, ask Ask) (Added, error) {
-	draft, err := config.Edit(r.ConfigPath)
+	draft, err := config.Edit(r.ConfigPath, r.HomeDir)
 	if err != nil {
 		return Added{}, err
 	}
@@ -253,7 +253,7 @@ type decision struct {
 // whose organization is organization is added as, as decide has it, the
 // account checked first as CheckNew checks it.
 func (r Registry) decided(record identity.Record, account config.NewAccount, known Organizations, organization string, answer Answer) (*config.Draft, decision, error) {
-	draft, err := config.Edit(r.ConfigPath)
+	draft, err := config.Edit(r.ConfigPath, r.HomeDir)
 	if err != nil {
 		return nil, decision{}, err
 	}

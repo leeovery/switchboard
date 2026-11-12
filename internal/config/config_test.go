@@ -101,7 +101,7 @@ output = 12.5
 		},
 	}
 
-	got, err := config.Load(path)
+	got, err := load(path)
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
 	}
@@ -125,7 +125,7 @@ func TestLoadTakesALabelUpToTheLongestALabelMayBe(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			path := writeConfig(t, "[[account]]\nid = \"work\"\nlabel = \""+tt.label+"\"\n")
 
-			got, err := config.Load(path)
+			got, err := load(path)
 			if err != nil {
 				t.Fatalf("Load() error = %v", err)
 			}
@@ -160,7 +160,7 @@ label = "Personal"
 		Usage:         config.Usage{By: config.ByWindow},
 	}
 
-	got, err := config.Load(path)
+	got, err := load(path)
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
 	}
@@ -199,7 +199,7 @@ func TestLoadThePrimary(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg, err := config.Load(writeConfig(t, tt.config))
+			cfg, err := load(writeConfig(t, tt.config))
 			if err != nil {
 				t.Fatalf("Load() error = %v", err)
 			}
@@ -249,7 +249,7 @@ func TestLoadTheReserves(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg, err := config.Load(writeConfig(t, tt.config))
+			cfg, err := load(writeConfig(t, tt.config))
 			if err != nil {
 				t.Fatalf("Load() error = %v", err)
 			}
@@ -276,7 +276,7 @@ func TestLoadThePrimingDay(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg, err := config.Load(writeConfig(t, tt.config+accountTOML("work")))
+			cfg, err := load(writeConfig(t, tt.config+accountTOML("work")))
 			if err != nil {
 				t.Fatalf("Load() error = %v", err)
 			}
@@ -304,7 +304,7 @@ func TestLoadTheDayTheWeeksStartOn(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg, err := config.Load(writeConfig(t, tt.config+accountTOML("work")))
+			cfg, err := load(writeConfig(t, tt.config+accountTOML("work")))
 			if err != nil {
 				t.Fatalf("Load() error = %v", err)
 			}
@@ -328,7 +328,7 @@ func TestLoadWhatClaudeDoesWithTheRouterDown(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg, err := config.Load(writeConfig(t, tt.config+accountTOML("work")))
+			cfg, err := load(writeConfig(t, tt.config+accountTOML("work")))
 			if err != nil {
 				t.Fatalf("Load() error = %v", err)
 			}
@@ -377,7 +377,7 @@ func TestLoadTheLayoutUsageOpensWith(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg, err := config.Load(writeConfig(t, accountTOML("work")+"\n"+tt.config))
+			cfg, err := load(writeConfig(t, accountTOML("work")+"\n"+tt.config))
 			if err != nil {
 				t.Fatalf("Load() error = %v", err)
 			}
@@ -421,7 +421,7 @@ func TestLoadEachPlanAnAccountCanBeOn(t *testing.T) {
 		{given: "max20x", want: "ultra"},
 	}
 	for _, tt := range tests {
-		cfg, err := config.Load(writeConfig(t, accountTOML("work")+"plan = \""+tt.given+"\"\n"+accountTOML("side")+"\n[prices.plans]\n"+tt.given+" = 1\n"))
+		cfg, err := load(writeConfig(t, accountTOML("work")+"plan = \""+tt.given+"\"\n"+accountTOML("side")+"\n[prices.plans]\n"+tt.given+" = 1\n"))
 		if err != nil {
 			t.Fatalf("Load() of an account on %s error = %v", tt.given, err)
 		}
@@ -437,7 +437,7 @@ func TestLoadEachPlanAnAccountCanBeOn(t *testing.T) {
 }
 
 func TestLoadTakesAPriceUpToAMillionDollars(t *testing.T) {
-	cfg, err := config.Load(writeConfig(t, accountTOML("work")+"\n[prices.plans]\nultra = 1000000\n\n[prices.models.claude-opus-5-5]\ninput = 1000000\n"))
+	cfg, err := load(writeConfig(t, accountTOML("work")+"\n[prices.plans]\nultra = 1000000\n\n[prices.models.claude-opus-5-5]\ninput = 1000000\n"))
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
 	}
@@ -564,7 +564,7 @@ func TestLoadAcceptsLoopbackListenAndHTTPUpstream(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			content := fmt.Sprintf("listen = %q\nupstream = %q\n", tt.listen, tt.upstream) + accountTOML("work")
 
-			cfg, err := config.Load(writeConfig(t, content))
+			cfg, err := load(writeConfig(t, content))
 			if err != nil {
 				t.Fatalf("Load() error = %v", err)
 			}
@@ -597,7 +597,7 @@ func TestLoadNotifications(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg, err := config.Load(writeConfig(t, tt.config+accountTOML("work")))
+			cfg, err := load(writeConfig(t, tt.config+accountTOML("work")))
 			if err != nil {
 				t.Fatalf("Load() error = %v", err)
 			}
@@ -642,7 +642,7 @@ func TestLoadHowLongTheHistoryAndTheLedgerAreKept(t *testing.T) {
 		t.Run(kept.table, func(t *testing.T) {
 			for _, tt := range tests {
 				t.Run(tt.name, func(t *testing.T) {
-					cfg, err := config.Load(writeConfig(t, tt.config+accountTOML("work")))
+					cfg, err := load(writeConfig(t, tt.config+accountTOML("work")))
 					if err != nil {
 						t.Fatalf("Load() error = %v", err)
 					}
@@ -679,7 +679,7 @@ func TestLoadReportsAKeepThatIsntOne(t *testing.T) {
 				t.Run(tt.name, func(t *testing.T) {
 					path := writeConfig(t, "["+kept.table+"]\nkeep = \""+tt.given+"\"\n"+accountTOML("work"))
 
-					_, err := config.Load(path)
+					_, err := load(path)
 					want := []string{fmt.Sprintf("%s.keep %q: must be a whole number of days from 8d, a week and a day, or forever, such as %dd",
 						kept.table, tt.given, kept.byDefault/(24*time.Hour))}
 					if got := problems(t, path, err); !slices.Equal(got, want) {
@@ -707,7 +707,7 @@ func TestLoadReadsTheFolderToExportInto(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			path := writeConfig(t, tt.config+accountTOML("work"))
 
-			got, err := config.Load(path)
+			got, err := load(path)
 			if err != nil {
 				t.Fatalf("Load() error = %v", err)
 			}
@@ -731,7 +731,7 @@ func TestLoadReportsAFolderToExportIntoThatIsntOne(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			path := writeConfig(t, "[export]\ndir = \""+tt.given+"\"\n"+accountTOML("work"))
 
-			_, err := config.Load(path)
+			_, err := load(path)
 			want := []string{fmt.Sprintf("export.dir %q: must be an absolute path, or one starting ~/, the home directory's, such as ~/Dropbox/Switchboard", tt.given)}
 			if got := problems(t, path, err); !slices.Equal(got, want) {
 				t.Errorf("Load() problems:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
@@ -810,7 +810,7 @@ func TestMostDaysIsTheMostWholeDaysADurationHolds(t *testing.T) {
 }
 
 func TestExampleIsValid(t *testing.T) {
-	cfg, err := config.Load(writeConfig(t, config.Example))
+	cfg, err := load(writeConfig(t, config.Example))
 	if err != nil {
 		t.Fatalf("Load(Example) error = %v", err)
 	}
@@ -826,7 +826,7 @@ func TestExampleIsValid(t *testing.T) {
 }
 
 func TestLoadMissingFile(t *testing.T) {
-	_, err := config.Load(filepath.Join(t.TempDir(), "config.toml"))
+	_, err := load(filepath.Join(t.TempDir(), "config.toml"))
 	if !errors.Is(err, fs.ErrNotExist) {
 		t.Errorf("Load() error = %v, want one matching fs.ErrNotExist", err)
 	}
@@ -858,7 +858,7 @@ func TestLoadUndecodableFile(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			path := writeConfig(t, tt.config)
 
-			_, err := config.Load(path)
+			_, err := load(path)
 			if err == nil {
 				t.Fatal("Load() succeeded, want an error")
 			}
@@ -1333,7 +1333,7 @@ func TestLoadReportsProblems(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			path := writeConfig(t, tt.config)
 
-			_, err := config.Load(path)
+			_, err := load(path)
 			if got := problems(t, path, err); !slices.Equal(got, tt.want) {
 				t.Errorf("Load() problems:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(tt.want, "\n"))
 			}
@@ -1345,7 +1345,7 @@ func TestLoadNeverQuotesATokenGivenAsAnIDOrALabel(t *testing.T) {
 	path := writeConfig(t, accountTOML(tokenShaped)+"primary = true\nreserve = 2.0\n"+
 		accountTOML(tokenShaped)+"label = \""+tokenShaped+"\"\nprimary = true\n")
 
-	_, err := config.Load(path)
+	_, err := load(path)
 	want := []string{
 		"account #1: id looks like a token, which an id mustn't, as it shows wherever the account does",
 		"account #1: reserve 2: must be at least 0 and less than 1, the share of every window the router leaves unused, such as 0.1",
@@ -1370,7 +1370,7 @@ func TestLoadNeverQuotesATokenGivenAsAValueOrAKey(t *testing.T) {
 		"\n[prices.plans]\n"+tokenShaped+" = 1\n"+
 		"\n[prices.models."+tokenShaped+"]\ninput = -1\n"+tokenShaped+" = 1\n")
 
-	_, err := config.Load(path)
+	_, err := load(path)
 	want := []string{
 		`unknown key "[redacted]"`,
 		`unknown key "prices.models.[redacted].[redacted]"`,
@@ -1419,7 +1419,7 @@ func TestLoadNeverQuotesATokenItCantParse(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			path := writeConfig(t, tt.config)
 
-			_, err := config.Load(path)
+			_, err := load(path)
 			if want := "parse config " + path + ": " + tt.want; err == nil || err.Error() != want {
 				t.Errorf("Load() error = %v, want %q", err, want)
 			}
@@ -1431,7 +1431,7 @@ func TestLoadNeverQuotesAnOldConfigsTokenVariable(t *testing.T) {
 	const pasted = "test-token-pasted-by-mistake"
 	path := writeConfig(t, accountTOML("work")+"token_env = \""+pasted+"\"\n")
 
-	_, err := config.Load(path)
+	_, err := load(path)
 	if err == nil {
 		t.Fatal("Load() succeeded, want an error")
 	}
@@ -1462,6 +1462,26 @@ const tokenShaped = "sk-ant-oat01-fake_token-shaped"
 // test's own keys can follow.
 func accountTOML(id string) string {
 	return fmt.Sprintf("\n[[account]]\nid = %q\n", id)
+}
+
+// testHome is the home directory the tests' configs find a pool's directory
+// starting ~/ in.
+const testHome = "/Users/test"
+
+// homeAt returns what returns home as the home directory.
+func homeAt(home string) func() (string, error) {
+	return func() (string, error) { return home, nil }
+}
+
+// load loads the config file at path, as Load does, in testHome.
+func load(path string) (*config.Config, error) {
+	return config.Load(path, homeAt(testHome))
+}
+
+// editConfig reads the config file at path to edit it, as Edit does, in
+// testHome.
+func editConfig(path string) (*config.Draft, error) {
+	return config.Edit(path, homeAt(testHome))
 }
 
 // writeConfig writes a config file under the test's temp dir and returns its path.

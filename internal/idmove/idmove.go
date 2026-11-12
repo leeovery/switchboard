@@ -107,6 +107,9 @@ type Mover struct {
 	ConfigPath string
 	StateDir   string
 	Tokens     tokens.Store
+	// HomeDir returns the home directory the config file is read in, which
+	// a pool's directory starting ~/ is in: nil knows of none.
+	HomeDir func() (string, error)
 	// Organizations tells the organization of each account's token.
 	Organizations Organizations
 	// Routing are the ids of the accounts the router running beside the move
@@ -322,7 +325,7 @@ func (m *Mover) Settle() error {
 // standing reads the config's accounts, as the config file stands, and the
 // accounts record.
 func (m *Mover) standing() (*config.Draft, identity.Record, error) {
-	draft, err := config.Edit(m.ConfigPath)
+	draft, err := config.Edit(m.ConfigPath, m.HomeDir)
 	if err != nil {
 		return nil, identity.Record{}, err
 	}
@@ -400,7 +403,7 @@ func (m *Mover) configure() (bool, error) {
 	for range configTries {
 		changed := false
 		err := m.record().Change(func(record *identity.Record, _ func() error) error {
-			draft, err := config.Edit(m.ConfigPath)
+			draft, err := config.Edit(m.ConfigPath, m.HomeDir)
 			if err != nil {
 				return err
 			}
@@ -515,12 +518,13 @@ func labelFor(accounts config.Accounts, id, shown string) string {
 // where a change to the config made by hand, or a repository it's kept in,
 // put its old ids back, which name no token file once the move's done. A
 // router heals its config before it reads it, so it starts on the new ids.
-// It reports whether it changed the config.
-func Heal(configPath, stateDir string) (bool, error) {
+// The config is read in the home directory homeDir returns. It reports
+// whether it changed the config.
+func Heal(configPath, stateDir string, homeDir func() (string, error)) (bool, error) {
 	if !Moved(stateDir) {
 		return false, nil
 	}
-	m := &Mover{ConfigPath: configPath, StateDir: stateDir}
+	m := &Mover{ConfigPath: configPath, StateDir: stateDir, HomeDir: homeDir}
 	return m.configure()
 }
 
