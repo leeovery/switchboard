@@ -22,8 +22,9 @@ import (
 // blanks after them, and the id and directory whole, as Detail's SESSIONS
 // takes them too; the blank after its model's family; when it was last
 // seen, right-aligned; the blanks before what it's doing; what it's doing,
-// padded, why it's there following; and the blanks why leaves, at the
-// least, before its trace.
+// padded, why it's there following, at whyLeast at the least, as fewer cells
+// say nothing of it; and the blanks why leaves, at the least, before its
+// trace.
 const (
 	dirGap        = 1
 	dirCells      = views.SessionDirCells
@@ -33,6 +34,7 @@ const (
 	seenCells     = 4
 	beforeDoing   = 3
 	doingCells    = 9
+	whyLeast      = 12
 	beforeTraceAt = 2
 )
 
@@ -216,21 +218,22 @@ func (form runningForm) laid() runningColumns {
 
 // runningParts are the parts of a session's row on a row a session, as flex
 // lays them: the id, status.IDShown; dirGap on, its directory, dirCells,
-// which gives way only where the rest don't fit with why gone; afterNamed
-// on, the family, fixed at the widest family the version table names, as
+// which gives way in the turn after why's, where the rest don't fit with why
+// gone; afterNamed on, the family, fixed at the widest family the version table names, as
 // familiesCells has it, so the columns never move with the sessions shown,
 // and a model's id that names no family is cut there; familyGap on, when it
 // was last seen, seenCells; beforeDoing on, what it's doing, doingCells; and
-// why it's there, which takes the rest, so gives way first.
+// why it's there, which takes the rest from whyLeast, and gives way first,
+// whole, its cells left blank.
 func runningParts() []flex.Part {
 	family := familiesCells()
 	return []flex.Part{
 		runID:     {Least: status.IDShown, Natural: status.IDShown},
-		runDir:    {Least: dirCells, Natural: dirCells, Leaves: 1, Gap: dirGap},
+		runDir:    {Least: dirCells, Natural: dirCells, Leaves: 2, Gap: dirGap},
 		runFamily: {Least: family, Natural: family, Gap: afterNamed},
 		runSeen:   {Least: seenCells, Natural: seenCells, Gap: familyGap},
 		runDoing:  {Least: doingCells, Natural: doingCells, Gap: beforeDoing},
-		runWhy:    {Grows: true},
+		runWhy:    {Least: whyLeast, Natural: whyLeast, Grows: true, Leaves: 1},
 	}
 }
 

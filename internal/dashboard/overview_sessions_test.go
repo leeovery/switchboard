@@ -229,7 +229,7 @@ func TestASessionsWhyIsCutToEndBeforeItsTrace(t *testing.T) {
 	}
 	for width, want := range map[int]string{
 		173: "side ▲        d28c               opus    now   idle     its pin to personal yields: per…",
-		108: "side ▲        d28c               opus    now   idle     its p…",
+		108: "side ▲        d28c               opus    now   idle",
 	} {
 		if got, trace, _ := before(width); got != want {
 			t.Errorf("at %d columns, drew\n  %q\nwant\n  %q, its why cut short two cells or more before the trace at column %d", width, got, want, trace)
@@ -347,31 +347,34 @@ func TestSESSIONSDirectoriesTakeAColumnTheRestLinedUp(t *testing.T) {
 	}
 }
 
-// Where a row's parts run short, why it's there gives way first; its
-// directory gives way, whole, only where its id, family, when it was seen
-// and what it's doing don't fit with it.
+// Where a row's parts run short, why it's there gives way first, whole,
+// as it shows only in whyLeast cells or more; its directory gives way,
+// whole, only where its id, family, when it was seen and what it's doing
+// don't fit with it.
 func TestASessionsWhyGivesWayBeforeItsDirectory(t *testing.T) {
 	parts := runningParts()
-	least := 0
+	rest := 0
 	for p, part := range parts[:runWhy] {
 		if p > 0 {
-			least += part.Gap
+			rest += part.Gap
 		}
-		least += part.Least
+		rest += part.Least
 	}
 	tests := []struct {
 		name     string
 		room     int
 		dir, why int
 	}{
-		{name: "room to spare: why takes it", room: least + 9, dir: dirCells, why: 9},
-		{name: "why gone, the directory whole", room: least, dir: dirCells},
-		{name: "too little for the directory: it gives way", room: least - 1, why: least - 1 - (least - dirGap - dirCells)},
+		{name: "room to spare: why takes it", room: rest + whyLeast + 9, dir: dirCells, why: whyLeast + 9},
+		{name: "why at its least", room: rest + whyLeast, dir: dirCells, why: whyLeast},
+		{name: "short of why's least: it gives way whole, the directory whole", room: rest + whyLeast - 1, dir: dirCells},
+		{name: "room for the rest alone: the directory whole", room: rest, dir: dirCells},
+		{name: "too little for the directory: it gives way", room: rest - 1},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s, fits := flex.Lay(tt.room, runningParts()...)
-			if !fits || s[runDir].Size != tt.dir || s[runDir].Left != (tt.dir == 0) || s[runWhy].Size != tt.why {
+			if !fits || s[runDir].Size != tt.dir || s[runDir].Left != (tt.dir == 0) || s[runWhy].Size != tt.why || s[runWhy].Left != (tt.why == 0) {
 				t.Errorf("in %d cells, the directory takes %+v and why %+v, want %d and %d", tt.room, s[runDir], s[runWhy], tt.dir, tt.why)
 			}
 		})
@@ -380,7 +383,7 @@ func TestASessionsWhyGivesWayBeforeItsDirectory(t *testing.T) {
 	long := inDirs([]status.Session{{ID: idD28C, Assignments: []status.Assignment{{
 		Model: opus, Family: "opus", Account: "side", Reason: "pin yields: personal has no room for a request that's long", AssignedAt: routedAt, LastSeen: routedAt,
 	}}}}, "~/Code/infra")
-	var shown, left bool
+	seen := map[string]bool{}
 	for width := 81; width <= 220; width++ {
 		f := Frame{Width: width, Height: 40, View: Overview, Sessions: long}
 		at := f.runningForm(f.routingColumns(f.Moment(doc, routedAt))).laid()
@@ -388,18 +391,20 @@ func TestASessionsWhyGivesWayBeforeItsDirectory(t *testing.T) {
 			continue
 		}
 		row := sessionsDrawn(f, doc, 1)[0]
-		fits := at.trace-beforeTraceAt-at.names >= least
-		switch {
-		case fits && strings.Contains(row, "d28c infra         opus"):
-			shown = true
-		case !fits && strings.Contains(row, "d28c  opus"):
-			left = true
-		default:
-			t.Errorf("at %d columns, drew %q, want its directory whole where it fits with why gone, %v, else gone", width, row, fits)
+		room := at.trace - beforeTraceAt - at.names
+		dir, why := strings.Contains(row, "d28c infra         opus"), strings.Contains(row, "its pin")
+		want := map[bool]string{true: "its directory and why", false: "its directory alone"}[room >= rest+whyLeast]
+		if room < rest {
+			want = "neither"
 		}
+		got := map[[2]bool]string{{true, true}: "its directory and why", {true, false}: "its directory alone", {false, false}: "neither"}[[2]bool{dir, why}]
+		if got != want {
+			t.Errorf("at %d columns, %d cells for its parts, drew %q, want %s", width, room, row, want)
+		}
+		seen[got] = true
 	}
-	if !shown || !left {
-		t.Errorf("its directory shown at some width %v, gone at some %v; want both", shown, left)
+	if len(seen) != 3 {
+		t.Errorf("the sweep drew %v, want each of its directory and why, its directory alone, and neither", seen)
 	}
 }
 
@@ -446,10 +451,11 @@ func TestAFamilyTheVersionTableDoesntNameIsCutToItsColumn(t *testing.T) {
 		// Why it's there starts as many cells past the name column as the
 		// id and directory take, and 25 more: the 2 blanks after them, the
 		// family's 6 and a blank, the seen's 4, 3 blanks and the doing's 9.
-		named := f.runningForm(f.routingColumns(f.Moment(doc, routedAt))).laid().named
+		at := f.runningForm(f.routingColumns(f.Moment(doc, routedAt))).laid()
+		named := at.named
 		whyAt := func(row string) bool {
 			r := []rune(row)
-			return r[14+named+24] == ' ' && r[14+named+25] == 's'
+			return at.whyCells == 0 || r[14+named+24] == ' ' && r[14+named+25] == 's'
 		}
 		with := f
 		with.Sessions = append(slices.Clone(sessions), mystery)
@@ -457,8 +463,8 @@ func TestAFamilyTheVersionTableDoesntNameIsCutToItsColumn(t *testing.T) {
 		if !slices.Equal(drawn[:6], known[:6]) {
 			t.Errorf("at %d columns, with 1f9a running, the other sessions drew\n  %q\nwant them as without it\n  %q", width, drawn[:6], known[:6])
 		}
-		if last := drawn[6]; !strings.HasPrefix(last, "work          "+padded("1f9a", named+2)+"claud…  now   idle     s") || !whyAt(last) || !whyAt(known[0]) {
-			t.Errorf("at %d columns, 1f9a drew %q, and c61b %q; want its family cut to its column, and why it's there from column %d in each", width, last, known[0], 14+named+25)
+		if last := drawn[6]; !strings.HasPrefix(last, "work          "+padded("1f9a", named+2)+"claud…  now   idle") || !whyAt(last) || !whyAt(known[0]) {
+			t.Errorf("at %d columns, 1f9a drew %q, and c61b %q; want its family cut to its column, and why it's there, where it shows, from column %d in each", width, last, known[0], 14+named+25)
 		}
 	}
 }

@@ -3155,8 +3155,9 @@ whose models go to two accounts on each:
   router's reasons (see The router's events), with when: `started here 14:41`, adding `, the best`
   while its account is still where new sessions go; `moved from work 14:31: work reached its cap`;
   `moved from work 14:39: pinned to side`; `pinned here 14:39`, its own pin; `its pin to side
-  yields: side has no room` (settled in the plan). It's cut to end two cells before the trace:
-  `moved…`, 6 cells, at 108 columns.
+  yields: side has no room` (settled in the plan). It's cut to end two cells before the trace,
+  and shows only in 12 cells or more, as fewer say nothing of it: short of them it gives way
+  whole, before the project does, its cells left blank. `moved from…` at 120 columns; none at 108.
 - **Its own trace,** one row, starting where ROUTING's do, as ROUTING's row's parts lay them, so
   the two columns line up, on the shared scale, and its rate right-aligned at the last column. A
   session takes a row wherever an account does in ROUTING. No blank rows between sessions, but
