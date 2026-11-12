@@ -1020,19 +1020,25 @@ func TestARouterStartedOnAConfigThatLostItsPoolsPutsEveryAccountInTheFirst(t *te
 func TestARequestSentAgainOnItsAccountGoesElsewhereOnceTheAccountHasLeftItsPool(t *testing.T) {
 	// The request is Default's, and work's quota needs using first. Work's
 	// answer would have the request sent on it again, but work moves to Acme
-	// meanwhile. reset is the session as a reset by hand leaves it.
+	// meanwhile, or leaves the config where Default is the one pool. reset is
+	// the session as a reset by hand leaves it.
 	reset := session
 	reset.Utilization = 0.02
 	tests := []struct {
 		name string
 		// first returns work's answer, given the router, what has work's file
-		// hold a new token, and what moves work to Acme; side is side's.
+		// hold a new token, and what moves work; side is side's.
 		first func(r *Router, renew, move func()) answer
 		side  answer
+		// onePool has Default the one pool, which work leaves the config
+		// from, rather than moving to Acme.
+		onePool bool
 		// wantSent is where the request went out, and wantCode what it was
-		// answered.
+		// answered; wantWhy is why it left work, "left the pool" where it's
+		// "".
 		wantSent []string
 		wantCode int
+		wantWhy  string
 	}{
 		{
 			name:     "throttled, work moving in the wait: on side, the pool's next",
@@ -1045,6 +1051,16 @@ func TestARequestSentAgainOnItsAccountGoesElsewhereOnceTheAccountHasLeftItsPool(
 			first:    throttledThenMoving,
 			side:     forbidden,
 			wantSent: []string{"work", "side"}, wantCode: http.StatusBadGateway,
+		},
+		{
+			name:  "throttled, work leaving the one pool in the wait: on side, work having no room",
+			first: throttledThenMoving, side: served, onePool: true,
+			wantSent: []string{"work", "side"}, wantCode: http.StatusOK, wantWhy: whyNoRoom,
+		},
+		{
+			name:  "throttled, work leaving the one pool, then side refusing it: its refusal taken back",
+			first: throttledThenMoving, side: forbidden, onePool: true,
+			wantSent: []string{"work", "side"}, wantCode: http.StatusBadGateway, wantWhy: whyNoRoom,
 		},
 		{
 			name: "at a limit from before a reset by hand: on side",
@@ -1072,16 +1088,20 @@ func TestARequestSentAgainOnItsAccountGoesElsewhereOnceTheAccountHasLeftItsPool(
 				files := &changingFiles{files: poolTokens}
 				cfg := testConfig(at(start), &stubProber{}, files.read)
 				cfg.Accounts, cfg.Pools = pooledAccounts(), testPools
+				moved := pooledAccounts()
+				moved[0].Pool = acmePool
+				if tt.onePool {
+					cfg.Accounts = slices.DeleteFunc(pooledAccounts(), func(a config.Account) bool { return a.Pool != defaultPool })
+					cfg.Pools, moved = testPools[:1], cfg.Accounts[1:]
+				}
 				r := newTestRouterOf(t, cfg)
-				for id, week := range map[string]quota.Window{"work": soonWeek, "side": laterWeek, "personal": latestWeek} {
+				for id, week := range map[string]quota.Window{"work": soonWeek, "side": laterWeek} {
 					r.state.record(id, []quota.Window{session, week}, r.state.mark())
 				}
 				renew := func() {
 					files.set(tokenstest.Files{"work": renewedToken, "personal": personalToken, "side": sideToken})
 				}
-				moved := pooledAccounts()
-				moved[0].Pool = acmePool
-				move := func() { r.proxy.pools.follow(moved, testPools) }
+				move := func() { r.proxy.pools.follow(moved, cfg.Pools) }
 				upstream := servingAll(tt.first(r, renew, move), served, tt.side)
 				upstream.answers[renewedToken] = []answer{served}
 				r.proxy.transport = upstream
@@ -1095,10 +1115,11 @@ func TestARequestSentAgainOnItsAccountGoesElsewhereOnceTheAccountHasLeftItsPool(
 				if w.Code != tt.wantCode {
 					t.Errorf("answered %d, want %d", w.Code, tt.wantCode)
 				}
-				if want := []string{"level=INFO", "msg=replaying", "from=work", "to=side", `why="left the pool"`}; !log.Has(want...) {
+				why := cmp.Or(tt.wantWhy, whyLeftPool)
+				if want := []string{"level=INFO", "msg=replaying", "from=work", "to=side", `why="` + why + `"`}; !log.Has(want...) {
 					t.Errorf("log reads\n%s\nwant a line with %q", log, want)
 				}
-				if got, want := reasonsOf(lines()), status.ReasonMovedOff+"work "+whyLeftPool; !slices.Equal(got, []string{want}) {
+				if got, want := reasonsOf(lines()), status.ReasonMovedOff+"work "+why; !slices.Equal(got, []string{want}) {
 					t.Errorf("the ledger's lines give the reasons %q, want one line, its reason %q", got, want)
 				}
 				if side, _ := r.Status().Account("side"); side.Refused != (status.Refusal{}) {

@@ -464,9 +464,9 @@ pass over one you don't know. In the forms below, `<id>` is an account's id.
 | `hit its limit` | It answered the request with its limit reached. |
 | `was refused` | It refused the request. |
 | `has a new token` | It refused the request's token, as it had taken up a new one, and the request went on elsewhere. |
-| `left the pool` | It has left the request's pool, moved to another or out of the config: the request went on elsewhere, or its session moved off it. |
+| `left the pool` | It has left the request's pool, moved to another or out of the config: the request went on elsewhere, or its session moved off it. Only where there are two pools or more: with one, an account out of the config `has no room`. |
 | `is at its reserve` | It has reached its reserve. A reason alone gives it, never `tried`. |
-| `has no room` | It has no room for the request otherwise. A reason alone gives it, never `tried`. |
+| `has no room` | It has no room for the request otherwise. A reason alone gives it, never `tried`, but for an account that left the config with one pool configured, which the request left before going out on it again. |
 
 ## The status document
 
