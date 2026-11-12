@@ -2,15 +2,20 @@ package router_test
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/router"
+	"github.com/leeovery/switchboard/internal/status"
 )
 
 // askedQueries is a router's control API that answers every question with
@@ -151,4 +156,122 @@ func TestClientHealthOfARouterFromBeforePoolsSaysItReportsNone(t *testing.T) {
 	if err != nil || got.ReportsPools || got.Pools != nil {
 		t.Errorf("Health() = %+v, %v, want it not to report pools, and none", got, err)
 	}
+}
+
+// pooledControl serves a router's control API on a socket until the test
+// ends, that reports the pools given in its health answer, "" for none, as
+// one from before pools reports none, and answers GET /sessions of each pool
+// with a session of its own, last seen as the pool's place says, and GET
+// /status with its document, and returns the socket's path.
+func pooledControl(t *testing.T, pools ...string) string {
+	t.Helper()
+	path := filepath.Join(shortTempDir(t), "control.sock")
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
+		h := router.Health{OK: true, ReportsPools: true, Moving: status.Moving{Stage: status.MoveRunning}}
+		for _, pool := range pools {
+			h.Pools = append(h.Pools, router.RoutedPool{ID: pool, Label: pool, Accounts: []string{}})
+		}
+		_ = json.NewEncoder(w).Encode(h)
+	})
+	mux.HandleFunc("GET /sessions", func(w http.ResponseWriter, req *http.Request) {
+		pool := req.URL.Query().Get(router.PoolQuery)
+		seen := now.Add(time.Duration(slices.Index(pools, pool)) * time.Minute)
+		_ = json.NewEncoder(w).Encode([]status.Session{{ID: "in-" + pool, Assignments: []status.Assignment{{Account: "work", LastSeen: seen}}}})
+	})
+	mux.HandleFunc("GET /status", func(w http.ResponseWriter, req *http.Request) {
+		_ = json.NewEncoder(w).Encode(status.Document{PoolID: req.URL.Query().Get(router.PoolQuery)})
+	})
+	serveOn(t, path, mux)
+	return path
+}
+
+func TestAClientReadsEveryPoolTheRouterReports(t *testing.T) {
+	client := router.NewClient(pooledControl(t, "b2n8", "q7mt")).InPool("z5k2")
+
+	sessions, err := client.SessionsInEveryPool(t.Context())
+	var ids []string
+	for _, s := range sessions {
+		ids = append(ids, s.ID)
+	}
+	if want := []string{"in-q7mt", "in-b2n8"}; err != nil || !slices.Equal(ids, want) {
+		t.Errorf("SessionsInEveryPool() = %q, %v; want %q, the one seen last first", ids, err, want)
+	}
+	docs, err := client.StatusInEveryPool(t.Context())
+	var of []string
+	for _, doc := range docs {
+		of = append(of, doc.PoolID)
+	}
+	if want := []string{"b2n8", "q7mt"}; err != nil || !slices.Equal(of, want) {
+		t.Errorf("StatusInEveryPool() is of %q, %v; want %q", of, err, want)
+	}
+}
+
+func TestAClientOfARouterReportingNoPoolsReadsTheOneThereIs(t *testing.T) {
+	client := router.NewClient(pooledControl(t))
+	sessions, err := client.SessionsInEveryPool(t.Context())
+	if err != nil || len(sessions) != 1 || sessions[0].ID != "in-" {
+		t.Errorf("SessionsInEveryPool() = %+v, %v; want the one pool's, asked naming none", sessions, err)
+	}
+}
+
+func TestAClientTellsTheMoveFromTheHealthAnswer(t *testing.T) {
+	moving, err := router.NewClient(pooledControl(t, "b2n8")).Moving(t.Context())
+	if err != nil || moving.Stage != status.MoveRunning {
+		t.Errorf("Moving() = %+v, %v; want the health answer's", moving, err)
+	}
+}
+
+func TestAClientTellsTheMoveFromTheDocumentOfARouterFromBeforePools(t *testing.T) {
+	path := filepath.Join(shortTempDir(t), "control.sock")
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = io.WriteString(w, `{"ok": true}`)
+	})
+	mux.HandleFunc("GET /status", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = io.WriteString(w, `{"moving": {"stage": "running"}, "accounts": []}`)
+	})
+	serveOn(t, path, mux)
+
+	moving, err := router.NewClient(path).Moving(t.Context())
+	if err != nil || moving.Stage != status.MoveRunning {
+		t.Errorf("Moving() = %+v, %v; want the document's", moving, err)
+	}
+}
+
+func TestAReadRefusedForWantOfAPoolIsPoolNeeded(t *testing.T) {
+	rt := newRouterFrom(t, pooledConfig(now))
+	client := router.NewClient(serveControl(t, rt))
+
+	_, err := client.Status(t.Context())
+	need, ok := errors.AsType[router.PoolNeeded](err)
+	if want := []router.PoolNamed{{ID: "b2n8", Label: "Default"}, {ID: "q7mt", Label: "Acme"}}; !ok || !reflect.DeepEqual(need.Pools, want) || need.Named != "" {
+		t.Errorf("Status() error = %#v, want PoolNeeded naming %+v", err, want)
+	}
+	if router.IsNotRunning(err) {
+		t.Errorf("Status() error = %v, which says the router isn't running", err)
+	}
+	if _, err := client.InPool("z5k2").Sessions(t.Context()); !isNeedFor(err, "z5k2") {
+		t.Errorf("Sessions() of a pool not configured error = %#v, want PoolNeeded naming it", err)
+	}
+}
+
+// isNeedFor reports whether err is a PoolNeeded of the pool named given.
+func isNeedFor(err error, named string) bool {
+	need, ok := errors.AsType[router.PoolNeeded](err)
+	return ok && need.Named == named
+}
+
+// pooledConfig is testConfig with work in Default and personal and side in
+// Acme, both fenced.
+func pooledConfig(now time.Time) router.Config {
+	cfg := testConfig("http://127.0.0.1:1")
+	cfg.Now = func() time.Time { return now }
+	cfg.Pools = config.Pools{
+		{ID: "b2n8", Label: "Default", Dirs: []string{"/work/default"}},
+		{ID: "q7mt", Label: "Acme", Dirs: []string{"/work/acme"}},
+	}
+	cfg.Accounts[0].Pool = "b2n8"
+	cfg.Accounts[1].Pool, cfg.Accounts[2].Pool = "q7mt", "q7mt"
+	return cfg
 }
