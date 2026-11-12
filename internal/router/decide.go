@@ -285,10 +285,11 @@ func chosen(c score.Choice, reason string) decision {
 
 // why says why the account is being chosen afresh, which account the choice
 // prefers, and whether the session has to leave its own: one whose account
-// has left the request's pool leaves it, however its cache stands; a session
-// that has idled keeps to its own when another is only a little ahead, so
-// near-equal accounts don't trade places, and moves by choice; one that
-// hasn't is chosen afresh as its account can't take the request.
+// has left the request's pool, as the view's left says, leaves it, however
+// its cache stands; a session that has idled keeps to its own when another is
+// only a little ahead, so near-equal accounts don't trade places, and moves
+// by choice; one that hasn't is chosen afresh as its account can't take the
+// request.
 func (s situation) why() (reason, preferred string, forced bool) {
 	switch {
 	case s.req.Session == "":

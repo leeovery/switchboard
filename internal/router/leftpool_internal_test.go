@@ -359,25 +359,44 @@ func TestARequestPassedThroughIsRefusedOnlyWhereItNamesAPoolItsTokensAccountIsOu
 	}
 }
 
-func TestASessionOnAnAccountThatLeftItsPoolMovesOffItSayingSo(t *testing.T) {
-	// The session, of Default, is on side, which moves to Acme.
+func TestASessionOnAnAccountThatLeftItsPoolMovesOffItSayingSoWhereThereArePoolsToTellApart(t *testing.T) {
+	// The session, of Default, is on side, which moves to Acme, or leaves
+	// the config where Default is the one pool.
+	movedSide := pooledAccounts()
+	movedSide[2].Pool = acmePool
+	inDefault := slices.DeleteFunc(pooledAccounts(), func(a config.Account) bool { return a.Pool != defaultPool })
+	leftThePool := status.ReasonMovedOff + "side " + status.WhyLeftPool
 	tests := []struct {
 		name string
-		// idle is how long ago the session's last request was.
-		idle time.Duration
+		// accounts and pools are what the router starts configured with, and
+		// then the accounts it comes to configure in those pools; idle is how
+		// long ago the session's last request was; want is the reason the
+		// session moves off side for.
+		accounts, then config.Accounts
+		pools          config.Pools
+		idle           time.Duration
+		want           string
 	}{
-		{name: "its cache warm", idle: 5 * time.Minute},
-		{name: "its cache cold", idle: 2 * time.Hour},
+		{name: "moved to Acme, its cache warm", accounts: pooledAccounts(), then: movedSide, pools: testPools, idle: 5 * time.Minute, want: leftThePool},
+		{name: "moved to Acme, its cache cold", accounts: pooledAccounts(), then: movedSide, pools: testPools, idle: 2 * time.Hour, want: leftThePool},
+		{
+			name: "out of the one pool, its cache warm: as it has no room", accounts: inDefault, then: inDefault[:1], pools: testPools[:1],
+			idle: 5 * time.Minute, want: status.ReasonMovedOff + "side " + status.WhyNoRoom,
+		},
+		{
+			name: "out of the one pool, its cache cold: rescored", accounts: inDefault, then: inDefault[:1], pools: testPools[:1],
+			idle: 2 * time.Hour, want: status.Rescored(2 * time.Hour),
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			log := logstest.Capture(t)
-			r := newPoolsRouter(t, at(start), true)
-			readWeeks(r, map[string]quota.Window{"side": soonWeek, "work": laterWeek, "personal": latestWeek})
+			cfg := testConfig(at(start), &stubProber{}, poolTokens.Read)
+			cfg.Accounts, cfg.Pools = tt.accounts, tt.pools
+			r := newTestRouterOf(t, cfg)
+			readWeeks(r, map[string]quota.Window{"side": soonWeek, "work": laterWeek})
 			assignFor(r.sessions, Request{Session: "one", Model: opus, Pool: defaultPool}, decision{account: "side", reason: reasonNew}, start.Add(-tt.idle))
-			moved := pooledAccounts()
-			moved[2].Pool = acmePool
-			r.proxy.pools.follow(moved, testPools)
+			r.proxy.pools.follow(tt.then, tt.pools)
 			upstream := servingAll(served, served, served)
 			r.proxy.transport = upstream
 			lines := keepingLedger(t, r)
@@ -386,14 +405,13 @@ func TestASessionOnAnAccountThatLeftItsPoolMovesOffItSayingSo(t *testing.T) {
 				t.Errorf("answered %d, want 200", w.Code)
 			}
 
-			want := status.ReasonMovedOff + "side " + status.WhyLeftPool
 			if sent := upstream.sent(); !slices.Equal(sent, []string{"work"}) {
 				t.Errorf("the request went out on %q, want work alone, Default's one account left", sent)
 			}
-			if got := reasonsOf(lines()); !slices.Equal(got, []string{want}) {
-				t.Errorf("the ledger's lines give the reasons %q, want one line, its reason %q", got, want)
+			if got := reasonsOf(lines()); !slices.Equal(got, []string{tt.want}) {
+				t.Errorf("the ledger's lines give the reasons %q, want one line, its reason %q", got, tt.want)
 			}
-			if routed := []string{"msg=routed", "account=work", `reason="` + want + `"`}; !log.Has(routed...) {
+			if routed := []string{"msg=routed", "account=work", `reason="` + tt.want + `"`}; !log.Has(routed...) {
 				t.Errorf("log reads\n%s\nwant a line with %q", log, routed)
 			}
 			if a := r.sessions.lookup(key{session: "one", model: opus}).current; a.Account != "work" {

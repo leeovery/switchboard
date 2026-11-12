@@ -1086,7 +1086,7 @@ func (s *state) glance(pool, model string, now time.Time) view {
 func (s *state) viewing(pool, model string, now time.Time) view {
 	family, applies := s.family(model), s.counting(model)
 	pools := s.pools.current()
-	v := view{policy: s.policy, now: now, applies: applies, pool: pools.of(pool)}
+	v := view{policy: s.policy, now: now, applies: applies, pool: pools.of(pool), apart: pools.apart()}
 	for _, a := range s.accounts {
 		if !pools.holds(v.pool, a.ID) {
 			continue

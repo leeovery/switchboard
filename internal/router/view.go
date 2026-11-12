@@ -14,9 +14,12 @@ type view struct {
 	now    time.Time
 	// pool is the id of the request's pool, as the pools the view was made
 	// from have it: "" in a config from before pools. members are the ids of
-	// its accounts, with a token or not, in the order configured.
+	// its accounts, with a token or not, in the order configured. apart
+	// reports whether the pools have others to tell the request's apart from,
+	// as their apart says.
 	pool    string
 	members []string
+	apart   bool
 	// candidates are the accounts of the pool with a token, in the order
 	// configured, with their windows as last read and their reserves.
 	candidates []score.Candidate
@@ -77,10 +80,12 @@ func (v view) pooled(id string) bool {
 }
 
 // left reports whether the account with the given id has left the request's
-// pool: there are pools, and it isn't one of the pool's, as one moved to
-// another, or out of the config, isn't.
+// pool, one of pools to tell apart: it isn't one of the pool's, as one moved
+// to another, or out of the config, isn't. Of one pool alone, which nothing
+// names, none has: one out of the config is one the request can't go out on,
+// as before pools.
 func (v view) left(id string) bool {
-	return v.pool != "" && !v.pooled(id)
+	return v.apart && !v.pooled(id)
 }
 
 // has reports whether the request can go out on the account with the given id.

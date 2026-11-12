@@ -189,11 +189,17 @@ func healedTable(accounts config.Accounts, first string, idNow func(id string) s
 	return t
 }
 
+// apart reports whether the table has pools to tell apart, two or more: what
+// switchboard says names no pool till there's a second.
+func (t *poolTable) apart() bool {
+	return len(t.pools) > 1
+}
+
 // shown returns how what switchboard tells a client names the pool with the
-// given id: by its label, else its id, where there are pools to tell apart;
-// "" where there's one at most, as nothing names a pool till there's a second.
+// given id: by its label, else its id, where there are pools to tell apart,
+// as apart says; "" where there aren't.
 func (t *poolTable) shown(pool string) string {
-	if len(t.pools) < 2 {
+	if !t.apart() {
 		return ""
 	}
 	if p, ok := t.pools.ByID(pool); ok {
