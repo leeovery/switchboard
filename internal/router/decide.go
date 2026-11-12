@@ -19,7 +19,7 @@ const (
 	reasonMovedByPin  = status.ReasonMovedByPin
 	reasonSticky      = status.ReasonSticky
 	reasonBound       = status.ReasonBound
-	reasonGlobalPin   = status.ReasonGlobalPin
+	reasonPoolPin     = status.ReasonPoolPin
 	reasonNew         = status.ReasonNew
 	reasonUnsessioned = status.ReasonUnsessioned
 	reasonNoRoom      = status.ReasonNoRoom
@@ -41,7 +41,7 @@ type situation struct {
 	// assigned is set.
 	current  assignment
 	assigned bool
-	// pin is the global pin, zero when there's none.
+	// pin is the pin of the request's pool, zero when there's none.
 	pin status.Pin
 	// accounts are what's known of the accounts, among which those the
 	// request has been tried on have no room.
@@ -98,12 +98,12 @@ type decision struct {
 //     given while it ran, else the one it was launched with. A session that
 //     yielded its pin at a limit stays where it went while step 3 would keep
 //     it there, until it's given a pin again.
-//  2. The best of the global pin's accounts, for a session on another
+//  2. The best of the pool's pin's accounts, for a session on another
 //     account, assigned before a pin that moves running sessions: once each,
 //     while one of them has room.
 //  3. The session's account, while it has room and its cache there is warm,
 //     or its model's thinking is bound to it, which a move would lose.
-//  4. Afresh: the best of the global pin's accounts while one has room, else
+//  4. Afresh: the best of the pool's pin's accounts while one has room, else
 //     the account whose quota most needs using, of every account; either
 //     way, a session that has idled keeps to its own account unless another
 //     is well ahead, and those under pressure are passed over while another
@@ -142,7 +142,7 @@ func decide(s situation) decision {
 // request after its compaction, to the account step 4 would send a new
 // session to, as the view's atCompaction does: where it moves, the decision
 // is that choice, made afresh, its reason the compaction's whether or not
-// the global pin made the choice; else d. Either way it carries how the move
+// the pool's pin made the choice; else d. Either way it carries how the move
 // was judged.
 func (s situation) atCompaction(d decision) decision {
 	c, m := s.accounts.atCompaction(s.current.Account, s.pin.Accounts)
@@ -214,7 +214,7 @@ func (s situation) yielded() bool {
 		s.current.Account != s.req.Pin && s.keepable()
 }
 
-// moving returns the account the global pin moves the session to, the best of
+// moving returns the account the pool's pin moves the session to, the best of
 // its accounts, as the view's pinned says: it moves running sessions, it was
 // set after the session was assigned, and the session's account isn't one of
 // them. It reports false when the pin doesn't move the session, or none of
@@ -252,7 +252,7 @@ func (s situation) keep() decision {
 
 // afresh chooses the account of a new session, of one that can move at no
 // cost, or of one whose account has no room, which has to leave it: among the
-// global pin's accounts while one has room, else among every account.
+// pool's pin's accounts while one has room, else among every account.
 func (s situation) afresh() decision {
 	reason, preferred, forced := s.why()
 	d := s.best(reason, preferred)
@@ -263,7 +263,7 @@ func (s situation) afresh() decision {
 }
 
 // best chooses the account a request chosen afresh goes to, for reason, or as
-// the global pin's where it's one of those, keeping to preferred unless
+// the pool's pin's where it's one of those, keeping to preferred unless
 // another is well ahead, as afresh says.
 func (s situation) best(reason, preferred string) decision {
 	c, ok := s.accounts.pick(preferred, s.pin.Accounts...)
@@ -271,7 +271,7 @@ func (s situation) best(reason, preferred string) decision {
 	case !ok:
 		return s.noRoom()
 	case c.Pinned:
-		return chosen(c, reasonGlobalPin)
+		return chosen(c, reasonPoolPin)
 	}
 	return chosen(c, reason)
 }

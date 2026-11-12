@@ -153,12 +153,13 @@ var (
 	// alone, no use, as a line's move off one is none, so which are is told
 	// by what the summary shows of them, as usedIn tells it.
 	summaryNames = names{values: patterns("/accounts/*/account")}
-	// stateNames are the router's state file's: its global pin, as each
-	// form of it gives its accounts, its sessions' assignments and their own
-	// pins, what it keeps by account of the tokens, readings and tokens'
-	// years, and the account a former token was taken up from.
+	// stateNames are the router's state file's: its pin from before pools,
+	// as each form of it gives its accounts, and each pool's pin, its
+	// sessions' assignments and their own pins, what it keeps by account of
+	// the tokens, readings and tokens' years, and the account a former token
+	// was taken up from.
 	stateNames = names{
-		values: patterns("/pin/accounts/*", "/pin/account", "/sessions/*/account", "/sessions/*/pin", "/session_pins/*/account", "/tokens/*/former/*/from"),
+		values: patterns("/pin/accounts/*", "/pin/account", "/pins/*/accounts/*", "/sessions/*/account", "/sessions/*/pin", "/session_pins/*/account", "/tokens/*/former/*/from"),
 		texts:  patterns("/sessions/*/reason"),
 		keys:   patterns("/tokens/*", "/readings/*", "/token_years/*"),
 	}

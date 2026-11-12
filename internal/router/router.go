@@ -279,9 +279,9 @@ type Router struct {
 	accounts accounts
 	state    *state
 	sessions *sessions
-	// pinning is held across each change of the global pin and its telling
+	// pinning is held across each change of a pool's pin and its telling
 	// the state, so no other change comes between them, and the state's copy
-	// is the pin the sessions hold.
+	// is the pins the sessions hold.
 	pinning sync.Mutex
 	// scheduler is the proxy's chooser, which also says where it would send
 	// each session's next request, as the sessions are listed.
@@ -425,6 +425,8 @@ func New(cfg Config) (*Router, error) {
 		notifications: notices,
 		started:       cfg.Now().UTC(),
 	}
+	pools.swapped = r.repool
+	r.file.emit = emit
 	r.exports = newExports(cfg, r.tendHistory, r.restartComing, r.moving.owed)
 	r.upkeep = newUpkeep(cfg, accounts, state, changes, primer, inFlight, awake, r.exports, newAccountsRecord(cfg, accounts, moving.idsOwed), emit)
 	return r, nil
@@ -504,7 +506,7 @@ func (r *Router) accountStatus(id string) status.Account {
 // its export, its priming and the events that name no pool are every pool's.
 func (r *Router) assembled(rd poolRead) status.Document {
 	now := r.cfg.Now()
-	pin := rd.pin(r.sessions.globalPin())
+	pin := rd.pin(r.sessions.pinsNow(), r.accounts)
 	doc := r.state.documentOf(rd, pin.Accounts)
 	doc.PoolID, doc.PoolLabel = rd.named()
 	doc.Pin = pin
@@ -514,7 +516,7 @@ func (r *Router) assembled(rd poolRead) status.Document {
 	doc.Export = r.exports.report()
 	doc.Events = rd.events(r.recent.events())
 	if r.primer != nil {
-		doc.Prime = rd.prime(r.primer.report(now))
+		doc.Prime = r.primer.report(now, rd.routes)
 	}
 	var byAccount map[string]int
 	byAccount, doc.Sessions = r.sessions.active(now, rd.routes)

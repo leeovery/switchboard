@@ -471,8 +471,9 @@ pass over one you don't know. In the forms below, `<id>` is an account's id.
 |---|---|
 | `new` | A new session's first account. |
 | `pinned` | The session's own pin. |
-| `pinned (global)` | One of the global pin's accounts, chosen afresh. |
-| `moved by pin` | A global pin set with `--move`. |
+| `pinned (pool)` | One of the pool's pin's accounts, chosen afresh. |
+| `pinned (global)` | One of the pin's accounts, chosen afresh, as switchboard gave it before pools. |
+| `moved by pin` | A pool's pin set with `--move`. |
 | `sticky` | The session's account, its cache warm. |
 | `bound` | The session's account, idle past its cache's hour, kept as its model's thinking is bound to it. |
 | `unsessioned` | A request without a session id. |

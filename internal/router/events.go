@@ -153,29 +153,33 @@ type RestartHeld struct {
 	Refusal string
 }
 
-// Pinned is routing set by hand: where Session is "", the global pin, to
+// Pinned is routing set by hand: where Session is "", the pool's pin, to
 // Accounts, in the order configured, Account the first of them, moving the
-// running sessions too where Move is set, and having cleared every session's
-// own pin where Force is; else that session's own pin, to Account. By says
-// who set it.
+// pool's running sessions too where Move is set, and having cleared the own
+// pin of every session in the pool where Force is; else that session's own
+// pin, to Account. By says who set it. Pool is the id of the pool: the pin's,
+// or the session's; none in a config from before pools.
 type Pinned struct {
 	Accounts    []string
 	Account     string
 	Session     string
 	Move, Force bool
 	By          By
+	Pool        string
 }
 
 // Unpinned is routing given back to the router: where Session is "", the
-// global pin cleared, which named Accounts, none when only Force cleared
-// anything, with every session's own pin where Force is set; else that
-// session's own pin cleared, which named Account. By says who cleared it.
+// pool's pin cleared, which named Accounts, none when only Force cleared
+// anything, with the own pin of every session in the pool where Force is
+// set; else that session's own pin cleared, which named Account. By says who
+// cleared it. Pool is the id of the pool, as Pinned's is.
 type Unpinned struct {
 	Accounts []string
 	Account  string
 	Session  string
 	Force    bool
 	By       By
+	Pool     string
 }
 
 func (SessionStarted) event() {}

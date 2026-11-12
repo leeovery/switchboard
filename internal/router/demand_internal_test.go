@@ -367,13 +367,20 @@ func TestAFastRateFadedBelowAMillionthAnHourIsNone(t *testing.T) {
 	}
 }
 
-// roomAt reports whether the pool has room for a new session at at, as the
-// state judges it by the accounts' weeks as last read and the global pin as
-// it stands.
+// roomAt reports whether the one pool of a config from before pools has room
+// for a new session at at, as roomIn says.
 func roomAt(s *state, at time.Time) bool {
+	return roomIn(s, "", at)
+}
+
+// roomIn reports whether the pool with the given id has room for a new
+// session at at, as the state judges it by the accounts' weeks as last read
+// and the pool's pin as it stands.
+func roomIn(s *state, pool string, at time.Time) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.roomy(s.weekHeld, s.pin.Accounts, at)
+	s.regroup()
+	return s.roomy(s.weekHeld, pool, s.pinnedIn(pool), at)
 }
 
 func TestThePoolHasRoomWhereTheRouterWouldSendANewSession(t *testing.T) {
@@ -401,9 +408,9 @@ func TestThePoolHasRoomWhereTheRouterWouldSendANewSession(t *testing.T) {
 		{name: "a limit holding back every request on work", prepare: then(readWork(0.5), func(s *state) { s.limit("work", nil, far, s.mark()) })},
 		{name: "a limit on work's session alone", prepare: then(readWork(0.5), func(s *state) { s.limit("work", []string{"5h"}, far, s.mark()) }), want: true},
 		{name: "work's week at its reserve", prepare: readWork(0.9)},
-		{name: "work's week at its reserve, the global pin naming it", prepare: then(readWork(0.9), func(s *state) { s.repin(status.Pin{Accounts: []string{"work"}}) }), want: true},
-		{name: "work's week at its limit, the global pin naming it", prepare: then(readWork(1), func(s *state) { s.repin(status.Pin{Accounts: []string{"work"}}) })},
-		{name: "work's week at its reserve, the global pin naming side, unread", prepare: then(readWork(0.9), func(s *state) { s.repin(status.Pin{Accounts: []string{"side"}}) })},
+		{name: "work's week at its reserve, the pool's pin naming it", prepare: then(readWork(0.9), func(s *state) { s.repin(pins{"": {Accounts: []string{"work"}}}) }), want: true},
+		{name: "work's week at its limit, the pool's pin naming it", prepare: then(readWork(1), func(s *state) { s.repin(pins{"": {Accounts: []string{"work"}}}) })},
+		{name: "work's week at its reserve, the pool's pin naming side, unread", prepare: then(readWork(0.9), func(s *state) { s.repin(pins{"": {Accounts: []string{"side"}}}) })},
 		{
 			name:    "personal's week read with room, but its token missing",
 			prepare: func(s *state) { s.usage["personal"].windows["7d"] = weekUsed(0.1) },
@@ -420,9 +427,9 @@ func TestThePoolHasRoomWhereTheRouterWouldSendANewSession(t *testing.T) {
 	}
 }
 
-func TestThePoolHasRoomOnAnAccountAtItsReserveWhileTheGlobalPinNamesIt(t *testing.T) {
+func TestThePoolHasRoomOnAnAccountAtItsReserveWhileThePoolsPinNamesIt(t *testing.T) {
 	// Work keeps a tenth back, and its week is at its reserve; nothing else
-	// has been read, nor is read again. The global pin names work an hour in,
+	// has been read, nor is read again. The pool's pin names work an hour in,
 	// and is cleared three hours in.
 	clock := &testClock{now: start}
 	cfg := testConfig(clock.read, &stubProber{}, testTokens.Read)
@@ -431,7 +438,7 @@ func TestThePoolHasRoomOnAnAccountAtItsReserveWhileTheGlobalPinNamesIt(t *testin
 	r.state.record("work", []quota.Window{weekUsed(0.92)}, r.state.mark())
 
 	clock.now = start.Add(time.Hour)
-	if err := r.pin(PinRequest{Accounts: []string{"work"}, By: ByCLI}); err != nil {
+	if err := r.pin(r.readOf(""), PinRequest{Accounts: []string{"work"}, By: ByCLI}); err != nil {
 		t.Fatalf("pin() = %v", err)
 	}
 	if !roomAt(r.state, clock.now) {
@@ -441,7 +448,9 @@ func TestThePoolHasRoomOnAnAccountAtItsReserveWhileTheGlobalPinNamesIt(t *testin
 	if got := r.state.document().Demand; got == nil || got.Hours != 2 {
 		t.Errorf("two hours after the pin, the pool's demand is %+v, want it measured over 2 hours: room from the pin's own moment", got)
 	}
-	r.unpin(false, ByCLI)
+	if err := r.unpin(r.readOf(""), false, ByCLI); err != nil {
+		t.Fatalf("unpin() = %v", err)
+	}
 	if roomAt(r.state, clock.now) {
 		t.Error("unpinned, the pool has room, want none, work held back by its reserve")
 	}
@@ -451,14 +460,14 @@ func TestThePoolHasRoomOnAnAccountAtItsReserveWhileTheGlobalPinNamesIt(t *testin
 	}
 }
 
-func TestARestartedRouterJudgesThePoolsRoomByTheGlobalPinItKept(t *testing.T) {
-	// Work keeps a tenth back. The global pin names it from the start; its
+func TestARestartedRouterJudgesThePoolsRoomByThePoolsPinItKept(t *testing.T) {
+	// Work keeps a tenth back. The pool's pin names it from the start; its
 	// week reads at its reserve an hour on, and the router restarts three
 	// hours on.
 	path := filepath.Join(t.TempDir(), "state.json")
 	before := newTestFile(at(start), resolve(workReserved(), testTokens.Read, unrecorded))
 	before.load(path)
-	before.sessions.setPin(status.Pin{Accounts: []string{"work"}, Since: start}, false)
+	before.sessions.setPin(beforePools(), status.Pin{Accounts: []string{"work"}, Since: start}, false)
 	before.state.record("work", []quota.Window{weekUsed(0.92)}, before.state.mark())
 	before.save()
 	now := start.Add(3 * time.Hour)
@@ -477,9 +486,9 @@ func TestARestartedRouterJudgesThePoolsRoomByTheGlobalPinItKept(t *testing.T) {
 	}
 }
 
-func TestARestartJudgesThePoolsRoomByTheGlobalPinFromWhenItWasSet(t *testing.T) {
+func TestARestartJudgesThePoolsRoomByThePoolsPinFromWhenItWasSet(t *testing.T) {
 	// Work keeps a tenth back, and nothing else is read. Its week reads 50%,
-	// and its reserve an hour on; the global pin names it three hours on, and
+	// and its reserve an hour on; the pool's pin names it three hours on, and
 	// a case reads its week again. Six hours on, the router restarts.
 	tests := []struct {
 		name string
@@ -505,7 +514,7 @@ func TestARestartJudgesThePoolsRoomByTheGlobalPinFromWhenItWasSet(t *testing.T) 
 			clock.now = start.Add(time.Hour)
 			live.state.record("work", []quota.Window{weekUsed(0.92)}, live.state.mark())
 			clock.now = start.Add(3 * time.Hour)
-			if err := live.pin(PinRequest{Accounts: []string{"work"}, By: ByCLI}); err != nil {
+			if err := live.pin(live.readOf(""), PinRequest{Accounts: []string{"work"}, By: ByCLI}); err != nil {
 				t.Fatalf("pin() = %v", err)
 			}
 			if tt.readAgain > 0 {
