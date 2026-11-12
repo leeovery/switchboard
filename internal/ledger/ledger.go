@@ -71,9 +71,11 @@ func Dir(stateDir string) string {
 }
 
 // Files are the ledger's files of lines in dir, as dayfile keeps them, what
-// can't be done with them logged to logger.
+// can't be done with them logged to logger. Two lines alike but for their
+// pool are one request, as an import merges a day: each Mac's move to pools
+// gives the lines from before pools its own first pool.
 func Files(dir string, logger *slog.Logger) *dayfile.Files {
-	return &dayfile.Files{Dir: dir, Prefix: "requests", Name: "request ledger", LineMax: lineMax, Logger: logger}
+	return &dayfile.Files{Dir: dir, Prefix: "requests", Name: "request ledger", LineMax: lineMax, Logger: logger, Key: dayfile.Without("pool")}
 }
 
 // SummaryFile is where the ledger in dir keeps the summary of the local day
