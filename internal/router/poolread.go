@@ -306,12 +306,12 @@ func (t *poolTable) pinStands(pool string, ids []string, as accounts) error {
 }
 
 // shut fails, saying why, where t is closed: nothing is routed, so nothing
-// can be pinned, as no account is in any pool.
+// can be pinned or unpinned, as no account is in any pool.
 func (t *poolTable) shut() error {
 	if t.closed == "" {
 		return nil
 	}
-	return fmt.Errorf("%s: nothing can be pinned till it can", t.closed)
+	return fmt.Errorf("%s: nothing can be pinned or unpinned till it can", t.closed)
 }
 
 // sessionMay fails, saying which pool each is in, unless a session in the

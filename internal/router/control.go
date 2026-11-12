@@ -310,7 +310,10 @@ func (r *Router) Control() http.Handler {
 			writeProblem(w, http.StatusBadRequest, err.Error())
 			return
 		}
-		r.unpin(rd, force, by)
+		if err := r.unpin(rd, force, by); err != nil {
+			writeRefusal(w, err)
+			return
+		}
 		writeJSON(w, r.statusOf(rd))
 	}))
 	mux.HandleFunc("POST /refresh", r.forPool(func(w http.ResponseWriter, req *http.Request, rd poolRead) {
@@ -590,10 +593,9 @@ func (g *glances) of(pool, model string) view {
 // pin sends every new session in the pool rd reads to the best of the
 // accounts the request names, with Move, every running session of the pool
 // on another account too, and with Force, clears the own pin of every
-// session in the pool, as pinTo has it, telling it as Pinned. It fails,
-// saying why, for anyone asking but ByCLI or ByDashboard, for no account,
-// for one nothing can go out on, or for accounts the pools have moved since
-// rd was read, as pinTo says, and then tells nothing.
+// session in the pool, as pinTo has it. It fails, saying why, for anyone
+// asking but ByCLI or ByDashboard, for no account, for one nothing can go
+// out on, or as pinTo does, and then tells nothing.
 func (r *Router) pin(rd poolRead, p PinRequest) error {
 	if err := p.By.check(); err != nil {
 		return err
@@ -602,25 +604,54 @@ func (r *Router) pin(rd poolRead, p PinRequest) error {
 	if err != nil {
 		return err
 	}
-	cleared, err := r.pinTo(rd, status.Pin{Accounts: ids, Since: r.cfg.Now().UTC(), Move: p.Move}, p.Force)
-	if err != nil {
+	return r.pinTo(rd, status.Pin{Accounts: ids, Since: r.cfg.Now().UTC(), Move: p.Move}, p.Force, p.By)
+}
+
+// pinTo sets the pin of the pool rd reads, as the sessions' setPin does, by
+// the one given, the pins fitted to the pools as they stand now and told the
+// state, as fitPins does, and tells it as Pinned: one step, under pinning,
+// rd read again of those pools, so no other change of the pins comes
+// between them, and no pin is told as set after a change of the pools has
+// dropped it. It fails, changing and telling nothing, unless the pin's
+// accounts are all in that pool as the pools stand now, as pinStands says,
+// so a pin that wouldn't stand as asked is never answered as set.
+func (r *Router) pinTo(rd poolRead, pin status.Pin, force bool, by By) error {
+	r.pinning.Lock()
+	defer r.pinning.Unlock()
+	t := r.state.pools.current()
+	if err := t.pinStands(rd.pool, pin.Accounts, r.accounts); err != nil {
 		return err
 	}
-	attrs := append(poolSaid(rd.pool), "accounts", strings.Join(ids, ","), "move", p.Move)
-	if p.Force {
+	rd = r.state.poolReadOf(t, rd.pool)
+	cleared := r.sessions.setPin(rd, pin, force)
+	r.fitPins(t)
+	attrs := append(poolSaid(rd.pool), "accounts", strings.Join(pin.Accounts, ","), "move", pin.Move)
+	if force {
 		attrs = append(attrs, "force", true, "sessions_unpinned", cleared)
 	}
 	logger.Info("pinned", attrs...)
-	r.emit(Pinned{Accounts: ids, Account: ids[0], Move: p.Move, Force: p.Force, By: p.By, Pool: rd.pool})
+	r.emit(Pinned{Accounts: pin.Accounts, Account: pin.Accounts[0], Move: pin.Move, Force: force, By: by, Pool: rd.pool})
 	return nil
 }
 
-// unpin clears the pin of the pool rd reads, so every session in it is
-// routed on its merits but for those with pins of their own, and with force,
-// clears theirs too, as clearPin has it, telling it as Unpinned unless it
-// cleared nothing.
-func (r *Router) unpin(rd poolRead, force bool, by By) {
-	was, cleared := r.clearPin(rd, force)
+// unpin clears the pin of the pool rd reads, as the sessions' unpin does, so
+// every session in it is routed on its merits but for those with pins of
+// their own, and with force, clears theirs too, the pins fitted and told the
+// state, and tells it as Unpinned, by the one given, unless it cleared
+// nothing: one step, under pinning, rd read again of the pools as they stand
+// now, as pinTo has it. It fails, changing and telling nothing, where the
+// pools are closed, as shut says: no pool's pin can be told apart from
+// another's till they're back.
+func (r *Router) unpin(rd poolRead, force bool, by By) error {
+	r.pinning.Lock()
+	defer r.pinning.Unlock()
+	t := r.state.pools.current()
+	if err := t.shut(); err != nil {
+		return err
+	}
+	rd = r.state.poolReadOf(t, rd.pool)
+	was, cleared := r.sessions.unpin(rd, force)
+	r.fitPins(t)
 	attrs := append(poolSaid(rd.pool), "accounts", strings.Join(was.Accounts, ","))
 	switch {
 	case force:
@@ -631,37 +662,7 @@ func (r *Router) unpin(rd poolRead, force bool, by By) {
 	if !was.IsZero() || cleared > 0 {
 		r.emit(Unpinned{Accounts: was.Accounts, Force: force, By: by, Pool: rd.pool})
 	}
-}
-
-// pinTo sets the pin of the pool rd reads, as the sessions' setPin does, the
-// pins fitted to the pools as they stand now and told the state, as fitPins
-// does: one step, under pinning, so no other change of the pins comes
-// between them. It returns how many sessions had a pin of their own, cleared
-// with force. It fails, changing nothing, unless the pin's accounts are all
-// in that pool as the pools stand now, as pinStands says, so a pin that
-// wouldn't stand as asked is never answered as set.
-func (r *Router) pinTo(rd poolRead, pin status.Pin, force bool) (cleared int, err error) {
-	r.pinning.Lock()
-	defer r.pinning.Unlock()
-	t := r.state.pools.current()
-	if err = t.pinStands(rd.pool, pin.Accounts, r.accounts); err != nil {
-		return 0, err
-	}
-	cleared = r.sessions.setPin(rd, pin, force)
-	r.fitPins(t)
-	return cleared, nil
-}
-
-// clearPin clears the pin of the pool rd reads, as the sessions' unpin does,
-// the pins fitted and told the state, as pinTo has them. It returns the pin
-// as it was, and how many sessions had a pin of their own, cleared with
-// force.
-func (r *Router) clearPin(rd poolRead, force bool) (was status.Pin, cleared int) {
-	r.pinning.Lock()
-	defer r.pinning.Unlock()
-	was, cleared = r.sessions.unpin(rd, force)
-	r.fitPins(r.state.pools.current())
-	return was, cleared
+	return nil
 }
 
 // repool has the router take up the pools as membership has just replaced

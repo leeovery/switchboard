@@ -648,20 +648,26 @@ func (s *sessions) recallOwnPins(saved map[string]ownPin, accounts accounts) (dr
 // says, fitted to the pools as t has them, as fitted says: the one pin of a
 // state file from before pools settled as its home pool's, each pin left
 // naming its own pool's accounts alone, and the pin of a pool t doesn't have
-// gone. It reports whether that changed any, and returns each pin the fit
-// dropped whole. s.mu must be held.
+// gone. It reports whether that changed any, and returns each pool's pin
+// dropped whole, by recalledPin or the fit, as the live fit tells them: none
+// of a config from before pools, whose one pin going with its last account
+// was never told. s.mu must be held.
 func (s *sessions) recallPins(saved savedSessions, accounts accounts, t *poolTable) (changed bool, gone []gonePin) {
+	everyPin := saved.everyPin()
 	kept := make(pins)
-	for pool, pin := range saved.everyPin() {
-		pin, left := recalledPin(pin, accounts)
+	for _, pool := range slices.Sorted(maps.Keys(everyPin)) {
+		pin, left := recalledPin(everyPin[pool], accounts)
 		changed = changed || left
-		if !pin.IsZero() {
+		switch {
+		case !pin.IsZero():
 			kept[pool] = pin
+		case pool != "":
+			gone = append(gone, gonePin{pool: pool, pin: everyPin[pool]})
 		}
 	}
-	fitted, gone, refitted := kept.fitted(t)
+	fitted, refit, refitted := kept.fitted(t)
 	s.pins = fitted
-	return changed || refitted, gone
+	return changed || refitted, append(gone, refit...)
 }
 
 // recalledPin returns the pin saved but for its accounts no longer

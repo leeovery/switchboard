@@ -231,7 +231,7 @@ func (r *Router) readOf(pool string) poolRead {
 // pinTo does, failing the test where it refuses.
 func pinnedIn(t *testing.T, r *Router, pool string, pin status.Pin) {
 	t.Helper()
-	if _, err := r.pinTo(r.readOf(pool), pin, false); err != nil {
+	if err := r.pinTo(r.readOf(pool), pin, false, ByCLI); err != nil {
 		t.Fatalf("pinTo(%s, %+v) = %v", pool, pin, err)
 	}
 }

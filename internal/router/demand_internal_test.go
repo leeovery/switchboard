@@ -448,7 +448,9 @@ func TestThePoolHasRoomOnAnAccountAtItsReserveWhileThePoolsPinNamesIt(t *testing
 	if got := r.state.document().Demand; got == nil || got.Hours != 2 {
 		t.Errorf("two hours after the pin, the pool's demand is %+v, want it measured over 2 hours: room from the pin's own moment", got)
 	}
-	r.unpin(r.readOf(""), false, ByCLI)
+	if err := r.unpin(r.readOf(""), false, ByCLI); err != nil {
+		t.Fatalf("unpin() = %v", err)
+	}
 	if roomAt(r.state, clock.now) {
 		t.Error("unpinned, the pool has room, want none, work held back by its reserve")
 	}

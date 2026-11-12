@@ -685,6 +685,22 @@ func TestAPinSetRacesAChangeToThePools(t *testing.T) {
 	if got := r.sessions.lookup(key{session: "acme", model: opus}).current.Account; got == "work" {
 		t.Errorf("Acme's session is on work, Default's account")
 	}
+	for _, pool := range []string{defaultPool, acmePool} {
+		if told, stands := lastToldOf(r, pool), !r.poolPin(pool).IsZero(); (told == status.EventPin) != stands {
+			t.Errorf("pool %s's pin was told last as %q, but stands %v: the Log tells each pin as it ends", pool, told, stands)
+		}
+	}
+}
+
+// lastToldOf returns the kind of the event r told last of the pin of the
+// pool with the given id, set or given back: "" where it told none.
+func lastToldOf(r *Router, pool string) string {
+	for _, e := range r.recent.events() {
+		if e.Pool == pool && e.Session == "" && (e.Kind == status.EventPin || e.Kind == status.EventAuto) {
+			return e.Kind
+		}
+	}
+	return ""
 }
 
 // keptPinOf returns the pin of the pool with the given id the state's copy
@@ -808,6 +824,15 @@ func TestEachPinThePoolsNoLongerLeaveStandingIsToldAsGivenBackByTheRouter(t *tes
 				askedOK(t, r, http.MethodPost, "/pin", `{"accounts": ["work", "side"]}`)
 				moveAccount(r, "side", acmePool)
 			},
+		},
+		{
+			name: "a pool's pin kept naming only an account no longer configured",
+			do:   loading(`{"version": 1, "pins": {"` + defaultPool + `": {"accounts": ["gone"]}}, "sessions": []}`),
+			want: []status.Event{byRouter(defaultPool, "gone")},
+		},
+		{
+			name: "a pin kept from before pools naming only an account no longer configured, as before pools",
+			do:   loading(`{"version": 1, "pin": {"accounts": ["gone"]}, "sessions": []}`),
 		},
 		{
 			name: "a pin kept for a pool no longer configured",
@@ -977,17 +1002,30 @@ func TestAClosedTableLeavesEachPoolsPinStandingTillThePoolsComeBack(t *testing.T
 		t.Fatalf("the pools are %+v, want them closed: the move is done, the config names none, and no record tells them", r.state.pools.current())
 	}
 
-	// The state file keeps each pool's pin: they stand while nothing is
-	// routed, and nothing more can be pinned.
+	// The state file keeps each pool's pin, and a session of Default's: the
+	// pins stand while nothing is routed, and nothing can be pinned or
+	// unpinned, the pools' nor the session's own.
 	state := filepath.Join(t.TempDir(), "state.json")
-	writeFile(t, state, `{"version": 1, "pins": {"`+defaultPool+`": {"accounts": ["side"], "since": "2026-09-28T12:00:00Z"}, "`+acmePool+`": {"accounts": ["personal"], "since": "2026-09-28T12:00:00Z"}}, "sessions": []}`)
+	writeFile(t, state, `{"version": 1, "pins": {"`+defaultPool+`": {"accounts": ["side"], "since": "2026-09-28T12:00:00Z"}, "`+acmePool+`": {"accounts": ["personal"], "since": "2026-09-28T12:00:00Z"}},
+		"sessions": [{"session": "one", "model": "`+opus+`", "account": "side", "pool": "`+defaultPool+`", "reason": "new", "assigned_at": "2026-09-28T12:00:00Z", "last_seen": "2026-09-28T12:00:00Z"}]}`)
 	r.file.load(state)
 	want := map[string][]string{defaultPool: {"side"}, acmePool: {"personal"}}
 	if got := pinnedAccounts(r); !reflect.DeepEqual(got, want) {
 		t.Errorf("while the pools are closed, the pins are %q, want %q, as kept", got, want)
 	}
-	if rec := askControl(t, r, http.MethodPost, "/pin", `{"accounts": ["work"]}`); rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "nothing can be pinned") {
-		t.Errorf("pinning while the pools are closed answered %d %s, want 400, saying nothing can be pinned", rec.Code, rec.Body)
+	refused := []struct{ method, target, body string }{
+		{http.MethodPost, "/pin", `{"accounts": ["work"]}`},
+		{http.MethodDelete, "/pin", ""},
+		{http.MethodDelete, withPool("/pin?force=true", defaultPool), ""},
+		{http.MethodPost, "/sessions/one/pin", `{"account": "work"}`},
+	}
+	for _, ask := range refused {
+		if rec := askControl(t, r, ask.method, ask.target, ask.body); rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "nothing can be pinned or unpinned") {
+			t.Errorf("%s %s while the pools are closed answered %d %s, want 400, saying nothing can be pinned or unpinned", ask.method, ask.target, rec.Code, rec.Body)
+		}
+	}
+	if got := pinnedAccounts(r); !reflect.DeepEqual(got, want) {
+		t.Errorf("once pinning and unpinning were refused, the pins are %q, want %q, as kept", got, want)
 	}
 
 	// The config has its pools again: each pin stands in its own.

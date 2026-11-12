@@ -372,7 +372,9 @@ func TestEachPoolsDocumentHoldsItsOwnPin(t *testing.T) {
 	}
 
 	// Unpinning one pool leaves the other's pin.
-	r.clearPin(r.readOf(acmePool), false)
+	if err := r.unpin(r.readOf(acmePool), false, ByCLI); err != nil {
+		t.Fatalf("unpin() = %v", err)
+	}
 	if doc := statusIn(t, r, acmePool); !doc.Pin.IsZero() || doc.Best != "personal" {
 		t.Errorf("Acme's document holds pin %+v, best %q, once unpinned; want no pin, best personal", doc.Pin, doc.Best)
 	}
