@@ -180,7 +180,7 @@ func NewRootCommand(deps Deps) *cobra.Command {
 	root.SetFlagErrorFunc(hideTokens)
 	root.AddCommand(newAccountsCommand(a), newSetupCommand(a), newUninstallCommand(a), newStatusCommand(a), newUsageCommand(a), newDashboardCommand(a), newRequestsCommand(a),
 		newHistoryCommand(a), newSessionsCommand(a), newEventsCommand(a), newExportCommand(a), newImportCommand(a), newLogsCommand(a), newServeCommand(a), newPinCommand(a), newRunCommand(a),
-		newServiceCommand(a), newVersionCommand(a), newHookCommand(a))
+		newServiceCommand(a), newVersionCommand(a), newHookCommand(a), newPoolCommand(a))
 	return root
 }
 

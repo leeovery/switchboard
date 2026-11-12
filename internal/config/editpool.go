@@ -188,7 +188,27 @@ func (d *Draft) SetPoolDirs(id string, dirs []string) error {
 		return PoolNotConfigured(id)
 	}
 	dirs = dirsGiven(dirs)
+	if !slices.Equal(dirs, d.file.Pools[i].Dirs) && d.dirsSpanLines(i) {
+		return fmt.Errorf("%s writes its dirs across lines, which editing %s as text can't change: set them by hand", poolNamed(d.file.Pools[i].ID), d.path)
+	}
 	return d.setPoolKey(i, "dirs", writtenDirs(dirs), func(p *filePool) { p.Dirs = dirs })
+}
+
+// dirsSpanLines reports whether the [[pool]] table of the pool at i writes
+// its dirs in an array that goes on past its line, which withValue can't
+// set in place.
+func (d *Draft) dirsSpanLines(i int) bool {
+	tables := d.doc.pools()
+	if len(tables) != len(d.file.Pools) {
+		return false
+	}
+	k := d.doc.keyAt(tables[i], "dirs")
+	if k < 0 {
+		return false
+	}
+	_, given, _ := strings.Cut(d.doc.lines[k], "=")
+	given = strings.TrimLeft(given, " \t")
+	return strings.HasPrefix(given, "[") && arrayEnd(given) < 0
 }
 
 // SetPool moves the account with the given id into the pool with the given

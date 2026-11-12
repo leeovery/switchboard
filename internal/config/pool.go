@@ -61,8 +61,15 @@ func (ps Pools) ByID(id string) (Pool, bool) {
 // LabelTaken reports whether a pool, but the one with the given id, shows
 // label, ignoring case, as Accounts' LabelTaken says of an account's.
 func (ps Pools) LabelTaken(id, label string) bool {
+	_, taken := ps.Labelled(id, label)
+	return taken
+}
+
+// Labelled returns the pool, but the one with the given id, that shows
+// label, ignoring case, reporting false where none does.
+func (ps Pools) Labelled(id, label string) (Pool, bool) {
 	shown := prose.Clean(label)
-	return slices.ContainsFunc(ps, func(p Pool) bool { return p.ID != id && strings.EqualFold(prose.Clean(p.Label), shown) })
+	return ps.find(func(p Pool) bool { return p.ID != id && strings.EqualFold(prose.Clean(p.Label), shown) })
 }
 
 // Unfenced returns the pool with no directories, reporting false where every

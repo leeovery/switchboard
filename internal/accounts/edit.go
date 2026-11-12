@@ -1,6 +1,8 @@
 package accounts
 
 import (
+	"strings"
+
 	"github.com/leeovery/switchboard/internal/config"
 )
 
@@ -12,16 +14,19 @@ type Change struct {
 	// Plan is the plan its subscription is on, one of config.Plans: ""
 	// leaves it unknown.
 	Plan *string
-	// Primary makes it the primary, in place of the one that is.
+	// Primary makes it its pool's primary, in place of the one that is.
 	Primary bool
 	// Reserve is the share of every window the router leaves unused on it: 0
 	// for none.
 	Reserve *float64
+	// Pool is the id of the pool it's moved into: moved, it's that pool's
+	// primary only as Primary makes it.
+	Pool *string
 }
 
 // Asks reports whether the change asks for anything.
 func (c Change) Asks() bool {
-	return c.Label != nil || c.Plan != nil || c.Primary || c.Reserve != nil
+	return c.Label != nil || c.Plan != nil || c.Primary || c.Reserve != nil || c.Pool != nil
 }
 
 // Edited is an account as it was and as an edit left it, and the account
@@ -106,14 +111,25 @@ func (r Registry) Edit(id string, change Change) (Edited, error) {
 	if !edited.Changed() {
 		return edited, nil
 	}
-	if now.Primary && !was.Primary {
-		edited.FormerPrimary = before.Accounts.Primary().ID
+	if now.Primary && (!was.Primary || !strings.EqualFold(was.Pool, now.Pool)) {
+		edited.FormerPrimary = primaryOf(before, now.Pool)
 	}
 	if err := draft.Save(); err != nil {
 		return Edited{}, err
 	}
 	logger.Info("edited an account", "account", id, "primary", now.Primary, "plan", now.Plan, "reserve", now.Reserve)
 	return edited, nil
+}
+
+// primaryOf returns the id of the primary of the pool with the given id that
+// cfg configures, the primary of every account in a config with no pools:
+// "" where the pool has no account.
+func primaryOf(cfg *config.Config, pool string) string {
+	if len(cfg.Pools) == 0 {
+		return cfg.Accounts.Primary().ID
+	}
+	primary, _ := cfg.Accounts.PrimaryOf(pool)
+	return primary.ID
 }
 
 // apply makes the change to the account in the draft, as it was before.
@@ -125,6 +141,11 @@ func (c Change) apply(draft *config.Draft, was config.Account) error {
 	}
 	if c.Plan != nil {
 		if err := draft.SetPlan(was.ID, *c.Plan); err != nil {
+			return err
+		}
+	}
+	if c.Pool != nil {
+		if err := draft.SetPool(was.ID, *c.Pool); err != nil {
 			return err
 		}
 	}

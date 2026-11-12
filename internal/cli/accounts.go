@@ -39,9 +39,11 @@ func newAccountsCommand(a *app) *cobra.Command {
 the primary, and whether its token file, <state dir>/tokens/<id>, holds a
 token switchboard can use, or why not, and what would put it right. Where the
 router runs, a token it found is another subscription's shows as wrong token.
+Once there's a second pool, each account's pool shows too, by its label, and
+the primary is its pool's.
 
 accounts add, edit, token and remove register an account, change its label,
-plan, primary or reserve, replace its token, and remove it.`,
+plan, pool, primary or reserve, replace its token, and remove it.`,
 		Args: noArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			cfg, err := a.loadConfig()
@@ -52,7 +54,7 @@ plan, primary or reserve, replace its token, and remove it.`,
 			if err != nil {
 				return err
 			}
-			return writeTable(cmd.OutOrStdout(), accountRows(cfg.Accounts, files.Read, a.foreignTokens(cmd.Context())))
+			return writeTable(cmd.OutOrStdout(), accountRows(cfg, files.Read, a.foreignTokens(cmd.Context())))
 		},
 	}
 	cmd.AddCommand(newAccountsAddCommand(a), newAccountsEditCommand(a), newAccountsTokenCommand(a), newAccountsRemoveCommand(a))
@@ -62,6 +64,7 @@ plan, primary or reserve, replace its token, and remove it.`,
 func newAccountsAddCommand(a *app) *cobra.Command {
 	var account config.NewAccount
 	var answer accounts.Answer
+	var pool string
 	cmd := &cobra.Command{
 		Use:   "add <label>",
 		Short: "Register an account, taking its token",
@@ -86,6 +89,10 @@ be an account removed before switchboard made ids, it asks whether it's a new
 account or one of those, at a terminal; otherwise it says the choices, and
 --new or --returning answers.
 
+It goes in the pool --pool names, by its id; without it, the only pool, where
+there's one, else the one fenced to no directory; where every pool is fenced,
+it asks for --pool. --primary makes it its pool's primary.
+
 ` + editingTheConfig,
 		Args: func(cmd *cobra.Command, args []string) error {
 			switch returning := cmd.Flags().Changed("returning"); {
@@ -93,15 +100,22 @@ account or one of those, at a terminal; otherwise it says the choices, and
 				return errors.New("--new answers that it's a new account, so it takes no --returning")
 			case returning && answer.ID == "":
 				return errors.New("--returning takes the id of the account this Mac had")
+			case cmd.Flags().Changed("pool") && pool == "":
+				return errors.New("--pool takes the id of a pool")
 			}
 			return oneLabel(cmd, args)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			account.Label = args[0]
+			var err error
+			if account.Pool, err = a.poolToAddTo(pool); err != nil {
+				return err
+			}
 			return a.addAccount(cmd, account, answer)
 		},
 	}
-	cmd.Flags().BoolVar(&account.Primary, "primary", false, "make it the primary, the account the browser and the Claude apps use")
+	cmd.Flags().BoolVar(&account.Primary, "primary", false, "make it its pool's primary, the account the browser and the Claude apps use")
+	addPoolFlag(cmd, &pool, "add it to")
 	cmd.Flags().BoolVar(&answer.New, "new", false, "where it asks, answer that it's a new account")
 	cmd.Flags().StringVar(&answer.ID, "returning", "", "where it asks, answer that it's the account `ID` this Mac had")
 	return cmd
@@ -109,27 +123,33 @@ account or one of those, at a terminal; otherwise it says the choices, and
 
 // editFlags are accounts edit's flags, as they're given.
 type editFlags struct {
-	label, plan, reserve string
-	primary              bool
+	label, plan, reserve, pool string
+	primary                    bool
 }
 
 // editFlagNames are accounts edit's flags, of which it's given one or more.
-var editFlagNames = []string{"--label", "--plan", "--primary", "--reserve"}
+var editFlagNames = []string{"--label", "--plan", "--primary", "--reserve", "--pool"}
 
 func newAccountsEditCommand(a *app) *cobra.Command {
 	var flags editFlags
 	cmd := &cobra.Command{
 		Use:   "edit <id>",
-		Short: "Change an account's label, plan, primary or reserve",
-		Long: `Change an account's label, its plan, whether it's the primary, or its reserve,
-in its [[account]] table in the config. Give one or more of --label, --plan,
---primary and --reserve; what isn't given is left as it is, and when every
-value given is what the account has already, nothing is written.
+		Short: "Change an account's label, plan, pool, primary or reserve",
+		Long: `Change an account's label, its plan, its pool, whether it's its pool's
+primary, or its reserve, in its [[account]] table in the config. Give one or
+more of --label, --plan, --pool, --primary and --reserve; what isn't given is
+left as it is, and when every value given is what the account has already,
+nothing is written.
+
+--pool moves the account into the pool with the id given, its pool's primary
+there only with --primary; the pool it leaves takes its next account as its
+primary, where it was the primary. The sessions running on it in the pool it
+left move off it on their next request.
 
 --plan takes none, to leave the plan unknown. --reserve takes a percentage,
 to two decimal places at most, such as 5% or 2.5%, of every window, which the
 router leaves unused, or 0 for none.
---primary makes the account the primary in place of the one that is; the
+--primary makes the account its pool's primary in place of the one that is; the
 sessions running through the router keep the token they started on as Claude
 Code's own until they restart: the former primary's, or, where it has no
 usable token, the first account's with one, or a pinned session's pinned
@@ -153,8 +173,9 @@ same, ignoring case.
 	plans := prose.ListOr(config.PlanChoices())
 	cmd.Flags().StringVar(&flags.label, "label", "", "show the account as `LABEL`")
 	cmd.Flags().StringVar(&flags.plan, "plan", "", "the `PLAN` its subscription is on: "+plans)
-	cmd.Flags().BoolVar(&flags.primary, "primary", false, "make it the primary, the account the browser and the Claude apps use")
+	cmd.Flags().BoolVar(&flags.primary, "primary", false, "make it its pool's primary, the account the browser and the Claude apps use")
 	cmd.Flags().StringVar(&flags.reserve, "reserve", "", "leave `PERCENT` of every window unused, such as 5%, or 0 for none")
+	cmd.Flags().StringVar(&flags.pool, "pool", "", "move it into pool `ID`")
 	return cmd
 }
 
@@ -181,6 +202,12 @@ func (f editFlags) change(given func(name string) bool) (accounts.Change, error)
 			return accounts.Change{}, err
 		}
 		change.Reserve = &reserve
+	}
+	if given("pool") {
+		if f.pool == "" {
+			return accounts.Change{}, errors.New("--pool takes the id of a pool")
+		}
+		change.Pool = &f.pool
 	}
 	if !change.Asks() {
 		return accounts.Change{}, errors.New("give one or more of " + prose.ListOr(editFlagNames))
@@ -293,7 +320,7 @@ func (a *app) addAccount(cmd *cobra.Command, account config.NewAccount, given ac
 	if !asked && contrary(given, added) {
 		launch.Notice(cmd.ErrOrStderr(), unusedAnswer(given, added))
 	}
-	said := "added " + prose.Quoted(account.Label) + " as " + added.ID
+	said := "added " + prose.Quoted(account.Label) + " as " + added.ID + a.inPoolOf(account.Pool)
 	if added.Returning {
 		said += ", an account this Mac had, so its history carries on"
 	}
@@ -302,6 +329,34 @@ func (a *app) addAccount(cmd *cobra.Command, account config.NewAccount, given ac
 	}
 	_, err = io.WriteString(cmd.OutOrStdout(), said+"\n")
 	return err
+}
+
+// poolToAddTo returns the id of the pool an account added goes in, as
+// askedPool has it of the config's pools, named or not, failing as it does,
+// saying --pool names one: the one named as it's given where the config
+// can't be loaded, as where there's none yet, for adding to say why.
+func (a *app) poolToAddTo(named string) (string, error) {
+	cfg, err := a.loadConfig()
+	if err != nil {
+		logger.Debug("can't load the config, so the pool named goes as it's given", "error", err)
+		return named, nil
+	}
+	if len(cfg.Pools) == 0 {
+		return named, nil
+	}
+	p, err := askedPool(cfg.Pools, named)
+	return p.ID, poolFlagNeeded(err)
+}
+
+// inPoolOf names the pool with the given id, as " in pool Acme", where the
+// config has more than one, as poolNamed names it: "" where it has one or
+// none, or can't be loaded.
+func (a *app) inPoolOf(id string) string {
+	cfg, err := a.loadConfig()
+	if err != nil {
+		return ""
+	}
+	return inPoolNamed(cfg.Pools, poolLabel(cfg.Pools, id))
 }
 
 // contrary reports whether given answers otherwise than the account was
@@ -567,6 +622,9 @@ func editedSays(e accounts.Edited) string {
 	if e.Was.Label != e.Now.Label {
 		changed = append(changed, labelChanged(e))
 	}
+	if !strings.EqualFold(e.Was.Pool, e.Now.Pool) {
+		changed = append(changed, nowAndWas("pool", poolLabel(e.Before.Pools, e.Now.Pool), poolLabel(e.Before.Pools, e.Was.Pool)))
+	}
 	switch {
 	case e.Was.Plan != e.Now.Plan:
 		changed = append(changed, nowAndWas("plan", planSaid(e.Now.Plan), planSaid(e.Was.Plan)))
@@ -583,6 +641,15 @@ func editedSays(e accounts.Edited) string {
 		changed = append(changed, nowAndWas("reserve", reserveSaid(e.Now.Reserve), reserveSaid(e.Was.Reserve)))
 	}
 	return "edited " + e.Now.ID + ": " + strings.Join(changed, ", ")
+}
+
+// poolLabel names the pool of pools with the given id by its label, cleaned,
+// else by its id.
+func poolLabel(pools config.Pools, id string) string {
+	if p, ok := pools.ByID(id); ok {
+		return prose.Clean(p.Label)
+	}
+	return prose.Clean(id)
 }
 
 // nowAndWas says a value an edit changed, as "plan ultra (was max)".
@@ -745,10 +812,21 @@ func (a *app) foreignTokens(ctx context.Context) func(id string) bool {
 	}
 }
 
-func accountRows(configured config.Accounts, readToken func(id string) (tokens.Token, error), foreign func(id string) bool) [][]string {
-	rows := [][]string{{"ID", "LABEL", "PRIMARY", "TOKEN"}}
-	for _, acct := range configured {
-		rows = append(rows, []string{acct.ID, prose.Clean(acct.Label), primary(acct), tokenState(acct.ID, readToken, foreign)})
+// accountRows are the rows of accounts' table: each account cfg configures,
+// with its pool's label once there's a second pool.
+func accountRows(cfg *config.Config, readToken func(id string) (tokens.Token, error), foreign func(id string) bool) [][]string {
+	pooled := len(cfg.Pools) > 1
+	head := []string{"ID", "LABEL", "PRIMARY", "TOKEN"}
+	if pooled {
+		head = slices.Insert(head, 2, "POOL")
+	}
+	rows := [][]string{head}
+	for _, acct := range cfg.Accounts {
+		row := []string{acct.ID, prose.Clean(acct.Label), primary(acct), tokenState(acct.ID, readToken, foreign)}
+		if pooled {
+			row = slices.Insert(row, 2, poolLabel(cfg.Pools, acct.Pool))
+		}
+		rows = append(rows, row)
 	}
 	return rows
 }
