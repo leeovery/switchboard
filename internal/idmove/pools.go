@@ -504,26 +504,43 @@ func (m *PoolMover) takeUp() error {
 }
 
 // FirstPool is the ledger's option that has it know the first pool, as
-// ledger.FirstPool says, as the accounts record in the state directory given
-// notes it as the ledger asks, once the move to pools is done there: none
-// before, where the record can't be read, which is logged once, or where it
-// notes none.
+// ledger.FirstPool says, as FirstPoolID reads it as the ledger asks, a record
+// that can't be read logged once.
 func FirstPool(stateDir string) ledger.Option {
 	var warned atomic.Bool
 	return ledger.FirstPool(func() string {
-		if !PoolsMoved(stateDir) {
-			return ""
-		}
-		record, err := identity.NewFile(stateDir).Read()
-		if err != nil {
+		return firstPoolID(stateDir, func(err error) {
 			if !warned.Swap(true) {
 				logger.Warn("can't read the accounts record, so a day's work in no pool can't be given the first pool's", "error", err)
 			}
-			return ""
-		}
-		first, _ := record.FirstPool()
-		return first.ID
+		})
 	})
+}
+
+// FirstPoolID returns the id of the first pool, as the accounts record in
+// the state directory given notes it, once the move to pools is done there:
+// "" before, where the record can't be read, which is logged, or where it
+// notes none. Work recorded in no pool is the first's, as ledger.FirstPool
+// says.
+func FirstPoolID(stateDir string) string {
+	return firstPoolID(stateDir, func(err error) {
+		logger.Warn("can't read the accounts record, so work in no pool can't be given the first pool's", "error", err)
+	})
+}
+
+// firstPoolID is FirstPoolID, telling unread why where the record can't be
+// read.
+func firstPoolID(stateDir string, unread func(error)) string {
+	if !PoolsMoved(stateDir) {
+		return ""
+	}
+	record, err := identity.NewFile(stateDir).Read()
+	if err != nil {
+		unread(err)
+		return ""
+	}
+	first, _ := record.FirstPool()
+	return first.ID
 }
 
 // moveHistory gives each line of the history that names no pool the first

@@ -33,6 +33,9 @@ type pinOptions struct {
 	// session names the one session to pin, by as much of its id as is
 	// unique, or is "" to pin the router.
 	session string
+	// pool is the id of the pool whose pin auto clears, "" for the one the
+	// verbs act on: accounts pinned are pinned in the pool they're in.
+	pool string
 }
 
 func newPinCommand(a *app) *cobra.Command {
@@ -52,6 +55,13 @@ puts every session on the accounts given. "pin auto" goes back to routing
 every session on its merits, and with --force clears every session's own pin
 as well.
 
+Each pool has its own pin, its sessions alone moved or cleared. The accounts
+given are pinned in the pool they're in, so they must be of one pool. "pin
+auto" clears the pin of the pool --pool names, by its id; without it, the
+only pool, where there's one, else the one fenced to no directory; where
+every pool is fenced, it asks for --pool. The directory it's run in never
+chooses. Where there's more than one pool, what's said names it.
+
 With --session, pin one running session alone to one account, from its next
 request, in place of any pin it had, the one run --account gave it included;
 "pin auto --session" clears its own pin, and it's routed like any other.
@@ -68,6 +78,7 @@ switchboard serve).`,
 	cmd.Flags().BoolVar(&opts.move, "move", false, "move running sessions on other accounts to them too, each on its next request")
 	cmd.Flags().BoolVar(&opts.force, "force", false, "clear every session's own pin too, the one run --account gave it included")
 	cmd.Flags().StringVar(&opts.session, "session", "", "pin session `ID` alone, by as much of its id as is unique")
+	addPoolFlag(cmd, &opts.pool, "with auto, clear the pin of")
 	return cmd
 }
 
@@ -87,6 +98,8 @@ func (o *pinOptions) check(cmd *cobra.Command, args []string) error {
 		return errors.New("--session pins one session alone, so it takes no --move or --force")
 	case isAuto(args[0]) && o.move:
 		return errors.New("--move goes with an account to pin, not auto")
+	case cmd.Flags().Changed("pool") && (o.session != "" || !isAuto(args[0])):
+		return errors.New("--pool goes with auto alone: accounts and sessions are pinned in the pool they're in")
 	}
 	return nil
 }
@@ -108,30 +121,46 @@ func (a *app) pin(ctx context.Context, out io.Writer, accounts []string, opts pi
 	}
 	said, err := a.pinning(ctx, client, accounts, opts)
 	if err != nil {
-		return fromRouterChange(err)
+		return poolFlagNeeded(fromRouterChange(err))
 	}
 	_, err = fmt.Fprintln(out, said)
 	return err
 }
 
 // pinning pins the session opts names to the one account given, or else the
-// router to the accounts given, or unpins either for auto, and says what that
-// does.
+// router to the accounts given, in their pool, or unpins either for auto, the
+// pool's pin in the pool opts names, and says what that does, naming the
+// pool where the config has more than one.
 func (a *app) pinning(ctx context.Context, client *router.Client, accounts []string, opts pinOptions) (string, error) {
 	switch {
 	case opts.session != "":
 		return a.pinSession(ctx, client, opts.session, accounts[0])
 	case isAuto(accounts[0]):
-		if _, err := client.Unpin(ctx, opts.force, router.ByCLI); err != nil {
+		doc, err := client.InPool(opts.pool).Unpin(ctx, opts.force, router.ByCLI)
+		if err != nil {
 			return "", err
 		}
-		return forced("routing automatically", opts.force), nil
+		return forced("routing automatically"+a.inPool(doc), opts.force), nil
 	}
 	doc, err := client.Pin(ctx, router.PinRequest{Accounts: accounts, Move: opts.move, Force: opts.force, By: router.ByCLI})
 	if err != nil {
 		return "", err
 	}
-	return forced(pinned(doc.At(a.Now(), claude.Policy())), opts.force), nil
+	return forced(pinned(doc.At(a.Now(), claude.Policy()), a.inPool(doc)), opts.force), nil
+}
+
+// inPool names the pool the document is of, as " in pool Acme", where the
+// config has more than one, as poolNamed names it: "" where it has one or
+// none, or can't be loaded.
+func (a *app) inPool(doc status.Document) string {
+	cfg, err := a.loadConfig()
+	if err != nil {
+		return ""
+	}
+	if named := poolNamed(cfg.Pools, doc.PoolLabel); named != "" {
+		return " in " + named
+	}
+	return ""
 }
 
 // pinSession pins the session given, by as much of its id as is unique, to
@@ -155,9 +184,10 @@ func (a *app) pinSession(ctx context.Context, client *router.Client, given, acco
 	return session + " goes to " + account + " from its next request", nil
 }
 
-// pinned says what the pin of the document m is a moment of does.
-func pinned(m status.Moment) string {
-	said := "new sessions go to " + m.Destination(m.Pin.Accounts)
+// pinned says what the pin of the document m is a moment of does, to the new
+// sessions in the pool in names, as inPool names it.
+func pinned(m status.Moment, in string) string {
+	said := "new sessions" + in + " go to " + m.Destination(m.Pin.Accounts)
 	if m.Pin.Move {
 		said += ", and running sessions move on their next request"
 	}

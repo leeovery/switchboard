@@ -107,6 +107,12 @@ func ForeignTokenFix(id string) string {
 	return ForeignToken + ": give it its own with " + AccountsToken(id) + ", " + AddAsOwn
 }
 
+// Pool names a pool by its label, as the verbs' text names one once there's
+// a second: "pool Acme".
+func Pool(label string) string {
+	return "pool " + Clean(label)
+}
+
 // Version words a release's version as it's shown, such as v0.2.10: a
 // version that isn't a release's number, such as a build's "dev", as it is.
 func Version(version string) string {

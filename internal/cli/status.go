@@ -20,6 +20,7 @@ func newStatusCommand(a *app) *cobra.Command {
 		probe   bool
 		refresh bool
 		session string
+		pool    string
 	)
 	cmd := &cobra.Command{
 		Use:   "status",
@@ -34,6 +35,9 @@ starts don't go through the router, the first line says so. Where the config
 can't be read, as when an upgrade's rules refuse it and the router's restart
 into the new version is held, status shows the router's document while the
 router answers, then fails, saying why the config can't be read.
+
+It shows one pool's accounts. ` + readingAPool + ` Where there's more
+than one pool, the text names the one shown first.
 
 On a terminal, status prints this as text. Anywhere else, as in a pipe or an
 agent's shell, it prints the status document as JSON, for an agent or a
@@ -60,6 +64,8 @@ switchboard service install (or switchboard serve).
 				return errors.New("--session asks the router, so it takes no --probe")
 			case session != "" && refresh:
 				return errors.New("--session asks after one session, not the accounts, so it takes no --refresh")
+			case session != "" && cmd.Flags().Changed("pool"):
+				return errors.New("--session asks after one session, in whatever pool it's in, so it takes no --pool")
 			}
 			return noArgs(cmd, args)
 		},
@@ -68,7 +74,7 @@ switchboard service install (or switchboard serve).
 			if session != "" {
 				return a.sessionStatus(cmd.Context(), out, session, form.json)
 			}
-			doc, unread, err := a.statusDocument(cmd.Context(), probe, readOnce(refresh))
+			doc, unread, err := a.statusDocument(cmd.Context(), probe, readOnce(refresh), pool)
 			if err != nil {
 				return err
 			}
@@ -76,7 +82,7 @@ switchboard service install (or switchboard serve).
 				err = writeJSON(out, doc)
 			} else {
 				m := a.withRemoved(doc).At(a.Now(), claude.Policy())
-				_, err = io.WriteString(out, a.unrouted()+m.Text(a.running(cmd.Context(), m)...))
+				_, err = io.WriteString(out, a.unrouted()+a.poolHeading(doc)+m.Text(a.running(cmd.Context(), m)...))
 			}
 			return cmp.Or(err, unread)
 		},
@@ -85,7 +91,22 @@ switchboard service install (or switchboard serve).
 	cmd.Flags().BoolVar(&probe, "probe", false, "probe every account, even while the router runs")
 	cmd.Flags().BoolVarP(&refresh, "refresh", "r", false, "have the router read every account it may first, as usage --refresh does")
 	cmd.Flags().StringVar(&session, "session", "", "print the account the router sends session `ID`'s requests to")
+	addPoolFlag(cmd, &pool, "show")
 	return cmd
+}
+
+// poolHeading names the pool the document is of, in a paragraph of a line,
+// as poolNamed names it: "" where the config has one pool or none, or can't
+// be loaded, as where the router's document is printed in its place.
+func (a *app) poolHeading(doc status.Document) string {
+	cfg, err := a.loadConfig()
+	if err != nil {
+		return ""
+	}
+	if named := poolNamed(cfg.Pools, doc.PoolLabel); named != "" {
+		return named + "\n\n"
+	}
+	return ""
 }
 
 // unrouted says, in a paragraph of a line, when the claude a shell runs from

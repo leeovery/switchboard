@@ -76,7 +76,7 @@ func TestPinningAFencedPoolsAccountSaysWhereItsNewSessionsGo(t *testing.T) {
 	srv.writeConfig(t)
 	srv.start(t)
 
-	if got, want := run(t, srv.deps, "pin", "work"), (result{stdout: "new sessions go to work · Work\n"}); got != want {
+	if got, want := run(t, srv.deps, "pin", "work"), (result{stdout: "new sessions in pool Acme go to work · Work\n"}); got != want {
 		t.Errorf("switchboard pin work = %+v, want %+v", got, want)
 	}
 }

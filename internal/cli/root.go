@@ -437,33 +437,35 @@ func (a *app) configFile() (string, error) {
 	return config.Path(a.Getenv, a.HomeDir)
 }
 
-// collect loads the config and reads the status document usage prints, as r
-// asks, from the source that decides where it comes from,
-// probing alone when probe says so. It gives the config too, as usage lays
-// its printout out as the config says: nil where the config can't be read.
-func (a *app) collect(ctx context.Context, probe bool, r status.Read) (*config.Config, status.Document, error) {
+// collect loads the config and reads the status document usage prints, of
+// the pool with the given id, else of the one the verbs act on, as r asks,
+// from the source that decides where it comes from, probing alone when probe
+// says so. It gives the config too, as usage lays its printout out as the
+// config says: nil where the config can't be read.
+func (a *app) collect(ctx context.Context, probe bool, r status.Read, pool string) (*config.Config, status.Document, error) {
 	cfg, err := a.loadConfig()
 	if err != nil {
 		return nil, status.Document{}, err
 	}
-	doc, _, err := a.source(cfg, probe).Read(ctx, r)
-	return cfg, doc, err
+	doc, _, err := a.source(cfg, probe).inPool(pool).Read(ctx, r)
+	return cfg, doc, poolFlagNeeded(err)
 }
 
-// statusDocument reads the document status prints, as collect does; or,
-// where the config can't be read, and probing alone isn't asked for, the
-// router's, which the router keeps giving as it routes on, as while a newer
+// statusDocument reads the document status prints, of the pool with the
+// given id, else of the one the verbs act on, as collect does; or, where the
+// config can't be read, and probing alone isn't asked for, the router's of
+// that pool, which the router keeps giving as it routes on, as while a newer
 // binary's refusal of the config holds its restart: it gives the config's
 // error as unread then, beside the router's document. Where the router
 // doesn't give its document either, it fails with the config's error, as
 // collect does. The router is asked once there, not waited for as it comes
 // back, so the config's error is told at once where no router runs.
-func (a *app) statusDocument(ctx context.Context, probe bool, r status.Read) (doc status.Document, unread, err error) {
-	cfg, doc, err := a.collect(ctx, probe, r)
+func (a *app) statusDocument(ctx context.Context, probe bool, r status.Read, pool string) (doc status.Document, unread, err error) {
+	cfg, doc, err := a.collect(ctx, probe, r, pool)
 	if cfg != nil || probe {
 		return doc, nil, err
 	}
-	source := a.routerSource()
+	source := a.routerSource().inPool(pool)
 	source.patience = launch.Patience{Answer: cmp.Or(a.Patience.Answer, launch.AskTimeout)}
 	doc, _, readErr := source.Read(ctx, status.Read{Refresh: r.Refresh})
 	if readErr != nil {

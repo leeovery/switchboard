@@ -35,12 +35,13 @@ type usageOptions struct {
 	by      layoutFlag
 	windows windowFlags
 	form    formFlags
+	pool    string
 }
 
 func newUsageCommand(a *app) *cobra.Command {
 	var opts usageOptions
 	cmd := &cobra.Command{
-		Use:   "usage [--5h] [--week] [--<model>] [--by window|account] [--probe] [-r] [--json | --pretty]",
+		Use:   "usage [--5h] [--week] [--<model>] [--by window|account] [--pool <id>] [--probe] [-r] [--json | --pretty]",
 		Short: "Print every account's windows as they stand",
 		Long: `Print every account's windows as they stand, once, into the scrollback, with
 the time they were read, to hold against one printed earlier: the router's,
@@ -72,6 +73,9 @@ those reads, ten seconds at most, then prints them, so once a limit is reset
 by hand, the router sees it. Without the router, or with --probe, every
 account is probed anyway, so --refresh changes nothing.
 
+It prints one pool's accounts. ` + readingAPool + ` Where there's more
+than one pool, the printout names the one printed first.
+
 The windows are printed in the theme chosen in the dashboard's picker, or the
 pair of tokyo-night-day for a light terminal and nord for a dark one, which
 the terminal is asked, on the terminal's own background. NO_COLOR, or a
@@ -91,6 +95,7 @@ it.`,
 	cmd.Flags().Var(&opts.by, "by", "lay the windows out by window or by account, over the config's [usage] by")
 	cmd.Flags().BoolVar(&opts.probe, "probe", false, "probe every account, even while the router runs")
 	cmd.Flags().BoolVarP(&opts.refresh, "refresh", "r", false, "have the router read every account it may first, as the dashboard's R does")
+	addPoolFlag(cmd, &opts.pool, "print")
 	opts.form.add(cmd)
 	return cmd
 }
@@ -101,7 +106,7 @@ it.`,
 // and prints the windows opts give, laid out as they say, else as the config
 // does, as wide as the terminal, in the theme the preferences keep.
 func (a *app) printUsage(ctx context.Context, out io.Writer, opts usageOptions) error {
-	cfg, doc, err := a.collect(ctx, opts.probe, readOnce(opts.refresh))
+	cfg, doc, err := a.collect(ctx, opts.probe, readOnce(opts.refresh), opts.pool)
 	if err != nil {
 		return err
 	}
@@ -123,6 +128,9 @@ func (a *app) printUsage(ctx context.Context, out io.Writer, opts usageOptions) 
 		Name:    status.NameOfKey,
 	}.Draw(m)
 	logger.Debug("drew the printout", "width", width, "colors", colors.Profile.String())
+	if named := poolNamed(cfg.Pools, doc.PoolLabel); named != "" {
+		rows = append([]string{named, ""}, rows...)
+	}
 	_, err = io.WriteString(colors, "\n"+strings.Join(rows, "\n")+"\n")
 	return err
 }
@@ -132,7 +140,7 @@ func (a *app) printUsage(ctx context.Context, out io.Writer, opts usageOptions) 
 // isn't a terminal, as for an agent or a pipe, which want data rather than a
 // printout's bars.
 func (a *app) printDocument(ctx context.Context, out io.Writer, opts usageOptions) error {
-	_, doc, err := a.collect(ctx, opts.probe, readOnce(opts.refresh))
+	_, doc, err := a.collect(ctx, opts.probe, readOnce(opts.refresh), opts.pool)
 	if err != nil {
 		return err
 	}

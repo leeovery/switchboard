@@ -276,12 +276,9 @@ func (s probeSource) inPool(named string) (probeSource, error) {
 	if len(s.pools) == 0 {
 		return s, nil
 	}
-	p, ok := s.pools.Implicit()
-	if named != "" {
-		p, ok = s.pools.ByID(named)
-	}
-	if !ok {
-		return probeSource{}, router.NeedPool(named, s.pools)
+	p, err := askedPool(s.pools, named)
+	if err != nil {
+		return probeSource{}, err
 	}
 	s.accounts, s.pool = config.Accounts(s.accounts).InPool(p.ID), p
 	return s, nil
