@@ -50,7 +50,7 @@ func (s Summary) made(lines int, held *Summary) Summary {
 func (a AccountDay) knowing(held AccountDay) AccountDay {
 	a = a.pooled(knowingAll(a.poolDays(), held.poolDays(), PoolDay.key, PoolDay.knowing, strings.Compare))
 	a.Work = a.Work.knowing(held.Work)
-	if whole := wholeOf(a.Pools); len(a.Pools) > 1 && !a.Work.covers(whole) {
+	if whole := wholeOf(a.Pools); len(a.Pools) > 1 && !a.covers(whole) {
 		a.Work = whole
 	}
 	a.Highest, a.Rise = higher(a.Highest, held.Highest), higher(a.Rise, held.Rise)
