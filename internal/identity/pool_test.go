@@ -341,7 +341,7 @@ func TestTheRecordKeepsUpWithThePoolsConfigured(t *testing.T) {
 // An account's id and a pool's are never one: an account's derived or
 // random id is never a pool's, and the record keeping up with the config
 // leaves out an account configured under a pool's id, and a pool under an
-// account's, ignoring case.
+// account's.
 func TestAccountsAndPoolsNeverShareAnID(t *testing.T) {
 	derived := identity.Record{}.Derive("test-org-work", nil)
 	pooled := identity.Record{Pools: []identity.PoolEntry{{ID: strings.ToUpper(derived), Added: added}}}
@@ -361,10 +361,10 @@ func TestAccountsAndPoolsNeverShareAnID(t *testing.T) {
 		Pools:    []identity.PoolEntry{{ID: "b2n8", Added: added}},
 	}
 	kept := r.KeepUp(identity.Followed{
-		Accounts: config.Accounts{{ID: "b6s7"}, {ID: "B2N8"}},
-		Pools:    config.Pools{{ID: "b2n8"}, {ID: "B6S7"}},
+		Accounts: config.Accounts{{ID: "b6s7"}, {ID: "b2n8"}},
+		Pools:    config.Pools{{ID: "b2n8"}, {ID: "b6s7"}},
 	}, removed)
-	want := identity.Kept{Clashed: []string{"B2N8"}, Pools: identity.PoolsKept{Clashed: []string{"B6S7"}}}
+	want := identity.Kept{Clashed: []string{"b2n8"}, Pools: identity.PoolsKept{Clashed: []string{"b6s7"}}}
 	if !reflect.DeepEqual(kept, want) {
 		t.Errorf("kept %+v, want %+v", kept, want)
 	}

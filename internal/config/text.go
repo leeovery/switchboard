@@ -435,7 +435,8 @@ func valueEnd(text string) int {
 // included, when it ends on the one line, as a pool's dirs are written: the
 // strings within it passed over, as stringEnd has them, so a bracket or a
 // hash in one is the string's. It's -1 for an array that goes on past the
-// line, as one with a comment within it, or a string that does, does.
+// line: one with a comment in it, or a string in it that goes on past the
+// line.
 func arrayEnd(text string) int {
 	depth := 0
 	for i := 0; i < len(text); i++ {
