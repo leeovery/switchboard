@@ -158,9 +158,10 @@ func (m *PoolMover) stopped(name string) error {
 
 // noteFirst notes the first pool in the accounts record, under its lock,
 // where it notes none: the config's first, in its order, where it has pools,
-// as where another Mac sharing it moved first; else one made, its id drawn
-// as identity's NewPoolID draws one. The config is read under the lock, as
-// accounts add and remove save it with the record under it.
+// as where another Mac sharing it moved first, the record kept in step with
+// every pool the config has, as KeepPoolsUp keeps it; else one made, its id
+// drawn as identity's NewPoolID draws one. The config is read under the
+// lock, as accounts add and remove save it with the record under it.
 func (m *PoolMover) noteFirst() error {
 	return m.record().Change(func(r *identity.Record, _ func() error) error {
 		if _, ok := r.FirstPool(); ok {
@@ -171,7 +172,9 @@ func (m *PoolMover) noteFirst() error {
 			return err
 		}
 		if cfg := draft.Config(); cfg != nil && len(cfg.Pools) > 0 {
-			r.NoteFirst(cfg.Pools[0].ID, identity.WrittenOf(cfg.Pools[0], cfg.Accounts), m.now().UTC())
+			now := m.now().UTC()
+			r.KeepPoolsUp(identity.Followed{Accounts: cfg.Accounts, Pools: cfg.Pools}, now)
+			r.NoteFirst(cfg.Pools[0].ID, identity.WrittenOf(cfg.Pools[0], cfg.Accounts), now)
 			return nil
 		}
 		id, err := r.NewPoolID(m.random(), configuredIDs(draft))
@@ -317,16 +320,16 @@ func recorded(record identity.Record, id string) (identity.Entry, bool) {
 
 // restorePrimaries marks in draft, its pools written back, each pool's
 // primary as record has the config last make it: the account it was, where
-// the config has that account in that pool still, and no other; none, where
-// the pool had no account, so its first stands. A pool whose primary the
-// record doesn't know, as PoolWritten's PrimaryKnown says, as one the move
-// to pools made that the record hasn't been kept in step with since, keeps
-// the marks draft has.
+// the config has that account in that pool still, and no other. A pool whose
+// primary the record doesn't know, as PoolWritten's PrimaryKnown says, as one
+// the move to pools made that the record hasn't been kept in step with
+// since, or that the config last had no account in, so had no primary,
+// keeps the marks draft has.
 func restorePrimaries(draft *config.Draft, record identity.Record) error {
 	cfg := draft.Config()
 	for _, a := range cfg.Accounts {
 		p, _ := record.PoolByID(a.Pool)
-		if !p.Written.PrimaryKnown {
+		if !p.Written.PrimaryKnown || p.Written.Primary == "" {
 			continue
 		}
 		e, ok := recorded(record, a.ID)

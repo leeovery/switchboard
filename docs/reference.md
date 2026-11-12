@@ -167,10 +167,16 @@ account. A copy an export writes holds neither `here` nor `written`.
 
 A config put back from before pools is given its pools back from these: the pools marked `here`,
 as last written, each account in the pool it was in, an account in none, as one added since, in the
-unfenced pool, and each pool's primary marked, or left unmarked, as the config last had it. Where
-every pool is fenced, an account in none has no pool to go to: the config is left as it is, and
-tried again each time the router looks at it, the log saying so once; meanwhile the router routes
-every account as the config would be given back, that one in no pool, so no session uses it.
+unfenced pool, and each pool's primary marked as the config last had it, a pool it had no account
+in keeping the marks the config gives. The router does this as it starts, and as it finds the
+config naming no pools, writing the accounts' ids back first; where it can't, as where every pool
+is fenced and an account in none has no pool to go to, the config is left as it is, tried again
+each minute, the log saying so once. Writing the config is a convenience: whether or not it can be
+written, the router routes every account as the config would be given back, one with no pool to go
+to in none, so no session uses it. Where the record can't be read, the pools stand as the router
+last routed within them; and where it never routed within any, as one started on such a config, it
+routes nothing, answering every request with switchboard's refusal saying why, and reports itself
+unhealthy.
 
 Each `id`, `organization` and `was` is held by one account at most, ids compared ignoring case. A
 record that doesn't read, as one damaged or edited wrongly by hand, is left as it is and never

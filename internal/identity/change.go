@@ -164,10 +164,22 @@ func (r *Record) KeepUp(followed Followed, at time.Time) Kept {
 			kept.Removed = append(kept.Removed, e.ID)
 		}
 	}
-	if len(followed.Pools) > 0 {
-		kept.Pools = r.keepPoolsUp(followed, at)
-		r.keepMembersUp(followed.Accounts)
+	kept.Pools = r.KeepPoolsUp(followed, at)
+	return kept
+}
+
+// KeepPoolsUp keeps the record's pools, and the pool each account is in, in
+// step with those followed configures, as KeepUp keeps them, at the time
+// given, and returns what it changed: of a config with pools alone, as one
+// from before pools leaves them as they are. The move to pools keeps them so
+// as it notes the first pool of a config with pools already, before KeepUp
+// first runs, so a heal meanwhile writes back every pool the config has.
+func (r *Record) KeepPoolsUp(followed Followed, at time.Time) PoolsKept {
+	if len(followed.Pools) == 0 {
+		return PoolsKept{}
 	}
+	kept := r.keepPoolsUp(followed, at)
+	r.keepMembersUp(followed.Accounts)
 	return kept
 }
 

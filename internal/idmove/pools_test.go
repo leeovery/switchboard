@@ -742,9 +742,9 @@ func primariesIn(t *testing.T, path string) map[string]string {
 }
 
 // A pool the config last had no account in had no primary, so healed, the
-// accounts it's given have none marked, a mark a config from before pools
-// gives one taken off, and its first stands.
-func TestHealingTakesTheMarksOffAPoolTheConfigLastHadNoAccountIn(t *testing.T) {
+// accounts it's given keep the marks the config from before pools gives
+// them.
+func TestHealingLeavesTheMarksInAPoolTheConfigLastHadNoAccountIn(t *testing.T) {
 	f := newIDsFixture(t)
 	unpooled := readFile(t, f.config)
 	first := f.pooled(t)
@@ -763,8 +763,8 @@ func TestHealingTakesTheMarksOffAPoolTheConfigLastHadNoAccountIn(t *testing.T) {
 	want := map[string]string{
 		work:     clientPool.ID + " primary true",
 		personal: clientPool.ID + " primary false",
-		"n4p8":   first + " primary true",
-		"m2k5":   first + " primary false",
+		"n4p8":   first + " primary false",
+		"m2k5":   first + " primary true",
 	}
 	if got := primariesIn(t, f.config); !maps.Equal(got, want) {
 		t.Errorf("healed, the accounts are %v, want %v", got, want)
@@ -802,6 +802,51 @@ func TestHealingBeforeTheRecordIsKeptInStepWritesTheFirstPoolAsTheConfigHadIt(t 
 	}
 	if pools, _ := poolsIn(t, f.config); !slices.Equal(pools, []string{"b2n8 Everything "}) {
 		t.Errorf("healed, the config holds the pools %q, want the first labelled Everything, as the config had it", pools)
+	}
+}
+
+// configWithClient is the fixture's config moved onto the ids, work in the
+// first pool, Everything, unfenced, and personal in Client, fenced.
+const configWithClient = `[[account]]
+id    = "b6s7"
+label = "Work"
+pool  = "b2n8"
+
+[[account]]
+id    = "qgr2"
+label = "personal"
+pool  = "c1nt"
+
+[[pool]]
+id    = "b2n8"
+label = "Everything"
+
+[[pool]]
+id    = "c1nt"
+label = "Client"
+dirs  = ["/work/client"]
+`
+
+// The move notes the first pool of a config with pools, as another Mac
+// sharing it moved first, with every other pool the config has: so a heal
+// before the record is ever kept in step with the config writes a client's
+// pool back, its account in it, never in the first.
+func TestHealingBeforeTheRecordIsKeptInStepWritesEveryPoolTheConfigHad(t *testing.T) {
+	f := newIDsFixture(t)
+	unpooled := readFile(t, f.config)
+	writeFile(t, f.config, configWithClient)
+	f.pooled(t)
+
+	writeFile(t, f.config, unpooled)
+	if healed, err := idmove.HealPools(f.config, f.state, testHome); err != nil || !healed {
+		t.Fatalf("HealPools() = %v, %v; want the config healed", healed, err)
+	}
+	pools, members := poolsIn(t, f.config)
+	if want := []string{"b2n8 Everything ", "c1nt Client /work/client"}; !slices.Equal(pools, want) {
+		t.Errorf("healed, the config holds the pools %q, want %q, as the config had them", pools, want)
+	}
+	if want := map[string]string{"b6s7": "b2n8", "qgr2": "c1nt"}; !maps.Equal(members, want) {
+		t.Errorf("healed, the accounts are in the pools %v, want %v", members, want)
 	}
 }
 

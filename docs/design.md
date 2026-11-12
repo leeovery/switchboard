@@ -736,7 +736,8 @@ read as a pool by its leaving one out (the owner's call, 11 November 2026).
     `Default`, and writes it to the config in one edit with every account's `pool`, as Account
     identity's move writes the ids. The accounts record notes it as the first pool. Where the config
     has pools already, as where another Mac sharing it moved first, the first pool in the config's
-    order is this Mac's first, and the config isn't written. Its id is random, as every pool's is:
+    order is this Mac's first, the record keeping every pool the config has as this Mac's, as the
+    router keeps it, and the config isn't written. Its id is random, as every pool's is:
     the config carries it to every Mac that shares it, as Account identity says those Macs upgrade
     together. A Mac that moves on a shared config before the first pool has reached it makes one of
     its own, and the configs differ till one is kept; that Mac's history before pools then stays
@@ -775,12 +776,24 @@ read as a pool by its leaving one out (the owner's call, 11 November 2026).
     only by this Mac's config, as the record marks it: one an import brings in is never written
     back here, nor marked this Mac's till its config has it. Putting every account in the first
     pool would drop a client's pool and its fence, and run the client's sessions on the owner's
-    accounts. One owner, in `idmove`, gives the pools a config naming none is to have, and the
-    router routes by the same while the config names none: each account in the pool the heal
-    would put it in, one with no pool to go to in none, so no session uses it, never a pool it
-    wasn't in. The router heals as it starts, before it reads the config, and at each look at the
-    config till it's healed, whether or not it changed, saying once for each config that it
-    couldn't, so a config put back is healed within seconds.
+    accounts. A pool the config last had no account in had no primary, so the accounts the heal
+    gives it keep the marks the config gives them.
+  - **Safety never rests on the heal.** Writing the pools back is a convenience for the owner's
+    file; what keeps the pools apart is how the router routes. One owner, in `idmove`, gives the
+    pools a config naming none is to have, from the accounts record, and the router routes by the
+    same while the config names none, worked out afresh at each look: each account in the pool the
+    heal would put it in, one with no pool to go to in none, so no session uses it, never a pool
+    it wasn't in. Where the record can't be read, or keeps no pool of this Mac's, the pools stand
+    as the router last routed within them, an account it hadn't in none; where it never routed
+    within any, as one started on such a config once the move's done, it routes nothing,
+    answering every request with switchboard's refusal saying why, saying so once in the log, and
+    reporting itself unhealthy, till the config has its pools or the record reads. Every table it
+    routes by knows each account by its id now, so a config naming the ids from before
+    switchboard made them routes as one naming the new. The router heals as it starts, before it
+    reads the config, and as it finds the config naming none, the accounts' ids first, then the
+    pools, so the file it leaves is one it reads as written; while a heal fails it's tried once a
+    minute, the log saying once for each config that it couldn't, the heal as it started among
+    them.
   - It's proved before release on a copy of the owner's own history, taken with his word, never on
     the real one: every file moved, every day's totals the same before and after, and the
     dashboard and the verbs reading it whole.
