@@ -18,11 +18,10 @@ const (
 	// hoursWeekdays are the grid's rows, a weekday each, as the page has
 	// them wherever it has a grid.
 	hoursWeekdays = 7
-	// An hour takes from one cell, a tile alone, to hourMostCells, its
-	// natural hourNaturalCells; each but the first, one at least, its tile's,
-	// and its last a gap.
+	// An hour takes one cell, a tile alone, at the least; and from its
+	// natural, hourNaturalCells, as many as the grid's width gives every
+	// hour alike, each but the last its tile's, and its last a gap.
 	hourNaturalCells = 2
-	hourMostCells    = 4
 	// hoursLabelEvery is how many hours apart the hours over the grid are
 	// labelled, from midnight's.
 	hoursLabelEvery = 3
@@ -48,9 +47,10 @@ type hoursGrid struct {
 
 // hoursPart is WHEN YOU WORK across the cells flex lays it in: a weekday's
 // name and an hour a cell at its least, a tile alone; hourNaturalCells an
-// hour at its natural; and growing to hourMostCells an hour at its most.
+// hour at its natural; and growing with what's spare, its hours growing
+// with it, as hourCells has them.
 func hoursPart() flex.Part {
-	return flex.Part{Least: hoursWidth(1), Natural: hoursWidth(hourNaturalCells), Most: hoursWidth(hourMostCells), Grows: true}
+	return flex.Part{Least: hoursWidth(1), Natural: hoursWidth(hourNaturalCells), Grows: true}
 }
 
 // hoursLaid is the width WHEN YOU WORK takes of room cells, as flex lays
@@ -65,10 +65,21 @@ func hoursWidth(hourCells int) int {
 	return hoursGridX + hoursADay*hourCells
 }
 
-// hourCells are the cells an hour takes of a grid width cells wide:
-// ⌊(width − hoursGridX) / hoursADay⌋, from one to hourMostCells.
+// hourCells are the cells each of the grid's hours takes of a grid width
+// cells wide: narrower than its natural, one, a tile alone; else as many as
+// the width gives every hour alike, so the grid is of squares, the odd cells
+// left at the row's end, as a card leaves its.
 func hourCells(width int) int {
-	return min(max((width-hoursGridX)/hoursADay, 1), hourMostCells)
+	if width < hoursWidth(hourNaturalCells) {
+		return 1
+	}
+	return (width - hoursGridX) / hoursADay
+}
+
+// hoursWhole is the width the grid's whole hours take of width cells, its
+// odd cells left out.
+func hoursWhole(width int) int {
+	return hoursWidth(hourCells(width))
 }
 
 // tileCells are the cells of an hour's tile, of its cells: all but its last,
@@ -88,8 +99,9 @@ func (g hoursGrid) rows(width int) int {
 // nothing outside the rows it takes: where no day is known, that nothing is
 // recorded, in text.subtle; else every third hour, 00 to 21, in text.faint,
 // over its column; under them, a row a weekday, its name in text.subtle and
-// from hoursGridX its hours, each a tile as tile draws it at its level; and
-// where any hour is active, under a blank row, the key, from hoursGridX.
+// from hoursGridX its hours, each as wide as hourCells has it, each
+// a tile as tile draws it at its level; and where any hour is active, under
+// a blank row, the key, from hoursGridX.
 func (g hoursGrid) draw(c *canvas, x, y, width int) {
 	in := c.within(bounds{x: x, y: y, width: width, rows: g.rows(width)})
 	if len(g.page.Days) == 0 {

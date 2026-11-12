@@ -16,7 +16,7 @@ import (
 // window, where the page lists windows, as listsModels says, as
 // toggleModels has it; on the Overview, u, r, s, c and l show and hide its
 // sections and b switches how its windows are grouped, as overviewKey says;
-// on Graphs, w, f, o, g and h show and hide its sections, as graphsKey says;
+// on Graphs, w, o, g and h show and hide its sections, as graphsKey says;
 // on Accounts, its keys act as accountsKey says; on History, [ ], < >, v and
 // ← → act as historyKey says; on Sessions, its keys act as sessionsKey says;
 // on Runway, < > and ← → act as runwayKey says; on the Log, [ ], ↑ ↓, end,
@@ -107,13 +107,13 @@ func (m Model) overviewScroll(key string) (scrollStep, bool) {
 
 // graphsKey acts on a key of Graphs', reporting false for a key it doesn't
 // take, or on another tab: a section's key shows or hides it, as
-// toggleGraphs has it, where Graphs offers it, as graphsOffers has it.
+// toggleGraphs has it.
 func (m Model) graphsKey(key string) (Model, bool) {
 	if m.shownView() != dashboard.Graphs {
 		return m, false
 	}
 	section, ok := dashboard.GraphsSectionKeyed(key)
-	if !ok || !m.graphsOffers(section) {
+	if !ok {
 		return m, false
 	}
 	return m.toggleGraphs(section), true
@@ -186,13 +186,12 @@ func (m Model) overviewListings() []keyListing {
 	)
 }
 
-// graphsListings are Graphs' own keys: the toggles of the sections it
-// offers, as graphsOffers has them, each word faint where its section is
-// hidden.
+// graphsListings are Graphs' own keys: the toggles of its sections, each
+// word faint where its section is hidden.
 func (m Model) graphsListings() []keyListing {
 	graphs := m.shownView() == dashboard.Graphs
 	var own []keyListing
-	for _, k := range m.graphs.TogglesOf(m.graphsOffers) {
+	for _, k := range m.graphs.Toggles() {
 		own = append(own, keyListing{Key: k, works: graphs})
 	}
 	return own

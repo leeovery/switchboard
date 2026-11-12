@@ -96,7 +96,7 @@ func TestEachTapePlaysItsScenarioAsItsCuesAreTimedFor(t *testing.T) {
 			shows: []shows{
 				{at: 0, says: []string{"5 sessions  ·  new sessions → ▲ work", "~16:05     work reaches its cap", "◔ work came under pressure"}},
 				{at: 6.2, says: []string{"Requests"}, tab: "Log"},
-				{at: 11.2, says: []string{"WEEK", "5-HOUR", "work"}, not: []string{"RUNWAY"}, tab: "Graphs"},
+				{at: 11.2, says: []string{"WEEK", "work"}, not: []string{"RUNWAY", "5-HOUR"}, tab: "Graphs"},
 				{at: 15.5, says: []string{"RUNWAY", "< 5-hour >", "work ◆ ▲", "5-hour 59%"}, not: []string{"Σ pool"}},
 			},
 		},

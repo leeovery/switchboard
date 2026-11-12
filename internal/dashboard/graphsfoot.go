@@ -8,7 +8,7 @@ import (
 )
 
 // footApart are the cells between the items of v0.1's legend, and
-// between the windows on the pool's line.
+// between the parts of the pool's line.
 const footApart = 3
 
 // burnLegend is v0.1's legend under Graphs' burn-down cards, width cells
@@ -30,31 +30,25 @@ func burnLegend(width int, reserved bool) []line {
 }
 
 // poolLine is the pool's line of the moment m, width cells wide: Σ in
-// text.subtle and pool in text.secondary; then, footApart on, the room
-// of the window of each of Runway's views, the week's first, as its pool
-// lane words it, the view's name in text.subtle before it, footApart
-// apart; and where a pin holds the pool, " · pinned" after the first, as
-// usage has it. As many of those parts as fit, whole, from the first, so the
-// 5-hour's goes first, then the pin. It says nothing where the moment has no
-// pool, as usage's pool row says none, before the document holds two
-// accounts; a pool of accounts not read yet is Σ pool alone, as Runway's.
+// text.subtle and pool in text.secondary; then, footApart on, the room of
+// the week, as its pool lane on Runway words it, the view's name in
+// text.subtle before it; and where a pin holds the pool, " · pinned" after
+// it, as usage has it. As many of those parts as fit, whole, from the first,
+// so the pin goes first. It says nothing where the moment has no pool, as
+// usage's pool row says none, before the document holds two accounts; a pool
+// of accounts not read yet is Σ pool alone, as Runway's.
 func (f Frame) poolLine(m status.Moment, width int) line {
 	pool := m.Pool()
 	if len(pool.Accounts) == 0 {
 		return nil
 	}
 	parts := []line{{{"Σ ", dimInk}, {"pool", noteInk}}}
-	pinned := pool.Pinned
-	for _, w := range runwayWindows {
-		key := w.KeyIn(m)
-		r, ok := runwayRoom(m, key)
-		if !ok {
-			continue
-		}
+	key := GraphsWindow.KeyIn(m)
+	if r, ok := runwayRoom(m, key); ok {
 		g := gauge{of: Ref{Window: key}, words: poolWords(r.room, r.accounts, false)}
-		parts = append(parts, slices.Concat(line{spaces(footApart), {runwayNames[w] + " ", dimInk}}, g.led(g.words.full)))
-		if pinned {
-			parts, pinned = append(parts, line{pinnedSaid}), false
+		parts = append(parts, slices.Concat(line{spaces(footApart), {runwayNames[GraphsWindow] + " ", dimInk}}, g.led(g.words.full)))
+		if pool.Pinned {
+			parts = append(parts, line{pinnedSaid})
 		}
 	}
 	return wholeParts(parts, width)
