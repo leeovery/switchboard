@@ -1349,7 +1349,7 @@ func TestThePoolsAreFollowedAsTheyChangeTheFirstReadAfreshWithThem(t *testing.T)
 	first := acmePool
 	m := newMembership(func() (identity.Record, bool) {
 		return identity.Record{Pools: []identity.PoolEntry{{ID: first, Added: start, First: true, Here: true}}}, true
-	}, never, asGiven, nil)
+	}, never, sameID, nil)
 	accounts := pooledAccounts()
 
 	m.follow(accounts, testPools)
@@ -1456,7 +1456,7 @@ func TestAConfigThatLosesItsPoolsKeepsThemOnceTheMoveIsDone(t *testing.T) {
 			if tt.moved {
 				moved = alwaysMoved
 			}
-			m := newMembership(record, moved, asGiven, nil)
+			m := newMembership(record, moved, sameID, nil)
 			if tt.pooled {
 				m.follow(pooledAccounts(), testPools)
 			}
@@ -1483,7 +1483,7 @@ func TestAConfigThatLosesItsPoolsKeepsThemOnceTheMoveIsDone(t *testing.T) {
 
 func TestAConfigThatLosesItsPoolsAgainIsWarnedOfAgain(t *testing.T) {
 	log := logstest.Capture(t)
-	m := newMembership(noRecord, alwaysMoved, asGiven, nil)
+	m := newMembership(noRecord, alwaysMoved, sameID, nil)
 
 	for range 2 {
 		m.follow(pooledAccounts(), testPools)
@@ -1497,7 +1497,7 @@ func TestAConfigThatLosesItsPoolsAgainIsWarnedOfAgain(t *testing.T) {
 
 func TestAConfigThatLosesItsPoolsKeepsThoseMadeLast(t *testing.T) {
 	logstest.Capture(t)
-	m := newMembership(noRecord, alwaysMoved, asGiven, nil)
+	m := newMembership(noRecord, alwaysMoved, sameID, nil)
 	all := config.Accounts{{ID: "work"}, {ID: "personal"}, {ID: "side"}}
 	moved := pooledAccounts()
 	moved[2].Pool = acmePool
@@ -1513,7 +1513,7 @@ func TestAConfigThatLosesItsPoolsKeepsThoseMadeLast(t *testing.T) {
 }
 
 func TestAConfigThatLosesItsPoolsKnowsItsAccountsByTheirIDsNow(t *testing.T) {
-	idNow := func(_ identity.Record, id string) string { return strings.TrimPrefix(id, "old-") }
+	idNow := func(id string) string { return strings.TrimPrefix(id, "old-") }
 	tests := []struct {
 		name string
 		// recorded has the accounts record keep the pools, as
@@ -1577,7 +1577,7 @@ func TestAConfigThatLosesItsPoolsKnowsItsAccountsByTheirIDsNow(t *testing.T) {
 }
 
 func TestAConfigWithPoolsKnowsItsAccountsByTheirIDsNow(t *testing.T) {
-	m := newMembership(noRecord, never, func(_ identity.Record, id string) string { return strings.TrimPrefix(id, "old-") }, nil)
+	m := newMembership(noRecord, never, func(id string) string { return strings.TrimPrefix(id, "old-") }, nil)
 	old := pooledAccounts()
 	for i := range old {
 		old[i].ID = "old-" + old[i].ID
@@ -1591,69 +1591,6 @@ func TestAConfigWithPoolsKnowsItsAccountsByTheirIDsNow(t *testing.T) {
 				t.Errorf("holds(%s, %s) = %v, want %v: each account by the id it has now", pool, id, got, pool == want)
 			}
 		}
-	}
-}
-
-func TestAnAccountIsKnownByTheIDTheRouterHasItByWhicheverItsNamedBy(t *testing.T) {
-	record := identity.Record{Accounts: []identity.Entry{{ID: "work", Was: "old-work"}, {ID: "personal", Was: "old-personal"}, {ID: "side"}}}
-	holding := func(ids ...string) accounts {
-		held := make(accounts, len(ids))
-		for i, id := range ids {
-			held[i] = account{ID: id}
-		}
-		return held
-	}
-	tests := []struct {
-		name     string
-		held     accounts
-		id, want string
-	}{
-		{name: "an id the router has", held: holding("work"), id: "work", want: "work"},
-		{name: "the id from before, the router on the new one", held: holding("work"), id: "old-work", want: "work"},
-		{name: "the new id, the router on the one from before", held: holding("old-work"), id: "work", want: "old-work"},
-		{name: "the new id, the router on neither", held: holding("old-personal"), id: "work", want: "work"},
-		{name: "an id with none before it", held: holding("old-work"), id: "side", want: "side"},
-		{name: "none", held: holding("work"), id: "", want: ""},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.held.idNow(formerlyOld, wasIn(record), tt.id); got != tt.want {
-				t.Errorf("idNow(%q) = %q, want %q", tt.id, got, tt.want)
-			}
-		})
-	}
-	if got := holding("old-work").idNow(nil, nil, "work"); got != "work" {
-		t.Errorf("knowing of no ids from before, idNow(work) = %q, want work", got)
-	}
-}
-
-func TestARouterStartedOnTheIDsFromBeforeRoutesWithinThePoolsOfAConfigNamingThoseMadeSince(t *testing.T) {
-	logstest.Capture(t)
-	stateDir := t.TempDir()
-	path := filepath.Join(t.TempDir(), "config.toml")
-	writeConfigFile(t, path, unpooledTOML("old-work", "old-personal", "old-side"))
-	cfg := testConfig(at(start), &stubProber{}, tokenstest.Files{"old-work": workToken, "old-personal": personalToken, "old-side": sideToken}.Read)
-	cfg.Accounts = config.Accounts{{ID: "old-work", Label: "old-work"}, {ID: "old-personal", Label: "old-personal"}, {ID: "old-side", Label: "old-side"}}
-	cfg.ConfigFile, cfg.StateDir = Watch(path), stateDir
-	r := newTestRouterOf(t, cfg)
-	// Side's quota needs using first, then personal's, then work's.
-	readWeeks(r, map[string]quota.Window{"old-side": soonWeek, "old-personal": laterWeek, "old-work": latestWeek})
-	upstream := servingAll(served, served, served)
-	r.proxy.transport = upstream
-
-	// Both moves are made as it runs, and the config comes to name the ids
-	// made, in pools, side in Acme.
-	movedBothWays(t, stateDir)
-	writeConfigFile(t, path, poolsTOML(acmePool, defaultTOML, acmeTOML))
-	r.upkeep.look()
-	defaults := routeIn(t, r, workToken, "one", defaultPool, nil)
-	acmes := routeIn(t, r, personalToken, "two", acmePool, nil)
-
-	if defaults.Code != http.StatusOK || acmes.Code != http.StatusOK {
-		t.Errorf("Default's request was answered %d and Acme's %d, want 200 each", defaults.Code, acmes.Code)
-	}
-	if sent, want := upstream.sent(), []string{"work", "side"}; !slices.Equal(sent, want) {
-		t.Errorf("the requests went out on %q, want %q: each account, by the id the router has, in the pool the config names", sent, want)
 	}
 }
 
@@ -1685,7 +1622,7 @@ func TestAConfigThatLosesItsPoolsOnceMovedWithNothingToTellThemByRoutesNothingSa
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			log := logstest.Capture(t)
-			m := newMembership(tt.record, alwaysMoved, asGiven, nil)
+			m := newMembership(tt.record, alwaysMoved, sameID, nil)
 
 			m.follow(lost, nil)
 			m.follow(lost, nil)
@@ -1710,7 +1647,7 @@ func TestAConfigThatLosesItsPoolsOnceMovedWithNothingToTellThemByRoutesNothingSa
 
 func TestAConfigPutBackWithAnAccountTheRouterLacksWakesNoReaderForNothingAndChangesSafely(t *testing.T) {
 	logstest.Capture(t)
-	m := newMembership(noRecord, alwaysMoved, asGiven, nil)
+	m := newMembership(noRecord, alwaysMoved, sameID, nil)
 	m.follow(pooledAccounts(), testPools)
 
 	// The config is put back from before pools without side, still listing
@@ -1745,7 +1682,7 @@ func TestAConfigPutBackWithAnAccountTheRouterLacksWakesNoReaderForNothingAndChan
 
 func TestTheWholePoolsPutBackAfterTheyWereLostAreStoredAfreshAndReplacedSafely(t *testing.T) {
 	logstest.Capture(t)
-	m := newMembership(noRecord, alwaysMoved, asGiven, nil)
+	m := newMembership(noRecord, alwaysMoved, sameID, nil)
 	m.follow(pooledAccounts(), testPools)
 	pooled := m.current()
 
@@ -1807,7 +1744,7 @@ func TestTablesAreTheSameOnlyWhereEveryFieldRoutingReadsIs(t *testing.T) {
 func TestAConfigNamingNoPoolsIsFollowedAfreshTillTheRecordTellsItsPools(t *testing.T) {
 	logstest.Capture(t)
 	readable := false
-	m := newMembership(func() (identity.Record, bool) { return recordOfThePools(), readable }, alwaysMoved, asGiven, nil)
+	m := newMembership(func() (identity.Record, bool) { return recordOfThePools(), readable }, alwaysMoved, sameID, nil)
 	lost := config.Accounts{{ID: "work"}, {ID: "personal"}, {ID: "side"}}
 
 	m.follow(lost, nil)

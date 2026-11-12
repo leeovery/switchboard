@@ -309,12 +309,12 @@ type membership struct {
 	// keeps of this Mac's config and the pool it keeps each account in,
 	// reporting false where it can't; moved reports whether the move to pools
 	// is done, as its mark says, whether the record can be read or not. idNow
-	// gives the id the router knows an account a config names by, the record
-	// read as given, as accounts' idNow does; homeDir the home directory the
-	// pools the record keeps are read in, as the config is.
+	// gives the id an account a config names has now, as accounts' idNow
+	// does; homeDir the home directory the pools the record keeps are read
+	// in, as the config is.
 	record  func() (identity.Record, bool)
 	moved   func() bool
-	idNow   func(record identity.Record, id string) string
+	idNow   func(id string) string
 	homeDir func() (string, error)
 
 	// mu is held as the pools are followed, and guards what they were last
@@ -333,13 +333,13 @@ type membership struct {
 
 // newMembership returns the membership of a router that reads the accounts
 // record as record does, tells the move to pools done as moved does, the id
-// it knows an account a config names by as idNow does, and reads the pools
-// the record keeps in the home directory homeDir returns, following no pools
+// an account a config names has now as idNow does, and reads the pools the
+// record keeps in the home directory homeDir returns, following no pools
 // yet: every account in the one pool there is, as in a config from before
 // pools.
-func newMembership(record func() (identity.Record, bool), moved func() bool, idNow func(record identity.Record, id string) string, homeDir func() (string, error)) *membership {
+func newMembership(record func() (identity.Record, bool), moved func() bool, idNow func(id string) string, homeDir func() (string, error)) *membership {
 	m := &membership{record: record, moved: moved, idNow: idNow, homeDir: homeDir}
-	m.table.Store(newPoolTable(nil, nil, "", sameID).stored())
+	m.table.Store(newPoolTable(nil, nil, "", idNow).stored())
 	return m
 }
 
@@ -347,7 +347,7 @@ func newMembership(record func() (identity.Record, bool), moved func() bool, idN
 // and has no accounts record: every account in the one pool there is, as a
 // playback of the history has it.
 func unpooled() *membership {
-	return newMembership(noRecord, never, asGiven, nil)
+	return newMembership(noRecord, never, sameID, nil)
 }
 
 // first returns the id of the first pool, as the accounts record notes it:
@@ -427,18 +427,16 @@ func (m *membership) unchanged(accounts config.Accounts, pools config.Pools) boo
 // repository it's kept in, which upkeep's heal gives them back once the move
 // is done: meanwhile the pools stand as kept says, so no pool's work goes
 // out on another's accounts, whether or not the heal can be written, and the
-// log says how, once for each way they stand. Each account is known by the
-// id the router knows it by, as idNow gives it of record. m.mu must be held.
+// log says how, once for each way they stand. m.mu must be held.
 func (m *membership) made(record identity.Record, readable bool, accounts config.Accounts, pools config.Pools) *poolTable {
-	idNow := func(id string) string { return m.idNow(record, id) }
 	if len(pools) > 0 {
 		first, _ := record.FirstPool()
-		m.told, m.said = newPoolTable(accounts, pools, first.ID, idNow), ""
+		m.told, m.said = newPoolTable(accounts, pools, first.ID, m.idNow), ""
 		return m.told
 	}
-	kept, said := m.kept(record, readable, accounts, idNow)
+	kept, said := m.kept(record, readable, accounts)
 	if kept == nil {
-		return newPoolTable(accounts, nil, "", idNow)
+		return newPoolTable(accounts, nil, "", m.idNow)
 	}
 	if said != m.said {
 		m.said = said
@@ -461,18 +459,17 @@ const lostPools = "the config names no pools"
 // routed, as which pool each account is in can't be told. Before the move is
 // done, those told last, as a config that had pools mid-move and lost them
 // has them; and nil, saying nothing, where none were ever told, as a config
-// from before pools makes none. Each account is known by the id idNow gives.
-// m.mu must be held.
-func (m *membership) kept(record identity.Record, readable bool, accounts config.Accounts, idNow func(id string) string) (*poolTable, string) {
+// from before pools makes none. m.mu must be held.
+func (m *membership) kept(record identity.Record, readable bool, accounts config.Accounts) (*poolTable, string) {
 	if !m.moved() {
 		if m.told == nil {
 			return nil, ""
 		}
-		return m.keptAsTold(accounts, idNow, "the move to pools isn't done")
+		return m.keptAsTold(accounts, "the move to pools isn't done")
 	}
 	why := "the accounts record can't be read"
 	if readable {
-		t, err := keptTable(record, accounts, idNow, m.homeDir)
+		t, err := keptTable(record, accounts, m.idNow, m.homeDir)
 		if err == nil {
 			m.told = t
 			return t, lostPools + "; the router routes within those the accounts record keeps of this Mac's config till the config is given them again"
@@ -480,7 +477,7 @@ func (m *membership) kept(record identity.Record, readable bool, accounts config
 		why = err.Error()
 	}
 	if m.told != nil {
-		return m.keptAsTold(accounts, idNow, why)
+		return m.keptAsTold(accounts, why)
 	}
 	closed := lostPools + " and " + why + ", so the pool each account is in can't be told"
 	return closedTable(closed), closed + "; nothing is routed till that's put right"
@@ -488,11 +485,10 @@ func (m *membership) kept(record identity.Record, readable bool, accounts config
 
 // keptAsTold returns the pools the router routes within as last told, but
 // for accounts that have left the config, and those new to them, in none, as
-// keeping says, each known by the id idNow gives, and what the log says of
-// them, why saying why the record doesn't tell them. m.mu must be held, and
-// told set.
-func (m *membership) keptAsTold(accounts config.Accounts, idNow func(id string) string, why string) (*poolTable, string) {
-	return m.told.keeping(accounts, idNow), lostPools + ", and " + why + "; the pools stand as the router last routed within them, " +
+// keeping says, and what the log says of them, why saying why the record
+// doesn't tell them. m.mu must be held, and told set.
+func (m *membership) keptAsTold(accounts config.Accounts, why string) (*poolTable, string) {
+	return m.told.keeping(accounts, m.idNow), lostPools + ", and " + why + "; the pools stand as the router last routed within them, " +
 		"an account new to them in none, till the config is given them again"
 }
 
@@ -573,10 +569,5 @@ func never() bool {
 // sameID knows of no id an account had before switchboard made ids: an
 // account's id now is the one given.
 func sameID(id string) string {
-	return id
-}
-
-// asGiven is sameID whatever the accounts record says.
-func asGiven(_ identity.Record, id string) string {
 	return id
 }

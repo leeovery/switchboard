@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
-	"github.com/leeovery/switchboard/internal/identity"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/tokens"
 )
@@ -286,40 +285,18 @@ func (as accounts) byID(id string) (account, bool) {
 	return as[i], true
 }
 
-// idNow returns the id the router knows the account named by the id given
-// by, where switchboard made it another: the id given, where there's an
-// account of it; else the id of the one that had it before switchboard made
-// ids, as formerly gives it, where one did, as a config put back from before
-// names it; else the id the account had before, as was gives it, where
-// there's an account of that, as a router started on the ids from before
-// has them while the config names those made since; else the id given. A nil
-// formerly, or was, knows of none.
-func (as accounts) idNow(formerly, was func(id string) (string, bool), id string) string {
-	if _, ok := as.byID(id); ok || id == "" {
+// idNow returns the id the account named by the id given has now: the id
+// given, where there's an account of it, else the id of the one that had it
+// before switchboard made ids, as formerly gives it, where one did, else the
+// id given. A nil formerly knows of none.
+func (as accounts) idNow(formerly func(id string) (string, bool), id string) string {
+	if _, ok := as.byID(id); ok || id == "" || formerly == nil {
 		return id
 	}
-	if formerly != nil {
-		if now, ok := formerly(id); ok {
-			return now
-		}
-	}
-	if was != nil {
-		if before, ok := was(id); ok {
-			if _, held := as.byID(before); held {
-				return before
-			}
-		}
+	if now, ok := formerly(id); ok {
+		return now
 	}
 	return id
-}
-
-// wasIn returns what gives the id the account with the id given had before
-// switchboard made ids, as record has it, reporting false where it had none.
-func wasIn(record identity.Record) func(id string) (string, bool) {
-	return func(id string) (string, bool) {
-		e, ok := record.ByID(id)
-		return e.Was, ok && e.Was != ""
-	}
 }
 
 // sender is who a request's token says sent it: the account it's routed as,

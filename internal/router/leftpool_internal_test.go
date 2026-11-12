@@ -510,7 +510,7 @@ func TestTheFirstPoolIsReadForAnHeirOnlyWhereNeededOnceALook(t *testing.T) {
 	m := newMembership(func() (identity.Record, bool) {
 		reads++
 		return identity.Record{}, true
-	}, never, asGiven, nil)
+	}, never, sameID, nil)
 	m.follow(heirTestAccounts(), testPools)
 	as := held("work", "extra", "personal", "side")
 
@@ -536,7 +536,7 @@ func keepingGoneIn(pool string) func() (identity.Record, bool) {
 
 func TestAnHeirIsOfThePoolTheAccountsRecordKeepsWhereThePoolsCantTell(t *testing.T) {
 	// Gone left the config before the router started; personal is in Acme.
-	m := newMembership(keepingGoneIn(acmePool), never, asGiven, nil)
+	m := newMembership(keepingGoneIn(acmePool), never, sameID, nil)
 	h := m.heirs(heirTestAccounts(), testPools)
 	m.follow(heirTestAccounts(), testPools)
 	as := held("work", "extra", "personal", "side")
@@ -557,7 +557,7 @@ func TestThePoolsTheAccountsRecordKeepsAreTakenUpOnceItReadsThoughTheConfigStays
 		{ID: "gone", Added: start, Removed: start, Was: "old-gone", Pool: acmePool},
 	}}
 	readable := false
-	m := newMembership(func() (identity.Record, bool) { return record, readable }, never, asGiven, nil)
+	m := newMembership(func() (identity.Record, bool) { return record, readable }, never, sameID, nil)
 	m.follow(pooledAccounts(), testPools)
 	unread := m.current()
 	if pool := unread.poolIn("old-gone"); pool != "" {
@@ -618,7 +618,7 @@ func TestWhetherARequestsTokenHasLeftItsPool(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m := newMembership(keepingGoneIn(tt.recorded), never, asGiven, nil)
+			m := newMembership(keepingGoneIn(tt.recorded), never, sameID, nil)
 			if tt.unpooled {
 				m.follow(testConfigured, nil)
 			} else {

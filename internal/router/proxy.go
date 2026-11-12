@@ -303,7 +303,7 @@ func (p *proxy) passThrough(w http.ResponseWriter, r *http.Request) {
 // warns of a pin it ignores, once for each session and account, as
 // warned says, and notes it at debug after.
 func (p *proxy) pin(r *http.Request, ex *exchange, session, pool string) string {
-	id := p.accounts.idNow(p.formerly, nil, r.Header.Get(PinHeader))
+	id := p.accounts.idNow(p.formerly, r.Header.Get(PinHeader))
 	if id == "" {
 		return ""
 	}
