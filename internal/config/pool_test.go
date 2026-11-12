@@ -370,14 +370,14 @@ func TestFencesOfReadsEveryPoolsDirectoriesWhateverIsWrongWithThem(t *testing.T)
 		{name: "no config"},
 		{name: "no pools", text: new("[[account]]\nid = \"work\"\n")},
 		{
-			name: "two unfenced, overlapping fences, a label too long and a directory that can't be found: every fence found",
+			name: "two unfenced, overlapping fences, a label too long and a directory that can't be placed: every fence found, and that one unplaced",
 			text: new("[[pool]]\nid = \"b2n8\"\n\n[[pool]]\nid = \"h4w2\"\n\n" +
 				"[[pool]]\nid = \"q7mt\"\nlabel = \"" + strings.Repeat("A", 101) + "\"\ndirs = [\"~/Code/acme/\", \"Code/relative\"]\n\n" +
 				"[[pool]]\nid = \"m5r1\"\nlabel = \"Client\"\ndirs = [\"/Users/test/Code/acme/client\"]\n"),
 			want: config.Pools{
 				{ID: "b2n8", Label: "b2n8"},
 				{ID: "h4w2", Label: "h4w2"},
-				{ID: "q7mt", Label: strings.Repeat("A", 101), Dirs: []string{"/Users/test/Code/acme"}, WrittenDirs: []string{"~/Code/acme/", "Code/relative"}},
+				{ID: "q7mt", Label: strings.Repeat("A", 101), Dirs: []string{"/Users/test/Code/acme"}, WrittenDirs: []string{"~/Code/acme/", "Code/relative"}, Unplaced: []string{"Code/relative"}},
 				{ID: "m5r1", Label: "Client", Dirs: []string{"/Users/test/Code/acme/client"}, WrittenDirs: []string{"/Users/test/Code/acme/client"}},
 			},
 		},
@@ -406,12 +406,39 @@ func TestFencesOfReadsEveryPoolsDirectoriesWhateverIsWrongWithThem(t *testing.T)
 	}
 }
 
-func TestFencesOfWithoutAHomeDirectoryPassesOverThoseInIt(t *testing.T) {
+func TestFencesOfWithoutAHomeDirectoryLeavesThoseInItUnplaced(t *testing.T) {
 	path := writeConfig(t, "[[pool]]\nid = \"q7mt\"\ndirs = [\"~/Code/acme\", \"/Volumes/Acme\"]\n")
 
 	got, err := config.FencesOf(path, func() (string, error) { return "", errors.New("no home directory") })
-	if want := []string{"/Volumes/Acme"}; err != nil || len(got) != 1 || !slices.Equal(got[0].Dirs, want) {
-		t.Errorf("FencesOf() = %+v, %v; want one pool fenced to %q", got, err, want)
+	wantDirs, wantUnplaced := []string{"/Volumes/Acme"}, []string{"~/Code/acme"}
+	if err != nil || len(got) != 1 || !slices.Equal(got[0].Dirs, wantDirs) || !slices.Equal(got[0].Unplaced, wantUnplaced) {
+		t.Errorf("FencesOf() = %+v, %v; want one pool fenced to %q, %q unplaced", got, err, wantDirs, wantUnplaced)
+	}
+}
+
+func TestPoolPlacedIn(t *testing.T) {
+	tests := []struct {
+		name         string
+		home         string
+		unplaced     []string
+		wantDirs     []string
+		wantUnplaced []string
+	}{
+		{name: "none"},
+		{name: "absolute, cleaned", unplaced: []string{"/Volumes/Acme/"}, wantDirs: []string{"/Volumes/Acme"}},
+		{name: "in the home directory", home: testHome, unplaced: []string{"~/Code/acme"}, wantDirs: []string{testHome + "/Code/acme"}},
+		{name: "in the home directory, none found", unplaced: []string{"~/Code/acme"}, wantUnplaced: []string{"~/Code/acme"}},
+		{name: "relative", home: testHome, unplaced: []string{"Code/acme"}, wantUnplaced: []string{"Code/acme"}},
+		{name: "a home directory written plainly", home: testHome, unplaced: []string{"~"}, wantUnplaced: []string{"~"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			placed := config.Pool{ID: "q7mt", Dirs: []string{"/Volumes/Old"}, Unplaced: tt.unplaced}.PlacedIn(tt.home)
+			wantDirs := append([]string{"/Volumes/Old"}, tt.wantDirs...)
+			if !slices.Equal(placed.Dirs, wantDirs) || !slices.Equal(placed.Unplaced, tt.wantUnplaced) {
+				t.Errorf("PlacedIn(%q) = dirs %q, unplaced %q; want %q, %q", tt.home, placed.Dirs, placed.Unplaced, wantDirs, tt.wantUnplaced)
+			}
+		})
 	}
 }
 

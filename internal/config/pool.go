@@ -25,6 +25,11 @@ type Pool struct {
 	// none for the unfenced pool. WrittenDirs are the same, as the config
 	// writes them, such as ~/Code/acme, for showing.
 	Dirs, WrittenDirs []string
+	// Unplaced are the directories it writes that can't be placed, as
+	// FencesOf reads a pool of a config that breaks its rules: neither
+	// absolute nor starting ~/, or starting ~/ where no home directory is
+	// found. A pool Load reads has none.
+	Unplaced []string
 }
 
 // Fenced reports whether the pool is fenced to directories: else it's the
@@ -161,12 +166,12 @@ func PoolsOf(path string, homeDir func() (string, error)) (Pools, error) {
 
 // FencesOf returns the pools the config file at path writes, as written,
 // for where PoolsOf can't read them, as they break Load's rules: each with
-// the directories it writes that can be found, an absolute path, or one
-// starting ~/ in the home directory homeDir returns, where that can be
-// found. They're for telling whether a directory is inside a fence alone,
-// as nothing else of them is checked: each directory is a fence. It returns
-// none where the file writes none, or there's no file, and fails where it
-// can't be read as TOML.
+// the directories it writes placed, as PlacedIn places them in the home
+// directory homeDir returns, where that can be found, and those it can't
+// place Unplaced. They're for telling whether a directory is inside a fence
+// alone, as nothing else of them is checked: each directory is a fence. It
+// returns none where the file writes none, or there's no file, and fails
+// where it can't be read as TOML.
 func FencesOf(path string, homeDir func() (string, error)) (Pools, error) {
 	var only struct {
 		Pools []filePool `toml:"pool"`
@@ -180,28 +185,29 @@ func FencesOf(path string, homeDir func() (string, error)) (Pools, error) {
 	}
 	var pools Pools
 	for _, w := range only.Pools {
-		p := Pool{ID: w.ID, Label: w.shownAs(), WrittenDirs: w.Dirs}
-		for _, dir := range w.Dirs {
-			if found, ok := fenceAt(home, dir); ok {
-				p.Dirs = append(p.Dirs, found)
-			}
-		}
-		pools = append(pools, p)
+		pools = append(pools, Pool{ID: w.ID, Label: w.shownAs(), WrittenDirs: w.Dirs, Unplaced: w.Dirs}.PlacedIn(home))
 	}
 	return pools, nil
 }
 
-// fenceAt returns the directory dir, as a pool writes it, as it's found, a
-// ~/ at its start home, reporting false where it can't be found: neither
-// absolute nor starting ~/, or starting ~/ without a home.
-func fenceAt(home, dir string) (string, bool) {
-	switch {
-	case filepath.IsAbs(dir):
-		return filepath.Clean(dir), true
-	case strings.HasPrefix(dir, homePrefix) && home != "":
-		return expandIn(home, dir), true
+// PlacedIn returns p with those of its Unplaced directories that can be
+// placed among its Dirs, home being the home directory, "" where none is
+// found: an absolute one, cleaned, and one starting ~/, in home. Those that
+// can't be stay Unplaced.
+func (p Pool) PlacedIn(home string) Pool {
+	unplaced := p.Unplaced
+	p.Dirs, p.Unplaced = slices.Clone(p.Dirs), nil
+	for _, dir := range unplaced {
+		switch {
+		case filepath.IsAbs(dir):
+			p.Dirs = append(p.Dirs, filepath.Clean(dir))
+		case strings.HasPrefix(dir, homePrefix) && home != "":
+			p.Dirs = append(p.Dirs, expandIn(home, dir))
+		default:
+			p.Unplaced = append(p.Unplaced, dir)
+		}
 	}
-	return "", false
+	return p
 }
 
 // filePool is a [[pool]] table as it's written.
