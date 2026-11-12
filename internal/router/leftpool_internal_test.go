@@ -2,6 +2,7 @@ package router
 
 import (
 	"encoding/json"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -684,6 +685,62 @@ func TestTokensTakenUpFromAnAccountStayItsAsTheAccountThatTookThemLeavesInTurn(t
 
 	if side, _ := r.accounts.byID("side"); side.secret.was(hash(personalToken), start) {
 		t.Error("side keeps personal's token as its own once personal is configured again, want it given back")
+	}
+}
+
+func TestTheSessionsOfAnAccountThatLeftTheConfigStayInItsPoolAsTheConfigChangesAgain(t *testing.T) {
+	// Personal, Acme's primary, leaves the config, side moved to Acme in its
+	// place; then Acme's directory changes, and nothing else.
+	logstest.Capture(t)
+	r, path := newWatchingPoolsRouter(t, "")
+	upstream := servingAll(served, served, served)
+	r.proxy.transport = upstream
+	accounts := accountTOML("work", defaultPool, false) + accountTOML("side", acmePool, false)
+
+	writeConfigFile(t, path, accounts+defaultTOML+"\n"+acmeTOML)
+	r.upkeep.look()
+	writeConfigFile(t, path, accounts+defaultTOML+"\n"+strings.Replace(acmeTOML, "/work/acme", "/work/acme-labs", 1))
+	r.upkeep.look()
+
+	if acme, _ := r.proxy.pools.current().pools.ByID(acmePool); !slices.Equal(acme.Dirs, []string{"/work/acme-labs"}) {
+		t.Fatalf("Acme's directories are %q, want the second config's followed", acme.Dirs)
+	}
+	acmes := routeIn(t, r, personalToken, "one", acmePool, nil)
+	defaults := routeIn(t, r, personalToken, "two", defaultPool, nil)
+	if acmes.Code != http.StatusOK {
+		t.Errorf("Acme's request on personal's token was answered %d %s, want 200: personal was in Acme", acmes.Code, acmes.Body)
+	}
+	checkRefused(t, defaults, leftDefault)
+	if sent := upstream.sent(); !slices.Equal(sent, []string{"side"}) {
+		t.Errorf("the requests went out on %q, want Acme's alone, on side", sent)
+	}
+}
+
+func TestATableKnowsThePoolEachAccountThatLeftTheTablesBeforeItWasInLast(t *testing.T) {
+	without := func(ids ...string) *poolTable {
+		accounts := slices.DeleteFunc(pooledAccounts(), func(a config.Account) bool { return slices.Contains(ids, a.ID) })
+		return newPoolTable(accounts, testPools, "")
+	}
+	every := without()
+	noPersonal := without("personal").after(every)
+	noSide := without("personal", "side").after(noPersonal)
+	tests := []struct {
+		name string
+		got  *poolTable
+		want map[string]string
+	}{
+		{name: "personal leaves", got: noPersonal, want: map[string]string{"personal": acmePool}},
+		{name: "side leaves after: personal's carried across", got: noSide, want: map[string]string{"personal": acmePool, "side": defaultPool}},
+		{name: "personal configured again: side's alone", got: without("side").after(noSide), want: map[string]string{"side": defaultPool}},
+		{name: "none leaves: personal's still carried", got: without("personal").after(noPersonal), want: map[string]string{"personal": acmePool}},
+		{name: "side leaves a config from before pools: nothing known", got: without("side").after(newPoolTable(testConfigured, nil, "")), want: map[string]string{}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if !maps.Equal(tt.got.was, tt.want) {
+				t.Errorf("the table knows the accounts that left in %q, want %q", tt.got.was, tt.want)
+			}
+		})
 	}
 }
 
