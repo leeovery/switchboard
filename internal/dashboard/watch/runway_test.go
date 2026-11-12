@@ -185,7 +185,8 @@ func TestAKeptFiveHourViewShowsTheWeekWhileNoAccountHasOne(t *testing.T) {
 
 // a collapses Runway's account column and expands it again, keeping each,
 // whatever the view or step shows, its lanes built afresh over the columns
-// its labels give up and given back: 155 at 160 collapsed, 146 expanded.
+// its labels give up and given back: 160 at 160 collapsed, the frame whole,
+// 146 expanded.
 func TestACollapsesRunwaysAccountColumnAndKeepsIt(t *testing.T) {
 	r := runwayHarness(t, dashboard.Runway, nil)
 	prefs := &fakePrefs{}
@@ -197,10 +198,10 @@ func TestACollapsesRunwaysAccountColumnAndKeepsIt(t *testing.T) {
 		columns   int
 		updates   int
 	}{
-		{keys: "a", collapsed: true, columns: 155, updates: 1},
-		{keys: "left", collapsed: true, back: true, columns: 155, updates: 1},
+		{keys: "a", collapsed: true, columns: 160, updates: 1},
+		{keys: "left", collapsed: true, back: true, columns: 160, updates: 1},
 		{keys: "a", back: true, columns: 146, updates: 2},
-		{keys: "right a", collapsed: true, columns: 155, updates: 3},
+		{keys: "right a", collapsed: true, columns: 160, updates: 3},
 	}
 	for _, step := range steps {
 		r.keyed(step.keys)
@@ -225,7 +226,7 @@ func TestRunwayOpensWithItsAccountColumnAsKept(t *testing.T) {
 		r := runwayHarness(t, dashboard.Runway, func(_ *runwayed, cfg *Config) {
 			cfg.RunwayShown = dashboard.RunwayKept(theme.RunwayPrefs{Collapsed: collapsed})
 		})
-		columns := map[bool]int{false: 146, true: 155}[collapsed]
+		columns := map[bool]int{false: 146, true: 160}[collapsed]
 		if shown := r.model.runwayTab.shown; shown.Collapsed != collapsed || r.from.Timeline.Columns != columns {
 			t.Errorf("kept collapsed %t, Runway opens collapsed %t over %d columns, want %d", collapsed, shown.Collapsed, r.from.Timeline.Columns, columns)
 		}

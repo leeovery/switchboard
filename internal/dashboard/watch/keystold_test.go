@@ -29,7 +29,7 @@ func TestEveryPagesKeysAreEachPagesAsItsHelpListsThem(t *testing.T) {
 			"[ ] view", "< > period", "←→ account", "↑↓ account", "↑↓ session", "→ sessions", "← accounts", "enter its page", "esc unfocus", "w models",
 		},
 		"History": {"[ ] view", "< > period", "v split", "←→ account"},
-		"Runway":  {"< > window", "←→ day", "←→ week", "a names"},
+		"Runway":  {"< > window", "←→ day", "←→ week", "a collapse"},
 		"Graphs":  {"w week", "f 5-hour", "o pool", "g glance", "h when"},
 		"Log": {
 			"[ ] view", "↑↓ request", "↑↓ event", "enter open", "s its session", "end follow", "esc follow", "f what it shows", "/ find",

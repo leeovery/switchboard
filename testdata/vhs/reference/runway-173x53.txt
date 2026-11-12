@@ -50,4 +50,4 @@ COMING UP
 
 
 █ room    █ room, but it runs out at its pace    ─ at its cap    ─ at its limit    ▂ the pool at its limit    │ its week resets    a column ≈ 63 minutes · the past dimmed
-tab views   < > window  ←→ week    a names    p pin    ? help  q quit
+tab views   < > window  ←→ week    a collapse    p pin    ? help  q quit

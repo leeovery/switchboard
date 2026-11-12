@@ -164,7 +164,7 @@ func TestACardSaysWhatRunwaySaysUnderItsLane(t *testing.T) {
 			for _, ln := range f.laidLanes(m, runwayFit{fits: true, shown: len(m.Accounts)}) {
 				card := slices.Concat(lanes.view().cardWords(ln, now)...).plain()
 				rest := card
-				for _, w := range f.Runway.view().wordsUnder(ln, now) {
+				for _, w := range f.Runway.view().wordsUnder(ln, now, 0) {
 					said := w.said.plain()
 					i := strings.Index(rest, said)
 					if i < 0 {

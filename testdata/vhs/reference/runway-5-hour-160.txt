@@ -34,4 +34,4 @@ COMING UP
 
 
 █ room    ─ at its cap    │ its 5-hour resets    a column ≈ 9.3 minutes · the past dimmed
-tab views   < > window  ←→ day    a names    p pin    ? help  q quit
+tab views   < > window  ←→ day    a collapse    p pin    ? help  q quit

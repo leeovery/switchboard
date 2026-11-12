@@ -43,6 +43,38 @@ func TestRunwaysAxisHasNowOverItsColumnAndARuleUnderItsLabels(t *testing.T) {
 	}
 }
 
+// Where now's column is the lanes' first and the lanes start at column 0, as
+// collapsed on today stepped back to just after midnight or this week just
+// after it starts, now reads whole from column 0, never cut at the frame's
+// edge.
+func TestNowReadsWholeWhereItsColumnIsTheFirstAtTheFramesEdge(t *testing.T) {
+	tests := []struct {
+		name  string
+		shown RunwayShown
+	}{
+		{name: "today, just after midnight", shown: RunwayShown{
+			Window: views.RunwayFiveHour, Back: civilDay(10, 1),
+			Timeline: views.Stepped(views.RunwayFiveHour, civilDay(10, 1), routedClock(1, 0, 5), time.Monday, 160),
+		}},
+		{name: "this week, just after it starts", shown: RunwayShown{
+			Window: views.RunwayWeek, Back: civilDay(9, 28),
+			Timeline: views.Stepped(views.RunwayWeek, civilDay(9, 28), time.Date(2026, 9, 28, 0, 5, 0, 0, time.UTC), time.Monday, 160),
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if col := tt.shown.Timeline.NowColumn(); col != 0 {
+				t.Fatalf("now's column is %d, want 0", col)
+			}
+			c := newCanvas(160, 12)
+			runwayShowing(tt.shown).runwayAxis(c, runwayLaid{x: 0, fit: runwayFit{fits: true, axis: 6}})
+			if got := rowOf(c, 6); got != "now" {
+				t.Errorf("the axis's first row reads %q, want now from column 0", got)
+			}
+		})
+	}
+}
+
 // The 5-hour view's hours are ticked and labelled as far apart as its
 // columns' length asks, at each width: ticks three cells apart at the
 // least, labels ten.

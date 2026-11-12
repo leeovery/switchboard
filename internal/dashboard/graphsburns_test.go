@@ -528,7 +528,7 @@ func TestGraphsCardsSayWhereTheirWindowRunsOutPastRunwaysView(t *testing.T) {
 				}
 				lanes := f.Graphs.Lanes[views.RunwayWeek]
 				l, _ := lanes.lane("side")
-				runway := wordsRead(lanes.view().wordsUnder(laneLaid(l, side, accountName{}), printNow))
+				runway := wordsRead(lanes.view().wordsUnder(laneLaid(l, side, accountName{}), printNow, 0))
 				if !strings.HasPrefix(strings.TrimSpace(runway), mo.runway) {
 					t.Errorf("Runway says %q under side's lane, want it saying %q", runway, mo.runway)
 				}
