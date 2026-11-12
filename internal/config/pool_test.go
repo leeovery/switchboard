@@ -3,6 +3,8 @@ package config_test
 import (
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"reflect"
 	"slices"
 	"strings"
@@ -304,6 +306,54 @@ func TestLoadAsksForTheHomeDirectoryOnlyForAPoolsDirectoryInIt(t *testing.T) {
 			}
 			if got := problems(t, path, err); !slices.Equal(got, []string{tt.wantErr}) {
 				t.Errorf("Load() problems = %q, want %q", got, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestPoolsOfReadsThePoolsWhateverElseIsWrong(t *testing.T) {
+	const pools = "[[pool]]\nid = \"b2n8\"\nlabel = \"Default\"\n\n[[pool]]\nid = \"q7mt\"\nlabel = \"Acme\"\ndirs = [\"~/Code/acme\", \"/Volumes/Acme/\"]\n"
+	read := config.Pools{
+		{ID: "b2n8", Label: "Default"},
+		{ID: "q7mt", Label: "Acme", Dirs: []string{"/Users/test/Code/acme", "/Volumes/Acme"}, WrittenDirs: []string{"~/Code/acme", "/Volumes/Acme/"}},
+	}
+	tests := []struct {
+		name string
+		// text is the config file's, or none where there's no file.
+		text    *string
+		want    config.Pools
+		wantErr string
+	}{
+		{name: "no config"},
+		{name: "no pools", text: new("[[account]]\nid = \"work\"\nlabel = \"Work\"\n")},
+		{name: "pools", text: new(pools + "\n[[account]]\nid = \"work\"\nlabel = \"Work\"\npool = \"b2n8\"\n"), want: read},
+		{
+			name: "a config otherwise invalid, its accounts naming no pool and a key gone: read all the same",
+			text: new("week_starts = 3\n[[account]]\nid = \"work\"\ntoken_env = \"CLAUDE_TOKEN_WORK\"\n\n" + pools),
+			want: read,
+		},
+		{name: "not TOML", text: new("[[pool]\n"), wantErr: "parse config "},
+		{name: "a pool's table of the wrong type", text: new("[[pool]]\nid = \"b2n8\"\ndirs = \"~/Code/acme\"\n"), wantErr: "parse config "},
+		{name: "pools Load refuses", text: new(pools + "\n[[pool]]\nid = \"h4w2\"\nlabel = \"Client\"\n"), wantErr: "only one pool can be unfenced"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "config.toml")
+			if tt.text != nil {
+				if err := os.WriteFile(path, []byte(*tt.text), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			got, err := config.PoolsOf(path, homeAt(testHome))
+			if tt.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+					t.Errorf("PoolsOf() = %+v, %v; want an error saying %q", got, err, tt.wantErr)
+				}
+				return
+			}
+			if err != nil || !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("PoolsOf() = %+v, %v; want %+v", got, err, tt.want)
 			}
 		})
 	}

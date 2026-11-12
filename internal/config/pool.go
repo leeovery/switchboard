@@ -137,6 +137,26 @@ func (c *Config) PoolOf(id string) (Pool, bool) {
 	return c.Pools.ByID(a.Pool)
 }
 
+// PoolsOf returns the pools the config file at path configures, read
+// whatever else in the file is wrong, as ExportFolderOf reads the export's
+// folder: as Load reads them, their directories starting ~/ found in the home
+// directory homeDir returns. It returns none where the file configures none,
+// or there's no file. It fails where the file can't be read as TOML, or its
+// pools as Load would read them.
+func PoolsOf(path string, homeDir func() (string, error)) (Pools, error) {
+	var only struct {
+		Pools []filePool `toml:"pool"`
+	}
+	if err := decodeOnly(path, &only); err != nil {
+		return nil, err
+	}
+	pools, err := readPools(only.Pools, homeDir)
+	if err != nil {
+		return nil, invalid(path, err)
+	}
+	return pools, nil
+}
+
 // filePool is a [[pool]] table as it's written.
 type filePool struct {
 	ID    string   `toml:"id"`
