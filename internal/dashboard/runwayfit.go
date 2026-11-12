@@ -160,24 +160,26 @@ func (f Frame) runwayFitted(top int) runwayFit {
 // shows: beside it, where the frame holds both columns, as latelyPlaceOf
 // says, and those rows hold COMING UP's every line in one column, LATELY's
 // heading on COMING UP's row; else stacked under it, where the frame holds
-// LATELY's least and those rows hold COMING UP's every line in one column, a
-// blank row, LATELY's heading and its least lines; else nowhere, COMING UP
-// as fitted. LATELY's lines run down to the last of the rows spare.
+// LATELY's least, COMING UP shows every line in the columns it was fitted
+// in, and the rows under them hold a blank row, LATELY's heading and its
+// least lines; else nowhere, COMING UP as fitted. LATELY's lines run down
+// to the last of the rows spare.
 func (f Frame) latelyIn(fit runwayFit) runwayFit {
 	place := f.latelyPlaceOf()
 	if !fit.draws(fit.coming) || place == comingAlone {
 		return fit
 	}
 	lines, rows := len(f.Runway.Coming), fit.rest-fit.coming-1
+	whole := fit.lines == comingRows(lines, len(f.comingColumns()))
 	switch {
 	case place == latelySideBySide && lines <= rows:
-		fit.place, fit.lately = latelySideBySide, fit.coming
-	case lines+2+latelyLeastLines <= rows:
-		fit.place, fit.lately = latelyStacked, fit.coming+1+lines+1
+		fit.place, fit.lately, fit.lines = latelySideBySide, fit.coming, lines
+	case whole && fit.lines+2+latelyLeastLines <= rows:
+		fit.place, fit.lately = latelyStacked, fit.coming+1+fit.lines+1
 	default:
 		return fit
 	}
-	fit.lines, fit.latelyLines = lines, fit.rest-fit.lately-1
+	fit.latelyLines = fit.rest - fit.lately - 1
 	return fit
 }
 

@@ -51,9 +51,11 @@ func TestLatelyGoesBesideComingUpFrom159ColumnsElseUnderItElseNowhere(t *testing
 
 // Side by side, LATELY takes the Overview's LATELY column's width from column
 // 0, w − ⌊w/2⌋ − 2, and COMING UP the Overview's COMING UP column's,
-// round(w × 0.45), ending at the frame's edge; stacked, both take one column
-// from column 0, 72 where their lines read whole in it, or the frame's width
-// where that's narrower; and alone, COMING UP takes comingColumns' columns.
+// round(w × 0.45), ending at the frame's edge; stacked, COMING UP keeps the
+// columns it takes alone, LATELY under them from column 0, as wide as they
+// span, and where COMING UP takes one column, both share it, 72 where their
+// lines read whole in it, or the frame's width where that's narrower; and
+// alone, COMING UP takes comingColumns' columns.
 func TestLatelysColumnIsTheOverviewsBesideComingUpElseOneItShares(t *testing.T) {
 	m := latelyMoment(slices.Clone(runwayEvents)...)
 	tests := []struct {
@@ -64,6 +66,8 @@ func TestLatelysColumnIsTheOverviewsBesideComingUpElseOneItShares(t *testing.T) 
 	}{
 		{width: 173, place: latelySideBySide, lately: flex.Span{Size: 85}, coming: []flex.Span{{At: 95, Size: 78}}},
 		{width: 159, place: latelySideBySide, lately: flex.Span{Size: 78}, coming: []flex.Span{{At: 87, Size: 72}}},
+		{width: 158, place: latelyStacked, lately: flex.Span{Size: 158}, coming: []flex.Span{{Size: 77}, {At: 81, Size: 77}}},
+		{width: 150, place: latelyStacked, lately: flex.Span{Size: 150}, coming: []flex.Span{{Size: 73}, {At: 77, Size: 73}}},
 		{width: 108, place: latelyStacked, lately: flex.Span{Size: 72}, coming: []flex.Span{{Size: 72}}},
 		{width: 52, place: latelyStacked, lately: flex.Span{Size: 52}, coming: []flex.Span{{Size: 52}}},
 		{width: 160, place: comingAlone, coming: []flex.Span{{Size: 78}, {At: 82, Size: 78}}},
@@ -124,8 +128,8 @@ func latelyFrame(width, height, coming, lately int) Frame {
 
 // Side by side, from 159 columns, LATELY's heading is on COMING UP's row, and
 // both run down to the blank row over the legend; at 158, LATELY is stacked
-// under COMING UP's every line, in one column, a blank row between, down to
-// the same row.
+// under COMING UP's every line, in the two columns it takes alone, a blank
+// row between, down to the same row.
 func TestLatelyRunsFromItsHeadingToTheBlankRowOverTheLegend(t *testing.T) {
 	tests := []struct {
 		width int
@@ -133,7 +137,7 @@ func TestLatelyRunsFromItsHeadingToTheBlankRowOverTheLegend(t *testing.T) {
 		row   int
 	}{
 		{width: 159, place: latelySideBySide, row: 23},
-		{width: 158, place: latelyStacked, row: 29},
+		{width: 158, place: latelyStacked, row: 27},
 	}
 	for _, tt := range tests {
 		t.Run(strconv.Itoa(tt.width), func(t *testing.T) {
@@ -156,7 +160,7 @@ func TestLatelyRunsFromItsHeadingToTheBlankRowOverTheLegend(t *testing.T) {
 }
 
 // Stacked, LATELY shows where its heading and two lines fit in the rows the
-// lanes and COMING UP leave, COMING UP's every line in one column over it; a
+// lanes and COMING UP leave, COMING UP's every line in its column over it; a
 // row short of that, it goes first, before any part compacts, and COMING UP
 // is alone, as it was before LATELY.
 func TestStackedLatelyShowsWhereItsHeadingAndTwoLinesFitElseGoesFirst(t *testing.T) {
@@ -173,19 +177,27 @@ func TestStackedLatelyShowsWhereItsHeadingAndTwoLinesFitElseGoesFirst(t *testing
 	}
 }
 
-// LATELY never costs the lanes or COMING UP a step: Runway takes the step
-// and COMING UP's columns it takes without it, and LATELY goes in the rows
-// left. Four accounts and twelve lines at 37 rows keep the roomiest step,
-// COMING UP in two columns, at 158 and at 160 alike, with no rows left for
-// LATELY beside or under it; given rows enough, at 160 it's beside COMING UP,
+// LATELY never costs the lanes or COMING UP a step, nor COMING UP its
+// columns: Runway takes the step and COMING UP's columns it takes without
+// it, and LATELY goes in the rows left. Four accounts and twelve lines at 37
+// rows keep the roomiest step, COMING UP in two columns, at 150, 158 and 160
+// alike, with no rows left for LATELY beside or under it; given rows enough,
+// at 150 and 158 it's under COMING UP's two columns, and at 160 beside it,
 // every line in one column, the step the same.
 func TestLatelyNeverCostsTheLanesOrComingUpAStep(t *testing.T) {
-	for _, width := range []int{158, 160} {
+	for _, width := range []int{150, 158, 160} {
 		f := latelyFrame(width, 37, 12, 9)
 		f.Runway.Lanes = lanesOf(4)
 		fit := f.runwayFitted(f.top())
 		if fit.step != runwayRoomy || fit.place != comingAlone || fit.draws(fit.lately) || fit.lines != 6 {
 			t.Errorf("at %d by 37, Runway fits at step %d, LATELY laid %d, drawn %t, COMING UP %d rows; want the roomiest, no LATELY, COMING UP's 12 lines in two columns of 6", width, fit.step, fit.place, fit.draws(fit.lately), fit.lines)
+		}
+	}
+	for _, width := range []int{150, 158} {
+		f := latelyFrame(width, 45, 12, 9)
+		f.Runway.Lanes = lanesOf(4)
+		if fit := f.runwayFitted(f.top()); fit.step != runwayRoomy || fit.place != latelyStacked || fit.lines != 6 {
+			t.Errorf("at %d by 45, Runway fits at step %d, LATELY laid %d, COMING UP %d rows; want the roomiest, LATELY under COMING UP's 12 lines in two columns of 6", width, fit.step, fit.place, fit.lines)
 		}
 	}
 	f := latelyFrame(160, 45, 12, 9)
