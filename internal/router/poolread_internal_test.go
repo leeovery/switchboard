@@ -785,10 +785,33 @@ func TestAPoolNamedWithoutAValueNamesNone(t *testing.T) {
 func TestThePoolsKeptOfAConfigNamingNoneKeepTheirLabelsFromTheAccountsRecord(t *testing.T) {
 	logstest.Capture(t)
 	first := identity.PoolEntry{ID: defaultPool, Added: start, First: true, Here: true, Written: identity.PoolWritten{Label: "Default"}}
-	m := newMembership(readingRecord(identity.Record{Pools: []identity.PoolEntry{first}}), alwaysMoved, sameID)
+	m := newMembership(readingRecord(identity.Record{Pools: []identity.PoolEntry{first}}), alwaysMoved, sameID, nil)
 	m.follow(config.Accounts(testConfigured), nil)
 	if got := m.current().reported(nil); len(got) != 1 || got[0].ID != defaultPool || got[0].Label != "Default" {
 		t.Errorf("the kept pools report %+v, want Default by its label", got)
+	}
+}
+
+func TestThePoolsKeptOfAConfigNamingNoneAreFencedAsTheConfigWouldFenceThem(t *testing.T) {
+	logstest.Capture(t)
+	stateDir := t.TempDir()
+	// Every pool fenced, Default, the first, to a directory in the home.
+	movedBothWays(t, stateDir, "~/work/own")
+	cfg := testConfig(at(start), &stubProber{}, poolTokens.Read)
+	cfg.StateDir, cfg.HomeDir = stateDir, func() (string, error) { return "/Users/test", nil }
+	r := newTestRouterOf(t, cfg)
+
+	want := []RoutedPool{
+		{ID: defaultPool, Label: "Default", Dirs: []string{"/Users/test/work/own"}, WrittenDirs: []string{"~/work/own"}, Accounts: []string{"work", "side"}, Primary: "work"},
+		{ID: acmePool, Label: "Acme", Dirs: []string{"/work/acme"}, WrittenDirs: []string{"/work/acme"}, Accounts: []string{"personal"}, Primary: "personal"},
+	}
+	if h := healthOf(t, r); !reflect.DeepEqual(h.Pools, want) {
+		t.Errorf("GET /health reports the kept pools %+v, want %+v, fenced as the record keeps them", h.Pools, want)
+	}
+	// The first is fenced like the rest, so a read naming no pool has none
+	// to be answered for, as with the config's own pools.
+	if rec := askControl(t, r, http.MethodGet, "/status", ""); rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "every pool is fenced") {
+		t.Errorf("GET /status naming no pool answered %d %s, want 400, every pool fenced", rec.Code, rec.Body)
 	}
 }
 

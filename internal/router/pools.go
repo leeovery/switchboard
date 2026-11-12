@@ -1,7 +1,7 @@
 package router
 
 import (
-	"cmp"
+	"fmt"
 	"maps"
 	"slices"
 	"sync"
@@ -246,10 +246,11 @@ func (t *poolTable) keeping(accounts config.Accounts, idNow func(id string) stri
 // idmove's PoolsKept gives them, which the heal writes, each account by the
 // id it has now, as idNow gives it, in the pool PoolsKept has it in, and one
 // it has in none in none, never to serve; each pool's primary as the heal
-// marks it, as idmove's PrimaryKept says. The pools are read for their ids,
-// labels and members alone, their directories as written. It fails as
-// PoolsKept does, as before the move.
-func keptTable(record identity.Record, accounts config.Accounts, idNow func(id string) string) (*poolTable, error) {
+// marks it, as idmove's PrimaryKept says. The pools are read as the config
+// the heal writes reads them, as config.ReadPools does, their directories
+// found in the home directory homeDir returns. It fails as PoolsKept does, as
+// before the move, and where the pools can't be read.
+func keptTable(record identity.Record, accounts config.Accounts, idNow func(id string) string, homeDir func() (string, error)) (*poolTable, error) {
 	ids := make([]string, len(accounts))
 	for i, a := range accounts {
 		ids[i] = idNow(a.ID)
@@ -258,9 +259,9 @@ func keptTable(record identity.Record, accounts config.Accounts, idNow func(id s
 	if err != nil {
 		return nil, err
 	}
-	pools := make(config.Pools, len(kept.Pools))
-	for i, p := range kept.Pools {
-		pools[i] = config.Pool{ID: p.ID, Label: cmp.Or(p.Label, p.ID), WrittenDirs: p.Dirs}
+	pools, err := config.ReadPools(kept.Pools, homeDir)
+	if err != nil {
+		return nil, fmt.Errorf("the pools the accounts record keeps can't be read as the config's: %w", err)
 	}
 	first, _ := record.FirstPool()
 	t := newPoolTable(nil, pools, first.ID, sameID)
@@ -308,10 +309,12 @@ type membership struct {
 	// reporting false where it can't; moved reports whether the move to pools
 	// is done, as its mark says, whether the record can be read or not. idNow
 	// gives the id an account a config names has now, as accounts' idNow
-	// does.
-	record func() (identity.Record, bool)
-	moved  func() bool
-	idNow  func(id string) string
+	// does; homeDir the home directory the pools the record keeps are read
+	// in, as the config is.
+	record  func() (identity.Record, bool)
+	moved   func() bool
+	idNow   func(id string) string
+	homeDir func() (string, error)
 
 	// mu is held as the pools are followed, and guards what they were last
 	// followed from: accounts and pools, and followed, set once they have
@@ -328,12 +331,13 @@ type membership struct {
 }
 
 // newMembership returns the membership of a router that reads the accounts
-// record as record does, tells the move to pools done as moved does, and the
-// id an account a config names has now as idNow does, following no pools
+// record as record does, tells the move to pools done as moved does, the id
+// an account a config names has now as idNow does, and reads the pools the
+// record keeps in the home directory homeDir returns, following no pools
 // yet: every account in the one pool there is, as in a config from before
 // pools.
-func newMembership(record func() (identity.Record, bool), moved func() bool, idNow func(id string) string) *membership {
-	m := &membership{record: record, moved: moved, idNow: idNow}
+func newMembership(record func() (identity.Record, bool), moved func() bool, idNow func(id string) string, homeDir func() (string, error)) *membership {
+	m := &membership{record: record, moved: moved, idNow: idNow, homeDir: homeDir}
 	m.table.Store(newPoolTable(nil, nil, "", idNow).stored())
 	return m
 }
@@ -342,7 +346,7 @@ func newMembership(record func() (identity.Record, bool), moved func() bool, idN
 // and has no accounts record: every account in the one pool there is, as a
 // playback of the history has it.
 func unpooled() *membership {
-	return newMembership(noRecord, never, sameID)
+	return newMembership(noRecord, never, sameID, nil)
 }
 
 // first returns the id of the first pool, as the accounts record notes it:
@@ -450,7 +454,7 @@ func (m *membership) kept(record identity.Record, readable bool, accounts config
 	}
 	why := "the accounts record can't be read"
 	if readable {
-		t, err := keptTable(record, accounts, m.idNow)
+		t, err := keptTable(record, accounts, m.idNow, m.homeDir)
 		if err == nil {
 			m.told = t
 			return t, lostPools + "; the router routes within those the accounts record keeps of this Mac's config till the config is given them again"

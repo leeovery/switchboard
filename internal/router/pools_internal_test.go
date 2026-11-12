@@ -1350,7 +1350,7 @@ func TestThePoolsAreFollowedAsTheyChangeTheFirstReadAfreshWithThem(t *testing.T)
 	m := newMembership(func() (identity.Record, bool) {
 		reads++
 		return identity.Record{Pools: []identity.PoolEntry{{ID: acmePool, Added: start, First: true, Here: true}}}, true
-	}, never, sameID)
+	}, never, sameID, nil)
 	accounts := pooledAccounts()
 
 	m.follow(accounts, testPools)
@@ -1451,7 +1451,7 @@ func TestAConfigThatLosesItsPoolsKeepsThemOnceTheMoveIsDone(t *testing.T) {
 			if tt.moved {
 				moved = alwaysMoved
 			}
-			m := newMembership(record, moved, sameID)
+			m := newMembership(record, moved, sameID, nil)
 			if tt.pooled {
 				m.follow(pooledAccounts(), testPools)
 			}
@@ -1478,7 +1478,7 @@ func TestAConfigThatLosesItsPoolsKeepsThemOnceTheMoveIsDone(t *testing.T) {
 
 func TestAConfigThatLosesItsPoolsAgainIsWarnedOfAgain(t *testing.T) {
 	log := logstest.Capture(t)
-	m := newMembership(noRecord, alwaysMoved, sameID)
+	m := newMembership(noRecord, alwaysMoved, sameID, nil)
 
 	for range 2 {
 		m.follow(pooledAccounts(), testPools)
@@ -1492,7 +1492,7 @@ func TestAConfigThatLosesItsPoolsAgainIsWarnedOfAgain(t *testing.T) {
 
 func TestAConfigThatLosesItsPoolsKeepsThoseMadeLast(t *testing.T) {
 	logstest.Capture(t)
-	m := newMembership(noRecord, alwaysMoved, sameID)
+	m := newMembership(noRecord, alwaysMoved, sameID, nil)
 	all := config.Accounts{{ID: "work"}, {ID: "personal"}, {ID: "side"}}
 	moved := pooledAccounts()
 	moved[2].Pool = acmePool
@@ -1549,7 +1549,7 @@ func TestAConfigThatLosesItsPoolsKnowsItsAccountsByTheirIDsNow(t *testing.T) {
 			if tt.recorded {
 				record = readingRecord(recordOfThePools())
 			}
-			m := newMembership(record, alwaysMoved, idNow)
+			m := newMembership(record, alwaysMoved, idNow, nil)
 			if tt.pooled {
 				m.follow(pooledAccounts(), testPools)
 			}
@@ -1572,7 +1572,7 @@ func TestAConfigThatLosesItsPoolsKnowsItsAccountsByTheirIDsNow(t *testing.T) {
 }
 
 func TestAConfigWithPoolsKnowsItsAccountsByTheirIDsNow(t *testing.T) {
-	m := newMembership(noRecord, never, func(id string) string { return strings.TrimPrefix(id, "old-") })
+	m := newMembership(noRecord, never, func(id string) string { return strings.TrimPrefix(id, "old-") }, nil)
 	old := pooledAccounts()
 	for i := range old {
 		old[i].ID = "old-" + old[i].ID
@@ -1606,11 +1606,18 @@ func TestAConfigThatLosesItsPoolsOnceMovedWithNothingToTellThemByRoutesNothingSa
 			record: readingRecord(identity.Record{Pools: []identity.PoolEntry{{ID: defaultPool, Added: start, First: true}}}),
 			why:    "the accounts record keeps no pool as this Mac's config's",
 		},
+		{
+			name: "the record keeping a pool fenced in a home that can't be found",
+			record: readingRecord(identity.Record{Pools: []identity.PoolEntry{
+				{ID: defaultPool, Added: start, First: true, Here: true, Written: identity.PoolWritten{Dirs: []string{"~/work/own"}}},
+			}}),
+			why: "the pools the accounts record keeps can't be read as the config's: find the home directory the pools' dirs are in",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			log := logstest.Capture(t)
-			m := newMembership(tt.record, alwaysMoved, sameID)
+			m := newMembership(tt.record, alwaysMoved, sameID, nil)
 
 			m.follow(lost, nil)
 			m.follow(lost, nil)
@@ -1635,7 +1642,7 @@ func TestAConfigThatLosesItsPoolsOnceMovedWithNothingToTellThemByRoutesNothingSa
 
 func TestAConfigPutBackWithAnAccountTheRouterLacksWakesNoReaderForNothingAndChangesSafely(t *testing.T) {
 	logstest.Capture(t)
-	m := newMembership(noRecord, alwaysMoved, sameID)
+	m := newMembership(noRecord, alwaysMoved, sameID, nil)
 	m.follow(pooledAccounts(), testPools)
 
 	// The config is put back from before pools without side, still listing
@@ -1670,7 +1677,7 @@ func TestAConfigPutBackWithAnAccountTheRouterLacksWakesNoReaderForNothingAndChan
 
 func TestTheWholePoolsPutBackAfterTheyWereLostAreStoredAfreshAndReplacedSafely(t *testing.T) {
 	logstest.Capture(t)
-	m := newMembership(noRecord, alwaysMoved, sameID)
+	m := newMembership(noRecord, alwaysMoved, sameID, nil)
 	m.follow(pooledAccounts(), testPools)
 	pooled := m.current()
 
@@ -1732,7 +1739,7 @@ func TestTablesAreTheSameOnlyWhereEveryFieldRoutingReadsIs(t *testing.T) {
 func TestAConfigNamingNoPoolsIsFollowedAfreshTillTheRecordTellsItsPools(t *testing.T) {
 	logstest.Capture(t)
 	readable := false
-	m := newMembership(func() (identity.Record, bool) { return recordOfThePools(), readable }, alwaysMoved, sameID)
+	m := newMembership(func() (identity.Record, bool) { return recordOfThePools(), readable }, alwaysMoved, sameID, nil)
 	lost := config.Accounts{{ID: "work"}, {ID: "personal"}, {ID: "side"}}
 
 	m.follow(lost, nil)

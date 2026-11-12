@@ -208,6 +208,18 @@ func readPools(written []filePool, homeDir func() (string, error)) (Pools, error
 	return pools, nil
 }
 
+// ReadPools returns the pools given as a config that writes them reads them,
+// as Load reads a file's: checked, each shown by its label, else its id, and
+// a directory starting ~/ found in the home directory homeDir returns. It
+// fails as Load would, saying why.
+func ReadPools(pools []NewPool, homeDir func() (string, error)) (Pools, error) {
+	written := make([]filePool, len(pools))
+	for i, p := range pools {
+		written[i] = filePool{ID: p.ID, Label: p.Label, Dirs: p.Dirs}
+	}
+	return readPools(written, homeDir)
+}
+
 // check reports what's wrong with the pool at index i of the file, its id,
 // label and directories, and returns its fences, of the directories it can
 // be fenced to, as checkFence says, yet to be found.
