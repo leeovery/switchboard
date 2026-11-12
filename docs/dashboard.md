@@ -442,10 +442,14 @@ blank row under the axis; only then do the lanes scroll with `j` and `k`, down t
 the pool's lane at the shortest.
 
 The labels beside the lanes take as many columns as the widest needs, up to 24 cells of label,
-and the lanes take the rest. `a` collapses the labels, to give the lanes more room: each lane
-keeps its account's marks, such as `◆`, with its use under them, such as `66%`,
-and the pool's lane `Σ`, with its room short under it, such as `1.2/3`. COMING UP stays as it is,
-each line naming its account. `a` again expands them. Runway remembers which you left it on.
+and the lanes take the rest. `a` collapses the labels, to give the lanes more room: the lanes
+start at the left edge, with no names and no marks, as the status line already says where new
+sessions go. Under the start of each lane is its use, such as `66%`, faint for an account out of
+the pool, and under the pool's lane its room, short, such as `1.2/3`. The words under a lane
+still start under their stretch, but where that would run into the use, they start two cells
+after it, as in `100%  out Tue 17:54  ·  back Sun 01:00`. COMING UP stays as it is, each line
+naming its account. `a` again expands them; the key line says `a collapse`, its word faint while
+the labels are collapsed. Runway remembers which you left it on.
 
 To look back:
 

@@ -542,7 +542,7 @@ func (d fluidFrame) outOfView() string {
 
 var (
 	// laneShown is a row of Runway's lanes: an account's name, or with the
-	// labels collapsed its marks or none, then its lane to the row's end.
+	// labels collapsed nothing, then its lane to the row's end.
 	laneShown = regexp.MustCompile(`^[^█▒─│]*[█▒─│ ]*[█▒][█▒─│ ]*$`)
 	// turnShown is a row of a session's turns: its number and when it started.
 	turnShown = regexp.MustCompile(`^ *[0-9]+ +[0-9]{1,2}:[0-9]{2} `)

@@ -4875,32 +4875,40 @@ kept for good (settled in the plan; see The request ledger).
   token is refused has the windows' use under its name faded as stale (the owner's call, 13 October
   2026).
 
-**The account column collapsed.** `a` collapses the labels to each account's marks and use,
-to give the lanes more room, at every width, and `a` again expands them; expanded is the default,
-and the preferences file keeps it (the owner's call, 17 October 2026).
+**The account column collapsed.** `a` collapses the labels to each account's use, to give the
+lanes more room, at every width, and `a` again expands them; expanded is the default, and the
+preferences file keeps it (the owner's call, 17 October 2026). The key line says `a collapse`
+(the owner's call, 12 November 2026).
 
-- **The label column** is the widest of its labels beside a lane, its marks, `▲`'s cells kept on
-  every account, or a use of `100%`, and a cell, whatever the width, with no least (the owner's
-  call, 21 October 2026). The lanes take the rest, and hold still as `▲` moves. Of the frames'
-  accounts, `100%` the widest, it's 5.
-- **The labels,** stacked (the owner's call, 21 October 2026): on the lane's row, the account's
-  marks, `◆` and `▲`, as the expanded label carries them, and nothing for an account with none;
-  on the row under it, from column 0, its use of the view's window, the figure the expanded label
-  gives, in its colour, as `66%`. The window's name goes: the heading's `< week >` names it. Where
-  the expanded label words why there's no use, stale, not read yet or without a token, the figure
-  is `—` in `text.faint`; out of the pool, the whole label is faint. The words under the lane are as
-  expanded.
-- **The pool's lane,** `Σ` at the label column on its first row, and on the row of its own under
+- **No label column:** the lanes and the pool's lane start at column 0, at every width, and take
+  the frame to its edge (the owner's call, 12 November 2026). The axis follows them from column 0,
+  its `now` never starting before it, so it reads whole where now's column is the first.
+- **No marks:** no `◆`, `▲` or `Σ`. The status line says where new sessions go, and collapsed is
+  for a reader who knows the lanes (the owner's call, 12 November 2026).
+- **The use,** on the row under the lane, its words row, from column 0, under the lane's first
+  column: its use of the view's window, the figure the expanded label gives, in its colour, as
+  `66%`. The window's name goes: the heading's `< week >` names it. Where the expanded label words
+  why there's no use, stale, not read yet or without a token, the figure is `—` in `text.faint`;
+  out of the pool, the figure is faint, as the expanded label is (the owner's call, 12 November
+  2026).
+- **The words under the lane** are as expanded, but where a stretch's words would start within
+  the use or less than two cells after it, they start two cells after it, as in
+  `100%  out Tue 17:54  ·  back Sun 01:00`; words starting further on keep their column (the
+  owner's call, 12 November 2026). Words that don't fit from where they start drop whole parts
+  from the end, and a week's `resets` that can't end at its `│` clear of the use is left unsaid,
+  as one that can't clear the words before.
+- **The pool's lane,** from column 0, with nothing at its start, and on the row of its own under
   the lane, from column 0, its room short: the room bold `text.secondary` and `/3`, of how many
   accounts the pool is, in `text.muted`, as `1.2/3`, where the expanded lane says `Σ pool` and
-  `week 1.2 of 3 left`; it may run past the column, as nothing else is on its row. ` · pinned` is
-  left off. Where it has no room to say, as on a day stepped back to, `Σ` alone.
+  `week 1.2 of 3 left`. ` · pinned` is left off. Where it has no room to say, as on a day stepped
+  back to, nothing.
 - **COMING UP** is as expanded, every line or cut: each line names its account, as in
   `16:30  personal's 5-hour resets` (the owner's call, 19 October 2026).
 
 **The words under a lane** say where each stretch without room starts, from its column, the lanes'
-first at the least, or two cells after the words before. They're terse, words a reader learns once
-from the legend and the help; COMING UP, the legend and the Overview keep their sentences (the
+first at the least, or two cells after the words before, or collapsed, after the use. They're
+terse, words a reader learns once from the legend and the help; COMING UP, the legend and the
+Overview keep their sentences (the
 owner's call, 10 November 2026):
 
 - at a cap: `capped 14:31` bold `accent.attention`, then `  ·  back 17:10` in `text.muted`;
@@ -5072,12 +5080,12 @@ at every width:
 
 | Where | Key line |
 |---|---|
-| 5-hour, live or stepped back | `tab views   < > window  ←→ day    a names    p pin    ? help  q quit` |
-| week, live or stepped back | `tab views   < > window  ←→ week    a names    p pin    ? help  q quit` |
+| 5-hour, live or stepped back | `tab views   < > window  ←→ day    a collapse    p pin    ? help  q quit` |
+| week, live or stepped back | `tab views   < > window  ←→ week    a collapse    p pin    ? help  q quit` |
 | A phone | `tab views   < > window   ←→ day   ? keys   q quit`, `←→ week` in the week view |
-| No account on a 5-hour | `tab views   ←→ week    a names    p pin    ? help  q quit`, and a phone's without `< > window` |
+| No account on a 5-hour | `tab views   ←→ week    a collapse    p pin    ? help  q quit`, and a phone's without `< > window` |
 
-`a names` has its word faint while the labels are collapsed, as a hidden section's is. The line
+`a collapse` has its word faint while the labels are collapsed, as a hidden section's is. The line
 holds it whole from 100 columns; a phone's line leaves it to `?`, as it would cost its `tab views`.
 `<` and `>` step between the week and the 5-hour views, where both are offered; `←` steps back and
 `→` forward; `a` collapses the account column and expands it again; `j`, `k`, PgUp, PgDn and the
@@ -6663,7 +6671,7 @@ that work there (see The page); `?` lists every one, with what it does.
 | `↑` `↓` | Accounts' Detail | Choose an account in the list, all accounts first; or, in its SESSIONS, a session |
 | `→` `←` | Accounts' Detail | Into the account's SESSIONS, and back to the list |
 | `←` `→` | Runway | Step back a day, or a week in the week view; step forward, to the live view |
-| `a` | Runway | Collapse the account column to each account's marks and use, or expand it (the owner's call, 17 October 2026) |
+| `a` | Runway | Collapse the account column to each account's use, the lanes from column 0, or expand it (the owner's calls, 17 October and 12 November 2026) |
 | `w` `f` `o` `g` `h` | Graphs | Show or hide WEEK, 5-HOUR, POOL, GLANCE, WHEN YOU WORK; `f` only while an account has a 5-hour window |
 | `↑` `↓` | Sessions | Choose a session, a call on the Switchboard or a row on the List |
 | `↑` `↓` | The Log | Choose a line; from following, `↑` chooses the newest and pauses; with its details open, the line before or after |
