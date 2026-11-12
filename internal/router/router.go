@@ -121,11 +121,12 @@ type Config struct {
 	// before then pins its account by that id for as long as it runs, which
 	// the router takes for the account's id now. Nil knows of none.
 	Formerly func(id string) (string, bool)
-	// Unhealed is why the config, naming no pools once the move to pools was
-	// done, couldn't be given them back as the router started, as serve heals
-	// it before it reads it: nil where it was, or needn't be. The router
-	// tells of it, and tries again, as it tells of and tries a heal of its
-	// own.
+	// Unhealed is why the config couldn't be healed as the router started,
+	// its accounts' ids or its pools, as serve heals it before it reads it:
+	// nil where it was, or needn't be. The router tells of it; where the move
+	// to pools is done and the config it starts on names none, it tries
+	// again, as it tells of and tries a heal of its own, and else no heal
+	// follows till one is needed.
 	Unhealed error
 	// Upstream is the API's base URL, such as https://api.anthropic.com.
 	Upstream string

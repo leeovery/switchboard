@@ -36,17 +36,24 @@ type poolHealer struct {
 }
 
 // newPoolHealer returns the healer of the config file cfg gives, its home
-// directory as cfg's HomeDir returns it, which takes cfg's Unhealed, where
-// it's set, as a heal of the config the router started on tried at once,
-// and tells of it: none where the router has no config file, or no state
-// directory, and so no accounts record to heal it from.
+// directory as cfg's HomeDir returns it, which tells of cfg's Unhealed, where
+// it's set: as a heal of the config the router started on tried at once,
+// to be tried again, where the move to pools is done and that config names
+// no pools, as look tries one; else as no more than a heal that failed, as
+// no look tries one till it's needed. It's none where the router has no
+// config file, or no state directory, and so no accounts record to heal it
+// from.
 func newPoolHealer(cfg Config) *poolHealer {
 	if cfg.ConfigFile.path == "" || cfg.StateDir == "" {
 		return nil
 	}
 	h := &poolHealer{path: cfg.ConfigFile.path, stateDir: cfg.StateDir, homeDir: cfg.HomeDir, now: cfg.Now}
-	if cfg.Unhealed != nil {
+	switch {
+	case cfg.Unhealed == nil:
+	case len(cfg.Pools) == 0 && idmove.PoolsMoved(cfg.StateDir):
 		h.failed(cfg.Unhealed)
+	default:
+		logger.Warn("couldn't heal the config", "path", h.path, "error", cfg.Unhealed)
 	}
 	return h
 }

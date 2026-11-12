@@ -337,6 +337,65 @@ func TestARouterStartedOnAConfigItCouldntHealKeepsAClientsAccountInItsPool(t *te
 	}
 }
 
+func TestTheHealAsTheRouterStartedIsSaidToBeTriedAgainOnlyWhereItIs(t *testing.T) {
+	tests := []struct {
+		name string
+		// moved has the move to pools done; pooled has the config the router
+		// starts on name pools.
+		moved, pooled bool
+		// retried is whether the log says the heal is tried again.
+		retried bool
+	}{
+		{name: "the move done, the config naming no pools: tried again each minute", moved: true, retried: true},
+		{name: "the move done, the config naming pools", moved: true, pooled: true},
+		{name: "before the move, the config naming no pools"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			log := logstest.Capture(t)
+			stateDir := t.TempDir()
+			if tt.moved {
+				writeFile(t, filepath.Join(stateDir, "pools.moved"), "")
+			}
+			newWatchingPoolsRouter(t, stateDir, func(cfg *Config) {
+				cfg.Unhealed = errors.New("write the accounts' new ids back first: editing the config as text wouldn't make exactly the change meant")
+				if !tt.pooled {
+					cfg.Accounts, cfg.Pools = config.Accounts(testConfigured), nil
+				}
+			})
+
+			if n := timesLogged(log, "level=WARN", "couldn't heal the config"); n != 1 {
+				t.Errorf("the log says the config couldn't be healed %d times, want once\n%s", n, log)
+			}
+			if got := timesLogged(log, "level=WARN", "couldn't heal the config", "tried again each minute") == 1; got != tt.retried {
+				t.Errorf("the log says the heal is tried again each minute: %v, want %v\n%s", got, tt.retried, log)
+			}
+		})
+	}
+}
+
+func TestAHealThatFailsOnceTheConfigHadItsPoolsAgainIsToldOfAndTriedAtOnce(t *testing.T) {
+	log := logstest.Capture(t)
+	stateDir := t.TempDir()
+	r, path := newWatchingPoolsRouter(t, stateDir)
+	// The clock stands still throughout.
+	r.upkeep.heal.now = (&testClock{now: start}).read
+	// Done, but with no first pool noted, so there's none to heal with.
+	writeFile(t, filepath.Join(stateDir, "pools.moved"), "")
+	unpooled := unpooledTOML("work", "personal", "side")
+
+	writeConfigFile(t, path, unpooled)
+	r.upkeep.look()
+	writeConfigFile(t, path, poolsTOML(defaultPool, defaultTOML, acmeTOML))
+	r.upkeep.look()
+	writeConfigFile(t, path, unpooled)
+	r.upkeep.look()
+
+	if n := timesLogged(log, "level=WARN", "couldn't heal the config"); n != 2 {
+		t.Errorf("the log says the config couldn't be healed %d times, want twice: tried again at once, and told of again, once it had its pools between\n%s", n, log)
+	}
+}
+
 func TestTheAccountsRecordFollowsThePoolsLastFoundWhereTheConfigDoesntRead(t *testing.T) {
 	logstest.Capture(t)
 	r, path := newWatchingPoolsRouter(t, t.TempDir())
