@@ -188,6 +188,19 @@ func (r *Record) keepPoolsUp(ids []string, labelOf func(id string) string, at ti
 	return kept
 }
 
+// NoteFirst notes the pool with the given id as the first, where the history
+// from before pools is, adding it, configured, at the time given, where the
+// record hasn't it: for a record noting none first, as a record notes one at
+// most.
+func (r *Record) NoteFirst(id string, at time.Time) {
+	p := r.pool(id)
+	if p == nil {
+		r.Pools = append(r.Pools, PoolEntry{ID: id, Added: at})
+		p = &r.Pools[len(r.Pools)-1]
+	}
+	p.First = true
+}
+
 // labelIn returns the label labelOf gives the account or pool with the given
 // id, else its id: nil gives none.
 func labelIn(labelOf func(id string) string, id string) string {

@@ -14,14 +14,15 @@ import (
 var ErrConflict = errors.New("the accounts records disagree")
 
 // JoinAs is how a Mac's record is joined: Configured are the accounts this
-// Mac configures; From is the install of the Mac whose record it is, by
-// which an account whose id is held here is given another; Own is set where
-// it's this Mac's own record, as its own export carries it, whose ids are
-// this Mac's; and Labels is set where its labels are taken, as they aren't
-// from this Mac's own export, which may be older than a label another Mac
-// gave since.
+// Mac configures, and Pools the pools; From is the install of the Mac whose
+// record it is, by which an account whose id is held here is given another;
+// Own is set where it's this Mac's own record, as its own export carries it,
+// whose ids are this Mac's; and Labels is set where its labels are taken, as
+// they aren't from this Mac's own export, which may be older than a label
+// another Mac gave since.
 type JoinAs struct {
 	Configured config.Accounts
+	Pools      config.Pools
 	From       string
 	Own        bool
 	Labels     bool
@@ -54,6 +55,9 @@ type JoinAs struct {
 //     the other Mac's install and its id, as Derive spells one, so it's the
 //     same however often it's joined.
 //
+// Its pools are joined as joinPool joins each, matched by id alone, a
+// pool's id being random, never one of an organization's.
+//
 // It fails, changing nothing, with ErrConflict wrapped where r, joined,
 // breaks the record's rules, as check says.
 func (r *Record) Join(other Record, as JoinAs) (map[string]string, error) {
@@ -63,6 +67,9 @@ func (r *Record) Join(other Record, as JoinAs) (map[string]string, error) {
 		if id := j.join(e); !strings.EqualFold(id, e.ID) {
 			mapped[strings.ToLower(e.ID)] = id
 		}
+	}
+	for _, p := range other.Pools {
+		j.joinPool(p)
 	}
 	if err := j.record.check(); err != nil {
 		return nil, fmt.Errorf("%w: joined, %w", ErrConflict, err)
@@ -135,17 +142,46 @@ func (j *joining) take(i int, e Entry, labelled bool) string {
 	if _, held := j.record.ByOrganization(e.Organization); !held {
 		own.organize(e.Organization)
 	}
-	live := own.Removed.IsZero()
-	if e.Label != "" && (live && labelled || !live && own.namedByID() && !e.namedByID()) {
+	if takesLabel(own.ID, own.Label, own.Removed.IsZero(), e.ID, e.Label, labelled) {
 		own.Label = e.Label
 	}
 	return own.ID
 }
 
-// namedByID reports whether e's label is its id, as an account that left
-// the config while no router ran is named, the router knowing no other.
-func (e Entry) namedByID() bool {
-	return strings.EqualFold(e.Label, e.ID)
+// joinPool takes the pool p, as another record keeps it, into the record, as
+// it's joined: matched by id, it's the record's pool, which keeps its times
+// and removal, and takes p's label as take has an account take one;
+// matching none, of an id configured here, it's that pool, added with its
+// time added alone, as a pool added on another Mac sharing this one's
+// config; matching none otherwise, it's added as it is, its label and
+// removal kept. The other Mac's first pool is never this one's.
+func (j *joining) joinPool(p PoolEntry) {
+	labelled := j.as.Labels && p.Configured
+	p.First, p.Configured = false, false
+	configured := containsFold(j.as.Pools.IDs(), p.ID)
+	switch own := j.record.pool(p.ID); {
+	case own != nil && !configured:
+		if takesLabel(own.ID, own.Label, own.Removed.IsZero(), p.ID, p.Label, labelled) {
+			own.Label = p.Label
+		}
+	case own != nil:
+	case configured:
+		j.record.Pools = append(j.record.Pools, PoolEntry{ID: p.ID, Added: p.Added})
+	default:
+		j.record.Pools = append(j.record.Pools, p)
+	}
+}
+
+// takesLabel reports whether an account or a pool this record keeps, not
+// configured here, by its id and label, and whether it's live, takes the
+// label another record gives it, by its id there and that label, as Join
+// says: where labelled says it's taken and it's live here; or where it's
+// removed here named by its id alone, as the router names one that left the
+// config while no router ran, knowing no other, and the other names it
+// otherwise.
+func takesLabel(id, label string, live bool, otherID, otherLabel string, labelled bool) bool {
+	namedByID := strings.EqualFold(label, id)
+	return otherLabel != "" && (live && labelled || !live && namedByID && !strings.EqualFold(otherLabel, otherID))
 }
 
 // matching is the place of the account e is, as Join matches it: -1 where

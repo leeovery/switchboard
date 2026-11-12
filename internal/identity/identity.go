@@ -41,7 +41,19 @@ type PoolEntry struct {
 // PoolByID returns the pool with the given id, in any case, reporting false
 // where the record has none.
 func (r Record) PoolByID(id string) (PoolEntry, bool) {
-	i := slices.IndexFunc(r.Pools, func(p PoolEntry) bool { return strings.EqualFold(p.ID, id) })
+	return r.findPool(func(p PoolEntry) bool { return strings.EqualFold(p.ID, id) })
+}
+
+// FirstPool returns the first pool, reporting false where the record notes
+// none, as one from before pools.
+func (r Record) FirstPool() (PoolEntry, bool) {
+	return r.findPool(func(p PoolEntry) bool { return p.First })
+}
+
+// findPool returns the first pool that matches, reporting false where none
+// does.
+func (r Record) findPool(match func(PoolEntry) bool) (PoolEntry, bool) {
+	i := slices.IndexFunc(r.Pools, match)
 	if i < 0 {
 		return PoolEntry{}, false
 	}
