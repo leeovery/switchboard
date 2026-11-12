@@ -56,9 +56,8 @@ func newPoolTable(accounts config.Accounts, pools config.Pools, first string, id
 }
 
 // closedTable returns the table of a router that can't tell which pool any
-// account is in, for the reason given: none is in any, so every request is
-// answered by switchboard, saying why, and nothing goes out on an account a
-// pool it isn't in.
+// account is in, for the reason given: none is in any, so nothing goes out
+// on any account, and every request is answered by switchboard, saying why.
 func closedTable(why string) *poolTable {
 	return &poolTable{poolOf: map[string]string{}, closed: why}
 }
