@@ -3035,11 +3035,14 @@ and the pool's room then is judged there, as POOL says. The focus GRAPHS followe
     wide as `0 sessions`, and three cells after them; and the rate's tail of 8;
   - flexing: the words, at least 20 and at most 61 (what they had at 173 columns before they
     flexed), and the trace, at least 24; half of what the fixed parts leave each, the odd cell the
-    trace's, the words capped at their most and the trace taking the rest.
+    trace's, the words capped at their most and the trace taking the rest;
+  - of the trace's cells, the first 13, down to the trace's least, go to a session's project in
+    SESSIONS (`traceParts`), on an account's row too, so the traces line up.
 
   Their widths come from the accounts configured and fixed words alone, never the words or sessions
-  shown, so nothing moves as they change. With a name column of 16, that's 92 for the trace at 173
-  columns, the sessions at 79, and 35 cells from 65 at 108.
+  shown, so nothing moves as they change. With a name column of 16, that's the trace drawn from
+  105 at 173 columns, its share from 92, the sessions at 79; and at 108, its share 35 cells from
+  65, drawn 24 cells from 76.
 - **A row an account,** in the config's order, wherever those parts' leasts fit (from 83 columns
   with a name column of 16):
   - its name and marks at column 0, as in USAGE;
@@ -3140,8 +3143,14 @@ whose models go to two accounts on each:
   its `session` column (`sessionIn`), so LATELY's `mobile started on side` and the row's
   `c61b mobile` name the session alike. The project takes a column of 12 whether a session has a
   directory or not, its id alone where none is known, so the columns after it line up down the
-  list; where the row's parts run short, why it's there gives way first, and the project goes only
-  where the id, family, when it was seen and what it's doing don't fit with it. Then two spaces, its
+  list. Its cells come from ROUTING's trace where the trace has room past its least of 24
+  (`routing.go`, `traceParts`): the trace, an account's and a session's alike, starts up to 13
+  cells later, so why a session is there keeps its cells. Where the row's parts run short, why it's
+  there gives way first; then the project narrows, cut as `status.DirName` cuts it, to 6 cells, the
+  List's least; and it goes only where the id, family, when it was seen and what it's doing don't
+  fit with it at 6, under 84 columns with the sample's names. On two rows a session, the project
+  is whole from 42 columns, narrows below that, and goes below 36, why it's there keeping its own
+  row. Then two spaces, its
   model's family in `text.muted`, and a cell on, when it was last seen, right-aligned in 4 in
   `text.subtle`: `now` within the minute, `9m`, `2h`. The family's column is a fixed part of the
   row's, laid by flex (`overview_sessions.go`, `runningParts`), its width the widest family the
@@ -3157,7 +3166,8 @@ whose models go to two accounts on each:
   `moved from work 14:39: pinned to side`; `pinned here 14:39`, its own pin; `its pin to side
   yields: side has no room` (settled in the plan). It's cut to end two cells before the trace,
   and shows only in 12 cells or more, as fewer say nothing of it: short of them it gives way
-  whole, before the project does, its cells left blank. `moved from…` at 120 columns; none at 108.
+  whole, before the project narrows, its cells left blank. A move's reason reads whole from 160
+  columns; `moved from work 1…` at 108; `moved from…` at 102; none under 102.
 - **Its own trace,** one row, starting where ROUTING's do, as ROUTING's row's parts lay them, so
   the two columns line up, on the shared scale, and its rate right-aligned at the last column. A
   session takes a row wherever an account does in ROUTING. No blank rows between sessions, but

@@ -228,8 +228,8 @@ func TestASessionsWhyIsCutToEndBeforeItsTrace(t *testing.T) {
 		return strings.TrimRight(string([]rune(sessionsDrawn(f, doc, 1)[0])[:at.trace]), " "), at.trace, at.whyCells > 0
 	}
 	for width, want := range map[int]string{
-		173: "side ▲        d28c               opus    now   idle     its pin to personal yields: per…",
-		108: "side ▲        d28c               opus    now   idle",
+		173: "side ▲        d28c               opus    now   idle     its pin to personal yields: personal has no…",
+		108: "side ▲        d28c               opus    now   idle     its pin to person…",
 	} {
 		if got, trace, _ := before(width); got != want {
 			t.Errorf("at %d columns, drew\n  %q\nwant\n  %q, its why cut short two cells or more before the trace at column %d", width, got, want, trace)
@@ -348,28 +348,32 @@ func TestSESSIONSDirectoriesTakeAColumnTheRestLinedUp(t *testing.T) {
 }
 
 // Where a row's parts run short, why it's there gives way first, whole,
-// as it shows only in whyLeast cells or more; its directory gives way,
-// whole, only where its id, family, when it was seen and what it's doing
-// don't fit with it.
+// as it shows only in whyLeast cells or more; then its directory narrows,
+// cut as status.DirName cuts it, to listDirLeast; and only then gives way,
+// where its id, family, when it was seen and what it's doing don't fit with
+// it at that.
 func TestASessionsWhyGivesWayBeforeItsDirectory(t *testing.T) {
 	parts := runningParts()
-	rest := 0
+	whole := 0
 	for p, part := range parts[:runWhy] {
 		if p > 0 {
-			rest += part.Gap
+			whole += part.Gap
 		}
-		rest += part.Least
+		whole += part.Natural
 	}
+	least := whole - dirCells + listDirLeast
 	tests := []struct {
 		name     string
 		room     int
 		dir, why int
 	}{
-		{name: "room to spare: why takes it", room: rest + whyLeast + 9, dir: dirCells, why: whyLeast + 9},
-		{name: "why at its least", room: rest + whyLeast, dir: dirCells, why: whyLeast},
-		{name: "short of why's least: it gives way whole, the directory whole", room: rest + whyLeast - 1, dir: dirCells},
-		{name: "room for the rest alone: the directory whole", room: rest, dir: dirCells},
-		{name: "too little for the directory: it gives way", room: rest - 1},
+		{name: "room to spare: why takes it", room: whole + whyLeast + 9, dir: dirCells, why: whyLeast + 9},
+		{name: "why at its least", room: whole + whyLeast, dir: dirCells, why: whyLeast},
+		{name: "short of why's least: it gives way whole, the directory whole", room: whole + whyLeast - 1, dir: dirCells},
+		{name: "room for the rest whole", room: whole, dir: dirCells},
+		{name: "a cell short: the directory narrows", room: whole - 1, dir: dirCells - 1},
+		{name: "the directory at its least", room: least, dir: listDirLeast},
+		{name: "too little for its least: the directory gives way", room: least - 1},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -379,10 +383,11 @@ func TestASessionsWhyGivesWayBeforeItsDirectory(t *testing.T) {
 			}
 		})
 	}
+	const dir = "~/Code/infra-terraform-modules"
 	doc, _, _ := overviewWorld()
 	long := inDirs([]status.Session{{ID: idD28C, Assignments: []status.Assignment{{
 		Model: opus, Family: "opus", Account: "side", Reason: "pin yields: personal has no room for a request that's long", AssignedAt: routedAt, LastSeen: routedAt,
-	}}}}, "~/Code/infra")
+	}}}}, dir)
 	seen := map[string]bool{}
 	for width := 81; width <= 220; width++ {
 		f := Frame{Width: width, Height: 40, View: Overview, Sessions: long}
@@ -392,19 +397,45 @@ func TestASessionsWhyGivesWayBeforeItsDirectory(t *testing.T) {
 		}
 		row := sessionsDrawn(f, doc, 1)[0]
 		room := at.trace - beforeTraceAt - at.names
-		dir, why := strings.Contains(row, "d28c infra         opus"), strings.Contains(row, "its pin")
-		want := map[bool]string{true: "its directory and why", false: "its directory alone"}[room >= rest+whyLeast]
-		if room < rest {
-			want = "neither"
+		cells := min(max(room-(whole-dirCells), listDirLeast), dirCells)
+		named, why := "d28c  opus", room >= whole+whyLeast
+		if room >= least {
+			named = padded("d28c "+status.DirName(dir, cells), status.IDShown+dirGap+cells+afterNamed) + "opus"
 		}
-		got := map[[2]bool]string{{true, true}: "its directory and why", {true, false}: "its directory alone", {false, false}: "neither"}[[2]bool{dir, why}]
-		if got != want {
-			t.Errorf("at %d columns, %d cells for its parts, drew %q, want %s", width, room, row, want)
+		if !strings.Contains(row, named) || strings.Contains(row, "its pin") != why {
+			t.Errorf("at %d columns, %d cells for its parts, drew %q, want %q, and why shown %v", width, room, row, named, why)
 		}
-		seen[got] = true
+		seen[fmt.Sprint(room >= least, cells == dirCells, why)] = true
 	}
-	if len(seen) != 3 {
-		t.Errorf("the sweep drew %v, want each of its directory and why, its directory alone, and neither", seen)
+	if len(seen) != 4 {
+		t.Errorf("the sweep drew %v, want the directory whole with why and without, narrowed, and gone", seen)
+	}
+}
+
+// Where ROUTING's trace has room past its least, it cedes a session's
+// directory its cells, so why a session is there keeps them: the trace
+// starts dirRoom cells later, or as many as take it to its least, in an
+// account's row and a session's alike; and a move's reason reads whole from
+// 160 columns.
+func TestTheTraceCedesASessionsDirectoryItsCells(t *testing.T) {
+	for width := 81; width <= 220; width++ {
+		s, oneRow := flex.Lay(width, routingParts(16)...)
+		if !oneRow {
+			continue
+		}
+		span := s[rowTrace].Size + s[rowTracePast].Size
+		ceded := min(dirRoom, span-traceLeast)
+		if got := routingColumnsOf(width, 16); got.trace != s[rowTrace].At+ceded || got.traceCells != span-ceded {
+			t.Errorf("at %d columns, the trace lies from %d, %d cells; want from %d, %d", width, got.trace, got.traceCells, s[rowTrace].At+ceded, span-ceded)
+		}
+	}
+	doc, sessions, stream := overviewWorld()
+	for _, width := range []int{160, 173, 216} {
+		f := Frame{Width: width, Height: 40, View: Overview, Sessions: inDirs(sessions, "", "", "~/Code/switchboard"), Stream: stream}
+		rows := sessionsDrawn(f, doc, 6)
+		if !strings.Contains(rows[1], "d28c switchboard   opus    now   ↑ ask    moved from work 14:31: work reached its cap  ") {
+			t.Errorf("at %d columns, drew %q, want its reason whole", width, rows[1])
+		}
 	}
 }
 
@@ -455,7 +486,10 @@ func TestAFamilyTheVersionTableDoesntNameIsCutToItsColumn(t *testing.T) {
 		named := at.named
 		whyAt := func(row string) bool {
 			r := []rune(row)
-			return at.whyCells == 0 || r[14+named+24] == ' ' && r[14+named+25] == 's'
+			if at.whyCells == 0 {
+				return strings.TrimSpace(string(r[14+named+24:at.trace])) == ""
+			}
+			return r[14+named+24] == ' ' && r[14+named+25] == 's'
 		}
 		with := f
 		with.Sessions = append(slices.Clone(sessions), mystery)

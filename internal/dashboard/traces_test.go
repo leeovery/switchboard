@@ -130,7 +130,7 @@ func tracedClock(hour, minute, second int) time.Time {
 	return time.Date(2026, 10, 1, hour, minute, second, 0, time.UTC)
 }
 
-// tracedCells are the eighths of a trace 60 cells wide, as at 157 columns,
+// tracedCells are the eighths of a trace 60 cells wide, as at 171 columns,
 // filled in the cells given and no others: the cell of the 30 seconds from
 // hh:mm:00 or hh:mm:30 is 59 − (14:42:00 − that) ÷ 30 s, routedAt's the last.
 func tracedCells(filled map[int]int) []int {
@@ -203,7 +203,7 @@ func TestAFramesTracesDrawItsRequestsAMinuteToItsScale(t *testing.T) {
 	}
 	rates := map[string]span{"work": {"0/min", dimInk}, "personal": {"2/min", strongInk}, "side": {"16/min", strongInk}}
 	for _, tt := range tests {
-		f := frameOf(157, 40)
+		f := frameOf(171, 40)
 		f.Look, f.Sections, f.Sessions, f.Traces, f.TraceScale = Screen(builtin(t, "nord")), SectionsNamed([]string{"routing"}), listed, traces, tt.scale
 		c := newCanvas(f.Width, f.Height)
 		f.view(c, doc, routedAt)

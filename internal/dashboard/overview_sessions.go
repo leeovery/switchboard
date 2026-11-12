@@ -29,7 +29,8 @@ const (
 	dirGap        = 1
 	dirCells      = views.SessionDirCells
 	afterNamed    = 2
-	idDirCells    = status.IDShown + dirGap + dirCells
+	dirRoom       = dirGap + dirCells
+	idDirCells    = status.IDShown + dirRoom
 	familyGap     = 1
 	seenCells     = 4
 	beforeDoing   = 3
@@ -165,16 +166,32 @@ func (f Frame) runningForm(columns routingColumns) runningForm {
 
 // namedOnTwoIn are the cells a session's id and directory take on the
 // first of its two rows, in the room given them and what it's doing,
-// right-aligned, as flex lays them: its id; dirGap on, its directory,
-// dirCells, which gives way where they don't fit; and afterNamed on, what
-// it's doing, doingCells.
+// right-aligned, as flex lays them: its id; its directory, as dirPart has
+// it; and afterNamed on, what it's doing, doingCells.
 func namedOnTwoIn(room int) int {
 	s, _ := flex.Lay(room,
 		flex.Part{Least: status.IDShown, Natural: status.IDShown},
-		flex.Part{Least: dirCells, Natural: dirCells, Leaves: 1, Gap: dirGap},
+		dirPart(dirNarrows, dirLeaves),
 		flex.Part{Least: doingCells, Natural: doingCells, Gap: afterNamed},
 	)
 	return s[1].At + s[1].Size
+}
+
+// The turns a session's row gives way in as its room runs short, in this
+// order: why it's there leaves, whole; its directory narrows toward its
+// least; and its directory leaves.
+const (
+	whyLeaves = 1 + iota
+	dirNarrows
+	dirLeaves
+)
+
+// dirPart is a session's directory on its row, as flex lays it: dirGap
+// after its id, dirCells, narrowing in the turn given toward listDirLeast,
+// the List's least, as status.DirName cuts it, and leaving in the turn
+// given.
+func dirPart(narrows, leaves int) flex.Part {
+	return flex.Part{Least: listDirLeast, Natural: dirCells, Narrows: narrows, Leaves: leaves, Gap: dirGap}
 }
 
 // drawSession draws the session running r from row y, of the moment m, but
@@ -217,23 +234,23 @@ func (form runningForm) laid() runningColumns {
 }
 
 // runningParts are the parts of a session's row on a row a session, as flex
-// lays them: the id, status.IDShown; dirGap on, its directory, dirCells,
-// which gives way in the turn after why's, where the rest don't fit with why
-// gone; afterNamed on, the family, fixed at the widest family the version table names, as
-// familiesCells has it, so the columns never move with the sessions shown,
-// and a model's id that names no family is cut there; familyGap on, when it
-// was last seen, seenCells; beforeDoing on, what it's doing, doingCells; and
-// why it's there, which takes the rest from whyLeast, and gives way first,
-// whole, its cells left blank.
+// lays them: the id, status.IDShown; its directory, as dirPart has it,
+// narrowing and leaving after why leaves; afterNamed on, the family, fixed
+// at the widest family the version table names, as familiesCells has it, so
+// the columns never move with the sessions shown, and a model's id that
+// names no family is cut there; familyGap on, when it was last seen,
+// seenCells; beforeDoing on, what it's doing, doingCells; and why it's
+// there, which takes the rest from whyLeast, and gives way first, whole,
+// its cells left blank.
 func runningParts() []flex.Part {
 	family := familiesCells()
 	return []flex.Part{
 		runID:     {Least: status.IDShown, Natural: status.IDShown},
-		runDir:    {Least: dirCells, Natural: dirCells, Leaves: 2, Gap: dirGap},
+		runDir:    dirPart(dirNarrows, dirLeaves),
 		runFamily: {Least: family, Natural: family, Gap: afterNamed},
 		runSeen:   {Least: seenCells, Natural: seenCells, Gap: familyGap},
 		runDoing:  {Least: doingCells, Natural: doingCells, Gap: beforeDoing},
-		runWhy:    {Least: whyLeast, Natural: whyLeast, Grows: true, Leaves: 1},
+		runWhy:    {Least: whyLeast, Natural: whyLeast, Grows: true, Leaves: whyLeaves},
 	}
 }
 

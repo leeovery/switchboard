@@ -29,6 +29,15 @@ func (l line) width() int {
 	return n
 }
 
+// plain is the line's text without its inks.
+func (l line) plain() string {
+	var b strings.Builder
+	for _, s := range l {
+		b.WriteString(s.text)
+	}
+	return b.String()
+}
+
 // draw writes the line to b, its inks drawn as look draws them.
 func (l line) draw(b *strings.Builder, look Look) {
 	for _, s := range l {
