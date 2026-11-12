@@ -242,7 +242,7 @@ func TestAPinIsAnsweredForThePoolOfTheAccountsItPins(t *testing.T) {
 		{name: "its pool asked", asked: acmePool, body: `{"accounts": ["personal"]}`, want: acmePool, pinned: []string{"personal"}},
 		{
 			name: "accounts of two pools", body: `{"accounts": ["work", "personal"]}`, pinned: []string{"side"},
-			refused: "pin accounts of one pool: work (Work) is in pool Default, personal (Personal) is in pool Acme",
+			refused: "pin accounts of one pool: work is in pool Default, personal is in pool Acme",
 		},
 		{name: "another pool asked", asked: defaultPool, body: `{"accounts": ["personal"]}`, pinned: []string{"side"}, refused: "are in pool Acme, not Default"},
 		{name: "one not configured asked", asked: unconfigured, body: `{"accounts": ["personal"]}`, pinned: []string{"side"}, refused: poolsNamedSaid},
