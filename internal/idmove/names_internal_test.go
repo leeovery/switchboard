@@ -33,3 +33,18 @@ func TestALineRenamedIsWrittenAsTheRouterWritesIt(t *testing.T) {
 		t.Errorf("renamed, the line reads\n%s\nwant\n%s", got, want)
 	}
 }
+
+func TestEachPoolsPinInTheStateFileIsRenamed(t *testing.T) {
+	ids := map[string]string{"work": "wk7q", "side": "sd3m"}
+	rename := func(id string) string {
+		if now, ok := ids[id]; ok {
+			return now
+		}
+		return id
+	}
+	was := `{"version": 1, "pins": {"work": {"accounts": ["work", "side"], "since": "2026-11-08T09:00:00Z", "move": true}}}`
+	got, changed := stateNames.renamed([]byte(was), rename)
+	if want := `{"version": 1, "pins": {"work": {"accounts": ["wk7q", "sd3m"], "since": "2026-11-08T09:00:00Z", "move": true}}}`; !changed || string(got) != want {
+		t.Errorf("renamed, the state file reads\n%s\nwant\n%s: each pool's pin's accounts renamed, the pool's id as it was", got, want)
+	}
+}
