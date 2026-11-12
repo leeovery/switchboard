@@ -698,24 +698,49 @@ func TestRunRefusesAPinInAnotherPool(t *testing.T) {
 	}
 }
 
-func TestRunRefusesAPinToAnAccountTheRoutersPoolsDontHold(t *testing.T) {
-	h := newHarness(t, "HOME=/home/tester")
-	h.launcher.Dir = acmeDir
-	// The config names no pools once the move is done, so the router's are
-	// taken: acme2, added since it started, is in none of them yet.
-	rt := otherPools(pooledConfig(), func(ps []router.RoutedPool) []router.RoutedPool {
-		ps[1].Accounts = []string{"acme1"}
-		return ps
-	})
-	r := pooledRoute(unpooledConfig(), rt, "acme2")
-	r.Moved = true
-
-	err := h.launcher.Run(t.Context(), r, nil)
-	if want := "Acme 2 (acme2) is in no pool the router routes yet; this directory is in pool Acme"; err == nil || err.Error() != want {
-		t.Errorf("Run() error = %v, want %q", err, want)
+// The config names no pools once the move is done, so the router's are
+// taken, else the accounts record's: a pin to an account neither holds is
+// refused, saying which doesn't.
+func TestRunRefusesAPinToAnAccountThePoolsTakenDontHold(t *testing.T) {
+	tests := []struct {
+		name   string
+		router *fakeRouter
+		kept   func(*config.Config) (*config.Config, bool)
+		want   string
+	}{
+		{
+			name: "the router's, acme2 added since it started",
+			router: otherPools(pooledConfig(), func(ps []router.RoutedPool) []router.RoutedPool {
+				ps[1].Accounts = []string{"acme1"}
+				return ps
+			}),
+			want: "Acme 2 (acme2) is in no pool the router routes yet; this directory is in pool Acme",
+		},
+		{
+			name:   "the record's, keeping acme2 in none",
+			router: healthy(),
+			kept: func(*config.Config) (*config.Config, bool) {
+				kept := pooledConfig()
+				kept.Accounts[4].Pool = ""
+				return kept, true
+			},
+			want: "Acme 2 (acme2) is in no pool the accounts record keeps; this directory is in pool Acme",
+		},
 	}
-	if len(h.starts) > 0 {
-		t.Errorf("started %q, want nothing started", h.starts)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := newHarness(t, "HOME=/home/tester")
+			h.launcher.Dir = acmeDir
+			r := pooledRoute(unpooledConfig(), tt.router, "acme2")
+			r.Moved, r.Kept = true, tt.kept
+
+			if err := h.launcher.Run(t.Context(), r, nil); err == nil || err.Error() != tt.want {
+				t.Errorf("Run() error = %v, want %q", err, tt.want)
+			}
+			if len(h.starts) > 0 {
+				t.Errorf("started %q, want nothing started", h.starts)
+			}
+		})
 	}
 }
 

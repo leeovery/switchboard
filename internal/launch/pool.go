@@ -26,6 +26,31 @@ type place struct {
 	// accounts are the pool's, in the config's order, or every account
 	// without pools.
 	accounts config.Accounts
+	// from is where pools come from, as Route's from says.
+	from poolsSource
+}
+
+// poolsSource is where the pools a launch places a session among, and each
+// account's pool, come from: the zero value is the config's own, which hold
+// every account.
+type poolsSource int
+
+const (
+	// fromRouter is the pools the router routes for, as its answers name
+	// them, which hold no account it doesn't route yet.
+	fromRouter poolsSource = iota + 1
+	// fromRecord is the pools the accounts record keeps, as Route's Kept
+	// gives them, which hold no account the record keeps in none.
+	fromRecord
+)
+
+// noPool says what an account in no pool isn't in, as "no pool the router
+// routes yet". The config's own pools hold every account.
+func (s poolsSource) noPool() string {
+	if s == fromRecord {
+		return "no pool the accounts record keeps"
+	}
+	return "no pool the router routes yet"
 }
 
 // pooled reports whether the config has pools, so the session is in one.
@@ -66,12 +91,13 @@ func (p place) noToken() string {
 
 // elsewhere is why a pin to a, an account in another pool, is refused,
 // saying which pool each is in, as "Acme 1 (k3f9) is in pool Acme; this
-// directory is in pool Default". An account in none is one the router, whose
-// pools these are, doesn't route yet.
+// directory is in pool Default". An account in none is one the pools, the
+// router's or the accounts record's, don't hold, as their source's noPool
+// says.
 func (p place) elsewhere(a config.Account) error {
 	named := prose.AccountNamed(a.Label, a.ID)
 	if a.Pool == "" {
-		return fmt.Errorf("%s is in no pool the router routes yet; this directory is in pool %s", named, poolSaid(p.pool))
+		return fmt.Errorf("%s is in %s; this directory is in pool %s", named, p.from.noPool(), poolSaid(p.pool))
 	}
 	theirs, ok := p.pools.ByID(a.Pool)
 	if !ok {
@@ -94,12 +120,12 @@ func (l Launcher) withPools(r Route, ask func() (router.Health, routerState)) (R
 	}
 	h, _ := ask()
 	if pools, reported := RoutedPools(h); reported {
-		r.Config, r.fromRouter = pooledBy(r.Config, h, pools), true
+		r.Config, r.from = pooledBy(r.Config, h, pools), fromRouter
 		return r, nil
 	}
 	if r.Kept != nil {
 		if kept, ok := r.Kept(r.Config); ok && len(kept.Pools) > 0 {
-			r.Config = kept
+			r.Config, r.from = kept, fromRecord
 			return r, nil
 		}
 	}
@@ -183,11 +209,11 @@ func (l Launcher) placed(r Route) (place, error) {
 	if why != "" {
 		return place{}, l.refuse(why, "dir", l.Dir)
 	}
-	in := place{pools: r.Config.Pools, pool: pool, accounts: r.Config.Accounts.InPool(pool.ID)}
+	in := place{pools: r.Config.Pools, pool: pool, accounts: r.Config.Accounts.InPool(pool.ID), from: r.from}
 	if len(in.accounts) > 0 {
 		return in, nil
 	}
-	if r.fromRouter {
+	if r.from == fromRouter {
 		return place{}, l.refuse("the router routes no account of pool "+poolSaid(pool)+" yet: any the config gives it waits for the router to restart", "pool", pool.ID)
 	}
 	return place{}, l.refuse("pool "+poolSaid(pool)+" has no accounts", "pool", pool.ID)

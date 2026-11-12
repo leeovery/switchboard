@@ -80,9 +80,10 @@ type Route struct {
 	// Written is the pools the config file writes, as read where the config
 	// can't be, which RunUnread takes alone of the file.
 	Written Written
-	// fromRouter is set where Config's accounts are those the router routes
-	// for, as its answers name them, in place of the config's.
-	fromRouter bool
+	// from is where Config's pools, and each account's pool, come from: the
+	// config's own, or, in their place, the router's or the accounts
+	// record's.
+	from poolsSource
 	// Token reads an account's token, by the account's id, from its file.
 	Token func(id string) (tokens.Token, error)
 	// Pause waits as long as it's given, as time.Sleep does, before a token
@@ -258,7 +259,7 @@ func (l Launcher) RunUnread(ctx context.Context, r Route, args []string, unread 
 		logger.Warn("can't read which accounts the router routes for", "error", err)
 		return aside(cant.besides(routerUnsaid), false)
 	}
-	r.fromRouter = true
+	r.from = fromRouter
 	return l.routeUnread(path, args, r, state, cant, aside)
 }
 
