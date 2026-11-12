@@ -1,6 +1,7 @@
 package router
 
 import (
+	"cmp"
 	"slices"
 	"sync"
 	"sync/atomic"
@@ -27,6 +28,9 @@ type poolTable struct {
 	// primary holds, by the pool's id, the id of the account the config
 	// makes each pool's primary, as poolOf spells the pool.
 	primary map[string]string
+	// replaced is closed once membership has replaced the table with another,
+	// for a reader held open to look at the pools again.
+	replaced chan struct{}
 }
 
 // newPoolTable returns the pools accounts and pools make, as a config gives
@@ -37,7 +41,10 @@ type poolTable struct {
 // shares has put aside, and its sessions from before pools go where that
 // config put every account.
 func newPoolTable(accounts config.Accounts, pools config.Pools, first string) *poolTable {
-	t := &poolTable{pools: slices.Clone(pools), poolOf: make(map[string]string, len(accounts)), primary: make(map[string]string)}
+	t := &poolTable{
+		pools: slices.Clone(pools), poolOf: make(map[string]string, len(accounts)), primary: make(map[string]string),
+		replaced: make(chan struct{}),
+	}
 	for _, a := range accounts {
 		t.poolOf[a.ID] = a.Pool
 		if a.Primary {
@@ -104,12 +111,16 @@ func (t *poolTable) serves(named, id string) bool {
 
 // keeping returns the table with the accounts given in the pools they're in,
 // and any other in none, as it has left the config: the pools, their
-// primaries and the first stand. Each is known by the id it has now, as idNow gives it, as a config
-// put back from before switchboard made ids names it by the one it had.
-// Where one given is an account the table doesn't have, it's the table
-// whole: what the config makes of the accounts can't be told.
+// primaries and the first stand. Each is known by the id it has now, as
+// idNow gives it, as a config put back from before switchboard made ids
+// names it by the one it had. Where one given is an account the table
+// doesn't have, it's the table whole: what the config makes of the accounts
+// can't be told.
 func (t *poolTable) keeping(accounts config.Accounts, idNow func(id string) string) *poolTable {
-	kept := &poolTable{pools: t.pools, first: t.first, primary: t.primary, poolOf: make(map[string]string, len(accounts))}
+	kept := &poolTable{
+		pools: t.pools, first: t.first, primary: t.primary, poolOf: make(map[string]string, len(accounts)),
+		replaced: make(chan struct{}),
+	}
 	for _, a := range accounts {
 		id := idNow(a.ID)
 		pool, ok := t.poolOf[id]
@@ -123,16 +134,16 @@ func (t *poolTable) keeping(accounts config.Accounts, idNow func(id string) stri
 
 // healedTable returns the pools of accounts, from a config that names none
 // once the move to pools is done, till the router's restart gives the config
-// its pools again: the first pool, the one with the given id, and every
-// account in it, by the id it has now, as idNow gives it, its primary the
-// config's.
-func healedTable(accounts config.Accounts, first string, idNow func(id string) string) *poolTable {
-	t := newPoolTable(nil, config.Pools{{ID: first, Label: first}}, first)
+// its pools again: the first pool, as the accounts record keeps it, labelled
+// by its id where it keeps no label, and every account in it, by the id it
+// has now, as idNow gives it, its primary the config's.
+func healedTable(accounts config.Accounts, first config.Pool, idNow func(id string) string) *poolTable {
+	t := newPoolTable(nil, config.Pools{{ID: first.ID, Label: cmp.Or(first.Label, first.ID)}}, first.ID)
 	for _, a := range accounts {
-		t.poolOf[idNow(a.ID)] = first
+		t.poolOf[idNow(a.ID)] = first.ID
 	}
 	if len(accounts) > 0 {
-		t.primary[first] = idNow(accounts.Primary().ID)
+		t.primary[first.ID] = idNow(accounts.Primary().ID)
 	}
 	return t
 }
@@ -157,10 +168,10 @@ func (t *poolTable) shown(pool string) string {
 // half changed. It's safe for concurrent use.
 type membership struct {
 	table atomic.Pointer[poolTable]
-	// first reads the id of the first pool, as the accounts record notes it:
-	// "" where it notes none. idNow gives the id an account a config names
-	// has now, as accounts' idNow does.
-	first func() string
+	// first reads the first pool, its id and its label, as the accounts
+	// record notes it: zero where it notes none. idNow gives the id an
+	// account a config names has now, as accounts' idNow does.
+	first func() config.Pool
 	idNow func(id string) string
 
 	// mu is held as the pools are followed, and guards what they were last
@@ -180,7 +191,7 @@ type membership struct {
 // as first does, and the id an account a config names has now as idNow
 // does, following no pools yet: every account in the one pool there is, as
 // in a config from before pools.
-func newMembership(first func() string, idNow func(id string) string) *membership {
+func newMembership(first func() config.Pool, idNow func(id string) string) *membership {
 	m := &membership{first: first, idNow: idNow}
 	m.table.Store(newPoolTable(nil, nil, ""))
 	return m
@@ -210,7 +221,8 @@ func (m *membership) follow(accounts config.Accounts, pools config.Pools) {
 	if m.followed && slices.Equal(accounts, m.accounts) && identicalPools(pools, m.pools) {
 		return
 	}
-	m.table.Store(m.made(accounts, pools))
+	was := m.table.Swap(m.made(accounts, pools))
+	close(was.replaced)
 	m.accounts, m.pools, m.followed = slices.Clone(accounts), slices.Clone(pools), true
 }
 
@@ -224,7 +236,7 @@ func (m *membership) follow(accounts config.Accounts, pools config.Pools) {
 // m.mu must be held.
 func (m *membership) made(accounts config.Accounts, pools config.Pools) *poolTable {
 	if len(pools) > 0 {
-		m.pooled, m.warned = newPoolTable(accounts, pools, m.first()), false
+		m.pooled, m.warned = newPoolTable(accounts, pools, m.first().ID), false
 		return m.pooled
 	}
 	kept := m.kept(accounts)
@@ -249,7 +261,7 @@ func (m *membership) kept(accounts config.Accounts) *poolTable {
 	if m.pooled != nil {
 		return m.pooled.keeping(accounts, m.idNow)
 	}
-	if first := m.first(); first != "" {
+	if first := m.first(); first.ID != "" {
 		return healedTable(accounts, first, m.idNow)
 	}
 	return nil
@@ -271,32 +283,32 @@ func identicalPools(a, b config.Pools) bool {
 	})
 }
 
-// firstIn returns what reads the id of the first pool from the accounts
-// record in the state directory given, as its pool marked First: "" where it
-// marks none, has no state directory, or can't be read, which it logs at
-// debug, the config's first pool standing in.
-func firstIn(stateDir string) func() string {
+// firstIn returns what reads the first pool from the accounts record in the
+// state directory given, as its pool marked First, by its id and its label:
+// zero where it marks none, has no state directory, or can't be read, which
+// it logs at debug, the config's first pool standing in.
+func firstIn(stateDir string) func() config.Pool {
 	if stateDir == "" {
 		return noFirst
 	}
 	record := identity.NewFile(stateDir)
-	return func() string {
+	return func() config.Pool {
 		r, err := record.Read()
 		if err != nil {
 			logger.Debug("can't read the accounts record's first pool; the config's first stands in", "error", err)
-			return ""
+			return config.Pool{}
 		}
 		i := slices.IndexFunc(r.Pools, func(p identity.PoolEntry) bool { return p.First })
 		if i < 0 {
-			return ""
+			return config.Pool{}
 		}
-		return r.Pools[i].ID
+		return config.Pool{ID: r.Pools[i].ID, Label: r.Pools[i].Label}
 	}
 }
 
 // noFirst knows of no first pool.
-func noFirst() string {
-	return ""
+func noFirst() config.Pool {
+	return config.Pool{}
 }
 
 // sameID knows of no id an account had before switchboard made ids: an

@@ -97,7 +97,7 @@ func TestTheListingGlancesAtTheAccountsOnceForEachModel(t *testing.T) {
 	glance := looks
 
 	looks = 0
-	listed := r.running(everyAccount())
+	listed := r.running(r.state.everyAccount())
 	if want := 2 * glance; looks != want {
 		t.Errorf("listing three sessions of opus and haiku looked at the accounts %d times, want %d: a glance for each model", looks/glance, want/glance)
 	}
