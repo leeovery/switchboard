@@ -162,9 +162,14 @@ func (r *recent) take(e Event, now time.Time) {
 	case RestartHeld:
 		r.add(status.Event{Kind: status.EventRestart, Reason: e.Reason, Held: e.Refusal}, now)
 	case Pinned:
-		r.add(status.Event{Kind: status.EventPin, Accounts: e.Accounts, Account: e.Account, Session: bounded(e.Session), Move: e.Move, Force: e.Force, By: string(e.By)}, now)
+		r.add(status.Event{
+			Kind: status.EventPin, Accounts: e.Accounts, Account: e.Account, Session: bounded(e.Session), Move: e.Move, Force: e.Force, By: string(e.By),
+			Pool: e.Pool,
+		}, now)
 	case Unpinned:
-		r.add(status.Event{Kind: status.EventAuto, Accounts: e.Accounts, Account: e.Account, Session: bounded(e.Session), Force: e.Force, By: string(e.By)}, now)
+		r.add(status.Event{
+			Kind: status.EventAuto, Accounts: e.Accounts, Account: e.Account, Session: bounded(e.Session), Force: e.Force, By: string(e.By), Pool: e.Pool,
+		}, now)
 	}
 }
 
@@ -273,16 +278,17 @@ func (r *recent) run(ctx context.Context) {
 
 // look keeps what the accounts, as they stand now, call for since the last
 // look, as news and capping say, judged as the status document judges them,
-// with the global pin's accounts spending their reserves; and has the
+// the accounts each pool's pin names spending their reserves; and has the
 // router's health judged now, which tells of a turn as it's judged. The moves
 // heard before it reads the accounts, still waiting for the cap or the
 // refusal that forced them, wait no more, as unawaited says.
 func (r *recent) look() {
 	r.judge()
 	now := r.now()
-	pin := r.sessions.globalPin()
+	every := r.state.everyAccount()
+	pin := every.pin(r.sessions.pinsNow(), r.state.accounts)
 	heard := r.newest()
-	accounts := r.state.statuses(now, r.state.everyAccount(), pin.Accounts)
+	accounts := r.state.statuses(now, every, pin.Accounts)
 	news := r.news(accounts, r.state.standings(now))
 	r.change(func() {
 		for _, e := range news {

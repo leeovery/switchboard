@@ -13,7 +13,7 @@ const stillComeHere = "new sessions still come here"
 // marks another account, as Elsewhere says, as in "limit reached · new
 // sessions go elsewhere"; where it marks this one, the one account there is,
 // or none, as where no account has room, it says nothing of them, as there's
-// nowhere else they go. Its cap the global pin spends, a model's limit, cap
+// nowhere else they go. Its cap the pool's pin spends, a model's limit, cap
 // or refusal, and its token refused say what ROUTING says but its back time,
 // as in "Fable wk limit · other models still come here". Under pressure, new
 // sessions still come here, and open, they come here, where ▲ marks it.
@@ -35,7 +35,7 @@ func (a AccountNow) Headed() Routing {
 }
 
 // Unpinned is how the account stands where a mark beside its words says the
-// global pin names it: its clauses and its short form, after its first
+// pool's pin names it: its clauses and its short form, after its first
 // words, without those that say so, as its cap the pin spends has them.
 func (r Routing) Unpinned() Routing {
 	saysPin := func(s string) bool { return s == stillPinned || s == pinnedShort }

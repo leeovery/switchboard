@@ -138,7 +138,7 @@ func (h *happening) liftedAt(until time.Time) {
 // held back none of its windows before, as news, counting the moves it forced
 // that came first; and a cap reached again while it holds, in other windows
 // perhaps, joining its event. A cap holds while the account's reserve holds
-// back a window of it, and the global pin doesn't name it, which spends its
+// back a window of it, and the pool's pin doesn't name it, which spends its
 // reserve. The first look at an account read calls for none, as there's
 // nothing yet to compare it with. r.mu must be held.
 func (r *recent) capping(accounts []status.Account, pin status.Pin, now time.Time) {

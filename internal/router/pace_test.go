@@ -301,7 +301,7 @@ func TestAnAccountIsUnderPressureOnlyWhileItCanTakeARequestOfSomeModel(t *testin
 		{name: "a refusal of Opus requests alone", holdBack: func(s *state) { s.forbid("work", "opus", http.StatusForbidden, someRequest) }, want: true},
 		{name: "its week at its reserve", holdBack: func(s *state) { s.record("work", []quota.Window{fullWeek}, s.mark()) }},
 		{
-			name:     "its week at its reserve, which the global pin spends",
+			name:     "its week at its reserve, which the pool's pin spends",
 			holdBack: func(s *state) { s.record("work", []quota.Window{fullWeek}, s.mark()) },
 			pinned:   []string{"work"},
 			want:     true,
@@ -391,7 +391,7 @@ func TestTheBestIsWhereANewSessionGoesUnderPressure(t *testing.T) {
 	}
 	for i, step := range steps {
 		if step.pin != nil {
-			r.sessions.setPin(status.Pin{Accounts: step.pin, Since: clock.now}, false)
+			r.sessions.setPin(beforePools(), status.Pin{Accounts: step.pin, Since: clock.now}, false)
 		}
 		if got := r.Status().Best; got != step.want {
 			t.Errorf("%s, Best = %q, want %q", step.name, got, step.want)
@@ -404,7 +404,7 @@ func TestTheBestIsWhereANewSessionGoesUnderPressure(t *testing.T) {
 }
 
 func TestThePressureLoggedIsAtTheRoomTheChoiceGaveTheAccount(t *testing.T) {
-	// Work keeps a tenth of every window back, and the global pin names it
+	// Work keeps a tenth of every window back, and the pool's pin names it
 	// and side, so a choice spends its reserve: its session runs out at its
 	// limit. Work's quota needs using first; side's session doesn't rise.
 	tests := []struct {
@@ -437,9 +437,9 @@ func TestThePressureLoggedIsAtTheRoomTheChoiceGaveTheAccount(t *testing.T) {
 				r.state.record("work", []quota.Window{{Key: "5h", Label: "Session", Utilization: u, ResetsAt: resets}, soonWeek}, r.state.mark())
 				r.state.record("side", []quota.Window{{Key: "5h", Label: "Session", Utilization: 0.1, ResetsAt: resets}, laterWeek}, r.state.mark())
 			}
-			r.sessions.setPin(status.Pin{Accounts: []string{"work", "side"}, Since: start}, false)
+			r.sessions.setPin(beforePools(), status.Pin{Accounts: []string{"work", "side"}, Since: start}, false)
 
-			if got := choose(t.Context(), r, Request{ID: "5f3a9c2e", Session: "one", Model: opus, Client: "work"}); got.Reason != "pinned (global), work under pressure" {
+			if got := choose(t.Context(), r, Request{ID: "5f3a9c2e", Session: "one", Model: opus, Client: "work"}); got.Reason != "pinned (pool), work under pressure" {
 				t.Fatalf("the choice = %+v, want side, passing over work", got)
 			}
 			want := []string{`msg="passed over under pressure"`, "account=work", `rate="` + tt.rate + `"`,

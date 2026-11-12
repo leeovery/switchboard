@@ -233,8 +233,10 @@ func TestAPinIsAnsweredForThePoolOfTheAccountsItPins(t *testing.T) {
 	logstest.Capture(t)
 	tests := []struct {
 		name, asked, body string
-		// want is the pool answered for, and pinned the accounts the pin
-		// names after; refused, how it's refused, "" where it isn't.
+		// want is the pool answered for, and pinned the accounts its pin
+		// names after; refused, how it's refused, "" where it isn't. Default
+		// is pinned to side before, which stands unless pinned is
+		// Default's.
 		want    string
 		pinned  []string
 		refused string
@@ -243,16 +245,16 @@ func TestAPinIsAnsweredForThePoolOfTheAccountsItPins(t *testing.T) {
 		{name: "two of one pool", body: `{"accounts": ["side", "work"]}`, want: defaultPool, pinned: []string{"work", "side"}},
 		{name: "its pool asked", asked: acmePool, body: `{"accounts": ["personal"]}`, want: acmePool, pinned: []string{"personal"}},
 		{
-			name: "accounts of two pools", body: `{"accounts": ["work", "personal"]}`, pinned: []string{"side"},
+			name: "accounts of two pools", body: `{"accounts": ["work", "personal"]}`,
 			refused: "pin accounts of one pool: work is in pool Default, personal is in pool Acme",
 		},
-		{name: "another pool asked", asked: defaultPool, body: `{"accounts": ["personal"]}`, pinned: []string{"side"}, refused: "are in pool Acme, not Default"},
-		{name: "one not configured asked", asked: unconfigured, body: `{"accounts": ["personal"]}`, pinned: []string{"side"}, refused: poolsNamedSaid},
+		{name: "another pool asked", asked: defaultPool, body: `{"accounts": ["personal"]}`, refused: "are in pool Acme, not Default"},
+		{name: "one not configured asked", asked: unconfigured, body: `{"accounts": ["personal"]}`, refused: poolsNamedSaid},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			r := pooledRouter(t, pooledAccounts(), bothFenced)
-			r.pinTo(status.Pin{Accounts: []string{"side"}, Since: start}, false)
+			pinnedIn(t, r, defaultPool, status.Pin{Accounts: []string{"side"}, Since: start})
 
 			rec := askControl(t, r, http.MethodPost, withPool("/pin", tt.asked), tt.body)
 			if tt.refused != "" {
@@ -266,8 +268,14 @@ func TestAPinIsAnsweredForThePoolOfTheAccountsItPins(t *testing.T) {
 					t.Errorf("POST /pin answered for pool %q, its pin %q; want %q, %q", doc.PoolID, doc.Pin.Accounts, tt.want, tt.pinned)
 				}
 			}
-			if got := r.sessions.globalPin(); !slices.Equal(got.Accounts, tt.pinned) {
-				t.Errorf("the pin is %+v, want of %q", got, tt.pinned)
+			want := map[string][]string{defaultPool: {"side"}}
+			if tt.want != "" {
+				want[tt.want] = tt.pinned
+			}
+			for _, pool := range []string{defaultPool, acmePool} {
+				if got := r.poolPin(pool); !slices.Equal(got.Accounts, want[pool]) {
+					t.Errorf("pool %s's pin is %+v, want of %q", pool, got, want[pool])
+				}
 			}
 		})
 	}
@@ -276,10 +284,10 @@ func TestAPinIsAnsweredForThePoolOfTheAccountsItPins(t *testing.T) {
 func TestARefusedUnpinChangesNothing(t *testing.T) {
 	logstest.Capture(t)
 	r := pooledRouter(t, pooledAccounts(), bothFenced)
-	r.pinTo(status.Pin{Accounts: []string{"side"}, Since: start}, false)
+	pinnedIn(t, r, defaultPool, status.Pin{Accounts: []string{"side"}, Since: start})
 
 	askControl(t, r, http.MethodDelete, "/pin", "")
-	if got := r.sessions.globalPin(); !slices.Equal(got.Accounts, []string{"side"}) {
+	if got := r.poolPin(defaultPool); !slices.Equal(got.Accounts, []string{"side"}) {
 		t.Errorf("the pin is %+v once unpinning was refused, want side's as it was", got)
 	}
 }
@@ -339,11 +347,12 @@ func TestEachPoolsDocumentHoldsItsOwnAccountsBestPrimaryRoomAndSessions(t *testi
 	}
 }
 
-func TestEachPoolsDocumentHoldsTheGlobalPinAsItHoldsInThePool(t *testing.T) {
+func TestEachPoolsDocumentHoldsItsOwnPin(t *testing.T) {
 	logstest.Capture(t)
 	r := pooledRouter(t, pooledAccounts(), testPools)
 	readPersonalFirst(r)
-	r.pinTo(status.Pin{Accounts: []string{"personal", "side"}, Since: start, Move: true}, false)
+	pinnedIn(t, r, defaultPool, status.Pin{Accounts: []string{"side"}, Since: start, Move: true})
+	pinnedIn(t, r, acmePool, status.Pin{Accounts: []string{"personal"}, Since: start.Add(time.Minute)})
 
 	tests := []struct {
 		pool string
@@ -351,19 +360,36 @@ func TestEachPoolsDocumentHoldsTheGlobalPinAsItHoldsInThePool(t *testing.T) {
 		best string
 	}{
 		{pool: defaultPool, want: status.Pin{Accounts: []string{"side"}, Since: start, Move: true}, best: "side"},
-		{pool: acmePool, want: status.Pin{Accounts: []string{"personal"}, Since: start, Move: true}, best: "personal"},
+		{pool: acmePool, want: status.Pin{Accounts: []string{"personal"}, Since: start.Add(time.Minute)}, best: "personal"},
 	}
 	for _, tt := range tests {
 		if doc := statusIn(t, r, tt.pool); !reflect.DeepEqual(doc.Pin, tt.want) || doc.Best != tt.best {
-			t.Errorf("pool %s's document holds pin %+v, best %q, want %+v, best %q", tt.pool, doc.Pin, doc.Best, tt.want, tt.best)
+			t.Errorf("pool %s's document holds pin %+v, best %q; want %+v, best %q", tt.pool, doc.Pin, doc.Best, tt.want, tt.best)
 		}
 	}
+	if doc := statusIn(t, r, defaultPool); !doc.Pool.Pinned {
+		t.Error("Default's room isn't pinned, want it pinned: its pin names its accounts")
+	}
 
-	// A pin naming none of a pool's accounts is no pin there.
-	r.pinTo(status.Pin{Accounts: []string{"personal"}, Since: start}, false)
+	// Unpinning one pool leaves the other's pin.
+	if err := r.unpin(r.readOf(acmePool), false, ByCLI); err != nil {
+		t.Fatalf("unpin() = %v", err)
+	}
+	if doc := statusIn(t, r, acmePool); !doc.Pin.IsZero() || doc.Best != "personal" {
+		t.Errorf("Acme's document holds pin %+v, best %q, once unpinned; want no pin, best personal", doc.Pin, doc.Best)
+	}
+	if doc := statusIn(t, r, defaultPool); !reflect.DeepEqual(doc.Pin, tests[0].want) {
+		t.Errorf("Default's document holds pin %+v once Acme's was cleared, want its own, %+v, as it was", doc.Pin, tests[0].want)
+	}
+
+	// A pool's pin naming an account that has since left it shows without it.
+	moveAccount(r, "side", acmePool)
 	if doc := statusIn(t, r, defaultPool); !doc.Pin.IsZero() || doc.Pool.Pinned || doc.Best != "work" {
-		t.Errorf("Default's document holds pin %+v, its room pinned %v, best %q, with Acme's account pinned alone; want no pin, best work",
+		t.Errorf("Default's document holds pin %+v, its room pinned %v, best %q, with its pin's account moved to Acme; want no pin, best work",
 			doc.Pin, doc.Pool.Pinned, doc.Best)
+	}
+	if doc := statusIn(t, r, acmePool); !doc.Pin.IsZero() {
+		t.Errorf("Acme's document holds pin %+v, with Default's pinned account moved into it; want none: Default's pin is Default's", doc.Pin)
 	}
 }
 
@@ -697,6 +723,51 @@ func TestAConfigWithNoPoolsIsAnsweredAsBeforeWhateverPoolIsAsked(t *testing.T) {
 	recorded := map[string]string{
 		"/status": "status.json", "/sessions": "sessions.json", "/sessions/one": "session.json", "/history?window=7d&step=1h": "history.json",
 	}
+	for target, file := range recorded {
+		want, err := os.ReadFile(filepath.Join("testdata", "nopools", file))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, asked := range []string{"", defaultPool} {
+			if got := askControl(t, r, http.MethodGet, withPool(target, asked), "").Body.String(); got != string(want) {
+				t.Errorf("GET %s asking for pool %q answered\n%s\nwant as before pools\n%s", target, asked, got, want)
+			}
+		}
+	}
+}
+
+// pinnedWithoutPools builds a router of testConfigured in no pools, priming
+// through the day: the accounts' weeks read, work's rising two points ten
+// minutes on, a session routed, and side pinned, moving the running
+// sessions, twenty minutes on, as the clock reads thirty minutes on.
+func pinnedWithoutPools(t *testing.T) *Router {
+	t.Helper()
+	clock := &testClock{now: start}
+	cfg := testConfig(clock.read, &stubProber{}, poolTokens.Read)
+	cfg.Accounts, cfg.Prime = testConfigured, daytime
+	r := newTestRouterOf(t, cfg)
+	r.proxy.transport = servingAll(served, served, served)
+	readPersonalFirst(r)
+	clock.now = start.Add(10 * time.Minute)
+	risen := laterWeek
+	risen.Utilization += 0.02
+	r.state.record("work", []quota.Window{risen}, r.state.mark())
+	routeIn(t, r, workToken, "one", "", nil)
+	clock.now = start.Add(20 * time.Minute)
+	if rec := askControl(t, r, http.MethodPost, "/pin", `{"accounts": ["side"], "move": true}`); rec.Code != http.StatusOK {
+		t.Fatalf("POST /pin answered %d %s, want 200", rec.Code, rec.Body)
+	}
+	clock.now = start.Add(30 * time.Minute)
+	return r
+}
+
+// The bodies in testdata/nopools/pinned-* were recorded from the router as
+// it was before each pool had a pin of its own, from pinnedWithoutPools.
+func TestAConfigWithNoPoolsIsAnsweredAsBeforeWithAPinSet(t *testing.T) {
+	logstest.Capture(t)
+	r := pinnedWithoutPools(t)
+
+	recorded := map[string]string{"/status": "pinned-status.json", "/sessions/one": "pinned-session.json"}
 	for target, file := range recorded {
 		want, err := os.ReadFile(filepath.Join("testdata", "nopools", file))
 		if err != nil {

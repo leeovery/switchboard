@@ -19,7 +19,7 @@ import (
 // as those records tell: for cmd/forecasttool, which scores the weeks'
 // forecasts against what happened. Nothing routes by it. What the records
 // don't hold, it has none of: no account reaches a limit, nor has its token
-// refused, as none has for a router that has just started, and no global pin
+// refused, as none has for a router that has just started, and no pin
 // holds, as no history of the pin is kept. Every account configured has a
 // usable token, though none is read, as a playback sends nothing. It isn't
 // safe for concurrent use.

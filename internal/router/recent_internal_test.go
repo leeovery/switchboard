@@ -74,12 +74,12 @@ func TestEachEventAsTheDocumentGivesIt(t *testing.T) {
 			want:  status.Event{Kind: status.EventRestart, Reason: "upgraded"},
 		},
 		{
-			name:  "the global pin set, moving and forcing, by the pin command",
+			name:  "the pool's pin set, moving and forcing, by the pin command",
 			event: Pinned{Accounts: []string{"work", "side"}, Account: "work", Move: true, Force: true, By: ByCLI},
 			want:  status.Event{Kind: status.EventPin, Account: "work", Accounts: []string{"work", "side"}, Move: true, Force: true, By: "cli"},
 		},
 		{
-			name:  "the global pin set by what doesn't say",
+			name:  "the pool's pin set by what doesn't say",
 			event: Pinned{Accounts: []string{"side"}, Account: "side"},
 			want:  status.Event{Kind: status.EventPin, Account: "side", Accounts: []string{"side"}},
 		},
@@ -89,7 +89,7 @@ func TestEachEventAsTheDocumentGivesIt(t *testing.T) {
 			want:  status.Event{Kind: status.EventPin, Account: "side", Session: "0b5c6f2e", By: "dashboard"},
 		},
 		{
-			name:  "the global pin cleared, forcing, by the pin command",
+			name:  "the pool's pin cleared, forcing, by the pin command",
 			event: Unpinned{Accounts: []string{"work", "side"}, Force: true, By: ByCLI},
 			want:  status.Event{Kind: status.EventAuto, Accounts: []string{"work", "side"}, Force: true, By: "cli"},
 		},
@@ -516,7 +516,7 @@ func (p pressing) work() status.Account {
 	}
 }
 
-func TestPressureIsJudgedAsTheDocumentJudgesItWithTheGlobalPin(t *testing.T) {
+func TestPressureIsJudgedAsTheDocumentJudgesItWithThePoolsPin(t *testing.T) {
 	clock := &testClock{now: start}
 	reserving := slices.Clone(testConfigured)
 	reserving[0].Reserve = 0.2
@@ -529,13 +529,13 @@ func TestPressureIsJudgedAsTheDocumentJudgesItWithTheGlobalPin(t *testing.T) {
 	roomy := quota.Window{Key: "7d", Label: "Week", Utilization: 0.5, ResetsAt: start.Add(3 * day), Status: quota.StatusAllowed}
 	s.record("work", []quota.Window{used, roomy}, s.mark())
 
-	sessions.setPin(status.Pin{Accounts: []string{"work"}, Since: start}, false)
+	sessions.setPin(beforePools(), status.Pin{Accounts: []string{"work"}, Since: start}, false)
 	r.look()
 	r.look()
 	if got := r.events(); got != nil {
 		t.Fatalf("with work pinned, events() = %+v, want none: it isn't under pressure", got)
 	}
-	sessions.unpin(false)
+	sessions.unpin(beforePools(), false)
 	r.look()
 
 	doc := s.document()

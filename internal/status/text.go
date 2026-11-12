@@ -128,7 +128,7 @@ func (d Document) reservedOf(a Account, now time.Time) string {
 // reserved says how an account's reserve, reserve of each window, stands
 // once the windows reached have reached it: "at its reserve (90%)", the
 // router's own choices passing the account over from that share of a window
-// on, or, with the global pin naming it, as pinned says, "spending its
+// on, or, with the pool's pin naming it, as pinned says, "spending its
 // reserve (pinned)". It's "" while no window has reached it.
 func reserved(reached []string, pinned bool, reserve float64) string {
 	switch {

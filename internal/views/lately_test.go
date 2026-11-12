@@ -51,7 +51,9 @@ func TestLATELYTellsEachKindOfEventInItsSentence(t *testing.T) {
 	}{
 		{name: "a session starting on the router's best", event: status.Event{Kind: status.EventStarted, Account: "side", Session: "c61b2f8d-04a7", Reason: status.ReasonNew},
 			full: "c61b started on side", subject: "c61b", object: "side"},
-		{name: "a session starting where the global pin sends it", event: status.Event{Kind: status.EventStarted, Account: "personal", Session: "c61b2f8d", Reason: status.ReasonGlobalPin},
+		{name: "a session starting where its pool's pin sends it", event: status.Event{Kind: status.EventStarted, Account: "personal", Session: "c61b2f8d", Reason: status.ReasonPoolPin},
+			full: "c61b started on personal, as pinned", subject: "c61b", object: "personal"},
+		{name: "a session starting where the global pin sent it, before pools", event: status.Event{Kind: status.EventStarted, Account: "personal", Session: "c61b2f8d", Reason: status.ReasonGlobalPin},
 			full: "c61b started on personal, as pinned", subject: "c61b", object: "personal"},
 		{name: "a session starting where its own pin sends it", event: status.Event{Kind: status.EventStarted, Account: "side", Session: "9e21d4a8", Reason: status.ReasonPinned},
 			full: "9e21 started on side, as pinned", subject: "9e21", object: "side"},

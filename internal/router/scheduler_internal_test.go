@@ -920,18 +920,18 @@ func TestOnlyAMoveTheSessionHadToMakeSaysWhatHeldItsRequestBack(t *testing.T) {
 		name string
 		// idle is how long the session has idled on work; launched is the pin
 		// it was launched with, which its requests carry; own is the pin it's
-		// given while it runs; and global is the global pin.
+		// given while it runs; and poolPin is the pool's pin.
 		idle     time.Duration
 		launched string
 		own      string
-		global   status.Pin
+		poolPin  status.Pin
 		// forced is set where the session has to leave work.
 		forced bool
 	}{
 		{name: "as work can't take its request", idle: time.Minute, forced: true},
 		{name: "as its own pin to work yields", idle: time.Minute, launched: "work", forced: true},
 		{name: "as its own pin to work yields, its cache cold", idle: 2 * time.Hour, launched: "work", forced: true},
-		{name: "but by the global pin, which moves it", idle: time.Minute, global: status.Pin{Accounts: []string{"side"}, Since: start, Move: true}},
+		{name: "but by the pool's pin, which moves it", idle: time.Minute, poolPin: status.Pin{Accounts: []string{"side"}, Since: start, Move: true}},
 		{name: "but by its own pin", idle: time.Minute, own: "side"},
 		{name: "but rescored after its idle hours", idle: 2 * time.Hour},
 	}
@@ -948,8 +948,8 @@ func TestOnlyAMoveTheSessionHadToMakeSaysWhatHeldItsRequestBack(t *testing.T) {
 				if m.own != "" {
 					r.sessions.pinSession("one", m.own)
 				}
-				if len(m.global.Accounts) > 0 {
-					r.sessions.setPin(m.global, false)
+				if len(m.poolPin.Accounts) > 0 {
+					r.sessions.setPin(beforePools(), m.poolPin, false)
 				}
 				h.hold(r.state)
 

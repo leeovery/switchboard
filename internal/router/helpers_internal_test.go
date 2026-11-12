@@ -12,6 +12,7 @@ import (
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/score"
+	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/tokens"
 	"github.com/leeovery/switchboard/internal/tokens/tokenstest"
 )
@@ -213,4 +214,30 @@ func (p *stubProber) counts() map[string]int {
 // its key.
 func probed(models map[string][]string, windows ...quota.Window) quota.Probe {
 	return quota.Probe{Windows: windows, Models: models}
+}
+
+// beforePools is a read of the one pool of a config from before pools, which
+// every session is in.
+func beforePools() poolRead {
+	return poolRead{pools: unpooled().current()}
+}
+
+// readOf is a read of the pool with the given id, as r's pools stand now.
+func (r *Router) readOf(pool string) poolRead {
+	return r.state.poolReadOf(r.state.pools.current(), pool)
+}
+
+// pinnedIn has r set pin as the pin of the pool with the given id, as
+// pinTo does, failing the test where it refuses.
+func pinnedIn(t *testing.T, r *Router, pool string, pin status.Pin) {
+	t.Helper()
+	if err := r.pinTo(r.readOf(pool), pin, false, ByCLI); err != nil {
+		t.Fatalf("pinTo(%s, %+v) = %v", pool, pin, err)
+	}
+}
+
+// poolPin returns the pin of the pool with the given id, as r holds it:
+// zero where it has none.
+func (r *Router) poolPin(pool string) status.Pin {
+	return r.sessions.pinsNow()[pool]
 }
