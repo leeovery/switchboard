@@ -127,6 +127,14 @@ func (rd poolRead) pin(ps pins, as accounts) status.Pin {
 	return pin
 }
 
+// demandOf returns the id of the pool whose demand the read carries: the
+// pool read, the one there is in a config from before pools included;
+// reporting false for a read of every account's where there are pools, as
+// no pool's demand is another's.
+func (rd poolRead) demandOf() (string, bool) {
+	return rd.pool, !rd.every || !rd.pools.pooled()
+}
+
 // events returns those of the events given that the pool read shows: one
 // that names a pool, where it's the pool read; one that names an account in
 // a pool, where it's in the pool read now, as its windows go; and every one

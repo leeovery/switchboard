@@ -1,6 +1,7 @@
 package router
 
 import (
+	"maps"
 	"slices"
 	"time"
 
@@ -26,36 +27,89 @@ func (as accounts) sizes() map[string]float64 {
 	return sizes
 }
 
-// rose takes in a rise of the account's window named key, a share of it, at
-// at: the pool's day rate takes in its shared week's, the policy's
-// perishable window, alone, in Pro weeks, as the account's size makes it.
-// s.mu must be held.
-func (s *state) rose(id, key string, rise float64, at time.Time) {
-	if key == s.policy.Perishable {
-		s.day = s.day.Rose(rise*s.sizes[id], at)
+// sizesIn returns each account's size, in Pro weeks, by its id, as sizes has
+// them of the accounts of its pool, as t has the pools, as the forecast
+// sizes those of the pool's document: none for an account in no pool. s.mu
+// must be held.
+func (s *state) sizesIn(t *poolTable) map[string]float64 {
+	sizes := make(map[string]float64, len(s.accounts))
+	for _, pool := range t.each() {
+		maps.Copy(sizes, t.routed(pool, s.accounts).sizes())
+	}
+	return sizes
+}
+
+// regroup has the state reckon each pool's demand in the pools as they
+// stand, where they've changed since it last did, and returns them: an
+// account that has moved to another pool has its fast rates forgotten, so
+// it brings none of its old pool's demand, while its old pool's day rate
+// keeps what it took in, as that pool's use; each account is sized among its
+// pool's, as sizesIn says; and as the pools first come in, the day rate of
+// the one pool there was is the first pool's, as all work before pools was.
+// The day rate of a pool no longer configured goes. s.mu must be held.
+func (s *state) regroup() *poolTable {
+	t := s.pools.current()
+	if t == s.grouped {
+		return t
+	}
+	s.forgetMoved(s.grouped, t)
+	if !s.grouped.pooled() && t.pooled() {
+		s.days[t.first] = s.days[""]
+	}
+	maps.DeleteFunc(s.days, func(pool string, _ forecast.Day) bool { return !t.within(pool) })
+	s.sizes, s.grouped = s.sizesIn(t), t
+	return t
+}
+
+// forgetMoved forgets the fast rates of each account in another pool in now
+// than it was in was, where both have pools: none moves as the pools first
+// come in. It notes each in the log. s.mu must be held.
+func (s *state) forgetMoved(was, now *poolTable) {
+	if !was.pooled() || !now.pooled() {
+		return
+	}
+	for _, a := range s.accounts {
+		from, _ := was.in(a.ID)
+		if to, _ := now.in(a.ID); to != from {
+			clear(s.usage[a.ID].fast)
+			logger.Debug("forgot the rates of an account that moved pools", "account", a.ID, "from", from, "pool", to)
+		}
 	}
 }
 
-// judgeRoom has the pool's day rate count the time from at on as time the
-// pool has room for a new session in, or none, as roomy judges it, week
-// giving each account's shared week, and pin the accounts the pools' pins
-// name. s.mu must be held.
-func (s *state) judgeRoom(week func(id string) (quota.Window, bool), pin []string, at time.Time) {
-	s.day = s.day.Open(s.roomy(week, pin, at), at)
+// rose takes in a rise of the account's window named key, a share of it, at
+// at: the day rate of the account's pool takes in its shared week's, the
+// policy's perishable window, alone, in Pro weeks, as the account's size
+// makes it. s.mu must be held, the pools regrouped.
+func (s *state) rose(id, key string, rise float64, at time.Time) {
+	pool, in := s.grouped.in(id)
+	if key == s.policy.Perishable && in {
+		s.days[pool] = s.days[pool].Rose(rise*s.sizes[id], at)
+	}
 }
 
-// roomy reports whether the pool has room for a new session at at: the
-// router would find an account for one, choosing as score.Policy.Choose does
-// by the accounts' shared weeks alone, week giving each, of those with a
-// usable token whose week has been read, but those it couldn't go out on,
-// their token refused or a limit holding back their week, as shut says. So
-// an account has room within its reserve, or within its limit where pin, the
-// accounts the pools' pins name, names it, which spends the reserve. s.mu
-// must be held.
-func (s *state) roomy(week func(id string) (quota.Window, bool), pin []string, at time.Time) bool {
+// judgeRooms has each pool's day rate count the time from at on as time the
+// pool has room for a new session in, or none, as roomy judges it, week
+// giving each account's shared week, and pinned the accounts each pool's pin
+// names. s.mu must be held, the pools regrouped.
+func (s *state) judgeRooms(week func(id string) (quota.Window, bool), pinned func(pool string) []string, at time.Time) {
+	for _, pool := range s.grouped.each() {
+		s.days[pool] = s.days[pool].Open(s.roomy(week, pool, pinned(pool), at), at)
+	}
+}
+
+// roomy reports whether the pool with the given id has room for a new
+// session at at: the router would find one of its accounts for one, choosing
+// as score.Policy.Choose does by the accounts' shared weeks alone, week
+// giving each, of those with a usable token whose week has been read, but
+// those it couldn't go out on, their token refused or a limit holding back
+// their week, as shut says. So an account has room within its reserve, or
+// within its limit where pin, the accounts the pool's pin names, names it,
+// which spends the reserve. s.mu must be held, the pools regrouped.
+func (s *state) roomy(week func(id string) (quota.Window, bool), pool string, pin []string, at time.Time) bool {
 	isWeek := func(key string) bool { return key == s.policy.Perishable }
 	var candidates []score.Candidate
-	for _, a := range s.accounts {
+	for _, a := range s.grouped.routed(pool, s.accounts) {
 		if w, ok := week(a.ID); ok && a.hasToken() && !s.usage[a.ID].shut(at, isWeek) {
 			candidates = append(candidates, score.Candidate{ID: a.ID, Windows: []quota.Window{w}, Reserve: a.Reserve})
 		}
@@ -65,20 +119,21 @@ func (s *state) roomy(week func(id string) (quota.Window, bool), pin []string, a
 }
 
 // repin notes each pool's pin from now on, as the sessions hold them, and
-// judges the pool's room afresh then, as judgeRoom says, so a pin that
-// spends an account's reserve gives the pool room from its own moment.
+// judges the pools' room afresh then, as judgeRooms says, so a pin that
+// spends an account's reserve gives its pool room from its own moment.
 func (s *state) repin(ps pins) {
 	at := s.now().UTC()
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.regroup()
 	s.pins = ps
-	s.judgeRoom(s.weekHeld, s.pinned(), at)
+	s.judgeRooms(s.weekHeld, s.pinnedIn, at)
 }
 
 // recallPins takes in each pool's pin the state file kept, as the router
 // starts, as repin does, but judging nothing: seed, taking up the history
-// after it, judges the pool's room by each from when it was set, as pinnedAt
-// says, and the pool judged at now first would have the day's rate take
+// after it, judges the pools' room by each from when it was set, as pinnedAt
+// says, and the pools judged at now first would have the day's rate take
 // every time seed replays as now.
 func (s *state) recallPins(ps pins) {
 	s.mu.Lock()
@@ -86,33 +141,23 @@ func (s *state) recallPins(ps pins) {
 	s.pins = ps
 }
 
-// pinned returns the ids of the accounts their pools' pins name, as spends
-// says, in the order configured. s.mu must be held.
-func (s *state) pinned() []string {
-	return s.pinnedIf(func(status.Pin) bool { return true })
+// pinnedIn returns the ids of the accounts the pin of the pool with the given
+// id names. s.mu must be held, the pools regrouped.
+func (s *state) pinnedIn(pool string) []string {
+	return s.pins.of(s.grouped, pool).Accounts
 }
 
-// pinnedAt returns the ids of the accounts their pools' pins named at at, as
-// seed takes up the history: those each names now from when it was set, and
-// none before, as no pin that may have held then is kept. s.mu must be
-// held.
-func (s *state) pinnedAt(at time.Time) []string {
-	return s.pinnedIf(func(pin status.Pin) bool { return !at.Before(pin.Since) })
-}
-
-// pinnedIf returns the ids of the accounts their pools' pins name, as the
-// pools stand, of those pins held says hold, in the order configured. s.mu
-// must be held.
-func (s *state) pinnedIf(held func(pin status.Pin) bool) []string {
-	t := s.pools.current()
-	var ids []string
-	for _, a := range s.accounts {
-		pool, in := t.in(a.ID)
-		if pin := s.pins.of(t, pool); in && pin.Has(a.ID) && held(pin) {
-			ids = append(ids, a.ID)
+// pinnedAt returns what gives the ids of the accounts the pin of each pool
+// named at at, as seed takes up the history: those it names now from when
+// it was set, and none before, as no pin that may have held then is kept.
+// s.mu must be held, the pools regrouped, as what it returns is called.
+func (s *state) pinnedAt(at time.Time) func(pool string) []string {
+	return func(pool string) []string {
+		if pin := s.pins.of(s.grouped, pool); !at.Before(pin.Since) {
+			return pin.Accounts
 		}
+		return nil
 	}
-	return ids
 }
 
 // weekHeld returns the shared week of the account with the given id, the
@@ -135,23 +180,25 @@ func (s *state) answered(tokens quota.Tokens, onAccount time.Duration, at time.T
 	s.routine()
 }
 
-// demand is the pool's use at now, as the forecast takes it: its day rate,
-// the pool judged afresh for room at now, so a week that has reset since it
-// was read has given it room by then; or, with too few hours of room for
-// one, the pool's fast rate, as poolFast has it; and the hold curve at now,
-// learning while it's the default. It's nil where no account has been read.
-func (s *state) demand(now time.Time) *status.Demand {
+// demand is the use of the pool with the given id at now, as the forecast
+// takes it: its day rate, the pools judged afresh for room at now, so a week
+// that has reset since it was read has given its pool room by then; or, with
+// too few hours of room for one, the pool's fast rate, as poolFast has it;
+// and the hold curve at now, which every pool shares, learning while it's
+// the default. It's nil where none of the pool's accounts has been read.
+func (s *state) demand(now time.Time, pool string) *status.Demand {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if !slices.ContainsFunc(s.accounts, func(a account) bool { return len(s.usage[a.ID].windows) > 0 }) {
+	t := s.regroup()
+	if !slices.ContainsFunc(t.routed(pool, s.accounts), func(a account) bool { return len(s.usage[a.ID].windows) > 0 }) {
 		return nil
 	}
-	s.judgeRoom(s.weekHeld, s.pinned(), now)
+	s.judgeRooms(s.weekHeld, s.pinnedIn, now)
 	demand := &status.Demand{Hold: holdPoints(s.hold.Points(now)), Learning: s.hold.Learning(now)}
-	if rate, over, ok := s.day.Rate(now); ok {
+	if rate, over, ok := s.days[pool].Rate(now); ok {
 		demand.Day, demand.Hours = rate, over.Hours()
 	} else {
-		demand.Day = s.poolFast(now)
+		demand.Day = s.poolFast(pool, now)
 	}
 	return demand
 }
@@ -165,12 +212,12 @@ func holdPoints(points []forecast.Point) []status.HoldPoint {
 	return held
 }
 
-// poolFast is the pool's fast rate at now, in Pro weeks an hour: each
-// account's shared week's fast rate, as fastRate has it, by the account's
-// size. s.mu must be held.
-func (s *state) poolFast(now time.Time) float64 {
+// poolFast is the fast rate of the pool with the given id at now, in Pro
+// weeks an hour: each of its accounts' shared week's fast rate, as fastRate
+// has it, by the account's size. s.mu must be held, the pools regrouped.
+func (s *state) poolFast(pool string, now time.Time) float64 {
 	var fast float64
-	for _, a := range s.accounts {
+	for _, a := range s.grouped.routed(pool, s.accounts) {
 		fast += s.sizes[a.ID] * s.usage[a.ID].fastRate(s.policy.Perishable, now)
 	}
 	return fast

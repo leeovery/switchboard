@@ -367,13 +367,20 @@ func TestAFastRateFadedBelowAMillionthAnHourIsNone(t *testing.T) {
 	}
 }
 
-// roomAt reports whether the pool has room for a new session at at, as the
-// state judges it by the accounts' weeks as last read and the global pin as
-// it stands.
+// roomAt reports whether the one pool of a config from before pools has room
+// for a new session at at, as roomIn says.
 func roomAt(s *state, at time.Time) bool {
+	return roomIn(s, "", at)
+}
+
+// roomIn reports whether the pool with the given id has room for a new
+// session at at, as the state judges it by the accounts' weeks as last read
+// and the pool's pin as it stands.
+func roomIn(s *state, pool string, at time.Time) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.roomy(s.weekHeld, s.pinned(), at)
+	s.regroup()
+	return s.roomy(s.weekHeld, pool, s.pinnedIn(pool), at)
 }
 
 func TestThePoolHasRoomWhereTheRouterWouldSendANewSession(t *testing.T) {

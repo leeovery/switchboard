@@ -37,18 +37,26 @@ func pairedAccounts() config.Accounts {
 // pairedTokens has every one of pairedAccounts' tokens.
 var pairedTokens = tokenstest.Files{"work": workToken, "personal": personalToken, "side": sideToken, "extra": extraToken}
 
-// newPairedRouter builds a router on now's time of pairedAccounts in
-// testPools, each account with a token, serving every request on any
-// account: work's quota and personal's need using first, so each pool sends
-// a new session to its primary unless pinned.
+// newPairedRouter builds a router of pairedAccounts as newPairedRouterOf
+// does: work's quota and personal's need using first, so each pool sends a
+// new session to its primary unless pinned.
 func newPairedRouter(t *testing.T, now func() time.Time) (*Router, *scriptedUpstream) {
 	t.Helper()
+	r, upstream := newPairedRouterOf(t, now, pairedAccounts())
+	readWeeks(r, map[string]quota.Window{"work": soonWeek, "personal": soonWeek, "side": laterWeek, "extra": laterWeek})
+	return r, upstream
+}
+
+// newPairedRouterOf builds a router on now's time of the accounts given,
+// pairedAccounts as configured otherwise, in testPools, each with a token,
+// serving every request on any account, nothing read.
+func newPairedRouterOf(t *testing.T, now func() time.Time, accounts config.Accounts) (*Router, *scriptedUpstream) {
+	t.Helper()
 	cfg := testConfig(now, &stubProber{}, pairedTokens.Read)
-	cfg.Accounts, cfg.Pools = pairedAccounts(), testPools
+	cfg.Accounts, cfg.Pools = accounts, testPools
 	r := newTestRouterOf(t, cfg)
 	upstream := &scriptedUpstream{answers: map[string][]answer{workToken: {served}, personalToken: {served}, sideToken: {served}, extraToken: {served}}}
 	r.proxy.transport = upstream
-	readWeeks(r, map[string]quota.Window{"work": soonWeek, "personal": soonWeek, "side": laterWeek, "extra": laterWeek})
 	return r, upstream
 }
 
