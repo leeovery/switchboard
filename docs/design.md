@@ -758,7 +758,8 @@ read as a pool by its leaving one out (the owner's call, 11 November 2026).
     lines were lost since, so which pool they were in can't be told. A day is summarised with it
     in the first pool, and a pool read from a summary counts what's left in none as the first's.
     A day summarised again splits a summary from before pools as its lines split, where they
-    count no less, as it does one whose work in no pool its lines now give the first pool; where
+    count no less, as it does one whose work in no pool its lines now give the first pool while
+    the first pool isn't known; once it is, that work is the first pool's as it stands; where
     they count less, as some were lost, a summary from before pools, whose split can't be told,
     keeps the whole in its one pool. Otherwise each pool knows no less than before, and the whole
     no less than its pools' sum: a whole day counting no less never says which pool's lines were
@@ -780,20 +781,22 @@ read as a pool by its leaving one out (the owner's call, 11 November 2026).
     gives it keep the marks the config gives them.
   - **Safety never rests on the heal.** Writing the pools back is a convenience for the owner's
     file; what keeps the pools apart is how the router routes. One owner, in `idmove`, gives the
-    pools a config naming none is to have, from the accounts record, and the router routes by the
-    same while the config names none, worked out afresh at each look: each account in the pool the
-    heal would put it in, one with no pool to go to in none, so no session uses it, never a pool
-    it wasn't in. Where the record can't be read, or keeps no pool of this Mac's, the pools stand
-    as the router last routed within them, an account it hadn't in none; where it never routed
-    within any, as one started on such a config once the move's done, it routes nothing,
+    pools a config naming none is to have, from the accounts record, and once the move to pools is
+    done the router routes by the same while the config names none, worked out afresh at each
+    look: each account in the pool the heal would put it in, one with no pool to go to in none, so
+    no session uses it, never a pool it wasn't in. Before the move's done, it routes such a config
+    as before pools, saying nothing of it. Where the record can't be read, or keeps no pool of this
+    Mac's, the pools stand as the router last routed within them, an account it hadn't in none;
+    where it never routed within any, as one started on such a config, it routes nothing,
     answering every request with switchboard's refusal saying why, saying so once in the log, and
     reporting itself unhealthy, till the config has its pools or the record reads. Every table it
     routes by knows each account by its id now, so a config naming the ids from before
     switchboard made them routes as one naming the new. The router heals as it starts, before it
     reads the config, and as it finds the config naming none, the accounts' ids first, then the
-    pools, so the file it leaves is one it reads as written; while a heal fails it's tried once a
-    minute, the log saying once for each config that it couldn't, the heal as it started among
-    them.
+    pools, writing no pools where the ids can't be written, so the file it leaves is one it reads
+    as written; while a heal fails it's tried once a minute, however the config changes meanwhile,
+    a heal that writes the ids but not the pools among them, the log saying once that it couldn't,
+    the heal as it started included, till a heal is written or the config has its pools again.
   - It's proved before release on a copy of the owner's own history, taken with his word, never on
     the real one: every file moved, every day's totals the same before and after, and the
     dashboard and the verbs reading it whole.
