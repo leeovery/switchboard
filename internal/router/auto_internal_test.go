@@ -93,7 +93,7 @@ func TestTheListingGlancesAtTheAccountsOnceForEachModel(t *testing.T) {
 		return family(model)
 	}
 	r.state.mu.Unlock()
-	r.state.glance(opus, start)
+	r.state.glance("", opus, start)
 	glance := looks
 
 	looks = 0

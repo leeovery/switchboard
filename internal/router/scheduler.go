@@ -44,17 +44,18 @@ type scheduler struct {
 }
 
 // Choose decides again once it has looked for the probes a choice afresh
-// waits on, and again once it has looked for accounts without room to probe
-// again, whatever either found. A reading recorded between a decision and the
-// look for what's due leaves nothing due, yet the decision lacked it. Nor
-// will deciding again only where a reading came in do: a decision reads the
-// clock as well as the readings, so a window that reset, or a limit or a
-// refusal that lifted, while the look waited, up to probeWait or recheckWait,
-// changes it with no reading taken in.
+// waits on, those of the accounts in the request's pool alone, and again once
+// it has looked for accounts without room to probe again, whatever either
+// found. A reading recorded between a decision and the look for what's due
+// leaves nothing due, yet the decision lacked it. Nor will deciding again
+// only where a reading came in do: a decision reads the clock as well as the
+// readings, so a window that reset, or a limit or a refusal that lifted,
+// while the look waited, up to probeWait or recheckWait, changes it with no
+// reading taken in.
 func (s *scheduler) Choose(ctx context.Context, req Request) Choice {
 	d, on := s.decide(req)
 	if d.afresh {
-		s.probes.await(ctx, s.accounts.sendable(), s.due, probeWait, beforeChoosing)
+		s.probes.await(ctx, s.accounts.sendable().only(on.accounts.ids()), s.due, probeWait, beforeChoosing)
 		d, on = s.decideAgain(req, d)
 	}
 	if d.noRoom {
@@ -67,7 +68,7 @@ func (s *scheduler) Choose(ctx context.Context, req Request) Choice {
 	if d.compacted {
 		noteCompaction(req, d)
 	}
-	c := Choice{Account: d.account, Reason: d.reason, NoRoom: d.noRoom, Reserved: d.reserved, Back: d.back}
+	c := Choice{Account: d.account, Reason: d.reason, NoRoom: d.noRoom, Reserved: d.reserved, Back: d.back, Closed: d.closed}
 	if req.remembered(d.account) {
 		c.New, c.From = s.remember(on, d)
 	}
@@ -142,6 +143,7 @@ func (d decision) changes(was decision) []any {
 	note("no_room", d.noRoom != was.noRoom, d.noRoom, was.noRoom)
 	note("reserved", d.reserved != was.reserved, d.reserved, was.reserved)
 	note("back", !d.back.Equal(was.back), d.back, was.back)
+	note("closed", d.closed != was.closed, d.closed, was.closed)
 	note("held", d.held != was.held, d.held, was.held)
 	note("limit", d.limit != was.limit, d.limit, was.limit)
 	note("passed_over", d.passedOver != was.passedOver, d.passedOver, was.passedOver)
@@ -150,37 +152,40 @@ func (d decision) changes(was decision) []any {
 
 // auto returns the account the next request of model, of the session with the
 // given id, would go out on at now were the session to have no pin of its own,
-// as decide chooses it: the router's own rule for the session, which keeps it
-// where it runs while that account has room and a move would cost it
-// something. It chooses on what's known, probing no account and noting
-// nothing in the log. It returns "" where it can't say: the session has no
-// assignment for the model, or no account has room for the request, which
-// would have the accounts probed again before it went out, if only for the
-// upstream to refuse it.
+// as decide chooses it, in the pool its last request was routed within: the
+// router's own rule for the session, which keeps it where it runs while that
+// account has room and a move would cost it something. It chooses on what's
+// known, probing no account and noting nothing in the log. It returns ""
+// where it can't say: the session has no assignment for the model, or no
+// account has room for the request, which would have the accounts probed
+// again before it went out, if only for the upstream to refuse it.
 func (s *scheduler) auto(id, model string, now time.Time) string {
-	return s.autoOn(id, model, now, func() view { return s.state.glance(model, now) })
+	return s.autoOn(id, model, now, func(pool string) view { return s.state.glance(pool, model, now) })
 }
 
-// autoOn is auto, the accounts as glance gives them, glanced at only where
-// the session has an assignment for the model.
-func (s *scheduler) autoOn(id, model string, now time.Time, glance func() view) string {
+// autoOn is auto, the accounts of a pool as glance gives them, glanced at
+// only where the session has an assignment for the model. A session the state
+// file kept from a router that didn't know pools is in the first, as a
+// request naming none is.
+func (s *scheduler) autoOn(id, model string, now time.Time, glance func(pool string) view) string {
 	req := Request{Session: id, Model: model, Bound: s.sessions.bound(model)}
 	found := s.sessions.lookup(req.key())
 	if !found.assigned {
 		return ""
 	}
+	req.Pool = s.state.pools.current().of(found.current.Pool)
 	found.given = false
-	d := decide(found.situation(req, now, glance()))
+	d := decide(found.situation(req, now, glance(req.Pool)))
 	if d.noRoom {
 		return ""
 	}
 	return d.account
 }
 
-// view is what a choice for req knows at now: an account the request has
-// been tried on has no room for it.
+// view is what a choice for req knows at now, of the accounts in its pool:
+// an account the request has been tried on has no room for it.
 func (s *scheduler) view(req Request, now time.Time) view {
-	return s.state.view(req.Model, now).without(req.tried())
+	return s.state.view(req.Pool, req.Model, now).without(req.tried())
 }
 
 // notePressure notes in the log the account the choice d passed over as under

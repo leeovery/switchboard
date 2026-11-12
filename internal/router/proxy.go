@@ -21,6 +21,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
+	"github.com/leeovery/switchboard/internal/redact"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/tokens"
 )
@@ -37,6 +38,9 @@ const (
 	// DirHeader names the directory run started claude in, as EncodeDir
 	// encodes it, for the request ledger.
 	DirHeader = ownPrefix + "Dir"
+	// PoolHeader names the pool run started claude in, by its id, which the
+	// router routes the session's requests within.
+	PoolHeader = ownPrefix + "Pool"
 )
 
 const (
@@ -71,10 +75,13 @@ type proxy struct {
 	// the state file is to keep.
 	tokensReplaced func()
 	state          *state
-	provider       Provider
-	chooser        Chooser
-	health         *health
-	emit           func(Event)
+	// pools are the pools a request is routed within, which its header
+	// names.
+	pools    *membership
+	provider Provider
+	chooser  Chooser
+	health   *health
+	emit     func(Event)
 	// stream tells of what befalls each routed request as it happens, and
 	// ledger keeps a line of each once it's done.
 	stream *stream
@@ -193,10 +200,11 @@ func (p *proxy) routable(r *http.Request) (account, bool) {
 
 // route sends a request on the account the chooser picks for it, and on
 // others while that one can't serve it. When the chooser picks none, as only
-// accounts held back by their reserves are left, the router answers as the
-// upstream would at a limit, and as unsendable says where no account it can
-// send on will take the request. The request counts as routing until its line
-// is noted, but for one that upgrades its connection.
+// accounts held back by their reserves are left, or none in the request's
+// pool will take it, the router answers as the upstream would at a limit,
+// and as unchosen says where no account it can send on will take the
+// request. The request counts as routing until its line is noted, but for
+// one that upgrades its connection.
 func (p *proxy) route(w http.ResponseWriter, r *http.Request, client account) {
 	if !upgrades(r) {
 		p.routing.begin()
@@ -212,24 +220,28 @@ func (p *proxy) route(w http.ResponseWriter, r *http.Request, client account) {
 	choice := p.rechosen(r.Context(), ex.req, p.chooser.Choose(r.Context(), ex.req))
 	ex.newSession = choice.New
 	defer p.done(r, ex)
-	if choice.Reserved {
+	switch {
+	case choice.Reserved:
 		p.reserved(w, ex, choice)
 		return
-	}
-	a, reason, ok := p.chosen(ex, choice, client)
-	if !ok {
-		ex.reason = choice.Reason
-		p.unsendable(w, ex, client)
+	case choice.Closed:
+		p.closed(w, ex, choice)
 		return
 	}
-	ex.account, ex.reason = a, reason
+	a, ok := p.sendable(choice.Account)
+	if !ok {
+		p.unchosen(w, ex, choice, client)
+		return
+	}
+	ex.account, ex.reason = a, choice.Reason
 	p.moved(ex, choice.From)
 	p.forward(w, withBody(r, body), ex)
 }
 
 // request is what the chooser is to know of a routed request, whose body is
-// body, sent by client's token: its session and the directory it was started
-// in, its model and whether the model's thinking is bound to its account,
+// body, sent by client's token: its session, the directory it was started in
+// and the pool it's routed within, its model and whether the model's thinking
+// is bound to its account,
 // whether it's the client's quota check, whether it's the first of its
 // session's main conversation after that was compacted, and its pin; and the
 // request's shape, which the provider reads in the same pass over the body. A
@@ -242,6 +254,7 @@ func (p *proxy) request(r *http.Request, body []byte, ex *exchange, client accou
 		ID:        ex.id,
 		Session:   session,
 		Dir:       dirOf(r.Header),
+		Pool:      p.poolOf(r.Header),
 		Model:     model,
 		Check:     check,
 		Bound:     p.provider.ThinkingBound(model),
@@ -249,6 +262,15 @@ func (p *proxy) request(r *http.Request, body []byte, ex *exchange, client accou
 		Pin:       p.pin(r, ex, session),
 		Client:    client.ID,
 	}, shape
+}
+
+// poolOf returns the id of the pool a request whose header is h is routed
+// within, as the pools stand now: the one PoolHeader names, else the first,
+// as poolTable's of says. A pool the config doesn't have is kept as named,
+// cut short, with anything shaped like a token hidden, as the request is
+// remembered and logged by it.
+func (p *proxy) poolOf(h http.Header) string {
+	return p.pools.current().of(bounded(redact.Text(strings.TrimSpace(h.Get(PoolHeader)))))
 }
 
 // passThrough sends a request upstream as it came.
@@ -357,20 +379,30 @@ func (p *proxy) rechosen(ctx context.Context, req Request, choice Choice) Choice
 	return choice
 }
 
-// chosen returns the account a request goes out on first, as the chooser
-// chose it, and why. Should it name one the router can't send on, the request
-// keeps to its client's, where the router can send on that. It reports false
-// where it can't either, as where the choice names none, no account the
-// router can send on taking the request.
-func (p *proxy) chosen(ex *exchange, choice Choice, client account) (account, string, bool) {
-	if a, ok := p.accounts.byID(choice.Account); ok && a.hasToken() {
-		return a, choice.Reason, true
+// sendable returns the account with the given id, reporting false where the
+// router can't send on it, or has none of it, as for "".
+func (p *proxy) sendable(id string) (account, bool) {
+	a, ok := p.accounts.byID(id)
+	return a, ok && a.hasToken()
+}
+
+// unchosen answers a request the chooser chose no account for that the router
+// can send on, as unsendable says, naming why the account chosen can't take
+// it, else why its client's can't: where the choice names none, no account
+// the router can send on in the request's pool takes it. The request never
+// goes out on its client's token in place of the account chosen, as the
+// client's may be another pool's. A choice of one the router can't send on,
+// which rechosen has asked again for already, is a bug, which it logs as an
+// error.
+func (p *proxy) unchosen(w http.ResponseWriter, ex *exchange, choice Choice, client account) {
+	ex.reason = choice.Reason
+	chosen, ok := p.accounts.byID(choice.Account)
+	if !ok {
+		p.unsendable(w, ex, client)
+		return
 	}
-	if !client.hasToken() {
-		return account{}, "", false
-	}
-	logger.Error("chooser picked an account it can't send on; keeping the client's", "id", ex.id, "picked", choice.Account)
-	return client, status.ReasonClient, true
+	logger.Error("chooser picked an account it can't send on; refusing the request", "id", ex.id, "picked", choice.Account)
+	p.unsendable(w, ex, chosen)
 }
 
 // unsendable answers a request that can go out on no account the router can
@@ -405,6 +437,22 @@ func (p *proxy) reserved(w http.ResponseWriter, ex *exchange, choice Choice) {
 	p.provider.MarkLimited(w.Header(), choice.Back)
 	writeError(w, ex.status, "rate_limit_error",
 		"switchboard: no account has room outside its reserve, which switchboard leaves unused but on the accounts pinned (switchboard pin <id>...)")
+}
+
+// closed answers a request that no account in its pool will take, its
+// client's account outside the pool, as the upstream answers one over its
+// account's limit, as reserved does, when it can go out again not known:
+// nothing goes out on another pool's account, its client's own token among
+// them. Where there are pools to tell apart, it names the pool.
+func (p *proxy) closed(w http.ResponseWriter, ex *exchange, choice Choice) {
+	ex.reason, ex.status = choice.Reason, http.StatusTooManyRequests
+	logger.Warn("no account in the request's pool can take it; answering 429", "id", ex.id, "pool", ex.req.Pool)
+	p.provider.MarkLimited(w.Header(), time.Time{})
+	message := "switchboard: no account can take the request"
+	if pool := p.pools.current().shown(ex.req.Pool); pool != "" {
+		message = "switchboard: no account in pool " + pool + " can take the request"
+	}
+	writeError(w, ex.status, "rate_limit_error", message)
 }
 
 // next asks the chooser which account a request goes out on after those it
@@ -765,7 +813,7 @@ func (p *proxy) logRouted(ex *exchange, f finish) {
 func (p *proxy) unread(w http.ResponseWriter, r *http.Request, ex *exchange, err error) {
 	f := finishing(r, time.Since(ex.started), false)
 	logger.Warn("request refused: body unread", append([]any{"id", ex.id, "method", r.Method, "path", r.URL.Path, "error", err}, f.attrs()...)...)
-	ex.req.Session, ex.req.Dir = p.provider.Session(r.Header), dirOf(r.Header)
+	ex.req.Session, ex.req.Dir, ex.req.Pool = p.provider.Session(r.Header), dirOf(r.Header), p.poolOf(r.Header)
 	ex.status = http.StatusBadRequest
 	kind, message := "invalid_request_error", "switchboard: couldn't read the request body"
 	if _, tooLarge := errors.AsType[*http.MaxBytesError](err); tooLarge {

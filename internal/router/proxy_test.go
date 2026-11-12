@@ -698,16 +698,22 @@ func resetConn(conn *net.TCPConn) error {
 	return conn.Close()
 }
 
-func TestAChoiceTheRouterCantSendOnKeepsToTheClientsAccount(t *testing.T) {
+func TestAChoiceTheRouterCantSendOnIsRefusedNotSentOnTheClientsToken(t *testing.T) {
 	log := logstest.Capture(t)
 	up := newUpstream(t, answerOK)
 	rt := newRouter(t, up.URL)
 	rt.SetChooser(&fixedChooser{account: "personal"})
 	proxy := serveProxy(t, rt)
 
-	send(t, http.MethodPost, proxy+"/v1/messages", claudeCode(workToken), strings.NewReader(messages))
-	checkHeader(t, up.only(t), routedOn(workToken))
-	waitForLine(t, log, "level=ERROR", `msg="chooser picked an account it can't send on; keeping the client's"`, "picked=personal")
+	resp := send(t, http.MethodPost, proxy+"/v1/messages", claudeCode(workToken), strings.NewReader(messages))
+	body := readAll(t, resp)
+	if resp.StatusCode != http.StatusServiceUnavailable || !strings.Contains(body, "account personal: "+personalMissing) {
+		t.Errorf("answered %d %s, want 503 saying why personal, the account chosen, can't take it", resp.StatusCode, body)
+	}
+	if n := up.count(); n != 0 {
+		t.Errorf("upstream received %d requests, want none: the client's token may be another pool's", n)
+	}
+	waitForLine(t, log, "level=ERROR", `msg="chooser picked an account it can't send on; refusing the request"`, "picked=personal")
 }
 
 // fixedChooser picks one account for every request, and notes what it's asked.

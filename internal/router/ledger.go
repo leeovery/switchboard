@@ -98,6 +98,7 @@ func (p *proxy) line(ex *exchange, h http.Header, f finish) *ledger.Line {
 		Kind:     ex.kind(),
 		Session:  ex.req.Session,
 		Dir:      ex.req.Dir,
+		Pool:     ex.req.Pool,
 		Model:    ex.req.Model,
 		Account:  answering.account,
 		Reason:   answering.reason,

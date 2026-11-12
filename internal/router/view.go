@@ -8,12 +8,15 @@ import (
 )
 
 // view is what a choice of account for a request knows of the accounts it
-// can go out on.
+// can go out on: those in the request's pool, and no others.
 type view struct {
 	policy score.Policy
 	now    time.Time
-	// candidates are the accounts with a token, in the order configured, with
-	// their windows as last read and their reserves.
+	// pool are the ids of the accounts in the request's pool, with a token or
+	// not, in the order configured.
+	pool []string
+	// candidates are the accounts of the pool with a token, in the order
+	// configured, with their windows as last read and their reserves.
 	candidates []score.Candidate
 	// applies reports whether the window named key counts the request.
 	applies func(key string) bool
@@ -63,6 +66,12 @@ func (v view) found(c score.Candidate) score.Candidate {
 		c.Reserve = 0
 	}
 	return c
+}
+
+// pooled reports whether the account with the given id is in the request's
+// pool, with a token or not.
+func (v view) pooled(id string) bool {
+	return slices.Contains(v.pool, id)
 }
 
 // has reports whether the request can go out on the account with the given id.

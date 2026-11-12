@@ -101,7 +101,10 @@ type Config struct {
 	// Accounts are the configured accounts, in the order they're shown.
 	Accounts config.Accounts
 	// Pools are the pools the accounts are in, as the config the router
-	// started from has them: none in a config from before pools.
+	// started from has them: none in a config from before pools. Each request
+	// is routed within its pool, as the accounts' pools say, which the router
+	// takes up afresh, with the pools, once the config file makes others,
+	// without waiting for the restart.
 	Pools config.Pools
 	// Token reads an account's token, by the account's id, from its file: as
 	// the router starts, again every so often while Run runs, and whenever
@@ -329,6 +332,8 @@ func New(cfg Config) (*Router, error) {
 	}
 	changes := newChanges()
 	state := newState(accounts, cfg.Policy, cfg.Provider.Family, cfg.Now, changes.note, changes.routine)
+	state.pools = newMembership(firstIn(cfg.StateDir))
+	state.pools.follow(cfg.Accounts, cfg.Pools)
 	history := newHistory(cfg.History, cfg.Now)
 	state.history = history.note
 	sessions := newSessions(cfg.Now, changes.note, changes.routine)
@@ -389,6 +394,7 @@ func New(cfg Config) (*Router, error) {
 			formerly:       cfg.Formerly,
 			tokensReplaced: changes.note,
 			state:          state,
+			pools:          state.pools,
 			provider:       cfg.Provider,
 			chooser:        scheduler,
 			health:         health,
