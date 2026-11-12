@@ -175,7 +175,7 @@ func TestALookThatCantWriteTheIDsBackWritesNoPoolsAndRoutesByTheRecord(t *testin
 	}
 }
 
-func TestAHealThatCantWriteThePoolsWritesNeitherIsToldOfOnceAndTriedAMinuteOn(t *testing.T) {
+func TestAHealThatCantWriteThePoolsWritesTheIDsAloneIsToldOfOnceAndTriedAMinuteOn(t *testing.T) {
 	log := logstest.Capture(t)
 	stateDir := t.TempDir()
 	// Every pool fenced, so newcomer, in none, has none to go to.
@@ -183,14 +183,16 @@ func TestAHealThatCantWriteThePoolsWritesNeitherIsToldOfOnceAndTriedAMinuteOn(t 
 	r, path := newWatchingPoolsRouter(t, stateDir, func(cfg *Config) { cfg.Formerly = formerlyOld })
 	clock := &testClock{now: start}
 	r.upkeep.heal.now = clock.read
-	putBack := unpooledTOML("old-work", "old-personal", "old-side", "newcomer")
 
-	writeConfigFile(t, path, putBack)
+	writeConfigFile(t, path, unpooledTOML("old-work", "old-personal", "old-side", "newcomer"))
 	r.upkeep.look()
-	if got, err := os.ReadFile(path); err != nil || string(got) != putBack {
-		t.Fatalf("the config reads\n%s\n(%v), want it as it was: the ids and the pools written together or not at all\n%s", got, err, putBack)
+	if got, want := membersOf(t, path), map[string]string{"work": "", "personal": "", "side": "", "newcomer": ""}; !maps.Equal(got, want) {
+		t.Fatalf("the config has the accounts in the pools %v, want %v: the ids written alone, as the pools can't be", got, want)
 	}
 	r.upkeep.look()
+	if n := timesLogged(log, "level=INFO", "wrote the accounts' new ids back in the config"); n != 1 {
+		t.Errorf("the log says the ids were written %d times, want once\n%s", n, log)
+	}
 	if n := timesLogged(log, "level=WARN", "couldn't heal the config"); n != 1 {
 		t.Errorf("the log says the config couldn't be healed %d times, want once\n%s", n, log)
 	}
@@ -359,7 +361,7 @@ func TestTheHealAsTheRouterStartedIsSaidToBeTriedAgainOnlyWhereItIs(t *testing.T
 				writeFile(t, filepath.Join(stateDir, "pools.moved"), "")
 			}
 			newWatchingPoolsRouter(t, stateDir, func(cfg *Config) {
-				cfg.Unhealed = errors.New("write the accounts' new ids back first: editing the config as text wouldn't make exactly the change meant")
+				cfg.Unhealed = errors.New("write the accounts' new ids back: editing the config as text wouldn't make exactly the change meant")
 				if !tt.pooled {
 					cfg.Accounts, cfg.Pools = config.Accounts(testConfigured), nil
 				}

@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -315,6 +316,42 @@ func TestServeMovesTheHistoryToPoolsTakingTheFirstPoolUpAtOnce(t *testing.T) {
 	}
 	if pool, ok := cfg.Pools.ByID(first.ID); !ok || pool.Label != "Default" || len(cfg.Pools) != 1 {
 		t.Errorf("the config put back holds the pools %+v, want it healed with the first, %s, labelled Default", cfg.Pools, first.ID)
+	}
+}
+
+// A router starting on a config put back from before both moves whose pools
+// can't be written back, as an account the record has in no pool has no
+// unfenced pool to go to, starts on the accounts' new ids all the same, the
+// ids its token files are named by, which the heal writes alone.
+func TestServeStartedOnAConfigWhosePoolsCantBeHealedStartsOnTheNewIDsWithTheirTokens(t *testing.T) {
+	srv := newServeSetup(t, fakeClaudeAPI(t), nil)
+	srv.deps.WatchEvery = time.Hour
+	added := time.Date(2026, 9, 28, 12, 0, 0, 0, time.UTC)
+	if err := identity.NewFile(srv.state).Update(func(r *identity.Record) error {
+		for _, id := range []string{"work", "personal", "side"} {
+			r.Accounts = append(r.Accounts, identity.Entry{ID: id, Added: added, Was: "old-" + id, Pool: "b2n8"})
+		}
+		r.Pools = []identity.PoolEntry{{ID: "b2n8", Added: added, First: true, Here: true, Written: identity.PoolWritten{Label: "Default", Dirs: []string{"/work/default"}}}}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	srv.accounts = "\n[[account]]\nid = \"old-work\"\n\n[[account]]\nid = \"old-personal\"\n\n[[account]]\nid = \"old-side\"\n\n[[account]]\nid = \"n4p8\"\n"
+	srv.writeConfig(t)
+
+	srv.start(t)
+	doc := srv.waitForStatus(t, func(status.Document) bool { return true })
+	for _, id := range []string{"work", "side"} {
+		if a, ok := doc.Account(id); !ok || !a.TokenSet {
+			t.Errorf("the router has %s: %v, its token set: %v; want it by its new id, with its token", id, ok, a.TokenSet)
+		}
+	}
+	cfg, err := config.Load(srv.config, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := cfg.Accounts.IDs(), []string{"work", "personal", "side", "n4p8"}; !slices.Equal(got, want) || len(cfg.Pools) != 0 {
+		t.Errorf("the config names %q in the pools %+v, want %q, the new ids written alone", got, cfg.Pools, want)
 	}
 }
 

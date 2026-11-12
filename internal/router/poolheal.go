@@ -71,7 +71,10 @@ func (h *poolHealer) look(pools config.Pools) {
 	if !h.triedAt.IsZero() && h.now().Sub(h.triedAt) < healRetry {
 		return
 	}
-	_, healed, err := idmove.HealConfig(h.path, h.stateDir, h.homeDir)
+	ids, healed, err := idmove.HealConfig(h.path, h.stateDir, h.homeDir)
+	if ids {
+		logger.Info("wrote the accounts' new ids back in the config, which named them by those they had before", "path", h.path)
+	}
 	switch {
 	case err != nil:
 		h.failed(err)

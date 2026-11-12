@@ -939,6 +939,33 @@ func TestThePoolsAreNeverWrittenBesideAnIDFromBefore(t *testing.T) {
 	}
 }
 
+// A config put back from before both moves whose pools can't be written
+// back, as an account the record has in no pool has no unfenced pool to go
+// to, is given its accounts' new ids alone, the ids its token files are named
+// by, and the heal fails saying why the pools couldn't be.
+func TestHealingWritesTheIDsAloneWhereThePoolsCantBeWritten(t *testing.T) {
+	f := newIDsFixture(t)
+	first := f.pooled(t)
+	ids := f.configuredIDs(t)
+	edited(t, f.config, func(d *config.Draft) error { return d.SetPoolDirs(first, []string{"~/Code"}) })
+	f.keptUp(t)
+
+	writeFile(t, f.config, withAccount(fixtureConfig))
+	healedIDs, healed, err := idmove.HealConfig(f.config, f.state, testHome)
+	if err == nil || !strings.Contains(err.Error(), "n4p8 is in no pool") || !healedIDs || healed {
+		t.Fatalf("HealConfig() = %v, %v, %v; want the ids written, the pools not, failing as n4p8 is in no pool", healedIDs, healed, err)
+	}
+	pools, _ := poolsIn(t, f.config)
+	if got, want := f.configuredIDs(t), append(slices.Clone(ids), "n4p8"); !slices.Equal(got, want) || len(pools) != 0 {
+		t.Errorf("the config names %q in the pools %q, want %q, each by its id now, in none", got, pools, want)
+	}
+	for _, id := range ids {
+		if _, err := f.tokens.Read(id); err != nil {
+			t.Errorf("the config names %s, whose token file can't be read: %v", id, err)
+		}
+	}
+}
+
 // unwritableIDs is fixtureConfig, work's id under a key written so the
 // config's edit can't write its new id back.
 const unwritableIDs = "[[account]]\n\"i\\u0064\" = \"work\"\nlabel   = \"Work\"\nprimary = true\n\n[[account]]\nid = \"personal\"\n"
