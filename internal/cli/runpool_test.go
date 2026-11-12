@@ -554,6 +554,31 @@ func TestRunAfterTheMoveToPoolsTakesThePoolsOfAConfigNamingNone(t *testing.T) {
 			t.Errorf("handed over with\n%q\nwant\n%q", env, want)
 		}
 	})
+	t.Run("from the accounts record, its primary of a pool of two, neither the config's first nor its mark", func(t *testing.T) {
+		srv := unpooledSetup(t, map[string]string{"SWITCHBOARD_WHEN_ROUTER_DOWN": "direct"})
+		srv.accounts = strings.Replace(threeAccounts, "reserve = 0.05\n", "reserve = 0.05\nprimary = true\n", 1)
+		srv.writeConfig(t)
+		writeToken(t, srv.deps, "personal", "test-token-personal")
+		keepPooledAccounts(t, srv.state)
+		err := identity.NewFile(srv.state).Update(func(r *identity.Record) error {
+			r.Pools[0].Written.Primary = "personal"
+			return nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		startingIn(t, &srv.deps, "Code/project")
+		handed := recordHandOffs(t, &srv.deps)
+
+		want := result{stderr: "switchboard: the router isn't running — connecting directly on personal · Personal\n"}
+		if got := run(t, srv.deps, "run"); got != want {
+			t.Errorf("switchboard run = %+v, want %+v", got, want)
+		}
+		env := handed.only(t).only("ANTHROPIC_BASE_URL", "CLAUDE_CODE_OAUTH_TOKEN", "SWITCHBOARD_POOL")
+		if want := map[string]string{"CLAUDE_CODE_OAUTH_TOKEN": "test-token-personal", "SWITCHBOARD_POOL": "b2n8"}; !maps.Equal(env, want) {
+			t.Errorf("handed over with\n%q\nwant\n%q", env, want)
+		}
+	})
 	t.Run("from the accounts record, on its own login: its fences", func(t *testing.T) {
 		srv := unpooledSetup(t, nil)
 		keepPooledAccounts(t, srv.state)
