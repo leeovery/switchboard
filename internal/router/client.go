@@ -476,6 +476,9 @@ func (d declined) Error() string {
 func refused(resp *http.Response, method, path string) error {
 	var p problem
 	_ = json.NewDecoder(io.LimitReader(resp.Body, maxControlBody)).Decode(&p)
+	if resp.StatusCode == http.StatusBadRequest && len(p.Pools) > 0 {
+		return PoolNeeded{Named: p.Named, Pools: p.Pools}
+	}
 	return declined{status: resp.StatusCode, reason: p.Error, exporting: p.Exporting, method: method, path: path}
 }
 

@@ -180,6 +180,21 @@ type problem struct {
 	// restart was refused for, as ExportUnderWay has it: "" for any other
 	// refusal.
 	Exporting string `json:"exporting,omitempty"`
+	// Pools are the pools to name one of, and Named the one named that isn't
+	// configured, of a read refused for want of a pool, as PoolNeeded has
+	// them: none for any other refusal.
+	Pools []PoolNamed `json:"pools,omitempty"`
+	Named string      `json:"named,omitempty"`
+}
+
+// writeRefusal answers with a 400 saying why err refuses the request: with
+// the pools to name one of, where it's a PoolNeeded.
+func writeRefusal(w http.ResponseWriter, err error) {
+	refusal := problem{Error: err.Error()}
+	if need, ok := errors.AsType[PoolNeeded](err); ok {
+		refusal.Pools, refusal.Named = need.Pools, need.Named
+	}
+	writeProblemOf(w, http.StatusBadRequest, refusal)
 }
 
 // Control is the control API: GET /health says the router is alive, and
@@ -238,7 +253,7 @@ func (r *Router) Control() http.Handler {
 	mux.HandleFunc("GET /sessions/{id}", func(w http.ResponseWriter, req *http.Request) {
 		in, err := r.sessionPoolAsked(req)
 		if err != nil {
-			writeProblem(w, http.StatusBadRequest, err.Error())
+			writeRefusal(w, err)
 			return
 		}
 		r.answerSession(w, req.PathValue("id"), in, nil)
@@ -271,7 +286,7 @@ func (r *Router) Control() http.Handler {
 			err = r.pin(pin)
 		}
 		if err != nil {
-			writeProblem(w, http.StatusBadRequest, err.Error())
+			writeRefusal(w, err)
 			return
 		}
 		writeJSON(w, r.statusOf(rd))
@@ -329,7 +344,7 @@ func (r *Router) forPool(serve func(w http.ResponseWriter, req *http.Request, rd
 	return func(w http.ResponseWriter, req *http.Request) {
 		rd, err := r.poolAsked(req)
 		if err != nil {
-			writeProblem(w, http.StatusBadRequest, err.Error())
+			writeRefusal(w, err)
 			return
 		}
 		serve(w, req, rd)
