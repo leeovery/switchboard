@@ -331,7 +331,7 @@ func New(cfg Config) (*Router, error) {
 		return nil, fmt.Errorf("upstream: %w", err)
 	}
 	changes := newChanges()
-	pools := newMembership(firstIn(cfg.StateDir))
+	pools := newMembership(firstIn(cfg.StateDir), func(id string) string { return accounts.idNow(cfg.Formerly, id) })
 	pools.follow(cfg.Accounts, cfg.Pools)
 	state := newState(accounts, pools, cfg.Policy, cfg.Provider.Family, cfg.Now, changes.note, changes.routine)
 	history := newHistory(cfg.History, cfg.Now)

@@ -234,7 +234,7 @@ func TestAnAccountWhoseTokenIsAnothersTakesNoRequestsTillItHasItsOwn(t *testing.
 	}
 	req := httptest.NewRequest("POST", "/v1/messages", nil)
 	req.Header.Set(PinHeader, "side")
-	if got := r.proxy.pin(req, &exchange{id: someRequest}, "three"); got != "" {
+	if got := r.proxy.pin(req, &exchange{id: someRequest}, "three", ""); got != "" {
 		t.Errorf("a session's own pin to side is honoured as %q, want it ignored", got)
 	}
 

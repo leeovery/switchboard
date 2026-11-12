@@ -138,17 +138,28 @@ func (f found) pin(launched string) (string, time.Time) {
 // situation is what's known as req's account is chosen at now, f being what's
 // remembered of its session and accounts what's known of the accounts: the
 // request in the pool the view has it in, pinned as its session's own pin has
-// it, a pin given while the session runs passing over the one it was
-// launched with, and a pin naming an account outside the request's pool no
-// pin for it, which unpooled notes.
+// it in that pool, as pinIn says.
 func (f found) situation(req Request, now time.Time, accounts view) situation {
 	on := situation{req: req, now: now, current: f.current, assigned: f.assigned, pin: f.global, accounts: accounts}
 	on.req.Pool = accounts.pool
-	on.req.Pin, on.pinnedAt = f.pin(req.Pin)
-	if on.req.Pin != "" && !accounts.pooled(on.req.Pin) {
-		on.unpooled, on.req.Pin, on.pinnedAt = on.req.Pin, "", time.Time{}
-	}
+	on.req.Pin, on.pinnedAt, on.unpooled = f.pinIn(req.Pin, accounts)
 	return on
+}
+
+// pinIn returns the session's own pin as pin does, for a request that carries
+// launched, in the pool accounts is a view of, and the account of the pin it
+// passes over as it's outside that pool, "" where it passes over none. A pin
+// outside the pool is no pin for the request, nor does it pass over the one
+// the session was launched with, which stands where it's in the pool.
+func (f found) pinIn(launched string, accounts view) (pin string, since time.Time, unpooled string) {
+	pin, since = f.pin(launched)
+	switch {
+	case pin == "" || accounts.pooled(pin):
+		return pin, since, ""
+	case f.given && accounts.pooled(launched):
+		return launched, time.Time{}, pin
+	}
+	return "", time.Time{}, pin
 }
 
 // sessions remembers the account each session's requests of each model go

@@ -3,6 +3,7 @@ package router
 import (
 	"cmp"
 	"errors"
+	"fmt"
 	"maps"
 	"net/http"
 	"net/http/httptest"
@@ -208,7 +209,7 @@ func TestARequestNeverGoesOutOnAnotherPoolsAccount(t *testing.T) {
 			name:     "the session launched pinned to another pool's account: no pin for it",
 			headers:  map[string]string{PinHeader: "personal"},
 			wantSent: []string{"work"}, wantCode: http.StatusOK, wantReason: reasonNew,
-			wantLog: []string{"level=DEBUG", `msg="pin ignored: account isn't in the request's pool"`, "pin=personal", "pool=" + defaultPool},
+			wantLog: []string{"level=WARN", `msg="pin ignored: account isn't in the request's pool"`, "pin=personal", "session=one"},
 		},
 		{
 			name: "the session pinned to another pool's account as it runs: no pin for it",
@@ -217,6 +218,16 @@ func TestARequestNeverGoesOutOnAnotherPoolsAccount(t *testing.T) {
 				r.sessions.pinSession("one", "personal")
 			},
 			wantSent: []string{"work"}, wantCode: http.StatusOK, wantReason: reasonSticky,
+			wantLog: []string{"level=DEBUG", `msg="pin ignored: account isn't in the request's pool"`, "pin=personal", "pool=" + defaultPool},
+		},
+		{
+			name: "the session pinned to another pool's account as it runs, launched pinned to one of its own: the one it launched with",
+			setUp: func(r *Router) {
+				assign(r.sessions, key{session: "one", model: opus}, "", decision{account: "work", reason: reasonNew}, start.Add(-5*time.Minute))
+				r.sessions.pinSession("one", "personal")
+			},
+			headers:  map[string]string{PinHeader: "side"},
+			wantSent: []string{"side"}, wantCode: http.StatusOK, wantReason: reasonPinned,
 			wantLog: []string{"level=DEBUG", `msg="pin ignored: account isn't in the request's pool"`, "pin=personal", "pool=" + defaultPool},
 		},
 		{
@@ -320,12 +331,20 @@ func orServed(a answer) answer {
 func TestAPoolWithNoAccountToTakeARequestIsAnsweredBySwitchboardWhileAnotherCarriesOn(t *testing.T) {
 	tests := []struct {
 		name string
-		// read reads the accounts' tokens; out puts Acme's one account out.
+		// read reads the accounts' tokens; out puts Acme's one account out;
+		// why is why switchboard says it is.
 		read func(id string) (tokens.Token, error)
 		out  func(r *Router)
+		why  string
 	}{
-		{name: "its one account refused the request lately", read: poolTokens.Read, out: func(r *Router) { forbidOpus(r, "personal") }},
-		{name: "its one account without a token", read: testTokens.Read, out: func(*Router) {}},
+		{
+			name: "its one account refused the request lately", read: poolTokens.Read, out: func(r *Router) { forbidOpus(r, "personal") },
+			why: "the upstream refused each of the pool's accounts lately",
+		},
+		{
+			name: "its one account without a token", read: testTokens.Read, out: func(*Router) {},
+			why: "account personal: " + tokenstest.Missing("personal").Error(),
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -345,8 +364,9 @@ func TestAPoolWithNoAccountToTakeARequestIsAnsweredBySwitchboardWhileAnotherCarr
 			if w.Code != http.StatusTooManyRequests {
 				t.Errorf("Acme's request was answered %d, want 429", w.Code)
 			}
-			if body := w.Body.String(); !strings.Contains(body, `"rate_limit_error"`) || !strings.Contains(body, "switchboard: no account in pool Acme can take the request") {
-				t.Errorf("Acme's request was answered %s, want switchboard's rate limit error naming the pool", body)
+			want := "switchboard: no account in pool Acme can take the request; " + tt.why
+			if body := w.Body.String(); !strings.Contains(body, `"rate_limit_error"`) || !strings.Contains(body, want) {
+				t.Errorf("Acme's request was answered %s, want switchboard's rate limit error saying %q", body, want)
 			}
 			if got := w.Header().Get("Anthropic-Ratelimit-Unified-Status"); got != "rejected" {
 				t.Errorf("Acme's answer's unified status is %q, want rejected, as Claude Code reads a limit off it", got)
@@ -354,7 +374,7 @@ func TestAPoolWithNoAccountToTakeARequestIsAnsweredBySwitchboardWhileAnotherCarr
 			if sent := upstream.sent(); len(sent) > 0 {
 				t.Errorf("Acme's request went out on %q, want none: its client's own token is Default's", sent)
 			}
-			closed := []string{"level=WARN", `msg="no account in the request's pool can take it; answering 429"`, "pool=" + acmePool}
+			closed := []string{"level=WARN", `msg="no account in the request's pool can take it; answering 429"`, "pool=" + acmePool, fmt.Sprintf("why=%q", tt.why)}
 			if !log.Has(closed...) {
 				t.Errorf("log reads\n%s\nwant a line with %q", log, closed)
 			}
@@ -374,6 +394,46 @@ func TestAPoolWithNoAccountToTakeARequestIsAnsweredBySwitchboardWhileAnotherCarr
 					l.Pool, l.Status, l.Reason, l.Account, acmePool, status.ReasonNoRoom)
 			}
 		})
+	}
+}
+
+func TestARequestNamingAPoolTheConfigDoesntHaveIsAnsweredBySwitchboard(t *testing.T) {
+	logstest.Capture(t)
+	r := newPoolsRouter(t, at(start), true)
+	upstream := servingAll(served, served, served)
+	r.proxy.transport = upstream
+
+	w := routeIn(t, r, workToken, "one", "z5k2", nil)
+
+	want := "switchboard: no account in pool z5k2 can take the request; the pool has no accounts"
+	if w.Code != http.StatusTooManyRequests || !strings.Contains(w.Body.String(), want) {
+		t.Errorf("answered %d %s, want 429 saying %q", w.Code, w.Body, want)
+	}
+	if sent := upstream.sent(); len(sent) > 0 {
+		t.Errorf("the request went out on %q, want none", sent)
+	}
+}
+
+func TestALaunchPinOutsideItsPoolIsWarnedOfOnceForEachSession(t *testing.T) {
+	log := logstest.Capture(t)
+	r := newPoolsRouter(t, at(start), true)
+	readPersonalFirst(r)
+	pinned := map[string]string{PinHeader: "personal"}
+
+	// Default's sessions one and two, launched pinned to personal, Acme's;
+	// Acme's session three, pinned to it in its own pool, between them.
+	for _, request := range []struct{ session, pool string }{
+		{"one", defaultPool}, {"three", acmePool}, {"one", defaultPool}, {"one", defaultPool}, {"two", defaultPool},
+	} {
+		routeIn(t, r, workToken, request.session, request.pool, pinned)
+	}
+
+	why := `msg="pin ignored: account isn't in the request's pool"`
+	for level, want := range map[string]int{"WARN": 2, "DEBUG": 2} {
+		if got := timesLogged(log, "level="+level, why); got != want {
+			t.Errorf("log reads\n%s\nwant the pin ignored noted at %s %d times, not %d: warned of once for each session, at debug after, whatever another pool honours",
+				log, level, want, got)
+		}
 	}
 }
 
@@ -664,13 +724,17 @@ func writeConfigFile(t *testing.T, path, content string) {
 
 // newWatchingPoolsRouter builds a router of pooledAccounts in testPools, every
 // account with a token, started from a config file that makes them, which it
-// returns the path of, keeping its accounts record in stateDir, "" for none.
-func newWatchingPoolsRouter(t *testing.T, stateDir string) (*Router, string) {
+// returns the path of, keeping its accounts record in stateDir, "" for none,
+// its config readied by each of configure.
+func newWatchingPoolsRouter(t *testing.T, stateDir string, configure ...func(cfg *Config)) (*Router, string) {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "config.toml")
 	writeConfigFile(t, path, poolsTOML(defaultPool, defaultTOML, acmeTOML))
 	cfg := testConfig(at(start), &stubProber{}, poolTokens.Read)
 	cfg.Accounts, cfg.Pools, cfg.ConfigFile, cfg.StateDir = pooledAccounts(), testPools, Watch(path), stateDir
+	for _, c := range configure {
+		c(&cfg)
+	}
 	r := newTestRouterOf(t, cfg)
 	r.proxy.transport = servingAll(served, served, served)
 	return r, path
@@ -750,9 +814,15 @@ func TestAChangeToThePoolsRacesTheRequestsBeingRouted(t *testing.T) {
 	}
 }
 
-// unpooledTOML is a config file of work and personal in no pools, side left
-// out, as one put back from before pools.
-const unpooledTOML = "[[account]]\nid = \"work\"\nlabel = \"Work\"\n\n[[account]]\nid = \"personal\"\nlabel = \"Personal\"\n"
+// unpooledTOML is a config file of the accounts with the ids given in no
+// pools, as one put back from before pools.
+func unpooledTOML(ids ...string) string {
+	var b strings.Builder
+	for _, id := range ids {
+		b.WriteString("[[account]]\nid = \"" + id + "\"\nlabel = \"" + id + "\"\n\n")
+	}
+	return b.String()
+}
 
 func TestAConfigThatLosesItsPoolsWhileTheRouterRunsKeepsEachPoolsWorkInIt(t *testing.T) {
 	log := logstest.Capture(t)
@@ -762,7 +832,7 @@ func TestAConfigThatLosesItsPoolsWhileTheRouterRunsKeepsEachPoolsWorkInIt(t *tes
 	upstream := servingAll(served, served, served)
 	r.proxy.transport = upstream
 
-	writeConfigFile(t, path, unpooledTOML)
+	writeConfigFile(t, path, unpooledTOML("work", "personal"))
 	r.upkeep.look()
 	routeIn(t, r, workToken, "one", defaultPool, nil)
 	routeIn(t, r, workToken, "two", "", nil)
@@ -781,37 +851,148 @@ func TestAConfigThatLosesItsPoolsWhileTheRouterRunsKeepsEachPoolsWorkInIt(t *tes
 	}
 }
 
-func TestAThrottledRequestGoesOutAgainOnItsAccountOnlyWhileTheAccountIsInItsPool(t *testing.T) {
-	// The request is Default's, and work's quota needs using first. Work
-	// throttles it, and moves to Acme in the wait.
+func TestAConfigPutBackFromBeforeIDsAndPoolsKeepsEachPoolsWorkInIt(t *testing.T) {
+	logstest.Capture(t)
+	r, path := newWatchingPoolsRouter(t, "", func(cfg *Config) { cfg.Formerly = formerlyOld })
+	// Personal's quota needs using first, then side's, then work's.
+	readWeeks(r, map[string]quota.Window{"personal": soonWeek, "side": laterWeek, "work": latestWeek})
+	upstream := servingAll(served, served, served)
+	r.proxy.transport = upstream
+
+	writeConfigFile(t, path, unpooledTOML("old-work", "old-personal"))
+	r.upkeep.look()
+	defaults := routeIn(t, r, workToken, "one", defaultPool, nil)
+	acmes := routeIn(t, r, workToken, "two", acmePool, nil)
+
+	if defaults.Code != http.StatusOK || acmes.Code != http.StatusOK {
+		t.Errorf("Default's request was answered %d and Acme's %d, want 200 each", defaults.Code, acmes.Code)
+	}
+	if sent, want := upstream.sent(), []string{"work", "personal"}; !slices.Equal(sent, want) {
+		t.Errorf("the requests went out on %q, want %q: each in its pool, the accounts known by the ids they had, side, left out, in none", sent, want)
+	}
+}
+
+// formerlyOld gives each account's id by the one it had before switchboard
+// made ids: old-work's is work, and so on.
+func formerlyOld(id string) (string, bool) {
+	return strings.CutPrefix(id, "old-")
+}
+
+func TestThePoolsComingBackToAConfigThatLostThemAreTakenUpAtOnce(t *testing.T) {
+	logstest.Capture(t)
+	r, path := newWatchingPoolsRouter(t, "")
+	// Side's quota needs using first, then personal's, then work's.
+	readWeeks(r, map[string]quota.Window{"side": soonWeek, "personal": laterWeek, "work": latestWeek})
+	upstream := servingAll(served, served, served)
+	r.proxy.transport = upstream
+
+	writeConfigFile(t, path, unpooledTOML("work", "personal", "side"))
+	r.upkeep.look()
+	routeIn(t, r, workToken, "one", defaultPool, nil)
+	// They come back, side moved to Acme.
+	writeConfigFile(t, path, poolsTOML(acmePool, defaultTOML, acmeTOML))
+	r.upkeep.look()
+	routeIn(t, r, workToken, "two", defaultPool, nil)
+	routeIn(t, r, workToken, "three", acmePool, nil)
+
+	if sent, want := upstream.sent(), []string{"side", "work", "side"}; !slices.Equal(sent, want) {
+		t.Errorf("the requests went out on %q, want %q: Default's on side while the pools stood, then on work, side in Acme", sent, want)
+	}
+}
+
+func TestARouterStartedOnAConfigThatLostItsPoolsPutsEveryAccountInTheFirst(t *testing.T) {
+	log := logstest.Capture(t)
+	stateDir := t.TempDir()
+	noteFirstPool(t, stateDir, defaultPool)
+	cfg := testConfig(at(start), &stubProber{}, poolTokens.Read)
+	cfg.StateDir = stateDir
+	r := newTestRouterOf(t, cfg)
+	readPersonalFirst(r)
+	upstream := servingAll(served, served, served)
+	r.proxy.transport = upstream
+
+	routeIn(t, r, workToken, "one", "", nil)
+	routeIn(t, r, workToken, "two", defaultPool, nil)
+	acmes := routeIn(t, r, workToken, "three", acmePool, nil)
+
+	if sent, want := upstream.sent(), []string{"personal", "personal"}; !slices.Equal(sent, want) {
+		t.Errorf("the requests went out on %q, want %q: the first pool's on any account, every one in it, and Acme's on none", sent, want)
+	}
+	if acmes.Code != http.StatusTooManyRequests {
+		t.Errorf("Acme's request was answered %d, want switchboard's 429: the config has no Acme", acmes.Code)
+	}
+	if n := timesLogged(log, "level=WARN", "the config names no pools"); n != 1 {
+		t.Errorf("the log says the config names no pools %d times, want once\n%s", n, log)
+	}
+}
+
+func TestARequestSentAgainOnItsAccountGoesElsewhereOnceTheAccountHasLeftItsPool(t *testing.T) {
+	// The request is Default's, and work's quota needs using first. Work's
+	// answer would have the request sent on it again, but work moves to Acme
+	// meanwhile. reset is the session as a reset by hand leaves it.
+	reset := session
+	reset.Utilization = 0.02
 	tests := []struct {
 		name string
-		// side is side's answer.
-		side answer
+		// first returns work's answer, given the router, what has work's file
+		// hold a new token, and what moves work to Acme; side is side's.
+		first func(r *Router, renew, move func()) answer
+		side  answer
 		// wantSent is where the request went out, and wantCode what it was
 		// answered.
 		wantSent []string
 		wantCode int
 	}{
-		{name: "on side, the pool's next", side: served, wantSent: []string{"work", "side"}, wantCode: http.StatusOK},
 		{
-			name: "side refusing it, as every account that judged it did: its refusal taken back",
-			side: forbidden, wantSent: []string{"work", "side"}, wantCode: http.StatusBadGateway,
+			name:     "throttled, work moving in the wait: on side, the pool's next",
+			first:    throttledThenMoving,
+			side:     served,
+			wantSent: []string{"work", "side"}, wantCode: http.StatusOK,
+		},
+		{
+			name:     "throttled, then side refusing it, as every account that judged it did: its refusal taken back",
+			first:    throttledThenMoving,
+			side:     forbidden,
+			wantSent: []string{"work", "side"}, wantCode: http.StatusBadGateway,
+		},
+		{
+			name: "at a limit from before a reset by hand: on side",
+			first: func(r *Router, _, move func()) answer {
+				return func(req *http.Request) *http.Response {
+					r.state.record("work", []quota.Window{reset, soonWeek}, r.state.mark())
+					move()
+					return sessionRejected(req)
+				}
+			},
+			side:     served,
+			wantSent: []string{"work", "side"}, wantCode: http.StatusOK,
+		},
+		{
+			name:     "refusing a token work has replaced since: on side",
+			first:    func(_ *Router, renew, move func()) answer { return refusedAs(renew, move) },
+			side:     served,
+			wantSent: []string{"work", "side"}, wantCode: http.StatusOK,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
 				log := logstest.Capture(t)
-				r := newPoolsRouter(t, at(start), true)
-				readWeeks(r, map[string]quota.Window{"work": soonWeek, "side": laterWeek, "personal": latestWeek})
+				files := &changingFiles{files: poolTokens}
+				cfg := testConfig(at(start), &stubProber{}, files.read)
+				cfg.Accounts, cfg.Pools = pooledAccounts(), testPools
+				r := newTestRouterOf(t, cfg)
+				for id, week := range map[string]quota.Window{"work": soonWeek, "side": laterWeek, "personal": latestWeek} {
+					r.state.record(id, []quota.Window{session, week}, r.state.mark())
+				}
+				renew := func() {
+					files.set(tokenstest.Files{"work": renewedToken, "personal": personalToken, "side": sideToken})
+				}
 				moved := pooledAccounts()
 				moved[0].Pool = acmePool
-				throttledThenMoved := func(req *http.Request) *http.Response {
-					time.AfterFunc(throttleWait/2, func() { r.proxy.pools.follow(moved, testPools) })
-					return throttled("")(req)
-				}
-				upstream := servingAll(throttledThenMoved, served, tt.side)
+				move := func() { r.proxy.pools.follow(moved, testPools) }
+				upstream := servingAll(tt.first(r, renew, move), served, tt.side)
+				upstream.answers[renewedToken] = []answer{served}
 				r.proxy.transport = upstream
 				lines := keepingLedger(t, r)
 
@@ -834,6 +1015,15 @@ func TestAThrottledRequestGoesOutAgainOnItsAccountOnlyWhileTheAccountIsInItsPool
 				}
 			})
 		})
+	}
+}
+
+// throttledThenMoving is work's answer that throttles the request, moving
+// work as given halfway through the wait.
+func throttledThenMoving(_ *Router, _, move func()) answer {
+	return func(req *http.Request) *http.Response {
+		time.AfterFunc(throttleWait/2, move)
+		return throttled("")(req)
 	}
 }
 
@@ -983,7 +1173,7 @@ func TestThePoolsAreFollowedAsTheyChangeTheFirstReadAfreshWithThem(t *testing.T)
 	m := newMembership(func() string {
 		reads++
 		return acmePool
-	})
+	}, sameID)
 	accounts := pooledAccounts()
 
 	m.follow(accounts, testPools)
@@ -1064,7 +1254,7 @@ func TestAConfigThatLosesItsPoolsKeepsThemOnceTheMoveIsDone(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			log := logstest.Capture(t)
-			m := newMembership(func() string { return tt.first })
+			m := newMembership(func() string { return tt.first }, sameID)
 			if tt.pooled {
 				m.follow(pooledAccounts(), testPools)
 			}
@@ -1091,7 +1281,7 @@ func TestAConfigThatLosesItsPoolsKeepsThemOnceTheMoveIsDone(t *testing.T) {
 
 func TestAConfigThatLosesItsPoolsAgainIsWarnedOfAgain(t *testing.T) {
 	log := logstest.Capture(t)
-	m := newMembership(noFirst)
+	m := newMembership(noFirst, sameID)
 
 	for range 2 {
 		m.follow(pooledAccounts(), testPools)
@@ -1100,5 +1290,77 @@ func TestAConfigThatLosesItsPoolsAgainIsWarnedOfAgain(t *testing.T) {
 
 	if n := timesLogged(log, "level=WARN", "the config names no pools"); n != 2 {
 		t.Errorf("the log says the config names no pools %d times, want twice, once each time it lost them\n%s", n, log)
+	}
+}
+
+func TestAConfigThatLosesItsPoolsKeepsThoseMadeLast(t *testing.T) {
+	logstest.Capture(t)
+	m := newMembership(noFirst, sameID)
+	all := config.Accounts{{ID: "work"}, {ID: "personal"}, {ID: "side"}}
+	moved := pooledAccounts()
+	moved[2].Pool = acmePool
+
+	m.follow(pooledAccounts(), testPools)
+	m.follow(all, nil)
+	m.follow(moved, testPools)
+	m.follow(all, nil)
+
+	if in, out := m.current().holds(acmePool, "side"), m.current().holds(defaultPool, "side"); !in || out {
+		t.Errorf("side is in Acme: %v, and in Default: %v, want in Acme alone, as the pools made last have it", in, out)
+	}
+}
+
+func TestAConfigThatLosesItsPoolsKnowsItsAccountsByTheirIDsNow(t *testing.T) {
+	idNow := func(id string) string { return strings.TrimPrefix(id, "old-") }
+	tests := []struct {
+		name string
+		// first is the first pool the accounts record notes, "" for none;
+		// pooled has the router follow the pools before they're lost.
+		first  string
+		pooled bool
+		// lost is the config without pools, by its accounts' ids.
+		lost []string
+		// want is the pool each account is in once it's followed, "" for
+		// none.
+		want map[string]string
+	}{
+		{
+			name:   "by the ids they had before switchboard made ids: each in its pool, side, left out, in none",
+			pooled: true, lost: []string{"old-work", "old-personal"},
+			want: map[string]string{"work": defaultPool, "personal": acmePool, "side": ""},
+		},
+		{
+			name:   "naming an account the pools don't have: none leaves",
+			pooled: true, lost: []string{"work", "newcomer"},
+			want: map[string]string{"work": defaultPool, "personal": acmePool, "side": defaultPool},
+		},
+		{
+			name:  "started on it, by the ids they had: each in the first",
+			first: defaultPool, lost: []string{"old-work", "old-personal", "old-side"},
+			want: map[string]string{"work": defaultPool, "personal": defaultPool, "side": defaultPool},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			logstest.Capture(t)
+			m := newMembership(func() string { return tt.first }, idNow)
+			if tt.pooled {
+				m.follow(pooledAccounts(), testPools)
+			}
+			var lost config.Accounts
+			for _, id := range tt.lost {
+				lost = append(lost, config.Account{ID: id})
+			}
+
+			m.follow(lost, nil)
+
+			for id, want := range tt.want {
+				for _, pool := range []string{defaultPool, acmePool} {
+					if got := m.current().holds(pool, id); got != (pool == want) {
+						t.Errorf("holds(%s, %s) = %v, want %v", pool, id, got, pool == want)
+					}
+				}
+			}
+		})
 	}
 }

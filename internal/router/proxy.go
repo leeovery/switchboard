@@ -93,8 +93,11 @@ type proxy struct {
 	// errorLog takes what the reverse proxy reports itself, such as an
 	// upstream failing mid-stream.
 	errorLog *log.Logger
-	// ignored is what the log has said of the pins the proxy ignores.
-	ignored ignoredPins
+	// ignored is what the log has said of the pins the proxy ignores, and
+	// outside of those it ignores as they name an account outside the
+	// request's pool, kept apart, as a pin honoured in the account's own pool
+	// says nothing of them.
+	ignored, outside ignoredPins
 }
 
 // exchange is one request on its way through the proxy, and what's known of
@@ -252,17 +255,17 @@ func (p *proxy) route(w http.ResponseWriter, r *http.Request, client account) {
 // would throw away.
 func (p *proxy) request(r *http.Request, body []byte, ex *exchange, client account) (Request, ledger.Shape) {
 	model, check, shape := p.provider.Asks(body)
-	session := p.provider.Session(r.Header)
+	session, pool := p.provider.Session(r.Header), namedPool(r.Header)
 	return Request{
 		ID:        ex.id,
 		Session:   session,
 		Dir:       dirOf(r.Header),
-		Pool:      namedPool(r.Header),
+		Pool:      pool,
 		Model:     model,
 		Check:     check,
 		Bound:     p.provider.ThinkingBound(model),
 		Compacted: ex.hints.Class == ledger.ClassMain && ex.hints.Compacted != "",
-		Pin:       p.pin(r, ex, session),
+		Pin:       p.pin(r, ex, session, pool),
 		Client:    client.ID,
 	}, shape
 }
@@ -285,45 +288,35 @@ func (p *proxy) passThrough(w http.ResponseWriter, r *http.Request) {
 }
 
 // pin returns the account the pin header of a request of session names, when
-// it names one the router can send on: by its id, or, from a session started
-// before switchboard made ids, the id it had before, as pinned explains. It
+// it names one the router can send on in pool, the pool the request names, as
+// the pools stand now: by its id, or, from a session started before
+// switchboard made ids, the id it had before, as accounts' idNow gives it. It
 // warns of a pin it ignores, once for each session and account, as
 // ignoredPins says, and notes it at debug after.
-func (p *proxy) pin(r *http.Request, ex *exchange, session string) string {
-	id := p.pinned(r.Header.Get(PinHeader))
+func (p *proxy) pin(r *http.Request, ex *exchange, session, pool string) string {
+	id := p.accounts.idNow(p.formerly, r.Header.Get(PinHeader))
 	if id == "" {
 		return ""
 	}
 	a, ok := p.accounts.byID(id)
-	var why string
+	why, told := "", &p.ignored
 	switch {
 	case !ok:
 		why = "pin ignored: no such account"
 	case !a.hasToken():
 		why = "pin ignored: account has no usable token"
+	case !p.pools.current().serves(pool, id):
+		why, told = "pin ignored: account isn't in the request's pool", &p.outside
 	default:
 		p.ignored.honoured(id)
 		return id
 	}
 	level := slog.LevelDebug
-	if p.ignored.first(id, session) {
+	if told.first(id, session) {
 		level = slog.LevelWarn
 	}
 	logger.Log(context.Background(), level, why, "id", ex.id, "pin", id, "session", status.ShortID(session))
 	return ""
-}
-
-// pinned is the id of the account a pin header's id names: the id given,
-// where the router has an account of it, else the id of the one that had it
-// before switchboard made ids, as formerly gives it, where one did.
-func (p *proxy) pinned(id string) string {
-	if _, ok := p.accounts.byID(id); ok || id == "" || p.formerly == nil {
-		return id
-	}
-	if now, ok := p.formerly(id); ok {
-		return now
-	}
-	return id
 }
 
 // ignoredPins holds, by account, the sessions whose pins to it the log has
@@ -445,16 +438,42 @@ func (p *proxy) reserved(w http.ResponseWriter, ex *exchange, choice Choice) {
 // client's account outside the pool, as the upstream answers one over its
 // account's limit, as reserved does, when it can go out again not known:
 // nothing goes out on another pool's account, its client's own token among
-// them. Where there are pools to tell apart, it names the pool.
+// them. Where there are pools to tell apart, it names the pool. It says why,
+// as whyClosed has it, as the limit the answer reads as isn't.
 func (p *proxy) closed(w http.ResponseWriter, ex *exchange, choice Choice) {
 	ex.reason, ex.status = choice.Reason, http.StatusTooManyRequests
-	logger.Warn("no account in the request's pool can take it; answering 429", "id", ex.id, "pool", ex.pool)
+	pools := p.pools.current()
+	why := p.whyClosed(pools, ex.pool)
+	logger.Warn("no account in the request's pool can take it; answering 429", "id", ex.id, "pool", ex.pool, "why", why)
 	p.provider.MarkLimited(w.Header(), time.Time{})
 	message := "switchboard: no account can take the request"
-	if pool := p.pools.current().shown(ex.pool); pool != "" {
+	if pool := pools.shown(ex.pool); pool != "" {
 		message = "switchboard: no account in pool " + pool + " can take the request"
 	}
-	writeError(w, ex.status, "rate_limit_error", message)
+	writeError(w, ex.status, "rate_limit_error", message+"; "+why)
+}
+
+// whyClosed says why no account in the pool with the given id, as pools has
+// it, takes a request closed answers: the problem of the first of its
+// accounts without a usable token, as unsendable names one, which says how
+// to fix it; else, where it has accounts, that the upstream refused each of
+// them lately, as that alone leaves none to fall back to; else that it has
+// none.
+func (p *proxy) whyClosed(pools *poolTable, pool string) string {
+	members := 0
+	for _, a := range p.accounts {
+		if !pools.holds(pool, a.ID) {
+			continue
+		}
+		if problem := a.problem(); problem != "" {
+			return "account " + a.ID + ": " + problem
+		}
+		members++
+	}
+	if members == 0 {
+		return "the pool has no accounts"
+	}
+	return "the upstream refused each of the pool's accounts lately"
 }
 
 // next asks the chooser which account a request goes out on after those it
