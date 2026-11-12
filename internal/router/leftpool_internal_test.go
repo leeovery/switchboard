@@ -36,8 +36,12 @@ const (
 	unconfiguredLogged = `msg="session's pool isn't configured; refusing the request"`
 )
 
-// strangerToken is a token no account has.
-const strangerToken = "test-token-stranger"
+// strangerToken is a token no account has, and goneToken one of gone, an
+// account the config doesn't configure.
+const (
+	strangerToken = "test-token-stranger"
+	goneToken     = "test-token-gone"
+)
 
 // checkRefused checks that w is switchboard's refusal of a request whose
 // session's token has left its pool, saying want: shaped as the API shapes
@@ -770,7 +774,6 @@ func TestARemovedAccountsSessionsAreRoutedInTheirPoolAfterARestartWhereItsPoolIs
 }
 
 func TestTheTokensOfAnAccountRemovedWhileTheRouterWasAwayCountAsItsPoolsPrimarys(t *testing.T) {
-	const goneToken = "test-token-gone"
 	tests := []struct {
 		name, was string
 		want      string
@@ -797,6 +800,38 @@ func TestTheTokensOfAnAccountRemovedWhileTheRouterWasAwayCountAsItsPoolsPrimarys
 			f.load(path)
 
 			if a, ok := as.byToken(goneToken, start); !ok || a.ID != tt.want {
+				t.Errorf("a request on gone's token is %q's (%v), want %s's", a.ID, ok, tt.want)
+			}
+		})
+	}
+}
+
+func TestARouterStartedWithoutAnAccountGivesItsTokensToTheFirstPoolsPrimaryAsTheRecordNotesIt(t *testing.T) {
+	// The state file keeps gone's token, which the config no longer has,
+	// nor the accounts record its pool.
+	tests := []struct {
+		name, first string
+		want        string
+	}{
+		{name: "the record noting Acme the first pool: personal's, Acme's primary", first: acmePool, want: "personal"},
+		{name: "the record noting none: work's, the config's first's primary", want: "work"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			logstest.Capture(t)
+			stateDir := t.TempDir()
+			if tt.first != "" {
+				noteFirstPool(t, stateDir, tt.first)
+			}
+			path := filepath.Join(stateDir, stateFileName)
+			putState(t, path, savedState{Version: stateVersion, Tokens: map[string]savedTokens{"gone": {SHA256: hash(goneToken)}}})
+			cfg := testConfig(at(start), &stubProber{}, poolTokens.Read)
+			cfg.Accounts, cfg.Pools, cfg.StateDir = pooledAccounts(), testPools, stateDir
+			r := newTestRouterOf(t, cfg)
+
+			r.file.load(path)
+
+			if a, ok := r.accounts.byToken(goneToken, start); !ok || a.ID != tt.want {
 				t.Errorf("a request on gone's token is %q's (%v), want %s's", a.ID, ok, tt.want)
 			}
 		})
