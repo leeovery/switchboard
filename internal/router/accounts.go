@@ -318,21 +318,33 @@ func (as accounts) byToken(token string, now time.Time) (account, bool) {
 // it, usable and its own, as sends says, while the config configures it; else
 // the first a probe found holding it another subscription's, as disowns says,
 // so its client's requests are routed, never passed through on it; else the
-// first that had it until it was replaced, or took it up from an account that
-// left the config, while the account has a usable token and the one before
-// still counts as the account's at now, as a client started before carries on
-// sending it; else the first that left the config holding it, usable and its
-// own, as its client's requests were routed before it left. So a client of an
-// account that has left the config is the account's that took its tokens up
-// from the look that found it gone, while that one has a usable token and the
-// token still counts, and is routed as the account's own otherwise, while it
-// holds it. Each comparison takes as long however much of the token matches,
-// so response times can't give a token away a byte at a time.
+// first the config configures that had it until it was replaced, or took it
+// up from an account that left the config, while the account has a usable
+// token and the one before still counts as the account's at now, as a client
+// started before carries on sending it, and then the first that left the
+// config that had it so; else the first that left the config holding it,
+// usable and its own, as its client's requests were routed before it left. So
+// a client of an account that has left the config is the account's that took
+// its tokens up from the look that found it gone, or, as that one has left
+// since, the one that took them up from it in turn, while that one has a
+// usable token and the token still counts, and is routed as the account's own
+// otherwise, while it holds it or had it till its file took up another. Each
+// comparison takes as long however much of the token matches, so response
+// times can't give a token away a byte at a time.
 func (as accounts) sender(token string, now time.Time) (sender, bool) {
 	if token == "" {
 		return sender{}, false
 	}
 	sum := hash(token)
+	had := func(left bool) func(account) (string, bool) {
+		return func(a account) (string, bool) {
+			if a.secret.left() != left || !a.holdsToken() {
+				return "", false
+			}
+			f, ok := a.secret.formerOf(sum, now)
+			return a.removedAs(f.From), ok
+		}
+	}
 	for _, match := range []func(account) (removed string, ok bool){
 		func(a account) (string, bool) { return "", !a.secret.left() && a.secret.sends(token) },
 		func(a account) (string, bool) {
@@ -341,13 +353,8 @@ func (as accounts) sender(token string, now time.Time) (sender, bool) {
 			}
 			return a.removedAs(""), true
 		},
-		func(a account) (string, bool) {
-			if !a.holdsToken() {
-				return "", false
-			}
-			f, ok := a.secret.formerOf(sum, now)
-			return a.removedAs(f.From), ok
-		},
+		had(false),
+		had(true),
 		func(a account) (string, bool) { return a.ID, a.secret.left() && a.secret.sends(token) },
 	} {
 		for _, a := range as {

@@ -650,6 +650,43 @@ func TestTheSessionsOfAnAccountThatLeavesTheConfigStayInItsPool(t *testing.T) {
 	}
 }
 
+func TestTokensTakenUpFromAnAccountStayItsAsTheAccountThatTookThemLeavesInTurn(t *testing.T) {
+	// Personal, of Acme, leaves the config, Acme left with no accounts, so
+	// work, the first's primary, takes its tokens up; then work leaves,
+	// side moved to Acme, and side, the one account left, takes work's up,
+	// personal's among them; then personal is configured again.
+	logstest.Capture(t)
+	r, path := newWatchingPoolsRouter(t, "")
+	upstream := servingAll(served, served, served)
+	r.proxy.transport = upstream
+	pools := defaultTOML + "\n" + acmeTOML
+
+	writeConfigFile(t, path, accountTOML("work", defaultPool, false)+accountTOML("side", defaultPool, false)+pools)
+	r.upkeep.look()
+	writeConfigFile(t, path, accountTOML("side", acmePool, false)+pools)
+	r.upkeep.look()
+
+	if s, ok := r.accounts.sender(personalToken, start); !ok || s.ID != "side" || s.removed != "personal" {
+		t.Errorf("personal's token is sent as %q's, taken up from %q (%v), want as side's, taken up from personal", s.ID, s.removed, ok)
+	}
+	acmes := routeIn(t, r, personalToken, "one", acmePool, nil)
+	defaults := routeIn(t, r, personalToken, "two", defaultPool, nil)
+	if acmes.Code != http.StatusOK {
+		t.Errorf("Acme's request on personal's token was answered %d %s, want 200: personal was in Acme", acmes.Code, acmes.Body)
+	}
+	checkRefused(t, defaults, leftDefault)
+	if sent := upstream.sent(); !slices.Equal(sent, []string{"side"}) {
+		t.Errorf("the requests went out on %q, want Acme's alone, on side", sent)
+	}
+
+	writeConfigFile(t, path, accountTOML("personal", acmePool, false)+accountTOML("side", acmePool, false)+pools)
+	r.upkeep.look()
+
+	if side, _ := r.accounts.byID("side"); side.secret.was(hash(personalToken), start) {
+		t.Error("side keeps personal's token as its own once personal is configured again, want it given back")
+	}
+}
+
 func TestARemovedAccountsSessionsAreRoutedInTheirPoolAfterARestartWhereItsPoolIsntKnown(t *testing.T) {
 	// The router starts without personal, Acme's primary, side in Acme in
 	// its place; the state file keeps personal's token.

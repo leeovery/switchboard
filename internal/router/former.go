@@ -1,6 +1,7 @@
 package router
 
 import (
+	"cmp"
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/hex"
@@ -105,11 +106,14 @@ func (s *secret) swap(token tokens.Token, now time.Time) bool {
 // adopt has the tokens of the account from, removed from the config, as the
 // state file keeps them, count as this account's former tokens: the one the
 // router held last as replaced at now, and those it had before as they were,
-// as take says. It reports whether it adopted any.
+// as take says. Each is marked as from's, but one from had taken up from an
+// account removed before it, which stays that account's: its sessions are
+// judged by the pool that account was in, and it's that account's again
+// should the config configure it again. It reports whether it adopted any.
 func (s *secret) adopt(from string, removed savedTokens, now time.Time) bool {
 	adopted := append(slices.Clone(removed.Former), formerToken{SHA256: removed.SHA256, ReplacedAt: now.UTC()})
 	for i := range adopted {
-		adopted[i].From = from
+		adopted[i].From = cmp.Or(adopted[i].From, from)
 	}
 	return s.take(adopted, now)
 }
