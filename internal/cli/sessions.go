@@ -91,11 +91,12 @@ func (a *app) sessions(ctx context.Context, out, errOut io.Writer, asJSON bool) 
 	return writeSessions(out, list, now)
 }
 
-// routedSessions returns the sessions the router lists, and whether no
-// router lists them, as it can't be asked, telling errOut so, and what it
-// does instead, as what's printed is then the ledger's alone.
+// routedSessions returns the sessions the router lists, in every pool, as the
+// ledger's are read in every pool, and whether no router lists them, as it
+// can't be asked, telling errOut so, and what it does instead, as what's
+// printed is then the ledger's alone.
 func (a *app) routedSessions(ctx context.Context, errOut io.Writer, instead string) (sessions []status.Session, unlisted bool) {
-	sessions, err := a.routerSessions(ctx)
+	sessions, err := a.routerSessions(ctx, func(c *router.Client) ([]status.Session, error) { return c.SessionsInEveryPool(ctx) })
 	switch {
 	case router.IsNotRunning(err):
 		launch.Notice(errOut, "the router isn't running — "+instead)
@@ -105,12 +106,14 @@ func (a *app) routedSessions(ctx context.Context, errOut io.Writer, instead stri
 	return sessions, err != nil
 }
 
-func (a *app) routerSessions(ctx context.Context) ([]status.Session, error) {
+// routerSessions lists the sessions the router routed in the last hour, as
+// list asks its client for them.
+func (a *app) routerSessions(ctx context.Context, list func(*router.Client) ([]status.Session, error)) ([]status.Session, error) {
 	client, err := a.routerClient()
 	if err != nil {
 		return nil, err
 	}
-	return client.Sessions(ctx)
+	return list(client)
 }
 
 // sessionHeads are the heads of the columns of sessions' text, as the List's.

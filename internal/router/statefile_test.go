@@ -754,7 +754,7 @@ func TestAStateFileFromBeforeDirectoriesLoadsItsAssignmentsWithNone(t *testing.T
 	f := newTestFile(at(start), testAccounts())
 
 	f.load(path)
-	got, ok := f.sessions.session("one")
+	got, ok := f.sessions.session("one", anyPool)
 	if !ok || len(got.Assignments) != 1 || got.Assignments[0].Account != "work" || got.Assignments[0].Dir != "" {
 		t.Errorf("loaded %+v (seen: %v), want the session on work, naming no directory", got, ok)
 	}
@@ -1255,7 +1255,7 @@ func TestAssignmentsKeepTheirTimesInUTC(t *testing.T) {
 	f.load(path)
 	assign(f.sessions, key{session: "new", model: opus}, "", decision{account: "side", reason: reasonNew}, local)
 	for _, id := range []string{"saved", "new"} {
-		if got, _ := f.sessions.session(id); len(got.Assignments) != 1 || got.Assignments[0].AssignedAt != start || got.Assignments[0].LastSeen != start {
+		if got, _ := f.sessions.session(id, anyPool); len(got.Assignments) != 1 || got.Assignments[0].AssignedAt != start || got.Assignments[0].LastSeen != start {
 			t.Errorf("session %s is %+v, want its times in UTC", id, got)
 		}
 	}
@@ -1520,13 +1520,13 @@ func TestSessionsUnusedForAWeekAreForgottenHourlyWithTheirPins(t *testing.T) {
 
 		time.Sleep(pruneEvery - time.Nanosecond)
 		synctest.Wait()
-		if _, seen := s.session("fading"); !seen {
+		if _, seen := s.session("fading", anyPool); !seen {
 			t.Fatal("forgot a session before the hour was up")
 		}
 		time.Sleep(time.Nanosecond)
 		synctest.Wait()
-		_, fading := s.session("fading")
-		_, recent := s.session("recent")
+		_, fading := s.session("fading", anyPool)
+		_, recent := s.session("recent", anyPool)
 		if fading || !recent {
 			t.Errorf("an hour on, sessions are %+v, want the one unused for a week forgotten, and the other kept", s.assignments)
 		}

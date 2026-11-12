@@ -139,7 +139,8 @@ func (r *recent) hear(e Event) {
 func (r *recent) take(e Event, now time.Time) {
 	switch e := e.(type) {
 	case SessionStarted:
-		r.add(status.Event{Kind: status.EventStarted, Account: e.Account, Session: bounded(e.Session), Model: bounded(e.Model), Reason: e.Reason}, now)
+		r.add(status.Event{Kind: status.EventStarted, Account: e.Account, Session: bounded(e.Session), Model: bounded(e.Model), Reason: e.Reason,
+			Pool: e.Pool}, now)
 	case LimitReached:
 		r.reached(e, now)
 	case Moved:
@@ -281,7 +282,7 @@ func (r *recent) look() {
 	now := r.now()
 	pin := r.sessions.globalPin()
 	heard := r.newest()
-	accounts := r.state.statuses(now, pin.Accounts)
+	accounts := r.state.statuses(now, r.state.everyAccount(), pin.Accounts)
 	news := r.news(accounts, r.state.standings(now))
 	r.change(func() {
 		for _, e := range news {

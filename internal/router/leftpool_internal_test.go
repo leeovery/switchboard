@@ -482,7 +482,7 @@ func TestTheHeirOfAnAccountThatLeavesTheConfigIsTheFirstOfItsCandidatesTheRouter
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := heirs{accounts: tt.accounts, pools: tt.pools, first: func() string { return tt.first }, poolWas: func(string) string { return tt.was }}
+			h := heirs{accounts: tt.accounts, pools: tt.pools, first: func() config.Pool { return config.Pool{ID: tt.first} }, poolWas: func(string) string { return tt.was }}
 			ids := tt.held
 			if ids == nil {
 				ids = everyone
@@ -506,9 +506,9 @@ func unmarked(accounts config.Accounts) config.Accounts {
 
 func TestTheFirstPoolIsReadForAnHeirOnlyWhereNeededOnceALook(t *testing.T) {
 	reads := 0
-	m := newMembership(func() string {
+	m := newMembership(func() config.Pool {
 		reads++
-		return ""
+		return config.Pool{}
 	}, sameID, noPoolKnown)
 	m.follow(heirTestAccounts(), testPools)
 	as := held("work", "extra", "personal", "side")

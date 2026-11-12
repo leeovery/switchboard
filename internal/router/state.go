@@ -1346,14 +1346,20 @@ func startedAgain(held, kept quota.Window, at time.Time) quota.Window {
 	return kept
 }
 
-// document reports every account's usage as the router knows it, in the
-// order configured, with how each stands under pressure, the accounts pinned
-// spending their reserves, the best account to use next, where a new session
-// goes, as status.Best chooses it, the primary, and the pool's use, as demand
-// has it.
+// document is documentOf every account, as a config from before pools has
+// them, those given pinned.
 func (s *state) document(pinned ...string) status.Document {
+	return s.documentOf(s.everyAccount(), pinned)
+}
+
+// documentOf reports the usage of every account of the pool rd reads as the
+// router knows it, in the order configured, with how each stands under
+// pressure, the accounts pinned spending their reserves, the best of them to
+// use next, where a new session in the pool goes, as status.Best chooses it,
+// the pool's primary, and the pool's use, as demand has it.
+func (s *state) documentOf(rd poolRead, pinned []string) status.Document {
 	now := s.now()
-	accounts := s.statuses(now, pinned)
+	accounts := s.statuses(now, rd, pinned)
 	return status.Document{
 		GeneratedAt: now.UTC(),
 		Source:      status.SourceRouter,
@@ -1364,20 +1370,28 @@ func (s *state) document(pinned ...string) status.Document {
 	}
 }
 
-// statuses returns every account's status at now, with how it stands under
-// pressure, those pinned spending their reserves, and how fast its windows
-// have been used lately.
-func (s *state) statuses(now time.Time, pinned []string) []status.Account {
+// statuses returns the status at now of every account of the pool rd reads,
+// marked its primary where rd names one, with how it stands under pressure,
+// those pinned spending their reserves, and how fast its windows have been
+// used lately.
+func (s *state) statuses(now time.Time, rd poolRead, pinned []string) []status.Account {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	all := make([]status.Account, len(s.accounts))
-	for i, a := range s.accounts {
-		u := s.usage[a.ID]
-		all[i] = u.status(a, s.policy, now)
-		if a.hasToken() {
-			all[i].Pressure = u.pressure(a, s.policy, slices.Contains(pinned, a.ID), now)
-			all[i].Rates = u.rates(now)
+	all := []status.Account{}
+	for _, a := range s.accounts {
+		if !rd.holds(a.ID) {
+			continue
 		}
+		u := s.usage[a.ID]
+		st := u.status(a, s.policy, now)
+		if primary, known := rd.primary(a.ID); known {
+			st.Primary = primary
+		}
+		if a.hasToken() {
+			st.Pressure = u.pressure(a, s.policy, slices.Contains(pinned, a.ID), now)
+			st.Rates = u.rates(now)
+		}
+		all = append(all, st)
 	}
 	return all
 }
