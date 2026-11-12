@@ -37,6 +37,34 @@ func TestALineIsReadBackNamingThePoolItWasRoutedInOrNone(t *testing.T) {
 	}
 }
 
+// A follower finds a session's lines on a day it hasn't summarised by the
+// sessions its lines name, whatever pools they were routed in.
+func TestAFollowerFindsTheSessionsOfADaysLinesInEveryPoolTheyNamed(t *testing.T) {
+	tests := []struct {
+		name string
+		// pools are the pools of session one's request and session two's.
+		pools [2]string
+	}{
+		{name: "in one pool", pools: [2]string{acme, acme}},
+		{name: "in two pools", pools: [2]string{first, acme}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			state, dir, _ := stateDirs(t)
+			two := asked("2", on(0, 10, 0))
+			two.Session = "two"
+			holdLines(t, dir, date, inPool(asked("1", on(0, 9, 0)), tt.pools[0]), inPool(two, tt.pools[1]))
+			f := followerOf(state, &testClock{at: on(1, 10, 0)}, caps)
+
+			for _, session := range []string{"one", "two"} {
+				if got := slices.Collect(f.Session(session)); len(got) != 1 || got[0].Session != session {
+					t.Errorf("Session(%q) = %+v, want its one line, its day naming it", session, got)
+				}
+			}
+		})
+	}
+}
+
 func TestAnAccountsDayNamesThePoolItsWorkWasInOrListsItsPoolsWhereItWasInMore(t *testing.T) {
 	read := windowsRead{read: true, highest: `{"5h":0.25}`, rise: `{"5h":0.25}`, resets: `[` + resetJSON("5h", on(0, 13, 0), 0.25) + `]`}
 	history := readingsOf(workRead(on(0, 9, 0), "5h", 0.25, on(0, 13, 0), quota.StatusAllowed))

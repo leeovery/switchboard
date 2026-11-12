@@ -720,7 +720,7 @@ read as a pool by its leaving one out (the owner's call, 11 November 2026).
 - **Request lines record their pool:** `pool`, its id. It's recorded at the time of the request,
   because an account's pool can change and the config keeps no history of it.
 - **Day summaries** split each account's day by pool as well as by model, as an account can move
-  partway through a day: a new summary version.
+  partway through a day: summary version 7 (see The request ledger).
 - **Events:** pin events name their pool.
 - **Readings** stay per account: an account's windows are its own, whatever pool it's in.
 - **Moving to pools, once:** the history is rewritten with the first pool, where all work before
@@ -2324,7 +2324,7 @@ argument Claude Code's own, so `claude --help` is Claude Code's (see Launching).
 | `usage [--5h] [--week] [--<model>] [--by window\|account] [--probe] [--refresh] [--json \| --pretty]` | Every account's windows as they stand, printed once into the scrollback with the time they were read, to hold against one printed earlier: see `usage`, the printout. `--by` lays them out by window, each window's rows together, or by account, each account's windows together, over `[usage] by` (see Config); by window where neither says. `--5h`, `--week`, and a flag for each model's own window, named for its model, as `--fable` is for Fable's week, print the windows given alone, with the header and the key line. Its JSON is the status document, as `status --json` prints it, read as its flags say (see The data verbs). It reads the router while it answers; `--probe` probes instead. `-r`, `--refresh` has the router first read every account it may, as the dashboard's `R` does, and waits for it, ten seconds at most; without the router, or with `--probe`, every account is probed anyway |
 | `dashboard [interval] [--no-notify] [--probe]` | The dashboard, full screen until `q`: see Dashboard. It needs a terminal, and refuses without one. It reads the router while it answers, which reads idle accounts itself, on its rounds, and `R` has it read them at once (see Live updates). Without the router, or with `--probe`, it probes every account instead, each interval: 30m unless given, 5m at the least, as a duration, such as `15m`, or a number of minutes. `--no-notify` has it post none of the notifications it posts while it probes without the router (see Notifications) |
 | `requests [--session <id>] [--account <id>] [--since <when>] [--json \| --pretty]` | The request ledger's lines (see The request ledger): today's, unless `--since` reaches further back, oldest first, under the day each arrived on, a line each with the time, the session's id cut short, the model, the account, the status, `canceled`, `cut off` or `broken off` after it where its line says so, the tokens in and out, and how long the request took. `--session` keeps a session's own, by its id or as much of it as is unique among the sessions read, failing, listing them, for as much as starts several; `--account` keeps an account's own, by its id in any case, refusing a label, the refusal naming the id of each account it labels, configured or removed; `--since` starts at a day (`2026-10-01`), a time today (`14:00`), as the clocks first read it that day, so `00:00` is the day's first instant, or a duration ago (`3h`, `2d`, a day being 24 hours), and one still to come is refused. Its JSON is each line as the ledger holds it with `"schema": 1` put first, a JSON object a line, fields a later release added included (see The data verbs). It reads the ledger's files, so it needs no router |
-| `history [--since <when>] [--windows] [--json \| --pretty]` | The request ledger's days: the last 30 unless `--since` says otherwise, from the day it falls on; of each with requests, a row for each account and model with its requests, those that went upstream and those the router answered itself (see The request ledger), its tokens, sessions and worth, at today's prices, then each account's sessions, moves, limits reached, weeks reset, as `week reset 10:00`, and windows' highest use, of an account that served no request that day only where it reached a limit, or one of its weeks reset; today's from its lines, as far as it's gone. Then, where any of those days has requests, over them, the totals Accounts and History count, each account's plan and its worth against it, each week's peaks, Weeks' verdicts on the accounts (see Accounts, History), and the prices worth is at; where none has, `no requests since <day>`, then the days with notes. `--windows` prints in their place each account's windows' use over those days, a line each time a window's use, its reset or its status changed, as the readings history holds it (see Files). Its JSON (see The data verbs) is `{"schema": 1, "prices_as_of": "2026-10-07", "days": [{"version": 6, "day": "2026-10-05", "lines": 424, "bytes": {"plain": 0, "compressed": 41208}, "accounts": […]}], "year": {…}, "months": […], "weeks": […], "tokens": […], "totals": {…}, "plans": […], "capacity": {…}}`, `prices_as_of` the day the price table was read from Anthropic's pricing page, `prices_from_config` true where the config prices a model or a plan in the table's place and left out otherwise, and each day's summary as the ledger holds it, every day asked for from the first the ledger holds, so the last is today's, one of no requests, the readings history telling of no account that day, without `accounts`, with each model's `worth` in US dollars added, exactly, left out where the model is unpriced, and beside it `unpriced`, the counts in its `usage` the worth leaves out, and `no_usage` where requests went upstream without usage, and `too_large` where the worth passes what it's counted in, where there are any (see The request ledger). It reads the ledger's files and the readings history's, so it needs no router |
+| `history [--since <when>] [--windows] [--json \| --pretty]` | The request ledger's days: the last 30 unless `--since` says otherwise, from the day it falls on; of each with requests, a row for each account and model with its requests, those that went upstream and those the router answered itself (see The request ledger), its tokens, sessions and worth, at today's prices, then each account's sessions, moves, limits reached, weeks reset, as `week reset 10:00`, and windows' highest use, of an account that served no request that day only where it reached a limit, or one of its weeks reset; today's from its lines, as far as it's gone. Then, where any of those days has requests, over them, the totals Accounts and History count, each account's plan and its worth against it, each week's peaks, Weeks' verdicts on the accounts (see Accounts, History), and the prices worth is at; where none has, `no requests since <day>`, then the days with notes. `--windows` prints in their place each account's windows' use over those days, a line each time a window's use, its reset or its status changed, as the readings history holds it (see Files). Its JSON (see The data verbs) is `{"schema": 1, "prices_as_of": "2026-10-07", "days": [{"version": 7, "day": "2026-10-05", "lines": 424, "bytes": {"plain": 0, "compressed": 41208}, "accounts": […]}], "year": {…}, "months": […], "weeks": […], "tokens": […], "totals": {…}, "plans": […], "capacity": {…}}`, `prices_as_of` the day the price table was read from Anthropic's pricing page, `prices_from_config` true where the config prices a model or a plan in the table's place and left out otherwise, and each day's summary as the ledger holds it, every day asked for from the first the ledger holds, so the last is today's, one of no requests, the readings history telling of no account that day, without `accounts`, with each model's `worth` in US dollars added, exactly, left out where the model is unpriced, and beside it `unpriced`, the counts in its `usage` the worth leaves out, and `no_usage` where requests went upstream without usage, and `too_large` where the worth passes what it's counted in, where there are any (see The request ledger). It reads the ledger's files and the readings history's, so it needs no router |
 | `sessions [<id>] [--json \| --pretty]` | Today's sessions, as Sessions' List has them: those running, the oldest started first, then those that ended today, the latest ended first, a line each with its id cut short and its directory, the account it's on, its model, what it's doing, asking, answering or idle since it was last seen, or when it ended, when it started, its requests and their worth today, and how it came to its account; then a line summing them. `<id>`, a session's id or as much of it as is unique among the sessions read, as `requests --session` takes it, prints that session as its page has it: where it runs and why, each account it ran on, its turns, newest first, and its totals (see A session's page). Its JSON: see The data verbs. It reads the ledger's files, and the router's sessions where it answers |
 | `events [--since <when>] [-f] [--json \| --pretty]` | The router's events, as the Log's Events have them (see The Log): today's, unless `--since` reaches further back, as `requests` takes it, oldest first, under the day each happened on, a line each, each event once, as it last stood, with the time, the session, if any, cut short, the kind, the account, and what happened. `-f`, `--follow` then prints a line each time the router files one, a changed event again, until interrupted, as `logs --follow` follows a log. Its JSON: see The data verbs. It reads the events' files, which outlast a restart (see The router's events), so it needs no router |
 | `logs [router\|cli] [-n N] [-f] [--path]` | Print a log's last lines (`-n`, `--lines`: 50), or follow it (`-f`, `--follow`), or print where it is (`--path`): see Logging |
@@ -7875,11 +7875,13 @@ from the first day a router that has it runs, so nothing before then is in it.
   yesterday. Its object:
 
   ```json
-  {"version": 6, "day": "2026-10-05", "lines": 424, "bytes": {"plain": 0, "compressed": 41208}, "accounts": [{"account": "work", "models": [{"model": "claude-opus-5-5", "upstream": 412, "no_usage": 2, "unsent": 0, "checks": 3, "counts": 9, "hours": [0, 0, 0, 0, 0, 0, 0, 0, 6, 58, 61, 55, 24, 57, 52, 49, 40, 10, 0, 0, 0, 0, 0, 0], "sessions": 6, "session_ids": ["0c41…", "3e7a…", "5b0e…", "8d02…", "a9f3…", "e117…"], "usage": {"cache_creation": {"ephemeral_1h_input_tokens": 1180240, "ephemeral_5m_input_tokens": 0}, "cache_creation_input_tokens": 1180240, "cache_read_input_tokens": 61204410, "input_tokens": 8812, "output_tokens": 402113, "server_tool_use": {"web_search_requests": 4}}}], "sessions": 6, "session_ids": ["0c41…", "3e7a…", "5b0e…", "8d02…", "a9f3…", "e117…"], "moved_on": 2, "moved_off": 1, "highest": {"5h": 1, "7d": 0.41}, "rise": {"5h": 2.03, "7d": 0.12}, "resets": [{"window": "5h", "at": "2026-10-05T07:10:00Z", "before": 0.35}, {"window": "5h", "at": "2026-10-05T12:10:00Z", "before": 0.58}, {"window": "5h", "at": "2026-10-05T17:10:00Z", "before": 1}], "limits": [{"window": "5h", "at": "2026-10-05T14:37:12Z", "resets_at": "2026-10-05T17:10:00Z"}], "minutes_at_cap": 0, "minutes_at_limit": 153, "read_before": ["5h", "7d"]}]}
+  {"version": 7, "day": "2026-10-05", "lines": 424, "bytes": {"plain": 0, "compressed": 41208}, "accounts": [{"account": "work", "models": [{"model": "claude-opus-5-5", "upstream": 412, "no_usage": 2, "unsent": 0, "checks": 3, "counts": 9, "hours": [0, 0, 0, 0, 0, 0, 0, 0, 6, 58, 61, 55, 24, 57, 52, 49, 40, 10, 0, 0, 0, 0, 0, 0], "sessions": 6, "session_ids": ["0c41…", "3e7a…", "5b0e…", "8d02…", "a9f3…", "e117…"], "usage": {"cache_creation": {"ephemeral_1h_input_tokens": 1180240, "ephemeral_5m_input_tokens": 0}, "cache_creation_input_tokens": 1180240, "cache_read_input_tokens": 61204410, "input_tokens": 8812, "output_tokens": 402113, "server_tool_use": {"web_search_requests": 4}}}], "sessions": 6, "session_ids": ["0c41…", "3e7a…", "5b0e…", "8d02…", "a9f3…", "e117…"], "moved_on": 2, "moved_off": 1, "highest": {"5h": 1, "7d": 0.41}, "rise": {"5h": 2.03, "7d": 0.12}, "resets": [{"window": "5h", "at": "2026-10-05T07:10:00Z", "before": 0.35}, {"window": "5h", "at": "2026-10-05T12:10:00Z", "before": 0.58}, {"window": "5h", "at": "2026-10-05T17:10:00Z", "before": 1}], "limits": [{"window": "5h", "at": "2026-10-05T14:37:12Z", "resets_at": "2026-10-05T17:10:00Z"}], "minutes_at_cap": 0, "minutes_at_limit": 153, "read_before": ["5h", "7d"]}]}
   ```
 
-  - `version`: the summaries' version: 6 since the Graphs tab, which adds each model's `hours`, its
-    requests by the hour, for WHEN YOU WORK (see Graphs); 5 since the loose ends after milestone 7,
+  - `version`: the summaries' version: 7 since pools, which splits each account's day's work by the
+    pool its requests were in, as its `pool` and `pools` give it (see Pools); 6 since the Graphs
+    tab, which adds each model's `hours`, its requests by the hour, for WHEN YOU WORK (see Graphs);
+    5 since the loose ends after milestone 7,
     which leaves Claude Code's quota checks' usage out of each model's `usage`, as nothing prices it
     (see Worth; the owner's call, 15 October 2026); 4 since milestone 7's stage 8, which added each
     model's `session_ids`; 3 since milestone 7's stage 3, which gives every day the accounts the
@@ -7905,7 +7907,11 @@ from the first day a router that has it runs, so nothing before then is in it.
     it's summarised again, as a summary written again knows no less, and its worth prices it: a few
     tokens a day, a fraction of a cent, where the views over its lines leave it out. And a day
     summarised before version 6 gains its models' `hours` as it's summarised again from its lines;
-    one whose lines are gone has none, never as many of none, as its readings can't give them. A
+    one whose lines are gone has none, never as many of none, as its readings can't give them. And
+    a day summarised before version 7 holds all its work in no pool, as every line did before
+    pools: summarised again from its lines, it's split by the pools they name, none until the move
+    to pools gives them the first (see Pools' What's recorded); one whose lines are gone keeps its
+    work in no pool until that move rewrites it. A
     new version reads each kept day's lines once, some 0.37 seconds a day of 16,000 lines on an M1
     Max, under three minutes for a year of them, so a round summarises again eight days at most, the
     oldest first, some three seconds of the heaviest, their readings read from the week before the
@@ -7930,8 +7936,9 @@ from the first day a router that has it runs, so nothing before then is in it.
     an older version's summary, its lines kept, summarises the day from its
     lines, as it does today's; and one whose lines are gone it takes as it stands, whatever its
     version, as only the router writes summaries again, a reader knowing of the rest what they
-    never counted, rather than taking it for none. Versions 2, 3, 4 and 6 only add fields, and
-    accounts, and 5 leaves out what nothing prices, so a release from before one reads a summary of
+    never counted, rather than taking it for none. Versions 2, 3, 4, 6 and 7 only add fields, and
+    accounts, 7 keeping each account's work in every pool together where it always was, and 5
+    leaves out what nothing prices, so a release from before one reads a summary of
     it as one of its own, passing over what it doesn't know, and keeps those fields when it marks
     the summary afresh; where it summarises the day again, as lines come to be filed under it, it
     writes its own version, which the next release to run summarises again while the day's lines
@@ -8015,6 +8022,22 @@ from the first day a router that has it runs, so nothing before then is in it.
     - Of an account the readings history held none of the windows of, in the day or the week
       before it, as once it has pruned them, its keep being its own, `rise`, `resets` and the
       minutes are left out, as never read, never as none.
+  - By pool, since version 7 (see Pools): an account's work, its `models`, sessions and moves, is
+    split by the pool each of its lines names, as an account can move pools partway through a day;
+    its windows, its `highest`, `rise`, `resets`, `limits`, minutes and `read_before`, stay the
+    account's, once, whatever pool it's in.
+    - `pool`: the id of the pool all the account's work that day was in, left out where its lines
+      named none, as every line did before pools, and where its work was in more than one pool.
+    - `pools`: where its work was in more than one pool, each pool's, in the order of their ids,
+      that of the lines that named none first, its `pool` left out: its `models`, `sessions`,
+      `session_ids`, `moved_on` and `moved_off`, counted of the pool's lines alone as the account's
+      are of all of them. Left out where its work was in one pool.
+    - The account's own `models`, sessions and moves stay its work in every pool together, as they
+      were before pools, so every view and verb that adds accounts' days up reads the same however
+      a day splits, and a pool's work is read alone by its id, `""` for the lines that named none,
+      as all a summary before version 7 holds. A pool the account did no work in, as one a move of
+      no session off it named alone, is none of its pools. The day of the requests no account
+      answered splits as an account's does.
 
   A summary is written whole, and written again while lines come to be filed under its day: a
   request in flight past the hour the day is given, a change of time zone, or a clock set ahead and
@@ -8027,10 +8050,11 @@ from the first day a router that has it runs, so nothing before then is in it.
   than it (see `version`): a year of them runs to a few megabytes.
 
   A summary written again knows no less than the one it replaces. Each count it holds, a model's
-  requests, sessions and usage, field for field, and an account's sessions and moves, is the one
-  before's where that's more, as fewer means lines were lost since, and an account or a model the
-  lines, or the readings, no longer give is kept as it was, an account the readings alone told of
-  among them. Which lines were lost can't be told from those filed since, though: where some of a
+  requests, sessions and usage, field for field, and an account's sessions and moves, in every
+  pool together and in each, is the one before's where that's more, as fewer means lines were lost
+  since, and an account, one of its pools or a model the lines, or the readings, no longer give is
+  kept as it was, an account the readings alone told of among them. Which lines were lost can't be
+  told from those filed since, though: where some of a
   model's requests were lost, and others of it filed since, it counts the more of the two
   summaries', fewer than there were; and its `hours` are, whole, those of the summary that counted
   more `upstream`, the one made afresh's where they count as many, never the more of each hour,

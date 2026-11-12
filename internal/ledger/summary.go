@@ -857,18 +857,23 @@ func (a *accountTally) summary(id string, caps Caps) AccountDay {
 }
 
 // work returns the account's work, every pool's together, as though its
-// lines were tallied as one, and each pool's, in the order of their ids.
+// lines were tallied as one, and each pool's, in the order of their ids. A pool
+// of no work, as one a move of no session off the account names alone, is left
+// out, as the day made again over itself, or merged, leaves it out.
 func (a *accountTally) work() (Work, []PoolDay) {
-	pools := make([]PoolDay, 0, len(a.pools))
-	for _, id := range slices.Sorted(maps.Keys(a.pools)) {
-		pools = append(pools, PoolDay{Pool: id, Work: a.pools[id].summary()})
+	ids := slices.Sorted(maps.Keys(a.pools))
+	var pools []PoolDay
+	for _, id := range ids {
+		if w := a.pools[id].summary(); !w.idle() {
+			pools = append(pools, PoolDay{Pool: id, Work: w})
+		}
 	}
 	if len(pools) == 1 {
 		return pools[0].Work, pools
 	}
 	whole := newWorkTally()
-	for _, w := range a.pools {
-		whole.plus(w)
+	for _, id := range ids {
+		whole.plus(a.pools[id])
 	}
 	return whole.summary(), pools
 }
