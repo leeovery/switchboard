@@ -157,7 +157,7 @@ func TestARouterRestartingInPlaceKeepsWhatItsControlAPIChangesAsItStops(t *testi
 	close(notifier.hold)
 	r.waitForExit(t)
 	if got := pinIn([]byte(execs.only(t).saved)); !slices.Equal(got, []string{"side"}) {
-		t.Errorf("as it replaced itself, the state file held the global pin to %q, want the one set as it stopped, to side", got)
+		t.Errorf("as it replaced itself, the state file held the pool's pin to %q, want the one set as it stopped, to side", got)
 	}
 	filed, err := filepath.Glob(filepath.Join(s.cfg.StateDir, "ledger", "events-*.jsonl"))
 	if err != nil || len(filed) != 1 {
@@ -245,7 +245,7 @@ func probesIn(data []byte) map[string]keptProbes {
 	return saved.Readings
 }
 
-// pinIn returns the accounts of the global pin a state file's content, data,
+// pinIn returns the accounts of the pool's pin a state file's content, data,
 // holds: none where it holds none, or doesn't read as one.
 func pinIn(data []byte) []string {
 	var saved struct {

@@ -139,17 +139,17 @@ func TestTheBestIsWhereTheRouterSendsANewSession(t *testing.T) {
 			want: "side",
 		},
 		{
-			name:   "a global pin of one account",
+			name:   "a pool's pin of one account",
 			change: func(r *Router, _ *testClock) { pin(r, "work") },
 			want:   "work",
 		},
 		{
-			name:   "a global pin of two accounts, the best of them",
+			name:   "a pool's pin of two accounts, the best of them",
 			change: func(r *Router, _ *testClock) { pin(r, "work", "side") },
 			want:   "side",
 		},
 		{
-			name: "a global pin of two, the better under pressure",
+			name: "a pool's pin of two, the better under pressure",
 			change: func(r *Router, clock *testClock) {
 				pin(r, "work", "side")
 				clock.now = start.Add(20 * time.Minute)
@@ -158,7 +158,7 @@ func TestTheBestIsWhereTheRouterSendsANewSession(t *testing.T) {
 			want: "work",
 		},
 		{
-			name:     "a global pin of one at its cap, which the pin spends",
+			name:     "a pool's pin of one at its cap, which the pin spends",
 			reserves: map[string]float64{"work": 0.1},
 			change: func(r *Router, _ *testClock) {
 				r.state.record("work", []quota.Window{weekIn(0.95, 5*day)}, r.state.mark())
@@ -167,7 +167,7 @@ func TestTheBestIsWhereTheRouterSendsANewSession(t *testing.T) {
 			want: "work",
 		},
 		{
-			name:     "a global pin of two, the better at its cap, which the pin spends",
+			name:     "a pool's pin of two, the better at its cap, which the pin spends",
 			reserves: map[string]float64{"work": 0.1},
 			change: func(r *Router, _ *testClock) {
 				r.state.record("work", []quota.Window{weekIn(0.9, 10*time.Hour)}, r.state.mark())

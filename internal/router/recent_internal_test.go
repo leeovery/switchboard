@@ -74,12 +74,12 @@ func TestEachEventAsTheDocumentGivesIt(t *testing.T) {
 			want:  status.Event{Kind: status.EventRestart, Reason: "upgraded"},
 		},
 		{
-			name:  "the global pin set, moving and forcing, by the pin command",
+			name:  "the pool's pin set, moving and forcing, by the pin command",
 			event: Pinned{Accounts: []string{"work", "side"}, Account: "work", Move: true, Force: true, By: ByCLI},
 			want:  status.Event{Kind: status.EventPin, Account: "work", Accounts: []string{"work", "side"}, Move: true, Force: true, By: "cli"},
 		},
 		{
-			name:  "the global pin set by what doesn't say",
+			name:  "the pool's pin set by what doesn't say",
 			event: Pinned{Accounts: []string{"side"}, Account: "side"},
 			want:  status.Event{Kind: status.EventPin, Account: "side", Accounts: []string{"side"}},
 		},
@@ -89,7 +89,7 @@ func TestEachEventAsTheDocumentGivesIt(t *testing.T) {
 			want:  status.Event{Kind: status.EventPin, Account: "side", Session: "0b5c6f2e", By: "dashboard"},
 		},
 		{
-			name:  "the global pin cleared, forcing, by the pin command",
+			name:  "the pool's pin cleared, forcing, by the pin command",
 			event: Unpinned{Accounts: []string{"work", "side"}, Force: true, By: ByCLI},
 			want:  status.Event{Kind: status.EventAuto, Accounts: []string{"work", "side"}, Force: true, By: "cli"},
 		},
@@ -516,7 +516,7 @@ func (p pressing) work() status.Account {
 	}
 }
 
-func TestPressureIsJudgedAsTheDocumentJudgesItWithTheGlobalPin(t *testing.T) {
+func TestPressureIsJudgedAsTheDocumentJudgesItWithThePoolsPin(t *testing.T) {
 	clock := &testClock{now: start}
 	reserving := slices.Clone(testConfigured)
 	reserving[0].Reserve = 0.2

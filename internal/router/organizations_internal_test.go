@@ -213,7 +213,7 @@ func TestAnAccountWhoseTokenIsAnothersTakesNoRequestsTillItHasItsOwn(t *testing.
 	}
 	newSession := func(id string) Request { return Request{ID: id, Session: id, Model: opus, Client: "work"} }
 	if got := choose(t.Context(), r, newSession("one")).Account; got != "side" {
-		t.Fatalf("a new session goes to %q, want side, which the global pin names", got)
+		t.Fatalf("a new session goes to %q, want side, which the pool's pin names", got)
 	}
 
 	probeNow(r, "side")
@@ -245,7 +245,7 @@ func TestAnAccountWhoseTokenIsAnothersTakesNoRequestsTillItHasItsOwn(t *testing.
 	r.upkeep.tokens.look()
 	wantSideTakes(t, r)
 	if got := choose(t.Context(), r, newSession("four")).Account; got != "side" {
-		t.Errorf("a new session goes to %q, want side, which the global pin names, with a token of its own again", got)
+		t.Errorf("a new session goes to %q, want side, which the pool's pin names, with a token of its own again", got)
 	}
 	clock.now = start.Add(roundEvery)
 	r.rounds.look(t.Context())

@@ -27,7 +27,7 @@ import (
 	"github.com/leeovery/switchboard/internal/tokens/tokenstest"
 )
 
-func TestTheStateFileKeepsSessionsTheirPinsAndTheGlobalPin(t *testing.T) {
+func TestTheStateFileKeepsSessionsTheirPinsAndThePoolsPin(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "state.json")
 	saved := newTestFile(at(start), testAccounts())
 	saved.load(path)

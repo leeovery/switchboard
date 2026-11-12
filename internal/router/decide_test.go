@@ -46,7 +46,7 @@ func TestDecide(t *testing.T) {
 		pinnedAt time.Time
 		// current is the session's assignment, nil for a new session.
 		current *assignment
-		global  status.Pin
+		poolPin status.Pin
 		// tried are the accounts the request has gone out on already.
 		tried []Attempt
 		// work's and side's windows. Personal can't be sent on.
@@ -159,10 +159,10 @@ func TestDecide(t *testing.T) {
 			want: decision{account: "side", reason: "pinned"},
 		},
 		{
-			name:   "a session's pin beats the global pin",
-			pin:    "side",
-			global: status.Pin{Accounts: []string{"work"}, Since: start.Add(-time.Hour)},
-			work:   soon, side: later,
+			name:    "a session's pin beats the pool's pin",
+			pin:     "side",
+			poolPin: status.Pin{Accounts: []string{"work"}, Since: start.Add(-time.Hour)},
+			work:    soon, side: later,
 			want: decision{account: "side", reason: "pinned"},
 		},
 		{
@@ -230,77 +230,77 @@ func TestDecide(t *testing.T) {
 			want: decision{account: "work", reason: "pin yields: side has no room", sticky: true},
 		},
 		{
-			name:   "the global pin sends a new session to its account",
-			global: pinSide,
-			work:   soon, side: later,
+			name:    "the pool's pin sends a new session to its account",
+			poolPin: pinSide,
+			work:    soon, side: later,
 			want: decision{account: "side", reason: "pinned (pool)", afresh: true},
 		},
 		{
-			name:   "the global pin yields when its account has no room",
-			global: pinSide,
-			work:   later, side: spent,
+			name:    "the pool's pin yields when its account has no room",
+			poolPin: pinSide,
+			work:    later, side: spent,
 			want: decision{account: "work", reason: "new", afresh: true},
 		},
 		{
-			name:    "the global pin leaves a warm session where it is",
-			global:  pinSide,
+			name:    "the pool's pin leaves a warm session where it is",
+			poolPin: pinSide,
 			current: assignedAt(on("work", 5*time.Minute), start.Add(-2*time.Hour)),
 			work:    soon, side: later,
 			want: decision{account: "work", reason: "sticky", sticky: true},
 		},
 		{
-			name:    "the global pin takes a session idle past the hour",
-			global:  pinSide,
+			name:    "the pool's pin takes a session idle past the hour",
+			poolPin: pinSide,
 			current: on("work", 2*time.Hour),
 			work:    soon, side: later,
 			want: decision{account: "side", reason: "pinned (pool)", afresh: true},
 		},
 		{
-			name:    "the global pin takes a session whose account has no room",
-			global:  pinSide,
+			name:    "the pool's pin takes a session whose account has no room",
+			poolPin: pinSide,
 			current: on("work", 5*time.Minute),
 			work:    spent, side: later,
 			want: decision{account: "side", reason: "pinned (pool)", afresh: true},
 		},
 		{
-			name:    "a global pin that moves sessions moves one assigned before it",
-			global:  moveToSide,
+			name:    "a pool's pin that moves sessions moves one assigned before it",
+			poolPin: moveToSide,
 			current: assignedAt(on("work", 5*time.Minute), start.Add(-2*time.Hour)),
 			work:    soon, side: later,
 			want: decision{account: "side", reason: "moved by pin"},
 		},
 		{
-			name:    "a global pin that moves sessions moves one idle past the hour",
-			global:  moveToSide,
+			name:    "a pool's pin that moves sessions moves one idle past the hour",
+			poolPin: moveToSide,
 			current: assignedAt(on("work", 90*time.Minute), start.Add(-2*time.Hour)),
 			work:    soon, side: later,
 			want: decision{account: "side", reason: "moved by pin"},
 		},
 		{
-			name:    "a global pin that moves sessions moves each once",
-			global:  moveToSide,
+			name:    "a pool's pin that moves sessions moves each once",
+			poolPin: moveToSide,
 			current: assignedAt(on("work", 5*time.Minute), start.Add(-30*time.Minute)),
 			work:    soon, side: later,
 			want: decision{account: "work", reason: "sticky", sticky: true},
 		},
 		{
-			name:    "a global pin that moves sessions waits while its account has no room",
-			global:  moveToSide,
+			name:    "a pool's pin that moves sessions waits while its account has no room",
+			poolPin: moveToSide,
 			current: assignedAt(on("work", 5*time.Minute), start.Add(-2*time.Hour)),
 			work:    soon, side: spent,
 			want: decision{account: "work", reason: "sticky", sticky: true},
 		},
 		{
-			name:    "a global pin that moves sessions leaves one on its account",
-			global:  moveToSide,
+			name:    "a pool's pin that moves sessions leaves one on its account",
+			poolPin: moveToSide,
 			current: assignedAt(on("side", 5*time.Minute), start.Add(-2*time.Hour)),
 			work:    soon, side: later,
 			want: decision{account: "side", reason: "sticky", sticky: true},
 		},
 		{
-			name:    "a global pin that moves sessions leaves one its own pin holds",
+			name:    "a pool's pin that moves sessions leaves one its own pin holds",
 			pin:     "work",
-			global:  moveToSide,
+			poolPin: moveToSide,
 			current: pinned(assignedAt(on("work", 5*time.Minute), start.Add(-2*time.Hour)), "work"),
 			work:    soon, side: later,
 			want: decision{account: "work", reason: "pinned"},
@@ -406,17 +406,17 @@ func TestDecide(t *testing.T) {
 			want: decision{account: "side", reason: "no account has room", afresh: true, noRoom: true},
 		},
 		{
-			name:    "a global pin that moves sessions moves one whose thinking is bound",
+			name:    "a pool's pin that moves sessions moves one whose thinking is bound",
 			bound:   true,
-			global:  moveToSide,
+			poolPin: moveToSide,
 			current: assignedAt(on("work", 2*time.Hour), start.Add(-3*time.Hour)),
 			work:    soon, side: later,
 			want: decision{account: "side", reason: "moved by pin"},
 		},
 		{
-			name:    "the global pin leaves a session whose thinking is bound where it is, however long idle",
+			name:    "the pool's pin leaves a session whose thinking is bound where it is, however long idle",
 			bound:   true,
-			global:  pinSide,
+			poolPin: pinSide,
 			current: on("work", 2*time.Hour),
 			work:    soon, side: later,
 			want: decision{account: "work", reason: "bound", sticky: true},
@@ -470,7 +470,7 @@ func TestDecide(t *testing.T) {
 			if tt.bound {
 				req.Model, req.Bound = sonnet, true
 			}
-			s := situation{req: req, now: start, pinnedAt: tt.pinnedAt, pin: tt.global, accounts: known(tt.work, tt.side).without(req.tried())}
+			s := situation{req: req, now: start, pinnedAt: tt.pinnedAt, pin: tt.poolPin, accounts: known(tt.work, tt.side).without(req.tried())}
 			if tt.current != nil {
 				s.current, s.assigned = *tt.current, true
 			}
@@ -491,7 +491,7 @@ func TestDecideMovesASessionAtItsCompactionWhereAChoiceAfreshWouldSendItAndItsWe
 	moveToSide := status.Pin{Accounts: []string{"side"}, Since: start.Add(-time.Hour), Move: true}
 	tests := []struct {
 		name    string
-		global  status.Pin
+		poolPin status.Pin
 		current *assignment
 		// rateUnknown has how fast each week has been used lately unknown.
 		rateUnknown bool
@@ -509,7 +509,7 @@ func TestDecideMovesASessionAtItsCompactionWhereAChoiceAfreshWouldSendItAndItsWe
 		},
 		{
 			name:    "with a pin set without moving sessions, the session outside it, moved to the pin's account for its compaction, its reserve spent",
-			global:  pinSide,
+			poolPin: pinSide,
 			current: on("work", 5*time.Minute),
 			want: decision{account: "side", reason: "compacted: side would reset with 15% of its week left", afresh: true,
 				compacted: true, move: score.Move{Verdict: score.Moves, To: "side"}},
@@ -517,7 +517,7 @@ func TestDecideMovesASessionAtItsCompactionWhereAChoiceAfreshWouldSendItAndItsWe
 		},
 		{
 			name:    "with a pin that moves running sessions, moved by the pin and not judged",
-			global:  moveToSide,
+			poolPin: moveToSide,
 			current: on("work", 5*time.Minute),
 			want:    decision{account: "side", reason: "moved by pin"},
 		},
@@ -545,7 +545,7 @@ func TestDecideMovesASessionAtItsCompactionWhereAChoiceAfreshWouldSendItAndItsWe
 				accounts.candidates[i].PerishableKnown = !tt.rateUnknown
 			}
 			req := Request{Session: "0b5c6f2e", Model: opus, Client: "work", Compacted: true}
-			s := situation{req: req, now: start, pin: tt.global, current: *tt.current, assigned: true, accounts: accounts}
+			s := situation{req: req, now: start, pin: tt.poolPin, current: *tt.current, assigned: true, accounts: accounts}
 			got := decide(s)
 			left := got.move.Left
 			got.move.Left = 0
@@ -581,7 +581,7 @@ func TestDecideLeavesAnAccountsReserveToPins(t *testing.T) {
 		pin string
 		// current is the session's assignment, nil for a new session.
 		current *assignment
-		global  status.Pin
+		poolPin status.Pin
 		// work's windows, work keeping a tenth of each back, and side's.
 		work, side []quota.Window
 		want       decision
@@ -621,28 +621,28 @@ func TestDecideLeavesAnAccountsReserveToPins(t *testing.T) {
 			want: decision{account: "side", reason: "pin yields: work has no room", afresh: true},
 		},
 		{
-			name:   "the global pin spends its account's reserve for a new session",
-			global: pinWork,
-			work:   reserved, side: later,
+			name:    "the pool's pin spends its account's reserve for a new session",
+			poolPin: pinWork,
+			work:    reserved, side: later,
 			want: decision{account: "work", reason: "pinned (pool)", afresh: true},
 		},
 		{
-			name:    "the global pin keeps a warm session on its account at its reserve",
-			global:  pinWork,
+			name:    "the pool's pin keeps a warm session on its account at its reserve",
+			poolPin: pinWork,
 			current: on("work", 5*time.Minute),
 			work:    reserved, side: later,
 			want: decision{account: "work", reason: "sticky", sticky: true},
 		},
 		{
-			name:    "a global pin that moves sessions carries one onto its account at its reserve",
-			global:  moveToWork,
+			name:    "a pool's pin that moves sessions carries one onto its account at its reserve",
+			poolPin: moveToWork,
 			current: assignedAt(on("side", 5*time.Minute), start.Add(-2*time.Hour)),
 			work:    reserved, side: later,
 			want: decision{account: "work", reason: "moved by pin"},
 		},
 		{
 			name:    "a pin elsewhere leaves an account's reserve alone",
-			global:  status.Pin{Accounts: []string{"side"}, Since: start.Add(-time.Hour)},
+			poolPin: status.Pin{Accounts: []string{"side"}, Since: start.Add(-time.Hour)},
 			current: on("work", 5*time.Minute),
 			work:    reserved, side: later,
 			want: decision{account: "side", reason: "pinned (pool)", afresh: true, held: HeldByReserve},
@@ -673,7 +673,7 @@ func TestDecideLeavesAnAccountsReserveToPins(t *testing.T) {
 			if tt.bound {
 				req.Model, req.Bound = sonnet, true
 			}
-			s := situation{req: req, now: start, pin: tt.global, accounts: reserving(known(tt.work, tt.side), "work", 0.1)}
+			s := situation{req: req, now: start, pin: tt.poolPin, accounts: reserving(known(tt.work, tt.side), "work", 0.1)}
 			if tt.current != nil {
 				s.current, s.assigned = *tt.current, true
 			}
@@ -685,7 +685,7 @@ func TestDecideLeavesAnAccountsReserveToPins(t *testing.T) {
 	}
 }
 
-func TestDecideWithTheGlobalPinOnSeveralAccounts(t *testing.T) {
+func TestDecideWithThePoolsPinOnSeveralAccounts(t *testing.T) {
 	var (
 		// soon's week resets tomorrow, sooner's in two days, and later's in
 		// five: soon's quota needs using first, then sooner's.
@@ -729,7 +729,7 @@ func TestDecideWithTheGlobalPinOnSeveralAccounts(t *testing.T) {
 		unsessioned bool
 		// current is the session's assignment, nil for a new session.
 		current *assignment
-		global  status.Pin
+		poolPin status.Pin
 		// work's, side's and spare's windows.
 		work, side, spare []quota.Window
 		// reserving is the account keeping a tenth of every window back, if
@@ -738,121 +738,121 @@ func TestDecideWithTheGlobalPinOnSeveralAccounts(t *testing.T) {
 		want      decision
 	}{
 		{
-			name:   "a new session goes to the pinned account whose quota most needs using, passing over the one unpinned",
-			global: pinned,
-			work:   soon, side: later, spare: sooner,
+			name:    "a new session goes to the pinned account whose quota most needs using, passing over the one unpinned",
+			poolPin: pinned,
+			work:    soon, side: later, spare: sooner,
 			want: decision{account: "spare", reason: "pinned (pool)", afresh: true},
 		},
 		{
 			name:        "a request without a session goes to the best pinned account",
 			unsessioned: true,
-			global:      pinned,
+			poolPin:     pinned,
 			work:        soon, side: sooner, spare: later,
 			want: decision{account: "side", reason: "pinned (pool)", afresh: true},
 		},
 		{
-			name:   "between pinned accounts near enough equal, the one whose session resets soonest",
-			global: pinned,
-			work:   soon, side: early, spare: late,
+			name:    "between pinned accounts near enough equal, the one whose session resets soonest",
+			poolPin: pinned,
+			work:    soon, side: early, spare: late,
 			want: decision{account: "side", reason: "pinned (pool)", afresh: true},
 		},
 		{
 			name:      "a pinned account at its reserve takes the request, its reserve spent",
-			global:    pinned,
+			poolPin:   pinned,
 			reserving: "side",
 			work:      later, side: reserved, spare: later,
 			want: decision{account: "side", reason: "pinned (pool)", afresh: true},
 		},
 		{
-			name:   "a pinned account with room takes the request, the other pinned without",
-			global: pinned,
-			work:   soon, side: spent, spare: later,
+			name:    "a pinned account with room takes the request, the other pinned without",
+			poolPin: pinned,
+			work:    soon, side: spent, spare: later,
 			want: decision{account: "spare", reason: "pinned (pool)", afresh: true},
 		},
 		{
-			name:   "the pin yields to every account when none pinned has room",
-			global: pinned,
-			work:   later, side: spent, spare: spent,
+			name:    "the pin yields to every account when none pinned has room",
+			poolPin: pinned,
+			work:    later, side: spent, spare: spent,
 			want: decision{account: "work", reason: "new", afresh: true},
 		},
 		{
 			name:      "the pin yields, an unpinned account at its reserve held back by it",
-			global:    pinned,
+			poolPin:   pinned,
 			reserving: "work",
 			work:      reserved, side: spent, spare: spent,
 			want: decision{account: "side", reason: "no account has room", afresh: true, noRoom: true},
 		},
 		{
-			name:   "a pinned account that can be scored comes before one nothing has been read of",
-			global: pinned,
-			work:   soon, side: unread, spare: later,
+			name:    "a pinned account that can be scored comes before one nothing has been read of",
+			poolPin: pinned,
+			work:    soon, side: unread, spare: later,
 			want: decision{account: "spare", reason: "pinned (pool)", afresh: true},
 		},
 		{
-			name:   "the first pinned account takes the request when none pinned can be scored",
-			global: pinned,
-			work:   soon, side: unread, spare: unread,
+			name:    "the first pinned account takes the request when none pinned can be scored",
+			poolPin: pinned,
+			work:    soon, side: unread, spare: unread,
 			want: decision{account: "side", reason: "pinned (pool)", afresh: true},
 		},
 		{
 			name:    "the pin leaves a warm session where it is",
-			global:  pinned,
+			poolPin: pinned,
 			current: on("work", 5*time.Minute),
 			work:    later, side: soon, spare: soon,
 			want: decision{account: "work", reason: "sticky", sticky: true},
 		},
 		{
 			name:    "the pin takes a session whose account has no room",
-			global:  pinned,
+			poolPin: pinned,
 			current: on("work", 5*time.Minute),
 			work:    spent, side: later, spare: sooner,
 			want: decision{account: "spare", reason: "pinned (pool)", afresh: true},
 		},
 		{
 			name:    "a session idle past the hour on a pinned account keeps to it against another pinned a little ahead",
-			global:  pinned,
+			poolPin: pinned,
 			current: on("side", 2*time.Hour),
 			work:    soon, side: even, spare: littleAhead,
 			want: decision{account: "side", reason: "pinned (pool)", afresh: true},
 		},
 		{
 			name:    "a session idle past the hour on a pinned account leaves it for another pinned well ahead",
-			global:  pinned,
+			poolPin: pinned,
 			current: on("side", 2*time.Hour),
 			work:    soon, side: even, spare: wellAhead,
 			want: decision{account: "spare", reason: "pinned (pool)", afresh: true},
 		},
 		{
 			name:    "a pin that moves sessions moves one on an account it doesn't name to the best it names",
-			global:  moving,
+			poolPin: moving,
 			current: on("work", 5*time.Minute),
 			work:    soon, side: later, spare: sooner,
 			want: decision{account: "spare", reason: "moved by pin"},
 		},
 		{
 			name:    "a pin that moves sessions leaves one on an account it names",
-			global:  moving,
+			poolPin: moving,
 			current: on("side", 5*time.Minute),
 			work:    soon, side: later, spare: sooner,
 			want: decision{account: "side", reason: "sticky", sticky: true},
 		},
 		{
 			name:    "a pin that moves sessions moves each once",
-			global:  moving,
+			poolPin: moving,
 			current: assignedAt(on("work", 5*time.Minute), start.Add(-30*time.Minute)),
 			work:    soon, side: later, spare: sooner,
 			want: decision{account: "work", reason: "sticky", sticky: true},
 		},
 		{
 			name:    "a pin that moves sessions waits while none it names has room",
-			global:  moving,
+			poolPin: moving,
 			current: on("work", 5*time.Minute),
 			work:    later, side: spent, spare: spent,
 			want: decision{account: "work", reason: "sticky", sticky: true},
 		},
 		{
 			name:      "a pin that moves sessions carries one onto a pinned account at its reserve",
-			global:    moving,
+			poolPin:   moving,
 			current:   on("work", 5*time.Minute),
 			reserving: "side",
 			work:      soon, side: reserved, spare: spent,
@@ -875,7 +875,7 @@ func TestDecideWithTheGlobalPinOnSeveralAccounts(t *testing.T) {
 				},
 				applies: testPolicy.IsShared,
 			}
-			s := situation{req: req, now: start, pin: tt.global, accounts: reserving(accounts, tt.reserving, 0.1)}
+			s := situation{req: req, now: start, pin: tt.poolPin, accounts: reserving(accounts, tt.reserving, 0.1)}
 			if tt.current != nil {
 				s.current, s.assigned = *tt.current, true
 			}
@@ -1128,7 +1128,7 @@ func TestDecidePassesOverAccountsUnderPressure(t *testing.T) {
 		pin string
 		// current is the session's assignment, nil for a new session.
 		current *assignment
-		global  status.Pin
+		poolPin status.Pin
 		// rates are how fast each account's session is being used, an hour.
 		rates map[string]float64
 		// spent is the account whose session is used up, if any.
@@ -1203,16 +1203,16 @@ func TestDecidePassesOverAccountsUnderPressure(t *testing.T) {
 			want:  decision{account: "spare", reason: "pin yields: side has no room, work under pressure", afresh: true, passedOver: "work"},
 		},
 		{
-			name:   "the global pin's best under pressure passes to the pin's next, not beyond the pin",
-			global: workAndSpare,
-			rates:  map[string]float64{"work": pressing},
-			want:   decision{account: "spare", reason: "pinned (pool), work under pressure", afresh: true, passedOver: "work"},
+			name:    "the pool's pin's best under pressure passes to the pin's next, not beyond the pin",
+			poolPin: workAndSpare,
+			rates:   map[string]float64{"work": pressing},
+			want:    decision{account: "spare", reason: "pinned (pool), work under pressure", afresh: true, passedOver: "work"},
 		},
 		{
-			name:   "the global pin's accounts every one under pressure keep to the pin",
-			global: workAndSpare,
-			rates:  map[string]float64{"work": pressing, "spare": pressing},
-			want:   decision{account: "work", reason: "pinned (pool)", afresh: true},
+			name:    "the pool's pin's accounts every one under pressure keep to the pin",
+			poolPin: workAndSpare,
+			rates:   map[string]float64{"work": pressing, "spare": pressing},
+			want:    decision{account: "work", reason: "pinned (pool)", afresh: true},
 		},
 		{
 			name:      "an account runs out at its reserve under pressure",
@@ -1221,16 +1221,16 @@ func TestDecidePassesOverAccountsUnderPressure(t *testing.T) {
 			want:      decision{account: "side", reason: "new, work under pressure", afresh: true, passedOver: "work"},
 		},
 		{
-			name:      "an account the global pin names runs out at its limit, its reserve spent",
-			global:    workAndSpare,
+			name:      "an account the pool's pin names runs out at its limit, its reserve spent",
+			poolPin:   workAndSpare,
 			reserving: "work",
 			rates:     map[string]float64{"work": atReserve},
 			want:      decision{account: "work", reason: "pinned (pool)", afresh: true},
 		},
 		{
-			name:    "a session the global pin moves passes over the pin's best under pressure",
+			name:    "a session the pool's pin moves passes over the pin's best under pressure",
 			current: on("side", 5*time.Minute),
-			global:  status.Pin{Accounts: []string{"work", "spare"}, Since: start.Add(-time.Hour), Move: true},
+			poolPin: status.Pin{Accounts: []string{"work", "spare"}, Since: start.Add(-time.Hour), Move: true},
 			rates:   map[string]float64{"work": pressing},
 			want:    decision{account: "spare", reason: "moved by pin, work under pressure", passedOver: "work"},
 		},
@@ -1249,7 +1249,7 @@ func TestDecidePassesOverAccountsUnderPressure(t *testing.T) {
 				}
 				accounts.candidates = append(accounts.candidates, c)
 			}
-			s := situation{req: req, now: start, pin: tt.global, accounts: reserving(accounts, tt.reserving, 0.1)}
+			s := situation{req: req, now: start, pin: tt.poolPin, accounts: reserving(accounts, tt.reserving, 0.1)}
 			if tt.current != nil {
 				s.current, s.assigned = *tt.current, true
 			}
@@ -1274,7 +1274,7 @@ const early = "early"
 
 // movedOnlyWhereKeptAtCompaction checks how s's request would be decided
 // were it the first after its session's compaction, early among the accounts,
-// and among the global pin's where there is one, and every account's week
+// and among the pool's pin's where there is one, and every account's week
 // known to have been quiet lately: where the session would stay where it is,
 // its model's thinking not bound to its account and its own pin not holding
 // it there, it moves to early instead, half early's week at risk, unless when

@@ -301,7 +301,7 @@ func TestAnAccountIsUnderPressureOnlyWhileItCanTakeARequestOfSomeModel(t *testin
 		{name: "a refusal of Opus requests alone", holdBack: func(s *state) { s.forbid("work", "opus", http.StatusForbidden, someRequest) }, want: true},
 		{name: "its week at its reserve", holdBack: func(s *state) { s.record("work", []quota.Window{fullWeek}, s.mark()) }},
 		{
-			name:     "its week at its reserve, which the global pin spends",
+			name:     "its week at its reserve, which the pool's pin spends",
 			holdBack: func(s *state) { s.record("work", []quota.Window{fullWeek}, s.mark()) },
 			pinned:   []string{"work"},
 			want:     true,
@@ -404,7 +404,7 @@ func TestTheBestIsWhereANewSessionGoesUnderPressure(t *testing.T) {
 }
 
 func TestThePressureLoggedIsAtTheRoomTheChoiceGaveTheAccount(t *testing.T) {
-	// Work keeps a tenth of every window back, and the global pin names it
+	// Work keeps a tenth of every window back, and the pool's pin names it
 	// and side, so a choice spends its reserve: its session runs out at its
 	// limit. Work's quota needs using first; side's session doesn't rise.
 	tests := []struct {

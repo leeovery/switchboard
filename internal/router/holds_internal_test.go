@@ -100,7 +100,7 @@ func TestACapEndsAsItsWindowsResetAndIsToldAgainOnceReachedAgain(t *testing.T) {
 	)
 }
 
-func TestAnAccountTheGlobalPinNamesIsntCapped(t *testing.T) {
+func TestAnAccountThePoolsPinNamesIsntCapped(t *testing.T) {
 	k := newTelling(t)
 	k.r.sessions.setPin(beforePools(), status.Pin{Accounts: []string{"work"}, Since: start}, false)
 	k.reads(0.5, 0.5)
