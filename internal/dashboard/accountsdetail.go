@@ -84,7 +84,7 @@ const wideBarLeast = 16
 // enter line, enterUnder rows under its heading, two cells in.
 const (
 	sessionRows = 4
-	sessionLit  = 43
+	sessionLit  = 45
 	enterUnder  = 6
 	enterIn     = 2
 )
@@ -652,7 +652,7 @@ const latelyLines = 3
 // has them, their words cut to the cells given, each cut short of the
 // frame's edge and picked out while it's fresh; or why it has none.
 func (d detailDrawn) lately(c *canvas, y, x, words int) {
-	sentences := views.AccountLately(d.m, d.id, latelyLines)
+	sentences := views.AccountLately(d.m, d.id, latelyLines, d.f.sessionDirs())
 	if len(sentences) == 0 {
 		d.f.quietly(c, d.m, x, y, d.f.edge())
 		return
@@ -750,7 +750,8 @@ func sessionsScrolled(n, selected int) (first, shown int) {
 
 // session draws the session running r along row y from x: ▸, bold
 // accent.key, where it's selected; ● in state.positive while it's busy, or
-// ○ in text.subtle; its id, bold, text.primary while busy, else text.muted;
+// ○ in text.subtle; its id, bold, text.primary while busy, else text.muted,
+// and its directory, as sessionIn names them in idDirCells cells, padded;
 // two cells on, its model's family, padded, in text.secondary; what it's
 // doing, padded, bold accent.mode while busy, else text.subtle, as asKnown
 // inks it as last known; and when it was last seen, right-aligned, in
@@ -760,17 +761,18 @@ func sessionsScrolled(n, selected int) (first, shown int) {
 func (d detailDrawn) session(c *canvas, r views.Running, x, y int, selected bool) {
 	now := d.m.Now
 	busy := r.Activity.Busy(now)
-	dot, id, doing := span{"○", dimInk}, span{status.ShownID(r.Session), ink{token: theme.TextMuted, bold: true}}, dimInk
+	dot, id, doing := span{"○", dimInk}, ink{token: theme.TextMuted, bold: true}, dimInk
 	if busy {
-		dot, id.ink, doing = span{"●", positiveInk}, titleInk, nameInk
+		dot, id, doing = span{"●", positiveInk}, titleInk, nameInk
 	}
 	seen := runningSeen(r.Activity.LastSeen, now)
-	c.line(x+2, y, line{
-		dot, spaces(1), id, spaces(2),
+	named := sessionIn(r.Session, r.Dir, id, idDirCells)
+	c.line(x+2, y, slices.Concat(line{dot, spaces(1)}, named, line{
+		spaces(idDirCells - named.width() + 2),
 		{padded(prose.Cut(r.Family, 8), 8), secondaryInk},
 		{padded(r.Activity.Short(), 9), asKnown(r.Activity, doing)},
 		{fmt.Sprintf("%3s", seen), dimInk},
-	})
+	}))
 	if selected {
 		c.line(x, y, line{{"▸", keyInk}})
 		chosenRow(c, x-1, y, sessionLit, d.f.Accounts.sessionsFocused())

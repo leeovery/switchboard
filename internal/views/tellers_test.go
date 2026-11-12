@@ -82,7 +82,7 @@ func TestTheLogAndLATELYSayTheSameFactsOfTheSameEvents(t *testing.T) {
 			for _, e := range slices.Backward(hm.Live) {
 				logged[e.ID] = loggedAlike.Replace(telling.Line(e, hm.Now).What.String())
 			}
-			for _, s := range views.Lately(m, len(hm.Live)) {
+			for _, s := range views.Lately(m, len(hm.Live), views.SessionDirs{}) {
 				for _, say := range sayings {
 					if !slices.Contains(say.kinds, s.Kind) {
 						continue

@@ -66,7 +66,7 @@ func TestLATELYTellsEachSentenceInTheFullestOfItsFormsThatFitsWhole(t *testing.T
 	doc := threeRouted()
 	doc.Events = latelyEvents([]string{"work", "personal", "side"})
 	m := doc.At(now, claudeLike)
-	sentences := views.Lately(m, mostLines)
+	sentences := views.Lately(m, mostLines, views.SessionDirs{})
 	names, leads := namesOf(m), latelyLeads(m, sentences)
 	for cells := range 100 {
 		for i, form := range formsOf(m, sentences, cells) {
@@ -158,7 +158,7 @@ func TestAWiderFrameNeverGivesLATELYAShorterForm(t *testing.T) {
 				t.Parallel()
 				doc := latelyWorld(n, long)
 				m := doc.At(now, claudeLike)
-				sentences := views.Lately(m, mostLines)
+				sentences := views.Lately(m, mostLines, views.SessionDirs{})
 				var was []latelyForm
 				wasBeside := false
 				for width := 40; width <= 220; width++ {

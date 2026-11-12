@@ -9,6 +9,7 @@ import (
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/redact"
 	"github.com/leeovery/switchboard/internal/router"
+	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
@@ -20,15 +21,16 @@ shows a session's own, and inside one, $CLAUDE_CODE_SESSION_ID holds its id.`
 
 // findSession returns the id of the session given names among those the
 // router has routed in the last hour, as views.NamedRouted names it, listing
-// them, where it starts several, as they stand now. Given one that starts no
-// such session's id, it returns it as it is, as the whole id of a session
-// idle for longer, for the router to say whether it has seen it.
-func (a *app) findSession(ctx context.Context, client *router.Client, given string) (string, error) {
+// them, where it starts several, as they stand now, their accounts as names
+// has them. Given one that starts no such session's id, it returns it as it
+// is, as the whole id of a session idle for longer, for the router to say
+// whether it has seen it.
+func (a *app) findSession(ctx context.Context, client *router.Client, names status.Names, given string) (string, error) {
 	sessions, err := client.Sessions(ctx)
 	if err != nil {
 		return "", err
 	}
-	named := views.NamedRouted(given, sessions, a.Now(), a.accountNames())
+	named := views.NamedRouted(given, sessions, a.Now(), names)
 	if named.Several != nil {
 		return "", several(given, named.Several)
 	}

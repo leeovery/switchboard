@@ -156,11 +156,16 @@ SESSIONS lists the sessions the router has routed in the last hour, busiest firs
 whose sessions send the most requests a minute comes first, with all its sessions together, the
 busiest of them first. Each session shows:
 
-- its id, bright while the session is busy
+- its id, bright while the session is busy, and its project, the last part of its directory, cut
+  to 12 characters as the Log cuts it, `c61b mobile`; on narrower screens the project narrows to
+  6 characters, then leaves
 - its model
 - when it was last seen
 - what it's doing, such as `↑ ask` or `↓ ~1.2k`
-- why it's on its account, such as `moved from work 14:31: work reached its cap`
+- why it's on its account, such as `moved from work 14:31: work reached its cap`, cut short where
+  the screen hasn't room for it all (that one reads whole from 155 columns with names as short as
+  the sample's, and later with longer ones), and hidden where it would have fewer than 12
+  characters, under 102 columns with the sample's names
 - its own trace, lined up with ROUTING's.
 
 SESSIONS shows as many sessions as there's room for, and a row such as `+5 more` for the rest. It
@@ -184,10 +189,11 @@ COMING UP where they don't.
   `16:30  personal's 5-hour resets  in 1h 48m`. A run-out's row is in the theme's attention colour.
 - **LATELY** is what the router has done, newest first. Each event is marked, such as
   `14:31  ╎ work reached its cap: 3 sessions moved to side`. When a limit, a cap or a refusal moves
-  sessions, those sessions are folded into that event's line. Where a line doesn't fit whole, it
-  takes a shorter form, `work at its cap: 3 moved to side`. An account found holding another
-  subscription's token is told as `work's token is another subscription's`, or `work: wrong
-  token` where that doesn't fit.
+  sessions, those sessions are folded into that event's line. A session is named by the folder
+  it runs in, as in `api moved personal → work`, or by its short id where that isn't known.
+  Where a line doesn't fit whole, it takes a shorter form, `work at its cap: 3 moved to side`. An
+  account found holding another subscription's token is told as `work's token is another
+  subscription's`, or `work: wrong token` where that doesn't fit.
 
 ### By account
 

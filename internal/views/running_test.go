@@ -139,6 +139,37 @@ func listHeldOf(lines []ledger.Line, running []status.Session, now time.Time) vi
 	return listHeld(fakeLedger{lines: lines, now: now}, running, now)
 }
 
+// A session's row on an account carries the directory it runs in as the List
+// has it: the router's, else as its lines held last name it; "" where neither
+// names one.
+func TestASessionsRowRunsInItsDirectoryAsTheListHasIt(t *testing.T) {
+	held := listHeldOf([]ledger.Line{in("/code/infra", line(answering, "claude-sonnet-5-5", "side", status.ReasonNew, now.Add(-time.Hour), hourUsage))}, nil, now)
+	routed := func(dir string) []status.Session {
+		a := seatOn("claude-sonnet-5-5", "sonnet", "side", status.ReasonNew, time.Hour, time.Minute, "")
+		a.Dir = dir
+		return []status.Session{{ID: answering, Assignments: []status.Assignment{a}}}
+	}
+	tests := []struct {
+		name    string
+		running []status.Session
+		held    views.HeldSessions
+		want    string
+	}{
+		{name: "the router naming it", running: routed("/code/api"), want: "/code/api"},
+		{name: "the router naming it before the lines held", running: routed("/code/api"), held: held, want: "/code/api"},
+		{name: "the lines held naming it, the router not", running: routed(""), held: held, want: "/code/infra"},
+		{name: "nothing naming it", running: routed("")},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := views.RunningOf(runningDoc().At(now, claude.Policy()), views.ListLive{Running: tt.running, Stream: views.Stream{}}, tt.held)
+			if len(got) != 1 || got[0].Dir != tt.want {
+				t.Errorf("RunningOf = %+v, want one row in %q", got, tt.want)
+			}
+		})
+	}
+}
+
 // On an account, a session is named by the model naming it, as the List
 // names it, where that runs there, its reason with it: its main thread's, as
 // its lines tell of it, the request stream's taken in after them; a title

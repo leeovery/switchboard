@@ -100,7 +100,7 @@ func rowFigures(t *testing.T, am viewstest.AccountsMoment, page views.AccountsPa
 		viewstest.FigureVerdict:  verdictRead(row.Verdict),
 		viewstest.FigureWeekUsed: weekUsedRead(m, id),
 		viewstest.FigureRunning:  runningRead(m, am, id),
-		viewstest.FigureLately:   latelyRead(views.AccountLately(m, id, 3)),
+		viewstest.FigureLately:   latelyRead(views.AccountLately(m, id, 3, views.SessionDirs{})),
 	}
 	if len(totals.Partial) > 0 {
 		f[viewstest.FigurePartial] = "partial"

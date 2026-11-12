@@ -132,7 +132,7 @@ func TestLATELYsLinesAreInTheirInks(t *testing.T) {
 	for i, label := range []string{"Work", "Personal", "Side"} {
 		doc.Accounts[i].Label = label
 	}
-	lines := latelyTold(doc.At(now, claudeLike), views.Lately(doc.At(now, claudeLike), 2), 160)
+	lines := latelyTold(doc.At(now, claudeLike), views.Lately(doc.At(now, claudeLike), 2, views.SessionDirs{}), 160)
 	want := []line{
 		{{"13:11  ", secondaryInk}, {"▲", accentInk}, spaces(1), {"c61b", titleInk}, {" started on ", mutedInk}, {"Side", strongInk}},
 		{{"13:02  ", dimInk}, {"╎", warningInk}, spaces(1), {"Work", titleInk}, {" reached its cap: ", mutedInk}, {"3 sessions", strongInk}, {" moved to ", mutedInk}, {"Side", mutedInk}},
@@ -315,7 +315,7 @@ func TestLATELYNamesAnAccountOutOfThePoolFaint(t *testing.T) {
 		status.Event{At: now.Add(-2 * time.Minute).UTC(), Kind: status.EventRoom, Account: "work"},
 	)
 	doc.Pin = status.Pin{Accounts: []string{"work"}}
-	lines := latelyTold(doc.At(now, claudeLike), views.Lately(doc.At(now, claudeLike), 2), 160)
+	lines := latelyTold(doc.At(now, claudeLike), views.Lately(doc.At(now, claudeLike), 2, views.SessionDirs{}), 160)
 	tests := []struct {
 		line int
 		want span

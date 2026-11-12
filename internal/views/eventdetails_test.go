@@ -150,6 +150,8 @@ func TestEachKindsDetailsSayWhatHappened(t *testing.T) {
 	}{
 		{name: "a session started", event: status.Event{Kind: status.EventStarted, Account: "side", Session: older, Model: opus, Reason: status.ReasonNew},
 			headline: "0a1b started on side", happened: []string{"session: 0a1b", "model: opus-5-5"}},
+		{name: "a session started, its event naming its directory", event: status.Event{Kind: status.EventStarted, Account: "side", Session: older, Model: opus, Dir: "~/Code/api", Reason: status.ReasonNew},
+			headline: "api started on side", happened: []string{"session: 0a1b api", "model: opus-5-5"}},
 		{name: "a session started passing an account over", event: status.Event{Kind: status.EventStarted, Account: "side", Session: older, Model: opus, Reason: status.PassingOver(status.ReasonNew, "personal")},
 			headline: "0a1b started on side", happened: []string{"session: 0a1b", "model: opus-5-5", "why: personal came under pressure"}},
 		{name: "a session moved", event: status.Event{Kind: status.EventMoved, Session: older, Model: opus, From: "work", To: "side", Reason: "moved: work is at its reserve"},
