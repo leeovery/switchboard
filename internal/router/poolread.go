@@ -177,17 +177,6 @@ func befell(e status.Event) string {
 	return cmp.Or(e.Account, pinned, e.To, e.From)
 }
 
-// prime returns the priming schedule as the pool read shows it: the slots of
-// its accounts alone. The stagger is every pool's together, till each pool
-// staggers its own.
-func (rd poolRead) prime(p status.Prime) status.Prime {
-	if rd.every || len(rd.pools.pools) == 0 {
-		return p
-	}
-	p.Slots = slices.DeleteFunc(slices.Clone(p.Slots), func(s status.Slot) bool { return !rd.holds(s.Account) })
-	return p
-}
-
 // named returns the id and the label of the pool read: both "" in a config
 // from before pools.
 func (rd poolRead) named() (id, label string) {

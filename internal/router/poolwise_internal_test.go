@@ -1,8 +1,11 @@
 package router
 
 import (
+	"maps"
 	"path/filepath"
+	"reflect"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
@@ -196,4 +199,79 @@ func TestARestartTakesUpEachPoolsDayRateFromItsAccountsHistory(t *testing.T) {
 	if got, want := demandIn(r, acmePool), (&status.Demand{Day: 0.04 / 3, Hours: 3}); !sameDemand(got, want) {
 		t.Errorf("Acme's demand is %+v, want %+v: personal's history alone", got, want)
 	}
+}
+
+// newPairedPrimingRouter builds a router on now's time of pairedAccounts in
+// testPools, each with a token, priming through the day with prober.
+func newPairedPrimingRouter(t *testing.T, now func() time.Time, prober Prober) *Router {
+	t.Helper()
+	cfg := testConfig(now, prober, pairedTokens.Read)
+	cfg.Accounts, cfg.Pools, cfg.Prime = pairedAccounts(), testPools, daytime
+	return newTestRouterOf(t, cfg)
+}
+
+// slotsIn returns when each account of the pool with the given id is primed
+// as r's document of the pool gives it, by the account's id.
+func slotsIn(t *testing.T, r *Router, pool string) map[string]string {
+	t.Helper()
+	slots := make(map[string]string)
+	for _, s := range statusIn(t, r, pool).Prime.Slots {
+		slots[s.Account] = s.At
+	}
+	return slots
+}
+
+func TestEachPoolStaggersItsOwnResetsThroughTheDay(t *testing.T) {
+	log := logstest.Capture(t)
+	r := newPairedPrimingRouter(t, at(onDay(1, 2, 0)), &stubProber{})
+
+	// Two accounts a pool: each pool's resets fall as two accounts' do.
+	want := map[string]map[string]string{
+		defaultPool: {"work": "04:10", "side": "06:40"},
+		acmePool:    {"personal": "04:10", "extra": "06:40"},
+	}
+	for pool, slots := range want {
+		if got := slotsIn(t, r, pool); !maps.Equal(got, slots) {
+			t.Errorf("pool %s primes at %v, want %v", pool, got, slots)
+		}
+	}
+
+	// Side moves to Acme: Default's one account and Acme's three are each
+	// staggered afresh.
+	moveAccount(r, "side", acmePool)
+	r.primer.replan()
+	want = map[string]map[string]string{
+		defaultPool: {"work": "05:30"},
+		acmePool:    {"personal": "03:50", "side": "05:30", "extra": "07:10"},
+	}
+	for pool, slots := range want {
+		if got := slotsIn(t, r, pool); !maps.Equal(got, slots) {
+			t.Errorf("side moved to Acme, pool %s primes at %v, want %v", pool, got, slots)
+		}
+	}
+	if !log.Has("level=INFO", `msg="priming schedule worked out again"`) {
+		t.Errorf("log reads\n%s\nwant the schedule worked out again as side moved", log)
+	}
+}
+
+func TestEachPoolsAccountsArePrimedAtTheirPoolsSlots(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		clock := newBubbleClock(onDay(1, 0, 0))
+		upstream := newWindowsUpstream(clock)
+		r := newPairedPrimingRouter(t, clock.read, upstream)
+		stop := startPriming(r)
+		defer stop()
+
+		time.Sleep(8 * time.Hour)
+		synctest.Wait()
+		want := map[string][]time.Time{
+			workToken:     {afterResets(onDay(1, 4, 10), 1)},
+			personalToken: {afterResets(onDay(1, 4, 10), 1)},
+			sideToken:     {afterResets(onDay(1, 6, 40), 1)},
+			extraToken:    {afterResets(onDay(1, 6, 40), 1)},
+		}
+		if got := upstream.probes(); !reflect.DeepEqual(got, want) {
+			t.Errorf("primed at\n%v\nwant each pool's accounts at its own pool's slots\n%v", got, want)
+		}
+	})
 }

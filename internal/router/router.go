@@ -500,7 +500,7 @@ func (r *Router) assembled(rd poolRead) status.Document {
 	doc.Export = r.exports.report()
 	doc.Events = rd.events(r.recent.events())
 	if r.primer != nil {
-		doc.Prime = rd.prime(r.primer.report(now))
+		doc.Prime = r.primer.report(now, rd.routes)
 	}
 	var byAccount map[string]int
 	byAccount, doc.Sessions = r.sessions.active(now, rd.routes)
