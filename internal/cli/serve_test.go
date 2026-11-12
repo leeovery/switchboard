@@ -1,6 +1,7 @@
 package cli_test
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -1005,8 +1006,10 @@ type serveSetup struct {
 	// state is switchboard's state directory, under $XDG_STATE_HOME.
 	state  string
 	config string
-	// extra ends the config file.
-	extra string
+	// accounts are the config file's accounts, and its pools: threeAccounts
+	// where it's "". extra ends the config file.
+	accounts string
+	extra    string
 	// exited closes once the serve start runs has exited.
 	exited <-chan struct{}
 	// binary is the switchboard binary serve runs as, once watch has it
@@ -1126,7 +1129,7 @@ func (s *serveSetup) writeConfig(t *testing.T) {
 
 // putConfig is writeConfig, from any goroutine.
 func (s *serveSetup) putConfig() error {
-	content := fmt.Sprintf("listen   = %q\nupstream = %q\n", s.listen, s.upstream) + threeAccounts + s.extra
+	content := fmt.Sprintf("listen   = %q\nupstream = %q\n", s.listen, s.upstream) + cmp.Or(s.accounts, threeAccounts) + s.extra
 	return os.WriteFile(s.config, []byte(content), 0o600)
 }
 

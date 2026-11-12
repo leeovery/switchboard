@@ -2,11 +2,15 @@ package router
 
 import (
 	"bufio"
+	"cmp"
 	"context"
 	"encoding/json"
 	"io"
+	"maps"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"reflect"
 	"slices"
 	"strings"
@@ -105,72 +109,176 @@ func idsOf(accounts []status.Account) []string {
 	return ids
 }
 
+// routeOneIn has r route a session in each pool given, by its id, "" for
+// none: the session's id is the pool's, else "none".
+func routeOneIn(t *testing.T, r *Router, pools ...string) {
+	t.Helper()
+	tokens := map[string]string{"": workToken, defaultPool: workToken, acmePool: personalToken}
+	for _, pool := range pools {
+		routeIn(t, r, tokens[pool], cmp.Or(pool, "none"), pool, nil)
+	}
+}
+
+// configuredIn returns the ids of the accounts given in the pool with the
+// given id, in order: every one, where it's "".
+func configuredIn(accounts config.Accounts, pool string) []string {
+	ids := []string{}
+	for _, a := range accounts {
+		if pool == "" || a.Pool == pool {
+			ids = append(ids, a.ID)
+		}
+	}
+	return ids
+}
+
+// sessionIDs returns the id of each session given, in order.
+func sessionIDs(sessions []status.Session) []string {
+	ids := []string{}
+	for _, s := range sessions {
+		ids = append(ids, s.ID)
+	}
+	return ids
+}
+
+// historyIDs returns the id of each account a history gives, in order.
+func historyIDs(h History) []string {
+	ids := []string{}
+	for _, a := range h.Accounts {
+		ids = append(ids, a.ID)
+	}
+	return ids
+}
+
 func TestEachReadIsAnsweredForThePoolItAsksForElseTheOneTheVerbsActOn(t *testing.T) {
 	logstest.Capture(t)
-	reads := []struct{ method, target, body string }{
-		{http.MethodGet, "/status", ""},
-		{http.MethodGet, "/sessions", ""},
-		{http.MethodGet, "/history?window=7d&step=1h", ""},
-		{http.MethodGet, "/stream", ""},
-		{http.MethodPost, "/refresh", `{"max_age": "30m"}`},
-		{http.MethodPost, "/pin", `{"accounts": ["work"]}`},
-		{http.MethodDelete, "/pin", ""},
-	}
 	tests := []struct {
 		name     string
 		accounts config.Accounts
 		pools    config.Pools
-		asked    string
-		// want is the id of the pool the document answers for, "" for
-		// none; refused, how the read is refused, naming the pools, "" where
-		// it's answered.
-		want    string
-		refused string
+		// routed are the pools a session is routed in, "" for none.
+		routed []string
+		asked  string
+		// want is the id of the pool answered for, "" for none, and sessions
+		// the sessions it lists; refused, how the read is refused, naming the
+		// pools, "" where it's answered.
+		want     string
+		sessions []string
+		refused  string
 	}{
-		{name: "no pools, none asked", accounts: testConfigured},
-		{name: "no pools, one asked: as without", accounts: testConfigured, asked: defaultPool},
-		{name: "no pools, one not configured asked: as without", accounts: testConfigured, asked: unconfigured},
-		{name: "one pool, none asked: the only one", accounts: inDefault(), pools: onePool, want: defaultPool},
-		{name: "one pool, it asked", accounts: inDefault(), pools: onePool, asked: defaultPool, want: defaultPool},
+		{name: "no pools, none asked", accounts: testConfigured, routed: []string{""}, sessions: []string{"none"}},
+		{name: "no pools, one asked: as without", accounts: testConfigured, routed: []string{""}, asked: defaultPool, sessions: []string{"none"}},
+		{name: "no pools, one not configured asked: as without", accounts: testConfigured, routed: []string{""}, asked: unconfigured, sessions: []string{"none"}},
+		{name: "one pool, none asked: the only one", accounts: inDefault(), pools: onePool, routed: []string{defaultPool}, want: defaultPool, sessions: []string{defaultPool}},
+		{name: "one pool, it asked", accounts: inDefault(), pools: onePool, routed: []string{defaultPool}, asked: defaultPool, want: defaultPool, sessions: []string{defaultPool}},
 		{name: "one pool, one not configured asked", accounts: inDefault(), pools: onePool, asked: acmePool, refused: defaultPool + " (Default)"},
-		{name: "one unfenced, none asked: the unfenced", accounts: pooledAccounts(), pools: testPools, want: defaultPool},
-		{name: "one unfenced, the fenced asked", accounts: pooledAccounts(), pools: testPools, asked: acmePool, want: acmePool},
-		{name: "one unfenced, asked ignoring case", accounts: pooledAccounts(), pools: testPools, asked: "Q7MT", want: acmePool},
+		{name: "one unfenced, none asked: the unfenced", accounts: pooledAccounts(), pools: testPools, routed: []string{defaultPool, acmePool}, want: defaultPool, sessions: []string{defaultPool}},
+		{name: "one unfenced, the fenced asked", accounts: pooledAccounts(), pools: testPools, routed: []string{defaultPool, acmePool}, asked: acmePool, want: acmePool, sessions: []string{acmePool}},
+		{name: "one unfenced, asked ignoring case", accounts: pooledAccounts(), pools: testPools, routed: []string{defaultPool, acmePool}, asked: "Q7MT", want: acmePool, sessions: []string{acmePool}},
 		{name: "one unfenced, one not configured asked", accounts: pooledAccounts(), pools: testPools, asked: unconfigured, refused: poolsNamedSaid},
 		{name: "both fenced, none asked", accounts: pooledAccounts(), pools: bothFenced, refused: poolsNamedSaid},
-		{name: "both fenced, one asked", accounts: pooledAccounts(), pools: bothFenced, asked: defaultPool, want: defaultPool},
+		{name: "both fenced, one asked", accounts: pooledAccounts(), pools: bothFenced, routed: []string{defaultPool, acmePool}, asked: defaultPool, want: defaultPool, sessions: []string{defaultPool}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			r := pooledRouter(t, tt.accounts, tt.pools)
-			for _, read := range reads {
-				rec := askControl(t, r, read.method, withPool(read.target, tt.asked), read.body)
-				switch {
-				case tt.refused != "" && (rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), tt.refused)):
-					t.Errorf("%s %s answered %d %s, want 400 naming the pools, as %q", read.method, read.target, rec.Code, rec.Body, tt.refused)
-				case tt.refused == "" && rec.Code != http.StatusOK:
-					t.Errorf("%s %s answered %d %s, want 200", read.method, read.target, rec.Code, rec.Body)
-				}
-			}
+			routeOneIn(t, r, tt.routed...)
 			if tt.refused != "" {
+				for _, read := range poolReads {
+					rec := askControl(t, r, read.method, withPool(read.target, tt.asked), read.body)
+					if rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), tt.refused) || !strings.Contains(rec.Body.String(), `"pools":[`) {
+						t.Errorf("%s %s answered %d %s, want 400 naming the pools, as %q, and giving them", read.method, read.target, rec.Code, rec.Body, tt.refused)
+					}
+				}
 				return
 			}
-			if doc := statusIn(t, r, tt.asked); doc.PoolID != tt.want {
-				t.Errorf("GET /status answered for pool %q, want %q", doc.PoolID, tt.want)
+			accounts := configuredIn(tt.accounts, tt.want)
+			for _, target := range []string{"/status", "/refresh", "/pin"} {
+				method := map[string]string{"/status": http.MethodGet, "/refresh": http.MethodPost, "/pin": http.MethodDelete}[target]
+				var doc status.Document
+				decodedOK(t, askControl(t, r, method, withPool(target, tt.asked), `{"max_age": "30m"}`), &doc)
+				if doc.PoolID != tt.want || !slices.Equal(idsOf(doc.Accounts), accounts) {
+					t.Errorf("%s %s answered for pool %q, of %q; want %q, of %q", method, target, doc.PoolID, idsOf(doc.Accounts), tt.want, accounts)
+				}
+			}
+			var listed []status.Session
+			decodedOK(t, askControl(t, r, http.MethodGet, withPool("/sessions", tt.asked), ""), &listed)
+			if got := sessionIDs(listed); !slices.Equal(got, tt.sessions) {
+				t.Errorf("GET /sessions listed %q, want %q", got, tt.sessions)
+			}
+			var h History
+			decodedOK(t, askControl(t, r, http.MethodGet, withPool("/history?window=7d&step=1h", tt.asked), ""), &h)
+			if got := historyIDs(h); !slices.Equal(got, accounts) {
+				t.Errorf("GET /history gave the windows of %q, want %q", got, accounts)
+			}
+			if rec := askControl(t, r, http.MethodGet, withPool("/stream", tt.asked), ""); rec.Code != http.StatusOK {
+				t.Errorf("GET /stream answered %d %s, want 200", rec.Code, rec.Body)
 			}
 		})
 	}
 }
 
-func TestARefusedPinOrUnpinChangesNothing(t *testing.T) {
+// poolReads are the reads of a pool, as askControl asks each.
+var poolReads = []struct{ method, target, body string }{
+	{http.MethodGet, "/status", ""},
+	{http.MethodGet, "/sessions", ""},
+	{http.MethodGet, "/history?window=7d&step=1h", ""},
+	{http.MethodGet, "/stream", ""},
+	{http.MethodPost, "/refresh", `{"max_age": "30m"}`},
+	{http.MethodDelete, "/pin", ""},
+}
+
+func TestAPinIsAnsweredForThePoolOfTheAccountsItPins(t *testing.T) {
+	logstest.Capture(t)
+	tests := []struct {
+		name, asked, body string
+		// want is the pool answered for, and pinned the accounts the pin
+		// names after; refused, how it's refused, "" where it isn't.
+		want    string
+		pinned  []string
+		refused string
+	}{
+		{name: "a fenced pool's account, every pool fenced", body: `{"accounts": ["personal"]}`, want: acmePool, pinned: []string{"personal"}},
+		{name: "two of one pool", body: `{"accounts": ["side", "work"]}`, want: defaultPool, pinned: []string{"work", "side"}},
+		{name: "its pool asked", asked: acmePool, body: `{"accounts": ["personal"]}`, want: acmePool, pinned: []string{"personal"}},
+		{
+			name: "accounts of two pools", body: `{"accounts": ["work", "personal"]}`, pinned: []string{"side"},
+			refused: "pin accounts of one pool: work (Work) is in pool Default, personal (Personal) is in pool Acme",
+		},
+		{name: "another pool asked", asked: defaultPool, body: `{"accounts": ["personal"]}`, pinned: []string{"side"}, refused: "are in pool Acme, not Default"},
+		{name: "one not configured asked", asked: unconfigured, body: `{"accounts": ["personal"]}`, pinned: []string{"side"}, refused: poolsNamedSaid},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := pooledRouter(t, pooledAccounts(), bothFenced)
+			r.pinTo(status.Pin{Accounts: []string{"side"}, Since: start}, false)
+
+			rec := askControl(t, r, http.MethodPost, withPool("/pin", tt.asked), tt.body)
+			if tt.refused != "" {
+				if rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), tt.refused) {
+					t.Errorf("POST /pin answered %d %s, want 400 saying %q", rec.Code, rec.Body, tt.refused)
+				}
+			} else {
+				var doc status.Document
+				decodedOK(t, rec, &doc)
+				if doc.PoolID != tt.want || !slices.Equal(doc.Pin.Accounts, tt.pinned) {
+					t.Errorf("POST /pin answered for pool %q, its pin %q; want %q, %q", doc.PoolID, doc.Pin.Accounts, tt.want, tt.pinned)
+				}
+			}
+			if got := r.sessions.globalPin(); !slices.Equal(got.Accounts, tt.pinned) {
+				t.Errorf("the pin is %+v, want of %q", got, tt.pinned)
+			}
+		})
+	}
+}
+
+func TestARefusedUnpinChangesNothing(t *testing.T) {
 	logstest.Capture(t)
 	r := pooledRouter(t, pooledAccounts(), bothFenced)
 	r.pinTo(status.Pin{Accounts: []string{"side"}, Since: start}, false)
 
-	askControl(t, r, http.MethodPost, "/pin", `{"accounts": ["work"]}`)
 	askControl(t, r, http.MethodDelete, "/pin", "")
 	if got := r.sessions.globalPin(); !slices.Equal(got.Accounts, []string{"side"}) {
-		t.Errorf("the pin is %+v once pinning and unpinning were refused, want side's as it was", got)
+		t.Errorf("the pin is %+v once unpinning was refused, want side's as it was", got)
 	}
 }
 
@@ -257,16 +365,81 @@ func TestEachPoolsDocumentHoldsTheGlobalPinAsItHoldsInThePool(t *testing.T) {
 	}
 }
 
-func TestEachPoolsDocumentSharesTheEventsThatNameNoPool(t *testing.T) {
+func TestEachPoolsDocumentShowsTheEventsOfItsPoolItsAccountsAndNone(t *testing.T) {
+	logstest.Capture(t)
 	r := pooledRouter(t, pooledAccounts(), testPools)
-	read := poolRead{pools: r.state.pools.current(), pool: defaultPool}
-	all := []status.Event{
-		{ID: 3, Kind: status.EventPin, Accounts: []string{"personal"}, Pool: acmePool},
-		{ID: 2, Kind: status.EventLimit, Account: "personal"},
-		{ID: 1, Kind: status.EventPin, Accounts: []string{"work"}, Pool: defaultPool},
+	happened := []status.Event{
+		{Kind: status.EventRestart, Reason: "the config changed"},
+		{Kind: status.EventPin, Accounts: []string{"work"}, Pool: defaultPool},
+		{Kind: status.EventLimit, Account: "personal"},
+		{Kind: status.EventPin, Account: "personal", Accounts: []string{"personal"}, Pool: acmePool},
+		{Kind: status.EventPressure, Account: "side"},
+		{Kind: status.EventAuto, Accounts: []string{"personal"}},
 	}
-	if got, want := read.events(all), []status.Event{all[1], all[2]}; !reflect.DeepEqual(got, want) {
-		t.Errorf("Default shows the events %+v, want %+v", got, want)
+	r.recent.change(func() {
+		for _, e := range happened {
+			r.recent.add(e, start)
+		}
+	})
+
+	tests := []struct {
+		pool string
+		want []string
+	}{
+		{pool: defaultPool, want: []string{status.EventPressure, status.EventPin, status.EventRestart}},
+		{pool: acmePool, want: []string{status.EventAuto, status.EventPin, status.EventLimit, status.EventRestart}},
+	}
+	for _, tt := range tests {
+		var kinds []string
+		for _, e := range statusIn(t, r, tt.pool).Events {
+			kinds = append(kinds, e.Kind)
+		}
+		if !slices.Equal(kinds, tt.want) {
+			t.Errorf("pool %s's document shows the events %q, want %q", tt.pool, kinds, tt.want)
+		}
+	}
+}
+
+func TestEachPoolsDocumentShowsItsOwnAccountsPrimes(t *testing.T) {
+	clock := &testClock{now: onDay(1, 5, 0)}
+	cfg := testConfig(clock.read, &stubProber{}, poolTokens.Read)
+	cfg.Accounts, cfg.Pools, cfg.Prime, cfg.Policy = pooledAccounts(), testPools, daytime, testPolicy
+	r := newTestRouterOf(t, cfg)
+
+	tests := []struct {
+		pool string
+		want []string
+	}{
+		{pool: defaultPool, want: []string{"work", "side"}},
+		{pool: acmePool, want: []string{"personal"}},
+	}
+	for _, tt := range tests {
+		var primed []string
+		for _, slot := range statusIn(t, r, tt.pool).Prime.Slots {
+			primed = append(primed, slot.Account)
+		}
+		if !slices.Equal(primed, tt.want) {
+			t.Errorf("pool %s's document primes %q, want %q", tt.pool, primed, tt.want)
+		}
+	}
+}
+
+func TestAPoolWithNoAccountsHasADocumentOfNone(t *testing.T) {
+	logstest.Capture(t)
+	spare := config.Pool{ID: unconfigured, Label: "Spare", Dirs: []string{"/work/spare"}, WrittenDirs: []string{"/work/spare"}}
+	r := pooledRouter(t, pooledAccounts(), append(slices.Clone(testPools), spare))
+	readPersonalFirst(r)
+	routeOneIn(t, r, defaultPool, acmePool)
+
+	rec := askControl(t, r, http.MethodGet, withPool("/status", unconfigured), "")
+	var doc status.Document
+	decodedOK(t, rec, &doc)
+	if doc.PoolID != unconfigured || doc.PoolLabel != "Spare" || len(doc.Accounts) != 0 || doc.Best != "" || doc.Primary != "" ||
+		doc.Sessions != 0 || len(doc.Pool.Accounts) != 0 || len(doc.ComingUp) != 0 {
+		t.Errorf("the empty pool's document is %+v, want Spare's, of nothing", doc)
+	}
+	if !strings.Contains(rec.Body.String(), `"accounts":[]`) {
+		t.Errorf("the empty pool's document is %s, want its accounts given, as none", rec.Body)
 	}
 }
 
@@ -467,27 +640,152 @@ func streamedTillDone(t *testing.T, body io.Reader) []StreamEvent {
 	return nil
 }
 
+// The bodies in testdata/nopools were recorded from the router as it was
+// before it answered for a pool, from this test's history.
 func TestAConfigWithNoPoolsIsAnsweredAsBeforeWhateverPoolIsAsked(t *testing.T) {
 	logstest.Capture(t)
 	r := pooledRouter(t, testConfigured, nil)
 	readPersonalFirst(r)
 	routeIn(t, r, workToken, "one", "", nil)
 
-	whole, err := json.Marshal(r.assembled(r.state.everyAccount()).WorkedOut(r.cfg.Policy))
+	recorded := map[string]string{
+		"/status": "status.json", "/sessions": "sessions.json", "/sessions/one": "session.json", "/history?window=7d&step=1h": "history.json",
+	}
+	for target, file := range recorded {
+		want, err := os.ReadFile(filepath.Join("testdata", "nopools", file))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, asked := range []string{"", defaultPool} {
+			if got := askControl(t, r, http.MethodGet, withPool(target, asked), "").Body.String(); got != string(want) {
+				t.Errorf("GET %s asking for pool %q answered\n%s\nwant as before pools\n%s", target, asked, got, want)
+			}
+		}
+	}
+}
+
+func TestTheStreamOpensWithThePoolsRequestsInFlightAlone(t *testing.T) {
+	r := pooledRouter(t, pooledAccounts(), testPools)
+	r.stream.publishOf(StreamEvent{Kind: StreamSent, Request: "1", Session: "one", Pool: defaultPool}, key{session: "one"})
+	r.stream.publishOf(StreamEvent{Kind: StreamSent, Request: "2", Session: "two", Pool: acmePool}, key{session: "two"})
+
+	body := askControl(t, r, http.MethodGet, withPool("/stream", acmePool), "").Body
+	var told []string
+	for line := range strings.Lines(body.String()) {
+		var e StreamEvent
+		if err := json.Unmarshal([]byte(line), &e); err != nil {
+			t.Fatal(err)
+		}
+		told = append(told, e.Kind+" "+e.Request)
+	}
+	if want := []string{StreamInFlight + " 2"}; !slices.Equal(told, want) {
+		t.Errorf("Acme's stream opened telling of %q, want %q", told, want)
+	}
+}
+
+// openStream opens r's request stream, served by srv, asking for the pool
+// given, "" for none, and returns its body, open till the test ends.
+func openStream(t *testing.T, srv *httptest.Server, pool string) io.ReadCloser {
+	t.Helper()
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, srv.URL+withPool("/stream", pool), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := askControl(t, r, http.MethodGet, "/status", "").Body.String(); got != string(whole)+"\n" {
-		t.Errorf("GET /status answered\n%s\nwant every account's document, as before pools\n%s", got, whole)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
 	}
-	for _, target := range []string{"/status", "/sessions", "/sessions/one", "/history?window=7d&step=1h"} {
-		without := askControl(t, r, http.MethodGet, target, "").Body.String()
-		with := askControl(t, r, http.MethodGet, withPool(target, defaultPool), "").Body.String()
-		if with != without {
-			t.Errorf("GET %s asking for a pool answered\n%s\nwant as without\n%s", target, with, without)
-		}
-		if strings.Contains(without, `"pool_id"`) || strings.Contains(without, `"pool_label"`) {
-			t.Errorf("GET %s answered %s, naming a pool where there are none", target, without)
-		}
+	t.Cleanup(func() { _ = resp.Body.Close() })
+	return resp.Body
+}
+
+func TestAStreamThatNamedNoPoolEndsOnceThePoolTheVerbsActOnIsAnother(t *testing.T) {
+	logstest.Capture(t)
+	path := filepath.Join(t.TempDir(), "config.toml")
+	writeConfigFile(t, path, unpooledTOML("work", "personal", "side"))
+	cfg := testConfig(at(start), &stubProber{}, poolTokens.Read)
+	cfg.ConfigFile = Watch(path)
+	r := newTestRouterOf(t, cfg)
+	r.proxy.transport = servingAll(served, served, served)
+	srv := httptest.NewServer(r.Control())
+	t.Cleanup(srv.Close)
+	unnamed := openStream(t, srv, "")
+
+	// The config comes to have pools: the stream that named none, of every
+	// account, ends, to be joined again for Default's.
+	writeConfigFile(t, path, poolsTOML(defaultPool, defaultTOML, acmeTOML))
+	r.upkeep.look()
+	if rest, err := io.ReadAll(unnamed); err != nil || len(rest) != 0 {
+		t.Errorf("the stream that named no pool told of %q, %v, once the config came to have pools, want it ended", rest, err)
+	}
+
+	// Default and Acme swap their fences: one named stays open, one that
+	// named none ends.
+	named, unnamed := openStream(t, srv, defaultPool), openStream(t, srv, "")
+	writeConfigFile(t, path, poolsTOML(defaultPool, defaultTOML+"dirs = [\"/work/default\"]\n", strings.Replace(acmeTOML, "dirs = [\"/work/acme\"]\n", "", 1)))
+	r.upkeep.look()
+	if rest, err := io.ReadAll(unnamed); err != nil || len(rest) != 0 {
+		t.Errorf("the stream that named no pool told of %q, %v, once Acme was the unfenced pool, want it ended", rest, err)
+	}
+	routeIn(t, r, workToken, "one", defaultPool, nil)
+	if told := streamedTillDone(t, named); told[0].Pool != defaultPool {
+		t.Errorf("Default's stream told of %+v, want Default's request", told)
+	}
+}
+
+func TestARefreshOfAPoolProbesItsAccountsAlone(t *testing.T) {
+	logstest.Capture(t)
+	prober := &stubProber{}
+	cfg := testConfig(at(start), prober, poolTokens.Read)
+	cfg.Accounts, cfg.Pools = pooledAccounts(), testPools
+	r := newTestRouterOf(t, cfg)
+
+	askControl(t, r, http.MethodPost, withPool("/refresh", acmePool), `{"max_age": "0s"}`)
+	prober.mu.Lock()
+	defer prober.mu.Unlock()
+	if want := map[string]int{personalToken: 1}; !maps.Equal(prober.probes, want) {
+		t.Errorf("a refresh of Acme probed %v, by token, want Acme's account alone", prober.probes)
+	}
+}
+
+func TestASessionsAccountIsMarkedPrimaryAsItsPoolsPrimaryIsNow(t *testing.T) {
+	logstest.Capture(t)
+	r, path := newWatchingPoolsRouter(t, "")
+	readWeeks(r, map[string]quota.Window{"side": soonWeek, "work": laterWeek, "personal": latestWeek})
+	routeIn(t, r, workToken, "one", defaultPool, nil)
+
+	// Side, which the session is on, is made Default's primary in work's
+	// place.
+	writeConfigFile(t, path, primaryTOML(defaultPool))
+	r.upkeep.look()
+	var s status.Session
+	decodedOK(t, askControl(t, r, http.MethodGet, "/sessions/one", ""), &s)
+	if s.Account.ID != "side" || !s.Account.Primary {
+		t.Errorf("the session's account is %s, marked primary: %v; want side, Default's primary now", s.Account.ID, s.Account.Primary)
+	}
+}
+
+func TestAPoolNamedWithoutAValueNamesNone(t *testing.T) {
+	logstest.Capture(t)
+	r := pooledRouter(t, pooledAccounts(), bothFenced)
+	routeIn(t, r, personalToken, "two", acmePool, nil)
+	if rec := askControl(t, r, http.MethodGet, "/sessions/two?pool=", ""); rec.Code != http.StatusOK {
+		t.Errorf("GET /sessions/two?pool= answered %d %s, want 200, the session in its own pool", rec.Code, rec.Body)
+	}
+}
+
+func TestTheHealedFirstPoolKeepsItsLabelFromTheAccountsRecord(t *testing.T) {
+	logstest.Capture(t)
+	m := newMembership(func() config.Pool { return config.Pool{ID: defaultPool, Label: "Default"} }, sameID)
+	m.follow(config.Accounts(testConfigured), nil)
+	if got := m.current().reported(nil); len(got) != 1 || got[0].ID != defaultPool || got[0].Label != "Default" {
+		t.Errorf("the healed pools report %+v, want Default by its label", got)
+	}
+}
+
+func TestTheHealthAnswerSaysHowTheMoveStands(t *testing.T) {
+	r := pooledRouter(t, pooledAccounts(), testPools)
+	if h, doc := healthOf(t, r), r.Status(); !reflect.DeepEqual(h.Moving, doc.Moving) {
+		t.Errorf("GET /health says the move stands %+v, want as the document says, %+v", h.Moving, doc.Moving)
 	}
 }

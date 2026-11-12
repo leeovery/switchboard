@@ -1,42 +1,34 @@
 package cli
 
 import (
+	"errors"
 	"io"
 	"maps"
 	"net"
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
 func TestASourceInAPoolReadsTheRoutersDocumentSessionsHistoryAndStreamOfIt(t *testing.T) {
-	dir, err := os.MkdirTemp("", "sb")
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = os.RemoveAll(dir) })
-	ln, err := net.Listen("unix", filepath.Join(dir, "control.sock"))
-	if err != nil {
-		t.Fatal(err)
-	}
 	var mu sync.Mutex
 	asked := make(map[string]string)
-	srv := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+	client := serveControl(t, http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		mu.Lock()
 		asked[req.URL.Path] = req.URL.Query().Get(router.PoolQuery)
 		mu.Unlock()
 		_, _ = io.WriteString(w, map[string]string{"/sessions": "[]", "/history": "{}", "/status": "{}", "/health": `{"ok": true}`}[req.URL.Path])
-	})}
-	go func() { _ = srv.Serve(ln) }()
-	t.Cleanup(func() { _ = srv.Close() })
+	}))
 
-	source := usageSource{ask: true, router: router.NewClient(ln.Addr().String())}.inPool("q7mt")
+	source := usageSource{ask: true, router: client}.inPool("q7mt")
 	if _, _, err := source.Read(t.Context(), status.Read{}); err != nil {
 		t.Fatal(err)
 	}
@@ -63,5 +55,86 @@ func TestASourceInAPoolReadsTheRoutersDocumentSessionsHistoryAndStreamOfIt(t *te
 func TestASourceWithoutTheRouterHasNoneInAPool(t *testing.T) {
 	if source := (usageSource{}).inPool("q7mt"); source.router != nil {
 		t.Errorf("inPool() gave a source without the router %+v, want none", source.router)
+	}
+}
+
+// serveControl serves handler as a router's control API on a socket until
+// the test ends, and returns a client of it.
+func serveControl(t *testing.T, handler http.Handler) *router.Client {
+	t.Helper()
+	dir, err := os.MkdirTemp("", "sb")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	ln, err := net.Listen("unix", filepath.Join(dir, "control.sock"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := &http.Server{Handler: handler}
+	go func() { _ = srv.Serve(ln) }()
+	t.Cleanup(func() { _ = srv.Close() })
+	return router.NewClient(ln.Addr().String())
+}
+
+func TestARouterRefusingForWantOfAPoolIsNeverReadAsOneDown(t *testing.T) {
+	refusing := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if req.URL.Path == "/health" {
+			_, _ = io.WriteString(w, `{"ok": true}`)
+			return
+		}
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = io.WriteString(w, `{"error": "every pool is fenced", "pools": [{"id": "b2n8", "label": "Default"}, {"id": "q7mt", "label": "Acme"}]}`)
+	})
+	// A probe would fail the test: the source has nothing to probe with.
+	source := usageSource{ask: true, router: serveControl(t, refusing)}
+
+	_, _, err := source.Read(t.Context(), status.Read{Probe: true})
+	if need, ok := errors.AsType[router.PoolNeeded](err); !ok || len(need.Pools) != 2 {
+		t.Errorf("Read() error = %v, want PoolNeeded naming both pools", err)
+	}
+}
+
+// pooledProbe is a probe of work in Default, unfenced, and personal and side
+// in Acme, fenced, all fenced where fenced is set.
+func pooledProbe(fenced bool) probeSource {
+	pools := config.Pools{{ID: "b2n8", Label: "Default"}, {ID: "q7mt", Label: "Acme", Dirs: []string{"/work/acme"}}}
+	if fenced {
+		pools[0].Dirs = []string{"/work/default"}
+	}
+	return probeSource{
+		accounts: []config.Account{{ID: "work", Pool: "b2n8"}, {ID: "personal", Pool: "q7mt"}, {ID: "side", Pool: "q7mt"}},
+		pools:    pools,
+	}
+}
+
+func TestAProbeInPlaceOfTheRouterReadsOnePoolsAccounts(t *testing.T) {
+	tests := []struct {
+		name   string
+		probe  probeSource
+		named  string
+		want   []string
+		needed bool
+	}{
+		{name: "no pools: every account", probe: probeSource{accounts: []config.Account{{ID: "work"}, {ID: "side"}}}, want: []string{"work", "side"}},
+		{name: "none named: the unfenced pool's", probe: pooledProbe(false), want: []string{"work"}},
+		{name: "one named", probe: pooledProbe(false), named: "q7mt", want: []string{"personal", "side"}},
+		{name: "every pool fenced, none named", probe: pooledProbe(true), needed: true},
+		{name: "one not configured named", probe: pooledProbe(false), named: "z5k2", needed: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := tt.probe.inPool(tt.named)
+			if _, needs := errors.AsType[router.PoolNeeded](err); needs != tt.needed {
+				t.Fatalf("inPool(%q) error = %v, want a pool needed: %v", tt.named, err, tt.needed)
+			}
+			var ids []string
+			for _, a := range got.accounts {
+				ids = append(ids, a.ID)
+			}
+			if !tt.needed && !slices.Equal(ids, tt.want) {
+				t.Errorf("inPool(%q) probes %q, want %q", tt.named, ids, tt.want)
+			}
+		})
 	}
 }
