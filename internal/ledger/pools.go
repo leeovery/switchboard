@@ -27,6 +27,7 @@ func FirstPool(first func() string) Option {
 // pool's, as unpooledIn gives it.
 func (d days) fitted(made Summary, held *Summary) (Summary, *Summary) {
 	made.Accounts = slices.Clone(made.Accounts)
+	first, asked := d.firstOf(made, held)
 	var fit *Summary
 	if held != nil {
 		f := *held
@@ -34,12 +35,17 @@ func (d days) fitted(made Summary, held *Summary) (Summary, *Summary) {
 		for i, h := range f.Accounts {
 			j := slices.IndexFunc(made.Accounts, func(a AccountDay) bool { return a.Account == h.Account })
 			if j >= 0 {
-				made.Accounts[j], f.Accounts[i] = fittedAccount(made.Accounts[j], h, held.Version < poolsVersion)
+				made.Accounts[j], f.Accounts[i] = fittedAccount(made.Accounts[j], h, held.Version < poolsVersion, first != "")
 			}
 		}
 		fit = &f
 	}
-	if first := d.firstOf(made, fit); first != "" {
+	// fittedAccount's second case can leave work in no pool where neither
+	// had any.
+	if !asked {
+		first, _ = d.firstOf(made, fit)
+	}
+	if first != "" {
 		made = made.unpooledIn(first)
 		if fit != nil {
 			*fit = fit.unpooledIn(first)
@@ -49,14 +55,14 @@ func (d days) fitted(made Summary, held *Summary) (Summary, *Summary) {
 }
 
 // firstOf returns the first pool, as FirstPool has the ledger know it,
-// where made or held, where it's given, has work in no pool: else "",
-// unasked.
-func (d days) firstOf(made Summary, held *Summary) string {
+// where made or held, where it's given, has work in no pool, reporting that
+// it asked: else "", unasked.
+func (d days) firstOf(made Summary, held *Summary) (string, bool) {
 	unpooled := made.worksIn("") || held != nil && held.worksIn("")
 	if !unpooled || d.firstPool == nil {
-		return ""
+		return "", false
 	}
-	return d.firstPool()
+	return d.firstPool(), true
 }
 
 // fittedAccount returns made, an account's day summarised afresh, and held,
@@ -64,9 +70,13 @@ func (d days) firstOf(made Summary, held *Summary) string {
 //   - held unsplit, of a version before pools, holding all its work in one
 //     pool whatever its lines named, as a downgrade's summary does, or held
 //     with work in no pool where made has none, as one made before its lines
-//     were given the first pool by the move to pools: where made counts no
-//     less, as covers says, its lines hold every one held's did, so held is
-//     split as made is, made's pools standing, knowing held's whole;
+//     were given the first pool by the move to pools, the first pool not
+//     known, as firstKnown says: where made counts no less, as covers says,
+//     its lines hold every one held's did, so held is split as made is,
+//     made's pools standing, knowing held's whole. Once the first pool is
+//     known, held's work in none is the first pool's, so the last case fits
+//     it: held split as made is would hide a loss in another pool behind
+//     what was filed in the first since;
 //   - else, held unsplit, some of its lines lost since: which pool they were
 //     in can't be told, so made's work is in held's one pool, as all of
 //     held's is;
@@ -74,8 +84,8 @@ func (d days) firstOf(made Summary, held *Summary) string {
 //     their sum where that's more: the whole day counting no less never
 //     says which pool's lines were lost, as more filed since in another
 //     would hide a loss in one.
-func fittedAccount(made, held AccountDay, unsplit bool) (AccountDay, AccountDay) {
-	renamed := held.worksIn("") && !made.worksIn("")
+func fittedAccount(made, held AccountDay, unsplit, firstKnown bool) (AccountDay, AccountDay) {
+	renamed := !firstKnown && held.worksIn("") && !made.worksIn("")
 	switch {
 	case (unsplit || renamed) && made.covers(held.Work):
 		held.Pool, held.Pools = made.Pool, made.Pools

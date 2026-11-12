@@ -2,6 +2,7 @@ package ledger_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"maps"
 	"os"
 	"reflect"
@@ -239,6 +240,62 @@ func TestASummaryWhoseLinesWereMovedBeforeItIsTheFirstPoolsSummarisedAgain(t *te
 			}
 		})
 	}
+}
+
+// A day whose summary holds five requests in no pool, as made before its
+// lines were given the first pool, and three in Acme, summarised again: once
+// the first pool is known, its work in none is the first pool's, so each pool
+// knows no less than the summary's, never the summary split as its lines
+// are, which would hide Acme's lines lost since behind those filed in the
+// first; before, where its lines count all it did, it's split as they are.
+func TestASummarysWorkInNoPoolBesideAnothersIsSplitAsItsLinesOnlyWhileTheFirstPoolIsntKnown(t *testing.T) {
+	held := append(linesIn("", 5, 9), linesIn(acme, 3, 10)...)
+	tests := []struct {
+		name  string
+		knows ledger.Option
+		lines []ledger.Line
+		// want are work's requests upstream in every pool together, and in
+		// each.
+		want  int
+		pools map[string]int
+	}{
+		{
+			name:  "the first pool known, two of Acme's lost and three more filed in the first",
+			knows: knowsFirst,
+			lines: append(linesIn(first, 8, 9), linesIn(acme, 1, 10)...),
+			want:  11, pools: map[string]int{first: 8, acme: 3},
+		},
+		{
+			name:  "the first pool not known, one more filed in the first",
+			knows: knowsNone,
+			lines: append(linesIn(first, 6, 9), linesIn(acme, 3, 10)...),
+			want:  9, pools: map[string]int{first: 6, acme: 3},
+		},
+	}
+	for _, tt := range tests {
+		for _, by := range summarisers {
+			t.Run(tt.name+", by "+by, func(t *testing.T) {
+				state, dir, _ := stateDirs(t)
+				writeFile(t, dir, "day-"+date+".json", append(summaryJSON(t, noReadings, held...), '\n'))
+				holdLines(t, dir, date, tt.lines...)
+
+				work := againBy(t, by, state, dir, tt.knows).Accounts[0]
+				if got := upstreamByPool(work); work.Models[0].Upstream != tt.want || !maps.Equal(got, tt.pools) {
+					t.Errorf("summarised again, work's day is %+v, its requests upstream by pool %v; want %d in all, %v", work, got, tt.want, tt.pools)
+				}
+			})
+		}
+	}
+}
+
+// linesIn are n requests asked in the pool given, "" for none, a minute
+// apart from the hour given.
+func linesIn(pool string, n, hour int) []ledger.Line {
+	lines := make([]ledger.Line, n)
+	for i := range lines {
+		lines[i] = inPool(asked(fmt.Sprintf("%s-%d-%d", pool, hour, i), on(0, hour, i)), pool)
+	}
+	return lines
 }
 
 // summarisers are what summarise a day: the router's ledger, a follower, and
