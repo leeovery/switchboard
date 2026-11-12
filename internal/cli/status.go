@@ -76,7 +76,7 @@ switchboard service install (or switchboard serve).
 				err = writeJSON(out, doc)
 			} else {
 				m := a.withRemoved(doc).At(a.Now(), claude.Policy())
-				_, err = io.WriteString(out, a.unrouted()+m.Text(a.running(cmd.Context(), m)...))
+				_, err = io.WriteString(out, a.unrouted()+m.Text(a.running(cmd.Context(), m, doc.PoolID)...))
 			}
 			return cmp.Or(err, unread)
 		},
@@ -103,14 +103,15 @@ func (a *app) unrouted() string {
 	return "claude on PATH isn't switchboard, so the sessions it starts don't go through the router: run switchboard setup\n\n"
 }
 
-// running lists the sessions the router has routed in the last hour, when the
-// document m is a moment of is the router's: none otherwise, nor when the
-// router, gone meanwhile, can't say.
-func (a *app) running(ctx context.Context, m status.Moment) []status.Session {
+// running lists the sessions the router has routed in the last hour in the
+// pool with the given id, the document m is a moment of being the router's
+// of that pool: none otherwise, nor when the router, gone meanwhile, can't
+// say.
+func (a *app) running(ctx context.Context, m status.Moment, pool string) []status.Session {
 	if !m.Routed {
 		return nil
 	}
-	sessions, err := a.routerSessions(ctx)
+	sessions, err := a.routerSessions(ctx, func(c *router.Client) ([]status.Session, error) { return c.InPool(pool).Sessions(ctx) })
 	if err != nil {
 		logger.Warn("can't list the router's sessions", "error", err)
 		return nil
@@ -137,11 +138,11 @@ func (a *app) sessionStatus(ctx context.Context, out io.Writer, given string, as
 }
 
 // session asks the router where the requests of the session given, by as
-// much of its id as is unique, go.
+// much of its id as is unique, go, in whatever pool it's in.
 func (a *app) session(ctx context.Context, client *router.Client, given string) (status.Session, error) {
-	id, err := a.findSession(ctx, client, given)
-	if err != nil {
-		return status.Session{}, err
+	s, id, err := a.lookUpSession(ctx, client, given)
+	if err != nil || s.ID != "" {
+		return s, err
 	}
 	return client.Session(ctx, id)
 }
