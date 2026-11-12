@@ -103,7 +103,51 @@ func (l Launcher) withPools(r Route, ask func() (router.Health, routerState)) (R
 			return r, nil
 		}
 	}
-	return r, l.refuse("the config names no pools, and switchboard can't tell which pool "+l.where()+" is in", "dir", l.Dir)
+	return r, l.refuse(l.unpooled(), "dir", l.Dir)
+}
+
+// unpooled is why nothing starts where the config names no pools, or can't
+// be read, once the move to pools is done, and neither the router nor the
+// accounts record says which there are: any directory may be in a fence.
+func (l Launcher) unpooled() string {
+	return "can't tell which pool " + l.where() + " is in: neither the config, the router nor the accounts record names any pools"
+}
+
+// Unpooled starts nothing, for a launch on Claude Code's own login where
+// OwnLoginFences can't tell which pools there are, failing with
+// ErrNotStarted, Stderr hearing why.
+func (l Launcher) Unpooled() error {
+	return l.refuse(l.unpooled(), "mode", "own login", "dir", l.Dir)
+}
+
+// OwnLoginFences returns the pools Claude Code's own login is kept out of
+// the fences of where the config can't be read or names none: w's, the
+// config file's, as Written's Fences gives them, routers returning the
+// router's; and where those are none once the move to pools is done, moved,
+// those the accounts record keeps, as kept returns them, as a router that
+// has failed closed reports pools but lists none. Each is asked for only
+// where it's needed. It reports false where after the move none of them
+// names a pool, so which directories are fenced can't be told.
+func OwnLoginFences(w Written, moved bool, routers, kept func() config.Pools) (config.Pools, bool) {
+	if pools := w.Fences(routers); len(pools) > 0 || !moved {
+		return pools, true
+	}
+	if pools := kept(); len(pools) > 0 {
+		return pools, true
+	}
+	return nil, false
+}
+
+// keptFences returns the pools the accounts record keeps, as Kept gives them
+// of a config naming no account: none where Kept is nil, or keeps none.
+func (r Route) keptFences() config.Pools {
+	if r.Kept == nil {
+		return nil
+	}
+	if kept, ok := r.Kept(&config.Config{}); ok {
+		return kept.Pools
+	}
+	return nil
 }
 
 // pooledBy returns cfg, a config naming no pools, with pools, those the
@@ -275,9 +319,13 @@ func (l Launcher) refuse(why string, attrs ...any) error {
 // pool alone, with which no session can be spread across pools; else as it
 // answers once it has taken the config's up, asked again Patience's Again
 // apart for as long as its TakeUp; else down, routing by other pools, saying
-// how they differ. Its asked counts the waiting.
+// how they differ. Its asked counts the waiting. A router that has failed
+// closed is as it is: once the move to pools is done, one that reports pools
+// but lists none refuses every request, saying why, so a session routed
+// through it goes nowhere outside its pool, where one counted down would go
+// direct past it, and it routes the session once it takes its pools up.
 func (r Route) takingUp(ctx context.Context, h router.Health, state routerState, in place) routerState {
-	if !in.compared() {
+	if !in.compared() || r.Moved && failedClosed(h) {
 		return state
 	}
 	why := poolsDiffer(h, r.Config, in.id())
@@ -300,6 +348,14 @@ func (r Route) takingUp(ctx context.Context, h router.Health, state routerState,
 		}
 	}
 	return routerState{name: otherPools, reason: why, asked: state.asked + since(began)}
+}
+
+// failedClosed reports whether the router, as its health answer h has it,
+// reports pools but lists none: once the move to pools is done, one that
+// has failed closed, as neither its config nor the accounts record names
+// its pools; before it, one of a config from before pools.
+func failedClosed(h router.Health) bool {
+	return h.ReportsPools && len(h.Pools) == 0
 }
 
 // passesHeaders is why a router that reports its pools can't be told a

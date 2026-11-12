@@ -5,13 +5,15 @@ import (
 	"context"
 	"errors"
 	"io"
-	"os"
 	"path/filepath"
+	"slices"
 
 	"github.com/spf13/cobra"
 
 	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/identity"
+	"github.com/leeovery/switchboard/internal/idmove"
 	"github.com/leeovery/switchboard/internal/launch"
 )
 
@@ -140,7 +142,11 @@ func (a *app) run(ctx context.Context, stderr io.Writer, opts runOptions, args [
 		// starts on its own login wherever it's asked for.
 		return l.Direct(args, nil)
 	case opts.direct:
-		return l.Direct(args, a.ownLoginPools(ctx))
+		pools, known := a.ownLoginPools(ctx)
+		if !known {
+			return l.Unpooled()
+		}
+		return l.Direct(args, pools)
 	case claude.IsLocal(args):
 		return l.Local(args)
 	}
@@ -192,37 +198,41 @@ func (a *app) runUnread(ctx context.Context, l launch.Launcher, opts runOptions,
 		Document: client.Status,
 		Patience: a.Patience,
 		Account:  opts.account,
+		Moved:    a.poolsMoved(),
+		Kept:     a.keptPools,
 	}
 	return l.RunUnread(ctx, r, args, unread)
 }
 
 // ownLoginPools returns the pools a launch on Claude Code's own login is
-// refused inside the fences of: the config's; where it can't be read, those
-// the config file writes, read whatever else in it is wrong (see
-// writtenPools), and the running router's, as its health answer reports
-// them, asked once, as launch.Written's Fences takes them, as RunUnread
-// keeps its own login out of them; and where it names none once the move to
-// pools is done, the router's, else those the accounts record keeps. None
-// where none of those can be had.
-func (a *app) ownLoginPools(ctx context.Context) config.Pools {
+// refused inside the fences of: the config's, where it names any or the
+// move to pools isn't done; else as launch.OwnLoginFences finds them, as
+// RunUnread keeps its own login out of them, the config file's, read
+// whatever else in it is wrong, where it can't be read (see writtenPools),
+// the running router's, as its health answer reports them, asked once, and
+// those the accounts record keeps. It reports false where none of those can
+// be had once the move to pools is done.
+func (a *app) ownLoginPools(ctx context.Context) (config.Pools, bool) {
 	cfg, err := a.loadConfig()
+	if err == nil && (len(cfg.Pools) > 0 || !a.poolsMoved()) {
+		return cfg.Pools, true
+	}
+	written, named := launch.Written{}, cfg
 	if err != nil {
 		logger.Debug("can't read the config for its pools", "error", err)
-		return a.writtenPools().Fences(func() config.Pools {
-			pools, _ := a.routersPools(ctx)
-			return pools
-		})
+		written, named = a.writtenPools(), &config.Config{}
 	}
-	if len(cfg.Pools) > 0 || !a.poolsMoved() {
-		return cfg.Pools
-	}
-	if pools, reported := a.routersPools(ctx); reported {
+	routers := func() config.Pools {
+		pools, _ := a.routersPools(ctx)
 		return pools
 	}
-	if kept, ok := a.keptPools(cfg); ok {
-		return kept.Pools
+	kept := func() config.Pools {
+		if pooled, ok := a.keptPools(named); ok {
+			return pooled.Pools
+		}
+		return nil
 	}
-	return nil
+	return launch.OwnLoginFences(written, a.poolsMoved(), routers, kept)
 }
 
 // routersPools returns the pools the running router routes for, as its
@@ -242,26 +252,51 @@ func (a *app) routersPools(ctx context.Context) (config.Pools, bool) {
 	return launch.RoutedPools(h)
 }
 
-// poolsMovedMark marks the move to pools done, in the state directory.
-const poolsMovedMark = "pools.moved"
-
-// poolsMoved reports whether the move to pools is done, as its mark in the
-// state directory says: false where the state directory can't be located.
+// poolsMoved reports whether the move to pools is done, as idmove's mark in
+// the state directory says: false where the state directory can't be
+// located.
 func (a *app) poolsMoved() bool {
 	dir, err := config.StateDir(a.Getenv, a.HomeDir)
-	if err != nil {
-		return false
-	}
-	_, err = os.Stat(filepath.Join(dir, poolsMovedMark))
-	return err == nil
+	return err == nil && idmove.PoolsMoved(dir)
 }
 
 // keptPools returns cfg, a config naming no pools, with the pools the
-// accounts record keeps, each of its accounts in the pool the record keeps
-// it in, as launch.Route's Kept does: false where the record keeps none.
-// The record keeps no account's pool till the move to pools keeps them.
-func (a *app) keptPools(*config.Config) (*config.Config, bool) {
-	return nil, false
+// accounts record keeps, as launch.Route's Kept does: those idmove's
+// PoolsKept gives, read as the config reads them, each account in the pool
+// PoolsKept has it in, none for one it has in none, and each pool's primary
+// as idmove's PrimaryKept marks it, as the router routes within them till
+// the config is healed. It reports false where the state directory can't be
+// located, the record can't be read or keeps no pools, or they can't be read
+// as the config's.
+func (a *app) keptPools(cfg *config.Config) (*config.Config, bool) {
+	dir, err := config.StateDir(a.Getenv, a.HomeDir)
+	if err != nil {
+		logger.Debug("can't find the accounts record for the pools it keeps", "error", err)
+		return nil, false
+	}
+	record, err := identity.NewFile(dir).Read()
+	if err != nil {
+		logger.Debug("can't read the accounts record for the pools it keeps", "error", err)
+		return nil, false
+	}
+	kept, err := idmove.PoolsKept(record, cfg.Accounts.IDs())
+	if err != nil {
+		logger.Debug("the accounts record keeps no pools", "error", err)
+		return nil, false
+	}
+	pools, err := config.ReadPools(kept.Pools, a.HomeDir)
+	if err != nil {
+		logger.Debug("the pools the accounts record keeps can't be read as the config's", "error", err)
+		return nil, false
+	}
+	pooled := *cfg
+	pooled.Pools, pooled.Accounts = pools, slices.Clone(cfg.Accounts)
+	for i, account := range pooled.Accounts {
+		pool := kept.In[account.ID]
+		pooled.Accounts[i].Pool = pool
+		pooled.Accounts[i].Primary = pool != "" && idmove.PrimaryKept(record, pool, account.ID, account.Primary)
+	}
+	return &pooled, true
 }
 
 // writtenPools returns the pools the config file writes, read whatever else

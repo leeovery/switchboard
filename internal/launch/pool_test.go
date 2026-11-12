@@ -1705,13 +1705,13 @@ func TestRunAfterTheMoveToPoolsNeverLaunchesAConfigNamingNoneAsItIs(t *testing.T
 			moved:    true,
 			router:   healthy(),
 			kept:     func(*config.Config) (*config.Config, bool) { return nil, false },
-			wantSaid: "switchboard: the config names no pools, and switchboard can't tell which pool ~/Code/acme is in — not starting claude\n",
+			wantSaid: "switchboard: can't tell which pool ~/Code/acme is in: neither the config, the router nor the accounts record names any pools — not starting claude\n",
 		},
 		{
 			name:     "no record to ask: refused",
 			moved:    true,
 			router:   notRunning(),
-			wantSaid: "switchboard: the config names no pools, and switchboard can't tell which pool ~/Code/acme is in — not starting claude\n",
+			wantSaid: "switchboard: can't tell which pool ~/Code/acme is in: neither the config, the router nor the accounts record names any pools — not starting claude\n",
 		},
 	}
 	for _, tt := range tests {
@@ -1740,6 +1740,183 @@ func TestRunAfterTheMoveToPoolsNeverLaunchesAConfigNamingNoneAsItIs(t *testing.T
 					t.Errorf("started on %q in pool %q, want %q in pool %q", env["CLAUDE_CODE_OAUTH_TOKEN"], env["SWITCHBOARD_POOL"], tt.wantToken, tt.wantPool)
 				}
 			})
+		})
+	}
+}
+
+func TestRunThroughARouterThatFailedClosedNeverGoesPastIt(t *testing.T) {
+	// The record keeps pooledConfig's pools.
+	kept := func(cfg *config.Config) (*config.Config, bool) {
+		pooled := pooledConfig()
+		pooled.WhenRouterDown = cfg.WhenRouterDown
+		return pooled, true
+	}
+	through := "switchboard: the router is unhealthy (" + closed + ") — starting claude through it all the same\n"
+	tests := []struct {
+		name  string
+		cfg   func() *config.Config
+		moved bool
+		kept  func(*config.Config) (*config.Config, bool)
+		// wantPool is the pool the session is routed in through the router,
+		// "" where nothing starts; wantSaid what stderr hears.
+		wantPool string
+		wantSaid string
+	}{
+		{name: "a config with pools", cfg: pooledConfig, moved: true, wantPool: "q7mt", wantSaid: through},
+		{name: "a config naming none, the record's pools", cfg: unpooledConfig, moved: true, kept: kept, wantPool: "q7mt", wantSaid: through},
+		{
+			name:     "a config naming none, nor the record: refused",
+			cfg:      unpooledConfig,
+			moved:    true,
+			wantSaid: "switchboard: can't tell which pool ~/Code/acme is in: neither the config, the router nor the accounts record names any pools — not starting claude\n",
+		},
+	}
+	for _, down := range []config.RouterDown{config.Direct, config.Stop} {
+		for _, tt := range tests {
+			t.Run(tt.name+", when_router_down "+string(down), func(t *testing.T) {
+				synctest.Test(t, func(t *testing.T) {
+					h := newHarness(t, "HOME=/home/tester")
+					h.launcher.Dir = acmeDir
+					cfg := tt.cfg()
+					cfg.WhenRouterDown = down
+					r := pooledRoute(cfg, closedRouter(), "")
+					r.Moved, r.Kept = tt.moved, tt.kept
+					began := time.Now()
+
+					err := h.launcher.Run(t.Context(), r, nil)
+					if said := h.stderr.String(); said != tt.wantSaid {
+						t.Errorf("said %q on stderr, want %q", said, tt.wantSaid)
+					}
+					if tt.wantPool == "" {
+						if !errors.Is(err, launch.ErrNotStarted) || len(h.starts) > 0 {
+							t.Errorf("Run() error = %v, starting %q; want %v, nothing started", err, h.starts, launch.ErrNotStarted)
+						}
+						return
+					}
+					if err != nil {
+						t.Fatalf("Run() error = %v", err)
+					}
+					env := h.environment(t)
+					if env["ANTHROPIC_BASE_URL"] != "http://"+proxyAddr || env["SWITCHBOARD_POOL"] != tt.wantPool || env["CLAUDE_CODE_OAUTH_TOKEN"] != acme1Token {
+						t.Errorf("started at %q in pool %q on %q, want through the router in pool %s on Acme's primary's token", env["ANTHROPIC_BASE_URL"], env["SWITCHBOARD_POOL"], env["CLAUDE_CODE_OAUTH_TOKEN"], tt.wantPool)
+					}
+					if waited := time.Since(began); waited != 0 {
+						t.Errorf("waited %v for the router to take the pools up, want no wait", waited)
+					}
+				})
+			})
+		}
+	}
+}
+
+func TestBeforeTheMoveARouterListingNoPoolsCountsAsDown(t *testing.T) {
+	h := newHarness(t, "HOME=/home/tester")
+	h.launcher.Dir = acmeDir
+	healthyNone := healthy()
+	healthyNone.health.ReportsPools = true
+	r := pooledRoute(pooledConfig(), healthyNone, "")
+	r.Patience.TakeUp = time.Millisecond
+
+	if err := h.launcher.Run(t.Context(), r, nil); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if _, routed := h.environment(t)["ANTHROPIC_BASE_URL"]; routed {
+		t.Errorf("started routed through a router of no pools, want direct on the pool's token, as it would route across them")
+	}
+}
+
+func TestRunUnreadNeverStartsOnItsOwnLoginInsideAFenceTheRecordKeeps(t *testing.T) {
+	kept := func(*config.Config) (*config.Config, bool) { return pooledConfig(), true }
+	tests := []struct {
+		name   string
+		router *fakeRouter
+		kept   func(*config.Config) (*config.Config, bool)
+		dir    string
+		// wantSaid is what stderr hears, and wantStarted whether claude
+		// starts.
+		wantSaid    string
+		wantStarted bool
+	}{
+		{
+			name:     "the router failed closed, inside a fence the record keeps: refused",
+			router:   closedRouter(),
+			kept:     kept,
+			dir:      acmeDir,
+			wantSaid: unreadSaid + "the running router doesn't say which accounts it routes for — ~/Code/acme is in pool Acme, where claude never starts on its own login — not starting claude\n",
+		},
+		{
+			name:        "the router failed closed, outside every fence the record keeps: without switchboard",
+			router:      closedRouter(),
+			kept:        kept,
+			dir:         elsewhere,
+			wantSaid:    unreadSaid + "the running router doesn't say which accounts it routes for — starting claude without it\n",
+			wantStarted: true,
+		},
+		{
+			name:     "the router down, inside a fence the record keeps: refused",
+			router:   notRunning(),
+			kept:     kept,
+			dir:      acmeDir,
+			wantSaid: unreadSaid + "~/Code/acme is in pool Acme, where claude never starts on its own login — not starting claude\n",
+		},
+		{
+			name:     "the router down, the record keeping none: refused anywhere",
+			router:   notRunning(),
+			dir:      elsewhere,
+			wantSaid: unreadSaid + "can't tell which pool ~/Code/other is in: neither the config, the router nor the accounts record names any pools — not starting claude\n",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := newHarness(t, "HOME=/home/tester")
+			h.launcher.Dir = tt.dir
+			r := unreadPooledRoute(tt.router, launch.Written{}, "")
+			r.Moved, r.Kept = true, tt.kept
+
+			err := h.launcher.RunUnread(t.Context(), r, nil, errUnread)
+			if said := h.stderr.String(); said != tt.wantSaid {
+				t.Errorf("said %q on stderr, want %q", said, tt.wantSaid)
+			}
+			if started := len(h.starts) == 1; started != tt.wantStarted || (err == nil) != tt.wantStarted {
+				t.Errorf("RunUnread() error = %v, starting %q; want claude started: %v", err, h.starts, tt.wantStarted)
+			}
+		})
+	}
+}
+
+func TestOwnLoginFences(t *testing.T) {
+	written := config.Pools{defaultPool, acmePool}
+	routers := config.Pools{defaultPool, clientPool}
+	kept := config.Pools{acmePool}
+	tests := []struct {
+		name    string
+		written launch.Written
+		moved   bool
+		routers config.Pools
+		kept    config.Pools
+		want    config.Pools
+		// wantKnown is whether the fences can be told, and wantKeptAsked
+		// whether the record is asked.
+		wantKnown     bool
+		wantKeptAsked bool
+	}{
+		{name: "the config file's", written: launch.Written{Pools: written}, moved: true, routers: routers, kept: kept, want: written, wantKnown: true},
+		{name: "none written, before the move: the router's", routers: routers, kept: kept, want: routers, wantKnown: true},
+		{name: "none written nor routed, before the move: none", kept: kept, wantKnown: true},
+		{name: "none written, after the move: the router's", moved: true, routers: routers, kept: kept, want: routers, wantKnown: true},
+		{name: "none written nor routed, after the move: the record's", moved: true, kept: kept, want: kept, wantKnown: true, wantKeptAsked: true},
+		{name: "none of them, after the move: not told", moved: true, wantKeptAsked: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			keptAsked := false
+			got, known := launch.OwnLoginFences(tt.written, tt.moved, func() config.Pools { return tt.routers }, func() config.Pools {
+				keptAsked = true
+				return tt.kept
+			})
+			if !slices.EqualFunc(got, tt.want, samePool) || known != tt.wantKnown || keptAsked != tt.wantKeptAsked {
+				t.Errorf("OwnLoginFences() = %+v, %v, asking the record: %v; want %+v, %v, asking: %v", got, known, keptAsked, tt.want, tt.wantKnown, tt.wantKeptAsked)
+			}
 		})
 	}
 }

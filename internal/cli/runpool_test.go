@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/cli"
+	"github.com/leeovery/switchboard/internal/identity"
 	"github.com/leeovery/switchboard/internal/router"
 )
 
@@ -299,10 +300,15 @@ var (
 )
 
 func TestRunWithoutAConfigItCanReadNorTheRouterReadsTheConfigsPools(t *testing.T) {
+	const unreadable = "[[pool]\n"
 	tests := []struct {
 		name   string
 		config string
 		dir    string
+		// unmoved has the move to pools not done, and kept the accounts
+		// record keep pooledAccounts' pools.
+		unmoved bool
+		kept    bool
 		// wantSaid is what stderr hears after the config's error, and
 		// wantStarted whether claude starts.
 		wantSaid    string
@@ -322,9 +328,31 @@ func TestRunWithoutAConfigItCanReadNorTheRouterReadsTheConfigsPools(t *testing.T
 			wantStarted: true,
 		},
 		{
-			name:        "inside a fence, the pools unreadable even so",
-			config:      "[[pool]\n",
+			name:        "inside a fence, the pools unreadable even so, before the move to pools",
+			config:      unreadable,
 			dir:         "Code/acme/api",
+			unmoved:     true,
+			wantSaid:    "starting claude without it\n",
+			wantStarted: true,
+		},
+		{
+			name:     "anywhere, the pools unreadable even so, once the move to pools is done",
+			config:   unreadable,
+			dir:      "Code/project",
+			wantSaid: "can't tell which pool ~/Code/project is in: neither the config, the router nor the accounts record names any pools — not starting claude\n",
+		},
+		{
+			name:     "inside a fence the accounts record keeps, the pools unreadable",
+			config:   unreadable,
+			dir:      "Code/acme/api",
+			kept:     true,
+			wantSaid: "~/Code/acme/api is in pool Acme, where claude never starts on its own login — not starting claude\n",
+		},
+		{
+			name:        "outside every fence the accounts record keeps, the pools unreadable",
+			config:      unreadable,
+			dir:         "Code/project",
+			kept:        true,
 			wantSaid:    "starting claude without it\n",
 			wantStarted: true,
 		},
@@ -352,6 +380,14 @@ func TestRunWithoutAConfigItCanReadNorTheRouterReadsTheConfigsPools(t *testing.T
 		t.Run(tt.name, func(t *testing.T) {
 			path := writeConfig(t, tt.config)
 			srv := newServeSetup(t, fakeClaudeAPI(t), map[string]string{"SWITCHBOARD_CONFIG": path})
+			if tt.unmoved {
+				if err := os.Remove(filepath.Join(srv.state, poolsMark)); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if tt.kept {
+				keepPooledAccounts(t, srv.state)
+			}
 			startingIn(t, &srv.deps, tt.dir)
 			handed := recordHandOffs(t, &srv.deps)
 
@@ -458,18 +494,39 @@ func TestRunWithoutFindingTheRouterNeverStartsOnItsOwnLoginInsideAFence(t *testi
 	}
 }
 
-// markPoolsMoved marks the move to pools done in the state directory dir.
-func markPoolsMoved(t *testing.T, dir string) {
+// unpooledSetup is serve set up with threeAccounts, a config naming no pools,
+// as one put back by hand once the move to pools is done, as newServeSetup
+// marks it.
+func unpooledSetup(t *testing.T, env map[string]string) *serveSetup {
 	t.Helper()
-	if err := os.WriteFile(filepath.Join(dir, "pools.moved"), []byte("2026-09-28T13:12:00Z\n"), 0o600); err != nil {
+	srv := newServeSetup(t, fakeClaudeAPI(t), env)
+	srv.accounts = threeAccounts
+	srv.writeConfig(t)
+	return srv
+}
+
+// keepPooledAccounts has the accounts record in the state directory dir keep
+// pooledAccounts' pools as this Mac's config last wrote them: work, the
+// primary, and personal in Default, side in Acme, fenced to ~/Code/acme.
+func keepPooledAccounts(t *testing.T, dir string) {
+	t.Helper()
+	added := testNow.Add(-24 * time.Hour)
+	err := identity.NewFile(dir).Update(func(r *identity.Record) error {
+		r.Accounts = []identity.Entry{{ID: "work", Added: added, Pool: "b2n8"}, {ID: "personal", Added: added, Pool: "b2n8"}, {ID: "side", Added: added, Pool: "q7mt"}}
+		r.Pools = []identity.PoolEntry{
+			{ID: "b2n8", Added: added, First: true, Here: true, Written: identity.PoolWritten{Label: "Default", Primary: "work", PrimaryKnown: true}},
+			{ID: "q7mt", Added: added, Here: true, Written: identity.PoolWritten{Label: "Acme", Dirs: []string{"~/Code/acme"}, Primary: "side", PrimaryKnown: true}},
+		}
+		return nil
+	})
+	if err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestRunAfterTheMoveToPoolsTakesThePoolsOfAConfigNamingNone(t *testing.T) {
 	t.Run("from the router's health answer", func(t *testing.T) {
-		srv := newServeSetup(t, fakeClaudeAPI(t), nil)
-		markPoolsMoved(t, srv.state)
+		srv := unpooledSetup(t, nil)
 		serveHealth(t, srv.deps, pooledHealth(t, srv.deps))
 		startingIn(t, &srv.deps, "Code/acme/api")
 		handed := recordHandOffs(t, &srv.deps)
@@ -482,13 +539,41 @@ func TestRunAfterTheMoveToPoolsTakesThePoolsOfAConfigNamingNone(t *testing.T) {
 			t.Errorf("handed over with\n%q\nwant\n%q", env, want)
 		}
 	})
-	t.Run("from nowhere: refused", func(t *testing.T) {
-		srv := newServeSetup(t, fakeClaudeAPI(t), nil)
-		markPoolsMoved(t, srv.state)
+	t.Run("from the accounts record, the router down, going direct on the pool's primary", func(t *testing.T) {
+		srv := unpooledSetup(t, map[string]string{"SWITCHBOARD_WHEN_ROUTER_DOWN": "direct"})
+		keepPooledAccounts(t, srv.state)
+		startingIn(t, &srv.deps, "Code/acme/api")
+		handed := recordHandOffs(t, &srv.deps)
+
+		want := result{stderr: "switchboard: the router isn't running — connecting directly on side · Side\n"}
+		if got := run(t, srv.deps, "run"); got != want {
+			t.Errorf("switchboard run = %+v, want %+v", got, want)
+		}
+		env := handed.only(t).only("ANTHROPIC_BASE_URL", "CLAUDE_CODE_OAUTH_TOKEN", "SWITCHBOARD_POOL")
+		if want := map[string]string{"CLAUDE_CODE_OAUTH_TOKEN": "test-token-side", "SWITCHBOARD_POOL": "q7mt"}; !maps.Equal(env, want) {
+			t.Errorf("handed over with\n%q\nwant\n%q", env, want)
+		}
+	})
+	t.Run("from the accounts record, on its own login: its fences", func(t *testing.T) {
+		srv := unpooledSetup(t, nil)
+		keepPooledAccounts(t, srv.state)
+		startingIn(t, &srv.deps, "Code/acme/api")
+		handed := recordHandOffs(t, &srv.deps)
+
+		want := result{stderr: "switchboard: ~/Code/acme/api is in pool Acme, where claude never starts on its own login — not starting claude\n", code: 1}
+		if got := run(t, srv.deps, "run", "--direct"); got != want {
+			t.Errorf("switchboard run --direct = %+v, want %+v", got, want)
+		}
+		if len(handed.made) != 0 {
+			t.Errorf("handed over %d times, want none", len(handed.made))
+		}
+	})
+	t.Run("from nowhere, the router failing closed: refused", func(t *testing.T) {
+		srv := unpooledSetup(t, nil)
 		srv.start(t)
 		handed := recordHandOffs(t, &srv.deps)
 
-		want := result{stderr: "switchboard: the config names no pools, and switchboard can't tell which pool ~/Code/project is in — not starting claude\n", code: 1}
+		want := result{stderr: "switchboard: can't tell which pool ~/Code/project is in: neither the config, the router nor the accounts record names any pools — not starting claude\n", code: 1}
 		if got := run(t, srv.deps, "run"); got != want {
 			t.Errorf("switchboard run = %+v, want %+v", got, want)
 		}
@@ -497,8 +582,7 @@ func TestRunAfterTheMoveToPoolsTakesThePoolsOfAConfigNamingNone(t *testing.T) {
 		}
 	})
 	t.Run("on its own login, the router's fences", func(t *testing.T) {
-		srv := newServeSetup(t, fakeClaudeAPI(t), nil)
-		markPoolsMoved(t, srv.state)
+		srv := unpooledSetup(t, nil)
 		serveHealth(t, srv.deps, pooledHealth(t, srv.deps))
 		startingIn(t, &srv.deps, "Code/acme/api")
 		handed := recordHandOffs(t, &srv.deps)
@@ -511,4 +595,56 @@ func TestRunAfterTheMoveToPoolsTakesThePoolsOfAConfigNamingNone(t *testing.T) {
 			t.Errorf("handed over %d times, want none", len(handed.made))
 		}
 	})
+}
+
+// A router that fails closed, its config naming no pools and the accounts
+// record unreadable to it, routes nothing until it can tell the pools, so
+// launch routes through it whatever when_router_down says, and never takes it
+// for down: going direct, or on Claude Code's own login, inside a fence the
+// record keeps would go past the pools.
+func TestRunThroughARouterThatFailedClosedNeverGoesPastIt(t *testing.T) {
+	const reason = "the config names no pools and the accounts record can't be read, so the pool each account is in can't be told"
+	closed := router.Health{Reason: reason, Listen: "127.0.0.1:4747", StripsOwnHeaders: true, ReportsPools: true}
+	routed := result{stderr: "switchboard: the router is unhealthy (" + reason + ") — starting claude through it all the same\n"}
+	through := map[string]string{"ANTHROPIC_BASE_URL": "http://127.0.0.1:4747", "CLAUDE_CODE_OAUTH_TOKEN": "test-token-side", "SWITCHBOARD_POOL": "q7mt"}
+	tests := []struct {
+		name string
+		// down is SWITCHBOARD_WHEN_ROUTER_DOWN.
+		down    string
+		args    []string
+		want    result
+		wantEnv map[string]string
+	}{
+		{name: "going direct where it's down: through it", down: "direct", args: []string{"run"}, want: routed, wantEnv: through},
+		{name: "stopping where it's down: through it", down: "stop", args: []string{"run"}, want: routed, wantEnv: through},
+		{
+			name: "on its own login: the record's fences",
+			down: "direct",
+			args: []string{"run", "--direct"},
+			want: result{stderr: "switchboard: ~/Code/acme/api is in pool Acme, where claude never starts on its own login — not starting claude\n", code: 1},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := unpooledSetup(t, map[string]string{"SWITCHBOARD_WHEN_ROUTER_DOWN": tt.down})
+			keepPooledAccounts(t, srv.state)
+			serveHealth(t, srv.deps, closed)
+			startingIn(t, &srv.deps, "Code/acme/api")
+			handed := recordHandOffs(t, &srv.deps)
+
+			if got := run(t, srv.deps, tt.args...); got != tt.want {
+				t.Errorf("switchboard %s = %+v, want %+v", strings.Join(tt.args, " "), got, tt.want)
+			}
+			if tt.wantEnv == nil {
+				if len(handed.made) != 0 {
+					t.Errorf("handed over %d times, want none", len(handed.made))
+				}
+				return
+			}
+			env := handed.only(t).only("ANTHROPIC_BASE_URL", "CLAUDE_CODE_OAUTH_TOKEN", "SWITCHBOARD_POOL")
+			if !maps.Equal(env, tt.wantEnv) {
+				t.Errorf("handed over with\n%q\nwant\n%q", env, tt.wantEnv)
+			}
+		})
+	}
 }

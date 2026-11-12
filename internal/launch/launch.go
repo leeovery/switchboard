@@ -99,8 +99,8 @@ type Route struct {
 	// Account is the id of the account to pin the session to, or "" to leave
 	// it to the router.
 	Account string
-	// Moved is set once the move to pools is done, as pools.moved in the
-	// state directory marks it, after which Run never launches a config
+	// Moved is set once the move to pools is done, as idmove.PoolsMoved finds
+	// its mark in the state directory, after which Run never launches a config
 	// naming no pools as it is (see withPools).
 	Moved bool
 	// Kept returns cfg, a config naming no pools, with the pools the accounts
@@ -169,7 +169,9 @@ func (l Launcher) Run(ctx context.Context, r Route, args []string) error {
 	}
 	c, err := r.choose(in.accounts, pin, state.routable())
 	if err != nil {
-		return l.tokenless(path, args, in, cantTakePart{couldnt: "no account has a usable token", err: err}, err, !state.routable())
+		return l.tokenless(in, err, func() error {
+			return l.unaided(path, args, cantTakePart{couldnt: "no account has a usable token", err: err}, !state.routable(), in.pools)
+		})
 	}
 	if state.routable() {
 		return l.routed(path, args, state, c, r.Account, in, nil)
@@ -177,17 +179,16 @@ func (l Launcher) Run(ctx context.Context, r Route, args []string) error {
 	return l.connectDirectly(path, args, state, c, in)
 }
 
-// tokenless starts Claude Code, at path, with args, where no account it can
-// start on, of in's, has a usable token, as err says of each: Unaided, as
-// cant says why, where the pools are as before them, foundDown saying this
-// launch found the router couldn't be routed through. Otherwise it refuses,
-// failing with ErrNotStarted, Stderr hearing why: Claude Code's own login
-// would go out on whatever account it's signed into, in another pool or none.
-func (l Launcher) tokenless(path string, args []string, in place, cant cantTakePart, err error, foundDown bool) error {
+// tokenless starts Claude Code where no account it can start on, of in's,
+// has a usable token, as err says of each: as aside starts it, unaided,
+// where the pools are as before them. Otherwise it refuses, failing with
+// ErrNotStarted, Stderr hearing why: Claude Code's own login would go out on
+// whatever account it's signed into, in another pool or none.
+func (l Launcher) tokenless(in place, err error, aside func() error) error {
 	if !in.asBefore() {
 		return l.refuse(in.noToken(), "pool", in.id(), "error", err)
 	}
-	return l.unaided(path, args, cant, foundDown, in.pools)
+	return aside()
 }
 
 // CouldntReadConfig is what a launch says switchboard couldn't do where it
@@ -223,8 +224,9 @@ const (
 // config that can't be read, Stderr hearing, of a router that answers, why it
 // couldn't be routed through: what only the config says, such as
 // when_router_down, isn't known. Unaided, it refuses inside a fenced pool's
-// directories, as the config file writes the pools, else as the router
-// reports them. It returns only when Claude Code didn't start.
+// directories, as OwnLoginFences finds the pools, and anywhere where it
+// can't find them once the move to pools is done. It returns only when
+// Claude Code didn't start.
 func (l Launcher) RunUnread(ctx context.Context, r Route, args []string, unread error) error {
 	path, err := l.find()
 	if err != nil {
@@ -232,31 +234,38 @@ func (l Launcher) RunUnread(ctx context.Context, r Route, args []string, unread 
 	}
 	h, state := r.health(ctx)
 	r.Written.Pools = l.placedInHome(r.Written.Pools)
-	fences := r.Written.Fences(func() config.Pools {
+	fences, known := OwnLoginFences(r.Written, r.Moved, func() config.Pools {
 		pools, _ := RoutedPools(h)
 		return pools
-	})
+	}, r.keptFences)
+	aside := func(cant cantTakePart, foundDown bool) error {
+		if !known {
+			return l.refuse(cant.said()+" — "+l.unpooled(), "error", cant.err, "dir", l.Dir)
+		}
+		return l.unaided(path, args, cant, foundDown, fences)
+	}
 	cant := cantTakePart{couldnt: CouldntReadConfig, err: unread}
 	if !state.routable() {
 		logger.Info("the router can't be routed through", "router", state.name, "reason", state.reason, "asked", state.asked)
-		return l.unaided(path, args, cant, true, fences)
+		return aside(cant, true)
 	}
 	if why := r.Written.unroutedBy(h); why != "" {
 		logger.Warn("the router doesn't route by the config file's pools", "router", state.name, "reason", why)
-		return l.unaided(path, args, cant.besides(routerUnpooled), true, fences)
+		return aside(cant.besides(routerUnpooled), true)
 	}
 	if r.Config, err = r.routersConfig(ctx, h); err != nil {
 		logger.Warn("can't read which accounts the router routes for", "error", err)
-		return l.unaided(path, args, cant.besides(routerUnsaid), false, fences)
+		return aside(cant.besides(routerUnsaid), false)
 	}
 	r.fromRouter = true
-	return l.routeUnread(path, args, r, state, cant)
+	return l.routeUnread(path, args, r, state, cant, aside)
 }
 
 // routeUnread starts Claude Code, at path, with args, through the router in
 // state, on the config of what the router routes for, r's, as RunUnread says,
-// the config unread as cant says why.
-func (l Launcher) routeUnread(path string, args []string, r Route, state routerState, cant cantTakePart) error {
+// the config unread as cant says why, or, where none of its accounts has a
+// usable token, as aside starts it unaided.
+func (l Launcher) routeUnread(path string, args []string, r Route, state routerState, cant cantTakePart, aside func(cantTakePart, bool) error) error {
 	in, err := l.placed(r)
 	if err != nil {
 		return err
@@ -268,7 +277,7 @@ func (l Launcher) routeUnread(path string, args []string, r Route, state routerS
 	c, err := r.choose(in.accounts, pin, true)
 	if err != nil {
 		logger.Warn("no account the router routes for has a usable token", "error", err)
-		return l.tokenless(path, args, in, cant.besides(routerTokenless), err, false)
+		return l.tokenless(in, err, func() error { return aside(cant.besides(routerTokenless), false) })
 	}
 	Warn(l.Stderr, CouldntReadConfig, cant.err, "starting claude through the running router")
 	return l.routed(path, args, state, c, r.Account, in, cant.err)
