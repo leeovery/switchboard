@@ -750,15 +750,19 @@ read as a pool by its leaving one out (the owner's call, 11 November 2026).
     the router builds from these are built again.
   - **Healed:** once the move's done, a config that names no pool, as one put back by hand or by a
     repository it's kept in, is given its pools back, as Account identity's `Heal` writes the ids
-    back: every pool the accounts record keeps as configured, in the record's order, with its id,
-    and its label and directories as the config last wrote them, and each account in the pool the
-    record last had it in, an account it has in none going to the first pool. So the record keeps
-    how the config writes each pool, and each account's pool, removed or not, kept in step with the
-    config as it keeps labels, and a config with no pools changes neither. Putting every account in
-    the first pool would drop a client's pool and its fence, and run the client's sessions on the
-    owner's accounts. The router heals as it starts, before it reads the config, and as it looks at
-    the config, so a config put back is healed within seconds; until then it keeps the pools it
-    last had.
+    back: every pool the accounts record keeps as this Mac's config's, in the record's order, with
+    its id, and its label, directories and primary as the config last wrote them, and each account
+    in the pool the record last had it in. An account it has in none goes to the unfenced pool
+    written back, never a fenced one; where every pool written is fenced, the first pool is
+    written back too, unfenced, to hold it, labelled as the record last knew it, and where the
+    first is among the fenced ones, the config is left as it is, the router keeping the pools it
+    last had. So the record keeps how the config writes each pool, each pool's primary and each
+    account's pool, removed or not, kept in step with the config as it keeps labels, and a config
+    with no pools changes none of it. A pool is this Mac's only by this Mac's config: one an
+    import brings in is never written back here. Putting every account in the first pool would
+    drop a client's pool and its fence, and run the client's sessions on the owner's accounts. The
+    router heals as it starts, before it reads the config, and as it looks at the config, so a
+    config put back is healed within seconds; until then it keeps the pools it last had.
   - It's proved before release on a copy of the owner's own history, taken with his word, never on
     the real one: every file moved, every day's totals the same before and after, and the
     dashboard and the verbs reading it whole.

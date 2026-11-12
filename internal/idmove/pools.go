@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
@@ -171,14 +172,14 @@ func (m *PoolMover) noteFirst() error {
 			return err
 		}
 		if cfg := draft.Config(); cfg != nil && len(cfg.Pools) > 0 {
-			r.NoteFirst(cfg.Pools[0].ID, m.now().UTC())
+			r.NoteFirst(cfg.Pools[0].ID, "", m.now().UTC())
 			return nil
 		}
 		id, err := r.NewPoolID(m.random(), configuredIDs(draft))
 		if err != nil {
 			return fmt.Errorf("make the first pool: %w", err)
 		}
-		r.NoteFirst(id, m.now().UTC())
+		r.NoteFirst(id, firstLabel, m.now().UTC())
 		logger.Info("made the first pool", "pool", id)
 		return nil
 	})
@@ -224,61 +225,83 @@ func (m *PoolMover) configure() (bool, error) {
 }
 
 // restorePools writes in draft, a config without pools, the pools record
-// keeps as this Mac configures them, live and unlabelled, in the record's
-// order, each with its id, and its label and directories as the config last
-// wrote them, the first labelled firstLabel where it wrote none; and has
-// each account in the pool the record last had it in, or, where that's none
-// of them, in the first pool, else the first written. Where the record keeps
-// none so, the first pool is written alone, labelled as the record last knew
-// it, else firstLabel: so on the move to pools, which notes the first alone,
-// every account is in it. It fails where the record notes no first pool, or
-// draft refuses an edit.
+// keeps as this Mac's, as PoolEntry's Here says, in the record's order, each
+// as the config last wrote it, its id, label and directories; has each
+// account in the pool the record last had it in, as the config last had it;
+// and marks each pool's primary as the config last did. An account the
+// record has in none of them goes to the unfenced pool written, never a
+// fenced one, as a client's is; where none is unfenced, the first pool is
+// written back to hold it, unfenced, labelled as the record last knew it,
+// where it isn't written already, as on the move to pools, which notes it
+// alone, so every account is in it. It fails, writing nothing, where the
+// record notes no first pool, where an account has no pool to go to, every
+// pool written fenced, or where draft refuses an edit.
 func restorePools(draft *config.Draft, record identity.Record) error {
 	first, ok := record.FirstPool()
 	if !ok {
 		return errors.New("the accounts record notes no first pool")
 	}
 	pools := configuredPools(record)
-	if len(pools) == 0 {
-		pools = []config.NewPool{{ID: first.ID, Label: cmp.Or(first.Label, first.Written.Label, firstLabel)}}
+	written := func(id string) bool {
+		return slices.ContainsFunc(pools, func(p config.NewPool) bool { return strings.EqualFold(p.ID, id) })
+	}
+	home := ""
+	if i := slices.IndexFunc(pools, func(p config.NewPool) bool { return len(p.Dirs) == 0 }); i >= 0 {
+		home = pools[i].ID
+	} else if !written(first.ID) {
+		pools = append(pools, config.NewPool{ID: first.ID, Label: cmp.Or(first.Label, first.Written.Label)})
+		home = first.ID
 	}
 	for _, p := range pools {
 		if err := draft.AddPool(p); err != nil {
 			return err
 		}
 	}
-	written := func(id string) bool {
-		return slices.ContainsFunc(pools, func(p config.NewPool) bool { return strings.EqualFold(p.ID, id) })
-	}
-	home := pools[0].ID
-	if written(first.ID) {
-		home = first.ID
-	}
 	for _, id := range draft.Config().Accounts.IDs() {
 		pool := home
 		if e, ok := record.ByID(id); ok && written(e.Pool) {
 			pool = e.Pool
 		}
+		if pool == "" {
+			return fmt.Errorf("account %s is in no pool the accounts record keeps, and every pool it writes back is fenced, so none can hold it", id)
+		}
 		if err := draft.SetPool(id, pool); err != nil {
+			return err
+		}
+	}
+	return restorePrimaries(draft, record)
+}
+
+// restorePrimaries marks in draft, its pools written back, each pool's
+// primary as record has the config last mark it, the account it marked
+// where the config has that account in that pool still, and no other.
+func restorePrimaries(draft *config.Draft, record identity.Record) error {
+	cfg := draft.Config()
+	for _, a := range cfg.Accounts {
+		p, _ := record.PoolByID(a.Pool)
+		marked := strings.EqualFold(p.Written.Primary, a.ID)
+		var err error
+		switch {
+		case marked && !a.Primary:
+			err = draft.SetPrimary(a.ID)
+		case !marked && a.Primary:
+			err = draft.UnmarkPrimary(a.ID)
+		}
+		if err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-// configuredPools are the pools record keeps as this Mac configures them,
-// live and unlabelled, in its order, as restorePools writes them.
+// configuredPools are the pools record keeps as this Mac's, as PoolEntry's
+// Here says, in its order, as restorePools writes them.
 func configuredPools(record identity.Record) []config.NewPool {
 	var pools []config.NewPool
 	for _, p := range record.Pools {
-		if !p.Removed.IsZero() || p.Label != "" {
-			continue
+		if p.Here && p.Removed.IsZero() {
+			pools = append(pools, config.NewPool{ID: p.ID, Label: p.Written.Label, Dirs: p.Written.Dirs})
 		}
-		label := p.Written.Label
-		if p.First {
-			label = cmp.Or(label, firstLabel)
-		}
-		pools = append(pools, config.NewPool{ID: p.ID, Label: label, Dirs: p.Written.Dirs})
 	}
 	return pools
 }
@@ -322,16 +345,18 @@ func (m *PoolMover) takeUp() error {
 	return ErrAwaitingPools
 }
 
-// FirstPool is the ledger's option that gives the work of a day's summary
-// from before pools the first pool, where the day's lines name a pool, as
-// ledger.FirstPool says, the first pool as the accounts record in the state
-// directory given notes it as the ledger asks: none where the record can't be
-// read, which is logged, or notes none.
+// FirstPool is the ledger's option that has it know the first pool, as
+// ledger.FirstPool says, as the accounts record in the state directory given
+// notes it as the ledger asks: none where the record can't be read, which is
+// logged once, or notes none.
 func FirstPool(stateDir string) ledger.Option {
+	var warned atomic.Bool
 	return ledger.FirstPool(func() string {
 		record, err := identity.NewFile(stateDir).Read()
 		if err != nil {
-			logger.Warn("can't read the accounts record, so a day's summary from before pools keeps its work in no pool", "error", err)
+			if !warned.Swap(true) {
+				logger.Warn("can't read the accounts record, so a day's summary whose work in no pool its lines moved to the first pool can't tell it", "error", err)
+			}
 			return ""
 		}
 		first, _ := record.FirstPool()

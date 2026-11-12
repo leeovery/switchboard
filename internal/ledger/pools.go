@@ -3,6 +3,7 @@ package ledger
 import (
 	"slices"
 	"strings"
+	"sync"
 )
 
 // poolsVersion is the summary version that split each account's day's work
@@ -11,36 +12,94 @@ const poolsVersion = 7
 
 // FirstPool has the ledger, or a follower of it, know the first pool, the
 // one the history from before pools was moved to, as first gives its id, ""
-// where there's none: so a day whose summary, of a version before pools,
-// holds its work in none while its lines name a pool, as a downgrade to a
-// release before pools can leave one, is summarised again as heldPooled
-// says. first is asked only of such a day.
+// where there's none: so a day whose summary holds work in none that its
+// lines, moved to the first pool, no longer do is summarised again as
+// fitted says. first is asked only of such a day.
 func FirstPool(first func() string) Option {
 	return func(o *options) { o.firstPool = first }
 }
 
-// heldPooled returns held, a day's summary before, as made, the day
-// summarised afresh, is to know it: where held is of a version before pools,
-// all its work in none, while made names a pool, its work in none the first
-// pool's, as firstPool names it, as the move to pools gave it, so the pools
-// made knows don't add up past its whole; else as it is.
-func (d days) heldPooled(made Summary, held *Summary) *Summary {
-	if held == nil || held.Version >= poolsVersion || d.firstPool == nil || held.pooled() || !made.pooled() {
-		return held
+// fitted returns made, a day summarised afresh, and held, its summary
+// before, as made is to know held, so each account's pools add up to its
+// whole once it does, as fittedAccount fits each account's day.
+func (d days) fitted(made Summary, held *Summary) (Summary, *Summary) {
+	if held == nil {
+		return made, nil
 	}
-	first := d.firstPool()
-	if first == "" {
-		return held
+	fit := *held
+	fit.Accounts = slices.Clone(held.Accounts)
+	made.Accounts = slices.Clone(made.Accounts)
+	first := sync.OnceValue(func() string {
+		if d.firstPool == nil {
+			return ""
+		}
+		return d.firstPool()
+	})
+	for i, h := range fit.Accounts {
+		j := slices.IndexFunc(made.Accounts, func(a AccountDay) bool { return a.Account == h.Account })
+		if j >= 0 {
+			made.Accounts[j], fit.Accounts[i] = fittedAccount(made.Accounts[j], h, held.Version < poolsVersion, first)
+		}
 	}
-	pooled := held.unpooledIn(first)
-	return &pooled
+	return made, &fit
 }
 
-// pooled reports whether any of the day's work names a pool.
-func (s Summary) pooled() bool {
-	return slices.ContainsFunc(s.Accounts, func(a AccountDay) bool {
-		return slices.ContainsFunc(a.poolDays(), func(p PoolDay) bool { return p.Pool != "" })
+// fittedAccount returns made, an account's day summarised afresh, and held,
+// its day before, as made is to know held, so its pools add up to its whole:
+//   - held of a version before pools, unsplit, holds all its work in one
+//     pool whatever its lines named, as a downgrade to a release before pools
+//     summarises a day whose lines name pools: where made counts no less, as
+//     covers says, held is split as made is, so made's pools stand, knowing
+//     held's whole; else, some of held's lines lost since, which pool they
+//     were in can't be told, so made's work is in held's one pool, as all of
+//     held's is;
+//   - held of a later version that has work in none that made, whose lines
+//     give none, gives in the first pool, as first gives it, has its lines
+//     renamed into that pool since, as the move to pools renames them, its
+//     summary yet to follow: so held's work in none is the first pool's.
+func fittedAccount(made, held AccountDay, unsplit bool, first func() string) (AccountDay, AccountDay) {
+	switch {
+	case unsplit && made.Work.covers(held.Work):
+		held.Pool, held.Pools = made.Pool, made.Pools
+	case unsplit:
+		pool := held.Pool
+		if held.Pools != nil {
+			pool = ""
+		}
+		made.Pool, made.Pools = pool, nil
+		held.Pool, held.Pools = pool, nil
+	case held.worksIn("") && !made.worksIn("") && first() != "" && made.worksIn(first()):
+		held, _ = held.unpooledIn(first())
+	}
+	return made, held
+}
+
+// worksIn reports whether the account did any work in the pool with the
+// given id.
+func (a AccountDay) worksIn(pool string) bool {
+	return slices.ContainsFunc(a.poolDays(), func(p PoolDay) bool { return p.Pool == pool })
+}
+
+// covers reports whether w, work summarised afresh, counts no less than
+// held, the same work summarised before: each of held's models among its
+// own, counting as many or more of each, as countsNoLess says, and as many
+// sessions and moves or more; so its lines hold every one held's did, as far
+// as can be told.
+func (w Work) covers(held Work) bool {
+	if w.Sessions < held.Sessions || w.MovedOn < held.MovedOn || w.MovedOff < held.MovedOff {
+		return false
+	}
+	return !slices.ContainsFunc(held.Models, func(h ModelDay) bool {
+		i := slices.IndexFunc(w.Models, func(m ModelDay) bool { return m.key() == h.key() })
+		return i < 0 || !w.Models[i].countsNoLess(h)
 	})
+}
+
+// countsNoLess reports whether m counts as many of each kind of request as
+// held, the same model's day, or more, and as many sessions.
+func (m ModelDay) countsNoLess(held ModelDay) bool {
+	return m.Upstream >= held.Upstream && m.NoUsage >= held.NoUsage && m.Unsent >= held.Unsent &&
+		m.Checks >= held.Checks && m.Counts >= held.Counts && m.Sessions >= held.Sessions
 }
 
 // unpooledIn returns the day with each account's work in no pool in the pool

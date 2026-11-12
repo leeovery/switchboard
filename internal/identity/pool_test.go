@@ -19,42 +19,55 @@ import (
 // recordWithPools is an accounts record's file holding an account and its
 // pools, as written.
 const recordWithPools = `{
-  "version": 1,
+  "version": 2,
   "accounts": [
     {
       "id": "b6s7",
       "organization": "test-org-work",
-      "added": "2026-09-01T12:00:00Z"
+      "added": "2026-09-01T12:00:00Z",
+      "pool": "b2n8"
     }
   ],
   "pools": [
     {
       "id": "b2n8",
       "added": "2026-09-01T12:00:00Z",
-      "first": true
+      "first": true,
+      "here": true,
+      "written": {
+        "label": "Everything",
+        "primary": "b6s7"
+      }
     },
     {
       "id": "q7mt",
       "label": "Acme",
       "added": "2026-09-01T12:00:00Z",
-      "removed": "2026-10-20T07:45:00Z"
+      "removed": "2026-10-20T07:45:00Z",
+      "written": {
+        "label": "Acme",
+        "dirs": [
+          "~/Code/acme"
+        ]
+      }
     }
   ]
 }
 `
 
 // The record keeps its pools: each one's id, its label once removed, when
-// it was added and removed, in UTC to the second, and whether it's the
-// first; and it reads back as it was written.
+// it was added and removed, in UTC to the second, whether it's the first,
+// whether it's this Mac's, and how this Mac's config last wrote it; and each
+// account's pool; and it reads back as it was written, as version 2.
 func TestTheRecordsPoolsAreWrittenAndReadBack(t *testing.T) {
 	cet := time.FixedZone("CET", 60*60)
 	pools := []identity.PoolEntry{
-		{ID: "b2n8", Added: time.Date(2026, 9, 1, 13, 0, 0, 999, cet), First: true},
-		{ID: "q7mt", Label: "Acme", Added: added, Removed: removed},
+		{ID: "b2n8", Added: time.Date(2026, 9, 1, 13, 0, 0, 999, cet), First: true, Here: true, Written: identity.PoolWritten{Label: "Everything", Primary: "b6s7"}},
+		{ID: "q7mt", Label: "Acme", Added: added, Removed: removed, Written: identity.PoolWritten{Label: "Acme", Dirs: []string{"~/Code/acme"}}},
 	}
 	f := identity.NewFile(t.TempDir())
 	err := f.Update(func(r *identity.Record) error {
-		r.Accounts = []identity.Entry{{ID: "b6s7", Organization: "test-org-work", Added: added}}
+		r.Accounts = []identity.Entry{{ID: "b6s7", Organization: "test-org-work", Added: added, Pool: "b2n8"}}
 		r.Pools = pools
 		return nil
 	})
@@ -75,11 +88,12 @@ func TestTheRecordsPoolsAreWrittenAndReadBack(t *testing.T) {
 	}
 }
 
-// A record from before pools reads as it did, holding none, and is written
-// as it was, without pools.
-func TestARecordWithoutPoolsReadsAndIsWrittenAsBefore(t *testing.T) {
+// A record from before pools, of version 1, reads as it did, holding none,
+// and is written as version 2, without pools, so a release before pools
+// never writes over one it's written since.
+func TestARecordWithoutPoolsReadsAndIsWrittenAsVersionTwo(t *testing.T) {
 	f := identity.NewFile(t.TempDir())
-	writeFile(t, f, recordOfTwo, 0o600)
+	writeFile(t, f, strings.Replace(recordOfTwo, `"version": 2`, `"version": 1`, 1), 0o600)
 	got, err := f.Read()
 	if err != nil || got.Pools != nil || !slices.Equal(ids(got.Accounts), []string{"b6s7", "m2x7"}) {
 		t.Fatalf("Read() = %+v, %v; want its two accounts and no pools", got, err)
@@ -90,6 +104,33 @@ func TestARecordWithoutPoolsReadsAndIsWrittenAsBefore(t *testing.T) {
 	if want := strings.Replace(recordOfTwo, "test-org-work", "test-org-other", 1); readFile(t, f) != want {
 		t.Errorf("the record's file holds\n%s\nwant\n%s", readFile(t, f), want)
 	}
+}
+
+// A record of version 1 that keeps pools, as one written by a build of pools
+// before they were marked this Mac's, has each live and unlabelled one this
+// Mac's, as it kept them so; and a record of a version after this build's
+// is damaged, and left as it was.
+func TestARecordOfVersionOneMarksItsOwnPoolsAndOneLaterIsDamaged(t *testing.T) {
+	f := identity.NewFile(t.TempDir())
+	writeFile(t, f, `{"version": 1, "accounts": [], "pools": [`+
+		`{"id": "b2n8", "added": "2026-09-01T12:00:00Z", "first": true}, `+
+		`{"id": "h3ll", "label": "Home", "added": "2026-09-01T12:00:00Z"}, `+
+		`{"id": "q7mt", "label": "Acme", "added": "2026-09-01T12:00:00Z", "removed": "2026-10-20T07:45:00Z"}]}`, 0o600)
+	got, err := f.Read()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if here := []bool{got.Pools[0].Here, got.Pools[1].Here, got.Pools[2].Here}; !slices.Equal(here, []bool{true, false, false}) {
+		t.Errorf("the pools are this Mac's %v, want the live, unlabelled one alone", here)
+	}
+
+	later := identity.NewFile(t.TempDir())
+	data := `{"version": 3, "accounts": []}`
+	writeFile(t, later, data, 0o600)
+	if _, err := later.Read(); !errors.Is(err, identity.ErrDamaged) {
+		t.Errorf("Read() of version 3 = %v, want it damaged", err)
+	}
+	checkUnchanged(t, later, data)
 }
 
 // A record whose pools aren't ones switchboard keeps is damaged, and left as
@@ -247,10 +288,11 @@ func TestNewPoolIDFailsWhereItsDrawDoes(t *testing.T) {
 }
 
 // The record keeps up with the pools configured, ids found in any case: one
-// it lacks is added, but one whose id isn't one switchboard makes; one
-// removed, or kept as only another Mac configures it, is configured again;
-// and one that has left the config is marked removed, with the label it last
-// had there, else its id. A config from before pools, which has none, leaves
+// it lacks is added, this Mac's, but one whose id isn't one switchboard
+// makes; one removed, or kept as only another Mac configures it, is
+// configured again, this Mac's; and one of this Mac's that has left the
+// config is marked removed, this Mac's no longer, with the label it last had
+// there, else its id. A config from before pools, which has none, leaves
 // them as they are, as does one a heal is owed.
 func TestTheRecordKeepsUpWithThePoolsConfigured(t *testing.T) {
 	later := removed.Add(24 * time.Hour)
@@ -258,10 +300,10 @@ func TestTheRecordKeepsUpWithThePoolsConfigured(t *testing.T) {
 		return identity.Record{
 			Accounts: []identity.Entry{{ID: "b6s7", Added: added, Was: "work"}},
 			Pools: []identity.PoolEntry{
-				{ID: "b2n8", Added: added, First: true},
+				{ID: "b2n8", Added: added, First: true, Here: true},
 				{ID: "q7mt", Label: "Acme", Added: added, Removed: removed},
 				{ID: "m5r1", Label: "Side", Added: added},
-				{ID: "h4w2", Added: added},
+				{ID: "h4w2", Added: added, Here: true},
 			},
 		}
 	}
@@ -292,17 +334,17 @@ func TestTheRecordKeepsUpWithThePoolsConfigured(t *testing.T) {
 		{name: "in step", pools: pools("B2N8", "h4w2"), want: record().Pools},
 		{
 			name: "a pool the record lacks", pools: pools("b2n8", "h4w2", "n4p8"),
-			want: append(record().Pools, identity.PoolEntry{ID: "n4p8", Added: later}),
+			want: append(record().Pools, identity.PoolEntry{ID: "n4p8", Added: later, Here: true}),
 			kept: identity.PoolsKept{Added: []string{"n4p8"}},
 		},
 		{
 			name: "one removed, configured again", pools: pools("b2n8", "h4w2", "Q7MT"),
-			want: at(1, identity.PoolEntry{ID: "q7mt", Added: added}),
+			want: at(1, identity.PoolEntry{ID: "q7mt", Added: added, Here: true}),
 			kept: identity.PoolsKept{Returned: []string{"q7mt"}},
 		},
 		{
 			name: "one only another Mac configures, configured here", pools: pools("b2n8", "h4w2", "m5r1"),
-			want: at(2, identity.PoolEntry{ID: "m5r1", Added: added}),
+			want: at(2, identity.PoolEntry{ID: "m5r1", Added: added, Here: true}),
 			kept: identity.PoolsKept{Returned: []string{"m5r1"}},
 		},
 		{
@@ -340,26 +382,26 @@ func TestTheRecordKeepsUpWithThePoolsConfigured(t *testing.T) {
 	}
 }
 
-// The record keeps each pool configured as the config writes it, its label
-// and its directories, and each account configured in the pool the config
-// has it in, kept once either is removed; a removed pool whose label the
-// config's follower doesn't know is labelled as the record kept it written;
-// and a config from before pools, put back, leaves them all as they were,
-// for a heal to write back.
+// The record keeps each pool configured as the config writes it, its label,
+// its directories and the account it marks its primary, and each account
+// configured in the pool the config has it in, kept once either is removed;
+// a removed pool whose label the config's follower doesn't know is labelled
+// as the record kept it written; and a config from before pools, put back,
+// leaves them all as they were, for a heal to write back.
 func TestTheRecordKeepsHowThePoolsAreWrittenAndEachAccountsPool(t *testing.T) {
 	later := removed.Add(24 * time.Hour)
 	acme := config.Pool{ID: "q7mt", Label: "Acme", Dirs: []string{"/Users/test/Code/acme"}, WrittenDirs: []string{"~/Code/acme"}}
 	first := config.Pool{ID: "b2n8", Label: "b2n8"}
-	accounts := config.Accounts{{ID: "b6s7", Pool: "q7mt"}, {ID: "m2x7", Pool: "b2n8"}}
+	accounts := config.Accounts{{ID: "b6s7", Pool: "q7mt", Primary: true}, {ID: "m2x7", Pool: "b2n8"}}
 	r := identity.Record{
 		Accounts: []identity.Entry{{ID: "b6s7", Added: added}, {ID: "m2x7", Added: added}},
-		Pools:    []identity.PoolEntry{{ID: "b2n8", Added: added, First: true}},
+		Pools:    []identity.PoolEntry{{ID: "b2n8", Added: added, First: true, Here: true}},
 	}
 
 	r.KeepUp(identity.Followed{Accounts: accounts, Pools: config.Pools{first, acme}}, later)
 	written := []identity.PoolEntry{
-		{ID: "b2n8", Added: added, First: true},
-		{ID: "q7mt", Added: later, Written: identity.PoolWritten{Label: "Acme", Dirs: []string{"~/Code/acme"}}},
+		{ID: "b2n8", Added: added, First: true, Here: true},
+		{ID: "q7mt", Added: later, Here: true, Written: identity.PoolWritten{Label: "Acme", Dirs: []string{"~/Code/acme"}, Primary: "b6s7"}},
 	}
 	if !slices.EqualFunc(r.Pools, written, identity.PoolEntry.Equal) {
 		t.Errorf("the record's pools are\n%+v\nwant each as the config writes it\n%+v", r.Pools, written)
@@ -375,7 +417,7 @@ func TestTheRecordKeepsHowThePoolsAreWrittenAndEachAccountsPool(t *testing.T) {
 
 	r.KeepUp(identity.Followed{Accounts: accounts[1:], Pools: config.Pools{first}}, later)
 	gone := written[1]
-	gone.Label, gone.Removed = "Acme", later
+	gone.Label, gone.Removed, gone.Here = "Acme", later, false
 	if !slices.EqualFunc(r.Pools, []identity.PoolEntry{written[0], gone}, identity.PoolEntry.Equal) {
 		t.Errorf("Acme left the config, the record's pools are %+v, want it removed, labelled as the record kept it written, its directories kept", r.Pools)
 	}

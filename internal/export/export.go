@@ -12,6 +12,7 @@ package export
 
 import (
 	"bytes"
+	"cmp"
 	"errors"
 	"fmt"
 	"io"
@@ -257,13 +258,18 @@ func (x *exporting) record(state, folder string, configured config.Accounts, poo
 	return true, nil
 }
 
-// labelled is record with each account configured marked so, as Entry's
-// Configured says, and labelled as configured labels it, where it does; and
-// each pool pools has marked so, as PoolEntry's Configured says, and
-// labelled as pools label it.
+// labelled is record as an export's copy holds it: each account configured
+// marked so, as Entry's Configured says, and labelled as configured labels
+// it, where it does; each pool pools has, or the record has as this Mac's,
+// as PoolEntry's Here says, marked so, as PoolEntry's Configured says, and
+// labelled as pools label it, else as this Mac's config last wrote it, else
+// by its id; and none of what this Mac's config alone makes of them, the
+// pool each account is in, nor how it writes a pool, which another Mac takes
+// none of.
 func labelled(record identity.Record, configured config.Accounts, pools config.Pools) identity.Record {
 	out := identity.Record{Accounts: slices.Clone(record.Accounts), Pools: slices.Clone(record.Pools)}
 	for i, e := range out.Accounts {
+		out.Accounts[i].Pool = ""
 		a, ok := configured.ByID(e.ID)
 		if !ok {
 			continue
@@ -274,8 +280,12 @@ func labelled(record identity.Record, configured config.Accounts, pools config.P
 		}
 	}
 	for i, p := range out.Pools {
-		if c, ok := pools.ByID(p.ID); ok {
+		out.Pools[i].Here, out.Pools[i].Written = false, identity.PoolWritten{}
+		switch c, ok := pools.ByID(p.ID); {
+		case ok:
 			out.Pools[i].Configured, out.Pools[i].Label = true, c.Label
+		case p.Here && p.Removed.IsZero():
+			out.Pools[i].Configured, out.Pools[i].Label = true, cmp.Or(p.Written.Label, p.ID)
 		}
 	}
 	return out

@@ -490,8 +490,10 @@ func differences(want, got map[string]string) string {
 // account, as "requests.from" and "events.accounts[]"; the readings' use, in
 // thousandths, by account; and each day's requests upstream, input tokens,
 // and each window's highest use and rise, in thousandths, by account, as its
-// summary has them. A day whose compressed file isn't gzip at all holds no
-// lines to count.
+// summary has them, and its requests upstream added up over the pools it
+// names, each pool's as InPool gives it, so a day whose pools don't add up to
+// its whole tallies other than its whole. A day whose compressed file isn't
+// gzip at all holds no lines to count.
 func (f fixture) tallies(t *testing.T) map[string]int {
 	t.Helper()
 	counts := make(map[string]int)
@@ -554,9 +556,27 @@ func (f fixture) tallies(t *testing.T) map[string]int {
 			for window, rise := range a.Rise {
 				counts["summary.rise."+window+"|"+date+"|"+a.Account] += int(math.Round(rise * 1000))
 			}
+			for _, pool := range poolsOf(a) {
+				for _, m := range a.InPool(pool).Models {
+					counts["summary.pools|"+date+"|"+a.Account] += m.Upstream + m.Unsent
+				}
+			}
 		}
 	}
 	return counts
+}
+
+// poolsOf are the pools an account's day has work in: each its Pools list,
+// else its one Pool, "" where it names none.
+func poolsOf(a ledger.AccountDay) []string {
+	if a.Pools == nil {
+		return []string{a.Pool}
+	}
+	pools := make([]string, len(a.Pools))
+	for i, p := range a.Pools {
+		pools[i] = p.Pool
+	}
+	return pools
 }
 
 // lineCount counts the lines of the readings history and the request ledger,

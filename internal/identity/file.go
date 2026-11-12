@@ -20,8 +20,13 @@ const (
 	// lockName is the name of the file in the state directory a change to the
 	// accounts record holds its lock on.
 	lockName = "accounts.lock"
-	// version is the version of the accounts record's format.
-	version = 1
+	// version is the version of the accounts record's format, 2 since pools,
+	// which every record is written as, so a release before pools, which
+	// reads version 1 alone, never writes over one, dropping its pools.
+	version = 2
+	// versionBeforePools is the version of a record written before pools,
+	// which reads still.
+	versionBeforePools = 1
 )
 
 // ErrDamaged is what reading an accounts record this build can't read fails
@@ -210,14 +215,22 @@ type recordFile struct {
 }
 
 // decode returns the accounts record data holds, failing, saying why, where
-// it's none this build can read.
+// it's none this build can read: one of version 1 reads as written, each
+// pool it keeps live and unlabelled, as one written before pools were marked
+// so kept them, this Mac's, as PoolEntry's Here says.
 func decode(data []byte) (Record, error) {
 	var file recordFile
 	if err := json.Unmarshal(data, &file); err != nil {
 		return Record{}, err
 	}
-	if file.Version != version {
-		return Record{}, fmt.Errorf("version %d, where %d is known", file.Version, version)
+	switch file.Version {
+	case version:
+	case versionBeforePools:
+		for i, p := range file.Pools {
+			file.Pools[i].Here = p.Removed.IsZero() && p.Label == ""
+		}
+	default:
+		return Record{}, fmt.Errorf("version %d, where %d at most is known", file.Version, version)
 	}
 	r := Record{Accounts: file.Accounts, Pools: file.Pools}
 	if err := r.check(); err != nil {

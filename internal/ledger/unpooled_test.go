@@ -2,6 +2,7 @@ package ledger_test
 
 import (
 	"encoding/json"
+	"maps"
 	"os"
 	"reflect"
 	"testing"
@@ -114,39 +115,85 @@ func TestAnAccountsDayOfNoWorkIsGivenNoPool(t *testing.T) {
 	}
 }
 
-// A day whose summary is of a version before pools, all its work in none,
-// while its lines name a pool, as a downgrade to a release before pools
-// leaves one, is the first pool's work as it's summarised again.
-func TestASummaryBeforePoolsOfADayWhoseLinesNameAPoolIsTheFirstPoolsSummarisedAgain(t *testing.T) {
+// upstreamByPool is the account's requests upstream in each pool it worked
+// in, by the pool's id.
+func upstreamByPool(a ledger.AccountDay) map[string]int {
+	pools := make(map[string]int)
+	for _, p := range a.Pools {
+		pools[p.Pool] = p.Models[0].Upstream
+	}
+	if a.Pools == nil && len(a.Models) > 0 {
+		pools[a.Pool] = a.Models[0].Upstream
+	}
+	return pools
+}
+
+// A day whose summary is of a version before pools, all its work in none
+// whatever its lines named, as a downgrade to a release before pools leaves
+// one, is split by pool as its lines are as it's summarised again, its pools
+// adding up to its whole: where they name the first pool, as the move gave
+// them, its work is the first pool's; where some named none, written while
+// downgraded, that work's in none. Where some of its lines were lost since,
+// which pool they were in can't be told, so the whole is in the summary's
+// one pool. The first pool is never asked for.
+func TestASummaryBeforePoolsIsSplitAsItsLinesAreAddingUpToItsWhole(t *testing.T) {
 	tests := []struct {
-		name string
-		pool string
-		// want is the pool work's day is in, summarised again, and asked
-		// whether the first pool was asked for.
-		want  string
-		asked bool
+		name  string
+		lines []ledger.Line
+		want  map[string]int
 	}{
-		{name: "its lines in the first pool", pool: first, want: first, asked: true},
-		{name: "its lines in no pool, as before pools", pool: "", want: ""},
+		{name: "its lines in the first pool", lines: []ledger.Line{inPool(asked("1", on(0, 9, 0)), first), inPool(asked("2", on(0, 10, 0)), first)}, want: map[string]int{first: 2}},
+		{name: "its lines in no pool, as before pools", lines: []ledger.Line{asked("1", on(0, 9, 0)), asked("2", on(0, 10, 0))}, want: map[string]int{"": 2}},
+		{name: "one in the first pool, one written while downgraded", lines: []ledger.Line{inPool(asked("1", on(0, 9, 0)), first), asked("2", on(0, 10, 0))}, want: map[string]int{first: 1, "": 1}},
+		{name: "one lost since", lines: []ledger.Line{inPool(asked("1", on(0, 9, 0)), first)}, want: map[string]int{"": 2}},
 	}
 	for _, tt := range tests {
 		for _, by := range []string{"the router", "a follower"} {
 			t.Run(tt.name+", by "+by, func(t *testing.T) {
 				state, dir, _ := stateDirs(t)
-				holdLines(t, dir, date, inPool(asked("1", on(0, 9, 0)), tt.pool), inPool(asked("2", on(0, 10, 0)), tt.pool))
+				holdLines(t, dir, date, tt.lines...)
 				writeFile(t, dir, "day-"+date+".json", []byte(ofVersion(summaryOf(date, 2, windowsRead{}, theTwo...), 6)+"\n"))
 				asked := false
 				firstPool := ledger.FirstPool(func() string { asked = true; return first })
 
 				work := againBy(t, by, state, dir, firstPool).Accounts[0]
-				if work.Pool != tt.want || work.Pools != nil || work.Models[0].Upstream != 2 {
-					t.Errorf("summarised again, work's day is %+v, want its two requests in %q alone", work, tt.want)
+				if got := upstreamByPool(work); work.Models[0].Upstream != 2 || !maps.Equal(got, tt.want) {
+					t.Errorf("summarised again, work's day is %+v, its requests upstream by pool %v; want 2 in all, %v", work, got, tt.want)
 				}
-				if asked != tt.asked {
-					t.Errorf("the first pool was asked for: %v, want %v: only of a day whose lines name a pool", asked, tt.asked)
+				if asked {
+					t.Error("the first pool was asked for, want it never asked of a summary before pools")
 				}
 			})
 		}
+	}
+}
+
+// A day whose lines the move to pools rewrote into the first pool, its
+// summary, naming its work in none, not yet renamed with them, as where the
+// move stopped between the two, is the first pool's work as it's summarised
+// again, never in none beside it: so a summary renamed after counts it
+// once.
+func TestASummaryWhoseLinesWereMovedBeforeItIsTheFirstPoolsSummarisedAgain(t *testing.T) {
+	for _, by := range []string{"the router", "a follower"} {
+		t.Run(by, func(t *testing.T) {
+			state, dir, _ := stateDirs(t)
+			holdLines(t, dir, date, inPool(asked("1", on(0, 9, 0)), first), inPool(asked("2", on(0, 10, 0)), first), inPool(asked("3", on(0, 11, 0)), first))
+			writeFile(t, dir, "day-"+date+".json", []byte(summaryOf(date, 2, windowsRead{}, theTwo...)+"\n"))
+
+			work := againBy(t, by, state, dir, ledger.FirstPool(func() string { return first })).Accounts[0]
+			if got := upstreamByPool(work); work.Models[0].Upstream != 3 || !maps.Equal(got, map[string]int{first: 3}) {
+				t.Errorf("summarised again, work's day is %+v, its requests upstream by pool %v; want its three in %q alone", work, got, first)
+			}
+			if by != "the router" {
+				return
+			}
+			if err := openedIn(dir, on(3, 10, 0)).RenameSummary(date, ledger.Renaming{Unpooled: first}); err != nil {
+				t.Fatal(err)
+			}
+			if got := upstreamByPool(summaryHeld(t, dir).Accounts[0]); !maps.Equal(got, map[string]int{first: 3}) {
+				t.Errorf("renamed after, work's requests upstream by pool are %v, want its three in %q, counted once", got, first)
+			}
+		})
 	}
 }
 

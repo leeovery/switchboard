@@ -36,27 +36,36 @@ type PoolEntry struct {
 	// Configured is set in the copy of a record an export writes alone, as
 	// an Entry's is.
 	Configured bool `json:"configured,omitzero"`
+	// Here is set while this Mac's config configures it, as KeepUp keeps it,
+	// and on the first pool from when the move to pools notes it: never on
+	// one only another Mac configures, nor in an export's copy. A heal writes
+	// back only these.
+	Here bool `json:"here,omitzero"`
 	// Written is the pool as this Mac's config last wrote it, kept in step
 	// by KeepUp, kept once it's removed: for a heal to write it back where a
 	// config from before pools is put back. Zero where this Mac never
-	// configured it, or its config wrote neither label nor directories.
+	// configured it, or its config wrote no label, directories nor primary;
+	// never in an export's copy.
 	Written PoolWritten `json:"written,omitzero"`
 }
 
 // PoolWritten is a pool as a config writes it: its label, "" where it gives
-// none, and its directories, as written, such as ~/Code/acme, none where
-// it's unfenced.
+// none; its directories, as written, such as ~/Code/acme, none where it's
+// unfenced; and the id of the account it marks its primary, "" where it
+// marks none, its first account standing as its primary.
 type PoolWritten struct {
-	Label string   `json:"label,omitempty"`
-	Dirs  []string `json:"dirs,omitempty"`
+	Label   string   `json:"label,omitempty"`
+	Dirs    []string `json:"dirs,omitempty"`
+	Primary string   `json:"primary,omitempty"`
 }
 
 // Equal reports whether the pool is other, field for field, its times the
 // same instants.
 func (p PoolEntry) Equal(other PoolEntry) bool {
 	return p.ID == other.ID && p.Label == other.Label && p.Added.Equal(other.Added) && p.Removed.Equal(other.Removed) &&
-		p.First == other.First && p.Configured == other.Configured &&
-		p.Written.Label == other.Written.Label && slices.Equal(p.Written.Dirs, other.Written.Dirs)
+		p.First == other.First && p.Configured == other.Configured && p.Here == other.Here &&
+		p.Written.Label == other.Written.Label && slices.Equal(p.Written.Dirs, other.Written.Dirs) &&
+		p.Written.Primary == other.Written.Primary
 }
 
 // PoolByID returns the pool with the given id, in any case, reporting false
