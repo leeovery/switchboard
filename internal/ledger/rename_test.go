@@ -233,8 +233,8 @@ func TestASummaryOfAnOlderVersionRenamedIsSummarisedAgainFromItsLines(t *testing
 			if err := json.Unmarshal(summaryIn(t, dir), &summary); err != nil {
 				t.Fatal(err)
 			}
-			if summary.Version != 6 || len(summary.Accounts) != 1 || summary.Accounts[0].Account != "wk7q" || summary.Accounts[0].Models[0].Hours == nil {
-				t.Errorf("a round after the rename left the summary %s, want it summarised again from its lines renamed, as version 6, its hours counted", summaryIn(t, dir))
+			if summary.Version != 7 || len(summary.Accounts) != 1 || summary.Accounts[0].Account != "wk7q" || summary.Accounts[0].Models[0].Hours == nil {
+				t.Errorf("a round after the rename left the summary %s, want it summarised again from its lines renamed, as version 7, its hours counted", summaryIn(t, dir))
 			}
 		})
 	}

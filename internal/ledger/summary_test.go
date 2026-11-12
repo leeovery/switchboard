@@ -177,7 +177,7 @@ func TestASummaryHoldsEachAccountsRequestsByModel(t *testing.T) {
 	// The hours count those that went upstream alone, none of the models'
 	// that sent none.
 	none, noHours := windowsRead{}.json(), hoursJSON()
-	want := `{"version":6,"day":"2026-10-05","lines":8,"accounts":[` +
+	want := `{"version":7,"day":"2026-10-05","lines":8,"accounts":[` +
 		`{"models":[{"upstream":0,"no_usage":0,"unsent":1,"checks":0,"counts":0,` + noHours + `,"sessions":1,"session_ids":["four"]},` +
 		`{"model":"claude-opus-5-5","upstream":0,"no_usage":0,"unsent":1,"checks":0,"counts":0,` + noHours + `,"sessions":1,"session_ids":["three"]}],` +
 		`"sessions":2,"session_ids":["four","three"],"moved_on":0,"moved_off":0` + none + `},` +
@@ -205,7 +205,7 @@ func TestASummaryKeepsApartAModelsRequestsThatAskedForAnotherInferenceGeo(t *tes
 		{At: on(0, 9, 1), Request: "5", Kind: ledger.KindMessage, Session: "one", Model: haiku, Account: "work", Reason: "sticky", Status: 200, Attempts: 1}}
 
 	got := string(summaryJSON(t, noReadings, lines...))
-	want := `{"version":6,"day":"2026-10-05","lines":5,"accounts":[{"account":"work","models":[` +
+	want := `{"version":7,"day":"2026-10-05","lines":5,"accounts":[{"account":"work","models":[` +
 		`{"model":"claude-haiku-4-5","upstream":1,"no_usage":1,"unsent":0,"checks":0,"counts":0,` + hoursJSON(on(0, 9, 1)) +
 		`,"sessions":1,"session_ids":["one"]},` +
 		`{"model":"claude-opus-5-5","upstream":1,"no_usage":0,"unsent":0,"checks":0,"counts":0,` + hoursJSON(on(0, 9, 0)) +
@@ -234,7 +234,7 @@ func TestASummarySumsAnAnswersIterationsByType(t *testing.T) {
 	}
 
 	got := string(summaryJSON(t, noReadings, lines...))
-	want := `{"version":6,"day":"2026-10-05","lines":2,"accounts":[{"account":"work","models":[{"model":"claude-opus-5-5","upstream":2,"no_usage":0,"unsent":0,"checks":0,` +
+	want := `{"version":7,"day":"2026-10-05","lines":2,"accounts":[{"account":"work","models":[{"model":"claude-opus-5-5","upstream":2,"no_usage":0,"unsent":0,"checks":0,` +
 		`"counts":0,` + hoursJSON(on(0, 9, 0), on(0, 9, 0)) + `,"sessions":1,"session_ids":["one"],` +
 		`"usage":{"input_tokens":40,"iterations":{"advisor_message":{"input_tokens":823,"output_tokens":1612},` +
 		`"message":{"input_tokens":40,"output_tokens":14}},"output_tokens":14}}],"sessions":1,"session_ids":["one"],"moved_on":0,"moved_off":0` +
@@ -267,7 +267,7 @@ func TestASummaryHoldsTheSessionsMovedOntoAndOffEachAccount(t *testing.T) {
 	}
 
 	got := summarised(t, noReadings, lines...)
-	want := ledger.Summary{Version: 6, Day: date, Lines: 5, Accounts: []ledger.AccountDay{
+	want := ledger.Summary{Version: 7, Day: date, Lines: 5, Accounts: []ledger.AccountDay{
 		unread(ledger.AccountDay{Account: "gone", MovedOff: 1}),
 		unread(ledger.AccountDay{Account: "personal", Models: onOpus(1, "three"), Sessions: 1, MovedOn: 1}, "three"),
 		unread(ledger.AccountDay{Account: "side", Models: onOpus(3, "one"), Sessions: 1, MovedOn: 1, MovedOff: 1}, "one"),
@@ -512,7 +512,7 @@ func TestASummaryHoldsEveryAccountTheReadingsTellOfRequestsOrNot(t *testing.T) {
 			if len(tt.want) > 0 {
 				accounts = `,"accounts":[` + strings.Join(tt.want, ",") + `]`
 			}
-			if want := fmt.Sprintf(`{"version":6,"day":"%s","lines":%d%s}`, date, len(tt.lines), accounts); got != want {
+			if want := fmt.Sprintf(`{"version":7,"day":"%s","lines":%d%s}`, date, len(tt.lines), accounts); got != want {
 				t.Errorf("the summary is\n%s\nwant\n%s", got, want)
 			}
 		})
@@ -607,17 +607,23 @@ func asked(request string, at time.Time) ledger.Line {
 // asked makes at the times given, made from as many lines as lines says, and
 // of work's windows as read gives them.
 func summaryOf(date string, lines int, read windowsRead, at ...time.Time) string {
-	return fmt.Sprintf(`{"version":6,"day":"%s","lines":%d,"accounts":[%s]}`, date, lines, workDayJSON(read, at...))
+	return fmt.Sprintf(`{"version":7,"day":"%s","lines":%d,"accounts":[%s]}`, date, lines, workDayJSON(read, at...))
 }
 
-// workDayJSON is work's day in a summary of version 6, as its JSON gives it,
-// of the requests asked makes at the times given, and of its windows as read
-// gives them.
+// workDayJSON is work's day in a summary of version 7, as its JSON gives it,
+// of the requests asked makes at the times given, naming no pool, and of its
+// windows as read gives them.
 func workDayJSON(read windowsRead, at ...time.Time) string {
+	return `{"account":"work",` + workJSON(at...) + read.json() + `}`
+}
+
+// workJSON is the work of the requests asked makes at the times given, in an
+// account's day in a summary, or one of its pools', as its JSON gives it.
+func workJSON(at ...time.Time) string {
 	requests := len(at)
-	return fmt.Sprintf(`{"account":"work","models":[{"model":"claude-opus-5-5","upstream":%d,"no_usage":0,"unsent":0,"checks":0,"counts":0,%s,"sessions":1,`+
-		`"session_ids":["one"],"usage":{"input_tokens":%d,"output_tokens":%d}}],"sessions":1,"session_ids":["one"],"moved_on":0,"moved_off":0%s}`,
-		requests, hoursJSON(at...), 10*requests, 20*requests, read.json())
+	return fmt.Sprintf(`"models":[{"model":"claude-opus-5-5","upstream":%d,"no_usage":0,"unsent":0,"checks":0,"counts":0,%s,"sessions":1,`+
+		`"session_ids":["one"],"usage":{"input_tokens":%d,"output_tokens":%d}}],"sessions":1,"session_ids":["one"],"moved_on":0,"moved_off":0`,
+		requests, hoursJSON(at...), 10*requests, 20*requests)
 }
 
 // hoursAt are a model's hours in a summary of requests upstream at the times
@@ -676,7 +682,7 @@ func resetJSON(key string, at time.Time, before float64) string {
 	return fmt.Sprintf(`{"window":"%s","at":"%s","before":%v}`, key, at.UTC().Format(time.RFC3339), before)
 }
 
-// unread is a, an account's day in a summary of version 6, as it's read
+// unread is a, an account's day in a summary of version 7, as it's read
 // back, its sessions those with the given ids, and nothing ever read of its
 // windows.
 func unread(a ledger.AccountDay, sessions ...string) ledger.AccountDay {
@@ -987,8 +993,8 @@ func TestASummaryMarkedAfreshAsItStandsKeepsEveryFieldItHolds(t *testing.T) {
 		t.Fatal(err)
 	}
 	sizes := dayBytes(t, dir, date)
-	marked := fmt.Sprintf(`{"version":6,"day":"%s","lines":2,"bytes":{"plain":%d,"compressed":%d},`, date, sizes.Plain, sizes.Compressed) +
-		strings.TrimPrefix(held, fmt.Sprintf(`{"version":6,"day":"%s","lines":2,`, date)) + "\n"
+	marked := fmt.Sprintf(`{"version":7,"day":"%s","lines":2,"bytes":{"plain":%d,"compressed":%d},`, date, sizes.Plain, sizes.Compressed) +
+		strings.TrimPrefix(held, fmt.Sprintf(`{"version":7,"day":"%s","lines":2,`, date)) + "\n"
 	if string(data) != marked {
 		t.Errorf("the day's summary is\n%s\nwant it as it was, marked with its day's files' sizes alone, every field it held kept\n%s", data, marked)
 	}
@@ -1197,7 +1203,7 @@ func TestADaySummarisedAgainCountsNoLessThanTheSummaryItReplacesWhereLinesWereLo
 			}
 			// Its files hold four lines now, of its six requests: Opus's three in
 			// the hours it held them in, as those sum to its three.
-			want := `{"version":6,"day":"2026-10-05","lines":6,"accounts":[{"account":"work","models":[` +
+			want := `{"version":7,"day":"2026-10-05","lines":6,"accounts":[{"account":"work","models":[` +
 				model(haiku, "two", on(0, 12, 0), on(0, 12, 1), on(0, 12, 2)) + `,` + model(opus, "one", on(0, 9, 0), on(0, 10, 0), on(0, 11, 0)) + `],` +
 				`"sessions":2,"session_ids":["one","two"],"moved_on":0,"moved_off":0` + windowsRead{}.json() + `}]}`
 			if got != want {
@@ -1316,7 +1322,7 @@ func TestADayOfNoLineThatReadsIsSummarisedOnceUntilALineComesThatDoes(t *testing
 		defer stop()
 
 		synctest.Wait()
-		if got, want := heldSummary(t, dir, torn), `{"version":6,"day":"2026-10-04","lines":1}`+"\n"; got != want {
+		if got, want := heldSummary(t, dir, torn), `{"version":7,"day":"2026-10-04","lines":1}`+"\n"; got != want {
 			t.Errorf("the day's summary is\n%s\nwant one of no requests, made from its one line\n%s", got, want)
 		}
 		time.Sleep(3 * time.Hour)
@@ -1549,7 +1555,7 @@ func TestADayOfNoRequestsIsWrittenFromWhatItsReadingsHoldWhereSomeNeverRead(t *t
 			tt.lay(t, history)
 
 			summariseAt(dir, history, on(1, 10, 0))
-			if got, want := strings.TrimSuffix(heldSummary(t, dir, date), "\n"), `{"version":6,"day":"2026-10-05","lines":0,"accounts":[`+
+			if got, want := strings.TrimSuffix(heldSummary(t, dir, date), "\n"), `{"version":7,"day":"2026-10-05","lines":0,"accounts":[`+
 				quietDayJSON("work", quietDayRead)+`]}`; got != want {
 				t.Errorf("the day's summary is\n%s\nwant\n%s, from what its readings hold: they'll read no better later", got, want)
 			}
@@ -1609,7 +1615,7 @@ func TestADayOfNoRequestsIsLeftForALaterRoundWhereItsReadingsCantBeReadForNow(t 
 			if tt.gone {
 				read.before = ""
 			}
-			if got, want := strings.TrimSuffix(heldSummary(t, dir, date), "\n"), `{"version":6,"day":"2026-10-05","lines":0,"accounts":[`+quietDayJSON("work", read)+`]}`; got != want {
+			if got, want := strings.TrimSuffix(heldSummary(t, dir, date), "\n"), `{"version":7,"day":"2026-10-05","lines":0,"accounts":[`+quietDayJSON("work", read)+`]}`; got != want {
 				t.Errorf("at the round after, the day's summary is\n%s\nwant\n%s", got, want)
 			}
 		})
@@ -1788,7 +1794,7 @@ func TestADayOfNoRequestsLeftForALaterRoundIsWrittenFromWhatCanBeReadADayOn(t *t
 	l.SummariseEnded(on(2, 10, 0))
 	// The week before's reading of work's session, reset before the day,
 	// tells of no account's day.
-	if got, want := strings.TrimSuffix(heldSummary(t, dir, date), "\n"), `{"version":6,"day":"2026-10-05","lines":0}`; got != want {
+	if got, want := strings.TrimSuffix(heldSummary(t, dir, date), "\n"), `{"version":7,"day":"2026-10-05","lines":0}`; got != want {
 		t.Errorf("a day on, the day's summary is\n%s\nwant it written from what could be read, none of the day's own readings\n%s", got, want)
 	}
 	if !log.Has("level=WARN", `msg="summarised a day of the request ledger from what of its readings could be read; the rest couldn't be for a day"`,
@@ -1857,13 +1863,13 @@ func TestARoundSummarisesADayOfNoRequestsTheReadingsHistoryTellsOf(t *testing.T)
 		{
 			name: "an account read in it", first: "2026-10-04", at: on(1, 10, 0),
 			read: []readings.Reading{historyBegan, workRead(on(0, 10, 0), "5h", 0.3, on(0, 13, 0), quota.StatusAllowed)},
-			want: `{"version":6,"day":"2026-10-05","lines":0,"accounts":[` + quietDayJSON("work", read) + `]}`,
+			want: `{"version":7,"day":"2026-10-05","lines":0,"accounts":[` + quietDayJSON("work", read) + `]}`,
 		},
 		{
 			name:  "an account's week reset in it by its last reading's reset, nothing read in it, as when the router was stopped",
 			first: "2026-10-04", at: on(2, 10, 0),
 			read: []readings.Reading{historyBegan, workRead(on(-1, 12, 0), "7d", 0.64, on(0, 10, 0), quota.StatusAllowed)},
-			want: `{"version":6,"day":"2026-10-05","lines":0,"accounts":[` + quietDayJSON("work", reset) + `]}`,
+			want: `{"version":7,"day":"2026-10-05","lines":0,"accounts":[` + quietDayJSON("work", reset) + `]}`,
 		},
 		{
 			name: "none before the first day the ledger holds, as nothing before it is in it", first: "2026-10-06", at: on(2, 10, 0),
@@ -1931,7 +1937,7 @@ func TestTheFirstDaysOfNoRequestsAfterTheHistoryBeganAreSummarisedOfNoReadings(t
 		if by == "a follower" {
 			days = followerOf(state, &testClock{at: on(5, 12, 0)}, caps).Days
 		}
-		if got := summariesJSON(t, days(on(-4, 0, 0))[:1])[0]; got != `{"version":6,"day":"2026-10-01","lines":0}` {
+		if got := summariesJSON(t, days(on(-4, 0, 0))[:1])[0]; got != `{"version":7,"day":"2026-10-01","lines":0}` {
 			t.Errorf("by %s, the history's first day is\n%s\nwant one of no accounts, its limit, reached before the history began, never read as reached that day", by, got)
 		}
 	}

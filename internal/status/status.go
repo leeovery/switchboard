@@ -232,6 +232,9 @@ type Event struct {
 	// Accounts are the accounts the global pin names, in the order
 	// configured, as it's set or cleared.
 	Accounts []string `json:"accounts,omitempty"`
+	// Pool is the id of the pool whose pin it is, of a pin's or an auto's
+	// event: none of one that names none, as none did before pools.
+	Pool string `json:"pool,omitempty"`
 	// Session and Model are the session that started or moved, and the model
 	// whose requests did; Session is the one whose own pin was set or
 	// cleared, too.
@@ -299,7 +302,7 @@ type Event struct {
 // same instants: a version of an event the router tells again unchanged is
 // the same, so what's built of the one stands for the other.
 func (e Event) Same(o Event) bool {
-	return e.ID == o.ID && e.At.Equal(o.At) && e.Kind == o.Kind && e.Account == o.Account && slices.Equal(e.Accounts, o.Accounts) &&
+	return e.ID == o.ID && e.At.Equal(o.At) && e.Kind == o.Kind && e.Account == o.Account && slices.Equal(e.Accounts, o.Accounts) && e.Pool == o.Pool &&
 		e.Session == o.Session && e.Model == o.Model && e.From == o.From && e.To == o.To && e.Reason == o.Reason && e.Held == o.Held &&
 		slices.Equal(e.Windows, o.Windows) && maps.EqualFunc(e.Joined, o.Joined, time.Time.Equal) && e.Until.Equal(o.Until) &&
 		e.Since.Equal(o.Since) && e.Count == o.Count && e.Limit == o.Limit && e.ForcedBy == o.ForcedBy && e.Reserve == o.Reserve &&

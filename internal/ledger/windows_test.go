@@ -578,7 +578,7 @@ func TestAnAccountKeptFromASummaryOfVersionOneIsKeptAsItWasNeverRead(t *testing.
 		`"usage":{"input_tokens":10,"output_tokens":20}}],"sessions":1,"moved_on":0,"moved_off":0,"highest":{"5h":0.4}}`
 	work := strings.TrimSuffix(strings.TrimPrefix(versionOne(date, 2, 2, ""), `{"version":1,"day":"2026-10-05","lines":2,"accounts":[`), "]}")
 	held := `{"version":1,"day":"2026-10-05","lines":3,"accounts":[` + side + `,` + work + `]}`
-	want := `{"version":6,"day":"2026-10-05","lines":4,"accounts":[` + side + `,` + workDayJSON(windowsRead{}, on(0, 9, 0), on(0, 10, 0), on(0, 23, 59)) + `]}`
+	want := `{"version":7,"day":"2026-10-05","lines":4,"accounts":[` + side + `,` + workDayJSON(windowsRead{}, on(0, 9, 0), on(0, 10, 0), on(0, 23, 59)) + `]}`
 	for _, by := range []string{"the router", "a reader"} {
 		t.Run("by "+by, func(t *testing.T) {
 			state, dir, _ := stateDirs(t)
@@ -586,7 +586,7 @@ func TestAnAccountKeptFromASummaryOfVersionOneIsKeptAsItWasNeverRead(t *testing.
 			holdLines(t, dir, date, asked("1", on(0, 9, 0)), asked("2", on(0, 10, 0)), asked("3", on(0, 23, 59)))
 
 			if got := summaryAgain(t, by, state, dir, on(1, 11, 0), nil); got != want {
-				t.Errorf("the day's summary is\n%s\nwant one of version 6, side's day kept as version 1 gave it, what it never read absent\n%s", got, want)
+				t.Errorf("the day's summary is\n%s\nwant one of version 7, side's day kept as version 1 gave it, what it never read absent\n%s", got, want)
 			}
 		})
 	}

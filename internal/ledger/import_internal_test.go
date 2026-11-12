@@ -66,7 +66,7 @@ func staged(t *testing.T) StagedDay {
 		t.Fatal(err)
 	}
 	day := StagedDay{Date: date, Lines: filepath.Join(dir, "requests-"+date+".jsonl.gz"), Summary: SummaryFile(dir, date)}
-	for path, data := range map[string][]byte{day.Lines: lines.Bytes(), day.Summary: []byte(`{"version":6,"day":"` + date + `","lines":1}` + "\n")} {
+	for path, data := range map[string][]byte{day.Lines: lines.Bytes(), day.Summary: []byte(`{"version":7,"day":"` + date + `","lines":1}` + "\n")} {
 		if err := os.WriteFile(path, data, 0o600); err != nil {
 			t.Fatal(err)
 		}
@@ -212,11 +212,11 @@ func TestASummaryGivesWayWhereItsNoneOrOfTheReadingsAloneAndTheOneStagedCountsAL
 	}{
 		{name: "none", staged: 2, want: true},
 		{name: "none, against one staged of the readings alone", want: true},
-		{name: "one of the readings alone", summary: `{"version":6,"day":"` + date + `","lines":0}` + "\n", staged: 2, want: true},
-		{name: "one of the readings alone, against another", summary: `{"version":6,"day":"` + date + `","lines":0}` + "\n"},
-		{name: "one counting a line", summary: `{"version":6,"day":"` + date + `","lines":3}` + "\n", staged: 5},
-		{name: "one cut short, which may have counted some", summary: `{"version":6,"day":"` + date + `","li`, staged: 2},
-		{name: "one of another day", summary: `{"version":6,"day":"2026-09-17","lines":0}` + "\n", staged: 2},
+		{name: "one of the readings alone", summary: `{"version":7,"day":"` + date + `","lines":0}` + "\n", staged: 2, want: true},
+		{name: "one of the readings alone, against another", summary: `{"version":7,"day":"` + date + `","lines":0}` + "\n"},
+		{name: "one counting a line", summary: `{"version":7,"day":"` + date + `","lines":3}` + "\n", staged: 5},
+		{name: "one cut short, which may have counted some", summary: `{"version":7,"day":"` + date + `","li`, staged: 2},
+		{name: "one of another day", summary: `{"version":7,"day":"2026-09-17","lines":0}` + "\n", staged: 2},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -244,7 +244,7 @@ func stagedSummaryAlone(t *testing.T, lines int, stamp time.Time) StagedDay {
 	t.Helper()
 	date := dayfile.DateOf(importedOn.AddDate(0, 0, -10))
 	day := StagedDay{Date: date, Summary: SummaryFile(t.TempDir(), date)}
-	if err := os.WriteFile(day.Summary, []byte(`{"version":6,"day":"`+date+`","lines":`+strconv.Itoa(lines)+`}`+"\n"), 0o600); err != nil {
+	if err := os.WriteFile(day.Summary, []byte(`{"version":7,"day":"`+date+`","lines":`+strconv.Itoa(lines)+`}`+"\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.Chtimes(day.Summary, stamp, stamp); err != nil {
@@ -284,7 +284,7 @@ func TestASummaryStagedAloneOfADayTheLedgerHoldsLinesOfIsntCopiedIn(t *testing.T
 		held string
 	}{
 		{name: "of no summary"},
-		{name: "of a summary counting no line", held: `{"version":6,"day":"` + date + `","lines":0}` + "\n"},
+		{name: "of a summary counting no line", held: `{"version":7,"day":"` + date + `","lines":0}` + "\n"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

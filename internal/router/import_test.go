@@ -191,13 +191,13 @@ func stageManifest(t *testing.T, folder string, m export.Manifest) {
 // writes one, of the lines given, marked with a compressed file of the size
 // given.
 func summaryOf(date string, lines int, compressed int) string {
-	return fmt.Sprintf(`{"version":6,"day":%q,"lines":%d,"bytes":{"plain":0,"compressed":%d},"accounts":[]}`+"\n", date, lines, compressed)
+	return fmt.Sprintf(`{"version":7,"day":%q,"lines":%d,"bytes":{"plain":0,"compressed":%d},"accounts":[]}`+"\n", date, lines, compressed)
 }
 
 // stamped is a summary's stamp, as the router stamps one of its version of a
 // day whose compressed file was last modified at modified.
 func stamped(modified time.Time) time.Time {
-	return modified.Add(5 * time.Second)
+	return modified.Add(6 * time.Second)
 }
 
 // held returns the lines files hold of the local day with the given date,

@@ -427,9 +427,11 @@ func (d *liveDay) read(logger *slog.Logger) bool {
 func (d *liveDay) naming(wanted map[string]bool) map[string]bool {
 	named := make(map[string]bool)
 	for _, a := range d.tally {
-		for id := range a.sessions {
-			if wanted[id] {
-				named[id] = true
+		for _, w := range a.pools {
+			for id := range w.sessions {
+				if wanted[id] {
+					named[id] = true
+				}
 			}
 		}
 	}

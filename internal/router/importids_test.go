@@ -119,7 +119,7 @@ func TestThisMacsFolderExportedBeforeTheMoveIsTakenInUnderTheNewIDs(t *testing.T
 		put(t, kind.files(cfg.StateDir).CompressedPath(date), gzipOf(t, asMoved(kind.linesOf(date, 1))...), now)
 		stageLines(t, folder(cfg, 1), kind, date, kind.linesOf(date, 1, 2)...)
 	}
-	summary := `{"version":6,"day":"` + pastKeep + `","lines":1,"bytes":{"plain":0,"compressed":0},"accounts":[{"account":"work"}]}` + "\n"
+	summary := `{"version":7,"day":"` + pastKeep + `","lines":1,"bytes":{"plain":0,"compressed":0},"accounts":[{"account":"work"}]}` + "\n"
 	put(t, ledger.SummaryFile(ledger.Dir(folder(cfg, 1)), pastKeep), []byte(summary), stamped(stagedOn))
 
 	want := router.Imported{Folders: 1, Days: router.ImportedDays{Merged: 1}, Lines: 3, Summaries: 1}

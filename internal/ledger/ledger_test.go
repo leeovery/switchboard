@@ -99,6 +99,13 @@ func TestALineIsWrittenAsJSON(t *testing.T) {
 				`"reason":"sticky","status":200,"attempts":1,"first_ms":0,"total_ms":140,"shape":{"bytes":1200,"messages":3,"system":0,"tools":0}}`,
 		},
 		{
+			name: "a request routed in a pool",
+			line: ledger.Line{At: arrived, Request: "3f2a91cb", Kind: ledger.KindMessage, Session: "one", Model: "claude-opus-5-5", Pool: "q7mt",
+				Account: "work", Reason: "sticky", Status: 200, Attempts: 1, FirstMS: ms(300), TotalMS: 2000},
+			want: `{"at":"2026-10-06T13:12:00.123Z","request":"3f2a91cb","kind":"message","session":"one","model":"claude-opus-5-5","pool":"q7mt",` +
+				`"account":"work","reason":"sticky","status":200,"attempts":1,"first_ms":300,"total_ms":2000}`,
+		},
+		{
 			name: "a request the router answered itself, of no session, its client saying nothing of itself",
 			line: ledger.Line{At: arrived, Request: "3f2a91c5", Kind: ledger.KindMessage, Reason: "no account has room", Status: 429, TotalMS: 3},
 			want: `{"at":"2026-10-06T13:12:00.123Z","request":"3f2a91c5","kind":"message","reason":"no account has room","status":429,"attempts":0,"total_ms":3}`,
