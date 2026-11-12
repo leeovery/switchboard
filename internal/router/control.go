@@ -63,6 +63,11 @@ type Health struct {
 	// Pools are the pools the router routes for now, as the config it follows
 	// makes them, in its order: none in a config from before pools.
 	Pools []RoutedPool `json:"pools,omitempty"`
+	// Moving is how the router's move of the accounts and their history
+	// stands, as its status document gives it, given here too as it's no
+	// pool's: zero where none is owed, and from a router that doesn't say
+	// ReportsPools.
+	Moving status.Moving `json:"moving,omitzero"`
 }
 
 // Same reports whether h and o are the answers of one router: the same
@@ -333,7 +338,7 @@ func (r *Router) healthNow() Health {
 	h := r.health.report()
 	return Health{
 		OK: h.Healthy, Reason: h.Reason, Listen: r.proxyAddr, Version: r.cfg.Version, PID: os.Getpid(), StartedAt: r.started,
-		StripsOwnHeaders: true, ReportsPools: true, Pools: r.state.pools.current().reported(r.accounts),
+		StripsOwnHeaders: true, ReportsPools: true, Pools: r.state.pools.current().reported(r.accounts), Moving: r.moving.report(),
 	}
 }
 

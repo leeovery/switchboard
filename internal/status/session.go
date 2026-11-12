@@ -170,6 +170,12 @@ type Session struct {
 	Account Account `json:"account,omitzero"`
 }
 
+// SeenLastFirst orders sessions as the router lists them: the one whose
+// model used last was seen last first, then by id.
+func SeenLastFirst(a, b Session) int {
+	return cmp.Or(b.Assignments[0].LastSeen.Compare(a.Assignments[0].LastSeen), cmp.Compare(a.ID, b.ID))
+}
+
 // Assignment is the account a session's requests of one model go to, and why.
 type Assignment struct {
 	Model string `json:"model"`

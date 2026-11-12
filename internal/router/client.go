@@ -12,6 +12,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"syscall"
 	"time"
@@ -145,11 +146,61 @@ func (c *Client) Status(ctx context.Context) (status.Document, error) {
 }
 
 // Moving asks how the router's move of the accounts and their history onto
-// the ids switchboard makes stands, as its status document says: zero where
-// it owes none.
+// the ids switchboard makes stands, as its health answer says, which is no
+// pool's, or, from a router from before pools, its status document: zero
+// where it owes none.
 func (c *Client) Moving(ctx context.Context) (status.Moving, error) {
-	doc, err := c.Status(ctx)
+	h, err := c.Health(ctx)
+	if err != nil || h.ReportsPools {
+		return h.Moving, err
+	}
+	doc, err := c.InPool("").Status(ctx)
 	return doc.Moving, err
+}
+
+// SessionsInEveryPool asks which sessions the router has routed in the last
+// hour, in every pool its health answer reports, the one seen last first, as
+// Sessions asks of each: those of the one pool there is, where it reports
+// none, as a router from before pools.
+func (c *Client) SessionsInEveryPool(ctx context.Context) ([]status.Session, error) {
+	listed, err := inEveryPool(ctx, c, (*Client).Sessions)
+	if err != nil {
+		return nil, err
+	}
+	all := slices.Concat(listed...)
+	slices.SortFunc(all, status.SeenLastFirst)
+	return all, nil
+}
+
+// StatusInEveryPool asks for the status document of every pool the router's
+// health answer reports, in their order, as Status asks for each: the one
+// there is, where it reports none, as a router from before pools.
+func (c *Client) StatusInEveryPool(ctx context.Context) ([]status.Document, error) {
+	return inEveryPool(ctx, c, (*Client).Status)
+}
+
+// inEveryPool asks read of c in every pool the router's health answer
+// reports, in their order, and returns what each answered: once, naming none,
+// where it reports none.
+func inEveryPool[T any](ctx context.Context, c *Client, read func(*Client, context.Context) (T, error)) ([]T, error) {
+	h, err := c.Health(ctx)
+	if err != nil {
+		return nil, err
+	}
+	pools := []string{""}
+	if len(h.Pools) > 0 {
+		pools = pools[:0]
+		for _, p := range h.Pools {
+			pools = append(pools, p.ID)
+		}
+	}
+	answers := make([]T, len(pools))
+	for i, pool := range pools {
+		if answers[i], err = read(c.InPool(pool), ctx); err != nil {
+			return nil, err
+		}
+	}
+	return answers, nil
 }
 
 // Sessions asks which sessions the router has routed in the last hour, in

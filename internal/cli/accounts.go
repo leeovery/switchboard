@@ -22,7 +22,6 @@ import (
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/redact"
 	"github.com/leeovery/switchboard/internal/setup"
-	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/tokens"
 )
 
@@ -721,22 +720,28 @@ func warnUnchecked(w io.Writer, unchecked error) {
 }
 
 // foreignTokens reports, of an account by its id, whether the router found
-// its token another subscription's, as its status document's moment judges
-// it, asked once, as statusDocument asks it: of none where the router doesn't
-// give it, so the token files alone tell then.
+// its token another subscription's, as the moment of its pool's status
+// document judges it, every pool's asked once, as statusDocument asks for
+// one: of none where the router doesn't give them, so the token files alone
+// tell then.
 func (a *app) foreignTokens(ctx context.Context) func(id string) bool {
 	source := a.routerSource()
 	source.patience = launch.Patience{Answer: cmp.Or(a.Patience.Answer, launch.AskTimeout)}
-	doc, _, err := source.Read(ctx, status.Read{})
+	docs, err := source.everyPool(ctx)
 	if err != nil {
-		logger.Debug("can't read the router's document; telling each token by its file alone", "error", err)
+		logger.Debug("can't read the router's documents; telling each token by its file alone", "error", err)
 		return func(string) bool { return false }
 	}
-	m := doc.At(a.Now(), claude.Policy())
-	return func(id string) bool {
-		acct, ok := m.Account(id)
-		return ok && acct.TokenForeign
+	foreign := make(map[string]bool)
+	for _, doc := range docs {
+		m := doc.At(a.Now(), claude.Policy())
+		for _, acct := range doc.Accounts {
+			if now, ok := m.Account(acct.ID); ok && now.TokenForeign {
+				foreign[acct.ID] = true
+			}
+		}
 	}
+	return func(id string) bool { return foreign[id] }
 }
 
 func accountRows(configured config.Accounts, readToken func(id string) (tokens.Token, error), foreign func(id string) bool) [][]string {

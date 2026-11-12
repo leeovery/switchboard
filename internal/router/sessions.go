@@ -395,9 +395,7 @@ func (s *sessions) running(now time.Time, in func(pool string) bool) []status.Se
 			listed = append(listed, s.report(id, entries, now))
 		}
 	}
-	slices.SortFunc(listed, func(a, b status.Session) int {
-		return cmp.Or(b.Assignments[0].LastSeen.Compare(a.Assignments[0].LastSeen), cmp.Compare(a.ID, b.ID))
-	})
+	slices.SortFunc(listed, status.SeenLastFirst)
 	return listed
 }
 
