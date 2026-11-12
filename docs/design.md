@@ -4874,8 +4874,9 @@ request ledger).
 - **The labels:** on a lane's row, the account's name and marks, cut with `…` only where the
   column is at its most, the marks kept (see `usage`, the printout); on the row under
   it, from column 2, `week ` in `text.subtle`, and the account's use of its week, `66%`, bold in
-  its level's colour, as `usage` colours it: red from 90%, yellow from 70%, else green. Where there's no use, the words are always `usage`'s short forms, as the column is never
-  widened for the full: `read 14:20` where its last read failed, `not read` before its first, and
+  its level's colour, as `usage` colours it: red from 90%, yellow from 70%, else green. Where
+  there's no use, the words are always `usage`'s short forms, as the column is never widened for
+  the full: `read 14:20` where its last read failed, `not read` before its first, and
   `no token`, or `wrong token` where the token it holds is another subscription's.
 - **The axis:** on row 6, `now`, bold `text.primary`, starting a cell left of now's column; on row
   7, the labels; on row 8, the ticks, on a rule of `─` in `border`: each midnight ticked `┬`, its

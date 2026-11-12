@@ -92,14 +92,14 @@ func TestEachTapePlaysItsScenarioAsItsCuesAreTimedFor(t *testing.T) {
 				{at: 0, says: []string{"5 sessions  ·  new sessions → ▲ work", "~16:05     work reaches its cap", "◔ work came under pressure"}},
 				{at: 6.2, says: []string{"Requests"}, tab: "Log"},
 				{at: 11.2, says: []string{"WEEK", "work"}, not: []string{"RUNWAY", "5-HOUR"}, tab: "Graphs"},
-				{at: 15.5, says: []string{"RUNWAY", "work ◆ ▲", "week ", "COMING UP", "LATELY"}, not: []string{"Σ pool", "< week >"}},
+				{at: 15.5, says: []string{"RUNWAY", "work   ◆ ▲", "week ", "COMING UP", "LATELY"}, not: []string{"Σ pool", "< week >"}},
 			},
 		},
 		{
 			tape: "repatch", scenario: "repatch", theme: "tokyo-night", size: wide(37),
 			keys: []press{{0, repeated(tabKey, 3)}},
 			shows: []shows{
-				{at: 2, says: []string{"SESSIONS    Switchboard", "personal ◆    ● under pressure"}},
+				{at: 2, says: []string{"SESSIONS    Switchboard", "personal   ◆  ● under pressure"}},
 				{at: 15.5, says: []string{"■ limit reached · back 16:30", "100%  limit · back 16:30"}, not: []string{"╌"}},
 				{at: 20.5, says: []string{"╌╌○ personal"}, not: []string{"╌╌○  Week"}},
 				{at: 25.5, says: []string{"╌╌○ personal", "╌╌○  Week"}},
@@ -134,7 +134,7 @@ func TestEachTapePlaysItsScenarioAsItsCuesAreTimedFor(t *testing.T) {
 		{
 			tape: "runway-week", scenario: "routing", theme: "tokyo-night", size: wide(37),
 			keys:  []press{{2, repeated(tabKey, 4)}},
-			shows: []shows{{at: 5, says: []string{"RUNWAY", "work", "personal ◆", "side ▲"}, not: []string{"< week >"}}},
+			shows: []shows{{at: 5, says: []string{"RUNWAY", "work", "personal   ◆", "side       ▲"}, not: []string{"< week >"}}},
 		},
 		{
 			tape: "phone", scenario: "routing", theme: "tokyo-night", size: watch.Size{Width: 52, Height: 36},
