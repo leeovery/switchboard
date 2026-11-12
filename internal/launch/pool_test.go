@@ -220,11 +220,12 @@ func TestRunFindsThePoolWhereALinkLeads(t *testing.T) {
 }
 
 func TestRunStartsOnAnAccountOfThePool(t *testing.T) {
-	routed, down := knowing(pooledConfig()), notRunning()
 	tests := []struct {
-		name   string
-		dir    string
-		router *fakeRouter
+		name string
+		dir  string
+		// down has the router not running, where it otherwise routes by the
+		// config's pools.
+		down bool
 		// tokens are the token files there are, poolTokens where nil; and
 		// personalPrimary marks personal, without a token, Default's
 		// primary, in place of work.
@@ -234,40 +235,37 @@ func TestRunStartsOnAnAccountOfThePool(t *testing.T) {
 		wantToken       string
 		wantSaid        string
 	}{
-		{name: "routed, the pool's primary's", dir: acmeDir, router: routed, wantToken: acme1Token},
-		{name: "routed, the other pool's primary's", dir: elsewhere, router: routed, wantToken: workToken},
+		{name: "routed, the pool's primary's", dir: acmeDir, wantToken: acme1Token},
+		{name: "routed, the other pool's primary's", dir: elsewhere, wantToken: workToken},
 		{
 			name:            "routed, the pool's first with a usable token, its primary without one",
 			dir:             elsewhere,
-			router:          routed,
 			personalPrimary: true,
 			wantToken:       workToken,
 		},
 		{
 			name:      "routed, the pool's other account's, its primary without a token",
 			dir:       acmeDir,
-			router:    routed,
 			tokens:    tokenstest.Files{"work": workToken, "acme2": acme2Token},
 			wantToken: acme2Token,
 		},
 		{
 			name:     "routed, none of the pool's accounts with a usable token, another pool's never",
 			dir:      acmeDir,
-			router:   routed,
 			tokens:   tokenstest.Files{"work": workToken, "side": sideToken},
 			wantSaid: "switchboard: pool Acme has no account with a usable token — not starting claude\n",
 		},
 		{
 			name:      "direct, the pool's primary's",
 			dir:       acmeDir,
-			router:    down,
+			down:      true,
 			wantToken: acme1Token,
 			wantSaid:  "switchboard: the router isn't running — connecting directly on acme1 · Acme 1\n",
 		},
 		{
 			name:      "direct and pinned, the pinned account's",
 			dir:       acmeDir,
-			router:    down,
+			down:      true,
 			account:   "acme2",
 			wantToken: acme2Token,
 			wantSaid:  "switchboard: the router isn't running — connecting directly on acme2 · Acme 2\n",
@@ -275,7 +273,7 @@ func TestRunStartsOnAnAccountOfThePool(t *testing.T) {
 		{
 			name:      "direct, the pool's first with a usable token, its primary without one",
 			dir:       acmeDir,
-			router:    down,
+			down:      true,
 			tokens:    tokenstest.Files{"work": workToken, "acme2": acme2Token},
 			wantToken: acme2Token,
 			wantSaid:  "switchboard: the router isn't running — connecting directly on acme2 · Acme 2\n",
@@ -283,7 +281,7 @@ func TestRunStartsOnAnAccountOfThePool(t *testing.T) {
 		{
 			name:     "direct, none of the pool's accounts with a usable token, another pool's never",
 			dir:      acmeDir,
-			router:   down,
+			down:     true,
 			tokens:   tokenstest.Files{"work": workToken},
 			wantSaid: "switchboard: pool Acme has no account with a usable token — not starting claude\n",
 		},
@@ -296,7 +294,11 @@ func TestRunStartsOnAnAccountOfThePool(t *testing.T) {
 			if tt.personalPrimary {
 				cfg.Accounts[0].Primary, cfg.Accounts[1].Primary = false, true
 			}
-			r := pooledRoute(cfg, tt.router, tt.account)
+			rt := knowing(cfg)
+			if tt.down {
+				rt = notRunning()
+			}
+			r := pooledRoute(cfg, rt, tt.account)
 			if tt.tokens != nil {
 				r.Token = tt.tokens.Read
 			}
