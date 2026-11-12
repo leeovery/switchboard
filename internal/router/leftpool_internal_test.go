@@ -16,22 +16,23 @@ import (
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/tokens/tokenstest"
 )
 
 // The words switchboard refuses a request with whose session's token has left
-// its pool, as they end.
+// its pool.
 const (
-	leftAcme    = "switchboard: this session's account has left pool Acme — exit and resume it to carry on in the pool its directory is in now"
-	leftDefault = "switchboard: this session's account has left pool Default — exit and resume it to carry on in the pool its directory is in now"
-	leftItsPool = "switchboard: this session's account has left its pool — exit and resume it to carry on in the pool its directory is in now"
-	poolRemoved = "switchboard: this session's pool has been removed — exit and resume it to carry on in the pool its directory is in now"
+	leftAcme         = "switchboard: this session's account has left pool Acme — exit and resume it to carry on in the pool its directory is in now"
+	leftDefault      = "switchboard: this session's account has left pool Default — exit and resume it to carry on in the pool its directory is in now"
+	leftItsPool      = "switchboard: this session's account has left its pool — exit and resume it to carry on in the pool its directory is in now"
+	poolUnconfigured = "switchboard: this session's pool isn't configured — exit and resume it to carry on in the pool its directory is in now"
 )
 
 // The log's lines of a refusal, of an account that has left its pool and of
-// a pool no longer configured.
+// a pool that isn't configured.
 const (
-	leftLogged = `msg="session's account has left its pool; refusing the request"`
-	goneLogged = `msg="session's pool is no longer configured; refusing the request"`
+	leftLogged         = `msg="session's account has left its pool; refusing the request"`
+	unconfiguredLogged = `msg="session's pool isn't configured; refusing the request"`
 )
 
 // strangerToken is a token no account has.
@@ -83,8 +84,18 @@ func movedPools() config.Accounts {
 	return moved
 }
 
+// accountTOML is an account as a config file writes it, labelled by its id,
+// in the pool given, and marked its pool's primary where primary is set.
+func accountTOML(id, pool string, primary bool) string {
+	account := "[[account]]\nid = \"" + id + "\"\nlabel = \"" + id + "\"\npool = \"" + pool + "\"\n"
+	if primary {
+		account += "primary = true\n"
+	}
+	return account + "\n"
+}
+
 func TestASessionWhoseTokensAccountLeavesItsPoolIsRefusedWhileOneInThePoolItJoinedCarriesOn(t *testing.T) {
-	logstest.Capture(t)
+	log := logstest.Capture(t)
 	r := newPoolsRouter(t, at(start), true)
 	readPersonalFirst(r)
 	upstream := servingAll(served, served, served)
@@ -92,10 +103,10 @@ func TestASessionWhoseTokensAccountLeavesItsPoolIsRefusedWhileOneInThePoolItJoin
 	lines := keepingLedger(t, r)
 	r.proxy.pools.follow(movedPools(), testPools)
 
-	// Acme's session started on personal's token, as Acme's primary's, and
-	// Default's has it since personal joined Default; Acme has side, with
-	// room, all the same.
-	acmes := routeIn(t, r, personalToken, "one", acmePool, nil)
+	// Acme's session started on personal's token, as Acme's primary's,
+	// launched pinned to work, Default's; Default's has personal's token
+	// since personal joined Default. Acme has side, with room, all the same.
+	acmes := routeIn(t, r, personalToken, "one", acmePool, map[string]string{PinHeader: "work"})
 	defaults := routeIn(t, r, personalToken, "two", defaultPool, nil)
 
 	checkRefused(t, acmes, leftAcme)
@@ -116,14 +127,16 @@ func TestASessionWhoseTokensAccountLeavesItsPoolIsRefusedWhileOneInThePoolItJoin
 	if a := r.sessions.lookup(key{session: "one", model: opus}); a.assigned {
 		t.Errorf("Acme's session is assigned to %s, want it remembered nowhere: nothing was chosen for it", a.current.Account)
 	}
+	if log.Has("pin ignored") {
+		t.Errorf("log reads\n%s\nwant no pin read of a request refused", log)
+	}
 }
 
 func TestARefusalSaysWhyAndNamesThePoolWhereThereAreSeveral(t *testing.T) {
 	tests := []struct {
 		name string
 		// follow are the accounts and pools the router takes up, as the
-		// config makes them, where it's given; token and pool are what the
-		// request carries.
+		// config makes them; token and pool are what the request carries.
 		follow      config.Accounts
 		followPools config.Pools
 		token, pool string
@@ -143,22 +156,22 @@ func TestARefusalSaysWhyAndNamesThePoolWhereThereAreSeveral(t *testing.T) {
 			want:  leftDefault, wantLog: leftLogged,
 		},
 		{
-			name:   "its account out of the config, the one pool left: no pool named",
+			name:   "its account moved to the one pool left, which it names no more",
+			follow: movedPools()[:2], followPools: testPools[:1],
+			token: personalToken, pool: acmePool,
+			want: poolUnconfigured, wantLog: unconfiguredLogged,
+		},
+		{
+			name:   "naming a pool the config doesn't have",
+			follow: pooledAccounts(), followPools: testPools,
+			token: workToken, pool: "z5k2",
+			want: poolUnconfigured, wantLog: unconfiguredLogged,
+		},
+		{
+			name:   "its account, of Acme, out of the config, the one pool left its session's: no pool named",
 			follow: config.Accounts{{ID: "work", Pool: defaultPool, Primary: true}, {ID: "side", Pool: defaultPool}}, followPools: testPools[:1],
 			token: personalToken, pool: defaultPool,
 			want: leftItsPool, wantLog: leftLogged,
-		},
-		{
-			name:   "its pool removed",
-			follow: movedPools()[:2], followPools: testPools[:1],
-			token: personalToken, pool: acmePool,
-			want: poolRemoved, wantLog: goneLogged,
-		},
-		{
-			name:   "naming a pool never configured",
-			follow: pooledAccounts(), followPools: testPools,
-			token: workToken, pool: "z5k2",
-			want: poolRemoved, wantLog: goneLogged,
 		},
 	}
 	for _, tt := range tests {
@@ -226,44 +239,53 @@ func TestARequestNamingNoPoolIsRefusedOnlyWhereItsTokensAccountIsOutsideTheFirst
 	}
 }
 
-func TestAConfigWithoutPoolsRefusesNothingAnsweringAsBefore(t *testing.T) {
-	// Each request is sent to a router whose config has no pools twice: as
-	// a session started before pools sends it, naming none, and naming the
-	// pool given. Personal's quota needs using first.
+func TestAConfigWithoutPoolsAnswersAsBeforePools(t *testing.T) {
+	// Personal's quota needs using first, so every routed request goes out
+	// on personal, whatever its token or the pool it names; one passed
+	// through goes out as it came, on its own token.
 	tests := []struct {
-		name, path, token, pool string
+		name string
+		// routed has the request sent to /v1/messages, which is routed, else
+		// to /v1/files, which is passed through; token and pool are what it
+		// carries.
+		routed      bool
+		token, pool string
+		wantSent    []string
 	}{
-		{name: "routed, naming a pool the config has none of", path: "/v1/messages", token: workToken, pool: acmePool},
-		{name: "routed on personal's token, naming another", path: "/v1/messages", token: personalToken, pool: defaultPool},
-		{name: "passed through, naming a pool", path: "/v1/files", token: personalToken, pool: acmePool},
+		{name: "routed, naming a pool", routed: true, token: workToken, pool: acmePool, wantSent: []string{"personal"}},
+		{name: "routed on personal's token, naming another", routed: true, token: personalToken, pool: defaultPool, wantSent: []string{"personal"}},
+		{name: "routed, naming none", routed: true, token: sideToken, wantSent: []string{"personal"}},
+		{name: "passed through, naming a pool", token: workToken, pool: acmePool, wantSent: []string{"work"}},
+		{name: "passed through, naming none", token: sideToken, wantSent: []string{"side"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			type answered struct {
-				code int
-				body string
-				sent []string
-			}
-			send := func(pool string) answered {
-				r := newPoolsRouter(t, at(start), false)
-				readPersonalFirst(r)
-				upstream := servingAll(served, served, served)
-				r.proxy.transport = upstream
-				var w *httptest.ResponseRecorder
-				if tt.path == "/v1/messages" {
-					w = routeIn(t, r, tt.token, "one", pool, nil)
-				} else {
-					w = passIn(t, r, tt.path, tt.token, pool)
-				}
-				return answered{code: w.Code, body: w.Body.String(), sent: upstream.sent()}
-			}
 			log := logstest.Capture(t)
+			r := newPoolsRouter(t, at(start), false)
+			readPersonalFirst(r)
+			upstream := servingAll(served, served, served)
+			r.proxy.transport = upstream
+			lines := keepingLedger(t, r)
 
-			before, named := send(""), send(tt.pool)
+			var w *httptest.ResponseRecorder
+			if tt.routed {
+				w = routeIn(t, r, tt.token, "one", tt.pool, nil)
+			} else {
+				w = passIn(t, r, "/v1/files", tt.token, tt.pool)
+			}
 
-			if named.code != http.StatusOK || named.code != before.code || named.body != before.body || !slices.Equal(named.sent, before.sent) {
-				t.Errorf("naming %s, answered %d %q, sent on %q, want as naming none: %d %q, sent on %q",
-					tt.pool, named.code, named.body, named.sent, before.code, before.body, before.sent)
+			if got := w.Body.String(); w.Code != http.StatusOK || got != `{"type":"message"}` {
+				t.Errorf("answered %d %q, want the upstream's 200 and its body", w.Code, got)
+			}
+			if sent := upstream.sent(); !slices.Equal(sent, tt.wantSent) {
+				t.Errorf("the request went out on %q, want %q", sent, tt.wantSent)
+			}
+			got := lines()
+			switch {
+			case !tt.routed && len(got) > 0:
+				t.Errorf("the ledger holds %+v, want no line of a request passed through", got)
+			case tt.routed && (len(got) != 1 || got[0].Account != "personal" || got[0].Pool != "" || got[0].Status != http.StatusOK):
+				t.Errorf("the ledger holds %+v, want one line, on personal, of no pool, answered 200", got)
 			}
 			if strings.Contains(log.String(), "refusing the request") {
 				t.Errorf("log reads\n%s\nwant no refusal", log)
@@ -290,7 +312,7 @@ func TestARefusalIsWarnedOfOnceForEachSession(t *testing.T) {
 	}
 }
 
-func TestARequestPassedThroughIsRefusedWhereItsTokensAccountIsOutsideItsPool(t *testing.T) {
+func TestARequestPassedThroughIsRefusedOnlyWhereItNamesAPoolItsTokensAccountIsOutside(t *testing.T) {
 	tests := []struct {
 		name string
 		// pooled has the config put the accounts in pools; token and pool
@@ -304,9 +326,9 @@ func TestARequestPassedThroughIsRefusedWhereItsTokensAccountIsOutsideItsPool(t *
 	}{
 		{name: "its token's account in its pool", pooled: true, token: personalToken, pool: acmePool, wantSent: []string{"personal"}},
 		{name: "its token's account in another", pooled: true, token: workToken, pool: acmePool, wantRefusal: leftAcme},
+		{name: "naming a pool the config doesn't have", pooled: true, token: workToken, pool: "z5k2", wantRefusal: poolUnconfigured},
 		{name: "naming none, its token's account in the first", pooled: true, token: workToken, wantSent: []string{"work"}},
-		{name: "naming none, its token's account outside the first", pooled: true, token: personalToken, wantRefusal: leftDefault},
-		{name: "naming a pool never configured", pooled: true, token: workToken, pool: "z5k2", wantRefusal: poolRemoved},
+		{name: "naming none, its token's account outside the first", pooled: true, token: personalToken, wantSent: []string{"personal"}},
 		{name: "a token no account has", pooled: true, token: strangerToken, pool: acmePool, wantSent: []string{""}},
 		{name: "a config without pools", token: workToken, pool: acmePool, wantSent: []string{"work"}},
 	}
@@ -376,29 +398,50 @@ func TestASessionOnAnAccountThatLeftItsPoolMovesOffItSayingSo(t *testing.T) {
 	}
 }
 
-func TestTheHeirOfAnAccountThatLeavesTheConfig(t *testing.T) {
-	// Default has work, its primary, and side; Acme has extra, then
-	// personal, its primary; Spare has none.
-	pooled := config.Accounts{
+// heirTestAccounts are the accounts the heir tests configure: Default has
+// work, its primary, and side; Acme has extra, then personal, its primary.
+func heirTestAccounts() config.Accounts {
+	return config.Accounts{
 		{ID: "work", Pool: defaultPool, Primary: true},
 		{ID: "extra", Pool: acmePool},
 		{ID: "personal", Pool: acmePool, Primary: true},
 		{ID: "side", Pool: defaultPool},
 	}
+}
+
+// held returns the accounts a router holds with the given ids, each with the
+// token poolTokens gives it, if any.
+func held(ids ...string) accounts {
+	configured := make(config.Accounts, len(ids))
+	for i, id := range ids {
+		configured[i] = config.Account{ID: id}
+	}
+	return resolve(configured, poolTokens.Read, unrecorded)
+}
+
+func TestTheHeirOfAnAccountThatLeavesTheConfigIsTheFirstOfItsCandidatesTheRouterHolds(t *testing.T) {
+	pooled := heirTestAccounts()
 	withSpare := append(slices.Clone(testPools), config.Pool{ID: "z5k2", Label: "Spare", Dirs: []string{"/work/spare"}})
+	everyone := []string{"work", "extra", "personal", "side"}
 	tests := []struct {
 		name     string
 		accounts config.Accounts
 		pools    config.Pools
 		// first is the first pool the accounts record notes, and was the
-		// pool the account that leaves was in, "" for none known.
+		// pool the account that leaves was in, "" for none known; held are
+		// the accounts the router holds, every one where it's nil.
 		first, was string
+		held       []string
 		want       string
 		wantOK     bool
 	}{
 		{name: "in Acme: Acme's primary", accounts: pooled, pools: testPools, was: acmePool, want: "personal", wantOK: true},
 		{name: "in Acme, its id in another case", accounts: pooled, pools: testPools, was: "Q7MT", want: "personal", wantOK: true},
 		{name: "in Acme, none marked its primary: its first", accounts: unmarked(pooled), pools: testPools, was: acmePool, want: "extra", wantOK: true},
+		{
+			name: "in Acme, its primary added since the router started: the first's", accounts: pooled, pools: testPools, was: acmePool,
+			held: []string{"work", "extra", "side"}, want: "work", wantOK: true,
+		},
 		{name: "its pool not known: the first's", accounts: pooled, pools: testPools, want: "work", wantOK: true},
 		{name: "its pool not known, the record noting Acme the first: Acme's", accounts: pooled, pools: testPools, first: acmePool, want: "personal", wantOK: true},
 		{name: "its pool gone: the first's", accounts: pooled, pools: testPools, was: "z5k2", want: "work", wantOK: true},
@@ -407,15 +450,20 @@ func TestTheHeirOfAnAccountThatLeavesTheConfig(t *testing.T) {
 			name: "its pool and the first without accounts: the primary", accounts: pooled[1:3], pools: testPools, was: "z5k2",
 			want: "personal", wantOK: true,
 		},
+		{name: "no candidate held", accounts: pooled, pools: testPools, was: acmePool, held: []string{"side"}},
 		{name: "a config from before pools: the primary", accounts: testConfigured, was: acmePool, want: "work", wantOK: true},
 		{name: "no accounts configured", pools: testPools, was: acmePool},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			h := heirs{accounts: tt.accounts, pools: tt.pools, first: func() string { return tt.first }, poolWas: func(string) string { return tt.was }}
-			got, ok := h.of("gone")
+			ids := tt.held
+			if ids == nil {
+				ids = everyone
+			}
+			got, ok := held(ids...).heir(h, "gone")
 			if got.ID != tt.want || ok != tt.wantOK {
-				t.Errorf("of(gone) = %q, %v, want %q, %v", got.ID, ok, tt.want, tt.wantOK)
+				t.Errorf("heir(gone) = %q, %v, want %q, %v", got.ID, ok, tt.want, tt.wantOK)
 			}
 		})
 	}
@@ -430,40 +478,158 @@ func unmarked(accounts config.Accounts) config.Accounts {
 	return accounts
 }
 
-func TestTheSessionsOfAnAccountThatLeavesTheConfigStayInItsPoolAsItsPrimarys(t *testing.T) {
-	// Personal, Acme's primary, leaves the config, side moving to Acme as it
-	// does, so Acme's primary now; personal's file still holds its token.
-	// was gives the pool the router knows personal was in.
-	const withoutPersonal = "[[account]]\nid = \"work\"\nlabel = \"Work\"\npool = \"" + defaultPool + "\"\n\n" +
-		"[[account]]\nid = \"side\"\nlabel = \"Side\"\npool = \"" + acmePool + "\"\n\n" + defaultTOML + "\n" + acmeTOML
+func TestTheFirstPoolIsReadForAnHeirOnlyWhereNeededOnceALook(t *testing.T) {
+	reads := 0
+	m := newMembership(func() string {
+		reads++
+		return ""
+	}, sameID, noPoolKnown)
+	m.follow(heirTestAccounts(), testPools)
+	as := held("work", "extra", "personal", "side")
+
+	h := m.heirs(heirTestAccounts(), testPools)
+	if heir, _ := as.heir(h, "personal"); heir.ID != "personal" || reads != 1 {
+		t.Fatalf("personal's heir is %q, the first pool read %d times, want personal, read once, as the pools were followed", heir.ID, reads)
+	}
+	for range 2 {
+		if heir, _ := as.heir(h, "gone"); heir.ID != "work" {
+			t.Errorf("gone's heir is %q, want work, the first pool's primary, gone's pool not known", heir.ID)
+		}
+	}
+	if reads != 2 {
+		t.Errorf("the first pool was read %d times, want twice: as the pools were followed, then once for the heirs of a look", reads)
+	}
+}
+
+func TestAnHeirIsOfThePoolTheAccountsRecordKeepsWhereThePoolsCantTell(t *testing.T) {
+	// Gone left the config before the router started; personal is in Acme.
+	m := newMembership(noFirst, sameID, func(id string) string {
+		if id == "gone" {
+			return acmePool
+		}
+		return ""
+	})
+	h := m.heirs(heirTestAccounts(), testPools)
+	m.follow(heirTestAccounts(), testPools)
+	as := held("work", "extra", "personal", "side")
+
+	if heir, _ := as.heir(h, "gone"); heir.ID != "personal" {
+		t.Errorf("gone's heir is %q, want personal, Acme's primary, as the record keeps gone in Acme", heir.ID)
+	}
+	if heir, _ := as.heir(h, "side"); heir.ID != "work" {
+		t.Errorf("side's heir is %q, want work, Default's primary, as the pools followed since the heirs were made have side in Default", heir.ID)
+	}
+}
+
+func TestWhetherARequestsTokenHasLeftItsPool(t *testing.T) {
+	// The pools as pooledAccounts make them, but for personal, of Acme,
+	// which has left the config; gone left it before the router started.
+	withoutPersonal := slices.DeleteFunc(pooledAccounts(), func(a config.Account) bool { return a.ID == "personal" })
+	of := func(id, removed string) sender {
+		return sender{account: account{Account: config.Account{ID: id}}, removed: removed}
+	}
 	tests := []struct {
-		name, was string
-		// wantHeir is the account personal's tokens count as, and wantSent
-		// where Acme's request on personal's token went, none where it's
-		// refused.
-		wantHeir string
-		wantSent []string
+		name string
+		// unpooled has the config make no pools; named is the pool the
+		// request names, s who sent it, and recorded the pool the accounts
+		// record keeps gone in.
+		unpooled        bool
+		named, recorded string
+		s               sender
+		wantPool        string
+		wantLeft        bool
 	}{
-		{name: "known to have been in Acme: side's, and routed in Acme", was: acmePool, wantHeir: "side", wantSent: []string{"side"}},
-		{name: "its pool gone: work's, the first's primary, and refused", was: "z5k2", wantHeir: "work"},
-		{name: "its pool not known: work's, the first's primary, and refused", wantHeir: "work"},
+		{name: "work's, in its pool", named: defaultPool, s: of("work", ""), wantPool: defaultPool},
+		{name: "work's, naming Acme", named: acmePool, s: of("work", ""), wantPool: acmePool, wantLeft: true},
+		{name: "side's, naming none: the first", s: of("side", ""), wantPool: defaultPool},
+		{name: "naming a pool the config doesn't have", named: "z5k2", s: of("work", ""), wantPool: "z5k2", wantLeft: true},
+		{name: "personal's own, it having left the config, naming Acme, where it was", named: acmePool, s: of("personal", ""), wantPool: acmePool},
+		{name: "personal's own, naming Default", named: defaultPool, s: of("personal", ""), wantPool: defaultPool, wantLeft: true},
+		{name: "taken up from personal, naming Acme", named: acmePool, s: of("work", "personal"), wantPool: acmePool},
+		{name: "taken up from personal, naming Default", named: defaultPool, s: of("work", "personal"), wantPool: defaultPool, wantLeft: true},
+		{name: "taken up from gone, its pool not known: in the pool it names", named: acmePool, s: of("work", "gone"), wantPool: acmePool},
+		{name: "taken up from gone, recorded in Acme, naming Acme", named: acmePool, recorded: acmePool, s: of("work", "gone"), wantPool: acmePool},
+		{name: "taken up from gone, recorded in Default, naming Acme", named: acmePool, recorded: defaultPool, s: of("work", "gone"), wantPool: acmePool, wantLeft: true},
+		{name: "a config from before pools", unpooled: true, named: acmePool, s: of("work", "personal")},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := newMembership(noFirst, sameID, func(id string) string {
+				if id == "gone" {
+					return tt.recorded
+				}
+				return ""
+			})
+			if tt.unpooled {
+				m.follow(testConfigured, nil)
+			} else {
+				m.follow(pooledAccounts(), testPools)
+				m.follow(withoutPersonal, testPools)
+			}
+			p := &proxy{pools: m}
+
+			pool, left := p.strays(m.current(), tt.named, tt.s)
+			if pool != tt.wantPool || left != tt.wantLeft {
+				t.Errorf("strays(%q, %+v) = %q, %v, want %q, %v", tt.named, tt.s, pool, left, tt.wantPool, tt.wantLeft)
+			}
+		})
+	}
+}
+
+func TestTheSessionsOfAnAccountThatLeavesTheConfigStayInItsPool(t *testing.T) {
+	// Personal, Acme's primary, leaves the config; its file still holds its
+	// token, which its sessions send.
+	pools := defaultTOML + "\n" + acmeTOML
+	tests := []struct {
+		name string
+		// config is what the config file comes to hold, and pool the pool
+		// the request names.
+		config, pool string
+		// wantHeir is the account personal's tokens count as; wantSent is
+		// where the request went, and wantCode what it was answered, or
+		// wantRefusal what switchboard refused it saying.
+		wantHeir    string
+		wantSent    []string
+		wantCode    int
+		wantRefusal string
+	}{
+		{
+			name:   "side moved to Acme, its primary now: routed in Acme",
+			config: accountTOML("work", defaultPool, false) + accountTOML("side", acmePool, false) + pools, pool: acmePool,
+			wantHeir: "side", wantSent: []string{"side"}, wantCode: http.StatusOK,
+		},
+		{
+			name: "Acme's primary one the config added since the router started, side moved to it: routed in Acme, the first's primary the heir",
+			config: accountTOML("work", defaultPool, false) + accountTOML("side", acmePool, false) + accountTOML("fresh", acmePool, true) +
+				pools,
+			pool: acmePool, wantHeir: "work", wantSent: []string{"side"}, wantCode: http.StatusOK,
+		},
+		{
+			name:   "Acme left with no accounts: answered in Acme, as no account in it takes the request",
+			config: accountTOML("work", defaultPool, false) + accountTOML("side", defaultPool, false) + pools, pool: acmePool,
+			wantHeir: "work", wantCode: http.StatusTooManyRequests,
+		},
+		{
+			name:   "Acme gone with it: refused",
+			config: accountTOML("work", defaultPool, false) + accountTOML("side", defaultPool, false) + defaultTOML, pool: acmePool,
+			wantHeir: "work", wantRefusal: poolUnconfigured,
+		},
+		{
+			name:   "a session of Default on its token, side moved to Acme: refused, personal having been in Acme",
+			config: accountTOML("work", defaultPool, false) + accountTOML("side", acmePool, false) + pools, pool: defaultPool,
+			wantHeir: "side", wantRefusal: leftDefault,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			log := logstest.Capture(t)
 			r, path := newWatchingPoolsRouter(t, "")
-			r.proxy.pools.poolWas = func(id string) string {
-				if id == "personal" {
-					return tt.was
-				}
-				return ""
-			}
 			upstream := servingAll(served, served, served)
 			r.proxy.transport = upstream
 
-			writeConfigFile(t, path, withoutPersonal)
+			writeConfigFile(t, path, tt.config)
 			r.upkeep.look()
-			w := routeIn(t, r, personalToken, "one", acmePool, nil)
+			w := routeIn(t, r, personalToken, "one", tt.pool, nil)
 
 			adopted := []string{"level=INFO", `msg="account no longer configured; its tokens count as the primary's for a week"`, "account=personal", "primary=" + tt.wantHeir}
 			if !log.Has(adopted...) {
@@ -473,12 +639,39 @@ func TestTheSessionsOfAnAccountThatLeavesTheConfigStayInItsPoolAsItsPrimarys(t *
 				t.Errorf("a request on personal's token is %q's (%v), want %s's, though personal's file still holds it", a.ID, ok, tt.wantHeir)
 			}
 			if sent := upstream.sent(); !slices.Equal(sent, tt.wantSent) {
-				t.Errorf("Acme's request on personal's token went out on %q, want %q", sent, tt.wantSent)
+				t.Errorf("the request on personal's token went out on %q, want %q", sent, tt.wantSent)
 			}
-			if tt.wantSent == nil {
-				checkRefused(t, w, leftAcme)
+			if tt.wantRefusal != "" {
+				checkRefused(t, w, tt.wantRefusal)
+			} else if w.Code != tt.wantCode {
+				t.Errorf("answered %d %s, want %d", w.Code, w.Body, tt.wantCode)
 			}
 		})
+	}
+}
+
+func TestARemovedAccountsSessionsAreRoutedInTheirPoolAfterARestartWhereItsPoolIsntKnown(t *testing.T) {
+	// The router starts without personal, Acme's primary, side in Acme in
+	// its place; the state file keeps personal's token.
+	logstest.Capture(t)
+	path := filepath.Join(t.TempDir(), "state.json")
+	putState(t, path, savedState{Version: stateVersion, Tokens: map[string]savedTokens{"personal": {SHA256: hash(personalToken)}}})
+	cfg := testConfig(at(start), &stubProber{}, poolTokens.Read)
+	cfg.Accounts = config.Accounts{{ID: "work", Label: "Work", Pool: defaultPool}, {ID: "side", Label: "Side", Pool: acmePool}}
+	cfg.Pools = testPools
+	r := newTestRouterOf(t, cfg)
+	r.file.load(path)
+	upstream := servingAll(served, served, served)
+	r.proxy.transport = upstream
+
+	acmes := routeIn(t, r, personalToken, "one", acmePool, nil)
+	defaults := routeIn(t, r, personalToken, "two", defaultPool, nil)
+
+	if acmes.Code != http.StatusOK || defaults.Code != http.StatusOK {
+		t.Errorf("Acme's request was answered %d and Default's %d, want 200 each: nothing says personal was in another pool", acmes.Code, defaults.Code)
+	}
+	if sent := upstream.sent(); !slices.Equal(sent, []string{"side", "work"}) {
+		t.Errorf("the requests went out on %q, want Acme's on side and Default's on work, each in its own pool", sent)
 	}
 }
 
@@ -511,6 +704,67 @@ func TestTheTokensOfAnAccountRemovedWhileTheRouterWasAwayCountAsItsPoolsPrimarys
 
 			if a, ok := as.byToken(goneToken, start); !ok || a.ID != tt.want {
 				t.Errorf("a request on gone's token is %q's (%v), want %s's", a.ID, ok, tt.want)
+			}
+		})
+	}
+}
+
+func TestARemovedAccountsOwnTokenIsRoutedWithoutPools(t *testing.T) {
+	// Side leaves a config without pools, its file still holding its token,
+	// which a session of it sends; work, the primary, takes its tokens up.
+	tests := []struct {
+		name string
+		// files are what the token files hold as the router starts; after
+		// readies the router once side has left.
+		files tokenstest.Files
+		after func(r *Router, files *changingFiles, clock *testClock)
+	}{
+		{
+			name:  "work without a usable token",
+			files: tokenstest.Files{"personal": personalToken, "side": sideToken},
+			after: func(*Router, *changingFiles, *testClock) {},
+		},
+		{
+			name:  "a week on, its token no longer work's",
+			files: poolTokens,
+			after: func(r *Router, _ *changingFiles, clock *testClock) {
+				clock.now = start.Add(formerFor)
+				r.accounts.forget(clock.now)
+			},
+		},
+		{
+			name:  "its file taking up a new token, work without a usable token",
+			files: tokenstest.Files{"personal": personalToken, "side": sideToken},
+			after: func(r *Router, files *changingFiles, _ *testClock) {
+				files.set(tokenstest.Files{"personal": personalToken, "side": renewedToken})
+				r.upkeep.look()
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			log := logstest.Capture(t)
+			clock := &testClock{now: start}
+			files := &changingFiles{files: tt.files}
+			path := filepath.Join(t.TempDir(), "config.toml")
+			writeConfigFile(t, path, unpooledTOML("work", "personal", "side"))
+			cfg := testConfig(clock.read, &stubProber{}, files.read)
+			cfg.ConfigFile = Watch(path)
+			r := newTestRouterOf(t, cfg)
+			upstream := servingAll(served, served, served)
+			upstream.answers[renewedToken] = []answer{served}
+			r.proxy.transport = upstream
+
+			writeConfigFile(t, path, unpooledTOML("work", "personal"))
+			r.upkeep.look()
+			tt.after(r, files, clock)
+			w := routeIn(t, r, sideToken, "one", "", nil)
+
+			if a, ok := r.accounts.byToken(sideToken, clock.now); !ok || a.ID != "side" {
+				t.Errorf("a request on side's token is %q's (%v), want side's own", a.ID, ok)
+			}
+			if w.Code != http.StatusOK || !log.Has("msg=routed", "status=200") {
+				t.Errorf("answered %d, log reads\n%s\nwant it routed and answered 200, never passed through unrouted", w.Code, log)
 			}
 		})
 	}
