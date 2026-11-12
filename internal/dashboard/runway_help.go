@@ -164,9 +164,10 @@ func runwayLatelyHelp() helpPart {
 				"where they fit beside it."),
 			said("It takes only the rows the lanes and COMING UP leave. Where the frame holds both, and those rows hold COMING " +
 				"UP's every line in one column, LATELY sits at the left and COMING UP at the right, the past and what's coming " +
-				"as the lanes lie, each down to the legend; else under COMING UP, where its heading and two lines fit, the two " +
-				"sharing one width, as wide as their lines need to read whole, from 72 to the frame's; else it's gone, the " +
-				"first to give way as rows run short. Stepped back, there's none."),
+				"as the lanes lie, each down to the legend; else under COMING UP, where its heading and two lines fit: COMING " +
+				"UP in its two columns where they fit, LATELY across the frame under them, or else the two sharing one " +
+				"column, as wide as their lines need to read whole, from 72 to the frame's; else it's gone, the first to give " +
+				"way as rows run short. Stepped back, there's none."),
 		},
 	}
 }

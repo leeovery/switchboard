@@ -487,7 +487,7 @@ func TestAVerifiedAccountsRefusalIsMetByARequest(t *testing.T) {
 
 // Each request refused on a verified account since the router started has
 // its refusal told, at that request's time. One refused before then, as
-// b9c4's of yesterday's 16:02:05 is, the router never told of.
+// b9c4's move of yesterday at 14:58 is, the router never told of.
 func TestARequestRefusedOnAVerifiedAccountHasItsRefusalTold(t *testing.T) {
 	now := worldsNow().now
 	for _, v := range verifiedWorlds() {

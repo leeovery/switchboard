@@ -134,7 +134,7 @@ func (t latelyTeller) pressedHere(e status.Event) Said {
 	if e.Until.IsZero() {
 		return Said{Words: clause("came under pressure")}
 	}
-	return Said{Words: clause("came under pressure: out "), Object: clause("~" + prose.Dated(t.now, e.Until)), Rest: clause(" at this pace")}
+	return Said{Words: clause("came under pressure: out "), Object: clause("~" + prose.Befell(t.now, e.Until)), Rest: clause(" at this pace")}
 }
 
 // cameFromHeld tells of the sessions another account's cap, limit or

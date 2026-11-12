@@ -15,8 +15,10 @@ type latelyPlace int
 const (
 	// comingAlone is COMING UP alone, as comingColumns lays it, no LATELY.
 	comingAlone latelyPlace = iota
-	// latelyStacked is LATELY under COMING UP, a blank row between, both in
-	// one column from the first, as stackedWidth has it.
+	// latelyStacked is LATELY under COMING UP, a blank row between, from the
+	// first column: COMING UP in the columns comingColumns lays, LATELY as
+	// wide as they span, or both in one column, as wide as stackedWidth has
+	// it, where COMING UP takes one.
 	latelyStacked
 	// latelySideBySide is LATELY from the first column, as wide as the
 	// Overview's LATELY column, and COMING UP as wide as the Overview's
@@ -32,9 +34,9 @@ const latelyLeastLines = 2
 const agoGap = 2
 
 // runwayLatelyLeast is the fewest cells a column of Runway's LATELY takes: a
-// line's time at its widest, as prose.Befell says it, the blanks after it, an account's name at its
-// least, its fewest words, as views.OpenAgain has them, and how long ago at
-// its widest, agoGap before it.
+// line's time at its widest, as prose.Befell says it, the blanks after it,
+// an account's name at its least, its fewest words, as views.OpenAgain has
+// them, and how long ago at its widest, agoGap before it.
 func runwayLatelyLeast() int {
 	return prose.BefellWidth() + len(afterTime) + labelLeast + len(" "+views.OpenAgain) + agoGap + len(prose.AgoWidest())
 }
@@ -141,8 +143,9 @@ func (l latelyParts) least() int {
 
 // runwayLatelyParts are the sentences given as Runway's LATELY lines at m's
 // moment, in parts: each its time, as prose.Befell says it, in a column as
-// wide as the widest shown, in text.secondary, no mark after it; then its words, as saidLine draws them,
-// in full and short; and how long ago, as prose.Ago says it, in text.subtle.
+// wide as the widest shown, in text.secondary, no mark after it; then its
+// words, as saidLine draws them, in full and short; and how long ago, as
+// prose.Ago says it, in text.subtle.
 func runwayLatelyParts(m status.Moment, sentences []views.Sentence) []latelyParts {
 	names, column := namesOf(m), 0
 	for _, s := range sentences {

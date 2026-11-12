@@ -296,6 +296,32 @@ func TestBefellIsDatedButAWeekBackItsDate(t *testing.T) {
 	}
 }
 
+// Befell dates a time by the calendar in now's time zone, not by the hours
+// gone: in London, 00:30 on the day the clocks go back, 24h15m before 23:45
+// that day, reads as today's; and the Sunday before the clocks go forward,
+// under 7 days of hours before that Sunday's 23:30, as a week back's.
+func TestBefellDatesByTheCalendarAcrossAClockChange(t *testing.T) {
+	london, err := time.LoadLocation("Europe/London")
+	if err != nil {
+		t.Fatalf("load Europe/London: %v", err)
+	}
+	tests := []struct {
+		name   string
+		now, t time.Time
+		want   string
+	}{
+		{name: "the day the clocks go back, of 25 hours", now: time.Date(2026, 10, 25, 23, 45, 0, 0, london), t: time.Date(2026, 10, 25, 0, 30, 0, 0, london), want: "00:30"},
+		{name: "a week back, over the clocks going forward", now: time.Date(2026, 3, 29, 23, 30, 0, 0, london), t: time.Date(2026, 3, 22, 23, 45, 0, 0, london), want: "22 Mar 23:45"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := prose.Befell(tt.now, tt.t); got != tt.want {
+				t.Errorf("Befell(%v, %v) = %q, want %q", tt.now, tt.t, got, tt.want)
+			}
+		})
+	}
+}
+
 // A day is named by the date it has in its own time zone, as a date parsed
 // in UTC has it, however far west of UTC now is.
 func TestADayIsNamedByTheDateItHasInItsOwnTimeZone(t *testing.T) {

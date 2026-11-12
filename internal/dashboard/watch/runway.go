@@ -27,12 +27,12 @@ import (
 // readings history's live tail, read for what it gained as readRunway has
 // it, which Graphs' lanes are judged by too, and the readings of each span
 // stepped back to before it, read once and held for the run; the readings
-// the watch read of the documents it read itself, which join them; the start of the first day the history holds, as
-// the live tail last asked it, zero where it holds none, or failed to say;
-// whether a look since asks what the live tail gained; whether a read of the
-// history is under way, one at a time, and whether that's the live tail's;
-// and whether a failure to say where the history begins has been logged, the
-// once.
+// the watch read of the documents it read itself, which join them; the start
+// of the first day the history holds, as the live tail last asked it, zero
+// where it holds none, or failed to say; whether a look since asks what the
+// live tail gained; whether a read of the history is under way, one at a
+// time, and whether that's the live tail's; and whether a failure to say
+// where the history begins has been logged, the once.
 type runwayTab struct {
 	shown       dashboard.RunwayShown
 	lanes       views.Lanes

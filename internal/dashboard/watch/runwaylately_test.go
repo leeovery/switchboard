@@ -1,6 +1,7 @@
 package watch
 
 import (
+	"fmt"
 	"io/fs"
 	"iter"
 	"maps"
@@ -11,6 +12,7 @@ import (
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/events"
+	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
@@ -302,6 +304,41 @@ func TestRunwaysLATELYIsToldAfreshAsWhatItTellsOfChanges(t *testing.T) {
 				t.Errorf("LATELY told afresh %t, want %t", afresh, tt.afresh)
 			}
 		})
+	}
+}
+
+// The Log reading back the day LATELY's week begins on as midnight passes,
+// the events held let go of none of that day while the read's under way: it
+// lands, the Log spans the day, and its Events show the day's events.
+func TestALogReadBackUnderWayAcrossMidnightKeepsItsDaysEvents(t *testing.T) {
+	filedBy := past(-7 * day)
+	first := latelyCut(past(0))
+	limited := limitAt(1, views.RunwayLatelyFrom(past(0)).Add(time.Hour), "side")
+	r := runwayOfRun(t, past(-time.Hour), filesOf(events.Line{Event: limited, Run: filedBy}))
+	state := t.TempDir()
+	var lines []ledger.Held
+	for d := range 8 {
+		lines = append(lines, arrived(fmt.Sprintf("0a%06d", d), "work", -time.Duration(d)*day-time.Minute))
+	}
+	writeLines(t, state, lines...)
+	onTheLog(r.harness, state)
+	reading := holdingBack[logReadMsg](r.harness, r.press("R")...)
+	for len(reading) > 0 && (!r.model.log.reading || !r.model.log.from.Start.Equal(dayfile.DayStart(first, 1))) {
+		reading = append(reading[1:], holdingBack[logReadMsg](r.harness, r.update(reading[0])...)...)
+	}
+	if len(reading) == 0 {
+		t.Fatalf("the Log read back from %v, want a read of %v under way", r.model.log.from.Start, first)
+	}
+	r.clock.now = dayfile.DayStart(past(0).Local(), 1).Add(time.Minute)
+	reading = append(reading, holdingBack[logReadMsg](r.harness, r.press("R")...)...)
+	r.deliver(reading...)
+	if from := r.model.log.from.Start; !from.Equal(first) {
+		t.Fatalf("the Log spans from %v, want %v, the day it read back", from, first)
+	}
+	shown := slices.ContainsFunc(r.model.log.page.Events.Rows, func(row views.LogEvent) bool { return row.Key == views.EventKey{Run: filedBy, ID: 1} })
+	if !heldSince(r.model, views.EventsFrom(first)) || !shown {
+		t.Errorf("the events held begin at %v, the Events showing side's limit %t; want them from %v, showing it",
+			r.model.events.read.Since(), shown, views.EventsFrom(first))
 	}
 }
 

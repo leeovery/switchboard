@@ -5068,15 +5068,17 @@ the Overview's LATELY words them (`views.RunwayLately`, beside the Overview's): 
 refusal, coming under pressure and room again, newest first, no further back than a week before
 now; the sessions a cap, a limit or a refusal moved folded into its line, as `3 sessions moved to
 side`, each router run's own; no session's start or move alone, and no marks. Each line is the
-time, as an event's time is said, `14:31` or `Wed 23:58`, but a week back, on today's weekday,
-by its date, `5 Nov 15:00`, as its weekday alone would read as today's (prose's `Befell`), padded
+time, as an event's time is said, `14:31` or `Wed 23:58`, but on today's weekday a week back, by
+the calendar, by its date, `5 Nov 15:00`, as its weekday alone would read as today's (prose's
+`Befell`, which says every time in LATELY's words, the Overview's too, as `~5 Nov 23:50`), padded
 to the longest shown, in `text.secondary`; two blanks; the account bold `text.primary`, what
 befell it in `text.muted` and its object, as `3 sessions` or `~Sat 06:10`, bold
 `text.secondary`; and how long ago, right-aligned at the column's end, in `text.subtle`: `11m
 ago`, `1h 38m ago`, `1d 4h ago`, `3d ago` (prose's `Ago`). Its words are in full where they fit
 whole beside how long ago, else short. With no events, it says why, as the Overview's LATELY
-does. It lists as many lines as its rows hold, the rest unsaid. It's told afresh only as the
-events held change, the day turns, or a line passes out of its week.
+does. It lists as many lines as its rows hold, the rest unsaid. Till the files are read, it's told
+afresh at every build; once they are, only as the events held change, the day turns, or a line
+passes out of its week.
 
 **A week stepped back to** runs from its first day, as `week_starts` begins it, to its last,
 across the lanes' columns, ticked and named as the live view is.
@@ -5191,15 +5193,16 @@ stepping back and how far it reaches, the minutes a column, COMING UP, and LATEL
   (`EventsRead`). The Log's Events and LATELY share the one read. Every read of the files, as
   `events.Reader` reads them, reads each day's file from the day before its span begins to the
   day after it ends, its end taken on `events.ChangesFor` days but never past now, as an event's
-  later versions are filed on the days after it. So LATELY's first read reads the week's files, the day before its
-  and tomorrow's; a look, a redraw or a midnight reads none again, as a day that closes while the
-  dashboard runs was read as today's; and the Log, shown after, reads none of its days again.
-  Where the Log read first, LATELY reading back its week reads the Log's days again, to today, as
-  the Log reading back past the week reads LATELY's again, to today. Till the files are read,
-  LATELY tells the document's events. At each look, whatever tab shows, the events held let go of
-  those before the further back of the Log's first day, less its reach for facts, and the day
-  LATELY's week begins on, a day at a time; a read under way as they do claims none of the days
-  let go. The Overview's LATELY reads the document's alone.
+  later versions are filed on the days after it. So LATELY's first read reads the week's files,
+  the day before its and tomorrow's; a look, a redraw or a midnight reads none again, as a day
+  that closes while the dashboard runs was read as today's; and the Log, shown after, reads none
+  of its days again. Where the Log read first, LATELY reading back its week reads the Log's days
+  again, to today, as the Log reading back past the week reads LATELY's again, to today. Till the
+  files are read, LATELY tells the document's events. At each look, whatever tab shows, the events
+  held let go of those before the further back of the Log's first day, less its reach for facts,
+  and the day LATELY's week begins on, a day at a time; but of none while a read of the Log's or
+  LATELY's is under way, as the Log comes to span the day it reads back to as its read lands. A
+  read claims only the span it read whole. The Overview's LATELY reads the document's alone.
 - **The pool:** its accounts, every one on auto, or those the `pin` names.
 - **A week stepped back to:** the readings history, each change of a window's use, its reset and its
   status, a limit running from a reading `rejected` to its window's reset; each day's summary's
@@ -6243,7 +6246,7 @@ first ran on them. A row's parts, two cells apart, as flex lays them at every wi
   cells of the widest a stay is said, 30, `28 Sep 13:20 – yesterday 01:20`, so it's never cut:
   `12:02 – 14:31`, `14:31 – now`; with its day where the session spans more than one, or began
   before today, as an undated time reads as today's: `yesterday 16:40 – 18:05`, `today 09:12 –
-  now`, `yesterday 13:20 – 16:02` (settled in the plan);
+  now`, `yesterday 13:20 – 14:58` (settled in the plan);
 - **its requests** in `text.muted`, in 16, to `99,999 requests`, and past it `99,999+ requests`:
   `404 requests`;
 - **what it took of the account's windows,** the points bold `text.primary` and the rest
@@ -6411,7 +6414,7 @@ moving down.
   line kept (settled in the plan).
 - **Row 6:** `ended yesterday 18:47`, bold `text.secondary`; three spaces; in `text.muted`,
   `ran on `, each account it ran on in `text.secondary`, and when it moved and why, its account in
-  `text.secondary` too: `ran on work, then side from 16:02: work reached its cap`. At the right:
+  `text.secondary` too: `ran on work, then side from 14:58: work reached its cap`. At the right:
   `started yesterday 13:20 · ran 5h 27m`.
 - **Row 7:** its models, going nowhere now, joined by ` · ` in `text.faint`; three spaces; and in
   `text.faint`, `kept until 4 Nov 2027`, the day before the ledger removes the lines of its first

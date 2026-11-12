@@ -367,10 +367,10 @@ func failedReads() []RunwayMoment {
 }
 
 // refusals have work's token refused at 14:12 till 15:00; that refusal
-// lifted early, at 14:30, over; one refused on Tuesday at 10:00 till 18:00,
-// lifted early at 13:00, said on this week stepped back to; and its Opus
-// requests refused alone, which its lane doesn't draw, as it doesn't a
-// model's own window.
+// lifted early, at 14:30, over; one refused on Tuesday from 10:00, its event
+// kept as it lifted early, at 13:00, said on this week stepped back to; and
+// its Opus requests refused alone, which its lane doesn't draw, as it
+// doesn't a model's own window.
 func refusals() []RunwayMoment {
 	refusedAt, refusal := onThu(14, 12, 0), status.Refusal{Until: onThu(15, 0, 0), Status: 401}
 	read := sorted(readEach(work, onThu(13, 0, 0), window(fiveHour, 0.3, onThu(16, 30, 0)), window(week, 0.5, mondayTen)), sideRead())

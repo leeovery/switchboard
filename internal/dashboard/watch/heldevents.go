@@ -114,8 +114,13 @@ func (e heldEvents) reaching(since time.Time) heldEvents {
 // the Log nor Runway's LATELY wants: before EventsFrom of the day the Log
 // spans from, where it's opened, and before the day LATELY's week begins
 // on, where LATELY wants them, as RunwayLatelyFrom has it, so a day at a
-// time.
+// time. It lets go of none while a read of the Log's or LATELY's is under
+// way, as the Log comes to span the day it reads back to as it lands, and
+// the events of that day would be gone.
 func (m Model) eventsLetGo(now time.Time) Model {
+	if m.log.reading || m.events.reading {
+		return m
+	}
 	var wanted []time.Time
 	if m.log.opened {
 		wanted = append(wanted, views.EventsFrom(m.log.from.Start))

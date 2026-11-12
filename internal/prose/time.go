@@ -102,10 +102,11 @@ func Befell(now, t time.Time) string {
 	return Dated(now, t)
 }
 
-// weekBack reports whether t is more than a day before now and on now's own
-// weekday in now's time zone, where its weekday alone would read as today.
+// weekBack reports whether t, before now, falls on now's own weekday but not
+// on now's day, by the calendar in now's time zone, however long its days
+// ran, where its weekday alone would read as today.
 func weekBack(now, t time.Time) bool {
-	return now.Sub(t) > 24*time.Hour && t.In(now.Location()).Weekday() == now.Weekday()
+	return t.Before(now) && !SameDay(now, t, now) && t.In(now.Location()).Weekday() == now.Weekday()
 }
 
 // BefellWidth is how many characters the widest time Befell shows takes: as

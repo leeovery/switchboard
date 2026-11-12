@@ -230,14 +230,15 @@ func (t latelyTeller) moved(e status.Event, f eventFact) (Said, Said) {
 
 // pressured tells of an account coming under pressure, and when its window
 // runs out, where the event says: "personal came under pressure: its 5-hour
-// runs out ~16:05", or short, "personal under pressure: out ~16:05".
+// runs out ~16:05", or short, "personal under pressure: out ~16:05", the
+// time as prose.Befell says it.
 func (t latelyTeller) pressured(e status.Event, f eventFact) (Said, Said) {
 	full := Said{Subject: account(e.Account), Words: clause(" came under pressure")}
 	short := Said{Subject: account(e.Account), Words: clause(" under pressure")}
 	if e.Until.IsZero() {
 		return full, short
 	}
-	out := clause("~" + prose.Dated(t.now, e.Until))
+	out := clause("~" + prose.Befell(t.now, e.Until))
 	full.Words = clause(" came under pressure: its " + firstOr(f.windows, "window") + " runs out ")
 	short.Words = clause(" under pressure: out ")
 	full.Object, short.Object = out, out

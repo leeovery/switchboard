@@ -69,6 +69,24 @@ func TestRunwaysLATELYReachesBackAWeekFromNow(t *testing.T) {
 	}
 }
 
+// A time in LATELY's words a week back, on now's weekday, says its date, as
+// its weekday alone would read as today's, on Runway and on the Overview
+// alike; a time on another day its weekday.
+func TestLATELYsWordsSayAWeekBacksTimeByItsDate(t *testing.T) {
+	now, yesterday, week := at(16, 0), 24*time.Hour, 7*24*time.Hour
+	doc := latelyOf(
+		status.Event{At: now.Add(-yesterday + 5*time.Minute), Kind: status.EventPressure, Account: "work", Windows: []string{"5h"}, Until: now.Add(-yesterday + 2*time.Hour)},
+		status.Event{At: now.Add(-week + 5*time.Minute), Kind: status.EventPressure, Account: "side", Windows: []string{"5h"}, Until: now.Add(-week + 7*time.Hour + 50*time.Minute)},
+	)
+	want := []string{"work came under pressure: its 5-hour runs out ~Tue 18:00", "side came under pressure: its 5-hour runs out ~30 Sep 23:50"}
+	if got := fullOf(runwayLately(doc, now)); !slices.Equal(got, want) {
+		t.Errorf("Runway's LATELY tells %q, want %q", got, want)
+	}
+	if got := fullOf(views.Lately(doc.At(now, claude.Policy()), 2, views.SessionDirs{})); !slices.Equal(got, want) {
+		t.Errorf("the Overview's LATELY tells %q, want %q", got, want)
+	}
+}
+
 func TestRunwaysLATELYFoldsTheMovesALimitACapOrARefusalForcedIntoItsLine(t *testing.T) {
 	tests := []struct {
 		kind, full, short string

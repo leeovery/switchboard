@@ -203,7 +203,7 @@ func TestRunwayHelpSaysWhatItsRulesAre(t *testing.T) {
 		{"how long ago", "Each line ends with how long ago it was, as 11m ago or 1d 4h ago, its words in full where they fit beside it"},
 		{"LATELY in the rows left", "It takes only the rows the lanes and COMING UP leave"},
 		{"LATELY beside COMING UP", "LATELY sits at the left and COMING UP at the right"},
-		{"LATELY stacked", "else under COMING UP, where its heading and two lines fit, the two sharing one width, as wide as their lines need to read whole, from 72 to the frame's"},
+		{"LATELY stacked", "else under COMING UP, where its heading and two lines fit: COMING UP in its two columns where they fit, LATELY across the frame under them, or else the two sharing one column, as wide as their lines need to read whole, from 72 to the frame's"},
 		{"LATELY gone", "else it's gone, the first to give way as rows run short"},
 	} {
 		if !strings.Contains(said, tc.want) {

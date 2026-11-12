@@ -313,8 +313,8 @@ func TestTheAutoWorldsRouterNumbersItsDayAsTheLogHasIt(t *testing.T) {
 // from its own start, each move counted in what forced it, as many as it
 // says, b9c4's in work's cap yesterday at 14:58, as its lines tell, and
 // work's cap and limit yesterday as the readings have them, from 14:58 and
-// 15:02 till 17:10; its files hold them, under its run, before the auto world's router's own,
-// whose document tells none of them.
+// 15:02 till 17:10; its files hold them, under its run, before the auto
+// world's router's own, whose document tells none of them.
 func TestTheRouterBeforeToldTheWeekGone(t *testing.T) {
 	worlds := worldsNow()
 	told := ofTheRun(happenings{worlds.now}.weekGone())
