@@ -178,14 +178,15 @@ func FencesOf(path string, homeDir func() (string, error)) (Pools, error) {
 	if err != nil {
 		home = ""
 	}
-	pools := make(Pools, len(only.Pools))
-	for i, w := range only.Pools {
-		pools[i] = Pool{ID: w.ID, Label: w.shownAs(), WrittenDirs: w.Dirs}
+	var pools Pools
+	for _, w := range only.Pools {
+		p := Pool{ID: w.ID, Label: w.shownAs(), WrittenDirs: w.Dirs}
 		for _, dir := range w.Dirs {
 			if found, ok := fenceAt(home, dir); ok {
-				pools[i].Dirs = append(pools[i].Dirs, found)
+				p.Dirs = append(p.Dirs, found)
 			}
 		}
+		pools = append(pools, p)
 	}
 	return pools, nil
 }
