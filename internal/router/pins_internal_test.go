@@ -832,7 +832,7 @@ func TestEachPinThePoolsNoLongerLeaveStandingIsToldAsGivenBackByTheRouter(t *tes
 			want: []status.Event{byRouter(defaultPool, "gone")},
 		},
 		{
-			name: "a pin kept from before pools naming only an account no longer configured, as before pools",
+			name: "a pin kept from before pools naming only an account no longer configured: it goes untold, never having been the first pool's",
 			do:   loading(`{"version": 1, "pin": {"accounts": ["gone"]}, "sessions": []}`),
 		},
 		{
@@ -1004,8 +1004,9 @@ func TestAClosedTableLeavesEachPoolsPinStandingTillThePoolsComeBack(t *testing.T
 	}
 
 	// The state file keeps each pool's pin, and a session of Default's: the
-	// pins stand while nothing is routed, and nothing can be pinned or
-	// unpinned, the pools' nor the session's own.
+	// pins stand while nothing is routed, a pool's pin can be neither set nor
+	// cleared, and the session can't be pinned. Its own pin could still be
+	// cleared, as that needs no pool.
 	state := filepath.Join(t.TempDir(), "state.json")
 	writeFile(t, state, `{"version": 1, "pins": {"`+defaultPool+`": {"accounts": ["side"], "since": "2026-09-28T12:00:00Z"}, "`+acmePool+`": {"accounts": ["personal"], "since": "2026-09-28T12:00:00Z"}},
 		"sessions": [{"session": "one", "model": "`+opus+`", "account": "side", "pool": "`+defaultPool+`", "reason": "new", "assigned_at": "2026-09-28T12:00:00Z", "last_seen": "2026-09-28T12:00:00Z"}]}`)
@@ -1021,8 +1022,8 @@ func TestAClosedTableLeavesEachPoolsPinStandingTillThePoolsComeBack(t *testing.T
 		{http.MethodPost, "/sessions/one/pin", `{"account": "work"}`},
 	}
 	for _, ask := range refused {
-		if rec := askControl(t, r, ask.method, ask.target, ask.body); rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "nothing can be pinned or unpinned") {
-			t.Errorf("%s %s while the pools are closed answered %d %s, want 400, saying nothing can be pinned or unpinned", ask.method, ask.target, rec.Code, rec.Body)
+		if rec := askControl(t, r, ask.method, ask.target, ask.body); rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "no pin can be set, nor a pool's cleared") {
+			t.Errorf("%s %s while the pools are closed answered %d %s, want 400, saying no pin can be set, nor a pool's cleared", ask.method, ask.target, rec.Code, rec.Body)
 		}
 	}
 	if got := pinnedAccounts(r); !reflect.DeepEqual(got, want) {
