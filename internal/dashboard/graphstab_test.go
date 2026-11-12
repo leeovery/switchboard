@@ -41,7 +41,7 @@ func headingRows(f Frame) []int {
 
 // everyGraphsSection are Graphs' sections, every one shown.
 func everyGraphsSection() GraphsSections {
-	return GraphsSectionsNamed([]string{"week", "5-hour", "pool", "glance", "when"})
+	return GraphsSectionsNamed([]string{"week", "pool", "glance", "when"})
 }
 
 func TestGraphsSectionsAreKeyedAndWordedAsTheDesignHasThem(t *testing.T) {
@@ -50,7 +50,6 @@ func TestGraphsSectionsAreKeyedAndWordedAsTheDesignHasThem(t *testing.T) {
 		key, word, heading string
 	}{
 		{section: GraphsWeek, key: "w", word: "week", heading: "WEEK"},
-		{section: GraphsFiveHour, key: "f", word: "5-hour", heading: "5-HOUR"},
 		{section: GraphsPool, key: "o", word: "pool", heading: "POOL"},
 		{section: GraphsGlance, key: "g", word: "glance", heading: "GLANCE"},
 		{section: GraphsWhen, key: "h", word: "when", heading: "WHEN YOU WORK"},
@@ -68,35 +67,40 @@ func TestGraphsSectionsAreKeyedAndWordedAsTheDesignHasThem(t *testing.T) {
 	if !slices.Equal(EveryGraphsSection(), order) {
 		t.Errorf("Graphs' sections are in the order %v, want %v", EveryGraphsSection(), order)
 	}
-	for _, key := range []string{"u", "v", "W", ""} {
+	for _, key := range []string{"f", "u", "v", "W", ""} {
 		if _, ok := GraphsSectionKeyed(key); ok {
 			t.Errorf("GraphsSectionKeyed(%q) names a section, want none", key)
 		}
 	}
 }
 
-// Graphs shows WEEK and 5-HOUR at first; each key shows its section where
-// it's hidden and hides it where it shows; and the preferences keep them by
-// name, nil for those shown at first, none kept as none, a name of no section
-// passed over.
+// Graphs shows WEEK at first; each key shows its section where it's hidden
+// and hides it where it shows; and the preferences keep them by name, nil for
+// those shown at first, none kept as none, a name of no section passed over,
+// as the 5-hour a file kept before Graphs dropped it; and names of no section
+// alone, as a file that kept the 5-hour with WEEK hidden, as nil, those shown
+// at first, never a page with everything hidden.
 func TestGraphsSectionsShowAtFirstToggleAndAreKeptByName(t *testing.T) {
 	var shown GraphsSections
-	if got := shown.Names(); !slices.Equal(got, []string{"week", "5-hour"}) {
-		t.Errorf("at first Graphs shows %q, want week and 5-hour", got)
+	if got := shown.Names(); !slices.Equal(got, []string{"week"}) {
+		t.Errorf("at first Graphs shows %q, want week alone", got)
 	}
 	shown = shown.Toggled(GraphsWeek).Toggled(GraphsWhen)
-	if got := shown.Names(); !slices.Equal(got, []string{"5-hour", "when"}) {
-		t.Errorf("w and h toggled, Graphs shows %q, want 5-hour and when", got)
+	if got := shown.Names(); !slices.Equal(got, []string{"when"}) {
+		t.Errorf("w and h toggled, Graphs shows %q, want when alone", got)
 	}
 	tests := []struct {
 		name  string
 		names []string
 		want  []string
 	}{
-		{name: "none kept", names: nil, want: []string{"week", "5-hour"}},
+		{name: "none kept", names: nil, want: []string{"week"}},
 		{name: "none shown", names: []string{}, want: []string{}},
 		{name: "those kept, in the page's order", names: []string{"when", "pool"}, want: []string{"pool", "when"}},
 		{name: "a later build's passed over", names: []string{"glance", "a-later-section"}, want: []string{"glance"}},
+		{name: "the 5-hour, kept before it went, passed over", names: []string{"week", "5-hour", "pool"}, want: []string{"week", "pool"}},
+		{name: "the 5-hour alone, those shown at first", names: []string{"5-hour"}, want: []string{"week"}},
+		{name: "names of none alone, those shown at first", names: []string{"5-hour", "a-later-section"}, want: []string{"week"}},
 	}
 	for _, tt := range tests {
 		if got := GraphsSectionsNamed(tt.names).Names(); !slices.Equal(got, tt.want) || got == nil {
@@ -106,10 +110,9 @@ func TestGraphsSectionsShowAtFirstToggleAndAreKeptByName(t *testing.T) {
 }
 
 func TestGraphsTogglesAreTheKeyLinesWithAHiddenSectionsWordFaint(t *testing.T) {
-	got := GraphsSections{}.Toggled(GraphsFiveHour).Toggled(GraphsGlance).Toggles()
+	got := GraphsSections{}.Toggled(GraphsGlance).Toggles()
 	want := []Key{
 		{Key: "w", Does: "week"},
-		{Key: "f", Does: "5-hour", Hidden: true},
 		{Key: "o", Does: "pool", Hidden: true},
 		{Key: "g", Does: "glance"},
 		{Key: "h", Does: "when", Hidden: true},
@@ -121,19 +124,20 @@ func TestGraphsTogglesAreTheKeyLinesWithAHiddenSectionsWordFaint(t *testing.T) {
 
 // Each section shown has its heading where the page lays it out, the first
 // on the view's top row, in the page's order, a hidden one taking no room:
-// its name, a rule and its key in the last column.
+// its name, a rule and its key in the last column; at 120 columns, where
+// GLANCE and WHEN YOU WORK don't sit side by side.
 func TestGraphsDrawsEachSectionShownsHeadingWhereThePageLaysItOut(t *testing.T) {
 	tests := []struct {
 		name  string
 		shown GraphsSections
 		want  []string
 	}{
-		{name: "at first", want: []string{"WEEK", "5-HOUR"}},
-		{name: "every one", shown: everyGraphsSection(), want: []string{"WEEK", "5-HOUR", "POOL", "GLANCE", "WHEN YOU WORK"}},
+		{name: "at first", want: []string{"WEEK"}},
+		{name: "every one", shown: everyGraphsSection(), want: []string{"WEEK", "POOL", "GLANCE", "WHEN YOU WORK"}},
 		{name: "POOL and GLANCE", shown: GraphsSectionsNamed([]string{"pool", "glance"}), want: []string{"POOL", "GLANCE"}},
 	}
 	for _, tt := range tests {
-		f := graphsFrame(160, 120, tt.shown)
+		f := graphsFrame(120, 120, tt.shown)
 		text, rows := textOf(f.Draw(threeRouted(), now)), headingRows(f)
 		if len(rows) == 0 || rows[0] != f.top() {
 			t.Errorf("%s: the headings are on rows %v, want the first on the view's top row, %d", tt.name, rows, f.top())
@@ -186,7 +190,7 @@ func TestGraphsHeadingsSayWhenYouWorksWeeksAndLoadingOnTheFirst(t *testing.T) {
 		ink     theme.Token
 	}{
 		{name: "WHEN YOU WORK's weeks", shown: GraphsSectionsNamed([]string{"week", "when"}), want: []string{"WEEK  ─", "WHEN YOU WORK   the 4 weeks to Wed 30 Sep ─"}, ink: theme.TextFaint},
-		{name: "loading, WEEK first", loading: true, want: []string{"WEEK   loading… ─", "5-HOUR  ─"}, ink: theme.TextSubtle},
+		{name: "loading, WEEK first", shown: GraphsSectionsNamed([]string{"week", "pool"}), loading: true, want: []string{"WEEK   loading… ─", "POOL  ─"}, ink: theme.TextSubtle},
 		{name: "loading, WHEN YOU WORK first", shown: GraphsSectionsNamed([]string{"when"}), loading: true, want: []string{"WHEN YOU WORK   loading… ─"}, ink: theme.TextSubtle},
 	}
 	for _, tt := range tests {
@@ -219,8 +223,8 @@ func TestGraphsEverySectionHiddenTheFirstRowSaysHowToBringThemBack(t *testing.T)
 		width int
 		want  []string
 	}{
-		{width: 160, want: []string{"every section is hidden:  w week  f 5-hour  o pool  g glance  h when"}},
-		{width: 52, want: []string{"every section is hidden:  w week  f 5-hour  o pool", "g glance  h when"}},
+		{width: 160, want: []string{"every section is hidden:  w week  o pool  g glance  h when"}},
+		{width: 52, want: []string{"every section is hidden:  w week  o pool  g glance", "h when"}},
 	}
 	for _, tt := range tests {
 		f := graphsFrame(tt.width, 40, GraphsSectionsNamed([]string{}))
@@ -239,138 +243,21 @@ func TestGraphsEverySectionHiddenTheFirstRowSaysHowToBringThemBack(t *testing.T)
 	}
 }
 
-// Graphs offers 5-HOUR while any account the moment holds has, or may have,
-// the 5-hour, as its AnyHas has it, so never where every one it holds lacks
-// it, though one configured that the router doesn't hold yet may have it;
-// and while there's a card to draw, a card for each configured account that
-// has, or may have, it, as Has has them, or none is configured, so never
-// where the config has dropped the one account held with it; with no moment
-// held, it's offered; and every other section always.
-func TestGraphsOffersFiveHourWhileAnyAccountHasOrMayHaveIt(t *testing.T) {
-	tests := []struct {
-		name     string
-		accounts []string
-		lacking  []string
-		unheld   bool
-		want     bool
-		charted  []string
-	}{
-		{name: "every account with one", accounts: trioIDs, want: true, charted: trioIDs},
-		{name: "side alone with one", accounts: trioIDs, lacking: []string{"work", "personal"}, want: true, charted: []string{"side"}},
-		{name: "none with one", accounts: trioIDs, lacking: trioIDs},
-		{name: "none held with one, and one the router doesn't hold yet", accounts: append(slices.Clone(trioIDs), "client"), lacking: trioIDs, charted: []string{"client"}},
-		{name: "the one held with one dropped from the config", accounts: []string{"work", "personal"}, lacking: []string{"work", "personal"}},
-		{name: "none configured, none held with one", lacking: trioIDs},
-		{name: "none configured, every one held with one", want: true},
-		{name: "no moment held", accounts: trioIDs, lacking: trioIDs, unheld: true, want: true, charted: trioIDs},
+// Graphs charts the week alone: with every section shown, and every account
+// with a 5-hour window, the page has no 5-HOUR section, the pool's line no
+// 5-hour part and GLANCE no 5-hour column, and no heading's target presses
+// f, as no key of Graphs' is f.
+func TestGraphsHasNoFiveHour(t *testing.T) {
+	f := graphsFrame(173, 120, everyGraphsSection())
+	text := textOf(f.Draw(threeRouted(), now))
+	if slices.ContainsFunc(text, func(row string) bool { return strings.Contains(strings.ToLower(row), "5-hour") }) {
+		t.Errorf("the page reads\n%s\nwant no 5-hour on it", strings.Join(text, "\n"))
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			accounts := configured(tt.accounts...)
-			held := withoutFiveHour(trio(), tt.lacking...).HoldAt(printNow, printPolicy)
-			if tt.unheld {
-				held = nil
-			}
-			for _, s := range EveryGraphsSection() {
-				if got, want := GraphsOffers(s, accounts, held, printPolicy), tt.want || s != GraphsFiveHour; got != want {
-					t.Errorf("Graphs offers %s %t, want %t", s.heading(), got, want)
-				}
-			}
-			var charted []string
-			for _, a := range fiveHourCharted(accounts, held, printPolicy) {
-				charted = append(charted, a.ID)
-			}
-			if !slices.Equal(charted, tt.charted) {
-				t.Errorf("5-HOUR charts %q, want %q", charted, tt.charted)
-			}
-		})
+	if !slices.ContainsFunc(text, func(row string) bool { return strings.HasPrefix(row, "Σ pool   week ") }) {
+		t.Errorf("the page reads\n%s\nwant the pool's line saying its week", strings.Join(text, "\n"))
 	}
-}
-
-// Where no account has the 5-hour, 5-HOUR goes, and f with it: from the
-// page, its headings' targets and the toggles every section hidden names; a
-// 5-HOUR kept, as the sections shown keep it, shows again once an account
-// has the 5-hour.
-func TestGraphsFiveHourGoesWhereNoAccountHasOne(t *testing.T) {
-	const hidden = "every section is hidden:  w week  o pool  g glance  h when"
-	fiveHour := GraphsSectionsNamed([]string{"5-hour"})
-	tests := []struct {
-		name    string
-		shown   GraphsSections
-		lacking []string
-		keys    []string
-		first   string
-	}{
-		{name: "at first, every account with one", keys: []string{"w", "f"}, first: "WEEK "},
-		{name: "at first, side alone with one", lacking: []string{"work", "personal"}, keys: []string{"w", "f"}, first: "WEEK "},
-		{name: "at first, none with one", lacking: trioIDs, keys: []string{"w"}, first: "WEEK "},
-		{name: "5-HOUR alone kept, none with one", shown: fiveHour, lacking: trioIDs, first: hidden},
-		{name: "5-HOUR alone kept, side with one", shown: fiveHour, lacking: []string{"work", "personal"}, keys: []string{"f"}, first: "5-HOUR "},
-		{name: "every one hidden, none with one", shown: GraphsSectionsNamed([]string{}), lacking: trioIDs, first: hidden},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			doc := withoutFiveHour(trio(), tt.lacking...)
-			f := graphsFrame(160, 120, tt.shown)
-			text := textOf(f.Draw(doc, printNow))
-			var keys []string
-			for _, target := range f.Targets(doc, printNow) {
-				if target.On == OnPress {
-					keys = append(keys, target.Key)
-				}
-			}
-			if !strings.HasPrefix(text[f.top()], tt.first) || !slices.Equal(keys, tt.keys) {
-				t.Errorf("the view's top reads %q, its headings' targets pressing %q; want it to start %q, and %q pressed", text[f.top()], keys, tt.first, tt.keys)
-			}
-			if has, want := slices.ContainsFunc(text, func(row string) bool { return strings.HasPrefix(row, "5-HOUR ") }), slices.Contains(tt.keys, "f"); has != want {
-				t.Errorf("the page reads\n%s\nwant 5-HOUR on it %t", strings.Join(text, "\n"), want)
-			}
-		})
-	}
-}
-
-// Graphs offers no 5-HOUR, nor GLANCE a 5-HOUR column, where every account
-// the router holds lacks the 5-hour, as verified Ultra ones do, though one
-// configured that the router doesn't hold yet, as after accounts add, may
-// have it, as Runway offers no 5-hour then, at the same moment; nor where
-// the config has dropped the one account held with it, till the router
-// holds the config's accounts, though Runway still offers it, as no card
-// would draw it.
-func TestGraphsOffersNoFiveHourWithoutAnAccountToChartItFor(t *testing.T) {
-	tests := []struct {
-		name       string
-		lacking    []string
-		configured []string
-		runway     []views.RunwayWindow
-	}{
-		{
-			name: "every account held lacking it, one configured not held yet", lacking: trioIDs,
-			configured: append(slices.Clone(trioIDs), "client"), runway: []views.RunwayWindow{views.RunwayWeek},
-		},
-		{
-			name: "the one held with it dropped from the config", lacking: []string{"work", "personal"},
-			configured: []string{"work", "personal"}, runway: runwayWindows,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			doc := withoutFiveHour(trio(), tt.lacking...)
-			f := graphsFrame(160, 120, everyGraphsSection()).At(doc, printNow)
-			f.Graphs.Accounts = configured(tt.configured...)
-			if got := views.RunwayWindowsOf(f.Moment(doc, printNow)); !slices.Equal(got, tt.runway) {
-				t.Fatalf("Runway offers %q, want %q", got, tt.runway)
-			}
-			if f.graphsOffers(GraphsFiveHour) {
-				t.Error("Graphs offers 5-HOUR, want it gone")
-			}
-			if got := f.graphsLaid().glance.windows; !slices.Equal(got, []views.RunwayWindow{views.RunwayWeek}) {
-				t.Errorf("GLANCE draws %q, want the week alone", got)
-			}
-			text := textOf(f.Draw(doc, printNow))
-			if slices.ContainsFunc(text, func(row string) bool { return strings.Contains(row, "5-HOUR") }) {
-				t.Errorf("the page reads\n%s\nwant no 5-HOUR on it, neither section nor GLANCE's column", strings.Join(text, "\n"))
-			}
-		})
+	if keys, _ := pressed(f); slices.Contains(keys, "f") {
+		t.Errorf("the headings that are targets press %q, want no f", keys)
 	}
 }
 
@@ -399,7 +286,7 @@ func TestGraphsHeadingIsATargetThatPressesItsKeyWhileItShows(t *testing.T) {
 			t.Errorf("%s's target is over %q, want its heading, from its name to its key", section.heading(), got)
 		}
 	}
-	if keys, _ := pressed(f); !slices.Equal(keys, []string{"w", "f", "o", "g", "h"}) {
+	if keys, _ := pressed(f); !slices.Equal(keys, []string{"w", "o", "g", "h"}) {
 		t.Errorf("the headings that are targets press %q, want every section's key", keys)
 	}
 
@@ -409,20 +296,28 @@ func TestGraphsHeadingIsATargetThatPressesItsKeyWhileItShows(t *testing.T) {
 	}
 }
 
+// scrollingFrame is a phone's frame of Graphs too short for its sections:
+// WEEK, POOL and GLANCE shown, of two accounts, at 73 by 40, its 44 rows in
+// the 32 over the legend.
+func scrollingFrame() Frame {
+	f := graphsFrame(73, 40, GraphsSectionsNamed([]string{"week", "pool", "glance"}))
+	f.Graphs.Accounts = configured("work", "personal")
+	return f
+}
+
 // Scrolled, the headings' targets follow their headings up the view, and one
 // scrolled out of view is none.
 func TestGraphsHeadingsTargetsFollowTheScroll(t *testing.T) {
-	f := graphsFrame(73, 61, GraphsSections{})
-	f.Graphs.Accounts = configured("work", "personal", "side", "team")
-	week, fiveHour := headingRows(f)[0], headingRows(f)[1]
+	f := scrollingFrame()
+	week, pool, glance := headingRows(f)[0], headingRows(f)[1], headingRows(f)[2]
 	tests := []struct {
 		scroll int
 		keys   []string
 		rows   []int
 	}{
-		{scroll: 0, keys: []string{"w", "f"}, rows: []int{week, fiveHour}},
-		{scroll: 1, keys: []string{"f"}, rows: []int{fiveHour - 1}},
-		{scroll: 16, keys: []string{"f"}, rows: []int{fiveHour - 16}},
+		{scroll: 0, keys: []string{"w", "o"}, rows: []int{week, pool}},
+		{scroll: 1, keys: []string{"o"}, rows: []int{pool - 1}},
+		{scroll: 12, keys: []string{"o", "g"}, rows: []int{pool - 12, glance - 12}},
 	}
 	for _, tt := range tests {
 		f.Scroll = tt.scroll
@@ -432,8 +327,10 @@ func TestGraphsHeadingsTargetsFollowTheScroll(t *testing.T) {
 			t.Errorf("scrolled %d, the headings' targets press %q on rows %v, want %q on rows %v", tt.scroll, keys, rows, tt.keys, tt.rows)
 			continue
 		}
-		if last := rows[len(rows)-1]; !strings.HasPrefix(text[last], "5-HOUR ") {
-			t.Errorf("scrolled %d, 5-HOUR's target is on %q, want its heading", tt.scroll, text[last])
+		for i, key := range keys {
+			if section, _ := GraphsSectionKeyed(key); !strings.HasPrefix(text[rows[i]], section.heading()+" ") {
+				t.Errorf("scrolled %d, %s's target is on %q, want its heading", tt.scroll, section.heading(), text[rows[i]])
+			}
 		}
 	}
 }
@@ -445,21 +342,21 @@ func TestGraphsHeadingsTargetsFollowTheScroll(t *testing.T) {
 func TestGraphsScrollsWholeShortOfEveryLeastTheLegendHeldAtTheFoot(t *testing.T) {
 	legend := "▆▆ room left   ⠂⠄⡀ where it's heading   ✕ runs out"
 	tests := []struct {
-		name     string
-		accounts []string
-		scroll   int
-		first    string
-		state    string
+		name   string
+		frame  Frame
+		scroll int
+		first  string
+		state  string
 	}{
-		{name: "four accounts on a phone", accounts: []string{"work", "personal", "side", "team"}, first: "WEEK ", state: "▼ 16 more below"},
-		{name: "scrolled 3", accounts: []string{"work", "personal", "side", "team"}, scroll: 3, state: "▲ 3 more above · ▼ 13 more below"},
-		{name: "scrolled to the foot", accounts: []string{"work", "personal", "side", "team"}, scroll: 99, state: "▲ 16 more above"},
-		{name: "three, fitting", accounts: []string{"work", "personal", "side"}, first: "WEEK "},
+		{name: "short of the least", frame: scrollingFrame(), first: "WEEK ", state: "▼ 12 more below"},
+		{name: "scrolled 3", frame: scrollingFrame(), scroll: 3, state: "▲ 3 more above · ▼ 12 more below"},
+		{name: "scrolled to the foot", frame: scrollingFrame(), scroll: 99, state: "▲ 12 more above"},
+		{name: "fitting", frame: graphsFrame(73, 61, GraphsSections{}), first: "WEEK "},
 	}
 	nord := Screen(builtin(t, "nord"))
 	for _, tt := range tests {
-		f := graphsFrame(73, 61, GraphsSections{})
-		f.Look, f.Scroll, f.Graphs.Accounts = nord, tt.scroll, configured(tt.accounts...)
+		f := tt.frame
+		f.Look, f.Scroll = nord, tt.scroll
 		rows := f.Draw(threeRouted(), now)
 		text, foot := textOf(rows), f.stateRow()
 		if text[foot] != tt.state || text[foot-1] != legend {
@@ -477,16 +374,15 @@ func TestGraphsScrollsWholeShortOfEveryLeastTheLegendHeldAtTheFoot(t *testing.T)
 // Scrolled, the page shows the rows whole, a row on for each row scrolled,
 // over the legend, and no further than shows the last.
 func TestGraphsScrollsARowAtATime(t *testing.T) {
-	f := graphsFrame(73, 61, GraphsSections{})
-	f.Graphs.Accounts = configured("work", "personal", "side", "team")
-	fiveHour := headingRows(f)[1]
-	for _, scroll := range []int{1, 2, 10, 16} {
+	f := scrollingFrame()
+	pool := headingRows(f)[1]
+	for _, scroll := range []int{1, 2, 10, 12} {
 		f.Scroll = scroll
-		if text := textOf(f.Draw(threeRouted(), now)); !strings.HasPrefix(text[fiveHour-scroll], "5-HOUR ") {
-			t.Errorf("scrolled %d, row %d reads %q, want 5-HOUR's heading, %d rows up", scroll, fiveHour-scroll+1, text[fiveHour-scroll], scroll)
+		if text := textOf(f.Draw(threeRouted(), now)); !strings.HasPrefix(text[pool-scroll], "POOL ") {
+			t.Errorf("scrolled %d, row %d reads %q, want POOL's heading, %d rows up", scroll, pool-scroll+1, text[pool-scroll], scroll)
 		}
 	}
-	if s := f.Scrolling(threeRouted(), now); s.Most != 16 || !f.ScrollsRows(threeRouted(), now) {
-		t.Errorf("the page scrolls %+v, a row at a time %t; want 16 rows, a row at a time", s, f.ScrollsRows(threeRouted(), now))
+	if s := f.Scrolling(threeRouted(), now); s.Most != 12 || !f.ScrollsRows(threeRouted(), now) {
+		t.Errorf("the page scrolls %+v, a row at a time %t; want 12 rows, a row at a time", s, f.ScrollsRows(threeRouted(), now))
 	}
 }

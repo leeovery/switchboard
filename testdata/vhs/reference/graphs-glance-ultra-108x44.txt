@@ -4,7 +4,9 @@
 
 WEEK  ──────────────────────────────────────────────────────────────────────────────────────────────────── w
 
-work     66% left  ·  caps ~Sat  ·  resets Sun 21:00    personal ◆                     34% left  ·  out ~Sat
+work                                                    personal ◆
+66% left  ·  caps ~Sat  ·  resets Sun 21:00             34% left  ·  out ~Sat  ·  resets Sun 02:00
+
     ▇▆▄▃▃▃▃▃▂▁              │                                     ▇▅▄▃▃▃▃▂                │
                    ▇▆▅▅▅▅▅▄▃⣀⡀                                            ▇▄▂▂▂▂▂         │
                             │⠈⠑⠒⠤⢄⡀                                              ▇▄▁      │
@@ -12,7 +14,9 @@ work     66% left  ·  caps ~Sat  ·  resets Sun 21:00    personal ◆          
                             ⢀ ⢀ ⢀ ⢀ ⢀ ⢀ ⠉⠑⠢⠤✕⣀⣀⣀⣀⣀⣀⣀                                      │   ⠈⠉⠑⠒⠤⠤⣀✕⣀⣀⣀⣀⣀⣀
 ╵Mon    ╵Tue   ╵Wed    ╵Thu   ╵Fri    ╵Sat   ╵Sun             ╵Mon    ╵Tue   ╵Wed    ╵Thu   ╵Fri   ╵Sat
 
-side ▲    22% left  ·  out ~Fri  ·  resets Mon 10:00
+side ▲
+22% left  ·  out ~Fri  ·  resets Mon 10:00
+
  ▆▄▃▃▃▃▂                │
         ▇▄▁▁▁▁▁         │
                ▆▂       │
@@ -26,19 +30,15 @@ GLANCE  ────────────────────────
 
               WEEK
 
-work            ▇▇▆▆▆▆▅▄▃▂▁✕▁▁  66%  out ~Sat
+work                 ▇▇▇▇▇▇▇▇▇▆▆▆▆▆▆▆▆▆▆▆▆▆▆▆▆▆▅▅▅▅▄▄▄▄▃▃▃▃▂▂▂▂▁▁▁▁✕▁▁▁▁▁▁▁▁▁  66%  out ~Sat
 
-personal   ◆      ▇▇▅▅▃▃▃▂▁▁✕   34%  out ~Sat
+personal   ◆                ▇▇▇▇▇▇▇▇▆▆▅▅▅▅▅▅▅▄▄▃▃▃▃▃▃▃▃▃▂▂▂▂▂▁▁▁▁▁▁▁▁✕         34%  out ~Sat
 
-side       ▲  ▇▇▆▅▅▃▃▂▁✕        22%  out ~Fri
-─────────────────────────────────────────────────────────────
-Σ pool        ▄▄▆▇▇▅▅▄▃▂▁▁▁▃▃▅ 1.2 of 3 left
+side       ▲    ▇▇▇▇▇▇▇▇▆▆▅▅▅▅▅▅▅▄▃▃▃▃▃▃▃▂▂▂▁▁▁▁▁▁▁▁✕                          22%  out ~Fri
+────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Σ pool        ▄▄▄▄▄▄▆▆▆▆ ▇▇▇▇▇▇▇▆▆▅▅▅▅▅▅▅▄▄▄▄▄▄▃▃▃▃▂▂▂▂▁▁▁▁▁▁▁▁▁▁  ▃▃▃▃▃▃▅▅▅▅ 1.2 of 3 left
 
-▆ room left, start to reset    ▆ heading    ✕ runs out
-66% room left now
-
-
-
+▆ room left, start to reset    ▆ heading    ✕ runs out    66% room left now
 ▆▆ room left   ⠂⠄⡀ where it's heading   ✕ runs out   ⠠ ⠠ reserve
 
 tab views     w week  o pool  g glance  h when     p pin  ? help  q quit

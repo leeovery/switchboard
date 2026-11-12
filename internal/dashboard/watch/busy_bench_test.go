@@ -285,7 +285,7 @@ func writeDay(tb testing.TB, dir, name string, data []byte, compressed bool) {
 // before; a look with the Log's panel open; on the Overview by account,
 // ROUTING beside USAGE, a look, and a resize; Runway built afresh, and a look at
 // it, its readings history having gained a reading of each account since
-// the last; Graphs alike, its lanes of each window, and with POOL or GLANCE
+// the last; Graphs alike, its lanes of the week, and with POOL or GLANCE
 // shown too, and POOL's stack built afresh; a request sent, with the
 // Log shown; and the Events, filled through every kind, refiltered to a kind
 // none of the four weeks holds.
@@ -387,8 +387,8 @@ func BenchmarkTheBusyDashboard(b *testing.B) {
 		shown []string
 	}{
 		{"a look on Graphs, a reading gained", nil},
-		{"a look on Graphs with POOL, a reading gained", []string{"week", "5-hour", "pool"}},
-		{"a look on Graphs with GLANCE, a reading gained", []string{"week", "5-hour", "glance"}},
+		{"a look on Graphs with POOL, a reading gained", []string{"week", "pool"}},
+		{"a look on Graphs with GLANCE, a reading gained", []string{"week", "glance"}},
 	} {
 		b.Run(on.name, func(b *testing.B) {
 			h := w.onGraphs(b, on.shown...)

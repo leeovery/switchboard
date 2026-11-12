@@ -24,21 +24,21 @@ side ▲
                         ⠈⠉⠒⠒⠤⠤⣀✕⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀
     ╵Tue   ╵Wed    ╵Thu   ╵Fri    ╵Sat   ╵Sun   ╵Mon
 
-Σ pool   week 1.2 of 3 left   5-hour 1.5 of 3 left
+Σ pool   week 1.2 of 3 left
 
 GLANCE  ────────────────────────────────────────────────────────────────────────────────────────────────── g
 
-              WEEK                                            5-HOUR
+              WEEK
 
-work            ▇▇▆▆▆▆▅▄▃▂▁✕▁▁  66%  out ~Sat                  ▇▆▅▄▃▂✕▁▁▁▁▁▁▁▁   5%  at cap · back 17:10
+work                 ▇▇▇▇▇▇▇▇▇▆▆▆▆▆▆▆▆▆▆▆▆▆▆▆▆▆▅▅▅▅▄▄▄▄▃▃▃▃▂▂▂▂▁▁▁▁✕▁▁▁▁▁▁▁▁▁  66%  out ~Sat
 
-personal   ◆      ▇▇▅▅▃▃▃▂▁▁✕   34%  out ~Sat                   ▇▇▇▆▆▆▆▅▅▅▄▄▄▃  61%  34%/h till 16:30
+personal   ◆                ▇▇▇▇▇▇▇▇▆▆▅▅▅▅▅▅▅▄▄▃▃▃▃▃▃▃▃▃▂▂▂▂▂▁▁▁▁▁▁▁▁✕         34%  out ~Sat
 
-side       ▲  ▇▇▆▅▅▃▃▂▁✕        22%  out ~Fri                    ▇▆▆▅▅▄▄▃▃▂▂▁▁  87%  21%/h till 18:50
+side       ▲    ▇▇▇▇▇▇▇▇▆▆▅▅▅▅▅▅▅▄▃▃▃▃▃▃▃▂▂▂▁▁▁▁▁▁▁▁✕                          22%  out ~Fri
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────
-Σ pool        ▄▄▆▇▇▅▅▄▃▂▁▁▁▃▃▅ 1.2 of 3 left                  ▆▇▆▆▅▅▄▄▃▃▃▄▆▆▆▆ 1.5 of 3 left
+Σ pool        ▄▄▄▄▄▄▆▆▆▆ ▇▇▇▇▇▇▇▆▆▅▅▅▅▅▅▅▄▄▄▄▄▄▃▃▃▃▂▂▂▂▁▁▁▁▁▁▁▁▁▁  ▃▃▃▃▃▃▅▅▅▅ 1.2 of 3 left
 
 ▆ room left, start to reset    ▆ heading    ✕ runs out    66% room left now
 ▆▆ room left   ⠂⠄⡀ where it's heading   ✕ runs out   ⠠ ⠠ reserve
 
-tab views     w week  f 5-hour  o pool  g glance  h when     p pin  ? help  q quit
+tab views     w week  o pool  g glance  h when     p pin  ? help  q quit

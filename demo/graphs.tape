@@ -1,8 +1,7 @@
 # A still for the README's grid: Graphs, drawn from the fixture named after
 # its signed-off frame: the burn-down cards, a card an account over its own
-# window, the week's and then the 5-hour's: work at its cap till 17:10,
-# personal's and side's weeks running out at their pace, and the pool's room
-# under them.
+# week, two a row: work at its cap till 17:10, personal's and side's weeks
+# running out at their pace, and the pool's room under them.
 #
 # Record it, and make art/graphs.webp:
 #   demo/record.sh graphs

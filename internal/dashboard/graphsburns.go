@@ -8,22 +8,19 @@ import (
 	"github.com/leeovery/switchboard/internal/views"
 )
 
-// burnCards draws the cards of the burn-down section placed, of the moment
-// m, as laid out: each of the configured accounts it charts, as laid's
-// charted has them, in the config's order, named as graphsNamed has it,
+// burnCards draws WEEK's cards, placed, of the moment m, as laid out: each
+// configured account's, in the config's order, named as graphsNamed has it,
 // where laid's cards places it, as burnCardDrawn draws it, so one the
 // moment doesn't hold yet, having no lane, draws its label alone, no words,
 // as a card does before its lanes are built, and its chart empty but for
-// now's line; none where no account has or may have a window of the
-// section's at the moment, as KeyIn has it.
+// now's line; none where the moment has no week, as KeyIn has it.
 func (f Frame) burnCards(c *canvas, m status.Moment, laid graphsLaid, placed graphsPlaced) {
-	window := burnDowns[placed.section]
-	key := window.KeyIn(m)
+	key := GraphsWindow.KeyIn(m)
 	if key == "" {
 		return
 	}
-	s := burnSection{key: key, lanes: f.Graphs.Lanes[window], beside: !laid.apart, now: m.Now}
-	accounts, names := graphsNamed(m, laid.charted[placed.section])
+	s := burnSection{key: key, lanes: f.Graphs.Lanes[GraphsWindow], beside: !laid.apart, now: m.Now}
+	accounts, names := graphsNamed(m, laid.accounts)
 	for i, at := range laid.cards(placed) {
 		l, built := s.lanes.lane(accounts[i].ID)
 		f.burnCardDrawn(c, s, laneLaid(l, accounts[i], names[i]), built, at)
