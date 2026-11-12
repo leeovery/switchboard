@@ -23,10 +23,10 @@ func EventsFrom(first time.Time) time.Time {
 	return Today(first).Start.Add(-FactsReach)
 }
 
-// EventsRead are the router's events the Log's Events are built from, from
-// when its span begins, each once, by run and id, as it last stands: those
-// the router's files held as the span was read, and as each day it reached
-// back to was, the files read once for each; and those the status document
+// EventsRead are the router's events the Log's Events and Runway's LATELY
+// are built from, from when its span begins, each once, by run and id, as
+// it last stands: those the router's files held as the span was read, and
+// as it reached back to each earlier day; and those the status document
 // gave at each look since, the document's version in place of the files'.
 // Those the document gave are kept as it gives newer ones, and as a router
 // restarted tells its own, so none it gave is lost between looks. What
@@ -63,24 +63,29 @@ func (r EventsRead) Since() time.Time {
 
 // EventsFiled are what a read of the router's files for an EventsRead
 // found, apart from the events held as it was asked, so those a look takes
-// in while it's under way are kept as it lands, as Took has it: when the
-// events read reach back to with them, and the events found, each as the
-// files last hold it.
+// in while it's under way are kept as it lands, as Took has it: the span it
+// read whole, from since up to until, where it read back before the events
+// held, none where it read only what they span; and the events found, each
+// as the files last hold it.
 type EventsFiled struct {
-	since  time.Time
-	events []Event
+	since, until time.Time
+	events       []Event
 }
 
 // Took is r with what the files were found to hold taken in: reaching back
-// as far as f does, where that's further, and each event found in place of
-// the version held, those held besides kept as they stand.
+// as far as f read whole, where that's further and meets where r begins, as
+// r may have let go of the days it read back to while the read was under
+// way; and each event found from where r then begins, in place of the
+// version held, those held besides kept as they stand.
 func (r EventsRead) Took(f EventsFiled) EventsRead {
 	took := r.clone()
-	if f.since.Before(took.since) {
+	if f.since.Before(took.since) && !f.until.Before(took.since) {
 		took.since = f.since
 	}
 	for _, e := range f.events {
-		took.hold(e)
+		if !e.Event.At.Before(took.since) {
+			took.hold(e)
+		}
 	}
 	return took
 }
@@ -119,9 +124,9 @@ func (r EventsRead) Back(filed Events, first time.Time) EventsFiled {
 // already.
 func (r EventsRead) BackTo(filed Events, since time.Time) EventsFiled {
 	if !since.Before(r.since) {
-		return EventsFiled{since: r.since}
+		return EventsFiled{}
 	}
-	return EventsFiled{since: since, events: filedBetween(filed, since, r.since)}
+	return EventsFiled{since: since, until: r.since, events: filedBetween(filed, since, r.since)}
 }
 
 // Look is r with the events the status document m is a moment of gives,
@@ -184,7 +189,7 @@ func (r EventsRead) Refiled(filed Events, from, now time.Time) EventsFiled {
 	if from.Before(r.since) {
 		from = r.since
 	}
-	return EventsFiled{since: r.since, events: filedBetween(filed, from, dayfile.DayStart(now.Local(), 1))}
+	return EventsFiled{events: filedBetween(filed, from, dayfile.DayStart(now.Local(), 1))}
 }
 
 // Events are the events read, oldest first, by when each happened, then by

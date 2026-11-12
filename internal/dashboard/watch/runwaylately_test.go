@@ -17,21 +17,29 @@ import (
 )
 
 // countedFiles are the router's files of events, read as an events.Reader
-// reads them, a file a local day, counting each day's file read by its
-// date, as each read reaches it.
+// reads them, a file a local day: every day's file from the day before a
+// read's from to the day after its to, events.ChangesFor days on, or now
+// on its clock where that's sooner, as an event's versions are filed on the
+// days after it; counting each day's file read by its date.
 type countedFiles struct {
 	lines []events.Line
+	clock *fakeClock
 	reads map[string]int
 }
 
-// filesOf are the router's files holding the lines given, none read yet.
+// filesOf are the router's files holding the lines given, none read yet,
+// read at the time the clock it's given tells.
 func filesOf(lines ...events.Line) *countedFiles {
 	return &countedFiles{lines: lines, reads: make(map[string]int)}
 }
 
 func (c *countedFiles) Between(from, to time.Time) iter.Seq[events.Line] {
-	for day := dayfile.DayStart(from.Local(), 0); day.Before(to); day = dayfile.DayStart(day, 1) {
-		c.reads[dayfile.DateOf(day)]++
+	last := to.AddDate(0, 0, events.ChangesFor)
+	if c.clock.now.Before(last) {
+		last = c.clock.now
+	}
+	for _, date := range dayfile.Dates(from, last) {
+		c.reads[date]++
 	}
 	return func(yield func(events.Line) bool) {
 		for _, l := range c.lines {
@@ -65,16 +73,6 @@ func (c *countedFiles) datesRead() []string {
 	return slices.Sorted(maps.Keys(c.reads))
 }
 
-// localDates are the dates of the local days from the one from falls on to
-// the one to falls on, the oldest first.
-func localDates(from, to time.Time) []string {
-	var dates []string
-	for day := dayfile.DayStart(from.Local(), 0); !day.After(to); day = dayfile.DayStart(day, 1) {
-		dates = append(dates, dayfile.DateOf(day))
-	}
-	return dates
-}
-
 // limitAt is an account's 5-hour limit with the id given, at the time given.
 func limitAt(id int, at time.Time, account string) status.Event {
 	return status.Event{ID: id, At: at, Kind: status.EventLimit, Account: account, Windows: []string{"5h"}}
@@ -91,14 +89,14 @@ func latelySaid(m Model) []string {
 
 // runwayOfRun is Runway shown of the router's document giving the events
 // given, the router's run having begun at run, its files of events those
-// given.
+// given, read at the harness's time.
 func runwayOfRun(t *testing.T, run time.Time, files *countedFiles, given ...status.Event) *runwayed {
 	t.Helper()
 	doc := routerDocument(three()...)
 	doc.Events = given
 	return runwayHarnessOf(t, doc, dashboard.Runway, func(r *runwayed, cfg *Config) {
 		r.source.health = router.Health{OK: true, PID: 1, StartedAt: run}
-		cfg.Events = files
+		files.clock, cfg.Events = r.clock, files
 	})
 }
 
@@ -139,7 +137,7 @@ func TestRunwaysLATELYTellsTheDocumentsEventsTillTheFilesAreRead(t *testing.T) {
 	h := routedHarness(t, doc)
 	h.source.health = router.Health{OK: true, PID: 1, StartedAt: run}
 	cfg := h.config(Size{Width: 173, Height: 53})
-	cfg.Events, cfg.View = files, dashboard.Runway
+	files.clock, cfg.Events, cfg.View = h.clock, files, dashboard.Runway
 	h.model = New(t.Context(), cfg)
 	read := holdingBack[latelyReadMsg](h, h.init()...)
 	if got, want := latelySaid(h.model), []string{"work reached its 5-hour limit"}; len(read) != 1 || !slices.Equal(got, want) {
@@ -151,14 +149,16 @@ func TestRunwaysLATELYTellsTheDocumentsEventsTillTheFilesAreRead(t *testing.T) {
 	}
 }
 
-// LATELY reads each day's file of the week it tells once: not again as the
-// document's read afresh, nor as midnight passes, as the day that closed was
-// read as it was today's; and none before the week.
-func TestRunwaysLATELYReadsEachDayOnceAndNoneBeforeItsWeek(t *testing.T) {
+// LATELY reads the files of the week it tells once, as an events.Reader
+// reads them, from the day before the week's to the day after today's: not
+// again as the document's read afresh, nor as midnight passes, as the day
+// that closed was read as it was today's; and tells none of the events
+// before the week.
+func TestRunwaysLATELYReadsItsWeekOnceAndTellsNoneBeforeIt(t *testing.T) {
 	run := past(-time.Hour)
 	files := filesOf(events.Line{Event: limitAt(1, past(-8*day), "work"), Run: past(-9 * day)})
 	r := runwayOfRun(t, run, files)
-	want := localDates(views.RunwayLatelyFrom(past(0)), past(0))
+	want := dayfile.Dates(views.RunwayLatelyFrom(past(0)), past(0))
 	midnight := dayfile.DayStart(past(0).Local(), 1)
 	for _, at := range []time.Time{past(time.Minute), past(2 * time.Minute), midnight.Add(time.Minute), midnight.Add(time.Hour)} {
 		r.clock.now = at
@@ -182,7 +182,7 @@ func TestRunwayAndTheLogReadEachDayOnce(t *testing.T) {
 	writeLines(t, state, arrived("0a000001", "work", -time.Minute))
 	onTheLog(r.harness, state)
 	r.typed("R")
-	if got, want := files.datesRead(), localDates(views.RunwayLatelyFrom(past(0)), past(0)); !slices.Equal(got, want) || !files.readOnce() {
+	if got, want := files.datesRead(), dayfile.Dates(views.RunwayLatelyFrom(past(0)), past(0)); !slices.Equal(got, want) || !files.readOnce() {
 		t.Errorf("Runway then the Log read the days' files %v, %v; want %v, each once", got, files.reads, want)
 	}
 	if rows := r.model.log.page.Events.Rows; len(rows) != 1 || rows[0].Key != (views.EventKey{Run: run, ID: 1}) {
@@ -190,10 +190,11 @@ func TestRunwayAndTheLogReadEachDayOnce(t *testing.T) {
 	}
 }
 
-// Where the Log read the router's events first, LATELY reads back the days
-// of its week before those, each once: but the day the Log's reach back
-// for its facts falls in, read for its last hours, as the Log's own read
-// back reads it again.
+// Where the Log read the router's events first, LATELY reads back its week
+// before them, as an events.Reader reads back: its files from the day
+// before the week's on to today's and the day after, as an event's versions
+// are filed on the days after it, so those the Log read are read again, the
+// rest once.
 func TestLatelyReadsBackTheWeekBeforeTheLogsDays(t *testing.T) {
 	run := past(-time.Hour)
 	filed := limitAt(1, past(-3*day), "side")
@@ -203,18 +204,20 @@ func TestLatelyReadsBackTheWeekBeforeTheLogsDays(t *testing.T) {
 	state := t.TempDir()
 	writeLines(t, state, arrived("0a000001", "work", -time.Minute))
 	onTheLog(h, state)
-	h.model.cfg.Events = files
+	files.clock, h.model.cfg.Events = h.clock, files
 	h.start()
 	logged := files.datesRead()
 	h.model.view = dashboard.Runway
 	h.typed("R")
-	reach := dayfile.DateOf(views.EventsFrom(past(0)))
+	if !slices.Equal(logged, dayfile.Dates(views.EventsFrom(past(0)), past(0))) {
+		t.Errorf("the Log read the days' files %v, want those of its day", logged)
+	}
 	for date, n := range files.reads {
-		if want := 1 + btoi(date == reach); n != want {
+		if want := 1 + btoi(slices.Contains(logged, date)); n != want {
 			t.Errorf("the Log then Runway read %s's file %d times, want %d: %v, the Log's %v", date, n, want, files.reads, logged)
 		}
 	}
-	if got, want := files.datesRead(), localDates(views.RunwayLatelyFrom(past(0)), past(0)); !slices.Equal(got, want) {
+	if got, want := files.datesRead(), dayfile.Dates(views.RunwayLatelyFrom(past(0)), past(0)); !slices.Equal(got, want) {
 		t.Errorf("the Log then Runway read the days' files %v, want %v, LATELY's week", got, want)
 	}
 	if got, want := latelySaid(h.model), []string{"side reached its 5-hour limit"}; !slices.Equal(got, want) {
@@ -239,7 +242,9 @@ func TestTheEventsHeldKeepWhatTheLogAndLATELYWant(t *testing.T) {
 	later := now.Add(day)
 	cut := dayfile.DayStart(views.RunwayLatelyFrom(later).Local(), 0)
 	gone := limitAt(1, cut.Add(-time.Minute), "side")
-	read := views.ReadEventsFrom(filesOf(events.Line{Event: gone, Run: past(-8 * day)}), views.RunwayLatelyFrom(now), now)
+	files := filesOf(events.Line{Event: gone, Run: past(-8 * day)})
+	files.clock = &fakeClock{now: now}
+	read := views.ReadEventsFrom(files, views.RunwayLatelyFrom(now), now)
 	logged := logTab{opened: true, from: views.Today(now)}
 	tests := []struct {
 		name   string
@@ -260,5 +265,96 @@ func TestTheEventsHeldKeepWhatTheLogAndLATELYWant(t *testing.T) {
 				t.Errorf("the events held reach back to %v, holding %d; want %v, holding %d", got.Since(), len(got.Events()), tt.since, tt.held)
 			}
 		})
+	}
+}
+
+// Runway's LATELY is told afresh only as the events held change, the day
+// turns, as its words say a time beside it, or a line it told passes out of
+// its week: told again with none of those changed, it's as it was told.
+func TestRunwaysLATELYIsToldAfreshAsWhatItTellsOfChanges(t *testing.T) {
+	now := past(0)
+	edge := events.Line{Event: limitAt(1, views.RunwayLatelyFrom(now).Add(2*time.Minute), "side"), Run: past(-7 * day)}
+	recent := events.Line{Event: limitAt(2, now.Add(-day), "work"), Run: past(-7 * day)}
+	tests := []struct {
+		name    string
+		held    []events.Line
+		changed bool
+		at      time.Time
+		afresh  bool
+	}{
+		{name: "nothing it tells of changed", held: []events.Line{edge, recent}, at: now.Add(time.Minute)},
+		{name: "the events held changed", held: []events.Line{edge, recent}, changed: true, at: now.Add(time.Minute), afresh: true},
+		{name: "its oldest line passed out of its week", held: []events.Line{edge, recent}, at: now.Add(3 * time.Minute), afresh: true},
+		{name: "the day turned", held: []events.Line{recent}, at: dayfile.DayStart(now.Local(), 1).Add(time.Minute), afresh: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			files := filesOf(tt.held...)
+			files.clock = &fakeClock{now: now}
+			read := views.ReadEventsFrom(files, views.RunwayLatelyFrom(now), now)
+			m := Model{events: heldEvents{lately: true}.took(&read, nil)}
+			m.runwayTab.lately = m.latelyTold(status.Moment{Now: now})
+			if tt.changed {
+				m.events.changes++
+			}
+			was, told := m.runwayTab.lately.sentences, m.latelyTold(status.Moment{Now: tt.at}).sentences
+			if afresh := &was[0] != &told[0]; afresh != tt.afresh {
+				t.Errorf("LATELY told afresh %t, want %t", afresh, tt.afresh)
+			}
+		})
+	}
+}
+
+// latelyCut is where the events held for Runway's LATELY begin at now: the
+// start of the day its week begins on.
+func latelyCut(now time.Time) time.Time {
+	return dayfile.DayStart(views.RunwayLatelyFrom(now).Local(), 0)
+}
+
+// heldSince reports whether the events m holds begin at since, and hold
+// none from before it.
+func heldSince(m Model, since time.Time) bool {
+	read := m.events.read
+	return read.Since().Equal(since) && !slices.ContainsFunc(read.Events(), func(e views.Event) bool { return e.Event.At.Before(since) })
+}
+
+// A dashboard left on the Overview, once Runway's LATELY has read the week,
+// lets go of the events held as each look takes in more, day after day:
+// it holds no more than LATELY's week.
+func TestTheEventsHeldOffRunwayHoldNoMoreThanTheWeek(t *testing.T) {
+	run := past(-time.Hour)
+	r := runwayOfRun(t, run, filesOf(events.Line{Event: limitAt(1, past(-6*day), "side"), Run: past(-7 * day)}))
+	r.model.view = dashboard.Overview
+	for d := 1; d <= 10; d++ {
+		r.clock.now = past(time.Duration(d) * day)
+		doc := routerDocument(three()...)
+		doc.Events = []status.Event{limitAt(d, r.clock.now.Add(-time.Minute), "work")}
+		r.startRouter(doc)
+		r.typed("R")
+	}
+	if now := r.clock.now; !heldSince(r.model, latelyCut(now)) {
+		t.Errorf("ten days on the Overview, the events held begin at %v, holding %d; want none before %v", r.model.events.read.Since(), len(r.model.events.read.Events()), latelyCut(now))
+	}
+}
+
+// A read of the files under way as midnight passes and the events held let
+// go of the day before LATELY's week claims none of it as it lands.
+func TestARefileUnderWayAcrossMidnightClaimsNoDayLetGo(t *testing.T) {
+	run := past(-time.Hour)
+	r := runwayOfRun(t, run, filesOf(events.Line{Event: limitAt(1, latelyCut(past(0)).Add(time.Hour), "side"), Run: past(-7 * day)}))
+	r.source.health = router.Health{OK: true, PID: 2, StartedAt: past(time.Minute)}
+	r.clock.now = past(2 * time.Minute)
+	r.startRouter(routerDocument(three()...))
+	read := holdingBack[latelyReadMsg](r.harness, r.press("R")...)
+	if len(read) != 1 {
+		t.Fatalf("the router restarted, LATELY read the files %d times, want once", len(read))
+	}
+	r.clock.now = dayfile.DayStart(past(0).Local(), 1).Add(time.Minute)
+	if more := holdingBack[latelyReadMsg](r.harness, r.press("R")...); len(more) != 0 {
+		t.Fatalf("a read under way, LATELY read the files %d more times, want none", len(more))
+	}
+	r.deliver(read...)
+	if cut := latelyCut(r.clock.now); !heldSince(r.model, cut) {
+		t.Errorf("the read landed past midnight, the events held begin at %v, holding %d; want none before %v", r.model.events.read.Since(), len(r.model.events.read.Events()), cut)
 	}
 }

@@ -92,6 +92,28 @@ func weekOn(now, t time.Time) bool {
 	return t.Sub(now) > 24*time.Hour && t.In(now.Location()).Weekday() == now.Weekday()
 }
 
+// Befell shows t, when an event befell, before now, in now's time zone: as
+// Dated shows it, such as "16:05" or "Fri 04:06", but a week back, as
+// weekBack has it, its date in place of its weekday, such as "5 Nov 15:00".
+func Befell(now, t time.Time) string {
+	if weekBack(now, t) {
+		return t.In(now.Location()).Format(pastLayout)
+	}
+	return Dated(now, t)
+}
+
+// weekBack reports whether t is more than a day before now and on now's own
+// weekday in now's time zone, where its weekday alone would read as today.
+func weekBack(now, t time.Time) bool {
+	return now.Sub(t) > 24*time.Hour && t.In(now.Location()).Weekday() == now.Weekday()
+}
+
+// BefellWidth is how many characters the widest time Befell shows takes: as
+// Dated shows one, or a week back, its date of two figures.
+func BefellWidth() int {
+	return max(DatedWidth(), utf8.RuneCountInString(time.Date(2000, time.January, 10, 23, 59, 0, 0, time.UTC).Format(pastLayout)))
+}
+
 // RunOutWidth is how many characters the widest time RunOut shows takes: as
 // Dated shows one, or a day as Day names it.
 func RunOutWidth() int {

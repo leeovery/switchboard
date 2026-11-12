@@ -255,17 +255,17 @@ func TestB9C4sPageIsItsFrameFromYesterdaysLines(t *testing.T) {
 		t.Errorf("TURNS sums %d turns, %d requests, %s, want 16 turns, 595 requests, $73.00", page.Totals.Turns, page.Totals.Requests,
 			shownWorth(page.Totals.Worth))
 	}
-	// Its stretches are drawn to 16:02 and 18:47, the move and the end of the
+	// Its stretches are drawn to 14:58 and 18:47, the move and the end of the
 	// minute it ended in, where its last requests on work and on side came at
-	// 16:01 and 18:46, which the page's stretches and its end follow.
-	if got := accountRows(page); !slices.Equal(got, []accountRow{{"work", 330, "$32.51"}, {"side", 265, "$40.49"}}) {
-		t.Errorf("the page's accounts = %+v, want work's 330 requests, $32.51, then side's 265, $40.49", got)
+	// 14:57 and 18:46, which the page's stretches and its end follow.
+	if got := accountRows(page); !slices.Equal(got, []accountRow{{"work", 241, "$21.92"}, {"side", 354, "$51.08"}}) {
+		t.Errorf("the page's accounts = %+v, want work's 241 requests, $21.92, then side's 354, $51.08", got)
 	}
 	if page.Running || page.KeptUntil != "2026-12-29" {
 		t.Errorf("the page has b9c4 running %t, kept until %q, want ended, kept until 2026-12-29, as [ledger] keep at 90 days keeps it", page.Running,
 			page.KeptUntil)
 	}
-	checkMove(t, page, now, "16:02", "work", "side", 188_000, "$1.88")
+	checkMove(t, page, now, "14:58", "work", "side", 188_000, "$1.88")
 	// Turn 8's tools are drawn "Edit ×2, Bash ×2, Read ×1", as the generator
 	// lists its sample's; the views list those called as often by their names.
 	checkTurns(t, page, now, []turnRow{
@@ -276,10 +276,13 @@ func TestB9C4sPageIsItsFrameFromYesterdaysLines(t *testing.T) {
 		{12, "17:09", "3m", 12, "Edit ×4, Bash ×3, Read ×2", "2.3M", "36k", "11k", "$1.77", "side"},
 		{11, "16:41", "12m", 36, "Bash ×12, Edit ×9, Read ×7", "6.8M", "108k", "32k", "$5.31", "side"},
 		{10, "16:22", "11m", 55, "Edit ×18, Bash ×13, Read ×11", "9.9M", "165k", "50k", "$7.86", "side"},
-		{9, "15:58", "8m", 32, "Bash ×10, Edit ×8, Read ×6", "5.2M", "284k", "29k", "$6.14", "work → side"},
+		{9, "15:58", "8m", 32, "Bash ×10, Edit ×8, Read ×6", "5.2M", "96k", "29k", "$4.26", "side"},
 	})
 	if got := rowOf(page.Turns[9], now); got.requests != 20 || got.worth != "$2.40" {
 		t.Errorf("turn 7 is drawn %+v, want 20 requests, $2.40", got)
+	}
+	if got, want := rowOf(page.Turns[11], now), (turnRow{5, "14:42", "18m", 90, "Bash ×30, Edit ×22, Read ×18", "9.7M", "458k", "81k", "$11.48", "work → side"}); got != want {
+		t.Errorf("turn 5 is drawn %+v, want %+v, the move among its requests", got, want)
 	}
 }
 

@@ -311,13 +311,14 @@ func TestTheAutoWorldsRouterNumbersItsDayAsTheLogHasIt(t *testing.T) {
 
 // The router before the auto world's told the week gone's events, numbered
 // from its own start, each move counted in what forced it, as many as it
-// says, b9c4's in work's cap yesterday at 16:02, as its lines tell; its
-// files hold them, under its run, before the auto world's router's own,
+// says, b9c4's in work's cap yesterday at 14:58, as its lines tell, and
+// work's cap and limit yesterday as the readings have them, from 14:58 and
+// 15:02 till 17:10; its files hold them, under its run, before the auto world's router's own,
 // whose document tells none of them.
 func TestTheRouterBeforeToldTheWeekGone(t *testing.T) {
 	worlds := worldsNow()
 	told := ofTheRun(happenings{worlds.now}.weekGone())
-	if got, want := idsOf(told, status.EventLimit), []int{2, 7, 17, 21, 26, 33}; !slices.Equal(got, want) {
+	if got, want := idsOf(told, status.EventLimit), []int{2, 7, 17, 21, 26, 33, 39}; !slices.Equal(got, want) {
 		t.Errorf("the week gone's limits are told as %v, want %v", got, want)
 	}
 	if got, want := idsOf(told, status.EventCap), []int{13, 29, 37}; !slices.Equal(got, want) {
@@ -328,9 +329,14 @@ func TestTheRouterBeforeToldTheWeekGone(t *testing.T) {
 			countsItsMoves(t, by, told)
 		}
 	}
-	b9c4 := slices.IndexFunc(told, func(e status.Event) bool { return e.Session == idB9C4 })
-	if b9c4 < 0 || told[b9c4].ForcedBy != 37 || told[b9c4].To != "side" || !told[b9c4].At.After(clockAt(worlds.now, -1, 16, 2, 0)) {
-		t.Errorf("b9c4's move is %+v, want it off work to side, counted in work's cap at 16:02 yesterday", told)
+	works := told[len(told)-3:]
+	capAt, limitAt, until := clockAt(worlds.now, -1, 14, 58, 0), clockAt(worlds.now, -1, 15, 2, 0), clockAt(worlds.now, -1, 17, 10, 0)
+	if c, l := works[0], works[2]; c.Kind != status.EventCap || !c.At.Equal(capAt) || !c.Until.Equal(until) ||
+		l.Kind != status.EventLimit || l.Account != "work" || !l.At.Equal(limitAt) || !l.Until.Equal(until) {
+		t.Errorf("work's last events are %+v, want its cap at 14:58 and its limit at 15:02 yesterday, till 17:10, as the readings have them", works)
+	}
+	if b9c4 := works[1]; b9c4.Session != idB9C4 || b9c4.ForcedBy != 37 || b9c4.To != "side" || b9c4.At.Before(capAt) || !b9c4.At.Before(limitAt) {
+		t.Errorf("b9c4's move is %+v, want it off work to side, counted in work's cap at 14:58 yesterday, before its limit", b9c4)
 	}
 	files := routerEvents(worlds.now)
 	if len(files) != len(told)+len(autoEvents(worlds.now)) || !files[0].Run.Equal(lastRun(worlds.now)) || !files[len(told)].Run.Equal(routerRun(worlds.now)) {

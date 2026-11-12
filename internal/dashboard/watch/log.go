@@ -254,11 +254,13 @@ func (m Model) logStream(now time.Time) views.Stream {
 }
 
 // lookedLog is m with the events held taken in from the document look is a
-// moment of, read from the router from, as looked has it, and the Log's
-// page built afresh at its moment while the Log shows, so a number a look
-// changes on it brightens.
+// moment of, read from the router from, as looked has it, letting go of
+// those neither the Log nor Runway's LATELY wants at its moment, whatever
+// tab shows, as eventsLetGo has it; and the Log's page built afresh at its
+// moment while the Log shows, so a number a look changes on it brightens.
 func (m Model) lookedLog(look status.Moment, from router.Health) Model {
 	m.events = m.events.looked(look, from, m.answering())
+	m = m.eventsLetGo(look.Now)
 	if m.view != dashboard.Log {
 		return m
 	}

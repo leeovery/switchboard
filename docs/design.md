@@ -5025,24 +5025,26 @@ legend (the owner's call, 12 November 2026):
 
 - **Side by side** where both hold a whole line, from 159 columns, and those rows hold COMING UP's
   every line in one column: LATELY from column 0 in the Overview's LATELY column's width,
-  `w − ⌊w/2⌋ − 2`, 85 at 173, holding its least, 43; COMING UP in the Overview's COMING UP column's
+  `w − ⌊w/2⌋ − 2`, 85 at 173, holding its least, 46; COMING UP in the Overview's COMING UP column's
   width, `round(w × 0.45)`, 78 at 173, ending at the frame's edge, holding its natural, 72. Each
   runs from under its heading, on the row under the pool's lane's after a blank row, to the blank
   row over the legend.
 - **Stacked** else, where one column holds LATELY's least and those rows hold COMING UP's every
-  line in one column, a blank row, LATELY's heading and two lines: LATELY then runs down to the
-  blank row over the legend. Both share one width from column 0: what their lines need to read
-  whole, never under 72, or the frame's width where that's narrower, nor over the frame's width,
-  so the frames' accounts keep 72 and a long name widens both rather than being cut with room
-  beside it (the owner's call, 12 November 2026). LATELY is the first to give way as rows run
-  short.
+  line in the columns it takes alone, a blank row, LATELY's heading and two lines: LATELY then
+  runs down to the blank row over the legend, from column 0. Where COMING UP takes one column,
+  both share one width: what their lines need to read whole, never under 72, or the frame's width
+  where that's narrower, nor over the frame's width, so the frames' accounts keep 72 and a long
+  name widens both rather than being cut with room beside it (the owner's call, 12 November
+  2026). Where it takes two, from 148 columns, it keeps them, and LATELY spans the frame under
+  them. LATELY is the first to give way as rows run short.
 - **COMING UP alone** else, as before LATELY: two columns, four cells apart, where both fit at the
   lines' natural width, 72, so from 148 columns, each taking half of what's left after the gap, the
   odd cell the second's, the lines running in time order down the first, then across; else one, at
   its natural, or the frame's width where that's narrower (the owner's call, 21 October 2026).
 
-LATELY's least is 43: a time at its widest, 9; two blanks; a name at its least, 8; its shortest
-words, ` open again`, 11; and how long ago at its widest, `23h 59m ago`, 11, two blanks before it.
+LATELY's least is 46: a time at its widest, a week back's, 12; two blanks; a name at its least,
+8; its shortest words, ` open again`, 11; and how long ago at its widest, `23h 59m ago`, 11, two
+blanks before it.
 
 COMING UP's lines are the Overview's COMING UP rows (see The Overview): the time, padded to the
 longest shown in its column, in `text.secondary`; two spaces, the account bold `text.primary` and
@@ -5066,12 +5068,15 @@ the Overview's LATELY words them (`views.RunwayLately`, beside the Overview's): 
 refusal, coming under pressure and room again, newest first, no further back than a week before
 now; the sessions a cap, a limit or a refusal moved folded into its line, as `3 sessions moved to
 side`, each router run's own; no session's start or move alone, and no marks. Each line is the
-time, padded to the longest shown, in `text.secondary`; two
-blanks; the account bold `text.primary`, what befell it in `text.muted` and its object, as
-`3 sessions` or `~Sat 06:10`, bold `text.secondary`; and how long ago, right-aligned at the
-column's end, in `text.subtle`: `11m ago`, `1h 38m ago`, `1d 4h ago`, `3d ago` (prose's `Ago`). Its
-words are in full where they fit whole beside how long ago, else short. With no events, it says
-why, as the Overview's LATELY does. It lists as many lines as its rows hold, the rest unsaid.
+time, as an event's time is said, `14:31` or `Wed 23:58`, but a week back, on today's weekday,
+by its date, `5 Nov 15:00`, as its weekday alone would read as today's (prose's `Befell`), padded
+to the longest shown, in `text.secondary`; two blanks; the account bold `text.primary`, what
+befell it in `text.muted` and its object, as `3 sessions` or `~Sat 06:10`, bold
+`text.secondary`; and how long ago, right-aligned at the column's end, in `text.subtle`: `11m
+ago`, `1h 38m ago`, `1d 4h ago`, `3d ago` (prose's `Ago`). Its words are in full where they fit
+whole beside how long ago, else short. With no events, it says why, as the Overview's LATELY
+does. It lists as many lines as its rows hold, the rest unsaid. It's told afresh only as the
+events held change, the day turns, or a line passes out of its week.
 
 **A week stepped back to** runs from its first day, as `week_starts` begins it, to its last,
 across the lanes' columns, ticked and named as the live view is.
@@ -5180,14 +5185,21 @@ stepping back and how far it reaches, the minutes a column, COMING UP, and LATEL
   history, a reading of each window at each look (the owner's call, 14 October 2026).
 - **A run-out, `~16:05`:** the projection, as `usage` projects (see `usage`, the printout).
 - **COMING UP:** the same, soonest first, as the Overview's COMING UP reads it.
-- **LATELY:** the router's events over the week it tells, a week before now, read once off the
-  events' files as Runway's live view first shows, off the draw path, as the Log's Events read
-  them, and the status document's newest 50 taken in at each look, kept as the router restarts
-  (`EventsRead`). The Log's Events and LATELY share the one read, so neither reads again a day's
-  file the other read, and a look, a redraw or a midnight reads none again: a day that closes
-  while the dashboard runs was read as today's. Till the files are read, LATELY tells the
-  document's events. The Log letting go of its days lets go of none of LATELY's week. The
-  Overview's LATELY reads the document's alone.
+- **LATELY:** the router's events over the week it tells, a week before now, read off the events'
+  files as Runway's live view first shows, off the draw path, as the Log's Events read them, and
+  the status document's newest 50 taken in at each look, kept as the router restarts
+  (`EventsRead`). The Log's Events and LATELY share the one read. Every read of the files, as
+  `events.Reader` reads them, reads each day's file from the day before its span begins to the
+  day after it ends, its end taken on `events.ChangesFor` days but never past now, as an event's
+  later versions are filed on the days after it. So LATELY's first read reads the week's files, the day before its
+  and tomorrow's; a look, a redraw or a midnight reads none again, as a day that closes while the
+  dashboard runs was read as today's; and the Log, shown after, reads none of its days again.
+  Where the Log read first, LATELY reading back its week reads the Log's days again, to today, as
+  the Log reading back past the week reads LATELY's again, to today. Till the files are read,
+  LATELY tells the document's events. At each look, whatever tab shows, the events held let go of
+  those before the further back of the Log's first day, less its reach for facts, and the day
+  LATELY's week begins on, a day at a time; a read under way as they do claims none of the days
+  let go. The Overview's LATELY reads the document's alone.
 - **The pool:** its accounts, every one on auto, or those the `pin` names.
 - **A week stepped back to:** the readings history, each change of a window's use, its reset and its
   status, a limit running from a reading `rejected` to its window's reset; each day's summary's

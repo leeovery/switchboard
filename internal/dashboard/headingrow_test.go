@@ -32,8 +32,7 @@ var (
 		state: line{{"only d28c switchboard", faintInk}}, free: true,
 		right: line{{"830 hidden", secondaryInk}, spaces(3), {"f", keyInk}, {" what it shows", mutedInk}},
 	}
-	steppedBack = heading{name: "RUNWAY", state: line{{"Wed 30 Sep", faintInk}}, period: "5-hour"}
-	overTheWeek = heading{name: "RUNWAY", period: "week"}
+	steppedBack = heading{name: "RUNWAY", state: line{{"Mon 21 Sep – Sun 27 Sep", faintInk}}}
 	comparing   = heading{name: "ACCOUNTS", subTabs: []string{"Compare", "Detail"}, period: "this week"}
 	yearHistory = heading{name: "HISTORY", subTabs: historyViews, period: "last 12 months"}
 )
@@ -52,10 +51,9 @@ func TestTheHeadingRow(t *testing.T) {
 			want: []string{"LOG    Requests  Events  [ ]   only d28c switchboard " + rule(77) + "  830 hidden   f what it shows"},
 		},
 		{
-			name: "a state, and a window between its keys, as runway-stepped-back-160 draws it", heading: steppedBack, width: 160,
-			want: []string{"RUNWAY   Wed 30 Sep " + rule(128) + "  < 5-hour >"},
+			name: "a state, the rule a cell after it, as runway-stepped-back-160 draws it", heading: steppedBack, width: 160,
+			want: []string{"RUNWAY   Mon 21 Sep – Sun 27 Sep " + rule(127)},
 		},
-		{name: "a window, as runway-week-160 draws it", heading: overTheWeek, width: 160, want: []string{"RUNWAY  " + rule(142) + "  < week >"}},
 		{
 			name: "the sub-tabs, the rule two cells after [ ], and the period", heading: comparing, width: 160,
 			want: []string{"ACCOUNTS    Compare  Detail  [ ]  " + rule(111) + "  < this week >"},

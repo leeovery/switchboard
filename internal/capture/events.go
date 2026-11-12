@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/events"
+	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -333,9 +334,10 @@ func (h happenings) forcing(e status.Event, to string, sessions ...string) []sta
 // as forcing has it, each named by when and where it moved from, as
 // sessionIDs names them, the days before yesterday's holding no lines of
 // theirs. Each lifts as the window it holds resets, before Runway's lanes
-// begin, a day before now, but work's cap at 16:02 yesterday, which moved
-// b9c4 to side alone, as b9c4Capped has it, and lifted at 17:10, as the
-// router running told.
+// begin, a day before now, but work's yesterday, as the readings have them:
+// its cap at 14:58, which moved b9c4 to side alone, as b9c4Capped has it,
+// and its limit at 15:02, both lifting at 17:10, as the router running
+// told.
 func (h happenings) weekGone() []status.Event {
 	week, fiveHour := []string{weekKey}, []string{fiveHourKey}
 	at := func(days, hour, minute int) time.Time { return h.at(days, hour, minute, 0) }
@@ -375,16 +377,19 @@ func (h happenings) weekGone() []status.Event {
 		[]status.Event{room(at(-2, 22, 50), "work", fiveHour)},
 		moved(held(status.EventLimit, at(-1, 8, 40), "side", fiveHour, at(-1, 10, 5)), "personal", 2),
 		[]status.Event{room(at(-1, 10, 5), "side", fiveHour)},
-		h.b9c4Capped(capped(at(-1, 16, 2), at(-1, 17, 10))),
+		h.b9c4Capped(capped(at(-1, 14, 58), at(-1, 17, 10))),
+		[]status.Event{held(status.EventLimit, at(-1, 15, 2), "work", fiveHour, at(-1, 17, 10))},
 	)
 }
 
 // b9c4Capped is work's cap yesterday, e, and b9c4 moved off work to side by
-// it, alone, as its line has it: at 16:02:05.508, its first request after
-// the cap.
+// it, alone, as its line has it: its first request after the cap, as
+// endedPlan has it.
 func (h happenings) b9c4Capped(e status.Event) []status.Event {
 	e.Count, e.To = 1, "side"
-	return []status.Event{e, h.forcedOff(h.at(-1, 16, 2, 5).Add(508*time.Millisecond), idB9C4, "work", "side", reasonCapped)}
+	lines := endedPlan(h.now).lines()
+	moved := lines[slices.IndexFunc(lines, func(l ledger.Line) bool { return l.From != "" })]
+	return []status.Event{e, h.forcedOff(moved.At, idB9C4, "work", "side", reasonCapped)}
 }
 
 // pressures are the auto world's accounts coming under pressure as the

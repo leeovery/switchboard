@@ -32,11 +32,11 @@ const latelyLeastLines = 2
 const agoGap = 2
 
 // runwayLatelyLeast is the fewest cells a column of Runway's LATELY takes: a
-// line's time at its widest, the blanks after it, an account's name at its
+// line's time at its widest, as prose.Befell says it, the blanks after it, an account's name at its
 // least, its fewest words, as views.OpenAgain has them, and how long ago at
 // its widest, agoGap before it.
 func runwayLatelyLeast() int {
-	return prose.DatedWidth() + len(afterTime) + labelLeast + len(" "+views.OpenAgain) + agoGap + len(prose.AgoWidest())
+	return prose.BefellWidth() + len(afterTime) + labelLeast + len(" "+views.OpenAgain) + agoGap + len(prose.AgoWidest())
 }
 
 // latelyPlaceOf is where LATELY goes on the frame: beside COMING UP where both
@@ -140,17 +140,17 @@ func (l latelyParts) least() int {
 }
 
 // runwayLatelyParts are the sentences given as Runway's LATELY lines at m's
-// moment, in parts: each its time, in a column as wide as the widest, in
-// text.secondary, no mark after it; then its words, as saidLine draws them,
+// moment, in parts: each its time, as prose.Befell says it, in a column as
+// wide as the widest shown, in text.secondary, no mark after it; then its words, as saidLine draws them,
 // in full and short; and how long ago, as prose.Ago says it, in text.subtle.
 func runwayLatelyParts(m status.Moment, sentences []views.Sentence) []latelyParts {
 	names, column := namesOf(m), 0
 	for _, s := range sentences {
-		column = max(column, len(prose.Dated(m.Now, s.At)))
+		column = max(column, len(prose.Befell(m.Now, s.At)))
 	}
 	parts := make([]latelyParts, len(sentences))
 	for i, s := range sentences {
-		lead := line{{padded(prose.Dated(m.Now, s.At), column) + afterTime, secondaryInk}}
+		lead := line{{padded(prose.Befell(m.Now, s.At), column) + afterTime, secondaryInk}}
 		led := func(said views.Said) line { return slices.Concat(lead, saidLine(m, names, said)) }
 		parts[i] = latelyParts{full: led(s.Full), short: led(s.Short), ago: line{{prose.Ago(m.Now, s.At), dimInk}}}
 	}

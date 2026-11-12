@@ -20,14 +20,14 @@ import (
 )
 
 // runwayTab is what the watch holds of Runway: what it shows, its timeline,
-// lanes and COMING UP as the last look built them; the lanes themselves,
-// which hold what they judged of the past till what that's judged from
-// changes, and the moment of the message they were built at, as each is
-// built once; the readings history's live tail, read for what it gained as
-// readRunway has it, which Graphs' lanes are judged by too, and the readings
-// of each span stepped back to before it, read once and held for the run;
-// the readings the watch read of the documents it read
-// itself, which join them; the start of the first day the history holds, as
+// lanes, COMING UP and LATELY as the last look built them; the lanes
+// themselves, which hold what they judged of the past till what that's
+// judged from changes, and the moment of the message they were built at, as
+// each is built once; LATELY as last told, as latelyTold has it; the
+// readings history's live tail, read for what it gained as readRunway has
+// it, which Graphs' lanes are judged by too, and the readings of each span
+// stepped back to before it, read once and held for the run; the readings
+// the watch read of the documents it read itself, which join them; the start of the first day the history holds, as
 // the live tail last asked it, zero where it holds none, or failed to say;
 // whether a look since asks what the live tail gained; whether a read of the
 // history is under way, one at a time, and whether that's the live tail's;
@@ -38,6 +38,7 @@ type runwayTab struct {
 	lanes       views.Lanes
 	look        func(views.Lanes, views.LanesFrom) views.Lanes
 	builtAt     *status.HeldMoment
+	lately      latelyBuilt
 	live        readingsTail
 	back        []heldSpan
 	seen        seenReadings
@@ -240,8 +241,8 @@ func (m Model) runwaySaw(look status.Moment) Model {
 // its timeline's columns are counted after; its timeline; its lanes, as
 // views.Lanes builds them from the last look's, of the readings and the
 // ledger's days they're judged by, as readingsOf and runwayDays have them;
-// COMING UP, as views.RunwayComing has it; and LATELY, as views.RunwayLately
-// has it, of the router's events held, as latelyHeld has them.
+// COMING UP, as views.RunwayComing has it; and LATELY, as latelyTold has
+// it.
 func (m Model) runwayBuilt() Model {
 	if m.view != dashboard.Runway || m.session != nil || m.runwayTab.builtAt != nil && m.runwayTab.builtAt == m.taking.moment {
 		return m
@@ -255,7 +256,8 @@ func (m Model) runwayBuilt() Model {
 	})
 	lanes := t.lanes
 	t.shown.Timeline, t.shown.Lanes = tl, &lanes
-	t.shown.Coming, t.shown.Lately = views.RunwayComing(mo), views.RunwayLately(mo, m.latelyHeld(mo))
+	t.lately = m.latelyTold(mo)
+	t.shown.Coming, t.shown.Lately = views.RunwayComing(mo), t.lately.sentences
 	t.builtAt = m.taking.moment
 	m.runwayTab = t
 	return m
@@ -331,7 +333,7 @@ func (m Model) runwayDays(tl views.Timeline, now time.Time) []ledger.Summary {
 // readRunway has the watch read the readings history for the lanes of the
 // tab shown, Runway's or Graphs', as lanesShown has it, as a command, once
 // no read of it is under way, as readingsRead reads it: a span of Runway's
-// stepped back to before the live one, of a day or a week gone, once, its
+// stepped back to before the live one, of a week gone, once, its
 // readings held for the run; else the live tail, made afresh as its span
 // moves, as the day turns, and read at once, then at each look since, as due
 // says, for what it gained. A read of the live tail asks where the

@@ -244,13 +244,13 @@ func (s runwayShape) laidOut(step runwayStep, top, rows int, holds runwayHolds, 
 // what holds says it holds, shown of its lanes shown, as flex lays them: the
 // line saying the forecast is learning, at the roomiest alone, a blank row
 // between it and the axis, the first to give way; the axis; the blank row
-// under it; the lanes; the pool's lane, its room and what's out of
-// view, as poolRows has them; COMING UP, as comingPart has it; the rows
-// spare, which take what's left; and the legend, over the key line, a blank row before it before (b),
-// and with no COMING UP, the blank row under the pool's lane. At (c), the
-// legend gives way, then COMING UP, then the blank row under the axis; at
-// (f), none of them is there, so no lane scrolls while the legend or COMING
-// UP shows.
+// under it; the lanes; the pool's lane, its room and what's out of view, as
+// poolRows has them; COMING UP, as comingPart has it; the rows spare, which
+// take what's left; and the legend, over the key line, a blank row before it
+// before (b), and with no COMING UP, the blank row under the pool's lane. At
+// (c), the legend gives way, then COMING UP, then the blank row under the
+// axis; at (f), none of them is there, so no lane scrolls while the legend
+// or COMING UP shows.
 func (s runwayShape) parts(step runwayStep, holds runwayHolds, shown int) []flex.Part {
 	lanes, pool := shown*step.apart(), holds.poolRows(shown)
 	parts := []flex.Part{

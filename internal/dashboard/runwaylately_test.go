@@ -21,11 +21,11 @@ func runwayLatelyOf(m status.Moment) []views.Sentence {
 
 // LATELY goes beside COMING UP where both columns hold a whole line, COMING
 // UP its natural 72 in the Overview's COMING UP column and LATELY its least,
-// 43, in the Overview's LATELY column: from 159 columns. Else it goes under
-// COMING UP where one column holds its least, from 43; else nowhere.
+// 46, in the Overview's LATELY column: from 159 columns. Else it goes under
+// COMING UP where one column holds its least, from 46; else nowhere.
 func TestLatelyGoesBesideComingUpFrom159ColumnsElseUnderItElseNowhere(t *testing.T) {
-	if got := runwayLatelyLeast(); got != 43 {
-		t.Fatalf("LATELY's least is %d cells, want 43: a time of 9, two blanks, a name of 8, ` open again` and two blanks before `23h 59m ago`", got)
+	if got := runwayLatelyLeast(); got != 46 {
+		t.Fatalf("LATELY's least is %d cells, want 46: a time of 12, two blanks, a name of 8, ` open again` and two blanks before `23h 59m ago`", got)
 	}
 	tests := []struct {
 		width int
@@ -37,8 +37,8 @@ func TestLatelyGoesBesideComingUpFrom159ColumnsElseUnderItElseNowhere(t *testing
 		{width: 158, want: latelyStacked},
 		{width: 108, want: latelyStacked},
 		{width: 73, want: latelyStacked},
-		{width: 43, want: latelyStacked},
-		{width: 42, want: comingAlone},
+		{width: 46, want: latelyStacked},
+		{width: 45, want: comingAlone},
 	}
 	for _, tt := range tests {
 		t.Run(strconv.Itoa(tt.width), func(t *testing.T) {
@@ -279,6 +279,26 @@ func TestLatelysLinesAreItsAccountEventsWholeOrShortTheirAgoAtTheEnd(t *testing.
 				t.Errorf("LATELY reads\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(tt.want, "\n"))
 			}
 		})
+	}
+}
+
+// A LATELY line from a week back, on today's weekday, says its date in place
+// of its weekday, as that alone would read as today's; the times' column as
+// wide as the widest shown.
+func TestLatelysLineFromAWeekBackSaysItsDate(t *testing.T) {
+	weekBack := status.Event{Kind: status.EventLimit, At: time.Date(2026, 9, 24, 15, 0, 0, 0, time.UTC), Account: "side", Windows: []string{"5h"}}
+	m := latelyMoment(slices.Concat(runwayEvents[:1], runwayEvents[3:], []status.Event{weekBack})...)
+	want := []string{
+		"14:31         work reached its cap: 3 sessions moved to side        11m ago",
+		"Wed 23:58     personal open again: its 5-hour window reset      14h 44m ago",
+		"24 Sep 15:00  side reached its 5-hour limit                      6d 23h ago",
+	}
+	var got []string
+	for _, l := range runwayLatelyLines(m, runwayLatelyOf(m), 75) {
+		got = append(got, l.plain())
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("LATELY reads\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
 	}
 }
 

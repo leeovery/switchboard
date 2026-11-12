@@ -12,17 +12,14 @@ import (
 )
 
 // heldEvents are the router's events the watch holds for the Log's Events
-// and Runway's LATELY, one read for both, so neither reads again a day of
-// the router's files the other read: the read, once the first of them to
-// show has read the files, each look since taken in, as looked has it; how
-// many times it has changed, which what's built of it is made again by; who
-// told the events the last look took in, and when; when the files are to be
-// read again from for the events a document skipped, as Skips has it, none
-// while none did; whether Runway's LATELY wants them, which keeps the week
-// it tells held, and while it does, the events, oldest first, as the read's
-// Events gives them, made once as it changes, as LATELY's built at every
-// look; and whether a read of LATELY's is under way, one at a time, the
-// Log's reads waiting on it, as it waits on theirs.
+// and Runway's LATELY, one read for both: the read, once the first of them
+// to show has read the files, each look since taken in, as looked has it;
+// how many times it has changed, which what's built of it is made again by;
+// who told the events the last look took in, and when; when the files are
+// to be read again from for the events a document skipped, as Skips has
+// it, none while none did; whether Runway's LATELY wants them, which keeps
+// the week it tells held; and whether a read of LATELY's is under way, one
+// at a time, the Log's reads waiting on it, as it waits on theirs.
 type heldEvents struct {
 	read    views.EventsRead
 	opened  bool
@@ -30,26 +27,12 @@ type heldEvents struct {
 	told    logTold
 	skipped time.Time
 	lately  bool
-	events  []views.Event
 	reading bool
 }
 
-// holding is e holding the read given, counted changed, its events made
-// afresh while LATELY wants them.
+// holding is e holding the read given, counted changed.
 func (e heldEvents) holding(read views.EventsRead) heldEvents {
 	e.read, e.changes = read, e.changes+1
-	if e.lately {
-		e.events = read.Events()
-	}
-	return e
-}
-
-// wantedLately is e as Runway's LATELY wants it, its events made where
-// they weren't.
-func (e heldEvents) wantedLately() heldEvents {
-	if !e.lately {
-		e.lately, e.events = true, e.read.Events()
-	}
 	return e
 }
 
