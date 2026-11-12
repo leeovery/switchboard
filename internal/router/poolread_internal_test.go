@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/identity"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
@@ -434,6 +435,51 @@ func TestEachPoolsDocumentShowsItsOwnAccountsPrimes(t *testing.T) {
 	}
 }
 
+func TestAClosedTableAnswersAnyPoolWithTheRoutersOwnEventsAlone(t *testing.T) {
+	logstest.Capture(t)
+	clock := &testClock{now: onDay(1, 5, 0)}
+	cfg := testConfig(clock.read, &stubProber{}, poolTokens.Read)
+	cfg.Accounts, cfg.Pools, cfg.Prime, cfg.Policy = pooledAccounts(), testPools, daytime, testPolicy
+	r := newTestRouterOf(t, cfg)
+	r.proxy.transport = servingAll(served, served, served)
+	routeOneIn(t, r, defaultPool, acmePool)
+	r.stream.publishOf(StreamEvent{Kind: StreamSent, Request: "1", Session: "one", Pool: defaultPool}, key{session: "one"})
+	r.stream.publishOf(StreamEvent{Kind: StreamSent, Request: "2", Session: "two"}, key{session: "two"})
+	r.recent.change(func() {
+		for _, e := range []status.Event{
+			{Kind: status.EventRestart, Reason: "the config changed"},
+			{Kind: status.EventLimit, Account: "personal"},
+			{Kind: status.EventPin, Accounts: []string{"work"}, Pool: defaultPool},
+			{Kind: status.EventCap, Account: "lapsed"},
+		} {
+			r.recent.add(e, clock.read())
+		}
+	})
+	r.state.pools.table.Store(closedTable("the pool each account is in can't be told").stored())
+
+	for _, pool := range []string{"", defaultPool, acmePool, unconfigured} {
+		doc := statusIn(t, r, pool)
+		// The router tells of its health as the table closes, its own event
+		// beside the restart.
+		var kinds []string
+		for _, e := range doc.Events {
+			kinds = append(kinds, e.Kind)
+		}
+		if len(doc.Accounts) != 0 || doc.Sessions != 0 || len(doc.Prime.Slots) != 0 || !slices.Equal(kinds, []string{status.EventHealth, status.EventRestart}) {
+			t.Errorf("asking for pool %q, the document holds %q, %d sessions, primes %+v, shows the events %q; want none but the router's own, its health and restart",
+				pool, idsOf(doc.Accounts), doc.Sessions, doc.Prime.Slots, kinds)
+		}
+		var listed []status.Session
+		decodedOK(t, askControl(t, r, http.MethodGet, withPool("/sessions", pool), ""), &listed)
+		var h History
+		decodedOK(t, askControl(t, r, http.MethodGet, withPool("/history?window=7d&step=1h", pool), ""), &h)
+		streamed := askControl(t, r, http.MethodGet, withPool("/stream", pool), "").Body.String()
+		if len(listed) != 0 || len(h.Accounts) != 0 || streamed != "" {
+			t.Errorf("asking for pool %q, GET /sessions listed %q, /history %q, and /stream told of %q; want none", pool, sessionIDs(listed), historyIDs(h), streamed)
+		}
+	}
+}
+
 func TestAPoolWithNoAccountsHasADocumentOfNone(t *testing.T) {
 	logstest.Capture(t)
 	spare := config.Pool{ID: unconfigured, Label: "Spare", Dirs: []string{"/work/spare"}, WrittenDirs: []string{"/work/spare"}}
@@ -781,12 +827,36 @@ func TestAPoolNamedWithoutAValueNamesNone(t *testing.T) {
 	}
 }
 
-func TestTheHealedFirstPoolKeepsItsLabelFromTheAccountsRecord(t *testing.T) {
+func TestThePoolsKeptOfAConfigNamingNoneKeepTheirLabelsFromTheAccountsRecord(t *testing.T) {
 	logstest.Capture(t)
-	m := newMembership(func() config.Pool { return config.Pool{ID: defaultPool, Label: "Default"} }, sameID, noPoolKnown)
+	first := identity.PoolEntry{ID: defaultPool, Added: start, First: true, Here: true, Written: identity.PoolWritten{Label: "Default"}}
+	m := newMembership(readingRecord(identity.Record{Pools: []identity.PoolEntry{first}}), alwaysMoved, sameID, nil)
 	m.follow(config.Accounts(testConfigured), nil)
 	if got := m.current().reported(nil); len(got) != 1 || got[0].ID != defaultPool || got[0].Label != "Default" {
-		t.Errorf("the healed pools report %+v, want Default by its label", got)
+		t.Errorf("the kept pools report %+v, want Default by its label", got)
+	}
+}
+
+func TestThePoolsKeptOfAConfigNamingNoneAreFencedAsTheConfigWouldFenceThem(t *testing.T) {
+	logstest.Capture(t)
+	stateDir := t.TempDir()
+	// Every pool fenced, Default, the first, to a directory in the home.
+	movedBothWays(t, stateDir, "~/work/own")
+	cfg := testConfig(at(start), &stubProber{}, poolTokens.Read)
+	cfg.StateDir, cfg.HomeDir = stateDir, func() (string, error) { return "/Users/test", nil }
+	r := newTestRouterOf(t, cfg)
+
+	want := []RoutedPool{
+		{ID: defaultPool, Label: "Default", Dirs: []string{"/Users/test/work/own"}, WrittenDirs: []string{"~/work/own"}, Accounts: []string{"work", "side"}, Primary: "work"},
+		{ID: acmePool, Label: "Acme", Dirs: []string{"/work/acme"}, WrittenDirs: []string{"/work/acme"}, Accounts: []string{"personal"}, Primary: "personal"},
+	}
+	if h := healthOf(t, r); !reflect.DeepEqual(h.Pools, want) {
+		t.Errorf("GET /health reports the kept pools %+v, want %+v, fenced as the record keeps them", h.Pools, want)
+	}
+	// The first is fenced like the rest, so a read naming no pool has none
+	// to be answered for, as with the config's own pools.
+	if rec := askControl(t, r, http.MethodGet, "/status", ""); rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "every pool is fenced") {
+		t.Errorf("GET /status naming no pool answered %d %s, want 400, every pool fenced", rec.Code, rec.Body)
 	}
 }
 

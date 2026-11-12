@@ -29,9 +29,11 @@ type Reader struct {
 
 // NewReader returns a reader of the ledger in the state directory stateDir,
 // by now's clock, which summarises days with the accounts' caps as caps gives
-// them, what it can't read logged to logger.
-func NewReader(stateDir string, now func() time.Time, caps Caps, logger *slog.Logger) *Reader {
+// them, and as FirstPool, where it's given, says, what it can't read logged
+// to logger.
+func NewReader(stateDir string, now func() time.Time, caps Caps, logger *slog.Logger, opts ...Option) *Reader {
 	d, _ := daysIn(stateDir, caps, logger)
+	d.firstPool = optionsOf(opts).firstPool
 	return &Reader{days: d, now: now}
 }
 

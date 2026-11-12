@@ -835,6 +835,47 @@ func TestSetPrimaryRefuses(t *testing.T) {
 	}
 }
 
+func TestUnmarkPrimary(t *testing.T) {
+	tests := []struct {
+		name   string
+		config string
+		id     string
+		want   string
+	}{
+		{
+			name:   "the account marked, its line taken out, the first the primary for want of a mark",
+			config: "[[account]]\nid = \"work\"\n\n[[account]]\nid    = \"side\"\nprimary = true  # for now\nlabel = \"Side\"\n",
+			id:     "side",
+			want:   "[[account]]\nid = \"work\"\n\n[[account]]\nid    = \"side\"\nlabel = \"Side\"\n",
+		},
+		{
+			name:   "an account not marked, left as it is",
+			config: commented,
+			id:     "personal",
+			want:   commented,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := writeConfig(t, tt.config)
+			draft := edit(t, path)
+			if err := draft.UnmarkPrimary(tt.id); err != nil {
+				t.Fatalf("UnmarkPrimary() error = %v", err)
+			}
+			save(t, draft)
+			if got := readFile(t, path); got != tt.want {
+				t.Errorf("the config reads\n%s\nwant\n%s", got, tt.want)
+			}
+			if draft.MarksPrimaryOf(tt.id) {
+				t.Errorf("the draft marks %s primary still", tt.id)
+			}
+		})
+	}
+	if err := edit(t, writeConfig(t, commented)).UnmarkPrimary("side"); !errors.Is(err, config.ErrNotConfigured) {
+		t.Errorf("UnmarkPrimary() of an account not configured = %v, want it not configured", err)
+	}
+}
+
 func TestMarksPrimaryOf(t *testing.T) {
 	const unmarked = "[[account]]\nid = \"work\"\n\n[[account]]\nid = \"side\"\n"
 	tests := []struct {

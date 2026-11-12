@@ -93,7 +93,7 @@ func (p *proxy) strays(pools *poolTable, named string, s sender) (pool string, l
 	if removed == "" {
 		return pool, !pools.holds(pool, s.ID)
 	}
-	was := p.pools.poolIn(pools, removed)
+	was := pools.poolIn(removed)
 	return pool, was != "" && !strings.EqualFold(was, pool)
 }
 

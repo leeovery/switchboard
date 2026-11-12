@@ -460,7 +460,13 @@ func TestStatusNeverPrintsTheToken(t *testing.T) {
 // fakeClaudeAPI rejects. env adds to their environment.
 func statusDeps(t *testing.T, upstream string, env map[string]string) cli.Deps {
 	t.Helper()
-	path := writeConfig(t, fmt.Sprintf("upstream = %q\n", upstream)+threeAccounts)
+	return statusDepsOf(t, upstream, threeAccounts, env)
+}
+
+// statusDepsOf is statusDeps, the config's accounts and pools those given.
+func statusDepsOf(t *testing.T, upstream, accounts string, env map[string]string) cli.Deps {
+	t.Helper()
+	path := writeConfig(t, fmt.Sprintf("upstream = %q\n", upstream)+accounts)
 	vars := map[string]string{"SWITCHBOARD_CONFIG": path}
 	maps.Copy(vars, env)
 	deps := testDeps(vars, t.TempDir())

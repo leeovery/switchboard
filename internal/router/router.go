@@ -121,6 +121,13 @@ type Config struct {
 	// before then pins its account by that id for as long as it runs, which
 	// the router takes for the account's id now. Nil knows of none.
 	Formerly func(id string) (string, bool)
+	// Unhealed is why the config couldn't be healed as the router started,
+	// its accounts' ids or its pools, as serve heals it before it reads it:
+	// nil where it was, or needn't be. The router tells of it; where the move
+	// to pools is done and the config it starts on names none, it tries
+	// again, as it tells of and tries a heal of its own, and else no heal
+	// follows till one is needed.
+	Unhealed error
 	// Upstream is the API's base URL, such as https://api.anthropic.com.
 	Upstream string
 	Provider Provider
@@ -249,6 +256,12 @@ type Config struct {
 	// rest beside it, again a minute after it fails, until it's done, and its
 	// status says it's moving the history meanwhile. Nil moves nothing.
 	Move Mover
+	// PoolMove moves the history to pools, where that's owed, once Move's
+	// move is done: beside the router, again a minute after it fails, or
+	// while it waits for the router to take up the first pool, until it's
+	// done, its status saying it's moving the history meanwhile. Nil moves
+	// nothing.
+	PoolMove PoolMover
 }
 
 // Router is switchboard's router: the proxy, the scheduler that chooses the
@@ -303,7 +316,7 @@ type Router struct {
 	// exports export the history into the folder the config names.
 	exports *exports
 	// moving moves the accounts and their history onto the ids switchboard
-	// makes, where that's owed.
+	// makes, then the history to pools, where each is owed.
 	moving *moving
 	// notifications is nil when the router posts none.
 	notifications *notifications
@@ -331,7 +344,7 @@ func New(cfg Config) (*Router, error) {
 		return nil, fmt.Errorf("upstream: %w", err)
 	}
 	changes := newChanges()
-	pools := newMembership(firstIn(cfg.StateDir), func(id string) string { return accounts.idNow(cfg.Formerly, id) }, noPoolKnown)
+	pools := newMembership(recordIn(cfg.StateDir), movedIn(cfg.StateDir), func(id string) string { return accounts.idNow(cfg.Formerly, id) }, cfg.HomeDir)
 	pools.follow(cfg.Accounts, cfg.Pools)
 	state := newState(accounts, pools, cfg.Policy, cfg.Provider.Family, cfg.Now, changes.note, changes.routine)
 	history := newHistory(cfg.History, cfg.Now)
@@ -349,10 +362,11 @@ func New(cfg Config) (*Router, error) {
 	}
 	emit := hearing(listeners...)
 	transport := newPool()
-	moving := newMoving(cfg.Move)
-	organizations := organizations{record: identity.NewFile(cfg.StateDir), owed: moving.owed}
+	moving := newMoving(cfg.Move, cfg.PoolMove)
+	organizations := organizations{record: identity.NewFile(cfg.StateDir), owed: moving.idsOwed}
 	probes := newProbes(cfg.Prober, transport, state, organizations, changes.note, cfg.Now, emit)
 	health := newHealth(cfg.Now, emit)
+	health.closed = func() string { return pools.current().closed }
 	recent.judge = health.look
 	scheduler := &scheduler{
 		accounts: accounts, state: state, sessions: sessions, probes: probes,
@@ -412,7 +426,7 @@ func New(cfg Config) (*Router, error) {
 		started:       cfg.Now().UTC(),
 	}
 	r.exports = newExports(cfg, r.tendHistory, r.restartComing, r.moving.owed)
-	r.upkeep = newUpkeep(cfg, accounts, state, changes, primer, inFlight, awake, r.exports, newAccountsRecord(cfg, accounts, moving.owed), emit)
+	r.upkeep = newUpkeep(cfg, accounts, state, changes, primer, inFlight, awake, r.exports, newAccountsRecord(cfg, accounts, moving.idsOwed), emit)
 	return r, nil
 }
 

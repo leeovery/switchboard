@@ -36,12 +36,61 @@ type PoolEntry struct {
 	// Configured is set in the copy of a record an export writes alone, as
 	// an Entry's is.
 	Configured bool `json:"configured,omitzero"`
+	// Here is set while this Mac's config configures it, as KeepUp keeps it,
+	// and on the first pool from when the move to pools notes it: never on
+	// one only another Mac configures, nor in an export's copy. A heal writes
+	// back only these.
+	Here bool `json:"here,omitzero"`
+	// Written is the pool as this Mac's config last wrote it, kept in step
+	// by KeepUp, kept once it's removed: for a heal to write it back where a
+	// config from before pools is put back. Zero where this Mac never
+	// configured it, or its config wrote no label, directories nor primary;
+	// never in an export's copy.
+	Written PoolWritten `json:"written,omitzero"`
+}
+
+// PoolWritten is a pool as a config writes it: its label, "" where it gives
+// none; its directories, as written, such as ~/Code/acme, none where it's
+// unfenced; and the id of its primary account, the one it marks, else its
+// first, "" where it has no account. PrimaryKnown is set once the record
+// has its primary from a config, so a Primary of "" says it had none,
+// rather than that it isn't known, as of a pool the move to pools made that
+// the record hasn't been kept in step with since.
+type PoolWritten struct {
+	Label        string   `json:"label,omitempty"`
+	Dirs         []string `json:"dirs,omitempty"`
+	Primary      string   `json:"primary,omitempty"`
+	PrimaryKnown bool     `json:"primary_known,omitzero"`
+}
+
+// Equal reports whether the pool is other, field for field, its times the
+// same instants.
+func (p PoolEntry) Equal(other PoolEntry) bool {
+	return p.ID == other.ID && p.Label == other.Label && p.Added.Equal(other.Added) && p.Removed.Equal(other.Removed) &&
+		p.First == other.First && p.Configured == other.Configured && p.Here == other.Here && p.Written.Equal(other.Written)
+}
+
+// Equal reports whether the pool is written as other is, field for field.
+func (w PoolWritten) Equal(other PoolWritten) bool {
+	return w.Label == other.Label && slices.Equal(w.Dirs, other.Dirs) && w.Primary == other.Primary && w.PrimaryKnown == other.PrimaryKnown
 }
 
 // PoolByID returns the pool with the given id, in any case, reporting false
 // where the record has none.
 func (r Record) PoolByID(id string) (PoolEntry, bool) {
-	i := slices.IndexFunc(r.Pools, func(p PoolEntry) bool { return strings.EqualFold(p.ID, id) })
+	return r.findPool(func(p PoolEntry) bool { return strings.EqualFold(p.ID, id) })
+}
+
+// FirstPool returns the first pool, reporting false where the record notes
+// none, as one from before pools.
+func (r Record) FirstPool() (PoolEntry, bool) {
+	return r.findPool(func(p PoolEntry) bool { return p.First })
+}
+
+// findPool returns the first pool that matches, reporting false where none
+// does.
+func (r Record) findPool(match func(PoolEntry) bool) (PoolEntry, bool) {
+	i := slices.IndexFunc(r.Pools, match)
 	if i < 0 {
 		return PoolEntry{}, false
 	}
@@ -65,6 +114,10 @@ type Entry struct {
 	// Was is the id it had before switchboard made ids, read to import a
 	// folder exported before then: "" where it had none.
 	Was string `json:"was,omitempty"`
+	// Pool is the id of the pool this Mac's config last had it in, kept in
+	// step by KeepUp, kept once it's removed: "" where it never had it in
+	// one.
+	Pool string `json:"pool,omitempty"`
 	// Configured is set in the copy of a record an export writes alone, on an
 	// account the exporting Mac configures, whose Label is its config's, for
 	// a Mac importing it to take: never in a Mac's own record.
