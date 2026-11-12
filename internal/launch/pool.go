@@ -11,6 +11,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/prose"
+	"github.com/leeovery/switchboard/internal/redact"
 	"github.com/leeovery/switchboard/internal/router"
 )
 
@@ -176,20 +177,21 @@ func (l Launcher) sessionPool(pools config.Pools) (config.Pool, string) {
 }
 
 // ownLoginBarred says why Claude Code doesn't start on its own login in Dir,
-// of pools, which would go out on whatever account it's signed into: Dir is
-// in a fenced pool, as fencesHolding finds it, or isn't known while a pool is
-// fenced; or a pool writes a directory that can't be placed, even in Home,
-// which may hold Dir. It says "" where it can start so.
+// of pools, placed as placedInHome places them, which would go out on
+// whatever account it's signed into: Dir is in a fenced pool, as
+// fencesHolding finds it, or isn't known while a pool is fenced; or a pool
+// writes a directory that can't be placed, which may hold Dir. It says ""
+// where it can start so. What a pool writes is redacted, as a token pasted
+// into a pool's directories reads as one that can't be placed.
 func (l Launcher) ownLoginBarred(pools config.Pools) string {
 	if l.Dir == "" && slices.ContainsFunc(pools, config.Pool.Fenced) {
 		return unknownDir
 	}
-	pools = l.placedInHome(pools)
 	if held := l.fencesHolding(pools); len(held) > 0 {
 		return l.where() + " is in " + poolsNamed(held) + ", where claude never starts on its own login"
 	}
 	if i := slices.IndexFunc(pools, func(p config.Pool) bool { return len(p.Unplaced) > 0 }); i >= 0 {
-		return "can't tell which pool " + l.where() + " is in: pool " + poolSaid(pools[i]) + "'s directory " + prose.Quoted(pools[i].Unplaced[0]) + " can't be placed"
+		return "can't tell which pool " + l.where() + " is in: pool " + poolSaid(pools[i]) + "'s directory " + prose.Quoted(redact.Text(pools[i].Unplaced[0])) + " can't be placed"
 	}
 	return ""
 }
@@ -510,9 +512,10 @@ func routedConfig(h router.Health, pools config.Pools) (*config.Config, error) {
 	return &config.Config{Accounts: accounts, Pools: pools}, nil
 }
 
-// poolSaid names the pool p by its label, else its id.
+// poolSaid names the pool p by its label, else its id, redacted, as the
+// label of a pool read unchecked can hold anything.
 func poolSaid(p config.Pool) string {
-	return prose.Clean(cmp.Or(p.Label, p.ID))
+	return prose.Clean(redact.Text(cmp.Or(p.Label, p.ID)))
 }
 
 // poolsNamed names pools, as "pool Acme", or "pools Acme and Client".

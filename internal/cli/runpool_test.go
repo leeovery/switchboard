@@ -413,6 +413,26 @@ func TestRunOnItsOwnLoginWithoutAConfigItCanReadNeverStartsInsideAFence(t *testi
 	}
 }
 
+func TestRunOnItsOwnLoginNeverAsksTheRouterForPoolsTheConfigFileWritesByItsRules(t *testing.T) {
+	srv := newServeSetup(t, fakeClaudeAPI(t), map[string]string{"SWITCHBOARD_CONFIG": writeConfig(t, invalidPooled)})
+	var asked atomic.Int64
+	serveRouter(t, router.SocketPath(stateDir(t, srv.deps)), new(atomic.Int64), map[string]http.HandlerFunc{
+		"GET /health": func(w http.ResponseWriter, _ *http.Request) {
+			asked.Add(1)
+			_ = json.NewEncoder(w).Encode(pooledHealth(t, srv.deps))
+		},
+	})
+	startingIn(t, &srv.deps, "Code/project")
+	handed := recordHandOffs(t, &srv.deps)
+
+	if got := run(t, srv.deps, "run", "--direct"); got != (result{}) {
+		t.Errorf("switchboard run --direct = %+v, want exit status 0 and no output", got)
+	}
+	if len(handed.made) != 1 || asked.Load() != 0 {
+		t.Errorf("handed over %d times, asking the router %d times; want claude started, the router never asked", len(handed.made), asked.Load())
+	}
+}
+
 func TestRunWithoutFindingTheRouterNeverStartsOnItsOwnLoginInsideAFence(t *testing.T) {
 	acme := filepath.Join(t.TempDir(), "acme")
 	pooled := strings.Replace(pooledAccounts, `dirs  = ["~/Code/acme"]`, `dirs  = ["`+acme+`"]`, 1)

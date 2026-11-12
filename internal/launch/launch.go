@@ -331,14 +331,15 @@ func (l Launcher) connectDirectly(path string, args []string, state routerState,
 // login: without the router or an account's token, for what needs the login.
 // It starts from the environment as the user set it (see own). Inside the
 // directories of a fenced pool of pools, or where it can't tell, it refuses,
-// failing with ErrNotStarted, Stderr hearing why (see ownLoginBarred). It
-// returns only when Claude Code couldn't start.
+// failing with ErrNotStarted, Stderr hearing why (see ownLoginBarred), the
+// pools placed in Home first (see placedInHome). It returns only when Claude
+// Code couldn't start.
 func (l Launcher) Direct(args []string, pools config.Pools) error {
 	path, err := l.find()
 	if err != nil {
 		return err
 	}
-	if why := l.ownLoginBarred(pools); why != "" {
+	if why := l.ownLoginBarred(l.placedInHome(pools)); why != "" {
 		return l.refuse(why, "mode", "own login", "dir", l.Dir)
 	}
 	logger.Info("starting claude", "mode", "own login", "claude", path)
@@ -481,8 +482,10 @@ func (c cantTakePart) said() string {
 // where Claude Code goes instead: through the router of the session it's
 // started within, or without switchboard. foundDown says this launch found
 // the router couldn't be routed through. Inside the directories of a fenced
-// pool of pools, or where it can't tell, it refuses, as Direct does.
+// pool of pools, or where it can't tell, it refuses, as Direct does, the
+// pools placed in Home first, for the refusal and the environment alike.
 func (l Launcher) unaided(path string, args []string, cant cantTakePart, foundDown bool, pools config.Pools) error {
+	pools = l.placedInHome(pools)
 	if why := l.ownLoginBarred(pools); why != "" {
 		return l.refuse(cant.said()+" — "+why, "error", cant.err, "dir", l.Dir)
 	}
@@ -510,6 +513,8 @@ func (l Launcher) unaided(path string, args []string, cant cantTakePart, foundDo
 // passed on, Claude Code's token goes too, as a session's, run's or the
 // user's, can't be told apart, and would go out on an account of another
 // pool's. Where none is, it's as without pools: no session can leave a pool.
+// The pools are placed in Home, as placedInHome places them, so a pool
+// fenced by a directory written ~/ counts as fenced.
 func (l Launcher) unaidedEnv(foundDown bool, pools config.Pools) environ {
 	env := environ(l.Environ)
 	fenced := slices.ContainsFunc(pools, config.Pool.Fenced)

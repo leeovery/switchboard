@@ -596,6 +596,14 @@ func TestUnaidedPassesASessionsRoutingOnInItsOwnPoolAlone(t *testing.T) {
 		{name: "within a session of its own pool", from: elsewhere, dir: homeDir + "/Code/site", launch: unreadable, wantRouted: true},
 		{name: "within a session of a fenced pool, outside its fence", from: acmeDir, dir: elsewhere, launch: unreadable},
 		{
+			name: "within a session of a pool fenced by a directory in the home directory, read without one, outside its fence",
+			from: acmeDir,
+			dir:  elsewhere,
+			launch: func(_ context.Context, l launch.Launcher) error {
+				return l.Unaided(nil, acmeWriting("~/Code/acme"), launch.CouldntReadConfig, errUnread)
+			},
+		},
+		{
 			name: "within a session of its own pool, the router found down",
 			from: elsewhere,
 			dir:  homeDir + "/Code/site",
@@ -1053,49 +1061,70 @@ func TestOnItsOwnLoginClaudeNeverStartsInsideAFence(t *testing.T) {
 	}
 }
 
+// acmeWriting is Default and Acme, read from a config that breaks its rules,
+// Acme writing dir, which couldn't be placed as it was read.
+func acmeWriting(dir string) config.Pools {
+	return config.Pools{defaultPool, {ID: acmePool.ID, Label: acmePool.Label, WrittenDirs: []string{dir}, Unplaced: []string{dir}}}
+}
+
 func TestOnItsOwnLoginClaudeNeverStartsWhileAPoolsDirectoryCantBePlaced(t *testing.T) {
-	// acmeWriting is Acme, read from a config that breaks its rules, writing
-	// dir, which couldn't be placed as it was read.
-	acmeWriting := func(dir string) config.Pools {
-		return config.Pools{defaultPool, {ID: acmePool.ID, Label: acmePool.Label, WrittenDirs: []string{dir}, Unplaced: []string{dir}}}
-	}
+	const tokenShaped = "sk-ant-oat01-fake_token-shaped"
 	tests := []struct {
 		name  string
 		pools config.Pools
-		dir   string
-		// noHome has the launch know no home directory; wantWhy is why
-		// stderr hears it's refused, "" where claude starts.
-		noHome  bool
+		// dir is where claude starts, and home the launch's home directory,
+		// each "" where it isn't known.
+		dir  string
+		home string
+		// wantWhy is why stderr hears it's refused, "" where claude starts.
 		wantWhy string
 	}{
 		{
 			name:    "a relative directory, outside where it may lead",
 			pools:   acmeWriting("Code/acme"),
 			dir:     elsewhere,
+			home:    homeDir,
 			wantWhy: `can't tell which pool ~/Code/other is in: pool Acme's directory "Code/acme" can't be placed`,
 		},
 		{
 			name:    "one in the home directory, placed in the launch's, inside it",
 			pools:   acmeWriting("~/Code/acme"),
 			dir:     acmeDir + "/api",
+			home:    homeDir,
 			wantWhy: "~/Code/acme/api is in pool Acme, where claude never starts on its own login",
 		},
-		{name: "one in the home directory, placed in the launch's, outside it", pools: acmeWriting("~/Code/acme"), dir: elsewhere},
+		{name: "one in the home directory, placed in the launch's, outside it", pools: acmeWriting("~/Code/acme"), dir: elsewhere, home: homeDir},
+		{
+			name:    "one in the home directory, placed in the launch's, the directory claude starts in not known",
+			pools:   acmeWriting("~/Code/acme"),
+			home:    homeDir,
+			wantWhy: "can't tell which pool the directory claude starts in is in",
+		},
 		{
 			name:    "one in the home directory, with none known",
 			pools:   acmeWriting("~/Code/acme"),
 			dir:     elsewhere,
-			noHome:  true,
 			wantWhy: `can't tell which pool ` + elsewhere + ` is in: pool Acme's directory "~/Code/acme" can't be placed`,
+		},
+		{
+			name:    "one in the home directory, with a relative one",
+			pools:   acmeWriting("~/Code/acme"),
+			dir:     elsewhere,
+			home:    "home/tester",
+			wantWhy: `can't tell which pool ` + elsewhere + ` is in: pool Acme's directory "~/Code/acme" can't be placed`,
+		},
+		{
+			name:    "a token pasted as a pool's label and directory, redacted",
+			pools:   config.Pools{defaultPool, {ID: acmePool.ID, Label: tokenShaped, WrittenDirs: []string{tokenShaped}, Unplaced: []string{tokenShaped}}},
+			dir:     elsewhere,
+			home:    homeDir,
+			wantWhy: `can't tell which pool ~/Code/other is in: pool [redacted]'s directory "[redacted]" can't be placed`,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			h := newHarness(t, "HOME=/home/tester")
-			h.launcher.Dir = tt.dir
-			if tt.noHome {
-				h.launcher.Home = ""
-			}
+			h.launcher.Dir, h.launcher.Home = tt.dir, tt.home
 
 			err := h.launcher.Direct(nil, tt.pools)
 			if tt.wantWhy == "" {
@@ -1743,6 +1772,39 @@ func TestAConfigWithPoolsNeverAsksTheRecord(t *testing.T) {
 
 	if err := h.launcher.Run(t.Context(), r, nil); err != nil {
 		t.Fatalf("Run() error = %v", err)
+	}
+}
+
+func TestWrittenFences(t *testing.T) {
+	routers := config.Pools{defaultPool, clientPool}
+	tests := []struct {
+		name    string
+		written launch.Written
+		want    config.Pools
+		// wantAsked is whether the router's pools are asked for.
+		wantAsked bool
+	}{
+		{name: "pools written by the config's rules: theirs alone", written: launch.Written{Pools: config.Pools{defaultPool, acmePool}}, want: config.Pools{defaultPool, acmePool}},
+		{
+			name:      "pools that break the config's rules: theirs and the router's",
+			written:   launch.Written{Pools: config.Pools{defaultPool, acmePool}, Unchecked: true},
+			want:      config.Pools{defaultPool, acmePool, defaultPool, clientPool},
+			wantAsked: true,
+		},
+		{name: "none written: the router's", want: routers, wantAsked: true},
+		{name: "none written, read unchecked: the router's", written: launch.Written{Unchecked: true}, want: routers, wantAsked: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			asked := false
+			got := tt.written.Fences(func() config.Pools {
+				asked = true
+				return routers
+			})
+			if !slices.EqualFunc(got, tt.want, samePool) || asked != tt.wantAsked {
+				t.Errorf("Fences() = %+v, asking for the router's: %v; want %+v, asking: %v", got, asked, tt.want, tt.wantAsked)
+			}
+		})
 	}
 }
 
