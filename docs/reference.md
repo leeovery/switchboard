@@ -39,7 +39,7 @@ directly, agents included. Each format is described field by field.
   it, are fixed words. See [Why a request went where it did](#why-a-request-went-where-it-did).
 - **Not a contract:** The text the commands print for a person, on a terminal or with `--pretty`,
   and that of a command without `--json`, can change in any release: read `--json` instead. The
-  exception is `status --session`, which prints the bare id of the session's account on a line of
+  exception is `status --session`, which prints the label of the session's account on a line of
   its own, for a statusline to read, and always will. `prefs.json`, the dashboard's own file, can
   change too, as can the files the table below says are switchboard's own.
 
