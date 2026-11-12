@@ -145,11 +145,11 @@ func TestUSAGEScrollsWholeARowAtATimeItsWindowsHeadingKept(t *testing.T) {
 	}{
 		{
 			name: "at the top, the rows below said", scroll: 0,
-			want: map[int]string{2: "a1 ▲", 4: "a2", 12: "a6", 13: "", 14: "▼ 11 more below"},
+			want: map[int]string{2: "a1  ▲", 4: "a2", 12: "a6", 13: "", 14: "▼ 11 more below"},
 		},
 		{
 			name: "a row down, the blank under the heading under it", scroll: 1,
-			want: map[int]string{1: "a1 ▲", 3: "a2", 13: "a7", 14: "▲ 1 more above · ▼ 10 more below"},
+			want: map[int]string{1: "a1  ▲", 3: "a2", 13: "a7", 14: "▲ 1 more above · ▼ 10 more below"},
 		},
 		{
 			name: "four rows down, a2 under the heading", scroll: 4,
@@ -1174,7 +1174,7 @@ func TestAnAccountOutOfThePoolIsNamedFaintWhereverTheOverviewNamesIt(t *testing.
 		t.Run(name, func(t *testing.T) {
 			c := newCanvas(f.Width, 12)
 			s.draw(c, bounds{width: f.Width, rows: 12})
-			out, in := namedOn(c, "personal ◆"), namedOn(c, "side ▲")
+			out, in := namedOn(c, "personal   ◆"), namedOn(c, "side       ▲")
 			if out == nil || in == nil {
 				t.Fatalf("%s names personal on %v and side on %v, want both named", name, out, in)
 			}

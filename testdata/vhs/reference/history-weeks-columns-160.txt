@@ -16,7 +16,7 @@ work          ▁▁▁▁▁   ▅▅▅▅▅           ▇▇▇▇▇       
                72%     88%     100%    94%     100%    81%     100%    34%…
 
 
-personal ◆            ▁▁▁▁▁           ▂▂▂▂▂   ▁▁▁▁▁   ▆▆▆▆▆   ▄▄▄▄▄          ends most weeks with room
+personal   ◆          ▁▁▁▁▁           ▂▂▂▂▂   ▁▁▁▁▁   ▆▆▆▆▆   ▄▄▄▄▄          ends most weeks with room
               ▇▇▇▇▇           ▆▆▆▆▆                                          limit hit 0 of 7 weeks · 27% left at a reset, on average
                                                                              without it, the rest: short on 7 of 7
                64%     70%     58%     77%     69%     90%     85%     66%…

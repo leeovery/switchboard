@@ -743,7 +743,7 @@ func (d sessionDrawn) account(c *canvas, y int, s views.Stay) {
 		case stayName:
 			n := d.nameOf(s.Account)
 			n.label = asLabelled(n.label)
-			c.line(col.x, y, n.fitted(col.width+nameGap))
+			c.line(col.x, y, n.filled(col.width+nameGap))
 		case stayTime:
 			c.text(col.x, y, prose.Cut(s.Said, col.width), secondaryInk)
 		case stayRequests:

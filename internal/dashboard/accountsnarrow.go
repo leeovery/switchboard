@@ -265,13 +265,14 @@ func turnedNamed(col compareColumn) accountName {
 }
 
 // turnedName is the column's name, as turnedNamed has it, in the cells
-// given, its label cut short to keep its marks; all bold text.secondary.
+// given, as a column of names has it, its marks at their end, as inColumn
+// lays it, its label cut short to keep them; all bold text.secondary.
 func turnedName(col compareColumn, cells int) line {
 	if col.all {
 		return line{{"all", strongInk}}
 	}
 	named := turnedNamed(col)
-	return named.labelIn(cells - named.marks().width())
+	return named.inColumn(cells-named.marks().width(), cells)
 }
 
 // turnedWeek draws WEEK USED from row y, and returns the row its last column

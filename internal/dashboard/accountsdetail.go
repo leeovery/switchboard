@@ -816,7 +816,7 @@ func (d detailDrawn) list(c *canvas, top, rows int) {
 	for _, a := range d.accounts[first : first+shown] {
 		y += listApart
 		c.line(d.l.dotAt(), y, line{stateMark(d.m.StateInAWord(a.ID))})
-		d.listRow(c, y, listName(a).fitted(d.l.names), a.ID == d.id)
+		d.listRow(c, y, listName(a).line(d.l.names), a.ID == d.id)
 		d.f.cueState(c, a.ID, d.l.dotAt(), y, 1)
 	}
 	c.line(listAt, y+chooseUnder, line{{"↑↓", keyInk}, {" choose", dimInk}})

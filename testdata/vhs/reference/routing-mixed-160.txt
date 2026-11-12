@@ -8,23 +8,23 @@ WEEK
 
  work                                                ▌                      ┃                                               ╎       34%  out ~Sun
                                       ╭─ ROUTING · NEW SESSIONS ────────────────────────────────────────────────────────╮
- personal ◆                           │                                                                                 │           66%  out ~Sat
+ personal   ◆                         │                                                                                 │           66%  out ~Sat
                                       │  Pick the accounts new sessions go to.                                          │
- side ▲                               │                                                                                 │           78%  out ~Fri
+ side       ▲                         │                                                                                 │           78%  out ~Fri
 ──────────────────────────────────────│  ■ auto      the router chooses                                                 │───────────────────────────────────────
  Σ pool                               │  □ work      open      week 34%   no 5-hour limit                               │           59%  1.2 of 3 left
                                       │  □ personal  open      week 66%   no 5-hour limit                    2 running  │
 5-HOUR                                │  □ side      open      week 78%   5-hour 13%                         4 running  │
                                       │                                                                                 │
- side ▲                      ▏    ┃   │  □ m  also move the sessions running                                            │           13%  21%/h till 18:50
+ side       ▲                ▏    ┃   │  □ m  also move the sessions running                                            │           13%  21%/h till 18:50
                                       │                                                                                 │
               ┃ even pace: where you w│  The router chooses an account for each new session.                            │re
                                       │                                                                                 │
 ROUTING   auto ───────────────────────│                                                                                 │───────────────────────────────────── r
                                       │                                                                                 │
-work          ● open                  │                                                                                 │▃▃▂▂▂▂▂▂▁▁▁▁▂▂▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁   0/min
-personal ◆    ● open                  │               ↑↓ move   space tick   m move running   enter apply   esc cancel  │▁▁▁▁▁▁▁▁▁▁▁▃▅▅▄▃▁▁▁▁▁▁▁▁▁▁▁▁▂▂▁   3/min
-side ▲        ● open · new sessions co╰─────────────────────────────────────────────────────────────────────────────────╯▁▁▁▁▁▁▁▁▁▁▁▁▁▁▄▆      ▇▇▆▅▅▄▅▅▆  11/min
+ work         ● open                  │                                                                                 │▃▃▂▂▂▂▂▂▁▁▁▁▂▂▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁   0/min
+ personal   ◆ ● open                  │               ↑↓ move   space tick   m move running   enter apply   esc cancel  │▁▁▁▁▁▁▁▁▁▁▁▃▅▅▄▃▁▁▁▁▁▁▁▁▁▁▁▁▂▂▁   3/min
+ side       ▲ ● open · new sessions co╰─────────────────────────────────────────────────────────────────────────────────╯▁▁▁▁▁▁▁▁▁▁▁▁▁▁▄▆      ▇▇▆▅▅▄▅▅▆  11/min
                                                                                           requests a minute, last 30 minutes
 
 COMING UP  ─────────────────────────────────────────────────────────── c          LATELY  ──────────────────────────────────────────────────────────────────── l

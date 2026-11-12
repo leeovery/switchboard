@@ -8,7 +8,7 @@ ACCOUNTS    Compare  Detail  [ ]  ───────────────�
                     │
  work          ●    │   USAGE                                                                                        THIS WEEK
                     │   Week                           ┃▊                  59%  1.2 of 3 left                        requests  5,410
- personal ◆    ●    │                                                                                                limits    4
+ personal   ◆  ●    │                                                                                                limits    4
                     │   5-hour                     ┃▋                      49%  1.5 of 3 left                        plan      $600/mo
  side          ●    │                                                                                                worth     $635  4.6×
                     │                                                                                                extra use off

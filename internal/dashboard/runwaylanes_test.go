@@ -197,19 +197,19 @@ func TestEachLaneIsHeadedByItsNameAndItsUseOfTheViewsWindow(t *testing.T) {
 				name: accountName{label: "personal", primary: true, out: true}, account: status.AccountNow{OutOfPool: true},
 				Lane: views.Lane{ID: "personal", Use: views.Use{Key: "5h", Used: 0.39, Read: true}},
 			},
-			head: "personal ◆", use: "5-hour 39%", useInks: []ink{faintInk, faintInk},
+			head: "personal   ◆", use: "5-hour 39%", useInks: []ink{faintInk, faintInk},
 		},
 		{
 			name: "the widest use, whole", window: views.RunwayFiveHour, lane: laidLane{
 				name: accountName{label: "personal", primary: true}, Lane: views.Lane{ID: "personal", Use: views.Use{Key: "5h", Used: 1, Read: true, Highest: true}},
 			},
-			head: "personal ◆", use: "5-hour 100%", useInks: []ink{dimInk, usedFigure(1, "personal", "5h")},
+			head: "personal   ◆", use: "5-hour 100%", useInks: []ink{dimInk, usedFigure(1, "personal", "5h")},
 		},
 		{
 			name: "in a label column too narrow for it, cut, its marks and ▲'s cells kept", window: views.RunwayWeek, x: 12, lane: laidLane{
 				name: accountName{label: "personal", primary: true}, Lane: views.Lane{ID: "personal", Use: views.Use{Key: "7d", Used: 1, Read: true}},
 			},
-			head: "perso… ◆", use: "week 100%", useInks: []ink{dimInk, usedFigure(1, "personal", "7d")},
+			head: "perso…   ◆", use: "week 100%", useInks: []ink{dimInk, usedFigure(1, "personal", "7d")},
 		},
 		{
 			name: "not read yet, short at the column's most too", window: views.RunwayFiveHour, x: labelMost,

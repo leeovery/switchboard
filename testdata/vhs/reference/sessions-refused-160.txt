@@ -11,14 +11,14 @@ c61b mobile                   ↓ answering                   ●━━━━━
 d28c switchboard              idle 5s      ▸ from work      ●━━━━━━━━━━━┓  ┃  ┃  ┃
 7f3a api                      idle 2m      ▸ from work      ●━━━━━━━━┓  ┃  ┃  ┃  ┃
 db8a infra                    idle 46s     ▸ from work      ●━━━━━┓  ┃  ┃  ┃  ┃  ┃
-                                                                  ┃  ┃  ┃  ┃  ┃  ┗━━✕ personal ◆    ■ limit reached · back 16:30
+                                                                  ┃  ┃  ┃  ┃  ┃  ┗━━✕ personal   ◆  ■ limit reached · back 16:30
                                                                   ┃  ┃  ┃  ┃  ┗━━━━━◉  Week                            ┃            66%  14%/day till Sun 02:00
                                                                   ┃  ┃  ┃  ┃        ○
                                                                   ┃  ┃  ┃  ┃        ○  5-hour                                  ┃   100%  limit · back 16:30
                                                                   ┃  ┃  ┃  ┃
                                                                   ┃  ┃  ┃  ┃
                                                                   ┃  ┃  ┃  ┃
-                                                                  ┃  ┃  ┃  ┗━━━━━━━━◉ side ▲        ● open · new sessions come here
+                                                                  ┃  ┃  ┃  ┗━━━━━━━━◉ side       ▲  ● open · new sessions come here
                                                                   ┃  ┃  ┗━━━━━━━━━━━◉  Week                      ┃                  78%  6%/day till Mon 10:00
                                                                   ┃  ┗━━━━━━━━━━━━━━◉
                                                                   ┗━━━━━━━━━━━━━━━━━◉  5-hour              ▉    ┃                   31%  25%/h till 18:50

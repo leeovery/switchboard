@@ -2302,6 +2302,24 @@ order the view's section gives.
   from there, none counting 8 or 24 itself (`guardlabels_test.go`), but the views whose sections
   give figures of their own: Compare's 8 and 24, Detail's list's 14 and 24, the Sessions List's
   `on`'s 14 and the Switchboard's call's 6.
+- **A column of names right-aligns their marks** (the owner's call, 12 November 2026): each label
+  at the column's left, then as many spaces as it needs, then its marks, `◆ ▲` as one where it
+  carries both, ending where the column's gap starts, so the marks stand in one column down the
+  list whatever the labels' lengths, as `personal   ◆` over `side       ▲`. The column is no wider
+  for it, and a label cut short keeps its marks there. One form lays it out (`accountName`'s
+  `inColumn`), and every column of names draws through it: the Overview's USAGE, ROUTING and
+  SESSIONS, Detail's list, turned Compare's rows, History's Weeks and wide Days
+  (`historyAccount`; narrow Days, its count beside the name, keeps the mark beside the label),
+  Sessions' Switchboard, a session's stays (`filled`, cutting a label to keep its own marks
+  alone), Runway's label column and Graphs' GLANCE. On the Overview, USAGE, ROUTING and SESSIONS,
+  which share the name column, start their names at one column, so labels and marks line up
+  across them: a cell in wherever any of them shown, folded or not, starts its own a cell in,
+  as USAGE's windows stacked under their headings or two rows an account, else column 0
+  (`pageNamesAt`). Where names start a cell in, their marks end a cell into the gap, a cell
+  before what follows. A name said alone, in a heading, a sentence or on a line of its own, as a
+  card's head, Compare's columns, Detail's heading, a session's header, `usage --by account`'s
+  name above its windows and its token lines, keeps its marks right after its label: there's no
+  column to align to.
 - **A figure has a stated bound and is never cut:** it's given its bound's cells, and past the
   bound it says so, as `999+` and `$9999.99+`.
 - **A live view's form never hangs on its data.** Its naturals come from what's configured, the
@@ -2695,7 +2713,8 @@ last token's line where it has any, with no blank line after it, as a shell's pr
 **A row:**
 
 - **The name:** its label, in bold `text.primary`, with no number before it; then its
-  marks, each after a space: `◆` in `text.tertiary` on the primary, and `▲` in `accent.mode` on the
+  marks, each after a space, right-aligned at the name column's end, as a column of names has them
+  (see The page): `◆` in `text.tertiary` on the primary, and `▲` in `accent.mode` on the
   account new sessions go to. With one account, that account carries `▲`, and the header names it.
 - **The bar:**
   - **Its track:** spaces on `viz.track`, a cell's background, `bg.subtle` unless the theme sets it:
@@ -2937,8 +2956,9 @@ can't, state or a key to marks; what a section is, and why it's where it is, are
 | ROUTING | The mode (below) |
 | SESSIONS, COMING UP, LATELY | None |
 
-**USAGE** is `usage`'s block, exactly as `usage`, the printout gives it, but for its header: the
-title row and the status line say what the header would. By window:
+**USAGE** is `usage`'s block, exactly as `usage`, the printout gives it, but for its header, and
+its names from the page's column (see The page): the title row and the status line say what the
+header would. By window:
 
 - **Two sizes wherever its windows sit side by side,** as `usage`'s matrix does: compact, the
   matrix; and big, the windows stacked as sections at the full width, the bars from the name column
@@ -3046,7 +3066,7 @@ and the pool's room then is judged there, as POOL says. The focus GRAPHS followe
   65, drawn 24 cells from 76.
 - **A row an account,** in the config's order, wherever those parts' leasts fit (from 83 columns
   with a name column of 16):
-  - its name and marks at column 0, as in USAGE;
+  - its name and marks at the page's column, as USAGE's, the Overview's names' (see The page);
   - its state at the name column, its glyph coloured as its words (below), in its words' cells,
     ending two cells before `● pinned`, or before the sessions where no pin shows: the widest
     that fits whole of its words cut to their leading clauses, from all of them to their lead
@@ -3137,7 +3157,8 @@ whose models go to two accounts on each:
   each account's sessions together, by requests a minute, then the one seen last first. So an idle
   session of a busy account comes before a busier one of a quieter account: the grouping wins (the
   owner's call, 21 October 2026).
-- **The account's name and marks** at column 0, on the first of its sessions shown alone.
+- **The account's name and marks** at the page's column, as USAGE's and ROUTING's, on the first
+  of its sessions shown alone.
 - **The session's id,** its first 4 characters, at the name column: bold `text.primary` while busy,
   with a request in flight or seen in the last minute, else `text.muted`; then a space and its
   project, the last part of its directory as the List has it (`views.Running`'s `Dir`), in
@@ -3303,8 +3324,12 @@ remembered").
   and `refused` in `state.destructive`) with ` · ` in `text.faint`; its accounts' sessions summed,
   `6 sessions`; and their requests a minute summed, as a trace and a rate, `16/min`.
 - **The key line** follows the last block, from the name column.
-- **Under 150 columns,** USAGE draws as `usage --by account` does at that width, and ROUTING stays a
-  section of its own under it (settled in the plan).
+- **Under 150 columns,** USAGE draws as `usage --by account` does at that width, but its names
+  from the page's column (see The page), and ROUTING stays a section of its own under it
+  (settled in the plan). Where ROUTING takes two rows an account, as on a phone, that's a cell
+  in: names beside their first windows end a cell before `Week`, and at 52 to 57 columns, where
+  they're said on a row of their own over their windows, their marks beside their labels, they
+  start at column 1 too, flush with the window labels under them.
 
 **The key line**, the last row:
 
@@ -4852,12 +4877,12 @@ kept for good (settled in the plan; see The request ledger).
   which take the rest to the edge, at every width, a phone's too.
 - **The label column** takes its natural width at every width a frame has (the owner's call, 21
   October 2026), as The page has a column of names: the widest name whole, its label up to 24 cells,
-  and the two cells after it, its marks beside the label, `▲`'s cells kept on every
-  account, as `usage` keeps them, so the lanes hold still as `▲` moves; or the widest use under a
-  name in either window, `5-hour 100%` from column 2 and a cell, 14, so they hold still as `<` and
-  `>` step, as the figures change and as an account goes stale. Only on a frame narrower than its
-  natural does it narrow, to a label's 8 at the least. Of the frames' accounts it's 14 at every
-  width, the lanes 146 at 160 and 38 at 52.
+  and the two cells after it, its marks at the column's end, as a column of names has them, `▲`'s
+  cells kept on every account, as `usage` keeps them, so the lanes hold still as `▲` moves; or the
+  widest use under a name in either window, `5-hour 100%` from column 2 and a cell, 14, so they
+  hold still as `<` and `>` step, as the figures change and as an account goes stale. Only on a
+  frame narrower than its natural does it narrow, to a label's 8 at the least. Of the frames'
+  accounts it's 14 at every width, the lanes 146 at 160 and 38 at 52.
 - **The labels:** on a lane's row, the account's name and marks, cut with `…` only where the
   column is at its most, the marks kept (see `usage`, the printout); on the row under
   it, from column 2, `5-hour ` or `week ` in `text.subtle`, and the account's use of that window,
@@ -6194,10 +6219,10 @@ name carries.
 first ran on them. A row's parts, two cells apart, as flex lays them at every width:
 
 - **its name:** bold `text.primary`, cut at a label's most as every row of the page cuts it, and
-  its marks. It's a label's column: its least the marks, `▲`'s cells kept on every account so the
-  row holds still as `▲` moves, and 8 cells of the label, or its own where that's fewer; its
-  natural the same with the widest label configured, at most 24, never the accounts the session
-  ran on;
+  its marks, right-aligned at the column's end, as a column of names has them. It's a label's
+  column: its least the marks, `▲`'s cells kept on every account so the row holds still as `▲`
+  moves, and 8 cells of the label, or its own where that's fewer; its natural the same with the
+  widest label configured, at most 24, never the accounts the session ran on;
 - **its time there,** from its first request on it to its last, in `text.secondary`, in the
   cells of the widest a stay is said, 30, `28 Sep 13:20 – yesterday 01:20`, so it's never cut:
   `12:02 – 14:31`, `14:31 – now`; with its day where the session spans more than one, or began

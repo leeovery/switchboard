@@ -11,7 +11,7 @@ c61b mobile-app-of… ↓ answering            ●━━━━━━━━━━
 d28c switchboard-d… ↑ asking     ▸ work-…  ●━━━━━━━━┓  ┃  ┃  ┃
 7f3a api-gateway-r… ↓ answering  ▸ work-…  ●━━━━━┓  ┃  ┃  ┃  ┃
 db8a infra-terrafo… idle 50s     ▸ work-…  ●━━┓  ┃  ┃  ┃  ┃  ┃
-                                              ┃  ┃  ┃  ┃  ┃  ┗━━◉ personal-research ◆       ● open
+                                              ┃  ┃  ┃  ┃  ┃  ┗━━◉ personal-research      ◆  ● open
                                               ┃  ┃  ┃  ┃  ┗━━━━━◉  Week            ┃    66%  out ~Sat
                                               ┃  ┃  ┃  ┃        ○
                                               ┃  ┃  ┃  ┃        ○  5-hour        ▏ ┃    39%  34%/h · 16:30
