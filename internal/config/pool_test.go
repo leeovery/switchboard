@@ -428,6 +428,7 @@ func TestPoolPlacedIn(t *testing.T) {
 		{name: "absolute, cleaned", unplaced: []string{"/Volumes/Acme/"}, wantDirs: []string{"/Volumes/Acme"}},
 		{name: "in the home directory", home: testHome, unplaced: []string{"~/Code/acme"}, wantDirs: []string{testHome + "/Code/acme"}},
 		{name: "in the home directory, none found", unplaced: []string{"~/Code/acme"}, wantUnplaced: []string{"~/Code/acme"}},
+		{name: "in the home directory, a relative one", home: "home/test", unplaced: []string{"~/Code/acme"}, wantUnplaced: []string{"~/Code/acme"}},
 		{name: "relative", home: testHome, unplaced: []string{"Code/acme"}, wantUnplaced: []string{"Code/acme"}},
 		{name: "a home directory written plainly", home: testHome, unplaced: []string{"~"}, wantUnplaced: []string{"~"}},
 	}

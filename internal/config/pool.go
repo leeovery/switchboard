@@ -192,8 +192,8 @@ func FencesOf(path string, homeDir func() (string, error)) (Pools, error) {
 
 // PlacedIn returns p with those of its Unplaced directories that can be
 // placed among its Dirs, home being the home directory, "" where none is
-// found: an absolute one, cleaned, and one starting ~/, in home. Those that
-// can't be stay Unplaced.
+// found: an absolute one, cleaned, and one starting ~/, in home, where home
+// is absolute, as findHome holds it to. Those that can't be stay Unplaced.
 func (p Pool) PlacedIn(home string) Pool {
 	unplaced := p.Unplaced
 	p.Dirs, p.Unplaced = slices.Clone(p.Dirs), nil
@@ -201,7 +201,7 @@ func (p Pool) PlacedIn(home string) Pool {
 		switch {
 		case filepath.IsAbs(dir):
 			p.Dirs = append(p.Dirs, filepath.Clean(dir))
-		case strings.HasPrefix(dir, homePrefix) && home != "":
+		case strings.HasPrefix(dir, homePrefix) && filepath.IsAbs(home):
 			p.Dirs = append(p.Dirs, expandIn(home, dir))
 		default:
 			p.Unplaced = append(p.Unplaced, dir)
