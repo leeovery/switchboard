@@ -36,6 +36,7 @@ var (
 	accountHeaderLine = regexp.MustCompile(`^\[\[\s*(?:account|"account"|'account')\s*\]\]\s*(?:#.*)?$`)
 	primaryKeyLine    = regexp.MustCompile(`^(?:primary|"primary"|'primary')\s*=`)
 	primeHeaderLine   = regexp.MustCompile(`^\[\s*(?:prime|"prime"|'prime')\s*\]\s*(?:#.*)?$`)
+	poolHeaderLine    = regexp.MustCompile(`^\[\[\s*(?:pool|"pool"|'pool')\s*\]\]\s*(?:#.*)?$`)
 	// multilineOpening matches a key whose value opens a string that can go
 	// on over lines, capturing the quotes that open it and what follows them.
 	multilineOpening = regexp.MustCompile(`^[^=]*=\s*("""|''')(.*)$`)
@@ -189,6 +190,18 @@ func (d document) accounts() []span {
 	return tables
 }
 
+// pools returns the span of each [[pool]] table, in the order they come, as
+// accounts has each [[account]] table's.
+func (d document) pools() []span {
+	var tables []span
+	for i, k := range d.kinds {
+		if k == header && poolHeaderLine.MatchString(strings.TrimSpace(d.lines[i])) {
+			tables = append(tables, d.table(i))
+		}
+	}
+	return tables
+}
+
 // table returns the span of the table whose header is line h.
 func (d document) table(h int) span {
 	next := d.nextTable(h)
@@ -253,6 +266,15 @@ func (d document) newAccountAt() int {
 		return d.commentsAbove(i)
 	}
 	return len(d.kinds)
+}
+
+// newPoolAt returns where a new [[pool]] table goes: after the last pool's,
+// else where a new account's would.
+func (d document) newPoolAt() int {
+	if tables := d.pools(); len(tables) > 0 {
+		return tables[len(tables)-1].end
+	}
+	return d.newAccountAt()
 }
 
 // insert returns the document with lines put in at line at, a blank line
@@ -472,28 +494,64 @@ func (d document) cut(s span) document {
 	return left
 }
 
-// lines returns the lines of the account's [[account]] table, its keys lined
-// up as Example lines them up.
+// lines returns the lines of the account's [[account]] table, as tableLines
+// writes them.
 func (a NewAccount) lines() []string {
-	keys := [][2]string{{"id", quote(a.ID)}}
-	if a.Label != "" {
-		keys = append(keys, [2]string{"label", quote(a.Label)})
-	}
-	if a.Plan != "" {
-		keys = append(keys, [2]string{"plan", quote(a.Plan)})
-	}
-	if a.Primary {
-		keys = append(keys, [2]string{"primary", "true"})
-	}
+	return tableLines("[[account]]", [][2]string{
+		{"id", quote(a.ID)},
+		{"label", written(a.Label)},
+		{"pool", written(a.Pool)},
+		{"plan", written(a.Plan)},
+		{"primary", writtenTrue(a.Primary)},
+	})
+}
+
+// lines returns the lines of the pool's [[pool]] table, as tableLines writes
+// them.
+func (p NewPool) lines() []string {
+	return tableLines("[[pool]]", [][2]string{
+		{"id", quote(p.ID)},
+		{"label", written(p.Label)},
+		{"dirs", writtenDirs(p.Dirs)},
+	})
+}
+
+// tableLines returns the lines of a table, header, then each of keys, each a
+// key and its value as TOML writes it, but those with no value, lined up as
+// Example lines them up.
+func tableLines(header string, keys [][2]string) []string {
+	keys = slices.DeleteFunc(slices.Clone(keys), func(kv [2]string) bool { return kv[1] == "" })
 	width := 0
 	for _, kv := range keys {
 		width = max(width, len(kv[0]))
 	}
-	lines := []string{"[[account]]"}
+	lines := []string{header}
 	for _, kv := range keys {
 		lines = append(lines, fmt.Sprintf("%-*s = %s", width, kv[0], kv[1]))
 	}
 	return lines
+}
+
+// writtenTrue returns true as TOML writes it, or "" for false, which
+// tableLines leaves out.
+func writtenTrue(b bool) string {
+	if !b {
+		return ""
+	}
+	return "true"
+}
+
+// writtenDirs returns dirs as TOML writes them, an array of basic strings on
+// one line, or "" for none, which withKey takes to mean the key goes.
+func writtenDirs(dirs []string) string {
+	if len(dirs) == 0 {
+		return ""
+	}
+	quoted := make([]string, len(dirs))
+	for i, dir := range dirs {
+		quoted[i] = quote(dir)
+	}
+	return "[" + strings.Join(quoted, ", ") + "]"
 }
 
 // written returns s as TOML writes it, a basic string, or "" for "", which

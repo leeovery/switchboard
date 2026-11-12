@@ -49,8 +49,11 @@ type NewAccount struct {
 	// Plan is the plan its subscription is on, one of Plans: "" leaves it
 	// unknown.
 	Plan string
-	// Primary makes it the primary, in place of any other.
+	// Primary makes it its pool's primary, in place of any other.
 	Primary bool
+	// Pool is the id of the pool it's in: "" for none, as in a config from
+	// before pools.
+	Pool string
 }
 
 // taken returns the account with its label as labelOf takes it, failing,
@@ -58,7 +61,7 @@ type NewAccount struct {
 func (a NewAccount) taken() (NewAccount, error) {
 	name := accountNamed(a.ID)
 	label, labelErr := labelOf(a.ID, a.Label)
-	if err := errors.Join(checkID(name, a.ID), labelErr, checkPlan(name, a.Plan)); err != nil {
+	if err := errors.Join(checkID(accountKind, name, a.ID), labelErr, checkPlan(name, a.Plan)); err != nil {
 		return NewAccount{}, err
 	}
 	a.Label, a.Plan = label, planNamed(a.Plan)
@@ -70,7 +73,7 @@ func (a NewAccount) taken() (NewAccount, error) {
 // without one, so the file writes no label where the account's shown by its
 // id.
 func labelOf(id, given string) (string, error) {
-	label, err := takeLabel(accountNamed(id), given)
+	label, err := takeLabel(accountKind, accountNamed(id), given)
 	if err != nil || label == id {
 		return "", err
 	}
@@ -83,6 +86,9 @@ func labelOf(id, given string) (string, error) {
 // valid, before it's taken. Save writes the draft.
 type Draft struct {
 	path string
+	// homeDir returns the home directory, a pool's directory starting ~/ is
+	// in.
+	homeDir func() (string, error)
 	// read is what the file held when it was read: nil when it wasn't there.
 	read []byte
 	doc  document
@@ -93,9 +99,10 @@ type Draft struct {
 }
 
 // Edit reads the config file at path to edit it: a valid config, or one
-// without accounts, to add them to. A file that isn't there reads as empty,
-// and Save makes it.
-func Edit(path string) (*Draft, error) {
+// without accounts, to add them to, checked as Load checks it, with the home
+// directory homeDir returns. A file that isn't there reads as empty, and
+// Save makes it.
+func Edit(path string, homeDir func() (string, error)) (*Draft, error) {
 	data, err := os.ReadFile(path)
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return nil, fmt.Errorf("read config: %w", err)
@@ -104,9 +111,9 @@ func Edit(path string) (*Draft, error) {
 	if err != nil {
 		return nil, err
 	}
-	d := &Draft{path: path, read: data, doc: newDocument(string(data)), file: f}
+	d := &Draft{path: path, homeDir: homeDir, read: data, doc: newDocument(string(data)), file: f}
 	if len(f.Accounts) > 0 {
-		if d.cfg, err = f.check(path, meta); err != nil {
+		if d.cfg, err = f.check(path, meta, homeDir); err != nil {
 			return nil, err
 		}
 	}
@@ -120,11 +127,13 @@ func (d *Draft) Config() *Config {
 }
 
 // AddAccount adds an [[account]] table for the account: after the last
-// account's, else before the first table, else at the end. As the primary,
-// it takes primary off every other account. It fails with a WrongID where
-// the id is one no account can have; where an account has it already,
-// matching ErrConfigured; and where one has it in another case, as the two
-// would share a token file. Its label is taken as labelOf takes it.
+// account's, else before the first table, else at the end, in the pool it
+// names, by the pool's own id. As the primary, it takes primary off every
+// other account of its pool. It fails with a WrongID where the id is one no
+// account can have; where an account has it already, matching
+// ErrConfigured; and where one has it in another case, as the two would
+// share a token file. Its label is taken as labelOf takes it. It fails,
+// matching ErrNotConfigured, where no pool has the id it names.
 func (d *Draft) AddAccount(given NewAccount) error {
 	a, err := given.taken()
 	if err != nil {
@@ -136,6 +145,13 @@ func (d *Draft) AddAccount(given NewAccount) error {
 	if i := slices.IndexFunc(d.file.Accounts, func(b fileAccount) bool { return strings.EqualFold(b.ID, a.ID) }); i >= 0 {
 		return caseClash(d.file.Accounts[i].ID, a.ID)
 	}
+	if a.Pool != "" {
+		p := d.poolIndex(a.Pool)
+		if p < 0 {
+			return PoolNotConfigured(a.Pool)
+		}
+		a.Pool = d.file.Pools[p].ID
+	}
 	change := fmt.Sprintf("add account %q", a.ID)
 	tables, err := d.accountTables(change)
 	if err != nil {
@@ -144,18 +160,27 @@ func (d *Draft) AddAccount(given NewAccount) error {
 	doc, want := d.doc, d.file
 	want.Accounts = slices.Clone(d.file.Accounts)
 	if a.Primary {
-		var marks []int
-		for i := range want.Accounts {
-			if want.Accounts[i].Primary {
-				marks = append(marks, doc.linesOf(primaryKey, tables[i])...)
-				want.Accounts[i].Primary = false
-			}
-		}
-		doc = doc.without(marks)
+		marks, accounts := d.othersUnmarked(tables, a.Pool, -1)
+		doc, want.Accounts = doc.without(marks), accounts
 	}
 	doc = doc.insert(doc.newAccountAt(), a.lines())
-	want.Accounts = append(want.Accounts, fileAccount{ID: a.ID, Label: a.Label, Plan: a.Plan, Primary: a.Primary})
+	want.Accounts = append(want.Accounts, fileAccount{ID: a.ID, Label: a.Label, Plan: a.Plan, Primary: a.Primary, Pool: a.Pool})
 	return d.take(doc, want, change)
+}
+
+// othersUnmarked returns the lines of tables, the accounts' tables, that mark
+// primary the accounts of the pool given, but the one at except, -1 for
+// none, and the accounts with those marks taken off.
+func (d *Draft) othersUnmarked(tables []span, pool string, except int) ([]int, []fileAccount) {
+	accounts := slices.Clone(d.file.Accounts)
+	var marks []int
+	for i := range accounts {
+		if i != except && accounts[i].Primary && strings.EqualFold(accounts[i].Pool, pool) {
+			marks = append(marks, d.doc.linesOf(primaryKey, tables[i])...)
+			accounts[i].Primary = false
+		}
+	}
+	return marks, accounts
 }
 
 // RemoveAccount removes the account's [[account]] table, and the comments
@@ -220,11 +245,12 @@ func (d *Draft) PlanAlias(id string) string {
 	return ""
 }
 
-// SetPrimary makes the account with the given id the primary: it marks it so
-// in place of the value any primary it sets gives, keeping a comment beside
-// it, else below the last key of its [[account]] table, and takes primary off
-// every other account. It fails, matching ErrNotConfigured, when no account
-// has the id.
+// SetPrimary makes the account with the given id its pool's primary: it
+// marks it so in place of the value any primary it sets gives, keeping a
+// comment beside it, else below the last key of its [[account]] table, and
+// takes primary off every other account of its pool, or every other account
+// in a config from before pools. It fails, matching ErrNotConfigured, when no
+// account has the id.
 func (d *Draft) SetPrimary(id string) error {
 	i := d.index(id)
 	switch {
@@ -239,14 +265,9 @@ func (d *Draft) SetPrimary(id string) error {
 		return err
 	}
 	want := d.file
-	want.Accounts = slices.Clone(d.file.Accounts)
-	var marks []int
-	for j := range want.Accounts {
-		if want.Accounts[j].Primary {
-			marks = append(marks, d.doc.linesOf(primaryKey, tables[j])...)
-		}
-		want.Accounts[j].Primary = j == i
-	}
+	marks, accounts := d.othersUnmarked(tables, d.file.Accounts[i].Pool, i)
+	want.Accounts = accounts
+	want.Accounts[i].Primary = true
 	if own := d.doc.linesOf(primaryKey, tables[i]); len(own) > 0 {
 		doc := d.doc.replaced(own[0], withValue(d.doc.lines[own[0]], "true"))
 		return d.take(doc.without(marks), want, change)
@@ -304,7 +325,7 @@ func (d *Draft) SetID(id, newID string) error {
 	if d.index(id) < 0 {
 		return NotConfigured(id)
 	}
-	if err := checkID(accountNamed(newID), newID); err != nil {
+	if err := checkID(accountKind, accountNamed(newID), newID); err != nil {
 		return err
 	}
 	if newID == id {
@@ -394,7 +415,7 @@ func (d *Draft) take(doc document, want file, change string) error {
 	if err != nil || !reflect.DeepEqual(got, want) {
 		return d.cantMake(change)
 	}
-	cfg, err := got.check(d.path, meta)
+	cfg, err := got.check(d.path, meta, d.homeDir)
 	if err != nil {
 		return err
 	}

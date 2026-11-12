@@ -17,7 +17,7 @@ type Primed struct {
 // Priming is the Priming step as the config has it: the zero Primed where
 // there's no config.
 func (s *Setup) Priming() (Primed, error) {
-	draft, err := config.Edit(s.Accounts.ConfigPath)
+	draft, err := config.Edit(s.Accounts.ConfigPath, s.Accounts.HomeDir)
 	if err != nil || draft.Config() == nil {
 		return Primed{}, err
 	}
@@ -59,7 +59,7 @@ func (s *Setup) SetDay(day string) (config.Day, error) {
 	if err != nil {
 		return config.Day{}, err
 	}
-	draft, err := config.Edit(s.Accounts.ConfigPath)
+	draft, err := config.Edit(s.Accounts.ConfigPath, s.Accounts.HomeDir)
 	if err != nil {
 		return config.Day{}, err
 	}

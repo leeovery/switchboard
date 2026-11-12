@@ -45,7 +45,7 @@ func (f fixture) configuredIDs(t *testing.T) []string {
 // configured are the accounts the fixture's config configures.
 func (f fixture) configured(t *testing.T) config.Accounts {
 	t.Helper()
-	draft, err := config.Edit(f.config)
+	draft, err := config.Edit(f.config, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

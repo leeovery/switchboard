@@ -107,6 +107,9 @@ type Mover struct {
 	ConfigPath string
 	StateDir   string
 	Tokens     tokens.Store
+	// HomeDir returns the home directory the config file is read in, which
+	// a pool's directory starting ~/ is in: nil knows of none.
+	HomeDir func() (string, error)
 	// Organizations tells the organization of each account's token.
 	Organizations Organizations
 	// Routing are the ids of the accounts the router running beside the move
@@ -322,7 +325,7 @@ func (m *Mover) Settle() error {
 // standing reads the config's accounts, as the config file stands, and the
 // accounts record.
 func (m *Mover) standing() (*config.Draft, identity.Record, error) {
-	draft, err := config.Edit(m.ConfigPath)
+	draft, err := config.Edit(m.ConfigPath, m.HomeDir)
 	if err != nil {
 		return nil, identity.Record{}, err
 	}
@@ -400,7 +403,7 @@ func (m *Mover) configure() (bool, error) {
 	for range configTries {
 		changed := false
 		err := m.record().Change(func(record *identity.Record, _ func() error) error {
-			draft, err := config.Edit(m.ConfigPath)
+			draft, err := config.Edit(m.ConfigPath, m.HomeDir)
 			if err != nil {
 				return err
 			}

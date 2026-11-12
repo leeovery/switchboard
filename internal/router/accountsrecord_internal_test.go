@@ -134,6 +134,52 @@ func TestAnAccountThatLeftTheConfigIsMarkedRemovedWithTheLabelItLastHad(t *testi
 	}
 }
 
+func TestThePoolsConfiguredAreRecordedAndOneThatLeftMarkedRemovedWithTheLabelItHad(t *testing.T) {
+	log := logstest.Capture(t)
+	clock := &testClock{now: start}
+	cfg := testConfig(clock.read, &stubProber{}, testTokens.Read)
+	cfg.StateDir = t.TempDir()
+	cfg.HomeDir = func() (string, error) { return "/Users/test", nil }
+	path := filepath.Join(t.TempDir(), "config.toml")
+	accounts := "[[account]]\nid = \"work\"\npool = \"b2n8\"\n\n[[account]]\nid = \"personal\"\npool = \"b2n8\"\n\n[[account]]\nid = \"side\"\npool = \"b2n8\"\n"
+	writeFile(t, path, accounts+"\n[[pool]]\nid = \"b2n8\"\n\n[[pool]]\nid = \"h4w2\"\nlabel = \"Client\"\ndirs = [\"~/Code/client\"]\n")
+	cfg.ConfigFile = Watch(path)
+	r := newTestRouterOf(t, cfg)
+	pools := func() []identity.PoolEntry {
+		t.Helper()
+		record, err := identity.NewFile(cfg.StateDir).Read()
+		if err != nil {
+			t.Fatal(err)
+		}
+		return record.Pools
+	}
+
+	// As the router starts: the pools the config file makes, a directory
+	// in the home among them, are added.
+	clock.now = start.Add(time.Minute)
+	r.upkeep.keepRecord()
+	want := []identity.PoolEntry{{ID: "b2n8", Added: clock.now}, {ID: "h4w2", Added: clock.now}}
+	if got := pools(); !slices.Equal(got, want) {
+		t.Errorf("the record's pools are %+v, want %+v", got, want)
+	}
+	if !log.Has("level=INFO", `msg="pool configured here added to the accounts record"`, "pool=h4w2") {
+		t.Errorf("log reads\n%s\nwant h4w2 told added to the record", log)
+	}
+
+	// The client's pool leaves the config: it's marked removed, labelled as
+	// it was there.
+	clock.now = start.Add(time.Hour)
+	writeFile(t, path, accounts+"\n[[pool]]\nid = \"b2n8\"\n")
+	configure(r, without("side"))
+	want[1].Label, want[1].Removed = "Client", clock.now
+	if got := pools(); !slices.Equal(got, want) {
+		t.Errorf("the record's pools are %+v, want %+v", got, want)
+	}
+	if !log.Has("level=INFO", `msg="pool no longer configured marked removed in the accounts record"`, "pool=h4w2") {
+		t.Errorf("log reads\n%s\nwant h4w2 told marked removed", log)
+	}
+}
+
 func TestAnAccountPutBackInTheConfigIsLiveAgain(t *testing.T) {
 	log := logstest.Capture(t)
 	clock := &testClock{now: start}
@@ -291,7 +337,7 @@ func TestAConfigPutBackOnTheIDsBeforeTheMoveChangesNothingTillItsHealed(t *testi
 	if healed, err := idmove.Heal(path, cfg.StateDir); err != nil || !healed {
 		t.Fatalf("Heal() = %v, %v; want the config healed", healed, err)
 	}
-	healed, err := config.Load(path)
+	healed, err := config.Load(path, noHome)
 	if err != nil {
 		t.Fatal(err)
 	}

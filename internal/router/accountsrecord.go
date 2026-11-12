@@ -24,8 +24,10 @@ type accountsRecord struct {
 	record identity.File
 	owed   func() bool
 	now    func() time.Time
-	// path is the config file's, "" where the router has none.
-	path string
+	// path is the config file's, "" where the router has none, and homeDir
+	// returns the home directory it's read in.
+	path    string
+	homeDir func() (string, error)
 	// started are the accounts the router started with: those followed while
 	// upkeep has found the config file making no other, and the labels of
 	// those that leave it before the record was first kept in step.
@@ -35,9 +37,11 @@ type accountsRecord struct {
 	// guards it, as an import reads it.
 	mu   sync.Mutex
 	seen config.Accounts
-	// kept are the accounts the record was last kept in step with: nil
-	// before it first was. Upkeep alone reads and writes it.
-	kept config.Accounts
+	// kept are the accounts the record was last kept in step with, and
+	// keptPools the pools it was last kept in step with where there were
+	// any: nil before it first was. Upkeep alone reads and writes them.
+	kept      config.Accounts
+	keptPools config.Pools
 }
 
 // newAccountsRecord returns what keeps the accounts record in the state
@@ -48,7 +52,7 @@ func newAccountsRecord(cfg Config, started accounts, owed func() bool) *accounts
 	if cfg.StateDir == "" {
 		return nil
 	}
-	return &accountsRecord{record: identity.NewFile(cfg.StateDir), owed: owed, now: cfg.Now, path: cfg.ConfigFile.path, started: started.configured()}
+	return &accountsRecord{record: identity.NewFile(cfg.StateDir), owed: owed, now: cfg.Now, path: cfg.ConfigFile.path, homeDir: cfg.HomeDir, started: started.configured()}
 }
 
 // look keeps the record in step with the config the router follows, as
@@ -65,9 +69,10 @@ func (a *accountsRecord) look(seen config.Accounts) {
 	}
 	var kept identity.Kept
 	var configured config.Accounts
+	var pools config.Pools
 	err := a.record.Change(func(r *identity.Record, _ func() error) error {
-		configured = a.followed()
-		kept = r.KeepUp(configured, a.labelOf, a.now().UTC())
+		configured, pools = a.followed()
+		kept = r.KeepUp(identity.Followed{Accounts: configured, AccountLabel: a.labelOf, Pools: pools, PoolLabel: a.poolLabelOf}, a.now().UTC())
 		return nil
 	})
 	if err != nil {
@@ -79,6 +84,9 @@ func (a *accountsRecord) look(seen config.Accounts) {
 		return
 	}
 	a.kept = configured
+	if pools != nil {
+		a.keptPools = pools
+	}
 	logKept(kept)
 }
 
@@ -96,25 +104,26 @@ func (a *accountsRecord) saw(seen config.Accounts) bool {
 	return true
 }
 
-// followed returns the accounts the config file makes as it stands, read
-// now, under the record's lock where the caller holds it, as accounts add and
-// remove save the config with the record under that lock: so the record is
-// kept in step with the config as they left it, never as it stood a moment
-// before. Where the router has no config file, or it makes no valid config
-// now, they're those upkeep last found it making, else those the router
-// started with.
-func (a *accountsRecord) followed() config.Accounts {
+// followed returns the accounts and pools the config file makes as it
+// stands, read now, under the record's lock where the caller holds it, as
+// accounts add and remove save the config with the record under that lock:
+// so the record is kept in step with the config as they left it, never as it
+// stood a moment before. Where the router has no config file, or it makes no
+// valid config now, the accounts are those upkeep last found it making, else
+// those the router started with, and the pools none, which leaves the
+// record's as they are.
+func (a *accountsRecord) followed() (config.Accounts, config.Pools) {
 	if a.path != "" {
-		if cfg, err := config.Load(a.path); err == nil {
-			return cfg.Accounts
+		if cfg, err := config.Load(a.path, a.homeDir); err == nil {
+			return cfg.Accounts, cfg.Pools
 		}
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if len(a.seen) == 0 {
-		return a.started
+		return a.started, nil
 	}
-	return a.seen
+	return a.seen, nil
 }
 
 // labelOf is the label the account with the given id last had in the config,
@@ -130,9 +139,19 @@ func (a *accountsRecord) labelOf(id string) string {
 	return ""
 }
 
+// poolLabelOf is the label the pool with the given id last had in the
+// config, as the router knows it: in the pools the record was last kept in
+// step with; "" where it knows none.
+func (a *accountsRecord) poolLabelOf(id string) string {
+	if p, ok := a.keptPools.ByID(id); ok {
+		return p.Label
+	}
+	return ""
+}
+
 // logKept logs what keeping the accounts record in step with the config
-// changed of it, as kept has it: each account added, marked removed or
-// configured again, and, at warn, each left out, as its id clashes.
+// changed of it, as kept has it: each account and pool added, marked removed
+// or configured again, and, at warn, each left out, as its id clashes.
 func logKept(kept identity.Kept) {
 	for _, id := range kept.Added {
 		logger.Info("account configured here added to the accounts record", "account", id)
@@ -145,5 +164,17 @@ func logKept(kept identity.Kept) {
 	}
 	for _, id := range kept.Clashed {
 		logger.Warn("account configured under an id the accounts record holds for another, or that switchboard doesn't make; left out of the record", "account", id)
+	}
+	for _, id := range kept.Pools.Added {
+		logger.Info("pool configured here added to the accounts record", "pool", id)
+	}
+	for _, id := range kept.Pools.Removed {
+		logger.Info("pool no longer configured marked removed in the accounts record", "pool", id)
+	}
+	for _, id := range kept.Pools.Returned {
+		logger.Info("pool configured again; the accounts record has it so", "pool", id)
+	}
+	for _, id := range kept.Pools.Clashed {
+		logger.Warn("pool configured under an id switchboard doesn't make; left out of the accounts record", "pool", id)
 	}
 }

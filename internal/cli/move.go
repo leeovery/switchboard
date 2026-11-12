@@ -27,6 +27,7 @@ func (a *app) mover(path, stateDir string, files tokens.Store, cfg router.Config
 		ConfigPath:    path,
 		StateDir:      stateDir,
 		Tokens:        files,
+		HomeDir:       a.HomeDir,
 		Organizations: organizations{a.prober(cfg.Upstream)},
 		Routing:       cfg.Accounts.IDs(),
 		Now:           a.Now,

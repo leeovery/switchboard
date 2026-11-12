@@ -550,7 +550,7 @@ func cancelledBy(ctx context.Context, err error) bool {
 // token couldn't be saved for f's account: one not configured, or, to add,
 // one the config can't add, as accounts.Registry.CheckNew has it.
 func (s *Setup) takes(f TokenFor) (*config.Config, error) {
-	draft, err := config.Edit(s.Accounts.ConfigPath)
+	draft, err := config.Edit(s.Accounts.ConfigPath, s.Accounts.HomeDir)
 	if err != nil {
 		return nil, err
 	}

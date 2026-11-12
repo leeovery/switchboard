@@ -20,7 +20,7 @@ var (
 // config takes one, failing with a config.WrongLabel that names no account,
 // or with ErrNoLabel or ErrLabelTaken; and as config.Edit fails.
 func (r Registry) CheckNew(account config.NewAccount) error {
-	draft, err := config.Edit(r.ConfigPath)
+	draft, err := config.Edit(r.ConfigPath, r.HomeDir)
 	if err != nil {
 		return err
 	}

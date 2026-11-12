@@ -1346,7 +1346,7 @@ func (w *world) tokens() tokens.Store {
 
 func (w *world) load(t *testing.T) *config.Config {
 	t.Helper()
-	cfg, err := config.Load(w.config)
+	cfg, err := config.Load(w.config, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

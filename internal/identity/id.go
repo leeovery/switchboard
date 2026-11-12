@@ -56,12 +56,31 @@ func spelledFrom(seed string, free func(id string) bool) string {
 // configured accounts' ids. It fails where rand does, and where mostDraws
 // drawn are each held.
 func (r Record) Random(rand io.Reader, configured []string) (string, error) {
+	return draw(rand, func(id string) bool { return !r.clashes(id, configured) })
+}
+
+// NewPoolID returns the id of a pool being made: random, as no organization
+// stands behind a pool, spelled as Random spells an account's, and never one
+// held, as clashes says of the record and the ids configured, the config's
+// accounts' and pools', nor one of the record's pools'. It fails as Random
+// does.
+func (r Record) NewPoolID(rand io.Reader, configured []string) (string, error) {
+	return draw(rand, func(id string) bool {
+		_, pooled := r.PoolByID(id)
+		return !pooled && !r.clashes(id, configured)
+	})
+}
+
+// draw returns an id spelled from what rand gives, idLength characters long,
+// the first drawn that free reports may be given, failing where rand does,
+// and where mostDraws drawn may each not.
+func draw(rand io.Reader, free func(id string) bool) (string, error) {
 	drawn := make([]byte, sha256.Size)
 	for range mostDraws {
 		if _, err := io.ReadFull(rand, drawn); err != nil {
 			return "", fmt.Errorf("draw a random id: %w", err)
 		}
-		if id := spell(drawn, idLength); !r.clashes(id, configured) {
+		if id := spell(drawn, idLength); free(id) {
 			return id, nil
 		}
 	}

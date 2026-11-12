@@ -118,10 +118,10 @@ func (f File) Change(change func(r *Record, commit func() error) error) error {
 	if err != nil {
 		return err
 	}
-	was, existed := slices.Clone(r.Accounts), !errors.Is(statErr, fs.ErrNotExist)
+	was, existed := r.clone(), !errors.Is(statErr, fs.ErrNotExist)
 	written := false
 	commit := func() error {
-		if written || slices.Equal(was, r.Accounts) {
+		if written || r.equal(was) {
 			return nil
 		}
 		if err := f.write(r); err != nil {
@@ -139,12 +139,12 @@ func (f File) Change(change func(r *Record, commit func() error) error) error {
 	return commit()
 }
 
-// restore puts the record back as it was, holding accounts, where its file
-// existed, else takes away the file written in its place.
-func (f File) restore(accounts []Entry, existed bool) error {
+// restore puts the record back as it was, was, where its file existed, else
+// takes away the file written in its place.
+func (f File) restore(was Record, existed bool) error {
 	var err error
 	if existed {
-		err = f.write(Record{Accounts: accounts})
+		err = f.write(was)
 	} else {
 		err = os.Remove(f.Path())
 	}
@@ -190,10 +190,23 @@ func (f File) lock() (unlock func(), err error) {
 	return func() { _ = l.Close() }, nil
 }
 
-// recordFile is the accounts record as its file holds it.
+// clone returns a copy of the record, which changing the record leaves as
+// it is.
+func (r Record) clone() Record {
+	return Record{Accounts: slices.Clone(r.Accounts), Pools: slices.Clone(r.Pools)}
+}
+
+// equal reports whether the record holds what other does.
+func (r Record) equal(other Record) bool {
+	return slices.Equal(r.Accounts, other.Accounts) && slices.Equal(r.Pools, other.Pools)
+}
+
+// recordFile is the accounts record as its file holds it: a record from
+// before pools has none, and reads as it did.
 type recordFile struct {
-	Version  int     `json:"version"`
-	Accounts []Entry `json:"accounts"`
+	Version  int         `json:"version"`
+	Accounts []Entry     `json:"accounts"`
+	Pools    []PoolEntry `json:"pools,omitempty"`
 }
 
 // decode returns the accounts record data holds, failing, saying why, where
@@ -206,7 +219,7 @@ func decode(data []byte) (Record, error) {
 	if file.Version != version {
 		return Record{}, fmt.Errorf("version %d, where %d is known", file.Version, version)
 	}
-	r := Record{Accounts: file.Accounts}
+	r := Record{Accounts: file.Accounts, Pools: file.Pools}
 	if err := r.check(); err != nil {
 		return Record{}, err
 	}
@@ -233,15 +246,19 @@ func (r Record) Encode() ([]byte, error) {
 // encode returns the accounts record as its file holds it, its times in UTC
 // to the second, failing, saying why, where decode would.
 func encode(r Record) ([]byte, error) {
-	stamped := Record{Accounts: make([]Entry, len(r.Accounts))}
+	stamped := Record{Accounts: make([]Entry, len(r.Accounts)), Pools: slices.Clone(r.Pools)}
 	for i, e := range r.Accounts {
 		e.Added, e.Removed = stamp(e.Added), stamp(e.Removed)
 		stamped.Accounts[i] = e
 	}
+	for i := range stamped.Pools {
+		p := &stamped.Pools[i]
+		p.Added, p.Removed = stamp(p.Added), stamp(p.Removed)
+	}
 	if err := stamped.check(); err != nil {
 		return nil, err
 	}
-	data, err := json.MarshalIndent(recordFile{Version: version, Accounts: stamped.Accounts}, "", "  ")
+	data, err := json.MarshalIndent(recordFile{Version: version, Accounts: stamped.Accounts, Pools: stamped.Pools}, "", "  ")
 	if err != nil {
 		return nil, err
 	}
@@ -256,12 +273,18 @@ func stamp(t time.Time) time.Time {
 // check fails, saying why, where the record is none switchboard keeps: an
 // account that isn't one, as Entry.check says; two with one id, organization
 // or id they had before switchboard made ids; or one whose id another had
-// before. Ids are compared ignoring case. Accounts are named by their places,
-// as what's damaged could be anything.
+// before; a pool that isn't one, as PoolEntry.check says; two pools with one
+// id, or two first. Ids are compared ignoring case. Accounts and pools are
+// named by their places, as what's damaged could be anything.
 func (r Record) check() error {
 	for i, e := range r.Accounts {
 		if err := e.check(); err != nil {
 			return fmt.Errorf("account #%d %w", i+1, err)
+		}
+	}
+	for i, p := range r.Pools {
+		if err := p.check(); err != nil {
+			return fmt.Errorf("pool #%d %w", i+1, err)
 		}
 	}
 	return errors.Join(
@@ -269,20 +292,55 @@ func (r Record) check() error {
 		r.unique("organization", func(e Entry) string { return e.Organization }),
 		r.unique("former id", func(e Entry) string { return strings.ToLower(e.Was) }),
 		r.noIDFormer(),
+		r.uniquePools(),
 	)
 }
 
-// check fails, saying why, where the account is none switchboard keeps:
-// without an id switchboard makes, or a time it was added, or removed without
-// a label. One removed before it was added is kept, as by a clock set ahead
-// as it was added and put right before it was removed.
+// uniquePools fails where two pools have one id, ignoring case, or two are
+// the first, naming them by their places.
+func (r Record) uniquePools() error {
+	ids := make(map[string]int, len(r.Pools))
+	first := -1
+	for i, p := range r.Pools {
+		id := strings.ToLower(p.ID)
+		if j, ok := ids[id]; ok {
+			return fmt.Errorf("pools #%d and #%d have the same id", j+1, i+1)
+		}
+		ids[id] = i
+		if p.First && first >= 0 {
+			return fmt.Errorf("pools #%d and #%d are each the first", first+1, i+1)
+		}
+		if p.First {
+			first = i
+		}
+	}
+	return nil
+}
+
+// check fails, saying why, where the account is none switchboard keeps, as
+// checkKept says.
 func (e Entry) check() error {
+	return checkKept(e.ID, e.Label, e.Added, e.Removed)
+}
+
+// check fails, saying why, where the pool is none switchboard keeps, as
+// checkKept says.
+func (p PoolEntry) check() error {
+	return checkKept(p.ID, p.Label, p.Added, p.Removed)
+}
+
+// checkKept fails, saying why, where an account or a pool, by its id, label
+// and when it was added and removed, is none switchboard keeps: without an
+// id switchboard makes, or a time it was added, or removed without a label.
+// One removed before it was added is kept, as by a clock set ahead as it was
+// added and put right before it was removed.
+func checkKept(id, label string, added, removed time.Time) error {
 	switch {
-	case !wellFormed(e.ID):
+	case !wellFormed(id):
 		return errors.New("has no id switchboard makes")
-	case e.Added.IsZero():
+	case added.IsZero():
 		return errors.New("has no time it was added")
-	case !e.Removed.IsZero() && e.Label == "":
+	case !removed.IsZero() && label == "":
 		return errors.New("was removed without a label")
 	}
 	return nil

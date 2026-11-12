@@ -1,8 +1,8 @@
 // Package identity knows each account by the id switchboard makes for it,
-// derived from its subscription's organization, and keeps the accounts
-// record, <state dir>/accounts.json: this Mac's record of every account it
-// has had, removed ones among them. It isn't the config's accounts, which
-// internal/accounts edits.
+// derived from its subscription's organization, makes each pool's, and keeps
+// the accounts record, <state dir>/accounts.json: this Mac's record of every
+// account and pool it has had, removed ones among them. It isn't the
+// config's accounts, which internal/accounts edits.
 package identity
 
 import (
@@ -11,9 +11,41 @@ import (
 	"time"
 )
 
-// Record is the accounts record: every account this Mac has had.
+// Record is the accounts record: every account this Mac has had, and every
+// pool.
 type Record struct {
 	Accounts []Entry
+	// Pools are the pools: none in a record from before pools.
+	Pools []PoolEntry
+}
+
+// PoolEntry is a pool as the accounts record keeps it.
+type PoolEntry struct {
+	// ID is the id switchboard made for it, which every record keys it by.
+	ID string `json:"id"`
+	// Label is what it showed as, kept once it's removed: "" while it's
+	// configured, as the config's is the one.
+	Label string `json:"label,omitempty"`
+	// Added is when it was added, and Removed when it was removed: zero while
+	// it's configured.
+	Added   time.Time `json:"added"`
+	Removed time.Time `json:"removed,omitzero"`
+	// First is set on the first pool, the one the move to pools or setup on
+	// a new install made, where the history from before pools is.
+	First bool `json:"first,omitzero"`
+	// Configured is set in the copy of a record an export writes alone, as
+	// an Entry's is.
+	Configured bool `json:"configured,omitzero"`
+}
+
+// PoolByID returns the pool with the given id, in any case, reporting false
+// where the record has none.
+func (r Record) PoolByID(id string) (PoolEntry, bool) {
+	i := slices.IndexFunc(r.Pools, func(p PoolEntry) bool { return strings.EqualFold(p.ID, id) })
+	if i < 0 {
+		return PoolEntry{}, false
+	}
+	return r.Pools[i], true
 }
 
 // Entry is an account as the accounts record keeps it.

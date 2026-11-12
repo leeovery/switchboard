@@ -138,7 +138,10 @@ type Input struct {
 // file, their token files, and the accounts record.
 type Registry struct {
 	ConfigPath string
-	Tokens     tokens.Store
+	// HomeDir returns the home directory the config file is read in, which
+	// a pool's directory starting ~/ is in: nil knows of none.
+	HomeDir func() (string, error)
+	Tokens  tokens.Store
 	// Record is the accounts record, which adding an account, replacing its
 	// token and removing it read and write: the zero File fails each.
 	Record identity.File
@@ -192,7 +195,7 @@ func taken(checked Checked) Taken {
 // the API refuses the token, and with ctx's error once ctx is done; and says
 // why when the API doesn't answer.
 func (r Registry) Check(ctx context.Context, token tokens.Token) (Checked, error) {
-	draft, err := config.Edit(r.ConfigPath)
+	draft, err := config.Edit(r.ConfigPath, r.HomeDir)
 	if err != nil {
 		return Checked{}, err
 	}
@@ -296,7 +299,7 @@ func (r Registry) labelOf(e identity.Entry) string {
 	if e.Label != "" {
 		return e.Label
 	}
-	if draft, err := config.Edit(r.ConfigPath); err == nil {
+	if draft, err := config.Edit(r.ConfigPath, r.HomeDir); err == nil {
 		if a, err := configured(draft.Config(), e.ID); err == nil {
 			return a.Label
 		}
@@ -351,7 +354,7 @@ func (r Registry) Remove(id string) (Removed, error) {
 	var file tokens.Removed
 	var left error
 	err := r.Record.Change(func(record *identity.Record, commit func() error) error {
-		draft, err := config.Edit(r.ConfigPath)
+		draft, err := config.Edit(r.ConfigPath, r.HomeDir)
 		if err != nil {
 			return err
 		}
