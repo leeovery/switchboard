@@ -35,7 +35,7 @@ func TestClientHealth(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Health() error = %v", err)
 	}
-	if want := (router.Health{OK: true, Version: "1.2.3", PID: os.Getpid(), StartedAt: now, StripsOwnHeaders: true}); got != want {
+	if want := (router.Health{OK: true, Version: "1.2.3", PID: os.Getpid(), StartedAt: now, StripsOwnHeaders: true, ReportsPools: true}); !reflect.DeepEqual(got, want) {
 		t.Errorf("Health() = %+v, want %+v", got, want)
 	}
 }

@@ -359,7 +359,7 @@ func TestDashboardReadsTheRouterWhileItRuns(t *testing.T) {
 	if err != nil || doc.Source != status.SourceProbe || doc.Fallback != (status.Fallback{Router: status.RouterNotRunning}) {
 		t.Errorf("once the router stopped, a read that may probe = %+v, %v, want one probed, as the router isn't running", doc, err)
 	}
-	if health != (router.Health{}) {
+	if !reflect.DeepEqual(health, router.Health{}) {
 		t.Errorf("once the router stopped, a read that probed says the router is %+v, want none", health)
 	}
 	if err := cfg.Source.Pin(t.Context(), []string{"side"}, false); err == nil || err.Error() != "the router isn't running: start it with switchboard service install (or switchboard serve)" {

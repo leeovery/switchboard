@@ -817,6 +817,7 @@ func (ex *exchange) event(kind string) StreamEvent {
 		Session: bounded(ex.req.Session),
 		Dir:     ex.req.Dir,
 		Model:   bounded(ex.req.Model),
+		Pool:    ex.pool,
 		Account: ex.answering().account,
 		Prompt:  ex.hints.Prompt,
 		Class:   ex.hints.Class,
