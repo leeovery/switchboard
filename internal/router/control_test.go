@@ -1007,16 +1007,16 @@ func serveOn(t *testing.T, path string, h http.Handler) {
 }
 
 // There's no account to pin with an id that's none, the accounts that can be
-// pinned named instead each by its id and its label, one labelled by its id
+// pinned named instead each by its label and its id, one labelled by its id
 // named once.
-func TestAnUnknownAccountNamesThoseToPinByTheirIDsAndLabels(t *testing.T) {
+func TestAnUnknownAccountNamesThoseToPinByTheirLabelsAndIDs(t *testing.T) {
 	pinnable := config.Accounts{{ID: "b6s7", Label: "Work"}, {ID: "side", Label: "side"}, {ID: "q4tx", Label: "Spare"}}
 	tests := []struct {
 		id       string
 		pinnable config.Accounts
 		want     string
 	}{
-		{id: "work", pinnable: pinnable, want: `there's no account "work": pin b6s7 (Work), side or q4tx (Spare)`},
+		{id: "work", pinnable: pinnable, want: `there's no account "work": pin Work (b6s7), side or Spare (q4tx)`},
 		{id: "work", want: `there's no account "work", and no account has a usable token to pin`},
 	}
 	for _, tt := range tests {

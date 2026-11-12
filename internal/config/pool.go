@@ -33,9 +33,11 @@ func (p Pool) Fenced() bool {
 	return len(p.Dirs) > 0
 }
 
-// covers reports whether one of the pool's directories is dir or holds it,
-// as within compares them.
-func (p Pool) covers(dir string) bool {
+// Covers reports whether one of the pool's directories is dir or holds it,
+// both absolute and clean, compared a whole folder name at a time and
+// ignoring case. It reads no files: links are resolved by the caller, where
+// they're to be.
+func (p Pool) Covers(dir string) bool {
 	return slices.ContainsFunc(p.Dirs, func(fence string) bool { return within(dir, fence) })
 }
 
@@ -78,7 +80,7 @@ func (ps Pools) Unfenced() (Pool, bool) {
 // files: links in dir, and in the pools' directories, are resolved first by
 // the caller, where they're to be.
 func (ps Pools) Covering(dir string) (Pool, bool) {
-	if p, ok := ps.find(func(p Pool) bool { return p.covers(dir) }); ok {
+	if p, ok := ps.find(func(p Pool) bool { return p.Covers(dir) }); ok {
 		return p, true
 	}
 	return ps.Unfenced()
@@ -155,6 +157,50 @@ func PoolsOf(path string, homeDir func() (string, error)) (Pools, error) {
 		return nil, invalid(path, err)
 	}
 	return pools, nil
+}
+
+// FencesOf returns the pools the config file at path writes, as written,
+// for where PoolsOf can't read them, as they break Load's rules: each with
+// the directories it writes that can be found, an absolute path, or one
+// starting ~/ in the home directory homeDir returns, where that can be
+// found. They're for telling whether a directory is inside a fence alone,
+// as nothing else of them is checked: each directory is a fence. It returns
+// none where the file writes none, or there's no file, and fails where it
+// can't be read as TOML.
+func FencesOf(path string, homeDir func() (string, error)) (Pools, error) {
+	var only struct {
+		Pools []filePool `toml:"pool"`
+	}
+	if err := decodeOnly(path, &only); err != nil {
+		return nil, err
+	}
+	home, err := findHome(homeDir)
+	if err != nil {
+		home = ""
+	}
+	pools := make(Pools, len(only.Pools))
+	for i, w := range only.Pools {
+		pools[i] = Pool{ID: w.ID, Label: w.shownAs(), WrittenDirs: w.Dirs}
+		for _, dir := range w.Dirs {
+			if found, ok := fenceAt(home, dir); ok {
+				pools[i].Dirs = append(pools[i].Dirs, found)
+			}
+		}
+	}
+	return pools, nil
+}
+
+// fenceAt returns the directory dir, as a pool writes it, as it's found, a
+// ~/ at its start home, reporting false where it can't be found: neither
+// absolute nor starting ~/, or starting ~/ without a home.
+func fenceAt(home, dir string) (string, bool) {
+	switch {
+	case filepath.IsAbs(dir):
+		return filepath.Clean(dir), true
+	case strings.HasPrefix(dir, homePrefix) && home != "":
+		return expandIn(home, dir), true
+	}
+	return "", false
 }
 
 // filePool is a [[pool]] table as it's written.

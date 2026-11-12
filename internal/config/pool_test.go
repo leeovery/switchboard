@@ -359,6 +359,62 @@ func TestPoolsOfReadsThePoolsWhateverElseIsWrong(t *testing.T) {
 	}
 }
 
+func TestFencesOfReadsEveryPoolsDirectoriesWhateverIsWrongWithThem(t *testing.T) {
+	tests := []struct {
+		name string
+		// text is the config file's, or none where there's no file.
+		text    *string
+		want    config.Pools
+		wantErr string
+	}{
+		{name: "no config"},
+		{name: "no pools", text: new("[[account]]\nid = \"work\"\n")},
+		{
+			name: "two unfenced, overlapping fences, a label too long and a directory that can't be found: every fence found",
+			text: new("[[pool]]\nid = \"b2n8\"\n\n[[pool]]\nid = \"h4w2\"\n\n" +
+				"[[pool]]\nid = \"q7mt\"\nlabel = \"" + strings.Repeat("A", 101) + "\"\ndirs = [\"~/Code/acme/\", \"Code/relative\"]\n\n" +
+				"[[pool]]\nid = \"m5r1\"\nlabel = \"Client\"\ndirs = [\"/Users/test/Code/acme/client\"]\n"),
+			want: config.Pools{
+				{ID: "b2n8", Label: "b2n8"},
+				{ID: "h4w2", Label: "h4w2"},
+				{ID: "q7mt", Label: strings.Repeat("A", 101), Dirs: []string{"/Users/test/Code/acme"}, WrittenDirs: []string{"~/Code/acme/", "Code/relative"}},
+				{ID: "m5r1", Label: "Client", Dirs: []string{"/Users/test/Code/acme/client"}, WrittenDirs: []string{"/Users/test/Code/acme/client"}},
+			},
+		},
+		{name: "not TOML", text: new("[[pool]\n"), wantErr: "parse config "},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "config.toml")
+			if tt.text != nil {
+				if err := os.WriteFile(path, []byte(*tt.text), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			got, err := config.FencesOf(path, homeAt(testHome))
+			if tt.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+					t.Errorf("FencesOf() = %+v, %v; want an error saying %q", got, err, tt.wantErr)
+				}
+				return
+			}
+			if err != nil || !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("FencesOf() = %+v, %v; want %+v", got, err, tt.want)
+			}
+		})
+	}
+}
+
+func TestFencesOfWithoutAHomeDirectoryPassesOverThoseInIt(t *testing.T) {
+	path := writeConfig(t, "[[pool]]\nid = \"q7mt\"\ndirs = [\"~/Code/acme\", \"/Volumes/Acme\"]\n")
+
+	got, err := config.FencesOf(path, func() (string, error) { return "", errors.New("no home directory") })
+	if want := []string{"/Volumes/Acme"}; err != nil || len(got) != 1 || !slices.Equal(got[0].Dirs, want) {
+		t.Errorf("FencesOf() = %+v, %v; want one pool fenced to %q", got, err, want)
+	}
+}
+
 func TestPoolsCovering(t *testing.T) {
 	acme := config.Pool{ID: "q7mt", Dirs: []string{"/Users/test/Code/acme", "/Volumes/Acme"}}
 	client := config.Pool{ID: "h4w2", Dirs: []string{"/Users/test/Code/client"}}

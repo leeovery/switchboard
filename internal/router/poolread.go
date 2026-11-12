@@ -283,14 +283,10 @@ func (t *poolTable) label(pool string) string {
 	return prose.Clean(pool)
 }
 
-// accountSaid names the account a by its id, and its label beside where
-// that differs, as in "b6s7 (Work)": one labelled by its id is named once.
+// accountSaid names the account a as prose.AccountNamed does, as in
+// "Work (b6s7)".
 func accountSaid(a config.Account) string {
-	said := prose.Clean(a.ID)
-	if label := status.ConfiguredName(a).Said(); !strings.EqualFold(label, said) {
-		said += " (" + label + ")"
-	}
-	return said
+	return prose.AccountNamed(a.Label, a.ID)
 }
 
 // routed returns the accounts of as in the pool with the given id, in their
