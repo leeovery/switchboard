@@ -27,12 +27,16 @@ const (
 
 // situation is what's known when a request's account is chosen.
 type situation struct {
-	// req is pinned as its session's own pin has it.
+	// req is pinned as its session's own pin has it, in the pool the view of
+	// the accounts has it in.
 	req Request
 	now time.Time
 	// pinnedAt is when the session was given its own pin while it ran, zero
-	// for the one it was launched with.
+	// for the one it was launched with; unpooled is the account its own pin
+	// names where that's outside the request's pool, which is no pin for it,
+	// "" otherwise.
 	pinnedAt time.Time
+	unpooled string
 	// current is the session's assignment for the request's model, when
 	// assigned is set.
 	current  assignment
@@ -69,6 +73,9 @@ type decision struct {
 	// when that isn't known.
 	reserved bool
 	back     time.Time
+	// closed is set when the request goes out on no account, as none in its
+	// pool will take it, and its client's account isn't in the pool.
+	closed bool
 	// held is what holds the request back on the session's account, where
 	// the choice has to move the session off it, as it can't take the
 	// request, and limit the identity of the limit, where that's what does,
@@ -105,6 +112,10 @@ type decision struct {
 //     else any, passing over those that refused the request lately and those
 //     held back by their reserve alone; with none left but the latter, none.
 //     A request tried already goes out on none.
+//
+// Every account it chooses among is in the request's pool, as the view of
+// them holds no other: the client's account is fallen back to only where
+// it's in the pool, and a pin naming no account in it is no pin for it.
 //
 // Where step 3 keeps the session at the first request after its compaction,
 // as compacted says, it moves instead where step 4 would send a new session,
@@ -304,13 +315,15 @@ func (s situation) unable(id string) string {
 
 // noRoom is where a request goes when no account has room for it, for the
 // upstream to refuse it there, saying why: the session's account, else the
-// client's, else any other the view falls back to. With every one refused,
-// it's the client's, where the request can go out on that; with none it can,
-// it's none, and the proxy answers for it, sending nothing, the session left
-// where it was. With none left but those held back by their reserve alone,
-// it's none, and switchboard answers for the upstream: the router never
-// spends a reserve. A request tried already goes nowhere else: the upstream
-// has said why on the accounts it was tried on.
+// client's, else any other the view falls back to, each in the request's
+// pool. With every one refused, it's the client's, where the request can go
+// out on that; with none it can, it's none, and the proxy answers for it,
+// sending nothing, the session left where it was: as the router can't send
+// on the client's account, or, closed, as it's outside the pool. With none
+// left but those held back by their reserve alone, it's none, and
+// switchboard answers for the upstream: the router never spends a reserve. A
+// request tried already goes nowhere else: the upstream has said why on the
+// accounts it was tried on.
 func (s situation) noRoom() decision {
 	d := decision{reason: reasonNoRoom, afresh: true, noRoom: true}
 	if len(s.req.Tried) > 0 {
@@ -328,8 +341,11 @@ func (s situation) noRoom() decision {
 		d.reserved, d.back = true, back
 		return d
 	}
-	if s.accounts.has(s.req.Client) {
+	switch {
+	case s.accounts.has(s.req.Client):
 		d.account = s.req.Client
+	case !s.accounts.pooled(s.req.Client):
+		d.closed = true
 	}
 	return d
 }

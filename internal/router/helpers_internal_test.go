@@ -68,7 +68,7 @@ func testAccounts() accounts {
 // newTestState builds the state of testAccounts on clock's time, knowing
 // Claude's model families and scoring as Claude's policy does.
 func newTestState(clock *testClock) *state {
-	return newState(testAccounts(), testPolicy, claude.Provider{}.Family, clock.read, unkept, unkept)
+	return newState(testAccounts(), unpooled(), testPolicy, claude.Provider{}.Family, clock.read, unkept, unkept)
 }
 
 // newTestFile builds a state file on now's time keeping what's known of the
@@ -76,7 +76,7 @@ func newTestState(clock *testClock) *state {
 // policy judges it, and what's been told of their tokens' years.
 func newTestFile(now func() time.Time, as accounts) *stateFile {
 	changes := newChanges()
-	usage := newState(as, testPolicy, claude.Provider{}.Family, now, changes.note, changes.routine)
+	usage := newState(as, unpooled(), testPolicy, claude.Provider{}.Family, now, changes.note, changes.routine)
 	return newStateFile(now, changes, newSessions(now, changes.note, changes.routine), as, usage, newYearsTold(changes.note))
 }
 

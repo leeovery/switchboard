@@ -143,7 +143,7 @@ func TestTheStateFileKeepsEachAccountsReadings(t *testing.T) {
 	if !reflect.DeepEqual(loaded.state.seen, saved.state.seen) {
 		t.Errorf("loaded the windows as seen on %v, want what was saved: %v", loaded.state.seen, saved.state.seen)
 	}
-	if loaded.state.view(opus, start).applies("7d_oi") {
+	if loaded.state.view("", opus, start).applies("7d_oi") {
 		t.Error("once loaded, the Fable week counts an Opus request, want it to count Fable's alone, as it was seen to")
 	}
 	data, err := os.ReadFile(path)

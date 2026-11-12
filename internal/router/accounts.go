@@ -285,6 +285,20 @@ func (as accounts) byID(id string) (account, bool) {
 	return as[i], true
 }
 
+// idNow returns the id the account named by the id given has now: the id
+// given, where there's an account of it, else the id of the one that had it
+// before switchboard made ids, as formerly gives it, where one did, else the
+// id given. A nil formerly knows of none.
+func (as accounts) idNow(formerly func(id string) (string, bool), id string) string {
+	if _, ok := as.byID(id); ok || id == "" || formerly == nil {
+		return id
+	}
+	if now, ok := formerly(id); ok {
+		return now
+	}
+	return id
+}
+
 // byToken returns the account a client sending token is: the first that
 // holds it, usable and its own, as sends says; else the first a probe found
 // holding it another subscription's, as disowns says, so its client's

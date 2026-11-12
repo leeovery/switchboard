@@ -385,6 +385,13 @@ func (r *restarts) configured() config.Accounts {
 	return r.config.accounts
 }
 
+// configuredPools returns the accounts and the pools the last valid config
+// the config file has made since the router started configures, which the
+// router routes within at once, reporting false while it has made none.
+func (r *restarts) configuredPools() (config.Accounts, config.Pools, bool) {
+	return r.config.accounts, r.config.pools, r.config.changed
+}
+
 // configuredExport returns the [export] the last valid config the config
 // file has made since the router started gives, which the router takes up
 // from its next export, reporting false while it has made none.
@@ -932,10 +939,12 @@ type configFile struct {
 	// as the running version reads it.
 	refusal string
 	// changed is set once the file has made another valid config since the
-	// router started, accounts are those the last it made configures, and
-	// export the folder it names to export into.
+	// router started, accounts are those the last it made configures, pools
+	// the pools it configures them in, and export the folder it names to
+	// export into.
 	changed  bool
 	accounts config.Accounts
+	pools    config.Pools
 	export   config.Export
 	// load reads the config file at path, as restarts' load does.
 	load func(path string) (*config.Config, error)
@@ -964,7 +973,7 @@ func (c *configFile) look() {
 		return
 	}
 	c.seen, c.missed = now, false
-	c.valid, c.changed, c.accounts, c.export = true, true, cfg.Accounts, cfg.Export
+	c.valid, c.changed, c.accounts, c.pools, c.export = true, true, cfg.Accounts, cfg.Pools, cfg.Export
 	logger.Info("config changed", "path", c.path)
 }
 

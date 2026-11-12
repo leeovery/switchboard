@@ -16,8 +16,9 @@ import (
 // too: its token held to its organization, and, once removed, named by its
 // label. It keeps it so once the move onto the accounts' ids is done, never
 // while it's owed, as the config's ids and the record's differ till then: as
-// the router starts, at each look after, where the accounts upkeep found
-// configured have changed since, and at the first look once the move is done.
+// the router starts, at each look after, where the accounts or pools upkeep
+// found configured have changed since, and at the first look once the move
+// is done.
 // Upkeep alone keeps it; an import reads the config it follows, as followed
 // gives it.
 type accountsRecord struct {
@@ -36,10 +37,12 @@ type accountsRecord struct {
 	started      config.Accounts
 	startedPools config.Pools
 	// seen are the accounts upkeep found the config file making as the record
-	// was last kept in step, whatever came of it: nil before it first was. mu
-	// guards it, as an import reads it.
-	mu   sync.Mutex
-	seen config.Accounts
+	// was last kept in step, whatever came of it: nil before it first was;
+	// and seenPools the pools it found it making them in. mu guards them, as
+	// an import reads seen.
+	mu        sync.Mutex
+	seen      config.Accounts
+	seenPools config.Pools
 	// kept are the accounts the record was last kept in step with, and
 	// keptPools the pools it was last kept in step with where there were
 	// any: nil before it first was. Upkeep alone reads and writes them.
@@ -61,13 +64,15 @@ func newAccountsRecord(cfg Config, started accounts, owed func() bool) *accounts
 // look keeps the record in step with the config the router follows, as
 // followed gives it under the record's lock, where seen, the accounts upkeep
 // found the config file making, those the router started with where it's
-// none, have changed since it last looked, as accountsRecord says, judging
-// again what the record holds then, and logs what that changed. Where it
-// can't, as where the record is damaged, or a heal is owed, as KeepUp says,
-// it says so, once, and tries again once the accounts upkeep finds
-// configured change, or the router restarts, healing the config first.
-func (a *accountsRecord) look(seen config.Accounts) {
-	if a == nil || a.owed() || !a.saw(seen) {
+// none, or seenPools, the pools it found it making them in, have changed since
+// it last looked, as accountsRecord says, judging again what the record
+// holds then, and logs what that changed: so a pool added or removed with no
+// accounts, or relabelled, is kept in step too. Where it can't, as where the
+// record is damaged, or a heal is owed, as KeepUp says, it says so, once,
+// and tries again once the accounts or pools upkeep finds configured change,
+// or the router restarts, healing the config first.
+func (a *accountsRecord) look(seen config.Accounts, seenPools config.Pools) {
+	if a == nil || a.owed() || !a.saw(seen, seenPools) {
 		return
 	}
 	var kept identity.Kept
@@ -94,16 +99,18 @@ func (a *accountsRecord) look(seen config.Accounts) {
 }
 
 // saw notes seen as the accounts upkeep found the config file making, and
-// reports whether they differ from those it found as the record was last
-// kept in step: always, before it first was.
-func (a *accountsRecord) saw(seen config.Accounts) bool {
+// pools as the pools it found it making them in, and reports whether either
+// differs from what it found as the record was last kept in step, the pools
+// by their ids and labels, as samePools compares them: always, before it
+// first was.
+func (a *accountsRecord) saw(seen config.Accounts, pools config.Pools) bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	if a.seen != nil && slices.Equal(seen, a.seen) {
+	if a.seen != nil && slices.Equal(seen, a.seen) && samePools(pools, a.seenPools) {
 		return false
 	}
 	// Never nil, as of none seen: nil would keep it again at every look.
-	a.seen = append(config.Accounts{}, seen...)
+	a.seen, a.seenPools = append(config.Accounts{}, seen...), slices.Clone(pools)
 	return true
 }
 

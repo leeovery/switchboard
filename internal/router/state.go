@@ -243,7 +243,10 @@ func (l limit) admits(sent moment) bool {
 // counts. It's safe for concurrent use.
 type state struct {
 	accounts accounts
-	policy   score.Policy
+	// pools are the pools the accounts are in, which a choice's view is
+	// narrowed to the request's of.
+	pools  *membership
+	policy score.Policy
 	// family names the family of models a model belongs to.
 	family func(model string) string
 	now    func() time.Time
@@ -283,9 +286,10 @@ type state struct {
 	pin status.Pin
 }
 
-func newState(accounts accounts, policy score.Policy, family func(string) string, now func() time.Time, changed, routine func()) *state {
+func newState(accounts accounts, pools *membership, policy score.Policy, family func(string) string, now func() time.Time, changed, routine func()) *state {
 	s := &state{
 		accounts: accounts,
+		pools:    pools,
 		policy:   policy,
 		family:   family,
 		now:      now,
@@ -1050,34 +1054,44 @@ func (u *usage) primeFailed(policy score.Policy) bool {
 	return u.probeErr != "" || len(windows) == 0 || len(policy.Lapsed(windows, u.ended)) > 0
 }
 
-// view returns what a choice of account for a request of model knows at now:
-// every account with a token, as it stands, with its reserve, the pace its
-// pressure window is being used at and its perishable window's recent rate,
-// which windows count the request, which accounts have no room for it whatever
-// their windows read, which of those refused it lately, and which limits hold
-// it back on the others. It notes in the log how the accounts' reserves hold
-// them back, as noteReserves says.
-func (s *state) view(model string, now time.Time) view {
+// view returns what a choice of account for a request of model, naming the
+// pool with the given id, "" for none, knows at now: the pool it's in, as
+// viewing has it, and every account in the pool with a token, as it stands,
+// with its reserve, the pace its pressure window is being used at and its
+// perishable window's recent rate, which windows count the request, which
+// accounts have no room for it whatever their windows read, which of those
+// refused it lately, and which limits hold it back on the others. It notes
+// in the log how the accounts' reserves hold them back, as noteReserves says.
+func (s *state) view(pool, model string, now time.Time) view {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.noteReserves(now)
-	return s.viewing(model, now)
+	return s.viewing(pool, model, now)
 }
 
 // glance returns what view does, noting nothing in the log: for saying where
 // a request would go without one being sent, which leaves the log to tell of
 // a reserve as a choice finds it.
-func (s *state) glance(model string, now time.Time) view {
+func (s *state) glance(pool, model string, now time.Time) view {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.viewing(model, now)
+	return s.viewing(pool, model, now)
 }
 
-// viewing returns what view does, but for noting anything. s.mu must be held.
-func (s *state) viewing(model string, now time.Time) view {
+// viewing returns what view does, but for noting anything. The pool is the
+// one named, else the first, as the pools stand as it reads them, whose
+// accounts are the only ones it knows: every choice is made from a view, so
+// none goes outside the pool, and none mixes two readings of the pools.
+// s.mu must be held.
+func (s *state) viewing(pool, model string, now time.Time) view {
 	family, applies := s.family(model), s.counting(model)
-	v := view{policy: s.policy, now: now, applies: applies}
+	pools := s.pools.current()
+	v := view{policy: s.policy, now: now, applies: applies, pool: pools.of(pool)}
 	for _, a := range s.accounts {
+		if !pools.holds(v.pool, a.ID) {
+			continue
+		}
+		v.members = append(v.members, a.ID)
 		if !a.hasToken() {
 			continue
 		}

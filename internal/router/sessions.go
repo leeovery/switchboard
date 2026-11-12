@@ -36,6 +36,11 @@ type assignment struct {
 	// Dir is the directory the session's last request to name one was
 	// started in, as the request ledger gives it, or "" while none has.
 	Dir string `json:"dir,omitempty"`
+	// Pool is the id of the pool the session's last request was routed
+	// within: "" in a config from before pools, or as the state file kept it
+	// from a router that didn't know pools, which counts as the first pool,
+	// as a request naming none does.
+	Pool string `json:"pool,omitempty"`
 	// Reason says why the session went to its account.
 	Reason string `json:"reason"`
 	// AssignedAt is when the session came to its account, which a choice
@@ -67,9 +72,9 @@ func (a assignment) same(b assignment) bool {
 }
 
 // usedAgain reports whether a is b used again, and nothing more: the same
-// assignment, with the same pin, directory and reason.
+// assignment, with the same pin, directory, pool and reason.
 func (a assignment) usedAgain(b assignment) bool {
-	return a.same(b) && a.Pin == b.Pin && a.Dir == b.Dir && a.Reason == b.Reason
+	return a.same(b) && a.Pin == b.Pin && a.Dir == b.Dir && a.Pool == b.Pool && a.Reason == b.Reason
 }
 
 // inUTC is the assignment with its times in UTC.
@@ -132,12 +137,29 @@ func (f found) pin(launched string) (string, time.Time) {
 
 // situation is what's known as req's account is chosen at now, f being what's
 // remembered of its session and accounts what's known of the accounts: the
-// request pinned as its session's own pin has it, a pin given while the
-// session runs passing over the one it was launched with.
+// request in the pool the view has it in, pinned as its session's own pin has
+// it in that pool, as pinIn says.
 func (f found) situation(req Request, now time.Time, accounts view) situation {
 	on := situation{req: req, now: now, current: f.current, assigned: f.assigned, pin: f.global, accounts: accounts}
-	on.req.Pin, on.pinnedAt = f.pin(req.Pin)
+	on.req.Pool = accounts.pool
+	on.req.Pin, on.pinnedAt, on.unpooled = f.pinIn(req.Pin, accounts)
 	return on
+}
+
+// pinIn returns the session's own pin as pin does, for a request that carries
+// launched, in the pool accounts is a view of, and the account of the pin it
+// passes over as it's outside that pool, "" where it passes over none. A pin
+// outside the pool is no pin for the request, nor does it pass over the one
+// the session was launched with, which stands where it's in the pool.
+func (f found) pinIn(launched string, accounts view) (pin string, since time.Time, unpooled string) {
+	pin, since = f.pin(launched)
+	switch {
+	case pin == "" || accounts.pooled(pin):
+		return pin, since, ""
+	case f.given && accounts.pooled(launched):
+		return launched, time.Time{}, pin
+	}
+	return "", time.Time{}, pin
 }
 
 // sessions remembers the account each session's requests of each model go
@@ -192,11 +214,11 @@ func (s *sessions) lookup(k key) found {
 }
 
 // remember notes that req went where d says at now, carrying its pin as its
-// session's own, and its directory, should it name one, unless the assignment
-// of its session and model has changed since req's choice found it as was,
-// zero for none: another request of the session moved it meanwhile, and that
-// newer assignment stands. It returns the assignment it found, and reports
-// whether it noted the request.
+// session's own, its pool, and its directory, should it name one, unless the
+// assignment of its session and model has changed since req's choice found
+// it as was, zero for none: another request of the session moved it
+// meanwhile, and that newer assignment stands. It returns the assignment it
+// found, and reports whether it noted the request.
 func (s *sessions) remember(req Request, was assignment, d decision, now time.Time) (assignment, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -218,7 +240,7 @@ func (s *sessions) remember(req Request, was assignment, d decision, now time.Ti
 	if !d.sticky {
 		a.Reason = d.reason
 	}
-	a.Pin, a.LastSeen, a.by = req.Pin, now, req.ID
+	a.Pin, a.Pool, a.LastSeen, a.by = req.Pin, req.Pool, now, req.ID
 	a.Dir = cmp.Or(req.Dir, a.Dir)
 	s.assignments[k] = a.inUTC()
 	if a.usedAgain(found) {

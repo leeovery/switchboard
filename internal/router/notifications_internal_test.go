@@ -1047,7 +1047,7 @@ func newNotifyingOver(t *testing.T, settings config.Notifications, configured []
 func newNotifyingIn(t *testing.T, settings config.Notifications, as accounts, zone *time.Location, years *yearsTold) *notifying {
 	t.Helper()
 	now := func() time.Time { return time.Now().In(zone) }
-	s := newState(as, testPolicy, claude.Provider{}.Family, now, unkept, unkept)
+	s := newState(as, unpooled(), testPolicy, claude.Provider{}.Family, now, unkept, unkept)
 	notifier := &noting{}
 	return &notifying{t: t, state: s, n: newNotifications(settings, notifier, s, years, now), notifier: notifier, began: now()}
 }
