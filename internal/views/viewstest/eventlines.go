@@ -425,8 +425,8 @@ func pins() EventMoment {
 			Happened: []string{"event: pin set by hand", "accounts: work, side, personal", "goes: new sessions", "set from: the command line"},
 		},
 		keyOf(run, own): {
-			Headline: "d28c pinned to side",
-			Happened: []string{"event: d28c pinned to side", "session: d28c switchboard", "accounts: side", "set from: the dashboard"},
+			Headline: "switchboard pinned to side",
+			Happened: []string{"event: switchboard pinned to side", "session: d28c switchboard", "accounts: side", "set from: the dashboard"},
 			Then:     []string{"account: side", "sessions: 1"},
 		},
 		keyOf(run, cleared): {
@@ -449,7 +449,7 @@ func startedRead() EventMoment {
 	m := toldAll("a session started, its account's week to reset before its 5-hour", run, localOn(7, 0, 0), localOn(7, 11, 0), started)
 	m.Lines = []ledger.Line{c0}
 	m.Details = map[Key]Details{keyOf(run, started): {
-		Headline: "c61b started on work", Happened: []string{"event: c61b started on work", "session: c61b mobile", "model: opus-5-5"},
+		Headline: "mobile started on work", Happened: []string{"event: mobile started on work", "session: c61b mobile", "model: opus-5-5"},
 		Then: []string{"account: work", "week: 50%", "5-hour: 20%", "resets: 14:00", "sessions: 1"},
 	}}
 	return m
@@ -473,7 +473,7 @@ func filledFromYesterday() EventMoment {
 			Then: []string{"account: side", "resets: 14:30", "sessions: 0"},
 		},
 		keyOf(run, started): {
-			Headline: "c61b started on work", Happened: []string{"event: c61b started on work", "session: c61b mobile", "model: opus-5-5"},
+			Headline: "mobile started on work", Happened: []string{"event: mobile started on work", "session: c61b mobile", "model: opus-5-5"},
 			Then: []string{"account: work", "sessions: 1"},
 		},
 		keyOf(run, limit): {

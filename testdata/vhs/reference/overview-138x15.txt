@@ -10,6 +10,6 @@ side ▲                      ┃         ▏        78%  out ~Fri              
 ▼ 2 more below
 
 ROUTING   auto   no room at 15 rows ──────────────────────────────────────────────────────────────────────────────────────────────────── r
-COMING UP   16:30  personal's 5-hour resets  … ───────────── c         LATELY   14:41  ▲ c61b started on side  … ─────────────────────── l
+COMING UP   16:30  personal's 5-hour resets  … ───────────── c         LATELY   14:41  ▲ mobile started on side  … ───────────────────── l
 
 tab views     u usage  r routing  s sessions  c coming up  l lately  b by: window     p pin  ? help  q quit

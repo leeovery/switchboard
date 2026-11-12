@@ -137,7 +137,7 @@ func (a *app) pinning(ctx context.Context, client *router.Client, accounts []str
 // pinSession pins the session given, by as much of its id as is unique, to
 // the account given, or clears its own pin for auto, and says what that does.
 func (a *app) pinSession(ctx context.Context, client *router.Client, given, account string) (string, error) {
-	id, err := a.findSession(ctx, client, given)
+	id, err := a.findSession(ctx, client, a.accountNames(), given)
 	if err != nil {
 		// Only a read was asked yet, so a router closing reads as not running.
 		return "", fromRouter(err)

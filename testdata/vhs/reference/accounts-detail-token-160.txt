@@ -27,8 +27,8 @@ ACCOUNTS    Compare  Detail  [ ]  ───────────────�
                     │   hits its limit most weeks   limit hit 3 of the last 7 weeks · 9% left at a reset, on average
                     │
                     │   LATELY      14:31  ╎ reached its cap: 3 sessions moved to side
-                    │               14:12  ▲ 7f3a started here, the best
-                    │               13:22  ▸ db8a came from personal: personal came under pressure
+                    │               14:12  ▲ api started here, the best
+                    │               13:22  ▸ infra came from personal: personal came under pressure
                     │
                     │
                     │

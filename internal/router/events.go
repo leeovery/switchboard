@@ -18,12 +18,14 @@ type Event interface {
 
 // SessionStarted is a session first remembered, for its requests of Model:
 // the first of them answered with success, as its answer comes, on Account,
-// where the session went as the routed line's Reason says.
+// where the session went as the routed line's Reason says. Dir is the
+// directory it runs in, as its assignment has it: "" where none was named.
 type SessionStarted struct {
 	Session string
 	Model   string
 	Account string
 	Reason  string
+	Dir     string
 }
 
 // LimitReached is an account's limit reached, as the upstream answered a
@@ -59,7 +61,8 @@ type LimitLifted struct {
 // hour, whatever held From back, and where only From's windows left it no
 // room, with no limit reached. Limit is the identity of the limit that held
 // the request back, as LimitReached gives it, where Held is HeldByLimit, and
-// zero otherwise.
+// zero otherwise. Dir is the directory the session runs in, as its
+// assignment has it once moved: "" where none was named.
 type Moved struct {
 	Session string
 	Model   string
@@ -68,6 +71,7 @@ type Moved struct {
 	Reason  string
 	Held    Hold
 	Limit   int
+	Dir     string
 }
 
 // Hold is what held a request back on an account it couldn't go out on,
@@ -150,12 +154,13 @@ type RestartHeld struct {
 // Pinned is routing set by hand: where Session is "", the global pin, to
 // Accounts, in the order configured, Account the first of them, moving the
 // running sessions too where Move is set, and having cleared every session's
-// own pin where Force is; else that session's own pin, to Account. By says
-// who set it.
+// own pin where Force is; else that session's own pin, to Account, Dir the
+// directory the session runs in, as sessionDir has it. By says who set it.
 type Pinned struct {
 	Accounts    []string
 	Account     string
 	Session     string
+	Dir         string
 	Move, Force bool
 	By          By
 }
@@ -163,11 +168,13 @@ type Pinned struct {
 // Unpinned is routing given back to the router: where Session is "", the
 // global pin cleared, which named Accounts, none when only Force cleared
 // anything, with every session's own pin where Force is set; else that
-// session's own pin cleared, which named Account. By says who cleared it.
+// session's own pin cleared, which named Account, Dir the directory the
+// session runs in, as sessionDir has it. By says who cleared it.
 type Unpinned struct {
 	Accounts []string
 	Account  string
 	Session  string
+	Dir      string
 	Force    bool
 	By       By
 }

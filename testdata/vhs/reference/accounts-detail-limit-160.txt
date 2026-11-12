@@ -27,7 +27,7 @@ ACCOUNTS    Compare  Detail  [ ]  ───────────────�
                     │
                     │   LATELY      14:12  ■ reached its 5-hour limit: 2 sessions moved to side
                     │               13:40  ● pinned with side, by hand
-                    │               12:47  ▲ 41e0 started here, the best
+                    │               12:47  ▲ docs started here, the best
                     │
                     │
                     │

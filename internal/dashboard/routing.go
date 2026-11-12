@@ -76,12 +76,15 @@ func routingParts(names int) []flex.Part {
 // frame: whether it's one row an account and a session; the name column's
 // cells, its words starting after them; and, on one row, the words' cells
 // and the column its sessions start at. Its trace starts at trace, traceCells
-// long: on one row, after the sessions; on two, on the second, from the name
-// column to narrowTail cells short of the edge.
+// long: on one row, after the sessions and the cells it cedes a session's
+// directory, its share of the row starting at traceShare; on two, on the
+// second, from the name column to narrowTail cells short of the edge, its
+// share starting there too.
 type routingColumns struct {
 	oneRow            bool
 	names, words      int
 	sessions          int
+	traceShare        int
 	trace, traceCells int
 }
 
@@ -94,15 +97,37 @@ func (f Frame) routingColumns(m status.Moment) routingColumns {
 
 // routingColumnsOf are where the rows of ROUTING and SESSIONS lie across
 // width columns, the name column names cells: one row an account and a
-// session where routingParts fit, laid as they say; else two.
+// session where routingParts fit, laid as they say, the trace ceding a
+// session's directory its cells as traceParts lays them; else two.
 func routingColumnsOf(width, names int) routingColumns {
 	s, oneRow := flex.Lay(width, routingParts(names)...)
 	if !oneRow {
-		return routingColumns{names: names, trace: names, traceCells: width - narrowTail - names}
+		return routingColumns{names: names, traceShare: names, trace: names, traceCells: width - narrowTail - names}
 	}
+	t, _ := flex.Lay(s[rowTrace].Size+s[rowTracePast].Size, traceParts()...)
 	return routingColumns{
 		oneRow: true, names: names, words: s[rowWords].Size, sessions: s[rowSessions].At,
-		trace: s[rowTrace].At, traceCells: s[rowTrace].Size + s[rowTracePast].Size,
+		traceShare: s[rowTrace].At, trace: s[rowTrace].At + t[traceDrawn].At, traceCells: t[traceDrawn].Size,
+	}
+}
+
+// The parts of the cells routingParts gives the trace, in traceParts' order:
+// those it cedes a session's directory, and those it's drawn in.
+const (
+	traceCeded = iota
+	traceDrawn
+)
+
+// traceParts are the parts of the cells routingParts gives the trace, as
+// flex lays them: first, the cells of a session's directory in SESSIONS,
+// dirRoom, which narrow before the trace does, so the trace gives them up,
+// from where it has room to spare to its least, rather than why a session
+// is there; then the trace, from traceLeast, taking the rest. An account's
+// row starts its trace there too, so the two line up.
+func traceParts() []flex.Part {
+	return []flex.Part{
+		traceCeded: {Natural: dirRoom, Narrows: 1},
+		traceDrawn: {Least: traceLeast, Natural: traceLeast, Grows: true},
 	}
 }
 
@@ -292,7 +317,7 @@ func (f Frame) drawRouting(c *canvas, t routingTable, body bounds) {
 	for i, r := range t.accounts {
 		f.wideRouting(c, t, r, body.y+step*i, rows)
 	}
-	c.line(t.columns.trace, body.y+step*(len(t.accounts)-1)+rows, line{{routingCaption, faintInk}}.fit(f.Width-t.columns.trace))
+	c.line(t.columns.traceShare, body.y+step*(len(t.accounts)-1)+rows, line{{routingCaption, faintInk}}.fit(f.Width-t.columns.traceShare))
 }
 
 // routingSized reports whether ROUTING's body of a accounts on a row each

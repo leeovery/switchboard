@@ -24,17 +24,17 @@ side ▲        Week                             ┃                            
 
 COMING UP  ─────────────────────────────────────────────────────────── c          LATELY  ──────────────────────────────────────────────────────────────────── l
 
-18:50      side's 5-hour resets                                in 4h 08m          14:41  ▲ c61b started on side
+18:50      side's 5-hour resets                                in 4h 08m          14:41  ▲ mobile started on side
 ~Fri       side's week runs out at its pace                     in 1d 2h          14:31  ■ work refused (401): 3 sessions moved to side
-~Sat       personal's week runs out at its pace                in 1d 19h          14:12  ▲ 7f3a started on work
+~Sat       personal's week runs out at its pace                in 1d 19h          14:12  ▲ api started on work
 Sun 02:00  personal's week resets                              in 2d 11h          13:50  ◇ side primed: its 5-hour window started
-~Sun       work's week reaches its cap                         in 2d 21h          13:22  ▸ db8a moved personal → work: personal came under pressure
-Sun 21:00  work's week resets                                   in 3d 6h          12:47  ▲ 41e0 started on personal
-Mon 10:00  side's week resets                                  in 3d 19h          12:02  ▲ d28c started on work
-                                                                                  11:55  ▲ 9c2e started on personal
-                                                                                  10:02  ▲ 5b19 started on personal
-                                                                                  09:40  ▲ 3d7a started on work
-                                                                                  09:12  ▲ e0c4 started on work
+~Sun       work's week reaches its cap                         in 2d 21h          13:22  ▸ infra moved personal → work: personal came under pressure
+Sun 21:00  work's week resets                                   in 3d 6h          12:47  ▲ docs started on personal
+Mon 10:00  side's week resets                                  in 3d 19h          12:02  ▲ switchboard started on work
+                                                                                  11:55  ▲ website started on personal
+                                                                                  10:02  ▲ mobile started on personal
+                                                                                  09:40  ▲ docs started on work
+                                                                                  09:12  ▲ infra started on work
                                                                                   08:47  ◇ side primed: its 5-hour window started
 
 

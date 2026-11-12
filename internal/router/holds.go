@@ -221,7 +221,7 @@ func withJoined(joined map[string]time.Time, key string, at time.Time) map[strin
 // limit, cap or refusal that held its request back on the account it left.
 // Where that event is yet to be told, the move waits for it, as waitFor says.
 func (r *recent) moved(e Moved, now time.Time) {
-	move := happening{Kind: status.EventMoved, Session: bounded(e.Session), Model: bounded(e.Model), From: e.From, To: e.To, Reason: e.Reason}
+	move := happening{Kind: status.EventMoved, Session: bounded(e.Session), Model: bounded(e.Model), Dir: e.Dir, From: e.From, To: e.To, Reason: e.Reason}
 	if h, ok := r.forcing(e, now); ok {
 		count(h, &move)
 	} else {

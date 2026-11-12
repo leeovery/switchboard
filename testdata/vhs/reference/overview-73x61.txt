@@ -51,11 +51,11 @@ Sun 21:00  work's week resets                                    in 3d 6h
 
 LATELY  ─────────────────────────────────────────────────────────────── l
 
-14:41  ▲ c61b started on side
+14:41  ▲ mobile started on side
 14:31  ╎ work reached its cap: 3 sessions moved to side
-14:12  ▲ 7f3a started on work
+14:12  ▲ api started on work
 13:50  ◇ side primed: its 5-hour window started
-13:22  ▸ db8a moved personal → work: personal came under pressure
-12:47  ▲ 41e0 started on personal
+13:22  ▸ infra moved personal → work: personal came under pressure
+12:47  ▲ docs started on personal
 
 tab views   ? keys and toggles   q quit

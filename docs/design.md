@@ -1984,7 +1984,7 @@ argument Claude Code's own, so `claude --help` is Claude Code's (see Launching).
 | `accounts token <id> [--paste]` | Replace an account's token, making it with `claude setup-token` at a terminal, or taking one pasted or on stdin: see Accounts and tokens |
 | `accounts remove <id>` | Remove an account, and its token file, the accounts record keeping it, removed, with its label |
 | `setup` | Walk through setting up, or what's left of it: see Setup |
-| `status [--session <id>] [--json \| --pretty] [--probe] [--refresh]` | Accounts, windows, sessions, pin, what holds an account back, reserves, pressure, the priming schedule, and router health, read as `usage` reads them, and from the router, the sessions it has routed in the last hour: a line each, with its id cut short, the account each of its models goes to, its own pin, and when it was last seen. When the `claude` a shell runs from `PATH` isn't switchboard, so the sessions it starts don't go through the router, the first line says so, pointing to `setup`. Its JSON is the status document, which is what an agent reads (see The data verbs). `-r`, `--refresh` has the router first read every account it may, as `usage --refresh` does. `--session` prints one line, on a terminal or off one, as a statusline asks: the id of the account the router sends a session's requests to, the one its last-used model went to; or with `--json`, `/sessions/{id}`'s answer. `<id>` is the session's id, or as much of it as is unique among those sessions, as `pin --session` takes it, and it needs the router, taking neither `--probe` nor `--refresh` |
+| `status [--session <id>] [--json \| --pretty] [--probe] [--refresh]` | Accounts, windows, sessions, pin, what holds an account back, reserves, pressure, the priming schedule, and router health, read as `usage` reads them, and from the router, the sessions it has routed in the last hour: a line each, with its id cut short, the account each of its models goes to, its own pin, and when it was last seen. When the `claude` a shell runs from `PATH` isn't switchboard, so the sessions it starts don't go through the router, the first line says so, pointing to `setup`. Its JSON is the status document, which is what an agent reads (see The data verbs). `-r`, `--refresh` has the router first read every account it may, as `usage --refresh` does. `--session` prints one line, on a terminal or off one, as a statusline asks: the label of the account the router sends a session's requests to, the one its last-used model went to, as the verbs' text names it (one removed by the label it had, saying when, and one nothing names by its id); or with `--json`, `/sessions/{id}`'s answer. `<id>` is the session's id, or as much of it as is unique among those sessions, as `pin --session` takes it, and it needs the router, taking neither `--probe` nor `--refresh` |
 | `usage [--5h] [--week] [--<model>] [--by window\|account] [--probe] [--refresh] [--json \| --pretty]` | Every account's windows as they stand, printed once into the scrollback with the time they were read, to hold against one printed earlier: see `usage`, the printout. `--by` lays them out by window, each window's rows together, or by account, each account's windows together, over `[usage] by` (see Config); by window where neither says. `--5h`, `--week`, and a flag for each model's own window, named for its model, as `--fable` is for Fable's week, print the windows given alone, with the header and the key line. Its JSON is the status document, as `status --json` prints it, read as its flags say (see The data verbs). It reads the router while it answers; `--probe` probes instead. `-r`, `--refresh` has the router first read every account it may, as the dashboard's `R` does, and waits for it, ten seconds at most; without the router, or with `--probe`, every account is probed anyway |
 | `dashboard [interval] [--no-notify] [--probe]` | The dashboard, full screen until `q`: see Dashboard. It needs a terminal, and refuses without one. It reads the router while it answers, which reads idle accounts itself, on its rounds, and `R` has it read them at once (see Live updates). Without the router, or with `--probe`, it probes every account instead, each interval: 30m unless given, 5m at the least, as a duration, such as `15m`, or a number of minutes. `--no-notify` has it post none of the notifications it posts while it probes without the router (see Notifications) |
 | `requests [--session <id>] [--account <id>] [--since <when>] [--json \| --pretty]` | The request ledger's lines (see The request ledger): today's, unless `--since` reaches further back, oldest first, under the day each arrived on, a line each with the time, the session's id cut short, the model, the account, the status, `canceled`, `cut off` or `broken off` after it where its line says so, the tokens in and out, and how long the request took. `--session` keeps a session's own, by its id or as much of it as is unique among the sessions read, failing, listing them, for as much as starts several; `--account` keeps an account's own, by its id in any case, refusing a label, the refusal naming the id of each account it labels, configured or removed; `--since` starts at a day (`2026-10-01`), a time today (`14:00`), as the clocks first read it that day, so `00:00` is the day's first instant, or a duration ago (`3h`, `2d`, a day being 24 hours), and one still to come is refused. Its JSON is each line as the ledger holds it with `"schema": 1` put first, a JSON object a line, fields a later release added included (see The data verbs). It reads the ledger's files, so it needs no router |
@@ -2042,9 +2042,10 @@ what switchboard knows of one thing, in a form for a person to read or for an ag
   JSON and `--pretty` the person's form wherever stdout is; given both, the command refuses them.
   `--pretty` off a terminal prints as on one, without colour, as wide as `COLUMNS` says, else 80
   columns (settled in the plan).
-- **`status --session` keeps its bare id:** the id of the account the router sends the session's
-  requests to, on a terminal or off one, as a statusline reads it; with `--json`,
-  `/sessions/{id}`'s answer.
+- **`status --session` keeps its bare label:** the label of the account the router sends the
+  session's requests to, as the verbs' text names it, on a terminal or off one, as a statusline
+  reads it; with `--json`, `/sessions/{id}`'s answer, the account by its id. It printed the id
+  until account identity made ids switchboard's own, which mean nothing on a status line.
 - **The person's form:** `usage`'s printout (see `usage`, the printout); `status`'s text; and, in
   plain text, first cuts to be designed with their owner (see Backlog): `requests` and `events`, a
   line each; `sessions`, a line each and one summing them; `history`, its days' tables and the
@@ -2312,7 +2313,7 @@ order the view's section gives.
   views that give its bars rows of their own; History's frames, 37 rows; the Switchboard's lines,
   74 columns; `usage --by account`'s window labels, 10 cells at the name column, which the
   Switchboard's lines take; the frame's least, the fixed rows and three of the view's; a model's
-  family padded to 8 cells in Detail's SESSIONS, and its selection, 43 cells from a cell before
+  family padded to 8 cells in Detail's SESSIONS, and its selection, 45 cells from a cell before
   the row; and the Log card's tree's names padded to 13.
 
 On a phone, under 100 columns, the tabs take row 1 of their own, the status line row 3 and the
@@ -3034,11 +3035,14 @@ and the pool's room then is judged there, as POOL says. The focus GRAPHS followe
     wide as `0 sessions`, and three cells after them; and the rate's tail of 8;
   - flexing: the words, at least 20 and at most 61 (what they had at 173 columns before they
     flexed), and the trace, at least 24; half of what the fixed parts leave each, the odd cell the
-    trace's, the words capped at their most and the trace taking the rest.
+    trace's, the words capped at their most and the trace taking the rest;
+  - of the trace's cells, the first 13, down to the trace's least, go to a session's project in
+    SESSIONS (`traceParts`), on an account's row too, so the traces line up.
 
   Their widths come from the accounts configured and fixed words alone, never the words or sessions
-  shown, so nothing moves as they change. With a name column of 16, that's 92 for the trace at 173
-  columns, the sessions at 79, and 35 cells from 65 at 108.
+  shown, so nothing moves as they change. With a name column of 16, that's the trace drawn from
+  105 at 173 columns, its share from 92, the sessions at 79; and at 108, its share 35 cells from
+  65, drawn 24 cells from 76.
 - **A row an account,** in the config's order, wherever those parts' leasts fit (from 83 columns
   with a name column of 16):
   - its name and marks at column 0, as in USAGE;
@@ -3108,9 +3112,10 @@ and the pool's room then is judged there, as POOL says. The focus GRAPHS followe
 right:
 
 - **Each cell** is the mean of four samples of requests a minute over its slice of the 30 minutes:
-  30 seconds a cell at 160 columns. It fills `round(min(value ÷ scale, 1) × rows × 8)` eighths of
-  its 1 or 2 rows, its full cells as background and its top cell an eighth block. Where a column is
-  empty, its bottom row has a `▁` in `text.faint`, so the lane always shows.
+  30 seconds a cell at 171 columns with the sample's names. It fills
+  `round(min(value ÷ scale, 1) × rows × 8)` eighths of its 1 or 2 rows, its full cells as
+  background and its top cell an eighth block. Where a column is empty, its bottom row has a `▁`
+  in `text.faint`, so the lane always shows.
 - **One scale for every trace on the page,** accounts' and sessions' alike, so any two can be
   compared: the busiest column of them all over the 30 minutes fills a trace's height, never less
   than 8 requests a minute, so a quiet page isn't magnified (settled in the plan). A session's story
@@ -3133,7 +3138,20 @@ whose models go to two accounts on each:
   owner's call, 21 October 2026).
 - **The account's name and marks** at column 0, on the first of its sessions shown alone.
 - **The session's id,** its first 4 characters, at the name column: bold `text.primary` while busy,
-  with a request in flight or seen in the last minute, else `text.muted`. Then two spaces, its
+  with a request in flight or seen in the last minute, else `text.muted`; then a space and its
+  project, the last part of its directory as the List has it (`views.Running`'s `Dir`), in
+  `text.muted`, cut to 12 cells as the Log cuts one (`views.SessionDirCells`), as the List draws
+  its `session` column (`sessionIn`), so LATELY's `mobile started on side` and the row's
+  `c61b mobile` name the session alike. The project takes a column of 12 whether a session has a
+  directory or not, its id alone where none is known, so the columns after it line up down the
+  list. Its cells come from ROUTING's trace where the trace has room past its least of 24
+  (`routing.go`, `traceParts`): the trace, an account's and a session's alike, starts up to 13
+  cells later, so why a session is there keeps its cells. Where the row's parts run short, why it's
+  there gives way first; then the project narrows, cut as `status.DirName` cuts it, to 6 cells, the
+  List's least; and it goes only where the id, family, when it was seen and what it's doing don't
+  fit with it at 6, under 84 columns with the sample's names. On two rows a session, the project
+  is whole from 42 columns, narrows below that, and goes below 36, why it's there keeping its own
+  row. Then two spaces, its
   model's family in `text.muted`, and a cell on, when it was last seen, right-aligned in 4 in
   `text.subtle`: `now` within the minute, `9m`, `2h`. The family's column is a fixed part of the
   row's, laid by flex (`overview_sessions.go`, `runningParts`), its width the widest family the
@@ -3147,8 +3165,11 @@ whose models go to two accounts on each:
   router's reasons (see The router's events), with when: `started here 14:41`, adding `, the best`
   while its account is still where new sessions go; `moved from work 14:31: work reached its cap`;
   `moved from work 14:39: pinned to side`; `pinned here 14:39`, its own pin; `its pin to side
-  yields: side has no room` (settled in the plan). It's cut to end two cells before the trace:
-  `moved from work 1…`, 18 cells, at 108 columns.
+  yields: side has no room` (settled in the plan). It's cut to end two cells before the trace,
+  and shows only in 12 cells or more, as fewer say nothing of it: short of them it gives way
+  whole, before the project narrows, its cells left blank. Where it starts and ends hangs on the
+  name column: with the sample's of 14, a move's reason, 43 cells, reads whole from 155 columns;
+  `moved from work 1…` at 108; `moved from…` at 102; none under 102.
 - **Its own trace,** one row, starting where ROUTING's do, as ROUTING's row's parts lay them, so
   the two columns line up, on the shared scale, and its rate right-aligned at the last column. A
   session takes a row wherever an account does in ROUTING. No blank rows between sessions, but
@@ -3220,8 +3241,8 @@ at every width.
 
   | Mark | Event | As |
   |---|---|---|
-  | `▲` in `accent.mode` | `started` | `c61b started on side`, and why where it wasn't the router's best: `: personal is at its limit`; under a pin, `c61b started on personal, as pinned` |
-  | `▸` in `accent.key` | `moved` | `db8a moved personal → work: personal came under pressure` |
+  | `▲` in `accent.mode` | `started` | `api started on side`, and why where it wasn't the router's best: `: personal is at its limit`; under a pin, `api started on personal, as pinned` |
+  | `▸` in `accent.key` | `moved` | `infra moved personal → work: personal came under pressure` |
   | `◔` in `accent.attention` | `pressure` | `personal came under pressure: its 5-hour runs out ~16:05` |
   | `╎` in `accent.attention` | `cap` | `work reached its cap: 3 sessions moved to side` |
   | `■` in `state.destructive` | `limit` | `personal reached its 5-hour limit: 2 sessions moved to side` |
@@ -3249,7 +3270,15 @@ at every width.
   room only grows with the width but where LATELY moves beside COMING UP, its column halving, the
   one width a sentence may take its shorter form. A limit's or a cap's line names the windows it began
   with, as it began: `work reached its Fable week limit`, a 5-hour that joined it later left to the
-  Log's card (the owner's call, 15 October 2026).
+  Log's card (the owner's call, 15 October 2026). A session is named by the last part of the
+  directory it ran in, `api`, as the Log names one (`views.SessionDirName`): the directory its
+  event carries, which the router records as it writes the event, so a line's name never changes
+  once told; else the session's as the List has it, the router's listing giving it, else the lines
+  the watch holds; and by its short id, `c61b`, where none names one, as of an event written before
+  events carried it: account ids are four characters too, so a short id read as an account's. The
+  Log's Events name a session the same way: a row's directory is its event's, else as the
+  session's lines last name it, and its card, in its title and its `session` item, reads the
+  row's, so the two never disagree; the short id where neither names one.
 
 **By account** (`b`) pivots the page; `[usage] by` sets its default (see The page, "What's
 remembered").
@@ -3368,7 +3397,7 @@ ones:
 
 - `SESSIONS   6 running: 2 on personal, 4 on side   no room at 37 rows`, the count in
   `text.muted` and `no room at 37 rows` in `text.subtle`;
-- `COMING UP   16:30  personal's 5-hour resets  …` and `LATELY   14:41  ▲ c61b started on side  …`,
+- `COMING UP   16:30  personal's 5-hour resets  …` and `LATELY   14:41  ▲ api started on side  …`,
   side by side, each its first row as drawn, then `  …` in `text.subtle`;
 - `ROUTING   auto   no room at 33 rows`.
 
@@ -3709,18 +3738,19 @@ where it fits** says, and where they don't fit, it's stacked, as **Stacked** say
 - **LATELY,** row 27: the account's last three events, newest first, from `cx`, in LATELY's marks,
   but told from the account's side, which they leave unnamed:
   `14:31  ╎ reached its cap: 3 sessions moved to side`; a move onto it, `▸ 3 sessions came from
-  work: work reached its cap`; `14:12  ▲ 7f3a started here`, or, where it started on the router's
-  best, `c61b started here, the best`; `◔ came under pressure: out ~16:05 at this pace`; a pin
+  work: work reached its cap`; `14:12  ▲ api started here`, or, where it started on the router's
+  best, `api started here, the best`; `◔ came under pressure: out ~16:05 at this pace`; a pin
   naming it with others, `● pinned with side, by hand`; and `12:10  ◇ primed: its 5-hour window
   started`. For `all accounts`, the last three of every account's, each naming its account, as the
-  Overview's LATELY does: `c61b started on side, the best`.
+  Overview's LATELY does: `api started on side, the best`.
 - **With sessions running** on the chosen account: `SESSIONS`, and `now` in `text.faint`, at the
   panel's left on row 27, and from row 28 a row a session: `▸`, bold `accent.key`, before the one
   selected; `●` while busy, in `state.positive`, or `○`, in `text.subtle`; the id, bold,
-  `text.primary` while busy and `text.muted` while idle; two spaces and the model, padded to 8, in
+  `text.primary` while busy and `text.muted` while idle; a space and its project, in `text.muted`,
+  in a column of 12, as the Overview's SESSIONS has it; two spaces and the model, padded to 8, in
   `text.secondary`; what it's doing, padded to 9, bold `accent.mode` while busy and `text.subtle`
   while idle; and when it was last seen, right-aligned in 3, in `text.subtle`. The selected row is
-  `bg.selection` from a cell before it to 42 cells on while the focus is on SESSIONS, and bold,
+  `bg.selection` from a cell before it to 44 cells on while the focus is on SESSIONS, and bold,
   unlit, while it's on the list, so the one place lit is where `↑` `↓` act; `SESSIONS` is bold
   `text.primary` while the focus is there, and `text.subtle` while it isn't (the owner's call, 15
   October 2026). On row 33, two cells in,
@@ -9519,7 +9549,7 @@ probing.
 | `restart` | *router* A restart it has due: `{reason, since, in_flight, exporting, by_hand}`, `reason` why, `config changed`, `upgraded` or `time zone changed`, `since` when it found it due, `in_flight` how many requests it had in flight as it gave the document, `exporting` the folder of the export of the history under way then, which the restart waits for, the folder configured still or not, left out while none is (see On a schedule), and `by_hand` set when it was run by hand, with `serve`, and restarts only when it's run again; and `held` why its binary refuses to start, as it said, which holds the restart until the config file or the binary changes, left out while it isn't held. Left out while none is due (see The router looking after itself) |
 | `export` | *router* How the export on a schedule stands, since the router started: `{dir, at, error, running}`, `dir` the folder `[export] dir` names, resolved, `at` when an export into it last succeeded, `error` why the last failed, in plain words, and `running` when the export under way began, as one waiting on macOS's prompt waits; `at` left out before one has succeeded, `error` once one succeeds, and `running` while none is under way. Left out where `[export] dir` isn't set (see On a schedule) |
 | `sessions` | *router* How many sessions have been routed in the last hour, each counted once, however many accounts its models went to; left out at 0 |
-| `events` | *router* What's happened lately, newest first, 50 at most, kept in memory, so a restart starts them afresh, though the router files every one (see The router's events): `[{id, at, kind, account, accounts, session, model, from, to, reason, held, windows, until, since, count, limit, forced_by, reserve, status, family, move, force, by}]`, `id` rising by one an event, from 1 as the router starts, so a reader tells which are new; `kind` one of `started`, `pressure`, `cap`, `limit`, `moved`, `refused`, `foreign`, `primed`, `room`, `pin`, `auto`, `restart` and `health`, each with the fields The router's events gives it. The Overview's LATELY reads the newest, folding the moves a limit, a cap or a refusal counts into its line where that's among them, and the Log's Events lists each (see The Overview, The Log). Left out when there are none |
+| `events` | *router* What's happened lately, newest first, 50 at most, kept in memory, so a restart starts them afresh, though the router files every one (see The router's events): `[{id, at, kind, account, accounts, session, model, dir, from, to, reason, held, windows, until, since, count, limit, forced_by, reserve, status, family, move, force, by}]`, `id` rising by one an event, from 1 as the router starts, so a reader tells which are new; `kind` one of `started`, `pressure`, `cap`, `limit`, `moved`, `refused`, `foreign`, `primed`, `room`, `pin`, `auto`, `restart` and `health`, each with the fields The router's events gives it. The Overview's LATELY reads the newest, folding the moves a limit, a cap or a refusal counts into its line where that's among them, and the Log's Events lists each (see The Overview, The Log). Left out when there are none |
 | `pool` | The accounts new sessions can go to now, as one, as `usage` and the Overview end their windows with it (see `usage`, the printout): `{accounts, pinned, windows}`. `accounts` their ids, in the config's order: those the global pin names, `pinned` then set, else every account; probing, every account, as the pin isn't known. `windows` a window each that any of them has, shortest first, but one every model shares that fewer than two of them have, and not all, as a verified Ultra account has no 5-hour window (see `usage`, the printout): `{key, label, of, room, used, pace}`, `of` how many of them have the window or may have it, as one not yet read may, `room` its room summed in accounts' worth, `1.5` being an account and a half: each account's room to its cap, `1 − reserve` (to its limit without a reserve, or where the global pin names it, as a pin spends the reserve), and none in the 5-hour window of an account at its limit or its cap, nor in any window of one without a usable token, whose token is refused, or that hasn't been read; `used` what its bar fills to, its accounts' mean use of it, as each one's window has it, leaving out one without a usable token, not read, or whose token is refused, and left out itself where none is left; and `pace` the even paces of its accounts' windows that are running, averaged. Left out with one account, whose own windows say the same |
 | `coming_up` | What's coming to the accounts after the document was built, soonest first, as the Overview's and Runway's COMING UP list it: `[{at, account, kind, window, cap, refused}]`, `kind` one of `back` (the account has room again: its limit lifting; with `cap` set, the window at its cap resetting; or with `refused` set, its token's refusal ending, where that lifts after its limit and its cap; `window` set where a limit holds back only a model's requests, as a model's own week's), `runs_out` (`window` runs out before it resets, by its projection (see `usage`, the printout), the 5-hour window at its recent rate whenever there is one: at the account's cap, `cap` set, where its reserve holds it back, else at its limit), `reset` (`window` resets: each window's next, but one whose reset brings the account back, which `back` tells, and a model's own window only where its reset isn't its week's) and `prime` (*router* the account's next prime, as `prime` gives it). Left out when nothing is coming |
 | `demand` | *router* The pool's use as the forecast takes it (see Forecasting run-outs): `{day, hours, hold, learning}`. `day` is the day's rate, in Pro weeks an hour; `hours` the hours with room it's measured over, 24 at the most, and 0 where it's the pool's fast rate; `hold` the hold curve, `[{hours, share}]`, the share of an account's fast rate still on it at 1, 3, 6, 12, 24 and 48 hours on; `learning` `true` while the curve is the default, with less than a day of answers in it, and left out once it's measured. Left out when the router has read no account |
@@ -9560,7 +9590,11 @@ back on across restarts. The Overview's LATELY reads the newest, the Log's Event
 those filed before them included (see The Overview, The Log), and `events` prints them (see The data
 verbs).
 
-- **An event** is `{id, at, kind}` and the fields its kind needs, each left out where it doesn't:
+- **An event** is `{id, at, kind}` and the fields its kind needs, each left out where it doesn't.
+  Each event naming a `session` carries `dir`, the directory the session ran in as the router
+  wrote the event, as its assignment holds it and the request ledger gives one, left out where
+  none was known yet; LATELY and the Log's card name the session by it, so a line's name never
+  changes as the session cools:
   - `started`: a session first remembered, as Choosing an account remembers one, told as its first
     answer of success comes, so never a quota check's: `session` and `model`; `account` the account
     whose answer started it; and `reason` why the session is there, as its assignment says, while

@@ -288,14 +288,17 @@ func (by lister) listed(id string, s *story) ListedSession {
 }
 
 // dir is the directory the session with the given id runs in, its story s
-// telling of its lines: as the router gives it, where it lists it, of the
-// model seen most lately that names one; else as its lines last name it; ""
-// where neither names one.
+// telling of its lines, as listedDir has it.
 func (by lister) dir(id string, s *story) string {
-	if dir := routedDir(by.routed[id]); dir != "" {
-		return dir
-	}
-	return s.dir
+	return listedDir(by.routed[id], s.dir)
+}
+
+// listedDir is the directory a session runs in as the List names it: as the
+// router gives it in routed, its listing, of the model seen most lately that
+// names one; else lines, the directory its lines last name; "" where neither
+// names one.
+func listedDir(routed status.Session, lines string) string {
+	return cmp.Or(routedDir(routed), lines)
 }
 
 // routedDir is the directory the session s runs in as the router lists it:

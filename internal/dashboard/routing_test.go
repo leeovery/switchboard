@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/dashboard/flex"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/score"
@@ -66,13 +67,15 @@ func TestROUTINGsFormsLayItsRowsOut(t *testing.T) {
 	doc, sessions := autoRouting()
 	lane := func(n int) string { return strings.Repeat(traceLane, n) }
 	// On a row an account, at 120, the words are 41 cells, its sessions at 57
-	// and its trace 42 cells from column 70, its rate ending at the last
-	// column; on two, at 80, its trace is from the name column to 60.
+	// and its share of the trace 42 cells from column 70, the trace ceding a
+	// session's directory its first 13, so drawn 29 cells from 83, its rate
+	// ending at the last column; on two, at 80, its trace is from the name
+	// column to 60.
 	wide := func(name, state, sessions string) map[int]string {
 		return map[int]string{0: name, 14: state, 57: sessions}
 	}
 	traced := func(texts map[int]string) string {
-		texts[70], texts[115] = lane(42), "0/min"
+		texts[83], texts[115] = lane(29), "0/min"
 		return textsAt(120, texts)
 	}
 	work, personal, side := "● at its cap · back 17:10", "● open", "● open · new sessions come here"
@@ -119,6 +122,30 @@ func TestROUTINGsFormsLayItsRowsOut(t *testing.T) {
 				t.Errorf("drew\n  %q\nwant\n  %q", got, tt.want)
 			}
 		})
+	}
+}
+
+// ROUTING's caption starts where the trace's share of the row does, the
+// cells it cedes a session's directory among them, so it reads whole
+// wherever it did before the trace ceded them: at every width a row an
+// account where routingParts leave it room from the trace's share.
+func TestROUTINGsCaptionStartsWhereTheTracesShareDoes(t *testing.T) {
+	doc, sessions := autoRouting()
+	for width := 52; width <= 220; width++ {
+		f := Frame{Width: width, Height: 40, View: Overview, Policy: claudeLike, Sessions: sessions}
+		at := f.routingColumns(f.Moment(doc, routedAt))
+		if !at.oneRow {
+			continue
+		}
+		s, _ := flex.Lay(width, routingParts(at.names)...)
+		c := newCanvas(width, 4)
+		f.routingSection(doc, routedAt).draw(c, bounds{width: width, rows: 4})
+		if width-s[rowTrace].At < len(routingCaption) {
+			continue
+		}
+		if got, want := rowOf(c, 3), textsAt(width, map[int]string{s[rowTrace].At: routingCaption}); got != want {
+			t.Errorf("at %d columns, the caption row reads %q, want it whole from %d", width, got, s[rowTrace].At)
+		}
 	}
 }
 
@@ -934,17 +961,18 @@ func TestTheNameColumnIsTheSameWhereverNewSessionsGo(t *testing.T) {
 }
 
 // A row's words and trace take half of what its fixed parts leave each, the
-// odd cell the trace's, the words up to their most, the trace the rest: at
-// 173 as before, the sessions at 79 and the trace at 92; at 108, the trace
-// 35 cells from 65.
+// odd cell the trace's, the words up to their most, the trace the rest, of
+// which it cedes a session's directory its first dirRoom down to its least:
+// at 173 as before, the sessions at 79, and the trace's share at 92, drawn
+// from 105; at 108, its share 35 cells from 65, drawn 24 cells from 76.
 func TestARowOfROUTINGsSharesItsRoomBetweenItsWordsAndItsTrace(t *testing.T) {
 	tests := []struct {
 		width int
 		want  routingColumns
 	}{
-		{width: 173, want: routingColumns{oneRow: true, names: 16, words: 61, sessions: 79, trace: 92, traceCells: 73}},
-		{width: 108, want: routingColumns{oneRow: true, names: 16, words: 34, sessions: 52, trace: 65, traceCells: 35}},
-		{width: 82, want: routingColumns{names: 16, trace: 16, traceCells: 46}},
+		{width: 173, want: routingColumns{oneRow: true, names: 16, words: 61, sessions: 79, traceShare: 92, trace: 105, traceCells: 60}},
+		{width: 108, want: routingColumns{oneRow: true, names: 16, words: 34, sessions: 52, traceShare: 65, trace: 76, traceCells: 24}},
+		{width: 82, want: routingColumns{names: 16, traceShare: 16, trace: 16, traceCells: 46}},
 	}
 	for _, tt := range tests {
 		if got := routingColumnsOf(tt.width, 16); got != tt.want {
@@ -954,8 +982,9 @@ func TestARowOfROUTINGsSharesItsRoomBetweenItsWordsAndItsTrace(t *testing.T) {
 }
 
 // Wherever a row's one, its words are within their least and most, and its
-// trace no less than its least, the two level, the odd cell the trace's,
-// but where either is at a least or the words at their most; its sessions
+// trace no less than its least, the words and the trace's share, what it
+// cedes a session's directory with it, level, the odd cell the trace's, but
+// where either is at a least or the words at their most; its sessions
 // follow the words wordsGap on, and its trace ends traceTail short of the
 // edge.
 func TestARowOfROUTINGsWordsKeepWithinTheirLeastAndMost(t *testing.T) {
@@ -968,8 +997,9 @@ func TestARowOfROUTINGsWordsKeepWithinTheirLeastAndMost(t *testing.T) {
 			if at.words < wordsLeast || at.words > wordsMost || at.traceCells < traceLeast {
 				t.Errorf("at %d columns, a name column of %d: words %d, trace %d; want words %d to %d and a trace of %d or more", width, names, at.words, at.traceCells, wordsLeast, wordsMost, traceLeast)
 			}
-			if level := at.traceCells - at.words; at.words > traceLeast && at.words < wordsMost && level != 0 && level != 1 {
-				t.Errorf("at %d columns, a name column of %d: words %d, trace %d; want them level, the odd cell the trace's", width, names, at.words, at.traceCells)
+			share := width - traceTail - at.traceShare
+			if level := share - at.words; at.words > traceLeast && at.words < wordsMost && level != 0 && level != 1 {
+				t.Errorf("at %d columns, a name column of %d: words %d, the trace's share %d; want them level, the odd cell the trace's", width, names, at.words, share)
 			}
 			if at.sessions != names+at.words+wordsGap || at.trace+at.traceCells != width-traceTail {
 				t.Errorf("at %d columns, a name column of %d: %+v; want the sessions %d after the words, the trace ending %d short of the edge", width, names, at, wordsGap, traceTail)
