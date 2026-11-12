@@ -2302,6 +2302,16 @@ order the view's section gives.
   from there, none counting 8 or 24 itself (`guardlabels_test.go`), but the views whose sections
   give figures of their own: Compare's 8 and 24, Detail's list's 14 and 24, the Sessions List's
   `on`'s 14 and the Switchboard's call's 6.
+- **A column of names right-aligns their marks** (the owner's call, 12 November 2026): each label
+  at the column's left, then as many spaces as it needs, then its marks, `◆ ▲` as one where it
+  carries both, ending where the column's gap starts, so the marks stand in one column down the
+  list whatever the labels' lengths, as `personal   ◆` over `side       ▲`. The column is no wider
+  for it, and a label cut short keeps its marks there. The Overview's USAGE and ROUTING, Detail's
+  list, History's Weeks and Days, Sessions' Switchboard, a session's stays, Runway's label column
+  and Graphs' GLANCE draw their names so (`accountName`'s `line`). A name said alone, in a heading,
+  a sentence or on a line of its own, as a card's head, Compare's columns, Detail's heading, a
+  session's header, `usage --by account`'s name above its windows and its token lines, keeps its
+  marks right after its label: there's no column to align to.
 - **A figure has a stated bound and is never cut:** it's given its bound's cells, and past the
   bound it says so, as `999+` and `$9999.99+`.
 - **A live view's form never hangs on its data.** Its naturals come from what's configured, the
@@ -2694,7 +2704,8 @@ last token's line where it has any, with no blank line after it, as a shell's pr
 **A row:**
 
 - **The name:** its label, in bold `text.primary`, with no number before it; then its
-  marks, each after a space: `◆` in `text.tertiary` on the primary, and `▲` in `accent.mode` on the
+  marks, each after a space, right-aligned at the name column's end, as a column of names has them
+  (see The page): `◆` in `text.tertiary` on the primary, and `▲` in `accent.mode` on the
   account new sessions go to. With one account, that account carries `▲`, and the header names it.
 - **The bar:**
   - **Its track:** spaces on `viz.track`, a cell's background, `bg.subtle` unless the theme sets it:
@@ -4851,12 +4862,12 @@ kept for good (settled in the plan; see The request ledger).
   which take the rest to the edge, at every width, a phone's too.
 - **The label column** takes its natural width at every width a frame has (the owner's call, 21
   October 2026), as The page has a column of names: the widest name whole, its label up to 24 cells,
-  and the two cells after it, its marks beside the label, `▲`'s cells kept on every
-  account, as `usage` keeps them, so the lanes hold still as `▲` moves; or the widest use under a
-  name in either window, `5-hour 100%` from column 2 and a cell, 14, so they hold still as `<` and
-  `>` step, as the figures change and as an account goes stale. Only on a frame narrower than its
-  natural does it narrow, to a label's 8 at the least. Of the frames' accounts it's 14 at every
-  width, the lanes 146 at 160 and 38 at 52.
+  and the two cells after it, its marks at the column's end, as a column of names has them, `▲`'s
+  cells kept on every account, as `usage` keeps them, so the lanes hold still as `▲` moves; or the
+  widest use under a name in either window, `5-hour 100%` from column 2 and a cell, 14, so they
+  hold still as `<` and `>` step, as the figures change and as an account goes stale. Only on a
+  frame narrower than its natural does it narrow, to a label's 8 at the least. Of the frames'
+  accounts it's 14 at every width, the lanes 146 at 160 and 38 at 52.
 - **The labels:** on a lane's row, the account's name and marks, cut with `…` only where the
   column is at its most, the marks kept (see `usage`, the printout); on the row under
   it, from column 2, `5-hour ` or `week ` in `text.subtle`, and the account's use of that window,
@@ -6195,7 +6206,7 @@ name carries.
 first ran on them. A row's parts, two cells apart, as flex lays them at every width:
 
 - **its name:** bold `text.primary`, cut at a label's most as every row of the page cuts it, and
-  its marks. It's a label's column: its least the marks, `▲`'s cells kept on every account so the
+  its marks, right-aligned at the column's end, as a column of names has them. It's a label's column: its least the marks, `▲`'s cells kept on every account so the
   row holds still as `▲` moves, and 8 cells of the label, or its own where that's fewer; its
   natural the same with the widest label configured, at most 24, never the accounts the session
   ran on;

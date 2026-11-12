@@ -592,7 +592,7 @@ func TestWeeksInItsNarrowFormIsTheVerdictAndTheTablesWeeksThatFit(t *testing.T) 
 		"all accounts    74%     73%     82%    59%…",
 		"",
 		"work           100%     81%    100%    34%…",
-		"personal ◆      69%     90%     85%    66%…",
+		"personal   ◆    69%     90%     85%    66%…",
 		"side            52%     47%     60%    78%…",
 	}
 	rows := weeksText(f)
@@ -771,7 +771,7 @@ func TestWeeksVerdictsReadWholeWhereAWeekCanGiveWay(t *testing.T) {
 					if w.columns {
 						said = w.accountAside(row)
 					}
-					plains := []string{historyAccount(w.named(row.Account), row.Primary, math.MaxInt).plain()}
+					plains := []string{w.named(row.Account)}
 					for _, l := range said {
 						plains = append(plains, fitParts(math.MaxInt, l...).plain())
 					}

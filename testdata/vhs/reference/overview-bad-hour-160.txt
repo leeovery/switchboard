@@ -8,9 +8,9 @@ USAGE  ────────────────────────�
 
 work                        ▎       ┃                 ╎   34%  not read since 14:20                          ┃                 ▉╎   95%  not read since 14:20
 
-personal ◆                               ┃                66%  out ~Fri                                                 ┃          100%  limit · back 15:54
+personal   ◆                             ┃                66%  out ~Fri                                                 ┃          100%  limit · back 15:54
 
-side ▲                           ┃            ▊           78%  out ~Fri 08:49                ▌ ┃                                    13%  21%/h till 18:50
+side       ▲                     ┃            ▊           78%  out ~Fri 08:49                ▌ ┃                                    13%  21%/h till 18:50
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Σ pool                               ┃      ▎             72%  0.6 of 2 left · pinned                       ┃  ▊                    56%  0.9 of 2 left
 
@@ -21,10 +21,10 @@ ROUTING   pinned to personal and side since 13:40   p back to auto ────�
 work          ■ refused (401) · its token needs renewing                     0 sessions
                                                                                                        ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁   0/min
 
-personal ◆    ■ limit reached · back 15:54                        ● pinned   0 sessions
+personal   ◆  ■ limit reached · back 15:54                        ● pinned   0 sessions
                                                                                                        ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁   0/min
 
-side ▲        ● open · new sessions come here                     ● pinned   6 sessions
+side       ▲  ● open · new sessions come here                     ● pinned   6 sessions
                                                                                                        ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁   0/min
                                                                                           requests a minute, last 30 minutes
 

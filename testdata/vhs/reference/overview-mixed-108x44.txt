@@ -8,9 +8,9 @@ USAGE  ────────────────────────�
 
 work               ▌   ┃     ╎  34%  out ~Sun                 no 5-hour limit
 
-personal ◆              ┃       66%  out ~Sat                 no 5-hour limit
+personal   ◆            ┃       66%  out ~Sat                 no 5-hour limit
 
-side ▲               ┃    ▌     78%  out ~Fri                   ▏┃              13%  21%/h till 18:50
+side       ▲         ┃    ▌     78%  out ~Fri                   ▏┃              13%  21%/h till 18:50
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Σ pool                 ┃        59%  1.2 of 3 left
 
@@ -20,17 +20,17 @@ side ▲               ┃    ▌     78%  out ~Fri                   ▏┃    
 ROUTING   auto ─────────────────────────────────────────────────────────────────────────────────────────── r
 
 work          ● open                               0 sessions               ▃▅▂▂▂▃▆▄▃▂▂▂▂▁▂▁▁▁▁▁▁▁▁▁   0/min
-personal ◆    ● open                               2 sessions               ▂▂▂▁▁▁▁▂▁▁▁▁▁▁▄▅▂▁▁▁▁▁▁▁   3/min
-side ▲        ● open · new sessions come here      4 sessions               ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▃▇  ▇▆▄▄▆  11/min
+personal   ◆  ● open                               2 sessions               ▂▂▂▁▁▁▁▂▁▁▁▁▁▁▄▅▂▁▁▁▁▁▁▁   3/min
+side       ▲  ● open · new sessions come here      4 sessions               ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▃▇  ▇▆▄▄▆  11/min
                                                                 requests a minute, last 30 minutes
 
 SESSIONS  ──────────────────────────────────────────────────────────────────────────────────────────────── s
 
-side ▲        c61b mobile        opus    now   ↓ ~1.2k  started here 14:4…  ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▂   5/min
+side       ▲  c61b mobile        opus    now   ↓ ~1.2k  started here 14:4…  ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▂   5/min
               d28c switchboard   opus    now   ↑ ask    moved from work 1…  ▁▁▁▁▂▂▂▃▃▂▂▂▂▁▁▁▃▃▃▂▁▁▁▂   4/min
               7f3a api           sonnet   1m   idle     moved from work 1…  ▂▂▁▁▁▁▄▂▁▁▁▁▁▁▁▁▂▃▃▃▂▂▂▁   2/min
               db8a infra         opus     4m   idle     moved from work 1…  ▁▂▁▁▁▁▁▁▁▁▁▁▁▁▁▁▂▂▂▂▃▂▂▁   0/min
-personal ◆    41e0 docs          sonnet  now   ↓ ~860   started here 12:47  ▂▂▂▁▁▁▁▁▁▁▁▁▁▁▂▂▁▁▁▁▁▁▁▁   3/min
+personal   ◆  41e0 docs          sonnet  now   ↓ ~860   started here 12:47  ▂▂▂▁▁▁▁▁▁▁▁▁▁▁▂▂▁▁▁▁▁▁▁▁   3/min
               9c2e website       opus     9m   idle     started here 11:55  ▁▁▁▁▁▁▁▂▁▁▁▁▁▁▂▂▁▁▁▁▁▁▁▁   0/min
 
 COMING UP  ──────────────────────────────────── c       LATELY  ────────────────────────────────────────── l

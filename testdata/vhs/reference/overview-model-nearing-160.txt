@@ -8,9 +8,9 @@ USAGE  ────────────────────────�
 
 work               ▊   ┃      ╎  34%  out ~Sat                          ┃      ╎  95%  at cap · back 17:10               ┃      ╎  12%  25%/day till Sun 21:00
 
-personal ◆               ┃       66%  out ~Sat                       ▋    ┃       39%  34%/h till 16:30                    ┃        0%  40%/day till Sun 02:00
+personal   ◆             ┃       66%  out ~Sat                       ▋    ┃       39%  34%/h till 16:30                    ┃        0%  40%/day till Sun 02:00
 
-side ▲                ┃    ▎     78%  out ~Fri                   ▎┃               13%  21%/h till 18:50                 ┃          88%  out ~Fri 01:09
+side       ▲          ┃    ▎     78%  out ~Fri                   ▎┃               13%  21%/h till 18:50                 ┃          88%  out ~Fri 01:09
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Σ pool                 ┃▏        59%  1.2 of 3 left                   ┃▍          49%  1.5 of 3 left                 ▋   ┃         33%  2.0 of 3 left
 
@@ -21,10 +21,10 @@ ROUTING   auto ─────────────────────�
 work          ● at its cap · back 17:10 · new sessions go elsewhere          0 sessions                  ▁▂        ▁▄▄▂
                                                                                                        ▃▆  ▇▃▅▄▅▆▅▅     ▆▆▅▅▅▅▄▄▄▃▃▃▂▄▃▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁   0/min
 
-personal ◆    ● open                                                         2 sessions                                              ▂▃▁
+personal   ◆  ● open                                                         2 sessions                                              ▂▃▁
                                                                                                        ▂▃▃▄▄▄▂▁▂▁▁▁▁▂▃▄▄▂▁▁▁▁▁▁▁▁▁▁▂▆   ▅▂▁▁▁▁▁▁▁▁▁▁▁▃▃▃   3/min
 
-side ▲        ● open · new sessions come here                                4 sessions                                                 ▄ ▇   ▇▆▇▅▂▁ ▂▂▃
+side       ▲  ● open · new sessions come here                                4 sessions                                                 ▄ ▇   ▇▆▇▅▂▁ ▂▂▃
                                                                                                        ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▃                   11/min
                                                                                           requests a minute, last 30 minutes
 

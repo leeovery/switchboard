@@ -8,7 +8,7 @@ import (
 
 // Days' accounts read whole beside their strips at every one of the owner's
 // sizes, as the sweep can't see a cut beside strips that fill the row: the
-// label column as wide as the widest, ◆ with it, up to its most; or on a
+// label column as wide as the widest, ◆ at its end, up to its most; or on a
 // phone, each over its strip, beside its count. Every row an account's name
 // starts is that name whole, then two blank cells or nothing; and where the
 // frame is tall enough to show them all, each heads one.
@@ -33,7 +33,7 @@ func TestDaysLabelsReadWholeAtTheOwnersSizes(t *testing.T) {
 						continue
 					}
 					head := tt.heads[i]
-					if rest, whole := strings.CutPrefix(row, head); !whole || rest != "" && !strings.HasPrefix(rest, "  ") {
+					if rest, whole := cutHead(row, head); !whole || rest != "" && !strings.HasPrefix(rest, "  ") {
 						t.Errorf("at %s, a row reads %q, want it to start %q whole, then two blank cells or nothing", sizeName(size), row, head)
 					}
 					heads = append(heads, head)
@@ -44,6 +44,18 @@ func TestDaysLabelsReadWholeAtTheOwnersSizes(t *testing.T) {
 			}
 		})
 	}
+}
+
+// cutHead is the row after the head given: its label, then its ◆, where it
+// has one, after as many spaces as the column puts before it; reporting
+// false where the row doesn't start so.
+func cutHead(row, head string) (string, bool) {
+	label, marked := strings.CutSuffix(head, " ◆")
+	rest, whole := strings.CutPrefix(row, label)
+	if !whole || !marked {
+		return rest, whole
+	}
+	return strings.CutPrefix(strings.TrimLeft(rest, " "), "◆")
 }
 
 // daysWholeHeight is the least of the owner's heights at which Days shows

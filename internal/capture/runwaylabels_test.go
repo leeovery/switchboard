@@ -3,19 +3,20 @@ package capture
 import (
 	"regexp"
 	"slices"
+	"strings"
 	"testing"
 )
 
-// laneHead is the label heading a row of Runway's lanes: its number, then
-// its name and marks, a space apart, up to the lane's first glyph.
-var laneHead = regexp.MustCompile(`^[^ █▒─│]+( [^ █▒─│]+)*`)
+// laneHead is the label heading a row of Runway's lanes: its name, then its
+// marks at the label column's end, up to the lane's first glyph.
+var laneHead = regexp.MustCompile(`^[^ █▒─│]+( [^ █▒─│]+)*( +[◆▲])*`)
 
 // Runway's labels read whole beside its lanes at every one of the owner's
 // sizes, as the sweep can't see a cut beside lanes that fill the row: the
 // label column as wide as the widest, ▲'s cells kept, each label whole up to
-// 24 cells, its marks beside it, no number before it, so the long names' 17
-// and 22 read whole; and collapsed, nothing: each lane starts the row, with
-// no name or marks. Every lane row drawn is headed by one of the labels, and
+// 24 cells, its marks at the column's end, no number before it, so the long
+// names' 17 and 22 read whole; and collapsed, nothing: each lane starts the
+// row, with no name or marks. Every lane row drawn is headed by one of the labels, and
 // each label heads one.
 func TestRunwaysLabelsReadWholeAtTheOwnersSizes(t *testing.T) {
 	frames := []string{"work", "personal ◆", "side ▲"}
@@ -56,12 +57,12 @@ func TestRunwaysLabelsReadWholeAtTheOwnersSizes(t *testing.T) {
 }
 
 // lanesHeads are the labels heading the rows of Runway's lanes among the
-// rows given, as laneHead reads them.
+// rows given, as laneHead reads them, a space between the name and its marks.
 func lanesHeads(rows []string) []string {
 	var heads []string
 	for _, row := range rows {
 		if laneShown.MatchString(row) {
-			heads = append(heads, laneHead.FindString(row))
+			heads = append(heads, strings.Join(strings.Fields(laneHead.FindString(row)), " "))
 		}
 	}
 	return heads

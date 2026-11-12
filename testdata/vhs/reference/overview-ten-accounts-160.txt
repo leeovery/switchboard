@@ -8,9 +8,9 @@ USAGE  ────────────────────────�
 
 work                        ▎       ┃                 ╎   34%  out ~Sun                                      ┃                 ▉╎   95%  at cap · back 17:10
 
-personal ◆                               ┃                66%  out ~Sat                                 ▍          ┃                39%  34%/h till 16:30
+personal   ◆                             ┃                66%  out ~Sat                                 ▍          ┃                39%  34%/h till 16:30
 
-side ▲                           ┃            ▊           78%  out ~Fri                      ▌ ┃                                    13%  21%/h till 18:50
+side       ▲                     ┃            ▊           78%  out ~Fri                      ▌ ┃                                    13%  21%/h till 18:50
 
 client                           ▊  ┃                     47%  out ~Sun                                  ┃   ▉                      52%  16%/h till 17:40
 
@@ -33,8 +33,8 @@ studio                         ▎        ┃                 41%  22%/day till 
 ROUTING   auto ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── r
 
 work          ● at its cap · back 17:10 · new sessions go elsewhere          0 sessions                ▂▃▄▅▄▂▂▂▂▃▂▃▅▆▆▅▄▃▃▃▂▂▂▂▂▂▁▁▁▁▂▂▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁   0/min
-personal ◆    ● open                                                         2 sessions                ▁▁▂▂▂▂▁▁▁▁▁▁▁▁▁▂▂▁▁▁▁▁▁▁▁▁▁▁▁▃▅▅▄▃▁▁▁▁▁▁▁▁▁▁▁▁▂▂▁   2/min
-side ▲        ● open · new sessions come here                                4 sessions                ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▄▆      ▇▇▆▅▅▄▅▅▅   9/min
+personal   ◆  ● open                                                         2 sessions                ▁▁▂▂▂▂▁▁▁▁▁▁▁▁▁▂▂▁▁▁▁▁▁▁▁▁▁▁▁▃▅▅▄▃▁▁▁▁▁▁▁▁▁▁▁▁▂▂▁   2/min
+side       ▲  ● open · new sessions come here                                4 sessions                ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▄▆      ▇▇▆▅▅▄▅▅▅   9/min
 client        ● open                                                         3 sessions                ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁   0/min
 spare         ● open                                                         0 sessions                ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁   0/min
 lab           ● under pressure · out ~16:05                                  2 sessions                ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁   0/min

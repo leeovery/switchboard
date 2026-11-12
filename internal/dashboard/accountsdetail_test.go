@@ -1079,7 +1079,7 @@ func TestDetailsListFitsItsNameColumnToTheNames(t *testing.T) {
 		names        int
 		listed, head string
 	}{
-		{name: "the frames' names", width: 160, names: 14, listed: "personal ◆", head: "personal ◆"},
+		{name: "the frames' names", width: 160, names: 14, listed: "personal   ◆", head: "personal ◆"},
 		{name: "a long name, room to spare", width: 200, label: long, names: 20, listed: "personal-account ◆", head: "personal-account ◆"},
 		{name: "a long name, 4 cells past the panel's natural", width: 145, label: long, names: 18, listed: "personal-acco… ◆", head: "personal-account ◆"},
 		{name: "a long name, the panel at its natural", width: 141, label: long, names: 14, listed: "personal-… ◆", head: "personal-account ◆"},

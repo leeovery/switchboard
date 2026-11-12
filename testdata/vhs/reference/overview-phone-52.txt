@@ -10,9 +10,9 @@ WEEK
 
  work             ▏ ┃    ╎  34%  out ~Sat
 
- personal ◆          ▉┃     66%  out ~Sat
+ personal   ◆        ▉┃     66%  out ~Sat
 
- side ▲            ┃   ▍    78%  out ~Fri
+ side       ▲      ┃   ▍    78%  out ~Fri
 ────────────────────────────────────────────────────
  Σ pool              ┃      59%  1.2 of 3 left
 
@@ -20,9 +20,9 @@ WEEK
 
  work               ┃    ╎  95%  back 17:10
 
- personal ◆       ▋   ┃     39%  34%/h till 16:30
+ personal   ◆     ▋   ┃     39%  34%/h till 16:30
 
- side ▲        ▌┃           13%  21%/h till 18:50
+ side       ▲  ▌┃           13%  21%/h till 18:50
 ────────────────────────────────────────────────────
  Σ pool            ┃        49%  1.5 of 3 left
 
@@ -34,10 +34,10 @@ ROUTING   auto ─────────────────────�
  work         ● at its cap · 17:10
               ▅▂▂▃▆▄▃▂▂▂▂▁▁▁▁▁▁▁   0 sessions  0/min
 
- personal ◆   ● open
+ personal   ◆ ● open
               ▂▂▁▁▁▂▁▁▁▁▅▃▁▁▁▁▂▂   2 sessions  3/min
 
- side ▲       ● open · next
+ side       ▲ ● open · next
               ▁▁▁▁▁▁▁▁▁▁▁▆  ▇▅▅▅  4 sessions  11/min
 
 COMING UP  ─────────────────────────────────────── c

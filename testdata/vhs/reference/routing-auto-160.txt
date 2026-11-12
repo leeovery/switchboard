@@ -8,9 +8,9 @@ USAGE  ────────────────────────�
 
 work                        ▎       ┃                 ╎   34%  out ~Sat                                      ┃                 ▉╎   95%  at cap · back 17:10
                                         ╭─ ROUTING · NEW SESSIONS ────────────────────────────────────────────────────╮
-personal ◆                              │                                                                             │             39%  34%/h till 16:30
+personal   ◆                            │                                                                             │             39%  34%/h till 16:30
                                         │  Pick the accounts new sessions go to.                                      │
-side ▲                           ┃      │                                                                             │             13%  21%/h till 18:50
+side       ▲                     ┃      │                                                                             │             13%  21%/h till 18:50
 ────────────────────────────────────────│  ■ auto      the router chooses                                             │─────────────────────────────────────────
 Σ pool                               ┃▉ │  □ work      closed    week 34%   5-hour 95%         at its cap till 17:10  │             49%  1.5 of 3 left
                                         │  □ personal  open      week 66%   5-hour 39%                     2 running  │
@@ -21,10 +21,10 @@ ROUTING   auto ─────────────────────�
 work          ● at its cap · back 17:10 │  The router chooses an account for each new session.                        │
                                         │                                                                             │ ▆▆▅▅▅▅▄▄▄▃▃▃▂▄▃▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁   0/min
                                         │                                                                             │
-personal ◆    ● open                    │                                                                             │              ▂▃▁
+personal   ◆  ● open                    │                                                                             │              ▂▃▁
                                         │                                                                             │▄▂▁▁▁▁▁▁▁▁▁▁▂▆   ▅▂▁▁▁▁▁▁▁▁▁▁▁▃▃▃   3/min
                                         │           ↑↓ move   space tick   m move running   enter apply   esc cancel  │
-side ▲        ● open · new sessions come╰─────────────────────────────────────────────────────────────────────────────╯                 ▄ ▇   ▇▆▇▅▂▁ ▂▂▃
+side       ▲  ● open · new sessions come╰─────────────────────────────────────────────────────────────────────────────╯                 ▄ ▇   ▇▆▇▅▂▁ ▂▂▃
                                                                                                        ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▃                   11/min
                                                                                           requests a minute, last 30 minutes
 
