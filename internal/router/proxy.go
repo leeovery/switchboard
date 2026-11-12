@@ -50,7 +50,7 @@ const (
 	// refusing a request the log shows, and the client, when no account is
 	// left to try.
 	refusalShown = 200
-	// toldAtMost bounds what ignoredPins holds: the sessions of an account,
+	// toldAtMost bounds what warned holds: the sessions of an account,
 	// and the accounts.
 	toldAtMost = 1000
 )
@@ -97,8 +97,10 @@ type proxy struct {
 	// outside of those it ignores as they name an account outside the
 	// request's pool, kept apart, as a pin honoured in the account's own pool
 	// says nothing of them: a session's is warned of once for each spell the
-	// account spends outside its pool, as honouredFor says.
-	ignored, outside ignoredPins
+	// account spends outside its pool, as honouredFor says. left is what it
+	// has said of the sessions refused as their token's account isn't in
+	// their pool, by that account: each is warned of once.
+	ignored, outside, left warned
 }
 
 // exchange is one request on its way through the proxy, and what's known of
@@ -190,6 +192,9 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		p.route(w, r, client)
 		return
 	}
+	if p.strayedThrough(w, r) {
+		return
+	}
 	p.passThrough(w, r)
 }
 
@@ -206,12 +211,13 @@ func (p *proxy) routable(r *http.Request) (account, bool) {
 }
 
 // route sends a request on the account the chooser picks for it, and on
-// others while that one can't serve it. When the chooser picks none, as only
-// accounts held back by their reserves are left, or none in the request's
-// pool will take it, the router answers as the upstream would at a limit,
-// and as unchosen says where no account it can send on will take the
-// request. The request counts as routing until its line is noted, but for
-// one that upgrades its connection.
+// others while that one can't serve it. One from a session whose token has
+// left its pool switchboard refuses, as strayed says, choosing nothing. When
+// the chooser picks none, as only accounts held back by their reserves are
+// left, or none in the request's pool will take it, the router answers as the
+// upstream would at a limit, and as unchosen says where no account it can
+// send on will take the request. The request counts as routing until its line
+// is noted, but for one that upgrades its connection.
 func (p *proxy) route(w http.ResponseWriter, r *http.Request, client account) {
 	if !upgrades(r) {
 		p.routing.begin()
@@ -224,9 +230,12 @@ func (p *proxy) route(w http.ResponseWriter, r *http.Request, client account) {
 		return
 	}
 	ex.req, ex.shape = p.request(r, body, ex, client)
+	defer p.done(r, ex)
+	if p.strayed(w, ex, client.ID) {
+		return
+	}
 	choice := p.rechosen(r.Context(), ex.req, p.chooser.Choose(r.Context(), ex.req))
 	ex.newSession, ex.pool = choice.New, choice.Pool
-	defer p.done(r, ex)
 	switch {
 	case choice.Reserved:
 		p.reserved(w, ex, choice)
@@ -293,7 +302,7 @@ func (p *proxy) passThrough(w http.ResponseWriter, r *http.Request) {
 // the pools stand now: by its id, or, from a session started before
 // switchboard made ids, the id it had before, as accounts' idNow gives it. It
 // warns of a pin it ignores, once for each session and account, as
-// ignoredPins says, and notes it at debug after.
+// warned says, and notes it at debug after.
 func (p *proxy) pin(r *http.Request, ex *exchange, session, pool string) string {
 	id := p.accounts.idNow(p.formerly, r.Header.Get(PinHeader))
 	if id == "" {
@@ -321,21 +330,21 @@ func (p *proxy) pin(r *http.Request, ex *exchange, session, pool string) string 
 	return ""
 }
 
-// ignoredPins holds, by account, the sessions whose pins to it the log has
-// warned are ignored, so it warns once for each, not at every request, until
-// the account can be sent on again. Sessions come and go, and an account
-// that isn't configured is never sent on, so it forgets an account's sessions
-// once it holds toldAtMost of them, and every account's once it holds that
-// many accounts, the log warning of each pin once more. It's safe for
-// concurrent use.
-type ignoredPins struct {
+// warned holds, by account, the sessions the log has warned of something to
+// do with the account, as a pin to it ignored, so it warns once for each, not
+// at every request, until a pin to the account is honoured, where that's what
+// it warned of. Sessions come and go, and an account that isn't configured is
+// never sent on, so it forgets an account's sessions once it holds toldAtMost
+// of them, and every account's once it holds that many accounts, the log
+// warning of each once more. It's safe for concurrent use.
+type warned struct {
 	mu   sync.Mutex
 	told map[string]map[string]bool
 }
 
-// first reports whether a pin to account, of a request of session, is the
-// first ignored since the account was last sent on.
-func (p *ignoredPins) first(account, session string) bool {
+// first reports whether what's warned of, to do with account, of a request of
+// session, is the first since a pin to the account was last honoured.
+func (p *warned) first(account, session string) bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if p.told[account][session] {
@@ -353,7 +362,7 @@ func (p *ignoredPins) first(account, session string) bool {
 
 // honoured notes that a pin to account is honoured, as it can be sent on: a
 // pin to it ignored after is warned of afresh.
-func (p *ignoredPins) honoured(account string) {
+func (p *warned) honoured(account string) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	delete(p.told, account)
@@ -363,7 +372,7 @@ func (p *ignoredPins) honoured(account string) {
 // honoured: that session's pin to it ignored after is warned of afresh, and
 // another's isn't, as the pin of a session in another pool says nothing of
 // it.
-func (p *ignoredPins) honouredFor(account, session string) {
+func (p *warned) honouredFor(account, session string) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	delete(p.told[account], session)

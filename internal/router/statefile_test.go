@@ -1054,7 +1054,7 @@ func TestTheTokensOfAnAccountThatLeftTheConfigOutlastARestartAsThePrimarysAlone(
 	running := testAccounts()
 	f := newTestFile(at(start), running)
 	f.load(path)
-	if !running.retire(withoutWork, start) {
+	if !running.retire(heirs{accounts: withoutWork}, start) {
 		t.Fatal("retire() = false, want work's tokens left to side")
 	}
 	f.changes.note()

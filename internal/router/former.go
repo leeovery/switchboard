@@ -186,6 +186,14 @@ func (s *secret) unretire() bool {
 	return was
 }
 
+// left reports whether the account is retired: the config no longer
+// configures it, and another account has taken its tokens up.
+func (s *secret) left() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.retired
+}
+
 // was reports whether the token whose hash is sum is one the account had
 // before, which still counts as the account's at now. Each comparison takes as
 // long however much of the hash matches.
@@ -271,10 +279,10 @@ func (as accounts) holding(saved map[string]savedTokens) func(id string) bool {
 // recall takes in what the state file kept of the accounts' tokens, as the
 // router starts at now, noting in the log each account whose token was
 // replaced while the router was away. Each configured account takes back the
-// tokens the primary took up from it as it left the config, and the primary
-// adopts those of accounts no longer configured, as adopt says. It reports
-// whether what's to be kept now differs from what was.
-func (as accounts) recall(saved map[string]savedTokens, now time.Time) bool {
+// tokens a primary took up from it as it left the config, and the primary h
+// gives each account no longer configured adopts its tokens, as adopt says.
+// It reports whether what's to be kept now differs from what was.
+func (as accounts) recall(saved map[string]savedTokens, h heirs, now time.Time) bool {
 	for _, a := range as {
 		if a.secret.recall(saved[a.ID], now) {
 			logger.Info("token replaced while the router was away; the one before still counts as the account's", "account", a.ID)
@@ -285,53 +293,57 @@ func (as accounts) recall(saved map[string]savedTokens, now time.Time) bool {
 			logger.Info("account configured again; its tokens are its own again", "account", a.ID)
 		}
 	}
-	if primary, ok := as.primary(as.configured()); ok {
-		for _, id := range slices.Sorted(maps.Keys(saved)) {
-			if !as.includes(id) {
-				adopt(primary, id, saved[id], now)
-			}
+	for _, id := range slices.Sorted(maps.Keys(saved)) {
+		if as.includes(id) {
+			continue
+		}
+		if heir, ok := as.heir(h, id); ok {
+			adopt(heir, id, saved[id], now)
 		}
 	}
 	return !maps.EqualFunc(as.kept(), saved, savedTokens.equal)
 }
 
 // retire keeps the accounts' tokens in step with the accounts configured, as
-// the config file now makes them, and reports whether that changed what's
-// kept of them. The router takes a config up only as it restarts, which can
-// be hours coming, so the tokens of an account the config no longer
-// configures count as the primary's it makes at once, as leave says, and a
-// session started with one stays routed; one the config configures again is
-// an account like any other again. With none configured, as before the
-// config file has changed, nothing changes.
-func (as accounts) retire(configured config.Accounts, now time.Time) bool {
-	if len(configured) == 0 {
+// the config file now makes them, with its pools, as h has them, and reports
+// whether that changed what's kept of them. The router takes a config up only
+// as it restarts, which can be hours coming, so the tokens of an account the
+// config no longer configures count as the primary's h gives it at once, as
+// leave says, and a session started with one stays routed; one the config
+// configures again is an account like any other again. With none configured,
+// as before the config file has changed, nothing changes.
+func (as accounts) retire(h heirs, now time.Time) bool {
+	if len(h.accounts) == 0 {
 		return false
 	}
-	ids := configured.IDs()
+	ids := h.accounts.IDs()
 	changed := false
 	for _, a := range as {
 		if slices.Contains(ids, a.ID) {
 			changed = as.restore(a, now) || changed
 		} else {
-			changed = as.leave(configured, a, now) || changed
+			changed = as.leave(h, a, now) || changed
 		}
 	}
 	return changed
 }
 
-// leave has the primary the accounts configured make adopt the tokens of a,
-// which they're without, as they stand now, as adopt says: once, as a leaves
-// the config, as a token a comes to have after isn't the primary's. It
-// reports whether a left, which it doesn't while the primary isn't among the
-// accounts, to leave its tokens to the primary as the router next starts.
-func (as accounts) leave(configured config.Accounts, a account, now time.Time) bool {
-	primary, ok := as.primary(configured)
+// leave has the primary h gives a adopt the tokens of a, which the config is
+// without, as they stand now, as adopt says: once, as a leaves the config, as
+// a token a comes to have after isn't the primary's. It reports whether a
+// left, which it doesn't while that primary isn't among the accounts, to
+// leave its tokens to the primary as the router next starts.
+func (as accounts) leave(h heirs, a account, now time.Time) bool {
+	if a.secret.left() {
+		return false
+	}
+	heir, ok := as.heir(h, a.ID)
 	if !ok {
 		return false
 	}
 	tokens, left := a.secret.retire()
 	if left {
-		adopt(primary, a.ID, tokens, now)
+		adopt(heir, a.ID, tokens, now)
 	}
 	return left
 }
@@ -371,13 +383,48 @@ func adopt(primary account, id string, tokens savedTokens, now time.Time) {
 	}
 }
 
-// primary returns the account the accounts configured make the primary, when
-// it's among these.
-func (as accounts) primary(configured config.Accounts) (account, bool) {
-	if len(configured) == 0 {
+// heir returns the account the tokens of the account with the given id count
+// as once it has left the config, as h gives it, when it's among these.
+func (as accounts) heir(h heirs, id string) (account, bool) {
+	c, ok := h.of(id)
+	if !ok {
 		return account{}, false
 	}
-	return as.byID(configured.Primary().ID)
+	return as.byID(c.ID)
+}
+
+// heirs says, of each account that leaves the config, which account its
+// tokens count as, as a config makes its accounts and pools: the primary of
+// the pool the account was in, as poolWas has it, so a session started on one
+// stays routed inside its pool; else, where that isn't known, the pool is
+// gone or it has no accounts, the first pool's; else, in a config from before
+// pools, or where the first pool has no accounts either, the primary.
+type heirs struct {
+	accounts config.Accounts
+	pools    config.Pools
+	// first reads the id of the first pool, as the accounts record notes it,
+	// "" where it notes none, the config's first standing in; and poolWas
+	// gives the id of the pool the account with the id given was in, "" where
+	// that isn't known. Each is read only where there are pools.
+	first   func() string
+	poolWas func(id string) string
+}
+
+// of returns the account the tokens of the account with the given id count
+// as once it has left the config, as heirs says, reporting false where the
+// config configures none.
+func (h heirs) of(id string) (config.Account, bool) {
+	if len(h.accounts) == 0 {
+		return config.Account{}, false
+	}
+	if len(h.pools) > 0 {
+		for _, pool := range []string{h.poolWas(id), firstPool(h.pools, h.first())} {
+			if primary, ok := h.accounts.PrimaryOf(pool); ok {
+				return primary, true
+			}
+		}
+	}
+	return h.accounts.Primary(), true
 }
 
 // forget forgets the accounts' former tokens that no longer count at now, and

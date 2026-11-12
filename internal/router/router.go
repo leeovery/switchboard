@@ -378,7 +378,7 @@ func New(cfg Config) (*Router, error) {
 		recent:    recent,
 		emit:      emit,
 		stream:    stream,
-		file:      newStateFile(cfg.Now, changes, sessions, accounts, state, told),
+		file:      newStateFile(cfg.Now, changes, sessions, accounts, state, told, pools.heirs(cfg.Accounts, cfg.Pools)),
 		history:   history,
 		ledger:    requests,
 		imports:   newImports(),

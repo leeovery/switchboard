@@ -195,7 +195,7 @@ func newKeptNotifying(t *testing.T, path string, files tokenstest.Files, records
 	years := newYearsTold(changes.note)
 	as := resolve(numbered, files.Read, recordsOf(records))
 	h := newNotifyingIn(t, config.Notifications{}, as, yearZone, years)
-	f := newStateFile(h.n.now, changes, newSessions(h.n.now, changes.note, changes.routine), as, h.state, years)
+	f := newStateFile(h.n.now, changes, newSessions(h.n.now, changes.note, changes.routine), as, h.state, years, heirs{accounts: as.configured()})
 	f.load(path)
 	return h, f
 }

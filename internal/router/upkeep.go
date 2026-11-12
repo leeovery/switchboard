@@ -107,13 +107,16 @@ func (u *upkeep) run(ctx context.Context) {
 // often, taking up in place what the config file has come to make of the
 // accounts' tokens, the pools, the folder to export into and the accounts
 // record, where it has changed, and closing firstLook's channel the first
-// time.
+// time. The tokens of an account that has left the config are its pool's
+// primary's before the pools are taken up without it, so a session started
+// on one is never taken for outside its pool between the two.
 func (u *upkeep) look() {
 	u.wakes.look()
 	u.tokens.look()
 	u.restarts.look()
-	u.tokens.retire(u.restarts.configured())
-	if accounts, pools, changed := u.restarts.configuredPools(); changed {
+	accounts, pools, changed := u.restarts.configuredPools()
+	u.tokens.retire(u.pools.heirs(accounts, pools))
+	if changed {
 		u.pools.follow(accounts, pools)
 	}
 	if e, changed := u.restarts.configuredExport(); changed {

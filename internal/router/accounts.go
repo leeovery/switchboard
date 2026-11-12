@@ -300,20 +300,24 @@ func (as accounts) idNow(formerly func(id string) (string, bool), id string) str
 }
 
 // byToken returns the account a client sending token is: the first that
-// holds it, usable and its own, as sends says; else the first a probe found
-// holding it another subscription's, as disowns says, so its client's
-// requests are routed, never passed through on it; else the first that had
-// it until it was replaced, while the account has a usable token and the one
-// before still counts as the account's at now, as a client started before
-// carries on sending it. Each comparison takes as long however much of the
-// token matches, so response times can't give a token away a byte at a time.
+// holds it, usable and its own, as sends says, while the config configures
+// it; else the first a probe found holding it another subscription's, as
+// disowns says, so its client's requests are routed, never passed through on
+// it; else the first that had it until it was replaced, or took it up from an
+// account that left the config, while the account has a usable token and the
+// one before still counts as the account's at now, as a client started
+// before carries on sending it. So a client of an account that has left the
+// config is the account's that took its tokens up from the look that found
+// it gone, whether or not its file still holds its token. Each comparison
+// takes as long however much of the token matches, so response times can't
+// give a token away a byte at a time.
 func (as accounts) byToken(token string, now time.Time) (account, bool) {
 	if token == "" {
 		return account{}, false
 	}
 	sum := hash(token)
 	for _, match := range []func(account) bool{
-		func(a account) bool { return a.secret.sends(token) },
+		func(a account) bool { return !a.secret.left() && a.secret.sends(token) },
 		func(a account) bool { return a.secret.disowns(sum) },
 		func(a account) bool { return a.holdsToken() && a.secret.was(sum, now) },
 	} {

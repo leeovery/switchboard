@@ -38,13 +38,21 @@ func newPoolTable(accounts config.Accounts, pools config.Pools, first string) *p
 	for _, a := range accounts {
 		t.poolOf[a.ID] = a.Pool
 	}
+	t.first = firstPool(pools, first)
+	return t
+}
+
+// firstPool returns the id of the first of pools: the one with the id first,
+// as the accounts record notes it, where pools has it, else the first
+// configured, as the config spells its id; "" where there are none.
+func firstPool(pools config.Pools, first string) string {
 	switch p, ok := pools.ByID(first); {
 	case ok:
-		t.first = p.ID
+		return p.ID
 	case len(pools) > 0:
-		t.first = pools[0].ID
+		return pools[0].ID
 	}
-	return t
+	return ""
 }
 
 // of returns the id of the pool a request naming the pool given is in, as its
@@ -94,6 +102,18 @@ func (t *poolTable) members(pool string) []string {
 // out on the account with the given id, as holds says of the pool it's in.
 func (t *poolTable) serves(named, id string) bool {
 	return t.holds(t.of(named), id)
+}
+
+// pooled reports whether the table has pools, as one made from a config from
+// before pools hasn't.
+func (t *poolTable) pooled() bool {
+	return len(t.pools) > 0
+}
+
+// configured reports whether the table has the pool with the given id.
+func (t *poolTable) configured(pool string) bool {
+	_, ok := t.pools.ByID(pool)
+	return ok
 }
 
 // keeping returns the table with the accounts given in the pools they're in,
@@ -149,9 +169,12 @@ type membership struct {
 	table atomic.Pointer[poolTable]
 	// first reads the id of the first pool, as the accounts record notes it:
 	// "" where it notes none. idNow gives the id an account a config names
-	// has now, as accounts' idNow does.
-	first func() string
-	idNow func(id string) string
+	// has now, as accounts' idNow does. poolWas gives the id of the pool the
+	// account with the id given was in, once it has left the config: "" where
+	// that isn't known, as of every account by default.
+	first   func() string
+	idNow   func(id string) string
+	poolWas func(id string) string
 
 	// mu is held as the pools are followed, and guards what they were last
 	// followed from: accounts and pools, and followed, set once they have
@@ -171,9 +194,16 @@ type membership struct {
 // does, following no pools yet: every account in the one pool there is, as
 // in a config from before pools.
 func newMembership(first func() string, idNow func(id string) string) *membership {
-	m := &membership{first: first, idNow: idNow}
+	m := &membership{first: first, idNow: idNow, poolWas: noPoolKnown}
 	m.table.Store(newPoolTable(nil, nil, ""))
 	return m
+}
+
+// heirs returns what says which account the tokens of an account that leaves
+// a config of accounts and pools count as, the first pool read as the
+// membership reads it, and the pool the account was in as poolWas gives it.
+func (m *membership) heirs(accounts config.Accounts, pools config.Pools) heirs {
+	return heirs{accounts: accounts, pools: pools, first: m.first, poolWas: m.poolWas}
 }
 
 // unpooled returns the membership of a router that routes within no pools,
@@ -286,6 +316,11 @@ func firstIn(stateDir string) func() string {
 
 // noFirst knows of no first pool.
 func noFirst() string {
+	return ""
+}
+
+// noPoolKnown knows of no pool an account was in.
+func noPoolKnown(string) string {
 	return ""
 }
 
