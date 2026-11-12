@@ -229,17 +229,27 @@ func TestARequestNeverGoesOutOnAnotherPoolsAccount(t *testing.T) {
 			wantSent: []string{"work"}, wantCode: http.StatusOK,
 		},
 		{
-			name:     "the global pin naming another pool's account: no pin for it",
-			setUp:    func(r *Router) { r.pinTo(status.Pin{Accounts: []string{"personal"}, Since: start}, false) },
+			name: "another pool's pin: no pin for it",
+			setUp: func(r *Router) {
+				r.pinTo(r.readOf(acmePool), status.Pin{Accounts: []string{"personal"}, Since: start}, false)
+			},
 			wantSent: []string{"work"}, wantCode: http.StatusOK, wantReason: reasonNew,
 		},
 		{
-			name: "the global pin moving running sessions to another pool's account: the session stays",
+			name: "another pool's pin moving its running sessions: the session stays",
 			setUp: func(r *Router) {
 				assign(r.sessions, key{session: "one", model: opus}, "", decision{account: "work", reason: reasonNew}, start.Add(-5*time.Minute))
-				r.pinTo(status.Pin{Accounts: []string{"personal"}, Since: start, Move: true}, false)
+				r.pinTo(r.readOf(acmePool), status.Pin{Accounts: []string{"personal"}, Since: start, Move: true}, false)
 			},
 			wantSent: []string{"work"}, wantCode: http.StatusOK, wantReason: reasonSticky,
+		},
+		{
+			name: "its pool's pin naming an account since moved to another pool: no pin for it",
+			setUp: func(r *Router) {
+				r.pinTo(r.readOf(defaultPool), status.Pin{Accounts: []string{"side"}, Since: start}, false)
+				moveAccount(r, "side", acmePool)
+			},
+			wantSent: []string{"work"}, wantCode: http.StatusOK, wantReason: reasonNew,
 		},
 		{
 			name:     "the session launched pinned to another pool's account: no pin for it",

@@ -207,7 +207,7 @@ func writeRefusal(w http.ResponseWriter, err error) {
 // /sessions lists the sessions routed in the last hour, and GET
 // /sessions/{id} says where a session's requests go, which POST and DELETE
 // /sessions/{id}/pin change as they set and clear its own pin, answering with
-// the session as they leave it. POST and DELETE /pin set and clear the global
+// the session as they leave it. POST and DELETE /pin set and clear a pool's
 // pin, and POST /refresh probes the accounts whose usage is older than it
 // asks, and those that can take no request anyway, each of the three
 // answering with the status document as it leaves it. GET /history gives
@@ -288,7 +288,7 @@ func (r *Router) Control() http.Handler {
 		}
 		rd, err := r.pinRead(req, pin.ids())
 		if err == nil {
-			err = r.pin(pin)
+			err = r.pin(rd, pin)
 		}
 		if err != nil {
 			writeRefusal(w, err)
@@ -307,7 +307,7 @@ func (r *Router) Control() http.Handler {
 			writeProblem(w, http.StatusBadRequest, err.Error())
 			return
 		}
-		r.unpin(force, by)
+		r.unpin(rd, force, by)
 		writeJSON(w, r.statusOf(rd))
 	}))
 	mux.HandleFunc("POST /refresh", r.forPool(func(w http.ResponseWriter, req *http.Request, rd poolRead) {
@@ -584,12 +584,13 @@ func (g *glances) of(pool, model string) view {
 	return v
 }
 
-// pin sends every new session to the best of the accounts the request names,
-// with Move, every running session on another account too, and with Force,
-// clears every session's own pin, as pinTo has it, telling it as Pinned. It
-// fails, saying why, for anyone asking but ByCLI or ByDashboard, for no
-// account, or for one nothing can go out on, and then tells nothing.
-func (r *Router) pin(p PinRequest) error {
+// pin sends every new session in the pool rd reads to the best of the
+// accounts the request names, with Move, every running session of the pool
+// on another account too, and with Force, clears the own pin of every
+// session in the pool, as pinTo has it, telling it as Pinned. It fails,
+// saying why, for anyone asking but ByCLI or ByDashboard, for no account, or
+// for one nothing can go out on, and then tells nothing.
+func (r *Router) pin(rd poolRead, p PinRequest) error {
 	if err := p.By.check(); err != nil {
 		return err
 	}
@@ -597,62 +598,64 @@ func (r *Router) pin(p PinRequest) error {
 	if err != nil {
 		return err
 	}
-	cleared := r.pinTo(status.Pin{Accounts: ids, Since: r.cfg.Now().UTC(), Move: p.Move}, p.Force)
-	attrs := []any{"accounts", strings.Join(ids, ","), "move", p.Move}
+	cleared := r.pinTo(rd, status.Pin{Accounts: ids, Since: r.cfg.Now().UTC(), Move: p.Move}, p.Force)
+	attrs := append(poolSaid(rd.pool), "accounts", strings.Join(ids, ","), "move", p.Move)
 	if p.Force {
 		attrs = append(attrs, "force", true, "sessions_unpinned", cleared)
 	}
 	logger.Info("pinned", attrs...)
-	r.emit(Pinned{Accounts: ids, Account: ids[0], Move: p.Move, Force: p.Force, By: p.By})
+	r.emit(Pinned{Accounts: ids, Account: ids[0], Move: p.Move, Force: p.Force, By: p.By, Pool: rd.pool})
 	return nil
 }
 
-// unpin clears the global pin, so every session is routed on its merits but
-// for those with pins of their own, and with force, clears theirs too, as
-// clearPin has it, telling it as Unpinned unless it cleared nothing.
-func (r *Router) unpin(force bool, by By) {
-	was, cleared := r.clearPin(force)
-	accounts := strings.Join(was.Accounts, ",")
+// unpin clears the pin of the pool rd reads, so every session in it is
+// routed on its merits but for those with pins of their own, and with force,
+// clears theirs too, as clearPin has it, telling it as Unpinned unless it
+// cleared nothing.
+func (r *Router) unpin(rd poolRead, force bool, by By) {
+	was, cleared := r.clearPin(rd, force)
+	attrs := append(poolSaid(rd.pool), "accounts", strings.Join(was.Accounts, ","))
 	switch {
 	case force:
-		logger.Info("unpinned", "accounts", accounts, "force", true, "sessions_unpinned", cleared)
+		logger.Info("unpinned", append(attrs, "force", true, "sessions_unpinned", cleared)...)
 	case !was.IsZero():
-		logger.Info("unpinned", "accounts", accounts)
+		logger.Info("unpinned", attrs...)
 	}
 	if !was.IsZero() || cleared > 0 {
-		r.emit(Unpinned{Accounts: was.Accounts, Force: force, By: by})
+		r.emit(Unpinned{Accounts: was.Accounts, Force: force, By: by, Pool: rd.pool})
 	}
 }
 
-// pinTo sets the global pin, as the sessions' setPin does, and tells the
-// state, which judges the pool's room by it, as repin says: one step, under
-// pinning, so no other change of the pin comes between the two. It returns
-// how many sessions had a pin of their own, cleared with force.
-func (r *Router) pinTo(pin status.Pin, force bool) (cleared int) {
+// pinTo sets the pin of the pool rd reads, as the sessions' setPin does, and
+// tells the state, which judges the pool's room by it, as repin says: one
+// step, under pinning, so no other change of the pins comes between the two.
+// It returns how many sessions had a pin of their own, cleared with force.
+func (r *Router) pinTo(rd poolRead, pin status.Pin, force bool) (cleared int) {
 	r.pinning.Lock()
 	defer r.pinning.Unlock()
-	cleared = r.sessions.setPin(pin, force)
-	r.state.repin(pin)
+	cleared, now := r.sessions.setPin(rd, pin, force)
+	r.state.repin(now)
 	return cleared
 }
 
-// clearPin clears the global pin, as the sessions' unpin does, and tells the
-// state, as pinTo does. It returns the pin as it was, and how many sessions
-// had a pin of their own, cleared with force.
-func (r *Router) clearPin(force bool) (was status.Pin, cleared int) {
+// clearPin clears the pin of the pool rd reads, as the sessions' unpin does,
+// and tells the state, as pinTo does. It returns the pin as it was, and how
+// many sessions had a pin of their own, cleared with force.
+func (r *Router) clearPin(rd poolRead, force bool) (was status.Pin, cleared int) {
 	r.pinning.Lock()
 	defer r.pinning.Unlock()
-	was, cleared = r.sessions.unpin(force)
-	r.state.repin(status.Pin{})
+	was, cleared, now := r.sessions.unpin(rd, force)
+	r.state.repin(now)
 	return was, cleared
 }
 
 // pinSession sends the requests of the session with the given id to the
 // account with the given id from its next request on, passing over the pin it
 // was launched with, telling it as Pinned. It fails, saying why, for anyone
-// asking but ByCLI or ByDashboard, or for an account nothing can go out on,
-// and with ErrUnknownSession for a session the router hasn't seen, and then
-// tells nothing.
+// asking but ByCLI or ByDashboard, for an account nothing can go out on, or
+// one outside the session's pool, as sessionMay says, and with
+// ErrUnknownSession for a session the router hasn't seen, and then tells
+// nothing.
 func (r *Router) pinSession(id, account string, by By) error {
 	if err := by.check(); err != nil {
 		return err
@@ -660,11 +663,20 @@ func (r *Router) pinSession(id, account string, by By) error {
 	if err := r.pinnable(account); err != nil {
 		return err
 	}
+	t := r.state.pools.current()
+	in, seen := r.sessions.poolOf(id)
+	if !seen {
+		return unknownSession(id)
+	}
+	a, _ := r.accounts.byID(account)
+	if err := t.sessionMay(in, a); err != nil {
+		return err
+	}
 	if _, seen := r.sessions.pinSession(id, account); !seen {
 		return unknownSession(id)
 	}
-	logger.Info("pinned session", "session", status.ShortID(id), "account", account)
-	r.emit(Pinned{Account: account, Session: id, By: by})
+	logger.Info("pinned session", append(poolSaid(t.of(in)), "session", status.ShortID(id), "account", account)...)
+	r.emit(Pinned{Account: account, Session: id, By: by, Pool: t.of(in)})
 	return nil
 }
 
@@ -673,19 +685,21 @@ func (r *Router) pinSession(id, account string, by By) error {
 // request, telling it as Unpinned unless it had none. It fails with
 // ErrUnknownSession for a session the router hasn't seen.
 func (r *Router) unpinSession(id string, by By) error {
+	in, _ := r.sessions.poolOf(id)
 	was, seen := r.sessions.pinSession(id, "")
 	if !seen {
 		return unknownSession(id)
 	}
-	logger.Info("unpinned session", "session", status.ShortID(id))
+	pool := r.state.pools.current().of(in)
+	logger.Info("unpinned session", append(poolSaid(pool), "session", status.ShortID(id))...)
 	if was != "" {
-		r.emit(Unpinned{Account: was, Session: id, By: by})
+		r.emit(Unpinned{Account: was, Session: id, By: by, Pool: pool})
 	}
 	return nil
 }
 
 // pinnableAll returns the accounts with the given ids once each, in the order
-// configured, as the global pin names them. It fails, saying why, for none,
+// configured, as a pool's pin names them. It fails, saying why, for none,
 // or unless requests can go out on each, as pinnable says.
 func (r *Router) pinnableAll(ids []string) ([]string, error) {
 	if len(ids) == 0 {

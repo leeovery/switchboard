@@ -89,7 +89,7 @@ func TestTheBestIsWhereTheRouterSendsANewSession(t *testing.T) {
 	spentFableWeek := fableWeek
 	spentFableWeek.Utilization, spentFableWeek.Status = 1, quota.StatusRejected
 	pin := func(r *Router, ids ...string) {
-		r.sessions.setPin(status.Pin{Accounts: ids, Since: start}, false)
+		r.sessions.setPin(beforePools(), status.Pin{Accounts: ids, Since: start}, false)
 	}
 	tests := []struct {
 		name     string

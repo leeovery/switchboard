@@ -194,7 +194,7 @@ func TestTheGlobalPin(t *testing.T) {
 	if got := r.ask(t, "new", opus, ""); got != "side" {
 		t.Errorf("a new session went to %s, want side, the pin's", got)
 	}
-	waitForLine(t, log, "msg=routed", "session=new", "account=side", `reason="pinned (global)"`)
+	waitForLine(t, log, "msg=routed", "session=new", "account=side", `reason="pinned (pool)"`)
 	if got := r.ask(t, "running", opus, ""); got != "work" {
 		t.Errorf("the running session went to %s, want work, where it was", got)
 	}
@@ -277,7 +277,7 @@ func TestTheGlobalPinOnSeveralAccounts(t *testing.T) {
 		t.Errorf("the session on personal went to %s, want personal: the pin names it", got)
 	}
 	waitForLine(t, log, "level=INFO", "msg=pinned", "accounts=personal,side", "move=true")
-	waitForLine(t, log, "msg=routed", "session=new", "account=side", `reason="pinned (global)"`)
+	waitForLine(t, log, "msg=routed", "session=new", "account=side", `reason="pinned (pool)"`)
 	waitForLine(t, log, "level=INFO", "msg=moved", `session="on work"`, "from=work", "to=side", `reason="moved by pin"`)
 }
 
@@ -383,7 +383,7 @@ func TestForceClearsEverySessionsOwnPinLaunchPinsIncluded(t *testing.T) {
 			},
 			idle:       2 * time.Hour,
 			wantPin:    status.Pin{Accounts: []string{"work"}, Since: now.Add(time.Minute)},
-			wantReason: `reason="pinned (global)"`,
+			wantReason: `reason="pinned (pool)"`,
 		},
 		{
 			name: "unpinning",

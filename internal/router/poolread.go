@@ -110,15 +110,21 @@ func (rd poolRead) routes(pool string) bool {
 	return rd.every || rd.pools.of(pool) == rd.pool
 }
 
-// pin returns the global pin as it holds in the pool read: naming the
-// pool's accounts alone, and zero where it names none of them, as it's no
-// pin for a request in the pool.
-func (rd poolRead) pin(global status.Pin) status.Pin {
-	global.Accounts = slices.DeleteFunc(slices.Clone(global.Accounts), func(id string) bool { return !rd.holds(id) })
-	if global.IsZero() {
+// pin returns the pin of the pool read, of the pools' pins given: naming the
+// accounts it holds now alone, as one that has left the pool is no pin for a
+// request in it, and zero where it names none of them. A read of every
+// account's names those each pool's pin names among its own accounts, of the
+// accounts given, in their order.
+func (rd poolRead) pin(ps pins, as accounts) status.Pin {
+	if rd.every {
+		return status.Pin{Accounts: as.held(func(id string) bool { return ps.spends(rd.pools, id) }).configured().IDs()}
+	}
+	pin := ps.of(rd.pools, rd.pool)
+	pin.Accounts = slices.DeleteFunc(slices.Clone(pin.Accounts), func(id string) bool { return !rd.holds(id) })
+	if pin.IsZero() {
 		return status.Pin{}
 	}
-	return global
+	return pin
 }
 
 // events returns those of the events given that the pool read shows: one
@@ -152,7 +158,7 @@ func (rd poolRead) shows(e status.Event) bool {
 }
 
 // befell returns the account the event e befell, as a pool read shows it by:
-// the one it names; else the first the global pin names; else the one a
+// the one it names; else the first a pool's pin names; else the one a
 // session moved to, where its session stays, or from, where it moved to
 // none; "" for none.
 func befell(e status.Event) string {
@@ -274,6 +280,21 @@ func (t *poolTable) poolOfAll(ids []string, as accounts) (string, error) {
 		}
 	}
 	return pool, nil
+}
+
+// sessionMay fails, saying which pool each is in, unless a session in the
+// pool given, as its request named it, "" for none, can be pinned to the
+// account a: one in the session's pool, as every account is in a config
+// from before pools.
+func (t *poolTable) sessionMay(pool string, a account) error {
+	in := t.of(pool)
+	switch at, placed := t.in(a.ID); {
+	case !placed:
+		return fmt.Errorf("%s is in no pool, as the config no longer has it, so it can't be pinned", accountSaid(a.Account))
+	case at != in:
+		return fmt.Errorf("%s is in pool %s; this session is in pool %s", accountSaid(a.Account), t.label(at), t.label(in))
+	}
+	return nil
 }
 
 // label returns the label of the pool with the given id, else its id.

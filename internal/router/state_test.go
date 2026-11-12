@@ -758,7 +758,7 @@ func TestTheBestIsWhereANewSessionGoes(t *testing.T) {
 		want   string
 	}{
 		{name: "unpinned", change: func() {}, want: "work"},
-		{name: "pinned to side", change: func() { r.sessions.setPin(status.Pin{Accounts: []string{"side"}, Since: start}, false) }, want: "side"},
+		{name: "pinned to side", change: func() { r.sessions.setPin(beforePools(), status.Pin{Accounts: []string{"side"}, Since: start}, false) }, want: "side"},
 		{name: "pinned to side, whose token is refused", change: func() { r.state.refuse("side", http.StatusUnauthorized, someRequest, r.state.mark()) }, want: "work"},
 	}
 	for i, step := range steps {

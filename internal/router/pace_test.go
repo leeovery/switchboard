@@ -391,7 +391,7 @@ func TestTheBestIsWhereANewSessionGoesUnderPressure(t *testing.T) {
 	}
 	for i, step := range steps {
 		if step.pin != nil {
-			r.sessions.setPin(status.Pin{Accounts: step.pin, Since: clock.now}, false)
+			r.sessions.setPin(beforePools(), status.Pin{Accounts: step.pin, Since: clock.now}, false)
 		}
 		if got := r.Status().Best; got != step.want {
 			t.Errorf("%s, Best = %q, want %q", step.name, got, step.want)
@@ -437,9 +437,9 @@ func TestThePressureLoggedIsAtTheRoomTheChoiceGaveTheAccount(t *testing.T) {
 				r.state.record("work", []quota.Window{{Key: "5h", Label: "Session", Utilization: u, ResetsAt: resets}, soonWeek}, r.state.mark())
 				r.state.record("side", []quota.Window{{Key: "5h", Label: "Session", Utilization: 0.1, ResetsAt: resets}, laterWeek}, r.state.mark())
 			}
-			r.sessions.setPin(status.Pin{Accounts: []string{"work", "side"}, Since: start}, false)
+			r.sessions.setPin(beforePools(), status.Pin{Accounts: []string{"work", "side"}, Since: start}, false)
 
-			if got := choose(t.Context(), r, Request{ID: "5f3a9c2e", Session: "one", Model: opus, Client: "work"}); got.Reason != "pinned (global), work under pressure" {
+			if got := choose(t.Context(), r, Request{ID: "5f3a9c2e", Session: "one", Model: opus, Client: "work"}); got.Reason != "pinned (pool), work under pressure" {
 				t.Fatalf("the choice = %+v, want side, passing over work", got)
 			}
 			want := []string{`msg="passed over under pressure"`, "account=work", `rate="` + tt.rate + `"`,

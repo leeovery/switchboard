@@ -398,7 +398,7 @@ func settled(reason string, f Facts) (forms, bool) {
 		return forms{event: Words{Plain("kept for its thinking")}, routed: given, session: Words{Plain("kept for its thinking")}}, true
 	case ReasonPinned:
 		return alike(Words{Plain("pinned here")}), true
-	case ReasonGlobalPin, ReasonMovedByPin:
+	case ReasonPoolPin, ReasonGlobalPin, ReasonMovedByPin:
 		return alike(pinnedTo(f.To)), true
 	case ReasonBack:
 		return alike(Words{Plain("back where it was")}), true

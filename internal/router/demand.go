@@ -38,8 +38,8 @@ func (s *state) rose(id, key string, rise float64, at time.Time) {
 
 // judgeRoom has the pool's day rate count the time from at on as time the
 // pool has room for a new session in, or none, as roomy judges it, week
-// giving each account's shared week, and pin the accounts the global pin
-// names. s.mu must be held.
+// giving each account's shared week, and pin the accounts the pools' pins
+// name. s.mu must be held.
 func (s *state) judgeRoom(week func(id string) (quota.Window, bool), pin []string, at time.Time) {
 	s.day = s.day.Open(s.roomy(week, pin, at), at)
 }
@@ -50,8 +50,8 @@ func (s *state) judgeRoom(week func(id string) (quota.Window, bool), pin []strin
 // usable token whose week has been read, but those it couldn't go out on,
 // their token refused or a limit holding back their week, as shut says. So
 // an account has room within its reserve, or within its limit where pin, the
-// global pin's accounts, names it, which spends the reserve. s.mu must be
-// held.
+// accounts the pools' pins name, names it, which spends the reserve. s.mu
+// must be held.
 func (s *state) roomy(week func(id string) (quota.Window, bool), pin []string, at time.Time) bool {
 	isWeek := func(key string) bool { return key == s.policy.Perishable }
 	var candidates []score.Candidate
@@ -64,39 +64,55 @@ func (s *state) roomy(week func(id string) (quota.Window, bool), pin []string, a
 	return ok
 }
 
-// repin notes the global pin from now on, zero for none, and judges the
-// pool's room afresh then, as judgeRoom says, so a pin that spends an
-// account's reserve gives the pool room from its own moment.
-func (s *state) repin(pin status.Pin) {
+// repin notes each pool's pin from now on, as the sessions hold them, and
+// judges the pool's room afresh then, as judgeRoom says, so a pin that
+// spends an account's reserve gives the pool room from its own moment.
+func (s *state) repin(ps pins) {
 	at := s.now().UTC()
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.pin = pin
-	s.pin.Accounts = slices.Clone(pin.Accounts)
-	s.judgeRoom(s.weekHeld, s.pin.Accounts, at)
+	s.pins = ps
+	s.judgeRoom(s.weekHeld, s.pinned(), at)
 }
 
-// recallPin takes in the global pin the state file kept, as the router
+// recallPins takes in each pool's pin the state file kept, as the router
 // starts, as repin does, but judging nothing: seed, taking up the history
-// after it, judges the pool's room by it from when it was set, as pinnedAt
+// after it, judges the pool's room by each from when it was set, as pinnedAt
 // says, and the pool judged at now first would have the day's rate take
 // every time seed replays as now.
-func (s *state) recallPin(pin status.Pin) {
+func (s *state) recallPins(ps pins) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.pin = pin
-	s.pin.Accounts = slices.Clone(pin.Accounts)
+	s.pins = ps
 }
 
-// pinnedAt returns the ids of the accounts the global pin named at at, as
-// seed takes up the history: those it names now from when it was set, and
+// pinned returns the ids of the accounts their pools' pins name, as spends
+// says, in the order configured. s.mu must be held.
+func (s *state) pinned() []string {
+	return s.pinnedIf(func(status.Pin) bool { return true })
+}
+
+// pinnedAt returns the ids of the accounts their pools' pins named at at, as
+// seed takes up the history: those each names now from when it was set, and
 // none before, as no pin that may have held then is kept. s.mu must be
 // held.
 func (s *state) pinnedAt(at time.Time) []string {
-	if at.Before(s.pin.Since) {
-		return nil
+	return s.pinnedIf(func(pin status.Pin) bool { return !at.Before(pin.Since) })
+}
+
+// pinnedIf returns the ids of the accounts their pools' pins name, as the
+// pools stand, of those pins held says hold, in the order configured. s.mu
+// must be held.
+func (s *state) pinnedIf(held func(pin status.Pin) bool) []string {
+	t := s.pools.current()
+	var ids []string
+	for _, a := range s.accounts {
+		pool, in := t.in(a.ID)
+		if pin := s.pins.of(t, pool); in && pin.Has(a.ID) && held(pin) {
+			ids = append(ids, a.ID)
+		}
 	}
-	return s.pin.Accounts
+	return ids
 }
 
 // weekHeld returns the shared week of the account with the given id, the
@@ -130,7 +146,7 @@ func (s *state) demand(now time.Time) *status.Demand {
 	if !slices.ContainsFunc(s.accounts, func(a account) bool { return len(s.usage[a.ID].windows) > 0 }) {
 		return nil
 	}
-	s.judgeRoom(s.weekHeld, s.pin.Accounts, now)
+	s.judgeRoom(s.weekHeld, s.pinned(), now)
 	demand := &status.Demand{Hold: holdPoints(s.hold.Points(now)), Learning: s.hold.Learning(now)}
 	if rate, over, ok := s.day.Rate(now); ok {
 		demand.Day, demand.Hours = rate, over.Hours()

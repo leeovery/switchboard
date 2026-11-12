@@ -949,7 +949,7 @@ func TestOnlyAMoveTheSessionHadToMakeSaysWhatHeldItsRequestBack(t *testing.T) {
 					r.sessions.pinSession("one", m.own)
 				}
 				if len(m.global.Accounts) > 0 {
-					r.sessions.setPin(m.global, false)
+					r.sessions.setPin(beforePools(), m.global, false)
 				}
 				h.hold(r.state)
 

@@ -208,7 +208,7 @@ func TestAnAccountWhoseTokenIsAnothersTakesNoRequestsTillItHasItsOwn(t *testing.
 	r.probes.kept = kept.hear
 	r.state.record("work", []quota.Window{session, week}, r.state.mark())
 	r.state.record("side", []quota.Window{session, week}, r.state.mark())
-	if err := r.pin(PinRequest{Account: "side", By: ByCLI}); err != nil {
+	if err := r.pin(r.readOf(""), PinRequest{Account: "side", By: ByCLI}); err != nil {
 		t.Fatal(err)
 	}
 	newSession := func(id string) Request { return Request{ID: id, Session: id, Model: opus, Client: "work"} }
@@ -229,7 +229,7 @@ func TestAnAccountWhoseTokenIsAnothersTakesNoRequestsTillItHasItsOwn(t *testing.
 		t.Errorf("a new session goes to %q, want work: side, though pinned, takes no requests", got)
 	}
 	wantRefusal := "account side has no usable token, so nothing can go out on it: " + prose.ForeignTokenFix("side")
-	if err := r.pin(PinRequest{Account: "side", By: ByCLI}); err == nil || err.Error() != wantRefusal {
+	if err := r.pin(r.readOf(""), PinRequest{Account: "side", By: ByCLI}); err == nil || err.Error() != wantRefusal {
 		t.Errorf("pinning side fails with %v, want %q", err, wantRefusal)
 	}
 	req := httptest.NewRequest("POST", "/v1/messages", nil)

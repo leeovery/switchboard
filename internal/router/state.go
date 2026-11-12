@@ -281,9 +281,9 @@ type state struct {
 	// sessions had been on their accounts, as answered takes them in, which
 	// the state file keeps.
 	hold forecast.Hold
-	// pin is the global pin, as the router last told it, as repin and
-	// recallPin have it: zero while there's none.
-	pin status.Pin
+	// pins are each pool's pin, as the router last told them, as repin and
+	// recallPins have them.
+	pins pins
 }
 
 func newState(accounts accounts, pools *membership, policy score.Policy, family func(string) string, now func() time.Time, changed, routine func()) *state {
@@ -369,7 +369,7 @@ func (s *state) take(id string, windows []quota.Window, at time.Time, sent momen
 	for key, rise := range risen {
 		s.rose(id, key, rise, at)
 	}
-	s.judgeRoom(s.weekHeld, s.pin.Accounts, at)
+	s.judgeRoom(s.weekHeld, s.pinned(), at)
 	for _, key := range back {
 		logger.Info("reports the window again", "account", id, "window", key)
 	}
@@ -1086,7 +1086,7 @@ func (s *state) glance(pool, model string, now time.Time) view {
 func (s *state) viewing(pool, model string, now time.Time) view {
 	family, applies := s.family(model), s.counting(model)
 	pools := s.pools.current()
-	v := view{policy: s.policy, now: now, applies: applies, pool: pools.of(pool), apart: pools.apart()}
+	v := view{policy: s.policy, now: now, applies: applies, pools: pools, pool: pools.of(pool), apart: pools.apart()}
 	for _, a := range s.accounts {
 		if !pools.holds(v.pool, a.ID) {
 			continue

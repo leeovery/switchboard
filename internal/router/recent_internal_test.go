@@ -529,13 +529,13 @@ func TestPressureIsJudgedAsTheDocumentJudgesItWithTheGlobalPin(t *testing.T) {
 	roomy := quota.Window{Key: "7d", Label: "Week", Utilization: 0.5, ResetsAt: start.Add(3 * day), Status: quota.StatusAllowed}
 	s.record("work", []quota.Window{used, roomy}, s.mark())
 
-	sessions.setPin(status.Pin{Accounts: []string{"work"}, Since: start}, false)
+	sessions.setPin(beforePools(), status.Pin{Accounts: []string{"work"}, Since: start}, false)
 	r.look()
 	r.look()
 	if got := r.events(); got != nil {
 		t.Fatalf("with work pinned, events() = %+v, want none: it isn't under pressure", got)
 	}
-	sessions.unpin(false)
+	sessions.unpin(beforePools(), false)
 	r.look()
 
 	doc := s.document()

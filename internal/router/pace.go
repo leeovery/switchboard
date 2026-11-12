@@ -52,8 +52,8 @@ func (u *usage) forgetRates(key string) {
 // seed takes up, as the router starts, the readings history gives, in the
 // order they were read, into the trails and fast rates of the accounts
 // configured, and the pool's day rate, as though they'd come in as read then,
-// the pool judged for room at each, and at the moment the global pin kept was
-// set where the history read anything before it, as judgeSeeded says: the
+// the pool judged for room at each, and at each moment a pin kept was set
+// where the history read anything before it, as judgeSeeded says: the
 // readings history holds each change of a window's use, so its trail,
 // baseline included, is as it was, and its rates outlast a restart. A window
 // the account doesn't hold, as one its answers no longer report, keeps no
@@ -65,15 +65,22 @@ func (s *state) seed(history iter.Seq[readings.Reading]) int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	taking := newSeeding(read, s.policy.Perishable)
-	beforePin := slices.IndexFunc(read, func(r readings.Reading) bool { return !r.At.Before(s.pin.Since) })
-	if beforePin < 0 {
-		beforePin = len(read)
+	pinned := s.pinsSet()
+	for i, r := range read {
+		for ; len(pinned) > 0 && !r.At.Before(pinned[0]); pinned = pinned[1:] {
+			if i > 0 {
+				s.judgeSeeded(taking, pinned[0])
+			}
+		}
+		if u, configured := s.usage[r.Account]; configured {
+			s.takeUpReading(taking, u, r)
+		}
 	}
-	s.takeUp(taking, read[:beforePin])
-	if beforePin > 0 {
-		s.judgeSeeded(taking, s.pin.Since)
+	if len(read) > 0 {
+		for _, at := range pinned {
+			s.judgeSeeded(taking, at)
+		}
 	}
-	s.takeUp(taking, read[beforePin:])
 	kept := 0
 	for of, w := range taking.last {
 		u := s.usage[of.account]
@@ -85,14 +92,17 @@ func (s *state) seed(history iter.Seq[readings.Reading]) int {
 	return kept
 }
 
-// takeUp takes up read, readings of the history in the order read, as seed
-// does, but those of accounts not configured. s.mu must be held.
-func (s *state) takeUp(taking seeding, read []readings.Reading) {
-	for _, r := range read {
-		if u, configured := s.usage[r.Account]; configured {
-			s.takeUpReading(taking, u, r)
+// pinsSet returns when each of the pins kept was set, in order, once each.
+// s.mu must be held.
+func (s *state) pinsSet() []time.Time {
+	var set []time.Time
+	for _, pin := range s.pins {
+		if !pin.IsZero() {
+			set = append(set, pin.Since)
 		}
 	}
+	slices.SortFunc(set, time.Time.Compare)
+	return slices.CompactFunc(set, time.Time.Equal)
 }
 
 // takeUpReading takes up r, a reading of the history of the account whose
@@ -110,7 +120,7 @@ func (s *state) takeUpReading(taking seeding, u *usage, r readings.Reading) {
 
 // judgeSeeded judges the pool's room at at as the history has been taken up
 // by then, as judgeRoom does: by each account's week as seeding's weekAt has
-// it then, and the global pin as pinnedAt has it. s.mu must be held.
+// it then, and the pools' pins as pinnedAt has them. s.mu must be held.
 func (s *state) judgeSeeded(taking seeding, at time.Time) {
 	s.judgeRoom(func(id string) (quota.Window, bool) { return taking.weekAt(id, s.weekHeld, at) }, s.pinnedAt(at), at)
 }

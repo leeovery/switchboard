@@ -6,8 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"maps"
 	"os"
-	"strings"
 	"sync/atomic"
 	"time"
 
@@ -38,7 +38,7 @@ const (
 )
 
 // stateFile is where the router keeps what should outlast it: the sessions'
-// assignments, the pins they were given while they ran and the global pin, so
+// assignments, the pins they were given while they ran and each pool's pin, so
 // a restart doesn't scatter sessions and cost their caches; what it knows of
 // the accounts' tokens, so a token replaced before a restart still counts as
 // its account's after; each account's last readings, so a restart needs no
@@ -111,11 +111,28 @@ type savedState struct {
 
 // savedSessions is what the state file holds of the sessions.
 type savedSessions struct {
+	// Pin is the one pin of a config from before pools, which a state file
+	// from before pools kept whatever the config, and Pins each pool's pin,
+	// by the pool's id.
 	Pin      status.Pin        `json:"pin,omitzero"`
+	Pins     pins              `json:"pins,omitempty"`
 	Sessions []savedAssignment `json:"sessions"`
 	// SessionPins are the pins sessions were given while they ran, by the
 	// session's id.
 	SessionPins map[string]ownPin `json:"session_pins,omitempty"`
+}
+
+// everyPin returns every pin saved, by the id of its pool: "" for the one
+// pin of a config from before pools.
+func (s savedSessions) everyPin() pins {
+	every := maps.Clone(s.Pins)
+	if every == nil {
+		every = make(pins)
+	}
+	if !s.Pin.IsZero() {
+		every[""] = s.Pin
+	}
+	return every
 }
 
 // savedAssignment is an assignment as the state file holds it, with the
@@ -170,24 +187,25 @@ type savedReading struct {
 	Misses        int                  `json:"misses,omitempty"`
 }
 
-// load takes in the state file at path, as the router starts, and keeps in it
-// from then on what the router knows that should outlast it, telling the
-// state the global pin it kept, as recallPin says. What it held that can no
-// longer be used is left out, and the file is to be written again without it.
+// load takes in the state file at path, as the router starts, the pools as
+// they stand then, and keeps in it from then on what the router knows that
+// should outlast it, telling the state each pool's pin it kept, as recallPins
+// says. What it held that can no longer be used is left out, and the file is
+// to be written again without it.
 func (f *stateFile) load(path string) {
 	f.path = path
 	now := f.now()
 	saved := f.read(now)
 	tokens := f.accounts.recall(saved.Tokens, f.heirs, now)
-	sessions := f.sessions.recall(saved.savedSessions, f.accounts, now)
-	f.state.recallPin(f.sessions.globalPin())
+	sessions := f.sessions.recall(saved.savedSessions, f.accounts, now, f.state.pools.current())
+	f.state.recallPins(f.sessions.pinsNow())
 	usage := f.state.recall(saved.savedUsage, f.accounts.holding(saved.Tokens))
 	told := f.told.recall(saved.TokenYears, f.accounts.includes)
 	if tokens || sessions || usage || told {
 		f.changes.note()
 	}
 	held := f.snapshot()
-	logger.Info("loaded state", "path", path, "assignments", len(held.Sessions), "pin", strings.Join(held.Pin.Accounts, ","), "readings", held.read())
+	logger.Info("loaded state", "path", path, "assignments", len(held.Sessions), "pin", held.everyPin().said(), "readings", held.read())
 }
 
 // read returns what the state file holds. A file that isn't there holds

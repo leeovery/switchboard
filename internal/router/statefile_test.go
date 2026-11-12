@@ -32,7 +32,7 @@ func TestTheStateFileKeepsSessionsTheirPinsAndTheGlobalPin(t *testing.T) {
 	saved := newTestFile(at(start), testAccounts())
 	saved.load(path)
 	s := saved.sessions
-	s.setPin(status.Pin{Accounts: []string{"work", "side"}, Since: start.Add(-time.Hour), Move: true}, false)
+	s.setPin(beforePools(), status.Pin{Accounts: []string{"work", "side"}, Since: start.Add(-time.Hour), Move: true}, false)
 	assign(s, key{session: "one", model: opus}, "", decision{account: "work", reason: reasonNew}, start.Add(-2*time.Hour))
 	assign(s, key{session: "one", model: opus}, "", decision{account: "work", reason: reasonSticky, sticky: true}, start.Add(-time.Hour))
 	assign(s, key{session: "one", model: haiku}, "side", decision{account: "side", reason: reasonPinned}, start.Add(-time.Minute))
@@ -43,9 +43,9 @@ func TestTheStateFileKeepsSessionsTheirPinsAndTheGlobalPin(t *testing.T) {
 
 	loaded := newTestFile(at(start), testAccounts())
 	loaded.load(path)
-	if l := loaded.sessions; !maps.Equal(l.assignments, s.assignments) || !maps.Equal(l.own, s.own) || !reflect.DeepEqual(l.pin, s.pin) {
+	if l := loaded.sessions; !maps.Equal(l.assignments, s.assignments) || !maps.Equal(l.own, s.own) || !reflect.DeepEqual(l.pins, s.pins) {
 		t.Errorf("loaded\n%+v, pins %+v, pin %+v\nwant what was saved\n%+v, pins %+v, pin %+v",
-			l.assignments, l.own, l.pin, s.assignments, s.own, s.pin)
+			l.assignments, l.own, l.pins, s.assignments, s.own, s.pins)
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -723,7 +723,7 @@ func TestAStateFileFromBeforeReadingsLoadsWithNone(t *testing.T) {
 	f := newTestFile(at(start), testAccounts())
 
 	f.load(path)
-	if got := f.sessions.lookup(key{session: "one", model: opus}); !got.assigned || got.current.Account != "work" || !slices.Equal(got.global.Accounts, []string{"side"}) {
+	if got := f.sessions.lookup(key{session: "one", model: opus}); !got.assigned || got.current.Account != "work" || !slices.Equal(got.pins[""].Accounts, []string{"side"}) {
 		t.Errorf("loaded %+v, want the session on work, and the pin to side, as the file holds", got)
 	}
 	for _, id := range []string{"work", "side"} {
@@ -808,7 +808,7 @@ func TestLoadingThePin(t *testing.T) {
 			f := newTestFile(at(start), testAccounts())
 
 			f.load(path)
-			if got := f.sessions.globalPin(); !reflect.DeepEqual(got, tt.want) {
+			if got := f.sessions.pinsNow()[""]; !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("loaded pin %+v, want %+v", got, tt.want)
 			}
 			for _, id := range tt.wantDropped {
@@ -1198,8 +1198,8 @@ func TestLoadingForgetsWhatCantBeUsed(t *testing.T) {
 	if want := map[string]ownPin{"pinned": {Account: "side", Since: start}}; !maps.Equal(s.own, want) {
 		t.Errorf("loaded sessions' pins %+v, want %+v alone: the others' sessions or accounts are gone", s.own, want)
 	}
-	if !s.pin.IsZero() {
-		t.Errorf("loaded pin %+v, want none: its account is no longer configured", s.pin)
+	if len(s.pins) > 0 {
+		t.Errorf("loaded pins %+v, want none: its account is no longer configured", s.pins)
 	}
 	for _, want := range [][]string{
 		{"level=WARN", `msg="dropped from the pin: the account is no longer configured"`, "account=retired"},
@@ -1232,9 +1232,9 @@ func TestLoadingKeepsWhatsOfAnAccountWhoseTokenFileCantBeReadAsTheRouterStarts(t
 	f := newTestFile(at(start), resolve(testConfigured, tokenstest.Files{"work": "", "side": sideToken}.Read, unrecorded))
 
 	f.load(path)
-	if s := f.sessions; !maps.Equal(s.assignments, assignments) || !maps.Equal(s.own, own) || !reflect.DeepEqual(s.pin, pin) {
+	if s := f.sessions; !maps.Equal(s.assignments, assignments) || !maps.Equal(s.own, own) || !reflect.DeepEqual(s.pins[""], pin) {
 		t.Errorf("loaded %+v, pins %+v, pin %+v\nwant what was saved\n%+v, pins %+v, pin %+v: work is still configured",
-			s.assignments, s.own, s.pin, assignments, own, pin)
+			s.assignments, s.own, s.pins[""], assignments, own, pin)
 	}
 	if log.Has("dropped") {
 		t.Errorf("log reads\n%s\nwant nothing dropped", log)
@@ -1357,7 +1357,7 @@ func TestTheStateFileIsItsOwnersAlone(t *testing.T) {
 	}
 	f := newTestFile(at(start), testAccounts())
 	f.load(path)
-	f.sessions.setPin(status.Pin{Accounts: []string{"side"}, Since: start}, false)
+	f.sessions.setPin(beforePools(), status.Pin{Accounts: []string{"side"}, Since: start}, false)
 
 	f.save()
 	info, err := os.Stat(path)
@@ -1490,7 +1490,7 @@ func TestStoppingSavesWhatsUnsaved(t *testing.T) {
 		f := newTestFile(time.Now, testAccounts())
 		f.load(path)
 		stop := keep(f)
-		f.sessions.setPin(status.Pin{Accounts: []string{"side"}, Since: time.Now()}, false)
+		f.sessions.setPin(beforePools(), status.Pin{Accounts: []string{"side"}, Since: time.Now()}, false)
 		synctest.Wait()
 
 		began := time.Now()
@@ -1556,7 +1556,7 @@ func TestASaveThatFailsIsTriedAgain(t *testing.T) {
 			return writeState(path, data)
 		}
 		stop := keep(f)
-		f.sessions.setPin(status.Pin{Accounts: []string{"side"}, Since: time.Now()}, false)
+		f.sessions.setPin(beforePools(), status.Pin{Accounts: []string{"side"}, Since: time.Now()}, false)
 
 		time.Sleep(saveAfter)
 		synctest.Wait()

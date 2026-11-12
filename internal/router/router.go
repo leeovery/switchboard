@@ -266,9 +266,9 @@ type Router struct {
 	accounts accounts
 	state    *state
 	sessions *sessions
-	// pinning is held across each change of the global pin and its telling
+	// pinning is held across each change of a pool's pin and its telling
 	// the state, so no other change comes between them, and the state's copy
-	// is the pin the sessions hold.
+	// is the pins the sessions hold.
 	pinning sync.Mutex
 	// scheduler is the proxy's chooser, which also says where it would send
 	// each session's next request, as the sessions are listed.
@@ -490,7 +490,7 @@ func (r *Router) accountStatus(id string) status.Account {
 // its export, its priming and the events that name no pool are every pool's.
 func (r *Router) assembled(rd poolRead) status.Document {
 	now := r.cfg.Now()
-	pin := rd.pin(r.sessions.globalPin())
+	pin := rd.pin(r.sessions.pinsNow(), r.accounts)
 	doc := r.state.documentOf(rd, pin.Accounts)
 	doc.PoolID, doc.PoolLabel = rd.named()
 	doc.Pin = pin
