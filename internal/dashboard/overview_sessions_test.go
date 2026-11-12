@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/x/ansi"
+	"github.com/leeovery/switchboard/internal/dashboard/flex"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -221,21 +222,21 @@ func TestASessionsWhyIsCutToEndBeforeItsTrace(t *testing.T) {
 	long := status.Session{ID: idD28C, Assignments: []status.Assignment{{
 		Model: opus, Family: "opus", Account: "side", Reason: "pin yields: personal has no room for a request that's long", AssignedAt: routedAt, LastSeen: routedAt,
 	}}}
-	before := func(width int) (string, int) {
+	before := func(width int) (string, int, bool) {
 		f := Frame{Width: width, Height: 40, View: Overview, Sessions: []status.Session{long}}
-		trace := f.routingColumns(f.Moment(doc, routedAt)).trace
-		return strings.TrimRight(string([]rune(sessionsDrawn(f, doc, 1)[0])[:trace]), " "), trace
+		at := f.runningForm(f.routingColumns(f.Moment(doc, routedAt))).laid()
+		return strings.TrimRight(string([]rune(sessionsDrawn(f, doc, 1)[0])[:at.trace]), " "), at.trace, at.whyCells > 0
 	}
 	for width, want := range map[int]string{
-		173: "side ▲        d28c  opus    now   idle     its pin to personal yields: personal has no…",
-		108: "side ▲        d28c  opus    now   idle     its pin to persona…",
+		173: "side ▲        d28c               opus    now   idle     its pin to personal yields: per…",
+		108: "side ▲        d28c               opus    now   idle     its p…",
 	} {
-		if got, trace := before(width); got != want {
+		if got, trace, _ := before(width); got != want {
 			t.Errorf("at %d columns, drew\n  %q\nwant\n  %q, its why cut short two cells or more before the trace at column %d", width, got, want, trace)
 		}
 	}
 	for width := 81; width <= 220; width++ {
-		if got, trace := before(width); !strings.HasSuffix(got, "…") || ansi.StringWidth(got) > trace-beforeTraceAt {
+		if got, trace, why := before(width); why && !strings.HasSuffix(got, "…") || ansi.StringWidth(got) > trace-beforeTraceAt {
 			t.Errorf("at %d columns, drew %q, want its why cut to end %d cells or more before the trace at column %d", width, got, beforeTraceAt, trace)
 		}
 	}
@@ -268,29 +269,137 @@ func TestASessionRunningSaysWhatItsDoing(t *testing.T) {
 	}
 }
 
-func TestASessionsIDIsBrightWhileItsBusy(t *testing.T) {
+// A session running is named by its id, bright while it's busy, then a
+// space and its directory's last part in text.muted, cut to its column, as
+// the List names one, padded to the cells given; by its id alone where it
+// has no directory.
+func TestASessionRunningIsNamedByItsIDAndItsDirectory(t *testing.T) {
 	tests := []struct {
 		name  string
+		dir   string
 		doing views.Doing
 		seen  time.Duration
-		busy  bool
+		want  line
 	}{
-		{name: "seen within the minute", seen: 59 * time.Second, busy: true},
-		{name: "seen a minute ago", seen: time.Minute},
-		{name: "a request in flight", doing: views.Asking, seen: 9 * time.Minute, busy: true},
-		{name: "a request refused, before it goes out again", doing: views.Refused, seen: 9 * time.Minute, busy: true},
+		{name: "seen a minute ago", dir: "~/Code/infra", seen: time.Minute, want: line{{"d28c", mutedInk}, {" infra", mutedInk}, spaces(7)}},
+		{name: "seen within the minute", dir: "~/Code/infra", seen: 59 * time.Second, want: line{{"d28c", titleInk}, {" infra", mutedInk}, spaces(7)}},
+		{name: "a request in flight", dir: "~/Code/infra", doing: views.Asking, seen: 9 * time.Minute, want: line{{"d28c", titleInk}, {" infra", mutedInk}, spaces(7)}},
+		{name: "a request refused, before it goes out again", dir: "~/Code/infra", doing: views.Refused, seen: 9 * time.Minute, want: line{{"d28c", titleInk}, {" infra", mutedInk}, spaces(7)}},
+		{name: "a directory past its column, cut", dir: "~/Code/infra-terraform-modules", seen: time.Minute, want: line{{"d28c", mutedInk}, {" infra-terra…", mutedInk}, spaces(0)}},
+		{name: "no directory: its id alone", seen: time.Minute, want: line{{"d28c", mutedInk}, spaces(13)}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r := views.Running{Account: "side", Session: idD28C, Activity: views.Activity{Doing: tt.doing, LastSeen: routedAt.Add(-tt.seen)}}
-			want := span{"d28c  ", mutedInk}
-			if tt.busy {
-				want.ink = titleInk
-			}
-			if got := runningIDOf(r, routedAt); got != want {
-				t.Errorf("runningIDOf = %+v, want %+v", got, want)
+			r := views.Running{Account: "side", Session: idD28C, Dir: tt.dir, Activity: views.Activity{Doing: tt.doing, LastSeen: routedAt.Add(-tt.seen)}}
+			if got := runningNamed(r, routedAt, idDirCells); !slices.Equal(got, tt.want) {
+				t.Errorf("runningNamed = %+v, want %+v", got, tt.want)
 			}
 		})
+	}
+}
+
+// inDirs are the sessions given, each running in the directory dirs gives
+// it, in their order, "" for none.
+func inDirs(sessions []status.Session, dirs ...string) []status.Session {
+	sessions = slices.Clone(sessions)
+	for i, dir := range dirs {
+		sessions[i].Assignments = slices.Clone(sessions[i].Assignments)
+		for j := range sessions[i].Assignments {
+			sessions[i].Assignments[j].Dir = dir
+		}
+	}
+	return sessions
+}
+
+// A session's directory takes a column of its own, so the parts after it
+// line up down SESSIONS whatever directory each runs in, or none; on two
+// rows a session, it follows the id, what it's doing still right-aligned.
+func TestSESSIONSDirectoriesTakeAColumnTheRestLinedUp(t *testing.T) {
+	doc, sessions, stream := overviewWorld()
+	sessions = inDirs(sessions, "~/Code/mobile", "", "~/Code/infra-terraform-modules", "~/Code/api")
+	tests := []struct {
+		width int
+		rows  int
+		want  []string
+	}{
+		{width: 160, rows: 6, want: []string{
+			"side ▲        c61b mobile        opus    now   ↓ ~1.2k  started",
+			"              d28c infra-terra…  opus    now   ↑ ask    moved",
+			"              7f3a api           sonnet   1m   idle     moved",
+			"              db8a               opus     4m   idle     moved",
+			"personal ◆    41e0               sonnet  now   ↓ ~860   started",
+			"              9c2e               opus     9m   idle     started",
+		}},
+		{width: 52, rows: 12, want: []string{
+			" side ▲       c61b mobile                    ↓ ~1.2k",
+			"              started here 14:41, the best",
+			"              d28c infra-terra…                ↑ ask",
+			"              moved from work 14:31: work reached i…",
+		}},
+	}
+	for _, tt := range tests {
+		f := Frame{Width: tt.width, Height: 40, View: Overview, Sessions: sessions, Stream: stream}
+		for i, row := range sessionsDrawn(f, doc, tt.rows)[:len(tt.want)] {
+			if !strings.HasPrefix(row, tt.want[i]) {
+				t.Errorf("at %d columns, row %d = %q, want it to start %q", tt.width, i+1, row, tt.want[i])
+			}
+		}
+	}
+}
+
+// Where a row's parts run short, why it's there gives way first; its
+// directory gives way, whole, only where its id, family, when it was seen
+// and what it's doing don't fit with it.
+func TestASessionsWhyGivesWayBeforeItsDirectory(t *testing.T) {
+	parts := runningParts()
+	least := 0
+	for p, part := range parts[:runWhy] {
+		if p > 0 {
+			least += part.Gap
+		}
+		least += part.Least
+	}
+	tests := []struct {
+		name     string
+		room     int
+		dir, why int
+	}{
+		{name: "room to spare: why takes it", room: least + 9, dir: dirCells, why: 9},
+		{name: "why gone, the directory whole", room: least, dir: dirCells},
+		{name: "too little for the directory: it gives way", room: least - 1, why: least - 1 - (least - dirGap - dirCells)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s, fits := flex.Lay(tt.room, runningParts()...)
+			if !fits || s[runDir].Size != tt.dir || s[runDir].Left != (tt.dir == 0) || s[runWhy].Size != tt.why {
+				t.Errorf("in %d cells, the directory takes %+v and why %+v, want %d and %d", tt.room, s[runDir], s[runWhy], tt.dir, tt.why)
+			}
+		})
+	}
+	doc, _, _ := overviewWorld()
+	long := inDirs([]status.Session{{ID: idD28C, Assignments: []status.Assignment{{
+		Model: opus, Family: "opus", Account: "side", Reason: "pin yields: personal has no room for a request that's long", AssignedAt: routedAt, LastSeen: routedAt,
+	}}}}, "~/Code/infra")
+	var shown, left bool
+	for width := 81; width <= 220; width++ {
+		f := Frame{Width: width, Height: 40, View: Overview, Sessions: long}
+		at := f.runningForm(f.routingColumns(f.Moment(doc, routedAt))).laid()
+		if !at.oneRow {
+			continue
+		}
+		row := sessionsDrawn(f, doc, 1)[0]
+		fits := at.trace-beforeTraceAt-at.names >= least
+		switch {
+		case fits && strings.Contains(row, "d28c infra         opus"):
+			shown = true
+		case !fits && strings.Contains(row, "d28c  opus"):
+			left = true
+		default:
+			t.Errorf("at %d columns, drew %q, want its directory whole where it fits with why gone, %v, else gone", width, row, fits)
+		}
+	}
+	if !shown || !left {
+		t.Errorf("its directory shown at some width %v, gone at some %v; want both", shown, left)
 	}
 }
 
@@ -318,7 +427,7 @@ func TestASessionSeenLongerAgoThanItsColumnHoldsIsDrawnWhole(t *testing.T) {
 	r := views.Running{Account: "side", Session: idD28C, Family: "opus", Activity: views.Activity{LastSeen: routedAt.Add(-1000 * time.Hour)}}
 	f := Frame{Width: 160}
 	f.wideRunning(c, f.Moment(doc, routedAt), r, f.runningForm(routingColumnsOf(f.Width, 16)).laid(), 0)
-	if got := rowOf(c, 0); !strings.Contains(got, "d28c  opus   1000h   idle") {
+	if got := rowOf(c, 0); !strings.Contains(got, "d28c               opus   1000h   idle") {
 		t.Errorf("drew %q, want 1000h whole, no blank before it", got)
 	}
 }
@@ -332,22 +441,24 @@ func TestAFamilyTheVersionTableDoesntNameIsCutToItsColumn(t *testing.T) {
 	mystery := status.Session{ID: id1F9A, Assignments: []status.Assignment{{
 		Model: "claude-mystery-model-9", Family: "claude-mystery-model-9", Account: "work", Reason: status.ReasonNew, AssignedAt: routedAt, LastSeen: routedAt,
 	}}}
-	// Why it's there starts 29 cells past the name column: the id's 6, the
-	// family's 6 and a blank, the seen's 4, 3 blanks and the doing's 9.
-	whyAt := func(row string) bool {
-		r := []rune(row)
-		return r[14+28] == ' ' && r[14+29] == 's'
-	}
 	for _, width := range []int{81, 90, 108, 120, 173} {
 		f := Frame{Width: width, Height: 40, View: Overview, Sessions: sessions, Stream: stream}
+		// Why it's there starts as many cells past the name column as the
+		// id and directory take, and 25 more: the 2 blanks after them, the
+		// family's 6 and a blank, the seen's 4, 3 blanks and the doing's 9.
+		named := f.runningForm(f.routingColumns(f.Moment(doc, routedAt))).laid().named
+		whyAt := func(row string) bool {
+			r := []rune(row)
+			return r[14+named+24] == ' ' && r[14+named+25] == 's'
+		}
 		with := f
 		with.Sessions = append(slices.Clone(sessions), mystery)
 		known, drawn := sessionsDrawn(f, doc, 7), sessionsDrawn(with, doc, 7)
 		if !slices.Equal(drawn[:6], known[:6]) {
 			t.Errorf("at %d columns, with 1f9a running, the other sessions drew\n  %q\nwant them as without it\n  %q", width, drawn[:6], known[:6])
 		}
-		if last := drawn[6]; !strings.HasPrefix(last, "work          1f9a  claud…  now   idle     s") || !whyAt(last) || !whyAt(known[0]) {
-			t.Errorf("at %d columns, 1f9a drew %q, and c61b %q; want its family cut to its column, and why it's there from column 43 in each", width, last, known[0])
+		if last := drawn[6]; !strings.HasPrefix(last, "work          "+padded("1f9a", named+2)+"claud…  now   idle     s") || !whyAt(last) || !whyAt(known[0]) {
+			t.Errorf("at %d columns, 1f9a drew %q, and c61b %q; want its family cut to its column, and why it's there from column %d in each", width, last, known[0], 14+named+25)
 		}
 	}
 }

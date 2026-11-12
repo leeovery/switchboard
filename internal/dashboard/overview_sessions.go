@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -15,14 +16,19 @@ import (
 	"github.com/leeovery/switchboard/internal/views"
 )
 
-// The cells of a session's row in SESSIONS on a row a session, as
-// runningParts lays them from the name column: its id and the blanks after
-// it; the blank after its model's family; when it was last seen,
-// right-aligned; the blanks before what it's doing; what it's doing,
+// The cells of a session's row in SESSIONS, as runningParts lays them from
+// the name column on a row a session: the blank between its id and its
+// directory, the directory's column, as views.SessionDirCells cuts it, the
+// blanks after them, and the id and directory whole, as Detail's SESSIONS
+// takes them too; the blank after its model's family; when it was last
+// seen, right-aligned; the blanks before what it's doing; what it's doing,
 // padded, why it's there following; and the blanks why leaves, at the
 // least, before its trace.
 const (
-	runningID     = status.IDShown + 2
+	dirGap        = 1
+	dirCells      = views.SessionDirCells
+	afterNamed    = 2
+	idDirCells    = status.IDShown + dirGap + dirCells
 	familyGap     = 1
 	seenCells     = 4
 	beforeDoing   = 3
@@ -31,10 +37,11 @@ const (
 )
 
 // The parts of a session's row in SESSIONS on a row a session, in
-// runningParts' order: its id, its model's family, when it was last seen,
-// what it's doing, and why it's there.
+// runningParts' order: its id, its directory, its model's family, when it
+// was last seen, what it's doing, and why it's there.
 const (
 	runID = iota
+	runDir
 	runFamily
 	runSeen
 	runDoing
@@ -134,21 +141,38 @@ func (f Frame) holdRunning(doc status.Document, now time.Time) Frame {
 }
 
 // runningForm is how SESSIONS draws a session running: the rows it takes;
-// the column its account's name starts at, on its account's first; and
-// where its row lies across the frame, as ROUTING's does.
+// the column its account's name starts at, on its account's first; where
+// its row lies across the frame, as ROUTING's does; and on two rows, the
+// cells its id and directory take.
 type runningForm struct {
 	rows, nameAt int
 	columns      routingColumns
+	namedOnTwo   int
 }
 
 // runningForm is how the frame draws a session running, its row lying as
 // the columns given say, as ROUTING's does: a row, where they're one row;
-// else two, its account's name a cell in.
+// else two, its account's name a cell in, its id and directory taking the
+// cells namedOnTwoIn gives them of those from the name column to the edge.
 func (f Frame) runningForm(columns routingColumns) runningForm {
 	if !columns.oneRow {
-		return runningForm{rows: 2, nameAt: 1, columns: columns}
+		return runningForm{rows: 2, nameAt: 1, columns: columns, namedOnTwo: namedOnTwoIn(f.Width - columns.names)}
 	}
 	return runningForm{rows: 1, columns: columns}
+}
+
+// namedOnTwoIn are the cells a session's id and directory take on the
+// first of its two rows, in the room given them and what it's doing,
+// right-aligned, as flex lays them: its id; dirGap on, its directory,
+// dirCells, which gives way where they don't fit; and afterNamed on, what
+// it's doing, doingCells.
+func namedOnTwoIn(room int) int {
+	s, _ := flex.Lay(room,
+		flex.Part{Least: status.IDShown, Natural: status.IDShown},
+		flex.Part{Least: dirCells, Natural: dirCells, Leaves: 1, Gap: dirGap},
+		flex.Part{Least: doingCells, Natural: doingCells, Gap: afterNamed},
+	)
+	return s[1].At + s[1].Size
 }
 
 // drawSession draws the session running r from row y, of the moment m, but
@@ -164,39 +188,46 @@ func (f Frame) drawSession(c *canvas, m status.Moment, r views.Running, at runni
 }
 
 // runningColumns are where a session's row lies across the frame: as
-// ROUTING's does; and on a row a session, as runningParts lays its parts,
-// its family's cells, and the column why it's there starts at, and its
-// cells.
+// ROUTING's does; the cells its id and directory take, as sessionIn names
+// them; and on a row a session, as runningParts lays its parts, its
+// family's cells, and the column why it's there starts at, and its cells.
 type runningColumns struct {
 	routingColumns
+	named         int
 	family        int
 	why, whyCells int
 }
 
 // laid is where a session's row lies in the form, as runningColumns has it:
 // on a row a session, its parts laid by runningParts from the name column
-// to beforeTraceAt cells short of the trace.
+// to beforeTraceAt cells short of the trace; on two, its id and directory
+// as the form's namedOnTwo has them.
 func (form runningForm) laid() runningColumns {
 	at := runningColumns{routingColumns: form.columns}
 	if !at.oneRow {
+		at.named = form.namedOnTwo
 		return at
 	}
 	s, _ := flex.Lay(at.trace-beforeTraceAt-at.names, runningParts()...)
+	at.named = s[runDir].At + s[runDir].Size
 	at.family, at.why, at.whyCells = s[runFamily].Size, at.names+s[runWhy].At, s[runWhy].Size
 	return at
 }
 
 // runningParts are the parts of a session's row on a row a session, as flex
-// lays them: the id, runningID; the family, fixed at the widest family the
-// version table names, as familiesCells has it, so the columns never move
-// with the sessions shown, and a model's id that names no family is cut
-// there; familyGap on, when it was last seen, seenCells; beforeDoing on,
-// what it's doing, doingCells; and why it's there, which takes the rest.
+// lays them: the id, status.IDShown; dirGap on, its directory, dirCells,
+// which gives way only where the rest don't fit with why gone; afterNamed
+// on, the family, fixed at the widest family the version table names, as
+// familiesCells has it, so the columns never move with the sessions shown,
+// and a model's id that names no family is cut there; familyGap on, when it
+// was last seen, seenCells; beforeDoing on, what it's doing, doingCells; and
+// why it's there, which takes the rest, so gives way first.
 func runningParts() []flex.Part {
 	family := familiesCells()
 	return []flex.Part{
-		runID:     {Least: runningID, Natural: runningID},
-		runFamily: {Least: family, Natural: family},
+		runID:     {Least: status.IDShown, Natural: status.IDShown},
+		runDir:    {Least: dirCells, Natural: dirCells, Leaves: 1, Gap: dirGap},
+		runFamily: {Least: family, Natural: family, Gap: afterNamed},
 		runSeen:   {Least: seenCells, Natural: seenCells, Gap: familyGap},
 		runDoing:  {Least: doingCells, Natural: doingCells, Gap: beforeDoing},
 		runWhy:    {Grows: true},
@@ -285,22 +316,23 @@ func (form runningForm) targets(listed []views.Running, body bounds) []Target {
 var runningOut = outForm{lead: "+", inks: subtleOut}
 
 // wideRunning draws the session running r on row y, of the moment m, on a
-// row a session, as the columns given lay it: from the name column, its id,
-// its family, cut to its column, when it was last seen, what it's doing,
-// and why it's there, cut to its column, which ends beforeTraceAt cells
-// before its trace, which starts where ROUTING's does; then its trace, and
-// its rate right-aligned at the edge rateEdge gives it.
+// row a session, as the columns given lay it: from the name column, its id
+// and directory, as runningNamed has them, its family, cut to its column,
+// when it was last seen, what it's doing, and why it's there, cut to its
+// column, which ends beforeTraceAt cells before its trace, which starts
+// where ROUTING's does; then its trace, and its rate right-aligned at the
+// edge rateEdge gives it.
 func (f Frame) wideRunning(c *canvas, m status.Moment, r views.Running, at runningColumns, y int) {
 	now := m.Now
 	seen := runningSeen(r.Activity.LastSeen, now)
 	doing := runningDoing(r.Activity)
-	c.line(at.names, y, line{
-		runningIDOf(r, now),
+	c.line(at.names, y, slices.Concat(runningNamed(r, now, at.named), line{
+		spaces(afterNamed),
 		{padded(prose.Cut(r.Family, at.family), at.family+familyGap), mutedInk},
 		{strings.Repeat(" ", max(seenCells-len(seen), 0)) + seen, dimInk},
 		spaces(beforeDoing),
 		{padded(doing.text, doingCells), doing.ink},
-	})
+	}))
 	c.line(at.why, y, line{{r.Why.String(), dimInk}}.fit(at.whyCells))
 	faded, t := outOfPool(m, r.Account), f.Traces.Sessions[r.Session]
 	trace := bounds{x: at.trace, y: y, width: at.traceCells, rows: 1}
@@ -310,24 +342,27 @@ func (f Frame) wideRunning(c *canvas, m status.Moment, r views.Running, at runni
 
 // narrowRunning draws the session running r on rows y and y + 1, of the
 // moment m, on two rows a session, as the columns given lay it: on the
-// first, its id at the name column and what it's doing right-aligned; on
-// the second, why it's there, from the name column.
+// first, its id and directory at the name column, as runningNamed has
+// them, and what it's doing right-aligned; on the second, why it's there,
+// from the name column.
 func (f Frame) narrowRunning(c *canvas, m status.Moment, r views.Running, at runningColumns, y int) {
 	column := at.names
-	c.line(column, y, line{runningIDOf(r, m.Now)})
+	c.line(column, y, runningNamed(r, m.Now, at.named))
 	c.right(f.Width, y, line{runningDoing(r.Activity)})
 	c.line(column, y+1, line{{r.Why.String(), dimInk}}.fit(f.Width-column))
 }
 
-// runningIDOf is the session running r's id, and the blanks after it: bold
-// text.primary while it's busy at now, as its Activity's Busy says, with a
-// request in flight or seen in the last minute; else text.muted.
-func runningIDOf(r views.Running, now time.Time) span {
-	id := span{padded(status.ShownID(r.Session), runningID), mutedInk}
+// runningNamed names the session running r in the cells given, as
+// sessionIn names it, padded to them: its id bold text.primary while it's
+// busy at now, as its Activity's Busy says, with a request in flight or
+// seen in the last minute; else text.muted.
+func runningNamed(r views.Running, now time.Time, cells int) line {
+	id := mutedInk
 	if r.Activity.Busy(now) {
-		id.ink = titleInk
+		id = titleInk
 	}
-	return id
+	named := sessionIn(r.Session, r.Dir, id, cells)
+	return append(named, spaces(cells-named.width()))
 }
 
 // runningSeen says how long before now a session running was last seen:

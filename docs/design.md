@@ -2313,7 +2313,7 @@ order the view's section gives.
   views that give its bars rows of their own; History's frames, 37 rows; the Switchboard's lines,
   74 columns; `usage --by account`'s window labels, 10 cells at the name column, which the
   Switchboard's lines take; the frame's least, the fixed rows and three of the view's; a model's
-  family padded to 8 cells in Detail's SESSIONS, and its selection, 43 cells from a cell before
+  family padded to 8 cells in Detail's SESSIONS, and its selection, 45 cells from a cell before
   the row; and the Log card's tree's names padded to 13.
 
 On a phone, under 100 columns, the tabs take row 1 of their own, the status line row 3 and the
@@ -3134,7 +3134,14 @@ whose models go to two accounts on each:
   owner's call, 21 October 2026).
 - **The account's name and marks** at column 0, on the first of its sessions shown alone.
 - **The session's id,** its first 4 characters, at the name column: bold `text.primary` while busy,
-  with a request in flight or seen in the last minute, else `text.muted`. Then two spaces, its
+  with a request in flight or seen in the last minute, else `text.muted`; then a space and its
+  project, the last part of its directory as the List has it (`views.Running`'s `Dir`), in
+  `text.muted`, cut to 12 cells as the Log cuts one (`views.SessionDirCells`), as the List draws
+  its `session` column (`sessionIn`), so LATELY's `mobile started on side` and the row's
+  `c61b mobile` name the session alike. The project takes a column of 12 whether a session has a
+  directory or not, its id alone where none is known, so the columns after it line up down the
+  list; where the row's parts run short, why it's there gives way first, and the project goes only
+  where the id, family, when it was seen and what it's doing don't fit with it. Then two spaces, its
   model's family in `text.muted`, and a cell on, when it was last seen, right-aligned in 4 in
   `text.subtle`: `now` within the minute, `9m`, `2h`. The family's column is a fixed part of the
   row's, laid by flex (`overview_sessions.go`, `runningParts`), its width the widest family the
@@ -3149,7 +3156,7 @@ whose models go to two accounts on each:
   while its account is still where new sessions go; `moved from work 14:31: work reached its cap`;
   `moved from work 14:39: pinned to side`; `pinned here 14:39`, its own pin; `its pin to side
   yields: side has no room` (settled in the plan). It's cut to end two cells before the trace:
-  `moved from work 1…`, 18 cells, at 108 columns.
+  `moved…`, 6 cells, at 108 columns.
 - **Its own trace,** one row, starting where ROUTING's do, as ROUTING's row's parts lay them, so
   the two columns line up, on the shared scale, and its rate right-aligned at the last column. A
   session takes a row wherever an account does in ROUTING. No blank rows between sessions, but
@@ -3726,10 +3733,11 @@ where it fits** says, and where they don't fit, it's stacked, as **Stacked** say
 - **With sessions running** on the chosen account: `SESSIONS`, and `now` in `text.faint`, at the
   panel's left on row 27, and from row 28 a row a session: `▸`, bold `accent.key`, before the one
   selected; `●` while busy, in `state.positive`, or `○`, in `text.subtle`; the id, bold,
-  `text.primary` while busy and `text.muted` while idle; two spaces and the model, padded to 8, in
+  `text.primary` while busy and `text.muted` while idle; a space and its project, in `text.muted`,
+  in a column of 12, as the Overview's SESSIONS has it; two spaces and the model, padded to 8, in
   `text.secondary`; what it's doing, padded to 9, bold `accent.mode` while busy and `text.subtle`
   while idle; and when it was last seen, right-aligned in 3, in `text.subtle`. The selected row is
-  `bg.selection` from a cell before it to 42 cells on while the focus is on SESSIONS, and bold,
+  `bg.selection` from a cell before it to 44 cells on while the focus is on SESSIONS, and bold,
   unlit, while it's on the list, so the one place lit is where `↑` `↓` act; `SESSIONS` is bold
   `text.primary` while the focus is there, and `text.subtle` while it isn't (the owner's call, 15
   October 2026). On row 33, two cells in,

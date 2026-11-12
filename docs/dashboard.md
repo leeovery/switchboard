@@ -156,7 +156,8 @@ SESSIONS lists the sessions the router has routed in the last hour, busiest firs
 whose sessions send the most requests a minute comes first, with all its sessions together, the
 busiest of them first. Each session shows:
 
-- its id, bright while the session is busy
+- its id, bright while the session is busy, and its project, the last part of its directory, as
+  the Sessions List names it: `c61b mobile`
 - its model
 - when it was last seen
 - what it's doing, such as `↑ ask` or `↓ ~1.2k`
