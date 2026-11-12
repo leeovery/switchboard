@@ -56,6 +56,18 @@ type Health struct {
 	// took the pin off alone, by its name, and would send the directory on to
 	// the API.
 	StripsOwnHeaders bool `json:"strips_own_headers"`
+	// ReportsPools is set by a router that reports the pools it routes for,
+	// as Pools: a launch compares those with the config's, which one from
+	// before can't be asked for, its answer decoding without them.
+	ReportsPools bool `json:"reports_pools"`
+	// Pools are the pools the router routes for now, as the config it follows
+	// makes them, in its order: none in a config from before pools.
+	Pools []RoutedPool `json:"pools,omitempty"`
+	// Moving is how the router's move of the accounts and their history
+	// stands, as its status document gives it, given here too as it's no
+	// pool's: zero where none is owed, and from a router that doesn't say
+	// ReportsPools.
+	Moving status.Moving `json:"moving,omitzero"`
 }
 
 // Same reports whether h and o are the answers of one router: the same
@@ -173,6 +185,21 @@ type problem struct {
 	// restart was refused for, as ExportUnderWay has it: "" for any other
 	// refusal.
 	Exporting string `json:"exporting,omitempty"`
+	// Pools are the pools to name one of, and Named the one named that isn't
+	// configured, of a read refused for want of a pool, as PoolNeeded has
+	// them: none for any other refusal.
+	Pools []PoolNamed `json:"pools,omitempty"`
+	Named string      `json:"named,omitempty"`
+}
+
+// writeRefusal answers with a 400 saying why err refuses the request: with
+// the pools to name one of, where it's a PoolNeeded.
+func writeRefusal(w http.ResponseWriter, err error) {
+	refusal := problem{Error: err.Error()}
+	if need, ok := errors.AsType[PoolNeeded](err); ok {
+		refusal.Pools, refusal.Named = need.Pools, need.Named
+	}
+	writeProblemOf(w, http.StatusBadRequest, refusal)
 }
 
 // Control is the control API: GET /health says the router is alive, and
@@ -196,6 +223,11 @@ type problem struct {
 // export of the history under way, which it never restarts in place over.
 // POST /import takes in the history import staged, answering with what it
 // took in, one import at a time, and GET /import says whether one is running.
+//
+// The status document, the sessions, the windows' history and the stream are
+// one pool's, as ?pool= names it, else the one the verbs act on, refused,
+// naming the pools, where there's none; GET /health reports every pool, and a
+// session named by its id is in its own pool unless ?pool= names another.
 func (r *Router) Control() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
@@ -217,14 +249,19 @@ func (r *Router) Control() http.Handler {
 		_ = http.NewResponseController(w).Flush()
 		r.upkeep.restartNow(cleared)
 	})
-	mux.HandleFunc("GET /status", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, r.Status())
-	})
-	mux.HandleFunc("GET /sessions", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, r.running())
-	})
+	mux.HandleFunc("GET /status", r.forPool(func(w http.ResponseWriter, _ *http.Request, rd poolRead) {
+		writeJSON(w, r.statusOf(rd))
+	}))
+	mux.HandleFunc("GET /sessions", r.forPool(func(w http.ResponseWriter, _ *http.Request, rd poolRead) {
+		writeJSON(w, r.running(rd))
+	}))
 	mux.HandleFunc("GET /sessions/{id}", func(w http.ResponseWriter, req *http.Request) {
-		r.answerSession(w, req.PathValue("id"), nil)
+		in, err := r.sessionPoolAsked(req)
+		if err != nil {
+			writeRefusal(w, err)
+			return
+		}
+		r.answerSession(w, req.PathValue("id"), in, nil)
 	})
 	mux.HandleFunc("POST /sessions/{id}/pin", func(w http.ResponseWriter, req *http.Request) {
 		var pin sessionPinRequest
@@ -233,7 +270,7 @@ func (r *Router) Control() http.Handler {
 			return
 		}
 		id := req.PathValue("id")
-		r.answerSession(w, id, r.pinSession(id, pin.Account, pin.By))
+		r.answerSession(w, id, anyPool, r.pinSession(id, pin.Account, pin.By))
 	})
 	mux.HandleFunc("DELETE /sessions/{id}/pin", func(w http.ResponseWriter, req *http.Request) {
 		id := req.PathValue("id")
@@ -241,7 +278,7 @@ func (r *Router) Control() http.Handler {
 		if err == nil {
 			err = r.unpinSession(id, by)
 		}
-		r.answerSession(w, id, err)
+		r.answerSession(w, id, anyPool, err)
 	})
 	mux.HandleFunc("POST /pin", func(w http.ResponseWriter, req *http.Request) {
 		var pin PinRequest
@@ -249,13 +286,17 @@ func (r *Router) Control() http.Handler {
 			writeProblem(w, http.StatusBadRequest, `give the accounts to pin as JSON, such as {"accounts": ["work"], "move": false, "force": false}`)
 			return
 		}
-		if err := r.pin(pin); err != nil {
-			writeProblem(w, http.StatusBadRequest, err.Error())
+		rd, err := r.pinRead(req, pin.ids())
+		if err == nil {
+			err = r.pin(pin)
+		}
+		if err != nil {
+			writeRefusal(w, err)
 			return
 		}
-		writeJSON(w, r.Status())
+		writeJSON(w, r.statusOf(rd))
 	})
-	mux.HandleFunc("DELETE /pin", func(w http.ResponseWriter, req *http.Request) {
+	mux.HandleFunc("DELETE /pin", r.forPool(func(w http.ResponseWriter, req *http.Request, rd poolRead) {
 		force, err := forceAsked(req)
 		if err != nil {
 			writeProblem(w, http.StatusBadRequest, err.Error())
@@ -267,26 +308,26 @@ func (r *Router) Control() http.Handler {
 			return
 		}
 		r.unpin(force, by)
-		writeJSON(w, r.Status())
-	})
-	mux.HandleFunc("POST /refresh", func(w http.ResponseWriter, req *http.Request) {
+		writeJSON(w, r.statusOf(rd))
+	}))
+	mux.HandleFunc("POST /refresh", r.forPool(func(w http.ResponseWriter, req *http.Request, rd poolRead) {
 		age, err := maxAge(w, req)
 		if err != nil {
 			writeProblem(w, http.StatusBadRequest, err.Error())
 			return
 		}
-		r.refresh(req.Context(), age)
-		writeJSON(w, r.Status())
-	})
-	mux.HandleFunc("GET /history", func(w http.ResponseWriter, req *http.Request) {
+		r.refresh(req.Context(), age, rd)
+		writeJSON(w, r.statusOf(rd))
+	}))
+	mux.HandleFunc("GET /history", r.forPool(func(w http.ResponseWriter, req *http.Request, rd poolRead) {
 		asked, err := historyAsked(req)
 		if err != nil {
 			writeProblem(w, http.StatusBadRequest, err.Error())
 			return
 		}
-		writeJSON(w, r.windowHistory(asked))
-	})
-	mux.HandleFunc("GET /stream", r.serveStream)
+		writeJSON(w, r.windowHistory(asked, rd))
+	}))
+	mux.HandleFunc("GET /stream", r.forPool(r.serveStream))
 	mux.HandleFunc("GET /import", r.serveImportRunning)
 	mux.HandleFunc("POST /import", r.serveImport)
 	return mux
@@ -295,7 +336,67 @@ func (r *Router) Control() http.Handler {
 // healthNow is what GET /health answers now.
 func (r *Router) healthNow() Health {
 	h := r.health.report()
-	return Health{OK: h.Healthy, Reason: h.Reason, Listen: r.proxyAddr, Version: r.cfg.Version, PID: os.Getpid(), StartedAt: r.started, StripsOwnHeaders: true}
+	return Health{
+		OK: h.Healthy, Reason: h.Reason, Listen: r.proxyAddr, Version: r.cfg.Version, PID: os.Getpid(), StartedAt: r.started,
+		StripsOwnHeaders: true, ReportsPools: true, Pools: r.state.pools.current().reported(r.accounts), Moving: r.moving.report(),
+	}
+}
+
+// forPool is the handler that answers a request with serve, for the pool it
+// asks for, as poolAsked has it, or with a 400 saying why it can't be
+// answered for one, before serve does anything.
+func (r *Router) forPool(serve func(w http.ResponseWriter, req *http.Request, rd poolRead)) http.HandlerFunc {
+	return func(w http.ResponseWriter, req *http.Request) {
+		rd, err := r.poolAsked(req)
+		if err != nil {
+			writeRefusal(w, err)
+			return
+		}
+		serve(w, req, rd)
+	}
+}
+
+// pinRead returns what POST /pin answers for, pinning the accounts with the
+// given ids: the pool they're in, as one reading of the pools has it, which
+// ?pool= needn't name, and, where it does, must be that pool. It fails,
+// naming each account's pool, where they're in two, or one the router has is
+// in none; and where ?pool= names another pool, or none configured.
+func (r *Router) pinRead(req *http.Request, ids []string) (poolRead, error) {
+	t := r.state.pools.current()
+	pool, err := t.poolOfAll(ids, r.accounts)
+	if err != nil {
+		return poolRead{}, err
+	}
+	if named := poolNamed(req); named != "" {
+		asked, err := t.asked(named)
+		if err != nil {
+			return poolRead{}, err
+		}
+		if asked != pool {
+			return poolRead{}, fmt.Errorf("the accounts to pin are in pool %s, not %s: pin them in their own pool", t.label(pool), t.label(asked))
+		}
+	}
+	return r.state.poolReadOf(t, pool), nil
+}
+
+// sessionPoolAsked returns what tells whether GET /sessions/{id} answers for
+// a session, by its pool: one in the pool ?pool= names, as poolAsked has
+// it, and any where it names none, as a session's id names its pool. It
+// fails, naming the pools, where the pool named isn't configured.
+func (r *Router) sessionPoolAsked(req *http.Request) (func(pool string) bool, error) {
+	if poolNamed(req) == "" {
+		return anyPool, nil
+	}
+	rd, err := r.poolAsked(req)
+	if err != nil {
+		return nil, err
+	}
+	return rd.routes, nil
+}
+
+// anyPool holds a session in any pool.
+func anyPool(string) bool {
+	return true
 }
 
 // maxAge reads how old an account's usage can be before POST /refresh probes
@@ -346,15 +447,15 @@ func historyAsked(req *http.Request) (historyAsk, error) {
 	return historyAsk{window: window, step: step, asked: asked}, nil
 }
 
-// refresh probes the accounts it can send on that nothing has been read of
-// for longer than age, and those that can take no request anyway, as
-// refreshing says, sharing any probe of them already under way, and waits for
-// those probes: for refreshWait at most, or until ctx ends, after which they
-// go on without it. One holding the token a probe found another
-// subscription's isn't probed again till it takes up another, as on its
-// rounds.
-func (r *Router) refresh(ctx context.Context, age time.Duration) {
-	underway := r.probes.start(r.accounts.sendable(), r.state.refreshing(age))
+// refresh probes the accounts of the pool rd reads it can send on that
+// nothing has been read of for longer than age, and those that can take no
+// request anyway, as refreshing says, sharing any probe of them already
+// under way, and waits for those probes: for refreshWait at most, or until
+// ctx ends, after which they go on without it. One holding the token a probe
+// found another subscription's isn't probed again till it takes up another,
+// as on its rounds.
+func (r *Router) refresh(ctx context.Context, age time.Duration, rd poolRead) {
+	underway := r.probes.start(r.accounts.sendable().held(rd.holds), r.state.refreshing(age))
 	if len(underway) == 0 {
 		return
 	}
@@ -391,11 +492,11 @@ func byAsked(req *http.Request) (By, error) {
 
 // answerSession answers as GET /sessions/{id} does, with the session as it
 // stands, unless err, from what was asked of the session, says why not: 404
-// for a session the router hasn't seen, else 400.
-func (r *Router) answerSession(w http.ResponseWriter, id string, err error) {
+// for a session the router hasn't seen in a pool in holds, else 400.
+func (r *Router) answerSession(w http.ResponseWriter, id string, in func(pool string) bool, err error) {
 	var session status.Session
 	if err == nil {
-		session, err = r.session(id)
+		session, err = r.session(id, in)
 	}
 	switch {
 	case errors.Is(err, ErrUnknownSession):
@@ -409,9 +510,9 @@ func (r *Router) answerSession(w http.ResponseWriter, id string, err error) {
 
 // session reports where the session with the given id has its requests go,
 // with the status of the account its last-used model went to. It fails with
-// ErrUnknownSession when the router hasn't seen it.
-func (r *Router) session(id string) (status.Session, error) {
-	s, ok := r.sessions.session(id)
+// ErrUnknownSession when the router hasn't seen it in a pool in holds.
+func (r *Router) session(id string, in func(pool string) bool) (status.Session, error) {
+	s, ok := r.sessions.session(id, in)
 	if !ok {
 		return status.Session{}, unknownSession(id)
 	}
@@ -419,11 +520,12 @@ func (r *Router) session(id string) (status.Session, error) {
 	return r.described(s, r.stream.doing(), r.glancing(r.cfg.Now())), nil
 }
 
-// running reports the sessions routed in the last hour, the one seen last
-// first, each as session does but for its account's status.
-func (r *Router) running() []status.Session {
+// running reports the sessions routed in the last hour in the pool rd reads,
+// the one seen last first, each as session does but for its account's
+// status.
+func (r *Router) running(rd poolRead) []status.Session {
 	now := r.cfg.Now()
-	listed := r.sessions.running(now)
+	listed := r.sessions.running(now, rd.routes)
 	doing, g := r.stream.doing(), r.glancing(now)
 	for i, s := range listed {
 		listed[i] = r.described(s, doing, g)
@@ -624,10 +726,7 @@ func UnknownAccount(id string, pinnable config.Accounts) error {
 	}
 	named := make([]string, len(pinnable))
 	for i, a := range pinnable {
-		named[i] = prose.Clean(a.ID)
-		if label := status.ConfiguredName(a).Said(); !strings.EqualFold(label, named[i]) {
-			named[i] += " (" + label + ")"
-		}
+		named[i] = accountSaid(a)
 	}
 	return fmt.Errorf("there's no account %q: pin %s", redact.Text(id), prose.ListOr(named))
 }

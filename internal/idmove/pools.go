@@ -328,12 +328,7 @@ func recorded(record identity.Record, id string) (identity.Entry, bool) {
 func restorePrimaries(draft *config.Draft, record identity.Record) error {
 	cfg := draft.Config()
 	for _, a := range cfg.Accounts {
-		p, _ := record.PoolByID(a.Pool)
-		if !p.Written.PrimaryKnown || p.Written.Primary == "" {
-			continue
-		}
-		e, ok := recorded(record, a.ID)
-		marked := ok && strings.EqualFold(p.Written.Primary, e.ID)
+		marked := PrimaryKept(record, a.Pool, a.ID, a.Primary)
 		var err error
 		switch {
 		case marked && !a.Primary:
@@ -346,6 +341,21 @@ func restorePrimaries(draft *config.Draft, record identity.Record) error {
 		}
 	}
 	return nil
+}
+
+// PrimaryKept reports whether the account a config names by the id given, in
+// the pool with the id given once its pools are written back, is that pool's
+// primary, as restorePrimaries marks it: the account record has the config
+// last make it, where record knows it; else as the config marks it, as marked
+// says. So a router routing within the pools PoolsKept gives marks the
+// primaries the heal writes.
+func PrimaryKept(record identity.Record, pool, id string, marked bool) bool {
+	p, _ := record.PoolByID(pool)
+	if !p.Written.PrimaryKnown || p.Written.Primary == "" {
+		return marked
+	}
+	e, ok := recorded(record, id)
+	return ok && strings.EqualFold(p.Written.Primary, e.ID)
 }
 
 // configuredPools are the pools record keeps as this Mac's, as PoolEntry's

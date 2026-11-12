@@ -123,17 +123,25 @@ type Document struct {
 	// the router was asked for its own first: zero in the router's own, and
 	// in one probed as asked.
 	Fallback Fallback `json:"fallback,omitzero"`
-	// Best is the account to use next: of those with room in the windows every
-	// model shares, the one whose quota most needs using, or, from the router,
-	// of those the global pin names while one has room, passing over those
-	// under pressure while another isn't. Empty when there's none.
+	// PoolID and PoolLabel are the id and the label of the pool the document
+	// is of, whose accounts, primary, pin, room and sessions it holds, as
+	// every document of a config with pools is one pool's: "" in a config
+	// from before pools. Pool, below, is the room new sessions in it have.
+	PoolID    string `json:"pool_id,omitempty"`
+	PoolLabel string `json:"pool_label,omitempty"`
+	// Best is the account of the pool to use next: of those with room in the
+	// windows every model shares, the one whose quota most needs using, or,
+	// from the router, of those the pool's pin names while one has room,
+	// passing over those under pressure while another isn't. Empty when
+	// there's none.
 	Best string `json:"best,omitempty"`
-	// Primary is the id of the primary account, whose token Claude Code
-	// holds: empty only when no account is marked the primary.
+	// Primary is the id of the pool's primary account, whose token Claude
+	// Code holds: empty only when no account is marked the primary.
 	Primary string `json:"primary,omitempty"`
 	// Prime is the priming schedule: zero when priming is off.
 	Prime Prime `json:"prime,omitzero"`
-	// Pin is the router's global pin: zero when there's none, and in a
+	// Pin is the router's global pin as it holds in the pool, naming the
+	// pool's accounts alone: zero when it names none of them, and in a
 	// document that isn't the router's.
 	Pin Pin `json:"pin,omitzero"`
 	// Router is the router's health: zero in a document that isn't the
@@ -152,12 +160,13 @@ type Document struct {
 	// zero where the config names no folder, and in a document that isn't
 	// the router's.
 	Export Export `json:"export,omitzero"`
-	// Sessions is how many sessions the router has sent anywhere in the last
-	// hour, each counted once however many accounts its models went to: zero
-	// in a document that isn't the router's.
+	// Sessions is how many of the pool's sessions the router has sent
+	// anywhere in the last hour, each counted once however many accounts its
+	// models went to: zero in a document that isn't the router's.
 	Sessions int `json:"sessions,omitzero"`
 	// Events are what has happened lately, as the router tells of it, the
-	// newest first: none in a document that isn't the router's.
+	// newest first: those of the pool and its accounts, and those of no pool
+	// or account; none in a document that isn't the router's.
 	Events []Event `json:"events,omitempty"`
 	// Pool is the accounts new sessions can go to now, taken as one: zero
 	// with one account, whose own windows say the same.
@@ -249,7 +258,8 @@ type Event struct {
 	// configured, as it's set or cleared.
 	Accounts []string `json:"accounts,omitempty"`
 	// Pool is the id of the pool whose pin it is, of a pin's or an auto's
-	// event: none of one that names none, as none did before pools.
+	// event, none of one that names none, as none did before pools; and of a
+	// session's start or move, the pool its request was routed within.
 	Pool string `json:"pool,omitempty"`
 	// Session and Model are the session that started or moved, and the model
 	// whose requests did; Session is the one whose own pin was set or

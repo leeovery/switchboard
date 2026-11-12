@@ -1150,9 +1150,9 @@ func TestRestart(t *testing.T) {
 					t.Errorf("waited %v for the router, want %v", waited, tt.wantWaited)
 				}
 				switch {
-				case tt.want == (router.Health{}) && h != nil:
+				case reflect.DeepEqual(tt.want, router.Health{}) && h != nil:
 					t.Errorf("Restart() found the router %+v, want none answering", *h)
-				case tt.want != (router.Health{}) && (h == nil || *h != tt.want):
+				case !reflect.DeepEqual(tt.want, router.Health{}) && (h == nil || !reflect.DeepEqual(*h, tt.want)):
 					t.Errorf("Restart() found the router %v, want %+v", h, tt.want)
 				}
 				if !reflect.DeepEqual(s.launchctl.calls, tt.wantRuns) {

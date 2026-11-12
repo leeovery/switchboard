@@ -33,7 +33,7 @@ const (
 func reasonForms() []string {
 	return []string{
 		ReasonNew, ReasonPinned, ReasonGlobalPin, ReasonMovedByPin, ReasonSticky, ReasonBound,
-		ReasonUnsessioned, ReasonNoRoom, ReasonClient, ReasonBack,
+		ReasonUnsessioned, ReasonNoRoom, ReasonClient, ReasonBack, ReasonTokenLeftPool,
 		ReasonMovedOff + placedID + " " + placedWhy,
 		ReasonPinYields + placedID + " " + placedWhy,
 		ReasonRescored + placedIdle + rescoredIdle,
@@ -43,7 +43,7 @@ func reasonForms() []string {
 }
 
 // whys are every why an account can't take a request.
-var whys = []string{WhyLimit, WhyRefused, WhyNewToken, WhyReserve, WhyNoRoom}
+var whys = []string{WhyLimit, WhyRefused, WhyNewToken, WhyLeftPool, WhyReserve, WhyNoRoom}
 
 // The reasons and whys are stored for years, in the ledger, the events,
 // state.json and /sessions, and read back, so the reference lists every one

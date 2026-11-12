@@ -121,12 +121,15 @@ func (u *upkeep) run(ctx context.Context) {
 // record, where it has changed, giving a config that has lost its pools them
 // back, as heal does, for the look after to take up, the pools of one naming
 // none followed afresh meanwhile, as membership's follow has them, and
-// closing firstLook's channel the first time.
+// closing firstLook's channel the first time. The tokens of an account that
+// has left the config go to its pool's primary before the pools are taken up
+// without it, while they still say which pool it was in.
 func (u *upkeep) look() {
 	u.wakes.look()
 	u.tokens.look()
 	u.restarts.look()
-	u.tokens.retire(u.restarts.configured())
+	configured, configuredPools, _ := u.restarts.configuredPools()
+	u.tokens.retire(u.pools.heirs(configured, configuredPools))
 	accounts, pools := u.followed()
 	u.heal.look(pools)
 	u.pools.follow(accounts, pools)

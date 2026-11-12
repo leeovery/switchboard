@@ -162,7 +162,7 @@ func TestALookThatCantWriteTheIDsBackWritesNoPoolsAndRoutesByTheRecord(t *testin
 	r.upkeep.look()
 	r.upkeep.look()
 	routeIn(t, r, workToken, "one", defaultPool, nil)
-	routeIn(t, r, workToken, "two", acmePool, nil)
+	routeIn(t, r, personalToken, "two", acmePool, nil)
 
 	if got, err := os.ReadFile(path); err != nil || string(got) != unwritableIDs {
 		t.Errorf("the config reads\n%s\n(%v), want it as it was, no pools written under the ids from before\n%s", got, err, unwritableIDs)
@@ -222,7 +222,7 @@ func TestAConfigPutBackFromBeforeBothMovesIsHealedUnderTheNewIDsAndRoutedInItsPo
 	r.upkeep.look()
 	r.upkeep.look()
 	defaults := routeIn(t, r, workToken, "one", defaultPool, nil)
-	acmes := routeIn(t, r, workToken, "two", acmePool, nil)
+	acmes := routeIn(t, r, personalToken, "two", acmePool, nil)
 
 	if got, want := membersOf(t, path), map[string]string{"work": defaultPool, "personal": acmePool, "side": defaultPool}; !maps.Equal(got, want) {
 		t.Errorf("healed, the config has the accounts in the pools %v, want %v, each by its new id", got, want)
@@ -269,6 +269,11 @@ func TestARouterThatCantTellWhichPoolAnAccountIsInRoutesNothingSayingWhyTillItCa
 	if health := r.Status().Router; health.Healthy || !strings.Contains(health.Reason, why) {
 		t.Errorf("the status document says the router is %+v, want it unhealthy, saying %s", health, why)
 	}
+	// A launch routes through a router that answers, unhealthy, as one that
+	// isn't down: it reports pools, none of them, as it routes for none.
+	if h := healthOf(t, r); h.OK || !strings.Contains(h.Reason, why) || !h.ReportsPools || len(h.Pools) != 0 {
+		t.Errorf("GET /health answers %+v, want it unhealthy, saying %s, reporting pools, none of them", h, why)
+	}
 
 	// The record is put right: the next look routes within the pools it
 	// keeps, the config as it was.
@@ -283,7 +288,7 @@ func TestARouterThatCantTellWhichPoolAnAccountIsInRoutesNothingSayingWhyTillItCa
 	}
 	r.upkeep.look()
 	routeIn(t, r, workToken, "three", "", nil)
-	routeIn(t, r, workToken, "four", acmePool, nil)
+	routeIn(t, r, personalToken, "four", acmePool, nil)
 	if sent, want := upstream.sent(), []string{"side", "personal"}; !slices.Equal(sent, want) {
 		t.Errorf("once the record reads, the requests went out on %q, want %q: each in the pool it keeps", sent, want)
 	}
@@ -322,7 +327,7 @@ func TestARouterStartedOnAConfigItCouldntHealKeepsAClientsAccountInItsPool(t *te
 
 	r.upkeep.look()
 	routeIn(t, r, workToken, "one", "", nil)
-	routeIn(t, r, workToken, "two", acmePool, nil)
+	routeIn(t, r, personalToken, "two", acmePool, nil)
 
 	if sent, want := upstream.sent(), []string{"work", "personal"}; !slices.Equal(sent, want) {
 		t.Errorf("the requests went out on %q, want %q: the first's on work alone, Acme's on personal, side in no pool", sent, want)

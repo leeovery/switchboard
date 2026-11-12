@@ -266,7 +266,8 @@ func TestServeMovesTheAccountsAndTheirHistoryOntoTheirIDsAcrossTheRestartItCalls
 // before pools heals it.
 func TestServeMovesTheHistoryToPoolsTakingTheFirstPoolUpAtOnce(t *testing.T) {
 	srv := newServeSetup(t, fakeClaudeAPI(t), nil)
-	srv.writeUnpooled(t)
+	srv.accounts = threeAccounts
+	srv.writeConfig(t)
 	if err := os.Remove(filepath.Join(srv.state, poolsMark)); err != nil {
 		t.Fatal(err)
 	}
@@ -305,7 +306,7 @@ func TestServeMovesTheHistoryToPoolsTakingTheFirstPoolUpAtOnce(t *testing.T) {
 	if got := stop(); got.code != 0 {
 		t.Fatalf("switchboard serve = %+v, want exit status 0", got)
 	}
-	srv.writeUnpooled(t)
+	srv.writeConfig(t)
 	srv.start(t)
 	srv.waitForStatus(t, func(status.Document) bool { return true })
 	cfg, err := config.Load(srv.config, nil)
@@ -324,7 +325,8 @@ func TestServeStartedOnAConfigItCantHealTellsOfItOnce(t *testing.T) {
 	// No look runs to try the heal again: what's told is serve's.
 	srv.deps.WatchEvery = time.Hour
 	// Moved to pools, the accounts record noting no first pool to heal with.
-	srv.writeUnpooled(t)
+	srv.accounts = threeAccounts
+	srv.writeConfig(t)
 	was, err := os.ReadFile(srv.config)
 	if err != nil {
 		t.Fatal(err)

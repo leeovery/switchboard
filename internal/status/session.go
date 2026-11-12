@@ -66,6 +66,10 @@ const (
 	// ReasonClient is the client's own token, kept as the router was handed
 	// an account it can't send on.
 	ReasonClient = "client"
+	// ReasonTokenLeftPool is a request switchboard refused, telling its
+	// session to exit and resume, as its token is of an account no longer in
+	// the request's pool, or the config no longer has the pool.
+	ReasonTokenLeftPool = "token has left its pool"
 )
 
 // rescoredIdle ends the reason Rescored gives.
@@ -129,8 +133,10 @@ func idledIn(count int, unit string, rest int, restUnit string) string {
 
 // Why an account can't take a request, as the reasons for leaving it, after
 // ReasonMovedOff or ReasonPinYields and the account, give it, and those of
-// them a ledger line's tried gives too: WhyLimit, WhyRefused and WhyNewToken.
-// They're never reworded, as the reasons aren't.
+// them a ledger line's tried gives too: WhyLimit, WhyRefused, WhyNewToken and
+// WhyLeftPool; and WhyNoRoom, of an account that left the config with one
+// pool configured, where WhyLeftPool would name a pool nothing names. They're
+// never reworded, as the reasons aren't.
 const (
 	// WhyReserve is an account held back by its reserve alone.
 	WhyReserve = "is at its reserve"
@@ -143,6 +149,9 @@ const (
 	// WhyNewToken is an account that refused the request's token, as it had
 	// taken up a new one.
 	WhyNewToken = "has a new token"
+	// WhyLeftPool is an account that has left the request's pool, moved to
+	// another or out of the config.
+	WhyLeftPool = "left the pool"
 )
 
 // What a request of an assignment's model in flight is doing, as an
@@ -168,6 +177,12 @@ type Session struct {
 	// Account is the status of the account the session's last-used model went
 	// to: zero where the router lists sessions, rather than answering for one.
 	Account Account `json:"account,omitzero"`
+}
+
+// SeenLastFirst orders sessions as the router lists them: the one whose
+// model used last was seen last first, then by id.
+func SeenLastFirst(a, b Session) int {
+	return cmp.Or(b.Assignments[0].LastSeen.Compare(a.Assignments[0].LastSeen), cmp.Compare(a.ID, b.ID))
 }
 
 // Assignment is the account a session's requests of one model go to, and why.

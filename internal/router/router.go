@@ -391,7 +391,7 @@ func New(cfg Config) (*Router, error) {
 		recent:    recent,
 		emit:      emit,
 		stream:    stream,
-		file:      newStateFile(cfg.Now, changes, sessions, accounts, state, told),
+		file:      newStateFile(cfg.Now, changes, sessions, accounts, state, told, pools.heirs(cfg.Accounts, cfg.Pools)),
 		history:   history,
 		ledger:    requests,
 		imports:   newImports(),
@@ -466,14 +466,27 @@ func (r *Router) Proxy() http.Handler {
 	return r.inFlight.count(r.proxy)
 }
 
-// Status reports every account's usage as the router knows it, with how many
-// sessions each has, and all have, the best account to use next, the priming
-// schedule, with when it next primes each account, the global pin, the
-// router's own health, a restart it has due, what has happened lately, and,
-// worked out of all that once it's set, as WorkedOut says, each window's even
-// pace and allowance, the pool and what's coming up.
+// Status reports the usage of every account of a pool as the router knows
+// it, with how many of the pool's sessions each has, and all have, the best
+// account to use next, the priming schedule, with when it next primes each
+// account, the pool's pin, the router's own health, a restart it has due,
+// what has happened lately, and, worked out of all that once it's set, as
+// WorkedOut says, each window's even pace and allowance, the pool's room and
+// what's coming up: of the pool GET /status answers for asking for none,
+// else, where every pool is fenced, of the first, where a request naming none
+// is routed.
 func (r *Router) Status() status.Document {
-	return r.assembled().WorkedOut(r.cfg.Policy)
+	t := r.state.pools.current()
+	pool, err := t.asked("")
+	if err != nil {
+		pool = t.of("")
+	}
+	return r.statusOf(r.state.poolReadOf(t, pool))
+}
+
+// statusOf is the status document of the pool rd reads, as Status gives it.
+func (r *Router) statusOf(rd poolRead) status.Document {
+	return r.assembled(rd).WorkedOut(r.cfg.Policy)
 }
 
 // accountStatus reports the status of the account with the given id as Status
@@ -481,26 +494,29 @@ func (r *Router) Status() status.Document {
 // out the pool or what's coming up, which it doesn't need: a session's
 // account is asked for every few seconds, as a statusline shows it.
 func (r *Router) accountStatus(id string) status.Account {
-	a, _ := r.assembled().AccountWorkedOut(id, r.cfg.Policy)
+	a, _ := r.assembled(r.state.everyAccount()).AccountWorkedOut(id, r.cfg.Policy)
 	return a
 }
 
-// assembled is the document Status gives, but for what's worked out of it.
-func (r *Router) assembled() status.Document {
+// assembled is the document of the pool rd reads, as Status gives it, but
+// for what's worked out of it. The router's health, its restart, its moves,
+// its export, its priming and the events that name no pool are every pool's.
+func (r *Router) assembled(rd poolRead) status.Document {
 	now := r.cfg.Now()
-	pin := r.sessions.globalPin()
-	doc := r.state.document(pin.Accounts...)
+	pin := rd.pin(r.sessions.globalPin())
+	doc := r.state.documentOf(rd, pin.Accounts)
+	doc.PoolID, doc.PoolLabel = rd.named()
 	doc.Pin = pin
 	doc.Router = r.health.report()
 	doc.Restart = r.upkeep.restartDue()
 	doc.Moving = r.moving.report()
 	doc.Export = r.exports.report()
-	doc.Events = r.recent.events()
+	doc.Events = rd.events(r.recent.events())
 	if r.primer != nil {
-		doc.Prime = r.primer.report(now)
+		doc.Prime = rd.prime(r.primer.report(now))
 	}
 	var byAccount map[string]int
-	byAccount, doc.Sessions = r.sessions.active(now)
+	byAccount, doc.Sessions = r.sessions.active(now, rd.routes)
 	for i, a := range doc.Accounts {
 		doc.Accounts[i].Sessions = byAccount[a.ID]
 	}

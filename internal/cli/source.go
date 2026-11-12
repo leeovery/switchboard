@@ -2,6 +2,8 @@ package cli
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/claude"
@@ -34,27 +36,60 @@ type usageSource struct {
 	// router is the router, nil when there's no socket to find it at: read
 	// when ask is set, and asked after either way.
 	router *router.Client
+	// pool is the id of the pool read, as inPool names it: "" for the one
+	// the verbs act on.
+	pool string
 	// patience is how long the router is waited for, as run waits.
 	patience launch.Patience
 }
 
-// Read reads the router's document, having the router refresh first when r
-// asks, when the router answers its health check, as patiently as run asks
-// it, healthy or not, and says which router it was, as its health check
-// answered. Otherwise, when r allows, it builds one by probing every
-// account, saying why the router's wasn't read when the router was asked.
+// inPool returns the source reading the router's document, sessions,
+// windows' history and request stream of the pool with the given id, as the
+// router's client's InPool asks: "" for the one the verbs act on.
+func (s usageSource) inPool(pool string) usageSource {
+	if s.router != nil {
+		s.router = s.router.InPool(pool)
+	}
+	s.pool = pool
+	return s
+}
+
+// Read reads the router's document, of the pool the source reads, having
+// the router refresh first when r asks, when the router answers its health
+// check, as patiently as run asks it, healthy or not, and says which router
+// it was, as its health check answered. Otherwise, when r allows, it builds
+// one by probing every account of that pool, saying why the router's wasn't
+// read when the router was asked. A router refusing for want of a pool, and
+// a config whose pool can't be told, fail with router.PoolNeeded: nothing is
+// read in its place.
 func (s usageSource) Read(ctx context.Context, r status.Read) (status.Document, router.Health, error) {
-	doc, health, fallback, ok := s.fromRouter(ctx, r.Refresh)
+	read, err := s.fromRouter(ctx, r.Refresh)
 	switch {
-	case ok:
-		return doc, health, nil
+	case err != nil:
+		return status.Document{}, router.Health{}, err
+	case read.ok:
+		return read.doc, read.health, nil
 	case !r.Probe:
 		return status.Document{}, router.Health{}, status.ErrNoRouter
 	}
-	logger.Debug("probing directly", "router", fallback.Router, "reason", fallback.Reason)
-	doc, err := s.probe.Fetch(ctx)
-	doc.Fallback = fallback
+	probe, err := s.probe.inPool(s.pool)
+	if err != nil {
+		return status.Document{}, router.Health{}, err
+	}
+	logger.Debug("probing directly", "router", read.fallback.Router, "reason", read.fallback.Reason)
+	doc, err := probe.Fetch(ctx)
+	doc.Fallback = read.fallback
 	return doc, router.Health{}, err
+}
+
+// routerRead is what reading the router's document came to: the document,
+// worked out, and the router's health, where ok is set; else why it wasn't
+// read, where the router was asked.
+type routerRead struct {
+	doc      status.Document
+	health   router.Health
+	fallback status.Fallback
+	ok       bool
 }
 
 // fromRouter reads the router's document, having the router probe the
@@ -62,26 +97,30 @@ func (s usageSource) Read(ctx context.Context, r status.Read) (status.Document, 
 // its health check's answer. What's worked out of the document, as
 // WorkedOut says, is worked out as it's read, as a router from before it
 // gave that, still running between an upgrade and its restart, gives none.
-// It reports false, and why when the router was asked, when the router isn't
+// It's unread, and says why when the router was asked, when the router isn't
 // to be asked, doesn't answer its health check in time, or doesn't give its
-// document.
-func (s usageSource) fromRouter(ctx context.Context, refresh time.Duration) (status.Document, router.Health, status.Fallback, bool) {
+// document; and fails with router.PoolNeeded where it refuses for want of a
+// pool.
+func (s usageSource) fromRouter(ctx context.Context, refresh time.Duration) (routerRead, error) {
 	switch {
 	case !s.ask:
-		return status.Document{}, router.Health{}, status.Fallback{}, false
+		return routerRead{}, nil
 	case s.router == nil:
-		return status.Document{}, router.Health{}, status.Fallback{Router: status.RouterNotRunning}, false
+		return routerRead{fallback: status.Fallback{Router: status.RouterNotRunning}}, nil
 	}
 	health, fallback, ok := s.answers(ctx)
 	if !ok {
-		return status.Document{}, router.Health{}, fallback, false
+		return routerRead{fallback: fallback}, nil
 	}
 	doc, err := s.document(ctx, refresh)
+	if _, needs := errors.AsType[router.PoolNeeded](err); needs {
+		return routerRead{}, err
+	}
 	if err != nil {
-		return status.Document{}, router.Health{}, fallbackFrom(err), false
+		return routerRead{fallback: fallbackFrom(err)}, nil
 	}
 	logger.Debug("read the router", "refresh", refresh, "healthy", doc.Router.Healthy)
-	return doc.WorkedOut(claude.Policy()), health, status.Fallback{}, true
+	return routerRead{doc: doc.WorkedOut(claude.Policy()), health: health, ok: true}, nil
 }
 
 // answers asks the router's health check, as patiently as run does, and
@@ -100,6 +139,22 @@ func (s usageSource) RouterAnswers(ctx context.Context) bool {
 	}
 	_, _, ok := s.answers(ctx)
 	return ok
+}
+
+// everyPool reads the router's status document of every pool it routes for,
+// as its client's StatusInEveryPool asks, once the router answers its health
+// check, as patiently as run asks it: for what's said of every account,
+// whatever pool it's in. It fails where the router doesn't answer, or give
+// them.
+func (s usageSource) everyPool(ctx context.Context) ([]status.Document, error) {
+	if s.router == nil {
+		return nil, errRouterDown
+	}
+	health, fallback, ok := s.answers(ctx)
+	if !ok {
+		return nil, fmt.Errorf("the router doesn't answer: %s", fallback.Router)
+	}
+	return s.router.StatusInEveryPool(ctx, health)
 }
 
 // History asks the router for every account's use of the window with the
@@ -205,7 +260,31 @@ type probeSource struct {
 	tokenTaken func(id string, token tokens.Token) (time.Time, error)
 	upstream   string
 	accounts   []config.Account
-	prime      config.Prime
+	// pools are the config's, and pool the one probed, as inPool names it:
+	// zero where the config has none.
+	pools config.Pools
+	pool  config.Pool
+	prime config.Prime
+}
+
+// inPool returns the source probing the accounts of the pool with the given
+// id alone, else of the one the verbs act on, as config.Pools' Implicit has
+// it: every account, in a config with no pools. It fails with
+// router.PoolNeeded where the pool named isn't configured, or none is named
+// and there's none the verbs act on.
+func (s probeSource) inPool(named string) (probeSource, error) {
+	if len(s.pools) == 0 {
+		return s, nil
+	}
+	p, ok := s.pools.Implicit()
+	if named != "" {
+		p, ok = s.pools.ByID(named)
+	}
+	if !ok {
+		return probeSource{}, router.NeedPool(named, s.pools)
+	}
+	s.accounts, s.pool = config.Accounts(s.accounts).InPool(p.ID), p
+	return s, nil
 }
 
 // Fetch probes every account, claiming the Claude Code version installed now:
@@ -222,6 +301,7 @@ func (s probeSource) Fetch(ctx context.Context) (status.Document, error) {
 		Now:    s.deps.Now,
 	}
 	doc := collector.Collect(ctx, s.accounts)
+	doc.PoolID, doc.PoolLabel = s.pool.ID, s.pool.Label
 	logger.Debug("probed accounts", "accounts", len(doc.Accounts), "best", doc.Best, "claude_version", version)
 	return doc, nil
 }

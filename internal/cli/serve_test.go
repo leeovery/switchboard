@@ -1,6 +1,7 @@
 package cli_test
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -47,9 +48,9 @@ func TestServe(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Probed from the same state directory, and so the same token files, which
-	// the document names.
+	// the document names, of the same accounts in the same pool.
 	var probed status.Document
-	probing := statusDeps(t, fakeClaudeAPI(t), map[string]string{"XDG_STATE_HOME": filepath.Dir(srv.state)})
+	probing := statusDepsOf(t, fakeClaudeAPI(t), threeInFirstPool, map[string]string{"XDG_STATE_HOME": filepath.Dir(srv.state)})
 	if err := json.Unmarshal([]byte(run(t, probing, "status", "--json", "--probe").stdout), &probed); err != nil {
 		t.Fatal(err)
 	}
@@ -1005,8 +1006,10 @@ type serveSetup struct {
 	// state is switchboard's state directory, under $XDG_STATE_HOME.
 	state  string
 	config string
-	// extra ends the config file.
-	extra string
+	// accounts are the config file's accounts, and its pools:
+	// threeInFirstPool where it's "". extra ends the config file.
+	accounts string
+	extra    string
 	// exited closes once the serve start runs has exited.
 	exited <-chan struct{}
 	// binary is the switchboard binary serve runs as, once watch has it
@@ -1126,21 +1129,7 @@ func (s *serveSetup) writeConfig(t *testing.T) {
 
 // putConfig is writeConfig, from any goroutine.
 func (s *serveSetup) putConfig() error {
-	return s.putConfigOf(threeInFirstPool)
-}
-
-// writeUnpooled is writeConfig, threeAccounts in no pools, as a config from
-// before pools.
-func (s *serveSetup) writeUnpooled(t *testing.T) {
-	t.Helper()
-	if err := s.putConfigOf(threeAccounts); err != nil {
-		t.Fatal(err)
-	}
-}
-
-// putConfigOf is putConfig, the config's accounts and pools those given.
-func (s *serveSetup) putConfigOf(accounts string) error {
-	content := fmt.Sprintf("listen   = %q\nupstream = %q\n", s.listen, s.upstream) + accounts + s.extra
+	content := fmt.Sprintf("listen   = %q\nupstream = %q\n", s.listen, s.upstream) + cmp.Or(s.accounts, threeInFirstPool) + s.extra
 	return os.WriteFile(s.config, []byte(content), 0o600)
 }
 

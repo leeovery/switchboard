@@ -31,12 +31,13 @@ type historyAsk struct {
 	asked  string
 }
 
-// windowHistory is what GET /history answers at now: every account's use of
-// the window asked over its current length, a point each step asked, from the
-// readings history and the readings held in memory since.
-func (r *Router) windowHistory(asked historyAsk) History {
+// windowHistory is what GET /history answers at now: the use of the window
+// asked of every account of the pool rd reads, as it is now, over the
+// window's current length, a point each step asked, from the readings history
+// and the readings held in memory since.
+func (r *Router) windowHistory(asked historyAsk, rd poolRead) History {
 	now := r.cfg.Now()
-	held := r.state.windowsHeld(asked.window, now)
+	held := r.state.windowsHeld(asked.window, rd, now)
 	var placed []string
 	from := now
 	for _, a := range held {
@@ -62,18 +63,21 @@ type heldWindow struct {
 	readings []readings.Reading
 }
 
-// windowsHeld returns what the router holds of each account's window with the
-// given key, in the order configured: the window as the status document reads
-// it at now, and the readings of it in memory, which take in those still
-// queued for the history.
-func (s *state) windowsHeld(key string, now time.Time) []heldWindow {
+// windowsHeld returns what the router holds of the window with the given key
+// of each account of the pool rd reads, in the order configured: the window
+// as the status document reads it at now, and the readings of it in memory,
+// which take in those still queued for the history.
+func (s *state) windowsHeld(key string, rd poolRead, now time.Time) []heldWindow {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	held := make([]heldWindow, len(s.accounts))
-	for i, a := range s.accounts {
+	held := []heldWindow{}
+	for _, a := range s.accounts {
+		if !rd.holds(a.ID) {
+			continue
+		}
 		u := s.usage[a.ID]
 		w, _ := u.status(a, s.policy, now).Window(key)
-		held[i] = heldWindow{id: a.ID, window: w, readings: u.readingsOf(key)}
+		held = append(held, heldWindow{id: a.ID, window: w, readings: u.readingsOf(key)})
 	}
 	return held
 }

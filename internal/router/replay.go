@@ -40,7 +40,8 @@ const (
 	whyNewToken  = status.WhyNewToken
 	whyReset     = "was reset by hand"
 	whyTokenless = "has no usable token"
-	whyLeftPool  = "left the pool"
+	whyLeftPool  = status.WhyLeftPool
+	whyNoRoom    = status.WhyNoRoom
 )
 
 // reasonBack is why a session goes back to the account it was on before a
@@ -209,14 +210,26 @@ func (rp *replay) tokenRefused(ctx context.Context, resp *http.Response) (*http.
 // request went out, on another, as elsewhere says, the request answered as
 // unsendable says where none takes it.
 func (rp *replay) again(ctx context.Context, why string) (*http.Response, bool, error) {
-	switch ex := rp.ex; {
+	ex, pools := rp.ex, rp.p.pools.current()
+	switch {
 	case !ex.account.hasToken():
 		return rp.elsewhere(ctx, whyTokenless, errUnsendable)
-	case !rp.p.pools.current().serves(ex.req.Pool, ex.account.ID):
-		return rp.elsewhere(ctx, whyLeftPool, errUnsendable)
+	case !pools.serves(ex.req.Pool, ex.account.ID):
+		return rp.elsewhere(ctx, whyOutside(pools), errUnsendable)
 	}
 	rp.replaying(rp.ex.account.ID, why)
 	return nil, true, nil
+}
+
+// whyOutside is why a request leaves an account outside its pool, as pools
+// has them: the account has left the pool, where there are pools to tell
+// apart; else, of the one pool, which nothing names, it has no room, as a
+// session's account out of it has, as the view's left says.
+func whyOutside(pools *poolTable) string {
+	if pools.apart() {
+		return whyLeftPool
+	}
+	return whyNoRoom
 }
 
 // barToken bars the account the request went out on from every request, as
@@ -414,10 +427,12 @@ func (rp *replay) takeBack() {
 // refusedEverywhere reports whether every account the request went out on
 // that judged it refused it, as takeBack takes it: one did, at least, and
 // none did otherwise. An account it left for a new token, as it could no
-// longer be sent on, or as it left the request's pool, judged nothing.
+// longer be sent on, or as it was outside the request's pool, as whyOutside
+// says, judged nothing: whyNoRoom, which a reason alone gives otherwise, is
+// tried only of an account out of the one pool.
 func (r Request) refusedEverywhere() bool {
 	judged := slices.DeleteFunc(slices.Clone(r.Tried), func(a Attempt) bool {
-		return a.Why == whyNewToken || a.Why == whyTokenless || a.Why == whyLeftPool
+		return a.Why == whyNewToken || a.Why == whyTokenless || a.Why == whyLeftPool || a.Why == whyNoRoom
 	})
 	return len(judged) > 0 && !slices.ContainsFunc(judged, func(a Attempt) bool { return a.Why != whyRefused })
 }

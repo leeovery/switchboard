@@ -754,7 +754,7 @@ func TestAStateFileFromBeforeDirectoriesLoadsItsAssignmentsWithNone(t *testing.T
 	f := newTestFile(at(start), testAccounts())
 
 	f.load(path)
-	got, ok := f.sessions.session("one")
+	got, ok := f.sessions.session("one", anyPool)
 	if !ok || len(got.Assignments) != 1 || got.Assignments[0].Account != "work" || got.Assignments[0].Dir != "" {
 		t.Errorf("loaded %+v (seen: %v), want the session on work, naming no directory", got, ok)
 	}
@@ -1054,7 +1054,7 @@ func TestTheTokensOfAnAccountThatLeftTheConfigOutlastARestartAsThePrimarysAlone(
 	running := testAccounts()
 	f := newTestFile(at(start), running)
 	f.load(path)
-	if !running.retire(withoutWork, start) {
+	if !running.retire(heirs{accounts: withoutWork}, start) {
 		t.Fatal("retire() = false, want work's tokens left to side")
 	}
 	f.changes.note()
@@ -1089,6 +1089,29 @@ func TestTheTokensOfAnAccountThatLeftTheConfigOutlastARestartAsThePrimarysAlone(
 				t.Errorf("work's token counts as side's: %v, want %v", got, tt.wantSides)
 			}
 		})
+	}
+}
+
+func TestATokenAnAccountRemovedKeptOfOneConfiguredAgainGoesBackToItAsTheRouterStarts(t *testing.T) {
+	// Side took up an older token of work's as work left the config; then
+	// side left it too while the router was away, and work is configured
+	// again, personal the primary.
+	const olderToken = "test-token-work-older"
+	logstest.Capture(t)
+	path := filepath.Join(t.TempDir(), "state.json")
+	older := formerToken{SHA256: hash(olderToken), ReplacedAt: start.Add(-time.Hour), From: "work"}
+	putState(t, path, savedState{Version: stateVersion, Tokens: map[string]savedTokens{
+		"side": {SHA256: sideHash, Former: []formerToken{older}},
+	}})
+	restarted := resolve(config.Accounts{{ID: "work", Label: "Work"}, {ID: "personal", Label: "Personal", Primary: true}}, poolTokens.Read, unrecorded)
+
+	newTestFile(at(start), restarted).load(path)
+
+	if a, ok := restarted.byToken(olderToken, start); !ok || a.ID != "work" {
+		t.Errorf("work's older token is %q's (%v), want work's own again", a.ID, ok)
+	}
+	if personal, _ := restarted.byID("personal"); personal.secret.was(hash(olderToken), start) {
+		t.Error("personal, which took side's tokens up, keeps work's older token, want it given back to work")
 	}
 }
 
@@ -1232,7 +1255,7 @@ func TestAssignmentsKeepTheirTimesInUTC(t *testing.T) {
 	f.load(path)
 	assign(f.sessions, key{session: "new", model: opus}, "", decision{account: "side", reason: reasonNew}, local)
 	for _, id := range []string{"saved", "new"} {
-		if got, _ := f.sessions.session(id); len(got.Assignments) != 1 || got.Assignments[0].AssignedAt != start || got.Assignments[0].LastSeen != start {
+		if got, _ := f.sessions.session(id, anyPool); len(got.Assignments) != 1 || got.Assignments[0].AssignedAt != start || got.Assignments[0].LastSeen != start {
 			t.Errorf("session %s is %+v, want its times in UTC", id, got)
 		}
 	}
@@ -1497,13 +1520,13 @@ func TestSessionsUnusedForAWeekAreForgottenHourlyWithTheirPins(t *testing.T) {
 
 		time.Sleep(pruneEvery - time.Nanosecond)
 		synctest.Wait()
-		if _, seen := s.session("fading"); !seen {
+		if _, seen := s.session("fading", anyPool); !seen {
 			t.Fatal("forgot a session before the hour was up")
 		}
 		time.Sleep(time.Nanosecond)
 		synctest.Wait()
-		_, fading := s.session("fading")
-		_, recent := s.session("recent")
+		_, fading := s.session("fading", anyPool)
+		_, recent := s.session("recent", anyPool)
 		if fading || !recent {
 			t.Errorf("an hour on, sessions are %+v, want the one unused for a week forgotten, and the other kept", s.assignments)
 		}

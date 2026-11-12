@@ -390,7 +390,7 @@ func TestATokenFoundAnothersIsProbedAgainOnlyOnceTheAccountTakesUpAnother(t *tes
 		probe func(context.Context, *Router)
 	}{
 		{name: "on its rounds", probe: func(ctx context.Context, r *Router) { r.rounds.look(ctx) }},
-		{name: "on a refresh", probe: func(ctx context.Context, r *Router) { r.refresh(ctx, 0) }},
+		{name: "on a refresh", probe: func(ctx context.Context, r *Router) { r.refresh(ctx, 0, r.state.everyAccount()) }},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

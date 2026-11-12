@@ -84,6 +84,49 @@ func TestAccountsSaysATokenTheRouterFoundAnothersIsTheWrongToken(t *testing.T) {
 	}
 }
 
+func TestAccountsSaysATokenTheRouterFoundAnothersInAFencedPoolIsTheWrongToken(t *testing.T) {
+	for _, everyFenced := range []bool{false, true} {
+		t.Run(fmt.Sprintf("every pool fenced: %v", everyFenced), func(t *testing.T) {
+			defaultDirs := ""
+			if everyFenced {
+				defaultDirs = "dirs  = [\"/work/default\"]\n"
+			}
+			path := writeConfig(t, "[[account]]\nid = \"work\"\npool = \"b2n8\"\n\n[[account]]\nid = \"side\"\npool = \"q7mt\"\n\n"+
+				"[[pool]]\nid    = \"b2n8\"\nlabel = \"Default\"\n"+defaultDirs+"\n[[pool]]\nid    = \"q7mt\"\nlabel = \"Acme\"\ndirs  = [\"/work/acme\"]\n")
+			deps := testDeps(map[string]string{"SWITCHBOARD_CONFIG": path, "XDG_STATE_HOME": shortTempDir(t)}, t.TempDir())
+			writeToken(t, deps, "work", "test-token-work")
+			writeToken(t, deps, "side", "test-token-side")
+			// The router answers for each pool named alone, as one with every
+			// pool fenced does.
+			docs := map[string]status.Document{
+				"b2n8": {Accounts: []status.Account{{ID: "work", TokenSet: true}}},
+				"q7mt": {Accounts: []status.Account{{ID: "side", TokenForeign: true}}},
+			}
+			health := router.Health{OK: true, ReportsPools: true, Pools: []router.RoutedPool{
+				{ID: "b2n8", Label: "Default", Accounts: []string{"work"}}, {ID: "q7mt", Label: "Acme", Accounts: []string{"side"}},
+			}}
+			serveRouter(t, router.SocketPath(stateDir(t, deps)), new(atomic.Int64), map[string]http.HandlerFunc{
+				"GET /health": func(w http.ResponseWriter, _ *http.Request) { _ = json.NewEncoder(w).Encode(health) },
+				"GET /status": func(w http.ResponseWriter, req *http.Request) {
+					doc, ok := docs[req.URL.Query().Get(router.PoolQuery)]
+					if !ok {
+						w.WriteHeader(http.StatusBadRequest)
+						_, _ = w.Write([]byte(`{"error": "every pool is fenced", "pools": [{"id": "b2n8", "label": "Default"}, {"id": "q7mt", "label": "Acme"}]}`))
+						return
+					}
+					_ = json.NewEncoder(w).Encode(doc)
+				},
+			})
+
+			got := run(t, deps, "accounts")
+			lines := strings.Split(got.stdout, "\n")
+			if got.code != 0 || len(lines) < 3 || !strings.HasSuffix(lines[1], "usable") || !strings.HasSuffix(lines[2], "wrong token") {
+				t.Errorf("switchboard accounts = %+v, want work usable and side's token the wrong one", got)
+			}
+		})
+	}
+}
+
 func TestAccountsMarksTheFirstPrimaryWhenNoneIsMarked(t *testing.T) {
 	path := writeConfig(t, "[[account]]\nid = \"work\"\n\n[[account]]\nid = \"side\"\n")
 	deps := testDeps(map[string]string{"SWITCHBOARD_CONFIG": path}, t.TempDir())

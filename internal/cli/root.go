@@ -479,7 +479,10 @@ func (a *app) statusDocument(ctx context.Context, probe bool, r status.Read) (do
 // the same way.
 func (a *app) source(cfg *config.Config, probe bool) usageSource {
 	source := a.routerSource()
-	source.probe = probeSource{deps: a.Deps, readToken: a.readToken, tokenTaken: a.tokenTaken, upstream: cfg.Upstream, accounts: cfg.Accounts, prime: cfg.Prime}
+	source.probe = probeSource{
+		deps: a.Deps, readToken: a.readToken, tokenTaken: a.tokenTaken, upstream: cfg.Upstream,
+		accounts: cfg.Accounts, pools: cfg.Pools, prime: cfg.Prime,
+	}
 	source.ask = !probe
 	return source
 }

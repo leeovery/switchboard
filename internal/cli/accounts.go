@@ -721,21 +721,27 @@ func warnUnchecked(w io.Writer, unchecked error) {
 }
 
 // foreignTokens reports, of an account by its id, whether the router found
-// its token another subscription's, as its status document's moment judges
-// it, asked once, as statusDocument asks it: of none where the router doesn't
-// give it, so the token files alone tell then.
+// its token another subscription's, as the moment of its pool's status
+// document judges it, every pool's asked once, as statusDocument asks for
+// one: of none where the router doesn't give them, so the token files alone
+// tell then.
 func (a *app) foreignTokens(ctx context.Context) func(id string) bool {
 	source := a.routerSource()
 	source.patience = launch.Patience{Answer: cmp.Or(a.Patience.Answer, launch.AskTimeout)}
-	doc, _, err := source.Read(ctx, status.Read{})
+	docs, err := source.everyPool(ctx)
 	if err != nil {
-		logger.Debug("can't read the router's document; telling each token by its file alone", "error", err)
+		logger.Debug("can't read the router's documents; telling each token by its file alone", "error", err)
 		return func(string) bool { return false }
 	}
-	m := doc.At(a.Now(), claude.Policy())
+	moments := make([]status.Moment, len(docs))
+	for i, doc := range docs {
+		moments[i] = doc.At(a.Now(), claude.Policy())
+	}
 	return func(id string) bool {
-		acct, ok := m.Account(id)
-		return ok && acct.TokenForeign
+		return slices.ContainsFunc(moments, func(m status.Moment) bool {
+			acct, ok := m.Account(id)
+			return ok && acct.TokenForeign
+		})
 	}
 }
 

@@ -370,44 +370,46 @@ func (s *sessions) pinSession(id, account string) (was string, seen bool) {
 }
 
 // session reports what the router says of the session with the given id,
-// but for the status of its account, and false for a session never seen.
-func (s *sessions) session(id string) (status.Session, bool) {
+// but for the status of its account, and false for a session never seen, or
+// one whose pool in isn't, as remembered of the request it saw last.
+func (s *sessions) session(id string, in func(pool string) bool) (status.Session, bool) {
 	now := s.now()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	entries, ok := s.entries()[id]
-	if !ok {
+	if !ok || !in(entries[0].Pool) {
 		return status.Session{}, false
 	}
 	return s.report(id, entries, now), true
 }
 
-// running reports the sessions routed in the last hour at now, each as
-// session does, the one seen last first.
-func (s *sessions) running(now time.Time) []status.Session {
+// running reports the sessions routed in the last hour at now whose pool, as
+// remembered of the request each saw last, in is, each as session does, the
+// one seen last first.
+func (s *sessions) running(now time.Time, in func(pool string) bool) []status.Session {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	listed := []status.Session{}
 	for id, entries := range s.entries() {
-		if entries[0].warm(now) {
+		if entries[0].warm(now) && in(entries[0].Pool) {
 			listed = append(listed, s.report(id, entries, now))
 		}
 	}
-	slices.SortFunc(listed, func(a, b status.Session) int {
-		return cmp.Or(b.Assignments[0].LastSeen.Compare(a.Assignments[0].LastSeen), cmp.Compare(a.ID, b.ID))
-	})
+	slices.SortFunc(listed, status.SeenLastFirst)
 	return listed
 }
 
-// active counts the sessions whose caches are warm at now: by account, and in
-// all, where a session whose models went to two accounts counts once.
-func (s *sessions) active(now time.Time) (byAccount map[string]int, all int) {
+// active counts the sessions whose caches are warm at now, of their models'
+// requests routed in a pool in is, as remembered of the last of each: by
+// account, and in all, where a session whose models went to two accounts
+// counts once.
+func (s *sessions) active(now time.Time, in func(pool string) bool) (byAccount map[string]int, all int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	on := make(map[string]map[string]bool)
 	anywhere := make(map[string]bool)
 	for k, a := range s.assignments {
-		if !a.warm(now) {
+		if !a.warm(now) || !in(a.Pool) {
 			continue
 		}
 		if on[a.Account] == nil {

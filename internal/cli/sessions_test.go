@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"maps"
 	"net"
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -99,9 +101,29 @@ func sessionsDepsOf(t *testing.T, days map[string][]ledger.Line) cli.Deps {
 }
 
 // serveSessions answers GET /sessions with sessions on the control socket of
-// the router commands run with deps find, until the test ends.
+// the router commands run with deps find, until the test ends, and GET
+// /health as a router reporting no pools.
 func serveSessions(t *testing.T, deps cli.Deps, sessions []status.Session) {
 	t.Helper()
+	servePooledSessions(t, deps, map[string][]status.Session{"": sessions})
+}
+
+// servePooledSessions answers GET /sessions asking for each pool, by its id,
+// "" for none, with its sessions, on the control socket of the router
+// commands run with deps find, until the test ends; and GET /health as a
+// router reporting those pools, in their ids' order, none where the one
+// pool is "". A read of a pool not among them is refused for want of a pool.
+func servePooledSessions(t *testing.T, deps cli.Deps, byPool map[string][]status.Session) {
+	t.Helper()
+	health := router.Health{OK: true}
+	var named []router.PoolNamed
+	for _, id := range slices.Sorted(maps.Keys(byPool)) {
+		if id != "" {
+			health.Pools = append(health.Pools, router.RoutedPool{ID: id, Label: id, Accounts: []string{}})
+			named = append(named, router.PoolNamed{ID: id, Label: id})
+		}
+	}
+	health.ReportsPools = len(health.Pools) > 0
 	path := router.SocketPath(stateDir(t, deps))
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		t.Fatal(err)
@@ -111,7 +133,16 @@ func serveSessions(t *testing.T, deps cli.Deps, sessions []status.Session) {
 		t.Fatal(err)
 	}
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /sessions", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode(health)
+	})
+	mux.HandleFunc("GET /sessions", func(w http.ResponseWriter, req *http.Request) {
+		sessions, ok := byPool[req.URL.Query().Get(router.PoolQuery)]
+		if !ok {
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": "every pool is fenced", "pools": named})
+			return
+		}
 		_ = json.NewEncoder(w).Encode(sessions)
 	})
 	srv := &http.Server{Handler: mux, ReadHeaderTimeout: time.Second}
@@ -129,6 +160,15 @@ const sessionsText = `   session              on    model     state        start
 
 today  3 sessions  ·  5 requests  ·  $0.15+ at API prices
 `
+
+func TestSessionsListsTheSessionsOfEveryPool(t *testing.T) {
+	deps := sessionsDeps(t)
+	servePooledSessions(t, deps, map[string][]status.Session{"b2n8": routedSessions[:1], "q7mt": routedSessions[1:]})
+
+	if got := run(t, deps, "sessions", "--pretty"); got != (result{stdout: sessionsText}) {
+		t.Errorf("switchboard sessions --pretty = %+v, want it to print\n%s", got, sessionsText)
+	}
+}
 
 func TestSessionsListsTodaysSessions(t *testing.T) {
 	deps := sessionsDeps(t)

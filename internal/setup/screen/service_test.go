@@ -2,6 +2,7 @@ package screen
 
 import (
 	"context"
+	"reflect"
 	"slices"
 	"strings"
 	"sync"
@@ -55,7 +56,7 @@ func TestReachingTheServiceStepRunsItAndShowsWhatItSaid(t *testing.T) {
 			t.Errorf("row %d reads\n%q\nwant\n%q", y, rows[y], w)
 		}
 	}
-	if got := h.model.page().Service; got == nil || got.Router == nil || *got.Router != health {
+	if got := h.model.page().Service; got == nil || got.Router == nil || !reflect.DeepEqual(*got.Router, health) {
 		t.Errorf("the page holds %+v, want the router's health the step saw", got)
 	}
 	h.pressAndDeliver("enter")
