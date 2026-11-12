@@ -99,7 +99,8 @@ func sessionsDepsOf(t *testing.T, days map[string][]ledger.Line) cli.Deps {
 }
 
 // serveSessions answers GET /sessions with sessions on the control socket of
-// the router commands run with deps find, until the test ends.
+// the router commands run with deps find, until the test ends, and GET
+// /health as a router reporting no pools.
 func serveSessions(t *testing.T, deps cli.Deps, sessions []status.Session) {
 	t.Helper()
 	path := router.SocketPath(stateDir(t, deps))
@@ -111,6 +112,9 @@ func serveSessions(t *testing.T, deps cli.Deps, sessions []status.Session) {
 		t.Fatal(err)
 	}
 	mux := http.NewServeMux()
+	mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode(router.Health{OK: true})
+	})
 	mux.HandleFunc("GET /sessions", func(w http.ResponseWriter, _ *http.Request) {
 		_ = json.NewEncoder(w).Encode(sessions)
 	})
