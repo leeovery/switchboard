@@ -440,8 +440,10 @@ week gone, newest first: a cap, a limit, a refused token, coming under pressure,
 the sessions each moved said in its line, and how long ago at its end, such as `11m ago`. Where
 the screen is wide enough for both, from 159 columns, LATELY sits at the left and COMING UP at the
 right, the past and what's coming as the lanes lie, each down to the legend. Narrower, COMING UP
-sits under the pool's lane with LATELY under it, wherever LATELY's heading and two lines fit;
-narrower still, or shorter, COMING UP alone, in two columns where they fit. Where COMING UP's
+sits under the pool's lane with LATELY under it, wherever LATELY's heading and two lines fit,
+the two as wide as their lines need to read whole, from 72 columns to the screen's width;
+narrower still, or shorter, COMING UP alone, in two columns where they fit. LATELY only takes the
+rows the lanes and COMING UP leave empty, so it never squeezes them. Where COMING UP's
 lines don't all fit, its last says how many more, such as `▼ 3 more`. The legend sits at the foot,
 over the key line. On a short screen, as with a phone's keyboard up, LATELY under COMING UP goes
 first; then COMING UP is cut to the lines that fit; then the legend gives way, then COMING UP, then the

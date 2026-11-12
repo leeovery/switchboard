@@ -294,11 +294,72 @@ func (h happenings) worksCap() []status.Event {
 	}
 }
 
-// auto are the auto world's events (log2.YESTERDAY and log2.TODAY):
-// yesterday's; the morning's; 7f3a started on work at 14:12:30; work's cap
-// and its three moves; and c61b started on side at 14:41:11, the router's
-// best.
+// weekGone are what befell the accounts over the week before now's day and
+// on it, as Runway's LATELY tells them (runway-space1's added events):
+// limits, caps, a refusal, pressure and room again, before yesterday
+// evening's events and among them, each pressure a 5-hour window's running
+// out before it resets, as the router tells pressure of the 5-hour alone;
+// none a move or a session's start, so no session's line changes, and no
+// cap, limit or refusal moving a session: the router keeps its newest
+// eventsKept, the auto world's every one of them, and the moves those would
+// count would push the week's first out of its keep. Each limit or cap lifts
+// as the window it holds resets, before Runway's lanes begin, a day before
+// now, but work's 5-hour limit from 13:36 yesterday, which they draw
+// already.
+func (h happenings) weekGone() []status.Event {
+	week, fiveHour := []string{weekKey}, []string{fiveHourKey}
+	held := func(kind string, days, hour, minute int, account string, windows []string, until time.Time) status.Event {
+		return status.Event{Kind: kind, At: h.at(days, hour, minute, 0), Account: account, Windows: windows, Until: until}
+	}
+	room := func(days, hour, minute int, account string, windows []string) status.Event {
+		return status.Event{Kind: status.EventRoom, At: h.at(days, hour, minute, 0), Account: account, Windows: windows}
+	}
+	pressure := func(days, hour, minute int, account string, until time.Time) status.Event {
+		return status.Event{Kind: status.EventPressure, At: h.at(days, hour, minute, 0), Account: account, Windows: fiveHour, Until: until}
+	}
+	capped := held(status.EventCap, -2, 21, 15, "work", fiveHour, h.at(-2, 22, 50, 0))
+	capped.Reserve = workReserve
+	cappedMonday := held(status.EventCap, -3, 16, 48, "work", fiveHour, h.at(-3, 17, 35, 0))
+	cappedMonday.Reserve = workReserve
+	return []status.Event{
+		pressure(-5, 19, 40, "personal", h.at(-5, 23, 10, 0)),
+		held(status.EventLimit, -5, 23, 12, "personal", week, h.at(-4, 2, 0, 0)),
+		room(-4, 2, 0, "personal", week),
+		pressure(-4, 11, 10, "side", h.at(-4, 15, 30, 0)),
+		held(status.EventLimit, -4, 15, 26, "side", week, h.at(-3, 10, 0, 0)),
+		room(-3, 10, 0, "side", week),
+		{Kind: status.EventRefused, At: h.at(-3, 14, 5, 0), Account: "work", Status: 401},
+		cappedMonday,
+		room(-3, 17, 35, "work", fiveHour),
+		held(status.EventLimit, -3, 22, 18, "personal", fiveHour, h.at(-3, 23, 40, 0)),
+		room(-3, 23, 40, "personal", fiveHour),
+		held(status.EventLimit, -2, 10, 31, "side", fiveHour, h.at(-2, 11, 45, 0)),
+		room(-2, 11, 45, "side", fiveHour),
+		held(status.EventLimit, -2, 16, 2, "personal", fiveHour, h.at(-2, 18, 20, 0)),
+		room(-2, 18, 20, "personal", fiveHour),
+		capped,
+		room(-2, 22, 50, "work", fiveHour),
+		held(status.EventLimit, -1, 8, 40, "side", fiveHour, h.at(-1, 10, 5, 0)),
+		room(-1, 10, 5, "side", fiveHour),
+		held(status.EventLimit, -1, 13, 36, "work", fiveHour, h.at(-1, 17, 10, 0)),
+		pressure(-1, 21, 40, "side", h.at(-1, 23, 50, 0)),
+		pressure(0, 13, 4, "personal", h.at(0, 13, 50, 0)),
+	}
+}
+
+// auto are the auto world's events (log2.YESTERDAY and log2.TODAY): the
+// week gone's, as weekGone has them, then the day's, as autoDay has them.
 func (h happenings) auto() []status.Event {
+	return slices.Concat(h.weekGone(), h.autoDay())
+}
+
+// autoDay are the auto world's events from yesterday evening: yesterday's;
+// the morning's; 7f3a started on work at 14:12:30; work's cap and its three
+// moves; and c61b started on side at 14:41:11, the router's best. The
+// repatch scenario's worlds are told these alone: the router keeps its
+// newest eventsKept, and the moves the scenario plays push the week gone's
+// out of them, as a frame drawn of its moment couldn't.
+func (h happenings) autoDay() []status.Event {
 	return slices.Concat(
 		h.yesterday(), h.morning(h.personalPrimed()),
 		[]status.Event{h.started(h.today(14, 12, 30), id7F3A, "work", status.ReasonNew)},

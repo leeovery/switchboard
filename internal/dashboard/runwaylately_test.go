@@ -45,29 +45,65 @@ func TestLatelyGoesBesideComingUpFrom159ColumnsElseUnderItElseNowhere(t *testing
 
 // Side by side, LATELY takes the Overview's LATELY column's width from column
 // 0, w − ⌊w/2⌋ − 2, and COMING UP the Overview's COMING UP column's,
-// round(w × 0.45), ending at the frame's edge; stacked, both take COMING
-// UP's one column, 72 or the frame's width.
-func TestLatelysColumnIsTheOverviewsBesideComingUpElseComingUpsOwn(t *testing.T) {
+// round(w × 0.45), ending at the frame's edge; stacked, both take one column
+// from column 0, 72 where their lines read whole in it, or the frame's width
+// where that's narrower; and alone, COMING UP takes comingColumns' columns.
+func TestLatelysColumnIsTheOverviewsBesideComingUpElseOneItShares(t *testing.T) {
+	m := latelyMoment(slices.Clone(runwayEvents)...)
 	tests := []struct {
-		width          int
-		place          latelyPlace
-		lately, coming flex.Span
+		width  int
+		place  latelyPlace
+		lately flex.Span
+		coming []flex.Span
 	}{
-		{width: 173, place: latelySideBySide, lately: flex.Span{Size: 85}, coming: flex.Span{At: 95, Size: 78}},
-		{width: 159, place: latelySideBySide, lately: flex.Span{Size: 78}, coming: flex.Span{At: 87, Size: 72}},
-		{width: 108, place: latelyStacked, lately: flex.Span{Size: 72}, coming: flex.Span{Size: 72}},
-		{width: 52, place: latelyStacked, lately: flex.Span{Size: 52}, coming: flex.Span{Size: 52}},
+		{width: 173, place: latelySideBySide, lately: flex.Span{Size: 85}, coming: []flex.Span{{At: 95, Size: 78}}},
+		{width: 159, place: latelySideBySide, lately: flex.Span{Size: 78}, coming: []flex.Span{{At: 87, Size: 72}}},
+		{width: 108, place: latelyStacked, lately: flex.Span{Size: 72}, coming: []flex.Span{{Size: 72}}},
+		{width: 52, place: latelyStacked, lately: flex.Span{Size: 52}, coming: []flex.Span{{Size: 52}}},
+		{width: 160, place: comingAlone, coming: []flex.Span{{Size: 78}, {At: 82, Size: 78}}},
 	}
 	for _, tt := range tests {
 		t.Run(strconv.Itoa(tt.width), func(t *testing.T) {
-			f := Frame{Width: tt.width}
-			if got := f.latelyColumn(tt.place); got != tt.lately {
-				t.Errorf("at %d columns, LATELY's column is %+v, want %+v", tt.width, got, tt.lately)
-			}
-			if got := f.comingColumns(tt.place); !slices.Equal(got, []flex.Span{tt.coming}) {
-				t.Errorf("at %d columns, COMING UP's columns are %+v, want %+v", tt.width, got, tt.coming)
+			f := latelyFrame(tt.width, 53, 4, 0)
+			f.Runway.Lately = views.RunwayLately(m)
+			coming, lately := f.runwayColumns(m, runwayFit{place: tt.place, latelyLines: 10})
+			if lately != tt.lately || !slices.Equal(coming, tt.coming) {
+				t.Errorf("at %d columns, LATELY laid %d, its column is %+v and COMING UP's %+v, want %+v and %+v", tt.width, tt.place, lately, coming, tt.lately, tt.coming)
 			}
 		})
+	}
+}
+
+// Stacked, COMING UP and LATELY share one width: what their lines need to
+// read whole, a long name among them, never under 72, nor over the frame's
+// width, so a name is cut only where the frame is too narrow for it.
+func TestStackedComingUpAndLatelyWidenTogetherForTheirLinesToReadWhole(t *testing.T) {
+	long := latelyMomentOf(func(doc *status.Document) {
+		doc.Accounts[0].Label, doc.Accounts[2].Label = "work-team-plan", "side-hustle-consulting"
+	}, slices.Clone(runwayEvents)...)
+	stacked := runwayFit{place: latelyStacked, latelyLines: 10}
+	f := latelyFrame(108, 53, 0, 0)
+	f.Runway.Coming = []status.Upcoming{{At: routedClock(2, 16, 20), Account: "side", Kind: status.UpcomingRunsOut, Window: "7d"}}
+	f.Runway.Lately = views.RunwayLately(long)
+	coming, lately := f.runwayColumns(long, stacked)
+	if lately.Size <= runwayComingWidth || lately.Size >= f.Width || !slices.Equal(coming, []flex.Span{lately}) {
+		t.Fatalf("with a long name at 108, LATELY's column is %+v and COMING UP's %+v; want one they share, wider than 72, narrower than the frame", lately, coming)
+	}
+	cut := func(cells int) bool {
+		said := slices.ContainsFunc(runwayLatelyLines(long, f.Runway.Lately, cells), func(l line) bool { return strings.Contains(l.plain(), "…") })
+		things := f.runwayHappenings(long)
+		for _, h := range things {
+			said = said || strings.Contains(h.said(long.Now, whenColumn(things, long.Now)).fit(cells-comingTail).plain(), "…")
+		}
+		return said
+	}
+	if cut(lately.Size) || !cut(lately.Size-1) {
+		t.Errorf("at %d cells, a line is cut %t, and a cell narrower %t; want every line whole, and one cut a cell narrower", lately.Size, cut(lately.Size), cut(lately.Size-1))
+	}
+	narrow := f
+	narrow.Width = 80
+	if _, lately := narrow.runwayColumns(long, stacked); lately.Size != 80 {
+		t.Errorf("with a long name at 80, LATELY's column is %+v, want the frame's width", lately)
 	}
 }
 
@@ -82,7 +118,8 @@ func latelyFrame(width, height, coming, lately int) Frame {
 
 // Side by side, from 159 columns, LATELY's heading is on COMING UP's row, and
 // both run down to the blank row over the legend; at 158, LATELY is stacked
-// under COMING UP's every line, a blank row between, down to the same row.
+// under COMING UP's every line, in one column, a blank row between, down to
+// the same row.
 func TestLatelyRunsFromItsHeadingToTheBlankRowOverTheLegend(t *testing.T) {
 	tests := []struct {
 		width int
@@ -112,9 +149,10 @@ func TestLatelyRunsFromItsHeadingToTheBlankRowOverTheLegend(t *testing.T) {
 	}
 }
 
-// Stacked, LATELY shows where its heading and two lines fit at the roomiest
-// step, COMING UP's every line over it; a row short of that, it goes first,
-// before any part compacts, and COMING UP is alone, as it was before LATELY.
+// Stacked, LATELY shows where its heading and two lines fit in the rows the
+// lanes and COMING UP leave, COMING UP's every line in one column over it; a
+// row short of that, it goes first, before any part compacts, and COMING UP
+// is alone, as it was before LATELY.
 func TestStackedLatelyShowsWhereItsHeadingAndTwoLinesFitElseGoesFirst(t *testing.T) {
 	const least = 35
 	fits := latelyFrame(108, least, 4, 9)
@@ -129,11 +167,41 @@ func TestStackedLatelyShowsWhereItsHeadingAndTwoLinesFitElseGoesFirst(t *testing
 	}
 }
 
-// latelyMoment is the frames' moment at routedAt, Thursday 14:42:07, its
-// windows labelled as Claude labels them, with the router's events given, the
-// newest first.
+// LATELY never costs the lanes or COMING UP a step: Runway takes the step
+// and COMING UP's columns it takes without it, and LATELY goes in the rows
+// left. Four accounts and twelve lines at 37 rows keep the roomiest step,
+// COMING UP in two columns, at 158 and at 160 alike, with no rows left for
+// LATELY beside or under it; given rows enough, at 160 it's beside COMING UP,
+// every line in one column, the step the same.
+func TestLatelyNeverCostsTheLanesOrComingUpAStep(t *testing.T) {
+	for _, width := range []int{158, 160} {
+		f := latelyFrame(width, 37, 12, 9)
+		f.Runway.Lanes = lanesOf(4)
+		fit := f.runwayFitted(f.top())
+		if fit.step != runwayRoomy || fit.place != comingAlone || fit.draws(fit.lately) || fit.lines != 6 {
+			t.Errorf("at %d by 37, Runway fits at step %d, LATELY laid %d, drawn %t, COMING UP %d rows; want the roomiest, no LATELY, COMING UP's 12 lines in two columns of 6", width, fit.step, fit.place, fit.draws(fit.lately), fit.lines)
+		}
+	}
+	f := latelyFrame(160, 45, 12, 9)
+	f.Runway.Lanes = lanesOf(4)
+	if fit := f.runwayFitted(f.top()); fit.step != runwayRoomy || fit.place != latelySideBySide || fit.lines != 12 {
+		t.Errorf("at 160 by 45, Runway fits at step %d, LATELY laid %d, COMING UP %d rows; want the roomiest, LATELY beside COMING UP's 12 lines in one column", fit.step, fit.place, fit.lines)
+	}
+}
+
+// latelyMoment is the frames' moment at routedAt, Thursday 14:42:07, with the
+// router's events given, as latelyMomentOf has it.
 func latelyMoment(events ...status.Event) status.Moment {
+	return latelyMomentOf(func(*status.Document) {}, events...)
+}
+
+// latelyMomentOf is the frames' moment at routedAt, Thursday 14:42:07, its
+// windows labelled as Claude labels them, its document changed as change
+// has it, with the router's events given, the newest first.
+func latelyMomentOf(change func(*status.Document), events ...status.Event) status.Moment {
 	doc := framesDoc()
+	change(&doc)
+	doc = doc.WorkedOut(claudeLike)
 	for _, a := range doc.Accounts {
 		for i, w := range a.Windows {
 			a.Windows[i].Label = claude.WindowLabel(w.Key)
@@ -148,12 +216,12 @@ func latelyMoment(events ...status.Event) status.Moment {
 
 // runwayEvents are events of the frames' world, as Runway's signed-off frames
 // tell them: work's cap at 14:31, three sessions moved to side; personal
-// under pressure at 13:04, its week running out ~Sat 06:10; a session
-// started at 12:47, which LATELY never tells; and personal open again at
-// Wednesday 23:58.
+// under pressure at 13:04, its 5-hour running out ~13:50; a session started
+// at 12:47, which LATELY never tells; and personal open again at Wednesday
+// 23:58.
 var runwayEvents = []status.Event{
 	{Kind: status.EventCap, At: routedClock(1, 14, 31), Account: "work", Windows: []string{"5h"}, Count: 3, To: "side", Reserve: 0.05},
-	{Kind: status.EventPressure, At: routedClock(1, 13, 4), Account: "personal", Windows: []string{"7d"}, Until: routedClock(3, 6, 10)},
+	{Kind: status.EventPressure, At: routedClock(1, 13, 4), Account: "personal", Windows: []string{"5h"}, Until: routedClock(1, 13, 50)},
 	{Kind: status.EventStarted, At: routedClock(1, 12, 47), Account: "personal", Session: "41e0"},
 	{Kind: status.EventRoom, At: time.Date(2026, 9, 30, 23, 58, 0, 0, time.UTC), Account: "personal", Windows: []string{"5h"}},
 }
@@ -171,14 +239,14 @@ func TestLatelysLinesAreItsAccountEventsWholeOrShortTheirAgoAtTheEnd(t *testing.
 		{
 			cells: 85, want: []string{
 				"14:31      work reached its cap: 3 sessions moved to side                     11m ago",
-				"13:04      personal came under pressure: its week runs out ~Sat 06:10      1h 38m ago",
+				"13:04      personal came under pressure: its 5-hour runs out ~13:50        1h 38m ago",
 				"Wed 23:58  personal open again: its 5-hour window reset                   14h 44m ago",
 			},
 		},
 		{
 			cells: 72, want: []string{
 				"14:31      work reached its cap: 3 sessions moved to side        11m ago",
-				"13:04      personal under pressure: out ~Sat 06:10            1h 38m ago",
+				"13:04      personal under pressure: out ~13:50                1h 38m ago",
 				"Wed 23:58  personal open again: its 5-hour window reset      14h 44m ago",
 			},
 		},
@@ -237,7 +305,7 @@ func TestRunwayDrawsLatelyInItsColumnOrWhyItHasNone(t *testing.T) {
 			f.Runway.Lately = tt.sentence
 			fit := f.runwayFitted(f.top())
 			c := newCanvas(f.Width, f.Height)
-			f.runwayLately(c, runwayLaid{fit: fit, m: m})
+			f.runwayLately(c, f.runwayLaidOut(m, 0, fit))
 			for i, want := range tt.want {
 				if got := strings.TrimRight(textAt(c, 0, fit.lately+i, 85), " "); got != want {
 					t.Errorf("LATELY's row %d reads %q, want %q", i, got, want)

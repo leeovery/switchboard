@@ -130,17 +130,15 @@ func holdsTheOrder(t *testing.T, rows, accounts int, fit runwayFitted, taller *r
 // many more, while 2N ≤ 19; (d), the legend given way while 2N ≤ 20, and
 // COMING UP too while 2N ≤ 23; (e) a row on; and only then its lanes
 // scrolling, as many shown as fit; and the week frame's three as rows run
-// short. At 158, too narrow for LATELY beside it, COMING UP's lines in two
-// columns take half the rows, so the same accounts keep roomier steps; at 160,
-// LATELY beside it holds COMING UP to one column.
+// short. At 160, COMING UP's lines in two columns take half the rows, so the
+// same accounts keep roomier steps.
 func TestRunwayTakesTheFirstOfItsStepsThatFits(t *testing.T) {
 	tests := []struct {
 		name                         string
 		accounts, lines, rows, width int
 		want                         runwayFitted
 	}{
-		{name: "four with twelve lines in two columns, too narrow for LATELY beside them", accounts: 4, lines: 12, rows: 37, width: 158, want: fittedWhole(runwayRoomy, 4)},
-		{name: "four with twelve lines in one beside LATELY", accounts: 4, lines: 12, rows: 37, width: 160, want: fittedWhole(runwayNoGaps, 4)},
+		{name: "four with twelve lines in two columns", accounts: 4, lines: 12, rows: 37, width: 160, want: fittedWhole(runwayRoomy, 4)},
 		{name: "four with twelve lines in one", accounts: 4, lines: 12, rows: 37, width: 120, want: fittedWhole(runwayNoGaps, 4)},
 		{name: "six with twenty lines in two columns, at (c)", accounts: 6, lines: 20, rows: 37, width: 160, want: fittedWhole(runwayComingCut, 6)},
 		{name: "four accounts, three rows each", accounts: 4, lines: 5, rows: 37, width: 120, want: fittedWhole(runwayRoomy, 4)},

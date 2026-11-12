@@ -36,10 +36,10 @@ func TestTheRoutersEventsAreTheLogsAsItTellsThem(t *testing.T) {
 	now := localMoment()
 	today := dayfile.DayStart(now, 0)
 	told := toldBetween(clockAt(now, -1, 16, 55, 0), now)
-	// The Log's Events (log-events-160), yesterday's from 16:55 and today's
-	// 20, but db8a's move under pressure, which the frame says ran out at
-	// 15:10: no pressure event is told today to say when, and the frame's
-	// counts hold none.
+	// The Log's Events (log-events-160), yesterday's from 16:55, side under
+	// pressure at 21:40 among them, and today's 21, personal under pressure
+	// at 13:04, its 5-hour to run out at 13:50, as db8a's move from it at
+	// 13:22 says.
 	want := []toldEvent{
 		{at: "16:55:20", kind: "started", account: "personal"},
 		{at: "17:10:00", kind: "open", account: "work", what: "its 5-hour window reset"},
@@ -47,6 +47,7 @@ func TestTheRoutersEventsAreTheLogsAsItTellsThem(t *testing.T) {
 		{at: "18:02:40", kind: "auto", what: "new sessions back from personal to the router's choice, set from the dashboard"},
 		{at: "19:12:40", kind: "limit", account: "personal", what: "its 5-hour window, till 23:58: its session moves to side"},
 		{at: "19:12:52", kind: "moved", account: "personal → side", what: "personal reached its limit"},
+		{at: "21:40:00", kind: "pressure", account: "side", what: "its 5-hour to run out at 23:50"},
 		{at: "23:47:30", kind: "started", account: "side"},
 		{at: "23:58:40", kind: "open", account: "personal", what: "its 5-hour window reset"},
 		{at: "07:05:12", kind: "primed", account: "work", what: "its 5-hour window started, resets at 12:05"},
@@ -61,7 +62,8 @@ func TestTheRoutersEventsAreTheLogsAsItTellsThem(t *testing.T) {
 		{at: "12:02:10", kind: "started", account: "work"},
 		{at: "12:10:00", kind: "primed", account: "work", what: "its 5-hour window started, resets at 17:10"},
 		{at: "12:47:12", kind: "started", account: "personal"},
-		{at: "13:22:40", kind: "moved", account: "personal → work", what: "personal came under pressure"},
+		{at: "13:04:00", kind: "pressure", account: "personal", what: "its 5-hour to run out at 13:50"},
+		{at: "13:22:40", kind: "moved", account: "personal → work", what: "personal came under pressure, its 5-hour to run out at 13:50"},
 		{at: "13:50:00", kind: "primed", account: "side", what: "its 5-hour window started, resets at 18:50"},
 		{at: "14:12:30", kind: "started", account: "work"},
 		{at: "14:31:03", kind: "cap", account: "work", what: "95% of its 5-hour window: its 3 sessions move to side as their next requests come"},
@@ -83,7 +85,7 @@ func TestTheRoutersEventsAreTheLogsAsItTellsThem(t *testing.T) {
 	for _, e := range toldBetween(today, now) {
 		kinds[e.kind]++
 	}
-	wantKinds := map[string]int{"started": 10, "moved": 4, "cap": 1, "primed": 5}
+	wantKinds := map[string]int{"started": 10, "moved": 4, "pressure": 1, "cap": 1, "primed": 5}
 	if len(kinds) != len(wantKinds) {
 		t.Errorf("today's events by kind = %v, want %v", kinds, wantKinds)
 	}
@@ -267,6 +269,10 @@ func countsItsMoves(t *testing.T, by status.Event, told []status.Event) {
 	}
 }
 
+// The auto world's router numbers its events in the order they came, the
+// week gone's first, as weekGone has them: its limits, the week gone's
+// seven, then yesterday's personal's; its caps, the week gone's two, then
+// work's today; and each move counted in what forced it.
 func TestTheAutoWorldsRouterNumbersItsDayAsTheLogHasIt(t *testing.T) {
 	told := autoEvents(worldsNow().now)
 	ids := func(kind string) []int {
@@ -278,11 +284,11 @@ func TestTheAutoWorldsRouterNumbersItsDayAsTheLogHasIt(t *testing.T) {
 		}
 		return got
 	}
-	if got := ids(status.EventLimit); !slices.Equal(got, []int{5}) {
-		t.Errorf("the limits are told as %v, want yesterday's personal's as 5", got)
+	if got := ids(status.EventLimit); !slices.Equal(got, []int{2, 5, 10, 12, 14, 18, 20, 25}) {
+		t.Errorf("the limits are told as %v, want the week gone's, then yesterday's personal's as 25", got)
 	}
-	if got := ids(status.EventCap); !slices.Equal(got, []int{24}) {
-		t.Errorf("the caps are told as %v, want work's as 24", got)
+	if got := ids(status.EventCap); !slices.Equal(got, []int{8, 16, 46}) {
+		t.Errorf("the caps are told as %v, want the week gone's, then work's as 46", got)
 	}
 	var forcedBy []int
 	for _, e := range told {
@@ -290,7 +296,7 @@ func TestTheAutoWorldsRouterNumbersItsDayAsTheLogHasIt(t *testing.T) {
 			forcedBy = append(forcedBy, e.ForcedBy)
 		}
 	}
-	if want := []int{5, 0, 24, 24, 24}; !slices.Equal(forcedBy, want) {
+	if want := []int{25, 0, 46, 46, 46}; !slices.Equal(forcedBy, want) {
 		t.Errorf("the moves are counted in %v, want %v: 8a2c's in personal's limit, db8a's afresh in none, and the cap's", forcedBy, want)
 	}
 }

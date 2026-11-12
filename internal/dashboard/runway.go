@@ -187,18 +187,24 @@ type runwayForm struct {
 // runwayLaid is Runway laid out on the page, for each of its drawers to draw
 // its part where it lies: of the moment m, which each reads; its lanes from
 // column x, their labels in the cells before them, those shown each on its
-// row, as laidLane has it; and its rows fitted as fit has them.
+// row, as laidLane has it; its rows fitted as fit has them; and the columns
+// COMING UP's lines and LATELY's take.
 type runwayLaid struct {
-	x     int
-	m     status.Moment
-	lanes []laidLane
-	fit   runwayFit
+	x      int
+	m      status.Moment
+	lanes  []laidLane
+	fit    runwayFit
+	coming []flex.Span
+	lately flex.Span
 }
 
 // runwayLaidOut is Runway of the moment m laid out as fit fits it, its lanes
-// from column x, those shown as laidLanes has them.
+// from column x, those shown as laidLanes has them, COMING UP and LATELY in
+// the columns runwayColumns gives them.
 func (f Frame) runwayLaidOut(m status.Moment, x int, fit runwayFit) runwayLaid {
-	return runwayLaid{x: x, m: m, lanes: f.laidLanes(m, fit), fit: fit}
+	laid := runwayLaid{x: x, m: m, lanes: f.laidLanes(m, fit), fit: fit}
+	laid.coming, laid.lately = f.runwayColumns(m, fit)
+	return laid
 }
 
 // runwayForm is the form Runway is drawn in, of doc at now: its lanes from

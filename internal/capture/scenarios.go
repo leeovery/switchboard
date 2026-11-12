@@ -141,7 +141,7 @@ func (a accountWorlds) beforeTheLimit() accountWorld {
 		accounts := firstAccounts(3)
 		return accountWorld{
 			accounts: accounts, history: a.today().towardTheLimit(refused).history(accounts).before(now), sessions: autoSessions,
-			best: framesChoice, routed: routedBeforeTheLimit, events: autoEvents(a.now), traffic: true, fresh: true,
+			best: framesChoice, routed: routedBeforeTheLimit, events: ofTheRun(happenings{a.now}.autoDay()), traffic: true, fresh: true,
 		}
 	})
 }

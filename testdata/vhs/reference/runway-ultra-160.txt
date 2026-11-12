@@ -24,13 +24,13 @@ side       ▲  █████████████████████�
 LATELY                                                                                  COMING UP
 14:31      work refused (401): 3 sessions moved to side                10m ago          ~Fri       side's week runs out at its pace                     in 1d 1h
 Wed 19:12  personal refused (401): 1 session moved to side         19h 29m ago          ~Sat       personal's week runs out at its pace                in 1d 15h
-                                                                                        ~Sat       work's week reaches its cap                          in 2d 4h
-                                                                                        Sun 02:00  personal's week resets                              in 2d 11h
-                                                                                        Sun 21:00  work's week resets                                   in 3d 6h
-                                                                                        Mon 10:00  side's week resets                                  in 3d 19h
-
-
-
+Wed 19:12  personal refused (401)                                  19h 29m ago          ~Sat       work's week reaches its cap                          in 2d 4h
+Wed 19:12  personal refused (401)                                  19h 29m ago          Sun 02:00  personal's week resets                              in 2d 11h
+Wed 16:02  work refused (401)                                      22h 40m ago          Sun 21:00  work's week resets                                   in 3d 6h
+Wed 16:02  work refused (401)                                      22h 40m ago          Mon 10:00  side's week resets                                  in 3d 19h
+Wed 16:02  work refused (401)                                      22h 40m ago
+Wed 08:40  side refused (401)                                        1d 6h ago
+Tue 10:31  side refused (401)                                        2d 4h ago
 
 █ room    █ room, but it runs out at its pace    ─ at its cap    ─ at its limit    ▂ the pool at its limit    │ its week resets
 a column ≈ 69 minutes · the past dimmed

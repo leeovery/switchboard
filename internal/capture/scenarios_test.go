@@ -6,6 +6,7 @@ import (
 	"maps"
 	"math"
 	"reflect"
+	"regexp"
 	"runtime"
 	"slices"
 	"strings"
@@ -310,6 +311,35 @@ func placed(sessions []status.Session) map[string]string {
 		}
 	}
 	return on
+}
+
+// looksEvery is how often the watch looks at the router's document, as
+// its lookEvery has it: what the document carries shows by the look after.
+const looksEvery = 5 * time.Second
+
+// The readings the scenario's answers read reach Runway's now column at the
+// look after: side's week, at 78% as the scenario starts, read at 79% off an
+// answer long enough to move it more than a hundredth, drawn under side's
+// name by the look after the reading, and not before it.
+func TestTheReadingsTheAnswersReadDrawOnRunwayAtTheNextLook(t *testing.T) {
+	weekUp := answer{wait: brief.wait, streams: brief.streams, chars: int(0.012 / (sessionPerChar * weekPerSession))}
+	p := played(t, testScenario(asks(2, idDB8A, opus, weekUp)))
+	read := p.base.played(nil, time.Time{}).world.readings.read
+	i := slices.IndexFunc(read, func(r readings.Reading) bool { return r.Account == "side" && r.Key == weekKey })
+	if i < 0 {
+		t.Fatal("the scenario's answers read nothing of side's week")
+	}
+	at := read[i].At.Sub(p.base.start).Seconds()
+	p.press(1, toRunway()...)
+	sides := regexp.MustCompile(`(?m)^side .*\n  week (\d+)%`)
+	p.until(at - 0.001)
+	if got := sides.FindStringSubmatch(p.screen()); got == nil || got[1] != "78" {
+		t.Errorf("before the reading, Runway shows side's week at %v, want 78%%", got)
+	}
+	p.until(at + looksEvery.Seconds())
+	if got := sides.FindStringSubmatch(p.screen()); got == nil || got[1] != "79" {
+		t.Errorf("by the look after the reading, Runway shows side's week at %v, want 79%%, as read", got)
+	}
 }
 
 // A look at the router as a scenario plays reads its base in place: its

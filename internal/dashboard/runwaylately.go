@@ -16,8 +16,7 @@ const (
 	// comingAlone is COMING UP alone, as comingColumns lays it, no LATELY.
 	comingAlone latelyPlace = iota
 	// latelyStacked is LATELY under COMING UP, a blank row between, both in
-	// one column of runwayComingWidth from the first, or the frame's width
-	// where that's narrower.
+	// one column from the first, as stackedWidth has it.
 	latelyStacked
 	// latelySideBySide is LATELY from the first column, as wide as the
 	// Overview's LATELY column, and COMING UP as wide as the Overview's
@@ -55,31 +54,63 @@ func (f Frame) latelyPlaceOf() latelyPlace {
 	return comingAlone
 }
 
-// latelyColumn is the column LATELY's lines take in the place given: beside
-// COMING UP, the Overview's LATELY column's width from the first; stacked,
-// COMING UP's one column.
-func (f Frame) latelyColumn(place latelyPlace) flex.Span {
-	if place == latelySideBySide {
-		return flex.Span{Size: f.Width - latelyAt(f.Width)}
+// runwayColumns are the columns COMING UP's lines and LATELY's take at the
+// moment m, where the fit places LATELY: beside COMING UP, LATELY as wide as
+// the Overview's LATELY column from the first, and COMING UP as wide as the
+// Overview's COMING UP column, ending at the frame's edge; stacked, one
+// column both share, from the first, as stackedWidth has it; else COMING
+// UP's as comingColumns lays them, and LATELY none.
+func (f Frame) runwayColumns(m status.Moment, fit runwayFit) (coming []flex.Span, lately flex.Span) {
+	switch fit.place {
+	case latelySideBySide:
+		width := comingWidth(f.Width)
+		return []flex.Span{{At: f.Width - width, Size: width}}, flex.Span{Size: f.Width - latelyAt(f.Width)}
+	case latelyStacked:
+		both := flex.Span{Size: f.stackedWidth(m, fit)}
+		return []flex.Span{both}, both
 	}
-	return f.comingColumns(place)[0]
+	return f.comingColumns(), flex.Span{}
+}
+
+// stackedWidth is the width COMING UP and LATELY share stacked at the moment
+// m, as fitted: what their lines need to read whole, never under
+// runwayComingWidth, or the frame's width where that's narrower, nor over
+// the frame's width. A line of COMING UP needs its words and its countdown,
+// as comingLines draws them; a line of LATELY shown, its short form beside
+// how long ago it was, as runwayLatelyLines lays it.
+func (f Frame) stackedWidth(m status.Moment, fit runwayFit) int {
+	need, things := runwayComingWidth, f.runwayHappenings(m)
+	column := whenColumn(things, m.Now)
+	for _, h := range things {
+		need = max(need, h.said(m.Now, column).width()+comingTail)
+	}
+	for _, l := range runwayLatelyParts(m, f.latelyShown(fit)) {
+		need = max(need, l.least())
+	}
+	return min(need, f.Width)
+}
+
+// latelyShown are the sentences Runway's LATELY shows as fitted: as many as
+// it has rows for.
+func (f Frame) latelyShown(fit runwayFit) []views.Sentence {
+	return f.Runway.Lately[:min(max(fit.latelyLines, 0), len(f.Runway.Lately))]
 }
 
 // runwayLately draws LATELY, where the fit gives it a row: its heading, in
 // text.subtle, and under it, on the rows it's given, the sentences Runway's
-// LATELY tells, as runwayLatelyLines lays them; or, where there are none, why
-// there are none, as the Overview's LATELY says it.
+// LATELY tells, as runwayLatelyLines lays them, in its column as laid out;
+// or, where there are none, why there are none, as the Overview's LATELY
+// says it.
 func (f Frame) runwayLately(c *canvas, laid runwayLaid) {
-	fit := laid.fit
+	fit, column := laid.fit, laid.lately
 	if !fit.draws(fit.lately) {
 		return
 	}
-	column := f.latelyColumn(fit.place)
 	c.line(column.At, fit.lately, line{{SectionLately.heading(), dimInk}})
 	if fit.latelyLines == 0 {
 		return
 	}
-	m, sentences := laid.m, f.Runway.Lately[:min(fit.latelyLines, len(f.Runway.Lately))]
+	m, sentences := laid.m, f.latelyShown(fit)
 	if len(sentences) == 0 {
 		f.quietly(c, m, column.At, fit.lately+1, column.At+column.Size)
 		return
@@ -89,24 +120,46 @@ func (f Frame) runwayLately(c *canvas, laid runwayLaid) {
 	}
 }
 
-// runwayLatelyLines are the sentences given as Runway's LATELY lines at m's
-// moment, in cells cells: each its time, in a column as wide as the widest,
-// in text.secondary, no mark after it; then its words, as saidLine draws
-// them, in its full form where that fits whole beside how long ago it was,
-// else its short form, as firstFit has it; and how long ago, as prose.Ago
-// says it, ending at the last cell, in text.subtle.
-func runwayLatelyLines(m status.Moment, sentences []views.Sentence, cells int) []line {
+// latelyParts are a line of Runway's LATELY in parts: its words in full and
+// short, each led by its time, and how long ago it was.
+type latelyParts struct {
+	full, short, ago line
+}
+
+// least is the fewest cells the line reads whole in: its short form, agoGap
+// and how long ago.
+func (l latelyParts) least() int {
+	return l.short.width() + agoGap + l.ago.width()
+}
+
+// runwayLatelyParts are the sentences given as Runway's LATELY lines at m's
+// moment, in parts: each its time, in a column as wide as the widest, in
+// text.secondary, no mark after it; then its words, as saidLine draws them,
+// in full and short; and how long ago, as prose.Ago says it, in text.subtle.
+func runwayLatelyParts(m status.Moment, sentences []views.Sentence) []latelyParts {
 	names, column := namesOf(m), 0
 	for _, s := range sentences {
 		column = max(column, len(prose.Dated(m.Now, s.At)))
 	}
-	lines := make([]line, len(sentences))
+	parts := make([]latelyParts, len(sentences))
 	for i, s := range sentences {
 		lead := line{{padded(prose.Dated(m.Now, s.At), column) + afterTime, secondaryInk}}
 		led := func(said views.Said) line { return slices.Concat(lead, saidLine(m, names, said)) }
-		ago := line{{prose.Ago(m.Now, s.At), dimInk}}
-		words := firstFit(cells-ago.width()-agoGap, led(s.Full), led(s.Short))
-		lines[i] = slices.Concat(words, line{spaces(cells - words.width() - ago.width())}, ago)
+		parts[i] = latelyParts{full: led(s.Full), short: led(s.Short), ago: line{{prose.Ago(m.Now, s.At), dimInk}}}
+	}
+	return parts
+}
+
+// runwayLatelyLines are the sentences given as Runway's LATELY lines at m's
+// moment, in cells cells, as runwayLatelyParts has them: its words in full
+// where they fit whole beside how long ago it was, else short, as firstFit
+// has it; and how long ago, ending at the last cell.
+func runwayLatelyLines(m status.Moment, sentences []views.Sentence, cells int) []line {
+	parts := runwayLatelyParts(m, sentences)
+	lines := make([]line, len(parts))
+	for i, l := range parts {
+		words := firstFit(cells-l.ago.width()-agoGap, l.full, l.short)
+		lines[i] = slices.Concat(words, line{spaces(cells - words.width() - l.ago.width())}, l.ago)
 	}
 	return lines
 }

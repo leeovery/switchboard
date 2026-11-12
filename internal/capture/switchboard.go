@@ -271,9 +271,10 @@ func (a accountWorlds) movedAt() accountWorld {
 // refused, as 41e0's request there is refused, till its window resets at
 // 16:30, its event counting moved sessions moved by now; side's 5-hour
 // window at 31% by 16:05; the router listing the sessions as routed has
-// them, and read fresh, as it read personal reaching its limit; its stream
-// telling of 41e0's request, as limitStream has it, and of c61b's answer
-// streaming back.
+// them, and read fresh, as it read personal reaching its limit; its events
+// the day's, as autoDay has them, and the limit; its stream telling of
+// 41e0's request, as limitStream has it, and of c61b's answer streaming
+// back.
 func (a accountWorlds) limitedAt(now, refused time.Time, moved int, routed func(time.Time) []status.Session) accountWorld {
 	accounts, t, h := firstAccounts(3), a.today().towardTheLimit(refused), happenings{a.now}
 	until := h.today(16, 30, 0)
@@ -284,7 +285,7 @@ func (a accountWorlds) limitedAt(now, refused time.Time, moved int, routed func(
 	return accountWorld{
 		accounts: accounts, history: t.history(accounts), sessions: autoSessions, best: framesChoice,
 		limits: map[string]status.Limit{"personal": {ID: todaysLimit, Windows: []string{fiveHourKey}, Until: until.UTC()}},
-		routed: routed, events: ofTheRun(append(h.auto(), limit)), stream: limitStream(now, refused, moved > 0),
+		routed: routed, events: ofTheRun(append(h.autoDay(), limit)), stream: limitStream(now, refused, moved > 0),
 		traffic: true, fresh: true,
 	}
 }

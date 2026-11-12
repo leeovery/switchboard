@@ -24,7 +24,7 @@ func runwayComingDrawn(t *testing.T, width, height int, coming []status.Upcoming
 	f.WindowName = func(key string) string { return map[string]string{"5h": "5-hour", "7d": "week"}[key] }
 	fit := f.runwayFitted(f.top())
 	c := newCanvas(width, height)
-	f.runwayComing(c, runwayLaid{x: framesLanesFrom, fit: fit, m: f.Moment(doc, routedAt)})
+	f.runwayComing(c, f.runwayLaidOut(f.Moment(doc, routedAt), framesLanesFrom, fit))
 	return textOf(c.rows(Look{}))[fit.coming : fit.coming+1+fit.lines]
 }
 
@@ -131,7 +131,7 @@ func runwayComingAlone(t *testing.T, width int, coming []status.Upcoming, lines 
 	f := Frame{Width: width, Height: 37, Look: Screen(builtin(t, "nord")), View: Runway, Policy: claudeLike, Runway: r}
 	f.WindowName = func(key string) string { return map[string]string{"5h": "5-hour", "7d": "week"}[key] }
 	c := newCanvas(f.Width, f.Height)
-	f.runwayComing(c, runwayLaid{x: framesLanesFrom, fit: runwayFit{fits: true, coming: comingRow, lines: lines}, m: f.Moment(doc, routedAt)})
+	f.runwayComing(c, f.runwayLaidOut(f.Moment(doc, routedAt), framesLanesFrom, runwayFit{fits: true, coming: comingRow, lines: lines}))
 	return c
 }
 
@@ -193,12 +193,9 @@ func TestRunwaysComingUpShowsTheLinesItCanAndHowManyMore(t *testing.T) {
 // COMING UP alone takes two columns where both fit at the lines' natural
 // width, 72, comingApart apart, sharing the frame's width, the odd cell the
 // second's; else one, at its natural, or the frame's width where narrower.
-// Over LATELY, it takes one alike; beside it, the Overview's COMING UP
-// column, round(w × 0.45), ending at the frame's edge.
 func TestRunwaysComingUpTakesTwoColumnsAloneWhereBothFitAtTheirNatural(t *testing.T) {
 	tests := []struct {
 		width int
-		place latelyPlace
 		want  []flex.Span
 	}{
 		{width: 52, want: []flex.Span{{At: 0, Size: 52}}},
@@ -207,15 +204,11 @@ func TestRunwaysComingUpTakesTwoColumnsAloneWhereBothFitAtTheirNatural(t *testin
 		{width: 148, want: []flex.Span{{At: 0, Size: 72}, {At: 76, Size: 72}}},
 		{width: 160, want: []flex.Span{{At: 0, Size: 78}, {At: 82, Size: 78}}},
 		{width: 173, want: []flex.Span{{At: 0, Size: 84}, {At: 88, Size: 85}}},
-		{width: 52, place: latelyStacked, want: []flex.Span{{At: 0, Size: 52}}},
-		{width: 158, place: latelyStacked, want: []flex.Span{{At: 0, Size: 72}}},
-		{width: 159, place: latelySideBySide, want: []flex.Span{{At: 87, Size: 72}}},
-		{width: 173, place: latelySideBySide, want: []flex.Span{{At: 95, Size: 78}}},
 	}
 	for _, tt := range tests {
 		t.Run(strconv.Itoa(tt.width), func(t *testing.T) {
-			if got := (Frame{Width: tt.width}).comingColumns(tt.place); !slices.Equal(got, tt.want) {
-				t.Errorf("at %d columns, LATELY's place %d, COMING UP's columns are %+v, want %+v", tt.width, tt.place, got, tt.want)
+			if got := (Frame{Width: tt.width}).comingColumns(); !slices.Equal(got, tt.want) {
+				t.Errorf("at %d columns, COMING UP's columns are %+v, want %+v", tt.width, got, tt.want)
 			}
 		})
 	}

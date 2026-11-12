@@ -5018,17 +5018,24 @@ what a column is on the lines after them, wrapped at its ` · `.
 **COMING UP and LATELY,** each a heading in `text.subtle` and its lines under it: what happens next,
 soonest first, and what befell the accounts, newest first, the past on the left and the future on
 the right, as the timeline lies (the owner's call, 12 November 2026). Where they go is worked out
-once, in Runway's layout, from the Overview's own columns:
+once, in Runway's layout, from the Overview's own columns. LATELY never costs the lanes or COMING
+UP a step: Runway takes its step and COMING UP's columns as it would with no LATELY, then puts
+LATELY in the rows that leaves empty, from COMING UP's first line's to the blank row over the
+legend (the owner's call, 12 November 2026):
 
-- **Side by side** where both hold a whole line, from 159 columns: LATELY from column 0 in the
-  Overview's LATELY column's width, `w − ⌊w/2⌋ − 2`, 85 at 173, holding its least, 43; COMING UP
-  in the Overview's COMING UP column's width, `round(w × 0.45)`, 78 at 173, ending at the frame's
-  edge, holding its natural, 72. Each runs from under its heading, on the row under the pool's
-  lane's after a blank row, to the blank row over the legend.
-- **Stacked** else, where one column holds LATELY's least: COMING UP's every line, a blank row,
-  then LATELY down to the blank row over the legend, both 72 wide, or the frame's width where
-  that's narrower, wherever LATELY's heading and two lines fit at the roomiest step; LATELY is the
-  first part to give way as rows run short.
+- **Side by side** where both hold a whole line, from 159 columns, and those rows hold COMING UP's
+  every line in one column: LATELY from column 0 in the Overview's LATELY column's width,
+  `w − ⌊w/2⌋ − 2`, 85 at 173, holding its least, 43; COMING UP in the Overview's COMING UP column's
+  width, `round(w × 0.45)`, 78 at 173, ending at the frame's edge, holding its natural, 72. Each
+  runs from under its heading, on the row under the pool's lane's after a blank row, to the blank
+  row over the legend.
+- **Stacked** else, where one column holds LATELY's least and those rows hold COMING UP's every
+  line in one column, a blank row, LATELY's heading and two lines: LATELY then runs down to the
+  blank row over the legend. Both share one width from column 0: what their lines need to read
+  whole, never under 72, or the frame's width where that's narrower, nor over the frame's width,
+  so the frames' accounts keep 72 and a long name widens both rather than being cut with room
+  beside it (the owner's call, 12 November 2026). LATELY is the first to give way as rows run
+  short.
 - **COMING UP alone** else, as before LATELY: two columns, four cells apart, where both fit at the
   lines' natural width, 72, so from 148 columns, each taking half of what's left after the gap, the
   odd cell the second's, the lines running in time order down the first, then across; else one, at
@@ -5081,13 +5088,13 @@ across the lanes' columns, ticked and named as the live view is.
 **The rows,** laid as every view's are (see The page), from the view's top to the row over the key
 line, as parts in this order: the axis, its three rows; the blank row under the axis; the lanes;
 the pool's lane and the row under it, its room's; COMING UP, from its heading and two rows of
-lines, to every line; LATELY stacked under it, its heading and two lines, a blank row before it,
-before (c) alone; the rows spare, which take what's left; and the legend. As rows run short,
-Runway takes the first step whose parts fit (the owner's call, 21 October 2026):
+lines, to every line; the rows spare, which take what's left, LATELY among them where it goes;
+and the legend. As rows run short, Runway takes the first step whose parts fit (the owner's call,
+21 October 2026):
 
 | Step | What changes |
 |---|---|
-| — | Three rows an account, its lane, its words and a blank row; blank rows under the axis, under the pool's lane and over the legend; every line of COMING UP; LATELY stacked under it, where it fits, the first part to give way |
+| — | Three rows an account, its lane, its words and a blank row; blank rows under the axis, under the pool's lane and over the legend; every line of COMING UP; LATELY in the rows left, where it fits, the first to give way |
 | (a) | Two rows an account (settled in the plan) |
 | (b) | No blank rows under the pool's lane or over the legend (settled in the plan) |
 | (c) | COMING UP shows the lines it can, from two rows of them, its first row always lines |
