@@ -61,18 +61,23 @@ func (d days) firstOf(made Summary, held *Summary) string {
 
 // fittedAccount returns made, an account's day summarised afresh, and held,
 // its day before, as made is to know held, so its pools add up to its whole:
-//   - where made counts no less, as covers says, its lines hold every one
-//     held's did, whatever pool held has them in, as a downgrade's summary
-//     before pools holds all its work in one, or one made before its lines
-//     were given another pool, as by the move to pools, or another Mac's
-//     taken in under its own first pool: held is split as made is, so made's
-//     pools stand, knowing held's whole;
-//   - else, held of a version before pools, unsplit, some of its lines lost
-//     since: which pool they were in can't be told, so made's work is in
-//     held's one pool, as all of held's is.
+//   - held unsplit, of a version before pools, holding all its work in one
+//     pool whatever its lines named, as a downgrade's summary does, or held
+//     with work in no pool where made has none, as one made before its lines
+//     were given the first pool by the move to pools: where made counts no
+//     less, as covers says, its lines hold every one held's did, so held is
+//     split as made is, made's pools standing, knowing held's whole;
+//   - else, held unsplit, some of its lines lost since: which pool they were
+//     in can't be told, so made's work is in held's one pool, as all of
+//     held's is;
+//   - else each pool knows no less than held's, as knowing has it, the whole
+//     their sum where that's more: the whole day counting no less never
+//     says which pool's lines were lost, as more filed since in another
+//     would hide a loss in one.
 func fittedAccount(made, held AccountDay, unsplit bool) (AccountDay, AccountDay) {
+	renamed := held.worksIn("") && !made.worksIn("")
 	switch {
-	case made.covers(held.Work):
+	case (unsplit || renamed) && made.covers(held.Work):
 		held.Pool, held.Pools = made.Pool, made.Pools
 	case unsplit:
 		pool := held.Pool

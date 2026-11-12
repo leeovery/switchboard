@@ -756,11 +756,13 @@ read as a pool by its leaving one out (the owner's call, 11 November 2026).
     before pins name their pool, and a summary's work in none, as one of a day before pools whose
     lines were lost since, so which pool they were in can't be told. A day is summarised with it
     in the first pool, and a pool read from a summary counts what's left in none as the first's.
-    A day summarised again splits its summary before as its lines split, whatever its version,
-    where they count no less. Where they count less, as some were lost, a summary from before
-    pools, whose split can't be told, keeps the whole in its one pool; one since has each pool
-    know no less than before, and the whole no less than its pools' sum. So a day's pools always
-    add up to its whole.
+    A day summarised again splits a summary from before pools as its lines split, where they
+    count no less, as it does one whose work in no pool its lines now give the first pool; where
+    they count less, as some were lost, a summary from before pools, whose split can't be told,
+    keeps the whole in its one pool. Otherwise each pool knows no less than before, and the whole
+    no less than its pools' sum: a whole day counting no less never says which pool's lines were
+    lost, as more filed since in another would hide a loss in one. So a day's pools always add up
+    to its whole.
   - **Healed:** once the move's done, a config that names no pool, as one put back by hand or by a
     repository it's kept in, is given its pools back, as Account identity's `Heal` writes the ids
     back: every pool the accounts record keeps as this Mac's config's, in the record's order, with

@@ -350,14 +350,14 @@ func TestAPoolsWorkKnowsNoLessWhenItsDayIsSummarisedAgain(t *testing.T) {
 		pools map[string]int
 	}{
 		{
-			name:  "two of the pool's requests lost since, and three in another filed since: the lines counting no less, their split stands",
+			name:  "two of the pool's requests lost since, and three in another filed since: each pool's the more of the two, the whole their sum",
 			lines: []ledger.Line{inPool(asked("1", on(0, 9, 0)), acme), inFirst("4", 0), inFirst("5", 1), inFirst("6", 2)},
-			want:  4, pools: map[string]int{acme: 1, first: 3},
+			want:  6, pools: map[string]int{acme: 3, first: 3},
 		},
 		{
-			name:  "every one of the pool's requests lost since, and four in another filed since: the lines counting no less, their split stands",
+			name:  "every one of the pool's requests lost since, and four in another filed since: the pool kept as it was, the whole their sum",
 			lines: []ledger.Line{inFirst("4", 0), inFirst("5", 1), inFirst("6", 2), inFirst("7", 3)},
-			want:  4, pools: map[string]int{first: 4},
+			want:  7, pools: map[string]int{acme: 3, first: 4},
 		},
 		{
 			// The checks have its lines number more than held's: fewer, the

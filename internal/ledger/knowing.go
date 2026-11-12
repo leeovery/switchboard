@@ -45,7 +45,7 @@ func (s Summary) made(lines int, held *Summary) Summary {
 // in every pool together and in each pool, as Work.knowing says, the pools
 // held that the lines no longer give kept; and its work in every pool
 // together their work summed where that counts more, as where some of one
-// pool's lines were lost and fewer filed since in another, so its pools
+// pool's lines were lost and others filed since in another, so its pools
 // always add up to its whole.
 func (a AccountDay) knowing(held AccountDay) AccountDay {
 	a = a.pooled(knowingAll(a.poolDays(), held.poolDays(), PoolDay.key, PoolDay.knowing, strings.Compare))
