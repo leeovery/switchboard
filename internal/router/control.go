@@ -260,18 +260,22 @@ func (r *Router) Control() http.Handler {
 		}
 		r.answerSession(w, id, anyPool, err)
 	})
-	mux.HandleFunc("POST /pin", r.forPool(func(w http.ResponseWriter, req *http.Request, rd poolRead) {
+	mux.HandleFunc("POST /pin", func(w http.ResponseWriter, req *http.Request) {
 		var pin PinRequest
 		if err := json.NewDecoder(http.MaxBytesReader(w, req.Body, maxControlBody)).Decode(&pin); err != nil {
 			writeProblem(w, http.StatusBadRequest, `give the accounts to pin as JSON, such as {"accounts": ["work"], "move": false, "force": false}`)
 			return
 		}
-		if err := r.pin(pin); err != nil {
+		rd, err := r.pinRead(req, pin.ids())
+		if err == nil {
+			err = r.pin(pin)
+		}
+		if err != nil {
 			writeProblem(w, http.StatusBadRequest, err.Error())
 			return
 		}
 		writeJSON(w, r.statusOf(rd))
-	}))
+	})
 	mux.HandleFunc("DELETE /pin", r.forPool(func(w http.ResponseWriter, req *http.Request, rd poolRead) {
 		force, err := forceAsked(req)
 		if err != nil {
@@ -330,6 +334,29 @@ func (r *Router) forPool(serve func(w http.ResponseWriter, req *http.Request, rd
 		}
 		serve(w, req, rd)
 	}
+}
+
+// pinRead returns what POST /pin answers for, pinning the accounts with the
+// given ids: the pool they're in, as one reading of the pools has it, which
+// ?pool= needn't name, and, where it does, must be that pool. It fails,
+// naming each account's pool, where they're in two, or one the router has is
+// in none; and where ?pool= names another pool, or none configured.
+func (r *Router) pinRead(req *http.Request, ids []string) (poolRead, error) {
+	t := r.state.pools.current()
+	pool, err := t.poolOfAll(ids, r.accounts)
+	if err != nil {
+		return poolRead{}, err
+	}
+	if named := poolNamed(req); named != "" {
+		asked, err := t.asked(named)
+		if err != nil {
+			return poolRead{}, err
+		}
+		if asked != pool {
+			return poolRead{}, fmt.Errorf("the accounts to pin are in pool %s, not %s: pin them in their own pool", t.label(pool), t.label(asked))
+		}
+	}
+	return r.state.poolReadOf(t, pool), nil
 }
 
 // sessionPoolAsked returns what tells whether GET /sessions/{id} answers for
@@ -679,10 +706,7 @@ func UnknownAccount(id string, pinnable config.Accounts) error {
 	}
 	named := make([]string, len(pinnable))
 	for i, a := range pinnable {
-		named[i] = prose.Clean(a.ID)
-		if label := status.ConfiguredName(a).Said(); !strings.EqualFold(label, named[i]) {
-			named[i] += " (" + label + ")"
-		}
+		named[i] = accountSaid(a)
 	}
 	return fmt.Errorf("there's no account %q: pin %s", redact.Text(id), prose.ListOr(named))
 }

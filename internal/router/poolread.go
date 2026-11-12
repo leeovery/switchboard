@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"slices"
+	"strings"
 
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/prose"
@@ -199,6 +200,56 @@ func (t *poolTable) listed() string {
 		named[i] = PoolQuery + "=" + prose.Clean(p.ID) + " (" + prose.Clean(p.Label) + ")"
 	}
 	return prose.ListOr(named)
+}
+
+// poolOfAll returns the id of the pool the accounts with the given ids are
+// in, of as, the accounts the router has, passing over those it doesn't
+// have, which pinning them refuses: "" in a config from before pools, and
+// where it has none of them. It fails, naming each account by its id and its
+// label with its pool, where they're in two pools, or one is in none, as one
+// the config has dropped is till the router restarts.
+func (t *poolTable) poolOfAll(ids []string, as accounts) (string, error) {
+	if len(t.pools) == 0 {
+		return "", nil
+	}
+	var pool string
+	var each []string
+	for _, id := range ids {
+		a, ok := as.byID(id)
+		if !ok {
+			continue
+		}
+		in, pooled := t.poolOf[id]
+		if !pooled {
+			return "", fmt.Errorf("%s is in no pool, as the config no longer has it, so it can't be pinned", accountSaid(a.Account))
+		}
+		each = append(each, accountSaid(a.Account)+" is in pool "+t.label(in))
+		switch {
+		case pool == "":
+			pool = in
+		case in != pool:
+			return "", fmt.Errorf("pin accounts of one pool: %s", strings.Join(slices.Compact(each), ", "))
+		}
+	}
+	return pool, nil
+}
+
+// label returns the label of the pool with the given id, else its id.
+func (t *poolTable) label(pool string) string {
+	if p, ok := t.pools.ByID(pool); ok {
+		return prose.Clean(p.Label)
+	}
+	return prose.Clean(pool)
+}
+
+// accountSaid names the account a by its id, and its label beside where
+// that differs, as in "b6s7 (Work)": one labelled by its id is named once.
+func accountSaid(a config.Account) string {
+	said := prose.Clean(a.ID)
+	if label := status.ConfiguredName(a).Said(); !strings.EqualFold(label, said) {
+		said += " (" + label + ")"
+	}
+	return said
 }
 
 // routed returns the accounts of as in the pool with the given id, in their
