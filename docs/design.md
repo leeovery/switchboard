@@ -2956,8 +2956,9 @@ can't, state or a key to marks; what a section is, and why it's where it is, are
 | ROUTING | The mode (below) |
 | SESSIONS, COMING UP, LATELY | None |
 
-**USAGE** is `usage`'s block, exactly as `usage`, the printout gives it, but for its header: the
-title row and the status line say what the header would. By window:
+**USAGE** is `usage`'s block, exactly as `usage`, the printout gives it, but for its header, and
+its names from the page's column (see The page): the title row and the status line say what the
+header would. By window:
 
 - **Two sizes wherever its windows sit side by side,** as `usage`'s matrix does: compact, the
   matrix; and big, the windows stacked as sections at the full width, the bars from the name column
@@ -3323,8 +3324,12 @@ remembered").
   and `refused` in `state.destructive`) with ` · ` in `text.faint`; its accounts' sessions summed,
   `6 sessions`; and their requests a minute summed, as a trace and a rate, `16/min`.
 - **The key line** follows the last block, from the name column.
-- **Under 150 columns,** USAGE draws as `usage --by account` does at that width, and ROUTING stays a
-  section of its own under it (settled in the plan).
+- **Under 150 columns,** USAGE draws as `usage --by account` does at that width, but its names
+  from the page's column (see The page), and ROUTING stays a section of its own under it
+  (settled in the plan). Where ROUTING takes two rows an account, as on a phone, that's a cell
+  in: names beside their first windows end a cell before `Week`, and at 52 to 57 columns, where
+  they're said on a row of their own over their windows, their marks beside their labels, they
+  start at column 1 too, flush with the window labels under them.
 
 **The key line**, the last row:
 

@@ -529,8 +529,9 @@ func TestAColumnsMarksStandRightAlignedAtItsEnd(t *testing.T) {
 	}
 }
 
-// The helpers Detail's list, History's rows and a session's stays draw their
-// names with lay them out as a column of names does, their marks
+// The helpers Detail's list, History's rows, turned Compare's rows and a
+// session's stays draw their names with lay them out as a column of names
+// does, their marks
 // right-aligned at its end; the stays' cutting a label to keep its own marks
 // alone, as before. The frames hold the views themselves to it.
 func TestEveryColumnOfNamesRightAlignsItsMarks(t *testing.T) {
@@ -541,6 +542,7 @@ func TestEveryColumnOfNamesRightAlignsItsMarks(t *testing.T) {
 		want string
 	}{
 		{name: "History's", got: historyAccount("personal", true, 12), want: "personal   ◆"},
+		{name: "turned Compare's, a primary shorter than another's", got: turnedName(compareColumn{account: status.AccountNow{ID: "work", Label: "work", Primary: true}}, 10), want: "work     ◆"},
 		{name: "a session's stays", got: n.filled(14), want: "personal   ◆"},
 		{name: "a session's stays, cut", got: accountName{label: "personal-research", primary: true}.filled(12), want: "persona… ◆"},
 		{name: "Detail's list", got: accountName{label: "personal", primary: true, unrouted: true}.line(14), want: "personal   ◆"},
@@ -583,7 +585,9 @@ func TestANameSaidAloneKeepsItsMarksBesideItsLabel(t *testing.T) {
 // included; with the week alone, as an Ultra plan has it, its USAGE stacked
 // beside a ROUTING a row an account; on a tall frame, its big bars stacked
 // so; and by account on a phone, USAGE following ROUTING's two rows a cell
-// in, its names over their windows keeping their marks beside them.
+// in, its names over their windows keeping their marks beside them. A
+// section folded counts as it would draw, so the names hold still as the
+// height folds ROUTING; one hidden doesn't count.
 func TestTheOverviewsNamesStandInOneColumn(t *testing.T) {
 	doc, sessions, stream := overviewWorld()
 	weekAlone := doc
@@ -600,8 +604,9 @@ func TestTheOverviewsNamesStandInOneColumn(t *testing.T) {
 		by            By
 		sections      []string
 		at, named     int
-		// apart says USAGE says its names on rows of their own, its marks
-		// beside its labels, so only the labels share a column.
+		// apart says USAGE says its names on rows of their own, over their
+		// windows, its marks beside its labels, so only the labels share a
+		// column.
 		apart bool
 	}{
 		{name: "a phone", doc: doc, width: 52, height: 61, at: 1, named: 6},
@@ -615,6 +620,8 @@ func TestTheOverviewsNamesStandInOneColumn(t *testing.T) {
 		{name: "by account on a phone, the names beside their windows", doc: doc, width: 58, height: 61, by: ByAccount, at: 1, named: 4},
 		{name: "by account on the owner's phone", doc: doc, width: 73, height: 61, by: ByAccount, at: 1, named: 4},
 		{name: "by account, two rows an account at their widest", doc: doc, width: 80, height: 61, by: ByAccount, at: 1, named: 4},
+		{name: "by account, ROUTING folded, no room", doc: doc, width: 73, height: 30, by: ByAccount, at: 1, named: 2},
+		{name: "by account, ROUTING and SESSIONS hidden", doc: doc, width: 73, height: 61, by: ByAccount, sections: []string{"usage"}, named: 2},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -622,9 +629,14 @@ func TestTheOverviewsNamesStandInOneColumn(t *testing.T) {
 			if tt.sections != nil {
 				f.Sections = SectionsNamed(tt.sections)
 			}
-			labels, marks, named := map[int]int{}, map[int]int{}, 0
-			for _, row := range textOf(f.overviewDrawn(tt.doc, routedAt).rows(Look{})) {
+			labels, marks, named, over := map[int]int{}, map[int]int{}, 0, 0
+			rows := textOf(f.overviewDrawn(tt.doc, routedAt).rows(Look{}))
+			for i, row := range rows {
 				label := len(row) - len(strings.TrimLeft(row, " "))
+				if said := strings.TrimSpace(row); (said == "personal ◆" || said == "side ▲") && i+1 < len(rows) &&
+					windowUnder(rows[i+1], label) {
+					over++
+				}
 				if !strings.HasPrefix(row[label:], "personal ") && !strings.HasPrefix(row[label:], "side ") {
 					continue
 				}
@@ -638,11 +650,21 @@ func TestTheOverviewsNamesStandInOneColumn(t *testing.T) {
 			if !tt.apart && len(marks) != 1 {
 				t.Errorf("the marks stand at columns %v, want one column", marks)
 			}
+			if tt.apart && over != 2 {
+				t.Errorf("%d of personal and side are said over their windows, their marks beside their labels, want both:\n%s", over, strings.Join(rows, "\n"))
+			}
 			if named < tt.named {
 				t.Errorf("%d rows name personal or side, want %d at least: USAGE's and ROUTING's, and SESSIONS' where it shows", named, tt.named)
 			}
 		})
 	}
+}
+
+// windowUnder reports whether the row is a window's, its label starting at
+// column at, as by account says a name's first window under it.
+func windowUnder(row string, at int) bool {
+	rest, ok := strings.CutPrefix(row, strings.Repeat(" ", at))
+	return ok && rest != "" && rest[0] != ' '
 }
 
 func TestALoneAccountCarriesTheBestsMarkAndTheHeaderNamesItWhateverItsRoom(t *testing.T) {
