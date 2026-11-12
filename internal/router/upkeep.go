@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -34,6 +35,11 @@ type upkeep struct {
 	pools   *membership
 	heal    *poolHealer
 	exports *exports
+	// started and startedPools are the accounts and pools of the config the
+	// router started on, which it follows till the config file makes
+	// another.
+	started      config.Accounts
+	startedPools config.Pools
 	// record is nil where the router has no state directory.
 	record *accountsRecord
 	// looked closes once upkeep has first looked, as look does.
@@ -76,13 +82,15 @@ func newUpkeep(cfg Config, as accounts, state *state, changes *changes, primer *
 			gained: state.tokenGained,
 			lost:   state.tokenLost,
 		},
-		restarts: restarts,
-		wakes:    wakes,
-		pools:    state.pools,
-		heal:     newPoolHealer(cfg),
-		exports:  exports,
-		record:   record,
-		looked:   make(chan struct{}),
+		restarts:     restarts,
+		wakes:        wakes,
+		pools:        state.pools,
+		heal:         newPoolHealer(cfg),
+		exports:      exports,
+		started:      cfg.Accounts,
+		startedPools: cfg.Pools,
+		record:       record,
+		looked:       make(chan struct{}),
 	}
 }
 
@@ -111,23 +119,32 @@ func (u *upkeep) run(ctx context.Context) {
 // often, taking up in place what the config file has come to make of the
 // accounts' tokens, the pools, the folder to export into and the accounts
 // record, where it has changed, giving a config that has lost its pools them
-// back, as heal does, for the look after to take up, and closing firstLook's
-// channel the first time.
+// back, as heal does, for the look after to take up, the pools of one naming
+// none followed afresh meanwhile, as membership's follow has them, and
+// closing firstLook's channel the first time.
 func (u *upkeep) look() {
 	u.wakes.look()
 	u.tokens.look()
 	u.restarts.look()
 	u.tokens.retire(u.restarts.configured())
-	accounts, pools, changed := u.restarts.configuredPools()
-	u.heal.look(accounts, pools, changed)
-	if changed {
-		u.pools.follow(accounts, pools)
-	}
+	accounts, pools := u.followed()
+	u.heal.look(accounts, pools)
+	u.pools.follow(accounts, pools)
 	if e, changed := u.restarts.configuredExport(); changed {
 		u.exports.configure(e)
 	}
 	u.keepRecord()
 	u.lookedOnce.Do(func() { close(u.looked) })
+}
+
+// followed returns the accounts and pools of the last valid config the
+// config file has made since the router started, else those of the one it
+// started on.
+func (u *upkeep) followed() (config.Accounts, config.Pools) {
+	if accounts, pools, changed := u.restarts.configuredPools(); changed {
+		return accounts, pools
+	}
+	return u.started, u.startedPools
 }
 
 // keepRecord keeps the accounts record in step with the accounts and pools

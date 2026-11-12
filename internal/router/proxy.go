@@ -471,8 +471,12 @@ func (p *proxy) closed(w http.ResponseWriter, ex *exchange, choice Choice) {
 // as unsendable names one, which says how to fix it, else that the upstream
 // refused it lately, as that alone leaves it nothing to fall back to; then
 // of each the config added since the router started, that it's taken up
-// when the router restarts. Where the pool has none, it says so.
+// when the router restarts. Where the pool has none, it says so, and where
+// the pools are closed, why, as poolTable's closed says.
 func (p *proxy) whyClosed(pools *poolTable, pool string) string {
+	if pools.closed != "" {
+		return pools.closed
+	}
 	members := pools.members(pool)
 	if len(members) == 0 {
 		return "the pool has no accounts"

@@ -1126,9 +1126,34 @@ func (s *serveSetup) writeConfig(t *testing.T) {
 
 // putConfig is writeConfig, from any goroutine.
 func (s *serveSetup) putConfig() error {
-	content := fmt.Sprintf("listen   = %q\nupstream = %q\n", s.listen, s.upstream) + threeAccounts + s.extra
+	content := fmt.Sprintf("listen   = %q\nupstream = %q\n", s.listen, s.upstream) + threeInFirstPool + s.extra
 	return os.WriteFile(s.config, []byte(content), 0o600)
 }
+
+// threeInFirstPool are threeAccounts in the first pool, as the move to pools
+// writes them in the config of an install that has made it, as serve's tests
+// have.
+const threeInFirstPool = `
+[[account]]
+id      = "work"
+label   = "Work"
+reserve = 0.05
+pool    = "b2n8"
+
+[[account]]
+id    = "personal"
+label = "Personal"
+pool  = "b2n8"
+
+[[account]]
+id    = "side"
+label = "Side"
+pool  = "b2n8"
+
+[[pool]]
+id    = "b2n8"
+label = "Default"
+`
 
 func (s *serveSetup) socket() string {
 	return router.SocketPath(s.state)

@@ -1,13 +1,16 @@
 package router
 
 import (
+	"errors"
 	"maps"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/identity"
@@ -77,10 +80,12 @@ func TestAConfigThatLosesItsPoolsIsGivenThemBackAtTheLookAsTheyLastStood(t *test
 	}
 }
 
-func TestAConfigThatCantBeGivenItsPoolsBackIsTriedAtEachLookToldOfOnceForEachConfig(t *testing.T) {
+func TestAConfigThatCantBeGivenItsPoolsBackIsTriedOnceAMinuteToldOfOnceForEachConfig(t *testing.T) {
 	log := logstest.Capture(t)
 	stateDir := t.TempDir()
 	r, path := newWatchingPoolsRouter(t, stateDir)
+	clock := &testClock{now: start}
+	r.upkeep.heal.now = clock.read
 	// Done, but with no first pool noted, so there's none to heal with.
 	writeFile(t, filepath.Join(stateDir, "pools.moved"), "")
 	unpooled := unpooledTOML("work", "personal", "side")
@@ -101,12 +106,121 @@ func TestAConfigThatCantBeGivenItsPoolsBackIsTriedAtEachLookToldOfOnceForEachCon
 		t.Errorf("the log says the config couldn't be healed %d times, want again for a config changed since\n%s", n, log)
 	}
 
-	// What held the heal up passes, the config as it was: the next look
-	// heals it.
+	// What held the heal up passes, the config as it was: it's tried again
+	// once a minute has passed, not before.
 	noteFirstPool(t, stateDir, defaultPool)
+	clock.now = clock.now.Add(healRetry - time.Second)
+	r.upkeep.look()
+	if got := membersOf(t, path); !maps.Equal(got, map[string]string{"work": "", "personal": ""}) {
+		t.Errorf("within a minute of the heal that failed, the config has the accounts in the pools %v, want it as it was, not tried again yet", got)
+	}
+	clock.now = clock.now.Add(time.Second)
 	r.upkeep.look()
 	if got := membersOf(t, path); !maps.Equal(got, map[string]string{"work": defaultPool, "personal": defaultPool}) {
-		t.Errorf("once the heal could be written, the config has the accounts in the pools %v, want each in the first, the unfenced one", got)
+		t.Errorf("a minute on, the config has the accounts in the pools %v, want each in the first, the unfenced one", got)
+	}
+	if n := timesLogged(log, "level=WARN", "couldn't write the pools back in the config"); n != 2 {
+		t.Errorf("the log says the config couldn't be healed %d times, want twice, once for each config\n%s", n, log)
+	}
+}
+
+func TestAConfigPutBackFromBeforeBothMovesIsHealedUnderTheNewIDsAndRoutedInItsPools(t *testing.T) {
+	logstest.Capture(t)
+	stateDir := t.TempDir()
+	err := identity.NewFile(stateDir).Update(func(r *identity.Record) error {
+		r.Accounts = []identity.Entry{
+			{ID: "work", Added: start, Was: "old-work", Pool: defaultPool},
+			{ID: "personal", Added: start, Was: "old-personal", Pool: acmePool},
+			{ID: "side", Added: start, Was: "old-side", Pool: defaultPool},
+		}
+		r.Pools = []identity.PoolEntry{
+			{ID: defaultPool, Added: start, First: true, Here: true, Written: identity.PoolWritten{Label: "Default"}},
+			{ID: acmePool, Added: start, Here: true, Written: identity.PoolWritten{Label: "Acme", Dirs: []string{"/work/acme"}}},
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, filepath.Join(stateDir, "accounts.moved"), "")
+	writeFile(t, filepath.Join(stateDir, "pools.moved"), "")
+	r, path := newWatchingPoolsRouter(t, stateDir, func(cfg *Config) { cfg.Formerly = formerlyOld })
+	// Personal's quota needs using first, then side's, then work's.
+	readWeeks(r, map[string]quota.Window{"personal": soonWeek, "side": laterWeek, "work": latestWeek})
+	upstream := servingAll(served, served, served)
+	r.proxy.transport = upstream
+
+	writeConfigFile(t, path, unpooledTOML("old-work", "old-personal", "old-side"))
+	r.upkeep.look()
+	r.upkeep.look()
+	defaults := routeIn(t, r, workToken, "one", defaultPool, nil)
+	acmes := routeIn(t, r, workToken, "two", acmePool, nil)
+
+	if got, want := membersOf(t, path), map[string]string{"work": defaultPool, "personal": acmePool, "side": defaultPool}; !maps.Equal(got, want) {
+		t.Errorf("healed, the config has the accounts in the pools %v, want %v, each by its new id", got, want)
+	}
+	if defaults.Code != http.StatusOK || acmes.Code != http.StatusOK {
+		t.Errorf("Default's request was answered %d and Acme's %d, want 200 each", defaults.Code, acmes.Code)
+	}
+	if sent, want := upstream.sent(), []string{"side", "personal"}; !slices.Equal(sent, want) {
+		t.Errorf("the requests went out on %q, want %q: each in its pool", sent, want)
+	}
+}
+
+func TestARouterThatCantTellWhichPoolAnAccountIsInRoutesNothingSayingWhyTillItCan(t *testing.T) {
+	log := logstest.Capture(t)
+	stateDir := t.TempDir()
+	writeFile(t, filepath.Join(stateDir, "pools.moved"), "")
+	writeFile(t, identity.NewFile(stateDir).Path(), "not a record\n")
+	path := filepath.Join(t.TempDir(), "config.toml")
+	writeConfigFile(t, path, unpooledTOML("work", "personal", "side"))
+	cfg := testConfig(at(start), &stubProber{}, poolTokens.Read)
+	cfg.ConfigFile, cfg.StateDir = Watch(path), stateDir
+	r := newTestRouterOf(t, cfg)
+	readWeeks(r, map[string]quota.Window{"side": soonWeek, "personal": laterWeek, "work": latestWeek})
+	upstream := servingAll(served, served, served)
+	r.proxy.transport = upstream
+	const why = "the config names no pools and the accounts record can't be read"
+
+	r.upkeep.look()
+	firsts := routeIn(t, r, workToken, "one", "", nil)
+	acmes := routeIn(t, r, workToken, "two", acmePool, nil)
+	r.upkeep.look()
+
+	if sent := upstream.sent(); len(sent) != 0 {
+		t.Errorf("the requests went out on %q, want none: which pool each account is in can't be told", sent)
+	}
+	for _, w := range []*httptest.ResponseRecorder{firsts, acmes} {
+		if w.Code != http.StatusTooManyRequests || !strings.Contains(w.Body.String(), why) {
+			t.Errorf("a request was answered %d, %s; want switchboard's 429 saying %s", w.Code, w.Body, why)
+		}
+	}
+	if n := timesLogged(log, "level=WARN", "nothing is routed"); n != 1 {
+		t.Errorf("the log says nothing is routed %d times, want once\n%s", n, log)
+	}
+	if health := r.Status().Router; health.Healthy || !strings.Contains(health.Reason, why) {
+		t.Errorf("the status document says the router is %+v, want it unhealthy, saying %s", health, why)
+	}
+
+	// The record is put right: the next look routes within the pools it
+	// keeps, the config as it was.
+	if err := os.Remove(identity.NewFile(stateDir).Path()); err != nil {
+		t.Fatal(err)
+	}
+	if err := identity.NewFile(stateDir).Update(func(rec *identity.Record) error {
+		*rec = recordOfThePools()
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	r.upkeep.look()
+	routeIn(t, r, workToken, "three", "", nil)
+	routeIn(t, r, workToken, "four", acmePool, nil)
+	if sent, want := upstream.sent(), []string{"side", "personal"}; !slices.Equal(sent, want) {
+		t.Errorf("once the record reads, the requests went out on %q, want %q: each in the pool it keeps", sent, want)
+	}
+	if health := r.Status().Router; !health.Healthy {
+		t.Errorf("once the record reads, the status document says the router is %+v, want it healthy", health)
 	}
 }
 
@@ -131,6 +245,7 @@ func TestARouterStartedOnAConfigItCouldntHealKeepsAClientsAccountInItsPool(t *te
 	writeConfigFile(t, path, unpooledTOML("work", "personal", "side"))
 	cfg := testConfig(at(start), &stubProber{}, poolTokens.Read)
 	cfg.ConfigFile, cfg.StateDir = Watch(path), stateDir
+	cfg.Unhealed = errors.New("account side is in no pool the accounts record keeps")
 	r := newTestRouterOf(t, cfg)
 	// Side's quota needs using first, then personal's, then work's.
 	readWeeks(r, map[string]quota.Window{"side": soonWeek, "personal": laterWeek, "work": latestWeek})
@@ -145,7 +260,7 @@ func TestARouterStartedOnAConfigItCouldntHealKeepsAClientsAccountInItsPool(t *te
 		t.Errorf("the requests went out on %q, want %q: the first's on work alone, Acme's on personal, side in no pool", sent, want)
 	}
 	if n := timesLogged(log, "level=WARN", "couldn't write the pools back in the config"); n != 1 {
-		t.Errorf("the log says the config couldn't be healed %d times, want once\n%s", n, log)
+		t.Errorf("the log says the config couldn't be healed %d times, want once, the heal as it started and the look's together\n%s", n, log)
 	}
 }
 

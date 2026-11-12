@@ -97,7 +97,7 @@ func (a *app) serve(ctx context.Context, root *cobra.Command) error {
 	if err != nil {
 		return err
 	}
-	heal(path, stateDir, a.HomeDir)
+	unhealed := heal(path, stateDir, a.HomeDir)
 	exe := a.binary()
 	configFile, binary, from, zone := router.Watch(path), router.Watch(exe), router.WatchFrom(a.from, exe), router.Watch(a.ZoneFile)
 	cfg, files, err := a.startingFrom(stateDir, path)
@@ -108,7 +108,7 @@ func (a *app) serve(ctx context.Context, root *cobra.Command) error {
 		return nil
 	}
 	cfg.ConfigFile, cfg.Binary, cfg.From, cfg.Zone = configFile, binary, from, zone
-	cfg.Move, cfg.PoolMove = a.mover(path, stateDir, files, cfg), a.poolMover(path, stateDir)
+	cfg.Move, cfg.PoolMove, cfg.Unhealed = a.mover(path, stateDir, files, cfg), a.poolMover(path, stateDir), unhealed
 	tighten(files)
 	a.refreshSkill()
 	a.refreshShellFiles(root)

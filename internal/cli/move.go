@@ -122,10 +122,12 @@ func (a *app) awaitMove(ctx context.Context, out io.Writer, stateDir string) err
 // to pools is done there and the config names no pool, as idmove.HealPools
 // does: as a router starts, before it reads the config, so it starts on the
 // ids the token files are named by, in the pools it had, the config read in
-// the home directory homeDir returns. Where it can't, which is logged, the
-// router starts all the same, the accounts' tokens not found by the old ids,
-// or in no pool.
-func heal(path, stateDir string, homeDir func() (string, error)) {
+// the home directory homeDir returns. Where it can't write the ids, which is
+// logged, the router starts all the same, the accounts' tokens not found by
+// the old ids; where it can't write the pools, it returns why, for the router
+// to tell of and try again, as router.Config's Unhealed says, the router
+// routing within the pools the accounts record keeps meanwhile.
+func heal(path, stateDir string, homeDir func() (string, error)) error {
 	healed, err := idmove.Heal(path, stateDir, homeDir)
 	switch {
 	case err != nil:
@@ -134,12 +136,10 @@ func heal(path, stateDir string, homeDir func() (string, error)) {
 		logger.Info("wrote the accounts' new ids back in the config, which named them by those they had before", "path", path)
 	}
 	pooled, err := idmove.HealPools(path, stateDir, homeDir)
-	switch {
-	case err != nil:
-		logger.Warn("couldn't write the pools back in the config, which names none", "path", path, "error", err)
-	case pooled:
+	if pooled {
 		logger.Info("wrote the pools back in the config, which named none, each account in the pool it was in", "path", path)
 	}
+	return err
 }
 
 // formerly gives the id of the account, not removed, that had the id given

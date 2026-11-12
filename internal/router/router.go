@@ -121,6 +121,12 @@ type Config struct {
 	// before then pins its account by that id for as long as it runs, which
 	// the router takes for the account's id now. Nil knows of none.
 	Formerly func(id string) (string, bool)
+	// Unhealed is why the config, naming no pools once the move to pools was
+	// done, couldn't be given them back as the router started, as serve heals
+	// it before it reads it: nil where it was, or needn't be. The router
+	// tells of it, and tries again, as it tells of and tries a heal of its
+	// own.
+	Unhealed error
 	// Upstream is the API's base URL, such as https://api.anthropic.com.
 	Upstream string
 	Provider Provider
@@ -337,7 +343,7 @@ func New(cfg Config) (*Router, error) {
 		return nil, fmt.Errorf("upstream: %w", err)
 	}
 	changes := newChanges()
-	pools := newMembership(recordIn(cfg.StateDir), func(id string) string { return accounts.idNow(cfg.Formerly, id) })
+	pools := newMembership(recordIn(cfg.StateDir), movedIn(cfg.StateDir), func(id string) string { return accounts.idNow(cfg.Formerly, id) })
 	pools.follow(cfg.Accounts, cfg.Pools)
 	state := newState(accounts, pools, cfg.Policy, cfg.Provider.Family, cfg.Now, changes.note, changes.routine)
 	history := newHistory(cfg.History, cfg.Now)
@@ -359,6 +365,7 @@ func New(cfg Config) (*Router, error) {
 	organizations := organizations{record: identity.NewFile(cfg.StateDir), owed: moving.idsOwed}
 	probes := newProbes(cfg.Prober, transport, state, organizations, changes.note, cfg.Now, emit)
 	health := newHealth(cfg.Now, emit)
+	health.closed = func() string { return pools.current().closed }
 	recent.judge = health.look
 	scheduler := &scheduler{
 		accounts: accounts, state: state, sessions: sessions, probes: probes,
