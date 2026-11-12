@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/idmove"
 	"github.com/leeovery/switchboard/internal/redact"
 	"github.com/leeovery/switchboard/internal/status"
@@ -196,10 +197,20 @@ func (r *Router) historyFiles() idmove.History {
 	return idmove.History{Ledger: r.ledger.opened.Load(), Readings: r.history.files, Events: r.eventFiles.Files()}
 }
 
-// takeUpPools has the router take up the pools its config holds, as the move
-// to pools has written the first there, reporting whether it routes in them:
-// as yet, it takes up none but those it started with, so it routes in pools
-// once it has restarted on a config that holds them.
+// takeUpPools has the router take up the pools its config file holds, as the
+// move to pools has written the first there, at once, as upkeep's look takes
+// them up, reporting whether it routes in them: not where it has no config
+// file, or the file makes no valid config, or one naming no pools, which
+// upkeep heals.
 func (r *Router) takeUpPools() bool {
-	return len(r.cfg.Pools) > 0
+	if r.cfg.ConfigFile.path == "" {
+		return false
+	}
+	cfg, err := config.Load(r.cfg.ConfigFile.path, r.cfg.HomeDir)
+	if err != nil {
+		logger.Debug("can't read the config to take up its pools", "error", err)
+		return false
+	}
+	r.state.pools.follow(cfg.Accounts, cfg.Pools)
+	return len(cfg.Pools) > 0
 }

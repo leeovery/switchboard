@@ -19,17 +19,20 @@ const watchEvery = 3 * time.Second
 // time zone, which it restarts to take up, but for the tokens of accounts the
 // config file no longer configures, which count as the primary's at once, the
 // pools and which pool each account is in, which requests are routed within
-// at once, and the folder it names to export into, which the exports take up
-// at their next round, and the accounts record, which it keeps in step with
-// the accounts and pools configured. It notices the Mac waking from sleep as
-// it looks.
+// at once, and which it writes back in a config that has lost them, the
+// folder it names to export into, which the exports take up at their next
+// round, and the accounts record, which it keeps in step with the accounts
+// and pools configured. It notices the Mac waking from sleep as it looks.
 type upkeep struct {
 	every    time.Duration
 	tokens   *tokenFiles
 	restarts *restarts
 	wakes    *wakes
-	// pools are the pools requests are routed within, the state's.
+	// pools are the pools requests are routed within, the state's, and heal
+	// gives a config that has lost them its pools back: nil where the router
+	// has no config file or no state directory.
 	pools   *membership
+	heal    *poolHealer
 	exports *exports
 	// record is nil where the router has no state directory.
 	record *accountsRecord
@@ -76,6 +79,7 @@ func newUpkeep(cfg Config, as accounts, state *state, changes *changes, primer *
 		restarts: restarts,
 		wakes:    wakes,
 		pools:    state.pools,
+		heal:     newPoolHealer(cfg),
 		exports:  exports,
 		record:   record,
 		looked:   make(chan struct{}),
@@ -106,14 +110,16 @@ func (u *upkeep) run(ctx context.Context) {
 // look looks at what the router was started from, once, as run does every so
 // often, taking up in place what the config file has come to make of the
 // accounts' tokens, the pools, the folder to export into and the accounts
-// record, where it has changed, and closing firstLook's channel the first
-// time.
+// record, where it has changed, giving a config that has lost its pools them
+// back, as heal does, for the look after to take up, and closing firstLook's
+// channel the first time.
 func (u *upkeep) look() {
 	u.wakes.look()
 	u.tokens.look()
 	u.restarts.look()
 	u.tokens.retire(u.restarts.configured())
 	if accounts, pools, changed := u.restarts.configuredPools(); changed {
+		u.heal.look(accounts, pools)
 		u.pools.follow(accounts, pools)
 	}
 	if e, changed := u.restarts.configuredExport(); changed {

@@ -747,7 +747,9 @@ read as a pool by its leaving one out (the owner's call, 11 November 2026).
     Account identity's move writes them. A line that names a pool already is left as it is, so a
     file moved reads the same moved again. A day whose lines are still kept is summarised again
     from them, in the new summary version, and an older one is rewritten as it stands. The files
-    the router builds from these are built again.
+    the router builds from these are built again. The router takes the pools up as soon as the
+    move writes them, before any file is moved, and every line it files from then names a pool,
+    the first for a request naming none, even a request it began routing before.
   - **Healed:** once the move's done, a config that names no pool, as one put back by hand or by a
     repository it's kept in, is given its pools back, as Account identity's `Heal` writes the ids
     back: every pool the accounts record keeps as this Mac's config's, in the record's order, with

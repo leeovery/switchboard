@@ -685,6 +685,36 @@ func TestHealingMarksEachPoolsPrimaryAsTheConfigLastHadIt(t *testing.T) {
 	}
 }
 
+// A config put back from before both moves, its accounts named by the ids
+// they had before switchboard made ids, is healed with each account in the
+// pool the record has it in by its id now, as a router looking at its config
+// heals it before its restart writes the ids back: so the ids written back
+// later find each account in its pool still.
+func TestHealingAConfigFromBeforeBothMovesPutsEachAccountInItsPool(t *testing.T) {
+	f := newIDsFixture(t)
+	first := f.pooled(t)
+	personalID := f.configuredIDs(t)[1]
+	edited(t, f.config,
+		func(d *config.Draft) error { return d.AddPool(clientPool) },
+		func(d *config.Draft) error { return d.SetPool(personalID, clientPool.ID) },
+	)
+	f.keptUp(t)
+
+	writeFile(t, f.config, fixtureConfig)
+	if healed, err := idmove.HealPools(f.config, f.state, testHome); err != nil || !healed {
+		t.Fatalf("HealPools() = %v, %v; want the config healed", healed, err)
+	}
+	if _, members := poolsIn(t, f.config); members[work] != first || members[personal] != clientPool.ID {
+		t.Errorf("healed, the accounts are in the pools %v, want %s in the first, %s in Client", members, work, personal)
+	}
+	if _, err := idmove.Heal(f.config, f.state, testHome); err != nil {
+		t.Fatal(err)
+	}
+	if _, members := poolsIn(t, f.config); members[personalID] != clientPool.ID {
+		t.Errorf("given its ids back, the config has the accounts in the pools %v, want %s in Client", members, personalID)
+	}
+}
+
 func TestHealingWaitsForTheMoveToPools(t *testing.T) {
 	f := newIDsFixture(t)
 	before := readFile(t, f.config)

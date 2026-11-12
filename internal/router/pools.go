@@ -116,9 +116,9 @@ func (t *poolTable) keeping(accounts config.Accounts, idNow func(id string) stri
 }
 
 // healedTable returns the pools of accounts, from a config that names none
-// once the move to pools is done, till the router's restart gives the config
-// its pools again: the first pool, the one with the given id, and every
-// account in it, by the id it has now, as idNow gives it.
+// once the move to pools is done, till the config is given its pools again,
+// as upkeep's healPools gives them: the first pool, the one with the given
+// id, and every account in it, by the id it has now, as idNow gives it.
 func healedTable(accounts config.Accounts, first string, idNow func(id string) string) *poolTable {
 	t := newPoolTable(nil, config.Pools{{ID: first, Label: first}}, first)
 	for _, a := range accounts {
@@ -208,8 +208,9 @@ func (m *membership) follow(accounts config.Accounts, pools config.Pools) {
 // configures. A config with pools makes them. One with none, from before the
 // move to pools, makes none, every account in the one pool there is, as
 // before pools; but once the move is done a config naming none has lost
-// them, as one put back by hand or from a repository it's kept in, which the
-// router's restart heals: meanwhile the pools stand as kept says, so no
+// them, as one put back by hand or from a repository it's kept in, which
+// upkeep's healPools gives them back, at the look that finds it, as the
+// router's restart does: meanwhile the pools stand as kept says, so no
 // pool's work goes out on another's accounts, and the log says so, once.
 // m.mu must be held.
 func (m *membership) made(accounts config.Accounts, pools config.Pools) *poolTable {
@@ -223,7 +224,7 @@ func (m *membership) made(accounts config.Accounts, pools config.Pools) *poolTab
 	}
 	if !m.warned {
 		m.warned = true
-		logger.Warn("the config names no pools; the pools stand as they were till the router restarts and gives the config its pools again")
+		logger.Warn("the config names no pools; the pools stand as they were till the config is given its pools again")
 	}
 	return kept
 }
@@ -245,16 +246,10 @@ func (m *membership) kept(accounts config.Accounts) *poolTable {
 	return nil
 }
 
-// samePools reports whether a and b are the same pools as far as the
-// accounts record goes: the same ids, in the same order, with the same
-// labels.
-func samePools(a, b config.Pools) bool {
-	return slices.EqualFunc(a, b, func(p, q config.Pool) bool { return p.ID == q.ID && p.Label == q.Label })
-}
-
 // identicalPools reports whether a and b are the same pools as far as routing
-// goes, and what the router tells of them: the same ids, in the same order,
-// with the same labels and directories.
+// goes, what the router tells of them and what the accounts record keeps of
+// them: the same ids, in the same order, with the same labels and
+// directories.
 func identicalPools(a, b config.Pools) bool {
 	return slices.EqualFunc(a, b, func(p, q config.Pool) bool {
 		return p.ID == q.ID && p.Label == q.Label && slices.Equal(p.Dirs, q.Dirs) && slices.Equal(p.WrittenDirs, q.WrittenDirs)

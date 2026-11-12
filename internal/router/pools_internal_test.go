@@ -668,11 +668,11 @@ func TestARequestNamingNoPoolIsInTheFirstAsTheAccountsRecordNotesIt(t *testing.T
 }
 
 // noteFirstPool has the accounts record in stateDir note the pool with the
-// given id as the first.
+// given id as the first, as the move to pools notes it.
 func noteFirstPool(t *testing.T, stateDir, id string) {
 	t.Helper()
 	err := identity.NewFile(stateDir).Update(func(r *identity.Record) error {
-		r.Pools = append(r.Pools, identity.PoolEntry{ID: id, Added: start, First: true})
+		r.NoteFirst(id, "", start)
 		return nil
 	})
 	if err != nil {

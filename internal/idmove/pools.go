@@ -227,8 +227,9 @@ func (m *PoolMover) configure() (bool, error) {
 // restorePools writes in draft, a config without pools, the pools record
 // keeps as this Mac's, as PoolEntry's Here says, in the record's order, each
 // as the config last wrote it, its id, label and directories; has each
-// account in the pool the record last had it in, as the config last had it;
-// and marks each pool's primary as the config last did. An account the
+// account in the pool the record last had it in, as the config last had it,
+// known as recorded finds it; and marks each pool's primary as the config
+// last did. An account the
 // record has in none of them goes to the unfenced pool written, never a
 // fenced one, as a client's is; where none is unfenced, the first pool is
 // written back to hold it, unfenced, labelled as the record last knew it,
@@ -241,16 +242,9 @@ func restorePools(draft *config.Draft, record identity.Record) error {
 	if !ok {
 		return errors.New("the accounts record notes no first pool")
 	}
-	pools := configuredPools(record)
+	pools, home := homed(configuredPools(record), first)
 	written := func(id string) bool {
 		return slices.ContainsFunc(pools, func(p config.NewPool) bool { return strings.EqualFold(p.ID, id) })
-	}
-	home := ""
-	if i := slices.IndexFunc(pools, func(p config.NewPool) bool { return len(p.Dirs) == 0 }); i >= 0 {
-		home = pools[i].ID
-	} else if !written(first.ID) {
-		pools = append(pools, config.NewPool{ID: first.ID, Label: cmp.Or(first.Label, first.Written.Label)})
-		home = first.ID
 	}
 	for _, p := range pools {
 		if err := draft.AddPool(p); err != nil {
@@ -259,7 +253,7 @@ func restorePools(draft *config.Draft, record identity.Record) error {
 	}
 	for _, id := range draft.Config().Accounts.IDs() {
 		pool := home
-		if e, ok := record.ByID(id); ok && written(e.Pool) {
+		if e, ok := recorded(record, id); ok && written(e.Pool) {
 			pool = e.Pool
 		}
 		if pool == "" {
@@ -272,6 +266,32 @@ func restorePools(draft *config.Draft, record identity.Record) error {
 	return restorePrimaries(draft, record)
 }
 
+// homed returns pools, those restorePools writes back, with the pool an
+// account the record has in none of them goes to, and that pool's id: the
+// unfenced one; else the first pool, the one given, added unfenced, labelled
+// as the record last knew it, where pools haven't it; else none, "", every
+// pool fenced, the first among them.
+func homed(pools []config.NewPool, first identity.PoolEntry) ([]config.NewPool, string) {
+	if i := slices.IndexFunc(pools, func(p config.NewPool) bool { return len(p.Dirs) == 0 }); i >= 0 {
+		return pools, pools[i].ID
+	}
+	if slices.ContainsFunc(pools, func(p config.NewPool) bool { return strings.EqualFold(p.ID, first.ID) }) {
+		return pools, ""
+	}
+	return append(pools, config.NewPool{ID: first.ID, Label: cmp.Or(first.Label, first.Written.Label)}), first.ID
+}
+
+// recorded is the account record has for the one a config names by the id
+// given: by the id it had before switchboard made ids, as MovedFrom finds it,
+// as in a config put back from before both moves, whose ids Heal writes back
+// as the router restarts, as KeepUp tells those apart; else by its id.
+func recorded(record identity.Record, id string) (identity.Entry, bool) {
+	if e, moved := record.MovedFrom(id); moved {
+		return e, true
+	}
+	return record.ByID(id)
+}
+
 // restorePrimaries marks in draft, its pools written back, each pool's
 // primary as record has the config last mark it, the account it marked
 // where the config has that account in that pool still, and no other.
@@ -279,7 +299,8 @@ func restorePrimaries(draft *config.Draft, record identity.Record) error {
 	cfg := draft.Config()
 	for _, a := range cfg.Accounts {
 		p, _ := record.PoolByID(a.Pool)
-		marked := strings.EqualFold(p.Written.Primary, a.ID)
+		e, ok := recorded(record, a.ID)
+		marked := ok && strings.EqualFold(p.Written.Primary, e.ID)
 		var err error
 		switch {
 		case marked && !a.Primary:
@@ -313,7 +334,7 @@ func configuredPools(record identity.Record) []config.NewPool {
 // config names no pool, as where a change to the config made by hand, or a
 // repository it's kept in, put one from before pools back. The config is
 // read in the home directory homeDir returns. A router heals its config
-// before it reads it, so it starts in pools; and may as it follows it, so one
+// before it reads it, so it starts in pools; and as it follows it, so one
 // put back is healed at once. It holds the record's lock as it does, so it's
 // never called holding it. It reports whether it changed the config.
 func HealPools(configPath, stateDir string, homeDir func() (string, error)) (bool, error) {

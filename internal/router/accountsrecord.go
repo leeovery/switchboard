@@ -67,10 +67,10 @@ func newAccountsRecord(cfg Config, started accounts, owed func() bool) *accounts
 // none, or seenPools, the pools it found it making them in, have changed since
 // it last looked, as accountsRecord says, judging again what the record
 // holds then, and logs what that changed: so a pool added or removed with no
-// accounts, or relabelled, is kept in step too. Where it can't, as where the
-// record is damaged, or a heal is owed, as KeepUp says, it says so, once,
-// and tries again once the accounts or pools upkeep finds configured change,
-// or the router restarts, healing the config first.
+// accounts, relabelled or fenced anew, is kept in step too. Where it can't,
+// as where the record is damaged, or a heal is owed, as KeepUp says, it says
+// so, once, and tries again once the accounts or pools upkeep finds
+// configured change, or the router restarts, healing the config first.
 func (a *accountsRecord) look(seen config.Accounts, seenPools config.Pools) {
 	if a == nil || a.owed() || !a.saw(seen, seenPools) {
 		return
@@ -100,13 +100,15 @@ func (a *accountsRecord) look(seen config.Accounts, seenPools config.Pools) {
 
 // saw notes seen as the accounts upkeep found the config file making, and
 // pools as the pools it found it making them in, and reports whether either
-// differs from what it found as the record was last kept in step, the pools
-// by their ids and labels, as samePools compares them: always, before it
-// first was.
+// differs from what it found as the record was last kept in step: the
+// accounts with the pool each is in and whether it's its pool's primary, and
+// the pools by their ids, labels and directories, as identicalPools compares
+// them, as the record keeps all of it to heal the config with. Always,
+// before it first was.
 func (a *accountsRecord) saw(seen config.Accounts, pools config.Pools) bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	if a.seen != nil && slices.Equal(seen, a.seen) && samePools(pools, a.seenPools) {
+	if a.seen != nil && slices.Equal(seen, a.seen) && identicalPools(pools, a.seenPools) {
 		return false
 	}
 	// Never nil, as of none seen: nil would keep it again at every look.
@@ -119,9 +121,10 @@ func (a *accountsRecord) saw(seen config.Accounts, pools config.Pools) bool {
 // accounts add and remove save the config with the record under that lock:
 // so the record is kept in step with the config as they left it, never as it
 // stood a moment before. Where the router has no config file, or it makes no
-// valid config now, the accounts are those upkeep last found it making, else
-// those the router started with, and the pools none, which leaves the
-// record's as they are.
+// valid config now, they're the accounts and pools upkeep last found it
+// making, else those the router started with: always the accounts and pools
+// of one config, never one's accounts with another's pools, as the record
+// keeps which pool each account is in, and each pool's primary.
 func (a *accountsRecord) followed() (config.Accounts, config.Pools) {
 	if a.path != "" {
 		if cfg, err := config.Load(a.path, a.homeDir); err == nil {
@@ -131,9 +134,9 @@ func (a *accountsRecord) followed() (config.Accounts, config.Pools) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if len(a.seen) == 0 {
-		return a.started, nil
+		return a.started, a.startedPools
 	}
-	return a.seen, nil
+	return a.seen, a.seenPools
 }
 
 // labelOf is the label the account with the given id last had in the config,
