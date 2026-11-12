@@ -1059,6 +1059,9 @@ func TestWithNoRoomARequestFallsBackToAnAccountThatHasntRefusedIt(t *testing.T) 
 		// held is what the session's move off its account says held its
 		// request back there.
 		held Hold
+		// closed is set where switchboard answers the request, as none in its
+		// pool takes it, and its client's account is outside the pool.
+		closed bool
 	}{
 		{name: "the session's account", current: "side", want: "side"},
 		{name: "the client's, for a new session", want: "work"},
@@ -1068,6 +1071,9 @@ func TestWithNoRoomARequestFallsBackToAnAccountThatHasntRefusedIt(t *testing.T) 
 		{name: "the client's, when every one refused it", current: "side", refused: []string{"work", "side", "spare"}, want: "work", held: HeldByRefusal},
 		{name: "none, when every one refused it and the client's can't be sent on", current: "side", client: "lost", refused: []string{"work", "side", "spare"}, held: HeldByRefusal},
 		{name: "none, for a new session, when every one refused it and the client's can't be sent on", client: "lost", refused: []string{"work", "side", "spare"}},
+		{name: "the session's account, the client's in another pool", current: "side", client: "elsewhere", want: "side"},
+		{name: "another, for a new session whose client's is in another pool", client: "elsewhere", refused: []string{"work"}, want: "side"},
+		{name: "none, closed, when every one refused it and the client's is in another pool", current: "side", client: "elsewhere", refused: []string{"work", "side", "spare"}, held: HeldByRefusal, closed: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1077,6 +1083,7 @@ func TestWithNoRoomARequestFallsBackToAnAccountThatHasntRefusedIt(t *testing.T) 
 				accounts: view{
 					policy:     testPolicy,
 					now:        start,
+					pool:       []string{"work", "side", "spare", "lost"},
 					candidates: []score.Candidate{{ID: "work", Windows: spent}, {ID: "side", Windows: spent}, {ID: "spare", Windows: spent}},
 					applies:    testPolicy.IsShared,
 					barred:     tt.refused,
@@ -1086,7 +1093,7 @@ func TestWithNoRoomARequestFallsBackToAnAccountThatHasntRefusedIt(t *testing.T) 
 			if tt.current != "" {
 				s.current, s.assigned = *on(tt.current, 5*time.Minute), true
 			}
-			want := decision{account: tt.want, reason: reasonNoRoom, afresh: true, noRoom: true, held: tt.held}
+			want := decision{account: tt.want, reason: reasonNoRoom, afresh: true, noRoom: true, held: tt.held, closed: tt.closed}
 			if got := decide(s); got != want {
 				t.Errorf("decide() = %+v, want %+v", got, want)
 			}
