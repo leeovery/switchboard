@@ -260,7 +260,11 @@ func TestServeMovesTheAccountsAndTheirHistoryOntoTheirIDsAcrossTheRestartItCalls
 	}
 }
 
-func TestServeMovesTheHistoryToPoolsAcrossTheRestartItCallsFor(t *testing.T) {
+// The router moves the history to pools in one run, taking up the first
+// pool the move writes to its config at once, without the restart a router
+// from before needed; and a router starting on the config put back from
+// before pools heals it.
+func TestServeMovesTheHistoryToPoolsTakingTheFirstPoolUpAtOnce(t *testing.T) {
 	srv := newServeSetup(t, fakeClaudeAPI(t), nil)
 	if err := os.Remove(filepath.Join(srv.state, poolsMark)); err != nil {
 		t.Fatal(err)
@@ -275,23 +279,10 @@ func TestServeMovesTheHistoryToPoolsAcrossTheRestartItCallsFor(t *testing.T) {
 	}
 
 	stop := srv.start(t)
-	waitUntil(t, "the config holds the first pool", func() bool {
-		data, err := os.ReadFile(srv.config)
-		return err == nil && strings.Contains(string(data), "[[pool]]")
+	waitUntil(t, "the move to pools is marked done", func() bool {
+		_, err := os.Stat(filepath.Join(srv.state, poolsMark))
+		return err == nil
 	})
-	awaiting := status.Moving{Stage: status.MoveAwaitingRestart, Move: status.MovingPools}
-	srv.waitForStatus(t, func(doc status.Document) bool { return doc.Moving == awaiting })
-	if got := run(t, srv.deps, "requests"); got.code != 1 || !strings.Contains(got.stderr, prose.HistoryMovingPools+": "+prose.MoveWaitsPools) {
-		t.Errorf("switchboard requests mid-move = %+v, want it refused, waiting on the router taking the first pool up", got)
-	}
-	if data, err := os.ReadFile(requests); err != nil || string(data) != line {
-		t.Errorf("the ledger's line reads %s (%v), want it as it was till the router takes the first pool up", data, err)
-	}
-	if got := stop(); got.code != 0 {
-		t.Fatalf("switchboard serve = %+v, want exit status 0", got)
-	}
-
-	stop = srv.start(t)
 	srv.waitForStatus(t, func(doc status.Document) bool { return doc.Moving == status.Moving{} })
 	record, err := identity.NewFile(srv.state).Read()
 	if err != nil {
@@ -303,9 +294,6 @@ func TestServeMovesTheHistoryToPoolsAcrossTheRestartItCallsFor(t *testing.T) {
 	}
 	if data, err := os.ReadFile(requests); err != nil || !strings.Contains(string(data), `"kind":"messages","pool":"`+first.ID+`","account":"work"`) {
 		t.Errorf("the ledger's line reads %s (%v), want it given the first pool, %s", data, err, first.ID)
-	}
-	if _, err := os.Stat(filepath.Join(srv.state, poolsMark)); err != nil {
-		t.Errorf("the move to pools' mark: %v, want it marked done", err)
 	}
 	if got := run(t, srv.deps, "requests"); got.code != 0 {
 		t.Errorf("switchboard requests, moved, = %+v, want the ledger read", got)
