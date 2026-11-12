@@ -59,7 +59,7 @@ func (d days) fitted(made Summary, held *Summary) (Summary, *Summary) {
 //     summary yet to follow: so held's work in none is the first pool's.
 func fittedAccount(made, held AccountDay, unsplit bool, first func() string) (AccountDay, AccountDay) {
 	switch {
-	case unsplit && made.Work.covers(held.Work):
+	case unsplit && made.covers(held.Work):
 		held.Pool, held.Pools = made.Pool, made.Pools
 	case unsplit:
 		pool := held.Pool
@@ -100,17 +100,6 @@ func (w Work) covers(held Work) bool {
 func (m ModelDay) countsNoLess(held ModelDay) bool {
 	return m.Upstream >= held.Upstream && m.NoUsage >= held.NoUsage && m.Unsent >= held.Unsent &&
 		m.Checks >= held.Checks && m.Counts >= held.Counts && m.Sessions >= held.Sessions
-}
-
-// unpooledIn returns the day with each account's work in no pool in the pool
-// with the given id instead, as AccountDay's unpooledIn gives it.
-func (s Summary) unpooledIn(pool string) Summary {
-	accounts := make([]AccountDay, len(s.Accounts))
-	for i, a := range s.Accounts {
-		accounts[i], _ = a.unpooledIn(pool)
-	}
-	s.Accounts = accounts
-	return s
 }
 
 // unpooledIn returns the account's day with its work in no pool, of the
