@@ -272,9 +272,9 @@ func befell(e status.Event, f eventFact) (full, short string) {
 		return "primed: " + its(f.windows, "its window") + " started", "primed"
 	case status.EventRoom:
 		if len(f.windows) == 0 {
-			return "open again", "open again"
+			return OpenAgain, OpenAgain
 		}
-		return "open again: " + its(f.windows, "") + " reset", "open again"
+		return OpenAgain + ": " + its(f.windows, "") + " reset", OpenAgain
 	}
 	return "", ""
 }

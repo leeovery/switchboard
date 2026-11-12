@@ -36,11 +36,15 @@ const (
 	axisGapGivesWay
 )
 
-// learningGivesWay is the turn the line saying the forecast is learning gives
-// way in, with the blank row under it, the first of all: it shows at the
-// roomiest alone, before any other part compacts. It shares legendGivesWay's
-// turn, as no step holds both.
-const learningGivesWay = 1
+// The turns the parts that show before (c) alone give way in, before any
+// other part compacts: LATELY stacked under COMING UP, the first of all;
+// then the line saying the forecast is learning, with the blank row under
+// it, which shows at the roomiest alone. They share the turns of (c)'s, as
+// no step holds both.
+const (
+	latelyGivesWay = iota + 1
+	learningGivesWay
+)
 
 // The rows Runway's parts take: the axis's, now, its labels and its ticks;
 // and the pool's lane's.
@@ -52,7 +56,8 @@ const (
 // Runway's parts down a frame, in runwayShape.parts' order: the line saying
 // the forecast is learning; the axis; the blank row under it; the lanes
 // shown; the pool's lane, the row under it its room's, or what's out of
-// view's; COMING UP; the rows spare; and the legend, over the key line.
+// view's; COMING UP; LATELY, stacked under it; the rows spare; and the
+// legend, over the key line.
 const (
 	runwayLearningPart = iota
 	runwayAxisPart
@@ -60,6 +65,7 @@ const (
 	runwayLanesPart
 	runwayPoolPart
 	runwayComingPart
+	runwayLatelyPart
 	runwaySparePart
 	runwayLegendPart
 )
@@ -68,14 +74,16 @@ const (
 const noRow = -1
 
 // runwayShape is how Runway's rows go on a frame: how many rows the legend
-// takes, and how many columns COMING UP's lines take.
+// takes; how many columns COMING UP's lines take; and where LATELY goes, as
+// latelyPlace has it.
 type runwayShape struct {
 	legend, columns int
+	lately          latelyPlace
 }
 
 // runwayHolds are what Runway lays out: how many lanes; whether the pool's
 // lane shows, as it doesn't with one account, and the pool's room, as it
-// doesn't on a day or a week stepped back to that has no now; whether
+// doesn't on a week stepped back to that has no now; whether
 // COMING UP shows, as it does live alone, and how many lines it lists; and
 // whether the line saying the forecast is learning shows.
 type runwayHolds struct {
@@ -135,14 +143,41 @@ type runwayFit struct {
 	// it; legend is the legend's first row; and learning the row of the line
 	// saying the forecast is learning.
 	coming, lines, legend, learning int
+	// place is where LATELY goes, as the shape the fit was laid out in has
+	// it; lately is its heading's row, beside COMING UP's or under it, and
+	// latelyLines the rows of its lines under it, down to the rows spare's
+	// last.
+	place               latelyPlace
+	lately, latelyLines int
 }
 
 // runwayFitted is how Runway fits the rows from row top to the one over the
-// key line, as runwayFittedAs fits them: the legend as many rows as
-// runwayLegend draws, and COMING UP's lines in as many columns as
-// comingColumns lays.
+// key line, as runwayFittedAs fits them, in the first of the shapes
+// runwayShapes gives that holds LATELY, else the last.
 func (f Frame) runwayFitted(top int) runwayFit {
-	return f.runwayFittedAs(top, runwayShape{legend: f.runwayLegendRows(), columns: len(f.comingColumns())})
+	shapes := f.runwayShapes()
+	for _, shape := range shapes[:len(shapes)-1] {
+		if fit := f.runwayFittedAs(top, shape); fit.draws(fit.lately) {
+			return fit
+		}
+	}
+	return f.runwayFittedAs(top, shapes[len(shapes)-1])
+}
+
+// runwayShapes are the shapes Runway is fitted in, in turn, the legend as
+// many rows as runwayLegend draws: with LATELY where latelyPlaceOf puts it,
+// COMING UP one column of runwayComingColumns'; and where that's stacked,
+// COMING UP alone after it, as comingColumns lays it.
+func (f Frame) runwayShapes() []runwayShape {
+	legend, place := f.runwayLegendRows(), f.latelyPlaceOf()
+	alone := runwayShape{legend: legend, columns: len(f.comingColumns(comingAlone))}
+	switch place {
+	case latelySideBySide:
+		return []runwayShape{{legend: legend, columns: 1, lately: place}}
+	case latelyStacked:
+		return []runwayShape{{legend: legend, columns: 1, lately: place}, alone}
+	}
+	return []runwayShape{alone}
 }
 
 // runwayFittedAs is how Runway fits the rows from row top to the one over
@@ -188,7 +223,7 @@ func (s runwayShape) laidOut(step runwayStep, top, rows int, holds runwayHolds, 
 	}
 	pool, coming, legend, learning := at[runwayPoolPart], at[runwayComingPart], at[runwayLegendPart], at[runwayLearningPart]
 	under := top + pool.At + pool.Size - 1
-	return runwayFit{
+	fit := runwayFit{
 		step: step, fits: true, axis: top + at[runwayAxisPart].At,
 		lanes: top + at[runwayLanesPart].At, apart: step.apart(), shown: shown, accounts: holds.lanes,
 		pool:   rowWhere(holds.pool, top+pool.At),
@@ -197,7 +232,27 @@ func (s runwayShape) laidOut(step runwayStep, top, rows int, holds runwayHolds, 
 		coming: rowWhere(coming.Size > 0, top+coming.At), lines: max(coming.Size-1, 0),
 		legend:   rowWhere(legend.Size > 0, top+legend.At),
 		learning: rowWhere(learning.Size > 0, top+learning.At),
-	}, true
+		place:    s.lately, lately: noRow,
+	}
+	return fit.latelyIn(top, at), true
+}
+
+// latelyIn is the fit with LATELY laid out as the parts from row top lie,
+// where its place shows it: beside COMING UP, from its heading's row; or
+// stacked under it, where its own part shows; in either, its lines down to
+// the last of the rows spare.
+func (r runwayFit) latelyIn(top int, at []flex.Span) runwayFit {
+	coming, lately, spare := at[runwayComingPart], at[runwayLatelyPart], at[runwaySparePart]
+	switch {
+	case r.place == latelySideBySide && coming.Size > 0:
+		r.lately = top + coming.At
+	case r.place == latelyStacked && lately.Size > 0:
+		r.lately = top + lately.At
+	default:
+		return r
+	}
+	r.latelyLines = top + spare.At + spare.Size - r.lately - 1
+	return r
 }
 
 // parts are Runway's parts down a frame at the step given, in the shape, of
@@ -205,12 +260,13 @@ func (s runwayShape) laidOut(step runwayStep, top, rows int, holds runwayHolds, 
 // line saying the forecast is learning, at the roomiest alone, a blank row
 // between it and the axis, the first to give way; the axis; the blank row
 // under it; the lanes; the pool's lane, its room and what's out of
-// view, as poolRows has them; COMING UP, as comingPart has it; the rows
-// spare, which take what's left; and the legend, over the key line, a blank
-// row before it before (b), and with no COMING UP, the blank row under the
-// pool's lane. At (c), the legend gives way, then COMING UP, then the blank
-// row under the axis; at (f), none of them is there, so no lane scrolls
-// while the legend or COMING UP shows.
+// view, as poolRows has them; COMING UP, as comingPart has it; LATELY,
+// stacked under it, as latelyPart has it; the rows spare, which take what's
+// left; and the legend, over the key line, a blank row before it before (b),
+// and with no COMING UP, the blank row under the pool's lane. At (c), the
+// legend gives way, then COMING UP, then the blank row under the axis; at
+// (f), none of them is there, so no lane scrolls while the legend or COMING
+// UP shows.
 func (s runwayShape) parts(step runwayStep, holds runwayHolds, shown int) []flex.Part {
 	lanes, pool := shown*step.apart(), holds.poolRows(shown)
 	parts := []flex.Part{
@@ -231,6 +287,7 @@ func (s runwayShape) parts(step runwayStep, holds runwayHolds, shown int) []flex
 	}
 	parts[runwayAxisGapPart] = flex.Part{Least: 1, Natural: 1}
 	parts[runwayComingPart] = s.comingPart(step, holds)
+	parts[runwayLatelyPart] = s.latelyPart(step, holds)
 	parts[runwayLegendPart] = flex.Part{Least: s.legend, Natural: s.legend, Gap: step.gap(runwayNoGaps)}
 	if !holds.coming {
 		parts[runwayLegendPart].Gap = step.underPool(holds)
@@ -258,6 +315,19 @@ func (s runwayShape) comingPart(step runwayStep, holds runwayHolds) flex.Part {
 		least = natural
 	}
 	return flex.Part{Least: least, Natural: natural, Gap: step.underPool(holds)}
+}
+
+// latelyPart is LATELY as a part of its own at the step, in the shape, of
+// what holds says it holds, where it's stacked under COMING UP, which shows
+// every line before (c): its heading and latelyLeastLines lines at the
+// least, a blank row before it, the first part to give way, its lines
+// running on into the rows spare.
+func (s runwayShape) latelyPart(step runwayStep, holds runwayHolds) flex.Part {
+	if s.lately != latelyStacked || !holds.coming || step >= runwayComingCut {
+		return flex.Part{}
+	}
+	rows := 1 + latelyLeastLines
+	return flex.Part{Least: rows, Natural: rows, Gap: 1, Leaves: latelyGivesWay}
 }
 
 // underPool is the blank rows under the pool's lane at the step, of what

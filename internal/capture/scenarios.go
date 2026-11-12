@@ -99,9 +99,8 @@ func onWorkLines(now time.Time) []ledger.Line {
 // the three requests in flight landing in the first 3 seconds, and work's
 // five sessions asking in turn, a request a second, each once its last is
 // answered, enough for work's 5-hour window to read a hundredth up, to 59%,
-// at 14.1, shown at the look by 15. demo/dashboard.tape presses g at 6,
-// which the Overview takes no more, then tab four times from 11, to Runway,
-// and > at 12.2 to its 5-hour.
+// at 14.1, shown at the look by 15. demo/dashboard.tape shift-tabs twice
+// from 6, to Graphs, and again at 11.3, to Runway.
 var dashboardCues = []cue{
 	asks(0.6, id41E0, opus, long),
 	asks(1.6, id9C2E, opus, long),

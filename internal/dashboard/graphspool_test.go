@@ -237,7 +237,7 @@ func TestPoolsStackFadesAheadOfNowsLineDownItsColumn(t *testing.T) {
 // Under the chart, Runway's week's axis over the stack's timeline, cell for
 // cell as Runway draws it over the same.
 func TestPoolsAxisIsRunwaysOverItsTimeline(t *testing.T) {
-	shown := runwayLive(views.RunwayWeek)
+	shown := runwayLive()
 	const h, width = 4, 136
 	runway := newCanvas(width, runwayAxisRows)
 	runwayShowing(shown).runwayAxis(runway, runwayLaid{fit: runwayFit{fits: true, axis: 0}})

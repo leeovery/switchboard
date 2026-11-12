@@ -26,14 +26,15 @@ func (f Frame) runwayComing(c *canvas, laid runwayLaid) {
 	if !fit.draws(fit.coming) {
 		return
 	}
-	c.line(0, fit.coming, line{{SectionComing.heading(), dimInk}})
+	columns := f.comingColumns(fit.place)
+	c.line(columns[0].At, fit.coming, line{{SectionComing.heading(), dimInk}})
 	if fit.lines == 0 {
 		return
 	}
 	m := laid.m
 	teller := comingTeller{moment: m, names: namesOf(m), window: f.windowNamer(m), namesStarted: true}
 	things := teller.happenings(f.Runway.Coming)
-	columns, top := f.comingColumns(), fit.coming+1
+	top := fit.coming + 1
 	places := fit.lines * len(columns)
 	shown, more := comingPlaced(len(things), places)
 	for i, column := range columns {
@@ -55,19 +56,28 @@ func comingPlaced(things, places int) (shown, more int) {
 	return shown, things - shown
 }
 
-// comingColumns are the columns COMING UP's lines take across the frame, as
-// flex lays them: two, comingApart apart, sharing the width, the odd cell
-// the second's, so it ends at the frame's edge, where both fit at their
-// natural; else one, at its natural, or the frame's width where that's
-// narrower.
-func (f Frame) comingColumns() []flex.Span {
+// comingColumns are the columns COMING UP's lines take across the frame, in
+// LATELY's place given: beside it, one as wide as the Overview's COMING UP
+// column, ending at the frame's edge; stacked over it, one at its natural,
+// or the frame's width where that's narrower; alone, as flex lays them,
+// two, comingApart apart, sharing the width, the odd cell the second's, so
+// it ends at the frame's edge, where both fit at their natural; else one,
+// as stacked.
+func (f Frame) comingColumns(place latelyPlace) []flex.Span {
+	if place == latelySideBySide {
+		width := comingWidth(f.Width)
+		return []flex.Span{{At: f.Width - width, Size: width}}
+	}
+	one, _ := flex.Lay(f.Width, flex.Part{Natural: runwayComingWidth, Most: runwayComingWidth})
+	if place == latelyStacked {
+		return one
+	}
 	column := flex.Part{Least: runwayComingWidth, Natural: runwayComingWidth, Grows: true}
 	second := column
 	second.Gap, second.Odd = comingApart, true
 	if two, fits := flex.Lay(f.Width, column, second); fits {
 		return two
 	}
-	one, _ := flex.Lay(f.Width, flex.Part{Natural: runwayComingWidth, Most: runwayComingWidth})
 	return one
 }
 

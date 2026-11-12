@@ -14,16 +14,16 @@ import (
 )
 
 // heldPast is what was judged of a timeline's past, each account as it stood
-// at the moment of each column before now's, or of every column of a day or
-// week gone, and what that was judged from: the timeline, by its span, its
-// columns and now's; the view; the readings, as heldReadings knows them, and
-// how far back they reach; the days before the readings history's keep, by
-// their dates; the policy; and each account, as pastOf knows it, in the
-// moment's order.
+// at the moment of each column before now's, or of every column of a week
+// gone, and what that was judged from: the timeline, by its span, its
+// columns and now's; the key of the window judged; the readings, as
+// heldReadings knows them, and how far back they reach; the days before the
+// readings history's keep, by their dates; the policy; and each account, as
+// pastOf knows it, in the moment's order.
 type heldPast struct {
 	start, end         time.Time
 	columns, nowColumn int
-	window             RunwayWindow
+	key                string
 	read               heldReadings
 	reach              status.Reach
 	summarised         []string
@@ -70,7 +70,7 @@ type pastOf struct {
 func (p heldPast) holds(from LanesFrom) bool {
 	tl, m := from.Timeline, from.Moment
 	if !p.start.Equal(tl.Start) || !p.end.Equal(tl.End) || p.columns != tl.Columns || p.nowColumn != tl.NowColumn() ||
-		p.window != from.Window || p.read != heldReadingsOf(from.Readings) || !sameReach(p.reach, from.reach()) || !slices.Equal(p.summarised, from.summarisedDays()) ||
+		p.key != from.viewKey() || p.read != heldReadingsOf(from.Readings) || !sameReach(p.reach, from.reach()) || !slices.Equal(p.summarised, from.summarisedDays()) ||
 		!p.policy.Equal(m.Policy()) || len(p.accounts) != len(m.Accounts) {
 		return false
 	}
@@ -83,8 +83,8 @@ func (p heldPast) holds(from LanesFrom) bool {
 }
 
 // told are the holds of the account with the given id the router told of,
-// as the moment's Told has them, where the timeline holds now; on a day or a
-// week gone, those its events tell alone, as one no event tells, from before
+// as the moment's Told has them, where the timeline holds now; on a week
+// gone, those its events tell alone, as one no event tells, from before
 // anything, is known only to hold now.
 func (from LanesFrom) told(id string) []status.Span {
 	told := from.Moment.Told(id)
@@ -118,7 +118,7 @@ func sameSpan(a, b status.Span) bool {
 func (l Lanes) judgePast(from LanesFrom) heldPast {
 	m, tl, then := from.Moment, from.Timeline, l.judging()
 	past := heldPast{
-		start: tl.Start, end: tl.End, columns: tl.Columns, nowColumn: tl.NowColumn(), window: from.Window,
+		start: tl.Start, end: tl.End, columns: tl.Columns, nowColumn: tl.NowColumn(), key: from.viewKey(),
 		read: heldReadingsOf(from.Readings), reach: from.reach(), summarised: from.summarisedDays(), policy: m.Policy(),
 	}
 	judged := max(tl.Columns, 0)

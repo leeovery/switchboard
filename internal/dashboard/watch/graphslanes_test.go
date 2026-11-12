@@ -18,21 +18,21 @@ import (
 
 // While Graphs shows, the week's lanes are built over Runway's live view of
 // it, across the columns Runway's lanes take on the terminal, once a message
-// and never at a frame, and the frame shows them, and no 5-hour's; Runway's
-// own are built only while Runway shows, and neither while another tab does.
+// and never at a frame, and the frame shows them alone; Runway's own are
+// built only while Runway shows, and neither while another tab does.
 func TestGraphsBuildsTheWeeksLanesOnceAMessageWhileItShows(t *testing.T) {
 	r := runwayHarness(t, dashboard.Graphs, nil)
 	shown := r.model.frame(r.model.now()).Graphs.Lanes
 	w := views.RunwayWeek
-	want := views.LiveTimeline(w, start, 146)
-	if r.graphsBuilds[w] == 0 || r.graphsFrom[w].Timeline != want || r.graphsFrom[w].Window != w {
+	want := views.LiveTimeline(start, 148)
+	if r.graphsBuilds[w] == 0 || r.graphsFrom[w].Timeline != want {
 		t.Errorf("once started, Graphs built the week's lanes %d times, over %+v; want them built over Runway's live view, %+v", r.graphsBuilds[w], r.graphsFrom[w].Timeline, want)
 	}
 	if got := shown[w]; got.Lanes == nil || got.Window != w || got.Timeline != want || len(got.Lanes.Accounts) != 3 {
 		t.Errorf("the frame shows the week's lanes as %+v, want each account's, over %+v", got, want)
 	}
-	if r.graphsBuilds[views.RunwayFiveHour] != 0 || len(shown) != 1 {
-		t.Errorf("Graphs built the 5-hour's lanes %d times, shows the lanes of %d windows; want none built, the week's alone shown", r.graphsBuilds[views.RunwayFiveHour], len(shown))
+	if len(shown) != 1 {
+		t.Errorf("Graphs shows the lanes of %d windows; want the week's alone", len(shown))
 	}
 	if r.builds != 0 {
 		t.Errorf("with Graphs shown, Runway's lanes were built %d times, want none", r.builds)
@@ -91,7 +91,7 @@ func TestGraphsLanesAreOverRunwaysOwnLiveViewOfEachWindow(t *testing.T) {
 		// back are the keys Runway is stepped back by before tab shows Graphs.
 		back string
 		// moved is set where Runway's lanes take other columns than those of
-		// the short labels, expanded, 146, so the case tells a timeline sized
+		// the short labels, expanded, 148, so the case tells a timeline sized
 		// otherwise from Runway's.
 		moved bool
 	}{
@@ -99,7 +99,7 @@ func TestGraphsLanesAreOverRunwaysOwnLiveViewOfEachWindow(t *testing.T) {
 		{name: "collapsed", doc: routerDocument(three()...), setup: collapsed, moved: true},
 		{name: "long labels", doc: routerDocument(long...), moved: true},
 		{name: "long labels, collapsed", doc: routerDocument(long...), setup: collapsed, moved: true},
-		{name: "after Runway stepped back a day", doc: routerDocument(long...), back: "left left", moved: true},
+		{name: "after Runway stepped back a week", doc: routerDocument(long...), back: "left left", moved: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -113,14 +113,13 @@ func TestGraphsLanesAreOverRunwaysOwnLiveViewOfEachWindow(t *testing.T) {
 				if tt.setup != nil {
 					tt.setup(r, cfg)
 				}
-				cfg.RunwayShown.Window = views.RunwayWeek
 			})
 			got, want := g.graphsFrom[views.RunwayWeek].Timeline, runway.from.Timeline
 			if got != want {
 				t.Errorf("Graphs' week's lanes are over %+v, want Runway's own live view of it, %+v", got, want)
 			}
-			if moved := want.Columns != 146; moved != tt.moved {
-				t.Errorf("Runway's week's lanes take %d columns, the case meaning them moved from 146 %t", want.Columns, tt.moved)
+			if moved := want.Columns != 148; moved != tt.moved {
+				t.Errorf("Runway's week's lanes take %d columns, the case meaning them moved from 148 %t", want.Columns, tt.moved)
 			}
 		})
 	}
@@ -183,10 +182,8 @@ func TestGraphsBuildsTheWeeksLanesAsWeekAndGlanceAreToggled(t *testing.T) {
 		was := maps.Clone(r.graphsBuilds)
 		r.keyed(step.key)
 		var built []views.RunwayWindow
-		for _, w := range views.RunwayWindows() {
-			if r.graphsBuilds[w] > was[w] {
-				built = append(built, w)
-			}
+		if w := views.RunwayWeek; r.graphsBuilds[w] > was[w] {
+			built = append(built, w)
 		}
 		shown := slices.Sorted(maps.Keys(r.model.graphsTab.shown))
 		want := slices.Sorted(slices.Values(step.want))
@@ -308,7 +305,7 @@ func TestGraphsWithItsBurnDownsHiddenSaysNothingOfLoading(t *testing.T) {
 // way waits on none of its own, so says nothing of loading, however long that
 // read takes.
 func TestGraphsSaysNothingOfLoadingWhileRunwaysSteppedBackReadIsUnderWay(t *testing.T) {
-	h := runwayHarness(t, dashboard.Runway, func(_ *runwayed, cfg *Config) { cfg.RunwayShown.Window = views.RunwayWeek })
+	h := runwayHarness(t, dashboard.Runway, nil)
 	h.keyed("left")
 	back := holdingBack[runwayReadMsg](h.harness, h.update(namedKeys["left"])...)
 	if len(back) != 1 || h.model.runwayTab.readingLive {

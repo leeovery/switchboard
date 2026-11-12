@@ -6,19 +6,20 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
-// poolShown is Runway's live 5-hour view at routedAt, at 160 columns, its
+// poolShown is Runway's live view at routedAt, at 160 columns, its
 // lanes those of doc's accounts, its pool's lane as given.
 func poolShown(doc status.Document, pool views.Pool) RunwayShown {
 	lanes := &views.Lanes{Pool: pool}
 	for _, a := range doc.Accounts {
 		lanes.Accounts = append(lanes.Accounts, views.Lane{ID: a.ID})
 	}
-	return RunwayShown{Window: views.RunwayFiveHour, Timeline: views.LiveTimeline(views.RunwayFiveHour, routedAt, RunwayShown{}.Columns(160)), Lanes: lanes}
+	return RunwayShown{Timeline: views.LiveTimeline(routedAt, RunwayShown{}.Columns(160)), Lanes: lanes}
 }
 
 // poolDrawn is the canvas of Runway shown as r of doc at routedAt, 160 by
@@ -69,7 +70,7 @@ func TestThePoolsColumnsAreAsHighAsTheShareOfItsAccountsWithRoom(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			columns := slices.Repeat([]views.PoolColumn{tt.col}, RunwayShown{}.Columns(160))
-			c, top := poolDrawn(poolShown(runwayDoc(tt.of), views.Pool{Of: tt.of, Key: "5h", Columns: columns}), runwayDoc(tt.of), Screen(builtin(t, "nord")))
+			c, top := poolDrawn(poolShown(runwayDoc(tt.of), views.Pool{Of: tt.of, Key: "7d", Columns: columns}), runwayDoc(tt.of), Screen(builtin(t, "nord")))
 			const x = 100
 			if got := cellAt(c, x, top); got != tt.top {
 				t.Errorf("the column's top cell is %+v, want %+v", got, tt.top)
@@ -97,14 +98,14 @@ func cellAt(c *canvas, x, y int) seenCell {
 }
 
 // The pool's columns before now's are dimmed, mix(canvas, colour, 0.45), as
-// the past is: now's and those after it aren't, and on a day stepped back
-// to, which has no now, none is.
+// the past is: now's and those after it aren't, and on a week gone
+// stepped back to, which has no now, none is.
 func TestThePoolsPastIsDimmed(t *testing.T) {
 	doc := runwayDoc(3)
 	columns := slices.Repeat([]views.PoolColumn{{With: 2, Known: true}}, RunwayShown{}.Columns(160))
-	live := poolShown(doc, views.Pool{Of: 3, Key: "5h", Columns: columns})
+	live := poolShown(doc, views.Pool{Of: 3, Key: "7d", Columns: columns})
 	gone := live
-	gone.Back = civilDay(9, 30)
+	gone.Back = civilDay(9, 21)
 	gone.Timeline = gone.TimelineAt(routedAt, time.Monday, 160)
 	now := live.Timeline.NowColumn()
 	tests := []struct {
@@ -117,7 +118,7 @@ func TestThePoolsPastIsDimmed(t *testing.T) {
 		{name: "the first", shown: live, column: 0, fade: pastFade},
 		{name: "now's", shown: live, column: now},
 		{name: "after now's", shown: live, column: now + 1},
-		{name: "a day stepped back to's first", shown: gone, column: 0},
+		{name: "a week gone's first", shown: gone, column: 0},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -152,7 +153,7 @@ func TestAPoolsColumnWithRoomFillsThreeEighthsAtTheLeast(t *testing.T) {
 		for i := range columns {
 			columns[i] = views.PoolColumn{With: 1 + i%of, Known: true}
 		}
-		c, top := poolDrawn(poolShown(doc, views.Pool{Of: of, Key: "5h", Columns: columns}), doc, look)
+		c, top := poolDrawn(poolShown(doc, views.Pool{Of: of, Key: "7d", Columns: columns}), doc, look)
 		x := RunwayShown{}.lanesFrom(160)
 		for i, col := range columns {
 			if lower := cellAt(c, x+i, top+1); !atLeastThreeEighths(lower) {
@@ -174,7 +175,7 @@ func atLeastThreeEighths(cell seenCell) bool {
 func TestThePoolsColumnsWithNoRoomAreDrawnAsALanesHeldBack(t *testing.T) {
 	doc := runwayDoc(3)
 	columns := slices.Repeat([]views.PoolColumn{{Known: true}}, RunwayShown{}.Columns(160))
-	shown := poolShown(doc, views.Pool{Of: 3, Key: "5h", Columns: columns})
+	shown := poolShown(doc, views.Pool{Of: 3, Key: "7d", Columns: columns})
 	now := shown.Timeline.NowColumn()
 	tests := []struct {
 		name   string
@@ -212,7 +213,7 @@ func mixed(t *testing.T, fade float64, tok theme.Token) string {
 func TestThePoolsFullCellsAreBlocksWhereTheLookBlendsNothing(t *testing.T) {
 	doc := runwayDoc(3)
 	columns := slices.Repeat([]views.PoolColumn{{With: 2, Known: true}}, RunwayShown{}.Columns(160))
-	c, top := poolDrawn(poolShown(doc, views.Pool{Of: 3, Key: "5h", Columns: columns}), doc, NoColour())
+	c, top := poolDrawn(poolShown(doc, views.Pool{Of: 3, Key: "7d", Columns: columns}), doc, NoColour())
 	if got := string([]rune(rowOf(c, top+1))[RunwayShown{}.lanesFrom(160):]); got != strings.Repeat("█", RunwayShown{}.Columns(160)) {
 		t.Errorf("the pool's bottom row reads %q, want █ in every column", got)
 	}
@@ -234,12 +235,12 @@ func TestSigmaPoolHeadsThePoolsLaneWithNoRuleOverIt(t *testing.T) {
 		sigma    string
 	}{
 		{name: "three, after the last lane's blank row", accounts: 3, pool: 19, sigma: "Σ pool"},
-		{name: "ten, after the last lane's words", accounts: 10, pool: 30, over: "  5-hour", sigma: "Σ pool"},
+		{name: "ten, after the last lane's words", accounts: 10, pool: 30, over: "  week", sigma: "Σ pool"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			doc := runwayDoc(tt.accounts)
-			c, top := poolDrawn(poolShown(doc, views.Pool{Of: tt.accounts, Key: "5h"}), doc, Screen(builtin(t, "nord")))
+			c, top := poolDrawn(poolShown(doc, views.Pool{Of: tt.accounts, Key: "7d"}), doc, Screen(builtin(t, "nord")))
 			if top != tt.pool {
 				t.Errorf("the pool's lane is on row %d, want %d", top, tt.pool)
 			}
@@ -257,11 +258,25 @@ func TestSigmaPoolHeadsThePoolsLaneWithNoRuleOverIt(t *testing.T) {
 	}
 }
 
-// The pool's room is said of how many of its accounts have the window, as
-// the window's Of counts them: of 2 in the 5-hour where one of three is
-// verified Ultra, of 3 in its week, which all have, collapsed and expanded
-// alike; and nothing where the pool keeps no 5-hour, as with side alone
-// having one.
+// lackingFiveHour is the moment at routedAt of the auto world the frames
+// were drawn of, as framesDoc has it, the accounts with the given ids reading
+// as verified Ultra accounts do, with no 5-hour window.
+func lackingFiveHour(ids ...string) status.Moment {
+	doc := framesDoc()
+	doc.Accounts = slices.Clone(doc.Accounts)
+	for i, a := range doc.Accounts {
+		if slices.Contains(ids, a.ID) {
+			doc.Accounts[i].Windows = slices.DeleteFunc(slices.Clone(a.Windows), func(w quota.Window) bool { return w.Key == "5h" })
+		}
+	}
+	return doc.WorkedOut(claudeLike).At(routedAt, claudeLike)
+}
+
+// The pool's room is said of how many of its accounts have the window it's
+// of, as the window's Of counts them: of 2 in the 5-hour where one of three
+// is verified Ultra, of 3 in its week, which all have, collapsed and
+// expanded alike; and nothing where the pool keeps no 5-hour, as with side
+// alone having one.
 func TestThePoolsRoomIsSaidOfItsAccountsThatHaveTheWindow(t *testing.T) {
 	tests := []struct {
 		name         string
@@ -277,7 +292,7 @@ func TestThePoolsRoomIsSaidOfItsAccountsThatHaveTheWindow(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r, ok := runwayRoom(offeredMoment(tt.lacking...), tt.key)
+			r, ok := runwayRoom(lackingFiveHour(tt.lacking...), tt.key)
 			if ok == tt.without {
 				t.Fatalf("the pool has a room in %s %t, want %t", tt.key, ok, !tt.without)
 			}
@@ -322,7 +337,7 @@ func TestThePoolsLaneIsntDrawnForAMomentOfNoAccounts(t *testing.T) {
 // room short, the room the expanded lane words, of how many accounts the
 // pool is: the room bold text.secondary, brightening as it changes, and "/3"
 // in text.muted, at every width; and where it has no room to say, as on a
-// day stepped back to, nothing under it.
+// week gone stepped back to, nothing under it.
 func TestCollapsedThePoolsRoomIsSaidShortUnderItsLane(t *testing.T) {
 	doc, pinned := framesDoc(), framesDoc()
 	pinned.Pin = status.Pin{Accounts: []string{"personal", "side"}, Since: routedClock(1, 13, 40)}
@@ -332,11 +347,9 @@ func TestCollapsedThePoolsRoomIsSaidShortUnderItsLane(t *testing.T) {
 		r.Timeline = r.TimelineAt(routedAt, time.Monday, width)
 		return r
 	}
-	live := poolShown(doc, views.Pool{Of: 3, Key: "5h"})
-	week := live
-	week.Window, week.Lanes = views.RunwayWeek, &views.Lanes{Accounts: live.Lanes.Accounts, Pool: views.Pool{Of: 3, Key: "7d"}}
+	live := poolShown(doc, views.Pool{Of: 3, Key: "7d"})
 	gone := live
-	gone.Back = civilDay(9, 30)
+	gone.Back = civilDay(9, 21)
 	tests := []struct {
 		name  string
 		doc   status.Document
@@ -344,11 +357,10 @@ func TestCollapsedThePoolsRoomIsSaidShortUnderItsLane(t *testing.T) {
 		width int
 		room  string
 	}{
-		{name: "the 5-hour", doc: doc, shown: collapsed(live, 160), width: 160, room: "1.5/3"},
-		{name: "the week", doc: doc, shown: collapsed(week, 160), width: 160, room: "1.2/3"},
-		{name: "pinned to two", doc: pinned, shown: collapsed(live, 160), width: 160, room: "1.5/2"},
-		{name: "on a phone", doc: doc, shown: collapsed(live, 52), width: 52, room: "1.5/3"},
-		{name: "a day stepped back to", doc: doc, shown: collapsed(gone, 160), width: 160},
+		{name: "live", doc: doc, shown: collapsed(live, 160), width: 160, room: "1.2/3"},
+		{name: "pinned to two", doc: pinned, shown: collapsed(live, 160), width: 160, room: "0.6/2"},
+		{name: "on a phone", doc: doc, shown: collapsed(live, 52), width: 52, room: "1.2/3"},
+		{name: "a week gone stepped back to", doc: doc, shown: collapsed(gone, 160), width: 160},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -383,29 +395,26 @@ func TestCollapsedThePoolsRoomIsSaidShortUnderItsLane(t *testing.T) {
 }
 
 // The pool's room, from column 2, is usage's words for the pool in the
-// view's window: the window's name in text.subtle, the room bold
-// text.secondary, brightening as it changes, and " of 3 left" in
-// text.muted, " · pinned" after where a pin holds; drawn while the timeline
-// holds now, live and on today stepped back to, never on a day gone. It's
+// week: its name in text.subtle, the room bold text.secondary, brightening
+// as it changes, and " of 3 left" in text.muted, " · pinned" after where a
+// pin holds; drawn while the timeline holds now, live and on this week
+// stepped back to, never on a week gone. It's
 // on a row of its own under the pool's lane, at every width, whole parts
 // left off its end that don't fit before the frame's edge; nothing after
 // it.
-func TestThePoolsRoomIsUsagesWordsForThePoolInTheViewsWindow(t *testing.T) {
+func TestThePoolsRoomIsUsagesWordsForThePoolInTheWeek(t *testing.T) {
 	doc, pinned := framesDoc(), framesDoc()
 	pinned.Pin = status.Pin{Accounts: []string{"personal", "side"}, Since: routedClock(1, 13, 40)}
 	pinned = pinned.WorkedOut(claudeLike)
-	live := poolShown(doc, views.Pool{Of: 3, Key: "5h"})
-	week := live
-	week.Window, week.Lanes = views.RunwayWeek, &views.Lanes{Accounts: live.Lanes.Accounts, Pool: views.Pool{Of: 3, Key: "7d"}}
-	week.Timeline = week.TimelineAt(routedAt, time.Monday, 160)
+	live := poolShown(doc, views.Pool{Of: 3, Key: "7d"})
 	today := live
-	today.Back = civilDay(10, 1)
+	today.Back = civilDay(9, 28)
 	today.Timeline = today.TimelineAt(routedAt, time.Monday, 160)
 	gone := live
-	gone.Back = civilDay(9, 30)
+	gone.Back = civilDay(9, 21)
 	gone.Timeline = gone.TimelineAt(routedAt, time.Monday, 160)
 	phone := live
-	phone.Timeline = views.LiveTimeline(views.RunwayFiveHour, routedAt, RunwayShown{}.Columns(52))
+	phone.Timeline = views.LiveTimeline(routedAt, RunwayShown{}.Columns(52))
 	tests := []struct {
 		name       string
 		doc        status.Document
@@ -413,13 +422,12 @@ func TestThePoolsRoomIsUsagesWordsForThePoolInTheViewsWindow(t *testing.T) {
 		width, row int
 		want       string
 	}{
-		{name: "the 5-hour", doc: doc, shown: live, width: 160, row: 21, want: "  5-hour 1.5 of 3 left"},
-		{name: "the week", doc: doc, shown: week, width: 160, row: 21, want: "  week 1.2 of 3 left"},
-		{name: "pinned to two", doc: pinned, shown: live, width: 160, row: 21, want: "  5-hour 1.5 of 2 left · pinned"},
-		{name: "today stepped back to", doc: doc, shown: today, width: 160, row: 21, want: "  5-hour 1.5 of 3 left"},
-		{name: "a day stepped back to", doc: doc, shown: gone, width: 160, row: 21, want: ""},
-		{name: "on a phone", doc: doc, shown: phone, width: 52, row: 23, want: "  5-hour 1.5 of 3 left"},
-		{name: "pinned to two, on a phone", doc: pinned, shown: phone, width: 52, row: 23, want: "  5-hour 1.5 of 2 left · pinned"},
+		{name: "live", doc: doc, shown: live, width: 160, row: 21, want: "  week 1.2 of 3 left"},
+		{name: "pinned to two", doc: pinned, shown: live, width: 160, row: 21, want: "  week 0.6 of 2 left · pinned"},
+		{name: "this week stepped back to", doc: doc, shown: today, width: 160, row: 21, want: "  week 1.2 of 3 left"},
+		{name: "a week gone stepped back to", doc: doc, shown: gone, width: 160, row: 21, want: ""},
+		{name: "on a phone", doc: doc, shown: phone, width: 52, row: 23, want: "  week 1.2 of 3 left"},
+		{name: "pinned to two, on a phone", doc: pinned, shown: phone, width: 52, row: 23, want: "  week 0.6 of 2 left · pinned"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -431,7 +439,7 @@ func TestThePoolsRoomIsUsagesWordsForThePoolInTheViewsWindow(t *testing.T) {
 			if tt.want == "" {
 				return
 			}
-			name, room, rest := c.at(2, tt.row).ink, c.at(strings.Index(tt.want, "1."), tt.row), c.at(strings.Index(tt.want, " of")+1, tt.row).ink
+			name, room, rest := c.at(2, tt.row).ink, c.at(strings.IndexAny(tt.want, "0123456789"), tt.row), c.at(strings.Index(tt.want, " of")+1, tt.row).ink
 			if name != dimInk || room.ink != strongInk || rest != mutedInk {
 				t.Errorf("the window's name is in %+v, the room in %+v and the rest in %+v; want text.subtle, bold text.secondary and text.muted", name, room.ink, rest)
 			}

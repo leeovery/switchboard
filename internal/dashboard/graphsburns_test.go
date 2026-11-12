@@ -24,8 +24,8 @@ func cardsPage(doc status.Document, at time.Time, width, height int, ids ...stri
 	m := doc.At(at, printPolicy)
 	f.Graphs.Lanes = make(map[views.RunwayWindow]WindowLanes)
 	for _, w := range GraphsWindows(f.Graphs.Sections) {
-		tl := views.LiveTimeline(w, at, 136)
-		l := views.Lanes{}.Look(views.LanesFrom{Moment: m, Timeline: tl, Window: w})
+		tl := views.LiveTimeline(at, 136)
+		l := views.Lanes{}.Look(views.LanesFrom{Moment: m, Timeline: tl})
 		f.Graphs.Lanes[w] = WindowLanes{Window: w, Timeline: tl, Lanes: &l}
 	}
 	return f

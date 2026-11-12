@@ -6,7 +6,6 @@ import (
 	"maps"
 	"math"
 	"reflect"
-	"regexp"
 	"runtime"
 	"slices"
 	"strings"
@@ -21,10 +20,6 @@ import (
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 )
-
-// looksEvery is how often the watch looks at the router's document, as
-// its lookEvery has it: what the document carries shows by the look after.
-const looksEvery = 5 * time.Second
 
 // A demo's tape plays its scenario at its size, in its theme, pressing its
 // keys at its times, as demo/README.md's table and each tape's sleeps have
@@ -68,7 +63,7 @@ func TestEachTapePlaysItsScenarioAsItsCuesAreTimedFor(t *testing.T) {
 				{at: 11.5, says: []string{"SESSION   ", "esc back"}},
 				{at: 11.7, says: []string{"WEEK"}, not: []string{"SESSION   ", "Requests", "RUNWAY"}, tab: "Graphs"},
 				{at: 14.5, says: []string{"WEEK"}, not: []string{"RUNWAY"}, tab: "Graphs"},
-				{at: 17.5, says: []string{"RUNWAY", "< week >"}},
+				{at: 17.5, says: []string{"RUNWAY", "LATELY"}, not: []string{"< week >"}},
 				{at: 21.5, says: []string{"SESSIONS    Switchboard"}},
 				{at: 24.5, says: []string{"HISTORY    Year"}},
 				{at: 27.5, says: []string{"ACCOUNTS    Compare"}},
@@ -92,12 +87,12 @@ func TestEachTapePlaysItsScenarioAsItsCuesAreTimedFor(t *testing.T) {
 		},
 		{
 			tape: "dashboard", scenario: "dashboard", theme: "tokyo-night", size: wide(37),
-			keys: []press{{6, shiftTab}, {6.3, shiftTab}, {11.3, shiftTab}, {11.6, keysOf(">")}},
+			keys: []press{{6, shiftTab}, {6.3, shiftTab}, {11.3, shiftTab}},
 			shows: []shows{
 				{at: 0, says: []string{"5 sessions  ·  new sessions → ▲ work", "~16:05     work reaches its cap", "◔ work came under pressure"}},
 				{at: 6.2, says: []string{"Requests"}, tab: "Log"},
 				{at: 11.2, says: []string{"WEEK", "work"}, not: []string{"RUNWAY", "5-HOUR"}, tab: "Graphs"},
-				{at: 15.5, says: []string{"RUNWAY", "< 5-hour >", "work ◆ ▲", "5-hour 59%"}, not: []string{"Σ pool"}},
+				{at: 15.5, says: []string{"RUNWAY", "work ◆ ▲", "week ", "COMING UP", "LATELY"}, not: []string{"Σ pool", "< week >"}},
 			},
 		},
 		{
@@ -139,7 +134,7 @@ func TestEachTapePlaysItsScenarioAsItsCuesAreTimedFor(t *testing.T) {
 		{
 			tape: "runway-week", scenario: "routing", theme: "tokyo-night", size: wide(37),
 			keys:  []press{{2, repeated(tabKey, 4)}},
-			shows: []shows{{at: 5, says: []string{"RUNWAY", "< week >", "work", "personal ◆", "side ▲"}}},
+			shows: []shows{{at: 5, says: []string{"RUNWAY", "work", "personal ◆", "side ▲"}, not: []string{"< week >"}}},
 		},
 		{
 			tape: "phone", scenario: "routing", theme: "tokyo-night", size: watch.Size{Width: 52, Height: 36},
@@ -315,32 +310,6 @@ func placed(sessions []status.Session) map[string]string {
 		}
 	}
 	return on
-}
-
-// The readings the scenario's answers read reach Runway's now column at the
-// look after: work's 5-hour window, read a hundredth up, at 59%.
-func TestTheReadingsTheAnswersReadDrawOnRunwayAtTheNextLook(t *testing.T) {
-	s, err := ScenarioNamed("dashboard")
-	if err != nil {
-		t.Fatal(err)
-	}
-	p := played(t, s)
-	read := p.base.played(nil, time.Time{}).world.readings.read
-	i := slices.IndexFunc(read, func(r readings.Reading) bool { return r.Account == "work" && r.Key == fiveHourKey })
-	if i < 0 {
-		t.Fatal("the scenario's answers read nothing of work's 5-hour window")
-	}
-	at := read[i].At.Sub(p.base.start).Seconds()
-	p.press(1, toRunway(">")...)
-	now := regexp.MustCompile(`5-hour (\d+)%`)
-	p.until(at - 0.001)
-	if got := now.FindStringSubmatch(p.screen()); got == nil || got[1] != "58" {
-		t.Errorf("before the reading, Runway shows work's 5-hour at %v, want 58%%", got)
-	}
-	p.until(at + looksEvery.Seconds())
-	if got := now.FindStringSubmatch(p.screen()); got == nil || got[1] != "59" {
-		t.Errorf("by the look after the reading, Runway shows work's 5-hour at %v, want 59%%, as read", got)
-	}
 }
 
 // A look at the router as a scenario plays reads its base in place: its

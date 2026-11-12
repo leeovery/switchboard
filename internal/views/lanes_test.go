@@ -15,30 +15,29 @@ import (
 )
 
 // A look judges the timeline's past once, an account a column before now's,
-// or every column of a day gone, and holds it while what it's judged from
+// or every column of a week gone, and holds it while what it's judged from
 // stands: the next look in the same column, the moment read a second on,
 // judges none, and builds the lanes a first look would; a look with a
 // reading gained, now's column moved on, the other view, the readings
-// history's keep moved, past a day shown or not, or the readings the watch
+// history's keep moved, past a week shown or not, or the readings the watch
 // read itself begun, as each tells whether a hold read first from it began
 // before, a reserve changed, or another hold told of, judges it all again.
 // A hold at now whose start no event tells is judged at now, at each look,
-// as its readings tell it; one whose event tells it, or on a day gone, isn't.
+// as its readings tell it; one whose event tells it, or on a week gone, isn't.
 func TestALookJudgesThePastOnceWhileWhatItsJudgedFromStands(t *testing.T) {
-	auto := runwayMoment(t, "the auto world's 5-hour view")
+	auto := runwayMoment(t, "the auto world, judging the 5-hour")
 	team := runwayMoment(t, "a hold no event tells of, the router's")
 	refused := runwayMoment(t, "its token refused")
 	capped := runwayMoment(t, "a cap its event tells the start of, read later")
-	kept := runwayMoment(t, "stepped back to a day older than the readings history's keep")
-	today := auto
-	today.Day = time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
+	kept := runwayMoment(t, "stepped back to a week older than the readings history's keep, a limit lifted early by hand")
+	today := thisWeek(auto)
 	keptLater := kept
 	keptLater.Kept = time.Date(2026, 9, 28, 0, 0, 0, 0, time.UTC)
 	autoKept, autoSeen := auto, auto
 	autoKept.Kept = time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
 	autoSeen.Seen = auto.Now.Add(-time.Hour)
-	untoldGone := runwayMoment(t, "a hold at now the readings tell otherwise")
-	untoldGone.Day = time.Date(2026, 9, 30, 0, 0, 0, 0, time.UTC)
+	untoldGone := inWeek(runwayMoment(t, "a hold at now the readings tell otherwise"))
+	untoldGone.Day, untoldGone.WeekStarts = time.Date(2026, 9, 24, 0, 0, 0, 0, time.UTC), time.Monday
 	gained := append(slices.Clip(auto.Readings), readings.Reading{
 		At: auto.Now, Account: "side", Key: claude.FiveHourWindow, Utilization: 0.14, ResetsAt: time.Date(2026, 10, 1, 18, 50, 0, 0, time.UTC),
 	})
@@ -50,16 +49,16 @@ func TestALookJudgesThePastOnceWhileWhatItsJudgedFromStands(t *testing.T) {
 		{name: "a second on, in the same column", first: auto, then: later(auto, time.Second), judged: 3 * 6, more: 0},
 		{name: "a reading gained", first: auto, then: withReadings(later(auto, time.Second), gained), judged: 3 * 6, more: 3 * 6},
 		{name: "now's column moved on", first: auto, then: later(auto, 10*time.Minute), judged: 3 * 6, more: 3 * 6},
-		{name: "the week view", first: auto, then: inWeek(auto), judged: 3 * 6, more: 3 * 19},
+		{name: "judging the week", first: auto, then: inWeek(auto), judged: 3 * 6, more: 3 * 19},
 		{name: "a hold at now no event tells the start of", first: team, then: later(team, time.Second), judged: 2*6 + 1, more: 1},
 		{name: "a refusal at now its event tells the start of", first: refused, then: later(refused, time.Second), judged: 2 * 6, more: 0},
 		{name: "a cap at now its event tells the start of", first: capped, then: later(capped, time.Second), judged: 2 * 6, more: 0},
-		{name: "today stepped back to, now's column moved on", first: today, then: later(today, 11*time.Minute), judged: 3 * 83, more: 3 * 84},
-		{name: "a day gone, the keep moved past it", first: kept, then: keptLater, judged: 2 * 136, more: 2 * 136},
+		{name: "this week stepped back to, now's column moved on", first: today, then: later(today, 75*time.Minute), judged: 3 * 70, more: 3 * 71},
+		{name: "a week gone, the keep moved past it", first: kept, then: keptLater, judged: 2 * 136, more: 2 * 136},
 		{name: "the keep moved past no day shown", first: auto, then: autoKept, judged: 3 * 6, more: 3 * 6},
 		{name: "the readings the watch read itself begun", first: auto, then: autoSeen, judged: 3 * 6, more: 3 * 6},
-		{name: "a day gone, a second on", first: kept, then: later(kept, time.Second), judged: 2 * 136, more: 0},
-		{name: "a day gone, a hold at now no event tells the start of", first: untoldGone, then: later(untoldGone, time.Second), judged: 2 * 136, more: 0},
+		{name: "a week gone, a second on", first: kept, then: later(kept, time.Second), judged: 2 * 136, more: 0},
+		{name: "a week gone, a hold at now no event tells the start of", first: untoldGone, then: later(untoldGone, time.Second), judged: 2 * 136, more: 0},
 		{name: "work's reserve changed", first: auto, then: withDoc(auto, reserveOf(auto.Doc, "work", 0.1)), judged: 3 * 6, more: 3 * 6},
 		{name: "the router told of another hold", first: auto, then: withDoc(auto, withEvent(auto.Doc, status.Event{
 			ID: 99, At: auto.Now.Add(-time.Hour), Kind: status.EventRefused, Account: "side", Until: auto.Now.Add(-50 * time.Minute), Status: 401,
@@ -68,12 +67,12 @@ func TestALookJudgesThePastOnceWhileWhatItsJudgedFromStands(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var judged int
-			first := views.CountingLanes(&judged).Look(lanesFrom(tt.first))
+			first := views.CountingLanes(&judged).Look(tt.first.From())
 			if judged != tt.judged {
 				t.Errorf("the first look judged %d times, want %d", judged, tt.judged)
 			}
 			judged = 0
-			from := lanesFrom(tt.then)
+			from := tt.then.From()
 			then := first.Look(from)
 			if judged != tt.more {
 				t.Errorf("the next look judged %d times, want %d", judged, tt.more)
@@ -86,7 +85,7 @@ func TestALookJudgesThePastOnceWhileWhatItsJudgedFromStands(t *testing.T) {
 }
 
 // The lanes are learning while the moment's forecast is, where they draw
-// what's ahead, live or on today stepped back to: not on a day gone, which
+// what's ahead, live or on this week stepped back to: not on a week gone, which
 // has no now.
 func TestTheLanesAreLearningWhileTheForecastIsWhereTheyDrawWhatsAhead(t *testing.T) {
 	withDemand := func(rm viewstest.RunwayMoment, demand *status.Demand) viewstest.RunwayMoment {
@@ -94,25 +93,24 @@ func TestTheLanesAreLearningWhileTheForecastIsWhereTheyDrawWhatsAhead(t *testing
 		return rm
 	}
 	learning, measured := &status.Demand{Learning: true}, &status.Demand{}
-	live := runwayMoment(t, "the auto world's 5-hour view")
-	gone := runwayMoment(t, "stepped back to a day older than the readings history's keep")
-	today := live
-	today.Day = time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
+	live := runwayMoment(t, "the auto world, judging the 5-hour")
+	gone := runwayMoment(t, "stepped back to a week older than the readings history's keep, a limit lifted early by hand")
+	today := thisWeek(live)
 	tests := []struct {
 		name string
 		rm   viewstest.RunwayMoment
 		want bool
 	}{
 		{"live, learning", withDemand(live, learning), true},
-		{"live, the week view, learning", withDemand(inWeek(live), learning), true},
-		{"today stepped back to, its now column kept, learning", withDemand(today, learning), true},
+		{"live, judging the week, learning", withDemand(inWeek(live), learning), true},
+		{"this week stepped back to, its now column kept, learning", withDemand(today, learning), true},
 		{"live, measured", withDemand(live, measured), false},
 		{"live, no demand, as probed", withDemand(live, nil), false},
-		{"a day gone, learning", withDemand(gone, learning), false},
+		{"a week gone, learning", withDemand(gone, learning), false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := (views.Lanes{}).Look(lanesFrom(tt.rm)).Learning; got != tt.want {
+			if got := (views.Lanes{}).Look(tt.rm.From()).Learning; got != tt.want {
 				t.Errorf("Learning = %v, want %v", got, tt.want)
 			}
 		})
@@ -166,9 +164,18 @@ func withEvent(doc status.Document, e status.Event) status.Document {
 	return doc
 }
 
-// inWeek is the moment rm, in the week view.
+// inWeek is the moment rm, judging the week.
 func inWeek(rm viewstest.RunwayMoment) viewstest.RunwayMoment {
-	rm.Window = views.RunwayWeek
+	rm.Key = ""
+	return rm
+}
+
+// thisWeek is the moment rm, judging the week, stepped back to this week,
+// weeks starting on Monday.
+func thisWeek(rm viewstest.RunwayMoment) viewstest.RunwayMoment {
+	rm = inWeek(rm)
+	y, m, d := rm.Now.Date()
+	rm.Day, rm.WeekStarts = time.Date(y, m, d, 0, 0, 0, 0, time.UTC), time.Monday
 	return rm
 }
 
@@ -202,7 +209,7 @@ func TestAStretchEndsAsItLiftsOfARunElseAsItsBack(t *testing.T) {
 // of a window nothing holds.
 func TestAHeldWindowWasHeldSinceItsLanesStretchSaysElseItsEvent(t *testing.T) {
 	now := time.Date(2026, 10, 1, 14, 42, 0, 0, time.UTC)
-	tl := views.LiveTimeline(views.RunwayFiveHour, now, 136)
+	tl := viewstest.FiveHourTimeline(now, 136)
 	at := tl.NowColumn()
 	read, told := now.Add(-40*time.Minute), now.Add(-3*time.Hour)
 	through := func(c views.Cell, start time.Time) []views.LaneStretch {
@@ -246,23 +253,23 @@ func TestAHeldWindowWasHeldSinceItsLanesStretchSaysElseItsEvent(t *testing.T) {
 
 // A lane's use says why it's not read where its account has no usable token,
 // and, where that's as the token it holds is another subscription's, says so,
-// as the moment has the account's window, in either view.
+// as the moment has the account's window, judging either window.
 func TestALanesUseSaysWhereItsTokenIsAnotherSubscriptions(t *testing.T) {
 	foreign := status.Account{ID: "work", Label: "work", TokenForeign: true, Error: "its token is another subscription's"}
 	tokenless := status.Account{ID: "personal", Label: "personal", Error: "no token"}
 	side := status.Account{ID: "side", Label: "side", TokenSet: true, FetchedAt: beyondNow, Windows: []quota.Window{week("5h", 0.1, 2), week("7d", 0.2, 100)}}
 	m := status.Document{GeneratedAt: beyondNow, Source: status.SourceRouter, Router: status.Health{Healthy: true}, Accounts: []status.Account{foreign, tokenless, side}}.
 		WorkedOut(claude.Policy()).At(beyondNow, claude.Policy())
-	for _, w := range []views.RunwayWindow{views.RunwayFiveHour, views.RunwayWeek} {
-		lanes := views.Lanes{}.Look(views.LanesFrom{Moment: m, Timeline: views.LiveTimeline(w, beyondNow, 136), Window: w})
+	for _, j := range judgings {
+		lanes := views.Lanes{}.Look(views.LanesFrom{Moment: m, Timeline: j.timeline(beyondNow, 136), Key: j.key})
 		want := map[string][2]bool{"work": {true, true}, "personal": {true, false}, "side": {false, false}}
 		if len(lanes.Accounts) != len(want) {
-			t.Fatalf("view %v: %d lanes, want one an account", w, len(lanes.Accounts))
+			t.Fatalf("judging %s: %d lanes, want one an account", j.name, len(lanes.Accounts))
 		}
 		for _, lane := range lanes.Accounts {
 			got := [2]bool{lane.Use.Tokenless, lane.Use.TokenForeign}
 			if got != want[lane.ID] {
-				t.Errorf("view %v: %s's use is tokenless %v, its token another subscription's %v; want %v", w, lane.ID, got[0], got[1], want[lane.ID])
+				t.Errorf("judging %s: %s's use is tokenless %v, its token another subscription's %v; want %v", j.name, lane.ID, got[0], got[1], want[lane.ID])
 			}
 		}
 	}

@@ -1,8 +1,6 @@
 package dashboard
 
 import (
-	"cmp"
-	"slices"
 	"strings"
 	"time"
 
@@ -20,41 +18,27 @@ const (
 	runwayLaneColumns
 )
 
-// runwayWindows are every window Runway's views can be named for, in the
-// order < and > step between them, as Graphs reads them and a kept window
-// is known by, and runwayNames what the heading calls each. What Runway
-// offers at a moment is views.RunwayWindowsOf's.
-var (
-	runwayWindows = views.RunwayWindows()
-	runwayNames   = map[views.RunwayWindow]string{views.RunwayFiveHour: "5-hour", views.RunwayWeek: "week"}
-)
+// runwayWeek is what Runway and Graphs call the week they show, as the use
+// under a lane's name and the words of the legend and help name it.
+const runwayWeek = "week"
 
-// RunwayShown is Runway as the watch gives it: the window its view is named
-// for, and whether its account column is collapsed, as a has it, which the
-// preferences keep, as Kept has them; the day stepped back to, as
-// dayfile.Civil gives one, of the 5-hour view, or the first day of the week
-// stepped back to, of the week's, zero in the live view, which they never
-// keep; and what the watch built at the look: the timeline the lanes are
-// drawn over, as TimelineAt has it, the lanes, as views.Lanes builds them,
-// nil till it's built them, and COMING UP's lines, as views.RunwayComing has
-// them; its accounts' name column, as Labelled sizes it, none till it does;
-// and the windows it offers, as Offering has them. What draws Runway reads
-// what the watch built.
+// RunwayShown is Runway as the watch gives it: whether its account column is
+// collapsed, as a has it, which the preferences keep, as Kept has them; the
+// first day of the week stepped back to, as dayfile.Civil gives a day, zero
+// in the live view, which they never keep; and what the watch built at the
+// look: the timeline the lanes are drawn over, as TimelineAt has it, the
+// lanes, as views.Lanes builds them, nil till it's built them, COMING UP's
+// lines, as views.RunwayComing has them, and LATELY's, as views.RunwayLately
+// has them; and its accounts' name column, as Labelled sizes it, none till it
+// does. What draws Runway reads what the watch built.
 type RunwayShown struct {
-	Window    views.RunwayWindow
 	Collapsed bool
 	Back      time.Time
 	Timeline  views.Timeline
 	Lanes     *views.Lanes
 	Coming    []status.Upcoming
+	Lately    []views.Sentence
 	labels    flex.Part
-	// offered are the windows the moment of the last look offers, as
-	// views.RunwayWindowsOf has them, which < and > step between: none
-	// before the first. withheld is the window kept that they don't offer,
-	// which the view shows the week in place of: only the 5-hour can be, as
-	// the week's always offered, so the week, "", says none is.
-	offered  []views.RunwayWindow
-	withheld views.RunwayWindow
 }
 
 // Labelled is Runway shown as r with its accounts' name column sized for the
@@ -64,46 +48,16 @@ func (r RunwayShown) Labelled(m status.Moment) RunwayShown {
 	return r
 }
 
-// RunwayKept is Runway as the preferences kept it: the window, by its name,
-// live, and its account column collapsed or not. What names no window, as a
-// later build's, shows the week.
+// RunwayKept is Runway as the preferences kept it: live, its account column
+// collapsed or not.
 func RunwayKept(kept theme.RunwayPrefs) RunwayShown {
-	r := RunwayShown{Collapsed: kept.Collapsed}
-	if w := views.RunwayWindow(kept.Window); slices.Contains(runwayWindows, w) {
-		r.Window = w
-	}
-	return r
+	return RunwayShown{Collapsed: kept.Collapsed}
 }
 
-// Kept is what the preferences keep of Runway, as RunwayKept reads it: the
-// window, the one withheld where the view shows the week in its place, so
-// it shows again once it's offered; and whether its account column is
-// collapsed; never a step back.
+// Kept is what the preferences keep of Runway, as RunwayKept reads it:
+// whether its account column is collapsed; never a step back.
 func (r RunwayShown) Kept() theme.RunwayPrefs {
-	return theme.RunwayPrefs{Window: string(cmp.Or(r.withheld, r.Window)), Collapsed: r.Collapsed}
-}
-
-// Offering is Runway shown as r offering, at a look, the windows the moment
-// m offers, as views.RunwayWindowsOf has them: the window kept, as Kept has
-// it, where they offer it; else the week's live view in its place, the one
-// kept withheld, which the preferences keep all the same.
-func (r RunwayShown) Offering(m status.Moment) RunwayShown {
-	r.offered = views.RunwayWindowsOf(m)
-	shows, withheld := views.RunwayWindow(r.Kept().Window), views.RunwayWeek
-	if !slices.Contains(r.offered, shows) {
-		shows, withheld = views.RunwayWeek, shows
-	}
-	if shows != r.Window {
-		r.Back = time.Time{}
-	}
-	r.Window, r.withheld = shows, withheld
-	return r
-}
-
-// Switches reports whether < and > have another window to show: Runway
-// shown as r offers more than one, as Offering has them.
-func (r RunwayShown) Switches() bool {
-	return len(r.offered) > 1
+	return theme.RunwayPrefs{Collapsed: r.Collapsed}
 }
 
 // Collapsing is Runway with its account column collapsed where it's
@@ -115,10 +69,10 @@ func (r RunwayShown) Collapsing() RunwayShown {
 
 // TimelineAt is the timeline the lanes of Runway shown as r are drawn
 // over at now on a terminal width cells wide, weeks starting on the day
-// given: the live view's, or that of the day or week stepped back to, as
+// given: the live view's, or that of the week stepped back to, as
 // views.Stepped has it, across the columns Columns gives them.
 func (r RunwayShown) TimelineAt(now time.Time, starts time.Weekday, width int) views.Timeline {
-	return views.Stepped(r.Window, r.Back, now, starts, r.Columns(width))
+	return views.Stepped(r.Back, now, starts, r.Columns(width))
 }
 
 // Columns is how many columns Runway shown as r has its lanes take on a
@@ -160,53 +114,28 @@ func (r RunwayShown) labelsColumn() flex.Part {
 }
 
 // runwayUseCells are the cells the label column keeps for the widest use
-// under a lane's name, of either window, as "5-hour 100%", so the lanes
-// hold still as < and > step between them and as the figures change: from
-// runwayUseFrom, and the cell before the lanes useLine keeps.
+// under a lane's name, as "week 100%", so the lanes hold still as the
+// figures change: from runwayUseFrom, and the cell before the lanes useLine
+// keeps.
 func runwayUseCells() int {
-	widest := 0
-	for _, name := range runwayNames {
-		widest = max(widest, len(name))
-	}
-	return runwayUseFrom + widest + 1 + widestFigure + 1
+	return runwayUseFrom + len(runwayWeek) + 1 + widestFigure + 1
 }
 
-// Windowed is Runway showing the live view of the window by places on from
-// the one shown, round, among those it offers, as Offering has them, as <
-// and > step between them, a place each. It reports false where that's the
-// live view shown already, as it is where it offers one window, or none
-// yet.
-func (r RunwayShown) Windowed(by int) (RunwayShown, bool) {
-	if !r.Switches() {
-		return r, false
-	}
-	next := r.offered[round(slices.Index(r.offered, r.Window)+by, len(r.offered))]
-	if next == r.Window && r.Back.IsZero() {
-		return r, false
-	}
-	r.Window, r.Back = next, time.Time{}
-	return r, true
-}
-
-// LiveOf is Runway shown as r showing the live view of the window w, its
-// account column as it is, as Graphs reads Runway's lanes over the week.
-func (r RunwayShown) LiveOf(w views.RunwayWindow) RunwayShown {
-	r.Window, r.Back = w, time.Time{}
+// Live is Runway shown as r showing its live view, its account column as it
+// is, as Graphs reads Runway's lanes over the week.
+func (r RunwayShown) Live() RunwayShown {
+	r.Back = time.Time{}
 	return r
 }
 
 // Stepped is Runway stepped back, by -1, as ← steps it, or on, by 1, as →
-// does, at now, weeks starting on the day given: in the 5-hour view, from
-// the live view to today, then a day at a time; in the week view, to this
-// week, then a week at a time; and on from today, or this week, to the live
-// view. The day stepped back to is kept, not how far back it is, so it stays
-// itself as the clock passes midnight. It reports false where it stays, as
-// stepping on from the live view, with nothing ahead to step to.
+// does, at now, weeks starting on the day given: to this week, then a week
+// at a time; and on from this week to the live view. The first day of the
+// week stepped back to is kept, not how far back it is, so it stays itself
+// as the clock passes midnight. It reports false where it stays, as stepping
+// on from the live view, with nothing ahead to step to.
 func (r RunwayShown) Stepped(by int, now time.Time, starts time.Weekday) (RunwayShown, bool) {
-	latest, days := dayOf(now), 1
-	if r.Window == views.RunwayWeek {
-		latest, days = dayOf(views.WeekStart(now, starts)), 7
-	}
+	latest := dayOf(views.WeekStart(now, starts))
 	switch {
 	case r.Back.IsZero() && by > 0:
 		return r, false
@@ -215,7 +144,7 @@ func (r RunwayShown) Stepped(by int, now time.Time, starts time.Weekday) (Runway
 	case by > 0 && !r.Back.Before(latest):
 		r.Back = time.Time{}
 	default:
-		r.Back = r.Back.AddDate(0, 0, by*days)
+		r.Back = r.Back.AddDate(0, 0, by*7)
 	}
 	return r, true
 }
@@ -228,26 +157,19 @@ func dayOf(t time.Time) time.Time {
 }
 
 // heading is Runway's heading row: its name, then, stepped back, the days
-// its timeline shows, as daysNamed has them; and at the right, the window
-// between < and >, or bare, with nothing to click, where Runway offers no
-// other, as Switches has it.
+// its timeline shows, as weekNamed has them; its rule runs to the frame's
+// edge, as Sessions' does.
 func (r RunwayShown) heading() heading {
-	h := heading{name: strings.ToUpper(Runway.Title()), period: runwayNames[r.Window]}
-	if !r.Switches() {
-		h.period, h.right = "", line{{h.period, mutedInk}}
-	}
+	h := heading{name: strings.ToUpper(Runway.Title())}
 	if first, last, ok := r.Timeline.Named(); ok {
-		h.state = line{{daysNamed(first, last), faintInk}}
+		h.state = line{{weekNamed(first, last), faintInk}}
 	}
 	return h
 }
 
-// daysNamed names the days from first to last, as dayfile.Civil gives each: a
-// day alone as Wed 30 Sep, a week as Mon 28 Sep – Sun 4 Oct.
-func daysNamed(first, last time.Time) string {
-	if first.Equal(last) {
-		return prose.Day(first)
-	}
+// weekNamed names the week from first to last, as dayfile.Civil gives each
+// day, as Mon 28 Sep – Sun 4 Oct.
+func weekNamed(first, last time.Time) string {
 	return prose.Day(first) + " – " + prose.Day(last)
 }
 
@@ -289,8 +211,8 @@ func (f Frame) runwayForm(doc status.Document, now time.Time) runwayForm {
 // runwayFormed is Runway of doc at now as its form draws it, its lanes from
 // column x, laid out from the row it's drawn from as fitted fits it: the
 // axis, the lanes and the words under them, the pool's lane, the legend,
-// COMING UP and what's out of view, each as its drawer has it; then now's
-// column picked out under them.
+// COMING UP, LATELY and what's out of view, each as its drawer has it;
+// then now's column picked out under them.
 func (f Frame) runwayFormed(doc status.Document, now time.Time, x int, fitted func(top int) runwayFit) runwayForm {
 	return runwayForm{
 		draw: func(c *canvas, top int) {
@@ -302,6 +224,7 @@ func (f Frame) runwayFormed(doc status.Document, now time.Time, x int, fitted fu
 			f.runwayPool(c, laid)
 			f.runwayLegend(c, laid)
 			f.runwayComing(c, laid)
+			f.runwayLately(c, laid)
 			f.runwayOut(c, laid)
 			f.runwayNow(c, laid)
 		},

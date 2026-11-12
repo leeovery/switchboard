@@ -2,7 +2,7 @@
 
 ● healthy  ·  auto  ·  6 sessions  ·  new sessions → ▲ side
 
-RUNWAY  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  < week >
+RUNWAY  ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
                               now
                     Thu               Fri               Sat               Sun              Mon               Tue               Wed
@@ -12,4 +12,4 @@ work          ──███████████████───██
 Σ pool        ▃▃ ▃▃▃▃          ▃▃▃                 ▃▃▃▃▃▃▃▃▃▃                             ▃▃▃▃▃▃▃▃▃
                                                              ▅▅▅▅▅▅▅▅▅▅▂▂▂▂▂▅▅▅▅▅▅▅▅▅▅▅▅▅▅
   week 1.2 of 3 left                                                                                                     ▼ 2 more accounts
-tab views   < > window  ←→ week    a collapse    p pin    ? help  q quit
+tab views   ←→ week    a collapse    p pin    ? help  q quit

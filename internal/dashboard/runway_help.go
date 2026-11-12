@@ -10,14 +10,15 @@ import (
 // runwayHelp are Runway's parts as help explains them, after its keys, in
 // the design's order: the lanes, their marks and colours and the words under
 // them; the pool's lane and its room; stepping back and how far it
-// reaches; how long a column is; and COMING UP. Where there's no pool's
-// lane, as with one account, the pool's part goes, as it does from the page.
+// reaches; how long a column is; COMING UP; and LATELY. Where there's no
+// pool's lane, as with one account, the pool's part goes, as it does from
+// the page.
 func (f Frame) runwayHelp() []helpPart {
 	parts := []helpPart{f.lanesHelp()}
 	if lanes := f.Runway.Lanes; lanes == nil || lanes.Pool.Of > 0 {
 		parts = append(parts, poolHelp())
 	}
-	return append(parts, steppingBackHelp(), f.columnsHelp(), runwayComingHelp())
+	return append(parts, steppingBackHelp(), f.columnsHelp(), runwayComingHelp(), runwayLatelyHelp())
 }
 
 // lanesHelp is the lanes as help explains them: what a column is drawn by,
@@ -34,34 +35,33 @@ func (f Frame) lanesHelp() helpPart {
 	return helpPart{
 		heading: "LANES",
 		says: []line{
-			said("A lane an account, across the window the view is named for: the 5-hour view from the hour before now, the week " +
-				"view from a day before now. Each column is drawn by how the account stood at the column's middle, and now's " +
-				"column, picked out under now, by how it stands now" + dimmed + ". Every window every model shares counts, a model's " +
-				"own window not, but the 5-hour view leaves out a week running out: its lane has room until the week's limit."),
+			said("A lane an account, across the week from a day before now. Each column is drawn by how the account stood at " +
+				"the column's middle, and now's column, picked out under now, by how it stands now" + dimmed + ". Every window " +
+				"every model shares counts, a model's own window not."),
 			said("Beside each lane, the account's name and marks, as switchboard usage prints them, and under them its use " +
-				"of the view's window, its percentage taking the ramp's second colour from 70% and its last from 90%; read 14:20 " +
+				"of the week, its percentage taking the ramp's second colour from 70% and its last from 90%; read 14:20 " +
 				"where its last read failed; and not read before its first, its lane blank, saying why where that read failed. " +
 				"A stale account's lane and use are faded, as the Overview fades a stale account, and the use of one " +
 				"whose token is refused."),
 			said("`a` collapses the labels, to give the lanes more room: the lanes start at the left edge, with no names or " +
-				"marks, the status line saying where new sessions go, and under the start of each its use, as 66%, the window " +
-				"named in the heading, or — where there's no use to show, faint where the pool leaves its account out. The words " +
+				"marks, the status line saying where new sessions go, and under the start of each its week's use, as 66%, " +
+				"or — where there's no use to show, faint where the pool leaves its account out. The words " +
 				"under a lane start two cells after its use where they'd otherwise meet it. `a` again expands them. It's kept " +
 				"for next time."),
 			said("Under each lane, words say where each stretch without room starts and when room is back: at its cap, at its " +
 				"limit, its token refused, as capped 14:31 and out 13:58; ahead, out ~16:05 where it runs out, or caps ~15:45 " +
 				"where it reaches its cap, ~ marking a time projected at its pace, as switchboard usage projects it. Where " +
 				"another stretch holds the account on, a stretch says lifts 19:00, when its own hold lifts, and only the last " +
-				"says back. Where room returns as the view's window resets, a cap's or a run-out's end says resets 17:10 in " +
-				"place of back. In the week view, resets Sun 21:00 where its week reaches no limit; else room all day, or room " +
-				"all week. Words that don't fit from where a stretch starts shift left until they do, never over the words " +
+				"says back. Where room returns as the week resets, a cap's or a run-out's end says resets Sun 21:00 in " +
+				"place of back. Else resets Sun 21:00 where its week reaches no limit, or room all week. Words that don't fit from where a stretch starts shift left until they do, never over the words " +
 				"before, and drop parts from the end where even that can't fit them."),
 			said("Now's column and those after it are read from the router at each look; those before it from the readings " +
 				"history, each by the last reading of each window by the column's middle, a window whose reset had passed by then " +
 				"counted reset. A column with no reading of its account by then is blank, as an account not read yet. A cap is " +
 				"drawn by the reserve the config gives now, as the readings keep none: change a reserve, and the caps of days gone " +
 				"are drawn again by it."),
-			said("The legend sits at the foot, over the key line. As rows run short, an account takes two rows, the blank rows " +
+			said("The legend sits at the foot, over the key line. As rows run short, LATELY under COMING UP goes first; then an " +
+				"account takes two rows, the blank rows " +
 				"go and COMING UP shows the lines it can; then the legend gives way, then COMING UP, then the blank row under " +
 				"the axis; only then do the lanes scroll with `j` and `k`, the axis and the pool's lane holding, and what's out " +
 				"of view said beside the pool's room."),
@@ -71,7 +71,7 @@ func (f Frame) lanesHelp() helpPart {
 			{drawn: line{f.Look.laneMark(views.CellRunsOut)}, means: "room, but at its pace it runs out before its window resets"},
 			{drawn: line{f.Look.laneMark(views.CellCapped)}, means: "at its cap, where its reserve starts: the router passes it over, unless a pin spends it"},
 			{drawn: line{f.Look.laneMark(views.CellLimited)}, means: "at its limit, its token refused, or without a usable token: held back from every request"},
-			{drawn: line{{resetCell, dimInk}}, means: "where its " + runwayNames[f.Runway.Window] + " resets"},
+			{drawn: line{{resetCell, dimInk}}, means: "where its " + runwayWeek + " resets"},
 		},
 	}
 }
@@ -87,9 +87,9 @@ func poolHelp() helpPart {
 				"room then, and coloured as switchboard usage colours the pool's use, the ramp's second colour from 70% used and " +
 				"its last from 90%, ▃ at the least where any has room, and where none has room, ▂ along its foot, in a " +
 				"limit's red. An account at its cap or its limit counts without room, one running out at its pace with room " +
-				"until it does, and one not known then without. Under Σ pool, the pool's room in the view's window, as " +
+				"until it does, and one not known then without. Under Σ pool, the pool's room in the week, as " +
 				"switchboard usage gives it; with the labels collapsed, without Σ pool, under the lane's start, of how many of " +
-				"the pool's accounts have the window, as 1.2/3."),
+				"the pool's accounts have the week, as 1.2/3."),
 			said("The pool is every account on auto, and the pin's while one holds, as pinned says after its room where it fits; " +
 				"an account out of it is faded, the words under its lane not."),
 		},
@@ -97,69 +97,73 @@ func poolHelp() helpPart {
 }
 
 // steppingBackHelp is stepping back as help explains it: what ← and → step
-// to in each view; what < and > show, and why, where no account has a
-// 5-hour window, they're gone; how far back ← reaches; how a day
-// stepped back to is drawn; and that a step back is never kept.
+// to; how far back ← reaches; how a week stepped back to is drawn; and that
+// a step back is never kept.
 func steppingBackHelp() helpPart {
 	return helpPart{
 		heading: "STEPPING BACK",
 		says: []line{
-			said("`←` steps back: in the 5-hour view, first to today from its midnight, then a day at a time; in the week view, " +
-				"first to this week from its first day, as week_starts begins weeks, then a week at a time. `→` steps forward, and " +
-				"from today, or this week, to the live view: nothing lies ahead to step to. `<` and `>` show the other window's " +
-				"live view. Where no account has a 5-hour window, as a verified Ultra account has none, there's only the week, " +
-				"and `< >` leaves the key line: a 5-hour view kept shows the week, and the 5-hour again once an account has " +
-				"one. The 5-hour view lists only the accounts that have one, or may yet."),
-			said("`←` reaches back as far as the day summaries, which are kept for good; a day older than the readings history's " +
-				"keep draws its lanes from its summary's limits and resets alone. A day or a week stepped back to is drawn as it " +
-				"was, with no now, nothing dimmed, no COMING UP and no room line, under each name its highest use; today and this " +
-				"week keep now, what's past dimmed and the room line. The pool's lane counts the pool as it is now."),
-			said("The window shown is kept for next time; a step back never is, so Runway opens live."),
+			said("`←` steps back, first to this week from its first day, as week_starts begins weeks, then a week at a time. " +
+				"`→` steps forward, and from this week to the live view: nothing lies ahead to step to."),
+			said("`←` reaches back as far as the day summaries, which are kept for good; a week older than the readings " +
+				"history's keep draws its lanes from its summaries' limits and resets alone. A week stepped back to is drawn as " +
+				"it was, with no now, nothing dimmed, no COMING UP, no LATELY and no room line, under each name its highest " +
+				"use; this week keeps now, what's past dimmed and the room line. The pool's lane counts the pool as it is now."),
+			said("A step back is never kept, so Runway opens live."),
 		},
 	}
 }
 
-// columnsHelp is how long a column is as help explains it: the views' spans
-// cut evenly among the lanes' columns, so a column's length follows the
-// width; and how long it is at the frame's width in each view, and on a day
-// stepped back to, as columnLengths says them.
+// columnsHelp is how long a column is as help explains it: the week cut
+// evenly among the lanes' columns, so a column's length follows the width;
+// and how long it is at the frame's width, as columnLength says it.
 func (f Frame) columnsHelp() helpPart {
-	fiveHour, week, day := columnLengths(f.Runway.Columns(f.Width))
 	return helpPart{
 		heading: "COLUMNS",
 		says: []line{
-			said("The 5-hour view's 22 hours 40 minutes, the week's seven days, and a day stepped back to, midnight to midnight, " +
-				"are each cut evenly among the lanes' columns, so a column's length follows the width: at this width, a column is " +
-				fiveHour + " in the 5-hour view, " + week + " in the week's and " + day + " on a day stepped back to, as the legend " +
-				"says of the view shown."),
+			said("The week's seven days are cut evenly among the lanes' columns, so a column's length follows the width: at " +
+				"this width, a column is " + columnLength(f.Runway.Columns(f.Width)) + ", as the legend says."),
 		},
 	}
 }
 
-// columnLengths are how long a column is across the columns given, as the
-// legend says it: in the live 5-hour view; in the live week; and on a day
-// stepped back to of 24 hours.
-func columnLengths(columns int) (fiveHour, week, day string) {
-	// A live view's span is the same at any moment, and a day's in UTC, which
-	// has no clock change, is 24 hours: the Unix epoch serves for each.
-	at := time.Unix(0, 0).UTC()
-	return prose.ColumnLength(views.LiveTimeline(views.RunwayFiveHour, at, columns).Step()),
-		prose.ColumnLength(views.LiveTimeline(views.RunwayWeek, at, columns).Step()),
-		prose.ColumnLength(views.Stepped(views.RunwayFiveHour, at, at, time.Monday, columns).Step())
+// columnLength is how long a column of the live week is across the columns
+// given, as the legend says it.
+func columnLength(columns int) string {
+	// A live week's span is the same at any moment: the Unix epoch serves.
+	return prose.ColumnLength(views.LiveTimeline(time.Unix(0, 0).UTC(), columns).Step())
 }
 
 // runwayComingHelp is Runway's COMING UP as help explains it: what it lists,
-// in each view, and what it leaves out; where it sits and how it cuts its
-// lines; and that a step back shows none.
+// and what it leaves out; where it sits and how it cuts its lines; and that
+// a step back shows none.
 func runwayComingHelp() helpPart {
 	return helpPart{
 		heading: SectionComing.heading(),
 		says: []line{
 			said("What happens next, soonest first, as the Overview's COMING UP has it: an account back from its cap, its limit or " +
 				"its refused token, whichever lifts last, a window running out at its pace, ~ marking it projected, and each " +
-				"other reset of the view's window, where its │ stands. The 5-hour view lists the 5-hour windows'; the week view " +
-				"adds each week's run-out and reset. No prime is listed. It sits under the pool's lane and takes the rows left; " +
-				"where its lines don't all fit, its last says how many more. Stepped back, there's none."),
+				"other reset of a window every model shares, a week's where its │ stands. No prime is listed. It sits under the " +
+				"pool's lane, or at the right beside LATELY, and takes the rows left; where its lines don't all fit, its last " +
+				"says how many more. Stepped back, there's none."),
+		},
+	}
+}
+
+// runwayLatelyHelp is Runway's LATELY as help explains it: what it tells, and
+// what it leaves out; how a line reads; where it sits at each width; and that
+// a step back shows none.
+func runwayLatelyHelp() helpPart {
+	return helpPart{
+		heading: SectionLately.heading(),
+		says: []line{
+			said("What befell the accounts over the week gone, newest first, as the Overview's LATELY tells it: a cap, a limit, " +
+				"a refused token, coming under pressure and room again, the sessions each moved said in its line. No session's " +
+				"start or move shows alone. Each line ends with how long ago it was, as 11m ago or 1d 4h ago, its words in full " +
+				"where they fit beside it."),
+			said("Where the frame holds both, LATELY sits at the left and COMING UP at the right, the past and what's coming as " +
+				"the lanes lie, each down to the legend; narrower, under COMING UP, where its heading and two lines fit, the " +
+				"first to give way as rows run short; narrower still, it's gone. Stepped back, there's none."),
 		},
 	}
 }

@@ -4,7 +4,7 @@
 
 ● healthy · auto · 6 sessions · new → ▲ side
 
-RUNWAY  ──────────────────────────────────  < week >
+RUNWAY  ────────────────────────────────────────────
 
       now
   Thu     Fri    Sat     Sun    Mon     Tue    Wed
@@ -30,4 +30,4 @@ COMING UP
 ─ at its cap    ─ at its limit
 ▂ the pool at its limit    │ its week resets
 a column ≈ 194 minutes · the past dimmed
-tab views   < > window   ←→ week   ? keys   q quit
+tab views   ←→ week   ? keys   q quit
