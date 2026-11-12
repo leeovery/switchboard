@@ -33,11 +33,11 @@ func (f Frame) runwayAxis(c *canvas, laid runwayLaid) {
 }
 
 // timeAxis draws Runway's axis of the window w's view over the timeline tl,
-// from x down from row top: on its first row, now, bold, from a cell before
-// now's column, but never before the frame's left edge, so it reads whole
-// where now's is a collapsed lane's first, where the timeline has a now; on
-// the next, a week's days, as weekdays draws them, or the hours of any other,
-// as hours draws them; and under them, their ticks along a rule.
+// from x down from row top: on its first row, where the timeline has a now,
+// now, bold, from a cell before now's column but never before the canvas's
+// first, so it reads whole where now's column is the first at x 0; on the
+// next, a week's days, as weekdays draws them, or the hours of any other, as
+// hours draws them; and under them, their ticks along a rule.
 func timeAxis(c *canvas, tl views.Timeline, w views.RunwayWindow, x, top int) {
 	if tl.Columns <= 0 {
 		return
