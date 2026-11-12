@@ -84,7 +84,7 @@ func TestEachTargetSitsOverWhatItsDrawingPutThere(t *testing.T) {
 		if want := []string{"tab", "< >", "?"}; !slices.Equal(keys, want) {
 			t.Errorf("at %d columns, the key line's targets are %q, want %q: never p pin, as no click opens the routing card, nor q quit", f.Width, keys, want)
 		}
-		if want := map[View][]string{Graphs: {"w", "f"}, Log: {"end"}}[f.View]; !slices.Equal(presses, want) {
+		if want := map[View][]string{Graphs: {"w"}, Log: {"end"}}[f.View]; !slices.Equal(presses, want) {
 			t.Errorf("at %d columns on %s, the targets a click on which presses a key press %q, want %q", f.Width, f.View, presses, want)
 		}
 	}
