@@ -1002,6 +1002,31 @@ func TestThePoolsComingBackToAConfigThatLostThemAreTakenUpAtOnce(t *testing.T) {
 	}
 }
 
+func TestAConfigPutBackMidMoveKeepsThePoolsTheRouterRoutedWithin(t *testing.T) {
+	log := logstest.Capture(t)
+	stateDir := t.TempDir()
+	// The move under way: the first pool written to the config and taken
+	// up, the move not yet marked done.
+	noteFirstPool(t, stateDir, defaultPool)
+	r, path := newWatchingPoolsRouter(t, stateDir)
+	// Side's quota needs using first, then personal's, then work's.
+	readWeeks(r, map[string]quota.Window{"side": soonWeek, "personal": laterWeek, "work": latestWeek})
+	upstream := servingAll(served, served, served)
+	r.proxy.transport = upstream
+
+	writeConfigFile(t, path, unpooledTOML("work", "personal", "side"))
+	r.upkeep.look()
+	routeIn(t, r, personalToken, "one", acmePool, nil)
+	routeIn(t, r, workToken, "two", defaultPool, nil)
+
+	if sent, want := upstream.sent(), []string{"personal", "side"}; !slices.Equal(sent, want) {
+		t.Errorf("the requests went out on %q, want %q: Acme's on personal, never on side, Default's", sent, want)
+	}
+	if n := timesLogged(log, "level=WARN", "the move to pools isn't done"); n != 1 {
+		t.Errorf("the log says the move to pools isn't done %d times, want once\n%s", n, log)
+	}
+}
+
 func TestARouterRoutesAConfigNamingNoPoolsAsBeforePoolsTillTheMoveToPoolsIsDone(t *testing.T) {
 	log := logstest.Capture(t)
 	stateDir := t.TempDir()
@@ -1387,8 +1412,12 @@ func TestAConfigThatLosesItsPoolsKeepsThemOnceTheMoveIsDone(t *testing.T) {
 			pool: acmePool, want: map[string]bool{"work": true, "personal": true, "side": true},
 		},
 		{
-			name: "before the move, the record keeping the pools and the router having followed them: every account in the one pool there is",
-			pool: acmePool, recorded: true, pooled: true, want: map[string]bool{"work": true, "personal": true, "side": true},
+			name: "before the move, the record keeping the pools and the router having followed them: Acme stands as told",
+			pool: acmePool, recorded: true, pooled: true, want: map[string]bool{"work": false, "personal": true, "side": false}, warned: true,
+		},
+		{
+			name: "before the move, the router having followed pools, the record unread: the first stands as told, but for side, which left",
+			pool: defaultPool, pooled: true, want: map[string]bool{"work": true, "personal": false, "side": false}, warned: true,
 		},
 		{
 			name: "once the router has followed pools, the record unread: they stand, but for side, which left",

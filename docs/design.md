@@ -785,8 +785,10 @@ read as a pool by its leaving one out (the owner's call, 11 November 2026).
     done the router routes by the same while the config names none, worked out afresh at each
     look: each account in the pool the heal would put it in, one with no pool to go to in none, so
     no session uses it, never a pool it wasn't in. Before the move's done, it routes such a config
-    as before pools, saying nothing of it. Where the record can't be read, or keeps no pool of this
-    Mac's, the pools stand as the router last routed within them, an account it hadn't in none;
+    as before pools, saying nothing of it; but one that had pools and lost them mid-move keeps
+    them as the router last routed within them. Where the record can't be
+    read, or keeps no pool of this Mac's, the pools stand as the router last routed within them,
+    an account it hadn't in none;
     where it never routed within any, as one started on such a config, it routes nothing,
     answering every request with switchboard's refusal saying why, saying so once in the log, and
     reporting itself unhealthy, till the config has its pools or the record reads. Every table it
