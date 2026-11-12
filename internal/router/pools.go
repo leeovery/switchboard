@@ -32,8 +32,9 @@ type poolTable struct {
 	// those poolOf holds.
 	was map[string]string
 	// recorded holds, by id, the pool the accounts record keeps each account
-	// in, as it read as the table was made, as recordedPools gives them: what
-	// the tables can't know of an account removed before the router started.
+	// poolOf doesn't have in, as it read last, as recordedPools gives them:
+	// what the tables can't know of an account removed before the router
+	// started.
 	recorded map[string]string
 	// primary holds, by the pool's id, the id of the account the config
 	// makes each pool's primary, as poolOf spells the pool.
@@ -382,25 +383,39 @@ func (m *membership) current() *poolTable {
 // their directories, the accounts' primaries, and the first, read afresh
 // from the accounts record; of one naming none, afresh each time, so a
 // record that couldn't be read is taken up once it can. Each table made
-// knows the pool each account that leaves it was in, as after says, and the
-// pool the record keeps each in, read with it, so no request reads the
-// record. The move to pools writes the first pool to the record before the
-// config, so a config that changes finds it there.
+// knows the pool each account that leaves it was in, as after says. The
+// record is read at every look, for the pool it keeps each account the table
+// doesn't have in, as recordedPools gives them, so one that couldn't be read
+// is taken up once it can, whether the config changed or not; where it can't
+// be, those last read stand. So no request reads the record. The move to
+// pools writes the first pool to the record before the config, so a config
+// that changes finds it there.
 func (m *membership) follow(accounts config.Accounts, pools config.Pools) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if m.followed && len(pools) > 0 && slices.Equal(accounts, m.accounts) && identicalPools(pools, m.pools) {
-		return
-	}
 	record, readable := m.record()
+	current := m.current()
+	made := current
+	if !m.unchanged(accounts, pools) {
+		made = m.made(record, readable, accounts, pools)
+	}
+	recorded := current.recorded
+	if readable {
+		recorded = recordedPools(record, made.poolOf)
+	}
 	// A table that changes nothing leaves the current one standing, so its
 	// readers aren't woken. One that does is stored as a copy with a replaced
 	// of its own, so none is closed twice, whatever table made gives back.
-	current := m.current()
-	if made := m.made(record, readable, accounts, pools).after(current, recordedPools(record)); !made.sameAs(current) {
-		close(m.table.Swap(made.stored()).replaced)
+	if next := made.after(current, recorded); !next.sameAs(current) {
+		close(m.table.Swap(next.stored()).replaced)
 	}
 	m.accounts, m.pools, m.followed = slices.Clone(accounts), slices.Clone(pools), true
+}
+
+// unchanged reports whether accounts and pools are a config with pools that
+// was followed last. m.mu must be held.
+func (m *membership) unchanged(accounts config.Accounts, pools config.Pools) bool {
+	return m.followed && len(pools) > 0 && slices.Equal(accounts, m.accounts) && identicalPools(pools, m.pools)
 }
 
 // made returns the pools a config makes of the accounts and pools it
@@ -482,20 +497,25 @@ func (m *membership) keptAsTold(accounts config.Accounts, idNow func(id string) 
 }
 
 // recordedPools returns, by id, the pool record keeps each account in, as
-// this Mac's config last had it, kept once it's removed; and by the id it
-// had before switchboard made ids, where it had one, for a router that
-// started on those, so each account is known as the tables know it.
-func recordedPools(record identity.Record) map[string]string {
-	pools := make(map[string]string)
-	for _, e := range record.Accounts {
-		if e.Pool != "" && e.Was != "" {
+// this Mac's config last had it, kept once it's removed, of those poolOf, a
+// table's, doesn't have by either id, as the table knows the pool of one it
+// has: by its id, and by the one it had before switchboard made ids, where
+// it had one, for a router that started on those, so each account is known
+// as the tables know it.
+func recordedPools(record identity.Record, poolOf map[string]string) map[string]string {
+	served := slices.DeleteFunc(slices.Clone(record.Accounts), func(e identity.Entry) bool {
+		_, has := poolOf[e.ID]
+		_, had := poolOf[e.Was]
+		return e.Pool == "" || has || e.Was != "" && had
+	})
+	pools := make(map[string]string, 2*len(served))
+	for _, e := range served {
+		if e.Was != "" {
 			pools[e.Was] = e.Pool
 		}
 	}
-	for _, e := range record.Accounts {
-		if e.Pool != "" {
-			pools[e.ID] = e.Pool
-		}
+	for _, e := range served {
+		pools[e.ID] = e.Pool
 	}
 	return pools
 }

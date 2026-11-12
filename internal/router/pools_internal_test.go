@@ -1346,47 +1346,52 @@ func recordOfThePools() identity.Record {
 }
 
 func TestThePoolsAreFollowedAsTheyChangeTheFirstReadAfreshWithThem(t *testing.T) {
-	reads := 0
+	first := acmePool
 	m := newMembership(func() (identity.Record, bool) {
-		reads++
-		return identity.Record{Pools: []identity.PoolEntry{{ID: acmePool, Added: start, First: true, Here: true}}}, true
+		return identity.Record{Pools: []identity.PoolEntry{{ID: first, Added: start, First: true, Here: true}}}, true
 	}, never, asGiven, nil)
 	accounts := pooledAccounts()
 
 	m.follow(accounts, testPools)
-	m.follow(slices.Clone(accounts), slices.Clone(testPools))
-	if reads != 1 {
-		t.Errorf("the record was read %d times for the same pools, want once", reads)
-	}
 	if got := m.current().of(""); got != acmePool {
 		t.Errorf("a request naming none is in %q, want %s, as the record notes it", got, acmePool)
+	}
+	// The record comes to note Default first, the pools the same: they stand
+	// as they were made.
+	first = defaultPool
+	m.follow(slices.Clone(accounts), slices.Clone(testPools))
+	if got := m.current().of(""); got != acmePool {
+		t.Errorf("for the same pools, a request naming none is in %q, want %s still, the first not read afresh", got, acmePool)
 	}
 
 	relabelled := slices.Clone(testPools)
 	relabelled[1].Label = "Acme Corp"
 	m.follow(accounts, relabelled)
-	if reads != 2 || m.current().pools[1].Label != "Acme Corp" {
-		t.Errorf("the record was read %d times and Acme is labelled %q, want read again, labelled Acme Corp", reads, m.current().pools[1].Label)
+	if got := m.current(); got.first != defaultPool || got.pools[1].Label != "Acme Corp" {
+		t.Errorf("the first is %q and Acme is labelled %q, want the first read afresh, %s, labelled Acme Corp", got.first, got.pools[1].Label, defaultPool)
 	}
+	first = acmePool
 	moved := slices.Clone(accounts)
 	moved[2].Pool = acmePool
 	m.follow(moved, relabelled)
-	if reads != 3 || !m.current().holds(acmePool, "side") {
-		t.Errorf("the record was read %d times and side in Acme is %v, want read again, side in Acme", reads, m.current().holds(acmePool, "side"))
+	if got := m.current(); got.first != acmePool || !got.holds(acmePool, "side") {
+		t.Errorf("the first is %q and side in Acme is %v, want the first read afresh, %s, side in Acme", got.first, got.holds(acmePool, "side"), acmePool)
 	}
 
+	first = defaultPool
 	refenced := slices.Clone(relabelled)
 	refenced[1].Dirs, refenced[1].WrittenDirs = []string{"/work/acme", "/work/acme-ops"}, []string{"/work/acme", "/work/acme-ops"}
 	m.follow(moved, refenced)
-	if reads != 4 || !slices.Equal(m.current().pools[1].Dirs, refenced[1].Dirs) {
-		t.Errorf("the record was read %d times and Acme is fenced to %q, want read again, fenced to %q, its directories alone changed",
-			reads, m.current().pools[1].Dirs, refenced[1].Dirs)
+	if got := m.current(); got.first != defaultPool || !slices.Equal(got.pools[1].Dirs, refenced[1].Dirs) {
+		t.Errorf("the first is %q and Acme is fenced to %q, want the first read afresh, %s, fenced to %q, its directories alone changed",
+			got.first, got.pools[1].Dirs, defaultPool, refenced[1].Dirs)
 	}
+	first = acmePool
 	primaries := slices.Clone(moved)
 	primaries[0].Primary, primaries[1].Primary, primaries[2].Primary = false, false, true
 	m.follow(primaries, refenced)
-	if got := m.current().primary; reads != 5 || !maps.Equal(got, map[string]string{acmePool: "side"}) {
-		t.Errorf("the record was read %d times and the primaries are %v, by pool, want read again, side Acme's alone", reads, got)
+	if got := m.current(); got.first != acmePool || !maps.Equal(got.primary, map[string]string{acmePool: "side"}) {
+		t.Errorf("the first is %q and the primaries are %v, by pool, want the first read afresh, %s, side Acme's alone", got.first, got.primary, acmePool)
 	}
 }
 

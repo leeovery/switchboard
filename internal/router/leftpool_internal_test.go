@@ -549,6 +549,42 @@ func TestAnHeirIsOfThePoolTheAccountsRecordKeepsWhereThePoolsCantTell(t *testing
 	}
 }
 
+func TestThePoolsTheAccountsRecordKeepsAreTakenUpOnceItReadsThoughTheConfigStaysTheSame(t *testing.T) {
+	// Work, and gone, which left the config before the router started, each
+	// with the id it had before switchboard made ids, as old-<id>.
+	record := identity.Record{Accounts: []identity.Entry{
+		{ID: "work", Added: start, Was: "old-work", Pool: defaultPool},
+		{ID: "gone", Added: start, Removed: start, Was: "old-gone", Pool: acmePool},
+	}}
+	readable := false
+	m := newMembership(func() (identity.Record, bool) { return record, readable }, never, asGiven, nil)
+	m.follow(pooledAccounts(), testPools)
+	unread := m.current()
+	if pool := unread.poolIn("old-gone"); pool != "" {
+		t.Fatalf("with the record unread, old-gone is in pool %q, want none known", pool)
+	}
+
+	readable = true
+	m.follow(pooledAccounts(), testPools)
+	read := m.current()
+	if want := map[string]string{"gone": acmePool, "old-gone": acmePool}; !maps.Equal(read.recorded, want) {
+		t.Errorf("once the record reads, the pools it keeps are %v, want %v: gone's by both its ids, and none of an account the pools have", read.recorded, want)
+	}
+	if !isClosed(unread.replaced) {
+		t.Error("the table made with the record unread wasn't replaced once it read")
+	}
+
+	// The record comes to tell of an account the pools have, then can't be
+	// read: neither changes what the table reads of it.
+	record.Accounts = append(record.Accounts, identity.Entry{ID: "side", Added: start, Pool: acmePool})
+	m.follow(pooledAccounts(), testPools)
+	readable = false
+	m.follow(pooledAccounts(), testPools)
+	if m.current() != read || isClosed(read.replaced) {
+		t.Errorf("the table was replaced, recorded %v, want it standing", m.current().recorded)
+	}
+}
+
 func TestWhetherARequestsTokenHasLeftItsPool(t *testing.T) {
 	// The pools as pooledAccounts make them, but for personal, of Acme,
 	// which has left the config; gone left it before the router started.
