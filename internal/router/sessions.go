@@ -59,6 +59,12 @@ func (a assignment) warm(now time.Time) bool {
 	return now.Sub(a.LastSeen) <= cacheLife
 }
 
+// dirAfter is the directory the assignment names once req is noted on it:
+// req's, where it names one, else the one it named.
+func (a assignment) dirAfter(req Request) string {
+	return cmp.Or(req.Dir, a.Dir)
+}
+
 // forgotten reports whether the assignment has gone unused for forgetAfter
 // at now.
 func (a assignment) forgotten(now time.Time) bool {
@@ -242,7 +248,7 @@ func (s *sessions) remember(req Request, was assignment, d decision, now time.Ti
 		a.Reason = d.reason
 	}
 	a.Pin, a.Pool, a.LastSeen, a.by = req.Pin, req.Pool, now, req.ID
-	a.Dir = cmp.Or(req.Dir, a.Dir)
+	a.Dir = a.dirAfter(req)
 	s.assignments[k] = a.inUTC()
 	if a.usedAgain(found) {
 		s.usedAgain()
@@ -498,6 +504,21 @@ func (s *sessions) lastUsed(id string) (assignment, bool) {
 		}
 	}
 	return last.assignment, seen
+}
+
+// dir is the directory the session with the given id runs in: that of its
+// model used last to name one, as the dashboard reads it off the session's
+// listing; "" where none does, as for a session never seen.
+func (s *sessions) dir(id string) string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var last entry
+	for k, a := range s.assignments {
+		if e := (entry{model: k.model, assignment: a}); k.session == id && a.Dir != "" && (last.Dir == "" || byUse(e, last) < 0) {
+			last = e
+		}
+	}
+	return last.Dir
 }
 
 // byUse orders a session's entries the one used last first, then by model.

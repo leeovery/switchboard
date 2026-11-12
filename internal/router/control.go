@@ -720,7 +720,7 @@ func (r *Router) pinSession(id, account string, by By) error {
 		return unknownSession(id)
 	}
 	logger.Info("pinned session", append(poolSaid(t.of(in)), "session", status.ShortID(id), "account", account)...)
-	r.emit(Pinned{Account: account, Session: id, By: by, Pool: t.of(in)})
+	r.emit(Pinned{Account: account, Session: id, Dir: r.sessions.dir(id), By: by, Pool: t.of(in)})
 	return nil
 }
 
@@ -737,7 +737,7 @@ func (r *Router) unpinSession(id string, by By) error {
 	pool := r.state.pools.current().of(in)
 	logger.Info("unpinned session", append(poolSaid(pool), "session", status.ShortID(id))...)
 	if was != "" {
-		r.emit(Unpinned{Account: was, Session: id, By: by, Pool: pool})
+		r.emit(Unpinned{Account: was, Session: id, Dir: r.sessions.dir(id), By: by, Pool: pool})
 	}
 	return nil
 }

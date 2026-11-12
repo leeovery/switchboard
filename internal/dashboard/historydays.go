@@ -111,10 +111,15 @@ func (f Frame) daysStrips(c *canvas, l daysLayout) {
 // daysAccount draws BY ACCOUNT's strip of an account named on row y: by its
 // label, the primary marked; or of one not configured, in text.faint, its
 // days to the one it was removed on, then, where it was, when, as removed
-// says it.
+// says it. Wide, its name stands in the label column, as historyAccount has
+// it; narrow, its count beside it, as historyBeside has it.
 func (f Frame) daysAccount(c *canvas, l daysLayout, y int, s views.DaysStrip) {
 	if !s.Other {
-		f.daysStrip(c, l, y, func(room int) line { return historyAccount(labelled(s.Label, s.Of), s.Primary, room) }, f.limitsHit(s), dayInk, s.Days, len(s.Days))
+		named := func(room int) line { return historyAccount(labelled(s.Label, s.Of), s.Primary, room) }
+		if l.narrow {
+			named = func(room int) line { return historyBeside(labelled(s.Label, s.Of), s.Primary, room) }
+		}
+		f.daysStrip(c, l, y, named, f.limitsHit(s), dayInk, s.Days, len(s.Days))
 		return
 	}
 	f.daysStrip(c, l, y, func(room int) line { return line{{labelledIn(labelled(s.Label, s.Of), room), faintInk}} }, f.limitsHit(s), dayInk, s.Days, s.Gone)

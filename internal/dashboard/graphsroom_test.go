@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -22,12 +23,10 @@ func placedAt(l graphsLaid) []int {
 	return at
 }
 
-// The design's worked sizes, with WEEK and 5-HOUR shown: at 160 by 37, three
-// accounts' words have rows of their own and the charts 7 rows; at 108 by 44
-// the words share the labels' rows and the charts take 5, the sections
-// filling the rows over the legend exactly; on a phone of 73 by 61, the same,
-// a card a row; and with four accounts on that phone, the page scrolls,
-// laid at the least.
+// The design's worked sizes, with WEEK shown, three accounts two cards a row
+// where two fit: at 160 by 37, the words have rows of their own and the
+// charts 8 rows; at 108 by 44, 12; on a phone of 73 by 61, a card a row, 11;
+// and with four accounts on that phone, 7.
 func TestGraphsLaysTheDesignsWorkedSizesOut(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -39,10 +38,10 @@ func TestGraphsLaysTheDesignsWorkedSizesOut(t *testing.T) {
 		poolLine      int
 		rows, room    int
 	}{
-		{name: "160 by 37", width: 160, height: 37, accounts: []string{"work", "personal", "side"}, apart: true, chart: 7, at: []int{0, 14}, poolLine: 28, rows: 29, room: 30},
-		{name: "108 by 44", width: 108, height: 44, accounts: []string{"work", "personal", "side"}, chart: 5, at: []int{0, 18}, poolLine: 36, rows: 37, room: 37},
-		{name: "a phone of 73 by 61", width: 73, height: 61, accounts: []string{"work", "personal", "side"}, chart: 5, at: []int{0, 26}, poolLine: 52, rows: 53, room: 53},
-		{name: "four accounts on that phone", width: 73, height: 61, accounts: []string{"work", "personal", "side", "team"}, chart: 5, at: []int{0, 34}, poolLine: 68, rows: 69, room: 53},
+		{name: "160 by 37", width: 160, height: 37, accounts: []string{"work", "personal", "side"}, apart: true, chart: 8, at: []int{0}, poolLine: 28, rows: 29, room: 30},
+		{name: "108 by 44", width: 108, height: 44, accounts: []string{"work", "personal", "side"}, apart: true, chart: 12, at: []int{0}, poolLine: 36, rows: 37, room: 37},
+		{name: "a phone of 73 by 61", width: 73, height: 61, accounts: []string{"work", "personal", "side"}, apart: true, chart: 11, at: []int{0}, poolLine: 50, rows: 51, room: 53},
+		{name: "four accounts on that phone", width: 73, height: 61, accounts: []string{"work", "personal", "side", "team"}, apart: true, chart: 7, at: []int{0}, poolLine: 50, rows: 51, room: 53},
 	}
 	for _, tt := range tests {
 		f := graphsFrame(tt.width, tt.height, GraphsSections{})
@@ -72,7 +71,7 @@ func rowsToLastDrawn(c *canvas) int {
 }
 
 // Each section takes its heading's rows and its own, as what draws it
-// counts them: a burn-down's to the foot of its last card's axis; POOL's as
+// counts them: WEEK's to the foot of its last card's axis; POOL's as
 // its stack takes them; GLANCE's to the last row it draws across its
 // columns, of the configured accounts and whether they're a pool; WHEN YOU
 // WORK's as its grid counts them across its columns; and GLANCE and WHEN
@@ -130,8 +129,8 @@ func stepIndex(t *testing.T, s graphsStep) int {
 	return i
 }
 
-// Rows to spare go first to the cards' words, a row of their own in both
-// burn-down sections at once, then to every chart, the cards' and POOL's,
+// Rows to spare go first to the cards' words, a row of their own in every
+// card at once, then to every chart, the cards' and POOL's,
 // the same height, a row at a time, to 19; the rest is blank at the foot. A
 // step is taken only where it fits, and the steps are taken in order, one
 // at a time, as the rows grow from the least.
@@ -158,7 +157,7 @@ func TestGraphsRowsToSpareGoToTheWordsThenToEveryChartARowAtATime(t *testing.T) 
 				if s.section == GraphsPool && s.rows != sectionHead+l.pool.rows(l.width, l.chart) {
 					t.Errorf("%s at %d rows: POOL takes %d rows, want its heading's and its own with its chart %d rows", name, height, s.rows, l.chart)
 				}
-				if !burnsDown(s.section) {
+				if s.section != GraphsWeek {
 					continue
 				}
 				if got := cardChartRows(l, s); got != l.chart {
@@ -172,8 +171,8 @@ func TestGraphsRowsToSpareGoToTheWordsThenToEveryChartARowAtATime(t *testing.T) 
 	}
 }
 
-// cardChartRows is how tall the burn-down section's cards' charts are, as
-// laid out: -1 where they differ.
+// cardChartRows is how tall WEEK's cards' charts are, as laid out: -1 where
+// they differ.
 func cardChartRows(l graphsLaid, s graphsPlaced) int {
 	cards := l.cards(s)
 	h := cards[0].chart.rows - 1
@@ -198,40 +197,51 @@ func sectionsNamed(mask int) GraphsSections {
 }
 
 // Every section shown is laid out, in the page's order, a hidden one taking
-// no room, a blank row between two; the pool's line after the last
-// burn-down section shown, after its blank row, and a blank row before the
-// next; and the legend while a burn-down section shows, none else.
+// no room, a blank row between two; the pool's line after WEEK, where it
+// shows, after its blank row, and a blank row before the next; and the
+// legend while WEEK shows, none else: at 120 columns, where GLANCE and WHEN
+// YOU WORK don't sit side by side, and at 173, where they do, WHEN YOU WORK
+// on GLANCE's row, from a column past its start, the next section after the
+// taller of the two.
 func TestGraphsLaysOutEverySectionShownAndNoneHidden(t *testing.T) {
-	for mask := 1; mask < 1<<len(EveryGraphsSection()); mask++ {
-		shown := sectionsNamed(mask)
-		name := strings.Join(shown.Names(), ", ")
-		l := graphsFrame(160, 200, shown).graphsLaid()
-		lastBurn := -1
-		var laid []string
-		for i, s := range l.sections {
-			laid = append(laid, wordingOf(s.section).name)
-			if burnsDown(s.section) {
-				lastBurn = i
+	for _, width := range []int{120, 173} {
+		for mask := 1; mask < 1<<len(EveryGraphsSection()); mask++ {
+			shown := sectionsNamed(mask)
+			name := fmt.Sprintf("at %d columns, %s", width, strings.Join(shown.Names(), ", "))
+			l := graphsFrame(width, 200, shown).graphsLaid()
+			week := -1
+			var laid []string
+			for i, s := range l.sections {
+				laid = append(laid, wordingOf(s.section).name)
+				if s.section == GraphsWeek {
+					week = i
+				}
 			}
-		}
-		if !slices.Equal(laid, shown.Names()) {
-			t.Errorf("%s: laid out %q, want those shown, in order", name, laid)
-		}
-		next, poolLine := 0, -1
-		for i, s := range l.sections {
-			if s.at != next {
-				t.Errorf("%s: %s at row %d, want %d", name, s.section.heading(), s.at, next)
+			if !slices.Equal(laid, shown.Names()) {
+				t.Errorf("%s: laid out %q, want those shown, in order", name, laid)
 			}
-			next = s.at + s.rows + 1
-			if i == lastBurn {
-				poolLine, next = next, next+2
+			next, poolLine := 0, -1
+			for i, s := range l.sections {
+				paired := width == 173 && s.section == GraphsWhen && shown.Has(GraphsGlance)
+				want, top := next, s.at
+				if paired {
+					glance := l.sections[i-1]
+					want, top = glance.at, glance.at+max(glance.rows-s.rows, 0)
+				}
+				if s.at != want || (s.across.At > 0) != paired {
+					t.Errorf("%s: %s at row %d across %+v, want at %d, beside GLANCE %t", name, s.section.heading(), s.at, s.across, want, paired)
+				}
+				next = top + s.rows + 1
+				if i == week {
+					poolLine, next = next, next+2
+				}
 			}
-		}
-		if l.poolLine != poolLine || l.rows != next-1 {
-			t.Errorf("%s: the pool's line at %d, %d rows; want it at %d, %d rows", name, l.poolLine, l.rows, poolLine, next-1)
-		}
-		if got, want := len(l.legend), min(lastBurn+1, 1); got != want {
-			t.Errorf("%s: the legend takes %d rows, want %d", name, got, want)
+			if l.poolLine != poolLine || l.rows != next-1 {
+				t.Errorf("%s: the pool's line at %d, %d rows; want it at %d, %d rows", name, l.poolLine, l.rows, poolLine, next-1)
+			}
+			if got, want := len(l.legend), min(week+1, 1); got != want {
+				t.Errorf("%s: the legend takes %d rows, want %d", name, got, want)
+			}
 		}
 	}
 }
@@ -254,19 +264,26 @@ func TestGraphsHasThePoolsLineOnlyWithAPool(t *testing.T) {
 	}
 }
 
-// Cards lie across as the design's rule has them: as many side by side as
-// are 35 cells or more, 4 apart, ⌊(w + 4) / k⌋ − 4 each, the odd cells left
-// at the end, the rest on the rows under, in the same columns; narrower than
-// one, a card across the width.
+// Cards lie across as the design's rule has them: two side by side at the
+// most, where both are 35 cells or more, 4 apart, ⌊(w + 4) / k⌋ − 4 each, the
+// odd cells left at the end, the rest on the rows under, in the same columns;
+// one account's card across the width; and where two don't fit, a card
+// across the width.
 func TestGraphsCardsLieAcrossByTheDesignsRule(t *testing.T) {
+	two := func(each int) []flex.Span { return []flex.Span{{At: 0, Size: each}, {At: each + 4, Size: each}} }
 	tests := []struct {
 		width, accounts int
 		want            []flex.Span
 	}{
-		{width: 160, accounts: 3, want: []flex.Span{{At: 0, Size: 50}, {At: 54, Size: 50}, {At: 108, Size: 50}}},
-		{width: 173, accounts: 3, want: []flex.Span{{At: 0, Size: 55}, {At: 59, Size: 55}, {At: 118, Size: 55}}},
-		{width: 160, accounts: 4, want: []flex.Span{{At: 0, Size: 37}, {At: 41, Size: 37}, {At: 82, Size: 37}, {At: 123, Size: 37}}},
-		{width: 108, accounts: 3, want: []flex.Span{{At: 0, Size: 52}, {At: 56, Size: 52}}},
+		{width: 160, accounts: 1, want: []flex.Span{{At: 0, Size: 160}}},
+		{width: 160, accounts: 2, want: two(78)},
+		{width: 160, accounts: 3, want: two(78)},
+		{width: 160, accounts: 4, want: two(78)},
+		{width: 160, accounts: 5, want: two(78)},
+		{width: 300, accounts: 4, want: two(148)},
+		{width: 173, accounts: 3, want: two(84)},
+		{width: 108, accounts: 3, want: two(52)},
+		{width: 74, accounts: 3, want: two(35)},
 		{width: 73, accounts: 3, want: []flex.Span{{At: 0, Size: 73}}},
 		{width: 52, accounts: 3, want: []flex.Span{{At: 0, Size: 52}}},
 		{width: 30, accounts: 1, want: []flex.Span{{At: 0, Size: 30}}},
@@ -280,32 +297,46 @@ func TestGraphsCardsLieAcrossByTheDesignsRule(t *testing.T) {
 
 // Each card lies in its column of its row of cards, a blank row between two
 // rows: its label; its words on a row of their own and a blank row under
-// them, or on the label's; then its chart and its axis.
+// them, or on the label's; then its chart and its axis. An odd one last lies
+// under the first, as wide, so every card is the same size.
 func TestGraphsPlacesEachCardsRowsUnderItsSectionsHeading(t *testing.T) {
 	tests := []struct {
 		name          string
 		width, height int
+		accounts      []string
+		least         bool
 		want          []cardLaid
 	}{
-		{name: "the words apart, three across", width: 160, height: 37, want: []cardLaid{
-			{label: 2, words: 3, chart: bounds{x: 0, y: 5, width: 50, rows: 8}},
-			{label: 2, words: 3, chart: bounds{x: 54, y: 5, width: 50, rows: 8}},
-			{label: 2, words: 3, chart: bounds{x: 108, y: 5, width: 50, rows: 8}},
+		{name: "one, the words apart, across the width", width: 160, height: 37, accounts: []string{"work"}, want: []cardLaid{
+			{label: 2, words: 3, chart: bounds{x: 0, y: 5, width: 160, rows: 20}},
 		}},
-		{name: "the words on the labels' rows, two across", width: 108, height: 44, want: []cardLaid{
+		{name: "three, the words apart, the third under the first", width: 160, height: 37, accounts: []string{"work", "personal", "side"}, want: []cardLaid{
+			{label: 2, words: 3, chart: bounds{x: 0, y: 5, width: 78, rows: 9}},
+			{label: 2, words: 3, chart: bounds{x: 82, y: 5, width: 78, rows: 9}},
+			{label: 15, words: 16, chart: bounds{x: 0, y: 18, width: 78, rows: 9}},
+		}},
+		{name: "three, the words on the labels' rows", width: 108, height: 44, accounts: []string{"work", "personal", "side"}, least: true, want: []cardLaid{
 			{label: 2, words: 2, chart: bounds{x: 0, y: 3, width: 52, rows: 6}},
 			{label: 2, words: 2, chart: bounds{x: 56, y: 3, width: 52, rows: 6}},
 			{label: 10, words: 10, chart: bounds{x: 0, y: 11, width: 52, rows: 6}},
 		}},
+		{name: "five, rows of two, the fifth under the first", width: 160, height: 37, accounts: []string{"work", "personal", "side", "team", "client"}, least: true, want: []cardLaid{
+			{label: 2, words: 2, chart: bounds{x: 0, y: 3, width: 78, rows: 6}},
+			{label: 2, words: 2, chart: bounds{x: 82, y: 3, width: 78, rows: 6}},
+			{label: 10, words: 10, chart: bounds{x: 0, y: 11, width: 78, rows: 6}},
+			{label: 10, words: 10, chart: bounds{x: 82, y: 11, width: 78, rows: 6}},
+			{label: 18, words: 18, chart: bounds{x: 0, y: 19, width: 78, rows: 6}},
+		}},
 	}
 	for _, tt := range tests {
-		l := graphsFrame(tt.width, tt.height, GraphsSections{}).graphsLaid()
+		f := graphsFrame(tt.width, tt.height, GraphsSections{})
+		f.Graphs.Accounts = configured(tt.accounts...)
+		l := f.graphsLaid()
+		if tt.least {
+			l = l.laidAt(graphsSteps()[0])
+		}
 		if got := l.cards(l.sections[0]); !slices.Equal(got, tt.want) {
 			t.Errorf("%s: WEEK's cards lie at %+v, want %+v", tt.name, got, tt.want)
-		}
-		fiveHour := l.sections[1]
-		if got := l.cards(fiveHour)[0].label; got != fiveHour.at+sectionHead {
-			t.Errorf("%s: 5-HOUR's first label is on row %d, want %d, under its heading's blank row", tt.name, got, fiveHour.at+sectionHead)
 		}
 	}
 }
@@ -324,12 +355,14 @@ func changedRouted() status.Document {
 // The layout changes only on a key, a resize or the config, never as the
 // data does: a read that changes every word, and pins the pool to two of its
 // three accounts, leaves every heading, the pool's line and the legend on
-// their rows; at 68 columns too, where POOL's key of the two pinned would
-// take a row fewer than of the three configured.
+// their rows, at 120 columns, each heading at a row's start; at 173, where
+// WHEN YOU WORK's heading is on GLANCE's row, beside it; at 68 columns too,
+// where POOL's key of the two pinned would take a row fewer than of the
+// three configured.
 func TestGraphsLayoutHoldsStillAsTheDataChanges(t *testing.T) {
 	look := Screen(builtin(t, "nord"))
-	marks := []string{"WEEK ", "5-HOUR ", "POOL ", "GLANCE ", "WHEN YOU WORK ", "Σ pool", "▆▆ room left"}
-	for _, width := range []int{160, 68} {
+	marks := []string{"WEEK ", "POOL ", "GLANCE ", "WHEN YOU WORK ", "Σ pool", "▆▆ room left"}
+	for _, width := range []int{120, 173, 68} {
 		f := graphsFrame(width, 120, everyGraphsSection())
 		f.Look = look
 		if width == 68 && poolKeyed(configured("personal", "side"), look).keyRows(width) == poolKeyed(f.Graphs.Accounts, look).keyRows(width) {
@@ -339,7 +372,12 @@ func TestGraphsLayoutHoldsStillAsTheDataChanges(t *testing.T) {
 			text := textOf(f.Draw(doc, now))
 			var rows []int
 			for _, mark := range marks {
-				rows = append(rows, slices.IndexFunc(text, func(row string) bool { return strings.HasPrefix(row, mark) }))
+				rows = append(rows, slices.IndexFunc(text, func(row string) bool {
+					if width == 173 && mark == "WHEN YOU WORK " {
+						return strings.HasPrefix(row, "GLANCE ") && strings.Contains(row, " "+mark)
+					}
+					return strings.HasPrefix(row, mark)
+				}))
 			}
 			return rows
 		}

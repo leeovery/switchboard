@@ -62,12 +62,15 @@ func d28cTurn12(now time.Time) []ledger.Line {
 	}
 }
 
+// quietDir is the directory 9c2e runs in.
+const quietDir = "~/Code/website"
+
 // quietPlan is 9c2e as its page draws it (session2.QUIET): in ~/Code/website,
 // started at 11:55:31, on personal since, its ten turns sampled from seed 7,
 // idle since its last.
 func quietPlan(now time.Time) sessionPlan {
 	return sessionPlan{
-		id: id9C2E, dir: "~/Code/website", start: clockAt(now, 0, 11, 55, 0), first: clockAt(now, 0, 11, 55, 31),
+		id: id9C2E, dir: quietDir, start: clockAt(now, 0, 11, 55, 0), first: clockAt(now, 0, 11, 55, 31),
 		turns: turnsFrom([][2]int{{0, 158}}, 7),
 		stays: []stay{{"personal", 0}},
 	}

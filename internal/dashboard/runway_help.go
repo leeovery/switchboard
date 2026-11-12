@@ -43,9 +43,11 @@ func (f Frame) lanesHelp() helpPart {
 				"where its last read failed; and not read before its first, its lane blank, saying why where that read failed. " +
 				"A stale account's lane and use are faded, as the Overview fades a stale account, and the use of one " +
 				"whose token is refused."),
-			said("`a` collapses the labels, to give the lanes more room: beside each lane, its marks alone, as ◆, " +
-				"and under them its use, as 66%, the window named in the heading, or — where there's no use to show. `a` again " +
-				"expands them. It's kept for next time."),
+			said("`a` collapses the labels, to give the lanes more room: the lanes start at the left edge, with no names or " +
+				"marks, the status line saying where new sessions go, and under the start of each its use, as 66%, the window " +
+				"named in the heading, or — where there's no use to show, faint where the pool leaves its account out. The words " +
+				"under a lane start two cells after its use where they'd otherwise meet it. `a` again expands them. It's kept " +
+				"for next time."),
 			said("Under each lane, words say where each stretch without room starts and when room is back: at its cap, at its " +
 				"limit, its token refused, as capped 14:31 and out 13:58; ahead, out ~16:05 where it runs out, or caps ~15:45 " +
 				"where it reaches its cap, ~ marking a time projected at its pace, as switchboard usage projects it. Where " +
@@ -75,7 +77,7 @@ func (f Frame) lanesHelp() helpPart {
 }
 
 // poolHelp is the pool's lane as help explains it: its columns, how they're
-// counted and coloured; its room under Σ pool, or collapsed, under Σ; and
+// counted and coloured; its room under Σ pool, or collapsed, under its start; and
 // which accounts the pool is.
 func poolHelp() helpPart {
 	return helpPart{
@@ -86,7 +88,8 @@ func poolHelp() helpPart {
 				"its last from 90%, ▃ at the least where any has room, and where none has room, ▂ along its foot, in a " +
 				"limit's red. An account at its cap or its limit counts without room, one running out at its pace with room " +
 				"until it does, and one not known then without. Under Σ pool, the pool's room in the view's window, as " +
-				"switchboard usage gives it; with the labels collapsed, under Σ, of how many of the pool's accounts have the window, as 1.2/3."),
+				"switchboard usage gives it; with the labels collapsed, without Σ pool, under the lane's start, of how many of " +
+				"the pool's accounts have the window, as 1.2/3."),
 			said("The pool is every account on auto, and the pin's while one holds, as pinned says after its room where it fits; " +
 				"an account out of it is faded, the words under its lane not."),
 		},

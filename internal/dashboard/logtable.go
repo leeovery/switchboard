@@ -246,18 +246,17 @@ func countCell(r views.RequestRow, column LogColumn) line {
 	return nil
 }
 
-// sessionCell names a request's session: its id in text.secondary; with its
-// directory where withDir says, a space and the directory, as
-// views.SessionDirName names it, in text.muted; and — of no session.
+// sessionCell names a request's session as sessionIn names it in
+// sessionColumnCells, its id in text.secondary: with its directory where
+// withDir says; and — of no session.
 func sessionCell(id, dir string, withDir bool) line {
 	if prose.Clean(id) == "" {
 		return line{{"—", faintInk}}
 	}
-	l := line{{status.ShownID(id), secondaryInk}}
-	if name := views.SessionDirName(dir); name != "" && withDir {
-		l = append(l, span{" " + name, mutedInk})
+	if !withDir {
+		dir = ""
 	}
-	return l
+	return sessionIn(id, dir, secondaryInk, sessionColumnCells)
 }
 
 // statusCell is what a request was answered, once its line came or the

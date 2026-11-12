@@ -153,8 +153,9 @@ func TestTheOverviewsSectionsAndGroupingAreKeptBesideTheTab(t *testing.T) {
 // A file v0.2.7 wrote, with the Overview's GRAPHS shown, or its burn-down
 // chosen, or both, reads cleanly, as its other sections and the rest as it
 // kept them, and the next write keeps them and drops what's gone: GRAPHS
-// among the sections and its chart. With GRAPHS alone shown, none of the rest
-// is, kept as [].
+// among the sections and its chart. With GRAPHS alone shown, it reads as
+// none kept, nil, so the Overview opens on those shown at first, and the
+// next write drops it; a list kept empty stays empty, for none.
 func TestAFileOfV027WithGRAPHSReadsWithoutItAndTheNextWriteDropsIt(t *testing.T) {
 	tests := []struct {
 		name, file string
@@ -177,6 +178,12 @@ func TestAFileOfV027WithGRAPHSReadsWithoutItAndTheNextWriteDropsIt(t *testing.T)
 		{
 			name:    "GRAPHS alone shown",
 			file:    `{"sections": ["graphs"], "tab": "overview"}`,
+			read:    theme.Prefs{Tab: "overview"},
+			written: "{\n  \"tab\": \"runway\"\n}\n",
+		},
+		{
+			name:    "none shown, kept as none",
+			file:    `{"sections": [], "tab": "overview"}`,
 			read:    theme.Prefs{Tab: "overview", Sections: []string{}},
 			written: "{\n  \"sections\": [],\n  \"tab\": \"runway\"\n}\n",
 		},

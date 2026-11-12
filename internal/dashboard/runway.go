@@ -20,10 +20,6 @@ const (
 	runwayLaneColumns
 )
 
-// collapsedGap are the cells after the widest label of Runway's label
-// column, collapsed.
-const collapsedGap = 1
-
 // runwayWindows are every window Runway's views can be named for, in the
 // order < and > step between them, as Graphs reads them and a kept window
 // is known by, and runwayNames what the heading calls each. What Runway
@@ -41,9 +37,9 @@ var (
 // keep; and what the watch built at the look: the timeline the lanes are
 // drawn over, as TimelineAt has it, the lanes, as views.Lanes builds them,
 // nil till it's built them, and COMING UP's lines, as views.RunwayComing has
-// them; the cells its accounts' labels take whole, as Labelled sizes them,
-// none till it does; and the windows it offers, as Offering has them. What
-// draws Runway reads what the watch built.
+// them; its accounts' name column, as Labelled sizes it, none till it does;
+// and the windows it offers, as Offering has them. What draws Runway reads
+// what the watch built.
 type RunwayShown struct {
 	Window    views.RunwayWindow
 	Collapsed bool
@@ -51,7 +47,7 @@ type RunwayShown struct {
 	Timeline  views.Timeline
 	Lanes     *views.Lanes
 	Coming    []status.Upcoming
-	labels    runwayLabels
+	labels    flex.Part
 	// offered are the windows the moment of the last look offers, as
 	// views.RunwayWindowsOf has them, which < and > step between: none
 	// before the first. withheld is the window kept that they don't offer,
@@ -61,16 +57,8 @@ type RunwayShown struct {
 	withheld views.RunwayWindow
 }
 
-// runwayLabels are Runway's accounts' labels, as runwayLabelsOf has them:
-// expanded, their name column; and with the account column collapsed, the
-// cells the widest takes.
-type runwayLabels struct {
-	expanded  flex.Part
-	collapsed int
-}
-
-// Labelled is Runway shown as r with its accounts' labels sized for the
-// accounts of the moment m, as runwayLabelsOf sizes them.
+// Labelled is Runway shown as r with its accounts' name column sized for the
+// accounts of the moment m, as runwayLabelsOf sizes it.
 func (r RunwayShown) Labelled(m status.Moment) RunwayShown {
 	r.labels = runwayLabelsOf(namesOf(m))
 	return r
@@ -141,9 +129,13 @@ func (r RunwayShown) Columns(width int) int {
 }
 
 // lanesFrom is the column Runway shown as r starts its lanes at on a
-// terminal width cells wide, after its label column, its parts laid as
+// terminal width cells wide: with the account column collapsed, the first,
+// as it has no label column; else after its label column, its parts laid as
 // runwayParts declares them.
 func (r RunwayShown) lanesFrom(width int) int {
+	if r.Collapsed {
+		return 0
+	}
 	s, _ := flex.Lay(width, r.runwayParts()...)
 	return s[runwayLaneColumns].At
 }
@@ -157,18 +149,11 @@ func (r RunwayShown) runwayParts() []flex.Part {
 	}
 }
 
-// labelsColumn is Runway's label column shown as r, its gap after it: with
-// the account column collapsed, the widest of its labels beside a lane, its
-// marks, or the widest use, 100%, and collapsedGap, whatever
-// the width; else its accounts' names' column, as runwayLabelsOf has it, its
-// natural no less than the widest use under a name, as runwayUseCells has
-// it.
+// labelsColumn is Runway's label column shown as r, its gap after it: its
+// accounts' names' column, as runwayLabelsOf has it, its natural no less than
+// the widest use under a name, as runwayUseCells has it.
 func (r RunwayShown) labelsColumn() flex.Part {
-	if r.Collapsed {
-		cells := max(r.labels.collapsed, widestFigure) + collapsedGap
-		return flex.Part{Least: cells, Natural: cells}
-	}
-	labels := r.labels.expanded
+	labels := r.labels
 	labels.Natural = max(labels.Natural, runwayUseCells())
 	labels.Most = max(labels.Most, labels.Natural)
 	return labels
@@ -204,7 +189,7 @@ func (r RunwayShown) Windowed(by int) (RunwayShown, bool) {
 }
 
 // LiveOf is Runway shown as r showing the live view of the window w, its
-// account column as it is, as Graphs reads Runway's lanes over each window.
+// account column as it is, as Graphs reads Runway's lanes over the week.
 func (r RunwayShown) LiveOf(w views.RunwayWindow) RunwayShown {
 	r.Window, r.Back = w, time.Time{}
 	return r

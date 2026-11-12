@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/identity"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
 )
@@ -386,11 +387,11 @@ func TestStatusSession(t *testing.T) {
 	srv.route(t, sessionOne, "claude-haiku-4-5-20251001")
 	srv.route(t, sessionThree, "claude-haiku-4-5-20251001")
 
-	// A statusline reads the bare id, wherever stdout is.
+	// A statusline reads the account's bare label, wherever stdout is.
 	for _, form := range append(prettyForms(), offATerminal) {
 		t.Run(form.name, func(t *testing.T) {
 			for _, given := range []string{sessionOne, "0b5c6", "0"} {
-				if got, want := form.run(t, srv.deps, "status", "--session", given), (result{stdout: "work\n"}); got != want {
+				if got, want := form.run(t, srv.deps, "status", "--session", given), (result{stdout: "Work\n"}); got != want {
 					t.Errorf("switchboard status --session %s %s = %+v, want %+v", given, strings.Join(form.args, " "), got, want)
 				}
 			}
@@ -407,8 +408,50 @@ func TestStatusSession(t *testing.T) {
 			if got.code != 0 || got.stderr != "" || json.Unmarshal([]byte(got.stdout), &session) != nil {
 				t.Fatalf("switchboard status --session --json = %+v, want exit status 0 and JSON alone", got)
 			}
-			if session.ID != sessionOne || !reflect.DeepEqual(session.Assignments, wantAssignments) || session.Account.ID != "work" || session.Account.Sessions != 2 {
-				t.Errorf("switchboard status --session --json printed\n%+v\nwant the session, its assignment %+v, and work's status with its sessions", session, wantAssignments)
+			if session.ID != sessionOne || !reflect.DeepEqual(session.Assignments, wantAssignments) || session.Account.ID != "work" || session.Account.Label != "Work" ||
+				session.Account.Sessions != 2 {
+				t.Errorf("switchboard status --session --json printed\n%+v\nwant the session, its assignment %+v, and work's status, by its id and label, with its sessions", session, wantAssignments)
+			}
+		})
+	}
+}
+
+// status --session names the session's account as the verbs' text does: by
+// its configured label, by the label the accounts record kept for one
+// removed, saying when, and by its id where nothing names it. Its JSON
+// carries the id, as the router gave it.
+func TestStatusSessionNamesTheAccountByItsLabel(t *testing.T) {
+	tests := []struct {
+		name    string
+		account string
+		want    string
+	}{
+		{name: "configured", account: "side", want: "Side\n"},
+		{name: "configured, in another case", account: "SIDE", want: "Side\n"},
+		{name: "removed", account: "r4n8", want: "Spare (removed 1 Aug)\n"},
+		{name: "named by nothing", account: "b6s7", want: "b6s7\n"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := newServeSetup(t, fakeClaudeAPI(t), nil)
+			writeRecord(t, srv.deps, identity.Entry{ID: "r4n8", Label: "Spare", Added: testNow.AddDate(-1, 0, 0), Removed: time.Date(2026, 8, 1, 12, 0, 0, 0, time.UTC)})
+			session := status.Session{ID: sessionOne, Assignments: []status.Assignment{{Model: "claude-haiku-4-5-20251001", Account: tt.account}}, Account: status.Account{ID: tt.account}}
+			serveRouter(t, srv.socket(), new(atomic.Int64), map[string]http.HandlerFunc{
+				"GET /sessions":      func(w http.ResponseWriter, _ *http.Request) { _ = json.NewEncoder(w).Encode([]status.Session{}) },
+				"GET /sessions/{id}": func(w http.ResponseWriter, _ *http.Request) { _ = json.NewEncoder(w).Encode(session) },
+			})
+
+			for _, form := range append(prettyForms(), offATerminal) {
+				if got, want := form.run(t, srv.deps, "status", "--session", sessionOne), (result{stdout: tt.want}); got != want {
+					t.Errorf("switchboard status --session %s = %+v, want %+v", strings.Join(form.args, " "), got, want)
+				}
+			}
+			for _, form := range withJSON {
+				got := form.run(t, srv.deps, "status", "--session", sessionOne)
+				var printed status.Session
+				if got.code != 0 || json.Unmarshal([]byte(got.stdout), &printed) != nil || printed.AccountID() != tt.account {
+					t.Errorf("switchboard status --session %s = %+v, want the session's JSON, its account by its id, %s", strings.Join(form.args, " "), got, tt.account)
+				}
 			}
 		})
 	}

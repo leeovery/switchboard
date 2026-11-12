@@ -115,7 +115,7 @@ func (d drawn) lane(a status.AccountNow, w views.RunwayWindow) laidLane {
 // the window given, each as a terminal shows it.
 func (d drawn) runwaySays(a status.AccountNow, w views.RunwayWindow) []string {
 	var phrases []string
-	for _, words := range d.runway[w].Runway.view().wordsUnder(d.lane(a, w), d.now) {
+	for _, words := range d.runway[w].Runway.view().wordsUnder(d.lane(a, w), d.now, 0) {
 		phrases = append(phrases, words.said.plain())
 	}
 	return phrases

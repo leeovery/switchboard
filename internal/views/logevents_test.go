@@ -131,6 +131,66 @@ func TestTheLogsEventsAtEachHardMoment(t *testing.T) {
 	}
 }
 
+// A Log row's directory is the one its event carries, over the one its
+// session's lines last name where both do; else theirs. One session's events
+// at each hard moment are given a directory of their own, in the files and
+// the document alike.
+func TestALogRowsDirectoryIsItsEventsElseItsLines(t *testing.T) {
+	const carried = "~/Code/elsewhere"
+	var over, lines int
+	for _, hm := range viewstest.EventMoments() {
+		t.Run(hm.Name, func(t *testing.T) {
+			given := firstSession(hm)
+			hm.Live = slices.Clone(hm.Live)
+			for i := range hm.Live {
+				if given != "" && hm.Live[i].Session == given {
+					hm.Live[i].Dir = carried
+				}
+			}
+			hm.Filed = slices.Clone(hm.Filed)
+			for i := range hm.Filed {
+				if given != "" && hm.Filed[i].Line.Session == given {
+					hm.Filed[i].Line.Dir = carried
+				}
+			}
+			table := eventsOf(hm, eventsRead(hm, filedIn(t, hm)))
+			for _, got := range table.Rows {
+				want := dirOf(hm, got.Session)
+				if given != "" && got.Session == given {
+					want = carried
+					if dirOf(hm, given) != "" {
+						over++
+					}
+				} else if want != "" {
+					lines++
+				}
+				if got.Dir != want {
+					t.Errorf("event %d's row names the directory %q, want %q", got.Key.ID, got.Dir, want)
+				}
+			}
+		})
+	}
+	if over == 0 || lines == 0 {
+		t.Errorf("the moments hold %d rows whose event's directory passes over their lines', and %d named by their lines', want some of each", over, lines)
+	}
+}
+
+// firstSession is the session the moment's first event naming one names,
+// filed or live: "" where none does.
+func firstSession(hm viewstest.EventMoment) string {
+	for _, f := range hm.Filed {
+		if f.Line.Session != "" {
+			return f.Line.Session
+		}
+	}
+	for _, e := range hm.Live {
+		if e.Session != "" {
+			return e.Session
+		}
+	}
+	return ""
+}
+
 // The Log's Events mark each event as LATELY does, from its kind, and of
 // the router's health whether it's well again, at each hard moment, every
 // event LATELY tells of among the document's.
@@ -143,7 +203,7 @@ func TestTheLogsEventsMarkEachEventAsLATELYDoes(t *testing.T) {
 			for _, row := range eventsOf(hm, views.ReadEvents(nil, hm.From, hm.Now).Look(m, hm.Run)).Rows {
 				marked[row.Key] = row
 			}
-			for _, s := range views.Lately(m, len(hm.Live)) {
+			for _, s := range views.Lately(m, len(hm.Live), views.SessionDirs{}) {
 				row, ok := marked[views.EventKey{Run: hm.Run, ID: s.ID}]
 				if !ok {
 					continue

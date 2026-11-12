@@ -1079,7 +1079,7 @@ func TestDetailsListFitsItsNameColumnToTheNames(t *testing.T) {
 		names        int
 		listed, head string
 	}{
-		{name: "the frames' names", width: 160, names: 14, listed: "personal ◆", head: "personal ◆"},
+		{name: "the frames' names", width: 160, names: 14, listed: "personal   ◆", head: "personal ◆"},
 		{name: "a long name, room to spare", width: 200, label: long, names: 20, listed: "personal-account ◆", head: "personal-account ◆"},
 		{name: "a long name, 4 cells past the panel's natural", width: 145, label: long, names: 18, listed: "personal-acco… ◆", head: "personal-account ◆"},
 		{name: "a long name, the panel at its natural", width: 141, label: long, names: 14, listed: "personal-… ◆", head: "personal-account ◆"},
@@ -1351,7 +1351,7 @@ func TestDetailsBYMODELStandsUnderUSAGEAndTHISWEEK(t *testing.T) {
 func TestDetailCuesAStateNewlyChangedAndAFreshLine(t *testing.T) {
 	doc := usageWorld(extraOff, happened(onAuto()...))
 	f := detailFrame(Screen(builtin(t, "nord")), framedAccounts, "work", "", nil, nil)
-	told := views.AccountLately(f.Moment(doc, routedAt), "work", latelyLines)[0]
+	told := views.AccountLately(f.Moment(doc, routedAt), "work", latelyLines, f.sessionDirs())[0]
 	f.StateChanged, f.Fresh = map[string]float64{"work": 0.25}, map[int]float64{told.ID: 0.5}
 	f.Changed = map[string]float64{"personal": 0.25}
 	d := f.detailDrawn(doc, routedAt, laidIn(f, doc))
@@ -1395,10 +1395,38 @@ func TestDetailCuesAStateNewlyChangedAndAFreshLine(t *testing.T) {
 	}
 }
 
+// Detail's SESSIONS names a session by its id, then a space and its
+// directory's last part in text.muted, as the List names one, in a column of
+// their own, so its family lines up down the rows; by its id alone where it
+// has no directory.
+func TestDetailsSESSIONSNamesASessionByItsIDAndItsDirectory(t *testing.T) {
+	const familyAt = 4 + idDirCells + 2
+	tests := []struct {
+		name, dir, want string
+	}{
+		{name: "in a directory", dir: "~/Code/infra", want: "○ d28c infra         opus"},
+		{name: "in a directory past its column, cut", dir: "~/Code/infra-terraform-modules", want: "○ d28c infra-terra…  opus"},
+		{name: "no directory", want: "○ d28c               opus"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := newCanvas(60, 1)
+			r := views.Running{Session: idD28C, Dir: tt.dir, Family: "opus", Activity: views.Activity{LastSeen: routedAt.Add(-time.Hour)}}
+			detailDrawn{m: status.Moment{Now: routedAt}}.session(c, r, 0, 0, false)
+			if got := rowOf(c, 0); !strings.HasPrefix(got, "  "+tt.want) || columnOf(got, "opus") != familyAt {
+				t.Errorf("SESSIONS reads %q, want %q, opus at %d", got, "  "+tt.want, familyAt)
+			}
+			if tt.dir != "" && c.at(9, 0).ink != mutedInk {
+				t.Errorf("its directory is in %+v, want %+v", c.at(9, 0).ink, mutedInk)
+			}
+		})
+	}
+}
+
 // A session in flight as last known, the router not answering, is said in
 // SESSIONS as it was, in text.subtle and not bold, its ○ at rest.
 func TestDetailsSESSIONSSaysWhatsInFlightAsLastKnownAsItWas(t *testing.T) {
-	const doingAt = 18
+	const doingAt = 4 + idDirCells + 2 + 8
 	draw := func(a views.Activity) *canvas {
 		c := newCanvas(40, 1)
 		detailDrawn{m: status.Moment{Now: routedAt}}.session(c, views.Running{Session: idD28C, Family: "opus", Activity: a}, 0, 0, false)

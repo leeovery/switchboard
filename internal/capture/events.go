@@ -168,9 +168,26 @@ func (h happenings) today(hour, minute, second int) time.Time {
 }
 
 // started is the session's start on the account, its first request, of opus,
-// having come at the time given, and why it went there.
+// having come at the time given, and why it went there, in its directory, as
+// dirOf gives it.
 func (h happenings) started(at time.Time, session, account, reason string) status.Event {
-	return status.Event{Kind: status.EventStarted, At: at.Add(startedAfter), Account: account, Session: session, Model: opus, Reason: reason}
+	return status.Event{Kind: status.EventStarted, At: at.Add(startedAfter), Account: account, Session: session, Model: opus, Dir: dirOf(session), Reason: reason}
+}
+
+// dirOf is the directory the frames' session with the given id runs in, as
+// its lines name it (log1.DIRS), which the router records on its events of
+// the session: the traffic's sessions', and 9c2e's, whose lines its plan
+// makes; "" for any other.
+func dirOf(id string) string {
+	if id == id9C2E {
+		return quietDir
+	}
+	for _, s := range trafficSessions {
+		if s.id == id {
+			return s.dir
+		}
+	}
+	return ""
 }
 
 // primed is a prime starting the account's 5-hour window at the time given,
@@ -182,7 +199,7 @@ func (h happenings) primed(at time.Time, account string, resets time.Time) statu
 // moved is the session's requests of opus moving from one account to another
 // at the time given, and why.
 func (h happenings) moved(at time.Time, session, from, to, reason string) status.Event {
-	return status.Event{Kind: status.EventMoved, At: at, Session: session, Model: opus, From: from, To: to, Reason: reason}
+	return status.Event{Kind: status.EventMoved, At: at, Session: session, Model: opus, Dir: dirOf(session), From: from, To: to, Reason: reason}
 }
 
 // forcedOff is the session's move, as moved says, forced by the newest cap,

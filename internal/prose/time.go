@@ -42,12 +42,6 @@ func TimeOfDay(now, t time.Time) string {
 	return t.In(now.Location()).Format(timeLayout)
 }
 
-// HourOfDay shows the hour t falls in, of the 24-hour clock in now's time
-// zone, as a narrow axis of hours names it, such as "13".
-func HourOfDay(now, t time.Time) string {
-	return t.In(now.Location()).Format(hourLayout)
-}
-
 // HourNamed shows an hour of the day, from 0 to 23, as an axis of hours
 // names it, such as "03" or "21".
 func HourNamed(hour int) string {

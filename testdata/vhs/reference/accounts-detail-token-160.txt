@@ -8,7 +8,7 @@ ACCOUNTS    Compare  Detail  [ ]  ───────────────�
                     │            token expires 22 Oct 2026 · 21 days left — switchboard setup makes a new one
  work          ●    │
                     │   USAGE                                                                                        THIS WEEK
- personal ◆    ●    │   Week                  ▋       ┃                ╎   34%  out ~Sat                             requests  1,204
+ personal   ◆  ●    │   Week                  ▋       ┃                ╎   34%  out ~Sat                             requests  1,204
                     │                                                                                                limits    5-hour ×2
  side          ●    │   5-hour                       ┃                 ╎   95%  at cap · back 17:10                  plan      Ultra
                     │                                                                                                worth     $184  4.0×
@@ -27,8 +27,8 @@ ACCOUNTS    Compare  Detail  [ ]  ───────────────�
                     │   hits its limit most weeks   limit hit 3 of the last 7 weeks · 9% left at a reset, on average
                     │
                     │   LATELY      14:31  ╎ reached its cap: 3 sessions moved to side
-                    │               14:12  ▲ 7f3a started here, the best
-                    │               13:22  ▸ db8a came from personal: personal came under pressure
+                    │               14:12  ▲ api started here, the best
+                    │               13:22  ▸ infra came from personal: personal came under pressure
                     │
                     │
                     │
