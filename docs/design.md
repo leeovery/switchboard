@@ -794,11 +794,12 @@ read as a pool by its leaving one out (the owner's call, 11 November 2026).
     reporting itself unhealthy, till the config has its pools or the record reads. Every table it
     routes by knows each account by its id now, so a config naming the ids from before
     switchboard made them routes as one naming the new. The router heals as it starts, before it
-    reads the config, and as it finds the config naming none, the accounts' ids first, then the
-    pools, writing no pools where the ids can't be written, so the file it leaves is one it reads
-    as written; while a heal fails it's tried once a minute, however the config changes meanwhile,
-    a heal that writes the ids but not the pools among them, the log saying once that it couldn't,
-    the heal as it started included, till a heal is written or the config has its pools again.
+    reads the config, and as it finds the config naming none, the accounts' ids and the pools in
+    one edit, neither where either can't be written, and no pool is ever written beside an id from
+    before switchboard made ids, so the file it leaves is one it reads as written; the move writes
+    the first pool the same way. While a heal fails it's tried once a minute, however the config
+    changes meanwhile, the log saying once that it couldn't, the heal as it started included,
+    till a heal is written or the config has its pools again.
   - It's proved before release on a copy of the owner's own history, taken with his word, never on
     the real one: every file moved, every day's totals the same before and after, and the
     dashboard and the verbs reading it whole.

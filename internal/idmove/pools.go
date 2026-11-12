@@ -74,6 +74,10 @@ type PoolMover struct {
 	// stop, where it's set, is called with each step's name once it's done:
 	// a failure stops the move there, as a test of one stopped there has it.
 	stop func(step string) error
+	// editing, where it's set, is called as configure has made its edit of
+	// the config, before it saves it, as a test of a change made meanwhile
+	// has it.
+	editing func()
 }
 
 // PoolsMoved reports whether the move to pools is done in the state
@@ -196,49 +200,54 @@ func configuredIDs(draft *config.Draft) []string {
 	return slices.Concat(cfg.Accounts.IDs(), cfg.Pools.IDs())
 }
 
-// configure writes, in the config file, the accounts' new ids back, as Heal
-// writes them, then the pools the accounts record keeps, where it names
-// none, as restore writes them. Every write of pools into a config goes
-// through it, the move's and the heals', so none holds pools keyed by the
-// ids the accounts had before: where the ids can't be written it writes no
-// pools, failing. It reports whether it wrote the ids, and whether it wrote
-// the pools.
+// configure writes, in the config file, the accounts' new ids back, as
+// renameConfig writes them, where the move onto the ids is done, then the
+// pools the accounts record keeps, where it names none, as restorePools
+// writes them: one edit, under the record's lock, made afresh where the
+// config changed as it was edited, configTries times at most, so nothing put
+// back between the two is written beside them. Every write of pools into a
+// config goes through it, the move's and the heals'. Where either can't be
+// written it writes neither, failing. A config without accounts, of which
+// draft holds no config, is left as it is. It reports whether it wrote the
+// ids, and whether it wrote the pools.
 func (m *PoolMover) configure() (ids, pools bool, err error) {
-	if ids, err = Heal(m.ConfigPath, m.StateDir, m.HomeDir); err != nil {
-		return false, false, fmt.Errorf("write the accounts' new ids back first: %w", err)
-	}
-	pools, err = m.restore()
-	return ids, pools, err
-}
-
-// restore writes the pools the accounts record keeps to a config that has
-// none, as restorePools has them, in one edit, under the record's lock: made
-// afresh where the config changed as it was edited, configTries times at
-// most. A config with pools is left as it is, as is one without accounts,
-// of which draft holds no config. It reports whether it changed the config,
-// and fails as restorePools does.
-func (m *PoolMover) restore() (bool, error) {
 	for range configTries {
-		changed := false
-		err := m.record().Change(func(r *identity.Record, _ func() error) error {
+		ids, pools = false, false
+		err = m.record().Change(func(r *identity.Record, _ func() error) error {
 			draft, err := config.Edit(m.ConfigPath, m.HomeDir)
-			if err != nil {
+			if err != nil || draft.Config() == nil {
 				return err
 			}
-			if cfg := draft.Config(); cfg == nil || len(cfg.Pools) > 0 {
+			if Moved(m.StateDir) {
+				if ids, err = renameConfig(draft, *r); err != nil {
+					return fmt.Errorf("write the accounts' new ids back first: %w", err)
+				}
+			}
+			if len(draft.Config().Pools) == 0 {
+				if err := restorePools(draft, *r); err != nil {
+					return err
+				}
+				pools = true
+			}
+			if m.editing != nil {
+				m.editing()
+			}
+			if !ids && !pools {
 				return nil
 			}
-			if err := restorePools(draft, *r); err != nil {
-				return err
-			}
-			changed = true
 			return draft.Save()
 		})
 		if !errors.Is(err, config.ErrChanged) {
-			return changed, err
+			break
 		}
 	}
-	return false, fmt.Errorf("write the pools in the config: %w", config.ErrChanged)
+	switch {
+	case errors.Is(err, config.ErrChanged):
+		return false, false, fmt.Errorf("write the pools in the config: %w", err)
+	case err != nil:
+		return false, false, err
+	}
+	return ids, pools, nil
 }
 
 // KeptPools are the pools the accounts record keeps of this Mac's config, as
@@ -297,10 +306,18 @@ func PoolsKept(record identity.Record, ids []string) (KeptPools, error) {
 // keeps, as PoolsKept gives them, in its order, each as the config last wrote
 // it; has each account in the pool PoolsKept has it in; and marks each
 // pool's primary as the config last did, as restorePrimaries says. It fails,
-// writing nothing, as PoolsKept does, where an account is in no pool, as
-// none a pooled config can have, or where draft refuses an edit.
+// writing nothing, where draft names an account by the id it had before
+// switchboard made ids, as MovedFrom finds it, so no pool is ever written
+// beside one, whatever wrote the ids or didn't first; as PoolsKept does;
+// where an account is in no pool, as none a pooled config can have; or where
+// draft refuses an edit.
 func restorePools(draft *config.Draft, record identity.Record) error {
 	ids := draft.Config().Accounts.IDs()
+	for _, id := range ids {
+		if e, moved := record.MovedFrom(id); moved {
+			return fmt.Errorf("the config names account %s by the id it had before switchboard made ids, so no pool is written beside it till it's written as %s", id, e.ID)
+		}
+	}
 	kept, err := PoolsKept(record, ids)
 	if err != nil {
 		return err
@@ -386,17 +403,17 @@ func configuredPools(record identity.Record) []config.NewPool {
 }
 
 // HealConfig heals the config file at configPath, read in the home directory
-// homeDir returns: the accounts' new ids written back, as Heal writes them;
-// then, where the move to pools is done in the state directory stateDir and
-// the config names no pool, as where a change to it made by hand, or a
-// repository it's kept in, put one from before pools back, the pools the
-// accounts record there keeps, their labels and directories, and each
-// account in the pool the record last had it in, as configure writes them,
-// the ids first. A router heals its config before it reads it, so it starts
-// in pools; and as it follows it, so one put back is healed at once. It
-// holds the record's lock as it writes the pools, so it's never called
-// holding it. It reports whether it wrote the ids, and whether it wrote the
-// pools.
+// homeDir returns: the accounts' new ids written back, as Heal writes them,
+// till the move to pools is done in the state directory stateDir; once it
+// is, the ids and, where the config names no pool, as where a change to it
+// made by hand, or a repository it's kept in, put one from before pools
+// back, the pools the accounts record there keeps, their labels and
+// directories, and each account in the pool the record last had it in, in
+// one edit, as configure writes them, neither where either can't be. A
+// router heals its config before it reads it, so it starts in pools; and as
+// it follows it, so one put back is healed at once. It holds the record's
+// lock as it writes, so it's never called holding it. It reports whether it
+// wrote the ids, and whether it wrote the pools.
 func HealConfig(configPath, stateDir string, homeDir func() (string, error)) (ids, pools bool, err error) {
 	if !PoolsMoved(stateDir) {
 		ids, err = Heal(configPath, stateDir, homeDir)

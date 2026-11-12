@@ -117,13 +117,13 @@ func (a *app) awaitMove(ctx context.Context, out io.Writer, stateDir string) err
 
 // heal heals the config file at path as idmove.HealConfig does, the
 // accounts' new ids written back where the config names any by the id it
-// had before, then the pools the accounts record keeps where it names none,
+// had before, and the pools the accounts record keeps where it names none,
 // as a router starts, before it reads the config, so it starts on the ids
 // the token files are named by, in the pools it had, the config read in the
 // home directory homeDir returns. Where it can't, the router starts all the
-// same, routing within the pools the accounts record keeps, and it returns
-// why, for the router to tell of and try again, as router.Config's Unhealed
-// says.
+// same, and it returns why, for the router to tell of, and to try again
+// where the move to pools is done and the config names no pools, as
+// router.Config's Unhealed says.
 func heal(path, stateDir string, homeDir func() (string, error)) error {
 	ids, pools, err := idmove.HealConfig(path, stateDir, homeDir)
 	if ids {

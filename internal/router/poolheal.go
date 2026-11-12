@@ -19,9 +19,8 @@ const healRetry = time.Minute
 // apart: the router routes within the pools the accounts record keeps
 // meanwhile, as membership's kept says, whether or not the heal can be
 // written. While a heal doesn't write it, it's tried once a minute at most,
-// however the config changes meanwhile, as a heal that writes the ids but
-// not the pools changes it itself; and a failure is told of once, the heal
-// as the router started, which serve tries, among them, till a heal is
+// however the config changes meanwhile; and a failure is told of once, the
+// heal as the router started, which serve tries, among them, till a heal is
 // written or the config has its pools again.
 type poolHealer struct {
 	path, stateDir string

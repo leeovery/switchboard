@@ -896,6 +896,49 @@ func TestTheMoveToPoolsWritesNoPoolsWhereItCantWriteTheIDsBack(t *testing.T) {
 	}
 }
 
+// A config put back from before both moves as the move writes the first
+// pool is written with its ids and the pools together, in the edit made
+// afresh: never a pool beside an id from before.
+func TestAConfigPutBackAsThePoolsAreWrittenGetsThemUnderItsNewIDs(t *testing.T) {
+	f := newIDsFixture(t)
+	ids := f.configuredIDs(t)
+	mover := f.poolMover()
+	putBack := false
+	mover.OnEditing(func() {
+		if !putBack {
+			putBack = true
+			writeFile(t, f.config, fixtureConfig)
+		}
+	})
+
+	if err := mover.Run(t.Context()); err != nil {
+		t.Fatalf("Run() = %v", err)
+	}
+	first := f.firstPool(t)
+	if _, members := poolsIn(t, f.config); !maps.Equal(members, map[string]string{ids[0]: first, ids[1]: first}) {
+		t.Errorf("the config has the accounts in the pools %v, want %q each by its id now in the first, %s", members, ids, first)
+	}
+}
+
+// restorePools refuses a config naming an account by the id it had before,
+// whatever wrote the ids or didn't first, as where the move onto the ids
+// isn't marked done.
+func TestThePoolsAreNeverWrittenBesideAnIDFromBefore(t *testing.T) {
+	f := newIDsFixture(t)
+	f.pooled(t)
+	if err := os.Remove(filepath.Join(f.state, "accounts.moved")); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, f.config, fixtureConfig)
+
+	if ids, pools, err := idmove.HealConfig(f.config, f.state, testHome); err == nil || ids || pools {
+		t.Errorf("HealConfig() = %v, %v, %v; want it to fail, writing nothing", ids, pools, err)
+	}
+	if got := readFile(t, f.config); got != fixtureConfig {
+		t.Errorf("the config reads\n%s\nwant it as it was, no pool beside an id from before\n%s", got, fixtureConfig)
+	}
+}
+
 // unwritableIDs is fixtureConfig, work's id under a key written so the
 // config's edit can't write its new id back.
 const unwritableIDs = "[[account]]\n\"i\\u0064\" = \"work\"\nlabel   = \"Work\"\nprimary = true\n\n[[account]]\nid = \"personal\"\n"

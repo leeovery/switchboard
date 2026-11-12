@@ -175,7 +175,7 @@ func TestALookThatCantWriteTheIDsBackWritesNoPoolsAndRoutesByTheRecord(t *testin
 	}
 }
 
-func TestAHealThatWritesTheIDsButNotThePoolsIsToldOfOnceAndTriedAMinuteOn(t *testing.T) {
+func TestAHealThatCantWriteThePoolsWritesNeitherIsToldOfOnceAndTriedAMinuteOn(t *testing.T) {
 	log := logstest.Capture(t)
 	stateDir := t.TempDir()
 	// Every pool fenced, so newcomer, in none, has none to go to.
@@ -183,15 +183,16 @@ func TestAHealThatWritesTheIDsButNotThePoolsIsToldOfOnceAndTriedAMinuteOn(t *tes
 	r, path := newWatchingPoolsRouter(t, stateDir, func(cfg *Config) { cfg.Formerly = formerlyOld })
 	clock := &testClock{now: start}
 	r.upkeep.heal.now = clock.read
+	putBack := unpooledTOML("old-work", "old-personal", "old-side", "newcomer")
 
-	writeConfigFile(t, path, unpooledTOML("old-work", "old-personal", "old-side", "newcomer"))
+	writeConfigFile(t, path, putBack)
 	r.upkeep.look()
-	if got, want := membersOf(t, path), map[string]string{"work": "", "personal": "", "side": "", "newcomer": ""}; !maps.Equal(got, want) {
-		t.Fatalf("the config has the accounts in the pools %v, want %v: the ids written back, the pools not", got, want)
+	if got, err := os.ReadFile(path); err != nil || string(got) != putBack {
+		t.Fatalf("the config reads\n%s\n(%v), want it as it was: the ids and the pools written together or not at all\n%s", got, err, putBack)
 	}
 	r.upkeep.look()
 	if n := timesLogged(log, "level=WARN", "couldn't heal the config"); n != 1 {
-		t.Errorf("the log says the config couldn't be healed %d times, want once: the config the heal changed itself is no new failure\n%s", n, log)
+		t.Errorf("the log says the config couldn't be healed %d times, want once\n%s", n, log)
 	}
 
 	// Newcomer leaves: the heal could be written now, but it's tried a
