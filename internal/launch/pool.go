@@ -12,7 +12,6 @@ import (
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/router"
-	"github.com/leeovery/switchboard/internal/status"
 )
 
 // place is where a launch is among the pools configured: the pool the
@@ -57,37 +56,53 @@ func (p place) holds(a config.Account) bool {
 	return !p.pooled() || strings.EqualFold(a.Pool, p.pool.ID)
 }
 
+// noToken is why a launch in the session's pool doesn't start where none of
+// its accounts has a usable token: Claude Code's own login would go out on
+// whatever account it's signed into, in another pool or none.
+func (p place) noToken() string {
+	return "pool " + poolSaid(p.pool) + " has no account with a usable token"
+}
+
 // elsewhere is why a pin to a, an account in another pool, is refused,
 // saying which pool each is in, as "Acme 1 (k3f9) is in pool Acme; this
-// directory is in pool Default".
+// directory is in pool Default". An account in none is one the router, whose
+// pools these are, doesn't route yet.
 func (p place) elsewhere(a config.Account) error {
+	named := prose.AccountNamed(a.Label, a.ID)
+	if a.Pool == "" {
+		return fmt.Errorf("%s is in no pool the router routes yet; this directory is in pool %s", named, poolSaid(p.pool))
+	}
 	theirs, ok := p.pools.ByID(a.Pool)
 	if !ok {
 		theirs = config.Pool{ID: a.Pool}
 	}
-	return fmt.Errorf("%s is in pool %s; this directory is in pool %s", accountSaid(a), poolSaid(theirs), poolSaid(p.pool))
+	return fmt.Errorf("%s is in pool %s; this directory is in pool %s", named, poolSaid(theirs), poolSaid(p.pool))
 }
 
-// withPools returns the config Run launches on, the router's health answer
-// being h: r's, but where it names no pools once the move to pools is done.
-// Then, as a session naming no pool would be routed in the first pool for
-// its life, which may be fenced, it takes the pools the router routes for,
-// where h reports them (see pooledBy); else those the accounts record keeps;
-// else it refuses, failing with ErrNotStarted, Stderr hearing why. Before
-// the move, a config naming no pools launches as before pools.
-func (l Launcher) withPools(r Route, h router.Health) (*config.Config, error) {
+// withPools returns r as Run launches on it, ask asking the router how it
+// is, once, where it's to be asked: as it is, but where its config names no
+// pools once the move to pools is done. Then, as a session naming no pool
+// would be routed in the first pool for its life, which may be fenced, it
+// takes the pools the router routes for, where its answer reports them (see
+// pooledBy); else those the accounts record keeps; else it refuses, failing
+// with ErrNotStarted, Stderr hearing why. Before the move, a config naming no
+// pools launches as before pools.
+func (l Launcher) withPools(r Route, ask func() (router.Health, routerState)) (Route, error) {
 	if !r.Moved || len(r.Config.Pools) > 0 {
-		return r.Config, nil
+		return r, nil
 	}
+	h, _ := ask()
 	if pools, reported := RoutedPools(h); reported {
-		return pooledBy(r.Config, h, pools), nil
+		r.Config, r.fromRouter = pooledBy(r.Config, h, pools), true
+		return r, nil
 	}
 	if r.Kept != nil {
 		if kept, ok := r.Kept(r.Config); ok && len(kept.Pools) > 0 {
-			return kept, nil
+			r.Config = kept
+			return r, nil
 		}
 	}
-	return nil, l.refuse("the config names no pools, and switchboard can't tell which pool "+l.where()+" is in", "dir", l.Dir)
+	return r, l.refuse("the config names no pools, and switchboard can't tell which pool "+l.where()+" is in", "dir", l.Dir)
 }
 
 // pooledBy returns cfg, a config naming no pools, with pools, those the
@@ -110,43 +125,99 @@ func pooledBy(cfg *config.Config, h router.Health, pools config.Pools) *config.C
 	return &pooled
 }
 
-// placed returns where a launch on cfg is among its pools: the pool whose
-// directories hold Dir, links resolved, else the unfenced pool. In a config
-// without pools, it's every account's, as before pools. It refuses, failing
-// with ErrNotStarted, Stderr hearing why, where no pool covers Dir, as where
-// every pool is fenced, or the pool has no accounts.
-func (l Launcher) placed(cfg *config.Config) (place, error) {
-	if len(cfg.Pools) == 0 {
-		return place{accounts: cfg.Accounts}, nil
+// placed returns where a launch on r's config is among its pools: the pool
+// sessionPool finds. In a config without pools, it's every account's, as
+// before pools. It refuses, failing with ErrNotStarted, Stderr hearing why,
+// where the session can be in no pool, as sessionPool says, or its pool has
+// no accounts, or, of the router's accounts, none it routes yet.
+func (l Launcher) placed(r Route) (place, error) {
+	if len(r.Config.Pools) == 0 {
+		return place{accounts: r.Config.Accounts}, nil
 	}
-	pool, ok := l.covering(cfg.Pools)
-	if !ok {
-		return place{}, l.refuse("no pool covers "+l.where(), "dir", l.Dir)
+	pool, why := l.sessionPool(r.Config.Pools)
+	if why != "" {
+		return place{}, l.refuse(why, "dir", l.Dir)
 	}
-	in := place{pools: cfg.Pools, pool: pool, accounts: cfg.Accounts.InPool(pool.ID)}
-	if len(in.accounts) == 0 {
-		return place{}, l.refuse("pool "+poolSaid(pool)+" has no accounts", "pool", pool.ID)
+	in := place{pools: r.Config.Pools, pool: pool, accounts: r.Config.Accounts.InPool(pool.ID)}
+	if len(in.accounts) > 0 {
+		return in, nil
 	}
-	return in, nil
+	if r.fromRouter {
+		return place{}, l.refuse("the router routes no account of pool "+poolSaid(pool)+" yet: any the config gives it waits for the router to restart", "pool", pool.ID)
+	}
+	return place{}, l.refuse("pool "+poolSaid(pool)+" has no accounts", "pool", pool.ID)
 }
 
-// covering returns the pool of pools a session started in Dir is in, as
-// config.Pools' Covering finds it, the links in Dir and in each pool's
-// directories resolved first, so a directory reached through a link is in
-// the pool of where it leads. It reports false where no pool covers Dir.
-func (l Launcher) covering(pools config.Pools) (config.Pool, bool) {
-	resolved := make(config.Pools, len(pools))
-	for i, p := range pools {
-		resolved[i] = config.Pool{ID: p.ID, Dirs: make([]string, len(p.Dirs))}
-		for j, dir := range p.Dirs {
-			resolved[i].Dirs[j] = l.resolved(dir)
+// unknownDir is why no launch starts where the directory it starts in isn't
+// known while a pool is fenced: it may be inside that pool's fence.
+const unknownDir = "can't tell which pool the directory claude starts in is in"
+
+// sessionPool returns the pool of pools a session started in Dir is in: the
+// fenced pool holding Dir, as fencesHolding finds it, so a link into a fence
+// or out of one leaves the session inside it; else the unfenced pool. Where
+// it can be in none, it returns why instead: Dir isn't known while a pool is
+// fenced; two fenced pools hold it, through its links; or none covers it, as
+// where every pool is fenced.
+func (l Launcher) sessionPool(pools config.Pools) (config.Pool, string) {
+	if l.Dir == "" && slices.ContainsFunc(pools, config.Pool.Fenced) {
+		return config.Pool{}, unknownDir
+	}
+	switch held := l.fencesHolding(pools); len(held) {
+	case 0:
+		if p, ok := pools.Unfenced(); ok {
+			return p, ""
+		}
+		return config.Pool{}, "no pool covers " + l.where()
+	case 1:
+		return held[0], ""
+	default:
+		return config.Pool{}, l.where() + " is in " + poolsNamed(held) + ", as its links lead"
+	}
+}
+
+// ownLoginBarred says why Claude Code doesn't start on its own login in Dir,
+// of pools, which would go out on whatever account it's signed into: Dir is
+// in a fenced pool, as fencesHolding finds it, or isn't known while a pool is
+// fenced. It says "" where it can start so.
+func (l Launcher) ownLoginBarred(pools config.Pools) string {
+	if l.Dir == "" && slices.ContainsFunc(pools, config.Pool.Fenced) {
+		return unknownDir
+	}
+	held := l.fencesHolding(pools)
+	if len(held) == 0 {
+		return ""
+	}
+	return l.where() + " is in " + poolsNamed(held) + ", where claude never starts on its own login"
+}
+
+// fencesHolding returns the fenced pools of pools that hold Dir, in their
+// order: those with a directory that Dir, as given or with its links
+// resolved, is within, the directory as written or with its own links
+// resolved. No two pools' directories overlap as written, but they can once
+// links are resolved, so more than one can.
+func (l Launcher) fencesHolding(pools config.Pools) config.Pools {
+	starts := l.alsoResolved(l.Dir)
+	var held config.Pools
+	for _, p := range pools {
+		fence := config.Pool{Dirs: l.alsoResolved(p.Dirs...)}
+		if p.Fenced() && slices.ContainsFunc(starts, fence.Covers) {
+			held = append(held, p)
 		}
 	}
-	found, ok := resolved.Covering(l.resolved(l.Dir))
-	if !ok {
-		return config.Pool{}, false
+	return held
+}
+
+// alsoResolved returns paths, each followed by itself with its links
+// resolved, where that differs.
+func (l Launcher) alsoResolved(paths ...string) []string {
+	var both []string
+	for _, path := range paths {
+		both = append(both, path)
+		if real := l.resolved(path); real != path {
+			both = append(both, real)
+		}
 	}
-	return pools.ByID(found.ID)
+	return both
 }
 
 // resolved returns path with its links resolved, or as it is where they
@@ -161,24 +232,10 @@ func (l Launcher) resolved(path string) string {
 	return path
 }
 
-// fencedIn returns the fenced pool of pools whose directories hold Dir,
-// links resolved, reporting false where none does.
-func (l Launcher) fencedIn(pools config.Pools) (config.Pool, bool) {
-	p, ok := l.covering(pools)
-	return p, ok && p.Fenced()
-}
-
 // where names Dir as Stderr hears it: as shownDir shows it, such as
 // ~/Code/acme, or as the directory claude starts in where it isn't known.
 func (l Launcher) where() string {
 	return cmp.Or(l.shownDir(), "the directory claude starts in")
-}
-
-// inFence is why a launch on Claude Code's own login doesn't start in Dir,
-// inside the fenced pool p's directories: it would go out on whatever
-// account Claude Code is signed into.
-func (l Launcher) inFence(p config.Pool) string {
-	return l.where() + " is in pool " + poolSaid(p) + ", where claude never starts on its own login"
 }
 
 // refuse starts nothing, for why, as "no pool covers ~/Code/other", which
@@ -223,24 +280,33 @@ func (r Route) takingUp(ctx context.Context, h router.Health, state routerState,
 	return routerState{name: otherPools, reason: why, asked: state.asked + since(began)}
 }
 
+// passesHeaders is why a router that reports its pools can't be told a
+// session's pool: without its header, every session would be in its first.
+const passesHeaders = "it would pass switchboard's own headers on to the API"
+
 // poolsDiffer says how the pools the router routes for, as its health answer
 // h reports them, aren't cfg's, as a launch in the pool with the given id
-// needs them: "" where they are. They're the same pools, by id, each with the
-// same directories as cfg finds them, links unresolved; every account the
-// router routes in a pool is in that pool in cfg, while an account cfg has
-// added, which waits for the router's restart, can be missing; each pool's
-// primary is cfg's, where the router has that account; and the router routes
-// one of the launch's pool's accounts at least.
+// needs them: "" where they are. The router takes switchboard's own headers
+// off what it sends upstream, so it can be told the pool; they're the same
+// pools, by id, each with the same directories, as fencesDiffer compares
+// them; every account the router routes in a pool is in that pool in cfg,
+// while an account cfg has added, which waits for the router's restart, can
+// be missing; each pool's primary is cfg's, where the router has that
+// account; and the router routes one of the launch's pool's accounts at
+// least.
 func poolsDiffer(h router.Health, cfg *config.Config, pool string) string {
-	if !h.ReportsPools {
+	switch {
+	case !h.ReportsPools:
 		return "it's from before pools"
+	case !h.StripsOwnHeaders:
+		return passesHeaders
 	}
 	routed := routing(h.Pools)
-	if len(routed) != len(cfg.Pools) {
-		return "its pools aren't the config's"
+	if why := routed.fencesDiffer(cfg.Pools); why != "" {
+		return why
 	}
 	for _, p := range cfg.Pools {
-		if why := routed.differs(p, cfg.Accounts); why != "" {
+		if why := routed.accountsDiffer(p, cfg.Accounts); why != "" {
 			return why
 		}
 	}
@@ -273,15 +339,29 @@ func (r routing) has(id string) bool {
 	})
 }
 
-// differs says how the router's pool p, of accounts, isn't the config's, as
-// poolsDiffer compares them: "" where it is.
-func (r routing) differs(p config.Pool, accounts config.Accounts) string {
-	routed, ok := r.of(p.ID)
-	switch {
-	case !ok:
+// fencesDiffer says how the router's pools aren't pools: "" where they're
+// the same pools, by id, each with the same directories, links unresolved.
+func (r routing) fencesDiffer(pools config.Pools) string {
+	if len(r) != len(pools) {
 		return "its pools aren't the config's"
-	case !sameDirs(p.Dirs, routed.Dirs):
-		return "pool " + poolSaid(p) + "'s directories aren't the config's"
+	}
+	for _, p := range pools {
+		routed, ok := r.of(p.ID)
+		switch {
+		case !ok:
+			return "its pools aren't the config's"
+		case !sameDirs(p.Dirs, routed.Dirs):
+			return "pool " + poolSaid(p) + "'s directories aren't the config's"
+		}
+	}
+	return ""
+}
+
+// accountsDiffer says how the accounts of the router's pool p, of accounts,
+// aren't the config's, as poolsDiffer compares them: "" where they are.
+func (r routing) accountsDiffer(p config.Pool, accounts config.Accounts) string {
+	routed, _ := r.of(p.ID)
+	switch {
 	case !allIn(routed.Accounts, p.ID, accounts):
 		return "pool " + poolSaid(p) + "'s accounts aren't the config's"
 	case !r.samePrimary(routed, p.ID, accounts):
@@ -311,6 +391,55 @@ func allIn(ids []string, pool string, accounts config.Accounts) bool {
 func (r routing) samePrimary(routed router.RoutedPool, pool string, accounts config.Accounts) bool {
 	primary, ok := accounts.PrimaryOf(pool)
 	return !ok || !r.has(primary.ID) || strings.EqualFold(routed.Primary, primary.ID)
+}
+
+// Written is the pools the config file writes, as read where the config
+// can't be: Pools, read by every rule the config holds them to; or, where
+// they break one, Unchecked, each pool's id, label and directories, as many
+// as can be found, which keep Claude Code's own login out of their fences,
+// but are never routed by.
+type Written struct {
+	Pools     config.Pools
+	Unchecked bool
+}
+
+// fences returns the pools Claude Code's own login is kept out of the fences
+// of where the config can't be read: w's, where the file writes any, as the
+// user would have them, else the router's, as its health answer h reports
+// them.
+func (w Written) fences(h router.Health) config.Pools {
+	if len(w.Pools) > 0 {
+		return w.Pools
+	}
+	pools, _ := RoutedPools(h)
+	return pools
+}
+
+// unroutedBy says why the router, as its health answer h reports the pools
+// it routes for, isn't routed through where the config can't be read, its
+// file writing w: "" where it is. One reporting pools, of several, would
+// pass the pool on to the API; or its pools aren't w's, by id and
+// directories, where w has any, as fencesDiffer compares them, as the router
+// would route by fences the user has since changed. One reporting none
+// routes every account in one pool, which isn't w's where w has several, or
+// any that break the config's rules.
+func (w Written) unroutedBy(h router.Health) string {
+	if _, reported := RoutedPools(h); reported {
+		switch {
+		case len(h.Pools) > 1 && !h.StripsOwnHeaders:
+			return passesHeaders
+		case len(w.Pools) > 0:
+			return routing(h.Pools).fencesDiffer(w.Pools)
+		}
+		return ""
+	}
+	switch {
+	case len(w.Pools) > 1:
+		return "it reports no pools, and the config file writes several"
+	case w.Unchecked && len(w.Pools) > 0:
+		return "it reports no pools, and the config file's break its rules"
+	}
+	return ""
 }
 
 // RoutedPools returns the pools a router routes for, as its health answer h
@@ -344,17 +473,19 @@ func routedConfig(h router.Health, pools config.Pools) (*config.Config, error) {
 	return &config.Config{Accounts: accounts, Pools: pools}, nil
 }
 
-// accountSaid names the account a by its label, and its id beside where that
-// differs, as "Acme 1 (k3f9)": one labelled by its id is named once.
-func accountSaid(a config.Account) string {
-	label, id := status.ConfiguredName(a).Said(), prose.Clean(a.ID)
-	if strings.EqualFold(label, id) {
-		return id
-	}
-	return label + " (" + id + ")"
-}
-
 // poolSaid names the pool p by its label, else its id.
 func poolSaid(p config.Pool) string {
 	return prose.Clean(cmp.Or(p.Label, p.ID))
+}
+
+// poolsNamed names pools, as "pool Acme", or "pools Acme and Client".
+func poolsNamed(pools config.Pools) string {
+	said := make([]string, len(pools))
+	for i, p := range pools {
+		said[i] = poolSaid(p)
+	}
+	if len(said) == 1 {
+		return "pool " + said[0]
+	}
+	return "pools " + prose.List(said)
 }

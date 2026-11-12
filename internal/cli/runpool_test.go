@@ -2,6 +2,7 @@ package cli_test
 
 import (
 	"encoding/json"
+	"errors"
 	"maps"
 	"net/http"
 	"os"
@@ -289,10 +290,15 @@ func TestRunWithoutAConfigItCanReadRoutesInThePoolTheRouterSays(t *testing.T) {
 	}
 }
 
+// invalidPooled is pooledAccounts in a config otherwise invalid, for a key
+// from before the token files; and invalidPools the same, its pools breaking
+// the config's rules for them, Acme's two directories overlapping.
+var (
+	invalidPooled = strings.Replace(pooledAccounts, "label = \"Side\"\n", "label = \"Side\"\ntoken_env = \"CLAUDE_TOKEN_SIDE\"\n", 1)
+	invalidPools  = strings.Replace(invalidPooled, `dirs  = ["~/Code/acme"]`, `dirs  = ["~/Code/acme", "~/Code/acme/api"]`, 1)
+)
+
 func TestRunWithoutAConfigItCanReadNorTheRouterReadsTheConfigsPools(t *testing.T) {
-	// The pools, in a config otherwise invalid, for a key from before the
-	// token files.
-	invalidPooled := strings.Replace(pooledAccounts, "label = \"Side\"\n", "label = \"Side\"\ntoken_env = \"CLAUDE_TOKEN_SIDE\"\n", 1)
 	tests := []struct {
 		name   string
 		config string
@@ -322,6 +328,19 @@ func TestRunWithoutAConfigItCanReadNorTheRouterReadsTheConfigsPools(t *testing.T
 			wantSaid:    "starting claude without it\n",
 			wantStarted: true,
 		},
+		{
+			name:     "inside a fence of pools that break the config's rules",
+			config:   invalidPools,
+			dir:      "Code/acme/api",
+			wantSaid: "~/Code/acme/api is in pool Acme, where claude never starts on its own login — not starting claude\n",
+		},
+		{
+			name:        "outside every fence of pools that break the config's rules",
+			config:      invalidPools,
+			dir:         "Code/project",
+			wantSaid:    "starting claude without it\n",
+			wantStarted: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -338,6 +357,62 @@ func TestRunWithoutAConfigItCanReadNorTheRouterReadsTheConfigsPools(t *testing.T
 				t.Errorf("switchboard run = %+v, handing over %d times; want claude started: %v", got, len(handed.made), tt.wantStarted)
 			}
 		})
+	}
+}
+
+func TestRunOnItsOwnLoginWithoutAConfigItCanReadNeverStartsInsideAFence(t *testing.T) {
+	const inside = "switchboard: ~/Code/acme/api is in pool Acme, where claude never starts on its own login — not starting claude\n"
+	tests := []struct {
+		name   string
+		config string
+		// answering has the router answer with pooledAccounts' pools.
+		answering bool
+	}{
+		{name: "the router answering: its fences, the config file's unreadable", config: "[[pool]\n", answering: true},
+		{name: "the router down: the config file's fences", config: invalidPooled},
+		{name: "the router down: the fences of pools that break the config's rules", config: invalidPools},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := newServeSetup(t, fakeClaudeAPI(t), map[string]string{"SWITCHBOARD_CONFIG": writeConfig(t, tt.config)})
+			if tt.answering {
+				serveHealth(t, srv.deps, pooledHealth(t, srv.deps))
+			}
+			startingIn(t, &srv.deps, "Code/acme/api")
+			handed := recordHandOffs(t, &srv.deps)
+
+			if got, want := run(t, srv.deps, "run", "--direct"), (result{stderr: inside, code: 1}); got != want {
+				t.Errorf("switchboard run --direct = %+v, want %+v", got, want)
+			}
+			if len(handed.made) != 0 {
+				t.Errorf("handed over %d times, want none", len(handed.made))
+			}
+		})
+	}
+}
+
+func TestRunWithoutFindingTheRouterNeverStartsOnItsOwnLoginInsideAFence(t *testing.T) {
+	acme := filepath.Join(t.TempDir(), "acme")
+	pooled := strings.Replace(pooledAccounts, `dirs  = ["~/Code/acme"]`, `dirs  = ["`+acme+`"]`, 1)
+	env := map[string]string{"SWITCHBOARD_CONFIG": writeConfig(t, pooled), "SWITCHBOARD_WHEN_ROUTER_DOWN": "direct"}
+	deps := testDeps(env, t.TempDir())
+	handed := recordHandOffs(t, &deps)
+	// Without a home directory, the state directory the router's socket and
+	// the token files are in can't be located.
+	deps.HomeDir = func() (string, error) { return "", errors.New("no home directory") }
+	deps.Getwd = func() (string, error) { return filepath.Join(acme, "api"), nil }
+	env["PATH"] = filepath.Dir(handed.claude)
+
+	want := result{
+		stderr: "switchboard: couldn't find the router (locate state directory: no home directory) — " +
+			"pool Acme has no account with a usable token — not starting claude\n",
+		code: 1,
+	}
+	if got := run(t, deps, "run"); got != want {
+		t.Errorf("switchboard run = %+v, want %+v", got, want)
+	}
+	if len(handed.made) != 0 {
+		t.Errorf("handed over %d times, want none", len(handed.made))
 	}
 }
 

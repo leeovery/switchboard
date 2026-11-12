@@ -504,7 +504,7 @@ func TestRouterUnfoundStopsUnlessToldToGoDirect(t *testing.T) {
 			log := logstest.Capture(t)
 			h := newHarness(t, d.environ()...)
 
-			err := h.launcher.RouterUnfound(&config.Config{WhenRouterDown: d.configured}, []string{"--resume"}, errors.New(unfound+"\nmore"))
+			err := h.launcher.RouterUnfound(launch.Route{Config: &config.Config{WhenRouterDown: d.configured}}, []string{"--resume"}, errors.New(unfound+"\nmore"))
 
 			if !d.wantDirect {
 				if !errors.Is(err, launch.ErrNotStarted) {
@@ -1164,7 +1164,7 @@ var withoutSwitchboard = []struct {
 	{
 		name: "unaided, the router not found, going direct",
 		launch: func(_ context.Context, l launch.Launcher) error {
-			return l.RouterUnfound(&config.Config{WhenRouterDown: config.Direct}, nil, errors.New("locate state directory: no home directory"))
+			return l.RouterUnfound(launch.Route{Config: &config.Config{WhenRouterDown: config.Direct}}, nil, errors.New("locate state directory: no home directory"))
 		},
 		keepsRouting: true,
 	},
@@ -1240,7 +1240,7 @@ func TestUnaidedSaysWhereClaudeGoes(t *testing.T) {
 		{
 			name: "the router not found, going direct",
 			launch: func(_ context.Context, l launch.Launcher) error {
-				return l.RouterUnfound(&config.Config{WhenRouterDown: config.Direct}, nil, errors.New("locate state directory: no home directory"))
+				return l.RouterUnfound(launch.Route{Config: &config.Config{WhenRouterDown: config.Direct}}, nil, errors.New("locate state directory: no home directory"))
 			},
 			couldnt:     "couldn't find the router",
 			wantThrough: true,
@@ -1748,7 +1748,7 @@ var everyLaunch = []struct {
 	{
 		name: "the router not found, going direct",
 		launch: func(_ context.Context, l launch.Launcher) error {
-			return l.RouterUnfound(&config.Config{WhenRouterDown: config.Direct}, nil, errors.New("locate state directory: no home directory"))
+			return l.RouterUnfound(launch.Route{Config: &config.Config{WhenRouterDown: config.Direct}}, nil, errors.New("locate state directory: no home directory"))
 		},
 	},
 	{
@@ -2101,15 +2101,17 @@ func TestLaunchesLogWhatWasDecided(t *testing.T) {
 }
 
 // fakeRouter answers as a router does: its health, or healthErr; and its
-// status document, or docErr.
+// status document, or docErr. asks counts the times it's asked its health.
 type fakeRouter struct {
 	health    router.Health
 	healthErr error
 	doc       status.Document
 	docErr    error
+	asks      int
 }
 
 func (r *fakeRouter) Health(context.Context) (router.Health, error) {
+	r.asks++
 	return r.health, r.healthErr
 }
 

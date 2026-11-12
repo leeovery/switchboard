@@ -117,7 +117,7 @@ func TestRunStartsASessionInThePoolItsDirectoryIsIn(t *testing.T) {
 		{name: "a worktree made outside it, beside it", dir: acmeDir + "-api-worktree", wantPool: "b2n8", wantToken: workToken},
 		{name: "outside every fence: the unfenced pool", dir: elsewhere, wantPool: "b2n8", wantToken: workToken},
 		{name: "around a fence: the unfenced pool", dir: homeDir + "/Code", wantPool: "b2n8", wantToken: workToken},
-		{name: "a directory not known: the unfenced pool", wantPool: "b2n8", wantToken: workToken},
+		{name: "a directory not known, no pool fenced: the unfenced pool", pools: config.Pools{defaultPool}, wantPool: "b2n8", wantToken: workToken},
 		{name: "in the second fence of a pool of two", dir: "/Volumes/Client/site", pools: config.Pools{defaultPool, acmePool, clientPool}, wantPool: "h4w2", wantToken: sideToken},
 		{
 			name:     "outside every fence, every pool fenced",
@@ -126,9 +126,13 @@ func TestRunStartsASessionInThePoolItsDirectoryIsIn(t *testing.T) {
 			wantSaid: "switchboard: no pool covers ~/Code/other — not starting claude\n",
 		},
 		{
+			name:     "a directory not known, a pool fenced",
+			wantSaid: "switchboard: can't tell which pool the directory claude starts in is in — not starting claude\n",
+		},
+		{
 			name:     "a directory not known, every pool fenced",
 			pools:    config.Pools{acmePool, clientPool},
-			wantSaid: "switchboard: no pool covers the directory claude starts in — not starting claude\n",
+			wantSaid: "switchboard: can't tell which pool the directory claude starts in is in — not starting claude\n",
 		},
 	}
 	for _, tt := range tests {
@@ -141,14 +145,18 @@ func TestRunStartsASessionInThePoolItsDirectoryIsIn(t *testing.T) {
 				// side is Client's.
 				cfg.Accounts[2].Pool = "h4w2"
 			}
+			rt := knowing(cfg)
 
-			err := h.launcher.Run(t.Context(), pooledRoute(cfg, knowing(cfg), ""), nil)
+			err := h.launcher.Run(t.Context(), pooledRoute(cfg, rt, ""), nil)
 			if tt.wantSaid != "" {
 				if !errors.Is(err, launch.ErrNotStarted) || len(h.starts) > 0 {
 					t.Errorf("Run() error = %v, starting %q; want %v, nothing started", err, h.starts, launch.ErrNotStarted)
 				}
 				if said := h.stderr.String(); said != tt.wantSaid {
 					t.Errorf("said %q on stderr, want %q", said, tt.wantSaid)
+				}
+				if rt.asks > 0 {
+					t.Errorf("asked the router how it is %d times, want it never asked, the pools refusing", rt.asks)
 				}
 				return
 			}
@@ -166,54 +174,137 @@ func TestRunStartsASessionInThePoolItsDirectoryIsIn(t *testing.T) {
 	}
 }
 
-func TestRunFindsThePoolWhereALinkLeads(t *testing.T) {
+// linkedTree makes, under a directory of the test's own, which it returns,
+// links resolved, the real directories real/acme/api, real/other,
+// real/client/site and real/acme/api/shared, and the links the pools of
+// linkedConfig are reached through.
+func linkedTree(t *testing.T) string {
+	t.Helper()
 	root, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, dir := range []string{"real/acme/api", "real/other"} {
+	for _, dir := range []string{"real/acme/api/shared", "real/other", "real/client/site"} {
 		if err := os.MkdirAll(filepath.Join(root, dir), 0o700); err != nil {
 			t.Fatal(err)
 		}
 	}
 	links := map[string]string{
-		// The pool's directory, as the config gives it, a link to where its
-		// work is.
+		// Acme's directory, as the config gives it, a link to where its work
+		// is.
 		"acme": "real/acme",
 		// A link elsewhere to a project inside the fence.
 		"shortcut": "real/acme/api",
 		// A link inside the fence to a folder outside it.
 		"real/acme/api/outside": "../../other",
+		// A link inside Acme's fence into Client's.
+		"real/acme/api/clientward": "../../client/site",
+		// One of Client's directories, as the config gives it, a link into
+		// Acme's: apart as written, overlapping once resolved.
+		"shared": "real/acme/api/shared",
 	}
 	for link, target := range links {
 		if err := os.Symlink(target, filepath.Join(root, link)); err != nil {
 			t.Fatal(err)
 		}
 	}
+	return root
+}
+
+// linkedConfig is pooledConfig with Client too, side its account, the pools
+// fenced to the links of linkedTree, made under root: Acme to acme, and
+// Client to real/client and shared.
+func linkedConfig(root string) *config.Config {
+	cfg := pooledConfig()
+	client := config.Pool{ID: clientPool.ID, Label: clientPool.Label, Dirs: []string{filepath.Join(root, "real", "client"), filepath.Join(root, "shared")}}
+	cfg.Pools = append(cfg.Pools, client)
+	cfg.Pools[1].Dirs = []string{filepath.Join(root, "acme")}
+	cfg.Accounts[2].Pool = client.ID
+	return cfg
+}
+
+func TestRunFindsThePoolWhereALinkLeads(t *testing.T) {
+	root := linkedTree(t)
+	inBoth := func(dir string) string {
+		return "switchboard: " + dir + " is in pools Acme and Client, as its links lead — not starting claude\n"
+	}
 	tests := []struct {
-		name     string
-		dir      string
+		name string
+		dir  string
+		// wantPool is the pool the session starts in, "" where it's refused,
+		// stderr hearing wantSaid.
 		wantPool string
+		wantSaid string
 	}{
 		{name: "through the pool's directory, a link", dir: filepath.Join(root, "acme", "api"), wantPool: "q7mt"},
 		{name: "where the pool's directory leads", dir: filepath.Join(root, "real", "acme", "api"), wantPool: "q7mt"},
 		{name: "through a link elsewhere into the fence", dir: filepath.Join(root, "shortcut"), wantPool: "q7mt"},
-		{name: "through a link inside the fence to outside it", dir: filepath.Join(root, "acme", "api", "outside"), wantPool: "b2n8"},
+		{name: "through a link inside the fence to outside it: still inside", dir: filepath.Join(root, "acme", "api", "outside"), wantPool: "q7mt"},
 		{name: "outside the fence", dir: filepath.Join(root, "real", "other"), wantPool: "b2n8"},
+		{name: "through a link inside one fence into another", dir: filepath.Join(root, "acme", "api", "clientward"), wantSaid: inBoth(filepath.Join(root, "acme", "api", "clientward"))},
+		{name: "where two pools' directories meet, their links resolved", dir: filepath.Join(root, "real", "acme", "api", "shared"), wantSaid: inBoth(filepath.Join(root, "real", "acme", "api", "shared"))},
+		{name: "through the link of one pool's directory into another's", dir: filepath.Join(root, "shared"), wantSaid: inBoth(filepath.Join(root, "shared"))},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			h := newHarness(t)
 			h.launcher.EvalSymlinks = filepath.EvalSymlinks
 			h.launcher.Dir = tt.dir
-			cfg := pooledConfig()
-			cfg.Pools[1].Dirs = []string{filepath.Join(root, "acme")}
+			cfg := linkedConfig(root)
 
-			if err := h.launcher.Run(t.Context(), pooledRoute(cfg, knowing(cfg), ""), nil); err != nil {
+			err := h.launcher.Run(t.Context(), pooledRoute(cfg, knowing(cfg), ""), nil)
+			if said := h.stderr.String(); said != tt.wantSaid {
+				t.Errorf("said %q on stderr, want %q", said, tt.wantSaid)
+			}
+			if tt.wantPool == "" {
+				if !errors.Is(err, launch.ErrNotStarted) || len(h.starts) > 0 {
+					t.Errorf("Run() error = %v, starting %q; want %v, nothing started", err, h.starts, launch.ErrNotStarted)
+				}
+				return
+			}
+			if err != nil {
 				t.Fatalf("Run() error = %v", err)
 			}
 			if got := h.environment(t)["SWITCHBOARD_POOL"]; got != tt.wantPool {
 				t.Errorf("started in pool %q, want %q", got, tt.wantPool)
+			}
+		})
+	}
+}
+
+func TestOnItsOwnLoginClaudeNeverStartsWhereALinkLeadsIntoAFence(t *testing.T) {
+	root := linkedTree(t)
+	tests := []struct {
+		name string
+		dir  string
+		// wantIn is the pools stderr hears the directory is in, "" where
+		// claude starts.
+		wantIn string
+	}{
+		{name: "through a link elsewhere into the fence", dir: filepath.Join(root, "shortcut"), wantIn: "pool Acme"},
+		{name: "through a link inside the fence to outside it", dir: filepath.Join(root, "acme", "api", "outside"), wantIn: "pool Acme"},
+		{name: "where two pools' directories meet", dir: filepath.Join(root, "real", "acme", "api", "shared"), wantIn: "pools Acme and Client"},
+		{name: "outside every fence", dir: filepath.Join(root, "real", "other")},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := newHarness(t)
+			h.launcher.EvalSymlinks = filepath.EvalSymlinks
+			h.launcher.Dir = tt.dir
+
+			err := h.launcher.Direct(nil, linkedConfig(root).Pools)
+			if tt.wantIn == "" {
+				if err != nil || len(h.starts) != 1 {
+					t.Errorf("Direct() error = %v, starting %q; want claude started", err, h.starts)
+				}
+				return
+			}
+			if !errors.Is(err, launch.ErrNotStarted) || len(h.starts) > 0 {
+				t.Errorf("Direct() error = %v, starting %q; want %v, nothing started", err, h.starts, launch.ErrNotStarted)
+			}
+			want := "switchboard: " + tt.dir + " is in " + tt.wantIn + ", where claude never starts on its own login — not starting claude\n"
+			if said := h.stderr.String(); said != want {
+				t.Errorf("said %q on stderr, want %q", said, want)
 			}
 		})
 	}
@@ -485,6 +576,60 @@ func TestASessionsPoolGoesWhereSwitchboardStepsAside(t *testing.T) {
 	}
 }
 
+func TestUnaidedPassesASessionsRoutingOnInItsOwnPoolAlone(t *testing.T) {
+	pools := config.Pools{defaultPool, acmePool}
+	unreadable := func(_ context.Context, l launch.Launcher) error {
+		return l.Unaided(nil, pools, launch.CouldntReadConfig, errUnread)
+	}
+	tests := []struct {
+		name string
+		// from is the directory the session claude starts within started in,
+		// and dir the one it starts in.
+		from string
+		dir  string
+		// launch starts it unaided, with pools.
+		launch func(ctx context.Context, l launch.Launcher) error
+		// wantRouted is whether it goes through the session's router, on the
+		// session's token.
+		wantRouted bool
+	}{
+		{name: "within a session of its own pool", from: elsewhere, dir: homeDir + "/Code/site", launch: unreadable, wantRouted: true},
+		{name: "within a session of a fenced pool, outside its fence", from: acmeDir, dir: elsewhere, launch: unreadable},
+		{
+			name: "within a session of its own pool, the router found down",
+			from: elsewhere,
+			dir:  homeDir + "/Code/site",
+			launch: func(ctx context.Context, l launch.Launcher) error {
+				r := unreadPooledRoute(notRunning(), launch.Written{Pools: pools}, "")
+				return l.RunUnread(ctx, r, nil, errUnread)
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := newHarness(t, "HOME=/home/tester")
+			h.launcher.Dir = tt.from
+			cfg := pooledConfig()
+			if err := h.launcher.Run(t.Context(), pooledRoute(cfg, knowing(cfg), ""), nil); err != nil {
+				t.Fatalf("Run() error = %v", err)
+			}
+			within := newHarness(t, h.only(t).session()...)
+			within.launcher.Dir = tt.dir
+
+			if err := tt.launch(t.Context(), within.launcher); err != nil {
+				t.Fatalf("launch error = %v", err)
+			}
+			env := within.environment(t)
+			_, routed := env["ANTHROPIC_BASE_URL"]
+			_, token := env["CLAUDE_CODE_OAUTH_TOKEN"]
+			pool, named := env["SWITCHBOARD_POOL"]
+			if routed != tt.wantRouted || token != tt.wantRouted || named != tt.wantRouted {
+				t.Errorf("started routed: %v, with a token: %v, in pool %q; want each %v", routed, token, pool, tt.wantRouted)
+			}
+		})
+	}
+}
+
 func TestRunRefusesAPinInAnotherPool(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -517,14 +662,39 @@ func TestRunRefusesAPinInAnotherPool(t *testing.T) {
 			h := newHarness(t)
 			h.launcher.Dir = tt.dir
 			cfg := pooledConfig()
+			rt := knowing(cfg)
 
-			if err := h.launcher.Run(t.Context(), pooledRoute(cfg, knowing(cfg), tt.account), nil); err == nil || err.Error() != tt.wantErr {
+			if err := h.launcher.Run(t.Context(), pooledRoute(cfg, rt, tt.account), nil); err == nil || err.Error() != tt.wantErr {
 				t.Errorf("Run() error = %v, want %q", err, tt.wantErr)
 			}
 			if len(h.starts) > 0 {
 				t.Errorf("started %q, want nothing started", h.starts)
 			}
+			if rt.asks > 0 {
+				t.Errorf("asked the router how it is %d times, want it never asked, the pin refused", rt.asks)
+			}
 		})
+	}
+}
+
+func TestRunRefusesAPinToAnAccountTheRoutersPoolsDontHold(t *testing.T) {
+	h := newHarness(t, "HOME=/home/tester")
+	h.launcher.Dir = acmeDir
+	// The config names no pools once the move is done, so the router's are
+	// taken: acme2, added since it started, is in none of them yet.
+	rt := otherPools(pooledConfig(), func(ps []router.RoutedPool) []router.RoutedPool {
+		ps[1].Accounts = []string{"acme1"}
+		return ps
+	})
+	r := pooledRoute(unpooledConfig(), rt, "acme2")
+	r.Moved = true
+
+	err := h.launcher.Run(t.Context(), r, nil)
+	if want := "Acme 2 (acme2) is in no pool the router routes yet; this directory is in pool Acme"; err == nil || err.Error() != want {
+		t.Errorf("Run() error = %v, want %q", err, want)
+	}
+	if len(h.starts) > 0 {
+		t.Errorf("started %q, want nothing started", h.starts)
 	}
 }
 
@@ -561,13 +731,21 @@ func TestRunComparesTheRoutersPoolsWithTheConfigs(t *testing.T) {
 		name string
 		// change makes the pools the router routes for of the config's.
 		change func([]router.RoutedPool) []router.RoutedPool
-		// old has the router answer as one from before pools.
-		old bool
+		// old has the router answer as one from before pools, and stripless
+		// as one that sends switchboard's own headers on to the API.
+		old       bool
+		stripless bool
 		// wantDiffers is how the router's pools differ, "" where they match
 		// and the session is routed.
 		wantDiffers string
 	}{
 		{name: "the same", change: func(ps []router.RoutedPool) []router.RoutedPool { return ps }},
+		{
+			name:        "the same, from a router that would send the pool on to the API",
+			change:      func(ps []router.RoutedPool) []router.RoutedPool { return ps },
+			stripless:   true,
+			wantDiffers: "it would pass switchboard's own headers on to the API",
+		},
 		{
 			name: "the same, in another order",
 			change: func(ps []router.RoutedPool) []router.RoutedPool {
@@ -671,6 +849,7 @@ func TestRunComparesTheRoutersPoolsWithTheConfigs(t *testing.T) {
 				} else {
 					r = otherPools(cfg, tt.change)
 				}
+				r.health.StripsOwnHeaders = !tt.stripless
 				began := time.Now()
 
 				if err := h.launcher.Run(t.Context(), pooledRoute(cfg, r, ""), nil); err != nil {
@@ -709,6 +888,31 @@ func TestRunWithOnePoolComparesNothing(t *testing.T) {
 	if _, routed := h.environment(t)["ANTHROPIC_BASE_URL"]; !routed || h.stderr.Len() > 0 {
 		t.Errorf("started routed: %v, saying %q; want routed, saying nothing", routed, h.stderr.String())
 	}
+}
+
+func TestRunNeedsTheRouterToRouteAnAccountOfItsOwnPoolAlone(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		h := newHarness(t, "HOME=/home/tester")
+		h.launcher.Dir = elsewhere
+		cfg := pooledConfig()
+		// Acme is new: the router routes none of its accounts till it restarts.
+		r := otherPools(cfg, func(ps []router.RoutedPool) []router.RoutedPool {
+			ps[1].Accounts, ps[1].Primary = []string{}, ""
+			return ps
+		})
+		began := time.Now()
+
+		if err := h.launcher.Run(t.Context(), pooledRoute(cfg, r, ""), nil); err != nil {
+			t.Fatalf("Run() error = %v", err)
+		}
+		env := h.environment(t)
+		if _, routed := env["ANTHROPIC_BASE_URL"]; !routed || env["SWITCHBOARD_POOL"] != "b2n8" || h.stderr.Len() > 0 {
+			t.Errorf("started routed: %v, in pool %q, saying %q; want routed in Default, saying nothing", routed, env["SWITCHBOARD_POOL"], h.stderr.String())
+		}
+		if waited := time.Since(began); waited != 0 {
+			t.Errorf("waited %v for the router to take the pools up, want no wait", waited)
+		}
+	})
 }
 
 func TestARouterThatDoesntKnowThePoolsStopsALaunchAsOneDown(t *testing.T) {
@@ -789,49 +993,38 @@ func TestRunWaitsForTheRouterToTakeThePoolsUp(t *testing.T) {
 }
 
 func TestOnItsOwnLoginClaudeNeverStartsInsideAFence(t *testing.T) {
-	const unfound = "locate state directory: no home directory"
 	pools := config.Pools{defaultPool, acmePool}
-	cfg := pooledConfig()
-	tests := []struct {
+	launches := []struct {
 		name   string
 		launch func(l launch.Launcher) error
-		// wantInside is what stderr hears of a launch inside the fence.
-		wantInside string
+		// said is what stderr hears ahead of why a launch is refused.
+		said string
 	}{
+		{name: "--direct", launch: func(l launch.Launcher) error { return l.Direct(nil, pools) }, said: "switchboard: "},
 		{
-			name:       "--direct",
-			launch:     func(l launch.Launcher) error { return l.Direct(nil, pools) },
-			wantInside: "switchboard: ~/Code/acme/api is in pool Acme, where claude never starts on its own login — not starting claude\n",
-		},
-		{
-			name: "without a config it can read",
-			launch: func(l launch.Launcher) error {
-				return l.Unaided(nil, pools, launch.CouldntReadConfig, errUnread)
-			},
-			wantInside: unreadSaid + "~/Code/acme/api is in pool Acme, where claude never starts on its own login — not starting claude\n",
-		},
-		{
-			name:   "without finding the router, told to go direct",
-			launch: func(l launch.Launcher) error { return l.RouterUnfound(cfg, nil, errors.New(unfound)) },
-			wantInside: "switchboard: couldn't find the router (" + unfound + ") — " +
-				"~/Code/acme/api is in pool Acme, where claude never starts on its own login — not starting claude\n",
+			name:   "without a config it can read",
+			launch: func(l launch.Launcher) error { return l.Unaided(nil, pools, launch.CouldntReadConfig, errUnread) },
+			said:   unreadSaid,
 		},
 	}
-	for _, tt := range tests {
-		for _, inside := range []bool{true, false} {
-			name := tt.name + ", outside every fence"
-			if inside {
-				name = tt.name + ", inside a fence"
-			}
-			t.Run(name, func(t *testing.T) {
+	places := []struct {
+		name string
+		dir  string
+		// wantWhy is why stderr hears it's refused, "" where claude starts.
+		wantWhy string
+	}{
+		{name: "inside a fence", dir: acmeDir + "/api", wantWhy: "~/Code/acme/api is in pool Acme, where claude never starts on its own login"},
+		{name: "outside every fence", dir: elsewhere},
+		{name: "a directory not known", wantWhy: "can't tell which pool the directory claude starts in is in"},
+	}
+	for _, tt := range launches {
+		for _, at := range places {
+			t.Run(tt.name+", "+at.name, func(t *testing.T) {
 				h := newHarness(t, "HOME=/home/tester")
-				h.launcher.Dir = elsewhere
-				if inside {
-					h.launcher.Dir = acmeDir + "/api"
-				}
+				h.launcher.Dir = at.dir
 
 				err := tt.launch(h.launcher)
-				if !inside {
+				if at.wantWhy == "" {
 					if err != nil || len(h.starts) != 1 {
 						t.Errorf("launch error = %v, starting %q; want claude started", err, h.starts)
 					}
@@ -840,11 +1033,127 @@ func TestOnItsOwnLoginClaudeNeverStartsInsideAFence(t *testing.T) {
 				if !errors.Is(err, launch.ErrNotStarted) || len(h.starts) > 0 {
 					t.Errorf("launch error = %v, starting %q; want %v, nothing started", err, h.starts, launch.ErrNotStarted)
 				}
-				if said := h.stderr.String(); said != tt.wantInside {
-					t.Errorf("said %q on stderr, want %q", said, tt.wantInside)
+				if said, want := h.stderr.String(), tt.said+at.wantWhy+" — not starting claude\n"; said != want {
+					t.Errorf("said %q on stderr, want %q", said, want)
 				}
 			})
 		}
+	}
+}
+
+func TestOnItsOwnLoginClaudeStartsAnywhereWithoutAFence(t *testing.T) {
+	h := newHarness(t, "HOME=/home/tester")
+
+	// A directory not known, the one pool unfenced.
+	if err := h.launcher.Direct(nil, config.Pools{defaultPool}); err != nil || len(h.starts) != 1 {
+		t.Errorf("Direct() error = %v, starting %q; want claude started", err, h.starts)
+	}
+}
+
+func TestRouterUnfoundGoesDirectOnAnAccountOfThePool(t *testing.T) {
+	const unfound = "locate state directory: no home directory"
+	tests := []struct {
+		name    string
+		dir     string
+		account string
+		tokens  tokenstest.Files
+		down    config.RouterDown
+		// pools are those configured, Default and Acme where nil.
+		pools config.Pools
+		// wantStarted is whether claude starts, straight to the API, on
+		// wantToken, "" for none; and wantSaid what stderr hears.
+		wantStarted bool
+		wantToken   string
+		wantSaid    string
+	}{
+		{
+			name:        "inside a fence, on its primary",
+			dir:         acmeDir + "/api",
+			down:        config.Direct,
+			wantStarted: true,
+			wantToken:   acme1Token,
+			wantSaid:    "switchboard: the router couldn't be found (" + unfound + ") — connecting directly on acme1 · Acme 1\n",
+		},
+		{
+			name:        "outside every fence, on the unfenced pool's primary",
+			dir:         elsewhere,
+			down:        config.Direct,
+			wantStarted: true,
+			wantToken:   workToken,
+			wantSaid:    "switchboard: the router couldn't be found (" + unfound + ") — connecting directly on work · Work\n",
+		},
+		{
+			name:        "pinned, on the pin's",
+			dir:         acmeDir,
+			account:     "acme2",
+			down:        config.Direct,
+			wantStarted: true,
+			wantToken:   acme2Token,
+			wantSaid:    "switchboard: the router couldn't be found (" + unfound + ") — connecting directly on acme2 · Acme 2\n",
+		},
+		{
+			name:     "none of the pool's accounts with a usable token: refused, never on its own login",
+			dir:      acmeDir,
+			tokens:   tokenstest.Files{"work": workToken},
+			down:     config.Direct,
+			wantSaid: "switchboard: couldn't find the router (" + unfound + ") — pool Acme has no account with a usable token — not starting claude\n",
+		},
+		{
+			name:        "one pool, unfenced, without a usable token: without switchboard, as before pools",
+			dir:         acmeDir,
+			tokens:      tokenstest.Files{},
+			down:        config.Direct,
+			pools:       config.Pools{defaultPool},
+			wantStarted: true,
+			wantSaid:    "switchboard: couldn't find the router (" + unfound + ") — starting claude without it\n",
+		},
+		{
+			name:     "no pool covering its directory: refused",
+			dir:      elsewhere,
+			down:     config.Direct,
+			pools:    config.Pools{acmePool, clientPool},
+			wantSaid: "switchboard: no pool covers ~/Code/other — not starting claude\n",
+		},
+		{
+			name: "told to stop: stopped",
+			dir:  acmeDir,
+			down: config.Stop,
+			wantSaid: "switchboard: the router couldn't be found (" + unfound + ") — not starting claude: " +
+				"go direct this once with SWITCHBOARD_WHEN_ROUTER_DOWN=direct claude\n",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := newHarness(t, "HOME=/home/tester")
+			h.launcher.Dir = tt.dir
+			cfg := pooledConfig()
+			cfg.WhenRouterDown = tt.down
+			if tt.pools != nil {
+				cfg.Pools = tt.pools
+			}
+			r := pooledRoute(cfg, nil, tt.account)
+			if tt.tokens != nil {
+				r.Token = tt.tokens.Read
+			}
+
+			err := h.launcher.RouterUnfound(r, nil, errors.New(unfound))
+			if said := h.stderr.String(); said != tt.wantSaid {
+				t.Errorf("said %q on stderr, want %q", said, tt.wantSaid)
+			}
+			if !tt.wantStarted {
+				if !errors.Is(err, launch.ErrNotStarted) || len(h.starts) > 0 {
+					t.Errorf("RouterUnfound() error = %v, starting %q; want %v, nothing started", err, h.starts, launch.ErrNotStarted)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("RouterUnfound() error = %v", err)
+			}
+			env := h.environment(t)
+			if _, routed := env["ANTHROPIC_BASE_URL"]; routed || env["CLAUDE_CODE_OAUTH_TOKEN"] != tt.wantToken {
+				t.Errorf("started routed: %v, on %q; want straight to the API on %q", routed, env["CLAUDE_CODE_OAUTH_TOKEN"], tt.wantToken)
+			}
+		})
 	}
 }
 
@@ -857,9 +1166,9 @@ func (r *fakeRouter) reporting(cfg *config.Config) *fakeRouter {
 
 // unreadPooledRoute is a launch through r where the config can't be read,
 // pinned to account unless it's "", the config file's pools written.
-func unreadPooledRoute(r *fakeRouter, written config.Pools, account string) launch.Route {
+func unreadPooledRoute(r *fakeRouter, written launch.Written, account string) launch.Route {
 	route := unreadRoute(r, account)
-	route.Config = &config.Config{Pools: written}
+	route.Written = written
 	route.Token = poolTokens.Read
 	return route
 }
@@ -879,7 +1188,7 @@ func TestRunUnreadStartsInThePoolTheRouterRoutesItsDirectoryIn(t *testing.T) {
 			h := newHarness(t, "HOME=/home/tester")
 			h.launcher.Dir = tt.dir
 			// The config file writes no pools: the router's are the ones.
-			r := unreadPooledRoute(healthy().reporting(pooledConfig()), nil, "")
+			r := unreadPooledRoute(healthy().reporting(pooledConfig()), launch.Written{}, "")
 
 			if err := h.launcher.RunUnread(t.Context(), r, nil, errUnread); err != nil {
 				t.Fatalf("RunUnread() error = %v", err)
@@ -930,12 +1239,21 @@ func TestRunUnreadDecidesThePoolAsRunDoes(t *testing.T) {
 			tokens:   tokenstest.Files{"work": workToken},
 			wantSaid: "switchboard: pool Acme has no account with a usable token — not starting claude\n",
 		},
+		{
+			name: "none of the pool's accounts routed till the router restarts",
+			dir:  acmeDir,
+			router: otherPools(pooledConfig(), func(ps []router.RoutedPool) []router.RoutedPool {
+				ps[1].Accounts, ps[1].Primary = []string{}, ""
+				return ps
+			}),
+			wantSaid: "switchboard: the router routes no account of pool Acme yet: any the config gives it waits for the router to restart — not starting claude\n",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			h := newHarness(t)
 			h.launcher.Dir = tt.dir
-			r := unreadPooledRoute(tt.router, nil, tt.account)
+			r := unreadPooledRoute(tt.router, launch.Written{}, tt.account)
 			if tt.tokens != nil {
 				r.Token = tt.tokens.Read
 			}
@@ -957,13 +1275,29 @@ func TestRunUnreadDecidesThePoolAsRunDoes(t *testing.T) {
 	}
 }
 
-func TestRunUnreadWithoutTheRoutersPoolsTakesTheConfigFiles(t *testing.T) {
-	pools := config.Pools{defaultPool, acmePool}
-	insideFence := unreadSaid + "%s — ~/Code/acme is in pool Acme, where claude never starts on its own login — not starting claude\n"
+func TestRunUnreadRoutesByTheConfigFilesPoolsAlone(t *testing.T) {
+	written := launch.Written{Pools: config.Pools{defaultPool, acmePool}}
+	unchecked := launch.Written{Pools: written.Pools, Unchecked: true}
+	unrouted := unreadSaid + "the running router doesn't route by the config's pools"
+	insideFence := unrouted + " — ~/Code/acme is in pool Acme, where claude never starts on its own login — not starting claude\n"
+	// moved answers as a router whose Acme is fenced where the config file's
+	// was before, and stripless as one that sends switchboard's own headers
+	// on to the API.
+	moved := func() *fakeRouter {
+		return otherPools(pooledConfig(), func(ps []router.RoutedPool) []router.RoutedPool {
+			ps[1].Dirs = []string{homeDir + "/Code/acme-old"}
+			return ps
+		})
+	}
+	stripless := func() *fakeRouter {
+		r := healthy().reporting(pooledConfig())
+		r.health.StripsOwnHeaders = false
+		return r
+	}
 	tests := []struct {
 		name    string
 		router  *fakeRouter
-		written config.Pools
+		written launch.Written
 		dir     string
 		// wantSaid is what stderr hears; wantStarted whether claude starts,
 		// and wantPool the pool its environment names, "" for none.
@@ -972,31 +1306,70 @@ func TestRunUnreadWithoutTheRoutersPoolsTakesTheConfigFiles(t *testing.T) {
 		wantPool    string
 	}{
 		{
+			name:        "a router reporting the pools written: through it",
+			router:      healthy().reporting(pooledConfig()),
+			written:     written,
+			dir:         acmeDir,
+			wantSaid:    throughRunning,
+			wantStarted: true,
+			wantPool:    "q7mt",
+		},
+		{
+			name:        "a router reporting the pools written, which break the config's rules: through it, by its pools",
+			router:      healthy().reporting(pooledConfig()),
+			written:     unchecked,
+			dir:         acmeDir,
+			wantSaid:    throughRunning,
+			wantStarted: true,
+			wantPool:    "q7mt",
+		},
+		{
+			name:     "a router whose fences aren't those written, inside a written fence: refused",
+			router:   moved(),
+			written:  written,
+			dir:      acmeDir,
+			wantSaid: insideFence,
+		},
+		{
+			name:        "a router whose fences aren't those written, outside every written fence: without switchboard",
+			router:      moved(),
+			written:     written,
+			dir:         homeDir + "/Code/acme-old",
+			wantSaid:    unrouted + " — starting claude without it\n",
+			wantStarted: true,
+		},
+		{
+			name:     "a router reporting several pools that would send the pool on to the API: refused inside a fence",
+			router:   stripless(),
+			dir:      acmeDir,
+			wantSaid: insideFence,
+		},
+		{
 			name:     "a router from before pools, several written, inside a fence: refused",
 			router:   healthy().naming("work", accounts...),
-			written:  pools,
+			written:  written,
 			dir:      acmeDir,
-			wantSaid: strings.Replace(insideFence, "%s", "the running router doesn't route by the config's pools", 1),
+			wantSaid: insideFence,
 		},
 		{
 			name:        "a router from before pools, several written, outside every fence: without switchboard",
 			router:      healthy().naming("work", accounts...),
-			written:     pools,
+			written:     written,
 			dir:         elsewhere,
-			wantSaid:    unreadSaid + "the running router doesn't route by the config's pools — starting claude without it\n",
+			wantSaid:    unrouted + " — starting claude without it\n",
 			wantStarted: true,
 		},
 		{
 			name:     "the router down, several written, inside a fence: refused",
 			router:   notRunning(),
-			written:  pools,
+			written:  written,
 			dir:      acmeDir,
 			wantSaid: unreadSaid + "~/Code/acme is in pool Acme, where claude never starts on its own login — not starting claude\n",
 		},
 		{
 			name:        "the router down, several written, outside every fence: without switchboard",
 			router:      notRunning(),
-			written:     pools,
+			written:     written,
 			dir:         elsewhere,
 			wantSaid:    unreadUnaided,
 			wantStarted: true,
@@ -1004,7 +1377,7 @@ func TestRunUnreadWithoutTheRoutersPoolsTakesTheConfigFiles(t *testing.T) {
 		{
 			name:        "a router from before pools, one written: through it, in that pool",
 			router:      healthy().naming("work", accounts...),
-			written:     config.Pools{acmePool},
+			written:     launch.Written{Pools: config.Pools{acmePool}},
 			dir:         acmeDir,
 			wantSaid:    throughRunning,
 			wantStarted: true,
@@ -1013,9 +1386,16 @@ func TestRunUnreadWithoutTheRoutersPoolsTakesTheConfigFiles(t *testing.T) {
 		{
 			name:     "a router from before pools, one written, fenced, outside it: refused",
 			router:   healthy().naming("work", accounts...),
-			written:  config.Pools{acmePool},
+			written:  launch.Written{Pools: config.Pools{acmePool}},
 			dir:      elsewhere,
 			wantSaid: "switchboard: no pool covers ~/Code/other — not starting claude\n",
+		},
+		{
+			name:     "a router from before pools, one written that breaks the config's rules, inside it: refused, never routed by it",
+			router:   healthy().naming("work", accounts...),
+			written:  launch.Written{Pools: config.Pools{acmePool}, Unchecked: true},
+			dir:      acmeDir,
+			wantSaid: insideFence,
 		},
 	}
 	for _, tt := range tests {

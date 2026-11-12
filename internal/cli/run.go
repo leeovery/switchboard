@@ -55,12 +55,14 @@ weren't there, and run says why. --direct starts Claude Code on its own login,
 without the router or a token, for what needs the login.
 
 With pools, a session is in the pool of the directory it starts in, for its
-whole life: Claude Code starts on that pool's primary's token, --account
-names one of the pool's accounts, and going direct goes on the pool's
-accounts alone. With more than one pool, a router that doesn't route by the
-config's pools counts as down. A directory no pool covers starts nothing,
-and nor does Claude Code's own login inside a fenced pool's directories,
-with --direct or without switchboard.
+whole life: the fenced pool whose directories hold it, as it's given or as
+its links lead, else the unfenced pool. Claude Code starts on that pool's
+primary's token, --account names one of the pool's accounts, and going
+direct goes on the pool's accounts alone. With more than one pool, a router
+that doesn't route by the config's pools counts as down. A directory no pool
+covers starts nothing, nor does one two fenced pools hold, nor one run can't
+tell, and nor does Claude Code's own login inside a fenced pool's
+directories, with --direct or without switchboard.
 
 Claude Code's local subcommands, such as doctor, mcp and setup-token, and
 its --version and --help, start as if switchboard weren't there, saying
@@ -154,20 +156,18 @@ func (a *app) run(ctx context.Context, stderr io.Writer, opts runOptions, args [
 			return err
 		}
 	}
-	client, err := a.routerClient()
-	if err != nil {
-		return l.RouterUnfound(cfg, args, err)
-	}
 	r := launch.Route{
 		Config:   cfg,
 		Token:    a.readToken,
 		Pause:    a.Pause,
-		Router:   client,
 		Patience: a.Patience,
 		Account:  opts.account,
-		Moved:    a.poolsMoved(),
-		Kept:     a.keptPools,
 	}
+	client, err := a.routerClient()
+	if err != nil {
+		return l.RouterUnfound(r, args, err)
+	}
+	r.Router, r.Moved, r.Kept = client, a.poolsMoved(), a.keptPools
 	return l.Run(ctx, r, args)
 }
 
@@ -182,10 +182,10 @@ func (a *app) runUnread(ctx context.Context, l launch.Launcher, opts runOptions,
 	client, err := a.routerClient()
 	if err != nil {
 		logger.Debug("can't find the router", "error", err)
-		return l.Unaided(args, written, launch.CouldntReadConfig, unread)
+		return l.Unaided(args, written.Pools, launch.CouldntReadConfig, unread)
 	}
 	r := launch.Route{
-		Config:   &config.Config{Pools: written},
+		Written:  written,
 		Token:    a.readToken,
 		Pause:    a.Pause,
 		Router:   client,
@@ -197,25 +197,30 @@ func (a *app) runUnread(ctx context.Context, l launch.Launcher, opts runOptions,
 }
 
 // ownLoginPools returns the pools a launch on Claude Code's own login is
-// refused inside the fences of: the config's, but where it names none once
-// the move to pools is done, or can't be read, the running router's, as its
-// health answer reports them, asked once; else, of a config read, the pools
-// the accounts record keeps; else, of one that can't be, the config file's,
-// read whatever else in it is wrong; none where none of those can be had.
+// refused inside the fences of: the config's; where it can't be read, those
+// the config file writes, read whatever else in it is wrong (see
+// writtenPools), else the running router's, as its health answer reports
+// them, asked once, as RunUnread keeps its own login out of them; and where
+// it names none once the move to pools is done, the router's, else those the
+// accounts record keeps. None where none of those can be had.
 func (a *app) ownLoginPools(ctx context.Context) config.Pools {
 	cfg, err := a.loadConfig()
-	if err == nil && (len(cfg.Pools) > 0 || !a.poolsMoved()) {
+	switch {
+	case err != nil:
+		logger.Debug("can't read the config for its pools", "error", err)
+		if written := a.writtenPools(); len(written.Pools) > 0 {
+			return written.Pools
+		}
+	case len(cfg.Pools) > 0 || !a.poolsMoved():
 		return cfg.Pools
 	}
 	if pools, reported := a.routersPools(ctx); reported {
 		return pools
 	}
-	if err != nil {
-		logger.Debug("can't read the config, nor the router's pools", "error", err)
-		return a.writtenPools()
-	}
-	if kept, ok := a.keptPools(cfg); ok {
-		return kept.Pools
+	if err == nil {
+		if kept, ok := a.keptPools(cfg); ok {
+			return kept.Pools
+		}
 	}
 	return nil
 }
@@ -260,15 +265,24 @@ func (a *app) keptPools(*config.Config) (*config.Config, bool) {
 }
 
 // writtenPools returns the pools the config file writes, read whatever else
-// in it is wrong: none where they can't be read even so.
-func (a *app) writtenPools() config.Pools {
+// in it is wrong, as config.PoolsOf reads them; where they break the
+// config's rules for them, each pool's directories, as config.FencesOf finds
+// them, unchecked; none where the file can't be read even so.
+func (a *app) writtenPools() launch.Written {
 	path, err := a.configFile()
-	if err == nil {
-		var pools config.Pools
-		if pools, err = config.PoolsOf(path, a.HomeDir); err == nil {
-			return pools
-		}
+	if err != nil {
+		logger.Debug("can't find the config file for its pools", "error", err)
+		return launch.Written{}
 	}
-	logger.Debug("can't read the pools from the config file", "error", err)
-	return nil
+	pools, err := config.PoolsOf(path, a.HomeDir)
+	if err == nil {
+		return launch.Written{Pools: pools}
+	}
+	logger.Debug("the config file's pools can't be read as they're written", "error", err)
+	fences, err := config.FencesOf(path, a.HomeDir)
+	if err != nil {
+		logger.Debug("can't read the config file's pools", "error", err)
+		return launch.Written{}
+	}
+	return launch.Written{Pools: fences, Unchecked: true}
 }
