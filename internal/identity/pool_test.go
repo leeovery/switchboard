@@ -36,7 +36,8 @@ const recordWithPools = `{
       "here": true,
       "written": {
         "label": "Everything",
-        "primary": "b6s7"
+        "primary": "b6s7",
+        "primary_known": true
       }
     },
     {
@@ -62,7 +63,7 @@ const recordWithPools = `{
 func TestTheRecordsPoolsAreWrittenAndReadBack(t *testing.T) {
 	cet := time.FixedZone("CET", 60*60)
 	pools := []identity.PoolEntry{
-		{ID: "b2n8", Added: time.Date(2026, 9, 1, 13, 0, 0, 999, cet), First: true, Here: true, Written: identity.PoolWritten{Label: "Everything", Primary: "b6s7"}},
+		{ID: "b2n8", Added: time.Date(2026, 9, 1, 13, 0, 0, 999, cet), First: true, Here: true, Written: identity.PoolWritten{Label: "Everything", Primary: "b6s7", PrimaryKnown: true}},
 		{ID: "q7mt", Label: "Acme", Added: added, Removed: removed, Written: identity.PoolWritten{Label: "Acme", Dirs: []string{"~/Code/acme"}}},
 	}
 	f := identity.NewFile(t.TempDir())
@@ -296,14 +297,17 @@ func TestNewPoolIDFailsWhereItsDrawDoes(t *testing.T) {
 // them as they are, as does one a heal is owed.
 func TestTheRecordKeepsUpWithThePoolsConfigured(t *testing.T) {
 	later := removed.Add(24 * time.Hour)
+	// known is how the config writes a pool without a label, directories or
+	// an account in it: no primary, known.
+	known := identity.PoolWritten{PrimaryKnown: true}
 	record := func() identity.Record {
 		return identity.Record{
 			Accounts: []identity.Entry{{ID: "b6s7", Added: added, Was: "work"}},
 			Pools: []identity.PoolEntry{
-				{ID: "b2n8", Added: added, First: true, Here: true},
+				{ID: "b2n8", Added: added, First: true, Here: true, Written: known},
 				{ID: "q7mt", Label: "Acme", Added: added, Removed: removed},
 				{ID: "m5r1", Label: "Side", Added: added},
-				{ID: "h4w2", Added: added, Here: true},
+				{ID: "h4w2", Added: added, Here: true, Written: known},
 			},
 		}
 	}
@@ -334,27 +338,27 @@ func TestTheRecordKeepsUpWithThePoolsConfigured(t *testing.T) {
 		{name: "in step", pools: pools("B2N8", "h4w2"), want: record().Pools},
 		{
 			name: "a pool the record lacks", pools: pools("b2n8", "h4w2", "n4p8"),
-			want: append(record().Pools, identity.PoolEntry{ID: "n4p8", Added: later, Here: true}),
+			want: append(record().Pools, identity.PoolEntry{ID: "n4p8", Added: later, Here: true, Written: known}),
 			kept: identity.PoolsKept{Added: []string{"n4p8"}},
 		},
 		{
 			name: "one removed, configured again", pools: pools("b2n8", "h4w2", "Q7MT"),
-			want: at(1, identity.PoolEntry{ID: "q7mt", Added: added, Here: true}),
+			want: at(1, identity.PoolEntry{ID: "q7mt", Added: added, Here: true, Written: known}),
 			kept: identity.PoolsKept{Returned: []string{"q7mt"}},
 		},
 		{
 			name: "one only another Mac configures, configured here", pools: pools("b2n8", "h4w2", "m5r1"),
-			want: at(2, identity.PoolEntry{ID: "m5r1", Added: added, Here: true}),
+			want: at(2, identity.PoolEntry{ID: "m5r1", Added: added, Here: true, Written: known}),
 			kept: identity.PoolsKept{Returned: []string{"m5r1"}},
 		},
 		{
 			name: "one that left the config", pools: pools("b2n8"), labelOf: labelled,
-			want: at(3, identity.PoolEntry{ID: "h4w2", Label: "Client", Added: added, Removed: later}),
+			want: at(3, identity.PoolEntry{ID: "h4w2", Label: "Client", Added: added, Removed: later, Written: known}),
 			kept: identity.PoolsKept{Removed: []string{"h4w2"}},
 		},
 		{
 			name: "one that left the config, its label not known", pools: pools("b2n8"),
-			want: at(3, identity.PoolEntry{ID: "h4w2", Label: "h4w2", Added: added, Removed: later}),
+			want: at(3, identity.PoolEntry{ID: "h4w2", Label: "h4w2", Added: added, Removed: later, Written: known}),
 			kept: identity.PoolsKept{Removed: []string{"h4w2"}},
 		},
 		{
@@ -400,8 +404,8 @@ func TestTheRecordKeepsHowThePoolsAreWrittenAndEachAccountsPool(t *testing.T) {
 
 	r.KeepUp(identity.Followed{Accounts: accounts, Pools: config.Pools{first, acme}}, later)
 	written := []identity.PoolEntry{
-		{ID: "b2n8", Added: added, First: true, Here: true},
-		{ID: "q7mt", Added: later, Here: true, Written: identity.PoolWritten{Label: "Acme", Dirs: []string{"~/Code/acme"}, Primary: "b6s7"}},
+		{ID: "b2n8", Added: added, First: true, Here: true, Written: identity.PoolWritten{PrimaryKnown: true}},
+		{ID: "q7mt", Added: later, Here: true, Written: identity.PoolWritten{Label: "Acme", Dirs: []string{"~/Code/acme"}, Primary: "b6s7", PrimaryKnown: true}},
 	}
 	if !slices.EqualFunc(r.Pools, written, identity.PoolEntry.Equal) {
 		t.Errorf("the record's pools are\n%+v\nwant each as the config writes it\n%+v", r.Pools, written)

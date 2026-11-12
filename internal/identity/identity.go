@@ -51,21 +51,28 @@ type PoolEntry struct {
 
 // PoolWritten is a pool as a config writes it: its label, "" where it gives
 // none; its directories, as written, such as ~/Code/acme, none where it's
-// unfenced; and the id of the account it marks its primary, "" where it
-// marks none, its first account standing as its primary.
+// unfenced; and the id of its primary account, the one it marks, else its
+// first, "" where it has no account. PrimaryKnown is set once the record
+// has its primary from a config, so a Primary of "" says it had none,
+// rather than that it isn't known, as of a pool the move to pools made that
+// the record hasn't been kept in step with since.
 type PoolWritten struct {
-	Label   string   `json:"label,omitempty"`
-	Dirs    []string `json:"dirs,omitempty"`
-	Primary string   `json:"primary,omitempty"`
+	Label        string   `json:"label,omitempty"`
+	Dirs         []string `json:"dirs,omitempty"`
+	Primary      string   `json:"primary,omitempty"`
+	PrimaryKnown bool     `json:"primary_known,omitzero"`
 }
 
 // Equal reports whether the pool is other, field for field, its times the
 // same instants.
 func (p PoolEntry) Equal(other PoolEntry) bool {
 	return p.ID == other.ID && p.Label == other.Label && p.Added.Equal(other.Added) && p.Removed.Equal(other.Removed) &&
-		p.First == other.First && p.Configured == other.Configured && p.Here == other.Here &&
-		p.Written.Label == other.Written.Label && slices.Equal(p.Written.Dirs, other.Written.Dirs) &&
-		p.Written.Primary == other.Written.Primary
+		p.First == other.First && p.Configured == other.Configured && p.Here == other.Here && p.Written.Equal(other.Written)
+}
+
+// Equal reports whether the pool is written as other is, field for field.
+func (w PoolWritten) Equal(other PoolWritten) bool {
+	return w.Label == other.Label && slices.Equal(w.Dirs, other.Dirs) && w.Primary == other.Primary && w.PrimaryKnown == other.PrimaryKnown
 }
 
 // PoolByID returns the pool with the given id, in any case, reporting false

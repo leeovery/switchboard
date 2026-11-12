@@ -24,33 +24,36 @@ func TestTheFirstPoolIsTheOneTheRecordNotesFirst(t *testing.T) {
 // its pools, keeping the label it's written with, where it's given one.
 func TestNotingTheFirstPoolMarksItOrAddsIt(t *testing.T) {
 	at := added.Add(time.Hour)
+	everything := identity.PoolWritten{Label: "Everything", Primary: "b6s7", PrimaryKnown: true}
 	tests := []struct {
-		name  string
-		pools []identity.PoolEntry
-		label string
-		want  []identity.PoolEntry
+		name    string
+		pools   []identity.PoolEntry
+		written identity.PoolWritten
+		want    []identity.PoolEntry
 	}{
 		{
-			name:  "one the record has",
-			pools: []identity.PoolEntry{{ID: "q7mt", Added: added}, {ID: "b2n8", Added: added}},
-			want:  []identity.PoolEntry{{ID: "q7mt", Added: added}, {ID: "b2n8", Added: added, First: true, Here: true}},
+			name:    "one the record has, written as the config has it",
+			pools:   []identity.PoolEntry{{ID: "q7mt", Added: added}, {ID: "b2n8", Added: added}},
+			written: everything,
+			want:    []identity.PoolEntry{{ID: "q7mt", Added: added}, {ID: "b2n8", Added: added, First: true, Here: true, Written: everything}},
 		},
 		{
-			name:  "one the record keeps as only another Mac configures it",
-			pools: []identity.PoolEntry{{ID: "b2n8", Label: "Everything", Added: added}},
-			want:  []identity.PoolEntry{{ID: "b2n8", Added: added, First: true, Here: true}},
+			name:    "one the record keeps as only another Mac configures it",
+			pools:   []identity.PoolEntry{{ID: "b2n8", Label: "Everything", Added: added}},
+			written: everything,
+			want:    []identity.PoolEntry{{ID: "b2n8", Added: added, First: true, Here: true, Written: everything}},
 		},
 		{
-			name:  "one the record hasn't, made, written with its label",
-			pools: []identity.PoolEntry{{ID: "q7mt", Added: added}},
-			label: "Default",
-			want:  []identity.PoolEntry{{ID: "q7mt", Added: added}, {ID: "b2n8", Added: at, First: true, Here: true, Written: identity.PoolWritten{Label: "Default"}}},
+			name:    "one the record hasn't, made, written with its label, its primary not known",
+			pools:   []identity.PoolEntry{{ID: "q7mt", Added: added}},
+			written: identity.PoolWritten{Label: "Default"},
+			want:    []identity.PoolEntry{{ID: "q7mt", Added: added}, {ID: "b2n8", Added: at, First: true, Here: true, Written: identity.PoolWritten{Label: "Default"}}},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			record := identity.Record{Pools: slices.Clone(tt.pools)}
-			record.NoteFirst("b2n8", tt.label, at)
+			record.NoteFirst("b2n8", tt.written, at)
 			if !slices.EqualFunc(record.Pools, tt.want, identity.PoolEntry.Equal) {
 				t.Errorf("the pools are %+v, want %+v", record.Pools, tt.want)
 			}
@@ -107,10 +110,10 @@ func TestJoiningARecordTakesInItsPools(t *testing.T) {
 			owned: own,
 		},
 		{
-			name:  "one configured here the record lacks, added with its time alone, this Mac's",
+			name:  "one configured here the record lacks, added with its time alone, this Mac's only once kept up",
 			other: identity.PoolEntry{ID: "w9rk", Label: "Office", Added: later, Configured: true},
 			owned: own,
-			want:  []identity.PoolEntry{{ID: "w9rk", Added: later, Here: true}},
+			want:  []identity.PoolEntry{{ID: "w9rk", Added: later}},
 		},
 		{
 			name:  "one live there, given no label, added labelled by its id, never this Mac's",

@@ -190,7 +190,7 @@ func (r *Record) keepPoolsUp(followed Followed, at time.Time) PoolsKept {
 			kept.Returned = append(kept.Returned, p.ID)
 		}
 		p := r.pool(c.ID)
-		p.Here, p.Written = true, writtenOf(c, followed.Accounts)
+		p.Here, p.Written = true, WrittenOf(c, followed.Accounts)
 	}
 	ids := followed.Pools.IDs()
 	for i := range r.Pools {
@@ -202,11 +202,12 @@ func (r *Record) keepPoolsUp(followed Followed, at time.Time) PoolsKept {
 	return kept
 }
 
-// writtenOf is the pool configured as its config writes it, of the accounts
+// WrittenOf is the pool configured as its config writes it, of the accounts
 // configured: a label that's its id, as the config gives a pool it writes
-// none for, none; and the account it marks its primary, where it marks one.
-func writtenOf(p config.Pool, accounts config.Accounts) PoolWritten {
-	w := PoolWritten{Dirs: slices.Clone(p.WrittenDirs)}
+// none for, none; and its primary, known, as the config makes it, none
+// where no account is in it.
+func WrittenOf(p config.Pool, accounts config.Accounts) PoolWritten {
+	w := PoolWritten{Dirs: slices.Clone(p.WrittenDirs), PrimaryKnown: true}
 	if !strings.EqualFold(p.Label, p.ID) {
 		w.Label = p.Label
 	}
@@ -229,19 +230,17 @@ func (r *Record) keepMembersUp(configured config.Accounts) {
 // NoteFirst notes the pool with the given id as the first, where the history
 // from before pools is, this Mac's, configured, adding it at the time given
 // where the record hasn't it: for a record noting none first, as a record
-// notes one at most. label is the label the move to pools writes it with,
-// kept as written, as PoolEntry's Written says: "" for one the config holds
-// already, whose KeepUp keeps.
-func (r *Record) NoteFirst(id, label string, at time.Time) {
+// notes one at most. written is how the config writes it, as PoolEntry's
+// Written says: as the move to pools writes the one it makes, or as
+// WrittenOf gives one the config holds already, so a heal before KeepUp
+// first keeps it writes it as it is.
+func (r *Record) NoteFirst(id string, written PoolWritten, at time.Time) {
 	p := r.pool(id)
 	if p == nil {
 		r.Pools = append(r.Pools, PoolEntry{ID: id, Added: at})
 		p = &r.Pools[len(r.Pools)-1]
 	}
-	p.First, p.Here, p.Label, p.Removed = true, true, "", time.Time{}
-	if label != "" {
-		p.Written.Label = label
-	}
+	p.First, p.Here, p.Label, p.Removed, p.Written = true, true, "", time.Time{}, written
 }
 
 // labelIn returns the label labelOf gives the account or pool with the given

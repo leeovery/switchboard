@@ -1,7 +1,6 @@
 package idmove
 
 import (
-	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -172,14 +171,14 @@ func (m *PoolMover) noteFirst() error {
 			return err
 		}
 		if cfg := draft.Config(); cfg != nil && len(cfg.Pools) > 0 {
-			r.NoteFirst(cfg.Pools[0].ID, "", m.now().UTC())
+			r.NoteFirst(cfg.Pools[0].ID, identity.WrittenOf(cfg.Pools[0], cfg.Accounts), m.now().UTC())
 			return nil
 		}
 		id, err := r.NewPoolID(m.random(), configuredIDs(draft))
 		if err != nil {
 			return fmt.Errorf("make the first pool: %w", err)
 		}
-		r.NoteFirst(id, firstLabel, m.now().UTC())
+		r.NoteFirst(id, identity.PoolWritten{Label: firstLabel}, m.now().UTC())
 		logger.Info("made the first pool", "pool", id)
 		return nil
 	})
@@ -197,9 +196,9 @@ func configuredIDs(draft *config.Draft) []string {
 // configure writes the pools the accounts record keeps to a config that has
 // none, as restorePools has them, in one edit, under the record's lock: made
 // afresh where the config changed as it was edited, configTries times at
-// most. A config with pools, or without accounts, is left as it is. It
-// reports whether it changed the config, and fails where the record notes no
-// first pool.
+// most. A config with pools is left as it is, as is one without accounts,
+// of which draft holds no config. It reports whether it changed the config,
+// and fails as restorePools does.
 func (m *PoolMover) configure() (bool, error) {
 	for range configTries {
 		changed := false
@@ -224,38 +223,77 @@ func (m *PoolMover) configure() (bool, error) {
 	return false, fmt.Errorf("write the pools in the config: %w", config.ErrChanged)
 }
 
+// KeptPools are the pools the accounts record keeps of this Mac's config, as
+// a config naming none is to have them once the move to pools is done: what
+// HealPools writes back, and what a router routes within till it has, so the
+// two never differ.
+type KeptPools struct {
+	// Pools are those the record keeps as this Mac's, as PoolEntry's Here
+	// says, in its order, each as the config last wrote it, its id, label and
+	// directories.
+	Pools []config.NewPool
+	// In is the id of the pool each account is in, by the id it was given
+	// by: the one the record has it in, as recorded finds it, where that's
+	// among Pools; else the unfenced one; else none, "", every pool fenced,
+	// so it's in none, never to serve a pool's requests, never the first's
+	// for want of another, as a client's sessions would go out on it.
+	In map[string]string
+}
+
+// PoolsKept returns the pools record keeps of this Mac's config, as
+// KeptPools says, with the pool each account with one of the ids given is
+// in. It fails where the record notes no first pool, as before the move to
+// pools, or keeps no pool as this Mac's.
+func PoolsKept(record identity.Record, ids []string) (KeptPools, error) {
+	if _, ok := record.FirstPool(); !ok {
+		return KeptPools{}, errors.New("the accounts record notes no first pool")
+	}
+	pools := configuredPools(record)
+	if len(pools) == 0 {
+		return KeptPools{}, errors.New("the accounts record keeps no pool as this Mac's config's")
+	}
+	written := func(id string) (string, bool) {
+		i := slices.IndexFunc(pools, func(p config.NewPool) bool { return strings.EqualFold(p.ID, id) })
+		if i < 0 {
+			return "", false
+		}
+		return pools[i].ID, true
+	}
+	var unfenced string
+	if i := slices.IndexFunc(pools, func(p config.NewPool) bool { return len(p.Dirs) == 0 }); i >= 0 {
+		unfenced = pools[i].ID
+	}
+	in := make(map[string]string, len(ids))
+	for _, id := range ids {
+		in[id] = unfenced
+		if e, ok := recorded(record, id); ok {
+			if pool, ok := written(e.Pool); ok {
+				in[id] = pool
+			}
+		}
+	}
+	return KeptPools{Pools: pools, In: in}, nil
+}
+
 // restorePools writes in draft, a config without pools, the pools record
-// keeps as this Mac's, as PoolEntry's Here says, in the record's order, each
-// as the config last wrote it, its id, label and directories; has each
-// account in the pool the record last had it in, as the config last had it,
-// known as recorded finds it; and marks each pool's primary as the config
-// last did, as restorePrimaries says. An account the
-// record has in none of them goes to the unfenced pool written, never a
-// fenced one, as a client's is; where none is unfenced, the first pool is
-// written back to hold it, unfenced, labelled as the record last knew it,
-// where it isn't written already, as on the move to pools, which notes it
-// alone, so every account is in it. It fails, writing nothing, where the
-// record notes no first pool, where an account has no pool to go to, every
-// pool written fenced, or where draft refuses an edit.
+// keeps, as PoolsKept gives them, in its order, each as the config last wrote
+// it; has each account in the pool PoolsKept has it in; and marks each
+// pool's primary as the config last did, as restorePrimaries says. It fails,
+// writing nothing, as PoolsKept does, where an account is in no pool, as
+// none a pooled config can have, or where draft refuses an edit.
 func restorePools(draft *config.Draft, record identity.Record) error {
-	first, ok := record.FirstPool()
-	if !ok {
-		return errors.New("the accounts record notes no first pool")
+	ids := draft.Config().Accounts.IDs()
+	kept, err := PoolsKept(record, ids)
+	if err != nil {
+		return err
 	}
-	pools, home := homed(configuredPools(record), first)
-	written := func(id string) bool {
-		return slices.ContainsFunc(pools, func(p config.NewPool) bool { return strings.EqualFold(p.ID, id) })
-	}
-	for _, p := range pools {
+	for _, p := range kept.Pools {
 		if err := draft.AddPool(p); err != nil {
 			return err
 		}
 	}
-	for _, id := range draft.Config().Accounts.IDs() {
-		pool := home
-		if e, ok := recorded(record, id); ok && written(e.Pool) {
-			pool = e.Pool
-		}
+	for _, id := range ids {
+		pool := kept.In[id]
 		if pool == "" {
 			return fmt.Errorf("account %s is in no pool the accounts record keeps, and every pool it writes back is fenced, so none can hold it", id)
 		}
@@ -264,21 +302,6 @@ func restorePools(draft *config.Draft, record identity.Record) error {
 		}
 	}
 	return restorePrimaries(draft, record)
-}
-
-// homed returns pools, those restorePools writes back, with the pool an
-// account the record has in none of them goes to, and that pool's id: the
-// unfenced one; else the first pool, the one given, added unfenced, labelled
-// as the record last knew it, where pools haven't it; else none, "", every
-// pool fenced, the first among them.
-func homed(pools []config.NewPool, first identity.PoolEntry) ([]config.NewPool, string) {
-	if i := slices.IndexFunc(pools, func(p config.NewPool) bool { return len(p.Dirs) == 0 }); i >= 0 {
-		return pools, pools[i].ID
-	}
-	if slices.ContainsFunc(pools, func(p config.NewPool) bool { return strings.EqualFold(p.ID, first.ID) }) {
-		return pools, ""
-	}
-	return append(pools, config.NewPool{ID: first.ID, Label: cmp.Or(first.Label, first.Written.Label)}), first.ID
 }
 
 // recorded is the account record has for the one a config names by the id
@@ -293,16 +316,17 @@ func recorded(record identity.Record, id string) (identity.Entry, bool) {
 }
 
 // restorePrimaries marks in draft, its pools written back, each pool's
-// primary as record has the config last mark it, the account it marked
-// where the config has that account in that pool still, and no other. A
-// pool whose primary the record doesn't know, as one the move to pools
-// notes and the record hasn't been kept in step with since, keeps the marks
-// draft has.
+// primary as record has the config last make it: the account it was, where
+// the config has that account in that pool still, and no other; none, where
+// the pool had no account, so its first stands. A pool whose primary the
+// record doesn't know, as PoolWritten's PrimaryKnown says, as one the move
+// to pools made that the record hasn't been kept in step with since, keeps
+// the marks draft has.
 func restorePrimaries(draft *config.Draft, record identity.Record) error {
 	cfg := draft.Config()
 	for _, a := range cfg.Accounts {
 		p, _ := record.PoolByID(a.Pool)
-		if p.Written.Primary == "" {
+		if !p.Written.PrimaryKnown {
 			continue
 		}
 		e, ok := recorded(record, a.ID)

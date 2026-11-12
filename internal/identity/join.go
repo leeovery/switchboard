@@ -154,12 +154,14 @@ func (j *joining) take(i int, e Entry, labelled bool) string {
 // it's joined: matched by id, it's the record's pool, which keeps its times
 // and removal, and, unless it's this Mac's, as PoolEntry's Here says, or
 // configured here, takes p's label as take has an account take one;
-// matching none, of an id configured here, it's that pool, this Mac's,
-// added with its time added alone, as a pool added on another Mac sharing
-// this one's config; matching none otherwise, it's added as it is, its label
-// and removal kept, live, labelled, by its id where it has no label, as only
-// the other Mac configures it. The other Mac's first pool is never this
-// one's, nor how its config writes a pool this one's.
+// matching none, of an id configured here, it's that pool, added with its
+// time added alone, as a pool added on another Mac sharing this one's
+// config, unlabelled, as a configured one is, but this Mac's only once
+// KeepUp keeps it, as nothing of how this Mac's config writes it is known
+// till then; matching none otherwise, it's added as it is, its label and
+// removal kept, live, labelled, by its id where it has no label, as only the
+// other Mac configures it. The other Mac's first pool is never this one's,
+// nor how its config writes a pool this one's.
 func (j *joining) joinPool(p PoolEntry) {
 	labelled := j.as.Labels && p.Configured
 	p.First, p.Configured, p.Here, p.Written = false, false, false, PoolWritten{}
@@ -171,7 +173,7 @@ func (j *joining) joinPool(p PoolEntry) {
 		}
 	case own != nil:
 	case configured:
-		j.record.Pools = append(j.record.Pools, PoolEntry{ID: p.ID, Added: p.Added, Here: true})
+		j.record.Pools = append(j.record.Pools, PoolEntry{ID: p.ID, Added: p.Added})
 	default:
 		p.Label = cmp.Or(p.Label, p.ID)
 		j.record.Pools = append(j.record.Pools, p)

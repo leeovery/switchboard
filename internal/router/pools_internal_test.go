@@ -672,7 +672,7 @@ func TestARequestNamingNoPoolIsInTheFirstAsTheAccountsRecordNotesIt(t *testing.T
 func noteFirstPool(t *testing.T, stateDir, id string) {
 	t.Helper()
 	err := identity.NewFile(stateDir).Update(func(r *identity.Record) error {
-		r.NoteFirst(id, "", start)
+		r.NoteFirst(id, identity.PoolWritten{}, start)
 		return nil
 	})
 	if err != nil {
