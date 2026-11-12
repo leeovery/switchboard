@@ -174,7 +174,7 @@ func TestASummaryBeforePoolsIsSplitAsItsLinesAreAddingUpToItsWhole(t *testing.T)
 		},
 	}
 	for _, tt := range tests {
-		for _, by := range []string{"the router", "a follower"} {
+		for _, by := range summarisers {
 			for _, moved := range []bool{false, true} {
 				t.Run(tt.name+", by "+by+map[bool]string{false: ", before the move", true: ", moved"}[moved], func(t *testing.T) {
 					state, dir, _ := stateDirs(t)
@@ -199,7 +199,7 @@ func TestASummaryBeforePoolsIsSplitAsItsLinesAreAddingUpToItsWhole(t *testing.T)
 // draining as another takes over, appending to a day the move has moved, is
 // the first pool's work as the day is summarised, beside the lines moved.
 func TestALineInNoPoolFiledOnceTheMoveIsDoneIsTheFirstPools(t *testing.T) {
-	for _, by := range []string{"the router", "a follower"} {
+	for _, by := range summarisers {
 		t.Run(by, func(t *testing.T) {
 			state, dir, _ := stateDirs(t)
 			holdLines(t, dir, date, inPool(asked("1", on(0, 9, 0)), first), inPool(asked("2", on(0, 10, 0)), first), asked("3", on(0, 11, 0)))
@@ -218,7 +218,7 @@ func TestALineInNoPoolFiledOnceTheMoveIsDoneIsTheFirstPools(t *testing.T) {
 // as it's summarised again, never in none beside it, as its lines count all
 // its summary did: so a summary renamed after counts it once.
 func TestASummaryWhoseLinesWereMovedBeforeItIsTheFirstPoolsSummarisedAgain(t *testing.T) {
-	for _, by := range []string{"the router", "a follower"} {
+	for _, by := range summarisers {
 		t.Run(by, func(t *testing.T) {
 			state, dir, _ := stateDirs(t)
 			holdLines(t, dir, date, inPool(asked("1", on(0, 9, 0)), first), inPool(asked("2", on(0, 10, 0)), first), inPool(asked("3", on(0, 11, 0)), first))
@@ -241,19 +241,28 @@ func TestASummaryWhoseLinesWereMovedBeforeItIsTheFirstPoolsSummarisedAgain(t *te
 	}
 }
 
+// summarisers are what summarise a day: the router's ledger, a follower, and
+// a reader, as againBy has each.
+var summarisers = []string{"the router", "a follower", "a reader"}
+
 // againBy is the tests' day in the ledger in dir, of the state directory
-// state, summarised again by a router's ledger or a follower, as by says,
-// opened with the option given.
+// state, summarised again by one of summarisers, as by says, opened with the
+// option given.
 func againBy(t *testing.T, by, state, dir string, opt ledger.Option) ledger.Summary {
 	t.Helper()
 	at := func() time.Time { return on(3, 10, 0) }
-	if by == "the router" {
+	var days []ledger.Summary
+	switch by {
+	case "the router":
 		ledger.Open(dir, 400*24*time.Hour, at, noReadings, caps, logs.For("router"), opt).SummariseEnded(at())
 		return summaryHeld(t, dir)
+	case "a follower":
+		days = ledger.NewFollower(state, at, caps, digestBody, logs.For("cli"), opt).Days(on(0, 0, 0))
+	default:
+		days = ledger.NewReader(state, at, caps, logs.For("cli"), opt).Days(on(0, 0, 0))
 	}
-	days := ledger.NewFollower(state, at, caps, digestBody, logs.For("cli"), opt).Days(on(0, 0, 0))
 	if len(days) == 0 || days[0].Day != date {
-		t.Fatalf("the follower read %+v, want the tests' day first", days)
+		t.Fatalf("%s read %+v, want the tests' day first", by, days)
 	}
 	return days[0]
 }
