@@ -120,13 +120,13 @@ func (ps pins) said() string {
 }
 
 // home returns the id of the pool a pin from before pools naming the
-// accounts with the given ids is the pin of: the one those of them in a pool
-// are in, where that's one, else the first, as where they're in none or
-// several.
+// accounts with the given ids is the pin of, where t has pools: the one
+// those of them in a pool are in, as in says, where that's one, else the
+// first, as where they're in none or several.
 func (t *poolTable) home(ids []string) string {
 	var in []string
 	for _, id := range ids {
-		if pool, ok := t.poolOf[id]; ok {
+		if pool, ok := t.in(id); ok {
 			in = append(in, pool)
 		}
 	}
