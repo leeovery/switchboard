@@ -780,3 +780,33 @@ func TestAPinFromBeforePoolsStaysInItsPoolAsItsAccountMoves(t *testing.T) {
 		})
 	}
 }
+
+func TestAPoolsPinSpendsTheReserveOfItsOwnAccountsAloneAsTheCapsAreTold(t *testing.T) {
+	logstest.Capture(t)
+	reserving := pairedAccounts()
+	for i := range reserving {
+		reserving[i].Reserve = 0.1
+	}
+	r, _ := newPairedRouterOf(t, at(start), reserving)
+	askedOK(t, r, http.MethodPost, "/pin", `{"accounts": ["extra"]}`)
+	reads := func(used float64) {
+		for _, id := range []string{"side", "extra"} {
+			r.state.record(id, []quota.Window{{Key: "7d", Label: "Week", Utilization: used, ResetsAt: weekEnds, Status: quota.StatusAllowed}}, r.state.mark())
+		}
+		r.recent.look()
+	}
+
+	// Side, Default's, and extra, Acme's, reach their reserves: Acme's pin
+	// spends extra's, and Default's side is capped.
+	reads(0.5)
+	reads(0.95)
+	var capped []string
+	for _, e := range r.recent.events() {
+		if e.Kind == status.EventCap {
+			capped = append(capped, e.Account)
+		}
+	}
+	if !slices.Equal(capped, []string{"side"}) {
+		t.Errorf("the caps told are of %q, want side's alone: Acme's pin spends extra's reserve, and no pin side's", capped)
+	}
+}

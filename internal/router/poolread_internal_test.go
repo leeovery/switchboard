@@ -688,6 +688,51 @@ func TestAConfigWithNoPoolsIsAnsweredAsBeforeWhateverPoolIsAsked(t *testing.T) {
 	}
 }
 
+// pinnedWithoutPools builds a router of testConfigured in no pools, priming
+// through the day: the accounts' weeks read, work's rising two points ten
+// minutes on, a session routed, and side pinned, moving the running
+// sessions, twenty minutes on, as the clock reads thirty minutes on.
+func pinnedWithoutPools(t *testing.T) *Router {
+	t.Helper()
+	clock := &testClock{now: start}
+	cfg := testConfig(clock.read, &stubProber{}, poolTokens.Read)
+	cfg.Accounts, cfg.Prime = testConfigured, daytime
+	r := newTestRouterOf(t, cfg)
+	r.proxy.transport = servingAll(served, served, served)
+	readPersonalFirst(r)
+	clock.now = start.Add(10 * time.Minute)
+	risen := laterWeek
+	risen.Utilization += 0.02
+	r.state.record("work", []quota.Window{risen}, r.state.mark())
+	routeIn(t, r, workToken, "one", "", nil)
+	clock.now = start.Add(20 * time.Minute)
+	if rec := askControl(t, r, http.MethodPost, "/pin", `{"accounts": ["side"], "move": true}`); rec.Code != http.StatusOK {
+		t.Fatalf("POST /pin answered %d %s, want 200", rec.Code, rec.Body)
+	}
+	clock.now = start.Add(30 * time.Minute)
+	return r
+}
+
+// The bodies in testdata/nopools/pinned-* were recorded from the router as
+// it was before each pool had a pin of its own, from pinnedWithoutPools.
+func TestAConfigWithNoPoolsIsAnsweredAsBeforeWithAPinSet(t *testing.T) {
+	logstest.Capture(t)
+	r := pinnedWithoutPools(t)
+
+	recorded := map[string]string{"/status": "pinned-status.json", "/sessions/one": "pinned-session.json"}
+	for target, file := range recorded {
+		want, err := os.ReadFile(filepath.Join("testdata", "nopools", file))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, asked := range []string{"", defaultPool} {
+			if got := askControl(t, r, http.MethodGet, withPool(target, asked), "").Body.String(); got != string(want) {
+				t.Errorf("GET %s asking for pool %q answered\n%s\nwant as before pools\n%s", target, asked, got, want)
+			}
+		}
+	}
+}
+
 func TestTheStreamOpensWithThePoolsRequestsInFlightAlone(t *testing.T) {
 	r := pooledRouter(t, pooledAccounts(), testPools)
 	r.stream.publishOf(StreamEvent{Kind: StreamSent, Request: "1", Session: "one", Pool: defaultPool}, key{session: "one"})

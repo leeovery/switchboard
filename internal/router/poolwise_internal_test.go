@@ -2,6 +2,7 @@ package router
 
 import (
 	"maps"
+	"net/http"
 	"path/filepath"
 	"reflect"
 	"testing"
@@ -237,9 +238,8 @@ func TestEachPoolStaggersItsOwnResetsThroughTheDay(t *testing.T) {
 	}
 
 	// Side moves to Acme: Default's one account and Acme's three are each
-	// staggered afresh.
+	// staggered afresh, as the pools are taken up.
 	moveAccount(r, "side", acmePool)
-	r.primer.replan()
 	want = map[string]map[string]string{
 		defaultPool: {"work": "05:30"},
 		acmePool:    {"personal": "03:50", "side": "05:30", "extra": "07:10"},
@@ -274,4 +274,82 @@ func TestEachPoolsAccountsArePrimedAtTheirPoolsSlots(t *testing.T) {
 			t.Errorf("primed at\n%v\nwant each pool's accounts at its own pool's slots\n%v", got, want)
 		}
 	})
+}
+
+func TestEachPoolShowsItsOwnSlotsAsThePoolsComeIn(t *testing.T) {
+	logstest.Capture(t)
+	path := filepath.Join(t.TempDir(), "config.toml")
+	writeConfigFile(t, path, unpooledTOML("work", "personal", "side"))
+	cfg := testConfig(at(onDay(1, 2, 0)), &stubProber{}, poolTokens.Read)
+	cfg.Accounts, cfg.ConfigFile, cfg.Prime = config.Accounts{{ID: "work", Label: "work"}, {ID: "personal", Label: "personal"}, {ID: "side", Label: "side"}}, Watch(path), daytime
+	r := newTestRouterOf(t, cfg)
+
+	// The pools come in, before the primer's next look: each pool's document
+	// shows its own accounts' slots alone, staggered on its own.
+	writeConfigFile(t, path, poolsTOML(defaultPool, defaultTOML, acmeTOML))
+	r.upkeep.look()
+	want := map[string]map[string]string{
+		defaultPool: {"work": "04:10", "side": "06:40"},
+		acmePool:    {"personal": "05:30"},
+	}
+	for pool, slots := range want {
+		if got := slotsIn(t, r, pool); !maps.Equal(got, slots) {
+			t.Errorf("once the pools came in, pool %s primes at %v, want %v", pool, got, slots)
+		}
+	}
+}
+
+func TestARestartJudgesEachPoolsRoomByItsOwnPinFromWhenItWasSet(t *testing.T) {
+	// Work, Default's, and personal, Acme's, each keep a tenth back, and
+	// nothing else is read. Each reads its week at 50%, and at its reserve an
+	// hour on. Default is pinned to work two hours on, and Acme to personal
+	// four; work reads again three hours on, between the pins, and personal
+	// five, after both. Six hours on, the router restarts.
+	path := filepath.Join(t.TempDir(), "state.json")
+	reserving := pairedAccounts()
+	reserving[0].Reserve, reserving[1].Reserve = 0.1, 0.1
+	clock := &testClock{now: start}
+	live, _ := newPairedRouterOf(t, clock.read, reserving)
+	live.file.load(path)
+	var heard []readings.Reading
+	live.state.history = func(read []readings.Reading) { heard = append(heard, read...) }
+	steps := []struct {
+		after time.Duration
+		do    func()
+	}{
+		{0, func() { readWeekAt(live, "work", 0.5); readWeekAt(live, "personal", 0.5) }},
+		{time.Hour, func() { readWeekAt(live, "work", 0.92); readWeekAt(live, "personal", 0.92) }},
+		{2 * time.Hour, func() { askedOK(t, live, http.MethodPost, "/pin", `{"accounts": ["work"]}`) }},
+		{3 * time.Hour, func() { readWeekAt(live, "work", 0.94) }},
+		{4 * time.Hour, func() { askedOK(t, live, http.MethodPost, "/pin", `{"accounts": ["personal"]}`) }},
+		{5 * time.Hour, func() { readWeekAt(live, "personal", 0.94) }},
+	}
+	for _, step := range steps {
+		clock.now = start.Add(step.after)
+		step.do()
+	}
+	clock.now = start.Add(6 * time.Hour)
+	live.file.save()
+	// Default had room the hour before work reached its reserve, and the four
+	// since its pin; Acme the hour before personal did, and the two since its
+	// own.
+	hours := map[string]float64{defaultPool: 5, acmePool: 3}
+	want := make(map[string]*status.Demand)
+	for pool, h := range hours {
+		if want[pool] = demandIn(live, pool); want[pool] == nil || want[pool].Hours != h {
+			t.Fatalf("before the restart, pool %s's demand is %+v, want it measured over %v hours", pool, want[pool], h)
+		}
+	}
+
+	h := newHistory(config.History{}, at(clock.now))
+	h.open(t.TempDir())
+	writeLines(t, h, heard...)
+	restarted, _ := newPairedRouterOf(t, at(clock.now), reserving)
+	restarted.file.load(path)
+	restarted.state.seed(h.readBack(clock.now))
+	for pool := range hours {
+		if got := demandIn(restarted, pool); !sameDemand(got, want[pool]) {
+			t.Errorf("after the restart, pool %s's demand is %+v, want %+v, as before it: its own pin held from when it was set alone", pool, got, want[pool])
+		}
+	}
 }
