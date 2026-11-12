@@ -94,7 +94,7 @@ type Kept struct {
 
 // PoolsKept is what KeepUp changed of the record's pools, by their ids:
 // those added, marked removed and configured again, and those configured it
-// left out, as their ids are none switchboard makes.
+// left out, as their ids clash.
 type PoolsKept struct {
 	Added, Removed, Returned, Clashed []string
 }
@@ -115,8 +115,8 @@ type Followed struct {
 // keep it, so an account or pool added or removed on another Mac sharing
 // this one's config is one this Mac has had too:
 //   - one configured that the record lacks is added, an account's
-//     organization not known, but one whose id clashes, as clashes says of an
-//     account's and wellFormed of a pool's, ignoring case, which is left out;
+//     organization not known, but one whose id clashes, as clashes says,
+//     ignoring case, which is left out;
 //   - one configured that's removed, or kept as only another Mac configures
 //     it, its label the record's, is configured again, as Return has it;
 //   - one this Mac configured, live and unlabelled, that has left the config
@@ -169,7 +169,7 @@ func (r *Record) keepPoolsUp(ids []string, labelOf func(id string) string, at ti
 	var kept PoolsKept
 	for _, id := range ids {
 		switch p := r.pool(id); {
-		case p == nil && !wellFormed(id):
+		case p == nil && r.clashes(id, nil):
 			kept.Clashed = append(kept.Clashed, id)
 		case p == nil:
 			r.Pools = append(r.Pools, PoolEntry{ID: id, Added: at})

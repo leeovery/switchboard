@@ -219,13 +219,13 @@ func TestHealingWritesTheNewIDsBackInAConfigPutBackToTheOld(t *testing.T) {
 	if err := os.Symlink(kept, f.config); err != nil {
 		t.Fatal(err)
 	}
-	if healed, err := idmove.Heal(f.config, f.state); err != nil || healed {
+	if healed, err := idmove.Heal(f.config, f.state, nil); err != nil || healed {
 		t.Fatalf("Heal() before the move = %t, %v, want nothing healed", healed, err)
 	}
 	f.moved(t, answering())
 
 	writeFile(t, kept, fixtureConfig)
-	healed, err := idmove.Heal(f.config, f.state)
+	healed, err := idmove.Heal(f.config, f.state, nil)
 	if err != nil || !healed {
 		t.Fatalf("Heal() = %t, %v, want the config healed", healed, err)
 	}
@@ -240,7 +240,7 @@ func TestHealingWritesTheNewIDsBackInAConfigPutBackToTheOld(t *testing.T) {
 			t.Errorf("healed, %s's token = %v, want it read", id, err)
 		}
 	}
-	if healed, err := idmove.Heal(f.config, f.state); err != nil || healed {
+	if healed, err := idmove.Heal(f.config, f.state, nil); err != nil || healed {
 		t.Errorf("Heal() again = %t, %v, want nothing left to heal", healed, err)
 	}
 }
@@ -273,6 +273,39 @@ func TestAConfigMergedMidMoveToNameAnAccountByBothItsIDsKeepsTheOneByItsNew(t *t
 	}
 }
 
+// A config with pools, one fenced to a directory in the home, is healed as
+// any other, read in the home directory given: without one, it can't be.
+func TestHealingReadsAConfigWithPoolsInTheHomeDirectory(t *testing.T) {
+	f := newFixture(t)
+	f.moved(t, answering())
+	home := func() (string, error) { return "/Users/test", nil }
+	pooled := "[[account]]\nid      = \"work\"\nlabel   = \"Work\"\nprimary = true\npool    = \"b2n8\"\n\n" +
+		"[[account]]\nid   = \"personal\"\npool = \"b2n8\"\n\n" +
+		"[[pool]]\nid = \"b2n8\"\n\n[[pool]]\nid   = \"q7mt\"\ndirs = [\"~/Code/acme\"]\n"
+	writeFile(t, f.config, pooled)
+
+	if healed, err := idmove.Heal(f.config, f.state, nil); err == nil || healed {
+		t.Errorf("Heal() with no home = %t, %v, want it to fail, the pool's directory in the home not found", healed, err)
+	}
+	healed, err := idmove.Heal(f.config, f.state, home)
+	if err != nil || !healed {
+		t.Fatalf("Heal() = %t, %v, want the config healed", healed, err)
+	}
+	cfg, err := config.Load(f.config, home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := cfg.Accounts.IDs(), []string{workID, personalID}; !slices.Equal(got, want) {
+		t.Errorf("healed, the config configures %v, want %v", got, want)
+	}
+	if got := cfg.Accounts.InPool("b2n8").IDs(); !slices.Equal(got, []string{workID, personalID}) {
+		t.Errorf("healed, pool b2n8 holds %v, want both accounts still in it", got)
+	}
+	if healed, err := idmove.Heal(f.config, f.state, home); err != nil || healed {
+		t.Errorf("Heal() again = %t, %v, want nothing left to heal", healed, err)
+	}
+}
+
 // A config that names an account by its old id and its new, as a merge of
 // two of its versions leaves it once the move's done, is healed as the move
 // heals one mid-move: the one by its old id dropped, the one by its new id
@@ -284,7 +317,7 @@ func TestHealingDropsAnAccountByItsOldIDWhereItsNewIsConfiguredToo(t *testing.T)
 		"[[account]]\nid = \"personal\"\n\n[[account]]\nid = \"" + workID + "\"\nlabel = \"Work again\"\nplan = \"pro\"\n"
 	writeFile(t, f.config, merged)
 
-	healed, err := idmove.Heal(f.config, f.state)
+	healed, err := idmove.Heal(f.config, f.state, nil)
 	if err != nil || !healed {
 		t.Fatalf("Heal() = %t, %v, want the config healed", healed, err)
 	}
@@ -295,7 +328,7 @@ func TestHealingDropsAnAccountByItsOldIDWhereItsNewIsConfiguredToo(t *testing.T)
 	if got := f.configured(t); !slices.Equal(got, want) {
 		t.Errorf("healed, the config configures %+v, want %+v", got, want)
 	}
-	if healed, err := idmove.Heal(f.config, f.state); err != nil || healed {
+	if healed, err := idmove.Heal(f.config, f.state, nil); err != nil || healed {
 		t.Errorf("Heal() again = %t, %v, want nothing left to heal", healed, err)
 	}
 }

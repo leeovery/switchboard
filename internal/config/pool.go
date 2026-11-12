@@ -256,18 +256,22 @@ func find(fences []fence, homeDir func() (string, error)) error {
 }
 
 // uniquePoolIDs reports each pool whose id another's is, ignoring case, as
-// commands name a pool by its id in any case.
+// commands name a pool by its id in any case: an id given again, once, as
+// checkAccounts reports an account's.
 func uniquePoolIDs(pools []filePool) error {
 	var errs []error
+	uses := make(map[string]int, len(pools))
+	// firsts is the first id named in each case, by the id in lower case.
 	firsts := make(map[string]string, len(pools))
 	for _, p := range pools {
-		if !p.named() {
+		uses[p.ID]++
+		if !p.named() || uses[p.ID] > 2 {
 			continue
 		}
 		folded := strings.ToLower(p.ID)
 		first, seen := firsts[folded]
 		switch {
-		case seen && first == p.ID:
+		case uses[p.ID] == 2:
 			errs = append(errs, fmt.Errorf("duplicate pool id %q", p.ID))
 		case seen:
 			errs = append(errs, fmt.Errorf("pool ids %q and %q differ only in case, which commands take for the same pool", first, p.ID))
@@ -339,6 +343,22 @@ func within(path, dir string) bool {
 // folders returns the folder names of path, from the root.
 func folders(path string) []string {
 	return strings.FieldsFunc(path, func(r rune) bool { return r == filepath.Separator })
+}
+
+// idsApart reports each pool whose id is an account's, ignoring case: a
+// pool's id and an account's are never one, as the accounts record keeps
+// them apart.
+func idsApart(accounts []fileAccount, pools []filePool) error {
+	var errs []error
+	for i, p := range pools {
+		if !p.named() {
+			continue
+		}
+		if j := slices.IndexFunc(accounts, func(a fileAccount) bool { return a.named() && strings.EqualFold(a.ID, p.ID) }); j >= 0 {
+			errs = append(errs, fmt.Errorf("%s: id is %s's, ignoring case: a pool's id is never an account's", p.name(i), accounts[j].name(j)))
+		}
+	}
+	return errors.Join(errs...)
 }
 
 // checkMembership reports each account that names no configured pool where

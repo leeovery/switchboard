@@ -148,7 +148,13 @@ label = "Default"
 			name:   "fencing a pool in place of its directories, on one line",
 			config: pooled,
 			edit:   func(d *config.Draft) error { return d.SetPoolDirs("q7mt", []string{"~/Code/acme", "/Volumes/Acme"}) },
-			want:   pooledWith(t, `dirs  = ["~/Code/acme"]`, `dirs = ["~/Code/acme", "/Volumes/Acme"]`),
+			want:   pooledWith(t, `dirs  = ["~/Code/acme"]`, `dirs  = ["~/Code/acme", "/Volumes/Acme"]`),
+		},
+		{
+			name:   "fencing a pool in place of its directories, keeping the comment beside them",
+			config: pooledWith(t, `dirs  = ["~/Code/acme"]`, `dirs  = ["~/Code/acme"]  # the client's repos, "]" and all`),
+			edit:   func(d *config.Draft) error { return d.SetPoolDirs("q7mt", []string{"/Volumes/Acme"}) },
+			want:   pooledWith(t, `dirs  = ["~/Code/acme"]`, `dirs  = ["/Volumes/Acme"]  # the client's repos, "]" and all`),
 		},
 		{
 			name:   "fencing the unfenced pool, below its last key",
@@ -260,6 +266,20 @@ func TestPoolEditsRefuse(t *testing.T) {
 			},
 			wantErr: `pool "Q7MT" is already configured`,
 			wantIs:  config.ErrConfigured,
+		},
+		{
+			name:   "adding a pool with an account's id",
+			config: pooled,
+			edit: func(d *config.Draft) error {
+				return d.AddPool(config.NewPool{ID: "Acme", Dirs: []string{"/Volumes/Side"}})
+			},
+			wantErr: invalid + `pool "Acme": id is account "acme"'s, ignoring case: a pool's id is never an account's`,
+		},
+		{
+			name:    "adding an account with a pool's id",
+			config:  pooled,
+			edit:    func(d *config.Draft) error { return d.AddAccount(config.NewAccount{ID: "h4w2", Pool: "b2n8"}) },
+			wantErr: invalid + `pool "h4w2": id is account "h4w2"'s, ignoring case: a pool's id is never an account's`,
 		},
 		{
 			name:    "adding a pool with an id no pool can have",

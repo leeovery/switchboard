@@ -30,8 +30,11 @@ type accountsRecord struct {
 	homeDir func() (string, error)
 	// started are the accounts the router started with: those followed while
 	// upkeep has found the config file making no other, and the labels of
-	// those that leave it before the record was first kept in step.
-	started config.Accounts
+	// those that leave it before the record was first kept in step; and
+	// startedPools the pools it started with, the labels of those that leave
+	// it so.
+	started      config.Accounts
+	startedPools config.Pools
 	// seen are the accounts upkeep found the config file making as the record
 	// was last kept in step, whatever came of it: nil before it first was. mu
 	// guards it, as an import reads it.
@@ -52,7 +55,7 @@ func newAccountsRecord(cfg Config, started accounts, owed func() bool) *accounts
 	if cfg.StateDir == "" {
 		return nil
 	}
-	return &accountsRecord{record: identity.NewFile(cfg.StateDir), owed: owed, now: cfg.Now, path: cfg.ConfigFile.path, homeDir: cfg.HomeDir, started: started.configured()}
+	return &accountsRecord{record: identity.NewFile(cfg.StateDir), owed: owed, now: cfg.Now, path: cfg.ConfigFile.path, homeDir: cfg.HomeDir, started: started.configured(), startedPools: cfg.Pools}
 }
 
 // look keeps the record in step with the config the router follows, as
@@ -141,10 +144,12 @@ func (a *accountsRecord) labelOf(id string) string {
 
 // poolLabelOf is the label the pool with the given id last had in the
 // config, as the router knows it: in the pools the record was last kept in
-// step with; "" where it knows none.
+// step with, else those it started with; "" where it knows none.
 func (a *accountsRecord) poolLabelOf(id string) string {
-	if p, ok := a.keptPools.ByID(id); ok {
-		return p.Label
+	for _, ps := range []config.Pools{a.keptPools, a.startedPools} {
+		if p, ok := ps.ByID(id); ok {
+			return p.Label
+		}
 	}
 	return ""
 }
@@ -175,6 +180,6 @@ func logKept(kept identity.Kept) {
 		logger.Info("pool configured again; the accounts record has it so", "pool", id)
 	}
 	for _, id := range kept.Pools.Clashed {
-		logger.Warn("pool configured under an id switchboard doesn't make; left out of the accounts record", "pool", id)
+		logger.Warn("pool configured under an id the accounts record holds for an account, or that switchboard doesn't make; left out of the record", "pool", id)
 	}
 }

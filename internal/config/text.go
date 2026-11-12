@@ -413,19 +413,50 @@ func withValue(line, value string) string {
 }
 
 // valueEnd returns the length of the value text starts with: a string's, as
-// stringEnd has it; -1 for an array or an inline table; else a bare value's,
-// such as a number's, up to the whitespace or the comment after it.
+// stringEnd has it; an array's, as arrayEnd has it; -1 for an inline table;
+// else a bare value's, such as a number's, up to the whitespace or the
+// comment after it.
 func valueEnd(text string) int {
 	switch {
 	case strings.HasPrefix(text, `"`), strings.HasPrefix(text, `'`):
 		return stringEnd(text)
-	case strings.HasPrefix(text, "["), strings.HasPrefix(text, "{"):
+	case strings.HasPrefix(text, "["):
+		return arrayEnd(text)
+	case strings.HasPrefix(text, "{"):
 		return -1
 	}
 	if end := strings.IndexAny(text, " \t\r#"); end >= 0 {
 		return end
 	}
 	return len(text)
+}
+
+// arrayEnd returns the length of the array text starts with, its brackets
+// included, when it ends on the one line, as a pool's dirs are written: the
+// strings within it passed over, as stringEnd has them, so a bracket or a
+// hash in one is the string's. It's -1 for an array that goes on past the
+// line, as one with a comment within it, or a string that does, does.
+func arrayEnd(text string) int {
+	depth := 0
+	for i := 0; i < len(text); i++ {
+		switch text[i] {
+		case '"', '\'':
+			end := stringEnd(text[i:])
+			if end < 0 {
+				return -1
+			}
+			i += end - 1
+		case '[':
+			depth++
+		case ']':
+			if depth--; depth == 0 {
+				return i + 1
+			}
+		case '#':
+			return -1
+		}
+	}
+	return -1
 }
 
 // stringEnd returns the length of the string text starts with, its quotes

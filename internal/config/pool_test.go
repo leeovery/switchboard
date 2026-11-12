@@ -199,6 +199,16 @@ func TestLoadThePoolsRules(t *testing.T) {
 			want:   []string{`duplicate pool id "q7mt"`},
 		},
 		{
+			name:   "a pool's id given three times, told once",
+			config: accountIn("k3f9", "q7mt") + poolTOML("q7mt") + poolTOML("q7mt", "/Volumes/A") + poolTOML("q7mt", "/Volumes/B"),
+			want:   []string{`duplicate pool id "q7mt"`},
+		},
+		{
+			name:   "a pool's id an account's, ignoring case",
+			config: accountIn("k3f9", "q7mt") + poolTOML("q7mt") + poolTOML("K3F9", "/Volumes/Client"),
+			want:   []string{`pool "K3F9": id is account "k3f9"'s, ignoring case: a pool's id is never an account's`},
+		},
+		{
 			name:   "two pools' ids alike but for their case",
 			config: accountIn("k3f9", "q7mt") + poolTOML("q7mt") + poolTOML("Q7MT", "~/Code/acme"),
 			want:   []string{`pool ids "q7mt" and "Q7MT" differ only in case, which commands take for the same pool`},

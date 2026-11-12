@@ -473,6 +473,7 @@ func (f file) config(undecoded []toml.Key, homeDir func() (string, error)) (*Con
 		weekErr,
 		checkAccounts(f.Accounts),
 		poolsErr,
+		idsApart(f.Accounts, f.Pools),
 		checkMembership(f.Accounts, f.Pools),
 		checkPrimaries(f.Accounts),
 		dayErr,

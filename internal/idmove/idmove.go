@@ -518,12 +518,13 @@ func labelFor(accounts config.Accounts, id, shown string) string {
 // where a change to the config made by hand, or a repository it's kept in,
 // put its old ids back, which name no token file once the move's done. A
 // router heals its config before it reads it, so it starts on the new ids.
-// It reports whether it changed the config.
-func Heal(configPath, stateDir string) (bool, error) {
+// The config is read in the home directory homeDir returns. It reports
+// whether it changed the config.
+func Heal(configPath, stateDir string, homeDir func() (string, error)) (bool, error) {
 	if !Moved(stateDir) {
 		return false, nil
 	}
-	m := &Mover{ConfigPath: configPath, StateDir: stateDir}
+	m := &Mover{ConfigPath: configPath, StateDir: stateDir, HomeDir: homeDir}
 	return m.configure()
 }
 

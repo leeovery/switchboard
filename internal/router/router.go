@@ -100,6 +100,9 @@ type Prober interface {
 type Config struct {
 	// Accounts are the configured accounts, in the order they're shown.
 	Accounts config.Accounts
+	// Pools are the pools the accounts are in, as the config the router
+	// started from has them: none in a config from before pools.
+	Pools config.Pools
 	// Token reads an account's token, by the account's id, from its file: as
 	// the router starts, again every so often while Run runs, and whenever
 	// the upstream refuses the token it has, which may have been replaced

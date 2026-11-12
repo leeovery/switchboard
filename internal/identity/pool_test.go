@@ -338,6 +338,41 @@ func TestTheRecordKeepsUpWithThePoolsConfigured(t *testing.T) {
 	}
 }
 
+// An account's id and a pool's are never one: an account's derived or
+// random id is never a pool's, and the record keeping up with the config
+// leaves out an account configured under a pool's id, and a pool under an
+// account's, ignoring case.
+func TestAccountsAndPoolsNeverShareAnID(t *testing.T) {
+	derived := identity.Record{}.Derive("test-org-work", nil)
+	pooled := identity.Record{Pools: []identity.PoolEntry{{ID: strings.ToUpper(derived), Added: added}}}
+	if got := pooled.Derive("test-org-work", nil); strings.EqualFold(got, derived) || len(got) != len(derived)+1 {
+		t.Errorf("Derive() with a pool holding %q = %q, want it a character longer", derived, got)
+	}
+
+	first := draw(1)
+	firstID := random(t, identity.Record{}, nil, bytes.NewReader(first))
+	held := identity.Record{Pools: []identity.PoolEntry{{ID: firstID, Added: added}}}
+	if got := random(t, held, nil, bytes.NewReader(slices.Concat(first, draw(2)))); got == firstID {
+		t.Errorf("Random() with a pool holding %q = %q, want another", firstID, got)
+	}
+
+	r := identity.Record{
+		Accounts: []identity.Entry{{ID: "b6s7", Added: added}},
+		Pools:    []identity.PoolEntry{{ID: "b2n8", Added: added}},
+	}
+	kept := r.KeepUp(identity.Followed{
+		Accounts: config.Accounts{{ID: "b6s7"}, {ID: "B2N8"}},
+		Pools:    config.Pools{{ID: "b2n8"}, {ID: "B6S7"}},
+	}, removed)
+	want := identity.Kept{Clashed: []string{"B2N8"}, Pools: identity.PoolsKept{Clashed: []string{"B6S7"}}}
+	if !reflect.DeepEqual(kept, want) {
+		t.Errorf("kept %+v, want %+v", kept, want)
+	}
+	if len(r.Accounts) != 1 || len(r.Pools) != 1 {
+		t.Errorf("the record holds %+v and %+v, want each as it was", r.Accounts, r.Pools)
+	}
+}
+
 // newPoolID returns the pool's id the record gives, drawn from rand, the
 // config's ids being configured.
 func newPoolID(t *testing.T, record identity.Record, configured []string, rand io.Reader) string {

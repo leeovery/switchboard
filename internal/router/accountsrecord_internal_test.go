@@ -180,6 +180,37 @@ func TestThePoolsConfiguredAreRecordedAndOneThatLeftMarkedRemovedWithTheLabelItH
 	}
 }
 
+// A pool that leaves the config before the record is first kept in step,
+// as while the move holds that back, is labelled as the config the router
+// started from had it.
+func TestAPoolThatLeftTheConfigBeforeTheFirstLookIsLabelledAsTheRouterStartedWithIt(t *testing.T) {
+	clock := &testClock{now: start}
+	cfg := testConfig(clock.read, &stubProber{}, testTokens.Read)
+	cfg.StateDir = t.TempDir()
+	cfg.Pools = config.Pools{{ID: "b2n8", Label: "b2n8"}, {ID: "h4w2", Label: "Client", Dirs: []string{"/Volumes/Client"}}}
+	path := filepath.Join(t.TempDir(), "config.toml")
+	writeFile(t, path, "[[account]]\nid = \"work\"\npool = \"b2n8\"\n\n[[account]]\nid = \"personal\"\npool = \"b2n8\"\n\n[[account]]\nid = \"side\"\npool = \"b2n8\"\n\n[[pool]]\nid = \"b2n8\"\n")
+	cfg.ConfigFile = Watch(path)
+	if err := identity.NewFile(cfg.StateDir).Update(func(r *identity.Record) error {
+		r.Pools = []identity.PoolEntry{{ID: "b2n8", Added: start}, {ID: "h4w2", Added: start}}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	r := newTestRouterOf(t, cfg)
+
+	clock.now = start.Add(time.Minute)
+	r.upkeep.keepRecord()
+	record, err := identity.NewFile(cfg.StateDir).Read()
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []identity.PoolEntry{{ID: "b2n8", Added: start}, {ID: "h4w2", Label: "Client", Added: start, Removed: clock.now}}
+	if !slices.Equal(record.Pools, want) {
+		t.Errorf("the record's pools are %+v, want %+v", record.Pools, want)
+	}
+}
+
 func TestAnAccountPutBackInTheConfigIsLiveAgain(t *testing.T) {
 	log := logstest.Capture(t)
 	clock := &testClock{now: start}
@@ -334,7 +365,7 @@ func TestAConfigPutBackOnTheIDsBeforeTheMoveChangesNothingTillItsHealed(t *testi
 
 	// The router restarting heals the config, and the look after changes
 	// nothing.
-	if healed, err := idmove.Heal(path, cfg.StateDir); err != nil || !healed {
+	if healed, err := idmove.Heal(path, cfg.StateDir, noHome); err != nil || !healed {
 		t.Fatalf("Heal() = %v, %v; want the config healed", healed, err)
 	}
 	healed, err := config.Load(path, noHome)
