@@ -198,7 +198,7 @@ func (r Record) clone() Record {
 
 // equal reports whether the record holds what other does.
 func (r Record) equal(other Record) bool {
-	return slices.Equal(r.Accounts, other.Accounts) && slices.Equal(r.Pools, other.Pools)
+	return slices.Equal(r.Accounts, other.Accounts) && slices.EqualFunc(r.Pools, other.Pools, PoolEntry.Equal)
 }
 
 // recordFile is the accounts record as its file holds it: a record from

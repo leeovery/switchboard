@@ -456,6 +456,137 @@ func TestHealingGivesAConfigWithoutPoolsTheFirstPoolAgain(t *testing.T) {
 	}
 }
 
+// testHome is the home directory the tests read a config in, whose pools'
+// directories start ~/.
+func testHome() (string, error) { return "/Users/test", nil }
+
+// clientPool is a client's pool, fenced to a directory in the home.
+var clientPool = config.NewPool{ID: "c1nt", Label: "Client", Dirs: []string{"~/Code/client"}}
+
+// keptUp keeps the fixture's accounts record in step with its config, as
+// the router does as it follows it.
+func (f fixture) keptUp(t *testing.T) {
+	t.Helper()
+	cfg, err := config.Load(f.config, testHome)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := identity.NewFile(f.state).Update(func(r *identity.Record) error {
+		r.KeepUp(identity.Followed{Accounts: cfg.Accounts, Pools: cfg.Pools}, now)
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// edited edits the config at path as each edit given does, saving it once.
+func edited(t *testing.T, path string, edits ...func(d *config.Draft) error) {
+	t.Helper()
+	draft, err := config.Edit(path, testHome)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, edit := range edits {
+		if err := edit(draft); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := draft.Save(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// poolsIn are the pools the config at path makes, each its id, label and
+// directories as written, in its order, and the pool each account is in, by
+// its id.
+func poolsIn(t *testing.T, path string) ([]string, map[string]string) {
+	t.Helper()
+	cfg, err := config.Load(path, testHome)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var pools []string
+	for _, p := range cfg.Pools {
+		pools = append(pools, p.ID+" "+p.Label+" "+strings.Join(p.WrittenDirs, ","))
+	}
+	members := make(map[string]string)
+	for _, a := range cfg.Accounts {
+		members[a.ID] = a.Pool
+	}
+	return pools, members
+}
+
+// withAccount is a config's text with an account the accounts record has
+// in no pool added.
+func withAccount(text string) string {
+	return text + "\n[[account]]\nid = \"n4p8\"\n"
+}
+
+// A config from before pools put back once the move's done, as a pull in the
+// repository it's kept in puts one back, is healed with the pools the record
+// keeps as the config last wrote them, in its order, their labels and
+// directories, as written, with them, and each account in the pool it was
+// in: so the client's pool stays fenced, its account in it. An account the
+// record has in no pool goes to the first.
+func TestHealingWritesThePoolsBackAsTheConfigLastHadThem(t *testing.T) {
+	f := newIDsFixture(t)
+	unpooled := readFile(t, f.config)
+	first := f.pooled(t)
+	moved := f.configuredIDs(t)[1]
+	edited(t, f.config,
+		func(d *config.Draft) error { return d.SetPoolLabel(first, "Everything") },
+		func(d *config.Draft) error { return d.AddPool(clientPool) },
+		func(d *config.Draft) error { return d.SetPool(moved, clientPool.ID) },
+	)
+	f.keptUp(t)
+	wantPools, wantMembers := poolsIn(t, f.config)
+	wantMembers["n4p8"] = first
+
+	writeFile(t, f.config, withAccount(unpooled))
+	if healed, err := idmove.HealPools(f.config, f.state, testHome); err != nil || !healed {
+		t.Fatalf("HealPools() = %v, %v; want the config healed", healed, err)
+	}
+	gotPools, gotMembers := poolsIn(t, f.config)
+	if !slices.Equal(gotPools, wantPools) {
+		t.Errorf("healed, the config's pools are %q, want them as it last had them, %q", gotPools, wantPools)
+	}
+	if !maps.Equal(gotMembers, wantMembers) {
+		t.Errorf("healed, the accounts are in the pools %v, want %v: each in the pool it was in, the one the record has in none in the first", gotMembers, wantMembers)
+	}
+}
+
+// Where the record has the first pool removed, an account it has in no pool
+// it keeps goes to the first pool it writes back.
+func TestHealingPutsAnAccountInNoPoolInTheFirstWrittenWhereTheFirstIsGone(t *testing.T) {
+	f := newIDsFixture(t)
+	unpooled := readFile(t, f.config)
+	first := f.pooled(t)
+	rest := config.NewPool{ID: "z4z4", Label: "Rest", Dirs: []string{"~/Code/rest"}}
+	edited(t, f.config,
+		func(d *config.Draft) error { return d.AddPool(clientPool) },
+		func(d *config.Draft) error { return d.AddPool(rest) },
+		func(d *config.Draft) error {
+			for _, id := range d.Config().Accounts.IDs() {
+				if err := d.SetPool(id, rest.ID); err != nil {
+					return err
+				}
+			}
+			return nil
+		},
+		func(d *config.Draft) error { return d.RemovePool(first) },
+	)
+	f.keptUp(t)
+
+	writeFile(t, f.config, withAccount(unpooled))
+	if _, err := idmove.HealPools(f.config, f.state, testHome); err != nil {
+		t.Fatal(err)
+	}
+	pools, members := poolsIn(t, f.config)
+	if want := []string{"c1nt Client ~/Code/client", "z4z4 Rest ~/Code/rest"}; !slices.Equal(pools, want) || members["n4p8"] != clientPool.ID {
+		t.Errorf("healed, the config holds the pools %q, n4p8 in %q; want %q, n4p8 in Client, the first written", pools, members["n4p8"], want)
+	}
+}
+
 func TestHealingWaitsForTheMoveToPools(t *testing.T) {
 	f := newIDsFixture(t)
 	before := readFile(t, f.config)

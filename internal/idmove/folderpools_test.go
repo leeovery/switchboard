@@ -153,10 +153,7 @@ func TestAFolderSincePoolsJoinsItsPoolsAndGivesNoLineOne(t *testing.T) {
 		{ID: "z4z4", Label: "Default", Added: now},
 		{ID: "c1nt", Label: "Client", Added: now, Removed: now},
 	}
-	samePool := func(a, b identity.PoolEntry) bool {
-		return a.ID == b.ID && a.Label == b.Label && a.Added.Equal(b.Added) && a.Removed.Equal(b.Removed) && a.First == b.First && a.Configured == b.Configured
-	}
-	if !slices.EqualFunc(record.Pools, want, samePool) {
+	if !slices.EqualFunc(record.Pools, want, identity.PoolEntry.Equal) {
 		t.Errorf("joined, the record's pools are\n%+v\nwant\n%+v: this Mac's first as it was, the other's added, never first", record.Pools, want)
 	}
 	for line, pool := range pooledLines(t, ledgerFiles(f.state), requestOf) {

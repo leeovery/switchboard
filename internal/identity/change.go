@@ -2,6 +2,7 @@ package identity
 
 import (
 	"cmp"
+	"slices"
 	"strings"
 	"time"
 
@@ -121,17 +122,22 @@ type Followed struct {
 //     it, its label the record's, is configured again, as Return has it;
 //   - one this Mac configured, live and unlabelled, that has left the config
 //     is marked removed, at the time given, as Remove has it, labelled as
-//     followed gives the label it last had in the config, else by its id.
+//     followed gives the label it last had in the config, else, of a pool,
+//     as the record kept it written, else by its id.
 //
-// A config from before pools, which has none, leaves the record's pools as
-// they are: the move to pools gives it its first again as the router
-// starts. It changes nothing while any account configured is named by the id
-// an account had before switchboard made ids, as MovedFrom finds it, as
-// where a config put back from before the move names them so: the move's
-// Heal gives them their new ids as the router restarts, and the record is
-// kept in step once it has. Until then they'd only clash, and the accounts
-// by their new ids be marked removed. It returns what it changed, or the ids
-// that stopped it.
+// Each pool configured keeps its label and directories as the config writes
+// them, and each account configured the pool the config has it in, as
+// PoolEntry's Written and Entry's Pool say. A config from before pools, which
+// has none, leaves the record's pools, and the accounts' pools, as they are:
+// the move to pools' heal writes them back.
+//
+// It changes nothing while any account configured is named by the id an
+// account had before switchboard made ids, as MovedFrom finds it, as where a
+// config put back from before the move names them so: the move's Heal gives
+// them their new ids as the router restarts, and the record is kept in step
+// once it has. Until then they'd only clash, and the accounts by their new
+// ids be marked removed. It returns what it changed, or the ids that stopped
+// it.
 func (r *Record) KeepUp(followed Followed, at time.Time) Kept {
 	ids := followed.Accounts.IDs()
 	if unhealed := r.unhealed(ids); len(unhealed) > 0 {
@@ -152,40 +158,64 @@ func (r *Record) KeepUp(followed Followed, at time.Time) Kept {
 	}
 	for _, e := range r.Accounts {
 		if e.Removed.IsZero() && e.Label == "" && !containsFold(ids, e.ID) {
-			r.Remove(e.ID, labelIn(followed.AccountLabel, e.ID), at)
+			r.Remove(e.ID, labelIn(followed.AccountLabel, e.ID, ""), at)
 			kept.Removed = append(kept.Removed, e.ID)
 		}
 	}
 	if len(followed.Pools) > 0 {
-		kept.Pools = r.keepPoolsUp(followed.Pools.IDs(), followed.PoolLabel, at)
+		kept.Pools = r.keepPoolsUp(followed.Pools, followed.PoolLabel, at)
+		r.keepMembersUp(followed.Accounts)
 	}
 	return kept
 }
 
-// keepPoolsUp keeps the record's pools in step with those configured, by
-// their ids, as KeepUp keeps the accounts, labelOf giving the label each had
-// in the config last.
-func (r *Record) keepPoolsUp(ids []string, labelOf func(id string) string, at time.Time) PoolsKept {
+// keepPoolsUp keeps the record's pools in step with those configured, as
+// KeepUp keeps the accounts, labelOf giving the label each had in the config
+// last, each configured keeping how the config writes it.
+func (r *Record) keepPoolsUp(configured config.Pools, labelOf func(id string) string, at time.Time) PoolsKept {
 	var kept PoolsKept
-	for _, id := range ids {
-		switch p := r.pool(id); {
-		case p == nil && r.clashes(id, nil):
-			kept.Clashed = append(kept.Clashed, id)
+	for _, c := range configured {
+		switch p := r.pool(c.ID); {
+		case p == nil && r.clashes(c.ID, nil):
+			kept.Clashed = append(kept.Clashed, c.ID)
+			continue
 		case p == nil:
-			r.Pools = append(r.Pools, PoolEntry{ID: id, Added: at})
-			kept.Added = append(kept.Added, id)
+			r.Pools = append(r.Pools, PoolEntry{ID: c.ID, Added: at})
+			kept.Added = append(kept.Added, c.ID)
 		case !p.Removed.IsZero() || p.Label != "":
 			p.Label, p.Removed = "", time.Time{}
 			kept.Returned = append(kept.Returned, p.ID)
 		}
+		r.pool(c.ID).Written = writtenOf(c)
 	}
+	ids := configured.IDs()
 	for i := range r.Pools {
 		if p := &r.Pools[i]; p.Removed.IsZero() && p.Label == "" && !containsFold(ids, p.ID) {
-			p.Label, p.Removed = labelIn(labelOf, p.ID), at
+			p.Label, p.Removed = labelIn(labelOf, p.ID, p.Written.Label), at
 			kept.Removed = append(kept.Removed, p.ID)
 		}
 	}
 	return kept
+}
+
+// writtenOf is the pool configured as its config writes it: a label that's
+// its id, as the config gives a pool it writes none for, none.
+func writtenOf(p config.Pool) PoolWritten {
+	w := PoolWritten{Dirs: slices.Clone(p.WrittenDirs)}
+	if !strings.EqualFold(p.Label, p.ID) {
+		w.Label = p.Label
+	}
+	return w
+}
+
+// keepMembersUp has each account configured that the record holds keep the
+// pool the config has it in.
+func (r *Record) keepMembersUp(configured config.Accounts) {
+	for _, a := range configured {
+		if e := r.entry(a.ID); e != nil && a.Pool != "" {
+			e.Pool = a.Pool
+		}
+	}
 }
 
 // NoteFirst notes the pool with the given id as the first, where the history
@@ -202,12 +232,13 @@ func (r *Record) NoteFirst(id string, at time.Time) {
 }
 
 // labelIn returns the label labelOf gives the account or pool with the given
-// id, else its id: nil gives none.
-func labelIn(labelOf func(id string) string, id string) string {
-	if labelOf == nil {
-		return id
+// id, else the label kept, else its id: nil gives none.
+func labelIn(labelOf func(id string) string, id, kept string) string {
+	var given string
+	if labelOf != nil {
+		given = labelOf(id)
 	}
-	return cmp.Or(labelOf(id), id)
+	return cmp.Or(given, kept, id)
 }
 
 // pool is the record's pool with the given id, in any case, to change: nil

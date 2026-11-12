@@ -118,21 +118,21 @@ func TestTheRoutersStatusSaysTheMoveWaitsForItToRestart(t *testing.T) {
 }
 
 // fakePoolMover is a move to pools as the router runs it: each run hands the
-// history's files it's given to history, and whether the router routes in
-// pools to pooled, then answers as the test sends on runs.
+// history's files it's given to history, and whether the router took up the
+// pools as it had it to tookUp, then answers as the test sends on runs.
 type fakePoolMover struct {
 	history chan idmove.History
-	pooled  chan bool
+	tookUp  chan bool
 	runs    chan error
 }
 
 func newFakePoolMover() *fakePoolMover {
-	return &fakePoolMover{history: make(chan idmove.History, 8), pooled: make(chan bool, 8), runs: make(chan error)}
+	return &fakePoolMover{history: make(chan idmove.History, 8), tookUp: make(chan bool, 8), runs: make(chan error)}
 }
 
-func (m *fakePoolMover) RunBeside(ctx context.Context, history idmove.History, pooled func() bool) error {
+func (m *fakePoolMover) RunBeside(ctx context.Context, history idmove.History, takeUp func() bool) error {
 	m.history <- history
-	m.pooled <- pooled()
+	m.tookUp <- takeUp()
 	select {
 	case err := <-m.runs:
 		return err
@@ -156,7 +156,7 @@ func TestTheRouterMovesTheHistoryToPoolsOnceTheMoveOntoTheIDsIsDone(t *testing.T
 	if h.Ledger == nil || h.Readings == nil || h.Events == nil {
 		t.Fatalf("the move to pools was given the history %+v, want the router's ledger, readings and events", h)
 	}
-	if <-pools.pooled {
+	if <-pools.tookUp {
 		t.Error("the move to pools was told the router routes in pools, want not: its config names none")
 	}
 	waitForStatus(t, path, moving(status.Moving{Stage: status.MoveRunning, Move: status.MovingPools}))

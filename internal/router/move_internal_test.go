@@ -182,19 +182,19 @@ func TestNoMoveOwedRunsNothing(t *testing.T) {
 
 // answeringPoolMover is a move to pools that answers each run with the next
 // of its answers, nil once they've run out, counting its runs, and noting
-// whether the router routed in pools as each ran, and the runs of the move
-// onto the ids before its first, where it's given that move.
+// whether the router took up the pools as each had it, and the runs of the
+// move onto the ids before its first, where it's given that move.
 type answeringPoolMover struct {
 	answers []error
 	runs    int
-	pooled  []bool
+	tookUp  []bool
 	ids     *answeringMover
 	idsRuns int
 }
 
-func (m *answeringPoolMover) RunBeside(_ context.Context, _ idmove.History, pooled func() bool) error {
+func (m *answeringPoolMover) RunBeside(_ context.Context, _ idmove.History, takeUp func() bool) error {
 	m.runs++
-	m.pooled = append(m.pooled, pooled())
+	m.tookUp = append(m.tookUp, takeUp())
 	if m.runs == 1 && m.ids != nil {
 		m.idsRuns = m.ids.runs
 	}
@@ -254,11 +254,11 @@ func TestWhileTheMoveToPoolsIsOwedTheHistoryWaitsOnItAlone(t *testing.T) {
 			t.Fatalf("before it ran, the move stands %+v, owed %t, the ids' owed %t; want the move to pools running, owed alone", got, m.owed(), m.idsOwed())
 		}
 		m.settle()
-		var routesInPools atomic.Bool
+		var takesUp atomic.Bool
 		done := make(chan struct{})
 		go func() {
 			defer close(done)
-			m.run(t.Context(), func() idmove.History { return idmove.History{} }, routesInPools.Load)
+			m.run(t.Context(), func() idmove.History { return idmove.History{} }, takesUp.Load)
 		}()
 		synctest.Wait()
 		if want := (status.Moving{Stage: status.MoveAwaitingRestart, Move: status.MovingPools}); m.report() != want || !m.owed() || m.idsOwed() {
@@ -269,11 +269,11 @@ func TestWhileTheMoveToPoolsIsOwedTheHistoryWaitsOnItAlone(t *testing.T) {
 			t.Errorf("an import is refused with %v, want it in the words of the move to pools", err)
 		}
 
-		routesInPools.Store(true)
+		takesUp.Store(true)
 		time.Sleep(moveRetry)
 		<-done
-		if m.owed() || !slices.Equal(pools.pooled, []bool{false, true}) {
-			t.Errorf("a retry's wait later, the move is owed %t, told the router routes in pools %v; want it run again as it does, and done", m.owed(), pools.pooled)
+		if m.owed() || !slices.Equal(pools.tookUp, []bool{false, true}) {
+			t.Errorf("a retry's wait later, the move is owed %t, told the router routes in pools %v; want it run again as it does, and done", m.owed(), pools.tookUp)
 		}
 	})
 }

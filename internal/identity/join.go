@@ -49,7 +49,8 @@ type JoinAs struct {
 //     account, added to r with its organization and time added alone, as an
 //     account added on another Mac sharing this one's config;
 //   - matching none otherwise, it's added as it is, its label and removal
-//     kept, as an account only the other Mac configures or removed there;
+//     kept, but not the pool the other Mac's config had it in, as an
+//     account only the other Mac configures or removed there;
 //     where its id is held here already, as one of an account of another
 //     organization, or one an account had before, under one spelled from
 //     the other Mac's install and its id, as Derive spells one, so it's the
@@ -91,7 +92,7 @@ type joining struct {
 // id it has there.
 func (j *joining) join(e Entry) string {
 	labelled := j.as.Labels && e.Configured
-	e.Was, e.Configured = "", false
+	e.Was, e.Configured, e.Pool = "", false, ""
 	if i := j.matching(e); i >= 0 {
 		return j.take(i, e, labelled)
 	}
@@ -154,10 +155,11 @@ func (j *joining) take(i int, e Entry, labelled bool) string {
 // matching none, of an id configured here, it's that pool, added with its
 // time added alone, as a pool added on another Mac sharing this one's
 // config; matching none otherwise, it's added as it is, its label and
-// removal kept. The other Mac's first pool is never this one's.
+// removal kept. The other Mac's first pool is never this one's, nor how its
+// config writes a pool this one's.
 func (j *joining) joinPool(p PoolEntry) {
 	labelled := j.as.Labels && p.Configured
-	p.First, p.Configured = false, false
+	p.First, p.Configured, p.Written = false, false, PoolWritten{}
 	configured := containsFold(j.as.Pools.IDs(), p.ID)
 	switch own := j.record.pool(p.ID); {
 	case own != nil && !configured:

@@ -34,11 +34,12 @@ type Mover interface {
 
 // PoolMover moves the history to pools, once, after the move onto the ids,
 // as idmove.PoolMover does: RunBeside runs it beside the router, given the
-// history's files as it keeps them, and whether it routes in pools, failing
-// with idmove.ErrAwaitingPools, having touched no file of the history, while
-// it doesn't.
+// history's files as it keeps them, and what has it take up the pools its
+// config holds, reporting whether it routes in them, failing with
+// idmove.ErrAwaitingPools, having touched no file of the history, while it
+// doesn't.
 type PoolMover interface {
-	RunBeside(ctx context.Context, history idmove.History, pooled func() bool) error
+	RunBeside(ctx context.Context, history idmove.History, takeUp func() bool) error
 }
 
 // moving runs the moves the history makes once beside the router, where
@@ -116,16 +117,16 @@ func (m *moving) settle() {
 }
 
 // run runs the moves owed, given the history's files as history gives them,
-// the move onto the ids first, then the move to pools, the router routing
-// in pools as pooled reports, each as until runs it, until every one's done,
-// ctx ends, or the move onto the ids waits for the router to restart onto
-// the accounts' new ids. It notes how they stand throughout, as the status
-// says it.
-func (m *moving) run(ctx context.Context, history func() idmove.History, pooled func() bool) {
+// the move onto the ids first, then the move to pools, which has the router
+// take up the pools of its config as takeUp does, each as until runs it,
+// until every one's done, ctx ends, or the move onto the ids waits for the
+// router to restart onto the accounts' new ids. It notes how they stand
+// throughout, as the status says it.
+func (m *moving) run(ctx context.Context, history func() idmove.History, takeUp func() bool) {
 	if m.idsOwed() && !m.until(ctx, status.MovingIDs, func() error { return m.mover.RunBeside(ctx, history()) }) {
 		return
 	}
-	if m.pools != nil && !m.until(ctx, status.MovingPools, func() error { return m.pools.RunBeside(ctx, history(), pooled) }) {
+	if m.pools != nil && !m.until(ctx, status.MovingPools, func() error { return m.pools.RunBeside(ctx, history(), takeUp) }) {
 		return
 	}
 	m.stands.Store(nil)
@@ -195,8 +196,10 @@ func (r *Router) historyFiles() idmove.History {
 	return idmove.History{Ledger: r.ledger.opened.Load(), Readings: r.history.files, Events: r.eventFiles.Files()}
 }
 
-// routesInPools reports whether the router routes in pools, as it does once
-// it has taken up the pools of its config: those it started with.
-func (r *Router) routesInPools() bool {
+// takeUpPools has the router take up the pools its config holds, as the move
+// to pools has written the first there, reporting whether it routes in them:
+// as yet, it takes up none but those it started with, so it routes in pools
+// once it has restarted on a config that holds them.
+func (r *Router) takeUpPools() bool {
 	return len(r.cfg.Pools) > 0
 }

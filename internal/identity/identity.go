@@ -36,6 +36,27 @@ type PoolEntry struct {
 	// Configured is set in the copy of a record an export writes alone, as
 	// an Entry's is.
 	Configured bool `json:"configured,omitzero"`
+	// Written is the pool as this Mac's config last wrote it, kept in step
+	// by KeepUp, kept once it's removed: for a heal to write it back where a
+	// config from before pools is put back. Zero where this Mac never
+	// configured it, or its config wrote neither label nor directories.
+	Written PoolWritten `json:"written,omitzero"`
+}
+
+// PoolWritten is a pool as a config writes it: its label, "" where it gives
+// none, and its directories, as written, such as ~/Code/acme, none where
+// it's unfenced.
+type PoolWritten struct {
+	Label string   `json:"label,omitempty"`
+	Dirs  []string `json:"dirs,omitempty"`
+}
+
+// Equal reports whether the pool is other, field for field, its times the
+// same instants.
+func (p PoolEntry) Equal(other PoolEntry) bool {
+	return p.ID == other.ID && p.Label == other.Label && p.Added.Equal(other.Added) && p.Removed.Equal(other.Removed) &&
+		p.First == other.First && p.Configured == other.Configured &&
+		p.Written.Label == other.Written.Label && slices.Equal(p.Written.Dirs, other.Written.Dirs)
 }
 
 // PoolByID returns the pool with the given id, in any case, reporting false
@@ -77,6 +98,10 @@ type Entry struct {
 	// Was is the id it had before switchboard made ids, read to import a
 	// folder exported before then: "" where it had none.
 	Was string `json:"was,omitempty"`
+	// Pool is the id of the pool this Mac's config last had it in, kept in
+	// step by KeepUp, kept once it's removed: "" where it never had it in
+	// one.
+	Pool string `json:"pool,omitempty"`
 	// Configured is set in the copy of a record an export writes alone, on an
 	// account the exporting Mac configures, whose Label is its config's, for
 	// a Mac importing it to take: never in a Mac's own record.

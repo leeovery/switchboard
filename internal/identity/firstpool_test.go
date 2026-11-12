@@ -43,7 +43,7 @@ func TestNotingTheFirstPoolMarksItOrAddsIt(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			record := identity.Record{Pools: slices.Clone(tt.pools)}
 			record.NoteFirst("b2n8", at)
-			if !slices.Equal(record.Pools, tt.want) {
+			if !slices.EqualFunc(record.Pools, tt.want, identity.PoolEntry.Equal) {
 				t.Errorf("the pools are %+v, want %+v", record.Pools, tt.want)
 			}
 		})
@@ -117,7 +117,7 @@ func TestJoiningARecordTakesInItsPools(t *testing.T) {
 			if _, err := record.Join(identity.Record{Pools: []identity.PoolEntry{tt.other}}, as); err != nil {
 				t.Fatalf("Join: %v", err)
 			}
-			if want := slices.Concat(tt.owned, tt.want); !slices.Equal(record.Pools, want) {
+			if want := slices.Concat(tt.owned, tt.want); !slices.EqualFunc(record.Pools, want, identity.PoolEntry.Equal) {
 				t.Errorf("the pools joined are\n%+v\nwant\n%+v", record.Pools, want)
 			}
 		})

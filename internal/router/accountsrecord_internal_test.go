@@ -155,15 +155,22 @@ func TestThePoolsConfiguredAreRecordedAndOneThatLeftMarkedRemovedWithTheLabelItH
 	}
 
 	// As the router starts: the pools the config file makes, a directory
-	// in the home among them, are added.
+	// in the home among them, are added, as the config writes them, and
+	// each account keeps its pool.
 	clock.now = start.Add(time.Minute)
 	r.upkeep.keepRecord()
-	want := []identity.PoolEntry{{ID: "b2n8", Added: clock.now}, {ID: "h4w2", Added: clock.now}}
-	if got := pools(); !slices.Equal(got, want) {
+	client := identity.PoolWritten{Label: "Client", Dirs: []string{"~/Code/client"}}
+	want := []identity.PoolEntry{{ID: "b2n8", Added: clock.now}, {ID: "h4w2", Added: clock.now, Written: client}}
+	if got := pools(); !slices.EqualFunc(got, want, identity.PoolEntry.Equal) {
 		t.Errorf("the record's pools are %+v, want %+v", got, want)
 	}
 	if !log.Has("level=INFO", `msg="pool configured here added to the accounts record"`, "pool=h4w2") {
 		t.Errorf("log reads\n%s\nwant h4w2 told added to the record", log)
+	}
+	for _, id := range []string{"work", "personal", "side"} {
+		if e := entryOf(t, r, id); e.Pool != "b2n8" {
+			t.Errorf("the record holds %+v, want %s in b2n8, as the config has it", e, id)
+		}
 	}
 
 	// The client's pool leaves the config: it's marked removed, labelled as
@@ -172,7 +179,7 @@ func TestThePoolsConfiguredAreRecordedAndOneThatLeftMarkedRemovedWithTheLabelItH
 	writeFile(t, path, accounts+"\n[[pool]]\nid = \"b2n8\"\n")
 	configure(r, without("side"))
 	want[1].Label, want[1].Removed = "Client", clock.now
-	if got := pools(); !slices.Equal(got, want) {
+	if got := pools(); !slices.EqualFunc(got, want, identity.PoolEntry.Equal) {
 		t.Errorf("the record's pools are %+v, want %+v", got, want)
 	}
 	if !log.Has("level=INFO", `msg="pool no longer configured marked removed in the accounts record"`, "pool=h4w2") {
@@ -206,7 +213,7 @@ func TestAPoolThatLeftTheConfigBeforeTheFirstLookIsLabelledAsTheRouterStartedWit
 		t.Fatal(err)
 	}
 	want := []identity.PoolEntry{{ID: "b2n8", Added: start}, {ID: "h4w2", Label: "Client", Added: start, Removed: clock.now}}
-	if !slices.Equal(record.Pools, want) {
+	if !slices.EqualFunc(record.Pools, want, identity.PoolEntry.Equal) {
 		t.Errorf("the record's pools are %+v, want %+v", record.Pools, want)
 	}
 }

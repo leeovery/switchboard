@@ -117,13 +117,14 @@ func (a *app) awaitMove(ctx context.Context, out io.Writer, stateDir string) err
 
 // heal writes the accounts' new ids back in the config file at path, where
 // the move onto them is done in the state directory given and the config
-// names any by the id it had before, as idmove.Heal does; then the first
-// pool, where the move to pools is done there and the config names no pool,
-// as idmove.HealPools does: as a router starts, before it reads the config,
-// so it starts on the ids the token files are named by, in pools, the config
-// read in the home directory homeDir returns. Where it can't, which is
-// logged, the router starts all the same, the accounts' tokens not found by
-// the old ids, or in no pool.
+// names any by the id it had before, as idmove.Heal does; then the pools the
+// accounts record keeps, each account in the pool it was in, where the move
+// to pools is done there and the config names no pool, as idmove.HealPools
+// does: as a router starts, before it reads the config, so it starts on the
+// ids the token files are named by, in the pools it had, the config read in
+// the home directory homeDir returns. Where it can't, which is logged, the
+// router starts all the same, the accounts' tokens not found by the old ids,
+// or in no pool.
 func heal(path, stateDir string, homeDir func() (string, error)) {
 	healed, err := idmove.Heal(path, stateDir, homeDir)
 	switch {
@@ -135,9 +136,9 @@ func heal(path, stateDir string, homeDir func() (string, error)) {
 	pooled, err := idmove.HealPools(path, stateDir, homeDir)
 	switch {
 	case err != nil:
-		logger.Warn("couldn't write the first pool back in the config, which names no pool", "path", path, "error", err)
+		logger.Warn("couldn't write the pools back in the config, which names none", "path", path, "error", err)
 	case pooled:
-		logger.Info("wrote the first pool back in the config, which named no pool, every account in it", "path", path)
+		logger.Info("wrote the pools back in the config, which named none, each account in the pool it was in", "path", path)
 	}
 }
 

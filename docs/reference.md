@@ -155,6 +155,13 @@ readable by its owner alone, and kept for good, a few hundred bytes an account:
   exported before then, and to put back an old id a config or a pin still names.
 - `configured`: in the copy an export writes alone, set on each account the exporting Mac
   configures, whose `label` is then its config's, so a Mac that imports it names it all the same.
+- `pool`: the id of the pool the config last had the account in, kept once it's removed.
+
+Since pools, `pools` lists every pool this Mac has had, each with its `id`, its `label` once it's
+removed, `added` and `removed`, `first` on the first pool, where the history from before pools is,
+`configured` as on an account, and `written`, the pool's `label` and `dirs` as the config last
+wrote them. A config put back from before pools is given its pools back from these, each account
+in the pool it was in.
 
 Each `id`, `organization` and `was` is held by one account at most, ids compared ignoring case. A
 record that doesn't read, as one damaged or edited wrongly by hand, is left as it is and never
@@ -168,12 +175,14 @@ Each Mac's folder an [export](commands.md#export) writes holds `export.json`, wr
 every other file has been:
 
 ```json
-{"version": 2, "install": "0123456789abcdef", "exported_at": "2026-11-12T09:00:00Z", "ids": true, "accounts": true}
+{"version": 3, "install": "0123456789abcdef", "exported_at": "2026-11-12T09:00:00Z", "ids": true, "accounts": true}
 ```
 
-- `version`: `2` since switchboard made account ids. A switchboard from before them reads version
-  1 alone, so it refuses a folder this one exports, whose days name accounts by ids it has no token
-  files for. One newer than this switchboard's is refused, saying to upgrade.
+- `version`: `3` since pools, `2` since switchboard made account ids. A switchboard from before
+  pools reads version 2 at most, so it refuses a folder this one exports, whose days name pools;
+  one from before ids reads version 1 alone, refusing a folder whose days name accounts by ids it
+  has no token files for. One newer than this switchboard's is refused, saying to upgrade. A
+  folder of version 2 or 1 has its days given this Mac's first pool as they're imported.
 - `install`: the id of the install whose folder it is, as `install-id` holds it.
 - `exported_at`: when it was last exported to, in UTC, to the second.
 - `ids`: `true` where a switchboard that makes account ids exported it, so its days name accounts

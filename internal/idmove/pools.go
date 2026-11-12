@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
@@ -27,10 +28,10 @@ const (
 
 var (
 	// ErrAwaitingPools is what a move to pools run beside a router that
-	// doesn't route in pools returns once the config holds the first pool:
-	// the rest of it, which gives the history that pool, waits for the
-	// router to take it up, so no line the router files after a day is moved
-	// names none.
+	// doesn't take up the pools of its config returns once the config holds
+	// the first pool: the rest of it, which gives the history that pool,
+	// waits for the router to take it up, so no line the router files after
+	// a day is moved names none.
 	ErrAwaitingPools = errors.New("the config holds the first pool, so the rest of the move to pools waits for the router to take it up")
 	// errIDsFirst is what the move to pools fails with while the move onto
 	// the accounts' ids is owed, which it follows.
@@ -43,12 +44,12 @@ var (
 // the config's first where the config has pools, else one made, its id
 // random, before anything else changes, so a stop anywhere carries on to the
 // same end the next time; written to a config without pools, every account
-// in it, in one edit; where a router runs beside it that doesn't route in
-// pools, ErrAwaitingPools returned for it to take the pool up; then every
-// request line, every pin event and every day's summary given the first
-// pool where it names none, as rewriteHistory writes them, so a file moved
-// reads the same moved again; and what the router builds of them built
-// again.
+// in it, in one edit; taken up by the router running beside it, as TakeUp
+// has it, else ErrAwaitingPools returned for it to take the pool up; then
+// every request line, every pin event and every day's summary given the
+// first pool where it names none, as rewriteHistory writes them, so a file
+// moved reads the same moved again; and what the router builds of them
+// built again.
 type PoolMover struct {
 	// ConfigPath is the config file, and StateDir the state directory.
 	ConfigPath string
@@ -59,10 +60,12 @@ type PoolMover struct {
 	// History is the history's files as the router running beside the move
 	// keeps them: nil opens them afresh, where none does.
 	History *History
-	// Pooled, where it's set, reports whether the router running beside the
-	// move routes in pools, as it does once it has taken up the pools its
-	// config holds: nil where none runs, as for a copy of a state directory.
-	Pooled func() bool
+	// TakeUp, where it's set, has the router running beside the move take up
+	// the pools its config now holds, at once, as the move has written the
+	// first there, reporting whether it routes in them, so no line it files
+	// after a day is moved names none: nil where none runs, as for a copy of
+	// a state directory.
+	TakeUp func() bool
 	// Now reads the clock, and Random is what the first pool's id is drawn
 	// from: nil reads the system's, and draws from crypto/rand.
 	Now    func() time.Time
@@ -118,8 +121,8 @@ func (m *PoolMover) Run(ctx context.Context) error {
 	}
 	steps := []step{
 		{"pools first", m.noteFirst},
-		{"pools config", func() error { _, err := m.configure(); return err }},
-		{"pools taken up", m.awaitPools},
+		{"pools config", m.writeFirst},
+		{"pools taken up", m.takeUp},
 		{"pools history", func() error { return m.moveHistory(ctx) }},
 		{"pools rebuild", func() error { return m.history().Ledger.Rebuild() }},
 		{"pools mark", m.mark},
@@ -136,11 +139,11 @@ func (m *PoolMover) Run(ctx context.Context) error {
 }
 
 // RunBeside runs the move once, as Run does, beside a router that keeps the
-// history's files as history has them, and routes in pools as pooled
-// reports, failing with ErrAwaitingPools, for the router to run it again
-// once it has taken the first pool up.
-func (m *PoolMover) RunBeside(ctx context.Context, history History, pooled func() bool) error {
-	m.History, m.Pooled = &history, pooled
+// history's files as history has them, and takes up the pools of its config
+// as takeUp does, as TakeUp says, failing with ErrAwaitingPools, for the
+// router to run it again once it has taken the first pool up.
+func (m *PoolMover) RunBeside(ctx context.Context, history History, takeUp func() bool) error {
+	m.History, m.TakeUp = &history, takeUp
 	return m.Run(ctx)
 }
 
@@ -190,21 +193,16 @@ func configuredIDs(draft *config.Draft) []string {
 	return slices.Concat(cfg.Accounts.IDs(), cfg.Pools.IDs())
 }
 
-// configure writes the first pool the accounts record notes to a config
-// that has no pools, as config's AddPool adds it, every account in it, in
-// one edit, under the record's lock: labelled as the record last knew it,
-// where it's removed, else firstLabel; made afresh where the config changed
-// as it was edited, configTries times at most. A config with pools, or
-// without accounts, is left as it is. It reports whether it changed the
-// config, and fails where the record notes no first pool.
+// configure writes the pools the accounts record keeps to a config that has
+// none, as restorePools has them, in one edit, under the record's lock: made
+// afresh where the config changed as it was edited, configTries times at
+// most. A config with pools, or without accounts, is left as it is. It
+// reports whether it changed the config, and fails where the record notes no
+// first pool.
 func (m *PoolMover) configure() (bool, error) {
 	for range configTries {
 		changed := false
 		err := m.record().Change(func(r *identity.Record, _ func() error) error {
-			first, ok := r.FirstPool()
-			if !ok {
-				return errors.New("the accounts record notes no first pool")
-			}
 			draft, err := config.Edit(m.ConfigPath, m.HomeDir)
 			if err != nil {
 				return err
@@ -212,30 +210,89 @@ func (m *PoolMover) configure() (bool, error) {
 			if cfg := draft.Config(); cfg == nil || len(cfg.Pools) > 0 {
 				return nil
 			}
-			if err := draft.AddPool(config.NewPool{ID: first.ID, Label: cmp.Or(first.Label, firstLabel)}); err != nil {
+			if err := restorePools(draft, *r); err != nil {
 				return err
 			}
 			changed = true
 			return draft.Save()
 		})
-		if err == nil && changed {
-			logger.Info("wrote the first pool in the config, every account in it", "path", m.ConfigPath)
-		}
 		if !errors.Is(err, config.ErrChanged) {
 			return changed, err
 		}
 	}
-	return false, fmt.Errorf("write the first pool in the config: %w", config.ErrChanged)
+	return false, fmt.Errorf("write the pools in the config: %w", config.ErrChanged)
 }
 
-// HealPools writes the first pool the accounts record in the state
-// directory stateDir notes in the config file at configPath, every account
-// in it, as the move to pools writes it, where that move is done there and
-// the config names no pool, as where a change to the config made by hand,
-// or a repository it's kept in, put one from before pools back. A router
-// heals its config before it reads it, so it starts in pools. The config is
-// read in the home directory homeDir returns. It reports whether it changed
-// the config.
+// restorePools writes in draft, a config without pools, the pools record
+// keeps as this Mac configures them, live and unlabelled, in the record's
+// order, each with its id, and its label and directories as the config last
+// wrote them, the first labelled firstLabel where it wrote none; and has
+// each account in the pool the record last had it in, or, where that's none
+// of them, in the first pool, else the first written. Where the record keeps
+// none so, the first pool is written alone, labelled as the record last knew
+// it, else firstLabel: so on the move to pools, which notes the first alone,
+// every account is in it. It fails where the record notes no first pool, or
+// draft refuses an edit.
+func restorePools(draft *config.Draft, record identity.Record) error {
+	first, ok := record.FirstPool()
+	if !ok {
+		return errors.New("the accounts record notes no first pool")
+	}
+	pools := configuredPools(record)
+	if len(pools) == 0 {
+		pools = []config.NewPool{{ID: first.ID, Label: cmp.Or(first.Label, first.Written.Label, firstLabel)}}
+	}
+	for _, p := range pools {
+		if err := draft.AddPool(p); err != nil {
+			return err
+		}
+	}
+	written := func(id string) bool {
+		return slices.ContainsFunc(pools, func(p config.NewPool) bool { return strings.EqualFold(p.ID, id) })
+	}
+	home := pools[0].ID
+	if written(first.ID) {
+		home = first.ID
+	}
+	for _, id := range draft.Config().Accounts.IDs() {
+		pool := home
+		if e, ok := record.ByID(id); ok && written(e.Pool) {
+			pool = e.Pool
+		}
+		if err := draft.SetPool(id, pool); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// configuredPools are the pools record keeps as this Mac configures them,
+// live and unlabelled, in its order, as restorePools writes them.
+func configuredPools(record identity.Record) []config.NewPool {
+	var pools []config.NewPool
+	for _, p := range record.Pools {
+		if !p.Removed.IsZero() || p.Label != "" {
+			continue
+		}
+		label := p.Written.Label
+		if p.First {
+			label = cmp.Or(label, firstLabel)
+		}
+		pools = append(pools, config.NewPool{ID: p.ID, Label: label, Dirs: p.Written.Dirs})
+	}
+	return pools
+}
+
+// HealPools writes back, in the config file at configPath, the pools the
+// accounts record in the state directory stateDir keeps, their labels and
+// directories, and each account in the pool the record last had it in, as
+// restorePools writes them, where the move to pools is done there and the
+// config names no pool, as where a change to the config made by hand, or a
+// repository it's kept in, put one from before pools back. The config is
+// read in the home directory homeDir returns. A router heals its config
+// before it reads it, so it starts in pools; and may as it follows it, so one
+// put back is healed at once. It holds the record's lock as it does, so it's
+// never called holding it. It reports whether it changed the config.
 func HealPools(configPath, stateDir string, homeDir func() (string, error)) (bool, error) {
 	if !PoolsMoved(stateDir) {
 		return false, nil
@@ -244,10 +301,22 @@ func HealPools(configPath, stateDir string, homeDir func() (string, error)) (boo
 	return m.configure()
 }
 
-// awaitPools fails with ErrAwaitingPools where the router running beside the
-// move doesn't route in pools.
-func (m *PoolMover) awaitPools() error {
-	if m.Pooled == nil || m.Pooled() {
+// writeFirst writes the first pool the accounts record notes to a config
+// without pools, every account in it, as configure writes it, as the move's
+// step.
+func (m *PoolMover) writeFirst() error {
+	changed, err := m.configure()
+	if changed {
+		logger.Info("wrote the first pool in the config, every account in it", "path", m.ConfigPath)
+	}
+	return err
+}
+
+// takeUp has the router running beside the move take the pools its config
+// now holds up, failing with ErrAwaitingPools where it doesn't route in them
+// once it has.
+func (m *PoolMover) takeUp() error {
+	if m.TakeUp == nil || m.TakeUp() {
 		return nil
 	}
 	return ErrAwaitingPools

@@ -33,7 +33,7 @@ func TestTheAccountsRecordIsExportedWithItsPoolsLabelled(t *testing.T) {
 	}
 	labelled := first
 	labelled.Label, labelled.Configured = "Everything", true
-	if want := []identity.PoolEntry{labelled, gone}; !slices.Equal(record.Pools, want) {
+	if want := []identity.PoolEntry{labelled, gone}; !slices.EqualFunc(record.Pools, want, identity.PoolEntry.Equal) {
 		t.Errorf("the folder's record's pools are %+v, want %+v: the first labelled as configured, the removed one as the record has it", record.Pools, want)
 	}
 }
