@@ -975,14 +975,32 @@ func TestTheMoveToPoolsGivingUpOnAConfigThatKeepsChangingSaysWhatItWasWriting(t 
 		// putBack is what the config changes to, "" for as the move onto the
 		// ids left it.
 		putBack, want string
+		// unplaced has the move to pools made, every pool fenced, then made
+		// again from the edit that writes the pools, on putBack, which holds
+		// an account the record has in no pool, so the ids are written alone.
+		unplaced bool
 	}{
 		{name: "put back from before both moves", putBack: fixtureConfig, want: "write the accounts' new ids and the pools in the config"},
 		{name: "on the new ids", want: "write the pools in the config"},
+		{
+			name:    "put back from before both moves, its pools unwritable",
+			putBack: withAccount(fixtureConfig), unplaced: true,
+			want: "write the accounts' new ids in the config",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := newIDsFixture(t)
 			putBack := cmp.Or(tt.putBack, readFile(t, f.config))
+			if tt.unplaced {
+				first := f.pooled(t)
+				edited(t, f.config, func(d *config.Draft) error { return d.SetPoolDirs(first, []string{"~/Code"}) })
+				f.keptUp(t)
+				if err := os.Remove(filepath.Join(f.state, "pools.moved")); err != nil {
+					t.Fatal(err)
+				}
+				writeFile(t, f.config, putBack)
+			}
 			mover := f.poolMover()
 			edits := 0
 			mover.OnEditing(func() {
