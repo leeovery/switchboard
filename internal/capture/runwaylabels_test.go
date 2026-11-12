@@ -3,7 +3,6 @@ package capture
 import (
 	"regexp"
 	"slices"
-	"strings"
 	"testing"
 )
 
@@ -19,7 +18,7 @@ var laneHead = regexp.MustCompile(`^[^ █▒─│]+( [^ █▒─│]+)*( +[�
 // row, with no name or marks. Every lane row drawn is headed by one of the labels, and
 // each label heads one.
 func TestRunwaysLabelsReadWholeAtTheOwnersSizes(t *testing.T) {
-	frames := []string{"work", "personal ◆", "side ▲"}
+	frames := []string{"work", "personal   ◆", "side       ▲"}
 	tests := []struct {
 		name  string
 		heads []string
@@ -30,10 +29,10 @@ func TestRunwaysLabelsReadWholeAtTheOwnersSizes(t *testing.T) {
 		{
 			name: "runway-ten-accounts-160",
 			heads: []string{
-				"work", "personal ◆", "side ▲", "client", "spare", "lab", "team", "extra", "ops", "studio",
+				"work", "personal   ◆", "side       ▲", "client", "spare", "lab", "team", "extra", "ops", "studio",
 			},
 		},
-		{name: "long-names-runway", heads: []string{"work-team-plan", "personal-research ◆", "side-hustle-consulting ▲"}},
+		{name: "long-names-runway", heads: []string{"work-team-plan", "personal-research      ◆", "side-hustle-consulting ▲"}},
 		{name: "runway-collapsed-160", heads: []string{"", "", ""}},
 	}
 	for _, tt := range tests {
@@ -57,12 +56,12 @@ func TestRunwaysLabelsReadWholeAtTheOwnersSizes(t *testing.T) {
 }
 
 // lanesHeads are the labels heading the rows of Runway's lanes among the
-// rows given, as laneHead reads them, a space between the name and its marks.
+// rows given, as laneHead reads them.
 func lanesHeads(rows []string) []string {
 	var heads []string
 	for _, row := range rows {
 		if laneShown.MatchString(row) {
-			heads = append(heads, strings.Join(strings.Fields(laneHead.FindString(row)), " "))
+			heads = append(heads, laneHead.FindString(row))
 		}
 	}
 	return heads
