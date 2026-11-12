@@ -56,9 +56,10 @@ type Request struct {
 	// router, in the form the request ledger gives it, or "" when the request
 	// doesn't say.
 	Dir string
-	// Pool is the id of the pool the request is routed within, as its header
-	// names it, else the first pool, as a request from a session started
-	// before pools names none: "" in a config from before pools.
+	// Pool is the id of the pool the request's header names, or "" where it
+	// names none, as a request from a session started before pools: each
+	// choice finds the request in that pool, else the first, as the pools
+	// stand as it's made, so no choice mixes two readings of them.
 	Pool string
 	// Model is the model the request asks for, or "" when it doesn't say.
 	Model string
@@ -129,6 +130,9 @@ func (r Request) attempt(id string) (Attempt, bool) {
 type Choice struct {
 	Account string
 	Reason  string
+	// Pool is the id of the pool the choice found the request in, as the
+	// request's line records it: "" in a config from before pools.
+	Pool string
 	// NoRoom is set when no account has room for the request: Account is only
 	// where it falls back to, for the upstream to answer, or none, when
 	// Reserved or Closed is set, the request has been tried already, or no

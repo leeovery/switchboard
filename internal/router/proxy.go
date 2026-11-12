@@ -119,6 +119,9 @@ type exchange struct {
 	// request moved it: "" while it hasn't, and once its moves are taken
 	// back.
 	from string
+	// pool is the id of the pool a routed request was found in, as the last
+	// choice made for it found it, which its line records.
+	pool string
 	// id is a routed request's own while it runs, which ties its lines in the
 	// log together, and its events in the request stream.
 	id      string
@@ -218,7 +221,7 @@ func (p *proxy) route(w http.ResponseWriter, r *http.Request, client account) {
 	}
 	ex.req, ex.shape = p.request(r, body, ex, client)
 	choice := p.rechosen(r.Context(), ex.req, p.chooser.Choose(r.Context(), ex.req))
-	ex.newSession = choice.New
+	ex.newSession, ex.pool = choice.New, choice.Pool
 	defer p.done(r, ex)
 	switch {
 	case choice.Reserved:
@@ -240,13 +243,13 @@ func (p *proxy) route(w http.ResponseWriter, r *http.Request, client account) {
 
 // request is what the chooser is to know of a routed request, whose body is
 // body, sent by client's token: its session, the directory it was started in
-// and the pool it's routed within, its model and whether the model's thinking
-// is bound to its account,
-// whether it's the client's quota check, whether it's the first of its
-// session's main conversation after that was compacted, and its pin; and the
-// request's shape, which the provider reads in the same pass over the body. A
-// subagent's own conversation is compacted too, and marked alike, but its
-// session's main conversation keeps its cache, which a move would throw away.
+// and the pool it names, its model and whether the model's thinking is bound
+// to its account, whether it's the client's quota check, whether it's the
+// first of its session's main conversation after that was compacted, and its
+// pin; and the request's shape, which the provider reads in the same pass
+// over the body. A subagent's own conversation is compacted too, and marked
+// alike, but its session's main conversation keeps its cache, which a move
+// would throw away.
 func (p *proxy) request(r *http.Request, body []byte, ex *exchange, client account) (Request, ledger.Shape) {
 	model, check, shape := p.provider.Asks(body)
 	session := p.provider.Session(r.Header)
@@ -254,7 +257,7 @@ func (p *proxy) request(r *http.Request, body []byte, ex *exchange, client accou
 		ID:        ex.id,
 		Session:   session,
 		Dir:       dirOf(r.Header),
-		Pool:      p.poolOf(r.Header),
+		Pool:      namedPool(r.Header),
 		Model:     model,
 		Check:     check,
 		Bound:     p.provider.ThinkingBound(model),
@@ -264,13 +267,12 @@ func (p *proxy) request(r *http.Request, body []byte, ex *exchange, client accou
 	}, shape
 }
 
-// poolOf returns the id of the pool a request whose header is h is routed
-// within, as the pools stand now: the one PoolHeader names, else the first,
-// as poolTable's of says. A pool the config doesn't have is kept as named,
-// cut short, with anything shaped like a token hidden, as the request is
-// remembered and logged by it.
-func (p *proxy) poolOf(h http.Header) string {
-	return p.pools.current().of(bounded(redact.Text(strings.TrimSpace(h.Get(PoolHeader)))))
+// namedPool returns the id of the pool a request whose header is h names, ""
+// for none, cut short, with anything shaped like a token hidden, as the
+// request is remembered and logged by the pool it's in, which may be one the
+// config doesn't have.
+func namedPool(h http.Header) string {
+	return bounded(redact.Text(strings.TrimSpace(h.Get(PoolHeader))))
 }
 
 // passThrough sends a request upstream as it came.
@@ -446,10 +448,10 @@ func (p *proxy) reserved(w http.ResponseWriter, ex *exchange, choice Choice) {
 // them. Where there are pools to tell apart, it names the pool.
 func (p *proxy) closed(w http.ResponseWriter, ex *exchange, choice Choice) {
 	ex.reason, ex.status = choice.Reason, http.StatusTooManyRequests
-	logger.Warn("no account in the request's pool can take it; answering 429", "id", ex.id, "pool", ex.req.Pool)
+	logger.Warn("no account in the request's pool can take it; answering 429", "id", ex.id, "pool", ex.pool)
 	p.provider.MarkLimited(w.Header(), time.Time{})
 	message := "switchboard: no account can take the request"
-	if pool := p.pools.current().shown(ex.req.Pool); pool != "" {
+	if pool := p.pools.current().shown(ex.pool); pool != "" {
 		message = "switchboard: no account in pool " + pool + " can take the request"
 	}
 	writeError(w, ex.status, "rate_limit_error", message)
@@ -813,7 +815,8 @@ func (p *proxy) logRouted(ex *exchange, f finish) {
 func (p *proxy) unread(w http.ResponseWriter, r *http.Request, ex *exchange, err error) {
 	f := finishing(r, time.Since(ex.started), false)
 	logger.Warn("request refused: body unread", append([]any{"id", ex.id, "method", r.Method, "path", r.URL.Path, "error", err}, f.attrs()...)...)
-	ex.req.Session, ex.req.Dir, ex.req.Pool = p.provider.Session(r.Header), dirOf(r.Header), p.poolOf(r.Header)
+	ex.req.Session, ex.req.Dir, ex.req.Pool = p.provider.Session(r.Header), dirOf(r.Header), namedPool(r.Header)
+	ex.pool = p.pools.current().of(ex.req.Pool)
 	ex.status = http.StatusBadRequest
 	kind, message := "invalid_request_error", "switchboard: couldn't read the request body"
 	if _, tooLarge := errors.AsType[*http.MaxBytesError](err); tooLarge {

@@ -1083,7 +1083,7 @@ func TestWithNoRoomARequestFallsBackToAnAccountThatHasntRefusedIt(t *testing.T) 
 				accounts: view{
 					policy:     testPolicy,
 					now:        start,
-					pool:       []string{"work", "side", "spare", "lost"},
+					members:    []string{"work", "side", "spare", "lost"},
 					candidates: []score.Candidate{{ID: "work", Windows: spent}, {ID: "side", Windows: spent}, {ID: "spare", Windows: spent}},
 					applies:    testPolicy.IsShared,
 					barred:     tt.refused,

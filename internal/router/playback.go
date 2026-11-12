@@ -62,7 +62,7 @@ func NewPlayback(configured config.Accounts, policy score.Policy) *Playback {
 	clock := func() time.Time { return p.now }
 	// No family is needed: a playback takes no answer's windows in, which a
 	// model's family says which of count.
-	p.state = newState(held, policy, nil, clock, func() {}, func() {})
+	p.state = newState(held, unpooled(), policy, nil, clock, func() {}, func() {})
 	p.sessions = newSessions(clock, func() {}, func() {})
 	return p
 }

@@ -877,7 +877,7 @@ func TestTheStateTellsOfEachChangeTheStateFileKeeps(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var changes, routine changeCount
-			s := newState(testAccounts(), testPolicy, claude.Provider{}.Family, at(start), changes.hear, routine.hear)
+			s := newState(testAccounts(), unpooled(), testPolicy, claude.Provider{}.Family, at(start), changes.hear, routine.hear)
 			earlier := s.mark()
 			s.record("work", []quota.Window{session, week}, s.mark())
 			s.learn(opus, []quota.Window{session, week})
@@ -1031,7 +1031,7 @@ func TestAWholeReadingRetiresEachSharedWindowItDoesntReport(t *testing.T) {
 	log := logstest.Capture(t)
 	var changes changeCount
 	clock := &testClock{now: start}
-	s := newState(testAccounts(), testPolicy, claude.Provider{}.Family, clock.read, changes.hear, unkept)
+	s := newState(testAccounts(), unpooled(), testPolicy, claude.Provider{}.Family, clock.read, changes.hear, unkept)
 	busier := session
 	busier.Utilization = 0.5
 	emptied := session
@@ -1218,7 +1218,7 @@ func TestARetiredWindowReadOffARequestSentSinceIsBack(t *testing.T) {
 	log := logstest.Capture(t)
 	var changes changeCount
 	clock := &testClock{now: start}
-	s := newState(testAccounts(), testPolicy, claude.Provider{}.Family, clock.read, changes.hear, unkept)
+	s := newState(testAccounts(), unpooled(), testPolicy, claude.Provider{}.Family, clock.read, changes.hear, unkept)
 	s.record("work", []quota.Window{session, week}, s.mark())
 	s.recordAnswer("work", []quota.Window{week}, s.mark(), true)
 	var lines []readings.Reading

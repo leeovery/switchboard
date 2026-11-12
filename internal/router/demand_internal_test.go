@@ -49,7 +49,7 @@ func workReserved() []config.Account {
 // newStateOf builds the state of the accounts configured, with testTokens's
 // tokens, on clock's time, as newTestState does.
 func newStateOf(clock *testClock, configured []config.Account) *state {
-	return newState(resolve(configured, testTokens.Read, unrecorded), testPolicy, claude.Provider{}.Family, clock.read, unkept, unkept)
+	return newState(resolve(configured, testTokens.Read, unrecorded), unpooled(), testPolicy, claude.Provider{}.Family, clock.read, unkept, unkept)
 }
 
 // fastOf returns the fast rate the account's rates give its window with the

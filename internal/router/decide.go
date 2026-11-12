@@ -27,12 +27,16 @@ const (
 
 // situation is what's known when a request's account is chosen.
 type situation struct {
-	// req is pinned as its session's own pin has it.
+	// req is pinned as its session's own pin has it, in the pool the view of
+	// the accounts has it in.
 	req Request
 	now time.Time
 	// pinnedAt is when the session was given its own pin while it ran, zero
-	// for the one it was launched with.
+	// for the one it was launched with; unpooled is the account its own pin
+	// names where that's outside the request's pool, which is no pin for it,
+	// "" otherwise.
 	pinnedAt time.Time
+	unpooled string
 	// current is the session's assignment for the request's model, when
 	// assigned is set.
 	current  assignment

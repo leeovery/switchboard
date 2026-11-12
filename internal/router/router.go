@@ -331,9 +331,9 @@ func New(cfg Config) (*Router, error) {
 		return nil, fmt.Errorf("upstream: %w", err)
 	}
 	changes := newChanges()
-	state := newState(accounts, cfg.Policy, cfg.Provider.Family, cfg.Now, changes.note, changes.routine)
-	state.pools = newMembership(firstIn(cfg.StateDir))
-	state.pools.follow(cfg.Accounts, cfg.Pools)
+	pools := newMembership(firstIn(cfg.StateDir))
+	pools.follow(cfg.Accounts, cfg.Pools)
+	state := newState(accounts, pools, cfg.Policy, cfg.Provider.Family, cfg.Now, changes.note, changes.routine)
 	history := newHistory(cfg.History, cfg.Now)
 	state.history = history.note
 	sessions := newSessions(cfg.Now, changes.note, changes.routine)
@@ -394,7 +394,7 @@ func New(cfg Config) (*Router, error) {
 			formerly:       cfg.Formerly,
 			tokensReplaced: changes.note,
 			state:          state,
-			pools:          state.pools,
+			pools:          pools,
 			provider:       cfg.Provider,
 			chooser:        scheduler,
 			health:         health,

@@ -76,6 +76,36 @@ func (t *poolTable) holds(pool, id string) bool {
 	return ok && in == pool
 }
 
+// serves reports whether a request naming the pool given, "" for none, can go
+// out on the account with the given id, as holds says of the pool it's in.
+func (t *poolTable) serves(named, id string) bool {
+	return t.holds(t.of(named), id)
+}
+
+// keeping returns the table with the accounts given in the pools they're in,
+// and any other in none, as it has left the config: the pools and the first
+// stand.
+func (t *poolTable) keeping(accounts config.Accounts) *poolTable {
+	kept := &poolTable{pools: t.pools, first: t.first, poolOf: make(map[string]string, len(accounts))}
+	for _, a := range accounts {
+		if pool, ok := t.poolOf[a.ID]; ok {
+			kept.poolOf[a.ID] = pool
+		}
+	}
+	return kept
+}
+
+// healedTable returns the pools of accounts, from a config that names none
+// once the move to pools is done, as the router's restart heals the config:
+// the first pool, the one with the given id, and every account in it.
+func healedTable(accounts config.Accounts, first string) *poolTable {
+	t := newPoolTable(nil, config.Pools{{ID: first, Label: first}}, first)
+	for _, a := range accounts {
+		t.poolOf[a.ID] = first
+	}
+	return t
+}
+
 // shown returns how what switchboard tells a client names the pool with the
 // given id: by its label, else its id, where there are pools to tell apart;
 // "" where there's one at most, as nothing names a pool till there's a second.
@@ -102,11 +132,15 @@ type membership struct {
 
 	// mu is held as the pools are followed, and guards what they were last
 	// followed from: accounts and pools, and followed, set once they have
-	// been.
+	// been; pooled, the table the last config with pools made, nil till one
+	// has been followed; and warned, set once the log has said a config names
+	// no pools since.
 	mu       sync.Mutex
 	accounts config.Accounts
 	pools    config.Pools
 	followed bool
+	pooled   *poolTable
+	warned   bool
 }
 
 // newMembership returns the membership of a router that reads the first pool
@@ -118,36 +152,88 @@ func newMembership(first func() string) *membership {
 	return m
 }
 
+// unpooled returns the membership of a router that routes within no pools,
+// and knows of no first pool: every account in the one pool there is, as a
+// playback of the history has it.
+func unpooled() *membership {
+	return newMembership(noFirst)
+}
+
 // current returns the pools as they stand now.
 func (m *membership) current() *poolTable {
 	return m.table.Load()
 }
 
 // follow takes up the pools a config makes of the accounts and pools it
-// configures, where they differ from those it last took up: which pool each
-// account is in, the pools themselves, and the first, read afresh from the
-// accounts record where the config has pools. The move to pools writes the
-// first pool to the record before the config, so a config that changes finds
-// it there.
+// configures, as made says, where they differ from those it last took up:
+// which pool each account is in, the pools themselves with their
+// directories, the accounts' primaries, and the first, read afresh from the
+// accounts record. The move to pools writes the first pool to the record
+// before the config, so a config that changes finds it there.
 func (m *membership) follow(accounts config.Accounts, pools config.Pools) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if m.followed && slices.Equal(accounts, m.accounts) && samePools(pools, m.pools) {
+	if m.followed && slices.Equal(accounts, m.accounts) && identicalPools(pools, m.pools) {
 		return
 	}
-	first := ""
-	if len(pools) > 0 {
-		first = m.first()
-	}
-	m.table.Store(newPoolTable(accounts, pools, first))
+	m.table.Store(m.made(accounts, pools))
 	m.accounts, m.pools, m.followed = slices.Clone(accounts), slices.Clone(pools), true
 }
 
-// samePools reports whether a and b are the same pools as far as routing and
-// the accounts record go: the same ids, in the same order, with the same
+// made returns the pools a config makes of the accounts and pools it
+// configures. A config with pools makes them. One with none, from before the
+// move to pools, makes none, every account in the one pool there is, as
+// before pools; but once the move is done a config naming none has lost
+// them, as one put back by hand or from a repository it's kept in, which the
+// router's restart heals: meanwhile the pools stand as kept says, so no
+// pool's work goes out on another's accounts, and the log says so, once.
+// m.mu must be held.
+func (m *membership) made(accounts config.Accounts, pools config.Pools) *poolTable {
+	if len(pools) > 0 {
+		m.pooled, m.warned = newPoolTable(accounts, pools, m.first()), false
+		return m.pooled
+	}
+	kept := m.kept(accounts)
+	if kept == nil {
+		return newPoolTable(accounts, nil, "")
+	}
+	if !m.warned {
+		m.warned = true
+		logger.Warn("the config names no pools; the pools stand as they were till the router restarts, giving the config its first pool again")
+	}
+	return kept
+}
+
+// kept returns the pools a config of accounts naming none keeps once the
+// move to pools is done, as far as the router can tell, nil before: those the
+// last config with pools it followed made, but for accounts that have left
+// the config, in none at once; else, where the accounts record notes a first
+// pool, as for a router started on such a config, that pool alone with every
+// account in it, as the restart's heal will make them. m.mu must be held.
+func (m *membership) kept(accounts config.Accounts) *poolTable {
+	if m.pooled != nil {
+		return m.pooled.keeping(accounts)
+	}
+	if first := m.first(); first != "" {
+		return healedTable(accounts, first)
+	}
+	return nil
+}
+
+// samePools reports whether a and b are the same pools as far as the
+// accounts record goes: the same ids, in the same order, with the same
 // labels.
 func samePools(a, b config.Pools) bool {
 	return slices.EqualFunc(a, b, func(p, q config.Pool) bool { return p.ID == q.ID && p.Label == q.Label })
+}
+
+// identicalPools reports whether a and b are the same pools as far as routing
+// goes, and what the router tells of them: the same ids, in the same order,
+// with the same labels and directories.
+func identicalPools(a, b config.Pools) bool {
+	return slices.EqualFunc(a, b, func(p, q config.Pool) bool {
+		return p.ID == q.ID && p.Label == q.Label && slices.Equal(p.Dirs, q.Dirs) && slices.Equal(p.WrittenDirs, q.WrittenDirs)
+	})
 }
 
 // firstIn returns what reads the id of the first pool from the accounts

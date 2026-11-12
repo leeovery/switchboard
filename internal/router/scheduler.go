@@ -51,7 +51,9 @@ type scheduler struct {
 // only where a reading came in do: a decision reads the clock as well as the
 // readings, so a window that reset, or a limit or a refusal that lifted,
 // while the look waited, up to probeWait or recheckWait, changes it with no
-// reading taken in.
+// reading taken in. A pin of the session's own it passes over, as it names an
+// account outside the request's pool, it notes at debug; the choice names the
+// pool the request was found in.
 func (s *scheduler) Choose(ctx context.Context, req Request) Choice {
 	d, on := s.decide(req)
 	if d.afresh {
@@ -68,7 +70,11 @@ func (s *scheduler) Choose(ctx context.Context, req Request) Choice {
 	if d.compacted {
 		noteCompaction(req, d)
 	}
-	c := Choice{Account: d.account, Reason: d.reason, NoRoom: d.noRoom, Reserved: d.reserved, Back: d.back, Closed: d.closed}
+	if on.unpooled != "" {
+		logger.Debug("pin ignored: account isn't in the request's pool", "id", req.ID, "pin", on.unpooled,
+			"session", status.ShortID(req.Session), "pool", on.req.Pool)
+	}
+	c := Choice{Account: d.account, Reason: d.reason, Pool: on.req.Pool, NoRoom: d.noRoom, Reserved: d.reserved, Back: d.back, Closed: d.closed}
 	if req.remembered(d.account) {
 		c.New, c.From = s.remember(on, d)
 	}
@@ -173,7 +179,7 @@ func (s *scheduler) autoOn(id, model string, now time.Time, glance func(pool str
 	if !found.assigned {
 		return ""
 	}
-	req.Pool = s.state.pools.current().of(found.current.Pool)
+	req.Pool = found.current.Pool
 	found.given = false
 	d := decide(found.situation(req, now, glance(req.Pool)))
 	if d.noRoom {

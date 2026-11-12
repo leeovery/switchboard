@@ -12,9 +12,11 @@ import (
 type view struct {
 	policy score.Policy
 	now    time.Time
-	// pool are the ids of the accounts in the request's pool, with a token or
-	// not, in the order configured.
-	pool []string
+	// pool is the id of the request's pool, as the pools the view was made
+	// from have it: "" in a config from before pools. members are the ids of
+	// its accounts, with a token or not, in the order configured.
+	pool    string
+	members []string
 	// candidates are the accounts of the pool with a token, in the order
 	// configured, with their windows as last read and their reserves.
 	candidates []score.Candidate
@@ -71,7 +73,7 @@ func (v view) found(c score.Candidate) score.Candidate {
 // pooled reports whether the account with the given id is in the request's
 // pool, with a token or not.
 func (v view) pooled(id string) bool {
-	return slices.Contains(v.pool, id)
+	return slices.Contains(v.members, id)
 }
 
 // has reports whether the request can go out on the account with the given id.
