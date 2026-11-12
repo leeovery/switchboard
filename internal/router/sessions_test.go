@@ -213,9 +213,9 @@ func TestSessionsAreSafeForConcurrentUse(t *testing.T) {
 		wg.Go(func() { s.setPin(status.Pin{Accounts: []string{"side"}, Since: start}, i%3 == 0) })
 		wg.Go(func() { _, _ = s.unpin(i%3 == 1) })
 		wg.Go(func() { s.pinSession(k.session, "side") })
-		wg.Go(func() { _, _ = s.session(k.session) })
-		wg.Go(func() { _ = s.running(start) })
-		wg.Go(func() { _, _ = s.active(start) })
+		wg.Go(func() { _, _ = s.session(k.session, anyPool) })
+		wg.Go(func() { _ = s.running(start, anyPool) })
+		wg.Go(func() { _, _ = s.active(start, anyPool) })
 		wg.Go(func() { s.prune(start) })
 	}
 	wg.Wait()
@@ -233,7 +233,7 @@ func TestActiveCountsEachSessionOnceByAccountAndOnceInAll(t *testing.T) {
 	remember("three", opus, "side", start.Add(-time.Hour-time.Second))
 
 	want := map[string]int{"work": 2, "side": 1}
-	byAccount, all := s.active(start)
+	byAccount, all := s.active(start, anyPool)
 	if !maps.Equal(byAccount, want) {
 		t.Errorf("active() by account = %v, want %v: sessions used within the hour, each once an account", byAccount, want)
 	}
@@ -256,10 +256,10 @@ func TestSessionReportsItsPinAndItsAssignmentsTheOneUsedLastFirst(t *testing.T) 
 			{Model: haiku, Account: "side", Reason: "new", AssignedAt: start.Add(-time.Hour), LastSeen: start.Add(-time.Hour)},
 		},
 	}
-	if got, seen := s.session("one"); !seen || !reflect.DeepEqual(got, want) {
+	if got, seen := s.session("one", anyPool); !seen || !reflect.DeepEqual(got, want) {
 		t.Errorf("session() =\n%+v, %v\nwant\n%+v", got, seen, want)
 	}
-	if got, seen := s.session("nope"); seen {
+	if got, seen := s.session("nope", anyPool); seen {
 		t.Errorf("session() of a session never seen = %+v, want none", got)
 	}
 }
@@ -293,7 +293,7 @@ func TestASessionsOwnPin(t *testing.T) {
 				}
 			}
 
-			if got, _ := s.session("one"); got.Pin != tt.want {
+			if got, _ := s.session("one", anyPool); got.Pin != tt.want {
 				t.Errorf("session's pin = %q, want %q", got.Pin, tt.want)
 			}
 		})
@@ -369,11 +369,11 @@ func TestASessionsAssignmentsSayWhetherItsOwnPinYieldedAndWhenItWasGiven(t *test
 			tt.route(s, clock, key{session: "one", model: tt.model})
 			clock.now = start.Add(tt.after)
 
-			got, _ := s.session("one")
+			got, _ := s.session("one", anyPool)
 			if a := got.Assignments[0]; a.Yielded != tt.wantYielded || !a.PinnedAt.Equal(tt.wantPinnedAt) {
 				t.Errorf("the session's assignment is %+v, want it yielded: %v, pinned at %v", a, tt.wantYielded, tt.wantPinnedAt)
 			}
-			listed := s.running(clock.now)
+			listed := s.running(clock.now, anyPool)
 			if len(listed) > 0 && !reflect.DeepEqual(listed[0], got) {
 				t.Errorf("running() lists the session as\n%+v\nwant it as session() gives it\n%+v", listed[0], got)
 			}
@@ -449,7 +449,7 @@ func TestRunningListsTheSessionsRoutedInTheLastHourTheOneSeenLastFirst(t *testin
 	remember("idle", opus, "work", start.Add(-time.Hour-time.Second))
 	s.pinSession("earlier", "side")
 
-	got := s.running(start)
+	got := s.running(start, anyPool)
 	ids := make([]string, len(got))
 	for i, session := range got {
 		ids[i] = session.ID
@@ -457,13 +457,13 @@ func TestRunningListsTheSessionsRoutedInTheLastHourTheOneSeenLastFirst(t *testin
 	if want := []string{"latest", "earlier", "a-tied", "b-tied", "an-hour-ago"}; !reflect.DeepEqual(ids, want) {
 		t.Errorf("running() lists %q, want %q: those routed in the last hour, the one seen last first", ids, want)
 	}
-	if want, _ := s.session("latest"); !reflect.DeepEqual(got[0], want) {
+	if want, _ := s.session("latest", anyPool); !reflect.DeepEqual(got[0], want) {
 		t.Errorf("running() lists\n%+v\nwant the session as session() gives it, every model included\n%+v", got[0], want)
 	}
 	if got[1].Pin != "side" {
 		t.Errorf("running() lists %+v, want its own pin with it", got[1])
 	}
-	if got := newSessions(at(start), unkept, unkept).running(start); got == nil || len(got) > 0 {
+	if got := newSessions(at(start), unkept, unkept).running(start, anyPool); got == nil || len(got) > 0 {
 		t.Errorf("running() with no sessions = %#v, want an empty list", got)
 	}
 }

@@ -24,6 +24,9 @@ type poolTable struct {
 	// first is the id of the pool a request that names none is in, as one
 	// from a session started before pools: where all work before pools was.
 	first string
+	// primary holds, by the pool's id, the id of the account the config
+	// makes each pool's primary, as poolOf spells the pool.
+	primary map[string]string
 }
 
 // newPoolTable returns the pools accounts and pools make, as a config gives
@@ -34,9 +37,12 @@ type poolTable struct {
 // shares has put aside, and its sessions from before pools go where that
 // config put every account.
 func newPoolTable(accounts config.Accounts, pools config.Pools, first string) *poolTable {
-	t := &poolTable{pools: slices.Clone(pools), poolOf: make(map[string]string, len(accounts))}
+	t := &poolTable{pools: slices.Clone(pools), poolOf: make(map[string]string, len(accounts)), primary: make(map[string]string)}
 	for _, a := range accounts {
 		t.poolOf[a.ID] = a.Pool
+		if a.Primary {
+			t.primary[a.Pool] = a.ID
+		}
 	}
 	switch p, ok := pools.ByID(first); {
 	case ok:
@@ -97,13 +103,13 @@ func (t *poolTable) serves(named, id string) bool {
 }
 
 // keeping returns the table with the accounts given in the pools they're in,
-// and any other in none, as it has left the config: the pools and the first
-// stand. Each is known by the id it has now, as idNow gives it, as a config
+// and any other in none, as it has left the config: the pools, their
+// primaries and the first stand. Each is known by the id it has now, as idNow gives it, as a config
 // put back from before switchboard made ids names it by the one it had.
 // Where one given is an account the table doesn't have, it's the table
 // whole: what the config makes of the accounts can't be told.
 func (t *poolTable) keeping(accounts config.Accounts, idNow func(id string) string) *poolTable {
-	kept := &poolTable{pools: t.pools, first: t.first, poolOf: make(map[string]string, len(accounts))}
+	kept := &poolTable{pools: t.pools, first: t.first, primary: t.primary, poolOf: make(map[string]string, len(accounts))}
 	for _, a := range accounts {
 		id := idNow(a.ID)
 		pool, ok := t.poolOf[id]
@@ -118,11 +124,15 @@ func (t *poolTable) keeping(accounts config.Accounts, idNow func(id string) stri
 // healedTable returns the pools of accounts, from a config that names none
 // once the move to pools is done, till the router's restart gives the config
 // its pools again: the first pool, the one with the given id, and every
-// account in it, by the id it has now, as idNow gives it.
+// account in it, by the id it has now, as idNow gives it, its primary the
+// config's.
 func healedTable(accounts config.Accounts, first string, idNow func(id string) string) *poolTable {
 	t := newPoolTable(nil, config.Pools{{ID: first, Label: first}}, first)
 	for _, a := range accounts {
 		t.poolOf[idNow(a.ID)] = first
+	}
+	if len(accounts) > 0 {
+		t.primary[first] = idNow(accounts.Primary().ID)
 	}
 	return t
 }

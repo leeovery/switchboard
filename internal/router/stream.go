@@ -84,6 +84,9 @@ type StreamEvent struct {
 	Session string `json:"session,omitempty"`
 	Dir     string `json:"dir,omitempty"`
 	Model   string `json:"model,omitempty"`
+	// Pool is the id of the pool the request was routed within: "" in a
+	// config from before pools.
+	Pool string `json:"pool,omitempty"`
 	// Account is the account the request goes out on, or went out on last,
 	// or, once the client has an answer, the one it came from; and of a
 	// move, the account the session moved to.
@@ -420,15 +423,15 @@ func (s *stream) tellProgress(stop <-chan struct{}) bool {
 	return told
 }
 
-// serveStream answers GET /stream: the requests in flight as the reader
-// joins, then every event of the stream as it comes, a line of JSON each,
-// until the reader goes or is dropped, the stream ends, or the control API
-// closes.
-func (r *Router) serveStream(w http.ResponseWriter, req *http.Request) {
+// serveStream answers GET /stream, of the requests routed within the pool rd
+// reads: those in flight as the reader joins, then every event of the stream
+// as it comes, a line of JSON each, until the reader goes or is dropped, the
+// stream ends, or the control API closes.
+func (r *Router) serveStream(w http.ResponseWriter, req *http.Request, rd poolRead) {
 	inFlight, reader := r.stream.join()
 	defer r.stream.leave(reader)
 	w.Header().Set("Content-Type", "application/x-ndjson")
-	if !writeEvents(w, inFlight) {
+	if !writeEvents(w, routedIn(rd, inFlight)) {
 		return
 	}
 	for {
@@ -436,11 +439,17 @@ func (r *Router) serveStream(w http.ResponseWriter, req *http.Request) {
 		case <-req.Context().Done():
 			return
 		case e, open := <-reader.events:
-			if !open || !writeEvents(w, gather(e, reader.events)) {
+			if !open || !writeEvents(w, routedIn(rd, gather(e, reader.events))) {
 				return
 			}
 		}
 	}
+}
+
+// routedIn returns those of events that tell of requests routed within the
+// pool rd reads.
+func routedIn(rd poolRead, events []StreamEvent) []StreamEvent {
+	return slices.DeleteFunc(events, func(e StreamEvent) bool { return !rd.routes(e.Pool) })
 }
 
 // gather returns e and every event after it that has already come.

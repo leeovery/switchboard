@@ -107,6 +107,12 @@ type Document struct {
 	// the router was asked for its own first: zero in the router's own, and
 	// in one probed as asked.
 	Fallback Fallback `json:"fallback,omitzero"`
+	// PoolID and PoolLabel are the id and the label of the pool the router's
+	// document is of, whose accounts, primary, pin, room and sessions it
+	// holds: "" in a config from before pools, and in a document that isn't
+	// the router's. Pool, below, is the room new sessions in it have.
+	PoolID    string `json:"pool_id,omitempty"`
+	PoolLabel string `json:"pool_label,omitempty"`
 	// Best is the account to use next: of those with room in the windows every
 	// model shares, the one whose quota most needs using, or, from the router,
 	// of those the global pin names while one has room, passing over those

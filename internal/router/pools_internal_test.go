@@ -625,7 +625,7 @@ func TestASessionsNextAccountIsJudgedWithinItsPool(t *testing.T) {
 			if got := r.scheduler.auto("one", opus, clock.now); got != tt.want {
 				t.Errorf("auto(one, %s) = %q, want %s", opus, got, tt.want)
 			}
-			if s, err := r.session("one"); err != nil || s.Assignments[0].Auto != tt.want {
+			if s, err := r.session("one", anyPool); err != nil || s.Assignments[0].Auto != tt.want {
 				t.Errorf("the session is listed as %+v, %v, want its next request going to %s", s, err, tt.want)
 			}
 		})
