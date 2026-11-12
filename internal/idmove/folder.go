@@ -1,6 +1,7 @@
 package idmove
 
 import (
+	"bytes"
 	"compress/gzip"
 	"context"
 	"encoding/json"
@@ -10,6 +11,7 @@ import (
 	"io/fs"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/leeovery/switchboard/internal/atomicfile"
 	"github.com/leeovery/switchboard/internal/config"
@@ -36,11 +38,17 @@ var (
 	ErrUnsynced = errors.New("its accounts record hasn't synced yet: import it again once it has")
 )
 
+// ErrNoFirstPool is what joining a folder exported before pools fails with
+// where this Mac's accounts record notes no first pool, to give its lines.
+var ErrNoFirstPool = errors.New("this Mac's accounts record notes no first pool to give the history of a folder exported before pools")
+
 // Renames are how a folder staged to import has the accounts it names
 // renamed onto the ids of this Mac's accounts record, as JoinFolder works
-// them out: each a step after the one before.
+// them out, each a step after the one before; and, of a folder exported
+// before pools, the pool its lines are given, this Mac's first.
 type Renames struct {
-	steps []renames
+	steps    []renames
+	unpooled string
 }
 
 // Of renames id, as each step has it in turn.
@@ -51,8 +59,24 @@ func (r Renames) Of(id string) string {
 	return id
 }
 
-// none reports whether nothing is renamed.
+// renaming is how the folder's history is renamed, as the ledger and
+// rewritingLines rename it: its accounts renamed only where a step renames
+// one.
+func (r Renames) renaming() ledger.Renaming {
+	rename := ledger.Renaming{Unpooled: r.unpooled}
+	if !r.namesNone() {
+		rename.Account = r.Of
+	}
+	return rename
+}
+
+// none reports whether nothing is renamed, nor any line given a pool.
 func (r Renames) none() bool {
+	return r.namesNone() && r.unpooled == ""
+}
+
+// namesNone reports whether no step renames an account.
+func (r Renames) namesNone() bool {
 	for _, step := range r.steps {
 		if !step.none() {
 			return false
@@ -63,10 +87,11 @@ func (r Renames) none() bool {
 
 // Here is the Mac a folder is imported into: Install gives its install's id,
 // as export's InstallID does, asked only where a folder needs it; and
-// Accounts are those it configures.
+// Accounts and Pools are those it configures.
 type Here struct {
 	Install  func() (string, error)
 	Accounts config.Accounts
+	Pools    config.Pools
 }
 
 // folderKind is how a Mac's folder's accounts are told, as classify tells.
@@ -159,8 +184,13 @@ func Refused(err error) bool {
 //   - this Mac's own, exported before switchboard made ids, is renamed by
 //     the former ids record keeps.
 //
+// Its record's pools join record as identity's Join joins them; and one
+// exported before pools, as export.Manifest's BeforePools tells, has its
+// lines, pin events and summaries given record's first pool.
+//
 // It fails, record as it was, as classify does, saying which folder, by its
-// install, of a folder that's refused.
+// install, of a folder that's refused; and with ErrNoFirstPool, of a folder
+// exported before pools, where record notes no first pool.
 func JoinFolder(dir string, record *identity.Record, here Here) (Renames, error) {
 	f, err := classify(dir, here)
 	switch {
@@ -168,9 +198,27 @@ func JoinFolder(dir string, record *identity.Record, here Here) (Renames, error)
 		return Renames{}, fmt.Errorf("the folder %s can't be taken in: %w", export.FolderName(f.manifest.Install), err)
 	case err != nil:
 		return Renames{}, err
-	case f.kind == recordless:
+	}
+	var unpooled string
+	if f.manifest.BeforePools() {
+		first, ok := record.FirstPool()
+		if !ok {
+			return Renames{}, ErrNoFirstPool
+		}
+		unpooled = first.ID
+	}
+	rename, err := joined(f, record, here)
+	rename.unpooled = unpooled
+	return rename, err
+}
+
+// joined joins the accounts and pools the folder f names into record, as
+// JoinFolder says, by its kind, and returns how its accounts are renamed.
+func joined(f told, record *identity.Record, here Here) (Renames, error) {
+	switch f.kind {
+	case recordless:
 		return Renames{}, nil
-	case f.kind == ownBeforeIDs:
+	case ownBeforeIDs:
 		return Renames{steps: []renames{formerIDs(*record)}}, nil
 	}
 	// Where this Mac's install can't be had, the folder is joined as another
@@ -178,7 +226,7 @@ func JoinFolder(dir string, record *identity.Record, here Here) (Renames, error)
 	// refused.
 	install, installErr := here.Install()
 	own := installErr == nil && f.manifest.Install == install
-	as := identity.JoinAs{Configured: here.Accounts, From: f.manifest.Install, Own: own, Labels: installErr == nil && !own}
+	as := identity.JoinAs{Configured: here.Accounts, Pools: here.Pools, From: f.manifest.Install, Own: own, Labels: installErr == nil && !own}
 	mapped, err := record.Join(f.record, as)
 	if err != nil {
 		return Renames{}, err
@@ -199,25 +247,29 @@ func formerIDs(record identity.Record) renames {
 }
 
 // RenameFolder writes the history in dir, as JoinFolder takes the folder, anew,
-// each account it names renamed as rename has it, as the move renames them:
-// the readings history's days, then the router's events', then the request
-// ledger's, a day's lines with its summary, as renameStagedDay renames each.
-// It stops, failing, once ctx ends.
+// as rename has it, as the moves rewrite it: each account it names renamed,
+// and, of a folder exported before pools, each line given this Mac's first
+// pool: the readings history's days, then the router's events', then the
+// request ledger's, a day's lines with its summary, as renameStagedDay
+// renames each. It stops, failing, once ctx ends.
 func RenameFolder(ctx context.Context, dir string, rename Renames) error {
 	if rename.none() {
 		return nil
 	}
-	h := (&Mover{StateDir: dir}).history()
+	h, renaming := historyIn(dir, time.Now), rename.renaming()
 	for _, kind := range []struct {
 		files *dayfile.Files
 		names names
 	}{{h.Readings, readingNames}, {h.Events, eventNames}} {
+		if !kind.names.rewrittenBy(renaming) {
+			continue
+		}
 		dates, err := kind.files.All()
 		if err != nil {
 			return fmt.Errorf("rename the %s staged to import: %w", kind.files.Name, err)
 		}
 		for _, date := range dates {
-			if err := renameStagedDay(ctx, stagedDay{files: kind.files, names: kind.names, date: date}, rename); err != nil {
+			if err := renameStagedDay(ctx, stagedDay{files: kind.files, names: kind.names, date: date}, renaming); err != nil {
 				return err
 			}
 		}
@@ -229,10 +281,10 @@ func RenameFolder(ctx context.Context, dir string, rename Renames) error {
 	for _, date := range dates {
 		day := stagedDay{
 			files: h.Ledger.Files(), names: lineNames, date: date,
-			lines:   func(line func([]byte) []byte) error { return h.Ledger.RenameDay(date, line, ledger.Renaming{Account: rename.Of}) },
-			summary: func() error { return h.Ledger.RenameSummary(date, ledger.Renaming{Account: rename.Of}) },
+			lines:   func(line func([]byte) []byte) error { return h.Ledger.RenameDay(date, line, renaming) },
+			summary: func() error { return h.Ledger.RenameSummary(date, renaming) },
 		}
-		if err := renameStagedDay(ctx, day, rename); err != nil {
+		if err := renameStagedDay(ctx, day, renaming); err != nil {
 			return err
 		}
 	}
@@ -240,8 +292,9 @@ func RenameFolder(ctx context.Context, dir string, rename Renames) error {
 }
 
 // stagedDay is a day staged to import: the files it's of, whose lines names
-// says where they name accounts, and its date; and, of the request ledger's,
-// what renames its lines with its summary, and its summary alone.
+// says where they name accounts and give their pool, and its date; and, of
+// the request ledger's, what renames its lines with its summary, and its
+// summary alone.
 type stagedDay struct {
 	files   *dayfile.Files
 	names   names
@@ -250,22 +303,23 @@ type stagedDay struct {
 	summary func() error
 }
 
-// renameStagedDay renames the accounts of the staged day as rename has them,
-// where its compressed file, or of the request ledger its summary, names one
-// renamed: its file first written anew of what reads where it reads short,
-// as one cut short as it synced, which is warned of; then rewritten, its
-// lines with its summary as the day's lines does, else as files' Rewrite
-// rewrites them. A day whose file reads none of its lines, as one whose
-// start is damaged, is left as it is, warned of, for the import to pass
-// over as any it can't read, but for the request ledger's summary, renamed
-// alone. It stops, failing, once ctx ends.
-func renameStagedDay(ctx context.Context, day stagedDay, rename Renames) error {
+// renameStagedDay renames the staged day as rename has it, where a line of
+// its compressed file, or of the request ledger its summary, is changed by
+// it: its file first written anew of what reads where it reads short, as one
+// cut short as it synced, which is warned of; then rewritten, its lines with
+// its summary as the day's lines does, else as files' Rewrite rewrites them.
+// A day whose file reads none of its lines, as one whose start is damaged,
+// is left as it is, warned of, for the import to pass over as any it can't
+// read, but for the request ledger's summary, renamed alone. It stops,
+// failing, once ctx ends.
+func renameStagedDay(ctx context.Context, day stagedDay, rename ledger.Renaming) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
 	files := day.files
 	path := files.CompressedPath(day.date)
-	scan, err := scanStaged(path, files.LineMax, day.names, rename)
+	lines := rewritingLines(day.names, rename)
+	scan, err := scanStaged(path, files.LineMax, lines)
 	if err != nil {
 		return err
 	}
@@ -290,7 +344,6 @@ func renameStagedDay(ctx context.Context, day stagedDay, rename Renames) error {
 			return fmt.Errorf("rename the %s of %s staged to import: %w", files.Name, day.date, err)
 		}
 	}
-	lines := renamingLines(day.names, rename.Of)
 	if day.lines != nil {
 		return day.lines(lines)
 	}
@@ -299,18 +352,17 @@ func renameStagedDay(ctx context.Context, day stagedDay, rename Renames) error {
 }
 
 // stagedScan is what reading a staged compressed file found: whether a line
-// names an account renamed, whether any line read, and why it read short,
-// where it did.
+// is renamed, whether any line read, and why it read short, where it did.
 type stagedScan struct {
 	renamed, read bool
 	short         error
 }
 
 // scanStaged reads the staged compressed file at path, a line at a time, as
-// import reads one, finding what stagedScan says of it, n saying where a
-// line names accounts. A file that isn't there names none; one that can't
-// be opened fails.
-func scanStaged(path string, most int, n names, rename Renames) (stagedScan, error) {
+// import reads one, finding what stagedScan says of it, a line renamed where
+// line changes it. A file that isn't there names none; one that can't be
+// opened fails.
+func scanStaged(path string, most int, line func([]byte) []byte) (stagedScan, error) {
 	file, err := os.Open(path)
 	if errors.Is(err, fs.ErrNotExist) {
 		return stagedScan{}, nil
@@ -320,17 +372,19 @@ func scanStaged(path string, most int, n names, rename Renames) (stagedScan, err
 	}
 	defer func() { _ = file.Close() }()
 	var scan stagedScan
-	scan.short = eachStaged(file, most, func(line []byte) {
+	scan.short = eachStaged(file, most, func(read []byte) {
 		scan.read = true
-		n.visit(line, func(id string, _ bool) { scan.renamed = scan.renamed || rename.Of(id) != id })
+		scan.renamed = scan.renamed || !bytes.Equal(line(read), read)
 	})
 	return scan, nil
 }
 
 // summaryRenamed reports whether the request ledger's summary of the day
-// with the given date in dir names an account rename renames: none where
-// there's no summary.
-func summaryRenamed(dir, date string, rename Renames) (bool, error) {
+// with the given date in dir is renamed as rename has it: it names an
+// account renamed, or it has work in no pool to give one, as any summary
+// may, so is renamed whenever rename gives one; none where there's no
+// summary.
+func summaryRenamed(dir, date string, rename ledger.Renaming) (bool, error) {
 	data, err := os.ReadFile(ledger.SummaryFile(dir, date))
 	if errors.Is(err, fs.ErrNotExist) {
 		return false, nil
@@ -338,8 +392,10 @@ func summaryRenamed(dir, date string, rename Renames) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	renamed := false
-	summaryNames.visit(data, func(id string, _ bool) { renamed = renamed || rename.Of(id) != id })
+	renamed := rename.Unpooled != ""
+	if rename.Account != nil {
+		summaryNames.visit(data, func(id string, _ bool) { renamed = renamed || rename.Account(id) != id })
+	}
 	return renamed, nil
 }
 

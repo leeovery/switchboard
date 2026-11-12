@@ -16,7 +16,6 @@ package idmove
 import (
 	"cmp"
 	"context"
-	"crypto/rand"
 	"errors"
 	"fmt"
 	"io"
@@ -30,7 +29,6 @@ import (
 	"github.com/leeovery/switchboard/internal/atomicfile"
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dayfile"
-	"github.com/leeovery/switchboard/internal/events"
 	"github.com/leeovery/switchboard/internal/identity"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/logs"
@@ -315,7 +313,7 @@ func (m *Mover) Settle() error {
 	}
 	files := readings.Files(readings.Dir(m.StateDir), logger)
 	for _, date := range files.Newest(m.now(), 2) {
-		if _, err := files.Rewrite(date, renamingLines(readingNames, rename.of)); err != nil {
+		if _, err := files.Rewrite(date, rewritingLines(readingNames, ledger.Renaming{Account: rename.of})); err != nil {
 			return err
 		}
 	}
@@ -338,20 +336,14 @@ func (m *Mover) record() identity.File {
 	return identity.NewFile(m.StateDir)
 }
 
-// now reads the mover's clock, else the system's.
+// now reads the mover's clock, as readClock does.
 func (m *Mover) now() time.Time {
-	if m.Now == nil {
-		return time.Now()
-	}
-	return m.Now()
+	return readClock(m.Now)
 }
 
-// random is what random ids are drawn from: the mover's, else crypto/rand's.
+// random is what random ids are drawn from, as drawnFrom gives it.
 func (m *Mover) random() io.Reader {
-	if m.Random == nil {
-		return rand.Reader
-	}
-	return m.Random
+	return drawnFrom(m.Random)
 }
 
 // give gives each account moved its token file by its new id, as
@@ -582,83 +574,14 @@ func (m *Mover) renameState(rename renames) error {
 }
 
 // moveHistory writes the history anew, each account it names renamed as the
-// record has it: the readings history first, which the request ledger's
-// summaries read, then the router's events, then the ledger's days, a day's
-// lines with its summary. It stops, failing, once ctx ends.
+// record has it, as rewriteHistory writes it. It stops, failing, once ctx
+// ends.
 func (m *Mover) moveHistory(ctx context.Context) error {
 	rename, err := m.renames()
 	if err != nil {
 		return err
 	}
-	h := m.history()
-	for _, kind := range []struct {
-		files *dayfile.Files
-		names names
-	}{{h.Readings, readingNames}, {h.Events, eventNames}} {
-		if err := m.rewriteAll(ctx, kind.files, kind.names, rename); err != nil {
-			return err
-		}
-	}
-	dates, err := ledgerDates(h.Ledger)
-	if err != nil {
-		return err
-	}
-	for _, date := range dates {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-		if err := h.Ledger.RenameDay(date, renamingLines(lineNames, rename.of), ledger.Renaming{Account: rename.of}); err != nil {
-			return err
-		}
-		if err := m.stopped(h.Ledger.Files().Name + " " + date); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// rewriteAll writes each day's files anew, each account named renamed, as n
-// says where they name them. It stops, failing, once ctx ends.
-func (m *Mover) rewriteAll(ctx context.Context, files *dayfile.Files, n names, rename renames) error {
-	dates, err := files.All()
-	if err != nil {
-		return fmt.Errorf("move the %s: %w", files.Name, err)
-	}
-	for _, date := range dates {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-		if _, err := files.Rewrite(date, renamingLines(n, rename.of)); err != nil {
-			return err
-		}
-		if err := m.stopped(files.Name + " " + date); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// ledgerDates are the dates of the days the ledger holds lines or a summary
-// of, oldest first, each once.
-func ledgerDates(l *ledger.Ledger) ([]string, error) {
-	lined, err := l.Files().All()
-	if err != nil {
-		return nil, fmt.Errorf("move the request ledger: %w", err)
-	}
-	summarised, err := ledger.SummaryDates(l.Files().Dir)
-	if err != nil {
-		return nil, fmt.Errorf("move the request ledger: %w", err)
-	}
-	return sortedOnce(append(lined, summarised...)), nil
-}
-
-// renamingLines renames each account a line names, as n says where, as
-// rename gives its id.
-func renamingLines(n names, rename func(string) string) func([]byte) []byte {
-	return func(line []byte) []byte {
-		renamed, _ := n.renamed(line, rename)
-		return renamed
-	}
+	return rewriteHistory(ctx, m.history(), ledger.Renaming{Account: rename.of}, "", m.stopped)
 }
 
 // rebuild has the request ledger build what it builds of its days again,
@@ -669,8 +592,7 @@ func (m *Mover) rebuild() error {
 
 // mark marks the move done, as Moved reads it.
 func (m *Mover) mark() error {
-	at := m.now().UTC().Format(time.RFC3339)
-	if err := atomicfile.Write(filepath.Join(m.StateDir, markName), []byte(at+"\n"), 0o600); err != nil {
+	if err := markDone(m.StateDir, markName, m.now()); err != nil {
 		return fmt.Errorf("mark the move onto the accounts' ids done: %w", err)
 	}
 	logger.Info("moved the accounts and their history onto their ids")
@@ -678,17 +600,12 @@ func (m *Mover) mark() error {
 }
 
 // history is the history's files the move writes anew: the router's, where
-// it's running, else opened afresh.
+// it's running, else opened afresh, as historyIn opens them.
 func (m *Mover) history() History {
 	if m.History != nil {
 		return *m.History
 	}
-	files := readings.Files(readings.Dir(m.StateDir), logger)
-	return History{
-		Ledger:   ledger.Open(ledger.Dir(m.StateDir), dayfile.Forever, m.now, ledger.HistoryIn(files), ledger.Caps{}, logger),
-		Readings: files,
-		Events:   events.Files(ledger.Dir(m.StateDir), logger),
-	}
+	return historyIn(m.StateDir, m.now)
 }
 
 // renames are each old id the record has moved, in lower case, and its new
