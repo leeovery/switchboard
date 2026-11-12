@@ -92,7 +92,7 @@ func (s *scheduler) Answered(req Request, account, reason string) {
 	if a.Account != account {
 		a.Account, a.Reason = account, reason
 	}
-	s.emit(SessionStarted{Session: req.Session, Model: req.Model, Account: a.Account, Reason: a.Reason})
+	s.emit(SessionStarted{Session: req.Session, Model: req.Model, Account: a.Account, Reason: a.Reason, Pool: a.Pool})
 }
 
 func (s *scheduler) Forget(req Request) (string, bool) {

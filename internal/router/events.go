@@ -18,12 +18,15 @@ type Event interface {
 
 // SessionStarted is a session first remembered, for its requests of Model:
 // the first of them answered with success, as its answer comes, on Account,
-// where the session went as the routed line's Reason says.
+// where the session went as the routed line's Reason says, within Pool, the
+// id of the pool its request was routed within: none in a config from before
+// pools.
 type SessionStarted struct {
 	Session string
 	Model   string
 	Account string
 	Reason  string
+	Pool    string
 }
 
 // LimitReached is an account's limit reached, as the upstream answered a

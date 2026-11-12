@@ -376,12 +376,15 @@ func TestEachPoolsDocumentShowsTheEventsOfItsPoolItsAccountsAndNone(t *testing.T
 		{Kind: status.EventPin, Account: "personal", Accounts: []string{"personal"}, Pool: acmePool},
 		{Kind: status.EventPressure, Account: "side"},
 		{Kind: status.EventAuto, Accounts: []string{"personal"}},
-		{Kind: status.EventMoved, Session: "one", From: "side", To: "work"},
+		// A move with no pool goes by the account it moved to.
+		{Kind: status.EventMoved, Session: "one", From: "personal", To: "work"},
 		{Kind: status.EventMoved, Session: "two", To: "personal"},
 		// An account that has left the config, held till the restart, is in
-		// no pool, and so is a pool that has left it.
+		// no pool, and so is a pool that has left it: an event naming either
+		// goes by what else it names.
 		{Kind: status.EventCap, Account: "lapsed"},
 		{Kind: status.EventAuto, Pool: unconfigured},
+		{Kind: status.EventPin, Accounts: []string{"personal"}, Pool: unconfigured},
 	}
 	r.recent.change(func() {
 		for _, e := range happened {
@@ -394,7 +397,7 @@ func TestEachPoolsDocumentShowsTheEventsOfItsPoolItsAccountsAndNone(t *testing.T
 		want []string
 	}{
 		{pool: defaultPool, want: []string{status.EventAuto, status.EventCap, status.EventMoved, status.EventPressure, status.EventPin, status.EventRestart}},
-		{pool: acmePool, want: []string{status.EventAuto, status.EventCap, status.EventMoved, status.EventAuto, status.EventPin, status.EventLimit, status.EventRestart}},
+		{pool: acmePool, want: []string{status.EventPin, status.EventAuto, status.EventCap, status.EventMoved, status.EventAuto, status.EventPin, status.EventLimit, status.EventRestart}},
 	}
 	for _, tt := range tests {
 		var kinds []string
@@ -607,21 +610,11 @@ func TestTheStreamTellsOfTheRequestsRoutedWithinThePoolAsked(t *testing.T) {
 	r := pooledRouter(t, pooledAccounts(), testPools)
 	srv := httptest.NewServer(r.Control())
 	t.Cleanup(srv.Close)
-	ctx, cancel := context.WithCancel(t.Context())
-	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+withPool("/stream", acmePool), nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _ = resp.Body.Close() }()
+	acme := openStream(t, srv, acmePool)
 
 	routeIn(t, r, workToken, "one", defaultPool, nil)
 	routeIn(t, r, personalToken, "two", acmePool, nil)
-	for _, e := range streamedTillDone(t, resp.Body) {
+	for _, e := range streamedTillDone(t, acme) {
 		if e.Pool != acmePool || e.Session != "two" {
 			t.Errorf("Acme's stream told of %+v, want Acme's request alone", e)
 		}
@@ -845,7 +838,7 @@ func TestAStreamThatNamedAPoolEndsOnceThePoolsAnswerForItWithAnother(t *testing.
 	}
 }
 
-func TestASessionsMoveShowsInThePoolItsRequestWasRoutedWithin(t *testing.T) {
+func TestASessionsStartAndMoveShowInThePoolItsRequestsWereRoutedWithin(t *testing.T) {
 	tests := []struct {
 		name string
 		// config is the config file side's session moves off it under; after,
@@ -875,19 +868,23 @@ func TestASessionsMoveShowsInThePoolItsRequestWasRoutedWithin(t *testing.T) {
 			}
 
 			for pool, want := range map[string][]string{defaultPool: {"one"}, acmePool: nil} {
-				if got := movedSessions(statusIn(t, r, pool).Events); !slices.Equal(got, want) {
-					t.Errorf("pool %s's document shows the moves of the sessions %q, want %q", pool, got, want)
+				events := statusIn(t, r, pool).Events
+				for _, kind := range []string{status.EventStarted, status.EventMoved} {
+					if got := sessionsOf(events, kind); !slices.Equal(got, want) {
+						t.Errorf("pool %s's document shows the %s events of the sessions %q, want %q", pool, kind, got, want)
+					}
 				}
 			}
 		})
 	}
 }
 
-// movedSessions returns the session of each move among events, in order.
-func movedSessions(events []status.Event) []string {
+// sessionsOf returns the session of each event of the kind given among
+// events, in order.
+func sessionsOf(events []status.Event, kind string) []string {
 	var sessions []string
 	for _, e := range events {
-		if e.Kind == status.EventMoved {
+		if e.Kind == kind {
 			sessions = append(sessions, e.Session)
 		}
 	}
