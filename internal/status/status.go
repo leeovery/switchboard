@@ -39,16 +39,18 @@ const (
 	RouterUnhealthy = "unhealthy"
 )
 
-// What the move of the accounts and their history onto the ids switchboard
-// makes does, or waits on, as a Moving's Stage says.
+// What a move the history makes once does, or waits on, as a Moving's Stage
+// says.
 const (
 	// MoveRunning is the router making the move.
 	MoveRunning = "running"
-	// MoveAwaitingAPI is the move waiting for the API to answer for the
-	// accounts' tokens, whose organizations make their ids.
+	// MoveAwaitingAPI is the move onto the ids waiting for the API to answer
+	// for the accounts' tokens, whose organizations make their ids.
 	MoveAwaitingAPI = "awaiting api"
 	// MoveAwaitingRestart is the rest of the move waiting for the router to
-	// restart onto the accounts' new ids, which its config holds.
+	// restart onto the accounts' new ids, which its config holds; or, of the
+	// move to pools, to take up the first pool its config holds, as it does
+	// as it restarts.
 	MoveAwaitingRestart = "awaiting restart"
 	// MoveFailed is the move failing, the router to make it again.
 	MoveFailed = "failed"
@@ -64,11 +66,24 @@ const (
 	MoveOlderRouter = "older router"
 )
 
-// Moving is how the move of the accounts and their history onto the ids
-// switchboard makes stands: zero where none is owed.
+// The moves the history makes once, as a Moving's Move names them.
+const (
+	// MovingIDs is the move of the accounts and their history onto the ids
+	// switchboard makes.
+	MovingIDs = "ids"
+	// MovingPools is the move of the history to pools, after it.
+	MovingPools = "pools"
+)
+
+// Moving is how a move the history makes once stands, the move of the
+// accounts and their history onto the ids switchboard makes, then the move
+// of the history to pools: zero where none is owed.
 type Moving struct {
 	// Stage says what the move does or waits on, such as MoveRunning.
 	Stage string `json:"stage"`
+	// Move is the move it is, such as MovingPools: "" is MovingIDs, as from
+	// a router of a version before pools, which makes that move alone.
+	Move string `json:"move,omitempty"`
 	// Account is the account, by the id it had, whose token the API hasn't
 	// named the organization of, where Stage is MoveAwaitingAPI: "" where
 	// that isn't known.
@@ -79,20 +94,21 @@ type Moving struct {
 	Why string `json:"why,omitempty"`
 }
 
-// MovingAsked is how the move stands, as a command that finds the history
-// waiting on it tells it, having asked the router how it stands, which told
-// moving, or failed with err, notRunning where no router listens: no router
-// to make it, then; the router not saying, where it failed otherwise, as by
-// taking too long; one of a version from before ids were made, where the
-// one that answered owes none; else as the router tells it.
-func MovingAsked(moving Moving, err error, notRunning bool) Moving {
+// MovingAsked is how move, the move a command finds the history waiting on,
+// such as MovingPools, stands, as the command tells it, having asked the
+// router how it stands, which told moving, or failed with err, notRunning
+// where no router listens: no router to make it, then; the router not
+// saying, where it failed otherwise, as by taking too long; one of a version
+// from before the move, where the one that answered owes none; else as the
+// router tells it.
+func MovingAsked(move string, moving Moving, err error, notRunning bool) Moving {
 	switch {
 	case err != nil && notRunning:
-		return Moving{Stage: MoveNoRouter}
+		return Moving{Stage: MoveNoRouter, Move: move}
 	case err != nil:
-		return Moving{Stage: MoveUntold}
+		return Moving{Stage: MoveUntold, Move: move}
 	case moving == Moving{}:
-		return Moving{Stage: MoveOlderRouter}
+		return Moving{Stage: MoveOlderRouter, Move: move}
 	}
 	return moving
 }
@@ -242,7 +258,8 @@ type Event struct {
 	// configured, as it's set or cleared.
 	Accounts []string `json:"accounts,omitempty"`
 	// Pool is the id of the pool whose pin it is, of a pin's or an auto's
-	// event: none of one that names none, as none did before pools.
+	// event, none of one that names none, as none did before pools; and of a
+	// session's start or move, the pool its request was routed within.
 	Pool string `json:"pool,omitempty"`
 	// Session and Model are the session that started or moved, and the model
 	// whose requests did; Session is the one whose own pin was set or

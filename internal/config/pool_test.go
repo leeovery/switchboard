@@ -443,6 +443,49 @@ func TestPoolPlacedIn(t *testing.T) {
 	}
 }
 
+func TestReadPoolsReadsThemAsLoadReadsAConfigsOwn(t *testing.T) {
+	tests := []struct {
+		name  string
+		pools []config.NewPool
+		// file is the same pools as a config file writes them.
+		file    string
+		wantErr bool
+	}{
+		{
+			name:  "pools in the home and outside it, one shown by its id",
+			pools: []config.NewPool{{ID: "b2n8", Label: "Default"}, {ID: "q7mt", Label: "Acme", Dirs: []string{"~/Code/acme", "/Volumes/Work/acme/./"}}, {ID: "h4w2", Dirs: []string{"/Volumes/Client/"}}},
+			file:  poolTOML("b2n8") + "label = \"Default\"\n" + poolTOML("q7mt", "~/Code/acme", "/Volumes/Work/acme/./") + "label = \"Acme\"\n" + poolTOML("h4w2", "/Volumes/Client/"),
+		},
+		{name: "two unfenced", pools: []config.NewPool{{ID: "b2n8"}, {ID: "q7mt"}}, file: poolTOML("b2n8") + poolTOML("q7mt"), wantErr: true},
+		{
+			name:    "one's directory inside another's",
+			pools:   []config.NewPool{{ID: "b2n8", Dirs: []string{"~/Code"}}, {ID: "q7mt", Dirs: []string{"/Users/test/Code/acme"}}},
+			file:    poolTOML("b2n8", "~/Code") + poolTOML("q7mt", "/Users/test/Code/acme"),
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := writeConfig(t, accountIn("k3f9", "b2n8")+tt.file)
+			cfg, loadErr := load(path)
+			if (loadErr != nil) != tt.wantErr {
+				t.Fatalf("Load() error = %v, want an error: %v", loadErr, tt.wantErr)
+			}
+
+			got, err := config.ReadPools(tt.pools, homeAt(testHome))
+			if !tt.wantErr {
+				if err != nil || !reflect.DeepEqual(got, cfg.Pools) {
+					t.Errorf("ReadPools() = %+v, %v, want %+v, as Load reads them", got, err, cfg.Pools)
+				}
+				return
+			}
+			if want := problems(t, path, loadErr); err == nil || !slices.Equal(strings.Split(err.Error(), "\n"), want) {
+				t.Errorf("ReadPools() error = %v, want Load's problems %q", err, want)
+			}
+		})
+	}
+}
+
 func TestPoolsCovering(t *testing.T) {
 	acme := config.Pool{ID: "q7mt", Dirs: []string{"/Users/test/Code/acme", "/Volumes/Acme"}}
 	client := config.Pool{ID: "h4w2", Dirs: []string{"/Users/test/Code/client"}}

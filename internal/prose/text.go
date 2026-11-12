@@ -20,17 +20,28 @@ const Separator = "  ·  "
 // MoveFailed say it.
 const HistoryMoving = "the history waits on its move onto the accounts' new ids"
 
+// HistoryMovingPools says the history waits on its move to pools, which the
+// router makes once, as it first starts on a version with pools, as
+// HistoryMoving says of the move onto the accounts' ids.
+const HistoryMovingPools = "the history waits on its move to pools"
+
 // What holds the move onto the accounts' ids up, said after HistoryMoving,
 // but for the API, as MoveWaitsAPI says, and a failure, as MoveFailed says:
 // the router making it; the router to restart onto the new ids its config
 // holds; no router answering; the router not saying how it stands; and the
-// router running being of a version from before ids were made.
+// router running being of a version from before ids were made. What holds
+// the move to pools up is said alike, after HistoryMovingPools, but for the
+// router to take up the first pool its config holds, as MoveWaitsPools
+// says, and the router running being of a version from before pools, as
+// MoveWaitsPoolsUpgrade says.
 const (
-	MoveRunning      = "the router is making it"
-	MoveWaitsRestart = "the router makes the rest once it restarts onto the new ids its config holds"
-	MoveWaitsRouter  = "no router answers to make it: start it with switchboard service install (or switchboard serve)"
-	MoveWaitsUntold  = "the router didn't say how it stands in time, as when it's busy or restarting"
-	MoveWaitsUpgrade = "the router running is of a version from before the ids, and makes it once it restarts on this one"
+	MoveRunning           = "the router is making it"
+	MoveWaitsRestart      = "the router makes the rest once it restarts onto the new ids its config holds"
+	MoveWaitsRouter       = "no router answers to make it: start it with switchboard service install (or switchboard serve)"
+	MoveWaitsUntold       = "the router didn't say how it stands in time, as when it's busy or restarting"
+	MoveWaitsUpgrade      = "the router running is of a version from before the ids, and makes it once it restarts on this one"
+	MoveWaitsPools        = "the router makes the rest once it takes up the first pool, which its config now holds"
+	MoveWaitsPoolsUpgrade = "the router running is of a version from before pools, and makes it once it restarts on this one"
 )
 
 // MoveWaitsAPI says the move onto the accounts' ids waits for the API to name

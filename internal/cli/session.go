@@ -22,31 +22,35 @@ shows a session's own, and inside one, $CLAUDE_CODE_SESSION_ID holds its id.`
 // findSession returns the id of the session given names, as lookUpSession
 // finds it.
 func (a *app) findSession(ctx context.Context, client *router.Client, given string) (string, error) {
-	_, id, err := a.lookUpSession(ctx, client, given)
+	id, _, err := a.lookUpSession(ctx, client, given)
 	return id, err
 }
 
-// lookUpSession returns the session given names, as the router answers for
-// it, where it has seen a session of that whole id, in whatever pool; else
-// none, and the id of the one given names among those routed in the last
-// hour in every pool, as views.NamedRouted names it, listing them, where it
-// starts several, as they stand now. Given one that starts no such session's
-// id, it returns it as it is, as the whole id of a session idle for longer,
-// for the router to say whether it has seen it.
-func (a *app) lookUpSession(ctx context.Context, client *router.Client, given string) (status.Session, string, error) {
+// lookUpSession returns the id of the session given names, and the session
+// as the router answers for it, where it has seen a session of that whole
+// id, in whatever pool; else nil, and the id of the one given names among
+// those routed in the last hour in every pool, as views.NamedRouted names
+// it, listing them, where it starts several, as they stand now. Given one
+// that starts no such session's id, it returns it as it is, as the whole id
+// of a session idle for longer, for the router to say whether it has seen
+// it.
+func (a *app) lookUpSession(ctx context.Context, client *router.Client, given string) (string, *status.Session, error) {
 	s, err := client.Session(ctx, given)
-	if !errors.Is(err, router.ErrUnknownSession) {
-		return s, given, err
+	switch {
+	case err == nil:
+		return given, &s, nil
+	case !errors.Is(err, router.ErrUnknownSession):
+		return "", nil, err
 	}
 	sessions, err := client.SessionsInEveryPool(ctx)
 	if err != nil {
-		return status.Session{}, "", err
+		return "", nil, err
 	}
 	named := views.NamedRouted(given, sessions, a.Now(), a.accountNames())
 	if named.Several != nil {
-		return status.Session{}, "", several(given, named.Several)
+		return "", nil, several(given, named.Several)
 	}
-	return status.Session{}, named.ID, nil
+	return named.ID, nil, nil
 }
 
 // several is the error of given starting the ids of several sessions,

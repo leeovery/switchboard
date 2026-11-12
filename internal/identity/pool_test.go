@@ -19,42 +19,56 @@ import (
 // recordWithPools is an accounts record's file holding an account and its
 // pools, as written.
 const recordWithPools = `{
-  "version": 1,
+  "version": 2,
   "accounts": [
     {
       "id": "b6s7",
       "organization": "test-org-work",
-      "added": "2026-09-01T12:00:00Z"
+      "added": "2026-09-01T12:00:00Z",
+      "pool": "b2n8"
     }
   ],
   "pools": [
     {
       "id": "b2n8",
       "added": "2026-09-01T12:00:00Z",
-      "first": true
+      "first": true,
+      "here": true,
+      "written": {
+        "label": "Everything",
+        "primary": "b6s7",
+        "primary_known": true
+      }
     },
     {
       "id": "q7mt",
       "label": "Acme",
       "added": "2026-09-01T12:00:00Z",
-      "removed": "2026-10-20T07:45:00Z"
+      "removed": "2026-10-20T07:45:00Z",
+      "written": {
+        "label": "Acme",
+        "dirs": [
+          "~/Code/acme"
+        ]
+      }
     }
   ]
 }
 `
 
 // The record keeps its pools: each one's id, its label once removed, when
-// it was added and removed, in UTC to the second, and whether it's the
-// first; and it reads back as it was written.
+// it was added and removed, in UTC to the second, whether it's the first,
+// whether it's this Mac's, and how this Mac's config last wrote it; and each
+// account's pool; and it reads back as it was written, as version 2.
 func TestTheRecordsPoolsAreWrittenAndReadBack(t *testing.T) {
 	cet := time.FixedZone("CET", 60*60)
 	pools := []identity.PoolEntry{
-		{ID: "b2n8", Added: time.Date(2026, 9, 1, 13, 0, 0, 999, cet), First: true},
-		{ID: "q7mt", Label: "Acme", Added: added, Removed: removed},
+		{ID: "b2n8", Added: time.Date(2026, 9, 1, 13, 0, 0, 999, cet), First: true, Here: true, Written: identity.PoolWritten{Label: "Everything", Primary: "b6s7", PrimaryKnown: true}},
+		{ID: "q7mt", Label: "Acme", Added: added, Removed: removed, Written: identity.PoolWritten{Label: "Acme", Dirs: []string{"~/Code/acme"}}},
 	}
 	f := identity.NewFile(t.TempDir())
 	err := f.Update(func(r *identity.Record) error {
-		r.Accounts = []identity.Entry{{ID: "b6s7", Organization: "test-org-work", Added: added}}
+		r.Accounts = []identity.Entry{{ID: "b6s7", Organization: "test-org-work", Added: added, Pool: "b2n8"}}
 		r.Pools = pools
 		return nil
 	})
@@ -70,16 +84,17 @@ func TestTheRecordsPoolsAreWrittenAndReadBack(t *testing.T) {
 	}
 	stamped := slices.Clone(pools)
 	stamped[0].Added = added
-	if !slices.EqualFunc(got.Pools, stamped, samePool) {
+	if !slices.EqualFunc(got.Pools, stamped, identity.PoolEntry.Equal) {
 		t.Errorf("Read() pools = %+v, want %+v", got.Pools, stamped)
 	}
 }
 
-// A record from before pools reads as it did, holding none, and is written
-// as it was, without pools.
-func TestARecordWithoutPoolsReadsAndIsWrittenAsBefore(t *testing.T) {
+// A record from before pools, of version 1, reads as it did, holding none,
+// and is written as version 2, without pools, so a release before pools
+// never writes over one it's written since.
+func TestARecordWithoutPoolsReadsAndIsWrittenAsVersionTwo(t *testing.T) {
 	f := identity.NewFile(t.TempDir())
-	writeFile(t, f, recordOfTwo, 0o600)
+	writeFile(t, f, strings.Replace(recordOfTwo, `"version": 2`, `"version": 1`, 1), 0o600)
 	got, err := f.Read()
 	if err != nil || got.Pools != nil || !slices.Equal(ids(got.Accounts), []string{"b6s7", "m2x7"}) {
 		t.Fatalf("Read() = %+v, %v; want its two accounts and no pools", got, err)
@@ -90,6 +105,33 @@ func TestARecordWithoutPoolsReadsAndIsWrittenAsBefore(t *testing.T) {
 	if want := strings.Replace(recordOfTwo, "test-org-work", "test-org-other", 1); readFile(t, f) != want {
 		t.Errorf("the record's file holds\n%s\nwant\n%s", readFile(t, f), want)
 	}
+}
+
+// A record of version 1 that keeps pools, as one written by a build of pools
+// before they were marked this Mac's, has each live and unlabelled one this
+// Mac's, as it kept them so; and a record of a version after this build's
+// is damaged, and left as it was.
+func TestARecordOfVersionOneMarksItsOwnPoolsAndOneLaterIsDamaged(t *testing.T) {
+	f := identity.NewFile(t.TempDir())
+	writeFile(t, f, `{"version": 1, "accounts": [], "pools": [`+
+		`{"id": "b2n8", "added": "2026-09-01T12:00:00Z", "first": true}, `+
+		`{"id": "h3ll", "label": "Home", "added": "2026-09-01T12:00:00Z"}, `+
+		`{"id": "q7mt", "label": "Acme", "added": "2026-09-01T12:00:00Z", "removed": "2026-10-20T07:45:00Z"}]}`, 0o600)
+	got, err := f.Read()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if here := []bool{got.Pools[0].Here, got.Pools[1].Here, got.Pools[2].Here}; !slices.Equal(here, []bool{true, false, false}) {
+		t.Errorf("the pools are this Mac's %v, want the live, unlabelled one alone", here)
+	}
+
+	later := identity.NewFile(t.TempDir())
+	data := `{"version": 3, "accounts": []}`
+	writeFile(t, later, data, 0o600)
+	if _, err := later.Read(); !errors.Is(err, identity.ErrDamaged) {
+		t.Errorf("Read() of version 3 = %v, want it damaged", err)
+	}
+	checkUnchanged(t, later, data)
 }
 
 // A record whose pools aren't ones switchboard keeps is damaged, and left as
@@ -156,7 +198,7 @@ func TestJoiningARecordKeepsItsPools(t *testing.T) {
 	record := thisMacs()
 	record.Pools = []identity.PoolEntry{{ID: "b2n8", Added: added, First: true}}
 	got, _ := joined(t, record, joinAs, identity.Entry{ID: "n4p8", Organization: "test-org-new", Added: added})
-	if !slices.Equal(got.Pools, record.Pools) {
+	if !slices.EqualFunc(got.Pools, record.Pools, identity.PoolEntry.Equal) {
 		t.Errorf("joined, the record's pools are %+v, want %+v", got.Pools, record.Pools)
 	}
 }
@@ -247,21 +289,25 @@ func TestNewPoolIDFailsWhereItsDrawDoes(t *testing.T) {
 }
 
 // The record keeps up with the pools configured, ids found in any case: one
-// it lacks is added, but one whose id isn't one switchboard makes; one
-// removed, or kept as only another Mac configures it, is configured again;
-// and one that has left the config is marked removed, with the label it last
-// had there, else its id. A config from before pools, which has none, leaves
+// it lacks is added, this Mac's, but one whose id isn't one switchboard
+// makes; one removed, or kept as only another Mac configures it, is
+// configured again, this Mac's; and one of this Mac's that has left the
+// config is marked removed, this Mac's no longer, with the label it last had
+// there, else its id. A config from before pools, which has none, leaves
 // them as they are, as does one a heal is owed.
 func TestTheRecordKeepsUpWithThePoolsConfigured(t *testing.T) {
 	later := removed.Add(24 * time.Hour)
+	// known is how the config writes a pool without a label, directories or
+	// an account in it: no primary, known.
+	known := identity.PoolWritten{PrimaryKnown: true}
 	record := func() identity.Record {
 		return identity.Record{
 			Accounts: []identity.Entry{{ID: "b6s7", Added: added, Was: "work"}},
 			Pools: []identity.PoolEntry{
-				{ID: "b2n8", Added: added, First: true},
+				{ID: "b2n8", Added: added, First: true, Here: true, Written: known},
 				{ID: "q7mt", Label: "Acme", Added: added, Removed: removed},
 				{ID: "m5r1", Label: "Side", Added: added},
-				{ID: "h4w2", Added: added},
+				{ID: "h4w2", Added: added, Here: true, Written: known},
 			},
 		}
 	}
@@ -271,10 +317,12 @@ func TestTheRecordKeepsUpWithThePoolsConfigured(t *testing.T) {
 		return pools
 	}
 	labelled := func(id string) string { return map[string]string{"h4w2": "Client"}[id] }
+	// The pools as a config writes them without labels or directories, so
+	// the record keeps none written of them.
 	pools := func(ids ...string) config.Pools {
 		ps := make(config.Pools, len(ids))
 		for i, id := range ids {
-			ps[i] = config.Pool{ID: id, Label: "label-" + id}
+			ps[i] = config.Pool{ID: id, Label: id}
 		}
 		return ps
 	}
@@ -290,27 +338,27 @@ func TestTheRecordKeepsUpWithThePoolsConfigured(t *testing.T) {
 		{name: "in step", pools: pools("B2N8", "h4w2"), want: record().Pools},
 		{
 			name: "a pool the record lacks", pools: pools("b2n8", "h4w2", "n4p8"),
-			want: append(record().Pools, identity.PoolEntry{ID: "n4p8", Added: later}),
+			want: append(record().Pools, identity.PoolEntry{ID: "n4p8", Added: later, Here: true, Written: known}),
 			kept: identity.PoolsKept{Added: []string{"n4p8"}},
 		},
 		{
 			name: "one removed, configured again", pools: pools("b2n8", "h4w2", "Q7MT"),
-			want: at(1, identity.PoolEntry{ID: "q7mt", Added: added}),
+			want: at(1, identity.PoolEntry{ID: "q7mt", Added: added, Here: true, Written: known}),
 			kept: identity.PoolsKept{Returned: []string{"q7mt"}},
 		},
 		{
 			name: "one only another Mac configures, configured here", pools: pools("b2n8", "h4w2", "m5r1"),
-			want: at(2, identity.PoolEntry{ID: "m5r1", Added: added}),
+			want: at(2, identity.PoolEntry{ID: "m5r1", Added: added, Here: true, Written: known}),
 			kept: identity.PoolsKept{Returned: []string{"m5r1"}},
 		},
 		{
 			name: "one that left the config", pools: pools("b2n8"), labelOf: labelled,
-			want: at(3, identity.PoolEntry{ID: "h4w2", Label: "Client", Added: added, Removed: later}),
+			want: at(3, identity.PoolEntry{ID: "h4w2", Label: "Client", Added: added, Removed: later, Written: known}),
 			kept: identity.PoolsKept{Removed: []string{"h4w2"}},
 		},
 		{
 			name: "one that left the config, its label not known", pools: pools("b2n8"),
-			want: at(3, identity.PoolEntry{ID: "h4w2", Label: "h4w2", Added: added, Removed: later}),
+			want: at(3, identity.PoolEntry{ID: "h4w2", Label: "h4w2", Added: added, Removed: later, Written: known}),
 			kept: identity.PoolsKept{Removed: []string{"h4w2"}},
 		},
 		{
@@ -328,13 +376,76 @@ func TestTheRecordKeepsUpWithThePoolsConfigured(t *testing.T) {
 				accounts = config.Accounts{{ID: tt.accounts[0]}}
 			}
 			kept := r.KeepUp(identity.Followed{Accounts: accounts, Pools: tt.pools, PoolLabel: tt.labelOf}, later)
-			if !slices.EqualFunc(r.Pools, tt.want, samePool) {
+			if !slices.EqualFunc(r.Pools, tt.want, identity.PoolEntry.Equal) {
 				t.Errorf("the record's pools are\n%+v\nwant\n%+v", r.Pools, tt.want)
 			}
 			if want := (identity.Kept{Pools: tt.kept, Unhealed: tt.unhealed}); !reflect.DeepEqual(kept, want) {
 				t.Errorf("kept %+v, want %+v", kept, want)
 			}
 		})
+	}
+}
+
+// The record keeps each pool configured as the config writes it, its label,
+// its directories and the account it marks its primary, and each account
+// configured in the pool the config has it in, kept once either is removed;
+// a removed pool whose label the config's follower doesn't know is labelled
+// as the record kept it written; and a config from before pools, put back,
+// leaves them all as they were, for a heal to write back.
+func TestTheRecordKeepsHowThePoolsAreWrittenAndEachAccountsPool(t *testing.T) {
+	later := removed.Add(24 * time.Hour)
+	acme := config.Pool{ID: "q7mt", Label: "Acme", Dirs: []string{"/Users/test/Code/acme"}, WrittenDirs: []string{"~/Code/acme"}}
+	first := config.Pool{ID: "b2n8", Label: "b2n8"}
+	accounts := config.Accounts{{ID: "b6s7", Pool: "q7mt", Primary: true}, {ID: "m2x7", Pool: "b2n8"}}
+	r := identity.Record{
+		Accounts: []identity.Entry{{ID: "b6s7", Added: added}, {ID: "m2x7", Added: added}},
+		Pools:    []identity.PoolEntry{{ID: "b2n8", Added: added, First: true, Here: true}},
+	}
+
+	r.KeepUp(identity.Followed{Accounts: accounts, Pools: config.Pools{first, acme}}, later)
+	written := []identity.PoolEntry{
+		{ID: "b2n8", Added: added, First: true, Here: true, Written: identity.PoolWritten{PrimaryKnown: true}},
+		{ID: "q7mt", Added: later, Here: true, Written: identity.PoolWritten{Label: "Acme", Dirs: []string{"~/Code/acme"}, Primary: "b6s7", PrimaryKnown: true}},
+	}
+	if !slices.EqualFunc(r.Pools, written, identity.PoolEntry.Equal) {
+		t.Errorf("the record's pools are\n%+v\nwant each as the config writes it\n%+v", r.Pools, written)
+	}
+	if got := []string{r.Accounts[0].Pool, r.Accounts[1].Pool}; !slices.Equal(got, []string{"q7mt", "b2n8"}) {
+		t.Errorf("the record has the accounts in the pools %v, want those the config has them in", got)
+	}
+
+	r.KeepUp(identity.Followed{Accounts: accounts}, later)
+	if !slices.EqualFunc(r.Pools, written, identity.PoolEntry.Equal) || r.Accounts[0].Pool != "q7mt" {
+		t.Errorf("a config from before pools put back, the record holds %+v and %+v, want them as they were", r.Pools, r.Accounts)
+	}
+
+	r.KeepUp(identity.Followed{Accounts: accounts[1:], Pools: config.Pools{first}}, later)
+	gone := written[1]
+	gone.Label, gone.Removed, gone.Here = "Acme", later, false
+	if !slices.EqualFunc(r.Pools, []identity.PoolEntry{written[0], gone}, identity.PoolEntry.Equal) {
+		t.Errorf("Acme left the config, the record's pools are %+v, want it removed, labelled as the record kept it written, its directories kept", r.Pools)
+	}
+	if e := r.Accounts[0]; e.Removed.IsZero() || e.Pool != "q7mt" {
+		t.Errorf("b6s7 left the config, the record holds %+v, want it removed, its pool kept", e)
+	}
+}
+
+// Joining another Mac's record takes no pool its config had an account in,
+// nor how its config writes a pool: they're that Mac's config's.
+func TestJoiningARecordTakesNoneOfHowTheOtherMacsConfigHasThePools(t *testing.T) {
+	other := identity.Record{
+		Accounts: []identity.Entry{{ID: "n4p8", Organization: "test-org-new", Added: added, Pool: "c1nt"}},
+		Pools:    []identity.PoolEntry{{ID: "c1nt", Label: "Client", Added: added, Written: identity.PoolWritten{Label: "Client", Dirs: []string{"~/Code/client"}}}},
+	}
+	r := thisMacs()
+	if _, err := r.Join(other, joinAs); err != nil {
+		t.Fatal(err)
+	}
+	if e, ok := r.ByID("n4p8"); !ok || e.Pool != "" {
+		t.Errorf("joined, the record holds %+v, want n4p8 in no pool of this Mac's", e)
+	}
+	if p, ok := r.PoolByID("c1nt"); !ok || !p.Equal(identity.PoolEntry{ID: "c1nt", Label: "Client", Added: added}) {
+		t.Errorf("joined, the record holds %+v, want Client as the other Mac keeps it, but not as its config writes it", p)
 	}
 }
 
@@ -382,11 +493,4 @@ func newPoolID(t *testing.T, record identity.Record, configured []string, rand i
 		t.Fatal(err)
 	}
 	return id
-}
-
-// samePool reports whether two pools are the same, their times the same
-// instants.
-func samePool(a, b identity.PoolEntry) bool {
-	return a.ID == b.ID && a.Label == b.Label && a.Added.Equal(b.Added) && a.Removed.Equal(b.Removed) &&
-		a.First == b.First && a.Configured == b.Configured
 }

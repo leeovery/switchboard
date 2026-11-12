@@ -114,13 +114,25 @@ type DigestDay struct {
 	Sessions   map[string]SessionFrom
 }
 
-// Option is how Open opens a ledger, beyond what it's given.
+// Option is how Open opens a ledger, or NewFollower follows one, beyond what
+// it's given.
 type Option func(*options)
 
-// options are what the options given to Open set: the Digester the ledger
-// digests its days with, nil for none.
+// options are what the options given set: the Digester the ledger digests
+// its days with, nil for none, which a follower passes over; and what gives
+// the first pool's id, as FirstPool says, nil for none.
 type options struct {
-	digester Digester
+	digester  Digester
+	firstPool func() string
+}
+
+// optionsOf are what the options given set.
+func optionsOf(opts []Option) options {
+	var o options
+	for _, opt := range opts {
+		opt(&o)
+	}
+	return o
 }
 
 // Digesting has the ledger digest each finished day with digester, as

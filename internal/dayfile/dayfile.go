@@ -65,6 +65,10 @@ type Files struct {
 	LineMax int
 	// Logger logs what can't be done with them.
 	Logger *slog.Logger
+	// Key, where it's set, is what tells a line from another as an import
+	// merges a day the files hold, as Without makes one: two lines of one
+	// key are one. Where it isn't, each line is its own.
+	Key func(line []byte) []byte
 
 	// mu is held to write while the files are pruned and compressed, or a
 	// compressed file is written for a day imported, and to read while

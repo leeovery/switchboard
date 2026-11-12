@@ -72,12 +72,12 @@ func newTestState(clock *testClock) *state {
 }
 
 // newTestFile builds a state file on now's time keeping what's known of the
-// accounts given: their sessions, their tokens, their usage, as Claude's
-// policy judges it, and what's been told of their tokens' years.
+// accounts given, in no pools: their sessions, their tokens, their usage, as
+// Claude's policy judges it, and what's been told of their tokens' years.
 func newTestFile(now func() time.Time, as accounts) *stateFile {
 	changes := newChanges()
 	usage := newState(as, unpooled(), testPolicy, claude.Provider{}.Family, now, changes.note, changes.routine)
-	return newStateFile(now, changes, newSessions(now, changes.note, changes.routine), as, usage, newYearsTold(changes.note))
+	return newStateFile(now, changes, newSessions(now, changes.note, changes.routine), as, usage, newYearsTold(changes.note), heirs{accounts: as.configured()})
 }
 
 // record takes in a reading of an account's windows off the answer to a

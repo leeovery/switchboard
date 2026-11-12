@@ -378,16 +378,12 @@ func (r *restarts) newBinaryDecides(binary fileState) bool {
 	return r.ask != nil && r.binary.movedOn(binary)
 }
 
-// configured returns the accounts the last valid config the config file has
-// made since the router started configures, which the router takes up as it
-// restarts: none while it has made none.
-func (r *restarts) configured() config.Accounts {
-	return r.config.accounts
-}
-
 // configuredPools returns the accounts and the pools the last valid config
-// the config file has made since the router started configures, which the
-// router routes within at once, reporting false while it has made none.
+// the config file has made since the router started configures, the accounts
+// none while it has made none: the router routes within the pools at once,
+// and takes the accounts up as it restarts, but for the tokens of those that
+// leave, which it takes up at once too. It reports false while the file has
+// made none.
 func (r *restarts) configuredPools() (config.Accounts, config.Pools, bool) {
 	return r.config.accounts, r.config.pools, r.config.changed
 }

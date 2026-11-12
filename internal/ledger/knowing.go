@@ -43,16 +43,36 @@ func (s Summary) made(lines int, held *Summary) Summary {
 // knowing returns a, an account's day summarised afresh, knowing no less
 // than held, its day as summarised before, as Summary.knowing says: its work
 // in every pool together and in each pool, as Work.knowing says, the pools
-// held that the lines no longer give kept.
+// held that the lines no longer give kept; and its work in every pool
+// together their work summed where that counts more, as where some of one
+// pool's lines were lost and others filed since in another, so its pools
+// always add up to its whole.
 func (a AccountDay) knowing(held AccountDay) AccountDay {
 	a = a.pooled(knowingAll(a.poolDays(), held.poolDays(), PoolDay.key, PoolDay.knowing, strings.Compare))
 	a.Work = a.Work.knowing(held.Work)
+	if whole := wholeOf(a.Pools); len(a.Pools) > 1 && !a.covers(whole) {
+		a.Work = whole
+	}
 	a.Highest, a.Rise = higher(a.Highest, held.Highest), higher(a.Rise, held.Rise)
 	a.Limits = limitsKnowing(a.Limits, held.Limits)
 	a.Resets = resetsKnowing(a.Resets, held.Resets)
 	a.MinutesAtCap, a.MinutesAtLimit = more(a.MinutesAtCap, held.MinutesAtCap), more(a.MinutesAtLimit, held.MinutesAtLimit)
 	a.ReadBefore = together(a.ReadBefore, held.ReadBefore)
 	return a
+}
+
+// wholeOf returns the work of every pool given together, as mergedWork merges
+// two.
+func wholeOf(pools []PoolDay) Work {
+	var whole Work
+	for i, p := range pools {
+		if i == 0 {
+			whole = p.Work
+			continue
+		}
+		whole = mergedWork(whole, p.Work)
+	}
+	return whole
 }
 
 // knowing returns p, an account's work in a pool summarised afresh, knowing

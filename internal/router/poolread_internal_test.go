@@ -15,8 +15,10 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/identity"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
@@ -375,11 +377,15 @@ func TestEachPoolsDocumentShowsTheEventsOfItsPoolItsAccountsAndNone(t *testing.T
 		{Kind: status.EventPin, Account: "personal", Accounts: []string{"personal"}, Pool: acmePool},
 		{Kind: status.EventPressure, Account: "side"},
 		{Kind: status.EventAuto, Accounts: []string{"personal"}},
-		{Kind: status.EventMoved, Session: "one", From: "side", To: "work"},
+		// A move with no pool goes by the account it moved to.
+		{Kind: status.EventMoved, Session: "one", From: "personal", To: "work"},
 		{Kind: status.EventMoved, Session: "two", To: "personal"},
 		// An account that has left the config, held till the restart, is in
-		// no pool.
+		// no pool, and so is a pool that has left it: an event naming either
+		// goes by what else it names.
 		{Kind: status.EventCap, Account: "lapsed"},
+		{Kind: status.EventAuto, Pool: unconfigured},
+		{Kind: status.EventPin, Accounts: []string{"personal"}, Pool: unconfigured},
 	}
 	r.recent.change(func() {
 		for _, e := range happened {
@@ -391,8 +397,8 @@ func TestEachPoolsDocumentShowsTheEventsOfItsPoolItsAccountsAndNone(t *testing.T
 		pool string
 		want []string
 	}{
-		{pool: defaultPool, want: []string{status.EventCap, status.EventMoved, status.EventPressure, status.EventPin, status.EventRestart}},
-		{pool: acmePool, want: []string{status.EventCap, status.EventMoved, status.EventAuto, status.EventPin, status.EventLimit, status.EventRestart}},
+		{pool: defaultPool, want: []string{status.EventAuto, status.EventCap, status.EventMoved, status.EventPressure, status.EventPin, status.EventRestart}},
+		{pool: acmePool, want: []string{status.EventPin, status.EventAuto, status.EventCap, status.EventMoved, status.EventAuto, status.EventPin, status.EventLimit, status.EventRestart}},
 	}
 	for _, tt := range tests {
 		var kinds []string
@@ -425,6 +431,51 @@ func TestEachPoolsDocumentShowsItsOwnAccountsPrimes(t *testing.T) {
 		}
 		if !slices.Equal(primed, tt.want) {
 			t.Errorf("pool %s's document primes %q, want %q", tt.pool, primed, tt.want)
+		}
+	}
+}
+
+func TestAClosedTableAnswersAnyPoolWithTheRoutersOwnEventsAlone(t *testing.T) {
+	logstest.Capture(t)
+	clock := &testClock{now: onDay(1, 5, 0)}
+	cfg := testConfig(clock.read, &stubProber{}, poolTokens.Read)
+	cfg.Accounts, cfg.Pools, cfg.Prime, cfg.Policy = pooledAccounts(), testPools, daytime, testPolicy
+	r := newTestRouterOf(t, cfg)
+	r.proxy.transport = servingAll(served, served, served)
+	routeOneIn(t, r, defaultPool, acmePool)
+	r.stream.publishOf(StreamEvent{Kind: StreamSent, Request: "1", Session: "one", Pool: defaultPool}, key{session: "one"})
+	r.stream.publishOf(StreamEvent{Kind: StreamSent, Request: "2", Session: "two"}, key{session: "two"})
+	r.recent.change(func() {
+		for _, e := range []status.Event{
+			{Kind: status.EventRestart, Reason: "the config changed"},
+			{Kind: status.EventLimit, Account: "personal"},
+			{Kind: status.EventPin, Accounts: []string{"work"}, Pool: defaultPool},
+			{Kind: status.EventCap, Account: "lapsed"},
+		} {
+			r.recent.add(e, clock.read())
+		}
+	})
+	r.state.pools.table.Store(closedTable("the pool each account is in can't be told").stored())
+
+	for _, pool := range []string{"", defaultPool, acmePool, unconfigured} {
+		doc := statusIn(t, r, pool)
+		// The router tells of its health as the table closes, its own event
+		// beside the restart.
+		var kinds []string
+		for _, e := range doc.Events {
+			kinds = append(kinds, e.Kind)
+		}
+		if len(doc.Accounts) != 0 || doc.Sessions != 0 || len(doc.Prime.Slots) != 0 || !slices.Equal(kinds, []string{status.EventHealth, status.EventRestart}) {
+			t.Errorf("asking for pool %q, the document holds %q, %d sessions, primes %+v, shows the events %q; want none but the router's own, its health and restart",
+				pool, idsOf(doc.Accounts), doc.Sessions, doc.Prime.Slots, kinds)
+		}
+		var listed []status.Session
+		decodedOK(t, askControl(t, r, http.MethodGet, withPool("/sessions", pool), ""), &listed)
+		var h History
+		decodedOK(t, askControl(t, r, http.MethodGet, withPool("/history?window=7d&step=1h", pool), ""), &h)
+		streamed := askControl(t, r, http.MethodGet, withPool("/stream", pool), "").Body.String()
+		if len(listed) != 0 || len(h.Accounts) != 0 || streamed != "" {
+			t.Errorf("asking for pool %q, GET /sessions listed %q, /history %q, and /stream told of %q; want none", pool, sessionIDs(listed), historyIDs(h), streamed)
 		}
 	}
 }
@@ -605,21 +656,11 @@ func TestTheStreamTellsOfTheRequestsRoutedWithinThePoolAsked(t *testing.T) {
 	r := pooledRouter(t, pooledAccounts(), testPools)
 	srv := httptest.NewServer(r.Control())
 	t.Cleanup(srv.Close)
-	ctx, cancel := context.WithCancel(t.Context())
-	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+withPool("/stream", acmePool), nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _ = resp.Body.Close() }()
+	acme := openStream(t, srv, acmePool)
 
 	routeIn(t, r, workToken, "one", defaultPool, nil)
 	routeIn(t, r, personalToken, "two", acmePool, nil)
-	for _, e := range streamedTillDone(t, resp.Body) {
+	for _, e := range streamedTillDone(t, acme) {
 		if e.Pool != acmePool || e.Session != "two" {
 			t.Errorf("Acme's stream told of %+v, want Acme's request alone", e)
 		}
@@ -688,11 +729,18 @@ func TestTheStreamOpensWithThePoolsRequestsInFlightAlone(t *testing.T) {
 	}
 }
 
+// streamWait is how long openStream keeps a stream open at most.
+const streamWait = 30 * time.Second
+
 // openStream opens r's request stream, served by srv, asking for the pool
-// given, "" for none, and returns its body, open till the test ends.
+// given, "" for none, and returns its body, open till the test ends, or for
+// streamWait at most, so a stream that goes on where it should have ended
+// fails the test rather than holding it till the run's timeout.
 func openStream(t *testing.T, srv *httptest.Server, pool string) io.ReadCloser {
 	t.Helper()
-	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, srv.URL+withPool("/stream", pool), nil)
+	ctx, cancel := context.WithTimeout(t.Context(), streamWait)
+	t.Cleanup(cancel)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+withPool("/stream", pool), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -779,12 +827,36 @@ func TestAPoolNamedWithoutAValueNamesNone(t *testing.T) {
 	}
 }
 
-func TestTheHealedFirstPoolKeepsItsLabelFromTheAccountsRecord(t *testing.T) {
+func TestThePoolsKeptOfAConfigNamingNoneKeepTheirLabelsFromTheAccountsRecord(t *testing.T) {
 	logstest.Capture(t)
-	m := newMembership(func() config.Pool { return config.Pool{ID: defaultPool, Label: "Default"} }, sameID)
+	first := identity.PoolEntry{ID: defaultPool, Added: start, First: true, Here: true, Written: identity.PoolWritten{Label: "Default"}}
+	m := newMembership(readingRecord(identity.Record{Pools: []identity.PoolEntry{first}}), alwaysMoved, sameID, nil)
 	m.follow(config.Accounts(testConfigured), nil)
 	if got := m.current().reported(nil); len(got) != 1 || got[0].ID != defaultPool || got[0].Label != "Default" {
-		t.Errorf("the healed pools report %+v, want Default by its label", got)
+		t.Errorf("the kept pools report %+v, want Default by its label", got)
+	}
+}
+
+func TestThePoolsKeptOfAConfigNamingNoneAreFencedAsTheConfigWouldFenceThem(t *testing.T) {
+	logstest.Capture(t)
+	stateDir := t.TempDir()
+	// Every pool fenced, Default, the first, to a directory in the home.
+	movedBothWays(t, stateDir, "~/work/own")
+	cfg := testConfig(at(start), &stubProber{}, poolTokens.Read)
+	cfg.StateDir, cfg.HomeDir = stateDir, func() (string, error) { return "/Users/test", nil }
+	r := newTestRouterOf(t, cfg)
+
+	want := []RoutedPool{
+		{ID: defaultPool, Label: "Default", Dirs: []string{"/Users/test/work/own"}, WrittenDirs: []string{"~/work/own"}, Accounts: []string{"work", "side"}, Primary: "work"},
+		{ID: acmePool, Label: "Acme", Dirs: []string{"/work/acme"}, WrittenDirs: []string{"/work/acme"}, Accounts: []string{"personal"}, Primary: "personal"},
+	}
+	if h := healthOf(t, r); !reflect.DeepEqual(h.Pools, want) {
+		t.Errorf("GET /health reports the kept pools %+v, want %+v, fenced as the record keeps them", h.Pools, want)
+	}
+	// The first is fenced like the rest, so a read naming no pool has none
+	// to be answered for, as with the config's own pools.
+	if rec := askControl(t, r, http.MethodGet, "/status", ""); rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "every pool is fenced") {
+		t.Errorf("GET /status naming no pool answered %d %s, want 400, every pool fenced", rec.Code, rec.Body)
 	}
 }
 
@@ -834,4 +906,57 @@ func TestAStreamThatNamedAPoolEndsOnceThePoolsAnswerForItWithAnother(t *testing.
 	if rest, err := io.ReadAll(spare); err != nil || len(rest) != 0 {
 		t.Errorf("the stream that named Spare told of %q, %v, once Spare was gone, want it ended", rest, err)
 	}
+}
+
+func TestASessionsStartAndMoveShowInThePoolItsRequestsWereRoutedWithin(t *testing.T) {
+	tests := []struct {
+		name string
+		// config is the config file side's session moves off it under; after,
+		// where it's not "", the one that follows the move.
+		config, after string
+	}{
+		{name: "side moved to Acme", config: poolsTOML(acmePool, defaultTOML, acmeTOML)},
+		{name: "side dropped from the config", config: poolsTOML("", defaultTOML, acmeTOML)},
+		{
+			name: "work, which it moved to, moved to Acme since", config: poolsTOML(acmePool, defaultTOML, acmeTOML),
+			after: strings.Replace(poolsTOML(acmePool, defaultTOML, acmeTOML), "pool = \""+defaultPool+"\"", "pool = \""+acmePool+"\"", 1),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			logstest.Capture(t)
+			r, path := newWatchingPoolsRouter(t, "")
+			readWeeks(r, map[string]quota.Window{"side": soonWeek, "work": laterWeek, "personal": latestWeek})
+			routeIn(t, r, sideToken, "one", defaultPool, nil)
+
+			writeConfigFile(t, path, tt.config)
+			r.upkeep.look()
+			routeIn(t, r, workToken, "one", defaultPool, nil)
+			if tt.after != "" {
+				writeConfigFile(t, path, tt.after)
+				r.upkeep.look()
+			}
+
+			for pool, want := range map[string][]string{defaultPool: {"one"}, acmePool: nil} {
+				events := statusIn(t, r, pool).Events
+				for _, kind := range []string{status.EventStarted, status.EventMoved} {
+					if got := sessionsOf(events, kind); !slices.Equal(got, want) {
+						t.Errorf("pool %s's document shows the %s events of the sessions %q, want %q", pool, kind, got, want)
+					}
+				}
+			}
+		})
+	}
+}
+
+// sessionsOf returns the session of each event of the kind given among
+// events, in order.
+func sessionsOf(events []status.Event, kind string) []string {
+	var sessions []string
+	for _, e := range events {
+		if e.Kind == kind {
+			sessions = append(sessions, e.Session)
+		}
+	}
+	return sessions
 }

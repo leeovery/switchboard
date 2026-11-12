@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/idmove"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/redact"
@@ -99,9 +100,9 @@ func (a *app) ledgerState() (*config.Config, string, error) {
 
 // ledgerReader returns a reader of the request ledger in the state directory
 // dir, by the clock now, which summarises days with the caps of the accounts
-// cfg configures.
+// cfg configures, knowing the first pool as idmove.FirstPool does.
 func ledgerReader(dir string, cfg *config.Config, now func() time.Time) *ledger.Reader {
-	return ledger.NewReader(dir, now, caps(cfg), logger)
+	return ledger.NewReader(dir, now, caps(cfg), logger, idmove.FirstPool(dir))
 }
 
 // pricing is the price table, cfg's prices in place of its own, warning of

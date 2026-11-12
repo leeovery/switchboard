@@ -40,7 +40,7 @@ type RoutedPool struct {
 // one reading of the pools has it, whose accounts, primary, pin, sessions
 // and requests the router's answers hold, and no other's; or, for an answer
 // of an account whatever pool it's in, every account. In a config from
-// before pools, it's every account.
+// before pools, it's every account, and of a closed table none.
 type poolRead struct {
 	pools *poolTable
 	// pool is the id of the pool read, as pools spells it: "" in a config
@@ -102,12 +102,20 @@ func (rd poolRead) primary(id string) (primary, known bool) {
 	return rd.primaries[id], true
 }
 
+// whole reports whether the read holds all the router's work, every pool's:
+// a read of every account's does, and so does one of a config from before
+// pools, every account in its one pool; one of a closed table never does,
+// as no account is in any pool.
+func (rd poolRead) whole() bool {
+	return rd.every || !rd.pools.pooled() && rd.pools.closed == ""
+}
+
 // routes reports whether work recorded as in the pool given, as a request's
 // or a session's remembered pool names it, "" for none, is the pool read's:
-// a request that named none is in the first. A read of every account's has
-// every pool's work.
+// a request that named none is in the first. A whole read has every pool's
+// work, and one of a closed table none.
 func (rd poolRead) routes(pool string) bool {
-	return rd.every || rd.pools.of(pool) == rd.pool
+	return rd.whole() || rd.pools.pooled() && rd.pools.of(pool) == rd.pool
 }
 
 // pin returns the global pin as it holds in the pool read: naming the
@@ -125,9 +133,10 @@ func (rd poolRead) pin(global status.Pin) status.Pin {
 // that names a pool, where it's the pool read; one that names an account in
 // a pool, where it's in the pool read now, as its windows go; and every one
 // that names neither, as the router's own, its restarts and its exports do,
-// or names an account in none, as one that has left the config.
+// or names only a pool or an account that has left the config. A whole read
+// shows every event, and one of a closed table the router's own alone.
 func (rd poolRead) events(all []status.Event) []status.Event {
-	if rd.every || len(rd.pools.pools) == 0 {
+	if rd.whole() {
 		return all
 	}
 	var shown []status.Event
@@ -141,7 +150,10 @@ func (rd poolRead) events(all []status.Event) []status.Event {
 
 // shows reports whether the pool read shows the event e, as events says.
 func (rd poolRead) shows(e status.Event) bool {
-	if e.Pool != "" {
+	if rd.pools.closed != "" {
+		return e.Pool == "" && befell(e) == ""
+	}
+	if _, in := rd.pools.pools.ByID(e.Pool); in {
 		return rd.routes(e.Pool)
 	}
 	id := befell(e)
@@ -153,20 +165,21 @@ func (rd poolRead) shows(e status.Event) bool {
 
 // befell returns the account the event e befell, as a pool read shows it by:
 // the one it names; else the first the global pin names; else the one a
-// session moved from, or to where it moved from none; "" for none.
+// session moved to, where its session stays, or from, where it moved to
+// none; "" for none.
 func befell(e status.Event) string {
 	var pinned string
 	if len(e.Accounts) > 0 {
 		pinned = e.Accounts[0]
 	}
-	return cmp.Or(e.Account, pinned, e.From, e.To)
+	return cmp.Or(e.Account, pinned, e.To, e.From)
 }
 
 // prime returns the priming schedule as the pool read shows it: the slots of
 // its accounts alone. The stagger is every pool's together, till each pool
 // staggers its own.
 func (rd poolRead) prime(p status.Prime) status.Prime {
-	if rd.every || len(rd.pools.pools) == 0 {
+	if rd.whole() {
 		return p
 	}
 	p.Slots = slices.DeleteFunc(slices.Clone(p.Slots), func(s status.Slot) bool { return !rd.holds(s.Account) })

@@ -60,10 +60,13 @@ type stateFile struct {
 	accounts accounts
 	state    *state
 	told     *yearsTold
+	// heirs say which account the tokens of each account the router was
+	// started without count as, as the config it was started from makes them.
+	heirs heirs
 }
 
-func newStateFile(now func() time.Time, changes *changes, sessions *sessions, accounts accounts, state *state, told *yearsTold) *stateFile {
-	return &stateFile{write: writeState, now: now, changes: changes, sessions: sessions, accounts: accounts, state: state, told: told}
+func newStateFile(now func() time.Time, changes *changes, sessions *sessions, accounts accounts, state *state, told *yearsTold, heirs heirs) *stateFile {
+	return &stateFile{write: writeState, now: now, changes: changes, sessions: sessions, accounts: accounts, state: state, told: told, heirs: heirs}
 }
 
 // changes are the changes the state file lacks. Noting one never blocks, and
@@ -175,7 +178,7 @@ func (f *stateFile) load(path string) {
 	f.path = path
 	now := f.now()
 	saved := f.read(now)
-	tokens := f.accounts.recall(saved.Tokens, now)
+	tokens := f.accounts.recall(saved.Tokens, f.heirs, now)
 	sessions := f.sessions.recall(saved.savedSessions, f.accounts, now)
 	f.state.recallPin(f.sessions.globalPin())
 	usage := f.state.recall(saved.savedUsage, f.accounts.holding(saved.Tokens))

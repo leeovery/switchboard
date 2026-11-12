@@ -12,6 +12,7 @@ package export
 
 import (
 	"bytes"
+	"cmp"
 	"errors"
 	"fmt"
 	"io"
@@ -32,12 +33,13 @@ import (
 // Exporter exports the history in the state directory StateDir, by the clock
 // Now, what can't be done with the files it reads logged to Logger, the
 // accounts record's accounts labelled as Accounts, those configured, labels
-// them.
+// them, and its pools as Pools, those configured, label them.
 type Exporter struct {
 	StateDir string
 	Now      func() time.Time
 	Logger   *slog.Logger
 	Accounts config.Accounts
+	Pools    config.Pools
 	// NoParents, where it's set, makes the folder exported into only while
 	// the folder it goes in is there, and only where it can be made in it, so
 	// one on a disk that isn't mounted, as /Volumes/<disk>/…, fails with
@@ -130,7 +132,7 @@ func (e Exporter) Export(dir string) (Result, error) {
 		return Result{}, fmt.Errorf("can't export into %s: %w", dir, err)
 	}
 	x := exporting{written: make(map[string]bool), mkdir: e.making(folder), unremoved: e.removeLeftovers(folder)}
-	recorded, err := x.record(e.StateDir, folder, e.Accounts)
+	recorded, err := x.record(e.StateDir, folder, e.Accounts, e.Pools)
 	if err != nil {
 		return Result{}, fmt.Errorf("can't export into %s: %w", dir, err)
 	}
@@ -213,8 +215,9 @@ func (x *exporting) summaries(src, dst string) error {
 }
 
 // record writes the accounts record in the state directory at state into the
-// Mac's folder at folder, each account configured labelled as configured
-// says, so a Mac that doesn't configure it names it all the same, making the
+// Mac's folder at folder, each account and pool configured labelled as
+// configured and pools say, as labelled labels them, so a Mac that doesn't
+// configure it names it all the same, making the
 // folder as x.mkdir does: where it differs from the one there, and with the
 // state record's modification time. Where the state directory has none, it
 // removes the folder's, so the folder, its export.json marked as exported
@@ -222,7 +225,7 @@ func (x *exporting) summaries(src, dst string) error {
 // whether the folder holds the record, counts for no day, and fails where
 // the record can't be read, as an import of the folder needs it to take in
 // the accounts its days name.
-func (x *exporting) record(state, folder string, configured config.Accounts) (bool, error) {
+func (x *exporting) record(state, folder string, configured config.Accounts, pools config.Pools) (bool, error) {
 	src, dst := identity.NewFile(state), identity.NewFile(folder).Path()
 	info, err := os.Stat(src.Path())
 	if errors.Is(err, fs.ErrNotExist) {
@@ -238,7 +241,7 @@ func (x *exporting) record(state, folder string, configured config.Accounts) (bo
 	if err != nil {
 		return false, fmt.Errorf("export the accounts record: %w", err)
 	}
-	data, err := labelled(record, configured).Encode()
+	data, err := labelled(record, configured, pools).Encode()
 	if err != nil {
 		return false, fmt.Errorf("export the accounts record: %w", err)
 	}
@@ -255,11 +258,18 @@ func (x *exporting) record(state, folder string, configured config.Accounts) (bo
 	return true, nil
 }
 
-// labelled is record with each account configured marked so, as Entry's
-// Configured says, and labelled as configured labels it, where it does.
-func labelled(record identity.Record, configured config.Accounts) identity.Record {
-	out := identity.Record{Accounts: slices.Clone(record.Accounts)}
+// labelled is record as an export's copy holds it: each account configured
+// marked so, as Entry's Configured says, and labelled as configured labels
+// it, where it does; each pool pools has, or the record has as this Mac's,
+// as PoolEntry's Here says, marked so, as PoolEntry's Configured says, and
+// labelled as pools label it, else as this Mac's config last wrote it, else
+// by its id; and none of what this Mac's config alone makes of them, the
+// pool each account is in, nor how it writes a pool, which another Mac takes
+// none of.
+func labelled(record identity.Record, configured config.Accounts, pools config.Pools) identity.Record {
+	out := identity.Record{Accounts: slices.Clone(record.Accounts), Pools: slices.Clone(record.Pools)}
 	for i, e := range out.Accounts {
+		out.Accounts[i].Pool = ""
 		a, ok := configured.ByID(e.ID)
 		if !ok {
 			continue
@@ -267,6 +277,15 @@ func labelled(record identity.Record, configured config.Accounts) identity.Recor
 		out.Accounts[i].Configured = true
 		if a.Label != "" {
 			out.Accounts[i].Label = a.Label
+		}
+	}
+	for i, p := range out.Pools {
+		out.Pools[i].Here, out.Pools[i].Written = false, identity.PoolWritten{}
+		switch c, ok := pools.ByID(p.ID); {
+		case ok:
+			out.Pools[i].Configured, out.Pools[i].Label = true, c.Label
+		case p.Here && p.Removed.IsZero():
+			out.Pools[i].Configured, out.Pools[i].Label = true, cmp.Or(p.Written.Label, p.ID)
 		}
 	}
 	return out

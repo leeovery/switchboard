@@ -48,9 +48,9 @@ func TestServe(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Probed from the same state directory, and so the same token files, which
-	// the document names.
+	// the document names, of the same accounts in the same pool.
 	var probed status.Document
-	probing := statusDeps(t, fakeClaudeAPI(t), map[string]string{"XDG_STATE_HOME": filepath.Dir(srv.state)})
+	probing := statusDepsOf(t, fakeClaudeAPI(t), threeInFirstPool, map[string]string{"XDG_STATE_HOME": filepath.Dir(srv.state)})
 	if err := json.Unmarshal([]byte(run(t, probing, "status", "--json", "--probe").stdout), &probed); err != nil {
 		t.Fatal(err)
 	}
@@ -1006,8 +1006,8 @@ type serveSetup struct {
 	// state is switchboard's state directory, under $XDG_STATE_HOME.
 	state  string
 	config string
-	// accounts are the config file's accounts, and its pools: threeAccounts
-	// where it's "". extra ends the config file.
+	// accounts are the config file's accounts, and its pools:
+	// threeInFirstPool where it's "". extra ends the config file.
 	accounts string
 	extra    string
 	// exited closes once the serve start runs has exited.
@@ -1100,8 +1100,8 @@ func newServeSetup(t *testing.T, upstream string, env map[string]string) *serveS
 	s.deps = testDeps(vars, t.TempDir())
 	writeToken(t, s.deps, "work", "test-token-work")
 	writeToken(t, s.deps, "side", "test-token-side")
-	// The move onto the accounts' ids is done, as on an install that has
-	// moved, so a test of anything else serve does isn't one of the move.
+	// The history's moves are done, as on an install that has made them, so
+	// a test of anything else serve does isn't one of a move.
 	markMoved(t, s.state)
 	return s
 }
@@ -1129,9 +1129,34 @@ func (s *serveSetup) writeConfig(t *testing.T) {
 
 // putConfig is writeConfig, from any goroutine.
 func (s *serveSetup) putConfig() error {
-	content := fmt.Sprintf("listen   = %q\nupstream = %q\n", s.listen, s.upstream) + cmp.Or(s.accounts, threeAccounts) + s.extra
+	content := fmt.Sprintf("listen   = %q\nupstream = %q\n", s.listen, s.upstream) + cmp.Or(s.accounts, threeInFirstPool) + s.extra
 	return os.WriteFile(s.config, []byte(content), 0o600)
 }
+
+// threeInFirstPool are threeAccounts in the first pool, as the move to pools
+// writes them in the config of an install that has made it, as serve's tests
+// have.
+const threeInFirstPool = `
+[[account]]
+id      = "work"
+label   = "Work"
+reserve = 0.05
+pool    = "b2n8"
+
+[[account]]
+id    = "personal"
+label = "Personal"
+pool  = "b2n8"
+
+[[account]]
+id    = "side"
+label = "Side"
+pool  = "b2n8"
+
+[[pool]]
+id    = "b2n8"
+label = "Default"
+`
 
 func (s *serveSetup) socket() string {
 	return router.SocketPath(s.state)

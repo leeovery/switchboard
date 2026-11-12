@@ -1054,7 +1054,7 @@ func TestTheTokensOfAnAccountThatLeftTheConfigOutlastARestartAsThePrimarysAlone(
 	running := testAccounts()
 	f := newTestFile(at(start), running)
 	f.load(path)
-	if !running.retire(withoutWork, start) {
+	if !running.retire(heirs{accounts: withoutWork}, start) {
 		t.Fatal("retire() = false, want work's tokens left to side")
 	}
 	f.changes.note()
@@ -1089,6 +1089,29 @@ func TestTheTokensOfAnAccountThatLeftTheConfigOutlastARestartAsThePrimarysAlone(
 				t.Errorf("work's token counts as side's: %v, want %v", got, tt.wantSides)
 			}
 		})
+	}
+}
+
+func TestATokenAnAccountRemovedKeptOfOneConfiguredAgainGoesBackToItAsTheRouterStarts(t *testing.T) {
+	// Side took up an older token of work's as work left the config; then
+	// side left it too while the router was away, and work is configured
+	// again, personal the primary.
+	const olderToken = "test-token-work-older"
+	logstest.Capture(t)
+	path := filepath.Join(t.TempDir(), "state.json")
+	older := formerToken{SHA256: hash(olderToken), ReplacedAt: start.Add(-time.Hour), From: "work"}
+	putState(t, path, savedState{Version: stateVersion, Tokens: map[string]savedTokens{
+		"side": {SHA256: sideHash, Former: []formerToken{older}},
+	}})
+	restarted := resolve(config.Accounts{{ID: "work", Label: "Work"}, {ID: "personal", Label: "Personal", Primary: true}}, poolTokens.Read, unrecorded)
+
+	newTestFile(at(start), restarted).load(path)
+
+	if a, ok := restarted.byToken(olderToken, start); !ok || a.ID != "work" {
+		t.Errorf("work's older token is %q's (%v), want work's own again", a.ID, ok)
+	}
+	if personal, _ := restarted.byID("personal"); personal.secret.was(hash(olderToken), start) {
+		t.Error("personal, which took side's tokens up, keeps work's older token, want it given back to work")
 	}
 }
 
