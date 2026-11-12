@@ -53,15 +53,12 @@ func hoursIn(p views.HoursPage, look Look, width int) *canvas {
 	return c
 }
 
-// evenHours are the cells of each of the grid's hours, from midnight's: each
-// hour each cells, the first odd one more.
-func evenHours(each, odd int) []int {
+// sameHours are the cells of each of the grid's hours, from midnight's:
+// each cells, every hour alike.
+func sameHours(each int) []int {
 	cells := make([]int, hoursADay)
 	for h := range cells {
 		cells[h] = each
-		if h < odd {
-			cells[h]++
-		}
 	}
 	return cells
 }
@@ -97,10 +94,9 @@ func hoursLabels(cells []int) string {
 
 // WHEN YOU WORK is a weekday's name and its hours: a tile alone an hour at
 // its least, 28; two cells an hour at its natural, 52; and growing with the
-// width it's given past that, so its grid runs the section's width. Under
-// its natural an hour is a cell; from it, the hours share the grid's width
-// evenly, as flex lays them, the odd cells to the first, each a tile and a
-// gap.
+// width it's given past that. Under its natural an hour is a cell; from it,
+// every hour is as wide as the others, ⌊(w − 4) / 24⌋ cells, a tile and a
+// gap, so the grid is of squares, the odd cells left at the row's end.
 func TestWhenYouWorksHoursShareItsWidth(t *testing.T) {
 	if got, want := hoursPart(), (flex.Part{Least: 28, Natural: 52, Grows: true}); got != want {
 		t.Errorf("WHEN YOU WORK's part is %+v, want %+v: 4 + 24 at its least, two cells an hour its natural, growing past it", got, want)
@@ -111,30 +107,21 @@ func TestWhenYouWorksHoursShareItsWidth(t *testing.T) {
 		}
 	}
 	tests := []struct {
-		width     int
-		each, odd int
+		width, each, whole int
 	}{
-		{width: 20, each: 1},
-		{width: 28, each: 1},
-		{width: 51, each: 1},
-		{width: 52, each: 2},
-		{width: 73, each: 2, odd: 21},
-		{width: 76, each: 3},
-		{width: 100, each: 4},
-		{width: 173, each: 7, odd: 1},
-		{width: 300, each: 12, odd: 8},
+		{width: 20, each: 1, whole: 28},
+		{width: 28, each: 1, whole: 28},
+		{width: 51, each: 1, whole: 28},
+		{width: 52, each: 2, whole: 52},
+		{width: 73, each: 2, whole: 52},
+		{width: 76, each: 3, whole: 76},
+		{width: 100, each: 4, whole: 100},
+		{width: 173, each: 7, whole: 172},
+		{width: 300, each: 12, whole: 292},
 	}
 	for _, tt := range tests {
-		var got []int
-		at := 0
-		for h, s := range hoursAcross(tt.width) {
-			if s.At != at {
-				t.Errorf("%d wide, hour %02d is at %d, want %d, after the hour before it", tt.width, h, s.At, at)
-			}
-			got, at = append(got, s.Size), at+s.Size
-		}
-		if want := evenHours(tt.each, tt.odd); !slices.Equal(got, want) {
-			t.Errorf("%d wide, the hours take %v cells, want %v", tt.width, got, want)
+		if got, whole := hourCells(tt.width), hoursWhole(tt.width); got != tt.each || whole != tt.whole {
+			t.Errorf("%d wide, every hour takes %d cells, the grid %d; want %d, %d", tt.width, got, whole, tt.each, tt.whole)
 		}
 	}
 	for cells, tile := range map[int]int{1: 1, 2: 1, 3: 2, 7: 6, 8: 7} {
@@ -157,15 +144,16 @@ func TestWhenYouWorkDrawsAWeekdayARowAndEveryThirdHourOverIt(t *testing.T) {
 		width int
 		cells []int
 	}{
-		{width: 28, cells: evenHours(1, 0)},
-		{width: 40, cells: evenHours(1, 0)},
-		{width: 52, cells: evenHours(2, 0)},
-		{width: 73, cells: evenHours(2, 21)},
-		{width: 76, cells: evenHours(3, 0)},
-		{width: 100, cells: evenHours(4, 0)},
-		{width: 173, cells: evenHours(7, 1)},
+		{width: 28, cells: sameHours(1)},
+		{width: 40, cells: sameHours(1)},
+		{width: 52, cells: sameHours(2)},
+		{width: 73, cells: sameHours(2)},
+		{width: 76, cells: sameHours(3)},
+		{width: 100, cells: sameHours(4)},
+		{width: 173, cells: sameHours(7)},
+		{width: 300, cells: sameHours(12)},
 	}
-	if got, want := hoursLabels(evenHours(2, 0)), "    00    03    06    09    12    15    18    21"; got != want {
+	if got, want := hoursLabels(sameHours(2)), "    00    03    06    09    12    15    18    21"; got != want {
 		t.Fatalf("the sample hours read %q, want %q", got, want)
 	}
 	for _, tt := range tests {
@@ -209,7 +197,7 @@ func TestWhenYouWorksTilesAreTheirLevelsGlyphsWhereTheLookDrawsNoShades(t *testi
 	for _, look := range []Look{Screen(builtin(t, "terminal")), NoColour()} {
 		c := hoursIn(p, look, 76)
 		for i, name := range hoursWeekdayNames {
-			want := name + " " + hoursRow(evenHours(3, 0), shadeGlyph, func(h int) int { return p.Days[i].Hours[h].Level })
+			want := name + " " + hoursRow(sameHours(3), shadeGlyph, func(h int) int { return p.Days[i].Hours[h].Level })
 			if got := rowOf(c, 1+i); got != want {
 				t.Errorf("without shades, %s's row reads %q, want %q", name, got, want)
 			}
@@ -336,7 +324,7 @@ func TestWhenYouWorkWithNothingActiveHasNoKeyAndWithNothingKnownSaysSo(t *testin
 		}
 	}
 	c := hoursIn(quiet, nord, 52)
-	if got := rowOf(c, 1); got != "Mon "+hoursRow(evenHours(2, 0), func(int) string { return hourTile }, func(int) int { return 0 }) {
+	if got := rowOf(c, 1); got != "Mon "+hoursRow(sameHours(2), func(int) string { return hourTile }, func(int) int { return 0 }) {
 		t.Errorf("nothing active, Monday reads %q, want every hour at none", got)
 	}
 	for y := 8; y < c.height(); y++ {

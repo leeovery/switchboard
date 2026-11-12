@@ -139,11 +139,21 @@ func (g graphsGiven) paired() []flex.Span {
 // naturals with glanceWhenGap between: GLANCE from column 0, as glancePart
 // has it; WHEN YOU WORK after it, as hoursPart has it, to the width's end, as
 // every section takes the width; each growing from its natural, sharing
-// what's spare evenly.
+// what's spare evenly, but WHEN YOU WORK taking only what its whole hours
+// use, as hoursWhole has it, and GLANCE the rest, so each heading runs over
+// all its section draws and no further.
 func glanceBesideWhen(accounts config.Accounts, width int) ([]flex.Span, bool) {
 	glance, when := atNatural(glancePart(accounts)), atNatural(hoursPart())
 	when.Gap = glanceWhenGap
-	return flex.Lay(width, glance, when)
+	spans, ok := flex.Lay(width, glance, when)
+	if !ok {
+		return nil, false
+	}
+	odd := spans[1].Size - hoursWhole(spans[1].Size)
+	spans[0].Size += odd
+	spans[1].At += odd
+	spans[1].Size -= odd
+	return spans, true
 }
 
 // atNatural is the part laid no narrower than its natural.

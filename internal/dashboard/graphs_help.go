@@ -126,7 +126,7 @@ func (f Frame) whenHelp() helpPart {
 				"weeks, and the section " + nothingRecorded + "."),
 			said("The requests counted are those that spent quota and went upstream, each in the local hour it arrived in: an " +
 				"hour the clocks skip has none that day, and one they repeat counts both."),
-			said("The grid takes the width, each hour's square growing with it, the hours over it following their columns; " +
+			said("The grid takes the width, every hour's square growing with it, each as wide as the others, the hours over it following their columns; " +
 				"narrow, an hour is a square alone, with no gap."),
 			said("The shades are History's: an hour with nothing on it has its own, and the active hours are split into " +
 				"quarters, on one scale for the grid, the key under it giving each quarter's bounds in requests an hour."),

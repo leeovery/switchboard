@@ -40,12 +40,15 @@ func pairsFrom(accounts config.Accounts) int {
 // pairedAt are GLANCE's and WHEN YOU WORK's columns side by side across
 // width cells, of the configured accounts given: each from its natural,
 // glanceWhenGap between, sharing what's spare evenly, the odd cell
-// GLANCE's.
+// GLANCE's; then WHEN YOU WORK keeping of its share what its 24 equal hours
+// take, to the width's end, and GLANCE the cells left over.
 func pairedAt(accounts config.Accounts, width int) (glance, when flex.Span) {
 	spare := width - pairsFrom(accounts)
 	glance = flex.Span{Size: glancePart(accounts).Natural + (spare+1)/2}
-	at := glance.Size + glanceWhenGap
-	return glance, flex.Span{At: at, Size: width - at}
+	share := width - glance.Size - glanceWhenGap
+	whole := hoursGridX + hoursADay*((share-hoursGridX)/hoursADay)
+	glance.Size += share - whole
+	return glance, flex.Span{At: width - whole, Size: whole}
 }
 
 // GLANCE is drawn under its heading and blank row, from the section's left,
@@ -264,8 +267,9 @@ func TestGraphsPagesGlancesHeadRowWithItsFirstRow(t *testing.T) {
 // rule does: alone, the width; side by side, each its own. GLANCE's rule
 // under its accounts ends in its last column, and its sparklines take what
 // its names, figures and words leave, as the watch builds the pool's across
-// them; WHEN YOU WORK's weekdays' rows end a cell short of its last column,
-// its last hour's gap.
+// them; WHEN YOU WORK's weekdays' rows end at its last whole hour, a cell
+// short for its gap, the odd cells left blank at the end where it's alone,
+// and none left where it's beside GLANCE, which takes them.
 func TestGlanceAndWhenYouWorkRunTheirSectionsWidth(t *testing.T) {
 	sample := hoursSample("20", "50", "90")
 	for _, tt := range []struct {
@@ -296,9 +300,13 @@ func TestGlanceAndWhenYouWorkRunTheirSectionsWidth(t *testing.T) {
 						tt.width, tt.shown, l.spark, GraphsGlanceColumns(tt.width, f.Graphs.Sections, f.Graphs.Accounts), s.across.Size, s.across.Size-l.column-afterBar-l.words)
 				}
 			case GraphsWhen:
+				whole := s.across.At + hoursGridX + hoursADay*((s.across.Size-hoursGridX)/hoursADay)
+				if paired := len(tt.shown) == 2 && s.across.At > 0; paired && whole != end {
+					t.Errorf("at %d columns, beside GLANCE, WHEN YOU WORK is across %+v, its whole hours ending at %d; want its columns no wider than they", tt.width, s.across, whole)
+				}
 				for day := range hoursWeekdays {
-					if got := len([]rune(rowOf(c, s.at+sectionHead+1+day))); got != end-1 {
-						t.Errorf("at %d columns, of %q, WHEN YOU WORK's row %d ends at %d, want %d, a cell short of its columns' end", tt.width, tt.shown, day, got, end-1)
+					if got := len([]rune(rowOf(c, s.at+sectionHead+1+day))); got != whole-1 {
+						t.Errorf("at %d columns, of %q, WHEN YOU WORK's row %d ends at %d, want %d, a cell short of its last whole hour's end", tt.width, tt.shown, day, got, whole-1)
 					}
 				}
 			}

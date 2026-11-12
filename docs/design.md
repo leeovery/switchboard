@@ -5205,7 +5205,9 @@ of none of its sections is.
 - **GLANCE and WHEN YOU WORK sit side by side** where both show and both fit at their naturals with
   10 cells between, GLANCE from column 0 and WHEN YOU WORK after it to the width's end: from 123
   columns with the sample's names, a figure its parts give, never one the code compares the width
-  with. Both grow, sharing what's spare past their naturals evenly, the odd cell GLANCE's. Each
+  with. Both grow, sharing what's spare past their naturals evenly, the odd cell GLANCE's; WHEN YOU
+  WORK keeps of its share only what its whole hours take, ending at the width's end, and GLANCE
+  takes the cells over, so each heading runs over all its section draws and no further. Each
   heading is across its own columns, and the pair takes the rows of the taller. Elsewhere WHEN YOU
   WORK comes under GLANCE. Every other section takes the width.
 
@@ -5372,12 +5374,13 @@ burn-down a row high:
   but would then read the same, or out of order, each a step finer till none do; each written with
   no trailing zeros, `▆ none   ▆ under 20   ▆ 20–50   ▆ 50–90   ▆ over 90`, in `text.subtle`, then
   `requests an hour` in `text.faint`, flowed onto as many rows as its width needs.
-- **Its width** is the section's: from its natural, two cells an hour, 52 columns, the hours share
-  `w − 4` cells evenly as flex lays them, the odd cells to the first hours, so the grid runs the
-  section's width, as its heading's rule does; an hour's tile, `▆`, is all its cells but its last,
-  which is a gap; and each hour's label is over its hour's first cell. Narrower than its natural,
-  an hour is a tile alone with no gap, `4 + 24` columns, 28, its least, the weekdays' rows still
-  read apart as `▆` fills three quarters of a cell.
+- **Its width** is the section's: from its natural, two cells an hour, 52 columns, every hour takes
+  `⌊(w − 4) / 24⌋` cells, as wide as the others, so the grid is of squares, and the odd cells are
+  left blank at the row's end, as a card leaves its, the heading's rule running the section's
+  width; an hour's tile, `▆`, is all its cells but its last, which is a gap; and each hour's label
+  is over its hour's first cell. Hours of uneven widths, the odd cells shared among them, read as
+  jagged. Narrower than its natural, an hour is a tile alone with no gap, `4 + 24` columns, 28,
+  its least, the weekdays' rows still read apart as `▆` fills three quarters of a cell.
 - **The requests counted** are those that spend quota and went upstream, as the traces count them
   (see The Overview), each in the local hour it arrived in, as its line's `at` gives it; an hour
   the clocks skip has no requests that day, and one they repeat counts both. Its data, four weeks'

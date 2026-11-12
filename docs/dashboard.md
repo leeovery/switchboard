@@ -555,7 +555,8 @@ GLANCE takes the width: its sparklines grow with it, from 16 cells, while the ro
 words keep the room they need, lined up down the rows. Narrower, its words take their short forms,
 then its names narrow. While WHEN YOU WORK shows too, the two sit side by side wherever both fit
 whole with 10 cells between, from 123 columns with the sample's names, sharing what's
-spare; elsewhere WHEN YOU WORK comes under GLANCE.
+spare, GLANCE taking what WHEN YOU WORK's whole hours leave; elsewhere WHEN YOU WORK comes under
+GLANCE.
 
 ### WHEN YOU WORK
 
@@ -565,8 +566,9 @@ shaded by its requests, averaged over the four whole weeks before today. The hea
 counted, such as `the 4 weeks to Wed 30 Sep`, or fewer, where the ledger holds fewer. With none,
 the heading says no weeks, and the section says `nothing recorded yet`.
 
-The grid takes the width: each hour's square grows with it, the hours over the grid following
-their columns. On a narrow screen, an hour is a square alone, with no gap.
+The grid takes the width: every hour's square grows with it, each as wide as the others, any
+cells over left blank at the row's end, and the hours over the grid follow their columns. On a
+narrow screen, an hour is a square alone, with no gap.
 
 It counts the requests that spend quota and went upstream, each in the local hour it arrived in.
 The shades are History's: one for an hour with nothing on it, and four for the quarters of the
