@@ -187,17 +187,22 @@ func TestDetailsLATELYTellsTheAccountsLastNNewestFirst(t *testing.T) {
 	}
 }
 
-// Detail's LATELY names a session as the Overview's does, by its directory,
-// else by its short id: one that started on the account, came to it, or was
-// pinned to it.
+// Detail's LATELY names a session as the Overview's does: by the directory
+// its event carries, else as the router lists it, else by its short id: one
+// that started on the account, came to it, or was pinned to it.
 func TestDetailsLATELYNamesASessionByItsDirectory(t *testing.T) {
 	const session = "c61b2f8d-04a7"
 	a := seatOn(opus, "opus", "side", status.ReasonNew, time.Hour, time.Minute, "")
 	a.Dir = "/code/api"
+	listed := views.SessionDirsOf([]status.Session{{ID: session, Assignments: []status.Assignment{a}}}, views.HeldSessions{})
 	named := []struct {
+		// dir is the directory the event carries: none for "".
+		dir  string
 		dirs views.SessionDirs
 		want string
 	}{
+		{dir: "/code/web", dirs: listed, want: "web"},
+		{dir: "/code/web", want: "web"},
 		{dirs: views.SessionDirsOf([]status.Session{{ID: session, Assignments: []status.Assignment{a}}}, views.HeldSessions{}), want: "api"},
 		{want: "c61b"},
 	}
@@ -215,8 +220,9 @@ func TestDetailsLATELYNamesASessionByItsDirectory(t *testing.T) {
 	}
 	for _, e := range events {
 		e.event.At, e.event.Session = at(15, 0), session
-		m := latelyOf(e.event).At(at(16, 0), claude.Policy())
 		for _, n := range named {
+			e.event.Dir = n.dir
+			m := latelyOf(e.event).At(at(16, 0), claude.Policy())
 			if got := views.AccountLately(m, "side", 1, n.dirs); len(got) != 1 || got[0].Full.String() != n.want+e.full {
 				t.Errorf("side's LATELY = %+v, want %q", got, n.want+e.full)
 			}

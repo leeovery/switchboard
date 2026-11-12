@@ -226,19 +226,21 @@ func (w world) movedOff(id string, at time.Time) string {
 }
 
 // dirOf is the directory the session with the given id runs in, as the world
-// lists it: that of its first model to name one; "" where none does.
+// lists it, as the router has it: that of its model seen last to name one;
+// "" where none does.
 func (w world) dirOf(session string) string {
+	var last status.Assignment
 	for _, s := range w.sessions {
 		if s.ID != session {
 			continue
 		}
 		for _, a := range s.Assignments {
-			if a.Dir != "" {
-				return a.Dir
+			if a.Dir != "" && (last.Dir == "" || a.LastSeen.After(last.LastSeen)) {
+				last = a
 			}
 		}
 	}
-	return ""
+	return last.Dir
 }
 
 // tell has the router tell of e, as the newest of its events, numbered on

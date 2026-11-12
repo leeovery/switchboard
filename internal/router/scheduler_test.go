@@ -134,7 +134,9 @@ func TestASessionWhoseThinkingIsBoundStaysOnItsAccountUntilItMustMove(t *testing
 // its assignment held it when the router told of it: its start; a move
 // forced by a limit, by a request naming none, as the assignment keeps its
 // last; a move by choice, by a request naming another; and its own pin set
-// and cleared, the directory of its model seen last to name one.
+// and cleared, the directory of its model seen last to name one: its opus's
+// as it's pinned, then its sonnet's, asked since in another directory, as
+// it's unpinned.
 func TestTheEventsOfASessionCarryItsDirectory(t *testing.T) {
 	r := newRouted(t)
 	r.readsAs(workToken, session, weekOf(0.5, 5*24*time.Hour))
@@ -155,6 +157,10 @@ func TestTheEventsOfASessionCarryItsDirectory(t *testing.T) {
 	if _, err := client.PinSession(t.Context(), "one", "side", router.ByDashboard); err != nil {
 		t.Fatalf("PinSession() error = %v", err)
 	}
+	r.clock.advance(time.Minute)
+	if got := r.askIn(t, "one", sonnet, "", "~/Code/docs"); got != "side" {
+		t.Fatalf("pinned to side, the session's first sonnet request went to %s, want side", got)
+	}
 	if _, err := client.UnpinSession(t.Context(), "one", router.ByDashboard); err != nil {
 		t.Fatalf("UnpinSession() error = %v", err)
 	}
@@ -164,7 +170,8 @@ func TestTheEventsOfASessionCarryItsDirectory(t *testing.T) {
 		router.Moved{Session: "one", Model: opus, From: "work", To: "side", Reason: "moved: work hit its limit", Held: router.HeldByLimit, Limit: 1, Dir: "~/Code/api"},
 		router.Moved{Session: "one", Model: opus, From: "side", To: "work", Reason: "rescored after 2h idle", Dir: "~/Code/web"},
 		router.Pinned{Account: "side", Session: "one", Dir: "~/Code/web", By: router.ByDashboard},
-		router.Unpinned{Account: "side", Session: "one", Dir: "~/Code/web", By: router.ByDashboard},
+		router.SessionStarted{Session: "one", Model: sonnet, Account: "side", Reason: status.ReasonPinned, Dir: "~/Code/docs"},
+		router.Unpinned{Account: "side", Session: "one", Dir: "~/Code/docs", By: router.ByDashboard},
 	}
 	got := slices.DeleteFunc(r.events.heard(), func(e router.Event) bool {
 		switch e.(type) {

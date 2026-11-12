@@ -1,7 +1,6 @@
 package views
 
 import (
-	"cmp"
 	"net/http"
 	"slices"
 	"strconv"
@@ -188,10 +187,10 @@ func holdsBack(kind string) bool {
 }
 
 // headline is what happened, as the card's title says it, its session named
-// by its directory, as dir gives it, else by its id.
+// by its directory, as its row names it, else by its id.
 func (d detailing) headline() status.Words {
 	e := d.event
-	who, id := account(e.Account), sessionNamed(e.Session, d.dir())
+	who, id := account(e.Account), sessionNamed(e.Session, d.row.Dir)
 	switch e.Kind {
 	case status.EventStarted:
 		return slices.Concat(id, clause(" started on "), who)
@@ -336,21 +335,15 @@ func isNewReason(reason string) bool {
 	return reason == "" || reason == status.ReasonNew
 }
 
-// dir is the directory the event's session ran in: as the event gives it,
-// else as its row names it; "" where neither does.
-func (d detailing) dir() string {
-	return cmp.Or(d.event.Dir, d.row.Dir)
-}
-
 // sessionWords name the event's session as the table names one: its id,
-// cut, and its directory's name, as dir gives it.
+// cut, and its directory's name.
 func (d detailing) sessionWords() DetailWords {
 	id := status.ShownID(d.event.Session)
 	if id == "" {
 		return nil
 	}
 	w := valued(id)
-	if dir := SessionDirName(d.dir()); dir != "" {
+	if dir := SessionDirName(d.row.Dir); dir != "" {
 		w = append(w, DetailPart{Text: " " + dir})
 	}
 	return w

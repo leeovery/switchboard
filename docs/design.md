@@ -3256,8 +3256,9 @@ at every width.
   once told; else the session's as the List has it, the router's listing giving it, else the lines
   the watch holds; and by its short id, `c61b`, where none names one, as of an event written before
   events carried it: account ids are four characters too, so a short id read as an account's. The
-  Log's card names its session, in its title and its `session` item, by the event's directory,
-  else its row's, else the short id.
+  Log's Events name a session the same way: a row's directory is its event's, else as the
+  session's lines last name it, and its card, in its title and its `session` item, reads the
+  row's, so the two never disagree; the short id where neither names one.
 
 **By account** (`b`) pivots the page; `[usage] by` sets its default (see The page, "What's
 remembered").
