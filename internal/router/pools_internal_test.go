@@ -1505,6 +1505,28 @@ func TestAConfigPutBackWithAnAccountTheRouterLacksWakesNoReaderAndChangesSafely(
 	}
 }
 
+func TestTheWholePoolsPutBackAfterAnotherAreStoredAfreshAndReplacedSafely(t *testing.T) {
+	m := newMembership(noFirst, sameID, noPoolKnown)
+	m.follow(pooledAccounts(), testPools)
+	pooled := m.current()
+
+	// The config loses its pools and side with them, then is put back still
+	// listing an account removed since: the pools stand whole again, as they
+	// were before side left.
+	m.follow(config.Accounts{{ID: "work"}, {ID: "personal"}}, nil)
+	m.follow(config.Accounts{{ID: "work"}, {ID: "personal"}, {ID: "lapsed"}}, nil)
+	whole := m.current()
+	if whole == pooled || isClosed(whole.replaced) || !whole.serves(defaultPool, "side") {
+		t.Fatalf("the whole pools were stored as %p, replaced: %v, side in Default: %v; want afresh, open, side back in Default, not %p",
+			whole, isClosed(whole.replaced), whole.serves(defaultPool, "side"), pooled)
+	}
+
+	m.follow(config.Accounts{{ID: "work"}}, nil)
+	if !isClosed(whole.replaced) || m.current().serves(acmePool, "personal") {
+		t.Error("the whole pools weren't replaced once personal left them")
+	}
+}
+
 // isClosed reports whether ch is closed.
 func isClosed(ch chan struct{}) bool {
 	select {

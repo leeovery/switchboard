@@ -34,7 +34,9 @@ type poolTable struct {
 	// makes each pool's primary, as poolOf spells the pool.
 	primary map[string]string
 	// replaced is closed once membership has replaced the table with another,
-	// for a reader held open to look at the pools again.
+	// for a reader held open to look at the pools again: membership gives
+	// each table it stores one of its own, and a table it never stored has
+	// none.
 	replaced chan struct{}
 }
 
@@ -48,7 +50,6 @@ type poolTable struct {
 func newPoolTable(accounts config.Accounts, pools config.Pools, first string) *poolTable {
 	t := &poolTable{
 		pools: slices.Clone(pools), poolOf: make(map[string]string, len(accounts)), primary: make(map[string]string),
-		replaced: make(chan struct{}),
 	}
 	for _, a := range accounts {
 		t.poolOf[a.ID] = a.Pool
@@ -176,20 +177,15 @@ func (t *poolTable) after(before *poolTable) *poolTable {
 // primaries and the first stand. Each is known by the id it has now, as
 // idNow gives it, as a config put back from before switchboard made ids
 // names it by the one it had. Where one given is an account the table
-// doesn't have, it's the table whole, a copy of it: what the config makes of
-// the accounts can't be told.
+// doesn't have, it's the table whole: what the config makes of the accounts
+// can't be told.
 func (t *poolTable) keeping(accounts config.Accounts, idNow func(id string) string) *poolTable {
-	kept := &poolTable{
-		pools: t.pools, first: t.first, primary: t.primary, poolOf: make(map[string]string, len(accounts)),
-		replaced: make(chan struct{}),
-	}
+	kept := &poolTable{pools: t.pools, first: t.first, primary: t.primary, poolOf: make(map[string]string, len(accounts))}
 	for _, a := range accounts {
 		id := idNow(a.ID)
 		pool, ok := t.poolOf[id]
 		if !ok {
-			whole := *t
-			whole.replaced = make(chan struct{})
-			return &whole
+			return t
 		}
 		kept.poolOf[id] = pool
 	}
@@ -268,7 +264,7 @@ type membership struct {
 // config from before pools.
 func newMembership(first func() config.Pool, idNow, recorded func(id string) string) *membership {
 	m := &membership{first: first, idNow: idNow, recorded: recorded}
-	m.table.Store(newPoolTable(nil, nil, ""))
+	m.table.Store(newPoolTable(nil, nil, "").stored())
 	return m
 }
 
@@ -323,12 +319,20 @@ func (m *membership) follow(accounts config.Accounts, pools config.Pools) {
 		return
 	}
 	// A table that changes nothing leaves the current one standing, so its
-	// readers aren't woken, nor its replaced closed twice where what made the
-	// table gave the current one back.
+	// readers aren't woken. One that does is stored as a copy with a replaced
+	// of its own, so none is closed twice, whatever table made gives back.
 	if made := m.made(accounts, pools).after(m.current()); !made.sameAs(m.current()) {
-		close(m.table.Swap(made).replaced)
+		close(m.table.Swap(made.stored()).replaced)
 	}
 	m.accounts, m.pools, m.followed = slices.Clone(accounts), slices.Clone(pools), true
+}
+
+// stored returns a copy of t for membership to store, with a replaced of its
+// own, open.
+func (t *poolTable) stored() *poolTable {
+	fresh := *t
+	fresh.replaced = make(chan struct{})
+	return &fresh
 }
 
 // sameAs reports whether t makes the same pools as u: the same pools, each
