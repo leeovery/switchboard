@@ -1264,7 +1264,7 @@ func TestThePoolsAreFollowedAsTheyChangeTheFirstReadAfreshWithThem(t *testing.T)
 	m := newMembership(func() string {
 		reads++
 		return acmePool
-	}, sameID)
+	}, sameID, noPoolKnown)
 	accounts := pooledAccounts()
 
 	m.follow(accounts, testPools)
@@ -1345,7 +1345,7 @@ func TestAConfigThatLosesItsPoolsKeepsThemOnceTheMoveIsDone(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			log := logstest.Capture(t)
-			m := newMembership(func() string { return tt.first }, sameID)
+			m := newMembership(func() string { return tt.first }, sameID, noPoolKnown)
 			if tt.pooled {
 				m.follow(pooledAccounts(), testPools)
 			}
@@ -1372,7 +1372,7 @@ func TestAConfigThatLosesItsPoolsKeepsThemOnceTheMoveIsDone(t *testing.T) {
 
 func TestAConfigThatLosesItsPoolsAgainIsWarnedOfAgain(t *testing.T) {
 	log := logstest.Capture(t)
-	m := newMembership(noFirst, sameID)
+	m := newMembership(noFirst, sameID, noPoolKnown)
 
 	for range 2 {
 		m.follow(pooledAccounts(), testPools)
@@ -1386,7 +1386,7 @@ func TestAConfigThatLosesItsPoolsAgainIsWarnedOfAgain(t *testing.T) {
 
 func TestAConfigThatLosesItsPoolsKeepsThoseMadeLast(t *testing.T) {
 	logstest.Capture(t)
-	m := newMembership(noFirst, sameID)
+	m := newMembership(noFirst, sameID, noPoolKnown)
 	all := config.Accounts{{ID: "work"}, {ID: "personal"}, {ID: "side"}}
 	moved := pooledAccounts()
 	moved[2].Pool = acmePool
@@ -1434,7 +1434,7 @@ func TestAConfigThatLosesItsPoolsKnowsItsAccountsByTheirIDsNow(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			logstest.Capture(t)
-			m := newMembership(func() string { return tt.first }, idNow)
+			m := newMembership(func() string { return tt.first }, idNow, noPoolKnown)
 			if tt.pooled {
 				m.follow(pooledAccounts(), testPools)
 			}

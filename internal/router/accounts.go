@@ -299,42 +299,77 @@ func (as accounts) idNow(formerly func(id string) (string, bool), id string) str
 	return id
 }
 
-// byToken returns the account a client sending token is: the first that
-// holds it, usable and its own, as sends says, while the config configures
-// it; else the first a probe found holding it another subscription's, as
-// disowns says, so its client's requests are routed, never passed through on
-// it; else the first that had it until it was replaced, or took it up from an
-// account that left the config, while the account has a usable token and the
-// one before still counts as the account's at now, as a client started
-// before carries on sending it. So a client of an account that has left the
-// config is the account's that took its tokens up from the look that found
-// it gone, whether or not its file still holds its token. Each comparison
-// takes as long however much of the token matches, so response times can't
-// give a token away a byte at a time.
-func (as accounts) byToken(token string, now time.Time) (account, bool) {
-	if token == "" {
-		return account{}, false
-	}
-	sum := hash(token)
-	for _, match := range []func(account) bool{
-		func(a account) bool { return !a.secret.left() && a.secret.sends(token) },
-		func(a account) bool { return a.secret.disowns(sum) },
-		func(a account) bool { return a.holdsToken() && a.secret.was(sum, now) },
-	} {
-		if a, ok := as.find(match); ok {
-			return a, true
-		}
-	}
-	return account{}, false
+// sender is who a request's token says sent it: the account it's routed as,
+// and, where the token is one of an account that has left the config, the id
+// of that account, as the token is its own or was taken up from it, "" where
+// it's none's.
+type sender struct {
+	account
+	removed string
 }
 
-// find returns the first account that match reports true of.
-func (as accounts) find(match func(account) bool) (account, bool) {
-	i := slices.IndexFunc(as, match)
-	if i < 0 {
-		return account{}, false
+// byToken returns the account a client sending token is, as sender has it.
+func (as accounts) byToken(token string, now time.Time) (account, bool) {
+	s, ok := as.sender(token, now)
+	return s.account, ok
+}
+
+// sender returns who a client sending token is: the first account that holds
+// it, usable and its own, as sends says, while the config configures it; else
+// the first a probe found holding it another subscription's, as disowns says,
+// so its client's requests are routed, never passed through on it; else the
+// first that had it until it was replaced, or took it up from an account that
+// left the config, while the account has a usable token and the one before
+// still counts as the account's at now, as a client started before carries on
+// sending it; else the first that left the config holding it, usable and its
+// own, as its client's requests were routed before it left. So a client of an
+// account that has left the config is the account's that took its tokens up
+// from the look that found it gone, while that one has a usable token and the
+// token still counts, and is routed as the account's own otherwise, while it
+// holds it. Each comparison takes as long however much of the token matches,
+// so response times can't give a token away a byte at a time.
+func (as accounts) sender(token string, now time.Time) (sender, bool) {
+	if token == "" {
+		return sender{}, false
 	}
-	return as[i], true
+	sum := hash(token)
+	for _, match := range []func(account) (removed string, ok bool){
+		func(a account) (string, bool) { return "", !a.secret.left() && a.secret.sends(token) },
+		func(a account) (string, bool) {
+			if !a.secret.disowns(sum) {
+				return "", false
+			}
+			return a.removedAs(""), true
+		},
+		func(a account) (string, bool) {
+			if !a.holdsToken() {
+				return "", false
+			}
+			f, ok := a.secret.formerOf(sum, now)
+			return a.removedAs(f.From), ok
+		},
+		func(a account) (string, bool) { return a.ID, a.secret.left() && a.secret.sends(token) },
+	} {
+		for _, a := range as {
+			if removed, ok := match(a); ok {
+				return sender{account: a, removed: removed}, true
+			}
+		}
+	}
+	return sender{}, false
+}
+
+// removedAs returns the id of the account that left the config whose token a
+// token of a's is, from being the account a took it up from, "" for none:
+// from, else a where a has left the config itself, else none.
+func (a account) removedAs(from string) string {
+	switch {
+	case from != "":
+		return from
+	case a.secret.left():
+		return a.ID
+	}
+	return ""
 }
 
 // sendable returns the accounts with a token of their own, which requests can

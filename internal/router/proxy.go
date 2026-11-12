@@ -198,27 +198,27 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	p.passThrough(w, r)
 }
 
-// routable returns the account whose token a request carries, or carried
-// before it was replaced, and reports whether the request may go out on
-// another: only when it's to a path the provider routes and its token is, or
-// was, one of the accounts', so a process that doesn't hold a token can't
-// borrow one.
-func (p *proxy) routable(r *http.Request) (account, bool) {
+// routable returns who sent a request, as the token it carries says, and
+// reports whether the request may go out on another account: only when it's
+// to a path the provider routes and its token is, or was, one of the
+// accounts', so a process that doesn't hold a token can't borrow one.
+func (p *proxy) routable(r *http.Request) (sender, bool) {
 	if !p.provider.Routable(r.URL.Path) {
-		return account{}, false
+		return sender{}, false
 	}
-	return p.accounts.byToken(bearer(r.Header), p.now())
+	return p.accounts.sender(bearer(r.Header), p.now())
 }
 
-// route sends a request on the account the chooser picks for it, and on
-// others while that one can't serve it. One from a session whose token has
-// left its pool switchboard refuses, as strayed says, choosing nothing. When
-// the chooser picks none, as only accounts held back by their reserves are
-// left, or none in the request's pool will take it, the router answers as the
-// upstream would at a limit, and as unchosen says where no account it can
-// send on will take the request. The request counts as routing until its line
-// is noted, but for one that upgrades its connection.
-func (p *proxy) route(w http.ResponseWriter, r *http.Request, client account) {
+// route sends a request from client on the account the chooser picks for it,
+// and on others while that one can't serve it. One from a session whose token
+// has left its pool switchboard refuses, as strayed says, choosing nothing,
+// nor reading its pin. When the chooser picks none, as only accounts held
+// back by their reserves are left, or none in the request's pool will take
+// it, the router answers as the upstream would at a limit, and as unchosen
+// says where no account it can send on will take the request. The request
+// counts as routing until its line is noted, but for one that upgrades its
+// connection.
+func (p *proxy) route(w http.ResponseWriter, r *http.Request, client sender) {
 	if !upgrades(r) {
 		p.routing.begin()
 		defer p.routing.end()
@@ -229,11 +229,12 @@ func (p *proxy) route(w http.ResponseWriter, r *http.Request, client account) {
 		p.unread(w, r, ex, err)
 		return
 	}
-	ex.req, ex.shape = p.request(r, body, ex, client)
+	ex.req, ex.shape = p.request(r, body, ex, client.account)
 	defer p.done(r, ex)
-	if p.strayed(w, ex, client.ID) {
+	if p.strayed(w, ex, client) {
 		return
 	}
+	ex.req.Pin = p.pin(r, ex, ex.req.Session, ex.req.Pool)
 	choice := p.rechosen(r.Context(), ex.req, p.chooser.Choose(r.Context(), ex.req))
 	ex.newSession, ex.pool = choice.New, choice.Pool
 	switch {
@@ -246,7 +247,7 @@ func (p *proxy) route(w http.ResponseWriter, r *http.Request, client account) {
 	}
 	a, ok := p.sendable(choice.Account)
 	if !ok {
-		p.unchosen(w, ex, choice, client)
+		p.unchosen(w, ex, choice, client.account)
 		return
 	}
 	ex.account, ex.reason = a, choice.Reason
@@ -255,27 +256,25 @@ func (p *proxy) route(w http.ResponseWriter, r *http.Request, client account) {
 }
 
 // request is what the chooser is to know of a routed request, whose body is
-// body, sent by client's token: its session, the directory it was started in
-// and the pool it names, its model and whether the model's thinking is bound
-// to its account, whether it's the client's quota check, whether it's the
-// first of its session's main conversation after that was compacted, and its
-// pin; and the request's shape, which the provider reads in the same pass
-// over the body. A subagent's own conversation is compacted too, and marked
-// alike, but its session's main conversation keeps its cache, which a move
-// would throw away.
+// body, sent by client's token, but for its pin, which route reads once the
+// request is to be routed: its session, the directory it was started in and
+// the pool it names, its model and whether the model's thinking is bound to
+// its account, whether it's the client's quota check, and whether it's the
+// first of its session's main conversation after that was compacted; and the
+// request's shape, which the provider reads in the same pass over the body. A
+// subagent's own conversation is compacted too, and marked alike, but its
+// session's main conversation keeps its cache, which a move would throw away.
 func (p *proxy) request(r *http.Request, body []byte, ex *exchange, client account) (Request, ledger.Shape) {
 	model, check, shape := p.provider.Asks(body)
-	session, pool := p.provider.Session(r.Header), namedPool(r.Header)
 	return Request{
 		ID:        ex.id,
-		Session:   session,
+		Session:   p.provider.Session(r.Header),
 		Dir:       dirOf(r.Header),
-		Pool:      pool,
+		Pool:      namedPool(r.Header),
 		Model:     model,
 		Check:     check,
 		Bound:     p.provider.ThinkingBound(model),
 		Compacted: ex.hints.Class == ledger.ClassMain && ex.hints.Compacted != "",
-		Pin:       p.pin(r, ex, session, pool),
 		Client:    client.ID,
 	}, shape
 }

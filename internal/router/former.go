@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/hex"
+	"iter"
 	"maps"
 	"slices"
 	"time"
@@ -161,19 +162,21 @@ func (s *secret) giveBack(from string) []formerToken {
 	return back
 }
 
-// retire marks the account as the config no longer configures it, and
-// returns its tokens as they stand, for the primary to take up. It reports
-// false when the account was retired already: the primary takes its tokens
-// up once, as they stood as it left the config, and none it comes to have
-// after.
-func (s *secret) retire() (savedTokens, bool) {
+// leaving returns the account's tokens as they stand, for the primary to take
+// up as the account leaves the config: the one it holds and those it had.
+func (s *secret) leaving() savedTokens {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.retired {
-		return savedTokens{}, false
-	}
+	return savedTokens{SHA256: s.held, Former: slices.Clone(s.former)}
+}
+
+// retire marks the account as the config no longer configures it, once the
+// primary has taken its tokens up, as they stood as it left: none it comes to
+// have after are the primary's.
+func (s *secret) retire() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.retired = true
-	return savedTokens{SHA256: s.held, Former: slices.Clone(s.former)}, true
 }
 
 // unretire marks the account as the config configures it again, its tokens
@@ -195,14 +198,26 @@ func (s *secret) left() bool {
 }
 
 // was reports whether the token whose hash is sum is one the account had
-// before, which still counts as the account's at now. Each comparison takes as
-// long however much of the hash matches.
+// before, which still counts as the account's at now, as formerOf says.
 func (s *secret) was(sum string, now time.Time) bool {
+	_, ok := s.formerOf(sum, now)
+	return ok
+}
+
+// formerOf returns the token whose hash is sum where it's one the account had
+// before, which still counts as the account's at now, with the account it was
+// taken up from, if any, reporting false where it isn't. Each comparison takes
+// as long however much of the hash matches.
+func (s *secret) formerOf(sum string, now time.Time) (formerToken, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return slices.ContainsFunc(s.former, func(f formerToken) bool {
+	i := slices.IndexFunc(s.former, func(f formerToken) bool {
 		return f.counts(now) && subtle.ConstantTimeCompare([]byte(f.SHA256), []byte(sum)) == 1
 	})
+	if i < 0 {
+		return formerToken{}, false
+	}
+	return s.former[i], true
 }
 
 // kept is what the state file keeps of the account's tokens: none while it's
@@ -328,11 +343,13 @@ func (as accounts) retire(h heirs, now time.Time) bool {
 	return changed
 }
 
-// leave has the primary h gives a adopt the tokens of a, which the config is
-// without, as they stand now, as adopt says: once, as a leaves the config, as
-// a token a comes to have after isn't the primary's. It reports whether a
-// left, which it doesn't while that primary isn't among the accounts, to
-// leave its tokens to the primary as the router next starts.
+// leave has the primary h gives a, as heir finds it, adopt the tokens of a,
+// which the config is without, as they stand now, as adopt says, before a is
+// marked as retired, so a client of a is always one account's or another's:
+// once, as a leaves the config, as a token a comes to have after isn't the
+// primary's. It reports whether a left, which it doesn't while none of the
+// primaries h gives it is among the accounts, to leave its tokens to the
+// primary as the router next starts.
 func (as accounts) leave(h heirs, a account, now time.Time) bool {
 	if a.secret.left() {
 		return false
@@ -341,11 +358,9 @@ func (as accounts) leave(h heirs, a account, now time.Time) bool {
 	if !ok {
 		return false
 	}
-	tokens, left := a.secret.retire()
-	if left {
-		adopt(heir, a.ID, tokens, now)
-	}
-	return left
+	adopt(heir, a.ID, a.secret.leaving(), now)
+	a.secret.retire()
+	return true
 }
 
 // restore has a, which the config configures again, take back the tokens
@@ -384,47 +399,57 @@ func adopt(primary account, id string, tokens savedTokens, now time.Time) {
 }
 
 // heir returns the account the tokens of the account with the given id count
-// as once it has left the config, as h gives it, when it's among these.
+// as once it has left the config: the first of those h gives, in turn, that's
+// among these, so the account leaves where its pool's primary is one the
+// config added since the router started, which it takes up as it restarts.
 func (as accounts) heir(h heirs, id string) (account, bool) {
-	c, ok := h.of(id)
-	if !ok {
-		return account{}, false
+	for c := range h.candidates(id) {
+		if a, ok := as.byID(c.ID); ok {
+			return a, true
+		}
 	}
-	return as.byID(c.ID)
+	return account{}, false
 }
 
-// heirs says, of each account that leaves the config, which account its
-// tokens count as, as a config makes its accounts and pools: the primary of
-// the pool the account was in, as poolWas has it, so a session started on one
-// stays routed inside its pool; else, where that isn't known, the pool is
-// gone or it has no accounts, the first pool's; else, in a config from before
-// pools, or where the first pool has no accounts either, the primary.
+// heirs says, of each account that leaves the config, which accounts its
+// tokens may count as, as a config makes its accounts and pools, in turn: the
+// primary of the pool the account was in, as poolWas has it, so a session
+// started on one stays routed inside its pool; then the first pool's; then,
+// as in a config from before pools, the primary.
 type heirs struct {
 	accounts config.Accounts
 	pools    config.Pools
 	// first reads the id of the first pool, as the accounts record notes it,
 	// "" where it notes none, the config's first standing in; and poolWas
 	// gives the id of the pool the account with the id given was in, "" where
-	// that isn't known. Each is read only where there are pools.
+	// that isn't known. Each is read only where there are pools, and first
+	// only where the pool the account was in gives no heir.
 	first   func() string
 	poolWas func(id string) string
 }
 
-// of returns the account the tokens of the account with the given id count
-// as once it has left the config, as heirs says, reporting false where the
-// config configures none.
-func (h heirs) of(id string) (config.Account, bool) {
-	if len(h.accounts) == 0 {
-		return config.Account{}, false
-	}
-	if len(h.pools) > 0 {
-		for _, pool := range []string{h.poolWas(id), firstPool(h.pools, h.first())} {
-			if primary, ok := h.accounts.PrimaryOf(pool); ok {
-				return primary, true
+// candidates yields the accounts the tokens of the account with the given id
+// may count as once it has left the config, in turn, as heirs says: a pool
+// that isn't known, is gone or has no accounts gives none. It yields none
+// where the config configures none.
+func (h heirs) candidates(id string) iter.Seq[config.Account] {
+	return func(yield func(config.Account) bool) {
+		if len(h.accounts) == 0 {
+			return
+		}
+		if len(h.pools) > 0 {
+			pools := []func() string{
+				func() string { return h.poolWas(id) },
+				func() string { return firstPool(h.pools, h.first()) },
+			}
+			for _, pool := range pools {
+				if primary, ok := h.accounts.PrimaryOf(pool()); ok && !yield(primary) {
+					return
+				}
 			}
 		}
+		yield(h.accounts.Primary())
 	}
-	return h.accounts.Primary(), true
 }
 
 // forget forgets the accounts' former tokens that no longer count at now, and
