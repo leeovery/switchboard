@@ -12,12 +12,11 @@ import (
 type view struct {
 	policy score.Policy
 	now    time.Time
-	// pools are the pools the view was made from, and pool the id of the
-	// request's pool, as they have it: "" in a config from before pools.
-	// members are the ids of its accounts, with a token or not, in the order
-	// configured. apart reports whether the pools have others to tell the
-	// request's apart from, as their apart says.
-	pools   *poolTable
+	// pool is the id of the request's pool, as the pools the view was made
+	// from have it: "" in a config from before pools. members are the ids of
+	// its accounts, with a token or not, in the order configured. apart
+	// reports whether the pools have others to tell the request's apart from,
+	// as their apart says.
 	pool    string
 	members []string
 	apart   bool
