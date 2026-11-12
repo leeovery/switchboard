@@ -162,7 +162,7 @@ func TestTheWordsUnderALaneSayEachStretchFromItsStart(t *testing.T) {
 			if tt.account != nil {
 				ln.account = *tt.account
 			}
-			words := tt.shown.view().wordsUnder(ln, routedAt)
+			words := tt.shown.view().wordsUnder(ln, routedAt, 0)
 			if len(words) != 1 || words[0].said.plain() != tt.want || words[0].x != tt.stretch.Column {
 				t.Fatalf("the words say %q, want %q from column %d", wordsRead(words), tt.want, tt.stretch.Column)
 			}
@@ -228,7 +228,7 @@ func TestTodaySteppedBackToSaysEachStretchOverBeforeNow(t *testing.T) {
 			l := views.Lanes{}.Look(views.LanesFrom{Moment: m, Readings: tt.read, Timeline: shown.Timeline, Window: shown.Window})
 			shown.Lanes = &l
 			ln := laidLane{Lane: l.Accounts[0], account: m.Accounts[0], row: 10}
-			if got := wordsRead(shown.view().wordsUnder(ln, routedAt)); got != tt.words {
+			if got := wordsRead(shown.view().wordsUnder(ln, routedAt, 0)); got != tt.words {
 				t.Errorf("the words under work's lane say\n%q, want\n%q", got, tt.words)
 			}
 		})
@@ -257,7 +257,7 @@ func TestAHoldOutlastedIsSaidFromItsStartAndOnlyTheLastIsBack(t *testing.T) {
 			f, doc, now := runwayFramed(t, tt.moment)
 			m := doc.At(now, claudeLike)
 			ln := laidLane{Lane: f.Runway.Lanes.Accounts[0], account: m.Accounts[0], row: 10}
-			if got := wordsRead(f.Runway.view().wordsUnder(ln, now)); got != tt.want {
+			if got := wordsRead(f.Runway.view().wordsUnder(ln, now, 0)); got != tt.want {
 				t.Errorf("the words under work's lane say\n%q, want\n%q", got, tt.want)
 			}
 		})
@@ -346,7 +346,7 @@ func TestTheWordsUnderALaneArePlacedFromLeftToRightShiftingLeftToFitWhole(t *tes
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := wordsRead(five.view().wordsUnder(laneWith(tt.stretches...), routedAt)); got != tt.want {
+			if got := wordsRead(five.view().wordsUnder(laneWith(tt.stretches...), routedAt, 0)); got != tt.want {
 				t.Errorf("the words say\n%q, want\n%q", got, tt.want)
 			}
 		})
@@ -386,7 +386,7 @@ func TestTheWeekViewSaysWhenAWeekResetsEndingAtItsMarkWhereThatClearsTheWordsBef
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := wordsRead(tt.shown.view().wordsUnder(tt.lane, routedAt)); got != tt.want {
+			if got := wordsRead(tt.shown.view().wordsUnder(tt.lane, routedAt, 0)); got != tt.want {
 				t.Errorf("the words say\n%q, want\n%q", got, tt.want)
 			}
 		})
@@ -433,7 +433,7 @@ func TestALaneWithNothingElseToSaySaysWhatItHas(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			words := tt.shown.view().wordsUnder(tt.lane, routedAt)
+			words := tt.shown.view().wordsUnder(tt.lane, routedAt, 0)
 			if got := wordsRead(words); got != tt.want {
 				t.Fatalf("the words say %q, want %q", got, tt.want)
 			}
@@ -469,7 +469,7 @@ func TestALanesTimesAreToldAgainstTheDayShown(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := strings.TrimSpace(wordsRead(tt.shown.view().wordsUnder(withRoom(laneWith(tt.stretch)), routedAt))); got != tt.want {
+			if got := strings.TrimSpace(wordsRead(tt.shown.view().wordsUnder(withRoom(laneWith(tt.stretch)), routedAt, 0))); got != tt.want {
 				t.Errorf("the words say %q, want %q", got, tt.want)
 			}
 		})
@@ -539,5 +539,78 @@ func TestTheWordsUnderALaneAreDrawnOnTheRowUnderItCuedWhereTheyAre(t *testing.T)
 		if got := c.at(x, 11).ink.on; inWords != (got == cued) {
 			t.Errorf("column %d is on %v; cued %t, want %t", x, got, got == cued, inWords)
 		}
+	}
+}
+
+// With the account column collapsed, the words under a lane share their row
+// with its use, from column 0: each still starts under its stretch, but where
+// that falls in the use or within phraseGap cells of its end, phraseGap after
+// it instead, as after the words before; words starting further on keep
+// their column. Words that don't fit from where they start drop whole parts
+// from the end, and a reset that can't end at its mark clear of the use goes
+// unsaid, as one that can't clear the words before.
+func TestCollapsedTheWordsUnderALaneStartTwoCellsAfterItsUseOnlyWhereTheyWouldMeetIt(t *testing.T) {
+	five, week := runwayLive(views.RunwayFiveHour), runwayLive(views.RunwayWeek)
+	read := func(used float64) views.Use { return views.Use{Key: "5h", Used: used, Read: true} }
+	limited := func(r RunwayShown, start time.Time, first int) views.LaneStretch {
+		return stretchOf(r.Timeline, views.CellLimited, start, routedClock(1, 15, 30), first, first+10)
+	}
+	narrow := func(cols int) RunwayShown {
+		r := five
+		r.Timeline = views.LiveTimeline(views.RunwayFiveHour, routedAt, cols)
+		return r
+	}
+	roomy := withRoom(laneWith())
+	roomy.Room = true
+	tests := []struct {
+		name  string
+		shown RunwayShown
+		lane  laidLane
+		use   views.Use
+		want  string
+	}{
+		{name: "out from the left edge, two cells after the use", shown: five, lane: laneWith(limited(five, routedClock(1, 13, 40), 0)), use: read(1), want: "100%  out 13:40  ·  back 15:30"},
+		{name: "starting inside the use", shown: five, lane: laneWith(limited(five, routedClock(1, 14, 0), 2)), use: read(0.34), want: "34%  out 14:00  ·  back 15:30"},
+		{name: "starting a cell after the use", shown: five, lane: laneWith(limited(five, routedClock(1, 14, 20), 4)), use: read(0.34), want: "34%  out 14:20  ·  back 15:30"},
+		{name: "starting two cells after the use, unmoved", shown: five, lane: laneWith(limited(five, routedClock(1, 14, 31), 5)), use: read(0.34), want: "34%  out 14:31  ·  back 15:30"},
+		{name: "starting further on, unmoved", shown: five, lane: laneWith(limited(five, routedClock(1, 15, 0), 8)), use: read(0.34), want: "34%" + strings.Repeat(" ", 5) + "out 15:00  ·  back 15:30"},
+		{name: "starting far to the right, unmoved", shown: five, lane: laneWith(limited(five, routedClock(1, 23, 40), 60)), use: read(0.34), want: "34%" + strings.Repeat(" ", 57) + "out 23:40  ·  back 15:30"},
+		{name: "no use to show, two cells after its —", shown: five, lane: laneWith(limited(five, routedClock(1, 13, 40), 0)), use: views.Use{Key: "5h", Unread: true}, want: "—  out 13:40  ·  back 15:30"},
+		{name: "room all day from after now, unmoved", shown: five, lane: roomy, use: read(0.34), want: "34%    room all day"},
+		{name: "room all day stepped back, from the first column, after the use", shown: runwayBack(views.RunwayFiveHour, civilDay(9, 30)), lane: roomy, use: read(0.34), want: "34%  room all day"},
+		{name: "narrow, every part fitting after the use", shown: narrow(30), lane: laneWith(limited(five, routedClock(1, 13, 40), 0)), use: read(1), want: "100%  out 13:40  ·  back 15:30"},
+		{name: "narrower, its last part left off", shown: narrow(29), lane: laneWith(limited(five, routedClock(1, 13, 40), 0)), use: read(1), want: "100%  out 13:40"},
+		{name: "a reset that can't end at its mark clear of the use, unsaid", shown: week, lane: withResets(laneWith(), views.Reset{Column: 18, At: routedClock(4, 21, 0)}), use: read(0.34), want: "34%"},
+		{name: "a reset ending clear of it, said", shown: week, lane: withResets(laneWith(), views.Reset{Column: 30, At: routedClock(4, 21, 0)}), use: read(0.34), want: "34%" + strings.Repeat(" ", 12) + "resets Sun 21:00"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := tt.shown
+			r.Collapsed = true
+			f := runwayShowing(r)
+			ln := tt.lane
+			ln.Use = tt.use
+			c := newCanvas(f.Width, 20)
+			laid := runwayLaid{m: status.Moment{Now: routedAt}, x: r.lanesFrom(f.Width), lanes: []laidLane{ln}}
+			f.runwayLanes(c, laid)
+			f.runwayWords(c, laid)
+			if got := rowOf(c, 11); got != tt.want {
+				t.Errorf("the row under the lane reads\n%q, want\n%q", got, tt.want)
+			}
+		})
+	}
+}
+
+// Expanded, the words under a lane start under their stretch, from the
+// lanes' first column, as its use is under its name.
+func TestExpandedTheWordsUnderALaneStartUnderTheirStretch(t *testing.T) {
+	five := runwayLive(views.RunwayFiveHour)
+	ln := laneWith(stretchOf(five.Timeline, views.CellLimited, routedClock(1, 13, 40), routedClock(1, 15, 30), 0, 10))
+	ln.Use = views.Use{Key: "5h", Used: 1, Read: true}
+	f := runwayShowing(five)
+	c := newCanvas(f.Width, 20)
+	f.runwayWords(c, runwayLaid{m: status.Moment{Now: routedAt}, x: framesLanesFrom, lanes: []laidLane{ln}})
+	if got, want := rowOf(c, 11), strings.Repeat(" ", framesLanesFrom)+"out 13:40  ·  back 15:30"; got != want {
+		t.Errorf("the row under the lane reads\n%q, want\n%q", got, want)
 	}
 }

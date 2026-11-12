@@ -10,22 +10,20 @@ import (
 	"github.com/leeovery/switchboard/internal/views"
 )
 
-// runwayPool draws the pool's lane, as laid out: its columns, and Σ pool
-// beside them on its first row, as an account's name heads its lane, or with
-// the account column collapsed, Σ alone; and on the row of its own under it,
-// its room, as roomSaid has it. With one account, there's none, nor for a
-// moment of none, whatever the lanes hold.
+// runwayPool draws the pool's lane, as laid out: its columns; Σ pool beside
+// them on its first row, as an account's name heads its lane, but where the
+// account column is collapsed, as it has no label column; and on the row of
+// its own under it, its room, as roomSaid has it. With one account, there's
+// none, nor for a moment of none, whatever the lanes hold.
 func (f Frame) runwayPool(c *canvas, laid runwayLaid) {
 	fit := laid.fit
 	if !fit.draws(fit.pool) || len(laid.m.Accounts) == 0 {
 		return
 	}
 	f.poolColumns(c, laid, f.Runway.Lanes.Pool)
-	label := poolNamed
-	if f.Runway.Collapsed {
-		label = line{poolSigma}
+	if !f.Runway.Collapsed {
+		c.line(0, fit.pool, poolNamed)
 	}
-	c.line(0, fit.pool, label)
 	if x, room := f.roomSaid(laid); room != nil {
 		c.line(x, fit.room, room)
 	}

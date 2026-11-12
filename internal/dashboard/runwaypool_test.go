@@ -317,9 +317,10 @@ func TestThePoolsLaneIsntDrawnForAMomentOfNoAccounts(t *testing.T) {
 	}
 }
 
-// With the account column collapsed, the pool's lane is headed Σ alone, in
-// text.subtle, and on the row of its own under the lane, its room short,
-// the room the expanded lane words, of how many accounts the pool is: the
+// With the account column collapsed, the pool's lane starts at column 0,
+// without Σ, and on the row of its own under the lane, from column 0, its
+// room short, the room the expanded lane words, of how many accounts the
+// pool is: the
 // room bold text.secondary, brightening as it changes, and "/3" in
 // text.muted, at every width; and where it has no room to say, as on a day
 // stepped back to, nothing under it.
@@ -355,12 +356,11 @@ func TestCollapsedThePoolsRoomIsSaidShortUnderItsLane(t *testing.T) {
 			f := Frame{Width: tt.width, Height: 37, Look: Screen(builtin(t, "nord")), View: Runway, Policy: claudeLike, Runway: tt.shown}
 			c := runwayDrawn(f, tt.doc)
 			fit := f.runwayFitted(f.top())
-			x := f.Runway.lanesFrom(f.Width)
-			if got := textAt(c, 0, fit.pool, x); got != "Σ" || c.at(0, fit.pool).ink != dimInk {
-				t.Errorf("the pool's lane is headed %q in %+v, want Σ in text.subtle", got, c.at(0, fit.pool).ink)
+			if x := f.Runway.lanesFrom(f.Width); x != 0 {
+				t.Errorf("the pool's lane starts at column %d, want 0", x)
 			}
-			if got := textAt(c, 0, fit.pool+1, x); got != "" {
-				t.Errorf("the lane's second row is headed %q, want nothing", got)
+			if got := rowOf(c, fit.pool); strings.Contains(got, "Σ") {
+				t.Errorf("the pool's lane reads %q, want no Σ", got)
 			}
 			under := fit.pool + runwayPoolRows
 			if got := rowOf(c, under); got != tt.room {
