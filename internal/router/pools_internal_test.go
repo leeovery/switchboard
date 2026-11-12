@@ -331,19 +331,40 @@ func orServed(a answer) answer {
 func TestAPoolWithNoAccountToTakeARequestIsAnsweredBySwitchboardWhileAnotherCarriesOn(t *testing.T) {
 	tests := []struct {
 		name string
-		// read reads the accounts' tokens; out puts Acme's one account out;
-		// why is why switchboard says it is.
+		// read reads the accounts' tokens; out puts Acme's accounts out; why
+		// is why switchboard says they are.
 		read func(id string) (tokens.Token, error)
 		out  func(r *Router)
 		why  string
 	}{
 		{
 			name: "its one account refused the request lately", read: poolTokens.Read, out: func(r *Router) { forbidOpus(r, "personal") },
-			why: "the upstream refused each of the pool's accounts lately",
+			why: "account personal: the upstream refused it lately",
 		},
 		{
 			name: "its one account without a token", read: testTokens.Read, out: func(*Router) {},
 			why: "account personal: " + tokenstest.Missing("personal").Error(),
+		},
+		{
+			name: "one account without a token, side, moved to it, refused the request lately: each named",
+			read: testTokens.Read,
+			out: func(r *Router) {
+				moved := pooledAccounts()
+				moved[2].Pool = acmePool
+				r.proxy.pools.follow(moved, testPools)
+				forbidOpus(r, "side")
+			},
+			why: "account personal: " + tokenstest.Missing("personal").Error() + "; account side: the upstream refused it lately",
+		},
+		{
+			name: "only accounts the config added since the router started, personal leaving it",
+			read: poolTokens.Read,
+			out: func(r *Router) {
+				added := slices.DeleteFunc(pooledAccounts(), func(a config.Account) bool { return a.ID == "personal" })
+				added = append(added, config.Account{ID: "spare", Pool: acmePool}, config.Account{ID: "extra", Pool: acmePool})
+				r.proxy.pools.follow(added, testPools)
+			},
+			why: "account extra: taken up when the router restarts; account spare: taken up when the router restarts",
 		},
 	}
 	for _, tt := range tests {
@@ -432,6 +453,31 @@ func TestALaunchPinOutsideItsPoolIsWarnedOfOnceForEachSession(t *testing.T) {
 	for level, want := range map[string]int{"WARN": 2, "DEBUG": 2} {
 		if got := timesLogged(log, "level="+level, why); got != want {
 			t.Errorf("log reads\n%s\nwant the pin ignored noted at %s %d times, not %d: warned of once for each session, at debug after, whatever another pool honours",
+				log, level, want, got)
+		}
+	}
+}
+
+func TestALaunchPinOutsideItsPoolIsWarnedOfAgainAfterASpellInside(t *testing.T) {
+	log := logstest.Capture(t)
+	r := newPoolsRouter(t, at(start), true)
+	readPersonalFirst(r)
+	pinned := map[string]string{PinHeader: "personal"}
+	inDefault := pooledAccounts()
+	inDefault[1].Pool = defaultPool
+
+	// Default's session one, launched pinned to personal: outside its pool,
+	// then inside it once personal joins Default, then outside again as it
+	// goes back to Acme.
+	for _, accounts := range []config.Accounts{pooledAccounts(), pooledAccounts(), inDefault, pooledAccounts(), pooledAccounts()} {
+		r.proxy.pools.follow(accounts, testPools)
+		routeIn(t, r, workToken, "one", defaultPool, pinned)
+	}
+
+	why := `msg="pin ignored: account isn't in the request's pool"`
+	for level, want := range map[string]int{"WARN": 2, "DEBUG": 2} {
+		if got := timesLogged(log, "level="+level, why); got != want {
+			t.Errorf("log reads\n%s\nwant the pin ignored noted at %s %d times, not %d: warned of once for each spell outside the pool, at debug after",
 				log, level, want, got)
 		}
 	}

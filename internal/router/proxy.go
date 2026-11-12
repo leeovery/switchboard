@@ -96,7 +96,8 @@ type proxy struct {
 	// ignored is what the log has said of the pins the proxy ignores, and
 	// outside of those it ignores as they name an account outside the
 	// request's pool, kept apart, as a pin honoured in the account's own pool
-	// says nothing of them.
+	// says nothing of them: a session's is warned of once for each spell the
+	// account spends outside its pool, as honouredFor says.
 	ignored, outside ignoredPins
 }
 
@@ -309,6 +310,7 @@ func (p *proxy) pin(r *http.Request, ex *exchange, session, pool string) string 
 		why, told = "pin ignored: account isn't in the request's pool", &p.outside
 	default:
 		p.ignored.honoured(id)
+		p.outside.honouredFor(id, session)
 		return id
 	}
 	level := slog.LevelDebug
@@ -355,6 +357,16 @@ func (p *ignoredPins) honoured(account string) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	delete(p.told, account)
+}
+
+// honouredFor notes that a pin to account of a request of session is
+// honoured: that session's pin to it ignored after is warned of afresh, and
+// another's isn't, as the pin of a session in another pool says nothing of
+// it.
+func (p *ignoredPins) honouredFor(account, session string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	delete(p.told[account], session)
 }
 
 // rechosen is choice, the chooser's for req, unless it names an account that
@@ -454,26 +466,29 @@ func (p *proxy) closed(w http.ResponseWriter, ex *exchange, choice Choice) {
 }
 
 // whyClosed says why no account in the pool with the given id, as pools has
-// it, takes a request closed answers: the problem of the first of its
-// accounts without a usable token, as unsendable names one, which says how
-// to fix it; else, where it has accounts, that the upstream refused each of
-// them lately, as that alone leaves none to fall back to; else that it has
-// none.
+// it, takes a request closed answers, account by account: of each the router
+// has, in the order configured, the problem of one without a usable token,
+// as unsendable names one, which says how to fix it, else that the upstream
+// refused it lately, as that alone leaves it nothing to fall back to; then
+// of each the config added since the router started, that it's taken up
+// when the router restarts. Where the pool has none, it says so.
 func (p *proxy) whyClosed(pools *poolTable, pool string) string {
-	members := 0
-	for _, a := range p.accounts {
-		if !pools.holds(pool, a.ID) {
-			continue
-		}
-		if problem := a.problem(); problem != "" {
-			return "account " + a.ID + ": " + problem
-		}
-		members++
-	}
-	if members == 0 {
+	members := pools.members(pool)
+	if len(members) == 0 {
 		return "the pool has no accounts"
 	}
-	return "the upstream refused each of the pool's accounts lately"
+	whys := make([]string, 0, len(members))
+	for _, a := range p.accounts {
+		if pools.holds(pool, a.ID) {
+			whys = append(whys, "account "+a.ID+": "+cmp.Or(a.problem(), "the upstream refused it lately"))
+		}
+	}
+	for _, id := range members {
+		if !p.accounts.includes(id) {
+			whys = append(whys, "account "+id+": taken up when the router restarts")
+		}
+	}
+	return strings.Join(whys, "; ")
 }
 
 // next asks the chooser which account a request goes out on after those it

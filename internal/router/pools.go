@@ -76,6 +76,20 @@ func (t *poolTable) holds(pool, id string) bool {
 	return ok && in == pool
 }
 
+// members returns the ids of the accounts the pool with the given id holds,
+// as holds says, sorted: those the config the table was made from puts in
+// it, which may name some the router doesn't have till it restarts.
+func (t *poolTable) members(pool string) []string {
+	var ids []string
+	for id := range t.poolOf {
+		if t.holds(pool, id) {
+			ids = append(ids, id)
+		}
+	}
+	slices.Sort(ids)
+	return ids
+}
+
 // serves reports whether a request naming the pool given, "" for none, can go
 // out on the account with the given id, as holds says of the pool it's in.
 func (t *poolTable) serves(named, id string) bool {
