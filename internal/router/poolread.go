@@ -1,6 +1,7 @@
 package router
 
 import (
+	"cmp"
 	"fmt"
 	"net/http"
 	"slices"
@@ -103,9 +104,10 @@ func (rd poolRead) primary(id string) (primary, known bool) {
 
 // routes reports whether work recorded as in the pool given, as a request's
 // or a session's remembered pool names it, "" for none, is the pool read's:
-// a request that named none is in the first.
+// a request that named none is in the first. A read of every account's has
+// every pool's work.
 func (rd poolRead) routes(pool string) bool {
-	return rd.pools.of(pool) == rd.pool
+	return rd.every || rd.pools.of(pool) == rd.pool
 }
 
 // pin returns the global pin as it holds in the pool read: naming the
@@ -120,9 +122,10 @@ func (rd poolRead) pin(global status.Pin) status.Pin {
 }
 
 // events returns those of the events given that the pool read shows: one
-// that names a pool, where it's the pool read; one that names an account,
-// where the account is in the pool now, as its windows go; and every one
-// that names neither, as the router's own, its restarts and its exports do.
+// that names a pool, where it's the pool read; one that names an account in
+// a pool, where it's in the pool read now, as its windows go; and every one
+// that names neither, as the router's own, its restarts and its exports do,
+// or names an account in none, as one that has left the config.
 func (rd poolRead) events(all []status.Event) []status.Event {
 	if rd.every || len(rd.pools.pools) == 0 {
 		return all
@@ -138,15 +141,25 @@ func (rd poolRead) events(all []status.Event) []status.Event {
 
 // shows reports whether the pool read shows the event e, as events says.
 func (rd poolRead) shows(e status.Event) bool {
-	switch {
-	case e.Pool != "":
+	if e.Pool != "" {
 		return rd.routes(e.Pool)
-	case e.Account != "":
-		return rd.holds(e.Account)
-	case len(e.Accounts) > 0:
-		return rd.holds(e.Accounts[0])
 	}
-	return true
+	id := befell(e)
+	if _, in := rd.pools.poolOf[id]; !in {
+		return true
+	}
+	return rd.holds(id)
+}
+
+// befell returns the account the event e befell, as a pool read shows it by:
+// the one it names; else the first the global pin names; else the one a
+// session moved from, or to where it moved from none; "" for none.
+func befell(e status.Event) string {
+	var pinned string
+	if len(e.Accounts) > 0 {
+		pinned = e.Accounts[0]
+	}
+	return cmp.Or(e.Account, pinned, e.From, e.To)
 }
 
 // prime returns the priming schedule as the pool read shows it: the slots of
@@ -225,7 +238,7 @@ func (e PoolNeeded) Error() string {
 		named[i] = prose.Clean(p.ID) + " (" + prose.Clean(p.Label) + ")"
 	}
 	if e.Named == "" {
-		return "every pool is fenced: name the pool to read, " + prose.ListOr(named)
+		return "every pool is fenced: name a pool, " + prose.ListOr(named)
 	}
 	return fmt.Sprintf("there's no pool %q: name %s", redact.Text(e.Named), prose.ListOr(named))
 }

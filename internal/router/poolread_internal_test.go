@@ -375,6 +375,11 @@ func TestEachPoolsDocumentShowsTheEventsOfItsPoolItsAccountsAndNone(t *testing.T
 		{Kind: status.EventPin, Account: "personal", Accounts: []string{"personal"}, Pool: acmePool},
 		{Kind: status.EventPressure, Account: "side"},
 		{Kind: status.EventAuto, Accounts: []string{"personal"}},
+		{Kind: status.EventMoved, Session: "one", From: "side", To: "work"},
+		{Kind: status.EventMoved, Session: "two", To: "personal"},
+		// An account that has left the config, held till the restart, is in
+		// no pool.
+		{Kind: status.EventCap, Account: "lapsed"},
 	}
 	r.recent.change(func() {
 		for _, e := range happened {
@@ -386,8 +391,8 @@ func TestEachPoolsDocumentShowsTheEventsOfItsPoolItsAccountsAndNone(t *testing.T
 		pool string
 		want []string
 	}{
-		{pool: defaultPool, want: []string{status.EventPressure, status.EventPin, status.EventRestart}},
-		{pool: acmePool, want: []string{status.EventAuto, status.EventPin, status.EventLimit, status.EventRestart}},
+		{pool: defaultPool, want: []string{status.EventCap, status.EventMoved, status.EventPressure, status.EventPin, status.EventRestart}},
+		{pool: acmePool, want: []string{status.EventCap, status.EventMoved, status.EventAuto, status.EventPin, status.EventLimit, status.EventRestart}},
 	}
 	for _, tt := range tests {
 		var kinds []string
@@ -787,5 +792,46 @@ func TestTheHealthAnswerSaysHowTheMoveStands(t *testing.T) {
 	r := pooledRouter(t, pooledAccounts(), testPools)
 	if h, doc := healthOf(t, r), r.Status(); !reflect.DeepEqual(h.Moving, doc.Moving) {
 		t.Errorf("GET /health says the move stands %+v, want as the document says, %+v", h.Moving, doc.Moving)
+	}
+}
+
+func TestASessionsAccountCountsEveryOneOnItWithPools(t *testing.T) {
+	logstest.Capture(t)
+	r := pooledRouter(t, pooledAccounts(), bothFenced)
+	routeIn(t, r, personalToken, "two", acmePool, nil)
+	routeIn(t, r, personalToken, "three", acmePool, nil)
+
+	var s status.Session
+	decodedOK(t, askControl(t, r, http.MethodGet, "/sessions/two", ""), &s)
+	if s.Account.ID != "personal" || s.Account.Sessions != 2 {
+		t.Errorf("the session's account is %s with %d sessions, want personal with 2", s.Account.ID, s.Account.Sessions)
+	}
+}
+
+func TestAStreamThatNamedAPoolEndsOnceThePoolsAnswerForItWithAnother(t *testing.T) {
+	logstest.Capture(t)
+	path := filepath.Join(t.TempDir(), "config.toml")
+	writeConfigFile(t, path, unpooledTOML("work", "personal", "side"))
+	cfg := testConfig(at(start), &stubProber{}, poolTokens.Read)
+	cfg.ConfigFile = Watch(path)
+	r := newTestRouterOf(t, cfg)
+	r.proxy.transport = servingAll(served, served, served)
+	srv := httptest.NewServer(r.Control())
+	t.Cleanup(srv.Close)
+
+	// Acme, named before there were pools, was answered as the one pool there
+	// was, every account's.
+	beforePools := openStream(t, srv, acmePool)
+	writeConfigFile(t, path, poolsTOML(defaultPool, defaultTOML, acmeTOML, sparePool("Spare")))
+	r.upkeep.look()
+	if rest, err := io.ReadAll(beforePools); err != nil || len(rest) != 0 {
+		t.Errorf("the stream that named Acme before pools told of %q, %v, once the config came to have them, want it ended", rest, err)
+	}
+
+	spare := openStream(t, srv, unconfigured)
+	writeConfigFile(t, path, poolsTOML(defaultPool, defaultTOML, acmeTOML))
+	r.upkeep.look()
+	if rest, err := io.ReadAll(spare); err != nil || len(rest) != 0 {
+		t.Errorf("the stream that named Spare told of %q, %v, once Spare was gone, want it ended", rest, err)
 	}
 }
