@@ -435,6 +435,51 @@ func TestEachPoolsDocumentShowsItsOwnAccountsPrimes(t *testing.T) {
 	}
 }
 
+func TestAClosedTableAnswersAnyPoolWithTheRoutersOwnEventsAlone(t *testing.T) {
+	logstest.Capture(t)
+	clock := &testClock{now: onDay(1, 5, 0)}
+	cfg := testConfig(clock.read, &stubProber{}, poolTokens.Read)
+	cfg.Accounts, cfg.Pools, cfg.Prime, cfg.Policy = pooledAccounts(), testPools, daytime, testPolicy
+	r := newTestRouterOf(t, cfg)
+	r.proxy.transport = servingAll(served, served, served)
+	routeOneIn(t, r, defaultPool, acmePool)
+	r.stream.publishOf(StreamEvent{Kind: StreamSent, Request: "1", Session: "one", Pool: defaultPool}, key{session: "one"})
+	r.stream.publishOf(StreamEvent{Kind: StreamSent, Request: "2", Session: "two"}, key{session: "two"})
+	r.recent.change(func() {
+		for _, e := range []status.Event{
+			{Kind: status.EventRestart, Reason: "the config changed"},
+			{Kind: status.EventLimit, Account: "personal"},
+			{Kind: status.EventPin, Accounts: []string{"work"}, Pool: defaultPool},
+			{Kind: status.EventCap, Account: "lapsed"},
+		} {
+			r.recent.add(e, clock.read())
+		}
+	})
+	r.state.pools.table.Store(closedTable("the pool each account is in can't be told").stored())
+
+	for _, pool := range []string{"", defaultPool, acmePool, unconfigured} {
+		doc := statusIn(t, r, pool)
+		// The router tells of its health as the table closes, its own event
+		// beside the restart.
+		var kinds []string
+		for _, e := range doc.Events {
+			kinds = append(kinds, e.Kind)
+		}
+		if len(doc.Accounts) != 0 || doc.Sessions != 0 || len(doc.Prime.Slots) != 0 || !slices.Equal(kinds, []string{status.EventHealth, status.EventRestart}) {
+			t.Errorf("asking for pool %q, the document holds %q, %d sessions, primes %+v, shows the events %q; want none but the router's own, its health and restart",
+				pool, idsOf(doc.Accounts), doc.Sessions, doc.Prime.Slots, kinds)
+		}
+		var listed []status.Session
+		decodedOK(t, askControl(t, r, http.MethodGet, withPool("/sessions", pool), ""), &listed)
+		var h History
+		decodedOK(t, askControl(t, r, http.MethodGet, withPool("/history?window=7d&step=1h", pool), ""), &h)
+		streamed := askControl(t, r, http.MethodGet, withPool("/stream", pool), "").Body.String()
+		if len(listed) != 0 || len(h.Accounts) != 0 || streamed != "" {
+			t.Errorf("asking for pool %q, GET /sessions listed %q, /history %q, and /stream told of %q; want none", pool, sessionIDs(listed), historyIDs(h), streamed)
+		}
+	}
+}
+
 func TestAPoolWithNoAccountsHasADocumentOfNone(t *testing.T) {
 	logstest.Capture(t)
 	spare := config.Pool{ID: unconfigured, Label: "Spare", Dirs: []string{"/work/spare"}, WrittenDirs: []string{"/work/spare"}}
