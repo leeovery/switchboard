@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/identity"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
@@ -1133,5 +1134,146 @@ func TestAPinFitsToTheAccountsAConfigNamesByTheIDsTheyHadBefore(t *testing.T) {
 	}
 	if log.Has(`msg="pin dropped`) || log.Has(`msg="dropped from its pool's pin`) {
 		t.Errorf("log reads\n%s\nwant no pin, nor account of one, dropped", log)
+	}
+}
+
+// swapTo has r's pools replaced by t, and taken up, as follow replaces and
+// takes up a table that differs from the one it had.
+func swapTo(r *Router, t *poolTable) {
+	m := r.state.pools
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	close(m.table.Swap(t.stored()).replaced)
+	m.swapped()
+}
+
+// extraTOML is extra's account in Acme, as a config file writes it.
+const extraTOML = "[[account]]\nid = \"extra\"\nlabel = \"Extra\"\npool = \"" + acmePool + "\"\n"
+
+func TestEachPoolsPinStandsAsAConfigLosesItsPoolsAndTheyStandWithoutIt(t *testing.T) {
+	kept := recordOfThePools()
+	kept.Accounts = append(kept.Accounts, identity.Entry{ID: "extra", Added: start, Pool: acmePool})
+	tests := []struct {
+		name string
+		// keep has r's pools keep themselves as the config loses them.
+		keep func(m *membership)
+		// says is what the log says of the pools kept.
+		says string
+	}{
+		{
+			name: "as the accounts record keeps them, the move done",
+			keep: func(m *membership) { m.moved, m.record = alwaysMoved, readingRecord(kept) },
+			says: "the router routes within those the accounts record keeps",
+		},
+		{name: "as last told, the move not done", keep: func(*membership) {}, says: "the move to pools isn't done"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			log := logstest.Capture(t)
+			path := filepath.Join(t.TempDir(), "config.toml")
+			writeConfigFile(t, path, poolsTOML(defaultPool, extraTOML, defaultTOML, acmeTOML))
+			cfg := testConfig(at(start), &stubProber{}, pairedTokens.Read)
+			cfg.Accounts, cfg.Pools, cfg.ConfigFile = pairedAccounts(), testPools, Watch(path)
+			r := newTestRouterOf(t, cfg)
+			tt.keep(r.state.pools)
+			readWeeks(r, map[string]quota.Window{"work": soonWeek, "side": laterWeek, "personal": soonWeek, "extra": laterWeek})
+			upstream := &scriptedUpstream{answers: map[string][]answer{workToken: {served}, personalToken: {served}, sideToken: {served}, extraToken: {served}}}
+			r.proxy.transport = upstream
+			askedOK(t, r, http.MethodPost, "/pin", `{"accounts": ["side"]}`)
+			askedOK(t, r, http.MethodPost, "/pin", `{"accounts": ["extra"]}`)
+			before := r.state.pools.current()
+
+			// The config loses its pools, and work with them, so the
+			// pools stand without it, as a table of their own.
+			writeConfigFile(t, path, unpooledTOML("personal", "side", "extra"))
+			r.upkeep.look()
+			if got := r.state.pools.current(); got == before || !got.pooled() || got.closed != "" {
+				t.Fatalf("the pools are %+v, want them kept without work", got)
+			}
+			if !log.Has(tt.says) {
+				t.Fatalf("the log says\n%s\nwant it to say %q", log, tt.says)
+			}
+			if got, want := pinnedAccounts(r), map[string][]string{defaultPool: {"side"}, acmePool: {"extra"}}; !reflect.DeepEqual(got, want) {
+				t.Errorf("once the config lost its pools, the pins are %q, want %q, as they stood", got, want)
+			}
+			routeIn(t, r, sideToken, "default", defaultPool, nil)
+			routeIn(t, r, personalToken, "acme", acmePool, nil)
+			if got, want := upstream.sent(), []string{"side", "extra"}; !slices.Equal(got, want) {
+				t.Errorf("Default's new session and Acme's went out on %q, want %q: each to its pool's pin", got, want)
+			}
+			if got := givenBack(r); len(got) != 0 {
+				t.Errorf("the router gave routing back as %+v, want never: no pin went", got)
+			}
+		})
+	}
+}
+
+func TestEachPoolsDayRateOutlastsAClosedSpell(t *testing.T) {
+	logstest.Capture(t)
+	clock := &testClock{now: start}
+	r, _ := newPairedRouterOf(t, clock.read, pairedAccounts())
+	readWeekAt(r, "work", 0.4)
+	readWeekAt(r, "personal", 0.1)
+	clock.now = start.Add(10 * time.Minute)
+	readWeekAt(r, "work", 0.42)
+	readWeekAt(r, "personal", 0.14)
+	clock.now = start.Add(2 * time.Hour)
+	want := map[string]*status.Demand{defaultPool: demandIn(r, defaultPool), acmePool: demandIn(r, acmePool)}
+	for pool, d := range want {
+		if d == nil || d.Hours != 2 {
+			t.Fatalf("before the closed spell, pool %s's demand is %+v, want it measured over 2 hours", pool, d)
+		}
+	}
+
+	pooled := r.state.pools.current()
+	swapTo(r, closedTable("the pool each account is in can't be told"))
+	swapTo(r, pooled)
+	for pool, d := range want {
+		if got := demandIn(r, pool); !sameDemand(got, d) {
+			t.Errorf("after the closed spell, pool %s's demand is %+v, want %+v, as before it", pool, got, d)
+		}
+	}
+}
+
+func TestARouterThatStartsClosedRoutesPrimesAndForecastsEachPoolOnceItHasThem(t *testing.T) {
+	logstest.Capture(t)
+	path := filepath.Join(t.TempDir(), "config.toml")
+	writeConfigFile(t, path, unpooledTOML("work", "personal", "side"))
+	clock := &testClock{now: start}
+	cfg := testConfig(clock.read, &stubProber{}, poolTokens.Read)
+	cfg.Accounts = config.Accounts{{ID: "work", Label: "work"}, {ID: "personal", Label: "personal"}, {ID: "side", Label: "side"}}
+	cfg.ConfigFile, cfg.StateDir, cfg.Prime = Watch(path), movedWithoutRecord(t), daytime
+	r := newTestRouterOf(t, cfg)
+	upstream := servingAll(served, served, served)
+	r.proxy.transport = upstream
+	if r.state.pools.current().closed == "" {
+		t.Fatalf("the pools are %+v, want them closed", r.state.pools.current())
+	}
+	if got := slotsIn(t, r, ""); len(got) != 0 {
+		t.Errorf("while the pools are closed, the document primes at %v, want no slot", got)
+	}
+
+	// The config has its pools.
+	writeConfigFile(t, path, poolsTOML(defaultPool, defaultTOML, acmeTOML))
+	r.upkeep.look()
+	readWeeks(r, map[string]quota.Window{"work": soonWeek, "side": laterWeek, "personal": soonWeek})
+	routeIn(t, r, workToken, "default", defaultPool, nil)
+	routeIn(t, r, personalToken, "acme", acmePool, nil)
+	if got, want := upstream.sent(), []string{"work", "personal"}; !slices.Equal(got, want) {
+		t.Errorf("Default's new session and Acme's went out on %q, want %q: each in its own pool", got, want)
+	}
+	for pool, want := range map[string][]string{defaultPool: {"side", "work"}, acmePool: {"personal"}} {
+		if got := slices.Sorted(maps.Keys(slotsIn(t, r, pool))); !slices.Equal(got, want) {
+			t.Errorf("pool %s primes %q, want %q: its own accounts alone", pool, got, want)
+		}
+	}
+	readWeekAt(r, "work", 0.4)
+	clock.now = start.Add(10 * time.Minute)
+	readWeekAt(r, "work", 0.42)
+	if got := demandIn(r, defaultPool); got == nil || got.Day <= 0 {
+		t.Errorf("Default's demand is %+v, want work's rise", got)
+	}
+	if got := demandIn(r, acmePool); got == nil || got.Day != 0 {
+		t.Errorf("Acme's demand is %+v, want none of work's rise", got)
 	}
 }
