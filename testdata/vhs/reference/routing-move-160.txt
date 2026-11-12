@@ -26,7 +26,7 @@ personal ◆    ● open                    │                                 
                                         │           ↑↓ move   space tick   m move running   enter apply   esc cancel  │
 side ▲        ● open · new sessions come╰─────────────────────────────────────────────────────────────────────────────╯                 ▄ ▇   ▇▆▇▅▂▁ ▂▂▃
                                                                                                        ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▃                   11/min
-                                                                                                       requests a minute, last 30 minutes
+                                                                                          requests a minute, last 30 minutes
 
 COMING UP  ─────────────────────────────────────────────────────────── c          LATELY  ──────────────────────────────────────────────────────────────────── l
 

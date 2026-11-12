@@ -415,8 +415,9 @@ func TestASessionsWhyGivesWayBeforeItsDirectory(t *testing.T) {
 // Where ROUTING's trace has room past its least, it cedes a session's
 // directory its cells, so why a session is there keeps them: the trace
 // starts dirRoom cells later, or as many as take it to its least, in an
-// account's row and a session's alike; and a move's reason reads whole from
-// 160 columns.
+// account's row and a session's alike; and a move's reason, which takes 43
+// cells, reads whole wherever why has them, which hangs on the name column:
+// with the sample's of 14, from 155 columns, and cut short before.
 func TestTheTraceCedesASessionsDirectoryItsCells(t *testing.T) {
 	for width := 81; width <= 220; width++ {
 		s, oneRow := flex.Lay(width, routingParts(16)...)
@@ -430,11 +431,15 @@ func TestTheTraceCedesASessionsDirectoryItsCells(t *testing.T) {
 		}
 	}
 	doc, sessions, stream := overviewWorld()
-	for _, width := range []int{160, 173, 216} {
+	for width := 140; width <= 220; width++ {
 		f := Frame{Width: width, Height: 40, View: Overview, Sessions: inDirs(sessions, "", "", "~/Code/switchboard"), Stream: stream}
-		rows := sessionsDrawn(f, doc, 6)
-		if !strings.Contains(rows[1], "d28c switchboard   opus    now   ↑ ask    moved from work 14:31: work reached its cap  ") {
-			t.Errorf("at %d columns, drew %q, want its reason whole", width, rows[1])
+		if names := f.routingColumns(f.Moment(doc, routedAt)).names; names != 14 {
+			t.Fatalf("at %d columns, the name column is %d, want the sample's 14", width, names)
+		}
+		row := sessionsDrawn(f, doc, 6)[1]
+		whole := strings.Contains(row, "d28c switchboard   opus    now   ↑ ask    moved from work 14:31: work reached its cap  ")
+		if whole != (width >= 155) {
+			t.Errorf("at %d columns, drew %q, want its reason whole %v", width, row, width >= 155)
 		}
 	}
 }

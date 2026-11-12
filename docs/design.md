@@ -3112,9 +3112,10 @@ and the pool's room then is judged there, as POOL says. The focus GRAPHS followe
 right:
 
 - **Each cell** is the mean of four samples of requests a minute over its slice of the 30 minutes:
-  30 seconds a cell at 160 columns. It fills `round(min(value ÷ scale, 1) × rows × 8)` eighths of
-  its 1 or 2 rows, its full cells as background and its top cell an eighth block. Where a column is
-  empty, its bottom row has a `▁` in `text.faint`, so the lane always shows.
+  30 seconds a cell at 171 columns with the sample's names. It fills
+  `round(min(value ÷ scale, 1) × rows × 8)` eighths of its 1 or 2 rows, its full cells as
+  background and its top cell an eighth block. Where a column is empty, its bottom row has a `▁`
+  in `text.faint`, so the lane always shows.
 - **One scale for every trace on the page,** accounts' and sessions' alike, so any two can be
   compared: the busiest column of them all over the 30 minutes fills a trace's height, never less
   than 8 requests a minute, so a quiet page isn't magnified (settled in the plan). A session's story
@@ -3166,8 +3167,9 @@ whose models go to two accounts on each:
   `moved from work 14:39: pinned to side`; `pinned here 14:39`, its own pin; `its pin to side
   yields: side has no room` (settled in the plan). It's cut to end two cells before the trace,
   and shows only in 12 cells or more, as fewer say nothing of it: short of them it gives way
-  whole, before the project narrows, its cells left blank. A move's reason reads whole from 160
-  columns; `moved from work 1…` at 108; `moved from…` at 102; none under 102.
+  whole, before the project narrows, its cells left blank. Where it starts and ends hangs on the
+  name column: with the sample's of 14, a move's reason, 43 cells, reads whole from 155 columns;
+  `moved from work 1…` at 108; `moved from…` at 102; none under 102.
 - **Its own trace,** one row, starting where ROUTING's do, as ROUTING's row's parts lay them, so
   the two columns line up, on the shared scale, and its rate right-aligned at the last column. A
   session takes a row wherever an account does in ROUTING. No blank rows between sessions, but

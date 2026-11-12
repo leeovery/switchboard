@@ -25,7 +25,7 @@ ROUTING   auto ─────────────────────�
 work          ● open                  │                                                                                 │▃▃▂▂▂▂▂▂▁▁▁▁▂▂▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁   0/min
 personal ◆    ● open                  │               ↑↓ move   space tick   m move running   enter apply   esc cancel  │▁▁▁▁▁▁▁▁▁▁▁▃▅▅▄▃▁▁▁▁▁▁▁▁▁▁▁▁▂▂▁   3/min
 side ▲        ● open · new sessions co╰─────────────────────────────────────────────────────────────────────────────────╯▁▁▁▁▁▁▁▁▁▁▁▁▁▁▄▆      ▇▇▆▅▅▄▅▅▆  11/min
-                                                                                                       requests a minute, last 30 minutes
+                                                                                          requests a minute, last 30 minutes
 
 COMING UP  ─────────────────────────────────────────────────────────── c          LATELY  ──────────────────────────────────────────────────────────────────── l
 

@@ -27,7 +27,7 @@ personal ◆    ● open                               2 sessions               
 
 side ▲        ● open · new sessions come here      4 sessions                               ▇  ▆▅ ▁▃
                                                                             ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▆          11/min
-                                                                            requests a minute, last 30 minu…
+                                                                requests a minute, last 30 minutes
 
 COMING UP  ──────────────────────────────────── c       LATELY  ────────────────────────────────────────── l
 

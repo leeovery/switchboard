@@ -26,7 +26,7 @@ personal ◆ ▲  ● open · new sessions come here                     ● pin
 
 side          ● open                                                         3 sessions
                                                                                                        ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁   0/min
-                                                                                                       requests a minute, last 30 minutes
+                                                                                          requests a minute, last 30 minutes
 
 COMING UP  ─────────────────────────────────────────────────────────── c          LATELY  ──────────────────────────────────────────────────────────────────── l
 

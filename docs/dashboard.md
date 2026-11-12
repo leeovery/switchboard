@@ -157,13 +157,15 @@ whose sessions send the most requests a minute comes first, with all its session
 busiest of them first. Each session shows:
 
 - its id, bright while the session is busy, and its project, the last part of its directory, cut
-  to 12 characters as the Log cuts it: `c61b mobile`
+  to 12 characters as the Log cuts it, `c61b mobile`; on narrower screens the project narrows to
+  6 characters, then leaves
 - its model
 - when it was last seen
 - what it's doing, such as `↑ ask` or `↓ ~1.2k`
-- why it's on its account, such as `moved from work 14:31: work reached its cap`, whole from 160
-  columns, cut short on narrower screens, and hidden under 102 columns, where there's no room
-  for enough of it to read
+- why it's on its account, such as `moved from work 14:31: work reached its cap`, cut short where
+  the screen hasn't room for it all (that one reads whole from 155 columns with names as short as
+  the sample's, and later with longer ones), and hidden where it would have fewer than 12
+  characters, under 102 columns with the sample's names
 - its own trace, lined up with ROUTING's.
 
 SESSIONS shows as many sessions as there's room for, and a row such as `+5 more` for the rest. It
