@@ -62,7 +62,7 @@ type Prefs struct {
 }
 
 // GraphsPrefs are what the Graphs tab shows: Sections, the names of its
-// sections shown, of week, 5-hour, pool, glance and when: nil, as a file
+// sections shown, of week, pool, glance and when: nil, as a file
 // without them reads, for those shown at first, and none, kept as [], for
 // none. A name the dashboard doesn't know, as a later build's section, shows
 // nothing.

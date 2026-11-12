@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -199,38 +200,48 @@ func sectionsNamed(mask int) GraphsSections {
 // no room, a blank row between two; the pool's line after WEEK, where it
 // shows, after its blank row, and a blank row before the next; and the
 // legend while WEEK shows, none else: at 120 columns, where GLANCE and WHEN
-// YOU WORK don't sit side by side.
+// YOU WORK don't sit side by side, and at 173, where they do, WHEN YOU WORK
+// on GLANCE's row, from a column past its start, the next section after the
+// taller of the two.
 func TestGraphsLaysOutEverySectionShownAndNoneHidden(t *testing.T) {
-	for mask := 1; mask < 1<<len(EveryGraphsSection()); mask++ {
-		shown := sectionsNamed(mask)
-		name := strings.Join(shown.Names(), ", ")
-		l := graphsFrame(120, 200, shown).graphsLaid()
-		week := -1
-		var laid []string
-		for i, s := range l.sections {
-			laid = append(laid, wordingOf(s.section).name)
-			if s.section == GraphsWeek {
-				week = i
+	for _, width := range []int{120, 173} {
+		for mask := 1; mask < 1<<len(EveryGraphsSection()); mask++ {
+			shown := sectionsNamed(mask)
+			name := fmt.Sprintf("at %d columns, %s", width, strings.Join(shown.Names(), ", "))
+			l := graphsFrame(width, 200, shown).graphsLaid()
+			week := -1
+			var laid []string
+			for i, s := range l.sections {
+				laid = append(laid, wordingOf(s.section).name)
+				if s.section == GraphsWeek {
+					week = i
+				}
 			}
-		}
-		if !slices.Equal(laid, shown.Names()) {
-			t.Errorf("%s: laid out %q, want those shown, in order", name, laid)
-		}
-		next, poolLine := 0, -1
-		for i, s := range l.sections {
-			if s.at != next {
-				t.Errorf("%s: %s at row %d, want %d", name, s.section.heading(), s.at, next)
+			if !slices.Equal(laid, shown.Names()) {
+				t.Errorf("%s: laid out %q, want those shown, in order", name, laid)
 			}
-			next = s.at + s.rows + 1
-			if i == week {
-				poolLine, next = next, next+2
+			next, poolLine := 0, -1
+			for i, s := range l.sections {
+				paired := width == 173 && s.section == GraphsWhen && shown.Has(GraphsGlance)
+				want, top := next, s.at
+				if paired {
+					glance := l.sections[i-1]
+					want, top = glance.at, glance.at+max(glance.rows-s.rows, 0)
+				}
+				if s.at != want || (s.across.At > 0) != paired {
+					t.Errorf("%s: %s at row %d across %+v, want at %d, beside GLANCE %t", name, s.section.heading(), s.at, s.across, want, paired)
+				}
+				next = top + s.rows + 1
+				if i == week {
+					poolLine, next = next, next+2
+				}
 			}
-		}
-		if l.poolLine != poolLine || l.rows != next-1 {
-			t.Errorf("%s: the pool's line at %d, %d rows; want it at %d, %d rows", name, l.poolLine, l.rows, poolLine, next-1)
-		}
-		if got, want := len(l.legend), min(week+1, 1); got != want {
-			t.Errorf("%s: the legend takes %d rows, want %d", name, got, want)
+			if l.poolLine != poolLine || l.rows != next-1 {
+				t.Errorf("%s: the pool's line at %d, %d rows; want it at %d, %d rows", name, l.poolLine, l.rows, poolLine, next-1)
+			}
+			if got, want := len(l.legend), min(week+1, 1); got != want {
+				t.Errorf("%s: the legend takes %d rows, want %d", name, got, want)
+			}
 		}
 	}
 }
@@ -344,13 +355,14 @@ func changedRouted() status.Document {
 // The layout changes only on a key, a resize or the config, never as the
 // data does: a read that changes every word, and pins the pool to two of its
 // three accounts, leaves every heading, the pool's line and the legend on
-// their rows, at 120 columns, each heading at a row's start; at 68 columns
-// too, where POOL's key of the two pinned would take a row fewer than of the
+// their rows, at 120 columns, each heading at a row's start; at 173, where
+// WHEN YOU WORK's heading is on GLANCE's row, beside it; at 68 columns too,
+// where POOL's key of the two pinned would take a row fewer than of the
 // three configured.
 func TestGraphsLayoutHoldsStillAsTheDataChanges(t *testing.T) {
 	look := Screen(builtin(t, "nord"))
 	marks := []string{"WEEK ", "POOL ", "GLANCE ", "WHEN YOU WORK ", "Σ pool", "▆▆ room left"}
-	for _, width := range []int{120, 68} {
+	for _, width := range []int{120, 173, 68} {
 		f := graphsFrame(width, 120, everyGraphsSection())
 		f.Look = look
 		if width == 68 && poolKeyed(configured("personal", "side"), look).keyRows(width) == poolKeyed(f.Graphs.Accounts, look).keyRows(width) {
@@ -360,7 +372,12 @@ func TestGraphsLayoutHoldsStillAsTheDataChanges(t *testing.T) {
 			text := textOf(f.Draw(doc, now))
 			var rows []int
 			for _, mark := range marks {
-				rows = append(rows, slices.IndexFunc(text, func(row string) bool { return strings.HasPrefix(row, mark) }))
+				rows = append(rows, slices.IndexFunc(text, func(row string) bool {
+					if width == 173 && mark == "WHEN YOU WORK " {
+						return strings.HasPrefix(row, "GLANCE ") && strings.Contains(row, " "+mark)
+					}
+					return strings.HasPrefix(row, mark)
+				}))
 			}
 			return rows
 		}

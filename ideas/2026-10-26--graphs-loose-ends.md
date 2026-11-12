@@ -42,9 +42,6 @@ phrase past its view's end, or the design could say why it doesn't.
 
 - A card's `✕` from the moment's hold before the lanes are built (`HeldSince`'s fallback) is drawn
   by the moment's own `Since` and `CapSince`, untested.
-- Capture's fluid sweep exempts whole views only, so GLANCE alone at 173 columns or wider, which
-  doesn't grow by design, would fail its wasted third; no fixture draws it. A per-section exemption
-  in the sweep, never a loosening.
 - The agreement test held a view's pool figure to USAGE's `Σ pool` through the Overview's pool
   charts, which went with GRAPHS (#171); Graphs' POOL at now could take their place.
 - `routingColumns.accountRows`, now in `traces_test.go` alone, copies how ROUTING lays out an
@@ -64,16 +61,14 @@ phrase past its view's end, or the design could say why it doesn't.
 
 ## Costs
 
-- Graphs drops its lanes on leaving the tab, so coming back builds both windows' again, about 115 ms
-  on the busy benchmark with the race detector on, once a visit.
-- Graphs builds both windows' lanes on every message that isn't a frame, as Runway does its one.
+- Graphs drops its lanes on leaving the tab, so coming back builds the week's again, once a visit:
+  about 115 ms on the busy benchmark with the race detector on when it built the 5-hour's too.
+- Graphs builds the week's lanes on every message that isn't a frame, as Runway does its one.
 - A future version of the day's summary, over a long keep, should pace its re-summary: the readings
   writer's queue of 1,024 drops at about seven answers a second while it waits.
 
 ## Looks
 
-- Beside GLANCE, WHEN YOU WORK's grid at two cells an hour leaves cells spare at its column's right,
-  some 21 at 220 columns.
 - The legend and help draw the reserve as `⠠ ⠠`; a card draws it on its level's dot row, `⢀ ⢀` at a
   5-row chart.
 - A configured account the router doesn't hold yet has its label alone on its card, as the design

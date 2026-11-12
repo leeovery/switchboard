@@ -150,7 +150,7 @@ func TestGraphsHelpSaysWhatItsRulesAre(t *testing.T) {
 		{"each card's own clock", "each card keeps its own clock"},
 		{"the room to now", "each column to the room its middle had"},
 		{"a card's room", "the room it has left, as 66% left"},
-		{"Runway's words", "then what Runway says under its lane in that window's view"},
+		{"Runway's words", "then what Runway says under its lane in its week's view"},
 		{"words giving way", "whole parts going from the end where they don't fit"},
 		{"what changes the words", "a hold shorter than one of its columns can go unsaid; a wider terminal, or Runway's labels collapsed, gives finer columns"},
 		{"why the line is straight", "straight to where its forecast takes it, as the router would spread the pool's use"},

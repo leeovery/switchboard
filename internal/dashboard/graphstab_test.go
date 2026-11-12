@@ -77,7 +77,9 @@ func TestGraphsSectionsAreKeyedAndWordedAsTheDesignHasThem(t *testing.T) {
 // Graphs shows WEEK at first; each key shows its section where it's hidden
 // and hides it where it shows; and the preferences keep them by name, nil for
 // those shown at first, none kept as none, a name of no section passed over,
-// as the 5-hour a file kept before Graphs dropped it.
+// as the 5-hour a file kept before Graphs dropped it; and names of no section
+// alone, as a file that kept the 5-hour with WEEK hidden, as nil, those shown
+// at first, never a page with everything hidden.
 func TestGraphsSectionsShowAtFirstToggleAndAreKeptByName(t *testing.T) {
 	var shown GraphsSections
 	if got := shown.Names(); !slices.Equal(got, []string{"week"}) {
@@ -97,6 +99,8 @@ func TestGraphsSectionsShowAtFirstToggleAndAreKeptByName(t *testing.T) {
 		{name: "those kept, in the page's order", names: []string{"when", "pool"}, want: []string{"pool", "when"}},
 		{name: "a later build's passed over", names: []string{"glance", "a-later-section"}, want: []string{"glance"}},
 		{name: "the 5-hour, kept before it went, passed over", names: []string{"week", "5-hour", "pool"}, want: []string{"week", "pool"}},
+		{name: "the 5-hour alone, those shown at first", names: []string{"5-hour"}, want: []string{"week"}},
+		{name: "names of none alone, those shown at first", names: []string{"5-hour", "a-later-section"}, want: []string{"week"}},
 	}
 	for _, tt := range tests {
 		if got := GraphsSectionsNamed(tt.names).Names(); !slices.Equal(got, tt.want) || got == nil {

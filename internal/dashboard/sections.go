@@ -106,18 +106,19 @@ func (s shown[S]) none() bool {
 }
 
 // shownNamed are the sections the names given show, as the preferences file
-// keeps them, a name of none of them left out, as a later switchboard's: or,
-// given nil, as a file that keeps none has it, those shown at first.
+// keeps them, a name of none of them left out, as a later switchboard's or
+// one gone from this: or, given nil, as a file that keeps none has it, or
+// names only of none of them, those shown at first. Kept empty, none shows.
 func shownNamed[S toggledSection](names []string) shown[S] {
 	var s shown[S]
-	if names == nil {
-		return s
-	}
 	var named uint8
 	for _, section := range everyOf[S]() {
 		if slices.Contains(names, wordingOf(section).name) {
 			named |= 1 << section
 		}
+	}
+	if names == nil || (named == 0 && len(names) > 0) {
+		return s
 	}
 	return shown[S]{toggled: named ^ s.first()}
 }

@@ -18,8 +18,8 @@ const (
 	// GraphsPool is POOL: the pool's room over Runway's week, each account's
 	// stacked.
 	GraphsPool
-	// GraphsGlance is GLANCE: a row an account and the pool, each window's
-	// room as a sparkline, and usage's words.
+	// GraphsGlance is GLANCE: a row an account and the pool, the week's room
+	// as a sparkline, and usage's words.
 	GraphsGlance
 	// GraphsWhen is WHEN YOU WORK: requests by the hour of the day and the
 	// day of the week, over the last four weeks.

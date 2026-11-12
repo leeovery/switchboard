@@ -127,10 +127,10 @@ func (l glanceLaid) rows() int {
 }
 
 // glance is GLANCE as Graphs draws it at a look: the moment; each account's
-// windows' trails, as the cards read them; Runway's lanes over its live view
-// of the week, by the window, as the frame has them built, which place a
-// held week's ✕, as a card's; the pool's room over the week's span, by the
-// window, as the watch built it; and the look.
+// trails, as the cards read them; Runway's lanes over its live view of the
+// week, as the frame has them built, which place a held week's ✕, as a
+// card's; the pool's room over the week's span, as the watch built it; and
+// the look.
 type glance struct {
 	m      status.Moment
 	trails Trails
@@ -147,9 +147,9 @@ type glanceLine struct {
 }
 
 // glanceGauge is the week of an account, or the pool's, as a row of GLANCE
-// draws it: its sparkline; its figure, the room it has left, none of a
-// window its account lacks; and its words, as a gauge has them. The pool's
-// has its words at the figure: they say its room, from where a figure goes.
+// draws it: its sparkline; its figure, the room it has left; and its words,
+// as a gauge has them. The pool's has its words at the figure: they say its
+// room, from where a figure goes.
 type glanceGauge struct {
 	spark         sparkline
 	figure        line
@@ -236,12 +236,10 @@ func (g glance) poolLine(names []accountName) *glanceLine {
 // accountGauge is account a's week, of Runway's view of it, as GLANCE draws
 // it, known where the moment holds the account, else as one not read yet: its
 // sparkline, its burn-down card's, as burnCardOf has it from its trail, its
-// ✕ where a hold began as heldSince has it, empty where the account lacks
-// the window; the room it has left, as roomFigure has it, or where nothing's
-// read of it or the account has no usable token, — in text.faint, as
-// usage's figure, and none where it lacks the window, as usage draws no
-// percentage of one; and usage's words for it, as wordsOf has them, faint
-// where it's out of the pool.
+// ✕ where a hold began as heldSince has it; the room it has left, as
+// roomFigure has it, or where nothing's read of it or the account has no
+// usable token, — in text.faint, as usage's figure; and usage's words for
+// it, as wordsOf has them, faint where it's out of the pool.
 func (g glance) accountGauge(a status.AccountNow, known bool) glanceGauge {
 	key := GraphsWindow.KeyIn(g.m)
 	win, _ := a.Window(key)
@@ -251,11 +249,9 @@ func (g glance) accountGauge(a status.AccountNow, known bool) glanceGauge {
 	card := burnCardOf(a, key, g.trails[Ref{Account: a.ID, Window: key}], g.m.Now)
 	card.heldSince = g.heldSince(a, key)
 	gg := glanceGauge{spark: card, words: gauge{of: Ref{Account: a.ID, Window: key}, words: wordsOf(win, g.m.Now)}}
-	switch {
-	case win.Kind == status.WindowNone:
-	case drawsEmpty(win.Kind):
+	if drawsEmpty(win.Kind) {
 		gg.figure = line{noFigure}
-	default:
+	} else {
 		gg.figure = line{roomFigure(gg.words.of, win.Used, a.OutOfPool, win.Kind == status.WindowStale)}
 	}
 	if a.OutOfPool {

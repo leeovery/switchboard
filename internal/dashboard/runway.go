@@ -189,7 +189,7 @@ func (r RunwayShown) Windowed(by int) (RunwayShown, bool) {
 }
 
 // LiveOf is Runway shown as r showing the live view of the window w, its
-// account column as it is, as Graphs reads Runway's lanes over each window.
+// account column as it is, as Graphs reads Runway's lanes over the week.
 func (r RunwayShown) LiveOf(w views.RunwayWindow) RunwayShown {
 	r.Window, r.Back = w, time.Time{}
 	return r

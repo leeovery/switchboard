@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
@@ -436,16 +437,17 @@ func crossOn(c *canvas, width, h int) (x, y int, ok bool) {
 }
 
 func TestACardHeldAtItsCapCrossesWhereItsHoldBeganAndHeadsAlongTheCap(t *testing.T) {
-	m := trio().At(printNow, printPolicy)
-	work, _ := m.Account("work")
-	cd := burnCardOf(work, "5h", Trail{}, printNow)
+	atCap := account("work", func(a *status.Account) { a.Windows[0].Utilization, a.Windows[1].Utilization = 0.5, 0.95 })
+	work, _ := trio(atCap).At(printNow, printPolicy).Account("work")
+	cd := burnCardOf(work, "7d", Trail{}, printNow)
 	if !cd.held {
-		t.Fatal("work's 5-hour isn't held, want held at its cap")
+		t.Fatal("work's week isn't held, want held at its cap")
 	}
-	// The 5-hour runs 12:10 to 17:10, ten columns of half an hour; now,
-	// 14:42, column 5; the cap, 5% of four rows, on the lowest dot row,
+	// The week runs Sun 27 Sep 21:00 to Sun 4 Oct 21:00, ten columns of 16
+	// hours 48 minutes; now, Thu 14:42, column 5; the hold's start, Tue 29
+	// Sep 12:00, column 2; the cap, 5% of four rows, on the lowest dot row,
 	// where the reserve's dots show every other column till now's.
-	cd.heldSince = on(1, 13, 20)
+	cd.heldSince = on(-1, 12, 0)
 	want := []string{"     │", "     │", "     │", "⢀ ✕ ⢀⣀⣀⣀⣀⣀"}
 	if got := cardRows(cardIn(cd, Look{}, 10, 4), 4)[:4]; !slices.Equal(got, want) {
 		t.Errorf("the chart is\n%s\nwant\n%s\n✕ where its hold began, its dots along the cap from now's column", strings.Join(got, "\n"), strings.Join(want, "\n"))
@@ -457,20 +459,25 @@ func TestACardHeldAtItsCapCrossesWhereItsHoldBeganAndHeadsAlongTheCap(t *testing
 }
 
 func TestACardHeldByItsLimitCrossesOnItsFloor(t *testing.T) {
-	doc := threeRouted()
+	week := weekOf(1, 2*quota.Day)
+	week.Status = quota.StatusRejected
+	limited := readAccount("personal", sessionOf(0.3, 2*time.Hour), week)
+	limited.Limit = status.Limit{Windows: []string{"7d"}, Until: week.ResetsAt}
+	doc := routerDoc("side", 5, pressedAccount("work"), limited, readAccount("side", sessionOf(0.12, 4*time.Hour), weekOf(0.33, 5*quota.Day)))
 	personal, _ := doc.At(now, claudeLike).Account("personal")
-	w, _ := personal.Window("5h")
+	w, _ := personal.Window("7d")
 	if w.Kind != status.WindowLimited {
-		t.Fatalf("personal's 5-hour is of kind %d, want held by its limit", w.Kind)
+		t.Fatalf("personal's week is of kind %d, want held by its limit", w.Kind)
 	}
-	cd := burnCardOf(personal, "5h", Trail{}, now)
-	cd.heldSince = now.Add(-time.Hour)
+	cd := burnCardOf(personal, "7d", Trail{}, now)
+	cd.heldSince = now.Add(-24 * time.Hour)
 	if cd.ink != errorInk {
 		t.Errorf("held by its limit, the card is in %+v, want state.destructive", cd.ink)
 	}
-	// The 5-hour runs from four hours before now for five: now's column is
-	// 8 of 10, the hold's start 6; none left till it resets, on the foot.
-	want := []string{"        │", "      ✕ ⣀⣀"}
+	// The week runs from five days before now for seven: now's column is
+	// 7 of 10, the hold's start, a day before, 5; none left till it resets,
+	// on the foot.
+	want := []string{"       │", "     ✕ ⣀⣀⣀"}
 	if got := cardRows(cardIn(cd, Look{}, 10, 2), 2)[:2]; !slices.Equal(got, want) {
 		t.Errorf("the chart is\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
 	}

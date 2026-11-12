@@ -2530,7 +2530,8 @@ view, a view at a time, its sub-tab, its period or window and `v`'s choice; Runw
 Log's columns.
 A file from before the Overview's GRAPHS was removed (see The Overview), which may keep GRAPHS
 among the sections shown and its chart under `graphs`, reads without them, and the next write drops
-them.
+them. A page's sections kept, where every name is of none of its sections, as a later build's or one
+since gone, read as none kept: the sections shown at first. Kept empty, none shows.
 It never keeps a focus, a choice, a scroll, a card or help open, a session's page, a day Runway has
 stepped back to, or the Log's filters, so the Log opens on everything (settled in the plan).
 `[usage] by` in the config sets the default for `usage` and the dashboard alike; once `b` is
@@ -5164,8 +5165,8 @@ holds:
   at 160 and 173 draw three across.
 - **GLANCE and WHEN YOU WORK** take the width they're given, where the frames draw them at their
   naturals.
-- **The key line** names every toggle wherever the chrome is wide, as the four fit from 72 columns;
-  the frames, drawn with eleven toggles, have a phone's line at 108.
+- **The key line** names every toggle wherever the chrome is wide, from 100 columns, as the four fit
+  there with room over; the frames, drawn with eleven toggles, have a phone's line at 108.
 - **v0.1's legend** is the view's last row, over the blank row every page keeps before its key line;
   the frames draw it on that row, so their charts at 160 by 37 are a row taller than this section's.
 - **Under 60 columns** the tabs take two rows, and three under 31 (see The page); no frame is drawn
@@ -5191,7 +5192,8 @@ every model shares, as on Runway: a model's own week has no card, and `w` is WEE
 the pages that list windows as they stand it shows the models' own (see Keys). The watch builds the
 lanes of Runway's week view alone for Graphs, while WEEK or GLANCE shows. A preferences file that
 keeps `5-hour` among Graphs' sections, as one kept before it went, has it passed over, as any name
-of none of its sections is.
+of none of its sections is; where it keeps no other, as where WEEK was hidden, Graphs opens on the
+sections shown at first, never a page with everything hidden.
 
 - **A section's heading** is the Overview's (see The Overview): its name in `text.subtle`; three
   spaces and its description, where it has one; a space, a rule of `─` in `border` and a space;
@@ -5246,8 +5248,8 @@ so one look compares every account (the owner's call, 24 October 2026):
   - **The window's ink,** by the state the window is in, as Runway's lanes colour a state: the
     ramp's first stop where its room lasts to its reset; `accent.attention` where it runs out at its
     pace before its reset, or its cap holds it; `state.destructive` where its limit holds it, or its
-    token is refused. Each window by its own state: the frames' `work` lasts its week, green, though
-    its 5-hour's cap holds the account now.
+    token is refused. Each card by its week's own state, never the account's: the frames' `work`
+    lasts its week, green, though a cap holds the account now.
   - **Where it's heading,** from now's column to the reset: a braille line in the window's ink as it
     is, two columns of four dots a cell, a dot at each half column, at the room the half column's
     middle has by the window's projection, the one Runway's words go by, as the status document's

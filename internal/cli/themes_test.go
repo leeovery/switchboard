@@ -164,7 +164,8 @@ func TestDashboardShowsGraphsSectionsKept(t *testing.T) {
 		name, prefs string
 		want        []string
 	}{
-		{name: "none kept: those shown at first", prefs: `{"graphs": "burn-down"}`, want: []string{"week", "5-hour"}},
+		{name: "none kept: those shown at first", prefs: `{"graphs": "burn-down"}`, want: []string{"week"}},
+		{name: "the 5-hour alone, kept before it went: those shown at first", prefs: `{"graphs_tab": {"sections": ["5-hour"]}}`, want: []string{"week"}},
 		{name: "those kept", prefs: `{"graphs_tab": {"sections": ["when", "pool"]}}`, want: []string{"pool", "when"}},
 		{name: "none shown, kept as none", prefs: `{"graphs_tab": {"sections": []}}`, want: []string{}},
 		{name: "one a later switchboard names passed over", prefs: `{"graphs_tab": {"sections": ["glance", "a-later-section"]}}`, want: []string{"glance"}},

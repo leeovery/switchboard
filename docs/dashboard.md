@@ -466,7 +466,7 @@ off: first a burn-down card for every account over its week, then whichever othe
 show.
 
 <div align="center">
-<img src="../art/graphs.webp" alt="Graphs: a burn-down card for each account, its room over the week and then over the 5 hours, work at its cap till 17:10, personal's and side's weeks running out at their pace, each heading to its ✕, and the pool's room under them" width="840">
+<img src="../art/graphs.webp" alt="Graphs: a burn-down card for each account, its room over the week, two to a row, work capped till 17:10, personal's and side's weeks running out at their pace, each heading to its ✕, and the pool's room under them" width="840">
 </div>
 
 ### Sections on Graphs
@@ -528,11 +528,11 @@ Under the cards, `Σ pool` gives the pool's room in the week, such as `week 1.2 
 one account there's no pool, and no line. At the foot, over the key line, a legend names the marks.
 
 <div align="center">
-<img src="../art/dashboard.webp" alt="One account's dashboard: work alone on the Overview, its usage, routing trace and LATELY, then its week and 5-hour cards on Graphs, then Runway's 5-hour, its lane running out at its pace to its cap, back at 17:10" width="840">
+<img src="../art/dashboard.webp" alt="One account's dashboard: work alone on the Overview, its usage, routing trace and LATELY, then its week's card on Graphs, then Runway's 5-hour, its lane running out at its pace to its cap, back at 17:10" width="840">
 </div>
 
 The animation shows one account, `work`, alone: the Overview, with its usage, its routing trace
-and LATELY; then Graphs, its week and 5-hour cards; then Runway's 5-hour, where its lane runs out
+and LATELY; then Graphs, its week's card; then Runway's 5-hour, where its lane runs out
 at its pace to its cap, and is back at 17:10.
 
 ### POOL

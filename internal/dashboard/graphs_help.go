@@ -47,7 +47,7 @@ func (f Frame) burnDownsHelp() helpPart {
 			said("Two cards a row at the most, each as wide as the other, so the same burn draws the same slope on every " +
 				"card; an odd one last sits under the first, as wide. Where two don't fit side by side, a card a row."),
 			said("Over the card, the account's name and marks, and its words: the room it has left, as 66% left, its " +
-				"figure coloured as switchboard usage colours a use, then what Runway says under its lane in that window's " +
+				"figure coloured as switchboard usage colours a use, then what Runway says under its lane in its week's " +
 				"view, as capped 14:31  ·  back 17:10 or out ~Sat, inked as Runway inks them, " +
 				"whole parts going from the end where they don't fit. They're read from Runway's live view as Runway would " +
 				"draw it at this width, so a hold shorter than one of its columns can go unsaid; a wider terminal, or " +
