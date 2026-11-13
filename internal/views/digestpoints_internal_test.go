@@ -590,6 +590,7 @@ func TestAnAnswerSumsAllItHolds(t *testing.T) {
 		{name: "its session, neither the page's", page: "page", alike: true, edit: func(l *ledger.Line) { l.Session = "other" }},
 		{name: "its prompt", alike: true, edit: func(l *ledger.Line) { l.Prompt = "p2" }},
 		{name: "its directory", alike: true, edit: func(l *ledger.Line) { l.Dir = "/code/other" }},
+		{name: "its project", alike: true, edit: func(l *ledger.Line) { l.Project = "/code/other" }},
 		{name: "its tokens written otherwise, as many", alike: true, edit: func(l *ledger.Line) {
 			l.Usage = json.RawMessage(`{"output_tokens":500,"input_tokens":10,"cache_read_input_tokens":100000,"cache_creation_input_tokens":1000}`)
 		}},

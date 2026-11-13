@@ -520,7 +520,7 @@ func TestASessionsStoredStateIsItsStoryAndCountsNeverAWorth(t *testing.T) {
 	at := time.Date(2026, 10, 7, 12, 0, 0, 0, time.UTC)
 	request := func(id string, after time.Duration, model, account, from, class string, usage int) ledger.Line {
 		l := ledger.Line{
-			At: at.Add(after), Request: id, Kind: ledger.KindMessage, Session: "s", Dir: "/code/app", Model: model, Account: account, Reason: "sticky",
+			At: at.Add(after), Request: id, Kind: ledger.KindMessage, Session: "s", Dir: "/code/app/web", Project: "/code/app", Model: model, Account: account, Reason: "sticky",
 			Status: 200, Attempts: 1, TotalMS: 3000, Class: class, Usage: json.RawMessage(foldUsages[usage]),
 		}
 		if from != "" {
@@ -540,12 +540,12 @@ func TestASessionsStoredStateIsItsStoryAndCountsNeverAWorth(t *testing.T) {
 		t.Fatal(err)
 	}
 	got, err := json.Marshal(st)
-	r2 := `{"r":"r2","a":{"s":1791374700},"e":{"s":1791374703},"d":"/code/app","m":"claude-opus-5-5","ac":"side","rs":"moved: work hit its limit",` +
+	r2 := `{"r":"r2","a":{"s":1791374700},"e":{"s":1791374703},"d":"/code/app/web","pj":"/code/app","m":"claude-opus-5-5","ac":"side","rs":"moved: work hit its limit",` +
 		`"f":"work","c":"main","u":true,"t":[{"a":"work","w":"hit its limit"}],"sp":{"i":10,"5m":2000,"r":90000,"o":300,"w":2000,"b":2000,"d":true,"c":true}}`
 	want := `{"d":"2026-10-07","s":{"b":true,"f":{"r":"r1","a":{"s":1791374400},"e":{"s":1791374403}},` +
 		`"l":{"r":"r3","a":{"s":1791374760},"e":{"s":1791374763}},"mn":{"m":"claude-opus-5-5","a":"side","t":{"s":1791374700}},` +
-		`"lt":{"m":"claude-haiku-4-5","a":"side","t":{"s":1791374760}},"d":"/code/app",` +
-		`"u":{"r":"r3","a":{"s":1791374760},"e":{"s":1791374763},"d":"/code/app","m":"claude-haiku-4-5","ac":"side","rs":"moved: work hit its limit",` +
+		`"lt":{"m":"claude-haiku-4-5","a":"side","t":{"s":1791374760}},"d":"/code/app/web","pj":"/code/app",` +
+		`"u":{"r":"r3","a":{"s":1791374760},"e":{"s":1791374763},"d":"/code/app/web","pj":"/code/app","m":"claude-haiku-4-5","ac":"side","rs":"moved: work hit its limit",` +
 		`"f":"work","c":"title","u":true,"t":[{"a":"work","w":"hit its limit"}],"sp":{"i":100,"o":10,"d":true,"c":true}},` +
 		`"um":` + r2 + `,"c":true,"mv":[{"b":{"r":"r2","a":{"s":1791374700},"e":{"s":1791374703}},"t":[{"a":"work","w":"hit its limit"}],` +
 		`"m":"claude-opus-5-5","f":"work","to":"side","r":"moved: work hit its limit","s":true,"w":2000,"rw":` + r2 + `},` +

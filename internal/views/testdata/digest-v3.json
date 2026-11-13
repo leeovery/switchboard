@@ -1,7 +1,7 @@
 {
   "digest": {
     "version": 2,
-    "body": 2,
+    "body": 3,
     "day": "2026-10-08",
     "from": 1791417600000000000,
     "to": 1791504000000000000,
@@ -55,7 +55,8 @@
                 "n": 250000000
               }
             },
-            "d": "/code/site",
+            "d": "/code/site/web",
+            "pj": "/code/site",
             "u": {
               "r": "o4",
               "a": {
@@ -66,7 +67,8 @@
                 "s": 1791464401,
                 "n": 750000000
               },
-              "d": "/code/site",
+              "d": "/code/site/web",
+              "pj": "/code/site",
               "m": "claude-haiku-4-5",
               "ac": "work",
               "rs": "sticky",
@@ -799,6 +801,7 @@
               }
             },
             "d": "/code/app",
+            "pj": "/code/app",
             "u": {
               "r": "r6",
               "a": {

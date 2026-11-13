@@ -1,6 +1,7 @@
 package views
 
 import (
+	"cmp"
 	"maps"
 	"slices"
 	"time"
@@ -32,10 +33,12 @@ func (d LedgerDay) Holds(t time.Time) bool {
 
 // story is what a session's requests tell, taken in in order, as inOrder
 // has it, as add takes them: its first and last request; what names it; the
-// directory it last named; its last request whose answer gave usage, and its
-// last such turn of its own conversation; its requests on the day and their
-// worth; each move a request of it made; and, of each of its threads, when
-// its last request ended, and how long its writes to the cache last.
+// directory it last named, and the project its last request to name either
+// named, which status.ProjectOf reads with the directory; its last request
+// whose answer gave usage, and its last such turn of its own conversation;
+// its requests on the day and their worth; each move a request of it made;
+// and, of each of its threads, when its last request ended, and how long its
+// writes to the cache last.
 type story struct {
 	prices ledger.Table
 	day    LedgerDay
@@ -46,6 +49,7 @@ type story struct {
 	first, last flight
 	naming      naming
 	dir         string
+	project     string
 	// used and usedMain are each none, as metered says it's not, till a
 	// request of each kind is taken in.
 	used, usedMain heldRequest
@@ -149,9 +153,7 @@ func (s *story) add(r *heldRequest) {
 		s.begun, s.first = true, r.flight
 	}
 	s.last = r.flight
-	if dir := r.dir.Value(); dir != "" {
-		s.dir = dir
-	}
+	s.place(r.dir.Value(), r.project.Value())
 	class, from := r.class.Value(), r.from.Value()
 	s.classed = s.classed || class != ""
 	main := class == ledger.ClassMain
@@ -178,6 +180,17 @@ func (s *story) add(r *heldRequest) {
 	if r.life != 0 {
 		s.lives[thread] = r.life
 	}
+}
+
+// place takes in where a request of the session ran: its directory, dir,
+// where it names one, and its project, project, where it names either, so
+// the project is always that of the directory named with it, as the router's
+// assignment of the session takes them.
+func (s *story) place(dir, project string) {
+	if dir == "" && project == "" {
+		return
+	}
+	s.dir, s.project = cmp.Or(dir, s.dir), project
 }
 
 // classCompaction is the class, as a line's hints give it, of a compaction

@@ -79,10 +79,12 @@ type StreamEvent struct {
 	Attempt int    `json:"attempt,omitzero"`
 	// Session and Model are the session the request belongs to and the model
 	// it asks for, either "" when it doesn't say, each cut to 200 bytes, and
-	// Dir the directory the session was started in, as the request ledger
-	// gives it, "" when the request doesn't say.
+	// Dir the directory the session was started in and Project the project
+	// that's in, as the request ledger gives them, each "" when the request
+	// doesn't say.
 	Session string `json:"session,omitempty"`
 	Dir     string `json:"dir,omitempty"`
+	Project string `json:"project,omitempty"`
 	Model   string `json:"model,omitempty"`
 	// Account is the account the request goes out on, or went out on last,
 	// or, once the client has an answer, the one it came from; and of a

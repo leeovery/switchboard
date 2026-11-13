@@ -6035,6 +6035,20 @@ session page · signed off · 7 Oct 2026**, its frames kept as `testdata/vhs/ref
   directory, as one not started through `run`, or under a router from before `dir`, is named by its
   id alone; a long directory is cut from its start with `…`, keeping its name; one resumed in
   another directory shows the latest (settled in the plan).
+- **A project:** the repository a session ran in, keyed by the repository's path, as `run` tells
+  the router and the ledger keeps it beside its directory (`project`). `run` finds it as it starts
+  the session, walking up from the directory it starts in, as it's given, to the first `.git`, to
+  the filesystem's root at most, and running no git: a session in a subdirectory counts as its
+  repository's, and one in a linked worktree as its main repository's, the worktree's `.git` file
+  naming its git directory, whose `commondir` leads there; one outside any repository, or where
+  what it finds can't be read as one (a `.git` file unreadable or naming nothing, a worktree of a
+  bare repository), counts as its own directory. Lines and sessions from before carry none: a
+  `dir` of the form `<repo>/.claude/worktrees/<name>`, a worktree Claude Code made, counts as
+  `<repo>`, any other as itself, and no `dir` as no project (`status.ProjectOf`, which no drawing
+  package or command calls). A project is named by its folder's name, `switchboard`, and two with
+  one name by their parents' too, `client/api` and `own/api`, cut as `status.DirName` cuts
+  (`status.ProjectNames`); within it, a session keeps its own directory's name. Nothing drawn
+  names a project yet (the owner's call, 13 November 2026).
 - **Its rows,** at 160×37: the title row (0) and the status line (2), as every page has them (see
   The page); the heading (4); now (6 and 7); STORY (9 to 17): its heading (9), a move's label (10),
   its columns (11 to 15), the ribbon (16) and the axis (17); the accounts it ran on, a row each,
@@ -7308,6 +7322,11 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
   (settled in the plan). A router from before milestone 5 has no `GET /history`, `events` or
   `GET /stream`: Graphs' cards draw from the readings history's files, LATELY and the Log from the events'
   files alone, and nothing travels.
+- **A router from before projects** gives no `project` on its sessions or its stream, and takes the
+  project header off unread, so its lines name none: a session's project is then its directory's,
+  as a line from before projects has it (see A session's page, A project). An older reader of a
+  newer router's sessions, stream, lines or `state.json` passes `project` over, as every reader
+  passes over a field it doesn't know.
 
 ### Kept from the dashboard before milestone 5
 
@@ -7488,7 +7507,7 @@ from the first day a router that has it runs, so nothing before then is in it.
   object:
 
   ```json
-  {"at": "2026-10-06T13:12:00.123Z", "request": "3f2a91c4", "kind": "message", "session": "5b0e…", "dir": "~/Code/project", "model": "claude-opus-5-5", "account": "work", "reason": "sticky", "status": 200, "attempts": 1, "first_ms": 812, "total_ms": 14230, "agent": "claude-cli/2.1.0 (external, cli)", "betas": ["context-1m-2025-08-07"], "shape": {"bytes": 482113, "messages": 214, "system": 3, "tools": 31, "max_tokens": 32000, "thinking": {"type": "enabled", "budget_tokens": 31999}, "stream": true}, "answer": {"id": "req_011C…", "model": "claude-opus-5-5", "stop": "tool_use", "blocks": {"thinking": 1, "text": 1, "tool_use": 2}, "tools": ["Bash", "Read"]}, "usage": {"input_tokens": 12, "cache_creation_input_tokens": 3120, "cache_read_input_tokens": 182340, "cache_creation": {"ephemeral_5m_input_tokens": 0, "ephemeral_1h_input_tokens": 3120}, "output_tokens": 845, "service_tier": "standard"}, "limits": {"status": "allowed", "5h-utilization": "0.23", "5h-reset": "1791320400", "7d-utilization": "0.41", "7d-reset": "1791590400"}}
+  {"at": "2026-10-06T13:12:00.123Z", "request": "3f2a91c4", "kind": "message", "session": "5b0e…", "dir": "~/Code/project", "project": "~/Code/project", "model": "claude-opus-5-5", "account": "work", "reason": "sticky", "status": 200, "attempts": 1, "first_ms": 812, "total_ms": 14230, "agent": "claude-cli/2.1.0 (external, cli)", "betas": ["context-1m-2025-08-07"], "shape": {"bytes": 482113, "messages": 214, "system": 3, "tools": 31, "max_tokens": 32000, "thinking": {"type": "enabled", "budget_tokens": 31999}, "stream": true}, "answer": {"id": "req_011C…", "model": "claude-opus-5-5", "stop": "tool_use", "blocks": {"thinking": 1, "text": 1, "tool_use": 2}, "tools": ["Bash", "Read"]}, "usage": {"input_tokens": 12, "cache_creation_input_tokens": 3120, "cache_read_input_tokens": 182340, "cache_creation": {"ephemeral_5m_input_tokens": 0, "ephemeral_1h_input_tokens": 3120}, "output_tokens": 845, "service_tier": "standard"}, "limits": {"status": "allowed", "5h-utilization": "0.23", "5h-reset": "1791320400", "7d-utilization": "0.41", "7d-reset": "1791590400"}}
   ```
 
   - `at`: when it arrived, before its body was read, in UTC, to the millisecond.
@@ -7504,10 +7523,14 @@ from the first day a router that has it runs, so nothing before then is in it.
     environment, and with it the headers `run` set: its lines carry the directory of the session it
     was started within, as its requests carry that session's pin; the router can't tell the
     difference. It's the directory `claude` was started in, which a session doesn't keep: one
-    resumed elsewhere carries the new one from then on. `model`: the model it asked for. Each is
-    cut to 200 bytes once anything shaped like a token in it is hidden: a session's id and a
-    model's at their end, as the request stream cuts them, and a directory at its start, `…`
-    standing for what's cut, so it keeps its own name.
+    resumed elsewhere carries the new one from then on. `project`: the repository that directory
+    is in, as `run` found it and tells the router beside it, written as `dir` is, as
+    `~/Code/api` for a session in `~/Code/api/.claude/worktrees/fix-login` (see A session's page,
+    A project); left out where a request names none, as every line from before it was told does.
+    `model`: the model it asked for. Each is cut to 200 bytes once anything shaped like a token in
+    it is hidden: a session's id and a model's at their end, as the request stream cuts them, and
+    a directory at its start, `…` standing for what's cut, so it keeps its own name; a project
+    longer than that is left out, as one cut would name another.
   - `account`: the account whose answer the client got, by its id. `reason` and `from` say how
     that account was chosen: `reason` why, as the `routed` line gives it (`sticky`, `new`,
     `pinned`, `moved: personal hit its limit`), and `from` the account the request's session was
@@ -7871,12 +7894,12 @@ from the first day a router that has it runs, so nothing before then is in it.
   sealed (see Live updates). A reader rests a session on the newest digest that stands for it, and
   reads raw only the days after. Of each session it holds:
   - **Its state:** its story, whether it has begun, its first and last request, what names it, the
-    directory it last named, its last request whose answer gave usage and its last such of its own
-    conversation, whether a request of it said its class, each move a request of it made, settled
-    or not, the request that wrote the session's context again among it, and of each of its threads
-    when its last request ended and how long its writes to the cache last; and how many of its
-    requests arrived on each day, by date, so a day read again whole is placed. None of its
-    requests but those its story names, no flights, and nothing held open.
+    directory and project it last named, its last request whose answer gave usage and its last
+    such of its own conversation, whether a request of it said its class, each move a request of it
+    made, settled or not, the request that wrote the session's context again among it, and of each
+    of its threads when its last request ended and how long its writes to the cache last; and how
+    many of its requests arrived on each day, by date, so a day read again whole is placed. None of
+    its requests but those its story names, no flights, and nothing held open.
   - **Its page,** carried in its state, as the store's page of it would hold it sealed at the
     day's end, all but what grows with every day it runs: whether it has begun, its first and last
     request, its idle gaps folded and when it last came back after one, its stretches on each
@@ -7946,7 +7969,9 @@ from the first day a router that has it runs, so nothing before then is in it.
   request's spend, what a page's requests spent and a window's climb the ledger's, a window an
   answer read the `claude` package's, and a session's state, its part and the part's times the
   views', which the ledger carries as it's given and never reads. The envelope's version is 2,
-  and `views.DigestVersion` 2, from phase 2 of the digests (see Milestones).
+  and `views.DigestVersion` 3, since a session's state and its requests hold their project beside
+  their directory (2 from phase 2 of the digests; see Milestones): a digest of 2 is read past, its
+  sessions read raw, their lines naming no project, and the router digests its day again.
 
   - **Derived and disposable.** The day's lines stay the truth. A digest missing, unreadable, of
     another version or no longer standing is read past: the session's days are read raw, slower,
@@ -8066,7 +8091,8 @@ from the first day a router that has it runs, so nothing before then is in it.
   seam, the side its JSON and each chunk of rows its JSON lines, which the ledger carries as
   they're given and never reads.
   - **Its head says what it was built from,** as a digest's does: the version of its envelope, the
-    ledger's, 3, and of its side and rows, the views' (`views.RowsVersion`, 3); its day, and the
+    ledger's, 3, and of its side and rows, the views' (`views.RowsVersion`, 4, since a row holds
+    its project beside its directory); its day, and the
     day's start and end in the time zone it was built in, as nanoseconds; the `lines` of the summary
     it was built against; how many lines the day's read gave; `rests_on`, each day beside it whose
     files gave it a line, as a change of time zone files one, with the lines the ledger kept of
@@ -9129,7 +9155,7 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
 | `internal/capture` | The capture harness's fixtures, a fixture a frame, each a moment of the dashboard or a printout of `usage`: the specs' sample worlds; a fake router serving them, with its history and request stream; fakes of the ledger's, the readings history's and the events' readers, holding a year of days, a session's lines and the router's events, and of the price table; and the real watch model built through `watch.New` with every seam faked, or `usage`'s printout drawn through a path of its own, from its fake router's status document, read as `usage` reads the router's, so it never dials the router, probes, runs a program, or reads or writes the real config, themes, state, ledger, preferences or tokens; and setup's full screen's fixtures, a moment of it each, built through `internal/setup/screen` with its `Steps` faked. Imported by `cmd/capturetool` alone |
 | `internal/router` | The proxy and its replays, the scheduler, live account state, and its playback of a readings history and request ledger through that state, for `cmd/forecasttool`, priming, the state file, keeping the readings history, in the lines `internal/readings` owns, each routed request's line handed to the request ledger, and the readings it summarises its days with, the router's health, the events it emits, filed through `internal/events` so they outlast a restart, and the notifications it posts, the control API and its client, and looking after itself: taking up the token files as they change, and restarting in place for a config change, an upgrade or a new time zone, or when asked |
 | `internal/handover` | Handing listening sockets over across `exec`: holding them open as their listeners close, making them survive `exec`, naming them in `SWITCHBOARD_LISTENERS`, and taking up, on the other side, those it names that are listening sockets; and asking the binary first whether it could start (`--check`), telling its refusal apart from a binary that can't answer |
-| `internal/launch` | `run`'s hand-over to `claude`, the real one, as `internal/claude` finds it on the `PATH` Claude Code starts with, and how a notice reads on stderr |
+| `internal/launch` | `run`'s hand-over to `claude`, the real one, as `internal/claude` finds it on the `PATH` Claude Code starts with, telling the router the directory it starts in and its project, found by walking up to the repository's `.git` (`FindProject`), and how a notice reads on stderr |
 | `internal/setup` | `setup`'s steps, the `claude` link in switchboard's bin directory among them, with switchboard's line in the shell's startup file and the login shell's answer, which it takes from `internal/shell`: the situation each step finds, and the actions that act on an answer, each returning a typed outcome saying itself as the screen's rows, which `internal/setup/screen` calls (see Setup) |
 | `internal/setup/screen` | Setup's full screen (Bubble Tea), shaped as `internal/dashboard/watch` is: the screen's state alone, the step it's on, its cards and fields, keys and copying; the steps called through the `Steps` interface it declares, which `*setup.Setup` satisfies and `internal/capture` fakes; and long work, making a token, asking the login shell and the service step, on goroutines it owns, cancelled and waited for before it returns |
 | `internal/setuptoken` | Making an account's setup token (#187): running `claude setup-token` on a pseudo-terminal of its own, wide enough that the token is drawn whole; its shim, the script `BROWSER` names, in a private directory of its own, which writes the sign-in address to a file there for it to read, so switchboard is never run as the browser; opening the address as its caller chooses, in the default browser as it is or in a private window of one whose command line can open one; and taking the token from what setup-token draws once it says it's made. It draws nothing itself: its caller words each step it reports. Setup's full screen and `accounts token` call it, through `setup.MakeToken` |
@@ -9535,6 +9561,12 @@ fails as it is; one that parses has every problem reported at once:
   end the header's line; each byte of a character past ASCII; a space at either end, which would
   be trimmed off; and a percent sign. One that doesn't decode is passed over, and the request's
   line names no directory.
+- `X-Switchboard-Project: <project>`, set by `run` beside the directory, names the project that
+  directory is in, the repository's path (see A session's page, A project), encoded as the
+  directory is. One that's missing, doesn't decode, or runs past the 200 bytes a line holds is
+  passed over, never refusing the request, and the request names no project: its session's
+  project is then its directory's, as a line from before projects has it. It's read as cheaply as
+  the directory, from the header alone.
 - A routed request's `Accept-Encoding` is narrowed to the encodings the router can read a copy of
   its answer in, to count it for the request stream (see Control API): gzip, deflate and identity,
   in the order the client gave them, or identity where it offered none of those. A request passed
@@ -9558,12 +9590,12 @@ HTTP over `control.sock` (mode 0600, so file permissions are the authentication)
 |---|---|
 | `GET /health` | `{ok, reason, listen, version, pid, started_at, strips_own_headers}`: the router is alive, and `ok` is its health, the judgment the status document's `router.healthy` gives, `false` while it's unhealthy, with a `reason` (see Health). `listen` is the address its proxy listens on. `strips_own_headers`, `true`, says it takes every `X-Switchboard-…` header off a request going upstream (see Proxy rules); a router from before leaves it out. `run` sends sessions to a router that gives `listen`, `ok` or not, and tells the directory a session starts in only to one that says `strips_own_headers`; `usage`, `status` and `dashboard` read the document of any router that answers at all |
 | `GET /status` | The status document, as `status --json` prints it but for the `"schema": 1` the verbs put first: see below |
-| `GET /sessions/{id}` | For statuslines and the dashboard: `{"session": "<id>", "pin": "<id>", "assignments": [{model, family, account, auto, dir, in_flight, pinned, yielded, pinned_at, reason, assigned_at, last_seen}], "account": {…}}`. `pin` is the session's own pin, left out when it has none: the one `pin --session` gave it, else the one `run --account` did, as its requests last carried it. `assignments` are the session's, a model each, the one used last first, each naming its model's family, such as `opus`, and its account by id; `auto`, the account auto would send the model's next request to, by id, as the routing card names it on its `auto` line (see Routing by hand): where the router's own rule sends a request with the session's own pin passed over and the global pin counting, on what the router knows, probing none (see Choosing an account), and left out where no account has room for the request; `dir`, the directory the session's last request of the model named, as the request ledger keeps it, the home as `~` and cut as a line's is (see The request ledger), kept with the assignment in `state.json`, and left out where none has named one; `in_flight`, what a request of its model in flight is doing, as the request stream tells of it: `answering` while an answer streams to one, else `asking` while one waits for its answer's first byte, and left out while none is in flight, so one read says what each running session is doing, as the request stream's first events don't say when they're all in; `yielded` set while the session's own pin has yielded, the account it names having had no room for a request of it, and it stays where it went; and `pinned_at` when it was given its own pin as it ran, left out for the one it was launched with, and while it has none. `account` at the top is the whole status of the account the last used went to, as the document gives it. 404 for a session never seen |
+| `GET /sessions/{id}` | For statuslines and the dashboard: `{"session": "<id>", "pin": "<id>", "assignments": [{model, family, account, auto, dir, project, in_flight, pinned, yielded, pinned_at, reason, assigned_at, last_seen}], "account": {…}}`. `pin` is the session's own pin, left out when it has none: the one `pin --session` gave it, else the one `run --account` did, as its requests last carried it. `assignments` are the session's, a model each, the one used last first, each naming its model's family, such as `opus`, and its account by id; `auto`, the account auto would send the model's next request to, by id, as the routing card names it on its `auto` line (see Routing by hand): where the router's own rule sends a request with the session's own pin passed over and the global pin counting, on what the router knows, probing none (see Choosing an account), and left out where no account has room for the request; `dir`, the directory the session's last request of the model named, as the request ledger keeps it, the home as `~` and cut as a line's is (see The request ledger), kept with the assignment in `state.json`, and left out where none has named one; `project`, the project its last request of the model to name a directory or a project named, kept and left out alike, so it's always that of the directory named with it, and left out by a router from before; `in_flight`, what a request of its model in flight is doing, as the request stream tells of it: `answering` while an answer streams to one, else `asking` while one waits for its answer's first byte, and left out while none is in flight, so one read says what each running session is doing, as the request stream's first events don't say when they're all in; `yielded` set while the session's own pin has yielded, the account it names having had no room for a request of it, and it stays where it went; and `pinned_at` when it was given its own pin as it ran, left out for the one it was launched with, and while it has none. `account` at the top is the whole status of the account the last used went to, as the document gives it. 404 for a session never seen |
 | `GET /sessions` | The sessions routed in the last hour, the one seen last first, each as `/sessions/{id}` gives it but for `account`. `status` lists them, and `pin --session` and `status --session` find a session from part of its id here |
 | `POST /sessions/{id}/pin`, `DELETE /sessions/{id}/pin` | Set (`{"account": "work", "by": "dashboard"}`) or clear (`?by=dashboard`) one session's own pin, answering as `/sessions/{id}` does. `by`, `cli` or `dashboard`, says who did, for the `pin` or `auto` event it's told as (see The router's events); without it, the event names no one, and a router from before passes it over. 404 for a session never seen; pinning to an account nothing can go out on is a 400 |
 | `POST /pin`, `DELETE /pin` | Set (`{"accounts": ["work", "side"], "move": false, "force": false, "by": "cli"}`) or clear (`?by=cli`, with `&force=true` to clear every session's own pin too) the global pin, answering with the status document. `account`, naming one account, is taken as well, as a switchboard from before pins named several sends it, and sent beside `accounts` with a pin of one account, as such a router reads a pin, one still running between an upgrade and its restart. `by`, `cli` or `dashboard`, says who did, for the `pin` or `auto` event it's told as (see The router's events); without it, the event names no one, and a router from before passes it over. Pinning no account, or any account nothing can go out on, is a 400, saying why (see Pinning), and pins nothing |
 | `GET /history?window=<key>&step=<duration>` | Every account's use of a window over its current length, from the readings history and the readings since: `{"window": "7d", "step": "30m", "accounts": [{"id": "work", "start": …, "points": [{at, utilization}]}]}`, `start` when the account's window started, its reset less its length, or its `restarted_at`, and a point each step from it to now, at most 1,000, each the last reading at or before it, left out where none was; an account whose window isn't running, or wasn't read, has no points, and one whose window has reset since it was read has no `start` either. A window whose length can't be read, or a step that isn't a duration, isn't more than 0, or would take more than 1,000 steps over the window's whole length, is a 400, saying what to give, the least step included. The dashboard's charts ask for `5h` at 5-minute steps and the weeks at 30-minute steps, with each full read |
-| `GET /stream` | The requests as they happen, for the dashboard's views of what's in flight: the Overview's ROUTING and SESSIONS, Accounts' Detail, Sessions, the Log and a session's page. Held open, `application/x-ndjson`, a line of JSON an event, every one `{at, kind, request, attempt, session, dir, model, account, prompt, class, agent_id}` and what its kind adds, `request` the router's id for the request, counting up from a random start, and unique while it runs, `attempt` which time it went upstream, `session` and `model` cut to 200 bytes, `dir` the directory the request's session was started in, as its line in the ledger will give it, the home as `~` and cut as a line's is (see The request ledger), left out where the request names none, `account` the account it goes out on, or, of `first` and `done`, the one whose answer the client got, and `prompt`, `class` and `agent_id` as its line in the ledger will give them, each left out where the request carries none, so a session's page counts a request into its turn as it's sent (see A session's page). It opens with an `inflight` for each request already in flight, adding `sent_at`, `first_at` and `chars`, and `verdict`, the last of `limited`, `throttled` or `refused` told of it on the account it went out on last, with that answer's `status`; then `sent` as one goes upstream; `first` at its answer's first byte; `progress`, with `chars`, the characters of its text, thinking and tool input so far, a quarter second after its answer streams more, then every quarter second while it does, as the API counts tokens only as an answer ends; `done` as it ends, told before the router has finished with the request, with `status`, its final `chars`, `tokens`, the closing usage's counts, `{input, output, cache_read, cache_write}`, left out without one, and `broken: true` where the upstream broke its answer off after it began, as its line in the ledger will give it; `limited`, a 429 at a limit, `throttled`, a 429 sent again on the account, and `refused`, a 401 or 403, each with `status`; and `moved`, with `from`, `to` and `reason`, its `account` the `to`, which a request every account refused tells as it takes its session back, `back where it was before its request`. `limited` and `refused` are told once the router has judged the answer a limit or a refusal of the account: a 429 from before a reset made by hand, which goes out again on the same account, or a 401 to a token replaced since, which goes out again on it once, then on another, are neither. A request the router knows for Claude Code's quota check carries `check: true`. A token count carries `count: true`. Requests that never go upstream, and those passed through, aren't on it. Reading the counts reads a copy of the answer's stream as it passes, decoded where it's gzip or deflate, as the request asked for one of those alone (see Proxy rules), never changing or holding the bytes passed on; an answer in another encoding goes uncounted, its bytes untouched. A reader that falls 256 events behind is dropped, and reconnects, and one that takes more than 10 seconds over a write is cut off. A stream ends as the control API closes; a restart in place ends it first, after its drain, once each reader has written what it was told of, waiting half a second at most, so its readers see the requests the router finished, and the dashboard reconnects to the router it becomes, while one that can't replace itself, and exits for launchd to start it again, ends it as the control API closes, as stopping does, its readers writing what they were told of within the second the control API gives the requests it accepted (see The router looking after itself) |
+| `GET /stream` | The requests as they happen, for the dashboard's views of what's in flight: the Overview's ROUTING and SESSIONS, Accounts' Detail, Sessions, the Log and a session's page. Held open, `application/x-ndjson`, a line of JSON an event, every one `{at, kind, request, attempt, session, dir, project, model, account, prompt, class, agent_id}` and what its kind adds, `request` the router's id for the request, counting up from a random start, and unique while it runs, `attempt` which time it went upstream, `session` and `model` cut to 200 bytes, `dir` the directory the request's session was started in, as its line in the ledger will give it, the home as `~` and cut as a line's is (see The request ledger), left out where the request names none, `project` the project that directory is in, as its line will give it, left out alike, `account` the account it goes out on, or, of `first` and `done`, the one whose answer the client got, and `prompt`, `class` and `agent_id` as its line in the ledger will give them, each left out where the request carries none, so a session's page counts a request into its turn as it's sent (see A session's page). It opens with an `inflight` for each request already in flight, adding `sent_at`, `first_at` and `chars`, and `verdict`, the last of `limited`, `throttled` or `refused` told of it on the account it went out on last, with that answer's `status`; then `sent` as one goes upstream; `first` at its answer's first byte; `progress`, with `chars`, the characters of its text, thinking and tool input so far, a quarter second after its answer streams more, then every quarter second while it does, as the API counts tokens only as an answer ends; `done` as it ends, told before the router has finished with the request, with `status`, its final `chars`, `tokens`, the closing usage's counts, `{input, output, cache_read, cache_write}`, left out without one, and `broken: true` where the upstream broke its answer off after it began, as its line in the ledger will give it; `limited`, a 429 at a limit, `throttled`, a 429 sent again on the account, and `refused`, a 401 or 403, each with `status`; and `moved`, with `from`, `to` and `reason`, its `account` the `to`, which a request every account refused tells as it takes its session back, `back where it was before its request`. `limited` and `refused` are told once the router has judged the answer a limit or a refusal of the account: a 429 from before a reset made by hand, which goes out again on the same account, or a 401 to a token replaced since, which goes out again on it once, then on another, are neither. A request the router knows for Claude Code's quota check carries `check: true`. A token count carries `count: true`. Requests that never go upstream, and those passed through, aren't on it. Reading the counts reads a copy of the answer's stream as it passes, decoded where it's gzip or deflate, as the request asked for one of those alone (see Proxy rules), never changing or holding the bytes passed on; an answer in another encoding goes uncounted, its bytes untouched. A reader that falls 256 events behind is dropped, and reconnects, and one that takes more than 10 seconds over a write is cut off. A stream ends as the control API closes; a restart in place ends it first, after its drain, once each reader has written what it was told of, waiting half a second at most, so its readers see the requests the router finished, and the dashboard reconnects to the router it becomes, while one that can't replace itself, and exits for launchd to start it again, ends it as the control API closes, as stopping does, its readers writing what they were told of within the second the control API gives the requests it accepted (see The router looking after itself) |
 | `GET /import` | `{"running": true}` while an import runs, else `false`, which `import` asks before it stages (see Export and import) |
 | `POST /import` | Take in the history `import` copied into `<state dir>/import/`, between the router's rounds, then run a round, answering with what it took in, `{"folders", "days": {"added", "merged", "past_keep"}, "lines", "summaries"}`, and removing `import/`; a 409 while another import runs (see Export and import) |
 | `POST /refresh` | Probe the accounts nothing has been read of for longer than `{"max_age": "30m"}`, and those that can take no request anyway, however lately they were read, but for those whose 5-hour window has lapsed and that can take a request (see Priming), sharing the probes choices and the router's rounds make and waiting a minute after one ended, as they do; wait 10 seconds at most for them, and answer with the status document. The dashboard asks on `R`, and a minute after a window on screen resets |
@@ -9792,12 +9824,15 @@ verbs).
   health doesn't say `strips_own_headers`: a router from before, which took the pin off alone and
   would send the directory on to the API, serves on after an upgrade until it restarts in place, at
   a moment with no request in flight, and one run by hand with `serve` until it's run again (see
-  Proxy rules). It sets `CLAUDE_CODE_GATEWAY_HINT_HEADERS=1`, too, which has Claude Code send a base
-  URL the headers it sends the API directly, the prompt each request serves and its class among
-  them, which the router records (see The request ledger); but where the environment sets it
-  already, as to `0`, which turns them off, it's left as it is, though not where it's set empty,
-  which Claude Code reads as unset (settled in the plan). An unhealthy router is routed through
-  exactly as a healthy one is, the token, pin, directory and hints alike, and `run` says so in a
+  Proxy rules). The project header goes with it, and only with it, naming the repository that
+  directory is in, which `run` finds by walking up from it, as A project says, shown from home
+  alike, as `~/Code/api`. It sets `CLAUDE_CODE_GATEWAY_HINT_HEADERS=1`, too, which has Claude Code
+  send a base URL the headers it sends the API directly, the prompt each request serves and its
+  class among them, which the router records (see The request ledger); but where the environment
+  sets it already, as to `0`, which turns them off, it's left as it is, though not where it's set
+  empty, which Claude Code reads as unset (settled in the plan). An unhealthy router is routed
+  through exactly as a healthy one is, the token, pin, directory, project and hints alike, and
+  `run` says so in a
   line on stderr: `switchboard: the router is unhealthy (5 of the 8 requests in the last 5 minutes
   failed) — starting claude through it all the same`, logging `starting claude` at warn with
   `mode=routed` and the router's reason. Its failures are upstream, which a direct connection would
@@ -9819,12 +9854,12 @@ verbs).
   stepping aside, local or `--direct`, so no launch passes it on. Any other value of it stops,
   saying it takes `stop` or `direct`; a router that can be routed through, healthy or not, routes
   whatever it says. Going direct, `run` connects directly, on `--account`'s token, else the
-  primary's, else the first account's with a usable token, without the base URL, the pin or the
-  directory, and says why in a line on stderr: `switchboard: the router isn't running — connecting
-  directly on work · Work`. Either way, and with `--direct`, a pin or a directory inherited from the
-  environment, as from a session this one is started within, goes: what this launch pins is the only
-  pin, and the directory it names the only directory. `--direct` removes the token and the base URL,
-  so Claude Code uses its own login.
+  primary's, else the first account's with a usable token, without the base URL, the pin, the
+  directory or the project, and says why in a line on stderr: `switchboard: the router isn't
+  running — connecting directly on work · Work`. Either way, and with `--direct`, a pin, a
+  directory or a project inherited from the environment, as from a session this one is started
+  within, goes: what this launch pins is the only pin, and the directory and project it names the
+  only ones. `--direct` removes the token and the base URL, so Claude Code uses its own login.
 - **Without the config:** where `run` can't read its config, as when an upgrade's rules refuse the
   one the running router took, and the router holds its restart (see The router looking after
   itself), it locates the state directory, as it can without a config, and asks the router as it
@@ -9886,8 +9921,8 @@ verbs).
   already, as the user set it, so dropping every base URL with a path would lose most gateways on
   stepping aside, to keep from the mark what every process already reads (decided in the cleanliness
   release's review, 26 October 2026). A session started before the mark has none, and its
-  environment goes on as it is, but for the pin and directory a routed or direct launch takes off
-  (built in the cleanliness release, 26 October 2026).
+  environment goes on as it is, but for the pin, directory and project a routed or direct launch
+  takes off (built in the cleanliness release, 26 October 2026).
 - **Never in the way:** switchboard never stands between the user and `claude` but for the router
   being down, as Stopped says. A config it can't read doesn't keep it out while the router answers:
   `run` routes through the running router all the same, as Without the config says (the owner's
@@ -9901,12 +9936,13 @@ verbs).
   Unaided, `claude` starts in its environment as the user
   set it, or a session's still routed as it is (see What `run` set), and its arguments untouched,
   but for the mark every `claude` it starts carries (see Finding the real `claude`) and
-  `SWITCHBOARD_WHEN_ROUTER_DOWN`, which no launch passes on, a pin or directory inherited from a
-  session before the mark included, saying why in one line on stderr: `switchboard: couldn't read
-  the config (…) — starting claude without it`, or, where a session's routing goes on, `… —
-  starting claude through this session's router`. `run` fails only when the router is down and it
-  stops, when `claude` can't be found or can't start, or on a misused command line, such as
-  `--account` naming an account that isn't configured, or has no usable token.
+  `SWITCHBOARD_WHEN_ROUTER_DOWN`, which no launch passes on, a pin, directory or project
+  inherited from a session before the mark included, saying why in one line on stderr:
+  `switchboard: couldn't read the config (…) — starting claude without it`, or, where a
+  session's routing goes on, `… — starting claude through this session's router`. `run` fails
+  only when the router is down and it stops, when `claude` can't be found or can't start, or on a
+  misused command line, such as `--account` naming an account that isn't configured, or has no
+  usable token.
 - **An API key:** with `ANTHROPIC_API_KEY` or `ANTHROPIC_AUTH_TOKEN` set, Claude Code may use the
   key in place of the token `run` gives it, and its requests would go unrouted, billed to the key.
   So `run`, and with it `claude`, starts Claude Code as if switchboard weren't there, its
@@ -9922,9 +9958,10 @@ verbs).
   go ahead with the router down. When the
   first of Claude Code's arguments names one, `run` starts `claude` as if switchboard weren't there,
   environment and arguments untouched but for that mark and `SWITCHBOARD_WHEN_ROUTER_DOWN`, an
-  inherited pin or directory included, and says nothing; the log notes it at debug. `--direct` still
-  starts it on Claude Code's own login. Only the first argument counts: `claude -p doctor` is a
-  prompt. Everything else goes through `run` as any session does, background sessions (`claude
+  inherited pin, directory or project included, and says nothing; the log notes it at debug.
+  `--direct` still starts it on Claude Code's own login. Only the first argument counts:
+  `claude -p doctor` is a prompt. Everything else goes through `run` as any session does,
+  background sessions (`claude
   --bg`), `agents`, `attach`, `respawn` and `ultrareview` among them. `internal/claude` keeps the
   list.
 - **Finding the real `claude`:** `run` looks along `PATH`, then where its installers put it

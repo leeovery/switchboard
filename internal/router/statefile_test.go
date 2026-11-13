@@ -36,7 +36,7 @@ func TestTheStateFileKeepsSessionsTheirPinsAndTheGlobalPin(t *testing.T) {
 	assign(s, key{session: "one", model: opus}, "", decision{account: "work", reason: reasonNew}, start.Add(-2*time.Hour))
 	assign(s, key{session: "one", model: opus}, "", decision{account: "work", reason: reasonSticky, sticky: true}, start.Add(-time.Hour))
 	assign(s, key{session: "one", model: haiku}, "side", decision{account: "side", reason: reasonPinned}, start.Add(-time.Minute))
-	assignFor(s, Request{Session: "two", Model: opus, Pin: "work", Dir: "~/Code/api"}, decision{account: "work", reason: reasonPinned}, start.Add(-time.Minute))
+	assignFor(s, Request{Session: "two", Model: opus, Pin: "work", Dir: "~/Code/api/web", Project: "~/Code/api"}, decision{account: "work", reason: reasonPinned}, start.Add(-time.Minute))
 	s.pinSession("one", "work")
 	s.pinSession("two", "")
 	saved.save()
@@ -84,7 +84,8 @@ func TestTheStateFileKeepsSessionsTheirPinsAndTheGlobalPin(t *testing.T) {
       "model": "claude-opus-5-5",
       "account": "work",
       "pin": "work",
-      "dir": "~/Code/api",
+      "dir": "~/Code/api/web",
+      "project": "~/Code/api",
       "reason": "pinned",
       "assigned_at": "2026-09-28T13:11:00Z",
       "last_seen": "2026-09-28T13:11:00Z"
@@ -755,8 +756,32 @@ func TestAStateFileFromBeforeDirectoriesLoadsItsAssignmentsWithNone(t *testing.T
 
 	f.load(path)
 	got, ok := f.sessions.session("one")
-	if !ok || len(got.Assignments) != 1 || got.Assignments[0].Account != "work" || got.Assignments[0].Dir != "" {
-		t.Errorf("loaded %+v (seen: %v), want the session on work, naming no directory", got, ok)
+	if !ok || len(got.Assignments) != 1 || got.Assignments[0].Account != "work" || got.Assignments[0].Dir != "" || got.Assignments[0].Project != "" {
+		t.Errorf("loaded %+v (seen: %v), want the session on work, naming no directory or project", got, ok)
+	}
+}
+
+func TestAStateFileFromBeforeProjectsLoadsItsAssignmentsWithTheirDirectoriesAlone(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "state.json")
+	before := `{
+  "version": 1,
+  "sessions": [
+    {"session": "one", "model": "claude-opus-5-5", "account": "work", "dir": "~/Code/api/.claude/worktrees/fix-login", "reason": "new", "assigned_at": "2026-09-28T12:12:00Z", "last_seen": "2026-09-28T13:11:00Z"}
+  ]
+}
+`
+	if err := os.WriteFile(path, []byte(before), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	f := newTestFile(at(start), testAccounts())
+
+	f.load(path)
+	got, ok := f.sessions.session("one")
+	if !ok || len(got.Assignments) != 1 {
+		t.Fatalf("loaded %+v (seen: %v), want the session's one assignment", got, ok)
+	}
+	if a := got.Assignments[0]; a.Account != "work" || a.Dir != "~/Code/api/.claude/worktrees/fix-login" || a.Project != "" {
+		t.Errorf("loaded %+v, want the session on work, in its directory, naming no project, which status.ProjectOf finds of the directory", a)
 	}
 }
 

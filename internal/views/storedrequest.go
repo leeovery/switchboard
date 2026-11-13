@@ -17,6 +17,7 @@ import (
 type storedRequest struct {
 	storedFlight
 	Dir      string        `json:"d,omitempty"`
+	Project  string        `json:"pj,omitempty"`
 	Model    string        `json:"m,omitempty"`
 	Account  string        `json:"ac,omitempty"`
 	Reason   string        `json:"rs,omitempty"`
@@ -66,7 +67,7 @@ func (r *heldRequest) stored() storedRequest {
 // list, none of none.
 func (r *heldRequest) decoded() decodedRequest {
 	return decodedRequest{
-		flight: r.flight, dir: r.dir.Value(), model: r.model.Value(), account: r.account.Value(), reason: r.reason.Value(), from: r.from.Value(),
+		flight: r.flight, dir: r.dir.Value(), project: r.project.Value(), model: r.model.Value(), account: r.account.Value(), reason: r.reason.Value(), from: r.from.Value(),
 		class: r.class.Value(), agentID: r.agentID.Value(), geo: r.geo.Value(), prompt: r.prompt.Value(), stop: r.stop.Value(),
 		tools: slices.Collect(r.calls()), upstream: r.upstream, tried: r.tried, spend: r.spend,
 	}
@@ -81,7 +82,7 @@ func (s *storedRequest) restored() heldRequest {
 // stored is d as a stored form holds it.
 func (d *decodedRequest) stored() storedRequest {
 	return storedRequest{
-		storedFlight: d.flight.stored(), Dir: d.dir, Model: d.model, Account: d.account, Reason: d.reason, From: d.from, Class: d.class,
+		storedFlight: d.flight.stored(), Dir: d.dir, Project: d.project, Model: d.model, Account: d.account, Reason: d.reason, From: d.from, Class: d.class,
 		AgentID: d.agentID, Geo: d.geo, Prompt: d.prompt, Stop: d.stop, Tools: d.tools, Upstream: d.upstream, Tried: storedTriedOf(d.tried),
 		Spend: d.spend,
 	}
@@ -91,7 +92,7 @@ func (d *decodedRequest) stored() storedRequest {
 // decodedOf decoded it.
 func (s *storedRequest) decoded() decodedRequest {
 	return decodedRequest{
-		flight: s.flight(), dir: s.Dir, model: s.Model, account: s.Account, reason: s.Reason, from: s.From, class: s.Class, agentID: s.AgentID,
+		flight: s.flight(), dir: s.Dir, project: s.Project, model: s.Model, account: s.Account, reason: s.Reason, from: s.From, class: s.Class, agentID: s.AgentID,
 		geo: s.Geo, prompt: s.Prompt, stop: s.Stop, tools: s.Tools, upstream: s.Upstream, tried: triedOf(s.Tried), spend: s.Spend,
 	}
 }

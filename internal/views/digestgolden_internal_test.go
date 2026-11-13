@@ -28,14 +28,15 @@ const goldenDay = "2026-10-08"
 // written out in full so no change to a generator moves it, so the golden
 // holds a value of every key of a digest and its parts: a session s, a
 // request of its own on the day two days before, its points' run of it done
-// by the next, then its own requests, a subagent's on both days, one moved
+// by the next, then its own requests, the first at its repository's root, a subagent's on both days, one moved
 // off an account that hit its limit, with the accounts it tried, minutes
 // after another of its own, settling its move as it writes the session's
 // context to the cache again, while it would still be held there, and one
 // running across midnight; and another session, o, beside it: one of its
 // requests without an id; one moved, settling its move while the session's
 // context is held, its answer giving no usage; and its last that gave usage
-// a subagent's, in a directory of its own, stopping to call a tool,
+// a subagent's, in a directory of its own, a subdirectory of its
+// repository, stopping to call a tool,
 // arriving and ending within a second, its headers coming before it ended,
 // its usage writing to the cache for five minutes and beyond what it breaks
 // down, searching the web, and counting its input under a name in capitals
@@ -59,7 +60,7 @@ func goldenWorld() (lines, zoned []ledger.Line) {
 	s0 := line("r0", "s", at(5, 10, 0), foldOpus, "work", "new")
 	s0.Class, s0.Prompt = ledger.ClassMain, "p0"
 	s1 := line("r1", "s", at(7, 10, 0), foldOpus, "work", "sticky")
-	s1.Dir, s1.Class, s1.Prompt, s1.Usage = "/code/app", ledger.ClassMain, "p1", usage(3000, 0)
+	s1.Dir, s1.Project, s1.Class, s1.Prompt, s1.Usage = "/code/app", "/code/app", ledger.ClassMain, "p1", usage(3000, 0)
 	s1.Answer.Stop, s1.Answer.Tools = "tool_use", []string{"Read", "Edit"}
 	s2 := line("r2", "s", at(7, 10, 5), foldHaiku, "work", "new")
 	s2.Class, s2.AgentID, s2.Prompt = "subagent", "a1", "p1"
@@ -80,7 +81,7 @@ func goldenWorld() (lines, zoned []ledger.Line) {
 	o2 := line("", "o", at(8, 12, 0), foldSonnet, "side", "sticky")
 	o4 := line("o4", "o", at(8, 13, 0).Add(250*time.Millisecond), foldHaiku, "work", "sticky")
 	first := int64(500)
-	o4.Class, o4.AgentID, o4.Dir, o4.TotalMS, o4.FirstMS = "subagent", "a2", "/code/site", 1500, &first
+	o4.Class, o4.AgentID, o4.Dir, o4.Project, o4.TotalMS, o4.FirstMS = "subagent", "a2", "/code/site/web", "/code/site", 1500, &first
 	o4.Answer.Stop, o4.Answer.Tools = "tool_use", []string{"Bash"}
 	o4.Usage = json.RawMessage(`{"Input_Tokens":7,"cache_creation_input_tokens":1200,"cache_read_input_tokens":500,` +
 		`"cache_creation":{"ephemeral_5m_input_tokens":1000},"output_tokens":120,"server_tool_use":{"web_search_requests":2}}`)

@@ -185,7 +185,11 @@ type Assignment struct {
 	Auto string `json:"auto,omitempty"`
 	// Dir is the directory the session's last request of the model to name
 	// one was started in, as the request ledger gives it: "" while none has.
-	Dir string `json:"dir,omitempty"`
+	// Project is the project its last request of the model to name either
+	// named, which ProjectOf reads with Dir: "" while none has, and from a
+	// router from before it said.
+	Dir     string `json:"dir,omitempty"`
+	Project string `json:"project,omitempty"`
 	// InFlight is what a request of the model in flight is doing: Answering
 	// while an answer streams to one, else Asking while one waits for its
 	// answer's first byte, and "" while none is in flight.

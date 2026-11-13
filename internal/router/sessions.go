@@ -34,8 +34,10 @@ type assignment struct {
 	// last routed, or "" when it named none.
 	Pin string `json:"pin,omitempty"`
 	// Dir is the directory the session's last request to name one was
-	// started in, as the request ledger gives it, or "" while none has.
-	Dir string `json:"dir,omitempty"`
+	// started in, as the request ledger gives it, or "" while none has; and
+	// Project the project its last request to name either named, or "".
+	Dir     string `json:"dir,omitempty"`
+	Project string `json:"project,omitempty"`
 	// Reason says why the session went to its account.
 	Reason string `json:"reason"`
 	// AssignedAt is when the session came to its account, which a choice
@@ -60,6 +62,16 @@ func (a assignment) dirAfter(req Request) string {
 	return cmp.Or(req.Dir, a.Dir)
 }
 
+// projectAfter is the project the assignment names once req is noted on it:
+// req's, where it names a directory or a project, so a project is always
+// that of the directory named with it; else the one it named.
+func (a assignment) projectAfter(req Request) string {
+	if req.Dir == "" && req.Project == "" {
+		return a.Project
+	}
+	return req.Project
+}
+
 // forgotten reports whether the assignment has gone unused for forgetAfter
 // at now.
 func (a assignment) forgotten(now time.Time) bool {
@@ -73,9 +85,9 @@ func (a assignment) same(b assignment) bool {
 }
 
 // usedAgain reports whether a is b used again, and nothing more: the same
-// assignment, with the same pin, directory and reason.
+// assignment, with the same pin, directory, project and reason.
 func (a assignment) usedAgain(b assignment) bool {
-	return a.same(b) && a.Pin == b.Pin && a.Dir == b.Dir && a.Reason == b.Reason
+	return a.same(b) && a.Pin == b.Pin && a.Dir == b.Dir && a.Project == b.Project && a.Reason == b.Reason
 }
 
 // inUTC is the assignment with its times in UTC.
@@ -96,6 +108,7 @@ func (e entry) export() status.Assignment {
 		Model:      e.model,
 		Account:    e.Account,
 		Dir:        e.Dir,
+		Project:    e.Project,
 		Pinned:     e.Pin != "" && e.Pin == e.Account,
 		Reason:     e.Reason,
 		AssignedAt: e.AssignedAt,
@@ -225,7 +238,7 @@ func (s *sessions) remember(req Request, was assignment, d decision, now time.Ti
 		a.Reason = d.reason
 	}
 	a.Pin, a.LastSeen, a.by = req.Pin, now, req.ID
-	a.Dir = a.dirAfter(req)
+	a.Dir, a.Project = a.dirAfter(req), a.projectAfter(req)
 	s.assignments[k] = a.inUTC()
 	if a.usedAgain(found) {
 		s.usedAgain()

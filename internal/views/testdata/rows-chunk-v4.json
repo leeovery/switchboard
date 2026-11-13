@@ -11,6 +11,7 @@
         "n": 923456789
       },
       "d": "/code/app",
+      "pj": "/code/app",
       "m": "claude-opus-5-5",
       "ac": "side",
       "rs": "moved: work hit its limit",

@@ -35,7 +35,7 @@ func TestALineIsWrittenAsJSON(t *testing.T) {
 		{
 			name: "a request moved by a limit, answered on the account it went to",
 			line: ledger.Line{At: arrived, Request: "3f2a91c4", Kind: ledger.KindMessage, Session: "5b0e7c1a-1f2a-4b3c-9d8e-7f6a5b4c3d2e",
-				Dir: "~/Code/project", Model: "claude-opus-5-5", Account: "side", Reason: "moved: work hit its limit", From: "work",
+				Dir: "~/Code/project/web", Project: "~/Code/project", Model: "claude-opus-5-5", Account: "side", Reason: "moved: work hit its limit", From: "work",
 				Tried: []ledger.Tried{{Account: "work", Why: "hit its limit"}}, Status: 200, Attempts: 2, FirstMS: ms(812), TotalMS: 14230,
 				Agent: "claude-cli/2.1.0 (external, cli)", Betas: []string{"oauth-2025-04-20", "context-1m-2025-08-07"},
 				Prompt: "6f1d2c3b-4a5e-4f60-8a7b-9c0d1e2f3a4b", Class: "subagent", AgentID: "a1b2c3d4e5f6", ParentAgentID: "f6e5d4c3b2a1",
@@ -51,7 +51,7 @@ func TestALineIsWrittenAsJSON(t *testing.T) {
 					`"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":3120},"output_tokens":845,"service_tier":"standard"}`),
 				Limits: map[string]string{"status": "allowed", "5h-utilization": "0.23", "5h-reset": "1791320400", "7d-utilization": "0.41", "7d-reset": "1791590400"}},
 			want: `{"at":"2026-10-06T13:12:00.123Z","request":"3f2a91c4","kind":"message","session":"5b0e7c1a-1f2a-4b3c-9d8e-7f6a5b4c3d2e",` +
-				`"dir":"~/Code/project","model":"claude-opus-5-5","account":"side","reason":"moved: work hit its limit","from":"work",` +
+				`"dir":"~/Code/project/web","project":"~/Code/project","model":"claude-opus-5-5","account":"side","reason":"moved: work hit its limit","from":"work",` +
 				`"tried":[{"account":"work","why":"hit its limit"}],"status":200,"attempts":2,"first_ms":812,"total_ms":14230,` +
 				`"agent":"claude-cli/2.1.0 (external, cli)","betas":["oauth-2025-04-20","context-1m-2025-08-07"],` +
 				`"prompt":"6f1d2c3b-4a5e-4f60-8a7b-9c0d1e2f3a4b","class":"subagent","agent_id":"a1b2c3d4e5f6","parent_agent_id":"f6e5d4c3b2a1",` +

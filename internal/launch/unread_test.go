@@ -55,8 +55,8 @@ func TestRunUnreadRoutesThroughTheRunningRouter(t *testing.T) {
 		account     string
 		wantHeaders string
 	}{
-		{name: "unpinned", wantHeaders: "X-Trace: on\nX-Switchboard-Dir: ~/Code/project"},
-		{name: "pinned", account: "work", wantHeaders: "X-Trace: on\nX-Switchboard-Account: work\nX-Switchboard-Dir: ~/Code/project"},
+		{name: "unpinned", wantHeaders: "X-Trace: on\nX-Switchboard-Dir: ~/Code/project\nX-Switchboard-Project: ~/Code/project"},
+		{name: "pinned", account: "work", wantHeaders: "X-Trace: on\nX-Switchboard-Account: work\nX-Switchboard-Dir: ~/Code/project\nX-Switchboard-Project: ~/Code/project"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -109,7 +109,7 @@ func TestRunUnreadRoutesThroughAnUnhealthyRouter(t *testing.T) {
 		"HOME":                             "/home/tester",
 		"ANTHROPIC_BASE_URL":               "http://" + proxyAddr,
 		"CLAUDE_CODE_OAUTH_TOKEN":          sideToken,
-		"ANTHROPIC_CUSTOM_HEADERS":         "X-Switchboard-Dir: ~/Code/project",
+		"ANTHROPIC_CUSTOM_HEADERS":         "X-Switchboard-Dir: ~/Code/project\nX-Switchboard-Project: ~/Code/project",
 		"CLAUDE_CODE_GATEWAY_HINT_HEADERS": "1",
 	}
 	if env := h.environment(t); !maps.Equal(env, want) {

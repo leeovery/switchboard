@@ -88,7 +88,7 @@ func rowRecordOf(l *ledger.Line) rowRecord {
 // form restored, which keeps no empty list, holds what it decoded exactly.
 func decodedOf(l *ledger.Line) decodedRequest {
 	return decodedRequest{
-		flight: flightOf(l), dir: l.Dir, model: l.Model, account: l.Account, reason: l.Reason, from: l.From, class: l.Class, agentID: l.AgentID,
+		flight: flightOf(l), dir: l.Dir, project: l.Project, model: l.Model, account: l.Account, reason: l.Reason, from: l.From, class: l.Class, agentID: l.AgentID,
 		geo: l.Shape.InferenceGeo, prompt: l.Prompt, stop: l.Answer.Stop, tools: noneIfEmpty(l.Answer.Tools), upstream: l.Upstream(),
 		tried: noneIfEmpty(l.Tried), spend: ledger.SpendOf(l),
 	}
@@ -155,18 +155,18 @@ func (r *lineRecord) summed() uint64 {
 	stream, streamed := valueOf(r.stream)
 	maphash.WriteComparable(&h, struct {
 		flight
-		dir, model, account, reason, from, class, agentID, geo, prompt, stop string
-		session, countedSession, effort, agent, answer, served               string
-		kind                                                                 RowKind
-		limit                                                                quota.Status
-		status, attempts, size, messages, system, toolDefs                   int
-		maxTokens, thinking                                                  int
-		firstMS, totalMS                                                     int64
-		upstream, canceled, cutOff, broken, answered, stream, streamed       bool
-		tools, tried, betas, blocks, windows                                 int
-		spend                                                                uint64
+		dir, project, model, account, reason, from, class, agentID, geo, prompt, stop string
+		session, countedSession, effort, agent, answer, served                        string
+		kind                                                                          RowKind
+		limit                                                                         quota.Status
+		status, attempts, size, messages, system, toolDefs                            int
+		maxTokens, thinking                                                           int
+		firstMS, totalMS                                                              int64
+		upstream, canceled, cutOff, broken, answered, stream, streamed                bool
+		tools, tried, betas, blocks, windows                                          int
+		spend                                                                         uint64
 	}{
-		r.flight, r.dir, r.model, r.account, r.reason, r.from, r.class, r.agentID, r.geo, r.prompt, r.stop,
+		r.flight, r.dir, r.project, r.model, r.account, r.reason, r.from, r.class, r.agentID, r.geo, r.prompt, r.stop,
 		r.session, r.countedSession, r.effort, r.agent, r.answer, r.served, r.kind, r.limit, r.status, r.attempts, r.size, r.messages, r.system, r.toolDefs,
 		r.maxTokens, r.thinking, firstMS, r.totalMS, r.upstream, r.canceled, r.cutOff, r.broken, answered, stream, streamed,
 		len(r.tools), len(r.tried), len(r.betas), len(r.blocks), len(r.windows), r.spend.Sum(sumsSeed),

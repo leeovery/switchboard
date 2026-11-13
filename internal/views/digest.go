@@ -35,7 +35,7 @@ func (Digests) Builder() ledger.DigestBuilder {
 // nor its rows: the day's lines are read instead. Every head of this
 // version holds a side, and a row of each of its lines: none was released
 // without them.
-const RowsVersion = 3
+const RowsVersion = 4
 
 // RowsVersion is the version of the sides and rows of the days' heads the
 // Digests give, RowsVersion.
