@@ -366,6 +366,46 @@ func TestADashboardOpenedOnNoPoolReadsThePoolTheConfigNamesOnceItDoes(t *testing
 	}
 }
 
+// A dashboard open across the move to pools takes the first pool afresh at
+// each turn, as its ledger and the router do: opened before the move, its
+// grounds naming none, it follows the move to the first pool the accounts
+// record notes, Default; and a pool put ahead of Default while it's open
+// leaves its grounds and its pool's read on Default, work naming no pool
+// still Default's.
+func TestADashboardOpenAcrossTheMoveKeepsToTheFirstPoolTheRecordNotes(t *testing.T) {
+	deps := testDeps(map[string]string{"XDG_STATE_HOME": shortTempDir(t)}, t.TempDir())
+	deps.Now = func() time.Time { return ledgerNow }
+	writeDepsConfig(t, deps, unpooledConfig)
+	state := stateDir(t, deps)
+	markDone(t, state, idsMark)
+	cfg := recordWatch(t, &deps)
+	if got := run(t, deps, "dashboard"); got != (result{}) {
+		t.Fatalf("switchboard dashboard = %+v, want exit status 0 and nothing printed", got)
+	}
+	if cfg.LedgerGrounds.First != "" {
+		t.Fatalf("opened before the move, the dashboard's ledger is grounded on the first pool %q, want none", cfg.LedgerGrounds.First)
+	}
+
+	markMoved(t, state)
+	writeDepsConfig(t, deps, pooledConfig(false))
+	fileDay(t, state, pooledLines...)
+	client := "\n[[pool]]\nid    = \"c5d6\"\nlabel = \"Client\"\ndirs  = [\"/work/client\"]\n"
+	for _, tt := range []struct{ name, config string }{
+		{name: "the move followed", config: pooledConfig(false)},
+		{name: "Client put ahead of Default", config: strings.Replace(pooledConfig(false), "\n[[pool]]\nid    = \"b2n8\"", client+"\n[[pool]]\nid    = \"b2n8\"", 1)},
+	} {
+		writeDepsConfig(t, deps, tt.config)
+		again, err := cfg.Turn(t.Context(), "b2n8", watch.SamePool)
+		if err != nil {
+			t.Fatalf("%s, Turn() of the same pool failed: %v", tt.name, err)
+		}
+		if got, want := requestsRead(cfg, again.Read), []string{"p1", "p3"}; again.Pool.ID != "b2n8" || again.Read.First != "b2n8" || again.Grounds.First != "b2n8" || !slices.Equal(got, want) {
+			t.Errorf("%s, the dashboard shows %q, its read of the first pool %q, its ledger grounded on %q, reading %q; want Default, all of Default, reading %q",
+				tt.name, again.Pool.ID, again.Read.First, again.Grounds.First, got, want)
+		}
+	}
+}
+
 // requestsRead are the requests of the day of pooledLines that read keeps,
 // of the ledger the dashboard given cfg reads.
 func requestsRead(cfg *watch.Config, read views.PoolRead) []string {

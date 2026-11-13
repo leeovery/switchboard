@@ -167,7 +167,15 @@ func (a *app) keptPool(cfg *config.Config, dir string, record func() identity.Re
 // cfg configures it in, else the one the accounts record record returns
 // keeps for it.
 func (a *app) poolRead(cfg *config.Config, dir string, record func() identity.Record, id string) views.PoolRead {
-	return views.PoolRead{ID: id, First: a.firstPool(dir, cfg.Pools), PoolOf: status.AccountPools(cfg.Accounts, record)}
+	return pooledRead(cfg, a.firstPool(dir, cfg.Pools), record, id)
+}
+
+// pooledRead is how the views read the work of the pool with the given id,
+// work in no pool the first pool's, the one with the id first, and each
+// account in the pool cfg configures it in, else the one the accounts
+// record record returns keeps for it.
+func pooledRead(cfg *config.Config, first string, record func() identity.Record, id string) views.PoolRead {
+	return views.PoolRead{ID: id, First: first, PoolOf: status.AccountPools(cfg.Accounts, record)}
 }
 
 // poolNamed names the pool with the given label, as prose.Pool does, where
