@@ -253,7 +253,9 @@ line keeps everything about a request except its content. It never holds any of 
   started within that session other than through `run` carries the directory too.
 - **`project`:** `run` finds the repository as it starts the session, walking up from the
   directory to the first `.git`, without running git. A linked worktree counts as its main
-  repository's; a directory in no repository counts as itself. On a line without it, a `dir` in
+  repository's, by the path the walk took where it went through it, so a repository reached
+  through a link stays one project. A worktree of a bare repository counts as itself, and a
+  directory in no repository counts as itself. On a line without it, a `dir` in
   `<repo>/.claude/worktrees/<name>` counts as `<repo>`, and any other `dir` as itself.
 - **`agent_id` and `parent_agent_id`:** Claude Code's id for a subagent is random. For a member of
   an agent team, the id comes from its name.
@@ -378,6 +380,7 @@ event can change, so when you read one that changed, take its last version.
 | `session` | The session that started or moved, or whose own pin changed. |
 | `model` | The model whose requests did so. |
 | `dir` | The directory the session ran in as the event befell it, the home as `~`, as the request ledger gives it. Left out where none was known yet, and in events written before switchboard recorded it. |
+| `project` | The repository that directory is in, as the request ledger gives it. Left out alike, and in events written before switchboard recorded it. |
 | `from` | The account a session moved from. |
 | `to` | The account a session moved to. Also, where the sessions a limit, a cap or a refusal moved all went to one account, that account. |
 | `reason` | Why: why a session went to its account, as [Why a request went where it did](#why-a-request-went-where-it-did) gives it; or, in words for a person, why a restart is due, or why the router turned unhealthy. |

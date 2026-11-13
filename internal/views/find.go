@@ -18,11 +18,13 @@ import (
 // DaySession is a session of a past day, as the Log's find holds it for the
 // run once the day's lines are read, of its lines that day but Claude Code's
 // quota checks: its whole id; the directory it ran in, as they last named
-// it, "" where none did; how many they are; and when the last arrived.
+// it, "" where none did, and its project, as the last to name either named
+// it, which status.ProjectOf reads with the directory; how many they are;
+// and when the last arrived.
 type DaySession struct {
-	ID, Dir string
-	Lines   int
-	Last    time.Time
+	ID, Dir, Project string
+	Lines            int
+	Last             time.Time
 }
 
 // DaySessions are the sessions of a day's lines, as Ledger's Day gives them,
@@ -72,9 +74,7 @@ func (d daySessions) take(r *lineRecord) {
 	}
 	s.Lines++
 	s.Last = score.Later(s.Last, r.arrived())
-	if r.dir != "" {
-		s.Dir = r.dir
-	}
+	s.Dir, s.Project = placeAfter(s.Dir, s.Project, r.dir, r.project)
 }
 
 // sessions are the sessions taken in, the last to arrive first, as
@@ -95,15 +95,16 @@ func (d daySessions) sessions() []DaySession {
 // stands only where they're the day's, so no time a side holds is beyond the
 // years nanoseconds since the epoch hold.
 type storedDaySession struct {
-	ID    string `json:"id"`
-	Dir   string `json:"dir,omitzero"`
-	Lines int    `json:"lines,omitzero"`
-	Last  int64  `json:"last,omitzero"`
+	ID      string `json:"id"`
+	Dir     string `json:"dir,omitzero"`
+	Project string `json:"project,omitzero"`
+	Lines   int    `json:"lines,omitzero"`
+	Last    int64  `json:"last,omitzero"`
 }
 
 // stored is s as a day's side stores it.
 func (s DaySession) stored() storedDaySession {
-	stored := storedDaySession{ID: s.ID, Dir: s.Dir, Lines: s.Lines}
+	stored := storedDaySession{ID: s.ID, Dir: s.Dir, Project: s.Project, Lines: s.Lines}
 	if !s.Last.IsZero() {
 		stored.Last = s.Last.UnixNano()
 	}
@@ -112,7 +113,7 @@ func (s DaySession) stored() storedDaySession {
 
 // daySession is the DaySession s stores.
 func (s storedDaySession) daySession() DaySession {
-	d := DaySession{ID: s.ID, Dir: s.Dir, Lines: s.Lines}
+	d := DaySession{ID: s.ID, Dir: s.Dir, Project: s.Project, Lines: s.Lines}
 	if s.Last != 0 {
 		d.Last = time.Unix(0, s.Last).UTC()
 	}

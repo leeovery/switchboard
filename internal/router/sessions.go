@@ -469,10 +469,11 @@ func (s *sessions) lastUsed(id string) (assignment, bool) {
 	return last.assignment, seen
 }
 
-// dir is the directory the session with the given id runs in: that of its
-// model used last to name one, as the dashboard reads it off the session's
-// listing; "" where none does, as for a session never seen.
-func (s *sessions) dir(id string) string {
+// place is the directory the session with the given id runs in, and its
+// project: those of its model used last to name a directory, as the
+// dashboard reads it off the session's listing; "" where none does, as for
+// a session never seen.
+func (s *sessions) place(id string) (dir, project string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	var last entry
@@ -481,7 +482,7 @@ func (s *sessions) dir(id string) string {
 			last = e
 		}
 	}
-	return last.Dir
+	return last.Dir, last.Project
 }
 
 // byUse orders a session's entries the one used last first, then by model.

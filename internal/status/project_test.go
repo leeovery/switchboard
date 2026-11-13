@@ -24,6 +24,9 @@ func TestAProjectIsTheOneRunToldElseItsDirectorysAsALineFromBeforeHasIt(t *testi
 		{name: "none told, a worktrees directory of no repository, as itself", dir: "/.claude/worktrees/fix-login", want: "/.claude/worktrees/fix-login"},
 		{name: "none told, a subdirectory, as itself", dir: "~/Code/api/cmd/server", want: "~/Code/api/cmd/server"},
 		{name: "none told, a repository, as itself", dir: "~/Code/api", want: "~/Code/api"},
+		{name: "the project run told, cleaned", project: "~/Code/api/", want: "~/Code/api"},
+		{name: "none told, a worktree Claude Code made, cleaned, its repository", dir: "~/Code/api/.claude/worktrees/fix-login/", want: "~/Code/api"},
+		{name: "none told, a directory, cleaned", dir: "~/Code/api/./cmd/", want: "~/Code/api/cmd"},
 		{name: "neither, none"},
 	}
 	for _, tt := range tests {
@@ -61,10 +64,40 @@ func TestProjectsAreNamedByTheirFoldersTheirParentsTooWhereTwoShareOne(t *testin
 			want:     map[string]string{"~/client/api": "client/api", "~/own/api": "own/api", "/srv/api": "srv/api"},
 		},
 		{
+			name:     "two sharing their parents' names too, by as many parents as tell them apart",
+			projects: []string{"~/a/x/api", "~/b/x/api", "~/Code/switchboard"},
+			cells:    math.MaxInt,
+			want:     map[string]string{"~/a/x/api": "a/x/api", "~/b/x/api": "b/x/api", "~/Code/switchboard": "switchboard"},
+		},
+		{
+			name:     "three sharing a name, each by as many parents as tell it from the others",
+			projects: []string{"~/a/x/api", "~/b/x/api", "~/c/y/api"},
+			cells:    math.MaxInt,
+			want:     map[string]string{"~/a/x/api": "a/x/api", "~/b/x/api": "b/x/api", "~/c/y/api": "y/api"},
+		},
+		{
 			name:     "one given twice, by its folder alone",
 			projects: []string{"~/Code/api", "~/Code/api"},
 			cells:    math.MaxInt,
 			want:     map[string]string{"~/Code/api": "api"},
+		},
+		{
+			name:     "one written two ways, one project, by its path cleaned",
+			projects: []string{"~/a/api", "~/a/api/", "~/a/./api"},
+			cells:    math.MaxInt,
+			want:     map[string]string{"~/a/api": "api"},
+		},
+		{
+			name:     "the root, and one at it",
+			projects: []string{"/", "/api"},
+			cells:    math.MaxInt,
+			want:     map[string]string{"/": "/", "/api": "api"},
+		},
+		{
+			name:     "parents added, then cut, as DirName cuts",
+			projects: []string{"~/client-one/x/api", "~/client-two/x/api"},
+			cells:    12,
+			want:     map[string]string{"~/client-one/x/api": "client-one/…", "~/client-two/x/api": "client-two/…"},
 		},
 		{
 			name:     "the home, and one at the root beside one in it",

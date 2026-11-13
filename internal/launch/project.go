@@ -22,12 +22,15 @@ var errNotAPath = errors.New("not a path git wrote")
 // given, never resolving a link, to the first directory holding a .git,
 // stopping at the filesystem's root. A linked worktree's .git is a file
 // naming its git directory, whose commondir leads to its main repository's,
-// which it counts as; a git directory without a commondir, as a submodule's,
-// is the worktree's own. Where no directory holds a .git, or the first that
-// does can't be read as a repository, as a .git file unreadable or naming no
-// git directory, a git directory or common directory that isn't there, or a
-// worktree of a bare repository, the project is dir itself. It runs no git,
-// and reads no more than a worktree's .git file and its commondir. "" for "".
+// which it counts as: by the path the walk took, where it went through the
+// main repository, as from a worktree within it; else by the path git
+// wrote, every link resolved. A worktree whose git directory has no
+// commondir, as a submodule's, or whose common directory isn't named .git,
+// as a bare repository's, counts as itself. Where no directory holds a .git,
+// or the first that does can't be read as a repository, as a .git file
+// unreadable or naming no git directory, or a git directory or common
+// directory that isn't there, the project is dir itself. It runs no git, and
+// reads no more than a worktree's .git file and its commondir. "" for "".
 func FindProject(dir string) string {
 	if dir == "" {
 		return ""
@@ -35,10 +38,13 @@ func FindProject(dir string) string {
 	dir = filepath.Clean(dir)
 	for at := dir; ; at = filepath.Dir(at) {
 		if repo, held := repositoryAt(at); held {
-			if repo == "" {
+			switch repo {
+			case "":
 				return dir
+			case at:
+				return at
 			}
-			return repo
+			return walkedTo(dir, repo)
 		}
 		if filepath.Dir(at) == at {
 			return dir
@@ -68,8 +74,8 @@ func repositoryAt(at string) (string, bool) {
 // worktree at, leads to: the main repository, the directory holding the
 // common directory its git directory's commondir names, a relative path
 // each from where it's written; or at itself, where the git directory has no
-// commondir. "" where it can't be read as one, as a common directory not
-// named .git is a bare repository's.
+// commondir, or its common directory isn't named .git. "" where it can't be
+// read as one.
 func linkedRepository(at, git string) string {
 	line, err := readPath(git)
 	named, ok := strings.CutPrefix(line, "gitdir: ")
@@ -79,19 +85,37 @@ func linkedRepository(at, git string) string {
 	gitDir := from(at, named)
 	common, err := readPath(filepath.Join(gitDir, "commondir"))
 	switch {
-	case errors.Is(err, fs.ErrNotExist):
-		if isDir(gitDir) {
-			return at
-		}
-		return ""
+	case errors.Is(err, fs.ErrNotExist) && isDir(gitDir):
+		return at
 	case err != nil || common == "":
 		return ""
 	}
-	common = from(gitDir, common)
-	if filepath.Base(common) != ".git" || !isDir(common) {
+	switch common = from(gitDir, common); {
+	case !isDir(common):
 		return ""
+	case filepath.Base(common) != ".git":
+		return at
 	}
 	return filepath.Dir(common)
+}
+
+// walkedTo returns the repository repo, as a commondir leads to it, by the
+// path the walk up from dir took to it: the first directory up from dir,
+// itself included, that is repo, through whatever links; repo where none
+// is.
+func walkedTo(dir, repo string) string {
+	want, err := os.Stat(repo)
+	if err != nil {
+		return repo
+	}
+	for at := dir; ; at = filepath.Dir(at) {
+		if info, err := os.Stat(at); err == nil && os.SameFile(info, want) {
+			return at
+		}
+		if filepath.Dir(at) == at {
+			return repo
+		}
+	}
 }
 
 // readPath returns the path the file at path holds, as git writes one: a

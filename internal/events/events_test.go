@@ -16,6 +16,7 @@ import (
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/logs"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
+	"github.com/leeovery/switchboard/internal/status"
 )
 
 // now is the time by the clock in tests.
@@ -204,6 +205,24 @@ func TestALineThatDoesntReadAsAnEventIsPassedOver(t *testing.T) {
 				t.Errorf("In(%s) read it as an event", tt.line)
 			}
 		})
+	}
+}
+
+func TestALinesSessionKeepsItsDirectoryAndProjectAndOneFromBeforeReadsWithNoProject(t *testing.T) {
+	started := events.Line{
+		ID: 3, At: september(10, 9, 0), Kind: status.EventStarted, Account: "work", Session: "one", Dir: "~/Code/api/cmd", Project: "~/Code/api", Run: firstRun,
+	}
+	filed := jsonOf(t, started)
+	if !strings.Contains(filed, `"dir":"~/Code/api/cmd","project":"~/Code/api"`) {
+		t.Errorf("a session's start is filed as\n%s\nwant its project beside its directory", filed)
+	}
+	if read, ok := events.In([]byte(filed)); !ok || read.Dir != started.Dir || read.Project != started.Project {
+		t.Errorf("In(%s) = %+v, %v; want its directory and project back", filed, read, ok)
+	}
+
+	before := `{"id":3,"at":"2026-09-10T08:00:00Z","kind":"started","account":"work","session":"one","dir":"~/Code/api","run":"2026-09-01T08:00:00Z"}`
+	if read, ok := events.In([]byte(before)); !ok || read.Dir != "~/Code/api" || read.Project != "" {
+		t.Errorf("In(%s) = %+v, %v; want a line from before projects read with its directory and no project", before, read, ok)
 	}
 }
 

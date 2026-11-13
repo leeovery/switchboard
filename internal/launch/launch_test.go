@@ -924,6 +924,18 @@ func TestRunTellsTheRouterTheProjectClaudeCodeStartsIn(t *testing.T) {
 	}
 }
 
+func TestRunWithoutAProjectFinderTellsTheDirectoryAlone(t *testing.T) {
+	h := newHarness(t, "ANTHROPIC_CUSTOM_HEADERS=X-Switchboard-Project: ~/Code/elsewhere")
+	h.launcher.Dir, h.launcher.Project = homeDir+"/Code/api", nil
+
+	if err := h.launcher.Run(t.Context(), route(healthy(), ""), nil); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if got, want := h.environment(t)["ANTHROPIC_CUSTOM_HEADERS"], "X-Switchboard-Dir: ~/Code/api"; got != want {
+		t.Errorf("started with ANTHROPIC_CUSTOM_HEADERS %q, want %q: no project, the one inherited taken off", got, want)
+	}
+}
+
 func TestRunTellsARouterFromBeforeNoDirectory(t *testing.T) {
 	// The health of a router from before it took every X-Switchboard- header
 	// off what it sends upstream, as it answers: it took off the pin alone.

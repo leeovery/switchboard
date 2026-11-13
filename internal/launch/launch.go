@@ -47,7 +47,7 @@ type Launcher struct {
 	Dir  string
 	Home string
 	// Project finds the project a session started in a directory runs in, as
-	// FindProject does.
+	// FindProject does: nil for none.
 	Project func(dir string) string
 	// InstallPaths are where Claude Code's installers put it, tried in order
 	// when it isn't on PATH.
@@ -419,13 +419,16 @@ func (l Launcher) find() (string, error) {
 }
 
 // told returns the directory the router in state is told Claude Code starts
-// in, and the project it runs in, as Project finds it, each as shown shows
-// it, where the router takes every header of switchboard's own off what it
-// sends upstream: neither for one that doesn't, which would send them on to
-// the API, nor where Dir isn't known.
+// in, and the project it runs in, as Project finds it, none without Project,
+// each as shown shows it, where the router takes every header of
+// switchboard's own off what it sends upstream: neither for one that
+// doesn't, which would send them on to the API, nor where Dir isn't known.
 func (l Launcher) told(state routerState) (dir, project string) {
 	if !state.strips || l.Dir == "" {
 		return "", ""
+	}
+	if l.Project == nil {
+		return l.shown(l.Dir), ""
 	}
 	return l.shown(l.Dir), l.shown(l.Project(l.Dir))
 }

@@ -21,10 +21,9 @@ const (
 func TestFindProjectWalksUpToTheRepositoryItsDirectoryIsIn(t *testing.T) {
 	tests := []struct {
 		name string
-		// dirs and files are the fixture's directories and files, by their
-		// paths from its root, each file holding its text, "<root>" in it
-		// standing for the root's path; links its links, each to the path
-		// it names; and pipes its named pipes.
+		// dirs and files are the fixture's directories and files, as lay
+		// lays them out in a root of no link; links its links, each to the
+		// path it names; and pipes its named pipes.
 		dirs  []string
 		files map[string]string
 		links map[string]string
@@ -74,9 +73,32 @@ func TestFindProjectWalksUpToTheRepositoryItsDirectoryIsIn(t *testing.T) {
 		{name: "in no repository, the directory itself", dirs: []string{"notes/2026"}, start: "notes/2026", want: "notes/2026"},
 		{name: "within a bare repository, the directory itself", dirs: []string{"api.git/refs/heads"}, start: "api.git/refs/heads", want: "api.git/refs/heads"},
 		{
-			name: "a worktree of a bare repository, the directory itself", dirs: []string{"api.git/worktrees/fix-login", "fix-login/web"},
+			name: "a worktree of a bare repository, the worktree's own", dirs: []string{"api.git/worktrees/fix-login", "fix-login/web"},
 			files: map[string]string{"fix-login/.git": "gitdir: <root>/api.git/worktrees/fix-login\n", "api.git/worktrees/fix-login/commondir": commonDir},
-			start: "fix-login/web", want: "fix-login/web",
+			start: "fix-login/web", want: "fix-login",
+		},
+		{
+			name: "a worktree beside a bare repository in .bare, the worktree's own", dirs: []string{"api/.bare/worktrees/main", "api/main/web"},
+			files: map[string]string{"api/main/.git": "gitdir: <root>/api/.bare/worktrees/main\n", "api/.bare/worktrees/main/commondir": commonDir},
+			start: "api/main/web", want: "api/main",
+		},
+		{
+			name: "a repository whose git directory is kept elsewhere", dirs: []string{"store/api.git", "api/cmd"},
+			files: map[string]string{"api/.git": "gitdir: <root>/store/api.git\n"},
+			start: "api/cmd", want: "api",
+		},
+		{
+			name: "a worktree of a repository whose git directory is kept elsewhere, the worktree's own",
+			dirs: []string{"store/api.git/worktrees/fix-login", "fix-login"},
+			files: map[string]string{
+				"fix-login/.git": "gitdir: <root>/store/api.git/worktrees/fix-login\n", "store/api.git/worktrees/fix-login/commondir": commonDir,
+			},
+			start: "fix-login", want: "fix-login",
+		},
+		{
+			name: "a worktree of a submodule, the worktree's own", dirs: []string{"app/.git/modules/lib/worktrees/fix", "fix/web"},
+			files: map[string]string{"fix/.git": "gitdir: <root>/app/.git/modules/lib/worktrees/fix\n", "app/.git/modules/lib/worktrees/fix/commondir": commonDir},
+			start: "fix/web", want: "fix",
 		},
 		{
 			name: "a .git file naming no git directory, the directory itself", dirs: []string{"api/.git", "api/web"},
@@ -135,13 +157,8 @@ func TestFindProjectWalksUpToTheRepositoryItsDirectoryIsIn(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			root := t.TempDir()
-			for _, dir := range tt.dirs {
-				mkdir(t, filepath.Join(root, dir))
-			}
-			for path, text := range tt.files {
-				write(t, filepath.Join(root, path), strings.ReplaceAll(text, "<root>", root))
-			}
+			root := realDir(t)
+			lay(t, root, tt.dirs, tt.files)
 			for path, target := range tt.links {
 				if err := os.Symlink(filepath.Join(root, target), filepath.Join(root, path)); err != nil {
 					t.Fatal(err)
@@ -154,6 +171,59 @@ func TestFindProjectWalksUpToTheRepositoryItsDirectoryIsIn(t *testing.T) {
 			}
 
 			start, want := filepath.Join(root, tt.start), filepath.Join(root, tt.want)
+			if got := launch.FindProject(start); got != want {
+				t.Errorf("FindProject(%q) = %q, want %q", start, got, want)
+			}
+		})
+	}
+}
+
+func TestFindProjectGivesAMainRepositoryByThePathTheWalkTook(t *testing.T) {
+	tests := []struct {
+		name string
+		// dirs and files are the fixture's directories and files, as lay
+		// lays them out, git's paths written as git writes them, every link
+		// resolved.
+		dirs  []string
+		files map[string]string
+		// start is where the session starts, by its path from a link to the
+		// fixture's root, as a session walks it; and want the project it runs
+		// in, "<link>" in it standing for the link, and "<root>" for the
+		// root's path, the link resolved.
+		start, want string
+	}{
+		{
+			name: "a worktree within its repository, the repository through the link", dirs: []string{worktreeGitDir, "api/.claude/worktrees/fix-login/web"},
+			files: map[string]string{
+				"api/.claude/worktrees/fix-login/.git": "gitdir: <root>/" + worktreeGitDir + "\n", worktreeGitDir + "/commondir": "<root>/api/.git\n",
+			},
+			start: "api/.claude/worktrees/fix-login/web", want: "<link>/api",
+		},
+		{
+			name: "a worktree within its repository, its paths relative, the repository through the link",
+			dirs: []string{worktreeGitDir, "api/.claude/worktrees/fix-login"},
+			files: map[string]string{
+				"api/.claude/worktrees/fix-login/.git": "gitdir: ../../../.git/worktrees/fix-login\n", worktreeGitDir + "/commondir": commonDir,
+			},
+			start: "api/.claude/worktrees/fix-login", want: "<link>/api",
+		},
+		{name: "a repository, through the link", dirs: []string{"api/.git", "api/cmd"}, start: "api/cmd", want: "<link>/api"},
+		{
+			name: "a worktree beside its repository, the walk never through it, by the path git wrote", dirs: []string{worktreeGitDir, "fix-login"},
+			files: map[string]string{"fix-login/.git": "gitdir: <root>/" + worktreeGitDir + "\n", worktreeGitDir + "/commondir": "<root>/api/.git\n"},
+			start: "fix-login", want: "<root>/api",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := realDir(t)
+			lay(t, root, tt.dirs, tt.files)
+			link := filepath.Join(t.TempDir(), "code")
+			if err := os.Symlink(root, link); err != nil {
+				t.Fatal(err)
+			}
+
+			start, want := filepath.Join(link, tt.start), strings.NewReplacer("<link>", link, "<root>", root).Replace(tt.want)
 			if got := launch.FindProject(start); got != want {
 				t.Errorf("FindProject(%q) = %q, want %q", start, got, want)
 			}
@@ -193,6 +263,30 @@ func TestFindProjectTakesAnUnreadableFileForNoRepository(t *testing.T) {
 func TestFindProjectOfNoDirectoryIsNone(t *testing.T) {
 	if got := launch.FindProject(""); got != "" {
 		t.Errorf(`FindProject("") = %q, want none`, got)
+	}
+}
+
+// realDir returns a directory of the test's own, by its real path, every
+// link resolved, as git writes one.
+func realDir(t *testing.T) string {
+	t.Helper()
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return dir
+}
+
+// lay lays out a fixture at root: its directories, dirs, and its files,
+// files, each by its path from root, each file holding its text, "<root>" in
+// it standing for root.
+func lay(t *testing.T, root string, dirs []string, files map[string]string) {
+	t.Helper()
+	for _, dir := range dirs {
+		mkdir(t, filepath.Join(root, dir))
+	}
+	for path, text := range files {
+		write(t, filepath.Join(root, path), strings.ReplaceAll(text, "<root>", root))
 	}
 }
 

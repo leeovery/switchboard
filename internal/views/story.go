@@ -153,7 +153,7 @@ func (s *story) add(r *heldRequest) {
 		s.begun, s.first = true, r.flight
 	}
 	s.last = r.flight
-	s.place(r.dir.Value(), r.project.Value())
+	s.dir, s.project = placeAfter(s.dir, s.project, r.dir.Value(), r.project.Value())
 	class, from := r.class.Value(), r.from.Value()
 	s.classed = s.classed || class != ""
 	main := class == ledger.ClassMain
@@ -182,15 +182,17 @@ func (s *story) add(r *heldRequest) {
 	}
 }
 
-// place takes in where a request of the session ran: its directory, dir,
-// where it names one, and its project, project, where it names either, so
-// the project is always that of the directory named with it, as the router's
-// assignment of the session takes them.
-func (s *story) place(dir, project string) {
+// placeAfter returns where a session ran, its directory and its project,
+// once a request of it naming dir and project is taken in, after it ran in
+// wasDir and wasProject: the request's directory, where it names one, and
+// its project, where it names either, so the project is always that of the
+// directory named with it, as the router's assignment of the session takes
+// them.
+func placeAfter(wasDir, wasProject, dir, project string) (string, string) {
 	if dir == "" && project == "" {
-		return
+		return wasDir, wasProject
 	}
-	s.dir, s.project = cmp.Or(dir, s.dir), project
+	return cmp.Or(dir, wasDir), project
 }
 
 // classCompaction is the class, as a line's hints give it, of a compaction

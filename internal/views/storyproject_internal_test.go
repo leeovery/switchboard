@@ -60,7 +60,7 @@ func TestAStoryHoldsTheProjectItsLastRequestToNameAPlaceNamed(t *testing.T) {
 // and one stored before projects, holding none, restores with none: the
 // session's project is then its directory's, as status.ProjectOf has it, as
 // its lines, which named none, would give it read whole.
-func TestASessionsStateStoresItsProjectAndOneFromBeforeRestoresWithItsDirectorysProject(t *testing.T) {
+func TestAStoredSessionKeepsItsProjectAndOneWithoutTakesItByTheDirectoryRule(t *testing.T) {
 	day := LedgerDay{Start: time.Date(2026, 10, 7, 0, 0, 0, 0, time.UTC), Date: "2026-10-07"}
 	next := LedgerDay{Start: day.Start.AddDate(0, 0, 1), Date: "2026-10-08"}
 	worktree := "~/Code/api/.claude/worktrees/fix-login"

@@ -6040,15 +6040,22 @@ session page · signed off · 7 Oct 2026**, its frames kept as `testdata/vhs/ref
   the session, walking up from the directory it starts in, as it's given, to the first `.git`, to
   the filesystem's root at most, and running no git: a session in a subdirectory counts as its
   repository's, and one in a linked worktree as its main repository's, the worktree's `.git` file
-  naming its git directory, whose `commondir` leads there; one outside any repository, or where
-  what it finds can't be read as one (a `.git` file unreadable or naming nothing, a worktree of a
-  bare repository), counts as its own directory. Lines and sessions from before carry none: a
-  `dir` of the form `<repo>/.claude/worktrees/<name>`, a worktree Claude Code made, counts as
-  `<repo>`, any other as itself, and no `dir` as no project (`status.ProjectOf`, which no drawing
-  package or command calls). A project is named by its folder's name, `switchboard`, and two with
-  one name by their parents' too, `client/api` and `own/api`, cut as `status.DirName` cuts
-  (`status.ProjectNames`); within it, a session keeps its own directory's name. Nothing drawn
-  names a project yet (the owner's call, 13 November 2026).
+  naming its git directory, whose `commondir` leads there. Git writes those paths with every link
+  resolved, so the main repository is given by the path the walk took, the first directory up
+  from the session's that is it, as from a worktree within it, else as git wrote it: a
+  repository reached through a link, as `~/Code` leading to another volume, stays one project.
+  Any `commondir` not named `.git` counts as the worktree's own directory, which covers bare
+  repositories, `.bare` layouts, separate git directories and submodules' worktrees. One outside
+  any repository, or where what it finds can't be read as one (a `.git` file unreadable or naming
+  nothing, a git or common directory that isn't there), counts as its own directory. Lines and
+  sessions from before carry none: a `dir` of the form `<repo>/.claude/worktrees/<name>`, a
+  worktree Claude Code made, counts as `<repo>`, any other as itself, and no `dir` as no project
+  (`status.ProjectOf`, which no drawing package or command calls), each path cleaned, so one
+  written two ways is one project. A project is named by its folder's name, `switchboard`, and
+  two with one name by as many of their parents' as tell them apart, `client/api` and `own/api`,
+  or `a/x/api` and `b/x/api`, cut as `status.DirName` cuts (`status.ProjectNames`); within it, a
+  session keeps its own directory's name. Nothing drawn names a project yet (the owner's call, 13
+  November 2026).
 - **Its rows,** at 160×37: the title row (0) and the status line (2), as every page has them (see
   The page); the heading (4); now (6 and 7); STORY (9 to 17): its heading (9), a move's label (10),
   its columns (11 to 15), the ribbon (16) and the axis (17); the accounts it ran on, a row each,
@@ -7322,11 +7329,11 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
   (settled in the plan). A router from before milestone 5 has no `GET /history`, `events` or
   `GET /stream`: Graphs' cards draw from the readings history's files, LATELY and the Log from the events'
   files alone, and nothing travels.
-- **A router from before projects** gives no `project` on its sessions or its stream, and takes the
-  project header off unread, so its lines name none: a session's project is then its directory's,
-  as a line from before projects has it (see A session's page, A project). An older reader of a
-  newer router's sessions, stream, lines or `state.json` passes `project` over, as every reader
-  passes over a field it doesn't know.
+- **A router from before projects** gives no `project` on its sessions, its stream or its events,
+  and takes the project header off unread, so its lines name none: a session's project is then its
+  directory's, as a line from before projects has it (see A session's page, A project). An older
+  reader of a newer router's sessions, stream, events, lines or `state.json` passes `project`
+  over, as every reader passes over a field it doesn't know.
 
 ### Kept from the dashboard before milestone 5
 
@@ -8083,20 +8090,21 @@ from the first day a router that has it runs, so nothing before then is in it.
   directories (settled in the plan, 19 October 2026): once a day has ended and its summary stands,
   the router writes the day's head beside its digest, `logday-<local date>.json.gz`, holding the
   day's side: each session the day's lines count toward, but Claude Code's quota checks, with its
-  whole id, the directory its lines last named, how many they are and when the last arrived, as
-  the find holds it; and where the day's rows lie in its rows file (below). It's built of exactly
+  whole id, the directory its lines last named, the project the last to name either named, how
+  many they are and when the last arrived, as the find holds it; and where the day's rows lie in
+  its rows file (below). It's built of exactly
   the lines the Log reads of the day, in their order, by the one read of a day's lines both share,
   the day's own files and those either side of it, as a change of time zone files a line under a
   date beside its own, every line handed to the views' builder through the same `ledger.Digester`
   seam, the side its JSON and each chunk of rows its JSON lines, which the ledger carries as
   they're given and never reads.
   - **Its head says what it was built from,** as a digest's does: the version of its envelope, the
-    ledger's, 3, and of its side and rows, the views' (`views.RowsVersion`, 4, since a row holds
-    its project beside its directory); its day, and the
-    day's start and end in the time zone it was built in, as nanoseconds; the `lines` of the summary
-    it was built against; how many lines the day's read gave; `rests_on`, each day beside it whose
-    files gave it a line, as a change of time zone files one, with the lines the ledger kept of
-    that day before the read, as a digest's entry keeps the days it rests on; and its rows' table:
+    ledger's, 3, and of its side and rows, the views' (`views.RowsVersion`, 4, since a row and a
+    side's session hold their project beside their directory); its day, and the day's start and
+    end in the time zone it was built in, as nanoseconds; the `lines` of the summary it was built
+    against; how many lines the day's read gave; `rests_on`, each day beside it whose files gave it
+    a line, as a change of time zone files one, with the lines the ledger kept of that day before
+    the read, as a digest's entry keeps the days it rests on; and its rows' table:
     the rows file's size, how many rows it holds, and each chunk's place in it, its offset, length
     and CRC, its rows and its meta (below). It's JSON, gzipped, its zeros left out, its side and
     then its chunks last, written whole, 0600, beside where it goes and renamed into place, and
@@ -9669,8 +9677,9 @@ verbs).
 - **An event** is `{id, at, kind}` and the fields its kind needs, each left out where it doesn't.
   Each event naming a `session` carries `dir`, the directory the session ran in as the router
   wrote the event, as its assignment holds it and the request ledger gives one, left out where
-  none was known yet; LATELY and the Log's card name the session by it, so a line's name never
-  changes as the session cools:
+  none was known yet, and `project`, its project, as its assignment holds it beside `dir`, left
+  out alike, and by a router from before; LATELY and the Log's card name the session by `dir`, so
+  a line's name never changes as the session cools:
   - `started`: a session first remembered, as Choosing an account remembers one, told as its first
     answer of success comes, so never a quota check's: `session` and `model`; `account` the account
     whose answer started it; and `reason` why the session is there, as its assignment says, while
@@ -9955,15 +9964,13 @@ verbs).
   `mcp`, `plugin`, `plugins`, `auth`, `import`, `project`, `auto-mode` and `gateway` look after
   Claude Code on this machine, or set up its login, and `--version`, `-v`, `--help` and `-h` print
   its version or its help, as a tool checking it asks; switchboard has no part in them, and they
-  go ahead with the router down. When the
-  first of Claude Code's arguments names one, `run` starts `claude` as if switchboard weren't there,
-  environment and arguments untouched but for that mark and `SWITCHBOARD_WHEN_ROUTER_DOWN`, an
-  inherited pin, directory or project included, and says nothing; the log notes it at debug.
-  `--direct` still starts it on Claude Code's own login. Only the first argument counts:
-  `claude -p doctor` is a prompt. Everything else goes through `run` as any session does,
-  background sessions (`claude
-  --bg`), `agents`, `attach`, `respawn` and `ultrareview` among them. `internal/claude` keeps the
-  list.
+  go ahead with the router down. When the first of Claude Code's arguments names one, `run` starts
+  `claude` as if switchboard weren't there, environment and arguments untouched but for that mark
+  and `SWITCHBOARD_WHEN_ROUTER_DOWN`, an inherited pin, directory or project included, and says
+  nothing; the log notes it at debug. `--direct` still starts it on Claude Code's own login. Only
+  the first argument counts: `claude -p doctor` is a prompt. Everything else goes through `run` as
+  any session does, background sessions (`claude --bg`), `agents`, `attach`, `respawn` and
+  `ultrareview` among them. `internal/claude` keeps the list.
 - **Finding the real `claude`:** `run` looks along `PATH`, then where its installers put it
   (`~/.local/bin`, `/opt/homebrew/bin`, `/usr/local/bin`, `~/.claude/local`), for a file that can
   be run, passing over any `claude` that's switchboard, which would start it again: one that
