@@ -279,7 +279,7 @@ func (w ProjectsWorld) Ledger() views.Ledger {
 // of today's.
 func (w ProjectsWorld) Days() views.SessionDays {
 	l := w.Ledger()
-	return views.ReadSessionDays(l, w.Now.AddDate(-1, 0, 0), w.Now).Tailed(l.Day(dayfile.DateOf(w.Now)), true, nil, w.Now)
+	return views.ReadSessionDays(l, w.Now.AddDate(-1, 0, 0), w.Now).Tailed(l.Day(dayfile.DateOf(w.Now)), true, nil, nil, w.Now)
 }
 
 // Input is what the world's page is built of over the period given.

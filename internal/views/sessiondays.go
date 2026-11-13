@@ -101,13 +101,14 @@ func begunBefore(l Ledger, day time.Time, after []DaySession, read bool) map[str
 	return begun
 }
 
-// Owed are the dates of the days before now's d needs read again whole, as
-// Tailed's late takes them, oldest first: each it holds owed, as
-// sessionDay's owed has it; and where the day has turned since d's today,
-// the day it followed then, its lines after the tail's last read unread,
-// and each after it before now's, none of whose lines it read. A watch
-// reading them for each read of the tail it hands Tailed loses no line of a
-// day that turns.
+// Owed are the dates of the days before now's d needs read again whole,
+// oldest first: each it holds owed, as sessionDay's owed has it; and where
+// the day has turned since d's today, the day it followed then, its lines
+// after the tail's last read unread, and each after it before now's, none
+// of whose lines it read. The caller reads each, and hands Tailed every
+// date it read, as read, with the lines of each, as late, a day of no lines
+// read none, so a day read stops being owed whatever it held. A watch doing
+// so for each read of the tail loses no line of a day that turns.
 func (d SessionDays) Owed(now time.Time) []string {
 	var owed []string
 	for _, day := range d.days {
@@ -124,15 +125,16 @@ func (d SessionDays) Owed(now time.Time) []string {
 
 // Tailed is d at now, given what the ledger's tail read: gained, today's
 // lines gained since its mark, every one of today's where afresh says, as
-// Ledger's Today gives them; and late, the lines of days before today read
-// again whole, by their dates, as Owed names the days d needs. Where the day
-// has turned since d's today, what d folded of it is kept as that day's,
-// owed, so none of its lines is lost or taken twice, and each day after it
-// before today's is owed too; and each day late gives is folded afresh of
-// its lines, whole, in place of what d held of it, owed no more. Lines
-// gained that arrived on another day than today are the late read's of
-// their day, and are passed over.
-func (d SessionDays) Tailed(gained []ledger.Held, afresh bool, late map[string][]ledger.Held, now time.Time) SessionDays {
+// Ledger's Today gives them; read, the dates of the days before today it
+// read again whole, as Owed names the days d needs; and late, their lines,
+// by their dates, none of a day of none. Where the day has turned since d's
+// today, what d folded of it is kept as that day's, owed, so none of its
+// lines is lost or taken twice, and each day after it before today's is
+// owed too; and each day read, or late gives, is folded afresh of its
+// lines, whole, in place of what d held of it, owed no more, whatever it
+// held. Lines gained that arrived on another day than today are the late
+// read's of their day, and are passed over.
+func (d SessionDays) Tailed(gained []ledger.Held, afresh bool, read []string, late map[string][]ledger.Held, now time.Time) SessionDays {
 	today := Today(now)
 	switch {
 	case d.turned(now):
@@ -144,7 +146,9 @@ func (d SessionDays) Tailed(gained []ledger.Held, afresh bool, late map[string][
 	case d.today.Date != today.Date, afresh:
 		d.today, d.held = today, todaysSessions()
 	}
-	for _, date := range slices.Sorted(maps.Keys(late)) {
+	dates := slices.Concat(read, slices.Collect(maps.Keys(late)))
+	slices.Sort(dates)
+	for _, date := range slices.Compact(dates) {
 		if date < today.Date {
 			d.days = withDay(d.days, sessionDay{date: date, sessions: DaySessions(RecordsOf(late[date]))})
 		}

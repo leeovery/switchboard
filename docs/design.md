@@ -3944,7 +3944,8 @@ is built (`views.ProjectsPage`); its drawing is to come.
   lines, folded by the hour, a line the ledger's files hold twice counted once, as the List and the
   Log count it. A day that turns keeps what today held as that day's, owed a read of its lines
   whole, and every day slept through owed too, till the tail's read of the days it followed no
-  further gives them (`SessionDays.Owed` names them), so no line is lost or counted twice; a page
+  further gives them (`SessionDays.Owed` names them, and `Tailed` takes every date read, so a day
+  read of no lines is owed no more), so no line is lost or counted twice; a page
   built before that read counts what was held as the day gone's. The List says which are running.
   Worth is priced as it's read, at the prices Past and the List price at.
 - **The list:** a row a project with a session in the period, by worth, greatest first, then by

@@ -71,7 +71,7 @@ func projectAsks(session, dir, project, account string, at ...time.Time) []ledge
 // gives them, every one of today's.
 func heldDays(now time.Time, lines ...ledger.Held) views.SessionDays {
 	l := ledgerOfLines(lines...)
-	return views.ReadSessionDays(l, now.AddDate(-1, 0, 0), now).Tailed(l.days[dayfile.DateOf(now)], true, nil, now)
+	return views.ReadSessionDays(l, now.AddDate(-1, 0, 0), now).Tailed(l.days[dayfile.DateOf(now)], true, nil, nil, now)
 }
 
 // projectsIn is what Projects' page is built of over the period given at
@@ -365,21 +365,21 @@ func TestTheDayTurningLosesNoLineAndTakesNoneTwice(t *testing.T) {
 	late := projectAsk(repoSession, "/code/switchboard", "", "work", opus, october(6, 23, 59))
 	after := projectAsk(repoSession, "/code/switchboard", "", "work", opus, october(7, 0, 1))
 	wednesday := october(7, 0, 5)
-	held := views.ReadSessionDays(ledgerOfLines(), tuesday.AddDate(0, -1, 0), tuesday).Tailed([]ledger.Held{early}, true, nil, tuesday)
+	held := views.ReadSessionDays(ledgerOfLines(), tuesday.AddDate(0, -1, 0), tuesday).Tailed([]ledger.Held{early}, true, nil, nil, tuesday)
 	tests := []struct {
 		name     string
 		turned   views.SessionDays
 		requests int
 	}{
-		{name: "what was folded kept", turned: held.Tailed([]ledger.Held{after}, true, nil, wednesday), requests: 2},
+		{name: "what was folded kept", turned: held.Tailed([]ledger.Held{after}, true, nil, nil, wednesday), requests: 2},
 		{
 			name:     "the day gone given again whole",
-			turned:   held.Tailed([]ledger.Held{after}, true, map[string][]ledger.Held{"2026-10-06": {early, late}}, wednesday),
+			turned:   held.Tailed([]ledger.Held{after}, true, nil, map[string][]ledger.Held{"2026-10-06": {early, late}}, wednesday),
 			requests: 3,
 		},
 		{
 			name:     "a line of the day gone among today's passed over",
-			turned:   held.Tailed([]ledger.Held{late, after}, true, nil, wednesday),
+			turned:   held.Tailed([]ledger.Held{late, after}, true, nil, nil, wednesday),
 			requests: 2,
 		},
 	}
@@ -396,7 +396,7 @@ func TestTheDayTurningLosesNoLineAndTakesNoneTwice(t *testing.T) {
 	if !reflect.DeepEqual(given.Rows, whole.Rows) {
 		t.Errorf("the page of the day given again whole is\n%+v\nwant, as the days read afresh give\n%+v", given.Rows, whole.Rows)
 	}
-	if again := held.Tailed(nil, false, nil, tuesday).Projects(projectsIn(views.PeriodThisWeek, tuesday)); again.All.Requests != 1 {
+	if again := held.Tailed(nil, false, nil, nil, tuesday).Projects(projectsIn(views.PeriodThisWeek, tuesday)); again.All.Requests != 1 {
 		t.Errorf("held, the day not turned, the page counts %d requests, want 1", again.All.Requests)
 	}
 }
@@ -410,7 +410,7 @@ func TestTheDayGoneIsOwedTillItsLinesAreReadWhole(t *testing.T) {
 	tuesday := october(6, 23, 0)
 	early := projectAsk(repoSession, "/code/switchboard", "", "work", opus, october(6, 10, 0))
 	late := projectAsk(repoSession, "/code/switchboard", "", "work", opus, october(6, 23, 59))
-	held := views.ReadSessionDays(ledgerOfLines(), tuesday.AddDate(0, -1, 0), tuesday).Tailed([]ledger.Held{early}, true, nil, tuesday)
+	held := views.ReadSessionDays(ledgerOfLines(), tuesday.AddDate(0, -1, 0), tuesday).Tailed([]ledger.Held{early}, true, nil, nil, tuesday)
 	wednesday := october(7, 0, 10)
 	if got := held.Projects(projectsIn(views.PeriodThisWeek, wednesday)).All.Requests; got != 1 {
 		t.Errorf("built after the day turned, before the tail's read, the page counts %d requests, want Tuesday's 1", got)
@@ -424,23 +424,37 @@ func TestTheDayGoneIsOwedTillItsLinesAreReadWhole(t *testing.T) {
 	if got, want := held.Owed(october(9, 8, 0)), []string{"2026-10-06", "2026-10-07", "2026-10-08"}; !reflect.DeepEqual(got, want) {
 		t.Errorf("days later, the days owe %v, want %v", got, want)
 	}
-	unread := held.Tailed(nil, true, nil, wednesday)
+	unread := held.Tailed(nil, true, nil, nil, wednesday)
 	if got, want := unread.Owed(wednesday), []string{"2026-10-06"}; !reflect.DeepEqual(got, want) {
 		t.Errorf("tailed without the day gone, the days owe %v, want %v still", got, want)
 	}
-	read := unread.Tailed(nil, false, map[string][]ledger.Held{"2026-10-06": {early, late}}, wednesday)
+	read := unread.Tailed(nil, false, nil, map[string][]ledger.Held{"2026-10-06": {early, late}}, wednesday)
 	if got := read.Owed(wednesday); len(got) != 0 {
 		t.Errorf("given the day gone whole, the days owe %v, want none", got)
 	}
 	if got := read.Projects(projectsIn(views.PeriodThisWeek, wednesday)).All.Requests; got != 2 {
 		t.Errorf("given the day gone whole, the page counts %d requests, want 2, its line after the last read among them", got)
 	}
+	friday := october(9, 8, 0)
+	slept := held.Tailed(nil, true, nil, nil, friday)
+	sleptThrough := []string{"2026-10-06", "2026-10-07", "2026-10-08"}
+	if got := slept.Owed(friday); !reflect.DeepEqual(got, sleptThrough) {
+		t.Errorf("tailed on Friday, the days owe %v, want %v, the days slept through among them", got, sleptThrough)
+	}
+	woken := slept.Tailed(nil, false, sleptThrough, map[string][]ledger.Held{"2026-10-06": {early, late}}, friday)
+	if got := woken.Owed(friday); len(got) != 0 {
+		t.Errorf("each day read, those of no lines among them, the days owe %v, want none", got)
+	}
+	if got := woken.Projects(projectsIn(views.PeriodThisWeek, friday)).All.Requests; got != 2 {
+		t.Errorf("each day read, the page counts %d requests, want Tuesday's 2", got)
+	}
 }
 
 // A line the ledger's files hold twice is counted once, as the List and the
-// Log count it, by its id, in a day read whole and across the tail's reads
-// of today; one with no id is counted as often as it's given, as a read
-// can't tell two such requests apart.
+// Log count it, by its id, in a day read whole, in a day's side, and across
+// the tail's reads of today; one with no id as often as a read gives it
+// beyond those held alike, as countedOnce has it, as a read can't tell two
+// such requests apart.
 func TestALineHeldTwiceIsCountedOnce(t *testing.T) {
 	twice := projectAsk(repoSession, "/code/switchboard", "", "work", opus, october(6, 10, 0))
 	idless := projectAsk(repoSession, "/code/switchboard", "", "work", opus, october(6, 11, 0))
@@ -450,9 +464,41 @@ func TestALineHeldTwiceIsCountedOnce(t *testing.T) {
 	}
 	today := projectAsk(repoSession, "/code/switchboard", "", "work", opus, october(7, 9, 0))
 	tailed := views.ReadSessionDays(ledgerOfLines(), now.AddDate(0, -1, 0), now).
-		Tailed([]ledger.Held{today}, true, nil, now).Tailed([]ledger.Held{today}, false, nil, now)
+		Tailed([]ledger.Held{today}, true, nil, nil, now).Tailed([]ledger.Held{today}, false, nil, nil, now)
 	if got := tailed.Projects(projectsIn(views.PeriodToday, now)).All.Requests; got != 1 {
 		t.Errorf("today's line given by two reads of the tail counts %d requests, want 1", got)
+	}
+	todayIdless := today
+	todayIdless.Request = ""
+	once := views.ReadSessionDays(ledgerOfLines(), now.AddDate(0, -1, 0), now).Tailed([]ledger.Held{todayIdless}, true, nil, nil, now)
+	for _, tt := range []struct {
+		name     string
+		given    []ledger.Held
+		requests int
+	}{
+		{"given again once, held once", []ledger.Held{todayIdless}, 1},
+		{"given again twice, held once", []ledger.Held{todayIdless, todayIdless}, 2},
+	} {
+		if got := once.Tailed(tt.given, false, nil, nil, now).Projects(projectsIn(views.PeriodToday, now)).All.Requests; got != tt.requests {
+			t.Errorf("a line with no id %s across the tail's reads counts %d requests, want %d", tt.name, got, tt.requests)
+		}
+	}
+	build := views.Digests{}.Day()
+	build.Take(twice.Line)
+	build.Take(twice.Line)
+	built, err := build.Built()
+	if err != nil {
+		t.Fatal(err)
+	}
+	sided := sidedLedger{sides: map[string]json.RawMessage{"2026-10-06": built.Side}}
+	requests := 0
+	for _, s := range views.DaySessionsOn(sided, "2026-10-06") {
+		for _, u := range s.Uses {
+			requests += u.Requests
+		}
+	}
+	if requests != 1 {
+		t.Errorf("a day's side built of its line twice holds %d requests, want 1", requests)
 	}
 }
 
@@ -480,9 +526,9 @@ func TestASessionStartsAtItsFirstRequestBeforeThePeriod(t *testing.T) {
 		want    time.Time
 	}{
 		{"of the days held", heldDays(now, sunday, monday), views.PeriodThisWeek, worktreeSession, october(4, 22, 0)},
-		{"walked back from the week's first day", views.ReadSessionDays(l, october(5, 0, 0), now).Tailed(todays, true, nil, now), views.PeriodThisWeek, worktreeSession, october(4, 22, 0)},
-		{"over midnight, of today's", views.ReadSessionDays(l, now, now).Tailed(todays, true, nil, now), views.PeriodToday, repoSession, october(6, 23, 30)},
-		{"walked back no further than 31 days", views.ReadSessionDays(lm, now, now).Tailed(lm.days["2026-10-07"], true, nil, now), views.PeriodToday, clientSession, october(7, 8, 0).AddDate(0, 0, -31)},
+		{"walked back from the week's first day", views.ReadSessionDays(l, october(5, 0, 0), now).Tailed(todays, true, nil, nil, now), views.PeriodThisWeek, worktreeSession, october(4, 22, 0)},
+		{"over midnight, of today's", views.ReadSessionDays(l, now, now).Tailed(todays, true, nil, nil, now), views.PeriodToday, repoSession, october(6, 23, 30)},
+		{"walked back no further than 31 days", views.ReadSessionDays(lm, now, now).Tailed(lm.days["2026-10-07"], true, nil, nil, now), views.PeriodToday, clientSession, october(7, 8, 0).AddDate(0, 0, -31)},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

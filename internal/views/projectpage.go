@@ -260,7 +260,7 @@ func (p *projectTally) rows(in ProjectsInput) []ProjectSession {
 // as names has it of what names it over its days, as no router lists it;
 // and brought to its account, as the List brings one, by its model's latest
 // move, on its last day, where that was onto it, as movedOnto has it, its
-// cost priced as price prices it, marked ▸.
+// cost priced as price prices it, marked ▸ where a move brought it there.
 func (st *sessionTally) listedEnded(price pricing) ListedSession {
 	ended := cmp.Or(st.lastRequest, st.lastLine)
 	s := ListedSession{
