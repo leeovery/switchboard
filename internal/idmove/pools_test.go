@@ -361,7 +361,7 @@ func TestFirstPoolGivesADaySummarisedBeforePoolsSinceTheMoveTheRecordsFirstPool(
 	}
 	writeFile(t, path, downgraded)
 
-	ledger.Open(dir, dayfile.Forever, clock, ledger.HistoryIn(readingsFiles(f.state)), fixtureCaps, logs.For("test"), idmove.FirstPool(f.state)).SummariseEnded(now)
+	ledger.Open(dir, dayfile.Forever, clock, ledger.HistoryIn(readingsFiles(f.state)), fixtureCaps, logs.For("test"), idmove.FirstPool(f.state, func() config.Pools { return nil })).SummariseEnded(now)
 	var s ledger.Summary
 	if err := json.Unmarshal([]byte(readFile(t, path)), &s); err != nil {
 		t.Fatal(err)
@@ -369,6 +369,28 @@ func TestFirstPoolGivesADaySummarisedBeforePoolsSinceTheMoveTheRecordsFirstPool(
 	for _, a := range s.Accounts {
 		if in := a.InPool(first, ""); len(a.Models) > 0 && (!slicesOfModelsEqual(in.Models, a.Models) || a.Pools != nil) {
 			t.Errorf("summarised again, yesterday's day of %q is %+v, want its whole work in the first pool alone", a.Account, a)
+		}
+	}
+}
+
+// The first pool is the one noted where it's among the pools, else their
+// first, as config.Pools' First has it, and the one noted where they hold
+// none, as while the router takes up those the move made.
+func TestTheFirstPoolIsThePoolsFirstElseTheOneNoted(t *testing.T) {
+	pools := config.Pools{{ID: "q7mt"}, {ID: "b2n8"}}
+	tests := []struct {
+		pools config.Pools
+		noted string
+		want  string
+	}{
+		{pools: pools, noted: "b2n8", want: "b2n8"},
+		{pools: pools, noted: "x9z9", want: "q7mt"},
+		{noted: "b2n8", want: "b2n8"},
+		{},
+	}
+	for _, tt := range tests {
+		if got := idmove.FirstOf(tt.pools, tt.noted); got != tt.want {
+			t.Errorf("FirstOf(%v, %q) = %q, want %q", tt.pools.IDs(), tt.noted, got, tt.want)
 		}
 	}
 }

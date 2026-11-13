@@ -34,9 +34,10 @@ func EventsFrom(first time.Time) time.Time {
 type EventsRead struct {
 	since time.Time
 	held  map[eventKey]Event
-	// newest is the newest event the last document taken in gave, by its
-	// router's run and its id, the id 0 where it gave none; looked is set
-	// once a document is taken in.
+	// newest is the newest event the router kept as it built the last
+	// document taken in, as its EventsKept tell, else, of one telling none,
+	// the newest it gave, by its router's run and its id, the id 0 where it
+	// gave none; looked is set once a document is taken in.
 	newest EventKey
 	looked bool
 }
@@ -144,7 +145,7 @@ func (r EventsRead) Look(m status.Moment, run time.Time) EventsRead {
 // Same has it, so what's built of r before stands, and r's events are its
 // own still.
 func (r EventsRead) Looked(m status.Moment, run time.Time) (EventsRead, bool) {
-	newest := EventKey{Run: run}
+	newest := EventKey{Run: run, ID: m.EventsKept.Newest}
 	var fresh []Event
 	for _, e := range m.Events {
 		newest.ID = max(newest.ID, e.ID)
@@ -166,13 +167,23 @@ func (r EventsRead) Looked(m status.Moment, run time.Time) (EventsRead, bool) {
 
 // Skips reports whether the status document m is a moment of, told by the
 // router whose run began at run, skips events the router told after those
-// the last document r took in gave: its oldest comes more than one after
-// their newest, of the same run, as the router numbers its events one after
-// another as it runs, and gives its newest alone in its document, so those
-// between are on its files alone. It's false where the last document taken
-// in was another run's, or none was.
+// the last document r took in gave, as the router numbers its events one
+// after another as it runs, and keeps its newest alone, so those between
+// are on its files alone: the oldest it kept comes more than one after the
+// newest it kept for the last, as its EventsKept tell, every pool's, so a
+// pool's document skips none for leaving another's out. A document telling
+// none, whose events are every one the router kept, goes by its own: its
+// oldest coming more than one after the last's newest, none where it gives
+// none. It's false where the last document taken in was another run's, or
+// none was.
 func (r EventsRead) Skips(m status.Moment, run time.Time) bool {
-	if !r.looked || !r.newest.Run.Equal(run) || len(m.Events) == 0 {
+	if !r.looked || !r.newest.Run.Equal(run) {
+		return false
+	}
+	if m.EventsKept != (status.EventsKept{}) {
+		return m.EventsKept.Oldest > r.newest.ID+1
+	}
+	if len(m.Events) == 0 {
 		return false
 	}
 	oldest := slices.MinFunc(m.Events, func(a, b status.Event) int { return cmp.Compare(a.ID, b.ID) })

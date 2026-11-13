@@ -349,7 +349,7 @@ func TestPoolEditsRefuse(t *testing.T) {
 			name:    "fencing a pool whose directories go on over lines",
 			config:  pooledWith(t, "dirs = [\"/Volumes/Client\"]\n", "dirs = [\n  \"/Volumes/Client\",\n]\n"),
 			edit:    func(d *config.Draft) error { return d.SetPoolDirs("h4w2", []string{"/Volumes/Other"}) },
-			wantErr: `editing %s as text wouldn't make exactly the change meant, so it's left as it was: set dirs to ["/Volumes/Other"] in pool "h4w2" by hand`,
+			wantErr: `pool "h4w2" writes its dirs across lines, which editing %s as text can't change: set them by hand`,
 		},
 		{
 			name:    "removing a pool that isn't configured",

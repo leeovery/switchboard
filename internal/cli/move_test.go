@@ -45,9 +45,21 @@ const (
 // markMoved marks the moves of the history done in the state directory dir,
 // onto the accounts' ids and to pools, as the router does once it has made
 // them: a test whose history isn't one waiting on a move has it marked so.
+// The accounts record notes the first pool, as the move to pools notes it
+// before anything else, where it notes none: b2n8, Default, unfenced, so a
+// config naming no pools has every account in it, as the verbs read it.
 func markMoved(t *testing.T, dir string) {
 	t.Helper()
 	markDone(t, dir, idsMark, poolsMark)
+	err := identity.NewFile(dir).Update(func(r *identity.Record) error {
+		if _, noted := r.FirstPool(); !noted {
+			r.NoteFirst("b2n8", identity.PoolWritten{Label: "Default"}, time.Date(2026, 9, 28, 13, 12, 0, 0, time.UTC))
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 }
 
 // markDone marks the moves of the history done in the state directory dir

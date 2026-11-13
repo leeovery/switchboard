@@ -1101,8 +1101,10 @@ func newServeSetup(t *testing.T, upstream string, env map[string]string) *serveS
 	writeToken(t, s.deps, "work", "test-token-work")
 	writeToken(t, s.deps, "side", "test-token-side")
 	// The history's moves are done, as on an install that has made them, so
-	// a test of anything else serve does isn't one of a move.
-	markMoved(t, s.state)
+	// a test of anything else serve does isn't one of a move: the accounts
+	// record notes no first pool, so the router never heals the config with
+	// one, a test of pools giving the config its own.
+	markDone(t, s.state, idsMark, poolsMark)
 	return s
 }
 

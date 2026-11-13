@@ -68,8 +68,15 @@ func (ps Pools) ByID(id string) (Pool, bool) {
 // LabelTaken reports whether a pool, but the one with the given id, shows
 // label, ignoring case, as Accounts' LabelTaken says of an account's.
 func (ps Pools) LabelTaken(id, label string) bool {
+	_, taken := ps.Labelled(id, label)
+	return taken
+}
+
+// Labelled returns the pool, but the one with the given id, that shows
+// label, ignoring case, reporting false where none does.
+func (ps Pools) Labelled(id, label string) (Pool, bool) {
 	shown := prose.Clean(label)
-	return slices.ContainsFunc(ps, func(p Pool) bool { return p.ID != id && strings.EqualFold(prose.Clean(p.Label), shown) })
+	return ps.find(func(p Pool) bool { return p.ID != id && strings.EqualFold(prose.Clean(p.Label), shown) })
 }
 
 // Unfenced returns the pool with no directories, reporting false where every
@@ -100,6 +107,32 @@ func (ps Pools) Implicit() (Pool, bool) {
 		return ps[0], true
 	}
 	return ps.Unfenced()
+}
+
+// Asked returns the pool a verb naming the one with the given id, "" for
+// none, reads or acts on: the one named, ids compared ignoring case, else
+// the one Implicit gives. It reports false where the one named isn't
+// configured, or none is named and Implicit gives none.
+func (ps Pools) Asked(named string) (Pool, bool) {
+	if named == "" {
+		return ps.Implicit()
+	}
+	return ps.ByID(named)
+}
+
+// First returns the id of the first pool, where work recorded in no pool is:
+// the one with the id noted, as the accounts record notes it, where it's
+// among ps, as ps spells its id; else ps's first, as where the one noted has
+// been removed, or can't be read; "" where ps holds none. The router and
+// every reader of the recorded files go by it alike.
+func (ps Pools) First(noted string) string {
+	switch p, ok := ps.ByID(noted); {
+	case ok:
+		return p.ID
+	case len(ps) > 0:
+		return ps[0].ID
+	}
+	return ""
 }
 
 // find returns the first pool that matches, reporting false where none does.

@@ -542,6 +542,56 @@ func TestPoolsImplicit(t *testing.T) {
 	}
 }
 
+func TestPoolsAsked(t *testing.T) {
+	acme := config.Pool{ID: "q7mt", Dirs: []string{"/Users/test/Code/acme"}}
+	client := config.Pool{ID: "h4w2", Dirs: []string{"/Users/test/Code/client"}}
+	unfenced := config.Pool{ID: "b2n8"}
+	tests := []struct {
+		name  string
+		pools config.Pools
+		named string
+		want  string
+	}{
+		{name: "one named", pools: config.Pools{acme, unfenced}, named: "q7mt", want: "q7mt"},
+		{name: "one named in another case", pools: config.Pools{acme, unfenced}, named: "Q7MT", want: "q7mt"},
+		{name: "one named that isn't configured", pools: config.Pools{acme, unfenced}, named: "x9z9"},
+		{name: "none named: the unfenced", pools: config.Pools{acme, unfenced}, want: "b2n8"},
+		{name: "none named, every pool fenced", pools: config.Pools{acme, client}},
+		{name: "one named, none configured", named: "q7mt"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := tt.pools.Asked(tt.named)
+			if got.ID != tt.want || ok != (tt.want != "") {
+				t.Errorf("Asked(%q) = %q, %v; want %q", tt.named, got.ID, ok, tt.want)
+			}
+		})
+	}
+}
+
+// The first pool is the one the record notes, where it's configured, else
+// the config's first, as once the one noted is removed.
+func TestTheFirstPoolIsTheOneNotedElseTheConfigsFirst(t *testing.T) {
+	pools := config.Pools{{ID: "q7mt"}, {ID: "b2n8"}}
+	tests := []struct {
+		name  string
+		pools config.Pools
+		noted string
+		want  string
+	}{
+		{name: "the one noted, configured", pools: pools, noted: "b2n8", want: "b2n8"},
+		{name: "the one noted, in another case", pools: pools, noted: "B2N8", want: "b2n8"},
+		{name: "the one noted, removed", pools: pools, noted: "x9z9", want: "q7mt"},
+		{name: "none noted, as of a record that can't be read", pools: pools, want: "q7mt"},
+		{name: "none configured", noted: "b2n8"},
+	}
+	for _, tt := range tests {
+		if got := tt.pools.First(tt.noted); got != tt.want {
+			t.Errorf("%s: First(%q) = %q, want %q", tt.name, tt.noted, got, tt.want)
+		}
+	}
+}
+
 func TestAPoolsAccountsAndPrimary(t *testing.T) {
 	cfg, err := load(writeConfig(t, accountIn("k3f9", "q7mt")+accountIn("b6s7", "b2n8")+accountIn("m2x7", "Q7MT")+"primary = true\n"+
 		poolTOML("b2n8")+poolTOML("q7mt", "~/Code/acme")+poolTOML("h4w2", "~/Code/client")))

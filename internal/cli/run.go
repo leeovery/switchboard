@@ -15,6 +15,7 @@ import (
 	"github.com/leeovery/switchboard/internal/identity"
 	"github.com/leeovery/switchboard/internal/idmove"
 	"github.com/leeovery/switchboard/internal/launch"
+	"github.com/leeovery/switchboard/internal/router"
 )
 
 // runOptions are the run command's flags.
@@ -236,20 +237,26 @@ func (a *app) ownLoginPools(ctx context.Context) (config.Pools, bool) {
 }
 
 // routersPools returns the pools the running router routes for, as its
-// health answer reports them, asked once: false where it can't be asked,
-// doesn't answer, or reports none.
+// health answer reports them, asked once, as routersHealth asks: false where
+// it can't be asked, doesn't answer, or reports none.
 func (a *app) routersPools(ctx context.Context) (config.Pools, bool) {
+	return launch.RoutedPools(a.routersHealth(ctx))
+}
+
+// routersHealth returns the running router's health answer, asked once:
+// zero where it can't be asked, or doesn't answer.
+func (a *app) routersHealth(ctx context.Context) router.Health {
 	client, err := a.routerClient()
 	if err != nil {
-		return nil, false
+		return router.Health{}
 	}
 	patience := launch.Patience{Answer: cmp.Or(a.Patience.Answer, launch.AskTimeout)}
 	h, err := patience.Ask(ctx, client)
 	if err != nil {
 		logger.Debug("can't ask the router for its pools", "error", err)
-		return nil, false
+		return router.Health{}
 	}
-	return launch.RoutedPools(h)
+	return h
 }
 
 // poolsMoved reports whether the move to pools is done, as idmove's mark in

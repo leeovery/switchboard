@@ -19,22 +19,30 @@ const namingASession = `Name a session by its id, or as much of it as is unique 
 routed in the last hour: switchboard status lists them, Claude Code's /status
 shows a session's own, and inside one, $CLAUDE_CODE_SESSION_ID holds its id.`
 
-// findSession returns the id of the session given names, as lookUpSession
-// finds it.
-func (a *app) findSession(ctx context.Context, client *router.Client, names status.Names, given string) (string, error) {
-	id, _, err := a.lookUpSession(ctx, client, names, given)
+// findSession returns the id of the session given names, in the pool with
+// the id given, "" for whatever pool, as lookUpSession finds it. Where a
+// pool is named, it fails as the router does where it hasn't seen the
+// session in that pool, so nothing is asked of a session of another.
+func (a *app) findSession(ctx context.Context, client *router.Client, names status.Names, given, pool string) (string, error) {
+	id, answered, err := a.lookUpSession(ctx, client, names, given, pool)
+	if err != nil || answered != nil || pool == "" {
+		return id, err
+	}
+	_, err = client.InPool(pool).Session(ctx, id)
 	return id, err
 }
 
 // lookUpSession returns the id of the session given names, and the session
 // as the router answers for it, where it has seen a session of that whole
-// id, in whatever pool; else nil, and the id of the one given names among
-// those routed in the last hour in every pool, as views.NamedRouted names
-// it, listing them, where it starts several, as they stand now, their
-// accounts as names has them. Given one that starts no such session's id, it
-// returns it as it is, as the whole id of a session idle for longer, for the
-// router to say whether it has seen it.
-func (a *app) lookUpSession(ctx context.Context, client *router.Client, names status.Names, given string) (string, *status.Session, error) {
+// id, in the pool with the id given, "" for whatever pool; else nil, and the
+// id of the one given names among those routed in the last hour in that
+// pool, else in every pool, as views.NamedRouted names it, listing them,
+// where it starts several, as they stand now, their accounts as names has
+// them. Given one that starts no such session's id, it returns it as it is,
+// as the whole id of a session idle for longer, for the router to say
+// whether it has seen it.
+func (a *app) lookUpSession(ctx context.Context, client *router.Client, names status.Names, given, pool string) (string, *status.Session, error) {
+	client = client.InPool(pool)
 	s, err := client.Session(ctx, given)
 	switch {
 	case err == nil:
@@ -42,7 +50,11 @@ func (a *app) lookUpSession(ctx context.Context, client *router.Client, names st
 	case !errors.Is(err, router.ErrUnknownSession):
 		return "", nil, err
 	}
-	sessions, err := client.SessionsInEveryPool(ctx)
+	list := client.SessionsInEveryPool
+	if pool != "" {
+		list = client.Sessions
+	}
+	sessions, err := list(ctx)
 	if err != nil {
 		return "", nil, err
 	}

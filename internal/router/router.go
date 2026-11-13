@@ -514,7 +514,7 @@ func (r *Router) assembled(rd poolRead) status.Document {
 	doc.Restart = r.upkeep.restartDue()
 	doc.Moving = r.moving.report()
 	doc.Export = r.exports.report()
-	doc.Events = rd.events(r.recent.events())
+	doc.Events, doc.EventsKept = rd.events(r.recent.keptWithIDs())
 	if r.primer != nil {
 		doc.Prime = r.primer.report(now, rd.routes)
 	}

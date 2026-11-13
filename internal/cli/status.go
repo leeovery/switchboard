@@ -20,6 +20,7 @@ func newStatusCommand(a *app) *cobra.Command {
 		probe   bool
 		refresh bool
 		session string
+		pool    string
 	)
 	cmd := &cobra.Command{
 		Use:   "status",
@@ -35,6 +36,9 @@ can't be read, as when an upgrade's rules refuse it and the router's restart
 into the new version is held, status shows the router's document while the
 router answers, then fails, saying why the config can't be read.
 
+It shows one pool's accounts. ` + readingAPool + ` Where there's more
+than one pool, the text names the one shown first.
+
 On a terminal, status prints this as text. Anywhere else, as in a pipe or an
 agent's shell, it prints the status document as JSON, for an agent or a
 script to read. --json prints the JSON, and --pretty the text, wherever
@@ -48,8 +52,10 @@ a limit is reset by hand, the router sees it. Without the router, or with
 With --session, print the label of the account the router sends a Claude Code
 session's requests to, the one its last-used model went to, as a statusline
 asks, on a terminal or off one; or with --json, the session's every model and
-why it went where it did, each account by its id. It needs the router
-running: start it with switchboard service install (or switchboard serve).
+why it went where it did, each account by its id. The session is found in
+whatever pool it's in, or with --pool, in that pool alone. It needs the
+router running: start it with switchboard service install (or switchboard
+serve).
 
 ` + namingASession,
 		Args: func(cmd *cobra.Command, args []string) error {
@@ -66,9 +72,9 @@ running: start it with switchboard service install (or switchboard serve).
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			out := cmd.OutOrStdout()
 			if session != "" {
-				return a.sessionStatus(cmd.Context(), out, session, form.json)
+				return a.sessionStatus(cmd.Context(), out, session, pool, form.json)
 			}
-			doc, unread, err := a.statusDocument(cmd.Context(), probe, readOnce(refresh))
+			doc, unread, err := a.statusDocument(cmd.Context(), probe, readOnce(refresh), pool)
 			if err != nil {
 				return err
 			}
@@ -76,7 +82,7 @@ running: start it with switchboard service install (or switchboard serve).
 				err = writeJSON(out, doc)
 			} else {
 				m := a.withRemoved(doc).At(a.Now(), claude.Policy())
-				_, err = io.WriteString(out, a.unrouted()+m.Text(a.running(cmd.Context(), m)...))
+				_, err = io.WriteString(out, a.unrouted()+a.momentHeading(cmd.Context(), m)+m.Text(a.running(cmd.Context(), m)...))
 			}
 			return cmp.Or(err, unread)
 		},
@@ -85,7 +91,16 @@ running: start it with switchboard service install (or switchboard serve).
 	cmd.Flags().BoolVar(&probe, "probe", false, "probe every account, even while the router runs")
 	cmd.Flags().BoolVarP(&refresh, "refresh", "r", false, "have the router read every account it may first, as usage --refresh does")
 	cmd.Flags().StringVar(&session, "session", "", "print the account the router sends session `ID`'s requests to")
+	addPoolFlag(cmd, &pool, "show")
 	return cmd
+}
+
+// momentHeading names the pool the moment is of, as poolHeading heads a
+// verb's text with it: "" where there's one pool or none, as poolsStanding
+// counts them, as where the config can't be loaded, and the router's
+// document is printed in its place.
+func (a *app) momentHeading(ctx context.Context, m status.Moment) string {
+	return poolHeading(poolNamed(a.poolsStanding(ctx), m.PoolLabel))
 }
 
 // unrouted says, in a paragraph of a line, when the claude a shell runs from
@@ -120,16 +135,16 @@ func (a *app) running(ctx context.Context, m status.Moment) []status.Session {
 
 // sessionStatus prints the account the router sends a session's requests to,
 // as the verbs' text names it, the session given by as much of its id as is
-// unique.
-func (a *app) sessionStatus(ctx context.Context, out io.Writer, given string, asJSON bool) error {
+// unique, in the pool with the id given, "" for whatever pool it's in.
+func (a *app) sessionStatus(ctx context.Context, out io.Writer, given, pool string, asJSON bool) error {
 	client, err := a.routerClient()
 	if err != nil {
 		return err
 	}
 	names := a.accountNames()
-	session, err := a.session(ctx, client, names, given)
+	session, err := a.session(ctx, client, names, given, pool)
 	if err != nil {
-		return sessionError(err)
+		return poolFlagNeeded(sessionError(err))
 	}
 	if asJSON {
 		return writeJSON(out, session)
@@ -139,17 +154,17 @@ func (a *app) sessionStatus(ctx context.Context, out io.Writer, given string, as
 }
 
 // session asks the router where the requests of the session given, by as
-// much of its id as is unique, go, in whatever pool it's in, its accounts as
-// names name them.
-func (a *app) session(ctx context.Context, client *router.Client, names status.Names, given string) (status.Session, error) {
-	id, answered, err := a.lookUpSession(ctx, client, names, given)
+// much of its id as is unique, go, in the pool with the id given, "" for
+// whatever pool it's in, its accounts as names name them.
+func (a *app) session(ctx context.Context, client *router.Client, names status.Names, given, pool string) (status.Session, error) {
+	id, answered, err := a.lookUpSession(ctx, client, names, given, pool)
 	if err != nil {
 		return status.Session{}, err
 	}
 	if answered != nil {
 		return *answered, nil
 	}
-	return client.Session(ctx, id)
+	return client.InPool(pool).Session(ctx, id)
 }
 
 // withRemoved is doc, its moments naming the accounts removed that the

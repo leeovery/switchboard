@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"iter"
@@ -12,7 +13,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/leeovery/switchboard/internal/config"
-	"github.com/leeovery/switchboard/internal/idmove"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/redact"
@@ -22,8 +22,8 @@ import (
 
 // requestsOptions are the requests command's flags.
 type requestsOptions struct {
-	session, account, since string
-	form                    formFlags
+	session, account, since, pool string
+	form                          formFlags
 }
 
 // idFlags are the flags that take an id, and what each is the id of, for the
@@ -46,18 +46,24 @@ ago, as 3h or 2d. --session keeps a session's own requests, named by its id or
 as much of it as is unique among the sessions read, and --account an
 account's, by its id: a label is refused.
 
+It lists one pool's requests, each by the pool it was routed in at the time,
+one from before pools the first pool's. ` + readingAPool + ` A session's or
+an account's requests are found in whatever pool each was routed in, or with
+--pool, in that pool alone.
+
 On a terminal, requests prints its lines as text. Anywhere else, as in a pipe
 or an agent's shell, it prints each as the ledger holds it, with "schema": 1
 put first, a JSON object a line, for an agent or a script to read. --json
 prints the JSON, and --pretty the text, wherever stdout is.`,
 		Args: a.ledgerArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return a.requests(cmd.OutOrStdout(), opts)
+			return a.requests(cmd.Context(), cmd.OutOrStdout(), opts)
 		},
 	}
 	cmd.Flags().StringVar(&opts.session, "session", "", "keep session `ID`'s requests")
 	cmd.Flags().StringVar(&opts.account, "account", "", "keep account `ID`'s requests")
 	cmd.Flags().StringVar(&opts.since, "since", "", "start at `WHEN`: "+sinceForms+" (default today's start)")
+	addPoolFlag(cmd, &opts.pool, "list the requests of")
 	opts.form.add(cmd)
 	return cmd
 }
@@ -100,9 +106,10 @@ func (a *app) ledgerState() (*config.Config, string, error) {
 
 // ledgerReader returns a reader of the request ledger in the state directory
 // dir, by the clock now, which summarises days with the caps of the accounts
-// cfg configures, knowing the first pool as idmove.FirstPool does.
-func ledgerReader(dir string, cfg *config.Config, now func() time.Time) *ledger.Reader {
-	return ledger.NewReader(dir, now, caps(cfg), logger, idmove.FirstPool(dir))
+// cfg configures, knowing the first pool as ledgerFirst has it of cfg's
+// pools, cfg as they stand.
+func (a *app) ledgerReader(dir string, cfg *config.Config, now func() time.Time) *ledger.Reader {
+	return ledger.NewReader(dir, now, caps(cfg), logger, a.ledgerFirst(dir, func() config.Pools { return cfg.Pools }))
 }
 
 // pricing is the price table, cfg's prices in place of its own, warning of
@@ -117,13 +124,30 @@ func pricing(cfg *config.Config) ledger.Table {
 	return table
 }
 
+// requestsPool returns the pool whose lines requests reads as opts ask, of
+// the files in the state directory dir, as filedPool has it of cfg, and cfg
+// as its pools stand: every pool's where a session or an account is asked
+// for and no pool named, as a verb naming them takes their pool from them,
+// their lines found in whatever pool each was routed in, cfg then as
+// standing has it.
+func (a *app) requestsPool(ctx context.Context, cfg *config.Config, dir string, opts requestsOptions) (filedPool, *config.Config, error) {
+	if (opts.session != "" || opts.account != "") && opts.pool == "" {
+		return filedPool{}, a.standing(ctx, cfg), nil
+	}
+	return a.filedPool(ctx, cfg, dir, opts.pool)
+}
+
 // requests prints the ledger's lines as opts ask.
-func (a *app) requests(out io.Writer, opts requestsOptions) error {
+func (a *app) requests(ctx context.Context, out io.Writer, opts requestsOptions) error {
 	cfg, dir, err := a.ledgerState()
 	if err != nil {
 		return err
 	}
-	reader := ledgerReader(dir, cfg, a.Now)
+	pool, cfg, err := a.requestsPool(ctx, cfg, dir, opts)
+	if err != nil {
+		return err
+	}
+	reader := a.ledgerReader(dir, cfg, a.Now)
 	now := a.Now()
 	from, err := sinceOr(opts.since, now, startOfDay(now, 0))
 	if err != nil {
@@ -135,7 +159,7 @@ func (a *app) requests(out io.Writer, opts requestsOptions) error {
 			return err
 		}
 	}
-	lines := reader.Lines(from)
+	lines := pool.read.Lines(reader.Lines(from))
 	if opts.session != "" {
 		named, held := views.NamedLines(lines, opts.session)
 		if named.Several != nil {
@@ -145,16 +169,23 @@ func (a *app) requests(out io.Writer, opts requestsOptions) error {
 	}
 	lines = views.OnAccount(lines, opts.account)
 	if a.printsJSON(opts.form, out) {
-		return writeLines(out, lines)
+		return writeLines(out, lines, poolLabelsIn(dir, cfg))
+	}
+	if _, err := io.WriteString(out, pool.heading()); err != nil {
+		return err
 	}
 	return writeRequests(out, views.RequestLines(lines, names()), from, now)
 }
 
 // writeLines writes each of lines as the ledger holds it, its schema first, a
-// line each.
-func writeLines(out io.Writer, lines iter.Seq[ledger.Held]) error {
+// line each, the label of the pool it names after it, as label labels it.
+func writeLines(out io.Writer, lines iter.Seq[ledger.Held], label func(pool string) string) error {
 	for h := range lines {
-		if err := writeStored(out, h.JSON); err != nil {
+		var poolLabel string
+		if h.Pool != "" {
+			poolLabel = label(h.Pool)
+		}
+		if err := writeStoredInPool(out, h.JSON, poolLabel); err != nil {
 			return err
 		}
 	}

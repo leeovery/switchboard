@@ -1,7 +1,6 @@
 package router
 
 import (
-	"cmp"
 	"errors"
 	"fmt"
 	"net/http"
@@ -138,15 +137,15 @@ func (rd poolRead) demandOf() (string, bool) {
 	return rd.pool, !rd.every || !rd.pools.pooled()
 }
 
-// events returns those of the events given that the pool read shows: one
-// that names a pool, where it's the pool read; one that names an account in
-// a pool, where it's in the pool read now, as its windows go; and every one
-// that names neither, as the router's own, its restarts and its exports do,
-// or names only a pool or an account that has left the config. A whole read
-// shows every event, and one of a closed table the router's own alone.
-func (rd poolRead) events(all []status.Event) []status.Event {
+// events returns those of the events kept, all, that the pool read shows,
+// as status.Event's InPool has it of the account each befell, by the pool
+// it's in, else the one it was in last, and the ids of those kept, as kept
+// gives them, so a reader takes none it leaves out for one let go of. A
+// whole read shows every event, telling no ids, as a document did before
+// pools, and one of a closed table the router's own alone.
+func (rd poolRead) events(all []status.Event, kept status.EventsKept) ([]status.Event, status.EventsKept) {
 	if rd.whole() {
-		return all
+		return all, status.EventsKept{}
 	}
 	var shown []status.Event
 	for _, e := range all {
@@ -154,34 +153,15 @@ func (rd poolRead) events(all []status.Event) []status.Event {
 			shown = append(shown, e)
 		}
 	}
-	return shown
+	return shown, kept
 }
 
 // shows reports whether the pool read shows the event e, as events says.
 func (rd poolRead) shows(e status.Event) bool {
 	if rd.pools.closed != "" {
-		return e.Pool == "" && befell(e) == ""
+		return e.Pool == "" && e.Befell() == ""
 	}
-	if _, in := rd.pools.pools.ByID(e.Pool); in {
-		return rd.routes(e.Pool)
-	}
-	id := befell(e)
-	if _, in := rd.pools.poolOf[id]; !in {
-		return true
-	}
-	return rd.holds(id)
-}
-
-// befell returns the account the event e befell, as a pool read shows it by:
-// the one it names; else the first a pool's pin names; else the one a
-// session moved to, where its session stays, or from, where it moved to
-// none; "" for none.
-func befell(e status.Event) string {
-	var pinned string
-	if len(e.Accounts) > 0 {
-		pinned = e.Accounts[0]
-	}
-	return cmp.Or(e.Account, pinned, e.To, e.From)
+	return e.InPool(rd.pool, rd.pools.first, rd.pools.placedIn)
 }
 
 // named returns the id and the label of the pool read: both "" in a config
@@ -195,25 +175,18 @@ func (rd poolRead) named() (id, label string) {
 }
 
 // asked returns the id of the pool a reader naming the one given, "" for
-// none, is answered for: the one named, else the one the verbs act on, as
-// config.Pools' Implicit has it; "" in a config from before pools, whatever
-// is named. It fails, naming the pools, where the pool named isn't
-// configured, or none is named and there's none the verbs act on, as where
-// every pool is fenced.
+// none, is answered for, as config.Pools' Asked has it; "" in a config from
+// before pools, whatever is named. It fails, naming the pools, where Asked
+// gives none, as where every pool is fenced.
 func (t *poolTable) asked(named string) (string, error) {
 	if len(t.pools) == 0 {
 		return "", nil
 	}
-	if named == "" {
-		if p, ok := t.pools.Implicit(); ok {
-			return p.ID, nil
-		}
-		return "", NeedPool("", t.pools)
+	p, ok := t.pools.Asked(named)
+	if !ok {
+		return "", NeedPool(named, t.pools)
 	}
-	if p, ok := t.pools.ByID(named); ok {
-		return p.ID, nil
-	}
-	return "", NeedPool(named, t.pools)
+	return p.ID, nil
 }
 
 // PoolNamed is a pool as a refusal for want of one names it.
