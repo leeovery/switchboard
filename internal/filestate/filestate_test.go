@@ -20,6 +20,14 @@ func TestAFileStandsTheSameWhileItsTheSameFileUnchanged(t *testing.T) {
 
 	write(t, other, time.Unix(1_700_000_000, 0))
 	replaced := func(t *testing.T) {
+		info, err := os.Stat(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		// Modified as the file it replaces was, only which file it is tells them apart.
+		if err := os.Chtimes(other, info.ModTime(), info.ModTime()); err != nil {
+			t.Fatal(err)
+		}
 		if err := os.Rename(other, path); err != nil {
 			t.Fatal(err)
 		}
