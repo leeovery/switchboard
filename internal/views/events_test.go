@@ -96,7 +96,7 @@ func TestEachKindOfEventIsToldInTheLogsWords(t *testing.T) {
 		{name: "a session's own pin cleared", event: status.Event{Kind: status.EventAuto, Account: "side", Session: "s1", By: "cli"},
 			kind: "auto", what: "this session back from side to the router's choice, set from the command line"},
 		{name: "a pool's pin the router dropped as the pools changed", event: status.Event{Kind: status.EventAuto, Accounts: []string{"personal"}, By: "router"},
-			kind: "auto", what: "new sessions back from personal to the router's choice, cleared by the router, as its accounts left the pool"},
+			kind: "auto", what: "new sessions back from personal to the router's choice, cleared by the router, as the pools changed"},
 		{name: "a pin set by one this release doesn't know", event: status.Event{Kind: status.EventAuto, Accounts: []string{"personal"}, By: "agent"},
 			kind: "auto", what: "new sessions back from personal to the router's choice"},
 		{name: "a restart for the config", event: status.Event{Kind: status.EventRestart, Reason: status.RestartForConfig},

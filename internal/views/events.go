@@ -50,16 +50,17 @@ var setFrom = map[string]string{"cli": "the command line", "dashboard": "the das
 
 // byRouter is the By of a pin the router cleared itself, which it does only
 // as the pools change, dropping one whose accounts have all left its pool,
-// or whose pool is gone; and clearedByRouter says so, in the Log's words.
+// or whose pool is gone, or one a later pin holds over as two come to be one
+// pool's; and clearedByRouter says so, in the Log's words.
 const (
 	byRouter        = "router"
-	clearedByRouter = "the router, as its accounts left the pool"
+	clearedByRouter = "the router, as the pools changed"
 )
 
 // setBy says who set or cleared a pin, as an event's By gives it, after
 // what was set: ", set from the command line", as setFrom has it, or ",
-// cleared by the router, as its accounts left the pool"; nothing for anyone
-// else, or no one.
+// cleared by the router, as the pools changed"; nothing for anyone else, or
+// no one.
 func setBy(by string) string {
 	if by == byRouter {
 		return ", cleared by " + clearedByRouter

@@ -794,10 +794,11 @@ pool for its whole life:
   by: an account that leaves a pool leaves its pin, a pin of a pool that's gone is dropped, and a
   pin from before pools, naming none, is once the move to pools is done the pin of the pool its
   accounts are in, else, where they're in none or in several, the first pool's, fitted to its
-  accounts there, settled as the pools change, never lazily as it's read. A pin the router drops
-  so is told as an `auto` event, `by` `router`, which `events` and the Log tell as `cleared by the
-  router, as its accounts left the pool`, with one pool too, as when a pin's last account is
-  removed. A pin set as the pools change under it, its accounts moved since the pool was read, is
+  accounts there, settled as the pools change, never lazily as it's read; where two pins come to
+  be one pool's, the later stands. A pin the router drops so, its accounts gone from its pool, its
+  pool gone, or a later pin holding there, is told as an `auto` event, `by` `router`, which
+  `events` and the Log tell as `cleared by the router, as the pools changed`, with one pool too,
+  as when a pin's last account is removed. A pin set as the pools change under it, its accounts moved since the pool was read, is
   refused, saying to pin them again. A router that routes nothing, as one that can't
   tell the pools (see Healed), keeps the pins it has, and refuses a new pin, and the clearing of a
   pool's, saying why.
