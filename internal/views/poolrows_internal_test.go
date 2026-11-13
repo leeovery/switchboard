@@ -203,6 +203,67 @@ func TestASparsePoolsDayBackPassesOverTheDaysItsSummariesRuleOut(t *testing.T) {
 	}
 }
 
+// A sparse pool's day back through no filter reads a day where a summary
+// that would rule it out doesn't stand, summarising none: of Acme's lines on
+// the first day alone, and the first pool's every day of five, Acme's read of
+// the fourth day, passed over once every day beside it is summarised, is
+// read where the fifth is today, or yesterday not summarised yet; and of
+// the third, summarised with no line of Acme's, where an Acme line is filed
+// under it late, giving that line, as the day's lines in the pool read raw
+// do.
+func TestASparsePoolsDayBackReadsADayNoStandingSummaryRulesOut(t *testing.T) {
+	at := func(d, hour int) time.Time {
+		return time.Date(2026, 10, 5+d, hour, 0, 0, 0, time.Local)
+	}
+	tests := []struct {
+		name string
+		day  int
+		// then has the ledger's round summarise as of the chain's clock, and
+		// moves it on or files lines since, as the case has it.
+		then    func(c *digestChain)
+		read    bool
+		records int
+	}{
+		{name: "every day beside it summarised", day: 3, then: func(c *digestChain) { c.by(at(5, 2)) }},
+		{name: "the day after it today", day: 3, then: func(c *digestChain) { c.by(at(4, 16)) }, read: true},
+		{
+			name: "the day after it yesterday, not summarised yet", day: 3,
+			then: func(c *digestChain) {
+				c.by(at(4, 2))
+				c.at = at(5, 0)
+			},
+			read: true,
+		},
+		{
+			name: "summarised before an Acme line was filed under it", day: 2,
+			then: func(c *digestChain) {
+				c.by(at(5, 2))
+				c.file(dayfile.DateOf(at(2, 0)), pooledLine("late", "a", acmePool, at(2, 20)))
+			},
+			read: true, records: 1,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			lines := []ledger.Line{pooledLine("a0", "a", acmePool, at(0, 9))}
+			for d := range 5 {
+				lines = append(lines, pooledLine(fmt.Sprintf("b%d", d), "b", firstPool, at(d, 15)))
+			}
+			c := newDigestChain(t, tt.name, 0, lines)
+			tt.then(c)
+			f, date, acme := c.follower(), dayfile.DateOf(at(tt.day, 0)), poolReads[0].read
+			counted := &readsCounted{Ledger: f}
+			got := ReadDay(counted, date, LogFilter{}, acme)
+			if read := counted.rows+counted.chunks+counted.raw > 0; read != tt.read || counted.summaries > 0 {
+				t.Errorf("%s, Acme's read reads %+v, want the day read %t, and no day summarised", date, counted.reads, tt.read)
+			}
+			if want := rawIn(f, date, acme); len(got.records) != tt.records || !reflect.DeepEqual(got.records, want.records) {
+				t.Errorf("%s, Acme's read gives %d records, want %d:\n%s", date, len(got.records), tt.records, recordsUnlike(got.records, want.records))
+			}
+		})
+	}
+}
+
 // A day's head built of lines naming no pool, as before pools and in a
 // config without them, names no pool: neither its chunks' metas nor its
 // side's sessions; and is read as of lines naming none, the first pool's

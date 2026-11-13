@@ -145,19 +145,26 @@ func (l heldLedger) DaysOn(dates []string) []ledger.Summary {
 	return on
 }
 
-// DaysHeldOn gives the summaries the records hold of the days with the
-// dates given, oldest first, as a Follower gives those that stand: false
-// where today's is among them, which none holds, as a Follower holds no
-// summary of today.
+// DaysHeldOn gives the summaries the records hold of the days before
+// today's with the dates given, each once, oldest first, as a Follower gives
+// those that stand: false where one of the days has lines that arrived by
+// now filed under it but no summary held, as today's, which none is, as a
+// Follower holds no summary of today.
 func (l heldLedger) DaysHeldOn(dates []string) ([]ledger.Summary, bool) {
-	today := dayfile.DateOf(l.now())
-	if slices.Contains(dates, today) {
-		return nil, false
+	now := l.now()
+	today := dayfile.DateOf(now)
+	lined := make(map[string]bool)
+	for _, f := range l.arrived(now) {
+		lined[f.date] = true
 	}
 	var held []ledger.Summary
-	for _, s := range l.records.days {
-		if s.Day < today && slices.Contains(dates, s.Day) {
-			held = append(held, s)
+	for _, date := range slices.Compact(slices.Sorted(slices.Values(dates))) {
+		i := slices.IndexFunc(l.records.days, func(s ledger.Summary) bool { return s.Day == date })
+		switch {
+		case i >= 0 && date < today:
+			held = append(held, l.records.days[i])
+		case lined[date]:
+			return nil, false
 		}
 	}
 	return held, true

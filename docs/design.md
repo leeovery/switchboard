@@ -6648,29 +6648,28 @@ one:
   summaries rule out unread: so the find's pick, reading back through its session's filter, lands
   in one read, however far back (settled in the plan, 20 October 2026).
 - **In a pool:** wherever the config has pools, one among them, the Log reads the work of the pool
-  the dashboard shows alone, by its id, through the pool's read, `views.PoolRead`, as the verbs
-  read a pool's (see Pools, Reading a pool), so a pool added while the dashboard is open never
-  shows in the one it shows. Which pool a line is of is the ledger's one rule, `ledger.RecordedIn`:
-  the pool it recorded, the first pool's where it named none, pool ids compared as the config
-  compares them, ignoring case (`config.SamePool`), as everywhere they're compared. Of today's
-  lines, it takes the pool's; of a past day read through no filter, it passes over one the
-  summaries the ledger holds of it and the days beside it whose files may hold its lines rule
-  out, none telling of the pool's work, summarising none from its lines to tell, as a day not
-  summarised yet, and today's, aren't; else it reads only the chunks whose meta names a pool the
-  read keeps, as a filter's read reads those that may keep a line, and holds the pool's rows
-  alone, or the pool's lines where the day reads raw; each day's figures, how far back a filter's
-  lines reach, and the days the find goes back through, are of the pool's summaries; and the
-  find's sessions of a day are read from its side where each session's lines are all of the pool
-  or none of it, else of the day's lines, as a side holds each session's pools, not its lines in
-  each: as where a session is resumed in another pool once its directory's fence changes, or its
-  lines naming none sit beside lines naming a pool other than the first. `P` reads the next
-  pool's afresh, as it starts the view afresh. A config without pools reads every pool's; with
-  no pool shown, none. Two pools' requests share a day's chunks as they interleave, so a pool's
-  day back restores most of them all the same: on the busy world, 5,000 requests a day, a
-  client's pool a fifth of them, the Log opens in some 70 ms on the client's pool and 115 ms on
-  the other, against 125 ms reading every pool's, and reads a day back in some 76 and 83 ms against
-  83 (13 November 2026, race detector off). Of one pool, read by its id, it opens in some 128 ms
-  against 127 reading every pool's, and reads a day back in some 88 ms against 85.
+  the dashboard shows alone, by its id, through the pool's read, `views.PoolRead`, as the verbs read
+  a pool's (see Pools, Reading a pool), so a pool added while the dashboard is open never shows in
+  the one it shows. Which pool a line is of is the ledger's one rule, `ledger.RecordedIn`: the pool
+  it recorded, the first pool's where it named none, a line's pool matched to a pool's id as the
+  config matches ids, ignoring case (`config.SamePool`). Of today's lines, it takes the pool's; of a
+  past day read through no filter, it passes over one the summaries the ledger holds of it and the
+  days beside it whose files may hold its lines rule out, none telling of the pool's work,
+  summarising none from its lines to tell, as a day not summarised yet, and today's, aren't; else it
+  reads only the chunks whose meta names a pool the read keeps, as a filter's read reads those that
+  may keep a line, and holds the pool's rows alone, or the pool's lines where the day reads raw;
+  each day's figures, how far back a filter's lines reach, and the days the find goes back through,
+  are of the pool's summaries; and the find's sessions of a day are read from its side where each
+  session's lines are all of the pool or none of it, else of the day's lines, as a side holds each
+  session's pools, not its lines in each: as where a session is resumed in another pool once its
+  directory's fence changes, or its lines naming none sit beside lines naming a pool other than the
+  first. `P` reads the next pool's afresh, as it starts the view afresh. A config without pools
+  reads every pool's; with no pool shown, none. Two pools' requests share a day's chunks as they
+  interleave, so a pool's day back restores most of them all the same: on the busy world, 5,000
+  requests a day, a client's pool a fifth of them, the Log opens in some 70 ms on the client's pool
+  and 115 ms on the other, against 125 ms reading every pool's, and reads a day back in some 76 and
+  83 ms against 83 (13 November 2026, race detector off). Of one pool, read by its id, it opens in
+  some 128 ms against 127 reading every pool's, and reads a day back in some 88 ms against 85.
 - **Serving the filter:** the read serves the Requests' filter while they show, and every line while
   the Events show, as an event's card reads the lines held and a move row its session's story; a day
   read back while the Events show is read whole. A day held through one filter serves another where

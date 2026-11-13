@@ -1806,8 +1806,9 @@ func TestAFollowerGivesTheDaysAskedForAloneAsDaysGivesThem(t *testing.T) {
 // stand, as Days gives them, each once, oldest first, but none before the
 // first day the ledger holds or after today's, a day with no lines needing
 // none; it tells where one of them has lines but no summary that stands, as
-// today's and a day not summarised yet, so it summarises none from its
-// lines; and it looks at the files of those days alone.
+// today's, a day not summarised yet and one summarised before a line was
+// filed under it, so it summarises none from its lines; and it looks at the
+// files of those days alone.
 func TestAFollowerGivesTheSummariesItHoldsOfTheDaysAskedForWhereTheyStand(t *testing.T) {
 	state, dir, history := stateDirs(t)
 	dayOf := func(back int) string { return on(-back, 0, 0).Format(time.DateOnly) }
@@ -1818,6 +1819,7 @@ func TestAFollowerGivesTheSummariesItHoldsOfTheDaysAskedForWhereTheyStand(t *tes
 	}
 	holdLines(t, dir, dayOf(0), asked("today", on(0, 9, 0)))
 	summariseAt(dir, history, on(-10, 1, 10))
+	holdLines(t, dir, dayOf(15), asked("late", on(-15, 18, 0)))
 	clock := &testClock{at: on(0, 12, 0)}
 	every := followerOf(state, clock, caps).Days(on(-30, 0, 0))
 	tests := []struct {
@@ -1833,6 +1835,7 @@ func TestAFollowerGivesTheSummariesItHoldsOfTheDaysAskedForWhereTheyStand(t *tes
 		{name: "days before the first and after today", dates: []string{dayOf(31), dayOf(-1)}, told: true},
 		{name: "no day", told: true},
 		{name: "a day not summarised yet", dates: []string{dayOf(20), dayOf(5)}},
+		{name: "a day summarised before a line was filed under it", dates: []string{dayOf(20), dayOf(15)}},
 		{name: "today", dates: []string{dayOf(20), dayOf(0)}},
 	}
 	for _, tt := range tests {
