@@ -1082,22 +1082,25 @@ totals.
   pool, its label, directories, accounts, the pools counted, the router's events as they're placed,
   the pools that name them, History, Accounts' page and its choices and the Log's rows, nor the
   request ledger, summarised with the caps of the accounts configured, nor the accounts removed,
-  which name those taken out by their labels, is ever of a config gone. What counts is anything of
-  the pools or the accounts as the pools stand (`status.Placement`): any pool's id, label or
-  directories, the pools counted and their order, and any account's id, label, plan, primary mark,
-  reserve or pool, in any pool, and their order, as the router's events of every pool are placed by
-  them. A change to nothing of those, a comment or another table, starts nothing. It's one path with
-  `P`'s: the watch asks its `Turn` for the pool shown again (`watch.SamePool`, `status.PoolAgain`),
-  started afresh on it, or where it's gone, on the first, as `P` would turn to from it; the tab,
-  size, theme and each tab's kept view carry over, as at a turn. It's asked only where a read finds
-  the config file the dashboard reads, the one `--config` names, changed since the pool was read, by
-  the router's own rule for its config (`filestate.State.Same`: another file, or one written since),
-  or the accounts of the router's document other than the last read's
-  (`status.Document.AccountsChanged`), as an account the router took up as it restarted, which finds
-  the config as it was and starts nothing. What it costs a read is a stat of the config file and a
-  comparison of two lists of ids. The stamp is taken as the ask goes out, so a change found while a
-  turn is under way is asked for at the next read; a config that can't be read is logged, with
-  nothing on the key line, and asked again once it changes again.
+  which name those taken out by their labels, is ever of a config gone. The ledger's reader is made
+  afresh only where its grounds change (`ledger.Grounds`: the caps, or the first pool): else the one
+  in use is kept, with the days it holds, as at a `P`, so a turn reads nothing cold, and nothing
+  holds one the dashboard no longer reads. What counts is anything of the pools or the accounts as
+  the pools stand (`status.Placement`): any pool's id, label or directories, the pools counted and
+  their order, and any account's id, label, plan, primary mark, reserve or pool, in any pool, and
+  their order, as the router's events of every pool are placed by them. A change to nothing of
+  those, a comment or another table, starts nothing. It's one path with `P`'s: the watch asks its
+  `Turn` for the pool shown again (`watch.SamePool`, `status.PoolAgain`), started afresh on it, or
+  where it's gone, on the first, as `P` would turn to from it; the tab, size, theme and each tab's
+  kept view carry over, as at a turn. It's asked only where a read finds the config file the
+  dashboard reads, the one `--config` names, changed since the pool was read, by the router's own
+  rule for its config (`filestate.State.Same`: another file, or one written since), or the accounts
+  of the router's document other than the last read's (`status.Document.AccountsChanged`), as an
+  account the router took up as it restarted, which finds the config as it was and starts nothing.
+  What it costs a read is a stat of the config file and a comparison of two lists of ids. The stamp
+  is taken as the ask goes out, so a change found while a turn is under way is asked for at the next
+  read; a config that can't be read is logged, with nothing on the key line, and asked again once it
+  changes again.
 - **The title row names the pool shown,** by its label after the badge, once a second pool exists,
   at every size, cut short before the tabs where it's long. The pool's accounts keep the config's
   order, unnumbered, as every screen has them (see Account identity).

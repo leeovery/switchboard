@@ -858,9 +858,9 @@ it to the pool shown: History's Year sets every pool's worth beside the plans of
 The pool shown follows the config as it changes: where a pool or an account is added, removed,
 relabelled, fenced, moved or reordered, or an account's plan, primary or reserve changes, in any
 pool, the view starts afresh on the pool shown, as `P` does, keeping the tab and what each tab
-shows. A change to nothing of those, such as a comment, starts nothing. The dashboard looks at the config
-file it reads, the one `--config` names, at each read, and reads the config again only where the
-file has changed, or the accounts the router routes have: a look costs a stat of the file and a
+shows. A change to nothing of those, such as a comment, starts nothing. The dashboard looks at the
+config file it reads, the one `--config` names, at each read, and reads the config again only where
+the file has changed, or the accounts the router routes have: a look costs a stat of the file and a
 compare of two lists of ids. Where the pool shown is removed, it turns to the first.
 
 Once there's a second pool:
