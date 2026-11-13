@@ -835,12 +835,12 @@ func (m Model) viewOf(lines []string, look dashboard.Look) tea.View {
 // open, its keys alone act, as routingKey, helpKey, logCardKey, logPanelKey
 // and turnCardKey take them, as do the find's while the Log's is open. Else q
 // quits; while the theme picker is open, it takes every other key; and
-// otherwise p opens the routing card, but of a pool with no accounts, ?
-// opens the page's help, R refreshes, P turns to the next pool, where
-// there's a second, as turnPool has it, and the rest are, of a pool with no
-// accounts, as emptyPoolKey takes them, else a session's page's, while one
-// is open, as sessionKey takes them, else the page's, as pageKey takes
-// them.
+// otherwise p opens the routing card, but of a pool with no accounts, as
+// pool has it, ? opens the page's help, R refreshes, P turns to the next
+// pool, wherever there are pools, as asksPools and turnPool have it, and
+// the rest are, of a pool with no accounts, as emptyPoolKey takes them,
+// else a session's page's, while one is open, as sessionKey takes them,
+// else the page's, as pageKey takes them.
 func (m Model) pressed(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch k := key.String(); {
 	case k == "ctrl+c":
@@ -861,15 +861,15 @@ func (m Model) pressed(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 	case m.picker.open:
 		return m.pickerKey(k)
-	case k == "p" && !m.cfg.Pool.Empty():
+	case k == "p" && !m.pool().Empty():
 		return m.openRouting()
 	case k == "?":
 		return m.openHelp(), nil
 	case k == "R":
 		return m.refresh()
-	case k == "P" && m.turnsPools():
+	case k == "P" && m.asksPools():
 		return m.turnPool()
-	case m.cfg.Pool.Empty():
+	case m.pool().Empty():
 		return m.emptyPoolKey(k)
 	case m.shownView() == dashboard.SessionPage:
 		return m.sessionKey(key)
@@ -958,7 +958,7 @@ func (m Model) uncover() (Model, tea.Cmd) {
 func (m Model) frame(now time.Time) dashboard.Frame {
 	f := dashboard.Frame{
 		Width: m.size.Width, Height: m.size.Height, Look: m.look(),
-		View: m.view, Pool: m.cfg.Pool,
+		View: m.view, Pool: m.pool(),
 		Lost: m.lostShown(), Failed: m.failure(), Outdated: m.history.outdated, Fresh: m.news.faded(now), Changed: m.changes.faded(now), StateChanged: m.changes.wordFaded(now), TurnedOut: m.changes.turnedOut(now), Trails: m.trails,
 		Brightened: m.numbers.brightened(now), Sections: m.sections, By: m.by, Models: m.models, Traces: m.traces, TraceScale: m.cfg.TraceScale, Layout: m.layout,
 		Sessions: m.sessions, Unlisted: m.unlisted(), Stream: m.traffic.stream(now), Held: m.held, Traffic: m.traffic.at(now), Scroll: m.scroll, SessionsTab: m.sessionsTab.shown,

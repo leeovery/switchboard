@@ -3,8 +3,10 @@ package watch
 import (
 	"context"
 	"errors"
+	"io"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -13,6 +15,7 @@ import (
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/events"
+	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -114,24 +117,43 @@ func TestPTurnsToTheNextPoolReadingItAfresh(t *testing.T) {
 }
 
 // A turn starts the view afresh, as a router change does: no session's
-// page, scroll, cursor, alert or held moment of the pool before carries
-// into the next, and its request stream ends. What's the screen's and the
-// user's stays: the tab shown, the Overview's sections and what each tab
-// shows as the preferences keep it, the size and the preferences being
-// kept.
+// page, scroll, cursor, routing card, alert, held moment or held session
+// of the pool before carries into the next, and its request stream ends.
+// What's the screen's and the user's stays: the tab shown, the Overview's
+// sections and what each tab shows as the preferences keep it, the size
+// and the preferences being kept.
 func TestATurnStartsTheViewAfresh(t *testing.T) {
+	state := t.TempDir()
+	held, _ := openedOn(t, state, dashboard.Graphs, arrivedAt("0a000001", onTheDay(23, 40, 0)))
+	held.clock.now = onTheDay(23, 50, 0)
+	held.openPage(idD28C)
+	held.model.tail.due = true
+	held.deliver(held.update(tea.WindowSizeMsg{Width: 160, Height: 37})...)
+	if held.model.held.Len() == 0 {
+		t.Fatal("the store to carry into the turn holds no session, want one")
+	}
+
 	h, _, _ := pooledHarness(t, acmeShown)
 	h.start()
 	h.press("u")
 	h.deliver(h.press("tab")...)
 	h.model.scroll = 2
 	h.model.accounts.shown.Focused, h.model.accounts.shown.Focus = true, "personal"
-	h.model.session = &sessionShown{id: "d28c5e17"}
 	h.model.keeping.writing = 1
+	h.model.held = held.model.held
 	size := h.model.size
 
-	h.deliver(h.press("P")...)
+	turning := h.press("P")
+	h.press("p")
+	if h.model.open != routingOpen || h.model.page.doc.GeneratedAt.IsZero() {
+		t.Fatalf("p while the turn is under way opened %v, holding the page of %v; want the routing card over the page held", h.model.open, h.model.page.doc.GeneratedAt)
+	}
+	h.model.session = &sessionShown{id: "d28c5e17"}
+	h.deliver(turning...)
 	m := h.model
+	if m.open != nothingOpen || !m.page.doc.GeneratedAt.IsZero() || m.held.Len() != 0 {
+		t.Errorf("after P, the card open is %v, the page held of %v, the store holding %d sessions; want no card, no page held, no session", m.open, m.page.doc.GeneratedAt, m.held.Len())
+	}
 	if m.view != dashboard.Accounts || m.sections.Has(dashboard.SectionUsage) || m.size != size || m.keeping.writing != 1 {
 		t.Errorf("after P, the tab is %q, USAGE shown %v, the size %+v, a write of the preferences under way %d; want Accounts, USAGE hidden, %+v and 1, as they were",
 			m.view, m.sections.Has(dashboard.SectionUsage), m.size, m.keeping.writing, size)
@@ -197,6 +219,135 @@ func TestNothingOfThePoolBeforeLandsAfterATurn(t *testing.T) {
 	}
 }
 
+// Nothing of the pool before lands after a turn even where its counters
+// match the fresh model's, as they start where the pool before's started:
+// a tick, the request stream opened, and what it told. Each lands from the
+// pool shown now.
+func TestNothingOfThePoolBeforeLandsWhereItsCountersMatchTheFreshModels(t *testing.T) {
+	h, _, _ := pooledHarness(t, acmeShown)
+	h.start()
+	before := h.model.poolTurns
+	tm := turns{Model: h.model}
+	deliver := func(msgs ...tea.Msg) {
+		for ; len(msgs) > 0; msgs = msgs[1:] {
+			next, cmd := tm.Update(msgs[0])
+			tm = next.(turns)
+			msgs = append(msgs, h.run(cmd)...)
+		}
+	}
+	deliver(ofTurn{turn: before, msg: turnedMsg{pooled: Pooled{Pool: acmeShown, Accounts: acmeAccounts, Source: h.source, Events: events.Empty{}}}})
+	stream := make(chan router.StreamEvent)
+	sent := router.StreamEvent{At: h.clock.now, Kind: router.StreamSent, Request: "r1", Attempt: 1, Session: idD28C, Model: "claude-opus-5-5", Account: "k3f9"}
+	tests := []struct {
+		name   string
+		msg    func(m Model) tea.Msg
+		landed func(m Model, timers, waits int) bool
+	}{
+		{
+			name:   "a tick of the fresh model's chain",
+			msg:    func(m Model) tea.Msg { return tickMsg{chain: m.chain} },
+			landed: func(_ Model, timers, _ int) bool { return len(h.timers) > timers },
+		},
+		{
+			name:   "the request stream opened, of the fresh model's generation",
+			msg:    func(m Model) tea.Msg { return streamOpenedMsg{gen: m.stream.gen, events: stream} },
+			landed: func(m Model, _, _ int) bool { return m.stream.events == stream },
+		},
+		{
+			name:   "what the request stream told, of the fresh model's generation",
+			msg:    func(m Model) tea.Msg { return streamHeardMsg{gen: m.stream.gen, events: []router.StreamEvent{sent}} },
+			landed: func(_ Model, _, waits int) bool { return len(h.waits) > waits },
+		},
+	}
+	for _, tt := range tests {
+		timers, waits := len(h.timers), len(h.waits)
+		next, cmd := tm.Update(ofTurn{turn: before, msg: tt.msg(tm.Model)})
+		tm = next.(turns)
+		h.run(cmd)
+		if tt.landed(tm.Model, timers, waits) {
+			t.Errorf("%s, of the pool before, landed after the turn, want it dropped", tt.name)
+		}
+		next, cmd = tm.Update(ofTurn{turn: tm.poolTurns, msg: tt.msg(tm.Model)})
+		tm = next.(turns)
+		h.run(cmd)
+		if !tt.landed(tm.Model, timers, waits) {
+			t.Errorf("%s, of the pool shown, didn't land, want it to", tt.name)
+		}
+	}
+}
+
+// The dashboard runs its model as turns runs it, so what a command of the
+// pool shown before sends back once P has turned never lands: a read of
+// Default under way as P turns to Acme, landing after Acme's own, leaves
+// Acme's document on screen.
+func TestTheDashboardRunsItsModelStampedWithThePoolShown(t *testing.T) {
+	t.Setenv("TEA_TRACE", "")
+	t.Setenv("TEA_DEBUG", "")
+	release, acmeRead, staleCame := make(chan struct{}), make(chan struct{}), make(chan struct{})
+	var acmeOnce, staleOnce sync.Once
+	acmeDoc := routerDocument(account("k3f9", "Acme 1", fableWeek(0.7)))
+	cfg := noColourConfig()
+	cfg.Source = heldSource{fakeSource: &fakeSource{}, doc: routerDocument(three()...), release: release}
+	cfg.Pool, cfg.Accounts, cfg.Events = defaultShown, defaultAccounts, events.Empty{}
+	cfg.Turn = func(context.Context, string) (Pooled, error) {
+		return Pooled{Pool: acmeShown, Accounts: acmeAccounts, Source: &fakeSource{router: &acmeDoc}, Events: events.Empty{}}, nil
+	}
+	filter := func(_ tea.Model, msg tea.Msg) tea.Msg {
+		inner := msg
+		if s, ok := msg.(ofTurn); ok {
+			inner = s.msg
+		}
+		if read, ok := inner.(fetchedMsg); ok && len(read.doc.Accounts) > 0 {
+			if read.doc.Accounts[0].ID == "k3f9" {
+				acmeOnce.Do(func() { close(acmeRead) })
+			} else {
+				staleOnce.Do(func() { close(staleCame) })
+			}
+		}
+		return msg
+	}
+	in, typing := io.Pipe()
+	t.Cleanup(func() { _ = typing.Close() })
+	go func() {
+		_, _ = io.WriteString(typing, "P")
+		for _, came := range []chan struct{}{acmeRead, staleCame} {
+			select {
+			case <-came:
+			case <-time.After(10 * time.Second):
+			}
+			if came == acmeRead {
+				close(release)
+			}
+		}
+		_, _ = io.WriteString(typing, "q")
+	}()
+	var out lockedBuffer
+	if err := run(t.Context(), cfg, &out, tea.WithInput(in), tea.WithoutSignals(), tea.WithFilter(filter)); err != nil {
+		t.Fatal(err)
+	}
+	drawn := out.String()
+	if acme, personal := strings.Contains(drawn, "Acme 1"), strings.Contains(drawn, "Personal"); !acme || personal {
+		t.Errorf("once Default's read landed after the turn to Acme, the dashboard drew Acme 1 %v, Default's Personal %v; want Acme 1 alone", acme, personal)
+	}
+}
+
+// heldSource is a source whose reads find doc once release is closed, as a
+// read under way as P turns.
+type heldSource struct {
+	*fakeSource
+	doc     status.Document
+	release chan struct{}
+}
+
+func (s heldSource) Read(ctx context.Context, _ status.Read) (status.Document, router.Health, error) {
+	select {
+	case <-s.release:
+		return s.doc, router.Health{}, nil
+	case <-ctx.Done():
+		return status.Document{}, router.Health{}, ctx.Err()
+	}
+}
+
 // What the watch's own commands send back is stamped with the pool shown,
 // those of a batch each; Bubble Tea's own pass as they are, as it acts on
 // them itself.
@@ -231,17 +382,75 @@ func TestPTurnsOnceWhileATurnIsUnderWay(t *testing.T) {
 }
 
 // A turn that can't tell the pools keeps the pool shown, the key line
-// saying why.
+// saying why in a line: the first of the reason's, as a config that can't
+// be read gives several.
 func TestATurnThatFailsKeepsThePoolShownSayingWhy(t *testing.T) {
 	h, _, pools := pooledHarness(t, acmeShown)
-	pools.failure = errors.New("no config file at ~/.config/switchboard/config.toml")
+	pools.failure = errors.New("no config file at ~/.config/switchboard/config.toml: write one such as\n\n[[account]]\nid = \"work\"\n")
 	h.start()
 	h.deliver(h.press("P")...)
 	if h.model.cfg.Pool.ID != "b2n8" || h.model.turning {
 		t.Errorf("after a turn that failed, the pool shown is %q, turning %v; want Default still, no turn under way", h.model.cfg.Pool.ID, h.model.turning)
 	}
-	if got, want := h.keyLine(), "can't turn to the next pool: no config file at ~/.config/switchboard/config.toml"; got != want {
+	if got, want := h.keyLine(), "can't turn to the next pool: no config file at ~/.config/switchboard/config.toml: write one such as"; got != want {
 		t.Errorf("the key line reads %q, want %q", got, want)
+	}
+}
+
+// With one pool, P isn't listed, but asks for the next all the same, the
+// pools read afresh: still one, the key line says so, and the pool shown
+// stays; a second added since, P turns to it, and lists P pool from then.
+func TestPTurnsToASecondPoolAddedToAConfigOfOne(t *testing.T) {
+	h, _, pools := pooledHarness(t, acmeShown)
+	only := defaultShown
+	only.Pools = 1
+	cfg := h.config(Size{Width: 160, Height: 40})
+	cfg.Pool, cfg.Accounts, cfg.Turn = only, defaultAccounts, pools.turn
+	h.model = New(t.Context(), cfg)
+	pools.order = []string{"b2n8"}
+	pools.pools["b2n8"] = Pooled{Pool: only, Accounts: defaultAccounts, Source: h.source, Events: events.Empty{}}
+	h.start()
+	if got := h.keyLine(); strings.Contains(got, "P pool") {
+		t.Errorf("with one pool, the key line reads %q, want no P pool", got)
+	}
+	turns := h.model.poolTurns
+	h.deliver(h.press("P")...)
+	if got, want := h.keyLine(), "there's one pool: add another with switchboard pool add"; got != want || h.model.poolTurns != turns || h.model.turning {
+		t.Errorf("P with one pool still has the key line read %q, turned %v; want %q, nothing turned", got, h.model.poolTurns != turns, want)
+	}
+
+	pools.order = []string{"b2n8", "q7mt"}
+	h.deliver(h.press("P")...)
+	if got := h.model.cfg.Pool.ID; got != "q7mt" || !strings.HasSuffix(h.keyLine(), "P pool · ? help · q quit") {
+		t.Errorf("P once Acme is added shows %q, its key line %q; want Acme, P pool listed", got, h.keyLine())
+	}
+}
+
+// A pool shown is empty as its document read has it: an account added to
+// an empty pool shows at the next read, its views drawn and p, with two,
+// opening the routing card; and a pool whose last account is taken out
+// draws the empty page at the next.
+func TestAPoolIsEmptyAsItsDocumentReadHasIt(t *testing.T) {
+	h, acme, _ := pooledHarness(t, emptyAcme)
+	h.start()
+	h.deliver(h.press("P")...)
+	if got, want := h.keyLine(), "tab views · P pool · ? help · q quit"; got != want {
+		t.Fatalf("on empty Acme, the key line reads %q, want %q", got, want)
+	}
+	*acme.router = routerDocument(account("k3f9", "Acme 1", fableWeek(0.7)), account("r5t2", "Acme 2", fableWeek(0.2)))
+	h.deliver(h.press("R")...)
+	if view := h.view(); strings.Contains(view, "has no accounts") || !strings.Contains(view, "Acme 1") {
+		t.Errorf("once Acme 1 and 2 are added and read, the screen is\n%s\nwant Acme's views, Acme 1 among them", view)
+	}
+	if h.press("p"); h.model.open != routingOpen {
+		t.Errorf("once Acme 1 is added and read, p opened %v, want the routing card", h.model.open)
+	}
+	h.press("esc")
+
+	*acme.router = routerDocument()
+	h.deliver(h.press("R")...)
+	if view := h.view(); !strings.Contains(view, "Acme has no accounts") {
+		t.Errorf("once Acme 1 is taken out and read, the screen is\n%s\nwant the empty page", view)
 	}
 }
 

@@ -58,3 +58,18 @@ func TestATitleIsLedByItsPoolsLabel(t *testing.T) {
 		t.Errorf("PoolLed() of no pool = %q, want %q", got, want)
 	}
 }
+
+// A turn that fails says why by the first line of its reason, cleaned, as a
+// key line holds one: a config that can't be read gives several.
+func TestATurnThatFailsSaysWhyInALine(t *testing.T) {
+	tests := []struct{ why, want string }{
+		{why: "no config file at ~/.config/switchboard/config.toml", want: "can't turn to the next pool: no config file at ~/.config/switchboard/config.toml"},
+		{why: "no config file: write one such as\n\n[[account]]\nid = \"work\"\n", want: "can't turn to the next pool: no config file: write one such as"},
+		{why: "a pool \x1b[31mred\x1b[0m", want: "can't turn to the next pool: a pool [31mred [0m"},
+	}
+	for _, tt := range tests {
+		if got := prose.TurnFailed(tt.why); got != tt.want {
+			t.Errorf("TurnFailed(%q) = %q, want %q", tt.why, got, tt.want)
+		}
+	}
+}

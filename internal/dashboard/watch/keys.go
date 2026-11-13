@@ -158,7 +158,7 @@ type pageKeys struct {
 // pool with no accounts, whose page has no view, none of a view's.
 func (m Model) keys(running []string) pageKeys {
 	keys := pageKeys{empty: true, coloured: m.coloured()}
-	if !m.cfg.Pool.Empty() {
+	if !m.pool().Empty() {
 		keys = m.viewKeys(running)
 	}
 	keys.pool = m.turnsPools()

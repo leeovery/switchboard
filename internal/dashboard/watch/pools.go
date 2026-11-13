@@ -2,11 +2,13 @@ package watch
 
 import (
 	"reflect"
+	"strings"
 
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard"
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -36,10 +38,24 @@ type turnedMsg struct {
 // it.
 var poolKey = dashboard.Key{Key: "P", Does: "pool"}
 
-// turnsPools reports whether P turns to another pool: where there's a
-// second, and the watch has a Turn to ask.
+// pool is the pool shown, as the document on screen has it read, as
+// status's AsRead has it: the frame, the status line and the keys each read
+// whether it's empty here.
+func (m Model) pool() status.ShownPool {
+	return m.cfg.Pool.AsRead(m.doc)
+}
+
+// turnsPools reports whether the key line lists P: where there's a second
+// pool, and the watch has a Turn to ask.
 func (m Model) turnsPools() bool {
 	return m.cfg.Pool.Turns() && m.cfg.Turn != nil
+}
+
+// asksPools reports whether P asks for the next pool: wherever there are
+// pools, and the watch has a Turn to ask, so a second added to a config of
+// one, while the dashboard shows it, is turned to.
+func (m Model) asksPools() bool {
+	return m.cfg.Pool.Pooled() && m.cfg.Turn != nil
 }
 
 // turnPool asks for what the dashboard shows of the pool after the one it
@@ -58,12 +74,16 @@ func (m Model) turnPool() (Model, tea.Cmd) {
 }
 
 // turnedTo shows the pool P turned to, as freshIn has it; or where it
-// couldn't be told, keeps to the pool shown, the key line saying why.
+// couldn't be told, keeps to the pool shown, the key line saying why, and
+// where it's the pool shown, the only one, says so.
 func (m Model) turnedTo(msg turnedMsg) (Model, tea.Cmd) {
 	m.turning = false
-	if msg.err != nil {
+	switch {
+	case msg.err != nil:
 		logger.Warn("can't turn to the next pool", "error", msg.err)
-		return m.noting("can't turn to the next pool: " + msg.err.Error())
+		return m.noting(prose.TurnFailed(msg.err.Error()))
+	case strings.EqualFold(msg.pooled.Pool.ID, m.cfg.Pool.ID) && !msg.pooled.Pool.Turns():
+		return m.noting(prose.OnePool)
 	}
 	logger.Info("pool shown", "pool", msg.pooled.Pool.ID)
 	fresh := m.freshIn(msg.pooled)

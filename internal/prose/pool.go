@@ -1,5 +1,7 @@
 package prose
 
+import "strings"
+
 // NoAccounts is what's said of a pool with no accounts in the place of how
 // it routes, as the dashboard's status line says it.
 const NoAccounts = "no accounts"
@@ -28,6 +30,19 @@ func EmptyPool(label, id string, dirs []string) [][]string {
 		},
 		{held + " until the pool is removed with switchboard pool remove " + id + "."},
 	}
+}
+
+// OnePool is what the dashboard says where P finds the config holds one pool
+// alone, with none to turn to.
+const OnePool = "there's one pool: add another with switchboard pool add"
+
+// TurnFailed is what the dashboard says where P can't turn to the next pool,
+// for the reason why gives: its first line, cleaned, as a key line holds
+// one, where a config that can't be read gives several, an example among
+// them.
+func TurnFailed(why string) string {
+	first, _, _ := strings.Cut(why, "\n")
+	return "can't turn to the next pool: " + Clean(first)
 }
 
 // PoolLed is title led by the label of the pool it's in, as a notification
