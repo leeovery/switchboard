@@ -838,8 +838,8 @@ func TestTheLedgersGroundsChangedAloneStartThePoolShownAfresh(t *testing.T) {
 	pools.changeConfig(func(p *poolTurns) { p.grounds = ledger.Grounds{First: "q7mt"} })
 	h.deliver(h.press("R")...)
 	if m := h.model; m.poolTurns != turns+1 || pools.made != 1 || !m.cfg.LedgerGrounds.Same(pools.grounds) {
-		t.Errorf("the first pool changed alone, the pool shown started afresh %v, %d ledgers made, the one in use on the new grounds %v; want afresh, one made on them",
-			m.poolTurns != turns, pools.made, m.cfg.LedgerGrounds.Same(pools.grounds))
+		t.Errorf("the first pool changed alone, the pool shown started afresh %d times, %d ledgers made, the one in use on the new grounds %v; want afresh once, one made on them",
+			m.poolTurns-turns, pools.made, m.cfg.LedgerGrounds.Same(pools.grounds))
 	}
 }
 
