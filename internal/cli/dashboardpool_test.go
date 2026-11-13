@@ -471,7 +471,8 @@ func TestTheDashboardHoldsNoLedgerBesideTheModels(t *testing.T) {
 		t.Fatalf("the dashboard's ledger is %T, want a follower of the state directory's", cfg.Ledger)
 	}
 	opened := weak.Make(follower)
-	follower, cfg.Ledger = nil, nil
+	cfg.Ledger = nil
+	runtime.KeepAlive(follower)
 	runtime.GC()
 	if opened.Value() != nil {
 		t.Error("the ledger the dashboard opened with is still held once the model lets it go, want it let go")
