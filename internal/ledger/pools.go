@@ -17,7 +17,9 @@ const poolsVersion = 7
 // "" before the move to pools is done. Work in no pool once it is, as a
 // release before pools files, or a router draining as another takes over,
 // or a pin filed before pins named their pool, is the first pool's, as
-// fitted has it. first is asked only of a day with work in none.
+// fitted has it. first is asked only of a day with work in none, and, as a
+// day's digest is built, of one holding a session split between pools some
+// of whose lines named none.
 func FirstPool(first func() string) Option {
 	return func(o *options) { o.firstPool = first }
 }

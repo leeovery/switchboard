@@ -28,20 +28,21 @@ import (
 // its part as partFrom gives it; first doing what during does, where it's
 // set, failing where that fails; giving none of the session refused, where
 // it's handed resting on a base, as a Digester gives none of one whose base
-// it can't restore; and noting each day it's handed, in the order handed, as
+// it can't restore, nor of the one refusedIn refuses in its pool; and noting each day it's handed, in the order handed, as
 // handedDay tells it. Each day's side it builds as sideOf gives it, and its
 // rows as chunksOf gives them, doing what taking does with each line's
 // request it's handed, where it's set, and what building does as it builds
 // them, failing where that fails; and noting each side built, in the order
 // built, as builtSide tells it.
 type folding struct {
-	mu       sync.Mutex
-	during   func(ctx context.Context, day ledger.DigestDay) error
-	taking   func(request string)
-	building func(requests []string) error
-	refused  string
-	handed   []handedDay
-	built    []builtSide
+	mu        sync.Mutex
+	during    func(ctx context.Context, day ledger.DigestDay) error
+	taking    func(request string)
+	building  func(requests []string) error
+	refused   string
+	refusedIn refusal
+	handed    []handedDay
+	built     []builtSide
 }
 
 // sideBody is the version of the days' sides the tests' Digester gives.
@@ -236,11 +237,11 @@ func (b *foldingDay) Digest(ctx context.Context, day ledger.DigestDay) (map[stri
 
 // digest notes day as handed, with the lines taken before it, does what
 // during does, where it's set, and gives each of its sessions folded, but
-// the one refused resting on a base: its state, its part, and its part's
-// times, as timesFrom has them.
+// the one refused resting on a base, and the one refusedIn refuses: its
+// state, its part, and its part's times, as timesFrom has them.
 func (f *folding) digest(ctx context.Context, day ledger.DigestDay, taken takenDays) (map[string]ledger.Folded, error) {
 	f.mu.Lock()
-	during, refused := f.during, f.refused
+	during, refused, refusedIn := f.during, f.refused, f.refusedIn
 	handed := handedOf(day)
 	handed.taken = taken
 	f.handed = append(f.handed, handed)
@@ -252,7 +253,7 @@ func (f *folding) digest(ctx context.Context, day ledger.DigestDay, taken takenD
 	}
 	folded := make(map[string]ledger.Folded, len(day.Sessions))
 	for id, s := range day.Sessions {
-		if id == refused && s.Base != nil {
+		if id == refused && s.Base != nil || refusedIn.refuses(id, day) {
 			continue
 		}
 		var base testState
@@ -346,6 +347,27 @@ func (f *folding) refuse(id string) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.refused = id
+}
+
+// refusal is a session the tests' Digester gives none of in a pool: its id,
+// and the pool's; none where its id is "".
+type refusal struct {
+	id, pool string
+}
+
+// refuses reports whether the refusal refuses the session with the given id
+// handed in day, as its In tells the pool it's handed in: none handed of
+// every pool's.
+func (r refusal) refuses(id string, day ledger.DigestDay) bool {
+	return r.id != "" && id == r.id && day.In != nil && day.In(r.pool)
+}
+
+// refuseIn has the tests' Digester give none of the session with the given
+// id handed in the pool with the given id, from then on.
+func (f *folding) refuseIn(id, pool string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.refusedIn = refusal{id: id, pool: pool}
 }
 
 // failingOn returns what fails the day with the given date, as the tests'

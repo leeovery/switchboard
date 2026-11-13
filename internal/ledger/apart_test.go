@@ -3,8 +3,10 @@ package ledger_test
 import (
 	"encoding/json"
 	"maps"
+	"path/filepath"
 	"reflect"
 	"slices"
+	"sync/atomic"
 	"testing"
 
 	"github.com/leeovery/switchboard/internal/ledger"
@@ -227,5 +229,194 @@ func TestAReaderInAPoolRestsEachSessionOnItsStateThere(t *testing.T) {
 				t.Errorf("the sessions read in the pool rest as\n%+v\nwant\n%+v", got, tt.want)
 			}
 		})
+	}
+}
+
+// handedIn is a session as the tests' Digester was handed it of a day: the
+// pool, first or acme, as the day's In tells it, "" where it was handed of
+// every pool's; the date of the state it rested on, "" for none; and the
+// requests of its lines.
+type handedIn struct {
+	pool, base string
+	requests   []string
+}
+
+// sessionHanded returns how the session with the given id was handed of
+// the local day days after the summaries' day, among the days handed, in
+// the order handed, as handedIn tells it.
+func sessionHanded(handed []handedDay, id string, days int) []handedIn {
+	var of []handedIn
+	for _, h := range handed {
+		if s, ok := h.sessions[id]; ok && h.date == dayOf(days) {
+			of = append(of, handedIn{pool: poolHanded(h.in), base: s.base, requests: s.requests})
+		}
+	}
+	return of
+}
+
+// poolHanded is the pool a day was handed in, as its In tells it, first or
+// acme: "" of every pool's.
+func poolHanded(in ledger.RoutedIn) string {
+	switch {
+	case in == nil:
+		return ""
+	case in(acme):
+		return acme
+	default:
+		return first
+	}
+}
+
+// A split session whose state in the pool sorting first can't be rested on,
+// as of a day's digest built before entries held states apart, is handed
+// again read whole, once its own state is folded, and its entry holds its
+// state in each pool, folded from every line of it there: two's of the
+// digest of the day before, its states apart gone, built again.
+func TestASplitSessionWhoseStateInThePoolSortingFirstCantBeRestedOnIsReadWhole(t *testing.T) {
+	w := apartDays(t)
+	w.rewritten(-2, func(d *ledger.Digest, _ map[string]string) {
+		two := d.Sessions["two"]
+		two.Apart = nil
+		d.Sessions["two"] = two
+	})
+	removeFile(t, w.dir, filepath.Base(digestPath(w.dir, 0)))
+	w.fold.days()
+
+	w.digestEnded()
+
+	if got, want := sessionHanded(w.fold.days(), "two", 0), []handedIn{
+		{base: dayOf(-2), requests: []string{"7", "8"}},
+		{requests: []string{"2", "4", "7", "8"}},
+		{pool: first, requests: []string{"2", "7"}},
+		{pool: acme, requests: []string{"4", "8"}},
+	}; !reflect.DeepEqual(got, want) {
+		t.Errorf("two was handed of %s as\n%+v\nwant\n%+v: on its own state, then read whole, then in each pool on none", dayOf(0), got, want)
+	}
+	if got, want := w.apartIn(0)["two"], []apartState{
+		{pools: []string{first}, requests: []string{"2", "7"}, part: []string{"2", "7"}},
+		{pools: []string{acme}, requests: []string{"4", "8"}, part: []string{"4", "8"}},
+	}; !reflect.DeepEqual(got, want) {
+		t.Errorf("two's entry of %s holds the states apart\n%+v\nwant\n%+v", dayOf(0), got, want)
+	}
+}
+
+// A split session some of whose lines named none, once the first pool is
+// known where it wasn't, is folded apart as the first pool tells its lines:
+// four, which named none, then the first pool and Acme while none was
+// known, holds no state of the first's lines and none's together, so it's
+// handed again read whole and folded in each pool afresh; three, which
+// named none, then the first pool, rests in the first's on its own state,
+// all of whose lines are the first's now, and is never read whole.
+func TestASplitSessionOnceTheFirstPoolIsKnownIsFoldedApartAsItTellsItsLines(t *testing.T) {
+	w := newLookupWorld(t)
+	var noted string
+	w.writer = w.opened(w.fold, ledger.FirstPool(func() string { return noted }))
+	w.file(-3, askedBy("1", "three", on(-3, 9, 0)), askedBy("2", "four", on(-3, 10, 0)))
+	w.file(-2, inPool(askedBy("3", "three", on(-2, 9, 0)), first), inPool(askedBy("4", "four", on(-2, 10, 0)), first), inPool(askedBy("5", "four", on(-2, 11, 0)), acme))
+	w.summarise()
+	w.digestEnded()
+	if got, want := w.apartIn(-2)["four"], []apartState{
+		{pools: []string{""}, requests: []string{"2"}, on: dayOf(-3), part: []string{}},
+		{pools: []string{first}, requests: []string{"4"}, part: []string{"4"}},
+		{pools: []string{acme}, requests: []string{"5"}, part: []string{"5"}},
+	}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("while no first pool is known, four's entry of %s holds the states apart\n%+v\nwant\n%+v", dayOf(-2), got, want)
+	}
+	noted = first
+	w.file(0, inPool(askedBy("6", "three", on(0, 9, 0)), acme), inPool(askedBy("7", "four", on(0, 10, 0)), first))
+	w.summarise()
+	w.fold.days()
+
+	w.digestEnded()
+
+	handed := w.fold.days()
+	if got, want := sessionHanded(handed, "four", 0), []handedIn{
+		{base: dayOf(-2), requests: []string{"7"}},
+		{requests: []string{"2", "4", "5", "7"}},
+		{pool: first, requests: []string{"2", "4", "7"}},
+		{pool: acme, requests: []string{"5"}},
+	}; !reflect.DeepEqual(got, want) {
+		t.Errorf("four was handed of %s as\n%+v\nwant\n%+v: on its own state, then read whole, then in each pool on none", dayOf(0), got, want)
+	}
+	if got, want := sessionHanded(handed, "three", 0), []handedIn{
+		{base: dayOf(-2), requests: []string{"6"}},
+		{pool: first, base: dayOf(-2), requests: []string{}},
+		{pool: acme, requests: []string{"6"}},
+	}; !reflect.DeepEqual(got, want) {
+		t.Errorf("three was handed of %s as\n%+v\nwant\n%+v: on its own state, in the first pool on it too, and in Acme's on none", dayOf(0), got, want)
+	}
+	if got, want := w.apartIn(0), map[string][]apartState{
+		"three": {
+			{pools: []string{"", first}, requests: []string{"1", "3"}, on: dayOf(-2), part: []string{}},
+			{pools: []string{acme}, requests: []string{"6"}, part: []string{"6"}},
+		},
+		"four": {
+			{pools: []string{"", first}, requests: []string{"2", "4", "7"}, part: []string{"2", "4", "7"}},
+			{pools: []string{acme}, requests: []string{"5"}, part: []string{"5"}},
+		},
+	}; !reflect.DeepEqual(got, want) {
+		t.Errorf("the entries of %s hold the states apart\n%+v\nwant\n%+v", dayOf(0), got, want)
+	}
+}
+
+// A day's build asks the first pool of a session split between pools only
+// where some of its lines named none, as FirstPool says: never of two while
+// its lines named the first pool and Acme, and of it once one named none,
+// its states apart then grouped by it, its lines naming none the first's.
+func TestADaysBuildAsksTheFirstPoolOfASplitSessionNamingNoneAlone(t *testing.T) {
+	w := newLookupWorld(t)
+	var asked atomic.Int32
+	w.writer = w.opened(w.fold, ledger.FirstPool(func() string { asked.Add(1); return first }))
+	w.file(-3, inPool(askedBy("1", "two", on(-3, 9, 0)), first))
+	w.file(-2, inPool(askedBy("2", "two", on(-2, 9, 0)), acme))
+	w.summarise()
+
+	w.digestEnded()
+
+	if n := asked.Load(); n != 0 || len(w.apartIn(-2)["two"]) != 2 {
+		t.Errorf("the build asked the first pool %d times, holding two's states apart as %+v; want it unasked, two held in each pool", n, w.apartIn(-2)["two"])
+	}
+	w.file(0, askedBy("3", "two", on(0, 9, 0)))
+	w.summarise()
+
+	w.digestEnded()
+
+	if got, want := w.apartIn(0)["two"], []apartState{
+		{pools: []string{"", first}, requests: []string{"1", "3"}, on: dayOf(-2), part: []string{"3"}},
+		{pools: []string{acme}, requests: []string{"2"}, on: dayOf(-2), part: []string{}},
+	}; asked.Load() == 0 || !reflect.DeepEqual(got, want) {
+		t.Errorf("once two named none, the build asked the first pool %d times, two's entry of %s holding the states apart\n%+v\nwant it asked, and\n%+v", asked.Load(), dayOf(0), got, want)
+	}
+}
+
+// A split session the builder gives none of in one of its pools is handed
+// again read whole, and given none of in that pool again, has no entry, so
+// its day stays due, built again by a ledger opened afresh: two, refused in
+// Acme's.
+func TestASplitSessionTheBuilderGivesNoneOfInAPoolHasNoEntry(t *testing.T) {
+	w := apartDays(t)
+	w.fold.refuseIn("two", acme)
+	removeFile(t, w.dir, filepath.Base(digestPath(w.dir, 0)))
+	w.fold.days()
+
+	w.digestEnded()
+
+	if got, want := sessionHanded(w.fold.days(), "two", 0), []handedIn{
+		{base: dayOf(-2), requests: []string{"7", "8"}},
+		{pool: first, base: dayOf(-2), requests: []string{"7"}},
+		{pool: acme, base: dayOf(-2), requests: []string{"8"}},
+		{requests: []string{"2", "4", "7", "8"}},
+		{pool: first, requests: []string{"2", "7"}},
+		{pool: acme, requests: []string{"4", "8"}},
+	}; !reflect.DeepEqual(got, want) {
+		t.Errorf("two was handed of %s as\n%+v\nwant\n%+v: on its state, in each pool, then read whole, in each pool", dayOf(0), got, want)
+	}
+	if ids := slices.Sorted(maps.Keys(w.digestOf(0).Sessions)); !slices.Equal(ids, []string{"one", "three"}) {
+		t.Errorf("the digest of %s holds entries of %v, want one and three alone", dayOf(0), ids)
+	}
+	fresh := &folding{}
+	w.opened(fresh, ledger.FirstPool(func() string { return first })).DigestEnded(t.Context(), w.at)
+	if dates := datesOf(fresh.days()); !slices.Contains(dates, dayOf(0)) {
+		t.Errorf("a ledger opened afresh digested %q, want %s among them, its digest due", dates, dayOf(0))
 	}
 }
