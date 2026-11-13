@@ -13,10 +13,9 @@ import (
 
 // Runway's COMING UP is the moment's, filtered: an account back from every
 // request, never from a model's own window; the run-outs and resets of the
-// windows every model shares, the 5-hour view's those of its 5-hour windows,
-// the week view's the 5-hour's and the weeks'; and no prime. What it keeps
-// stays in the moment's order.
-func TestRunwaysComingUpIsTheMomentsBacksAndItsViewsWindows(t *testing.T) {
+// windows every model shares, the 5-hour's and the weeks'; and no prime.
+// What it keeps stays in the moment's order.
+func TestRunwaysComingUpIsTheMomentsBacksAndItsSharedWindows(t *testing.T) {
 	at := func(minutes int) time.Time { return statustest.Built.Add(time.Duration(minutes) * time.Minute) }
 	back := status.Upcoming{At: at(10), Account: "work", Kind: status.UpcomingBack}
 	modelsBack := status.Upcoming{At: at(15), Account: "side", Kind: status.UpcomingBack, Window: "7d_oi"}
@@ -30,19 +29,8 @@ func TestRunwaysComingUpIsTheMomentsBacksAndItsViewsWindows(t *testing.T) {
 
 	m := status.Document{Source: status.SourceRouter, GeneratedAt: statustest.Built}.At(statustest.Built, claude.Policy())
 	m.ComingUp = []status.Upcoming{back, modelsBack, runsOut, resets, prime, weekRunsOut, weekResets, modelsResets, capBack}
-	tests := []struct {
-		name   string
-		window views.RunwayWindow
-		want   []status.Upcoming
-	}{
-		{name: "the 5-hour view", window: views.RunwayFiveHour, want: []status.Upcoming{back, runsOut, resets, capBack}},
-		{name: "the week view", window: views.RunwayWeek, want: []status.Upcoming{back, runsOut, resets, weekRunsOut, weekResets, capBack}},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := views.RunwayComing(m, tt.window); !slices.Equal(got, tt.want) {
-				t.Errorf("RunwayComing = %v, want %v", got, tt.want)
-			}
-		})
+	want := []status.Upcoming{back, runsOut, resets, weekRunsOut, weekResets, capBack}
+	if got := views.RunwayComing(m); !slices.Equal(got, want) {
+		t.Errorf("RunwayComing = %v, want %v", got, want)
 	}
 }

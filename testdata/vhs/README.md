@@ -227,11 +227,12 @@ terminal 120 × 30, to judge by eye. Tapes of `sessions-switchboard-160`, `sessi
 
 Stage 13's, `runway-*`, draw Runway's frames, Runway reached from the Overview with `tab` four
 times, over the auto world: `runway-week-160` and, on a phone, `runway-phone-52`, as it opens, on
-the week; `runway-5-hour-160` with `>`, the 5-hour view; and `runway-stepped-back-160` with `>`
-and `←` twice, today from its midnight, then Wednesday 30 September. `runway-ten-accounts-160`
-draws the week over ten accounts'. `runway-collapsed-160`, `runway-collapsed-108x43`, at an iPad's
-108 × 43, and on a phone `runway-phone-collapsed-52` draw the week with `a`, the account column
-collapsed. Tapes of `runway-5-hour-160` and `runway-week-160` screenshot them, to judge by eye.
+the week; `runway-173x53`, `runway-108x44` and `runway-73x61` at the owner's sizes, LATELY beside
+COMING UP on the first and under it on the others; and `runway-stepped-back-160` with `←` twice,
+this week from its first day, then the week before. `runway-ten-accounts-160` draws the week over
+ten accounts'. `runway-collapsed-160`, `runway-collapsed-108x43`, at an iPad's 108 × 43, and on a
+phone `runway-phone-collapsed-52` draw the week with `a`, the account column collapsed. A tape of
+`runway-week-160` screenshots it, to judge by eye.
 
 ### `--theme`, and `NO_COLOR`
 

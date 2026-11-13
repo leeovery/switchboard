@@ -36,17 +36,15 @@ type phrase struct {
 }
 
 // laneView is a view of Runway's lanes, as what's said under each is said
-// of it: the window the view is named for, and the timeline its lanes are
-// drawn over. Runway's is the view it shows; a Graphs card's, Runway's live
-// view of the card's window.
+// of it: the timeline its lanes are drawn over. Runway's is the view it
+// shows; a Graphs card's, Runway's live view of the week.
 type laneView struct {
-	window   views.RunwayWindow
 	timeline views.Timeline
 }
 
 // view is the view of its lanes Runway shown as r shows.
 func (r RunwayShown) view() laneView {
-	return laneView{window: r.Window, timeline: r.Timeline}
+	return laneView{timeline: r.Timeline}
 }
 
 // runwayWords draws the words under each lane, as laid out, on the row under
@@ -98,7 +96,7 @@ type laneSays struct {
 
 // said is what's said under the lane ln at now: of an account whose first
 // read failed, where the view holds now, that it can't be read, and why, in
-// text.subtle; on a day or week gone that read nothing of it, that, in
+// text.subtle; on a week gone that read nothing of it, that, in
 // text.faint; else what phrasesOf says, and where none of that is said, of a
 // lane with room throughout, that it has, in text.subtle, from the cell after
 // now's column, or stepped back, the first.
@@ -109,15 +107,15 @@ func (v laneView) said(ln laidLane, now time.Time) laneSays {
 	case ln.account.Routing.Kind == status.RoutingUnreadable && tl.NowColumn() >= 0:
 		return laneSays{phrases: []phrase{{parts: []line{{{unreadable(ln.account.Routing), dimInk}}}}}}
 	case named && tl.Now.IsZero() && !slices.ContainsFunc(ln.Cells, func(c views.Cell) bool { return c != views.CellUnknown }):
-		return laneSays{phrases: []phrase{{parts: []line{{{"nothing read that " + v.period(), faintInk}}}}}}
+		return laneSays{phrases: []phrase{{parts: []line{{{"nothing read that " + runwayWeek, faintInk}}}}}}
 	}
-	says := laneSays{phrases: v.phrasesOf(ln, v.datedAgainst(now))}
+	says := laneSays{phrases: v.phrasesOf(ln, now)}
 	if ln.Room {
 		from := tl.NowColumn() + 1
 		if named {
 			from = 0
 		}
-		says.instead = []phrase{{parts: []line{{{"room all " + v.period(), dimInk}}}, col: from}}
+		says.instead = []phrase{{parts: []line{{{"room all " + runwayWeek, dimInk}}}, col: from}}
 	}
 	return says
 }
@@ -134,9 +132,9 @@ func unreadable(r status.Routing) string {
 
 // phrasesOf are the phrases said under the lane ln, in the order of their
 // columns, times told against the time given: each stretch without room not
-// over, from the column its start falls in, as stretchParts words it; and in
-// the week view, each reset of the week no stretch ends at, as in "resets Sun
-// 21:00", muted, ending at its │.
+// over, from the column its start falls in, as stretchParts words it; and
+// each reset of the week no stretch ends at, as in "resets Sun 21:00",
+// muted, ending at its │.
 func (v laneView) phrasesOf(ln laidLane, against time.Time) []phrase {
 	var phrases []phrase
 	for _, s := range ln.Stretches {
@@ -144,11 +142,9 @@ func (v laneView) phrasesOf(ln laidLane, against time.Time) []phrase {
 			phrases = append(phrases, v.stretchPhrase(s, ln.account, against))
 		}
 	}
-	if v.window == views.RunwayWeek {
-		for _, r := range ln.Resets {
-			if !r.Back {
-				phrases = append(phrases, phrase{parts: []line{{{"resets " + prose.Dated(against, r.At), mutedInk}}}, col: r.Column, ends: true, at: r.At})
-			}
+	for _, r := range ln.Resets {
+		if !r.Back {
+			phrases = append(phrases, phrase{parts: []line{{{"resets " + prose.Dated(against, r.At), mutedInk}}}, col: r.Column, ends: true, at: r.At})
 		}
 	}
 	slices.SortStableFunc(phrases, func(a, b phrase) int { return cmp.Compare(a.col, b.col) })
@@ -305,25 +301,4 @@ func (ln laidLane) heldAt(col int) bool {
 		return false
 	}
 	return slices.Contains([]views.Cell{views.CellCapped, views.CellLimited, views.CellRefused}, ln.Cells[col])
-}
-
-// datedAgainst is the moment the times said under the lanes of the view v
-// are dated against, as prose.Dated dates them: on a day stepped back to,
-// today too, its start, so its own times read alone and the next day's with
-// their weekday; else now, as in the live views and a week stepped back to.
-func (v laneView) datedAgainst(now time.Time) time.Time {
-	if first, last, ok := v.timeline.Named(); ok && first.Equal(last) {
-		return v.timeline.Start
-	}
-	return now
-}
-
-// period is what the view v calls the span it looks across, as "room all
-// day" and "the day's highest" say it: a day, of the 5-hour view, live or
-// stepped back, or a week.
-func (v laneView) period() string {
-	if v.window == views.RunwayWeek {
-		return "week"
-	}
-	return "day"
 }

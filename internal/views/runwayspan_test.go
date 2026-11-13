@@ -16,7 +16,7 @@ import (
 
 // What Runway's lanes say is the same whatever span of the readings history
 // Runway's tail reads, so long as it covers the timeline's days, as the
-// watch's tail does: at every hard moment, live in either view, and at every
+// watch's tail does: at every hard moment, live judging either window, and at every
 // moment Runway has to get right, each figure of the lanes judged by what a
 // tail reads, as the watch's does, from the start of the timeline's first
 // day, and from three days before, each window's run before it carried in
@@ -58,18 +58,18 @@ type spanCase struct {
 }
 
 // spanCases are the lanes the test builds: of each hard moment, live in
-// either view, its readings those its document read; and of each moment
+// judging either window, its readings those its document read; and of each moment
 // Runway has to get right, as it's shown.
 func spanCases() []spanCase {
 	var cases []spanCase
 	for _, hm := range statustest.HardMoments(claude.Policy()) {
-		for _, w := range []views.RunwayWindow{views.RunwayFiveHour, views.RunwayWeek} {
-			from := views.LanesFrom{Moment: hm.Doc.At(hm.Now, claude.Policy()), Timeline: views.LiveTimeline(w, hm.Now, 136), Window: w}
-			cases = append(cases, spanCase{name: fmt.Sprintf("%s, the %s view", hm.Name, viewKeys[w]), from: from, read: docReadings(hm.Doc)})
+		for _, j := range judgings {
+			from := views.LanesFrom{Moment: hm.Doc.At(hm.Now, claude.Policy()), Timeline: j.timeline(hm.Now, 136), Key: j.key}
+			cases = append(cases, spanCase{name: fmt.Sprintf("%s, judging %s", hm.Name, j.name), from: from, read: docReadings(hm.Doc)})
 		}
 	}
 	for _, rm := range viewstest.RunwayMoments() {
-		cases = append(cases, spanCase{name: rm.Name, from: lanesFrom(rm), read: rm.Readings})
+		cases = append(cases, spanCase{name: rm.Name, from: rm.From(), read: rm.Readings})
 	}
 	return cases
 }

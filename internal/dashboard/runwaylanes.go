@@ -80,18 +80,17 @@ func laneLaid(l views.Lane, a status.AccountNow, name accountName) laidLane {
 
 // runwayLanes draws the lanes, as laid out, each on its row: its account's
 // name in the label column before it, cut to fit as line has it, and its
-// use of the view's window from runwayUseFrom on the row under, as useLine
+// use of the week from runwayUseFrom on the row under, as useLine
 // has it; or with the account column collapsed, neither name nor marks, and
 // its use from column 0 on the row under, under the lane's first column, as
 // collapsedUse has it; then the lane itself, as drawLane draws it.
 func (f Frame) runwayLanes(c *canvas, laid runwayLaid) {
-	window := runwayNames[f.Runway.Window]
 	for _, ln := range laid.lanes {
 		if f.Runway.Collapsed {
 			c.line(0, ln.row+1, line{ln.collapsedUse()})
 		} else {
 			c.line(0, ln.row, ln.name.line(laid.x))
-			c.line(runwayUseFrom, ln.row+1, ln.useLine(window, laid.m.Now, laid.x-runwayUseFrom-1))
+			c.line(runwayUseFrom, ln.row+1, ln.useLine(runwayWeek, laid.m.Now, laid.x-runwayUseFrom-1))
 		}
 		f.drawLane(c, ln, laid.x)
 	}

@@ -171,7 +171,7 @@ type sparkline interface {
 func (g glance) draw(c *canvas, l glanceLaid, x, y int) {
 	in := c.within(bounds{x: x, y: y, width: l.width, rows: l.rows()})
 	accounts, pool := g.lines(l)
-	in.text(x+l.column, y, strings.ToUpper(runwayNames[GraphsWindow]), dimInk)
+	in.text(x+l.column, y, strings.ToUpper(runwayWeek), dimInk)
 	for i, a := range accounts {
 		g.row(in, l, x, y+2+2*i, a)
 	}
@@ -225,7 +225,7 @@ func (g glance) lines(l glanceLaid) ([]glanceLine, *glanceLine) {
 // the week's span, as poolSpark draws it, and its room, as usage's pool row
 // words it, pinned after it.
 func (g glance) poolLine(names []accountName) *glanceLine {
-	week := shownWindow{key: GraphsWindow.KeyIn(g.m), name: runwayNames[GraphsWindow]}
+	week := shownWindow{key: GraphsWindow.KeyIn(g.m), name: runwayWeek}
 	row, ok := poolRow(g.m, names, []shownWindow{week})
 	if !ok {
 		return nil

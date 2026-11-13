@@ -22,9 +22,9 @@ import (
 // Detail tells LATELY in full too. Each names a session as Lately does.
 func AccountLately(m status.Moment, id string, n int, dirs SessionDirs) []Sentence {
 	if id == "" {
-		return toldFrom(m, n, everyAccount, dirs)
+		return toldFrom(m, given(m), n, everyAccount, dirs)
 	}
-	return toldFrom(m, n, accountSide{id: id}.side(), dirs)
+	return toldFrom(m, given(m), n, accountSide{id: id}.side(), dirs)
 }
 
 // unnamed are the kinds of events that name no account.
@@ -134,7 +134,7 @@ func (t latelyTeller) pressedHere(e status.Event) Said {
 	if e.Until.IsZero() {
 		return Said{Words: clause("came under pressure")}
 	}
-	return Said{Words: clause("came under pressure: out "), Object: clause("~" + prose.Dated(t.now, e.Until)), Rest: clause(" at this pace")}
+	return Said{Words: clause("came under pressure: out "), Object: clause("~" + prose.Befell(t.now, e.Until)), Rest: clause(" at this pace")}
 }
 
 // cameFromHeld tells of the sessions another account's cap, limit or

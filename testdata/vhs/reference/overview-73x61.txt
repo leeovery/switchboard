@@ -55,7 +55,7 @@ LATELY  ────────────────────────
 14:31  ╎ work reached its cap: 3 sessions moved to side
 14:12  ▲ api started on work
 13:50  ◇ side primed: its 5-hour window started
-13:22  ▸ infra moved personal → work: personal came under pressure
-12:47  ▲ docs started on personal
+13:22  ▸ infra moved personal → work: personal came under pressure, its…
+13:04  ◔ personal came under pressure: its 5-hour runs out ~13:50
 
 tab views   ? keys and toggles   q quit

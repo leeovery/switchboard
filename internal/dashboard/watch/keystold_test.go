@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/leeovery/switchboard/internal/dashboard"
-	"github.com/leeovery/switchboard/internal/views"
 )
 
 // keysTold are the keys given, each as "key does".
@@ -29,7 +28,7 @@ func TestEveryPagesKeysAreEachPagesAsItsHelpListsThem(t *testing.T) {
 			"[ ] view", "< > period", "←→ account", "↑↓ account", "↑↓ session", "→ sessions", "← accounts", "enter its page", "esc unfocus", "w models",
 		},
 		"History": {"[ ] view", "< > period", "v split", "←→ account"},
-		"Runway":  {"< > window", "←→ day", "←→ week", "a collapse"},
+		"Runway":  {"←→ week", "a collapse"},
 		"Graphs":  {"w week", "o pool", "g glance", "h when"},
 		"Log": {
 			"[ ] view", "↑↓ request", "↑↓ event", "enter open", "s its session", "end follow", "esc follow", "f what it shows", "/ find",
@@ -71,9 +70,7 @@ func TestEveryKeyHelpListsIsTold(t *testing.T) {
 		}},
 		{name: "History", page: "History", show: func(h *harness) { h.model.view = dashboard.History }},
 		{name: "Sessions", page: "Sessions", show: func(h *harness) { h.model.view = dashboard.Sessions }},
-		{name: "Runway's week", page: "Runway", show: func(h *harness) {
-			h.model.view, h.model.runwayTab.shown.Window = dashboard.Runway, views.RunwayWeek
-		}},
+		{name: "Runway", page: "Runway", show: func(h *harness) { h.model.view = dashboard.Runway }},
 		{name: "Graphs", page: "Graphs", show: func(h *harness) { h.model.view = dashboard.Graphs }},
 		{name: "the Log's Events", page: "Log", show: func(h *harness) {
 			h.model.view, h.model.log.page.Shown = dashboard.Log, dashboard.LogEvents

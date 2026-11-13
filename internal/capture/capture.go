@@ -390,16 +390,15 @@ func (p page) fixture(worlds accountWorlds) Fixture {
 // lines scrolling, ↓ six times scrolling to db8a; and the router gone, R
 // having found it so, what was in flight said as last known.
 // Then Runway's frames, each reached from the Overview with tab four times:
-// the week, which it opens on, wide and on a phone; the 5-hour view, with >;
-// Wednesday, > then ← twice, today and the day before; all over the auto
-// world; the week of ten accounts; over the mixed world of verified Ultra
-// accounts, the week, and the 5-hour view, with >, side's lane alone; and
-// over the world of all three verified Ultra, the week, the only view it
-// offers. Among each view's, at the owner's
+// the week, which it opens on, wide and on a phone; the week before, ← twice,
+// this week and the one before; all over the auto world; the week of ten
+// accounts; over the mixed world of verified Ultra accounts; and over the
+// world of all three verified Ultra. Among each view's, at the owner's
 // sizes, each named for its size, the frames a fluid layout is checked by:
 // the Overview on a phone, an iPad and a phone on its side; Accounts'
 // Compare on a phone and Detail of work on its side; History's Year and
-// Days on its side; Runway's week on its side and on a desktop; Sessions'
+// Days on its side; Runway on its side, on an iPad, on a phone and on a
+// desktop, LATELY beside COMING UP or under it; Sessions'
 // Switchboard on an iPad and its List at 90 × 40; the Log's Requests at 90 ×
 // 40; and d28c's page on an iPad. And over the world of long names, so a
 // cut name shows, the Switchboard, the List and the Log's Requests on an
@@ -551,12 +550,10 @@ var pages = []page{
 	{name: "page-sessions-chosen", size: wide(37), world: accountWorlds.scene, keys: append(toSessions(), repeated(downKey, 4)...)},
 	{name: "page-sessions-short", size: wide(14), world: accountWorlds.scene, keys: append(toSessions(), repeated(downKey, 6)...)},
 	{name: "page-sessions-not-answering", size: wide(37), world: accountWorlds.scene, keys: toSessions("R"), gone: true},
-	{name: "runway-5-hour-160", size: wide(37), world: accountWorlds.auto, keys: toRunway(">")},
 	{name: "runway-week-160", size: wide(37), world: accountWorlds.auto, keys: toRunway()},
-	{name: "runway-stepped-back-160", size: wide(37), world: accountWorlds.auto, keys: append(toRunway(">"), leftKey, leftKey)},
+	{name: "runway-stepped-back-160", size: wide(37), world: accountWorlds.auto, keys: append(toRunway(), leftKey, leftKey)},
 	{name: "runway-ten-accounts-160", size: wide(37), world: manyAccounts(10), keys: toRunway()},
 	{name: "runway-mixed-160", size: wide(37), world: accountWorlds.mixed, keys: toRunway()},
-	{name: "runway-mixed-5-hour-160", size: wide(37), world: accountWorlds.mixed, keys: toRunway(">")},
 	{name: "runway-ultra-160", size: wide(37), world: accountWorlds.ultra, keys: toRunway()},
 	{name: "runway-learning-160", size: wide(37), world: accountWorlds.learning, keys: toRunway()},
 	{name: "runway-phone-52", size: phone(33), world: accountWorlds.auto, keys: toRunway()},
@@ -565,6 +562,8 @@ var pages = []page{
 	{name: "runway-phone-collapsed-52", size: phone(33), world: accountWorlds.auto, keys: toRunway("a")},
 	{name: "runway-138x15", size: watch.Size{Width: 138, Height: 15}, world: accountWorlds.auto, keys: toRunway()},
 	{name: "runway-173x53", size: watch.Size{Width: 173, Height: 53}, world: accountWorlds.auto, keys: toRunway()},
+	{name: "runway-108x44", size: watch.Size{Width: 108, Height: 44}, world: accountWorlds.auto, keys: toRunway()},
+	{name: "runway-73x61", size: watch.Size{Width: 73, Height: 61}, world: accountWorlds.auto, keys: toRunway()},
 	{name: "graphs-160x37", size: wide(37), world: accountWorlds.auto, keys: toGraphs()},
 	{name: "graphs-108x44", size: watch.Size{Width: 108, Height: 44}, world: accountWorlds.auto, keys: toGraphs()},
 	{name: "graphs-73x61", size: watch.Size{Width: 73, Height: 61}, world: accountWorlds.auto, keys: toGraphs()},

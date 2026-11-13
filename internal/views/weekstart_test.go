@@ -49,7 +49,7 @@ func TestThisWeekBeginsWhereAWeekDoes(t *testing.T) {
 		if got := views.AccountsThisWeek.From(now, starts); !got.Equal(want) {
 			t.Errorf("this week from %v begins at %v, want %v, where WeekStart has it", starts, got, want)
 		}
-		if got := views.Stepped(views.RunwayWeek, civil(2026, time.October, 1), now, starts, 136).Start; !got.Equal(want) {
+		if got := views.Stepped(civil(2026, time.October, 1), now, starts, 136).Start; !got.Equal(want) {
 			t.Errorf("this week stepped back to from %v begins at %v, want %v, where WeekStart has it", starts, got, want)
 		}
 	}

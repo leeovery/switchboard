@@ -132,7 +132,7 @@ func TestGraphsBuildsPoolsStackAcrossTheTerminalsColumns(t *testing.T) {
 		if got, want := r.poolFrom.Columns, dashboard.GraphsPoolColumns(width); got != want || got != width {
 			t.Errorf("at %d columns, POOL's stack was built across %d, want %d", width, got, want)
 		}
-		if shown := r.model.frame(r.model.now()).Graphs.Pool; shown.Timeline != views.LiveTimeline(views.RunwayWeek, r.model.now(), width) {
+		if shown := r.model.frame(r.model.now()).Graphs.Pool; shown.Timeline != views.LiveTimeline(r.model.now(), width) {
 			t.Errorf("at %d columns, the frame shows POOL's stack over %+v, want Runway's week's live timeline across them", width, shown.Timeline)
 		}
 	}

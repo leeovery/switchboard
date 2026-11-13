@@ -4,7 +4,6 @@ import (
 	"slices"
 
 	"github.com/leeovery/switchboard/internal/dashboard"
-	"github.com/leeovery/switchboard/internal/views"
 )
 
 // PageKeys are the keys a page takes, as its help lists them: the page, and
@@ -30,7 +29,7 @@ func EveryPagesKeys() []PageKeys {
 
 // tabListings are the tab's own keys, as the model lists them showing it, in
 // each state that words one of them otherwise: the Log's ↑↓ on Requests and
-// on Events, and Runway's ←→ in the 5-hour view and the week's.
+// on Events.
 func tabListings(v dashboard.View) [][]keyListing {
 	m := Model{view: v}
 	switch v {
@@ -43,9 +42,7 @@ func tabListings(v dashboard.View) [][]keyListing {
 	case dashboard.Sessions:
 		return [][]keyListing{m.sessionsListings()}
 	case dashboard.Runway:
-		fiveHour := m
-		fiveHour.runwayTab.shown.Window = views.RunwayFiveHour
-		return [][]keyListing{fiveHour.runwayListings(), m.runwayListings()}
+		return [][]keyListing{m.runwayListings()}
 	case dashboard.Graphs:
 		return [][]keyListing{m.graphsListings()}
 	case dashboard.Log:
