@@ -348,7 +348,7 @@ func makingPersonal(ends *setup.Tokened) func(time.Time) setupSteps {
 			},
 			"Personal": {
 				steps: []setup.Making{
-					{Step: setup.AddressReady, Opened: setuptoken.OpenedPrivately, Browser: "Firefox", For: "Personal", SignedIn: "Work"},
+					{Step: setup.AddressReady, Opened: setuptoken.OpenedPrivately, Browser: "Firefox", For: "Personal", SignedIn: "Work", Private: true},
 					{Step: setup.AwaitingApproval},
 				},
 				ends: ends,

@@ -359,7 +359,7 @@ func TestTheOpenerRuleTakesTheFirstPoolsPrimaryForTheBrowsers(t *testing.T) {
 			name:   "another pool's marked primary: in a private window, the first pool's signed in",
 			config: acmeFirst, noted: "b2n8",
 			f:    replacing("side"),
-			want: setup.Making{Step: setup.AddressReady, Opened: setuptoken.OpenedPrivately, Browser: "Firefox", For: "Side", SignedIn: "Work"},
+			want: setup.Making{Step: setup.AddressReady, Opened: setuptoken.OpenedPrivately, Browser: "Firefox", For: "Side", SignedIn: "Work", Private: true},
 		},
 		{
 			name:   "none noted: the config's first pool's primary in the browser as it is",
@@ -372,7 +372,7 @@ func TestTheOpenerRuleTakesTheFirstPoolsPrimaryForTheBrowsers(t *testing.T) {
 			name:   "a first pool with no account: in a private window, signed in to none",
 			config: noFirstAccount, noted: "b2n8",
 			f:    replacing("work"),
-			want: setup.Making{Step: setup.AddressReady, Opened: setuptoken.OpenedPrivately, Browser: "Firefox", For: "Work"},
+			want: setup.Making{Step: setup.AddressReady, Opened: setuptoken.OpenedPrivately, Browser: "Firefox", For: "Work", Private: true},
 		},
 	}
 	for _, tt := range tests {

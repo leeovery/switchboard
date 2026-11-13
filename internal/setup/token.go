@@ -153,9 +153,12 @@ type Making struct {
 	// For is the account whose token it is, and SignedIn the account the
 	// browser is signed in to, where Address is to open in a private window,
 	// as the opener rule has it, "" where it's to open in the browser as it
-	// is: each by its label, else its id, at AddressReady, as Opening says
-	// them.
+	// is, or the first pool has no account: each by its label, else its id,
+	// at AddressReady, as Opening says them.
 	For, SignedIn string
+	// Private says Address was to open in a private window, as the opener
+	// rule has it, at AddressReady, whether or not one opened.
+	Private bool
 }
 
 // making is setuptoken's event e, as MakeToken reports it.
@@ -281,7 +284,7 @@ func (s *Setup) MakeToken(ctx context.Context, f TokenFor, report func(Making)) 
 	forName, signedInName := named(cfg, f, signedIn, asItIs)
 	tell := func(m Making) {
 		if m.Step == AddressReady {
-			m.For, m.SignedIn = forName, signedInName
+			m.For, m.SignedIn, m.Private = forName, signedInName, !asItIs
 		}
 		if report != nil {
 			report(m)

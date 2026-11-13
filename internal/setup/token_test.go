@@ -224,20 +224,20 @@ func TestMakeTokenOpensTheSignInAddressByTheOpenerRule(t *testing.T) {
 			name:     "another account: in a private window, the browser named, and the primary it's signed in to",
 			runAgain: true,
 			f:        replacing("side"),
-			want:     setup.Making{Step: setup.AddressReady, Opened: setuptoken.OpenedPrivately, Browser: "Firefox", For: "Side", SignedIn: "Work"},
+			want:     setup.Making{Step: setup.AddressReady, Opened: setuptoken.OpenedPrivately, Browser: "Firefox", For: "Side", SignedIn: "Work", Private: true},
 		},
 		{
 			name:     "an account added once there's one: in a private window",
 			runAgain: true,
 			f:        adding,
-			want:     setup.Making{Step: setup.AddressReady, Opened: setuptoken.OpenedPrivately, Browser: "Firefox", For: "Personal", SignedIn: "Work"},
+			want:     setup.Making{Step: setup.AddressReady, Opened: setuptoken.OpenedPrivately, Browser: "Firefox", For: "Personal", SignedIn: "Work", Private: true},
 		},
 		{
 			name:     "another account, the browser opening no private window: the address to show, saying why",
 			runAgain: true,
 			f:        replacing("side"),
 			private:  &fakeOpener{err: noPrivate},
-			want:     setup.Making{Step: setup.AddressReady, Opened: setuptoken.NotOpened, Browser: "Safari", Why: noPrivate.Error(), For: "Side", SignedIn: "Work"},
+			want:     setup.Making{Step: setup.AddressReady, Opened: setuptoken.NotOpened, Browser: "Safari", Why: noPrivate.Error(), For: "Side", SignedIn: "Work", Private: true},
 		},
 	}
 	for _, tt := range tests {

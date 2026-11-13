@@ -27,20 +27,28 @@ const (
 // Opening says how the sign-in address opened, at AddressReady, as the token
 // card says it under its wait: in a private window, as the browser is
 // signed in to another account, or none setup knows of, to sign in there;
-// not opened, to open the address shown, signed in to the account; "" where
-// it opened in the browser as it is, as there's nothing more to say.
+// not opened, to open the address shown, in a private window where one was
+// wanted, else in the browser, signed in to the account; "" where it opened
+// in the browser as it is, as there's nothing more to say.
 func (m Making) Opening() string {
 	switch {
 	case m.Step != AddressReady || m.Opened == setuptoken.OpenedInBrowser:
 		return ""
-	case m.Opened == setuptoken.OpenedPrivately && m.SignedIn == "":
-		return "Setup opened " + privateWindow(m.Browser) + ". Sign in to " + m.For + " there, then approve."
-	case m.Opened == setuptoken.OpenedPrivately:
-		return "Your browser is signed in to " + m.SignedIn + ", so setup opened " + privateWindow(m.Browser) + ". Sign in to " + m.For + " there, then approve."
-	case m.SignedIn == "":
+	case !m.Private:
 		return "Setup couldn't open your browser. Open this address in it, signed in to " + m.For + ", then approve:"
+	case m.Opened == setuptoken.OpenedPrivately:
+		return m.signedInThen("so setup opened ", "Setup opened ") + privateWindow(m.Browser) + ". Sign in to " + m.For + " there, then approve."
 	}
-	return "Your browser is signed in to " + m.SignedIn + ", and setup couldn't open " + privateWindow(m.Browser) + ". Open this address in one, sign in to " + m.For + " there, then approve:"
+	return m.signedInThen("and setup couldn't open ", "Setup couldn't open ") + privateWindow(m.Browser) + ". Open this address in one, sign in to " + m.For + " there, then approve:"
+}
+
+// signedInThen leads what Opening says of a private window: the account the
+// browser is signed in to, then then, where it's one setup knows; else alone.
+func (m Making) signedInThen(then, alone string) string {
+	if m.SignedIn == "" {
+		return alone
+	}
+	return "Your browser is signed in to " + m.SignedIn + ", " + then
 }
 
 // SharedSignIn is what's said where the sign-in address opened in a private

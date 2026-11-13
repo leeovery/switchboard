@@ -89,7 +89,7 @@ func TestTMakesTheChosenAccountsTokenInTheTokenCard(t *testing.T) {
 // opened, the address shown to paste, c copying it in o's place.
 func TestTheTokenCardWaitsAsTheAddressOpened(t *testing.T) {
 	asItIs := setup.Making{Step: setup.AddressReady, Address: signIn, Opened: setuptoken.OpenedInBrowser, For: "Personal"}
-	unopened := setup.Making{Step: setup.AddressReady, Address: signIn, Opened: setuptoken.NotOpened, Browser: "Safari", For: "Personal", SignedIn: "Work"}
+	unopened := setup.Making{Step: setup.AddressReady, Address: signIn, Opened: setuptoken.NotOpened, Browser: "Safari", For: "Personal", SignedIn: "Work", Private: true}
 	waitedFor := "  ●∙∙  Waiting for you to approve it in the browser                     0:21"
 	saves := "       Setup saves the token automatically. There's nothing to copy."
 	tests := []struct {

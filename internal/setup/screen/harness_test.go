@@ -365,7 +365,7 @@ type fakeMaking struct {
 // Firefox window; then setup-token waiting on its approval; then saying
 // it's made the token; then the token being checked.
 var (
-	privately = setup.Making{Step: setup.AddressReady, Address: signIn, Opened: setuptoken.OpenedPrivately, Browser: "Firefox", For: "Personal", SignedIn: "Work"}
+	privately = setup.Making{Step: setup.AddressReady, Address: signIn, Opened: setuptoken.OpenedPrivately, Browser: "Firefox", For: "Personal", SignedIn: "Work", Private: true}
 	approving = setup.Making{Step: setup.AwaitingApproval}
 	madeIt    = setup.Making{Step: setup.TokenMade}
 	checkIt   = setup.Making{Step: setup.CheckingToken}
