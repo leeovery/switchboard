@@ -320,7 +320,7 @@ func TestAPoolsWorkBeginsOnTheFirstDayItsSummaryHoldsWork(t *testing.T) {
 	l := &startedDays{first: dayOf(60), days: make(map[string]ledger.Summary)}
 	for back := 60; back > 0; back-- {
 		date := dayfile.DateOf(dayOf(back))
-		day := ledger.Summary{Day: date, Accounts: []ledger.AccountDay{{Account: "side", Pool: "b2n8", Work: ledger.Work{Sessions: 1}}, {Account: "work", Pool: "q7mt"}}}
+		day := ledger.Summary{Day: date, Accounts: []ledger.AccountDay{{Account: "side", Pool: "b2n8", Sessions: 1}, {Account: "work", Pool: "q7mt"}}}
 		if back <= 20 {
 			day.Accounts[1].Sessions = 1
 		}
