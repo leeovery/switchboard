@@ -50,6 +50,15 @@ func (sp *Spent) Add(model, geo string, s Spend) {
 	sp.with(spentOf(model, geo, s))
 }
 
+// AddCacheWrites takes in what a request's writes to the prompt cache alone
+// spent, of what it spent, s, of the model with the given id that asked for
+// the geo given, as CacheWriteSpend prices them: so a Spent of one request's
+// writes, priced by SummedSpent, gives what CacheWriteSpend gives of it
+// wherever the table prices them, kept as counts to be priced as it's shown.
+func (sp *Spent) AddCacheWrites(model, geo string, s Spend) {
+	sp.with(spentGroup{model: model, geo: geo, billed: s.cacheWrites(), unmetered: s.unmetered})
+}
+
 // with takes in what the requests g sums spent, among those of its model and
 // geo, into groups of its own, never writing where a copy of sp may read.
 func (sp *Spent) with(g spentGroup) {

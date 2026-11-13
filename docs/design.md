@@ -2134,7 +2134,8 @@ what switchboard knows of one thing, in a form for a person to read or for an ag
     `{"generated_at": …, "prices_as_of": …, "sessions": […], "today": {…}}` (settled in the plan).
     - `sessions` are the List's, in its order, each with `session`, its whole id; `dir`, its
       directory as the router or its lines give it, the home shown as `~`, left out where neither
-      names one; and `account` and `model`, the account its latest request went to and that
+      names one; `project`, its project from the same place, left out where that names none; and
+      `account` and `model`, the account its latest request went to and that
       request's model, as the List's `on` and `model` show them, its last line's once it has ended.
     - `running` is set while the router lists it. One running also has `last_seen`; `models`, each
       model, the account it goes to now and why, `[{model, account, reason}]`; `state`, what its

@@ -287,7 +287,16 @@ func (r routed) said(to string, first bool, made *move) RoutingSaid {
 // routing is how the router chose the account of the request that made m,
 // as routingOf says it of its line.
 func (m *move) routing() RoutingSaid {
-	return RoutingSaid{From: m.from, Words: routingWords(m.tried, m.reason, status.Facts{From: m.from, To: m.to}, false), Cost: m.cost, Rewrote: m.rewrote != nil}
+	return movedRouting(m.tried, m.reason, status.Facts{From: m.from, To: m.to}, m.cost, m.rewrote != nil)
+}
+
+// movedRouting is how the router brought a session onto the account a move
+// took it to, as routing says it: of the accounts the request that made it
+// went out on that couldn't serve it, tried; the router's reason; the account
+// it left and the one it went to; and what writing the session's context
+// again there cost, and whether it was written again, priced or not.
+func movedRouting(tried []ledger.Tried, reason string, moved status.Facts, cost *ledger.Picodollars, rewrote bool) RoutingSaid {
+	return RoutingSaid{From: moved.From, Words: routingWords(tried, reason, moved, false), Cost: cost, Rewrote: rewrote}
 }
 
 // routingWords are the words of a request's routing, as routingOf has them,

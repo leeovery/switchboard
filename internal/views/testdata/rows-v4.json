@@ -9,31 +9,206 @@
   "rests_on": {
     "2026-10-07": 5
   },
-  "rows_size": 3369,
+  "rows_size": 3414,
   "rows": 258,
   "side": [
     {
       "id": "s",
       "lines": 6,
-      "last": 1791503400000000000
+      "last": 1791503400000000000,
+      "first_request": 1791450000000000000,
+      "last_request": 1791503400000000000,
+      "uses": [
+        {
+          "account": "side",
+          "model": "claude-opus-5-5",
+          "requests": 3,
+          "spent": [
+            {
+              "m": "claude-opus-5-5",
+              "i": 30,
+              "1h": 95000,
+              "r": 180000,
+              "o": 900,
+              "c": true
+            }
+          ],
+          "tokens": {
+            "i": 30,
+            "o": 900,
+            "r": 180000,
+            "w": 95000
+          }
+        },
+        {
+          "account": "work",
+          "model": "claude-haiku-4-5",
+          "requests": 1,
+          "spent": [
+            {
+              "m": "claude-haiku-4-5",
+              "i": 10,
+              "r": 90000,
+              "o": 300,
+              "c": true
+            }
+          ],
+          "tokens": {
+            "i": 10,
+            "o": 300,
+            "r": 90000
+          }
+        },
+        {
+          "account": "work",
+          "model": "claude-opus-5-5",
+          "requests": 1,
+          "spent": [
+            {
+              "m": "claude-opus-5-5",
+              "i": 10,
+              "r": 90000,
+              "o": 300,
+              "c": true
+            }
+          ],
+          "tokens": {
+            "i": 10,
+            "o": 300,
+            "r": 90000
+          }
+        }
+      ],
+      "main": {
+        "m": "claude-opus-5-5",
+        "a": "side",
+        "t": {
+          "s": 1791503400
+        }
+      },
+      "latest": {
+        "m": "claude-opus-5-5",
+        "a": "side",
+        "t": {
+          "s": 1791503400
+        }
+      },
+      "moves": [
+        {
+          "at": 1791451800000000000,
+          "model": "claude-opus-5-5",
+          "from": "work",
+          "to": "side",
+          "reason": "moved: work hit its limit",
+          "tried": [
+            {
+              "a": "work",
+              "w": "hit its limit"
+            }
+          ],
+          "rewrite": [
+            {
+              "m": "claude-opus-5-5",
+              "1h": 95000
+            }
+          ]
+        }
+      ]
     },
     {
       "id": "o",
       "dir": "/code/site/web",
       "project": "/code/site",
-      "lines": 2,
-      "last": 1791464400250123456
+      "lines": 3,
+      "last": 1791471600000000000,
+      "first_request": 1791460800000000000,
+      "last_request": 1791471600000000000,
+      "uses": [
+        {
+          "account": "side",
+          "model": "claude-sonnet-5-5",
+          "requests": 2,
+          "spent": [
+            {
+              "m": "claude-sonnet-5-5",
+              "i": 10,
+              "r": 90000,
+              "o": 300,
+              "c": true
+            },
+            {
+              "m": "claude-sonnet-5-5",
+              "g": "us",
+              "n": true
+            }
+          ],
+          "tokens": {
+            "i": 10,
+            "o": 300,
+            "r": 90000
+          }
+        },
+        {
+          "account": "work",
+          "model": "claude-haiku-4-5",
+          "requests": 1,
+          "spent": [
+            {
+              "m": "claude-haiku-4-5",
+              "5m": 1000,
+              "r": 500,
+              "o": 120,
+              "s": 2,
+              "u": [
+                "Input_Tokens",
+                "cache_creation_input_tokens"
+              ],
+              "c": true
+            }
+          ],
+          "tokens": {
+            "i": 7,
+            "o": 120,
+            "r": 500,
+            "w": 1200
+          }
+        }
+      ],
+      "main": {
+        "m": "claude-sonnet-5-5",
+        "a": "side",
+        "t": {
+          "s": 1791471600
+        }
+      },
+      "latest": {
+        "m": "claude-sonnet-5-5",
+        "a": "side",
+        "t": {
+          "s": 1791471600
+        }
+      }
     },
     {
       "id": "z",
       "lines": 1,
-      "last": 1791418200000000000
+      "last": 1791418200000000000,
+      "main": {
+        "t": {
+          "s": -62135596800
+        }
+      },
+      "latest": {
+        "t": {
+          "s": -62135596800
+        }
+      }
     }
   ],
   "chunks": [
     {
-      "length": 3084,
-      "crc": 2074706393,
+      "length": 3129,
+      "crc": 2077064729,
       "count": 256,
       "meta": {
         "f": {
@@ -41,37 +216,37 @@
           "n": 987654321
         },
         "l": {
-          "s": 1791492000,
+          "s": 1791491700,
           "n": 987654321
         },
-        "rq": 6,
-        "ck": 248,
+        "rq": 7,
+        "ck": 247,
         "cn": 2,
         "x": 1,
         "m": {
-          "claude-haiku-4-5": 250,
+          "claude-haiku-4-5": 249,
           "claude-opus-5-5": 4,
-          "claude-sonnet-5-5": 2
+          "claude-sonnet-5-5": 3
         },
         "a": {
-          "side": 5,
-          "work": 251
+          "side": 6,
+          "work": 250
         },
         "s": {
-          "o": 2,
+          "o": 3,
           "s": 5,
           "z": 1
         }
       }
     },
     {
-      "offset": 3084,
+      "offset": 3129,
       "length": 285,
-      "crc": 3632483115,
+      "crc": 4283239832,
       "count": 2,
       "meta": {
         "f": {
-          "s": 1791492300,
+          "s": 1791492000,
           "n": 987654321
         },
         "l": {

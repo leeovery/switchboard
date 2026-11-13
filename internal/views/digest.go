@@ -46,7 +46,7 @@ func (Digests) RowsVersion() int {
 // Day gives a builder of a finished day's side and rows, as dayBuild has it,
 // none of the day's lines taken in yet.
 func (Digests) Day() ledger.DayBuilder {
-	return &dayBuild{sessions: make(daySessions)}
+	return &dayBuild{sessions: newDaySessions(true)}
 }
 
 // dayBuild is a builder of a finished day's side and rows by the views'

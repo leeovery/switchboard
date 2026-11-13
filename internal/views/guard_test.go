@@ -78,6 +78,7 @@ var (
 		"claude.KeptWindows", "claude.WindowsReadOf",
 		"ledger.Failing", "ledger.Line.Upstream",
 		"ledger.Reply.CacheLife", "ledger.Reply.Tokens", "ledger.Spend.CacheLife", "ledger.Spend.Tokens", "ledger.SpendOf", "ledger.Spent.Add",
+		"ledger.Spent.AddCacheWrites",
 		"ledger.Table.CacheWrite", "ledger.Table.CacheWriteSpend", "ledger.Table.Priced", "ledger.Table.Request", "ledger.Table.Rewrite",
 		"ledger.Table.RewriteSpend", "ledger.Table.SamePrices", "ledger.Table.Summed", "ledger.Table.SummedSpend", "ledger.Table.SummedSpent",
 		"ledger.Table.Worth",
@@ -143,6 +144,13 @@ var (
 		// known.
 		"views.AccountTotals.MinutesAtCap":   "views.AccountTotals.AtCapOrLimit",
 		"views.AccountTotals.MinutesAtLimit": "views.AccountTotals.AtCapOrLimit",
+		// A project's name, its parents too where two share it, and what
+		// its sessions spent, worked out once over the period, as Projects
+		// lists them and a project's page totals them.
+		"status.ProjectNames":           "views.ProjectsPage",
+		"views.DaySession.Uses":         "views.ProjectsPage",
+		"views.DaySession.FirstRequest": "views.ProjectSession",
+		"views.DaySession.LastRequest":  "views.ProjectSession",
 	}
 	// absorbedIn are the packages, by directory from the module's root, what
 	// absorbed names is absorbed in, where it isn't in every drawing package.
@@ -173,6 +181,7 @@ var (
 		"views.HeldPage.Closing", "views.HeldPage.Found", "views.HeldPage.Held", "views.HeldPage.Joined", "views.HeldPage.Opening", "views.HeldPage.ReadTurn", "views.HeldPage.TurnOf", "views.HeldPage.Turned", "views.ReadPage",
 		"views.SessionsWanted.Paging", "views.HeldSessions.Len",
 		"views.HeldPage.On",
+		"views.ReadSessionDays", "views.SessionDays.Tailed",
 	}
 )
 

@@ -149,6 +149,11 @@ func spendDisagreements(l *ledger.Line, spend ledger.Spend) []string {
 			w, ok = ledger.Pricing.CacheWrite(&priced, date)
 			gotW, gotOK = ledger.Pricing.CacheWriteSpend(m.model, m.geo, spend, date)
 			differs("CacheWriteSpend"+on, []any{gotW, gotOK}, []any{w, ok})
+			var writes ledger.Spent
+			writes.AddCacheWrites(m.model, m.geo, spend)
+			if gotW, gotOK = ledger.Pricing.SummedSpent(writes, date); ok || gotOK {
+				differs("SummedSpent of its cache writes alone"+on, []any{gotW, gotOK}, []any{w, ok})
+			}
 			for _, life := range []time.Duration{ledger.ShortCache, ledger.LongCache} {
 				cost, ok := ledger.Pricing.Rewrite(&priced, life, date)
 				gotCost, gotOK := ledger.Pricing.RewriteSpend(m.model, m.geo, spend, life, date)
