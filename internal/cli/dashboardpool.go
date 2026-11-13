@@ -8,6 +8,7 @@ import (
 	"github.com/leeovery/switchboard/internal/dashboard/watch"
 	"github.com/leeovery/switchboard/internal/events"
 	"github.com/leeovery/switchboard/internal/filestate"
+	"github.com/leeovery/switchboard/internal/idmove"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
@@ -79,7 +80,7 @@ func (s shownPools) turn(ctx context.Context, from string, ask watch.PoolAsk) (w
 		return watch.Pooled{}, err
 	}
 	shown.Stamp, shown.Grounds = stamp, s.groundsOf(cfg, pooled.Pools)
-	shown.NewLedger = s.ledgerOn(shown.Grounds)
+	shown.NewLedger = s.ledgerOn(shown.Grounds.Caps, pooled.Pools)
 	if s.read {
 		shown.Removed = removedIn(s.dir, cfg)
 	}
@@ -89,7 +90,8 @@ func (s shownPools) turn(ctx context.Context, from string, ask watch.PoolAsk) (w
 // groundsOf are the grounds the dashboard's request ledger is made on, of
 // the config cfg, its pools as pools gives them: the caps of the accounts
 // it configures, and the first pool, as firstPool has it, where there's a
-// state directory, as the one it opens with is made.
+// state directory, as the one it opens with is made. The first pool is for
+// comparing alone: the ledger reads it afresh as it asks, as ledgerOn has it.
 func (s shownPools) groundsOf(cfg *config.Config, pools config.Pools) ledger.Grounds {
 	grounds := ledger.Grounds{Caps: caps(cfg)}
 	if s.read {
@@ -98,15 +100,18 @@ func (s shownPools) groundsOf(cfg *config.Config, pools config.Pools) ledger.Gro
 	return grounds
 }
 
-// ledgerOn makes the request ledger as the dashboard reads it, on the
-// grounds given: following the one in the state directory, else an empty
-// one. It makes none till it's called.
-func (s shownPools) ledgerOn(grounds ledger.Grounds) func() views.Ledger {
+// ledgerOn makes the request ledger as the dashboard reads it, its days
+// summarised with caps: following the one in the state directory, knowing
+// the first pool of pools as idmove.FirstPool has it, the accounts record
+// read at each ask, as the one it opens with does, so a dashboard open
+// across the move to pools follows it; else an empty one. It makes none
+// till it's called.
+func (s shownPools) ledgerOn(caps ledger.Caps, pools config.Pools) func() views.Ledger {
 	if !s.read {
-		return func() views.Ledger { return ledger.NewEmpty(s.a.Now, grounds.Caps) }
+		return func() views.Ledger { return ledger.NewEmpty(s.a.Now, caps) }
 	}
 	return func() views.Ledger {
-		return s.a.followerIn(s.dir, grounds.Caps, ledger.FirstPool(func() string { return grounds.First }))
+		return s.a.followerIn(s.dir, caps, idmove.FirstPool(s.dir, func() config.Pools { return pools }))
 	}
 }
 
