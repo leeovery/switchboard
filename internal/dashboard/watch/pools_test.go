@@ -130,9 +130,11 @@ func (p *poolTurns) pooled(id string) Pooled {
 }
 
 // poolRead is how the pool with the given id is read, as the config
-// stands, as the verbs read a pool's, its first pool the first configured.
+// stands, as the verbs read a pool's: its first pool the one the ledger's
+// grounds note, as the accounts record notes it, else the first configured,
+// as config's Pools First has it.
 func (p *poolTurns) poolRead(id string) views.PoolRead {
-	return views.PoolRead{ID: id, First: p.pools[0].ID, PoolOf: status.AccountPools(p.accounts, func() identity.Record { return identity.Record{} })}
+	return views.PoolRead{ID: id, First: p.pools.First(p.grounds.First), PoolOf: status.AccountPools(p.accounts, func() identity.Record { return identity.Record{} })}
 }
 
 // changeConfig has the config stand as change leaves it, its file written
