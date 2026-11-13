@@ -8,9 +8,9 @@ USAGE  ────────────────────────�
 
 work               ▌   ┃     ╎  34%  out ~Sun                 no 5-hour limit
 
-personal ◆              ┃       66%  out ~Sat                 no 5-hour limit
+personal   ◆            ┃       66%  out ~Sat                 no 5-hour limit
 
-side ▲               ┃    ▌     78%  out ~Fri                   ▏┃              13%  21%/h till 18:50
+side       ▲         ┃    ▌     78%  out ~Fri                   ▏┃              13%  21%/h till 18:50
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Σ pool                 ┃        59%  1.2 of 3 left
 
@@ -19,26 +19,26 @@ side ▲               ┃    ▌     78%  out ~Fri                   ▏┃    
 
 ROUTING   auto ─────────────────────────────────────────────────────────────────────────────────────────── r
 
-work          ● open                               0 sessions   ▂▄▅▂▂▂▃▂▄▆▆▄▃▃▂▂▂▂▂▂▂▁▂▁▁▁▁▁▁▁▁▁▁▁▁▁   0/min
-personal ◆    ● open                               2 sessions   ▁▂▂▂▁▁▁▁▁▁▁▂▁▁▁▁▁▁▁▁▁▃▅▅▂▁▁▁▁▁▁▁▁▁▂▁   3/min
-side ▲        ● open · new sessions come here      4 sessions   ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▄▇    ▇▇▅▄▄▅▆  11/min
+work          ● open                               0 sessions               ▃▅▂▂▂▃▆▄▃▂▂▂▂▁▂▁▁▁▁▁▁▁▁▁   0/min
+personal   ◆  ● open                               2 sessions               ▂▂▂▁▁▁▁▂▁▁▁▁▁▁▄▅▂▁▁▁▁▁▁▁   3/min
+side       ▲  ● open · new sessions come here      4 sessions               ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▃▇  ▇▆▄▄▆  11/min
                                                                 requests a minute, last 30 minutes
 
 SESSIONS  ──────────────────────────────────────────────────────────────────────────────────────────────── s
 
-side ▲        c61b  opus    now   ↓ ~1.2k  started here 14:41…  ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▂   5/min
-              d28c  opus    now   ↑ ask    moved from work 14…  ▁▁▁▁▁▁▂▂▂▂▃▃▂▃▂▂▂▂▂▂▂▁▁▂▃▃▃▃▂▂▁▁▁▁▁▂   4/min
-              7f3a  sonnet   1m   idle     moved from work 14…  ▂▂▂▁▁▁▁▁▁▃▃▂▁▁▁▁▁▁▁▁▁▁▁▁▂▂▄▂▃▃▂▂▂▂▂▁   2/min
-              db8a  opus     4m   idle     moved from work 14…  ▁▂▂▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▂▂▂▂▂▂▄▃▂▂▂▁   0/min
-personal ◆    41e0  sonnet  now   ↓ ~860   started here 12:47   ▁▂▂▂▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▃▂▁▁▁▁▁▁▁▁▁▁▂▁   3/min
-              9c2e  opus     9m   idle     started here 11:55   ▁▁▁▁▁▁▁▁▁▁▁▂▁▁▁▁▁▁▁▁▁▂▂▂▁▁▁▁▁▁▁▁▁▁▁▁   0/min
+side       ▲  c61b mobile        opus    now   ↓ ~1.2k  started here 14:4…  ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▂   5/min
+              d28c switchboard   opus    now   ↑ ask    moved from work 1…  ▁▁▁▁▂▂▂▃▃▂▂▂▂▁▁▁▃▃▃▂▁▁▁▂   4/min
+              7f3a api           sonnet   1m   idle     moved from work 1…  ▂▂▁▁▁▁▄▂▁▁▁▁▁▁▁▁▂▃▃▃▂▂▂▁   2/min
+              db8a infra         opus     4m   idle     moved from work 1…  ▁▂▁▁▁▁▁▁▁▁▁▁▁▁▁▁▂▂▂▂▃▂▂▁   0/min
+personal   ◆  41e0 docs          sonnet  now   ↓ ~860   started here 12:47  ▂▂▂▁▁▁▁▁▁▁▁▁▁▁▂▂▁▁▁▁▁▁▁▁   3/min
+              9c2e website       opus     9m   idle     started here 11:55  ▁▁▁▁▁▁▁▂▁▁▁▁▁▁▂▂▁▁▁▁▁▁▁▁   0/min
 
 COMING UP  ──────────────────────────────────── c       LATELY  ────────────────────────────────────────── l
 
-18:50      side's 5-hour resets         in 4h 08m       14:41  ▲ c61b started on side
+18:50      side's 5-hour resets         in 4h 08m       14:41  ▲ mobile started on side
 ~Fri       side's week runs out at i…    in 1d 2h       14:31  ■ work refused (401): 3 moved to side
-~Sat       personal's week runs out…    in 1d 19h       14:12  ▲ 7f3a started on work
+~Sat       personal's week runs out…    in 1d 19h       14:12  ▲ api started on work
 Sun 02:00  personal's week resets       in 2d 11h       13:50  ◇ side primed: its 5-hour window started
-~Sun       work's week reaches its c…   in 2d 21h       13:22  ▸ db8a moved personal → work: personal came…
+~Sun       work's week reaches its c…   in 2d 21h       13:22  ▸ infra moved personal → work: personal came…
 
 tab views     u usage  r routing  s sessions  c coming up  l lately  b by: window     p pin  ? help  q quit

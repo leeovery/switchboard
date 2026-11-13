@@ -1,6 +1,7 @@
 package views
 
 import (
+	"cmp"
 	"slices"
 	"time"
 
@@ -23,8 +24,8 @@ type LogEvent struct {
 	Well bool
 	// Session is the whole id of the session it's of, one that started or
 	// moved, or whose own pin was set or cleared: "" for an account's event.
-	// Dir is the directory the session was started in, as its lines last
-	// name it: "" where none read does.
+	// Dir is the directory the session ran in: as the event gives it, else
+	// as its lines last name it; "" where neither does.
 	Session, Dir string
 	// Accounts are the accounts it names, by id, each once, as the filter
 	// keeps and counts it: a move's, from and to; the global pin's, set or
@@ -203,7 +204,7 @@ func eventsLines(rows []LogEvent, first LedgerDay, src LogEventSources) []Events
 func eventRow(e Event, line EventLine, fact eventFact, s *story, now time.Time) LogEvent {
 	row := LogEvent{
 		Key: e.Key, At: e.Event.At.In(now.Location()), Kind: e.Event.Kind, Well: wellAgain(e.Event),
-		Session: e.Event.Session, Accounts: namedAccounts(e.Event), Line: line, Moved: fact.moved, Dir: s.dir,
+		Session: e.Event.Session, Accounts: namedAccounts(e.Event), Line: line, Moved: fact.moved, Dir: cmp.Or(e.Event.Dir, s.dir),
 	}
 	switch e.Event.Kind {
 	case status.EventMoved:

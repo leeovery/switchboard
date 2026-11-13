@@ -656,7 +656,7 @@ func (u *scriptedUpstream) next(r *http.Request) answer {
 	token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
 	u.mu.Lock()
 	defer u.mu.Unlock()
-	u.accounts = append(u.accounts, map[string]string{workToken: "work", personalToken: "personal", sideToken: "side"}[token])
+	u.accounts = append(u.accounts, map[string]string{workToken: "work", personalToken: "personal", sideToken: "side", extraToken: "extra"}[token])
 	u.tokens = append(u.tokens, token)
 	answers := u.answers[token]
 	if len(answers) > 1 {

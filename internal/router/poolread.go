@@ -2,6 +2,7 @@ package router
 
 import (
 	"cmp"
+	"errors"
 	"fmt"
 	"net/http"
 	"slices"
@@ -118,15 +119,23 @@ func (rd poolRead) routes(pool string) bool {
 	return rd.whole() || rd.pools.pooled() && rd.pools.of(pool) == rd.pool
 }
 
-// pin returns the global pin as it holds in the pool read: naming the
-// pool's accounts alone, and zero where it names none of them, as it's no
-// pin for a request in the pool.
-func (rd poolRead) pin(global status.Pin) status.Pin {
-	global.Accounts = slices.DeleteFunc(slices.Clone(global.Accounts), func(id string) bool { return !rd.holds(id) })
-	if global.IsZero() {
-		return status.Pin{}
+// pin returns the pin of the pool read, of the pools' pins given, as fitted
+// keeps each to its own pool's accounts. A read of every account's names
+// those each pool's pin names among its own accounts, as spends says, of the
+// accounts given, in their order.
+func (rd poolRead) pin(ps pins, as accounts) status.Pin {
+	if rd.every {
+		return status.Pin{Accounts: as.held(func(id string) bool { return ps.spends(rd.pools, id) }).configured().IDs()}
 	}
-	return global
+	return ps[rd.pool]
+}
+
+// demandOf returns the id of the pool whose demand the read carries: the
+// pool read, the one there is in a config from before pools included;
+// reporting false for a read of every account's where there are pools, as
+// no pool's demand is another's.
+func (rd poolRead) demandOf() (string, bool) {
+	return rd.pool, !rd.every || !rd.pools.pooled()
 }
 
 // events returns those of the events given that the pool read shows: one
@@ -164,7 +173,7 @@ func (rd poolRead) shows(e status.Event) bool {
 }
 
 // befell returns the account the event e befell, as a pool read shows it by:
-// the one it names; else the first the global pin names; else the one a
+// the one it names; else the first a pool's pin names; else the one a
 // session moved to, where its session stays, or from, where it moved to
 // none; "" for none.
 func befell(e status.Event) string {
@@ -173,17 +182,6 @@ func befell(e status.Event) string {
 		pinned = e.Accounts[0]
 	}
 	return cmp.Or(e.Account, pinned, e.To, e.From)
-}
-
-// prime returns the priming schedule as the pool read shows it: the slots of
-// its accounts alone. The stagger is every pool's together, till each pool
-// staggers its own.
-func (rd poolRead) prime(p status.Prime) status.Prime {
-	if rd.whole() {
-		return p
-	}
-	p.Slots = slices.DeleteFunc(slices.Clone(p.Slots), func(s status.Slot) bool { return !rd.holds(s.Account) })
-	return p
 }
 
 // named returns the id and the label of the pool read: both "" in a config
@@ -273,7 +271,7 @@ func (t *poolTable) poolOfAll(ids []string, as accounts) (string, error) {
 		if !ok {
 			continue
 		}
-		in, pooled := t.poolOf[id]
+		in, pooled := t.in(id)
 		if !pooled {
 			return "", fmt.Errorf("%s is in no pool, as the config no longer has it, so it can't be pinned", accountSaid(a.Account))
 		}
@@ -286,6 +284,53 @@ func (t *poolTable) poolOfAll(ids []string, as accounts) (string, error) {
 		}
 	}
 	return pool, nil
+}
+
+// pinStands fails, saying why, unless a pin of the accounts with the given
+// ids, of as, stands whole as the pin of the pool with the given id, as t
+// has the pools and fitted fits it: where t is closed, as shut says; where
+// they're in another pool, as when the pools have moved them since the pool
+// was read, or in several, or one is in none.
+func (t *poolTable) pinStands(pool string, ids []string, as accounts) error {
+	if err := t.shut(); err != nil {
+		return err
+	}
+	in, err := t.poolOfAll(ids, as)
+	if err != nil {
+		return err
+	}
+	if in != pool {
+		return errors.New("the accounts to pin have just moved pool, as the config changed: pin them again")
+	}
+	return nil
+}
+
+// shut fails, saying why, where t is closed: nothing is routed, as no account
+// is in any pool, so no pin can be set, nor a pool's cleared. A session's own
+// can still be cleared, as that needs no pool.
+func (t *poolTable) shut() error {
+	if t.closed == "" {
+		return nil
+	}
+	return fmt.Errorf("%s: no pin can be set, nor a pool's cleared, till it can", t.closed)
+}
+
+// sessionMay fails, saying which pool each is in, unless a session in the
+// pool given, as its request named it, "" for none, can be pinned to the
+// account a: one in the session's pool, as every account is in a config
+// from before pools; none, where t is closed, as shut says.
+func (t *poolTable) sessionMay(pool string, a account) error {
+	if err := t.shut(); err != nil {
+		return err
+	}
+	in := t.of(pool)
+	switch at, placed := t.in(a.ID); {
+	case !placed:
+		return fmt.Errorf("%s is in no pool, as the config no longer has it, so it can't be pinned", accountSaid(a.Account))
+	case at != in:
+		return fmt.Errorf("%s is in pool %s; this session is in pool %s", accountSaid(a.Account), t.label(at), t.label(in))
+	}
+	return nil
 }
 
 // label returns the label of the pool with the given id, else its id.

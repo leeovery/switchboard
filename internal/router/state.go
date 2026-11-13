@@ -272,18 +272,21 @@ type state struct {
 	// limits counts the limits reached, each one's identity the count as it
 	// was reached, from 1 as the router starts.
 	limits int
-	// sizes holds each account's size, in Pro weeks, by its id, as sizes has
-	// them; and day is the pool's day rate, of its accounts' weeks' rises, as
-	// rose takes them in, over the time it had room, as judgeRoom judges it.
-	sizes map[string]float64
-	day   forecast.Day
+	// grouped are the pools each pool's demand is reckoned in, as regroup
+	// last found them; sizes holds each account's size, in Pro weeks, by its
+	// id, as sizesIn has them; and days holds each pool's day rate, by the
+	// pool's id, of its accounts' weeks' rises, as rose takes them in, over
+	// the time it had room, as judgeRooms judges it.
+	grouped *poolTable
+	sizes   map[string]float64
+	days    map[string]forecast.Day
 	// hold is the hold curve, of the answers' tokens by how long their
 	// sessions had been on their accounts, as answered takes them in, which
 	// the state file keeps.
 	hold forecast.Hold
-	// pin is the global pin, as the router last told it, as repin and
-	// recallPin have it: zero while there's none.
-	pin status.Pin
+	// pins are each pool's pin, as the router last told them, as repin and
+	// recallPins have them.
+	pins pins
 }
 
 func newState(accounts accounts, pools *membership, policy score.Policy, family func(string) string, now func() time.Time, changed, routine func()) *state {
@@ -298,8 +301,10 @@ func newState(accounts accounts, pools *membership, policy score.Policy, family 
 		history:  func([]readings.Reading) {},
 		usage:    make(map[string]*usage, len(accounts)),
 		seen:     make(map[string]map[string]bool),
-		sizes:    accounts.sizes(),
+		grouped:  pools.current(),
+		days:     make(map[string]forecast.Day),
 	}
+	s.sizes = s.sizesIn(s.grouped)
 	for _, a := range accounts {
 		s.usage[a.ID] = &usage{
 			windows:   make(map[string]quota.Window),
@@ -352,12 +357,14 @@ func (s *state) recordAnswer(id string, windows []quota.Window, sent moment, who
 // the answer to a request sent at sent, as its usage's take does, but those
 // of windows retired since, as unretire says; and, of a whole reading, as
 // whole says, retires each window every model shares it doesn't report, as
-// retire says. The pool's day rate takes in the rises it reads, as rose says,
-// and the pool is judged afresh for room, as judgeRoom says. It notes in the
-// log each window retired, and each back. It returns the windows that read
-// otherwise, and whether it took any, as its usage's take does, and whether a
-// window was retired or is back, which is news. s.mu must be held.
+// retire says. The day rate of the account's pool, as the pools are
+// regrouped first, takes in the rises it reads, as rose says, and the pools
+// are judged afresh for room, as judgeRooms says. It notes in the log each
+// window retired, and each back. It returns the windows that read otherwise,
+// and whether it took any, as its usage's take does, and whether a window was
+// retired or is back, which is news. s.mu must be held.
 func (s *state) take(id string, windows []quota.Window, at time.Time, sent moment, whole bool) (changed []quota.Window, took, news bool) {
+	s.regroup()
 	u := s.usage[id]
 	taken := s.mark()
 	counting, back := u.unretire(windows, sent)
@@ -369,7 +376,7 @@ func (s *state) take(id string, windows []quota.Window, at time.Time, sent momen
 	for key, rise := range risen {
 		s.rose(id, key, rise, at)
 	}
-	s.judgeRoom(s.weekHeld, s.pin.Accounts, at)
+	s.judgeRooms(s.weekHeld, s.pinnedIn, at)
 	for _, key := range back {
 		logger.Info("reports the window again", "account", id, "window", key)
 	}
@@ -1356,27 +1363,33 @@ func (s *state) document(pinned ...string) status.Document {
 // router knows it, in the order configured, with how each stands under
 // pressure, the accounts pinned spending their reserves, the best of them to
 // use next, where a new session in the pool goes, as status.Best chooses it,
-// the pool's primary, and the pool's use, as demand has it.
+// the pool's primary, and the pool's use, as demand has it, where the read
+// has a pool's, as demandOf says.
 func (s *state) documentOf(rd poolRead, pinned []string) status.Document {
 	now := s.now()
 	accounts := s.statuses(now, rd, pinned)
-	return status.Document{
+	doc := status.Document{
 		GeneratedAt: now.UTC(),
 		Source:      status.SourceRouter,
 		Best:        status.Best(s.policy, accounts, pinned, now),
 		Primary:     status.PrimaryOf(accounts),
-		Demand:      s.demand(now),
 		Accounts:    accounts,
 	}
+	if pool, ok := rd.demandOf(); ok {
+		doc.Demand = s.demand(now, pool)
+	}
+	return doc
 }
 
 // statuses returns the status at now of every account of the pool rd reads,
 // marked its primary where rd names one, with how it stands under pressure,
 // those pinned spending their reserves, and how fast its windows have been
-// used lately.
+// used lately, the pools regrouped first, so an account that has moved pools
+// gives no rate it had in the pool before.
 func (s *state) statuses(now time.Time, rd poolRead, pinned []string) []status.Account {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.regroup()
 	all := []status.Account{}
 	for _, a := range s.accounts {
 		if !rd.holds(a.ID) {

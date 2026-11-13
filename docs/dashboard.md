@@ -95,6 +95,9 @@ pool's.
 - Narrower, as on a phone, it stacks the windows as `usage` stacks them.
 - Its name column is as wide as the longest name, up to 24 cells of label, wherever the screen has
   room. A bar only grows as the screen widens: the words go from short to full first.
+- Each name's marks, `◆` and `▲`, stand at the end of the name column, so they line up down the
+  list, and under them ROUTING's and SESSIONS'. Every list of accounts in a column does the same,
+  Compare's rows on a phone among them.
 - An account out of the pool, under a pin, is drawn faint.
 - An account without a 5-hour window reads `no 5-hour limit` in place of its bar, or `no limit`
   where the room is short, and by account, where the window's label beside it names the window. In a
@@ -156,11 +159,16 @@ SESSIONS lists the sessions the router has routed in the last hour, busiest firs
 whose sessions send the most requests a minute comes first, with all its sessions together, the
 busiest of them first. Each session shows:
 
-- its id, bright while the session is busy
+- its id, bright while the session is busy, and its project, the last part of its directory, cut
+  to 12 characters as the Log cuts it, `c61b mobile`; on narrower screens the project narrows to
+  6 characters, then leaves
 - its model
 - when it was last seen
 - what it's doing, such as `↑ ask` or `↓ ~1.2k`
-- why it's on its account, such as `moved from work 14:31: work reached its cap`
+- why it's on its account, such as `moved from work 14:31: work reached its cap`, cut short where
+  the screen hasn't room for it all (that one reads whole from 155 columns with names as short as
+  the sample's, and later with longer ones), and hidden where it would have fewer than 12
+  characters, under 102 columns with the sample's names
 - its own trace, lined up with ROUTING's.
 
 SESSIONS shows as many sessions as there's room for, and a row such as `+5 more` for the rest. It
@@ -184,10 +192,11 @@ COMING UP where they don't.
   `16:30  personal's 5-hour resets  in 1h 48m`. A run-out's row is in the theme's attention colour.
 - **LATELY** is what the router has done, newest first. Each event is marked, such as
   `14:31  ╎ work reached its cap: 3 sessions moved to side`. When a limit, a cap or a refusal moves
-  sessions, those sessions are folded into that event's line. Where a line doesn't fit whole, it
-  takes a shorter form, `work at its cap: 3 moved to side`. An account found holding another
-  subscription's token is told as `work's token is another subscription's`, or `work: wrong
-  token` where that doesn't fit.
+  sessions, those sessions are folded into that event's line. A session is named by the folder
+  it runs in, as in `api moved personal → work`, or by its short id where that isn't known.
+  Where a line doesn't fit whole, it takes a shorter form, `work at its cap: 3 moved to side`. An
+  account found holding another subscription's token is told as `work's token is another
+  subscription's`, or `work: wrong token` where that doesn't fit.
 
 ### By account
 
@@ -442,10 +451,14 @@ blank row under the axis; only then do the lanes scroll with `j` and `k`, down t
 the pool's lane at the shortest.
 
 The labels beside the lanes take as many columns as the widest needs, up to 24 cells of label,
-and the lanes take the rest. `a` collapses the labels, to give the lanes more room: each lane
-keeps its account's marks, such as `◆`, with its use under them, such as `66%`,
-and the pool's lane `Σ`, with its room short under it, such as `1.2/3`. COMING UP stays as it is,
-each line naming its account. `a` again expands them. Runway remembers which you left it on.
+and the lanes take the rest. `a` collapses the labels, to give the lanes more room: the lanes
+start at the left edge, with no names and no marks, as the status line already says where new
+sessions go. Under the start of each lane is its use, such as `66%`, faint for an account out of
+the pool, and under the pool's lane its room, short, such as `1.2/3`. The words under a lane
+still start under their stretch, but where that would run into the use, they start two cells
+after it, as in `100%  out Tue 17:54  ·  back Sun 01:00`. COMING UP stays as it is, each line
+naming its account. `a` again expands them; the key line says `a collapse`, its word faint while
+the labels are collapsed. Runway remembers which you left it on.
 
 To look back:
 
@@ -458,41 +471,41 @@ A step back is never kept.
 ## Graphs
 
 **Graphs** draws every account's room at once, as charts. It's a page of sections you turn on and
-off: first a burn-down card for every account in each window, then whichever other charts you
+off: first a burn-down card for every account over its week, then whichever other charts you
 show.
 
 <div align="center">
-<img src="../art/graphs.webp" alt="Graphs: a burn-down card for each account, its room over the week and then over the 5 hours, work at its cap till 17:10, personal's and side's weeks running out at their pace, each heading to its ✕, and the pool's room under them" width="840">
+<img src="../art/graphs.webp" alt="Graphs: a burn-down card for each account, its room over the week, two to a row, work capped till 17:10, personal's and side's weeks running out at their pace, each heading to its ✕, and the pool's room under them" width="840">
 </div>
 
 ### Sections on Graphs
 
-Graphs has five sections, always in this order. Each key shows or hides its section, at any size,
+Graphs has four sections, always in this order. Each key shows or hides its section, at any size,
 and the dashboard remembers which show.
 
 | Section | Key | At first | What it is |
 |---|---|---|---|
 | WEEK | `w` | shown | A burn-down card for each account, over its week |
-| 5-HOUR | `f` | shown | A burn-down card for each account, over its 5-hour window |
 | POOL | `o` | hidden | The pool's room over Runway's week, each account's stacked |
-| GLANCE | `g` | hidden | A row for each account and the pool: each window's room as a sparkline, with `usage`'s words |
+| GLANCE | `g` | hidden | A row for each account and the pool: its week's room as a sparkline, with `usage`'s words |
 | WHEN YOU WORK | `h` | hidden | Requests by the hour of the day and the day of the week, over the last four weeks |
 
-The windows charted are the two every model shares, as on Runway: a model's own window has no card.
-5-HOUR has a card only for each account with a 5-hour window, or that counts as having one, as the
-Window term has it. Where no account has one or counts as having one, 5-HOUR goes, with its `f` key,
-and GLANCE has no 5-hour column, as Runway has no 5-hour view; a 5-HOUR you left shown comes back
-once an account has one. With every section hidden, the page's first row says which keys bring them back.
+Graphs charts the week every model shares, as on Runway: a model's own week has no card, and the
+5-hour window, which the Overview and Runway show, has none here. With every section hidden, the
+page's first row says which keys bring them back.
 
 ### The burn-down cards
 
-Each card charts one account's room over its own window, from the window's start to its reset, a
-column a cell. Each card keeps its own clock: a card's days or hours, and its now, fall where its
-own window puts them, not where the card beside it does. The cards follow the config's order, as
-many side by side as fit at 35 cells or more each, the rest on the rows under.
+Each card charts one account's room over its own week, from the week's start to its reset, a
+column a cell. Each card keeps its own clock: a card's days, and its now, fall where its own week
+puts them, not where the card beside it does. The cards follow the config's order, two side by side
+where both fit at 35 cells or more, the rest on the rows under. Every card is as wide as the
+others, so the same burn draws the same slope on each: with three accounts, the third sits under
+the first, as wide. Where two don't fit side by side, as on a phone, there's a card to a row; with
+one account, its card takes the width.
 
 Over the chart, a card has the account's name and marks, and its words: the room left,
-such as `66% left`, then what Runway says under the account's lane in that window, such as
+such as `66% left`, then what Runway says under the account's lane in its week view, such as
 `capped 14:31  ·  back 17:10` or `out ~Sat`. The words come from
 Runway's live view as Runway would draw it at the same width. So a hold shorter than one of
 Runway's columns can go unsaid on a card, as on Runway, and a wider terminal, or Runway's labels
@@ -501,37 +514,34 @@ collapsed with `a`, can bring it out.
 The chart:
 
 - **The room left** is filled solid up to now, each column to the room the window had then.
-- **Where it's heading** is a dotted line from now to the reset, straight to where the window is
-  forecast to be: a week's as the router would spread the pool's use (see
-  [Where a week runs out](how-it-works.md#where-a-week-runs-out)), the 5-hour's holding the rate
-  it's been used at lately. That's the pace Runway's words go by. It falls to where the window runs
-  out, then runs along the floor it meets, its cap or empty, to the reset; or it ends
-  at the room the window will have left at its reset.
+- **Where it's heading** is a dotted line from now to the reset, straight to where the week is
+  forecast to be, as the router would spread the pool's use (see
+  [Where a week runs out](how-it-works.md#where-a-week-runs-out)). That's the pace Runway's words
+  go by. It falls to where the week runs out, then runs along the floor it meets, its cap or
+  empty, to the reset; or it ends at the room the week will have left at its reset.
 - **`✕`** marks where the window runs out. Where its cap or its limit already holds it, `✕` marks
   the column the hold began in, where that's known.
 - **The reserve** is a faint dotted line at the room the account's cap leaves, where the reserve
   holds. It's not drawn while a pin spends the reserve.
 - **Now** is a faint `│`.
 
-A window's colour is its state's, as Runway colours a lane: the ramp's first colour where its room
+A week's colour is its state's, as Runway colours a lane: the ramp's first colour where its room
 lasts to its reset, the attention colour where it runs out at its pace or its cap holds it, and red
-where its limit holds it or its token is refused. Each window goes by its own state.
+where its limit holds it or its token is refused.
 
 An account not read yet has Runway's words for it and an empty chart but for now. An account the
 router doesn't have yet, just added to the config, has its label alone. A stale account is faded,
 and one out of the pool faint.
 
-Under the cards, `Σ pool` gives the pool's room in each window, such as
-`week 1.2 of 3 left   5-hour 1.5 of 3 left`, out of the accounts that have the window. Where fewer
-than two have a 5-hour window, and not all, there's no 5-hour part. With one account there's no
-pool, and no line. At the foot, over the key line, a legend names the marks.
+Under the cards, `Σ pool` gives the pool's room in the week, such as `week 1.2 of 3 left`. With
+one account there's no pool, and no line. At the foot, over the key line, a legend names the marks.
 
 <div align="center">
-<img src="../art/dashboard.webp" alt="One account's dashboard: work alone on the Overview, its usage, routing trace and LATELY, then its week and 5-hour cards on Graphs, then Runway's 5-hour, its lane running out at its pace to its cap, back at 17:10" width="840">
+<img src="../art/dashboard.webp" alt="One account's dashboard: work alone on the Overview, its usage, routing trace and LATELY, then its week's card on Graphs, then Runway's 5-hour, its lane running out at its pace to its cap, back at 17:10" width="840">
 </div>
 
 The animation shows one account, `work`, alone: the Overview, with its usage, its routing trace
-and LATELY; then Graphs, its week and 5-hour cards; then Runway's 5-hour, where its lane runs out
+and LATELY; then Graphs, its week's card; then Runway's 5-hour, where its lane runs out
 at its pace to its cap, and is back at 17:10.
 
 ### POOL
@@ -545,18 +555,17 @@ so POOL draws the pool's total alone.
 
 ### GLANCE
 
-GLANCE lists every account and the pool in a few rows, as `usage` does. Each window, the week's then
-the 5-hour's, is a sparkline of 16 cells, its room from its start to its reset, faint from now where
-it's heading, with `✕` where it runs out. Then come the room left now, such as `66%`, and `usage`'s
-words for the window, such as `19%/day till Sun 21:00`. An account without a 5-hour window has an
-empty sparkline there, no room figure, and reads `no 5-hour limit`. `Σ pool` gives the pool's
-sparklines and its room, out of the accounts that have each window.
+GLANCE lists every account and the pool in a few rows, as `usage` does. Each account's week is a
+sparkline, its room from its start to its reset, faint from now where it's heading, with `✕` where
+it runs out. Then come the room left now, such as `66%`, and `usage`'s words for the week, such as
+`19%/day till Sun 21:00`. `Σ pool` gives the pool's sparkline and its room.
 
-GLANCE takes the width it needs and no more, 113 columns with the sample's names. Narrower, its
-words take their short forms, then its names narrow, and then its windows stack, the week's rows
-over the 5-hour's. While WHEN YOU WORK shows too, the two sit side by side wherever both fit whole
-with 10 cells between, from 175 columns with the sample's names; elsewhere WHEN YOU WORK comes
-under GLANCE.
+GLANCE takes the width: its sparklines grow with it, from 16 cells, while the room left and the
+words keep the room they need, lined up down the rows. Narrower, its words take their short forms,
+then its names narrow. While WHEN YOU WORK shows too, the two sit side by side wherever both fit
+whole with 10 cells between, from 123 columns with the sample's names, sharing what's
+spare, GLANCE taking what WHEN YOU WORK's whole hours leave; elsewhere WHEN YOU WORK comes under
+GLANCE.
 
 ### WHEN YOU WORK
 
@@ -565,6 +574,10 @@ week as [`week_starts`](configuration.md#top-level-keys) begins weeks, and the d
 shaded by its requests, averaged over the four whole weeks before today. The heading says the weeks
 counted, such as `the 4 weeks to Wed 30 Sep`, or fewer, where the ledger holds fewer. With none,
 the heading says no weeks, and the section says `nothing recorded yet`.
+
+The grid takes the width: every hour's square grows with it, each as wide as the others, any
+cells over left blank at the row's end, and the hours over the grid follow their columns. On a
+narrow screen, an hour is a square alone, with no gap.
 
 It counts the requests that spend quota and went upstream, each in the local hour it arrived in.
 The shades are History's: one for an hour with nothing on it, and four for the quarters of the
@@ -581,15 +594,15 @@ row at a time, and the row over the key line says what's out of view, such as
 a resize or the config, never as the numbers move. The charts move on with the clock, a column at
 a time.
 
-So at 160 by 37, with three accounts, each card's words have a row of their own and the charts 7
-rows; at 108 by 44, the words share the label's row and the charts take 5. On a phone, the cards
-stack, one to a row, and with four accounts the page scrolls.
+So at 160 by 37, with three accounts, the cards lie two to a row, each card's words have a row of
+their own and the charts take 8 rows; at 108 by 44, 12. On a phone, the cards stack, one to a row,
+with charts of 11 rows, or 7 with four accounts.
 
 ### Keys on Graphs
 
 | Key | Does |
 |---|---|
-| `w` `f` `o` `g` `h` | Shows or hides a section: WEEK, 5-HOUR, POOL, GLANCE and WHEN YOU WORK. `f` is there only while an account has a 5-hour window. |
+| `w` `o` `g` `h` | Shows or hides a section: WEEK, POOL, GLANCE and WHEN YOU WORK. |
 | `j` `k`, `PgDn` `PgUp`, the wheel | Scrolls the page, where its sections don't fit. |
 
 ## The Log
@@ -732,8 +745,8 @@ switches at one width: under 100 columns, it takes its phone form.
   wherever one row doesn't fit, under 83 columns with a name column of 16.
 - LATELY comes under COMING UP, as it does wherever the two don't fit side by side, under 95
   columns.
-- Graphs' cards stack, one to a row, each card's words beside its label where rows run short, and
-  GLANCE's windows stack where they don't fit side by side. See [Room on Graphs](#room-on-graphs).
+- Graphs' cards stack, one to a row, each card's words beside its label where rows run short. See
+  [Room on Graphs](#room-on-graphs).
 - Accounts' `against it` and `against` give `all accounts`' ratio alone, but where an account has
   no `plan`, they add how many of the plans it's over, compact: `4.4× · 2/3`.
 - A session's page keeps each turn's number, start, length, requests, worth and accounts, as it
@@ -1007,7 +1020,7 @@ place, for 4 seconds.
 The Overview's key line lists its section toggles, each word faint while its section is hidden.
 Then come `b by: window` and `p pin  ? help  q quit`.
 
-Graphs' key line lists its toggles the same way, `w week  f 5-hour  o pool  g glance  h when`,
+Graphs' key line lists its toggles the same way, `w week  o pool  g glance  h when`,
 then `p pin  ? help  q quit`.
 
 On a phone, or wherever the line doesn't fit whole:

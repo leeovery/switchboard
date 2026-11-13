@@ -2,9 +2,9 @@ package dashboard
 
 import (
 	"slices"
-	"strings"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/dashboard/flex"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
@@ -81,14 +81,13 @@ func laneLaid(l views.Lane, a status.AccountNow, name accountName) laidLane {
 // runwayLanes draws the lanes, as laid out, each on its row: its account's
 // name in the label column before it, cut to fit as line has it, and its
 // use of the view's window from runwayUseFrom on the row under, as useLine
-// has it; or with the account column collapsed, its marks, and its use under
-// them, as collapsedUse has it; then the lane itself, as
-// drawLane draws it.
+// has it; or with the account column collapsed, neither name nor marks, and
+// its use from column 0 on the row under, under the lane's first column, as
+// collapsedUse has it; then the lane itself, as drawLane draws it.
 func (f Frame) runwayLanes(c *canvas, laid runwayLaid) {
 	window := runwayNames[f.Runway.Window]
 	for _, ln := range laid.lanes {
 		if f.Runway.Collapsed {
-			c.line(0, ln.row, ln.name.head())
 			c.line(0, ln.row+1, line{ln.collapsedUse()})
 		} else {
 			c.line(0, ln.row, ln.name.line(laid.x))
@@ -98,37 +97,23 @@ func (f Frame) runwayLanes(c *canvas, laid runwayLaid) {
 	}
 }
 
-// head is the name as Runway's collapsed account column heads its lane, as
-// in "◆ ▲": the marks it carries, from the column's first cell.
-func (n accountName) head() line {
-	marks := n.marks()
-	if len(marks) > 0 {
-		marks[0].text = strings.TrimPrefix(marks[0].text, " ")
-	}
-	return marks
-}
-
-// runwayLabelsOf are the labels of lanes named as names has them, ▲'s
+// runwayLabelsOf is the name column of lanes named as names has them, ▲'s
 // cells kept on every account, as marksCells keeps them, so the lanes hold
-// still as ▲ moves: expanded, their name column, nameGap after it, as
-// accountsColumn has it, as "personal ◆"; collapsed, the cells of the
-// widest marks, as marksCells counts them.
-func runwayLabelsOf(names []accountName) runwayLabels {
-	labels := runwayLabels{expanded: accountsColumn(nameGap, names)}
-	for _, n := range names {
-		labels.collapsed = max(labels.collapsed, n.marksCells())
-	}
-	return labels
+// still as ▲ moves: nameGap after it, as accountsColumn has it, as
+// "personal ◆".
+func runwayLabelsOf(names []accountName) flex.Part {
+	return accountsColumn(nameGap, names)
 }
 
 // widestFigure is how many cells the widest use a lane's label says takes,
 // as 100%.
 const widestFigure = len("100%")
 
-// collapsedUse is the lane's use of the view's window as its collapsed label
-// says it: its figure, as useFigure has it, in text.faint where the pool
-// leaves its account out; or — in text.faint where its use is stale, it has
-// no token or it's not read yet, which the expanded label words.
+// collapsedUse is the lane's use of the view's window as the collapsed
+// account column says it: its figure, as useFigure has it, in text.faint
+// where the pool leaves its account out, as the expanded label is; or — in
+// text.faint where its use is stale, it has no token or it's not read yet,
+// which the expanded label words.
 func (ln laidLane) collapsedUse() span {
 	u := ln.Use
 	switch {

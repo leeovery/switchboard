@@ -50,12 +50,12 @@ func (r RunwayShown) view() laneView {
 }
 
 // runwayWords draws the words under each lane, as laid out, on the row under
-// it, from the lanes' first column, as wordsUnder places them: cued while
-// its account newly stands so, as wordsCue has it.
+// it, from the lanes' first column, as wordsUnder places them, none before
+// wordsFrom: cued while its account newly stands so, as wordsCue has it.
 func (f Frame) runwayWords(c *canvas, laid runwayLaid) {
 	v := f.Runway.view()
 	for _, ln := range laid.lanes {
-		words := v.wordsUnder(ln, laid.m.Now)
+		words := v.wordsUnder(ln, laid.m.Now, f.wordsFrom(ln))
 		for _, w := range words {
 			c.line(laid.x+w.x, ln.row+1, w.said)
 		}
@@ -66,16 +66,28 @@ func (f Frame) runwayWords(c *canvas, laid runwayLaid) {
 	}
 }
 
+// wordsFrom is the first column, counted from the lanes' first, that the
+// words under the lane ln may start from: with the account column collapsed,
+// phraseGap after its use, which starts the row, as collapsedUse has it, as
+// though the words before; else the first.
+func (f Frame) wordsFrom(ln laidLane) int {
+	if !f.Runway.Collapsed {
+		return 0
+	}
+	return line{ln.collapsedUse()}.width() + phraseGap
+}
+
 // wordsUnder are the words under the lane ln at now, as said has them, each
-// placed from a column counted from the lanes' first, as placeAlong places
-// them: its phrases, or where none of them is placed, what's said instead.
-func (v laneView) wordsUnder(ln laidLane, now time.Time) []placed {
+// placed from a column counted from the lanes' first, none before from, as
+// placeAlong places them: its phrases, or where none of them is placed,
+// what's said instead.
+func (v laneView) wordsUnder(ln laidLane, now time.Time, from int) []placed {
 	cols := v.timeline.Columns
 	says := v.said(ln, now)
-	if words := placeAlong(cols, says.phrases...); words != nil {
+	if words := placeAlong(cols, from, says.phrases...); words != nil {
 		return words
 	}
-	return placeAlong(cols, says.instead...)
+	return placeAlong(cols, from, says.instead...)
 }
 
 // laneSays is what's said under a lane: its phrases, in order; and what's
@@ -227,13 +239,14 @@ func refusedWith(s views.LaneStretch, a status.AccountNow, now int) string {
 // placeAlong places the phrases given, in order, along a row cols columns
 // wide: each from its column, or, where all its parts don't fit from there,
 // shifted left as far as they need, to end at the row's last column, but
-// never sooner than phraseGap cells after the words before, as many of its
-// parts, whole, as fit; or, where it ends at its column, there, whole, where
-// that clears the words before; and none from the first not ending at its
-// column whose first part doesn't fit, wherever it would start.
-func placeAlong(cols int, phrases ...phrase) []placed {
+// never sooner than from, nor phraseGap cells after the words before, as
+// many of its parts, whole, as fit from where it starts; or, where it ends at
+// its column, there, whole, where that clears both; and none from the first
+// not ending at its column whose first part doesn't fit, wherever it would
+// start.
+func placeAlong(cols, from int, phrases ...phrase) []placed {
 	var words []placed
-	next := 0
+	next := from
 	for _, p := range phrases {
 		said := slices.Concat(p.parts...)
 		start := max(next, min(p.col, cols-said.width()))

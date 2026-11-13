@@ -15,10 +15,9 @@ import (
 	"github.com/leeovery/switchboard/internal/views"
 )
 
-// cardsPage is Graphs width by height showing WEEK and 5-HOUR, of the
-// accounts configured with the ids given, as text alone, with Runway's lanes
-// over its live view of each window built of doc at at, as the watch builds
-// them.
+// cardsPage is Graphs width by height showing WEEK, of the accounts
+// configured with the ids given, as text alone, with Runway's lanes over its
+// live view of the week built of doc at at, as the watch builds them.
 func cardsPage(doc status.Document, at time.Time, width, height int, ids ...string) Frame {
 	f := Frame{Width: width, Height: height, View: Graphs, Policy: printPolicy}
 	f.Graphs.Accounts = configured(ids...)
@@ -36,18 +35,17 @@ func cardsPage(doc status.Document, at time.Time, width, height int, ids ...stri
 var trioIDs = []string{"work", "personal", "side"}
 
 // pageCards is f's Graphs of doc at at drawn whole, as the page lays it out,
-// and where it lays each burn-down section's cards, by the section.
-func pageCards(f Frame, doc status.Document, at time.Time) (*canvas, map[GraphsSection][]cardLaid) {
+// and where it lays WEEK's cards.
+func pageCards(f Frame, doc status.Document, at time.Time) (*canvas, []cardLaid) {
 	laid := f.graphsLaid()
 	c := newCanvas(f.Width, laid.rows)
 	f.graphsDrawn(c, f.Moment(doc, at), laid)
-	cards := make(map[GraphsSection][]cardLaid)
 	for _, s := range laid.sections {
-		if burnsDown(s.section) {
-			cards[s.section] = laid.cards(s)
+		if s.section == GraphsWeek {
+			return c, laid.cards(s)
 		}
 	}
-	return c, cards
+	return c, nil
 }
 
 // regionOf is the text of c in the bounds given, a row each, trimmed.
@@ -69,15 +67,11 @@ func labelOf(c *canvas, card cardLaid) string {
 	return regionOf(c, bounds{x: card.chart.x, y: card.label, width: card.chart.width, rows: 1})[0]
 }
 
-// burnKeys are the keys of the window each burn-down section charts, in
-// printPolicy.
-var burnKeys = map[GraphsSection]string{GraphsWeek: "7d", GraphsFiveHour: "5h"}
-
-// Each configured account has a card in WEEK and in 5-HOUR, in the config's
-// order, where the page lays it out: its label, its name and marks, from its
-// first column, and its chart and axis as the card of its window draws them,
-// its ✕ where Runway's lane says its hold began; across as many as the width
-// takes.
+// Each configured account has a card in WEEK, in the config's order, where
+// the page lays it out: its label, its name and marks, from its first
+// column, and its chart and axis as the card of its week draws them, its ✕
+// where Runway's lane says its hold began; two across where two fit, one
+// where they don't.
 func TestGraphsDrawsEveryAccountsCardWhereThePageLaysItOut(t *testing.T) {
 	four := trio(func(d *status.Document) { d.Accounts = append(d.Accounts, printAccount("client", 0.2, 0.47, 0)) })
 	tests := []struct {
@@ -87,88 +81,44 @@ func TestGraphsDrawsEveryAccountsCardWhereThePageLaysItOut(t *testing.T) {
 		width, height int
 		across        int
 	}{
-		{name: "160 by 37", doc: trio(), ids: trioIDs, width: 160, height: 37, across: 3},
+		{name: "160 by 37", doc: trio(), ids: trioIDs, width: 160, height: 37, across: 2},
 		{name: "108 by 44", doc: trio(), ids: trioIDs, width: 108, height: 44, across: 2},
 		{name: "73 by 61", doc: trio(), ids: trioIDs, width: 73, height: 61, across: 1},
 		{name: "52 by 63", doc: trio(), ids: trioIDs, width: 52, height: 63, across: 1},
-		{name: "four accounts at 160", doc: four, ids: append(slices.Clone(trioIDs), "client"), width: 160, height: 37, across: 4},
+		{name: "four accounts at 160", doc: four, ids: append(slices.Clone(trioIDs), "client"), width: 160, height: 37, across: 2},
+		{name: "one account at 160", doc: trio(), ids: trioIDs[:1], width: 160, height: 37, across: 1},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := cardsPage(tt.doc, printNow, tt.width, tt.height, tt.ids...)
-			c, sections := pageCards(f, tt.doc, printNow)
+			c, cards := pageCards(f, tt.doc, printNow)
 			m := tt.doc.At(printNow, printPolicy)
-			for section, cards := range sections {
-				lanes, key := f.Graphs.Lanes[burnDowns[section]], burnKeys[section]
-				if len(cards) != len(tt.ids) {
-					t.Fatalf("%s has %d cards, want one an account, %d", section.heading(), len(cards), len(tt.ids))
-				}
-				var columns []int
-				for i, card := range cards {
-					if label, want := labelOf(c, card), tt.ids[i]; !labelledAs(label, want) {
-						t.Errorf("%s's card %d is labelled %q, want it to start %q", section.heading(), i+1, label, want)
-					}
-					a, _ := m.Account(tt.ids[i])
-					l, _ := lanes.lane(a.ID)
-					cd := burnCardOf(a, key, Trail{}, printNow)
-					cd.heldSince = l.HeldSince(a, key, lanes.Timeline)
-					h := card.chart.rows - 1
-					if got, want := regionOf(c, card.chart), cardRows(cardIn(cd, Look{}, card.chart.width, h), h); !slices.Equal(got, want) {
-						t.Errorf("%s's %s card's chart is\n%s\nwant\n%s", section.heading(), a.ID, strings.Join(got, "\n"), strings.Join(want, "\n"))
-					}
-					if !slices.Contains(columns, card.chart.x) {
-						columns = append(columns, card.chart.x)
-					}
-				}
-				if len(columns) != tt.across {
-					t.Errorf("%s's cards are in %d columns, want %d across", section.heading(), len(columns), tt.across)
-				}
+			lanes, key := f.Graphs.Lanes[GraphsWindow], "7d"
+			if len(cards) != len(tt.ids) {
+				t.Fatalf("WEEK has %d cards, want one an account, %d", len(cards), len(tt.ids))
 			}
-			if len(sections) != 2 {
-				t.Errorf("the page has %d burn-down sections, want WEEK and 5-HOUR", len(sections))
-			}
-		})
-	}
-}
-
-// 5-HOUR has a card only for each account that has, or may have, the
-// 5-hour, in the config's order, named as every view names it, from the
-// first of the columns WEEK's lie in, its rows of cards as many as that
-// takes; WEEK has every account's all along.
-func TestGraphsFiveHourHasACardOnlyForEachAccountWithTheFiveHour(t *testing.T) {
-	tests := []struct {
-		name    string
-		lacking []string
-		width   int
-		want    []string
-		down    int
-	}{
-		{name: "every account with one", width: 160, want: []string{"work", "personal", "side"}, down: 1},
-		{name: "side alone with one", lacking: []string{"work", "personal"}, width: 160, want: []string{"side"}, down: 1},
-		{name: "personal and side with one", lacking: []string{"work"}, width: 160, want: []string{"personal", "side"}, down: 1},
-		{name: "two across, every account with one", width: 108, want: []string{"work", "personal", "side"}, down: 2},
-		{name: "two across, personal and side with one", lacking: []string{"work"}, width: 108, want: []string{"personal", "side"}, down: 1},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			doc := withoutFiveHour(trio(), tt.lacking...)
-			f := cardsPage(doc, printNow, tt.width, 200, trioIDs...).At(doc, printNow)
-			c, sections := pageCards(f, doc, printNow)
-			if len(sections[GraphsWeek]) != len(trioIDs) {
-				t.Errorf("WEEK has %d cards, want every account's, %d", len(sections[GraphsWeek]), len(trioIDs))
-			}
-			cards, across := sections[GraphsFiveHour], cardsAcross(len(trioIDs), tt.width)
-			var labels []string
-			rows := map[int]bool{}
+			var columns []int
 			for i, card := range cards {
-				labels = append(labels, strings.Fields(labelOf(c, card))[0])
-				rows[card.label] = true
-				if want := across[i%len(across)].At; card.chart.x != want {
-					t.Errorf("5-HOUR's card %d is at column %d, want %d, as WEEK's columns lie", i+1, card.chart.x, want)
+				if label, want := labelOf(c, card), tt.ids[i]; !labelledAs(label, want) {
+					t.Errorf("WEEK's card %d is labelled %q, want it to start %q", i+1, label, want)
+				}
+				a, _ := m.Account(tt.ids[i])
+				l, _ := lanes.lane(a.ID)
+				cd := burnCardOf(a, key, Trail{}, printNow)
+				cd.heldSince = l.HeldSince(a, key, lanes.Timeline)
+				h := card.chart.rows - 1
+				if got, want := regionOf(c, card.chart), cardRows(cardIn(cd, Look{}, card.chart.width, h), h); !slices.Equal(got, want) {
+					t.Errorf("%s's card's chart is\n%s\nwant\n%s", a.ID, strings.Join(got, "\n"), strings.Join(want, "\n"))
+				}
+				if card.chart.width != cards[0].chart.width {
+					t.Errorf("%s's card is %d wide, want %d, as wide as the first", a.ID, card.chart.width, cards[0].chart.width)
+				}
+				if !slices.Contains(columns, card.chart.x) {
+					columns = append(columns, card.chart.x)
 				}
 			}
-			if !slices.Equal(labels, tt.want) || len(rows) != tt.down {
-				t.Errorf("5-HOUR's cards are %q, on %d rows of cards; want %q, on %d", labels, len(rows), tt.want, tt.down)
+			if len(columns) != tt.across {
+				t.Errorf("WEEK's cards are in %d columns, want %d across", len(columns), tt.across)
 			}
 		})
 	}
@@ -184,13 +134,13 @@ func TestGraphsCardsHeadsTakeTheFormTheStepGives(t *testing.T) {
 		apart         bool
 	}{
 		{name: "words apart", width: 160, height: 37, apart: true},
-		{name: "words beside", width: 108, height: 44},
+		{name: "words beside", width: 108, height: 28},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := cardsPage(trio(), printNow, tt.width, tt.height, trioIDs...)
-			c, sections := pageCards(f, trio(), printNow)
-			work := sections[GraphsWeek][0]
+			c, cards := pageCards(f, trio(), printNow)
+			work := cards[0]
 			label := labelOf(c, work)
 			words := regionOf(c, bounds{x: work.chart.x, y: work.words, width: work.chart.width, rows: 1})[0]
 			if tt.apart {
@@ -245,16 +195,14 @@ func TestGraphsCardWithNothingToDrawIsEmptyButForNowsLine(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			doc := trio(account("side", tt.change))
 			f := cardsPage(doc, printNow, 160, 37, trioIDs...)
-			c, sections := pageCards(f, doc, printNow)
-			for section, cards := range sections {
-				side := cards[2]
-				if rows := chartOnly(c, side); !emptyButNow(rows) {
-					t.Errorf("side's %s chart is\n%s\nwant it empty but for now's line", section.heading(), strings.Join(rows, "\n"))
-				}
-				words := regionOf(c, bounds{x: side.chart.x, y: side.words, width: side.chart.width, rows: 1})[0]
-				if words != tt.words {
-					t.Errorf("side's %s words read %q, want %q", section.heading(), words, tt.words)
-				}
+			c, cards := pageCards(f, doc, printNow)
+			side := cards[2]
+			if rows := chartOnly(c, side); !emptyButNow(rows) {
+				t.Errorf("side's chart is\n%s\nwant it empty but for now's line", strings.Join(rows, "\n"))
+			}
+			words := regionOf(c, bounds{x: side.chart.x, y: side.words, width: side.chart.width, rows: 1})[0]
+			if words != tt.words {
+				t.Errorf("side's words read %q, want %q", words, tt.words)
 			}
 		})
 	}
@@ -335,17 +283,15 @@ func TestGraphsCardsAreLabelledAsRunwayLabelsTheirAccounts(t *testing.T) {
 	for _, tt := range disagreements() {
 		t.Run(tt.name, func(t *testing.T) {
 			f := cardsPage(tt.doc, printNow, 160, 37, tt.ids...)
-			c, sections := pageCards(f, tt.doc, printNow)
-			for section, cards := range sections {
-				for i, card := range cards {
-					id, label := tt.ids[i], labelOf(c, card)
-					want, lacked := tt.want(id)
-					if !labelledAs(label, want) || lacked && label != want {
-						t.Errorf("%s's %s card is labelled %q, want %q", section.heading(), id, label, want)
-					}
-					if rows := chartOnly(c, card); lacked && !emptyButNow(rows) {
-						t.Errorf("%s's %s chart is\n%s\nwant it empty but for now's line", id, section.heading(), strings.Join(rows, "\n"))
-					}
+			c, cards := pageCards(f, tt.doc, printNow)
+			for i, card := range cards {
+				id, label := tt.ids[i], labelOf(c, card)
+				want, lacked := tt.want(id)
+				if !labelledAs(label, want) || lacked && label != want {
+					t.Errorf("%s's card is labelled %q, want %q", id, label, want)
+				}
+				if rows := chartOnly(c, card); lacked && !emptyButNow(rows) {
+					t.Errorf("%s's chart is\n%s\nwant it empty but for now's line", id, strings.Join(rows, "\n"))
 				}
 			}
 		})
@@ -383,8 +329,8 @@ func TestGraphsStaleCardIsFadedAndOneOutOfThePoolFaint(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			f := cardsPage(tt.doc, printNow, 160, 37, trioIDs...)
 			f.Trails = Trails{{Account: "side", Window: "7d"}: {Readings: []score.Reading{{At: on(1, 0, 0).UTC(), Utilization: 0.5}}}}
-			c, sections := pageCards(f, tt.doc, printNow)
-			side := sections[GraphsWeek][2]
+			c, cards := pageCards(f, tt.doc, printNow)
+			side := cards[2]
 			foot := c.at(side.chart.x+nowColumnOf(c, side)-1, side.chart.y+side.chart.rows-2).ink
 			if want := 1 - (1-roomFade)*(1-staleFade); !sameFade(ink{fade: foot.fade}, ink{fade: want}) || !foot.dim {
 				t.Errorf("side's room before now is in %+v, want faded %v, dim", foot, want)
@@ -407,11 +353,13 @@ func crossColumn(c *canvas, card cardLaid) (int, bool) {
 	return 0, false
 }
 
-// A window its cap holds has its ✕ in the column its hold began, as the
+// A week its cap holds has its ✕ in the column its hold began, as the
 // router's event tells it; none where nothing tells when.
 func TestGraphsHeldCardCrossesWhereItsHoldBeganAndNowhereElse(t *testing.T) {
-	capped := trio(func(d *status.Document) {
-		d.Events = append(d.Events, status.Event{At: on(1, 14, 31).UTC(), Kind: status.EventCap, Account: "work", Windows: []string{"5h"}, Reserve: 0.05})
+	atCap := account("work", func(a *status.Account) { a.Windows[0].Utilization, a.Windows[1].Utilization = 0.5, 0.95 })
+	told := on(1, 14, 31)
+	capped := trio(atCap, func(d *status.Document) {
+		d.Events = append(d.Events, status.Event{At: told.UTC(), Kind: status.EventCap, Account: "work", Windows: []string{"7d"}, Reserve: 0.05})
 	})
 	tests := []struct {
 		name    string
@@ -419,17 +367,22 @@ func TestGraphsHeldCardCrossesWhereItsHoldBeganAndNowhereElse(t *testing.T) {
 		crossed bool
 	}{
 		{name: "told by the router's event", doc: capped, crossed: true},
-		{name: "nothing telling when", doc: trio()},
+		{name: "nothing telling when", doc: trio(atCap)},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			if w, _ := tt.doc.At(printNow, printPolicy).Accounts[0].Window("7d"); w.Kind != status.WindowCapped {
+				t.Fatalf("work's week is of kind %d, want held at its cap", w.Kind)
+			}
 			f := cardsPage(tt.doc, printNow, 160, 37, trioIDs...)
-			c, sections := pageCards(f, tt.doc, printNow)
-			// The 5-hour runs 12:10 to 17:10, 50 columns of 6 minutes: 14:31
-			// falls in column 23.
-			col, crossed := crossColumn(c, sections[GraphsFiveHour][0])
-			if crossed != tt.crossed || crossed && col != 23 {
-				t.Errorf("work's 5-hour has ✕ %v, in column %d; want %v, in column 23", crossed, col, tt.crossed)
+			c, cards := pageCards(f, tt.doc, printNow)
+			// The week runs a week to Sun 4 Oct 21:00, across the card's
+			// columns: the event's time falls in the column it's told in.
+			reset := on(4, 21, 0)
+			want := views.Timeline{Start: reset.Add(-7 * 24 * time.Hour), End: reset, Columns: cards[0].chart.width}.Column(told)
+			col, crossed := crossColumn(c, cards[0])
+			if crossed != tt.crossed || crossed && col != want {
+				t.Errorf("work's week has ✕ %v, in column %d; want %v, in column %d", crossed, col, tt.crossed, want)
 			}
 		})
 	}
@@ -450,14 +403,18 @@ func nowColumnOf(c *canvas, card cardLaid) int {
 // a column on.
 func TestGraphsCardsMoveOnWithTheClock(t *testing.T) {
 	var columns []int
-	// 5-hour cards of 50 columns, 6 minutes each.
-	for _, at := range []time.Time{printNow, printNow.Add(6 * time.Minute)} {
+	// Week cards of 78 columns, a week's 78th each.
+	step := 7 * 24 * time.Hour / 78
+	for _, at := range []time.Time{printNow, printNow.Add(step)} {
 		f := cardsPage(trio(), at, 160, 37, trioIDs...)
-		c, sections := pageCards(f, trio(), at)
-		columns = append(columns, nowColumnOf(c, sections[GraphsFiveHour][1]))
+		c, cards := pageCards(f, trio(), at)
+		if cards[1].chart.width != 78 {
+			t.Fatalf("personal's card is %d columns, want 78", cards[1].chart.width)
+		}
+		columns = append(columns, nowColumnOf(c, cards[1]))
 	}
 	if columns[0] < 0 || columns[1] != columns[0]+1 {
-		t.Errorf("personal's 5-hour has now in columns %v, want a column on, 6 minutes later", columns)
+		t.Errorf("personal's week has now in columns %v, want a column on, a column's time later", columns)
 	}
 }
 
@@ -466,8 +423,8 @@ func TestGraphsCardsMoveOnWithTheClock(t *testing.T) {
 func TestGraphsCardBeforeItsLanesAreBuiltIsLabelledAlone(t *testing.T) {
 	f := cardsPage(trio(), printNow, 160, 37, trioIDs...)
 	f.Graphs.Lanes = nil
-	c, sections := pageCards(f, trio(), printNow)
-	work := sections[GraphsWeek][0]
+	c, cards := pageCards(f, trio(), printNow)
+	work := cards[0]
 	words := regionOf(c, bounds{x: work.chart.x, y: work.words, width: work.chart.width, rows: 1})[0]
 	if label := labelOf(c, work); label != "work" || words != "" {
 		t.Errorf("work's head is %q over %q, want its label alone", label, words)
@@ -520,15 +477,15 @@ func TestGraphsCardsSayWhereTheirWindowRunsOutPastRunwaysView(t *testing.T) {
 		for _, size := range sizes {
 			t.Run(fmt.Sprintf("%s at %d by %d", mo.name, size.width, size.height), func(t *testing.T) {
 				f := cardsPage(mo.doc, printNow, size.width, size.height, trioIDs...)
-				c, sections := pageCards(f, mo.doc, printNow)
-				card := sections[GraphsWeek][2]
+				c, cards := pageCards(f, mo.doc, printNow)
+				card := cards[2]
 				words := regionOf(c, bounds{x: card.chart.x, y: card.words, width: card.chart.width, rows: 1})[0]
 				if !strings.Contains(words, want) || strings.Contains(words, "room all") {
 					t.Errorf("side's week card says %q, want it saying %q", words, want)
 				}
 				lanes := f.Graphs.Lanes[views.RunwayWeek]
 				l, _ := lanes.lane("side")
-				runway := wordsRead(lanes.view().wordsUnder(laneLaid(l, side, accountName{}), printNow))
+				runway := wordsRead(lanes.view().wordsUnder(laneLaid(l, side, accountName{}), printNow, 0))
 				if !strings.HasPrefix(strings.TrimSpace(runway), mo.runway) {
 					t.Errorf("Runway says %q under side's lane, want it saying %q", runway, mo.runway)
 				}

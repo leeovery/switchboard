@@ -316,6 +316,10 @@ type membership struct {
 	moved   func() bool
 	idNow   func(id string) string
 	homeDir func() (string, error)
+	// swapped is told each time follow has replaced the table, with mu held,
+	// so what it does is done in the order the tables were replaced: it must
+	// not follow.
+	swapped func()
 
 	// mu is held as the pools are followed, and guards what they were last
 	// followed from: accounts and pools, and followed, set once they have
@@ -338,7 +342,7 @@ type membership struct {
 // yet: every account in the one pool there is, as in a config from before
 // pools.
 func newMembership(record func() (identity.Record, bool), moved func() bool, idNow func(id string) string, homeDir func() (string, error)) *membership {
-	m := &membership{record: record, moved: moved, idNow: idNow, homeDir: homeDir}
+	m := &membership{record: record, moved: moved, idNow: idNow, homeDir: homeDir, swapped: func() {}}
 	m.table.Store(newPoolTable(nil, nil, "", idNow).stored())
 	return m
 }
@@ -389,7 +393,7 @@ func (m *membership) current() *poolTable {
 // is taken up once it can, whether the config changed or not; where it can't
 // be, those last read stand. So no request reads the record. The move to
 // pools writes the first pool to the record before the config, so a config
-// that changes finds it there.
+// that changes finds it there. It tells swapped of each table it replaces.
 func (m *membership) follow(accounts config.Accounts, pools config.Pools) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -408,6 +412,7 @@ func (m *membership) follow(accounts config.Accounts, pools config.Pools) {
 	// of its own, so none is closed twice, whatever table made gives back.
 	if next := made.after(current, recorded); !next.sameAs(current) {
 		close(m.table.Swap(next.stored()).replaced)
+		m.swapped()
 	}
 	m.accounts, m.pools, m.followed = slices.Clone(accounts), slices.Clone(pools), true
 }

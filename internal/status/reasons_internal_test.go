@@ -32,7 +32,7 @@ const (
 // form the reference writes it.
 func reasonForms() []string {
 	return []string{
-		ReasonNew, ReasonPinned, ReasonGlobalPin, ReasonMovedByPin, ReasonSticky, ReasonBound,
+		ReasonNew, ReasonPinned, ReasonPoolPin, ReasonGlobalPin, ReasonMovedByPin, ReasonSticky, ReasonBound,
 		ReasonUnsessioned, ReasonNoRoom, ReasonClient, ReasonBack, ReasonTokenLeftPool,
 		ReasonMovedOff + placedID + " " + placedWhy,
 		ReasonPinYields + placedID + " " + placedWhy,
@@ -120,7 +120,7 @@ func TestTheRouterGivesNoReasonNorWhyButStatussOwn(t *testing.T) {
 
 // routerPhrasesAllowed are the router's functions whose words are a reason's
 // without being one: the log's "pinned".
-var routerPhrasesAllowed = []string{"internal/router/control.go:Router.pin"}
+var routerPhrasesAllowed = []string{"internal/router/control.go:Router.pinTo"}
 
 const (
 	statusDir    = "internal/status"

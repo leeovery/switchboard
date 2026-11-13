@@ -8,9 +8,9 @@ WEEK
 
  work                              ▊            ┃                          ╎    34%  out ~Sat
 
- personal ◆                                            ┃▎                       66%  out ~Sat
+ personal   ◆                                          ┃▎                       66%  out ~Sat
 
- side ▲                                    ┃                   ▉                78%  out ~Fri
+ side       ▲                              ┃                   ▉                78%  out ~Fri
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────
  Σ pool                                          ┃                              59%  1.2 of 3 left
 
@@ -19,26 +19,26 @@ WEEK
 
 ROUTING   auto ─────────────────────────────────────────────────────────────────────────────────────────── r
 
-work          ● open                               0 sessions     ▂      ▄▃
-                                                                ▄  ▄▅▄▆▅▇   ▆▆▅▅▄▄▄▃▃▃▄▁▁▁▁▁▁▁▁▁▁▁▁▁   0/min
+ work         ● open                               0 sessions                ▂    ▄▁
+                                                                            ▆ ▄▄▅▇  ▆▅▄▄▃▂▃▁▁▁▁▁▁▁▁▁   0/min
 
-personal ◆    ● open                               2 sessions                         ▃▁
-                                                                ▂▄▄▄▂▂▁▁▁▂▃▄▂▁▁▁▁▁▁▁▂▇  ▄▁▁▁▁▁▁▁▁▂▃▃   3/min
+ personal   ◆ ● open                               2 sessions                              ▂
+                                                                            ▃▄▄▂▁▁▂▄▂▁▁▁▁▂  ▃▁▁▁▁▁▃▃   3/min
 
-side ▲        ● open · new sessions come here      4 sessions                           ▆▇  ▇▆▆▂▁ ▂▃
-                                                                ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▂▇              11/min
+ side       ▲ ● open · new sessions come here      4 sessions                               ▇  ▆▅ ▁▃
+                                                                            ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▆          11/min
                                                                 requests a minute, last 30 minutes
 
 COMING UP  ──────────────────────────────────── c       LATELY  ────────────────────────────────────────── l
 
-~Fri       side's week runs out at i…    in 1d 1h       14:41  ▲ c61b started on side
+~Fri       side's week runs out at i…    in 1d 1h       14:41  ▲ mobile started on side
 ~Sat       personal's week runs out…    in 1d 15h       14:31  ■ work refused (401): 3 moved to side
-~Sat       work's week reaches its c…    in 2d 4h       14:12  ▲ 7f3a started on work
-Sun 02:00  personal's week resets       in 2d 11h       13:22  ▸ db8a moved personal → work: personal came…
-Sun 21:00  work's week resets            in 3d 6h       12:47  ▲ 41e0 started on personal
-Mon 10:00  side's week resets           in 3d 19h       12:02  ▲ d28c started on work
-                                                        11:55  ▲ 9c2e started on personal
-                                                        10:02  ▲ 5b19 started on personal
-                                                        09:40  ▲ 3d7a started on work
+~Sat       work's week reaches its c…    in 2d 4h       14:12  ▲ api started on work
+Sun 02:00  personal's week resets       in 2d 11h       13:22  ▸ infra moved personal → work: personal came…
+Sun 21:00  work's week resets            in 3d 6h       12:47  ▲ docs started on personal
+Mon 10:00  side's week resets           in 3d 19h       12:02  ▲ switchboard started on work
+                                                        11:55  ▲ website started on personal
+                                                        10:02  ▲ mobile started on personal
+                                                        09:40  ▲ docs started on work
 
 tab views     u usage  r routing  s sessions  c coming up  l lately  b by: window     p pin  ? help  q quit

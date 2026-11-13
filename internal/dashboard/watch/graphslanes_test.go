@@ -11,34 +11,35 @@ import (
 
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/dayfile"
-	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/readings"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
-// While Graphs shows, each window's lanes are built over Runway's live view
-// of it, across the columns Runway's lanes take on the terminal, once a
-// message and never at a frame, and the frame shows them; Runway's own are
-// built only while Runway shows, and neither while another tab does.
-func TestGraphsBuildsEachWindowsLanesOnceAMessageWhileItShows(t *testing.T) {
+// While Graphs shows, the week's lanes are built over Runway's live view of
+// it, across the columns Runway's lanes take on the terminal, once a message
+// and never at a frame, and the frame shows them, and no 5-hour's; Runway's
+// own are built only while Runway shows, and neither while another tab does.
+func TestGraphsBuildsTheWeeksLanesOnceAMessageWhileItShows(t *testing.T) {
 	r := runwayHarness(t, dashboard.Graphs, nil)
 	shown := r.model.frame(r.model.now()).Graphs.Lanes
-	for _, w := range views.RunwayWindows() {
-		want := views.LiveTimeline(w, start, 146)
-		if r.graphsBuilds[w] == 0 || r.graphsFrom[w].Timeline != want || r.graphsFrom[w].Window != w {
-			t.Errorf("once started, Graphs built the %s lanes %d times, over %+v; want them built over Runway's live view, %+v", windowName(w), r.graphsBuilds[w], r.graphsFrom[w].Timeline, want)
-		}
-		if got := shown[w]; got.Lanes == nil || got.Window != w || got.Timeline != want || len(got.Lanes.Accounts) != 3 {
-			t.Errorf("the frame shows the %s lanes as %+v, want each account's, over %+v", windowName(w), got, want)
-		}
+	w := views.RunwayWeek
+	want := views.LiveTimeline(w, start, 146)
+	if r.graphsBuilds[w] == 0 || r.graphsFrom[w].Timeline != want || r.graphsFrom[w].Window != w {
+		t.Errorf("once started, Graphs built the week's lanes %d times, over %+v; want them built over Runway's live view, %+v", r.graphsBuilds[w], r.graphsFrom[w].Timeline, want)
+	}
+	if got := shown[w]; got.Lanes == nil || got.Window != w || got.Timeline != want || len(got.Lanes.Accounts) != 3 {
+		t.Errorf("the frame shows the week's lanes as %+v, want each account's, over %+v", got, want)
+	}
+	if r.graphsBuilds[views.RunwayFiveHour] != 0 || len(shown) != 1 {
+		t.Errorf("Graphs built the 5-hour's lanes %d times, shows the lanes of %d windows; want none built, the week's alone shown", r.graphsBuilds[views.RunwayFiveHour], len(shown))
 	}
 	if r.builds != 0 {
 		t.Errorf("with Graphs shown, Runway's lanes were built %d times, want none", r.builds)
 	}
 
 	busier := routerDocument(three()...)
-	busier.Accounts[0].Windows[0].Utilization = 0.6
+	busier.Accounts[0].Windows[1].Utilization = 0.6
 	tests := []struct {
 		name string
 		msg  func(r *runwayed) tea.Msg
@@ -54,17 +55,15 @@ func TestGraphsBuildsEachWindowsLanesOnceAMessageWhileItShows(t *testing.T) {
 			r := runwayHarness(t, dashboard.Graphs, nil)
 			built := maps.Clone(r.graphsBuilds)
 			r.update(tt.msg(r))
-			for _, w := range views.RunwayWindows() {
-				if got := r.graphsBuilds[w] - built[w]; got != tt.want {
-					t.Errorf("%s built the %s lanes %d times, want %d", tt.name, windowName(w), got, tt.want)
-				}
+			if got := r.graphsBuilds[w] - built[w]; got != tt.want {
+				t.Errorf("%s built the week's lanes %d times, want %d", tt.name, got, tt.want)
 			}
 		})
 	}
 
 	r.update(fetchedMsg{doc: busier})
-	if lanes := r.model.graphsTab.shown[views.RunwayFiveHour].Lanes; lanes == nil || lanes.Accounts[0].Use.Used != 0.6 {
-		t.Errorf("a read landing work's 5-hour window at 60%% left Graphs' 5-hour lanes %+v, want them built of it", lanes)
+	if lanes := r.model.graphsTab.shown[w].Lanes; lanes == nil || lanes.Accounts[0].Use.Used != 0.6 {
+		t.Errorf("a read landing work's week at 60%% left Graphs' week's lanes %+v, want them built of it", lanes)
 	}
 
 	for _, view := range []dashboard.View{dashboard.Runway, dashboard.History} {
@@ -76,7 +75,7 @@ func TestGraphsBuildsEachWindowsLanesOnceAMessageWhileItShows(t *testing.T) {
 	}
 }
 
-// Graphs reads each window's lanes over Runway's own live view of it at the
+// Graphs reads the week's lanes over Runway's own live view of it at the
 // terminal's width: across the columns Runway's lanes take, its account
 // column collapsed or not as Runway shows it, sized for the accounts' labels,
 // long ones among them; and live, whatever Runway was stepped back to before
@@ -110,43 +109,38 @@ func TestGraphsLanesAreOverRunwaysOwnLiveViewOfEachWindow(t *testing.T) {
 				g.keyed(tt.back)
 				g.deliver(g.update(tabKey)...)
 			}
-			for _, w := range views.RunwayWindows() {
-				runway := runwayHarnessOf(t, tt.doc, dashboard.Runway, func(r *runwayed, cfg *Config) {
-					if tt.setup != nil {
-						tt.setup(r, cfg)
-					}
-					cfg.RunwayShown.Window = w
-				})
-				got, want := g.graphsFrom[w].Timeline, runway.from.Timeline
-				if got != want {
-					t.Errorf("Graphs' %s lanes are over %+v, want Runway's own live view of it, %+v", windowName(w), got, want)
+			runway := runwayHarnessOf(t, tt.doc, dashboard.Runway, func(r *runwayed, cfg *Config) {
+				if tt.setup != nil {
+					tt.setup(r, cfg)
 				}
-				if moved := want.Columns != 146; moved != tt.moved {
-					t.Errorf("Runway's %s lanes take %d columns, the case meaning them moved from 146 %t", windowName(w), want.Columns, tt.moved)
-				}
+				cfg.RunwayShown.Window = views.RunwayWeek
+			})
+			got, want := g.graphsFrom[views.RunwayWeek].Timeline, runway.from.Timeline
+			if got != want {
+				t.Errorf("Graphs' week's lanes are over %+v, want Runway's own live view of it, %+v", got, want)
+			}
+			if moved := want.Columns != 146; moved != tt.moved {
+				t.Errorf("Runway's week's lanes take %d columns, the case meaning them moved from 146 %t", want.Columns, tt.moved)
 			}
 		})
 	}
 }
 
-// Graphs builds the lanes of the windows its burn-down sections shown chart
-// alone, WEEK's the week's and 5-HOUR's the 5-hour's, and GLANCE's every
-// one, which place its ✕ as a card's, and reads the readings history only
-// while one shows: with none, nothing is built or read, at a look as at the
-// start.
-func TestGraphsBuildsAndReadsTheLanesOfTheBurnDownSectionsShownAlone(t *testing.T) {
-	week, fiveHour, glance := dashboard.GraphsWeek, dashboard.GraphsFiveHour, dashboard.GraphsGlance
+// Graphs builds the week's lanes while WEEK or GLANCE shows, which place
+// GLANCE's ✕ as a card's, and no 5-hour's, every account having one; and
+// reads the readings history's lanes only then: with neither, nothing is
+// built or read, at a look as at the start.
+func TestGraphsBuildsAndReadsTheWeeksLanesWhileWeekOrGlanceShows(t *testing.T) {
+	week, glance := dashboard.GraphsWeek, dashboard.GraphsGlance
 	tests := []struct {
 		name    string
 		toggled []dashboard.GraphsSection
 		want    []views.RunwayWindow
 	}{
-		{name: "both shown", want: []views.RunwayWindow{views.RunwayWeek, views.RunwayFiveHour}},
-		{name: "WEEK hidden", toggled: []dashboard.GraphsSection{week}, want: []views.RunwayWindow{views.RunwayFiveHour}},
-		{name: "5-HOUR hidden", toggled: []dashboard.GraphsSection{fiveHour}, want: []views.RunwayWindow{views.RunwayWeek}},
-		{name: "both hidden", toggled: []dashboard.GraphsSection{week, fiveHour}},
-		{name: "GLANCE alone", toggled: []dashboard.GraphsSection{week, fiveHour, glance}, want: []views.RunwayWindow{views.RunwayWeek, views.RunwayFiveHour}},
-		{name: "5-HOUR and GLANCE", toggled: []dashboard.GraphsSection{week, glance}, want: []views.RunwayWindow{views.RunwayWeek, views.RunwayFiveHour}},
+		{name: "WEEK shown", want: []views.RunwayWindow{views.RunwayWeek}},
+		{name: "WEEK hidden", toggled: []dashboard.GraphsSection{week}},
+		{name: "GLANCE alone", toggled: []dashboard.GraphsSection{week, glance}, want: []views.RunwayWindow{views.RunwayWeek}},
+		{name: "WEEK and GLANCE", toggled: []dashboard.GraphsSection{glance}, want: []views.RunwayWindow{views.RunwayWeek}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -169,69 +163,21 @@ func TestGraphsBuildsAndReadsTheLanesOfTheBurnDownSectionsShownAlone(t *testing.
 	}
 }
 
-// Graphs builds no 5-hour lanes where no account has a 5-hour window, as
-// where every one is verified Ultra, whichever section would read them,
-// 5-HOUR kept shown or GLANCE; where one has, it builds them, of that
-// account's lane alone.
-func TestGraphsBuildsNoFiveHourLanesWhereNoAccountHasOne(t *testing.T) {
-	week, fiveHour, glance := dashboard.GraphsWeek, dashboard.GraphsFiveHour, dashboard.GraphsGlance
-	sideWithOne := three()
-	for i := range sideWithOne[:2] {
-		sideWithOne[i].Windows = slices.DeleteFunc(sideWithOne[i].Windows, func(w quota.Window) bool { return w.Key == "5h" })
-	}
-	ultra, mixed := routerDocument(verifiedUltra()...), routerDocument(sideWithOne...)
-	tests := []struct {
-		name     string
-		doc      status.Document
-		toggled  []dashboard.GraphsSection
-		want     []views.RunwayWindow
-		fiveHour []string
-	}{
-		{name: "every account verified Ultra", doc: ultra, want: []views.RunwayWindow{views.RunwayWeek}},
-		{name: "every account verified Ultra, 5-HOUR alone kept", doc: ultra, toggled: []dashboard.GraphsSection{week}},
-		{name: "every account verified Ultra, GLANCE alone", doc: ultra, toggled: []dashboard.GraphsSection{week, fiveHour, glance}, want: []views.RunwayWindow{views.RunwayWeek}},
-		{name: "side alone with one", doc: mixed, want: []views.RunwayWindow{views.RunwayWeek, views.RunwayFiveHour}, fiveHour: []string{"side"}},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			r := runwayHarnessOf(t, tt.doc, dashboard.Graphs, func(_ *runwayed, cfg *Config) {
-				for _, s := range tt.toggled {
-					cfg.Graphs = cfg.Graphs.Toggled(s)
-				}
-			})
-			r.lookAt(start.Add(interval))
-			built := slices.Sorted(maps.Keys(r.graphsBuilds))
-			shown := slices.Sorted(maps.Keys(r.model.graphsTab.shown))
-			want := slices.Sorted(slices.Values(tt.want))
-			if !slices.Equal(built, want) || !slices.Equal(shown, want) {
-				t.Errorf("Graphs built the lanes of %v, shows those of %v, want %v alone", windowNames(built), windowNames(shown), windowNames(want))
-			}
-			var lanes []string
-			if l := r.model.graphsTab.shown[views.RunwayFiveHour].Lanes; l != nil {
-				for _, lane := range l.Accounts {
-					lanes = append(lanes, lane.ID)
-				}
-			}
-			if !slices.Equal(lanes, tt.fiveHour) {
-				t.Errorf("Graphs' 5-hour lanes are %q, want %q", lanes, tt.fiveHour)
-			}
-		})
-	}
-}
-
-// A burn-down section toggled while Graphs shows has the lanes of the
-// windows shown after it built, and those alone shown, none kept of a window
-// no longer shown.
-func TestGraphsBuildsTheLanesOfTheBurnDownSectionsShownAsTheyreToggled(t *testing.T) {
+// WEEK or GLANCE toggled while Graphs shows has the week's lanes built while
+// either shows after it, and shown, and none kept while neither does.
+func TestGraphsBuildsTheWeeksLanesAsWeekAndGlanceAreToggled(t *testing.T) {
 	r := runwayHarness(t, dashboard.Graphs, nil)
+	week := []views.RunwayWindow{views.RunwayWeek}
 	steps := []struct {
 		key  string
 		want []views.RunwayWindow
 	}{
-		{key: "f", want: []views.RunwayWindow{views.RunwayWeek}},
 		{key: "w"},
-		{key: "f", want: []views.RunwayWindow{views.RunwayFiveHour}},
-		{key: "w", want: []views.RunwayWindow{views.RunwayWeek, views.RunwayFiveHour}},
+		{key: "g", want: week},
+		{key: "w", want: week},
+		{key: "w", want: week},
+		{key: "g"},
+		{key: "w", want: week},
 	}
 	for _, step := range steps {
 		was := maps.Clone(r.graphsBuilds)
@@ -261,14 +207,12 @@ func TestGraphsLanesAreJudgedByTheReadingsHistoryAndTheLedgersDaysAsRunways(t *t
 	if len(r.filed.starts) != 1 || r.filed.tails == 0 {
 		t.Fatalf("as Graphs opens, %d tails were made and read %d times, want one, read", len(r.filed.starts), r.filed.tails)
 	}
-	held := r.model.runwayTab.live.held
-	for _, w := range views.RunwayWindows() {
-		if !slices.Equal(held, []readings.Reading{inSpan}) || !slices.Equal(r.graphsFrom[w].Readings, held) {
-			t.Errorf("the tail holds %v, the %s lanes built of %v; want the reading in its span, both", held, windowName(w), r.graphsFrom[w].Readings)
-		}
-		if r.graphsFrom[w].Days != nil {
-			t.Errorf("live, the readings history holding every day, the %s lanes were built of the days %v, want none", windowName(w), r.graphsFrom[w].Days)
-		}
+	held, w := r.model.runwayTab.live.held, views.RunwayWeek
+	if !slices.Equal(held, []readings.Reading{inSpan}) || !slices.Equal(r.graphsFrom[w].Readings, held) {
+		t.Errorf("the tail holds %v, the week's lanes built of %v; want the reading in its span, both", held, r.graphsFrom[w].Readings)
+	}
+	if r.graphsFrom[w].Days != nil {
+		t.Errorf("live, the readings history holding every day, the week's lanes were built of the days %v, want none", r.graphsFrom[w].Days)
 	}
 	read := r.filed.tails
 	r.lookAt(start.Add(interval))
@@ -278,12 +222,9 @@ func TestGraphsLanesAreJudgedByTheReadingsHistoryAndTheLedgersDaysAsRunways(t *t
 
 	kept := dayfile.DayStart(start, -3)
 	keptLater := runwayHarness(t, dashboard.Graphs, func(r *runwayed, _ *Config) { r.filed.first = kept })
-	firsts := map[views.RunwayWindow]time.Time{views.RunwayWeek: civilDay(-8), views.RunwayFiveHour: civilDay(-7)}
-	for w, first := range firsts {
-		from := keptLater.graphsFrom[w]
-		if got, want := summaryDates(from.Days), datesFrom(first, civilDay(0)); !from.Kept.Equal(kept) || !slices.Equal(got, want) {
-			t.Errorf("live, the readings history holding days from %s, the %s lanes were built of the days %q, kept from %s; want %q, kept from its first day", kept, windowName(w), got, from.Kept, want)
-		}
+	from := keptLater.graphsFrom[w]
+	if got, want := summaryDates(from.Days), datesFrom(civilDay(-8), civilDay(0)); !from.Kept.Equal(kept) || !slices.Equal(got, want) {
+		t.Errorf("live, the readings history holding days from %s, the week's lanes were built of the days %q, kept from %s; want %q, kept from its first day", kept, got, from.Kept, want)
 	}
 	yearFrom := views.YearFrom(views.YearAsk{}, start, time.Sunday)
 	if !slices.EqualFunc(keptLater.ledger.reads, []time.Time{yearFrom}, time.Time.Equal) {
@@ -335,8 +276,8 @@ func TestGraphsSaysItsLoadingWhileItsReadOfTheReadingsHistoryTakesAWhile(t *test
 	}
 }
 
-// Graphs with both burn-down sections, POOL and GLANCE hidden waits on no
-// read of the readings history, so its first heading, WHEN YOU WORK's here,
+// Graphs with WEEK, POOL and GLANCE hidden waits on no read of the
+// readings history, so its first heading, WHEN YOU WORK's here,
 // says nothing of loading while a read of the live tail asked before they
 // were hidden is under way, however long it takes.
 func TestGraphsWithItsBurnDownsHiddenSaysNothingOfLoading(t *testing.T) {
@@ -346,7 +287,7 @@ func TestGraphsWithItsBurnDownsHiddenSaysNothingOfLoading(t *testing.T) {
 	if len(unread) == 0 || !h.model.runwayTab.readingLive {
 		t.Fatalf("the live tail's read held back %d, of the live tail %t; want it held", len(unread), h.model.runwayTab.readingLive)
 	}
-	for _, key := range []string{"w", "f", "h"} {
+	for _, key := range []string{"w", "h"} {
 		unread = append(unread, holdingBack[runwayReadMsg](h, h.update(tea.KeyPressMsg{Code: rune(key[0]), Text: key})...)...)
 	}
 	h.clock.now = h.clock.now.Add(2 * LoadingAfter)
@@ -358,7 +299,7 @@ func TestGraphsWithItsBurnDownsHiddenSaysNothingOfLoading(t *testing.T) {
 		t.Fatalf("the heading read with the live tail's read under way %t, of the live tail %t; want it under way", tab.reading, tab.readingLive)
 	}
 	if got := h.row(4); !strings.HasPrefix(got, "WHEN YOU WORK") || strings.Contains(got, loadingSaid) {
-		t.Errorf("WEEK, 5-HOUR, POOL and GLANCE hidden, the live tail's read under way, the heading reads %q, want WHEN YOU WORK's, saying nothing of loading", got)
+		t.Errorf("WEEK, POOL and GLANCE hidden, the live tail's read under way, the heading reads %q, want WHEN YOU WORK's, saying nothing of loading", got)
 	}
 	h.deliver(unread...)
 }

@@ -100,16 +100,16 @@ func TestACapEndsAsItsWindowsResetAndIsToldAgainOnceReachedAgain(t *testing.T) {
 	)
 }
 
-func TestAnAccountTheGlobalPinNamesIsntCapped(t *testing.T) {
+func TestAnAccountThePoolsPinNamesIsntCapped(t *testing.T) {
 	k := newTelling(t)
-	k.r.sessions.setPin(status.Pin{Accounts: []string{"work"}, Since: start}, false)
+	k.r.sessions.setPin(beforePools(), status.Pin{Accounts: []string{"work"}, Since: start}, false)
 	k.reads(0.5, 0.5)
 	k.reads(0.5, 0.95)
 	k.expect()
 
 	// Unpinned, its reserve holds it back.
 	k.after(time.Minute)
-	k.r.sessions.unpin(false)
+	k.r.sessions.unpin(beforePools(), false)
 	k.look()
 	k.expect(status.Event{ID: 1, At: k.clock.now, Kind: status.EventCap, Account: "work", Windows: []string{"7d"}, Until: weekEnds, Reserve: 0.1})
 }

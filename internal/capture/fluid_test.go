@@ -166,6 +166,18 @@ var knownBreaks = []known{
 		byDesign: "on's share at 109", cuts: []string{"personal-resea…", "side-hustle-co…"}, rule: cutWithRoom,
 		sizes: []string{"109x53"}, fixtures: []string{"log-requests-long-names-108x44"},
 	},
+	// LATELY's sessions named by their directories' last part, as
+	// views.SessionDirName cuts them, as the Log names them, with room at the
+	// rows' end, on the Overview and Detail.
+	{
+		byDesign: "LATELY's directories, as the Log cuts them", cuts: logDirCuts(), rule: cutWithRoom,
+		sizes: []string{"73x61", "173x53"}, fixtures: []string{"long-names-overview"},
+	},
+	{
+		byDesign: "Detail's LATELY's directories, as the Log cuts them", cuts: logDirCuts(), rule: cutWithRoom,
+		sizes:    []string{"73x61", "73x36", "108x44", "173x53", "109x53"},
+		fixtures: []string{"long-names-accounts-detail"},
+	},
 	// Detail's list, which gives way first, its names cut to what the panel
 	// leaves them, down to 14 cells, before its weeks narrow (the owner's call,
 	// 15 October 2026).
@@ -542,7 +554,7 @@ func (d fluidFrame) outOfView() string {
 
 var (
 	// laneShown is a row of Runway's lanes: an account's name, or with the
-	// labels collapsed its marks or none, then its lane to the row's end.
+	// labels collapsed nothing, then its lane to the row's end.
 	laneShown = regexp.MustCompile(`^[^█▒─│]*[█▒─│ ]*[█▒][█▒─│ ]*$`)
 	// turnShown is a row of a session's turns: its number and when it started.
 	turnShown = regexp.MustCompile(`^ *[0-9]+ +[0-9]{1,2}:[0-9]{2} `)

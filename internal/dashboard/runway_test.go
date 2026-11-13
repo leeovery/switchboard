@@ -299,8 +299,9 @@ const framesLanesFrom = 14
 // widest of the names, ▲'s cells kept on every account, then nameGap, or of
 // the uses under them, as wide as "5-hour 100%" in either window, each label
 // whole up to 24 cells, a label past that cut, its marks and gap beside it;
-// narrower only where the frame is, to a label's 8; collapsed, the widest
-// marks, ▲'s cells kept, or a use of 100%, then a cell, whatever the width.
+// narrower only where the frame is, to a label's 8. Collapsed, there's no
+// label column: the lanes start at column 0, whatever the width and the
+// labels.
 func TestRunwaysLabelColumnTakesItsWidestLabelAndTheLanesTheRest(t *testing.T) {
 	work := accountName{label: "work"}
 	personal := accountName{label: "personal", primary: true}
@@ -329,11 +330,12 @@ func TestRunwaysLabelColumnTakesItsWidestLabelAndTheLanesTheRest(t *testing.T) {
 		{name: "none labelled yet, the widest use", width: 108, from: 14},
 		{name: "narrower than its labels, the column first", names: long, width: 20, from: 20},
 		{name: "narrower than the least, a label's 8 beside its marks", names: long, width: 10, from: 14},
-		{name: "collapsed, the frames' on an iPad, a use of 100% the widest", names: frames, collapsed: true, width: 108, from: 5},
-		{name: "collapsed, on a phone, alike", names: frames, collapsed: true, width: 52, from: 5},
-		{name: "collapsed, both marks on one, alike", names: both, collapsed: true, width: 108, from: 5},
-		{name: "collapsed, no primary, the widest use", names: []accountName{work, side}, collapsed: true, width: 108, from: 5},
-		{name: "collapsed, none labelled yet, a use of 100%", collapsed: true, width: 108, from: 5},
+		{name: "collapsed, the frames' on an iPad, from column 0", names: frames, collapsed: true, width: 108},
+		{name: "collapsed, on a phone, alike", names: frames, collapsed: true, width: 52},
+		{name: "collapsed, on a desktop, alike", names: frames, collapsed: true, width: 173},
+		{name: "collapsed, both marks on one, alike", names: both, collapsed: true, width: 108},
+		{name: "collapsed, long names, alike", names: long, collapsed: true, width: 108},
+		{name: "collapsed, none labelled yet, alike", collapsed: true, width: 108},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

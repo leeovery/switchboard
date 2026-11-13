@@ -8,7 +8,7 @@ ACCOUNTS    Compare  Detail  [ ]  ───────────────�
                     │
  work          ●    │   USAGE                                                                                        THIS WEEK
                     │   Week                           ┃▊                  59%  1.2 of 3 left                        requests  5,410
- personal ◆    ●    │                                                                                                limits    4
+ personal   ◆  ●    │                                                                                                limits    4
                     │   5-hour                     ┃▋                      49%  1.5 of 3 left                        plan      $600/mo
  side          ●    │                                                                                                worth     $635  4.6×
                     │                                                                                                extra use off
@@ -25,9 +25,9 @@ ACCOUNTS    Compare  Detail  [ ]  ───────────────�
                     │
                     │   room to spare together   32% left at a reset, on average · side ends weeks with 59% left, work with 9%
                     │
-                    │   LATELY      14:41  ▲ c61b started on side, the best
+                    │   LATELY      14:41  ▲ mobile started on side, the best
                     │               14:31  ╎ work reached its cap: 3 sessions moved to side
-                    │               14:12  ▲ 7f3a started on work, the best
+                    │               14:12  ▲ api started on work, the best
                     │
                     │
                     │

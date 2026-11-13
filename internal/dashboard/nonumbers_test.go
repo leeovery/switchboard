@@ -19,7 +19,7 @@ type namingTab struct {
 
 // namingTabs are the tabs that name accounts, each drawn of n's document at
 // printNow, wide and tall enough to show every account: the Overview,
-// Runway's week, Sessions and Graphs' WEEK, 5-HOUR and GLANCE, of the
+// Runway's week, Sessions and Graphs' WEEK and GLANCE, of the
 // router's accounts or the config's as each names them, and Accounts'
 // Compare and Detail, of the config's.
 func namingTabs(n disagreement) []namingTab {
@@ -36,7 +36,7 @@ func namingTabs(n disagreement) []namingTab {
 	lanes := views.Lanes{}.Look(views.LanesFrom{Moment: m, Timeline: tl, Window: views.RunwayWeek})
 	runway.View, runway.Runway = Runway, RunwayShown{Window: views.RunwayWeek, Timeline: tl, Lanes: &lanes}.Labelled(m)
 	graphs := cardsPage(n.doc, printNow, width, height, n.ids...)
-	graphs.Graphs.Sections = GraphsSectionsNamed([]string{"week", "5-hour", "glance"})
+	graphs.Graphs.Sections = GraphsSectionsNamed([]string{"week", "glance"})
 	graphs.Graphs.Accounts = n.config()
 	compare.View, compare.Accounts = Accounts, AccountsShown{Shown: AccountsCompare, Accounts: n.config()}
 	detail.View, detail.Accounts = Accounts, AccountsShown{Shown: AccountsDetail, Accounts: n.config()}

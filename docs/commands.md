@@ -1016,7 +1016,7 @@ switchboard status --session <id> [--json | --pretty]
 | `--pretty` | Print the text, even off a terminal, as it does on one. |
 | `--probe` | Probe every account, even while the router runs. |
 | `-r`, `--refresh` | Have the router first read every account it may, as [`usage -r`](#usage) does, and wait for it, ten seconds at most. Without the router, or with `--probe`, every account is probed anyway. |
-| `--session <id>` | Print the id of the account the router sends that session's requests to: the one its last-used model went to, as a statusline asks. It does so on a terminal or off one. It needs the router, and takes no `--probe` or `--refresh`. |
+| `--session <id>` | Print the label of the account the router sends that session's requests to: the one its last-used model went to, as a statusline asks. It does so on a terminal or off one. An account removed since is named by the label it had, saying when it was removed, and one nothing names by its id. It needs the router, and takes no `--probe` or `--refresh`. |
 
 `status` reads the router while it runs. Otherwise, it probes each account. When the `claude` a
 shell runs from `PATH` isn't switchboard, the first line says so.
@@ -1069,7 +1069,7 @@ Examples:
 switchboard status
 switchboard status --json | jq '.accounts[] | {id, windows}'
 switchboard status --json -r   # have the router read every account it may first, as after a reset made by hand
-switchboard status --session "$CLAUDE_CODE_SESSION_ID"   # inside a session: the id of the account it's on, such as b6s7
+switchboard status --session "$CLAUDE_CODE_SESSION_ID"   # inside a session: the label of the account it's on, such as Work
 ```
 
 ### `logs`

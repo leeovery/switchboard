@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/claude"
+	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
@@ -24,7 +25,7 @@ func latelyOf(events ...status.Event) status.Document {
 // lately are doc's events as LATELY tells them at now, n at most, as Lately
 // has them of its moment then.
 func lately(doc status.Document, now time.Time, n int) []views.Sentence {
-	return views.Lately(doc.At(now, claude.Policy()), n)
+	return views.Lately(doc.At(now, claude.Policy()), n, views.SessionDirs{})
 }
 
 // sentenceOf is the one sentence LATELY tells of e, told at now.
@@ -51,7 +52,9 @@ func TestLATELYTellsEachKindOfEventInItsSentence(t *testing.T) {
 	}{
 		{name: "a session starting on the router's best", event: status.Event{Kind: status.EventStarted, Account: "side", Session: "c61b2f8d-04a7", Reason: status.ReasonNew},
 			full: "c61b started on side", subject: "c61b", object: "side"},
-		{name: "a session starting where the global pin sends it", event: status.Event{Kind: status.EventStarted, Account: "personal", Session: "c61b2f8d", Reason: status.ReasonGlobalPin},
+		{name: "a session starting where its pool's pin sends it", event: status.Event{Kind: status.EventStarted, Account: "personal", Session: "c61b2f8d", Reason: status.ReasonPoolPin},
+			full: "c61b started on personal, as pinned", subject: "c61b", object: "personal"},
+		{name: "a session starting where the global pin sent it, before pools", event: status.Event{Kind: status.EventStarted, Account: "personal", Session: "c61b2f8d", Reason: status.ReasonGlobalPin},
 			full: "c61b started on personal, as pinned", subject: "c61b", object: "personal"},
 		{name: "a session starting where its own pin sends it", event: status.Event{Kind: status.EventStarted, Account: "side", Session: "9e21d4a8", Reason: status.ReasonPinned},
 			full: "9e21 started on side, as pinned", subject: "9e21", object: "side"},
@@ -184,6 +187,71 @@ func TestLATELYNamesAccountsApartAndASessionByItsFirstFourCharacters(t *testing.
 	started := sentenceOf(t, status.Event{At: at(13, 0), Kind: status.EventStarted, Account: "side", Session: "c61b\x1b2f8d", Reason: status.ReasonNew}, at(16, 0))
 	if want := (status.Words{{Text: "c61b"}}); !slices.Equal(started.Full.Subject, want) {
 		t.Errorf("a session's start has subject %+v, want %+v: its id cleaned, cut to four characters", started.Full.Subject, want)
+	}
+}
+
+// LATELY names a session by its directory's last part, as the Log does: as
+// its event carries it, so a line's name never changes as its session cools;
+// else as the router lists it, else as the lines held last name it; by its
+// short id where none names one. Its subject is a plain part, as the short
+// id's is.
+func TestLATELYNamesASessionByItsDirectory(t *testing.T) {
+	const session = "c61b2f8d-04a7"
+	now := at(16, 0)
+	routed := func(dir string) []status.Session {
+		a := seatOn(opus, "opus", "work", status.ReasonNew, time.Hour, time.Minute, "")
+		a.Dir = dir
+		return []status.Session{{ID: session, Assignments: []status.Assignment{a}}}
+	}
+	held := listHeldOf([]ledger.Line{in("/code/infra", line(session, opus, "work", status.ReasonNew, now.Add(-time.Hour), hourUsage))}, nil, now)
+	tests := []struct {
+		name string
+		// dir is the directory the event carries: none for "".
+		dir  string
+		dirs views.SessionDirs
+		want string
+	}{
+		{name: "the event naming its directory before the router and the lines held", dir: "/code/web", dirs: views.SessionDirsOf(routed("/code/api"), held), want: "web"},
+		{name: "the event naming its directory, its session cooled, unlisted and unheld", dir: "/code/web", want: "web"},
+		{name: "the router naming its directory", dirs: views.SessionDirsOf(routed("/code/api"), views.HeldSessions{}), want: "api"},
+		{name: "the router naming it before the lines held", dirs: views.SessionDirsOf(routed("/code/api"), held), want: "api"},
+		{name: "the lines held naming it, the router not", dirs: views.SessionDirsOf(routed(""), held), want: "infra"},
+		{name: "the lines held naming it, unlisted", dirs: views.SessionDirsOf(nil, held), want: "infra"},
+		{name: "a directory too long, cut as the Log cuts it", dirs: views.SessionDirsOf(routed("/code/a-long-project-name"), views.HeldSessions{}), want: "a-long-proj…"},
+		{name: "nothing naming it", dirs: views.SessionDirsOf(routed(""), views.HeldSessions{}), want: "c61b"},
+	}
+	events := []struct {
+		event status.Event
+		full  string
+	}{
+		{event: status.Event{Kind: status.EventMoved, From: "personal", To: "work", Reason: status.Rescored(15 * time.Hour)}, full: " moved personal → work: rescored after 15h idle"},
+		{event: status.Event{Kind: status.EventStarted, Account: "work", Reason: status.ReasonNew}, full: " started on work"},
+		{event: status.Event{Kind: status.EventAuto, Account: "work"}, full: " back to auto"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			for _, e := range events {
+				e.event.At, e.event.Session, e.event.Dir = now.Add(-time.Minute), session, tt.dir
+				got := views.Lately(latelyOf(e.event).At(now, claude.Policy()), 1, tt.dirs)
+				if len(got) != 1 || got[0].Full.String() != tt.want+e.full || !slices.Equal(got[0].Full.Subject, status.Words{{Text: tt.want}}) {
+					t.Errorf("Lately() = %+v, want %q, its subject %q, plain", got, tt.want+e.full, tt.want)
+				}
+			}
+			pin := status.Event{At: now.Add(-time.Minute), Kind: status.EventPin, Account: "side", Session: session, Dir: tt.dir}
+			got := views.Lately(latelyOf(pin).At(now, claude.Policy()), 1, tt.dirs)
+			if want := "pin set by hand: " + tt.want + " goes to side"; len(got) != 1 || got[0].Full.String() != want {
+				t.Errorf("Lately() = %+v, want %q", got, want)
+			}
+		})
+	}
+}
+
+// A move whose reason says nothing ends at its accounts, with no colon after
+// them.
+func TestLATELYTellsAMoveOfNoReasonWithoutAColon(t *testing.T) {
+	moved := sentenceOf(t, status.Event{At: at(13, 0), Kind: status.EventMoved, Session: "db8a71e3", From: "personal", To: "work"}, at(16, 0))
+	if got, want := moved.Full.String(), "db8a moved personal → work"; got != want {
+		t.Errorf("the move reads %q, want %q", got, want)
 	}
 }
 

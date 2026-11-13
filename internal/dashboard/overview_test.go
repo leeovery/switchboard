@@ -54,6 +54,7 @@ func TestTheSectionsShownAreNamedAsThePreferencesKeepThem(t *testing.T) {
 		{name: "every one", names: []string{"usage", "routing", "sessions", "coming", "lately"}, want: []string{"usage", "routing", "sessions", "coming", "lately"}},
 		{name: "graphs, as v0.2.7 kept GRAPHS shown, left out", names: []string{"usage", "graphs", "lately"}, want: []string{"usage", "lately"}},
 		{name: "a name of none, as a later switchboard's, left out", names: []string{"sessions", "a-later-section"}, want: []string{"sessions"}},
+		{name: "names of none alone: those shown at first", names: []string{"graphs"}, want: []string{"usage", "routing", "coming", "lately"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

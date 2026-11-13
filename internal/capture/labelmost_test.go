@@ -114,8 +114,8 @@ var labelSizes = slices.Concat(ownersSizes, []watch.Size{{Width: 52, Height: 32}
 // No view draws an account's label past a label's most, 24 cells, its
 // ellipsis among them, whole or cut, at any of labelSizes, wherever it sits
 // beside a name whose marks are wider or narrower than its own, or beside a
-// short name in a move; and the primary's cut label keeps its ◆ after it
-// wherever its row draws one. The rows that say a name as a sentence or a
+// short name in a move; and the primary's cut label keeps its ◆ after it,
+// beside it or at its column's end, wherever its row draws one. The rows that say a name as a sentence or a
 // folded heading, as headed has them, are passed over, and so are the
 // sentences and headings sayings has naming a label whole.
 func TestNoLabelIsDrawnPastALabelsMost(t *testing.T) {
@@ -140,7 +140,8 @@ func TestNoLabelIsDrawnPastALabelsMost(t *testing.T) {
 						}
 						if primary, ok := w.labels["personal"]; ok {
 							cut := prose.Cut(primary, mostLabelled)
-							if strings.Contains(row, cut+" ") && strings.Contains(row, "◆") && !strings.Contains(row, cut+" ◆") {
+							kept := regexp.MustCompile(regexp.QuoteMeta(cut) + " +◆")
+							if strings.Contains(row, cut+" ") && strings.Contains(row, "◆") && !kept.MatchString(row) {
 								t.Errorf("at %s, personal's label is drawn without its ◆ after it:\n%s", sizeName(size), row)
 							}
 						}

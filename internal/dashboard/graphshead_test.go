@@ -14,14 +14,22 @@ import (
 	"github.com/leeovery/switchboard/internal/views/viewstest"
 )
 
-// cardLane is work's lane, its use of the window keyed "5h" read
-// at used, with room through every column from now's where no stretch is
-// given, else held back but for the stretches given.
+// cardLane is work's lane, its use of the week read at used, with room
+// through every column from now's where no stretch is given, else held back
+// but for the stretches given.
 func cardLane(used float64, stretches ...views.LaneStretch) laidLane {
 	ln := laneWith(stretches...)
-	ln.Use, ln.Room = views.Use{Key: "5h", Used: used, Read: true}, len(stretches) == 0
+	ln.Use, ln.Room = views.Use{Key: "7d", Used: used, Read: true}, len(stretches) == 0
 	ln.name = accountName{label: "work"}
 	return ln
+}
+
+// weekStretch is a stretch held as cell from start till back, over the
+// columns of Runway's week view, tl, they fall in: the column it starts in
+// at the least, as one shorter than a column takes.
+func weekStretch(tl views.Timeline, cell views.Cell, start, back time.Time) views.LaneStretch {
+	first := tl.Column(start)
+	return stretchOf(tl, cell, start, back, first, max(tl.Column(back)-1, first))
 }
 
 // unusedLane is work's lane, its use not read as given, held
@@ -43,101 +51,100 @@ func spanInks(parts []line) []ink {
 
 // A card's words are its room, 66% left, the figure in its use's level's
 // colour, as usage colours a use, faded as a stale reading's; then the words
-// Runway says under its lane in that window's view, after prose.Separator,
+// Runway says under its lane in its week's view, after prose.Separator,
 // each phrase after the one before alike, inked as Runway inks them. Where
 // its use isn't read, the lane's words alone, or what Runway's label says of
 // it. Out of the pool, every word is faint, the figure bold.
 func TestACardsWordsAreItsRoomThenWhatRunwaySaysUnderItsLane(t *testing.T) {
-	five, week := runwayLive(views.RunwayFiveHour), runwayLive(views.RunwayWeek)
-	tl := five.Timeline
-	capped := stretchOf(tl, views.CellCapped, routedClock(1, 14, 31), routedClock(1, 17, 10), 5, 20)
+	week := runwayLive(views.RunwayWeek)
+	tl := week.Timeline
+	reset := routedClock(4, 21, 0)
+	capped := weekStretch(tl, views.CellCapped, routedClock(1, 14, 31), reset)
 	capped.AsItResets = true
-	reaches := stretchOf(tl, views.CellCapped, routedClock(1, 15, 45), routedClock(1, 17, 10), 12, 20)
+	reaches := weekStretch(tl, views.CellCapped, routedClock(3, 6, 0), reset)
 	reaches.Projected, reaches.AsItResets = true, true
-	out := stretchOf(tl, views.CellLimited, routedClock(1, 16, 5), routedClock(1, 16, 55), 14, 18)
+	out := weekStretch(tl, views.CellLimited, routedClock(3, 6, 0), reset)
 	out.Projected, out.AsItResets = true, true
-	limited := stretchOf(tl, views.CellLimited, routedClock(1, 13, 58), routedClock(1, 15, 30), 2, 10)
-	refused := cardLane(0.34, stretchOf(tl, views.CellRefused, routedClock(1, 14, 12), routedClock(1, 15, 0), 3, 7))
+	limited := weekStretch(tl, views.CellLimited, routedClock(1, 13, 58), routedClock(2, 15, 30))
+	refused := cardLane(0.34, weekStretch(tl, views.CellRefused, routedClock(1, 14, 12), routedClock(1, 15, 0)))
 	refused.Use.Stale, refused.account.TokenRefused = true, true
 	refused.account.Refusal = status.Refusal{Until: routedClock(1, 15, 0), Status: 401}
 	stale := cardLane(0.34)
 	stale.Use.Stale = true
 	out2 := cardLane(0.34)
 	out2.account.OutOfPool = true
-	unreadable := unusedLane(views.Use{Key: "5h", Unread: true})
+	unreadable := unusedLane(views.Use{Key: "7d", Unread: true})
 	unreadable.account.Routing = status.Routing{Kind: status.RoutingUnreadable, Says: "can't read it", Clauses: []string{"HTTP 529", "Overloaded"}}
 	resets := cardLane(0.34)
-	resets.Resets = []views.Reset{{Column: 100, At: routedClock(4, 21, 0)}}
-	weekTL := week.Timeline
-	monday := stretchOf(weekTL, views.CellLimited, routedClock(5, 6, 0), routedClock(5, 12, 0), weekTL.Column(routedClock(5, 6, 0)), 120)
+	resets.Resets = []views.Reset{{Column: 100, At: reset}}
+	monday := stretchOf(tl, views.CellLimited, routedClock(5, 6, 0), routedClock(5, 12, 0), tl.Column(routedClock(5, 6, 0)), 120)
 	monday.Projected = true
 	resetFirst := cardLane(0.34, monday)
-	resetFirst.Resets = []views.Reset{{Column: weekTL.Column(routedClock(4, 21, 0)), At: routedClock(4, 21, 0)}}
-	sunday := stretchOf(weekTL, views.CellLimited, routedClock(4, 21, 6), routedClock(4, 23, 6), 0, 120)
+	resetFirst.Resets = []views.Reset{{Column: tl.Column(reset), At: reset}}
+	sunday := stretchOf(tl, views.CellLimited, routedClock(4, 21, 6), routedClock(4, 23, 6), 0, 120)
 	sunday.Projected = true
 	sameColumn := cardLane(0.34, sunday)
 	sameColumn.Resets = []views.Reset{{Column: sunday.Column, At: routedClock(4, 19, 58)}}
 	ramp1, ramp4 := ink{token: theme.VizRamp1, bold: true}, ink{token: theme.VizRamp4, bold: true}
 	tests := []struct {
 		name string
-		view RunwayShown
 		lane laidLane
 		want string
 		inks []ink
 	}{
-		{name: "lasting", view: five, lane: cardLane(0.39), want: "61% left  ·  room all day", inks: []ink{ramp1, mutedInk, mutedInk, dimInk}},
+		{name: "lasting", lane: cardLane(0.39), want: "61% left  ·  room all week", inks: []ink{ramp1, mutedInk, mutedInk, dimInk}},
 		{
-			name: "running out", view: five, lane: cardLane(0.66, out),
-			want: "34% left  ·  out ~16:05  ·  resets 16:55", inks: []ink{ramp1, mutedInk, mutedInk, alertInk, mutedInk},
+			name: "running out", lane: cardLane(0.66, out),
+			want: "34% left  ·  out ~Sat  ·  resets Sun 21:00", inks: []ink{ramp1, mutedInk, mutedInk, alertInk, mutedInk},
 		},
 		{
-			name: "capped", view: five, lane: cardLane(0.95, capped),
-			want: "5% left  ·  capped 14:31  ·  resets 17:10", inks: []ink{ramp4, mutedInk, mutedInk, alertInk, mutedInk},
+			name: "capped", lane: cardLane(0.95, capped),
+			want: "5% left  ·  capped 14:31  ·  resets Sun 21:00", inks: []ink{ramp4, mutedInk, mutedInk, alertInk, mutedInk},
 		},
 		{
-			name: "reaching its reserve at its pace", view: five, lane: cardLane(0.6, reaches),
-			want: "40% left  ·  caps ~15:45  ·  resets 17:10", inks: []ink{ramp1, mutedInk, mutedInk, alertInk, mutedInk},
+			name: "reaching its reserve at its pace", lane: cardLane(0.6, reaches),
+			want: "40% left  ·  caps ~Sat  ·  resets Sun 21:00", inks: []ink{ramp1, mutedInk, mutedInk, alertInk, mutedInk},
 		},
 		{
-			name: "limited", view: five, lane: cardLane(1, limited),
-			want: "0% left  ·  out 13:58  ·  back 15:30", inks: []ink{ramp4, mutedInk, mutedInk, exhaustedInk, mutedInk},
+			name: "limited", lane: cardLane(1, limited),
+			want: "0% left  ·  out 13:58  ·  back Fri 15:30", inks: []ink{ramp4, mutedInk, mutedInk, exhaustedInk, mutedInk},
 		},
 		{
-			name: "one hold running into the next", view: five,
-			lane: cardLane(1, heldOn(limited, routedClock(1, 17, 10)), stretchOf(tl, views.CellCapped, routedClock(1, 15, 30), routedClock(1, 17, 10), 11, 20)),
-			want: "0% left  ·  out 13:58  ·  lifts 15:30  ·  capped 15:30  ·  back 17:10",
+			name: "one hold running into the next",
+			lane: cardLane(1, heldOn(limited, reset), weekStretch(tl, views.CellCapped, routedClock(2, 15, 30), reset)),
+			want: "0% left  ·  out 13:58  ·  lifts Fri 15:30  ·  capped Fri 15:30  ·  back Sun 21:00",
 			inks: []ink{ramp4, mutedInk, mutedInk, exhaustedInk, mutedInk, mutedInk, alertInk, mutedInk},
 		},
 		{
-			name: "its token refused", view: five, lane: refused,
+			name: "its token refused", lane: refused,
 			want: "66% left  ·  token refused (401) 14:12  ·  back 15:00", inks: []ink{dimInk, mutedInk, mutedInk, exhaustedInk, mutedInk},
 		},
-		{name: "stale", view: five, lane: stale, want: "66% left  ·  room all day", inks: []ink{dimInk, mutedInk, mutedInk, dimInk}},
+		{name: "stale", lane: stale, want: "66% left  ·  room all week", inks: []ink{dimInk, mutedInk, mutedInk, dimInk}},
 		{
-			name: "out of the pool", view: five, lane: out2,
-			want: "66% left  ·  room all day", inks: []ink{{token: theme.TextFaint, bold: true}, faintInk, faintInk, faintInk},
+			name: "out of the pool", lane: out2,
+			want: "66% left  ·  room all week", inks: []ink{{token: theme.TextFaint, bold: true}, faintInk, faintInk, faintInk},
 		},
 		{
-			name: "its week resetting before a stretch, in Runway's order", view: week, lane: resetFirst,
+			name: "its week resetting before a stretch, in Runway's order", lane: resetFirst,
 			want: "66% left  ·  resets Sun 21:00  ·  out ~Mon  ·  back Mon 12:00",
 			inks: []ink{ramp1, mutedInk, mutedInk, mutedInk, mutedInk, alertInk, mutedInk},
 		},
 		{
-			name: "its week resetting in the column a later stretch starts in", view: week, lane: sameColumn,
+			name: "its week resetting in the column a later stretch starts in", lane: sameColumn,
 			want: "66% left  ·  resets Sun 19:58  ·  out ~Sun  ·  back Sun 23:06",
 			inks: []ink{ramp1, mutedInk, mutedInk, mutedInk, mutedInk, alertInk, mutedInk},
 		},
-		{name: "the week resetting", view: week, lane: resets, want: "66% left  ·  resets Sun 21:00", inks: []ink{ramp1, mutedInk, mutedInk, mutedInk}},
-		{name: "not read", view: five, lane: unusedLane(views.Use{Key: "5h", Unread: true}), want: "not read", inks: []ink{dimInk}},
-		{name: "its first read failed", view: five, lane: unreadable, want: "can't read it: HTTP 529 · Overloaded", inks: []ink{dimInk}},
+		{name: "the week resetting", lane: resets, want: "66% left  ·  resets Sun 21:00", inks: []ink{ramp1, mutedInk, mutedInk, mutedInk}},
+		{name: "not read", lane: unusedLane(views.Use{Key: "7d", Unread: true}), want: "not read", inks: []ink{dimInk}},
+		{name: "its first read failed", lane: unreadable, want: "can't read it: HTTP 529 · Overloaded", inks: []ink{dimInk}},
 		{
-			name: "without a token", view: five, lane: unusedLane(views.Use{Tokenless: true}, stretchOf(tl, views.CellTokenless, time.Time{}, time.Time{}, 0, 135)),
+			name: "without a token", lane: unusedLane(views.Use{Tokenless: true}, stretchOf(tl, views.CellTokenless, time.Time{}, time.Time{}, 0, 135)),
 			want: "no token", inks: []ink{exhaustedInk},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			words := tt.view.view().cardWords(tt.lane, routedAt)
+			words := week.view().cardWords(tt.lane, routedAt)
 			if got := slices.Concat(words...).plain(); got != tt.want {
 				t.Fatalf("the card's words say %q, want %q", got, tt.want)
 			}
@@ -164,7 +171,7 @@ func TestACardSaysWhatRunwaySaysUnderItsLane(t *testing.T) {
 			for _, ln := range f.laidLanes(m, runwayFit{fits: true, shown: len(m.Accounts)}) {
 				card := slices.Concat(lanes.view().cardWords(ln, now)...).plain()
 				rest := card
-				for _, w := range f.Runway.view().wordsUnder(ln, now) {
+				for _, w := range f.Runway.view().wordsUnder(ln, now, 0) {
 					said := w.said.plain()
 					i := strings.Index(rest, said)
 					if i < 0 {
@@ -193,13 +200,13 @@ func TestACardsRoomIsWhatRunwaysUseLeaves(t *testing.T) {
 	}
 }
 
-// A card's room is numbered as the room left in its window, to brighten as
+// A card's room is numbered as the room left in its week, to brighten as
 // it changes.
 func TestACardsRoomIsNumberedAsItsWindowsRoom(t *testing.T) {
-	words := runwayLive(views.RunwayFiveHour).view().cardWords(cardLane(0.34), routedAt)
-	want := ink{}.numbered(Number{Kind: NumberRoom, Account: "work", Of: "5h"}).mark
+	words := runwayLive(views.RunwayWeek).view().cardWords(cardLane(0.34), routedAt)
+	want := ink{}.numbered(Number{Kind: NumberRoom, Account: "work", Of: "7d"}).mark
 	if got := words[0][0].ink.mark; got != want {
-		t.Errorf("the room is marked %v, want as work's 5h room, %v", got, want)
+		t.Errorf("the room is marked %v, want as work's week's room, %v", got, want)
 	}
 }
 
@@ -214,18 +221,19 @@ func TestACardsRoomIsNumberedAsItsWindowsRoom(t *testing.T) {
 // stands alone. A label cut on a row of its own keeps its number and its
 // marks whole within the card.
 func TestACardsHeadLaysItsWordsUnderItsLabelOrBesideIt(t *testing.T) {
-	five := runwayLive(views.RunwayFiveHour)
-	capped := stretchOf(five.Timeline, views.CellCapped, routedClock(1, 14, 31), routedClock(1, 17, 10), 5, 20)
+	week := runwayLive(views.RunwayWeek)
+	reset := routedClock(4, 21, 0)
+	capped := weekStretch(week.Timeline, views.CellCapped, routedClock(1, 14, 31), reset)
 	capped.AsItResets = true
 	work := cardLane(0.95, capped)
 	research := work
 	research.name = accountName{label: "client-research", primary: true}
 	marked := work
 	marked.name = accountName{label: "someone", primary: true, best: true}
-	out := stretchOf(five.Timeline, views.CellLimited, routedClock(1, 16, 5), routedClock(1, 16, 55), 14, 18)
+	out := weekStretch(week.Timeline, views.CellLimited, routedClock(3, 6, 0), reset)
 	out.Projected, out.AsItResets = true, true
 	running := cardLane(0.66, out)
-	unreadable := unusedLane(views.Use{Key: "5h", Unread: true})
+	unreadable := unusedLane(views.Use{Key: "7d", Unread: true})
 	unreadable.name = accountName{label: "someone@example.com"}
 	unreadable.account.Routing = status.Routing{Kind: status.RoutingUnreadable, Says: "can't read it", Clauses: []string{"HTTP 529", "Overloaded"}}
 	tests := []struct {
@@ -236,24 +244,24 @@ func TestACardsHeadLaysItsWordsUnderItsLabelOrBesideIt(t *testing.T) {
 		label  string
 		words  string
 	}{
-		{name: "under, every part", lane: work, width: 41, label: "work", words: "5% left  ·  capped 14:31  ·  resets 17:10"},
-		{name: "under, the last part left off", lane: work, width: 40, label: "work", words: "5% left  ·  capped 14:31"},
-		{name: "under, a run-out whole", lane: running, width: 40, label: "work", words: "34% left  ·  out ~16:05  ·  resets 16:55"},
-		{name: "under, a run-out's reset left off", lane: running, width: 39, label: "work", words: "34% left  ·  out ~16:05"},
-		{name: "under, the run-out left off", lane: running, width: 22, label: "work", words: "34% left"},
-		{name: "beside, a run-out's reset left off", lane: running, width: 45, beside: true, label: "work", words: "34% left  ·  out ~16:05"},
+		{name: "under, every part", lane: work, width: 45, label: "work", words: "5% left  ·  capped 14:31  ·  resets Sun 21:00"},
+		{name: "under, the last part left off", lane: work, width: 44, label: "work", words: "5% left  ·  capped 14:31"},
+		{name: "under, a run-out whole", lane: running, width: 42, label: "work", words: "34% left  ·  out ~Sat  ·  resets Sun 21:00"},
+		{name: "under, a run-out's reset left off", lane: running, width: 41, label: "work", words: "34% left  ·  out ~Sat"},
+		{name: "under, the run-out left off", lane: running, width: 20, label: "work", words: "34% left"},
+		{name: "beside, a run-out's reset left off", lane: running, width: 47, beside: true, label: "work", words: "34% left  ·  out ~Sat"},
 		{name: "under, the room alone", lane: work, width: 23, label: "work", words: "5% left"},
 		{name: "under, the label whole in its own row", lane: work, width: 9, label: "work", words: "5% left"},
 		{name: "under, the label cut", lane: work, width: 3, label: "wo…", words: "5%…"},
 		{name: "under, the room cut", lane: work, width: 6, label: "work", words: "5% le…"},
 		{name: "under, a marked label cut", lane: research, width: 10, label: "client-… ◆", words: "5% left"},
 		{name: "under, a label with both marks cut", lane: marked, width: 8, label: "som… ◆ ▲", words: "5% left"},
-		{name: "beside, every part", lane: work, width: 47, beside: true, label: "work", words: "5% left  ·  capped 14:31  ·  resets 17:10"},
-		{name: "beside, the last part left off", lane: work, width: 46, beside: true, label: "work", words: "5% left  ·  capped 14:31"},
+		{name: "beside, every part", lane: work, width: 51, beside: true, label: "work", words: "5% left  ·  capped 14:31  ·  resets Sun 21:00"},
+		{name: "beside, the last part left off", lane: work, width: 50, beside: true, label: "work", words: "5% left  ·  capped 14:31"},
 		{name: "beside, the room alone", lane: work, width: 29, beside: true, label: "work", words: "5% left"},
 		{name: "beside, the room alone at its least", lane: work, width: 15, beside: true, label: "work", words: "5% left"},
-		{name: "beside, a label with ▲, every part", lane: marked, width: 54, beside: true, label: "someone ◆ ▲", words: "5% left  ·  capped 14:31  ·  resets 17:10"},
-		{name: "beside, a label with ▲, the last part left off", lane: marked, width: 53, beside: true, label: "someone ◆ ▲", words: "5% left  ·  capped 14:31"},
+		{name: "beside, a label with ▲, every part", lane: marked, width: 58, beside: true, label: "someone ◆ ▲", words: "5% left  ·  capped 14:31  ·  resets Sun 21:00"},
+		{name: "beside, a label with ▲, the last part left off", lane: marked, width: 57, beside: true, label: "someone ◆ ▲", words: "5% left  ·  capped 14:31"},
 		{name: "beside, a long label whole", lane: research, width: 26, beside: true, label: "client-research ◆", words: "5% left"},
 		{name: "beside, a long label cut", lane: research, width: 24, beside: true, label: "client-resea… ◆", words: "5% left"},
 		{name: "beside, a long label at its least", lane: research, width: 19, beside: true, label: "client-… ◆", words: "5% left"},
@@ -266,7 +274,7 @@ func TestACardsHeadLaysItsWordsUnderItsLabelOrBesideIt(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := Frame{}.cardHeadOf(five.view(), tt.lane, tt.width, tt.beside, routedAt)
+			h := Frame{}.cardHeadOf(week.view(), tt.lane, tt.width, tt.beside, routedAt)
 			if got := h.label.plain(); got != tt.label {
 				t.Errorf("its label reads %q, want %q", got, tt.label)
 			}
@@ -292,9 +300,12 @@ func TestACardsHeadLaysItsWordsUnderItsLabelOrBesideIt(t *testing.T) {
 // its words on theirs, picked out by the cue while its account newly stands
 // as its lane has it at now, as Runway cues the words under its lane.
 func TestACardsHeadIsDrawnItsWordsCuedAsRunwayCuesThem(t *testing.T) {
-	five := runwayLive(views.RunwayFiveHour)
-	capped := cardLane(0.95, stretchOf(five.Timeline, views.CellCapped, routedClock(1, 14, 31), routedClock(1, 17, 10), 0, 20))
-	capped.Cells = slices.Repeat([]views.Cell{views.CellCapped}, 136)
+	week := runwayLive(views.RunwayWeek)
+	held := weekStretch(week.Timeline, views.CellCapped, routedClock(1, 14, 31), routedClock(1, 17, 10))
+	capped := cardLane(0.95, held)
+	for c := held.First; c <= held.Last; c++ {
+		capped.Cells[c] = views.CellCapped
+	}
 	tests := []struct {
 		name    string
 		changed map[string]float64
@@ -307,7 +318,7 @@ func TestACardsHeadIsDrawnItsWordsCuedAsRunwayCuesThem(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := Frame{Changed: tt.changed}.cardHeadOf(five.view(), capped, 50, tt.beside, routedAt)
+			h := Frame{Changed: tt.changed}.cardHeadOf(week.view(), capped, 50, tt.beside, routedAt)
 			c := newCanvas(54, 3)
 			h.draw(c, Look{coloured: true}, 2, 1)
 			label, words := rowOf(c, 1), rowOf(c, 1+h.row)

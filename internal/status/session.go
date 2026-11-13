@@ -32,9 +32,12 @@ const (
 	ReasonNew = "new"
 	// ReasonPinned is the session's own pin.
 	ReasonPinned = "pinned"
-	// ReasonGlobalPin is one of the global pin's accounts, chosen afresh.
+	// ReasonPoolPin is one of the pool's pin's accounts, chosen afresh.
+	ReasonPoolPin = "pinned (pool)"
+	// ReasonGlobalPin is ReasonPoolPin as a router from before pools gave
+	// it, for the lines and events recorded then: read alike, never given.
 	ReasonGlobalPin = "pinned (global)"
-	// ReasonMovedByPin is a move by a global pin that moves running sessions.
+	// ReasonMovedByPin is a move by a pool's pin that moves running sessions.
 	ReasonMovedByPin = "moved by pin"
 	// ReasonMovedOff starts the reason for a move off the session's account,
 	// as it can't take the request, which account and why following, as in
@@ -194,7 +197,7 @@ type Assignment struct {
 	Account string `json:"account"`
 	// Auto is the account the session's next request of the model would go
 	// to were the session to have no pin of its own, as the router's own
-	// rule chooses it, the global pin counting: "" where the router can't
+	// rule chooses it, the pool's pin counting: "" where the router can't
 	// say, as where no account has room for the request, and from a router
 	// from before it said.
 	Auto string `json:"auto,omitempty"`

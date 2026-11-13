@@ -59,6 +59,12 @@ func (a assignment) warm(now time.Time) bool {
 	return now.Sub(a.LastSeen) <= cacheLife
 }
 
+// dirAfter is the directory the assignment names once req is noted on it:
+// req's, where it names one, else the one it named.
+func (a assignment) dirAfter(req Request) string {
+	return cmp.Or(req.Dir, a.Dir)
+}
+
 // forgotten reports whether the assignment has gone unused for forgetAfter
 // at now.
 func (a assignment) forgotten(now time.Time) bool {
@@ -120,8 +126,8 @@ type found struct {
 	// own is the pin the session was given while it ran, when given is set.
 	own   ownPin
 	given bool
-	// global is the global pin, zero when there's none.
-	global status.Pin
+	// pins are each pool's pin.
+	pins pins
 }
 
 // pin returns the session's own pin for a request that carries launched, the
@@ -137,10 +143,11 @@ func (f found) pin(launched string) (string, time.Time) {
 
 // situation is what's known as req's account is chosen at now, f being what's
 // remembered of its session and accounts what's known of the accounts: the
-// request in the pool the view has it in, pinned as its session's own pin has
-// it in that pool, as pinIn says.
+// request in the pool the view has it in, under that pool's pin, as the
+// view's pools have it, pinned as its session's own pin has it in that pool,
+// as pinIn says.
 func (f found) situation(req Request, now time.Time, accounts view) situation {
-	on := situation{req: req, now: now, current: f.current, assigned: f.assigned, pin: f.global, accounts: accounts}
+	on := situation{req: req, now: now, current: f.current, assigned: f.assigned, pin: f.pins[accounts.pool], accounts: accounts}
 	on.req.Pool = accounts.pool
 	on.req.Pin, on.pinnedAt, on.unpooled = f.pinIn(req.Pin, accounts)
 	return on
@@ -163,8 +170,8 @@ func (f found) pinIn(launched string, accounts view) (pin string, since time.Tim
 }
 
 // sessions remembers the account each session's requests of each model go
-// to, the pins sessions are given while they run, and the global pin, all of
-// which the state file keeps. It's safe for concurrent use.
+// to, the pins sessions are given while they run, and each pool's pin, all
+// of which the state file keeps. It's safe for concurrent use.
 type sessions struct {
 	now func() time.Time
 	// changed hears of each change, for the state file to keep, and usedAgain
@@ -187,8 +194,8 @@ type sessions struct {
 	// with success: never one the state file kept, told of before.
 	unstarted map[key]bool
 	// own holds the pins sessions were given while they ran, by session id.
-	own map[string]ownPin
-	pin status.Pin
+	own  map[string]ownPin
+	pins pins
 }
 
 func newSessions(now func() time.Time, changed, usedAgain func()) *sessions {
@@ -210,7 +217,7 @@ func (s *sessions) lookup(k key) found {
 	defer s.mu.Unlock()
 	current, assigned := s.assignments[k]
 	own, given := s.own[k.session]
-	return found{current: current, assigned: assigned, own: own, given: given, global: s.pin}
+	return found{current: current, assigned: assigned, own: own, given: given, pins: s.pins}
 }
 
 // remember notes that req went where d says at now, carrying its pin as its
@@ -241,7 +248,7 @@ func (s *sessions) remember(req Request, was assignment, d decision, now time.Ti
 		a.Reason = d.reason
 	}
 	a.Pin, a.Pool, a.LastSeen, a.by = req.Pin, req.Pool, now, req.ID
-	a.Dir = cmp.Or(req.Dir, a.Dir)
+	a.Dir = a.dirAfter(req)
 	s.assignments[k] = a.inUTC()
 	if a.usedAgain(found) {
 		s.usedAgain()
@@ -315,40 +322,65 @@ func (s *sessions) onAccount(k key, id string, now time.Time) time.Duration {
 	return now.Sub(a.AssignedAt)
 }
 
-// globalPin returns the global pin, zero when there's none.
-func (s *sessions) globalPin() status.Pin {
+// pinsNow returns each pool's pin.
+func (s *sessions) pinsNow() pins {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.pin
+	return s.pins
 }
 
-// setPin sets the global pin, and with force, clears every session's own pin
-// at once, as clearOwn does. It returns how many sessions had one.
-func (s *sessions) setPin(pin status.Pin, force bool) (cleared int) {
+// setPin sets the pin of the pool rd reads, as with says, and with force,
+// clears the own pin of every session in that pool at once, as clearOwn
+// does. It returns how many sessions had one.
+func (s *sessions) setPin(rd poolRead, pin status.Pin, force bool) (cleared int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.pin = pin
+	s.pins = s.pins.with(rd.pool, pin)
 	if force {
-		cleared = s.clearOwn()
+		cleared = s.clearOwn(rd.routes)
 	}
 	s.changed()
 	return cleared
 }
 
-// unpin clears the global pin, and with force, every session's own pin, as
-// clearOwn does. It returns the global pin as it was, and how many sessions
-// had a pin of their own.
-func (s *sessions) unpin(force bool) (was status.Pin, cleared int) {
+// unpin clears the pin of the pool rd reads, as without says, and with
+// force, the own pin of every session in that pool, as clearOwn does. It
+// returns the pool's pin as it was, and how many sessions had a pin of their
+// own.
+func (s *sessions) unpin(rd poolRead, force bool) (was status.Pin, cleared int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	was, s.pin = s.pin, status.Pin{}
+	s.pins, was = s.pins.without(rd.pool)
 	if force {
-		cleared = s.clearOwn()
+		cleared = s.clearOwn(rd.routes)
 	}
 	if !was.IsZero() || cleared > 0 {
 		s.changed()
 	}
 	return was, cleared
+}
+
+// fit fits each pool's pin to the pools as t has them, as fitted says, and
+// returns the pins as it leaves them, and each it dropped whole.
+func (s *sessions) fit(t *poolTable) (pins, []gonePin) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	next, gone, changed := s.pins.fitted(t)
+	if changed {
+		s.pins = next
+		s.changed()
+	}
+	return s.pins, gone
+}
+
+// poolOf returns the pool the session with the given id was last routed
+// within, as remembered of the request it saw last, reporting false for a
+// session never seen.
+func (s *sessions) poolOf(id string) (string, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	last, seen := s.lastUsed(id)
+	return last.Pool, seen
 }
 
 // pinSession gives the session with the given id its own pin to account from
@@ -474,6 +506,21 @@ func (s *sessions) lastUsed(id string) (assignment, bool) {
 	return last.assignment, seen
 }
 
+// dir is the directory the session with the given id runs in: that of its
+// model used last to name one, as the dashboard reads it off the session's
+// listing; "" where none does, as for a session never seen.
+func (s *sessions) dir(id string) string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var last entry
+	for k, a := range s.assignments {
+		if e := (entry{model: k.model, assignment: a}); k.session == id && a.Dir != "" && (last.Dir == "" || byUse(e, last) < 0) {
+			last = e
+		}
+	}
+	return last.Dir
+}
+
 // byUse orders a session's entries the one used last first, then by model.
 func byUse(a, b entry) int {
 	return cmp.Or(b.LastSeen.Compare(a.LastSeen), cmp.Compare(a.model, b.model))
@@ -516,15 +563,16 @@ func (s *sessions) pinOf(id string, last assignment) (string, time.Time) {
 	return last.Pin, time.Time{}
 }
 
-// clearOwn clears the own pin of every session that has one, the one it was
-// launched with included, which its requests go on carrying and are passed
-// over from then on, and returns how many sessions had one. A session first
-// seen afterwards has the pin it's launched with. s.mu must be held.
-func (s *sessions) clearOwn() int {
+// clearOwn clears the own pin of every session that has one in a pool in
+// says, as remembered of the request it saw last, the one it was launched
+// with included, which its requests go on carrying and are passed over from
+// then on, and returns how many sessions had one. A session first seen
+// afterwards has the pin it's launched with. s.mu must be held.
+func (s *sessions) clearOwn(in func(pool string) bool) int {
 	cleared := ownPin{Since: s.now().UTC()}
 	n := 0
 	for id, entries := range s.entries() {
-		if pin, _ := s.pinOf(id, entries[0].assignment); pin != "" {
+		if pin, _ := s.pinOf(id, entries[0].assignment); pin != "" && in(entries[0].Pool) {
 			s.own[id] = cleared
 			n++
 		}
@@ -543,14 +591,17 @@ func (s *sessions) seen(id string) bool {
 	return false
 }
 
-// saved is what the state file keeps of the sessions, in a steady order: the
-// global pin, the sessions' assignments, and the pins they were given while
-// they ran.
+// saved is what the state file keeps of the sessions, in a steady order:
+// each pool's pin, the one of a config from before pools as such, the
+// sessions' assignments, and the pins they were given while they ran.
 func (s *sessions) saved() savedSessions {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	pooled := maps.Clone(s.pins)
+	delete(pooled, "")
 	saved := savedSessions{
-		Pin:         s.pin,
+		Pin:         s.pins[""],
+		Pins:        pooled,
 		Sessions:    make([]savedAssignment, 0, len(s.assignments)),
 		SessionPins: maps.Clone(s.own),
 	}
@@ -564,19 +615,21 @@ func (s *sessions) saved() savedSessions {
 }
 
 // recall takes in what the state file kept of the sessions, as the router
-// starts at now, but for what can no longer be used: assignments gone unused
-// for forgetAfter, and any assignment, session's own pin or global pin to an
-// account no longer configured, of the accounts given. One to an account
-// without a usable token stands, as its token file may only have been caught
-// as it's rewritten: while the account has none, choices pass it over. It
-// reports whether it left anything out.
-func (s *sessions) recall(saved savedSessions, accounts accounts, now time.Time) bool {
+// starts at now, the pools as t has them, but for what can no longer be
+// used: assignments gone unused for forgetAfter, any assignment, session's
+// own pin or pool's pin to an account no longer configured, of the accounts
+// given, each pool's pin fitted to the pools, as recallPins says. One to an
+// account without a usable token stands, as its token file may only have
+// been caught as it's rewritten: while the account has none, choices pass it
+// over. It reports whether it left anything out, or fitted any pin, and
+// returns each pool's pin the fit dropped whole.
+func (s *sessions) recall(saved savedSessions, accounts accounts, now time.Time, t *poolTable) (bool, []gonePin) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	assignments := s.recallAssignments(saved.Sessions, accounts, now)
 	ownPins := s.recallOwnPins(saved.SessionPins, accounts)
-	pin := s.recallPin(saved.Pin, accounts)
-	return assignments || ownPins || pin
+	pins, gone := s.recallPins(saved, accounts, t)
+	return assignments || ownPins || pins, gone
 }
 
 // recallAssignments takes in the assignments saved, but those gone unused for
@@ -611,17 +664,42 @@ func (s *sessions) recallOwnPins(saved map[string]ownPin, accounts accounts) (dr
 	return dropped
 }
 
-// recallPin takes in the global pin saved, but for its accounts no longer
-// configured, the pin going with the last of them, and reports whether it
-// left any out. It names the rest in the order configured. s.mu must be held.
-func (s *sessions) recallPin(saved status.Pin, accounts accounts) (dropped bool) {
+// recallPins takes in each pool's pin saved, but for the accounts each names
+// no longer configured, the pin going with the last of them, as recalledPin
+// says, fitted to the pools as t has them, as fitted says: the one pin of a
+// state file from before pools settled as its home pool's, each pin left
+// naming its own pool's accounts alone, and the pin of a pool t doesn't have
+// gone. It reports whether that changed any, and returns each pool's pin
+// dropped whole, by recalledPin or the fit, as the live fit tells them: none
+// of a config from before pools, whose one pin going with its last account
+// was never told. s.mu must be held.
+func (s *sessions) recallPins(saved savedSessions, accounts accounts, t *poolTable) (changed bool, gone []gonePin) {
+	everyPin := saved.everyPin()
+	kept := make(pins)
+	for _, pool := range slices.Sorted(maps.Keys(everyPin)) {
+		pin, left := recalledPin(everyPin[pool], accounts)
+		changed = changed || left
+		switch {
+		case !pin.IsZero():
+			kept[pool] = pin
+		case pool != "":
+			gone = append(gone, gonePin{pool: pool, pin: everyPin[pool]})
+		}
+	}
+	fitted, refit, refitted := kept.fitted(t)
+	s.pins = fitted
+	return changed || refitted, append(gone, refit...)
+}
+
+// recalledPin returns the pin saved but for its accounts no longer
+// configured, of the accounts given, which it logs, the rest in the order
+// configured, and reports whether it left any out.
+func recalledPin(saved status.Pin, accounts accounts) (status.Pin, bool) {
 	kept := accounts.only(saved.Accounts).configured().IDs()
-	for _, id := range except(saved.Accounts, kept) {
+	left := except(saved.Accounts, kept)
+	for _, id := range left {
 		logger.Warn("dropped from the pin: the account is no longer configured", "account", id)
-		dropped = true
 	}
-	if saved.Accounts = kept; !saved.IsZero() {
-		s.pin = saved
-	}
-	return dropped
+	saved.Accounts = kept
+	return saved, len(left) > 0
 }

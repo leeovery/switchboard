@@ -30,10 +30,10 @@ func graphsHarness(t *testing.T, width, height int) (*harness, *fakePrefs) {
 	return h, prefs
 }
 
-// On Graphs, w, f, o, g and h each show their section where it's hidden and
+// On Graphs, w, o, g and h each show their section where it's hidden and
 // hide it where it shows, and the sections shown are kept by name, every one
-// hidden kept as none; the Overview's sections and each model's own window
-// are left as they were.
+// hidden kept as none; f, no section's key, leaves them as they were; the
+// Overview's sections and each model's own window are left as they were.
 func TestGraphsKeysShowOrHideItsSectionsAndKeepThem(t *testing.T) {
 	h, prefs := graphsHarness(t, 160, 37)
 	for _, step := range []struct {
@@ -42,10 +42,10 @@ func TestGraphsKeysShowOrHideItsSectionsAndKeepThem(t *testing.T) {
 		wantShown  string
 		wantHidden string
 	}{
-		{key: "o", want: []string{"week", "5-hour", "pool"}, wantShown: "POOL"},
-		{key: "w", want: []string{"5-hour", "pool"}, wantHidden: "WEEK"},
-		{key: "h", want: []string{"5-hour", "pool", "when"}, wantShown: "WHEN YOU WORK"},
-		{key: "g", want: []string{"5-hour", "pool", "glance", "when"}, wantShown: "GLANCE"},
+		{key: "o", want: []string{"week", "pool"}, wantShown: "POOL"},
+		{key: "w", want: []string{"pool"}, wantHidden: "WEEK"},
+		{key: "h", want: []string{"pool", "when"}, wantShown: "WHEN YOU WORK"},
+		{key: "g", want: []string{"pool", "glance", "when"}, wantShown: "GLANCE"},
 		{key: "f", want: []string{"pool", "glance", "when"}, wantHidden: "5-HOUR"},
 		{key: "o", want: []string{"glance", "when"}, wantHidden: "POOL"},
 		{key: "g", want: []string{"when"}, wantHidden: "GLANCE"},
@@ -98,12 +98,11 @@ func TestTheWatchOpensGraphsShowingTheSectionsThePreferencesKept(t *testing.T) {
 // Graphs' key line is a page of toggles', as the Overview's: wide, tab
 // views, then each toggle, its word faint where its section is hidden, then
 // p pin, ? help and q quit, each group five cells apart; on a phone, tab
-// views, ? keys and toggles and q quit. Where no account has a 5-hour
-// window, f 5-hour is gone.
+// views, ? keys and toggles and q quit. Whatever the accounts' windows, it
+// has no f 5-hour.
 func TestGraphsKeyLineIsTheDesigns(t *testing.T) {
-	toggles := "tab views     w week  f 5-hour  o pool  g glance  h when     "
+	toggles := "tab views     w week  o pool  g glance  h when     "
 	phone := "tab views   ? keys and toggles   q quit"
-	ultra := "tab views     w week  o pool  g glance  h when     p pin  ? help  q quit"
 	tests := []struct {
 		name   string
 		doc    status.Document
@@ -117,8 +116,8 @@ func TestGraphsKeyLineIsTheDesigns(t *testing.T) {
 		{name: "one account, with none other to pin to", doc: routerDocument(three()[0]), width: 160, want: toggles + "? help  q quit", hidden: []string{"pool", "glance", "when"}},
 		{name: "the wide chrome's narrowest", doc: routerDocument(three()...), width: 100, want: toggles + "p pin  ? help  q quit", hidden: []string{"pool", "glance", "when"}},
 		{name: "a phone", doc: routerDocument(three()...), width: 52, want: phone},
-		{name: "every account verified Ultra", doc: routerDocument(verifiedUltra()...), width: 160, want: ultra, hidden: []string{"pool", "glance", "when"}},
-		{name: "every account verified Ultra, after f", doc: routerDocument(verifiedUltra()...), width: 160, typed: []string{"f"}, want: ultra, hidden: []string{"pool", "glance", "when"}},
+		{name: "every account verified Ultra", doc: routerDocument(verifiedUltra()...), width: 160, want: toggles + "p pin  ? help  q quit", hidden: []string{"pool", "glance", "when"}},
+		{name: "after f", doc: routerDocument(three()...), width: 160, typed: []string{"f"}, want: toggles + "p pin  ? help  q quit", hidden: []string{"pool", "glance", "when"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -158,15 +157,15 @@ func TestAClickOnGraphsHeadingOrAToggleActsAsItsKey(t *testing.T) {
 		at   func(h *harness) (x, y int)
 		want []string
 	}{
-		{name: "WEEK's heading", at: func(h *harness) (int, int) { return h.drawnAt("WEEK ") }, want: []string{"5-hour"}},
-		{name: "5-HOUR's key", at: func(h *harness) (int, int) {
-			_, y := h.drawnAt("5-HOUR ")
+		{name: "WEEK's heading", at: func(h *harness) (int, int) { return h.drawnAt("WEEK ") }, want: []string{}},
+		{name: "WEEK's key", at: func(h *harness) (int, int) {
+			_, y := h.drawnAt("WEEK ")
 			return h.model.size.Width - 1, y
-		}, want: []string{"week"}},
+		}, want: []string{}},
 		{name: "the key line's o pool", at: func(h *harness) (int, int) {
 			x, y := h.drawnAt("o pool")
 			return x + ansi.StringWidth("o pool") - 1, y
-		}, want: []string{"week", "5-hour", "pool"}},
+		}, want: []string{"week", "pool"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -186,7 +185,7 @@ func TestGraphsHelpListsItsTogglesThenTheSharedKeys(t *testing.T) {
 	h.typed("o")
 	want := []dashboard.Key{
 		{Key: "tab", Does: "views"},
-		{Key: "w", Does: "week"}, {Key: "f", Does: "5-hour"}, {Key: "o", Does: "pool"},
+		{Key: "w", Does: "week"}, {Key: "o", Does: "pool"},
 		{Key: "g", Does: "glance", Hidden: true}, {Key: "h", Does: "when", Hidden: true},
 		{Key: "j k", Does: "scroll"}, {Key: "PgUp PgDn", Does: "page"}, {Key: "wheel", Does: "scroll"},
 		{Key: "p", Does: "pin"}, {Key: "R", Does: "refresh"}, {Key: "?", Does: "help"}, {Key: "q", Does: "quit"},
@@ -196,48 +195,19 @@ func TestGraphsHelpListsItsTogglesThenTheSharedKeys(t *testing.T) {
 	}
 }
 
-// Where no account has a 5-hour window, as where every one is verified
-// Ultra, f does nothing, and help lists no f; 5-HOUR, kept shown all along,
-// shows again, f with it, once a read lands of an account with one.
-func TestGraphsFiveHourKeptShowsAgainOnceAnAccountHasOne(t *testing.T) {
-	h := routedHarness(t, routerDocument(verifiedUltra()...))
-	prefs := &fakePrefs{}
-	h.model.cfg.Prefs, h.model.cfg.Accounts, h.model.view = prefs, threeConfigured, dashboard.Graphs
-	h.update(tea.WindowSizeMsg{Width: 160, Height: 37})
-	h.start()
-	h.typed("f")
-	if got := h.model.graphs.Names(); !slices.Equal(got, []string{"week", "5-hour"}) || prefs.kept.GraphsTab.Sections != nil {
-		t.Errorf("f with no account's 5-hour left Graphs showing %q, kept %#v; want week and 5-hour, as they were, none kept", got, prefs.kept.GraphsTab.Sections)
-	}
-	if shown := h.view(); strings.Contains(shown, "\n5-HOUR ") || !strings.Contains(shown, "\nWEEK ") {
-		t.Errorf("the screen is\n%s\nwant WEEK's heading alone", shown)
-	}
-	if got := listedKeys(helpOver(h.model)); slices.Contains(got, "f") || !slices.Contains(got, "w") {
-		t.Errorf("help lists %q, want w and no f", got)
-	}
-
-	h.deliver(h.update(fetchedMsg{doc: routerDocument(three()...)})...)
-	if shown := h.view(); !strings.Contains(shown, "\n5-HOUR ") || !strings.Contains(shown, "f 5-hour") {
-		t.Errorf("a read landing every account's 5-hour, the screen is\n%s\nwant 5-HOUR's heading and f 5-hour on it", shown)
-	}
-	h.typed("f")
-	if got := h.model.graphs.Names(); !slices.Equal(got, []string{"week"}) {
-		t.Errorf("f with the 5-hour back left Graphs showing %q, want week alone", got)
-	}
-}
-
-// Where Graphs' sections don't fit, as four accounts' on a phone of 73 by
-// 61, j and k scroll the page a row, PgDn and PgUp a page, and a turn of the
-// wheel over it three rows, no further than shows its last row; the row over
-// the key line says what's out of view.
+// Where Graphs' sections don't fit, as WEEK's, POOL's and GLANCE's of two
+// accounts on a phone of 73 by 40, j and k scroll the page a row, PgDn and
+// PgUp a page, and a turn of the wheel over it three rows, no further than
+// shows its last row; the row over the key line says what's out of view.
 func TestGraphsScrollsARowAtATimeByTheKeysAndTheWheel(t *testing.T) {
 	h := routedHarness(t, routerDocument(three()...))
-	h.model.view, h.model.cfg.Accounts = dashboard.Graphs, config.Accounts{{ID: "work"}, {ID: "personal"}, {ID: "side"}, {ID: "team"}}
-	h.update(tea.WindowSizeMsg{Width: 73, Height: 61})
+	h.model.view, h.model.cfg.Accounts = dashboard.Graphs, config.Accounts{{ID: "work"}, {ID: "personal"}}
+	h.model.graphs = dashboard.GraphsSectionsNamed([]string{"week", "pool", "glance"})
+	h.update(tea.WindowSizeMsg{Width: 73, Height: 40})
 	h.start()
 	s := h.model.scrolling()
-	if s.Most != 16 {
-		t.Fatalf("Graphs scrolls %+v at 73x61, want 16 rows", s)
+	if s.Most != 12 {
+		t.Fatalf("Graphs scrolls %+v at 73x40, want 12 rows", s)
 	}
 	steps := []struct {
 		name   string
@@ -247,11 +217,11 @@ func TestGraphsScrollsARowAtATimeByTheKeysAndTheWheel(t *testing.T) {
 		{name: "j, a row down", scroll: func() { h.keyed("j") }, want: 1},
 		{name: "k, a row up", scroll: func() { h.keyed("k") }, want: 0},
 		{name: "k at the top, nowhere", scroll: func() { h.keyed("k") }, want: 0},
-		{name: "PgDn, a page, no further than the last row", scroll: func() { h.keys(tea.KeyPressMsg{Code: tea.KeyPgDown}) }, want: 16},
-		{name: "j at the last row, nowhere", scroll: func() { h.keyed("j") }, want: 16},
+		{name: "PgDn, a page, no further than the last row", scroll: func() { h.keys(tea.KeyPressMsg{Code: tea.KeyPgDown}) }, want: 12},
+		{name: "j at the last row, nowhere", scroll: func() { h.keyed("j") }, want: 12},
 		{name: "PgUp, a page", scroll: func() { h.keys(tea.KeyPressMsg{Code: tea.KeyPgUp}) }, want: 0},
 		{name: "a turn of the wheel down, three rows", scroll: func() { h.wheel(tea.MouseWheelDown, 10, 20) }, want: 3},
-		{name: "a turn of the wheel over the legend, nowhere", scroll: func() { h.wheel(tea.MouseWheelDown, 10, 58) }, want: 3},
+		{name: "a turn of the wheel over the legend, nowhere", scroll: func() { h.wheel(tea.MouseWheelDown, 10, 37) }, want: 3},
 		{name: "a turn up", scroll: func() { h.wheel(tea.MouseWheelUp, 10, 20) }, want: 0},
 	}
 	for _, step := range steps {
@@ -261,8 +231,8 @@ func TestGraphsScrollsARowAtATimeByTheKeysAndTheWheel(t *testing.T) {
 		}
 	}
 	h.keyed("j")
-	if lines := strings.Split(h.view(), "\n"); strings.TrimSpace(lines[59]) != "▲ 1 more above · ▼ 15 more below" {
-		t.Errorf("scrolled a row, the row over the key line reads %q, want ▲ 1 more above · ▼ 15 more below", lines[59])
+	if lines := strings.Split(h.view(), "\n"); strings.TrimSpace(lines[38]) != "▲ 1 more above · ▼ 12 more below" {
+		t.Errorf("scrolled a row, the row over the key line reads %q, want ▲ 1 more above · ▼ 12 more below", lines[38])
 	}
 }
 
@@ -304,7 +274,7 @@ func hourly(date string, hour, n int) ledger.Summary {
 // Monday's 9 o'clock its 8 requests over the four Mondays; and hidden again,
 // none at a look, and no page.
 func TestGraphsReadsTheLedgersDaysWhileWhenYouWorkShows(t *testing.T) {
-	h, l := whenHarness(t, "week", "5-hour")
+	h, l := whenHarness(t, "week")
 	h.start()
 	h.tickUntilAsked()
 	if len(l.reads) != 0 || h.model.frame(h.clock.now).Graphs.Hours != nil {

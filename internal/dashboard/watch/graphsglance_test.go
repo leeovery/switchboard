@@ -12,32 +12,27 @@ import (
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/readings"
 	"github.com/leeovery/switchboard/internal/status"
-	"github.com/leeovery/switchboard/internal/views"
 )
 
 // glanceKeys are the keys of the windows GLANCE draws, at the harness's
-// moment, in Runway's order.
+// moment: the week's alone.
 func glanceKeys(r *runwayed) []string {
-	m := r.model.moment(r.model.now())
-	var keys []string
-	for _, w := range views.RunwayWindows() {
-		keys = append(keys, w.KeyIn(m))
-	}
-	return keys
+	return []string{dashboard.GraphsWindow.KeyIn(r.model.moment(r.model.now()))}
 }
 
-// spansBuilt are how many times the pool's room over each of GLANCE's
-// windows' spans has been built, by the window's key.
+// spansBuilt are how many times the pool's room over GLANCE's week's span
+// has been built, by the window's key.
 func spansBuilt(r *runwayed) map[string]int {
 	return maps.Clone(r.spanBuilds)
 }
 
-// While Graphs shows GLANCE, the pool's room over each window's span is built
+// While Graphs shows GLANCE, the pool's room over the week's span is built
 // once a message and never at a frame, of the readings history's live tail,
 // read through when its last read was asked, across GLANCE's sparklines'
-// columns, each from the last, as it holds what it judged; the frame shows
-// them. With GLANCE hidden none is built, the last kept, and shown again
-// each is built from that; on another tab, none is built.
+// columns at the terminal's width, from the last, as it holds what it
+// judged; the frame shows it. With GLANCE hidden none is built, the last
+// kept, and shown again it's built from that; on another tab, none is
+// built.
 func TestGraphsBuildsGlancesPoolRoomOnceAMessageWhileItShows(t *testing.T) {
 	read := filedOn("work", "7d", start.Add(-2*time.Hour), 0.3)
 	r := runwayHarness(t, dashboard.Graphs, graphsShowing("glance"), read)
@@ -45,14 +40,18 @@ func TestGraphsBuildsGlancesPoolRoomOnceAMessageWhileItShows(t *testing.T) {
 	if r.filed.tails == 0 || live.through.IsZero() {
 		t.Fatalf("GLANCE alone shown, the live tail was read %d times, through %s; want it read", r.filed.tails, live.through)
 	}
-	for i, key := range glanceKeys(r) {
+	columns := dashboard.GraphsGlanceColumns(r.model.size.Width, r.model.graphs, r.model.cfg.Accounts)
+	if columns <= 16 {
+		t.Fatalf("at %d columns GLANCE's sparklines take %d, want them grown past 16", r.model.size.Width, columns)
+	}
+	for _, key := range glanceKeys(r) {
 		from := r.spanFrom[key]
-		if r.spanBuilds[key] == 0 || from.Columns != dashboard.GraphsGlanceColumns || !slices.Equal(from.Readings, []readings.Reading{read}) || !from.ReadThrough.Equal(live.through) {
+		if r.spanBuilds[key] == 0 || from.Columns != columns || !slices.Equal(from.Readings, []readings.Reading{read}) || !from.ReadThrough.Equal(live.through) {
 			t.Errorf("once started, the pool's room in %s was built %d times, across %d columns, of %v read through %s; want it built across %d, of the live tail's %v, read through %s",
-				key, r.spanBuilds[key], from.Columns, from.Readings, from.ReadThrough, dashboard.GraphsGlanceColumns, read, live.through)
+				key, r.spanBuilds[key], from.Columns, from.Readings, from.ReadThrough, columns, read, live.through)
 		}
-		if w := views.RunwayWindows()[i]; !reflect.DeepEqual(shown[w], r.spanBuilt[key]) || len(shown[w].Columns) != dashboard.GraphsGlanceColumns {
-			t.Errorf("the frame shows the pool's room in %s as %+v, want the %d columns built, %+v", key, shown[w], dashboard.GraphsGlanceColumns, r.spanBuilt[key])
+		if w := dashboard.GraphsWindow; !reflect.DeepEqual(shown[w], r.spanBuilt[key]) || len(shown[w].Columns) != columns {
+			t.Errorf("the frame shows the pool's room in %s as %+v, want the %d columns built, %+v", key, shown[w], columns, r.spanBuilt[key])
 		}
 	}
 
@@ -91,8 +90,8 @@ func TestGraphsBuildsGlancesPoolRoomOnceAMessageWhileItShows(t *testing.T) {
 		t.Errorf("GLANCE hidden, a look built the pool's room %v times, holding %+v; want none built, the last kept, %v times", toggled.spanBuilds, toggled.model.graphsTab.spans, built)
 	}
 	toggled.keyed("g")
-	for i, key := range glanceKeys(toggled) {
-		if toggled.spanBuilds[key] != built[key]+1 || !reflect.DeepEqual(toggled.spanGiven[key], held[views.RunwayWindows()[i]]) {
+	for _, key := range glanceKeys(toggled) {
+		if toggled.spanBuilds[key] != built[key]+1 || !reflect.DeepEqual(toggled.spanGiven[key], held[dashboard.GraphsWindow]) {
 			t.Errorf("GLANCE shown again, the pool's room in %s was built %d times, from %+v; want once, from the one kept", key, toggled.spanBuilds[key]-built[key], toggled.spanGiven[key])
 		}
 	}

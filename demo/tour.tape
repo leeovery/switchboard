@@ -51,7 +51,7 @@ Up
 Sleep 700ms
 Type "s"
 Sleep 3500ms
-# Graphs, from the page over the Log: WEEK's and 5-HOUR's cards.
+# Graphs, from the page over the Log: WEEK's cards.
 Shift+Tab
 Sleep 3s
 # Runway.

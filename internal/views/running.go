@@ -27,6 +27,9 @@ type Running struct {
 	// family, as "opus": the model naming the session, as the List names it,
 	// where that goes there, running or not, else its model seen last there.
 	Model, Family string
+	// Dir is the directory it runs in, as the List has it, as listedDir
+	// says: "" where none is known.
+	Dir string
 	// Why is why its model named there is there, in the views' words for the
 	// router's reasons, with when, as "started here 14:41, the best".
 	Why status.Words
@@ -63,7 +66,7 @@ func runningOf(m status.Moment, by lister, held HeldSessions) []Running {
 	for _, a := range m.Accounts {
 		var on []Running
 		for _, session := range by.running {
-			if r, ok := by.runningOn(m, session, a.ID, held.namingOf(session.ID)); ok {
+			if r, ok := by.runningOn(m, session, a.ID, held); ok {
 				on = append(on, r)
 			}
 		}
@@ -133,23 +136,24 @@ func runningNow(sessions []status.Session, now time.Time) []status.Session {
 // runningOn is the session s, as by places it, as it runs on the account
 // with the given id at the moment m, reporting false where none of its
 // models runs there, as runs says: named there by the model naming it, its
-// lines naming it as lines has it, as names has it, where that goes there,
+// lines naming it as held has them, as names has it, where that goes there,
 // running or not, as the List names it by its main thread however long it
-// has waited, else by its model seen last there; and doing what its models
-// there are, as at has them.
-func (by lister) runningOn(m status.Moment, s status.Session, id string, lines naming) (Running, bool) {
+// has waited, else by its model seen last there; in the directory the List
+// has it in, as listedDir says, its lines held in held; and doing what its
+// models there are, as at has them.
+func (by lister) runningOn(m status.Moment, s status.Session, id string, held HeldSessions) (Running, bool) {
 	there := slices.DeleteFunc(slices.Clone(s.Assignments), func(a status.Assignment) bool { return a.Account != id || !runs(a, m.Now) })
 	if len(there) == 0 {
 		return Running{}, false
 	}
 	named := slices.MaxFunc(there, func(x, y status.Assignment) int { return x.LastSeen.Compare(y.LastSeen) })
-	_, model := by.names(s.ID, lines)
+	_, model := by.names(s.ID, held.namingOf(s.ID))
 	if i := slices.IndexFunc(s.Assignments, func(a status.Assignment) bool { return a.Account == id && a.Model == model }); i >= 0 {
 		named = s.Assignments[i]
 	}
 	return Running{
 		Account: id, Session: s.ID, Model: named.Model, Family: named.Name(), Why: whyRunning(m, s.ID, named),
-		Activity: by.known(busiest(by.h.at(s.ID, id, s.Assignments))),
+		Dir: listedDir(by.routed[s.ID], held.dirOf(s.ID)), Activity: by.known(busiest(by.h.at(s.ID, id, s.Assignments))),
 	}, true
 }
 

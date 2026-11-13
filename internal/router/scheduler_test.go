@@ -130,6 +130,67 @@ func TestASessionWhoseThinkingIsBoundStaysOnItsAccountUntilItMustMove(t *testing
 	}
 }
 
+// Each event naming a session carries the directory the session ran in as
+// its assignment held it when the router told of it: its start; a move
+// forced by a limit, by a request naming none, as the assignment keeps its
+// last; a move by choice, by a request naming another; and its own pin set
+// and cleared, the directory of its model seen last to name one: its opus's
+// as it's pinned, then its sonnet's, asked since in another directory, as
+// it's unpinned.
+func TestTheEventsOfASessionCarryItsDirectory(t *testing.T) {
+	r := newRouted(t)
+	r.readsAs(workToken, session, weekOf(0.5, 5*24*time.Hour))
+	r.readsAs(sideToken, session, weekOf(0.99, 24*time.Hour))
+	client := router.NewClient(serveControl(t, r.rt))
+
+	r.askIn(t, "one", opus, "", "~/Code/api")
+	r.api.script(workToken, limitReached("You've hit your limit", sessionSpent, weekOf(0.5, 5*24*time.Hour)))
+	if got := r.ask(t, "one", opus, ""); got != "side" {
+		t.Fatalf("at work's limit, the session's request went to %s, want side", got)
+	}
+	r.readsAs(workToken, session, weekOf(0, 7*24*time.Hour))
+	r.readsAs(sideToken, session, weekOf(0.99, 24*time.Hour))
+	r.clock.advance(2 * time.Hour)
+	if got := r.askIn(t, "one", opus, "", "~/Code/web"); got != "work" {
+		t.Fatalf("two hours idle, the session's request went to %s, want work, rescored", got)
+	}
+	if _, err := client.PinSession(t.Context(), "one", "side", router.ByDashboard); err != nil {
+		t.Fatalf("PinSession() error = %v", err)
+	}
+	r.clock.advance(time.Minute)
+	if got := r.askIn(t, "one", sonnet, "", "~/Code/docs"); got != "side" {
+		t.Fatalf("pinned to side, the session's first sonnet request went to %s, want side", got)
+	}
+	if _, err := client.UnpinSession(t.Context(), "one", router.ByDashboard); err != nil {
+		t.Fatalf("UnpinSession() error = %v", err)
+	}
+
+	want := []router.Event{
+		router.SessionStarted{Session: "one", Model: opus, Account: "work", Reason: status.ReasonNew, Dir: "~/Code/api"},
+		router.Moved{Session: "one", Model: opus, From: "work", To: "side", Reason: "moved: work hit its limit", Held: router.HeldByLimit, Limit: 1, Dir: "~/Code/api"},
+		router.Moved{Session: "one", Model: opus, From: "side", To: "work", Reason: "rescored after 2h idle", Dir: "~/Code/web"},
+		router.Pinned{Account: "side", Session: "one", Dir: "~/Code/web", By: router.ByDashboard},
+		router.SessionStarted{Session: "one", Model: sonnet, Account: "side", Reason: status.ReasonPinned, Dir: "~/Code/docs"},
+		router.Unpinned{Account: "side", Session: "one", Dir: "~/Code/docs", By: router.ByDashboard},
+	}
+	got := slices.DeleteFunc(r.events.heard(), func(e router.Event) bool {
+		switch e.(type) {
+		case router.LimitReached, router.LimitLifted:
+			return true
+		}
+		return false
+	})
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("events =\n%+v\nwant\n%+v", got, want)
+	}
+	told := r.rt.Status().Events
+	for _, e := range told {
+		if e.Session != "" && e.Dir == "" {
+			t.Errorf("the status document tells %+v without the session's directory", e)
+		}
+	}
+}
+
 func TestTheSessionPinHeader(t *testing.T) {
 	log := logstest.Capture(t)
 	r := newRouted(t)
@@ -176,7 +237,7 @@ func TestASessionPinHeaderOfAnIDAnAccountHadBeforeIsHonoured(t *testing.T) {
 	}
 }
 
-func TestTheGlobalPin(t *testing.T) {
+func TestThePoolsPin(t *testing.T) {
 	log := logstest.Capture(t)
 	r := newRouted(t)
 	client := router.NewClient(serveControl(t, r.rt))
@@ -194,7 +255,7 @@ func TestTheGlobalPin(t *testing.T) {
 	if got := r.ask(t, "new", opus, ""); got != "side" {
 		t.Errorf("a new session went to %s, want side, the pin's", got)
 	}
-	waitForLine(t, log, "msg=routed", "session=new", "account=side", `reason="pinned (global)"`)
+	waitForLine(t, log, "msg=routed", "session=new", "account=side", `reason="pinned (pool)"`)
 	if got := r.ask(t, "running", opus, ""); got != "work" {
 		t.Errorf("the running session went to %s, want work, where it was", got)
 	}
@@ -247,7 +308,7 @@ func TestTheGlobalPin(t *testing.T) {
 	}
 }
 
-func TestTheGlobalPinOnSeveralAccounts(t *testing.T) {
+func TestThePoolsPinOnSeveralAccounts(t *testing.T) {
 	log := logstest.Capture(t)
 	r := newRouted(t, withPersonalToken)
 	client := router.NewClient(serveControl(t, r.rt))
@@ -277,7 +338,7 @@ func TestTheGlobalPinOnSeveralAccounts(t *testing.T) {
 		t.Errorf("the session on personal went to %s, want personal: the pin names it", got)
 	}
 	waitForLine(t, log, "level=INFO", "msg=pinned", "accounts=personal,side", "move=true")
-	waitForLine(t, log, "msg=routed", "session=new", "account=side", `reason="pinned (global)"`)
+	waitForLine(t, log, "msg=routed", "session=new", "account=side", `reason="pinned (pool)"`)
 	waitForLine(t, log, "level=INFO", "msg=moved", `session="on work"`, "from=work", "to=side", `reason="moved by pin"`)
 }
 
@@ -363,7 +424,7 @@ func TestForceClearsEverySessionsOwnPinLaunchPinsIncluded(t *testing.T) {
 		force func(t *testing.T, client *router.Client) status.Document
 		// idle is how long the sessions idle once forced.
 		idle time.Duration
-		// wantPin is the global pin once forced, and wantReason why the
+		// wantPin is the pool's pin once forced, and wantReason why the
 		// sessions go to work on their next requests.
 		wantPin    status.Pin
 		wantReason string
@@ -383,7 +444,7 @@ func TestForceClearsEverySessionsOwnPinLaunchPinsIncluded(t *testing.T) {
 			},
 			idle:       2 * time.Hour,
 			wantPin:    status.Pin{Accounts: []string{"work"}, Since: now.Add(time.Minute)},
-			wantReason: `reason="pinned (global)"`,
+			wantReason: `reason="pinned (pool)"`,
 		},
 		{
 			name: "unpinning",
@@ -419,7 +480,7 @@ func TestForceClearsEverySessionsOwnPinLaunchPinsIncluded(t *testing.T) {
 			r.clock.advance(time.Minute)
 
 			if doc := tt.force(t, client); !reflect.DeepEqual(doc.Pin, tt.wantPin) {
-				t.Errorf("once forced, the global pin = %+v, want %+v", doc.Pin, tt.wantPin)
+				t.Errorf("once forced, the pool's pin = %+v, want %+v", doc.Pin, tt.wantPin)
 			}
 			r.clock.advance(tt.idle)
 			for id, launched := range map[string]string{"launched": "side", "given": ""} {
@@ -562,8 +623,15 @@ func (r *routed) readsAs(token string, windows ...quota.Window) {
 // which may be held there yet.
 func (r *routed) ask(t *testing.T, session, model, pin string) string {
 	t.Helper()
+	return r.askIn(t, session, model, pin, "")
+}
+
+// askIn is ask, run telling the router the request's directory, dir: none
+// for "".
+func (r *routed) askIn(t *testing.T, session, model, pin, dir string) string {
+	t.Helper()
 	before := r.rt.InFlightOf(session, model)
-	header := with(with(claudeCode(workToken), claude.SessionHeader, session), "X-Switchboard-Account", pin)
+	header := with(with(with(claudeCode(workToken), claude.SessionHeader, session), "X-Switchboard-Account", pin), router.DirHeader, router.EncodeDir(dir))
 	readAll(t, send(t, http.MethodPost, r.proxy+"/v1/messages", header, strings.NewReader(messageFor(model))))
 	waitUntil(t, "the router is done with the request", func() bool {
 		return !slices.ContainsFunc(r.rt.InFlightOf(session, model), func(id string) bool { return !slices.Contains(before, id) })

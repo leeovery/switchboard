@@ -49,11 +49,11 @@ With --refresh, the router first reads every account it may, as usage
 a limit is reset by hand, the router sees it. Without the router, or with
 --probe, every account is probed anyway, so --refresh changes nothing.
 
-With --session, print the id of the account the router sends a Claude Code
+With --session, print the label of the account the router sends a Claude Code
 session's requests to, the one its last-used model went to, as a statusline
 asks, on a terminal or off one; or with --json, the session's every model and
-why it went where it did. It needs the router running: start it with
-switchboard service install (or switchboard serve).
+why it went where it did, each account by its id. It needs the router
+running: start it with switchboard service install (or switchboard serve).
 
 ` + namingASession,
 		Args: func(cmd *cobra.Command, args []string) error {
@@ -139,28 +139,31 @@ func (a *app) running(ctx context.Context, m status.Moment) []status.Session {
 	return sessions
 }
 
-// sessionStatus prints the id of the account the router sends a session's
-// requests to, the session given by as much of its id as is unique.
+// sessionStatus prints the account the router sends a session's requests to,
+// as the verbs' text names it, the session given by as much of its id as is
+// unique.
 func (a *app) sessionStatus(ctx context.Context, out io.Writer, given string, asJSON bool) error {
 	client, err := a.routerClient()
 	if err != nil {
 		return err
 	}
-	session, err := a.session(ctx, client, given)
+	names := a.accountNames()
+	session, err := a.session(ctx, client, names, given)
 	if err != nil {
 		return sessionError(err)
 	}
 	if asJSON {
 		return writeJSON(out, session)
 	}
-	_, err = fmt.Fprintln(out, session.AccountID())
+	_, err = fmt.Fprintln(out, names.Named(session.AccountID()).Said())
 	return err
 }
 
 // session asks the router where the requests of the session given, by as
-// much of its id as is unique, go, in whatever pool it's in.
-func (a *app) session(ctx context.Context, client *router.Client, given string) (status.Session, error) {
-	id, answered, err := a.lookUpSession(ctx, client, given)
+// much of its id as is unique, go, in whatever pool it's in, its accounts as
+// names name them.
+func (a *app) session(ctx context.Context, client *router.Client, names status.Names, given string) (status.Session, error) {
+	id, answered, err := a.lookUpSession(ctx, client, names, given)
 	if err != nil {
 		return status.Session{}, err
 	}

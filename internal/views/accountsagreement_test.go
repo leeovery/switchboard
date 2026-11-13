@@ -174,7 +174,7 @@ func TestDetailsLATELYTellsOnlyEventsLATELYTells(t *testing.T) {
 		t.Run(am.Name, func(t *testing.T) {
 			m := am.Doc.At(am.Now, claude.Policy())
 			told := make(map[int]bool)
-			for _, s := range views.Lately(m, len(m.Events)) {
+			for _, s := range views.Lately(m, len(m.Events), views.SessionDirs{}) {
 				told[s.ID] = true
 			}
 			for _, e := range m.Events {
@@ -183,7 +183,7 @@ func TestDetailsLATELYTellsOnlyEventsLATELYTells(t *testing.T) {
 				}
 			}
 			for _, id := range append(am.Accounts.IDs(), "") {
-				for _, s := range views.AccountLately(m, id, len(m.Events)) {
+				for _, s := range views.AccountLately(m, id, len(m.Events), views.SessionDirs{}) {
 					if !told[s.ID] {
 						t.Errorf("%q's LATELY tells event %d, %q, which LATELY doesn't", id, s.ID, s.Full)
 					}

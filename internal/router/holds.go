@@ -138,7 +138,7 @@ func (h *happening) liftedAt(until time.Time) {
 // held back none of its windows before, as news, counting the moves it forced
 // that came first; and a cap reached again while it holds, in other windows
 // perhaps, joining its event. A cap holds while the account's reserve holds
-// back a window of it, and the global pin doesn't name it, which spends its
+// back a window of it, and the pool's pin doesn't name it, which spends its
 // reserve. The first look at an account read calls for none, as there's
 // nothing yet to compare it with. r.mu must be held.
 func (r *recent) capping(accounts []status.Account, pin status.Pin, now time.Time) {
@@ -221,7 +221,7 @@ func withJoined(joined map[string]time.Time, key string, at time.Time) map[strin
 // limit, cap or refusal that held its request back on the account it left.
 // Where that event is yet to be told, the move waits for it, as waitFor says.
 func (r *recent) moved(e Moved, now time.Time) {
-	move := happening{Kind: status.EventMoved, Session: bounded(e.Session), Model: bounded(e.Model), From: e.From, To: e.To, Reason: e.Reason,
+	move := happening{Kind: status.EventMoved, Session: bounded(e.Session), Model: bounded(e.Model), Dir: e.Dir, From: e.From, To: e.To, Reason: e.Reason,
 		Pool: e.Pool}
 	if h, ok := r.forcing(e, now); ok {
 		count(h, &move)

@@ -76,12 +76,15 @@ func routingParts(names int) []flex.Part {
 // frame: whether it's one row an account and a session; the name column's
 // cells, its words starting after them; and, on one row, the words' cells
 // and the column its sessions start at. Its trace starts at trace, traceCells
-// long: on one row, after the sessions; on two, on the second, from the name
-// column to narrowTail cells short of the edge.
+// long: on one row, after the sessions and the cells it cedes a session's
+// directory, its share of the row starting at traceShare; on two, on the
+// second, from the name column to narrowTail cells short of the edge, its
+// share starting there too.
 type routingColumns struct {
 	oneRow            bool
 	names, words      int
 	sessions          int
+	traceShare        int
 	trace, traceCells int
 }
 
@@ -92,17 +95,48 @@ func (f Frame) routingColumns(m status.Moment) routingColumns {
 	return routingColumnsOf(f.Width, nameColumn(namesOf(m), f.Width))
 }
 
+// nameStart is the column the rows' names start at in their own form: a cell
+// in on two rows an account; else column 0.
+func (c routingColumns) nameStart() int {
+	if c.oneRow {
+		return 0
+	}
+	return 1
+}
+
 // routingColumnsOf are where the rows of ROUTING and SESSIONS lie across
 // width columns, the name column names cells: one row an account and a
-// session where routingParts fit, laid as they say; else two.
+// session where routingParts fit, laid as they say, the trace ceding a
+// session's directory its cells as traceParts lays them; else two.
 func routingColumnsOf(width, names int) routingColumns {
 	s, oneRow := flex.Lay(width, routingParts(names)...)
 	if !oneRow {
-		return routingColumns{names: names, trace: names, traceCells: width - narrowTail - names}
+		return routingColumns{names: names, traceShare: names, trace: names, traceCells: width - narrowTail - names}
 	}
+	t, _ := flex.Lay(s[rowTrace].Size+s[rowTracePast].Size, traceParts()...)
 	return routingColumns{
 		oneRow: true, names: names, words: s[rowWords].Size, sessions: s[rowSessions].At,
-		trace: s[rowTrace].At, traceCells: s[rowTrace].Size + s[rowTracePast].Size,
+		traceShare: s[rowTrace].At, trace: s[rowTrace].At + t[traceDrawn].At, traceCells: t[traceDrawn].Size,
+	}
+}
+
+// The parts of the cells routingParts gives the trace, in traceParts' order:
+// those it cedes a session's directory, and those it's drawn in.
+const (
+	traceCeded = iota
+	traceDrawn
+)
+
+// traceParts are the parts of the cells routingParts gives the trace, as
+// flex lays them: first, the cells of a session's directory in SESSIONS,
+// dirRoom, which narrow before the trace does, so the trace gives them up,
+// from where it has room to spare to its least, rather than why a session
+// is there; then the trace, from traceLeast, taking the rest. An account's
+// row starts its trace there too, so the two line up.
+func traceParts() []flex.Part {
+	return []flex.Part{
+		traceCeded: {Natural: dirRoom, Narrows: 1},
+		traceDrawn: {Least: traceLeast, Natural: traceLeast, Grows: true},
 	}
 }
 
@@ -213,14 +247,14 @@ func (f Frame) routingSection(doc status.Document, now time.Time) section {
 		least, most = 3*a+1, 3*a+1
 	}
 	t := sync.OnceValue(func() routingTable { return f.routingTableOf(doc, now) })
-	return section{
+	s := section{
 		Section: SectionRouting, least: least, most: most,
 		description: func(cells int) line { return routingMode(m, cells) },
 		folded:      oneForm(func() line { return modeAlone(m) }),
-		draw: func(c *canvas, body bounds) {
-			f.drawRouting(c, t(), body)
-		},
 	}
+	return s.namedFrom(func(bounds) int { return columns.nameStart() }, func(c *canvas, body bounds, at int) {
+		f.drawRouting(c, t(), body, at)
+	})
 }
 
 // routingAside is ROUTING of m beside USAGE's blocks: no rows of its own, and
@@ -275,13 +309,14 @@ func modeAlone(m status.Moment) line {
 	return line{{"pinned to " + names(m, m.Pin.Accounts), alertInk}}
 }
 
-// drawRouting draws ROUTING's body in the bounds the planner gives it: a row
-// an account, or two where it has rows for size 2, with its caption under
-// the last; where its row's parts don't fit a row, two rows an account.
-func (f Frame) drawRouting(c *canvas, t routingTable, body bounds) {
+// drawRouting draws ROUTING's body in the bounds the planner gives it, its
+// names from column namesFrom: a row an account, or two where it has rows for
+// size 2, with its caption under the last; where its row's parts don't fit a
+// row, two rows an account.
+func (f Frame) drawRouting(c *canvas, t routingTable, body bounds, namesFrom int) {
 	if !t.columns.oneRow {
 		for i, r := range t.accounts {
-			f.narrowRouting(c, t, r, body.y+3*i)
+			f.narrowRouting(c, t, r, body.y+3*i, namesFrom)
 		}
 		return
 	}
@@ -290,9 +325,9 @@ func (f Frame) drawRouting(c *canvas, t routingTable, body bounds) {
 		rows, step = 2, 3
 	}
 	for i, r := range t.accounts {
-		f.wideRouting(c, t, r, body.y+step*i, rows)
+		f.wideRouting(c, t, r, body.y+step*i, rows, namesFrom)
 	}
-	c.line(t.columns.trace, body.y+step*(len(t.accounts)-1)+rows, line{{routingCaption, faintInk}}.fit(f.Width-t.columns.trace))
+	c.line(t.columns.traceShare, body.y+step*(len(t.accounts)-1)+rows, line{{routingCaption, faintInk}}.fit(f.Width-t.columns.traceShare))
 }
 
 // routingSized reports whether ROUTING's body of a accounts on a row each
@@ -302,14 +337,14 @@ func routingSized(a int, body bounds) bool {
 }
 
 // wideRouting draws account r's row of ROUTING from row y, on a row an
-// account, its trace rows tall, as t's columns lay it: its name and marks;
-// its state from the name column, and ● pinned pinnedApart before its
-// sessions, where it shows, as rowState has them in its words' cells; its
-// sessions; and its trace, its rate right-aligned on its last row at the
-// edge rateEdge gives it.
-func (f Frame) wideRouting(c *canvas, t routingTable, r accountRouting, y, rows int) {
+// account, its trace rows tall, as t's columns lay it: its name and marks
+// from column namesFrom; its state from the name column, and ● pinned
+// pinnedApart before its sessions, where it shows, as rowState has them in
+// its words' cells; its sessions; and its trace, its rate right-aligned on
+// its last row at the edge rateEdge gives it.
+func (f Frame) wideRouting(c *canvas, t routingTable, r accountRouting, y, rows, namesFrom int) {
 	at := t.columns
-	c.line(0, y, r.name)
+	c.line(namesFrom, y, r.name)
 	words, pinned := rowState(r, at.words)
 	if pinned {
 		c.line(at.sessions-pinnedApart-pinnedCells(), y, line{pinnedSpan})
@@ -322,13 +357,13 @@ func (f Frame) wideRouting(c *canvas, t routingTable, r accountRouting, y, rows 
 }
 
 // narrowRouting draws account r's two rows of ROUTING from row y, as t's
-// columns lay them: on the first, its name and marks from column 1,
+// columns lay them: on the first, its name and marks from column namesFrom,
 // its short state from the name column, cut by whole clauses, and ● pinned
 // right-aligned, where it shows, the state then as saidBeside has it; on the
 // second, its trace from the name column to narrowTail cells short of the
 // edge, then its sessions and its rate right-aligned.
-func (f Frame) narrowRouting(c *canvas, t routingTable, r accountRouting, y int) {
-	c.line(1, y, r.name)
+func (f Frame) narrowRouting(c *canvas, t routingTable, r accountRouting, y, namesFrom int) {
+	c.line(namesFrom, y, r.name)
 	end := f.Width
 	if r.pinned {
 		end = c.right(f.Width, y, line{pinnedSpan})

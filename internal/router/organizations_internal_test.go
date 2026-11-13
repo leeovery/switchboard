@@ -208,12 +208,12 @@ func TestAnAccountWhoseTokenIsAnothersTakesNoRequestsTillItHasItsOwn(t *testing.
 	r.probes.kept = kept.hear
 	r.state.record("work", []quota.Window{session, week}, r.state.mark())
 	r.state.record("side", []quota.Window{session, week}, r.state.mark())
-	if err := r.pin(PinRequest{Account: "side", By: ByCLI}); err != nil {
+	if err := r.pin(r.readOf(""), PinRequest{Account: "side", By: ByCLI}); err != nil {
 		t.Fatal(err)
 	}
 	newSession := func(id string) Request { return Request{ID: id, Session: id, Model: opus, Client: "work"} }
 	if got := choose(t.Context(), r, newSession("one")).Account; got != "side" {
-		t.Fatalf("a new session goes to %q, want side, which the global pin names", got)
+		t.Fatalf("a new session goes to %q, want side, which the pool's pin names", got)
 	}
 
 	probeNow(r, "side")
@@ -229,7 +229,7 @@ func TestAnAccountWhoseTokenIsAnothersTakesNoRequestsTillItHasItsOwn(t *testing.
 		t.Errorf("a new session goes to %q, want work: side, though pinned, takes no requests", got)
 	}
 	wantRefusal := "account side has no usable token, so nothing can go out on it: " + prose.ForeignTokenFix("side")
-	if err := r.pin(PinRequest{Account: "side", By: ByCLI}); err == nil || err.Error() != wantRefusal {
+	if err := r.pin(r.readOf(""), PinRequest{Account: "side", By: ByCLI}); err == nil || err.Error() != wantRefusal {
 		t.Errorf("pinning side fails with %v, want %q", err, wantRefusal)
 	}
 	req := httptest.NewRequest("POST", "/v1/messages", nil)
@@ -245,7 +245,7 @@ func TestAnAccountWhoseTokenIsAnothersTakesNoRequestsTillItHasItsOwn(t *testing.
 	r.upkeep.tokens.look()
 	wantSideTakes(t, r)
 	if got := choose(t.Context(), r, newSession("four")).Account; got != "side" {
-		t.Errorf("a new session goes to %q, want side, which the global pin names, with a token of its own again", got)
+		t.Errorf("a new session goes to %q, want side, which the pool's pin names, with a token of its own again", got)
 	}
 	clock.now = start.Add(roundEvery)
 	r.rounds.look(t.Context())
