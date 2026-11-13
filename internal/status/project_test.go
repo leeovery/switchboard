@@ -117,6 +117,12 @@ func TestProjectsAreNamedByTheirFoldersTheirParentsTooWhereTwoShareOne(t *testin
 			cells:    math.MaxInt,
 			want:     map[string]string{"~/Code/sw\x1b[2Jitch": "sw [2Jitch"},
 		},
+		{
+			name:     "two showing one name only once cleaned, each by its parent too",
+			projects: []string{"~/a/api x", "~/b/api  x"},
+			cells:    math.MaxInt,
+			want:     map[string]string{"~/a/api x": "a/api x", "~/b/api  x": "b/api x"},
+		},
 		{name: "none named none", projects: []string{""}, cells: math.MaxInt, want: map[string]string{}},
 	}
 	for _, tt := range tests {

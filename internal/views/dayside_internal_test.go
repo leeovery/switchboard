@@ -277,6 +277,35 @@ func (d dayHeld) Day(date string) []ledger.Held {
 	return d.lines
 }
 
+// A day's side holds each session's project as its last line to name a
+// directory or a project named it: a line naming a project, then one naming
+// a directory alone, as from a run before projects, leaves it none; and one
+// naming neither keeps it.
+func TestADaysSideHoldsTheProjectTheLastLineToNameAPlaceNamed(t *testing.T) {
+	at := time.Date(2026, 10, 8, 9, 0, 0, 0, time.UTC)
+	b := Digests{}.Day()
+	for _, l := range []ledger.Line{
+		{At: at, Session: "s", Kind: ledger.KindMessage, Dir: "/code/app/web", Project: "/code/app"},
+		{At: at.Add(time.Minute), Session: "s", Kind: ledger.KindMessage, Dir: "/code/elsewhere"},
+		{At: at.Add(2 * time.Minute), Session: "t", Kind: ledger.KindMessage, Dir: "/code/site/.claude/worktrees/fix", Project: "/code/site"},
+		{At: at.Add(3 * time.Minute), Session: "t", Kind: ledger.KindCount},
+	} {
+		b.Take(l)
+	}
+	built, err := b.Built()
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := daySessionsIn(built.Side)
+	want := []DaySession{
+		{ID: "t", Dir: "/code/site/.claude/worktrees/fix", Project: "/code/site", Lines: 2, Last: at.Add(3 * time.Minute)},
+		{ID: "s", Dir: "/code/elsewhere", Lines: 2, Last: at.Add(time.Minute)},
+	}
+	if err != nil || !reflect.DeepEqual(got, want) {
+		t.Errorf("the day's side %s holds\n%+v (%v)\nwant\n%+v", built.Side, got, err, want)
+	}
+}
+
 // A day's session restored from its stored form is the one stored, its last
 // line's arrival to the nanosecond, in UTC, whatever zone it was given in.
 func TestADaysSessionRestoresExactly(t *testing.T) {

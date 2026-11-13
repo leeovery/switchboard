@@ -253,10 +253,11 @@ line keeps everything about a request except its content. It never holds any of 
   started within that session other than through `run` carries the directory too.
 - **`project`:** `run` finds the repository as it starts the session, walking up from the
   directory to the first `.git`, without running git. A linked worktree counts as its main
-  repository's, by the path the walk took where it went through it, so a repository reached
-  through a link stays one project. A worktree of a bare repository counts as itself, and a
-  directory in no repository counts as itself. On a line without it, a `dir` in
-  `<repo>/.claude/worktrees/<name>` counts as `<repo>`, and any other `dir` as itself.
+  repository's, by the path the walk took where it went through it or a folder it's in, so a
+  repository reached through a link stays one project, its worktrees beside it too. A worktree of
+  a bare repository counts as itself, and a directory in no repository counts as itself. On a
+  line without it, a `dir` in `<repo>/.claude/worktrees/<name>` counts as `<repo>`, and any other
+  `dir` as itself.
 - **`agent_id` and `parent_agent_id`:** Claude Code's id for a subagent is random. For a member of
   an agent team, the id comes from its name.
 

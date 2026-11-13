@@ -150,6 +150,14 @@ func TestFindProjectWalksUpToTheRepositoryItsDirectoryIsIn(t *testing.T) {
 			start: "cmd", want: "cmd",
 		},
 		{
+			name: "started through a link, a worktree whose repository is outside it, the repository as git wrote it",
+			dirs: []string{"elsewhere/api/.git/worktrees/fix-login", "real/fix-login"}, links: map[string]string{"code": "real"},
+			files: map[string]string{
+				"real/fix-login/.git": "gitdir: <root>/elsewhere/api/.git/worktrees/fix-login\n", "elsewhere/api/.git/worktrees/fix-login/commondir": commonDir,
+			},
+			start: "code/fix-login", want: "elsewhere/api",
+		},
+		{
 			name: "started through a link to a repository, the repository by the link's path",
 			dirs: []string{"api/.git"}, links: map[string]string{"code": "api"},
 			start: "code", want: "code",
@@ -188,8 +196,7 @@ func TestFindProjectGivesAMainRepositoryByThePathTheWalkTook(t *testing.T) {
 		files map[string]string
 		// start is where the session starts, by its path from a link to the
 		// fixture's root, as a session walks it; and want the project it runs
-		// in, "<link>" in it standing for the link, and "<root>" for the
-		// root's path, the link resolved.
+		// in, "<link>" in it standing for the link.
 		start, want string
 	}{
 		{
@@ -209,9 +216,14 @@ func TestFindProjectGivesAMainRepositoryByThePathTheWalkTook(t *testing.T) {
 		},
 		{name: "a repository, through the link", dirs: []string{"api/.git", "api/cmd"}, start: "api/cmd", want: "<link>/api"},
 		{
-			name: "a worktree beside its repository, the walk never through it, by the path git wrote", dirs: []string{worktreeGitDir, "fix-login"},
+			name: "a worktree beside its repository, the repository under the link the walk went through", dirs: []string{worktreeGitDir, "fix-login"},
 			files: map[string]string{"fix-login/.git": "gitdir: <root>/" + worktreeGitDir + "\n", worktreeGitDir + "/commondir": "<root>/api/.git\n"},
-			start: "fix-login", want: "<root>/api",
+			start: "fix-login", want: "<link>/api",
+		},
+		{
+			name: "a subdirectory of a worktree beside its repository, the repository under the link", dirs: []string{worktreeGitDir, "fix-login/cmd/server"},
+			files: map[string]string{"fix-login/.git": "gitdir: <root>/" + worktreeGitDir + "\n", worktreeGitDir + "/commondir": "<root>/api/.git\n"},
+			start: "fix-login/cmd/server", want: "<link>/api",
 		},
 	}
 	for _, tt := range tests {
@@ -223,7 +235,7 @@ func TestFindProjectGivesAMainRepositoryByThePathTheWalkTook(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			start, want := filepath.Join(link, tt.start), strings.NewReplacer("<link>", link, "<root>", root).Replace(tt.want)
+			start, want := filepath.Join(link, tt.start), strings.ReplaceAll(tt.want, "<link>", link)
 			if got := launch.FindProject(start); got != want {
 				t.Errorf("FindProject(%q) = %q, want %q", start, got, want)
 			}

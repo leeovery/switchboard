@@ -63,8 +63,7 @@ func ProjectNames(projects []string, cells int) map[string]string {
 	setApart(parts)
 	names := make(map[string]string, len(parts))
 	for p, n := range parts {
-		name, _ := lastParts(p, n)
-		names[p] = prose.Cut(prose.Clean(name), cells)
+		names[p] = prose.Cut(shownName(p, n), cells)
 	}
 	return names
 }
@@ -87,15 +86,22 @@ func setApart(parts map[string]int) {
 	}
 }
 
-// sharing are the projects, by their paths, by the name as many of their
-// path's last parts as parts holds give each.
+// sharing are the projects, by their paths, by the name each shows as, as
+// shownName gives it of as many of its path's last parts as parts holds.
 func sharing(parts map[string]int) map[string][]string {
 	byName := make(map[string][]string, len(parts))
 	for p, n := range parts {
-		name, _ := lastParts(p, n)
+		name := shownName(p, n)
 		byName[name] = append(byName[name], p)
 	}
 	return byName
+}
+
+// shownName is the name the last n parts of the cleaned path p show as,
+// cleaned, as what comes from elsewhere is, so two that show alike share it.
+func shownName(p string, n int) string {
+	name, _ := lastParts(p, n)
+	return prose.Clean(name)
 }
 
 // lastParts returns the last n parts of the cleaned path p, as "x/api" are

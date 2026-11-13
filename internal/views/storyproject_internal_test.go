@@ -110,3 +110,37 @@ func TestAStoredSessionKeepsItsProjectAndOneWithoutTakesItByTheDirectoryRule(t *
 		})
 	}
 }
+
+// A Log row names its session's directory and project from one place: the
+// event's, where it names a directory, its project with it, none where it
+// names none, as from a router before projects; else as the session's lines
+// last name them. A row never takes a project from the one and a directory
+// from the other.
+func TestALogRowsProjectComesFromWhereItsDirectoryDoes(t *testing.T) {
+	lines, web := place{dir: "~/Code/api/cmd", project: "~/Code/api"}, place{dir: "~/Code/web/.claude/worktrees/fix", project: "~/Code/web"}
+	tests := []struct {
+		name  string
+		event place
+		want  place
+	}{
+		{name: "the event naming both", event: web, want: web},
+		{name: "the event naming a directory alone", event: place{dir: "~/Code/site"}, want: place{dir: "~/Code/site"}},
+		{name: "the event naming neither", want: lines},
+		{name: "the event naming a project alone", event: place{project: "~/Code/web"}, want: lines},
+	}
+	now := time.Date(2026, 10, 8, 12, 0, 0, 0, time.UTC)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			e := Event{Event: status.Event{ID: 1, At: now, Kind: status.EventStarted, Account: "work", Session: "s", Dir: tt.event.dir, Project: tt.event.project}}
+			row := eventRow(e, EventLine{}, eventFact{}, &story{dir: lines.dir, project: lines.project}, now)
+			if got := (place{dir: row.Dir, project: row.Project}); got != tt.want {
+				t.Errorf("the row names %+v, want %+v", got, tt.want)
+			}
+		})
+	}
+}
+
+// place is where a session ran: its directory and its project.
+type place struct {
+	dir, project string
+}

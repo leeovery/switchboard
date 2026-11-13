@@ -140,24 +140,12 @@ func TestASessionWhoseThinkingIsBoundStaysOnItsAccountUntilItMustMove(t *testing
 // another directory, as it's unpinned. The status document tells each so.
 func TestTheEventsOfASessionCarryItsDirectoryAndProject(t *testing.T) {
 	r := newRouted(t)
-	r.readsAs(workToken, session, weekOf(0.5, 5*24*time.Hour))
-	r.readsAs(sideToken, session, weekOf(0.99, 24*time.Hour))
 	client := router.NewClient(serveControl(t, r.rt))
 	api := place{dir: "~/Code/api/cmd", project: "~/Code/api"}
 	web := place{dir: "~/Code/web/.claude/worktrees/fix-login", project: "~/Code/web"}
 	docs := place{dir: "~/Code/docs", project: "~/Code/docs"}
 
-	r.askIn(t, "one", opus, "", api)
-	r.api.script(workToken, limitReached("You've hit your limit", sessionSpent, weekOf(0.5, 5*24*time.Hour)))
-	if got := r.ask(t, "one", opus, ""); got != "side" {
-		t.Fatalf("at work's limit, the session's request went to %s, want side", got)
-	}
-	r.readsAs(workToken, session, weekOf(0, 7*24*time.Hour))
-	r.readsAs(sideToken, session, weekOf(0.99, 24*time.Hour))
-	r.clock.advance(2 * time.Hour)
-	if got := r.askIn(t, "one", opus, "", web); got != "work" {
-		t.Fatalf("two hours idle, the session's request went to %s, want work, rescored", got)
-	}
+	r.startedAndMovedTwice(t, api, web)
 	if _, err := client.PinSession(t.Context(), "one", "side", router.ByDashboard); err != nil {
 		t.Fatalf("PinSession() error = %v", err)
 	}
@@ -169,25 +157,12 @@ func TestTheEventsOfASessionCarryItsDirectoryAndProject(t *testing.T) {
 		t.Fatalf("UnpinSession() error = %v", err)
 	}
 
-	want := []router.Event{
-		router.SessionStarted{Session: "one", Model: opus, Account: "work", Reason: status.ReasonNew, Dir: api.dir, Project: api.project},
-		router.Moved{
-			Session: "one", Model: opus, From: "work", To: "side", Reason: "moved: work hit its limit", Held: router.HeldByLimit, Limit: 1,
-			Dir: api.dir, Project: api.project,
-		},
-		router.Moved{Session: "one", Model: opus, From: "side", To: "work", Reason: "rescored after 2h idle", Dir: web.dir, Project: web.project},
+	want := append(movedTwice(api, web),
 		router.Pinned{Account: "side", Session: "one", Dir: web.dir, Project: web.project, By: router.ByDashboard},
 		router.SessionStarted{Session: "one", Model: sonnet, Account: "side", Reason: status.ReasonPinned, Dir: docs.dir, Project: docs.project},
 		router.Unpinned{Account: "side", Session: "one", Dir: docs.dir, Project: docs.project, By: router.ByDashboard},
-	}
-	got := slices.DeleteFunc(r.events.heard(), func(e router.Event) bool {
-		switch e.(type) {
-		case router.LimitReached, router.LimitLifted:
-			return true
-		}
-		return false
-	})
-	if !reflect.DeepEqual(got, want) {
+	)
+	if got := r.sessionEvents(); !reflect.DeepEqual(got, want) {
 		t.Errorf("events =\n%+v\nwant\n%+v", got, want)
 	}
 	toldAt := make(map[place]int)
@@ -199,6 +174,72 @@ func TestTheEventsOfASessionCarryItsDirectoryAndProject(t *testing.T) {
 	if want := map[place]int{api: 2, web: 2, docs: 2}; !maps.Equal(toldAt, want) {
 		t.Errorf("the status document tells the session's events in %v, want %v: a start and a move, a move and a pin, a start and an unpin", toldAt, want)
 	}
+}
+
+// A move and a pin after a request that named a directory alone, as a run
+// from before projects tells one, carry that directory and no project: a
+// project goes only with the directory named with it.
+func TestTheEventsAfterARequestNamingADirectoryAloneCarryNoProject(t *testing.T) {
+	r := newRouted(t)
+	client := router.NewClient(serveControl(t, r.rt))
+	api, site := place{dir: "~/Code/api/cmd", project: "~/Code/api"}, place{dir: "~/Code/site"}
+
+	r.startedAndMovedTwice(t, api, site)
+	if _, err := client.PinSession(t.Context(), "one", "side", router.ByDashboard); err != nil {
+		t.Fatalf("PinSession() error = %v", err)
+	}
+
+	want := append(movedTwice(api, site), router.Pinned{Account: "side", Session: "one", Dir: site.dir, By: router.ByDashboard})
+	if got := r.sessionEvents(); !reflect.DeepEqual(got, want) {
+		t.Errorf("events =\n%+v\nwant\n%+v", got, want)
+	}
+}
+
+// startedAndMovedTwice sends the requests of session one's opus the events
+// tests start with: one in first, which starts the session on work; one
+// naming no place at work's limit, which moves it to side; and, two hours
+// idle, one in then, which moves it back to work, rescored.
+func (r *routed) startedAndMovedTwice(t *testing.T, first, then place) {
+	t.Helper()
+	r.readsAs(workToken, session, weekOf(0.5, 5*24*time.Hour))
+	r.readsAs(sideToken, session, weekOf(0.99, 24*time.Hour))
+	r.askIn(t, "one", opus, "", first)
+	r.api.script(workToken, limitReached("You've hit your limit", sessionSpent, weekOf(0.5, 5*24*time.Hour)))
+	if got := r.ask(t, "one", opus, ""); got != "side" {
+		t.Fatalf("at work's limit, the session's request went to %s, want side", got)
+	}
+	r.readsAs(workToken, session, weekOf(0, 7*24*time.Hour))
+	r.readsAs(sideToken, session, weekOf(0.99, 24*time.Hour))
+	r.clock.advance(2 * time.Hour)
+	if got := r.askIn(t, "one", opus, "", then); got != "work" {
+		t.Fatalf("two hours idle, the session's request went to %s, want work, rescored", got)
+	}
+}
+
+// movedTwice are the events startedAndMovedTwice brings about, as the
+// session's assignment places it: its start and the limit's move in first,
+// the request at the limit naming none, and the move by choice in then.
+func movedTwice(first, then place) []router.Event {
+	return []router.Event{
+		router.SessionStarted{Session: "one", Model: opus, Account: "work", Reason: status.ReasonNew, Dir: first.dir, Project: first.project},
+		router.Moved{
+			Session: "one", Model: opus, From: "work", To: "side", Reason: "moved: work hit its limit", Held: router.HeldByLimit, Limit: 1,
+			Dir: first.dir, Project: first.project,
+		},
+		router.Moved{Session: "one", Model: opus, From: "side", To: "work", Reason: "rescored after 2h idle", Dir: then.dir, Project: then.project},
+	}
+}
+
+// sessionEvents are the events heard so far, but those of a limit reached
+// or lifted.
+func (r *routed) sessionEvents() []router.Event {
+	return slices.DeleteFunc(r.events.heard(), func(e router.Event) bool {
+		switch e.(type) {
+		case router.LimitReached, router.LimitLifted:
+			return true
+		}
+		return false
+	})
 }
 
 func TestTheSessionPinHeader(t *testing.T) {

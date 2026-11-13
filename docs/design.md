@@ -6041,9 +6041,10 @@ session page · signed off · 7 Oct 2026**, its frames kept as `testdata/vhs/ref
   the filesystem's root at most, and running no git: a session in a subdirectory counts as its
   repository's, and one in a linked worktree as its main repository's, the worktree's `.git` file
   naming its git directory, whose `commondir` leads there. Git writes those paths with every link
-  resolved, so the main repository is given by the path the walk took, the first directory up
-  from the session's that is it, as from a worktree within it, else as git wrote it: a
-  repository reached through a link, as `~/Code` leading to another volume, stays one project.
+  resolved, so the main repository is given by the path the walk took: under the deepest
+  directory up from the session's that is it, or a directory it's in, the rest of its path, as
+  from a worktree within it or beside it, else as git wrote it. A repository reached through a
+  link, as `~/Code` leading to another volume, stays one project, its worktrees beside it too.
   Any `commondir` not named `.git` counts as the worktree's own directory, which covers bare
   repositories, `.bare` layouts, separate git directories and submodules' worktrees. One outside
   any repository, or where what it finds can't be read as one (a `.git` file unreadable or naming
