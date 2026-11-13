@@ -364,7 +364,9 @@ func (r *Router) forPool(serve func(w http.ResponseWriter, req *http.Request, rd
 
 // pinRead returns what POST /pin answers for, pinning the accounts with the
 // given ids: the pool they're in, as one reading of the pools has it, which
-// ?pool= needn't name, and, where it does, must be that pool. It fails,
+// ?pool= needn't name, and, where it does, must be that pool; else, where
+// the router has none of them, which pinning them refuses, the pool ?pool=
+// names, so the refusal names that pool's accounts. It fails,
 // naming each account's pool, where they're in two, or one the router has is
 // in none; and where ?pool= names another pool, or none configured.
 func (r *Router) pinRead(req *http.Request, ids []string) (poolRead, error) {
@@ -378,9 +380,10 @@ func (r *Router) pinRead(req *http.Request, ids []string) (poolRead, error) {
 		if err != nil {
 			return poolRead{}, err
 		}
-		if asked != pool {
+		if pool != "" && asked != pool {
 			return poolRead{}, fmt.Errorf("the accounts to pin are in pool %s, not %s: pin them in their own pool", t.label(pool), t.label(asked))
 		}
+		pool = asked
 	}
 	return r.state.poolReadOf(t, pool), nil
 }
@@ -600,7 +603,7 @@ func (r *Router) pin(rd poolRead, p PinRequest) error {
 	if err := p.By.check(); err != nil {
 		return err
 	}
-	ids, err := r.pinnableAll(p.ids())
+	ids, err := r.pinnableAll(p.ids(), rd.pool)
 	if err != nil {
 		return err
 	}
@@ -704,13 +707,13 @@ func (r *Router) pinSession(id, account string, by By) error {
 	if err := by.check(); err != nil {
 		return err
 	}
-	if err := r.pinnable(account); err != nil {
-		return err
-	}
 	t := r.state.pools.current()
 	in, seen := r.sessions.poolOf(id)
 	if !seen {
 		return unknownSession(id)
+	}
+	if err := r.pinnable(account, t.of(in)); err != nil {
+		return err
 	}
 	a, _ := r.accounts.byID(account)
 	if err := t.sessionMay(in, a); err != nil {
@@ -743,14 +746,15 @@ func (r *Router) unpinSession(id string, by By) error {
 }
 
 // pinnableAll returns the accounts with the given ids once each, in the order
-// configured, as a pool's pin names them. It fails, saying why, for none,
-// or unless requests can go out on each, as pinnable says.
-func (r *Router) pinnableAll(ids []string) ([]string, error) {
+// configured, as the pin of the pool with the given id names them. It fails,
+// saying why, for none, or unless requests can go out on each, as pinnable
+// says.
+func (r *Router) pinnableAll(ids []string, pool string) ([]string, error) {
 	if len(ids) == 0 {
 		return nil, errors.New(`give the accounts to pin, such as {"accounts": ["work"]}`)
 	}
 	for _, id := range ids {
-		if err := r.pinnable(id); err != nil {
+		if err := r.pinnable(id, pool); err != nil {
 			return nil, err
 		}
 	}
@@ -758,18 +762,33 @@ func (r *Router) pinnableAll(ids []string) ([]string, error) {
 }
 
 // pinnable fails, saying why, unless requests can go out on the account with
-// the given id, as a pin to it needs.
-func (r *Router) pinnable(id string) error {
+// the given id, as a pin to it in the pool with the given id needs: one
+// there's none of is refused naming those that can be pinned in that pool,
+// as pinnableIn has them, as run --account names a launch's pool's.
+func (r *Router) pinnable(id, pool string) error {
 	a, ok := r.accounts.byID(id)
 	switch {
 	case id == "":
 		return errors.New(`give the account to pin, such as {"account": "b6s7"}`)
 	case !ok:
-		return UnknownAccount(id, r.accounts.sendable().configured())
+		return UnknownAccount(id, r.pinnableIn(pool))
 	case !a.hasToken():
 		return fmt.Errorf("account %s has no usable token, so nothing can go out on it: %s", id, a.problem())
 	}
 	return nil
+}
+
+// pinnableIn returns the accounts that can be pinned in the pool with the
+// given id: those requests can go out on that it holds, as the pools stand
+// now; every one, for "", as of a config from before pools, or a pin whose
+// pool isn't known.
+func (r *Router) pinnableIn(pool string) config.Accounts {
+	sendable := r.accounts.sendable()
+	if pool == "" {
+		return sendable.configured()
+	}
+	t := r.state.pools.current()
+	return sendable.held(func(id string) bool { return t.holds(pool, id) }).configured()
 }
 
 // UnknownAccount says there's no account with the given id to pin, naming
