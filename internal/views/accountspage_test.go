@@ -2,6 +2,7 @@ package views_test
 
 import (
 	"fmt"
+	"math"
 	"slices"
 	"strconv"
 	"strings"
@@ -23,7 +24,7 @@ var threeAccounts = config.Accounts{{ID: "work", Plan: "ultra"}, {ID: "personal"
 func accountsPageOf(days []ledger.Summary, configured config.Accounts) views.AccountsPage {
 	in := input(days)
 	in.Accounts = configured
-	return views.NewPast(in, days).Accounts(views.AccountsThisWeek)
+	return views.NewPast(in, days).Accounts(views.PeriodThisWeek)
 }
 
 // shareRead reads a share as a whole percentage: "—" where it isn't known.
@@ -235,7 +236,7 @@ func TestByDayIsTheSixWeeksToThisOneItsDaysToComeCounted(t *testing.T) {
 		days := daysTo("2026-10-01", now, day("2026-10-01", rose("work", map[string]float64{"7d": 0.1})))
 		in := input(days)
 		in.Now = now
-		page := views.NewPast(in, days).Accounts(views.AccountsThisWeek)
+		page := views.NewPast(in, days).Accounts(views.PeriodThisWeek)
 		t.Run(now.Weekday().String(), func(t *testing.T) {
 			if page.ToCome != 6-i || len(page.Rows[0].Days) != 42 || page.Weeks[0] != "2026-08-31" {
 				t.Errorf("on %v, %d of %d days are to come, from %s, want %d of 42, from 31 Aug", now.Weekday(), page.ToCome, len(page.Rows[0].Days), page.Weeks[0], 6-i)
@@ -287,7 +288,7 @@ func TestLeftAtItsLastResetIsItsLastWeeksWhateverThePeriod(t *testing.T) {
 			windowsDay{resets: []ledger.Reset{reset("7d", "2026-09-28", "10:00", 0.85)}}.of("side")))
 	in := input(days)
 	in.Accounts = workAndSide
-	for _, period := range []views.AccountsPeriod{views.AccountsToday, views.AccountsThisWeek, views.AccountsTwelveWeeks} {
+	for _, period := range []views.Period{views.PeriodToday, views.PeriodThisWeek, views.PeriodTwelveWeeks, views.PeriodTwelveMonths} {
 		t.Run(period.Name(), func(t *testing.T) {
 			page := views.NewPast(in, days).Accounts(period)
 			work, side := page.Rows[0], page.Rows[1]
@@ -374,5 +375,74 @@ func TestThePagesLimitedWindowsAreEveryRowsLimits(t *testing.T) {
 	}
 	if got, want := page.LimitedWindows(), []string{"1d", "5h", "7d", "7d_oi"}; !slices.Equal(got, want) {
 		t.Errorf("the page's limited windows are %v, want %v", got, want)
+	}
+}
+
+// Over the last 12 months, Accounts counts the days the Year counts as LAST
+// 12 MONTHS, and prices them alike, 12 months of plans whole, or from the
+// ledger's first day where it began part-way through them: every account's
+// requests, worth and against its price are the Year's, the day before the
+// 12 months left out of both. Work's Ultra and side's Pro cost $220 a month.
+func TestAccountsOverTwelveMonthsAreTheYearsLastTwelveMonths(t *testing.T) {
+	requests := []ledger.Summary{
+		day("2025-10-07", account("work", sent("claude-opus-5-5", 5, inputUsage))),
+		day("2025-10-08", account("work", sent("claude-opus-5-5", 2, inputUsage))),
+		day("2026-03-16", account("side", sent("claude-opus-5-5", 3, inputUsage))),
+		day("2026-10-07", account("work", sent("claude-opus-5-5", 1, inputUsage))),
+	}
+	tests := []struct {
+		name, began    string
+		requests       int
+		worth, cost    string
+		worthOverCosts float64
+	}{
+		{name: "the ledger begun before them, whole", began: "2025-09-01", requests: 6, worth: "$12", cost: "$2,640", worthOverCosts: 12.0 / 2640},
+		{name: "the ledger begun part-way through them, from its first day", began: "2026-03-16", requests: 4, worth: "$8",
+			cost: "$1,490", worthOverCosts: 8 / (220 * 12 * 206.0 / 365)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			days := daysTo(tt.began, now, requests...)
+			in := input(days)
+			in.Began = on(tt.began)
+			past := views.NewPast(in, days)
+			all, year := past.Accounts(views.PeriodTwelveMonths).All, past.Year(views.YearAsk{}).Numbers
+			if all.Totals.Requests != tt.requests || all.Totals.Amount.Dollars() != tt.worth || all.Plan.Cost.GroupedDollars() != tt.cost {
+				t.Errorf("over 12 months, every account's %d requests are worth %s against %s, want %d worth %s against %s",
+					all.Totals.Requests, all.Totals.Amount.Dollars(), all.Plan.Cost.GroupedDollars(), tt.requests, tt.worth, tt.cost)
+			}
+			if all.Plan.Ratio == nil || math.Abs(*all.Plan.Ratio-tt.worthOverCosts) > 1e-9 {
+				t.Errorf("over 12 months, every account's worth is %v× its plans' cost, want %v×", all.Plan.Ratio, tt.worthOverCosts)
+			}
+			if got, want := jsonOf(t, all.Plan.Against), jsonOf(t, year.Against); got != want {
+				t.Errorf("over 12 months, every account's against its price is\n%s\nthe Year's\n%s", got, want)
+			}
+			if all.Totals.Requests != year.Requests || jsonOf(t, all.Totals.Worth) != jsonOf(t, year.Worth) {
+				t.Errorf("over 12 months, every account counts %d requests worth %s, the Year %d worth %s",
+					all.Totals.Requests, jsonOf(t, all.Totals.Worth), year.Requests, jsonOf(t, year.Worth))
+			}
+		})
+	}
+}
+
+// The days read for the last 12 months reach back the week before any
+// period's first day, so Accounts' page over the last 12 months, built of
+// them, counts an account idle since its week reset on their first day as
+// history --since does, from the days before them too: the week it ran out
+// on Friday 3 October 2025, and had none left as it reset.
+func TestTwelveMonthsOfTheDaysReadTellARunBegunBeforeThem(t *testing.T) {
+	days := daysFrom("2025-09-01",
+		day("2025-10-03", windowsDay{limits: []ledger.Limit{limit("7d", "2025-10-03", "18:00")}}.of("work")),
+		day("2025-10-08", windowsDay{resets: []ledger.Reset{reset("7d", "2025-10-08", "00:30", 1)}}.of("work")))
+	read := views.DaysFrom(views.YearAsk{}, now, time.Monday).Format(time.DateOnly)
+	held := slices.DeleteFunc(slices.Clone(days), func(s ledger.Summary) bool { return s.Day < read })
+	in := input(days)
+	work := views.NewPast(in, held).Accounts(views.PeriodTwelveMonths).Rows[0].Totals
+	in.From = views.PeriodTwelveMonths.From(now, time.Monday)
+	if got, want := jsonOf(t, work), jsonOf(t, views.NewHistory(in).Totals.Accounts[0]); got != want {
+		t.Errorf("over 12 months of the days read from %s, work counts\n%s\nhistory --since\n%s", read, got, want)
+	}
+	if left, ok := work.LeftAtReset["7d"]; work.RanOut["7d"] != "2025-10-03" || !ok || left != 0 {
+		t.Errorf("work's week ran out %q, %v left at its reset; want 3 Oct 2025, none", work.RanOut["7d"], work.LeftAtReset)
 	}
 }

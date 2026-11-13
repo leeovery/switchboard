@@ -273,7 +273,9 @@ the accounts' names where the screen has room, as USAGE's name column does.
 ### The period
 
 `<` and `>` step to a shorter or a longer period, which both views count over. The periods are
-today, this week, 30 days and 12 weeks. They're rolling, never billing months.
+today, this week, 30 days, 12 weeks and 12 months. They're rolling, never billing months, and 12
+months are the days History's Year counts as its last 12 months. It's one dial for the dashboard,
+remembered from one run to the next: as other tabs come to count over a period, they'll share it.
 
 ## History
 
@@ -1063,7 +1065,8 @@ It remembers:
 - the tab shown
 - the Overview's sections shown, and its `b` grouping
 - whether `w` shows each model's own window
-- Accounts' view and period
+- the period, one dial for the dashboard
+- Accounts' view
 - History's view, what its Year shows, Weeks' shape, and Tokens' period and split
 - Sessions' view
 - whether `a` collapsed Runway's labels

@@ -1,0 +1,19 @@
+package watch
+
+import (
+	"github.com/leeovery/switchboard/internal/dashboard"
+	"github.com/leeovery/switchboard/internal/theme"
+)
+
+// periodStepped is m with the dial's period stepped, by -1 to a shorter one,
+// as < steps it, or by 1 to a longer, as > does, the view shown from its top,
+// and kept in the preferences for the next watch to open with, the page
+// built afresh as accountsBuilt has it. At either end it stays as it is.
+func (m Model) periodStepped(by int) Model {
+	period, stepped := m.period.Stepped(by)
+	if !stepped {
+		return m
+	}
+	m.period, m.scroll = period, 0
+	return m.keepPrefs("the period", func(prefs *theme.Prefs) { dashboard.KeepPeriod(prefs, period) }, "period", string(period))
+}

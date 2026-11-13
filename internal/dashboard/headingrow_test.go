@@ -227,8 +227,8 @@ func TestViewTabsAreTargetsOverTheirNamesAndACellEitherSide(t *testing.T) {
 		name    string
 		heading heading
 	}{
-		{name: "Accounts' Compare", heading: AccountsShown{Shown: AccountsCompare, Accounts: threeConfigured}.heading()},
-		{name: "Accounts' Detail", heading: AccountsShown{Shown: AccountsDetail, Accounts: threeConfigured}.heading()},
+		{name: "Accounts' Compare", heading: AccountsShown{Shown: AccountsCompare, Accounts: threeConfigured}.heading(views.PeriodThisWeek)},
+		{name: "Accounts' Detail", heading: AccountsShown{Shown: AccountsDetail, Accounts: threeConfigured}.heading(views.PeriodThisWeek)},
 		{name: "History's Year", heading: HistoryPage{Shown: HistoryYear}.heading()},
 		{name: "History's Tokens", heading: HistoryPage{Shown: HistoryTokens}.heading()},
 	}
@@ -283,8 +283,8 @@ func headingFrame(width int, view View, shown func(*Frame), loading bool) Frame 
 
 // accountsAt has a frame show Accounts' sub-tab given over the period given,
 // of the accounts given.
-func accountsAt(accounts config.Accounts, sub AccountsView, period views.AccountsPeriod) func(*Frame) {
-	return func(f *Frame) { f.Accounts = AccountsShown{Shown: sub, Accounts: accounts, Period: period} }
+func accountsAt(accounts config.Accounts, sub AccountsView, period views.Period) func(*Frame) {
+	return func(f *Frame) { f.Period, f.Accounts = period, AccountsShown{Shown: sub, Accounts: accounts} }
 }
 
 // historyAt has a frame show History's page given.
@@ -327,9 +327,9 @@ func TestAPhonesPeriodSitsBesideTheHeadingWhereItFits(t *testing.T) {
 		shown func(*Frame)
 		edge  int
 	}{
-		{name: "Accounts' Compare", view: Accounts, shown: accountsAt(threeConfigured, AccountsCompare, views.AccountsThisWeek), edge: 53},
-		{name: "Accounts' Detail", view: Accounts, shown: accountsAt(threeConfigured, AccountsDetail, views.AccountsToday), edge: 53},
-		{name: "Accounts with one account", view: Accounts, shown: accountsAt(threeConfigured[:1], AccountsDetail, views.AccountsThisWeek), edge: 44},
+		{name: "Accounts' Compare", view: Accounts, shown: accountsAt(threeConfigured, AccountsCompare, views.PeriodThisWeek), edge: 53},
+		{name: "Accounts' Detail", view: Accounts, shown: accountsAt(threeConfigured, AccountsDetail, views.PeriodToday), edge: 53},
+		{name: "Accounts with one account", view: Accounts, shown: accountsAt(threeConfigured[:1], AccountsDetail, views.PeriodThisWeek), edge: 44},
 		{name: "History's Tokens", view: History, shown: tokensAt(views.TokensByWeek), edge: 61},
 		{name: "History's Year", view: History, shown: yearAt(threeConfigured, yearAll, 0, true), edge: 67},
 		{name: "History's Year over a calendar year", view: History, shown: yearAt(threeConfigured, yearAll, 2025, true), edge: 67},
@@ -389,7 +389,7 @@ func TestSteppingThePeriodNeverMovesTheHeadingsRows(t *testing.T) {
 		s.view, s.forms = view, append(s.forms, form)
 		sweeps[name] = s
 	}
-	for _, period := range views.AccountsPeriods() {
+	for _, period := range views.Periods() {
 		add("Accounts' Compare", Accounts, accountsAt(threeConfigured, AccountsCompare, period))
 		add("Accounts' Detail", Accounts, accountsAt(threeConfigured, AccountsDetail, period))
 		add("Accounts with one account", Accounts, accountsAt(threeConfigured[:1], AccountsDetail, period))

@@ -145,7 +145,33 @@ const (
 // day and its period's, from which the ledger's days are read for it.
 func YearFrom(ask YearAsk, now time.Time, weekStarts time.Weekday) time.Time {
 	first, _ := dayfile.Civil(yearSpanOf(ask.Year, dayfile.CivilOf(now), weekStarts).earliest())
-	return time.Date(first.Year(), first.Month(), first.Day(), 0, 0, 0, 0, time.Local)
+	return localMidnight(first)
+}
+
+// DaysFrom is the first day of the ledger's days read for the Year asked
+// for at now, weeks starting on the day given, at its local midnight: where
+// YearFrom has it; and of the last 12 months, which Accounts' page is built
+// of too, the earlier of that and lookBack days before the first day of any
+// period, so a period counted over them knows the run its first day began in,
+// as history --since does.
+func DaysFrom(ask YearAsk, now time.Time, weekStarts time.Weekday) time.Time {
+	from := YearFrom(ask, now, weekStarts)
+	if ask.Year != 0 {
+		return from
+	}
+	today := dayfile.CivilOf(now)
+	for _, p := range periods {
+		if first := localMidnight(p.first(today, weekStarts).AddDate(0, 0, -lookBack)); first.Before(from) {
+			from = first
+		}
+	}
+	return from
+}
+
+// localMidnight is the local midnight of the day given, as dayfile.Civil
+// gives one.
+func localMidnight(day time.Time) time.Time {
+	return time.Date(day.Year(), day.Month(), day.Day(), 0, 0, 0, 0, time.Local)
 }
 
 // year is the Year's page asked for, of the days held.

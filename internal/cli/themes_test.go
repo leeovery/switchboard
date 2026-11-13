@@ -275,16 +275,18 @@ func TestDashboardShowsHistoryAsKept(t *testing.T) {
 	}
 }
 
-// Accounts opens on the sub-tab and the period prefs.json keeps; none kept,
-// as it opens at first: Compare, this week.
+// Accounts opens on the sub-tab prefs.json keeps, and the dial on its period,
+// kept in its own place or, by a build from before, under Accounts; none
+// kept, as it opens at first: Compare, this week.
 func TestDashboardShowsAccountsAsKept(t *testing.T) {
 	tests := []struct {
 		name, prefs string
 		wantView    dashboard.AccountsView
-		wantPeriod  views.AccountsPeriod
+		wantPeriod  views.Period
 	}{
 		{name: "none kept", prefs: `{}`},
-		{name: "as kept", prefs: `{"accounts": {"view": "detail", "period": "12-weeks"}}`, wantView: dashboard.AccountsDetail, wantPeriod: views.AccountsTwelveWeeks},
+		{name: "as kept", prefs: `{"period": "12-months", "accounts": {"view": "detail"}}`, wantView: dashboard.AccountsDetail, wantPeriod: views.PeriodTwelveMonths},
+		{name: "as a build from before kept it", prefs: `{"accounts": {"view": "detail", "period": "12-weeks"}}`, wantView: dashboard.AccountsDetail, wantPeriod: views.PeriodTwelveWeeks},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -293,8 +295,8 @@ func TestDashboardShowsAccountsAsKept(t *testing.T) {
 			cfg := recordWatch(t, &deps)
 			run(t, deps, "dashboard")
 
-			if got := cfg.AccountsShown; got.Shown != tt.wantView || got.Period != tt.wantPeriod {
-				t.Errorf("the dashboard opens Accounts on %+v, want %d over %q", got, tt.wantView, tt.wantPeriod)
+			if got := cfg.AccountsShown; got.Shown != tt.wantView || cfg.Period != tt.wantPeriod {
+				t.Errorf("the dashboard opens Accounts on %+v over %q, want %d over %q", got, cfg.Period, tt.wantView, tt.wantPeriod)
 			}
 		})
 	}

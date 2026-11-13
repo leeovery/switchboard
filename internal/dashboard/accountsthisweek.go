@@ -15,8 +15,8 @@ import (
 // figures' cells, at least thisWeekFigures, and as many as the widest
 // bounded part of a figure takes, so each such part reads whole on a row of
 // its own: a limit hit, of any window limitedWindows has, as its short name
-// says it and counted as often as views.LimitsHitMost has it, "5h ×403",
-// "Fable wk ×12"; and all accounts' extra use, on for one fewer than every
+// says it and counted as often as views.LimitsHitMost has it, "5h ×1,758",
+// "Fable wk ×54"; and all accounts' extra use, on for one fewer than every
 // configured account, "on for 2 of 3". The same for every choice in the
 // list, so nothing moves as the choice does. Of every account, the plans known, the
 // other bounded part, says it shortest in fewer cells, "2/3"; and all

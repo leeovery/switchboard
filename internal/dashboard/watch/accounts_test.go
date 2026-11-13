@@ -74,7 +74,7 @@ func TestAccountsPageIsBuiltOnceForTheDaysHeldAndThePeriod(t *testing.T) {
 	}
 	h.keys(shiftTabKey)
 	built := h.model.accounts.page
-	if built == nil || built.Period != views.AccountsThisWeek {
+	if built == nil || built.Period != views.PeriodThisWeek {
 		t.Fatalf("Accounts shown, its page is %+v, want it built over this week", built)
 	}
 
@@ -90,12 +90,10 @@ func TestAccountsPageIsBuiltOnceForTheDaysHeldAndThePeriod(t *testing.T) {
 		t.Errorf("a look that read today's days left Accounts' page as it was built, want it built afresh")
 	}
 
-	shown := h.model.accounts.shown
-	shown.Period = views.AccountsToday
-	h.model = h.model.showAccounts(shown)
+	h.model = h.model.periodStepped(-1)
 	h.update(frameMsg{gen: h.model.frames})
 	today := h.model.accounts.page
-	if today == looked || today.Period != views.AccountsToday {
+	if today == looked || today.Period != views.PeriodToday {
 		t.Errorf("today shown, Accounts' page is over %q, want it built afresh over today", today.Period)
 	}
 
@@ -124,7 +122,7 @@ func TestAccountsPageIsStoodAfreshAsItsBuiltAfresh(t *testing.T) {
 	}
 
 	h.keyed("<")
-	if got := h.model.frame(now).Accounts.Page.Period; got != views.AccountsToday {
+	if got := h.model.frame(now).Accounts.Page.Period; got != views.PeriodToday {
 		t.Errorf("< pressed, Accounts' page drawn is over %q, want it stood afresh over today", got)
 	}
 }
@@ -199,44 +197,52 @@ func accountsMoment(t *testing.T, name string) viewstest.AccountsMoment {
 	return moments[i]
 }
 
-// What Accounts shows that the preferences keep, the sub-tab and the period,
-// is kept as it changes; what's chosen in it, never.
-func TestAccountsSubTabAndPeriodAreKeptAsTheyChange(t *testing.T) {
+// What the preferences keep is kept as it changes: the dial's period in a
+// place of its own, the one a build from before kept under Accounts dropped,
+// and Accounts' sub-tab; what's chosen in it, never.
+func TestAccountsSubTabAndThePeriodAreKeptAsTheyChange(t *testing.T) {
 	h, _ := historyHarness(t, dashboard.Accounts, dashboard.HistoryPage{})
-	prefs := &fakePrefs{}
+	prefs := &fakePrefs{kept: theme.Prefs{Accounts: theme.AccountsPrefs{Period: "today"}}}
 	h.model.cfg.Prefs = prefs
 	h.start()
 	shown := h.model.accounts.shown
+	show := func(change func(*dashboard.AccountsShown)) func(Model) Model {
+		return func(m Model) Model {
+			change(&shown)
+			return m.showAccounts(shown)
+		}
+	}
 	steps := []struct {
-		name    string
-		change  func(*dashboard.AccountsShown)
-		kept    theme.AccountsPrefs
-		updates int
+		name     string
+		change   func(Model) Model
+		period   string
+		accounts theme.AccountsPrefs
+		updates  int
 	}{
-		{name: "the period", change: func(s *dashboard.AccountsShown) { s.Period = views.AccountsThirtyDays }, kept: theme.AccountsPrefs{View: "compare", Period: "30-days"}, updates: 1},
-		{name: "the sub-tab", change: func(s *dashboard.AccountsShown) { s.Shown = dashboard.AccountsDetail }, kept: theme.AccountsPrefs{View: "detail", Period: "30-days"}, updates: 2},
-		{name: "the account chosen", change: func(s *dashboard.AccountsShown) { s.Chosen = "work" }, kept: theme.AccountsPrefs{View: "detail", Period: "30-days"}, updates: 2},
-		{name: "Compare's focus", change: func(s *dashboard.AccountsShown) { s.Focused, s.Focus = true, "side" }, kept: theme.AccountsPrefs{View: "detail", Period: "30-days"}, updates: 2},
+		{name: "the period", change: func(m Model) Model { return m.periodStepped(1) }, period: "30-days", updates: 1},
+		{name: "the sub-tab", change: show(func(s *dashboard.AccountsShown) { s.Shown = dashboard.AccountsDetail }), period: "30-days", accounts: theme.AccountsPrefs{View: "detail"}, updates: 2},
+		{name: "the account chosen", change: show(func(s *dashboard.AccountsShown) { s.Chosen = "work" }), period: "30-days", accounts: theme.AccountsPrefs{View: "detail"}, updates: 2},
+		{name: "Compare's focus", change: show(func(s *dashboard.AccountsShown) { s.Focused, s.Focus = true, "side" }), period: "30-days", accounts: theme.AccountsPrefs{View: "detail"}, updates: 2},
 	}
 	for _, step := range steps {
-		step.change(&shown)
-		h.model = h.model.showAccounts(shown)
+		h.model = step.change(h.model)
 		h.keepWritten()
-		if prefs.kept.Accounts != step.kept || prefs.updates != step.updates {
-			t.Fatalf("after %s changed, the preferences keep %+v, updated %d times; want %+v, %d times", step.name, prefs.kept.Accounts, prefs.updates, step.kept, step.updates)
+		if prefs.kept.Period != step.period || prefs.kept.Accounts != step.accounts || prefs.updates != step.updates {
+			t.Fatalf("after %s changed, the preferences keep %q and %+v, updated %d times; want %q and %+v, %d times",
+				step.name, prefs.kept.Period, prefs.kept.Accounts, prefs.updates, step.period, step.accounts, step.updates)
 		}
 	}
 }
 
 // A watch opens Accounts as the preferences kept it, over the configured
-// accounts.
+// accounts, and the dial on the period they kept.
 func TestAccountsOpensAsKept(t *testing.T) {
 	h := newHarness(t, probedWithoutTheRouter())
 	cfg := h.config(Size{Width: 160, Height: 37})
-	cfg.Accounts, cfg.AccountsShown = threeConfigured, dashboard.AccountsKept(theme.AccountsPrefs{View: "detail", Period: "12-weeks"})
+	cfg.Accounts, cfg.AccountsShown, cfg.Period = threeConfigured, dashboard.AccountsKept(theme.AccountsPrefs{View: "detail"}), views.PeriodTwelveMonths
 	m := New(t.Context(), cfg)
-	if s := m.accounts.shown; s.Shown != dashboard.AccountsDetail || s.Period != views.AccountsTwelveWeeks || !slices.Equal(s.Accounts.IDs(), threeConfigured.IDs()) {
-		t.Errorf("Accounts opens as %+v, want Detail over the last 12 weeks, of the accounts configured", s)
+	if s := m.accounts.shown; s.Shown != dashboard.AccountsDetail || m.period != views.PeriodTwelveMonths || !slices.Equal(s.Accounts.IDs(), threeConfigured.IDs()) {
+		t.Errorf("Accounts opens as %+v over %q, want Detail over the last 12 months, of the accounts configured", s, m.period)
 	}
 }
 
@@ -268,7 +274,7 @@ func TestTurnedComparesPlansAreSizedByTheConfigsPlansAtTheirMost(t *testing.T) {
 		return views.AccountsRow{Totals: views.AccountTotals{Account: account, All: all}, Plan: views.PlanCost{Account: account, All: all, Price: &monthly}}
 	}
 	page := views.AccountsPage{
-		Period: views.AccountsThisWeek, Recorded: true,
+		Period: views.PeriodThisWeek, Recorded: true,
 		Rows: []views.AccountsRow{priced("work", false, 200*ledger.Dollar), priced("side", false, 200*ledger.Dollar)},
 		All:  priced("", true, 400*ledger.Dollar),
 	}
@@ -505,23 +511,29 @@ func (h *harness) pageOpen() string {
 	return h.model.session.id
 }
 
-// [ and ] turn Accounts' sub-tab and < and > step its period, each shown from
-// the view's top, and the preferences keep each change; at either end, < and
-// > change nothing, nor keep anything.
+// [ and ] turn Accounts' sub-tab and < and > step the dial's period, held
+// apart from Accounts' sub-tab, each shown from the view's top, and the
+// preferences keep each change; at either end, < and > change nothing, nor
+// keep anything.
 func TestAccountsKeysTurnTheSubTabAndStepThePeriodKeptAsTheyChange(t *testing.T) {
 	h := accountsHarness(t, dashboard.AccountsShown{})
 	prefs := &fakePrefs{}
 	h.model.cfg.Prefs = prefs
 	steps := []struct {
 		key    string
-		kept   theme.AccountsPrefs
+		view   string
+		period views.Period
 		scroll int
 	}{
-		{key: "]", kept: theme.AccountsPrefs{View: "detail"}},
-		{key: "<", kept: theme.AccountsPrefs{View: "detail", Period: "today"}},
-		{key: "<", kept: theme.AccountsPrefs{View: "detail", Period: "today"}, scroll: 2},
-		{key: ">", kept: theme.AccountsPrefs{View: "detail"}},
-		{key: "[", kept: theme.AccountsPrefs{View: "compare"}},
+		{key: "]", view: "detail"},
+		{key: "<", view: "detail", period: views.PeriodToday},
+		{key: "<", view: "detail", period: views.PeriodToday, scroll: 2},
+		{key: ">", view: "detail"},
+		{key: ">", view: "detail", period: views.PeriodThirtyDays},
+		{key: ">", view: "detail", period: views.PeriodTwelveWeeks},
+		{key: ">", view: "detail", period: views.PeriodTwelveMonths},
+		{key: ">", view: "detail", period: views.PeriodTwelveMonths, scroll: 2},
+		{key: "[", view: "compare", period: views.PeriodTwelveMonths},
 	}
 	updates := 0
 	for _, step := range steps {
@@ -530,9 +542,12 @@ func TestAccountsKeysTurnTheSubTabAndStepThePeriodKeptAsTheyChange(t *testing.T)
 		if step.scroll == 0 {
 			updates++
 		}
-		if got := h.model.accounts.shown.Kept(); got != step.kept || prefs.kept.Accounts != step.kept || prefs.updates != updates || h.model.scroll != step.scroll {
-			t.Fatalf("after %s, Accounts shows %+v, the preferences keep %+v, updated %d times, the view scrolled %d; want %+v kept, %d times, scrolled %d",
-				step.key, got, prefs.kept.Accounts, prefs.updates, h.model.scroll, step.kept, updates, step.scroll)
+		kept := theme.AccountsPrefs{View: step.view}
+		if got := h.model.accounts.shown.Kept(); got != kept || h.model.period != step.period || prefs.kept.Accounts != kept ||
+			prefs.kept.Period != string(step.period) || prefs.updates != updates || h.model.scroll != step.scroll {
+			t.Fatalf("after %s, Accounts shows %+v over %q, the preferences keep %+v over %q, updated %d times, the view scrolled %d; "+
+				"want %s over %q kept, %d times, scrolled %d",
+				step.key, got, h.model.period, prefs.kept.Accounts, prefs.kept.Period, prefs.updates, h.model.scroll, step.view, step.period, updates, step.scroll)
 		}
 	}
 }
@@ -942,23 +957,23 @@ func TestALookOnAccountsBrightensTheNumbersItChanged(t *testing.T) {
 	}
 }
 
-// A click on the heading's < or > steps the period Compare and Detail share,
-// as the key does: < to a shorter one and > to a longer, no further than
-// today or the last 12 weeks.
+// A click on the heading's < or > steps the dial's period, as the key does: <
+// to a shorter one and > to a longer, no further than today or the last 12
+// months.
 func TestAClickOnTheHeadingsLessOrMoreStepsAccountsPeriod(t *testing.T) {
 	for name, shown := range map[string]dashboard.AccountsView{"Compare": dashboard.AccountsCompare, "Detail": dashboard.AccountsDetail} {
 		t.Run(name, func(t *testing.T) {
 			h := accountsHarness(t, dashboard.AccountsShown{Shown: shown})
 			for i, step := range []struct {
 				way  int
-				want views.AccountsPeriod
+				want views.Period
 			}{
-				{-1, views.AccountsToday}, {-1, views.AccountsToday}, {1, views.AccountsThisWeek},
-				{1, views.AccountsThirtyDays}, {1, views.AccountsTwelveWeeks}, {1, views.AccountsTwelveWeeks},
+				{-1, views.PeriodToday}, {-1, views.PeriodToday}, {1, views.PeriodThisWeek}, {1, views.PeriodThirtyDays},
+				{1, views.PeriodTwelveWeeks}, {1, views.PeriodTwelveMonths}, {1, views.PeriodTwelveMonths},
 			} {
 				h.clickWhere(onStep(step.way))
-				if got := h.model.accounts.shown; got.Period != step.want || got.Shown != shown {
-					t.Fatalf("after click %d, on the step %+d, Accounts shows %d over %q, want %d over %q", i+1, step.way, got.Shown, got.Period, shown, step.want)
+				if got := h.model.accounts.shown; h.model.period != step.want || got.Shown != shown {
+					t.Fatalf("after click %d, on the step %+d, Accounts shows %d over %q, want %d over %q", i+1, step.way, got.Shown, h.model.period, shown, step.want)
 				}
 			}
 		})

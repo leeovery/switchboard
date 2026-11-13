@@ -129,9 +129,23 @@ func RowOfTold(t Told, now time.Time) RequestRow {
 
 // From is when the period begins at now, weeks starting on the day given: at
 // the start of its first local day.
-func (p AccountsPeriod) From(now time.Time, starts time.Weekday) time.Time {
+func (p Period) From(now time.Time, starts time.Weekday) time.Time {
 	start, _, _ := dayfile.Day(p.first(dayfile.CivilOf(now), starts).Format(time.DateOnly))
 	return start
+}
+
+// Spans are the dates of the period's first day and its last at now, weeks
+// starting on the day given: its last as it's priced to.
+func (p Period) Spans(now time.Time, starts time.Weekday) (first, last string) {
+	today := dayfile.CivilOf(now)
+	return p.first(today, starts).Format(time.DateOnly), p.last(today, starts).Format(time.DateOnly)
+}
+
+// YearsTwelveMonths are the dates of the first day and the last the Year's
+// LAST 12 MONTHS count at now, weeks starting on the day given.
+func YearsTwelveMonths(now time.Time, starts time.Weekday) (first, last string) {
+	span := yearSpanOf(0, dayfile.CivilOf(now), starts)
+	return span.first, span.last
 }
 
 // WhyRunning is why the model of the session with the given id is on its

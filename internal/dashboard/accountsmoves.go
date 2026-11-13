@@ -19,20 +19,6 @@ func (s AccountsShown) Turned(by int) (AccountsShown, bool) {
 	return s.Showing(round(int(s.Shown)+by, len(accountsViews)))
 }
 
-// Stepped is Accounts with the period Compare and Detail share stepped to a
-// shorter one where by is -1, as < steps it, or a longer one where it's 1, as
-// > does. It reports false at either end, where it stays: today, and the last
-// 12 weeks.
-func (s AccountsShown) Stepped(by int) (AccountsShown, bool) {
-	step := s.Period.Longer
-	if by < 0 {
-		step = s.Period.Shorter
-	}
-	period, ok := step()
-	s.Period = period
-	return s, ok
-}
-
 // Moved is Accounts with ← or → pressed, by -1 or 1, running being the
 // sessions running on the account Detail shows, by id, in its SESSIONS'
 // order: on Compare, its focus moved along its columns, as focusing has it;

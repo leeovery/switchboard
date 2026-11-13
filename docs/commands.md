@@ -1214,6 +1214,7 @@ a month. `history` prorates it as the dashboard prices its periods:
 | A week | 12/52 of a month |
 | 30 days | a month |
 | 12 weeks | twelve weeks' price |
+| 12 months | twelve months' price, whether they hold 365 days or 366 |
 
 - A period still running is priced whole.
 - A month or week that the days asked for begin part-way through is priced by its days from then.

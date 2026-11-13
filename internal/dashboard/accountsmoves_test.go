@@ -2,7 +2,6 @@ package dashboard
 
 import (
 	"fmt"
-	"slices"
 	"testing"
 
 	"github.com/leeovery/switchboard/internal/config"
@@ -51,25 +50,6 @@ func TestAccountsSubTabsTurnRound(t *testing.T) {
 	}
 	if _, ok := one.Showing(0); ok {
 		t.Error("with one account, a click on Detail, the sub-tab there is, reports a change, want none")
-	}
-}
-
-// < steps to a shorter period and > to a longer, today the shortest and the
-// last 12 weeks the longest, where neither steps further.
-func TestAccountsPeriodsStepAndStopAtTheEnds(t *testing.T) {
-	s := AccountsShown{Accounts: threeConfigured}
-	var periods []string
-	var stops int
-	for _, by := range []int{-1, -1, 1, 1, 1, 1} {
-		var ok bool
-		if s, ok = s.Stepped(by); !ok {
-			stops++
-		}
-		periods = append(periods, s.Period.Name())
-	}
-	want := []string{"today", "today", "this week", "30 days", "12 weeks", "12 weeks"}
-	if !slices.Equal(periods, want) || stops != 2 {
-		t.Errorf("stepped through %q, stopping %d times; want %q, stopping at each end", periods, stops, want)
 	}
 }
 

@@ -81,7 +81,7 @@ var (
 // framedPage is Accounts' page of the frames, this week, of the rows given,
 // the last every account's.
 func framedPage(rows ...accountsFramed) views.AccountsPage {
-	page := views.AccountsPage{Period: views.AccountsThisWeek}
+	page := views.AccountsPage{Period: views.PeriodThisWeek}
 	for _, f := range rows[:len(rows)-1] {
 		page.Rows = append(page.Rows, f.row())
 	}

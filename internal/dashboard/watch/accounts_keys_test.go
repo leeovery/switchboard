@@ -65,6 +65,7 @@ func TestAccountsKeyLinesAreTheDesigns(t *testing.T) {
 		doc      status.Document
 		sessions bool
 		shown    dashboard.AccountsShown
+		period   views.Period
 		width    int
 		want     string
 		wantOff  []string
@@ -75,8 +76,12 @@ func TestAccountsKeyLinesAreTheDesigns(t *testing.T) {
 			want: head + "←→ account  enter its page  esc unfocus" + ends,
 		},
 		{
-			name: "Compare over the last 30 days", shown: dashboard.AccountsShown{Accounts: threeConfigured, Period: views.AccountsThirtyDays},
+			name: "Compare over the last 30 days", shown: dashboard.AccountsShown{Accounts: threeConfigured}, period: views.PeriodThirtyDays,
 			want: "tab views   [ ] view    < > period: 30 days    ←→ account  enter its page" + ends, wantOff: []string{"enter"},
+		},
+		{
+			name: "Detail over the last 12 months", sessions: true, shown: dashboard.AccountsShown{Accounts: threeConfigured, Shown: dashboard.AccountsDetail},
+			period: views.PeriodTwelveMonths, want: "tab views   [ ] view    < > period: 12 months    ↑↓ account  enter its page" + ends, wantOff: []string{"enter"},
 		},
 		{
 			name: "Compare, Detail's SESSIONS left as they were", sessions: true,
@@ -110,6 +115,7 @@ func TestAccountsKeyLinesAreTheDesigns(t *testing.T) {
 				doc = routerDocument(three()...)
 			}
 			h := accountsKeysHarness(t, doc, tt.sessions, tt.shown, tt.width)
+			h.model.period = tt.period
 			rows := strings.Split(h.view(), "\n")
 			if got := strings.TrimRight(rows[len(rows)-1], " "); got != tt.want {
 				t.Errorf("the key line reads\n%q\nwant\n%q", got, tt.want)

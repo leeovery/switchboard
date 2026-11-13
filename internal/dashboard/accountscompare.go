@@ -58,7 +58,7 @@ const (
 // and all, BY MODEL's heading, and the groups' names and their rows'
 // labels, indented. A version's name past it is cut to it.
 var compareLabels = sync.OnceValue(func() int {
-	widest := max(weekLabel(views.AccountsThirtyDays).width(), compareByModelHead(false).width())
+	widest := max(weekLabel(views.PeriodThirtyDays).width(), compareByModelHead(false).width())
 	for _, g := range (compared{page: &views.AccountsPage{}}).groups() {
 		widest = max(widest, ansi.StringWidth(g.name))
 		for _, r := range g.rows {
@@ -177,25 +177,25 @@ func (f Frame) leastCompared() int {
 }
 
 // The bounds Compare's least holds its figures to, each of an account over
-// the longest period, 12 weeks; all accounts' are the configured accounts'
+// the longest period, 12 months; all accounts' are the configured accounts'
 // together, each at its bound.
 const (
-	// requestsMost are the most requests: some 12,000 a day.
-	requestsMost = 999_999
+	// requestsMost are the most requests: some 27,000 a day.
+	requestsMost = 9_999_999
 	// sessionsMost are the most sessions served.
-	sessionsMost = 9_999
+	sessionsMost = 99_999
 	// movesMost are the most sessions moved onto an account, and off it.
 	movesMost = 999
-	// limitsMost are the most limits hit: 403 of a 5-hour window fit in 12
-	// weeks, and fewer of a week's.
-	limitsMost = 999
+	// limitsMost are the most limits hit: 12 months touch 1,758 of a 5-hour
+	// window, and fewer of a week's.
+	limitsMost = 9_999
 	// planMost is the most a plan costs a month, in dollars: plans today
 	// cost from $20 to $200.
 	planMost = 9_999
 	// worthMost is the most an account's requests are worth, in dollars.
-	worthMost = 99_999
-	// periodMost is the longest period, in minutes: 12 weeks.
-	periodMost = 12 * 7 * 24 * 60
+	worthMost = 999_999
+	// periodMost is the longest period, in minutes: 12 months of 366 days.
+	periodMost = 366 * 24 * 60
 	// dollarsMost are the most whole dollars the ledger says, a dollar short
 	// of the most it counts, as it rounds to the dollar by adding half of one.
 	dollarsMost = math.MaxInt64/int64(ledger.Dollar) - 1
@@ -265,9 +265,9 @@ func wholeName(n accountName) int {
 
 // weekLabel is WEEK USED's label, and now after it where the period is
 // another than this week, as the week is always as it stands.
-func weekLabel(period views.AccountsPeriod) line {
+func weekLabel(period views.Period) line {
 	label := line{{"WEEK USED", dimInk}}
-	if period != views.AccountsThisWeek {
+	if period != views.PeriodThisWeek {
 		label = append(label, span{"  now", faintInk})
 	}
 	return label
@@ -627,7 +627,7 @@ func (cp compared) body(columns []compareColumn) *canvas {
 // each column's week, as weekGauge has it, its bar as the layout has it, a
 // cell, and its percentage, right-aligned in 4, ending with BY MODEL's bar.
 func (cp compared) weekUsed(c *canvas, y int, columns []compareColumn) {
-	c.line(0, y, weekLabel(cp.f.Accounts.Period))
+	c.line(0, y, weekLabel(cp.f.Period))
 	bar := cp.laid.week
 	for _, col := range columns {
 		g := cp.weekGauge(col)

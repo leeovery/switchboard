@@ -137,8 +137,11 @@ type Frame struct {
 	// before any page is read and whatever period it prices, so turned
 	// Compare's VALUE sizes its plans' column by them and holds still.
 	PlansAtMost []views.PlanCost
-	// Accounts is Accounts' sub-tab shown, its period, what's chosen in it,
-	// and its page.
+	// Period is the period the entity tabs count over, one dial they share,
+	// as < and > step it.
+	Period views.Period
+	// Accounts is Accounts' sub-tab shown, what's chosen in it, and its
+	// page, of the period.
 	Accounts AccountsShown
 	// History is History's sub-tab shown, what each of its views shows, and
 	// their pages.

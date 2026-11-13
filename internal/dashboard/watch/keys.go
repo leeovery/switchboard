@@ -219,7 +219,7 @@ func (m Model) accountsListings(running []string) []keyListing {
 	inSessions := listed && s.InSessions || alone && selected
 	return []keyListing{
 		{Key: dashboard.Key{Key: "[ ]", Does: "view"}, works: shown && !alone, apart: true},
-		{Key: dashboard.Key{Key: "< >", Does: "period", State: s.Period.Name()}, works: shown, apart: true, wide: true},
+		{Key: dashboard.Key{Key: "< >", Does: "period", State: m.period.Name()}, works: shown, apart: true, wide: true},
 		{Key: dashboard.Key{Key: "←→", Does: "account"}, works: compare, apart: true, wide: true},
 		{Key: dashboard.Key{Key: "↑↓", Does: "account"}, works: listed && !s.InSessions, apart: true, wide: true},
 		{Key: dashboard.Key{Key: "↑↓", Does: "session"}, works: inSessions, apart: true, wide: true},
