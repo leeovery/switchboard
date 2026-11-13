@@ -21,14 +21,15 @@ const (
 
 // PoolChoice is a pool a card's Pool offers: one configured, or the new pool
 // the card holds, by its label and the directories it's fenced to, as the
-// config writes them, none of the unfenced pool's; and whether it has
-// accounts.
+// config writes them, none of the unfenced pool's; whether it has accounts;
+// and whether it's the first pool, whose primary the Claude apps sign in to.
 type PoolChoice struct {
 	ID, Label string
 	Dirs      []string
 	// Held is set on the new pool the card holds, made with the account.
 	Held     bool
 	Accounts bool
+	First    bool
 }
 
 // PoolChoices are the review's pools, as a card's Pool offers them, in the
@@ -37,7 +38,7 @@ func (r Review) PoolChoices() []PoolChoice {
 	choices := make([]PoolChoice, len(r.Pools))
 	for i, p := range r.Pools {
 		in := func(a Reviewed) bool { return strings.EqualFold(a.Pool, p.ID) }
-		choices[i] = PoolChoice{ID: p.ID, Label: p.Label, Dirs: p.WrittenDirs, Accounts: slices.ContainsFunc(r.Accounts, in)}
+		choices[i] = PoolChoice{ID: p.ID, Label: p.Label, Dirs: p.WrittenDirs, Accounts: slices.ContainsFunc(r.Accounts, in), First: strings.EqualFold(p.ID, r.First)}
 	}
 	return choices
 }
@@ -66,11 +67,15 @@ func Places(p config.Pool) string {
 	return strings.Join(cleaned(p.WrittenDirs), ", ")
 }
 
-// PrimaryHint is the edit card's hint under Primary, of the pool with the
-// label given: its sessions start on its primary, which the Claude apps sign
-// in to.
-func PrimaryHint(pool string) string {
-	return prose.Clean(pool) + "'s sessions start on it; the Claude apps sign in to it"
+// PrimaryHint is the edit card's hint under Primary, of the pool: its
+// sessions start on its primary, which the Claude apps sign in to, where
+// it's the first.
+func (c PoolChoice) PrimaryHint() string {
+	hint := prose.Clean(c.Label) + "'s sessions start on it"
+	if c.First {
+		hint += "; the Claude apps sign in to it"
+	}
+	return hint
 }
 
 // cleaned are texts made safe to show.

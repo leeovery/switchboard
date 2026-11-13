@@ -169,6 +169,10 @@ type Review struct {
 	// Pools are the config's pools, in its order: none in a config without
 	// them.
 	Pools config.Pools
+	// First is the id of the first pool, whose primary the browser and the
+	// Claude apps are signed in to, as accounts.Registry's FirstPool has it:
+	// "" in a config without pools.
+	First string
 	// Unmarked is set where a pool has two accounts or more, or a config
 	// without pools does, and none is marked the primary, which one must be.
 	Unmarked bool
@@ -186,7 +190,7 @@ func (s *Setup) Review() (Review, error) {
 	if cfg == nil {
 		return review, nil
 	}
-	review.Pools = cfg.Pools
+	review.Pools, review.First = cfg.Pools, s.Accounts.FirstPool(cfg)
 	for _, a := range cfg.Accounts {
 		row, _ := s.reviewed(a, draft.MarksPrimaryOf(a.ID))
 		review.Accounts = append(review.Accounts, row)
@@ -433,7 +437,8 @@ func (r Review) Notes() []Note {
 
 // unmarkedNotes are the notes of the review's pools with two accounts or
 // more, none the primary: of the one pool there is, that no account is; of
-// each of several, that it has none, led by its label.
+// each of several, that it has none, led by its label, the Claude apps
+// signing in to the first's alone.
 func (r Review) unmarkedNotes() []Note {
 	if !r.Unmarked {
 		return nil
@@ -451,14 +456,19 @@ func (r Review) unmarkedNotes() []Note {
 		if slices.ContainsFunc(in, func(at int) bool { return r.Accounts[at].Primary }) {
 			continue
 		}
-		label := r.Accounts[in[0]].Pool
-		if at := r.PoolIndex(label); at >= 0 {
+		pool := r.Accounts[in[0]].Pool
+		label := pool
+		if at := r.PoolIndex(pool); at >= 0 {
 			label = r.Pools[at].Label
+		}
+		says := "has no primary, the account its sessions start on."
+		if strings.EqualFold(pool, r.First) {
+			says = "has no primary, the account its sessions start on and the Claude apps sign in to."
 		}
 		notes = append(notes, Note{
 			Need:  NeedPrimary,
 			Label: label,
-			Says:  "has no primary, the account its sessions start on and the Claude apps sign in to.",
+			Says:  says,
 			Press: "Choose one of its accounts, and press p to make it the primary.",
 			Key:   "p",
 		})

@@ -12,9 +12,10 @@ import (
 )
 
 // addCard is the card adding an account, as the screen holds it: its
-// fields, the plan chosen by its place among setup.AddPlans, and its Pool,
-// nil in a config without pools; where it stands among them; and whether
-// the account it gives is being checked, when it takes no key.
+// fields, the plan chosen by its place among setup.AddPlans, noPlan where
+// none is, and its Pool, nil in a config without pools; where it stands
+// among them; and whether the account it gives is being checked, when it
+// takes no key.
 type addCard struct {
 	form
 	label    entry
@@ -23,8 +24,8 @@ type addCard struct {
 	checking bool
 }
 
-// addOpened is the add card over review as it opens: its fields empty, its
-// plan the first, and its pool, where the config has pools, the one accounts
+// addOpened is the add card over review as it opens: its fields empty, no
+// plan chosen, as the plan is the user's to say, and its pool, where the config has pools, the one accounts
 // add adds an account to without --pool, else, where every pool is fenced,
 // the first; Label chosen.
 func addOpened(review *setup.Review) *addCard {
@@ -34,7 +35,18 @@ func addOpened(review *setup.Review) *addCard {
 			implicit = p.ID
 		}
 	}
-	return &addCard{chosen: setup.LabelField, pool: poolOf(review, implicit)}
+	return &addCard{chosen: setup.LabelField, plan: noPlan, pool: poolOf(review, implicit)}
+}
+
+// noPlan is the add card's plan where none is chosen.
+const noPlan = -1
+
+// planChosen is the plan chosen, "" where none is.
+func (c addCard) planChosen() string {
+	if c.plan == noPlan {
+		return ""
+	}
+	return setup.AddPlans()[c.plan]
 }
 
 // fields are the card's fields, in the order tab goes through them: Label,
@@ -50,7 +62,7 @@ func (c addCard) fields() []setup.Field {
 func (c addCard) drawn() *dashboard.SetupAddCard {
 	card := &dashboard.SetupAddCard{
 		Label: c.label.field(c.chosen == setup.LabelField),
-		Plans: setup.AddPlans(), Plan: setup.AddPlans()[c.plan], Chosen: c.chosen, Refused: c.refused, Why: c.why,
+		Plans: setup.AddPlans(), Plan: c.planChosen(), Chosen: c.chosen, Refused: c.refused, Why: c.why,
 	}
 	if c.pool != nil {
 		card.Pool = c.pool.drawn(c.pool.usedBy())
@@ -60,7 +72,7 @@ func (c addCard) drawn() *dashboard.SetupAddCard {
 
 // account is the account the card gives, as it's typed and chosen.
 func (c addCard) account() setup.Adding {
-	adding := setup.Adding{Label: c.label.value(), Plan: setup.AddPlans()[c.plan]}
+	adding := setup.Adding{Label: c.label.value(), Plan: c.planChosen()}
 	if c.pool != nil {
 		adding.Pool, adding.NewPool = c.pool.placed()
 	}
@@ -69,7 +81,8 @@ func (c addCard) account() setup.Adding {
 
 // pressed is the card once key is pressed in its field chosen, reporting
 // false for a key it doesn't take: a text field's, as entry has them; a
-// choice's, ← and → moving its choice, no further than its first or last.
+// choice's, ← and → moving its choice, as planMoved moves Plan's, no further
+// than its first or last, and unsaying a refusal of it.
 func (c addCard) pressed(key tea.KeyPressMsg) (addCard, bool) {
 	if field := c.typedIn(); field != nil {
 		ok := c.typed(field, key)
@@ -82,7 +95,7 @@ func (c addCard) pressed(key tea.KeyPressMsg) (addCard, bool) {
 		pool := c.pool.moved(by)
 		c.pool, c.form = &pool, c.unrefused(setup.PoolField)
 	default:
-		c.plan = planMoved(c.plan, by, len(setup.AddPlans()))
+		c.plan, c.form = planMoved(c.plan, by, len(setup.AddPlans())), c.unrefused(setup.PlanField)
 	}
 	return c, ok
 }

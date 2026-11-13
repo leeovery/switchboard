@@ -263,14 +263,28 @@ func configuredPool(cfg *config.Config, id string) (config.Pool, error) {
 
 // SignedIn returns the account of cfg the browser and the Claude apps are
 // signed in to, as config.Config's SignedIn has it of the first pool the
-// accounts record notes: the config's first pool where the record can't be
-// read, which is logged, or notes none. It reports false where that pool, or
-// the config, has no account.
+// accounts record notes, as notedFirst reads it. It reports false where that
+// pool, or the config, has no account.
 func (r Registry) SignedIn(cfg *config.Config) (config.Account, bool) {
+	return cfg.SignedIn(r.notedFirst())
+}
+
+// FirstPool returns the id of cfg's first pool, whose primary the browser
+// and the Claude apps are signed in to, as config.Pools' First has it of the
+// one the accounts record notes, as notedFirst reads it: "" where cfg has no
+// pools.
+func (r Registry) FirstPool(cfg *config.Config) string {
+	return cfg.Pools.First(r.notedFirst())
+}
+
+// notedFirst is the id of the first pool the accounts record notes: "" where
+// it notes none, or can't be read, which is logged, the config's first pool
+// standing in.
+func (r Registry) notedFirst() string {
 	record, err := r.Record.Read()
 	if err != nil {
 		logger.Warn("can't read the accounts record, so the config's first pool is taken for the one the browser and the Claude apps are signed in to", "error", err)
 	}
 	first, _ := record.FirstPool()
-	return cfg.SignedIn(first.ID)
+	return first.ID
 }

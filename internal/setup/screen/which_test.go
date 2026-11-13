@@ -258,6 +258,7 @@ func pastingTeamAsked(t *testing.T) *harness {
 	}
 	h.pressAndDeliver("enter")
 	h.typeIn("team")
+	choosingUltra(h)
 	h.pressAndDeliver("enter")
 	h.hearAll(3)
 	h.pressAndDeliver("p")

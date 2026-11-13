@@ -8,10 +8,10 @@ import (
 )
 
 // Adding is an account to add, as setup's add card gives it: its label as
-// typed; its plan, one of config.PlanChoices; and the id of the pool it goes
-// in, "" for the one accounts add adds it to without --pool, or NewPool, a
-// pool made for it, in its place. Its id is the one the organization of the
-// token made for it decides.
+// typed; its plan, one of AddPlans, "" where none's chosen; and the id of
+// the pool it goes in, "" for the one accounts add adds it to without
+// --pool, or NewPool, a pool made for it, in its place. Its id is the one
+// the organization of the token made for it decides.
 type Adding struct {
 	Label   string
 	Plan    string
@@ -28,9 +28,11 @@ type Adding struct {
 // pool chosen is one config no longer has, or the new pool is refused, said
 // of Pool, as refusedAccount has it; with CheckNew's
 // accounts.PoolNeededError, before any token is made, where every pool is
-// fenced and none is chosen; and as config.Edit does otherwise.
+// fenced and none is chosen; with a Refused of Plan, saying PlanUnchosen,
+// where no plan's chosen, once the rest passes; and as config.Edit does
+// otherwise.
 func (s *Setup) CheckAdding(adding Adding) (accounts.Adding, error) {
-	plan, err := config.ParsePlan(adding.Plan)
+	plan, err := planChosen(adding.Plan)
 	if err != nil {
 		return accounts.Adding{}, refusedValue(PlanField, err)
 	}
@@ -39,7 +41,20 @@ func (s *Setup) CheckAdding(adding Adding) (accounts.Adding, error) {
 	if err != nil {
 		return accounts.Adding{}, refusedAccount(err)
 	}
+	if adding.Plan == "" {
+		return accounts.Adding{}, &Refused{Field: PlanField, Why: PlanUnchosen, err: errors.New(PlanUnchosen)}
+	}
 	return checked, nil
+}
+
+// planChosen is the plan chosen, as config.ParsePlan reads it: "" where
+// none is, which CheckAdding refuses once the account's other values pass,
+// so the card's refusals come in the order its fields do.
+func planChosen(chosen string) (string, error) {
+	if chosen == "" {
+		return "", nil
+	}
+	return config.ParsePlan(chosen)
 }
 
 // CheckPool checks a pool to make with an account, as the new pool card gives

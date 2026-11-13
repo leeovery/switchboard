@@ -24,6 +24,13 @@ func noAccounts() *fakeSteps {
 	return steps
 }
 
+// choosingUltra chooses Ultra on the add card open, Label chosen, as it
+// opens: tab to Plan, then ← from none chosen to the last.
+func choosingUltra(h *harness) {
+	h.pressAndDeliver("tab")
+	h.pressAndDeliver("left")
+}
+
 // firstRun is a harness of a first run, started.
 func firstRun(t *testing.T) *harness {
 	t.Helper()
@@ -32,9 +39,9 @@ func firstRun(t *testing.T) *harness {
 	return h
 }
 
-// The add card, as it opens: its fields empty, its plan the first, Label
-// chosen, typed in; its plans a subscription's alone, with no not set, as
-// every account setup adds is on one. It has no ID, as the token's
+// The add card, as it opens: its fields empty, no plan chosen, as it's the
+// user's to say, Label chosen, typed in; its plans a subscription's alone,
+// with no not set, as every account setup adds is on one. It has no ID, as the token's
 // organization decides the id, and no Pool in a config without pools.
 var addCardOpened = []string{
 	"",
@@ -42,7 +49,7 @@ var addCardOpened = []string{
 	"",
 	"  Label                               what every screen calls it",
 	"",
-	"  Plan      ■ Pro    □ Max    □ Ultra",
+	"  Plan      □ Pro    □ Max    □ Ultra",
 	"",
 	"  Setup then creates a token with claude setup-token. You approve it in",
 	"  the browser while signed in to this subscription. Tokens last a year.",
@@ -136,8 +143,8 @@ func TestEnterOnAddAnAccountOpensTheAddCard(t *testing.T) {
 }
 
 // tab goes through Label and Plan, and round to Label; ← and → move Plan's
-// choice no further than its first or last, and move a text field's cursor,
-// never the plan.
+// choice no further than its first or last, from none chosen ← to the last
+// and → to the first, and move a text field's cursor, never the plan.
 func TestTheAddCardsTabAndArrows(t *testing.T) {
 	h := firstRun(t)
 	for _, want := range []setup.Field{setup.PlanField, setup.LabelField} {
@@ -153,14 +160,14 @@ func TestTheAddCardsTabAndArrows(t *testing.T) {
 	if got := h.model.add.label.value(); got != "Work" {
 		t.Errorf("← in Label left it reading %q, want the cursor moved, so it reads Work", got)
 	}
-	plan := func() string { return setup.AddPlans()[h.model.add.plan] }
-	if got := plan(); got != "pro" {
+	plan := func() string { return h.model.add.planChosen() }
+	if got := plan(); got != "" {
 		t.Errorf("← in Label moved the plan to %q", got)
 	}
 	h.pressAndDeliver("tab")
 	for _, tt := range []struct {
 		key, want string
-	}{{"left", "pro"}, {"right", "max"}, {"right", "ultra"}, {"right", "ultra"}, {"left", "max"}} {
+	}{{"left", "ultra"}, {"right", "ultra"}, {"left", "max"}, {"left", "pro"}, {"left", "pro"}, {"right", "max"}} {
 		h.pressAndDeliver(tt.key)
 		if got := plan(); got != tt.want {
 			t.Fatalf("%s chose %q, want %q", tt.key, got, tt.want)
@@ -168,6 +175,32 @@ func TestTheAddCardsTabAndArrows(t *testing.T) {
 	}
 	if got := h.cardRow("Plan"); got != "  Plan      □ Pro    ■ Max    □ Ultra" {
 		t.Errorf("Plan reads %q, want Max chosen", got)
+	}
+	h.model.add.plan = noPlan
+	if h.pressAndDeliver("right"); plan() != "pro" {
+		t.Errorf("→ from none chosen chose %q, want pro", plan())
+	}
+}
+
+// enter with no plan chosen is refused, as setup refuses it, saying so under
+// Plan, the card staying open and no token made; a plan chosen unsays it,
+// and enter goes on.
+func TestEnterWithNoPlanChosenIsRefusedUnderPlan(t *testing.T) {
+	h := firstRun(t)
+	h.typeIn("Work")
+	h.pressAndDeliver("enter")
+	_, rows := h.card()
+	at := slices.IndexFunc(rows, func(row string) bool { return strings.HasPrefix(row, "  Plan ") })
+	if at < 0 || at+1 >= len(rows) || strings.TrimSpace(rows[at+1]) != setup.PlanUnchosen || h.model.token != nil {
+		t.Fatalf("the card reads\n%s\nwant %q under Plan, no token card", strings.Join(rows, "\n"), setup.PlanUnchosen)
+	}
+	choosingUltra(h)
+	if strings.Contains(strings.Join(cardRows(h), "\n"), setup.PlanUnchosen) {
+		t.Errorf("a plan chosen, the card still says %q", setup.PlanUnchosen)
+	}
+	h.pressAndDeliver("enter")
+	if got := h.steps.nextMake(t); got.Account.Plan != "ultra" {
+		t.Errorf("MakeToken was asked %+v, want Work on Ultra", got)
 	}
 }
 
@@ -179,8 +212,7 @@ func TestEnterHandsTheAccountOnToHaveItsTokenMade(t *testing.T) {
 	h := firstRun(t)
 	h.typeIn("Work")
 	h.pressAndDeliver("tab")
-	h.pressAndDeliver("right")
-	h.pressAndDeliver("right")
+	h.pressAndDeliver("left")
 	h.pressAndDeliver("enter")
 	if want := []setup.Adding{{Label: "Work", Plan: "ultra"}}; !reflect.DeepEqual(h.steps.adds, want) {
 		t.Fatalf("CheckAdding was asked %+v, want %+v", h.steps.adds, want)

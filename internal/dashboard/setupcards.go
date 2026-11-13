@@ -64,7 +64,7 @@ type SetupReserveCard struct {
 
 // SetupAddCard is the card adding an account, open over the Accounts page,
 // as it stands: its fields, Label as typed, Plan the plan chosen of Plans,
-// those it offers, and its Pool, where it has one; the field chosen; and
+// those it offers, "" for none, and its Pool, where it has one; the field chosen; and
 // where setup refused a value, why, as Why says, under the field Refused
 // names.
 type SetupAddCard struct {
@@ -288,13 +288,21 @@ func (f cardFocus) poolRows(width int, pool *SetupPool) []line {
 		return nil
 	}
 	rows := []line{optionsRow(width, poolName, pool.Options, pool.Chosen, f.chosen == setup.PoolField), hintUnder(width, pool.Hint)}
-	if f.refused == setup.PoolField {
-		wrong := line{{f.why, errorInk}}
-		for _, l := range wrong.wrap(width - valueAt(width)) {
-			rows = append(rows, append(line{spaces(valueAt(width))}, l...))
-		}
+	return append(append(rows, f.whyUnder(setup.PoolField, width)...), nil)
+}
+
+// whyUnder is why setup refused the value of the choice of the field given,
+// where it did, on the rows under it, width cells wide, from its value's
+// column: none where it didn't.
+func (f cardFocus) whyUnder(of setup.Field, width int) []line {
+	if f.refused != of {
+		return nil
 	}
-	return append(rows, nil)
+	var rows []line
+	for _, l := range (line{{f.why, errorInk}}).wrap(width - valueAt(width)) {
+		rows = append(rows, append(line{spaces(valueAt(width))}, l...))
+	}
+	return rows
 }
 
 // poolKeys are a card's keys, given, but where Pool is on new pool, for
@@ -340,7 +348,8 @@ func (a SetupAddCard) card(width int) *setupCard {
 	k := &setupCard{card: Card{title: "ADD AN ACCOUNT", width: width, keys: poolKeys(addKeys, a.Pool)}}
 	k.card.body = append(line{{addCardIntro, mutedInk}}.wrap(content), nil)
 	k.text(focus.textField(setup.LabelField, labelName, labelHint, a.Label), 0, content)
-	k.card.body = append(k.card.body, nil, focus.planRow(content, a.Plans, a.Plan), nil)
+	k.card.body = append(k.card.body, nil, focus.planRow(content, a.Plans, a.Plan))
+	k.card.body = append(append(k.card.body, focus.whyUnder(setup.PlanField, content)...), nil)
 	k.card.body = append(k.card.body, focus.poolRows(content, a.Pool)...)
 	for _, l := range addTokenSays {
 		k.card.body = append(k.card.body, l.wrap(content)...)

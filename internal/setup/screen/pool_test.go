@@ -20,6 +20,7 @@ func pooledSteps() *fakeSteps {
 		{ID: "b2n8", Label: "Default"},
 		{ID: "q7mt", Label: "Acme", Dirs: []string{"/home/user/Code/acme"}, WrittenDirs: []string{"~/Code/acme"}},
 	}
+	steps.review.First = "b2n8"
 	accounts := slices.Clone(steps.review.Accounts)
 	for i := range accounts {
 		accounts[i].Pool = "b2n8"
@@ -93,7 +94,7 @@ func TestTheAddCardsPool(t *testing.T) {
 		t.Errorf("the card reads\n%s\nwant Default's hint", strings.Join(cardRows(h), "\n"))
 	}
 	h.typeIn("Acme 3")
-	for _, k := range []string{"tab", "tab", "right"} {
+	for _, k := range []string{"tab", "left", "tab", "right"} {
 		h.pressAndDeliver(k)
 	}
 	if got := h.model.add.chosen; got != setup.PoolField {
@@ -103,7 +104,7 @@ func TestTheAddCardsPool(t *testing.T) {
 		t.Errorf("Acme chosen, the card reads\n%s\nwant Acme's hint", strings.Join(cardRows(h), "\n"))
 	}
 	h.pressAndDeliver("enter")
-	if want := []setup.Adding{{Label: "Acme 3", Plan: "pro", Pool: "q7mt"}}; !reflect.DeepEqual(h.steps.adds, want) {
+	if want := []setup.Adding{{Label: "Acme 3", Plan: "ultra", Pool: "q7mt"}}; !reflect.DeepEqual(h.steps.adds, want) {
 		t.Errorf("CheckAdding was asked %+v, want %+v", h.steps.adds, want)
 	}
 }
@@ -145,7 +146,7 @@ func TestTheAddCardsPoolAsItOpens(t *testing.T) {
 func TestTheNewPoolCardFromTheAddCard(t *testing.T) {
 	h := addingPooled(t, pooledSteps())
 	h.typeIn("Client 1")
-	for _, k := range []string{"tab", "tab", "right", "right"} {
+	for _, k := range []string{"tab", "left", "tab", "right", "right"} {
 		h.pressAndDeliver(k)
 	}
 	if rows := cardRows(h); !strings.Contains(rows[len(rows)-1], "enter new pool") {
@@ -250,7 +251,7 @@ func TestTheEditCardsPoolAndPrimary(t *testing.T) {
 	for _, want := range []string{
 		"  Pool      □ Default    ■ Acme    □ Spare    □ new pool",
 		"            moving it takes its sessions off at once",
-		"            Acme's sessions start on it; the Claude apps sign in to it",
+		"            Acme's sessions start on it",
 	} {
 		if !strings.Contains(rows, want) {
 			t.Errorf("the card reads\n%s\nwant %q", rows, want)
@@ -259,8 +260,8 @@ func TestTheEditCardsPoolAndPrimary(t *testing.T) {
 	h.pressAndDeliver("tab")
 	h.pressAndDeliver("tab")
 	h.pressAndDeliver("left")
-	if got := h.cardRow("Primary"); got != "  Primary   ■ no    □ yes" || !strings.Contains(strings.Join(cardRows(h), "\n"), "Default's sessions start on it") {
-		t.Errorf("Default chosen, Primary reads %q, want no, its hint Default's", got)
+	if got := h.cardRow("Primary"); got != "  Primary   ■ no    □ yes" || !strings.Contains(strings.Join(cardRows(h), "\n"), "Default's sessions start on it; the Claude apps sign in to it") {
+		t.Errorf("Default chosen, Primary reads %q, want no, its hint Default's, the first pool, the Claude apps' too", got)
 	}
 	h.pressAndDeliver("enter")
 	if edits := h.steps.edits; len(edits) != 1 || edits[0].edit.Pool == nil || *edits[0].edit.Pool != "b2n8" || edits[0].edit.Primary {

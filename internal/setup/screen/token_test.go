@@ -295,10 +295,11 @@ func TestATokensMakingWaitsForTheAccountsChecks(t *testing.T) {
 					}
 					h.pressAndDeliver("enter")
 					h.typeIn("team")
+					choosingUltra(h)
 				}
 				h.pressAndDeliver("enter")
 			},
-			want: setup.TokenFor{Account: config.NewAccount{Label: "team", Plan: "pro"}, Add: true},
+			want: setup.TokenFor{Account: config.NewAccount{Label: "team", Plan: "ultra"}, Add: true},
 		},
 	}
 	for _, tt := range tests {
@@ -575,6 +576,8 @@ func TestATokenMadeAddsTheAccount(t *testing.T) {
 	h := firstRun(t)
 	h.steps.making = fakeMaking{steps: []setup.Making{{Step: setup.AddressReady, Opened: setuptoken.OpenedInBrowser, For: "Work"}, approving, madeIt, checkIt}, ends: &saved}
 	h.typeIn("Work")
+	h.pressAndDeliver("tab")
+	h.pressAndDeliver("right")
 	h.pressAndDeliver("enter")
 	h.hearAll(5)
 	if h.model.token != nil || h.model.add != nil {
@@ -603,6 +606,7 @@ func TestTheRowChosenMovesToTheAccountAdded(t *testing.T) {
 	}
 	h.pressAndDeliver("enter")
 	h.typeIn("team")
+	choosingUltra(h)
 	h.pressAndDeliver("enter")
 	if got := h.steps.nextMake(t); got.Account.Label != "team" || !got.Add {
 		t.Fatalf("MakeToken was asked %+v, want team's token, to add it", got)

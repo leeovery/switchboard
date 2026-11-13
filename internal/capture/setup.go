@@ -81,6 +81,7 @@ var setupScreens = []setupScreen{
 	{name: "setup-review-160", size: wide(37), step: dashboard.SetupAccounts, steps: reviewed, keys: keysOf("j", "j")},
 	{name: "setup-edit-160", size: wide(37), step: dashboard.SetupAccounts, steps: reviewed, keys: slices.Concat(keysOf("j", "e"), []tea.KeyPressMsg{tabKey, leftKey, leftKey}), card: "EDIT PERSONAL", cardKeys: "tab next   ←→ select   enter save   esc cancel"},
 	{name: "setup-add-160", size: wide(37), step: dashboard.SetupAccounts, steps: pooledReview, keys: addingAcme3(), card: "ADD AN ACCOUNT", cardKeys: "tab next   enter create token   esc cancel"},
+	{name: "setup-add-one-pool-160", size: wide(37), step: dashboard.SetupAccounts, steps: onePoolReview, keys: addingSpare(), card: "ADD AN ACCOUNT", cardKeys: "tab next   enter create token   esc cancel"},
 	{name: "setup-new-pool-160", size: wide(37), step: dashboard.SetupAccounts, steps: pooledReview, keys: makingClient(), card: "NEW POOL", cardKeys: "tab next   enter create pool   esc back"},
 	{name: "setup-edit-pool-160", size: wide(37), step: dashboard.SetupAccounts, steps: pooledReview, keys: slices.Concat(repeated(downKey, 4), keysOf("e"), repeated(tabKey, 2)), card: "EDIT ACME 2", cardKeys: "tab next   ←→ select   enter save   esc cancel"},
 	{name: "setup-reserve-160", size: wide(37), step: dashboard.SetupAccounts, steps: addingThree, keys: slices.Concat(addedThree(), repeated(upKey, 2), keysOf("p"), []tea.KeyPressMsg{enterKey}, keysOf("5", "%")), card: "RESERVE · WORK", cardKeys: "enter save   esc no reserve"},
@@ -108,7 +109,7 @@ type setupShown struct {
 // typingWork are the keys that type work into the add card, as frame 1 has
 // it: its Label, then Ultra chosen.
 func typingWork() []tea.KeyPressMsg {
-	return slices.Concat(keysOf("W", "o", "r", "k"), []tea.KeyPressMsg{tabKey}, repeated(rightKey, 2))
+	return slices.Concat(keysOf("W", "o", "r", "k"), []tea.KeyPressMsg{tabKey, leftKey})
 }
 
 // addingAcme3 are the keys that open the add card over the review by pool,
@@ -117,8 +118,19 @@ func typingWork() []tea.KeyPressMsg {
 func addingAcme3() []tea.KeyPressMsg {
 	return slices.Concat(
 		repeated(downKey, 5), []tea.KeyPressMsg{enterKey},
-		keysOf(strings.Split("Acme 3", "")...), []tea.KeyPressMsg{tabKey}, repeated(rightKey, 2),
+		keysOf(strings.Split("Acme 3", "")...), []tea.KeyPressMsg{tabKey, leftKey},
 		[]tea.KeyPressMsg{tabKey, rightKey},
+	)
+}
+
+// addingSpare are the keys that open the add card over the review of one
+// pool, from + add an account, type Spare into it, choose Max, and choose
+// Pool, on Default, the one pool, beside new pool.
+func addingSpare() []tea.KeyPressMsg {
+	return slices.Concat(
+		repeated(downKey, 3), []tea.KeyPressMsg{enterKey},
+		keysOf(strings.Split("Spare", "")...), []tea.KeyPressMsg{tabKey}, repeated(leftKey, 2),
+		[]tea.KeyPressMsg{tabKey},
 	)
 }
 
@@ -129,7 +141,7 @@ func addingAcme3() []tea.KeyPressMsg {
 func makingClient() []tea.KeyPressMsg {
 	return slices.Concat(
 		repeated(downKey, 5), []tea.KeyPressMsg{enterKey},
-		keysOf(strings.Split("Client 1", "")...), []tea.KeyPressMsg{tabKey}, repeated(rightKey, 2),
+		keysOf(strings.Split("Client 1", "")...), []tea.KeyPressMsg{tabKey, leftKey},
 		[]tea.KeyPressMsg{tabKey}, repeated(rightKey, 2), []tea.KeyPressMsg{enterKey},
 		keysOf(strings.Split("Client", "")...), []tea.KeyPressMsg{tabKey},
 		keysOf(strings.Split("~/Code/client", "")...),
@@ -137,13 +149,13 @@ func makingClient() []tea.KeyPressMsg {
 }
 
 // addingPersonal are the keys that add work on a first run, as typingWork
-// types it, its token made, then add personal, its Label typed, from + add
-// an account, to have its token made.
+// types it, its token made, then add personal, its Label typed and Max
+// chosen, from + add an account, to have its token made.
 func addingPersonal() []tea.KeyPressMsg {
 	return slices.Concat(
 		typingWork(), []tea.KeyPressMsg{enterKey},
 		[]tea.KeyPressMsg{downKey, enterKey},
-		keysOf(strings.Split("Personal", "")...), []tea.KeyPressMsg{enterKey},
+		keysOf(strings.Split("Personal", "")...), []tea.KeyPressMsg{tabKey}, repeated(leftKey, 2), []tea.KeyPressMsg{enterKey},
 	)
 }
 
@@ -151,14 +163,14 @@ func addingPersonal() []tea.KeyPressMsg {
 // it, then personal on Max and side on Pro, from + add an account, each
 // token made, leaving side's row chosen.
 func addedThree() []tea.KeyPressMsg {
-	adding := func(label string, rights int) []tea.KeyPressMsg {
+	adding := func(label string, lefts int) []tea.KeyPressMsg {
 		return slices.Concat(
 			[]tea.KeyPressMsg{downKey, enterKey},
 			keysOf(strings.Split(label, "")...),
-			[]tea.KeyPressMsg{tabKey}, repeated(rightKey, rights), []tea.KeyPressMsg{enterKey},
+			[]tea.KeyPressMsg{tabKey}, repeated(leftKey, lefts), []tea.KeyPressMsg{enterKey},
 		)
 	}
-	return slices.Concat(typingWork(), []tea.KeyPressMsg{enterKey}, adding("Personal", 1), adding("Side", 0))
+	return slices.Concat(typingWork(), []tea.KeyPressMsg{enterKey}, adding("Personal", 2), adding("Side", 3))
 }
 
 // called is the fixture's name.
@@ -418,6 +430,7 @@ func pooledReview(now time.Time) setupSteps {
 		{ID: "b2n8", Label: "Default"},
 		{ID: "q7mt", Label: "Acme", Dirs: []string{home + "/Code/acme"}, WrittenDirs: []string{"~/Code/acme"}},
 	}
+	steps.review.First = "b2n8"
 	accounts := slices.Clone(steps.review.Accounts)
 	for i := range accounts {
 		accounts[i].Pool = "b2n8"
@@ -429,6 +442,20 @@ func pooledReview(now time.Time) setupSteps {
 	steps.checked = maps.Clone(steps.checked)
 	steps.checked["acme1"] = setup.TokenStanding{State: setup.TokenWorking}
 	steps.checked["acme2"] = setup.TokenStanding{State: setup.TokenWorking}
+	return steps
+}
+
+// onePoolReview are the steps as reviewed has them, at now, in one pool,
+// Default, unfenced, as the move to pools leaves them: the table and the
+// edit card have no Pool, but the add card has, to make a second.
+func onePoolReview(now time.Time) setupSteps {
+	steps := reviewed(now)
+	steps.review.Pools, steps.review.First = config.Pools{{ID: "b2n8", Label: "Default"}}, "b2n8"
+	accounts := slices.Clone(steps.review.Accounts)
+	for i := range accounts {
+		accounts[i].Pool = "b2n8"
+	}
+	steps.review.Accounts = accounts
 	return steps
 }
 

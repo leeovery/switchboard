@@ -83,8 +83,11 @@ func moved(key tea.KeyPressMsg) (by int, ok bool) {
 
 // planMoved is the plan by options on from plan, by their places among
 // the plans offered, as many as given, no further than the first or the
-// last.
+// last: from none chosen, noPlan, ← chooses the last and → the first.
 func planMoved(plan, by, plans int) int {
+	if plan == noPlan && by < 0 {
+		return plans - 1
+	}
 	return min(max(plan+by, 0), plans-1)
 }
 
@@ -154,7 +157,7 @@ func (c editCard) primaryHint() string {
 		return ""
 	}
 	if p, ok := c.pool.choice(); ok {
-		return setup.PrimaryHint(p.Label)
+		return p.PrimaryHint()
 	}
 	return ""
 }

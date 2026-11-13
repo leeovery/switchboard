@@ -686,13 +686,17 @@ func (s *fakeSteps) Skill() (setup.Said, error) {
 
 // CheckAdding keeps the account, and gives it as setup does, its plan read
 // as config.ParsePlan reads it, in the pool chosen, or with the new pool
-// made for it, adding nothing.
+// made for it, adding nothing: refused, as setup refuses it, where no plan's
+// chosen.
 func (s *fakeSteps) CheckAdding(adding setup.Adding) (accounts.Adding, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.adds = append(s.adds, adding)
-	if s.addErr != nil {
+	switch {
+	case s.addErr != nil:
 		return accounts.Adding{}, s.addErr
+	case adding.Plan == "":
+		return accounts.Adding{}, &setup.Refused{Field: setup.PlanField, Why: setup.PlanUnchosen}
 	}
 	plan, err := config.ParsePlan(adding.Plan)
 	return accounts.Adding{Account: config.NewAccount{Label: adding.Label, Plan: plan, Pool: adding.Pool}, NewPool: adding.NewPool}, err

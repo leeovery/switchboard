@@ -19,7 +19,7 @@ ACCOUNTS  ───────────────────────�
     Acme  ~/Code/acme                   │            moving it takes its sessions off at once                          │
                                         │                                                                              │
     Acme 1 ◆        Ultra      none     │  Primary   ■ no    □ yes                                                     │
-                                        │            Acme's sessions start on it; the Claude apps sign in to it        │
+                                        │            Acme's sessions start on it                                       │
 ▌   Acme 2          Ultra      none     │                                                                              │
                                         │  Reserve   none                      usage kept back for the Claude apps     │
   + add an account                      │                                                                              │

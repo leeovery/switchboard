@@ -236,7 +236,9 @@ func isRefusedOf(err error, field setup.Field) bool {
 // The review has the config's pools, in its order, and the accounts by pool,
 // each pool's in the config's order, each pool's primary its own: the one
 // marked, else one alone; a pool of two or more, none marked, has none, and
-// a note says so, led by its label, the review waiting for one.
+// a note says so, led by its label, the review waiting for one, the Claude
+// apps signing in to the first pool's alone, the one the accounts record
+// notes, else the config's first.
 func TestTheReviewGroupsTheAccountsByPool(t *testing.T) {
 	w := newWorld(t)
 	w.writeConfig(t, "[[account]]\nid = \"work\"\nlabel = \"Work\"\nprimary = true\npool = \"b2n8\"\n\n"+
@@ -264,8 +266,17 @@ func TestTheReviewGroupsTheAccountsByPool(t *testing.T) {
 		t.Errorf("the review's pools are %q, unmarked %t; want the config's three, Acme unmarked", review.Pools.IDs(), review.Unmarked)
 	}
 	notes := review.Notes()
-	if len(notes) == 0 || notes[0].Label != "Acme" || notes[0].Says != "has no primary, the account its sessions start on and the Claude apps sign in to." {
-		t.Errorf("the first note is %+v, want Acme's, that it has no primary", notes[0])
+	if len(notes) == 0 || notes[0].Label != "Acme" || notes[0].Says != "has no primary, the account its sessions start on." || review.First != "b2n8" {
+		t.Errorf("the first note is %+v, the first pool %q; want Acme's, that it has no primary, Default the first", notes[0], review.First)
+	}
+
+	w.noteFirst(t, "q7mt")
+	if review, err = w.setup(t).Review(); err != nil {
+		t.Fatalf("Review() error = %v", err)
+	}
+	notes = review.Notes()
+	if len(notes) == 0 || notes[0].Says != "has no primary, the account its sessions start on and the Claude apps sign in to." || review.First != "q7mt" {
+		t.Errorf("Acme noted the first, the first note is %+v, the first pool %q; want Acme's, the Claude apps signing in to it", notes[0], review.First)
 	}
 }
 

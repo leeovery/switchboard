@@ -99,6 +99,10 @@ func AddPlans() []string {
 	return slices.Clone(config.Plans)
 }
 
+// PlanUnchosen is why an account to add is refused where no plan's chosen:
+// the add card opens on none, so the plan is the user's to say.
+const PlanUnchosen = "choose the plan its subscription is on"
+
 // Refused is the error of an account to add, its edit, or its removal, or
 // of a pool to make, that config refuses: of the value of Field, where it's
 // a value's, of a pool's directories the one at Dir among them, and why, as

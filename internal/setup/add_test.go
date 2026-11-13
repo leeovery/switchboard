@@ -48,7 +48,8 @@ func TestCheckAddingWritesNothing(t *testing.T) {
 
 // A value refused is a Refused, of its field, saying why alone, the label
 // held to accounts add's rules: required, as config takes it, and no other
-// configured account's, ignoring case; and nothing is written.
+// configured account's, ignoring case; the plan one, and chosen, its being
+// none said once the rest passes; and nothing is written.
 func TestCheckAddingRefuses(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -62,6 +63,8 @@ func TestCheckAddingRefuses(t *testing.T) {
 		{name: "another account's label, in another case", adding: setup.Adding{Label: "side", Plan: config.PlanNone}, field: setup.LabelField, why: "another account has that label already, ignoring case: give each its own"},
 		{name: "a plan config doesn't know", adding: setup.Adding{Label: "Spare", Plan: "max10x"}, field: setup.PlanField, why: "must be pro, max, ultra or none"},
 		{name: "a wrong plan and a wrong label, the plan said", adding: setup.Adding{Label: "  ", Plan: "max10x"}, field: setup.PlanField, why: "must be pro, max, ultra or none"},
+		{name: "no plan chosen", adding: setup.Adding{Label: "Spare"}, field: setup.PlanField, why: setup.PlanUnchosen},
+		{name: "no plan chosen and a wrong label, the label said", adding: setup.Adding{Label: "side"}, field: setup.LabelField, why: "another account has that label already, ignoring case: give each its own"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
