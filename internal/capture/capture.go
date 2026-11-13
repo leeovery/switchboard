@@ -402,7 +402,8 @@ func (p page) fixture(worlds accountWorlds) Fixture {
 // Switchboard on an iPad and its List at 90 × 40; the Log's Requests at 90 ×
 // 40; and d28c's page on an iPad. And over the world of long names, so a
 // cut name shows, the Switchboard, the List and the Log's Requests on an
-// iPad.
+// iPad. And over the world of sizable values, the List at 200 columns, a
+// worth past $100 with its +, sonnet-5-5 and a compaction's move among it.
 var pages = []page{
 	{name: "overview-default-160", size: wide(37), world: accountWorlds.auto},
 	{name: "overview-pinned-160", size: wide(37), world: accountWorlds.pinned},
@@ -526,6 +527,7 @@ var pages = []page{
 	{name: "sessions-list-90x40", size: watch.Size{Width: 90, Height: 40}, world: accountWorlds.scene, keys: toSessions("]")},
 	{name: "sessions-switchboard-long-names-108x44", size: watch.Size{Width: 108, Height: 44}, world: accountWorlds.longNames, keys: toSessions()},
 	{name: "sessions-list-long-names-108x44", size: watch.Size{Width: 108, Height: 44}, world: accountWorlds.longNames, keys: toSessions("]")},
+	{name: "sessions-list-sizable-200", size: watch.Size{Width: 200, Height: 37}, world: accountWorlds.sizableValues, keys: toSessions("]")},
 	{
 		name: "sessions-ten-accounts-160", size: wide(37), world: accountWorlds.ten, before: lookedAway(time.Minute), keys: cameBack,
 		looked: &looked{listed: inTheFramesOrder(tenSessions)},

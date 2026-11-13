@@ -25,14 +25,16 @@ func unknownModel(l ledger.Line) ledger.Line {
 
 // rowWords runs a row's words together, each part's kind marked, so a test
 // sees both what they say and how each is drawn: what's named in brackets,
-// what stands between in braces, what a request in flight is doing in angle
-// brackets, and what a move cost in parentheses.
+// an account in guillemets, what stands between in braces, what a request
+// in flight is doing in angle brackets, and what a move cost in parentheses.
 func rowWords(w views.RowWords) string {
 	var b strings.Builder
 	for _, p := range w {
 		switch p.Kind {
 		case views.RowNamed:
 			b.WriteString("[" + p.Text + "]")
+		case views.RowAccount:
+			b.WriteString("«" + p.Text + "»")
 		case views.RowBetween:
 			b.WriteString("{" + p.Text + "}")
 		case views.RowDoing:
@@ -74,7 +76,8 @@ func TestARequestsRowHoldsItsLinesFacts(t *testing.T) {
 		First: new(800 * time.Millisecond), Took: new(11800 * time.Millisecond),
 		Read: 100000, Written: 1000, Out: 500, Input: 10, Metered: true, Worth: priced(hourWorth), Stop: "tool_use", Tool: "Bash", More: 2,
 		Attempts: 2, Size: 482_000, Messages: 12, Tools: 9, Thinking: 16_000, Agent: "claude-cli/2.1.0",
-		NewSession: true, Routing: views.RoutingSaid{Words: status.RoutingWords(status.ReasonNew, status.Facts{})}, Mark: views.MarkNew,
+		NewSession: true, Routing: views.RoutingSaid{Words: status.RoutingWords(status.ReasonNew, status.Facts{}), Brief: status.BriefWords(status.ReasonNew, status.Facts{})},
+		Mark: views.MarkNew,
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("the row is\n%+v\nwant\n%+v", got, want)
@@ -305,10 +308,10 @@ func TestStoppedSaysWhyItsAnswerStoppedOrWhatItsDoing(t *testing.T) {
 			folded: "tool use{ · }[Ba sh]"},
 		{name: "a session's first: its routing folded in", row: lined(stopped("tool_use", first, "Bash")), wide: "tool_use{ · }[Bash]", brief: "new session",
 			folded: "new session"},
-		{name: "a move, its cache cold: its routing folded in", row: cold, wide: "end_turn", brief: "from [work]", folded: "from [work], at its cap"},
-		{name: "a move, costed: its cost folded in whole", row: costed, wide: "end_turn", brief: "from [work]", folded: "from [work], at its cap" + paid},
-		{name: "sent again after a limit, every account refusing: its routing folded in", row: lined(refused), brief: "after [work]'s limit",
-			folded: "after [work]'s limit"},
+		{name: "a move, its cache cold: its routing folded in", row: cold, wide: "end_turn", brief: "from «work»", folded: "from «work», at its cap"},
+		{name: "a move, costed: its cost folded in whole", row: costed, wide: "end_turn", brief: "from «work»", folded: "from «work», at its cap" + paid},
+		{name: "sent again after a limit, every account refusing: its routing folded in", row: lined(refused), brief: "after «work»'s limit",
+			folded: "after «work»'s limit"},
 		{name: "asking", row: toldDoing(time.Time{}, 0, false), wide: "<asking>", brief: "<asking>", folded: "<asking>"},
 		{name: "answering, no characters counted yet", row: toldDoing(sent.Add(time.Second), 0, false), wide: "<answering>", brief: "<answering>",
 			folded: "<answering>"},
@@ -425,9 +428,9 @@ func TestARowsRoutingSaysWhatItsMoveCostOrThatItsUnpriced(t *testing.T) {
 		routing views.RoutingSaid
 		want    string
 	}{
-		{name: "priced", routing: views.RoutingSaid{Words: words, Cost: &cost, Rewrote: true}, want: "from [work], at its cap  ($1.82)"},
-		{name: "unpriced", routing: views.RoutingSaid{Words: words, Rewrote: true}, want: "from [work], at its cap  (unpriced)"},
-		{name: "not written again", routing: views.RoutingSaid{Words: words}, want: "from [work], at its cap"},
+		{name: "priced", routing: views.RoutingSaid{Words: words, Cost: &cost, Rewrote: true}, want: "from «work», at its cap  ($1.82)"},
+		{name: "unpriced", routing: views.RoutingSaid{Words: words, Rewrote: true}, want: "from «work», at its cap  (unpriced)"},
+		{name: "not written again", routing: views.RoutingSaid{Words: words}, want: "from «work», at its cap"},
 	}
 	for _, tt := range tests {
 		if got := rowWords(tt.routing.Said()); got != tt.want {
@@ -512,29 +515,31 @@ func TestTheListsMarkAndRoutingAreAsTheLogsRowSaysThem(t *testing.T) {
 		r := views.Told{Request: "r2", Session: mover, Model: opus, Account: "side", Sent: seen, Heard: seen, Verdict: v, Status: 429}
 		return views.Stream{Live: true, Requests: map[string]views.Told{"r2": r}}
 	}
-	movedCost := "  " + cost(hourWrite).Cents()
+	movedCost, briefCost := "  "+cost(hourWrite).Cents(), "  ("+cost(hourWrite).Cents()+")"
 	tests := []struct {
-		name    string
-		lines   []ledger.Line
-		running []status.Session
-		stream  views.Stream
-		mark    views.RowMark
-		routing string
+		name           string
+		lines          []ledger.Line
+		running        []status.Session
+		stream         views.Stream
+		mark           views.RowMark
+		routing, brief string
 	}{
 		{name: "idle where it started", lines: []ledger.Line{started}, running: onSide("sticky", "")},
 		{name: "asking, moved there", lines: []ledger.Line{started, moved}, running: onSide("sticky", status.Asking), mark: views.MarkAsking,
-			routing: "from [work], at its limit" + movedCost},
+			routing: "from [work], at its limit" + movedCost, brief: "from «work» · at its limit" + briefCost},
 		{name: "answering", lines: []ledger.Line{started}, running: onSide("sticky", status.Answering), mark: views.MarkAnswering},
 		{name: "refused at a limit, to go out again", lines: []ledger.Line{started}, running: onSide("sticky", status.Asking),
 			stream: verdict(views.VerdictLimited), mark: views.MarkAsking},
 		{name: "throttled, to go out again", lines: []ledger.Line{started}, running: onSide("sticky", status.Asking),
 			stream: verdict(views.VerdictThrottled), mark: views.MarkAsking},
 		{name: "idle, moved there", lines: []ledger.Line{started, moved}, running: onSide("sticky", ""), mark: views.MarkMoved,
-			routing: "from [work], at its limit" + movedCost},
+			routing: "from [work], at its limit" + movedCost, brief: "from «work» · at its limit" + briefCost},
 		{name: "idle, moved there by a request sent again after a limit", lines: []ledger.Line{started, retried}, running: onSide("sticky", ""),
-			mark: views.MarkMoved, routing: "after [work]'s limit" + movedCost},
-		{name: "pinned there on its own", lines: []ledger.Line{started}, running: onSide(status.ReasonPinned, ""), routing: "pinned here"},
-		{name: "ended, moved there", lines: []ledger.Line{started, moved}, mark: views.MarkMoved, routing: "from [work], at its limit" + movedCost},
+			mark: views.MarkMoved, routing: "after [work]'s limit" + movedCost,
+			brief: "from «work» · at its limit" + briefCost},
+		{name: "pinned there on its own", lines: []ledger.Line{started}, running: onSide(status.ReasonPinned, ""), routing: "pinned here", brief: "pinned"},
+		{name: "ended, moved there", lines: []ledger.Line{started, moved}, mark: views.MarkMoved, routing: "from [work], at its limit" + movedCost,
+			brief: "from «work» · at its limit" + briefCost},
 	}
 	for _, tt := range tests {
 		list := views.ListSessions(views.SessionSources{
@@ -545,6 +550,9 @@ func TestTheListsMarkAndRoutingAreAsTheLogsRowSaysThem(t *testing.T) {
 		}
 		if s := list.Sessions[0]; s.Mark != tt.mark || routingWords(s.Routing) != tt.routing {
 			t.Errorf("%s: the List marks it %q, routed %q, want %q, routed %q", tt.name, s.Mark, routingWords(s.Routing), tt.mark, tt.routing)
+		}
+		if brief := rowWords(list.Sessions[0].Routing.BriefSaid()); brief != tt.brief {
+			t.Errorf("%s: the List routes it briefly %q, want %q", tt.name, brief, tt.brief)
 		}
 	}
 }

@@ -354,7 +354,7 @@ func (f Frame) wideRunning(c *canvas, m status.Moment, r views.Running, at runni
 		spaces(beforeDoing),
 		{padded(doing.text, doingCells), doing.ink},
 	}))
-	c.line(at.why, y, line{{r.Why.String(), dimInk}}.fit(at.whyCells))
+	c.line(at.why, y, line{{namedSaid(r.Why, m), dimInk}}.fit(at.whyCells))
 	faded, t := outOfPool(m, r.Account), f.Traces.Sessions[r.Session]
 	trace := bounds{x: at.trace, y: y, width: at.traceCells, rows: 1}
 	f.drawTrace(c, t, now, trace, faded)
@@ -370,7 +370,7 @@ func (f Frame) narrowRunning(c *canvas, m status.Moment, r views.Running, at run
 	column := at.names
 	c.line(column, y, runningNamed(r, m.Now, at.named))
 	c.right(f.Width, y, line{runningDoing(r.Activity)})
-	c.line(column, y+1, line{{r.Why.String(), dimInk}}.fit(f.Width-column))
+	c.line(column, y+1, line{{namedSaid(r.Why, m), dimInk}}.fit(f.Width-column))
 }
 
 // runningNamed names the session running r in the cells given, as

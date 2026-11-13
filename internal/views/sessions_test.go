@@ -292,7 +292,8 @@ var routed = []status.Session{
 // account given to the one given, that cost what's given, its session's
 // context written again where it cost anything.
 func routingSaid(reason, from, to string, c *ledger.Picodollars) views.RoutingSaid {
-	return views.RoutingSaid{Words: status.RoutingWords(reason, status.Facts{From: from, To: to}), From: from, Cost: c, Rewrote: c != nil}
+	facts := status.Facts{From: from, To: to}
+	return views.RoutingSaid{Words: status.RoutingWords(reason, facts), Brief: status.BriefWords(reason, facts), From: from, Cost: c, Rewrote: c != nil}
 }
 
 // utc is t in UTC, as the List gives its times.

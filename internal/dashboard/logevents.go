@@ -187,7 +187,7 @@ func eventCell(e views.LogEvent, part eventsPart, width int, m status.Moment, no
 	case eventsAccount:
 		return accountCell(e, width, m)
 	}
-	return whatHappened(e, width)
+	return whatHappened(e, width, m)
 }
 
 // accountCell is the account the event e befell, in width cells, each
@@ -212,17 +212,21 @@ func accountCell(e views.LogEvent, width int, m status.Moment) line {
 	return l.fit(width)
 }
 
-// whatHappened is what happened of the event e, in width cells, in
-// text.muted, the accounts it names muted too, as the account column
-// carries the white: a window's use bold in its level's colour; the
-// sessions its moves counted brightening as they rise, the number they are;
-// and three cells on, what a move came to, as its MoveSaid says, kept whole
-// as what comes before it is cut.
-func whatHappened(e views.LogEvent, width int) line {
+// whatHappened is what happened of the event e, in width cells, of the
+// moment m, in text.muted, the accounts it names muted too, each named as m
+// names it, cut as asLabelled cuts it, as the account column carries the
+// white: a window's use bold in its level's colour; the sessions its moves
+// counted brightening as they rise, the number they are; and three cells on,
+// what a move came to, as its MoveSaid says, kept whole as what comes before
+// it is cut.
+func whatHappened(e views.LogEvent, width int, m status.Moment) line {
+	name := func(id string) string { return named(m, id) }
 	var said line
 	for _, p := range e.Line.What {
 		part := span{p.Text, mutedInk}
 		switch p.Kind {
+		case status.PartAccount:
+			part.text = asLabelled(name(p.Text))
 		case status.PartUse:
 			part.ink = usedInk(e.Use, ink{token: theme.VizRamp1, bold: true})
 		case status.PartFigure:
@@ -234,7 +238,7 @@ func whatHappened(e views.LogEvent, width int) line {
 	if len(cached) == 0 {
 		return costKept(said, false, width)
 	}
-	return costKept(slices.Concat(said, line{spaces(movedApart)}, rowLine(cached)), true, width)
+	return costKept(slices.Concat(said, line{spaces(movedApart)}, rowLine(cached, name)), true, width)
 }
 
 // eventKeyed names an event by its key, as a number on its row is of it:
