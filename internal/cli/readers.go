@@ -63,15 +63,21 @@ func (a *app) ledgerFirst(dir string, pools func() config.Pools) ledger.Option {
 	return ledger.FirstPool(sync.OnceValue(func() string { return a.firstPool(dir, pools()) }))
 }
 
-// newStateReaders returns readers of the request ledger, the readings history
-// and the router's events in the state directory, by the commands' clock, the
-// ledger's days summarised with the caps of the accounts cfg configures, and
-// its sessions resting on the states its digests hold, of the version the
-// views build them in, knowing the first pool as ledgerFirst has it of cfg's
-// pools as they stand, as standing has them. It fails where there's no state
-// directory to find, and while the history waits on its move onto the
-// accounts' ids.
+// newStateReaders returns a verb's readers, as stateReadersKnowing has them,
+// the ledger knowing the first pool as ledgerFirst has it, read once.
 func (a *app) newStateReaders(ctx context.Context, cfg *config.Config) (stateReaders, error) {
+	return a.stateReadersKnowing(ctx, cfg, a.ledgerFirst)
+}
+
+// stateReadersKnowing returns readers of the request ledger, the readings
+// history and the router's events in the state directory, by the commands'
+// clock, the ledger's days summarised with the caps of the accounts cfg
+// configures, and its sessions resting on the states its digests hold, of
+// the version the views build them in, knowing the first pool as first has
+// it of cfg's pools as they stand, as standing has them, asked once. It fails
+// where there's no state directory to find, and while the history waits on
+// its move onto the accounts' ids.
+func (a *app) stateReadersKnowing(ctx context.Context, cfg *config.Config, first func(dir string, pools func() config.Pools) ledger.Option) (stateReaders, error) {
 	dir, err := config.StateDir(a.Getenv, a.HomeDir)
 	if err != nil {
 		return stateReaders{}, err
@@ -79,9 +85,9 @@ func (a *app) newStateReaders(ctx context.Context, cfg *config.Config) (stateRea
 	if err := historyMoved(dir); err != nil {
 		return stateReaders{}, err
 	}
-	pools := func() config.Pools { return a.standing(ctx, cfg).Pools }
+	pools := sync.OnceValue(func() config.Pools { return a.standing(ctx, cfg).Pools })
 	return stateReaders{
-		ledger:   ledger.NewFollower(dir, a.Now, caps(cfg), views.DigestVersion, logger, a.ledgerFirst(dir, pools)),
+		ledger:   ledger.NewFollower(dir, a.Now, caps(cfg), views.DigestVersion, logger, first(dir, pools)),
 		readings: readings.NewReader(dir, logger),
 		events:   events.NewReader(dir, a.Now, logger),
 		removed:  removedIn(dir, cfg),
@@ -123,11 +129,13 @@ func poolLabelsIn(dir string, cfg *config.Config) func(id string) string {
 }
 
 // readers has wc read the request ledger, the readings history and the
-// router's events where they lie, through newStateReaders' readers, the
-// events those of the pool the dashboard shows, as shownEvents has them.
-// Without a state directory to find, they read nothing.
+// router's events where they lie, through stateReadersKnowing's readers, the
+// ledger reading the first pool afresh at each ask, as idmove.FirstPool
+// does, as a dashboard may stay open across the move to pools or a pool's
+// removal; the events those of the pool the dashboard shows, as shownEvents
+// has them. Without a state directory to find, they read nothing.
 func (a *app) readers(ctx context.Context, wc *watch.Config, cfg *config.Config) {
-	r, err := a.newStateReaders(ctx, cfg)
+	r, err := a.stateReadersKnowing(ctx, cfg, idmove.FirstPool)
 	if err != nil {
 		logger.Debug("can't find the ledger, the readings history or the router's events", "error", err)
 		wc.Ledger, wc.Readings, wc.Events = ledger.NewEmpty(a.Now, caps(cfg)), readings.Empty{}, events.Empty{}

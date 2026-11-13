@@ -137,6 +137,11 @@ func TestWorkInNoPoolIsTheConfigsFirstOnceTheOneNotedIsRemoved(t *testing.T) {
 			t.Errorf("switchboard %s --json printed %s %q (%+v), want %q: those from before pools Acme's, the first now", strings.Join(tt.args, " "), tt.field, values, got, tt.want)
 		}
 	}
+	// The ledger's days give side's request from before pools to Acme too.
+	got := run(t, deps, "history", "--json", "--pool", "q7mt", "--since", "2026-10-07")
+	if accounts := historyAccounts(t, got); !slices.Contains(accounts, "side q7mt Acme s") {
+		t.Errorf("switchboard history --json --pool q7mt gave the accounts %q, want side's session from before pools in Acme", accounts)
+	}
 }
 
 // A damaged accounts record is read for the first pool once a verb, and
@@ -149,6 +154,40 @@ func TestTheFirstPoolIsReadOnceAVerb(t *testing.T) {
 	}
 	if log := readLog(t, deps, "cli.log"); strings.Count(log, "first pool") != 1 {
 		t.Errorf("cli.log reads\n%s\nwant the first pool unread warned of once", log)
+	}
+}
+
+// The dashboard's ledger reads the first pool afresh at each ask, as it may
+// stay open across the move to pools or a pool's removal: work in no pool is
+// the first's as the accounts record notes it then.
+func TestTheDashboardsLedgerReadsTheFirstPoolAfresh(t *testing.T) {
+	deps := pooledDeps(t, false)
+	cfg := recordWatch(t, &deps)
+	if got := run(t, deps, "dashboard"); got != (result{}) {
+		t.Fatalf("switchboard dashboard = %+v, want exit status 0 and nothing printed", got)
+	}
+	// side's sessions in Acme today: p1's, from before pools, once the first.
+	inAcme := func() int {
+		days := cfg.Ledger.Days(ledgerNow)
+		for _, a := range days[len(days)-1].Accounts {
+			if a.Account == "side" {
+				return a.InPool("q7mt", "").Sessions
+			}
+		}
+		return 0
+	}
+	if n := inAcme(); n != 0 {
+		t.Fatalf("side's day has %d sessions in Acme, want none while Default is the first", n)
+	}
+	err := identity.NewFile(stateDir(t, deps)).Update(func(r *identity.Record) error {
+		r.Pools = []identity.PoolEntry{{ID: "b2n8", Added: testNow, Here: true}, {ID: "q7mt", Added: testNow, First: true, Here: true}}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n := inAcme(); n != 1 {
+		t.Errorf("side's day has %d sessions in Acme once the record notes it the first, want p1's, 1", n)
 	}
 }
 

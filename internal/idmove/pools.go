@@ -512,7 +512,7 @@ func FirstPool(stateDir string, pools func() config.Pools) ledger.Option {
 	return ledger.FirstPool(func() string {
 		return FirstOf(pools(), firstPoolID(stateDir, func(err error) {
 			if !warned.Swap(true) {
-				logger.Warn("can't read the accounts record, so a day's work in no pool can't be given the first pool's", "error", err)
+				logger.Warn("can't read the accounts record, so a day's work in no pool is given the config's first pool, or no pool where it names none", "error", err)
 			}
 		}))
 	})
@@ -537,7 +537,7 @@ func FirstOf(pools config.Pools, noted string) string {
 // says.
 func FirstPoolID(stateDir string) string {
 	return firstPoolID(stateDir, func(err error) {
-		logger.Warn("can't read the accounts record, so work in no pool can't be given the first pool's", "error", err)
+		logger.Warn("can't read the accounts record, so work in no pool is read as the config's first pool's, or no pool's where it names none", "error", err)
 	})
 }
 
