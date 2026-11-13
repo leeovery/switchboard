@@ -202,7 +202,7 @@ func (f Frame) listing(doc status.Document, now time.Time) listed {
 	m := f.Moment(doc, now)
 	top := f.top()
 	l := listed{
-		sessionWords: sessionWords{m: m, now: now}, f: f, columns: listColumnsOf(f.Width, widestLabel(m)),
+		m: m, now: now, f: f, columns: listColumnsOf(f.Width, widestLabel(m)),
 		today: todayIn(todayLine(f.SessionsTab.List.Today, f.Width), f.Height-underView-top), top: top,
 	}
 	l.rows = max(l.todayAt()-l.top-2, 0)

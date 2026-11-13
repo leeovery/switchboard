@@ -3983,7 +3983,12 @@ draw it, the tab names in its title row aside, and kept in `testdata/vhs/referen
   session's from 11 cells to its whole, then model, started and requests leaving as the width runs
   short; its rules read `ended today`, `ended yesterday`, a weekday within the week, else the day
   and its date, each session's state its end by the clock alone and its start dated where it began
-  on another day than the one it ended on. BY MODEL draws a version as Compare's BY MODEL does, ON
+  on another day than the one it ended on. Its columns are as wide as the widest each says of all
+  the project's sessions, so they hold still as it scrolls; the ended sessions are measured once,
+  as the watch builds the project's page (`dashboard.MeasureSessions`), and only those running at
+  each frame. Where rows run shorter than its least, a page of one line shows no rule, a rule
+  showing only with the session under it, and where no line fits, SESSIONS shows nothing, its
+  heading never alone. BY MODEL draws a version as Compare's BY MODEL does, ON
   ACCOUNTS its names as Detail's column of names, marks and all. The chosen row is lit where `↑`
   and `↓` act, in the list or SESSIONS, the other's bold, marked `▸`, a bar's own surface kept.
 - **What the watch holds:** the sessions' days, read off the update loop once Projects first

@@ -17,10 +17,9 @@ import (
 // request at 14:33 on routedAt's day, all its worth opus's.
 func projectRowOf(name string, sessions, requests, cents int) views.ProjectRow {
 	return views.ProjectRow{
-		Path: "/work/Code/" + name, Name: name,
-		ProjectTotals: views.ProjectTotals{Sessions: sessions, Requests: requests, Worth: worthOf(cents)},
-		ByFamily:      []views.FamilyWorth{{Family: "opus", Worth: worthOf(cents)}},
-		Last:          routedClock(1, 14, 33),
+		Path: "/work/Code/" + name, Name: name, Sessions: sessions, Requests: requests, Worth: worthOf(cents),
+		ByFamily: []views.FamilyWorth{{Family: "opus", Worth: worthOf(cents)}},
+		Last:     routedClock(1, 14, 33),
 	}
 }
 
@@ -77,7 +76,7 @@ func chosenPage(sessions []views.ProjectSession) views.ProjectPage {
 		page.WorthBy.Buckets = append(page.WorthBy.Buckets, views.WorthBucket{Start: routedClock(1, 0, 0).AddDate(0, 0, i-3), Label: day, Axis: day, Worth: worthOf((i + 1) * 1000 % 5000)})
 	}
 	for _, v := range []string{"Opus 5.5", "Sonnet 5"} {
-		page.ByModel = append(page.ByModel, views.VersionShare{Version: ledger.Version{Name: v, Family: "opus", Shade: 1}, ModelShare: views.ModelShare{Share: &half}})
+		page.ByModel = append(page.ByModel, views.VersionShare{Version: ledger.Version{Name: v, Family: "opus", Shade: 1}, Share: &half})
 	}
 	for _, a := range []string{"work", "personal", "side"} {
 		page.OnAccounts = append(page.OnAccounts, views.AccountShare{Account: a, Worth: worthOf(7000), Share: &third})
