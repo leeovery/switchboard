@@ -31,7 +31,7 @@ func (e Event) Befell() string {
 //   - one befalling no account, as the router's own restarts and health, or
 //     an account none places, in every pool.
 func (e Event) InPool(pool, first string, poolOf func(account string) (string, bool)) bool {
-	if e.namesItsPool() {
+	if KindNamesItsPool(e.Kind) {
 		return strings.EqualFold(cmp.Or(e.Pool, first), pool)
 	}
 	account := e.Befell()
@@ -47,12 +47,12 @@ func AccountIn(account, pool string, poolOf func(account string) (string, bool))
 	return !placed || strings.EqualFold(in, pool)
 }
 
-// namesItsPool reports whether the event is of a kind that names the pool
+// KindNamesItsPool reports whether an event of the kind given names the pool
 // it's of, as the router files it: a session's start or move, by the pool
 // its request was routed in, and a pin set or cleared, by the pool whose pin
 // it is.
-func (e Event) namesItsPool() bool {
-	switch e.Kind {
+func KindNamesItsPool(kind string) bool {
+	switch kind {
 	case EventStarted, EventMoved, EventPin, EventAuto:
 		return true
 	}

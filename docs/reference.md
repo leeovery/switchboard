@@ -431,7 +431,7 @@ event can change, so when you read one that changed, take its last version.
 | `kind` | What happened. See below. |
 | `account` | The account the event befell. |
 | `accounts` | The accounts a pool's pin names. |
-| `pool` | The pool the event is of, by its id: on `started` and `moved`, the pool the session's request was routed within; on `pin` and `auto`, the pool whose pin was set or cleared, or, of a session's own pin, the session's pool. Left out where the config has no pools, and of a `started` or `moved` event from before them. The move to pools gives every `pin` and `auto` event from before them the first pool, and once it's done, an event of these kinds without a pool is the first pool's. |
+| `pool` | The pool the event is of, by its id: on `started` and `moved`, the pool the session's request was routed within; on `pin` and `auto`, the pool whose pin was set or cleared, or, of a session's own pin, the session's pool. Left out where the config has no pools. The move to pools, and an import of a folder exported before them, give every event of these kinds from before them the first pool, and once the move's done, an event of these kinds without a pool is the first pool's. |
 | `session` | The session that started or moved, or whose own pin changed. |
 | `model` | The model whose requests did so. |
 | `dir` | The directory the session ran in as the event befell it, the home as `~`, as the request ledger gives it. Left out where none was known yet, and in events written before switchboard recorded it. |

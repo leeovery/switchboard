@@ -936,8 +936,8 @@ read as a pool by its leaving one out (the owner's call, 11 November 2026).
   version 3, so a switchboard from before pools refuses a folder whose lines name them. Taking a
   folder in, its pools join this Mac's record as its accounts do: matched by id, else added as the
   other Mac keeps them, their labels and removals with them. A folder from before pools, of version
-  2 or 1, has its lines, pin events and summaries given this Mac's first pool as `import` takes
-  them in. So each Mac gives the days from before pools its own first pool, and a request line or
+  2 or 1, has its lines, the events that name their pool and its summaries given this Mac's first
+  pool as `import` takes them in. So each Mac gives the days from before pools its own first pool, and a request line or
   an event alike but for its pool is one as an import merges a day, the line held standing: a
   folder taken in before its Mac moved and again after never doubles a day. A summary is never
   merged, copied in only where this Mac knows nothing of the day, so one under another pool never
