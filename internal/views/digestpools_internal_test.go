@@ -99,7 +99,7 @@ func TestAPoolsSessionsOverDigestsAreThoseOfItsLinesReadRaw(t *testing.T) {
 
 // Over digests, Acme's read rests a session on a state only where every
 // line it was folded from was Acme's: a on its state at the day before's
-// end; e, none of whose lines before today were, on none, today's line
+// end; e, none of whose lines before today were, on none, today's lines
 // alone being Acme's; c, whose state Acme shares with Default, read whole,
 // its lines from its sixth day on, Acme's; and b and d, none of whose lines
 // were, not given.
@@ -190,7 +190,7 @@ func TestAPoolsPageTakesTheSessionsRequestsInThePoolAloneAsItsOwn(t *testing.T) 
 // request, and keeps each line as it is.
 func TestAPoolsTookTakesItsRequestsAloneAndKeepsEveryLine(t *testing.T) {
 	held := func(request, pool string) ledger.Held {
-		return ledger.Held{Line: ledger.Line{Request: request, Session: "s-" + pool, Kind: ledger.KindMessage, Pool: pool, At: foldDays[0]}}
+		return ledger.Held{Request: request, Session: "s-" + pool, Kind: ledger.KindMessage, Pool: pool, At: foldDays[0]}
 	}
 	gained := []ledger.Held{held("1", "q7mt"), held("2", "b2n8"), held("3", "")}
 	days := map[string][]ledger.Held{"2026-10-07": {held("4", "q7mt"), held("5", "b2n8")}}
