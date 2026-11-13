@@ -560,10 +560,17 @@ func TestOneAccountsPinIsClearedFromTheCard(t *testing.T) {
 }
 
 func TestPIsFaintAndSaysWhyWhileTheRouterDoesntAnswer(t *testing.T) {
+	beforePools := func(t *testing.T) *harness {
+		doc := document(three()...)
+		doc.Fallback = status.Fallback{Router: status.RouterBeforePools}
+		return newHarness(t, doc)
+	}
 	tests := []struct {
 		name  string
 		h     func(t *testing.T) *harness
 		after func(h *harness)
+		// why is what the key line says in its place.
+		why error
 	}{
 		{
 			name: "showing the router's last document",
@@ -572,11 +579,19 @@ func TestPIsFaintAndSaysWhyWhileTheRouterDoesntAnswer(t *testing.T) {
 				h.stopRouter()
 				h.tickUntilAsked()
 			},
+			why: status.ErrNoRouter,
 		},
 		{
 			name:  "probing, as the router isn't running",
 			h:     func(t *testing.T) *harness { return newHarness(t, probedWithoutTheRouter()) },
 			after: func(*harness) {},
+			why:   status.ErrNoRouter,
+		},
+		{
+			name:  "probing past a router from before pools",
+			h:     beforePools,
+			after: func(*harness) {},
+			why:   status.ErrBeforePools,
 		},
 	}
 	for _, tt := range tests {
@@ -592,7 +607,7 @@ func TestPIsFaintAndSaysWhyWhileTheRouterDoesntAnswer(t *testing.T) {
 			if h.model.open != nothingOpen {
 				t.Fatal("p opened the routing card, want nothing open")
 			}
-			if got, want := h.keyLine(), status.ErrNoRouter.Error(); got != want {
+			if got, want := h.keyLine(), tt.why.Error(); got != want {
 				t.Errorf("the key line reads %q, want %q in its place", got, want)
 			}
 			if lapse, ok := h.pending(noteMsg{}); !ok || lapse.delay != noteFor {

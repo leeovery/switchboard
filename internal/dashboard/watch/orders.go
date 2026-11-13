@@ -70,12 +70,13 @@ func (o order) log(err error) {
 // command has the router carry out an order, given by the routing card
 // open last, as ordered takes in once it has: while the router doesn't
 // answer, or still carries out the last order, it's dropped, saying why, as
-// a refusal is said.
+// a refusal is said, as the document's fallback has it of a router that
+// isn't read.
 func (m Model) command(o order) (Model, tea.Cmd) {
 	card := m.routing.card
 	switch {
 	case !m.answering():
-		return m.refused(card, status.ErrNoRouter)
+		return m.refused(card, m.doc.Fallback.Refusal())
 	case m.ordering:
 		return m.refused(card, errOrdering)
 	}

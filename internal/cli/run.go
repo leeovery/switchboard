@@ -266,11 +266,6 @@ func (a *app) askHealth(ctx context.Context) (router.Health, error) {
 	return patience.Ask(ctx, client)
 }
 
-// errBeforePools is what a verb fails with where routerBeforePools says the
-// router is from before pools: what it would ask of a pool, the router can't
-// tell from every account's.
-var errBeforePools = errors.New(status.BeforePoolsSaid)
-
 // routerBeforePools reports whether the router answering its health check,
 // as askHealth asks it, is one from before pools, as status.BeforePools has
 // it of the config's pools as poolsStanding gives them: so a verb asks it

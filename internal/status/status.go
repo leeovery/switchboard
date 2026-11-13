@@ -381,6 +381,16 @@ type Fallback struct {
 	Reason string `json:"reason,omitempty"`
 }
 
+// Refusal is why the router, found as f has it while it isn't read, can't
+// be given an order: ErrBeforePools for a router from before pools, which
+// answers, else ErrNoRouter.
+func (f Fallback) Refusal() error {
+	if f.Router == RouterBeforePools {
+		return ErrBeforePools
+	}
+	return ErrNoRouter
+}
+
 // Health is how the router has fared with the requests it routed over the
 // last five minutes: how many it answered, and how many of those it failed
 // itself, rather than passing on the upstream's answer.

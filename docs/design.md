@@ -1002,8 +1002,8 @@ totals.
   dashboard probe the pool's accounts, saying `the router doesn't route by pools yet, as it started
   before them: restart it with switchboard service restart`, the dashboard `○ probed · router
   started before pools` and, in LATELY, `the router started before pools: restart it`; `sessions`
-  lists the ledger's alone, as of a router that can't be asked, saying so; and `pin` and
-  `status --session --pool` refuse in those words, asking it nothing. `status --session` without
+  lists the ledger's alone, as of a router that can't be asked, saying so; and `pin`, the
+  dashboard's `p` and `status --session --pool` refuse in those words, asking it nothing. `status --session` without
   `--pool` asks no health and reads the session as ever, a session asked by its id being what it
   is on any router, so a statusline asking at every refresh pays nothing for the check. It answers all the same, so the
   dashboard leaves the notifications to it, as while probing as asked. Where the config has no

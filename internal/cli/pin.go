@@ -122,7 +122,7 @@ func (a *app) pin(ctx context.Context, out io.Writer, accounts []string, opts pi
 		return err
 	}
 	if a.routerBeforePools(ctx) {
-		return errBeforePools
+		return status.ErrBeforePools
 	}
 	said, err := a.pinning(ctx, client, accounts, opts)
 	if err != nil {

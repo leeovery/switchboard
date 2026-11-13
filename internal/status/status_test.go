@@ -1881,6 +1881,23 @@ var accounts = []config.Account{
 	{ID: "side", Label: "Side"},
 }
 
+func TestARouterNotReadRefusesAnOrderInItsStatesWords(t *testing.T) {
+	tests := []struct {
+		fallback status.Fallback
+		want     error
+	}{
+		{fallback: status.Fallback{Router: status.RouterBeforePools}, want: status.ErrBeforePools},
+		{fallback: status.Fallback{Router: status.RouterNotRunning}, want: status.ErrNoRouter},
+		{fallback: status.Fallback{Router: status.RouterUnhealthy, Reason: "no answer within 5s"}, want: status.ErrNoRouter},
+		{want: status.ErrNoRouter},
+	}
+	for _, tt := range tests {
+		if got := tt.fallback.Refusal(); !errors.Is(got, tt.want) {
+			t.Errorf("Fallback%+v.Refusal() = %v, want %v", tt.fallback, got, tt.want)
+		}
+	}
+}
+
 func TestARouterReportingNoPoolsIsFromBeforePoolsWhereTheConfigHasThem(t *testing.T) {
 	pooled := config.Pools{{ID: "b2n8", Label: "Default"}}
 	tests := []struct {

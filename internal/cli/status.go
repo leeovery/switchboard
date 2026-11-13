@@ -146,7 +146,7 @@ func (a *app) sessionStatus(ctx context.Context, out io.Writer, given, pool stri
 		return err
 	}
 	if pool != "" && a.routerBeforePools(ctx) {
-		return expected{errBeforePools}
+		return expected{status.ErrBeforePools}
 	}
 	names := a.accountNames()
 	session, err := a.session(ctx, client, names, given, pool)
