@@ -100,15 +100,13 @@ it asks for --pool. --primary makes it its pool's primary.
 				return errors.New("--new answers that it's a new account, so it takes no --returning")
 			case returning && answer.ID == "":
 				return errors.New("--returning takes the id of the account this Mac had")
-			case cmd.Flags().Changed("pool") && pool == "":
-				return errors.New("--pool takes the id of a pool")
 			}
 			return oneLabel(cmd, args)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			account.Label = args[0]
 			var err error
-			if account.Pool, err = a.poolToAddTo(pool); err != nil {
+			if account.Pool, err = a.accountsPool(pool); err != nil {
 				return err
 			}
 			return a.addAccount(cmd, account, answer)
@@ -203,10 +201,7 @@ func (f editFlags) change(given func(name string) bool) (accounts.Change, error)
 		}
 		change.Reserve = &reserve
 	}
-	if given("pool") {
-		if f.pool == "" {
-			return accounts.Change{}, errors.New("--pool takes the id of a pool")
-		}
+	if f.pool != "" {
 		change.Pool = &f.pool
 	}
 	if !change.Asks() {
@@ -331,11 +326,12 @@ func (a *app) addAccount(cmd *cobra.Command, account config.NewAccount, given ac
 	return err
 }
 
-// poolToAddTo returns the id of the pool an account added goes in, as
-// askedPool has it of the config's pools, named or not, failing as it does,
-// saying --pool names one: the one named as it's given where the config
-// can't be loaded, as where there's none yet, for adding to say why.
-func (a *app) poolToAddTo(named string) (string, error) {
+// accountsPool returns the id of the pool an account added goes in, or one
+// edited moves into, as askedPool has it of the config's pools, named or
+// not, failing as it does, saying --pool names one: the one named as it's
+// given where the config has no pools, or can't be loaded, as where there's
+// none yet, for adding or editing to say why.
+func (a *app) accountsPool(named string) (string, error) {
 	cfg, err := a.loadConfig()
 	if err != nil {
 		logger.Debug("can't load the config, so the pool named goes as it's given", "error", err)
@@ -531,7 +527,7 @@ func (a *app) editAccount(cmd *cobra.Command, id string, flags editFlags) error 
 	if err != nil {
 		return err
 	}
-	change, err := flags.change(cmd.Flags().Changed)
+	change, err := a.editChange(cmd, flags)
 	if err != nil {
 		if unknown := registry.Configured(id); unknown != nil {
 			return a.notConfigured(unknown, id, findTheID)
@@ -551,6 +547,18 @@ func (a *app) editAccount(cmd *cobra.Command, id string, flags editFlags) error 
 	return err
 }
 
+// editChange is the change flags ask for, as cmd was given them, as their
+// change has it, the pool it moves the account into as accountsPool has it.
+func (a *app) editChange(cmd *cobra.Command, flags editFlags) (accounts.Change, error) {
+	change, err := flags.change(cmd.Flags().Changed)
+	if err != nil || change.Pool == nil {
+		return change, err
+	}
+	pool, err := a.accountsPool(*change.Pool)
+	change.Pool = &pool
+	return change, err
+}
+
 // runningSessions says, on a line of its own, what becomes of the sessions
 // running through the router once an edit has made the account the primary:
 // they keep the token they started on as Claude Code's own until they
@@ -561,9 +569,17 @@ func (a *app) editAccount(cmd *cobra.Command, id string, flags editFlags) error 
 // token, as no session can be pinned elsewhere otherwise; where the first is
 // the new primary, the pinned sessions are all there is to say. It says
 // nothing where no account has a usable token. Sessions started directly,
-// while the router was down, are untouched by the move.
+// while the router was down, are untouched by the move. Where there are
+// pools, it tells of the sessions of the account's pool alone, and of its
+// accounts, as no session starts on another pool's.
 func (a *app) runningSessions(e accounts.Edited, readToken func(id string) (tokens.Token, error)) string {
-	own, ok := launch.Route{Config: e.Before, Token: readToken, Pause: a.Pause}.OwnAccount()
+	before := e.Before
+	if len(before.Pools) > 0 {
+		inPool := *before
+		inPool.Accounts = before.Accounts.InPool(e.Now.Pool)
+		before = &inPool
+	}
+	own, ok := launch.Route{Config: before, Token: readToken, Pause: a.Pause}.OwnAccount()
 	if !ok {
 		return ""
 	}
@@ -574,7 +590,7 @@ func (a *app) runningSessions(e accounts.Edited, readToken func(id string) (toke
 	if own.ID == e.FormerPrimary {
 		return "\n" + running + " keep " + own.ID + "'s token as Claude Code's own until they restart" + outside + "on " + own.ID
 	}
-	pinned := otherWithAToken(e.Before.Accounts, own.ID, readToken)
+	pinned := otherWithAToken(before.Accounts, own.ID, readToken)
 	switch {
 	case own.ID == e.Now.ID && !pinned:
 		return ""
@@ -624,6 +640,9 @@ func editedSays(e accounts.Edited) string {
 	}
 	if !strings.EqualFold(e.Was.Pool, e.Now.Pool) {
 		changed = append(changed, nowAndWas("pool", poolLabel(e.Before.Pools, e.Now.Pool), poolLabel(e.Before.Pools, e.Was.Pool)))
+	}
+	if e.KeptPrimary != "" {
+		changed = append(changed, "marked "+e.KeptPrimary+" the primary there, which it stays")
 	}
 	switch {
 	case e.Was.Plan != e.Now.Plan:
@@ -715,6 +734,10 @@ func (a *app) removeAccount(cmd *cobra.Command, id string) error {
 	}
 	if removed.Primary != "" {
 		said += "\n" + primaryNow(removed.Primary, id, registry.Tokens.Read)
+	}
+	if removed.Emptied.ID != "" {
+		said += "\n" + prose.Pool(removed.Emptied.Label) + " has no accounts now: its sessions aren't routed until one is added to it " +
+			"(switchboard accounts add <label> --pool " + prose.Clean(removed.Emptied.ID) + ")"
 	}
 	_, err = io.WriteString(cmd.OutOrStdout(), said+"\n")
 	return err

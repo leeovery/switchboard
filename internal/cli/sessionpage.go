@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/redact"
@@ -15,12 +16,13 @@ import (
 	"github.com/leeovery/switchboard/internal/views"
 )
 
-// sessionPage prints the page of the session given names, telling errOut
-// where the router can't say whether it runs. One read of the ledger gives
+// sessionPage prints the page of the session given names, among the
+// router's sessions in the pool pooled names, as sessionsPool has it,
+// telling errOut where the router can't say whether it runs. One read of the ledger gives
 // both the sessions given is named among, as views.NamedAmong names it, and
 // the page: given is read too, as the whole id of a session of an earlier
 // day.
-func (a *app) sessionPage(ctx context.Context, out, errOut io.Writer, given string, asJSON bool) error {
+func (a *app) sessionPage(ctx context.Context, out, errOut io.Writer, given, pooled string, asJSON bool) error {
 	cfg, err := a.loadConfig()
 	if err != nil {
 		return err
@@ -29,7 +31,11 @@ func (a *app) sessionPage(ctx context.Context, out, errOut io.Writer, given stri
 	if err != nil {
 		return err
 	}
-	running, unlisted := a.routedSessions(ctx, errOut, "", "showing the session from the ledger alone, as not running")
+	pool, err := sessionsPool(cfg.Pools, pooled)
+	if err != nil {
+		return err
+	}
+	running, unlisted := a.routedSessions(ctx, errOut, pool, "showing the session from the ledger alone, as not running")
 	now := a.Now()
 	read := views.ReadSessions(readers.ledger, running, now, given)
 	named := views.NamedAmong(given, read.Named(running))
@@ -59,6 +65,18 @@ func (a *app) sessionPage(ctx context.Context, out, errOut io.Writer, given stri
 // it started; its models, while it runs, else how long its lines are kept;
 // the accounts it ran on, a row each; and its totals, then its turns, a row
 // each, newest first; each account named as the page names it.
+// sessionsPool returns the id of the pool of pools a session given is looked
+// for in, named or not: "" for whatever pool it's in, where none is named,
+// and in a config with no pools; else the one named, as askedPool has it,
+// failing as it does, saying --pool names one.
+func sessionsPool(pools config.Pools, named string) (string, error) {
+	if named == "" {
+		return "", nil
+	}
+	p, err := askedPool(pools, named)
+	return p.ID, poolFlagNeeded(err)
+}
+
 func writeSessionPage(out io.Writer, p views.SessionPage, now time.Time) error {
 	heading := "session " + status.ShortID(prose.Clean(p.Session))
 	if p.Dir != "" {

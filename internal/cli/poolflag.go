@@ -3,7 +3,6 @@ package cli
 import (
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -11,6 +10,7 @@ import (
 	"github.com/leeovery/switchboard/internal/idmove"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/router"
+	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
@@ -62,13 +62,8 @@ func readPool(cfg *config.Config, dir, named string) (filedPool, error) {
 	if err != nil || p.ID == "" {
 		return filedPool{}, poolFlagNeeded(err)
 	}
-	inPool := func(pool string) func(account string) bool {
-		return func(account string) bool {
-			a, ok := cfg.Accounts.ByID(account)
-			return ok && (pool == "" || strings.EqualFold(a.Pool, pool))
-		}
-	}
-	return filedPool{Pool: p, read: views.PoolRead{ID: p.ID, First: idmove.FirstPoolID(dir), In: inPool(p.ID), Pooled: inPool("")}}, nil
+	read := views.PoolRead{ID: p.ID, First: idmove.FirstPoolID(dir), PoolOf: status.AccountPools(cfg.Accounts, recordIn(dir))}
+	return filedPool{Pool: p, read: read}, nil
 }
 
 // poolNamed names the pool with the given label, as prose.Pool does, where

@@ -2,6 +2,7 @@ package views
 
 import (
 	"cmp"
+	"encoding/json"
 	"maps"
 	"slices"
 	"strings"
@@ -61,6 +62,10 @@ type HistoryInput struct {
 	// PoolLabel labels a pool the days name by its id, as the JSON gives
 	// each beside its id: nil leaves them unlabelled.
 	PoolLabel func(pool string) string
+	// OnePool is set where the days are those of one pool of several, as
+	// PoolRead's Days reads them: the lines and bytes of each day's files,
+	// the whole day's, never the pool's, are left out of its JSON.
+	OnePool bool
 	// read is when a Past's days were read, as it takes them: its Now as
 	// NewPast takes them, and as Since takes those it's given; never moved
 	// on as it's taken to a later Now alone.
@@ -155,6 +160,25 @@ func wholeWeek(days []Day, this time.Time) func(week string) bool {
 type Day struct {
 	ledger.Priced
 	ByFamily []FamilyWorth `json:"by_family,omitempty"`
+	// onePool is set on a day of one pool of several, as HistoryInput's
+	// OnePool has it.
+	onePool bool
+}
+
+// MarshalJSON gives the day as its fields have it, but for its files' lines
+// and bytes, left out of a day of one pool of several.
+func (d Day) MarshalJSON() ([]byte, error) {
+	type day Day
+	if !d.onePool {
+		return json.Marshal(day(d))
+	}
+	// The fields below, shallower than the summary's of the same names,
+	// hide them, and are left out as nil.
+	return json.Marshal(struct {
+		day
+		Lines *int          `json:"lines,omitempty"`
+		Bytes *ledger.Bytes `json:"bytes,omitempty"`
+	}{day: day(d)})
 }
 
 // FamilyWorth is what a family's requests were worth, by the family's name
@@ -171,6 +195,7 @@ func pricedDays(summaries []ledger.Summary, in HistoryInput, today string, v ver
 	days := make([]Day, len(summaries))
 	for i, s := range summaries {
 		days[i] = v.day(in.Prices.Priced(s, today), in.PoolLabel)
+		days[i].onePool = in.OnePool
 	}
 	return days
 }

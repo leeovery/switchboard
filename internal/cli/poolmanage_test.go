@@ -308,6 +308,144 @@ func TestAccountsEditMovesAnAccountToAPoolAndMakesItItsPrimary(t *testing.T) {
 	}
 }
 
+// accounts add and edit take --pool "" as --pool not given, and edit checks
+// a pool named before anything, naming the pools, as add does.
+func TestAccountsTakeAPoolGivenEmptyAsNoneAndRefuseOneNotConfigured(t *testing.T) {
+	api := newOrganizationsAPI(t)
+	deps, path := accountsDeps(t, api.URL, personalAndSidePooled)
+	writeToken(t, deps, "personal", personalsToken)
+
+	got := runWithInput(t, deps, madeWork+"\n", "accounts", "add", "Work", "--pool", "")
+	if m := addedAccount.FindStringSubmatch(got.stdout); got.code != 0 || m == nil || m[2] != " in pool Default" {
+		t.Errorf("switchboard accounts add Work --pool \"\" = %+v, want it added in the unfenced pool, Default", got)
+	}
+	if got := run(t, deps, "accounts", "edit", "side", "--pool", "", "--label", "Spare"); got != (result{stdout: "edited side: label \"Spare\" (was \"Side\")\n"}) {
+		t.Errorf("switchboard accounts edit side --pool \"\" --label Spare = %+v, want the label alone changed", got)
+	}
+	before := readFile(t, path)
+	got = run(t, deps, "accounts", "edit", "side", "--pool", "x9z9")
+	if got.code == 0 || !strings.Contains(got.stderr, `there's no pool "x9z9": name b2n8 (Default) or q7mt (Acme), with --pool`) {
+		t.Errorf("switchboard accounts edit side --pool x9z9 = %+v, want it refused, naming the pools", got)
+	}
+	if readFile(t, path) != before {
+		t.Errorf("the config reads\n%s\nwant it as it was", readFile(t, path))
+	}
+}
+
+// An account moved without --primary into a pool whose primary is its first,
+// unmarked, after it in the file, leaves that one the primary, marked so.
+func TestAccountsEditMovingAnAccountAheadOfThePoolsPrimaryMarksIt(t *testing.T) {
+	deps, path := accountsDeps(t, "http://127.0.0.1:1", personalAndSidePooled)
+
+	got := run(t, deps, "accounts", "edit", "personal", "--pool", "q7mt")
+	if want := (result{stdout: "edited personal: pool Acme (was Default), marked side the primary there, which it stays\n"}); got != want {
+		t.Errorf("switchboard accounts edit personal --pool q7mt =\n%+v\nwant\n%+v", got, want)
+	}
+	if primary, _ := loadPooled(t, path).Accounts.PrimaryOf("q7mt"); primary.ID != "side" {
+		t.Errorf("Acme's primary is %s, want side", primary.ID)
+	}
+	draft, err := config.Edit(path, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !draft.MarksPrimaryOf("side") || draft.MarksPrimaryOf("personal") {
+		t.Errorf("the config reads\n%s\nwant side marked the primary, and personal not", readFile(t, path))
+	}
+}
+
+// personalBesideAcme has personal in Default, unfenced, and side, its
+// primary, and extra in Acme, fenced.
+const personalBesideAcme = `
+[[account]]
+id    = "personal"
+label = "Personal"
+pool  = "b2n8"
+
+[[account]]
+id      = "side"
+label   = "Side"
+pool    = "q7mt"
+primary = true
+
+[[account]]
+id    = "extra"
+label = "Extra"
+pool  = "q7mt"
+
+[[pool]]
+id    = "b2n8"
+label = "Default"
+
+[[pool]]
+id    = "q7mt"
+label = "Acme"
+dirs  = ["/work/acme"]
+`
+
+// Making an account its pool's primary tells of the sessions running in its
+// pool alone, as they started on its pool's accounts' tokens: never of
+// another pool's account.
+func TestAccountsEditPrimaryTellsOfTheSessionsOfItsPoolAlone(t *testing.T) {
+	const edited = "edited extra: the primary in place of side\n"
+	tests := []struct {
+		name    string
+		tokens  []string
+		stdout  string
+		warning bool
+	}{
+		{name: "no account of the pool has a token", tokens: []string{"personal"}, stdout: edited, warning: true},
+		{name: "the former primary has one", tokens: []string{"personal", "side"}, stdout: edited + keepingTheFormer("side"), warning: true},
+		{name: "the new primary alone has one in the pool", tokens: []string{"personal", "extra"}, stdout: edited},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			deps, _ := accountsDeps(t, "http://127.0.0.1:1", personalBesideAcme)
+			for _, id := range tt.tokens {
+				writeToken(t, deps, id, "test-token-"+id)
+			}
+			got := run(t, deps, "accounts", "edit", "extra", "--primary")
+			if got.code != 0 || got.stdout != tt.stdout {
+				t.Errorf("switchboard accounts edit extra --primary printed\n%s\nwant\n%s", got.stdout, tt.stdout)
+			}
+			if warned := strings.Contains(got.stderr, "extra, the primary now, has no usable token"); warned != tt.warning || strings.Contains(got.stderr, "personal") {
+				t.Errorf("switchboard accounts edit extra --primary warned %q, want a warning that extra has no token: %v, and nothing of personal", got.stderr, tt.warning)
+			}
+		})
+	}
+}
+
+// Removing a pool's primary says which of its accounts is its primary now,
+// and removing its last, that it has none: never another pool's.
+func TestAccountsRemoveTellsOfThePrimaryOfTheRemovedAccountsPool(t *testing.T) {
+	stayRouted := func(primary, removed string) string {
+		return primary + " is the primary now; the sessions running on " + removed + "'s token stay routed, as " + primary + "'s, for a week from when the router takes this up\n"
+	}
+	tests := []struct {
+		name, accounts, id, want string
+	}{
+		{name: "Default's primary, first of its pool, after Acme's in the file", accounts: unfencedBesideFenced, id: "personal",
+			want: "removed personal, and its token file\n" + stayRouted("side", "personal")},
+		{name: "Acme's last account, first in the file", accounts: unfencedBesideFenced, id: "work",
+			want: "removed work, and its token file\npool Acme has no accounts now: its sessions aren't routed until one is added to it (switchboard accounts add <label> --pool q7mt)\n"},
+		{name: "an account no pool's primary", accounts: unfencedBesideFenced, id: "side", want: "removed side, and its token file\n"},
+		{name: "Acme's primary, marked", accounts: personalBesideAcme, id: "side",
+			want: "removed side, and its token file\n" + stayRouted("extra", "side")},
+		{name: "Default's last account", accounts: personalBesideAcme, id: "personal",
+			want: "removed personal, and its token file\npool Default has no accounts now: its sessions aren't routed until one is added to it (switchboard accounts add <label> --pool b2n8)\n"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			deps, path := accountsDeps(t, "http://127.0.0.1:1", tt.accounts)
+			for _, a := range loadPooled(t, path).Accounts {
+				writeToken(t, deps, a.ID, "test-token-"+a.ID)
+			}
+			if got, want := run(t, deps, "accounts", "remove", tt.id), (result{stdout: tt.want}); got != want {
+				t.Errorf("switchboard accounts remove %s =\n%+v\nwant\n%+v", tt.id, got, want)
+			}
+		})
+	}
+}
+
 func TestAccountsShowsEachAccountsPoolOnceThereIsASecond(t *testing.T) {
 	onePool := strings.Replace(threeInFirstPool, "reserve = 0.05\n", "", 1)
 	tests := []struct {

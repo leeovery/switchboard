@@ -186,6 +186,13 @@ func (t *poolTable) poolIn(id string) string {
 	return t.recorded[id]
 }
 
+// placedIn returns the id of the pool the account with the given id is in,
+// or was in last, as poolIn has it, reporting false where none says.
+func (t *poolTable) placedIn(id string) (string, bool) {
+	pool := t.poolIn(id)
+	return pool, pool != ""
+}
+
 // after returns the table as it follows before, knowing the pool each
 // account that has left it was in last, as before had it, as was says, and
 // the pool the accounts record keeps each in, as recorded gives it.

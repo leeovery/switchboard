@@ -74,6 +74,19 @@ func removedIn(dir string, cfg *config.Config) status.RemovedAccounts {
 	return status.RemovedOf(record, cfg.Accounts)
 }
 
+// recordIn reads the accounts record in the state directory dir once, as
+// it's first asked for: an empty one, warning, where it can't be read, so
+// the accounts and pools removed are known by their ids alone.
+func recordIn(dir string) func() identity.Record {
+	return sync.OnceValue(func() identity.Record {
+		record, err := identity.NewFile(dir).Read()
+		if err != nil {
+			logger.Warn("can't read the accounts record, so the accounts and pools removed are known by their ids alone", "error", err)
+		}
+		return record
+	})
+}
+
 // poolLabelsIn labels a pool by its id, as status.PoolLabels does, of the
 // pools cfg configures and those the accounts record in the state directory
 // dir keeps: of the configured alone, warning, where the record can't be

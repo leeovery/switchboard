@@ -28,7 +28,7 @@ type requestsOptions struct {
 
 // idFlags are the flags that take an id, and what each is the id of, for the
 // error that says so when one is given none.
-var idFlags = []struct{ flag, of string }{{flag: "session", of: "a session"}, {flag: "account", of: "an account"}, {flag: "pool", of: "a pool"}}
+var idFlags = []struct{ flag, of string }{{flag: "session", of: "a session"}, {flag: "account", of: "an account"}}
 
 func newRequestsCommand(a *app) *cobra.Command {
 	var opts requestsOptions
@@ -47,7 +47,9 @@ as much of it as is unique among the sessions read, and --account an
 account's, by its id: a label is refused.
 
 It lists one pool's requests, each by the pool it was routed in at the time,
-one from before pools the first pool's. ` + readingAPool + `
+one from before pools the first pool's. ` + readingAPool + ` A session's
+requests are found in whatever pool each was routed in, or with --pool, in
+that pool alone.
 
 On a terminal, requests prints its lines as text. Anywhere else, as in a pipe
 or an agent's shell, it prints each as the ledger holds it, with "schema": 1
@@ -121,13 +123,24 @@ func pricing(cfg *config.Config) ledger.Table {
 	return table
 }
 
+// readPool returns the pool of cfg's whose lines requests reads, of the files
+// in the state directory dir, as readPool has it, named or not: every pool's
+// where a session is asked for and no pool named, as its lines are found in
+// whatever pool it's in.
+func (o requestsOptions) readPool(cfg *config.Config, dir string) (filedPool, error) {
+	if o.session != "" && o.pool == "" {
+		return filedPool{}, nil
+	}
+	return readPool(cfg, dir, o.pool)
+}
+
 // requests prints the ledger's lines as opts ask.
 func (a *app) requests(out io.Writer, opts requestsOptions) error {
 	cfg, dir, err := a.ledgerState()
 	if err != nil {
 		return err
 	}
-	pool, err := readPool(cfg, dir, opts.pool)
+	pool, err := opts.readPool(cfg, dir)
 	if err != nil {
 		return err
 	}

@@ -1,7 +1,6 @@
 package views
 
 import (
-	"cmp"
 	"iter"
 	"slices"
 	"strings"
@@ -22,9 +21,16 @@ type PoolRead struct {
 	// First is the id of the first pool, once the move to pools is done, ""
 	// till then: work recorded in no pool is the first's.
 	First string
-	// In reports whether the account with the given id is in the pool now,
-	// and Pooled whether it's in any configured pool.
-	In, Pooled func(account string) bool
+	// PoolOf gives the id of the pool the account with the given id is in,
+	// as status.AccountPools has it, reporting false where none places it.
+	PoolOf func(account string) (string, bool)
+}
+
+// holds reports whether the account with the given id is in the pool read,
+// as PoolOf places it.
+func (p PoolRead) holds(account string) bool {
+	in, placed := p.PoolOf(account)
+	return placed && strings.EqualFold(in, p.ID)
 }
 
 // every reports whether the read is of every pool's work.
@@ -50,9 +56,9 @@ func (p PoolRead) Lines(lines iter.Seq[ledger.Held]) iter.Seq[ledger.Held] {
 
 // Days reads the pool's days from those l reads, as LedgerDays reads them:
 // each day's work in the pool alone, as ledger.Summary's InPool gives it,
-// and of its accounts, those that worked in the pool that day, or are in it
-// now, as In says, for their windows: every day whole where the read is of
-// every pool's.
+// and of its accounts, those that worked in the pool that day, or are in it,
+// as PoolOf places them, for their windows: every day whole where the read is
+// of every pool's.
 func (p PoolRead) Days(l LedgerDays) LedgerDays {
 	if p.every() {
 		return l
@@ -67,35 +73,28 @@ type poolDays struct {
 }
 
 func (d poolDays) Days(from time.Time) []ledger.Summary {
-	days := d.days.Days(from)
-	for i, s := range days {
+	read := d.days.Days(from)
+	days := make([]ledger.Summary, len(read))
+	for i, s := range read {
 		s = s.InPool(d.read.ID, d.read.First)
 		s.Accounts = slices.DeleteFunc(s.Accounts, func(a ledger.AccountDay) bool {
-			return a.Idle() && (a.Account == "" || !d.read.In(a.Account))
+			return a.Idle() && !d.read.holds(a.Account)
 		})
 		days[i] = s
 	}
 	return days
 }
 
-// Shows reports whether the event e is of the pool read: one naming a pool,
-// where it's the pool's; one of a kind that names its pool, but naming none,
-// as before pools, where the pool is the first; one befalling an account in a
-// configured pool, as its windows go, where the account is in the pool now;
-// and one befalling none, as the router's own restarts and health, or an
-// account in no pool, as one removed, is every pool's. Every event is the
-// pool's where the read is of every pool's.
+// Shows reports whether the event e is of the pool read, as status.Event's
+// InPool has it: every event is, where the read is of every pool's.
 func (p PoolRead) Shows(e status.Event) bool {
-	switch {
-	case p.every():
-		return true
-	case e.Pool != "":
-		return strings.EqualFold(e.Pool, p.ID)
-	case namesItsPool(e.Kind):
-		return strings.EqualFold(p.First, p.ID)
-	}
-	account := eventAccount(e)
-	return !p.Pooled(account) || p.In(account)
+	return p.every() || e.InPool(p.ID, p.First, p.PoolOf)
+}
+
+// ShowsHeld reports whether the event a line of the router's events holds is
+// of the pool read, as Shows has it.
+func (p PoolRead) ShowsHeld(h events.Held) bool {
+	return p.Shows(h.Event)
 }
 
 // Events are those of held the pool read shows, as Shows has it.
@@ -105,63 +104,69 @@ func (p PoolRead) Events(held iter.Seq[events.Held]) iter.Seq[events.Held] {
 	}
 	return func(yield func(events.Held) bool) {
 		for h := range held {
-			if p.Shows(h.Event) && !yield(h) {
+			if p.ShowsHeld(h) && !yield(h) {
 				return
 			}
 		}
 	}
 }
 
-// namesItsPool reports whether an event of the kind given names the pool
-// it's of, as the router files it: a session's start or move, by the pool
-// its request was routed in, and a pin set or cleared, by the pool whose pin
-// it is.
-func namesItsPool(kind string) bool {
-	switch kind {
-	case status.EventStarted, status.EventMoved, status.EventPin, status.EventAuto:
-		return true
-	}
-	return false
-}
-
-// eventAccount returns the account the event e befell, as a pool read shows
-// it by, as the router shows an event in a pool's document: the one it
-// names; else the first the pin names; else the one a session moved to,
-// where its session stays, or from, where it moved to none; "" for none.
-func eventAccount(e status.Event) string {
-	var pinned string
-	if len(e.Accounts) > 0 {
-		pinned = e.Accounts[0]
-	}
-	return cmp.Or(e.Account, pinned, e.To, e.From)
-}
-
-// InPool is the List of the sessions of the pool read alone, what they come
-// to together summed again: one the router lists in the pool, of running,
-// which are the pool's, or one with a request in it today, of today's lines,
-// as ledger.Line's InPool has it. The List is as it is where the read is of
-// every pool's.
-func (l SessionList) InPool(p PoolRead, running []status.Session, today []ledger.Held) SessionList {
+// Ledger reads l as the pool read has it, for the sessions' List: each
+// session's lines those routed in the pool alone, as ledger.Line's InPool
+// has it, so its requests and their worth are those it made in the pool,
+// and one with none in the pool, resting on no state, none of the pool's; l
+// itself where the read is of every pool's.
+func (p PoolRead) Ledger(l Ledger) Ledger {
 	if p.every() {
 		return l
 	}
-	in := make(map[string]bool)
-	for _, s := range running {
-		in[s.ID] = true
+	return poolLedger{Ledger: l, read: p}
+}
+
+// poolLedger reads a pool's sessions, as PoolRead's Ledger has them.
+type poolLedger struct {
+	Ledger
+	read PoolRead
+}
+
+func (l poolLedger) Sessions(ids []string, rest func(id string) ledger.Rest, take func(date string, line ledger.Line)) map[string]ledger.SessionFrom {
+	return l.inPool(l.Ledger.Sessions(ids, rest, l.taking(take)))
+}
+
+func (l poolLedger) SessionsOf(ids []string, rest func(id string) ledger.Rest, take func(date string, line ledger.Line)) map[string]ledger.SessionFrom {
+	return l.inPool(l.Ledger.SessionsOf(ids, rest, l.taking(take)))
+}
+
+// taking is take, handed the lines routed in the pool alone: nil where take
+// is.
+func (l poolLedger) taking(take func(date string, line ledger.Line)) func(date string, line ledger.Line) {
+	if take == nil {
+		return nil
 	}
-	for _, h := range today {
-		if h.InPool(p.ID, p.First) {
-			in[h.Session] = true
+	return func(date string, line ledger.Line) {
+		if line.InPool(l.read.ID, l.read.First) {
+			take(date, line)
 		}
 	}
-	listed := SessionList{GeneratedAt: l.GeneratedAt, PricesAsOf: l.PricesAsOf, Sessions: []ListedSession{}}
-	for _, s := range l.Sessions {
-		if in[s.Session] {
-			listed.Sessions = append(listed.Sessions, s)
-			listed.Today.Requests += s.Requests
-			listed.Today.add(s.Worth)
+}
+
+// inPool returns the sessions given, each with its lines routed in the pool
+// alone, as new slices, leaving those given as they are: none of one with no
+// such line that rests on no state.
+func (l poolLedger) inPool(sessions map[string]ledger.SessionFrom) map[string]ledger.SessionFrom {
+	in := make(map[string]ledger.SessionFrom, len(sessions))
+	for id, s := range sessions {
+		var lines []ledger.Line
+		for _, line := range s.Lines {
+			if line.InPool(l.read.ID, l.read.First) {
+				lines = append(lines, line)
+			}
 		}
+		if len(lines) == 0 && s.Base == nil {
+			continue
+		}
+		s.Lines = lines
+		in[id] = s
 	}
-	listed.Today.Sessions = len(listed.Sessions)
-	return listed
+	return in
 }

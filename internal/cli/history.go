@@ -151,7 +151,7 @@ func (a *app) history(out io.Writer, given, pool string, asJSON bool) error {
 	history := views.NewHistory(views.HistoryInput{
 		Ledger: asked.pool.read.Days(reader), From: asked.from, Now: asked.now, Prices: prices, Accounts: asked.accounts(), Removed: removed,
 		WeekStarts: asked.cfg.WeekStarts, WeekWindow: claude.WeekWindow, Family: claude.Provider{}.Family,
-		PoolLabel: poolLabelsIn(asked.stateDir, asked.cfg),
+		PoolLabel: poolLabelsIn(asked.stateDir, asked.cfg), OnePool: len(asked.cfg.Pools) > 1,
 	})
 	if asJSON {
 		return writeJSON(out, historyDocument{PricesAsOf: prices.AsOf, PricesFromConfig: prices.Overridden, History: history})

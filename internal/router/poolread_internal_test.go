@@ -393,23 +393,31 @@ func TestEachPoolsDocumentHoldsItsOwnPin(t *testing.T) {
 	}
 }
 
+// A pool's document shows an event as status.Event's InPool has it, whose own
+// tests hold the rule whole: these hold that the router asks it, of the pool
+// read, its first, and the pool each account is in, or was in last.
 func TestEachPoolsDocumentShowsTheEventsOfItsPoolItsAccountsAndNone(t *testing.T) {
 	logstest.Capture(t)
 	r := pooledRouter(t, pooledAccounts(), testPools)
+	// spare was in Acme, and has left the config since.
+	r.state.pools.follow(append(pooledAccounts(), config.Account{ID: "spare", Pool: acmePool}), testPools)
+	r.state.pools.follow(pooledAccounts(), testPools)
 	happened := []status.Event{
 		{Kind: status.EventRestart, Reason: "the config changed"},
 		{Kind: status.EventPin, Accounts: []string{"work"}, Pool: defaultPool},
 		{Kind: status.EventLimit, Account: "personal"},
 		{Kind: status.EventPin, Account: "personal", Accounts: []string{"personal"}, Pool: acmePool},
 		{Kind: status.EventPressure, Account: "side"},
+		// A pin's, an auto's, a start's or a move with no pool, from before
+		// pools, is the first's, whatever account it names.
 		{Kind: status.EventAuto, Accounts: []string{"personal"}},
-		// A move with no pool goes by the account it moved to.
 		{Kind: status.EventMoved, Session: "one", From: "personal", To: "work"},
 		{Kind: status.EventMoved, Session: "two", To: "personal"},
-		// An account that has left the config, held till the restart, is in
-		// no pool, and so is a pool that has left it: an event naming either
-		// goes by what else it names.
+		// An account that has left the config goes by the pool it was in
+		// last; one never placed is in every pool.
+		{Kind: status.EventRefused, Account: "spare"},
 		{Kind: status.EventCap, Account: "lapsed"},
+		// One naming a pool that has left the config is in none.
 		{Kind: status.EventAuto, Pool: unconfigured},
 		{Kind: status.EventPin, Accounts: []string{"personal"}, Pool: unconfigured},
 	}
@@ -423,13 +431,17 @@ func TestEachPoolsDocumentShowsTheEventsOfItsPoolItsAccountsAndNone(t *testing.T
 		pool string
 		want []string
 	}{
-		{pool: defaultPool, want: []string{status.EventAuto, status.EventCap, status.EventMoved, status.EventPressure, status.EventPin, status.EventRestart}},
-		{pool: acmePool, want: []string{status.EventPin, status.EventAuto, status.EventCap, status.EventMoved, status.EventAuto, status.EventPin, status.EventLimit, status.EventRestart}},
+		{pool: defaultPool, want: []string{status.EventCap, status.EventMoved, status.EventMoved, status.EventAuto, status.EventPressure, status.EventPin, status.EventRestart}},
+		{pool: acmePool, want: []string{status.EventCap, status.EventRefused, status.EventPin, status.EventLimit, status.EventRestart}},
 	}
+	table := r.state.pools.current()
 	for _, tt := range tests {
 		var kinds []string
 		for _, e := range statusIn(t, r, tt.pool).Events {
 			kinds = append(kinds, e.Kind)
+			if want := e.InPool(tt.pool, table.first, table.placedIn); !want {
+				t.Errorf("pool %s's document shows %+v, which status.Event's InPool puts in another", tt.pool, e)
+			}
 		}
 		if !slices.Equal(kinds, tt.want) {
 			t.Errorf("pool %s's document shows the events %q, want %q", tt.pool, kinds, tt.want)

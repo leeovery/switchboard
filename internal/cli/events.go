@@ -103,7 +103,7 @@ func (a *app) events(ctx context.Context, out io.Writer, opts eventsOptions) err
 		return err
 	}
 	return follower.run(ctx, logs.PollEvery(a.FollowEvery), func(h events.Held) error {
-		if !pool.Shows(h.Event) {
+		if !pool.ShowsHeld(h) {
 			return nil
 		}
 		return printer.follow(h)

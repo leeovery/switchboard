@@ -43,22 +43,18 @@ it, and its totals. A session of an earlier day is found by its whole id.
 
 It lists one pool's sessions, each by the pool its requests were routed in,
 one from before pools the first pool's. ` + readingAPool + ` A session
-given is shown in whatever pool it's in.
+given is found in whatever pool it's in, or with --pool, among the router's
+sessions in that pool alone.
 
 On a terminal, sessions prints its lines as text. Anywhere else, as in a pipe
 or an agent's shell, it prints them as JSON, for an agent or a script to read.
 --json prints the JSON, and --pretty the text, wherever stdout is.`,
-		Args: func(cmd *cobra.Command, args []string) error {
-			if len(args) == 1 && cmd.Flags().Changed("pool") {
-				return errors.New("a session given is shown in whatever pool it's in, so it takes no --pool")
-			}
-			return oneSessionAtMost(cmd, args)
-		},
+		Args: oneSessionAtMost,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			out := cmd.OutOrStdout()
 			asJSON := a.printsJSON(form, out)
 			if len(args) == 1 {
-				return a.sessionPage(cmd.Context(), out, cmd.ErrOrStderr(), args[0], asJSON)
+				return a.sessionPage(cmd.Context(), out, cmd.ErrOrStderr(), args[0], pool, asJSON)
 			}
 			return a.sessions(cmd.Context(), out, cmd.ErrOrStderr(), pool, asJSON)
 		},
@@ -99,14 +95,10 @@ func (a *app) sessions(ctx context.Context, out, errOut io.Writer, named string,
 	list := views.ListSessions(views.SessionSources{
 		Running:  running,
 		Unlisted: unlisted,
-		Ledger:   readers.ledger,
+		Ledger:   pool.read.Ledger(readers.ledger),
 		Prices:   pricing(cfg),
 		Now:      now,
 	})
-	if pool.ID != "" {
-		today, _, _ := readers.ledger.Today(ledger.Mark{})
-		list = list.InPool(pool.read, running, today)
-	}
 	list = list.Named(status.NamesOf(cfg.Accounts, readers.removed))
 	if asJSON {
 		return writeJSON(out, list)

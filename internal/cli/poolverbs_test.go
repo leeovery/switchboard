@@ -77,6 +77,7 @@ func TestTheReadingVerbsReadOnePoolsAccountsByProbingWhileTheRouterIsDown(t *tes
 		{name: "one named", accounts: threeInFirstPool, args: []string{"--pool", "b2n8"}, want: documentRead{pool: "b2n8", accounts: []string{"work", "personal", "side"}}},
 		{name: "an unfenced pool beside a fenced one, none named: the unfenced", accounts: unfencedBesideFenced, want: documentRead{pool: "b2n8", accounts: []string{"personal", "side"}}},
 		{name: "an unfenced pool beside a fenced one, the fenced named", accounts: unfencedBesideFenced, args: []string{"--pool", "q7mt"}, want: documentRead{pool: "q7mt", accounts: []string{"work"}}},
+		{name: "an unfenced pool beside a fenced one, one named empty: none named", accounts: unfencedBesideFenced, args: []string{"--pool", ""}, want: documentRead{pool: "b2n8", accounts: []string{"personal", "side"}}},
 		{name: "every pool fenced, one named", accounts: fencedAccounts, args: []string{"--pool", "q7mt"}, want: documentRead{pool: "q7mt", accounts: []string{"work"}}},
 		{name: "every pool fenced, none named", accounts: fencedAccounts, needs: true},
 	}
@@ -129,6 +130,8 @@ func TestTheReadingVerbsAskTheRouterForThePoolNamed(t *testing.T) {
 		{args: []string{"status", "--json", "--pool", "q7mt"}, want: documentRead{pool: "q7mt", accounts: []string{"work"}}},
 		{args: []string{"usage", "--json", "--pool", "q7mt"}, want: documentRead{pool: "q7mt", accounts: []string{"work"}}},
 		{args: []string{"status", "--json"}, want: documentRead{pool: "b2n8", accounts: []string{"personal", "side"}}},
+		{args: []string{"status", "--json", "--pool", ""}, want: documentRead{pool: "b2n8", accounts: []string{"personal", "side"}}},
+		{args: []string{"usage", "--json", "--pool", ""}, want: documentRead{pool: "b2n8", accounts: []string{"personal", "side"}}},
 		{args: []string{"usage", "--json"}, want: documentRead{pool: "b2n8", accounts: []string{"personal", "side"}}},
 	}
 	for _, tt := range tests {
@@ -225,18 +228,40 @@ func poolPin(t *testing.T, deps cli.Deps, pool string) []string {
 	return doc.Pin.Accounts
 }
 
-func TestPinTakesAPoolWithAutoAlone(t *testing.T) {
-	deps := testDeps(nil, t.TempDir())
-	for _, args := range [][]string{{"pin", "work", "--pool", "q7mt"}, {"pin", "auto", "--session", "18bb", "--pool", "q7mt"}} {
-		if got := run(t, deps, args...); got.code == 0 || !strings.Contains(got.stderr, "--pool goes with auto alone") {
-			t.Errorf("switchboard %s = %+v, want it refused", strings.Join(args, " "), got)
-		}
-	}
-}
+// A verb given accounts or a session passes --pool on to the router, which
+// pins the accounts of the pool named alone, and finds the session in it
+// alone; --pool "" is --pool not given.
+func TestTheVerbsGivenAccountsOrASessionPassThePoolOn(t *testing.T) {
+	srv := newServeSetup(t, fakeClaudeAPI(t), nil)
+	srv.accounts = unfencedBesideFenced
+	srv.writeConfig(t)
+	srv.start(t)
+	srv.routeInAcme(t, sessionThree)
 
-func TestStatusOfASessionTakesNoPool(t *testing.T) {
-	got := run(t, testDeps(nil, t.TempDir()), "status", "--session", "18bb", "--pool", "q7mt")
-	if got.code == 0 || !strings.Contains(got.stderr, "takes no --pool") {
-		t.Errorf("switchboard status --session 18bb --pool q7mt = %+v, want it refused", got)
+	tests := []struct {
+		args   []string
+		stdout string
+		stderr string
+	}{
+		{args: []string{"pin", "work", "--pool", "q7mt"}, stdout: "new sessions in pool Acme go to work · Work\n"},
+		{args: []string{"pin", "side", "--pool", ""}, stdout: "new sessions in pool Default go to side · Side\n"},
+		{args: []string{"pin", "side", "--pool", "q7mt"}, stderr: "the accounts to pin are in pool Default, not Acme: pin them in their own pool"},
+		{args: []string{"status", "--session", sessionThree, "--pool", "q7mt"}, stdout: "Work\n"},
+		{args: []string{"status", "--session", sessionThree, "--pool", ""}, stdout: "Work\n"},
+		{args: []string{"status", "--session", sessionThree, "--pool", "b2n8"}, stderr: "the router hasn't seen session " + sessionThree},
+		{args: []string{"pin", "auto", "--session", sessionThree, "--pool", "b2n8"}, stderr: "the router hasn't seen session " + sessionThree},
+		{args: []string{"pin", "auto", "--session", status.ShortID(sessionThree), "--pool", "q7mt"}, stdout: "session " + status.ShortID(sessionThree) + " is routed automatically from its next request\n"},
+	}
+	for _, tt := range tests {
+		got := run(t, srv.deps, tt.args...)
+		if tt.stderr != "" {
+			if got.code == 0 || !strings.Contains(got.stderr, tt.stderr) {
+				t.Errorf("switchboard %q = %+v, want it refused, saying %q", tt.args, got, tt.stderr)
+			}
+			continue
+		}
+		if got != (result{stdout: tt.stdout}) {
+			t.Errorf("switchboard %q = %+v, want it to say %q", tt.args, got, tt.stdout)
+		}
 	}
 }

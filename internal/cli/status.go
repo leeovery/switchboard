@@ -52,8 +52,10 @@ a limit is reset by hand, the router sees it. Without the router, or with
 With --session, print the label of the account the router sends a Claude Code
 session's requests to, the one its last-used model went to, as a statusline
 asks, on a terminal or off one; or with --json, the session's every model and
-why it went where it did, each account by its id. It needs the router
-running: start it with switchboard service install (or switchboard serve).
+why it went where it did, each account by its id. The session is found in
+whatever pool it's in, or with --pool, in that pool alone. It needs the
+router running: start it with switchboard service install (or switchboard
+serve).
 
 ` + namingASession,
 		Args: func(cmd *cobra.Command, args []string) error {
@@ -64,15 +66,13 @@ running: start it with switchboard service install (or switchboard serve).
 				return errors.New("--session asks the router, so it takes no --probe")
 			case session != "" && refresh:
 				return errors.New("--session asks after one session, not the accounts, so it takes no --refresh")
-			case session != "" && cmd.Flags().Changed("pool"):
-				return errors.New("--session asks after one session, in whatever pool it's in, so it takes no --pool")
 			}
 			return noArgs(cmd, args)
 		},
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			out := cmd.OutOrStdout()
 			if session != "" {
-				return a.sessionStatus(cmd.Context(), out, session, form.json)
+				return a.sessionStatus(cmd.Context(), out, session, pool, form.json)
 			}
 			doc, unread, err := a.statusDocument(cmd.Context(), probe, readOnce(refresh), pool)
 			if err != nil {
@@ -141,16 +141,16 @@ func (a *app) running(ctx context.Context, m status.Moment) []status.Session {
 
 // sessionStatus prints the account the router sends a session's requests to,
 // as the verbs' text names it, the session given by as much of its id as is
-// unique.
-func (a *app) sessionStatus(ctx context.Context, out io.Writer, given string, asJSON bool) error {
+// unique, in the pool with the id given, "" for whatever pool it's in.
+func (a *app) sessionStatus(ctx context.Context, out io.Writer, given, pool string, asJSON bool) error {
 	client, err := a.routerClient()
 	if err != nil {
 		return err
 	}
 	names := a.accountNames()
-	session, err := a.session(ctx, client, names, given)
+	session, err := a.session(ctx, client, names, given, pool)
 	if err != nil {
-		return sessionError(err)
+		return poolFlagNeeded(sessionError(err))
 	}
 	if asJSON {
 		return writeJSON(out, session)
@@ -160,17 +160,17 @@ func (a *app) sessionStatus(ctx context.Context, out io.Writer, given string, as
 }
 
 // session asks the router where the requests of the session given, by as
-// much of its id as is unique, go, in whatever pool it's in, its accounts as
-// names name them.
-func (a *app) session(ctx context.Context, client *router.Client, names status.Names, given string) (status.Session, error) {
-	id, answered, err := a.lookUpSession(ctx, client, names, given)
+// much of its id as is unique, go, in the pool with the id given, "" for
+// whatever pool it's in, its accounts as names name them.
+func (a *app) session(ctx context.Context, client *router.Client, names status.Names, given, pool string) (status.Session, error) {
+	id, answered, err := a.lookUpSession(ctx, client, names, given, pool)
 	if err != nil {
 		return status.Session{}, err
 	}
 	if answered != nil {
 		return *answered, nil
 	}
-	return client.Session(ctx, id)
+	return client.InPool(pool).Session(ctx, id)
 }
 
 // withRemoved is doc, its moments naming the accounts removed that the

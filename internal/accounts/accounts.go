@@ -308,13 +308,19 @@ func (r Registry) labelOf(e identity.Entry) string {
 }
 
 // Removed is what removing an account removed of its token file, as
-// tokens.Store's Remove says, and, when it was the primary, the account
-// that's the primary now.
+// tokens.Store's Remove says, and, when it was its pool's primary, the
+// account that's the pool's primary now, or that the pool has none.
 type Removed struct {
 	tokens.Removed
-	// Primary is the id of the account that's the primary now, when the one
-	// removed was: "" when it wasn't.
+	// Primary is the id of the account that's the primary now of the pool
+	// the one removed was in, the one pool there is in a config with no
+	// pools, when the one removed was its primary: "" when it wasn't, and
+	// where the pool has no account left.
 	Primary string
+	// Emptied is the pool the one removed was in, by its id and label, where
+	// it was the pool's last account: zero where it wasn't, and in a config
+	// with no pools.
+	Emptied struct{ ID, Label string }
 }
 
 // TokenFileLeft is Remove's error where it took the account out of the
@@ -379,12 +385,29 @@ func (r Registry) Remove(id string) (Removed, error) {
 	if left != nil {
 		return Removed{}, &TokenFileLeft{ID: id, err: left}
 	}
-	removed := Removed{Removed: file}
-	if before.Accounts.Primary().ID == id {
-		removed.Primary = after.Accounts.Primary().ID
-	}
-	logger.Info("removed an account", "account", id, "token_file", file.File, "linked_to", file.LinkedTo, "linked_to_gone", file.LinkedToGone, "primary_now", removed.Primary)
+	removed := primaryAfter(before, after, id)
+	removed.Removed = file
+	logger.Info("removed an account", "account", id, "token_file", file.File, "linked_to", file.LinkedTo, "linked_to_gone", file.LinkedToGone,
+		"primary_now", removed.Primary, "pool_emptied", removed.Emptied.ID)
 	return removed, nil
+}
+
+// primaryAfter is what removing the account with the given id from before,
+// leaving after, did to the primary of the pool it was in, as Removed tells
+// it.
+func primaryAfter(before, after *config.Config, id string) Removed {
+	was, _ := configured(before, id)
+	if primary, _ := before.Accounts.PrimaryOf(was.Pool); primary.ID != was.ID {
+		return Removed{}
+	}
+	if now, ok := after.Accounts.PrimaryOf(was.Pool); ok {
+		return Removed{Primary: now.ID}
+	}
+	var removed Removed
+	if emptied, ok := before.Pools.ByID(was.Pool); ok {
+		removed.Emptied.ID, removed.Emptied.Label = emptied.ID, emptied.Label
+	}
+	return removed
 }
 
 // removeFormer removes the token file by the id the account with the given

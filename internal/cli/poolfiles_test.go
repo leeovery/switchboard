@@ -143,6 +143,42 @@ func TestTheVerbsReadingTheFilesReadThePoolEachRecordedOneFromBeforePoolsTheFirs
 	}
 }
 
+// Following the events of a pool prints those filed after that are of it
+// alone, as listing them does.
+func TestEventsFollowedInAPoolAreThePoolsAlone(t *testing.T) {
+	deps := pooledDeps(t, false)
+	stdout, interrupt := follow(t, deps, offATerminal, "events", "-f", "--pool", "q7mt")
+	waitForLines(t, stdout, 3)
+	for i, e := range []status.Event{
+		{At: october(7, 12, 10, 0), Kind: status.EventLimit, Account: "side", Windows: []string{"5h"}, Until: october(7, 14, 0, 0)},
+		{At: october(7, 12, 20, 0), Kind: status.EventStarted, Session: sessionC, Account: "work", Pool: "x9z9", Reason: status.ReasonNew},
+		{At: october(7, 12, 30, 0), Kind: status.EventCap, Account: "work", Windows: []string{"7d"}, Until: october(9, 14, 0, 0)},
+	} {
+		fileEvent(t, deps, "2026-10-07", eventLine(runOne, 6+i, e))
+	}
+	waitForLines(t, stdout, 4)
+	if code, stderr := interrupt(); code != 0 || stderr != "" {
+		t.Errorf("switchboard events -f --pool q7mt exited %d, printing %q on stderr, once interrupted; want 0 and nothing", code, stderr)
+	}
+	got := result{stdout: stdout.String()}
+	if kinds, want := fieldsOf(t, got, "kind"), []string{"started", "limit", "restart", "cap"}; !slices.Equal(kinds, want) {
+		t.Errorf("switchboard events -f --pool q7mt printed the kinds %q, want %q: side's limit is Default's, and a start in a pool since removed none's", kinds, want)
+	}
+}
+
+// waitForLines waits a few seconds at most for the buffer to hold lines of
+// its own, at least as many as given.
+func waitForLines(t *testing.T, b *syncBuffer, lines int) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for strings.Count(b.String(), "\n") < lines {
+		if time.Now().After(deadline) {
+			t.Fatalf("printed %q, want %d lines", b.String(), lines)
+		}
+		time.Sleep(time.Millisecond)
+	}
+}
+
 func TestTheStoredLinesJSONLabelsThePoolEachNames(t *testing.T) {
 	deps := pooledDeps(t, false)
 	tests := []struct {
@@ -212,6 +248,45 @@ func TestHistoryShowsThePoolsWorkAsRecordedAndNamesItsPoolByIDAndLabel(t *testin
 	}
 }
 
+// A day of one pool of several leaves out its files' lines and bytes, the
+// whole day's, never the pool's.
+func TestHistoryOfOnePoolOfSeveralLeavesOutTheDaysFiles(t *testing.T) {
+	deps := pooledDeps(t, false)
+	for _, args := range [][]string{nil, {"--pool", "q7mt"}} {
+		got := run(t, deps, append([]string{"history", "--json"}, args...)...)
+		var doc struct {
+			Days []map[string]json.RawMessage `json:"days"`
+		}
+		if err := json.Unmarshal([]byte(got.stdout), &doc); err != nil || len(doc.Days) == 0 {
+			t.Fatalf("switchboard history --json %s = %+v (%v), want its days", strings.Join(args, " "), got, err)
+		}
+		for _, d := range doc.Days {
+			if _, lines := d["lines"]; lines {
+				t.Errorf("switchboard history --json %s gave a day its lines, %s, want them left out", strings.Join(args, " "), d["lines"])
+			}
+			if _, bytes := d["bytes"]; bytes {
+				t.Errorf("switchboard history --json %s gave a day its bytes, %s, want them left out", strings.Join(args, " "), d["bytes"])
+			}
+			if _, day := d["day"]; !day {
+				t.Errorf("switchboard history --json %s gave a day without its date: %v", strings.Join(args, " "), d)
+			}
+		}
+	}
+
+	// With one pool, its days are the whole day's, and keep them.
+	path, err := config.Path(deps.Getenv, deps.HomeDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	onePool := strings.Replace(pooledConfig(false), `pool  = "q7mt"`, `pool  = "b2n8"`, 1)
+	onePool = onePool[:strings.LastIndex(onePool, "[[pool]]")]
+	writeStateFile(t, filepath.Dir(path), filepath.Base(path), []byte(onePool))
+	got := run(t, deps, "history", "--json")
+	if !strings.Contains(got.stdout, `"lines": 3`) {
+		t.Errorf("switchboard history --json with one pool = %+v, want its day's lines", got)
+	}
+}
+
 // sessionsListed are the ids of the sessions sessions --json listed.
 func sessionsListed(t *testing.T, got result) []string {
 	t.Helper()
@@ -254,6 +329,62 @@ func TestSessionsListsThePoolsSessionsAlone(t *testing.T) {
 	}
 }
 
+// A session with requests in two pools is listed in each with its requests
+// there alone, and their worth, and each list sums its own sessions once.
+func TestASessionInTwoPoolsIsCountedInEachByItsOwnRequests(t *testing.T) {
+	const twoPools = "7c1d2e3f-0004-4a00-8000-000000000004"
+	deps := pooledDeps(t, false)
+	var lines bytes.Buffer
+	for _, l := range []ledger.Line{
+		{At: october(7, 11, 30, 0), Request: "p4", Session: twoPools, Account: "side", Pool: "b2n8"},
+		{At: october(7, 11, 40, 0), Request: "p5", Session: twoPools, Account: "work", Pool: "q7mt"},
+		{At: october(7, 11, 50, 0), Request: "p6", Session: twoPools, Account: "side", Pool: "b2n8"},
+	} {
+		l.At, l.Kind, l.Model, l.Reason, l.Status, l.Attempts, l.TotalMS, l.Usage = l.At.UTC(), ledger.KindMessage, "claude-opus-5-5", "new", 200, 1, 100, json.RawMessage(hourUsage)
+		data, err := json.Marshal(l)
+		if err != nil {
+			t.Fatal(err)
+		}
+		lines.Write(append(data, '\n'))
+	}
+	appendTo(t, filepath.Join(ledger.Dir(stateDir(t, deps)), "requests-2026-10-07.jsonl"), lines.String())
+
+	type listed struct {
+		Session  string      `json:"session"`
+		Requests int         `json:"requests"`
+		Worth    json.Number `json:"worth"`
+	}
+	tests := []struct {
+		args             []string
+		requests         int
+		worth            string
+		sessions, inPool int
+	}{
+		{args: nil, requests: 2, worth: "0.07608", sessions: 3, inPool: 4},
+		{args: []string{"--pool", "q7mt"}, requests: 1, worth: "0.03804", sessions: 2, inPool: 2},
+	}
+	for _, tt := range tests {
+		got := run(t, deps, append([]string{"sessions", "--json"}, tt.args...)...)
+		var list struct {
+			Sessions []listed `json:"sessions"`
+			Today    struct {
+				Sessions int `json:"sessions"`
+				Requests int `json:"requests"`
+			} `json:"today"`
+		}
+		if err := json.Unmarshal([]byte(got.stdout), &list); err != nil {
+			t.Fatalf("switchboard sessions --json %s = %+v: %v", strings.Join(tt.args, " "), got, err)
+		}
+		i := slices.IndexFunc(list.Sessions, func(s listed) bool { return s.Session == twoPools })
+		if i < 0 || list.Sessions[i].Requests != tt.requests || list.Sessions[i].Worth.String() != tt.worth {
+			t.Errorf("switchboard sessions --json %s listed %+v, want the session in both pools with %d requests worth %s", strings.Join(tt.args, " "), list.Sessions, tt.requests, tt.worth)
+		}
+		if list.Today.Sessions != tt.sessions || list.Today.Requests != tt.inPool {
+			t.Errorf("switchboard sessions --json %s summed %+v, want %d sessions of %d requests", strings.Join(tt.args, " "), list.Today, tt.sessions, tt.inPool)
+		}
+	}
+}
+
 func TestTheVerbsReadingTheFilesAskForAPoolWhereEveryPoolIsFenced(t *testing.T) {
 	deps := pooledDeps(t, true)
 	for _, verb := range []string{"requests", "history", "events", "sessions"} {
@@ -269,9 +400,45 @@ func TestTheVerbsReadingTheFilesAskForAPoolWhereEveryPoolIsFenced(t *testing.T) 
 	}
 }
 
-func TestSessionsOfOneTakesNoPool(t *testing.T) {
-	got := run(t, pooledDeps(t, false), "sessions", sessionB, "--pool", "q7mt")
-	if got.code == 0 || !strings.Contains(got.stderr, "takes no --pool") {
-		t.Errorf("switchboard sessions <id> --pool q7mt = %+v, want it refused", got)
+// --pool "" is --pool not given, on every verb reading the files, as the
+// skill passes $SWITCHBOARD_POOL, empty outside a pool.
+func TestAPoolGivenEmptyIsNoneGiven(t *testing.T) {
+	deps := pooledDeps(t, false)
+	for _, args := range [][]string{{"requests"}, {"events"}, {"history"}, {"sessions"}, {"sessions", sessionB}, {"requests", "--session", sessionB}} {
+		without, with := run(t, deps, append(args, "--json")...), run(t, deps, append(args, "--json", "--pool", "")...)
+		if with.code != 0 || with != without {
+			t.Errorf("switchboard %s --json --pool \"\" = %+v, want it as without --pool, %+v", strings.Join(args, " "), with, without)
+		}
+	}
+}
+
+// A session given to requests --session is found in whatever pool it's in,
+// or with --pool, in that pool alone, its requests those routed there; one
+// given to sessions takes --pool, a pool configured, for the router's
+// sessions it's found among, and without the router, shows from the ledger.
+func TestASessionGivenIsFoundInWhateverPoolElseInThePoolNamed(t *testing.T) {
+	deps := pooledDeps(t, false)
+	tests := []struct {
+		args []string
+		want []string
+	}{
+		{args: []string{"requests", "--session", sessionB}, want: []string{"p2"}},
+		{args: []string{"requests", "--session", sessionB, "--pool", "q7mt"}, want: []string{"p2"}},
+		{args: []string{"requests", "--session", sessionB, "--pool", "b2n8"}},
+		{args: []string{"requests", "--session", sessionA, "--pool", "b2n8"}, want: []string{"p1"}},
+	}
+	for _, tt := range tests {
+		got := run(t, deps, append(tt.args, "--json")...)
+		if requests := fieldsOf(t, got, "request"); got.code != 0 || !slices.Equal(requests, tt.want) {
+			t.Errorf("switchboard %s --json printed the requests %q (%+v), want %q", strings.Join(tt.args, " "), requests, got, tt.want)
+		}
+	}
+	for _, pool := range []string{"q7mt", "b2n8"} {
+		if got := run(t, deps, "sessions", sessionB, "--pool", pool, "--json"); got.code != 0 || !strings.Contains(got.stdout, sessionB) {
+			t.Errorf("switchboard sessions %s --pool %s --json = %+v, want the session's page", status.ShortID(sessionB), pool, got)
+		}
+	}
+	if got := run(t, deps, "sessions", sessionB, "--pool", "x9z9"); got.code == 0 || !strings.Contains(got.stderr, `there's no pool "x9z9": name b2n8 (Default) or q7mt (Acme), with --pool`) {
+		t.Errorf("switchboard sessions %s --pool x9z9 = %+v, want it refused, naming the pools", status.ShortID(sessionB), got)
 	}
 }
