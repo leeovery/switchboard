@@ -160,15 +160,19 @@ func (a *app) shownEvents(ctx context.Context, cfg *config.Config, r stateReader
 	return pool.read.Filed(r.events), poolsNamed(r.dir, pooled)
 }
 
-// poolsNamed labels a pool by its id, as poolLabelsIn does, where cfg, as
-// its pools stand, has several, as the words of the router's events name the
-// pool whose sessions' own pins a forced pin cleared: nil, naming none,
-// where it has one or none.
+// poolsNamed labels a pool by its id, as poolLabelsIn does, where the
+// recorded files may hold more than one pool's work, as status.ManyPoolsFiled
+// has it of cfg, as its pools stand, and the accounts record in the state
+// directory dir, read once for both: so the words of the router's events name
+// the pool whose sessions' own pins a forced pin cleared, one from the days
+// of several pools included. It's nil, naming none, where they hold one
+// pool's alone.
 func poolsNamed(dir string, cfg *config.Config) func(id string) string {
-	if len(cfg.Pools) < 2 {
+	record := recordIn(dir)
+	if !status.ManyPoolsFiled(cfg.Pools, record) {
 		return nil
 	}
-	return poolLabelsIn(dir, cfg)
+	return status.PoolLabels(cfg.Pools, record)
 }
 
 // namesIn are the names of the accounts cfg configures and of those removed

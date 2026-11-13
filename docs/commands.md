@@ -318,7 +318,8 @@ can be pinned only to an account of its own pool: `Acme 1 (k3f9) is in pool Acme
 in pool Default`. Once there's a second pool, what `pin` says names the pool, as `new sessions in
 pool Acme go to Acme 1`, and with `--force`, whose own pins it cleared, as `routing automatically
 in pool Acme, the own pin of every session in pool Acme cleared`; `events` and the Log say so too,
-as `the own pins of pool Acme's sessions cleared too`.
+as `the own pins of pool Acme's sessions cleared too`, wherever the history holds more than one
+pool's work, so a pin from the days of two pools still names its pool once one is removed.
 
 **Pinning several accounts** sets an order to use them up in. With `pin b6s7 q4tx`, work and side
 take the new sessions, the better of the two first, until both are out. Only then does

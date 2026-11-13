@@ -132,8 +132,8 @@ func NewTelling(window func(key string) string) *Telling {
 
 // NamingPools has t name the pool whose sessions' own pins a pin set or
 // cleared with force cleared, by the label label gives it by its id, as
-// where the config has several pools; nil, as where it has one or none,
-// names none, the pin clearing every session's. It returns t.
+// where the events may be of several pools; nil, as where they're of one
+// pool's alone, names none, the pin clearing every session's. It returns t.
 func (t *Telling) NamingPools(label func(id string) string) *Telling {
 	t.facts.pool = label
 	return t

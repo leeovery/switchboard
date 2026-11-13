@@ -787,10 +787,12 @@ pool for its whole life:
   it names the accounts of every pool. `pin auto` clears a pool's pin: `pin auto --pool q7mt`
   clears Acme's, and without the flag it clears the pool the verbs act on (see Reading a pool).
 - **`--move` and `--force`** act inside the pin's pool alone. `--force` clears the own pins of that
-  pool's sessions only, and where there's more than one pool, what's said of it names the pool:
-  `pin` as `…, the own pin of every session in pool Acme cleared`, `events` and the Log as `…, the
-  own pins of pool Acme's sessions cleared too`, and the event's card as `own pins: pool Acme's
-  sessions' cleared`; with one pool, or none, every session's, as before pools.
+  pool's sessions only, and what's said of it names the pool: `pin`, where there's more than one
+  pool, as `…, the own pin of every session in pool Acme cleared`; `events` and the Log, wherever
+  the recorded files may hold more than one pool's work, as `status.ManyPoolsFiled` has it, so a
+  pin from the days of two pools still names its pool once one is removed, as `…, the own pins of
+  pool Acme's sessions cleared too`, and the event's card as `own pins: pool Acme's sessions'
+  cleared`; else every session's, as before pools.
 - **A session's own pin**, from `pin --session` or `run --account`, must name an account in the
   session's pool. One naming another pool's account is refused: `Acme 1 (k3f9) is in pool Acme;
   this session is in pool Default`.

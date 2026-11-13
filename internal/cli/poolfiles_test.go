@@ -258,26 +258,57 @@ func TestHistoryShowsThePoolsWorkAsRecordedAndNamesItsPoolByIDAndLabel(t *testin
 }
 
 // A pin cleared with force in a pool of several cleared the own pins of that
-// pool's sessions alone, so events names the pool; with one pool, it says
-// every session's.
+// pool's sessions alone, so events names the pool, as it still does once the
+// other is removed, the files holding the work of both; where there never
+// was another pool, it says every session's.
 func TestEventsNameThePoolAForcedPinClearedTheOwnPinsOf(t *testing.T) {
 	deps := pooledDeps(t, false)
 	fileEvent(t, deps, "2026-10-07", eventLine(runOne, 6, status.Event{At: october(7, 12, 30, 0), Kind: status.EventAuto, Accounts: []string{"work"}, Pool: "q7mt", Force: true, By: "cli"}))
-	got := run(t, deps, "events", "--pool", "q7mt", "--pretty")
-	if want := "new sessions back from Work to the router's choice, the own pins of pool Acme's sessions cleared too, set from the command line"; got.code != 0 || !strings.Contains(got.stdout, want) {
-		t.Errorf("switchboard events --pool q7mt = %+v, want it to say %q", got, want)
+	fileEvent(t, deps, "2026-10-07", eventLine(runOne, 7, status.Event{At: october(7, 12, 40, 0), Kind: status.EventAuto, Accounts: []string{"side"}, Pool: "b2n8", Force: true, By: "cli"}))
+	const (
+		inAcme    = "new sessions back from Work to the router's choice, the own pins of pool Acme's sessions cleared too, set from the command line"
+		inDefault = "new sessions back from Side to the router's choice, the own pins of pool Default's sessions cleared too, set from the command line"
+		everyOne  = "new sessions back from Side to the router's choice, every session's own pin cleared too, set from the command line"
+	)
+	checkSaid := func(when string, args []string, want string) {
+		t.Helper()
+		got := run(t, deps, append(args, "--pretty")...)
+		if got.code != 0 || !strings.Contains(got.stdout, want) {
+			t.Errorf("switchboard %s %s = %+v, want it to say %q", strings.Join(args, " "), when, got, want)
+		}
 	}
+	checkSaid("with two pools", []string{"events", "--pool", "q7mt"}, inAcme)
+	checkSaid("with two pools", []string{"events"}, inDefault)
 
+	onePoolLeft(t, deps, acmeRemovedEntry)
+	checkSaid("once Acme is removed", []string{"events", "--pool", "q7mt"}, inAcme)
+	checkSaid("once Acme is removed", []string{"events"}, inDefault)
+
+	onePoolLeft(t, deps)
+	checkSaid("where there never was another pool", []string{"events"}, everyOne)
+}
+
+// acmeRemovedEntry is Acme as the accounts record keeps it once it's
+// removed, as this Mac's config last wrote it.
+var acmeRemovedEntry = identity.PoolEntry{ID: "q7mt", Label: "Acme", Added: testNow, Removed: testNow, Written: identity.PoolWritten{Label: "Acme", PrimaryKnown: true}}
+
+// onePoolLeft configures pooledDeps' deps with Default alone, every account
+// in it, and has the accounts record keep it, the first pool, and the pools
+// kept beside it.
+func onePoolLeft(t *testing.T, deps cli.Deps, kept ...identity.PoolEntry) {
+	t.Helper()
 	path, err := config.Path(deps.Getenv, deps.HomeDir)
 	if err != nil {
 		t.Fatal(err)
 	}
 	onePool := strings.Replace(pooledConfig(false), `pool  = "q7mt"`, `pool  = "b2n8"`, 1)
 	writeStateFile(t, filepath.Dir(path), filepath.Base(path), []byte(onePool[:strings.LastIndex(onePool, "[[pool]]")]))
-	fileEvent(t, deps, "2026-10-07", eventLine(runOne, 7, status.Event{At: october(7, 12, 40, 0), Kind: status.EventAuto, Accounts: []string{"side"}, Pool: "b2n8", Force: true, By: "cli"}))
-	got = run(t, deps, "events", "--pretty")
-	if want := "new sessions back from Side to the router's choice, every session's own pin cleared too, set from the command line"; got.code != 0 || !strings.Contains(got.stdout, want) {
-		t.Errorf("switchboard events with one pool = %+v, want it to say %q", got, want)
+	err = identity.NewFile(stateDir(t, deps)).Update(func(r *identity.Record) error {
+		r.Pools = append([]identity.PoolEntry{{ID: "b2n8", Added: testNow, First: true, Here: true}}, kept...)
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
 }
 
