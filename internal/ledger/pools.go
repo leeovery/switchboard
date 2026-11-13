@@ -217,6 +217,19 @@ func routedIn(pool, first string) RoutedIn {
 	return func(recorded string) bool { return RecordedIn(recorded, pool, first) }
 }
 
+// Owner is the session a page's points, read or folded in the pool in
+// reads, take a request of the session given that recorded the pool given
+// as the own of: none where it was routed in another pool, so a session's
+// own are its requests in the pool alone, while every request on an
+// account, of whichever pool, counts as its windows rise of each; session
+// itself where in is nil, of every pool's.
+func (in RoutedIn) Owner(recorded, session string) string {
+	if in != nil && !in(recorded) {
+		return ""
+	}
+	return session
+}
+
 // poolsApart are pools, as RecordingPool keeps them, apart by the pool each
 // was routed in, as RecordedIn has it of first, the first pool's id: each
 // pool's in their order, the pools in the order of the first of each, one

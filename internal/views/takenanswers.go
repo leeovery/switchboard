@@ -40,23 +40,20 @@ func (t takenAnswers) take(date string, l ledger.Line) {
 	d.pools = append(d.pools, unique.Make(l.Pool))
 }
 
-// in are the answers taken, each of its session where its line was routed
-// in the pool in reads, as ledger.DigestDay's In has it, else of none, as a
-// pool's read hands a session's lines in another pool, as PoolRead's owned
-// has it: so a page's points take as a session's own its requests in the
-// pool alone. They're t itself where in is nil, of every pool's; else the
-// answers t holds, shared.
+// in are the answers taken as a fold in the pool in reads, as
+// ledger.DigestDay's In has it, hands them to a page's points: each of the
+// session ledger.RoutedIn's Owner has it of, as a pool's read hands a
+// session's lines. They're t itself where in is nil, of every pool's; else
+// the answers t holds, shared.
 func (t takenAnswers) in(in ledger.RoutedIn) takenAnswers {
 	if in == nil {
 		return t
 	}
-	none, owned := unique.Make(""), make(takenAnswers, len(t))
+	owned := make(takenAnswers, len(t))
 	for date, d := range t {
-		sessions := slices.Clone(d.sessions)
-		for i, pool := range d.pools {
-			if !in(pool.Value()) {
-				sessions[i] = none
-			}
+		sessions := make([]unique.Handle[string], len(d.sessions))
+		for i, session := range d.sessions {
+			sessions[i] = unique.Make(in.Owner(d.pools[i].Value(), session.Value()))
 		}
 		owned[date] = &dayAnswers{answers: d.answers, sessions: sessions, pools: d.pools}
 	}

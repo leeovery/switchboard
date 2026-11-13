@@ -55,6 +55,15 @@ func (p PoolRead) keeps(recorded string) bool {
 	return p.every() || !p.none && ledger.RecordedIn(recorded, p.ID, p.First)
 }
 
+// in is what reports whether the read keeps a request, as keeps has it, as
+// the ledger reads a pool's sessions: nil where it reads every pool's.
+func (p PoolRead) in() ledger.RoutedIn {
+	if p.every() {
+		return nil
+	}
+	return p.keeps
+}
+
 // keepsOf reports whether the read keeps any of the requests that recorded
 // the pools given, one at least, as ledger.RecordedPools restores a head's,
 // or a digest's entry holds them, as keeps has it of each, and whether it
@@ -146,7 +155,7 @@ func keptPast[L any](p PoolRead, lines []L, dropped int, pool func(*L) string) [
 
 // Took decodes a read of the ledger's tail for the store, as the package's
 // Took does, the requests of the pool read alone taken, as Held has them:
-// every line kept for a page's points all the same, as owned hands each.
+// every line kept for a page's points all the same, as ownedAll hands them.
 func (p PoolRead) Took(gained []ledger.Held, days map[string][]ledger.Held) Taken {
 	t := Taken{gained: takenOf(p.Held(gained)), days: make(map[string]takenLines, len(days)), read: tailRead{gained: p.ownedAll(gained), days: make(map[string][]ledger.Held, len(days))}}
 	for date, lines := range days {
@@ -155,27 +164,18 @@ func (p PoolRead) Took(gained []ledger.Held, days map[string][]ledger.Held) Take
 	return t
 }
 
-// owned is the line l as the pool read hands it to a page's points, which
-// count every request on an account, of every pool, as its windows do: of
-// no session where it was routed in another pool, so a session's own are
-// its requests in the pool alone.
-func (p PoolRead) owned(l ledger.Line) ledger.Line {
-	if !p.keeps(l.Pool) {
-		l.Session = ""
-	}
-	return l
-}
-
-// ownedAll are lines, each as owned has it: lines themselves where the
-// read keeps every one, as every pool's does.
+// ownedAll are lines as the pool read hands them to a page's points, each
+// of the session ledger.RoutedIn's Owner has it of, as the read keeps it:
+// lines themselves where that changes none, as of every pool's read.
 func (p PoolRead) ownedAll(lines []ledger.Held) []ledger.Held {
-	i := slices.IndexFunc(lines, func(h ledger.Held) bool { return !p.keeps(h.Pool) })
+	in := p.in()
+	i := slices.IndexFunc(lines, func(h ledger.Held) bool { return in.Owner(h.Pool, h.Session) != h.Session })
 	if i < 0 {
 		return lines
 	}
 	owned := slices.Clone(lines)
 	for ; i < len(owned); i++ {
-		owned[i].Line = p.owned(owned[i].Line)
+		owned[i].Session = in.Owner(owned[i].Pool, owned[i].Session)
 	}
 	return owned
 }
@@ -368,13 +368,13 @@ func (e poolEvents) Between(from, to time.Time) iter.Seq[events.Line] {
 // each session as a read of its lines routed in the pool alone, as keeps
 // has it, would hold it, so its story, its requests and their worth, and
 // its page are those of its work in the pool, and one with none there none
-// of the pool's. Each rests on its state in the pool, as l's SessionsIn
+// of the pool's. Each rests on its state in the pool, as l's Sessions
 // rests it: a state folded from its lines in the pool alone, of a session
 // split between pools its state there apart, or none, read after the state
 // it holds of none of the pool's work; and its lines after it are those in
 // the pool, as inPool has them. A reader taking every line read, as a
 // page's points take every account's answers, is handed every pool's, as
-// owned hands each. l itself where the read is of every pool's, or l is
+// owning hands each. l itself where the read is of every pool's, or l is
 // nil.
 func (p PoolRead) Ledger(l Ledger) Ledger {
 	if p.every() || l == nil {
@@ -389,21 +389,37 @@ type poolLedger struct {
 	read PoolRead
 }
 
-func (l poolLedger) Sessions(ids []string, rest func(id string) ledger.Rest, take func(date string, line ledger.Line)) map[string]ledger.SessionFrom {
-	return l.inPool(ids, l.SessionsIn(l.read.keeps, ids, rest, l.owning(take)))
+func (l poolLedger) Sessions(in ledger.RoutedIn, ids []string, rest func(id string) ledger.Rest, take func(date string, line ledger.Line)) map[string]ledger.SessionFrom {
+	return l.inPool(ids, l.Ledger.Sessions(l.within(in), ids, rest, l.owning(take)))
 }
 
-func (l poolLedger) SessionsOf(ids []string, rest func(id string) ledger.Rest, take func(date string, line ledger.Line)) map[string]ledger.SessionFrom {
-	return l.inPool(ids, l.SessionsOfIn(l.read.keeps, ids, rest, l.owning(take)))
+func (l poolLedger) SessionsOf(in ledger.RoutedIn, ids []string, rest func(id string) ledger.Rest, take func(date string, line ledger.Line)) map[string]ledger.SessionFrom {
+	return l.inPool(ids, l.Ledger.SessionsOf(l.within(in), ids, rest, l.owning(take)))
 }
 
-// owning is take, handed each line as owned has it: nil where take is.
+// within is what reports whether a request was routed in the pool read and
+// in the pool in reads, as a reader of a pool of its own reads through l:
+// so a read through more than one pool's reads no wider than any of them;
+// the pool read's alone, as in has it, where in is nil.
+func (l poolLedger) within(in ledger.RoutedIn) ledger.RoutedIn {
+	keeps := l.read.in()
+	if in == nil {
+		return keeps
+	}
+	return func(recorded string) bool { return in(recorded) && keeps(recorded) }
+}
+
+// owning is take, handed each line as a page's points take it, of the
+// session ledger.RoutedIn's Owner has it of, as the pool read keeps it: nil
+// where take is.
 func (l poolLedger) owning(take func(string, ledger.Line)) func(string, ledger.Line) {
 	if take == nil {
 		return nil
 	}
+	in := l.read.in()
 	return func(date string, line ledger.Line) {
-		take(date, l.read.owned(line))
+		line.Session = in.Owner(line.Pool, line.Session)
+		take(date, line)
 	}
 }
 

@@ -157,7 +157,7 @@ func TestAPoolsReadRestsEachSessionOnItsStateInThePool(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := tt.read.Ledger(n.follower(DigestVersion)).SessionsOf(pooledNineIDs, nil, nil)
+			got := tt.read.Ledger(n.follower(DigestVersion)).SessionsOf(nil, pooledNineIDs, nil, nil)
 
 			if ids, want := slices.Sorted(maps.Keys(got)), slices.Sorted(maps.Keys(tt.want)); !slices.Equal(ids, want) {
 				t.Fatalf("the read gave %v, want %v", ids, want)
@@ -175,6 +175,22 @@ func TestAPoolsReadRestsEachSessionOnItsStateInThePool(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// No pool's read over digests gives none of the sessions, though each is
+// asked for by its id: the ledger rests each on no state, none of them
+// holding any of no pool's work, and none of their lines is any pool's.
+func TestNoPoolsReadOverDigestsGivesNoneOfTheSessionsAskedFor(t *testing.T) {
+	n := newRoutedNineDays(t, pooledNineIDs, pooledNine)
+	read := NoPool().Ledger(n.follower(DigestVersion))
+	reads := map[string]func(ledger.RoutedIn, []string, func(string) ledger.Rest, func(string, ledger.Line)) map[string]ledger.SessionFrom{
+		"Sessions": read.Sessions, "SessionsOf": read.SessionsOf,
+	}
+	for name, sessions := range reads {
+		if got := sessions(nil, pooledNineIDs, nil, nil); len(got) != 0 {
+			t.Errorf("no pool's read through %s gave %v, want none", name, slices.Sorted(maps.Keys(got)))
+		}
 	}
 }
 
@@ -270,7 +286,7 @@ func TestAPoolsReadPassesOverASessionThatLeftItUnlessAsked(t *testing.T) {
 	first := dayfile.Span(n.first.Start, n.today.Start)[0]
 	read := func(ids []string) (ledger.SessionFrom, bool, bool) {
 		var reached bool
-		got := defaultNine.Ledger(n.follower(DigestVersion)).Sessions(ids, nil, func(date string, _ ledger.Line) { reached = reached || date == first })
+		got := defaultNine.Ledger(n.follower(DigestVersion)).Sessions(nil, ids, nil, func(date string, _ ledger.Line) { reached = reached || date == first })
 		c, ok := got["c"]
 		return c, ok, reached
 	}

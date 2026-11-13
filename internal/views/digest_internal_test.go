@@ -629,10 +629,10 @@ func (c *digestChain) checkFollowed(now time.Time, prices []pricedAs) {
 	c.t.Helper()
 	ids := sessionsIn(c.lines)
 	follower := ledger.NewFollower(c.state, func() time.Time { return now }, ledger.CapsOf(nil, nil), DigestVersion, quiet)
-	based := follower.SessionsOf(ids, nil, nil)
+	based := follower.SessionsOf(nil, ids, nil, nil)
 	pagedAnswers, wholeAnswers := make(takenAnswers), make(takenAnswers)
-	paged := follower.SessionsOf(ids, onPage, pagedAnswers.take)
-	whole := follower.SessionsOf(ids, eachWhole, wholeAnswers.take)
+	paged := follower.SessionsOf(nil, ids, onPage, pagedAnswers.take)
+	whole := follower.SessionsOf(nil, ids, eachWhole, wholeAnswers.take)
 	day, horizon := Today(now), horizonAt(now, nil)
 	for _, id := range slices.Sorted(maps.Keys(whole)) {
 		from, through := based[id], ""

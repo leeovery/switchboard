@@ -347,8 +347,8 @@ func TestTheRecordsLedgerGivesTheSessionsAFollowerReadsAndHandsOnTheirDaysLines(
 
 	var took, wantTook []string
 	whole := func(string) ledger.Rest { return ledger.RestWhole }
-	got := l.Sessions([]string{sessionAsked}, whole, func(_ string, line ledger.Line) { took = append(took, line.Request) })
-	want := follower.Sessions([]string{sessionAsked}, whole, func(_ string, line ledger.Line) { wantTook = append(wantTook, line.Request) })
+	got := l.Sessions(nil, []string{sessionAsked}, whole, func(_ string, line ledger.Line) { took = append(took, line.Request) })
+	want := follower.Sessions(nil, []string{sessionAsked}, whole, func(_ string, line ledger.Line) { wantTook = append(wantTook, line.Request) })
 	ids := func(m map[string]ledger.SessionFrom) map[string][]string {
 		out := make(map[string][]string)
 		for id, from := range m {
@@ -372,7 +372,7 @@ func TestTheRecordsLedgerGivesTheSessionsAFollowerReadsAndHandsOnTheirDaysLines(
 	}
 
 	took = nil
-	if got := l.Sessions(nil, whole, func(_ string, line ledger.Line) { took = append(took, line.Request) }); len(got) != 2 {
+	if got := l.Sessions(nil, nil, whole, func(_ string, line ledger.Line) { took = append(took, line.Request) }); len(got) != 2 {
 		t.Errorf("Sessions(none) = %v, want today's two alone", ids(got))
 	}
 	slices.Sort(took)

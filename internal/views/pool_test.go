@@ -245,20 +245,63 @@ type sessionsHeld struct {
 	sessions map[string]ledger.SessionFrom
 }
 
-func (l sessionsHeld) Sessions([]string, func(string) ledger.Rest, func(string, ledger.Line)) map[string]ledger.SessionFrom {
+func (l sessionsHeld) Sessions(ledger.RoutedIn, []string, func(string) ledger.Rest, func(string, ledger.Line)) map[string]ledger.SessionFrom {
 	return l.sessions
 }
 
-func (l sessionsHeld) SessionsOf([]string, func(string) ledger.Rest, func(string, ledger.Line)) map[string]ledger.SessionFrom {
+func (l sessionsHeld) SessionsOf(ledger.RoutedIn, []string, func(string) ledger.Rest, func(string, ledger.Line)) map[string]ledger.SessionFrom {
 	return l.sessions
 }
 
-func (l sessionsHeld) SessionsIn(ledger.RoutedIn, []string, func(string) ledger.Rest, func(string, ledger.Line)) map[string]ledger.SessionFrom {
-	return l.sessions
+// poolsAsked is a ledger holding no session, which notes the pool each read
+// of its sessions asked for, as each was handed it.
+type poolsAsked struct {
+	views.Ledger
+	asked *[]ledger.RoutedIn
 }
 
-func (l sessionsHeld) SessionsOfIn(ledger.RoutedIn, []string, func(string) ledger.Rest, func(string, ledger.Line)) map[string]ledger.SessionFrom {
-	return l.sessions
+func (l poolsAsked) Sessions(in ledger.RoutedIn, _ []string, _ func(string) ledger.Rest, _ func(string, ledger.Line)) map[string]ledger.SessionFrom {
+	*l.asked = append(*l.asked, in)
+	return nil
+}
+
+func (l poolsAsked) SessionsOf(in ledger.RoutedIn, _ []string, _ func(string) ledger.Rest, _ func(string, ledger.Line)) map[string]ledger.SessionFrom {
+	*l.asked = append(*l.asked, in)
+	return nil
+}
+
+// A pool's read asks the ledger it reads through for the pool's sessions
+// alone, by each read: Acme's, of the requests routed in Acme's, none in
+// Default's, the first's, nor naming none. Read through another pool's read
+// again, it asks for those routed in both, so a read through a second pool
+// reads no wider than the first: Default's within Acme's, none at all. Every
+// pool's read asks for every pool's.
+func TestAPoolsReadAsksTheLedgerForThePoolsSessionsAlone(t *testing.T) {
+	var asked []ledger.RoutedIn
+	held := poolsAsked{asked: &asked}
+	defaultRead := views.PoolRead{ID: "b2n8", First: "b2n8"}
+	acmeRead.Ledger(held).Sessions(nil, nil, nil, nil)
+	acmeRead.Ledger(held).SessionsOf(nil, []string{"one"}, nil, nil)
+	acmeRead.Ledger(defaultRead.Ledger(held)).Sessions(nil, nil, nil, nil)
+	views.PoolRead{}.Ledger(held).SessionsOf(nil, []string{"one"}, nil, nil)
+
+	recorded := []string{"q7mt", "b2n8", ""}
+	want := [][]bool{{true, false, false}, {true, false, false}, {false, false, false}}
+	if len(asked) != 4 {
+		t.Fatalf("the ledger was asked %d reads, want 4", len(asked))
+	}
+	for i, w := range want {
+		got := make([]bool, len(recorded))
+		for j, pool := range recorded {
+			got[j] = asked[i] != nil && asked[i](pool)
+		}
+		if !slices.Equal(got, w) {
+			t.Errorf("read %d asked for the requests of %q as %v, want %v", i, recorded, got, w)
+		}
+	}
+	if asked[3] != nil {
+		t.Error("every pool's read asked the ledger for one pool's, want every pool's")
+	}
 }
 
 // No pool's read, as a dashboard showing no pool reads, reads no pool's
@@ -288,7 +331,7 @@ func TestNoPoolsReadReadsNoPoolsWork(t *testing.T) {
 	held := sessionsHeld{sessions: map[string]ledger.SessionFrom{
 		"resting": {Base: &ledger.SessionBase{}}, "lined": {Lines: []ledger.Line{{Request: "r1"}}},
 	}}
-	if got := none.Ledger(held).Sessions(nil, nil, nil); len(got) != 0 {
+	if got := none.Ledger(held).Sessions(nil, nil, nil, nil); len(got) != 0 {
 		t.Errorf("no pool's read of the sessions gives %d, want none", len(got))
 	}
 }

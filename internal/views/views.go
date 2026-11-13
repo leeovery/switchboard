@@ -71,7 +71,6 @@ type Ledger interface {
 	FirstLinesDay(now time.Time) (time.Time, error)
 	LedgerSession
 	LedgerSessions
-	LedgerPoolSessions
 }
 
 // LedgerSession reads one session's lines where they lie, with no router, as
@@ -117,31 +116,18 @@ type LedgerSessions interface {
 	// the newest state a digest holds that stands where rest is nil, none of
 	// one no digest holds a state of that stands; and its lines after it that
 	// arrived by now, oldest first, as Ledger's Session reads one's, each
-	// day's files read once. It hands take, where it's given, each line it
-	// reads, of whichever session, with the date of the day whose files hold
-	// it.
-	Sessions(ids []string, rest func(id string) ledger.Rest, take func(date string, l ledger.Line)) map[string]ledger.SessionFrom
+	// day's files read once. Each rests on its state in the pool in reads, as
+	// in reports of the pool each line recorded: so a session split between
+	// pools rests on its state of its work in the pool alone, one of none of
+	// it on none, read after its state; every pool's where in is nil. It
+	// hands take, where it's given, each line it reads, of whichever session,
+	// with the date of the day whose files hold it.
+	Sessions(in ledger.RoutedIn, ids []string, rest func(id string) ledger.Rest, take func(date string, l ledger.Line)) map[string]ledger.SessionFrom
 	// SessionsOf gives the sessions with the given ids alone, as Sessions
-	// gives them, but none of today's others, so none of their days is read;
-	// and hands take each line it reads, as Sessions does.
-	SessionsOf(ids []string, rest func(id string) ledger.Rest, take func(date string, l ledger.Line)) map[string]ledger.SessionFrom
-}
-
-// LedgerPoolSessions reads the request ledger's sessions in a pool, as a
-// ledger.Follower does: as LedgerSessions reads them, but each resting on its
-// state in the pool, folded from its lines there alone, as PoolRead's Ledger
-// reads them through.
-type LedgerPoolSessions interface {
-	// SessionsIn gives the sessions Sessions gives, as it gives them, but
-	// each resting on its state in the pool in reads, as in reports of the
-	// pool each line recorded: so a session split between pools rests on
-	// its state of its work in the pool alone, one of none of it on none,
-	// read after its state; its lines after it every pool's.
-	SessionsIn(in ledger.RoutedIn, ids []string, rest func(id string) ledger.Rest, take func(date string, l ledger.Line)) map[string]ledger.SessionFrom
-	// SessionsOfIn gives the sessions with the given ids alone, as
-	// SessionsOf gives them, each resting in the pool in reads, as
-	// SessionsIn rests them.
-	SessionsOfIn(in ledger.RoutedIn, ids []string, rest func(id string) ledger.Rest, take func(date string, l ledger.Line)) map[string]ledger.SessionFrom
+	// gives them, in the pool in reads, but none of today's others, so none
+	// of their days is read; and hands take each line it reads, as Sessions
+	// does.
+	SessionsOf(in ledger.RoutedIn, ids []string, rest func(id string) ledger.Rest, take func(date string, l ledger.Line)) map[string]ledger.SessionFrom
 }
 
 // Readings reads the readings history where it lies, with no router, as a

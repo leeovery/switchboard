@@ -223,7 +223,7 @@ func TestAReaderInAPoolRestsEachSessionOnItsStateThere(t *testing.T) {
 	onPage := func(string) ledger.Rest { return ledger.RestOnPage }
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := restedOf(t, w.follower().SessionsOfIn(tt.in, []string{"one", "two", "three"}, onPage, nil))
+			got := restedOf(t, w.follower().SessionsOf(tt.in, []string{"one", "two", "three"}, onPage, nil))
 
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("the sessions read in the pool rest as\n%+v\nwant\n%+v", got, tt.want)

@@ -206,24 +206,13 @@ func (f fakeLedger) Session(id string, within ...ledger.Span) iter.Seq[ledger.He
 // Sessions reads as a Follower of a ledger that holds no digest does: today's
 // files, and those of the days either side, then the days before whose
 // summaries name a session read, each session read whole.
-func (f fakeLedger) Sessions(ids []string, _ func(string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
+func (f fakeLedger) Sessions(_ ledger.RoutedIn, ids []string, _ func(string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
 	return ledger.SessionsWhole(f.sessions(ids, true, take))
 }
 
 // SessionsOf reads as Sessions does, those with the given ids alone.
-func (f fakeLedger) SessionsOf(ids []string, _ func(string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
+func (f fakeLedger) SessionsOf(_ ledger.RoutedIn, ids []string, _ func(string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
 	return ledger.SessionsWhole(f.sessions(ids, false, take))
-}
-
-// SessionsIn reads as Sessions does, in any pool: a session read whole
-// rests on no state of any pool's.
-func (f fakeLedger) SessionsIn(_ ledger.RoutedIn, ids []string, rest func(string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
-	return f.Sessions(ids, rest, take)
-}
-
-// SessionsOfIn reads as SessionsOf does, in any pool, as SessionsIn has it.
-func (f fakeLedger) SessionsOfIn(_ ledger.RoutedIn, ids []string, rest func(string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
-	return f.SessionsOf(ids, rest, take)
 }
 
 // sessions reads the sessions with the given ids, and where todays is set,
@@ -671,14 +660,14 @@ type countedLedger struct {
 	counts *readCounts
 }
 
-func (c countedLedger) Sessions(ids []string, rest func(string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
+func (c countedLedger) Sessions(in ledger.RoutedIn, ids []string, rest func(string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
 	c.counts.sessionsRead++
-	return c.fakeLedger.Sessions(ids, rest, take)
+	return c.fakeLedger.Sessions(in, ids, rest, take)
 }
 
-func (c countedLedger) SessionsOf(ids []string, rest func(string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
+func (c countedLedger) SessionsOf(in ledger.RoutedIn, ids []string, rest func(string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
 	c.counts.sessionsRead++
-	return c.fakeLedger.SessionsOf(ids, rest, take)
+	return c.fakeLedger.SessionsOf(in, ids, rest, take)
 }
 
 func (c countedLedger) Session(id string, within ...ledger.Span) iter.Seq[ledger.Held] {

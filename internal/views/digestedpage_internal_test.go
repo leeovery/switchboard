@@ -79,7 +79,7 @@ func (n nineDays) stored(l LedgerSessions, id string, listing bool, s Stream) sh
 // give them, by its id.
 func (n nineDays) chains(ids ...string) map[string][]string {
 	chains := make(map[string][]string, len(ids))
-	for id, from := range n.follower(DigestVersion).SessionsOf(ids, onPage, nil) {
+	for id, from := range n.follower(DigestVersion).SessionsOf(nil, ids, onPage, nil) {
 		chains[id] = partDates(from)
 	}
 	return chains

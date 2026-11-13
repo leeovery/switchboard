@@ -728,21 +728,13 @@ type sessionsLedger struct {
 	reads int
 }
 
-func (l *sessionsLedger) Sessions([]string, func(string) ledger.Rest, func(string, ledger.Line)) map[string]ledger.SessionFrom {
+func (l *sessionsLedger) Sessions(ledger.RoutedIn, []string, func(string) ledger.Rest, func(string, ledger.Line)) map[string]ledger.SessionFrom {
 	l.reads++
 	return ledger.SessionsWhole(l.lines)
 }
 
-func (l *sessionsLedger) SessionsOf(ids []string, rest func(string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
-	return l.Sessions(ids, rest, take)
-}
-
-func (l *sessionsLedger) SessionsIn(_ ledger.RoutedIn, ids []string, rest func(string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
-	return l.Sessions(ids, rest, take)
-}
-
-func (l *sessionsLedger) SessionsOfIn(_ ledger.RoutedIn, ids []string, rest func(string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
-	return l.Sessions(ids, rest, take)
+func (l *sessionsLedger) SessionsOf(in ledger.RoutedIn, ids []string, rest func(string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
+	return l.Sessions(in, ids, rest, take)
 }
 
 // The usages of the priced sessions' answers. hourUsage writes the cache for

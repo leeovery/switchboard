@@ -32,20 +32,12 @@ func takingDates(l Ledger) datesTaken {
 	return datesTaken{Ledger: l, dates: make(map[string]bool), parts: make(map[string][]string)}
 }
 
-func (c datesTaken) Sessions(ids []string, rest func(string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
-	return c.gave(c.Ledger.Sessions(ids, rest, c.taking(take)))
+func (c datesTaken) Sessions(in ledger.RoutedIn, ids []string, rest func(string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
+	return c.gave(c.Ledger.Sessions(in, ids, rest, c.taking(take)))
 }
 
-func (c datesTaken) SessionsOf(ids []string, rest func(string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
-	return c.gave(c.Ledger.SessionsOf(ids, rest, c.taking(take)))
-}
-
-func (c datesTaken) SessionsIn(in ledger.RoutedIn, ids []string, rest func(string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
-	return c.gave(c.Ledger.SessionsIn(in, ids, rest, c.taking(take)))
-}
-
-func (c datesTaken) SessionsOfIn(in ledger.RoutedIn, ids []string, rest func(string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
-	return c.gave(c.Ledger.SessionsOfIn(in, ids, rest, c.taking(take)))
+func (c datesTaken) SessionsOf(in ledger.RoutedIn, ids []string, rest func(string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
+	return c.gave(c.Ledger.SessionsOf(in, ids, rest, c.taking(take)))
 }
 
 // gave is sessions, as a read gave them, the dates of each one's chain of
@@ -169,7 +161,7 @@ func TestAListOverDigestsReadsTheNearDaysFilesAlone(t *testing.T) {
 	ids := []string{"a", "b", "c"}
 	n := newNineDays(t, ids)
 	yesterday := yesterdayOf(n.today)
-	for id, from := range n.follower(DigestVersion).SessionsOf(ids, nil, nil) {
+	for id, from := range n.follower(DigestVersion).SessionsOf(nil, ids, nil, nil) {
 		if from.Base == nil || from.Base.Date != yesterday {
 			t.Fatalf("session %s rests on %+v, want its state at the end of %s", id, from.Base, yesterday)
 		}
