@@ -29,7 +29,8 @@ type Adding struct {
 // of Pool, as refusedAccount has it; with CheckNew's
 // accounts.PoolNeededError, before any token is made, where every pool is
 // fenced and none is chosen; with a Refused of Plan, saying PlanUnchosen,
-// where no plan's chosen, once the rest passes; and as config.Edit does
+// where no plan's chosen, or none, config.PlanNone, is, once the rest
+// passes, as every account setup adds is on a plan; and as config.Edit does
 // otherwise.
 func (s *Setup) CheckAdding(adding Adding) (accounts.Adding, error) {
 	plan, err := planChosen(adding.Plan)
@@ -41,7 +42,7 @@ func (s *Setup) CheckAdding(adding Adding) (accounts.Adding, error) {
 	if err != nil {
 		return accounts.Adding{}, refusedAccount(err)
 	}
-	if adding.Plan == "" {
+	if plan == "" {
 		return accounts.Adding{}, &Refused{Field: PlanField, Why: PlanUnchosen, err: errors.New(PlanUnchosen)}
 	}
 	return checked, nil
