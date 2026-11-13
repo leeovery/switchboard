@@ -772,7 +772,7 @@ func (l *sessionsLookup) apartIn(id string, from SessionFrom, groups [][]string,
 		if !ok {
 			return nil, false
 		}
-		in[i] = sessionIn{poolApart: poolApart{pool: pool, pools: g}, in: routed, from: SessionFrom{Base: base, Parts: parts, Lines: linesIn(from.Lines, routed), restsOn: from.restsOn}}
+		in[i] = sessionIn{pool: pool, pools: g, in: routed, from: SessionFrom{Base: base, Parts: parts, Lines: linesIn(from.Lines, routed), restsOn: from.restsOn}}
 	}
 	return in, true
 }
