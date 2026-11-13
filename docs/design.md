@@ -783,7 +783,8 @@ pool for its whole life:
   refused, saying which pool each is in. An account there's none of is refused naming the accounts
   that can be pinned in the pin's pool alone, the pool of the accounts beside it, or the one
   `--pool` names, or of a session's own pin, the session's, as `run --account` names its launch's
-  pool's. `pin auto` clears a pool's pin: `pin auto --pool q7mt`
+  pool's; where the pin's pool can't be told, without `--pool` and with no account known beside it,
+  it names the accounts of every pool. `pin auto` clears a pool's pin: `pin auto --pool q7mt`
   clears Acme's, and without the flag it clears the pool the verbs act on (see Reading a pool).
 - **`--move` and `--force`** act inside the pin's pool alone. `--force` clears the own pins of that
   pool's sessions only, and where there's more than one pool, what's said of it names the pool:
@@ -979,10 +980,12 @@ totals.
 - **A pool the config no longer has** keeps its history, as the accounts record keeps the pool: the
   verbs that read the recorded files, `requests`, `history`, `sessions` and `events`, take
   `--pool` with the id of a pool the record keeps that the config doesn't, one removed, or another
-  Mac's from an import, and read its work as it was recorded, under its id alone. Work in no pool
-  stays the first pool's as the config has it, so a removed first pool's history is what the move
-  gave its id, and nothing is folded into another pool, as a removed pool may be a client's and its
-  work in the owner's pool would be a crossing. They name it by the record's label, marked, as a
+  Mac's from an import, and read its work as it was recorded, under its id alone. A removed first
+  pool's history is what the move gave its id, and nothing naming a removed pool is folded into
+  another, as a removed pool may be a client's and its work in the owner's pool would be a
+  crossing. Work naming no pool is the first pool's as the config has it: so once the first pool
+  the record notes is removed, the config's first pool's, though only a draining older router's
+  lines, filed after the move, name none. They name it by the record's label, marked, as a
   removed account is: one this Mac's config had, as the record's `here` says, or once it's removed,
   `written`, which an import never carries, as removed, with the day where the record has one,
   `pool Acme (removed 6 Oct)`, else `pool Acme (removed)`; one it never had as `pool Client (not
