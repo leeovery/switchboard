@@ -368,10 +368,13 @@ func TestADashboardOpenedOnNoPoolReadsThePoolTheConfigNamesOnceItDoes(t *testing
 
 // A dashboard open across the move to pools takes the first pool afresh at
 // each turn, as its ledger and the router do: opened before the move, its
-// grounds naming none, it follows the move to the first pool the accounts
-// record notes, Default; and a pool put ahead of Default while it's open
-// leaves its grounds and its pool's read on Default, work naming no pool
-// still Default's.
+// grounds naming none, a reserve given before the move has it make a ledger
+// that summarises the day's work, every pool's; it follows the move to the
+// first pool the accounts record notes, Default; and a pool put ahead of
+// Default while it's open leaves its grounds, its pool's read and the
+// ledger it makes on them on Default, work naming no pool still Default's.
+// The ledger's first pool is in its summaries alone: a day's lines name the
+// pool they were routed in, or none.
 func TestADashboardOpenAcrossTheMoveKeepsToTheFirstPoolTheRecordNotes(t *testing.T) {
 	deps := testDeps(map[string]string{"XDG_STATE_HOME": shortTempDir(t)}, t.TempDir())
 	deps.Now = func() time.Time { return ledgerNow }
@@ -386,9 +389,18 @@ func TestADashboardOpenAcrossTheMoveKeepsToTheFirstPoolTheRecordNotes(t *testing
 		t.Fatalf("opened before the move, the dashboard's ledger is grounded on the first pool %q, want none", cfg.LedgerGrounds.First)
 	}
 
-	markMoved(t, state)
-	writeDepsConfig(t, deps, pooledConfig(false))
 	fileDay(t, state, pooledLines...)
+	writeDepsConfig(t, deps, unpooledConfig+"reserve = 0.05\n")
+	reserved, err := cfg.Turn(t.Context(), "", watch.SamePool)
+	if err != nil {
+		t.Fatalf("a reserve given before the move, Turn() of the same pool failed: %v", err)
+	}
+	if got, want := sessionsCounted(reserved.NewLedger(), reserved.Read), sortedSessions(sessionA, sessionB, sessionC); reserved.Grounds.Same(cfg.LedgerGrounds) || !slices.Equal(got, want) {
+		t.Fatalf("a reserve given before the move, the ledger's grounds the same %v, the one made on them counting the sessions %q; want them changed, counting every pool's %q",
+			reserved.Grounds.Same(cfg.LedgerGrounds), got, want)
+	}
+
+	markMoved(t, state)
 	client := "\n[[pool]]\nid    = \"c5d6\"\nlabel = \"Client\"\ndirs  = [\"/work/client\"]\n"
 	for _, tt := range []struct{ name, config string }{
 		{name: "the move followed", config: pooledConfig(false)},
@@ -403,7 +415,29 @@ func TestADashboardOpenAcrossTheMoveKeepsToTheFirstPoolTheRecordNotes(t *testing
 			t.Errorf("%s, the dashboard shows %q, its read of the first pool %q, its ledger grounded on %q, reading %q; want Default, all of Default, reading %q",
 				tt.name, again.Pool.ID, again.Read.First, again.Grounds.First, got, want)
 		}
+		if got, want := sessionsCounted(again.NewLedger(), again.Read), sortedSessions(sessionA, sessionC); !slices.Equal(got, want) {
+			t.Errorf("%s, the ledger made on the turn's grounds counts the sessions %q in Default, want %q, work in no pool among them", tt.name, got, want)
+		}
 	}
+}
+
+// sessionsCounted are the sessions the summary of the day of pooledLines
+// that the ledger l makes counts in the pool read reads, sorted, each once.
+func sessionsCounted(l views.Ledger, read views.PoolRead) []string {
+	var ids []string
+	for _, day := range read.Dates(l).DaysOn([]string{"2026-10-07"}) {
+		for _, a := range day.Accounts {
+			ids = append(ids, a.SessionIDs...)
+		}
+	}
+	slices.Sort(ids)
+	return slices.Compact(ids)
+}
+
+// sortedSessions are the session ids given, sorted.
+func sortedSessions(ids ...string) []string {
+	slices.Sort(ids)
+	return ids
 }
 
 // requestsRead are the requests of the day of pooledLines that read keeps,
