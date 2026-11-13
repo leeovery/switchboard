@@ -50,9 +50,10 @@ func worktreeRepository(dir string) (string, bool) {
 // gives it, cleaned, the names keyed so: by its last part, as
 // "switchboard", and where two share that, by as many of its parents' too
 // as tell them apart, as "client/api" and "own/api", or "a/x/api" and
-// "b/x/api"; each cut with an ellipsis to the cells given, keeping its
-// start, as DirName cuts, and cleaned, as what comes from elsewhere is. None
-// names "".
+// "b/x/api", told apart as they show before the cut, cleaned, as what comes
+// from elsewhere is; each then cut with an ellipsis to the cells given,
+// keeping its start, as DirName cuts, so two differing only past the cut
+// still show alike. None names "".
 func ProjectNames(projects []string, cells int) map[string]string {
 	parts := make(map[string]int, len(projects))
 	for _, p := range projects {
@@ -86,8 +87,9 @@ func setApart(parts map[string]int) {
 	}
 }
 
-// sharing are the projects, by their paths, by the name each shows as, as
-// shownName gives it of as many of its path's last parts as parts holds.
+// sharing are the projects, by their paths, by the name each shows as before
+// the cut, as shownName gives it of as many of its path's last parts as
+// parts holds.
 func sharing(parts map[string]int) map[string][]string {
 	byName := make(map[string][]string, len(parts))
 	for p, n := range parts {
@@ -97,8 +99,9 @@ func sharing(parts map[string]int) map[string][]string {
 	return byName
 }
 
-// shownName is the name the last n parts of the cleaned path p show as,
-// cleaned, as what comes from elsewhere is, so two that show alike share it.
+// shownName is the name the last n parts of the cleaned path p show as
+// before the cut, cleaned, as what comes from elsewhere is, so two that show
+// alike before it share it.
 func shownName(p string, n int) string {
 	name, _ := lastParts(p, n)
 	return prose.Clean(name)

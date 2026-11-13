@@ -6043,9 +6043,12 @@ session page · signed off · 7 Oct 2026**, its frames kept as `testdata/vhs/ref
   naming its git directory, whose `commondir` leads there. Git writes those paths with every link
   resolved, so the main repository is given by the path the walk took: under the deepest
   directory up from the session's that is it, or a directory it's in, the rest of its path, as
-  from a worktree within it or beside it, else as git wrote it. A repository reached through a
-  link, as `~/Code` leading to another volume, stays one project, its worktrees beside it too.
-  Any `commondir` not named `.git` counts as the worktree's own directory, which covers bare
+  from a worktree within it or beside it, else as git wrote it. A repository in a folder reached
+  through a link, as `~/Code` leading to another volume, stays one project, its worktrees beside
+  it in that folder too. Two layouts still split, as git gives the walk no way to join them: a
+  repository folder that is itself a link, as `~/Code/api` leading to `/Volumes/X/api`, with a
+  worktree beside it; and worktrees kept outside the linked folder, as `~/wt/api-fix`. Any
+  `commondir` not named `.git` counts as the worktree's own directory, which covers bare
   repositories, `.bare` layouts, separate git directories and submodules' worktrees. One outside
   any repository, or where what it finds can't be read as one (a `.git` file unreadable or naming
   nothing, a git or common directory that isn't there), counts as its own directory. Lines and

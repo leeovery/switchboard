@@ -150,7 +150,7 @@ func TestFindProjectWalksUpToTheRepositoryItsDirectoryIsIn(t *testing.T) {
 			start: "cmd", want: "cmd",
 		},
 		{
-			name: "started through a link, a worktree whose repository is outside it, the repository as git wrote it",
+			name: "started through a link, a worktree whose repository is outside it, the repository named by the shared folder above the link",
 			dirs: []string{"elsewhere/api/.git/worktrees/fix-login", "real/fix-login"}, links: map[string]string{"code": "real"},
 			files: map[string]string{
 				"real/fix-login/.git": "gitdir: <root>/elsewhere/api/.git/worktrees/fix-login\n", "elsewhere/api/.git/worktrees/fix-login/commondir": commonDir,
