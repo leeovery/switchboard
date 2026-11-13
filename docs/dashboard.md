@@ -39,7 +39,8 @@ This page uses these terms throughout:
 - **Cap:** the point where an account's reserve starts, 1 less its `reserve`. The router passes
   over an account at its cap. See [Reserves](how-it-works.md#reserves).
 - **Pool:** the accounts new sessions can go to now. That's every account on auto, or only the
-  pinned accounts while the pool's pin holds.
+  pinned accounts while the pin holds. Where the config has [pools](how-it-works.md#pools), the
+  dashboard shows one, and its pool is that pool's.
 - **Pin:** your choice of where sessions go, set with the routing card or with
   [`pin`](commands.md#pin).
 - **The primary:** the account your browser and the Claude apps are signed into. See
@@ -814,7 +815,12 @@ The card sits over the page. `j` and `k` scroll it a row, and `PgDn` and `PgUp` 
 terminal, and refuses to run without one. It reads the router while the router answers, and
 otherwise probes each account. Just after the upgrade that made account ids, while the router
 moves the history onto them, it says what the move waits on, a line each time that changes, and
-opens once it's done (see [Upgrading to account ids](how-it-works.md#upgrading-to-account-ids)).
+opens once it's done (see [Upgrading to account ids](how-it-works.md#upgrading-to-account-ids)),
+and the same while it moves the history to pools.
+
+Where the config has [pools](how-it-works.md#pools), the dashboard shows the pool the verbs act on
+without `--pool`: the only pool, else the unfenced one (see
+[Reading a pool](commands.md#reading-a-pool)). `switchboard status --pool <id>` shows the others.
 
 ```bash
 switchboard dashboard [interval] [--no-notify] [--probe]
