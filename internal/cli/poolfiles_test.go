@@ -101,8 +101,15 @@ func pooledDeps(t *testing.T, fenced bool) cli.Deps {
 // state directory given.
 func filePooledLines(t *testing.T, state string) {
 	t.Helper()
+	fileDay(t, state, pooledLines...)
+}
+
+// fileDay writes lines as the request ledger's day of pooledLines in the
+// state directory given, in place of any it held.
+func fileDay(t *testing.T, state string, lines ...ledger.Line) {
+	t.Helper()
 	var day bytes.Buffer
-	for _, line := range pooledLines {
+	for _, line := range lines {
 		line.At = line.At.UTC()
 		data, err := json.Marshal(line)
 		if err != nil {

@@ -16,6 +16,7 @@ import (
 	"github.com/leeovery/switchboard/internal/cli"
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard/watch"
+	"github.com/leeovery/switchboard/internal/identity"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
@@ -314,13 +315,11 @@ func requestsRead(cfg *watch.Config, read views.PoolRead) []string {
 	return ids
 }
 
-// The dashboard reads the request ledger of the pool it shows alone, as
-// named and as P turns to the next, work naming no pool the first pool's:
-// none where it shows none, every pool being fenced and none named, or the
-// pools not to be told; and every line where the files hold one pool's
-// alone, a config of one pool whose accounts record keeps no other, as
-// before pools, though one names another pool here, as only a hand could
-// file it.
+// The dashboard reads the request ledger of the pool it shows alone, by its
+// id, as named and as P turns to the next, work naming no pool the first
+// pool's: none where it shows none, every pool being fenced and none named,
+// or the pools not to be told; and the pool's alone where the config has
+// one pool, whatever the accounts record keeps beside it.
 func TestTheDashboardReadsTheLedgerOfThePoolItShowsAlone(t *testing.T) {
 	tests := []struct {
 		name string
@@ -338,7 +337,7 @@ func TestTheDashboardReadsTheLedgerOfThePoolItShowsAlone(t *testing.T) {
 			deps := pooledDeps(t, false)
 			onePoolLeft(t, deps)
 			return deps
-		}, want: []string{"p1", "p2", "p3"}},
+		}, want: []string{"p1", "p3"}},
 		{name: "one pool, a removed one kept", deps: func(t *testing.T) cli.Deps {
 			deps := pooledDeps(t, false)
 			onePoolLeft(t, deps, acmeRemovedEntry)
@@ -364,5 +363,37 @@ func TestTheDashboardReadsTheLedgerOfThePoolItShowsAlone(t *testing.T) {
 				t.Errorf("the dashboard reads the requests %q of the ledger, want %q", got, tt.want)
 			}
 		})
+	}
+}
+
+// A dashboard opened on one pool reads its pool's work of the request
+// ledger by its id, so a pool added to the config while it's open, an
+// account moved into it, and that pool's lines filed since, never show in
+// the pool it shows.
+func TestADashboardOpenedOnOnePoolNeverReadsAPoolAddedSince(t *testing.T) {
+	deps := pooledDeps(t, false)
+	onePoolLeft(t, deps)
+	state := stateDir(t, deps)
+	fileDay(t, state, pooledLines[0], pooledLines[2])
+	cfg := recordWatch(t, &deps)
+	if got := run(t, deps, "dashboard"); got != (result{}) {
+		t.Fatalf("switchboard dashboard = %+v, want exit status 0 and nothing printed", got)
+	}
+
+	path, err := config.Path(deps.Getenv, deps.HomeDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeStateFile(t, filepath.Dir(path), filepath.Base(path), []byte(pooledConfig(false)))
+	err = identity.NewFile(state).Update(func(r *identity.Record) error {
+		r.Pools = append(r.Pools, identity.PoolEntry{ID: "q7mt", Added: testNow, Here: true})
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	fileDay(t, state, pooledLines...)
+	if got, want := requestsRead(cfg, cfg.PoolRead), []string{"p1", "p3"}; !slices.Equal(got, want) {
+		t.Errorf("the dashboard reads the requests %q of the ledger, Acme added since, want %q, Default's alone", got, want)
 	}
 }

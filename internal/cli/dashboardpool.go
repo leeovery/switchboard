@@ -7,7 +7,6 @@ import (
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard/watch"
 	"github.com/leeovery/switchboard/internal/events"
-	"github.com/leeovery/switchboard/internal/identity"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -95,31 +94,18 @@ func (s shownPools) shown(ctx context.Context, cfg, pooled *config.Config, named
 }
 
 // shownFiled reads what's recorded of the pool with the given id as the
-// dashboard shows it, as the verbs read a pool's, every pool's in a config
-// without pools: its share of the router's events, by the one rule status's
-// InPool gives; what names their pools, as poolsNamed has it of pooled's
-// pools; and how the views read its work of the request ledger, as
-// ledgerRead has it; the accounts record read afresh. Without a state
-// directory, there are no events, and the ledger is read as it is, holding
-// none.
+// dashboard shows it, by its id, as the verbs read a pool's, every pool's in
+// a config without pools alone: its share of the router's events, by the
+// one rule status's InPool gives; what names their pools, as poolsNamed has
+// it of pooled's pools; and how the views read its work of the request
+// ledger, its read itself, so a pool added while it's open never shows in
+// it; the accounts record read afresh. Without a state directory, there are
+// no events, and the ledger is read as it is, holding none.
 func (s shownPools) shownFiled(pooled *config.Config, id string) (views.Events, func(id string) string, views.PoolRead) {
 	if !s.read {
 		return events.Empty{}, nil, views.PoolRead{}
 	}
 	record := recordIn(s.r.dir)
 	read := s.a.poolRead(pooled, s.r.dir, record, id)
-	return read.Filed(s.r.events), poolsNamed(pooled.Pools, record), ledgerRead(read, pooled.Pools, record)
-}
-
-// ledgerRead is how the dashboard reads the request ledger of the pool read:
-// as read has it, where the files may hold more than one pool's work, as
-// status.ManyPoolsFiled has it of pools and the accounts record record
-// returns; else as every pool's, the zero PoolRead, which is the pool's
-// alone, so with one pool the ledger is read as it was before pools, none
-// of its rows' pools read.
-func ledgerRead(read views.PoolRead, pools config.Pools, record func() identity.Record) views.PoolRead {
-	if !status.ManyPoolsFiled(pools, record) {
-		return views.PoolRead{}
-	}
-	return read
+	return read.Filed(s.r.events), poolsNamed(pooled.Pools, record), read
 }

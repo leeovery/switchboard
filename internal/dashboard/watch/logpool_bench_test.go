@@ -16,6 +16,14 @@ func onePool(g, d int) (account, pool string) {
 	return busyOn(g, d), "b2n8"
 }
 
+// onePoolRead is the read of a busy world of one pool's pool, Default, each
+// of its accounts in it.
+func onePoolRead() views.PoolRead {
+	return views.PoolRead{ID: "b2n8", First: "b2n8", PoolOf: func(account string) (string, bool) {
+		return "b2n8", slices.Contains(busyAccounts, account)
+	}}
+}
+
 // The accounts of a busy world of two pools: Acme's, a client's, and
 // Default's, the first pool's.
 var (
@@ -107,10 +115,9 @@ func (r rowsMovedOn) RowsVersion() int {
 // their pools, as newPooledWorld writes it, as the owner meets it: shown the
 // first time, till its first read lands, today's lines read; and the day
 // before today read back from its rows, as its tables reach back a day. Of
-// a world of one pool, read every pool's, as the dashboard reads a ledger
-// of one pool's; and of one of two, read every pool's, as the Log read
-// before it read the pool shown's alone, then each pool's, Default's and
-// Acme's. And the first pass of a ledger opened afresh, as the router's
+// a world of one pool, and of one of two, read every pool's, as the Log
+// read before it read the pool shown's alone, then each pool's, by its id,
+// as the dashboard reads it. And the first pass of a ledger opened afresh, as the router's
 // once it restarts, with nothing due, and with the heads of the four weeks'
 // ended days due, as once after RowsVersion moves on.
 func BenchmarkThePooledLog(b *testing.B) {
@@ -121,6 +128,7 @@ func BenchmarkThePooledLog(b *testing.B) {
 		read views.PoolRead
 	}{
 		{"one pool, every pool's", one, views.PoolRead{}},
+		{"one pool, Default's", one, onePoolRead()},
 		{"two pools, every pool's", two, views.PoolRead{}},
 		{"two pools, Default's", two, twoPoolsRead("b2n8")},
 		{"two pools, Acme's", two, twoPoolsRead("q7mt")},
