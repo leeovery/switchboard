@@ -49,6 +49,9 @@ type Edited struct {
 	// the account, moved in before it, would have taken its place as the
 	// first with none marked: "" where it didn't.
 	KeptPrimary string
+	// Left is what moving the account into another pool did to the pool it
+	// left, as Left says: zero where the edit didn't move it.
+	Left Left
 	// Unaliased is the old name the config gave the account's plan, which
 	// the edit wrote by its new one: "" where it didn't.
 	Unaliased string
@@ -120,6 +123,9 @@ func (r Registry) Edit(id string, change Change) (Edited, error) {
 	}
 	if now.Primary && (!was.Primary || !strings.EqualFold(was.Pool, now.Pool)) {
 		edited.FormerPrimary = primaryOf(before, now.Pool)
+	}
+	if !strings.EqualFold(was.Pool, now.Pool) {
+		edited.Left = leftBy(before, draft.Config(), id)
 	}
 	if err := draft.Save(); err != nil {
 		return Edited{}, err

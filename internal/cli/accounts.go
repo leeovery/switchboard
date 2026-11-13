@@ -149,8 +149,10 @@ nothing is written.
 
 --pool moves the account into the pool with the id given, its pool's primary
 there only with --primary; the pool it leaves takes its next account as its
-primary, where it was the primary. The sessions running on it in the pool it
-left move off it on their next request.
+primary, where it was the primary, or has none left, where it was the last.
+The sessions the router sent to it in the pool it left move off it on their
+next request; those that started on its token as Claude Code's own, as the
+primary's, are refused once it has left, and must be resumed.
 
 --plan takes none, to leave the plan unknown. --reserve takes a percentage,
 to two decimal places at most, such as 5% or 2.5%, of every window, which the
@@ -544,7 +546,7 @@ func (a *app) editAccount(cmd *cobra.Command, id string, flags editFlags) error 
 	if err != nil {
 		return a.notConfigured(labelRemedy(err), id, findTheID)
 	}
-	said := editedSays(edited)
+	said := editedSays(edited) + leftSays(edited)
 	if edited.FormerPrimary != "" {
 		said += a.runningSessions(edited, registry.Tokens.Read)
 		warnNoToken(cmd.ErrOrStderr(), id, registry.Tokens.Read)
@@ -739,12 +741,36 @@ func (a *app) removeAccount(cmd *cobra.Command, id string) error {
 	if removed.Primary != "" {
 		said += "\n" + primaryNow(removed.Primary, id, registry.Tokens.Read)
 	}
-	if removed.Emptied.ID != "" {
-		said += "\n" + prose.Pool(removed.Emptied.Label) + " has no accounts now: its sessions aren't routed until one is added to it " +
-			"(switchboard accounts add <label> --pool " + prose.Clean(removed.Emptied.ID) + ")"
-	}
+	said += emptiedSays(removed.Left)
 	_, err = io.WriteString(cmd.OutOrStdout(), said+"\n")
 	return err
+}
+
+// emptiedSays says, on a line of its own, that taking an account out of its
+// pool left the pool no accounts, where left says it did, and how to give it
+// one: "" where it didn't.
+func emptiedSays(left accounts.Left) string {
+	if left.Emptied.ID == "" {
+		return ""
+	}
+	return "\n" + prose.Pool(left.Emptied.Label) + " has no accounts now: its sessions aren't routed until one is added to it " +
+		"(switchboard accounts add <label> --pool " + prose.Clean(left.Emptied.ID) + ")"
+}
+
+// leftSays says, on lines of their own, what moving the account an edit
+// moved into another pool did to the pool it left, as e's Left tells it:
+// where it was the primary there, which account is now, and that the
+// sessions running there, started on its token as Claude Code's own, are
+// refused once it has left, so each must be resumed; or that the pool has
+// no accounts now. It's "" where the edit moved it from no pool's primary.
+func leftSays(e accounts.Edited) string {
+	if e.Left.Primary == "" {
+		return emptiedSays(e.Left)
+	}
+	pool := prose.Pool(poolLabel(e.Before.Pools, e.Was.Pool))
+	return "\n" + e.Left.Primary + " is " + pool + "'s primary now; the sessions running in " + pool + " started on " + e.Now.ID +
+		"'s token as Claude Code's own, so the router refuses each now it has left the pool: resume them, and they start on " +
+		e.Left.Primary + "'s"
 }
 
 // primaryNow says which account is the primary now the one with the given

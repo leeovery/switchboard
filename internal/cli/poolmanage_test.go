@@ -308,6 +308,35 @@ func TestAccountsEditMovesAnAccountToAPoolAndMakesItItsPrimary(t *testing.T) {
 	}
 }
 
+// Moving a pool's primary into another pool says which account is the
+// primary of the pool it left now, and that the sessions running there,
+// started on its token, must be resumed; moving its last says the pool has
+// none now, as removing it does.
+func TestAccountsEditSaysWhatMovingAnAccountLeftOfItsPool(t *testing.T) {
+	sideAndWorkInAcme := strings.Replace(personalAndSidePooled, "[[pool]]", "[[account]]\nid    = \"work\"\nlabel = \"Work\"\npool  = \"q7mt\"\n\n[[pool]]", 1)
+	tests := []struct {
+		name, accounts, want string
+	}{
+		{name: "its primary", accounts: sideAndWorkInAcme, want: "edited side: pool Default (was Acme)\n" +
+			"work is pool Acme's primary now; the sessions running in pool Acme started on side's token as Claude Code's own, " +
+			"so the router refuses each now it has left the pool: resume them, and they start on work's\n"},
+		{name: "its last", accounts: personalAndSidePooled, want: "edited side: pool Default (was Acme)\n" +
+			"pool Acme has no accounts now: its sessions aren't routed until one is added to it (switchboard accounts add <label> --pool q7mt)\n"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			deps, _ := accountsDeps(t, "http://127.0.0.1:1", tt.accounts)
+			if got := run(t, deps, "accounts", "edit", "side", "--pool", "b2n8"); got != (result{stdout: tt.want}) {
+				t.Errorf("switchboard accounts edit side --pool b2n8 = %+v, want it to print\n%s", got, tt.want)
+			}
+		})
+	}
+	deps, _ := accountsDeps(t, "http://127.0.0.1:1", sideAndWorkInAcme)
+	if got, want := run(t, deps, "accounts", "edit", "work", "--pool", "b2n8"), (result{stdout: "edited work: pool Default (was Acme)\n"}); got != want {
+		t.Errorf("switchboard accounts edit work --pool b2n8 = %+v, want %+v: work wasn't Acme's primary, nor its last", got, want)
+	}
+}
+
 // accounts edit given no flag names --pool among those it takes only where
 // there are pools to move an account between, two or more.
 func TestAccountsEditNamesPoolAmongItsFlagsOnceThereIsASecondPool(t *testing.T) {
@@ -357,7 +386,8 @@ func TestAccountsEditMovingAnAccountAheadOfThePoolsPrimaryMarksIt(t *testing.T) 
 	deps, path := accountsDeps(t, "http://127.0.0.1:1", personalAndSidePooled)
 
 	got := run(t, deps, "accounts", "edit", "personal", "--pool", "q7mt")
-	if want := (result{stdout: "edited personal: pool Acme (was Default), marked side the primary there, which it stays\n"}); got != want {
+	if want := (result{stdout: "edited personal: pool Acme (was Default), marked side the primary there, which it stays\n" +
+		"pool Default has no accounts now: its sessions aren't routed until one is added to it (switchboard accounts add <label> --pool b2n8)\n"}); got != want {
 		t.Errorf("switchboard accounts edit personal --pool q7mt =\n%+v\nwant\n%+v", got, want)
 	}
 	if primary, _ := loadPooled(t, path).Accounts.PrimaryOf("q7mt"); primary.ID != "side" {
