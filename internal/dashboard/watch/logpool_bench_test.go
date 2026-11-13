@@ -77,9 +77,7 @@ func newPooledWorld(tb testing.TB, now time.Time, route busyRouting) busyWorld {
 // given, as the dashboard showing the pool reads it.
 func (w busyWorld) pooledHarness(tb testing.TB, read views.PoolRead) *harness {
 	tb.Helper()
-	h := w.harness(tb)
-	h.model.cfg.PoolRead = read
-	return h
+	return w.harnessIn(tb, read)
 }
 
 // readBackADay reads the Log back a day, as its tables reaching back read

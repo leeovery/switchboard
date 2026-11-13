@@ -468,11 +468,20 @@ func busyDocument() status.Document {
 // in a terminal 160 columns wide and 37 tall, started.
 func (w busyWorld) harness(tb testing.TB) *harness {
 	tb.Helper()
+	return w.harnessIn(tb, views.PoolRead{})
+}
+
+// harnessIn is the world's harness as harness has it, reading the request
+// ledger through the pool read given from its start, as the dashboard
+// showing the pool reads it.
+func (w busyWorld) harnessIn(tb testing.TB, read views.PoolRead) *harness {
+	tb.Helper()
 	h := routedHarness(tb, busyDocument())
 	h.clock.now = w.now
 	h.source.sessions = w.running()
 	follower, history, filed := w.readers(h.clock.Now)
 	h.model.cfg.Ledger, h.model.cfg.Readings, h.model.cfg.Events = follower, history, filed
+	h.model.cfg.PoolRead = read
 	h.update(tea.WindowSizeMsg{Width: 160, Height: 37})
 	h.start()
 	return h
@@ -540,7 +549,15 @@ func (w busyWorld) gained(tb testing.TB, at time.Time) {
 // the session with the given id runs on, its SESSIONS choosing it.
 func (w busyWorld) onDetail(tb testing.TB, id string) *harness {
 	tb.Helper()
-	h := w.harness(tb)
+	return w.onDetailIn(tb, views.PoolRead{}, id)
+}
+
+// onDetailIn is the world's harness on Accounts' Detail, as onDetail has
+// it, reading the request ledger through the pool read given, as harnessIn
+// has it.
+func (w busyWorld) onDetailIn(tb testing.TB, read views.PoolRead, id string) *harness {
+	tb.Helper()
+	h := w.harnessIn(tb, read)
 	on := views.Routed(w.running(), id).Assignments[0].Account
 	configured := make(config.Accounts, len(busyAccounts))
 	for i, a := range busyAccounts {
