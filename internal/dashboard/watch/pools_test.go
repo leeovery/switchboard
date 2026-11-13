@@ -25,12 +25,11 @@ import (
 	"github.com/leeovery/switchboard/internal/views"
 )
 
-// The pools of these tests: Default, unfenced, with three accounts, shown
-// first; and Acme, fenced, with one, or none in emptyAcme.
+// The pools of these tests, as shown: Default, unfenced, with three
+// accounts, shown first; and Acme, fenced, with one.
 var (
 	defaultShown = status.ShownPool{ID: "b2n8", Label: "Default", Accounts: 3, Pools: 2}
 	acmeShown    = status.ShownPool{ID: "q7mt", Label: "Acme", Dirs: []string{"~/Code/acme"}, Accounts: 1, Pools: 2}
-	emptyAcme    = status.ShownPool{ID: "q7mt", Label: "Acme", Dirs: []string{"~/Code/acme"}, Pools: 2}
 )
 
 // testPools are these tests' pools as the config has them, Default's and
