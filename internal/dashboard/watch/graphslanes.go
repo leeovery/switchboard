@@ -59,7 +59,7 @@ func (m Model) graphsBuilt() Model {
 	for _, w := range m.graphsWindows() {
 		tl := m.graphsTimeline(w, mo, now)
 		built := look(t.lanes[w], views.LanesFrom{
-			Moment: mo, Readings: read, Days: m.runwayDays(tl, now), Kept: r.kept, Seen: r.seen.from(), Timeline: tl, Window: w,
+			Moment: mo, Readings: read, Days: m.runwayDays(tl, now), Kept: r.kept, Seen: r.seen.from(), Timeline: tl,
 		})
 		lanes[w], shown[w] = built, dashboard.WindowLanes{Window: w, Timeline: tl, Lanes: &built}
 	}
@@ -117,7 +117,7 @@ func (m Model) graphsReadsHistory() bool {
 // so what's said under each lane is what Runway says, as its stretches are
 // placed in its columns.
 func (m Model) graphsTimeline(w views.RunwayWindow, mo status.Moment, now time.Time) views.Timeline {
-	return m.runwayTab.shown.LiveOf(w).Labelled(mo).TimelineAt(now, m.cfg.WeekStarts, m.size.Width)
+	return m.runwayTab.shown.Live().Labelled(mo).TimelineAt(now, m.cfg.WeekStarts, m.size.Width)
 }
 
 // graphsWindows are the windows whose lanes Graphs reads, as
@@ -153,8 +153,8 @@ func (m Model) lanesTimelines(now time.Time) []views.Timeline {
 		return []views.Timeline{m.runwayTimeline(now)}
 	}
 	var timelines []views.Timeline
-	for _, w := range m.graphsWindows() {
-		timelines = append(timelines, views.LiveTimeline(w, now, 0))
+	for range m.graphsWindows() {
+		timelines = append(timelines, views.LiveTimeline(now, 0))
 	}
 	return timelines
 }

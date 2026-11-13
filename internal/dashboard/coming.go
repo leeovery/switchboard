@@ -184,15 +184,22 @@ func limited(a status.AccountNow) bool {
 // account and what befalls it, and at body's right, how long until it.
 func comingLines(c *canvas, things []happening, now time.Time, body bounds) {
 	things = things[:min(body.rows, len(things))]
-	column := 0
-	for _, h := range things {
-		column = max(column, len(h.when(now)))
-	}
+	column := whenColumn(things, now)
 	for i, h := range things {
 		_, _, until := h.inks()
 		c.right(body.x+body.width, body.y+i, line{{prose.Until(now, h.at), until}})
 		c.line(body.x, body.y+i, h.said(now, column).fit(body.width-comingTail))
 	}
+}
+
+// whenColumn is the cells the times of the things given take at now, as
+// their lines say them: the widest's.
+func whenColumn(things []happening, now time.Time) int {
+	column := 0
+	for _, h := range things {
+		column = max(column, len(h.when(now)))
+	}
+	return column
 }
 
 // said is what's coming as its line says it, from its time, padded to

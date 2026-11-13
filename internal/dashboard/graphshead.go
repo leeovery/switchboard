@@ -23,7 +23,7 @@ type WindowLanes struct {
 
 // view is the view of their window the lanes are of.
 func (w WindowLanes) view() laneView {
-	return laneView{window: w.Window, timeline: w.Timeline}
+	return laneView{timeline: w.Timeline}
 }
 
 // The turns a card's head gives way in, its words beside its label: first
@@ -181,7 +181,7 @@ func (v laneView) cardPhrases(ln laidLane, now time.Time) [][]line {
 		phrases = append(phrases, p.parts)
 	}
 	if len(phrases) == 0 && !ln.Use.Read {
-		phrases = append(phrases, []line{ln.useWords(runwayNames[v.window], now).short})
+		phrases = append(phrases, []line{ln.useWords(runwayWeek, now).short})
 	}
 	return phrases
 }
@@ -190,10 +190,9 @@ func (v laneView) cardPhrases(ln laidLane, now time.Time) [][]line {
 // view v's end, as its Beyond has them, as Runway's lane would word them at
 // now, were it drawn on.
 func (v laneView) beyond(ln laidLane, now time.Time) []phrase {
-	against := v.datedAgainst(now)
 	var phrases []phrase
 	for _, s := range ln.Beyond {
-		phrases = append(phrases, v.stretchPhrase(s, ln.account, against))
+		phrases = append(phrases, v.stretchPhrase(s, ln.account, now))
 	}
 	return phrases
 }

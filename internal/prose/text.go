@@ -107,6 +107,12 @@ func ForeignTokenFix(id string) string {
 	return ForeignToken + ": give it its own with " + AccountsToken(id) + ", " + AddAsOwn
 }
 
+// Pool names a pool by its label, as the verbs' text names one once there's
+// a second: "pool Acme".
+func Pool(label string) string {
+	return "pool " + Clean(label)
+}
+
 // Version words a release's version as it's shown, such as v0.2.10: a
 // version that isn't a release's number, such as a build's "dev", as it is.
 func Version(version string) string {
@@ -114,6 +120,18 @@ func Version(version string) string {
 		return version
 	}
 	return "v" + version
+}
+
+// AccountNamed names an account by its label and, beside it, its id, as in
+// "Acme 1 (k3f9)": one labelled by its id, ignoring case, or not labelled,
+// by its id alone. Both are cleaned, as Clean cleans them.
+func AccountNamed(label, id string) string {
+	id = Clean(id)
+	label = Clean(label)
+	if label == "" || strings.EqualFold(label, id) {
+		return id
+	}
+	return label + " (" + id + ")"
 }
 
 // Clean makes text safe to show on one line of a terminal: control

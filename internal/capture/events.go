@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/events"
+	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -68,17 +69,31 @@ const todaysLimit = personalLimit + 1
 // the newest, as the router keeps them.
 const eventsKept = 50
 
-// routerEvents are the auto world's router's events, of the day now falls on
-// and of the evening before, a line each as it last stands, as events -f
-// reads them.
+// lastRun is when the router before the one routerRun has started: six days
+// before now's, at 09:00, so the week gone's events are its own, their ids
+// rising from 1 there, till it stopped as the one after started.
+func lastRun(now time.Time) time.Time {
+	return clockAt(now, -6, 9, 0, 0)
+}
+
+// routerEvents are the auto world's routers' events as their files hold
+// them, a line each as it last stands, as events -f reads them: the week
+// gone's, as the router before told them, as weekGone has them; then those
+// of the day now falls on and of the evening before, as the router running
+// tells them.
 func routerEvents(now time.Time) []events.Line {
-	return logged(autoEvents(now), now)
+	return slices.Concat(loggedBy(lastRun(now), ofTheRun(happenings{now}.weekGone())), logged(autoEvents(now), now))
 }
 
 // logged are the events told by the router that started at routerRun, as
 // numbered, a line each as it last stands, as events -f reads them.
 func logged(told []status.Event, now time.Time) []events.Line {
-	run := routerRun(now)
+	return loggedBy(routerRun(now), told)
+}
+
+// loggedBy are the events told by the router that started at run, as
+// numbered, a line each as it last stands.
+func loggedBy(run time.Time, told []status.Event) []events.Line {
 	lines := make([]events.Line, len(told))
 	for i, e := range told {
 		lines[i] = events.Line{Event: e, Run: run}
@@ -92,11 +107,10 @@ func autoEvents(now time.Time) []status.Event {
 	return ofTheRun(happenings{now}.auto())
 }
 
-// ofTheRun are the events given as the router that started at routerRun
-// numbers them: in the order they happened, each with an id one more than
-// the one's before, from 1; and each move forced counted in the newest cap,
-// limit or refusal of the account it left, no newer than it, and in a limit,
-// as that limit's.
+// ofTheRun are the events given as a router numbers those of its run: in
+// the order they happened, each with an id one more than the one's before,
+// from 1; and each move forced counted in the newest cap, limit or refusal
+// of the account it left, no newer than it, and in a limit, as that limit's.
 func ofTheRun(happened []status.Event) []status.Event {
 	told := slices.Clone(happened)
 	slices.SortStableFunc(told, func(a, b status.Event) int { return a.At.Compare(b.At) })
@@ -294,13 +308,109 @@ func (h happenings) worksCap() []status.Event {
 	}
 }
 
-// auto are the auto world's events (log2.YESTERDAY and log2.TODAY):
-// yesterday's; the morning's; 7f3a started on work at 14:12:30; work's cap
-// and its three moves; and c61b started on side at 14:41:11, the router's
-// best.
+// forcedWhy is why a cap, a limit or a refusal of an account moved a session
+// off it, by the event's kind, as the router's reasons say it.
+var forcedWhy = map[string]string{status.EventCap: status.WhyReserve, status.EventLimit: status.WhyLimit, status.EventRefused: status.WhyRefused}
+
+// forcing is e, a cap, a limit or a refusal, and the moves of the sessions
+// given off its account to the one given, each as its next request came,
+// ten seconds apart, counted in it as ofTheRun counts them.
+func (h happenings) forcing(e status.Event, to string, sessions ...string) []status.Event {
+	e.Count, e.To = len(sessions), to
+	told := []status.Event{e}
+	for i, s := range sessions {
+		at := e.At.Add(time.Duration(i+1) * 10 * time.Second)
+		told = append(told, h.forcedOff(at, s, e.Account, to, status.ReasonMovedOff+e.Account+" "+forcedWhy[e.Kind]))
+	}
+	return told
+}
+
+// weekGone are what befell the accounts over the week before now's day, as
+// the router before the one running told them, as lastRun has it, and as
+// Runway's LATELY tells them (runway-space1's added events): limits, caps,
+// a refusal, pressure and room again, each pressure a 5-hour window's
+// running out before it resets, as the router tells pressure of the 5-hour
+// alone, and each cap, limit or refusal moving the sessions on its account,
+// as forcing has it, each named by when and where it moved from, as
+// sessionIDs names them, the days before yesterday's holding no lines of
+// theirs. Each lifts as the window it holds resets, before Runway's lanes
+// begin, a day before now, but work's yesterday, as the readings have them:
+// its cap at 14:58, which moved b9c4 to side alone, as b9c4Capped has it,
+// and its limit at 15:02, both lifting at 17:10, as the router running
+// told.
+func (h happenings) weekGone() []status.Event {
+	week, fiveHour := []string{weekKey}, []string{fiveHourKey}
+	at := func(days, hour, minute int) time.Time { return h.at(days, hour, minute, 0) }
+	held := func(kind string, from time.Time, account string, windows []string, until time.Time) status.Event {
+		return status.Event{Kind: kind, At: from, Account: account, Windows: windows, Until: until}
+	}
+	capped := func(from, until time.Time) status.Event {
+		e := held(status.EventCap, from, "work", fiveHour, until)
+		e.Reserve = workReserve
+		return e
+	}
+	room := func(from time.Time, account string, windows []string) status.Event {
+		return status.Event{Kind: status.EventRoom, At: from, Account: account, Windows: windows}
+	}
+	pressure := func(from time.Time, account string, until time.Time) status.Event {
+		return status.Event{Kind: status.EventPressure, At: from, Account: account, Windows: fiveHour, Until: until}
+	}
+	moved := func(e status.Event, to string, n int) []status.Event {
+		return h.forcing(e, to, sessionIDs(e.At.Format(time.DateTime), e.Account, n)...)
+	}
+	return slices.Concat(
+		[]status.Event{pressure(at(-5, 19, 40), "personal", at(-5, 23, 10))},
+		moved(held(status.EventLimit, at(-5, 23, 12), "personal", week, at(-4, 2, 0)), "side", 2),
+		[]status.Event{room(at(-4, 2, 0), "personal", week), pressure(at(-4, 11, 10), "side", at(-4, 15, 30))},
+		moved(held(status.EventLimit, at(-4, 15, 26), "side", week, at(-3, 10, 0)), "work", 2),
+		[]status.Event{room(at(-3, 10, 0), "side", week)},
+		moved(status.Event{Kind: status.EventRefused, At: at(-3, 14, 5), Account: "work", Status: 401}, "personal", 1),
+		moved(capped(at(-3, 16, 48), at(-3, 17, 35)), "personal", 2),
+		[]status.Event{room(at(-3, 17, 35), "work", fiveHour)},
+		moved(held(status.EventLimit, at(-3, 22, 18), "personal", fiveHour, at(-3, 23, 40)), "side", 2),
+		[]status.Event{room(at(-3, 23, 40), "personal", fiveHour)},
+		moved(held(status.EventLimit, at(-2, 10, 31), "side", fiveHour, at(-2, 11, 45)), "work", 3),
+		[]status.Event{room(at(-2, 11, 45), "side", fiveHour)},
+		moved(held(status.EventLimit, at(-2, 16, 2), "personal", fiveHour, at(-2, 18, 20)), "work", 1),
+		[]status.Event{room(at(-2, 18, 20), "personal", fiveHour)},
+		moved(capped(at(-2, 21, 15), at(-2, 22, 50)), "personal", 2),
+		[]status.Event{room(at(-2, 22, 50), "work", fiveHour)},
+		moved(held(status.EventLimit, at(-1, 8, 40), "side", fiveHour, at(-1, 10, 5)), "personal", 2),
+		[]status.Event{room(at(-1, 10, 5), "side", fiveHour)},
+		h.b9c4Capped(capped(at(-1, 14, 58), at(-1, 17, 10))),
+		[]status.Event{held(status.EventLimit, at(-1, 15, 2), "work", fiveHour, at(-1, 17, 10))},
+	)
+}
+
+// b9c4Capped is work's cap yesterday, e, and b9c4 moved off work to side by
+// it, alone, as its line has it: its first request after the cap, as
+// endedPlan has it.
+func (h happenings) b9c4Capped(e status.Event) []status.Event {
+	e.Count, e.To = 1, "side"
+	lines := endedPlan(h.now).lines()
+	moved := lines[slices.IndexFunc(lines, func(l ledger.Line) bool { return l.From != "" })]
+	return []status.Event{e, h.forcedOff(moved.At, idB9C4, "work", "side", reasonCapped)}
+}
+
+// pressures are the auto world's accounts coming under pressure as the
+// router running told it (runway-space1's added events): side at 21:40
+// yesterday, its 5-hour to run out at 23:50; and personal at 13:04, its
+// 5-hour to run out at 13:50, which db8a's move from it at 13:22 says.
+func (h happenings) pressures() []status.Event {
+	return []status.Event{
+		{Kind: status.EventPressure, At: h.at(-1, 21, 40, 0), Account: "side", Windows: []string{fiveHourKey}, Until: h.at(-1, 23, 50, 0)},
+		{Kind: status.EventPressure, At: h.today(13, 4, 0), Account: "personal", Windows: []string{fiveHourKey}, Until: h.today(13, 50, 0)},
+	}
+}
+
+// auto are the auto world's events (log2.YESTERDAY and log2.TODAY), as the
+// router running told them: yesterday's; the morning's; the accounts coming
+// under pressure, as pressures has them; 7f3a started on work at 14:12:30;
+// work's cap and its three moves; and c61b started on side at 14:41:11, the
+// router's best.
 func (h happenings) auto() []status.Event {
 	return slices.Concat(
-		h.yesterday(), h.morning(h.personalPrimed()),
+		h.yesterday(), h.morning(h.personalPrimed()), h.pressures(),
 		[]status.Event{h.started(h.today(14, 12, 30), id7F3A, "work", status.ReasonNew)},
 		h.worksCap(),
 		[]status.Event{h.started(h.today(14, 41, 11), idC61B, "side", status.ReasonNew)},

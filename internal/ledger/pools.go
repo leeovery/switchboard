@@ -159,6 +159,18 @@ func (a AccountDay) unpooledIn(pool string) (AccountDay, bool) {
 	return a.pooled(mergedBy(days, PoolDay.key, mergedPool, strings.Compare)), true
 }
 
+// InPool reports whether the request was routed in the pool with the given
+// id, ids compared ignoring case, as it recorded at the time. first is the id
+// of the first pool, once the move to pools is done, "" till then: a line
+// naming no pool is the first's, as FirstPool says, and before, the pool of
+// none.
+func (l Line) InPool(pool, first string) bool {
+	if l.Pool == "" {
+		return strings.EqualFold(first, pool)
+	}
+	return strings.EqualFold(l.Pool, pool)
+}
+
 // InPool returns the day in the pool with the given id alone: each account's
 // day as AccountDay.InPool gives it, first the first pool's id, and the day
 // of the requests no account answered where some of them were in the pool.
@@ -166,7 +178,7 @@ func (a AccountDay) unpooledIn(pool string) (AccountDay, bool) {
 func (s Summary) InPool(pool, first string) Summary {
 	var accounts []AccountDay
 	for _, a := range s.Accounts {
-		if in := a.InPool(pool, first); in.Account != "" || !in.idle() {
+		if in := a.InPool(pool, first); in.Account != "" || !in.Idle() {
 			accounts = append(accounts, in)
 		}
 	}
@@ -214,7 +226,7 @@ func (a AccountDay) poolDays() []PoolDay {
 	switch {
 	case a.Pools != nil:
 		return a.Pools
-	case a.idle():
+	case a.Idle():
 		return nil
 	}
 	return []PoolDay{{Pool: a.Pool, Work: a.Work}}
@@ -240,8 +252,8 @@ func (a AccountDay) pooled(pools []PoolDay) AccountDay {
 	return a
 }
 
-// idle reports whether the work is none: no model's requests, no session and
+// Idle reports whether the work is none: no model's requests, no session and
 // no move, as an account's day of no requests holds.
-func (w Work) idle() bool {
+func (w Work) Idle() bool {
 	return len(w.Models) == 0 && w.Sessions == 0 && w.MovedOn == 0 && w.MovedOff == 0
 }

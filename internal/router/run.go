@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/events"
 	"github.com/leeovery/switchboard/internal/handover"
 	"github.com/leeovery/switchboard/internal/idmove"
@@ -121,7 +122,7 @@ func (r *Router) socket() (string, error) {
 // says, and the router's events beside it, as long as the ledger's lines,
 // those heard before filed as they now stand.
 func (r *Router) openLedger(dir string) {
-	r.ledger.open(dir, ledger.HistoryIn(r.history.files), idmove.FirstPool(r.cfg.StateDir))
+	r.ledger.open(dir, ledger.HistoryIn(r.history.files), idmove.FirstPool(r.cfg.StateDir, func() config.Pools { return r.state.pools.current().pools }))
 	r.eventFiles = events.Open(dir, r.ledger.keep, r.cfg.Now, logger)
 	r.recent.fileTo(r.eventFiles, r.started)
 }

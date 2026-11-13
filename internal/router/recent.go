@@ -244,13 +244,24 @@ func (r *recent) fileMarked() {
 
 // events returns the events kept, the newest first.
 func (r *recent) events() []status.Event {
+	events, _ := r.keptWithIDs()
+	return events
+}
+
+// keptWithIDs returns the events kept, the newest first, and the ids of the
+// oldest and the newest of them, read as one: zero where none is kept.
+func (r *recent) keptWithIDs() ([]status.Event, status.EventsKept) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	var events []status.Event
 	for _, h := range slices.Backward(r.kept) {
 		events = append(events, h.event())
 	}
-	return events
+	var kept status.EventsKept
+	if len(r.kept) > 0 {
+		kept = status.EventsKept{Oldest: r.kept[0].ID, Newest: r.kept[len(r.kept)-1].ID}
+	}
+	return events, kept
 }
 
 // newest returns the id of the newest event kept, 0 before any is.

@@ -259,31 +259,36 @@ type probeSource struct {
 	// token.
 	tokenTaken func(id string, token tokens.Token) (time.Time, error)
 	upstream   string
-	accounts   []config.Account
-	// pools are the config's, and pool the one probed, as inPool names it:
-	// zero where the config has none.
-	pools config.Pools
-	pool  config.Pool
-	prime config.Prime
+	// pooled gives the config as its pools stand, as pooledConfig has it,
+	// asked only where the accounts are probed.
+	pooled func() (*config.Config, error)
+	// accounts are those probed, and pool the pool they're of, as inPool
+	// names it: zero where the config has none.
+	accounts []config.Account
+	pool     config.Pool
+	prime    config.Prime
 }
 
 // inPool returns the source probing the accounts of the pool with the given
 // id alone, else of the one the verbs act on, as config.Pools' Implicit has
-// it: every account, in a config with no pools. It fails with
-// router.PoolNeeded where the pool named isn't configured, or none is named
-// and there's none the verbs act on.
+// it, of the config as its pools stand: every account, in a config with no
+// pools. It fails where those pools can't be told, as pooledConfig does,
+// and with router.PoolNeeded where the pool named isn't among them, or none
+// is named and there's none the verbs act on.
 func (s probeSource) inPool(named string) (probeSource, error) {
-	if len(s.pools) == 0 {
+	cfg, err := s.pooled()
+	if err != nil {
+		return probeSource{}, err
+	}
+	s.accounts = cfg.Accounts
+	if len(cfg.Pools) == 0 {
 		return s, nil
 	}
-	p, ok := s.pools.Implicit()
-	if named != "" {
-		p, ok = s.pools.ByID(named)
+	p, err := askedPool(cfg.Pools, named)
+	if err != nil {
+		return probeSource{}, err
 	}
-	if !ok {
-		return probeSource{}, router.NeedPool(named, s.pools)
-	}
-	s.accounts, s.pool = config.Accounts(s.accounts).InPool(p.ID), p
+	s.accounts, s.pool = cfg.Accounts.InPool(p.ID), p
 	return s, nil
 }
 

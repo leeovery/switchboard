@@ -94,7 +94,22 @@ func writeJSON(w io.Writer, v any) error {
 // data verb prints it: "schema" first, before the line's own fields, on a
 // line of its own. The line stored is left as it is.
 func writeStored(w io.Writer, line []byte) error {
-	marked, err := schemaFirst(line)
+	return writeStoredInPool(w, line, "")
+}
+
+// writeStoredInPool writes a line as writeStored does, with the label of
+// the pool it names, "pool_label", after "schema", where poolLabel gives
+// one: as the verbs' JSON gives a pool by its id and its label.
+func writeStoredInPool(w io.Writer, line []byte, poolLabel string) error {
+	var lead []byte
+	if poolLabel != "" {
+		label, err := json.Marshal(poolLabel)
+		if err != nil {
+			return fmt.Errorf("print a stored line's pool: %w", err)
+		}
+		lead = append([]byte(`"pool_label":`), label...)
+	}
+	marked, err := schemaFirst(line, lead...)
 	if err != nil {
 		return fmt.Errorf("print a stored line: %w", err)
 	}
@@ -103,14 +118,18 @@ func writeStored(w io.Writer, line []byte) error {
 }
 
 // schemaFirst is a copy of the JSON object given with "schema" put first,
-// before its own fields. It refuses JSON that isn't an object.
-func schemaFirst(object []byte) ([]byte, error) {
+// before its own fields, and lead after it, a field of its own where it's
+// given. It refuses JSON that isn't an object.
+func schemaFirst(object []byte, lead ...byte) ([]byte, error) {
 	fields, ok := bytes.CutPrefix(bytes.TrimSpace(object), []byte("{"))
 	if !ok {
 		return nil, errors.New("it isn't a JSON object")
 	}
 	fields = bytes.TrimSpace(fields)
 	marked := []byte(`{"schema":` + strconv.Itoa(schema))
+	if len(lead) > 0 {
+		marked = append(append(marked, ','), lead...)
+	}
 	if !bytes.HasPrefix(fields, []byte("}")) {
 		marked = append(marked, ',')
 	}

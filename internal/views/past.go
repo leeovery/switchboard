@@ -26,7 +26,7 @@ func NewPast(in HistoryInput, days []ledger.Summary) Past {
 	in.read = in.Now
 	today := dayfile.DateOf(in.Now)
 	v := versions{table: in.Prices, family: in.Family}
-	return Past{in: in, days: pricedDays(days, in.Prices, today, v)}
+	return Past{in: in, days: pricedDays(days, in, today, v)}
 }
 
 // Since is the Past at now, the days given, the summaries the ledger holds of
@@ -43,7 +43,7 @@ func (p Past) Since(days []ledger.Summary, now time.Time) Past {
 	p.in.read = now
 	today := dayfile.DateOf(now)
 	before, _ := splitAt(p.days, days[0].Day)
-	p.days = slices.Concat(before, pricedDays(days, p.in.Prices, today, p.versions()))
+	p.days = slices.Concat(before, pricedDays(days, p.in, today, p.versions()))
 	return p
 }
 

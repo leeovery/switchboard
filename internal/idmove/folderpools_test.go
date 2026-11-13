@@ -118,6 +118,33 @@ func TestAFolderFromBeforePoolsIsGivenThisMacsFirstPool(t *testing.T) {
 	}
 }
 
+// Once the first pool this Mac's record notes is no longer configured, as
+// after pool remove of an emptied Default, a folder from before pools is
+// given the config's first, as idmove.FirstOf has it, as work in no pool is
+// everywhere: never the pool removed, which no pool's read shows.
+func TestAFolderFromBeforePoolsIsGivenTheConfigsFirstOnceTheOneNotedIsRemoved(t *testing.T) {
+	f := newFolder(t, export.Manifest{Install: thisInstall, Version: 1})
+	record := thisMacPooled()
+	acme := here
+	acme.Pools = config.Pools{{ID: "q7mt", Label: "Acme"}}
+	rename, err := idmove.JoinFolder(f.state, &record, acme)
+	if err != nil {
+		t.Fatalf("JoinFolder: %v", err)
+	}
+	if err := idmove.RenameFolder(t.Context(), f.state, rename); err != nil {
+		t.Fatalf("RenameFolder: %v", err)
+	}
+	lines := pooledLines(t, ledgerFiles(f.state), requestOf)
+	if len(lines) == 0 {
+		t.Fatal("the folder holds no request lines")
+	}
+	for line, pool := range lines {
+		if pool != "q7mt" {
+			t.Errorf("request line %s names pool %q, want the config's first, q7mt, %s being removed", line, pool, thisFirst)
+		}
+	}
+}
+
 func TestAFolderFromBeforePoolsIsRefusedWhereThisMacNotesNoFirstPool(t *testing.T) {
 	f := newFolder(t, export.Manifest{Install: thisInstall, Version: 2, IDs: true})
 	record := thisMac()

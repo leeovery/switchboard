@@ -56,7 +56,7 @@ func spanInks(parts []line) []ink {
 // its use isn't read, the lane's words alone, or what Runway's label says of
 // it. Out of the pool, every word is faint, the figure bold.
 func TestACardsWordsAreItsRoomThenWhatRunwaySaysUnderItsLane(t *testing.T) {
-	week := runwayLive(views.RunwayWeek)
+	week := runwayLive()
 	tl := week.Timeline
 	reset := routedClock(4, 21, 0)
 	capped := weekStretch(tl, views.CellCapped, routedClock(1, 14, 31), reset)
@@ -155,19 +155,19 @@ func TestACardsWordsAreItsRoomThenWhatRunwaySaysUnderItsLane(t *testing.T) {
 	}
 }
 
-// A card says what Runway says under its account's lane in that window's
-// live view: of each live Runway moment's lanes, as Runway's frame holds
-// them, taken as a card's, every phrase Runway places under each lane, in
-// its order.
+// A card says what Runway says under its account's lane in the live view:
+// of each live Runway moment judging the week, as Runway does, its lanes as
+// Runway's frame holds them, taken as a card's, every phrase Runway places
+// under each lane, in its order.
 func TestACardSaysWhatRunwaySaysUnderItsLane(t *testing.T) {
 	for _, rm := range viewstest.RunwayMoments() {
-		if !rm.Day.IsZero() {
+		if !rm.Day.IsZero() || rm.Key != "" {
 			continue
 		}
 		t.Run(rm.Name, func(t *testing.T) {
 			f, doc, now := runwayFramed(t, rm.Name)
 			m := doc.At(now, claude.Policy())
-			lanes := WindowLanes{Window: f.Runway.Window, Timeline: f.Runway.Timeline, Lanes: f.Runway.Lanes}
+			lanes := WindowLanes{Window: views.RunwayWeek, Timeline: f.Runway.Timeline, Lanes: f.Runway.Lanes}
 			for _, ln := range f.laidLanes(m, runwayFit{fits: true, shown: len(m.Accounts)}) {
 				card := slices.Concat(lanes.view().cardWords(ln, now)...).plain()
 				rest := card
@@ -203,7 +203,7 @@ func TestACardsRoomIsWhatRunwaysUseLeaves(t *testing.T) {
 // A card's room is numbered as the room left in its week, to brighten as
 // it changes.
 func TestACardsRoomIsNumberedAsItsWindowsRoom(t *testing.T) {
-	words := runwayLive(views.RunwayWeek).view().cardWords(cardLane(0.34), routedAt)
+	words := runwayLive().view().cardWords(cardLane(0.34), routedAt)
 	want := ink{}.numbered(Number{Kind: NumberRoom, Account: "work", Of: "7d"}).mark
 	if got := words[0][0].ink.mark; got != want {
 		t.Errorf("the room is marked %v, want as work's week's room, %v", got, want)
@@ -221,7 +221,7 @@ func TestACardsRoomIsNumberedAsItsWindowsRoom(t *testing.T) {
 // stands alone. A label cut on a row of its own keeps its number and its
 // marks whole within the card.
 func TestACardsHeadLaysItsWordsUnderItsLabelOrBesideIt(t *testing.T) {
-	week := runwayLive(views.RunwayWeek)
+	week := runwayLive()
 	reset := routedClock(4, 21, 0)
 	capped := weekStretch(week.Timeline, views.CellCapped, routedClock(1, 14, 31), reset)
 	capped.AsItResets = true
@@ -300,7 +300,7 @@ func TestACardsHeadLaysItsWordsUnderItsLabelOrBesideIt(t *testing.T) {
 // its words on theirs, picked out by the cue while its account newly stands
 // as its lane has it at now, as Runway cues the words under its lane.
 func TestACardsHeadIsDrawnItsWordsCuedAsRunwayCuesThem(t *testing.T) {
-	week := runwayLive(views.RunwayWeek)
+	week := runwayLive()
 	held := weekStretch(week.Timeline, views.CellCapped, routedClock(1, 14, 31), routedClock(1, 17, 10))
 	capped := cardLane(0.95, held)
 	for c := held.First; c <= held.Last; c++ {

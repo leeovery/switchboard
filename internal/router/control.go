@@ -774,10 +774,10 @@ func (r *Router) pinnable(id string) error {
 
 // UnknownAccount says there's no account with the given id to pin, naming
 // the accounts that can be pinned instead, pinnable, those with a usable
-// token, each by its id and its label, as "pin b6s7 (Work) or q4tx (Side)",
-// one labelled by its id named once, or saying there are none: pin and run --account say it alike. It hides
-// anything in the id that looks like a token, as a token pasted where an id
-// goes would be.
+// token, each by its label and its id, as "pin Work (b6s7) or Side (q4tx)",
+// one labelled by its id named once, or saying there are none: pin and run
+// --account say it alike. It hides anything in the id that looks like a
+// token, as a token pasted where an id goes would be.
 func UnknownAccount(id string, pinnable config.Accounts) error {
 	if len(pinnable) == 0 {
 		return fmt.Errorf("there's no account %q, and no account has a usable token to pin", redact.Text(id))

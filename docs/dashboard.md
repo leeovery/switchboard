@@ -409,16 +409,8 @@ the session's:
 <img src="../art/runway-week.webp" alt="Runway over the week: a lane an account to next Wednesday, work at its cap till 17:10, personal's and side's weeks running out at their pace before they reset, and the pool's room under them" width="840">
 </div>
 
-Runway has two windows, and `<` and `>` switch between them. It opens on the week, and remembers
-the one you last left it on:
-
-- **Week:** the week.
-- **5-hour:** from the hour before now, for 22 hours 40 minutes. It lists only the accounts that
-  have a 5-hour window.
-
-Where no account has a 5-hour window, as when every account is on a verified Ultra plan, Runway
-shows the week alone, with no `<` or `>`. A 5-hour view it remembers comes back once an account has
-one.
+Runway shows the week, from a day before now. Every window every model shares counts, the 5-hour
+among them, so a lane is without room wherever any of them holds its account back.
 
 Each column of a lane is one cell, showing room, at its cap, or at its limit. The past is dimmed.
 
@@ -440,14 +432,25 @@ where even that can't fit them.
 
 With more than one account, the pool's lane sits under the others. It shows how many accounts have
 room, a column at a time, and draws a low red bar along its foot where none has. `Σ pool` names it,
-as an account's name heads its lane, with the pool's room in the view's window under it, such as
+as an account's name heads its lane, with the pool's room in the week under it, such as
 `week 1.2 of 3 left`, out of the accounts that have the window. Where fewer than two have it, and
 not all, there's no pool's lane.
 
-COMING UP sits under the pool's lane and lists what happens next, soonest first, in two columns
-on a wide screen. Where its lines don't all fit, its last says how many more, such as `▼ 3 more`.
-The legend sits at the foot, over the key line. On a short screen, as with a phone's keyboard up,
-COMING UP is cut to the lines that fit first; then the legend gives way, then COMING UP, then the
+COMING UP lists what happens next, soonest first, and LATELY what befell each account over the
+week gone, newest first: a cap, a limit, a refused token, coming under pressure, and room again,
+the sessions each moved said in its line, and how long ago at its end, such as `11m ago`. It
+reads the whole week off the router's files of events once, as Runway first shows, and keeps it
+as the router restarts; till then it shows the router's newest events. Where the screen is wide
+enough for both, from 159 columns, and has the rows for COMING UP's every line in one column,
+LATELY sits at the left and COMING UP at the right, the past and what's coming as the lanes lie,
+each down to the legend. Else COMING UP sits under the pool's lane with LATELY under it, wherever
+LATELY's heading and two lines fit: COMING UP in two columns where they fit, from 148 columns,
+and LATELY across the screen under them; else the two in one column, as wide as their lines need
+to read whole, from 72 columns to the screen's width. Shorter still, or narrower, COMING UP shows
+alone. LATELY only takes the rows the lanes and COMING UP leave empty, so it never squeezes them.
+Where COMING UP's lines don't all fit, its last says how many more, such as `▼ 3 more`. The legend sits at the foot,
+over the key line. On a short screen, as with a phone's keyboard up, LATELY under COMING UP goes
+first; then COMING UP is cut to the lines that fit; then the legend gives way, then COMING UP, then the
 blank row under the axis; only then do the lanes scroll with `j` and `k`, down to one lane over
 the pool's lane at the shortest.
 
@@ -461,13 +464,8 @@ after it, as in `100%  out Tue 17:54  ·  back Sun 01:00`. COMING UP stays as it
 naming its account. `a` again expands them; the key line says `a collapse`, its word faint while
 the labels are collapsed. Runway remembers which you left it on.
 
-To look back:
-
-- In the 5-hour view, `←` goes back to today, then a day at a time.
-- In the week view, `←` goes back to this week, then a week at a time.
-- `→` steps forward, on to the live view.
-
-A step back is never kept.
+To look back, `←` goes back to this week, then a week at a time, and `→` steps forward, on to the
+live view. A week stepped back to has no COMING UP and no LATELY. A step back is never kept.
 
 ## Graphs
 
@@ -492,7 +490,7 @@ and the dashboard remembers which show.
 | WHEN YOU WORK | `h` | hidden | Requests by the hour of the day and the day of the week, over the last four weeks |
 
 Graphs charts the week every model shares, as on Runway: a model's own week has no card, and the
-5-hour window, which the Overview and Runway show, has none here. With every section hidden, the
+5-hour window, which the Overview shows and Runway counts, has none here. With every section hidden, the
 page's first row says which keys bring them back.
 
 ### The burn-down cards
@@ -538,12 +536,12 @@ Under the cards, `Σ pool` gives the pool's room in the week, such as `week 1.2 
 one account there's no pool, and no line. At the foot, over the key line, a legend names the marks.
 
 <div align="center">
-<img src="../art/dashboard.webp" alt="One account's dashboard: work alone on the Overview, its usage, routing trace and LATELY, then its week's card on Graphs, then Runway's 5-hour, its lane running out at its pace to its cap, back at 17:10" width="840">
+<img src="../art/dashboard.webp" alt="One account's dashboard: work alone on the Overview, its usage, routing trace and LATELY, then its week's card on Graphs, then Runway, its lane across the week, with COMING UP and LATELY under it" width="840">
 </div>
 
 The animation shows one account, `work`, alone: the Overview, with its usage, its routing trace
-and LATELY; then Graphs, its week's card; then Runway's 5-hour, where its lane runs out
-at its pace to its cap, and is back at 17:10.
+and LATELY; then Graphs, its week's card; then Runway, its lane across the week, with COMING UP
+and LATELY under it.
 
 ### POOL
 
@@ -1042,7 +1040,7 @@ iTerm2 and Terminal.app, and Shift in most others.
 | Click on | Does |
 |---|---|
 | a tab or a sub-tab | Shows it. |
-| `<` or `>` by a period or a window | Steps it. |
+| `<` or `>` by a period | Steps it. |
 | a key on the key line | Does what the key does. For a pair, such as `[ ]` or `< >`, it does what the second key does. A click doesn't act on `p pin` or `q quit`. |
 | a row that names an account, a session, a line or a turn, or a Compare column's head | Chooses it, as the arrows would. On the one already chosen, opens it, as `enter` does. |
 | a section's heading, on the Overview or Graphs | Hides the section. |
@@ -1074,7 +1072,7 @@ It remembers:
 - Accounts' view and period
 - History's view, what its Year shows, Weeks' shape, and Tokens' period and split
 - Sessions' view
-- Runway's window, and whether `a` collapsed its labels
+- whether `a` collapsed Runway's labels
 - Graphs' sections shown
 - the Log's columns.
 
@@ -1085,7 +1083,7 @@ It never remembers:
 - a focus or a choice
 - a card or help, open
 - a session's page
-- a calendar year, or Runway's day or week, stepped back to
+- a calendar year, or Runway's week, stepped back to
 - the Log's sub-tab or its filters
 - a scroll.
 

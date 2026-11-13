@@ -16,8 +16,8 @@ import (
 
 // What a lane draws ahead of now is what it draws of the same columns once a
 // later look has them in the past, the document and the readings unchanged:
-// at every hard moment, and at every moment Runway has to get right, in
-// either view, of today and of this week, each column after now's that a
+// at every hard moment, and at every moment Runway has to get right,
+// judging either window, of this week, each column after now's that a
 // look later, now in the timeline's last column, has before it; and the
 // stretch holding now's column begins where the later look has it begin,
 // and where a look later still, the timeline gone by with no now in it, has
@@ -81,8 +81,8 @@ type laterCase struct {
 // laterCases are the lanes the test builds, now and later: of each hard
 // moment, its readings those its document read; and of each moment Runway
 // has to get right whose readings read no account later than its document,
-// its readings and what its document read; in either view, of the day and
-// of the week its now falls in.
+// its readings and what its document read; judging either window, of the
+// week its now falls in.
 func laterCases() []laterCase {
 	var cases []laterCase
 	for _, hm := range statustest.HardMoments(claude.Policy()) {
@@ -108,18 +108,18 @@ func readSince(read []readings.Reading, doc status.Document) bool {
 }
 
 // laterOf are the cases of the document doc read at now, the readings given,
-// in either view, of now's day and now's week, weeks starting on Monday.
+// judging either window, of now's week, weeks starting on Monday.
 func laterOf(name string, doc status.Document, now time.Time, read []readings.Reading) []laterCase {
 	y, mo, d := now.Date()
 	day := time.Date(y, mo, d, 0, 0, 0, 0, time.UTC)
 	var cases []laterCase
-	for _, w := range []views.RunwayWindow{views.RunwayFiveHour, views.RunwayWeek} {
+	for _, j := range judgings {
 		at := func(t time.Time) views.LanesFrom {
-			return views.LanesFrom{Moment: doc.At(t, claude.Policy()), Readings: read, Timeline: views.Stepped(w, day, t, time.Monday, 136), Window: w}
+			return views.LanesFrom{Moment: doc.At(t, claude.Policy()), Readings: read, Timeline: views.Stepped(day, t, time.Monday, 136), Key: j.key}
 		}
 		first := at(now)
 		later, _ := first.Timeline.Bounds(first.Timeline.Columns - 1)
-		cases = append(cases, laterCase{name: fmt.Sprintf("%s, the %s view", name, viewKeys[w]), now: first, later: at(later), gone: at(later.Add(24 * time.Hour))})
+		cases = append(cases, laterCase{name: fmt.Sprintf("%s, judging %s", name, j.name), now: first, later: at(later), gone: at(later.Add(24 * time.Hour))})
 	}
 	return cases
 }

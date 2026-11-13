@@ -18,17 +18,17 @@ import (
 func runwayComingDrawn(t *testing.T, width, height int, coming []status.Upcoming) []string {
 	t.Helper()
 	doc := framesDoc()
-	r := poolShown(doc, views.Pool{Of: 3, Key: "5h"})
-	r.Timeline, r.Coming = views.LiveTimeline(views.RunwayFiveHour, routedAt, RunwayShown{}.Columns(width)), coming
+	r := poolShown(doc, views.Pool{Of: 3, Key: "7d"})
+	r.Timeline, r.Coming = views.LiveTimeline(routedAt, RunwayShown{}.Columns(width)), coming
 	f := Frame{Width: width, Height: height, Look: Screen(builtin(t, "nord")), View: Runway, Policy: claudeLike, Runway: r}
 	f.WindowName = func(key string) string { return map[string]string{"5h": "5-hour", "7d": "week"}[key] }
 	fit := f.runwayFitted(f.top())
 	c := newCanvas(width, height)
-	f.runwayComing(c, runwayLaid{x: framesLanesFrom, fit: fit, m: f.Moment(doc, routedAt)})
+	f.runwayComing(c, f.runwayLaidOut(f.Moment(doc, routedAt), framesLanesFrom, fit))
 	return textOf(c.rows(Look{}))[fit.coming : fit.coming+1+fit.lines]
 }
 
-// The frames' world's things coming up in the 5-hour view: personal's
+// The frames' world's things coming up in the 5-hour: personal's
 // 5-hour resetting, work back from its cap, and side's 5-hour resetting.
 var fiveHourComing = []status.Upcoming{
 	{At: routedClock(1, 16, 30), Account: "personal", Kind: status.UpcomingReset, Window: "5h"},
@@ -98,7 +98,7 @@ func TestRunwaysComingUpNamesTheFiveHourWindowRunningOut(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := runwayComingDrawn(t, 160, 37, []status.Upcoming{tt.u})[1]; !strings.HasPrefix(got, tt.want+" ") {
+			if got := runwayComingDrawn(t, 120, 37, []status.Upcoming{tt.u})[1]; !strings.HasPrefix(got, tt.want+" ") {
 				t.Errorf("COMING UP's line reads %q, want %q", got, tt.want)
 			}
 		})
@@ -110,8 +110,8 @@ func TestRunwaysComingUpNamesTheFiveHourWindowRunningOut(t *testing.T) {
 	}
 }
 
-// fiveComing are the frames' world's three things coming up in the 5-hour
-// view, and two more: work's 5-hour resetting, and personal's again.
+// fiveComing are the frames' world's three things coming up in the 5-hour,
+// and two more: work's 5-hour resetting, and personal's again.
 var fiveComing = append(slices.Clone(fiveHourComing),
 	status.Upcoming{At: routedClock(1, 19, 30), Account: "work", Kind: status.UpcomingReset, Window: "5h"},
 	status.Upcoming{At: routedClock(1, 21, 0), Account: "personal", Kind: status.UpcomingReset, Window: "5h"},
@@ -121,18 +121,17 @@ var fiveComing = append(slices.Clone(fiveHourComing),
 const comingRow = 10
 
 // runwayComingAlone is the canvas of Runway's COMING UP alone, of the
-// frames' world in the 5-hour view, on a frame width cells wide, listing the
-// things coming up given, drawn from comingRow with lines rows of lines
-// under it.
+// frames' world, on a frame width cells wide, listing the things coming up
+// given, drawn from comingRow with lines rows of lines under it.
 func runwayComingAlone(t *testing.T, width int, coming []status.Upcoming, lines int) *canvas {
 	t.Helper()
 	doc := framesDoc()
-	r := poolShown(doc, views.Pool{Of: 3, Key: "5h"})
+	r := poolShown(doc, views.Pool{Of: 3, Key: "7d"})
 	r.Coming = coming
 	f := Frame{Width: width, Height: 37, Look: Screen(builtin(t, "nord")), View: Runway, Policy: claudeLike, Runway: r}
 	f.WindowName = func(key string) string { return map[string]string{"5h": "5-hour", "7d": "week"}[key] }
 	c := newCanvas(f.Width, f.Height)
-	f.runwayComing(c, runwayLaid{x: framesLanesFrom, fit: runwayFit{fits: true, coming: comingRow, lines: lines}, m: f.Moment(doc, routedAt)})
+	f.runwayComing(c, f.runwayLaidOut(f.Moment(doc, routedAt), framesLanesFrom, runwayFit{fits: true, coming: comingRow, lines: lines}))
 	return c
 }
 
@@ -191,10 +190,10 @@ func TestRunwaysComingUpShowsTheLinesItCanAndHowManyMore(t *testing.T) {
 	}
 }
 
-// COMING UP's lines take two columns where both fit at the lines' natural
+// COMING UP alone takes two columns where both fit at the lines' natural
 // width, 72, comingApart apart, sharing the frame's width, the odd cell the
 // second's; else one, at its natural, or the frame's width where narrower.
-func TestRunwaysComingUpTakesTwoColumnsWhereBothFitAtTheirNatural(t *testing.T) {
+func TestRunwaysComingUpTakesTwoColumnsAloneWhereBothFitAtTheirNatural(t *testing.T) {
 	tests := []struct {
 		width int
 		want  []flex.Span
@@ -279,7 +278,7 @@ func TestCollapsingRunwaysAccountColumnLeavesComingUpAsItIs(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			doc := framesDoc()
 			coming := func(collapsed bool) []string {
-				r := poolShown(doc, views.Pool{Of: 3, Key: "5h"})
+				r := poolShown(doc, views.Pool{Of: 3, Key: "7d"})
 				r.Collapsed, r.Coming = collapsed, fiveHourComing
 				r.Timeline = r.TimelineAt(routedAt, time.Monday, 120)
 				f := Frame{Width: 120, Height: tt.height, Look: Screen(builtin(t, "nord")), View: Runway, Policy: claudeLike, Runway: r}
@@ -303,7 +302,7 @@ func TestCollapsingRunwaysAccountColumnLeavesComingUpAsItIs(t *testing.T) {
 func TestARunOutsLineOnRunwayIsInAccentAttention(t *testing.T) {
 	out := status.Upcoming{At: routedClock(1, 16, 5), Account: "personal", Kind: status.UpcomingRunsOut, Window: "5h"}
 	doc := framesDoc()
-	r := poolShown(doc, views.Pool{Of: 3, Key: "5h"})
+	r := poolShown(doc, views.Pool{Of: 3, Key: "7d"})
 	r.Coming = []status.Upcoming{out}
 	f := Frame{Width: 120, Height: 37, Look: Screen(builtin(t, "nord")), View: Runway, Policy: claudeLike, Runway: r}
 	c := runwayDrawn(f, doc)

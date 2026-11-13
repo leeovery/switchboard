@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/prose"
-	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/status/statustest"
 	"github.com/leeovery/switchboard/internal/views"
@@ -62,8 +61,8 @@ func agree(t *testing.T, fact string, says []viewSays) {
 
 // drawn are the views of a document at a moment, each as it's drawn: USAGE,
 // ROUTING, the routing card, COMING UP, the status line, and Runway's live
-// views, the 5-hour's and the week's; and the moment, which says which accounts and windows there are, and which account
-// and window each thing COMING UP says is of, in its order.
+// view; and the moment, which says which accounts and windows there are, and
+// which account and window each thing COMING UP says is of, in its order.
 type drawn struct {
 	now        time.Time
 	moment     status.Moment
@@ -72,7 +71,7 @@ type drawn struct {
 	card       []RoutingRow
 	coming     []happening
 	statusLine statusLine
-	runway     map[views.RunwayWindow]Frame
+	runway     Frame
 }
 
 // drawnAt is each view of doc at now, as a frame as wide as the frames draws
@@ -89,33 +88,29 @@ func drawnAt(t *testing.T, doc status.Document, now time.Time) drawn {
 		card:       RoutingRows(m, nil, views.Stream{}),
 		coming:     f.upcoming(doc, now),
 		statusLine: f.pageStatus(doc, now),
-		runway:     make(map[views.RunwayWindow]Frame),
 	}
 	if len(d.coming) != len(m.ComingUp) {
 		t.Fatalf("COMING UP says %d things, want the moment's %d", len(d.coming), len(m.ComingUp))
 	}
-	for _, w := range runwayWindows {
-		tl := views.LiveTimeline(w, now, RunwayShown{}.Columns(f.Width))
-		lanes := views.Lanes{}.Look(views.LanesFrom{Moment: m, Timeline: tl, Window: w})
-		runway := f
-		runway.View, runway.Runway = Runway, RunwayShown{Window: w, Timeline: tl, Lanes: &lanes}
-		d.runway[w] = runway
-	}
+	tl := views.LiveTimeline(now, RunwayShown{}.Columns(f.Width))
+	lanes := views.Lanes{}.Look(views.LanesFrom{Moment: m, Timeline: tl})
+	d.runway = f
+	d.runway.View, d.runway.Runway = Runway, RunwayShown{Timeline: tl, Lanes: &lanes}
 	return d
 }
 
-// lane is account a's lane in Runway's live view of the window given, as
-// laid out with every lane shown.
-func (d drawn) lane(a status.AccountNow, w views.RunwayWindow) laidLane {
-	lanes := d.runway[w].laidLanes(d.moment, runwayFit{fits: true, shown: len(d.moment.Accounts)})
+// lane is account a's lane in Runway's live view, as laid out with every
+// lane shown.
+func (d drawn) lane(a status.AccountNow) laidLane {
+	lanes := d.runway.laidLanes(d.moment, runwayFit{fits: true, shown: len(d.moment.Accounts)})
 	return lanes[slices.IndexFunc(lanes, func(ln laidLane) bool { return ln.ID == a.ID })]
 }
 
-// runwaySays are the phrases under account a's lane in Runway's live view of
-// the window given, each as a terminal shows it.
-func (d drawn) runwaySays(a status.AccountNow, w views.RunwayWindow) []string {
+// runwaySays are the phrases under account a's lane in Runway's live view,
+// each as a terminal shows it.
+func (d drawn) runwaySays(a status.AccountNow) []string {
 	var phrases []string
-	for _, words := range d.runway[w].Runway.view().wordsUnder(d.lane(a, w), d.now, 0) {
+	for _, words := range d.runway.Runway.view().wordsUnder(d.lane(a), d.now, 0) {
 		phrases = append(phrases, words.said.plain())
 	}
 	return phrases
@@ -200,8 +195,8 @@ func (d drawn) back(a status.AccountNow) []viewSays {
 		return says
 	}
 	runway := "not held at now"
-	if ln := d.lane(a, views.RunwayFiveHour); ln.heldAt(d.runway[views.RunwayFiveHour].Runway.Timeline.NowColumn()) {
-		runway = runBack(d.runwaySays(a, views.RunwayFiveHour))
+	if ln := d.lane(a); ln.heldAt(d.runway.Runway.Timeline.NowColumn()) {
+		runway = runBack(d.runwaySays(a))
 	}
 	return append(says, viewSays{"Runway", runway})
 }
@@ -396,24 +391,18 @@ func (d drawn) runsOut(a status.AccountNow, w status.WindowNow) []viewSays {
 }
 
 // runwayOut is where Runway's lane of account a says its window w runs out,
-// as "out ~16:05", or "nowhere", in the live view of w's own window, the
-// 5-hour's of a window of a day or less, else the week's: the words of the
-// run-out said to end as w next resets, as its run-out ends. It reports false
-// where the lane draws that run-out too near the view's end for its words to
-// fit, as they're left off.
+// as "out ~16:05", or "nowhere", in the live view: the words of the run-out
+// said to end as w next resets, as its run-out ends. It reports false where
+// the lane draws that run-out where its words don't fit, as they're left off.
 func (d drawn) runwayOut(a status.AccountNow, w status.WindowNow) (string, bool) {
-	view := views.RunwayFiveHour
-	if quota.MultiDay(w.Key) {
-		view = views.RunwayWeek
-	}
-	for _, phrase := range d.runwaySays(a, view) {
+	for _, phrase := range d.runwaySays(a) {
 		head, back, _ := strings.Cut(phrase, prose.Separator)
 		_, out, runsOut := strings.Cut(head, " ~")
 		if runsOut && back == "resets "+prose.Dated(d.now, w.Next) {
 			return "out ~" + out, true
 		}
 	}
-	drawn := slices.ContainsFunc(d.lane(a, view).Stretches, func(s views.LaneStretch) bool { return s.Projected && s.Back.Equal(w.Next) })
+	drawn := slices.ContainsFunc(d.lane(a).Stretches, func(s views.LaneStretch) bool { return s.Projected && s.Back.Equal(w.Next) })
 	return "nowhere", !drawn
 }
 

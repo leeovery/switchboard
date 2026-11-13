@@ -53,7 +53,7 @@ func (v View) headsItself() bool {
 }
 
 // SubViews are the tab's own views, named as its heading row names them, in
-// lower case, the one it opens on first: its sub-tabs, or Runway's windows;
+// lower case, the one it opens on first: its sub-tabs;
 // none where it has none.
 func (v View) SubViews() []string {
 	switch v {
@@ -65,12 +65,6 @@ func (v View) SubViews() []string {
 		return lowerNames(sessionsViews)
 	case Log:
 		return lowerNames(logViews)
-	case Runway:
-		names := make([]string, len(runwayWindows))
-		for i, w := range runwayWindows {
-			names[i] = runwayNames[w]
-		}
-		return names
 	}
 	return nil
 }

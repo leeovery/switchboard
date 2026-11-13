@@ -32,9 +32,9 @@ func namingTabs(n disagreement) []namingTab {
 	base := Frame{Width: width, Height: height, Policy: printPolicy}
 	overview, sessions, runway, compare, detail := base, base, base, base, base
 	overview.View, sessions.View = Overview, Sessions
-	tl := views.LiveTimeline(views.RunwayWeek, printNow, RunwayShown{}.Columns(width))
-	lanes := views.Lanes{}.Look(views.LanesFrom{Moment: m, Timeline: tl, Window: views.RunwayWeek})
-	runway.View, runway.Runway = Runway, RunwayShown{Window: views.RunwayWeek, Timeline: tl, Lanes: &lanes}.Labelled(m)
+	tl := views.LiveTimeline(printNow, RunwayShown{}.Columns(width))
+	lanes := views.Lanes{}.Look(views.LanesFrom{Moment: m, Timeline: tl})
+	runway.View, runway.Runway = Runway, RunwayShown{Timeline: tl, Lanes: &lanes}.Labelled(m)
 	graphs := cardsPage(n.doc, printNow, width, height, n.ids...)
 	graphs.Graphs.Sections = GraphsSectionsNamed([]string{"week", "glance"})
 	graphs.Graphs.Accounts = n.config()

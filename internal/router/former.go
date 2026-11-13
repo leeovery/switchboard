@@ -446,7 +446,7 @@ func (h heirs) candidates(id string) iter.Seq[config.Account] {
 		if len(h.pools) > 0 {
 			pools := []func() string{
 				func() string { return h.poolWas(id) },
-				func() string { return firstPool(h.pools, h.first()) },
+				func() string { return h.pools.First(h.first()) },
 			}
 			for _, pool := range pools {
 				if primary, ok := h.accounts.PrimaryOf(pool()); ok && !yield(primary) {

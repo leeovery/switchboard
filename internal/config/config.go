@@ -5,6 +5,7 @@ import (
 	"cmp"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
@@ -419,6 +420,24 @@ func decodeFile(path string, data []byte) (file, toml.MetaData, error) {
 		return file{}, toml.MetaData{}, unparsed(path, err)
 	}
 	return f, meta, nil
+}
+
+// decodeOnly decodes the config file at path into only, a struct of the
+// tables to read whatever else in the file is wrong, leaving it as it is
+// where there's no file. It fails where the file can't be read as TOML, or
+// those tables as only has them.
+func decodeOnly(path string, only any) error {
+	data, err := os.ReadFile(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("read config: %w", err)
+	}
+	if _, err := toml.Decode(string(data), only); err != nil {
+		return unparsed(path, err)
+	}
+	return nil
 }
 
 // unparsed is the error of the config file at path, which the decoder

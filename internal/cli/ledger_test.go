@@ -692,44 +692,47 @@ const historyBlocks = `"year":{"cuts":[1,1,4],"days":[{"day":"2026-10-04","reque
 	`"capacity":{"weeks":0,"short":0,"with_one_fewer":0,"with_one_more":0,"accounts":[` +
 	`{"account":"work","label":"work","weeks":0,"limits":0,"without_it":0},{"account":"side","label":"side","weeks":0,"limits":0,"without_it":0},{"all":true,"weeks":0,"limits":0}]},"removed":[]`
 
+// Each day's accounts name the pool they're read in, the first, as the
+// accounts record notes it once the move to pools is done, its config naming
+// none.
 func TestHistoryJSONPrintsEachDaysSummaryWithEachModelsWorth(t *testing.T) {
 	deps, _ := ledgerDeps(t)
 	limit, sideReset := fixtureReadings[1], fixtureReadings[2]
 	// at is t as the JSON gives it.
 	at := func(t time.Time) string { return t.UTC().Format(time.RFC3339) }
 	want := `{"schema":1,"prices_as_of":"2026-10-11","days":[` +
-		`{"version":7,"day":"2026-10-04","lines":1,"accounts":[{"account":"work","sessions":1,"session_ids":["` + sessionA + `"],"moved_on":0,"moved_off":0,` +
-		`"highest":{"5h":0.5},"rise":{"5h":0.2},"resets":[],"minutes_at_cap":0,"minutes_at_limit":0,` +
+		`{"version":7,"day":"2026-10-04","lines":1,"accounts":[{"account":"work","pool":"b2n8","sessions":1,"session_ids":["` + sessionA + `"],"moved_on":0,"moved_off":0,` +
+		`"highest":{"5h":0.5},"rise":{"5h":0.2},"resets":[],"minutes_at_cap":0,"minutes_at_limit":0,"pool_label":"Default",` +
 		`"models":[{"model":"claude-opus-5-5","upstream":1,"no_usage":0,"unsent":0,"checks":0,"counts":0,` + hoursJSON(9) +
 		`,"sessions":1,"session_ids":["` + sessionA + `"],` +
 		`"usage":{"cache_creation":{"ephemeral_1h_input_tokens":3120,"ephemeral_5m_input_tokens":0},"cache_creation_input_tokens":3120,"cache_read_input_tokens":182340,` +
 		`"input_tokens":12,"output_tokens":845},"worth":0.078376}]}],"by_family":[{"family":"opus","worth":0.078376}]},` +
 		`{"version":7,"day":"2026-10-05","lines":0},` +
-		`{"version":7,"day":"2026-10-06","lines":1,"accounts":[{"account":"side","sessions":1,"session_ids":["` + sessionB + `"],"moved_on":1,"moved_off":0,` +
-		`"highest":{"5h":0.1},"rise":{"5h":0.1},"resets":[],"minutes_at_cap":0,"minutes_at_limit":0,` +
+		`{"version":7,"day":"2026-10-06","lines":1,"accounts":[{"account":"side","pool":"b2n8","sessions":1,"session_ids":["` + sessionB + `"],"moved_on":1,"moved_off":0,` +
+		`"highest":{"5h":0.1},"rise":{"5h":0.1},"resets":[],"minutes_at_cap":0,"minutes_at_limit":0,"pool_label":"Default",` +
 		`"models":[{"model":"claude-opus-5-5","upstream":1,"no_usage":0,"unsent":0,"checks":0,"counts":0,` + hoursJSON(22) +
 		`,"sessions":1,"session_ids":["` + sessionB + `"],` +
 		`"usage":{"cache_read_input_tokens":20000,` +
 		`"input_tokens":5,"output_tokens":50,"server_tool_use":{"web_search_requests":1}},"worth":0.01502}]},` +
 		// Work at its cap, by its reserve, from 21:00, and at its limit from
 		// 22:14 to its session's reset.
-		`{"account":"work","sessions":0,"session_ids":[],"moved_on":0,"moved_off":1,"highest":{"5h":1},"rise":{"5h":1},` +
+		`{"account":"work","pool":"b2n8","sessions":0,"session_ids":[],"moved_on":0,"moved_off":1,"highest":{"5h":1},"rise":{"5h":1},` +
 		`"resets":[{"window":"5h","at":"` + at(limit.ResetsAt) + `","before":1}],` +
-		`"limits":[{"window":"5h","at":"` + at(limit.At) + `","resets_at":"` + at(limit.ResetsAt) + `"}],"minutes_at_cap":74,"minutes_at_limit":56}],` +
+		`"limits":[{"window":"5h","at":"` + at(limit.At) + `","resets_at":"` + at(limit.ResetsAt) + `"}],"minutes_at_cap":74,"minutes_at_limit":56,"pool_label":"Default"}],` +
 		`"by_family":[{"family":"opus","worth":0.01502}]},` +
 		`{"version":7,"day":"2026-10-07","lines":6,"accounts":[` +
 		// The requests no account answered, of no window the readings
 		// history held.
-		`{"sessions":1,"session_ids":["` + sessionB + `"],"moved_on":0,"moved_off":0,` +
+		`{"pool":"b2n8","sessions":1,"session_ids":["` + sessionB + `"],"moved_on":0,"moved_off":0,"pool_label":"Default",` +
 		`"models":[{"model":"claude-opus-5-5","upstream":0,"no_usage":0,"unsent":1,"checks":0,"counts":0,` + hoursJSON() +
 		`,"sessions":1,"session_ids":["` + sessionB + `"],"worth":0}]},` +
-		`{"account":"side","sessions":1,"session_ids":["` + sessionB + `"],"moved_on":0,"moved_off":0,"highest":{"5h":0.1},"rise":{"5h":0.05},` +
-		`"resets":[{"window":"5h","at":"` + at(sideReset.ResetsAt) + `","before":0.1}],"minutes_at_cap":0,"minutes_at_limit":0,"read_before":["5h"],` +
+		`{"account":"side","pool":"b2n8","sessions":1,"session_ids":["` + sessionB + `"],"moved_on":0,"moved_off":0,"highest":{"5h":0.1},"rise":{"5h":0.05},` +
+		`"resets":[{"window":"5h","at":"` + at(sideReset.ResetsAt) + `","before":0.1}],"minutes_at_cap":0,"minutes_at_limit":0,"read_before":["5h"],"pool_label":"Default",` +
 		`"models":[{"model":"claude-opus-5-5","upstream":1,"no_usage":1,"unsent":0,"checks":0,"counts":0,` + hoursJSON(10) +
 		`,"sessions":1,"session_ids":["` + sessionB + `"],` +
 		`"worth":0,"unpriced":["no_usage"]}]},` +
-		`{"account":"work","sessions":2,"session_ids":["` + sessionC + `","` + sessionA + `"],"moved_on":0,"moved_off":0,"highest":{"5h":0.3,"7d":0.41},` +
-		`"rise":{"5h":0.3,"7d":0},"resets":[],"minutes_at_cap":0,"minutes_at_limit":0,"read_before":["5h"],"models":[` +
+		`{"account":"work","pool":"b2n8","sessions":2,"session_ids":["` + sessionC + `","` + sessionA + `"],"moved_on":0,"moved_off":0,"highest":{"5h":0.3,"7d":0.41},` +
+		`"rise":{"5h":0.3,"7d":0},"resets":[],"minutes_at_cap":0,"minutes_at_limit":0,"read_before":["5h"],"pool_label":"Default","models":[` +
 		// Work's quota check, whose usage is left out, so it's worth nothing.
 		`{"model":"claude-haiku-4-5","upstream":0,"no_usage":0,"unsent":0,"checks":1,"counts":0,` + hoursJSON() + `,"sessions":0,"session_ids":[],"worth":0},` +
 		`{"model":"claude-opus-5-5","upstream":1,"no_usage":0,"unsent":0,"checks":0,"counts":1,` + hoursJSON(9) +

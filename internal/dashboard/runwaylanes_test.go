@@ -51,7 +51,7 @@ func TestALaneDrawsEachColumnAsItsAccountStoodThen(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			f := runwayShowing(runwayLive(views.RunwayFiveHour))
+			f := runwayShowing(runwayLive())
 			f.Look = tt.look
 			ln := laneWith()
 			ln.Cells = laneCells(views.CellRoom, views.CellRoom, views.CellRoom, tt.cell)
@@ -81,25 +81,25 @@ func TestALanesPastIsDimmedAndAStaleOrOutOfThePoolLaneFaded(t *testing.T) {
 		past, now          color.Color
 		pastDim, nowFaints bool
 	}{
-		{name: "live", look: nord, shown: runwayLive(views.RunwayFiveHour), past: theme.Mix(ramp, canvas, 0.55), now: ramp},
+		{name: "live", look: nord, shown: runwayLive(), past: theme.Mix(ramp, canvas, 0.55), now: ramp},
 		{
-			name: "stale", look: nord, use: views.Use{Stale: true}, shown: runwayLive(views.RunwayFiveHour),
+			name: "stale", look: nord, use: views.Use{Stale: true}, shown: runwayLive(),
 			past: theme.Mix(ramp, canvas, 1-0.45*0.35), now: theme.Mix(ramp, canvas, 0.65), pastDim: true, nowFaints: true,
 		},
 		{
-			name: "out of the pool", look: nord, account: status.AccountNow{OutOfPool: true}, shown: runwayLive(views.RunwayFiveHour),
+			name: "out of the pool", look: nord, account: status.AccountNow{OutOfPool: true}, shown: runwayLive(),
 			past: theme.Mix(ramp, canvas, 1-0.45*0.35), now: theme.Mix(ramp, canvas, 0.65), pastDim: true, nowFaints: true,
 		},
 		{
-			name: "stale and out of the pool", look: nord, account: status.AccountNow{OutOfPool: true}, use: views.Use{Stale: true}, shown: runwayLive(views.RunwayFiveHour),
+			name: "stale and out of the pool", look: nord, account: status.AccountNow{OutOfPool: true}, use: views.Use{Stale: true}, shown: runwayLive(),
 			past: theme.Mix(ramp, canvas, 1-0.45*0.35*0.35), now: theme.Mix(ramp, canvas, 1-0.35*0.35), pastDim: true, nowFaints: true,
 		},
 		{
-			name: "its token refused", look: nord, account: status.AccountNow{TokenRefused: true}, use: views.Use{Stale: true}, shown: runwayLive(views.RunwayFiveHour),
+			name: "its token refused", look: nord, account: status.AccountNow{TokenRefused: true}, use: views.Use{Stale: true}, shown: runwayLive(),
 			past: theme.Mix(ramp, canvas, 0.55), now: ramp,
 		},
-		{name: "a day gone, none past", look: nord, shown: runwayBack(views.RunwayFiveHour, civilDay(9, 30)), past: ramp, now: ramp},
-		{name: "a look that can't blend", look: Screen(builtin(t, "terminal")), shown: runwayLive(views.RunwayFiveHour)},
+		{name: "a week gone, none past", look: nord, shown: runwayBack(civilDay(9, 21)), past: ramp, now: ramp},
+		{name: "a look that can't blend", look: Screen(builtin(t, "terminal")), shown: runwayLive()},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -109,13 +109,13 @@ func TestALanesPastIsDimmedAndAStaleOrOutOfThePoolLaneFaded(t *testing.T) {
 			ln.Cells, ln.Use, ln.account = laneCells(), tt.use, tt.account
 			c := drawnLane(f, ln)
 			if tt.past == nil {
-				before, after := c.at(framesLanesFrom+5, 10), c.at(framesLanesFrom+6, 10)
+				before, after := c.at(framesLanesFrom+18, 10), c.at(framesLanesFrom+19, 10)
 				if tt.look.colour(before.ink) != tt.look.colour(after.ink) || tt.look.faint(before.ink) != tt.look.faint(after.ink) {
 					t.Errorf("the column before now's is drawn otherwise than now's, where the look can't dim it")
 				}
 				return
 			}
-			past, now := c.at(framesLanesFrom+5, 10), c.at(framesLanesFrom+6, 10)
+			past, now := c.at(framesLanesFrom+18, 10), c.at(framesLanesFrom+19, 10)
 			if !shadeOf(f.Look.colour(past.ink)).near(shadeOf(tt.past)) || !shadeOf(f.Look.colour(now.ink)).near(shadeOf(tt.now)) {
 				t.Errorf("the past is %s and now %s, want %s and %s", shadeOf(f.Look.colour(past.ink)), shadeOf(f.Look.colour(now.ink)), shadeOf(tt.past), shadeOf(tt.now))
 			}
@@ -128,7 +128,7 @@ func TestALanesPastIsDimmedAndAStaleOrOutOfThePoolLaneFaded(t *testing.T) {
 
 func TestALaneMarksEachResetOfTheViewsWindowItHas(t *testing.T) {
 	nord := Screen(builtin(t, "nord"))
-	f := runwayShowing(runwayBack(views.RunwayFiveHour, civilDay(10, 1)))
+	f := runwayShowing(runwayBack(civilDay(9, 28)))
 	f.Look = nord
 	ln := laneWith()
 	ln.Cells, ln.Resets = laneCells(), []views.Reset{{Column: 3, At: routedClock(1, 0, 30)}, {Column: 120, At: routedClock(1, 21, 15), Back: true}}
@@ -161,7 +161,6 @@ func TestEachLaneIsHeadedByItsNameAndItsUseOfTheViewsWindow(t *testing.T) {
 	staleBefore.ReadAt = time.Date(2026, 9, 30, 14, 20, 0, 0, time.UTC)
 	tests := []struct {
 		name    string
-		window  views.RunwayWindow
 		x       int
 		lane    laidLane
 		head    string
@@ -169,60 +168,60 @@ func TestEachLaneIsHeadedByItsNameAndItsUseOfTheViewsWindow(t *testing.T) {
 		useInks []ink
 	}{
 		{
-			name: "live, 95%, red", window: views.RunwayFiveHour, lane: laidLane{name: work, Lane: views.Lane{ID: "work", Use: views.Use{Key: "5h", Used: 0.95, Read: true}}},
-			head: "work", use: "5-hour 95%", useInks: []ink{dimInk, usedFigure(0.95, "work", "5h")},
+			name: "live, 95%, red", lane: laidLane{name: work, Lane: views.Lane{ID: "work", Use: views.Use{Key: "7d", Used: 0.95, Read: true}}},
+			head: "work", use: "week 95%", useInks: []ink{dimInk, usedFigure(0.95, "work", "7d")},
 		},
 		{
-			name: "live, the week, 78%, yellow", window: views.RunwayWeek, lane: laidLane{name: work, Lane: views.Lane{ID: "work", Use: views.Use{Key: "7d", Used: 0.78, Read: true}}},
+			name: "live, 78%, yellow", lane: laidLane{name: work, Lane: views.Lane{ID: "work", Use: views.Use{Key: "7d", Used: 0.78, Read: true}}},
 			head: "work", use: "week 78%", useInks: []ink{dimInk, usedFigure(0.78, "work", "7d")},
 		},
 		{
-			name: "stepped back, the day's highest", window: views.RunwayFiveHour, lane: laidLane{name: work, Lane: views.Lane{ID: "work", Use: views.Use{Key: "5h", Used: 1, Read: true, Highest: true}}},
-			head: "work", use: "5-hour 100%", useInks: []ink{dimInk, usedFigure(1, "work", "5h")},
+			name: "stepped back, the week's highest", lane: laidLane{name: work, Lane: views.Lane{ID: "work", Use: views.Use{Key: "7d", Used: 1, Read: true, Highest: true}}},
+			head: "work", use: "week 100%", useInks: []ink{dimInk, usedFigure(1, "work", "7d")},
 		},
 		{
-			name: "stepped back, nothing read", window: views.RunwayFiveHour, lane: laidLane{name: work, Lane: views.Lane{ID: "work", Use: views.Use{Key: "5h", Highest: true}}},
-			head: "work", use: "5-hour —", useInks: []ink{dimInk, faintInk},
+			name: "stepped back, nothing read", lane: laidLane{name: work, Lane: views.Lane{ID: "work", Use: views.Use{Key: "7d", Highest: true}}},
+			head: "work", use: "week —", useInks: []ink{dimInk, faintInk},
 		},
-		{name: "stale, short", window: views.RunwayFiveHour, lane: laidLane{name: work, Lane: views.Lane{ID: "work", Use: stale}}, head: "work", use: "read 14:20", useInks: []ink{dimInk}},
-		{name: "stale since a day before, short", window: views.RunwayFiveHour, lane: laidLane{name: work, Lane: views.Lane{ID: "work", Use: staleBefore}}, head: "work", use: "read Wed", useInks: []ink{dimInk}},
-		{name: "not read yet, short", window: views.RunwayFiveHour, lane: laidLane{name: work, Lane: views.Lane{ID: "work", Use: views.Use{Key: "5h", Unread: true}}}, head: "work", use: "not read", useInks: []ink{dimInk}},
-		{name: "without a token", window: views.RunwayFiveHour, lane: laidLane{name: work, Lane: views.Lane{ID: "work", Use: views.Use{Tokenless: true}}}, head: "work", use: "no token", useInks: []ink{errorInk}},
+		{name: "stale, short", lane: laidLane{name: work, Lane: views.Lane{ID: "work", Use: stale}}, head: "work", use: "read 14:20", useInks: []ink{dimInk}},
+		{name: "stale since a day before, short", lane: laidLane{name: work, Lane: views.Lane{ID: "work", Use: staleBefore}}, head: "work", use: "read Wed", useInks: []ink{dimInk}},
+		{name: "not read yet, short", lane: laidLane{name: work, Lane: views.Lane{ID: "work", Use: views.Use{Key: "7d", Unread: true}}}, head: "work", use: "not read", useInks: []ink{dimInk}},
+		{name: "without a token", lane: laidLane{name: work, Lane: views.Lane{ID: "work", Use: views.Use{Tokenless: true}}}, head: "work", use: "no token", useInks: []ink{errorInk}},
 		{
-			name: "its token another subscription's", window: views.RunwayFiveHour, lane: laidLane{name: work, Lane: views.Lane{ID: "work", Use: views.Use{Tokenless: true, TokenForeign: true}}},
+			name: "its token another subscription's", lane: laidLane{name: work, Lane: views.Lane{ID: "work", Use: views.Use{Tokenless: true, TokenForeign: true}}},
 			head: "work", use: "wrong token", useInks: []ink{errorInk},
 		},
 		{
-			name: "out of the pool, faint", window: views.RunwayFiveHour, lane: laidLane{
+			name: "out of the pool, faint", lane: laidLane{
 				name: accountName{label: "personal", primary: true, out: true}, account: status.AccountNow{OutOfPool: true},
-				Lane: views.Lane{ID: "personal", Use: views.Use{Key: "5h", Used: 0.39, Read: true}},
+				Lane: views.Lane{ID: "personal", Use: views.Use{Key: "7d", Used: 0.39, Read: true}},
 			},
-			head: "personal   ◆", use: "5-hour 39%", useInks: []ink{faintInk, faintInk},
+			head: "personal   ◆", use: "week 39%", useInks: []ink{faintInk, faintInk},
 		},
 		{
-			name: "the widest use, whole", window: views.RunwayFiveHour, lane: laidLane{
-				name: accountName{label: "personal", primary: true}, Lane: views.Lane{ID: "personal", Use: views.Use{Key: "5h", Used: 1, Read: true, Highest: true}},
+			name: "the widest use, whole", lane: laidLane{
+				name: accountName{label: "personal", primary: true}, Lane: views.Lane{ID: "personal", Use: views.Use{Key: "7d", Used: 1, Read: true, Highest: true}},
 			},
-			head: "personal   ◆", use: "5-hour 100%", useInks: []ink{dimInk, usedFigure(1, "personal", "5h")},
+			head: "personal   ◆", use: "week 100%", useInks: []ink{dimInk, usedFigure(1, "personal", "7d")},
 		},
 		{
-			name: "in a label column too narrow for it, cut, its marks and ▲'s cells kept", window: views.RunwayWeek, x: 12, lane: laidLane{
+			name: "in a label column too narrow for it, cut, its marks and ▲'s cells kept", x: 12, lane: laidLane{
 				name: accountName{label: "personal", primary: true}, Lane: views.Lane{ID: "personal", Use: views.Use{Key: "7d", Used: 1, Read: true}},
 			},
 			head: "perso…   ◆", use: "week 100%", useInks: []ink{dimInk, usedFigure(1, "personal", "7d")},
 		},
 		{
-			name: "not read yet, short at the column's most too", window: views.RunwayFiveHour, x: labelMost,
-			lane: laidLane{name: work, Lane: views.Lane{ID: "work", Use: views.Use{Key: "5h", Unread: true}}}, head: "work", use: "not read", useInks: []ink{dimInk},
+			name: "not read yet, short at the column's most too", x: labelMost,
+			lane: laidLane{name: work, Lane: views.Lane{ID: "work", Use: views.Use{Key: "7d", Unread: true}}}, head: "work", use: "not read", useInks: []ink{dimInk},
 		},
 		{
-			name: "stale, short at the column's most too", window: views.RunwayFiveHour, x: labelMost,
+			name: "stale, short at the column's most too", x: labelMost,
 			lane: laidLane{name: work, Lane: views.Lane{ID: "work", Use: stale}}, head: "work", use: "read 14:20", useInks: []ink{dimInk},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			f, x := runwayShowing(runwayLive(tt.window)), cmpOr(tt.x, framesLanesFrom)
+			f, x := runwayShowing(runwayLive()), cmpOr(tt.x, framesLanesFrom)
 			ln := tt.lane
 			ln.row = 10
 			c := newCanvas(160, 20)
@@ -230,7 +229,7 @@ func TestEachLaneIsHeadedByItsNameAndItsUseOfTheViewsWindow(t *testing.T) {
 			if head := textAt(c, 0, 10, x-2); head != tt.head {
 				t.Errorf("the lane's head reads %q, want %q", head, tt.head)
 			}
-			use := ln.useLine(runwayNames[tt.window], routedAt, x-runwayUseFrom-1)
+			use := ln.useLine(runwayWeek, routedAt, x-runwayUseFrom-1)
 			var inks []ink
 			for _, s := range use {
 				inks = append(inks, s.ink)
@@ -280,7 +279,7 @@ func TestACollapsedLaneStartsAtColumnZeroUnmarkedItsUseUnderItsStart(t *testing.
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r := runwayLive(views.RunwayWeek)
+			r := runwayLive()
 			r.Collapsed, r.labels = true, runwayLabelsOf([]accountName{work, both, side})
 			f := runwayShowing(r)
 			f.Width = cmpOr(tt.width, 160)
@@ -340,7 +339,7 @@ func textAt(c *canvas, x, y, cells int) string {
 
 // Now's column is picked out on bg.subtle from the axis's first row down to
 // the pool's lane's last row, under every cell without a surface of its own, where
-// the timeline has a now: on a day gone, nothing; nor where the look can't
+// the timeline has a now: on a week gone, nothing; nor where the look can't
 // blend, as it can't dim the past either; nor where nothing fits.
 func TestNowsColumnIsPickedOutDownToThePoolsLane(t *testing.T) {
 	nord := Screen(builtin(t, "nord"))
@@ -352,17 +351,17 @@ func TestNowsColumnIsPickedOutDownToThePoolsLane(t *testing.T) {
 		fit   runwayFit
 		col   int
 	}{
-		{name: "live", shown: runwayLive(views.RunwayFiveHour), look: nord, fit: fitted, col: 6},
-		{name: "today, stepped back to", shown: runwayBack(views.RunwayFiveHour, civilDay(10, 1)), look: nord, fit: fitted, col: 83},
-		{name: "a day gone", shown: runwayBack(views.RunwayFiveHour, civilDay(9, 30)), look: nord, fit: fitted, col: -1},
-		{name: "a look that can't blend", shown: runwayLive(views.RunwayFiveHour), look: Screen(builtin(t, "terminal")), fit: fitted, col: -1},
-		{name: "nothing fits", shown: runwayLive(views.RunwayFiveHour), look: nord, col: -1},
+		{name: "live", shown: runwayLive(), look: nord, fit: fitted, col: 19},
+		{name: "this week, stepped back to", shown: runwayBack(civilDay(9, 28)), look: nord, fit: fitted, col: 70},
+		{name: "a week gone", shown: runwayBack(civilDay(9, 21)), look: nord, fit: fitted, col: -1},
+		{name: "a look that can't blend", shown: runwayLive(), look: Screen(builtin(t, "terminal")), fit: fitted, col: -1},
+		{name: "nothing fits", shown: runwayLive(), look: nord, col: -1},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			f := runwayShowing(tt.shown)
 			f.Look = tt.look
 			c := newCanvas(160, 30)
-			x := framesLanesFrom + max(tt.col, 6)
+			x := framesLanesFrom + max(tt.col, 19)
 			c.text(x, 15, " ", ink{on: hue{token: theme.VizRamp1}})
 			f.runwayNow(c, runwayLaid{x: framesLanesFrom, fit: tt.fit})
 			for y := range 30 {
@@ -394,7 +393,7 @@ func TestRunwaysLanesAreThoseTheFitShowsOnItsRows(t *testing.T) {
 		{ID: "work", Label: "work", Place: 1}, {ID: "personal", Label: "personal", Place: 2, OutOfPool: true}, {ID: "side", Label: "side", Place: 3},
 	}}
 	every := runwayFit{fits: true, lanes: 10, apart: 3, shown: 4}
-	f := runwayShowing(runwayLive(views.RunwayFiveHour))
+	f := runwayShowing(runwayLive())
 	if lanes := f.laidLanes(m, every); lanes != nil {
 		t.Errorf("before the lanes are built, Runway has %d lanes, want none", len(lanes))
 	}

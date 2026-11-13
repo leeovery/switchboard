@@ -24,7 +24,6 @@ func TestRunwaysLabelsReadWholeAtTheOwnersSizes(t *testing.T) {
 		heads []string
 	}{
 		{name: "runway-week-160", heads: frames},
-		{name: "runway-5-hour-160", heads: frames},
 		{name: "runway-stepped-back-160", heads: frames},
 		{
 			name: "runway-ten-accounts-160",

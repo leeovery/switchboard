@@ -102,10 +102,12 @@ func pooledProbe(fenced bool) probeSource {
 	if fenced {
 		pools[0].Dirs = []string{"/work/default"}
 	}
-	return probeSource{
-		accounts: []config.Account{{ID: "work", Pool: "b2n8"}, {ID: "personal", Pool: "q7mt"}, {ID: "side", Pool: "q7mt"}},
-		pools:    pools,
-	}
+	return probeOf(&config.Config{Accounts: config.Accounts{{ID: "work", Pool: "b2n8"}, {ID: "personal", Pool: "q7mt"}, {ID: "side", Pool: "q7mt"}}, Pools: pools})
+}
+
+// probeOf is a probe of the config given, as its pools stand.
+func probeOf(cfg *config.Config) probeSource {
+	return probeSource{pooled: func() (*config.Config, error) { return cfg, nil }}
 }
 
 func TestAProbeInPlaceOfTheRouterReadsOnePoolsAccounts(t *testing.T) {
@@ -116,11 +118,15 @@ func TestAProbeInPlaceOfTheRouterReadsOnePoolsAccounts(t *testing.T) {
 		want   []string
 		needed bool
 	}{
-		{name: "no pools: every account", probe: probeSource{accounts: []config.Account{{ID: "work"}, {ID: "side"}}}, want: []string{"work", "side"}},
+		{name: "no pools: every account", probe: probeOf(&config.Config{Accounts: config.Accounts{{ID: "work"}, {ID: "side"}}}), want: []string{"work", "side"}},
 		{name: "none named: the unfenced pool's", probe: pooledProbe(false), want: []string{"work"}},
 		{name: "one named", probe: pooledProbe(false), named: "q7mt", want: []string{"personal", "side"}},
 		{name: "every pool fenced, none named", probe: pooledProbe(true), needed: true},
 		{name: "one not configured named", probe: pooledProbe(false), named: "z5k2", needed: true},
+	}
+	untold := errors.New("the pools can't be told")
+	if _, err := (probeSource{pooled: func() (*config.Config, error) { return nil, untold }}).inPool(""); !errors.Is(err, untold) {
+		t.Errorf("inPool() of pools that can't be told fails with %v, want %v, probing none", err, untold)
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

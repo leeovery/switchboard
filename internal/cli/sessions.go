@@ -18,7 +18,10 @@ import (
 )
 
 func newSessionsCommand(a *app) *cobra.Command {
-	var form formFlags
+	var (
+		form formFlags
+		pool string
+	)
 	cmd := &cobra.Command{
 		Use:   "sessions [<id>]",
 		Short: "List today's sessions, or show one: where each runs, what it's doing, and what it has been worth",
@@ -38,6 +41,11 @@ each window they took, an estimate, and what they'd have cost through the API,
 then its turns, newest first, a prompt each with every request that served
 it, and its totals. A session of an earlier day is found by its whole id.
 
+It lists one pool's sessions, each by the pool its requests were routed in,
+one from before pools the first pool's. ` + readingAPool + ` A session
+given is found in whatever pool it's in, or with --pool, among the router's
+sessions in that pool alone.
+
 On a terminal, sessions prints its lines as text. Anywhere else, as in a pipe
 or an agent's shell, it prints them as JSON, for an agent or a script to read.
 --json prints the JSON, and --pretty the text, wherever stdout is.`,
@@ -46,11 +54,12 @@ or an agent's shell, it prints them as JSON, for an agent or a script to read.
 			out := cmd.OutOrStdout()
 			asJSON := a.printsJSON(form, out)
 			if len(args) == 1 {
-				return a.sessionPage(cmd.Context(), out, cmd.ErrOrStderr(), args[0], asJSON)
+				return a.sessionPage(cmd.Context(), out, cmd.ErrOrStderr(), args[0], pool, asJSON)
 			}
-			return a.sessions(cmd.Context(), out, cmd.ErrOrStderr(), asJSON)
+			return a.sessions(cmd.Context(), out, cmd.ErrOrStderr(), pool, asJSON)
 		},
 	}
+	addPoolFlag(cmd, &pool, "list the sessions of")
 	form.add(cmd)
 	return cmd
 }
@@ -65,38 +74,53 @@ func oneSessionAtMost(_ *cobra.Command, args []string) error {
 	return nil
 }
 
-// sessions prints today's sessions, as Sessions' List has them, telling
-// errOut where the router can't say which are running.
-func (a *app) sessions(ctx context.Context, out, errOut io.Writer, asJSON bool) error {
+// sessions prints today's sessions of the pool named, as filedPool has it, as
+// Sessions' List has them, telling errOut where the router can't say which
+// are running.
+func (a *app) sessions(ctx context.Context, out, errOut io.Writer, named string, asJSON bool) error {
 	cfg, err := a.loadConfig()
 	if err != nil {
 		return err
 	}
-	readers, err := a.newStateReaders(cfg)
+	readers, err := a.newStateReaders(ctx, cfg)
 	if err != nil {
 		return err
 	}
-	running, unlisted := a.routedSessions(ctx, errOut, "listing today's sessions from the ledger alone, none as running")
+	pool, cfg, err := a.filedPool(ctx, cfg, readers.dir, named)
+	if err != nil {
+		return err
+	}
+	running, unlisted := a.routedSessions(ctx, errOut, pool.ID, "listing today's sessions from the ledger alone, none as running")
 	now := a.Now()
 	list := views.ListSessions(views.SessionSources{
 		Running:  running,
 		Unlisted: unlisted,
-		Ledger:   readers.ledger,
+		Ledger:   pool.read.Ledger(readers.ledger),
 		Prices:   pricing(cfg),
 		Now:      now,
-	}).Named(status.NamesOf(cfg.Accounts, readers.removed))
+	})
+	list = list.Named(status.NamesOf(cfg.Accounts, readers.removed))
 	if asJSON {
 		return writeJSON(out, list)
+	}
+	if _, err := io.WriteString(out, pool.heading()); err != nil {
+		return err
 	}
 	return writeSessions(out, list, now)
 }
 
-// routedSessions returns the sessions the router lists, in every pool, as the
-// ledger's are read in every pool, and whether no router lists them, as it
-// can't be asked, telling errOut so, and what it does instead, as what's
-// printed is then the ledger's alone.
-func (a *app) routedSessions(ctx context.Context, errOut io.Writer, instead string) (sessions []status.Session, unlisted bool) {
-	sessions, err := a.routerSessions(ctx, func(c *router.Client) ([]status.Session, error) { return c.SessionsInEveryPool(ctx) })
+// routedSessions returns the sessions the router lists in the pool with the
+// given id, or, for "", in every pool, as the ledger's are read in every pool
+// of a config with no pools, and whether no router lists them, as it can't be
+// asked, telling errOut so, and what it does instead, as what's printed is
+// then the ledger's alone.
+func (a *app) routedSessions(ctx context.Context, errOut io.Writer, pool, instead string) (sessions []status.Session, unlisted bool) {
+	sessions, err := a.routerSessions(ctx, func(c *router.Client) ([]status.Session, error) {
+		if pool == "" {
+			return c.SessionsInEveryPool(ctx)
+		}
+		return c.InPool(pool).Sessions(ctx)
+	})
 	switch {
 	case router.IsNotRunning(err):
 		launch.Notice(errOut, "the router isn't running — "+instead)

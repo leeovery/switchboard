@@ -146,8 +146,9 @@ type Frame struct {
 	// SessionsTab is Sessions' sub-tab shown, its Switchboard and its List as
 	// the watch built them at the look, and the row chosen.
 	SessionsTab SessionsShown
-	// Runway is Runway's window, the day or week stepped back to, and its
-	// timeline, lanes and COMING UP as the watch built them at the look.
+	// Runway is whether Runway's names are collapsed, the week stepped back
+	// to, and its timeline, lanes, COMING UP and LATELY as the watch built
+	// them at the look.
 	Runway RunwayShown
 	// Graphs is Graphs' sections shown, and what they're drawn of.
 	Graphs GraphsShown

@@ -264,6 +264,65 @@ func TestBriefDatedIsBriefButAWeekOnItsDate(t *testing.T) {
 	}
 }
 
+// Befell shows when an event befell as Dated does, but a week back, on now's
+// weekday, by its date, as its weekday alone would read as today's; never
+// wider than BefellWidth, which a date of two figures fills.
+func TestBefellIsDatedButAWeekBackItsDate(t *testing.T) {
+	zone := time.FixedZone("UTC+1", 60*60)
+	now := time.Date(2026, 11, 19, 16, 0, 0, 0, zone)
+	earlier := time.Date(2026, 11, 12, 10, 0, 0, 0, zone)
+	tests := []struct {
+		name   string
+		now, t time.Time
+		want   string
+	}{
+		{name: "earlier today", now: now, t: now.Add(-time.Hour), want: "15:00"},
+		{name: "yesterday", now: now, t: now.Add(-20 * time.Hour), want: "Wed 20:00"},
+		{name: "six days back", now: now, t: now.Add(-6 * 24 * time.Hour), want: "Fri 16:00"},
+		{name: "a week back, on now's weekday", now: now, t: now.Add(-6*24*time.Hour - 23*time.Hour), want: "12 Nov 17:00"},
+		{name: "a week back, at now's time", now: now, t: now.Add(-7 * 24 * time.Hour), want: "12 Nov 16:00"},
+		{name: "a week back, the day before now's weekday", now: now, t: now.Add(-7*24*time.Hour - 17*time.Hour), want: "Wed 23:00"},
+		{name: "a week back, a date of one figure", now: earlier, t: earlier.Add(-7 * 24 * time.Hour), want: "5 Nov 10:00"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := prose.Befell(tt.now, tt.t); got != tt.want {
+				t.Errorf("Befell(%v, %v) = %q, want %q", tt.now, tt.t, got, tt.want)
+			}
+		})
+	}
+	if got := utf8.RuneCountInString(prose.Befell(now, now.Add(-7*24*time.Hour))); got != prose.BefellWidth() {
+		t.Errorf("a week back, a date of two figures takes %d characters, want BefellWidth, %d", got, prose.BefellWidth())
+	}
+}
+
+// Befell dates a time by the calendar in now's time zone, not by the hours
+// gone: in London, 00:30 on the day the clocks go back, 24h15m before 23:45
+// that day, reads as today's, the one time before now a rule of hours dates
+// otherwise; and a time ahead of now, on now's weekday a week on, is said
+// as Dated says it, as Befell dates only what's gone.
+func TestBefellDatesByTheCalendarAcrossAClockChange(t *testing.T) {
+	london, err := time.LoadLocation("Europe/London")
+	if err != nil {
+		t.Fatalf("load Europe/London: %v", err)
+	}
+	tests := []struct {
+		name   string
+		now, t time.Time
+		want   string
+	}{
+		{name: "the day the clocks go back, of 25 hours", now: time.Date(2026, 10, 25, 23, 45, 0, 0, london), t: time.Date(2026, 10, 25, 0, 30, 0, 0, london), want: "00:30"},
+		{name: "ahead, on now's weekday a week on", now: time.Date(2026, 11, 19, 16, 0, 0, 0, london), t: time.Date(2026, 11, 26, 10, 0, 0, 0, london), want: "Thu 10:00"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := prose.Befell(tt.now, tt.t); got != tt.want {
+				t.Errorf("Befell(%v, %v) = %q, want %q", tt.now, tt.t, got, tt.want)
+			}
+		})
+	}
+}
+
 // A day is named by the date it has in its own time zone, as a date parsed
 // in UTC has it, however far west of UTC now is.
 func TestADayIsNamedByTheDateItHasInItsOwnTimeZone(t *testing.T) {

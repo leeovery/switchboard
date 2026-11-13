@@ -141,7 +141,7 @@ func (l Look) poolLimitMark() span {
 // figure brightening as it changes, as many whole parts as fit before the
 // frame's edge.
 func (f Frame) poolRoom(r runwayPoolRoom) line {
-	name := line{{runwayNames[f.Runway.Window] + " ", dimInk}}
+	name := line{{runwayWeek + " ", dimInk}}
 	g := gauge{of: Ref{Window: r.key}, words: poolWords(r.room, r.accounts, r.pinned)}
 	return slices.Concat(name, g.said(f.Width, f.Width-runwayUseFrom-name.width()))
 }

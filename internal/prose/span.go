@@ -113,6 +113,26 @@ func Until(now, t time.Time) string {
 	return "in " + countdown(left, "%02dm")
 }
 
+// Ago says how long before now t was, as a column of things gone by reads
+// it, whole minutes gone: "11m ago"; from an hour, the minutes after hours two
+// digits, as "1h 05m ago"; from a day, in days and whole hours, as "1d 4h
+// ago", a second unit of zero left off, as in "3d ago"; "now" within the
+// minute, and for a t still to come.
+func Ago(now, t time.Time) string {
+	gone := now.Sub(t)
+	if gone < time.Minute {
+		return "now"
+	}
+	return countdown(gone, "%02dm") + " ago"
+}
+
+// AgoWidest is the widest Ago says of a time within a week before now: a
+// minute short of a day, "23h 59m ago".
+func AgoWidest() string {
+	var t time.Time
+	return Ago(t.Add(24*time.Hour-time.Minute), t)
+}
+
 // Resets counts down from now to a window's reset at t: "resets in 4h 57m",
 // or "resets now" once t has come.
 func Resets(now, t time.Time) string {

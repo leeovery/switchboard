@@ -864,7 +864,7 @@ func (a *accountTally) work() (Work, []PoolDay) {
 	ids := slices.Sorted(maps.Keys(a.pools))
 	var pools []PoolDay
 	for _, id := range ids {
-		if w := a.pools[id].summary(); !w.idle() {
+		if w := a.pools[id].summary(); !w.Idle() {
 			pools = append(pools, PoolDay{Pool: id, Work: w})
 		}
 	}

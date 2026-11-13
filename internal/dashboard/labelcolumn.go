@@ -33,6 +33,13 @@ func labelsLeast(natural int) int {
 	return min(labelLeast, natural)
 }
 
+// nameLeast is the fewest cells a name takes in a column of names whatever
+// its names: labelLeast, as a line is reckoned at its least before the names
+// it's drawn with are known.
+func nameLeast() int {
+	return labelLeast
+}
+
 // labelColumn is a column of names, bare, the widest given, as namesColumn
 // lays it out.
 func labelColumn(widest int) flex.Part {

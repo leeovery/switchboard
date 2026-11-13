@@ -6,8 +6,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-
-	"github.com/BurntSushi/toml"
 )
 
 // ExportFolderOf returns the folder the config file at path has the router
@@ -16,18 +14,11 @@ import (
 // can't be read as TOML, or its export.dir as one, as then where the export
 // goes can't be told.
 func ExportFolderOf(path string, homeDir func() (string, error)) (string, error) {
-	data, err := os.ReadFile(path)
-	if errors.Is(err, fs.ErrNotExist) {
-		return "", nil
-	}
-	if err != nil {
-		return "", fmt.Errorf("read config: %w", err)
-	}
 	var only struct {
 		Export fileExport `toml:"export"`
 	}
-	if _, err := toml.Decode(string(data), &only); err != nil {
-		return "", unparsed(path, err)
+	if err := decodeOnly(path, &only); err != nil {
+		return "", err
 	}
 	export, err := parseExport(only.Export.Dir)
 	if err != nil {

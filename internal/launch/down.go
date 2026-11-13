@@ -14,9 +14,10 @@ import (
 // off the environment Claude Code starts in, so it goes no further.
 const whenDownEnv = "SWITCHBOARD_WHEN_ROUTER_DOWN"
 
-// ErrNotStarted is what a launch fails with when it starts nothing, the
-// router being down: Stderr has heard why, and how to go on.
-var ErrNotStarted = errors.New("claude not started: the router is down")
+// ErrNotStarted is what a launch fails with when it starts nothing, as with
+// the router down, or where the session's pool can't be served: Stderr has
+// heard why.
+var ErrNotStarted = errors.New("claude not started")
 
 // goDirectOnce says, of a launch that started nothing, how to go on without
 // the router, this once.
@@ -24,10 +25,15 @@ const goDirectOnce = "go direct this once with " + whenDownEnv + "=direct claude
 
 // goingOn says, of a launch that started nothing, the router as state says,
 // how to go on: seeing to the router where a command can, which none can
-// where its state directory couldn't be located, as that fails them too.
+// where its state directory couldn't be located, as that fails them too; and
+// restarting it where it routes by other pools, as it takes accounts the
+// config has added up then.
 func goingOn(state routerState) string {
-	if state.name == notFound {
+	switch state.name {
+	case notFound:
 		return goDirectOnce
+	case otherPools:
+		return "restart it with switchboard service restart, or " + goDirectOnce
 	}
 	return "see to it with switchboard service status, or " + goDirectOnce
 }

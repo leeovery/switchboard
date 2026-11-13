@@ -1,6 +1,7 @@
 package router
 
 import (
+	"cmp"
 	"encoding/json"
 	"fmt"
 	"maps"
@@ -40,13 +41,17 @@ func pairedAccounts() config.Accounts {
 // pairedTokens has every one of pairedAccounts' tokens.
 var pairedTokens = tokenstest.Files{"work": workToken, "personal": personalToken, "side": sideToken, "extra": extraToken}
 
+// pairedWeeks are pairedAccounts' weeks as newPairedRouter reads them: work's
+// quota and personal's need using first, so each pool sends a new session to
+// its primary unless pinned.
+var pairedWeeks = map[string]quota.Window{"work": soonWeek, "personal": soonWeek, "side": laterWeek, "extra": laterWeek}
+
 // newPairedRouter builds a router of pairedAccounts as newPairedRouterOf
-// does: work's quota and personal's need using first, so each pool sends a
-// new session to its primary unless pinned.
+// does, pairedWeeks read.
 func newPairedRouter(t *testing.T, now func() time.Time) (*Router, *scriptedUpstream) {
 	t.Helper()
 	r, upstream := newPairedRouterOf(t, now, pairedAccounts())
-	readWeeks(r, map[string]quota.Window{"work": soonWeek, "personal": soonWeek, "side": laterWeek, "extra": laterWeek})
+	readWeeks(r, pairedWeeks)
 	return r, upstream
 }
 
@@ -217,12 +222,18 @@ func TestForceClearsTheOwnPinsOfThePoolsSessionsAlone(t *testing.T) {
 func TestASessionsOwnPinToAnotherPoolsAccountIsRefused(t *testing.T) {
 	tests := []struct {
 		name, session, pool, account string
-		refused                      string
+		// sideLabel labels side apart from its id, where it's set.
+		sideLabel string
+		refused   string
 	}{
 		{name: "an Acme session to its own pool's account", session: "acme", pool: acmePool, account: "extra"},
 		{
 			name: "an Acme session to Default's account", session: "acme", pool: acmePool, account: "side",
 			refused: "side is in pool Default; this session is in pool Acme",
+		},
+		{
+			name: "an Acme session to Default's account, labelled apart from its id", session: "acme", pool: acmePool, account: "side", sideLabel: "Spare",
+			refused: "Spare (side) is in pool Default; this session is in pool Acme",
 		},
 		{
 			name: "a session from before pools, in the first, to Acme's account", session: "before", account: "extra",
@@ -232,7 +243,10 @@ func TestASessionsOwnPinToAnotherPoolsAccountIsRefused(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			logstest.Capture(t)
-			r, _ := newPairedRouter(t, at(start))
+			accounts := pairedAccounts()
+			accounts[2].Label = cmp.Or(tt.sideLabel, accounts[2].Label)
+			r, _ := newPairedRouterOf(t, at(start), accounts)
+			readWeeks(r, pairedWeeks)
 			routeIn(t, r, tokenIn(tt.pool), tt.session, tt.pool, nil)
 
 			rec := askControl(t, r, http.MethodPost, "/sessions/"+tt.session+"/pin", `{"account": "`+tt.account+`"}`)

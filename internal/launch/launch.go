@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/claude"
@@ -46,6 +47,9 @@ type Launcher struct {
 	// ~/Code/api.
 	Dir  string
 	Home string
+	// EvalSymlinks resolves the links in a path, as filepath.EvalSymlinks
+	// does, so the pool Dir is in is the pool of where it leads.
+	EvalSymlinks func(path string) (string, error)
 	// InstallPaths are where Claude Code's installers put it, tried in order
 	// when it isn't on PATH.
 	InstallPaths []string
@@ -70,9 +74,16 @@ type Launcher struct {
 
 // Route is what starting Claude Code on an account's token takes.
 type Route struct {
-	// Config is the config: RunUnread, for when it can't be read, makes one of
-	// the accounts the router names in its place.
+	// Config is the config. RunUnread, for when it can't be read, makes one
+	// of the pools and accounts the router routes for in its place.
 	Config *config.Config
+	// Written is the pools the config file writes, as read where the config
+	// can't be, which RunUnread takes alone of the file.
+	Written Written
+	// from is where Config's pools, and each account's pool, come from: the
+	// config's own, or, in their place, the router's or the accounts
+	// record's.
+	from poolsSource
 	// Token reads an account's token, by the account's id, from its file.
 	Token func(id string) (tokens.Token, error)
 	// Pause waits as long as it's given, as time.Sleep does, before a token
@@ -81,13 +92,22 @@ type Route struct {
 	Router Router
 	// Document asks the router for its status document, as
 	// *router.Client's Status does, whose accounts RunUnread starts on in
-	// place of the config's: nil, there's none to be had. Run asks for none.
+	// place of the config's, where the router doesn't report its pools: nil,
+	// there's none to be had. Run asks for none.
 	Document func(ctx context.Context) (status.Document, error)
 	// Patience is how long the router is waited for, as Patience.Ask waits.
 	Patience Patience
 	// Account is the id of the account to pin the session to, or "" to leave
 	// it to the router.
 	Account string
+	// Moved is set once the move to pools is done, as idmove.PoolsMoved finds
+	// its mark in the state directory, after which Run never launches a config
+	// naming no pools as it is (see withPools).
+	Moved bool
+	// Kept returns cfg, a config naming no pools, with the pools the accounts
+	// record keeps, each of its accounts in the pool the record keeps it in:
+	// false where the record keeps none, or can't be read. nil keeps none.
+	Kept func(cfg *config.Config) (*config.Config, bool)
 }
 
 // Run starts Claude Code with args in this process's place. While the router
@@ -107,30 +127,69 @@ type Route struct {
 // with none, Unaided. A pin that can't be kept, to an account not configured
 // or without a usable token, fails: it's the command line's mistake. It
 // starts from the environment as the user set it (see own), and marks what it
-// sets there (see setEnv). Run returns only when Claude Code didn't start.
+// sets there (see setEnv).
+//
+// In a config with pools, the session is in the pool the directory it starts
+// in is in, for its whole life (see placed), and every account above is that
+// pool's alone: the primary its primary, and an account pinned in another
+// pool refused. Routed, the router is told the pool, and with more than one,
+// a router whose pools aren't the config's, once it has had the time to take
+// them up, counts as down (see takingUp). Routed or direct, the session's
+// environment names the pool, in PoolEnv. Where no account of the pool has a
+// usable token, it refuses, failing with ErrNotStarted, Stderr hearing why,
+// but for a config of one pool, unfenced, which starts Unaided, as before
+// pools. A config naming no pools once the move to pools is done takes them
+// from elsewhere (see withPools). What it refuses for the pools and the pin
+// alone, it refuses before the router is asked how it is, where the pools
+// don't need its answer. Run returns only when Claude Code didn't start.
 func (l Launcher) Run(ctx context.Context, r Route, args []string) error {
 	path, err := l.find()
 	if err != nil {
 		return err
 	}
-	pin, err := r.pinned()
+	ask := r.asker(ctx)
+	if r, err = l.withPools(r, ask); err != nil {
+		return err
+	}
+	in, err := l.placed(r)
 	if err != nil {
 		return err
 	}
-	state := r.health(ctx)
+	pin, err := r.pinned(in)
+	if err != nil {
+		return err
+	}
+	h, state := ask()
+	if state.routable() {
+		state = r.takingUp(ctx, h, state, in)
+	}
 	if !state.routable() {
 		if err := l.goDirect(r.Config.WhenRouterDown, state); err != nil {
 			return err
 		}
 	}
-	c, err := r.choose(pin, state.routable())
+	c, err := r.choose(in.accounts, pin, state.routable())
 	if err != nil {
-		return l.unaided(path, args, "no account has a usable token", err, "", !state.routable())
+		return l.tokenless(in, err, func() error {
+			return l.unaided(path, args, cantTakePart{couldnt: "no account has a usable token", err: err}, !state.routable(), in.pools)
+		})
 	}
 	if state.routable() {
-		return l.routed(path, args, state, c, r.Account, nil)
+		return l.routed(path, args, state, c, r.Account, in, nil)
 	}
-	return l.connectDirectly(path, args, state, c)
+	return l.connectDirectly(path, args, state, c, in)
+}
+
+// tokenless starts Claude Code where no account it can start on, of in's,
+// has a usable token, as err says of each: as aside starts it, unaided,
+// where the pools are as before them. Otherwise it refuses, failing with
+// ErrNotStarted, Stderr hearing why: Claude Code's own login would go out on
+// whatever account it's signed into, in another pool or none.
+func (l Launcher) tokenless(in place, err error, aside func() error) error {
+	if !in.asBefore() {
+		return l.refuse(in.noToken(), "pool", in.id(), "error", err)
+	}
+	return aside()
 }
 
 // CouldntReadConfig is what a launch says switchboard couldn't do where it
@@ -146,68 +205,122 @@ const (
 	routerTokenless = "the running router names no account with a usable token"
 )
 
+// routerUnpooled is what keeps RunUnread from routing through a router that
+// answers where it doesn't route by the pools from says, as Stderr hears it:
+// "the config's", as whose names them; else, naming no source, what differs,
+// as Written's unroutedBy refuses a router for pools that aren't the
+// config's only where it reports none.
+func routerUnpooled(from poolsSource) string {
+	if whose := from.whose(); whose != "" {
+		return "the running router doesn't route by " + whose + " pools"
+	}
+	return "the running router reports no pools"
+}
+
 // RunUnread starts Claude Code with args in this process's place where the
 // config can't be read, as unread says why, but the router's state directory
 // was located, as it can be without a config. While the router answers saying
 // where its proxy listens, healthy or not, it starts through it, as Run does,
-// on the accounts the router's status document names, in its order, in place
-// of the config's: Claude Code's own token is the primary's, as the document
-// names it, while that's usable, else the pinned account's, else the first's
-// with a usable token. Stderr hears that the config can't be read, and why,
-// and that claude starts through the running router. A pin that can't be
-// kept fails, as Run's does. Where the router can't be routed through, or
-// none of the accounts it names has a usable token, it starts Unaided, as
-// for a config that can't be read, Stderr hearing, of a router that answers,
-// why it couldn't be routed through: what only the config says, such as
-// when_router_down, isn't known. It returns only when Claude Code didn't
-// start.
+// on the pools and accounts the router routes for, in place of the config's:
+// as its health answer reports them, or, from a router that reports no pools,
+// on the accounts its status document names, in its order, in the one pool
+// the config file writes, where it writes one (see routersConfig). Claude
+// Code's own token is the primary's of the session's pool, as the router names
+// it, while that's usable, else the pinned account's, else the first's with a
+// usable token. Stderr hears that the config can't be read, and why, and that
+// claude starts through the running router. A pin that can't be kept fails,
+// as Run's does, and the session's pool is decided, and refused, as Run
+// decides it. Where the router can't be routed through, or none of the
+// accounts it names has a usable token, or it doesn't route by the pools the
+// config file writes, nor, once the move to pools is done, reports any where
+// the file writes none (see Written's unroutedBy), it starts Unaided, as for a
+// config that can't be read, Stderr hearing, of a router that answers, why it
+// couldn't be routed through: what only the config says, such as
+// when_router_down, isn't known. Unaided, it refuses inside a fenced pool's
+// directories, as OwnLoginFences finds the pools, and anywhere where it
+// can't find them once the move to pools is done. It returns only when
+// Claude Code didn't start.
 func (l Launcher) RunUnread(ctx context.Context, r Route, args []string, unread error) error {
 	path, err := l.find()
 	if err != nil {
 		return err
 	}
-	state := r.health(ctx)
+	h, state := r.health(ctx)
+	r.Written.Pools = l.placedInHome(r.Written.Pools)
+	fences, known := OwnLoginFences(r.Written, r.Moved, func() config.Pools {
+		pools, _ := RoutedPools(h)
+		return pools
+	}, r.keptFences)
+	aside := func(cant cantTakePart, foundDown bool) error {
+		if !known {
+			return l.refuse(cant.said()+" — "+l.unpooled(), "error", cant.err, "dir", l.Dir)
+		}
+		return l.unaided(path, args, cant, foundDown, fences)
+	}
+	cant := cantTakePart{couldnt: CouldntReadConfig, err: unread}
 	if !state.routable() {
 		logger.Info("the router can't be routed through", "router", state.name, "reason", state.reason, "asked", state.asked)
-		return l.unaided(path, args, CouldntReadConfig, unread, "", true)
+		return aside(cant, true)
 	}
-	if r.Config, err = r.routersConfig(ctx); err != nil {
+	if why, whose := r.Written.unroutedBy(h, r.Moved); why != "" {
+		logger.Warn("the router doesn't route by the pools", "router", state.name, "reason", why)
+		return aside(cant.besides(routerUnpooled(whose)), true)
+	}
+	if r.Config, err = r.routersConfig(ctx, h); err != nil {
 		logger.Warn("can't read which accounts the router routes for", "error", err)
-		return l.unaided(path, args, CouldntReadConfig, unread, routerUnsaid, false)
+		return aside(cant.besides(routerUnsaid), false)
 	}
-	pin, err := r.pinned()
+	r.from = fromRouter
+	return l.routeUnread(path, args, r, state, cant, aside)
+}
+
+// routeUnread starts Claude Code, at path, with args, through the router in
+// state, on the config of what the router routes for, r's, as RunUnread says,
+// the config unread as cant says why, or, where none of its accounts has a
+// usable token, as aside starts it unaided.
+func (l Launcher) routeUnread(path string, args []string, r Route, state routerState, cant cantTakePart, aside func(cantTakePart, bool) error) error {
+	in, err := l.placed(r)
 	if err != nil {
 		return err
 	}
-	c, err := r.choose(pin, true)
+	pin, err := r.pinned(in)
+	if err != nil {
+		return err
+	}
+	c, err := r.choose(in.accounts, pin, true)
 	if err != nil {
 		logger.Warn("no account the router routes for has a usable token", "error", err)
-		return l.unaided(path, args, CouldntReadConfig, unread, routerTokenless, false)
+		return l.tokenless(in, err, func() error { return aside(cant.besides(routerTokenless), false) })
 	}
-	Warn(l.Stderr, CouldntReadConfig, unread, "starting claude through the running router")
-	return l.routed(path, args, state, c, r.Account, unread)
+	Warn(l.Stderr, CouldntReadConfig, cant.err, "starting claude through the running router")
+	return l.routed(path, args, state, c, r.Account, in, cant.err)
 }
 
 // routed starts Claude Code, at path, with args, through the router in state,
-// on c's token, pinned to pin unless it's "", as Run says, the config unread
-// as unread says why: nil where it was read.
-func (l Launcher) routed(path string, args []string, state routerState, c choice, pin string, unread error) error {
+// on c's token, pinned to pin unless it's "", in in's pool, as Run says, the
+// config unread as unread says why: nil where it was read.
+func (l Launcher) routed(path string, args []string, state routerState, c choice, pin string, in place, unread error) error {
 	own := l.own()
-	env := own.with(claude.BaseURLEnv, "http://"+state.listen).with(claude.TokenEnv, c.token.Reveal()).pinnedTo(pin).workingIn(l.toldDir(state)).hinting()
-	l.routedThrough(state, c, pin, path, unread)
+	env := own.with(claude.BaseURLEnv, "http://"+state.listen).with(claude.TokenEnv, c.token.Reveal()).
+		pinnedTo(pin).workingIn(state.told(l.shownDir())).inPool(state.told(in.id())).poolNamed(in.id()).hinting()
+	l.routedThrough(state, c, pin, in.id(), path, unread)
 	return l.exec(path, args, env.markedAgainst(own))
 }
 
 // routedThrough logs Claude Code starting at path through the router in
-// state, on c's token, pinned to pin unless it's "": at info, or at warn
-// where the router isn't healthy, Stderr hearing so, or where the config
-// can't be read, as unread, nil where it was read, says why.
-func (l Launcher) routedThrough(state routerState, c choice, pin, path string, unread error) {
+// state, on c's token, pinned to pin unless it's "", in the pool with the
+// given id unless it's "": at info, or at warn where the router isn't
+// healthy, Stderr hearing so, or where the config can't be read, as unread,
+// nil where it was read, says why.
+func (l Launcher) routedThrough(state routerState, c choice, pin, pool, path string, unread error) {
 	attrs := []any{"mode", "routed", "router", state.name}
 	if !state.healthy() {
 		attrs = append(attrs, "reason", state.reason)
 	}
 	attrs = append(attrs, "asked", state.asked, "account", c.account.ID, "chosen", c.why, "pin", pin)
+	if pool != "" {
+		attrs = append(attrs, "pool", pool)
+	}
 	if unread != nil {
 		attrs = append(attrs, "config_error", unread)
 	}
@@ -222,24 +335,34 @@ func (l Launcher) routedThrough(state routerState, c choice, pin, path string, u
 }
 
 // connectDirectly starts Claude Code, at path, with args, straight to the
-// API, the router down as state says, on c's token, as Run says: Stderr
-// hears so.
-func (l Launcher) connectDirectly(path string, args []string, state routerState, c choice) error {
+// API, the router down as state says, on c's token, in in's pool, as Run
+// says: Stderr hears so.
+func (l Launcher) connectDirectly(path string, args []string, state routerState, c choice, in place) error {
 	own := l.own()
-	env := own.without(claude.BaseURLEnv).with(claude.TokenEnv, c.token.Reveal()).pinnedTo("").workingIn("")
-	logger.Warn("starting claude", "mode", "direct", "router", state.name, "reason", state.reason, "asked", state.asked, "account", c.account.ID, "chosen", c.why, "claude", path)
+	env := own.without(claude.BaseURLEnv).with(claude.TokenEnv, c.token.Reveal()).pinnedTo("").workingIn("").inPool("").poolNamed(in.id())
+	attrs := []any{"mode", "direct", "router", state.name, "reason", state.reason, "asked", state.asked, "account", c.account.ID, "chosen", c.why}
+	if in.pooled() {
+		attrs = append(attrs, "pool", in.id())
+	}
+	logger.Warn("starting claude", append(attrs, "claude", path)...)
 	Notice(l.Stderr, "the router "+state.String()+" — connecting directly on "+title(c.account))
 	return l.exec(path, args, env.markedAgainst(own))
 }
 
 // Direct starts Claude Code with args in this process's place, on its own
 // login: without the router or an account's token, for what needs the login.
-// It starts from the environment as the user set it (see own). It returns
-// only when Claude Code couldn't start.
-func (l Launcher) Direct(args []string) error {
+// It starts from the environment as the user set it (see own). Inside the
+// directories of a fenced pool of pools, or where it can't tell, it refuses,
+// failing with ErrNotStarted, Stderr hearing why (see ownLoginBarred), the
+// pools placed in Home first (see placedInHome). It returns only when Claude
+// Code couldn't start.
+func (l Launcher) Direct(args []string, pools config.Pools) error {
 	path, err := l.find()
 	if err != nil {
 		return err
+	}
+	if why := l.ownLoginBarred(l.placedInHome(pools)); why != "" {
+		return l.refuse(why, "mode", "own login", "dir", l.Dir)
 	}
 	logger.Info("starting claude", "mode", "own login", "claude", path)
 	return l.exec(path, args, environ(OwnLogin(l.Environ)))
@@ -247,10 +370,10 @@ func (l Launcher) Direct(args []string) error {
 
 // OwnLogin returns env, an environment as os.Environ gives it, as Claude Code
 // starts on its own login, as Direct starts it: as the user set it (see own),
-// without the token, the base URL, a pin or the directory told the router,
-// nor any mark of switchboard's.
+// without the token, the base URL, a pin, the directory or the pool told the
+// router, nor the pool's id, nor any mark of switchboard's.
 func OwnLogin(env []string) []string {
-	return environ(env).unmarked().without(claude.TokenEnv, claude.BaseURLEnv, startedEnv, whenDownEnv).pinnedTo("").workingIn("")
+	return environ(env).unmarked().without(claude.TokenEnv, claude.BaseURLEnv, startedEnv, whenDownEnv, PoolEnv).pinnedTo("").workingIn("").inPool("")
 }
 
 // Local starts Claude Code with args, which run one of its local
@@ -297,49 +420,105 @@ func (l Launcher) StepAside(args []string, key string) error {
 // mark every claude switchboard starts carries (see startedEnv), for when
 // switchboard can't take part: switchboard mustn't stand between the user and
 // claude. Stderr hears what switchboard couldn't do, and why, as err's first
-// line says. It returns only when Claude Code couldn't start.
-func (l Launcher) Unaided(args []string, couldnt string, err error) error {
+// line says. Inside the directories of a fenced pool of pools it refuses, as
+// Direct does. It returns only when Claude Code couldn't start.
+func (l Launcher) Unaided(args []string, pools config.Pools, couldnt string, err error) error {
 	path, findErr := l.find()
 	if findErr != nil {
 		return findErr
 	}
-	return l.unaided(path, args, couldnt, err, "", false)
+	return l.unaided(path, args, cantTakePart{couldnt: couldnt, err: err}, false, pools)
 }
 
-// RouterUnfound starts Claude Code with args in this process's place as
-// Unaided does, or starts nothing, failing with ErrNotStarted, as whenDown
-// says of down, for when the config was read but the router couldn't be
-// found, as err's first line says why: as for a router not running. It
-// returns only when Claude Code didn't start.
-func (l Launcher) RouterUnfound(down config.RouterDown, args []string, err error) error {
+// RouterUnfound starts Claude Code with args in this process's place, or
+// starts nothing, failing with ErrNotStarted, as whenDown says of the
+// config's setting, r's, for when the config was read but the router
+// couldn't be found, as err's first line says why: as for a router not
+// running. In a config without pools it starts as Unaided does; in one with
+// them, as Run starts with the router down, straight to the API on a token of
+// the session's pool, the pin's, else the primary's, else the first usable,
+// refusing as Run does. It returns only when Claude Code didn't start.
+func (l Launcher) RouterUnfound(r Route, args []string, err error) error {
 	path, findErr := l.find()
 	if findErr != nil {
 		return findErr
 	}
-	if stopped := l.goDirect(down, routerState{name: notFound, reason: firstLine(err)}); stopped != nil {
+	state := routerState{name: notFound, reason: firstLine(err)}
+	cant := cantTakePart{couldnt: "couldn't find the router", err: err}
+	if len(r.Config.Pools) == 0 {
+		if stopped := l.goDirect(r.Config.WhenRouterDown, state); stopped != nil {
+			return stopped
+		}
+		return l.unaided(path, args, cant, false, nil)
+	}
+	in, err := l.placed(r)
+	if err != nil {
+		return err
+	}
+	pin, err := r.pinned(in)
+	if err != nil {
+		return err
+	}
+	if stopped := l.goDirect(r.Config.WhenRouterDown, state); stopped != nil {
 		return stopped
 	}
-	return l.unaided(path, args, "couldn't find the router", err, "", false)
+	c, err := r.choose(in.accounts, pin, false)
+	switch {
+	case err == nil:
+		return l.connectDirectly(path, args, state, c, in)
+	case in.asBefore():
+		return l.unaided(path, args, cant, false, in.pools)
+	}
+	// The token files are in the state directory, as the router's socket is:
+	// why the router wasn't found is most often why no token can be read.
+	return l.refuse(cant.said()+" — "+in.noToken(), "pool", in.id(), "error", err)
+}
+
+// cantTakePart is why switchboard can't take part in a launch: what it
+// couldn't do, why, as err's first line says, and what else kept it out,
+// also, unless that's "".
+type cantTakePart struct {
+	couldnt string
+	err     error
+	also    string
+}
+
+// besides returns c with what else kept switchboard out.
+func (c cantTakePart) besides(also string) cantTakePart {
+	c.also = also
+	return c
+}
+
+// said says why, as "couldn't read the config (invalid config …) — the
+// running router names no account with a usable token".
+func (c cantTakePart) said() string {
+	said := c.couldnt + " (" + firstLine(c.err) + ")"
+	if c.also != "" {
+		said += " — " + c.also
+	}
+	return said
 }
 
 // unaided starts Claude Code, at path, with args, in the environment
-// unaidedEnv gives, saying what switchboard couldn't do, and why, then what
-// else kept it out, besides, unless that's "", and where Claude Code goes
-// instead: through the router of the session it's started within, or without
-// switchboard. foundDown says this launch found the router couldn't be routed
-// through.
-func (l Launcher) unaided(path string, args []string, couldnt string, err error, besides string, foundDown bool) error {
-	env := l.unaidedEnv(foundDown)
+// unaidedEnv gives, saying why switchboard can't take part, as cant says, and
+// where Claude Code goes instead: through the router of the session it's
+// started within, or without switchboard. foundDown says this launch found
+// the router couldn't be routed through. Inside the directories of a fenced
+// pool of pools, or where it can't tell, it refuses, as Direct does, the
+// pools placed in Home first, for the refusal and the environment alike.
+func (l Launcher) unaided(path string, args []string, cant cantTakePart, foundDown bool, pools config.Pools) error {
+	pools = l.placedInHome(pools)
+	if why := l.ownLoginBarred(pools); why != "" {
+		return l.refuse(cant.said()+" — "+why, "error", cant.err, "dir", l.Dir)
+	}
+	env := l.unaidedEnv(foundDown, pools)
 	routed := env.routedByRun()
 	instead := "starting claude without it"
 	if routed {
 		instead = "starting claude through this session's router"
 	}
-	logger.Warn("starting claude without switchboard", "reason", couldnt, "error", err, "session_router", routed, "claude", path)
-	if besides != "" {
-		instead = besides + " — " + instead
-	}
-	Warn(l.Stderr, couldnt, err, instead)
+	logger.Warn("starting claude without switchboard", "reason", cant.couldnt, "error", cant.err, "session_router", routed, "claude", path)
+	Notice(l.Stderr, cant.said()+" — "+instead)
 	return l.exec(path, args, env)
 }
 
@@ -349,13 +528,32 @@ func (l Launcher) unaided(path string, args []string, couldnt string, err error,
 // does the session; only this launch couldn't take part. But where this
 // launch, foundDown, found that router couldn't be routed through, and as
 // within a session pointed at a gateway of its own since, it's the user's
-// own, so Claude Code isn't sent to a router that can't take it.
-func (l Launcher) unaidedEnv(foundDown bool) environ {
+// own, so Claude Code isn't sent to a router that can't take it. Where a
+// pool of pools is fenced, the session's is passed on only where it's in the
+// pool a session started in Dir is in, as its PoolEnv names it: else that
+// router would route this claude in the session's pool. And where it isn't
+// passed on, Claude Code's token goes too, as a session's, run's or the
+// user's, can't be told apart, and would go out on an account of another
+// pool's. Where none is, it's as without pools: no session can leave a pool.
+// The pools are placed in Home, as placedInHome places them, so a pool
+// fenced by a directory written ~/ counts as fenced.
+func (l Launcher) unaidedEnv(foundDown bool, pools config.Pools) environ {
 	env := environ(l.Environ)
-	if env.routedByRun() && !foundDown {
+	fenced := slices.ContainsFunc(pools, config.Pool.Fenced)
+	if env.routedByRun() && !foundDown && (!fenced || l.inSessionsPool(env, pools)) {
 		return env
 	}
-	return env.unmarked()
+	if !fenced {
+		return env.unmarked()
+	}
+	return env.unmarked().without(claude.TokenEnv)
+}
+
+// inSessionsPool reports whether env, a session's, names, in PoolEnv, the
+// pool of pools a session started in Dir is in, as sessionPool finds it.
+func (l Launcher) inSessionsPool(env environ, pools config.Pools) bool {
+	p, why := l.sessionPool(pools)
+	return why == "" && strings.EqualFold(env.get(PoolEnv), p.ID)
 }
 
 // own returns the environment Claude Code starts from as the user set it:
@@ -414,17 +612,6 @@ func (l Launcher) find() (string, error) {
 	return claude.FindAfter(after, env.get("PATH"), l.InstallPaths, l.Executable)
 }
 
-// toldDir returns the directory the router in state is told Claude Code
-// starts in, as shownDir shows it, where the router takes every header of
-// switchboard's own off what it sends upstream: none for one that doesn't,
-// which would send it on to the API.
-func (l Launcher) toldDir(state routerState) string {
-	if !state.strips {
-		return ""
-	}
-	return l.shownDir()
-}
-
 // shownDir returns Dir as the router is told it: within Home, from there, as
 // ~/Code/api, and anywhere else as it is.
 func (l Launcher) shownDir() string {
@@ -438,8 +625,9 @@ func (l Launcher) shownDir() string {
 }
 
 // How the router can answer its health check, as the log names it, or
-// notFound, where it couldn't be asked. Healthy and unhealthy alone can be
-// routed through; a launch stops, or goes direct, for each of the others,
+// notFound, where it couldn't be asked, or otherPools, where it answers with
+// pools other than the launch's of several. Healthy and unhealthy alone can
+// be routed through; a launch stops, or goes direct, for each of the others,
 // so none of them reads "unhealthy".
 const (
 	healthy      = "healthy"
@@ -448,10 +636,11 @@ const (
 	notFound     = "not found"
 	notAnswering = "not answering"
 	unusable     = "unusable"
+	otherPools   = "other pools"
 )
 
 // said is how String says the router is, by its state's name, where that
-// isn't "is" and the name.
+// isn't "is" and the name, nor otherPools, which text says.
 var said = map[string]string{
 	notRunning:   "isn't running",
 	notFound:     "couldn't be found",
@@ -472,6 +661,9 @@ type routerState struct {
 	strips bool
 	// asked is how long asking took, to the millisecond.
 	asked time.Duration
+	// pools is whose pools the router doesn't route by, where it's
+	// otherPools.
+	pools poolsSource
 }
 
 func (s routerState) healthy() bool {
@@ -483,26 +675,63 @@ func (s routerState) routable() bool {
 	return s.listen != ""
 }
 
+// told returns value, of a header of switchboard's own, such as the
+// directory Claude Code starts in, as the router is told it: as it is, where
+// the router takes every header of switchboard's own off what it sends
+// upstream, and "", for none, where it doesn't, which would send it on to the
+// API.
+func (s routerState) told(value string) string {
+	if !s.strips {
+		return ""
+	}
+	return value
+}
+
 // String says how the router is, as "isn't running", "isn't answering (…)"
 // or "is unhealthy (…)", its reason in brackets where it has one.
 func (s routerState) String() string {
-	text, ok := said[s.name]
-	if !ok {
-		text = "is " + s.name
-	}
 	if s.reason == "" {
+		return s.text()
+	}
+	return s.text() + " (" + s.reason + ")"
+}
+
+// text says how the router is, by its state's name: as said says, or, where
+// it routes by other pools, as "doesn't route by the config's pools", whose
+// as the pools' whose names them, else "routes by other pools".
+func (s routerState) text() string {
+	if whose := s.pools.whose(); s.name == otherPools && whose != "" {
+		return "doesn't route by " + whose + " pools"
+	}
+	if s.name == otherPools {
+		return "routes by other pools"
+	}
+	if text, ok := said[s.name]; ok {
 		return text
 	}
-	return text + " (" + s.reason + ")"
+	return "is " + s.name
 }
 
 // health asks the router how it is, and where its proxy listens, as patiently
-// as the route's Patience says, noting how long that took.
-func (r Route) health(ctx context.Context) routerState {
+// as the route's Patience says, returning its answer, and the state it finds
+// the router in, noting how long that took.
+func (r Route) health(ctx context.Context) (router.Health, routerState) {
 	began := time.Now()
-	state := stateOf(r.Patience.Ask(ctx, r.Router))
-	state.asked = time.Since(began).Round(time.Millisecond)
-	return state
+	h, err := r.Patience.Ask(ctx, r.Router)
+	state := stateOf(h, err)
+	state.asked = since(began)
+	return h, state
+}
+
+// asker returns a func that asks the router how it is, as health does, the
+// first time it's called alone, each call after returning that answer.
+func (r Route) asker(ctx context.Context) func() (router.Health, routerState) {
+	return sync.OnceValues(func() (router.Health, routerState) { return r.health(ctx) })
+}
+
+// since is how long it has been since then, to the millisecond.
+func since(then time.Time) time.Duration {
+	return time.Since(then).Round(time.Millisecond)
 }
 
 // stateOf is how the router is, as its health check answered h, or failed
@@ -529,16 +758,22 @@ func stateOf(h router.Health, err error) routerState {
 // its token is usable, else the first with a usable token. It reports false
 // when no account has one.
 func (r Route) OwnAccount() (config.Account, bool) {
-	c, err := r.choose(choice{}, true)
+	c, err := r.choose(r.Config.Accounts, choice{}, true)
 	return c.account, err == nil
 }
 
-// routersConfig is a config of the accounts the router routes for, as its
-// status document names them, in its order, its primary marked, for a launch
-// to start on in place of the config's, which can't be read. It fails where
-// the document can't be had, as without a way to ask for it, or names no
-// account.
-func (r Route) routersConfig(ctx context.Context) (*config.Config, error) {
+// routersConfig is a config of the pools and accounts the router routes for,
+// for a launch to start on in place of the config's, which can't be read: as
+// its health answer h reports them, where it does (see routedConfig); else
+// the accounts its status document names, in its order, its primary marked,
+// each in the one pool the config file writes, where it writes one by every
+// rule the config holds it to, as a router that reports no pools routes
+// every account it has in one. It fails where the document can't be had, as
+// without a way to ask for it, or the router names no account.
+func (r Route) routersConfig(ctx context.Context, h router.Health) (*config.Config, error) {
+	if pools, reported := RoutedPools(h); reported {
+		return routedConfig(h, pools)
+	}
 	if r.Document == nil {
 		return nil, errors.New("the router can't be asked for its status document")
 	}
@@ -549,11 +784,17 @@ func (r Route) routersConfig(ctx context.Context) (*config.Config, error) {
 	if len(doc.Accounts) == 0 {
 		return nil, errors.New("the router's status document names no account")
 	}
-	accounts := make(config.Accounts, len(doc.Accounts))
-	for i, a := range doc.Accounts {
-		accounts[i] = config.Account{ID: a.ID, Label: a.Label, Primary: a.ID == doc.Primary}
+	cfg := &config.Config{Accounts: make(config.Accounts, len(doc.Accounts))}
+	if len(r.Written.Pools) == 1 && !r.Written.Unchecked {
+		cfg.Pools = r.Written.Pools
 	}
-	return &config.Config{Accounts: accounts}, nil
+	for i, a := range doc.Accounts {
+		cfg.Accounts[i] = config.Account{ID: a.ID, Label: a.Label, Primary: a.ID == doc.Primary}
+		if len(cfg.Pools) == 1 {
+			cfg.Accounts[i].Pool = cfg.Pools[0].ID
+		}
+	}
+	return cfg, nil
 }
 
 // choice is the account whose token Claude Code starts on, and why it was
@@ -564,37 +805,42 @@ type choice struct {
 	why     string
 }
 
-// choose picks the account whose token Claude Code starts on. Routed, it's
-// the primary's, whatever account the conversation goes to, else pin's;
-// direct, it's pin's, the whole session going out on it, else the
-// primary's. Either way, failing those, it's the first with a usable token.
-// It fails, saying why of each account, when there's none.
-func (r Route) choose(pin choice, routed bool) (choice, error) {
+// choose picks the account of accounts whose token Claude Code starts on.
+// Routed, it's the primary's, whatever account the conversation goes to,
+// else pin's; direct, it's pin's, the whole session going out on it, else
+// the primary's. Either way, failing those, it's the first with a usable
+// token. It fails, saying why of each account, when there's none.
+func (r Route) choose(accounts config.Accounts, pin choice, routed bool) (choice, error) {
 	pinned := pin.account.ID != ""
 	if pinned && !routed {
 		return pin, nil
 	}
-	if primary, ok := r.primary(); ok {
+	if primary, ok := r.primary(accounts); ok {
 		return primary, nil
 	}
 	if pinned {
 		return pin, nil
 	}
-	return r.first()
+	return r.first(accounts)
 }
 
-// pinned is the account the session is pinned to, which must be configured
-// and have a usable token; none when it isn't pinned. For one that isn't
-// configured, it names the accounts that can be pinned, as pin does.
-func (r Route) pinned() (choice, error) {
+// pinned is the account the session is pinned to, which must be configured,
+// in the session's pool, as in places it, and have a usable token; none when
+// it isn't pinned. For one that isn't configured, it names the accounts of
+// the pool that can be pinned, as pin does; for one in another pool, which
+// pool each is in.
+func (r Route) pinned(in place) (choice, error) {
 	if r.Account == "" {
 		return choice{}, nil
 	}
 	i := slices.IndexFunc(r.Config.Accounts, func(a config.Account) bool { return a.ID == r.Account })
 	if i < 0 {
-		return choice{}, router.UnknownAccount(r.Account, r.usable())
+		return choice{}, router.UnknownAccount(r.Account, r.usable(in.accounts))
 	}
 	a := r.Config.Accounts[i]
+	if !in.holds(a) {
+		return choice{}, in.elsewhere(a)
+	}
 	token, err := r.lookTwice(a.ID)
 	if err != nil {
 		return choice{}, fmt.Errorf("account %s has no usable token for Claude Code to start on: %w", a.ID, err)
@@ -617,10 +863,10 @@ func (r Route) lookTwice(id string) (tokens.Token, error) {
 	return r.Token(id)
 }
 
-// usable lists the accounts with a usable token, in the config's order.
-func (r Route) usable() config.Accounts {
+// usable lists the accounts of accounts with a usable token, in their order.
+func (r Route) usable(accounts config.Accounts) config.Accounts {
 	var usable config.Accounts
-	for _, a := range r.Config.Accounts {
+	for _, a := range accounts {
 		if _, err := r.Token(a.ID); err == nil {
 			usable = append(usable, a)
 		}
@@ -628,9 +874,12 @@ func (r Route) usable() config.Accounts {
 	return usable
 }
 
-// primary is the primary account, when its token is usable.
-func (r Route) primary() (choice, bool) {
-	a := r.Config.Accounts.Primary()
+// primary is the primary of accounts, when its token is usable.
+func (r Route) primary(accounts config.Accounts) (choice, bool) {
+	if len(accounts) == 0 {
+		return choice{}, false
+	}
+	a := accounts.Primary()
 	token, err := r.lookTwice(a.ID)
 	if err != nil {
 		return choice{}, false
@@ -638,11 +887,14 @@ func (r Route) primary() (choice, bool) {
 	return choice{account: a, token: token, why: "the primary"}, true
 }
 
-// first is the first account with a usable token. It fails, saying why of
-// each account, when there's none.
-func (r Route) first() (choice, error) {
-	problems := make([]error, len(r.Config.Accounts))
-	for i, a := range r.Config.Accounts {
+// first is the first account of accounts with a usable token. It fails,
+// saying why of each account, when there's none.
+func (r Route) first(accounts config.Accounts) (choice, error) {
+	if len(accounts) == 0 {
+		return choice{}, errors.New("there's no account")
+	}
+	problems := make([]error, len(accounts))
+	for i, a := range accounts {
 		token, err := r.Token(a.ID)
 		if err == nil {
 			return choice{account: a, token: token, why: "the first with a token"}, nil

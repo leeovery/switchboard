@@ -72,7 +72,7 @@ type PoolStackFrom struct {
 // no such window, it holds what p judged, for a look once it has again.
 func (p PoolStack) Look(from PoolStackFrom) PoolStack {
 	m := from.Moment
-	tl, key := LiveTimeline(RunwayWeek, m.Now, from.Columns), RunwayWeek.KeyIn(m)
+	tl, key := LiveTimeline(m.Now, from.Columns), RunwayWeek.KeyIn(m)
 	accounts, past, ok := p.past.stacked(pastFrom{moment: m, readings: from.Readings, through: from.ReadThrough, key: key}, tl, p.then.orRoomThen())
 	if !ok {
 		return PoolStack{then: p.then, past: p.past}

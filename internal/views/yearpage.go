@@ -379,7 +379,7 @@ func (f yearFilter) days(days []Day) []Day {
 				priced.Accounts = append(priced.Accounts, kept)
 			}
 		}
-		narrowed[i] = f.v.day(priced)
+		narrowed[i] = f.v.day(priced, nil)
 	}
 	return narrowed
 }

@@ -1,6 +1,7 @@
 package views_test
 
 import (
+	"cmp"
 	"slices"
 	"testing"
 	"time"
@@ -14,7 +15,7 @@ import (
 )
 
 // Runway's lanes agree with the moment they're built from, at every hard
-// moment, in either view, and at every moment Runway has to get right that
+// moment, judging either window, and at every moment Runway has to get right that
 // holds now: now's column stands as the moment has the account stand; the
 // use under a name, live, is its view's window's, as usage has it; the
 // pool's lane counts as the moment's pool counts the view's window, where it
@@ -34,7 +35,7 @@ func TestRunwaysLanesAgreeWithTheMoment(t *testing.T) {
 				if got, want := lane.Cells[now], asRouted(a); got != want && (want != views.CellRoom || !got.HasRoom()) {
 					t.Errorf("%s's now's column is %d, want %d, as it's routed (%d)", a.ID, got, want, a.Routing.Kind)
 				}
-				if w, ok := a.Window(viewKeys[c.from.Window]); ok && !lane.Use.Highest && (lane.Use.Used != w.Used || lane.Use.Read != read(w)) {
+				if w, ok := a.Window(judgedKey(c.from)); ok && !lane.Use.Highest && (lane.Use.Used != w.Used || lane.Use.Read != read(w)) {
 					t.Errorf("%s's use is %v, read %v; want %v, read %v, as usage has it", a.ID, lane.Use.Used, lane.Use.Read, w.Used, read(w))
 				}
 				for _, s := range lane.Stretches {
@@ -46,13 +47,13 @@ func TestRunwaysLanesAgreeWithTheMoment(t *testing.T) {
 					}
 				}
 			}
-			if want, ok := poolWindowOf(m, viewKeys[c.from.Window]); ok && len(l.Accounts) >= 2 && l.Pool.Of != want {
+			if want, ok := poolWindowOf(m, judgedKey(c.from)); ok && len(l.Accounts) >= 2 && l.Pool.Of != want {
 				t.Errorf("the pool is of %d, want %d, as the moment's pool counts the view's window", l.Pool.Of, want)
 			}
-			if want := viewKeys[c.from.Window]; l.Pool.Of > 0 && l.Pool.Key != want {
+			if want := judgedKey(c.from); l.Pool.Of > 0 && l.Pool.Key != want {
 				t.Errorf("the pool's room is of the window %q, want %q, the view's", l.Pool.Key, want)
 			}
-			if coming := views.RunwayComing(m, c.from.Window); !inOrderAmong(coming, m.ComingUp) {
+			if coming := views.RunwayComing(m); !inOrderAmong(coming, m.ComingUp) {
 				t.Errorf("COMING UP lists %v, not in order among the moment's %v", coming, m.ComingUp)
 			}
 		})
@@ -66,19 +67,19 @@ type laneCase struct {
 }
 
 // agreementCases are the lanes the agreement test builds: of each hard
-// moment, in either view, its readings those its document read; and of each
+// moment, judging either window, its readings those its document read; and of each
 // moment Runway has to get right that holds now.
 func agreementCases() []laneCase {
 	var cases []laneCase
 	for _, hm := range statustest.HardMoments(claude.Policy()) {
 		m, read := hm.Doc.At(hm.Now, claude.Policy()), docReadings(hm.Doc)
-		for _, w := range []views.RunwayWindow{views.RunwayFiveHour, views.RunwayWeek} {
-			from := views.LanesFrom{Moment: m, Readings: read, Timeline: views.LiveTimeline(w, hm.Now, 136), Window: w}
-			cases = append(cases, laneCase{name: hm.Name + ", the " + viewKeys[w] + " view", from: from})
+		for _, j := range judgings {
+			from := views.LanesFrom{Moment: m, Readings: read, Timeline: j.timeline(hm.Now, 136), Key: j.key}
+			cases = append(cases, laneCase{name: hm.Name + ", judging " + j.name, from: from})
 		}
 	}
 	for _, rm := range viewstest.RunwayMoments() {
-		if from := lanesFrom(rm); from.Timeline.NowColumn() >= 0 {
+		if from := rm.From(); from.Timeline.NowColumn() >= 0 {
 			cases = append(cases, laneCase{name: rm.Name, from: from})
 		}
 	}
@@ -99,8 +100,22 @@ func docReadings(doc status.Document) []readings.Reading {
 	return read
 }
 
-// viewKeys are the key of the window each view is named for.
-var viewKeys = map[views.RunwayWindow]string{views.RunwayFiveHour: claude.FiveHourWindow, views.RunwayWeek: claude.WeekWindow}
+// judgings are the windows the tests judge lanes over, live at a moment: the
+// 5-hour, over viewstest's timeline of it, and the week, as Runway judges
+// it, over its live timeline.
+var judgings = []struct {
+	name, key string
+	timeline  func(now time.Time, columns int) views.Timeline
+}{
+	{name: "the 5-hour", key: claude.FiveHourWindow, timeline: viewstest.FiveHourTimeline},
+	{name: "the week", timeline: views.LiveTimeline},
+}
+
+// judgedKey is the key of the window lanes built from what's given judge:
+// its Key, else the week's.
+func judgedKey(from views.LanesFrom) string {
+	return cmp.Or(from.Key, claude.WeekWindow)
+}
 
 // asRouted is the cell an account routed as a is drawn in now: held back
 // from every request by a limit, a refusal of its token or its cap, as its

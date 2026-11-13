@@ -2,6 +2,7 @@ package views
 
 import (
 	"cmp"
+	"encoding/json"
 	"maps"
 	"slices"
 	"strings"
@@ -58,6 +59,13 @@ type HistoryInput struct {
 	// Family reads a model's family from its id, as internal/claude does,
 	// for a model the version table doesn't name.
 	Family func(model string) string
+	// PoolLabel labels a pool the days name by its id, as the JSON gives
+	// each beside its id: nil leaves them unlabelled.
+	PoolLabel func(pool string) string
+	// OnePool is set where the days are those of one pool of several, as
+	// PoolRead's Days reads them: the lines and bytes of each day's files,
+	// the whole day's, never the pool's, are left out of its JSON.
+	OnePool bool
 	// read is when a Past's days were read, as it takes them: its Now as
 	// NewPast takes them, and as Since takes those it's given; never moved
 	// on as it's taken to a later Now alone.
@@ -77,7 +85,7 @@ func NewHistory(in HistoryInput) History {
 	asked, today := from.Format(time.DateOnly), to.Format(time.DateOnly)
 	v := versions{table: in.Prices, family: in.Family}
 	p := plans{accounts: in.Accounts, table: in.Prices}
-	before, days := splitAt(pricedDays(in.Ledger.Days(in.From.AddDate(0, 0, -lookBack)), in.Prices, today, v), asked)
+	before, days := splitAt(pricedDays(in.Ledger.Days(in.From.AddDate(0, 0, -lookBack)), in, today, v), asked)
 	placed := weeklyOf(in.WeekWindow, in.WeekStarts, in.Now).placedWeeks(before, days, in.Accounts)
 	counted := countedFrom(asked, days)
 	last, whole := askedPeriod(from, to, in.WeekStarts)
@@ -152,6 +160,25 @@ func wholeWeek(days []Day, this time.Time) func(week string) bool {
 type Day struct {
 	ledger.Priced
 	ByFamily []FamilyWorth `json:"by_family,omitempty"`
+	// onePool is set on a day of one pool of several, as HistoryInput's
+	// OnePool has it.
+	onePool bool
+}
+
+// MarshalJSON gives the day as its fields have it, but for its files' lines
+// and bytes, left out of a day of one pool of several.
+func (d Day) MarshalJSON() ([]byte, error) {
+	type day Day
+	if !d.onePool {
+		return json.Marshal(day(d))
+	}
+	// The fields below, shallower than the summary's of the same names,
+	// hide them, and are left out as nil.
+	return json.Marshal(struct {
+		day
+		Lines *int          `json:"lines,omitempty"`
+		Bytes *ledger.Bytes `json:"bytes,omitempty"`
+	}{day: day(d)})
 }
 
 // FamilyWorth is what a family's requests were worth, by the family's name
@@ -161,22 +188,28 @@ type FamilyWorth struct {
 	Worth
 }
 
-// pricedDays are the summaries priced at the prices in effect on the day
-// with the date today, each with its worth by family.
-func pricedDays(summaries []ledger.Summary, prices ledger.Table, today string, v versions) []Day {
+// pricedDays are the summaries priced at in's prices in effect on the day
+// with the date today, each with its worth by family, and each pool they
+// name labelled as in's PoolLabel labels it.
+func pricedDays(summaries []ledger.Summary, in HistoryInput, today string, v versions) []Day {
 	days := make([]Day, len(summaries))
 	for i, s := range summaries {
-		days[i] = v.day(prices.Priced(s, today))
+		days[i] = v.day(in.Prices.Priced(s, today), in.PoolLabel)
+		days[i].onePool = in.OnePool
 	}
 	return days
 }
 
-// day is the priced summary as a Day, with its worth by family.
-func (v versions) day(priced ledger.Priced) Day {
+// day is the priced summary as a Day, with its worth by family, each pool
+// its accounts name labelled as label labels it, where it's given.
+func (v versions) day(priced ledger.Priced, label func(pool string) string) Day {
 	sums := familySums{}
-	for _, a := range priced.Accounts {
+	for i, a := range priced.Accounts {
 		for _, m := range a.Models {
 			sums.addModel(v, m)
+		}
+		if label != nil {
+			priced.Accounts[i] = a.Named(label)
 		}
 	}
 	return Day{Priced: priced, ByFamily: v.byFamily(sums)}
