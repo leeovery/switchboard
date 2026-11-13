@@ -9,6 +9,8 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/leeovery/switchboard/internal/config"
 )
 
 // Record is the accounts record: every account this Mac has had, and every
@@ -85,7 +87,7 @@ func (w PoolWritten) Equal(other PoolWritten) bool {
 // PoolByID returns the pool with the given id, in any case, reporting false
 // where the record has none.
 func (r Record) PoolByID(id string) (PoolEntry, bool) {
-	return r.findPool(func(p PoolEntry) bool { return strings.EqualFold(p.ID, id) })
+	return r.findPool(func(p PoolEntry) bool { return config.SamePool(p.ID, id) })
 }
 
 // FirstPool returns the first pool, reporting false where the record notes

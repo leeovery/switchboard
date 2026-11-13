@@ -2,7 +2,6 @@ package watch
 
 import (
 	"reflect"
-	"strings"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -85,7 +84,7 @@ func (m Model) turnedTo(msg turnedMsg) (Model, tea.Cmd) {
 	case msg.err != nil:
 		logger.Warn("can't turn to the next pool", "error", msg.err)
 		return m.noting(prose.TurnFailed(msg.err.Error()))
-	case strings.EqualFold(msg.pooled.Pool.ID, m.cfg.Pool.ID) && !msg.pooled.Pool.Turns():
+	case config.SamePool(msg.pooled.Pool.ID, m.cfg.Pool.ID) && !msg.pooled.Pool.Turns():
 		return m.noting(prose.OnePool)
 	}
 	logger.Info("pool shown", "pool", msg.pooled.Pool.ID)

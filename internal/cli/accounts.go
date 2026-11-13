@@ -650,7 +650,7 @@ func editedSays(e accounts.Edited) string {
 	if e.Was.Label != e.Now.Label {
 		changed = append(changed, labelChanged(e))
 	}
-	if !strings.EqualFold(e.Was.Pool, e.Now.Pool) {
+	if !config.SamePool(e.Was.Pool, e.Now.Pool) {
 		changed = append(changed, nowAndWas("pool", poolLabel(e.Before.Pools, e.Now.Pool), poolLabel(e.Before.Pools, e.Was.Pool)))
 	}
 	if e.KeptPrimary != "" {

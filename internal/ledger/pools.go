@@ -1,8 +1,11 @@
 package ledger
 
 import (
+	"cmp"
 	"slices"
 	"strings"
+
+	"github.com/leeovery/switchboard/internal/config"
 )
 
 // poolsVersion is the summary version that split each account's day's work
@@ -118,9 +121,9 @@ func (s Summary) unpooledIn(pool string) Summary {
 }
 
 // worksIn reports whether the account did any work in the pool with the
-// given id.
+// given id, ids compared as config.SamePool compares them.
 func (a AccountDay) worksIn(pool string) bool {
-	return slices.ContainsFunc(a.poolDays(), func(p PoolDay) bool { return p.Pool == pool })
+	return slices.ContainsFunc(a.poolDays(), func(p PoolDay) bool { return config.SamePool(p.Pool, pool) })
 }
 
 // covers reports whether w, work summarised afresh, counts no less than
@@ -161,16 +164,13 @@ func (a AccountDay) unpooledIn(pool string) (AccountDay, bool) {
 
 // RecordedIn reports whether a request that recorded the pool with the id
 // recorded, as a line records it at the time, "" where it named none, was
-// routed in the pool with the given id, ids compared ignoring case. first is
-// the id of the first pool, once the move to pools is done, "" till then: a
-// request naming no pool is the first's, as FirstPool says, and before, the
-// pool of none. It's the one rule of which pool a request is of, whether
-// read of its line or of what's built of it.
+// routed in the pool with the given id, ids compared as config.SamePool
+// compares them. first is the id of the first pool, once the move to pools
+// is done, "" till then: a request naming no pool is the first's, as
+// FirstPool says, and before, the pool of none. It's the one rule of which
+// pool a request is of, whether read of its line or of what's built of it.
 func RecordedIn(recorded, pool, first string) bool {
-	if recorded == "" {
-		return strings.EqualFold(first, pool)
-	}
-	return strings.EqualFold(recorded, pool)
+	return config.SamePool(cmp.Or(recorded, first), pool)
 }
 
 // InPool returns the day in the pool with the given id alone: each account's
@@ -205,19 +205,37 @@ func (a AccountDay) InPool(pool, first string) AccountDay {
 	return a
 }
 
-// workIn returns the account's work in the pool with the given id: none
-// where it did none there, its sessions named as its whole work names its.
+// workIn returns the account's work in the pool with the given id, ids
+// compared as config.SamePool compares them, the work of each of its pools
+// the id names merged, as mergedWork merges it, as lines may record one
+// pool's id in two cases: none where it did none there, its sessions named
+// as its whole work names its.
 func (a AccountDay) workIn(pool string) Work {
-	if a.Pools == nil && a.Pool == pool {
+	if a.Pools == nil && config.SamePool(a.Pool, pool) {
 		return a.Work
 	}
-	if i := slices.IndexFunc(a.Pools, func(p PoolDay) bool { return p.Pool == pool }); i >= 0 {
-		return a.Pools[i].Work
+	var in []Work
+	for _, p := range a.Pools {
+		if config.SamePool(p.Pool, pool) {
+			in = append(in, p.Work)
+		}
 	}
-	if a.SessionIDs == nil {
+	switch {
+	case len(in) > 0:
+		return mergedWorks(in)
+	case a.SessionIDs == nil:
 		return Work{}
 	}
 	return Work{SessionIDs: []string{}}
+}
+
+// mergedWorks merges works, one or more, as mergedWork merges two.
+func mergedWorks(works []Work) Work {
+	merged := works[0]
+	for _, w := range works[1:] {
+		merged = mergedWork(merged, w)
+	}
+	return merged
 }
 
 // poolDays returns the account's work by pool, in the order of their ids:

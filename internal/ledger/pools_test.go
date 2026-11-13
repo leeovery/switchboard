@@ -358,6 +358,28 @@ func TestASummarysWorkInNoPoolIsTheFirstPoolsOnceTheMoveIsDone(t *testing.T) {
 	}
 }
 
+// A pool's work in a summary is found by its id in any case, as the config
+// compares pool ids: lines recording one pool's id in two cases, as before
+// and after its id was written again in capitals, are its work together, in
+// the first pool too, as work naming no pool is the first's.
+func TestAPoolsWorkInASummaryIsFoundByItsIDInAnyCase(t *testing.T) {
+	day := summarised(t, noReadings, inPool(asked("1", on(0, 9, 0)), acme), inPool(asked("2", on(0, 10, 0)), "Q7MT"),
+		asked("3", on(0, 11, 0)), inPool(asked("4", on(0, 12, 0)), "B2N8"))
+	tests := []struct {
+		pool string
+		want int
+	}{
+		{pool: acme, want: 2},
+		{pool: "Q7mt", want: 2},
+		{pool: first, want: 2},
+	}
+	for _, tt := range tests {
+		if a, _ := find(day.InPool(tt.pool, first), "work"); len(a.Models) != 1 || a.Models[0].Upstream != tt.want {
+			t.Errorf("work's day in pool %q is %+v, want its %d requests there, whatever the case of the id they recorded", tt.pool, a, tt.want)
+		}
+	}
+}
+
 func TestAPoolsWorkKnowsNoLessWhenItsDayIsSummarisedAgain(t *testing.T) {
 	// The day's summary before, of work's three requests in acme.
 	held := `{"version":7,"day":"2026-10-05","lines":3,"accounts":[{"account":"work","pool":"` + acme + `",` +

@@ -98,7 +98,7 @@ func (p place) id() string {
 // holds reports whether a is one of the accounts the session can start on:
 // one of its pool's, or any without pools.
 func (p place) holds(a config.Account) bool {
-	return !p.pooled() || strings.EqualFold(a.Pool, p.pool.ID)
+	return !p.pooled() || config.SamePool(a.Pool, p.pool.ID)
 }
 
 // noToken is why a launch in the session's pool doesn't start where none of
@@ -341,7 +341,7 @@ func (l Launcher) fencesHolding(pools config.Pools) config.Pools {
 
 // sameID matches a pool with the given id, ignoring case.
 func sameID(id string) func(config.Pool) bool {
-	return func(p config.Pool) bool { return strings.EqualFold(p.ID, id) }
+	return func(p config.Pool) bool { return config.SamePool(p.ID, id) }
 }
 
 // alsoResolved returns paths, each followed by itself with its links
@@ -476,7 +476,7 @@ type routing []router.RoutedPool
 // of returns the pool with the given id, ids compared ignoring case,
 // reporting false where there's none.
 func (r routing) of(id string) (router.RoutedPool, bool) {
-	i := slices.IndexFunc(r, func(p router.RoutedPool) bool { return strings.EqualFold(p.ID, id) })
+	i := slices.IndexFunc(r, func(p router.RoutedPool) bool { return config.SamePool(p.ID, id) })
 	if i < 0 {
 		return router.RoutedPool{}, false
 	}
@@ -541,7 +541,7 @@ func sameDirs(a, b []string) bool {
 func allIn(ids []string, pool string, accounts config.Accounts) bool {
 	return !slices.ContainsFunc(ids, func(id string) bool {
 		a, ok := accounts.ByID(id)
-		return !ok || !strings.EqualFold(a.Pool, pool)
+		return !ok || !config.SamePool(a.Pool, pool)
 	})
 }
 

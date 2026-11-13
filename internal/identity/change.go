@@ -223,7 +223,7 @@ func WrittenOf(p config.Pool, accounts config.Accounts) PoolWritten {
 	if !strings.EqualFold(p.Label, p.ID) {
 		w.Label = p.Label
 	}
-	if i := slices.IndexFunc(accounts, func(a config.Account) bool { return a.Primary && strings.EqualFold(a.Pool, p.ID) }); i >= 0 {
+	if i := slices.IndexFunc(accounts, func(a config.Account) bool { return a.Primary && config.SamePool(a.Pool, p.ID) }); i >= 0 {
 		w.Primary = accounts[i].ID
 	}
 	return w
@@ -269,7 +269,7 @@ func labelIn(labelOf func(id string) string, id, kept string) string {
 // where it hasn't one.
 func (r *Record) pool(id string) *PoolEntry {
 	for i := range r.Pools {
-		if strings.EqualFold(r.Pools[i].ID, id) {
+		if config.SamePool(r.Pools[i].ID, id) {
 			return &r.Pools[i]
 		}
 	}

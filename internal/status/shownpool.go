@@ -2,7 +2,6 @@ package status
 
 import (
 	"slices"
-	"strings"
 
 	"github.com/leeovery/switchboard/internal/config"
 )
@@ -110,6 +109,6 @@ func PoolAfter(pools config.Pools, id string) (config.Pool, bool) {
 	if len(pools) == 0 {
 		return config.Pool{}, false
 	}
-	i := slices.IndexFunc(pools, func(p config.Pool) bool { return strings.EqualFold(p.ID, id) })
+	i := slices.IndexFunc(pools, func(p config.Pool) bool { return config.SamePool(p.ID, id) })
 	return pools[(i+1)%len(pools)], true
 }

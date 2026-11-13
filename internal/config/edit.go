@@ -175,7 +175,7 @@ func (d *Draft) othersUnmarked(tables []span, pool string, except int) ([]int, [
 	accounts := slices.Clone(d.file.Accounts)
 	var marks []int
 	for i := range accounts {
-		if i != except && accounts[i].Primary && strings.EqualFold(accounts[i].Pool, pool) {
+		if i != except && accounts[i].Primary && SamePool(accounts[i].Pool, pool) {
 			marks = append(marks, d.doc.linesOf(primaryKey, tables[i])...)
 			accounts[i].Primary = false
 		}
