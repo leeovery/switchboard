@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -188,9 +189,10 @@ func TestRequestsTakesAnAccountByItsIDAlone(t *testing.T) {
 }
 
 // requests reads the accounts record's accounts only where it names one: its
-// JSON, without --account, warns of no damaged record for want of them. It
-// reads the record's first pool, warning where it can't, as every pool's
-// read does, of a config naming its pools, as the router has it write them.
+// JSON, without --account, prints its lines, warning of no damaged record
+// for want of them. It reads the record's first pool, warning where it
+// can't, as every pool's read does, of a config naming its pools, as the
+// router has it write them, its lines routed in its pool.
 func TestRequestsJSONReadsNoAccountsRecord(t *testing.T) {
 	deps := namedDeps(t)
 	path, err := config.Path(deps.Getenv, deps.HomeDir)
@@ -199,9 +201,20 @@ func TestRequestsJSONReadsNoAccountsRecord(t *testing.T) {
 	}
 	writeStateFile(t, filepath.Dir(path), filepath.Base(path),
 		[]byte("[[account]]\nid = \""+labelledID+"\"\nlabel = \"work\"\npool = \"b2n8\"\n\n[[pool]]\nid = \"b2n8\"\nlabel = \"Default\"\n"))
+	var day bytes.Buffer
+	for _, l := range namedLines {
+		l.At, l.Pool = l.At.UTC(), "b2n8"
+		data, err := json.Marshal(l)
+		if err != nil {
+			t.Fatal(err)
+		}
+		day.Write(append(data, '\n'))
+	}
+	writeStateFile(t, ledger.Dir(stateDir(t, deps)), "requests-2026-10-07.jsonl", day.Bytes())
 	writeStateFile(t, stateDir(t, deps), "accounts.json", []byte("{\n"))
-	if got := run(t, deps, "requests", "--json"); got.code != 0 {
-		t.Fatalf("switchboard requests --json = %+v, want its lines", got)
+	got := run(t, deps, "requests", "--json")
+	if requests := fieldsOf(t, got, "request"); got.code != 0 || !slices.Equal(requests, []string{"n1", "n2"}) {
+		t.Fatalf("switchboard requests --json printed %q (%+v), want its lines, n1 and n2", requests, got)
 	}
 	if log := readLog(t, deps, "cli.log"); strings.Contains(log, "removed") {
 		t.Errorf("cli.log reads\n%s\nwant no accounts record read for the accounts removed", log)

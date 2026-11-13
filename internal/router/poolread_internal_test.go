@@ -762,6 +762,13 @@ func TestAConfigWithNoPoolsIsAnsweredAsBeforeWhateverPoolIsAsked(t *testing.T) {
 			}
 		}
 	}
+	// Its document gives every event the router keeps, so it tells no ids of
+	// those kept, as before pools.
+	var doc status.Document
+	decodedOK(t, askControl(t, r, http.MethodGet, "/status", ""), &doc)
+	if len(doc.Events) == 0 || doc.EventsKept != (status.EventsKept{}) {
+		t.Errorf("GET /status gives %d events and the ids kept %+v, want its events and no ids, as before pools", len(doc.Events), doc.EventsKept)
+	}
 }
 
 // pinnedWithoutPools builds a router of testConfigured in no pools, priming

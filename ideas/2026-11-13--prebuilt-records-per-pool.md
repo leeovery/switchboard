@@ -25,6 +25,10 @@ Graphs tell of every pool's work together, labelled by account.
   pool falls back to the day's lines where they don't.
 - **The dashboard's ledger** is read through the pool's read, as `views.PoolRead` reads the verbs'
   files, so every tab tells of the pool shown alone.
+- **The pool's read made live.** The dashboard's read of the router's files of events is the pool
+  it shows as it opened: after a pool or an account is edited with a dashboard open, its events
+  read from the files keep the old placements until it's started again. `P`, changing the pool
+  shown, starts the view afresh, which is where the read is to follow the config too.
 
 ## Why it's the second phase's
 
