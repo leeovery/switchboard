@@ -112,7 +112,7 @@ it asks for --pool. --primary makes it its pool's primary.
 			return a.addAccount(cmd, account, answer)
 		},
 	}
-	cmd.Flags().BoolVar(&account.Primary, "primary", false, "make it its pool's primary, the account the browser and the Claude apps use")
+	cmd.Flags().BoolVar(&account.Primary, "primary", false, "make it its pool's primary, the account its sessions start on; the browser and the Claude apps use the first pool's")
 	addPoolFlag(cmd, &pool, "add it to")
 	cmd.Flags().BoolVar(&answer.New, "new", false, "where it asks, answer that it's a new account")
 	cmd.Flags().StringVar(&answer.ID, "returning", "", "where it asks, answer that it's the account `ID` this Mac had")
@@ -181,7 +181,7 @@ same, ignoring case.
 	plans := prose.ListOr(config.PlanChoices())
 	cmd.Flags().StringVar(&flags.label, "label", "", "show the account as `LABEL`")
 	cmd.Flags().StringVar(&flags.plan, "plan", "", "the `PLAN` its subscription is on: "+plans)
-	cmd.Flags().BoolVar(&flags.primary, "primary", false, "make it its pool's primary, the account the browser and the Claude apps use")
+	cmd.Flags().BoolVar(&flags.primary, "primary", false, "make it its pool's primary, the account its sessions start on; the browser and the Claude apps use the first pool's")
 	cmd.Flags().StringVar(&flags.reserve, "reserve", "", "leave `PERCENT` of every window unused, such as 5%, or 0 for none")
 	cmd.Flags().StringVar(&flags.pool, "pool", "", "move it into pool `ID`")
 	return cmd
@@ -228,9 +228,9 @@ func newAccountsTokenCommand(a *app) *cobra.Command {
 		Short: "Replace an account's token, making it with claude setup-token",
 		Long: `Replace an account's token, in its token file, <state dir>/tokens/<id>.
 
-At a terminal, it makes the token as setup does, saying each step as it
-goes: it runs claude setup-token, which opens its sign-in page in the
-browser, as it is for the primary, as the browser is signed in to it, and in
+At a terminal, it makes the token as setup does, saying each step as it goes:
+it runs claude setup-token, which opens its sign-in page in the browser, as
+it is for the first pool's primary, as the browser is signed in to it, and in
 a private window for any other account, where the browser can open one, or
 else shows the address to open in one. Once you approve it there, the token
 is checked with the API and saved, a year from today. It isn't saved where
@@ -238,8 +238,8 @@ the API refuses it, or where its subscription is another account's already,
 as the organization the API names it in says: the other accounts' tokens are
 checked first, to know theirs. An interrupt before the token's made stops
 claude setup-token, saving nothing. Once it's made, as it lasts a year on the
-account, it's saved whatever stops the command, saved unchecked where the
-API doesn't answer, or shown to copy and paste where it can't be.
+account, it's saved whatever stops the command, saved unchecked where the API
+doesn't answer, or shown to copy and paste where it can't be.
 
 --paste asks for the token instead, which doesn't show as it's pasted: make
 one with claude setup-token, run while signed in to that subscription. Away

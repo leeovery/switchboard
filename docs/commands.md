@@ -538,19 +538,19 @@ prints the step's error and ends with a status of 1.
 
 The steps are:
 
-1. **Accounts.** Shows every account as a table: its label, plan, reserve and token. Each
-   token is checked with the API as `setup` opens, and shows the date its year is up, with the
-   days left. A note under the table says what an account is missing, and the key that sees to
-   it. `↑` and `↓` choose an account; `t` makes it a new token, `e` edits its label, plan, reserve
-   and whether it's the primary, and, once there's a second pool, moves it to another, `r`
-   removes it, asking first, and `p` makes it its pool's primary, the account its sessions start
-   on: your browser and the Claude apps are signed in to the first pool's. `+ add an account`
-   adds one: its label, its plan, Pro, Max or Ultra, none chosen till you choose one, and, where
-   the config has [pools](how-it-works.md#pools), its pool; then its token, whose subscription decides its id, as [`accounts add`](#accounts)
-   does: a subscription this Mac had comes back under its old id, and where that can't be told, a
-   card asks whether it's a new account or one of those this Mac had. With no account, the card
-   adding one opens at once. With two or more in a pool and none its primary, `enter` waits for
-   one.
+1. **Accounts.** Shows every account as a table: its label, plan, reserve and token. Each token is
+   checked with the API as `setup` opens, and shows the date its year is up, with the days left. A
+   note under the table says what an account is missing, and the key that sees to it. `↑` and `↓`
+   choose an account; `t` makes it a new token, `e` edits its label, plan, reserve and whether it's
+   the primary, and, once there's a second pool, moves it to another, `r` removes it, asking first,
+   and `p` makes it its pool's primary, the account its sessions start on: your browser and the
+   Claude apps are signed in to the first pool's. `+ add an account` adds one: its label, its plan,
+   Pro, Max or Ultra, none chosen till you choose one, and, where the config has
+   [pools](how-it-works.md#pools), its pool; then its token, whose subscription decides its id, as
+   [`accounts add`](#accounts) does: a subscription this Mac had comes back under its old id, and
+   where that can't be told, a card asks whether it's a new account or one of those this Mac had.
+   With no account, the card adding one opens at once. With two or more in a pool and none its
+   primary, `enter` waits for one.
 
    **Pools.** The add card's Pool offers every pool by its label, then `new pool`, even while
    there's one pool, as it's where a second is made. It opens on the pool `accounts add` adds one
@@ -571,11 +571,11 @@ The steps are:
    Claude apps, as a percentage, or `none`; `esc` leaves it with none, writing nothing.
 
    `setup` makes each token with `claude setup-token`, which it runs itself, opening its sign-in
-   page in your browser. The first account's token, or the primary's on a run again, opens in
-   the browser as it is. Every other's opens in a private window, where your browser can open
-   one from the command line, as the Chrome family and Firefox can, so you sign in there to that
-   account's subscription; otherwise, as for Safari, `setup` shows the address to open in one. The
-   token's checked with the API, then saved, good for a year. A token for a subscription another
+   page in your browser. The first account's token, or, on a run again, the first pool's primary's,
+   opens in the browser as it is. Every other's opens in a private window, where your browser can
+   open one from the command line, as the Chrome family and Firefox can, so you sign in there to
+   that account's subscription; otherwise, as for Safari, `setup` shows the address to open in one.
+   The token's checked with the API, then saved, good for a year. A token for a subscription another
    account has already isn't saved, and `t` takes only a token of the account's own subscription.
    `p` on the token card pastes a token you made with `claude setup-token` instead; a pasted token
    shows as dots, never the token.
@@ -740,7 +740,7 @@ switchboard accounts remove <id>
 | `--label <label>` | `edit`: show the account as `<label>`. |
 | `--plan <plan>` | `edit`: the plan the account's subscription is on: `pro`, `max` or `ultra`, or `none` to leave it unknown. A plan's old name, `max5x` or `max20x`, works too, and the config is written with its new. |
 | `--pool <id>` | `add`: add the account to that pool, else to the pool the verbs act on (see [Reading a pool](#reading-a-pool)). `edit`: move the account into that pool. |
-| `--primary` | `add` and `edit`: make the account its pool's primary, the account the browser and the Claude apps use for it, in place of the one that was. |
+| `--primary` | `add` and `edit`: make the account its pool's primary, the account its sessions start on, in place of the one that was; the browser and the Claude apps use the first pool's. |
 | `--new` | `add`: where it asks which account the token is, answer that it's a new account. |
 | `--returning <id>` | `add`: where it asks which account the token is, answer that it's the account this Mac had with that id. |
 | `--reserve <percent>` | `edit`: the share of every window the router leaves unused on the account, as a percentage to two decimal places at most, such as `5%` or `2.5%`, from `0%` up to but not including `100%`. `0` or `0%` takes the reserve away. |
@@ -767,7 +767,9 @@ The subcommands do the following:
   there's none, and its token file. Once the config has pools, it goes in the pool `--pool` names,
   else the pool the verbs act on, and `add` says which once there's a second, as `added "Acme 2" as
   m4zq in pool Acme`. A pool the config doesn't configure, as any in a config without pools, is
-  refused before the token is asked for: `pool "zz" is not configured`.
+  refused before the token is asked for: `pool "zz" is not configured`. An account added to a pool
+  with no accounts is its primary, as its first, and `add` says so: `added "Acme 1" as k3f9 in pool
+  Acme, the primary there, as the first in it`.
   - It always takes a token, and checks it with the API before it saves anything. The
     organization the API names it in, its subscription, decides the account's id:
     - a subscription this Mac has never had gets a new id;
@@ -806,9 +808,10 @@ The subcommands do the following:
     what it isn't given as it is.
   - `--pool` moves the account into the pool with the id given, a pool named that isn't configured
     refused, naming the pools. It's that pool's primary only with `--primary`, or where it's the
-    first in it, which `edit` marks it: without, the pool keeps its primary, and where the config marks none, `edit` marks the one it has, so the
-    account moved doesn't take it by coming first, and says so: `marked k3f9 the primary there,
-    which it stays`.
+    first in it, which `edit` marks it, and says so: `the primary there, as the first in it`.
+    Otherwise the pool keeps its primary, and where the config marks none, `edit` marks the one it
+    has, so the account moved doesn't take it by coming first, and says so: `marked k3f9 the primary
+    there, which it stays`.
   - The sessions the router sent to the account in the pool it left move off it on their next
     request, as `moved: <id> left the pool`. Where it was that pool's primary, `edit` says which
     account is now, and, where its token is usable, so sessions may have started on it as Claude
@@ -852,10 +855,10 @@ The subcommands do the following:
 - **`token`** replaces an account's token. At a terminal, it makes the token as `setup` does,
   saying each step as it goes:
   - It runs `claude setup-token`, which opens its sign-in page in your browser: as it is for the
-    primary, as the browser is signed in to it, and in a private window for any other account, so
-    you sign in to that one there. A private window opens where the default browser can open one
-    from its command line, as the Chrome family's, Edge's and Firefox's can. Close any other
-    private window first, as they all share one sign-in. Where `token` can't open the page, as
+    first pool's primary, as the browser is signed in to it, and in a private window for any other
+    account, so you sign in to that one there. A private window opens where the default browser can
+    open one from its command line, as the Chrome family's, Edge's and Firefox's can. Close any
+    other private window first, as they all share one sign-in. Where `token` can't open the page, as
     for Safari, it shows the address to open by hand.
   - Once you approve it, `claude setup-token` creates the token, and `token` checks it with the
     API and saves it, a year from today.

@@ -1107,32 +1107,38 @@ totals.
   - The add card's `enter` checks the pool chosen and any new pool with the account, as
     `accounts.Registry.CheckNew` does, before any token is made, a refusal of either said under
     Pool, a pool removed meanwhile among them, on the edit card too; with no plan chosen, once the
-    rest passes, it's refused under Plan. An account that's the first in its pool, in a config
-    with pools, is marked its primary, added or moved there, so a second account added later
-    doesn't leave the pool with none marked: `accounts` owns the rule, working it out as it
-    writes, under the record's lock, apart from a primary the caller asks for, so a pool given an
-    account since the check doesn't lose its primary. A new pool's id is drawn after the
-    account's, apart from it, and the pool made is logged as `pool add` logs one.
-  - The edit card has a Pool once there's a second pool, with one there's nothing to move it to;
-    its hint, `moving it takes its sessions off at once`. Primary's hint names the pool chosen,
-    `Acme's sessions start on it`, and of the first pool, whose primary the browser and the
-    Claude apps are signed in to, adds `; the Claude apps sign in to it`. Moving the account,
-    Primary shows `no` till it's chosen, and `yes`, held, of a pool with no accounts or a new
-    one, of which it's the first, which `accounts` marks without being asked. The move goes
-    through `accounts.Registry.Edit`, as `accounts edit --pool` and `--primary` do.
-  - The account the browser is signed in to, which a token's sign-in address opens in the
-    browser as it is for, every other's opening in a private window, is the first pool's
-    primary, the first pool as the accounts record notes it (`config.Config.SignedIn`): never
-    another pool's, though it's marked and comes first. Where the first pool has no account,
-    every sign-in opens in a private window.
-  - The table groups the accounts by pool once there's a second: each pool's label in
-    `text.subtle`, as the table's heads are, and two cells on, its directories, or `everywhere
-    else`, muted; then its accounts, in the config's order, its primary marked `◆`; a pool with no
-    accounts under its heading alone. The review gives the accounts in that order, and the table
-    walks it, heading each pool where its accounts start, so `↑` and `↓` go down the rows as
-    they're drawn. A pool of two accounts or more with none marked has a note of its own, `Acme
-    has no primary, …`, naming the Claude apps of the first pool's alone, and `enter` waits for
-    one, as with one pool.
+    rest passes, it's refused under Plan. An account that's the first in its pool, in a config with
+    pools, is marked its primary, added or moved there, so a second account added later doesn't
+    leave the pool with none marked: `accounts` owns the rule, working it out from the config as it
+    writes, apart from a primary the caller asks for. An add, and a move into a new pool, work it
+    out under the accounts record's lock, so a pool given an account since the check doesn't lose
+    its primary; a move into a pool configured already is guarded by the config's own
+    compare-and-swap, its save refused where the file changed since it was read. `accounts add` and
+    `accounts edit` say where it lands: `the primary there, as the first in it`. A new pool's id is
+    drawn after the account's, apart from it, and the pool made is logged as `pool add` logs one.
+  - The edit card has a Pool once there's a second pool, with one there's nothing to move it to; its
+    hint, `moving it takes its sessions off at once`. Primary's hint names the pool chosen, `Acme's
+    sessions start on it`, of `new pool` `the new pool's sessions start on it`, and of the first
+    pool, whose primary the browser and the Claude apps are signed in to, adds `; the Claude apps
+    sign in to it`; Reserve's says `usage kept back for the Claude apps` of the first pool, and of
+    any other `usage the router leaves unused`. Moving the account, Primary shows `no` till it's
+    chosen, and `yes`, held, of a pool with no accounts or a new one, of which it's the first, which
+    `accounts` marks without being asked. The move goes through `accounts.Registry.Edit`, as
+    `accounts edit --pool` and `--primary` do.
+  - The account the browser is signed in to, which a token's sign-in address opens in the browser as
+    it is for, every other's opening in a private window, is the first pool's primary, the first
+    pool as the accounts record notes it (`config.Config.SignedIn`), a record that can't be read
+    warned of once: never another pool's, though it's marked and comes first. Where the first pool
+    has no account, every sign-in opens in a private window, and where one can't open, setup says to
+    open the address in one.
+  - The table groups the accounts by pool once there's a second: each pool's label in `text.subtle`,
+    as the table's heads are, and two cells on, its directories, or `everywhere else`, muted; then
+    its accounts, in the config's order, its primary marked `◆`; a pool with no accounts under its
+    heading alone. The review gives the accounts in that order, and the table walks it, heading each
+    pool where its accounts start, so `↑` and `↓` go down the rows as they're drawn. A pool of two
+    accounts or more with none marked has a note of its own, `Acme has no primary marked, so its
+    sessions start on its first account.`, naming the Claude apps of the first pool's alone, and
+    `enter` waits for one, as with one pool.
   - Done's summary names each pool's primary by its pool's label once there's a second pool,
     `Default's primary: work · Acme's primary: acme1`, the Claude apps' reserve the first pool's
     primary's alone, and a pool without one as `Acme has no primary`.
@@ -2038,9 +2044,11 @@ show.
      remove`, `p make primary`. `enter` all the way through changes nothing.
    - **Edit** (`e`, frame 6), the card `EDIT PERSONAL`: Label; Plan, `used by History to value
      usage`, `not set` among its options only for an account the config gives no plan; Pool, once
-     there's a second pool (see Setup with pools); Primary, `no` or `yes`, `the account the Claude apps are signed in to`; and Reserve,
-     `usage kept back for the Claude apps`, a percentage, as `accounts edit` takes it, or `none`,
-     so cleared on an account with none, it writes nothing. Its keys: `tab next`, `←→ select`, `enter save`, `esc cancel`. It saves through
+     there's a second pool (see Setup with pools); Primary, `no` or `yes`, `the account the Claude
+     apps are signed in to`; and Reserve, `usage kept back for the Claude apps`, a percentage, as
+     `accounts edit` takes it, or `none`, so cleared on an account with none, it writes nothing.
+     Once there's a second pool, Primary's and Reserve's hints are of the pool chosen (see Setup
+     with pools). Its keys: `tab next`, `←→ select`, `enter save`, `esc cancel`. It saves through
      `accounts.Registry.Edit`, as `accounts edit` does.
    - **The primary,** the account the browser and the Claude apps are signed in to: `p` marks the
      chosen account, taking the mark off the one that had it.
@@ -2370,11 +2378,11 @@ their own words.
 
 ### Rules
 
-- **The opener rule:** the first account's token on a first run, and the primary's on a run again,
-  opens in the browser as it is, as it's signed in to that subscription; every other's opens in a
-  private window, where the default browser's command line can open one, as the Chrome family's,
-  Brave and Vivaldi among it, Edge's and Firefox's can; otherwise, as for Safari, the address is
-  shown to paste into one.
+- **The opener rule:** the first account's token on a first run, and the first pool's primary's on a
+  run again, opens in the browser as it is, as it's signed in to that subscription; every other's
+  opens in a private window, where the default browser's command line can open one, as the Chrome
+  family's, Brave and Vivaldi among it, Edge's and Firefox's can; otherwise, as for Safari, the
+  address is shown to paste into one, `setup` saying to open it in a private window.
 - **The duplicate check:** an account added twice is caught by the organization id the API answers a
   token's check with, its `anthropic-organization-id` header, compared with every other account's
   this run has read. Where either isn't known, as where the header is missing or the API didn't
@@ -2403,13 +2411,14 @@ not the owner's decisions:
 - **The edit card's Primary:** on an account that isn't the primary, `no` or `yes`, as frame 6 draws
   it, and `yes` makes it the primary; on the primary it shows `yes` and doesn't change, as the
   primary moves by making another account the primary (`accounts.Registry.Edit` only makes one).
-- **A card's fields:** the edit card opens on Label, typed in, its cursor after the label, and
-  the add card on Label, its fields empty and its Plan the first, `Pro`; `tab` goes on to the next field,
-  the first after the last; on a choice, `←` and `→` move it no further than its first option or
-  its last. While a card is open, its keys alone act: in a field typed in, `q`, `j` and `k` type,
-  and elsewhere do nothing, as the key line, empty, offers none; `ctrl+c` always leaves. The
-  edit card's `enter` saves only what's changed from what the card opened on, and where nothing
-  has, closes it, writing nothing. A reserve typed `none`, or cleared, is none.
+- **A card's fields:** the edit card opens on Label, typed in, its cursor after the label, and the
+  add card on Label, its fields empty and no plan chosen, `enter` refusing under Plan till one is;
+  `tab` goes on to the next field, the first after the last; on a choice, `←` and `→` move it no
+  further than its first option or its last, from no plan chosen `←` to the last and `→` to the
+  first. While a card is open, its keys alone act: in a field typed in, `q`, `j` and `k` type, and
+  elsewhere do nothing, as the key line, empty, offers none; `ctrl+c` always leaves. The edit card's
+  `enter` saves only what's changed from what the card opened on, and where nothing has, closes it,
+  writing nothing. A reserve typed `none`, or cleared, is none.
 - **A refusal and a failure:** a value config refuses is said under its field, why alone, the
   card staying open, and unsaid once the value changes. The add card's `enter` checks its label
   as `accounts add` would, before any token is made, writing nothing: none, another account's,
