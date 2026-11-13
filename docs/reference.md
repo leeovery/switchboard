@@ -114,7 +114,7 @@ The state directory holds these files:
 | `accounts.json` | The [accounts record](#the-accounts-record): every account this Mac has had, removed ones among them, kept for good. |
 | `accounts.lock` | The file a change to the accounts record holds a lock on. It's left there, as the lock goes with the process that held it. |
 | `accounts.moved` | Marks the move of the history onto the accounts' ids done, holding when it was. See [Upgrading to account ids](how-it-works.md#upgrading-to-account-ids). |
-| `pools.moved` | Marks the move of the history to pools done, holding when it was: every request line, pin event and day's summary from before pools given the first pool. |
+| `pools.moved` | Marks the move of the history to pools done, holding when it was: every request line, every event that names its pool (`started`, `moved`, `pin`, `auto`) and every day's summary from before pools given the first pool. |
 | `logs/` | `router.log`, `cli.log` and `launchd.log`. See [The logs](troubleshooting.md#the-logs). |
 | `history/readings-<date>.jsonl` | The [readings history](#the-readings-history), one file for each day. |
 | `ledger/requests-<date>.jsonl` | The [request ledger](#the-request-ledger)'s lines, one file for each day. |

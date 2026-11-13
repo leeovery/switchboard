@@ -869,14 +869,16 @@ read as a pool by its leaving one out (the owner's call, 11 November 2026).
     its own, and the configs differ till one is kept; that Mac's history before pools then stays
     under its own first pool, shown removed (the owner's call, 12 November 2026), and read as a
     removed pool's is, with `--pool` and its id (see Reading a pool).
-  - **The files:** every request line, every pin event and every day's summary is given the first
-    pool's id, written anew and swapped in, a day's files at a time, holding off their writers, as
-    Account identity's move writes them. A line that names a pool already is left as it is, so a
-    file moved reads the same moved again. A day whose lines are still kept is summarised again
-    from them, in the new summary version, and an older one is rewritten as it stands. The files
-    the router builds from these are built again. The router takes the pools up as soon as the
-    move writes them, before any file is moved, and every line it files from then names a pool,
-    the first for a request naming none, even a request it began routing before.
+  - **The files:** every request line, every event that names its pool (`started`, `moved`, `pin`,
+    `auto`) and every day's summary is given the first pool's id, written anew and swapped in, a
+    day's files at a time, holding off their writers, as Account identity's move writes them. A line
+    that names a pool already is left as it is, so a file moved reads the same moved again. A day
+    whose lines are still kept is summarised again from them, in the new summary version, and an
+    older one is rewritten as it stands. The files the router builds from these are built again. The
+    router takes the pools up as soon as the move writes them, before any file is moved, and every
+    line it files from then names a pool, the first for a request naming none, even a request it
+    began routing before; the events it keeps from before them it gives the first pool as it takes
+    them up, so one filed again as it changes, as a move waiting for its limit, names it too.
   - **Work in no pool, once the move's done, is the first pool's,** everywhere the history is read:
     lines filed without a pool after it, as by a release from before pools after a downgrade, by
     a router draining as another takes over and appending to a day already moved, or pins filed

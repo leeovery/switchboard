@@ -294,9 +294,12 @@ type Event struct {
 	// Accounts are the accounts the pool's pin names, in the order
 	// configured, as it's set or cleared.
 	Accounts []string `json:"accounts,omitempty"`
-	// Pool is the id of the pool whose pin it is, of a pin's or an auto's
-	// event, none of one that names none, as none did before pools; and of a
-	// session's start or move, the pool its request was routed within.
+	// Pool is the id of the pool the event is of, of a kind that names it,
+	// as KindNamesItsPool has it: of a pin's or an auto's, the pool whose pin
+	// it is; of a session's start or move, the pool its request was routed
+	// within. None of one from before pools, as the move to pools gives those
+	// the first pool, so one naming none once it's done is the first's; and
+	// none of every other kind.
 	Pool string `json:"pool,omitempty"`
 	// Session and Model are the session that started or moved, and the model
 	// whose requests did; Session is the one whose own pin was set or

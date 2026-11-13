@@ -693,9 +693,9 @@ it moves your history to pools, once, by itself:
    another Mac sharing it moved first, the first of them is this Mac's first pool, and the config
    isn't written.
 2. It takes the pool up at once, and every request it routes from then names a pool.
-3. It gives every request line, pin event and day's summary from before pools the first pool's id,
-   a day's files at a time, and builds what it builds from them again. `pools.moved` in the state
-   directory marks it done.
+3. It gives every request line, every event that names its pool (`started`, `moved`, `pin`, `auto`)
+   and every day's summary from before pools the first pool's id, a day's files at a time, and
+   builds what it builds from them again. `pools.moved` in the state directory marks it done.
 
 It routes throughout, and a stop part way carries on the next time it starts. Until it's done,
 `requests`, `history`, `sessions`, `events` and `import` refuse, the dashboard says what holds the
