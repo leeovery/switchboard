@@ -85,13 +85,14 @@ starts the view afresh on the pool shown, as P does, the config file read
 again only where a read finds it, or the accounts routed, changed; a pool
 shown that's removed turns to the first. Opened on a config without pools,
 or where it can't tell them, it turns to the pool the commands act on once
-the config names pools. A pool with no accounts the router
-routes says so on every tab, with how to add one, or where the config gives
-it some the router hasn't taken up, as a pool added since it started, that
-switchboard service restart takes them up. The Log's requests and its find
-are the pool's alone; History, Sessions, Graphs and the worth and tokens on
-Accounts still tell of every pool's work together, History's Year setting
-every pool's worth beside the plans of the pool shown.
+the config names pools, none where every pool is fenced. A pool with no
+accounts the router routes says so on every tab, with how to add one, or
+where the config gives it some the router hasn't taken up, as a pool added
+since it started, that switchboard service restart takes them up. The Log's
+requests and its find are the pool's alone; History, Sessions, Graphs and
+the worth and tokens on Accounts still tell of every pool's work together,
+History's Year setting every pool's worth beside the plans of the pool
+shown.
 
 It reads the router's usage every few seconds, which the router keeps
 current itself, reading every account nothing has read in the last 5

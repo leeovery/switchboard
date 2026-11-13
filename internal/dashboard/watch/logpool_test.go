@@ -178,9 +178,9 @@ func TestPTurnsTheLogToTheNextPoolsRequests(t *testing.T) {
 // today's lines again, and never shows another pool's, filed since. Default
 // shown alone, Acme added with an account placed in it, Default's read is of
 // Default as it was, its lines and those naming none; Default shown beside
-// Acme, the pools reordered so Acme is first, as the accounts record notes
-// it, Default's read keeps its own lines alone, those naming none now
-// Acme's.
+// Acme, where the accounts record notes no first pool, so the config's first
+// is it, Acme put first moves it to Acme, and Default's read keeps its own
+// lines alone, those naming none now Acme's.
 func TestAChangeToTheConfigStartsTheLogAfreshOnThePoolShownsRead(t *testing.T) {
 	everyAccount := slices.Concat(defaultAccounts, acmeAccounts)
 	tests := []struct {
@@ -197,11 +197,9 @@ func TestAChangeToTheConfigStartsTheLogAfreshOnThePoolShownsRead(t *testing.T) {
 			first:  "b2n8", want: []string{"0a000001", "0a000002"},
 		},
 		{
-			name: "Acme made the first pool", pools: testPools, accounts: everyAccount,
-			change: func(p *poolTurns) {
-				p.pools, p.grounds = config.Pools{testPools[1], testPools[0]}, ledger.Grounds{First: "q7mt"}
-			},
-			first: "q7mt", want: []string{"0a000001"},
+			name: "Acme put first, the record noting no first pool", pools: testPools, accounts: everyAccount,
+			change: func(p *poolTurns) { p.pools = config.Pools{testPools[1], testPools[0]} },
+			first:  "q7mt", want: []string{"0a000001"},
 		},
 	}
 	for _, tt := range tests {
@@ -238,7 +236,8 @@ func TestAChangeToTheConfigStartsTheLogAfreshOnThePoolShownsRead(t *testing.T) {
 // where the pools couldn't be told, reading none, once the config names two
 // pools it starts afresh at the next read on the pool the verbs act on,
 // Default, its Log Default's alone: the line from before pools, naming
-// none, and Default's filed since, never Acme's.
+// none, and Default's filed since, never Acme's; and on a ledger made on
+// Default's grounds, its first pool, where none was.
 func TestADashboardOpenedOnNoPoolStartsAfreshOnThePoolTheConfigNames(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -268,9 +267,9 @@ func TestADashboardOpenedOnNoPoolStartsAfreshOnThePoolTheConfigNames(t *testing.
 			writeLines(t, state, pooledArrived("0a000002", "work", "b2n8", -2*time.Minute), pooledArrived("0a000003", "k3f9", "q7mt", -time.Minute))
 			h.deliver(h.press("R")...)
 			m := h.model
-			if m.poolTurns != turns+1 || m.cfg.Pool.ID != "b2n8" || m.cfg.PoolRead.ID != "b2n8" {
-				t.Errorf("the config naming pools, the view started afresh %d times, on %q, its read %q; want afresh once, on Default, Default's read",
-					m.poolTurns-turns, m.cfg.Pool.ID, m.cfg.PoolRead.ID)
+			if m.poolTurns != turns+1 || m.cfg.Pool.ID != "b2n8" || m.cfg.PoolRead.ID != "b2n8" || pools.made != 1 || m.cfg.LedgerGrounds.First != "b2n8" {
+				t.Errorf("the config naming pools, the view started afresh %d times, on %q, its read %q, %d ledgers made, the one in use grounded on %q; want afresh once, on Default, Default's read, one made, on Default",
+					m.poolTurns-turns, m.cfg.Pool.ID, m.cfg.PoolRead.ID, pools.made, m.cfg.LedgerGrounds.First)
 			}
 			if got, want := shownRequests(h), []string{"0a000001", "0a000002"}; !slices.Equal(got, want) {
 				t.Errorf("the config naming pools, the Requests show %v, want Default's %v alone", got, want)

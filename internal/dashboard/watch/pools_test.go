@@ -21,6 +21,7 @@ import (
 	"github.com/leeovery/switchboard/internal/events"
 	"github.com/leeovery/switchboard/internal/filestate"
 	"github.com/leeovery/switchboard/internal/identity"
+	"github.com/leeovery/switchboard/internal/idmove"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/router"
@@ -45,11 +46,12 @@ var testPools = config.Pools{
 // poolTurns is a dashboard's pools as the config has them in these tests,
 // read as Config's Turn reads them: the pools and every account, as the
 // config file at path places them, each pool's source by its id, and the
-// router's files of events, nil for none; the grounds of the request ledger
-// and the accounts removed, as the config file has them, and the ledgers
-// made on them, each of base, as many as made counts, none held; the turns P
-// asked for, each by the pool turned from, and the times the pool shown was
-// read again; and what a turn fails with, where it does.
+// router's files of events, nil for none; the grounds of the request ledger,
+// their first pool the one the accounts record notes, as ledgerGrounds
+// takes them, and the accounts removed, as the config file has them, and
+// the ledgers made on them, each of base, as many as made counts, none
+// held; the turns P asked for, each by the pool turned from, and the times
+// the pool shown was read again; and what a turn fails with, where it does.
 type poolTurns struct {
 	t        *testing.T
 	pools    config.Pools
@@ -123,7 +125,7 @@ func (p *poolTurns) pooled(id string) Pooled {
 		Read:     read,
 		Stamp:    p.configStamp(),
 		Placed:   status.Placed(p.pools, p.accounts),
-		Grounds:  p.grounds,
+		Grounds:  p.ledgerGrounds(),
 		NewLedger: func() views.Ledger {
 			p.made++
 			return &configsLedger{Ledger: p.base}
@@ -133,11 +135,20 @@ func (p *poolTurns) pooled(id string) Pooled {
 }
 
 // poolRead is how the pool with the given id is read, as the config
-// stands, as the verbs read a pool's: its first pool the one the ledger's
-// grounds note, as the accounts record notes it, else the first configured,
-// as config's Pools First has it.
+// stands, as the verbs read a pool's, its first pool the ledger's grounds',
+// as ledgerGrounds has them.
 func (p *poolTurns) poolRead(id string) views.PoolRead {
-	return views.PoolRead{ID: id, First: p.pools.First(p.grounds.First), PoolOf: status.AccountPools(p.accounts, func() identity.Record { return identity.Record{} })}
+	return views.PoolRead{ID: id, First: p.ledgerGrounds().First, PoolOf: status.AccountPools(p.accounts, func() identity.Record { return identity.Record{} })}
+}
+
+// ledgerGrounds are the grounds of the request ledger as the config stands,
+// as the dashboard's Turn gives them: its first pool of the pools, as
+// idmove.FirstOf has it of the one the grounds given note, as the accounts
+// record notes it; so the config's first, where it notes none.
+func (p *poolTurns) ledgerGrounds() ledger.Grounds {
+	g := p.grounds
+	g.First = idmove.FirstOf(p.pools, g.First)
+	return g
 }
 
 // changeConfig has the config stand as change leaves it, its file written
@@ -204,12 +215,43 @@ func pooledHarnessFiled(t *testing.T, acme config.Accounts, filed views.Events) 
 	return h, acmeSource, pools
 }
 
+// unpooledAccounts are Default's three accounts as a config without pools
+// has them, placed in none.
+var unpooledAccounts = config.Accounts{{ID: "work", Label: "Work"}, {ID: "personal", Label: "Personal"}, {ID: "side", Label: "Side"}}
+
+// unpooledHarness is a harness of the router's document of the three
+// accounts of a config without pools, showing no pool, its Turn reading the
+// config as it stands.
+func unpooledHarness(t *testing.T) (*harness, *poolTurns) {
+	t.Helper()
+	h := routedHarness(t, routerDocument(three()...))
+	pools := newPoolTurns(t, nil, unpooledAccounts, map[string]Source{"": h.source})
+	h.model = New(t.Context(), pools.opened(h.config(Size{Width: 160, Height: 40}), ""))
+	return h, pools
+}
+
+// pooledOrNot are the dashboards these tests follow the config of: one of a
+// config with pools, showing Default beside Acme, as pooledHarness has it;
+// and one without them, showing none, as unpooledHarness has it; each with
+// the id of the pool its router's documents are of.
+var pooledOrNot = []struct {
+	name    string
+	harness func(t *testing.T) (*harness, *poolTurns)
+	pool    string
+}{
+	{name: "with pools", harness: func(t *testing.T) (*harness, *poolTurns) {
+		h, _, pools := pooledHarness(t, acmeAccounts)
+		return h, pools
+	}, pool: "b2n8"},
+	{name: "without pools", harness: unpooledHarness},
+}
+
 // opened is cfg showing the pool with the given id, as the dashboard opens
 // on it, its ledger one of cfg's, told apart by its address, on the grounds
 // the config gives.
 func (p *poolTurns) opened(cfg Config, id string) Config {
 	p.base, p.removed = cfg.Ledger, cfg.Removed
-	cfg.Ledger, cfg.LedgerGrounds = &configsLedger{Ledger: p.base}, p.grounds
+	cfg.Ledger, cfg.LedgerGrounds = &configsLedger{Ledger: p.base}, p.ledgerGrounds()
 	shown := p.pooled(id)
 	cfg.Pool, cfg.Accounts, cfg.Source, cfg.Events, cfg.Turn = shown.Pool, shown.Accounts, shown.Source, shown.Events, p.turn
 	cfg.ConfigStamp, cfg.Stamp, cfg.Placed, cfg.PoolRead = p.configStamp, shown.Stamp, shown.Placed, shown.Read
@@ -339,7 +381,7 @@ func TestNothingOfThePoolBeforeLandsAfterATurn(t *testing.T) {
 	h.model.keeping.writing = 1
 
 	tm := turns{Model: h.model}
-	next, _ := tm.Update(ofTurn{turn: before, msg: turnedMsg{pooled: Pooled{Pool: acmeShown, Source: h.source, Events: events.Empty{}}}})
+	next, _ := tm.Update(ofTurn{turn: before, msg: turnedMsg{pooled: Pooled{Pool: acmeShown, Source: h.source, Events: events.Empty{}, Grounds: h.model.cfg.LedgerGrounds}}})
 	tm = next.(turns)
 	if tm.poolTurns == before {
 		t.Fatal("the turn landed, but the pools shown weren't counted on")
@@ -376,7 +418,7 @@ func TestNothingOfThePoolBeforeLandsWhereItsCountersMatchTheFreshModels(t *testi
 			msgs = append(msgs, h.run(cmd)...)
 		}
 	}
-	deliver(ofTurn{turn: before, msg: turnedMsg{pooled: Pooled{Pool: acmeShown, Accounts: acmeAccounts, Source: h.source, Events: events.Empty{}}}})
+	deliver(ofTurn{turn: before, msg: turnedMsg{pooled: Pooled{Pool: acmeShown, Accounts: acmeAccounts, Source: h.source, Events: events.Empty{}, Grounds: h.model.cfg.LedgerGrounds}}})
 	stream := make(chan router.StreamEvent)
 	sent := router.StreamEvent{At: h.clock.now, Kind: router.StreamSent, Request: "r1", Attempt: 1, Session: idD28C, Model: "claude-opus-5-5", Account: "k3f9"}
 	tests := []struct {
@@ -836,8 +878,8 @@ func TestAnAccountTakenOutIsNamedAndTheLedgerMadeOnTheConfigReadsCaps(t *testing
 	if len(m.cfg.Removed) != 1 || m.cfg.Removed[0].Label != "Side" {
 		t.Errorf("side taken out, the dashboard names the accounts removed %+v, want side, labelled Side", m.cfg.Removed)
 	}
-	if pools.made != 1 || !m.cfg.LedgerGrounds.Same(pools.grounds) || m.cfg.Ledger.(*configsLedger) == before.Value() {
-		t.Errorf("a reserve changed, %d ledgers were made, the one in use on the new grounds %v; want one, made on them", pools.made, m.cfg.LedgerGrounds.Same(pools.grounds))
+	if pools.made != 1 || !m.cfg.LedgerGrounds.Same(pools.ledgerGrounds()) || m.cfg.Ledger.(*configsLedger) == before.Value() {
+		t.Errorf("a reserve changed, %d ledgers were made, the one in use on the new grounds %v; want one, made on them", pools.made, m.cfg.LedgerGrounds.Same(pools.ledgerGrounds()))
 	}
 	runtime.GC()
 	if before.Value() != nil {
@@ -854,9 +896,9 @@ func TestTheLedgersGroundsChangedAloneStartThePoolShownAfresh(t *testing.T) {
 	turns := h.model.poolTurns
 	pools.changeConfig(func(p *poolTurns) { p.grounds = ledger.Grounds{First: "q7mt"} })
 	h.deliver(h.press("R")...)
-	if m := h.model; m.poolTurns != turns+1 || pools.made != 1 || !m.cfg.LedgerGrounds.Same(pools.grounds) {
+	if m := h.model; m.poolTurns != turns+1 || pools.made != 1 || !m.cfg.LedgerGrounds.Same(pools.ledgerGrounds()) {
 		t.Errorf("the first pool changed alone, the pool shown started afresh %d times, %d ledgers made, the one in use on the new grounds %v; want afresh once, one made on them",
-			m.poolTurns-turns, pools.made, m.cfg.LedgerGrounds.Same(pools.grounds))
+			m.poolTurns-turns, pools.made, m.cfg.LedgerGrounds.Same(pools.ledgerGrounds()))
 	}
 }
 
@@ -885,19 +927,23 @@ type configsLedger struct {
 }
 
 // A change to the config that places nothing otherwise, as a comment
-// written, starts nothing: the pool shown is read again, as the config file
-// changed, and kept as it is.
+// written, starts nothing, with pools or without: the pool shown, or none,
+// is read again, as the config file changed, and kept as it is.
 func TestAChangeThatPlacesNothingOtherwiseStartsNothing(t *testing.T) {
-	h, _, pools := pooledHarness(t, acmeAccounts)
-	h.start()
-	h.deliver(h.press("tab")...)
-	h.model.scroll = 2
-	turns := h.model.poolTurns
-	pools.changeConfig(func(*poolTurns) {})
-	h.deliver(h.press("R")...)
-	if pools.again != 1 || h.model.poolTurns != turns || h.model.scroll != 2 || !h.model.cfg.Stamp.Same(pools.configStamp()) {
-		t.Errorf("a comment written, the pool shown was read again %d times, started afresh %v, scrolled %d, stamped as the config stands %v; want once, kept as it was, stamped afresh",
-			pools.again, h.model.poolTurns != turns, h.model.scroll, h.model.cfg.Stamp.Same(pools.configStamp()))
+	for _, tt := range pooledOrNot {
+		t.Run(tt.name, func(t *testing.T) {
+			h, pools := tt.harness(t)
+			h.start()
+			h.deliver(h.press("tab")...)
+			h.model.scroll = 2
+			turns := h.model.poolTurns
+			pools.changeConfig(func(*poolTurns) {})
+			h.deliver(h.press("R")...)
+			if pools.again != 1 || h.model.poolTurns != turns || h.model.scroll != 2 || !h.model.cfg.Stamp.Same(pools.configStamp()) {
+				t.Errorf("a comment written, the pool shown was read again %d times, started afresh %v, scrolled %d, stamped as the config stands %v; want once, kept as it was, stamped afresh",
+					pools.again, h.model.poolTurns != turns, h.model.scroll, h.model.cfg.Stamp.Same(pools.configStamp()))
+			}
+		})
 	}
 }
 
@@ -980,27 +1026,44 @@ func TestAnAccountAddedToTheOtherPoolNeverShowsInThePoolShown(t *testing.T) {
 
 // A re-read that fails is logged, the key line saying nothing of it, and
 // asked again only once the config file changes again: not at a read that
-// finds it as it was.
+// finds it as it was. So it is of a dashboard opened on no pool, as the
+// pools couldn't be told, a config they still can't be told of failing to
+// read it.
 func TestAReadAgainThatFailsIsAskedAgainOnlyOnceTheConfigChangesAgain(t *testing.T) {
-	logged := logstest.Capture(t)
-	h, _, pools := pooledHarness(t, acmeAccounts)
-	h.start()
-	line := h.keyLine()
-	pools.failure = errors.New("config file makes no valid config")
-	pools.changeConfig(func(*poolTurns) {})
-	h.deliver(h.press("R")...)
-	if pools.again != 1 || h.keyLine() != line || !strings.Contains(logged.String(), "can't read the pool shown again as the config changed") {
-		t.Errorf("a re-read that failed was asked %d times, the key line reading %q, the log\n%s\nwant once, the key line as it was, %q, the failure logged", pools.again, h.keyLine(), logged.String(), line)
+	tests := []struct {
+		name    string
+		harness func(t *testing.T) (*harness, *poolTurns)
+	}{
+		{name: "a pool shown", harness: pooledOrNot[0].harness},
+		{name: "the pools not to be told", harness: func(t *testing.T) (*harness, *poolTurns) {
+			h, pools := unpooledHarness(t)
+			h.model.cfg.PoolRead = views.NoPool()
+			return h, pools
+		}},
 	}
-	h.deliver(h.press("R")...)
-	if pools.again != 1 {
-		t.Errorf("a read finding the config as it was asked again: %d re-reads in all, want one", pools.again)
-	}
-	pools.failure = nil
-	pools.changeConfig(func(*poolTurns) {})
-	h.deliver(h.press("R")...)
-	if pools.again != 2 {
-		t.Errorf("the config changed again, the pool shown was read again %d times in all, want twice", pools.again)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			logged := logstest.Capture(t)
+			h, pools := tt.harness(t)
+			h.start()
+			line := h.keyLine()
+			pools.failure = errors.New("config file makes no valid config")
+			pools.changeConfig(func(*poolTurns) {})
+			h.deliver(h.press("R")...)
+			if pools.again != 1 || h.keyLine() != line || !strings.Contains(logged.String(), "can't read the pool shown again as the config changed") {
+				t.Errorf("a re-read that failed was asked %d times, the key line reading %q, the log\n%s\nwant once, the key line as it was, %q, the failure logged", pools.again, h.keyLine(), logged.String(), line)
+			}
+			h.deliver(h.press("R")...)
+			if pools.again != 1 {
+				t.Errorf("a read finding the config as it was asked again: %d re-reads in all, want one", pools.again)
+			}
+			pools.failure = nil
+			pools.changeConfig(func(*poolTurns) {})
+			h.deliver(h.press("R")...)
+			if pools.again != 2 {
+				t.Errorf("the config changed again, the pool shown was read again %d times in all, want twice", pools.again)
+			}
+		})
 	}
 }
 
@@ -1037,33 +1100,50 @@ func TestADocumentOfNoPoolDrawsNoEmptyPage(t *testing.T) {
 	}
 }
 
-// The pool shown is read again only where the config changed: never at a
-// read that finds the config file as it was and the accounts as the last
-// read found them. A read finding the router's accounts changed, the config
-// as it was, as the router took one up as it restarted, reads it again and
-// starts nothing.
+// The pool shown, or none, is read again only where the config changed,
+// with pools or without: never at a read that finds the config file as it
+// was and the accounts as the last read found them. A read finding the
+// router's accounts changed, the config as it was, as the router took one
+// up as it restarted, reads it again and starts nothing.
 func TestThePoolShownIsReadAgainOnlyWhereTheConfigChanged(t *testing.T) {
-	h, _, pools := pooledHarness(t, acmeAccounts)
+	for _, tt := range pooledOrNot {
+		t.Run(tt.name, func(t *testing.T) {
+			h, pools := tt.harness(t)
+			h.start()
+			for range 3 {
+				h.deliver(h.press("R")...)
+			}
+			if pools.again != 0 {
+				t.Errorf("reads that found nothing changed read the pool shown again %d times, want none", pools.again)
+			}
+			pools.changeConfig(func(*poolTurns) {})
+			for range 3 {
+				h.deliver(h.press("R")...)
+			}
+			if pools.again != 1 {
+				t.Errorf("a config changed once had the pool shown read again %d times, want once", pools.again)
+			}
+			turns := h.model.poolTurns
+			*h.source.router = ofPool(routerDocument(three()[:2]...), tt.pool)
+			h.deliver(h.press("R")...)
+			h.deliver(h.press("R")...)
+			if pools.again != 2 || h.model.poolTurns != turns {
+				t.Errorf("a read's accounts changed once had the pool shown read again %d times in all, started afresh %v; want twice, nothing started", pools.again, h.model.poolTurns != turns)
+			}
+		})
+	}
+}
+
+// P with no pools, though the watch has a Turn to ask, asks for no pool and
+// starts nothing: there's none to turn to.
+func TestPWithoutPoolsTurnsToNone(t *testing.T) {
+	h, pools := unpooledHarness(t)
 	h.start()
-	for range 3 {
-		h.deliver(h.press("R")...)
-	}
-	if pools.again != 0 {
-		t.Errorf("reads that found nothing changed read the pool shown again %d times, want none", pools.again)
-	}
-	pools.changeConfig(func(*poolTurns) {})
-	for range 3 {
-		h.deliver(h.press("R")...)
-	}
-	if pools.again != 1 {
-		t.Errorf("a config changed once had the pool shown read again %d times, want once", pools.again)
-	}
 	turns := h.model.poolTurns
-	*h.source.router = ofPool(routerDocument(three()[:2]...), "b2n8")
-	h.deliver(h.press("R")...)
-	h.deliver(h.press("R")...)
-	if pools.again != 2 || h.model.poolTurns != turns {
-		t.Errorf("a read's accounts changed once had the pool shown read again %d times in all, started afresh %v; want twice, nothing started", pools.again, h.model.poolTurns != turns)
+	h.deliver(h.press("P")...)
+	if len(pools.from) != 0 || pools.again != 0 || h.model.poolTurns != turns || h.model.turning {
+		t.Errorf("P without pools asked for the pools from %q, %d again, started afresh %v, turning %v; want nothing asked, nothing started",
+			pools.from, pools.again, h.model.poolTurns != turns, h.model.turning)
 	}
 }
 

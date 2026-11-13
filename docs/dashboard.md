@@ -866,7 +866,7 @@ the file has changed, or the accounts the router routes have: a look costs a sta
 compare of two lists of ids. Where the pool shown is removed, it turns to the first. A dashboard
 opened on a config without pools, or where it couldn't tell the pools, looks at the config file
 alike, so once the config names pools the view starts afresh on the pool the commands act on, its
-Log that pool's alone.
+Log that pool's alone; where every pool is fenced, there's none, and it shows none, as below.
 
 Once there's a second pool:
 
