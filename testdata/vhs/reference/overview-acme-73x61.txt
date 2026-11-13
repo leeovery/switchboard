@@ -1,0 +1,61 @@
+ SWITCHBOARD   Acme                                   Thu 1 Oct  14:42:07
+ Overview  Accounts  History  Sessions  Runway  Graphs  Log
+
+● healthy · auto · 6 sessions · new → ▲ Acme 3
+
+USAGE  ──────────────────────────────────────────────────────────────── u
+
+WEEK
+
+ Acme 1               ▌      ┃           ╎   34%  out ~Sat
+
+ Acme 2   ◆                     ┃            66%  out ~Sat
+
+ Acme 3   ▲               ┃         ▏        78%  out ~Fri
+─────────────────────────────────────────────────────────────────────────
+ Σ pool                      ┃▍              59%  1.2 of 3 left
+
+5-HOUR
+
+ Acme 1                     ┃            ╎   95%  at cap · back 17:10
+
+ Acme 2   ◆             ▏       ┃            39%  34%/h till 16:30
+
+ Acme 3   ▲      ┃                           13%  21%/h till 18:50
+─────────────────────────────────────────────────────────────────────────
+ Σ pool                   ┃▎                 49%  1.5 of 3 left
+
+┃ even pace: where you would be now, used evenly
+╎ cap: Acme 1 at 95%    ◆ primary    ▲ new sessions go here
+
+ROUTING   auto ──────────────────────────────────────────────────────── r
+
+ Acme 1     ● at its cap · 17:10
+            ▂▄▅▄▂▂▂▃▂▃▅▆▅▄▃▃▃▂▂▂▂▂▂▂▁▂▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁   0 sessions  0/min
+
+ Acme 2   ◆ ● open
+            ▁▂▁▂▂▁▁▁▁▁▁▁▂▂▁▁▁▁▁▁▁▁▁▁▃▅▅▃▁▁▁▁▁▁▁▁▁▁▁▂▁   2 sessions  3/min
+
+ Acme 3   ▲ ● open · next
+            ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▂▆    ▇▇▇▆▅▄▄▅▆  4 sessions  11/min
+
+COMING UP  ──────────────────────────────────────────────────────────── c
+
+16:30      Acme 2's 5-hour resets                               in 1h 48m
+17:10      Acme 1 back from its cap                             in 2h 28m
+18:50      Acme 3's 5-hour resets                               in 4h 08m
+~Fri       Acme 3's week runs out at its pace                    in 1d 1h
+~Sat       Acme 2's week runs out at its pace                   in 1d 15h
+Sun 02:00  Acme 2's week resets                                 in 2d 11h
+Sun 21:00  Acme 1's week resets                                  in 3d 6h
+
+LATELY  ─────────────────────────────────────────────────────────────── l
+
+14:41  ▲ mobile started on Acme 3
+14:31  ╎ Acme 1 reached its cap: 3 sessions moved to Acme 3
+14:12  ▲ api started on Acme 1
+13:50  ◇ Acme 3 primed: its 5-hour window started
+13:22  ▸ infra moved Acme 2 → Acme 1: Acme 2 came under pressure, its 5-…
+13:04  ◔ Acme 2 came under pressure: its 5-hour runs out ~13:50
+
+tab views   P pool   ? keys and toggles   q quit

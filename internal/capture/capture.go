@@ -79,6 +79,10 @@ type Fixture struct {
 	records  *records
 	accounts config.Accounts
 	removed  status.RemovedAccounts
+	// pool is the pool it shows, as the title row names it once there's a
+	// second, and a pool with no accounts draws its page: none, as before
+	// pools, where it's unset.
+	pool status.ShownPool
 	// setup is set for a fixture of setup's screen, drawn by its own model
 	// rather than the watch.
 	setup *setupShown
@@ -264,8 +268,9 @@ func (p printout) fixture(worlds accountWorlds) Fixture {
 // that moment, as a key that reads then finds it, or from goneFor before it,
 // as the fixture's settling finds it; the tab its preferences keep, which
 // it opens on, the Overview where it's unset, and the Log's columns they
-// keep shown; and the requests a minute that fill a trace's height, where
-// its frame pins them otherwise than the frames' usual.
+// keep shown; the requests a minute that fill a trace's height, where its
+// frame pins them otherwise than the frames' usual; and the pool it shows,
+// where it shows one.
 type page struct {
 	name    string
 	size    watch.Size
@@ -279,6 +284,7 @@ type page struct {
 	scale   float64
 	loading bool
 	looked  *looked
+	pool    status.ShownPool
 }
 
 // looked is a page's moment as a later look at the router has it: after
@@ -321,6 +327,7 @@ func (p page) fixture(worlds accountWorlds) Fixture {
 	return Fixture{
 		Name: p.name, Size: p.size, now: now, router: router, keys: slices.Clone(p.keys), before: p.before,
 		theme: framesTheme(), records: w.records(), accounts: w.accounts, removed: removedOf(w.gone), view: p.view, log: p.log, scale: p.scale, loading: p.loading,
+		pool: p.pool,
 	}
 }
 
@@ -427,6 +434,10 @@ var pages = []page{
 	{name: "overview-mixed-73x61", size: watch.Size{Width: 73, Height: 61}, world: accountWorlds.mixed},
 	{name: "overview-mixed-108x44", size: watch.Size{Width: 108, Height: 44}, world: accountWorlds.mixed, keys: keysOf("s")},
 	{name: "overview-mixed-by-account-160", size: wide(42), world: accountWorlds.mixed, keys: keysOf("b")},
+	{name: "overview-acme-160", size: wide(37), world: accountWorlds.acme, pool: acmePool},
+	{name: "overview-default-pool-160", size: wide(37), world: accountWorlds.auto, pool: defaultPool},
+	{name: "overview-acme-73x61", size: watch.Size{Width: 73, Height: 61}, world: accountWorlds.acme, pool: acmePool},
+	{name: "empty-pool-160", size: wide(37), world: accountWorlds.noAccounts, pool: emptyPool},
 	{name: "routing-auto-160", size: wide(37), world: accountWorlds.auto, keys: keysOf("p")},
 	{name: "routing-two-160", size: wide(37), world: accountWorlds.auto, keys: slices.Concat(keysOf("p"), tickBelow(2), tickBelow(1))},
 	{name: "routing-move-160", size: wide(37), world: accountWorlds.auto, keys: slices.Concat(keysOf("p"), tickBelow(2), keysOf("m"))},
