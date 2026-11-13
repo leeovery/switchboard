@@ -39,7 +39,7 @@ This page uses these terms throughout:
 - **Cap:** the point where an account's reserve starts, 1 less its `reserve`. The router passes
   over an account at its cap. See [Reserves](how-it-works.md#reserves).
 - **Pool:** the accounts new sessions can go to now. That's every account on auto, or only the
-  pinned accounts while a global pin holds.
+  pinned accounts while the pool's pin holds.
 - **Pin:** your choice of where sessions go, set with the routing card or with
   [`pin`](commands.md#pin).
 - **The primary:** the account your browser and the Claude apps are signed into. See
