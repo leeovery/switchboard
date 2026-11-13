@@ -99,7 +99,8 @@ func (a *app) events(ctx context.Context, out io.Writer, opts eventsOptions) err
 		follower = newEventsFollower(events.Files(ledger.Dir(dir), logger), dayfile.DateOf(now), a.Now)
 		today = follower.listing()
 	}
-	printer := a.eventsPrinter(out, opts.form, poolLabelsIn(dir, pooled), poolsNamed(dir, pooled), pool.heading())
+	record := recordIn(dir)
+	printer := a.eventsPrinter(out, opts.form, status.PoolLabels(pooled.Pools, record), poolsNamed(pooled.Pools, record), pool.heading())
 	held := events.NewReader(dir, a.Now, logger).HeldTailing(printer.readFrom(from), startOfDay(now, -1), today)
 	if err := printer.list(pool.read.Events(held), from, now); err != nil || follower == nil {
 		return err

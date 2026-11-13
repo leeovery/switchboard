@@ -157,22 +157,21 @@ func (a *app) shownEvents(ctx context.Context, cfg *config.Config, r stateReader
 		logger.Warn("can't tell which pool the dashboard shows, so it reads none of the router's files of events", "error", err)
 		return events.Empty{}, nil
 	}
-	return pool.read.Filed(r.events), poolsNamed(r.dir, pooled)
+	return pool.read.Filed(r.events), poolsNamed(pooled.Pools, recordIn(r.dir))
 }
 
-// poolsNamed labels a pool by its id, as poolLabelsIn does, where the
+// poolsNamed labels a pool by its id, as status.PoolLabels does, where the
 // recorded files may hold more than one pool's work, as status.ManyPoolsFiled
-// has it of cfg, as its pools stand, and the accounts record in the state
-// directory dir, read once for both: so the words of the router's events name
-// the pool whose sessions' own pins a forced pin cleared, one from the days
-// of several pools included. It's nil, naming none, where they hold one
-// pool's alone.
-func poolsNamed(dir string, cfg *config.Config) func(id string) string {
-	record := recordIn(dir)
-	if !status.ManyPoolsFiled(cfg.Pools, record) {
+// has it of pools, as they stand, and the accounts record record returns,
+// read once for both: so the words of the router's events name the pool
+// whose sessions' own pins a forced pin cleared, one from the days of
+// several pools included. It's nil, naming none, where they hold one pool's
+// alone.
+func poolsNamed(pools config.Pools, record func() identity.Record) func(id string) string {
+	if !status.ManyPoolsFiled(pools, record) {
 		return nil
 	}
-	return status.PoolLabels(cfg.Pools, record)
+	return status.PoolLabels(pools, record)
 }
 
 // namesIn are the names of the accounts cfg configures and of those removed
