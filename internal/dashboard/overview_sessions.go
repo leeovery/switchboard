@@ -284,7 +284,7 @@ func (f Frame) drawRunning(c *canvas, m status.Moment, form runningForm, listed 
 		}
 		y := body.y + i*form.rows
 		if r.Account != named {
-			c.line(namesFrom, y, names[place(m, r.Account)-1].line(at.names))
+			c.line(namesFrom, y, names[place(m, r.Account)-1].lineFrom(at.names, namesFrom))
 			named = r.Account
 		}
 		f.drawSession(c, m, r, at, y)

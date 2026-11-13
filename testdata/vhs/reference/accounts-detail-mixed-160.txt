@@ -8,7 +8,7 @@ ACCOUNTS    Compare  Detail  [ ]  ───────────────�
                     │
  work          ●    │   USAGE                                                                                        THIS WEEK
                     │   Week                  ▋       ┃                ╎   34%  out ~Sun                             requests  1,204
- personal   ◆  ●    │                                                                                                limits    none
+ personal    ◆ ●    │                                                                                                limits    none
                     │   5-hour   no limit                                                                            plan      Ultra
  side          ●    │                                                                                                worth     $184  4.0×
                     │                                                                                                extra use off

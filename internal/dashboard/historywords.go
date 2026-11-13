@@ -113,13 +113,13 @@ func familyDot(family string, name ink) line {
 	return line{{"●", familyHue(family).ink()}, {" " + familyName(family), name}}
 }
 
-// historyAccount is an account as History's rows name it, in room cells: its
-// name, as labelled gives it, bold text.primary, cut to keep the ◆ after
-// the primary's, in text.tertiary, where there's room for it, at the
-// column's end, as inColumn lays it.
-func historyAccount(name string, primary bool, room int) line {
+// historyAccount is an account as History's rows name it, in the cells given:
+// its name, as labelled gives it, bold text.primary, its label cut to room
+// cells less the ◆'s, and the ◆ after the primary's, in text.tertiary,
+// where there's room for it, at their end, as inColumn lays it.
+func historyAccount(name string, primary bool, room, cells int) line {
 	n := historyName(name, primary)
-	return n.inColumn(room-n.cells(0), room).fit(room)
+	return n.inColumn(room-n.cells(0), cells).fit(cells)
 }
 
 // historyBeside is an account as a row of History says it where no column

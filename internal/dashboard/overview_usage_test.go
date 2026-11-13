@@ -145,11 +145,11 @@ func TestUSAGEScrollsWholeARowAtATimeItsWindowsHeadingKept(t *testing.T) {
 	}{
 		{
 			name: "at the top, the rows below said", scroll: 0,
-			want: map[int]string{2: "a1  ▲", 4: "a2", 12: "a6", 13: "", 14: "▼ 11 more below"},
+			want: map[int]string{2: "a1   ▲", 4: "a2", 12: "a6", 13: "", 14: "▼ 11 more below"},
 		},
 		{
 			name: "a row down, the blank under the heading under it", scroll: 1,
-			want: map[int]string{1: "a1  ▲", 3: "a2", 13: "a7", 14: "▲ 1 more above · ▼ 10 more below"},
+			want: map[int]string{1: "a1   ▲", 3: "a2", 13: "a7", 14: "▲ 1 more above · ▼ 10 more below"},
 		},
 		{
 			name: "four rows down, a2 under the heading", scroll: 4,
@@ -881,10 +881,10 @@ func TestAnAccountOutOfThePoolIsNamedFaintOnTheOverviewAndInThePrintout(t *testi
 	faintLabel := ink{token: theme.TextFaint, bold: true}
 	for name, block := range map[string]usageBlock{"on the Overview": frameOf(160, 60).overviewBlock(doc, printNow), "in the printout": printBlock(doc, 160, Look{})} {
 		t.Run(name, func(t *testing.T) {
-			if got := block.rows[1].name; len(got) != 2 || got[0].ink != faintLabel || got[1].ink != faintInk {
+			if got := block.name(block.rows[1]); len(got) != 2 || got[0].ink != faintLabel || got[1].ink != faintInk {
 				t.Errorf("personal, out of the pool, is named %+v, want its label in %+v and ◆ in %+v", got, faintLabel, faintInk)
 			}
-			if got := block.rows[2].name; len(got) != 2 || got[0].ink != titleInk || got[1].ink != accentInk {
+			if got := block.name(block.rows[2]); len(got) != 2 || got[0].ink != titleInk || got[1].ink != accentInk {
 				t.Errorf("side, in the pool, is named %+v, want its label in %+v and ▲ in %+v", got, titleInk, accentInk)
 			}
 		})
@@ -900,7 +900,7 @@ func TestTheAccountNewSessionsGoToKeepsItsMarkOutOfThePool(t *testing.T) {
 	faintLabel := ink{token: theme.TextFaint, bold: true}
 	for name, block := range map[string]usageBlock{"on the Overview": frameOf(160, 60).overviewBlock(doc, printNow), "in the printout": printBlock(doc, 160, Look{})} {
 		t.Run(name, func(t *testing.T) {
-			if got := block.rows[2].name; len(got) != 2 || got[0].ink != faintLabel || got[1] != (span{" ▲", accentInk}) {
+			if got := block.name(block.rows[2]); len(got) != 2 || got[0].ink != faintLabel || got[1] != (span{" ▲", accentInk}) {
 				t.Errorf("side, out of the pool, new sessions going to it, is named %+v, want its label in %+v and ▲ in %+v", got, faintLabel, accentInk)
 			}
 		})
@@ -1174,7 +1174,7 @@ func TestAnAccountOutOfThePoolIsNamedFaintWhereverTheOverviewNamesIt(t *testing.
 		t.Run(name, func(t *testing.T) {
 			c := newCanvas(f.Width, 12)
 			s.draw(c, bounds{width: f.Width, rows: 12})
-			out, in := namedOn(c, "personal   ◆"), namedOn(c, "side       ▲")
+			out, in := namedOn(c, "personal    ◆"), namedOn(c, "side        ▲")
 			if out == nil || in == nil {
 				t.Fatalf("%s names personal on %v and side on %v, want both named", name, out, in)
 			}

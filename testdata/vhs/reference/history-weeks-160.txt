@@ -13,7 +13,7 @@ an estimate, from replaying these weeks with one account fewer or more
 all accounts    53%     64%     66%     67%     74%     73%     82%    59%…  short on 3 of 7 weeks
 
 work            72%     88%    100%     94%    100%     81%    100%    34%…  hits its limit most weeks  9% left  without it: short 7 of 7
-personal   ◆    64%     70%     58%     77%     69%     90%     85%    66%…  ends most weeks with room  27% left  without it: short 7 of 7
+personal    ◆   64%     70%     58%     77%     69%     90%     85%    66%…  ends most weeks with room  27% left  without it: short 7 of 7
 side            22%     35%     41%     30%     52%     47%     60%    78%…  plenty to spare most weeks  59% left  without it: short 6 of 7
 
 

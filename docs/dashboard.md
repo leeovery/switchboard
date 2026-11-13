@@ -95,9 +95,9 @@ pool's.
 - Narrower, as on a phone, it stacks the windows as `usage` stacks them.
 - Its name column is as wide as the longest name, up to 24 cells of label, wherever the screen has
   room. A bar only grows as the screen widens: the words go from short to full first.
-- Each name's marks, `◆` and `▲`, stand at the end of the name column, so they line up down the
-  list, and under them ROUTING's and SESSIONS'. Every list of accounts in a column does the same,
-  Compare's rows on a phone among them.
+- Each name's marks, `◆` and `▲`, stand at the end of the name column, a cell before what
+  follows, so they line up down the list, and under them ROUTING's and SESSIONS'. Every list of
+  accounts in a column does the same, Compare's rows on a phone among them.
 - An account out of the pool, under a pin, is drawn faint.
 - An account without a 5-hour window reads `no 5-hour limit` in place of its bar, or `no limit`
   where the room is short, and by account, where the window's label beside it names the window. In a

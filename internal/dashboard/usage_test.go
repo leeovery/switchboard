@@ -149,7 +149,7 @@ func TestTheMatrixLaysEachWindowOutAsAGroupFromTheNameColumn(t *testing.T) {
 	}{
 		{2, 14, "WEEK"}, {2, 63, "5-HOUR"}, {2, 112, "FABLE WEEK"},
 		{4, 0, "work "}, {4, 33, "34%"}, {4, 38, "19%/day till Sun 21:00"},
-		{6, 0, "personal   ◆  "}, {8, 0, "side       ▲  "},
+		{6, 0, "personal    ◆ "}, {8, 0, "side        ▲ "},
 		{9, 0, strings.Repeat("─", 160)},
 		{10, 0, "Σ pool "},
 		{12, 14, "┃ even pace: where you would be now, used evenly    ╎ cap: work at 95%"},
@@ -333,7 +333,7 @@ func TestByAccountEachAccountIsABlockOfItsWindows(t *testing.T) {
 		{name: "wide, its bar 104 cells", rows: wide, row: 2, col: 26 + 104 + 2, want: "34%  19%/day till Sun 21:00"},
 		{name: "wide, its 5-hour", rows: wide, row: 4, col: 14, want: "5-hour"},
 		{name: "wide, Fable's week", rows: wide, row: 6, col: 14, want: "Fable wk"},
-		{name: "wide, a blank line between blocks", rows: wide, row: 8, col: 0, want: "personal   ◆  Week"},
+		{name: "wide, a blank line between blocks", rows: wide, row: 8, col: 0, want: "personal    ◆ Week"},
 		{name: "wide, the pool's rule in the blank line", rows: wide, row: 19, col: 0, want: strings.Repeat("─", 160)},
 		{name: "wide, the pool last", rows: wide, row: 20, col: 0, want: "Σ pool        Week"},
 		{name: "narrow, its name on a line of its own", rows: narrow, row: 4, col: 0, want: "work"},
@@ -486,43 +486,51 @@ func TestALongLabelIsCutKeepingItsMarksAndRoomForTheBestsMark(t *testing.T) {
 	elsewhere := n.line(24).plain()
 	n.best = true
 	here := n.line(24).plain()
-	if want := "someone.else@exam…   ◆"; elsewhere != want {
+	if want := "someone.else@exam…    ◆"; elsewhere != want {
 		t.Errorf("the name reads %q in a 24-cell column, want %q", elsewhere, want)
 	}
-	if want := "someone.else@exam… ◆ ▲"; here != want {
+	if want := "someone.else@exam…  ◆ ▲"; here != want {
 		t.Errorf("with ▲ the name reads %q, want %q: its label as it was", here, want)
 	}
-	if got := len([]rune(here)) + nameGap; got > 24 {
-		t.Errorf("with ▲ the name and its gap take %d cells, more than its column's 24", got)
+	if got := len([]rune(here)) + marksApart; got > 24 {
+		t.Errorf("with ▲ the name and the cell after its marks take %d cells, more than its column's 24", got)
 	}
 }
 
-// A column of names right-aligns each name's marks at its end, nameGap
-// before the column ends, whatever its label's length, both marks as one;
-// a label cut short keeps its marks there.
-func TestAColumnsMarksStandRightAlignedAtItsEnd(t *testing.T) {
+// A column of names right-aligns each name's marks to end a cell before
+// what follows the column, whether its names start at its first cell or a
+// cell in, whatever its label's length, both marks as one; its label keeps
+// the cells it has wherever the names start, and a label cut short keeps
+// its marks there.
+func TestAColumnsMarksEndACellBeforeWhatFollows(t *testing.T) {
 	tests := []struct {
 		name   string
 		n      accountName
 		column int
+		from   int
 		want   string
 	}{
-		{name: "a short label's ◆", n: accountName{label: "personal", primary: true}, column: 21, want: "personal          ◆"},
-		{name: "a long label's ▲", n: accountName{label: "side-account-long", best: true}, column: 21, want: "side-account-long ▲"},
-		{name: "both marks as one", n: accountName{label: "personal", primary: true, best: true}, column: 21, want: "personal        ◆ ▲"},
-		{name: "a cut label keeps its marks", n: accountName{label: "side-account-long", primary: true, best: true}, column: 14, want: "side-ac… ◆ ▲"},
+		{name: "a short label's ◆", n: accountName{label: "personal", primary: true}, column: 21, want: "personal           ◆"},
+		{name: "a short label's ◆, a cell in", n: accountName{label: "personal", primary: true}, column: 21, from: 1, want: "personal          ◆"},
+		{name: "the longest label's ▲", n: accountName{label: "side-account-long", best: true}, column: 21, want: "side-account-long  ▲"},
+		{name: "the longest label's ▲, a cell in", n: accountName{label: "side-account-long", best: true}, column: 21, from: 1, want: "side-account-long ▲"},
+		{name: "both marks as one", n: accountName{label: "personal", primary: true, best: true}, column: 21, want: "personal         ◆ ▲"},
+		{name: "both marks as one, a cell in", n: accountName{label: "personal", primary: true, best: true}, column: 21, from: 1, want: "personal        ◆ ▲"},
+		{name: "a cut label keeps its marks", n: accountName{label: "side-account-long", primary: true, best: true}, column: 14, want: "side-ac…  ◆ ▲"},
+		{name: "a cut label keeps its marks, a cell in", n: accountName{label: "side-account-long", primary: true, best: true}, column: 14, from: 1, want: "side-ac… ◆ ▲"},
 		{name: "no marks, no padding", n: accountName{label: "work"}, column: 21, want: "work"},
-		{name: "out of the pool, the same", n: accountName{label: "personal", primary: true, out: true}, column: 21, want: "personal          ◆"},
+		{name: "no marks, no padding, a cell in", n: accountName{label: "work"}, column: 21, from: 1, want: "work"},
+		{name: "out of the pool, the same", n: accountName{label: "personal", primary: true, out: true}, column: 21, want: "personal           ◆"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := tt.n.line(tt.column)
+			got := tt.n.lineFrom(tt.column, tt.from)
 			if got.plain() != tt.want {
-				t.Errorf("in a %d-cell column the name reads %q, want %q", tt.column, got.plain(), tt.want)
+				t.Errorf("from cell %d of a %d-cell column the name reads %q, want %q", tt.from, tt.column, got.plain(), tt.want)
 			}
 			if tt.n.primary || tt.n.best {
-				if end := got.width() + nameGap; end != tt.column {
-					t.Errorf("its marks end %d cells before the column's end, want nameGap's %d", tt.column-got.width(), nameGap)
+				if apart := tt.column - tt.from - got.width(); apart != 1 {
+					t.Errorf("its marks end %d cells before what follows, want 1", apart)
 				}
 			}
 		})
@@ -531,9 +539,10 @@ func TestAColumnsMarksStandRightAlignedAtItsEnd(t *testing.T) {
 
 // The helpers Detail's list, History's rows, turned Compare's rows and a
 // session's stays draw their names with lay them out as a column of names
-// does, their marks
-// right-aligned at its end; the stays' cutting a label to keep its own marks
-// alone, as before. The frames hold the views themselves to it.
+// does, their marks right-aligned to end a cell before what follows it,
+// nameGap after the label's room, or turned Compare's turnedApart; the
+// stays' cutting a label to keep its own marks alone, as before. The frames
+// hold the views themselves to it.
 func TestEveryColumnOfNamesRightAlignsItsMarks(t *testing.T) {
 	n := accountName{label: "personal", primary: true}
 	tests := []struct {
@@ -541,11 +550,11 @@ func TestEveryColumnOfNamesRightAlignsItsMarks(t *testing.T) {
 		got  line
 		want string
 	}{
-		{name: "History's", got: historyAccount("personal", true, 12), want: "personal   ◆"},
-		{name: "turned Compare's, a primary shorter than another's", got: turnedName(compareColumn{account: status.AccountNow{ID: "work", Label: "work", Primary: true}}, 10), want: "work     ◆"},
-		{name: "a session's stays", got: n.filled(14), want: "personal   ◆"},
-		{name: "a session's stays, cut", got: accountName{label: "personal-research", primary: true}.filled(12), want: "persona… ◆"},
-		{name: "Detail's list", got: accountName{label: "personal", primary: true, unrouted: true}.line(14), want: "personal   ◆"},
+		{name: "History's", got: historyAccount("personal", true, 12, markedCells(12+nameGap, 0)), want: "personal    ◆"},
+		{name: "turned Compare's, a primary shorter than another's", got: turnedName(compareColumn{account: status.AccountNow{ID: "work", Label: "work", Primary: true}}, 10), want: "work      ◆"},
+		{name: "a session's stays", got: n.filled(14), want: "personal    ◆"},
+		{name: "a session's stays, cut", got: accountName{label: "personal-research", primary: true}.filled(12), want: "persona…  ◆"},
+		{name: "Detail's list", got: accountName{label: "personal", primary: true, unrouted: true}.line(14), want: "personal    ◆"},
 	}
 	for _, tt := range tests {
 		if tt.got.plain() != tt.want {
@@ -681,7 +690,7 @@ func TestALoneAccountCarriesTheBestsMarkAndTheHeaderNamesItWhateverItsRoom(t *te
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			rows := printed(trio(func(d *status.Document) { d.Accounts = d.Accounts[:1] }, tt.change), 160, ByWindow)
-			if got, want := colAt(rows[4], 0, 7), "work ▲ "; got != want {
+			if got, want := colAt(rows[4], 0, 7), "work  ▲"; got != want {
 				t.Errorf("the lone account's row starts %q, want %q", got, want)
 			}
 			if want := "new sessions → ▲ work"; !strings.HasSuffix(rows[0], want) {
@@ -1545,7 +1554,7 @@ func TestAProbedPrintoutMarksNoneOfSeveralAccountsAsWhereNewSessionsGo(t *testin
 		t.Errorf("a probed printout of three accounts marks one ▲:\n%s", strings.Join(rows, "\n"))
 	}
 	lone := trio(probed, func(d *status.Document) { d.Accounts = d.Accounts[:1] })
-	if got, want := colAt(printed(lone, 160, ByWindow)[4], 0, 7), "work ▲ "; got != want {
+	if got, want := colAt(printed(lone, 160, ByWindow)[4], 0, 7), "work  ▲"; got != want {
 		t.Errorf("a probed printout's lone account's row starts %q, want %q, as there's nowhere else new sessions go", got, want)
 	}
 }
@@ -1561,7 +1570,7 @@ func TestUSAGEAgreesWithTheMomentAtEachHardMoment(t *testing.T) {
 			b := newUsageBlock(m, 160, Look{}, ByWindow, usageWindows(m.Listed(true), labelsOf(m)))
 			for i, a := range m.Accounts {
 				row := b.rows[i]
-				if marked := strings.Contains(row.name.plain(), "▲"); marked != a.Next {
+				if marked := strings.Contains(b.name(row).plain(), "▲"); marked != a.Next {
 					t.Errorf("%s's row is marked ▲ %t, want %t, as the moment's Next is %q", a.ID, marked, a.Next, m.Next)
 				}
 				for j, shown := range b.windows {

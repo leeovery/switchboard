@@ -90,8 +90,8 @@ func TestROUTINGsFormsLayItsRowsOut(t *testing.T) {
 			name: "size 1: a row an account, the caption under the last", width: 120, rows: 4,
 			want: []string{
 				traced(wide("work", work, "0 sessions")),
-				traced(wide("personal   ◆", personal, "2 sessions")),
-				traced(wide("side       ▲", side, "4 sessions")),
+				traced(wide("personal    ◆", personal, "2 sessions")),
+				traced(wide("side        ▲", side, "4 sessions")),
 				caption,
 			},
 		},
@@ -99,8 +99,8 @@ func TestROUTINGsFormsLayItsRowsOut(t *testing.T) {
 			name: "size 2: two rows of trace an account, its rate on the second, and a blank row, the caption on the last", width: 120, rows: 9,
 			want: []string{
 				textsAt(120, wide("work", work, "0 sessions")), traced(map[int]string{}), "",
-				textsAt(120, wide("personal   ◆", personal, "2 sessions")), traced(map[int]string{}), "",
-				textsAt(120, wide("side       ▲", side, "4 sessions")), traced(map[int]string{}),
+				textsAt(120, wide("personal    ◆", personal, "2 sessions")), traced(map[int]string{}), "",
+				textsAt(120, wide("side        ▲", side, "4 sessions")), traced(map[int]string{}),
 				caption,
 			},
 		},

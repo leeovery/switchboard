@@ -309,10 +309,11 @@ func TestDaysKeyScrollsWithTheStripsAtTheViewsLeast(t *testing.T) {
 		name          string
 		width, height int
 		rows, held    int
+		named         string
 	}{
-		{name: "narrow, at its least", width: 52, height: 14, rows: 3},
-		{name: "narrow, a row taller", width: 52, height: 15, rows: 4, held: 2},
-		{name: "wide, at its least", width: 160, height: 11, rows: 3, held: 1},
+		{name: "narrow, at its least", width: 52, height: 14, rows: 3, named: "personal ◆"},
+		{name: "narrow, a row taller", width: 52, height: 15, rows: 4, held: 2, named: "personal ◆"},
+		{name: "wide, at its least", width: 160, height: 11, rows: 3, held: 1, named: "personal  ◆"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -341,7 +342,7 @@ func TestDaysKeyScrollsWithTheStripsAtTheViewsLeast(t *testing.T) {
 				}
 				scroll = next
 			}
-			for _, row := range []string{"BY MODEL", "● Opus", "● Haiku", "BY ACCOUNT", "work", "personal ◆", "side", "less ", daysLimitNote} {
+			for _, row := range []string{"BY MODEL", "● Opus", "● Haiku", "BY ACCOUNT", "work", tt.named, "side", "less ", daysLimitNote} {
 				if !slices.ContainsFunc(seen, func(s string) bool { return strings.Contains(s, row) }) {
 					t.Errorf("paged down as far as it goes, Days never shows a row with %q", row)
 				}
@@ -460,9 +461,9 @@ func TestDaysNamesEachAccount(t *testing.T) {
 		whole   bool
 	}{
 		{name: "by its label", account: views.DaysStrip{Of: "work", Label: "Work", Days: stripOf(busy)}, width: 160, want: "Work "},
-		{name: "the primary marked", account: views.DaysStrip{Of: "work", Label: "Work", Primary: true, Days: stripOf(busy)}, width: 160, want: "Work   ◆ "},
+		{name: "the primary marked", account: views.DaysStrip{Of: "work", Label: "Work", Primary: true, Days: stripOf(busy)}, width: 160, want: "Work    ◆ "},
 		{name: "cut beside its strip", account: long, width: 160, want: "a-long-account-name-for…  "},
-		{name: "cut, keeping its ◆", account: views.DaysStrip{Of: long.Of, Primary: true, Days: long.Days}, width: 160, want: "a-long-account-name-for… ◆  "},
+		{name: "cut, keeping its ◆", account: views.DaysStrip{Of: long.Of, Primary: true, Days: long.Days}, width: 160, want: "a-long-account-name-for…  ◆ "},
 		{name: "narrow, cut before its count", account: long, width: 52, want: "a-long-account-name-for…    12 5-hour limits", whole: true},
 		{name: "narrower still, its count kept", account: long, width: 40, want: "a-long-ac…   12 5-hour limits", whole: true},
 		{name: "narrower than its count and a letter, the count at the edge", account: long, width: 22, want: "a…   12 5-hour limits", whole: true},

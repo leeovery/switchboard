@@ -1289,7 +1289,9 @@ func TestAnAccountsRowMeasuresTheWindowsTheSessionUsed(t *testing.T) {
 }
 
 // An account's row keeps every part in its column, the blanks between
-// them blank, and its worth whole at the right, stayGap cells after what
+// them blank but for the name's marks, which end a cell into the gap after
+// it, a cell before what follows, as a column of names has them; and its
+// worth whole at the right, stayGap cells after what
 // comes before it, its points past their most, 1,234 of every window, or of
 // the widest alone, and its requests and worth at their most and past it,
 // saying so, "99,999+ requests" and "$9999.99+", never cut: at every width,
@@ -1324,7 +1326,11 @@ func TestAnAccountsPartsKeepToTheirColumns(t *testing.T) {
 						t.Errorf("%s, %s, at %d columns, an account's requests read %q, want %q", tt.name, world.name, width, got, tt.said[0])
 					}
 					for c, col := range d.stayColumns[:len(d.stayColumns)-1] {
-						if gap := string(row[col.x+col.width : d.stayColumns[c+1].x]); strings.TrimSpace(gap) != "" {
+						from := col.x + col.width
+						if col.part == stayName && strings.ContainsRune("◆▲", row[from]) {
+							from++
+						}
+						if gap := string(row[from:d.stayColumns[c+1].x]); strings.TrimSpace(gap) != "" {
 							t.Errorf("%s, %s, at %d columns, an account's row reads %q, part %d running past its column into %q", tt.name, world.name, width, said, col.part, gap)
 						}
 					}

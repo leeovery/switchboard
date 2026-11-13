@@ -18,7 +18,7 @@ var laneHead = regexp.MustCompile(`^[^ █▒─│]+( [^ █▒─│]+)*( +[�
 // row, with no name or marks. Every lane row drawn is headed by one of the labels, and
 // each label heads one.
 func TestRunwaysLabelsReadWholeAtTheOwnersSizes(t *testing.T) {
-	frames := []string{"work", "personal   ◆", "side       ▲"}
+	frames := []string{"work", "personal    ◆", "side        ▲"}
 	tests := []struct {
 		name  string
 		heads []string
@@ -28,10 +28,10 @@ func TestRunwaysLabelsReadWholeAtTheOwnersSizes(t *testing.T) {
 		{
 			name: "runway-ten-accounts-160",
 			heads: []string{
-				"work", "personal   ◆", "side       ▲", "client", "spare", "lab", "team", "extra", "ops", "studio",
+				"work", "personal    ◆", "side        ▲", "client", "spare", "lab", "team", "extra", "ops", "studio",
 			},
 		},
-		{name: "long-names-runway", heads: []string{"work-team-plan", "personal-research      ◆", "side-hustle-consulting ▲"}},
+		{name: "long-names-runway", heads: []string{"work-team-plan", "personal-research       ◆", "side-hustle-consulting  ▲"}},
 		{name: "runway-collapsed-160", heads: []string{"", "", ""}},
 	}
 	for _, tt := range tests {
