@@ -45,8 +45,13 @@ const (
 )
 
 // BeforePoolsSaid says why a router from before pools, as BeforePools has
-// it, isn't read as a pool's, nor asked to act on one, and what to do.
-const BeforePoolsSaid = "the router doesn't route by pools yet, as it started before them: restart it with switchboard service restart"
+// it, isn't read as a pool's, nor asked to act on one, and what to do; and
+// StartedBeforePools says so short, for the dashboard, whose LATELY and
+// refusals say it where a phone's key line has room for no more.
+const (
+	BeforePoolsSaid    = "the router doesn't route by pools yet, as it started before them: restart it with switchboard service restart"
+	StartedBeforePools = "the router started before pools: restart it"
+)
 
 // BeforePools reports whether a router answering, reporting the pools it
 // routes by or not as reportsPools says, is one from before pools where the
@@ -382,11 +387,11 @@ type Fallback struct {
 }
 
 // Refusal is why the router, found as f has it while it isn't read, can't
-// be given an order: ErrBeforePools for a router from before pools, which
-// answers, else ErrNoRouter.
+// be given the dashboard's order: ErrStartedBeforePools for a router from
+// before pools, which answers, else ErrNoRouter.
 func (f Fallback) Refusal() error {
 	if f.Router == RouterBeforePools {
-		return ErrBeforePools
+		return ErrStartedBeforePools
 	}
 	return ErrNoRouter
 }

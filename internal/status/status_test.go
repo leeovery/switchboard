@@ -1886,7 +1886,7 @@ func TestARouterNotReadRefusesAnOrderInItsStatesWords(t *testing.T) {
 		fallback status.Fallback
 		want     error
 	}{
-		{fallback: status.Fallback{Router: status.RouterBeforePools}, want: status.ErrBeforePools},
+		{fallback: status.Fallback{Router: status.RouterBeforePools}, want: status.ErrStartedBeforePools},
 		{fallback: status.Fallback{Router: status.RouterNotRunning}, want: status.ErrNoRouter},
 		{fallback: status.Fallback{Router: status.RouterUnhealthy, Reason: "no answer within 5s"}, want: status.ErrNoRouter},
 		{want: status.ErrNoRouter},

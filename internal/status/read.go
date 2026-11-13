@@ -15,8 +15,13 @@ const FreshFor = time.Minute
 var ErrNoRouter = errors.New("the router isn't answering")
 
 // ErrBeforePools is what asking a router from before pools to act on a
-// pool fails with, saying why, as BeforePoolsSaid does.
-var ErrBeforePools = errors.New(BeforePoolsSaid)
+// pool fails with, saying why, as BeforePoolsSaid does; and
+// ErrStartedBeforePools what the dashboard's orders fail with, as
+// StartedBeforePools says it short.
+var (
+	ErrBeforePools        = errors.New(BeforePoolsSaid)
+	ErrStartedBeforePools = errors.New(StartedBeforePools)
+)
 
 // A Read is what a read of the status document asks for.
 type Read struct {

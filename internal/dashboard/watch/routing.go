@@ -51,8 +51,8 @@ type costedMsg struct {
 // picking what the pin standing names, as picks says, the cursor on the
 // first picked, and m clear. While the router doesn't answer, it opens
 // nothing, the key line saying why in its place, as the document's fallback
-// has it; nor on a session's page not
-// yet built, which names no session to route.
+// has it; nor on a session's page not yet built, which names no session to
+// route.
 func (m Model) openRouting() (tea.Model, tea.Cmd) {
 	switch key, listed := m.pinKey(); {
 	case !listed:

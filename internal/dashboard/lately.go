@@ -146,7 +146,7 @@ func (f Frame) quiet(m status.Moment) line {
 	case m.Fallback.Router == status.RouterUnhealthy:
 		return line{{"the router isn't answering", dimInk}}
 	case m.Fallback.Router == status.RouterBeforePools:
-		return line{{"the router started before pools: restart it", dimInk}}
+		return line{{status.StartedBeforePools, dimInk}}
 	default:
 		return line{{"none while probing, as asked", dimInk}}
 	}
