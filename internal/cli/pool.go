@@ -180,7 +180,7 @@ started in, and that pool's accounts, till it's resumed.
 func poolAddedSays(out io.Writer, added config.Pool) error {
 	var running string
 	if added.Fenced() {
-		running = ": " + runningKeepTheirPool
+		running = "; " + runningKeepTheirPool
 	}
 	_, err := fmt.Fprintf(out, "added pool %s as %s, %s%s\n", prose.Quoted(prose.Clean(added.Label)), added.ID, fenceSaid(added), running)
 	return err
@@ -294,7 +294,9 @@ func poolChangeOf(given func(name string) bool, label string, dirs []string, unf
 }
 
 // poolEditedSays says what an edit changed of a pool, each value as it is
-// now, then as it was, or that it changed nothing.
+// now, then as it was, and where it fenced it anew, that the sessions
+// running in its directories keep their pool, as runningKeepTheirPool
+// says; or that it changed nothing.
 func poolEditedSays(e accounts.EditedPool) string {
 	if !e.Changed() {
 		return "pool " + e.Now.ID + " has every value given already, so nothing changed"
@@ -303,10 +305,14 @@ func poolEditedSays(e accounts.EditedPool) string {
 	if e.Was.Label != e.Now.Label {
 		changed = append(changed, nowAndWas("label", prose.Quoted(prose.Clean(e.Now.Label)), prose.Quoted(prose.Clean(e.Was.Label))))
 	}
+	var running string
 	if !slices.Equal(e.Was.WrittenDirs, e.Now.WrittenDirs) {
 		changed = append(changed, fenceSaid(e.Now)+" (was "+fenceSaid(e.Was)+")")
+		if e.Now.Fenced() {
+			running = "; " + runningKeepTheirPool
+		}
 	}
-	return "edited pool " + e.Now.ID + ": " + strings.Join(changed, ", ")
+	return "edited pool " + e.Now.ID + ": " + strings.Join(changed, ", ") + running
 }
 
 func newPoolRemoveCommand(a *app) *cobra.Command {
