@@ -357,8 +357,12 @@ func (a *app) accountsPool(named string) (string, error) {
 
 // inPoolOf names the pool with the given id, as " in pool Acme", where
 // there's more than one, as poolsStanding counts them and poolNamed names it:
-// "" where there's one or none.
+// "" where there's one or none, and for "", no pool, as of an account added
+// to a config naming none.
 func (a *app) inPoolOf(ctx context.Context, id string) string {
+	if id == "" {
+		return ""
+	}
 	pools := a.poolsStanding(ctx)
 	return inPoolNamed(pools, poolLabel(pools, id))
 }
@@ -546,7 +550,7 @@ func (a *app) editAccount(cmd *cobra.Command, id string, flags editFlags) error 
 	if err != nil {
 		return a.notConfigured(labelRemedy(err), id, findTheID)
 	}
-	said := editedSays(edited) + leftSays(edited)
+	said := editedSays(edited) + a.leftSays(edited, registry.Tokens.Read)
 	if edited.FormerPrimary != "" {
 		said += a.runningSessions(edited, registry.Tokens.Read)
 		warnNoToken(cmd.ErrOrStderr(), id, registry.Tokens.Read)
@@ -758,19 +762,46 @@ func emptiedSays(left accounts.Left) string {
 }
 
 // leftSays says, on lines of their own, what moving the account an edit
-// moved into another pool did to the pool it left, as e's Left tells it:
-// where it was the primary there, which account is now, and that the
-// sessions running there, started on its token as Claude Code's own, are
-// refused once it has left, so each must be resumed; or that the pool has
-// no accounts now. It's "" where the edit moved it from no pool's primary.
-func leftSays(e accounts.Edited) string {
+// moved into another pool did to the pool it left, as e's Left tells it,
+// the tokens as readToken finds them: where it was the primary there, which
+// account is now; and, where its token is usable, so sessions may have
+// started on it, that those running on it are refused once it has left, and
+// which account's token they start on resumed, as a launch in the pool
+// would choose it now (launch.Route's OwnAccount). Or that the pool has no
+// accounts now. It's "" where the edit moved it from no pool's primary.
+func (a *app) leftSays(e accounts.Edited, readToken func(id string) (tokens.Token, error)) string {
 	if e.Left.Primary == "" {
 		return emptiedSays(e.Left)
 	}
 	pool := prose.Pool(poolLabel(e.Before.Pools, e.Was.Pool))
-	return "\n" + e.Left.Primary + " is " + pool + "'s primary now; the sessions running in " + pool + " started on " + e.Now.ID +
-		"'s token as Claude Code's own, so the router refuses each now it has left the pool: resume them, and they start on " +
-		e.Left.Primary + "'s"
+	said := "\n" + e.Left.Primary + " is " + pool + "'s primary now"
+	if _, err := readToken(e.Now.ID); err != nil {
+		return said
+	}
+	said += "; the sessions running on " + e.Now.ID + "'s token as Claude Code's own are refused now it has left the pool"
+	own, ok := launch.Route{Config: leftConfig(e), Token: readToken, Pause: a.Pause}.OwnAccount()
+	switch {
+	case !ok:
+		return said + ", and no account left there has a usable token to resume them on (switchboard accounts token " + e.Left.Primary + ")"
+	case own.ID == e.Left.Primary:
+		return said + ": resume them, and they start on " + own.ID + "'s"
+	}
+	return said + ": resume them, and they start on " + own.ID + "'s, the first account there with a usable token, as " +
+		e.Left.Primary + " has none"
+}
+
+// leftConfig is the config of the pool the account an edit moved left, as
+// the edit leaves it: its accounts but the one moved, the primary Left
+// names marked.
+func leftConfig(e accounts.Edited) *config.Config {
+	var left config.Accounts
+	for _, acct := range e.Before.Accounts.InPool(e.Was.Pool) {
+		if acct.ID != e.Now.ID {
+			acct.Primary = acct.ID == e.Left.Primary
+			left = append(left, acct)
+		}
+	}
+	return &config.Config{Accounts: left}
 }
 
 // primaryNow says which account is the primary now the one with the given

@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/identity"
 )
 
 // personalAndSidePooled are personalAndSide, personal in Default, unfenced,
@@ -309,29 +310,42 @@ func TestAccountsEditMovesAnAccountToAPoolAndMakesItItsPrimary(t *testing.T) {
 }
 
 // Moving a pool's primary into another pool says which account is the
-// primary of the pool it left now, and that the sessions running there,
-// started on its token, must be resumed; moving its last says the pool has
+// primary of the pool it left now; and, where its token is usable, that the
+// sessions running on it are refused, and which account's token they start
+// on resumed, as a launch would choose it. Moving its last says the pool has
 // none now, as removing it does.
 func TestAccountsEditSaysWhatMovingAnAccountLeftOfItsPool(t *testing.T) {
-	sideAndWorkInAcme := strings.Replace(personalAndSidePooled, "[[pool]]", "[[account]]\nid    = \"work\"\nlabel = \"Work\"\npool  = \"q7mt\"\n\n[[pool]]", 1)
+	inAcme := strings.Replace(personalAndSidePooled, "[[pool]]", "[[account]]\nid    = \"work\"\nlabel = \"Work\"\npool  = \"q7mt\"\n\n"+
+		"[[account]]\nid    = \"spare\"\nlabel = \"Spare\"\npool  = \"q7mt\"\n\n[[pool]]", 1)
+	const now = "edited side: pool Default (was Acme)\nwork is pool Acme's primary now"
+	const refused = "; the sessions running on side's token as Claude Code's own are refused now it has left the pool"
 	tests := []struct {
-		name, accounts, want string
+		name, accounts string
+		tokens         []string
+		want           string
 	}{
-		{name: "its primary", accounts: sideAndWorkInAcme, want: "edited side: pool Default (was Acme)\n" +
-			"work is pool Acme's primary now; the sessions running in pool Acme started on side's token as Claude Code's own, " +
-			"so the router refuses each now it has left the pool: resume them, and they start on work's\n"},
-		{name: "its last", accounts: personalAndSidePooled, want: "edited side: pool Default (was Acme)\n" +
+		{name: "its primary, each with a token", accounts: inAcme, tokens: []string{"side", "work", "spare"},
+			want: now + refused + ": resume them, and they start on work's\n"},
+		{name: "its primary, the next without one", accounts: inAcme, tokens: []string{"side", "spare"},
+			want: now + refused + ": resume them, and they start on spare's, the first account there with a usable token, as work has none\n"},
+		{name: "its primary, none left with one", accounts: inAcme, tokens: []string{"side"},
+			want: now + refused + ", and no account left there has a usable token to resume them on (switchboard accounts token work)\n"},
+		{name: "its primary, without a token, so none started on it", accounts: inAcme, tokens: []string{"work"}, want: now + "\n"},
+		{name: "its last", accounts: personalAndSidePooled, tokens: []string{"side"}, want: "edited side: pool Default (was Acme)\n" +
 			"pool Acme has no accounts now: its sessions aren't routed until one is added to it (switchboard accounts add <label> --pool q7mt)\n"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			deps, _ := accountsDeps(t, "http://127.0.0.1:1", tt.accounts)
+			for _, id := range tt.tokens {
+				writeToken(t, deps, id, "test-token-"+id)
+			}
 			if got := run(t, deps, "accounts", "edit", "side", "--pool", "b2n8"); got != (result{stdout: tt.want}) {
 				t.Errorf("switchboard accounts edit side --pool b2n8 = %+v, want it to print\n%s", got, tt.want)
 			}
 		})
 	}
-	deps, _ := accountsDeps(t, "http://127.0.0.1:1", sideAndWorkInAcme)
+	deps, _ := accountsDeps(t, "http://127.0.0.1:1", inAcme)
 	if got, want := run(t, deps, "accounts", "edit", "work", "--pool", "b2n8"), (result{stdout: "edited work: pool Default (was Acme)\n"}); got != want {
 		t.Errorf("switchboard accounts edit work --pool b2n8 = %+v, want %+v: work wasn't Acme's primary, nor its last", got, want)
 	}
@@ -377,6 +391,31 @@ func TestAccountsTakeAPoolGivenEmptyAsNoneAndRefuseOneNotConfigured(t *testing.T
 	}
 	if readFile(t, path) != before {
 		t.Errorf("the config reads\n%s\nwant it as it was", readFile(t, path))
+	}
+}
+
+// An account added to a config that has lost its pools once the move is
+// done, its pool written none, is said added in no pool, though the record
+// keeps two.
+func TestAccountsAddToAConfigThatLostItsPoolsNamesNoPool(t *testing.T) {
+	api := newOrganizationsAPI(t)
+	deps, _ := accountsDeps(t, api.URL, personalAndSide)
+	writeToken(t, deps, "personal", personalsToken)
+	state := stateDir(t, deps)
+	markMoved(t, state)
+	err := identity.NewFile(state).Update(func(r *identity.Record) error {
+		r.Pools = []identity.PoolEntry{
+			{ID: "b2n8", Added: testNow, First: true, Here: true, Written: identity.PoolWritten{Label: "Default"}},
+			{ID: "q7mt", Added: testNow, Here: true, Written: identity.PoolWritten{Label: "Acme", Dirs: []string{"/work/acme"}}},
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := runWithInput(t, deps, madeWork+"\n", "accounts", "add", "Work")
+	if m := addedAccount.FindStringSubmatch(got.stdout); got.code != 0 || m == nil || m[2] != "" {
+		t.Errorf("switchboard accounts add Work = %+v, want it added, naming no pool", got)
 	}
 }
 
