@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.1] - 2026-11-13
+
+Runway and Graphs now chart the week only, and Runway gains a LATELY history of what befell your accounts.
+
+💥 Breaking
+- Runway's 5-hour view and the `<`/`>` window keys are gone, and Graphs' 5-HOUR section and its `f` key are gone — use the week view; a kept 5-hour setting is ignored.
+
+✨ Added
+- LATELY on Runway — shows caps, limits, refused tokens, pressure and room-again events from the past week, beside or under COMING UP where there is room.
+- Sessions are named by their directory in LATELY and event details, and session lists show the directory beside the id in SESSIONS and Accounts' Detail.
+- Events from the router now carry the session's directory, so pins and moves keep their names.
+
+🔧 Changed
+- Graphs' WEEK cards sit at most two across and at equal width, so the same burn draws the same slope on every card.
+- GLANCE and WHEN YOU WORK grow with the terminal width and share spare space, with square hour cells in WHEN YOU WORK.
+- `switchboard status --session` prints the account's label rather than its id; `--json` still uses ids.
+- Account names and marks line up in one column across the Overview's USAGE, ROUTING and SESSIONS.
+- With Runway's account column collapsed, lanes start at the left edge and each use sits under its lane's start.
+- Times a week back in LATELY and pressure notes show their date, such as "5 Nov 15:00", instead of a weekday that reads as today.
+- A kept section list naming only unknown or retired sections now opens on the default sections.
+
+🐛 Fixed
+- Runway's "now" label no longer gets cut off when now's column is the first.
+
 ## [0.7.0] - 2026-11-11
 
 Accounts are now identified by ids switchboard makes from each subscription, with a label every screen shows.
