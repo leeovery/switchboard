@@ -11,10 +11,11 @@ import (
 )
 
 var (
-	// ErrNoPools is what adding a pool to a config from before pools fails
-	// with: the router makes the first pool as it moves the history to
-	// pools, and a pool added before would take every account in.
-	ErrNoPools = errors.New("the config has no pools yet: the router makes the first as it moves the history to pools, and pools are added after")
+	// ErrNoPools is what adding a pool to a config naming none fails with: the
+	// router writes the first into it as it moves the history to pools, and
+	// the pools it routes for, as the move left them, as it starts on a
+	// config that lost them; a pool added before would take every account in.
+	ErrNoPools = errors.New("the config names no pools: the router writes them into it, the first as it moves the history to pools, and pools are added after")
 	// ErrNoPoolLabel is what adding a pool without a label fails with: every
 	// pool has one.
 	ErrNoPoolLabel = errors.New("a pool needs a label")

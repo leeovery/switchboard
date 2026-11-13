@@ -82,7 +82,7 @@ serve).
 				err = writeJSON(out, doc)
 			} else {
 				m := a.withRemoved(doc).At(a.Now(), claude.Policy())
-				_, err = io.WriteString(out, a.unrouted()+a.momentHeading(m)+m.Text(a.running(cmd.Context(), m)...))
+				_, err = io.WriteString(out, a.unrouted()+a.momentHeading(cmd.Context(), m)+m.Text(a.running(cmd.Context(), m)...))
 			}
 			return cmp.Or(err, unread)
 		},
@@ -96,14 +96,11 @@ serve).
 }
 
 // momentHeading names the pool the moment is of, as poolHeading heads a
-// verb's text with it: "" where the config has one pool or none, or can't be
-// loaded, as where the router's document is printed in its place.
-func (a *app) momentHeading(m status.Moment) string {
-	cfg, err := a.loadConfig()
-	if err != nil {
-		return ""
-	}
-	return poolHeading(poolNamed(cfg.Pools, m.PoolLabel))
+// verb's text with it: "" where there's one pool or none, as poolsStanding
+// counts them, as where the config can't be loaded, and the router's
+// document is printed in its place.
+func (a *app) momentHeading(ctx context.Context, m status.Moment) string {
+	return poolHeading(poolNamed(a.poolsStanding(ctx), m.PoolLabel))
 }
 
 // unrouted says, in a paragraph of a line, when the claude a shell runs from

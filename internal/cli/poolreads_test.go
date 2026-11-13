@@ -8,12 +8,67 @@ import (
 	"testing"
 
 	"github.com/leeovery/switchboard/internal/identity"
+	"github.com/leeovery/switchboard/internal/launch"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/readings"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
+
+// A config naming no pools once the move is done, the router down, has the
+// verbs that probe, count or list pools take them as the record keeps them,
+// as those reading the files do: the probe narrowed to the pool asked, one
+// not among them refused, and the pool named once there's a second.
+func TestTheVerbsProbingCountingOrListingPoolsTakeThemAsTheyStand(t *testing.T) {
+	deps := unpooledDeps(t, unpooledConfig, true)
+	probed := []struct {
+		args []string
+		want []string
+		pool string
+	}{
+		{args: nil, want: []string{"side"}, pool: "b2n8"},
+		{args: []string{"--pool", "q7mt"}, want: []string{"work"}, pool: "q7mt"},
+	}
+	for _, tt := range probed {
+		got := run(t, deps, append([]string{"status", "--probe", "--json"}, tt.args...)...)
+		var doc status.Document
+		if err := json.Unmarshal([]byte(got.stdout), &doc); err != nil {
+			t.Fatalf("switchboard status --probe --json %s = %+v: %v", strings.Join(tt.args, " "), got, err)
+		}
+		var ids []string
+		for _, a := range doc.Accounts {
+			ids = append(ids, a.ID)
+		}
+		if !slices.Equal(ids, tt.want) || doc.PoolID != tt.pool {
+			t.Errorf("switchboard status --probe --json %s probed %q in pool %q, want %q in %q", strings.Join(tt.args, " "), ids, doc.PoolID, tt.want, tt.pool)
+		}
+	}
+	if got := run(t, deps, "status", "--probe", "--json", "--pool", "z5k2"); got.code == 0 || !strings.Contains(got.stderr, `there's no pool "z5k2"`) {
+		t.Errorf("switchboard status --probe --pool z5k2 = %+v, want it refused, naming the pools", got)
+	}
+	headed := []struct {
+		args []string
+		want string
+	}{
+		{args: []string{"status", "--probe", "--pretty", "--pool", "q7mt"}, want: "pool Acme\n\n"},
+		{args: []string{"usage", "--probe", "--pretty", "--pool", "q7mt"}, want: "\npool Acme\n\n"},
+		{args: []string{"accounts"}, want: "POOL"},
+		{args: []string{"pool", "--pretty"}, want: "Acme"},
+	}
+	for _, tt := range headed {
+		if got := run(t, deps, tt.args...); got.code != 0 || !strings.Contains(got.stdout, tt.want) {
+			t.Errorf("switchboard %s = %+v, want it to print %q", strings.Join(tt.args, " "), got, tt.want)
+		}
+	}
+	none := unpooledDeps(t, unpooledConfig, false)
+	if got := run(t, none, "status", "--probe", "--json"); got.code == 0 || !strings.Contains(got.stderr, "can't tell which pool to read: "+launch.NoPoolsNamed) {
+		t.Errorf("switchboard status --probe, nothing naming the pools, = %+v, want it refused, probing none", got)
+	}
+	if got := run(t, none, "pool", "--pretty"); got.stdout != "no pools: "+launch.NoPoolsNamed+"\n" {
+		t.Errorf("switchboard pool --pretty, nothing naming the pools, = %+v, want it to say so", got)
+	}
+}
 
 // The dashboard reads the router's files of events of the pool it shows
 // alone, the one the verbs read with none named, so the Log's Events and

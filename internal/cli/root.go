@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/charmbracelet/x/term"
@@ -447,7 +448,7 @@ func (a *app) collect(ctx context.Context, probe bool, r status.Read, pool strin
 	if err != nil {
 		return nil, status.Document{}, err
 	}
-	doc, _, err := a.source(cfg, probe).inPool(pool).Read(ctx, r)
+	doc, _, err := a.source(ctx, cfg, probe).inPool(pool).Read(ctx, r)
 	return cfg, doc, poolFlagNeeded(err)
 }
 
@@ -476,14 +477,15 @@ func (a *app) statusDocument(ctx context.Context, probe bool, r status.Read, poo
 }
 
 // source returns where the status document is read for the config given: the
-// router, unless probe says to probe alone, else probing every account in the
-// config. Every command that reports usage reads it here, so they all read it
-// the same way.
-func (a *app) source(cfg *config.Config, probe bool) usageSource {
+// router, unless probe says to probe alone, else probing every account of the
+// pool read, the config's pools as they stand, as pooledConfig has them,
+// asked the first time they're probed. Every command that reports usage reads
+// it here, so they all read it the same way.
+func (a *app) source(ctx context.Context, cfg *config.Config, probe bool) usageSource {
 	source := a.routerSource()
 	source.probe = probeSource{
 		deps: a.Deps, readToken: a.readToken, tokenTaken: a.tokenTaken, upstream: cfg.Upstream,
-		accounts: cfg.Accounts, pools: cfg.Pools, prime: cfg.Prime,
+		pooled: sync.OnceValues(func() (*config.Config, error) { return a.pooledConfig(ctx, cfg) }), prime: cfg.Prime,
 	}
 	source.ask = !probe
 	return source

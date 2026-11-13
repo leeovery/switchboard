@@ -54,7 +54,7 @@ plan, pool, primary or reserve, replace its token, and remove it.`,
 			if err != nil {
 				return err
 			}
-			return writeTable(cmd.OutOrStdout(), accountRows(cfg, files.Read, a.foreignTokens(cmd.Context())))
+			return writeTable(cmd.OutOrStdout(), accountRows(a.standing(cmd.Context(), cfg), files.Read, a.foreignTokens(cmd.Context())))
 		},
 	}
 	cmd.AddCommand(newAccountsAddCommand(a), newAccountsEditCommand(a), newAccountsTokenCommand(a), newAccountsRemoveCommand(a))
@@ -324,7 +324,7 @@ func (a *app) addAccount(cmd *cobra.Command, account config.NewAccount, given ac
 	if !asked && contrary(given, added) {
 		launch.Notice(cmd.ErrOrStderr(), unusedAnswer(given, added))
 	}
-	said := "added " + prose.Quoted(account.Label) + " as " + added.ID + a.inPoolOf(account.Pool)
+	said := "added " + prose.Quoted(account.Label) + " as " + added.ID + a.inPoolOf(cmd.Context(), account.Pool)
 	if added.Returning {
 		said += ", an account this Mac had, so its history carries on"
 	}
@@ -353,15 +353,12 @@ func (a *app) accountsPool(named string) (string, error) {
 	return p.ID, poolFlagNeeded(err)
 }
 
-// inPoolOf names the pool with the given id, as " in pool Acme", where the
-// config has more than one, as poolNamed names it: "" where it has one or
-// none, or can't be loaded.
-func (a *app) inPoolOf(id string) string {
-	cfg, err := a.loadConfig()
-	if err != nil {
-		return ""
-	}
-	return inPoolNamed(cfg.Pools, poolLabel(cfg.Pools, id))
+// inPoolOf names the pool with the given id, as " in pool Acme", where
+// there's more than one, as poolsStanding counts them and poolNamed names it:
+// "" where there's one or none.
+func (a *app) inPoolOf(ctx context.Context, id string) string {
+	pools := a.poolsStanding(ctx)
+	return inPoolNamed(pools, poolLabel(pools, id))
 }
 
 // contrary reports whether given answers otherwise than the account was
@@ -843,7 +840,8 @@ func (a *app) foreignTokens(ctx context.Context) func(id string) bool {
 }
 
 // accountRows are the rows of accounts' table: each account cfg configures,
-// with its pool's label once there's a second pool.
+// cfg as its pools stand, as standing has it, with its pool's label once
+// there's a second pool.
 func accountRows(cfg *config.Config, readToken func(id string) (tokens.Token, error), foreign func(id string) bool) [][]string {
 	pooled := len(cfg.Pools) > 1
 	head := []string{"ID", "LABEL", "PRIMARY", "TOKEN"}

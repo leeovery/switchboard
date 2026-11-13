@@ -142,25 +142,21 @@ func (a *app) pinning(ctx context.Context, client *router.Client, accounts []str
 		if err != nil {
 			return "", err
 		}
-		return forced("routing automatically"+a.inPool(doc.At(a.Now(), claude.Policy())), opts.force), nil
+		return forced("routing automatically"+a.inPool(ctx, doc.At(a.Now(), claude.Policy())), opts.force), nil
 	}
 	doc, err := client.InPool(opts.pool).Pin(ctx, router.PinRequest{Accounts: accounts, Move: opts.move, Force: opts.force, By: router.ByCLI})
 	if err != nil {
 		return "", err
 	}
 	m := doc.At(a.Now(), claude.Policy())
-	return forced(pinned(m, a.inPool(m)), opts.force), nil
+	return forced(pinned(m, a.inPool(ctx, m)), opts.force), nil
 }
 
-// inPool names the pool the moment is of, as " in pool Acme", where the
-// config has more than one, as poolNamed names it: "" where it has one or
-// none, or can't be loaded.
-func (a *app) inPool(m status.Moment) string {
-	cfg, err := a.loadConfig()
-	if err != nil {
-		return ""
-	}
-	return inPoolNamed(cfg.Pools, m.PoolLabel)
+// inPool names the pool the moment is of, as " in pool Acme", where there's
+// more than one, as poolsStanding counts them and poolNamed names it: "" where
+// there's one or none.
+func (a *app) inPool(ctx context.Context, m status.Moment) string {
+	return inPoolNamed(a.poolsStanding(ctx), m.PoolLabel)
 }
 
 // pinSession pins the session given, by as much of its id as is unique, in

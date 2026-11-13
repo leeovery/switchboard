@@ -155,7 +155,7 @@ func (a *app) dashboard(ctx context.Context, out io.Writer, opts dashboardOption
 	// Without a home directory, a session's directory shows whole.
 	home, _ := a.HomeDir()
 	wc := watch.Config{
-		Source:        a.source(cfg, opts.probe),
+		Source:        a.source(ctx, cfg, opts.probe),
 		ProbeOnly:     opts.probe,
 		Notifier:      notifier,
 		Notifications: cfg.Notifications,

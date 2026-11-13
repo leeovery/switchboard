@@ -52,9 +52,33 @@ func askedPool(pools config.Pools, named string) (config.Pool, error) {
 func (a *app) pooledConfig(ctx context.Context, cfg *config.Config) (*config.Config, error) {
 	pooled, ok := launch.PoolsOf(cfg, a.poolsMoved(), func() router.Health { return a.routersHealth(ctx) }, a.keptPools)
 	if !ok {
-		return nil, errors.New("can't tell which pool's work to read: " + launch.NoPoolsNamed)
+		return nil, errors.New("can't tell which pool to read: " + launch.NoPoolsNamed)
 	}
 	return pooled, nil
+}
+
+// poolsStanding are the pools of the config as it loads now, as standing
+// has them, for a verb that counts or labels them: none where the config
+// can't be loaded.
+func (a *app) poolsStanding(ctx context.Context) config.Pools {
+	cfg, err := a.loadConfig()
+	if err != nil {
+		logger.Debug("can't load the config, so no pool is counted", "error", err)
+		return nil
+	}
+	return a.standing(ctx, cfg).Pools
+}
+
+// standing returns cfg as its pools stand, as pooledConfig has it, for a
+// verb that lists, counts or labels them: cfg as it is, naming none, where
+// they can't be told, so it lists none rather than refusing.
+func (a *app) standing(ctx context.Context, cfg *config.Config) *config.Config {
+	pooled, err := a.pooledConfig(ctx, cfg)
+	if err != nil {
+		logger.Debug("can't tell the pools, so none is counted", "error", err)
+		return cfg
+	}
+	return pooled
 }
 
 // filedPool is the pool a verb reads the recorded files of, as each line

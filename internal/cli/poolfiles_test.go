@@ -523,7 +523,7 @@ func TestTheVerbsReadingTheFilesTakeThePoolsOfAConfigNamingNoneAsALaunchDoes(t *
 // Where none of the config, the router and the accounts record names a pool
 // once the move is done, the verbs reading the files refuse, saying so.
 func TestTheVerbsReadingTheFilesRefuseWhereNothingNamesThePools(t *testing.T) {
-	const why = "can't tell which pool's work to read: neither the config, the router nor the accounts record names any pools"
+	const why = "can't tell which pool to read: neither the config, the router nor the accounts record names any pools"
 	for _, cfg := range []string{unpooledConfig, "[[account\n"} {
 		deps := unpooledDeps(t, cfg, false)
 		verbs := [][]string{{"events"}}

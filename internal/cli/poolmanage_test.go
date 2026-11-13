@@ -139,7 +139,7 @@ func TestPoolAddAndEditRefuse(t *testing.T) {
 		{name: "directories inside another pool's", accounts: unfencedBesideFenced, args: []string{"pool", "add", "Client", "/work/acme/api"},
 			want: "no directory may be the same as, inside or around another pool's"},
 		{name: "a pool added to a config from before pools", accounts: personalAndSide, args: []string{"pool", "add", "Client", "/work/client"},
-			want: "the config has no pools yet"},
+			want: "the config names no pools: the router writes them into it"},
 		{name: "unfencing a second pool", accounts: unfencedBesideFenced, args: []string{"pool", "edit", "q7mt", "--unfence"},
 			want: "Default (b2n8) is unfenced already, and only one pool can be"},
 		{name: "relabelling as another pool shows", accounts: unfencedBesideFenced, args: []string{"pool", "edit", "q7mt", "--label", "DEFAULT"},

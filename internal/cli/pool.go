@@ -11,6 +11,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/accounts"
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/launch"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 )
@@ -64,12 +65,12 @@ an agent's shell, it prints them as JSON, for an agent or a script to read.
 			if err != nil {
 				return err
 			}
-			listed := listPools(cfg)
+			listed := listPools(a.standing(cmd.Context(), cfg))
 			out := cmd.OutOrStdout()
 			if a.printsJSON(form, out) {
 				return writeJSON(out, poolsDocument{Pools: listed})
 			}
-			return writePools(out, listed)
+			return writePools(out, listed, a.noPools())
 		},
 	}
 	form.add(cmd)
@@ -77,8 +78,9 @@ an agent's shell, it prints them as JSON, for an agent or a script to read.
 	return cmd
 }
 
-// listPools are cfg's pools as pool lists them: none in a config from
-// before pools.
+// listPools are cfg's pools as pool lists them, cfg as its pools stand, as
+// pooledConfig has them: none in a config from before pools, or where none
+// can be told.
 func listPools(cfg *config.Config) []listedPool {
 	listed := []listedPool{}
 	for _, p := range cfg.Pools {
@@ -96,12 +98,22 @@ func listPools(cfg *config.Config) []listedPool {
 	return listed
 }
 
+// noPools says why there are no pools to list: before the move to pools, the
+// router makes the first as it moves the history; after it, none of the
+// config, the router or the accounts record names any.
+func (a *app) noPools() string {
+	if a.poolsMoved() {
+		return "no pools: " + launch.NoPoolsNamed
+	}
+	return "no pools: the router makes the first as it moves the history to pools"
+}
+
 // writePools writes the pools as pool's text: a row a pool, under its heads,
 // its directories joined, a dash for none, and its accounts, each by its id,
-// the primary marked; or says there are none.
-func writePools(out io.Writer, pools []listedPool) error {
+// the primary marked; or, where there are none, none as it says.
+func writePools(out io.Writer, pools []listedPool, none string) error {
 	if len(pools) == 0 {
-		_, err := fmt.Fprintln(out, "no pools: the router makes the first as it moves the history to pools")
+		_, err := fmt.Fprintln(out, none)
 		return err
 	}
 	rows := [][]string{{"ID", "LABEL", "DIRS", "ACCOUNTS"}}

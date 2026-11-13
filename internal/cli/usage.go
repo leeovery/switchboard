@@ -128,7 +128,7 @@ func (a *app) printUsage(ctx context.Context, out io.Writer, opts usageOptions) 
 		Name:    status.NameOfKey,
 	}.Draw(m)
 	logger.Debug("drew the printout", "width", width, "colors", colors.Profile.String())
-	if named := poolNamed(cfg.Pools, m.PoolLabel); named != "" {
+	if named := poolNamed(a.poolsStanding(ctx), m.PoolLabel); named != "" {
 		rows = append([]string{named, ""}, rows...)
 	}
 	_, err = io.WriteString(colors, "\n"+strings.Join(rows, "\n")+"\n")
