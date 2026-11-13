@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -16,6 +17,7 @@ import (
 	"github.com/leeovery/switchboard/internal/cli"
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard/watch"
+	"github.com/leeovery/switchboard/internal/filestate"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
@@ -314,18 +316,19 @@ func TestADashboardWhereNothingNamesThePoolsRefusesAPoolNamed(t *testing.T) {
 }
 
 // The dashboard reads the pool it shows again as the config changes: that
-// pool, as the config now has it, its label and pools counted; where it's
-// gone, the one P would turn to; and of none shown, as where every pool is
-// fenced, none again. Each is stamped as the config file stood, which a
-// change to it changes.
+// pool, as the config now has it, its label and pools counted, and every
+// account's placing in the pools, which a change to any of them changes;
+// where it's gone, the first, as P would turn to; and of none shown, as
+// where every pool is fenced, none again. Each is stamped as the config file
+// stood, which a change to it changes.
 func TestTheDashboardReadsThePoolItShowsAgainAsTheConfigChanges(t *testing.T) {
 	deps := pooledDeps(t, false)
 	cfg := recordWatch(t, &deps)
 	if got := run(t, deps, "dashboard", "--pool", "q7mt"); got != (result{}) {
 		t.Fatalf("switchboard dashboard --pool q7mt = %+v, want exit status 0 and nothing printed", got)
 	}
-	if cfg.ConfigStamp == nil || cfg.Stamp == "" || cfg.ConfigStamp() != cfg.Stamp {
-		t.Fatalf("the dashboard is stamped %q, the config standing %q; want them the same, as nothing changed", cfg.Stamp, cfg.ConfigStamp())
+	if cfg.ConfigStamp == nil || !cfg.Stamp.There() || !cfg.ConfigStamp().Same(cfg.Stamp) {
+		t.Fatal("the dashboard is stamped otherwise than the config stands, or not at all; want them the same, as nothing changed")
 	}
 	again := func(from string) watch.Pooled {
 		t.Helper()
@@ -335,13 +338,21 @@ func TestTheDashboardReadsThePoolItShowsAgainAsTheConfigChanges(t *testing.T) {
 		}
 		return pooled
 	}
+	if got := again("q7mt"); !got.Placed.Same(cfg.Placed) {
+		t.Error("read again with nothing changed, the accounts are placed otherwise; want them placed alike")
+	}
 
 	writeDepsConfig(t, deps, strings.Replace(pooledConfig(false), `label = "Acme"`, `label = "Acme Corp"`, 1))
-	if got := again("q7mt"); got.Pool.ID != "q7mt" || got.Pool.Label != "Acme Corp" || got.Stamp != cfg.ConfigStamp() || got.Stamp == cfg.Stamp {
-		t.Errorf("read again once Acme is relabelled, the dashboard shows %+v, stamped %q; want Acme Corp, stamped afresh", got.Pool, got.Stamp)
+	modified(t, configAt(t, deps), time.Date(2026, 10, 7, 9, 0, 0, 0, time.UTC))
+	got := again("q7mt")
+	if got.Pool.ID != "q7mt" || got.Pool.Label != "Acme Corp" || got.Placed.Same(cfg.Placed) {
+		t.Errorf("read again once Acme is relabelled, the dashboard shows %+v, placed alike %v; want Acme Corp, placed otherwise", got.Pool, got.Placed.Same(cfg.Placed))
+	}
+	if !got.Stamp.Same(cfg.ConfigStamp()) || got.Stamp.Same(cfg.Stamp) {
+		t.Error("read again once Acme is relabelled, the dashboard is stamped as before, or otherwise than the config stands; want it stamped afresh")
 	}
 	if got := again("x9z9"); got.Pool.ID != "b2n8" {
-		t.Errorf("read again once the pool shown is gone, the dashboard shows %q, want Default, as P would turn to", got.Pool.ID)
+		t.Errorf("read again once the pool shown is gone, the dashboard shows %q, want Default, the first", got.Pool.ID)
 	}
 
 	fenced := pooledDeps(t, true)
@@ -351,5 +362,48 @@ func TestTheDashboardReadsThePoolItShowsAgainAsTheConfigChanges(t *testing.T) {
 	}
 	if got, err := none.Turn(t.Context(), "", watch.SamePool); err != nil || got.Pool.ID != "" || got.Pool.Pools != 2 {
 		t.Errorf("with every pool fenced, none read again shows %+v, %v; want none again, of two", got.Pool, err)
+	}
+}
+
+// The dashboard stamps the config file it reads: the one --config names,
+// whose change it follows, and not the one config.Path finds.
+func TestTheDashboardStampsTheConfigFileItReads(t *testing.T) {
+	deps := pooledDeps(t, false)
+	cfg := recordWatch(t, &deps)
+	named := filepath.Join(t.TempDir(), "named.toml")
+	writeStateFile(t, filepath.Dir(named), filepath.Base(named), []byte(pooledConfig(false)))
+	if got := run(t, deps, "dashboard", "--config", named); got != (result{}) {
+		t.Fatalf("switchboard dashboard --config = %+v, want exit status 0 and nothing printed", got)
+	}
+	if !cfg.Stamp.Same(filestate.Of(named)) {
+		t.Fatal("the dashboard is stamped otherwise than the config --config names stands, want it stamped as that")
+	}
+
+	modified(t, configAt(t, deps), time.Date(2026, 10, 7, 9, 0, 0, 0, time.UTC))
+	if !cfg.ConfigStamp().Same(cfg.Stamp) {
+		t.Error("the config file config.Path finds changed, and the dashboard's stamp with it; want it unchanged, as it isn't the one read")
+	}
+	modified(t, named, time.Date(2026, 10, 7, 9, 0, 0, 0, time.UTC))
+	if cfg.ConfigStamp().Same(cfg.Stamp) {
+		t.Error("the config file --config names changed, and the dashboard's stamp didn't; want it to follow")
+	}
+}
+
+// configAt is the path of deps' config file, as config.Path finds it.
+func configAt(t *testing.T, deps cli.Deps) string {
+	t.Helper()
+	path, err := config.Path(deps.Getenv, deps.HomeDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+// modified sets the file at path as last modified at, as a change to it
+// made then.
+func modified(t *testing.T, path string, at time.Time) {
+	t.Helper()
+	if err := os.Chtimes(path, at, at); err != nil {
+		t.Fatal(err)
 	}
 }

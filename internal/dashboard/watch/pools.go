@@ -1,8 +1,8 @@
 package watch
 
 import (
+	"errors"
 	"reflect"
-	"slices"
 	"strings"
 	"time"
 
@@ -10,7 +10,9 @@ import (
 
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard"
+	"github.com/leeovery/switchboard/internal/filestate"
 	"github.com/leeovery/switchboard/internal/prose"
+	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -20,15 +22,17 @@ import (
 // are Config's Accounts; the source that reads its document, sessions,
 // history and request stream; its share of the router's events; what labels
 // a pool by its id in the words of those events, as Config's PoolNamed does;
-// and how the config file stood as it was read, as Config's ConfigStamp
-// gives it.
+// how the config file stood before it was read, as Config's ConfigStamp
+// gives it; and how it placed the accounts in the pools, as status's Placed
+// has it.
 type Pooled struct {
 	Pool      status.ShownPool
 	Accounts  config.Accounts
 	Source    Source
 	Events    views.Events
 	PoolNamed func(id string) string
-	Stamp     string
+	Stamp     filestate.State
+	Placed    status.Placement
 }
 
 // PoolAsk is which pool Config's Turn is asked for.
@@ -38,7 +42,7 @@ const (
 	// NextPool is the pool after the one shown, as P asks for it.
 	NextPool PoolAsk = iota
 	// SamePool is the pool shown, read again as the config changes, else,
-	// where it's gone, the one P would turn to from it.
+	// where it's gone, the first, as P would turn to from it.
 	SamePool
 )
 
@@ -55,10 +59,22 @@ type turnedMsg struct {
 var poolKey = dashboard.Key{Key: "P", Does: "pool"}
 
 // pool is the pool shown as the moment of the document on screen has it at
-// now, as status's AsRead has it: the frame, the status line and the keys
-// each read whether it's empty here.
+// now, as status's AsRead has it, or, while the router refuses to read it,
+// as status's Refused has it: the frame, the status line and the keys each
+// read whether it's empty here.
 func (m Model) pool(now time.Time) status.ShownPool {
+	if m.poolRefused {
+		return m.cfg.Pool.Refused()
+	}
 	return m.cfg.Pool.AsRead(m.moment(now))
+}
+
+// refusesPool reports whether err is the router refusing a read of the pool
+// shown, by its id, ignoring case, for want of knowing it, as a pool added
+// to the config since it started: it routes none there till it restarts.
+func (m Model) refusesPool(err error) bool {
+	need, ok := errors.AsType[router.PoolNeeded](err)
+	return ok && m.cfg.Pool.ID != "" && strings.EqualFold(need.Named, m.cfg.Pool.ID)
 }
 
 // turnsPools reports whether the key line lists P: where there's a second
@@ -81,16 +97,17 @@ func (m Model) turnPool() (Model, tea.Cmd) {
 }
 
 // followConfig reads the pool shown again, as askPool asks, where a read
-// finds the config changed since the pool was read: the config file stamped
-// otherwise than as it stood then, as the read found it stamped; or, as
-// accountsChanged says, the accounts the read found other than those the
-// last read found, as an account the router took up as it restarted. The
-// stamp found is taken as the one acted on, so a config that can't be read
-// is asked again only once it changes again. A read that finds neither
-// reads nothing again.
-func (m Model) followConfig(stamp string, accountsChanged bool) (Model, tea.Cmd) {
-	stamped := m.cfg.ConfigStamp != nil && stamp != m.cfg.Stamp
-	if !m.asksPools() || !stamped && !accountsChanged {
+// finds the config file changed since the pool was read, as the read found
+// it standing, as filestate's Same has it; or, as accountsChanged says, the
+// accounts the read found other than those the last read found, as an
+// account the router took up as it restarted. The stamp found is taken as
+// the one acted on once the ask goes out, so a config that can't be read is
+// asked again only once it changes again, and one found changed during a
+// turn is asked again at the next read. A read that finds neither reads
+// nothing again.
+func (m Model) followConfig(stamp filestate.State, accountsChanged bool) (Model, tea.Cmd) {
+	stamped := m.cfg.ConfigStamp != nil && !stamp.Same(m.cfg.Stamp)
+	if !m.asksPools() || m.turning || !stamped && !accountsChanged {
 		return m, nil
 	}
 	m.cfg.Stamp = stamp
@@ -99,8 +116,7 @@ func (m Model) followConfig(stamp string, accountsChanged bool) (Model, tea.Cmd)
 
 // askPool asks for what the dashboard shows of the pool ask says, in a
 // command, of Config's Turn: nothing while a turn is under way, so a second
-// P turns from the pool the first turned to, and the config changing
-// meanwhile is read with it.
+// P turns from the pool the first turned to.
 func (m Model) askPool(ask PoolAsk) (Model, tea.Cmd) {
 	if m.turning {
 		return m, nil
@@ -113,11 +129,11 @@ func (m Model) askPool(ask PoolAsk) (Model, tea.Cmd) {
 	}
 }
 
-// turnedTo shows the pool asked for: the pool shown again, as heldIn holds
-// it, where it's the one asked for, and where P asked, with no other to turn
-// to, saying so; else another, as freshIn starts it. Where it couldn't be
-// told, it keeps to the pool shown, and where P asked, the key line says
-// why.
+// turnedTo shows the pool asked for, as shownAfresh shows it, and where P
+// asked, with no other to turn to, says so. Where it couldn't be told, it
+// keeps to the pool shown, and where P asked, the key line says why; where
+// the config changed, it's logged alone, and asked again once the config
+// changes again.
 func (m Model) turnedTo(msg turnedMsg) (Model, tea.Cmd) {
 	m.turning = false
 	switch {
@@ -127,42 +143,30 @@ func (m Model) turnedTo(msg turnedMsg) (Model, tea.Cmd) {
 	case msg.err != nil:
 		logger.Warn("can't read the pool shown again as the config changed", "error", msg.err)
 		return m, nil
-	case strings.EqualFold(msg.pooled.Pool.ID, m.cfg.Pool.ID):
-		held, read := m.heldIn(msg.pooled)
-		if msg.ask == NextPool && !msg.pooled.Pool.Turns() {
-			noted, note := held.noting(prose.OnePool)
-			return noted, tea.Batch(read, note)
-		}
-		return held, read
 	}
-	logger.Info("pool shown", "pool", msg.pooled.Pool.ID)
-	fresh := m.freshIn(msg.pooled)
-	return fresh, fresh.started()
+	held := strings.EqualFold(msg.pooled.Pool.ID, m.cfg.Pool.ID)
+	shown, started := m.shownAfresh(msg.pooled)
+	if msg.ask == NextPool && held && !msg.pooled.Pool.Turns() {
+		noted, note := shown.noting(prose.OnePool)
+		return noted, tea.Batch(started, note)
+	}
+	return shown, started
 }
 
-// heldIn is the watch of the pool shown, read again as pooled has it,
-// without a fresh start: its label, directories, pools counted, source and
-// the labels of the pools its events name; and where its accounts have
-// changed, those, as withAccounts takes them, and a read, as a document
-// probed has the accounts its source read.
-func (m Model) heldIn(pooled Pooled) (Model, tea.Cmd) {
-	m.cfg.Pool, m.cfg.Source, m.cfg.PoolNamed, m.cfg.Stamp = pooled.Pool, pooled.Source, pooled.PoolNamed, pooled.Stamp
-	if slices.Equal(m.cfg.Accounts.IDs(), pooled.Accounts.IDs()) {
+// shownAfresh is the watch of the pool pooled, started afresh, as freshIn
+// starts it, but where it's the pool shown, its config placing the accounts
+// in the pools as it did, as status's Placement has it: then it's the watch
+// as it was, the config file's stamp that of pooled. So a change to the
+// config that places anything otherwise, in any pool, starts the pool shown
+// afresh, and one that doesn't, as a comment, starts nothing.
+func (m Model) shownAfresh(pooled Pooled) (Model, tea.Cmd) {
+	if strings.EqualFold(pooled.Pool.ID, m.cfg.Pool.ID) && pooled.Placed.Same(m.cfg.Placed) {
+		m.cfg.Stamp = pooled.Stamp
 		return m, nil
 	}
-	return m.withAccounts(pooled.Accounts).read(status.Read{Probe: true})
-}
-
-// withAccounts is the watch listing accounts, as the pool shown's: on
-// Accounts and History, priced by their plans, History's days read again
-// for them, what was under way of them dropped.
-func (m Model) withAccounts(accounts config.Accounts) Model {
-	m.cfg.Accounts, m.plansAtMost = accounts, views.PlansAtMost(accounts, m.cfg.Prices)
-	page := m.past.page
-	page.Accounts = accounts
-	m.past = historyTab{page: page, starts: m.past.starts, asked: m.past.asked + 1, due: true}
-	m.accounts.shown.Accounts = accounts
-	return m
+	logger.Info("pool shown", "pool", pooled.Pool.ID)
+	fresh := m.freshIn(pooled)
+	return fresh, fresh.started()
 }
 
 // freshIn is the watch started afresh on the pool pooled, as a router
@@ -177,7 +181,7 @@ func (m Model) withAccounts(accounts config.Accounts) Model {
 func (m Model) freshIn(pooled Pooled) Model {
 	m.stream.end()
 	cfg := m.cfg
-	cfg.Pool, cfg.Accounts, cfg.Source, cfg.Events, cfg.PoolNamed, cfg.Stamp = pooled.Pool, pooled.Accounts, pooled.Source, pooled.Events, pooled.PoolNamed, pooled.Stamp
+	cfg.Pool, cfg.Accounts, cfg.Source, cfg.Events, cfg.PoolNamed, cfg.Stamp, cfg.Placed = pooled.Pool, pooled.Accounts, pooled.Source, pooled.Events, pooled.PoolNamed, pooled.Stamp, pooled.Placed
 	cfg.Size, cfg.View, cfg.Sections, cfg.By, cfg.Models, cfg.Graphs = m.size, m.view, m.sections, m.by, m.models, m.graphs
 	cfg.AccountsShown = dashboard.AccountsKept(m.accounts.shown.Kept())
 	cfg.SessionsShown = dashboard.SessionsKept(m.sessionsTab.shown.Kept())

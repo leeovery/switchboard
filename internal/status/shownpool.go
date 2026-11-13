@@ -114,15 +114,49 @@ func (p ShownPool) AsRead(mo Moment) ShownPool {
 	return p
 }
 
-// AccountsChanged reports whether the moment mo holds other accounts, by
-// their ids, than before, a moment of the document read before it, where
-// one was read: as an account the router took up as it restarted, or a
-// config changed.
-func (mo Moment) AccountsChanged(before Moment) bool {
-	if !before.Routed && !before.Probed {
+// Refused is the pool shown as the router has it where it refuses a read
+// of it, not knowing it, as a pool added since it started: routing none in
+// it, as AsRead has it of a document of it with none, till it takes the
+// pool up as it restarts.
+func (p ShownPool) Refused() ShownPool {
+	if p.ID != "" {
+		p.Routed, p.Routing = true, 0
+	}
+	return p
+}
+
+// AccountsChanged reports whether d holds other accounts, by their ids, than
+// before, the document read before it, where one was read: as an account the
+// router took up as it restarted, or a config changed.
+func (d Document) AccountsChanged(before Document) bool {
+	if before.GeneratedAt.IsZero() {
 		return false
 	}
-	return !slices.EqualFunc(before.Accounts, mo.Accounts, func(a, b AccountNow) bool { return a.ID == b.ID })
+	return !slices.EqualFunc(before.Accounts, d.Accounts, func(a, b Account) bool { return a.ID == b.ID })
+}
+
+// Placement is how a config places its accounts in its pools, as a
+// dashboard compares it as the config changes, starting the pool it shows
+// afresh where it's changed: every pool's id, label and directories, in
+// order, and every account, with its label, plan, primary mark, reserve and
+// pool, as the router's events of every pool are placed by them.
+type Placement struct {
+	pools    config.Pools
+	accounts config.Accounts
+}
+
+// Placed is the placement of accounts in pools.
+func Placed(pools config.Pools, accounts config.Accounts) Placement {
+	return Placement{pools: pools, accounts: accounts}
+}
+
+// Same reports whether p and q place alike: as many pools, each with the
+// same id, label and directories, and the same accounts, each alike in
+// everything the config gives it.
+func (p Placement) Same(q Placement) bool {
+	return slices.Equal(p.accounts, q.accounts) && slices.EqualFunc(p.pools, q.pools, func(a, b config.Pool) bool {
+		return a.ID == b.ID && a.Label == b.Label && slices.Equal(a.Dirs, b.Dirs) && slices.Equal(a.WrittenDirs, b.WrittenDirs)
+	})
 }
 
 // Fenced reports whether the pool shown is fenced to directories: else it's

@@ -3,12 +3,11 @@ package cli
 import (
 	"context"
 	"errors"
-	"os"
-	"strconv"
 
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard/watch"
 	"github.com/leeovery/switchboard/internal/events"
+	"github.com/leeovery/switchboard/internal/filestate"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -22,7 +21,7 @@ type shownPools struct {
 	probe bool
 	r     stateReaders
 	read  bool
-	stamp string
+	stamp filestate.State
 }
 
 // opened is what the dashboard opens on of the config cfg: the pool named,
@@ -39,7 +38,7 @@ func (s shownPools) opened(ctx context.Context, cfg *config.Config, named string
 		return watch.Pooled{}, err
 	case err != nil:
 		logger.Warn("can't tell which pool the dashboard shows, so it reads none of the router's files of events", "error", err)
-		return watch.Pooled{Accounts: status.PoolAccounts(cfg.Pools, cfg.Accounts, ""), Source: s.a.source(ctx, cfg, s.probe), Events: events.Empty{}, Stamp: s.stamp}, nil
+		return watch.Pooled{Accounts: status.PoolAccounts(cfg.Pools, cfg.Accounts, ""), Source: s.a.source(ctx, cfg, s.probe), Events: events.Empty{}, Stamp: s.stamp, Placed: status.Placed(cfg.Pools, cfg.Accounts)}, nil
 	}
 	shown, err := s.shown(ctx, cfg, pooled, named)
 	shown.Stamp = s.stamp
@@ -92,28 +91,26 @@ func poolAsked(pools config.Pools, from string, ask watch.PoolAsk) (string, erro
 	return p.ID, nil
 }
 
-// configStamp is how the config file stands, its size and when it was last
-// written, as the dashboard compares it at each read, to read the pool it
-// shows again only where the config has changed: "" where it can't be
-// found.
-func (a *app) configStamp() string {
-	path, err := config.Path(a.Getenv, a.HomeDir)
+// configStamp is how the config file the dashboard reads stands, the one
+// --config names, else the one config.Path finds, as the dashboard compares
+// it at each read, to read the pool it shows again only where the config
+// has changed, as the router compares the config it was started from: none
+// where it can't be found.
+func (a *app) configStamp() filestate.State {
+	path, err := a.configFile()
 	if err != nil {
-		return ""
+		return filestate.State{}
 	}
-	info, err := os.Stat(path)
-	if err != nil {
-		return ""
-	}
-	return strconv.FormatInt(info.Size(), 10) + " " + strconv.FormatInt(info.ModTime().UnixNano(), 10)
+	return filestate.Of(path)
 }
 
 // shown is what the dashboard shows of the pool named of the config cfg,
 // its pools as pooled has them, else of the one the verbs act on, as
 // askedPool has it: the pool, as status.PoolShown has it; its accounts, as
 // status.PoolAccounts has them; its source, reading the router's document
-// of it, else probing its accounts; and its share of the router's events,
-// as shownEvents has it. It fails where the pool named isn't configured,
+// of it, else probing its accounts; its share of the router's events, as
+// shownEvents has it; and how pooled places every account in its pools, as
+// status.Placed has it. It fails where the pool named isn't configured,
 // naming those that are: a pool the accounts record keeps alone has no
 // accounts to show, nor a document the router gives. Where every pool is
 // fenced and none is named, it shows none, nor any accounts: the router
@@ -128,6 +125,7 @@ func (s shownPools) shown(ctx context.Context, cfg, pooled *config.Config, named
 		Pool:     status.PoolShown(pooled.Pools, pooled.Accounts, p.ID),
 		Accounts: status.PoolAccounts(pooled.Pools, pooled.Accounts, p.ID),
 		Source:   s.a.source(ctx, cfg, s.probe).inPool(p.ID),
+		Placed:   status.Placed(pooled.Pools, pooled.Accounts),
 	}
 	if err != nil {
 		logger.Warn("can't tell which pool the dashboard shows, so it reads none of the router's files of events", "error", err)

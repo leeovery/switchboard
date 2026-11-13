@@ -28,6 +28,7 @@ import (
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/dashboard/backdrop"
+	"github.com/leeovery/switchboard/internal/filestate"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/logs"
 	"github.com/leeovery/switchboard/internal/notify"
@@ -143,12 +144,15 @@ type Config struct {
 	// where it's SamePool. nil turns to none.
 	Pool status.ShownPool
 	Turn func(ctx context.Context, from string, ask PoolAsk) (Pooled, error)
-	// ConfigStamp says how the config file stands, as its size and when it
-	// was last written, and Stamp how it stood as the pool shown was read:
-	// a read that finds them differ reads the pool shown again, as
-	// followConfig has it. nil never finds them differ.
-	ConfigStamp func() string
-	Stamp       string
+	// ConfigStamp says how the config file stands, and Stamp how it stood
+	// as the pool shown was read: a read that finds it changed since reads
+	// the pool shown again, as followConfig has it. nil never finds it
+	// changed. Placed is how the config placed the accounts in the pools as
+	// the pool shown was read, as status's Placed has it: read again,
+	// placed otherwise, the pool shown starts afresh.
+	ConfigStamp func() filestate.State
+	Stamp       filestate.State
+	Placed      status.Placement
 	// Accounts are the configured accounts of the pool shown, as status's
 	// PoolAccounts has them, which Accounts lists and whose plans History
 	// prices its worth against, and WeekStarts the day its calendar weeks
@@ -418,10 +422,13 @@ type Model struct {
 	keeping keeping
 
 	// poolTurns counts the pools P has turned to, as freshIn has it, for
-	// turns to drop what a command of a pool shown before sends back; and
-	// turning is set while P's turn is under way.
-	poolTurns int
-	turning   bool
+	// turns to drop what a command of a pool shown before sends back;
+	// turning is set while a turn is under way, P's or the pool shown read
+	// again; and poolRefused while the router refuses to read the pool shown, as
+	// refusesPool has it.
+	poolTurns   int
+	turning     bool
+	poolRefused bool
 
 	// shown is what render made of the screen once the last message was
 	// taken in.
@@ -482,7 +489,7 @@ type fetchedMsg struct {
 	sessions []status.Session
 	listed   bool
 	err      error
-	stamp    string
+	stamp    filestate.State
 }
 
 // tickMsg wakes the model to redraw, and to read again once that's due.
@@ -1053,8 +1060,11 @@ func fetchFrom(ctx context.Context, source Source, r status.Read, policy score.P
 }
 
 // fetched takes in a read: the document to show from now on, or why there's
-// none, and plans the next read by it. A read that fails notes why, and the
-// router lost, as lose does. Before any document, from a source that asks the
+// none, and plans the next read by it. A read the router refuses, not
+// knowing the pool shown, as refusesPool has it, isn't a read that failed:
+// the pool routes none, as status's Refused has it, and the router is looked
+// at again as it is once it's found gone. A read that fails notes why, and
+// the router lost, as lose does. Before any document, from a source that asks the
 // router first, as awaitsRouter has it, the status line says the latest
 // read's news either way: a question after the router, or a look at its
 // document, that found it gone has no why of its own, and clears the last
@@ -1068,14 +1078,18 @@ func fetchFrom(ctx context.Context, source Source, r status.Read, policy score.P
 // were read, as readHistory reads them while History or Accounts shows,
 // Runway's lanes want them or Graphs shows WHEN YOU WORK, and what the
 // readings history gained, as readRunway reads it while Runway shows. Where
-// the read finds the config changed, it reads the pool shown again, as
-// followConfig has it.
+// the read finds the config file changed, or the accounts other than the
+// last document's, as status's AccountsChanged has it, it reads the pool
+// shown again, as followConfig has it.
 func (m Model) fetched(msg fetchedMsg) (tea.Model, tea.Cmd) {
 	now := m.now()
 	m.fetching, m.past.due, m.tail.due, m.runwayTab.due = false, true, true, true
 	var shown tea.Cmd
 	accountsChanged := false
+	m.poolRefused = m.refusesPool(msg.err)
 	switch {
+	case m.poolRefused:
+		m.plan, m.failed = m.plan.missed(now), ""
 	case errors.Is(msg.err, status.ErrNoRouter):
 		m.plan = m.plan.missed(now)
 		if m.awaitsRouter() {
@@ -1090,7 +1104,7 @@ func (m Model) fetched(msg fetchedMsg) (tea.Model, tea.Cmd) {
 	default:
 		msg.doc = msg.doc.WithRemoved(m.cfg.Removed)
 		look := msg.doc.At(now, m.cfg.Policy)
-		accountsChanged = look.AccountsChanged(m.moment(now))
+		accountsChanged = msg.doc.AccountsChanged(m.doc)
 		m.plan = m.plan.landed(msg.read, msg.doc, look.Routed, now)
 		m, shown = m.show(msg, look)
 		logRead(msg, look, m.plan.due)

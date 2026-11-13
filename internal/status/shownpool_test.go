@@ -3,6 +3,7 @@ package status_test
 import (
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/status"
@@ -145,6 +146,75 @@ func TestAPoolShownIsEmptyAsTheRoutersDocumentOfItHasIt(t *testing.T) {
 	}
 }
 
+// A pool shown the router refuses a read of, not knowing it, as one added
+// since it started, routes none: empty, and waiting where the config gives
+// it accounts, as one it knows and routes none in. No pool shown is never
+// empty.
+func TestAPoolShownTheRouterRefusesRoutesNone(t *testing.T) {
+	acme := status.ShownPool{ID: "q7mt", Label: "Acme", Pools: 2}
+	acmeOfOne := acme
+	acmeOfOne.Accounts = 1
+	tests := []struct {
+		name           string
+		pool           status.ShownPool
+		empty, waiting bool
+	}{
+		{name: "none in the config", pool: acme, empty: true},
+		{name: "one in the config", pool: acmeOfOne, empty: true, waiting: true},
+		{name: "no pool shown", pool: status.ShownPool{Accounts: 1, Pools: 2}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.pool.Refused()
+			if got.Empty() != tt.empty || got.Waiting() != tt.waiting {
+				t.Errorf("%+v, refused, is empty %v, waiting %v; want %v, %v", tt.pool, got.Empty(), got.Waiting(), tt.empty, tt.waiting)
+			}
+		})
+	}
+}
+
+// Placements are the same where every pool's id, label and directories, in
+// order, and every account, in everything the config gives it, are; any one
+// of them changed, they differ.
+func TestPlacementsAreTheSameWhereEveryPoolAndAccountIs(t *testing.T) {
+	was := status.Placed(shownPools, shownAccounts)
+	pools := func(change func(config.Pools)) config.Pools {
+		changed := slices.Clone(shownPools)
+		change(changed)
+		return changed
+	}
+	accounts := func(change func(config.Accounts)) config.Accounts {
+		changed := slices.Clone(shownAccounts)
+		change(changed)
+		return changed
+	}
+	tests := []struct {
+		name     string
+		pools    config.Pools
+		accounts config.Accounts
+		same     bool
+	}{
+		{name: "unchanged", pools: slices.Clone(shownPools), accounts: slices.Clone(shownAccounts), same: true},
+		{name: "an account relabelled", pools: shownPools, accounts: accounts(func(as config.Accounts) { as[0].Label = "Work 2" })},
+		{name: "an account on another plan", pools: shownPools, accounts: accounts(func(as config.Accounts) { as[0].Plan = "max" })},
+		{name: "an account marked primary", pools: shownPools, accounts: accounts(func(as config.Accounts) { as[1].Primary = true })},
+		{name: "an account given a reserve", pools: shownPools, accounts: accounts(func(as config.Accounts) { as[1].Reserve = 0.05 })},
+		{name: "an account moved to another pool", pools: shownPools, accounts: accounts(func(as config.Accounts) { as[1].Pool = "r2d4" })},
+		{name: "an account added", pools: shownPools, accounts: append(slices.Clone(shownAccounts), config.Account{ID: "spare", Pool: "r2d4"})},
+		{name: "the accounts reordered", pools: shownPools, accounts: config.Accounts{shownAccounts[1], shownAccounts[0]}},
+		{name: "a pool relabelled", pools: pools(func(ps config.Pools) { ps[2].Label = "Clients" }), accounts: shownAccounts},
+		{name: "a pool fenced elsewhere", pools: pools(func(ps config.Pools) { ps[1].Dirs, ps[1].WrittenDirs = []string{"/home/me/acme"}, []string{"~/acme"} }), accounts: shownAccounts},
+		{name: "a pool removed", pools: shownPools[:2], accounts: shownAccounts},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := status.Placed(tt.pools, tt.accounts).Same(was); got != tt.same {
+				t.Errorf("Same() = %v, want %v", got, tt.same)
+			}
+		})
+	}
+}
+
 // The pool shown is read again by its id, ignoring case; where it's gone,
 // it's the one P would turn to from it.
 func TestThePoolShownIsReadAgainElseTheOnePWouldTurnTo(t *testing.T) {
@@ -184,22 +254,21 @@ func TestPTurnsToTheNextPoolInTheConfigsOrder(t *testing.T) {
 	}
 }
 
-// A moment's accounts have changed where the moment before, read, held
-// others, by their ids; never against one before any read.
-func TestAMomentsAccountsHaveChangedWhereTheReadBeforeHeldOthers(t *testing.T) {
-	work, side := status.AccountNow{ID: "work"}, status.AccountNow{ID: "side"}
-	read := func(accounts ...status.AccountNow) status.Moment {
-		return status.Moment{Routed: true, Accounts: accounts}
+// A document's accounts have changed where the document before, read,
+// held others, by their ids; never against none read before.
+func TestADocumentsAccountsHaveChangedWhereTheOneBeforeHeldOthers(t *testing.T) {
+	work, side := status.Account{ID: "work"}, status.Account{ID: "side"}
+	read := func(accounts ...status.Account) status.Document {
+		return status.Document{GeneratedAt: time.Date(2026, 11, 13, 9, 0, 0, 0, time.UTC), Accounts: accounts}
 	}
 	tests := []struct {
 		name        string
-		before, now status.Moment
+		before, now status.Document
 		changed     bool
 	}{
 		{name: "the same", before: read(work, side), now: read(work, side)},
 		{name: "one taken up", before: read(work), now: read(work, side), changed: true},
 		{name: "one let go", before: read(work, side), now: read(work), changed: true},
-		{name: "probed before", before: status.Moment{Probed: true, Accounts: []status.AccountNow{work}}, now: read(side), changed: true},
 		{name: "none read before", now: read(work)},
 	}
 	for _, tt := range tests {
