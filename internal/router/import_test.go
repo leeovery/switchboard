@@ -254,11 +254,18 @@ func filesUnder(t *testing.T, dir string) map[string]fileState {
 }
 
 // importNow runs a router with cfg, has it import what's staged in its state
-// directory, and returns its answer, failing the test where the import
-// fails.
+// directory once its readings history has made the round it makes as it
+// starts, and returns its answer, failing the test where the import fails.
+// The router answers before that round, whose summarising before the
+// history's prune would otherwise race the import, and could summarise a day
+// from the lines just taken in before its summary staged is looked at.
 func importNow(t *testing.T, cfg router.Config) router.Imported {
 	t.Helper()
-	runRouter(t, cfg)
+	rt := newRouterFrom(t, cfg)
+	runBuilt(t, rt, cfg)
+	if err := rt.TendHistory(t.Context()); err != nil {
+		t.Fatalf("TendHistory() error = %v", err)
+	}
 	imported, err := router.NewClient(router.SocketPath(cfg.StateDir)).Import(t.Context())
 	if err != nil {
 		t.Fatalf("Import() error = %v", err)
