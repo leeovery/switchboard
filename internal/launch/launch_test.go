@@ -98,7 +98,7 @@ func TestRunThroughAHealthyRouter(t *testing.T) {
 		"PATH":                             path,
 		"ANTHROPIC_BASE_URL":               "http://" + proxyAddr,
 		"CLAUDE_CODE_OAUTH_TOKEN":          workToken,
-		"ANTHROPIC_CUSTOM_HEADERS":         "X-Trace: on\nX-Switchboard-Account: side\nX-Switchboard-Dir: ~/Code/project",
+		"ANTHROPIC_CUSTOM_HEADERS":         "X-Trace: on\nX-Switchboard-Account: side\nX-Switchboard-Dir: ~/Code/project\nX-Switchboard-Project: ~/Code/project",
 		"CLAUDE_CODE_GATEWAY_HINT_HEADERS": "1",
 	}
 	if env := h.environment(t); !maps.Equal(env, want) {
@@ -276,7 +276,7 @@ func TestRunWithoutARouterToRouteThrough(t *testing.T) {
 		"HOME=/home/tester",
 		"ANTHROPIC_BASE_URL=http://127.0.0.1:4747",
 		"CLAUDE_CODE_OAUTH_TOKEN=test-token-stale",
-		"ANTHROPIC_CUSTOM_HEADERS=X-Trace: on\nX-Switchboard-Account: side\nX-Switchboard-Dir: ~/Code/elsewhere",
+		"ANTHROPIC_CUSTOM_HEADERS=X-Trace: on\nX-Switchboard-Account: side\nX-Switchboard-Dir: ~/Code/elsewhere\nX-Switchboard-Project: ~/Code/elsewhere",
 	}
 	tests := []struct {
 		name      string
@@ -598,18 +598,18 @@ func TestRunThroughAnUnhealthyRouter(t *testing.T) {
 		{
 			name:        "unpinned",
 			health:      unhealthyRouter().health,
-			wantHeaders: "X-Switchboard-Dir: ~/Code/project",
+			wantHeaders: "X-Switchboard-Dir: ~/Code/project\nX-Switchboard-Project: ~/Code/project",
 			wantSaid:    "switchboard: the router is unhealthy (" + unhealthy + ") — starting claude through it all the same\n",
 		},
 		{
 			name:        "pinned",
 			health:      unhealthyRouter().health,
 			account:     "side",
-			wantHeaders: "X-Switchboard-Account: side\nX-Switchboard-Dir: ~/Code/project",
+			wantHeaders: "X-Switchboard-Account: side\nX-Switchboard-Dir: ~/Code/project\nX-Switchboard-Project: ~/Code/project",
 			wantSaid:    "switchboard: the router is unhealthy (" + unhealthy + ") — starting claude through it all the same\n",
 		},
 		{
-			name:        "pinned, a router that doesn't take its headers off, told no directory",
+			name:        "pinned, a router that doesn't take its headers off, told no directory or project",
 			health:      router.Health{Reason: unhealthy, Listen: proxyAddr},
 			account:     "side",
 			wantHeaders: "X-Switchboard-Account: side",
@@ -618,7 +618,7 @@ func TestRunThroughAnUnhealthyRouter(t *testing.T) {
 		{
 			name:        "not saying why",
 			health:      router.Health{Listen: proxyAddr, StripsOwnHeaders: true},
-			wantHeaders: "X-Switchboard-Dir: ~/Code/project",
+			wantHeaders: "X-Switchboard-Dir: ~/Code/project\nX-Switchboard-Project: ~/Code/project",
 			wantSaid:    "switchboard: the router is unhealthy — starting claude through it all the same\n",
 		},
 	}
@@ -781,16 +781,22 @@ func TestRunKeepsTheOtherCustomHeaders(t *testing.T) {
 			headers: "X-Trace: on\nX-Team: core",
 			account: "side",
 			dir:     project,
-			want:    "X-Trace: on\nX-Team: core\nX-Switchboard-Account: side\nX-Switchboard-Dir: ~/Code/project",
+			want:    "X-Trace: on\nX-Team: core\nX-Switchboard-Account: side\nX-Switchboard-Dir: ~/Code/project\nX-Switchboard-Project: ~/Code/project",
 		},
 		{name: "a pin inherited, unpinned", headers: "X-Switchboard-Account: work"},
 		{name: "a pin inherited among others, pinned", headers: "x-switchboard-account : work\r\nX-Trace: on\n\n", account: "side", want: "X-Trace: on\nX-Switchboard-Account: side"},
-		{name: "a directory inherited, in none known", headers: "X-Switchboard-Dir: ~/Code/elsewhere"},
+		{name: "a directory and project inherited, in none known", headers: "X-Switchboard-Dir: ~/Code/elsewhere\nX-Switchboard-Project: ~/Code/elsewhere"},
 		{
 			name:    "a directory inherited among others, in another",
 			headers: "x-switchboard-dir : ~/Code/elsewhere\r\nX-Trace: on\n\n",
 			dir:     project,
-			want:    "X-Trace: on\nX-Switchboard-Dir: ~/Code/project",
+			want:    "X-Trace: on\nX-Switchboard-Dir: ~/Code/project\nX-Switchboard-Project: ~/Code/project",
+		},
+		{
+			name:    "a project inherited among others, in another",
+			headers: "x-switchboard-project : ~/Code/elsewhere\r\nX-Trace: on\n\n",
+			dir:     project,
+			want:    "X-Trace: on\nX-Switchboard-Dir: ~/Code/project\nX-Switchboard-Project: ~/Code/project",
 		},
 	}
 	for _, tt := range tests {
@@ -852,16 +858,81 @@ func TestRunTellsTheRouterTheDirectoryClaudeCodeStartsIn(t *testing.T) {
 			headers, set := h.environment(t)["ANTHROPIC_CUSTOM_HEADERS"]
 			var want string
 			if tt.want != "" {
-				want = "X-Switchboard-Dir: " + cmp.Or(tt.wantSent, tt.want)
+				sent := cmp.Or(tt.wantSent, tt.want)
+				want = "X-Switchboard-Dir: " + sent + "\nX-Switchboard-Project: " + sent
 			}
 			if headers != want || set != (want != "") {
-				t.Errorf("started with ANTHROPIC_CUSTOM_HEADERS %q (set: %v), want %q", headers, set, want)
+				t.Errorf("started with ANTHROPIC_CUSTOM_HEADERS %q (set: %v), want %q, the directory its own project", headers, set, want)
 			}
-			sent := strings.TrimPrefix(headers, "X-Switchboard-Dir: ")
+			sent, _, _ := strings.Cut(strings.TrimPrefix(headers, "X-Switchboard-Dir: "), "\n")
 			if got := router.DecodeDir(sent); got != tt.want {
 				t.Errorf("the router reads the directory sent as %q as %q, want %q", sent, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestRunTellsTheRouterTheProjectClaudeCodeStartsIn(t *testing.T) {
+	worktree := homeDir + "/Code/api/.claude/worktrees/fix-login"
+	tests := []struct {
+		name string
+		// dir is the directory Claude Code starts in, "" where it isn't known,
+		// and found the project Project finds it in.
+		dir, found string
+		// want are the headers Claude Code starts with, "" for none.
+		want string
+	}{
+		{
+			name: "a worktree's, its repository's, each from home", dir: worktree, found: homeDir + "/Code/api",
+			want: "X-Switchboard-Dir: ~/Code/api/.claude/worktrees/fix-login\nX-Switchboard-Project: ~/Code/api",
+		},
+		{
+			name: "a repository outside home, as it is", dir: homeDir + "/Code/api", found: "/srv/api",
+			want: "X-Switchboard-Dir: ~/Code/api\nX-Switchboard-Project: /srv/api",
+		},
+		{
+			name: "a subdirectory's, its repository's", dir: "/srv/api/cmd/server", found: "/srv/api",
+			want: "X-Switchboard-Dir: /srv/api/cmd/server\nX-Switchboard-Project: /srv/api",
+		},
+		{name: "without a working directory, none, and none looked for"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := newHarness(t)
+			h.launcher.Dir = tt.dir
+			var asked []string
+			h.launcher.Project = func(dir string) string {
+				asked = append(asked, dir)
+				return tt.found
+			}
+
+			if err := h.launcher.Run(t.Context(), route(healthy(), ""), nil); err != nil {
+				t.Fatalf("Run() error = %v", err)
+			}
+			headers, set := h.environment(t)["ANTHROPIC_CUSTOM_HEADERS"]
+			if headers != tt.want || set != (tt.want != "") {
+				t.Errorf("started with ANTHROPIC_CUSTOM_HEADERS %q (set: %v), want %q", headers, set, tt.want)
+			}
+			var wantAsked []string
+			if tt.dir != "" {
+				wantAsked = []string{tt.dir}
+			}
+			if !slices.Equal(asked, wantAsked) {
+				t.Errorf("looked for the project of %q, want %q, the directory as it's given", asked, wantAsked)
+			}
+		})
+	}
+}
+
+func TestRunWithoutAProjectFinderTellsTheDirectoryAlone(t *testing.T) {
+	h := newHarness(t, "ANTHROPIC_CUSTOM_HEADERS=X-Switchboard-Project: ~/Code/elsewhere")
+	h.launcher.Dir, h.launcher.Project = homeDir+"/Code/api", nil
+
+	if err := h.launcher.Run(t.Context(), route(healthy(), ""), nil); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if got, want := h.environment(t)["ANTHROPIC_CUSTOM_HEADERS"], "X-Switchboard-Dir: ~/Code/api"; got != want {
+		t.Errorf("started with ANTHROPIC_CUSTOM_HEADERS %q, want %q: no project, the one inherited taken off", got, want)
 	}
 }
 
@@ -872,7 +943,7 @@ func TestRunTellsARouterFromBeforeNoDirectory(t *testing.T) {
 	if err := json.Unmarshal([]byte(`{"ok": true, "listen": "`+proxyAddr+`", "version": "0.1.0", "pid": 4242}`), &older); err != nil {
 		t.Fatal(err)
 	}
-	h := newHarness(t, "ANTHROPIC_CUSTOM_HEADERS=X-Trace: on\nX-Switchboard-Dir: ~/Code/elsewhere")
+	h := newHarness(t, "ANTHROPIC_CUSTOM_HEADERS=X-Trace: on\nX-Switchboard-Dir: ~/Code/elsewhere\nX-Switchboard-Project: ~/Code/elsewhere")
 	h.launcher.Dir = project
 
 	if err := h.launcher.Run(t.Context(), route(&fakeRouter{health: older}, "side"), nil); err != nil {
@@ -885,7 +956,7 @@ func TestRunTellsARouterFromBeforeNoDirectory(t *testing.T) {
 		"CLAUDE_CODE_GATEWAY_HINT_HEADERS": "1",
 	}
 	if env := h.environment(t); !maps.Equal(env, want) {
-		t.Errorf("started with the environment\n%q\nwant\n%q: routed and pinned, the router told no directory, which it would send on", env, want)
+		t.Errorf("started with the environment\n%q\nwant\n%q: routed and pinned, the router told no directory or project, which it would send on", env, want)
 	}
 }
 
@@ -1051,7 +1122,7 @@ func TestDirectStartsClaudeCodeOnItsOwnLogin(t *testing.T) {
 		"HOME=/home/tester",
 		"ANTHROPIC_BASE_URL=http://127.0.0.1:4747",
 		"CLAUDE_CODE_OAUTH_TOKEN=test-token-stale",
-		"ANTHROPIC_CUSTOM_HEADERS=X-Switchboard-Account: side\nX-Switchboard-Dir: ~/Code/elsewhere\nX-Trace: on",
+		"ANTHROPIC_CUSTOM_HEADERS=X-Switchboard-Account: side\nX-Switchboard-Dir: ~/Code/elsewhere\nX-Switchboard-Project: ~/Code/elsewhere\nX-Trace: on",
 	)
 	h.launcher.Dir = project
 
@@ -1428,7 +1499,7 @@ func TestStartingWithoutSwitchboardTakesOffWhatRunSet(t *testing.T) {
 			name:    "a custom header added since to the session's, kept, switchboard's gone",
 			own:     map[string]string{headers: "X-Trace: on"},
 			account: "side",
-			since:   map[string]string{headers: "X-Trace: on\nX-Switchboard-Account: side\nX-Switchboard-Dir: ~/Code/project\nX-Gateway: on"},
+			since:   map[string]string{headers: "X-Trace: on\nX-Switchboard-Account: side\nX-Switchboard-Dir: ~/Code/project\nX-Switchboard-Project: ~/Code/project\nX-Gateway: on"},
 			want:    map[string]string{headers: "X-Trace: on\nX-Gateway: on"},
 		},
 	}
@@ -1644,10 +1715,10 @@ func TestNothingSecretIsWrittenIntoTheMarkOfWhatRunSet(t *testing.T) {
 			want:   map[string]string{},
 		},
 		{
-			name:   "a directory holding a token-shaped value, its line unmarked, stays",
+			name:   "a directory holding a token-shaped value, its lines unmarked, stay",
 			secret: shaped,
 			dir:    homeDir + "/Code/" + shaped,
-			want:   map[string]string{"ANTHROPIC_CUSTOM_HEADERS": "X-Switchboard-Dir: ~/Code/" + shaped},
+			want:   map[string]string{"ANTHROPIC_CUSTOM_HEADERS": "X-Switchboard-Dir: ~/Code/" + shaped + "\nX-Switchboard-Project: ~/Code/" + shaped},
 		},
 	}
 	for _, tt := range tests {
@@ -2208,7 +2279,8 @@ type harness struct {
 
 // newHarness returns a harness whose launches start from environ, for a user
 // whose home is homeDir, in a working directory not known unless a test gives
-// one.
+// one, each directory its own project, as one in no repository is, unless a
+// test says otherwise.
 func newHarness(t *testing.T, environ ...string) *harness {
 	t.Helper()
 	dir := t.TempDir()
@@ -2219,6 +2291,7 @@ func newHarness(t *testing.T, environ ...string) *harness {
 	h.launcher = launch.Launcher{
 		Environ:      environ,
 		Home:         homeDir,
+		Project:      func(dir string) string { return dir },
 		InstallPaths: []string{h.claude},
 		Executable:   func() (string, error) { return h.switchboard, nil },
 		PID:          pid,

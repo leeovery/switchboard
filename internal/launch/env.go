@@ -269,12 +269,12 @@ func (e environ) pinnedTo(account string) environ {
 }
 
 // workingIn returns the environment with Claude Code's custom headers telling
-// the router the directory it was started in, dir, or none for "". A
-// directory the environment names already, such as a session's that this one
-// is started from within, goes: what this launch tells is the only directory.
-// Any other header stays.
-func (e environ) workingIn(dir string) environ {
-	return e.withHeader(router.DirHeader, router.EncodeDir(dir))
+// the router the directory it was started in, dir, and the project it runs
+// in, project, each none for "". A directory or project the environment
+// names already, such as a session's that this one is started from within,
+// goes: what this launch tells is the only one. Any other header stays.
+func (e environ) workingIn(dir, project string) environ {
+	return e.withHeader(router.DirHeader, router.EncodeDir(dir)).withHeader(router.ProjectHeader, router.EncodeDir(project))
 }
 
 // withHeader returns the environment with Claude Code's custom headers

@@ -51,10 +51,12 @@ type Line struct {
 	Request string `json:"request"`
 	Kind    string `json:"kind"`
 	// Session is the id of the session the request belongs to, Dir the
-	// directory run started claude in, as it tells the router, and Model the
-	// model it asked for.
+	// directory run started claude in, and Project the project that's in,
+	// each as run tells the router, and Model the model it asked for. A line
+	// from before run told a project gives none.
 	Session string `json:"session,omitempty"`
 	Dir     string `json:"dir,omitempty"`
+	Project string `json:"project,omitempty"`
 	Model   string `json:"model,omitempty"`
 	// Account is the account whose answer the client got, none where the
 	// router answered it itself, and Reason why it was chosen, in the words
@@ -303,13 +305,13 @@ type Error struct {
 
 // written returns the line as it's written: at in UTC, to the millisecond,
 // each of its texts cut to textMost bytes, a directory from its front, so it
-// keeps its own name, and each of its lists and counts to its most, so no
-// line runs past lineMax.
+// keeps its own name, and a project left out, as LineProject has it, and
+// each of its lists and counts to its most, so no line runs past lineMax.
 func (l *Line) written() *Line {
 	w := *l
 	w.At = l.At.UTC().Truncate(time.Millisecond)
 	w.Request, w.Kind, w.Session, w.Model = cut(l.Request), cut(l.Kind), cut(l.Session), cut(l.Model)
-	w.Dir = LineDir(l.Dir)
+	w.Dir, w.Project = LineDir(l.Dir), LineProject(l.Project)
 	w.Account, w.Reason, w.From, w.Agent = cut(l.Account), cut(l.Reason), cut(l.From), cut(l.Agent)
 	w.Tried = cutAll(l.Tried, func(t Tried) Tried { return Tried{Account: cut(t.Account), Why: cut(t.Why)} })
 	w.Betas = cutAll(l.Betas, cut)
@@ -376,6 +378,17 @@ func cut(s string) string {
 // own name. The router's sessions and request stream give a directory so too.
 func LineDir(dir string) string {
 	return prose.TruncateBytesFront(redact.Text(dir), textMost)
+}
+
+// LineProject is the project a line gives, a directory, as LineDir gives one,
+// but none where it runs past what a line holds of a text: a project is
+// known by its whole path, which a cut one would no longer name. The
+// router's sessions and request stream give a project so too.
+func LineProject(project string) string {
+	if project = redact.Text(project); len(project) > textMost {
+		return ""
+	}
+	return project
 }
 
 // cutAll returns the first ListMost of list, each as each cuts it, as a list

@@ -2,6 +2,7 @@ package views
 
 import (
 	"bytes"
+	"cmp"
 	"encoding/json"
 	"fmt"
 	"maps"
@@ -143,7 +144,8 @@ func TestADaysSideIsItsSessionsReadRaw(t *testing.T) {
 // line by line, is byte for byte the side of the lines themselves, as
 // sessionsOfLines folds them: over the generated worlds' days, and a day of
 // lines edited by hand, one in another zone to the nanosecond, one at no
-// time at all, a quota check, a count of tokens and a line of no kind.
+// time at all, a quota check, a count of tokens, a line of no kind, and one
+// naming a directory alone after one named a project.
 func TestADaysSideOfItsRecordsIsTheSideOfItsLines(t *testing.T) {
 	var days [][]ledger.Held
 	for _, w := range chainWorlds {
@@ -159,10 +161,11 @@ func TestADaysSideOfItsRecordsIsTheSideOfItsLines(t *testing.T) {
 	}
 	at := time.Date(2026, 10, 8, 9, 0, 0, 0, time.UTC)
 	days = append(days, []ledger.Held{
-		{At: at.In(time.FixedZone("east", 5*60*60+30*60)).Add(123_456_789), Session: "s", Kind: ledger.KindMessage, Dir: "/code/app"},
+		{At: at.In(time.FixedZone("east", 5*60*60+30*60)).Add(123_456_789), Session: "s", Kind: ledger.KindMessage, Dir: "/code/app/web", Project: "/code/app"},
 		{At: at.Add(time.Minute), Session: "s", Kind: ledger.KindCheck, Dir: "/code/check"},
 		{At: at.Add(2 * time.Minute), Session: "s", Kind: ledger.KindCount},
-		{At: at.Add(3 * time.Minute), Session: "t", Dir: "/code/other"},
+		{At: at.Add(3 * time.Minute), Session: "t", Dir: "/code/other/.claude/worktrees/fix", Project: "/code/other"},
+		{At: at.Add(4 * time.Minute), Session: "t", Kind: ledger.KindMessage, Dir: "/code/elsewhere"},
 		{Session: "u", Kind: ledger.KindMessage},
 	})
 	for i, day := range days {
@@ -197,8 +200,8 @@ func sessionsOfLines(day []ledger.Held) []DaySession {
 		}
 		s.Lines++
 		s.Last = score.Later(s.Last, l.At.UTC())
-		if l.Dir != "" {
-			s.Dir = l.Dir
+		if l.Dir != "" || l.Project != "" {
+			s.Dir, s.Project = cmp.Or(l.Dir, s.Dir), l.Project
 		}
 	}
 	return sessions.sessions()
@@ -274,6 +277,35 @@ func (d dayHeld) Day(date string) []ledger.Held {
 	return d.lines
 }
 
+// A day's side holds each session's project as its last line to name a
+// directory or a project named it: a line naming a project, then one naming
+// a directory alone, as from a run before projects, leaves it none; and one
+// naming neither keeps it.
+func TestADaysSideHoldsTheProjectTheLastLineToNameAPlaceNamed(t *testing.T) {
+	at := time.Date(2026, 10, 8, 9, 0, 0, 0, time.UTC)
+	b := Digests{}.Day()
+	for _, l := range []ledger.Line{
+		{At: at, Session: "s", Kind: ledger.KindMessage, Dir: "/code/app/web", Project: "/code/app"},
+		{At: at.Add(time.Minute), Session: "s", Kind: ledger.KindMessage, Dir: "/code/elsewhere"},
+		{At: at.Add(2 * time.Minute), Session: "t", Kind: ledger.KindMessage, Dir: "/code/site/.claude/worktrees/fix", Project: "/code/site"},
+		{At: at.Add(3 * time.Minute), Session: "t", Kind: ledger.KindCount},
+	} {
+		b.Take(l)
+	}
+	built, err := b.Built()
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := daySessionsIn(built.Side)
+	want := []DaySession{
+		{ID: "t", Dir: "/code/site/.claude/worktrees/fix", Project: "/code/site", Lines: 2, Last: at.Add(3 * time.Minute)},
+		{ID: "s", Dir: "/code/elsewhere", Lines: 2, Last: at.Add(time.Minute)},
+	}
+	if err != nil || !reflect.DeepEqual(got, want) {
+		t.Errorf("the day's side %s holds\n%+v (%v)\nwant\n%+v", built.Side, got, err, want)
+	}
+}
+
 // A day's session restored from its stored form is the one stored, its last
 // line's arrival to the nanosecond, in UTC, whatever zone it was given in.
 func TestADaysSessionRestoresExactly(t *testing.T) {
@@ -282,7 +314,11 @@ func TestADaysSessionRestoresExactly(t *testing.T) {
 		name string
 		s    DaySession
 	}{
-		{name: "to the nanosecond, in another zone", s: DaySession{ID: "s", Dir: "/code/app", Lines: 3, Last: time.Date(2026, 10, 8, 9, 0, 0, 123_456_789, east)}},
+		{
+			name: "to the nanosecond, in another zone",
+			s:    DaySession{ID: "s", Dir: "/code/app/web", Project: "/code/app", Lines: 3, Last: time.Date(2026, 10, 8, 9, 0, 0, 123_456_789, east)},
+		},
+		{name: "no project", s: DaySession{ID: "s", Dir: "/code/app", Lines: 3, Last: time.Date(2026, 10, 8, 9, 0, 0, 0, time.UTC)}},
 		{name: "no directory", s: DaySession{ID: "s", Lines: 1, Last: time.Date(2026, 10, 8, 23, 59, 59, 999_999_999, time.UTC)}},
 		{name: "all but its id zero", s: DaySession{ID: "s"}},
 	}

@@ -28,7 +28,7 @@ func goldenRows() []ledger.Line {
 		return time.Date(2026, 10, 8, hour, minute, 0, 0, time.UTC)
 	}
 	subagent := ledger.Line{
-		At: at(9, 0).Add(123_456_789 * time.Nanosecond), Request: "r1", Kind: ledger.KindMessage, Session: "s", Dir: "/code/app", Model: foldOpus,
+		At: at(9, 0).Add(123_456_789 * time.Nanosecond), Request: "r1", Kind: ledger.KindMessage, Session: "s", Dir: "/code/app", Project: "/code/app", Model: foldOpus,
 		Account: "side", Reason: "moved: work hit its limit", From: "work", Tried: []ledger.Tried{{Account: "work", Why: "hit its limit"}}, Status: 200,
 		Attempts: 2, FirstMS: new(int64(800)), TotalMS: 11_800, Agent: "claude-cli/2.1.300 (external, cli)",
 		Betas: []string{"claude-code-20250219", "context-1m-2025-08-07"}, Prompt: "p1", Class: "subagent", AgentID: "a1",

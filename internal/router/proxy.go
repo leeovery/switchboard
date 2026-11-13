@@ -37,6 +37,9 @@ const (
 	// DirHeader names the directory run started claude in, as EncodeDir
 	// encodes it, for the request ledger.
 	DirHeader = ownPrefix + "Dir"
+	// ProjectHeader names the project that directory is in, as
+	// launch.FindProject finds it, encoded as DirHeader's directory is.
+	ProjectHeader = ownPrefix + "Project"
 )
 
 const (
@@ -228,13 +231,14 @@ func (p *proxy) route(w http.ResponseWriter, r *http.Request, client account) {
 }
 
 // request is what the chooser is to know of a routed request, whose body is
-// body, sent by client's token: its session and the directory it was started
-// in, its model and whether the model's thinking is bound to its account,
-// whether it's the client's quota check, whether it's the first of its
-// session's main conversation after that was compacted, and its pin; and the
-// request's shape, which the provider reads in the same pass over the body. A
-// subagent's own conversation is compacted too, and marked alike, but its
-// session's main conversation keeps its cache, which a move would throw away.
+// body, sent by client's token: its session, the directory it was started in
+// and its project, its model and whether the model's thinking is bound to its
+// account, whether it's the client's quota check, whether it's the first of
+// its session's main conversation after that was compacted, and its pin; and
+// the request's shape, which the provider reads in the same pass over the
+// body. A subagent's own conversation is compacted too, and marked alike, but
+// its session's main conversation keeps its cache, which a move would throw
+// away.
 func (p *proxy) request(r *http.Request, body []byte, ex *exchange, client account) (Request, ledger.Shape) {
 	model, check, shape := p.provider.Asks(body)
 	session := p.provider.Session(r.Header)
@@ -242,6 +246,7 @@ func (p *proxy) request(r *http.Request, body []byte, ex *exchange, client accou
 		ID:        ex.id,
 		Session:   session,
 		Dir:       dirOf(r.Header),
+		Project:   projectOf(r.Header),
 		Model:     model,
 		Check:     check,
 		Bound:     p.provider.ThinkingBound(model),
@@ -706,9 +711,9 @@ func (p *proxy) ended(ex *exchange, broken bool) {
 // event returns the request stream's event of the kind given of a routed
 // request, as it stands: on the account whose answer the client has, once
 // it has one, its session and model cut short where they run too long, its
-// directory, the prompt it serves, its class and its agent as the request
-// ledger gives them, and whether it's the client's quota check, or a count
-// of tokens.
+// directory and project, the prompt it serves, its class and its agent as
+// the request ledger gives them, and whether it's the client's quota check,
+// or a count of tokens.
 func (ex *exchange) event(kind string) StreamEvent {
 	return StreamEvent{
 		Kind:    kind,
@@ -716,6 +721,7 @@ func (ex *exchange) event(kind string) StreamEvent {
 		Attempt: ex.attempts,
 		Session: bounded(ex.req.Session),
 		Dir:     ex.req.Dir,
+		Project: ex.req.Project,
 		Model:   bounded(ex.req.Model),
 		Account: ex.answering().account,
 		Prompt:  ex.hints.Prompt,
@@ -765,7 +771,7 @@ func (p *proxy) logRouted(ex *exchange, f finish) {
 func (p *proxy) unread(w http.ResponseWriter, r *http.Request, ex *exchange, err error) {
 	f := finishing(r, time.Since(ex.started), false)
 	logger.Warn("request refused: body unread", append([]any{"id", ex.id, "method", r.Method, "path", r.URL.Path, "error", err}, f.attrs()...)...)
-	ex.req.Session, ex.req.Dir = p.provider.Session(r.Header), dirOf(r.Header)
+	ex.req.Session, ex.req.Dir, ex.req.Project = p.provider.Session(r.Header), dirOf(r.Header), projectOf(r.Header)
 	ex.status = http.StatusBadRequest
 	kind, message := "invalid_request_error", "switchboard: couldn't read the request body"
 	if _, tooLarge := errors.AsType[*http.MaxBytesError](err); tooLarge {

@@ -51,10 +51,11 @@ type Request struct {
 	// Session is the id of the session the request belongs to, or "" when it
 	// doesn't say.
 	Session string
-	// Dir is the directory the session was started in, as run tells the
-	// router, in the form the request ledger gives it, or "" when the request
-	// doesn't say.
-	Dir string
+	// Dir is the directory the session was started in, and Project the
+	// project that's in, as run tells the router, each in the form the
+	// request ledger gives it, or "" when the request doesn't say.
+	Dir     string
+	Project string
 	// Model is the model the request asks for, or "" when it doesn't say.
 	Model string
 	// Check is set when the request is the client's quota check, which asks

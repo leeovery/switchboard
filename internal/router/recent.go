@@ -139,7 +139,7 @@ func (r *recent) hear(e Event) {
 func (r *recent) take(e Event, now time.Time) {
 	switch e := e.(type) {
 	case SessionStarted:
-		r.add(status.Event{Kind: status.EventStarted, Account: e.Account, Session: bounded(e.Session), Model: bounded(e.Model), Dir: e.Dir, Reason: e.Reason}, now)
+		r.add(status.Event{Kind: status.EventStarted, Account: e.Account, Session: bounded(e.Session), Model: bounded(e.Model), Dir: e.Dir, Project: e.Project, Reason: e.Reason}, now)
 	case LimitReached:
 		r.reached(e, now)
 	case Moved:
@@ -161,9 +161,9 @@ func (r *recent) take(e Event, now time.Time) {
 	case RestartHeld:
 		r.add(status.Event{Kind: status.EventRestart, Reason: e.Reason, Held: e.Refusal}, now)
 	case Pinned:
-		r.add(status.Event{Kind: status.EventPin, Accounts: e.Accounts, Account: e.Account, Session: bounded(e.Session), Dir: e.Dir, Move: e.Move, Force: e.Force, By: string(e.By)}, now)
+		r.add(status.Event{Kind: status.EventPin, Accounts: e.Accounts, Account: e.Account, Session: bounded(e.Session), Dir: e.Dir, Project: e.Project, Move: e.Move, Force: e.Force, By: string(e.By)}, now)
 	case Unpinned:
-		r.add(status.Event{Kind: status.EventAuto, Accounts: e.Accounts, Account: e.Account, Session: bounded(e.Session), Dir: e.Dir, Force: e.Force, By: string(e.By)}, now)
+		r.add(status.Event{Kind: status.EventAuto, Accounts: e.Accounts, Account: e.Account, Session: bounded(e.Session), Dir: e.Dir, Project: e.Project, Force: e.Force, By: string(e.By)}, now)
 	}
 }
 

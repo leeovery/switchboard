@@ -60,10 +60,11 @@ var (
 	lineKinds    = []lineKind{requestLines, eventLines, readingLines}
 )
 
-// requestLine is the nth request's line of the local day with the given date.
+// requestLine is the nth request's line of the local day with the given date,
+// in a directory of a project, which an import takes in as it is.
 func requestLine(n int, date string) string {
-	return fmt.Sprintf(`{"at":%q,"request":"staged-%d","kind":"message","session":%q,"model":%q,"account":"work","reason":"sticky","status":200,"attempts":1,"total_ms":1000}`,
-		atOn(date, n), n, sessionID, opus)
+	return fmt.Sprintf(`{"at":%q,"request":"staged-%d","kind":"message","session":%q,"dir":"~/Code/api/web","project":"~/Code/api",`+
+		`"model":%q,"account":"work","reason":"sticky","status":200,"attempts":1,"total_ms":1000}`, atOn(date, n), n, sessionID, opus)
 }
 
 // eventLine is the nth event's line of the local day with the given date.

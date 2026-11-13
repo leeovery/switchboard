@@ -1,7 +1,6 @@
 package views
 
 import (
-	"cmp"
 	"slices"
 	"time"
 
@@ -24,9 +23,11 @@ type LogEvent struct {
 	Well bool
 	// Session is the whole id of the session it's of, one that started or
 	// moved, or whose own pin was set or cleared: "" for an account's event.
-	// Dir is the directory the session ran in: as the event gives it, else
-	// as its lines last name it; "" where neither does.
-	Session, Dir string
+	// Dir is the directory the session ran in, and Project its project,
+	// which status.ProjectOf reads with Dir, the two as one: as the event
+	// gives them, where it names a directory, else as its lines last name
+	// them; "" where neither does.
+	Session, Dir, Project string
 	// Accounts are the accounts it names, by id, each once, as the filter
 	// keeps and counts it: a move's, from and to; the global pin's, set or
 	// cleared, those it names; any other's, the one it befell; none of a
@@ -204,8 +205,9 @@ func eventsLines(rows []LogEvent, first LedgerDay, src LogEventSources) []Events
 func eventRow(e Event, line EventLine, fact eventFact, s *story, now time.Time) LogEvent {
 	row := LogEvent{
 		Key: e.Key, At: e.Event.At.In(now.Location()), Kind: e.Event.Kind, Well: wellAgain(e.Event),
-		Session: e.Event.Session, Accounts: namedAccounts(e.Event), Line: line, Moved: fact.moved, Dir: cmp.Or(e.Event.Dir, s.dir),
+		Session: e.Event.Session, Accounts: namedAccounts(e.Event), Line: line, Moved: fact.moved,
 	}
+	row.Dir, row.Project = eventPlace(e.Event, s)
 	switch e.Event.Kind {
 	case status.EventMoved:
 		row.Move = eventMove(moveOf(s, e.Event))
@@ -213,6 +215,17 @@ func eventRow(e Event, line EventLine, fact eventFact, s *story, now time.Time) 
 		row.Use = capUse(e.Event)
 	}
 	return row
+}
+
+// eventPlace is where the session the event e names ran, its directory and
+// its project, the two from one place, so a row never names a project of
+// one and a directory of another: the event's, where it names a directory,
+// else its session's story s's.
+func eventPlace(e status.Event, s *story) (dir, project string) {
+	if e.Dir != "" {
+		return e.Dir, e.Project
+	}
+	return s.dir, s.project
 }
 
 // FilledFrom is the latest day t could start from and still fill a view

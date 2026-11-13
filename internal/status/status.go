@@ -238,9 +238,11 @@ type Event struct {
 	Session string `json:"session,omitempty"`
 	Model   string `json:"model,omitempty"`
 	// Dir is the directory the session ran in as the event befell it, as the
-	// request ledger gives one: "" where none was known yet, and from a
-	// router from before it said.
-	Dir string `json:"dir,omitempty"`
+	// request ledger gives one, and Project its project, which ProjectOf
+	// reads with Dir: each "" where none was known yet, and from a router
+	// from before it said.
+	Dir     string `json:"dir,omitempty"`
+	Project string `json:"project,omitempty"`
 	// From and To are the accounts a session moved from and to. To is where
 	// the sessions a limit, a cap or a refusal moved went, too, when they all
 	// went to one.
@@ -304,8 +306,8 @@ type Event struct {
 // the same, so what's built of the one stands for the other.
 func (e Event) Same(o Event) bool {
 	return e.ID == o.ID && e.At.Equal(o.At) && e.Kind == o.Kind && e.Account == o.Account && slices.Equal(e.Accounts, o.Accounts) &&
-		e.Session == o.Session && e.Model == o.Model && e.Dir == o.Dir && e.From == o.From && e.To == o.To && e.Reason == o.Reason && e.Held == o.Held &&
-		slices.Equal(e.Windows, o.Windows) && maps.EqualFunc(e.Joined, o.Joined, time.Time.Equal) && e.Until.Equal(o.Until) &&
+		e.Session == o.Session && e.Model == o.Model && e.Dir == o.Dir && e.Project == o.Project && e.From == o.From && e.To == o.To &&
+		e.Reason == o.Reason && e.Held == o.Held && slices.Equal(e.Windows, o.Windows) && maps.EqualFunc(e.Joined, o.Joined, time.Time.Equal) && e.Until.Equal(o.Until) &&
 		e.Since.Equal(o.Since) && e.Count == o.Count && e.Limit == o.Limit && e.ForcedBy == o.ForcedBy && e.Reserve == o.Reserve &&
 		e.Status == o.Status && e.Family == o.Family && e.Move == o.Move && e.Force == o.Force && e.By == o.By
 }

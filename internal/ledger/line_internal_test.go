@@ -15,7 +15,7 @@ func TestALineIsCutToWhatTheLedgerHolds(t *testing.T) {
 	long := strings.Repeat("☃", textMost)
 	longs := slices.Repeat([]string{long}, 2*ListMost)
 	dir := "~/" + long + "/project"
-	got := (&Line{Session: long, Dir: dir, Betas: longs, Tried: slices.Repeat([]Tried{{Account: long, Why: long}}, 2*ListMost),
+	got := (&Line{Session: long, Dir: dir, Project: dir, Betas: longs, Tried: slices.Repeat([]Tried{{Account: long, Why: long}}, 2*ListMost),
 		Shape:  Shape{ServiceTier: long, OutputConfig: OutputConfig{Effort: long}, ContextManagement: ContextManagement{Edits: longs}},
 		Answer: Answer{Error: Error{Type: "overloaded_error", Message: long}}}).written()
 	cut := strings.Repeat("☃", textMost/len("☃"))
@@ -35,6 +35,9 @@ func TestALineIsCutToWhatTheLedgerHolds(t *testing.T) {
 	}
 	if want := "…" + strings.Repeat("☃", (textMost-len("…/project"))/len("☃")) + "/project"; got.Dir != want {
 		t.Errorf("a directory of %d bytes is written as %q, want %q: its end, its own name, in %d bytes, an ellipsis for the rest", len(dir), got.Dir, want, textMost)
+	}
+	if got.Project != "" {
+		t.Errorf("a project of %d bytes is written as %q, want it left out: past %d bytes, a cut one would name another", len(dir), got.Project, textMost)
 	}
 }
 
@@ -154,8 +157,8 @@ func TestTheLongestLineIsReadBack(t *testing.T) {
 }
 
 // longest is a line with every text, list and count longer than the ledger
-// holds, and its usage as long as it holds, each character of every text one
-// JSON escapes in six bytes.
+// holds, and its usage and project as long as it holds, as a longer project
+// is left out, each character of every text one JSON escapes in six bytes.
 func longest() *Line {
 	text := strings.Repeat("\x00", 4*textMost)
 	texts := slices.Repeat([]string{text}, 2*ListMost)
@@ -168,7 +171,7 @@ func longest() *Line {
 	}
 	usage := `{"x":"` + strings.Repeat("<", usageMost-len(`{"x":""}`)) + `"}`
 	return &Line{
-		At: time.Now(), Request: text, Kind: text, Session: text, Dir: text, Model: text, Account: text, Reason: text, From: text,
+		At: time.Now(), Request: text, Kind: text, Session: text, Dir: text, Project: strings.Repeat("\x00", textMost), Model: text, Account: text, Reason: text, From: text,
 		Tried: slices.Repeat([]Tried{{Account: text, Why: text}}, 2*ListMost), Agent: text, Betas: texts,
 		Prompt: text, Class: text, AgentID: text, ParentAgentID: text, AgentType: text, Compaction: text, Compacted: text,
 		ToolMS: slices.Repeat([]ToolTime{{Tool: text, MS: math.MaxInt64}}, 2*ListMost),

@@ -112,6 +112,7 @@ func (a *app) run(ctx context.Context, stderr io.Writer, opts runOptions, args [
 		Environ:      a.Environ(),
 		Dir:          dir,
 		Home:         home,
+		Project:      launch.FindProject,
 		InstallPaths: claude.InstallPaths(home),
 		Executable:   a.Executable,
 		PID:          a.PID,
