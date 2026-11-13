@@ -91,13 +91,22 @@ func latelySaid(m Model) []string {
 
 // runwayOfRun is Runway shown of the router's document giving the events
 // given, the router's run having begun at run, its files of events those
-// given, read at the harness's time.
+// given, read at the harness's time, as runwayOfRunAt has it from when the
+// clock starts.
 func runwayOfRun(t *testing.T, run time.Time, files *countedFiles, given ...status.Event) *runwayed {
+	t.Helper()
+	return runwayOfRunAt(t, past(0), run, files, given...)
+}
+
+// runwayOfRunAt is Runway shown at now of the router's document giving the
+// events given, the router's run having begun at run, its files of events
+// those given, read at the harness's time.
+func runwayOfRunAt(t *testing.T, now, run time.Time, files *countedFiles, given ...status.Event) *runwayed {
 	t.Helper()
 	doc := routerDocument(three()...)
 	doc.Events = given
 	return runwayHarnessOf(t, doc, dashboard.Runway, func(r *runwayed, cfg *Config) {
-		r.source.health = router.Health{OK: true, PID: 1, StartedAt: run}
+		r.clock.now, r.source.health = now, router.Health{OK: true, PID: 1, StartedAt: run}
 		files.clock, cfg.Events = r.clock, files
 	})
 }
@@ -309,16 +318,21 @@ func TestRunwaysLATELYIsToldAfreshAsWhatItTellsOfChanges(t *testing.T) {
 
 // The Log reading back the day LATELY's week begins on as midnight passes,
 // the events held let go of none of that day while the read's under way: it
-// lands, the Log spans the day, and its Events show the day's events.
+// lands, the Log spans the day, and its Events show the day's events; and a
+// look after, letting go of what it held off, lets go of none the Log wants.
+// The clock is at noon, local, so the day's 13:00 falls in LATELY's week but
+// before the Log's reach for the day after's facts, in any time zone.
 func TestALogReadBackUnderWayAcrossMidnightKeepsItsDaysEvents(t *testing.T) {
-	filedBy := past(-7 * day)
-	first := latelyCut(past(0))
-	limited := limitAt(1, views.RunwayLatelyFrom(past(0)).Add(time.Hour), "side")
-	r := runwayOfRun(t, past(-time.Hour), filesOf(events.Line{Event: limited, Run: filedBy}))
+	y, m, d := past(0).Local().Date()
+	now := time.Date(y, m, d, 12, 0, 0, 0, time.Local)
+	filedBy := now.Add(-7 * day)
+	first := latelyCut(now)
+	limited := limitAt(1, views.RunwayLatelyFrom(now).Add(time.Hour), "side")
+	r := runwayOfRunAt(t, now, now.Add(-time.Hour), filesOf(events.Line{Event: limited, Run: filedBy}))
 	state := t.TempDir()
 	var lines []ledger.Held
 	for d := range 8 {
-		lines = append(lines, arrived(fmt.Sprintf("0a%06d", d), "work", -time.Duration(d)*day-time.Minute))
+		lines = append(lines, arrivedAt(fmt.Sprintf("0a%06d", d), now.Add(-time.Duration(d)*day-time.Minute)))
 	}
 	writeLines(t, state, lines...)
 	onTheLog(r.harness, state)
@@ -329,16 +343,20 @@ func TestALogReadBackUnderWayAcrossMidnightKeepsItsDaysEvents(t *testing.T) {
 	if len(reading) == 0 {
 		t.Fatalf("the Log read back from %v, want a read of %v under way", r.model.log.from.Start, first)
 	}
-	r.clock.now = dayfile.DayStart(past(0).Local(), 1).Add(time.Minute)
+	r.clock.now = dayfile.DayStart(now, 1).Add(time.Minute)
 	reading = append(reading, holdingBack[logReadMsg](r.harness, r.press("R")...)...)
 	r.deliver(reading...)
 	if from := r.model.log.from.Start; !from.Equal(first) {
 		t.Fatalf("the Log spans from %v, want %v, the day it read back", from, first)
 	}
-	shown := slices.ContainsFunc(r.model.log.page.Events.Rows, func(row views.LogEvent) bool { return row.Key == views.EventKey{Run: filedBy, ID: 1} })
-	if !heldSince(r.model, views.EventsFrom(first)) || !shown {
-		t.Errorf("the events held begin at %v, the Events showing side's limit %t; want them from %v, showing it",
-			r.model.events.read.Since(), shown, views.EventsFrom(first))
+	for _, when := range []string{"the read landed", "a look after"} {
+		shown := slices.ContainsFunc(r.model.log.page.Events.Rows, func(row views.LogEvent) bool { return row.Key == views.EventKey{Run: filedBy, ID: 1} })
+		if !heldSince(r.model, views.EventsFrom(first)) || !shown {
+			t.Errorf("%s, the events held begin at %v, the Events showing side's limit %t; want them from %v, showing it",
+				when, r.model.events.read.Since(), shown, views.EventsFrom(first))
+		}
+		r.clock.now = r.clock.now.Add(time.Minute)
+		r.typed("R")
 	}
 }
 

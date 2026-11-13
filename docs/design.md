@@ -6246,7 +6246,7 @@ first ran on them. A row's parts, two cells apart, as flex lays them at every wi
   cells of the widest a stay is said, 30, `28 Sep 13:20 – yesterday 01:20`, so it's never cut:
   `12:02 – 14:31`, `14:31 – now`; with its day where the session spans more than one, or began
   before today, as an undated time reads as today's: `yesterday 16:40 – 18:05`, `today 09:12 –
-  now`, `yesterday 13:20 – 14:58` (settled in the plan);
+  now`, `yesterday 13:20 – 14:57` (settled in the plan);
 - **its requests** in `text.muted`, in 16, to `99,999 requests`, and past it `99,999+ requests`:
   `404 requests`;
 - **what it took of the account's windows,** the points bold `text.primary` and the rest

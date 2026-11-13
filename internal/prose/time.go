@@ -92,9 +92,10 @@ func weekOn(now, t time.Time) bool {
 	return t.Sub(now) > 24*time.Hour && t.In(now.Location()).Weekday() == now.Weekday()
 }
 
-// Befell shows t, when an event befell, before now, in now's time zone: as
-// Dated shows it, such as "16:05" or "Fri 04:06", but a week back, as
-// weekBack has it, its date in place of its weekday, such as "5 Nov 15:00".
+// Befell shows t, when an event befell or a time an event names, in now's
+// time zone: as Dated shows it, such as "16:05" or "Fri 04:06", a time ahead
+// of now too; but a week back, as weekBack has it, its date in place of its
+// weekday, such as "5 Nov 15:00".
 func Befell(now, t time.Time) string {
 	if weekBack(now, t) {
 		return t.In(now.Location()).Format(pastLayout)

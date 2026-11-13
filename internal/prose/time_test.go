@@ -298,8 +298,9 @@ func TestBefellIsDatedButAWeekBackItsDate(t *testing.T) {
 
 // Befell dates a time by the calendar in now's time zone, not by the hours
 // gone: in London, 00:30 on the day the clocks go back, 24h15m before 23:45
-// that day, reads as today's; and the Sunday before the clocks go forward,
-// under 7 days of hours before that Sunday's 23:30, as a week back's.
+// that day, reads as today's, the one time before now a rule of hours dates
+// otherwise; and a time ahead of now, on now's weekday a week on, is said
+// as Dated says it, as Befell dates only what's gone.
 func TestBefellDatesByTheCalendarAcrossAClockChange(t *testing.T) {
 	london, err := time.LoadLocation("Europe/London")
 	if err != nil {
@@ -311,7 +312,7 @@ func TestBefellDatesByTheCalendarAcrossAClockChange(t *testing.T) {
 		want   string
 	}{
 		{name: "the day the clocks go back, of 25 hours", now: time.Date(2026, 10, 25, 23, 45, 0, 0, london), t: time.Date(2026, 10, 25, 0, 30, 0, 0, london), want: "00:30"},
-		{name: "a week back, over the clocks going forward", now: time.Date(2026, 3, 29, 23, 30, 0, 0, london), t: time.Date(2026, 3, 22, 23, 45, 0, 0, london), want: "22 Mar 23:45"},
+		{name: "ahead, on now's weekday a week on", now: time.Date(2026, 11, 19, 16, 0, 0, 0, london), t: time.Date(2026, 11, 26, 10, 0, 0, 0, london), want: "Thu 10:00"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

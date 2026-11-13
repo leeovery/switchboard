@@ -443,12 +443,11 @@ as the router restarts; till then it shows the router's newest events. Where the
 enough for both, from 159 columns, and has the rows for COMING UP's every line in one column,
 LATELY sits at the left and COMING UP at the right, the past and what's coming as the lanes lie,
 each down to the legend. Else COMING UP sits under the pool's lane with LATELY under it, wherever
-LATELY's heading and two lines fit:
-COMING UP in two columns where they fit, from 148 columns, and LATELY across the screen under
-them; else the two in one column, as wide as their lines need to read whole, from 72 columns to
-the screen's width. Shorter still, or narrower, COMING UP shows alone. LATELY only takes the
-rows the lanes and COMING UP leave empty, so it never squeezes them. Where COMING UP's
-lines don't all fit, its last says how many more, such as `▼ 3 more`. The legend sits at the foot,
+LATELY's heading and two lines fit: COMING UP in two columns where they fit, from 148 columns,
+and LATELY across the screen under them; else the two in one column, as wide as their lines need
+to read whole, from 72 columns to the screen's width. Shorter still, or narrower, COMING UP shows
+alone. LATELY only takes the rows the lanes and COMING UP leave empty, so it never squeezes them.
+Where COMING UP's lines don't all fit, its last says how many more, such as `▼ 3 more`. The legend sits at the foot,
 over the key line. On a short screen, as with a phone's keyboard up, LATELY under COMING UP goes
 first; then COMING UP is cut to the lines that fit; then the legend gives way, then COMING UP, then the
 blank row under the axis; only then do the lanes scroll with `j` and `k`, down to one lane over

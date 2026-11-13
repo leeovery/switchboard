@@ -208,16 +208,16 @@ func widestMark() int {
 }
 
 // latelyLeads are the leads of LATELY's lines, the Overview's and Detail's
-// alike, of the sentences given at m's moment: each its time, in a column as
-// wide as the widest, in text.subtle; then its mark.
+// alike, of the sentences given at m's moment: each its time, as prose.Befell
+// says it, in a column as wide as the widest, in text.subtle; then its mark.
 func latelyLeads(m status.Moment, sentences []views.Sentence) []line {
 	column := 0
 	for _, s := range sentences {
-		column = max(column, len(prose.Dated(m.Now, s.At)))
+		column = max(column, len(prose.Befell(m.Now, s.At)))
 	}
 	leads := make([]line, len(sentences))
 	for i, s := range sentences {
-		leads[i] = line{{padded(prose.Dated(m.Now, s.At), column) + afterTime, dimInk}, eventMark(s.Kind, s.Well), {text: afterMark}}
+		leads[i] = line{{padded(prose.Befell(m.Now, s.At), column) + afterTime, dimInk}, eventMark(s.Kind, s.Well), {text: afterMark}}
 	}
 	return leads
 }

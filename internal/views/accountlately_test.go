@@ -39,6 +39,7 @@ func accountLately(doc status.Document, id, best string) []toldLine {
 // router's health and routing given back to it name no account, so neither
 // tells them. Each is told in full alone, short too, as a phone tells it.
 func TestDetailsLATELYTellsEachKindFromTheAccountsSide(t *testing.T) {
+	week := 7 * 24 * time.Hour
 	capped := func(id, count int) status.Event {
 		return status.Event{ID: id, Kind: status.EventCap, Account: "work", Windows: []string{"5h"}, Count: count}
 	}
@@ -95,6 +96,14 @@ func TestDetailsLATELYTellsEachKindFromTheAccountsSide(t *testing.T) {
 		{name: "pressure, saying when the account runs out",
 			doc: latelyOf(status.Event{Kind: status.EventPressure, Account: "personal", Windows: []string{"5h"}, Until: at(16, 5)}), id: "personal", want: []toldLine{
 				{kind: status.EventPressure, full: "came under pressure: out ~16:05 at this pace"}}},
+		{name: "pressure a week back, saying when by its date",
+			doc: latelyOf(status.Event{At: at(15, 0).Add(-week), Kind: status.EventPressure, Account: "personal", Windows: []string{"5h"}, Until: at(16, 5).Add(-week)}), id: "personal", want: []toldLine{
+				{kind: status.EventPressure, full: "came under pressure: out ~30 Sep 16:05 at this pace"}}},
+		{name: "a session starting a week back, passing over an account under pressure, saying when by its date", doc: latelyOf(
+			status.Event{At: at(15, 30).Add(-week), Kind: status.EventStarted, Account: "side", Session: "c61b2f8d", Reason: "new, personal under pressure"},
+			status.Event{At: at(15, 0).Add(-week), Kind: status.EventPressure, Account: "personal", Windows: []string{"5h"}, Until: at(16, 5).Add(-week)},
+		), id: "side", best: "side", want: []toldLine{
+			{kind: status.EventStarted, full: "c61b started here: personal came under pressure, its 5-hour to run out at 30 Sep 16:05"}}},
 		{name: "pressure, not saying when", doc: latelyOf(status.Event{Kind: status.EventPressure, Account: "personal", Windows: []string{"5h"}}), id: "personal", want: []toldLine{
 			{kind: status.EventPressure, full: "came under pressure"}}},
 		{name: "pressure on another account", doc: latelyOf(status.Event{Kind: status.EventPressure, Account: "personal"}), id: "side"},
