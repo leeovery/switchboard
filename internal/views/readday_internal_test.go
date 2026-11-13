@@ -46,6 +46,25 @@ func (r *rowsNoted) fromRows(date string) bool {
 	return r.rows[date] && !r.raw[date]
 }
 
+// How a day back was read, as readAs tells it.
+const (
+	readFromRows = "from its rows alone"
+	readNothing  = "reading nothing"
+	readLines    = "reading its lines"
+)
+
+// readAs tells how the day with the given date was read: from its rows
+// alone, reading nothing of it, or reading its lines.
+func (r *rowsNoted) readAs(date string) string {
+	switch {
+	case r.fromRows(date):
+		return readFromRows
+	case !r.rows[date] && !r.raw[date]:
+		return readNothing
+	}
+	return readLines
+}
+
 // rawDay is the LogDay of the local day with the given date read raw,
 // through l, as ReadDay reads a day whose rows don't stand: of its lines, as
 // Day gives them, holding the day's date.

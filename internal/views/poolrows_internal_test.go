@@ -22,15 +22,16 @@ const (
 
 // poolReads are the reads of a day these tests hold to its lines read raw:
 // Acme's and the first pool's, once the move to pools is done; every
-// pool's; and none's.
+// pool's; and none's. whole is how each reads a past day whole: from its
+// rows alone, but none's, passing it over unread.
 var poolReads = []struct {
-	name string
-	read PoolRead
+	name, whole string
+	read        PoolRead
 }{
-	{name: "Acme's", read: PoolRead{ID: acmePool, First: firstPool, PoolOf: placedNowhere}},
-	{name: "the first pool's", read: PoolRead{ID: firstPool, First: firstPool, PoolOf: placedNowhere}},
-	{name: "every pool's", read: PoolRead{}},
-	{name: "no pool's", read: NoPool()},
+	{name: "Acme's", whole: readFromRows, read: PoolRead{ID: acmePool, First: firstPool, PoolOf: placedNowhere}},
+	{name: "the first pool's", whole: readFromRows, read: PoolRead{ID: firstPool, First: firstPool, PoolOf: placedNowhere}},
+	{name: "every pool's", whole: readFromRows, read: PoolRead{}},
+	{name: "no pool's", whole: readNothing, read: NoPool()},
 }
 
 // placedNowhere places no account in any pool, as of accounts removed before
@@ -95,7 +96,8 @@ func pooledBusyDays(seed uint64) []ledger.Line {
 // ReadDay reads it, its head built, gives the records of the day's lines in
 // the pool read raw, as Held keeps them, in order, its rows read and its
 // lines never: whole, Acme's its own alone, the first pool's those naming it
-// and those naming none, every pool's every one, and none's none. Read back
+// and those naming none, and every pool's every one; none's reads neither
+// and gives none. Read back
 // through a filter, it keeps every record of those the filter keeps, in
 // order, among others of the pool alone.
 func TestAPoolsDayBackIsItsLinesInThePoolReadRaw(t *testing.T) {
@@ -108,8 +110,8 @@ func TestAPoolsDayBackIsItsLinesInThePoolReadRaw(t *testing.T) {
 		for _, p := range poolReads {
 			raw := rawIn(f, date, p.read)
 			l := readingRows(f)
-			if got := ReadDay(l, date, LogFilter{}, p.read); !reflect.DeepEqual(got.records, raw.records) || !l.fromRows(date) {
-				t.Errorf("%s, %s whole, from its rows alone %t:\n%s", date, p.name, l.fromRows(date), recordsUnlike(got.records, raw.records))
+			if got := ReadDay(l, date, LogFilter{}, p.read); !reflect.DeepEqual(got.records, raw.records) || l.readAs(date) != p.whole {
+				t.Errorf("%s, %s whole, read %s, want %s:\n%s", date, p.name, l.readAs(date), p.whole, recordsUnlike(got.records, raw.records))
 			}
 			for range throughFilters {
 				filter := drawnFilter(r, ids)
