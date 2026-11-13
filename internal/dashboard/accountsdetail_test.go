@@ -727,6 +727,7 @@ func TestDetailsTHISWEEKNamesThePeriod(t *testing.T) {
 	doc := usageWorld(extraOff)
 	for period, want := range map[views.Period]string{
 		views.PeriodThisWeek: "THIS WEEK", views.PeriodToday: "TODAY", views.PeriodThirtyDays: "LAST 30 DAYS", views.PeriodTwelveWeeks: "LAST 12 WEEKS",
+		views.PeriodTwelveMonths: "LAST 12 MONTHS",
 	} {
 		page := detailsPage(t)
 		page.Period = period
@@ -934,7 +935,7 @@ func TestDetailsWideFormKeepsItsWordsWhole(t *testing.T) {
 // THIS WEEK is as wide as its labels and the widest bounded part of its
 // figures, at least 20 cells: a limit hit of any window listed, by its short
 // name, counted as often as its window can be hit in 12 months, "Fable wk
-// ×52", "5h ×1,756"; and all accounts' extra use on for one fewer than every
+// ×54", "5h ×1,758"; and all accounts' extra use on for one fewer than every
 // account. Alike whichever account is chosen, or all of them.
 func TestDetailsTHISWEEKIsAsWideAsItsWidestBoundedPart(t *testing.T) {
 	tests := []struct {
@@ -944,10 +945,10 @@ func TestDetailsTHISWEEKIsAsWideAsItsWidestBoundedPart(t *testing.T) {
 		cells    int
 	}{
 		{name: "one account, its windows' limits within 10", doc: usageWorld(withoutFable), accounts: 1, cells: 20},
-		{name: "one account, Fable wk ×52", doc: usageWorld(), accounts: 1, cells: 22},
+		{name: "one account, Fable wk ×54", doc: usageWorld(), accounts: 1, cells: 22},
 		{name: "three accounts, on for 2 of 3", doc: usageWorld(withoutFable), accounts: 3, cells: 23},
 		{name: "ten accounts, on for 9 of 10", doc: usageWorld(withoutFable), accounts: 10, cells: 24},
-		{name: "a Sonnet week, Sonnet wk ×52", doc: usageWorld(sonnetWeek), accounts: 1, cells: 23},
+		{name: "a Sonnet week, Sonnet wk ×54", doc: usageWorld(sonnetWeek), accounts: 1, cells: 23},
 	}
 	for _, tt := range tests {
 		configured := make(config.Accounts, tt.accounts)

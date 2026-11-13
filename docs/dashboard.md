@@ -1065,7 +1065,8 @@ It remembers:
 - the tab shown
 - the Overview's sections shown, and its `b` grouping
 - whether `w` shows each model's own window
-- Accounts' view and period
+- the period, one dial for the dashboard
+- Accounts' view
 - History's view, what its Year shows, Weeks' shape, and Tokens' period and split
 - Sessions' view
 - whether `a` collapsed Runway's labels

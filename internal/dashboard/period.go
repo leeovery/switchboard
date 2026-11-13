@@ -26,9 +26,5 @@ func KeepPeriod(prefs *theme.Prefs, period views.Period) {
 // periodDial is the dial's period at a heading's right, by its name, and the
 // widest name it can take, which the heading keeps room for as it steps.
 func periodDial(period views.Period) (name, widest string) {
-	var names []string
-	for _, p := range views.Periods() {
-		names = append(names, p.Name())
-	}
-	return period.Name(), widestOf(names)
+	return period.Name(), widestOf(views.PeriodNames())
 }

@@ -424,3 +424,25 @@ func TestAccountsOverTwelveMonthsAreTheYearsLastTwelveMonths(t *testing.T) {
 		})
 	}
 }
+
+// The days read for the last 12 months reach back the week before any
+// period's first day, so Accounts' page over the last 12 months, built of
+// them, counts an account idle since its week reset on their first day as
+// history --since does, from the days before them too: the week it ran out
+// on Friday 3 October 2025, and had none left as it reset.
+func TestTwelveMonthsOfTheDaysReadTellARunBegunBeforeThem(t *testing.T) {
+	days := daysFrom("2025-09-01",
+		day("2025-10-03", windowsDay{limits: []ledger.Limit{limit("7d", "2025-10-03", "18:00")}}.of("work")),
+		day("2025-10-08", windowsDay{resets: []ledger.Reset{reset("7d", "2025-10-08", "00:30", 1)}}.of("work")))
+	read := views.DaysFrom(views.YearAsk{}, now, time.Monday).Format(time.DateOnly)
+	held := slices.DeleteFunc(slices.Clone(days), func(s ledger.Summary) bool { return s.Day < read })
+	in := input(days)
+	work := views.NewPast(in, held).Accounts(views.PeriodTwelveMonths).Rows[0].Totals
+	in.From = views.PeriodTwelveMonths.From(now, time.Monday)
+	if got, want := jsonOf(t, work), jsonOf(t, views.NewHistory(in).Totals.Accounts[0]); got != want {
+		t.Errorf("over 12 months of the days read from %s, work counts\n%s\nhistory --since\n%s", read, got, want)
+	}
+	if left, ok := work.LeftAtReset["7d"]; work.RanOut["7d"] != "2025-10-03" || !ok || left != 0 {
+		t.Errorf("work's week ran out %q, %v left at its reset; want 3 Oct 2025, none", work.RanOut["7d"], work.LeftAtReset)
+	}
+}

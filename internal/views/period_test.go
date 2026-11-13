@@ -169,13 +169,34 @@ func TestAPeriodsPlansArePricedWhole(t *testing.T) {
 }
 
 // A window's limit is hit at most once a window, so over the longest period
-// the dial steps to, 12 months, of 366 days where they hold a 29 February, a
-// 5-hour window's at most 1,756 times, a week's 52, a day's 366; a key that
-// names no length counts as an hour's window.
+// the dial steps to, 12 months, of 366 days where they hold a 29 February,
+// as many times as it touches windows, a part of one at each end: a 5-hour
+// window's at most 1,758 times, a week's 54, a day's 367; a key that names no
+// length counts as an hour's window, 8,785 of them, as the 12 months begin
+// part-way through one where it doesn't start on the hour.
 func TestLimitsAreHitAtMostOnceAWindowOverTheLongestPeriod(t *testing.T) {
-	for key, want := range map[string]int{"5h": 1756, "7d": 52, "7d_oi": 52, "1d": 366, "session": 8784} {
+	for key, want := range map[string]int{"5h": 1758, "7d": 54, "7d_oi": 54, "1d": 367, "session": 8785} {
 		if got := views.LimitsHitMost(key); got != want {
 			t.Errorf("LimitsHitMost(%q) = %d, want %d", key, got, want)
+		}
+	}
+}
+
+// No placing of the windows lets 366 days touch more of them than
+// LimitsHitMost counts, and some placing touches that many: windows one
+// after another, each length long, the first beginning any minute into the
+// days' first window.
+func TestLimitsHitMostIsTheMostWindows366DaysTouch(t *testing.T) {
+	span := 366 * 24 * time.Hour
+	for key, length := range map[string]time.Duration{"5h": 5 * time.Hour, "7d": 7 * 24 * time.Hour, "1d": 24 * time.Hour} {
+		most := 0
+		for offset := time.Duration(0); offset < length; offset += time.Minute {
+			// The windows touched are those from the one the days begin in
+			// to the one holding their last minute.
+			most = max(most, int((offset+span-time.Minute)/length)+1)
+		}
+		if got := views.LimitsHitMost(key); got != most {
+			t.Errorf("LimitsHitMost(%q) = %d, but 366 days touch %d windows at most", key, got, most)
 		}
 	}
 }

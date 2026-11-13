@@ -186,8 +186,8 @@ const (
 	sessionsMost = 99_999
 	// movesMost are the most sessions moved onto an account, and off it.
 	movesMost = 999
-	// limitsMost are the most limits hit: 1,756 of a 5-hour window fit in 12
-	// months, and fewer of a week's.
+	// limitsMost are the most limits hit: 12 months touch 1,758 of a 5-hour
+	// window, and fewer of a week's.
 	limitsMost = 9_999
 	// planMost is the most a plan costs a month, in dollars: plans today
 	// cost from $20 to $200.

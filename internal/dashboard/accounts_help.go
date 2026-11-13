@@ -4,6 +4,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -90,7 +91,7 @@ func (f Frame) valueHelp() helpPart {
 				" An account added part-way shows what was recorded of it, priced against the whole period."),
 			said("Extra usage is on where Claude bills past the plan's limit, and off where the limit holds."),
 			said("The periods are rolling, never billing months, as switchboard knows no renewal date: `<` and `>` step " +
-				"through today, this week, the last 30 days, the last 12 weeks and the last 12 months" + shared),
+				"through " + prose.List(views.PeriodNames()) + shared),
 		},
 		glyphs: []glyph{
 			{drawn: line{{"$184", secondaryInk}, {views.PartUnpriced, faintInk}}, means: "worth, part of it unpriced"},
