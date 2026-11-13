@@ -50,7 +50,7 @@ func keptDeps(t *testing.T) cli.Deps {
 	err = identity.NewFile(state).Update(func(r *identity.Record) error {
 		r.Pools = []identity.PoolEntry{
 			{ID: "b2n8", Added: testNow, First: true, Here: true},
-			{ID: "q7mt", Label: "Acme", Added: testNow, Removed: october(6, 18, 0, 0)},
+			{ID: "q7mt", Label: "Acme", Added: testNow, Removed: october(6, 18, 0, 0), Written: identity.PoolWritten{Label: "Acme", PrimaryKnown: true}},
 			{ID: "f4xk", Label: "Client", Added: testNow},
 		}
 		r.Accounts = append(r.Accounts, identity.Entry{ID: "c1nt", Label: "Client 1", Pool: "f4xk", Added: testNow})

@@ -705,8 +705,9 @@ the config has it, else the config's first pool, as after you empty and remove `
 **A pool removed keeps its history.** Its work stays under its id, `Default`'s from before pools
 with it, and nothing moves it into another pool, as a removed pool may be a client's. `requests`,
 `history`, `sessions` and `events` read it with `--pool` and its id, naming it by its label, marked
-removed, as `pool Default (removed 6 Oct)`; so do they a pool another Mac's history brought in with
-`import`, marked `not configured here`. `status`, `usage` and `pin` refuse it, as the router routes
+removed, as `pool Default (removed 6 Oct)`, or `removed` alone where the accounts record has no
+day; so do they a pool another Mac's history brought in with `import`, marked `not configured
+here`, even one the other Mac removed. `status`, `usage` and `pin` refuse it, as the router routes
 nothing there. `switchboard pool remove` says so as it removes one.
 
 **A config that loses its pools,** as one put back from before pools by hand or by the repository

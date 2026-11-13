@@ -449,6 +449,37 @@ func TestJoiningARecordTakesNoneOfHowTheOtherMacsConfigHasThePools(t *testing.T)
 	}
 }
 
+// A pool is this Mac's while its config has it, and once it's removed from
+// it; one only another Mac had isn't, though that Mac removed it.
+func TestAPoolIsOursWhereThisMacsConfigHadIt(t *testing.T) {
+	later := removed.Add(24 * time.Hour)
+	first := config.Pool{ID: "b2n8", Label: "Default"}
+	acme := config.Pool{ID: "q7mt", Label: "Acme"}
+	accounts := config.Accounts{{ID: "b6s7", Pool: "b2n8"}}
+	r := identity.Record{Accounts: []identity.Entry{{ID: "b6s7", Added: added}}}
+	r.KeepUp(identity.Followed{Accounts: accounts, Pools: config.Pools{first, acme}}, later)
+	r.KeepUp(identity.Followed{Accounts: accounts, Pools: config.Pools{first}}, later)
+	other := identity.Record{Pools: []identity.PoolEntry{{ID: "c1nt", Label: "Client", Added: added, Removed: removed, Configured: true}}}
+	if _, err := r.Join(other, joinAs); err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		id   string
+		ours bool
+	}{
+		{id: "b2n8", ours: true},
+		{id: "q7mt", ours: true},
+		{id: "c1nt", ours: false},
+	}
+	for _, tt := range tests {
+		p, ok := r.PoolByID(tt.id)
+		if !ok || p.Ours() != tt.ours {
+			t.Errorf("the record holds %s as %+v, %t; want it ours %t", tt.id, p, ok, tt.ours)
+		}
+	}
+}
+
 // An account's id and a pool's are never one: an account's derived or
 // random id is never a pool's, and the record keeping up with the config
 // leaves out an account configured under a pool's id, and a pool under an

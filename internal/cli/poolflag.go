@@ -27,7 +27,8 @@ never chooses.`
 // files, which read a pool the config no longer has by its id too.
 const readingAKeptPool = `--pool also takes a pool the config no longer has, removed, or another
 Mac's from an import, by the id its history is kept under, naming it as
-removed, and reads its work as it was recorded, never in another pool.`
+removed, or as not configured here, and reads its work as it was recorded,
+never in another pool.`
 
 // addPoolFlag registers --pool on cmd, naming the pool it reads or acts on,
 // as what says it does, by its id.

@@ -166,11 +166,19 @@ func TestAPoolIsLabelledByTheConfigElseTheRecordElseItsID(t *testing.T) {
 // record doesn't keep, isn't.
 func TestAPoolTheRecordKeepsButTheConfigDoesntIsKept(t *testing.T) {
 	removed := time.Date(2026, 10, 6, 18, 0, 0, 0, time.Local)
+	// Each pool removed here is as KeepUp leaves it, no longer Here, but
+	// as this Mac's config last wrote it.
+	written := func(label string) identity.PoolWritten { return identity.PoolWritten{Label: label, PrimaryKnown: true} }
 	record := identity.Record{Pools: []identity.PoolEntry{
-		{ID: acme, Label: "Acme"},
-		{ID: "x9z9", Label: "Acme old", Removed: removed},
+		{ID: acme, Here: true, Written: written("Acme")},
+		{ID: "x9z9", Label: "Acme old", Removed: removed, Written: written("Acme old")},
 		{ID: "f4xk", Label: "Client"},
-		{ID: firstPool, First: true, Removed: removed, Written: identity.PoolWritten{Label: "Default"}},
+		{ID: firstPool, First: true, Label: "Default", Removed: removed, Written: written("Default")},
+		// This Mac's, still Here, its config changed while no router kept
+		// the record up with it, so the record notes no removal.
+		{ID: "m3pq", Here: true, Written: written("Side")},
+		// Another Mac's, removed there, as an import carries it in.
+		{ID: "r7vb", Label: "Studio", Removed: removed},
 	}}
 	pools := config.Pools{{ID: acme, Label: "Acme"}}
 	tests := []struct {
@@ -181,6 +189,8 @@ func TestAPoolTheRecordKeepsButTheConfigDoesntIsKept(t *testing.T) {
 		{id: "X9Z9", want: "pool Acme old (removed 6 Oct)", kept: true},
 		{id: "f4xk", want: "pool Client (not configured here)", kept: true},
 		{id: firstPool, want: "pool Default (removed 6 Oct)", kept: true},
+		{id: "m3pq", want: "pool Side (removed)", kept: true},
+		{id: "r7vb", want: "pool Studio (not configured here)", kept: true},
 		{id: acme},
 		{id: "h4w2"},
 	}

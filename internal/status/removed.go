@@ -75,9 +75,12 @@ func keptLabel(p identity.PoolEntry) string {
 // configure: one removed, or one only another Mac configures, as an import
 // joins its record in. The work recorded in it stays under its id, never
 // another pool's, as a removed pool may be a client's. It's kept by its id,
-// its label, as PoolLabels labels it, and, where it was removed, when.
+// its label, as PoolLabels labels it, and whether it was this Mac's, as
+// PoolEntry's Ours says, so removed here, and if so, when, where the record
+// says: never of another Mac's, whose removal there an import carries in.
 type KeptPool struct {
 	ID, Label string
+	Ours      bool
 	Removed   time.Time
 }
 
@@ -92,19 +95,33 @@ func KeptPoolOf(record identity.Record, pools config.Pools, id string) (KeptPool
 	if !ok {
 		return KeptPool{}, false
 	}
-	return KeptPool{ID: p.ID, Label: keptLabel(p), Removed: p.Removed}, true
+	kept := KeptPool{ID: p.ID, Label: keptLabel(p), Ours: p.Ours()}
+	if kept.Ours {
+		kept.Removed = p.Removed
+	}
+	return kept, true
 }
 
 // Said is the pool as the verbs' text names it, cleaned, marked as one not
-// configured: of one removed, when, by its local day, as RemovedAccount's
-// Said says an account's removal, as "pool Acme (removed 4 Sep)"; else as
-// "pool Acme (not configured here)".
+// configured: of one this Mac had, removed, and when, by its local day, where
+// the record says, as RemovedAccount's Said says an account's removal, as
+// "pool Acme (removed 4 Sep)"; else, of another Mac's, as "pool Acme (not
+// configured here)".
 func (p KeptPool) Said() string {
-	mark := "not configured here"
-	if !p.Removed.IsZero() {
-		mark = "removed " + prose.DayMonth(p.Removed.Local())
+	return prose.Pool(p.Label) + " (" + p.mark() + ")"
+}
+
+// mark is how Said marks the pool: removed, and when, where it was this
+// Mac's, else not configured here.
+func (p KeptPool) mark() string {
+	switch {
+	case !p.Ours:
+		return "not configured here"
+	case p.Removed.IsZero():
+		return "removed"
+	default:
+		return "removed " + prose.DayMonth(p.Removed.Local())
 	}
-	return prose.Pool(p.Label) + " (" + mark + ")"
 }
 
 // Of returns the removed account with the given id, ids compared ignoring

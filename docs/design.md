@@ -979,9 +979,12 @@ totals.
   stays the first pool's as the config has it, so a removed first pool's history is what the move
   gave its id, and nothing is folded into another pool, as a removed pool may be a client's and its
   work in the owner's pool would be a crossing. They name it by the record's label, marked, as a
-  removed account is: `pool Acme (removed 6 Oct)`, or of one never removed here, `pool Client (not
-  configured here)`, whatever pools there are; and `sessions` asks the router nothing of it, as
-  the router runs no session in a pool it doesn't route. The verbs that read the router, `status`,
+  removed account is: one this Mac's config had, as the record's `here` says, or once it's removed,
+  `written`, which an import never carries, as removed, with the day where the record has one,
+  `pool Acme (removed 6 Oct)`, else `pool Acme (removed)`; one it never had as `pool Client (not
+  configured here)`, even where the other Mac removed it and the import carried that in; whatever
+  pools there are; and `sessions` asks the router nothing of it, as the router runs no session in a
+  pool it doesn't route. The verbs that read the router, `status`,
   `usage` and `pin`, refuse it, as the router does. `pool remove` says the history stays, read so.
 - **A router that reports no pools,** as one from before pools still running till its restart,
   answers every account's document and sessions whatever pool is asked, so where the config has

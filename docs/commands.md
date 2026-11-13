@@ -103,9 +103,10 @@ Claude pass `--pool "$SWITCHBOARD_POOL"`, the session's own pool.
 - **A pool the config no longer has keeps its history.** `requests`, `history`, `sessions` and
   `events` take `--pool` with the id of a pool the accounts record keeps but the config doesn't:
   one removed, or another Mac's that [`import`](#import) brought in. They read its work as it was
-  recorded, under its id alone, and name it by its label, marked, as `pool Acme (removed 6 Oct)`,
-  or `pool Client (not configured here)`. `status`, `usage` and `pin` refuse it, as the router
-  routes nothing there.
+  recorded, under its id alone, and name it by its label, marked: one this Mac had as removed, with
+  the day where the accounts record has it, as `pool Acme (removed 6 Oct)`; one it never had as
+  `pool Client (not configured here)`, whatever became of it on the other Mac. `status`, `usage`
+  and `pin` refuse it, as the router routes nothing there.
 - [`dashboard`](#dashboard) shows the pool the verbs act on without `--pool`; `status --pool <id>`
   shows the others. Where every pool is fenced, it reads no pool's accounts, saying it couldn't
   read usage, as every pool is fenced: this release's dashboard takes no `--pool`.
