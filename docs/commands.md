@@ -554,8 +554,8 @@ The steps are:
    **Pools.** The add card's Pool offers every pool by its label, then `new pool`, even while
    there's one pool, as it's where a second is made. It opens on the pool `accounts add` adds one
    to without `--pool`, the only pool, else the unfenced one, else, where every pool is fenced,
-   the first; its hint says which sessions use the pool chosen. `enter` on `new pool` opens the
-   new pool card: its label, and its directories, `+ another directory` adding one, each an
+   the first; its hint says which sessions use the pool chosen. With `new pool` chosen, `enter`
+   opens the new pool card: its label, and its directories, `+ another directory` adding one, each an
    absolute path or one from `~/`; with none, the pool is unfenced, which is refused where one
    already is. The pool chosen, and a new pool's label and directories, are checked by the
    config's rules before any token's made, and a new pool is written with the account, once its

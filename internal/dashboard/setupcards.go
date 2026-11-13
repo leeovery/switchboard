@@ -31,7 +31,7 @@ type SetupEditCard struct {
 // SetupPool is a card's Pool, as it stands: its options, each pool by its
 // label, then new pool; the one chosen, by its place among them; the hint
 // under it, as setup words it; and whether new pool is chosen, where enter
-// opens the new pool card.
+// opens the new pool card, whichever field is chosen.
 type SetupPool struct {
 	Options []string
 	Chosen  int
@@ -258,11 +258,11 @@ func (k setupCard) draw(c *canvas) {
 // top edge; then a blank row apart, its fields, Label, Plan and its hint,
 // Pool and its hint, where it has one, Primary and its hint, and Reserve,
 // its hint after it, each refusal under the field it's of; and its keys,
-// enter opening the new pool card where Pool is chosen on new pool.
+// enter opening the new pool card where Pool is on new pool.
 func (e SetupEditCard) card(width int) *setupCard {
 	content := width - 2*cardInset
 	focus := cardFocus{chosen: e.Chosen, refused: e.Refused, why: e.Why}
-	k := &setupCard{card: Card{title: "EDIT " + strings.ToUpper(e.Name), width: width, keys: focus.poolKeys(editKeys, e.Pool)}}
+	k := &setupCard{card: Card{title: "EDIT " + strings.ToUpper(e.Name), width: width, keys: poolKeys(editKeys, e.Pool)}}
 	k.text(focus.textField(setup.LabelField, labelName, "", e.Label), 0, content)
 	primary := 0
 	if e.Primary {
@@ -297,10 +297,10 @@ func (f cardFocus) poolRows(width int, pool *SetupPool) []line {
 	return append(rows, nil)
 }
 
-// poolKeys are a card's keys, given, but where Pool is chosen on new pool,
-// for enter, which opens the new pool card.
-func (f cardFocus) poolKeys(keys []Key, pool *SetupPool) []Key {
-	if pool == nil || !pool.New || f.chosen != setup.PoolField {
+// poolKeys are a card's keys, given, but where Pool is on new pool, for
+// enter, which opens the new pool card.
+func poolKeys(keys []Key, pool *SetupPool) []Key {
+	if pool == nil || !pool.New {
 		return keys
 	}
 	keys = slices.Clone(keys)
@@ -332,12 +332,12 @@ func (r SetupReserveCard) card(width int) *setupCard {
 // what an account is, muted; then a blank row apart, its fields, Label, its
 // hint after it, Plan, and Pool and its hint, where it has one, each refusal
 // under the field it's of; what setup does next, making the account's
-// token; and its keys, enter opening the new pool card where Pool is chosen
-// on new pool.
+// token; and its keys, enter opening the new pool card where Pool is on new
+// pool.
 func (a SetupAddCard) card(width int) *setupCard {
 	content := width - 2*cardInset
 	focus := cardFocus{chosen: a.Chosen, refused: a.Refused, why: a.Why}
-	k := &setupCard{card: Card{title: "ADD AN ACCOUNT", width: width, keys: focus.poolKeys(addKeys, a.Pool)}}
+	k := &setupCard{card: Card{title: "ADD AN ACCOUNT", width: width, keys: poolKeys(addKeys, a.Pool)}}
 	k.card.body = append(line{{addCardIntro, mutedInk}}.wrap(content), nil)
 	k.text(focus.textField(setup.LabelField, labelName, labelHint, a.Label), 0, content)
 	k.card.body = append(k.card.body, nil, focus.planRow(content, a.Plans, a.Plan), nil)

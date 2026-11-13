@@ -222,9 +222,10 @@ func (c editCard) pressed(key tea.KeyPressMsg) (editCard, bool) {
 }
 
 // makingPool reports whether enter opens the new pool card: where the card's
-// Pool is chosen, on new pool.
+// Pool is on new pool, whichever field is chosen, as the account has no pool
+// to go in till one's made.
 func (c editCard) makingPool() bool {
-	if c.chosen != setup.PoolField {
+	if c.pool == nil {
 		return false
 	}
 	_, chosen := c.pool.choice()
@@ -311,7 +312,7 @@ func (m Model) cardPressed(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 }
 
 // editPressed acts on a key at the edit card: esc closes it, saving
-// nothing; enter, on Pool's new pool, opens the new pool card over it,
+// nothing; enter, with Pool on new pool, opens the new pool card over it,
 // holding the new pool it holds, where it holds one, and elsewhere saves
 // it, as saved has it; tab chooses the next field; and the field chosen
 // takes the keys it takes, as editCard.pressed has them.

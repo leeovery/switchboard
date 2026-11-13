@@ -279,3 +279,27 @@ func TestTheEditCardWithOnePoolHasNoPool(t *testing.T) {
 		t.Errorf("the card reads\n%s\nwant Primary's hint as before pools", strings.Join(cardRows(h), "\n"))
 	}
 }
+
+// With Pool on new pool, enter opens the new pool card from whichever field
+// is chosen, checking and saving nothing, as the account has no pool to go
+// in till one's made: on the add card, and on the edit card.
+func TestEnterWithNewPoolChosenOpensTheNewPoolCard(t *testing.T) {
+	h := addingPooled(t, pooledSteps())
+	h.typeIn("Client 1")
+	for _, k := range []string{"tab", "tab", "right", "right", "tab", "enter"} {
+		h.pressAndDeliver(k)
+	}
+	if title, _ := h.card(); title != "NEW POOL" || len(h.steps.adds) != 0 {
+		t.Errorf("enter on Label, Pool on new pool, opened %q and checked %+v; want NEW POOL, nothing checked", title, h.steps.adds)
+	}
+
+	h = accountsHarness(t, pooledSteps())
+	h.start()
+	h.pressAndDeliver("e")
+	for _, k := range []string{"tab", "tab", "right", "right", "tab", "enter"} {
+		h.pressAndDeliver(k)
+	}
+	if title, _ := h.card(); title != "NEW POOL" || len(h.steps.edits) != 0 {
+		t.Errorf("enter on Primary, Pool on new pool, opened %q and saved %+v; want NEW POOL, nothing saved", title, h.steps.edits)
+	}
+}

@@ -1090,12 +1090,15 @@ totals.
     pool, unfenced, `every session uses it`; of `new pool`, that `enter` gives its label and
     directories. A config without pools, as on a first run, before the router's move makes the
     first, has no Pool: there's no pool to choose, nor one to add beside it.
-  - `enter` on `new pool` opens the card `NEW POOL`, over the add card or the edit card: its
+  - `enter`, with Pool on `new pool`, from whichever field is chosen, as the account has no pool
+    to go in till one's made, opens the card `NEW POOL`, over the add card or the edit card: its
     label, and its directories, `+ another directory` adding one, `enter` there adding it, a
     directory left empty passed over; with none, the pool's unfenced. `enter` elsewhere has
     `accounts.Registry.CheckNewPool` check it, by the config's own rules, a refusal said under the
     label or under the directory refused, which `config.DirError` places; once it passes, the card
-    that opened it holds it among its pools, chosen, and `esc` goes back to that card. The card
+    that opened it holds it among its pools, chosen, and `esc` goes back to that card. Its keys
+    are `tab next`, `enter create pool` and `esc back`, `enter add a directory` on `+ another
+    directory`; the card under it says `enter new pool` while its Pool is on `new pool`. The pool
     held is written with the account, in the one edit that adds it, after its token, or moves it,
     under an id drawn as `pool add` draws one (`accounts.NewPool`).
   - The add card's `enter` checks the pool chosen and any new pool with the account, as
