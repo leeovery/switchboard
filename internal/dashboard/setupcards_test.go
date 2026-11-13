@@ -35,7 +35,7 @@ func editingScreen(card SetupEditCard) Setup {
 // frame6Card is personal's edit card as frame 6 has it: Plan chosen, and
 // moved to Max.
 func frame6Card() SetupEditCard {
-	return SetupEditCard{Name: "personal", Label: Field{Value: "Personal", Cursor: 8}, Reserve: Field{Value: "none", Cursor: 4}, Plan: "max", Chosen: setup.PlanField}
+	return SetupEditCard{Name: "personal", Label: Field{Value: "Personal", Cursor: 8}, Reserve: Field{Value: "none", Cursor: 4}, Plans: (setup.Reviewed{}).PlanChoices(), Plan: "max", Chosen: setup.PlanField}
 }
 
 // setupCardRow is the card's row y, from its line to its line, as text.
@@ -223,9 +223,9 @@ func firstRunScreen(card SetupAddCard) Setup {
 }
 
 // frame1Card is the add card as frame 1 has it: work's Label typed, Ultra
-// chosen, Label typed in.
+// chosen, Label typed in; its plans a subscription's, with no not set.
 func frame1Card() SetupAddCard {
-	return SetupAddCard{Label: Field{Value: "Work", Cursor: 4}, Plan: "ultra", Chosen: setup.LabelField}
+	return SetupAddCard{Label: Field{Value: "Work", Cursor: 4}, Plans: setup.AddPlans(), Plan: "ultra", Chosen: setup.LabelField}
 }
 
 // addCardTop is the add card's top row at 160×37, the card 13 rows tall,
@@ -244,7 +244,7 @@ func TestTheAddCardIsFrame1s(t *testing.T) {
 		addCardTop + 3:  "│" + blanks(78) + "│",
 		addCardTop + 4:  label + blanks(79-utf8.RuneCountInString(label)) + "│",
 		addCardTop + 5:  "│" + blanks(78) + "│",
-		addCardTop + 6:  "│  Plan      □ Pro    □ Max    ■ Ultra    □ not set" + blanks(28) + "│",
+		addCardTop + 6:  "│  Plan      □ Pro    □ Max    ■ Ultra" + blanks(41) + "│",
 		addCardTop + 7:  "│" + blanks(78) + "│",
 		addCardTop + 8:  "│  Setup then creates a token with claude setup-token. You approve it in" + blanks(7) + "│",
 		addCardTop + 9:  "│  the browser while signed in to this subscription. Tokens last a year." + blanks(7) + "│",
@@ -321,5 +321,130 @@ func TestTheAccountsPagesLine(t *testing.T) {
 				t.Errorf("the page's line reads %q, want %q", got, "  "+tt.want)
 			}
 		})
+	}
+}
+
+// pooledCard is the add card as the pools' frame 5 has it: Acme 3's Label
+// typed, Ultra chosen, and Pool chosen on Acme, its hint setup's.
+func pooledCard() SetupAddCard {
+	card := frame1Card()
+	card.Label, card.Chosen = Field{Value: "Acme 3", Cursor: 6}, setup.PoolField
+	card.Pool = &SetupPool{Options: []string{"Default", "Acme", "new pool"}, Chosen: 1, Hint: "only sessions started in ~/Code/acme use it"}
+	return card
+}
+
+// The add card's Pool is its third field, after Plan, a blank row apart: its
+// options as a choice's, the one chosen bold while Pool is the field chosen,
+// its hint under it, faint; a refusal of the pool chosen under that.
+func TestTheAddCardsPoolIsDrawnUnderPlan(t *testing.T) {
+	top := (37 - 16) / 2
+	c := setupDrawn(firstRunScreen(pooledCard()), 160, 37)
+	pool, hint := "│  Pool      □ Default    ■ Acme    □ new pool", "│            only sessions started in ~/Code/acme use it"
+	for y, want := range map[int]string{
+		top + 6: "│  Plan      □ Pro    □ Max    ■ Ultra" + blanks(41) + "│",
+		top + 7: "│" + blanks(78) + "│",
+		top + 8: pool + blanks(79-utf8.RuneCountInString(pool)) + "│",
+		top + 9: hint + blanks(79-utf8.RuneCountInString(hint)) + "│",
+	} {
+		if got := setupCardRow(c, y); got != want {
+			t.Errorf("row %d reads\n%q\nwant\n%q", y, got, want)
+		}
+	}
+	value := editCardContent + 10
+	if got := inkAt(c, value+15, top+8); got != (ink{token: theme.TextPrimary, bold: true}) {
+		t.Errorf("Acme, chosen, Pool the field chosen, is in %+v, want bold text.primary", got)
+	}
+	if got := inkAt(c, value, top+9); got != faintInk {
+		t.Errorf("Pool's hint is in %+v, want text.faint", got)
+	}
+
+	card := pooledCard()
+	card.Refused, card.Why = setup.PoolField, "pool \"q7mt\" is not configured"
+	c = setupDrawn(firstRunScreen(card), 160, 37)
+	top = (37 - 17) / 2
+	if got := setupCardRow(c, top+10); !strings.HasPrefix(got, "│            pool \"q7mt\" is not configured") || inkAt(c, value, top+10) != errorInk {
+		t.Errorf("the row under Pool's hint reads %q, want why the pool's refused, in state.destructive", got)
+	}
+}
+
+// Where Pool is chosen on new pool, the add card's enter opens the new pool
+// card, and its keys say so.
+func TestTheAddCardsKeysOnNewPool(t *testing.T) {
+	card := pooledCard()
+	card.Pool.Chosen, card.Pool.New = 2, true
+	top := (37 - 16) / 2
+	c := setupDrawn(firstRunScreen(card), 160, 37)
+	if got := setupCardRow(c, top+14); !strings.HasSuffix(got, "tab next   enter new pool   esc cancel  │") {
+		t.Errorf("the keys read %q, want enter making the new pool", got)
+	}
+}
+
+// newPoolScreen is the pools' frame 6: the new pool card open, as card is.
+func newPoolScreen(card SetupNewPoolCard) Setup {
+	s := accountsScreen(frame3Review(), 3)
+	s.Accounts.Add, s.Accounts.NewPool = new(pooledCard()), &card
+	return s
+}
+
+// The new pool card, over the add card: what a pool is, muted; its Label,
+// hinted; its directories, the first named Directory, hinted under it; then
+// + another directory, faint, or chosen, + in bold accent.key and its words
+// text.primary; and its keys, enter adding a directory where + another
+// directory is chosen.
+func TestTheNewPoolCardIsFrame6s(t *testing.T) {
+	card := SetupNewPoolCard{Label: Field{Value: "Client", Cursor: 6}, Dirs: []Field{{Value: "~/Code/client", Cursor: 13}}, Chosen: 1}
+	top := (37 - 13) / 2
+	c := setupDrawn(newPoolScreen(card), 160, 37)
+	label, dir := "│  Label     Client                    what every screen calls it", "│  Directory ~/Code/client"
+	hint, another := "│            a session started here, or in any folder inside, is in the pool", "│            + another directory"
+	for y, want := range map[int]string{
+		top:      "╭─ NEW POOL " + strings.Repeat("─", 67) + "╮",
+		top + 2:  "│  A pool's accounts serve only the sessions started in its directories," + blanks(7) + "│",
+		top + 3:  "│  and those sessions go out on its accounts alone." + blanks(28) + "│",
+		top + 5:  label + blanks(79-utf8.RuneCountInString(label)) + "│",
+		top + 7:  dir + blanks(79-utf8.RuneCountInString(dir)) + "│",
+		top + 8:  hint + blanks(79-utf8.RuneCountInString(hint)) + "│",
+		top + 9:  another + blanks(79-utf8.RuneCountInString(another)) + "│",
+		top + 11: "│" + blanks(37) + "tab next   enter create pool   esc back  │",
+	} {
+		if got := setupCardRow(c, y); got != want {
+			t.Errorf("row %d reads\n%q\nwant\n%q", y, got, want)
+		}
+	}
+	value := editCardContent + 10
+	for _, tt := range []struct {
+		name string
+		x, y int
+		want ink
+	}{
+		{name: "what a pool is", x: editCardContent, y: top + 2, want: mutedInk},
+		{name: "Directory's name", x: editCardContent, y: top + 7, want: dimInk},
+		{name: "the directory typed in", x: value, y: top + 7, want: typingInk},
+		{name: "Directory's hint", x: value, y: top + 8, want: faintInk},
+		{name: "+ another directory, not chosen", x: value, y: top + 9, want: faintInk},
+	} {
+		if got := inkAt(c, tt.x, tt.y); got != tt.want {
+			t.Errorf("%s, at %d,%d, is in %+v, want %+v", tt.name, tt.x, tt.y, got, tt.want)
+		}
+	}
+
+	card.Chosen = 2
+	c = setupDrawn(newPoolScreen(card), 160, 37)
+	if got := inkAt(c, value, top+9); got != (ink{token: theme.AccentKey, bold: true}) {
+		t.Errorf("+ another directory's +, chosen, is in %+v, want bold accent.key", got)
+	}
+	if got := setupCardRow(c, top+11); !strings.HasSuffix(got, "tab next   enter add a directory   esc back  │") {
+		t.Errorf("+ another directory chosen, the keys read %q, want enter adding one", got)
+	}
+}
+
+// A directory refused is said under it, why alone, among the directories.
+func TestADirectorysRefusalIsSaidUnderIt(t *testing.T) {
+	const why = "is inside Acme's ~/Code/acme: no directory may be the same as, inside or around another pool's"
+	card := SetupNewPoolCard{Label: Field{Value: "Client"}, Dirs: []Field{{Value: "~/Code/client"}, {Value: "~/Code/acme/x"}}, Refused: setup.DirsField, Dir: 1, Why: why}
+	top := (37 - 16) / 2
+	c := setupDrawn(newPoolScreen(card), 160, 37)
+	if got := setupCardRow(c, top+10); !strings.HasPrefix(got, "│            "+why[:30]) || inkAt(c, editCardContent+10, top+10) != errorInk {
+		t.Errorf("the row under the second directory reads %q, want why it's refused, in state.destructive", got)
 	}
 }

@@ -298,7 +298,7 @@ func TestATokensMakingWaitsForTheAccountsChecks(t *testing.T) {
 				}
 				h.pressAndDeliver("enter")
 			},
-			want: setup.TokenFor{Account: config.NewAccount{Label: "team"}, Add: true},
+			want: setup.TokenFor{Account: config.NewAccount{Label: "team", Plan: "pro"}, Add: true},
 		},
 	}
 	for _, tt := range tests {

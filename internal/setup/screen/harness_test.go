@@ -301,6 +301,10 @@ type fakeSteps struct {
 	// where addErr fails it.
 	adds   []setup.Adding
 	addErr error
+	// pools are the pools CheckPool is asked to check, each passing, but
+	// where poolErr fails it.
+	pools   []accounts.NewPool
+	poolErr error
 	// edits are the edits EditAccount is given, and removes the accounts
 	// RemoveAccount is asked to remove, each made to review, but where
 	// editErr or removeErr fails it.
@@ -681,16 +685,25 @@ func (s *fakeSteps) Skill() (setup.Said, error) {
 }
 
 // CheckAdding keeps the account, and gives it as setup does, its plan read
-// as config.ParsePlan reads it, adding nothing.
-func (s *fakeSteps) CheckAdding(adding setup.Adding) (config.NewAccount, error) {
+// as config.ParsePlan reads it, in the pool chosen, or with the new pool
+// made for it, adding nothing.
+func (s *fakeSteps) CheckAdding(adding setup.Adding) (accounts.Adding, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.adds = append(s.adds, adding)
 	if s.addErr != nil {
-		return config.NewAccount{}, s.addErr
+		return accounts.Adding{}, s.addErr
 	}
 	plan, err := config.ParsePlan(adding.Plan)
-	return config.NewAccount{Label: adding.Label, Plan: plan}, err
+	return accounts.Adding{Account: config.NewAccount{Label: adding.Label, Plan: plan, Pool: adding.Pool}, NewPool: adding.NewPool}, err
+}
+
+// CheckPool keeps the pool, passing it, but where poolErr fails it.
+func (s *fakeSteps) CheckPool(pool accounts.NewPool) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.pools = append(s.pools, pool)
+	return s.poolErr
 }
 
 // fakeEdit is an edit EditAccount was given, of the account id.
@@ -725,6 +738,9 @@ func (s *fakeSteps) EditAccount(id string, edit setup.Edit) (accounts.Edited, er
 		}
 		if edit.Reserve != nil {
 			a.Reserve, _ = config.ParseReserve(strings.ReplaceAll(*edit.Reserve, "none", "0"))
+		}
+		if edit.Pool != nil {
+			a.Pool = *edit.Pool
 		}
 		a.Primary = a.Primary || edit.Primary
 	}

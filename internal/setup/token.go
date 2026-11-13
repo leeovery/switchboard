@@ -43,9 +43,18 @@ type TokenFor struct {
 	// token's organization decides.
 	Account config.NewAccount
 	Add     bool
+	// NewPool is the pool made with the account it adds, where it goes in a
+	// new one: written with it, once its token's saved.
+	NewPool *accounts.NewPool
 	// Organizations are the organizations of the accounts this run of setup
 	// has read, which the token's is compared with.
 	Organizations Organizations
+}
+
+// adding is the account f adds, and the pool made with it, where it goes in
+// a new one.
+func (f TokenFor) adding() accounts.Adding {
+	return accounts.Adding{Account: f.Account, NewPool: f.NewPool}
 }
 
 // Organizations are accounts' organizations, by account id, as accounts
@@ -504,7 +513,7 @@ func (s *Setup) add(ctx context.Context, a *Asked, answer accounts.Answer) (Toke
 // adding is add, but failing with a ConfiguredError where the token's a
 // configured account's.
 func (s *Setup) adding(ctx context.Context, a *Asked, answer accounts.Answer) (Tokened, error) {
-	added, err := s.Accounts.AddChecked(ctx, a.f.Account, a.token, a.checked, a.f.Organizations, answer)
+	added, err := s.Accounts.AddChecked(ctx, a.f.adding(), a.token, a.checked, a.f.Organizations, answer)
 	if question, ok := errors.AsType[*accounts.QuestionError](err); ok {
 		return a.asking(question.Question), nil
 	}
@@ -557,7 +566,7 @@ func (s *Setup) takes(f TokenFor) (*config.Config, error) {
 	cfg, id := draft.Config(), f.Account.ID
 	switch {
 	case f.Add:
-		_, err := s.Accounts.CheckNew(f.Account)
+		_, err := s.Accounts.CheckNew(f.adding())
 		return cfg, err
 	case cfg == nil || !slices.Contains(cfg.Accounts.IDs(), id):
 		return nil, config.NotConfigured(id)

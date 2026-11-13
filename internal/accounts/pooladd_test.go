@@ -45,8 +45,8 @@ func TestAnAccountNamingNoPoolGoesInThePoolTheVerbsActOn(t *testing.T) {
 			registry := w.registry(&user{gives: sideToken}, &fakeAPI{organization: organization})
 			account := config.NewAccount{Label: "Side", Pool: tt.named}
 
-			checked, err := registry.CheckNew(account)
-			if err != nil || checked.Pool != tt.want {
+			checked, err := registry.CheckNew(accounts.Adding{Account: account})
+			if err != nil || checked.Account.Pool != tt.want {
 				t.Fatalf("CheckNew() = %+v, %v, want it in pool %q", checked, err, tt.want)
 			}
 			w.checkConfig(t, tt.config)
@@ -73,7 +73,7 @@ func TestAnAccountNamingNoPoolIsRefusedWhereEveryPoolIsFenced(t *testing.T) {
 	registry := w.registry(user, api)
 	account := config.NewAccount{Label: "Side"}
 
-	_, err := registry.CheckNew(account)
+	_, err := registry.CheckNew(accounts.Adding{Account: account})
 	needed, ok := errors.AsType[*accounts.PoolNeededError](err)
 	if want := "every pool is fenced, so which the account goes in is yours to say: add it with switchboard accounts add <label> --pool <id>, naming Default (b2n8) or Acme (q7mt)"; !ok || err.Error() != want {
 		t.Fatalf("CheckNew() error = %v, want %q", err, want)
@@ -110,7 +110,7 @@ func TestAnAccountNamingAPoolNotConfiguredIsRefused(t *testing.T) {
 			registry := w.registry(user, api)
 			account := config.NewAccount{Label: "Side", Pool: "zz"}
 
-			_, err := registry.CheckNew(account)
+			_, err := registry.CheckNew(accounts.Adding{Account: account})
 			if want := `pool "zz" is not configured`; !errors.Is(err, config.ErrNotConfigured) || err.Error() != want {
 				t.Fatalf("CheckNew() error = %v, want %q", err, want)
 			}

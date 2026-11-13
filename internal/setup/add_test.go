@@ -24,7 +24,7 @@ func TestCheckAddingWritesNothing(t *testing.T) {
 		if err != nil {
 			t.Fatalf("CheckAdding error = %v", err)
 		}
-		if want := (config.NewAccount{Label: "Spare", Plan: "max"}); got != want {
+		if want := (config.NewAccount{Label: "Spare", Plan: "max"}); got.Account != want || got.NewPool != nil {
 			t.Errorf("CheckAdding gives %+v, want %+v", got, want)
 		}
 		if got := w.readConfig(t); got != frameConfig {
@@ -37,7 +37,7 @@ func TestCheckAddingWritesNothing(t *testing.T) {
 		if err != nil {
 			t.Fatalf("CheckAdding error = %v", err)
 		}
-		if want := (config.NewAccount{Label: "Work"}); got != want {
+		if want := (config.NewAccount{Label: "Work"}); got.Account != want || got.NewPool != nil {
 			t.Errorf("CheckAdding gives %+v, want %+v, its plan unknown", got, want)
 		}
 		if _, err := os.Stat(w.config); !errors.Is(err, fs.ErrNotExist) {
@@ -113,10 +113,10 @@ func TestSetupAddsAnAccountInThePoolTheVerbsActOn(t *testing.T) {
 	r := w.tokenRig(t, &fakeMaker{})
 
 	account, err := r.s.CheckAdding(setup.Adding{Label: "Personal", Plan: "max"})
-	if want := (config.NewAccount{Label: "Personal", Plan: "max", Pool: "b2n8"}); err != nil || account != want {
+	if want := (config.NewAccount{Label: "Personal", Plan: "max", Pool: "b2n8"}); err != nil || account.Account != want {
 		t.Fatalf("CheckAdding = %+v, %v, want %+v", account, err, want)
 	}
-	got, err := r.s.MakeToken(t.Context(), setup.TokenFor{Account: account, Add: true}, nil)
+	got, err := r.s.MakeToken(t.Context(), setup.TokenFor{Account: account.Account, Add: true}, nil)
 
 	id := derivedID("org-personal")
 	checkTokened(t, got, err, setup.Tokened{Result: setup.TokenSaved, Checked: accounts.Checked{Organization: "org-personal"}, ID: id})

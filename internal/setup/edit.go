@@ -3,6 +3,7 @@ package setup
 import (
 	"cmp"
 	"errors"
+	"slices"
 	"strings"
 
 	"github.com/leeovery/switchboard/internal/accounts"
@@ -10,8 +11,9 @@ import (
 	"github.com/leeovery/switchboard/internal/prose"
 )
 
-// Field is a value of an account its add card or its edit card gives, or
-// the token its paste card does, as a refusal names it.
+// Field is a value of an account its add card or its edit card gives, of a
+// pool the new pool card gives, or the token its paste card does, as a
+// refusal names it.
 type Field int
 
 const (
@@ -19,18 +21,26 @@ const (
 	NoField Field = iota
 	LabelField
 	PlanField
+	PoolField
 	PrimaryField
 	ReserveField
 	TokenField
+	// PoolLabelField and DirsField are a new pool's label and directories.
+	PoolLabelField
+	DirsField
 )
 
 // Edit is a change to an account, as setup's edit card gives it: each value
 // as typed or chosen, nil leaving it as it is; and Primary, set to make it
-// the primary, in place of the one that is.
+// its pool's primary, in place of the one that is.
 type Edit struct {
 	Label *string
 	// Plan is one of config.PlanChoices, as PlanChosen writes it.
-	Plan    *string
+	Plan *string
+	// Pool is the id of the pool it moves into; NewPool, a pool made for it
+	// to move into, in its place.
+	Pool    *string
+	NewPool *accounts.NewPool
 	Primary bool
 	// Reserve is as ReserveTyped writes it: a percentage, as accounts edit
 	// takes one, or none.
@@ -72,12 +82,31 @@ func (r Reviewed) PlanChosen() string {
 	return cmp.Or(r.Plan, config.PlanNone)
 }
 
-// Refused is the error of an account to add, its edit, or its removal, that
-// config refuses: of the value of Field, where it's a value's, and why, as config
-// words it, for a form showing the value to say alone. It matches what
-// config refused it with.
+// PlanChoices are the plans the account's edit card offers, of
+// config.PlanChoices: each of config.Plans, and config.PlanNone only where
+// the config gives the account none, as one from before plans were recorded.
+func (r Reviewed) PlanChoices() []string {
+	if r.Plan == "" {
+		return config.PlanChoices()
+	}
+	return AddPlans()
+}
+
+// AddPlans are the plans the add card offers: each of config.Plans, and
+// never config.PlanNone, as every account setup adds is a subscription's,
+// on a plan (the owner's call, 11 November 2026).
+func AddPlans() []string {
+	return slices.Clone(config.Plans)
+}
+
+// Refused is the error of an account to add, its edit, or its removal, or
+// of a pool to make, that config refuses: of the value of Field, where it's
+// a value's, of a pool's directories the one at Dir among them, and why, as
+// config words it, for a form showing the value to say alone. It matches
+// what config refused it with.
 type Refused struct {
 	Field Field
+	Dir   int
 	Why   string
 	err   error
 }
@@ -96,10 +125,11 @@ func (r *Refused) Unwrap() error {
 // accounts.Registry.Edit, as accounts edit does, and says what it changed:
 // its plan read as config.ParsePlan reads it, and its reserve as
 // config.ParseReserve does, none, or left empty, being none. It fails with a
-// Refused where the label, the plan or the reserve is refused, as
-// refusedLabel has a label's, and as Registry.Edit does otherwise.
+// Refused where the label, the plan, the new pool or the reserve is
+// refused, as refusedLabel has a label's and refusedPool a new pool's, and
+// as Registry.Edit does otherwise.
 func (s *Setup) EditAccount(id string, edit Edit) (accounts.Edited, error) {
-	change := accounts.Change{Label: edit.Label, Primary: edit.Primary}
+	change := accounts.Change{Label: edit.Label, Pool: edit.Pool, NewPool: edit.NewPool, Primary: edit.Primary}
 	if edit.Plan != nil {
 		plan, err := config.ParsePlan(*edit.Plan)
 		if err != nil {
@@ -116,7 +146,7 @@ func (s *Setup) EditAccount(id string, edit Edit) (accounts.Edited, error) {
 	}
 	edited, err := s.Accounts.Edit(id, change)
 	if err != nil {
-		return accounts.Edited{}, refusedLabel(err)
+		return accounts.Edited{}, refusedLabel(chosenPoolRefused(err))
 	}
 	return edited, nil
 }

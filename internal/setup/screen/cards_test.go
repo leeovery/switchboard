@@ -95,13 +95,14 @@ func TestEOpensTheChosenAccountsEditCard(t *testing.T) {
 	}
 }
 
-// An account's edit card opens with its plan chosen: work's, Ultra.
+// An account's edit card opens with its plan chosen: work's, Ultra, with no
+// not set, as the config gives work a plan.
 func TestTheEditCardOpensWithTheAccountsPlanChosen(t *testing.T) {
 	h := accountsHarness(t, frame3Steps())
 	h.start()
 	h.pressAndDeliver("e")
-	if got := h.cardRow("Plan"); got != "  Plan      □ Pro    □ Max    ■ Ultra    □ not set" {
-		t.Errorf("Plan reads %q, want Ultra chosen", got)
+	if got := h.cardRow("Plan"); got != "  Plan      □ Pro    □ Max    ■ Ultra" {
+		t.Errorf("Plan reads %q, want Ultra chosen, and no not set", got)
 	}
 }
 
@@ -158,20 +159,23 @@ func sameEdit(a, b setup.Edit) bool {
 	return same(a.Label, b.Label) && same(a.Plan, b.Plan) && same(a.Reserve, b.Reserve) && a.Primary == b.Primary
 }
 
-// A plan set to none is saved as config.PlanNone, one of the choices the
-// card chooses between, and an account without a plan opens on it.
-func TestAPlanSetToNoneIsSavedAsNone(t *testing.T) {
+// The edit card offers not set only to an account whose config gives it no
+// plan, as one from before plans were recorded, which opens on it: one with
+// a plan can't be set to none, → stopping at Ultra, and enter saving
+// nothing.
+func TestOnlyAnAccountWithoutAPlanIsOfferedNotSet(t *testing.T) {
 	h := accountsHarness(t, frame3Steps())
 	h.start()
 	h.pressAndDeliver("e")
 	for _, k := range []string{"tab", "right", "enter"} {
 		h.pressAndDeliver(k)
 	}
-	if edits := h.steps.edits; len(edits) != 1 || !sameEdit(edits[0].edit, setup.Edit{Plan: new("none")}) {
-		t.Fatalf("EditAccount was given %+v, want work's plan none alone", edits)
+	if edits := h.steps.edits; len(edits) != 0 {
+		t.Fatalf("EditAccount was given %+v, want nothing: work's plan can't be set to none", edits)
 	}
-	if got := h.rows()[firstRow]; !strings.Contains(got, "not set") {
-		t.Errorf("work's row reads %q, want its plan not set", got)
+	h = editingPersonal(t)
+	if got := h.cardRow("Plan"); got != "  Plan      □ Pro    □ Max    □ Ultra    ■ not set" {
+		t.Errorf("personal's Plan reads %q, want not set offered, and chosen", got)
 	}
 }
 

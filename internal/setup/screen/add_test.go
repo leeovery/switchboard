@@ -9,6 +9,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/leeovery/switchboard/internal/accounts"
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/setup"
@@ -31,15 +32,17 @@ func firstRun(t *testing.T) *harness {
 	return h
 }
 
-// The add card, as it opens: its fields empty, Label chosen, typed in. It
-// has no ID, as the token's organization decides the id.
+// The add card, as it opens: its fields empty, its plan the first, Label
+// chosen, typed in; its plans a subscription's alone, with no not set, as
+// every account setup adds is on one. It has no ID, as the token's
+// organization decides the id, and no Pool in a config without pools.
 var addCardOpened = []string{
 	"",
 	"  Each account is one Claude subscription: a Pro, Max or Ultra plan.",
 	"",
 	"  Label                               what every screen calls it",
 	"",
-	"  Plan      □ Pro    □ Max    □ Ultra    ■ not set",
+	"  Plan      ■ Pro    □ Max    □ Ultra",
 	"",
 	"  Setup then creates a token with claude setup-token. You approve it in",
 	"  the browser while signed in to this subscription. Tokens last a year.",
@@ -150,20 +153,20 @@ func TestTheAddCardsTabAndArrows(t *testing.T) {
 	if got := h.model.add.label.value(); got != "Work" {
 		t.Errorf("← in Label left it reading %q, want the cursor moved, so it reads Work", got)
 	}
-	plan := func() string { return config.PlanChoices()[h.model.add.plan] }
-	if got := plan(); got != config.PlanNone {
+	plan := func() string { return setup.AddPlans()[h.model.add.plan] }
+	if got := plan(); got != "pro" {
 		t.Errorf("← in Label moved the plan to %q", got)
 	}
 	h.pressAndDeliver("tab")
 	for _, tt := range []struct {
 		key, want string
-	}{{"right", config.PlanNone}, {"left", "ultra"}, {"left", "max"}, {"left", "pro"}, {"left", "pro"}, {"right", "max"}} {
+	}{{"left", "pro"}, {"right", "max"}, {"right", "ultra"}, {"right", "ultra"}, {"left", "max"}} {
 		h.pressAndDeliver(tt.key)
 		if got := plan(); got != tt.want {
 			t.Fatalf("%s chose %q, want %q", tt.key, got, tt.want)
 		}
 	}
-	if got := h.cardRow("Plan"); got != "  Plan      □ Pro    ■ Max    □ Ultra    □ not set" {
+	if got := h.cardRow("Plan"); got != "  Plan      □ Pro    ■ Max    □ Ultra" {
 		t.Errorf("Plan reads %q, want Max chosen", got)
 	}
 }
@@ -176,9 +179,10 @@ func TestEnterHandsTheAccountOnToHaveItsTokenMade(t *testing.T) {
 	h := firstRun(t)
 	h.typeIn("Work")
 	h.pressAndDeliver("tab")
-	h.pressAndDeliver("left")
+	h.pressAndDeliver("right")
+	h.pressAndDeliver("right")
 	h.pressAndDeliver("enter")
-	if want := []setup.Adding{{Label: "Work", Plan: "ultra"}}; !slices.Equal(h.steps.adds, want) {
+	if want := []setup.Adding{{Label: "Work", Plan: "ultra"}}; !reflect.DeepEqual(h.steps.adds, want) {
 		t.Fatalf("CheckAdding was asked %+v, want %+v", h.steps.adds, want)
 	}
 	if h.model.add != nil {
@@ -328,7 +332,7 @@ func TestTheAddCardTakesNoKeyWhileItsChecked(t *testing.T) {
 func TestACheckAnsweredWithTheCardGoneIsDropped(t *testing.T) {
 	h := firstRun(t)
 	h.pressAndDeliver("esc")
-	for _, msg := range []addCheckedMsg{{account: config.NewAccount{Label: "Work"}}, {err: errors.New("read config: the config doesn't parse")}} {
+	for _, msg := range []addCheckedMsg{{adding: accounts.Adding{Account: config.NewAccount{Label: "Work"}}}, {err: errors.New("read config: the config doesn't parse")}} {
 		h.deliver(msg)
 		if h.model.add != nil || h.model.walk.failed != nil {
 			t.Errorf("answered %+v with the card gone, the card is %+v and the walk %+v; want it dropped", msg, h.model.add, h.model.walk)

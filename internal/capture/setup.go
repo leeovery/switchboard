@@ -2,6 +2,7 @@ package capture
 
 import (
 	"context"
+	"maps"
 	"slices"
 	"strings"
 	"sync"
@@ -68,7 +69,10 @@ type setupScreen struct {
 // typed in, as no frame has it, laid out as frame 2; and on a first run,
 // work, personal and side added, each token made, none the primary, then p
 // on work's row, as a user must, and enter, the primary's reserve card open,
-// 5% typed, as frame 13 has it.
+// 5% typed, as frame 13 has it; and the run again with a second pool, Acme,
+// its add card adding Acme 3 to Acme, as the pools' frame 5 has it, or Client
+// 1 to a new pool, Client, its new pool card open, as frame 6 has it, or
+// Acme 2's edit card open, its Pool chosen, as frame 7 has it.
 var setupScreens = []setupScreen{
 	{name: "setup-add-first-160", size: wide(37), step: dashboard.SetupAccounts, steps: firstRun, keys: slices.Concat(typingWork(), []tea.KeyPressMsg{tabKey}), card: "ADD AN ACCOUNT", cardKeys: "tab next   enter create token   esc cancel"},
 	{name: "setup-token-waiting-160", size: wide(37), step: dashboard.SetupAccounts, steps: makingPersonal(nil), keys: addingPersonal(), waited: 21 * time.Second, card: "NEW TOKEN · PERSONAL", cardKeys: "o reopen window   p paste a token   esc cancel"},
@@ -76,6 +80,9 @@ var setupScreens = []setupScreen{
 	{name: "setup-token-paste-160", size: wide(37), step: dashboard.SetupAccounts, steps: makingPersonal(&personalNotMade), keys: slices.Concat(addingPersonal(), keysOf("p"), keysOf(strings.Split("test-token-personal", "")...)), card: "PASTE A TOKEN · PERSONAL", cardKeys: "enter save   esc cancel"},
 	{name: "setup-review-160", size: wide(37), step: dashboard.SetupAccounts, steps: reviewed, keys: keysOf("j", "j")},
 	{name: "setup-edit-160", size: wide(37), step: dashboard.SetupAccounts, steps: reviewed, keys: slices.Concat(keysOf("j", "e"), []tea.KeyPressMsg{tabKey, leftKey, leftKey}), card: "EDIT PERSONAL", cardKeys: "tab next   ←→ select   enter save   esc cancel"},
+	{name: "setup-add-160", size: wide(37), step: dashboard.SetupAccounts, steps: pooledReview, keys: addingAcme3(), card: "ADD AN ACCOUNT", cardKeys: "tab next   enter create token   esc cancel"},
+	{name: "setup-new-pool-160", size: wide(37), step: dashboard.SetupAccounts, steps: pooledReview, keys: makingClient(), card: "NEW POOL", cardKeys: "tab next   enter create pool   esc back"},
+	{name: "setup-edit-pool-160", size: wide(37), step: dashboard.SetupAccounts, steps: pooledReview, keys: slices.Concat(repeated(downKey, 4), keysOf("e"), repeated(tabKey, 2)), card: "EDIT ACME 2", cardKeys: "tab next   ←→ select   enter save   esc cancel"},
 	{name: "setup-reserve-160", size: wide(37), step: dashboard.SetupAccounts, steps: addingThree, keys: slices.Concat(addedThree(), repeated(upKey, 2), keysOf("p"), []tea.KeyPressMsg{enterKey}, keysOf("5", "%")), card: "RESERVE · WORK", cardKeys: "enter save   esc no reserve"},
 	{name: "setup-priming-160", size: wide(37), step: dashboard.SetupPriming, steps: accountsPassed},
 	{name: "setup-service-160", size: wide(37), step: dashboard.SetupService, steps: everyStepPassed},
@@ -101,7 +108,32 @@ type setupShown struct {
 // typingWork are the keys that type work into the add card, as frame 1 has
 // it: its Label, then Ultra chosen.
 func typingWork() []tea.KeyPressMsg {
-	return slices.Concat(keysOf("W", "o", "r", "k"), []tea.KeyPressMsg{tabKey, leftKey})
+	return slices.Concat(keysOf("W", "o", "r", "k"), []tea.KeyPressMsg{tabKey}, repeated(rightKey, 2))
+}
+
+// addingAcme3 are the keys that open the add card over the review by pool,
+// from + add an account, type Acme 3 into it, choose Ultra, and choose Acme
+// as its pool, as the pools' frame 5 has it.
+func addingAcme3() []tea.KeyPressMsg {
+	return slices.Concat(
+		repeated(downKey, 5), []tea.KeyPressMsg{enterKey},
+		keysOf(strings.Split("Acme 3", "")...), []tea.KeyPressMsg{tabKey}, repeated(rightKey, 2),
+		[]tea.KeyPressMsg{tabKey, rightKey},
+	)
+}
+
+// makingClient are the keys that open the add card over the review by pool,
+// type Client 1 into it, choose Ultra and new pool, and open the new pool
+// card on enter, Client typed as its label and ~/Code/client as its
+// directory, as the pools' frame 6 has it.
+func makingClient() []tea.KeyPressMsg {
+	return slices.Concat(
+		repeated(downKey, 5), []tea.KeyPressMsg{enterKey},
+		keysOf(strings.Split("Client 1", "")...), []tea.KeyPressMsg{tabKey}, repeated(rightKey, 2),
+		[]tea.KeyPressMsg{tabKey}, repeated(rightKey, 2), []tea.KeyPressMsg{enterKey},
+		keysOf(strings.Split("Client", "")...), []tea.KeyPressMsg{tabKey},
+		keysOf(strings.Split("~/Code/client", "")...),
+	)
 }
 
 // addingPersonal are the keys that add work on a first run, as typingWork
@@ -119,14 +151,14 @@ func addingPersonal() []tea.KeyPressMsg {
 // it, then personal on Max and side on Pro, from + add an account, each
 // token made, leaving side's row chosen.
 func addedThree() []tea.KeyPressMsg {
-	adding := func(label string, lefts int) []tea.KeyPressMsg {
+	adding := func(label string, rights int) []tea.KeyPressMsg {
 		return slices.Concat(
 			[]tea.KeyPressMsg{downKey, enterKey},
 			keysOf(strings.Split(label, "")...),
-			[]tea.KeyPressMsg{tabKey}, repeated(leftKey, lefts), []tea.KeyPressMsg{enterKey},
+			[]tea.KeyPressMsg{tabKey}, repeated(rightKey, rights), []tea.KeyPressMsg{enterKey},
 		)
 	}
-	return slices.Concat(typingWork(), []tea.KeyPressMsg{enterKey}, adding("Personal", 2), adding("Side", 3))
+	return slices.Concat(typingWork(), []tea.KeyPressMsg{enterKey}, adding("Personal", 1), adding("Side", 0))
 }
 
 // called is the fixture's name.
@@ -253,7 +285,7 @@ func (s *setupSaved) add(f setup.TokenFor, id string, at time.Time) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	a := f.Account
-	s.accounts = append(s.accounts, setup.Reviewed{ID: id, Label: a.Label, Plan: a.Plan, Token: read(status.TokenYearFrom(at))})
+	s.accounts = append(s.accounts, setup.Reviewed{ID: id, Label: a.Label, Plan: a.Plan, Pool: a.Pool, Token: read(status.TokenYearFrom(at))})
 	if a.Primary {
 		s.primary = id
 	}
@@ -373,6 +405,31 @@ func reviewed(now time.Time) setupSteps {
 			"side":     {State: setup.TokenNotTaken},
 		},
 	}
+}
+
+// pooledReview are the steps as reviewed has them, at now, but for a second
+// pool, as the pools' frames 5 to 7 have it: Default, unfenced, with work,
+// personal and side; and Acme, fenced to ~/Code/acme, with Acme 1, its
+// primary, and Acme 2, each on Ultra, each token working, its year unknown.
+func pooledReview(now time.Time) setupSteps {
+	steps := reviewed(now)
+	const home = "/home/user"
+	steps.review.Pools = config.Pools{
+		{ID: "b2n8", Label: "Default"},
+		{ID: "q7mt", Label: "Acme", Dirs: []string{home + "/Code/acme"}, WrittenDirs: []string{"~/Code/acme"}},
+	}
+	accounts := slices.Clone(steps.review.Accounts)
+	for i := range accounts {
+		accounts[i].Pool = "b2n8"
+	}
+	steps.review.Accounts = append(accounts,
+		setup.Reviewed{ID: "acme1", Label: "Acme 1", Plan: config.PlanUltra, Primary: true, Pool: "q7mt", Token: read(status.TokenYear{})},
+		setup.Reviewed{ID: "acme2", Label: "Acme 2", Plan: config.PlanUltra, Pool: "q7mt", Token: read(status.TokenYear{})},
+	)
+	steps.checked = maps.Clone(steps.checked)
+	steps.checked["acme1"] = setup.TokenStanding{State: setup.TokenWorking}
+	steps.checked["acme2"] = setup.TokenStanding{State: setup.TokenWorking}
+	return steps
 }
 
 // accountsPassed are the steps as they stand once the Accounts have passed,
@@ -578,10 +635,17 @@ func (s setupSteps) SessionHook() setup.Said {
 }
 
 // CheckAdding gives the account as setup does, its plan read as
-// config.ParsePlan reads it, refusing nothing.
-func (s setupSteps) CheckAdding(adding setup.Adding) (config.NewAccount, error) {
+// config.ParsePlan reads it, in the pool chosen, or with the new pool made
+// for it, refusing nothing.
+func (s setupSteps) CheckAdding(adding setup.Adding) (accounts.Adding, error) {
 	plan, err := config.ParsePlan(adding.Plan)
-	return config.NewAccount{Label: adding.Label, Plan: plan}, err
+	account := config.NewAccount{Label: adding.Label, Plan: plan, Pool: adding.Pool}
+	return accounts.Adding{Account: account, NewPool: adding.NewPool}, err
+}
+
+// CheckPool refuses no pool, as no fixture's is refused.
+func (s setupSteps) CheckPool(accounts.NewPool) error {
+	return nil
 }
 
 // MakeToken makes the account's token as makings has it: it reports each

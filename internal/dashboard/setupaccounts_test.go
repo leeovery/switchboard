@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/setup"
 	"github.com/leeovery/switchboard/internal/status"
@@ -499,5 +500,36 @@ func TestScrolledIntoTheTableItsHeadsAreKeptAndWhatsOutOfViewNamesNoKeys(t *test
 	}
 	if got := rows[22]; got != "▲ 6 more above   ·   ▼ 7 more below" {
 		t.Errorf("the line saying what's out of view reads %q, want it naming no keys, as ↑↓ choose here", got)
+	}
+}
+
+// Once there's a second pool, the table groups the accounts by pool: each
+// pool's label, in text.subtle as the table's heads are, over its accounts,
+// and two cells on, its directories, or everywhere else of the unfenced,
+// muted; the rows chosen among them as among the accounts.
+func TestTheTableHeadsEachPool(t *testing.T) {
+	review := frame3Review()
+	review.Pools = config.Pools{{ID: "b2n8", Label: "Default"}, {ID: "q7mt", Label: "Acme", Dirs: []string{"/home/user/Code/acme"}, WrittenDirs: []string{"~/Code/acme"}}}
+	for i := range review.Accounts {
+		review.Accounts[i].Pool = "b2n8"
+	}
+	review.Accounts = append(review.Accounts, setup.Reviewed{ID: "acme1", Label: "Acme 1", Plan: "ultra", Primary: true, Pool: "q7mt", Token: setup.TokenStanding{State: setup.TokenWorking}})
+	c := setupDrawn(accountsScreen(review, 3), 160, 37)
+	for y, want := range map[int]string{
+		10: "    Default  everywhere else",
+		12: "    Work ◆          Ultra",
+		18: "    Acme  ~/Code/acme",
+		20: "▌   Acme 1 ◆        Ultra",
+		22: "  + add an account",
+	} {
+		if got := rowOf(c, y); !strings.HasPrefix(got, want) {
+			t.Errorf("row %d reads %q, want it to start %q", y, got, want)
+		}
+	}
+	if got := inkAt(c, 4, 18); got != dimInk {
+		t.Errorf("Acme's label is in %+v, want text.subtle", got)
+	}
+	if got := inkAt(c, 10, 18); got != mutedInk {
+		t.Errorf("Acme's directory is in %+v, want muted", got)
 	}
 }

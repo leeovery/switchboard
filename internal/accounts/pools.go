@@ -132,18 +132,8 @@ func (r Registry) AddPool(label string, dirs []string) (config.Pool, error) {
 		if err != nil {
 			return err
 		}
-		cfg := draft.Config()
-		if cfg == nil || len(cfg.Pools) == 0 {
-			return ErrNoPools
-		}
-		if err := poolTaken(cfg.Pools, "", label, len(dirs) == 0); err != nil {
-			return err
-		}
-		id, err := record.NewPoolID(r.random(), slices.Concat(cfg.Accounts.IDs(), cfg.Pools.IDs()))
+		id, err := poolMade(draft, label, dirs, r.drawnFrom(*record))
 		if err != nil {
-			return err
-		}
-		if err := draft.AddPool(config.NewPool{ID: id, Label: label, Dirs: dirs}); err != nil {
 			return err
 		}
 		if err := draft.Save(); err != nil {
