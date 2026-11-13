@@ -124,7 +124,7 @@ func poolFill(share float64) int {
 
 // poolLimitCell is a column of the pool's lane where the pool is at its
 // limit: a quarter-cell along the lane's floor, so it steps down from a
-// half-cell column beside it, where a lane's ─ would sit level with its top.
+// half-cell column beside it, where a lane's ━ would sit level with its top.
 const poolLimitCell = "▂"
 
 // poolLimitMark is poolLimitCell in a limit's ink, as laneMark inks a lane

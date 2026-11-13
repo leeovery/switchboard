@@ -94,13 +94,13 @@ func TestRunwayHelpLeavesThePoolOutWithNoPoolsLane(t *testing.T) {
 
 // Each mark of a lane is explained once, drawn as a lane draws it in each
 // look: in colour, room and a run-out alike █, by their colours, and a cap
-// and a hold alike ─; without colour, a run-out ▒ and a hold bold, so each
+// and a hold alike ━; without colour, a run-out ▒ and a hold bold, so each
 // tells from the other by its glyph or its weight.
 func TestRunwayHelpDrawsEachMarkAsALaneDrawsIt(t *testing.T) {
 	room := line{{"█", ink{token: theme.VizRamp1}}}
-	capped := line{{"─", ink{token: theme.AccentAttention}}}
+	capped := line{{"━", ink{token: theme.AccentAttention}}}
 	reset := line{{"│", ink{token: theme.TextSubtle}}}
-	coloured := []line{room, {{"█", ink{token: theme.AccentAttention}}}, capped, {{"─", ink{token: theme.StateDestructive}}}, reset}
+	coloured := []line{room, {{"█", ink{token: theme.AccentAttention}}}, capped, {{"━", ink{token: theme.StateDestructive}}}, reset}
 	tests := []struct {
 		name string
 		look Look
@@ -110,7 +110,7 @@ func TestRunwayHelpDrawsEachMarkAsALaneDrawsIt(t *testing.T) {
 		{name: "the terminal's colours", look: Screen(builtin(t, "terminal")), want: coloured},
 		{
 			name: "no colour", look: NoColour(),
-			want: []line{room, {{"▒", ink{token: theme.AccentAttention}}}, capped, {{"─", ink{token: theme.StateDestructive, bold: true}}}, reset},
+			want: []line{room, {{"▒", ink{token: theme.AccentAttention}}}, capped, {{"━", ink{token: theme.StateDestructive, bold: true}}}, reset},
 		},
 	}
 	for _, tt := range tests {
