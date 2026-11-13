@@ -215,6 +215,17 @@ func (f fakeLedger) SessionsOf(ids []string, _ func(string) ledger.Rest, take fu
 	return ledger.SessionsWhole(f.sessions(ids, false, take))
 }
 
+// SessionsIn reads as Sessions does, in any pool: a session read whole
+// rests on no state of any pool's.
+func (f fakeLedger) SessionsIn(_ ledger.RoutedIn, ids []string, rest func(string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
+	return f.Sessions(ids, rest, take)
+}
+
+// SessionsOfIn reads as SessionsOf does, in any pool, as SessionsIn has it.
+func (f fakeLedger) SessionsOfIn(_ ledger.RoutedIn, ids []string, rest func(string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
+	return f.SessionsOf(ids, rest, take)
+}
+
 // sessions reads the sessions with the given ids, and where todays is set,
 // today's, as Sessions reads them.
 func (f fakeLedger) sessions(ids []string, todays bool, take func(string, ledger.Line)) map[string][]ledger.Line {

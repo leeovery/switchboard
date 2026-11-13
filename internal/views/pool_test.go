@@ -253,6 +253,14 @@ func (l sessionsHeld) SessionsOf([]string, func(string) ledger.Rest, func(string
 	return l.sessions
 }
 
+func (l sessionsHeld) SessionsIn(ledger.RoutedIn, []string, func(string) ledger.Rest, func(string, ledger.Line)) map[string]ledger.SessionFrom {
+	return l.sessions
+}
+
+func (l sessionsHeld) SessionsOfIn(ledger.RoutedIn, []string, func(string) ledger.Rest, func(string, ledger.Line)) map[string]ledger.SessionFrom {
+	return l.sessions
+}
+
 // No pool's read, as a dashboard showing no pool reads, reads no pool's
 // work: no line, no day's account, no window, no event, the router's own
 // among them, and no session, one resting on a digest's state among them.

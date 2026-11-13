@@ -40,6 +40,14 @@ func (c datesTaken) SessionsOf(ids []string, rest func(string) ledger.Rest, take
 	return c.gave(c.Ledger.SessionsOf(ids, rest, c.taking(take)))
 }
 
+func (c datesTaken) SessionsIn(in ledger.RoutedIn, ids []string, rest func(string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
+	return c.gave(c.Ledger.SessionsIn(in, ids, rest, c.taking(take)))
+}
+
+func (c datesTaken) SessionsOfIn(in ledger.RoutedIn, ids []string, rest func(string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
+	return c.gave(c.Ledger.SessionsOfIn(in, ids, rest, c.taking(take)))
+}
+
 // gave is sessions, as a read gave them, the dates of each one's chain of
 // parts noted.
 func (c datesTaken) gave(sessions map[string]ledger.SessionFrom) map[string]ledger.SessionFrom {

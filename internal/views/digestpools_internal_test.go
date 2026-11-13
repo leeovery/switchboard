@@ -1,9 +1,11 @@
 package views
 
 import (
+	"encoding/json"
 	"fmt"
 	"maps"
 	"math/rand/v2"
+	"os"
 	"reflect"
 	"slices"
 	"testing"
@@ -111,69 +113,158 @@ func TestAPoolsSessionsOverDigestsAreThoseOfItsLinesReadRaw(t *testing.T) {
 	}
 }
 
-// Over digests, Acme's read rests a session on a state only where every
-// line it was folded from was Acme's: a on its state at the day before's
-// end; e, none of whose lines before today were, on none, today's lines
-// alone being Acme's; c, whose state Acme shares with Default, and f, whose
-// state shares it through its lines naming none, read whole, their lines
-// from their sixth day on, Acme's; and b and d, none of whose lines were,
-// not given. Default's rests e on its state, every line it was folded from
-// Default's, though today's are Acme's, none of its lines today.
-func TestAPoolsReadRestsOnAStateOfItsAloneAndReadsOneItSharesWhole(t *testing.T) {
+// basePools are the pools of the lines the state s rests on was folded
+// from, as its entry's state in the pool read names them, none where it
+// rests on none.
+func basePools(s ledger.SessionFrom) []string {
+	if s.Base == nil {
+		return nil
+	}
+	return s.Base.Pools
+}
+
+// Over digests, a pool's read rests each session on its state in the pool,
+// one of the pool's work alone, at the day before's end, the session's lines
+// after it the pool's: Acme's, a on its own, all Acme's; c, Default's for
+// five days, then Acme's, and f, naming none for five, then Acme's, on their
+// states apart in Acme's; e, none of whose lines before today were Acme's,
+// on none, today's lines alone being Acme's; and b and d, of none of Acme's
+// work, not given. Default's rests b on its own, d and f on their states of
+// their lines naming none, and c and e on their states of their Default
+// work, none of their lines today being Default's; a, all Acme's, not
+// given.
+func TestAPoolsReadRestsEachSessionOnItsStateInThePool(t *testing.T) {
 	n := newRoutedNineDays(t, pooledNineIDs, pooledNine)
-	dates := dayfile.Span(n.first.Start, n.today.Start)
+	yesterday := yesterdayOf(n.today)
+	type rested struct {
+		pools []string
+		today bool
+	}
+	tests := []struct {
+		name string
+		read PoolRead
+		pool string
+		want map[string]rested
+	}{
+		{name: "Acme's", read: acmeNine, pool: "q7mt", want: map[string]rested{
+			"a": {pools: []string{"q7mt"}, today: true}, "c": {pools: []string{"q7mt"}, today: true},
+			"e": {today: true}, "f": {pools: []string{"q7mt"}, today: true},
+		}},
+		{name: "Default's", read: defaultNine, pool: "b2n8", want: map[string]rested{
+			"b": {pools: []string{"b2n8"}, today: true}, "c": {pools: []string{"b2n8"}}, "d": {pools: []string{""}, today: true},
+			"e": {pools: []string{"b2n8"}}, "f": {pools: []string{""}},
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.read.Ledger(n.follower(DigestVersion)).SessionsOf(pooledNineIDs, nil, nil)
 
-	got := acmeNine.Ledger(n.follower(DigestVersion)).SessionsOf(pooledNineIDs, nil, nil)
-
-	if ids := slices.Sorted(maps.Keys(got)); !slices.Equal(ids, []string{"a", "c", "e", "f"}) {
-		t.Fatalf("Acme's read gave %v, want a, c, e and f", ids)
-	}
-	if a := got["a"]; a.Base == nil || a.Base.Date != yesterdayOf(n.today) || !slices.Equal(a.Base.Pools, []string{"q7mt"}) {
-		t.Errorf("a rests on %+v, want its state of Acme's alone at the end of %s", a.Base, yesterdayOf(n.today))
-	}
-	for _, tt := range []struct {
-		id    string
-		first string
-	}{{id: "e", first: n.today.Date}, {id: "c", first: dates[5]}, {id: "f", first: dates[5]}} {
-		s := got[tt.id]
-		if s.Base != nil || len(s.Lines) == 0 || dayfile.DateOf(s.Lines[0].At) != tt.first {
-			t.Errorf("%s rests on %+v, its lines from %v; want none, its lines from %s", tt.id, s.Base, s.Lines, tt.first)
-		}
-		if i := slices.IndexFunc(s.Lines, func(l ledger.Line) bool { return l.Pool != "q7mt" }); i >= 0 {
-			t.Errorf("%s's lines hold %+v, want Acme's alone", tt.id, s.Lines[i])
-		}
-	}
-	e := defaultNine.Ledger(n.follower(DigestVersion)).SessionsOf([]string{"e"}, nil, nil)["e"]
-	if e.Base == nil || e.Base.Date != yesterdayOf(n.today) || len(e.Lines) != 0 {
-		t.Errorf("Default's read of e rests it on %+v, its lines %v; want its state at the end of %s, none of its lines", e.Base, e.Lines, yesterdayOf(n.today))
+			if ids, want := slices.Sorted(maps.Keys(got)), slices.Sorted(maps.Keys(tt.want)); !slices.Equal(ids, want) {
+				t.Fatalf("the read gave %v, want %v", ids, want)
+			}
+			for id, want := range tt.want {
+				s := got[id]
+				if pools := basePools(s); !slices.Equal(pools, want.pools) || want.pools != nil && s.Base.Date != yesterday {
+					t.Errorf("%s rests on %+v, want its state in the pool of the pools %q at the end of %s", id, s.Base, want.pools, yesterday)
+				}
+				if today := len(s.Lines) > 0; today != want.today || today && dayfile.DateOf(s.Lines[0].At) != n.today.Date {
+					t.Errorf("%s's lines after its state are %v, want today's alone: %t", id, s.Lines, want.today)
+				}
+				if i := slices.IndexFunc(s.Lines, func(l ledger.Line) bool { return !tt.read.keeps(l.Pool) }); i >= 0 {
+					t.Errorf("%s's lines hold %+v, want the pool's alone", id, s.Lines[i])
+				}
+			}
+		})
 	}
 }
 
-// A pool's read hands a reader taking every line read each line of the
-// days it reads once, of whichever pool, whichever session a state the
-// pool shares with another had read again whole: of c, Acme's since its
-// sixth day, each line of every day it ran, as a raw read of it whole
-// hands them.
-func TestAPoolsReadHandsEachLineOnceWhereItReadsAgainWhole(t *testing.T) {
+// A digest's entry of a session whose lines were routed in more than one
+// pool holds its state in each apart, in the order of their pools, from the
+// day it first ran in a second: c's, Default's then Acme's, and f's, naming
+// none, then Acme's, as the day before's digest holds them; its own state
+// before then, as each other session's always, its alone, in the form it had
+// before pools, as their entries' files hold them.
+func TestASplitSessionsEntryHoldsItsStateInEachPool(t *testing.T) {
 	n := newRoutedNineDays(t, pooledNineIDs, pooledNine)
-	handed := func(l Ledger, rest func(string) ledger.Rest) map[string]int {
-		lines := make(map[string]int)
-		l.SessionsOf([]string{"c"}, rest, func(date string, line ledger.Line) { lines[date+" "+line.Request]++ })
-		return lines
+	dates := dayfile.Span(n.first.Start, n.today.Start)
+	apartOn := func(date string) map[string][][]string {
+		var digest struct {
+			Sessions map[string]struct {
+				Apart []struct {
+					Pools []string `json:"pools"`
+				} `json:"apart"`
+			} `json:"sessions"`
+		}
+		data, err := os.ReadFile(n.chain.digestPath(date))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := json.Unmarshal(gunzipped(t, data), &digest); err != nil {
+			t.Fatal(err)
+		}
+		apart := make(map[string][][]string)
+		for id, e := range digest.Sessions {
+			for _, s := range e.Apart {
+				apart[id] = append(apart[id], s.Pools)
+			}
+		}
+		return apart
 	}
 
-	got, want := handed(acmeNine.Ledger(n.follower(DigestVersion)), onPage), handed(n.follower(DigestVersion+1), eachWhole)
+	if got := apartOn(dates[4]); len(got) != 0 {
+		t.Errorf("the digest of %s, before any session ran in a second pool, holds states apart of %v, want none", dates[4], got)
+	}
+	for _, date := range []string{dates[5], dates[8]} {
+		if got, want := apartOn(date), map[string][][]string{"c": {{"b2n8"}, {"q7mt"}}, "f": {nil, {"q7mt"}}}; !reflect.DeepEqual(got, want) {
+			t.Errorf("the digest of %s holds the states apart of %v, want c's in Default's and Acme's, and f's of its lines naming none and in Acme's, those of none stored as none", date, got)
+		}
+	}
+}
 
-	if !maps.Equal(got, want) {
-		t.Errorf("Acme's read of c over digests handed the lines %v, want each of every day it ran once, as a raw read whole hands %v", got, want)
+// A split session's read in a pool over digests reads no day before its
+// state there: c's List, its page opened as the watch opens it, and its page
+// held by the store beside the List, in Acme's and in Default's, read the
+// lines of today's file alone, as a session of one pool's do, where the same
+// reads raw read every day it ran. Each shows what it shows read raw.
+func TestASplitSessionsReadInAPoolReadsNoDayBeforeItsStateThere(t *testing.T) {
+	n := newRoutedNineDays(t, pooledNineIDs, pooledNine)
+	reads := []struct {
+		name string
+		read func(l Ledger) any
+	}{
+		{name: "the List", read: func(l Ledger) any {
+			return ListSessions(SessionSources{Running: n.running, Ledger: l, Prices: ledger.Pricing, Now: n.now})
+		}},
+		{name: "its page opened", read: func(l Ledger) any { return n.opened(l, "c", Stream{}) }},
+		{name: "its page held beside the List", read: func(l Ledger) any { return n.stored(l, "c", true, Stream{}) }},
+	}
+	for _, pool := range []PoolRead{acmeNine, defaultNine} {
+		for _, r := range reads {
+			t.Run(pool.ID+"/"+r.name, func(t *testing.T) {
+				based, raw := takingDates(n.follower(DigestVersion)), takingDates(n.follower(DigestVersion+1))
+
+				got, want := r.read(pool.Ledger(based)), r.read(pool.Ledger(raw))
+
+				if dates := based.datesRead(); !slices.Equal(dates, []string{n.today.Date}) {
+					t.Errorf("over digests, it read the lines of %v, want those of %s alone", dates, n.today.Date)
+				}
+				if dates, every := raw.datesRead(), dayfile.Span(n.first.Start, n.today.Start); !slices.Equal(dates, every) {
+					t.Errorf("read raw, it read the lines of %v, want those of every day, %v", dates, every)
+				}
+				if !reflect.DeepEqual(got, want) {
+					t.Errorf("over digests, it shows\n%+v\nwant, as read raw\n%+v", got, want)
+				}
+			})
+		}
 	}
 }
 
 // Default's read of today's sessions over digests passes over c, unread,
-// where it isn't asked for: resumed in Acme's on its sixth day, its state
-// shared, it made no request in Default's since, so the read gives none of
-// it and reads none of its first days. Asked for, c is read whole, its
-// Default lines of its first five days.
+// where it isn't asked for: resumed in Acme's on its sixth day, it made no
+// request in Default's since, so the read gives none of it, its state there
+// unrestored, and the List never lists it. Asked for, c rests on its state
+// in Default's, of its Default work of its first five days, none of its
+// lines after it, and none of its first days read.
 func TestAPoolsReadPassesOverASessionThatLeftItUnlessAsked(t *testing.T) {
 	n := newRoutedNineDays(t, pooledNineIDs, pooledNine)
 	first := dayfile.Span(n.first.Start, n.today.Start)[0]
@@ -188,11 +279,45 @@ func TestAPoolsReadPassesOverASessionThatLeftItUnlessAsked(t *testing.T) {
 		t.Errorf("Default's read of today's sessions gave c as %+v, reading its first day %t; want none of it, unread", c, reached)
 	}
 	c, ok, reached := read([]string{"b", "c", "d"})
-	if !ok || !reached || c.Base != nil || len(c.Lines) == 0 || dayfile.DateOf(c.Lines[0].At) != first {
-		t.Errorf("asked for, c is given as %+v, %t, reading its first day %t; want it read whole, its lines from %s", c.Base, ok, reached, first)
+	if !ok || reached || !slices.Equal(basePools(c), []string{"b2n8"}) || c.Base.Date != yesterdayOf(n.today) || len(c.Lines) != 0 {
+		t.Errorf("asked for, c is given as %+v, %t, reading its first day %t; want it resting on its state in Default's at the end of %s, none of its lines after it, its first day unread", c, ok, reached, yesterdayOf(n.today))
 	}
-	if i := slices.IndexFunc(c.Lines, func(l ledger.Line) bool { return l.Pool != "b2n8" }); i >= 0 {
-		t.Errorf("asked for, c's lines hold %+v, want Default's alone", c.Lines[i])
+}
+
+// A split session over digests, after a late line of its filed under a day
+// past in either of its pools, the days from it digested again, is in each
+// pool as read raw: c's List and its page, opened and held by the store, in
+// Acme's and in Default's, of a line in Acme's and of one in Default's filed
+// under its seventh day, Acme's then.
+func TestASplitSessionAfterALateLineInEitherPoolIsItsLinesReadRaw(t *testing.T) {
+	for _, late := range []string{"q7mt", "b2n8"} {
+		t.Run(late, func(t *testing.T) {
+			n := newRoutedNineDays(t, pooledNineIDs, pooledNine)
+			date := dayfile.Span(n.first.Start, n.today.Start)[6]
+			lines := n.chain.lines
+			l := lines[slices.IndexFunc(lines, func(l ledger.Line) bool { return l.Session == "c" && dayfile.DateOf(l.At) == date })]
+			l.Request, l.At, l.Pool = "late-"+late, l.At.Add(time.Minute), late
+			n.chain.file(date, l)
+			n.chain.ledger.SummariseEnded(n.now)
+			n.chain.ledger.DigestEnded(t.Context(), n.now)
+			if handed := n.chain.digests.handed[date].Sessions["c"]; handed.Base == nil {
+				t.Fatalf("the digest of %s wasn't built again of c resting on its state, handed %+v", date, handed)
+			}
+
+			for _, pool := range []PoolRead{acmeNine, defaultNine} {
+				based, raw := pool.Ledger(n.follower(DigestVersion)), pool.Ledger(n.follower(DigestVersion+1))
+				if got, want := ListSessions(SessionSources{Running: n.running, Ledger: based, Prices: ledger.Pricing, Now: n.now}),
+					ListSessions(SessionSources{Running: n.running, Ledger: raw, Prices: ledger.Pricing, Now: n.now}); !reflect.DeepEqual(got, want) {
+					t.Errorf("in %s, over digests, the List is\n%+v\nwant, as read raw\n%+v", pool.ID, got, want)
+				}
+				if got, want := n.opened(based, "c", Stream{}), n.opened(raw, "c", Stream{}); !reflect.DeepEqual(got, want) {
+					t.Errorf("in %s, over digests, c's page shows\n%+v\nwant, as read raw\n%+v", pool.ID, got, want)
+				}
+				if got, want := n.stored(based, "c", true, Stream{}), n.stored(raw, "c", true, Stream{}); !reflect.DeepEqual(got, want) {
+					t.Errorf("in %s, over digests, c's page held beside the List shows\n%+v\nwant, as read raw\n%+v", pool.ID, got, want)
+				}
+			}
+		})
 	}
 }
 

@@ -27,7 +27,8 @@ import (
 )
 
 // pageLedger is a request ledger of the lines given, by session, each read
-// whole, which notes the ids each read of its sessions asked for.
+// whole, in any pool as of every pool's, which notes the ids each read of
+// its sessions asked for.
 type pageLedger struct {
 	ledger.Empty
 	lines map[string][]ledger.Line
@@ -40,6 +41,14 @@ func (l *pageLedger) Sessions(ids []string, _ func(string) ledger.Rest, _ func(s
 }
 
 func (l *pageLedger) SessionsOf(ids []string, rest func(string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
+	return l.Sessions(ids, rest, take)
+}
+
+func (l *pageLedger) SessionsIn(_ ledger.RoutedIn, ids []string, rest func(string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
+	return l.Sessions(ids, rest, take)
+}
+
+func (l *pageLedger) SessionsOfIn(_ ledger.RoutedIn, ids []string, rest func(string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
 	return l.Sessions(ids, rest, take)
 }
 

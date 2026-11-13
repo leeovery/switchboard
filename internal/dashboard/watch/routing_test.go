@@ -720,7 +720,8 @@ func TestEnterSaysSoInTheCardWhileTheRouterDoesntAnswer(t *testing.T) {
 }
 
 // sessionsLedger is a request ledger of the lines given, by session, each
-// read whole, which counts the times its sessions' lines are read.
+// read whole, in any pool as of every pool's, which counts the times its
+// sessions' lines are read.
 type sessionsLedger struct {
 	ledger.Empty
 	lines map[string][]ledger.Line
@@ -733,6 +734,14 @@ func (l *sessionsLedger) Sessions([]string, func(string) ledger.Rest, func(strin
 }
 
 func (l *sessionsLedger) SessionsOf(ids []string, rest func(string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
+	return l.Sessions(ids, rest, take)
+}
+
+func (l *sessionsLedger) SessionsIn(_ ledger.RoutedIn, ids []string, rest func(string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
+	return l.Sessions(ids, rest, take)
+}
+
+func (l *sessionsLedger) SessionsOfIn(_ ledger.RoutedIn, ids []string, rest func(string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
 	return l.Sessions(ids, rest, take)
 }
 

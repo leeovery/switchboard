@@ -295,6 +295,19 @@ func (l heldLedger) SessionsOf(ids []string, _ func(id string) ledger.Rest, take
 	return ledger.SessionsWhole(l.sessions(ids, false, take))
 }
 
+// SessionsIn gives the sessions Sessions gives, in any pool, as a Follower of
+// a ledger that holds no digest reads them in one: each read whole, resting
+// on no state of any pool's, its lines every pool's.
+func (l heldLedger) SessionsIn(_ ledger.RoutedIn, ids []string, rest func(id string) ledger.Rest, take func(date string, line ledger.Line)) map[string]ledger.SessionFrom {
+	return l.Sessions(ids, rest, take)
+}
+
+// SessionsOfIn gives the sessions SessionsOf gives, in any pool, as
+// SessionsIn has them.
+func (l heldLedger) SessionsOfIn(_ ledger.RoutedIn, ids []string, rest func(id string) ledger.Rest, take func(date string, line ledger.Line)) map[string]ledger.SessionFrom {
+	return l.SessionsOf(ids, rest, take)
+}
+
 // sessions gives the lines of the sessions with the given ids, and where
 // todays is set, of today's, as Sessions gives them.
 func (l heldLedger) sessions(ids []string, todays bool, take func(date string, line ledger.Line)) map[string][]ledger.Line {
