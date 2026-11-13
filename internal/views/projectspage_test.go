@@ -12,6 +12,7 @@ import (
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
+	"github.com/leeovery/switchboard/internal/views/viewstest"
 )
 
 // linesLedger is a ledger holding the lines given, filed under the local day
@@ -383,4 +384,67 @@ func TestTheDayTurningLosesNoLineAndTakesNoneTwice(t *testing.T) {
 	if again := held.Tailed(nil, false, nil, tuesday).Projects(projectsIn(views.PeriodThisWeek, tuesday)); again.All.Requests != 1 {
 		t.Errorf("held, the day not turned, the page counts %d requests, want 1", again.All.Requests)
 	}
+}
+
+// The design's world sums as the design says: this week, six projects of
+// 27 sessions, 5,410 requests and $635.00, each running one session;
+// switchboard first, of eight sessions, 1,874 requests and $221.40, its
+// worktrees' among them, each named by its own directory, its worth by day
+// peaking on Wednesday at $84.70; and over the last 12 months, kit and
+// old-site too, though no session of theirs ran this week, last active on
+// 14 June and 2 March.
+func TestTheDesignsWorldSumsAsTheDesignSays(t *testing.T) {
+	w := viewstest.NewProjectsWorld()
+	days := w.Days()
+	week := days.Projects(w.Input(views.PeriodThisWeek))
+	type row struct {
+		name                     string
+		live, sessions, requests int
+		worth                    views.Worth
+	}
+	var got []row
+	for _, r := range week.Rows {
+		got = append(got, row{r.Name, r.Live, r.Sessions, r.Requests, r.Worth})
+	}
+	want := []row{
+		{"switchboard", 1, 8, 1874, cents(22140)}, {"website", 1, 5, 1102, cents(13980)}, {"infra", 1, 5, 846, cents(9810)},
+		{"api", 1, 4, 702, cents(8730)}, {"docs", 1, 3, 611, cents(6120)}, {"mobile", 1, 2, 275, cents(2720)},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("this week's rows are\n%+v\nwant\n%+v", got, want)
+	}
+	if want := (views.ProjectTotals{Live: 6, Sessions: 27, Requests: 5410, Worth: cents(63500)}); !reflect.DeepEqual(week.All, want) {
+		t.Errorf("every project's this week are %+v, want %+v", week.All, want)
+	}
+	switchboard, _ := week.Project(viewstest.Switchboard)
+	var byDay []views.Worth
+	for _, b := range switchboard.WorthBy.Buckets[:4] {
+		byDay = append(byDay, b.Worth)
+	}
+	if want := []views.Worth{cents(2740), cents(3900), cents(8470), cents(7030)}; !reflect.DeepEqual(byDay, want) {
+		t.Errorf("switchboard's worth Monday to today is %+v, want %+v", byDay, want)
+	}
+	if peak := switchboard.WorthBy.Buckets[switchboard.WorthBy.Peak]; peak.Label != "Wed" {
+		t.Errorf("switchboard's peak is %s, want Wednesday's", peak.Label)
+	}
+	var dirs []string
+	for _, s := range switchboard.Sessions {
+		dirs = append(dirs, status.DirName(s.Dir, 20))
+	}
+	if want := []string{"switchboard", "fix-login", "switchboard", "pools", "pools", "switchboard", "switchboard", "release"}; !reflect.DeepEqual(dirs, want) {
+		t.Errorf("switchboard's sessions are named %v, want %v", dirs, want)
+	}
+	year := days.Projects(w.Input(views.PeriodTwelveMonths))
+	last := make(map[string]string)
+	for _, r := range year.Rows {
+		last[r.Name] = r.Last.Local().Format(time.DateOnly)
+	}
+	if last["kit"] != "2026-06-14" || last["old-site"] != "2026-03-02" {
+		t.Errorf("over 12 months kit was last active on %q and old-site on %q, want 2026-06-14 and 2026-03-02", last["kit"], last["old-site"])
+	}
+}
+
+// cents is a worth of n cents, priced.
+func cents(n int64) views.Worth {
+	return priced(n * 10_000)
 }
