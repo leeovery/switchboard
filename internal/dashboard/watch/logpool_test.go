@@ -1,6 +1,7 @@
 package watch
 
 import (
+	"fmt"
 	"slices"
 	"testing"
 	"time"
@@ -172,5 +173,79 @@ func TestPTurnsTheLogToTheNextPoolsRequests(t *testing.T) {
 	h.deliver(h.press("P")...)
 	if got, want := shownRequests(h), []string{"0b000002", "0b000003", "0a000002", "0a000003"}; h.model.cfg.Pool.ID != "b2n8" || !slices.Equal(got, want) {
 		t.Errorf("after P, in %q, the Requests show %v, want Default's %v", h.model.cfg.Pool.ID, got, want)
+	}
+}
+
+// pooledAt is arrivedAt, on the account given, routed in the pool with the
+// given id, "" for none.
+func pooledAt(request, account, pool string, at time.Time) ledger.Held {
+	l := arrivedAt(request, at)
+	l.Account, l.Pool = account, pool
+	return l
+}
+
+// A day the Log reads again, as a filter picked since leaves it unserved,
+// is read in the pool shown alone, as it was read back: Acme's day before,
+// read back through an account of Acme's, is read again for the failed
+// alone, which have no reach, so the Log reads it again rather than letting
+// it go, the Requests then showing Acme's failed line and none of
+// Default's.
+func TestADayReadAgainThroughAnotherFilterIsThePoolShownsAlone(t *testing.T) {
+	failedIn := func(request, account, pool string, d time.Duration) ledger.Held {
+		l := pooledArrived(request, account, pool, d)
+		l.Status = 500
+		return l
+	}
+	state := t.TempDir()
+	var lines []ledger.Held
+	for i := range 60 {
+		lines = append(lines, pooledArrived(fmt.Sprintf("0c%06d", i), "k3f9", "q7mt", -time.Duration(70-i)*time.Minute))
+	}
+	lines = append(lines, pooledArrived("0b000001", "k4q2", "q7mt", -day), failedIn("0b000002", "work", "b2n8", -day+time.Minute),
+		failedIn("0b000003", "work", "", -day+2*time.Minute), failedIn("0b000004", "k3f9", "q7mt", -day+3*time.Minute))
+	writeLines(t, state, lines...)
+	h := newHarness(t, probedWithoutTheRouter())
+	onTheLog(h, state)
+	h.model.cfg.LedgerKeep, h.model.cfg.PoolRead = 2*day, acmeRead
+	h.start()
+	if reads := appliedLog(h, func(f *views.LogFilter) { f.Accounts = []string{"k4q2"} }); reads == 0 || !slices.Equal(shownRequests(h), []string{"0b000001"}) {
+		t.Fatalf("through k4q2, in %d reads, the Requests show %v, want Acme's day before's 0b000001, read back", reads, shownRequests(h))
+	}
+
+	if reads := appliedLog(h, func(f *views.LogFilter) { f.Accounts, f.Failed = nil, true }); reads == 0 {
+		t.Fatal("for the failed alone, the Log read no day again, want the day before, held through k4q2 alone")
+	}
+	if got, want := shownRequests(h), []string{"0b000004"}; !slices.Equal(got, want) {
+		t.Errorf("for the failed alone, the Requests show %v, want Acme's %v alone, the day before read again in Acme", got, want)
+	}
+}
+
+// A day the tail followed no further, read again whole late as the day
+// turns, gives the Log the pool shown's lines alone, and figures of them
+// alone: Acme's line filed under the day before after the Log opened shows,
+// and Default's filed beside it never does, nor counts in its figures.
+func TestALateDayGivesTheLogThePoolShownsLinesAlone(t *testing.T) {
+	state := t.TempDir()
+	night := onTheDay(23, 59, 30)
+	writeLines(t, state, pooledAt("0a000001", "k3f9", "q7mt", night.Add(-10*time.Minute)))
+	h := routedHarness(t, routerDocument(three()...))
+	l := onTheLog(h, state)
+	h.model.cfg.PoolRead = acmeRead
+	h.clock.now = night
+	h.start()
+
+	writeLines(t, state, pooledAt("0a000002", "work", "b2n8", onTheDay(23, 59, 45)), pooledAt("0a000003", "k3f9", "q7mt", onTheDay(23, 59, 50)))
+	h.clock.now = onTheDay(24, 0, 5)
+	h.read(routerDocument(three()...))
+	yesterday := dayfile.DateOf(night)
+	if !slices.Contains(l.days, yesterday) {
+		t.Fatalf("as the day turned, the days %v were read whole, want the day before among them, late", l.days)
+	}
+	if got, want := shownRequests(h), []string{"0a000001", "0a000003"}; !slices.Equal(got, want) {
+		t.Errorf("the Requests show %v, want Acme's %v", got, want)
+	}
+	i := slices.IndexFunc(h.model.log.totals, func(d views.DayTotals) bool { return d.Date == yesterday })
+	if i < 0 || h.model.log.totals[i].Requests != 2 {
+		t.Errorf("the figures held are %+v, want the day before's of Acme's 2 requests alone", h.model.log.totals)
 	}
 }
