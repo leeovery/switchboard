@@ -33,12 +33,20 @@ func (s listedSession) listed() views.ListedSession {
 		Started: s.started, Requests: s.requests, Worth: worthOf(s.worth), Activity: s.doing, Mark: s.mark,
 	}
 	if s.moved > 0 {
-		l.Routing = views.RoutingSaid{
-			Words: status.RoutingWords(status.ReasonMovedOff+"work "+status.WhyReserve, status.Facts{From: "work", To: "side"}),
-			From:  "work", Cost: cents(s.moved),
-		}
+		l.Routing = movedBy(status.ReasonMovedOff+"work "+status.WhyReserve, "work", s.moved)
 	}
 	return l
+}
+
+// movedBy is the routing of a move from the account given for the reason
+// given, which cost the cents given, 0 for none, as the List's story has it.
+func movedBy(reason, from string, moved int64) views.RoutingSaid {
+	facts := status.Facts{From: from, To: "side"}
+	r := views.RoutingSaid{Words: status.RoutingWords(reason, facts), Brief: status.BriefWords(reason, facts), From: from}
+	if moved > 0 {
+		r.Cost = cents(moved)
+	}
+	return r
 }
 
 // idleFor is a session idle the time given at routedAt; endedAt one ended
@@ -136,9 +144,9 @@ func TestTheListsColumnsByWidth(t *testing.T) {
 		width      int
 		heads, row string
 	}{
-		{width: 220, heads: whole + "  routing", row: moved + "  from work, at its cap  $1.82"},
-		{width: 160, heads: whole + "  routing", row: moved + "  from work, at its cap  $1.82"},
-		{width: 127, heads: whole + "  routing", row: moved + "  from work, at it…  $1.82"},
+		{width: 220, heads: whole + "  routing", row: moved + "  from work · at its cap  $1.82"},
+		{width: 160, heads: whole + "  routing", row: moved + "  from work · at its cap  $1.82"},
+		{width: 127, heads: whole + "  routing", row: moved + "  from work · at i…  $1.82"},
 		{width: 126, heads: whole, row: moved},
 		{width: 108, heads: whole, row: moved},
 		{width: 101, heads: whole, row: moved},
@@ -188,18 +196,22 @@ func listLeasts(on int) map[listPart]int {
 	}
 }
 
-// At every width from 52 to 220, of short names and long, the List's
-// columns are laid out as listLaidAsDesigned has them, and widen as
-// listWidensSteadily has them.
+// At every width from 52 to 220, of short names and long, and of models and
+// worths within their columns' leasts and past them, the List's columns are
+// laid out as listLaidAsDesigned has them, and widen as listWidensSteadily
+// has them.
 func TestTheListsColumnsLeaveInTheirOrder(t *testing.T) {
 	for _, on := range []int{8, 14, 22} {
-		before := listColumnsOf(51, on)
-		for width := 52; width <= 220; width++ {
-			columns := listColumnsOf(width, on)
-			for _, wrong := range slices.Concat(listLaidAsDesigned(width, on), listWidensSteadily(before, columns)) {
-				t.Errorf("on %d at %d, %s: %+v", on, width, wrong, columns)
+		for _, said := range []listNaturals{{}, {model: len("sonnet-5-5"), worth: len("$1549.04+")}} {
+			n := listNaturals{on: on, model: said.model, worth: said.worth}
+			before := listColumnsOf(51, n)
+			for width := 52; width <= 220; width++ {
+				columns := listColumnsOf(width, n)
+				for _, wrong := range slices.Concat(listLaidAsDesigned(width, n), listWidensSteadily(before, columns)) {
+					t.Errorf("of %+v at %d, %s: %+v", n, width, wrong, columns)
+				}
+				before = columns
 			}
-			before = columns
 		}
 	}
 }
@@ -220,18 +232,21 @@ func listWidensSteadily(before, after []listColumn) []string {
 	return wrong
 }
 
-// listLaidAsDesigned says how the List's columns at width, on's natural on,
-// break the design: they start at column 2, 2 cells apart, each at least its
+// listLaidAsDesigned says how the List's columns at width, of the naturals
+// given, break the design: they start at column 2, 2 cells apart, each at least its
 // least; they leave in the order routing, worth, started, model, the
 // session, on, state and requests never; routing only while the leasts and
 // the session and on whole don't fit, worth and started while the leasts
 // and the session whole don't, and model while the leasts don't; what's
 // past the leasts goes to the session, to 29, before on takes a cell past
 // its least; neither worth nor started shows beside a session cut short;
-// and routing, where it shows, ends at the last column, beside the session
-// and on whole, and where it's left, no column is past its natural.
-func listLaidAsDesigned(width, on int) []string {
-	leasts, columns := listLeasts(on), listColumnsOf(width, on)
+// routing, where it shows, ends at the last column, beside the session and
+// on whole, and where it's left, no column is past its natural; and routing
+// takes no cell past its least before model and worth, where they show, are
+// whole.
+func listLaidAsDesigned(width int, n listNaturals) []string {
+	on := n.on
+	leasts, columns := listLeasts(on), listColumnsOf(width, n)
 	shown := map[listPart]listColumn{}
 	var wrong []string
 	taken, x := -listGap, listFrom
@@ -266,6 +281,9 @@ func listLaidAsDesigned(width, on int) []string {
 	case !hasPart(shown, listRouting) && (session.width > 29 || shown[listOn].width > on || last.x+last.width > width):
 		wrong = append(wrong, "with routing left, a column grows past its natural")
 	}
+	if routing.width > leasts[listRouting] && (listCut(shown, listModel, n.model) || listCut(shown, listWorth, n.worth)) {
+		wrong = append(wrong, "routing grows past its least beside model or worth cut short")
+	}
 	return wrong
 }
 
@@ -280,6 +298,13 @@ func listReturns(leasts map[listPart]int, p listPart, on int) int {
 		return leasts[p] + 29 - leasts[listSession]
 	}
 	return leasts[p]
+}
+
+// listCut reports whether the column, where it's shown, is narrower than
+// its widest said, natural.
+func listCut(shown map[listPart]listColumn, p listPart, natural int) bool {
+	col, ok := shown[p]
+	return ok && col.width < natural
 }
 
 // hasPart reports whether the column is among those shown.
@@ -343,9 +368,94 @@ func TestTheListHoldsLongNamesWholeWhereTheyFit(t *testing.T) {
 	}
 }
 
+// labelledListDoc is framedDoc, each account labelled unlike its id:
+// work as north, personal as south and side as east.
+func labelledListDoc() status.Document {
+	doc := framedDoc(nil, nil)
+	labels := map[string]string{"work": "north", "personal": "south", "side": "east"}
+	for i := range doc.Accounts {
+		doc.Accounts[i].Label = labels[doc.Accounts[i].ID]
+	}
+	return doc
+}
+
+// The List's routing says each reason in a word or two, as its BriefSaid
+// says it, after the account the session left, each account named by its
+// label, never its id: the account the session went to is on's, and the
+// full reason the session's page's and the Log's. A move's cost follows,
+// whole.
+func TestTheListsRoutingSaysWhyInAWordOrTwoNamingEachAccountByItsLabel(t *testing.T) {
+	capped := status.ReasonMovedOff + "work " + status.WhyReserve
+	tests := []struct {
+		name    string
+		routing views.RoutingSaid
+		want    string
+	}{
+		{name: "at its cap, costed", routing: movedBy(capped, "work", 182), want: "from north · at its cap  $1.82"},
+		{name: "at its limit", routing: movedBy(status.ReasonMovedOff+"work "+status.WhyLimit, "work", 0), want: "from north · at its limit"},
+		{name: "refused", routing: movedBy(status.ReasonMovedOff+"work "+status.WhyRefused, "work", 0), want: "from north · refused"},
+		{name: "no room", routing: movedBy(status.ReasonMovedOff+"work "+status.WhyNoRoom, "work", 0), want: "from north · no room"},
+		{name: "compacted", routing: movedBy(status.Compacted("side", 0.354), "personal", 77), want: "from south · compacted  $0.77"},
+		{name: "rescored", routing: movedBy(status.Rescored(15*time.Hour), "personal", 0), want: "from south · rescored after 15h idle"},
+		{name: "moved by a pin", routing: movedBy(status.ReasonMovedByPin, "work", 0), want: "from north · pinned"},
+		{name: "its pin yields", routing: movedBy(status.ReasonPinYields+"side has no room", "personal", 0), want: "from south · pin yields"},
+		{name: "back where it was", routing: movedBy(status.ReasonBack, "personal", 0), want: "from south · back"},
+		{name: "passing an account over", routing: movedBy(status.PassingOver(status.ReasonGlobalPin, "personal"), "work", 0),
+			want: "from north · south under pressure"},
+		{name: "sent again after a limit", routing: views.RoutingSaid{
+			Brief: status.BriefTriedWords("work", status.Tried{Account: "work", Why: status.WhyLimit}), From: "work", Cost: cents(98),
+		}, want: "from north · at its limit  $0.98"},
+		{name: "pinned there on its own", routing: views.RoutingSaid{Brief: status.BriefWords(status.ReasonPinned, status.Facts{})}, want: "pinned"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := d28cMoved.listed()
+			s.Routing = tt.routing
+			f := listFrame(t, 160, 37, views.SessionList{GeneratedAt: routedAt, Sessions: []views.ListedSession{s}})
+			c := f.page(labelledListDoc(), routedAt)
+			row := rowOf(c, f.top()+1)
+			if !strings.HasSuffix(row, "  "+tt.want) {
+				t.Errorf("d28c's row reads\n%q\nwant its routing\n%q", row, tt.want)
+			}
+			for _, id := range []string{"work", "personal", "side"} {
+				if strings.Contains(row, id) {
+					t.Errorf("d28c's row names %s by its id:\n%q", id, row)
+				}
+			}
+		})
+	}
+}
+
+// Worth and model take what their widest says whole, an estimate's +
+// counted, before routing grows: at 160 and 200, sonnet-5-5 and a worth past
+// $100 of which part is unpriced show whole beside a compaction's move.
+func TestTheListsWorthAndModelAreWholeBeforeRoutingGrows(t *testing.T) {
+	big := d28cMoved.listed()
+	big.Model, big.Worth = sonnet, views.Worth{Amount: cents(54904), Unpriced: []string{"claude-opus-9"}}
+	big.Routing = movedBy(status.Compacted("side", 0.354), "personal", 77)
+	small := framedList().Sessions[1]
+	for _, width := range []int{160, 200} {
+		t.Run(strconv.Itoa(width), func(t *testing.T) {
+			f := listFrame(t, width, 37, views.SessionList{GeneratedAt: routedAt, Sessions: []views.ListedSession{big, small}})
+			c := f.page(labelledListDoc(), routedAt)
+			row := rowOf(c, f.top()+1)
+			for _, whole := range []string{"sonnet-5-5 ", " $549.04+  ", "from south · compacted  $0.77"} {
+				if !strings.Contains(row, whole) {
+					t.Errorf("d28c's row reads\n%q\nwant %q whole", row, whole)
+				}
+			}
+			other := rowOf(c, f.top()+2)
+			if columnOf(other, "$27.15")+len("$27.15") != columnOf(row, "$549.04+")+len("$549.04+") {
+				t.Errorf("the worths don't end at their column's end alike:\n%q\n%q", row, other)
+			}
+		})
+	}
+}
+
 // The List's columns hold still: no natural comes from the rows shown, so
 // they're the same scrolled as not, and as a session with a longer
-// directory, on an account of a longer name, arrives.
+// directory, on an account of a longer name, arrives. Model's and worth's
+// come from every session the List holds, those out of view too.
 func TestTheListsColumnsHoldStill(t *testing.T) {
 	doc := longListDoc()
 	arrives := listedSession{"f00d4e21", "~/Code/a-directory-named-at-great-length", "an-account-named-at-great-length", answering, routedClock(1, 14, 40), 3, 21, views.MarkAnswering, 0}

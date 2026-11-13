@@ -71,8 +71,9 @@ const (
 )
 
 // listPartFacts are each column's head; its least and its natural, 0 for
-// its least, on's both placeholders for the widest name, as listParts gives
-// them; how its words sit; and the turns it narrows and leaves in, 0 never.
+// its least, on's both placeholders for the widest name, and model's and
+// worth's naturals for their widest said, as listParts gives them; how its
+// words sit; and the turns it narrows and leaves in, 0 never.
 var listPartFacts = [...]struct {
 	head            string
 	least, natural  int
@@ -89,14 +90,32 @@ var listPartFacts = [...]struct {
 	listRouting:  {"routing", routingLeast, 0, alignLeft, 0, routingLeaves},
 }
 
+// listNaturals are the cells the List's columns take whole where they're
+// what the List holds says: on the widest account's name; model the widest
+// model named; and worth the widest worth said, its + counted.
+type listNaturals struct {
+	on, model, worth int
+}
+
+// listNaturalsOf are the List's naturals of the moment m and the sessions it
+// lists: on's its widest account's name, as widestLabel has it; and model's
+// and worth's, what the widest of every session says, those out of view too,
+// so the columns hold still as the List scrolls.
+func listNaturalsOf(m status.Moment, sessions []views.ListedSession) listNaturals {
+	n := listNaturals{on: widestLabel(m)}
+	for _, s := range sessions {
+		n.model = max(n.model, ansi.StringWidth(modelNamed(s.Model)))
+		n.worth = max(n.worth, worthSays(s).width())
+	}
+	return n
+}
+
 // listParts are the List's columns as flex lays them, listGap apart, each
 // from its least to its natural, holding its natural until it narrows in its
-// turn: on's natural the cells given, its least that, listOnLeast at the
-// most; and routing taking what's left to the last column.
-//
-// No natural comes from the rows shown, so the columns hold still as the
-// List scrolls and as sessions come and go.
-func listParts(on int) []flex.Part {
+// turn: on's natural as given, its least that, listOnLeast at the most;
+// model's and worth's as given, past their leasts, which they take before
+// routing grows; and routing taking what's left to the last column.
+func listParts(n listNaturals) []flex.Part {
 	parts := make([]flex.Part, len(listPartFacts))
 	for p, facts := range listPartFacts {
 		parts[p] = flex.Part{
@@ -104,7 +123,9 @@ func listParts(on int) []flex.Part {
 			Narrows: facts.narrows, Leaves: facts.leaves, Gap: listGap,
 		}
 	}
-	parts[listOn].Least, parts[listOn].Natural = min(on, listOnLeast), on
+	parts[listOn].Least, parts[listOn].Natural = min(n.on, listOnLeast), n.on
+	parts[listModel].Natural = max(parts[listModel].Least, n.model)
+	parts[listWorth].Natural = max(parts[listWorth].Least, n.worth)
 	parts[listRouting].Grows = true
 	return parts
 }
@@ -117,15 +138,16 @@ type listColumn struct {
 }
 
 // listColumnsOf are the List's columns shown across a frame width cells
-// wide, on's natural the cells given, at least its head's, in two passes of
+// wide, of the naturals given, on's at least its head's, in two passes of
 // flex, as the Log's Requests are: the first decides which of listParts
 // show; the second lays out only those, as flex's Decided has them, so
-// what's past the leasts goes to the session first, then on, in the row's
-// order. Nothing grows but routing, so where it's left, the spare lies at
-// the row's end.
-func listColumnsOf(width, on int) []listColumn {
+// what's past the leasts goes to the session first, then on, then model and
+// worth, in the row's order. Nothing grows but routing, so where it's left,
+// the spare lies at the row's end.
+func listColumnsOf(width int, n listNaturals) []listColumn {
 	room := width - listFrom
-	parts := listParts(max(on, ansi.StringWidth(listPartFacts[listOn].head)))
+	n.on = max(n.on, ansi.StringWidth(listPartFacts[listOn].head))
+	parts := listParts(n)
 	decided, _ := flex.Lay(room, parts...)
 	var shown []listPart
 	var kept []flex.Part
@@ -193,7 +215,7 @@ func (f Frame) listing(doc status.Document, now time.Time) listed {
 	m := f.Moment(doc, now)
 	top := f.top()
 	l := listed{
-		f: f, m: m, now: now, columns: listColumnsOf(f.Width, widestLabel(m)),
+		f: f, m: m, now: now, columns: listColumnsOf(f.Width, listNaturalsOf(m, f.SessionsTab.List.Sessions)),
 		today: todayIn(todayLine(f.SessionsTab.List.Today, f.Width), f.Height-underView-top), top: top,
 	}
 	l.rows = max(l.todayAt()-l.top-2, 0)
@@ -399,8 +421,9 @@ func (l listed) targets() []Target {
 // says is what the column says of the session, in its cells: the session
 // named as sessionIn names it, its id in text.secondary; the model of its
 // latest request, its id less claude-, and its requests today counted,
-// in text.muted; its routing in the Log's routing words, cut as the Log cuts
-// them, a move's cost kept whole; and the rest as their own say them.
+// in text.muted; its routing in a word or two, as its BriefSaid says it,
+// each account named as the moment names it, cut as the Log cuts its
+// routing, a move's cost kept whole; and the rest as their own say them.
 func (l listed) says(col listColumn, s views.ListedSession) line {
 	switch col.part {
 	case listSession:
@@ -418,7 +441,7 @@ func (l listed) says(col listColumn, s views.ListedSession) line {
 	case listWorth:
 		return worthSays(s)
 	default:
-		return rowWordsIn(s.Routing.Said(), col.width)
+		return rowWordsIn(s.Routing.BriefSaid(), func(id string) string { return named(l.m, id) }, col.width)
 	}
 }
 

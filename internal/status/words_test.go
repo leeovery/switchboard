@@ -423,6 +423,75 @@ func TestShortWordsSayAForcedMovesWhyWithoutItsAccount(t *testing.T) {
 	}
 }
 
+// The List's routing says each reason in a word or two, after the account
+// the session moved from, " · " between them, as the List's on column names
+// where it went: why alone where it moved from none; a new session's first
+// as "new session", whether or not the choice passed an account over; and
+// any reason not in the dashboard's words as the router gives it, cleaned.
+func TestBriefWordsSayWhereASessionMovedFromAndWhyInAWordOrTwo(t *testing.T) {
+	from := status.Facts{From: "work", To: "side"}
+	tests := []struct {
+		name   string
+		reason string
+		facts  status.Facts
+		want   string
+	}{
+		{name: "at its cap", reason: status.ReasonMovedOff + "work " + status.WhyReserve, facts: from, want: "from [work] · at its cap"},
+		{name: "at its limit", reason: status.ReasonMovedOff + "work " + status.WhyLimit, facts: from, want: "from [work] · at its limit"},
+		{name: "refused", reason: status.ReasonMovedOff + "work " + status.WhyRefused, facts: from, want: "from [work] · refused"},
+		{name: "no room", reason: status.ReasonMovedOff + "work " + status.WhyNoRoom, facts: from, want: "from [work] · no room"},
+		{name: "a move off for a why it has no words for", reason: status.ReasonMovedOff + "work has a new token", facts: from,
+			want: "from [work] · has a new token"},
+		{name: "forced, passing an account over", reason: status.PassingOver(status.ReasonMovedOff+"work "+status.WhyReserve, "personal"), facts: from,
+			want: "from [work] · at its cap"},
+		{name: "passing an account over alone", reason: status.PassingOver(status.ReasonGlobalPin, "personal"), facts: from,
+			want: "from [work] · [personal] under pressure"},
+		{name: "compacted", reason: status.Compacted("side", 0.354), facts: from, want: "from [work] · compacted"},
+		{name: "rescored", reason: status.Rescored(15 * time.Hour), facts: from, want: "from [work] · rescored after {15h} idle"},
+		{name: "its pin yields", reason: status.ReasonPinYields + "side has no room", facts: from, want: "from [work] · pin yields"},
+		{name: "moved by a pin", reason: status.ReasonMovedByPin, facts: from, want: "from [work] · pinned"},
+		{name: "the global pin", reason: status.ReasonGlobalPin, facts: from, want: "from [work] · pinned"},
+		{name: "back where it was", reason: status.ReasonBack, facts: from, want: "from [work] · back"},
+		{name: "pinned here, moving none", reason: status.ReasonPinned, want: "pinned"},
+		{name: "sticky", reason: status.ReasonSticky, want: "sticky"},
+		{name: "kept for its thinking", reason: status.ReasonBound, want: "kept for its thinking"},
+		{name: "a new session", reason: status.ReasonNew, facts: from, want: "new session"},
+		{name: "a new session, passing an account over", reason: status.PassingOver(status.ReasonNew, "personal"), want: "new session"},
+		{name: "as the router gives it, cleaned", reason: "unsessioned\x07", facts: from, want: "from [work] · unsessioned"},
+	}
+	for _, tt := range tests {
+		if got := marked(status.BriefWords(tt.reason, tt.facts)); got != tt.want {
+			t.Errorf("%s: BriefWords(%q) = %q, want %q", tt.name, tt.reason, got, tt.want)
+		}
+	}
+}
+
+// The List's routing says a request sent again after an account couldn't
+// serve it as a move off that account: the one the session left, else the
+// first tried, and why in a word or two.
+func TestBriefTriedWordsSayTheAccountLeftAndWhyInAWordOrTwo(t *testing.T) {
+	limit, refused := status.Tried{Account: "work", Why: status.WhyLimit}, status.Tried{Account: "personal", Why: status.WhyRefused}
+	tests := []struct {
+		name  string
+		from  string
+		tried []status.Tried
+		want  string
+	}{
+		{name: "none tried", from: "work"},
+		{name: "after a limit", from: "work", tried: []status.Tried{limit}, want: "from [work] · at its limit"},
+		{name: "after a refusal", from: "personal", tried: []status.Tried{refused}, want: "from [personal] · refused"},
+		{name: "the account the session left, of two", from: "personal", tried: []status.Tried{limit, refused}, want: "from [personal] · refused"},
+		{name: "the first, where the session left none tried", tried: []status.Tried{limit, refused}, want: "from [work] · at its limit"},
+		{name: "a why it has no words for, cleaned", from: "work", tried: []status.Tried{{Account: "work", Why: "has a\tnew token"}},
+			want: "from [work] · has a new token"},
+	}
+	for _, tt := range tests {
+		if got := marked(status.BriefTriedWords(tt.from, tt.tried...)); got != tt.want {
+			t.Errorf("%s: BriefTriedWords(%q, %v) = %q, want %q", tt.name, tt.from, tt.tried, got, tt.want)
+		}
+	}
+}
+
 // A move off an account names the account it left; a new session's reason,
 // sticky and kept for its thinking move nothing, the last two keeping it
 // where it was; and every other reason names none and moves its session.
