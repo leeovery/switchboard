@@ -115,8 +115,11 @@ type Refused struct {
 	err   error
 }
 
-// Error is config's error, as it refused.
+// Error is config's error, as it refused: why alone, where there's none.
 func (r *Refused) Error() string {
+	if r.err == nil {
+		return r.Why
+	}
 	return r.err.Error()
 }
 

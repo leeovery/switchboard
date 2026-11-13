@@ -309,6 +309,13 @@ func TestWhichSessionsUseAPool(t *testing.T) {
 	}
 }
 
+// A Refused without config's error, as a fake's, says why alone.
+func TestARefusedWithoutAnErrorSaysWhy(t *testing.T) {
+	if got := (&setup.Refused{Field: setup.PlanField, Why: setup.PlanUnchosen}).Error(); got != setup.PlanUnchosen {
+		t.Errorf("Error() = %q, want %q", got, setup.PlanUnchosen)
+	}
+}
+
 // The add card offers a subscription's plans alone, never none; the edit
 // card offers none only to an account the config gives no plan.
 func TestThePlansACardOffers(t *testing.T) {
