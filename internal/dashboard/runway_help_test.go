@@ -24,7 +24,7 @@ func runwayHelping(width int, look Look, r RunwayShown, keys ...Key) Card {
 // runwaySaid is what Runway's help says at width columns in the look
 // given, its rows run together.
 func runwaySaid(width int, look Look) string {
-	return strings.Join(plainLines(runwayHelping(width, look, RunwayShown{Window: views.RunwayFiveHour}).body), " ")
+	return strings.Join(plainLines(runwayHelping(width, look, RunwayShown{}).body), " ")
 }
 
 // runwayHelpGlyphs are the glyphs Runway's help explains under the part
@@ -38,20 +38,20 @@ func runwayHelpGlyphs(look Look, r RunwayShown, heading string) []glyph {
 }
 
 func TestRunwayHelpListsItsKeysThenEachPartInTheDesignsOrder(t *testing.T) {
-	keys := []Key{tabViews, {Key: "< >", Does: "window"}, {Key: "←→", Does: "day"}, {Key: "t", Does: "themes"}, {Key: "R", Does: "refresh"}, helpQuit[0], helpQuit[1]}
-	card := runwayHelping(160, Look{}, RunwayShown{Window: views.RunwayFiveHour}, keys...)
+	keys := []Key{tabViews, {Key: "←→", Does: "week"}, {Key: "t", Does: "themes"}, {Key: "R", Does: "refresh"}, helpQuit[0], helpQuit[1]}
+	card := runwayHelping(160, Look{}, RunwayShown{}, keys...)
 	if card.title != "HELP · RUNWAY" {
 		t.Errorf("help is titled %q, want HELP · RUNWAY", card.title)
 	}
-	if got := plainLines(card.body[:min(2, len(card.body))]); !slices.Equal(got, []string{"tab views   < > window   ←→ day   t themes   R refresh   ? help   q quit", ""}) {
+	if got := plainLines(card.body[:min(2, len(card.body))]); !slices.Equal(got, []string{"tab views   ←→ week   t themes   R refresh   ? help   q quit", ""}) {
 		t.Errorf("help opens %q, want its keys, then a blank row", got)
 	}
-	if got, want := helpHeadings(card), []string{"LANES", "POOL", "STEPPING BACK", "COLUMNS", "COMING UP"}; !slices.Equal(got, want) {
+	if got, want := helpHeadings(card), []string{"LANES", "POOL", "STEPPING BACK", "COLUMNS", "COMING UP", "LATELY"}; !slices.Equal(got, want) {
 		t.Errorf("help explains %q, want %q, each headed in text.subtle after a blank row", got, want)
 	}
 }
 
-// pinnedToOneUnread are Runway's 5-hour lanes as views builds them over the
+// pinnedToOneUnread are Runway's lanes as views builds them over the
 // auto world the frames were drawn of, the global pin naming side, nothing
 // read of it yet: a pool's lane of one.
 func pinnedToOneUnread() *views.Lanes {
@@ -64,7 +64,7 @@ func pinnedToOneUnread() *views.Lanes {
 	}
 	doc.Pin = status.Pin{Accounts: []string{"side"}, Since: routedAt.Add(-time.Hour)}
 	m := doc.WorkedOut(claudeLike).At(routedAt, claudeLike)
-	lanes := views.Lanes{}.Look(views.LanesFrom{Moment: m, Timeline: views.LiveTimeline(views.RunwayFiveHour, routedAt, 136), Window: views.RunwayFiveHour})
+	lanes := views.Lanes{}.Look(views.LanesFrom{Moment: m, Timeline: views.LiveTimeline(routedAt, 136)})
 	return &lanes
 }
 
@@ -77,15 +77,15 @@ func TestRunwayHelpLeavesThePoolOutWithNoPoolsLane(t *testing.T) {
 		lanes *views.Lanes
 		want  []string
 	}{
-		{name: "one account", lanes: lanesOf(1), want: []string{"LANES", "STEPPING BACK", "COLUMNS", "COMING UP"}},
-		{name: "two accounts", lanes: lanesOf(2), want: []string{"LANES", "POOL", "STEPPING BACK", "COLUMNS", "COMING UP"}},
-		{name: "a pin of one not read yet, a pool's lane of one", lanes: pinnedToOneUnread(), want: []string{"LANES", "POOL", "STEPPING BACK", "COLUMNS", "COMING UP"}},
-		{name: "two lanes, no pool's lane", lanes: &views.Lanes{Accounts: []views.Lane{{ID: "work"}, {ID: "side"}}}, want: []string{"LANES", "STEPPING BACK", "COLUMNS", "COMING UP"}},
-		{name: "lanes not built yet", want: []string{"LANES", "POOL", "STEPPING BACK", "COLUMNS", "COMING UP"}},
+		{name: "one account", lanes: lanesOf(1), want: []string{"LANES", "STEPPING BACK", "COLUMNS", "COMING UP", "LATELY"}},
+		{name: "two accounts", lanes: lanesOf(2), want: []string{"LANES", "POOL", "STEPPING BACK", "COLUMNS", "COMING UP", "LATELY"}},
+		{name: "a pin of one not read yet, a pool's lane of one", lanes: pinnedToOneUnread(), want: []string{"LANES", "POOL", "STEPPING BACK", "COLUMNS", "COMING UP", "LATELY"}},
+		{name: "two lanes, no pool's lane", lanes: &views.Lanes{Accounts: []views.Lane{{ID: "work"}, {ID: "side"}}}, want: []string{"LANES", "STEPPING BACK", "COLUMNS", "COMING UP", "LATELY"}},
+		{name: "lanes not built yet", want: []string{"LANES", "POOL", "STEPPING BACK", "COLUMNS", "COMING UP", "LATELY"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := helpHeadings(runwayHelping(160, Look{}, RunwayShown{Window: views.RunwayFiveHour, Lanes: tt.lanes}, tabViews)); !slices.Equal(got, tt.want) {
+			if got := helpHeadings(runwayHelping(160, Look{}, RunwayShown{Lanes: tt.lanes}, tabViews)); !slices.Equal(got, tt.want) {
 				t.Errorf("help explains %q, want %q", got, tt.want)
 			}
 		})
@@ -116,7 +116,7 @@ func TestRunwayHelpDrawsEachMarkAsALaneDrawsIt(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var got []line
-			for _, g := range runwayHelpGlyphs(tt.look, RunwayShown{Window: views.RunwayFiveHour}, "LANES") {
+			for _, g := range runwayHelpGlyphs(tt.look, RunwayShown{}, "LANES") {
 				got = append(got, g.drawn)
 			}
 			if !slices.EqualFunc(got, tt.want, func(a, b line) bool { return slices.Equal(a, b) }) {
@@ -142,19 +142,12 @@ func TestALaneDrawsEveryHoldFromEveryRequestAlike(t *testing.T) {
 	}
 }
 
-// │ is explained as the view shown's window's reset, as the legend keys it.
-func TestRunwayHelpExplainsTheResetOfTheViewsWindow(t *testing.T) {
-	for _, tt := range []struct {
-		window views.RunwayWindow
-		want   string
-	}{
-		{window: views.RunwayFiveHour, want: "where its 5-hour resets"},
-		{window: views.RunwayWeek, want: "where its week resets"},
-	} {
-		glyphs := runwayHelpGlyphs(Look{}, RunwayShown{Window: tt.window}, "LANES")
-		if !slices.ContainsFunc(glyphs, func(g glyph) bool { return g.drawn.plain() == "│" && g.means == tt.want }) {
-			t.Errorf("in the %q view, the lanes' help explains %v, want │ %q", tt.window, glyphs, tt.want)
-		}
+// │ is explained as the week's reset, as the legend keys it.
+func TestRunwayHelpExplainsTheResetOfTheWeek(t *testing.T) {
+	const want = "where its week resets"
+	glyphs := runwayHelpGlyphs(Look{}, RunwayShown{}, "LANES")
+	if !slices.ContainsFunc(glyphs, func(g glyph) bool { return g.drawn.plain() == "│" && g.means == want }) {
+		t.Errorf("the lanes' help explains %v, want │ %q", glyphs, want)
 	}
 }
 
@@ -163,18 +156,19 @@ func TestRunwayHelpSaysWhatItsRulesAre(t *testing.T) {
 	for _, tc := range []struct{ what, want string }{
 		{"a column by its middle", "drawn by how the account stood at the column's middle"},
 		{"the windows that count", "Every window every model shares counts, a model's own window not"},
-		{"the 5-hour leaving out a week running out", "the 5-hour view leaves out a week running out"},
-		{"the use under a name", "its use of the view's window"},
+		{"the week from a day before now", "A lane an account, across the week from a day before now"},
+		{"the use under a name", "its use of the week"},
 		{"the labels collapsed", "a collapses the labels, to give the lanes more room"},
 		{"a collapsed lane", "the lanes start at the left edge, with no names or marks"},
-		{"a collapsed use", "under the start of each its use, as 66%"},
+		{"a collapsed use", "under the start of each its week's use, as 66%"},
 		{"a collapsed use out of the pool", "faint where the pool leaves its account out"},
 		{"the words after a collapsed use", "The words under a lane start two cells after its use where they'd otherwise meet it"},
-		{"the pool's room collapsed", "without Σ pool, under the lane's start, of how many of the pool's accounts have the window, as 1.2/3"},
+		{"the pool's room collapsed", "without Σ pool, under the lane's start, of how many of the pool's accounts have the week, as 1.2/3"},
 		{"a stale account", "read 14:20 where its last read failed; and not read before its first"},
 		{"a refused token's use faded", "and the use of one whose token is refused"},
 		{"a run of stretches", "a stretch says lifts 19:00, when its own hold lifts, and only the last says back"},
-		{"a time as the view's window resets", "Where room returns as the view's window resets, a cap's or a run-out's end says resets 17:10 in place of back"},
+		{"a time as the week resets", "Where room returns as the week resets, a cap's or a run-out's end says resets Sun 21:00 in place of back"},
+		{"a week's reset", "Else resets Sun 21:00 where its week reaches no limit, or room all week"},
 		{"the held words", "at its cap, at its limit, its token refused, as capped 14:31 and out 13:58"},
 		{"a projection", "out ~16:05 where it runs out, or caps ~15:45 where it reaches its cap, ~ marking a time projected at its pace"},
 		{"words shifted to fit", "shift left until they do, never over the words before, and drop parts from the end where even that can't fit them"},
@@ -187,27 +181,30 @@ func TestRunwayHelpSaysWhatItsRulesAre(t *testing.T) {
 		{"the pool's least fill", "▃ at the least where any has room"},
 		{"the legend at the foot", "The legend sits at the foot, over the key line"},
 		{"what's out of view", "what's out of view said beside the pool's room"},
+		{"LATELY giving way first", "As rows run short, LATELY under COMING UP goes first; then an account takes two rows"},
 		{"the legend and COMING UP giving way", "then the legend gives way, then COMING UP, then the blank row under the axis; only then do the lanes scroll"},
-		{"COMING UP's room", "It sits under the pool's lane and takes the rows left"},
+		{"COMING UP's room", "It sits under the pool's lane, or at the right beside LATELY, and takes the rows left"},
 		{"COMING UP cut", "where its lines don't all fit, its last says how many more"},
 		{"what counts without room", "An account at its cap or its limit counts without room"},
 		{"the pool's accounts", "The pool is every account on auto, and the pin's while one holds"},
-		{"the pool's room", "Under Σ pool, the pool's room in the view's window"},
+		{"the pool's room", "Under Σ pool, the pool's room in the week"},
 		{"the pool pinned", "as pinned says after its room where it fits"},
-		{"stepping back a day", "first to today from its midnight, then a day at a time"},
-		{"stepping back a week", "first to this week from its first day, as week_starts begins weeks"},
-		{"stepping forward", "from today, or this week, to the live view"},
-		{"the other window", "< and > show the other window's live view"},
-		{"the week alone", "Where no account has a 5-hour window, as a verified Ultra account has none, there's only the week, and < > leaves the key line"},
-		{"a 5-hour view kept", "a 5-hour view kept shows the week, and the 5-hour again once an account has one"},
-		{"the 5-hour view's lanes", "The 5-hour view lists only the accounts that have one, or may yet"},
+		{"stepping back a week", "steps back, first to this week from its first day, as week_starts begins weeks, then a week at a time"},
+		{"stepping forward", "from this week to the live view"},
 		{"how far back", "reaches back as far as the day summaries, which are kept for good"},
-		{"past the readings' keep", "draws its lanes from its summary's limits and resets alone"},
-		{"a day stepped back to", "no now, nothing dimmed, no COMING UP and no room line"},
-		{"a step back never kept", "a step back never is, so Runway opens live"},
+		{"past the readings' keep", "draws its lanes from its summaries' limits and resets alone"},
+		{"a week stepped back to", "no now, nothing dimmed, no COMING UP, no LATELY and no room line"},
+		{"a step back never kept", "A step back is never kept, so Runway opens live"},
 		{"COMING UP's lines", "an account back from its cap, its limit or its refused token, whichever lifts last"},
-		{"COMING UP in the week", "the week view adds each week's run-out and reset"},
+		{"COMING UP's resets", "each other reset of a window every model shares"},
 		{"no prime", "No prime is listed"},
+		{"LATELY's events", "a cap, a limit, a refused token, coming under pressure and room again, the sessions each moved said in its line"},
+		{"no session alone", "No session's start or move shows alone"},
+		{"how long ago", "Each line ends with how long ago it was, as 11m ago or 1d 4h ago, its words in full where they fit beside it"},
+		{"LATELY in the rows left", "It takes only the rows the lanes and COMING UP leave"},
+		{"LATELY beside COMING UP", "LATELY sits at the left and COMING UP at the right"},
+		{"LATELY stacked", "else under COMING UP, where its heading and two lines fit: COMING UP in its two columns where they fit, LATELY across the frame under them, or else the two sharing one column, as wide as their lines need to read whole, from 72 to the frame's"},
+		{"LATELY gone", "else it's gone, the first to give way as rows run short"},
 	} {
 		if !strings.Contains(said, tc.want) {
 			t.Errorf("help reads\n%s\nwant it to explain %s, %q", said, tc.what, tc.want)
@@ -234,21 +231,20 @@ func TestRunwayHelpSaysThePastIsDimmedWhereTheLookBlends(t *testing.T) {
 	}
 }
 
-// How long a column is follows the width, as the lanes keep their span: at
-// 160 columns, the lanes' 146 after a label column of 14, ≈ 9.3 minutes,
-// ≈ 69 and ≈ 9.9; at 52, the lanes' 38 after the same column, about 36
-// minutes.
+// How long a column is follows the width, as the lanes keep the week's span:
+// at 160 columns, the lanes' 148 after a label column of 12, ≈ 68 minutes;
+// at 52, the lanes' 40 after the same column, 252 exactly, with no ≈.
 func TestRunwayHelpSaysHowLongAColumnIsAtTheWidth(t *testing.T) {
 	tests := []struct {
-		width               int
-		fiveHour, week, day string
+		width int
+		week  string
 	}{
-		{width: 160, fiveHour: "≈ 9.3 minutes", week: "≈ 69 minutes", day: "≈ 9.9 minutes"},
-		{width: 216, fiveHour: "≈ 6.7 minutes", week: "≈ 50 minutes", day: "≈ 7.1 minutes"},
-		{width: 52, fiveHour: "≈ 36 minutes", week: "≈ 265 minutes", day: "≈ 38 minutes"},
+		{width: 160, week: "≈ 68 minutes"},
+		{width: 216, week: "≈ 49 minutes"},
+		{width: 52, week: "252 minutes"},
 	}
 	for _, tt := range tests {
-		want := "a column is " + tt.fiveHour + " in the 5-hour view, " + tt.week + " in the week's and " + tt.day + " on a day stepped back to"
+		want := "at this width, a column is " + tt.week + ", as the legend says"
 		if said := runwaySaid(tt.width, Look{}); !strings.Contains(said, want) {
 			t.Errorf("at %d columns, help reads\n%s\nwant it to say %q", tt.width, said, want)
 		}
@@ -257,7 +253,7 @@ func TestRunwayHelpSaysHowLongAColumnIsAtTheWidth(t *testing.T) {
 
 func TestRunwayHelpFitsTheCardAtEveryWidth(t *testing.T) {
 	for _, width := range []int{216, 160, 100, 52} {
-		card := runwayHelping(width, Look{}, RunwayShown{Window: views.RunwayFiveHour}, tabViews, helpQuit[0], helpQuit[1])
+		card := runwayHelping(width, Look{}, RunwayShown{}, tabViews, helpQuit[0], helpQuit[1])
 		inside := card.width - 2*cardInset
 		for i, row := range card.body {
 			if row.width() > inside || strings.Contains(row.plain(), prose.Ellipsis) {

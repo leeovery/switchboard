@@ -157,6 +157,23 @@ func TestLATELYsTimesAreDatedInAColumn(t *testing.T) {
 	}
 }
 
+// A line from a week back, on today's weekday, says its date in its lead and
+// in its words alike, as its weekday alone would read as today's.
+func TestLATELYsLineFromAWeekBackSaysItsDateInItsLeadAndItsWords(t *testing.T) {
+	week := 7 * 24 * time.Hour
+	doc := eventsOf(
+		status.Event{At: now.Add(-time.Hour).UTC(), Kind: status.EventRoom, Account: "work"},
+		status.Event{At: now.Add(-week + 3*time.Hour).UTC(), Kind: status.EventPressure, Account: "side", Windows: []string{"5h"}, Until: now.Add(-week + 7*time.Hour).UTC()},
+	)
+	c := latelyDrawn(frameOf(160, 10), doc, now, bounds{width: 120, rows: 3})
+	if got := strings.TrimRight(c.row(1, Look{}), " "); !strings.HasPrefix(got, "21 Sep 16:12  ") || !strings.Contains(got, "~21 Sep 20:12") {
+		t.Errorf("the week-back line is %q, want it led by 21 Sep 16:12 and saying ~21 Sep 20:12", got)
+	}
+	if got := strings.TrimRight(c.row(0, Look{}), " "); !strings.HasPrefix(got, "12:12         ") {
+		t.Errorf("today's line is %q, want its time padded to the week-back line's", got)
+	}
+}
+
 func TestLATELYsWordsAreShortWhereItsRoomDoesntHoldThemInFull(t *testing.T) {
 	doc := eventsOf(status.Event{At: now.Add(-time.Minute).UTC(), Kind: status.EventCap, Account: "work", Count: 3, To: "side"})
 	tests := []struct {

@@ -58,9 +58,9 @@ LATELY  ────────────────────────
 14:12  ▲ api started on work
 13:50  ◇ side primed: its 5-hour window started
 13:22  ▸ infra moved personal → work: personal came…
+13:04  ◔ personal under pressure: out ~13:50
 12:47  ▲ docs started on personal
 12:10  ◇ work primed: its 5-hour window started
 12:02  ▲ switchboard started on work
-11:55  ▲ website started on personal
 
 tab views   ? keys and toggles   q quit

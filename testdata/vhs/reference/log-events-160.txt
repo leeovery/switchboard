@@ -2,13 +2,12 @@
 
 ● healthy  ·  auto  ·  6 sessions  ·  new sessions → ▲ side
 
-LOG    Requests  Events  [ ]  ──────────────────────────────────────────────────────────────────────────────────────────────────────  20 today   f what it shows
+LOG    Requests  Events  [ ]  ──────────────────────────────────────────────────────────────────────────────────────────────────────  21 today   f what it shows
 
   at        session            event     account          what happened
-● 17:20:15                     pin       personal         new sessions go there, set from the command line
-↩ 18:02:40                     auto                       new sessions back from personal to the router's choice, set from the dashboard
 ■ 19:12:40                     limit     personal         its 5-hour window, till 23:58: its session moves to side
 ▸ 19:12:52  8a2c docs          moved     personal → side  personal reached its limit   61k cached again, $0.61
+◔ 21:40:00                     pressure  side             its 5-hour to run out at 23:50
 ▲ 23:47:30  5e7d api           started   side
 ✓ 23:58:40                     open      personal         its 5-hour window reset
   Wed 30 Sep   1,912 requests · 17 sessions · 2 limits reached · $212 at API prices  ────────────────────────────────────────────────────────────────  Thu 1 Oct
@@ -24,7 +23,8 @@ LOG    Requests  Events  [ ]  ────────────────�
 ▲ 12:02:10  d28c switchboard   started   work
 ◇ 12:10:00                     primed    work             its 5-hour window started, resets at 17:10
 ▲ 12:47:12  41e0 docs          started   personal
-▸ 13:22:40  db8a infra         moved     personal → work  personal came under pressure
+◔ 13:04:00                     pressure  personal         its 5-hour to run out at 13:50
+▸ 13:22:40  db8a infra         moved     personal → work  personal came under pressure, its 5-hour to run out at 13:50
 ◇ 13:50:00                     primed    side             its 5-hour window started, resets at 18:50
 ▲ 14:12:30  7f3a api           started   work
 ╎ 14:31:03                     cap       work             95% of its 5-hour window: its 3 sessions move to side as their next requests come
@@ -33,5 +33,5 @@ LOG    Requests  Events  [ ]  ────────────────�
 ▸ 14:31:40  db8a infra         moved     work → side      work reached its cap   66k cached again, $0.66
 ▲ 14:41:11  c61b mobile        started   side
 
-● following                                                                                                                                      20 events today
+● following                                                                                                                                      21 events today
 tab views   [ ] view    ↑↓ event  enter open  f what it shows  / find    p pin    ? help  q quit

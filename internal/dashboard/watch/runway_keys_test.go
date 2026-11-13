@@ -41,17 +41,15 @@ func verifiedUltra() []status.Account {
 	return accounts
 }
 
-// Runway's key lines are the design's: < > window, where Runway offers
-// another window, and ←→ day, or ←→ week in the week view, live or stepped
-// back to, as the key line stays the live view's; a collapse, its word faint
-// while the labels are collapsed; p pin where a pin can be set; and a
-// phone's keeping < > and ←→, tab views leading, and leaving a to help.
-// Where no account has a 5-hour window, there's only the week, and no < >.
+// Runway's key lines are the design's: ←→ week, live or stepped back to, as
+// the key line stays the live view's, never < >, whatever windows the
+// accounts have; a collapse, its word faint while the labels are collapsed;
+// p pin where a pin can be set; and a phone's keeping ←→, tab views leading,
+// and leaving a to help.
 func TestRunwaysKeyLinesAreTheDesigns(t *testing.T) {
 	const (
-		day   = "tab views   < > window  ←→ day    a collapse    p pin    ? help  q quit"
-		week  = "tab views   < > window  ←→ week    a collapse    p pin    ? help  q quit"
-		alone = "tab views   ←→ week    a collapse    p pin    ? help  q quit"
+		week  = "tab views   ←→ week    a collapse    p pin    ? help  q quit"
+		phone = "tab views   ←→ week   ? keys   q quit"
 	)
 	ultra := routerDocument(verifiedUltra()...)
 	tests := []struct {
@@ -61,23 +59,17 @@ func TestRunwaysKeyLinesAreTheDesigns(t *testing.T) {
 		keys  string
 		want  string
 	}{
-		{name: "the week view, which Runway opens on", want: week},
+		{name: "the live view, which Runway opens on", want: week},
 		{name: "this week", keys: "left", want: week},
 		{name: "a week stepped back to", keys: "left left", want: week},
-		{name: "the 5-hour view", keys: ">", want: day},
-		{name: "today, from its midnight", keys: "> left", want: day},
-		{name: "a day stepped back to", keys: "> left left", want: day},
-		{name: "the week view again", keys: "> <", want: week},
+		{name: "after < and >, which do nothing", keys: "> <", want: week},
 		{name: "collapsed", keys: "a", want: week},
-		{name: "one account, with nowhere else to pin", doc: routerDocument(three()[0]), want: "tab views   < > window  ←→ week    a collapse    ? help  q quit"},
+		{name: "one account, with nowhere else to pin", doc: routerDocument(three()[0]), want: "tab views   ←→ week    a collapse    ? help  q quit"},
 		{name: "at 100, the narrowest wider than a phone's", width: 100, want: week},
-		{name: "a phone", width: 52, want: "tab views   < > window   ←→ week   ? keys   q quit"},
-		{name: "a phone, collapsed", width: 52, keys: "a", want: "tab views   < > window   ←→ week   ? keys   q quit"},
-		{name: "a phone in the 5-hour view", width: 52, keys: ">", want: "tab views   < > window   ←→ day   ? keys   q quit"},
-		{name: "every account verified Ultra", doc: ultra, want: alone},
-		{name: "every account verified Ultra, after >", doc: ultra, keys: ">", want: alone},
-		{name: "every account verified Ultra, a week stepped back to", doc: ultra, keys: "left left", want: alone},
-		{name: "a phone, every account verified Ultra", doc: ultra, width: 52, want: "tab views   ←→ week   ? keys   q quit"},
+		{name: "a phone", width: 52, want: phone},
+		{name: "a phone, collapsed", width: 52, keys: "a", want: phone},
+		{name: "every account verified Ultra", doc: ultra, want: week},
+		{name: "a phone, every account verified Ultra", doc: ultra, width: 52, want: phone},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -120,17 +112,16 @@ func TestRunwaysCollapseKeyIsFaintWhileCollapsed(t *testing.T) {
 }
 
 // Help over Runway lists its keys first, as the key line words them: tab,
-// < > where Runway offers another window, and ←→, a, p, t in colour, R, ?
-// and q.
+// ←→, a, p, t in colour, R, ? and q, never < >.
 func TestRunwaysHelpListsItsKeys(t *testing.T) {
+	want := []string{"tab views", "←→ week", "a collapse", "p pin", "t themes", "R refresh", "? help", "q quit"}
 	for _, tt := range []struct {
 		name, keys string
 		accounts   []status.Account
 		want       []string
 	}{
-		{name: "the week view, which Runway opens on", want: []string{"tab views", "< > window", "←→ week", "a collapse", "p pin", "t themes", "R refresh", "? help", "q quit"}},
-		{name: "the 5-hour view", keys: ">", want: []string{"tab views", "< > window", "←→ day", "a collapse", "p pin", "t themes", "R refresh", "? help", "q quit"}},
-		{name: "every account verified Ultra", accounts: verifiedUltra(), want: []string{"tab views", "←→ week", "a collapse", "p pin", "t themes", "R refresh", "? help", "q quit"}},
+		{name: "the live view, which Runway opens on", want: want},
+		{name: "every account verified Ultra", accounts: verifiedUltra(), want: want},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			accounts := tt.accounts

@@ -2435,7 +2435,7 @@ session's page has its own heading there, ending in `esc back` (see A session's 
 - **State the screen can't otherwise show,** and only that: three spaces, then the state in
   `text.faint`, a key within it, as Compare's `←→` or History's `v`, in bold `accent.key` as
   everywhere, as the accounts Compare shows of more than fit, a filter on History or the Log, or
-  Runway's day stepped back (`Wed 30 Sep`). No description follows a name: the tab and the sub-tab
+  Runway's week stepped back (`Mon 28 Sep – Sun 4 Oct`). No description follows a name: the tab and the sub-tab
   name the view, and `?` explains it.
 - **A read under way** that's taken longer than 150 ms, as a tab's first read of a long ledger or
   the Log reading back a day: `loading…` in `text.subtle` after the page's name, and nothing else
@@ -4818,21 +4818,21 @@ order, each at least its least and at most its natural:
 ### Runway
 
 When each account has room, as a timeline: a lane per account, then the pool's lane, named `Σ pool`,
-over the window the view is named for. The frames are in the Paper file *Switchboard · Sessions and
-Runway*, on the page **FINAL · Sessions and Runway · signed off · 8 Oct 2026**; the references are
-`testdata/vhs/reference/runway-*`: `runway-5-hour-160`, `runway-week-160`,
-`runway-stepped-back-160`, `runway-ten-accounts-160` and `runway-phone-52`; and with the account
-column collapsed, `runway-collapsed-160`, `runway-collapsed-108x43` and `runway-phone-collapsed-52`;
-and of accounts without a 5-hour window, `runway-ultra-160`, every account on a verified Ultra plan,
-and `runway-mixed-160` and `runway-mixed-5-hour-160`, side alone keeping its 5-hour. Columns and
-rows are at 160 by 37 unless they say otherwise.
+over the week. The frames are in the Paper file *Switchboard · Sessions and Runway*, on the page
+**FINAL · Sessions and Runway · signed off · 8 Oct 2026**, and LATELY's in the mock-ups of
+*Runway space, round 1*, signed off 12 November 2026; the references are
+`testdata/vhs/reference/runway-*`: `runway-week-160`, `runway-stepped-back-160`,
+`runway-ten-accounts-160` and `runway-phone-52`; at the owner's sizes, `runway-173x53`, LATELY
+beside COMING UP, and `runway-108x44` and `runway-73x61`, LATELY under it; with the account column
+collapsed, `runway-collapsed-160`, `runway-collapsed-108x43` and `runway-phone-collapsed-52`; and of
+accounts without a 5-hour window, `runway-ultra-160`, every account on a verified Ultra plan, and
+`runway-mixed-160`, side alone keeping its 5-hour. Columns and rows are at 160 by 37 unless they
+say otherwise.
 
-**The heading row,** row 4: `RUNWAY` in `text.subtle`; a rule of `─` in `border` from two cells
-after it to two cells short of the window; and at the right edge, the window between its keys, as a
-period sits between its keys on Accounts and History: `<` bold `accent.key`, the window's name,
-`5-hour` or `week`, with a space either side, in `text.muted`, and `>` bold `accent.key`, ending at
-the last column. Stepped back, `RUNWAY` is followed by three spaces and the day shown, `Wed 30 Sep`,
-in `text.faint`, the rule starting a cell after it.
+**The heading row,** row 4: `RUNWAY` in `text.subtle`, and a rule of `─` in `border` from two cells
+after it to the frame's last column, as Sessions' runs, with nothing at its right (the owner's call,
+12 November 2026). Stepped back, `RUNWAY` is followed by three spaces and the week shown,
+`Mon 28 Sep – Sun 4 Oct`, in `text.faint`, the rule starting a cell after it.
 
 **While the forecast is learning,** as the status document's `demand` says with `learning`, its
 hold curve still the default (see Forecasting run-outs), a view that draws what's ahead says so on
@@ -4843,33 +4843,21 @@ where its 60 cells fit across the frame, so as rows run short it goes before any
 and a frame of 52 columns drops it while a phone's 73 keeps it. Its reference is
 `runway-learning-160`.
 
-**The views,** named by their windows, `<` and `>` stepping between them, each account's use of the
-view's window under its name:
+**The week,** the one view Runway has (the owner's call, 12 November 2026, the 5-hour view gone):
+from a day before now, for a week, its 10,080 minutes shared among the lanes' columns (settled in
+the plan): 146 at 160, about 69 minutes a column. At every width, the lanes keep their span, and
+the minutes a column scale with their width. Each account's use of its week is under its name.
 
-- **week,** the first the dashboard shows (the owner's call, 17 October 2026): from a day before
-  now, for a week, its 10,080 minutes shared among the lanes' columns (settled in the plan): 144 at
-  160, 70 minutes a column.
-- **5-hour:** from the hour before now, taken back to its ten minutes, 13:40 at 14:42, for 22 hours
-  40 minutes: about 9.4 minutes a column at 160.
-- At every width, the lanes keep their span, and the minutes a column scale with their width.
-- **The windows offered** are the moment's (`views.RunwayWindowsOf`): the 5-hour view only while an
-  account has a 5-hour window or may have one (see `usage`, the printout), and it lists only those
-  accounts, its pool's lane where the pool keeps the window. With no account on a 5-hour, as with
-  every account on a verified Ultra plan, the heading shows `week` with no `<` or `>`, and the key
-  line has no `< > window`. A 5-hour view kept in the preferences is kept as it is, the week shown
-  in its place, and shows again once an account has a 5-hour window.
+The account column collapsed or not is kept in the preferences file (see The account column
+collapsed); a step back never is, so the dashboard opens live (settled in the plan). A file an
+earlier build wrote, keeping the 5-hour view under `window`, opens on the week, and its next write
+drops the key.
 
-The window shown is kept in the preferences file, as is the account column collapsed or not (see
-The account column collapsed); a step back never is, so the dashboard opens live (settled in the
-plan).
-
-**Stepping back.** `←` steps back: in the 5-hour view, first to today from its midnight, then a day
-at a time; in the week view, first to this week from its first day, as `week_starts` begins weeks
-(see Config), then a week at a time (settled in the plan). `→` steps forward, and from today, or
-this week, to the live view. Nothing lies ahead to step to, as a 5-hour window that hasn't started
-can't be forecast, and the week view holds what's ahead. `<` and `>` show the live view of the
-window they step to (settled in the plan). `←` reaches back as far as the day summaries, which are
-kept for good (settled in the plan; see The request ledger).
+**Stepping back.** `←` steps back, first to this week from its first day, as `week_starts` begins
+weeks (see Config), then a week at a time (settled in the plan). `→` steps forward, and from this
+week to the live view. Nothing lies ahead to step to, as the live view holds what's ahead. `←`
+reaches back as far as the day summaries, which are kept for good (settled in the plan; see The
+request ledger).
 
 **The lanes and the axis.**
 
@@ -4879,30 +4867,23 @@ kept for good (settled in the plan; see The request ledger).
   October 2026), as The page has a column of names: the widest name whole, its label up to 24 cells,
   and the two cells after it, its marks at the column's end, as a column of names has them, `▲`'s
   cells kept on every account, as `usage` keeps them, so the lanes hold still as `▲` moves; or the
-  widest use under a name in either window, `5-hour 100%` from column 2 and a cell, 14, so they
-  hold still as `<` and `>` step, as the figures change and as an account goes stale. Only on a
-  frame narrower than its natural does it narrow, to a label's 8 at the least. Of the frames'
-  accounts it's 14 at every width, the lanes 146 at 160 and 38 at 52.
+  widest use under a name, `week 100%` from column 2 and a cell, 12, so they hold still as the
+  figures change and as an account goes stale. Only on a frame narrower than its natural does it
+  narrow, to a label's 8 at the least. Of the frames' accounts it's 14 at every width, the lanes
+  146 at 160 and 38 at 52.
 - **The labels:** on a lane's row, the account's name and marks, cut with `…` only where the
   column is at its most, the marks kept (see `usage`, the printout); on the row under
-  it, from column 2, `5-hour ` or `week ` in `text.subtle`, and the account's use of that window,
-  `95%`, bold in its level's colour, as `usage` colours it: red from 90%, yellow from 70%, else
-  green. Where there's no use, the words are always `usage`'s short forms, as the column is never
-  widened for the full: `read 14:20` where its last read failed, `not read` before its first, and
+  it, from column 2, `week ` in `text.subtle`, and the account's use of its week, `66%`, bold in
+  its level's colour, as `usage` colours it: red from 90%, yellow from 70%, else green. Where
+  there's no use, the words are always `usage`'s short forms, as the column is never widened for
+  the full: `read 14:20` where its last read failed, `not read` before its first, and
   `no token`, or `wrong token` where the token it holds is another subscription's.
 - **The axis:** on row 6, `now`, bold `text.primary`, starting a cell left of now's column; on row
-  7, the labels; on row 8, the ticks, on a rule of `─` in `border`.
-  - **5-hour:** hours ticked `┬` in `border`, on the first of 1, 2, 3, 6, 12 and 24 hours that puts
-    the ticks 3 cells apart or more, and labelled from their ticks, `16:00`, in `text.muted`, on the
-    first that puts the labels 10 apart or more, where a label ends before the lanes' last column:
-    every hour ticked and every other hour labelled at 160 columns. A day's midnight is labelled
-    with its weekday, `Fri`, bold `text.secondary`, and no hour's label comes within 10 cells of it.
-  - **week:** each midnight ticked `┬`, its weekday over it where that fits, today's bold
-    `text.secondary` and the rest `text.muted`; every six hours between, where they're 3 cells apart
-    or more, `╵` in `text.faint`.
-  - An hour the clocks skip, going forward, is neither ticked nor labelled, and a day starts where
-    the clocks put its midnight: where they went forward over it, at the hour they went forward to,
-    and where they went back over it, at the first of its two.
+  7, the labels; on row 8, the ticks, on a rule of `─` in `border`: each midnight ticked `┬`, its
+  weekday over it where that fits, today's bold `text.secondary` and the rest `text.muted`; every
+  six hours between, where they're 3 cells apart or more, `╵` in `text.faint`. A day starts where
+  the clocks put its midnight: where they went forward over it, at the hour they went forward to,
+  and where they went back over it, at the first of its two.
 - **Now's column** is picked out in `bg.subtle`, from the axis's first row to the pool's lane's last, on
   every cell without a background of its own; a part-filled column's gradient takes it in place of
   the canvas.
@@ -4920,11 +4901,8 @@ kept for good (settled in the plan; see The request ledger).
 
   Room fills its cell whole, as `usage`'s bars do, so a held column's `─` meets it at its middle
   and a reset's `│` at its top and bottom, where the frames draw `▆`, the lower three quarters of a
-  cell. Every window that every model shares counts, but the 5-hour view leaves out a week running
-  out:
-  its lane is room until the week's limit. `│` in `text.subtle` marks where the view's window
-  resets, on now's column or after it: each account's 5-hour window's reset in the 5-hour view, its
-  week's in the week view. An account without a usable token has no room all along, and one not read
+  cell. Every window that every model shares counts, the 5-hour among them. `│` in `text.subtle`
+  marks where each account's week resets, on now's column or after it. An account without a usable token has no room all along, and one not read
   yet is left blank (settled in the plan). An account whose first read failed is left blank, as not
   read yet: its label says `not read`, and from the lanes' first column, in `text.subtle`,
   `can't read it: HTTP 529 · Overloaded` (the owner's call, 13 October 2026). An account whose
@@ -4942,8 +4920,8 @@ preferences file keeps it (the owner's call, 17 October 2026). The key line says
 - **No marks:** no `◆`, `▲` or `Σ`. The status line says where new sessions go, and collapsed is
   for a reader who knows the lanes (the owner's call, 12 November 2026).
 - **The use,** on the row under the lane, its words row, from column 0, under the lane's first
-  column: its use of the view's window, the figure the expanded label gives, in its colour, as
-  `66%`. The window's name goes: the heading's `< week >` names it. Where the expanded label words
+  column: its use of its week, the figure the expanded label gives, in its colour, as `66%`. The
+  window's name goes, as Runway shows the week alone. Where the expanded label words
   why there's no use, stale, not read yet or without a token, the figure is `—` in `text.faint`;
   out of the pool, the figure is faint, as the expanded label is (the owner's call, 12 November
   2026).
@@ -4956,8 +4934,8 @@ preferences file keeps it (the owner's call, 17 October 2026). The key line says
 - **The pool's lane,** from column 0, with nothing at its start, and on the row of its own under
   the lane, from column 0, its room short: the room bold `text.secondary` and `/3`, of how many
   accounts the pool is, in `text.muted`, as `1.2/3`, where the expanded lane says `Σ pool` and
-  `week 1.2 of 3 left`. ` · pinned` is left off. Where it has no room to say, as on a day stepped
-  back to, nothing.
+  `week 1.2 of 3 left`. ` · pinned` is left off. Where it has no room to say, as on a week gone
+  stepped back to, nothing.
 - **COMING UP** is as expanded, every line or cut: each line names its account, as in
   `16:30  personal's 5-hour resets` (the owner's call, 19 October 2026).
 
@@ -4980,15 +4958,14 @@ the earlier stretch says when its own hold lifts, `  ·  lifts 19:00`, and only 
 `back`, when room returns: `out 14:00  ·  lifts 19:00  capped 14:00  ·  back Mon 21:00`, in place
 of `back Mon 21:00` on both (the owner's call, 15 October 2026).
 
-Where room returns as the view's window resets, a reset made by hand among them, a cap's or a
-run-out's stretch, the last of its run, says so: `  ·  resets Sun 01:00`, in place of its
-`back …`. A hold that lifts into another keeps `lifts …`, even as the window resets, as a lift
-isn't room returning; a limit's end is never said as a reset (the owner's call, 10 November
-2026).
+Where room returns as the week resets, a reset made by hand among them, a cap's or a run-out's
+stretch, the last of its run, says so: `  ·  resets Sun 01:00`, in place of its `back …`. A hold
+that lifts into another keeps `lifts …`, even as the week resets, as a lift isn't room returning;
+a limit's end is never said as a reset (the owner's call, 10 November 2026).
 
-In the week view, an account whose week reaches no limit says `resets Sun 21:00` in `text.muted`,
-ending at the reset's `│`, where that clears the words before. Else a lane says `room all day`, or
-`room all week`, in `text.subtle`, from the cell after now's column.
+An account whose week reaches no limit says `resets Sun 21:00` in `text.muted`, ending at the
+reset's `│`, where that clears the words before. Else a lane says `room all week`, in
+`text.subtle`, from the cell after now's column.
 
 A stretch's words start at its column where they all fit from there; else they shift left as far
 as they must to fit whole, ending at the row's last column, but never sooner than two cells after
@@ -5015,10 +4992,9 @@ blank row; with two, on the row after its words.
 - **`Σ pool`** on its first row, as an account's name heads its lane: `Σ` in `text.subtle` at the
   label column, and `pool` in `text.secondary`.
 - **Its room,** on a row of its own under the lane, from column 2, at every width, as the label
-  column isn't widened for it (the owner's call, 21 October 2026): the pool's room in the view's
-  window, in `usage`'s words for the pool: `5-hour ` or `week ` in `text.subtle`, `1.5` bold
-  `text.secondary`, and ` of 3 left` in `text.muted`, of the accounts that have the window, its
-  `Of`; whole parts left off its end that don't fit before the frame's edge. No words follow it: the
+  column isn't widened for it (the owner's call, 21 October 2026): the pool's room in the week, in
+  `usage`'s words for the pool: `week ` in `text.subtle`, `1.2` bold `text.secondary`, and
+  ` of 3 left` in `text.muted`, of the accounts that have the window, its `Of`; whole parts left off its end that don't fit before the frame's edge. No words follow it: the
   pool's columns say when fewer than all of it have room (the owner's call, 17 October 2026).
 - **The pool's accounts** are every account on auto, and the pin's while one holds: its room is then
   `of 2`, the room's words add ` · pinned`, as `usage`'s pool row does, and an account out of the
@@ -5029,74 +5005,104 @@ blank row; with two, on the row after its words.
 call, 21 October 2026), keys only what the view draws, four spaces apart: `█` and ` room`; `█` in
 `accent.attention` and ` room, but it runs out at its pace`; `─` in `accent.attention` and
 ` at its cap`; `─` in `state.destructive` and ` at its limit`; where the pool's lane draws one,
-`▂` in `state.destructive` and ` the pool at its limit`; and `│` and ` its 5-hour resets`, or
-` its week resets`; each glyph in its colour, its words in `text.muted`. Four spaces on, in
-`text.subtle`, a column's length and what's dimmed: `a column ≈ 9.4 minutes · the past dimmed` at
-160; in the week, `a column 70 minutes · the past dimmed`; stepped back,
-`a column 10 minutes · under each name, the day's highest`. A column's length is in whole
+`▂` in `state.destructive` and ` the pool at its limit`; and `│` and ` its week resets`; each
+glyph in its colour, its words in `text.muted`. Four spaces on, in `text.subtle`, a column's length
+and what's dimmed: `a column ≈ 69 minutes · the past dimmed` at 160; stepped back to a week gone,
+`a column ≈ 69 minutes · under each name, the week's highest`. A column's length is in whole
 minutes where it's whole, else after `≈`, to a tenth of a minute under 20 minutes and to the minute
 from 20 (settled in the plan). Where the look can't blend, the past isn't dimmed, and the legend
 doesn't say it is (settled in the plan). The legend is one line where that fits across the frame,
 at every width, a phone's too; else the keys on as many lines as they take, each key whole, and
 what a column is on the lines after them, wrapped at its ` · `.
 
-**COMING UP,** in `text.subtle` at column 0, under the pool's lane after a blank row, taking the
-rows left, a blank row kept over the legend; any rows still over stay blank between its end and the
-legend (the owner's call, 21 October 2026). Under its heading, its lines, the Overview's COMING UP
-rows (see The Overview): the time, padded to the longest shown in its column, in
-`text.secondary`; two spaces, the account bold `text.primary` and what happens in `text.muted`;
-and, right-aligned to end at its column's last cell, how long until it, `in 1h 48m`, in
-`text.subtle`; a run-out's row all `accent.attention`, its time and countdown included.
+**COMING UP and LATELY,** each a heading in `text.subtle` and its lines under it: what happens next,
+soonest first, and what befell the accounts, newest first, the past on the left and the future on
+the right, as the timeline lies (the owner's call, 12 November 2026). Where they go is worked out
+once, in Runway's layout, from the Overview's own columns. LATELY never costs the lanes or COMING
+UP a step: Runway takes its step and COMING UP's columns as it would with no LATELY, then puts
+LATELY in the rows that leaves empty, from COMING UP's first line's to the blank row over the
+legend (the owner's call, 12 November 2026):
 
-- **Its columns,** laid as every view's are (see The page): two, four cells apart, where both fit
-  at the lines' natural width, 72, so from 148 columns; each takes half of what's left after the
-  gap, the odd cell the second's, so it ends at the frame's edge: 84 and 85 at 173. The lines run
-  in time order down the first, then across into the second. Else one, at its natural, 72, its
-  countdowns ending at column 71, or the frame's width where that's narrower (the owner's call,
-  21 October 2026).
-- **Where its lines don't all fit,** it shows those it can, and its last place says how many
-  more, `▼ 3 more`, in `text.subtle`, as what's out of view of the lanes is; it never folds whole
-  while rows are spare.
+- **Side by side** where both hold a whole line, from 159 columns, and those rows hold COMING UP's
+  every line in one column: LATELY from column 0 in the Overview's LATELY column's width,
+  `w − ⌊w/2⌋ − 2`, 85 at 173, holding its least, 46; COMING UP in the Overview's COMING UP column's
+  width, `round(w × 0.45)`, 78 at 173, ending at the frame's edge, holding its natural, 72. Each
+  runs from under its heading, on the row under the pool's lane's after a blank row, to the blank
+  row over the legend.
+- **Stacked** else, where one column holds LATELY's least and those rows hold COMING UP's every
+  line in the columns it takes alone, a blank row, LATELY's heading and two lines: LATELY then
+  runs down to the blank row over the legend, from column 0. Where COMING UP takes one column,
+  both share one width: what their lines need to read whole, never under 72, or the frame's width
+  where that's narrower, nor over the frame's width, so the frames' accounts keep 72 and a long
+  name widens both rather than being cut with room beside it (the owner's call, 12 November
+  2026). Where it takes two, from 148 columns, it keeps them, and LATELY spans the frame under
+  them. LATELY is the first to give way as rows run short.
+- **COMING UP alone** else, as before LATELY: two columns, four cells apart, where both fit at the
+  lines' natural width, 72, so from 148 columns, each taking half of what's left after the gap, the
+  odd cell the second's, the lines running in time order down the first, then across; else one, at
+  its natural, or the frame's width where that's narrower (the owner's call, 21 October 2026).
 
-Its lines are the accounts' spans and resets, soonest first:
+LATELY's least is 46: a time at its widest, a week back's, 12; two blanks; a name at its least,
+8; its shortest words, ` open again`, 11; and how long ago at its widest, `23h 59m ago`, 11, two
+blanks before it.
+
+COMING UP's lines are the Overview's COMING UP rows (see The Overview): the time, padded to the
+longest shown in its column, in `text.secondary`; two spaces, the account bold `text.primary` and
+what happens in `text.muted`; and, right-aligned to end at its column's last cell, how long until
+it, `in 1h 48m`, in `text.subtle`; a run-out's row all `accent.attention`, its time and countdown
+included. Where they don't all fit, it shows those it can, and its last place says how many more,
+`▼ 3 more`, in `text.subtle`, as what's out of view of the lanes is; it never folds whole while
+rows are spare. Its lines are the accounts' spans and resets, soonest first:
 
 - an account back from its cap, its limit or its refused token, where one holds it now, as the
   last of them to lift: `17:10  work back from its cap`;
 - a window running out at its pace: `~16:05  lab's 5-hour runs out at its pace`;
-- each other reset of the view's window, where its `│` stands: `16:30  personal's 5-hour resets`.
+- each other reset of a window every model shares: `16:30  personal's 5-hour resets`, and a week's
+  where its `│` stands.
 
-The 5-hour view lists the 5-hour windows'; the week view adds each week's run-out and reset. No
-prime is listed (settled in the plan). The lines aren't capped: where they don't fit, Runway
+No prime is listed (settled in the plan). The lines aren't capped: where they don't fit, Runway
 compacts, and then cuts them.
 
-**A day stepped back to** is a calendar day, midnight to midnight across the lanes' columns, 10
-minutes a column at 160.
+LATELY's lines are the account events of the router's events held (see What it reads, below), as
+the Overview's LATELY words them (`views.RunwayLately`, beside the Overview's): a cap, a limit, a
+refusal, coming under pressure and room again, newest first, no further back than a week before
+now; the sessions a cap, a limit or a refusal moved folded into its line, as `3 sessions moved to
+side`, each router run's own; no session's start or move alone, and no marks. Each line is the
+time, as an event's time is said, `14:31` or `Wed 23:58`, but on today's weekday a week back, by
+the calendar, by its date, `5 Nov 15:00`, as its weekday alone would read as today's (prose's
+`Befell`, which says every time in LATELY's words, the Overview's too, as `~5 Nov 23:50`), padded
+to the longest shown, in `text.secondary`; two blanks; the account bold `text.primary`, what
+befell it in `text.muted` and its object, as `3 sessions` or `~Sat 06:10`, bold
+`text.secondary`; and how long ago, right-aligned at the column's end, in `text.subtle`: `11m
+ago`, `1h 38m ago`, `1d 4h ago`, `3d ago` (prose's `Ago`). Its words are in full where they fit
+whole beside how long ago, else short. With no events, it says why, as the Overview's LATELY
+does. It lists as many lines as its rows hold, the rest unsaid. Till the files are read, it's told
+afresh at every build; once they are, only as the events held change, the day turns, or a line
+passes out of its week.
 
-- Its hours are ticked and labelled by the rule above, every hour ticked and every other hour
-  labelled at 160 columns; its first label is the day's name at its midnight, `Wed`, bold
-  `text.secondary`.
-- No `now`, nothing dimmed and no COMING UP, as all three are about now; no room line either, as the
-  room is about now.
-- Each lane is as the day had it, with `│` wherever its window reset that day, and the words of its
-  stretches from the lanes' first column at the least: `room all day` from it.
-- Under each name, the day's highest use of the view's window, `5-hour 100%`, as the legend says.
+**A week stepped back to** runs from its first day, as `week_starts` begins it, to its last,
+across the lanes' columns, ticked and named as the live view is.
+
+- No `now`, nothing dimmed, and no COMING UP or LATELY, as all are about now; no room line either,
+  as the room is about now.
+- Each lane is as the week had it, with `│` wherever its week reset, and the words of its stretches
+  from the lanes' first column at the least: `room all week` from it.
+- Under each name, the week's highest use, `week 100%`, as the legend says.
 - The pool's lane counts the pool as it is now.
 - The key line is the live view's.
-- **Today, from its midnight,** the first step back, is drawn as a day stepped back to, but with
-  now's column picked out, what's past dimmed, and the room line kept; still with no COMING UP.
-- **A week stepped back to** runs from its first day, as `week_starts` begins it, to its last,
-  across the lanes' columns, ticked and named as the week view is, under each name the week's highest
-  use; this week, the first step back, has now picked out, as today does (settled in the plan).
+- **This week,** the first step back, has now's column picked out, what's past dimmed, and the
+  room line kept; still with no COMING UP or LATELY (settled in the plan).
 
 **The rows,** laid as every view's are (see The page), from the view's top to the row over the key
 line, as parts in this order: the axis, its three rows; the blank row under the axis; the lanes;
 the pool's lane and the row under it, its room's; COMING UP, from its heading and two rows of
-lines, to every line; the rows spare, which take what's left; and the legend. As rows run short,
-Runway takes the first step whose parts fit (the owner's call, 21 October 2026):
+lines, to every line; the rows spare, which take what's left, LATELY among them where it goes;
+and the legend. As rows run short, Runway takes the first step whose parts fit (the owner's call,
+21 October 2026):
 
 | Step | What changes |
 |---|---|
-| — | Three rows an account, its lane, its words and a blank row; blank rows under the axis, under the pool's lane and over the legend; every line of COMING UP |
+| — | Three rows an account, its lane, its words and a blank row; blank rows under the axis, under the pool's lane and over the legend; every line of COMING UP; LATELY in the rows left, where it fits, the first to give way |
 | (a) | Two rows an account (settled in the plan) |
 | (b) | No blank rows under the pool's lane or over the legend (settled in the plan) |
 | (c) | COMING UP shows the lines it can, from two rows of them, its first row always lines |
@@ -5123,32 +5129,29 @@ repeat the account (settled in the plan).
 **On a phone,** in The page's phone frame (settled in the plan), the lanes and their labels are as
 at every width:
 
-- the label column takes its widest label, `2 personal ◆` whole in 16 cells;
-- the lanes take the other columns, 36 at 52: the 5-hour view's 22 hours 40 minutes at about 38
-  minutes a column, ticked every 2 hours and labelled by the rule above, `Fri` alone at 52;
+- the label column takes its widest label, `personal ◆` whole in 14 cells;
+- the lanes take the other columns, 38 at 52: the week at about 265 minutes a column, its days
+  ticked and named where they fit;
 - the words are placed and cut by the rule above, as `capped 14:31  ·  back 17:10`;
-- the rows, COMING UP and the legend as at every width: the legend on as many lines as it takes,
-  the keyed glyphs, then `a column ≈ 38 minutes · the past dimmed`; COMING UP the frame's width
-  where that's under its natural;
-- the heading keeps its rule and the window at the right.
+- the rows, COMING UP, LATELY and the legend as at every width: the legend on as many lines as it
+  takes, the keyed glyphs, then `a column ≈ 265 minutes · the past dimmed`; COMING UP and LATELY
+  stacked, the frame's width where that's under their natural;
+- the heading keeps its rule to the last column.
 
 **Keys.** Where a reference's key row differs from these, these hold:
 
 | Where | Key line |
 |---|---|
-| 5-hour, live or stepped back | `tab views   < > window  ←→ day    a collapse    p pin    ? help  q quit` |
-| week, live or stepped back | `tab views   < > window  ←→ week    a collapse    p pin    ? help  q quit` |
-| A phone | `tab views   < > window   ←→ day   ? keys   q quit`, `←→ week` in the week view |
-| No account on a 5-hour | `tab views   ←→ week    a collapse    p pin    ? help  q quit`, and a phone's without `< > window` |
+| Live or stepped back | `tab views   ←→ week    a collapse    p pin    ? help  q quit` |
+| A phone | `tab views   ←→ week   ? keys   q quit` |
 
 `a collapse` has its word faint while the labels are collapsed, as a hidden section's is. The line
 holds it whole from 100 columns; a phone's line leaves it to `?`, as it would cost its `tab views`.
-`<` and `>` step between the week and the 5-hour views, where both are offered; `←` steps back and
-`→` forward; `a` collapses the account column and expands it again; `j`, `k`, PgUp, PgDn and the
-wheel scroll the lanes at (f); `p`, `R`, `t`, `?` and `q` are as on every page (see Keys). `?` help
-(see The page), `HELP · RUNWAY`, lists the page's keys first, `t`, `R` and `j`/`k` among them; then
-it explains the lanes' marks and colours, the pool's lane and its room, stepping back and how far it
-reaches, the minutes a column, and COMING UP.
+`←` steps back and `→` forward; `a` collapses the account column and expands it again; `j`, `k`,
+PgUp, PgDn and the wheel scroll the lanes at (f); `p`, `R`, `t`, `?` and `q` are as on every page
+(see Keys). `?` help (see The page), `HELP · RUNWAY`, lists the page's keys first, `t`, `R` and
+`j`/`k` among them; then it explains the lanes' marks and colours, the pool's lane and its room,
+stepping back and how far it reaches, the minutes a column, COMING UP, and LATELY.
 
 **Other states.**
 
@@ -5184,14 +5187,30 @@ reaches, the minutes a column, and COMING UP.
   history, a reading of each window at each look (the owner's call, 14 October 2026).
 - **A run-out, `~16:05`:** the projection, as `usage` projects (see `usage`, the printout).
 - **COMING UP:** the same, soonest first, as the Overview's COMING UP reads it.
+- **LATELY:** the router's events over the week it tells, a week before now, read off the events'
+  files as Runway's live view first shows, off the draw path, as the Log's Events read them, and
+  the status document's newest 50 taken in at each look, kept as the router restarts
+  (`EventsRead`). The Log's Events and LATELY share the one read. Every read of the files, as
+  `events.Reader` reads them, reads each day's file from the day before its span begins to the
+  day after it ends, its end taken on `events.ChangesFor` days but never past now, as an event's
+  later versions are filed on the days after it. So LATELY's first read reads the week's files,
+  the day before its and tomorrow's; a look, a redraw or a midnight reads none again, as a day
+  that closes while the dashboard runs was read as today's; and the Log, shown after, reads none
+  of its days again. Where the Log read first, LATELY reading back its week reads the Log's days
+  again, to today, as the Log reading back past the week reads LATELY's again, to today. Till the
+  files are read, LATELY tells the document's events. At each look, whatever tab shows, the events
+  held let go of those before the further back of the Log's first day, less its reach for facts,
+  and the day LATELY's week begins on, a day at a time; but of none while a read of the Log's or
+  LATELY's is under way, as the Log comes to span the day it reads back to as its read lands. A
+  read claims only the span it read whole. The Overview's LATELY reads the document's alone.
 - **The pool:** its accounts, every one on auto, or those the `pin` names.
-- **A day stepped back to:** the readings history, each change of a window's use, its reset and its
-  status, a limit running from a reading `rejected` to its window's reset; the day's summary's
-  `limits`, each with its `at` and `resets_at`, and under each name its `highest`; today's, before
-  it's summarised, its readings and lines as they're read (see The request ledger). A cap on a day
-  gone is drawn from the reserve the config gives now, as the readings keep none
-  (settled in the plan). A day older than the readings history's keep draws its lanes from its
-  summary's limits and resets alone (settled in the plan).
+- **A week stepped back to:** the readings history, each change of a window's use, its reset and its
+  status, a limit running from a reading `rejected` to its window's reset; each day's summary's
+  `limits`, each with its `at` and `resets_at`, and under each name the week's `highest`; today's,
+  before it's summarised, its readings and lines as they're read (see The request ledger). A cap on
+  a day gone is drawn from the reserve the config gives now, as the readings keep none (settled in
+  the plan). A week older than the readings history's keep draws its lanes from its summaries'
+  limits and resets alone (settled in the plan).
 - **Agents** read the room, the even pace, the pool's room and COMING UP in the status document,
   through the data verbs (see The data verbs).
 
@@ -6227,7 +6246,7 @@ first ran on them. A row's parts, two cells apart, as flex lays them at every wi
   cells of the widest a stay is said, 30, `28 Sep 13:20 – yesterday 01:20`, so it's never cut:
   `12:02 – 14:31`, `14:31 – now`; with its day where the session spans more than one, or began
   before today, as an undated time reads as today's: `yesterday 16:40 – 18:05`, `today 09:12 –
-  now`, `yesterday 13:20 – 16:02` (settled in the plan);
+  now`, `yesterday 13:20 – 14:57` (settled in the plan);
 - **its requests** in `text.muted`, in 16, to `99,999 requests`, and past it `99,999+ requests`:
   `404 requests`;
 - **what it took of the account's windows,** the points bold `text.primary` and the rest
@@ -6395,7 +6414,7 @@ moving down.
   line kept (settled in the plan).
 - **Row 6:** `ended yesterday 18:47`, bold `text.secondary`; three spaces; in `text.muted`,
   `ran on `, each account it ran on in `text.secondary`, and when it moved and why, its account in
-  `text.secondary` too: `ran on work, then side from 16:02: work reached its cap`. At the right:
+  `text.secondary` too: `ran on work, then side from 14:58: work reached its cap`. At the right:
   `started yesterday 13:20 · ran 5h 27m`.
 - **Row 7:** its models, going nowhere now, joined by ` · ` in `text.faint`; three spaces; and in
   `text.faint`, `kept until 4 Nov 2027`, the day before the ledger removes the lines of its first
@@ -6718,13 +6737,12 @@ that work there (see The page); `?` lists every one, with what it does.
 | `↑` `↓` | Overview, where USAGE scrolls | Scroll USAGE a row, as `j` `k` do |
 | `[` `]` | Accounts, History, Sessions, the Log | The sub-tab before or after |
 | `<` `>` | Accounts, History | A shorter period, a longer one; on History's Year, the year before, the one after |
-| `<` `>` | Runway, while an account has a 5-hour window | The week's view, the 5-hour's |
 | `v` | History | The next shape or split of the view |
 | `←` `→` | Accounts' Compare | Move the focus along the accounts' columns |
 | `←` `→` | History's Year, filtered to an account | The account before or after |
 | `↑` `↓` | Accounts' Detail | Choose an account in the list, all accounts first; or, in its SESSIONS, a session |
 | `→` `←` | Accounts' Detail | Into the account's SESSIONS, and back to the list |
-| `←` `→` | Runway | Step back a day, or a week in the week view; step forward, to the live view |
+| `←` `→` | Runway | Step back to this week, then a week at a time; step forward, to the live view (the owner's call, 12 November 2026) |
 | `a` | Runway | Collapse the account column to each account's use, the lanes from column 0, or expand it (the owner's calls, 17 October and 12 November 2026) |
 | `w` `o` `g` `h` | Graphs | Show or hide WEEK, POOL, GLANCE, WHEN YOU WORK |
 | `↑` `↓` | Sessions | Choose a session, a call on the Switchboard or a row on the List |
@@ -7062,13 +7080,13 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
     its four weeks read once, as the first reader that wants it shows, `loading…` while they are,
     or, resting on a digest, only the days since it; never again while a reader wants it (settled
     in the plan).
-  - **A period, or a day stepped back to,** as Accounts', History's and Runway's are, is read once
+  - **A period, or a week stepped back to,** as Accounts', History's and Runway's are, is read once
     as it's shown, then held; History's year is a year of summaries, read once a run.
   - **The readings history's live tail,** from the day a week before today's, or the day a week
     back from now falls on where that's earlier, as it is in the hour after midnight for a week
     after the clocks go forward, so it reaches where GLANCE's pool starts its week, each window's
     run from a week before that carried in, is read for what it gained at each look while Runway
-    shows a live view, today, or a day or week it holds, or Graphs shows.
+    shows its live view, or a week it holds, or Graphs shows.
   - **The Log's Events through some kinds,** which no summary tells the days of, read back no
     further than the earliest of them the router filed: its files of events are read for it first,
     the oldest first and no further than that event, as they're far smaller than the ledger's days
@@ -7276,8 +7294,8 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
     reads again every day between, costing what the find's pick cost before: some 3.3 s and 280 MB
     8 days back, 8.4 s and 706 MB 22 days back.
 - **Events:** live, the status document's `events`, the newest 50, read at each look, each new one
-  known by its `id`; the past, the events' files, read as the Log's Events, LATELY or a session's
-  page reach back past them (see The router's events). A router restarted tells its events afresh,
+  known by its `id`; the past, the events' files, read as the Log's Events, Runway's LATELY or a
+  session's page reach back past them (see The router's events). A router restarted tells its events afresh,
   while the files keep what it told before. Without the router, there are no live events, and the
   Log and LATELY show what the files hold (settled in the plan).
 - **A router from before milestone 7,** as one still running between an upgrade and its restart:

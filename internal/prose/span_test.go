@@ -295,6 +295,35 @@ func TestUntilRoundsUpToTheMinuteAndPadsTheMinutesAfterHours(t *testing.T) {
 	}
 }
 
+func TestAgoCountsWholeMinutesGoneAndPadsTheMinutesAfterHours(t *testing.T) {
+	now := time.Date(2026, 10, 1, 14, 42, 7, 0, time.FixedZone("UTC+1", 60*60))
+	tests := []struct {
+		name string
+		ago  time.Duration
+		want string
+	}{
+		{name: "the frames' 14:31 from 14:42:07, rounded down", ago: 11*time.Minute + 7*time.Second, want: "11m ago"},
+		{name: "hours and minutes, padded", ago: 17*time.Hour + 2*time.Minute + 7*time.Second, want: "17h 02m ago"},
+		{name: "whole hours, no minutes to pad", ago: 4 * time.Hour, want: "4h ago"},
+		{name: "a minute short of a day", ago: 24*time.Hour - time.Minute, want: "23h 59m ago"},
+		{name: "days and hours", ago: 28*time.Hour + 59*time.Minute, want: "1d 4h ago"},
+		{name: "whole days", ago: 3*24*time.Hour + 37*time.Minute, want: "3d ago"},
+		{name: "a minute", ago: time.Minute, want: "1m ago"},
+		{name: "within the minute", ago: 59 * time.Second, want: "now"},
+		{name: "still to come", ago: -time.Minute, want: "now"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := prose.Ago(now, now.Add(-tt.ago)); got != tt.want {
+				t.Errorf("Ago(now, now-%v) = %q, want %q", tt.ago, got, tt.want)
+			}
+		})
+	}
+	if got := prose.AgoWidest(); got != "23h 59m ago" {
+		t.Errorf("AgoWidest() = %q, want the widest within a week, %q", got, "23h 59m ago")
+	}
+}
+
 func TestOverSaysTheSpanARecentRateIsMeasuredOver(t *testing.T) {
 	tests := []struct {
 		over time.Duration

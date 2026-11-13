@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 	"github.com/leeovery/switchboard/internal/views/viewstest"
@@ -18,7 +17,7 @@ import (
 func TestRunwaysLanesAtTheMomentsItHasToGetRight(t *testing.T) {
 	for _, rm := range viewstest.RunwayMoments() {
 		t.Run(rm.Name, func(t *testing.T) {
-			from := lanesFrom(rm)
+			from := rm.From()
 			got := runwayFigures(views.Lanes{}.Look(from), from)
 			for id, want := range rm.Want {
 				for name, figure := range want {
@@ -40,14 +39,6 @@ func laneNamed(id string) string {
 	return id
 }
 
-// lanesFrom are what Runway's lanes are built from at the moment rm.
-func lanesFrom(rm viewstest.RunwayMoment) views.LanesFrom {
-	return views.LanesFrom{
-		Moment: rm.Doc.At(rm.Now, claude.Policy()), Readings: rm.Readings, Days: rm.Days, Kept: rm.Kept, Seen: rm.Seen,
-		Timeline: views.Stepped(rm.Window, rm.Day, rm.Now, rm.WeekStarts, rm.Columns), Window: rm.Window,
-	}
-}
-
 // runwayFigures are the figures of the lanes built from what's given, as
 // viewstest's Runway figures name and write them.
 func runwayFigures(l views.Lanes, from views.LanesFrom) map[string]viewstest.Figures {
@@ -57,7 +48,7 @@ func runwayFigures(l views.Lanes, from views.LanesFrom) map[string]viewstest.Fig
 		viewstest.FigureOf:     strconv.Itoa(l.Pool.Of),
 		viewstest.FigurePool:   poolRuns(l.Pool),
 		viewstest.FigureDrawn:  drawnSaid(l.Drawn),
-		viewstest.FigureComing: comingSaid(views.RunwayComing(from.Moment, from.Window), now),
+		viewstest.FigureComing: comingSaid(views.RunwayComing(from.Moment), now),
 	}}
 	for _, lane := range l.Accounts {
 		figures[lane.ID] = viewstest.Figures{

@@ -2,7 +2,7 @@
 
 ● healthy  ·  auto  ·  6 sessions  ·  new sessions → ▲ side
 
-RUNWAY  ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  week
+RUNWAY  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
                                  now
                       Thu                 Fri                  Sat                  Sun                  Mon                  Tue                  Wed
@@ -21,13 +21,13 @@ side       ▲  █████████████████████�
                                                                      ▅▅▅▅▅▅▅▅▅▅▅▅▂▂▂▂▂▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅
   week 1.2 of 3 left
 
-COMING UP
-~Fri  side's week runs out at its pace                                in 1d 1h    Sun 02:00  personal's week resets                                    in 2d 11h
-~Sat  personal's week runs out at its pace                           in 1d 15h    Sun 21:00  work's week resets                                         in 3d 6h
-~Sat  work's week reaches its cap                                     in 2d 4h    Mon 10:00  side's week resets                                        in 3d 19h
-
-
-
+LATELY                                                                                  COMING UP
+14:31      work refused (401): 3 sessions moved to side                10m ago          ~Fri       side's week runs out at its pace                     in 1d 1h
+Wed 19:12  personal refused (401): 1 session moved to side         19h 29m ago          ~Sat       personal's week runs out at its pace                in 1d 15h
+                                                                                        ~Sat       work's week reaches its cap                          in 2d 4h
+                                                                                        Sun 02:00  personal's week resets                              in 2d 11h
+                                                                                        Sun 21:00  work's week resets                                   in 3d 6h
+                                                                                        Mon 10:00  side's week resets                                  in 3d 19h
 
 
 

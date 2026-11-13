@@ -44,8 +44,10 @@ type judge func(m status.Moment, a status.AccountNow, read status.Readings, reac
 // day the readings history holds starts, a day before it drawn from its
 // summary, as the readings of it are gone, zero where it holds every day;
 // Seen, when the readings the watch read itself, among the readings, begin,
-// zero where there are none; the timeline, its Now the moment's; and the
-// window the view is named for.
+// zero where there are none; the timeline, its Now the moment's; and Key,
+// the key of the window every model shares that the lanes judge, the week's,
+// as RunwayWeek's KeyIn has it, where it's empty, as Runway and Graphs leave
+// it.
 type LanesFrom struct {
 	Moment   status.Moment
 	Readings []readings.Reading
@@ -53,7 +55,7 @@ type LanesFrom struct {
 	Kept     time.Time
 	Seen     time.Time
 	Timeline Timeline
-	Window   RunwayWindow
+	Key      string
 }
 
 // reach is how far back the readings reach, as Then takes it: to the
@@ -66,7 +68,7 @@ func (from LanesFrom) reach() status.Reach {
 // timeline; where the view's window resets in it, as │ marks it, in order;
 // each stretch it has no room through, in order; each it would have past the
 // timeline, as beyond has them, which no column draws; whether it has room
-// through every column from now's, or through every column of a day or week
+// through every column from now's, or through every column of a week
 // stepped back to, as nothing else is said of it; and its use of the view's
 // window.
 type Lane struct {
@@ -173,8 +175,8 @@ func (s LaneStretch) Ends() (at time.Time, lifts bool) {
 // being a's over the timeline tl, of the view of that window, as a Graphs
 // card places its ✕: as the lane's stretch through now's column tells it,
 // held alike, by the router's event of it or the first reading that shows
-// it; else, as a lane can start after the hold did, as Runway's live 5-hour
-// view starts an hour before now, as the moment knows it by the router's
+// it; else, as a lane can start after the hold did, as the live week starts
+// a day before now, as the moment knows it by the router's
 // events, the window's Since of a limit and the account's CapSince of a cap;
 // zero where neither tells, or neither holds the window.
 func (l Lane) HeldSince(a status.AccountNow, key string, tl Timeline) time.Time {
@@ -227,7 +229,7 @@ type Use struct {
 }
 
 // Look is Runway's lanes at a look, built from what's given: each column
-// before now's, or of a day or week gone, as Then, or l's judge, judges the
+// before now's, or of a week gone, as Then, or l's judge, judges the
 // account stood at its moment, held from l where what that's judged from
 // hasn't changed; now's column and those after it as the moment has the
 // account stand, and heading. An account lacking the view's window has no
@@ -264,7 +266,7 @@ func (l Lanes) judging() judge {
 // account next has room.
 func (from LanesFrom) laneOf(a status.AccountNow, past pastOf, then judge) Lane {
 	tl := from.Timeline
-	h := from.sinceRead(aheadOf(a, from.Window), a, past, then)
+	h := from.sinceRead(aheadOf(a), a, past, then)
 	stood := make([]stood, max(tl.Columns, 0))
 	for c := range stood {
 		if c < len(past.was) {
@@ -437,19 +439,22 @@ func (s LaneStretch) holdsOn(st stood, c int, at time.Time) bool {
 	return s.Last == c-1 && s.Cell == st.cell && (s.Back.IsZero() || s.Back.After(at))
 }
 
-// viewKey is the key of the window the view is named for, as KeyIn has
-// it, at the moment.
+// viewKey is the key of the window the lanes judge: Key, else the week's at
+// the moment, as KeyIn has it.
 func (from LanesFrom) viewKey() string {
-	return from.Window.KeyIn(from.Moment)
+	if from.Key != "" {
+		return from.Key
+	}
+	return RunwayWeek.KeyIn(from.Moment)
 }
 
-// KeyIn is the key of the window Runway's view of w is named for at the
-// moment m, of those every model shares that some account has or may have,
-// as its SharedWindows has them: the first lasting a day or less of the
-// 5-hour view, the first lasting longer of the week's; "" where none does.
-func (w RunwayWindow) KeyIn(m status.Moment) string {
+// KeyIn is the key of the window Runway's view is named for at the moment m,
+// of those every model shares that some account has or may have, as its
+// SharedWindows has them: the first lasting longer than a day, the week's;
+// "" where none does.
+func (RunwayWindow) KeyIn(m status.Moment) string {
 	for _, key := range m.SharedWindows() {
-		if quota.MultiDay(key) == (w == RunwayWeek) {
+		if quota.MultiDay(key) {
 			return key
 		}
 	}
@@ -457,15 +462,14 @@ func (w RunwayWindow) KeyIn(m status.Moment) string {
 }
 
 // lacks reports whether the account a lacks the window the view is named
-// for, as a verified Ultra account has no 5-hour window, so has no lane in
-// the view.
+// for, so has no lane in the view.
 func (from LanesFrom) lacks(a status.AccountNow) bool {
 	w, _ := a.Window(from.viewKey())
 	return w.Kind == status.WindowNone
 }
 
 // saysFrom is the first column a lane's words are said of: now's, live, or
-// the first, of a day or week stepped back to.
+// the first, of a week stepped back to.
 func (from LanesFrom) saysFrom() int {
 	if _, _, named := from.Timeline.Named(); named {
 		return 0

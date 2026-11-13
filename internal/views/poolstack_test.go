@@ -89,7 +89,7 @@ func near(got, want float64) bool {
 func TestThePoolsStackIsChartedOverRunwaysWeek(t *testing.T) {
 	from := stackFrom(stackAt, nil, weekAccount("work", stackAt, 0.3, stackReset), weekAccount("personal", stackAt, 0.3, stackReset))
 	got := views.PoolStack{}.Look(from)
-	if want := views.LiveTimeline(views.RunwayWeek, stackAt, stackColumns); got.Timeline != want {
+	if want := views.LiveTimeline(stackAt, stackColumns); got.Timeline != want {
 		t.Errorf("the stack's timeline is %+v, want Runway's week's, %+v", got.Timeline, want)
 	}
 	if got.Key != claude.WeekWindow || got.Timeline.NowColumn() != stackNow {

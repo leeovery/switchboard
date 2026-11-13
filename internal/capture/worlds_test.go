@@ -212,6 +212,45 @@ func TestWorksCapIsTheSameMomentInTheReadingsTheEventsTheLinesAndTheSummary(t *t
 	}
 }
 
+// Work reaches its cap at 14:58 yesterday and its 5-hour limit at 15:02, till
+// 17:10, as each record tells it: its 5-hour window read at 95% and spent;
+// the router's events of each, the cap moving b9c4 alone, as no line of
+// b9c4's on work comes after it; and yesterday's summary's limit.
+func TestWorksWednesdayIsTheSameInTheReadingsTheEventsTheLinesAndTheSummary(t *testing.T) {
+	now := worldsNow().now
+	capped, limited, until := dayAt(now, today-1, 14, 58, 0), dayAt(now, today-1, 15, 2, 0), dayAt(now, today-1, 17, 10, 0)
+	_, read, happened := autoWorld().readers()
+	first := func(at float64) time.Time {
+		for r := range read.Between(dayStart(now, today-1), dayStart(now, today)) {
+			if r.Account == "work" && r.Key == sessionKey && r.Utilization >= at {
+				return r.At
+			}
+		}
+		return time.Time{}
+	}
+	if got, want := []time.Time{first(1 - workReserve), first(1)}, []time.Time{capped, limited}; !slices.EqualFunc(got, want, time.Time.Equal) {
+		t.Errorf("work's 5-hour window was first read at its cap and spent at %v, want 14:58 and 15:02", got)
+	}
+	told := slices.Collect(happened.Between(dayStart(now, today-1), dayStart(now, today)))
+	for _, want := range []status.Event{{Kind: status.EventCap, At: capped, Count: 1}, {Kind: status.EventLimit, At: limited}} {
+		if !slices.ContainsFunc(told, func(e events.Line) bool {
+			return e.Kind == want.Kind && e.Account == "work" && e.At.Equal(want.At) && e.Until.Equal(until) && e.Count == want.Count
+		}) {
+			t.Errorf("the router tells no %s of work's at %s till 17:10, moving %d", want.Kind, want.At.In(now.Location()).Format(time.TimeOnly), want.Count)
+		}
+	}
+	for _, h := range autoWorld().records().lines {
+		if h.Session == idB9C4 && h.Account == "work" && !h.At.Before(capped) {
+			t.Errorf("%s's request of %s is on work, past its cap", h.Session, h.At.In(now.Location()).Format(time.TimeOnly))
+		}
+	}
+	accounts := historyFrom(autoWorld(), today-1).Days[0].Accounts
+	work := slices.IndexFunc(accounts, func(a ledger.PricedAccount) bool { return a.Account == "work" })
+	if limits := accounts[work].Limits; len(limits) != 1 || !limits[0].At.Equal(limited) || !limits[0].ResetsAt.Equal(until) {
+		t.Errorf("yesterday's summary has work's limits %+v, want its 5-hour's at 15:02, till 17:10", limits)
+	}
+}
+
 // verifiedWorld is a world of verified Ultra accounts, by name, as the worlds
 // keep it, and the ids of those of its accounts that are verified.
 type verifiedWorld struct {
@@ -448,7 +487,7 @@ func TestAVerifiedAccountsRefusalIsMetByARequest(t *testing.T) {
 
 // Each request refused on a verified account since the router started has
 // its refusal told, at that request's time. One refused before then, as
-// b9c4's of yesterday's 16:02:05 is, the router never told of.
+// b9c4's move of yesterday at 14:58 is, the router never told of.
 func TestARequestRefusedOnAVerifiedAccountHasItsRefusalTold(t *testing.T) {
 	now := worldsNow().now
 	for _, v := range verifiedWorlds() {

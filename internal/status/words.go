@@ -354,7 +354,7 @@ func passedOver(reason string) (base, account string, ok bool) {
 
 // pressured reads a reason ending ", personal under pressure", which names the
 // account the choice passed over, as "personal came under pressure, its 5-hour
-// to run out at 15:10", the time as prose.Dated says it: pressure is only
+// to run out at 15:10", the time as prose.Befell says it: pressure is only
 // ever judged in the 5-hour window. Its words take the place of why the
 // choice was made, but where the session was forced off where it was, as
 // forced reads it, which they follow as a further clause: "work reached its
@@ -366,7 +366,7 @@ func pressured(reason string, f Facts) (forms, bool) {
 	}
 	w := Words{Named(account), Plain(" came under pressure")}
 	if !f.Until.IsZero() {
-		w = append(w, Plain(", its 5-hour to run out at "+prose.Dated(f.Now, f.Until)))
+		w = append(w, Plain(", its 5-hour to run out at "+prose.Befell(f.Now, f.Until)))
 	}
 	if why, ok := forced(base, f); ok {
 		return why.then(w), true

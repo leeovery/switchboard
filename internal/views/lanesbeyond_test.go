@@ -8,6 +8,7 @@ import (
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
+	"github.com/leeovery/switchboard/internal/views/viewstest"
 )
 
 // beyondNow is when the lanes past their view's end are built: Thursday 1
@@ -40,7 +41,7 @@ func week(key string, used float64, hours int) quota.Window {
 // beginning after the view's last column and before its window resets, from
 // when the moment has it run out, projected, back as its window resets, and
 // said from the column after the last; none where the run-out falls inside
-// the view, which its own stretches have, nor in the 5-hour view, its window
+// the view, which its own stretches have, nor judging the 5-hour, its window
 // resetting inside it, nor of another week running out after the view's
 // resets. Its lane over the view is as it was: with room all along, or
 // running out inside it.
@@ -48,7 +49,7 @@ func TestALaneHasWhatItWouldPastItsViewsEndBeforeItsWindowResets(t *testing.T) {
 	tests := []struct {
 		name   string
 		doc    status.Document
-		window views.RunwayWindow
+		judged string
 		day    time.Time
 		key    string
 		want   views.Cell
@@ -60,14 +61,17 @@ func TestALaneHasWhatItWouldPastItsViewsEndBeforeItsWindowResets(t *testing.T) {
 		{name: "reaching its cap past the view's end", doc: beyondDoc(0.01, week("7d", 0.12, 148)), key: "7d", want: views.CellCapped, resets: true},
 		{name: "another week running out past the view's end", doc: beyondDoc(0, week("7d", 0.1, 160), week("7d_x", 0.12, 148)), key: "7d_x", want: views.CellLimited},
 		{name: "running out inside the view", doc: beyondDoc(0, week("7d", 0.3, 148))},
-		{name: "in the 5-hour view", doc: beyondDoc(0, week("7d", 0.12, 148)), window: views.RunwayFiveHour},
+		{name: "judging the 5-hour", doc: beyondDoc(0, week("7d", 0.12, 148)), judged: "5h"},
 		{name: "another week running out after the view's resets", doc: beyondDoc(0, week("7d", 0.1, 140), week("7d_x", 0.12, 148))},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			m := tt.doc.At(beyondNow, beyondPolicy)
-			tl := views.Stepped(tt.window, tt.day, beyondNow, time.Monday, 136)
-			lane := views.Lanes{}.Look(views.LanesFrom{Moment: m, Timeline: tl, Window: tt.window}).Accounts[0]
+			tl := views.Stepped(tt.day, beyondNow, time.Monday, 136)
+			if tt.judged != "" {
+				tl = viewstest.FiveHourTimeline(beyondNow, 136)
+			}
+			lane := views.Lanes{}.Look(views.LanesFrom{Moment: m, Timeline: tl, Key: tt.judged}).Accounts[0]
 			if tt.key == "" {
 				if len(lane.Beyond) > 0 {
 					t.Errorf("the lane has %+v past its view's end, want nothing", lane.Beyond)

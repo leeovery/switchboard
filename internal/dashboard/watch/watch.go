@@ -377,9 +377,11 @@ type Model struct {
 	// waited notes it, for its heading to say it's loading.
 	waiting waiting
 	// log is what the watch holds of the Log, and tail today's lines of the
-	// ledger as its readers follow them.
-	log  logTab
-	tail ledgerTail
+	// ledger as its readers follow them; events the router's events held for
+	// the Log's Events and Runway's LATELY.
+	log    logTab
+	tail   ledgerTail
+	events heldEvents
 
 	// open is the card open over the page, if any: the routing card, its
 	// picker as routing holds it, or help, scrolled as help holds it. page is
@@ -517,7 +519,8 @@ func (m Model) Init() tea.Cmd {
 // wants them, and keep the preferences changed, as keptPrefs has it. Then,
 // of the page as it stands at that moment, the one frame a look builds, it
 // has the readings history's tail read for Runway and Graphs, as readRunway
-// has it, and notes the tab shown waiting on a read, as waited has it, the
+// has it, the router's events for Runway's LATELY, as readLately has it,
+// and notes the tab shown waiting on a read, as waited has it, the
 // page loading as that leaves it. Of that page, its
 // Overview's sections built once for each to share, it keeps the Overview's
 // layout, and takes the view back to its top where what its scroll counts
@@ -544,6 +547,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	tuned, keeps := tuned.keptPrefs()
 	f := tuned.frame(now)
 	tuned, ran := tuned.readRunway()
+	tuned, lately := tuned.readLately()
 	tuned, waits := tuned.waited(now)
 	f.Loading = tuned.loading(now)
 	page := f.Built(tuned.doc, now)
@@ -554,7 +558,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	tuned = tuned.compared(page, now)
 	tuned, frames := tuned.startFrames(page, now)
 	tuned.taking = taking{}
-	return tuned, tea.Batch(cmd, closed, stream, past, paged, logged, found, listed, ran, tailing, costs, keeps, waits, frames)
+	return tuned, tea.Batch(cmd, closed, stream, past, paged, logged, found, listed, ran, lately, tailing, costs, keeps, waits, frames)
 }
 
 // taking is a message as Update takes it in: when it came, which every look
@@ -744,6 +748,8 @@ func (m Model) take(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.listRead(msg), nil
 	case runwayReadMsg:
 		return m.runwayRead(msg), nil
+	case latelyReadMsg:
+		return m.latelyRead(msg), nil
 	}
 	return m, nil
 }

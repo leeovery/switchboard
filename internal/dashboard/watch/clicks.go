@@ -46,7 +46,7 @@ func targetAt(targets []dashboard.Target, x, y int) (dashboard.Target, bool) {
 // does, the page acting as acting has it: on Accounts and Sessions, as
 // accountsClick and sessionsClick have it; on a tab, it shows it, as showTab
 // has it; on a sub-tab, it shows it, as showSubTab has it, or the Log's; on <
-// or > by a period or Runway's window, it presses it; on a key of the key
+// or > by a period or Runway's week, it presses it; on a key of the key
 // line, it presses it, as pressOf says; on what on the page stands for a
 // key, it presses that key alike, as the Log's ▼ N new presses end, and a
 // Graphs section's heading its key, which hides the section; on an
@@ -139,7 +139,7 @@ var namedPresses = map[string]tea.KeyPressMsg{
 }
 
 // stepPress is the press of the key that steps a period, or Runway's
-// window, the way given, as a click on < or > by it does: < back, for -1,
+// week, the way given, as a click on < or > by it does: < back, for -1,
 // and > on.
 func stepPress(way int) tea.KeyPressMsg {
 	if way < 0 {

@@ -82,7 +82,7 @@ func onTheBoard() (dashboard.SessionsShown, dashboard.Traffic) {
 
 // frames are frames of threeAccounts the tests draw, as text alone: full
 // screen, at a size each, every model's own window shown, as w shows them,
-// Sessions' Switchboard, and Runway over the 5-hour and the week, among them.
+// Sessions' Switchboard, and Runway, among them.
 func frames() map[string]dashboard.Frame {
 	frame := func(width, height int) dashboard.Frame {
 		return dashboard.Frame{
@@ -90,17 +90,14 @@ func frames() map[string]dashboard.Frame {
 			KeyLine: dashboard.KeyLine{Groups: [][]dashboard.Key{{{Key: "q", Does: "quit"}}}},
 		}
 	}
-	runway := func(w views.RunwayWindow) dashboard.Frame {
-		f := frame(160, 26)
-		f.View, f.Runway = dashboard.Runway, dashboard.RunwayShown{Window: w}
-		return f
-	}
+	runway := frame(160, 26)
+	runway.View = dashboard.Runway
 	sessions := frame(160, 40)
 	sessions.View = dashboard.Sessions
 	sessions.SessionsTab, sessions.Traffic = onTheBoard()
 	return map[string]dashboard.Frame{
 		"wide": frame(160, 40), "two rows": frame(120, 50), "short, scrolling": frame(160, 20), "phone": frame(52, 36),
-		"sessions": sessions, "runway, the 5-hour": runway(views.RunwayFiveHour), "runway, the week": runway(views.RunwayWeek),
+		"sessions": sessions, "runway": runway,
 	}
 }
 

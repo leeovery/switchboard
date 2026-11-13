@@ -4,7 +4,6 @@ import (
 	"slices"
 	"time"
 
-	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 )
@@ -51,17 +50,14 @@ type ahead struct {
 
 // runOut is a window running out ahead: from when, at its pace, till it
 // resets, where it holds its account back, at its limit or its cap, as the
-// cell given; and whether its room till then is drawn as running out, as the
-// 5-hour view doesn't draw a week's.
+// cell given.
 type runOut struct {
 	at, resets time.Time
 	cell       Cell
-	drawn      bool
 }
 
-// aheadOf is how the account a stands from now on, as ahead has it, in the
-// view of the window w.
-func aheadOf(a status.AccountNow, w RunwayWindow) ahead {
+// aheadOf is how the account a stands from now on, as ahead has it.
+func aheadOf(a status.AccountNow) ahead {
 	var h ahead
 	switch a.Routing.Kind {
 	case status.RoutingTokenless:
@@ -82,7 +78,7 @@ func aheadOf(a status.AccountNow, w RunwayWindow) ahead {
 		if !win.Shared || !win.RunsOutAhead || win.Out.At.IsZero() {
 			continue
 		}
-		out := runOut{at: win.Out.At, resets: win.Next, cell: CellLimited, drawn: w == RunwayWeek || !quota.MultiDay(win.Key)}
+		out := runOut{at: win.Out.At, resets: win.Next, cell: CellLimited}
 		if win.Out.Reserve {
 			out.cell = CellCapped
 		}
@@ -109,7 +105,7 @@ func (h ahead) at(t time.Time) stood {
 			return s
 		}
 	}
-	if slices.ContainsFunc(h.outs, func(o runOut) bool { return o.drawn && t.Before(o.at) }) {
+	if slices.ContainsFunc(h.outs, func(o runOut) bool { return t.Before(o.at) }) {
 		return stood{cell: CellRunsOut}
 	}
 	return stood{cell: CellRoom}

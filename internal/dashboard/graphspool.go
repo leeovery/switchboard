@@ -97,7 +97,7 @@ func (p poolStacked) draw(c *canvas, x, y, width, h int) {
 			in.text(x+now, floor-r, nowLine, poolNowInk)
 		}
 	}
-	timeAxis(in, tl, views.RunwayWeek, x, floor+1)
+	timeAxis(in, tl, x, floor+1)
 	for i, l := range p.key(width) {
 		in.line(x, floor+1+runwayAxisRows+i, l)
 	}
@@ -243,7 +243,7 @@ func (f Frame) poolDrawn(c *canvas, now time.Time, laid graphsLaid, placed graph
 // unstacked is p with nothing stacked: each of its accounts' room not known
 // in any column of Runway's week's live timeline at now, columns across.
 func (p poolStacked) unstacked(now time.Time, columns int) poolStacked {
-	p.stack.Timeline = views.LiveTimeline(views.RunwayWeek, now, columns)
+	p.stack.Timeline = views.LiveTimeline(now, columns)
 	accounts := make([]views.PoolStackAccount, len(p.stack.Accounts))
 	for i, a := range p.stack.Accounts {
 		a.Rooms = make([]views.AccountRoom, columns)

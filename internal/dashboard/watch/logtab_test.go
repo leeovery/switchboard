@@ -1227,7 +1227,7 @@ func TestAReadBackReadsOnPastTheDaysThatAddNothingToTheRequests(t *testing.T) {
 			for _, d := range h.model.log.totals {
 				figured = append(figured, d.Date)
 			}
-			for _, e := range h.model.log.events.Events() {
+			for _, e := range h.model.events.read.Events() {
 				held = append(held, e.Key.ID)
 			}
 			if !slices.Equal(figured, spanned) || !slices.Equal(held, pins) {
