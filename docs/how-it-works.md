@@ -698,7 +698,8 @@ it moves your history to pools, once, by itself:
 It routes throughout, and a stop part way carries on the next time it starts. Until it's done,
 `requests`, `history`, `sessions`, `events` and `import` refuse, the dashboard says what holds the
 move up, and `switchboard status` says how it stands. Work in no pool, from before pools, is the
-first pool's ever after.
+first pool's ever after: the one the move made, while the config has it, else the config's first
+pool, as after you empty and remove `Default`.
 
 **A config that loses its pools,** as one put back from before pools by hand or by the repository
 it's kept in, is given them back: the router writes each pool back as the config last wrote it,
@@ -968,5 +969,5 @@ session needs it explained. See [`setup`](commands.md#setup).
   two never disagree, and nothing a view shows is out of Claude's reach.
 - **Claude reads its own pool:** with [pools](#pools), `SWITCHBOARD_POOL` holds the id of the
   session's pool, and the skill has Claude pass `--pool "$SWITCHBOARD_POOL"` to those commands and
-  to `pin auto`, so it reads the pool it's working in, named, never one the directory decides.
-  Where it's unset, Claude passes no `--pool`.
+  to `pin`, so it reads the pool it's working in, named, never one the directory decides. Outside
+  a pool it's empty, and `--pool ""` is no flag.

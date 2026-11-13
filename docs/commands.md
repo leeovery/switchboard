@@ -72,8 +72,8 @@ Some commands have more to say:
 
 Once the config has pools (see [Pools](how-it-works.md#pools)), each verb that reads or acts on
 one pool's work takes `--pool <id>`: `status`, `usage`, `sessions`, `requests`, `history`,
-`events` and `pin auto`. Name the pool by its id, as [`switchboard pool`](#pool) lists them.
-Without `--pool`, a verb reads:
+`events` and `pin`. Name the pool by its id, as [`switchboard pool`](#pool) lists them. `--pool ""`
+is the flag not given. Without `--pool`, a verb reads:
 
 1. the only pool, where there's one;
 2. else the unfenced pool, the one with no directories;
@@ -85,15 +85,21 @@ The directory a verb is run in never chooses its pool, as that could act on a po
 you were in. Inside a session, the skill has Claude pass `--pool "$SWITCHBOARD_POOL"`, the
 session's own pool.
 
-- A verb that names accounts takes their pool from them, as `pin <account>...` and
-  `accounts edit` do.
-- `status --session` and `sessions <id>` find a session in whatever pool it's in, and take no
-  `--pool`.
-- Once there's a second pool, the text a verb prints names the pool it read, as `pool Acme`, and
-  its JSON gives each pool's id and label, as `pool` and `pool_label` (see
+- A verb given accounts or a session finds them in whatever pool they're in: `pin <account>...`,
+  `pin --session`, `status --session`, `sessions <id>`, `requests --account` and `requests
+  --session`. With `--pool` beside, it looks in that pool alone, and a pin of accounts outside it
+  is refused, so passing `--pool` to every verb is always safe.
+- Once there's a second pool, the text `status`, `usage`, `history`, `requests`, `sessions` and
+  `events` print names the pool it read, as `pool Acme`, and the JSON gives each pool's id and
+  label, as `pool` and `pool_label` (see
   [Rules for every format](reference.md#rules-for-every-format)).
 - Where the config has no pools, as before the router has moved the history to pools, `--pool` is
   passed over.
+- Where the config names no pools once the history has moved to them, as one put back from before
+  pools, or can't be read, the verbs take the pools as [`claude`](#claude) does: the router's,
+  else those the accounts record keeps, never every pool's work together. Where none of them names
+  a pool, they refuse: `can't tell which pool to read: neither the config, the router nor the
+  accounts record names any pools`.
 - [`dashboard`](#dashboard) shows the pool the verbs act on without `--pool`; `status --pool <id>`
   shows the others.
 
@@ -241,9 +247,9 @@ flags, keys and tabs, see [Dashboard](dashboard.md).
 `pin` tells the router where to send sessions. It needs the router.
 
 ```bash
-switchboard pin <account>... [--move] [--force]
+switchboard pin <account>... [--move] [--force] [--pool <id>]
 switchboard pin auto [--force] [--pool <id>]
-switchboard pin <account>|auto --session <id>
+switchboard pin <account>|auto --session <id> [--pool <id>]
 ```
 
 | Flag | What it does |
@@ -251,7 +257,7 @@ switchboard pin <account>|auto --session <id>
 | `--move` | Move running sessions on other accounts there too, each on its next request, at the cost of a cache rebuild each. Not with `auto`. |
 | `--force` | Clear every session's own pin too, including the one `run --account` gave it. |
 | `--session <id>` | Pin one running session alone to one account, from its next request, in place of any pin it had. Takes neither `--move` nor `--force`. |
-| `--pool <id>` | With `auto` alone: clear that pool's pin. See [Reading a pool](#reading-a-pool). |
+| `--pool <id>` | With `auto`, clear that pool's pin. With accounts, they must be that pool's; with `--session`, look for the session in that pool alone. See [Reading a pool](#reading-a-pool). |
 
 Name each account by its id, as `switchboard accounts` lists it; below, `b6s7` is work's and
 `q4tx` side's. `pin <account>...` sends every new session, and any other session whose account is
@@ -418,8 +424,11 @@ in, and keeps it for its whole life, a resumed session getting the pool its dire
   config's pools up first, as it looks at the config every 3, then stops, or goes direct, as
   `when_router_down` says: `switchboard: the router doesn't route by the config's pools (pool
   Acme's directories aren't the config's) — not starting claude: restart it with switchboard
-  service restart, or go direct this once with SWITCHBOARD_WHEN_ROUTER_DOWN=direct claude`. A pool
-  whose accounts were all added since the router started has none it routes till it restarts.
+  service restart, or go direct this once with SWITCHBOARD_WHEN_ROUTER_DOWN=direct claude`. Where
+  the pools aren't the config's own, as where it names none once the history has moved to pools, it
+  says plainly what differs: `the router routes by other pools (pool Acme's directories aren't the
+  same)`. A pool whose accounts were all added since the router started has none it routes till it
+  restarts.
 - **Never on Claude Code's own login inside a fence:** `--direct`, and starting without
   switchboard, refuse inside a fenced pool's directories, as Claude Code's own login would go out
   on whatever account it's signed into. Where the config can't be read, the fences come from the
@@ -756,11 +765,18 @@ The subcommands do the following:
 - **`edit`** changes an account's label, plan, pool, primary or reserve, in its table in the config.
   - It takes one or more of `--label`, `--plan`, `--pool`, `--primary` and `--reserve`, and leaves
     what it isn't given as it is.
-  - `--pool` moves the account into the pool with the id given. It's that pool's primary only with
-    `--primary`. Where it was the primary of the pool it leaves, that pool's next account in the
-    config's order is its primary now. The sessions running on it in the pool it left move off it on
-    their next request, as `moved: <id> left the pool`, and a session that started on its token
-    there is refused, told to exit and resume (see [Pools](how-it-works.md#pools)).
+  - `--pool` moves the account into the pool with the id given, a pool named that isn't configured
+    refused, naming the pools. It's that pool's primary only with `--primary`: without it, the
+    pool keeps its primary, and where the config marks none, `edit` marks the one it has, so the
+    account moved doesn't take it by coming first, and says so: `marked k3f9 the primary there,
+    which it stays`.
+  - The sessions the router sent to the account in the pool it left move off it on their next
+    request, as `moved: <id> left the pool`. Where it was that pool's primary, `edit` says which
+    account is now, and, where its token is usable, so sessions may have started on it as Claude
+    Code's own, that the sessions running on its token are refused now it has left, told to exit
+    and resume (see [Pools](how-it-works.md#pools)), and which account's token they start on
+    resumed: the new primary's, or, where that has none, the first account there with one. Where it
+    was the pool's last account, `edit` says the pool has no accounts now, and how to add one.
   - It says what it changed, each value as it is now and as it was, labels in quotes. When every
     value given is what the account has already, it says so, and writes nothing.
   - Made the primary, an account takes it from the one that had it. The sessions running through
@@ -837,7 +853,9 @@ The subcommands do the following:
   - Where the token file can't be deleted, `remove` fails, saying the account is taken out of the
     config, and the token file's path, and why it isn't deleted.
   - Removing the primary says which account is the primary now: the one marked
-    `primary = true`, else the first.
+    `primary = true`, else the first, of the removed account's pool where there are pools.
+    Removing a pool's last account says the pool has no accounts now: its sessions aren't routed
+    until one is added to it.
   - Every session holds the primary's token. Sessions running on a removed account's token stay
     routed, as the primary's, for a week from when the router takes the change up, while the
     primary has a usable token. `remove` says when the primary has none.
@@ -911,8 +929,10 @@ The subcommands do the following:
     same, inside or around them.
   - A pool made has no accounts: a session started in its directories refuses until one is added,
     with `accounts add --pool` or `accounts edit --pool`.
-  - It's refused on a config without pools yet: the router makes the first as it moves the history
-    to pools, and pools are added after.
+  - It's refused on a config that names no pools: the router writes them into it, the first as it
+    moves the history to pools, and pools are added after. Once the move is done, a config put back
+    without its pools is given them back by the router (see
+    [Upgrading to pools](how-it-works.md#upgrading-to-pools)).
 - **`edit`** changes a pool's label or its directories, and says what it changed, each value as it
   is now and as it was.
   - It takes one or more of `--label`, `--dirs` and `--unfence`, and leaves what it isn't given as
@@ -1172,7 +1192,7 @@ switchboard status --session <id> [--json | --pretty]
 |---|---|
 | `--json` | Print the status document as JSON, what an agent or a script reads, even on a terminal. It does so off a terminal anyway. With `--session`, it prints the session's every model and why it went where it did. See [`status --session`'s JSON](reference.md#status---sessions-json). |
 | `--pretty` | Print the text, even off a terminal, as it does on one. |
-| `--pool <id>` | Show that pool's accounts, the text naming it first once there's a second pool. Not with `--session`. See [Reading a pool](#reading-a-pool). |
+| `--pool <id>` | Show that pool's accounts, the text naming it first once there's a second pool. With `--session`, look for the session in that pool alone. See [Reading a pool](#reading-a-pool). |
 | `--probe` | Probe every account, even while the router runs. |
 | `-r`, `--refresh` | Have the router first read every account it may, as [`usage -r`](#usage) does, and wait for it, ten seconds at most. Without the router, or with `--probe`, every account is probed anyway. |
 | `--session <id>` | Print the label of the account the router sends that session's requests to: the one its last-used model went to, as a statusline asks. It does so on a terminal or off one. An account removed since is named by the label it had, saying when it was removed, and one nothing names by its id. It needs the router, and takes no `--probe` or `--refresh`. |
@@ -1291,7 +1311,7 @@ switchboard requests [--session <id>] [--account <id>] [--since <when>] [--pool 
 | `--session <id>` | Keep that session's requests. Name the session by its id, or as much of it as is unique among the sessions read. |
 | `--account <id>` | Keep that account's requests, by its id, in any case. A label is refused, naming the id of each account it labels. |
 | `--since <when>` | Start at a day (`2026-10-01`), a time today (`14:00`), or a while ago (`3h`, `2d`). |
-| `--pool <id>` | Keep that pool's requests, each by the pool it was routed within at the time, a request from before pools the first pool's. See [Reading a pool](#reading-a-pool). |
+| `--pool <id>` | Keep that pool's requests, each by the pool it was routed within at the time, a request from before pools the first pool's. With `--session` or `--account` and no `--pool`, their requests are found in whatever pool each was routed in. See [Reading a pool](#reading-a-pool). |
 | `--json` | Print each line as the ledger holds it, with `"schema": 1` put first, a JSON object a line, even on a terminal. It does so off a terminal anyway. See [The request ledger](reference.md#the-request-ledger). |
 | `--pretty` | Print the text, even off a terminal, as it does on one. |
 
@@ -1479,7 +1499,7 @@ switchboard sessions [<id>] [--pool <id>] [--json | --pretty]
 
 | Flag | What it does |
 |---|---|
-| `--pool <id>` | List that pool's sessions, each by the pool its requests were routed within, a session from before pools the first pool's. Not with a session given, which is shown in whatever pool it's in. See [Reading a pool](#reading-a-pool). |
+| `--pool <id>` | List that pool's sessions, each by the pool its requests were routed within, a session from before pools the first pool's. A session given is found in whatever pool it's in, or with `--pool`, among that pool's alone. See [Reading a pool](#reading-a-pool). |
 | `--json` | Print the sessions, or the session's page, as JSON, even on a terminal. It does so off a terminal anyway. See [`sessions`' JSON](reference.md#sessions-json). |
 | `--pretty` | Print the text, even off a terminal, as it does on one. |
 
@@ -1557,7 +1577,7 @@ switchboard events [--since <when>] [-f] [--pool <id>] [--json | --pretty]
 |---|---|
 | `--since <when>` | Start at a day (`2026-10-01`), a time today (`14:00`), or a while ago (`3h`, `2d`). |
 | `-f`, `--follow` | Then go on printing a line each time the router files one, until interrupted. A changed event is printed again, whole. |
-| `--pool <id>` | List that pool's events: a session's start or move, and a pin, by the pool each was filed in, one from before pools the first pool's; what befell an account, by the pool it's in now; and the router's own. Without a config to read, `events` lists every pool's. See [Reading a pool](#reading-a-pool). |
+| `--pool <id>` | List that pool's events: a session's start or move, and a pin, by the pool each was filed in, one from before pools the first pool's; what befell an account, by the pool it's in now; and the router's own. An event of a pool since removed is in no pool's list, and a removed account's go by the pool the accounts record keeps for it. See [Reading a pool](#reading-a-pool). |
 | `--json` | Print each event as the router files it, with `"schema": 1` put first, a JSON object a line, with its `run` and `id`, even on a terminal. It does so off a terminal anyway. Of an event printed again, the last line is how it stands. See [The router's events](reference.md#the-routers-events). |
 | `--pretty` | Print the text, even off a terminal, as it does on one. |
 

@@ -210,9 +210,11 @@ are.
   covers the directory, two pools' fences hold it through its links, the pool has no accounts, or
   none of them has a usable token, or it's inside a fence and would start on Claude Code's own
   login. Each is in [`claude`](commands.md#claude)'s table, with what to do.
-- **`the router doesn't route by the config's pools (…)`:** with two pools or more, `claude` counts
-  a router down where its pools, their directories, accounts or primaries aren't the config's, as
-  a router from before pools would spread a session across every account. It waits 5 seconds for
+- **`the router doesn't route by the config's pools (…)`:** or `the router routes by other pools
+  (…)`, where the pools come from the router or the accounts record. With two pools or more,
+  `claude` counts a router down where its pools, their directories, accounts or primaries aren't
+  those it launches by, as a router from before pools would spread a session across every
+  account. It waits 5 seconds for
   the router to take a change up first, so this is a router that can't: one from before pools,
   still running after an upgrade, or one that routes none of a pool's accounts yet, as they were
   all added since it started. Run `switchboard service restart`. Meanwhile it stops, or goes
@@ -232,12 +234,17 @@ are.
   with every pool fenced, there's no pool to read without being told. Pass `--pool <id>`. A verb
   never takes its pool from the directory you run it in. See
   [Reading a pool](commands.md#reading-a-pool).
+- **A verb says `can't tell which pool to read: neither the config, the router nor the accounts
+  record names any pools`:** once the history has moved to pools, the config names none, or can't
+  be read, the router isn't running or routes by none, and the accounts record keeps none, so no
+  verb can read one pool's work apart from another's. Put the config's pools back, or start the
+  router.
 - **`pin` says `pin accounts of one pool: …`:** a pin is its pool's, so the accounts given must be
   in one. Pin each pool's accounts apart. A session can be pinned only to an account of its own
   pool.
-- **`pool add` says the config has no pools yet:** the router makes the first pool as it moves the
-  history to pools, the first time it starts on a version with them. Once `switchboard pool`
-  lists one, add the rest.
+- **`pool add` says the config names no pools:** the router makes the first pool as it moves the
+  history to pools, the first time it starts on a version with them, and writes a config's pools
+  back once the move is done, where it lost them. Once the config names them, add the rest.
 - **`pool remove` is refused:** the pool still has accounts, which it names, or it's the last pool.
   Move each account to another pool with `accounts edit <id> --pool <id>`, or remove it, first.
 - **`pool edit --dirs` says to set them by hand:** the config writes the pool's `dirs` across

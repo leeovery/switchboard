@@ -819,6 +819,12 @@ and the same while it moves the history to pools.
 Where the config has [pools](how-it-works.md#pools), the dashboard shows the pool the verbs act on
 without `--pool`: the only pool, else the unfenced one (see
 [Reading a pool](commands.md#reading-a-pool)). `switchboard status --pool <id>` shows the others.
+What it reads from the router is that pool's: its accounts, windows, room, sessions running and
+pin, and the router's events, the Overview's and Runway's LATELY and the Log's Events among them.
+The tabs it builds from the request ledger, the Log's requests, Sessions, a session's page,
+History and Graphs, still tell of every pool's work together, each account by its label, until a
+later release keeps them to the pool shown. It reads the pools as they stand when it opens: start
+it again after you add or remove a pool, or move an account.
 
 ```bash
 switchboard dashboard [interval] [--no-notify] [--probe]

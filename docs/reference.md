@@ -42,9 +42,10 @@ directly, agents included. Each format is described field by field.
   `pool` and `pool_label`, wherever it gives one: each line `requests` and `events` print that names
   a pool has `pool_label` put after `"schema": 1`, beside the `pool` it stores; `history`'s days give
   it beside each account's `pool` and in its `pools`; and `pool` lists them so. The status document
-  names its pool as `pool_id` and `pool_label`, as its `pool` is the room new sessions have. A pool
-  removed is labelled by the label it showed last, as the accounts record keeps it. The files, and
-  the status document's `events`, give a pool's id alone.
+  names its own pool as `pool_id` and `pool_label`, as its `pool` is the room new sessions have,
+  and its `events` name their pool by its id, as they name their accounts, whose labels are in its
+  `accounts`. A pool removed is labelled by the label it showed last, as the accounts record keeps
+  it. The files give a pool's id alone.
 - **Reasons:** The reasons a request went where it did, and the reasons an account couldn't serve
   it, are fixed words. See [Why a request went where it did](#why-a-request-went-where-it-did).
 - **Not a contract:** The text the commands print for a person, on a terminal or with `--pretty`,
@@ -366,7 +367,8 @@ request was in:
 - **Once the move to pools is done, work in no pool is the first pool's:** requests filed without
   a pool since, as by a release from before pools after a downgrade, or by a router handing over
   to another, are summarised in the first pool, and work a summary still holds in no pool is read
-  as the first pool's.
+  as the first pool's: the pool the accounts record notes as the first, where the config has it,
+  else the config's first pool, as after the first is emptied and removed.
 - **The windows stay the account's:** its `highest`, `rise`, `resets`, `limits`, minutes and
   `read_before`, given once, whatever pool it's in.
 
@@ -544,7 +546,7 @@ pass over one you don't know. In the forms below, `<id>` is an account's id.
 | `moving` | How the move of the accounts and their history onto the ids switchboard makes stands, while the router owes it, as after the upgrade that made them, then the move of the history to pools that follows it: `move`, `pools` for the move to pools, left out for the move onto the ids; `stage`, `running`, `awaiting api`, `awaiting restart` or `failed`, the move to pools awaiting a restart while the router hasn't taken up the first pool its config now holds, and never the API; and, where it awaits the API, `account`, the account by the id it had, whose token's subscription the API hasn't named, where that's known, and `why`, which is also why it failed. Left out where no move is owed. See [Upgrading to account ids](how-it-works.md#upgrading-to-account-ids). |
 | `export` | How the router's hourly export into [`[export]`](configuration.md#export-keys)'s `dir` stands: `dir`, the folder; `at`, when an export last succeeded; `error`, why the last failed, in plain words; and `running`, when the export under way began. Each of `at`, `error` and `running` is left out when there's none, and `export` where `dir` isn't set. |
 | `sessions` | How many sessions the router has routed in the last hour, in the pool. |
-| `events` | What's happened lately, newest first: the pool's sessions' starts and moves and its pins, what befell the accounts in it now, and the router's own. |
+| `events` | What's happened lately, newest first: the pool's sessions' starts and moves and its pins, by the pool each recorded, one naming none the first pool's; what befell an account, by the pool it's in now, or, of an account since removed, the pool the accounts record keeps for it; and the router's own. An event of a pool since removed is in no pool's. |
 | `events_kept` | `{"oldest", "newest"}`: the ids of the oldest and newest events the router keeps, every pool's, so a reader can tell the events it no longer keeps from another pool's, which `events` leaves out. Given wherever the router routes within pools, as `events` are then a pool's: one pool included, and a config naming none but routed by the pools the accounts record keeps. Left out where it routes in no pools, whose `events` are every one it keeps, and from a document built by probing. |
 | `pool` | The room new sessions can go to, summed across the pool's accounts, and their mean use. Each account's room is to its cap, `1 − reserve`, but that of an account the pool's pin names is to its limit, as the pin spends its reserve. Each window gives `of`, how many of the pool's accounts have it, an account not read yet, or without a usable token, counting as having it. The pool keeps a window only where at least two of its accounts have it, or all of them do. |
 | `coming_up` | Each limit, cap or refused token lifting, window running out or resetting, and prime, soonest first. |
@@ -617,6 +619,9 @@ added:
   of tokens alone.
 - `pool_label` beside an account's `pool`, and in each of its `pools`, beside that pool's `pool`,
   with that pool's models priced as the whole day's are.
+
+In a read of one pool, where the config has two or more, each day leaves out `lines` and `bytes`,
+which tell of the day's files, every pool's work in them.
 
 A day of no requests, where the history tells of no account that day, has no `accounts`. An account
 has a day there where its quota checks, its counts of tokens or the history give it one, with

@@ -663,7 +663,10 @@ pool for its whole life:
   the router as down for this launch: it stops, or goes direct, as `when_router_down` says, its line
   saying why, as `switchboard: the router doesn't route by the config's pools (pool Acme's
   directories aren't the config's) — not starting claude: restart it with switchboard service
-  restart, or go direct this once with SWITCHBOARD_WHEN_ROUTER_DOWN=direct claude`. This closes the
+  restart, or go direct this once with SWITCHBOARD_WHEN_ROUTER_DOWN=direct claude`. It names the
+  config's pools only where they're the config's; where they come from elsewhere, as with a config
+  naming none after the move, it says plainly what differs: `the router routes by other pools
+  (pool Acme's directories aren't the same)`. This closes the
   gap where an older router, one that doesn't strip switchboard's headers or still runs on a config
   without pools, would spread a session across every account. With one pool, nothing is compared.
   They match, as built, where nothing the router routes by could take a session out of its pool,
@@ -699,7 +702,8 @@ pool for its whole life:
   routes by the pools the config file writes, read leniently, as the export folder is read from a
   config that's otherwise invalid: the same pools by id and directories, and one that reports pools
   not passing switchboard's headers on; else it starts unaided, saying `the running router doesn't
-  route by the config's pools`. Unaided, the fences it keeps Claude Code's own login out of are the
+  route by the config's pools`, or, once the move is done and the file writes none, `the running
+  router reports no pools`. Unaided, the fences it keeps Claude Code's own login out of are the
   config file's, read leniently: those that keep its rules, else, where they break them, those it
   can still read, each pool's directories, with the router's beside them, which only ever keeps it
   out of more, any directory written so it can't be placed keeping it out of every directory, as
@@ -814,9 +818,19 @@ read as a pool by its leaving one out (the owner's call, 11 November 2026).
 - **Events:** the events of a session's work name its pool: `started` and `moved`, the pool the
   session's request was routed within, and `pin` and `auto`, the pool whose pin was set or
   cleared, or the session's, of its own pin. What befalls an account, a limit, a cap or a refusal,
-  names none, as its windows are its own, and the router's own events none. Read in a pool, an
-  account's events go by the pool it's in now, one in no pool in every pool's, and the router's own
-  in every pool's.
+  names none, as its windows are its own, and the router's own events none. Which pool an event is
+  of has one rule, `status`'s, which the router's document, the verbs and the dashboard all call:
+  an event of a kind that names its pool goes by the pool it recorded, one naming none the first
+  pool's, so one naming a pool since removed is in none; any other goes by the pool of the account
+  it befell, now, or, of an account since removed, the pool the accounts record keeps for it; and
+  only an account nothing places, and the router's own, show in every pool. The status document
+  gives `events_kept`, the ids of the oldest and newest events the router keeps across every pool,
+  wherever it routes within pools, so a reader of one pool's can tell the events the router no
+  longer keeps from another pool's.
+- **The first pool,** where work in no pool goes, is one owner's, `config.Pools.First`: the pool
+  the accounts record notes as the first, where the config has it, else the config's first, as
+  after the first is emptied and removed. The router, the verbs, the dashboard and `import` all
+  ask it.
 - **Readings** stay per account: an account's windows are its own, whatever pool it's in.
 - **Moving to pools, once:** the history is rewritten with the first pool, where all work before
   pools was, so it holds one form, as Account identity's move holds it. The router does it as it
@@ -932,20 +946,26 @@ totals.
   shared by every pool's. Everything that reads a document reads it as it does today. In a config
   without pools, each answers for every account, as before.
 - **Verbs** that read or act on a pool take `--pool <id>`: `status`, `usage`, `sessions`,
-  `requests`, `history`, `events`, `dashboard` and `pin auto`. Without the flag, they act on the
+  `requests`, `history`, `events`, `dashboard` and `pin`. Without the flag, they act on the
   only pool, where there's one, else the unfenced pool. Where every pool is fenced, they ask for
   `--pool`, listing the pools. A verb that names accounts takes their pool from them. No verb ever
   decides its pool from the directory it's run in, because that could act on a pool its user didn't
-  know they were in (the owner's call, 10 November 2026). As built: `--pool` is passed over in a
-  config without pools; `status --session` and `sessions <id>`, which find a session in whatever
-  pool it's in, take none, nor does `pin` but with `auto`; a pool needed is asked for as `every pool
-  is fenced: name a pool, q7mt (Acme) or r2d4 (Client), with --pool`; once a second pool exists,
-  the verbs' text names the pool it reads, as `pool Acme`; and `events`, reading its files without
-  a config to read, lists every pool's. Reading the recorded files, a verb reads the work recorded
-  in the pool, as What's recorded says, a line, start, move or pin from before pools the first
-  pool's; and the windows, plans and weeks of the accounts in the pool now; an account's events go
-  by the pool it's in now, as What's recorded says. `dashboard`'s `--pool` comes with the second
-  phase (see Building it).
+  know they were in (the owner's call, 10 November 2026). As built, `--pool` behaves one way on
+  every verb, as the skill passes it to them all: `--pool ""` is the flag not given; it's passed
+  over in a config without pools; and a verb given a session or accounts, `status --session`,
+  `sessions <id>`, `pin <id>...`, `pin --session`, and `requests --session` or `--account`, finds
+  them in whatever pool they're in, and with `--pool` beside, in that pool alone, a pin of
+  accounts outside it refused. A pool needed is asked for as `every pool is fenced: name a pool,
+  q7mt (Acme) or r2d4 (Client), with --pool`. Once a second pool exists, the text of `status`,
+  `usage`, `history`, `requests`, `sessions` and `events` names the pool it reads, as `pool Acme`.
+  A verb takes the pools as `run` does (`launch.PoolsOf`), probing included: a config naming no
+  pools once the move is done, or one that can't be read, is read by the router's pools, else the
+  accounts record's, never every pool's work together, and where none of them names a pool, the
+  verb refuses: `can't tell which pool to read: neither the config, the router nor the accounts
+  record names any pools`. Reading the recorded files, a verb reads the work recorded in the pool,
+  as What's recorded says, a line, start, move or pin from before pools the first pool's; the
+  windows, plans and weeks of the accounts in the pool now; and an event by the one rule What's
+  recorded gives. `dashboard`'s `--pool` comes with the second phase (see Building it).
 - **Managing pools:** `pool` lists the pools, with their directories, accounts and primaries. `pool
   add <label> [<dir>...]` makes one, switchboard making its id, as `accounts add <label>` makes an
   account's, fenced to the directories given, or unfenced without any; `pool edit <id>` changes its
@@ -958,24 +978,33 @@ totals.
   and a pool added before it would take every account in; a removed pool's directories are no
   pool's, so a session started in them goes to the unfenced pool, where there's one; `pool edit
   --dirs` on directories the config writes across lines is refused, to be made by hand, as a
-  label over lines is; and an account moved to another pool is its new pool's primary only with
-  `--primary`, the pool it left taking its next account as its primary.
+  label over lines is. An account moved to another pool is its new pool's primary only with
+  `--primary`: without it, the pool keeps its primary, `accounts edit` marking it where the config
+  marks none, so the account moved doesn't take it by coming first in the config's order, and
+  saying so. The pool it leaves takes its next account as its primary where it was the primary,
+  and `accounts edit` says which, that the sessions running on the moved account's token, where it
+  has a usable one, are refused now it has left, and which account's token they start on resumed,
+  as a launch in that pool would choose it; or, where it was the pool's last account, that the
+  pool has no accounts now. `accounts remove` says the same of the removed account's pool: its
+  primary now, by the pool, or that it has no accounts.
 - **The verbs' JSON** gives a pool by its id and its label, as `pool` and `pool_label`, wherever it
   gives one, as it gives each account's id and label: `requests` and `events` put `pool_label`
   after `"schema": 1` on each line they print as stored that names a pool; `history` gives it
   beside each account's day's `pool` and in its `pools`; and `pool` lists every pool so. The
-  status document is the exception in name, giving `pool_id` and `pool_label`, as its `pool` was
-  the room before pools; its `events` give a pool's id alone, as the files do. A removed pool is
-  labelled as the accounts record keeps it.
+  status document gives its own pool as `pool_id` and `pool_label`, as its `pool` is the room, and
+  as it gives its accounts' labels in its `accounts`, not on each event, its events name their pool
+  by its id, as they name their accounts. A removed pool is labelled as the accounts record keeps
+  it, else, of a pool the record keeps but the config doesn't name, as the config last wrote it.
 - **The skill** tells Claude to pass `--pool "$SWITCHBOARD_POOL"`, the session's pool's id, to the
-  verbs, so that a session reads its own pool, named explicitly, and to pass none where the
-  variable is unset, as in a config without pools or a session not started through switchboard.
-  It also says that artifacts live on the session's pool's primary.
+  verbs, so that a session reads its own pool, named explicitly. Outside a pool, as in a config
+  without pools or a session not started through switchboard, it's empty, and `--pool ""` is no
+  flag. It also says that artifacts live on the session's pool's primary.
 
 ### The dashboard in a pool
 
 - **A dashboard shows one pool,** the one `--pool` names, or without it the pool the verbs act on.
-  No page adds pools together: a pool's room can never serve another pool's sessions, so a merged
+  As the first phase built it, its ledger tabs still tell of every pool (see Building it). No page
+  adds pools together: a pool's room can never serve another pool's sessions, so a merged
   view has nothing to add up. A page across pools waits until one is needed (the owner's call, 11
   November 2026).
 - **`P` cycles the pools,** everywhere, once a second pool exists. Changing pool starts the
@@ -1026,6 +1055,12 @@ Accepted as the first phase was built, each failing safe, with nothing crossing 
   be refused, told to exit and resume, where it could have gone on.
 - **A session's own pin cleared** while the router routes nothing is filed in no pool.
 - **A router restarted within half an hour of the move** replays the readings from before it.
+- **A day's work in no pool summarised before and after the first pool's removal,** as lines a
+  draining router or a downgrade filed without a pool, can count those requests twice: the summary
+  held puts them in the old first pool, the new one in the config's first, and both are kept. It
+  needs all three rare events together, for a handful of requests.
+- **The dashboard's pools and events read as it opens,** held for its run: a pool or an account
+  edited while one is open shows in it once it's started again, as phase 2's `P` reads them afresh.
 - **Several Macs** whose configs differ until one is kept: a pool removed on one Mac alone, and an
   account configured under its id, which the record holds for that pool, leaves the account out of
   this Mac's record, logged, till the configs agree.
@@ -1041,9 +1076,16 @@ In two phases, after v1 and Account identity. The first is built, the second to 
    move to pools; `run`'s pool, its starting token, its header and its checks; the router's pools,
    taken up at once, with routing, pins, fallbacks, demand and its answers per pool; the records;
    and the verbs' `--pool`, and the skill. The dashboard shows the pool the verbs act on, as now;
-   `status --pool` shows the others.
+   `status --pool` shows the others. What it reads from the router's document is that pool's, and
+   so are the router's events it reads from their files, the Log's Events and Runway's LATELY, by
+   the one rule What's recorded gives. Its tabs built from the request ledger's prebuilt records,
+   the Log's day rows and requests, Sessions, a session's page, History and Graphs, tell of every
+   pool's work together, labelled by account, as those records hold no pool
+   ([prebuilt-records-per-pool](../ideas/2026-11-13--prebuilt-records-per-pool.md)). The pools it
+   reads are those that stand as it opens, held for its run.
 2. **Sight:** the dashboard's `--pool` and `P`, the title row, the empty pool, notifications, and
-   setup's cards, each drawn in Paper first.
+   setup's cards, each drawn in Paper first; and the dashboard's ledger tabs made the shown pool's
+   alone, and its pools read afresh, as `P` starts its view afresh.
 
 ## Reserves
 
@@ -9537,8 +9579,8 @@ user's live dashboard, which Claude points to rather than runs, as `status` give
 turn, and a moved Claude Sonnet 5.5 session carries on without its earlier reasoning; artifacts
 always live on the session's pool's primary; and `switchboard --help` for the rest. With pools: a
 session's pool is in `$SWITCHBOARD_POOL`, which Claude passes as `--pool "$SWITCHBOARD_POOL"` to
-the verbs that take it, so it reads its own pool, named, passing none where it's unset; and
-`status --session` and `sessions <id>` take none (see Reading a pool).
+every verb that takes it, so it reads and acts on its own pool, named, the variable empty, and
+`--pool ""` no flag, outside a pool (see Reading a pool).
 
 ## The session hook
 
