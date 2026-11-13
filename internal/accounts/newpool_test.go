@@ -154,8 +154,12 @@ func TestTheFirstAccountInAPoolIsMarkedItsPrimary(t *testing.T) {
 			if err != nil {
 				t.Fatalf("AddChecked() error = %v", err)
 			}
-			if got, _ := w.load(t).Accounts.ByID(added.ID); got.Primary != tt.want || added.Primary != tt.want {
-				t.Errorf("the account added is %+v, added as %+v; want primary %t", got, added, tt.want)
+			draft, err := config.Edit(w.config, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if marked := draft.MarksPrimaryOf(added.ID); marked != tt.want || added.Primary != tt.want {
+				t.Errorf("the config marks the account added primary %t, added as %+v; want it marked %t", marked, added, tt.want)
 			}
 		})
 	}

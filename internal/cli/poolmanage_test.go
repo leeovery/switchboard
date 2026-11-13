@@ -457,8 +457,12 @@ func TestAccountsAddToAnEmptyPoolSaysItsThePrimary(t *testing.T) {
 	if got.code != 0 || m == nil || m[2] != " in pool Client, the primary there, as the first in it" {
 		t.Fatalf("switchboard accounts add Work --pool z5k2 = %+v, want it added in Client, saying it's the primary there", got)
 	}
-	if pool, primary := accountPool(t, path, m[1]); pool != "z5k2" || !primary {
-		t.Errorf("Work is in pool %s, primary %t; want Client, marked its primary", pool, primary)
+	draft, err := config.Edit(path, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pool, _ := accountPool(t, path, m[1]); pool != "z5k2" || !draft.MarksPrimaryOf(m[1]) {
+		t.Errorf("Work is in pool %s, marked primary %t; want Client, marked its primary", pool, draft.MarksPrimaryOf(m[1]))
 	}
 }
 
