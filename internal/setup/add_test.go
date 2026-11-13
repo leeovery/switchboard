@@ -2,10 +2,13 @@ package setup_test
 
 import (
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
+	"strings"
 	"testing"
 
+	"github.com/leeovery/switchboard/internal/accounts"
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/setup"
 )
@@ -84,4 +87,71 @@ func TestCheckAddingOfAConfigThatCantBeRead(t *testing.T) {
 	if _, refused := errors.AsType[*setup.Refused](err); refused || err == nil {
 		t.Errorf("CheckAdding error = %v, want the config's own, not a Refused", err)
 	}
+}
+
+// doneInPools is doneConfig's accounts once the move to pools, in Default,
+// b2n8, and the pools given after them, as [[pool]] tables are written.
+func doneInPools(pools string) string {
+	return "[[account]]\nid      = \"work\"\nlabel   = \"Work\"\nprimary = true\npool    = \"b2n8\"\n\n" +
+		"[[account]]\nid    = \"side\"\nlabel = \"Side\"\npool  = \"b2n8\"\n\n" + pools
+}
+
+const (
+	defaultPool = "[[pool]]\nid    = \"b2n8\"\nlabel = \"Default\"\n"
+	fencedPools = "[[pool]]\nid    = \"b2n8\"\nlabel = \"Default\"\ndirs  = [\"/Code/work\"]\n\n[[pool]]\nid    = \"q7mt\"\nlabel = \"Acme\"\ndirs  = [\"/Code/acme\"]\n"
+)
+
+// Setup adds an account to a config with pools in the pool accounts add adds
+// one to without --pool, the one the verbs act on, as it asks for none:
+// CheckAdding gives it in that pool, and MakeToken adds it there once its
+// token's made.
+func TestSetupAddsAnAccountInThePoolTheVerbsActOn(t *testing.T) {
+	w := newWorld(t)
+	w.done(t)
+	w.writeConfig(t, doneInPools(defaultPool))
+	w.api.organizations = map[string]string{madeToken: "org-personal"}
+	r := w.tokenRig(t, &fakeMaker{})
+
+	account, err := r.s.CheckAdding(setup.Adding{Label: "Personal", Plan: "max"})
+	if want := (config.NewAccount{Label: "Personal", Plan: "max", Pool: "b2n8"}); err != nil || account != want {
+		t.Fatalf("CheckAdding = %+v, %v, want %+v", account, err, want)
+	}
+	got, err := r.s.MakeToken(t.Context(), setup.TokenFor{Account: account, Add: true}, nil)
+
+	id := derivedID("org-personal")
+	checkTokened(t, got, err, setup.Tokened{Result: setup.TokenSaved, Checked: accounts.Checked{Organization: "org-personal"}, ID: id})
+	cfg, err := config.Load(w.config, nil)
+	if err != nil {
+		t.Fatalf("the config doesn't load: %v", err)
+	}
+	if added, _ := cfg.Accounts.ByID(id); added.Pool != "b2n8" {
+		t.Errorf("Personal was added in pool %q, want b2n8, Default", added.Pool)
+	}
+}
+
+// Where every pool is fenced, there's no pool the verbs act on for setup to
+// add an account to, so it refuses before any token is made, which would
+// last a year on the account, saying to add it with accounts add --pool:
+// CheckAdding fails as the step does, not as a value refused, and MakeToken
+// makes nothing.
+func TestSetupRefusesToAddAnAccountWhereEveryPoolIsFenced(t *testing.T) {
+	w := newWorld(t)
+	w.done(t)
+	w.writeConfig(t, doneInPools(fencedPools))
+	r := w.tokenRig(t, &fakeMaker{})
+	before := w.snapshot(t)
+
+	_, err := r.s.CheckAdding(setup.Adding{Label: "Personal", Plan: "max"})
+	if _, refused := errors.AsType[*setup.Refused](err); refused || !strings.Contains(fmt.Sprint(err), "switchboard accounts add <label> --pool <id>") {
+		t.Errorf("CheckAdding error = %v, want the step's, saying to add it with accounts add --pool", err)
+	}
+	if _, needed := errors.AsType[*accounts.PoolNeededError](err); !needed {
+		t.Errorf("CheckAdding error = %v, want an accounts.PoolNeededError", err)
+	}
+
+	_, err = r.s.MakeToken(t.Context(), adding, nil)
+	if _, needed := errors.AsType[*accounts.PoolNeededError](err); !needed || r.maker.asked > 0 {
+		t.Errorf("MakeToken() error = %v, made %d; want an accounts.PoolNeededError, with nothing made", err, r.maker.asked)
+	}
+	w.checkUnchanged(t, before)
 }

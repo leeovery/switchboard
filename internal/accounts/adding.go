@@ -108,7 +108,7 @@ func (r Registry) Add(ctx context.Context, account config.NewAccount, ask Ask) (
 	if err != nil {
 		return Added{}, err
 	}
-	label, err := checkNew(draft.Config(), account)
+	account, label, err := checkNew(draft.Config(), account)
 	if err != nil {
 		return Added{}, err
 	}
@@ -156,7 +156,7 @@ func (r Registry) known(ctx context.Context, checked Checked) (Organizations, er
 
 // AddChecked registers an account, with the token given, which Check has
 // checked, as checked says: its [[account]] table in the config file, made
-// where there's none, its token file and its place in the accounts record,
+// where there's none, in the pool CheckNew gives it, its token file and its place in the accounts record,
 // under the id the token's organization decides, the configured accounts'
 // organizations known as known has them, else as the record has them:
 // identity's Adding decides. A new account is given the id its organization
@@ -185,15 +185,16 @@ func (r Registry) AddChecked(ctx context.Context, account config.NewAccount, tok
 	}
 	// Decided first as the files stand, so a refusal changes nothing, not
 	// even the record's lock; then again under it, so what's decided holds.
-	if _, _, err := r.decided(record, account, known, checked.Organization, answer); err != nil {
+	if _, _, _, err := r.decided(record, account, known, checked.Organization, answer); err != nil {
 		return Added{}, err
 	}
 	var added Added
 	err = r.Record.Change(func(record *identity.Record, commit func() error) error {
-		draft, d, err := r.decided(*record, account, known, checked.Organization, answer)
+		draft, placed, d, err := r.decided(*record, account, known, checked.Organization, answer)
 		if err != nil {
 			return err
 		}
+		account = placed
 		if d.random {
 			if d.ID, err = record.Random(r.random(), configuredIn(draft.Config()).IDs()); err != nil {
 				return err
@@ -249,19 +250,20 @@ type decision struct {
 	random bool
 }
 
-// decided is the config file, as Edit reads it, and the account a token
-// whose organization is organization is added as, as decide has it, the
-// account checked first as CheckNew checks it.
-func (r Registry) decided(record identity.Record, account config.NewAccount, known Organizations, organization string, answer Answer) (*config.Draft, decision, error) {
+// decided is the config file, as Edit reads it; the account, checked first
+// as CheckNew checks it, in the pool it's added to; and the account a token
+// whose organization is organization is added as, as decide has it.
+func (r Registry) decided(record identity.Record, account config.NewAccount, known Organizations, organization string, answer Answer) (*config.Draft, config.NewAccount, decision, error) {
 	draft, err := config.Edit(r.ConfigPath, r.HomeDir)
 	if err != nil {
-		return nil, decision{}, err
+		return nil, config.NewAccount{}, decision{}, err
 	}
-	if _, err := checkNew(draft.Config(), account); err != nil {
-		return nil, decision{}, err
+	account, _, err = checkNew(draft.Config(), account)
+	if err != nil {
+		return nil, config.NewAccount{}, decision{}, err
 	}
 	d, err := decide(record, configuredIn(draft.Config()), known, organization, answer)
-	return draft, d, err
+	return draft, account, d, err
 }
 
 // decide is the account a token whose organization is organization, "" where
