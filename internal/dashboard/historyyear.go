@@ -1003,17 +1003,25 @@ func barCells(w, largest ledger.Picodollars, most int) int {
 // order, as splitCells splits them: a family worth too little for a cell has
 // none.
 func familySplit(families []views.FamilyWorth, cells int) line {
-	amounts := make([]ledger.Picodollars, len(families))
-	for i, f := range families {
-		amounts[i] = amountOf(f.Worth)
-	}
+	amounts, hues := familyParts(families)
 	var bar line
 	for i, n := range splitCells(amounts, cells) {
 		if n > 0 {
-			bar = append(bar, span{strings.Repeat("▅", n), familyHue(families[i].Family).ink()})
+			bar = append(bar, span{strings.Repeat("▅", n), hues[i].ink()})
 		}
 	}
 	return bar
+}
+
+// familyParts are what each family given was worth, in their order, and
+// each one's hue, for a bar split among them, as BY MONTH's and Projects'
+// list's are.
+func familyParts(families []views.FamilyWorth) ([]ledger.Picodollars, []hue) {
+	amounts, hues := make([]ledger.Picodollars, len(families)), make([]hue, len(families))
+	for i, f := range families {
+		amounts[i], hues[i] = amountOf(f.Worth), familyHue(f.Family)
+	}
+	return amounts, hues
 }
 
 // splitCells splits cells cells among parts worth the amounts given, in

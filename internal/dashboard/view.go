@@ -12,6 +12,9 @@ const (
 	Overview View = "overview"
 	// Accounts is each account in depth, and all of them together.
 	Accounts View = "accounts"
+	// Projects is each project sessions ran in over the period, ranked by
+	// worth, and the one chosen in depth.
+	Projects View = "projects"
 	// History is when: the weeks and days gone, and what used them.
 	History View = "history"
 	// Sessions is the view of where each session's requests go, as a
@@ -37,13 +40,13 @@ const (
 // titles are the tabs' names in the title row, and a session's page's, as
 // help names it.
 var titles = map[View]string{
-	Overview: "Overview", Accounts: "Accounts", History: "History", Sessions: "Sessions", Runway: "Runway", Graphs: "Graphs", Log: "Log", SessionPage: "Session",
+	Overview: "Overview", Accounts: "Accounts", Projects: "Projects", History: "History", Sessions: "Sessions", Runway: "Runway", Graphs: "Graphs", Log: "Log", SessionPage: "Session",
 }
 
 // Views are the tabs, in the order the title row shows them and tab moves
 // through them.
 func Views() []View {
-	return []View{Overview, Accounts, History, Sessions, Runway, Graphs, Log}
+	return []View{Overview, Accounts, Projects, History, Sessions, Runway, Graphs, Log}
 }
 
 // headsItself reports whether the tab's sections head themselves, as the

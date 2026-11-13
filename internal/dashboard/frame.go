@@ -143,6 +143,9 @@ type Frame struct {
 	// Accounts is Accounts' sub-tab shown, what's chosen in it, and its
 	// page, of the period.
 	Accounts AccountsShown
+	// Projects is what's chosen on Projects, and its page and the chosen
+	// project's, of the period.
+	Projects ProjectsShown
 	// History is History's sub-tab shown, what each of its views shows, and
 	// their pages.
 	History HistoryPage
@@ -263,8 +266,8 @@ func (f Frame) page(doc status.Document, now time.Time) *canvas {
 // view draws the tab shown of doc at now from row top, where the page has
 // room for it, as cramped says, and nowhere but between the status line and
 // the key line, as body has it: a session's page, where one is open, in its
-// place; else the tab shown: the Overview, Accounts, History, Sessions,
-// Runway, Graphs or the Log.
+// place; else the tab shown: the Overview, Accounts, Projects, History,
+// Sessions, Runway, Graphs or the Log.
 func (f Frame) view(c *canvas, doc status.Document, now time.Time) {
 	if f.cramped() {
 		return
@@ -278,6 +281,8 @@ func (f Frame) view(c *canvas, doc status.Document, now time.Time) {
 		f.overview(c, doc, now, top)
 	case Accounts:
 		f.accounts(c, doc, now, top)
+	case Projects:
+		f.projects(c, doc, now)
 	case History:
 		f.history(c, top)
 	case Sessions:
@@ -418,6 +423,7 @@ func (f Frame) Under(doc status.Document, now time.Time, x, y int) Under {
 // y, width cells wide and rows tall: on a session's page, where one is open,
 // its turns' rows, across the frame; on the Overview, USAGE's body, as
 // overviewScrolls has it; on Accounts, as accountsScrolls has it; on
+// Projects, SESSIONS' lines, as projectsLaid has them; on
 // History, what of its sub-tab shown does, as historyScrolls has it, across
 // the frame; on Sessions, as sessionsScrolls has it; on Runway, as
 // runwayScrolls has it; on Graphs, the view's rows over its legend, as
@@ -432,6 +438,8 @@ func (f Frame) scrolls(doc status.Document, now time.Time) (x, y, width, rows in
 		return f.overviewScrolls(doc, now)
 	case Accounts:
 		return f.accountsScrolls(doc, now)
+	case Projects:
+		return f.projectsLaying(doc, now).scrolls()
 	case History:
 		y, rows = f.historyScrolls()
 		return 0, y, f.Width, rows

@@ -40,7 +40,10 @@ func TestEachTargetSitsOverWhatItsDrawingPutThere(t *testing.T) {
 	graphs.Graphs.Accounts = configured("work", "personal", "side")
 	paused := clickable(160, 24, Log)
 	paused.Log = pausedOneNew()
-	for _, f := range []Frame{clickable(160, 40, Overview), clickable(160, 40, Runway), clickable(52, 33, Sessions), clickable(99, 33, Overview), graphs, paused} {
+	projects := clickable(160, 50, Projects)
+	page := chosenPage(chosenSessions())
+	projects.Projects = projectsShownOf(projectRows(12), 0, &page)
+	for _, f := range []Frame{clickable(160, 40, Overview), clickable(160, 40, Runway), clickable(52, 33, Sessions), clickable(99, 33, Overview), graphs, paused, projects} {
 		rows := textOf(f.Draw(threeRouted(), now))
 		var tabs []View
 		var keys, presses []string
@@ -67,6 +70,14 @@ func TestEachTargetSitsOverWhatItsDrawingPutThere(t *testing.T) {
 			case OnRow:
 				if drawn := under(rows, tt); strings.TrimSpace(drawn) != "" {
 					want = drawn
+				}
+			case OnProject:
+				if row := under(rows, tt); strings.Contains(row, " "+strings.TrimPrefix(tt.Project, "/work/Code/")+" ") {
+					want = row
+				}
+			case OnSession:
+				if row := under(rows, tt); strings.Contains(row, " "+tt.Session[:4]+" ") {
+					want = row
 				}
 			case OnAccount:
 				named := func(y int) bool { return y >= 0 && strings.Contains(rows[y], " "+tt.Account+" ") }
@@ -96,12 +107,13 @@ func TestAPhonesTabsAreTargetsOnTheRowsTheyreDrawnOn(t *testing.T) {
 		// rows are the rows each tab is on, in the tabs' order.
 		rows []int
 	}{
-		{width: 60, rows: []int{1, 1, 1, 1, 1, 1, 1}},
-		{width: 52, rows: []int{1, 1, 1, 2, 2, 2, 2}},
-		{width: 31, rows: []int{1, 1, 1, 2, 2, 2, 2}},
-		{width: 30, rows: []int{1, 1, 2, 2, 3, 3, 3}},
-		{width: 21, rows: []int{1, 1, 2, 2, 3, 3, 3}},
-		{width: 20, rows: []int{1, 2, 2, 3, 3, 4, 4}},
+		{width: 70, rows: []int{1, 1, 1, 1, 1, 1, 1, 1}},
+		{width: 69, rows: []int{1, 1, 1, 1, 2, 2, 2, 2}},
+		{width: 39, rows: []int{1, 1, 1, 1, 2, 2, 2, 2}},
+		{width: 38, rows: []int{1, 1, 2, 2, 2, 3, 3, 3}},
+		{width: 29, rows: []int{1, 1, 2, 2, 2, 3, 3, 3}},
+		{width: 28, rows: []int{1, 1, 2, 2, 3, 3, 4, 4}},
+		{width: 20, rows: []int{1, 1, 2, 2, 3, 3, 4, 4}},
 	}
 	for _, tt := range tests {
 		f := clickable(tt.width, 33, Overview)

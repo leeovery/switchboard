@@ -1,0 +1,24 @@
+ SWITCHBOARD    Overview   Accounts   Projects   History   Sessions   Runway   Graphs   Log         14:42:07
+
+● healthy  ·  auto  ·  6 sessions  ·  new sessions → ▲ side
+
+PROJECTS  ───────────────────────────────────────────────────────────────────────────────────  < this week >
+
+  project       live  sessions   worth                                                       requests  last
+▸ switchboard   ● 1          8    $239                                                          2,059  now
+  website       ● 1          5    $159                                                          1,281  14:32
+  infra         ● 1          5    $112                                                            992  14:40
+  ▼ 3 more projects
+  ──────────────────────────────────────────────────────────────────────────────────────────────────────────
+  all projects  ● 6         27    $635                                                          5,410
+
+switchboard  ~/Code/switchboard                                                                  ● 1 running
+8 sessions · 2,059 requests · $239 at API prices · 38% of all use · 365M tokens
+
+SESSIONS
+  session                        on        model       state        started    requests   worth
+↑ d28c switchboard               side      opus-5-5    asking       12:02           445  $48.20
+  ended yesterday  ─────────────────────────────────────────────────────────────────────────────────────────
+▸ b9c4 switchboard               side      opus-5-5    ended 18:46  13:20           595  $73.00
+
+tab views   ↑↓ project   → its sessions   < > period: this week   p pin   ? help  q quit

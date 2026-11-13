@@ -72,8 +72,8 @@ func TestChangesMadeWhileAWriteIsUnderWayAreKeptAfterItTheLatestStanding(t *test
 	h.deliver(held...)
 
 	got := prefs.file.Read()
-	if prefs.updates != 2 || got.Tab != string(dashboard.Sessions) || got.By != "window" {
-		t.Errorf("written %d times, kept the tab %q, by %q; want twice, the latest of each, sessions and window", prefs.updates, got.Tab, got.By)
+	if prefs.updates != 2 || got.Tab != string(dashboard.History) || got.By != "window" {
+		t.Errorf("written %d times, kept the tab %q, by %q; want twice, the latest of each, history and window", prefs.updates, got.Tab, got.By)
 	}
 }
 
@@ -111,12 +111,12 @@ func TestAWatchThatStopsKeepsWhatItHadntYet(t *testing.T) {
 	next, _ = h.model.Update(tabKey)
 	h.model = next.(Model)
 	h.model.keepLeft()
-	if got := prefs.file.Read().Tab; got != string(dashboard.History) {
-		t.Errorf("stopped, the watch kept the tab %q, want history, the latest", got)
+	if got := prefs.file.Read().Tab; got != string(dashboard.Projects) {
+		t.Errorf("stopped, the watch kept the tab %q, want projects, the latest", got)
 	}
 	h.run(underWay)
-	if got := prefs.file.Read().Tab; got != string(dashboard.History) || prefs.updates != 1 {
-		t.Errorf("the write under way, run after the watch stopped, left the tab %q, written %d times in all; want history, written once", got, prefs.updates)
+	if got := prefs.file.Read().Tab; got != string(dashboard.Projects) || prefs.updates != 1 {
+		t.Errorf("the write under way, run after the watch stopped, left the tab %q, written %d times in all; want projects, written once", got, prefs.updates)
 	}
 }
 

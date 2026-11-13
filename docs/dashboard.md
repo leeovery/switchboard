@@ -1,12 +1,13 @@
 # Dashboard
 
-The dashboard keeps every account's usage on screen, live. It has seven tabs and a page for each
+The dashboard keeps every account's usage on screen, live. It has eight tabs and a page for each
 session, and shows the router's sessions and its record of every request. To open it, run
 `switchboard dashboard`.
 
 - [Terms](#terms)
 - [Overview](#overview)
 - [Accounts](#accounts)
+- [Projects](#projects)
 - [History](#history)
 - [Sessions](#sessions-1)
 - [Runway](#runway)
@@ -275,7 +276,59 @@ the accounts' names where the screen has room, as USAGE's name column does.
 `<` and `>` step to a shorter or a longer period, which both views count over. The periods are
 today, this week, 30 days, 12 weeks and 12 months. They're rolling, never billing months, and 12
 months are the days History's Year counts as its last 12 months. It's one dial for the dashboard,
-remembered from one run to the next: as other tabs come to count over a period, they'll share it.
+remembered from one run to the next, and Projects counts over it too.
+
+## Projects
+
+**Projects** shows where the use went: each project the period's sessions ran in, and the one
+chosen in full under the list. A project is the repository a session ran in. A session in a
+worktree or a subdirectory counts as its repository's, and one started outside any repository as
+its own directory's. Each is named by its folder, its parent too where two share a name. The
+sessions that didn't start through switchboard's `claude` name no directory, and share a
+`no directory` row.
+
+The list ranks the projects by their worth at API prices, the greatest first. Each row has:
+
+- its name
+- `live`, its sessions running now
+- its sessions, and its worth
+- a bar of its worth against the top project's, split by model family in the families' colours,
+  as History's BY MONTH splits a month's
+- its requests
+- `last`, when its last request came: `now` while one of its sessions is busy.
+
+`all projects` totals them under a rule, a session counted once. The list takes up to a third of
+the view's rows, and scrolls with the choice past them. As the width runs short, the bar narrows to
+8 cells, then requests and `last` leave, and then the name is cut.
+
+Under the list, the chosen project shows:
+
+- its name, its path and its sessions running
+- its numbers over the period: its sessions, requests and worth, its share of every project's
+  worth, and its tokens
+- WORTH BY, its worth in the finest bucket that fits: today by hour; this week and 30 days by day;
+  12 weeks by day where a column a day fits, else by week; and 12 months by week, the peak named
+  under it
+- BY MODEL, each version's share of its worth, those under 1% left out
+- ON ACCOUNTS, each account's share, the greatest first
+- SESSIONS, its sessions over the period in the List's columns: those running first, then the rest
+  under a rule for the day they ended, `ended today`, `ended yesterday`, a weekday within the week
+  or a date before it. Each starts at its first request, with its day where it began on another.
+
+Wide, WORTH BY sits in the left half, with BY MODEL over ON ACCOUNTS in the right. Narrower, WORTH
+BY runs across the width with the two side by side under it, and on a phone they stack. Where rows
+run short, ON ACCOUNTS leaves first, then BY MODEL, then WORTH BY, so SESSIONS keeps three rows at
+least.
+
+On Projects:
+
+- `↑` and `↓` choose the project.
+- `→` moves into the chosen project's sessions, and `←` goes back to the list.
+- In the sessions, `↑` and `↓` choose a session, and `enter` opens its page.
+- `<` and `>` step the period, shared with Accounts. See [The period](#the-period).
+
+The chosen row is lit only where `↑` and `↓` act, in the list or in the sessions. The other's chosen
+row stays bold, marked `▸`.
 
 ## History
 
@@ -747,6 +800,8 @@ switches at one width: under 100 columns, it takes its phone form.
   columns.
 - Graphs' cards stack, one to a row, each card's words beside its label where rows run short. See
   [Room on Graphs](#room-on-graphs).
+- Projects' sections stack, WORTH BY, then BY MODEL, then ON ACCOUNTS, and its list and SESSIONS
+  give way column by column as they do wherever the width runs short. See [Projects](#projects).
 - Accounts' `against it` and `against` give `all accounts`' ratio alone, but where an account has
   no `plan`, they add how many of the plans it's over, compact: `4.4× · 2/3`.
 - A session's page keeps each turn's number, start, length, requests, worth and accounts, as it
@@ -774,8 +829,8 @@ yesterday's, and scrolling back reads them in again.
 
 ### The tabs
 
-`tab` and `shift-tab` move between the seven tabs, in the title row's order: the Overview, Accounts,
-History, Sessions, Runway, Graphs and the Log. The order goes round, from the Log back to the Overview. The
+`tab` and `shift-tab` move between the eight tabs, in the title row's order: the Overview, Accounts,
+Projects, History, Sessions, Runway, Graphs and the Log. The order goes round, from the Log back to the Overview. The
 next dashboard opens on the tab last shown.
 
 ### The status line
@@ -857,14 +912,14 @@ router answers.
 ## Keys
 
 These keys work on every page. Each page's own keys are under the page:
-[Overview](#keys-on-the-overview), [Accounts](#accounts), [History](#history),
+[Overview](#keys-on-the-overview), [Accounts](#accounts), [Projects](#projects), [History](#history),
 [Sessions](#keys-on-sessions), [Runway](#runway), [Graphs](#keys-on-graphs),
 [the Log](#keys-on-the-log) and
 [a session's page](#a-sessions-page).
 
 | Key | Does |
 |---|---|
-| `tab` | Moves to the next tab, in the title row's order and round: the Overview, Accounts, History, Sessions, Runway, Graphs and the Log. From a session's page, moves to the tab after the one the page was opened from. |
+| `tab` | Moves to the next tab, in the title row's order and round: the Overview, Accounts, Projects, History, Sessions, Runway, Graphs and the Log. From a session's page, moves to the tab after the one the page was opened from. |
 | `shift-tab` | Moves to the tab before. From a session's page, moves to the tab before the one the page was opened from. |
 | `[` `]` | On Accounts, History, Sessions and the Log, moves to the sub-tab before or after, round. |
 | `p` | Opens the routing card. See [The routing card](#the-routing-card). |
@@ -1038,7 +1093,7 @@ iTerm2 and Terminal.app, and Shift in most others.
 | a tab or a sub-tab | Shows it. |
 | `<` or `>` by a period | Steps it. |
 | a key on the key line | Does what the key does. For a pair, such as `[ ]` or `< >`, it does what the second key does. A click doesn't act on `p pin` or `q quit`. |
-| a row that names an account, a session, a line or a turn, or a Compare column's head | Chooses it, as the arrows would. On the one already chosen, opens it, as `enter` does. |
+| a row that names an account, a project, a session, a line or a turn, or a Compare column's head | Chooses it, as the arrows would. On the one already chosen, opens it, as `enter` does. |
 | a section's heading, on the Overview or Graphs | Hides the section. |
 | `▼ 214 new`, on the Log | Follows again. |
 | a tick in the Log's `f` panel | Ticks it. |
@@ -1048,7 +1103,7 @@ The wheel scrolls what's under the pointer.
 Some rows act differently:
 
 - A click on a row of the Overview's SESSIONS opens the session's page at once.
-- A click on an account in Detail's list opens nothing.
+- A click on an account in Detail's list, or a project in Projects' list, opens nothing.
 - With a turn open, a click on a turn closes the open turn. If the turn clicked is another, the
   click then chooses it.
 

@@ -337,7 +337,7 @@ func (p page) fixture(worlds accountWorlds) Fixture {
 // on auto, with two picked, with one picked and m ticked, and over routing's
 // world of a limit, with side picked, and over the mixed world, where work
 // and personal have no 5-hour limit. History's frames, each reached from
-// the Overview with tab twice, then the keys to its view: the Year, and
+// the Overview with tab three times, then the keys to its view: the Year, and
 // filtered to Opus 5.5; Weeks, its table and its columns, and of ten
 // accounts; Days, of ten, and with an account removed; Tokens by account,
 // and by model; and the Year on a phone; and where no frame draws it, to
@@ -376,8 +376,14 @@ func (p page) fixture(worlds accountWorlds) Fixture {
 // and → and ↓ into its SESSIONS, d28c selected; side's SESSIONS, d28c
 // selected, opening on Accounts, so the stream first opens there, telling
 // each request in flight as it went; Detail alone, over work alone's
-// world; and on a phone, Compare, and Detail of work. Then Sessions' frames, each reached from the
-// Overview with tab three times: the Switchboard and, with ], the List, over
+// world; and on a phone, Compare, and Detail of work. Then Projects'
+// frames, each reached from the Overview with tab twice, over the auto
+// world, switchboard chosen as it opens on the top row: this week on a
+// MacBook, an iPad and a phone, the list holding the choice; on the phone,
+// with →, the choice in switchboard's sessions; on the iPad with its
+// keyboard up, the sections leaving as rows run short; and on the MacBook,
+// with > three times, the last 12 months. Then Sessions' frames, each
+// reached from the Overview with tab four times: the Switchboard and, with ], the List, over
 // the scene's world, wide and on a phone; the Switchboard over the mixed
 // world; and, each as a later look has it,
 // the Switchboard kept from a look before its moment that saw its sessions
@@ -389,7 +395,7 @@ func (p page) fixture(worlds accountWorlds) Fixture {
 // with ↓ four times, d28c chosen, its call lit to its plug; at 160 × 14, its
 // lines scrolling, ↓ six times scrolling to db8a; and the router gone, R
 // having found it so, what was in flight said as last known.
-// Then Runway's frames, each reached from the Overview with tab four times:
+// Then Runway's frames, each reached from the Overview with tab five times:
 // the week, which it opens on, wide and on a phone; the week before, ← twice,
 // this week and the one before; all over the auto world; the week of ten
 // accounts; over the mixed world of verified Ultra accounts; and over the
@@ -519,6 +525,12 @@ var pages = []page{
 	{name: "accounts-phone-detail-plan-unknown-52", size: watch.Size{Width: 52, Height: 41}, world: accountWorlds.sidesPlanUnknown, keys: toDetail()},
 	{name: "accounts-compare-73x61", size: watch.Size{Width: 73, Height: 61}, world: accountWorlds.auto, keys: toAccounts()},
 	{name: "accounts-detail-138x30", size: watch.Size{Width: 138, Height: 30}, world: accountWorlds.auto, keys: toDetail(downKey)},
+	{name: "projects-173x53", size: watch.Size{Width: 173, Height: 53}, world: accountWorlds.auto, keys: toProjects()},
+	{name: "projects-108x44", size: watch.Size{Width: 108, Height: 44}, world: accountWorlds.auto, keys: toProjects()},
+	{name: "projects-73x61", size: watch.Size{Width: 73, Height: 61}, world: accountWorlds.auto, keys: toProjects()},
+	{name: "projects-sessions-73x61", size: watch.Size{Width: 73, Height: 61}, world: accountWorlds.auto, keys: append(toProjects(), rightKey)},
+	{name: "projects-108x24", size: watch.Size{Width: 108, Height: 24}, world: accountWorlds.auto, keys: toProjects()},
+	{name: "projects-12-months-173x53", size: watch.Size{Width: 173, Height: 53}, world: accountWorlds.auto, keys: toProjects(">", ">", ">")},
 	{name: "sessions-switchboard-160", size: wide(37), world: accountWorlds.scene, keys: toSessions()},
 	{name: "sessions-list-160", size: wide(37), world: accountWorlds.scene, keys: toSessions("]")},
 	{name: "sessions-switchboard-mixed-160", size: wide(37), world: accountWorlds.mixed, keys: toSessions()},
@@ -583,7 +595,7 @@ var pages = []page{
 }
 
 // lookedAway are the keys a look at Sessions' Switchboard by before a page's
-// moment pressed: tab three times to reach it, then once more, on to Runway,
+// moment pressed: tab four times to reach it, then once more, on to Runway,
 // its request stream closing.
 func lookedAway(by time.Duration) earlier {
 	return earlier{by: by, keys: append(toSessions(), tabKey)}
@@ -602,10 +614,10 @@ func keysOf(text ...string) []tea.KeyPressMsg {
 	return keys
 }
 
-// toHistory are the keys that reach History from the Overview, tab twice,
-// then the text given, a key a character.
+// toHistory are the keys that reach History from the Overview, tab three
+// times, then the text given, a key a character.
 func toHistory(text ...string) []tea.KeyPressMsg {
-	return append([]tea.KeyPressMsg{{Code: tea.KeyTab}, {Code: tea.KeyTab}}, keysOf(text...)...)
+	return append(repeated(tabKey, 3), keysOf(text...)...)
 }
 
 // toAccounts are the keys that reach Accounts from the Overview, tab, then
@@ -614,22 +626,28 @@ func toAccounts(text ...string) []tea.KeyPressMsg {
 	return append([]tea.KeyPressMsg{{Code: tea.KeyTab}}, keysOf(text...)...)
 }
 
+// toProjects are the keys that reach Projects from the Overview, tab twice,
+// then the text given, a key a character.
+func toProjects(text ...string) []tea.KeyPressMsg {
+	return append(repeated(tabKey, 2), keysOf(text...)...)
+}
+
 // toDetail are the keys that reach Accounts' Detail from the Overview, tab
 // and ], then the keys given.
 func toDetail(then ...tea.KeyPressMsg) []tea.KeyPressMsg {
 	return append(toAccounts("]"), then...)
 }
 
-// toSessions are the keys that reach Sessions from the Overview, tab three
+// toSessions are the keys that reach Sessions from the Overview, tab four
 // times, then the text given, a key a character.
 func toSessions(text ...string) []tea.KeyPressMsg {
-	return append(repeated(tabKey, 3), keysOf(text...)...)
+	return append(repeated(tabKey, 4), keysOf(text...)...)
 }
 
-// toRunway are the keys that reach Runway from the Overview, tab four times,
+// toRunway are the keys that reach Runway from the Overview, tab five times,
 // then the text given, a key a character.
 func toRunway(text ...string) []tea.KeyPressMsg {
-	return append(repeated(tabKey, 4), keysOf(text...)...)
+	return append(repeated(tabKey, 5), keysOf(text...)...)
 }
 
 // toGraphs are the keys that reach Graphs from the Overview, shift-tab twice,

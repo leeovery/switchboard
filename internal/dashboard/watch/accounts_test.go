@@ -36,12 +36,12 @@ func TestAccountsAndHistoryShareOneReadOfTheYear(t *testing.T) {
 	if !slices.EqualFunc(l.reads, []time.Time{yearFrom}, time.Time.Equal) || h.model.accounts.page == nil {
 		t.Fatalf("Accounts opened, the ledger was read from %v, its page %v; want the year read once, from %s, and the page built", l.reads, h.model.accounts.page, yearFrom)
 	}
-	h.keys(tabKey)
+	h.keys(tabKey, tabKey)
 	if h.model.view != dashboard.History || len(l.reads) != 1 || h.model.past.page.Year == nil {
 		t.Fatalf("on %s, the ledger was read from %v, the Year %v; want History, its Year drawn of the year read once", h.model.view, l.reads, h.model.past.page.Year)
 	}
 	h.tickUntilAsked()
-	h.keys(shiftTabKey)
+	h.keys(shiftTabKey, shiftTabKey)
 	h.tickUntilAsked()
 	if want := []time.Time{yearFrom, todayStart, todayStart}; !slices.EqualFunc(l.reads, want, time.Time.Equal) {
 		t.Errorf("after a look on each, the ledger was read from %v, want %v: today alone at each", l.reads, want)
@@ -72,7 +72,7 @@ func TestAccountsPageIsBuiltOnceForTheDaysHeldAndThePeriod(t *testing.T) {
 	if h.model.accounts.page != nil {
 		t.Fatalf("on History, its days read, Accounts' page is %+v, want none built", h.model.accounts.page)
 	}
-	h.keys(shiftTabKey)
+	h.keys(shiftTabKey, shiftTabKey)
 	built := h.model.accounts.page
 	if built == nil || built.Period != views.PeriodThisWeek {
 		t.Fatalf("Accounts shown, its page is %+v, want it built over this week", built)
@@ -322,7 +322,7 @@ func TestHistorysWeeksTellTheAccountsWeeksAsAccountsAtTheMoment(t *testing.T) {
 	h := momentHarness(t, mo, dashboard.History)
 	h.start()
 	weeks := h.model.frame(mo.Now).History.Weeks
-	h.keys(shiftTabKey)
+	h.keys(shiftTabKey, shiftTabKey)
 	page := h.model.frame(mo.Now).Accounts.Page
 	if weeks == nil || page == nil {
 		t.Fatalf("Weeks is %v drawn, Accounts' page %v; want both", weeks, page)
@@ -349,7 +349,7 @@ func TestAccountsShownAfterHistoryReadItsDaysFoldsAResetSinceTheRead(t *testing.
 	h.start()
 	reads := len(h.model.cfg.Ledger.(*daysLedger).reads)
 	h.clock.now = mo.Now
-	h.keys(shiftTabKey)
+	h.keys(shiftTabKey, shiftTabKey)
 
 	if got := len(h.model.cfg.Ledger.(*daysLedger).reads); got != reads {
 		t.Fatalf("Accounts shown read the days %d times more, want it shown of those History read", got-reads)
@@ -926,7 +926,7 @@ func TestALookOnAccountsLeavesHistorysPageToBeBuiltOnceItShows(t *testing.T) {
 	if h.model.past.page.Year != year {
 		t.Fatal("a look on Accounts built History's Year afresh, want it left till History shows")
 	}
-	h.keys(tabKey)
+	h.keys(tabKey, tabKey)
 	built := h.model.past.page.Year
 	if got, ok := gridDay(*built, today); h.model.view != dashboard.History || !ok || got.Requests != 3 {
 		t.Fatalf("on %s, today is %+v on the Year, want History, today's 3 requests drawn", h.model.view, got)

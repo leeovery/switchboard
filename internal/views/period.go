@@ -4,6 +4,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/quota"
 )
 
@@ -101,6 +102,14 @@ func (p Period) Stepped(by int) (Period, bool) {
 		return p, false
 	}
 	return periods[i], true
+}
+
+// From is when the period begins at now, weeks starting on the day given:
+// at the start of its first local day, as dayfile.Day has it, where a read
+// of its days begins, as ReadSessionDays takes it.
+func (p Period) From(now time.Time, starts time.Weekday) time.Time {
+	start, _, _ := dayfile.Day(p.first(dayfile.CivilOf(now), starts).Format(time.DateOnly))
+	return start
 }
 
 // first is the period's first day, today being the day given, as

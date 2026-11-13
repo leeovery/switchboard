@@ -342,6 +342,9 @@ type Model struct {
 	// past is what the watch holds of History: its page, the ledger's days
 	// it's built of, and the reads of them, which Accounts shares.
 	past historyTab
+	// projects is what the watch holds of Projects: what it shows, the
+	// sessions' days it's built of, and its pages.
+	projects projectsTab
 	// sessionsTab is what the watch holds of Sessions: what it shows, its
 	// Switchboard and its List as the last look built them, and whether the
 	// List is held. held are the sessions its readers want, the store
@@ -544,7 +547,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	tuned, closed := next.(Model).letGo().relived(msg, now).closing()
 	tuned, stream := tuned.tune()
 	tuned, past := tuned.readHistory()
-	tuned = tuned.historyBuilt().accountsBuilt().followed(msg).sessionsLooked(msg).runwayLooked(msg)
+	tuned, projected := tuned.readProjects()
+	tuned = tuned.historyBuilt().accountsBuilt().projectsBuilt(msg).followed(msg).sessionsLooked(msg).runwayLooked(msg)
 	tuned, paged := tuned.readPage()
 	tuned, logged := tuned.readLog()
 	tuned, found := tuned.readFind()
@@ -565,7 +569,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	tuned = tuned.compared(page, now)
 	tuned, frames := tuned.startFrames(page, now)
 	tuned.taking = taking{}
-	return tuned, tea.Batch(cmd, closed, stream, past, paged, logged, found, listed, ran, lately, tailing, costs, keeps, waits, frames)
+	return tuned, tea.Batch(cmd, closed, stream, past, projected, paged, logged, found, listed, ran, lately, tailing, costs, keeps, waits, frames)
 }
 
 // taking is a message as Update takes it in: when it came, which every look
@@ -715,6 +719,8 @@ func (m Model) take(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.yearRead(msg), nil
 	case sinceMsg:
 		return m.sinceRead(msg), nil
+	case projectsReadMsg:
+		return m.projectsRead(msg), nil
 	case tailedMsg:
 		return m.tailed(msg), nil
 	case logReadMsg:
@@ -941,6 +947,7 @@ func (m Model) frame(now time.Time) dashboard.Frame {
 		PlansAtMost:      m.plansAtMost,
 		Period:           m.period,
 		Accounts:         m.accounts.shown,
+		Projects:         m.projects.shown,
 		Runway:           m.runwayTab.shown,
 		Graphs:           m.graphsShown(),
 		History:          m.past.page,

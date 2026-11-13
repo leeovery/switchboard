@@ -67,6 +67,31 @@ func TestAWorthIsSaidToTheDollar(t *testing.T) {
 	}
 }
 
+// A worth rounded is to the cent under $100, as $48.20, and to the dollar
+// from it, as $239, a + where part is unpriced either way.
+func TestAWorthRoundedIsToTheCentUnderAHundredDollars(t *testing.T) {
+	tests := []struct {
+		name  string
+		worth views.Worth
+		want  string
+	}{
+		{name: "under a hundred", worth: views.Worth{Amount: usd(48.2)}, want: "$48.20"},
+		{name: "a cent under a hundred", worth: views.Worth{Amount: usd(99.99)}, want: "$99.99"},
+		{name: "rounding to a hundred", worth: views.Worth{Amount: usd(99.996)}, want: "$100"},
+		{name: "a hundred", worth: views.Worth{Amount: usd(100)}, want: "$100"},
+		{name: "a thousand or more", worth: views.Worth{Amount: usd(2388.6)}, want: "$2,389"},
+		{name: "part unpriced, under a hundred", worth: views.Worth{Amount: usd(17.856), Unpriced: []string{"no_usage"}}, want: "$17.86+"},
+		{name: "wholly unpriced", worth: views.Worth{Unpriced: []string{"claude-opus-9"}}, want: "unpriced"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.worth.Rounded(); got != tt.want {
+				t.Errorf("Rounded() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 // A plan's price a month is to the dollar, its thousands set apart; a plan
 // whose price isn't known says none.
 func TestAPlansPriceAMonthSetsItsThousandsApart(t *testing.T) {

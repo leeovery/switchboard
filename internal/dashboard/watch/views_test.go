@@ -55,7 +55,7 @@ func TestTabShowsTheNextTabAndKeepsIt(t *testing.T) {
 		want dashboard.View
 	}{
 		{key: "tab", want: dashboard.Accounts},
-		{key: "tab", want: dashboard.History},
+		{key: "tab", want: dashboard.Projects},
 		{key: "shift+tab", want: dashboard.Accounts},
 		{key: "shift+tab", want: dashboard.Overview},
 		{key: "shift+tab", want: dashboard.Log},
@@ -67,12 +67,12 @@ func TestTabShowsTheNextTabAndKeepsIt(t *testing.T) {
 	}
 }
 
-func TestTabTurnsRoundTheSevenTabs(t *testing.T) {
+func TestTabTurnsRoundTheEightTabs(t *testing.T) {
 	h := newHarness(t, calm())
 	h.start()
 
-	if !strings.Contains(h.view(), " Overview   Accounts   History   Sessions   Runway   Graphs   Log ") {
-		t.Errorf("the screen is\n%s\nwant the seven tabs", h.view())
+	if !strings.Contains(h.view(), " Overview   Accounts   Projects   History   Sessions   Runway   Graphs   Log ") {
+		t.Errorf("the screen is\n%s\nwant the eight tabs", h.view())
 	}
 	overview := "USAGE"
 	for _, step := range []struct {
@@ -83,6 +83,7 @@ func TestTabTurnsRoundTheSevenTabs(t *testing.T) {
 		wantShows string
 	}{
 		{key: "tab", want: dashboard.Accounts},
+		{key: "tab", want: dashboard.Projects, wantShows: "PROJECTS  ─"},
 		{key: "tab", want: dashboard.History},
 		{key: "tab", want: dashboard.Sessions},
 		{key: "tab", want: dashboard.Runway, wantShows: "RUNWAY  ─"},

@@ -49,6 +49,9 @@ func (m Model) pageKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if next, cmd, ok := afresh.accountsKey(k); ok {
 		return next, cmd
 	}
+	if next, cmd, ok := afresh.projectsKey(k); ok {
+		return next, cmd
+	}
 	if next, ok := afresh.historyKey(k); ok {
 		return next, nil
 	}
@@ -126,7 +129,8 @@ func (m Model) graphsKey(key string) (Model, bool) {
 // from the keys before it, in a group of its own; whether a phone's line
 // leaves it to help, keeping it to a line wider than a phone's; whether it
 // scrolls the view, working only where the view scrolls; and the word a
-// phone's line gives it, where that's another, as enter's open.
+// phone's line gives it, its state left off, where that's another, as
+// enter's open.
 type keyListing struct {
 	dashboard.Key
 	works, helpful, leads, apart, wide, scrolls bool
@@ -163,7 +167,7 @@ func (m Model) keys(running []string) pageKeys {
 	}
 	toggles := shown == dashboard.Overview || shown == dashboard.Graphs
 	pin, pinned := m.pinKey()
-	own := slices.Concat(m.overviewListings(), m.accountsListings(running), m.historyListings(), m.sessionsListings(), m.runwayListings(), m.graphsListings(), m.logListings())
+	own := slices.Concat(m.overviewListings(), m.accountsListings(running), m.projectsListings(), m.historyListings(), m.sessionsListings(), m.runwayListings(), m.graphsListings(), m.logListings())
 	scrollsAlways := toggles || shown == dashboard.Log
 	return pageKeys{own: own, toggles: toggles, scrollsAlways: scrollsAlways, pin: pin, pinned: pinned, coloured: m.coloured()}
 }
@@ -310,6 +314,8 @@ func (m Model) keyLine(f dashboard.Frame, now time.Time) dashboard.KeyLine {
 	}
 	l.Phone = page.phone
 	switch m.shownView() {
+	case dashboard.Projects:
+		l.After = apart
 	case dashboard.Log:
 		l.Phone = m.logPhoneKeys()
 	case dashboard.Sessions:
@@ -353,10 +359,11 @@ func grouped(listed []keyListing) lineKeys {
 	return keys
 }
 
-// phoned is the key as a phone's line words it.
+// phoned is the key as a phone's line words it: by its phone's word, its
+// state left off, where it has one.
 func (k keyListing) phoned() dashboard.Key {
 	if k.phoneDoes != "" {
-		k.Does = k.phoneDoes
+		k.Does, k.State = k.phoneDoes, ""
 	}
 	return k.Key
 }

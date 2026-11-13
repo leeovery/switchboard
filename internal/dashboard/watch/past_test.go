@@ -131,7 +131,7 @@ func TestHistoryReadsNothingWhileItIsntShown(t *testing.T) {
 	if len(l.reads) > 0 {
 		t.Fatalf("on the Overview, the ledger was read for History from %v, want never", l.reads)
 	}
-	h.keys(tabKey, tabKey)
+	h.keys(tabKey, tabKey, tabKey)
 	if h.model.view != dashboard.History || !slices.EqualFunc(l.reads, []time.Time{yearFrom}, time.Time.Equal) {
 		t.Fatalf("on %s, the ledger was read from %v, want History, its year read from %s", h.model.view, l.reads, yearFrom)
 	}

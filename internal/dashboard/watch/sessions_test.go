@@ -671,16 +671,17 @@ func TestEscFromASessionsPageComesBackToSessionsAsItWasLeft(t *testing.T) {
 // sessionsOnTheLedger is a model of the router of three, listing d28c on
 // work, reading the request ledger in the state directory given, as
 // daysCounted counts its reads, started at the time given on Sessions, the
-// List read and held, the Log never shown.
+// List read and held, the Log never shown, nor Projects, whose reads of the
+// days it would count.
 func sessionsOnTheLedger(t *testing.T, state string, now time.Time) (*harness, *daysCounted) {
 	t.Helper()
 	h := routedHarness(t, routerDocument(three()...))
 	h.source.sessions = []status.Session{sessionOn(idD28C, opus, "work", 0)}
 	l := onTheLog(h, state)
-	h.model.view = dashboard.Overview
+	h.model.view = dashboard.Runway
 	h.clock.now = now
 	h.start()
-	h.keys(toSessions...)
+	h.keys(shiftTabKey)
 	if !h.model.sessionsTab.listed {
 		t.Fatal("Sessions shown, the List isn't held")
 	}

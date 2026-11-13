@@ -43,8 +43,8 @@ func targetAt(targets []dashboard.Target, x, y int) (dashboard.Target, bool) {
 }
 
 // clickedOn does what a click on the target does, which is what its key
-// does, the page acting as acting has it: on Accounts and Sessions, as
-// accountsClick and sessionsClick have it; on a tab, it shows it, as showTab
+// does, the page acting as acting has it: on Accounts, Projects and
+// Sessions, as accountsClick, projectsClick and sessionsClick have it; on a tab, it shows it, as showTab
 // has it; on a sub-tab, it shows it, as showSubTab has it, or the Log's; on <
 // or > by a period or Runway's week, it presses it; on a key of the key
 // line, it presses it, as pressOf says; on what on the page stands for a
@@ -62,6 +62,9 @@ func (m Model) clickedOn(t dashboard.Target) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	if next, cmd, ok := m.accountsClick(t); ok {
+		return next, cmd
+	}
+	if next, cmd, ok := m.projectsClick(t); ok {
 		return next, cmd
 	}
 	if next, cmd, ok := m.sessionsClick(t); ok {

@@ -668,10 +668,9 @@ func (cp compared) byModel(c *canvas, y int, columns []compareColumn) int {
 	for _, col := range columns {
 		stackedBar(c, cp.f.Look, col.x, y, splitCells(shareAmounts(col.row, versions), cp.laid.share), hues)
 	}
-	for i, v := range versions {
+	for _, v := range versions {
 		y++
-		c.text(labelIndent, y, "●", hues[i].ink())
-		c.line(versionAt, y, line{{prose.Cut(v.Name, cp.laid.labels-versionAt), secondaryInk}})
+		versionHead(c, 0, y, v, cp.laid.labels-versionAt)
 		for _, col := range columns {
 			var share *float64
 			if s, ok := shareOf(col.row, v); ok {
@@ -681,6 +680,15 @@ func (cp compared) byModel(c *canvas, y int, columns []compareColumn) int {
 		}
 	}
 	return y
+}
+
+// versionHead draws a version's head along row y of BY MODEL drawn from x,
+// as Accounts' BY MODEL heads each version's row: its ●, labelIndent cells
+// in, in its shade, and its name, from versionAt, in text.secondary, cut to
+// the cells given.
+func versionHead(c *canvas, x, y int, v ledger.Version, cells int) {
+	c.text(x+labelIndent, y, "●", versionHue(v).ink())
+	c.line(x+versionAt, y, line{{prose.Cut(v.Name, cells), secondaryInk}})
 }
 
 // shareOf is the row's share of use of the version given, reporting false

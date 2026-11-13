@@ -789,13 +789,14 @@ func panelHeading(name string, focused bool) span {
 	return span{name, dimInk}
 }
 
-// chosenRow picks out the chosen row of a part of Detail that holds a
-// choice, its list or SESSIONS, across width cells from x along row y: on
-// bg.selection while its part holds the focus; else bold, its colours kept,
-// so it still reads as chosen while the other's row is lit.
+// chosenRow picks out the chosen row of a part of a view that holds a
+// choice, as Detail's list or SESSIONS, or Projects' list, across width
+// cells from x along row y: on bg.selection while its part holds the focus,
+// a cell with a surface of its own, as a bar's, keeping it; else bold, its
+// colours kept, so it still reads as chosen while the other's row is lit.
 func chosenRow(c *canvas, x, y, width int, focused bool) {
 	if focused {
-		c.surface(x, y, width, hue{token: theme.BgSelection})
+		c.surfaceUnder(x, y, width, hue{token: theme.BgSelection})
 		return
 	}
 	c.emboldened(x, y, width)

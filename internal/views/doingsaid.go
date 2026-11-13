@@ -50,6 +50,16 @@ func (a Activity) State(now time.Time) string {
 	return "idle " + prose.Span(now.Sub(a.Since))
 }
 
+// DayState says what it's doing at now as State says it, but once it's
+// over, when its last request came by the clock alone, "ended 18:20", as a
+// list grouped by the day each session ended says it under that day's rule.
+func (a Activity) DayState(now time.Time) string {
+	if a.Doing == Ended {
+		return "ended " + prose.TimeOfDay(now, a.Since)
+	}
+	return a.State(now)
+}
+
 // WaitingSaid says it waiting, as a session's page ends its newest turn's
 // row in it: "↑ asking" while a request of it waits for its answer, as
 // Waiting says, throttled or refused as well as asking; else "", the row
