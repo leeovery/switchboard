@@ -37,8 +37,9 @@ Every Claude subscription has a weekly limit, most a 5-hour one too. When you hi
 - **Every request on record.** Kept for a year, so you can follow any session and see what your use was worth at API prices against what your plans cost.
 - **Your usage, always in view.** A live dashboard shows what's left in each window, when you'll run out at your pace, and when it resets.
 - **You and Claude both steer.** Pin new sessions to an account, or move running ones, from the command line, the dashboard, or by asking Claude.
+- **A client's accounts stay theirs.** Fence a pool of accounts to a client's directories: sessions started there use those accounts alone, and no other session does.
 - **Told in time.** Desktop notifications when an account hits a limit, has room again, passes a share you set, or its token nears the end of its year.
-- **Never in the way.** If switchboard can't route a session, `claude` starts as it would without it.
+- **Never in the way.** If switchboard can't route a session, `claude` starts as it would without it, but never inside a pool's fence.
 
 **Worth it with one subscription.** Claude paces its work on your live usage and your history, every request goes on record, and the dashboard shows where you stand. The router carries every request on that one account; a session that hits a limit has nowhere else to go until you add a second.
 
@@ -81,7 +82,7 @@ switchboard dashboard   # the live dashboard
 
 `setup` takes you through adding your accounts and installing the rest, full screen, a page a step, making each account's token with `claude setup-token` as it goes. You give each account a label, which every screen shows; switchboard gives it an id, made from its subscription, which commands such as `pin` take and `switchboard accounts` lists. At the end, `enter` opens the dashboard. See [`setup`](docs/commands.md#setup) for what each step does.
 
-**Upgrading from a version before account ids?** The first time the router starts on one that makes them, it moves your accounts and their history onto the ids it makes, once, by itself, routing throughout. See [Upgrading to account ids](docs/how-it-works.md#upgrading-to-account-ids).
+**Upgrading from a version before account ids?** The first time the router starts on one that makes them, it moves your accounts and their history onto the ids it makes, once, by itself, routing throughout. See [Upgrading to account ids](docs/how-it-works.md#upgrading-to-account-ids). It moves your history to pools the same way, putting every account in the first pool, `Default`: see [Upgrading to pools](docs/how-it-works.md#upgrading-to-pools).
 
 ## How it works
 
@@ -127,6 +128,7 @@ Run by Claude, these commands print JSON without being asked. See [Claude and sw
 | [`switchboard history`](docs/commands.md#history) | Your use by day and week: requests, tokens and worth |
 | [`switchboard events`](docs/commands.md#events) | What the router decided and noticed |
 | [`switchboard accounts`](docs/commands.md#accounts) | Lists accounts, adds, edits and removes them, and replaces tokens |
+| [`switchboard pool`](docs/commands.md#pool) | Lists the pools, and makes, fences and removes them |
 | [`switchboard service`](docs/commands.md#service) | Installs, restarts and checks the service that keeps the router running |
 | [`switchboard logs`](docs/commands.md#logs) | Shows and follows the logs |
 
