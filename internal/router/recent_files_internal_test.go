@@ -175,28 +175,55 @@ func TestAnEventIsFiledAgainAsItChangesAndReadBackAsItLastStands(t *testing.T) {
 // A move from before pools, waiting at take-up for the limit that forced
 // it, is filed once the limit's told naming the first pool, as the move to
 // pools gives the version filed before: the limit names none, as its
-// account's windows are its own.
+// account's windows are its own, and a start naming a pool already keeps
+// it. Where the config has no pools to take up, the move names none.
 func TestAMoveWaitingAsThePoolsAreTakenUpIsFiledInTheFirstPool(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "config.toml")
-	writeConfigFile(t, path, unpooledTOML("work", "personal", "side"))
-	cfg := testConfig(at(start), &stubProber{}, poolTokens.Read)
-	cfg.Accounts, cfg.ConfigFile = config.Accounts{{ID: "work", Label: "work"}, {ID: "personal", Label: "personal"}, {ID: "side", Label: "side"}}, Watch(path)
-	r := newTestRouterOf(t, cfg)
-	files := fileEvents(t, r.recent)
-	r.recent.hear(forced("one", "work", "side"))
-
-	writeConfigFile(t, path, poolsTOML(defaultPool, defaultTOML, acmeTOML))
-	if !r.takeUpPools() {
-		t.Fatal("takeUpPools() = false, want the router routing in the pools")
+	tests := []struct {
+		name, config string
+		tookUp       bool
+		// want are the pools the events filed last name, by kind.
+		want map[string]string
+	}{
+		{
+			name:   "pools taken up",
+			config: poolsTOML(defaultPool, defaultTOML, acmeTOML), tookUp: true,
+			want: map[string]string{status.EventStarted: acmePool, status.EventMoved: defaultPool, status.EventLimit: ""},
+		},
+		{
+			name:   "no pools to take up",
+			config: unpooledTOML("work", "personal", "side"),
+			want:   map[string]string{status.EventStarted: acmePool, status.EventMoved: "", status.EventLimit: ""},
+		},
 	}
-	r.recent.hear(LimitReached{Account: "work", Windows: []string{"5h"}, Until: start.Add(time.Hour), Limit: 1})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "config.toml")
+			writeConfigFile(t, path, unpooledTOML("work", "personal", "side"))
+			cfg := testConfig(at(start), &stubProber{}, poolTokens.Read)
+			cfg.Accounts, cfg.ConfigFile = config.Accounts{{ID: "work", Label: "work"}, {ID: "personal", Label: "personal"}, {ID: "side", Label: "side"}}, Watch(path)
+			r := newTestRouterOf(t, cfg)
+			files := fileEvents(t, r.recent)
+			r.recent.hear(SessionStarted{Session: "two", Model: opus, Account: "personal", Reason: "new", Pool: acmePool})
+			r.recent.hear(forced("one", "work", "side"))
 
-	pools := make(map[string]string)
-	for _, line := range files.read() {
-		pools[line.Kind] = line.Pool
-	}
-	if want := map[string]string{status.EventMoved: defaultPool, status.EventLimit: ""}; !maps.Equal(pools, want) {
-		t.Errorf("the events filed last name the pools %v, want %v: the move the first, the limit none", pools, want)
+			writeConfigFile(t, path, tt.config)
+			if got := r.takeUpPools(); got != tt.tookUp {
+				t.Fatalf("takeUpPools() = %t, want %t", got, tt.tookUp)
+			}
+			r.recent.hear(LimitReached{Account: "work", Windows: []string{"5h"}, Until: start.Add(time.Hour), Limit: 1})
+
+			filed := files.read()
+			pools := make(map[string]string)
+			for _, line := range filed {
+				pools[line.Kind] = line.Pool
+			}
+			if !maps.Equal(pools, tt.want) {
+				t.Errorf("the events filed last name the pools %v, want %v", pools, tt.want)
+			}
+			if kept := asFiled(r.recent.events()); !reflect.DeepEqual(filed, kept) {
+				t.Errorf("the files read back\n%+v\nwant the events kept\n%+v", filed, kept)
+			}
+		})
 	}
 }
 
