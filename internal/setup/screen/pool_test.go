@@ -226,8 +226,9 @@ func TestTheNewPoolCardSaysWhyAPoolIsRefused(t *testing.T) {
 // The edit card has a Pool once there's a second pool, its hint saying a
 // move takes the account's sessions off; Primary's hint names the pool
 // chosen. Moved, the edit asks for the pool, and the primary where yes is
-// chosen; moved to a pool with no account, or a new one, Primary shows yes,
-// held, as it's the pool's first.
+// chosen, never where no is; moved to a pool with no account, or a new one,
+// Primary shows yes, held, as it's the pool's first, which accounts marks it
+// without being asked.
 func TestTheEditCardsPoolAndPrimary(t *testing.T) {
 	steps := pooledSteps()
 	steps.review.Pools = append(steps.review.Pools, config.Pool{ID: "r2d4", Label: "Spare", Dirs: []string{"/x"}, WrittenDirs: []string{"/x"}})
@@ -253,14 +254,22 @@ func TestTheEditCardsPoolAndPrimary(t *testing.T) {
 	if got := h.cardRow("Primary"); got != "  Primary   ■ no    □ yes" || !strings.Contains(strings.Join(cardRows(h), "\n"), "Default's sessions start on it") {
 		t.Errorf("Default chosen, Primary reads %q, want no, its hint Default's", got)
 	}
+	h.pressAndDeliver("enter")
+	if edits := h.steps.edits; len(edits) != 1 || edits[0].edit.Pool == nil || *edits[0].edit.Pool != "b2n8" || edits[0].edit.Primary {
+		t.Errorf("EditAccount was given %+v, want acme2 moved to Default, not its primary, so Default's keeps its place", edits)
+	}
+	h.steps.edits = nil
+	h.pressAndDeliver("e")
+	h.pressAndDeliver("tab")
+	h.pressAndDeliver("tab")
 	h.pressAndDeliver("right")
 	h.pressAndDeliver("right")
 	if got := h.cardRow("Primary"); got != "  Primary   □ no    ■ yes" {
 		t.Errorf("Spare, with no account, chosen, Primary reads %q, want yes, held", got)
 	}
 	h.pressAndDeliver("enter")
-	if edits := h.steps.edits; len(edits) != 1 || edits[0].id != "acme2" || edits[0].edit.Pool == nil || *edits[0].edit.Pool != "r2d4" || !edits[0].edit.Primary {
-		t.Errorf("EditAccount was given %+v, want acme2 moved to Spare, its primary", edits)
+	if edits := h.steps.edits; len(edits) != 1 || edits[0].id != "acme2" || edits[0].edit.Pool == nil || *edits[0].edit.Pool != "r2d4" || edits[0].edit.Primary {
+		t.Errorf("EditAccount was given %+v, want acme2 moved to Spare, its primary as its first, unasked", edits)
 	}
 }
 

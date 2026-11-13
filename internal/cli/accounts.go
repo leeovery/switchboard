@@ -650,7 +650,8 @@ func editedSays(e accounts.Edited) string {
 	if e.Was.Label != e.Now.Label {
 		changed = append(changed, labelChanged(e))
 	}
-	if !strings.EqualFold(e.Was.Pool, e.Now.Pool) {
+	moved := !strings.EqualFold(e.Was.Pool, e.Now.Pool)
+	if moved {
 		changed = append(changed, nowAndWas("pool", poolLabel(e.Before.Pools, e.Now.Pool), poolLabel(e.Before.Pools, e.Was.Pool)))
 	}
 	if e.KeptPrimary != "" {
@@ -665,6 +666,8 @@ func editedSays(e accounts.Edited) string {
 	switch {
 	case e.FormerPrimary != "":
 		changed = append(changed, "the primary in place of "+e.FormerPrimary)
+	case e.Marked && moved:
+		changed = append(changed, "marked the primary there, as the first in it")
 	case e.Marked:
 		changed = append(changed, "marked the primary, which it was as the first with none marked")
 	}

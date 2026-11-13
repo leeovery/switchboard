@@ -175,9 +175,10 @@ func (c editCard) drawn() *dashboard.SetupEditCard {
 
 // edit is the change the card asks for: each value that differs from the
 // account's as it opened on it; the pool it moves to, or the new pool made
-// for it, where it moves; and the primary where Primary shows yes of an
-// account that isn't its pool's, staying, or wherever it moves. It reports
-// false where it asks for none.
+// for it, where it moves; and the primary where Primary was made yes, of an
+// account that isn't its pool's, staying, or wherever it moves: never where
+// it's held, as an account moving to a pool with none is marked its primary
+// by accounts' own rule. It reports false where it asks for none.
 func (c editCard) edit() (setup.Edit, bool) {
 	var e setup.Edit
 	if label := c.label.value(); label != c.opened.Label {
@@ -193,7 +194,7 @@ func (c editCard) edit() (setup.Edit, bool) {
 		}
 	}
 	e.Reserve = c.opened.ReserveChange(c.reserve.value())
-	e.Primary = (c.primary || c.primaryHeld()) && (c.moving() || !c.opened.Primary)
+	e.Primary = c.primary && (c.moving() || !c.opened.Primary)
 	return e, e.Label != nil || e.Plan != nil || e.Pool != nil || e.NewPool != nil || e.Reserve != nil || e.Primary
 }
 

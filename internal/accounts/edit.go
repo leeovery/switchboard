@@ -21,7 +21,8 @@ type Change struct {
 	// for none.
 	Reserve *float64
 	// Pool is the id of the pool it's moved into: moved, it's that pool's
-	// primary only as Primary makes it, as Edited's KeptPrimary says.
+	// primary only as Primary makes it, as Edited's KeptPrimary says, or as
+	// the first in it, which it's marked.
 	Pool *string
 	// NewPool is a pool made for it to move into, in the edit that moves it,
 	// in place of Pool: it's the pool's first account, so its primary.
@@ -158,6 +159,10 @@ func (r Registry) edit(id string, change Change, poolID poolID) (Edited, error) 
 	if err := draft.Save(); err != nil {
 		return Edited{}, err
 	}
+	if change.NewPool != nil {
+		made, _ := draft.Config().Pools.ByID(now.Pool)
+		poolAdded(made)
+	}
 	logger.Info("edited an account", "account", id, "primary", now.Primary, "plan", now.Plan, "reserve", now.Reserve)
 	return edited, nil
 }
@@ -204,17 +209,22 @@ func (c Change) apply(draft *config.Draft, was config.Account) (kept string, err
 }
 
 // move moves the account with the given id into the pool the change names,
-// in the draft. Where the account would take the place of that pool's
+// in the draft, marking it that pool's primary where it's the first in it,
+// as firstIn has it. Where the account would take the place of that pool's
 // primary, as the first with none marked, and the change doesn't make it the
 // primary, it marks the one that is, so the account is its pool's primary
 // only as Primary makes it; it returns the id of the one it marked, "" for
 // none.
 func (c Change) move(draft *config.Draft, id string) (string, error) {
-	primary, has := draft.Config().Accounts.PrimaryOf(*c.Pool)
+	first := firstIn(draft.Config(), *c.Pool)
+	primary, _ := draft.Config().Accounts.PrimaryOf(*c.Pool)
 	if err := draft.SetPool(id, *c.Pool); err != nil {
 		return "", err
 	}
-	if c.Primary || !has {
+	switch {
+	case first:
+		return "", draft.SetPrimary(id)
+	case c.Primary:
 		return "", nil
 	}
 	if now, _ := draft.Config().Accounts.PrimaryOf(*c.Pool); now.ID == primary.ID {

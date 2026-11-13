@@ -145,8 +145,14 @@ func (r Registry) AddPool(label string, dirs []string) (config.Pool, error) {
 	if err != nil {
 		return config.Pool{}, err
 	}
-	logger.Info("added a pool", "pool", added.ID, "fenced", added.Fenced())
+	poolAdded(added)
 	return added, nil
+}
+
+// poolAdded logs a pool added, by AddPool, or made with an account added or
+// moved into it.
+func poolAdded(added config.Pool) {
+	logger.Info("added a pool", "pool", added.ID, "fenced", added.Fenced())
 }
 
 // poolTaken fails where a pool, but the one with the given id, shows label,

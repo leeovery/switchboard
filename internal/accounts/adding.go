@@ -187,23 +187,21 @@ func (r Registry) AddChecked(ctx context.Context, adding Adding, token tokens.To
 	}
 	// Decided first as the files stand, so a refusal changes nothing, not
 	// even the record's lock; then again under it, so what's decided holds.
-	if _, _, _, err := r.decided(record, adding, checkedID, known, checked.Organization, answer); err != nil {
+	if _, _, _, err := r.decided(record, adding, false, known, checked.Organization, answer); err != nil {
 		return Added{}, err
 	}
 	var added Added
 	var account config.NewAccount
+	var made config.Pool
 	err = r.Record.Change(func(record *identity.Record, commit func() error) error {
-		draft, placed, d, err := r.decided(*record, adding, r.drawnFrom(*record), known, checked.Organization, answer)
+		draft, placed, d, err := r.decided(*record, adding, true, known, checked.Organization, answer)
 		if err != nil {
 			return err
 		}
 		account = placed
-		if d.random {
-			if d.ID, err = record.Random(r.random(), idsIn(draft.Config())); err != nil {
-				return err
-			}
+		if adding.NewPool != nil {
+			made, _ = draft.Config().Pools.ByID(account.Pool)
 		}
-		account.ID = d.ID
 		if err := draft.AddAccount(account); err != nil {
 			return err
 		}
@@ -223,6 +221,9 @@ func (r Registry) AddChecked(ctx context.Context, adding Adding, token tokens.To
 	})
 	if err != nil {
 		return Added{}, err
+	}
+	if adding.NewPool != nil {
+		poolAdded(made)
 	}
 	logger.Info("added an account", "account", account.ID, "primary", account.Primary, "returning", added.Returning)
 	return added, nil
@@ -254,21 +255,40 @@ type decision struct {
 }
 
 // decided is the config file, as Edit reads it, with the new pool adding
-// gives, where it gives one, made in it under the id given; the account,
-// checked first as CheckNew checks it, in the pool it's added to; and the
-// account a token whose organization is organization is added as, as decide
-// has it.
-func (r Registry) decided(record identity.Record, adding Adding, id poolID, known Organizations, organization string, answer Answer) (*config.Draft, config.NewAccount, decision, error) {
+// gives, where it gives one, made in it; the account a token whose
+// organization is organization is added as, as decide has it; and the
+// account, checked as CheckNew checks it, in the pool it's added to, marked
+// that pool's primary where the caller marks it, or where it's the first in
+// it, as firstIn has it of the config as it reads now. Where drawing, as
+// under the record's lock, the account's id is drawn first, where it's a new
+// one under a random id, then the new pool's, apart from it, as AddPool
+// draws one; otherwise neither is, the account's left "" and the pool
+// checked as CheckNewPool checks one.
+func (r Registry) decided(record identity.Record, adding Adding, drawing bool, known Organizations, organization string, answer Answer) (*config.Draft, config.NewAccount, decision, error) {
 	draft, err := config.Edit(r.ConfigPath, r.HomeDir)
 	if err != nil {
 		return nil, config.NewAccount{}, decision{}, err
 	}
-	adding, _, err = checkNew(draft, adding, id)
+	d, err := decide(record, configuredIn(draft.Config()), known, organization, answer)
 	if err != nil {
 		return nil, config.NewAccount{}, decision{}, err
 	}
-	d, err := decide(record, configuredIn(draft.Config()), known, organization, answer)
-	return draft, adding.Account, d, err
+	pool := poolID(checkedID)
+	if drawing {
+		if d.random {
+			if d.ID, err = record.Random(r.random(), idsIn(draft.Config())); err != nil {
+				return nil, config.NewAccount{}, decision{}, err
+			}
+		}
+		pool = r.drawnFrom(record)
+	}
+	if adding, _, err = checkNew(draft, adding, pool.apartFrom(d.ID)); err != nil {
+		return nil, config.NewAccount{}, decision{}, err
+	}
+	account := adding.Account
+	account.ID = d.ID
+	account.Primary = account.Primary || firstIn(draft.Config(), account.Pool)
+	return draft, account, d, nil
 }
 
 // decide is the account a token whose organization is organization, "" where

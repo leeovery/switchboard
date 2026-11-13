@@ -70,6 +70,15 @@ func (r Registry) drawnFrom(record identity.Record) poolID {
 	}
 }
 
+// apartFrom is the poolID that gives an id apart from the one given too, as
+// an account's drawn before the pool it's added with: "" is apart from every
+// id.
+func (id poolID) apartFrom(other string) poolID {
+	return func(configured []string) (string, error) {
+		return id(append(configured, other))
+	}
+}
+
 // checkedID is the poolID a pool is checked under, written nowhere: the first
 // of z000 to z999, an id switchboard could make, that isn't configured, so
 // a check draws nothing.

@@ -16,8 +16,8 @@ import (
 var acmeMade = accounts.NewPool{Label: "Acme", Dirs: []string{"/Code/acme"}}
 
 // An account added in a new pool is checked with it before any token's made,
-// writing nothing, its pool's first account so its primary; the pool's
-// written with it, in the one edit that adds it, once its token's saved.
+// writing nothing; the pool's written with it, in the one edit that adds it,
+// once its token's saved, the account its first, so marked its primary.
 func TestSetupAddsAnAccountInTheNewPoolItMakes(t *testing.T) {
 	w := newWorld(t)
 	w.done(t)
@@ -27,8 +27,8 @@ func TestSetupAddsAnAccountInTheNewPoolItMakes(t *testing.T) {
 	was := w.readConfig(t)
 
 	checked, err := r.s.CheckAdding(setup.Adding{Label: "Acme 1", Plan: "ultra", NewPool: &acmeMade})
-	if err != nil || !checked.Account.Primary || checked.NewPool == nil || checked.Account.Pool != "" {
-		t.Fatalf("CheckAdding = %+v, %v; want Acme 1 the new pool's primary, the pool kept to make", checked, err)
+	if err != nil || checked.Account.Primary || checked.NewPool == nil || checked.Account.Pool != "" {
+		t.Fatalf("CheckAdding = %+v, %v; want Acme 1 as given, the pool kept to make", checked, err)
 	}
 	if got := w.readConfig(t); got != was {
 		t.Fatalf("checked, the config reads\n%s\nwant it as it was", got)
@@ -149,10 +149,10 @@ func TestEditAccountMovesItIntoAPool(t *testing.T) {
 	if _, err := s.EditAccount("side", setup.Edit{NewPool: &accounts.NewPool{Label: "Acme", Dirs: []string{"/Code/side"}}}); !isRefusedOf(err, setup.PoolField) {
 		t.Fatalf("EditAccount() into a new pool labelled as Acme error = %v, want a Refused of Pool", err)
 	}
-	if _, err := s.EditAccount("side", setup.Edit{Pool: new("q7mt"), Primary: true}); err != nil {
+	if _, err := s.EditAccount("side", setup.Edit{Pool: new("q7mt")}); err != nil {
 		t.Fatalf("EditAccount() into Acme error = %v", err)
 	}
-	if _, err := s.EditAccount("work", setup.Edit{NewPool: &accounts.NewPool{Label: "Client", Dirs: []string{"/Code/client"}}, Primary: true}); err != nil {
+	if _, err := s.EditAccount("work", setup.Edit{NewPool: &accounts.NewPool{Label: "Client", Dirs: []string{"/Code/client"}}}); err != nil {
 		t.Fatalf("EditAccount() into a new pool error = %v", err)
 	}
 	cfg, err := config.Load(w.config, nil)
@@ -165,8 +165,35 @@ func TestEditAccountMovesItIntoAPool(t *testing.T) {
 	}
 	for id, want := range map[string]string{"side": "q7mt", "work": client.ID} {
 		if a, _ := cfg.Accounts.ByID(id); a.Pool != want || !a.Primary {
-			t.Errorf("%s is %+v, want it in pool %s, its primary", id, a, want)
+			t.Errorf("%s is %+v, want it in pool %s, its primary as its first", id, a, want)
 		}
+	}
+}
+
+// A pool's marked primary moved leaves its first account the pool's primary;
+// an account moved, not made the primary, into a pool with one keeps that
+// pool's primary as it is.
+func TestEditAccountMovingAPoolsPrimaryLeavesThePoolItLeftOne(t *testing.T) {
+	w := newWorld(t)
+	w.writeConfig(t, doneInPools(defaultPool+"\n"+acmePool)+"\n[[account]]\nid    = \"spare\"\nlabel = \"Spare\"\npool  = \"b2n8\"\n")
+	s := w.setup(t)
+
+	for _, id := range []string{"work", "side"} {
+		if _, err := s.EditAccount(id, setup.Edit{Pool: new("q7mt")}); err != nil {
+			t.Fatalf("EditAccount(%s) into Acme error = %v", id, err)
+		}
+	}
+	cfg, err := config.Load(w.config, nil)
+	if err != nil {
+		t.Fatalf("the config doesn't load: %v", err)
+	}
+	for pool, want := range map[string]string{"b2n8": "spare", "q7mt": "work"} {
+		if primary, _ := cfg.Accounts.PrimaryOf(pool); primary.ID != want {
+			t.Errorf("pool %s's primary is %s, want %s", pool, primary.ID, want)
+		}
+	}
+	if side, _ := cfg.Accounts.ByID("side"); side.Primary {
+		t.Errorf("side is %+v, want it in Acme unmarked, work Acme's primary still", side)
 	}
 }
 

@@ -441,6 +441,31 @@ func TestAccountsEditMovingAnAccountAheadOfThePoolsPrimaryMarksIt(t *testing.T) 
 	}
 }
 
+// An account moved into a pool with no accounts is marked its primary, as
+// its first, without --primary; the pool it left keeps its own.
+func TestAccountsEditMovingAnAccountIntoAnEmptyPoolMarksItThePrimary(t *testing.T) {
+	const client = "\n[[pool]]\nid    = \"z5k2\"\nlabel = \"Client\"\ndirs  = [\"/work/client\"]\n"
+	deps, path := accountsDeps(t, "http://127.0.0.1:1", personalAndSidePooled+"\n[[account]]\nid    = \"extra\"\nlabel = \"Extra\"\npool  = \"q7mt\"\n"+client)
+
+	got := run(t, deps, "accounts", "edit", "side", "--pool", "z5k2")
+	if want := (result{stdout: "edited side: pool Client (was Acme), marked the primary there, as the first in it\nextra is pool Acme's primary now\n"}); got != want {
+		t.Errorf("switchboard accounts edit side --pool z5k2 =\n%+v\nwant\n%+v", got, want)
+	}
+	cfg := loadPooled(t, path)
+	for pool, want := range map[string]string{"z5k2": "side", "q7mt": "extra", "b2n8": "personal"} {
+		if primary, _ := cfg.Accounts.PrimaryOf(pool); primary.ID != want {
+			t.Errorf("pool %s's primary is %s, want %s", pool, primary.ID, want)
+		}
+	}
+	draft, err := config.Edit(path, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !draft.MarksPrimaryOf("side") {
+		t.Errorf("the config reads\n%s\nwant side marked the primary", readFile(t, path))
+	}
+}
+
 // personalBesideAcme has personal in Default, unfenced, and side, its
 // primary, and extra in Acme, fenced.
 const personalBesideAcme = `

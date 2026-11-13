@@ -1,13 +1,56 @@
 package accounts_test
 
 import (
+	"bytes"
 	"errors"
+	"io"
+	"os"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/leeovery/switchboard/internal/accounts"
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/identity"
+	"github.com/leeovery/switchboard/internal/logs/logstest"
 )
+
+// writeConfig writes the world's config file anew, holding config.
+func (w *world) writeConfig(t *testing.T, config string) {
+	t.Helper()
+	if err := os.WriteFile(w.config, []byte(config), 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// A pool made with an account, added or moved into it, is logged as AddPool
+// logs one.
+func TestAPoolMadeWithAnAccountIsLogged(t *testing.T) {
+	tests := []struct {
+		name string
+		make func(*testing.T, accounts.Registry) error
+	}{
+		{name: "added", make: func(t *testing.T, r accounts.Registry) error {
+			return second(r.AddChecked(t.Context(), accounts.Adding{Account: config.NewAccount{Label: "Side"}, NewPool: &acmeMade},
+				tokenOf(t, sideToken), accounts.Checked{Organization: organization}, nil, accounts.Answer{}))
+		}},
+		{name: "moved", make: func(t *testing.T, r accounts.Registry) error {
+			return second(r.Edit("work", accounts.Change{NewPool: &acmeMade}))
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := newWorld(t, pooled(defaultPool))
+			log := logstest.Capture(t)
+			if err := tt.make(t, w.unasked(t, &user{})); err != nil {
+				t.Fatal(err)
+			}
+			if want := []string{"level=INFO", `msg="added a pool"`, "pool=" + randomID(t), "fenced=true"}; !log.Has(want...) {
+				t.Errorf("the log reads\n%s\nwant a line with %q", log, want)
+			}
+		})
+	}
+}
 
 // acmeMade is a new pool, Acme, fenced to /Code/acme, as setup's new pool
 // card gives one.
@@ -15,7 +58,8 @@ var acmeMade = accounts.NewPool{Label: "Acme", Dirs: []string{"/Code/acme"}}
 
 // An account added in a new pool makes the pool in the one edit that adds
 // it, under an id switchboard draws, the account its first, so its primary,
-// marked; CheckNew says so before the token's taken, writing nothing.
+// marked as it's added; CheckNew checks it before the token's taken, writing
+// nothing, its Primary as given.
 func TestAnAccountAddedInANewPoolMakesThePoolWithIt(t *testing.T) {
 	was := pooled(defaultPool)
 	w := newWorld(t, was)
@@ -23,8 +67,8 @@ func TestAnAccountAddedInANewPoolMakesThePoolWithIt(t *testing.T) {
 	adding := accounts.Adding{Account: config.NewAccount{Label: "Side"}, NewPool: &acmeMade}
 
 	checked, err := registry.CheckNew(adding)
-	if err != nil || !checked.Account.Primary || checked.Account.Pool != "" || checked.NewPool != &acmeMade {
-		t.Fatalf("CheckNew() = %+v, %v; want it the new pool's primary, the pool kept to make", checked, err)
+	if err != nil || checked.Account.Primary || checked.Account.Pool != "" || checked.NewPool != &acmeMade {
+		t.Fatalf("CheckNew() = %+v, %v; want it as given, the pool kept to make", checked, err)
 	}
 	w.checkConfig(t, was)
 
@@ -44,26 +88,78 @@ func TestAnAccountAddedInANewPoolMakesThePoolWithIt(t *testing.T) {
 }
 
 // The first account to go in a pool, in a config with pools, is marked its
-// primary; one going in a pool with accounts isn't, nor one in a config
-// without pools.
+// primary as it's added, as the config reads then, whatever it read as the
+// account was checked; one going in a pool with accounts isn't, unless the
+// caller marks it, nor one in a config without pools.
 func TestTheFirstAccountInAPoolIsMarkedItsPrimary(t *testing.T) {
 	empty := "[[pool]]\nid    = \"q7mt\"\nlabel = \"Acme\"\ndirs  = [\"/Code/acme\"]\n"
+	filled := "[[account]]\nid    = \"extra\"\nlabel = \"Extra\"\npool  = \"q7mt\"\n\n"
 	tests := []struct {
 		name, config, pool string
-		want               bool
+		// added is the config as the account's added, where it's changed
+		// since the account was checked.
+		added string
+		// own is the caller marking it the primary.
+		own  bool
+		want bool
 	}{
 		{name: "a pool with no accounts", config: pooled(defaultPool, empty), pool: "q7mt", want: true},
 		{name: "a pool with accounts", config: pooled(defaultPool, empty), pool: "b2n8"},
+		{name: "a pool with accounts, the caller marking it", config: pooled(defaultPool, empty), pool: "b2n8", own: true, want: true},
+		{name: "a pool given an account since the check", config: pooled(defaultPool, empty), added: pooled(filled+defaultPool, empty), pool: "q7mt"},
+		{name: "a pool emptied since the check", config: pooled(filled+defaultPool, empty), added: pooled(defaultPool, empty), pool: "q7mt", want: true},
 		{name: "a config without pools", config: twoAccounts},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			w := newWorld(t, tt.config)
-			checked, err := w.unasked(t, &user{}).CheckNew(accounts.Adding{Account: config.NewAccount{Label: "Side", Pool: tt.pool}})
-			if err != nil || checked.Account.Primary != tt.want {
-				t.Errorf("CheckNew() = %+v, %v; want primary %t", checked, err, tt.want)
+			registry := w.unasked(t, &user{})
+			adding := accounts.Adding{Account: config.NewAccount{Label: "Side", Pool: tt.pool, Primary: tt.own}}
+			checked, err := registry.CheckNew(adding)
+			if err != nil || checked.Account.Primary != tt.own {
+				t.Fatalf("CheckNew() = %+v, %v; want primary %t, as given", checked, err, tt.own)
+			}
+			if tt.added != "" {
+				w.writeConfig(t, tt.added)
+			}
+
+			added, err := registry.AddChecked(t.Context(), checked, tokenOf(t, sideToken), accounts.Checked{Organization: organization}, nil, accounts.Answer{})
+			if err != nil {
+				t.Fatalf("AddChecked() error = %v", err)
+			}
+			if got, _ := w.load(t).Accounts.ByID(added.ID); got.Primary != tt.want {
+				t.Errorf("the account added is %+v, want primary %t", got, tt.want)
 			}
 		})
+	}
+}
+
+// An account added with a new pool has its id first, drawn where its
+// organization isn't known, then the pool's, apart from it, though the draw
+// would give the pool the same.
+func TestANewPoolsIDIsDrawnAfterItsAccountsApartFromIt(t *testing.T) {
+	w := newWorld(t, pooled(defaultPool))
+	registry := w.unasked(t, &user{})
+	first := make([]byte, 32)
+	if _, err := io.ReadFull(drawn(), first); err != nil {
+		t.Fatal(err)
+	}
+	rest := func() io.Reader { return strings.NewReader(strings.Repeat("pools", 100)) }
+	registry.Random = io.MultiReader(bytes.NewReader(first), bytes.NewReader(first), rest())
+	account := randomID(t)
+	pool, err := identity.Record{}.Random(rest(), []string{account})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	added, err := registry.AddChecked(t.Context(), accounts.Adding{Account: config.NewAccount{Label: "Side"}, NewPool: &acmeMade},
+		tokenOf(t, sideToken), accounts.Checked{}, nil, accounts.Answer{})
+	if err != nil {
+		t.Fatalf("AddChecked() error = %v", err)
+	}
+	got, _ := w.load(t).Accounts.ByID(added.ID)
+	if added.ID != account || got.Pool != pool {
+		t.Errorf("added %s in pool %s, want %s in pool %s", added.ID, got.Pool, account, pool)
 	}
 }
 
@@ -138,6 +234,48 @@ func TestEditMovesAnAccountIntoANewPool(t *testing.T) {
 	}
 	if edited.Left.Primary != "side" || edited.Now.Pool != pool.ID {
 		t.Errorf("Edit() = left %+v, now %+v; want side Default's primary now, work in Acme", edited.Left, edited.Now)
+	}
+}
+
+// An account moved into a pool with no accounts, configured or made with
+// it, is marked its primary as the first in it, though the change doesn't
+// ask; one moved into a pool with accounts isn't, that pool's primary
+// marked where the account would take its place.
+func TestAnAccountMovedIntoAPoolIsMarkedItsPrimaryWhereItsTheFirst(t *testing.T) {
+	was := pooled(defaultPool, acmePool) + "\n[[account]]\nid    = \"side\"\nlabel = \"Side\"\npool  = \"b2n8\"\n"
+	acme := "q7mt"
+	tests := []struct {
+		name   string
+		change accounts.Change
+		// then moves side after work, where it's set.
+		then       bool
+		wantMarked bool
+	}{
+		{name: "into a pool configured", change: accounts.Change{Pool: &acme}, wantMarked: true},
+		{name: "into a new pool", change: accounts.Change{NewPool: &accounts.NewPool{Label: "Client", Dirs: []string{"/Code/client"}}}, wantMarked: true},
+		{name: "into a pool with an account", change: accounts.Change{Pool: &acme}, then: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := newWorld(t, was)
+			registry := w.unasked(t, &user{})
+			id := "work"
+			if tt.then {
+				if _, err := registry.Edit("work", tt.change); err != nil {
+					t.Fatal(err)
+				}
+				id = "side"
+			}
+
+			edited, err := registry.Edit(id, tt.change)
+			if err != nil {
+				t.Fatalf("Edit() error = %v", err)
+			}
+			got, _ := w.load(t).Accounts.ByID(id)
+			if got.Primary != tt.wantMarked || edited.Marked != tt.wantMarked || edited.KeptPrimary != "" {
+				t.Errorf("%s is %+v, edited %+v; want it marked its pool's primary: %t, and no other marked", id, got, edited, tt.wantMarked)
+			}
+		})
 	}
 }
 
