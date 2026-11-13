@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"slices"
-	"strings"
 
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/identity"
@@ -85,7 +84,7 @@ func (id poolID) apartFrom(other string) poolID {
 func checkedID(configured []string) (string, error) {
 	for n := range 1000 {
 		id := fmt.Sprintf("z%03d", n)
-		if !slices.ContainsFunc(configured, func(c string) bool { return strings.EqualFold(c, id) }) {
+		if !slices.ContainsFunc(configured, func(c string) bool { return config.SamePool(c, id) }) {
 			return id, nil
 		}
 	}

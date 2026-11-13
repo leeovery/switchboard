@@ -2,9 +2,9 @@ package screen
 
 import (
 	"slices"
-	"strings"
 
 	"github.com/leeovery/switchboard/internal/accounts"
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/setup"
 )
@@ -27,7 +27,7 @@ func poolOf(review *setup.Review, id string) *poolField {
 		return nil
 	}
 	f := &poolField{pools: review.PoolChoices()}
-	f.chosen = max(slices.IndexFunc(f.pools, func(p setup.PoolChoice) bool { return strings.EqualFold(p.ID, id) }), 0)
+	f.chosen = max(slices.IndexFunc(f.pools, func(p setup.PoolChoice) bool { return config.SamePool(p.ID, id) }), 0)
 	return f
 }
 
