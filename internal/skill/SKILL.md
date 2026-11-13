@@ -18,10 +18,9 @@ id; `requests` and `events` give ids alone, as the files keep them. The accounts
 The accounts can be split into pools. A session started inside a pool's directories is routed
 across that pool's accounts alone, and one started outside every fence across the unfenced pool's.
 A session started through switchboard has its pool's id in `$SWITCHBOARD_POOL`: pass
-`--pool "$SWITCHBOARD_POOL"` to `status`, `usage`, `sessions`, `requests`, `history`, `events` and
-`pin auto`, so you read your own pool, named explicitly. Where `$SWITCHBOARD_POOL` is unset, as
-with a config without pools or a session not started through switchboard, pass no `--pool`.
-`status --session` and `sessions <id>` find a session in whatever pool it's in, and take none.
+`--pool "$SWITCHBOARD_POOL"` to every `status`, `usage`, `sessions`, `requests`, `history`,
+`events` and `pin`, so you read and act on your own pool, named explicitly. It's empty with a
+config without pools or in a session not started through switchboard, and `--pool ""` is no flag.
 `switchboard pool` lists the pools, their directories and accounts.
 
 - To find the account a session is on, run `switchboard status --session <id>`. Your own session's
