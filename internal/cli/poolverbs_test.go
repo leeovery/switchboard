@@ -165,24 +165,25 @@ func TestPinAutoClearsThePinOfThePoolNamedElseOfTheOneTheVerbsActOn(t *testing.T
 	srv.writeConfig(t)
 	srv.start(t)
 
-	// Each answer is of the pool the router was asked for, which the words
-	// name: what each pool's pin holds meanwhile is the router's to keep.
+	// Each pool keeps its own pin: clearing one leaves the other's standing.
 	steps := []struct {
-		args []string
-		said string
+		args       []string
+		said       string
+		acme, dflt []string
 	}{
-		{args: []string{"pin", "work"}, said: "new sessions in pool Acme go to work · Work\n"},
-		{args: []string{"pin", "auto", "--pool", "q7mt"}, said: "routing automatically in pool Acme\n"},
-		{args: []string{"pin", "side"}, said: "new sessions in pool Default go to side · Side\n"},
-		{args: []string{"pin", "auto"}, said: "routing automatically in pool Default\n"},
+		{args: []string{"pin", "work"}, said: "new sessions in pool Acme go to work · Work\n", acme: []string{"work"}},
+		{args: []string{"pin", "side"}, said: "new sessions in pool Default go to side · Side\n", acme: []string{"work"}, dflt: []string{"side"}},
+		{args: []string{"pin", "auto"}, said: "routing automatically in pool Default\n", acme: []string{"work"}},
+		{args: []string{"pin", "side"}, said: "new sessions in pool Default go to side · Side\n", acme: []string{"work"}, dflt: []string{"side"}},
+		{args: []string{"pin", "auto", "--pool", "q7mt"}, said: "routing automatically in pool Acme\n", dflt: []string{"side"}},
 	}
 	for _, step := range steps {
 		if got := run(t, srv.deps, step.args...); got != (result{stdout: step.said}) {
 			t.Fatalf("switchboard %s = %+v, want it to say %q", strings.Join(step.args, " "), got, step.said)
 		}
-	}
-	if acme, dflt := poolPin(t, srv.deps, "q7mt"), poolPin(t, srv.deps, "b2n8"); acme != nil || dflt != nil {
-		t.Errorf("Acme pins %q and Default %q, want neither pinned", acme, dflt)
+		if acme, dflt := poolPin(t, srv.deps, "q7mt"), poolPin(t, srv.deps, "b2n8"); !slices.Equal(acme, step.acme) || !slices.Equal(dflt, step.dflt) {
+			t.Errorf("after switchboard %s, Acme pins %q and Default %q, want %q and %q", strings.Join(step.args, " "), acme, dflt, step.acme, step.dflt)
+		}
 	}
 }
 
