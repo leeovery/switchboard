@@ -58,7 +58,7 @@ func (m Model) openRouting() (tea.Model, tea.Cmd) {
 	case !listed:
 		return m, nil
 	case key.Off:
-		return m.noting(m.doc.Fallback.Refusal().Error())
+		return m.noting(m.moment(m.now()).Fallback.Refusal().Error())
 	}
 	var session string
 	if m.shownView() == dashboard.SessionPage {

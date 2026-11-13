@@ -76,7 +76,7 @@ func (m Model) command(o order) (Model, tea.Cmd) {
 	card := m.routing.card
 	switch {
 	case !m.answering():
-		return m.refused(card, m.doc.Fallback.Refusal())
+		return m.refused(card, m.moment(m.now()).Fallback.Refusal())
 	case m.ordering:
 		return m.refused(card, errOrdering)
 	}
