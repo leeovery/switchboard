@@ -104,11 +104,13 @@ func TestAPoolTheRecordKeepsIsReadByItsID(t *testing.T) {
 		})
 	}
 
+	// c1nt, in no pool of this Mac's, shows in every pool read, without
+	// work in Acme.
 	history := []struct {
 		args []string
 		want []string
 	}{
-		{args: []string{"--pool", "q7mt"}, want: []string{"work q7mt Acme s"}},
+		{args: []string{"--pool", "q7mt"}, want: []string{"c1nt q7mt Acme ", "work q7mt Acme s"}},
 		{args: []string{"--pool", "f4xk"}, want: []string{"c1nt f4xk Client s"}},
 	}
 	for _, tt := range history {
