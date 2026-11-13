@@ -208,13 +208,13 @@ func (a *app) dashboard(ctx context.Context, out io.Writer, opts dashboardOption
 		Home:          home,
 	}
 	r, read := a.readers(ctx, &wc, cfg)
-	pools := shownPools{a: a, probe: opts.probe, r: r, read: read, stamp: stamp}
+	pools := shownPools{a: a, probe: opts.probe, dir: r.dir, events: r.events, read: read, stamp: stamp}
 	shown, err := pools.opened(ctx, cfg, opts.pool)
 	if err != nil {
 		return err
 	}
 	wc.Pool, wc.Accounts, wc.Source, wc.Events, wc.PoolNamed, wc.Turn = shown.Pool, shown.Accounts, shown.Source, shown.Events, shown.PoolNamed, pools.turn
-	wc.ConfigStamp, wc.Stamp, wc.Placed = a.configStamp, shown.Stamp, shown.Placed
+	wc.ConfigStamp, wc.Stamp, wc.Placed, wc.LedgerGrounds = a.configStamp, shown.Stamp, shown.Placed, shown.Grounds
 	wc.History = dashboard.HistoryKept(kept.History, wc.Accounts)
 	if t.prefs != nil {
 		wc.Prefs = t.prefs

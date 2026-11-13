@@ -209,10 +209,13 @@ type Config struct {
 	TraceScale float64
 	// Ledger, Readings and Events read the request ledger, the readings
 	// history and the router's events where they lie: the watch opens none
-	// of their files itself.
-	Ledger   views.Ledger
-	Readings views.Readings
-	Events   views.Events
+	// of their files itself. LedgerGrounds are the grounds Ledger was made
+	// on, as the config gave them, which a fresh start on others makes
+	// another on.
+	Ledger        views.Ledger
+	LedgerGrounds ledger.Grounds
+	Readings      views.Readings
+	Events        views.Events
 	// LedgerKeep is how long the ledger keeps a day's lines, as [ledger]
 	// keep gives it, which says the Log's oldest day, as views.OldestKept
 	// reads it, and to when an ended session's page says its lines are kept,
@@ -1060,28 +1063,28 @@ func fetchFrom(ctx context.Context, source Source, r status.Read, policy score.P
 }
 
 // fetched takes in a read: the document to show from now on, or why there's
-// none, and plans the next read by it. A read the router refuses, not
-// knowing the pool shown, as refusesPool has it, isn't a read that failed:
-// the router answered, so it's lost no more, and the pool routes none, as
-// status's Refused has it of the router's answer, which the status line
-// says; the router is looked at again as it is once it's found gone. A read that fails notes why, and
-// the router lost, as lose does. Before any document, from a source that asks the
-// router first, as awaitsRouter has it, the status line says the latest
-// read's news either way: a question after the router, or a look at its
-// document, that found it gone has no why of its own, and clears the last
-// read's, the status line saying the router isn't answering, since it was
-// first found gone; and a read that failed for a reason of its own has the
+// none, and plans the next read by it. A read the router refuses, not knowing
+// the pool shown, as refusesPool has it, isn't a read that failed: the router
+// answered, so it's lost no more, and the pool routes none, as status's
+// Refused has it of the router's answer, which the status line says; the
+// router is looked at again as it is once it's found gone. A read that fails
+// notes why, and the router lost, as lose does. Before any document, from a
+// source that asks the router first, as awaitsRouter has it, the status line
+// says the latest read's news either way: a question after the router, or a
+// look at its document, that found it gone has no why of its own, and clears
+// the last read's, the status line saying the router isn't answering, since it
+// was first found gone; and a read that failed for a reason of its own has the
 // status line say that reason, as lostShown has it. Elsewhere a read that
 // found the router gone leaves the last read's why standing, as nothing new
 // was found. Each read starts a new chain of ticks at the pace it calls for,
 // lets a look at the router's document asked for while it was under way go
-// ahead, and as any look does, asks for the ledger's days since History's
-// were read, as readHistory reads them while History or Accounts shows,
-// Runway's lanes want them or Graphs shows WHEN YOU WORK, and what the
-// readings history gained, as readRunway reads it while Runway shows. Where
-// the read finds the config file changed, or the accounts other than the
-// last document's, as status's AccountsChanged has it, it reads the pool
-// shown again, as followConfig has it.
+// ahead, and as any look does, asks for the ledger's days since History's were
+// read, as readHistory reads them while History or Accounts shows, Runway's
+// lanes want them or Graphs shows WHEN YOU WORK, and what the readings history
+// gained, as readRunway reads it while Runway shows. Where the read finds the
+// config file changed, or the accounts other than the last document's, as
+// status's AccountsChanged has it, it reads the pool shown again, as
+// followConfig has it.
 func (m Model) fetched(msg fetchedMsg) (tea.Model, tea.Cmd) {
 	now := m.now()
 	m.fetching, m.past.due, m.tail.due, m.runwayTab.due = false, true, true, true
@@ -1089,7 +1092,7 @@ func (m Model) fetched(msg fetchedMsg) (tea.Model, tea.Cmd) {
 	accountsChanged := false
 	m.refusing = nil
 	switch {
-	case m.refusesPool(msg.err):
+	case m.refusesPool(msg):
 		answer := msg.router.Answer()
 		m.refusing = &answer
 		m.plan, m.failed, m.lost = m.plan.missed(now), "", time.Time{}

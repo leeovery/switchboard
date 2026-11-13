@@ -11,6 +11,7 @@ import (
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/filestate"
+	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
@@ -24,10 +25,12 @@ import (
 // a pool by its id in the words of those events, as Config's PoolNamed does;
 // how the config file stood before it was read, as Config's ConfigStamp
 // gives it; how it placed the accounts in the pools, as status's Placed has
-// it; and, as the config read has them, the request ledger, its days
-// summarised with the caps of the accounts it configures, and the accounts
-// removed, as Config's Ledger and Removed are, so nothing the dashboard
-// works out of the config is of one gone.
+// it; and, as the config read has them, the grounds its request ledger is
+// made on, as Config's LedgerGrounds, NewLedger making one on them, and the
+// accounts removed, as Config's Removed, so nothing the dashboard works out
+// of the config is of one gone. NewLedger is called only where the ledger in
+// use was made on other grounds, as freshIn has it: one made at every turn
+// would read today's lines and the summaries cold.
 type Pooled struct {
 	Pool      status.ShownPool
 	Accounts  config.Accounts
@@ -36,7 +39,8 @@ type Pooled struct {
 	PoolNamed func(id string) string
 	Stamp     filestate.State
 	Placed    status.Placement
-	Ledger    views.Ledger
+	Grounds   ledger.Grounds
+	NewLedger func() views.Ledger
 	Removed   status.RemovedAccounts
 }
 
@@ -74,12 +78,14 @@ func (m Model) pool(now time.Time) status.ShownPool {
 	return m.cfg.Pool.AsRead(m.moment(now))
 }
 
-// refusesPool reports whether err is the router refusing a read of the pool
-// shown, by its id, ignoring case, for want of knowing it, as a pool added
-// to the config since it started: it routes none there till it restarts.
-func (m Model) refusesPool(err error) bool {
-	need, ok := errors.AsType[router.PoolNeeded](err)
-	return ok && m.cfg.Pool.ID != "" && strings.EqualFold(need.Named, m.cfg.Pool.ID)
+// refusesPool reports whether the read msg is the router refusing to read
+// the pool shown, by its id, ignoring case, for want of knowing it, as a
+// pool added to the config since it started: it routes none there till it
+// restarts. A pool needed with no router's answer beside it, as a probe in
+// place of the router finds of a pool the config no longer has, isn't.
+func (m Model) refusesPool(msg fetchedMsg) bool {
+	need, ok := errors.AsType[router.PoolNeeded](msg.err)
+	return ok && msg.router.Answered() && m.cfg.Pool.ID != "" && strings.EqualFold(need.Named, m.cfg.Pool.ID)
 }
 
 // turnsPools reports whether the key line lists P: where there's a second
@@ -165,12 +171,13 @@ func (m Model) turnedTo(msg turnedMsg) (Model, tea.Cmd) {
 
 // shownAfresh is the watch of the pool pooled, started afresh, as freshIn
 // starts it, but where it's the pool shown, its config placing the accounts
-// in the pools as it did, as status's Placement has it: then it's the watch
-// as it was, the config file's stamp that of pooled. So a change to the
+// in the pools as it did, as status's Placement has it, and its ledger on
+// the grounds it was made on: then it's the watch as it was, the config
+// file's stamp that of pooled. So a change to the
 // config that places anything otherwise, in any pool, starts the pool shown
 // afresh, and one that doesn't, as a comment, starts nothing.
 func (m Model) shownAfresh(pooled Pooled) (Model, tea.Cmd) {
-	if strings.EqualFold(pooled.Pool.ID, m.cfg.Pool.ID) && pooled.Placed.Same(m.cfg.Placed) {
+	if strings.EqualFold(pooled.Pool.ID, m.cfg.Pool.ID) && pooled.Placed.Same(m.cfg.Placed) && pooled.Grounds.Same(m.cfg.LedgerGrounds) {
 		m.cfg.Stamp = pooled.Stamp
 		return m, nil
 	}
@@ -186,13 +193,18 @@ func (m Model) shownAfresh(pooled Pooled) (Model, tea.Cmd) {
 // keeps is the screen's and the user's, not the pool's: the terminal's size
 // and background, the theme and the picker, the preferences being kept, the
 // tab shown, under a session's page where one is open, and what each tab
-// shows as the preferences keep it. poolTurns counts the pools shown, so what
-// the commands of the one before send back is dropped, as turns has it.
+// shows as the preferences keep it; and the request ledger, what it holds
+// of the days read, where pooled's is on the grounds it was made on, else
+// one made on pooled's. poolTurns counts the pools shown, so what the
+// commands of the one before send back is dropped, as turns has it.
 func (m Model) freshIn(pooled Pooled) Model {
 	m.stream.end()
 	cfg := m.cfg
 	cfg.Pool, cfg.Accounts, cfg.Source, cfg.Events, cfg.PoolNamed, cfg.Stamp, cfg.Placed = pooled.Pool, pooled.Accounts, pooled.Source, pooled.Events, pooled.PoolNamed, pooled.Stamp, pooled.Placed
-	cfg.Ledger, cfg.Removed = pooled.Ledger, pooled.Removed
+	cfg.Removed = pooled.Removed
+	if !pooled.Grounds.Same(cfg.LedgerGrounds) {
+		cfg.Ledger, cfg.LedgerGrounds = pooled.NewLedger(), pooled.Grounds
+	}
 	cfg.Size, cfg.View, cfg.Sections, cfg.By, cfg.Models, cfg.Graphs = m.size, m.view, m.sections, m.by, m.models, m.graphs
 	cfg.AccountsShown = dashboard.AccountsKept(m.accounts.shown.Kept())
 	cfg.SessionsShown = dashboard.SessionsKept(m.sessionsTab.shown.Kept())

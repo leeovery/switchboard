@@ -7,18 +7,23 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
+	"weak"
 
 	"github.com/leeovery/switchboard/internal/cli"
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard/watch"
 	"github.com/leeovery/switchboard/internal/filestate"
 	"github.com/leeovery/switchboard/internal/identity"
+	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/quota"
+	"github.com/leeovery/switchboard/internal/readings"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
@@ -368,9 +373,8 @@ func TestTheDashboardReadsThePoolItShowsAgainAsTheConfigChanges(t *testing.T) {
 
 // What the dashboard works out of the config follows it at a turn: the
 // accounts removed, so one taken out while it's open is named by the label
-// the accounts record keeps, and a request ledger of its own, summarised
-// with the caps of the accounts the config read configures.
-func TestATurnWorksOutTheAccountsRemovedAndTheLedgerOfTheConfigRead(t *testing.T) {
+// the accounts record keeps.
+func TestATurnWorksOutTheAccountsRemovedOfTheConfigRead(t *testing.T) {
 	deps := pooledDeps(t, false)
 	err := identity.NewFile(stateDir(t, deps)).Update(func(r *identity.Record) error {
 		r.Accounts = []identity.Entry{{ID: "work", Label: "Work", Added: testNow, Pool: "q7mt"}, {ID: "side", Label: "Side", Added: testNow, Pool: "b2n8"}}
@@ -395,8 +399,85 @@ func TestATurnWorksOutTheAccountsRemovedAndTheLedgerOfTheConfigRead(t *testing.T
 	if len(turned.Removed) != 1 || turned.Removed[0].ID != "side" || turned.Removed[0].Label != "Side" {
 		t.Errorf("side taken out of the config, the turn has the accounts removed %+v, want side, labelled Side", turned.Removed)
 	}
-	if turned.Ledger == nil || turned.Ledger == cfg.Ledger {
-		t.Error("the turn has no ledger, or the one the dashboard opened with; want one of its own, of the config read")
+}
+
+// sideAtItsCap are today's readings of side's 5-hour window at 95%, from
+// 10:00 to the clock's 13:12: 192 minutes at a cap of 90%.
+var sideAtItsCap = []readings.Reading{
+	{At: october(7, 10, 0, 0), Account: "side", Key: "5h", Utilization: 0.95, ResetsAt: october(7, 15, 0, 0), Status: quota.StatusAllowed},
+}
+
+// sideMinutesAtCap are the minutes side spent at its cap today, as ledger
+// summarises today.
+func sideMinutesAtCap(t *testing.T, ledger views.Ledger) int {
+	t.Helper()
+	days := ledger.Days(october(7, 0, 0, 0))
+	for _, a := range days[len(days)-1].Accounts {
+		if a.Account == "side" && a.MinutesAtCap != nil {
+			return *a.MinutesAtCap
+		}
+	}
+	t.Fatalf("today's summary has no minutes at its cap of side's: %+v", days[len(days)-1].Accounts)
+	return 0
+}
+
+// A turn's ledger is made on the grounds of the config read: on the same
+// caps and first pool as the one in use, as at P with nothing of them
+// changed, the turn's grounds are the same, for the watch to keep the one in
+// use; a reserve changed, the ledger it makes summarises today with the new
+// cap.
+func TestATurnsLedgerIsMadeOnTheCapsOfTheConfigRead(t *testing.T) {
+	deps := pooledDeps(t, false)
+	writeReadings(t, readings.Dir(stateDir(t, deps)), sideAtItsCap...)
+	cfg := recordWatch(t, &deps)
+	if got := run(t, deps, "dashboard", "--pool", "b2n8"); got != (result{}) {
+		t.Fatalf("switchboard dashboard --pool b2n8 = %+v, want exit status 0 and nothing printed", got)
+	}
+	if got := sideMinutesAtCap(t, cfg.Ledger); got != 0 {
+		t.Errorf("with no reserve, side spent %d minutes at its cap today, want none: it has no cap", got)
+	}
+	turned, err := cfg.Turn(t.Context(), "b2n8", watch.NextPool)
+	if err != nil {
+		t.Fatalf("Turn() failed: %v", err)
+	}
+	if !turned.Grounds.Same(cfg.LedgerGrounds) {
+		t.Errorf("P with no cap changed has the ledger's grounds %+v, want those the dashboard opened with, %+v", turned.Grounds, cfg.LedgerGrounds)
+	}
+
+	writeDepsConfig(t, deps, strings.Replace(pooledConfig(false), "label = \"Side\"\n", "label = \"Side\"\nreserve = 0.1\n", 1))
+	turned, err = cfg.Turn(t.Context(), "b2n8", watch.SamePool)
+	if err != nil {
+		t.Fatalf("Turn() of the same pool failed: %v", err)
+	}
+	if turned.Grounds.Same(cfg.LedgerGrounds) {
+		t.Fatal("side given a reserve, the ledger's grounds are those the dashboard opened with, want others")
+	}
+	if got := sideMinutesAtCap(t, turned.NewLedger()); got != 192 {
+		t.Errorf("side given a reserve of 10%%, the turn's ledger has it %d minutes at its cap today, want 192", got)
+	}
+}
+
+// The dashboard holds no ledger beside the one its model reads: once the
+// model lets go of the one it opened with, as a turn on other grounds has it
+// do, nothing the dashboard was given, its Turn among them, still holds it.
+func TestTheDashboardHoldsNoLedgerBesideTheModels(t *testing.T) {
+	deps := pooledDeps(t, false)
+	cfg := recordWatch(t, &deps)
+	if got := run(t, deps, "dashboard", "--pool", "b2n8"); got != (result{}) {
+		t.Fatalf("switchboard dashboard --pool b2n8 = %+v, want exit status 0 and nothing printed", got)
+	}
+	follower, ok := cfg.Ledger.(*ledger.Follower)
+	if !ok {
+		t.Fatalf("the dashboard's ledger is %T, want a follower of the state directory's", cfg.Ledger)
+	}
+	opened := weak.Make(follower)
+	follower, cfg.Ledger = nil, nil
+	runtime.GC()
+	if opened.Value() != nil {
+		t.Error("the ledger the dashboard opened with is still held once the model lets it go, want it let go")
+	}
+	if _, err := cfg.Turn(t.Context(), "b2n8", watch.SamePool); err != nil {
+		t.Errorf("Turn() failed once the ledger was let go: %v", err)
 	}
 }
 

@@ -8,22 +8,24 @@ import (
 	"github.com/leeovery/switchboard/internal/dashboard/watch"
 	"github.com/leeovery/switchboard/internal/events"
 	"github.com/leeovery/switchboard/internal/filestate"
-	"github.com/leeovery/switchboard/internal/idmove"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
 // shownPools is how the dashboard reads the pool it shows: probing alone
-// where probe says, and the router's events through the readers r gives,
-// where read says there are any; stamp is how the config file stood before
-// the config it opens on was read, as configStamp has it.
+// where probe says, and, where read says there's a state directory, dir,
+// the request ledger in it and the router's events through events; stamp is
+// how the config file stood before the config it opens on was read, as
+// configStamp has it. It holds no ledger: the dashboard's is the model's
+// alone, so none it no longer reads is kept.
 type shownPools struct {
-	a     *app
-	probe bool
-	r     stateReaders
-	read  bool
-	stamp filestate.State
+	a      *app
+	probe  bool
+	dir    string
+	events views.Events
+	read   bool
+	stamp  filestate.State
 }
 
 // opened is what the dashboard opens on of the config cfg: the pool named,
@@ -40,10 +42,11 @@ func (s shownPools) opened(ctx context.Context, cfg *config.Config, named string
 		return watch.Pooled{}, err
 	case err != nil:
 		logger.Warn("can't tell which pool the dashboard shows, so it reads none of the router's files of events", "error", err)
-		return watch.Pooled{Accounts: status.PoolAccounts(cfg.Pools, cfg.Accounts, ""), Source: s.a.source(ctx, cfg, s.probe), Events: events.Empty{}, Stamp: s.stamp, Placed: status.Placed(cfg.Pools, cfg.Accounts)}, nil
+		return watch.Pooled{Accounts: status.PoolAccounts(cfg.Pools, cfg.Accounts, ""), Source: s.a.source(ctx, cfg, s.probe), Events: events.Empty{}, Stamp: s.stamp,
+			Placed: status.Placed(cfg.Pools, cfg.Accounts), Grounds: s.groundsOf(cfg, cfg.Pools)}, nil
 	}
 	shown, err := s.shown(ctx, cfg, pooled, named)
-	shown.Stamp = s.stamp
+	shown.Stamp, shown.Grounds = s.stamp, s.groundsOf(cfg, pooled.Pools)
 	return shown, err
 }
 
@@ -52,9 +55,11 @@ func (s shownPools) opened(ctx context.Context, cfg *config.Config, named string
 // they stand, so a pool added, removed or changed while it's open shows at
 // the next P, or as the config changes; stamped as the config file stood
 // before it was read, as configStamp has it, so a change as it's read is
-// read again; its ledger and the accounts removed as that config has them,
-// as ledgerOf has them. It fails where the config can't be read, or the
-// pools told.
+// read again; the grounds of its ledger, as groundsOf has them, with the
+// ledger made on them, as ledgerOn makes it, for the watch to make only
+// where the one in use was made on others; and the accounts removed, as
+// removedIn gives them where there's a state directory. It fails where the
+// config can't be read, or the pools told.
 func (s shownPools) turn(ctx context.Context, from string, ask watch.PoolAsk) (watch.Pooled, error) {
 	stamp := s.a.configStamp()
 	cfg, err := s.a.loadConfig()
@@ -73,20 +78,36 @@ func (s shownPools) turn(ctx context.Context, from string, ask watch.PoolAsk) (w
 	if err != nil {
 		return watch.Pooled{}, err
 	}
-	shown.Stamp = stamp
-	shown.Ledger, shown.Removed = s.ledgerOf(ctx, cfg)
+	shown.Stamp, shown.Grounds = stamp, s.groundsOf(cfg, pooled.Pools)
+	shown.NewLedger = s.ledgerOn(shown.Grounds)
+	if s.read {
+		shown.Removed = removedIn(s.dir, cfg)
+	}
 	return shown, nil
 }
 
-// ledgerOf is the request ledger as the dashboard reads it of the config
-// cfg, its days summarised with the caps of the accounts it configures, and
-// the accounts removed that the accounts record keeps, as removedIn gives
-// them of those: an empty ledger, and none, without a state directory.
-func (s shownPools) ledgerOf(ctx context.Context, cfg *config.Config) (views.Ledger, status.RemovedAccounts) {
-	if !s.read {
-		return ledger.NewEmpty(s.a.Now, caps(cfg)), nil
+// groundsOf are the grounds the dashboard's request ledger is made on, of
+// the config cfg, its pools as pools gives them: the caps of the accounts
+// it configures, and the first pool, as firstPool has it, where there's a
+// state directory, as the one it opens with is made.
+func (s shownPools) groundsOf(cfg *config.Config, pools config.Pools) ledger.Grounds {
+	grounds := ledger.Grounds{Caps: caps(cfg)}
+	if s.read {
+		grounds.First = s.a.firstPool(s.dir, pools)
 	}
-	return s.a.followerIn(ctx, s.r.dir, cfg, idmove.FirstPool), removedIn(s.r.dir, cfg)
+	return grounds
+}
+
+// ledgerOn makes the request ledger as the dashboard reads it, on the
+// grounds given: following the one in the state directory, else an empty
+// one. It makes none till it's called.
+func (s shownPools) ledgerOn(grounds ledger.Grounds) func() views.Ledger {
+	if !s.read {
+		return func() views.Ledger { return ledger.NewEmpty(s.a.Now, grounds.Caps) }
+	}
+	return func() views.Ledger {
+		return s.a.followerIn(s.dir, grounds.Caps, ledger.FirstPool(func() string { return grounds.First }))
+	}
 }
 
 // poolAsked is the id of the pool the dashboard asks for, as ask says, of
@@ -164,6 +185,6 @@ func (s shownPools) shownEvents(pooled *config.Config, id string) (views.Events,
 	if !s.read {
 		return events.Empty{}, nil
 	}
-	record := recordIn(s.r.dir)
-	return s.a.poolRead(pooled, s.r.dir, record, id).Filed(s.r.events), poolsNamed(pooled.Pools, record)
+	record := recordIn(s.dir)
+	return s.a.poolRead(pooled, s.dir, record, id).Filed(s.events), poolsNamed(pooled.Pools, record)
 }

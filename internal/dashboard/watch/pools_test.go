@@ -6,11 +6,13 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"sync"
 	"testing"
 	"time"
+	"weak"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -19,6 +21,7 @@ import (
 	"github.com/leeovery/switchboard/internal/events"
 	"github.com/leeovery/switchboard/internal/filestate"
 	"github.com/leeovery/switchboard/internal/identity"
+	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
@@ -42,15 +45,18 @@ var testPools = config.Pools{
 // poolTurns is a dashboard's pools as the config has them in these tests,
 // read as Config's Turn reads them: the pools and every account, as the
 // config file at path places them, each pool's source by its id, and the
-// router's files of events, nil for none; the request ledger and the
-// accounts removed, as the config file has them; the turns P asked for, each
-// by the pool turned from, and the times the pool shown was read again; and
-// what a turn fails with, where it does.
+// router's files of events, nil for none; the grounds of the request ledger
+// and the accounts removed, as the config file has them, and the ledgers
+// made on them, each of base, as many as made counts, none held; the turns P
+// asked for, each by the pool turned from, and the times the pool shown was
+// read again; and what a turn fails with, where it does.
 type poolTurns struct {
 	t        *testing.T
 	pools    config.Pools
 	accounts config.Accounts
-	ledger   views.Ledger
+	grounds  ledger.Grounds
+	base     views.Ledger
+	made     int
 	removed  status.RemovedAccounts
 	sources  map[string]Source
 	filed    views.Events
@@ -108,8 +114,12 @@ func (p *poolTurns) pooled(id string) Pooled {
 		Events:   filed,
 		Stamp:    p.configStamp(),
 		Placed:   status.Placed(p.pools, p.accounts),
-		Ledger:   p.ledger,
-		Removed:  p.removed,
+		Grounds:  p.grounds,
+		NewLedger: func() views.Ledger {
+			p.made++
+			return &configsLedger{Ledger: p.base}
+		},
+		Removed: p.removed,
 	}
 }
 
@@ -178,9 +188,11 @@ func pooledHarnessFiled(t *testing.T, acme config.Accounts, filed views.Events) 
 }
 
 // opened is cfg showing the pool with the given id, as the dashboard opens
-// on it.
+// on it, its ledger one of cfg's, told apart by its address, on the grounds
+// the config gives.
 func (p *poolTurns) opened(cfg Config, id string) Config {
-	p.ledger, p.removed = cfg.Ledger, cfg.Removed
+	p.base, p.removed = cfg.Ledger, cfg.Removed
+	cfg.Ledger, cfg.LedgerGrounds = &configsLedger{Ledger: p.base}, p.grounds
 	shown := p.pooled(id)
 	cfg.Pool, cfg.Accounts, cfg.Source, cfg.Events, cfg.Turn = shown.Pool, shown.Accounts, shown.Source, shown.Events, p.turn
 	cfg.ConfigStamp, cfg.Stamp, cfg.Placed = p.configStamp, shown.Stamp, shown.Placed
@@ -310,7 +322,7 @@ func TestNothingOfThePoolBeforeLandsAfterATurn(t *testing.T) {
 	h.model.keeping.writing = 1
 
 	tm := turns{Model: h.model}
-	next, _ := tm.Update(ofTurn{turn: before, msg: turnedMsg{pooled: Pooled{Pool: acmeShown, Source: h.source, Events: events.Empty{}, Ledger: h.model.cfg.Ledger}}})
+	next, _ := tm.Update(ofTurn{turn: before, msg: turnedMsg{pooled: Pooled{Pool: acmeShown, Source: h.source, Events: events.Empty{}}}})
 	tm = next.(turns)
 	if tm.poolTurns == before {
 		t.Fatal("the turn landed, but the pools shown weren't counted on")
@@ -347,7 +359,7 @@ func TestNothingOfThePoolBeforeLandsWhereItsCountersMatchTheFreshModels(t *testi
 			msgs = append(msgs, h.run(cmd)...)
 		}
 	}
-	deliver(ofTurn{turn: before, msg: turnedMsg{pooled: Pooled{Pool: acmeShown, Accounts: acmeAccounts, Source: h.source, Events: events.Empty{}, Ledger: h.model.cfg.Ledger}}})
+	deliver(ofTurn{turn: before, msg: turnedMsg{pooled: Pooled{Pool: acmeShown, Accounts: acmeAccounts, Source: h.source, Events: events.Empty{}}}})
 	stream := make(chan router.StreamEvent)
 	sent := router.StreamEvent{At: h.clock.now, Kind: router.StreamSent, Request: "r1", Attempt: 1, Session: idD28C, Model: "claude-opus-5-5", Account: "k3f9"}
 	tests := []struct {
@@ -644,7 +656,7 @@ func TestAPoolTheRouterDoesntKnowWaitsOnIt(t *testing.T) {
 	h, acme, pools := pooledHarness(t, acmeAccounts)
 	refusal := error(router.NeedPool("q7mt", testPools[:1]))
 	pools.sources["q7mt"] = refusingSource{fakeSource: acme, refusal: &refusal}
-	acme.health = router.Health{OK: true, Restart: configChanged}
+	acme.health = router.Health{OK: true, PID: 1, Restart: configChanged}
 	h.start()
 	h.deliver(h.press("P")...)
 	refusedLine := "● healthy  ·  restart due (config changed)  ·  no accounts routed yet"
@@ -675,12 +687,34 @@ func TestARefusalAfterTheRouterWasLostSaysHowItAnswered(t *testing.T) {
 		t.Fatal("a look that found the router gone left it not lost, want it lost")
 	}
 	refusal = router.NeedPool("b2n8", testPools[1:])
-	h.source.health = router.Health{OK: true, Restart: configChanged}
+	h.source.health = router.Health{OK: true, PID: 1, Restart: configChanged}
 	h.tickUntilAsked()
 	if !h.model.lost.IsZero() {
 		t.Errorf("the router refusing Default after it was lost leaves it lost since %v, want it lost no more", h.model.lost)
 	}
 	waitsOnTheRouter(t, h, "Default", "● healthy  ·  restart due (config changed)  ·  no accounts routed yet")
+}
+
+// A pool needed with no router's answer beside it, as a probe in place of
+// the router finds of a pool the config no longer has, is a read that
+// failed, not the router refusing: the pool shown isn't drawn as refused,
+// nor the router as found again.
+func TestAPoolNeededWithNoRoutersAnswerIsAReadThatFailed(t *testing.T) {
+	h, _, _ := pooledHarness(t, acmeAccounts)
+	var refusal error
+	h.model.cfg.Source = refusingSource{fakeSource: h.source, refusal: &refusal}
+	h.start()
+	h.stopRouter()
+	h.tickUntilAsked()
+	lost := h.model.lost
+	if lost.IsZero() {
+		t.Fatal("a look that found the router gone left it not lost, want it lost")
+	}
+	refusal = router.NeedPool("b2n8", testPools[1:])
+	h.tickUntilAsked()
+	if m := h.model; m.refusing != nil || m.failed == "" || !m.lost.Equal(lost) {
+		t.Errorf("a pool needed with no router's answer drew the pool refused %v, the read failing %q, the router lost since %v; want no refusal, the read failed, lost since %v", m.refusing != nil, m.failed, m.lost, lost)
+	}
 }
 
 // Another pool's refusal, as of a pool named otherwise, is a read that
@@ -768,20 +802,47 @@ func TestAnAccountOfThePoolShownChangedIsFollowedAtTheNextRead(t *testing.T) {
 }
 
 // An account taken out of the config while it's open is named, from the
-// next read, by the accounts removed as the config read has them, the
-// ledger summarised with its caps: the pool shown starts afresh with both.
-func TestAnAccountTakenOutIsNamedAsTheConfigReadHasIt(t *testing.T) {
+// next read, by the accounts removed as the config read has them; and a
+// reserve changed has a ledger made on the new caps, the one before let go:
+// nothing the dashboard holds still holds it.
+func TestAnAccountTakenOutIsNamedAndTheLedgerMadeOnTheConfigReadsCaps(t *testing.T) {
 	h, _, pools := pooledHarness(t, acmeAccounts)
 	h.start()
-	ledger := &configsLedger{Ledger: h.emptyLedger()}
+	before := weak.Make(h.model.cfg.Ledger.(*configsLedger))
 	pools.changeConfig(func(p *poolTurns) {
 		p.accounts = slices.Concat(defaultAccounts[:2], acmeAccounts)
-		p.removed, p.ledger = status.RemovedAccounts{{ID: "side", Label: "Side"}}, ledger
+		p.removed = status.RemovedAccounts{{ID: "side", Label: "Side"}}
+		p.grounds = ledger.Grounds{Caps: ledger.Caps{Reserves: map[string]float64{"work": 0.05}}}
 	})
 	h.deliver(h.press("R")...)
 	m := h.model
-	if len(m.cfg.Removed) != 1 || m.cfg.Removed[0].Label != "Side" || m.cfg.Ledger != views.Ledger(ledger) {
-		t.Errorf("side taken out, the dashboard names the accounts removed %+v, its ledger the config read's %v; want side, labelled Side, and that ledger", m.cfg.Removed, m.cfg.Ledger == views.Ledger(ledger))
+	if len(m.cfg.Removed) != 1 || m.cfg.Removed[0].Label != "Side" {
+		t.Errorf("side taken out, the dashboard names the accounts removed %+v, want side, labelled Side", m.cfg.Removed)
+	}
+	if pools.made != 1 || !m.cfg.LedgerGrounds.Same(pools.grounds) || m.cfg.Ledger.(*configsLedger) == before.Value() {
+		t.Errorf("a reserve changed, %d ledgers were made, the one in use on the new grounds %v; want one, made on them", pools.made, m.cfg.LedgerGrounds.Same(pools.grounds))
+	}
+	runtime.GC()
+	if before.Value() != nil {
+		t.Error("the ledger made on the grounds before is still held, want it let go")
+	}
+}
+
+// A turn on the grounds the ledger in use was made on keeps it, and what it
+// holds of the days read: P to another pool, and a change to the config
+// that leaves every cap and the first pool as they were, make none.
+func TestATurnOnTheSameGroundsKeepsTheLedgerInUse(t *testing.T) {
+	h, _, pools := pooledHarness(t, acmeAccounts)
+	h.start()
+	inUse := h.model.cfg.Ledger
+	h.deliver(h.press("P")...)
+	pools.changeConfig(func(p *poolTurns) {
+		p.pools = slices.Clone(p.pools)
+		p.pools[0].Label = "Home"
+	})
+	h.deliver(h.press("R")...)
+	if h.model.cfg.Pool.ID != "q7mt" || pools.made != 0 || h.model.cfg.Ledger != inUse {
+		t.Errorf("P, then Default relabelled, showing %q, made %d ledgers, the one in use kept %v; want Acme, none made, the one in use kept", h.model.cfg.Pool.ID, pools.made, h.model.cfg.Ledger == inUse)
 	}
 }
 

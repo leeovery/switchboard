@@ -75,6 +75,12 @@ type Health struct {
 	Restart status.Restart `json:"restart,omitzero"`
 }
 
+// Answered reports whether h is a router's answer to its health check: the
+// zero Health, as a read that asked no router gives, is none.
+func (h Health) Answered() bool {
+	return h.PID != 0
+}
+
 // Answer is how h says the router stands, as a status line says it: its
 // health, and the restart it has due.
 func (h Health) Answer() status.RouterAnswer {
