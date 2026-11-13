@@ -257,9 +257,9 @@ func (e PoolNeeded) Error() string {
 // poolOfAll returns the id of the pool the accounts with the given ids are
 // in, of as, the accounts the router has, passing over those it doesn't
 // have, which pinning them refuses: "" in a config from before pools, and
-// where it has none of them. It fails, naming each account by its id and its
-// label with its pool, where they're in two pools, or one is in none, as one
-// the config has dropped is till the router restarts.
+// where it has none of them. It fails, naming each account as accountSaid
+// does, label first, with its pool, where they're in two pools, or one is in
+// none, as one the config has dropped is till the router restarts.
 func (t *poolTable) poolOfAll(ids []string, as accounts) (string, error) {
 	if len(t.pools) == 0 {
 		return "", nil
@@ -341,14 +341,10 @@ func (t *poolTable) label(pool string) string {
 	return prose.Clean(pool)
 }
 
-// accountSaid names the account a by its id, and its label beside where
-// that differs, as in "b6s7 (Work)": one labelled by its id is named once.
+// accountSaid names the account a as prose.AccountNamed does, as in
+// "Work (b6s7)".
 func accountSaid(a config.Account) string {
-	said := prose.Clean(a.ID)
-	if label := status.ConfiguredName(a).Said(); !strings.EqualFold(label, said) {
-		said += " (" + label + ")"
-	}
-	return said
+	return prose.AccountNamed(a.Label, a.ID)
 }
 
 // routed returns the accounts of as in the pool with the given id, in their

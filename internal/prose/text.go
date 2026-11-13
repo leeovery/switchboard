@@ -116,6 +116,18 @@ func Version(version string) string {
 	return "v" + version
 }
 
+// AccountNamed names an account by its label and, beside it, its id, as in
+// "Acme 1 (k3f9)": one labelled by its id, ignoring case, or not labelled,
+// by its id alone. Both are cleaned, as Clean cleans them.
+func AccountNamed(label, id string) string {
+	id = Clean(id)
+	label = Clean(label)
+	if label == "" || strings.EqualFold(label, id) {
+		return id
+	}
+	return label + " (" + id + ")"
+}
+
 // Clean makes text safe to show on one line of a terminal: control
 // characters, which would move the cursor or restyle what follows, become
 // spaces, and each run of spaces becomes one.
