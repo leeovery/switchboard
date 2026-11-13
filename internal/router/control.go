@@ -68,6 +68,23 @@ type Health struct {
 	// pool's: zero where none is owed, and from a router that doesn't say
 	// ReportsPools.
 	Moving status.Moving `json:"moving,omitzero"`
+	// Restart is the restart the router has due, as its status document
+	// gives it, given here too for a pool it can't give one of, as one added
+	// since it started, which waits on that restart: zero where none is, and
+	// from a router from before it.
+	Restart status.Restart `json:"restart,omitzero"`
+}
+
+// Answered reports whether h is a router's answer to its health check: the
+// zero Health, as a read that asked no router gives, is none.
+func (h Health) Answered() bool {
+	return h.PID != 0
+}
+
+// Answer is how h says the router stands, as a status line says it: its
+// health, and the restart it has due.
+func (h Health) Answer() status.RouterAnswer {
+	return status.RouterAnswer{Health: status.Health{Healthy: h.OK, Reason: h.Reason}, Restart: h.Restart}
 }
 
 // Same reports whether h and o are the answers of one router: the same
@@ -345,6 +362,7 @@ func (r *Router) healthNow() Health {
 	return Health{
 		OK: h.Healthy, Reason: h.Reason, Listen: r.proxyAddr, Version: r.cfg.Version, PID: os.Getpid(), StartedAt: r.started,
 		StripsOwnHeaders: true, ReportsPools: true, Pools: r.state.pools.current().reported(r.accounts), Moving: r.moving.report(),
+		Restart: r.upkeep.restartDue(),
 	}
 }
 

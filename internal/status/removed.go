@@ -69,7 +69,7 @@ func PoolLabels(pools config.Pools, record func() identity.Record) func(id strin
 // accounts record record returns keeps one they don't, removed or another
 // Mac's from an import, record called only where pools are one or none.
 func ManyPoolsFiled(pools config.Pools, record func() identity.Record) bool {
-	if len(pools) > 1 {
+	if NamesThePool(len(pools)) {
 		return true
 	}
 	return slices.ContainsFunc(record().Pools, func(p identity.PoolEntry) bool {

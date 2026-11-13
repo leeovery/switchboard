@@ -25,8 +25,8 @@ const (
 // statusLine is how the router stands, as the status line says it, in its
 // parts: the router's state, since when, where it's a state that has a
 // since, and what a line short of room shortens the two to; a restart it has
-// due; the mode; the sessions it has routed in the last hour; and where new
-// sessions go. Each part but the state is nil where the line leaves it out: a
+// due; the mode, or of a pool with no accounts, that it has none; the
+// sessions it has routed in the last hour; and where new sessions go. Each part but the state is nil where the line leaves it out: a
 // document probed has no mode, sessions or new sessions.
 type statusLine struct {
 	state, since, short                  line
@@ -48,7 +48,21 @@ func (f Frame) routerStatus(c *canvas, doc status.Document, now time.Time) {
 	c.line(0, y, firstFit(f.Width, forms...))
 }
 
-// pageStatus is the page's status line of doc at now: the router's, as
+// pageStatus is the page's status line of doc at now, as statusOf has it;
+// but of a pool with no accounts, as accountless has it, the router's state
+// as it answered where it refuses to read the pool, not knowing it, as of a
+// pool it knows.
+func (f Frame) pageStatus(doc status.Document, now time.Time) statusLine {
+	switch {
+	case !f.Pool.Empty():
+		return f.statusOf(doc, now)
+	case f.Pool.Refusing != nil:
+		return newStatusLine(f.Pool.Refusing.Moment()).accountless(f.Pool.Waiting())
+	}
+	return f.statusOf(doc, now).accountless(f.Pool.Waiting())
+}
+
+// statusOf is the status line of doc at now: the router's, as
 // newStatusLine has it, auto said where it has no global pin, and the
 // sessions it has routed numbered as such, where it has routed any; or
 // probed, as probedLine has it. While the router doesn't answer, from when
@@ -56,7 +70,7 @@ func (f Frame) routerStatus(c *canvas, doc status.Document, now time.Time) {
 // them, or before any document, that alone. A read that failed otherwise
 // says why in the state's place, as failing has it. Before any document, and
 // before either, it's blank.
-func (f Frame) pageStatus(doc status.Document, now time.Time) statusLine {
+func (f Frame) statusOf(doc status.Document, now time.Time) statusLine {
 	m := f.Moment(doc, now)
 	var s statusLine
 	switch {
@@ -97,6 +111,19 @@ func (f Frame) failing(s statusLine, now time.Time) statusLine {
 	s.since = line{{next, mutedInk}}
 	s.short = line{{"! ", errorInk}, {"couldn't read usage", secondaryInk}, {" " + next, mutedInk}}
 	return s
+}
+
+// accountless is s of a pool with no accounts to route: its state, since
+// when, short and the restart due, which takes up any the config gives it,
+// and in the place of the rest, as nothing routes in the pool, that it has
+// no accounts, or none routed yet where waiting says the config gives it
+// some the router hasn't taken up.
+func (s statusLine) accountless(waiting bool) statusLine {
+	said := prose.NoAccounts
+	if waiting {
+		said = prose.NoneRouted
+	}
+	return statusLine{state: s.state, since: s.since, short: s.short, restart: s.restart, mode: line{{said, secondaryInk}}}
 }
 
 // newStatusLine is the status line of the moment m, its mode shown only while

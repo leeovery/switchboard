@@ -25,7 +25,7 @@ import (
 // Digests. The list only shrinks: an entry must still be there, and still
 // name one.
 var digestsWired = []string{
-	"internal/cli/readers.go:app.stateReadersKnowing",
+	"internal/cli/readers.go:app.followerIn",
 	"internal/cli/serve.go:app.startingFrom",
 }
 

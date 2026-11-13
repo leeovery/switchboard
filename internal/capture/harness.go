@@ -168,6 +168,10 @@ func (f Fixture) config(size watch.Size, now func() time.Time) watch.Config {
 		Prices:     drawnPrices,
 		TraceScale: cmp.Or(f.scale, framesTraceScale),
 		LedgerKeep: framesKeep,
+		Pool:       f.pool,
+	}
+	if f.pool.Turns() {
+		cfg.Turn = turnNowhere
 	}
 	cfg.Ledger, cfg.Readings, cfg.Events = f.readers(now)
 	dressed(&cfg, f.theme, f.colourless)

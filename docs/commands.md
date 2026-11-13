@@ -5,7 +5,7 @@ This page describes every switchboard command: what it does, its flags, and what
 | Group | Command | What it does |
 |---|---|---|
 | [Everyday](#everyday) | [`usage`](#usage) | Prints every account's windows as they stand. |
-| | [`dashboard`](#dashboard) | Shows every account's usage full screen, on seven tabs. |
+| | [`dashboard`](#dashboard) | Shows a pool's accounts' usage full screen, on seven tabs. |
 | | [`pin`](#pin) | Tells the router where to send sessions. |
 | | [`claude`](#claude) | Starts the real Claude Code through the router. |
 | [Setting up](#setting-up) | [`setup`](#setup) | Walks you through setting switchboard up. |
@@ -72,7 +72,7 @@ Some commands have more to say:
 
 Once the config has pools (see [Pools](how-it-works.md#pools)), each verb that reads or acts on
 one pool's work takes `--pool <id>`: `status`, `usage`, `sessions`, `requests`, `history`,
-`events` and `pin`. Name the pool by its id, as [`switchboard pool`](#pool) lists them. `--pool ""`
+`events`, `dashboard` and `pin`. Name the pool by its id, as [`switchboard pool`](#pool) lists them. `--pool ""`
 is the flag not given. Without `--pool`, a verb reads:
 
 1. the only pool, where there's one;
@@ -107,9 +107,11 @@ Claude pass `--pool "$SWITCHBOARD_POOL"`, the session's own pool.
   the day where the accounts record has it, as `pool Acme (removed 6 Oct)`; one it never had as
   `pool Client (not configured here)`, whatever became of it on the other Mac. `status`, `usage`
   and `pin` refuse it, as the router routes nothing there.
-- [`dashboard`](#dashboard) shows the pool the verbs act on without `--pool`; `status --pool <id>`
-  shows the others. Where every pool is fenced, it reads no pool's accounts, saying it couldn't
-  read usage, as every pool is fenced: this release's dashboard takes no `--pool`.
+- [`dashboard`](#dashboard) shows the pool `--pool` names, else the one the verbs act on, and
+  refuses a pool the config doesn't have, a removed one among them, as it has no accounts to show.
+  It lists the pool's accounts alone. Where every pool is fenced and none is named, it opens on
+  none, saying it couldn't read usage, as every pool is fenced; `P` turns to the first pool, and to
+  each after it in turn (see [In a pool](dashboard.md#in-a-pool)).
 - **A router that reports no pools,** as one from before them still running till its restart,
   isn't read as a pool's where the config has them, its document and sessions every account's:
   `status`, `usage` and the dashboard probe the pool's accounts instead, saying `the router doesn't
@@ -256,8 +258,10 @@ switchboard usage -r               # have the router read every account it may f
 
 ### `dashboard`
 
-`dashboard` shows every account's usage full screen, on seven tabs, until you press `q`. For its
-flags, keys and tabs, see [Dashboard](dashboard.md).
+`dashboard` shows a pool's accounts' usage full screen, on seven tabs, until you press `q`: every
+account's, where the config has one pool. `--pool <id>` names the pool, as on every verb that
+reads one (see [Reading a pool](#reading-a-pool)), and `P` turns to the next. For its flags, keys
+and tabs, see [Dashboard](dashboard.md).
 
 ### `pin`
 

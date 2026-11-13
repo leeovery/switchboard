@@ -1,9 +1,11 @@
 # The ledger's prebuilt records, per pool
 
-A dashboard shows one pool (see Pools, The dashboard in a pool). Pools' first phase filters what the
-router's document gives, and the dashboard's reads of the router's events, so Runway's LATELY and
-the Log's Events tell of the pool shown alone. Its reads of the request ledger aren't filtered, as
-much of what they read is built ahead of time with no pool in it:
+A dashboard shows one pool (see Pools, The dashboard in a pool), the one `--pool` names, `P`
+turning to the next. It filters what the router's document gives, its reads of the router's
+events, read afresh at each `P`, and the accounts it lists, so Runway's LATELY, the Log's Events
+and the accounts on Accounts, History and Graphs are the pool shown's alone. Its reads of the
+request ledger aren't filtered, as much of what they read is built ahead of time with no pool in
+it:
 
 - **The Log's day rows,** a day's rows in chunks that `DayRows` points at and `RowChunk` reads. A
   row holds no pool, and a chunk's meta names none, so the Log can't keep one pool's rows of a day
@@ -12,8 +14,10 @@ much of what they read is built ahead of time with no pool in it:
 - **The day digests,** which a session's state rests on, for the Sessions tab and a session's page,
   and which History's and Graphs' points are read from.
 
-So in a config with two pools, the Log's requests, the Sessions tab, a session's page, History and
-Graphs tell of every pool's work together, labelled by account.
+So in a config with two pools, the Log's requests, the Sessions tab, a session's page, History,
+Graphs and the worth and tokens on Accounts tell of every pool's work together, labelled by
+account, whichever pool the title row names; History's Year sets every pool's worth beside the
+plans of the pool shown.
 
 ## What it could do
 
@@ -24,32 +28,19 @@ Graphs tell of every pool's work together, labelled by account.
 - **A day's side and its digests** hold their sessions, worth and points per pool, or a read of one
   pool falls back to the day's lines where they don't.
 - **The dashboard's ledger** is read through the pool's read, as `views.PoolRead` reads the verbs'
-  files, so every tab tells of the pool shown alone.
-- **The pool's read made live.** The dashboard's read of the router's files of events is the pool
-  it shows as it opened: after a pool or an account is edited with a dashboard open, its events
-  read from the files keep the old placements until it's started again. So is its `PoolNamed`,
-  which names the pool a forced pin cleared the own pins of in the Log's events, worked out from
-  the pools and the accounts record as it opens. `P`, changing the pool shown, starts the view
-  afresh, which is where the read, and `PoolNamed`, are to follow the config too.
+  files and the dashboard's events, so every tab tells of the pool shown alone, and `P`, starting
+  the view afresh, reads the next pool's.
 - **A pool the config no longer has.** The verbs that read the files read a removed pool's work,
   or another Mac's from an import, by its id (`--pool`, as `filedPool`'s kept pool reads it),
-  never folded into another pool. The dashboard can't: its `--pool` could take such a pool for
-  History, the Log's requests and Sessions alone, its windows and Runway having no accounts to
-  show, once the prebuilt records name each line's pool, as above.
-- **Every pool fenced.** The first phase's dashboard takes no `--pool`, so where every pool is
-  fenced the router refuses its reads and it shows no pool's accounts, saying it couldn't read
-  usage. Its `--pool` opens it on the pool named.
-- **The pools as they stand, held for the run.** The dashboard reads the pools as they stand
-  (`pooledConfig`: the config's, else the router's or the accounts record's) once as it opens, as
-  its read of the events is fixed then: the first pool its ledger gives work in no pool follows the
-  accounts record live, but not a pool added or removed while it's open. `P`'s fresh start is
-  where they're read again.
+  never folded into another pool. The dashboard's `--pool` refuses one, naming the pools
+  configured: it could take such a pool for History, the Log's requests and Sessions alone, its
+  windows and Runway having no accounts to show, once the prebuilt records name each line's pool,
+  as above.
 
 ## Why it's the second phase's
 
 Reading raw lines instead, wherever the read is one pool's of several, would be right now, but it
-gives up the fast opens for exactly the user with two pools, for a view the first phase leaves as
-it was: the dashboard shows the pool the verbs act on, as before pools. The second phase gives the
-dashboard its `--pool` and `P`, and is where its views each come to be one pool's.
+gives up the fast opens for exactly the user with two pools. The second phase gave the dashboard its
+`--pool` and `P` first; this is where its views each come to be one pool's.
 
 Found by the review of the pools' verbs on 13 November 2026, for Pools' second phase.

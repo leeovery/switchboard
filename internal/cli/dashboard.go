@@ -32,14 +32,15 @@ const (
 type dashboardOptions struct {
 	noNotify bool
 	probe    bool
+	pool     string
 	interval time.Duration
 }
 
 func newDashboardCommand(a *app) *cobra.Command {
 	var opts dashboardOptions
 	cmd := &cobra.Command{
-		Use:   "dashboard [interval] [--no-notify] [--probe]",
-		Short: "Show every account's usage as a dashboard, full screen",
+		Use:   "dashboard [interval] [--no-notify] [--probe] [--pool ID]",
+		Short: "Show a pool's accounts' usage as a dashboard, full screen",
 		Long:  dashboardLong,
 		Args:  opts.parseArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -53,6 +54,7 @@ func newDashboardCommand(a *app) *cobra.Command {
 	})
 	cmd.Flags().BoolVar(&opts.noNotify, "no-notify", false, "post no desktop notifications without the router")
 	cmd.Flags().BoolVar(&opts.probe, "probe", false, "probe every account, even while the router runs")
+	addPoolFlag(cmd, &opts.pool, "show the")
 	return cmd
 }
 
@@ -61,10 +63,33 @@ func newDashboardCommand(a *app) *cobra.Command {
 // command builds the dashboard's, the launch of claude among them.
 const keysPlace = "{{keys}}"
 
-const dashboardLong = `Show every account's usage as a dashboard, full screen until q: the router's,
-while it answers, with its sessions and pin, else read by probing each
-account, as --probe does whether the router runs or not. It needs a
+const dashboardLong = `Show a pool's accounts' usage as a dashboard, full screen until q: the
+router's, while it answers, with its sessions and pin, else read by probing
+each account, as --probe does whether the router runs or not. It needs a
 terminal, and refuses without one.
+
+It shows one pool: the one --pool names by its id, as switchboard pool lists
+them, else the only pool, else the one fenced to no directory. The directory
+it's run in never chooses. A pool the config doesn't configure is refused,
+naming those it does. Where every pool is fenced and none is named, it opens
+on none, listing no accounts, its status line saying it can't read usage as
+every pool is fenced, naming them, and P turns to the first.
+
+Accounts lists the pool's accounts alone. Where there's more than one pool,
+the title row names the one shown, and P turns to the next, in the config's
+order, the pools read afresh, so one added or removed since shows: the view
+starts afresh, nothing of the pool before carried over. With one pool, P
+reads them afresh all the same, turning to a second added since, else
+saying there's one. A change to the pools or the accounts in the config
+starts the view afresh on the pool shown, as P does, the config file read
+again only where a read finds it, or the accounts routed, changed; a pool
+shown that's removed turns to the first. A pool with no accounts the router
+routes says so on every tab, with how to add one, or where the config gives
+it some the router hasn't taken up, as a pool added since it started, that
+switchboard service restart takes them up. History,
+Sessions, Graphs, the Log's requests and the worth and tokens on Accounts
+still tell of every pool's work together, History's Year setting every
+pool's worth beside the plans of the pool shown.
 
 It reads the router's usage every few seconds, which the router keeps
 current itself, reading every account nothing has read in the last 5
@@ -94,7 +119,7 @@ Graphs, on a section's heading hides it.
 While the router runs, it posts the desktop notifications, --probe or not;
 without it, the dashboard posts its own of an account with room again and a
 window passing the warning, as the config's [notifications] asks, unless
---no-notify.
+--no-notify, each led by the pool's label where there's more than one.
 
 The dashboard is drawn in the theme chosen in the picker, or the pair of
 tokyo-night-day for a light terminal and nord for a dark one, which the
@@ -135,13 +160,16 @@ func parseInterval(s string) (time.Duration, error) {
 
 // dashboard keeps the dashboard on screen, reading usage as each read falls
 // due, until the user quits: once the history's moved onto the accounts'
-// ids, where it waits on that, as awaitMove does.
+// ids, where it waits on that, as awaitMove does. It shows the pool opts
+// names, else the one the verbs act on, as shownPools has it, P turning to
+// the next; refusing a pool the config doesn't configure.
 func (a *app) dashboard(ctx context.Context, out io.Writer, opts dashboardOptions) error {
 	if dir, err := config.StateDir(a.Getenv, a.HomeDir); err == nil {
 		if err := a.awaitMove(ctx, out, dir); err != nil {
 			return err
 		}
 	}
+	stamp := a.configStamp()
 	cfg, err := a.loadConfig()
 	if err != nil {
 		return err
@@ -155,7 +183,6 @@ func (a *app) dashboard(ctx context.Context, out io.Writer, opts dashboardOption
 	// Without a home directory, a session's directory shows whole.
 	home, _ := a.HomeDir()
 	wc := watch.Config{
-		Source:        a.source(ctx, cfg, opts.probe),
 		ProbeOnly:     opts.probe,
 		Notifier:      notifier,
 		Notifications: cfg.Notifications,
@@ -163,7 +190,6 @@ func (a *app) dashboard(ctx context.Context, out io.Writer, opts dashboardOption
 		Interval:      opts.interval,
 		Policy:        claude.Policy(),
 		WindowName:    status.NameOfKey,
-		Accounts:      cfg.Accounts,
 		WeekStarts:    cfg.WeekStarts,
 		WeekWindow:    claude.WeekWindow,
 		Family:        claude.Provider{}.Family,
@@ -175,14 +201,21 @@ func (a *app) dashboard(ctx context.Context, out io.Writer, opts dashboardOption
 		AccountsShown: dashboard.AccountsKept(kept.Accounts),
 		SessionsShown: dashboard.SessionsKept(kept.Sessions),
 		RunwayShown:   dashboard.RunwayKept(kept.Runway),
-		History:       dashboard.HistoryKept(kept.History, cfg.Accounts),
 		Graphs:        dashboard.GraphsSectionsNamed(kept.GraphsTab.Sections),
 		Log:           dashboard.LogKept(kept.Log),
 		LedgerKeep:    cfg.Ledger.Keep,
 		Prices:        pricing(cfg),
 		Home:          home,
 	}
-	a.readers(ctx, &wc, cfg)
+	r, read := a.readers(ctx, &wc, cfg)
+	pools := shownPools{a: a, probe: opts.probe, dir: r.dir, events: r.events, read: read, stamp: stamp}
+	shown, err := pools.opened(ctx, cfg, opts.pool)
+	if err != nil {
+		return err
+	}
+	wc.Pool, wc.Accounts, wc.Source, wc.Events, wc.PoolNamed, wc.Turn = shown.Pool, shown.Accounts, shown.Source, shown.Events, shown.PoolNamed, pools.turn
+	wc.ConfigStamp, wc.Stamp, wc.Placed, wc.LedgerGrounds = a.configStamp, shown.Stamp, shown.Placed, shown.Grounds
+	wc.History = dashboard.HistoryKept(kept.History, wc.Accounts)
 	if t.prefs != nil {
 		wc.Prefs = t.prefs
 	}

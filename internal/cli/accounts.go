@@ -916,7 +916,7 @@ func (a *app) foreignTokens(ctx context.Context) func(id string) bool {
 // cfg as its pools stand, as standing has it, with its pool's label once
 // there's a second pool.
 func accountRows(cfg *config.Config, readToken func(id string) (tokens.Token, error), foreign func(id string) bool) [][]string {
-	pooled := len(cfg.Pools) > 1
+	pooled := status.NamesThePool(len(cfg.Pools))
 	head := []string{"ID", "LABEL", "PRIMARY", "TOKEN"}
 	if pooled {
 		head = slices.Insert(head, 2, "POOL")

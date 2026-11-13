@@ -836,7 +836,8 @@ The commands and the dashboard talk to the router over `control.sock` in the sta
 readable by its owner alone. Its answers are JSON. Two of them matter for pools.
 
 `GET /health` answers `{ok, reason, listen, version, pid, started_at, strips_own_headers,
-reports_pools, pools, moving}`:
+reports_pools, pools, moving, restart}`, `restart` the restart the router has due, as the status
+document gives it, left out where none is:
 
 - `reports_pools`: `true` from a router that reports the pools it routes for. One from before
   pools leaves it out, and `claude` counts it down where the config has two pools or more.

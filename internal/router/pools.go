@@ -10,6 +10,7 @@ import (
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/identity"
 	"github.com/leeovery/switchboard/internal/idmove"
+	"github.com/leeovery/switchboard/internal/status"
 )
 
 // poolTable is which pool each account is in, as a config the router follows
@@ -131,6 +132,18 @@ func (t *poolTable) members(pool string) []string {
 // out on the account with the given id, as holds says of the pool it's in.
 func (t *poolTable) serves(named, id string) bool {
 	return t.holds(t.of(named), id)
+}
+
+// named is the label of the pool the account with the given id is in, as a
+// notification of it names the pool, once there's a second, as
+// status.NamesThePool has it: "" with one pool or none, or of an account in
+// none the table configures.
+func (t *poolTable) named(id string) string {
+	if !t.apart() {
+		return ""
+	}
+	p, _ := t.pools.ByID(t.poolOf[id])
+	return p.Label
 }
 
 // pooled reports whether the table has pools: a config's that has them, or
@@ -273,10 +286,11 @@ func keptTable(record identity.Record, accounts config.Accounts, idNow func(id s
 	return t, nil
 }
 
-// apart reports whether the table has pools to tell apart, two or more: what
-// switchboard says names no pool till there's a second.
+// apart reports whether the table has pools to tell apart, as
+// status.NamesThePool has it: what switchboard says names no pool till
+// there's a second.
 func (t *poolTable) apart() bool {
-	return len(t.pools) > 1
+	return status.NamesThePool(len(t.pools))
 }
 
 // shown returns how what switchboard tells a client names the pool with the

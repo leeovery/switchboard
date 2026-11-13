@@ -252,9 +252,9 @@ are.
   `sessions` lists the ledger's alone, and `pin` and `status --session --pool` refuse. Run
   `switchboard service restart`.
 - **The dashboard says `couldn't read usage: every pool is fenced: …`:** with every pool fenced,
-  there's no pool for it to show without being told, and this release's dashboard takes no
-  `--pool`. Read a pool with `switchboard status --pool <id>`, or leave one pool unfenced with
-  `pool edit <id> --unfence`.
+  there's no pool for it to show without being told. Press `P` to turn to the first, or open it on
+  one with `switchboard dashboard --pool <id>`. To open on one without naming it, leave one pool
+  unfenced with `pool edit <id> --unfence`.
 - **A client's session in a directory you've just fenced still runs on your accounts:** a
   session's pool is decided as it starts, so one already running when `pool add` or `pool edit`
   made the fence keeps its old pool till it's resumed. Resume the sessions running there.

@@ -87,12 +87,20 @@ func (a *app) stateReadersKnowing(ctx context.Context, cfg *config.Config, first
 	}
 	pools := sync.OnceValue(func() config.Pools { return a.standing(ctx, cfg).Pools })
 	return stateReaders{
-		ledger:   ledger.NewFollower(dir, a.Now, caps(cfg), views.DigestVersion, logger, first(dir, pools)),
+		ledger:   a.followerIn(dir, caps(cfg), first(dir, pools)),
 		readings: readings.NewReader(dir, logger),
 		events:   events.NewReader(dir, a.Now, logger),
 		removed:  removedIn(dir, cfg),
 		dir:      dir,
 	}, nil
+}
+
+// followerIn follows the request ledger in the state directory dir, by the
+// commands' clock, its days summarised with caps, knowing the first pool as
+// first has it, and its sessions resting on the states its digests hold, of
+// the version the views build them in.
+func (a *app) followerIn(dir string, caps ledger.Caps, first ledger.Option) *ledger.Follower {
+	return ledger.NewFollower(dir, a.Now, caps, views.DigestVersion, logger, first)
 }
 
 // removedIn are the accounts removed that the accounts record in the state
@@ -128,36 +136,22 @@ func poolLabelsIn(dir string, cfg *config.Config) func(id string) string {
 	return status.PoolLabels(cfg.Pools, recordIn(dir))
 }
 
-// readers has wc read the request ledger, the readings history and the
-// router's events where they lie, through stateReadersKnowing's readers, the
-// ledger reading the first pool afresh at each ask, as idmove.FirstPool
-// does, as a dashboard may stay open across the move to pools; the events
-// those of the pool the dashboard shows, as shownEvents has them. Without a
-// state directory to find, they read nothing.
-func (a *app) readers(ctx context.Context, wc *watch.Config, cfg *config.Config) {
+// readers has wc read the request ledger and the readings history where
+// they lie, through stateReadersKnowing's readers, the ledger reading the
+// first pool afresh at each ask, as idmove.FirstPool does, as a dashboard
+// may stay open across the move to pools; and returns those readers, for
+// the router's events to be read of the pool the dashboard shows, as
+// shownPools reads them. Without a state directory to find, they read
+// nothing, and it reports false.
+func (a *app) readers(ctx context.Context, wc *watch.Config, cfg *config.Config) (stateReaders, bool) {
 	r, err := a.stateReadersKnowing(ctx, cfg, idmove.FirstPool)
 	if err != nil {
 		logger.Debug("can't find the ledger, the readings history or the router's events", "error", err)
-		wc.Ledger, wc.Readings, wc.Events = ledger.NewEmpty(a.Now, caps(cfg)), readings.Empty{}, events.Empty{}
-		return
+		wc.Ledger, wc.Readings = ledger.NewEmpty(a.Now, caps(cfg)), readings.Empty{}
+		return stateReaders{}, false
 	}
 	wc.Ledger, wc.Readings, wc.Removed = r.ledger, r.readings, r.removed
-	wc.Events, wc.PoolNamed = a.shownEvents(ctx, cfg, r)
-}
-
-// shownEvents reads the router's events through r's reader as the dashboard
-// shows them: those of the pool it shows, the one the verbs read with none
-// named, as filedPool has it, as the router gives its document of that pool;
-// and names their pools, as poolsNamed has it of the pools filedPool gives.
-// Where that can't be told, it reads none, warning, so the dashboard never
-// shows every pool's together.
-func (a *app) shownEvents(ctx context.Context, cfg *config.Config, r stateReaders) (views.Events, func(id string) string) {
-	pool, pooled, err := a.filedPool(ctx, cfg, r.dir, "")
-	if err != nil {
-		logger.Warn("can't tell which pool the dashboard shows, so it reads none of the router's files of events", "error", err)
-		return events.Empty{}, nil
-	}
-	return pool.read.Filed(r.events), poolsNamed(pooled.Pools, recordIn(r.dir))
+	return r, true
 }
 
 // poolsNamed labels a pool by its id, as status.PoolLabels does, where the

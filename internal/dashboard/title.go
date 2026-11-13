@@ -2,7 +2,10 @@ package dashboard
 
 import (
 	"slices"
+	"strings"
 	"time"
+
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/leeovery/switchboard/internal/dashboard/flex"
 	"github.com/leeovery/switchboard/internal/prose"
@@ -45,13 +48,19 @@ func fixedPiece(words line, turn int) titlePiece {
 	return titlePiece{words: words, part: flex.Part{Least: words.width(), Natural: words.width(), Leaves: turn}}
 }
 
+// poolTabsAfter is the blank cells between the pool's name and the first
+// tab, so the tab's word stands as far from it as from the badge.
+const poolTabsAfter = titleGap + 1
+
 // title draws the title row, on the rows titleRows says it takes: the
-// dashboard's name, from the first column; the tabs, the one shown picked
-// out; and ending at the last column, the clock, at the frame's Clock where
-// it's set, else at now. Where the row is short, the clock's date and then
-// its time give way. On a phone, the tabs take rows of their own.
+// dashboard's name, from the first column; the pool shown's, after it, as
+// poolName has it; the tabs, the one shown picked out; and ending at the
+// last column, the clock, at the frame's Clock where it's set, else at now.
+// Where the row is short, the clock's date and then its time give way. On a
+// phone, the tabs take rows of their own.
 func (f Frame) title(c *canvas, now time.Time) {
 	c.line(0, 0, pill)
+	c.line(pill.width()+titleGap, 0, f.poolName())
 	end := f.tabs(c)
 	if !f.Clock.IsZero() {
 		now = f.Clock
@@ -108,14 +117,79 @@ type tabAt struct {
 	x, y int
 }
 
-// tabsAt are the tabs where they're drawn: two cells after the badge, a cell
-// apart. On a phone, they take the rows under the clock's that tabRows splits
-// them over instead, each from its first column, touching.
+// tabsAt are the tabs where they're drawn: from where tabsFrom has them, a
+// cell apart. On a phone, they take the rows under the clock's that tabRows
+// splits them over instead, each from its first column, touching.
 func (f Frame) tabsAt() []tabAt {
 	if f.phone() {
 		return f.tabsAlong(0, 1, 0, tabRows(f.tabWidths(), f.Width))
 	}
-	return f.tabsAlong(pill.width()+titleGap, 0, 1, []int{len(Views())})
+	return f.tabsAlong(f.tabsFrom(), 0, 1, []int{len(Views())})
+}
+
+// tabsFrom is the column the tabs start at along the title row, off a
+// phone: titleGap cells after the badge, or poolTabsAfter after the pool's
+// name, where it names one.
+func (f Frame) tabsFrom() int {
+	if f.poolNameCells() == 0 {
+		return pill.width() + titleGap
+	}
+	return f.leadEnd() + poolTabsAfter
+}
+
+// poolName is the pool shown as the title row names it after the badge,
+// titleGap cells after it, as setup's name stands there: its label, once
+// there's a second pool, as the pool's Named has it, cut short to
+// poolNameRoom; nil where it's named nowhere.
+func (f Frame) poolName() line {
+	named := f.Pool.Named()
+	if named == "" {
+		return nil
+	}
+	return line{{prose.Clean(named), titleInk}}.fit(f.poolNameRoom())
+}
+
+// poolNameCells is the cells poolName takes, 0 where it names none, worked
+// out without drawing it, of a copy of the label: the tabs are placed by it
+// wherever a page is laid out, as a session's page's scroll is at every
+// key, and the label itself passed to prose.Clean, which keeps what it's
+// given, would have the frame's contents escape to the heap at each.
+func (f Frame) poolNameCells() int {
+	named := f.Pool.Named()
+	if named == "" {
+		return 0
+	}
+	return min(ansi.StringWidth(prose.Clean(strings.Clone(named))), f.poolNameRoom())
+}
+
+// poolNameRoom is the most cells the pool's name takes: what leaves room
+// for the tabs on the title row, or on a phone, whose tabs take rows of
+// their own, the row after the badge; a cell at the least.
+func (f Frame) poolNameRoom() int {
+	room := f.Width - pill.width() - titleGap
+	if !f.phone() {
+		room -= poolTabsAfter + f.tabsWidth()
+	}
+	return max(room, 1)
+}
+
+// leadEnd is the column after the title row's lead: the badge, and the
+// pool's name, where it names one.
+func (f Frame) leadEnd() int {
+	if cells := f.poolNameCells(); cells > 0 {
+		return pill.width() + titleGap + cells
+	}
+	return pill.width()
+}
+
+// tabsWidth is the cells the tabs take along a row, a cell apart.
+func (f Frame) tabsWidth() int {
+	widths := f.tabWidths()
+	total := len(widths) - 1
+	for _, w := range widths {
+		total += w
+	}
+	return total
 }
 
 // tabsAlong are the tabs laid along rows from row y, as many to a row as
@@ -184,9 +258,10 @@ func filled(widths []int, room int) []int {
 }
 
 // tabs draws the tabs, as tabsAt places them, and returns the column after
-// the last on the title row's own, or after the badge where none is.
+// the last on the title row's own, or after its lead, as leadEnd has it,
+// where none is.
 func (f Frame) tabs(c *canvas) int {
-	end := pill.width()
+	end := f.leadEnd()
 	for _, t := range f.tabsAt() {
 		if x := c.line(t.x, t.y, f.tab(t.view)); t.y == 0 {
 			end = x
