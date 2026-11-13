@@ -191,8 +191,8 @@ func TestAVerbActingOnAPoolRefusesARouterFromBeforePools(t *testing.T) {
 		{"pin", "auto", "--force"},
 		{"pin", "work", "--session", "0b5c"},
 		{"pin", "auto", "--session", "0b5c"},
-		{"status", "--session", "0b5c"},
-		{"status", "--session", "0b5c", "--json"},
+		{"status", "--session", "0b5c", "--pool", "b2n8"},
+		{"status", "--session", "0b5c", "--pool", "b2n8", "--json"},
 	} {
 		if got, want := run(t, srv.deps, args...), (result{stderr: "Error: " + beforePools + "\n", code: 1}); got != want {
 			t.Errorf("switchboard %s = %+v, want %+v", strings.Join(args, " "), got, want)
@@ -200,6 +200,30 @@ func TestAVerbActingOnAPoolRefusesARouterFromBeforePools(t *testing.T) {
 	}
 	if asked.Load() != 0 {
 		t.Errorf("the router was asked %d times past its health, want never", asked.Load())
+	}
+}
+
+// A session asked by its id alone is what it is on any router, so status
+// --session without --pool reads it from a router from before pools, never
+// asking its health, as a statusline asks at every refresh.
+func TestStatusSessionWithoutAPoolReadsARouterFromBeforePools(t *testing.T) {
+	srv := newServeSetup(t, fakeClaudeAPI(t), nil)
+	health := new(atomic.Int64)
+	session := status.Session{ID: sessionOne, Assignments: []status.Assignment{{Model: "claude-haiku-4-5-20251001", Account: "side"}}, Account: status.Account{ID: "side"}}
+	serveRouter(t, srv.socket(), new(atomic.Int64), map[string]http.HandlerFunc{
+		"GET /health": func(w http.ResponseWriter, _ *http.Request) {
+			health.Add(1)
+			_ = json.NewEncoder(w).Encode(router.Health{OK: true})
+		},
+		"GET /sessions":      func(w http.ResponseWriter, _ *http.Request) { _ = json.NewEncoder(w).Encode([]status.Session{}) },
+		"GET /sessions/{id}": func(w http.ResponseWriter, _ *http.Request) { _ = json.NewEncoder(w).Encode(session) },
+	})
+
+	if got, want := run(t, srv.deps, "status", "--session", sessionOne), (result{stdout: "Side\n"}); got != want {
+		t.Errorf("switchboard status --session = %+v, want %+v", got, want)
+	}
+	if health.Load() != 0 {
+		t.Errorf("the router's health was asked %d times, want never", health.Load())
 	}
 }
 

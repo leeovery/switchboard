@@ -1001,7 +1001,9 @@ totals.
   before them: restart it with switchboard service restart`, the dashboard `○ probed · router
   started before pools` and, in LATELY, `the router started before pools: restart it`; `sessions`
   lists the ledger's alone, as of a router that can't be asked, saying so; and `pin` and
-  `status --session` refuse in those words, asking it nothing. It answers all the same, so the
+  `status --session --pool` refuse in those words, asking it nothing. `status --session` without
+  `--pool` asks no health and reads the session as ever, a session asked by its id being what it
+  is on any router, so a statusline asking at every refresh pays nothing for the check. It answers all the same, so the
   dashboard leaves the notifications to it, as while probing as asked. Where the config has no
   pools, or can't be read, the router is read as before, there being no pools to tell it by.
 - **Managing pools:** `pool` lists the pools, with their directories, accounts and primaries. `pool

@@ -248,7 +248,7 @@ are.
   `○ probed · router started before pools`: the config has pools and the router reports none, as
   one from before pools still running after an upgrade, so its document and sessions are every
   account's, never a pool's: `status`, `usage` and the dashboard probe the pool's accounts instead,
-  `sessions` lists the ledger's alone, and `pin` and `status --session` refuse. Run
+  `sessions` lists the ledger's alone, and `pin` and `status --session --pool` refuse. Run
   `switchboard service restart`.
 - **The dashboard says `couldn't read usage: every pool is fenced: …`:** with every pool fenced,
   there's no pool for it to show without being told, and this release's dashboard takes no
