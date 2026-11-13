@@ -756,7 +756,8 @@ func stateOf(h router.Health, err error) routerState {
 // OwnAccount is the account whose token a routed session that isn't pinned
 // starts on, as Claude Code's own, as choose chooses it: the primary while
 // its token is usable, else the first with a usable token. It reports false
-// when no account has one.
+// when no account has one. r's Config is to configure one pool's accounts
+// alone, as a session starts on its own pool's.
 func (r Route) OwnAccount() (config.Account, bool) {
 	c, err := r.choose(r.Config.Accounts, choice{}, true)
 	return c.account, err == nil
@@ -874,7 +875,7 @@ func (r Route) usable(accounts config.Accounts) config.Accounts {
 	return usable
 }
 
-// primary is the primary of accounts, when its token is usable.
+// primary is the primary of accounts, one pool's, when its token is usable.
 func (r Route) primary(accounts config.Accounts) (choice, bool) {
 	if len(accounts) == 0 {
 		return choice{}, false

@@ -333,6 +333,33 @@ func TestHealingDropsAnAccountByItsOldIDWhereItsNewIsConfiguredToo(t *testing.T)
 	}
 }
 
+// The primary an account dropped for its new id carries is its own pool's:
+// the one by its new id is marked in that pool, and another pool's primary
+// keeps its mark.
+func TestHealingCarriesThePrimaryWithinItsPool(t *testing.T) {
+	f := newFixture(t)
+	f.moved(t, answering())
+	home := func() (string, error) { return "/Users/test", nil }
+	merged := "[[account]]\nid      = \"personal\"\nprimary = true\npool    = \"b2n8\"\n\n" +
+		"[[account]]\nid      = \"work\"\nprimary = true\npool    = \"q7mt\"\n\n" +
+		"[[account]]\nid   = \"" + workID + "\"\npool = \"q7mt\"\n\n" +
+		"[[pool]]\nid = \"b2n8\"\n\n[[pool]]\nid   = \"q7mt\"\ndirs = [\"~/Code/acme\"]\n"
+	writeFile(t, f.config, merged)
+
+	if healed, err := idmove.Heal(f.config, f.state, home); err != nil || !healed {
+		t.Fatalf("Heal() = %t, %v, want the config healed", healed, err)
+	}
+	cfg, err := config.Load(f.config, home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for pool, want := range map[string]string{"b2n8": personalID, "q7mt": workID} {
+		if got, _ := cfg.Accounts.PrimaryOf(pool); got.ID != want || !got.Primary {
+			t.Errorf("healed, pool %s's primary is %+v, want %s marked", pool, got, want)
+		}
+	}
+}
+
 // A compressed day damaged since it was summarised: its lines before the
 // damage are moved with the rest, the file itself kept aside, so a round
 // that summarises the day again counts each request once, under its new id.

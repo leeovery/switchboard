@@ -30,6 +30,11 @@ func TestTheTokenCardSaysHowTheSignInAddressOpened(t *testing.T) {
 			want: "Your browser is signed in to Work, so setup opened a private window. Sign in to Personal there, then approve.",
 		},
 		{
+			name: "in a private window, the first pool without an account to be signed in to",
+			at:   ready(setuptoken.OpenedPrivately, "Firefox", ""),
+			want: "Setup opened a private Firefox window. Sign in to Personal there, then approve.",
+		},
+		{
 			name: "no private window opened: the address to open in one",
 			at:   ready(setuptoken.NotOpened, "Safari", "Work"),
 			want: "Your browser is signed in to Work, and setup couldn't open a private Safari window. Open this address in one, sign in to Personal there, then approve:",

@@ -154,6 +154,22 @@ func (as Accounts) PrimaryOf(pool string) (Account, bool) {
 	return in.Primary(), true
 }
 
+// SignedIn returns the account the browser and the Claude apps are signed in
+// to: the first pool's primary, the first pool as Pools' First has it of the
+// one noted, as the accounts record notes it; in a config without pools, the
+// primary. It reports false where that pool, or the config, has no account.
+// Every pool has a primary of its own, which its sessions start on, but the
+// browser and the apps are the first pool's alone.
+func (c *Config) SignedIn(noted string) (Account, bool) {
+	if len(c.Pools) == 0 {
+		if len(c.Accounts) == 0 {
+			return Account{}, false
+		}
+		return c.Accounts.Primary(), true
+	}
+	return c.Accounts.PrimaryOf(c.Pools.First(noted))
+}
+
 // PoolOf returns the pool of the account with the given id, reporting false
 // where no account has the id, as where the config is from before pools.
 func (c *Config) PoolOf(id string) (Pool, bool) {

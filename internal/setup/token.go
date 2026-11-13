@@ -272,15 +272,16 @@ func (s *Setup) MakeToken(ctx context.Context, f TokenFor, report func(Making)) 
 	if err != nil {
 		return Tokened{}, err
 	}
-	asItIs := opensAsItIs(cfg, f)
+	signedIn, isSignedIn := s.signedIn(cfg)
+	asItIs := opensAsItIs(cfg, f, signedIn, isSignedIn)
 	opener, err := s.opener(asItIs)
 	if err != nil {
 		return Tokened{}, err
 	}
-	forName, signedIn := named(cfg, f, asItIs)
+	forName, signedInName := named(cfg, f, signedIn, asItIs)
 	tell := func(m Making) {
 		if m.Step == AddressReady {
-			m.For, m.SignedIn = forName, signedIn
+			m.For, m.SignedIn = forName, signedInName
 		}
 		if report != nil {
 			report(m)
@@ -574,22 +575,35 @@ func (s *Setup) takes(f TokenFor) (*config.Config, error) {
 	return cfg, nil
 }
 
+// signedIn returns the account cfg configures that the browser is signed in
+// to, as the Claude apps are, the first pool's primary, as
+// accounts.Registry's SignedIn has it: false where cfg is nil, or that pool
+// has no account.
+func (s *Setup) signedIn(cfg *config.Config) (config.Account, bool) {
+	if cfg == nil {
+		return config.Account{}, false
+	}
+	return s.Accounts.SignedIn(cfg)
+}
+
 // opensAsItIs is the opener rule: it reports whether the sign-in address for
 // f's token opens in the browser as it is, cfg configuring the accounts, as
-// for the account it's signed in to, the first, and the primary on a run
-// again; every other's opens in a private window.
-func opensAsItIs(cfg *config.Config, f TokenFor) bool {
+// for the account it's signed in to, signedIn where isSignedIn: the first on
+// a first run, and the first pool's primary on a run again, never another
+// pool's; every other's opens in a private window, as every one's does where
+// the first pool has no account.
+func opensAsItIs(cfg *config.Config, f TokenFor, signedIn config.Account, isSignedIn bool) bool {
 	if f.Add {
 		return cfg == nil
 	}
-	return cfg.Accounts.Primary().ID == f.Account.ID
+	return isSignedIn && signedIn.ID == f.Account.ID
 }
 
 // named is the account the token for f is for, as f gives it, or cfg
 // configures it; and, where its sign-in address isn't to open in the browser
-// as it is, the account the browser is signed in to, the primary, as the
-// opener rule has it: each by its label, else its id.
-func named(cfg *config.Config, f TokenFor, asItIs bool) (forName, signedIn string) {
+// as it is, the account the browser is signed in to, signedIn, as the opener
+// rule has it, "" where it's none: each by its label, else its id.
+func named(cfg *config.Config, f TokenFor, signedIn config.Account, asItIs bool) (forName, signedInName string) {
 	forName = cmp.Or(f.Account.Label, f.Account.ID)
 	if cfg == nil {
 		return forName, ""
@@ -598,10 +612,9 @@ func named(cfg *config.Config, f TokenFor, asItIs bool) (forName, signedIn strin
 		forName = cmp.Or(cfg.Accounts[i].Label, f.Account.ID)
 	}
 	if !asItIs {
-		primary := cfg.Accounts.Primary()
-		signedIn = cmp.Or(primary.Label, primary.ID)
+		signedInName = cmp.Or(signedIn.Label, signedIn.ID)
 	}
-	return forName, signedIn
+	return forName, signedInName
 }
 
 // opener returns what opens a sign-in address: the browser as it is, where

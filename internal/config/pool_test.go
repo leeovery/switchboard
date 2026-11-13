@@ -748,3 +748,40 @@ func TestADirectoryRefusedSaysWhichAndWhy(t *testing.T) {
 		})
 	}
 }
+
+// The browser and the Claude apps are signed in to the first pool's primary,
+// the first the one noted, else the config's first: never another pool's
+// marked primary, though Accounts' Primary, across pools, would give it. In
+// a config without pools, it's the primary.
+func TestTheAccountSignedInIsTheFirstPoolsPrimary(t *testing.T) {
+	pooled, err := load(writeConfig(t, accountIn("b6s7", "b2n8")+accountIn("k3f9", "q7mt")+"primary = true\n"+
+		accountIn("m2x7", "b2n8")+poolTOML("b2n8")+poolTOML("q7mt", "~/Code/acme")+poolTOML("h4w2", "~/Code/client")))
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	plain, err := load(writeConfig(t, "[[account]]\nid = \"b6s7\"\n\n[[account]]\nid = \"k3f9\"\nprimary = true\n"))
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	tests := []struct {
+		name   string
+		cfg    *config.Config
+		noted  string
+		want   string
+		wantOK bool
+	}{
+		{name: "the first pool noted, its only mark another pool's", cfg: pooled, noted: "b2n8", want: "b6s7", wantOK: true},
+		{name: "none noted: the config's first", cfg: pooled, want: "b6s7", wantOK: true},
+		{name: "another pool noted", cfg: pooled, noted: "q7mt", want: "k3f9", wantOK: true},
+		{name: "a first pool with no account", cfg: pooled, noted: "h4w2"},
+		{name: "a config without pools", cfg: plain, want: "k3f9", wantOK: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := tt.cfg.SignedIn(tt.noted)
+			if got.ID != tt.want || ok != tt.wantOK {
+				t.Errorf("SignedIn(%q) = %q, %t; want %q, %t", tt.noted, got.ID, ok, tt.want, tt.wantOK)
+			}
+		})
+	}
+}

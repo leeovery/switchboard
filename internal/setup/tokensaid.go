@@ -26,13 +26,15 @@ const (
 
 // Opening says how the sign-in address opened, at AddressReady, as the token
 // card says it under its wait: in a private window, as the browser is
-// signed in to another account, to sign in there; not opened, to open the
-// address shown, signed in to the account; "" where it opened in the browser
-// as it is, as there's nothing more to say.
+// signed in to another account, or none setup knows of, to sign in there;
+// not opened, to open the address shown, signed in to the account; "" where
+// it opened in the browser as it is, as there's nothing more to say.
 func (m Making) Opening() string {
 	switch {
 	case m.Step != AddressReady || m.Opened == setuptoken.OpenedInBrowser:
 		return ""
+	case m.Opened == setuptoken.OpenedPrivately && m.SignedIn == "":
+		return "Setup opened " + privateWindow(m.Browser) + ". Sign in to " + m.For + " there, then approve."
 	case m.Opened == setuptoken.OpenedPrivately:
 		return "Your browser is signed in to " + m.SignedIn + ", so setup opened " + privateWindow(m.Browser) + ". Sign in to " + m.For + " there, then approve."
 	case m.SignedIn == "":

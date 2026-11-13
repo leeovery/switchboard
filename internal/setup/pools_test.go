@@ -8,6 +8,7 @@ import (
 	"github.com/leeovery/switchboard/internal/accounts"
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/setup"
+	"github.com/leeovery/switchboard/internal/setuptoken"
 )
 
 // acmeMade is a new pool, Acme, fenced to /Code/acme, as the new pool card
@@ -252,5 +253,87 @@ func TestThePlansACardOffers(t *testing.T) {
 	}
 	if got, want := (setup.Reviewed{}).PlanChoices(), append(plans, config.PlanNone); !slices.Equal(got, want) {
 		t.Errorf("an account with no plan is offered %q, want %q", got, want)
+	}
+}
+
+// The browser is signed in to the first pool's primary, as the Claude apps
+// are, the first pool the one the accounts record notes, else the config's
+// first: another pool's marked primary is never taken for it, though it's
+// the first account marked. A token for any other account, or for every one
+// where the first pool has none, opens in a private window.
+func TestTheOpenerRuleTakesTheFirstPoolsPrimaryForTheBrowsers(t *testing.T) {
+	const (
+		// acmeFirst has an unmarked Default account and Acme's marked one,
+		// Acme the config's first pool.
+		acmeFirst = "[[account]]\nid      = \"side\"\nlabel   = \"Side\"\nprimary = true\npool    = \"q7mt\"\n\n" +
+			"[[account]]\nid    = \"work\"\nlabel = \"Work\"\npool  = \"b2n8\"\n\n" + acmePool + "\n" + defaultPool
+		// noFirstAccount has every account in Acme, Default the first.
+		noFirstAccount = "[[account]]\nid      = \"work\"\nlabel   = \"Work\"\nprimary = true\npool    = \"q7mt\"\n\n" +
+			"[[account]]\nid    = \"side\"\nlabel = \"Side\"\npool  = \"q7mt\"\n\n" + defaultPool + "\n" + acmePool
+	)
+	tests := []struct {
+		name   string
+		config string
+		// noted is the first pool the accounts record notes.
+		noted  string
+		f      setup.TokenFor
+		asItIs bool
+		want   setup.Making
+	}{
+		{
+			name:   "the first pool's unmarked primary: in the browser as it is",
+			config: acmeFirst, noted: "b2n8",
+			f:      replacing("work"),
+			asItIs: true,
+			want:   setup.Making{Step: setup.AddressReady, Opened: setuptoken.OpenedInBrowser, For: "Work"},
+		},
+		{
+			name:   "another pool's marked primary: in a private window, the first pool's signed in",
+			config: acmeFirst, noted: "b2n8",
+			f:    replacing("side"),
+			want: setup.Making{Step: setup.AddressReady, Opened: setuptoken.OpenedPrivately, Browser: "Firefox", For: "Side", SignedIn: "Work"},
+		},
+		{
+			name:   "none noted: the config's first pool's primary in the browser as it is",
+			config: acmeFirst,
+			f:      replacing("side"),
+			asItIs: true,
+			want:   setup.Making{Step: setup.AddressReady, Opened: setuptoken.OpenedInBrowser, For: "Side"},
+		},
+		{
+			name:   "a first pool with no account: in a private window, signed in to none",
+			config: noFirstAccount, noted: "b2n8",
+			f:    replacing("work"),
+			want: setup.Making{Step: setup.AddressReady, Opened: setuptoken.OpenedPrivately, Browser: "Firefox", For: "Work"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := newWorld(t)
+			w.done(t)
+			w.writeConfig(t, tt.config)
+			if tt.noted != "" {
+				w.noteFirst(t, tt.noted)
+			}
+			r := w.tokenRig(t, &fakeMaker{})
+			var h heard
+
+			if got, err := r.s.MakeToken(t.Context(), tt.f, h.report); err != nil || got.Result != setup.TokenSaved {
+				t.Fatalf("MakeToken() = %+v, %v; want the token saved", got, err)
+			}
+
+			opened, unasked := r.private, r.browser
+			if tt.asItIs {
+				opened, unasked = r.browser, r.private
+			}
+			if len(opened.asked) != 1 || len(unasked.asked) > 0 {
+				t.Errorf("the browser as it is opened %q, the private window %q; want the address opened as it is: %t", r.browser.asked, r.private.asked, tt.asItIs)
+			}
+			at := h.address(t)
+			at.Address = setuptoken.Address{}
+			if at != tt.want {
+				t.Errorf("the address ready was told as %+v, want %+v", at, tt.want)
+			}
+		})
 	}
 }
