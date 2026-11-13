@@ -242,7 +242,8 @@ are.
 - **A verb says `there's no pool "q7mt": name …` of a pool you removed:** `status`, `usage` and
   `pin` read the router, which routes nothing in a pool the config no longer has. Its history
   stays: `requests`, `history`, `sessions` and `events` read it with `--pool q7mt`, naming it
-  `pool Acme (removed 6 Oct)`, as they do a pool another Mac's history brought in by `import`.
+  `pool Acme (removed 6 Oct)`. They read a pool another Mac's history brought in by `import` so
+  too, naming it `not configured here`, as `pool Client (not configured here)`.
   See [Reading a pool](commands.md#reading-a-pool).
 - **`status` says `probed directly: the router doesn't route by pools yet`,** or the dashboard
   `○ probed · router started before pools`: the config has pools and the router reports none, as

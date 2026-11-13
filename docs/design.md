@@ -356,11 +356,11 @@ guard holds its list to the code's (the owner's call, 10 November 2026).
 |---|---|---|
 | `run --account <id>` | That session's conversation; Claude Code's own token stays the primary's | Unaffected |
 | `pin <id>...` | Every new session, and any other whose account is chosen afresh: to the best of the accounts given | Stay where they are while their caches are warm and their accounts have room |
-| `pin <id>... --force` | As `pin <id>...`, every session's own pin cleared | Stay where they are while their caches are warm and their accounts have room |
+| `pin <id>... --force` | As `pin <id>...`, every session's own pin cleared: its pool's sessions' alone, where there are several pools | Stay where they are while their caches are warm and their accounts have room |
 | `pin <id>... --move` | Every new session and every running one but those with their own pin | Those on an account not given move to the best of those given on their next request (one cache rebuild each, and a session on a model whose thinking is bound to its account loses its reasoning) |
-| `pin <id>... --move --force` | Every session, their own pins included, which it clears | Those on an account not given move on their next request |
+| `pin <id>... --move --force` | Every session, their own pins included, which it clears: its pool's sessions alone, where there are several pools | Those on an account not given move on their next request |
 | `pin auto` | Back to routing (`auto` in any case) | Stay where they are while their caches are warm and their accounts have room |
-| `pin auto --force` | Back to routing, every session's own pin cleared too | As `pin auto` |
+| `pin auto --force` | Back to routing, every session's own pin cleared too: its pool's sessions' alone, where there are several pools | As `pin auto` |
 | `pin <id> --session <session>` | That one session, to one account, its own pin from now on, replacing any it had | Moves on its next request |
 | `pin auto --session <session>` | That one session's own pin cleared | Routed like any other from its next request |
 
@@ -393,8 +393,9 @@ neither `--move` nor `--force`, nor more than one account.
 
 `--force` clears every session's own pin, launch pins included, which the router passes over from
 then on, so `pin <id>... --move --force` puts everything on the accounts given, and `pin auto
---force` hands everything back to the router. A session first seen afterwards has the pin it's
-launched with, as usual.
+--force` hands everything back to the router: where there are several pools, the pin's pool's
+sessions' own pins alone, everything of that pool (see Pools, Pinning in a pool). A session first
+seen afterwards has the pin it's launched with, as usual.
 
 A pin needs accounts requests can go out on. `pin` naming one that isn't configured fails, naming
 the accounts that can be pinned, or, when no account has a usable token, saying that none has one
@@ -1003,11 +1004,14 @@ totals.
   before them: restart it with switchboard service restart`, the dashboard `○ probed · router
   started before pools` and, in LATELY, `the router started before pools: restart it`; `sessions`
   lists the ledger's alone, as of a router that can't be asked, saying so; and `pin`, the
-  dashboard's `p` and `status --session --pool` refuse in those words, asking it nothing. `status --session` without
-  `--pool` asks no health and reads the session as ever, a session asked by its id being what it
-  is on any router, so a statusline asking at every refresh pays nothing for the check. It answers all the same, so the
-  dashboard leaves the notifications to it, as while probing as asked. Where the config has no
-  pools, or can't be read, the router is read as before, there being no pools to tell it by.
+  dashboard's `p` and `status --session --pool` refuse in those words, asking it nothing.
+  `status --session` without `--pool` asks no health and reads the session as ever, a session asked
+  by its id being what it is on any router, so a statusline asking at every refresh pays nothing
+  for the check. It answers all the same, so the dashboard leaves the notifications to it, as
+  while probing as asked. Where the config has no pools before the move to pools, or can't be
+  read, the router is read as before, there being no pools to tell it by; once the move is done, a
+  config naming no pools has its pools as they stand, from the accounts record, as
+  `launch.PoolsOf` gives them, so such a router is read as above.
 - **Managing pools:** `pool` lists the pools, with their directories, accounts and primaries. `pool
   add <label> [<dir>...]` makes one, switchboard making its id, as `accounts add <label>` makes an
   account's, fenced to the directories given, or unfenced without any; `pool edit <id>` changes its

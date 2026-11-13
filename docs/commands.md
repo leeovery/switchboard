@@ -114,10 +114,12 @@ Claude pass `--pool "$SWITCHBOARD_POOL"`, the session's own pool.
   isn't read as a pool's where the config has them, its document and sessions every account's:
   `status`, `usage` and the dashboard probe the pool's accounts instead, saying `the router doesn't
   route by pools yet, as it started before them: restart it with switchboard service restart`;
-  `sessions` lists the ledger's alone, none as running, saying so; and `pin`, the
-  dashboard's `p` and `status --session --pool` refuse, saying so, asking it nothing. `status --session` without
-  `--pool` reads the session as ever, as it's the same session on any router. Where the config has no pools, it's read
-  as ever.
+  `sessions` lists the ledger's alone, none as running, saying so; and `pin`, the dashboard's `p`
+  and `status --session --pool` refuse, saying so, asking it nothing. `status --session` without
+  `--pool` reads the session as ever, as it's the same session on any router. Where the config has
+  no pools before the move to pools, it's read as ever; once the move is done, a config naming no
+  pools has its pools as they stand, from the accounts record, so such a router is refused as
+  above.
 
 ## Everyday
 
