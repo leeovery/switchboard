@@ -24,6 +24,9 @@ var (
 	// ErrNotConfigured is what acting on an account fails with, wrapped, when
 	// no account has its id.
 	ErrNotConfigured = errors.New("not configured")
+	// ErrPoolNotConfigured is what acting on a pool no pool has fails with,
+	// wrapped: it matches ErrNotConfigured, and says the same.
+	ErrPoolNotConfigured = fmt.Errorf("%w", ErrNotConfigured)
 	// ErrOnlyAccount is what removing an account fails with, wrapped, when
 	// it's the only one.
 	ErrOnlyAccount = errors.New("a config needs one at least")

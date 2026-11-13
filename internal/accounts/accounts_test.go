@@ -309,7 +309,7 @@ func TestCheckNew(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			w := newWorld(t, tt.config)
 
-			_, err := w.registry(&user{}, &fakeAPI{}).CheckNew(config.NewAccount{Label: tt.label})
+			_, err := w.registry(&user{}, &fakeAPI{}).CheckNew(accounts.Adding{Account: config.NewAccount{Label: tt.label}})
 			if !errors.Is(err, tt.wantErr) || (err == nil) != (tt.wantErr == nil) {
 				t.Errorf("CheckNew() error = %v, want %v", err, tt.wantErr)
 			}
@@ -963,7 +963,7 @@ var checkedWrites = []struct {
 		name:   "AddChecked",
 		config: twoAccounts, id: sideID, want: sideAdded,
 		write: func(ctx context.Context, r accounts.Registry, token tokens.Token, checked accounts.Checked) error {
-			_, err := r.AddChecked(ctx, config.NewAccount{Label: "Side"}, token, checked, nil, accounts.Answer{})
+			_, err := r.AddChecked(ctx, accounts.Adding{Account: config.NewAccount{Label: "Side"}}, token, checked, nil, accounts.Answer{})
 			return err
 		},
 	},
@@ -1037,7 +1037,7 @@ func TestAddCheckedRefuses(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			w := newWorld(t, twoAccounts)
 
-			_, err := w.unasked(t, &user{}).AddChecked(t.Context(), config.NewAccount{Label: tt.label}, tokenOf(t, sideToken), tt.checked, nil, accounts.Answer{})
+			_, err := w.unasked(t, &user{}).AddChecked(t.Context(), accounts.Adding{Account: config.NewAccount{Label: tt.label}}, tokenOf(t, sideToken), tt.checked, nil, accounts.Answer{})
 			_, unanswered := errors.AsType[*accounts.UnansweredError](err)
 			if err == nil || unanswered != tt.checked.Unchecked || (tt.wantIs != nil && !errors.Is(err, tt.wantIs)) {
 				t.Errorf("AddChecked() error = %v, want one matching %v, an UnansweredError where the API didn't answer", err, tt.wantIs)
@@ -1147,7 +1147,7 @@ func TestTheTokenGivenNeverShows(t *testing.T) {
 	if checkErr != nil {
 		t.Fatal(checkErr)
 	}
-	_, unanswered := registry.AddChecked(t.Context(), config.NewAccount{Label: "Team"}, token, checked, nil, accounts.Answer{})
+	_, unanswered := registry.AddChecked(t.Context(), accounts.Adding{Account: config.NewAccount{Label: "Team"}}, token, checked, nil, accounts.Answer{})
 	if _, ok := errors.AsType[*accounts.UnansweredError](unanswered); !ok {
 		t.Fatalf("AddChecked() error = %v, want the API's not answering said", unanswered)
 	}

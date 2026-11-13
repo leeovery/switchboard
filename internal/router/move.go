@@ -201,7 +201,8 @@ func (r *Router) historyFiles() idmove.History {
 // move to pools has written the first there, at once, as upkeep's look takes
 // them up, reporting whether it routes in them: not where it has no config
 // file, or the file makes no valid config, or one naming no pools, which
-// upkeep heals.
+// upkeep heals. Routing in them, it gives the events it keeps from before
+// them the first pool, as the move gives those filed.
 func (r *Router) takeUpPools() bool {
 	if r.cfg.ConfigFile.path == "" {
 		return false
@@ -212,5 +213,8 @@ func (r *Router) takeUpPools() bool {
 		return false
 	}
 	r.state.pools.follow(cfg.Accounts, cfg.Pools)
+	if pools := r.state.pools.current(); pools.pooled() {
+		r.recent.pooled(pools.of(""))
+	}
 	return len(cfg.Pools) > 0
 }

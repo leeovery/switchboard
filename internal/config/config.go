@@ -151,9 +151,11 @@ func (as Accounts) LabelTaken(id, label string) bool {
 	return slices.ContainsFunc(as, func(a Account) bool { return a.ID != id && strings.EqualFold(prose.Clean(a.Label), shown) })
 }
 
-// Primary returns the primary account: the one marked primary, else the
-// first. There must be an account. Of accounts from several pools, it's the
-// first of their primaries.
+// Primary returns the primary account of accounts of one pool, or of a
+// config without pools: the one marked primary, else the first. There must
+// be an account. Of accounts from several pools, it's the first of their
+// primaries, which means nothing: take a pool's with PrimaryOf, and the
+// browser's and the Claude apps' with Config's SignedIn.
 func (as Accounts) Primary() Account {
 	return as[as.primary()]
 }

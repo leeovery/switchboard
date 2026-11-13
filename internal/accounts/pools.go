@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"sync"
 
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/identity"
@@ -132,18 +133,8 @@ func (r Registry) AddPool(label string, dirs []string) (config.Pool, error) {
 		if err != nil {
 			return err
 		}
-		cfg := draft.Config()
-		if cfg == nil || len(cfg.Pools) == 0 {
-			return ErrNoPools
-		}
-		if err := poolTaken(cfg.Pools, "", label, len(dirs) == 0); err != nil {
-			return err
-		}
-		id, err := record.NewPoolID(r.random(), slices.Concat(cfg.Accounts.IDs(), cfg.Pools.IDs()))
+		id, err := poolMade(draft, label, dirs, r.drawnFrom(*record))
 		if err != nil {
-			return err
-		}
-		if err := draft.AddPool(config.NewPool{ID: id, Label: label, Dirs: dirs}); err != nil {
 			return err
 		}
 		if err := draft.Save(); err != nil {
@@ -155,8 +146,14 @@ func (r Registry) AddPool(label string, dirs []string) (config.Pool, error) {
 	if err != nil {
 		return config.Pool{}, err
 	}
-	logger.Info("added a pool", "pool", added.ID, "fenced", added.Fenced())
+	poolAdded(added)
 	return added, nil
+}
+
+// poolAdded logs a pool added, by AddPool, or made with an account added or
+// moved into it.
+func poolAdded(added config.Pool) {
+	logger.Info("added a pool", "pool", added.ID, "fenced", added.Fenced())
 }
 
 // poolTaken fails where a pool, but the one with the given id, shows label,
@@ -264,3 +261,38 @@ func configuredPool(cfg *config.Config, id string) (config.Pool, error) {
 	}
 	return config.Pool{}, config.PoolNotConfigured(id)
 }
+
+// SignedIn returns the account of cfg the browser and the Claude apps are
+// signed in to, as config.Config's SignedIn has it of the first pool the
+// accounts record notes, as notedFirst reads it. It reports false where that
+// pool, or the config, has no account.
+func (r Registry) SignedIn(cfg *config.Config) (config.Account, bool) {
+	return cfg.SignedIn(r.notedFirst())
+}
+
+// FirstPool returns the id of cfg's first pool, whose primary the browser
+// and the Claude apps are signed in to, as config.Pools' First has it of the
+// one the accounts record notes, as notedFirst reads it: "" where cfg has no
+// pools.
+func (r Registry) FirstPool(cfg *config.Config) string {
+	return cfg.Pools.First(r.notedFirst())
+}
+
+// notedFirst is the id of the first pool the accounts record notes: "" where
+// it notes none, or can't be read, which is logged once for each record, as
+// unreadFirst keeps them, the config's first pool standing in.
+func (r Registry) notedFirst() string {
+	record, err := r.Record.Read()
+	if err != nil {
+		if _, warned := unreadFirst.LoadOrStore(r.Record.Path(), true); !warned {
+			logger.Warn("can't read the accounts record, so the config's first pool is taken for the one the browser and the Claude apps are signed in to", "error", err)
+		}
+	}
+	first, _ := record.FirstPool()
+	return first.ID
+}
+
+// unreadFirst holds the paths of the accounts records notedFirst couldn't
+// read, so each is warned of once, not at every review and token, as
+// idmove's FirstPool warns of one.
+var unreadFirst sync.Map

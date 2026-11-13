@@ -1,0 +1,37 @@
+ SWITCHBOARD   setup     1 Accounts   2 Priming   3 Service   4 claude link   5 Skill   Done                                                Tue 27 Oct  17:42:00
+
+● router up, healthy  ·  3 accounts, 2 working
+
+ACCOUNTS  ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  3 accounts
+
+  Each token was checked with the API just now.
+
+    ACCOUNT         PLAN       RESERVE    TOKEN
+
+    Work ◆          Ultra      5%       ╭─ ADD AN ACCOUNT ─────────────────────────────────────────────────────────────╮
+                                        │                                                                              │
+    Personal        not set    none     │  Each account is one Claude subscription: a Pro, Max or Ultra plan.          │
+                                        │                                                                              │
+    Side            Pro        none     │  Label     Spare                     what every screen calls it              │
+                                        │                                                                              │
+▌ + add an account                      │  Plan      □ Pro    ■ Max    □ Ultra                                         │
+                                        │                                                                              │
+                                        │  Pool      ■ Default    □ new pool                                           │
+  Side has no working token, so no reque│            every session uses it                                             │
+  Press t to create a new one, approving│                                                                              │
+                                        │  Setup then creates a token with claude setup-token. You approve it in       │
+  Personal has a token that expires 17 N│  the browser while signed in to this subscription. Tokens last a year.       │signed in to Personal.
+  Personal has no plan set, so History c│                                                                              │
+                                        │                                  tab next   enter create token   esc cancel  │
+                                        ╰──────────────────────────────────────────────────────────────────────────────╯
+
+
+
+
+
+
+
+
+
+
+

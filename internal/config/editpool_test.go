@@ -1,6 +1,7 @@
 package config_test
 
 import (
+	"errors"
 	"reflect"
 	"strings"
 	"testing"
@@ -239,6 +240,17 @@ label = "Default"
 	}
 }
 
+// A pool not configured is told apart from an account not configured, which
+// it matches too.
+func TestAnAccountNotConfiguredIsNoPoolNotConfigured(t *testing.T) {
+	if err := config.NotConfigured("side"); errors.Is(err, config.ErrPoolNotConfigured) {
+		t.Errorf("NotConfigured() = %v, want no ErrPoolNotConfigured", err)
+	}
+	if err := config.PoolNotConfigured("z9z9"); !errors.Is(err, config.ErrNotConfigured) {
+		t.Errorf("PoolNotConfigured() = %v, want an ErrNotConfigured too", err)
+	}
+}
+
 func TestPoolEditsRefuse(t *testing.T) {
 	const invalid = "invalid config %s:\n"
 	tests := []struct {
@@ -318,7 +330,7 @@ func TestPoolEditsRefuse(t *testing.T) {
 			config:  pooled,
 			edit:    func(d *config.Draft) error { return d.SetPoolLabel("z9z9", "Side") },
 			wantErr: `pool "z9z9" is not configured`,
-			wantIs:  config.ErrNotConfigured,
+			wantIs:  config.ErrPoolNotConfigured,
 		},
 		{
 			name:    "relabelling a pool with a label no pool can have",
@@ -331,7 +343,7 @@ func TestPoolEditsRefuse(t *testing.T) {
 			config:  pooled,
 			edit:    func(d *config.Draft) error { return d.SetPoolDirs("z9z9", []string{"/Volumes/Side"}) },
 			wantErr: `pool "z9z9" is not configured`,
-			wantIs:  config.ErrNotConfigured,
+			wantIs:  config.ErrPoolNotConfigured,
 		},
 		{
 			name:    "fencing a pool around another's directory",
@@ -356,7 +368,7 @@ func TestPoolEditsRefuse(t *testing.T) {
 			config:  pooled,
 			edit:    func(d *config.Draft) error { return d.RemovePool("z9z9") },
 			wantErr: `pool "z9z9" is not configured`,
-			wantIs:  config.ErrNotConfigured,
+			wantIs:  config.ErrPoolNotConfigured,
 		},
 		{
 			name:    "removing a pool that has accounts",
@@ -384,14 +396,14 @@ func TestPoolEditsRefuse(t *testing.T) {
 			config:  pooled,
 			edit:    func(d *config.Draft) error { return d.SetPool("acme", "z9z9") },
 			wantErr: `pool "z9z9" is not configured`,
-			wantIs:  config.ErrNotConfigured,
+			wantIs:  config.ErrPoolNotConfigured,
 		},
 		{
 			name:    "adding an account to a pool that isn't configured",
 			config:  pooled,
 			edit:    func(d *config.Draft) error { return d.AddAccount(config.NewAccount{ID: "side", Pool: "z9z9"}) },
 			wantErr: `pool "z9z9" is not configured`,
-			wantIs:  config.ErrNotConfigured,
+			wantIs:  config.ErrPoolNotConfigured,
 		},
 		{
 			name:    "adding an account to no pool where the config has pools",
@@ -404,7 +416,7 @@ func TestPoolEditsRefuse(t *testing.T) {
 			config:  commented,
 			edit:    func(d *config.Draft) error { return d.AddAccount(config.NewAccount{ID: "side", Pool: "b2n8"}) },
 			wantErr: `pool "b2n8" is not configured`,
-			wantIs:  config.ErrNotConfigured,
+			wantIs:  config.ErrPoolNotConfigured,
 		},
 	}
 	for _, tt := range tests {

@@ -43,9 +43,18 @@ type TokenFor struct {
 	// token's organization decides.
 	Account config.NewAccount
 	Add     bool
+	// NewPool is the pool made with the account it adds, where it goes in a
+	// new one: written with it, once its token's saved.
+	NewPool *accounts.NewPool
 	// Organizations are the organizations of the accounts this run of setup
 	// has read, which the token's is compared with.
 	Organizations Organizations
+}
+
+// adding is the account f adds, and the pool made with it, where it goes in
+// a new one.
+func (f TokenFor) adding() accounts.Adding {
+	return accounts.Adding{Account: f.Account, NewPool: f.NewPool}
 }
 
 // Organizations are accounts' organizations, by account id, as accounts
@@ -144,9 +153,12 @@ type Making struct {
 	// For is the account whose token it is, and SignedIn the account the
 	// browser is signed in to, where Address is to open in a private window,
 	// as the opener rule has it, "" where it's to open in the browser as it
-	// is: each by its label, else its id, at AddressReady, as Opening says
-	// them.
+	// is, or the first pool has no account: each by its label, else its id,
+	// at AddressReady, as Opening says them.
 	For, SignedIn string
+	// Private says Address was to open in a private window, as the opener
+	// rule has it, at AddressReady, whether or not one opened.
+	Private bool
 }
 
 // making is setuptoken's event e, as MakeToken reports it.
@@ -263,15 +275,16 @@ func (s *Setup) MakeToken(ctx context.Context, f TokenFor, report func(Making)) 
 	if err != nil {
 		return Tokened{}, err
 	}
-	asItIs := opensAsItIs(cfg, f)
+	signedIn, isSignedIn := s.signedIn(cfg)
+	asItIs := opensAsItIs(cfg, f, signedIn, isSignedIn)
 	opener, err := s.opener(asItIs)
 	if err != nil {
 		return Tokened{}, err
 	}
-	forName, signedIn := named(cfg, f, asItIs)
+	forName, signedInName := named(cfg, f, signedIn, asItIs)
 	tell := func(m Making) {
 		if m.Step == AddressReady {
-			m.For, m.SignedIn = forName, signedIn
+			m.For, m.SignedIn, m.Private = forName, signedInName, !asItIs
 		}
 		if report != nil {
 			report(m)
@@ -504,7 +517,7 @@ func (s *Setup) add(ctx context.Context, a *Asked, answer accounts.Answer) (Toke
 // adding is add, but failing with a ConfiguredError where the token's a
 // configured account's.
 func (s *Setup) adding(ctx context.Context, a *Asked, answer accounts.Answer) (Tokened, error) {
-	added, err := s.Accounts.AddChecked(ctx, a.f.Account, a.token, a.checked, a.f.Organizations, answer)
+	added, err := s.Accounts.AddChecked(ctx, a.f.adding(), a.token, a.checked, a.f.Organizations, answer)
 	if question, ok := errors.AsType[*accounts.QuestionError](err); ok {
 		return a.asking(question.Question), nil
 	}
@@ -557,7 +570,7 @@ func (s *Setup) takes(f TokenFor) (*config.Config, error) {
 	cfg, id := draft.Config(), f.Account.ID
 	switch {
 	case f.Add:
-		_, err := s.Accounts.CheckNew(f.Account)
+		_, err := s.Accounts.CheckNew(f.adding())
 		return cfg, err
 	case cfg == nil || !slices.Contains(cfg.Accounts.IDs(), id):
 		return nil, config.NotConfigured(id)
@@ -565,22 +578,35 @@ func (s *Setup) takes(f TokenFor) (*config.Config, error) {
 	return cfg, nil
 }
 
+// signedIn returns the account cfg configures that the browser is signed in
+// to, as the Claude apps are, the first pool's primary, as
+// accounts.Registry's SignedIn has it: false where cfg is nil, or that pool
+// has no account.
+func (s *Setup) signedIn(cfg *config.Config) (config.Account, bool) {
+	if cfg == nil {
+		return config.Account{}, false
+	}
+	return s.Accounts.SignedIn(cfg)
+}
+
 // opensAsItIs is the opener rule: it reports whether the sign-in address for
 // f's token opens in the browser as it is, cfg configuring the accounts, as
-// for the account it's signed in to, the first, and the primary on a run
-// again; every other's opens in a private window.
-func opensAsItIs(cfg *config.Config, f TokenFor) bool {
+// for the account it's signed in to, signedIn where isSignedIn: the first on
+// a first run, and the first pool's primary on a run again, never another
+// pool's; every other's opens in a private window, as every one's does where
+// the first pool has no account.
+func opensAsItIs(cfg *config.Config, f TokenFor, signedIn config.Account, isSignedIn bool) bool {
 	if f.Add {
 		return cfg == nil
 	}
-	return cfg.Accounts.Primary().ID == f.Account.ID
+	return isSignedIn && signedIn.ID == f.Account.ID
 }
 
 // named is the account the token for f is for, as f gives it, or cfg
 // configures it; and, where its sign-in address isn't to open in the browser
-// as it is, the account the browser is signed in to, the primary, as the
-// opener rule has it: each by its label, else its id.
-func named(cfg *config.Config, f TokenFor, asItIs bool) (forName, signedIn string) {
+// as it is, the account the browser is signed in to, signedIn, as the opener
+// rule has it, "" where it's none: each by its label, else its id.
+func named(cfg *config.Config, f TokenFor, signedIn config.Account, asItIs bool) (forName, signedInName string) {
 	forName = cmp.Or(f.Account.Label, f.Account.ID)
 	if cfg == nil {
 		return forName, ""
@@ -589,10 +615,9 @@ func named(cfg *config.Config, f TokenFor, asItIs bool) (forName, signedIn strin
 		forName = cmp.Or(cfg.Accounts[i].Label, f.Account.ID)
 	}
 	if !asItIs {
-		primary := cfg.Accounts.Primary()
-		signedIn = cmp.Or(primary.Label, primary.ID)
+		signedInName = cmp.Or(signedIn.Label, signedIn.ID)
 	}
-	return forName, signedIn
+	return forName, signedInName
 }
 
 // opener returns what opens a sign-in address: the browser as it is, where

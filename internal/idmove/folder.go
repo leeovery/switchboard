@@ -186,8 +186,9 @@ func Refused(err error) bool {
 //
 // Its record's pools join record as identity's Join joins them; and one
 // exported before pools, as export.Manifest's BeforePools tells, has its
-// lines, pin events and summaries given the first pool, as FirstOf has it
-// of here's pools and the one record notes.
+// lines, the events of the kinds that name their pool, and its summaries
+// given the first pool, as FirstOf has it of here's pools and the one record
+// notes.
 //
 // It fails, record as it was, as classify does, saying which folder, by its
 // install, of a folder that's refused; and with ErrNoFirstPool, of a folder
