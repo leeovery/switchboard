@@ -139,21 +139,32 @@ probed directly: the router is unhealthy, no answer within 100ms
 // its restart, where the config has pools, has its document read by no verb
 // as a pool's, as it's every account's: status probes the pool's accounts,
 // saying why, the document naming the pool probed.
-func TestStatusProbesPastARouterThatReportsNoPoolsWhereTheConfigHasThem(t *testing.T) {
-	srv := newServeSetup(t, fakeClaudeAPI(t), nil)
+// beforePools is why a router from before pools isn't read as a pool's, nor
+// asked to act on one, where the config has pools.
+const beforePools = "the router doesn't route by pools yet, as it started before them: restart it with switchboard service restart"
+
+// serveRouterBeforePools serves a router from before pools on srv's control
+// socket, its health, serveRouter's own, reporting none, and returns how
+// many times it's asked anything else.
+func serveRouterBeforePools(t *testing.T, srv *serveSetup) *atomic.Int64 {
+	t.Helper()
 	asked := new(atomic.Int64)
 	serveRouter(t, srv.socket(), new(atomic.Int64), map[string]http.HandlerFunc{
-		"GET /health": func(w http.ResponseWriter, _ *http.Request) { _ = json.NewEncoder(w).Encode(router.Health{OK: true}) },
-		"GET /status": func(w http.ResponseWriter, _ *http.Request) {
+		"/": func(w http.ResponseWriter, _ *http.Request) {
 			asked.Add(1)
 			_ = json.NewEncoder(w).Encode(status.Document{Source: status.SourceRouter})
 		},
 	})
-	const why = "it doesn't route by pools yet, as it started before them: restart it with switchboard service restart"
+	return asked
+}
+
+func TestStatusProbesPastARouterFromBeforePoolsWhereTheConfigHasThem(t *testing.T) {
+	srv := newServeSetup(t, fakeClaudeAPI(t), nil)
+	asked := serveRouterBeforePools(t, srv)
 
 	for _, args := range [][]string{nil, {"--pool", "b2n8"}} {
 		doc := statusJSON(t, srv.deps, args...)
-		if want := (status.Fallback{Router: status.RouterUnhealthy, Reason: why}); doc.Source != status.SourceProbe || doc.Fallback != want {
+		if want := (status.Fallback{Router: status.RouterBeforePools}); doc.Source != status.SourceProbe || doc.Fallback != want {
 			t.Errorf("switchboard status --json %s printed source %q and fallback %+v, want probe, %+v", strings.Join(args, " "), doc.Source, doc.Fallback, want)
 		}
 		if doc.PoolID != "b2n8" || doc.PoolLabel != "Default" || len(doc.Accounts) != 3 {
@@ -161,11 +172,87 @@ func TestStatusProbesPastARouterThatReportsNoPoolsWhereTheConfigHasThem(t *testi
 		}
 	}
 	got := run(t, srv.deps, "status", "--pretty", "--pool", "b2n8")
-	if want := "\nprobed directly: the router is unhealthy, " + why + "\n"; !strings.HasSuffix(got.stdout, want) {
+	if want := "\nprobed directly: " + beforePools + "\n"; !strings.HasSuffix(got.stdout, want) {
 		t.Errorf("switchboard status --pool b2n8 = %+v, want it to end %q", got, want)
 	}
 	if asked.Load() != 0 {
-		t.Errorf("the router's document was asked for %d times, want never", asked.Load())
+		t.Errorf("the router was asked for its document %d times, want never", asked.Load())
+	}
+}
+
+func TestAVerbActingOnAPoolRefusesARouterFromBeforePools(t *testing.T) {
+	srv := newServeSetup(t, fakeClaudeAPI(t), nil)
+	asked := serveRouterBeforePools(t, srv)
+
+	for _, args := range [][]string{
+		{"pin", "work"},
+		{"pin", "work", "--pool", "b2n8", "--force"},
+		{"pin", "auto"},
+		{"pin", "auto", "--force"},
+		{"pin", "work", "--session", "0b5c"},
+		{"pin", "auto", "--session", "0b5c"},
+		{"status", "--session", "0b5c"},
+		{"status", "--session", "0b5c", "--json"},
+	} {
+		if got, want := run(t, srv.deps, args...), (result{stderr: "Error: " + beforePools + "\n", code: 1}); got != want {
+			t.Errorf("switchboard %s = %+v, want %+v", strings.Join(args, " "), got, want)
+		}
+	}
+	if asked.Load() != 0 {
+		t.Errorf("the router was asked %d times past its health, want never", asked.Load())
+	}
+}
+
+func TestSessionsReadARouterFromBeforePoolsAsUnlisted(t *testing.T) {
+	srv := newServeSetup(t, fakeClaudeAPI(t), nil)
+	asked := serveRouterBeforePools(t, srv)
+	const list = "listing today's sessions from the ledger alone, none as running"
+	const page = "showing the session from the ledger alone, as not running"
+
+	tests := []struct {
+		args    []string
+		instead string
+	}{
+		{args: []string{"sessions"}, instead: list},
+		{args: []string{"sessions", "--pool", "b2n8"}, instead: list},
+		{args: []string{"sessions", "--json"}, instead: list},
+		{args: []string{"sessions", "0b5c"}, instead: page},
+		{args: []string{"sessions", "0b5c", "--pool", "b2n8"}, instead: page},
+	}
+	for _, tt := range tests {
+		got := run(t, srv.deps, tt.args...)
+		if want := "switchboard: " + beforePools + " — " + tt.instead + "\n"; !strings.HasPrefix(got.stderr, want) {
+			t.Errorf("switchboard %s = %+v, want it to tell first %q", strings.Join(tt.args, " "), got, want)
+		}
+	}
+	if asked.Load() != 0 {
+		t.Errorf("the router was asked %d times past its health, want never", asked.Load())
+	}
+}
+
+func TestAConfigWithoutPoolsReadsARouterThatReportsNone(t *testing.T) {
+	// A config from before pools, the move to them not yet made, as a
+	// router from before them runs on.
+	srv := unpooledSetup(t, nil)
+	if err := os.Remove(filepath.Join(srv.state, poolsMark)); err != nil {
+		t.Fatal(err)
+	}
+	pinned := new(atomic.Int64)
+	serveRouter(t, srv.socket(), new(atomic.Int64), map[string]http.HandlerFunc{
+		"GET /sessions": func(w http.ResponseWriter, _ *http.Request) {
+			_ = json.NewEncoder(w).Encode([]status.Session{})
+		},
+		"POST /pin": func(w http.ResponseWriter, _ *http.Request) {
+			pinned.Add(1)
+			_ = json.NewEncoder(w).Encode(status.Document{Source: status.SourceRouter, Pin: status.Pin{Accounts: []string{"work"}}})
+		},
+	})
+
+	if got := run(t, srv.deps, "pin", "work"); got.code != 0 || pinned.Load() != 1 {
+		t.Errorf("switchboard pin work = %+v, asked the router to pin %d times, want it pinned once", got, pinned.Load())
+	}
+	if got := run(t, srv.deps, "sessions"); got.code != 0 || strings.Contains(got.stderr, beforePools) {
+		t.Errorf("switchboard sessions = %+v, want the router's sessions read", got)
 	}
 }
 

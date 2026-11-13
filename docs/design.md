@@ -984,11 +984,16 @@ totals.
   the router runs no session in a pool it doesn't route. The verbs that read the router, `status`,
   `usage` and `pin`, refuse it, as the router does. `pool remove` says the history stays, read so.
 - **A router that reports no pools,** as one from before pools still running till its restart,
-  answers every account's document whatever pool is asked, so where the config has pools, `status`,
-  `usage` and the dashboard never read it as a pool's: they probe the pool's accounts, saying the
-  router is unhealthy, as `it doesn't route by pools yet, as it started before them: restart it
-  with switchboard service restart`. Where the config can't be read, `status` reads the router's
-  document as before, having no pools to tell it by.
+  answers every account's document and sessions whatever pool is asked, so where the config has
+  pools, it's a fallback of its own, `before pools`, worked out once in `status` from its health and
+  the config's pools as they stand, and nothing reads it as a pool's: `status`, `usage` and the
+  dashboard probe the pool's accounts, saying `the router doesn't route by pools yet, as it started
+  before them: restart it with switchboard service restart`, the dashboard `○ probed · router
+  started before pools` and, in LATELY, `the router started before pools: restart it`; `sessions`
+  lists the ledger's alone, as of a router that can't be asked, saying so; and `pin` and
+  `status --session` refuse in those words, asking it nothing. It answers all the same, so the
+  dashboard leaves the notifications to it, as while probing as asked. Where the config has no
+  pools, or can't be read, the router is read as before, there being no pools to tell it by.
 - **Managing pools:** `pool` lists the pools, with their directories, accounts and primaries. `pool
   add <label> [<dir>...]` makes one, switchboard making its id, as `accounts add <label>` makes an
   account's, fenced to the directories given, or unfenced without any; `pool edit <id>` changes its

@@ -1093,7 +1093,7 @@ func (m Model) show(msg fetchedMsg, look status.Moment) (Model, tea.Cmd) {
 	was := m.numbersDrawn(now)
 	var post, asked tea.Cmd
 	if !look.Routed {
-		post = m.post(m.readings.alerts(look, read, m.cfg.Notifications), probedAsAsked(look))
+		post = m.post(m.readings.alerts(look, read, m.cfg.Notifications), routerMayPost(look))
 	}
 	ask := look.Routed && (full(msg.read) || !m.answering() || m.news.another(msg.router))
 	if look.Routed {
@@ -1350,11 +1350,12 @@ func asReadOf(look status.Moment) asRead {
 	return asRead{routed: look.Routed, accounts: len(look.Accounts), pinned: !look.Pin.IsZero()}
 }
 
-// probedAsAsked reports whether the document look is a moment of was built by
-// probing as asked, rather than for want of the router, which may be running
-// all the same: one probed for want of it says why.
-func probedAsAsked(look status.Moment) bool {
-	return !look.Routed && look.Fallback == (status.Fallback{})
+// routerMayPost reports whether the document look is a moment of was probed
+// while the router may answer, and so post its own notifications: probed as
+// asked, rather than for want of the router, which may be running all the
+// same, or for a router from before pools, which answers.
+func routerMayPost(look status.Moment) bool {
+	return !look.Routed && (look.Fallback == (status.Fallback{}) || look.Fallback.Router == status.RouterBeforePools)
 }
 
 // sourceOf names where the document look is a moment of came from, as its log

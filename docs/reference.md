@@ -534,7 +534,7 @@ pass over one you don't know. In the forms below, `<id>` is an account's id.
 |---|---|
 | `generated_at` | When the document was built. |
 | `source` | `router`, or `probe` where the document was built by probing every account. |
-| `fallback` | Why it was built by probing, where the router was asked first: `router`, `not running` or `unhealthy`, and `reason`, why it's unhealthy, as `it doesn't route by pools yet, …` of a router reporting no pools where the config has them, whose document is every account's, never a pool's. |
+| `fallback` | Why it was built by probing, where the router was asked first: `router`, `not running`, `unhealthy` or `before pools`, of a router reporting no pools where the config has them, whose document is every account's, never a pool's; and `reason`, why it's unhealthy. |
 | `pool_id` | The id of the pool the document is of. Left out where the config has no pools. |
 | `pool_label` | That pool's label. Left out with `pool_id`. |
 | `best` | The account new sessions go to next. |

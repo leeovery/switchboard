@@ -784,7 +784,9 @@ these:
 
 - `● healthy`
 - `■ the router isn't answering  ·  since 14:40:55`, while the router's last view stays on screen
-- `○ probed · router not running`.
+- `○ probed · router not running`
+- `○ probed · router started before pools`, where the config has pools and the router, still
+  running from before them, doesn't route by them: restart it.
 
 Then it says:
 

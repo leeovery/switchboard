@@ -141,6 +141,9 @@ func (a *app) sessionStatus(ctx context.Context, out io.Writer, given, pool stri
 	if err != nil {
 		return err
 	}
+	if a.routerBeforePools(ctx) {
+		return expected{errBeforePools}
+	}
 	names := a.accountNames()
 	session, err := a.session(ctx, client, names, given, pool)
 	if err != nil {

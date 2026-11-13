@@ -363,6 +363,7 @@ func TestPinSessionTheRouterClosesAsItsAsked(t *testing.T) {
 		_ = conn.Close()
 	}
 	serveRouter(t, srv.socket(), new(atomic.Int64), map[string]http.HandlerFunc{
+		"GET /health": reportsPools,
 		"GET /sessions/{id}": func(w http.ResponseWriter, _ *http.Request) {
 			_ = json.NewEncoder(w).Encode(status.Session{ID: sessionOne, Assignments: []status.Assignment{}})
 		},
@@ -437,6 +438,7 @@ func TestStatusSessionNamesTheAccountByItsLabel(t *testing.T) {
 			writeRecord(t, srv.deps, identity.Entry{ID: "r4n8", Label: "Spare", Added: testNow.AddDate(-1, 0, 0), Removed: time.Date(2026, 8, 1, 12, 0, 0, 0, time.UTC)})
 			session := status.Session{ID: sessionOne, Assignments: []status.Assignment{{Model: "claude-haiku-4-5-20251001", Account: tt.account}}, Account: status.Account{ID: tt.account}}
 			serveRouter(t, srv.socket(), new(atomic.Int64), map[string]http.HandlerFunc{
+				"GET /health":        reportsPools,
 				"GET /sessions":      func(w http.ResponseWriter, _ *http.Request) { _ = json.NewEncoder(w).Encode([]status.Session{}) },
 				"GET /sessions/{id}": func(w http.ResponseWriter, _ *http.Request) { _ = json.NewEncoder(w).Encode(session) },
 			})

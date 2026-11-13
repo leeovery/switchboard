@@ -244,10 +244,12 @@ are.
   stays: `requests`, `history`, `sessions` and `events` read it with `--pool q7mt`, naming it
   `pool Acme (removed 6 Oct)`, as they do a pool another Mac's history brought in by `import`.
   See [Reading a pool](commands.md#reading-a-pool).
-- **`status` says `probed directly: the router is unhealthy, it doesn't route by pools yet`:** the
-  config has pools and the router reports none, as one from before pools still running after an
-  upgrade, so its document is every account's, never a pool's: `status`, `usage` and the dashboard
-  probe the pool's accounts instead. Run `switchboard service restart`.
+- **`status` says `probed directly: the router doesn't route by pools yet`,** or the dashboard
+  `○ probed · router started before pools`: the config has pools and the router reports none, as
+  one from before pools still running after an upgrade, so its document and sessions are every
+  account's, never a pool's: `status`, `usage` and the dashboard probe the pool's accounts instead,
+  `sessions` lists the ledger's alone, and `pin` and `status --session` refuse. Run
+  `switchboard service restart`.
 - **The dashboard says `couldn't read usage: every pool is fenced: …`:** with every pool fenced,
   there's no pool for it to show without being told, and this release's dashboard takes no
   `--pool`. Read a pool with `switchboard status --pool <id>`, or leave one pool unfenced with

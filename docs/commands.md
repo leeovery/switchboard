@@ -110,9 +110,12 @@ Claude pass `--pool "$SWITCHBOARD_POOL"`, the session's own pool.
   shows the others. Where every pool is fenced, it reads no pool's accounts, saying it couldn't
   read usage, as every pool is fenced: this release's dashboard takes no `--pool`.
 - **A router that reports no pools,** as one from before them still running till its restart,
-  isn't read as a pool's where the config has them: `status`, `usage` and the dashboard probe the
-  pool's accounts instead, saying `the router is unhealthy, it doesn't route by pools yet, as it
-  started before them: restart it with switchboard service restart`.
+  isn't read as a pool's where the config has them, its document and sessions every account's:
+  `status`, `usage` and the dashboard probe the pool's accounts instead, saying `the router doesn't
+  route by pools yet, as it started before them: restart it with switchboard service restart`;
+  `sessions` lists the ledger's alone, none as running, saying so; and `pin` and
+  `status --session` refuse, saying so, asking it nothing. Where the config has no pools, it's read
+  as ever.
 
 ## Everyday
 

@@ -1880,3 +1880,32 @@ var accounts = []config.Account{
 	{ID: "personal", Label: "Personal"},
 	{ID: "side", Label: "Side"},
 }
+
+func TestARouterReportingNoPoolsIsFromBeforePoolsWhereTheConfigHasThem(t *testing.T) {
+	pooled := config.Pools{{ID: "b2n8", Label: "Default"}}
+	tests := []struct {
+		name         string
+		reportsPools bool
+		pools        config.Pools
+		want         bool
+	}{
+		{name: "reporting none, the config with pools", pools: pooled, want: true},
+		{name: "reporting none, the config without them", want: false},
+		{name: "reporting its pools", reportsPools: true, pools: pooled, want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			asked := 0
+			pools := func() config.Pools {
+				asked++
+				return tt.pools
+			}
+			if got := status.BeforePools(tt.reportsPools, pools); got != tt.want {
+				t.Errorf("BeforePools(%v) = %v, want %v", tt.reportsPools, got, tt.want)
+			}
+			if tt.reportsPools && asked > 0 {
+				t.Errorf("BeforePools(true) asked for the config's pools %d times, want never: a router reporting its pools is no router from before", asked)
+			}
+		})
+	}
+}
