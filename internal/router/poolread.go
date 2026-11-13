@@ -257,9 +257,9 @@ func (e PoolNeeded) Error() string {
 // poolOfAll returns the id of the pool the accounts with the given ids are
 // in, of as, the accounts the router has, passing over those it doesn't
 // have, which pinning them refuses: "" in a config from before pools, and
-// where it has none of them. It fails, naming each account by its id and its
-// label with its pool, where they're in two pools, or one is in none, as one
-// the config has dropped is till the router restarts.
+// where it has none of them. It fails, naming each account as accountSaid
+// does, label first, with its pool, where they're in two pools, or one is in
+// none, as one the config has dropped is till the router restarts.
 func (t *poolTable) poolOfAll(ids []string, as accounts) (string, error) {
 	if len(t.pools) == 0 {
 		return "", nil

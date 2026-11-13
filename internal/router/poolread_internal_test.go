@@ -236,10 +236,12 @@ func TestAPinIsAnsweredForThePoolOfTheAccountsItPins(t *testing.T) {
 		// want is the pool answered for, and pinned the accounts its pin
 		// names after; refused, how it's refused, "" where it isn't. Default
 		// is pinned to side before, which stands unless pinned is
-		// Default's.
-		want    string
-		pinned  []string
-		refused string
+		// Default's. personalLabel labels personal apart from its id, where
+		// it's set.
+		want          string
+		pinned        []string
+		refused       string
+		personalLabel string
 	}{
 		{name: "a fenced pool's account, every pool fenced", body: `{"accounts": ["personal"]}`, want: acmePool, pinned: []string{"personal"}},
 		{name: "two of one pool", body: `{"accounts": ["side", "work"]}`, want: defaultPool, pinned: []string{"work", "side"}},
@@ -248,12 +250,18 @@ func TestAPinIsAnsweredForThePoolOfTheAccountsItPins(t *testing.T) {
 			name: "accounts of two pools", body: `{"accounts": ["work", "personal"]}`,
 			refused: "pin accounts of one pool: work is in pool Default, personal is in pool Acme",
 		},
+		{
+			name: "accounts of two pools, one labelled apart from its id", body: `{"accounts": ["work", "personal"]}`, personalLabel: "Client",
+			refused: "pin accounts of one pool: work is in pool Default, Client (personal) is in pool Acme",
+		},
 		{name: "another pool asked", asked: defaultPool, body: `{"accounts": ["personal"]}`, refused: "are in pool Acme, not Default"},
 		{name: "one not configured asked", asked: unconfigured, body: `{"accounts": ["personal"]}`, refused: poolsNamedSaid},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r := pooledRouter(t, pooledAccounts(), bothFenced)
+			accounts := pooledAccounts()
+			accounts[1].Label = cmp.Or(tt.personalLabel, accounts[1].Label)
+			r := pooledRouter(t, accounts, bothFenced)
 			pinnedIn(t, r, defaultPool, status.Pin{Accounts: []string{"side"}, Since: start})
 
 			rec := askControl(t, r, http.MethodPost, withPool("/pin", tt.asked), tt.body)
