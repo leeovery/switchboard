@@ -84,13 +84,13 @@ func (p ShownPool) Empty() bool {
 	return p.ID != "" && p.Accounts == 0
 }
 
-// AsRead is the pool shown as the document doc, read of it, has it: its
-// accounts those doc holds, once one is read, so an account added to the
-// pool, or the last taken out, shows at the next read; before the first, as
-// the config had them.
-func (p ShownPool) AsRead(doc Document) ShownPool {
-	if !doc.GeneratedAt.IsZero() {
-		p.Accounts = len(doc.Accounts)
+// AsRead is the pool shown as the moment mo of the document read of it has
+// it: its accounts those mo holds, once a document is read, so an account
+// added to the pool, or the last taken out, shows at the next read; before
+// the first, as the config had them.
+func (p ShownPool) AsRead(mo Moment) ShownPool {
+	if mo.Routed || mo.Probed {
+		p.Accounts = len(mo.Accounts)
 	}
 	return p
 }

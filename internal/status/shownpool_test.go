@@ -3,7 +3,6 @@ package status_test
 import (
 	"slices"
 	"testing"
-	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/status"
@@ -109,27 +108,28 @@ func TestTheAccountsShownAreThePoolsAlone(t *testing.T) {
 	}
 }
 
-// A pool shown is empty as its document read has it, once one is read, an
-// account added since it was chosen, or its last taken out, showing at
-// once; before the first read, as the config had it.
+// A pool shown is empty as the moment of its document read has it, once
+// one is read, by the router or by probing, an account added since it was
+// chosen, or its last taken out, showing at once; before the first read, as
+// the config had it.
 func TestAPoolShownIsEmptyAsItsDocumentReadHasIt(t *testing.T) {
-	read := time.Date(2026, 11, 13, 9, 0, 0, 0, time.UTC)
-	one := status.Document{GeneratedAt: read, Accounts: []status.Account{{ID: "work"}}}
+	one := []status.AccountNow{{ID: "work"}}
 	tests := []struct {
 		name  string
 		pool  status.ShownPool
-		doc   status.Document
+		mo    status.Moment
 		empty bool
 	}{
 		{name: "none in the config, none read yet", pool: status.ShownPool{ID: "q7mt", Pools: 2}, empty: true},
-		{name: "none in the config, one added since", pool: status.ShownPool{ID: "q7mt", Pools: 2}, doc: one},
+		{name: "none in the config, one added since, as the router reads", pool: status.ShownPool{ID: "q7mt", Pools: 2}, mo: status.Moment{Routed: true, Accounts: one}},
+		{name: "none in the config, one added since, as probed", pool: status.ShownPool{ID: "q7mt", Pools: 2}, mo: status.Moment{Probed: true, Accounts: one}},
 		{name: "one in the config, none read yet", pool: status.ShownPool{ID: "q7mt", Accounts: 1, Pools: 2}},
-		{name: "one in the config, taken out since", pool: status.ShownPool{ID: "q7mt", Accounts: 1, Pools: 2}, doc: status.Document{GeneratedAt: read}, empty: true},
-		{name: "no pool shown", pool: status.ShownPool{Pools: 2}, doc: status.Document{GeneratedAt: read}},
+		{name: "one in the config, taken out since", pool: status.ShownPool{ID: "q7mt", Accounts: 1, Pools: 2}, mo: status.Moment{Routed: true}, empty: true},
+		{name: "no pool shown", pool: status.ShownPool{Pools: 2}, mo: status.Moment{Routed: true}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.pool.AsRead(tt.doc).Empty(); got != tt.empty {
+			if got := tt.pool.AsRead(tt.mo).Empty(); got != tt.empty {
 				t.Errorf("%+v, as read, is empty %v; want %v", tt.pool, got, tt.empty)
 			}
 		})

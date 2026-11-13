@@ -435,8 +435,8 @@ when 30 days or fewer are left, and again at 7, such as
 the nearest. A restart doesn't tell either again, and a new token starts afresh.
 
 Once there's a second [pool](how-it-works.md#pools), each notification is led by the label of the
-pool its account is in, as `Acme · k3f9 · Acme 1 has room again`, the dashboard's own too. With one
-pool, they read as above.
+pool its account is in, as `Acme · k3f9 · Acme 1 has room again`, the dashboard's own too. With
+one pool, they read as above.
 
 ### Switchboard's own notifications
 

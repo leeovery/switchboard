@@ -3,6 +3,7 @@ package watch
 import (
 	"reflect"
 	"strings"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -38,11 +39,11 @@ type turnedMsg struct {
 // it.
 var poolKey = dashboard.Key{Key: "P", Does: "pool"}
 
-// pool is the pool shown, as the document on screen has it read, as
-// status's AsRead has it: the frame, the status line and the keys each read
-// whether it's empty here.
-func (m Model) pool() status.ShownPool {
-	return m.cfg.Pool.AsRead(m.doc)
+// pool is the pool shown as the moment of the document on screen has it at
+// now, as status's AsRead has it: the frame, the status line and the keys
+// each read whether it's empty here.
+func (m Model) pool(now time.Time) status.ShownPool {
+	return m.cfg.Pool.AsRead(m.moment(now))
 }
 
 // turnsPools reports whether the key line lists P: where there's a second

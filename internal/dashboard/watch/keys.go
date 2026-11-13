@@ -7,6 +7,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/leeovery/switchboard/internal/dashboard"
+	"github.com/leeovery/switchboard/internal/status"
 )
 
 // pageKey acts on a key of the page, as pressed hands it on: j, k, PgDn and
@@ -155,10 +156,11 @@ type pageKeys struct {
 
 // keys is what lists the page's keys as m stands, as viewKeys has them, P
 // among them where it turns to another pool, as turnsPools has it; but of a
-// pool with no accounts, whose page has no view, none of a view's.
-func (m Model) keys(running []string) pageKeys {
+// pool with no accounts, as shown, the pool as the page has it, whose page
+// has no view, none of a view's.
+func (m Model) keys(running []string, shown status.ShownPool) pageKeys {
 	keys := pageKeys{empty: true, coloured: m.coloured()}
-	if !m.pool().Empty() {
+	if !shown.Empty() {
 		keys = m.viewKeys(running)
 	}
 	keys.pool = m.turnsPools()
@@ -310,7 +312,7 @@ func (m Model) keyLine(f dashboard.Frame, now time.Time) dashboard.KeyLine {
 	if m.finding() {
 		return dashboard.KeyLine{Groups: [][]dashboard.Key{findKeys()}, Note: m.noted(now)}
 	}
-	keys := m.keys(m.runningIn(f, now))
+	keys := m.keys(m.runningIn(f, now), f.Pool)
 	page := grouped(keys.listings(f.KeysScroll(m.doc, now)))
 	lead, apart := []dashboard.Key{tabViews}, 3
 	if page.lead != nil {
