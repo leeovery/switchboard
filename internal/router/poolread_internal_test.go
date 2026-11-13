@@ -443,9 +443,17 @@ func TestEachPoolsDocumentShowsTheEventsOfItsPoolItsAccountsAndNone(t *testing.T
 		{pool: acmePool, want: []string{status.EventCap, status.EventRefused, status.EventPin, status.EventLimit, status.EventRestart}},
 	}
 	table := r.state.pools.current()
+	kept := r.recent.events()
+	every := status.EventsKept{Oldest: kept[len(kept)-1].ID, Newest: kept[0].ID}
 	for _, tt := range tests {
+		doc := statusIn(t, r, tt.pool)
+		// Each pool's document tells the ids of every pool's events kept, so
+		// a reader takes none it leaves out for one it let go of.
+		if doc.EventsKept != every {
+			t.Errorf("pool %s's document tells the events kept %+v, want every pool's, %+v", tt.pool, doc.EventsKept, every)
+		}
 		var kinds []string
-		for _, e := range statusIn(t, r, tt.pool).Events {
+		for _, e := range doc.Events {
 			kinds = append(kinds, e.Kind)
 			if want := e.InPool(tt.pool, table.first, table.placedIn); !want {
 				t.Errorf("pool %s's document shows %+v, which status.Event's InPool puts in another", tt.pool, e)

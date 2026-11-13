@@ -168,6 +168,11 @@ type Document struct {
 	// newest first: those of the pool and its accounts, and those of no pool
 	// or account; none in a document that isn't the router's.
 	Events []Event `json:"events,omitempty"`
+	// EventsKept are the ids of the events the router kept as it built the
+	// document, every pool's, which Events are those of the pool among: zero
+	// where Events are every one it kept, as in a config without pools, in a
+	// document that isn't the router's, and in one from before it told them.
+	EventsKept EventsKept `json:"events_kept,omitzero"`
 	// Pool is the accounts new sessions can go to now, taken as one: zero
 	// with one account, whose own windows say the same.
 	Pool Pool `json:"pool,omitzero"`
@@ -238,6 +243,15 @@ const (
 	// EventHealth is the router turning unhealthy, or healthy again.
 	EventHealth = "health"
 )
+
+// EventsKept are the ids of the oldest and the newest of the events the
+// router keeps, of every pool, as it numbers them one after another as it
+// runs: so a pool's document, whose events leave other pools' out, tells
+// which of those it didn't give it no longer keeps. Zero where it keeps none.
+type EventsKept struct {
+	Oldest int `json:"oldest"`
+	Newest int `json:"newest"`
+}
 
 // Event is something that happened lately, as the router tells of it: what
 // kind of thing, and the rest as each kind needs, left out where it doesn't.

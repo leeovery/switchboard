@@ -137,13 +137,15 @@ func (rd poolRead) demandOf() (string, bool) {
 	return rd.pool, !rd.every || !rd.pools.pooled()
 }
 
-// events returns those of the events given that the pool read shows, as
-// status.Event's InPool has it of the account each befell, by the pool it's
-// in, else the one it was in last. A whole read shows every event, and one
-// of a closed table the router's own alone.
-func (rd poolRead) events(all []status.Event) []status.Event {
+// events returns those of the events kept, all, that the pool read shows,
+// as status.Event's InPool has it of the account each befell, by the pool
+// it's in, else the one it was in last, and the ids of those kept, as kept
+// gives them, so a reader takes none it leaves out for one let go of. A
+// whole read shows every event, telling no ids, as a document did before
+// pools, and one of a closed table the router's own alone.
+func (rd poolRead) events(all []status.Event, kept status.EventsKept) ([]status.Event, status.EventsKept) {
 	if rd.whole() {
-		return all
+		return all, status.EventsKept{}
 	}
 	var shown []status.Event
 	for _, e := range all {
@@ -151,7 +153,7 @@ func (rd poolRead) events(all []status.Event) []status.Event {
 			shown = append(shown, e)
 		}
 	}
-	return shown
+	return shown, kept
 }
 
 // shows reports whether the pool read shows the event e, as events says.

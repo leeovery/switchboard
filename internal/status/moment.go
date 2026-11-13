@@ -38,6 +38,9 @@ type Moment struct {
 	Pin      Pin
 	Events   []Event
 	Sessions int
+	// EventsKept are the ids of the events the router kept as it built the
+	// document, every pool's, as read.
+	EventsKept EventsKept
 	// PoolID and PoolLabel are the id and the label of the pool the
 	// document is of, as read: none of one of a config without pools.
 	PoolID, PoolLabel string
@@ -303,7 +306,7 @@ func (d Document) At(now time.Time, policy score.Policy) Moment {
 	judged := d.judgeAll(now, policy)
 	m := Moment{
 		Now: now, ReadAt: d.readAt(now), Routed: d.Source == SourceRouter, Probed: d.Source == SourceProbe,
-		Fallback: d.Fallback, Health: d.Router, Restart: d.Restart, Moving: d.Moving, Pin: d.Pin, Events: d.Events, Sessions: d.Sessions,
+		Fallback: d.Fallback, Health: d.Router, Restart: d.Restart, Moving: d.Moving, Pin: d.Pin, Events: d.Events, Sessions: d.Sessions, EventsKept: d.EventsKept,
 		PoolID: d.PoolID, PoolLabel: d.PoolLabel, ComingUp: comingAfter(d.ComingUp, now), Next: d.next(), Learning: d.Demand != nil && d.Demand.Learning,
 		doc: d, policy: policy, judged: judged,
 		pool: sync.OnceValue(func() Pool { return d.pool(judged) }),
