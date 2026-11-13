@@ -106,7 +106,6 @@ func TestTheFirstAccountInAPoolIsMarkedItsPrimary(t *testing.T) {
 		{name: "a pool with no accounts", config: pooled(defaultPool, empty), pool: "q7mt", want: true},
 		{name: "a pool with accounts", config: pooled(defaultPool, empty), pool: "b2n8"},
 		{name: "a pool with accounts, the caller marking it", config: pooled(defaultPool, empty), pool: "b2n8", own: true, want: true},
-		{name: "a pool given an account since the check", config: pooled(defaultPool, empty), added: pooled(filled+defaultPool, empty), pool: "q7mt"},
 		{name: "a pool emptied since the check", config: pooled(filled+defaultPool, empty), added: pooled(defaultPool, empty), pool: "q7mt", want: true},
 		{name: "a config without pools", config: twoAccounts},
 	}
@@ -127,10 +126,64 @@ func TestTheFirstAccountInAPoolIsMarkedItsPrimary(t *testing.T) {
 			if err != nil {
 				t.Fatalf("AddChecked() error = %v", err)
 			}
-			if got, _ := w.load(t).Accounts.ByID(added.ID); got.Primary != tt.want {
-				t.Errorf("the account added is %+v, want primary %t", got, tt.want)
+			if got, _ := w.load(t).Accounts.ByID(added.ID); got.Primary != tt.want || added.Primary != tt.want {
+				t.Errorf("the account added is %+v, added as %+v; want primary %t", got, added, tt.want)
 			}
 		})
+	}
+}
+
+// Whether an account added is the first in its pool is worked out under the
+// record's lock, as the config reads then, never as AddChecked first read
+// it: a pool given an account after that read, before the lock's taken,
+// keeps its primary.
+func TestTheFirstInAPoolIsWorkedOutUnderTheRecordsLock(t *testing.T) {
+	acme := "[[pool]]\nid    = \"q7mt\"\nlabel = \"Acme\"\ndirs  = [\"~/Code/acme\"]\n"
+	filled := "[[account]]\nid    = \"extra\"\nlabel = \"Extra\"\npool  = \"q7mt\"\n\n"
+	w := newWorld(t, pooled(defaultPool, acme))
+	registry := w.unasked(t, &user{})
+	// The home directory's asked for each time the config's read, as Acme's
+	// directory is in it: the first read is AddChecked's own, before the
+	// lock.
+	read := make(chan struct{}, 8)
+	registry.HomeDir = func() (string, error) {
+		select {
+		case read <- struct{}{}:
+		default:
+		}
+		return "/Users/test", nil
+	}
+	token := tokenOf(t, sideToken)
+	type outcome struct {
+		added accounts.Added
+		err   error
+	}
+	done := make(chan outcome, 1)
+
+	err := identity.NewFile(w.state).Change(func(*identity.Record, func() error) error {
+		go func() {
+			added, err := registry.AddChecked(t.Context(), accounts.Adding{Account: config.NewAccount{Label: "Side", Pool: "q7mt"}},
+				token, accounts.Checked{Organization: organization}, nil, accounts.Answer{})
+			done <- outcome{added, err}
+		}()
+		<-read
+		w.writeConfig(t, pooled(filled+defaultPool, acme))
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got := <-done
+	if got.err != nil {
+		t.Fatalf("AddChecked() error = %v", got.err)
+	}
+	cfg, err := config.Load(w.config, registry.HomeDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if side, _ := cfg.Accounts.ByID(got.added.ID); side.Primary || got.added.Primary {
+		t.Errorf("the account added is %+v, added as %+v; want it unmarked, Extra Acme's primary", side, got.added)
 	}
 }
 

@@ -1,6 +1,7 @@
 package screen
 
 import (
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -156,7 +157,8 @@ func TestEachFieldOfTheEditCardIsSaved(t *testing.T) {
 // sameEdit reports whether two edits ask the same.
 func sameEdit(a, b setup.Edit) bool {
 	same := func(x, y *string) bool { return x == nil && y == nil || x != nil && y != nil && *x == *y }
-	return same(a.Label, b.Label) && same(a.Plan, b.Plan) && same(a.Reserve, b.Reserve) && a.Primary == b.Primary
+	return same(a.Label, b.Label) && same(a.Plan, b.Plan) && same(a.Reserve, b.Reserve) && same(a.Pool, b.Pool) &&
+		reflect.DeepEqual(a.NewPool, b.NewPool) && a.Primary == b.Primary
 }
 
 // The edit card offers not set only to an account whose config gives it no

@@ -39,11 +39,14 @@ type Answer struct {
 // asked or don't answer.
 type Ask func(Question) (Answer, error)
 
-// Added is an account added: the id it's known by, and Returning, set where
-// it's one this Mac has had, back under its id, so its history carries on.
+// Added is an account added: the id it's known by; Returning, set where
+// it's one this Mac has had, back under its id, so its history carries on;
+// and Primary, set where it's marked its pool's primary, as the caller
+// asked, or as the first in its pool, as AddChecked works it out.
 type Added struct {
 	ID        string
 	Returning bool
+	Primary   bool
 }
 
 // QuestionError is what adding an account fails with where the token's
@@ -217,6 +220,7 @@ func (r Registry) AddChecked(ctx context.Context, adding Adding, token tokens.To
 			return errors.Join(err, r.unwrite(account.ID))
 		}
 		added = d.Added
+		added.Primary = account.Primary
 		return nil
 	})
 	if err != nil {

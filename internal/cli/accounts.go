@@ -330,8 +330,11 @@ func (a *app) addAccount(cmd *cobra.Command, account config.NewAccount, given ac
 	if added.Returning {
 		said += ", an account this Mac had, so its history carries on"
 	}
-	if account.Primary {
+	switch {
+	case account.Primary:
 		said += ", the primary"
+	case added.Primary:
+		said += ", the primary there, as the first in it"
 	}
 	_, err = io.WriteString(cmd.OutOrStdout(), said+"\n")
 	return err
@@ -668,6 +671,8 @@ func editedSays(e accounts.Edited) string {
 		changed = append(changed, "the primary in place of "+e.FormerPrimary)
 	case e.Marked && moved:
 		changed = append(changed, "marked the primary there, as the first in it")
+	case e.Now.Primary && moved:
+		changed = append(changed, "the primary there too, as the first in it")
 	case e.Marked:
 		changed = append(changed, "marked the primary, which it was as the first with none marked")
 	}

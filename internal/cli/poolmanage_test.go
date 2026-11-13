@@ -441,6 +441,42 @@ func TestAccountsEditMovingAnAccountAheadOfThePoolsPrimaryMarksIt(t *testing.T) 
 	}
 }
 
+// clientPool is a third pool, Client, fenced to /work/client, with no
+// account.
+const clientPool = "\n[[pool]]\nid    = \"z5k2\"\nlabel = \"Client\"\ndirs  = [\"/work/client\"]\n"
+
+// An account added to a pool with no accounts is marked its primary, as its
+// first, without --primary, and says so.
+func TestAccountsAddToAnEmptyPoolSaysItsThePrimary(t *testing.T) {
+	api := newOrganizationsAPI(t)
+	deps, path := accountsDeps(t, api.URL, personalAndSidePooled+clientPool)
+	writeToken(t, deps, "personal", personalsToken)
+
+	got := runWithInput(t, deps, madeWork+"\n", "accounts", "add", "Work", "--pool", "z5k2")
+	m := addedAccount.FindStringSubmatch(got.stdout)
+	if got.code != 0 || m == nil || m[2] != " in pool Client, the primary there, as the first in it" {
+		t.Fatalf("switchboard accounts add Work --pool z5k2 = %+v, want it added in Client, saying it's the primary there", got)
+	}
+	if pool, primary := accountPool(t, path, m[1]); pool != "z5k2" || !primary {
+		t.Errorf("Work is in pool %s, primary %t; want Client, marked its primary", pool, primary)
+	}
+}
+
+// A pool's marked primary moved into a pool with no accounts is that pool's
+// primary too, as its first, and says so.
+func TestAccountsEditMovingAPoolsPrimaryIntoAnEmptyPoolSaysItsThePrimaryThere(t *testing.T) {
+	marked := strings.Replace(personalAndSidePooled, "pool  = \"b2n8\"\n", "pool  = \"b2n8\"\nprimary = true\n", 1)
+	deps, path := accountsDeps(t, "http://127.0.0.1:1", marked+"\n[[account]]\nid    = \"extra\"\nlabel = \"Extra\"\npool  = \"b2n8\"\n"+clientPool)
+
+	got := run(t, deps, "accounts", "edit", "personal", "--pool", "z5k2")
+	if want := "edited personal: pool Client (was Default), the primary there too, as the first in it\n"; got.code != 0 || !strings.HasPrefix(got.stdout, want) {
+		t.Errorf("switchboard accounts edit personal --pool z5k2 =\n%+v\nwant it to start %q", got, want)
+	}
+	if pool, primary := accountPool(t, path, "personal"); pool != "z5k2" || !primary {
+		t.Errorf("personal is in pool %s, primary %t; want Client, marked its primary", pool, primary)
+	}
+}
+
 // An account moved into a pool with no accounts is marked its primary, as
 // its first, without --primary; the pool it left keeps its own.
 func TestAccountsEditMovingAnAccountIntoAnEmptyPoolMarksItThePrimary(t *testing.T) {
