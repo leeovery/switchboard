@@ -856,9 +856,9 @@ still tells of every pool's work together, each account by its label, until a la
 it to the pool shown: History's Year sets every pool's worth beside the plans of the pool shown.
 
 The pool shown follows the config as it changes: where a pool or an account is added, removed,
-relabelled, fenced or moved, or an account's plan, primary or reserve changes, in any pool, the
-view starts afresh on the pool shown, as `P` does, keeping the tab and what each tab shows. A
-change to nothing of those, such as a comment, starts nothing. The dashboard looks at the config
+relabelled, fenced, moved or reordered, or an account's plan, primary or reserve changes, in any
+pool, the view starts afresh on the pool shown, as `P` does, keeping the tab and what each tab
+shows. A change to nothing of those, such as a comment, starts nothing. The dashboard looks at the config
 file it reads, the one `--config` names, at each read, and reads the config again only where the
 file has changed, or the accounts the router routes have: a look costs a stat of the file and a
 compare of two lists of ids. Where the pool shown is removed, it turns to the first.
@@ -884,8 +884,8 @@ or move one in, and that its directories stay fenced until the pool is removed. 
 `tab`, `P`, `?` and `q` alone. The dashboard judges this from the router's view of the pool: an
 account added to it shows at the next read, as does its last account taken out. The router takes
 up an account added to the config, or a pool added, only as it restarts, at a quiet moment: till
-then, the status line says `no accounts routed yet`, and the page says that
-`switchboard service restart` takes it up now.
+then, the status line says how the router stands, the restart it has due and `no accounts routed
+yet`, and the page says that `switchboard service restart` takes it up now.
 
 Where every pool is fenced and no `--pool` names one, there's no pool the verbs act on: the
 dashboard opens on none, with no accounts listed. Its status line says it couldn't read usage, as

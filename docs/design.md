@@ -1078,41 +1078,45 @@ totals.
   key line giving the first line of why. The key line lists `P pool` once a second pool exists,
   on a phone too, and help gives it. With one pool, `P` isn't listed, but reads the pools afresh
   all the same: it turns to a second added since, else the key line says there's one pool.
-- **A change to the config starts the pool shown afresh,** as `P` does, so nothing it holds of
-  the pool, its label, directories, accounts, the pools counted, the router's events as they're
-  placed, the pools that name them, History, Accounts' page and its choices and the Log's rows,
-  is ever of a config gone. What counts is anything of the pools or the accounts as the pools
-  stand (`status.Placement`): any pool's id, label or directories, the pools counted, and any
-  account's id, label, plan, primary mark, reserve or pool, in any pool, as the router's events of
-  every pool are placed by them. A change to nothing of those, a comment or another table, starts
-  nothing. It's one path with `P`'s: the watch asks its `Turn` for the pool shown again
-  (`watch.SamePool`, `status.PoolAgain`), started afresh on it, or where it's gone, on the first,
-  as `P` would turn to from it; the tab, size, theme and each tab's kept view carry over, as at a
-  turn. It's asked only where a read finds the config file the dashboard reads, the one `--config`
-  names, changed since the pool was read, by the router's own rule for its config
-  (`filestate.State.Same`: another file, or one written since), or the accounts of the router's
-  document other than the last read's (`status.Document.AccountsChanged`), as an account the
-  router took up as it restarted, which finds the config as it was and starts nothing. What it
-  costs a read is a stat of the config file and a comparison of two lists of ids. The stamp is
-  taken as the ask goes out, so a change found while a turn is under way is asked for at the next
-  read; a config that can't be read is logged, with nothing on the key line, and asked again once
-  it changes again.
+- **A change to the config starts the pool shown afresh,** as `P` does, so nothing it holds of the
+  pool, its label, directories, accounts, the pools counted, the router's events as they're placed,
+  the pools that name them, History, Accounts' page and its choices and the Log's rows, nor the
+  request ledger, summarised with the caps of the accounts configured, nor the accounts removed,
+  which name those taken out by their labels, is ever of a config gone. What counts is anything of
+  the pools or the accounts as the pools stand (`status.Placement`): any pool's id, label or
+  directories, the pools counted and their order, and any account's id, label, plan, primary mark,
+  reserve or pool, in any pool, and their order, as the router's events of every pool are placed by
+  them. A change to nothing of those, a comment or another table, starts nothing. It's one path with
+  `P`'s: the watch asks its `Turn` for the pool shown again (`watch.SamePool`, `status.PoolAgain`),
+  started afresh on it, or where it's gone, on the first, as `P` would turn to from it; the tab,
+  size, theme and each tab's kept view carry over, as at a turn. It's asked only where a read finds
+  the config file the dashboard reads, the one `--config` names, changed since the pool was read, by
+  the router's own rule for its config (`filestate.State.Same`: another file, or one written since),
+  or the accounts of the router's document other than the last read's
+  (`status.Document.AccountsChanged`), as an account the router took up as it restarted, which finds
+  the config as it was and starts nothing. What it costs a read is a stat of the config file and a
+  comparison of two lists of ids. The stamp is taken as the ask goes out, so a change found while a
+  turn is under way is asked for at the next read; a config that can't be read is logged, with
+  nothing on the key line, and asked again once it changes again.
 - **The title row names the pool shown,** by its label after the badge, once a second pool exists,
   at every size, cut short before the tabs where it's long. The pool's accounts keep the config's
   order, unnumbered, as every screen has them (see Account identity).
 - **A pool with no accounts** draws a page that says so on every tab, its status line `● healthy ·
-  no accounts`: a session started in its directories, or for an unfenced pool outside every fence,
-  doesn't start; how to add an account to it or move one in; and that its directories stay fenced
-  until it's removed. Its key line is `tab views  P pool  ? help  q quit`. Empty means none to
-  route (`status.ShownPool.AsRead`): none in the router's document of the pool, once one is read,
-  its pool id the pool shown's; else none in the config. A probed document, whose accounts are the
-  config's, or one of no pool, as a router that can't tell its pools answers, leaves it to the
-  config. A pool the router doesn't know, as one added since it started, whose reads it refuses
-  (`router.PoolNeeded`, naming the pool shown), routes none in it alike (`status.ShownPool.Refused`):
-  no read that failed. Where the config gives the pool accounts the router hasn't taken up, as it
-  does only as it restarts, at a quiet moment, the status line says `no accounts routed yet` and the page says
-  so, and that `switchboard service restart` takes them up now. The page, the status line and the
-  keys all read that one fact.
+  no accounts`, with the restart the router has due, which takes up any the config gives it: a
+  session started in its directories, or for an unfenced pool outside every fence, doesn't start;
+  how to add an account to it or move one in; and that its directories stay fenced until it's
+  removed. Its key line is `tab views  P pool  ? help  q quit`. Empty means none to route
+  (`status.ShownPool.AsRead`): none in the router's document of the pool, once one is read, its pool
+  id the pool shown's; else none in the config. A probed document, whose accounts are the config's,
+  or one of no pool, as a router that can't tell its pools answers, leaves it to the config. A pool
+  the router doesn't know, as one added since it started, whose reads it refuses
+  (`router.PoolNeeded`, naming the pool shown), routes none in it alike
+  (`status.ShownPool.Refused`): no read that failed, but the router answering, so it's lost no more,
+  and the status line says how it stands, healthy or not, and the restart it has due, as its health
+  check answered with the refusal (`router.Health`'s `Restart`). Where the config gives the pool
+  accounts the router hasn't taken up, as it does only as it restarts, at a quiet moment, the status
+  line says `no accounts routed yet` and the page says so, and that `switchboard service restart`
+  takes them up now. The page, the status line and the keys all read that one fact.
 - **Notifications** name the pool once a second pool exists, its label leading what they say of
   the account, as `Acme · k3f9 · Acme 1 has room again`: the router's, and the dashboard's own
   without the router, by the one wording (`prose.PoolLed`). With one pool, they're as they were.
@@ -10276,7 +10280,7 @@ HTTP over `control.sock` (mode 0600, so file permissions are the authentication)
 
 | Endpoint | Job |
 |---|---|
-| `GET /health` | `{ok, reason, listen, version, pid, started_at, strips_own_headers, reports_pools, pools, moving}`: the router is alive, and `ok` is its health, the judgment the status document's `router.healthy` gives, `false` while it's unhealthy, with a `reason` (see Health). `listen` is the address its proxy listens on. `strips_own_headers`, `true`, says it takes every `X-Switchboard-…` header off a request going upstream (see Proxy rules); a router from before leaves it out. `run` sends sessions to a router that gives `listen`, `ok` or not, and tells the directory a session starts in only to one that says `strips_own_headers`; `usage`, `status` and `dashboard` read the document of any router that answers at all. `reports_pools`, `true`, says it reports the pools it routes for, as `pools`, a router from before leaving both out: in the config's order, each `{id, label, dirs, written_dirs, accounts, primary}`, `dirs` its directories absolute and clean and `written_dirs` as the config writes them, both left out for the unfenced pool, `accounts` the ids of those of its accounts the router has, one the config added since it started left out, and `primary` its primary among them, left out where it has none; `pools` is left out in a config without pools, and by a router that routes nothing, as one that can't tell the pools, which answers `ok` `false`. `run` compares them with the config's (see Launching in a pool). `moving` is how the moves of the history stand, as the status document's `moving`, given here as it's no pool's |
+| `GET /health` | `{ok, reason, listen, version, pid, started_at, strips_own_headers, reports_pools, pools, moving, restart}`: the router is alive, and `ok` is its health, the judgment the status document's `router.healthy` gives, `false` while it's unhealthy, with a `reason` (see Health). `listen` is the address its proxy listens on. `strips_own_headers`, `true`, says it takes every `X-Switchboard-…` header off a request going upstream (see Proxy rules); a router from before leaves it out. `run` sends sessions to a router that gives `listen`, `ok` or not, and tells the directory a session starts in only to one that says `strips_own_headers`; `usage`, `status` and `dashboard` read the document of any router that answers at all. `reports_pools`, `true`, says it reports the pools it routes for, as `pools`, a router from before leaving both out: in the config's order, each `{id, label, dirs, written_dirs, accounts, primary}`, `dirs` its directories absolute and clean and `written_dirs` as the config writes them, both left out for the unfenced pool, `accounts` the ids of those of its accounts the router has, one the config added since it started left out, and `primary` its primary among them, left out where it has none; `pools` is left out in a config without pools, and by a router that routes nothing, as one that can't tell the pools, which answers `ok` `false`. `run` compares them with the config's (see Launching in a pool). `moving` is how the moves of the history stand, as the status document's `moving`, given here as it's no pool's. `restart` is the restart it has due, as the status document's `restart`, left out where none is, given here for a pool it can't give a document of, as one added since it started, which waits on that restart: the dashboard says it on such a pool's status line |
 | `GET /status` | The status document, as `status --json` prints it but for the `"schema": 1` the verbs put first: see below. It, `GET /sessions`, `GET /history`, `GET /stream`, `POST /refresh` and `DELETE /pin` take `?pool=<id>`, and answer for that pool, else the one the verbs act on, refusing with a 400 `{error, pools, named}` where there's none, or the pool named isn't configured (see Reading a pool); `POST /pin` takes its pool from the accounts it names. Each stream event names its request's `pool`, where there are pools |
 | `GET /sessions/{id}` | For statuslines and the dashboard: `{"session": "<id>", "pin": "<id>", "assignments": [{model, family, account, auto, dir, in_flight, pinned, yielded, pinned_at, reason, assigned_at, last_seen}], "account": {…}}`. `pin` is the session's own pin, left out when it has none: the one `pin --session` gave it, else the one `run --account` did, as its requests last carried it. `assignments` are the session's, a model each, the one used last first, each naming its model's family, such as `opus`, and its account by id; `auto`, the account auto would send the model's next request to, by id, as the routing card names it on its `auto` line (see Routing by hand): where the router's own rule sends a request with the session's own pin passed over and the global pin counting, on what the router knows, probing none (see Choosing an account), and left out where no account has room for the request; `dir`, the directory the session's last request of the model named, as the request ledger keeps it, the home as `~` and cut as a line's is (see The request ledger), kept with the assignment in `state.json`, and left out where none has named one; `in_flight`, what a request of its model in flight is doing, as the request stream tells of it: `answering` while an answer streams to one, else `asking` while one waits for its answer's first byte, and left out while none is in flight, so one read says what each running session is doing, as the request stream's first events don't say when they're all in; `yielded` set while the session's own pin has yielded, the account it names having had no room for a request of it, and it stays where it went; and `pinned_at` when it was given its own pin as it ran, left out for the one it was launched with, and while it has none. `account` at the top is the whole status of the account the last used went to, as the document gives it. 404 for a session never seen |
 | `GET /sessions` | The sessions routed in the last hour, the one seen last first, each as `/sessions/{id}` gives it but for `account`. `status` lists them, and `pin --session` and `status --session` find a session from part of its id here |
