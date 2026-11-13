@@ -64,15 +64,23 @@ func (e *PoolNeededError) Error() string {
 // inPool returns account in the pool it's added to, of those cfg configures,
 // nil configuring none: the one it names, else, where cfg has pools, the one
 // the verbs act on, as config.Pools' Implicit gives it, as accounts add adds
-// one without --pool. It fails with a PoolNeededError where it names none and
-// every pool is fenced.
+// one without --pool. It fails, as config.PoolNotConfigured says, where it
+// names one cfg doesn't configure, as in a config without pools, and with a
+// PoolNeededError where it names none and every pool is fenced.
 func inPool(cfg *config.Config, account config.NewAccount) (config.NewAccount, error) {
-	if account.Pool != "" || cfg == nil || len(cfg.Pools) == 0 {
+	var pools config.Pools
+	if cfg != nil {
+		pools = cfg.Pools
+	}
+	switch _, configured := pools.ByID(account.Pool); {
+	case account.Pool != "" && !configured:
+		return config.NewAccount{}, config.PoolNotConfigured(account.Pool)
+	case account.Pool != "" || len(pools) == 0:
 		return account, nil
 	}
-	p, ok := cfg.Pools.Implicit()
+	p, ok := pools.Implicit()
 	if !ok {
-		return config.NewAccount{}, &PoolNeededError{Pools: cfg.Pools}
+		return config.NewAccount{}, &PoolNeededError{Pools: pools}
 	}
 	account.Pool = p.ID
 	return account, nil

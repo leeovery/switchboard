@@ -92,6 +92,40 @@ func TestAnAccountNamingNoPoolIsRefusedWhereEveryPoolIsFenced(t *testing.T) {
 	w.checkNoRecord(t)
 }
 
+// An account naming a pool the config doesn't configure, with pools or
+// without, is refused by CheckNew, in the config's words, and by Add before
+// it asks for the token, saving nothing.
+func TestAnAccountNamingAPoolNotConfiguredIsRefused(t *testing.T) {
+	tests := []struct {
+		name   string
+		config string
+	}{
+		{name: "a config with pools", config: pooled(defaultPool, acmePool)},
+		{name: "a config without pools", config: twoAccounts},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := newWorld(t, tt.config)
+			user, api := &user{atTerminal: true, gives: sideToken}, &fakeAPI{organization: organization}
+			registry := w.registry(user, api)
+			account := config.NewAccount{Label: "Side", Pool: "zz"}
+
+			_, err := registry.CheckNew(account)
+			if want := `pool "zz" is not configured`; !errors.Is(err, config.ErrNotConfigured) || err.Error() != want {
+				t.Fatalf("CheckNew() error = %v, want %q", err, want)
+			}
+			if _, err := registry.Add(t.Context(), account, nil); !errors.Is(err, config.ErrNotConfigured) {
+				t.Errorf("Add() error = %v, want it not configured", err)
+			}
+			if user.asked || len(api.asked) > 0 {
+				t.Errorf("the user was asked for the token (%t), the API asked %q: want neither", user.asked, api.asked)
+			}
+			w.checkConfig(t, tt.config)
+			w.checkNoRecord(t)
+		})
+	}
+}
+
 // isPoolNeeded reports whether err is a PoolNeededError.
 func isPoolNeeded(err error) bool {
 	_, ok := errors.AsType[*accounts.PoolNeededError](err)

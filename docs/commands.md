@@ -747,7 +747,8 @@ The subcommands do the following:
 - **`add`** registers an account, as an `[[account]]` table in the config, making the config if
   there's none, and its token file. Once the config has pools, it goes in the pool `--pool` names,
   else the pool the verbs act on, and `add` says which once there's a second, as `added "Acme 2" as
-  m4zq in pool Acme`.
+  m4zq in pool Acme`. A pool the config doesn't configure, as any in a config without pools, is
+  refused before the token is asked for: `pool "zz" is not configured`.
   - It always takes a token, and checks it with the API before it saves anything. The
     organization the API names it in, its subscription, decides the account's id:
     - a subscription this Mac has never had gets a new id;
