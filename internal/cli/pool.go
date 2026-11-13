@@ -167,7 +167,8 @@ launch until one is added to it, with accounts add --pool or accounts edit
 			if err != nil {
 				return err
 			}
-			_, err = fmt.Fprintf(cmd.OutOrStdout(), "added pool %s as %s, %s\n", prose.Quoted(prose.Clean(added.Label)), added.ID, fenceSaid(added))
+			var out io.Writer = cmd.OutOrStdout()
+			_, err = fmt.Fprintf(out, "added pool %s as %s, %s\n", prose.Quoted(prose.Clean(added.Label)), added.ID, fenceSaid(added))
 			return err
 		},
 	}
@@ -309,7 +310,8 @@ session started in them goes to the unfenced pool, where there's one.
 			if err != nil {
 				return err
 			}
-			_, err = fmt.Fprintf(cmd.OutOrStdout(), "removed pool %s (%s)\n", removed.ID, prose.Clean(removed.Label))
+			var out io.Writer = cmd.OutOrStdout()
+			_, err = fmt.Fprintf(out, "removed pool %s (%s)\n", removed.ID, prose.Clean(removed.Label))
 			return err
 		},
 	}
