@@ -55,8 +55,28 @@ type busyWorld struct {
 	now   time.Time
 }
 
-// newBusyWorld writes a busy world whose today ends at now.
+// newBusyWorld writes a busy world whose today ends at now, its sessions
+// routed as unpooled routes them.
 func newBusyWorld(tb testing.TB, now time.Time) busyWorld {
+	tb.Helper()
+	w := writeBusyWorld(tb, now, unpooled)
+	w.ledger().SummariseEnded(now)
+	return w
+}
+
+// busyRouting routes the busy world's gth session on its dth day: the
+// account it runs on, and the pool its lines record, "" for none.
+type busyRouting func(g, d int) (account, pool string)
+
+// unpooled routes the busy world's sessions as before pools: each on the
+// account busyOn gives, in no pool.
+func unpooled(g, d int) (account, pool string) {
+	return busyOn(g, d), ""
+}
+
+// writeBusyWorld writes the files of a busy world whose today ends at now,
+// its sessions routed as route routes them: no day summarised yet.
+func writeBusyWorld(tb testing.TB, now time.Time, route busyRouting) busyWorld {
 	tb.Helper()
 	w := busyWorld{state: tb.TempDir(), now: now}
 	dir, history := ledger.Dir(w.state), readings.Dir(w.state)
@@ -69,14 +89,19 @@ func newBusyWorld(tb testing.TB, now time.Time) busyWorld {
 		day := w.day(d)
 		date := day.Format(time.DateOnly)
 		compressed := d < busyDays-3
-		writeDay(tb, dir, "requests-"+date+".jsonl", busyLines(day, d, now), compressed)
+		writeDay(tb, dir, "requests-"+date+".jsonl", busyLines(day, d, now, route), compressed)
 		writeDay(tb, history, "readings-"+date+".jsonl", busyReadings(tb, day, now), compressed)
 		writeDay(tb, dir, "events-"+date+".jsonl", busyEvents(tb, day, d, now), compressed)
 	}
-	quiet := slog.New(slog.DiscardHandler)
-	h := ledger.HistoryIn(readings.Files(history, quiet))
-	ledger.Open(dir, 400*24*time.Hour, w.clock, h, w.caps(), quiet).SummariseEnded(now)
 	return w
+}
+
+// ledger is the world's request ledger, as the router opens it, with the
+// options given.
+func (w busyWorld) ledger(opts ...ledger.Option) *ledger.Ledger {
+	quiet := slog.New(slog.DiscardHandler)
+	h := ledger.HistoryIn(readings.Files(readings.Dir(w.state), quiet))
+	return ledger.Open(ledger.Dir(w.state), 400*24*time.Hour, w.clock, h, w.caps(), quiet, opts...)
 }
 
 // day is the start of the world's dth day, the last being today.
@@ -155,8 +180,9 @@ func (w busyWorld) lately() string {
 }
 
 // busyLine is the format of a line of the busy world: when it arrived, its
-// request's id, session, directory, account, reason and from, timings,
-// prompt, size, answer's id, usage given, and its limits.
+// request's id, session, directory, account, reason, and from and pool where
+// it names them, timings, prompt, size, answer's id, usage given, and its
+// limits.
 const busyLine = `{"at":"%s","request":"%016x","kind":"message","session":"%s","dir":"~/Code/project-%d","model":"claude-opus-5-5",` +
 	`"account":"%s","reason":"%s"%s,"status":200,"attempts":1,"first_ms":%d,"total_ms":%d,"agent":"claude-cli/2.1.300 (external, cli)",` +
 	`"betas":["claude-code-20250219","context-1m-2025-08-07","interleaved-thinking-2025-05-14"],"prompt":"%s","class":"main",` +
@@ -169,8 +195,9 @@ const busyLine = `{"at":"%s","request":"%016x","kind":"message","session":"%s","
 
 // busyLines are the lines of the world's dth day, which starts at start,
 // that arrived by now: busyRequests through the day, the dozen sessions
-// running taking turns, thirty requests a prompt.
-func busyLines(start time.Time, d int, now time.Time) []byte {
+// running taking turns, thirty requests a prompt, each routed as route
+// routes its session that day.
+func busyLines(start time.Time, d int, now time.Time, route busyRouting) []byte {
 	r := rand.New(rand.NewPCG(uint64(d), 1))
 	var day bytes.Buffer
 	for i := range busyRequests {
@@ -179,12 +206,17 @@ func busyLines(start time.Time, d int, now time.Time) []byte {
 			break
 		}
 		g := busySeat(d, i%busyRunning)
-		account, reason, from := busyOn(g, d), status.ReasonSticky, ""
+		account, pool := route(g, d)
+		reason, from := status.ReasonSticky, ""
 		switch {
 		case i < busyRunning && busyFirst(g) == d:
 			reason = status.ReasonNew
 		case i < busyRunning:
-			reason, from = "rescored after 9h idle", fmt.Sprintf(`,"from":%q`, busyOn(g, d-1))
+			before, _ := route(g, d-1)
+			reason, from = "rescored after 9h idle", fmt.Sprintf(`,"from":%q`, before)
+		}
+		if pool != "" {
+			from += fmt.Sprintf(`,"pool":%q`, pool)
 		}
 		fifth := float64(at.Hour()%5*60+at.Minute()) / 300
 		fmt.Fprintf(&day, busyLine, at.UTC().Format("2006-01-02T15:04:05.000Z"), r.Uint64(), busySession(g), g, account, reason, from,
@@ -306,11 +338,7 @@ func BenchmarkTheBusyDashboard(b *testing.B) {
 		on := h.model
 		for b.Loop() {
 			h.model, h.timers, h.waits = on, nil, nil
-			h.model.view = dashboard.Log
-			h.deliver(h.update(nudgeMsg{})...)
-			if !h.model.log.opened {
-				b.Fatal("the Log didn't open")
-			}
+			h.openedLog()
 		}
 	})
 	page := w.onDetail(b, w.longest())
@@ -554,6 +582,17 @@ func (h *harness) updated(msg tea.Msg) tea.Cmd {
 // with the given id.
 func (h *harness) pageShows(id string) bool {
 	return h.model.session != nil && !h.model.session.shown.Loading && h.model.session.shown.Page.Session == id
+}
+
+// openedLog shows the Log the first time, and delivers what that starts,
+// till its first read lands.
+func (h *harness) openedLog() {
+	h.t.Helper()
+	h.model.view = dashboard.Log
+	h.deliver(h.update(nudgeMsg{})...)
+	if !h.model.log.opened {
+		h.t.Fatal("the Log didn't open")
+	}
 }
 
 // hearHour has the request stream tell of the busy world's last hour of
