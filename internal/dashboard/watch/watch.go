@@ -28,6 +28,7 @@ import (
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/dashboard/backdrop"
+	"github.com/leeovery/switchboard/internal/filestate"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/logs"
 	"github.com/leeovery/switchboard/internal/notify"
@@ -137,16 +138,26 @@ type Config struct {
 	// Pool is the pool the dashboard shows, whose Source reads it, and whose
 	// Events and PoolNamed are its: the title row names it, and
 	// notifications, once there's a second. Turn gives what the dashboard
-	// shows of the pool P turns to from the one with the id given, as
-	// status.PoolAfter has it, the pools read afresh as they stand: nil
-	// turns to none.
+	// shows of a pool, the pools read afresh as they stand: of the one P
+	// turns to from the one with the id given, as status.PoolAfter has it,
+	// where ask is NextPool; of that one again, as status.PoolAgain has it,
+	// where it's SamePool. nil turns to none.
 	Pool status.ShownPool
-	Turn func(ctx context.Context, from string) (Pooled, error)
+	Turn func(ctx context.Context, from string, ask PoolAsk) (Pooled, error)
 	// PoolRead is how the Log reads the pool shown's work of the request
 	// ledger, by its id, as the verbs read a pool's: the zero PoolRead reads
 	// every pool's, as of a config without pools alone; views.NoPool none,
 	// as where no pool is shown.
 	PoolRead views.PoolRead
+	// ConfigStamp says how the config file stands, and Stamp how it stood
+	// as the pool shown was read: a read that finds it changed since reads
+	// the pool shown again, as followConfig has it. nil never finds it
+	// changed. Placed is how the config placed the accounts in the pools as
+	// the pool shown was read, as status's Placed has it: read again,
+	// placed otherwise, the pool shown starts afresh.
+	ConfigStamp func() filestate.State
+	Stamp       filestate.State
+	Placed      status.Placement
 	// Accounts are the configured accounts of the pool shown, as status's
 	// PoolAccounts has them, which Accounts lists and whose plans History
 	// prices its worth against, and WeekStarts the day its calendar weeks
@@ -203,10 +214,13 @@ type Config struct {
 	TraceScale float64
 	// Ledger, Readings and Events read the request ledger, the readings
 	// history and the router's events where they lie: the watch opens none
-	// of their files itself.
-	Ledger   views.Ledger
-	Readings views.Readings
-	Events   views.Events
+	// of their files itself. LedgerGrounds are the grounds Ledger was made
+	// on, as the config gave them, which a fresh start on others makes
+	// another on.
+	Ledger        views.Ledger
+	LedgerGrounds ledger.Grounds
+	Readings      views.Readings
+	Events        views.Events
 	// LedgerKeep is how long the ledger keeps a day's lines, as [ledger]
 	// keep gives it, which says the Log's oldest day, as views.OldestKept
 	// reads it, and to when an ended session's page says its lines are kept,
@@ -416,10 +430,13 @@ type Model struct {
 	keeping keeping
 
 	// poolTurns counts the pools P has turned to, as freshIn has it, for
-	// turns to drop what a command of a pool shown before sends back; and
-	// turning is set while P's turn is under way.
+	// turns to drop what a command of a pool shown before sends back;
+	// turning is set while a turn is under way, P's or the pool shown read
+	// again; and refusing is how the router answered while it refuses to
+	// read the pool shown, as refusesPool has it, nil while it doesn't.
 	poolTurns int
 	turning   bool
+	refusing  *status.RouterAnswer
 
 	// shown is what render made of the screen once the last message was
 	// taken in.
@@ -480,6 +497,7 @@ type fetchedMsg struct {
 	sessions []status.Session
 	listed   bool
 	err      error
+	stamp    filestate.State
 }
 
 // tickMsg wakes the model to redraw, and to read again once that's due.
@@ -1020,9 +1038,13 @@ func (m Model) read(r status.Read) (Model, tea.Cmd) {
 
 // fetch reads the source as r asks, as fetchFrom reads it, asked now.
 func (m Model) fetch(r status.Read) tea.Cmd {
-	ctx, source, policy, asked := m.ctx, m.cfg.Source, m.cfg.Policy, m.now()
+	ctx, source, policy, asked, stamp := m.ctx, m.cfg.Source, m.cfg.Policy, m.now(), m.cfg.ConfigStamp
 	return func() tea.Msg {
-		return fetchFrom(ctx, source, r, policy, asked)
+		msg := fetchFrom(ctx, source, r, policy, asked)
+		if stamp != nil {
+			msg.stamp = stamp()
+		}
+		return msg
 	}
 }
 
@@ -1046,26 +1068,39 @@ func fetchFrom(ctx context.Context, source Source, r status.Read, policy score.P
 }
 
 // fetched takes in a read: the document to show from now on, or why there's
-// none, and plans the next read by it. A read that fails notes why, and the
-// router lost, as lose does. Before any document, from a source that asks the
-// router first, as awaitsRouter has it, the status line says the latest
-// read's news either way: a question after the router, or a look at its
-// document, that found it gone has no why of its own, and clears the last
-// read's, the status line saying the router isn't answering, since it was
-// first found gone; and a read that failed for a reason of its own has the
+// none, and plans the next read by it. A read the router refuses, not knowing
+// the pool shown, as refusesPool has it, isn't a read that failed: the router
+// answered, so it's lost no more, and the pool routes none, as status's
+// Refused has it of the router's answer, which the status line says; the
+// router is looked at again as it is once it's found gone. A read that fails
+// notes why, and the router lost, as lose does. Before any document, from a
+// source that asks the router first, as awaitsRouter has it, the status line
+// says the latest read's news either way: a question after the router, or a
+// look at its document, that found it gone has no why of its own, and clears
+// the last read's, the status line saying the router isn't answering, since it
+// was first found gone; and a read that failed for a reason of its own has the
 // status line say that reason, as lostShown has it. Elsewhere a read that
 // found the router gone leaves the last read's why standing, as nothing new
 // was found. Each read starts a new chain of ticks at the pace it calls for,
 // lets a look at the router's document asked for while it was under way go
-// ahead, and as any look does, asks for the ledger's days since History's
-// were read, as readHistory reads them while History or Accounts shows,
-// Runway's lanes want them or Graphs shows WHEN YOU WORK, and what the
-// readings history gained, as readRunway reads it while Runway shows.
+// ahead, and as any look does, asks for the ledger's days since History's were
+// read, as readHistory reads them while History or Accounts shows, Runway's
+// lanes want them or Graphs shows WHEN YOU WORK, and what the readings history
+// gained, as readRunway reads it while Runway shows. Where the read finds the
+// config file changed, or the accounts other than the last document's, as
+// status's AccountsChanged has it, it reads the pool shown again, as
+// followConfig has it.
 func (m Model) fetched(msg fetchedMsg) (tea.Model, tea.Cmd) {
 	now := m.now()
 	m.fetching, m.past.due, m.tail.due, m.runwayTab.due = false, true, true, true
 	var shown tea.Cmd
+	accountsChanged := false
+	m.refusing = nil
 	switch {
+	case m.refusesPool(msg):
+		answer := msg.router.Answer()
+		m.refusing = &answer
+		m.plan, m.failed, m.lost = m.plan.missed(now), "", time.Time{}
 	case errors.Is(msg.err, status.ErrNoRouter):
 		m.plan = m.plan.missed(now)
 		if m.awaitsRouter() {
@@ -1080,17 +1115,19 @@ func (m Model) fetched(msg fetchedMsg) (tea.Model, tea.Cmd) {
 	default:
 		msg.doc = msg.doc.WithRemoved(m.cfg.Removed)
 		look := msg.doc.At(now, m.cfg.Policy)
+		accountsChanged = msg.doc.AccountsChanged(m.doc)
 		m.plan = m.plan.landed(msg.read, msg.doc, look.Routed, now)
 		m, shown = m.show(msg, look)
 		logRead(msg, look, m.plan.due)
 	}
+	m, following := m.followConfig(msg.stamp, accountsChanged)
 	m.chain++
 	var again tea.Cmd
 	if m.again {
 		m.again = false
 		m, again = m.reread()
 	}
-	return m, tea.Batch(shown, m.armTick(now), again)
+	return m, tea.Batch(shown, m.armTick(now), again, following)
 }
 
 // logRead notes a read: where it came from, the accounts it read and those it

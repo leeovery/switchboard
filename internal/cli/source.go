@@ -61,12 +61,13 @@ func (s usageSource) inPool(pool string) usageSource {
 // one by probing every account of that pool, saying why the router's wasn't
 // read when the router was asked. A router refusing for want of a pool, and
 // a config whose pool can't be told, fail with router.PoolNeeded: nothing is
-// read in its place.
+// read in its place. A router refusing gives its health with the refusal,
+// as it answered it.
 func (s usageSource) Read(ctx context.Context, r status.Read) (status.Document, router.Health, error) {
 	read, err := s.fromRouter(ctx, r.Refresh)
 	switch {
 	case err != nil:
-		return status.Document{}, router.Health{}, err
+		return status.Document{}, read.health, err
 	case read.ok:
 		return read.doc, read.health, nil
 	case !r.Probe:
@@ -101,7 +102,7 @@ type routerRead struct {
 // to be asked, doesn't answer its health check in time, doesn't give its
 // document, or is one from before pools, as status.BeforePools has it of the
 // config's pools as they stand; and fails with router.PoolNeeded where it
-// refuses for want of a pool.
+// refuses for want of a pool, giving its health as it answered.
 func (s usageSource) fromRouter(ctx context.Context, refresh time.Duration) (routerRead, error) {
 	switch {
 	case !s.ask:
@@ -118,7 +119,7 @@ func (s usageSource) fromRouter(ctx context.Context, refresh time.Duration) (rou
 	}
 	doc, err := s.document(ctx, refresh)
 	if _, needs := errors.AsType[router.PoolNeeded](err); needs {
-		return routerRead{}, err
+		return routerRead{health: health}, err
 	}
 	if err != nil {
 		return routerRead{fallback: fallbackFrom(err)}, nil

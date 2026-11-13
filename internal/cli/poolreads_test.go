@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/dashboard/watch"
 	"github.com/leeovery/switchboard/internal/identity"
 	"github.com/leeovery/switchboard/internal/launch"
 	"github.com/leeovery/switchboard/internal/ledger"
@@ -163,6 +164,41 @@ func TestTheFirstPoolIsReadOnceAVerb(t *testing.T) {
 // wait on it, its work in no pool is in no pool until the move notes the
 // first pool, then the first's.
 func TestTheDashboardsLedgerReadsTheFirstPoolAfresh(t *testing.T) {
+	cfg, state := dashboardBeforePools(t)
+	if n := sideInDefault(cfg.Ledger); n != 1 {
+		t.Fatalf("side's day has %d sessions in Default before the move to pools, want p3's alone, 1", n)
+	}
+	markMoved(t, state)
+	if n := sideInDefault(cfg.Ledger); n != 2 {
+		t.Errorf("side's day has %d sessions in Default once the move notes it the first, want p1's and p3's, 2", n)
+	}
+}
+
+// A turn's ledger reads the first pool afresh at each ask too, as the one
+// the dashboard opens with does: made before the move to pools, its work in
+// no pool is the first's once the move notes it.
+func TestATurnsLedgerReadsTheFirstPoolAfresh(t *testing.T) {
+	cfg, state := dashboardBeforePools(t)
+	turned, err := cfg.Turn(t.Context(), "", watch.SamePool)
+	if err != nil {
+		t.Fatalf("the turn to the pool shown = %v, want it", err)
+	}
+	l := turned.NewLedger()
+	if n := sideInDefault(l); n != 1 {
+		t.Fatalf("side's day has %d sessions in Default before the move to pools, want p3's alone, 1", n)
+	}
+	markMoved(t, state)
+	if n := sideInDefault(l); n != 2 {
+		t.Errorf("side's day has %d sessions in Default once the move notes it the first, want p1's and p3's, 2", n)
+	}
+}
+
+// dashboardBeforePools is the dashboard opened on a config of two accounts
+// and no pools, its accounts moved onto their ids but its history not yet
+// moved to pools, and its state directory, whose ledger holds today
+// pooledLines: side's p3 in Default, and its p1 in no pool.
+func dashboardBeforePools(t *testing.T) (*watch.Config, string) {
+	t.Helper()
 	deps := testDeps(map[string]string{"XDG_STATE_HOME": shortTempDir(t)}, t.TempDir())
 	deps.Now = func() time.Time { return ledgerNow }
 	path, err := config.Path(deps.Getenv, deps.HomeDir)
@@ -177,24 +213,18 @@ func TestTheDashboardsLedgerReadsTheFirstPoolAfresh(t *testing.T) {
 		t.Fatalf("switchboard dashboard = %+v, want exit status 0 and nothing printed", got)
 	}
 	filePooledLines(t, state)
-	// side's sessions in Default today: p3's, and p1's, in no pool, once
-	// Default is noted the first.
-	inDefault := func() int {
-		days := cfg.Ledger.Days(ledgerNow)
-		for _, a := range days[len(days)-1].Accounts {
-			if a.Account == "side" {
-				return a.InPool("b2n8", "").Sessions
-			}
+	return cfg, state
+}
+
+// sideInDefault is how many of side's sessions l reads in Default today.
+func sideInDefault(l views.Ledger) int {
+	days := l.Days(ledgerNow)
+	for _, a := range days[len(days)-1].Accounts {
+		if a.Account == "side" {
+			return a.InPool("b2n8", "").Sessions
 		}
-		return 0
 	}
-	if n := inDefault(); n != 1 {
-		t.Fatalf("side's day has %d sessions in Default before the move to pools, want p3's alone, 1", n)
-	}
-	markMoved(t, state)
-	if n := inDefault(); n != 2 {
-		t.Errorf("side's day has %d sessions in Default once the move notes it the first, want p1's and p3's, 2", n)
-	}
+	return 0
 }
 
 // The dashboard reads the router's files of events of the pool it shows

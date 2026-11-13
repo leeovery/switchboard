@@ -42,6 +42,19 @@ func (w *world) writeRecord(t *testing.T, entries ...identity.Entry) {
 	}
 }
 
+// noteFirst notes the pool with the given id as the first in the accounts
+// record, as the move to pools notes it.
+func (w *world) noteFirst(t *testing.T, id string) {
+	t.Helper()
+	err := w.record().Update(func(r *identity.Record) error {
+		r.NoteFirst(id, identity.PoolWritten{}, recordedBefore)
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
 // readRecord returns the accounts the record holds.
 func (w *world) readRecord(t *testing.T) []identity.Entry {
 	t.Helper()

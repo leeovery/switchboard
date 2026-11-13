@@ -20,10 +20,10 @@ var (
 )
 
 // PoolNotConfigured is the error of acting on the pool with the given id,
-// which no pool has: it matches ErrNotConfigured, and hides anything in the
-// id that looks like a token.
+// which no pool has: it matches ErrPoolNotConfigured, and so
+// ErrNotConfigured, and hides anything in the id that looks like a token.
 func PoolNotConfigured(id string) error {
-	return fmt.Errorf("%s is %w", poolNamed(id), ErrNotConfigured)
+	return fmt.Errorf("%s is %w", poolNamed(id), ErrPoolNotConfigured)
 }
 
 // poolConfigured is the error of adding a pool with the given id, which a

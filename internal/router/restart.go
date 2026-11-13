@@ -5,13 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/filestate"
 	"github.com/leeovery/switchboard/internal/handover"
 	"github.com/leeovery/switchboard/internal/routercopy"
 	"github.com/leeovery/switchboard/internal/status"
@@ -217,7 +217,7 @@ func (cfg Config) upgradesFrom() (Watched, *routercopy.Copy) {
 // the system's time zone's. The zero Watched is none.
 type Watched struct {
 	path  string
-	found fileState
+	found filestate.State
 	// differs is set where the file the router runs is known not to be the
 	// one path led to, as WatchFrom finds it of a copy.
 	differs bool
@@ -228,7 +228,7 @@ type Watched struct {
 // anything is read from the file, a change made as the router starts is
 // seen. "" is none.
 func Watch(path string) Watched {
-	return Watched{path: path, found: statFile(path)}
+	return Watched{path: path, found: filestate.Of(path)}
 }
 
 // WatchFrom finds how the binary a router upgrades from, at from, stands
@@ -255,12 +255,12 @@ func WatchFrom(from, runs string) Watched {
 // as: the same file, unchanged since, as the router compares what it was
 // started from. Nothing is the file of a Watched found not there.
 func (w Watched) Is(info fs.FileInfo) bool {
-	return w.There() && w.found.same(fileState{info: info})
+	return w.There() && w.found.Same(filestate.Info(info))
 }
 
 // There reports whether the file was there as w found it.
 func (w Watched) There() bool {
-	return w.found.there()
+	return w.found.There()
 }
 
 // look looks at the config file, the binary and the time zone's file again,
@@ -275,7 +275,7 @@ func (r *restarts) look() {
 	r.config.look()
 	r.binary.look()
 	r.zone.look()
-	binary := statFile(r.binary.path)
+	binary := filestate.Of(r.binary.path)
 	r.gone = r.missing(binary)
 	r.discardMovedFrom(binary)
 	r.reconsider()
@@ -374,7 +374,7 @@ func (r *restarts) due() string {
 // on from the one running, as after an upgrade, and is asked whether it
 // could start: its rules, not the running version's, then judge the config,
 // where it answers.
-func (r *restarts) newBinaryDecides(binary fileState) bool {
+func (r *restarts) newBinaryDecides(binary filestate.State) bool {
 	return r.ask != nil && r.binary.movedOn(binary)
 }
 
@@ -505,12 +505,12 @@ func (r *restarts) restart(ctx context.Context) bool {
 // that can't be copied in leaves the router carrying on, as copyFailed says.
 // Otherwise it's the binary the router runs, no upgrade, and one kept from
 // before is removed, as it won't be restarted into. Its caller holds staging.
-func (r *restarts) into(binary fileState) (string, *routercopy.Staged, bool) {
+func (r *restarts) into(binary filestate.State) (string, *routercopy.Staged, bool) {
 	if !r.upgrading(binary) {
 		r.dropKept()
 		return r.runs(), nil, true
 	}
-	if r.staged != nil && copiedFrom(*r.staged).same(binary) {
+	if r.staged != nil && copiedFrom(*r.staged).Same(binary) {
 		return r.staged.Path(), r.staged, true
 	}
 	r.dropKept()
@@ -530,7 +530,7 @@ func (r *restarts) into(binary fileState) (string, *routercopy.Staged, bool) {
 // restart into a copy of the binary it upgrades from, standing as binary:
 // where binary has moved on from the one running, as after an upgrade, or
 // the copy is gone, as when removed by hand.
-func (r *restarts) upgrading(binary fileState) bool {
+func (r *restarts) upgrading(binary filestate.State) bool {
 	return r.own != nil && (r.binary.movedOn(binary) || r.own.Missing())
 }
 
@@ -553,12 +553,12 @@ var errMovedOn = errors.New("the binary moved on as it was copied")
 // one binary stands as, which it removes: cleared for binary, as a clearance
 // carried from a quiet moment before clears it unasked, it would be another
 // version, never asked, put in place of the copy.
-func (r *restarts) stageOf(binary fileState) (routercopy.Staged, error) {
+func (r *restarts) stageOf(binary filestate.State) (routercopy.Staged, error) {
 	staged, err := r.stage(r.binary.path)
 	if err != nil {
 		return routercopy.Staged{}, err
 	}
-	if !copiedFrom(staged).same(binary) {
+	if !copiedFrom(staged).Same(binary) {
 		discardStaged(&staged)
 		return routercopy.Staged{}, errMovedOn
 	}
@@ -566,8 +566,8 @@ func (r *restarts) stageOf(binary fileState) (routercopy.Staged, error) {
 }
 
 // copiedFrom is how the file staged was copied from stood as it was copied.
-func copiedFrom(staged routercopy.Staged) fileState {
-	return fileState{info: staged.From()}
+func copiedFrom(staged routercopy.Staged) filestate.State {
+	return filestate.Info(staged.From())
 }
 
 // discardUpgrade removes the upgrade copied in and kept for the next quiet
@@ -582,10 +582,10 @@ func (r *restarts) discardUpgrade() {
 // discardMovedFrom removes the upgrade copied in and kept for the next quiet
 // moment, if one is, once the binary, standing as binary, has moved on from
 // it, holding staging as it does.
-func (r *restarts) discardMovedFrom(binary fileState) {
+func (r *restarts) discardMovedFrom(binary filestate.State) {
 	r.staging.Lock()
 	defer r.staging.Unlock()
-	if r.staged != nil && copiedFrom(*r.staged).movedTo(binary) {
+	if r.staged != nil && copiedFrom(*r.staged).MovedTo(binary) {
 		r.dropKept()
 	}
 }
@@ -670,8 +670,8 @@ func (r *restarts) clear(ctx context.Context, why string, stood checked, path st
 // missing reports whether the binary, standing as binary, isn't there, as for
 // a moment while an upgrade moves its link on, which nothing can restart
 // into: never for a router that doesn't know its binary, which asks nothing.
-func (r *restarts) missing(binary fileState) bool {
-	return r.binary.path != "" && !binary.there()
+func (r *restarts) missing(binary filestate.State) bool {
+	return r.binary.path != "" && !binary.There()
 }
 
 // hold holds the restart due for why, the router started again unable to
@@ -705,7 +705,7 @@ func (r *restarts) reconsider() {
 
 // files returns how the config file and the binary stand now.
 func (r *restarts) files() checked {
-	return checked{config: statFile(r.config.path), binary: statFile(r.binary.path)}
+	return checked{config: filestate.Of(r.config.path), binary: filestate.Of(r.binary.path)}
 }
 
 // restartable returns what clears the router to restart at once, as it's
@@ -866,10 +866,10 @@ func (r *restarts) refusesConfig() error {
 // /test/config.toml,", "binary, /test/switchboard,", or both.
 func (r *restarts) changed(stood, now checked) string {
 	var named []string
-	if !now.config.same(stood.config) {
+	if !now.config.Same(stood.config) {
 		named = append(named, "config file, "+r.config.path+",")
 	}
-	if !now.binary.same(stood.binary) {
+	if !now.binary.Same(stood.binary) {
 		named = append(named, "binary, "+r.binary.path+",")
 	}
 	return strings.Join(named, " and its ")
@@ -925,7 +925,7 @@ func (r *restarts) begin(why string, cleared *binaryClearance) {
 // looked at.
 type configFile struct {
 	path string
-	seen fileState
+	seen filestate.State
 	// valid is set while the file, as last looked at, makes a valid config,
 	// which a router started again can start from: one look finding it
 	// doesn't, as a file caught while it's saved, is missed, and changes
@@ -952,8 +952,8 @@ type configFile struct {
 // it has. A single look finding it invalid changes nothing, noted at debug:
 // an editor saving the file can leave it so for a moment.
 func (c *configFile) look() {
-	now := statFile(c.path)
-	if now.same(c.seen) {
+	now := filestate.Of(c.path)
+	if now.Same(c.seen) {
 		c.missed = false
 		return
 	}
@@ -981,7 +981,7 @@ func (c *configFile) look() {
 // where it runs a copy of its own.
 type ledFile struct {
 	path    string
-	running fileState
+	running filestate.State
 	// differs is set where the file the router runs is known not to be the
 	// one the path led to as it started, as where its copy isn't one of it.
 	differs bool
@@ -994,7 +994,7 @@ type ledFile struct {
 // look looks at where the path leads now: to another file than the one
 // running, it has moved, as after an upgrade, as movedOn says.
 func (f *ledFile) look() {
-	if f.moved || !f.movedOn(statFile(f.path)) {
+	if f.moved || !f.movedOn(filestate.Of(f.path)) {
 		return
 	}
 	f.moved = true
@@ -1007,11 +1007,11 @@ func (f *ledFile) look() {
 // started, or that file changed. A path that leads nowhere, as it may for a
 // moment while an upgrade moves it on, hasn't, nor one that led nowhere as
 // the router started, unless the running one is known to differ.
-func (f *ledFile) movedOn(now fileState) bool {
+func (f *ledFile) movedOn(now filestate.State) bool {
 	if f.differs {
-		return now.there()
+		return now.There()
 	}
-	return f.running.there() && f.running.movedTo(now)
+	return f.running.There() && f.running.MovedTo(now)
 }
 
 // binaryRefusal is the binary's refusal to start, or, where it couldn't
@@ -1072,54 +1072,17 @@ func discardStaged(staged *routercopy.Staged) {
 // checked is how the config file and the binary stand, as the binary is
 // asked whether it could start.
 type checked struct {
-	config, binary fileState
+	config, binary filestate.State
 }
 
 // movedTo reports whether either file has moved on from s to t, as
-// fileState's movedTo says.
+// filestate's MovedTo says.
 func (s checked) movedTo(t checked) bool {
-	return s.config.movedTo(t.config) || s.binary.movedTo(t.binary)
+	return s.config.MovedTo(t.config) || s.binary.MovedTo(t.binary)
 }
 
 // same reports whether s and t stand alike: each file the same, unchanged, or
 // not there in both.
 func (s checked) same(t checked) bool {
-	return s.config.same(t.config) && s.binary.same(t.binary)
-}
-
-// fileState is how a file stands, its links followed: which file it is, and
-// when it last changed. The zero fileState is a file that isn't there.
-type fileState struct {
-	info fs.FileInfo
-}
-
-// statFile returns how the file at path stands now.
-func statFile(path string) fileState {
-	info, err := os.Stat(path)
-	if err != nil {
-		return fileState{}
-	}
-	return fileState{info: info}
-}
-
-// there reports whether the file is there.
-func (f fileState) there() bool {
-	return f.info != nil
-}
-
-// movedTo reports whether the path f was found at has moved on to g: g is
-// there, and another file than f, or f changed. A path that leads nowhere, as
-// it may for a moment while an upgrade moves a link on, or an editor saves a
-// file, hasn't.
-func (f fileState) movedTo(g fileState) bool {
-	return g.there() && !g.same(f)
-}
-
-// same reports whether f and g are the same file, unchanged, or both not
-// there.
-func (f fileState) same(g fileState) bool {
-	if !f.there() || !g.there() {
-		return f.there() == g.there()
-	}
-	return os.SameFile(f.info, g.info) && f.info.ModTime().Equal(g.info.ModTime())
+	return s.config.Same(t.config) && s.binary.Same(t.binary)
 }

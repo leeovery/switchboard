@@ -93,7 +93,7 @@ func (e *WrongValue) Error() string {
 
 // wrongValue is the error of the value the config gives key, wrong as why
 // says, as WrongValue has it.
-func wrongValue(key, value, why string) error {
+func wrongValue(key, value, why string) *WrongValue {
 	return &WrongValue{key: redact.Text(key), value: redact.Text(value), Why: why}
 }
 

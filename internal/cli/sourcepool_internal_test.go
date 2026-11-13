@@ -77,10 +77,13 @@ func serveControl(t *testing.T, handler http.Handler) *router.Client {
 	return router.NewClient(ln.Addr().String())
 }
 
+// A router refusing for want of a pool is never read as one down: the read
+// fails with the refusal, giving the router's health as it answered, healthy,
+// with the restart it has due.
 func TestARouterRefusingForWantOfAPoolIsNeverReadAsOneDown(t *testing.T) {
 	refusing := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		if req.URL.Path == "/health" {
-			_, _ = io.WriteString(w, `{"ok": true, "reports_pools": true}`)
+			_, _ = io.WriteString(w, `{"ok": true, "pid": 41, "reports_pools": true, "restart": {"reason": "config changed", "in_flight": 1}}`)
 			return
 		}
 		w.WriteHeader(http.StatusBadRequest)
@@ -89,9 +92,12 @@ func TestARouterRefusingForWantOfAPoolIsNeverReadAsOneDown(t *testing.T) {
 	// A probe would fail the test: the source has nothing to probe with.
 	source := usageSource{ask: true, router: serveControl(t, refusing)}
 
-	_, _, err := source.Read(t.Context(), status.Read{Probe: true})
+	_, health, err := source.Read(t.Context(), status.Read{Probe: true})
 	if need, ok := errors.AsType[router.PoolNeeded](err); !ok || len(need.Pools) != 2 {
 		t.Errorf("Read() error = %v, want PoolNeeded naming both pools", err)
+	}
+	if want := (status.Restart{Reason: status.RestartForConfig, InFlight: 1}); !health.OK || health.PID != 41 || health.Restart != want {
+		t.Errorf("Read() gave the router's health %+v, want it as it answered: ok, pid 41, the restart %+v due", health, want)
 	}
 }
 

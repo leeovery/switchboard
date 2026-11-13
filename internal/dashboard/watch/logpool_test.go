@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/dayfile"
-	"github.com/leeovery/switchboard/internal/events"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
@@ -159,11 +158,8 @@ func TestPTurnsTheLogToTheNextPoolsRequests(t *testing.T) {
 	writeLines(t, state, pooledDays...)
 	h := newHarness(t, probedWithoutTheRouter())
 	onTheLog(h, state)
-	pools := &poolTurns{order: []string{"q7mt", "b2n8"}, pools: map[string]Pooled{
-		"q7mt": {Pool: acmeShown, Accounts: acmeAccounts, Source: h.source, Events: events.Empty{}, Read: acmeRead},
-		"b2n8": {Pool: defaultShown, Accounts: defaultAccounts, Source: h.source, Events: events.Empty{}, Read: firstRead},
-	}}
-	h.model.cfg.Pool, h.model.cfg.Accounts, h.model.cfg.Turn, h.model.cfg.PoolRead = acmeShown, acmeAccounts, pools.turn, acmeRead
+	pools := newPoolTurns(t, testPools, slices.Concat(defaultAccounts, acmeAccounts), map[string]Source{"b2n8": h.source, "q7mt": h.source})
+	h.model.cfg = pools.opened(h.model.cfg, "q7mt")
 	h.model.cfg.LedgerKeep = 2 * day
 	h.start()
 	if got, want := shownRequests(h), []string{"0b000001", "0a000001"}; !slices.Equal(got, want) {
@@ -173,6 +169,37 @@ func TestPTurnsTheLogToTheNextPoolsRequests(t *testing.T) {
 	h.deliver(h.press("P")...)
 	if got, want := shownRequests(h), []string{"0b000002", "0b000003", "0a000002", "0a000003"}; h.model.cfg.Pool.ID != "b2n8" || !slices.Equal(got, want) {
 		t.Errorf("after P, in %q, the Requests show %v, want Default's %v", h.model.cfg.Pool.ID, got, want)
+	}
+}
+
+// A dashboard open on one pool, a second pool added to the config and an
+// account placed in it, starts afresh at the next read on the pool shown's
+// read of the request ledger, as the config now has it: the Log then reads
+// today's lines again, and never shows the new pool's, filed since.
+func TestAPoolAddedToTheConfigStartsTheLogAfreshOnThePoolShownsRead(t *testing.T) {
+	state := t.TempDir()
+	writeLines(t, state, pooledArrived("0a000001", "work", "b2n8", -3*time.Minute), pooledArrived("0a000002", "work", "", -2*time.Minute))
+	h := newHarness(t, probedWithoutTheRouter())
+	onTheLog(h, state)
+	pools := newPoolTurns(t, testPools[:1], defaultAccounts, map[string]Source{"b2n8": h.source, "q7mt": h.source})
+	h.model.cfg = pools.opened(h.model.cfg, "b2n8")
+	h.start()
+	want := []string{"0a000001", "0a000002"}
+	if got := shownRequests(h); !slices.Equal(got, want) {
+		t.Fatalf("in Default alone, the Requests show %v, want %v", got, want)
+	}
+
+	turns := h.model.poolTurns
+	pools.changeConfig(func(p *poolTurns) { p.pools, p.accounts = testPools, slices.Concat(defaultAccounts, acmeAccounts) })
+	writeLines(t, state, pooledArrived("0a000003", "k3f9", "q7mt", -time.Minute))
+	h.deliver(h.press("R")...)
+	m := h.model
+	if m.poolTurns != turns+1 || m.cfg.Pool.ID != "b2n8" || m.cfg.PoolRead.ID != "b2n8" || m.cfg.PoolRead.First != "b2n8" {
+		t.Fatalf("Acme added, the pool shown started afresh %d times, on %q, its read %q of the first pool %q; want afresh once, on Default's own",
+			m.poolTurns-turns, m.cfg.Pool.ID, m.cfg.PoolRead.ID, m.cfg.PoolRead.First)
+	}
+	if got := shownRequests(h); !slices.Equal(got, want) {
+		t.Errorf("Acme added and its line filed, Default's Requests show %v, want %v alone", got, want)
 	}
 }
 

@@ -9,13 +9,16 @@ import (
 
 // A pool with no accounts says a session started in it doesn't start, by
 // its directories, or outside every fence, how to add an account or move one
-// in by its id, and how long it holds its directories.
+// in by its id, and how long it holds its directories; and one whose
+// accounts the router hasn't taken up, that it takes them up as it
+// restarts, and how to restart it now.
 func TestAPoolWithNoAccountsSaysWhatDoesntStartAndHowToAddOne(t *testing.T) {
 	tests := []struct {
-		name  string
-		label string
-		dirs  []string
-		want  [][]string
+		name    string
+		label   string
+		dirs    []string
+		waiting int
+		want    [][]string
 	}{
 		{name: "fenced", label: "Acme", dirs: []string{"~/Code/acme"}, want: [][]string{
 			{"Acme has no accounts, so a session started in ~/Code/acme doesn't start."},
@@ -32,6 +35,16 @@ func TestAPoolWithNoAccountsSaysWhatDoesntStartAndHowToAddOne(t *testing.T) {
 			{"Add one with switchboard accounts add <label> --pool q7mt, or in switchboard setup.", "Move one in with switchboard accounts edit <id> --pool q7mt."},
 			{"It holds every directory outside a fence until the pool is removed with switchboard pool remove q7mt."},
 		}},
+		{name: "waiting on the router for one", label: "Acme", dirs: []string{"~/Code/acme"}, waiting: 1, want: [][]string{
+			{"Acme has no accounts the router routes yet, so a session started in ~/Code/acme doesn't start."},
+			{"The config gives it 1 account, which the router takes up as it restarts, at a quiet moment.", "Restart it now with switchboard service restart."},
+			{"Its directories stay fenced until the pool is removed with switchboard pool remove q7mt."},
+		}},
+		{name: "waiting on the router for two", label: "Default", waiting: 2, want: [][]string{
+			{"Default has no accounts the router routes yet, so a session started outside every fence doesn't start."},
+			{"The config gives it 2 accounts, which the router takes up as it restarts, at a quiet moment.", "Restart it now with switchboard service restart."},
+			{"It holds every directory outside a fence until the pool is removed with switchboard pool remove q7mt."},
+		}},
 		{name: "its label cleaned", label: "Ac\x1bme", dirs: []string{"~/Code/acme"}, want: [][]string{
 			{"Ac me has no accounts, so a session started in ~/Code/acme doesn't start."},
 			{"Add one with switchboard accounts add <label> --pool q7mt, or in switchboard setup.", "Move one in with switchboard accounts edit <id> --pool q7mt."},
@@ -40,7 +53,7 @@ func TestAPoolWithNoAccountsSaysWhatDoesntStartAndHowToAddOne(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := prose.EmptyPool(tt.label, "q7mt", tt.dirs)
+			got := prose.EmptyPool(tt.label, "q7mt", tt.dirs, tt.waiting)
 			if !slices.EqualFunc(got, tt.want, slices.Equal) {
 				t.Errorf("EmptyPool(%q, %q) = %q, want %q", tt.label, tt.dirs, got, tt.want)
 			}

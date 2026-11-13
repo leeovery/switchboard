@@ -45,6 +45,6 @@ var errOnePool = errors.New("a capture shows its fixture's pool alone")
 
 // turnNowhere is a capture's Turn, where its fixture's pool is one of
 // several: it lists P pool as the dashboard does, and turns nowhere.
-func turnNowhere(context.Context, string) (watch.Pooled, error) {
+func turnNowhere(context.Context, string, watch.PoolAsk) (watch.Pooled, error) {
 	return watch.Pooled{}, errOnePool
 }

@@ -81,6 +81,18 @@ func TestALineGivenAPoolIsWrittenAsTheRouterWritesOneRoutedInIt(t *testing.T) {
 			want: ledger.Line{At: at, Request: "r2", Kind: ledger.KindMessage, Pool: "b2n8", Reason: "no account has room", Status: 429},
 		},
 		{
+			name: "a session's start",
+			n:    eventNames,
+			was:  status.Event{ID: 3, At: at, Kind: status.EventStarted, Account: "b6s7", Session: "s1", Model: "claude-opus-5-5"},
+			want: status.Event{ID: 3, At: at, Kind: status.EventStarted, Account: "b6s7", Pool: "b2n8", Session: "s1", Model: "claude-opus-5-5"},
+		},
+		{
+			name: "a session's move, naming no account of its own",
+			n:    eventNames,
+			was:  status.Event{ID: 4, At: at, Kind: status.EventMoved, Session: "s1", Model: "claude-opus-5-5", From: "b6s7", To: "qgr2", Reason: "moved: b6s7 hit its limit"},
+			want: status.Event{ID: 4, At: at, Kind: status.EventMoved, Pool: "b2n8", Session: "s1", Model: "claude-opus-5-5", From: "b6s7", To: "qgr2", Reason: "moved: b6s7 hit its limit"},
+		},
+		{
 			name: "a pin's",
 			n:    eventNames,
 			was:  status.Event{ID: 1, At: at, Kind: status.EventPin, Account: "b6s7", Accounts: []string{"b6s7"}, By: "cli"},
@@ -104,8 +116,8 @@ func TestALineGivenAPoolIsWrittenAsTheRouterWritesOneRoutedInIt(t *testing.T) {
 }
 
 // A line that names a pool already, a line of a kind given none, as an
-// event but a pin's or an auto's, and one that isn't one JSON object, are
-// left as they are.
+// event of a kind that names no pool, and one that isn't one JSON object,
+// are left as they are.
 func TestALineThatNamesAPoolOrIsGivenNoneIsLeftAsItIs(t *testing.T) {
 	at := time.Date(2026, 11, 8, 12, 0, 0, 0, time.UTC)
 	for _, tt := range []struct {

@@ -80,10 +80,16 @@ the title row names the one shown, and P turns to the next, in the config's
 order, the pools read afresh, so one added or removed since shows: the view
 starts afresh, nothing of the pool before carried over. With one pool, P
 reads them afresh all the same, turning to a second added since, else
-saying there's one. A pool with no accounts, as its last read has it, says
-so on every tab, with how to add one. The Log's requests and its find are
-the pool's alone; History, Sessions, Graphs and the worth and tokens on
-Accounts still tell of every pool's work together.
+saying there's one. A change to the pools or the accounts in the config
+starts the view afresh on the pool shown, as P does, the config file read
+again only where a read finds it, or the accounts routed, changed; a pool
+shown that's removed turns to the first. A pool with no accounts the router
+routes says so on every tab, with how to add one, or where the config gives
+it some the router hasn't taken up, as a pool added since it started, that
+switchboard service restart takes them up. The Log's requests and its find
+are the pool's alone; History, Sessions, Graphs and the worth and tokens on
+Accounts still tell of every pool's work together, History's Year setting
+every pool's worth beside the plans of the pool shown.
 
 It reads the router's usage every few seconds, which the router keeps
 current itself, reading every account nothing has read in the last 5
@@ -163,6 +169,7 @@ func (a *app) dashboard(ctx context.Context, out io.Writer, opts dashboardOption
 			return err
 		}
 	}
+	stamp := a.configStamp()
 	cfg, err := a.loadConfig()
 	if err != nil {
 		return err
@@ -201,13 +208,13 @@ func (a *app) dashboard(ctx context.Context, out io.Writer, opts dashboardOption
 		Home:          home,
 	}
 	r, read := a.readers(ctx, &wc, cfg)
-	pools := shownPools{a: a, probe: opts.probe, r: r, read: read}
+	pools := shownPools{a: a, probe: opts.probe, dir: r.dir, events: r.events, read: read, stamp: stamp}
 	shown, err := pools.opened(ctx, cfg, opts.pool)
 	if err != nil {
 		return err
 	}
 	wc.Pool, wc.Accounts, wc.Source, wc.Events, wc.PoolNamed, wc.Turn = shown.Pool, shown.Accounts, shown.Source, shown.Events, shown.PoolNamed, pools.turn
-	wc.PoolRead = shown.Read
+	wc.ConfigStamp, wc.Stamp, wc.Placed, wc.LedgerGrounds, wc.PoolRead = a.configStamp, shown.Stamp, shown.Placed, shown.Grounds, shown.Read
 	wc.History = dashboard.HistoryKept(kept.History, wc.Accounts)
 	if t.prefs != nil {
 		wc.Prefs = t.prefs

@@ -139,7 +139,7 @@ func (t *poolTable) serves(named, id string) bool {
 // status.NamesThePool has it: "" with one pool or none, or of an account in
 // none the table configures.
 func (t *poolTable) named(id string) string {
-	if !status.NamesThePool(len(t.pools)) {
+	if !t.apart() {
 		return ""
 	}
 	p, _ := t.pools.ByID(t.poolOf[id])
@@ -286,10 +286,11 @@ func keptTable(record identity.Record, accounts config.Accounts, idNow func(id s
 	return t, nil
 }
 
-// apart reports whether the table has pools to tell apart, two or more: what
-// switchboard says names no pool till there's a second.
+// apart reports whether the table has pools to tell apart, as
+// status.NamesThePool has it: what switchboard says names no pool till
+// there's a second.
 func (t *poolTable) apart() bool {
-	return len(t.pools) > 1
+	return status.NamesThePool(len(t.pools))
 }
 
 // shown returns how what switchboard tells a client names the pool with the

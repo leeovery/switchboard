@@ -24,7 +24,7 @@ func TestCheckAddingWritesNothing(t *testing.T) {
 		if err != nil {
 			t.Fatalf("CheckAdding error = %v", err)
 		}
-		if want := (config.NewAccount{Label: "Spare", Plan: "max"}); got != want {
+		if want := (config.NewAccount{Label: "Spare", Plan: "max"}); got.Account != want || got.NewPool != nil {
 			t.Errorf("CheckAdding gives %+v, want %+v", got, want)
 		}
 		if got := w.readConfig(t); got != frameConfig {
@@ -33,12 +33,12 @@ func TestCheckAddingWritesNothing(t *testing.T) {
 	})
 	t.Run("a first run", func(t *testing.T) {
 		w := newWorld(t)
-		got, err := w.setup(t).CheckAdding(setup.Adding{Label: "Work", Plan: config.PlanNone})
+		got, err := w.setup(t).CheckAdding(setup.Adding{Label: "Work", Plan: "pro"})
 		if err != nil {
 			t.Fatalf("CheckAdding error = %v", err)
 		}
-		if want := (config.NewAccount{Label: "Work"}); got != want {
-			t.Errorf("CheckAdding gives %+v, want %+v, its plan unknown", got, want)
+		if want := (config.NewAccount{Label: "Work", Plan: "pro"}); got.Account != want || got.NewPool != nil {
+			t.Errorf("CheckAdding gives %+v, want %+v", got, want)
 		}
 		if _, err := os.Stat(w.config); !errors.Is(err, fs.ErrNotExist) {
 			t.Errorf("the config is there (%v), want none written", err)
@@ -48,7 +48,8 @@ func TestCheckAddingWritesNothing(t *testing.T) {
 
 // A value refused is a Refused, of its field, saying why alone, the label
 // held to accounts add's rules: required, as config takes it, and no other
-// configured account's, ignoring case; and nothing is written.
+// configured account's, ignoring case; the plan one, and chosen, its being
+// none said once the rest passes; and nothing is written.
 func TestCheckAddingRefuses(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -62,6 +63,9 @@ func TestCheckAddingRefuses(t *testing.T) {
 		{name: "another account's label, in another case", adding: setup.Adding{Label: "side", Plan: config.PlanNone}, field: setup.LabelField, why: "another account has that label already, ignoring case: give each its own"},
 		{name: "a plan config doesn't know", adding: setup.Adding{Label: "Spare", Plan: "max10x"}, field: setup.PlanField, why: "must be pro, max, ultra or none"},
 		{name: "a wrong plan and a wrong label, the plan said", adding: setup.Adding{Label: "  ", Plan: "max10x"}, field: setup.PlanField, why: "must be pro, max, ultra or none"},
+		{name: "no plan chosen", adding: setup.Adding{Label: "Spare"}, field: setup.PlanField, why: setup.PlanUnchosen},
+		{name: "none chosen", adding: setup.Adding{Label: "Spare", Plan: config.PlanNone}, field: setup.PlanField, why: setup.PlanUnchosen},
+		{name: "no plan chosen and a wrong label, the label said", adding: setup.Adding{Label: "side"}, field: setup.LabelField, why: "another account has that label already, ignoring case: give each its own"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -113,10 +117,10 @@ func TestSetupAddsAnAccountInThePoolTheVerbsActOn(t *testing.T) {
 	r := w.tokenRig(t, &fakeMaker{})
 
 	account, err := r.s.CheckAdding(setup.Adding{Label: "Personal", Plan: "max"})
-	if want := (config.NewAccount{Label: "Personal", Plan: "max", Pool: "b2n8"}); err != nil || account != want {
+	if want := (config.NewAccount{Label: "Personal", Plan: "max", Pool: "b2n8"}); err != nil || account.Account != want {
 		t.Fatalf("CheckAdding = %+v, %v, want %+v", account, err, want)
 	}
-	got, err := r.s.MakeToken(t.Context(), setup.TokenFor{Account: account, Add: true}, nil)
+	got, err := r.s.MakeToken(t.Context(), setup.TokenFor{Account: account.Account, Add: true}, nil)
 
 	id := derivedID("org-personal")
 	checkTokened(t, got, err, setup.Tokened{Result: setup.TokenSaved, Checked: accounts.Checked{Organization: "org-personal"}, ID: id})

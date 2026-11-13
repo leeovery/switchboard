@@ -162,6 +162,22 @@ func (as Accounts) PrimaryOf(pool string) (Account, bool) {
 	return in.Primary(), true
 }
 
+// SignedIn returns the account the browser and the Claude apps are signed in
+// to: the first pool's primary, the first pool as Pools' First has it of the
+// one noted, as the accounts record notes it; in a config without pools, the
+// primary. It reports false where that pool, or the config, has no account.
+// Every pool has a primary of its own, which its sessions start on, but the
+// browser and the apps are the first pool's alone.
+func (c *Config) SignedIn(noted string) (Account, bool) {
+	if len(c.Pools) == 0 {
+		if len(c.Accounts) == 0 {
+			return Account{}, false
+		}
+		return c.Accounts.Primary(), true
+	}
+	return c.Accounts.PrimaryOf(c.Pools.First(noted))
+}
+
 // PoolOf returns the pool of the account with the given id, reporting false
 // where no account has the id, as where the config is from before pools.
 func (c *Config) PoolOf(id string) (Pool, bool) {
@@ -271,11 +287,33 @@ func poolNamed(id string) string {
 }
 
 // fence is one of a pool's directories, as the rules compare it with the
-// others: the pool's place in the config, its name in errors, and the
-// directory as it's written, and as it's found, absolute and clean.
+// others: the pool's place in the config, and the directory's among the
+// pool's own; the pool's name in errors, and the label it's shown by; and
+// the directory as it's written, and as it's found, absolute and clean.
 type fence struct {
-	pool               int
-	name, written, dir string
+	pool, at                  int
+	name, shown, written, dir string
+}
+
+// DirError is the error of one of a pool's directories that the config's
+// rules refuse: the pool's place among the pools, and the directory's among
+// its own; and why, for a form showing the directory to say alone. Of two
+// directories that overlap, it's the later's, as a form adding a pool gives
+// its own last.
+type DirError struct {
+	Pool, Dir int
+	Why       string
+	err       error
+}
+
+// Error is the pool named, the directory, and why it's refused.
+func (e *DirError) Error() string {
+	return e.err.Error()
+}
+
+// Unwrap is what the error matches.
+func (e *DirError) Unwrap() error {
+	return e.err
 }
 
 // readPools returns the pools as they're written, ids, labels and
@@ -328,25 +366,25 @@ func (p filePool) check(i int) ([]fence, error) {
 	name := p.name(i)
 	errs := []error{checkID(poolKind, name, p.ID), checkLabel(poolKind, name, p.Label)}
 	var fences []fence
-	for _, dir := range p.Dirs {
-		if err := checkFence(name, dir); err != nil {
-			errs = append(errs, err)
+	for at, dir := range p.Dirs {
+		if err := checkFence(dir); err != nil {
+			errs = append(errs, &DirError{Pool: i, Dir: at, Why: err.Why, err: fmt.Errorf("%s: %w", name, err)})
 			continue
 		}
-		fences = append(fences, fence{pool: i, name: name, written: dir})
+		fences = append(fences, fence{pool: i, at: at, name: name, shown: p.shownAs(), written: dir})
 	}
 	return fences, errors.Join(errs...)
 }
 
-// checkFence fails, saying why, unless dir is a directory the pool name
-// names can be fenced to: an absolute path, or one starting ~/, the home
-// directory's, holding nothing shaped like a token, as export.dir is.
-func checkFence(name, dir string) error {
+// checkFence fails, saying why, unless dir is a directory a pool can be
+// fenced to: an absolute path, or one starting ~/, the home directory's,
+// holding nothing shaped like a token, as export.dir is.
+func checkFence(dir string) *WrongValue {
 	switch {
 	case redact.HoldsToken(dir):
-		return fmt.Errorf("%s: %w", name, wrongValue("dirs", dir, "holds something shaped like a token, which switchboard never writes: give another directory"))
+		return wrongValue("dirs", dir, "holds something shaped like a token, which switchboard never writes: give another directory")
 	case !filepath.IsAbs(dir) && !strings.HasPrefix(dir, homePrefix):
-		return fmt.Errorf("%s: %w", name, wrongValue("dirs", dir, "must be an absolute path, or one starting ~/, the home directory's, such as ~/Code/acme"))
+		return wrongValue("dirs", dir, "must be an absolute path, or one starting ~/, the home directory's, such as ~/Code/acme")
 	}
 	return nil
 }
@@ -425,23 +463,29 @@ func noOverlap(fences []fence) error {
 	return errors.Join(errs...)
 }
 
-// overlap fails, saying how, where a's directory and b's overlap.
+// overlap fails, saying how, where a's directory and b's, after it, overlap:
+// a DirError of b's.
 func overlap(a, b fence) error {
-	var how string
+	var how, back string
 	switch inA, inB := within(b.dir, a.dir), within(a.dir, b.dir); {
 	case inA && inB:
-		how = "is the same as"
+		how, back = "is the same as", "is the same as"
 	case inA:
-		how = "holds"
+		how, back = "holds", "is inside"
 	case inB:
-		how = "is inside"
+		how, back = "is inside", "holds"
 	default:
 		return nil
 	}
+	refused := &DirError{Pool: b.pool, Dir: b.at}
 	if a.pool == b.pool {
-		return fmt.Errorf("%s: dirs %q %s %q: a pool's directories mustn't overlap", a.name, a.written, how, b.written)
+		refused.Why = fmt.Sprintf("%s %s, given it already: a pool's directories mustn't overlap", back, a.written)
+		refused.err = fmt.Errorf("%s: dirs %q %s %q: a pool's directories mustn't overlap", a.name, a.written, how, b.written)
+		return refused
 	}
-	return fmt.Errorf("%s's dirs %q %s %s's %q: no directory may be the same as, inside or around another pool's", a.name, a.written, how, b.name, b.written)
+	refused.Why = fmt.Sprintf("%s %s's %s: no directory may be the same as, inside or around another pool's", back, a.shown, a.written)
+	refused.err = fmt.Errorf("%s's dirs %q %s %s's %q: no directory may be the same as, inside or around another pool's", a.name, a.written, how, b.name, b.written)
+	return refused
 }
 
 // within reports whether path is dir or inside it, both absolute and clean,

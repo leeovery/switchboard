@@ -4,19 +4,15 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"strings"
 
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/leeovery/switchboard/internal/accounts"
-	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/setup"
 )
-
-// editFields are the edit card's fields, in the order tab goes through
-// them.
-var editFields = []setup.Field{setup.LabelField, setup.PlanField, setup.PrimaryField, setup.ReserveField}
 
 // form is where a card of setup's stands among its fields, as the screen
 // holds it: the field chosen; and why setup refused a value, and of which
@@ -51,6 +47,15 @@ func (f *form) retyped(field *entry, now entry) {
 	*field = now
 }
 
+// unrefused is f with why setup refused the value of field unsaid, where it
+// did, as once it's changed.
+func (f form) unrefused(field setup.Field) form {
+	if f.refused == field {
+		f.refused, f.why = setup.NoField, ""
+	}
+	return f
+}
+
 // refusing is f saying why setup refused a value, as refused has it, made
 // safe to show, under the field it's of.
 func (f form) refusing(refused *setup.Refused) form {
@@ -77,14 +82,19 @@ func moved(key tea.KeyPressMsg) (by int, ok bool) {
 }
 
 // planMoved is the plan by options on from plan, by their places among
-// config.PlanChoices, no further than the first or the last.
-func planMoved(plan, by int) int {
-	return min(max(plan+by, 0), len(config.PlanChoices())-1)
+// the plans offered, as many as given, no further than the first or the
+// last: from none chosen, noPlan, ← chooses the last and → the first.
+func planMoved(plan, by, plans int) int {
+	if plan == noPlan && by < 0 {
+		return plans - 1
+	}
+	return min(max(plan+by, 0), plans-1)
 }
 
 // editCard is an account's edit card as the screen holds it: the account as
 // the card opened on it, which says what's changed; its fields, the plan
-// chosen by its place among config.PlanChoices, and whether Primary's yes is
+// chosen by its place among the account's setup.Reviewed.PlanChoices, its
+// Pool, where there are two pools or more, and whether Primary's yes is
 // chosen; where it stands among them; and whether it's being saved, when it
 // takes no key.
 type editCard struct {
@@ -92,49 +102,112 @@ type editCard struct {
 	opened         setup.Reviewed
 	label, reserve entry
 	plan           int
+	pool           *poolField
 	primary        bool
 	saving         bool
 }
 
-// editing is the edit card of the account a, as it opens: its values as
-// they are, Label chosen.
-func editing(a setup.Reviewed) *editCard {
-	plans := config.PlanChoices()
-	plan := slices.Index(plans, a.PlanChosen())
-	if plan < 0 {
-		plan = len(plans) - 1
+// editing is the edit card of the account a, of those review has, as it
+// opens: its values as they are, Label chosen; Pool, its own pool, only
+// where there's another to move it to.
+func editing(a setup.Reviewed, review *setup.Review) *editCard {
+	plan := max(slices.Index(a.PlanChoices(), a.PlanChosen()), 0)
+	c := &editCard{chosen: setup.LabelField, opened: a, label: entryOf(a.Label), reserve: entryOf(a.ReserveTyped()), plan: plan}
+	if review != nil && len(review.Pools) > 1 {
+		c.pool = poolOf(review, a.Pool)
 	}
-	return &editCard{chosen: setup.LabelField, opened: a, label: entryOf(a.Label), reserve: entryOf(a.ReserveTyped()), plan: plan, primary: a.Primary}
+	return c
+}
+
+// fields are the card's fields, in the order tab goes through them: Label,
+// Plan, Pool where it has one, Primary and Reserve.
+func (c editCard) fields() []setup.Field {
+	if c.pool == nil {
+		return []setup.Field{setup.LabelField, setup.PlanField, setup.PrimaryField, setup.ReserveField}
+	}
+	return []setup.Field{setup.LabelField, setup.PlanField, setup.PoolField, setup.PrimaryField, setup.ReserveField}
+}
+
+// moving reports whether the card moves the account to another pool: its
+// Pool chosen on one but its own.
+func (c editCard) moving() bool {
+	if c.pool == nil {
+		return false
+	}
+	p, ok := c.pool.choice()
+	return !ok || p.Held || !strings.EqualFold(p.ID, c.opened.Pool)
+}
+
+// primaryHeld reports whether Primary shows yes, and doesn't change: on its
+// pool's primary, staying in it; or on an account moving to a pool with no
+// account, of which it's the first, so its primary.
+func (c editCard) primaryHeld() bool {
+	if !c.moving() {
+		return c.opened.Primary
+	}
+	p, ok := c.pool.choice()
+	return ok && !p.Accounts
+}
+
+// hints are Primary's and Reserve's hints, where the card has a Pool: of the
+// pool it chooses, or of new pool, as setup.NewPoolChoice names it; "" for
+// the card's own, where it has none.
+func (c editCard) hints() (primary, reserve string) {
+	if c.pool == nil {
+		return "", ""
+	}
+	p, ok := c.pool.choice()
+	if !ok {
+		p = setup.NewPoolChoice
+	}
+	return p.PrimaryHint(), p.ReserveHint()
 }
 
 // drawn is the card as dashboard.Setup draws it.
 func (c editCard) drawn() *dashboard.SetupEditCard {
-	return &dashboard.SetupEditCard{
+	plans := c.opened.PlanChoices()
+	primaryHint, reserveHint := c.hints()
+	card := &dashboard.SetupEditCard{
 		Name: c.opened.Name(), Label: c.label.field(c.chosen == setup.LabelField), Reserve: c.reserve.field(c.chosen == setup.ReserveField),
-		Plan: config.PlanChoices()[c.plan], Primary: c.primary, Chosen: c.chosen, Refused: c.refused, Why: c.why,
+		Plans: plans, Plan: plans[c.plan], Primary: c.primary || c.primaryHeld(), PrimaryHint: primaryHint, ReserveHint: reserveHint,
+		Chosen: c.chosen, Refused: c.refused, Why: c.why,
 	}
+	if c.pool != nil {
+		card.Pool = c.pool.drawn(setup.MovingHint)
+	}
+	return card
 }
 
 // edit is the change the card asks for: each value that differs from the
-// account's as it opened on it, and the primary where yes is chosen of an
-// account that isn't. It reports false where it asks for none.
+// account's as it opened on it; the pool it moves to, or the new pool made
+// for it, where it moves; and the primary where Primary was made yes, of an
+// account that isn't its pool's, staying, or wherever it moves: never where
+// it's held, as an account moving to a pool with none is marked its primary
+// by accounts' own rule. It reports false where it asks for none.
 func (c editCard) edit() (setup.Edit, bool) {
 	var e setup.Edit
 	if label := c.label.value(); label != c.opened.Label {
 		e.Label = &label
 	}
-	if plan := config.PlanChoices()[c.plan]; plan != c.opened.PlanChosen() {
+	if plan := c.opened.PlanChoices()[c.plan]; plan != c.opened.PlanChosen() {
 		e.Plan = &plan
 	}
+	if c.moving() {
+		id, made := c.pool.placed()
+		if e.NewPool = made; made == nil {
+			e.Pool = &id
+		}
+	}
 	e.Reserve = c.opened.ReserveChange(c.reserve.value())
-	e.Primary = c.primary && !c.opened.Primary
-	return e, e.Label != nil || e.Plan != nil || e.Reserve != nil || e.Primary
+	e.Primary = c.primary && (c.moving() || !c.opened.Primary)
+	return e, e.Label != nil || e.Plan != nil || e.Pool != nil || e.NewPool != nil || e.Reserve != nil || e.Primary
 }
 
 // pressed is the card once key is pressed in its field chosen, reporting
 // false for a key it doesn't take: a text field's, as entry has them; a
 // choice's, ← and → moving its choice, no further than its first or last,
-// but for Primary on the primary, which doesn't change.
+// but for Primary where it's held, which doesn't change. Moving Pool
+// unsays a refusal of it, and has Primary no, where it isn't held.
 func (c editCard) pressed(key tea.KeyPressMsg) (editCard, bool) {
 	if field := c.typedIn(); field != nil {
 		ok := c.typed(field, key)
@@ -144,11 +217,25 @@ func (c editCard) pressed(key tea.KeyPressMsg) (editCard, bool) {
 	switch {
 	case !ok:
 	case c.chosen == setup.PlanField:
-		c.plan = planMoved(c.plan, by)
-	case !c.opened.Primary:
+		c.plan = planMoved(c.plan, by, len(c.opened.PlanChoices()))
+	case c.chosen == setup.PoolField:
+		pool := c.pool.moved(by)
+		c.pool, c.form, c.primary = &pool, c.unrefused(setup.PoolField), false
+	case !c.primaryHeld():
 		c.primary = by > 0
 	}
 	return c, ok
+}
+
+// makingPool reports whether enter opens the new pool card: where the card's
+// Pool is on new pool, whichever field is chosen, as the account has no pool
+// to go in till one's made.
+func (c editCard) makingPool() bool {
+	if c.pool == nil {
+		return false
+	}
+	_, chosen := c.pool.choice()
+	return !chosen
 }
 
 // pasted is the card with text pasted into its field chosen, where it's a
@@ -187,11 +274,13 @@ func (c removeCard) drawn() *dashboard.SetupRemoveCard {
 
 // carded reports whether a card is open over the page, taking every key.
 func (m Model) carded() bool {
-	return m.add != nil || m.edit != nil || m.remove != nil || m.token != nil || m.paste != nil || m.which != nil || m.reserve != nil || m.offer != nil
+	return m.add != nil || m.edit != nil || m.newPool != nil || m.remove != nil || m.token != nil || m.paste != nil || m.which != nil || m.reserve != nil || m.offer != nil
 }
 
 // cardPressed acts on a key while a card is open: ctrl+c leaves; else, while
-// it isn't being checked or saved, the add card's keys, as addPressed has
+// it isn't being checked or saved, the new pool card's keys, as
+// newPoolPressed has them, over the card that opened it, the add card's
+// keys, as addPressed has
 // them, the edit card's, as editPressed has them, the remove card's, as
 // removePressed has them, the paste card's, as pastePressed has them, the
 // card asking which account a token is for, as whichPressed has them, or
@@ -203,6 +292,11 @@ func (m Model) cardPressed(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case key.String() == "ctrl+c":
 		return m, tea.Quit
+	case m.newPool != nil:
+		if m.newPool.checking {
+			return m, nil
+		}
+		return m.newPoolPressed(key)
 	case m.add != nil && !m.add.checking:
 		return m.addPressed(key)
 	case m.edit != nil && !m.edit.saving:
@@ -224,18 +318,24 @@ func (m Model) cardPressed(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 }
 
 // editPressed acts on a key at the edit card: esc closes it, saving
-// nothing; enter saves it, as saved has it; tab chooses the next field; and
-// the field chosen takes the keys it takes, as editCard.pressed has them.
+// nothing; enter, with Pool on new pool, opens the new pool card over it,
+// holding the new pool it holds, where it holds one, and elsewhere saves
+// it, as saved has it; tab chooses the next field; and the field chosen
+// takes the keys it takes, as editCard.pressed has them.
 func (m Model) editPressed(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch key.String() {
 	case "esc":
 		m.edit = nil
 		return m, nil
 	case "enter":
+		if m.edit.makingPool() {
+			m.newPool = newPoolOpened(m.edit.pool.made)
+			return m, nil
+		}
 		return m.saved()
 	case "tab":
 		card := *m.edit
-		card.form = card.next(editFields)
+		card.form = card.next(card.fields())
 		m.edit = &card
 		return m, nil
 	}

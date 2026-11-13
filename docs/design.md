@@ -522,8 +522,8 @@ each).
 ## Pools
 
 **Designed** (the owner's calls, 10 and 11 November 2026), **its first phase built**, safety (see
-Building it), **and of its second the dashboard's pool and its Log**; the dashboard's other ledger
-tabs per pool and setup's cards are still to build. The other sections
+Building it), **and of its second the dashboard's pool, its Log and setup's cards**; the
+dashboard's other ledger tabs per pool are still to build. The other sections
 describe switchboard with a single pool, as it runs with one, and hold within each pool where there
 are more: their primary is the pool's, and their global pin the pool's pin. It's built on Account
 identity: accounts are known by the ids switchboard makes, shown by their labels, and never
@@ -870,14 +870,16 @@ read as a pool by its leaving one out (the owner's call, 11 November 2026).
     its own, and the configs differ till one is kept; that Mac's history before pools then stays
     under its own first pool, shown removed (the owner's call, 12 November 2026), and read as a
     removed pool's is, with `--pool` and its id (see Reading a pool).
-  - **The files:** every request line, every pin event and every day's summary is given the first
-    pool's id, written anew and swapped in, a day's files at a time, holding off their writers, as
-    Account identity's move writes them. A line that names a pool already is left as it is, so a
-    file moved reads the same moved again. A day whose lines are still kept is summarised again
-    from them, in the new summary version, and an older one is rewritten as it stands. The files
-    the router builds from these are built again. The router takes the pools up as soon as the
-    move writes them, before any file is moved, and every line it files from then names a pool,
-    the first for a request naming none, even a request it began routing before.
+  - **The files:** every request line, every event that names its pool (`started`, `moved`, `pin`,
+    `auto`) and every day's summary is given the first pool's id, written anew and swapped in, a
+    day's files at a time, holding off their writers, as Account identity's move writes them. A line
+    that names a pool already is left as it is, so a file moved reads the same moved again. A day
+    whose lines are still kept is summarised again from them, in the new summary version, and an
+    older one is rewritten as it stands. The files the router builds from these are built again. The
+    router takes the pools up as soon as the move writes them, before any file is moved, and every
+    line it files from then names a pool, the first for a request naming none, even a request it
+    began routing before; the events it keeps from before them it gives the first pool as it takes
+    them up, so one filed again as it changes, as a move waiting for its limit, names it too.
   - **Work in no pool, once the move's done, is the first pool's,** everywhere the history is read:
     lines filed without a pool after it, as by a release from before pools after a downgrade, by
     a router draining as another takes over and appending to a day already moved, or pins filed
@@ -937,8 +939,8 @@ read as a pool by its leaving one out (the owner's call, 11 November 2026).
   version 3, so a switchboard from before pools refuses a folder whose lines name them. Taking a
   folder in, its pools join this Mac's record as its accounts do: matched by id, else added as the
   other Mac keeps them, their labels and removals with them. A folder from before pools, of version
-  2 or 1, has its lines, pin events and summaries given this Mac's first pool as `import` takes
-  them in. So each Mac gives the days from before pools its own first pool, and a request line or
+  2 or 1, has its lines, the events that name their pool and its summaries given this Mac's first
+  pool as `import` takes them in. So each Mac gives the days from before pools its own first pool, and a request line or
   an event alike but for its pool is one as an import merges a day, the line held standing: a
   folder taken in before its Mac moved and again after never doubles a day. A summary is never
   merged, copied in only where this Mac knows nothing of the day, so one under another pool never
@@ -1062,11 +1064,11 @@ totals.
   no pool shown. The Log tells of the pool shown alone, one pool among them, its requests, each
   day's figures and its find read through the pool's read, by its id, as the verbs read a pool's,
   each day's rows naming their lines' pools (see The Log's In a pool, and The request ledger's
-  Rows a day). What it builds from
-  the day digests, Sessions, a session's page, History, Graphs and the worth and tokens on
-  Accounts, still tells of every pool (see Building it). No page adds pools together: a pool's
-  room can never serve another pool's sessions, so a merged view has nothing to add up. A page
-  across pools waits until one is needed (the owner's call, 11 November 2026).
+  Rows a day). What it builds from the day digests, Sessions, a session's page, History, Graphs
+  and the worth and tokens on Accounts, still tells of every pool (see Building it): History's
+  Year sets every pool's worth beside the plans of the pool shown. No page adds pools together: a
+  pool's room can never serve another pool's sessions, so a merged view has nothing to add up. A
+  page across pools waits until one is needed (the owner's call, 11 November 2026).
 - **`P` cycles the pools,** on every tab, once a second pool exists, in the config's order, round.
   Changing pool starts the dashboard's view afresh, as a router change does, so nothing it
   remembered of one pool carries into the next: its pages, cursors, a session's page, the routing
@@ -1080,17 +1082,49 @@ totals.
   key line giving the first line of why. The key line lists `P pool` once a second pool exists,
   on a phone too, and help gives it. With one pool, `P` isn't listed, but reads the pools afresh
   all the same: it turns to a second added since, else the key line says there's one pool.
+- **A change to the config starts the pool shown afresh,** as `P` does, so nothing it holds of the
+  pool, its label, directories, accounts, the pools counted, the router's events as they're placed,
+  the pools that name them, History, Accounts' page and its choices and the Log's rows, nor the
+  request ledger, summarised with the caps of the accounts configured, nor the accounts removed,
+  which name those taken out by their labels, is ever of a config gone. The ledger's reader is made
+  afresh only where its grounds change (`ledger.Grounds`: the caps, or the first pool): else the one
+  in use is kept, with the days it holds, as at a `P`, so a turn reads nothing cold; and nothing
+  holds one the dashboard no longer reads, not the turn, which keeps none, nor Bubble Tea, which
+  keeps the model it started with till it stops, through which only the latest is reached
+  (`backdrop.Run`). What counts is anything of the pools or the accounts as the pools stand
+  (`status.Placement`): any pool's id, label or directories, the pools counted and their order, and
+  any account's id, label, plan, primary mark, reserve or pool, in any pool, and their order, as the
+  router's events of every pool are placed by them. A change to nothing of those, a comment or
+  another table, starts nothing. It's one path with `P`'s: the watch asks its `Turn` for the pool
+  shown again (`watch.SamePool`, `status.PoolAgain`), started afresh on it, or where it's gone, on
+  the first, as `P` would turn to from it; the tab, size, theme and each tab's kept view carry over,
+  as at a turn. It's asked only where a read finds the config file the dashboard reads, the one
+  `--config` names, changed since the pool was read, by the router's own rule for its config
+  (`filestate.State.Same`: another file, or one written since), or the accounts of the router's
+  document other than the last read's (`status.Document.AccountsChanged`), as an account the router
+  took up as it restarted, which finds the config as it was and starts nothing. What it costs a read
+  is a stat of the config file and a comparison of two lists of ids. The stamp is taken as the ask
+  goes out, so a change found while a turn is under way is asked for at the next read; a config that
+  can't be read is logged, with nothing on the key line, and asked again once it changes again.
 - **The title row names the pool shown,** by its label after the badge, once a second pool exists,
   at every size, cut short before the tabs where it's long. The pool's accounts keep the config's
   order, unnumbered, as every screen has them (see Account identity).
 - **A pool with no accounts** draws a page that says so on every tab, its status line `● healthy ·
-  no accounts`: a session started in its directories, or for an unfenced pool outside every fence,
-  doesn't start; how to add an account to it or move one in; and that its directories stay fenced
-  until it's removed. Its key line is `tab views  P pool  ? help  q quit`. Whether the pool is
-  empty is judged from what's read of it (`status.ShownPool.AsRead`): its document's accounts,
-  once one is read, else the config's as the pool was chosen, so an account added to the pool, or
-  its last taken out, shows at the next read. The page, the status line and the keys all read
-  that one fact.
+  no accounts`, with the restart the router has due, which takes up any the config gives it: a
+  session started in its directories, or for an unfenced pool outside every fence, doesn't start;
+  how to add an account to it or move one in; and that its directories stay fenced until it's
+  removed. Its key line is `tab views  P pool  ? help  q quit`. Empty means none to route
+  (`status.ShownPool.AsRead`): none in the router's document of the pool, once one is read, its pool
+  id the pool shown's; else none in the config. A probed document, whose accounts are the config's,
+  or one of no pool, as a router that can't tell its pools answers, leaves it to the config. A pool
+  the router doesn't know, as one added since it started, whose reads it refuses
+  (`router.PoolNeeded`, naming the pool shown), routes none in it alike
+  (`status.ShownPool.Refused`): no read that failed, but the router answering, so it's lost no more,
+  and the status line says how it stands, healthy or not, and the restart it has due, as its health
+  check answered with the refusal (`router.Health`'s `Restart`). Where the config gives the pool
+  accounts the router hasn't taken up, as it does only as it restarts, at a quiet moment, the status
+  line says `no accounts routed yet` and the page says so, and that `switchboard service restart`
+  takes them up now. The page, the status line and the keys all read that one fact.
 - **Notifications** name the pool once a second pool exists, its label leading what they say of
   the account, as `Acme · k3f9 · Acme 1 has room again`: the router's, and the dashboard's own
   without the router, by the one wording (`prose.PoolLed`). With one pool, they're as they were.
@@ -1102,17 +1136,76 @@ totals.
   first account in a pool becomes its primary. The field names the first pool even while it's the
   only one, as it's where a second is made.
 - **The plan** is a subscription's, which every account setup adds is, so the add card has no `not
-  set` (the owner's call, 11 November 2026). The edit card shows `not set` only for an account whose
-  config has no plan, as one from before plans were recorded.
+  set` (the owner's call, 11 November 2026). It opens with no plan chosen, and `enter` refuses,
+  saying so under Plan, till one is (13 November 2026). The edit card shows `not set` only for an
+  account whose config has no plan, as one from before plans were recorded.
 - **Setup's accounts table** groups the accounts by pool, in the config's order, each pool under its
   label and directories, once a second pool exists.
 - **Editing an account** moves it to another pool and makes it its pool's primary.
 - Pools with no accounts are removed with `pool remove`, and fenced or unfenced with `pool edit`.
-- **Until it's built,** as the first phase left it, setup's add card asks no pool: the account goes
-  in the pool `accounts add` adds one to without `--pool`, the only pool, else the unfenced one, as
-  the accounts registry gives an account naming none. Where every pool is fenced, there's none, and
-  setup refuses the account before it makes a token, which would last a year on it, saying to add
-  it with `accounts add --pool`, naming the pools.
+- **As built:** the frames are Paper's pools round 3, frames 5 to 7, held as `setup-add-160`,
+  `setup-new-pool-160` and `setup-edit-pool-160`, and the add card in one pool as
+  `setup-add-one-pool-160`. The cards sit two or three rows higher than Paper's, by setup's rule
+  for centring a card.
+  - The add card's Pool offers every pool by its label, in the config's order, then `new pool`,
+    and opens on the pool `accounts add` takes without `--pool`, else, where every pool is fenced,
+    the first. Its hint says which sessions use the pool chosen: `only sessions started in
+    ~/Code/acme use it`, of the unfenced `sessions started everywhere else use it`, or of the only
+    pool, unfenced, `every session uses it`; of `new pool`, that `enter` gives its label and
+    directories. A config without pools, as on a first run, before the router's move makes the
+    first, has no Pool: there's no pool to choose, nor one to add beside it.
+  - `enter`, with Pool on `new pool`, from whichever field is chosen, as the account has no pool
+    to go in till one's made, opens the card `NEW POOL`, over the add card or the edit card: its
+    label, and its directories, `+ another directory` adding one, `enter` there adding it, a
+    directory left empty passed over; with none, the pool's unfenced. `enter` elsewhere has
+    `accounts.Registry.CheckNewPool` check it, by the config's own rules, a refusal said under the
+    label or under the directory refused, which `config.DirError` places; once it passes, the card
+    that opened it holds it among its pools, chosen, and `esc` goes back to that card. Its keys
+    are `tab next`, `enter create pool` and `esc back`, `enter add a directory` on `+ another
+    directory`; the card under it says `enter new pool` while its Pool is on `new pool`. The pool
+    held is written with the account, in the one edit that adds it, after its token, or moves it,
+    under an id drawn as `pool add` draws one (`accounts.NewPool`).
+  - The add card's `enter` checks the pool chosen and any new pool with the account, as
+    `accounts.Registry.CheckNew` does, before any token is made, a refusal of either said under
+    Pool, a pool removed meanwhile among them, on the edit card too; with no plan chosen, once the
+    rest passes, it's refused under Plan. An account that's the first in its pool, in a config with
+    pools, is marked its primary, added or moved there, so a second account added later doesn't
+    leave the pool with none marked: `accounts` owns the rule, working it out from the config as it
+    writes, apart from a primary the caller asks for. An add, and a move into a new pool, work it
+    out under the accounts record's lock, so a pool given an account since the check doesn't lose
+    its primary; a move into a pool configured already is guarded by the config's own
+    compare-and-swap, its save refused where the file changed since it was read. `accounts add` and
+    `accounts edit` say where it lands: `add`, `the primary there, as the first in it`, or `the
+    primary` where it names no pool, as of the config's one; `edit`, `marked the primary there, as
+    the first in it`, or, of one its old pool marked its primary already, `the primary there too, as
+    the first in it`. A new pool's id is drawn after the account's, apart from it, and the pool made
+    is logged as `pool add` logs one.
+  - The edit card has a Pool once there's a second pool, with one there's nothing to move it to; its
+    hint, `moving it takes its sessions off at once`. Primary's hint names the pool chosen, `Acme's
+    sessions start on it`, of `new pool` `the new pool's sessions start on it`, and of the first
+    pool, whose primary the browser and the Claude apps are signed in to, adds `; the Claude apps
+    sign in to it`; Reserve's says `usage kept back for the Claude apps` of the first pool, and of
+    any other `usage the router leaves unused`. Moving the account, Primary shows `no` till it's
+    chosen, and `yes`, held, of a pool with no accounts or a new one, of which it's the first, which
+    `accounts` marks without being asked. The move goes through `accounts.Registry.Edit`, as
+    `accounts edit --pool` and `--primary` do.
+  - The account the browser is signed in to, which a token's sign-in address opens in the browser as
+    it is for, every other's opening in a private window, is the first pool's primary, the first
+    pool as the accounts record notes it (`config.Config.SignedIn`), a record that can't be read
+    warned of once: never another pool's, though it's marked and comes first. Where the first pool
+    has no account, every sign-in opens in a private window, and where one can't open, setup says to
+    open the address in one.
+  - The table groups the accounts by pool once there's a second: each pool's label in `text.subtle`,
+    as the table's heads are, and two cells on, its directories, or `everywhere else`, muted; then
+    its accounts, in the config's order, its primary marked `◆`; a pool with no accounts under its
+    heading alone. The review gives the accounts in that order, and the table walks it, heading each
+    pool where its accounts start, so `↑` and `↓` go down the rows as they're drawn. A pool of two
+    accounts or more with none marked has a note of its own, `Acme has no primary marked, so its
+    sessions start on its first account.`, naming the Claude apps of the first pool's alone, and
+    `enter` waits for one, as with one pool.
+  - Done's summary names each pool's primary by its pool's label once there's a second pool,
+    `Default's primary: work · Acme's primary: acme1`, the Claude apps' reserve the first pool's
+    primary's alone, and a pool without one as `Acme has no primary`.
 
 ### What pools can't hold
 
@@ -1148,9 +1241,6 @@ Accepted as the first phase was built, each failing safe, with nothing crossing 
   draining router or a downgrade filed without a pool, can count those requests twice: the summary
   held puts them in the old first pool, the new one in the config's first, and both are kept. It
   needs all three rare events together, for a handful of requests.
-- **The dashboard's pool's label and directories read as it opens and at each `P`,** held till the
-  next: a pool relabelled or fenced while one is open shows in its title row and its empty page's
-  words at the next `P`.
 - **Several Macs** whose configs differ until one is kept: a pool removed on one Mac alone, and an
   account configured under its id, which the record holds for that pool, leaves the account out of
   this Mac's record, logged, till the configs agree.
@@ -1161,7 +1251,7 @@ Pausing an account whose subscription is cancelled is a separate idea, after poo
 ### Building it
 
 In two phases, after v1 and Account identity. The first is built, and of the second the dashboard's
-pool and its Log; its other ledger tabs and setup's cards are to build:
+pool, its Log and setup's cards; its other ledger tabs are to build:
 
 1. **Safety,** which a pool's work needs from its first day: the config and the `pool` verbs; the
    move to pools; `run`'s pool, its starting token, its header and its checks; the router's pools,
@@ -1177,14 +1267,14 @@ pool and its Log; its other ledger tabs and setup's cards are to build:
 2. **Sight:** the dashboard's `--pool` and `P`, the title row, the empty pool, notifications, and
    setup's cards, each drawn in Paper first; and the dashboard's ledger tabs made the shown pool's
    alone. Built: the dashboard's `--pool`, its accounts the pool's alone, `P` with its pools and
-   events read afresh at each turn, the title row, the empty pool as read, and the notifications,
-   the router's and the dashboard's, each fixture named after its frame (`overview-acme-160`,
-   `overview-default-pool-160`, `overview-acme-73x61`, `empty-pool-160`); and the Log, the pool
-   shown's alone, each day's rows and side naming their lines' pools, `views.RowsVersion` 4 (see
-   The Log's In a pool). To build: the tabs built from the day digests per pool, Sessions, a
-   session's page, History, Graphs and the worth and tokens on Accounts
-   ([prebuilt-records-per-pool](../ideas/2026-11-13--prebuilt-records-per-pool.md)), and setup's
-   cards.
+   events read afresh at each turn, the pool shown started afresh as the config changes, the title
+   row, the empty pool as read, and the notifications, the router's and the dashboard's, each
+   fixture named after its frame (`overview-acme-160`, `overview-default-pool-160`,
+   `overview-acme-73x61`, `empty-pool-160`); the Log, the pool shown's alone, each day's rows and
+   side naming their lines' pools, `views.RowsVersion` 4 (see The Log's In a pool); and setup's
+   cards (see Setup with pools). To build: the tabs built from the day digests per pool, Sessions,
+   a session's page, History, Graphs and the worth and tokens on Accounts, History's Year among
+   them ([prebuilt-records-per-pool](../ideas/2026-11-13--prebuilt-records-per-pool.md)).
 
 ## Reserves
 
@@ -2002,9 +2092,9 @@ show.
      up without an account, so `enter` waits for one. Once there's one, the line is `Add each Claude
      subscription you want switchboard to route across.` (frame 2).
    - **Adding** (`+ add an account`, then `enter`), the card `ADD AN ACCOUNT`: `Each account is one
-     Claude subscription: a Pro, Max or Ultra plan.`; then Label, `what every screen calls it`, and
-     Plan, `Pro`, `Max`, `Ultra` or `not set`, with no id, which the token's organization decides
-     (see Account identity); then `Setup then creates a token with claude setup-token. You approve
+     Claude subscription: a Pro, Max or Ultra plan.`; then Label, `what every screen calls it`,
+     Plan, `Pro`, `Max` or `Ultra`, and where the config has pools, Pool (see Setup with pools),
+     with no id, which the token's organization decides (see Account identity); then `Setup then creates a token with claude setup-token. You approve
      it in the browser while signed in to this subscription. Tokens last a year.` Its keys: `tab
      next`, `enter create token`, `esc cancel`. The label is held to `accounts add`'s rules, a wrong
      one said under its field. `enter` makes its token in the token card (see The token card,
@@ -2022,9 +2112,12 @@ show.
      says what's missing, and a key sees to it. Its keys: `↑↓ select`, `t new token`, `e edit`, `r
      remove`, `p make primary`. `enter` all the way through changes nothing.
    - **Edit** (`e`, frame 6), the card `EDIT PERSONAL`: Label; Plan, `used by History to value
-     usage`; Primary, `no` or `yes`, `the account the Claude apps are signed in to`; and Reserve,
-     `usage kept back for the Claude apps`, a percentage, as `accounts edit` takes it, or `none`,
-     so cleared on an account with none, it writes nothing. Its keys: `tab next`, `←→ select`, `enter save`, `esc cancel`. It saves through
+     usage`, `not set` among its options only for an account the config gives no plan; Pool, once
+     there's a second pool (see Setup with pools); Primary, `no` or `yes`, `the account the Claude
+     apps are signed in to`; and Reserve, `usage kept back for the Claude apps`, a percentage, as
+     `accounts edit` takes it, or `none`, so cleared on an account with none, it writes nothing.
+     Once there's a second pool, Primary's and Reserve's hints are of the pool chosen (see Setup
+     with pools). Its keys: `tab next`, `←→ select`, `enter save`, `esc cancel`. It saves through
      `accounts.Registry.Edit`, as `accounts edit` does.
    - **The primary,** the account the browser and the Claude apps are signed in to: `p` marks the
      chosen account, taking the mark off the one that had it.
@@ -2354,11 +2447,11 @@ their own words.
 
 ### Rules
 
-- **The opener rule:** the first account's token on a first run, and the primary's on a run again,
-  opens in the browser as it is, as it's signed in to that subscription; every other's opens in a
-  private window, where the default browser's command line can open one, as the Chrome family's,
-  Brave and Vivaldi among it, Edge's and Firefox's can; otherwise, as for Safari, the address is
-  shown to paste into one.
+- **The opener rule:** the first account's token on a first run, and the first pool's primary's on a
+  run again, opens in the browser as it is, as it's signed in to that subscription; every other's
+  opens in a private window, where the default browser's command line can open one, as the Chrome
+  family's, Brave and Vivaldi among it, Edge's and Firefox's can; otherwise, as for Safari, the
+  address is shown to paste into one, `setup` saying to open it in a private window.
 - **The duplicate check:** an account added twice is caught by the organization id the API answers a
   token's check with, its `anthropic-organization-id` header, compared with every other account's
   this run has read. Where either isn't known, as where the header is missing or the API didn't
@@ -2387,13 +2480,14 @@ not the owner's decisions:
 - **The edit card's Primary:** on an account that isn't the primary, `no` or `yes`, as frame 6 draws
   it, and `yes` makes it the primary; on the primary it shows `yes` and doesn't change, as the
   primary moves by making another account the primary (`accounts.Registry.Edit` only makes one).
-- **A card's fields:** the edit card opens on Label, typed in, its cursor after the label, and
-  the add card on ID, its fields empty and its Plan `not set`; `tab` goes on to the next field,
-  the first after the last; on a choice, `←` and `→` move it no further than its first option or
-  its last. While a card is open, its keys alone act: in a field typed in, `q`, `j` and `k` type,
-  and elsewhere do nothing, as the key line, empty, offers none; `ctrl+c` always leaves. The
-  edit card's `enter` saves only what's changed from what the card opened on, and where nothing
-  has, closes it, writing nothing. A reserve typed `none`, or cleared, is none.
+- **A card's fields:** the edit card opens on Label, typed in, its cursor after the label, and the
+  add card on Label, its fields empty and no plan chosen, `enter` refusing under Plan till one is;
+  `tab` goes on to the next field, the first after the last; on a choice, `←` and `→` move it no
+  further than its first option or its last, from no plan chosen `←` to the last and `→` to the
+  first. While a card is open, its keys alone act: in a field typed in, `q`, `j` and `k` type, and
+  elsewhere do nothing, as the key line, empty, offers none; `ctrl+c` always leaves. The edit card's
+  `enter` saves only what's changed from what the card opened on, and where nothing has, closes it,
+  writing nothing. A reserve typed `none`, or cleared, is none.
 - **A refusal and a failure:** a value config refuses is said under its field, why alone, the
   card staying open, and unsaid once the value changes. The add card's `enter` checks its label
   as `accounts add` would, before any token is made, writing nothing: none, another account's,
@@ -9162,11 +9256,12 @@ and so does one whose every folder was passed over.
   again. The day's lines and its summary
   are taken in as one, on the ledger's writer, so whatever it ran before, a round, a stop or an
   import cut short, the look sees the day's lines as the take left them. The readings history's
-  writer isn't held off: its summarising before a prune may summarise the day from the lines just
-  taken in, between the take and the look, and the folder's summary then gives way to that one,
-  which loses no request. Else the Mac's own stands, and the round summarises again each day whose
-  lines changed, as its files' sizes tell it, building its digest, parts, head and rows again too
-  (see The request ledger).
+  writer isn't held off: its summarising before a prune, on its first round as the router starts,
+  which may come after the router first answers, and on its first of each day, may summarise the
+  day from the lines just taken in, between the take and the look, and the folder's summary then
+  gives way to that one, which loses no request. Else the Mac's own stands, and the round
+  summarises again each day whose lines changed, as its files' sizes tell it, building its digest,
+  parts, head and rows again too (see The request ledger).
 - **Days past keeping:** a day's lines past the Mac's `[ledger] keep`, or its readings past
   `[history] keep`, aren't taken in, as the next round would remove them; their summaries are, as
   summaries are kept for good.
@@ -10293,7 +10388,7 @@ HTTP over `control.sock` (mode 0600, so file permissions are the authentication)
 
 | Endpoint | Job |
 |---|---|
-| `GET /health` | `{ok, reason, listen, version, pid, started_at, strips_own_headers, reports_pools, pools, moving}`: the router is alive, and `ok` is its health, the judgment the status document's `router.healthy` gives, `false` while it's unhealthy, with a `reason` (see Health). `listen` is the address its proxy listens on. `strips_own_headers`, `true`, says it takes every `X-Switchboard-…` header off a request going upstream (see Proxy rules); a router from before leaves it out. `run` sends sessions to a router that gives `listen`, `ok` or not, and tells the directory a session starts in only to one that says `strips_own_headers`; `usage`, `status` and `dashboard` read the document of any router that answers at all. `reports_pools`, `true`, says it reports the pools it routes for, as `pools`, a router from before leaving both out: in the config's order, each `{id, label, dirs, written_dirs, accounts, primary}`, `dirs` its directories absolute and clean and `written_dirs` as the config writes them, both left out for the unfenced pool, `accounts` the ids of those of its accounts the router has, one the config added since it started left out, and `primary` its primary among them, left out where it has none; `pools` is left out in a config without pools, and by a router that routes nothing, as one that can't tell the pools, which answers `ok` `false`. `run` compares them with the config's (see Launching in a pool). `moving` is how the moves of the history stand, as the status document's `moving`, given here as it's no pool's |
+| `GET /health` | `{ok, reason, listen, version, pid, started_at, strips_own_headers, reports_pools, pools, moving, restart}`: the router is alive, and `ok` is its health, the judgment the status document's `router.healthy` gives, `false` while it's unhealthy, with a `reason` (see Health). `listen` is the address its proxy listens on. `strips_own_headers`, `true`, says it takes every `X-Switchboard-…` header off a request going upstream (see Proxy rules); a router from before leaves it out. `run` sends sessions to a router that gives `listen`, `ok` or not, and tells the directory a session starts in only to one that says `strips_own_headers`; `usage`, `status` and `dashboard` read the document of any router that answers at all. `reports_pools`, `true`, says it reports the pools it routes for, as `pools`, a router from before leaving both out: in the config's order, each `{id, label, dirs, written_dirs, accounts, primary}`, `dirs` its directories absolute and clean and `written_dirs` as the config writes them, both left out for the unfenced pool, `accounts` the ids of those of its accounts the router has, one the config added since it started left out, and `primary` its primary among them, left out where it has none; `pools` is left out in a config without pools, and by a router that routes nothing, as one that can't tell the pools, which answers `ok` `false`. `run` compares them with the config's (see Launching in a pool). `moving` is how the moves of the history stand, as the status document's `moving`, given here as it's no pool's. `restart` is the restart it has due, as the status document's `restart`, left out where none is, given here for a pool it can't give a document of, as one added since it started, which waits on that restart: the dashboard says it on such a pool's status line |
 | `GET /status` | The status document, as `status --json` prints it but for the `"schema": 1` the verbs put first: see below. It, `GET /sessions`, `GET /history`, `GET /stream`, `POST /refresh` and `DELETE /pin` take `?pool=<id>`, and answer for that pool, else the one the verbs act on, refusing with a 400 `{error, pools, named}` where there's none, or the pool named isn't configured (see Reading a pool); `POST /pin` takes its pool from the accounts it names. Each stream event names its request's `pool`, where there are pools |
 | `GET /sessions/{id}` | For statuslines and the dashboard: `{"session": "<id>", "pin": "<id>", "assignments": [{model, family, account, auto, dir, in_flight, pinned, yielded, pinned_at, reason, assigned_at, last_seen}], "account": {…}}`. `pin` is the session's own pin, left out when it has none: the one `pin --session` gave it, else the one `run --account` did, as its requests last carried it. `assignments` are the session's, a model each, the one used last first, each naming its model's family, such as `opus`, and its account by id; `auto`, the account auto would send the model's next request to, by id, as the routing card names it on its `auto` line (see Routing by hand): where the router's own rule sends a request with the session's own pin passed over and the global pin counting, on what the router knows, probing none (see Choosing an account), and left out where no account has room for the request; `dir`, the directory the session's last request of the model named, as the request ledger keeps it, the home as `~` and cut as a line's is (see The request ledger), kept with the assignment in `state.json`, and left out where none has named one; `in_flight`, what a request of its model in flight is doing, as the request stream tells of it: `answering` while an answer streams to one, else `asking` while one waits for its answer's first byte, and left out while none is in flight, so one read says what each running session is doing, as the request stream's first events don't say when they're all in; `yielded` set while the session's own pin has yielded, the account it names having had no room for a request of it, and it stays where it went; and `pinned_at` when it was given its own pin as it ran, left out for the one it was launched with, and while it has none. `account` at the top is the whole status of the account the last used went to, as the document gives it. 404 for a session never seen |
 | `GET /sessions` | The sessions routed in the last hour, the one seen last first, each as `/sessions/{id}` gives it but for `account`. `status` lists them, and `pin --session` and `status --session` find a session from part of its id here |
@@ -11497,5 +11592,4 @@ was dropped binds a later choice, the design proper says so.
 | The v1 fixes' loose ends: the edges past ordinary use, failing safe, and the known costs their reviews accepted | open: after v1 | [v1-fixes-loose-ends](../ideas/2026-11-11--v1-fixes-loose-ends.md) |
 | Account identity's loose ends: the edges past ordinary use, failing safe, its reviews accepted | open: after v1 | [account-identity-loose-ends](../ideas/2026-11-11--account-identity-loose-ends.md) |
 | Pausing an account whose subscription is cancelled: kept whole and out of routing until it's resumed | after Account identity and Pools: the owner, 11 November 2026 | [pausing-accounts](../ideas/2026-11-11--pausing-accounts.md) |
-| A router test of a summary an import copies in, which failed once under load, the day summarised from its lines instead | open: any time | [import-summary-test-flake](../ideas/2026-11-13--import-summary-test-flake.md) |
 | The ledger's day digests per pool, so Sessions, a session's page, History, Graphs and the worth and tokens on Accounts tell of the pool shown alone, as the Log does | with Pools' second phase | [prebuilt-records-per-pool](../ideas/2026-11-13--prebuilt-records-per-pool.md) |

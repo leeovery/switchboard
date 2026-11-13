@@ -56,9 +56,9 @@ func kindOf(l []byte) string {
 	return e.Kind
 }
 
-// A folder from before pools, of version 1 or 2, has every request line, pin
-// event and summary given this Mac's first pool as it's taken in, its
-// accounts renamed as ever, every total kept.
+// A folder from before pools, of version 1 or 2, has every request line,
+// event of a kind that names its pool and summary given this Mac's first
+// pool as it's taken in, its accounts renamed as ever, every total kept.
 func TestAFolderFromBeforePoolsIsGivenThisMacsFirstPool(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -98,7 +98,7 @@ func TestAFolderFromBeforePoolsIsGivenThisMacsFirstPool(t *testing.T) {
 				}
 			}
 			pins := pooledLines(t, events.Files(ledger.Dir(f.state), logs.For("test")), kindOf)
-			want := map[string]string{longAgo + " " + status.EventLimit: "", longAgo + " " + status.EventMoved: "", today + " " + status.EventPin: thisFirst}
+			want := map[string]string{longAgo + " " + status.EventLimit: "", longAgo + " " + status.EventMoved: thisFirst, today + " " + status.EventPin: thisFirst}
 			if !maps.Equal(pins, want) {
 				t.Errorf("the events name the pools %v, want %v", pins, want)
 			}

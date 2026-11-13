@@ -150,6 +150,19 @@ func TestALimitsNotificationSaysWhereItsSessionsWent(t *testing.T) {
 	}
 }
 
+// An account that has left the standings, its pool unknown, is weighed
+// against every other account's room, so it's never said to leave none for
+// want of knowing its pool.
+func TestAnAccountGoneIsWeighedAgainstEveryOthersRoom(t *testing.T) {
+	ss := standings{{ID: "1", in: "q7mt", known: true}, {ID: "3", in: "b2n8", quota: true, known: true}}
+	if ss.fullBut("2") {
+		t.Error("fullBut() of an account gone, with 3 in Default having room, = true, want false")
+	}
+	if !ss[:1].fullBut("2") {
+		t.Error("fullBut() of an account gone, with none having room, = false, want true")
+	}
+}
+
 // A limit's notification weighs whether another account has room within
 // the limited account's pool alone: in Acme, with Acme's other account out,
 // Default's room, which Acme's sessions can't use, leaves no other account
@@ -624,13 +637,16 @@ func TestTheRoutersNotificationsNameThePoolOnceThereIsASecond(t *testing.T) {
 		name     string
 		accounts []config.Account
 		pools    config.Pools
-		lead     string
+		// lead leads the notices of Acme's accounts, 1 and 2, and
+		// defaultLead those of Default's, 3.
+		lead, defaultLead string
 	}{
 		{
-			name:     "two pools",
-			accounts: []config.Account{{ID: "1", Label: "one", Pool: "q7mt"}, {ID: "2", Label: "two", Pool: "q7mt"}, {ID: "3", Label: "three", Pool: "b2n8"}},
-			pools:    config.Pools{{ID: "b2n8", Label: "Default"}, {ID: "q7mt", Label: "Acme", Dirs: []string{"/work/acme"}}},
-			lead:     "Acme · ",
+			name:        "two pools",
+			accounts:    []config.Account{{ID: "1", Label: "one", Pool: "q7mt"}, {ID: "2", Label: "two", Pool: "q7mt"}, {ID: "3", Label: "three", Pool: "b2n8"}},
+			pools:       config.Pools{{ID: "b2n8", Label: "Default"}, {ID: "q7mt", Label: "Acme", Dirs: []string{"/work/acme"}}},
+			lead:        "Acme · ",
+			defaultLead: "Default · ",
 		},
 		{
 			name:     "one pool",
@@ -645,10 +661,12 @@ func TestTheRoutersNotificationsNameThePoolOnceThereIsASecond(t *testing.T) {
 				h.state.pools.follow(tt.accounts, tt.pools)
 				h.read("1", h.session(0.2, 5*time.Hour), h.week(0.5, 3*day))
 				h.read("2", h.session(0.2, 5*time.Hour), h.week(0.85, 3*day))
+				h.read("3", h.session(0.2, 5*time.Hour), h.week(0.85, 3*day))
 				h.start()
 				h.after(lookEvery)
 
 				h.read("2", h.week(0.91, 3*day))
+				h.read("3", h.week(0.92, 3*day))
 				h.after(lookEvery)
 				h.hear(Moved{Session: "18bb978f", Model: opus, From: "1", To: "2", Reason: "rescored after 1h 2m idle"})
 				h.limit("2", []string{"5h"}, time.Hour)
@@ -656,6 +674,7 @@ func TestTheRoutersNotificationsNameThePoolOnceThereIsASecond(t *testing.T) {
 				h.after(time.Hour + lookEvery)
 				h.expect(
 					tt.lead+"2 · two: Week at 91%",
+					tt.defaultLead+"3 · three: Week at 92%",
 					tt.lead+"session 18bb978f moved from 1 · one to 2 · two (rescored after 1h 2m idle)",
 					tt.lead+"2 · two hit its 5-hour limit, back at Sat 01:00",
 					tt.lead+"2 · two has room again",

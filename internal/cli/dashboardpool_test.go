@@ -5,18 +5,25 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
+	"weak"
 
 	"github.com/leeovery/switchboard/internal/cli"
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard/watch"
+	"github.com/leeovery/switchboard/internal/filestate"
 	"github.com/leeovery/switchboard/internal/identity"
+	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/quota"
+	"github.com/leeovery/switchboard/internal/readings"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
@@ -85,7 +92,7 @@ func TestTheDashboardListsTheAccountsOfThePoolItShowsAlone(t *testing.T) {
 	if got := cfg.Accounts.IDs(); !slices.Equal(got, []string{"work"}) {
 		t.Errorf("in Acme, the dashboard lists the accounts %v, want Acme's alone, work", got)
 	}
-	turned, err := cfg.Turn(t.Context(), "q7mt")
+	turned, err := cfg.Turn(t.Context(), "q7mt", watch.NextPool)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -131,7 +138,7 @@ func TestTheDashboardsSourceReadsThePoolItShows(t *testing.T) {
 	if got := run(t, deps, "dashboard", "--pool", "q7mt"); got != (result{}) {
 		t.Fatalf("switchboard dashboard --pool q7mt = %+v, want exit status 0 and nothing printed", got)
 	}
-	turned, err := cfg.Turn(t.Context(), "q7mt")
+	turned, err := cfg.Turn(t.Context(), "q7mt", watch.NextPool)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -237,7 +244,7 @@ func TestTheDashboardsTurnReadsThePoolsAfresh(t *testing.T) {
 	}
 	turned := func(from string) watch.Pooled {
 		t.Helper()
-		pooled, err := cfg.Turn(t.Context(), from)
+		pooled, err := cfg.Turn(t.Context(), from, watch.NextPool)
 		if err != nil {
 			t.Fatalf("Turn(%q) failed: %v", from, err)
 		}
@@ -271,7 +278,7 @@ func TestTheDashboardsTurnFailsWhereTheConfigCantBeRead(t *testing.T) {
 		t.Fatalf("switchboard dashboard = %+v, want exit status 0 and nothing printed", got)
 	}
 	writeDepsConfig(t, deps, "[[account]\n")
-	if _, err := cfg.Turn(t.Context(), "b2n8"); err == nil {
+	if _, err := cfg.Turn(t.Context(), "b2n8", watch.NextPool); err == nil {
 		t.Error("Turn() of a config that can't be read turned, want it to fail")
 	}
 }
@@ -293,9 +300,18 @@ func TestADashboardOfAConfigWithoutPoolsPassesOverPool(t *testing.T) {
 
 // Where nothing names the pools once the move to pools is done, a pool
 // named is refused, saying why, as the verbs refuse it; none named, the
-// dashboard opens, reading none of the router's events.
+// dashboard opens on no pool, reading none of the router's events, though
+// their files hold some.
 func TestADashboardWhereNothingNamesThePoolsRefusesAPoolNamed(t *testing.T) {
 	deps := unpooledDeps(t, unpooledConfig, false)
+	cfg := recordWatch(t, &deps)
+	if got := run(t, deps, "dashboard"); got != (result{}) {
+		t.Fatalf("switchboard dashboard = %+v, want exit status 0 and nothing printed", got)
+	}
+	if ids := eventIDs(cfg.Events); cfg.Pool.ID != "" || len(ids) != 0 {
+		t.Errorf("the dashboard shows %+v, reading the events %v; want no pool, and none", cfg.Pool, ids)
+	}
+
 	deps.Watch = func(context.Context, watch.Config, io.Writer, []string) error {
 		t.Error("the dashboard opened, want it refused")
 		return nil
@@ -353,7 +369,7 @@ func TestTheDashboardReadsTheLedgerOfThePoolItShowsAlone(t *testing.T) {
 			}
 			read := cfg.PoolRead
 			if tt.turn != "" {
-				turned, err := cfg.Turn(t.Context(), tt.turn)
+				turned, err := cfg.Turn(t.Context(), tt.turn, watch.NextPool)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -369,7 +385,9 @@ func TestTheDashboardReadsTheLedgerOfThePoolItShowsAlone(t *testing.T) {
 // A dashboard opened on one pool reads its pool's work of the request
 // ledger by its id, so a pool added to the config while it's open, an
 // account moved into it, and that pool's lines filed since, never show in
-// the pool it shows.
+// the pool it shows: neither through the read it opened with, nor through
+// the one it reads the pool shown again with as the config changes, placing
+// the accounts otherwise, so the view starts afresh on it.
 func TestADashboardOpenedOnOnePoolNeverReadsAPoolAddedSince(t *testing.T) {
 	deps := pooledDeps(t, false)
 	onePoolLeft(t, deps)
@@ -380,12 +398,8 @@ func TestADashboardOpenedOnOnePoolNeverReadsAPoolAddedSince(t *testing.T) {
 		t.Fatalf("switchboard dashboard = %+v, want exit status 0 and nothing printed", got)
 	}
 
-	path, err := config.Path(deps.Getenv, deps.HomeDir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	writeStateFile(t, filepath.Dir(path), filepath.Base(path), []byte(pooledConfig(false)))
-	err = identity.NewFile(state).Update(func(r *identity.Record) error {
+	writeDepsConfig(t, deps, pooledConfig(false))
+	err := identity.NewFile(state).Update(func(r *identity.Record) error {
 		r.Pools = append(r.Pools, identity.PoolEntry{ID: "q7mt", Added: testNow, Here: true})
 		return nil
 	})
@@ -395,5 +409,217 @@ func TestADashboardOpenedOnOnePoolNeverReadsAPoolAddedSince(t *testing.T) {
 	fileDay(t, state, pooledLines...)
 	if got, want := requestsRead(cfg, cfg.PoolRead), []string{"p1", "p3"}; !slices.Equal(got, want) {
 		t.Errorf("the dashboard reads the requests %q of the ledger, Acme added since, want %q, Default's alone", got, want)
+	}
+	again, err := cfg.Turn(t.Context(), "b2n8", watch.SamePool)
+	if err != nil {
+		t.Fatalf("Turn() of the same pool failed: %v", err)
+	}
+	if got, want := requestsRead(cfg, again.Read), []string{"p1", "p3"}; again.Placed.Same(cfg.Placed) || !slices.Equal(got, want) {
+		t.Errorf("read again once Acme is added, placed alike %v, the dashboard reads the requests %q of the ledger; want placed otherwise, %q, Default's alone",
+			again.Placed.Same(cfg.Placed), got, want)
+	}
+}
+
+// The dashboard reads the pool it shows again as the config changes: that
+// pool, as the config now has it, its label and pools counted, and every
+// account's placing in the pools, which a change to any of them changes;
+// where it's gone, the first, as P would turn to; and of none shown, as
+// where every pool is fenced, none again. Each is stamped as the config file
+// stood, which a change to it changes.
+func TestTheDashboardReadsThePoolItShowsAgainAsTheConfigChanges(t *testing.T) {
+	deps := pooledDeps(t, false)
+	cfg := recordWatch(t, &deps)
+	if got := run(t, deps, "dashboard", "--pool", "q7mt"); got != (result{}) {
+		t.Fatalf("switchboard dashboard --pool q7mt = %+v, want exit status 0 and nothing printed", got)
+	}
+	if cfg.ConfigStamp == nil || !cfg.Stamp.There() || !cfg.ConfigStamp().Same(cfg.Stamp) {
+		t.Fatal("the dashboard is stamped otherwise than the config stands, or not at all; want them the same, as nothing changed")
+	}
+	again := func(from string) watch.Pooled {
+		t.Helper()
+		pooled, err := cfg.Turn(t.Context(), from, watch.SamePool)
+		if err != nil {
+			t.Fatalf("Turn(%q) of the same pool failed: %v", from, err)
+		}
+		return pooled
+	}
+	if got := again("q7mt"); !got.Placed.Same(cfg.Placed) {
+		t.Error("read again with nothing changed, the accounts are placed otherwise; want them placed alike")
+	}
+
+	writeDepsConfig(t, deps, strings.Replace(pooledConfig(false), `label = "Acme"`, `label = "Acme Corp"`, 1))
+	modified(t, configAt(t, deps), time.Date(2026, 10, 7, 9, 0, 0, 0, time.UTC))
+	got := again("q7mt")
+	if got.Pool.ID != "q7mt" || got.Pool.Label != "Acme Corp" || got.Placed.Same(cfg.Placed) {
+		t.Errorf("read again once Acme is relabelled, the dashboard shows %+v, placed alike %v; want Acme Corp, placed otherwise", got.Pool, got.Placed.Same(cfg.Placed))
+	}
+	if !got.Stamp.Same(cfg.ConfigStamp()) || got.Stamp.Same(cfg.Stamp) {
+		t.Error("read again once Acme is relabelled, the dashboard is stamped as before, or otherwise than the config stands; want it stamped afresh")
+	}
+	if got := again("x9z9"); got.Pool.ID != "b2n8" {
+		t.Errorf("read again once the pool shown is gone, the dashboard shows %q, want Default, the first", got.Pool.ID)
+	}
+
+	fenced := pooledDeps(t, true)
+	none := recordWatch(t, &fenced)
+	if got := run(t, fenced, "dashboard"); got != (result{}) {
+		t.Fatalf("switchboard dashboard = %+v, want exit status 0 and nothing printed", got)
+	}
+	if got, err := none.Turn(t.Context(), "", watch.SamePool); err != nil || got.Pool.ID != "" || got.Pool.Pools != 2 {
+		t.Errorf("with every pool fenced, none read again shows %+v, %v; want none again, of two", got.Pool, err)
+	}
+}
+
+// What the dashboard works out of the config follows it at a turn: the
+// accounts removed, so one taken out while it's open is named by the label
+// the accounts record keeps.
+func TestATurnWorksOutTheAccountsRemovedOfTheConfigRead(t *testing.T) {
+	deps := pooledDeps(t, false)
+	err := identity.NewFile(stateDir(t, deps)).Update(func(r *identity.Record) error {
+		r.Accounts = []identity.Entry{{ID: "work", Label: "Work", Added: testNow, Pool: "q7mt"}, {ID: "side", Label: "Side", Added: testNow, Pool: "b2n8"}}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := recordWatch(t, &deps)
+	if got := run(t, deps, "dashboard", "--pool", "q7mt"); got != (result{}) {
+		t.Fatalf("switchboard dashboard --pool q7mt = %+v, want exit status 0 and nothing printed", got)
+	}
+	if len(cfg.Removed) != 0 {
+		t.Fatalf("the dashboard opened with the accounts removed %+v, want none", cfg.Removed)
+	}
+
+	writeDepsConfig(t, deps, strings.Replace(pooledConfig(false), "[[account]]\nid    = \"side\"\nlabel = \"Side\"\npool  = \"b2n8\"\n", "", 1))
+	turned, err := cfg.Turn(t.Context(), "q7mt", watch.SamePool)
+	if err != nil {
+		t.Fatalf("Turn() of the same pool failed: %v", err)
+	}
+	if len(turned.Removed) != 1 || turned.Removed[0].ID != "side" || turned.Removed[0].Label != "Side" {
+		t.Errorf("side taken out of the config, the turn has the accounts removed %+v, want side, labelled Side", turned.Removed)
+	}
+}
+
+// sideAtItsCap are today's readings of side's 5-hour window at 95%, from
+// 10:00 to the clock's 13:12: 192 minutes at a cap of 90%.
+var sideAtItsCap = []readings.Reading{
+	{At: october(7, 10, 0, 0), Account: "side", Key: "5h", Utilization: 0.95, ResetsAt: october(7, 15, 0, 0), Status: quota.StatusAllowed},
+}
+
+// sideMinutesAtCap are the minutes side spent at its cap today, as ledger
+// summarises today.
+func sideMinutesAtCap(t *testing.T, ledger views.Ledger) int {
+	t.Helper()
+	days := ledger.Days(october(7, 0, 0, 0))
+	for _, a := range days[len(days)-1].Accounts {
+		if a.Account == "side" && a.MinutesAtCap != nil {
+			return *a.MinutesAtCap
+		}
+	}
+	t.Fatalf("today's summary has no minutes at its cap of side's: %+v", days[len(days)-1].Accounts)
+	return 0
+}
+
+// A turn's ledger is made on the grounds of the config read: on the same
+// caps and first pool as the one in use, as at P with nothing of them
+// changed, the turn's grounds are the same, for the watch to keep the one in
+// use; a reserve changed, the ledger it makes summarises today with the new
+// cap.
+func TestATurnsLedgerIsMadeOnTheCapsOfTheConfigRead(t *testing.T) {
+	deps := pooledDeps(t, false)
+	writeReadings(t, readings.Dir(stateDir(t, deps)), sideAtItsCap...)
+	cfg := recordWatch(t, &deps)
+	if got := run(t, deps, "dashboard", "--pool", "b2n8"); got != (result{}) {
+		t.Fatalf("switchboard dashboard --pool b2n8 = %+v, want exit status 0 and nothing printed", got)
+	}
+	if got := sideMinutesAtCap(t, cfg.Ledger); got != 0 {
+		t.Errorf("with no reserve, side spent %d minutes at its cap today, want none: it has no cap", got)
+	}
+	turned, err := cfg.Turn(t.Context(), "b2n8", watch.NextPool)
+	if err != nil {
+		t.Fatalf("Turn() failed: %v", err)
+	}
+	if !turned.Grounds.Same(cfg.LedgerGrounds) {
+		t.Errorf("P with no cap changed has the ledger's grounds %+v, want those the dashboard opened with, %+v", turned.Grounds, cfg.LedgerGrounds)
+	}
+
+	writeDepsConfig(t, deps, strings.Replace(pooledConfig(false), "label = \"Side\"\n", "label = \"Side\"\nreserve = 0.1\n", 1))
+	turned, err = cfg.Turn(t.Context(), "b2n8", watch.SamePool)
+	if err != nil {
+		t.Fatalf("Turn() of the same pool failed: %v", err)
+	}
+	if turned.Grounds.Same(cfg.LedgerGrounds) {
+		t.Fatal("side given a reserve, the ledger's grounds are those the dashboard opened with, want others")
+	}
+	if got := sideMinutesAtCap(t, turned.NewLedger()); got != 192 {
+		t.Errorf("side given a reserve of 10%%, the turn's ledger has it %d minutes at its cap today, want 192", got)
+	}
+}
+
+// The dashboard holds no ledger beside the one its model reads: once the
+// model lets go of the one it opened with, as a turn on other grounds has it
+// do, nothing the dashboard was given, its Turn among them, still holds it.
+func TestTheDashboardHoldsNoLedgerBesideTheModels(t *testing.T) {
+	deps := pooledDeps(t, false)
+	cfg := recordWatch(t, &deps)
+	if got := run(t, deps, "dashboard", "--pool", "b2n8"); got != (result{}) {
+		t.Fatalf("switchboard dashboard --pool b2n8 = %+v, want exit status 0 and nothing printed", got)
+	}
+	follower, ok := cfg.Ledger.(*ledger.Follower)
+	if !ok {
+		t.Fatalf("the dashboard's ledger is %T, want a follower of the state directory's", cfg.Ledger)
+	}
+	opened := weak.Make(follower)
+	cfg.Ledger = nil
+	runtime.KeepAlive(follower)
+	runtime.GC()
+	if opened.Value() != nil {
+		t.Error("the ledger the dashboard opened with is still held once the model lets it go, want it let go")
+	}
+	if _, err := cfg.Turn(t.Context(), "b2n8", watch.SamePool); err != nil {
+		t.Errorf("Turn() failed once the ledger was let go: %v", err)
+	}
+}
+
+// The dashboard stamps the config file it reads: the one --config names,
+// whose change it follows, and not the one config.Path finds.
+func TestTheDashboardStampsTheConfigFileItReads(t *testing.T) {
+	deps := pooledDeps(t, false)
+	cfg := recordWatch(t, &deps)
+	named := filepath.Join(t.TempDir(), "named.toml")
+	writeStateFile(t, filepath.Dir(named), filepath.Base(named), []byte(pooledConfig(false)))
+	if got := run(t, deps, "dashboard", "--config", named); got != (result{}) {
+		t.Fatalf("switchboard dashboard --config = %+v, want exit status 0 and nothing printed", got)
+	}
+	if !cfg.Stamp.Same(filestate.Of(named)) {
+		t.Fatal("the dashboard is stamped otherwise than the config --config names stands, want it stamped as that")
+	}
+
+	modified(t, configAt(t, deps), time.Date(2026, 10, 7, 9, 0, 0, 0, time.UTC))
+	if !cfg.ConfigStamp().Same(cfg.Stamp) {
+		t.Error("the config file config.Path finds changed, and the dashboard's stamp with it; want it unchanged, as it isn't the one read")
+	}
+	modified(t, named, time.Date(2026, 10, 7, 9, 0, 0, 0, time.UTC))
+	if cfg.ConfigStamp().Same(cfg.Stamp) {
+		t.Error("the config file --config names changed, and the dashboard's stamp didn't; want it to follow")
+	}
+}
+
+// configAt is the path of deps' config file, as config.Path finds it.
+func configAt(t *testing.T, deps cli.Deps) string {
+	t.Helper()
+	path, err := config.Path(deps.Getenv, deps.HomeDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+// modified sets the file at path as last modified at, as a change to it
+// made then.
+func modified(t *testing.T, path string, at time.Time) {
+	t.Helper()
+	if err := os.Chtimes(path, at, at); err != nil {
+		t.Fatal(err)
 	}
 }

@@ -22,6 +22,21 @@ func FirstPool(first func() string) Option {
 	return func(o *options) { o.firstPool = first }
 }
 
+// Grounds are what a reader of the ledger summarises its days by, as the
+// config gives them: the caps, and the id of the first pool, as FirstPool
+// has it. A reader made on the same grounds summarises alike, so one in use
+// serves where they're unchanged.
+type Grounds struct {
+	Caps  Caps
+	First string
+}
+
+// Same reports whether g and h are the same grounds: the caps the same, as
+// Caps' Same has it, and the first pool.
+func (g Grounds) Same(h Grounds) bool {
+	return g.Caps.Same(h.Caps) && g.First == h.First
+}
+
 // fitted returns made, a day summarised afresh, and held, its summary
 // before, where there's one, as made is to know held: each account's day
 // fitted as fittedAccount fits it, so its pools add up to its whole once

@@ -14,7 +14,7 @@ request ledger aren't filtered, as what they read is built ahead of time with no
 
 So in a config with two pools, the Sessions tab, a session's page, History, Graphs and the worth
 and tokens on Accounts tell of every pool's work together, labelled by account, whichever pool the
-title row names.
+title row names; History's Year sets every pool's worth beside the plans of the pool shown.
 
 ## What it could do
 
