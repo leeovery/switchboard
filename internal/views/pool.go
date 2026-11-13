@@ -145,6 +145,16 @@ func keptPast[L any](p PoolRead, lines []L, dropped int, pool func(*L) string) [
 	return held
 }
 
+// keepsAny reports whether the read keeps any of lines, as keeps has it.
+func (p PoolRead) keepsAny(lines []ledger.Line) bool {
+	for i := range lines {
+		if p.keeps(lines[i].Pool) {
+			return true
+		}
+	}
+	return false
+}
+
 // Took decodes a read of the ledger's tail for the store, as the package's
 // Took does, the requests of the pool read alone taken, as Held has them:
 // every line kept for a page's points all the same, as owned hands each.
@@ -407,12 +417,14 @@ type sessionsReading func(ids []string, rest func(id string) ledger.Rest, take f
 // in the pool alone, as inPool has it: those whose state the pool shares
 // with another read again whole, through the ledger read, take handed then
 // the lines of the days read hadn't handed it, so it's handed each day's
-// once.
+// once. A line filed on a day between the two reads of it is in the
+// second's session alone, take never handed it: a page's points miss it
+// till the next look's read of the ledger's tail hands it.
 func (l poolLedger) inPoolRead(read sessionsReading, ids []string, rest func(id string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
 	take, handed := l.owning(take), make(map[string]bool)
-	in, shared := l.inPool(read(ids, rest, handing(take, handed)))
+	in, shared := l.inPool(ids, read(ids, rest, handing(take, handed)))
 	if len(shared) > 0 {
-		whole, _ := l.inPool(l.Ledger.SessionsOf(shared, eachWhole, unhanded(take, handed)))
+		whole, _ := l.inPool(shared, l.Ledger.SessionsOf(shared, eachWhole, unhanded(take, handed)))
 		maps.Copy(in, whole)
 	}
 	return in
@@ -464,8 +476,13 @@ func unhanded(take func(string, ledger.Line), handed map[string]bool) func(strin
 // the ids of those whose state the pool shares with another, in order,
 // none of them held: what's folded in a state, its story and its page, is
 // one fold of every line it rests on, which can't be told apart by pool,
-// so their lines are read instead.
-func (l poolLedger) inPool(sessions map[string]ledger.SessionFrom) (map[string]ledger.SessionFrom, []string) {
+// so their lines are read instead. Of those, one not among the ids asked
+// for, as a read finds today's sessions, with none of the pool's lines
+// after its state is passed over, unread: with no request in the pool
+// today, and not asked for, the List never lists it, so a session resumed
+// in another pool isn't read whole for the pool it left at every read for
+// as long as it runs. One asked for later is read then.
+func (l poolLedger) inPool(asked []string, sessions map[string]ledger.SessionFrom) (map[string]ledger.SessionFrom, []string) {
 	in := make(map[string]ledger.SessionFrom, len(sessions))
 	var shared []string
 	for id, s := range sessions {
@@ -474,7 +491,9 @@ func (l poolLedger) inPool(sessions map[string]ledger.SessionFrom) (map[string]l
 			case !some:
 				s.Base, s.Parts = nil, nil
 			case !all:
-				shared = append(shared, id)
+				if slices.Contains(asked, id) || l.read.keepsAny(s.Lines) {
+					shared = append(shared, id)
+				}
 				continue
 			}
 		}

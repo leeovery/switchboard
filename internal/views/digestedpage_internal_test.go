@@ -314,11 +314,13 @@ func (h *heldOver) fed(t Taken, now time.Time) shown {
 // ledgerTail is a read of the ledger's tail as the dashboard reads it,
 // through l: today's lines since mark, as Today gives them; and the lines of
 // each day from day, the one it last read, until today's, read again whole,
-// as the tail missed the end of each.
+// as the tail missed the end of each; taken as the pool read's Took takes
+// them, every pool's of the zero PoolRead.
 type ledgerTail struct {
 	l    Ledger
 	mark ledger.Mark
 	day  string
+	read PoolRead
 }
 
 // at is the tail read at now.
@@ -330,7 +332,7 @@ func (t *ledgerTail) at(now time.Time) Taken {
 		days[date] = t.l.Day(date)
 	}
 	t.mark, t.day = mark, today
-	return Took(gained, days)
+	return t.read.Took(gained, days)
 }
 
 // A page opened over digests at half past one and held across the day's
