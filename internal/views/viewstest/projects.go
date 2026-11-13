@@ -220,7 +220,7 @@ func (s plannedSession) lines(prices ledger.Table) []ledger.Line {
 // account, of its main model, doing what it's doing, and its requests today.
 func (s plannedSession) listed() views.ListedSession {
 	listed := views.ListedSession{
-		Session: s.id, Dir: s.dir, Project: s.project, Account: s.account, AccountName: status.AccountName{Label: s.account},
+		Session: s.id, Dir: s.dir, Project: s.project, Account: s.account, Label: s.account,
 		Model: s.uses[0].model, Running: true, LastSeen: s.running.LastSeen.UTC(), Activity: *s.running,
 		Started: time.Date(2026, time.October, 1, s.from[0], s.from[1], 0, 0, time.Local).UTC(),
 		Models:  []views.SessionModel{{Model: s.uses[0].model, Account: s.account, Reason: "sticky"}},

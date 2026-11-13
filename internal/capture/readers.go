@@ -8,6 +8,7 @@ import (
 	"iter"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/claude"
@@ -23,13 +24,19 @@ import (
 // every line the ledger keeps, of whatever day, in the order the router wrote
 // them, each as it's filed; the readings history, in the order its readings
 // were read; and the router's events, every version of each in the order it
-// was filed. caps are the accounts' caps today is summarised with.
+// was filed. caps are the accounts' caps today is summarised with. runs are
+// the runs of the sessions no lines tell of, by the date of their day, and
+// sides the sides of those days, as side builds them, each once it's asked
+// for.
 type records struct {
 	days     []ledger.Summary
 	lines    []filed
 	readings history
 	events   []events.Line
 	caps     ledger.Caps
+	runs     map[string][]projectRun
+	sidesMu  sync.Mutex
+	sides    map[string]json.RawMessage
 }
 
 // recordsOf are the world's records: the year's days of its accounts,
@@ -37,7 +44,9 @@ type records struct {
 // that history, and its accounts' caps; and, where today's traffic of the
 // three is the world's, every line the sessions' world holds, or the world's
 // own lines in their place, and the router's events, or, where its records
-// hold its own, those.
+// hold its own, those; and, where the lines are the sessions' world's, the
+// runs of its accounts' sessions that no lines tell of, as projectRuns has
+// them.
 func (a accountWorlds) recordsOf(w accountWorld) *records {
 	days := withGone(a.year.summaries(w.history, w.accounts), w.gone)
 	r := &records{days: days, readings: w.history, caps: ledger.CapsOf(w.accounts, claude.SharedWindows())}
@@ -49,6 +58,9 @@ func (a accountWorlds) recordsOf(w accountWorld) *records {
 	}
 	if w.ownEvents {
 		r.events = logged(w.events, a.now)
+	}
+	if w.traffic && w.lines == nil {
+		r.runs = a.year.projectRuns(w.accounts, r.lines)
 	}
 	return r
 }
@@ -213,11 +225,16 @@ func (l heldLedger) Day(date string) []ledger.Held {
 	return lines
 }
 
-// DaySide gives no side, whatever the day, as a Follower of a ledger that
-// holds no day's head gives it: the find reads each day's lines, as Day
-// gives them.
-func (heldLedger) DaySide(string, int) (json.RawMessage, bool) {
-	return nil, false
+// DaySide gives the side of a day before now's that the records' runs ran
+// on, as side builds it of the lines Day gives of it and the runs', as a
+// Follower gives a finished day's side; else none, as a Follower of a
+// ledger that holds no day's head gives it: the find reads the day's lines,
+// as Day gives them.
+func (l heldLedger) DaySide(date string, _ int) (json.RawMessage, bool) {
+	if date >= dayfile.DateOf(l.now()) {
+		return nil, false
+	}
+	return l.records.side(date, func() []ledger.Held { return l.Day(date) })
 }
 
 // DayRows gives no rows, whatever the day, as a Follower of a ledger that

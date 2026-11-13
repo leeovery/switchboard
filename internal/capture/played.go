@@ -225,10 +225,10 @@ func (w world) movedOff(id string, at time.Time) string {
 	return status.ReasonMovedOff + id + " " + why
 }
 
-// dirOf is the directory the session with the given id runs in, as the world
-// lists it, as the router has it: that of its model seen last to name one;
-// "" where none does.
-func (w world) dirOf(session string) string {
+// placeOf is the directory and project the session with the given id runs
+// in, as the world lists it, as the router has them: those of its model seen
+// last to name a directory; "" where none does.
+func (w world) placeOf(session string) (string, string) {
 	var last status.Assignment
 	for _, s := range w.sessions {
 		if s.ID != session {
@@ -240,16 +240,17 @@ func (w world) dirOf(session string) string {
 			}
 		}
 	}
-	return last.Dir
+	return last.Dir, last.Project
 }
 
 // tell has the router tell of e, as the newest of its events, numbered on
-// from its base's, recording the directory of the session it names, as
-// dirOf has it, as the router does.
+// from its base's, recording the directory and project of the session it
+// names, as placeOf has them, as the router does.
 func (w *world) tell(e status.Event) {
 	e.ID = w.base.events + len(w.events) + 1
 	if e.Session != "" {
-		e.Dir = cmp.Or(e.Dir, w.dirOf(e.Session))
+		dir, project := w.placeOf(e.Session)
+		e.Dir, e.Project = cmp.Or(e.Dir, dir), cmp.Or(e.Project, project)
 	}
 	w.events = append(w.events, e)
 }

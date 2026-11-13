@@ -3927,6 +3927,32 @@ of its own figures: requests, sessions, moves, limits, time at cap or limit, wor
 `left at its last reset`, of the six weeks, `plan`, from the config, and `extra usage`, live, are
 no figures of the period, and show as they are (the owner's decision, 14 Oct 2026).
 
+### Projects
+
+Where the use went: each project the period's sessions ran in, and the one chosen in full. Its data
+is built (`views.ProjectsPage`); its drawing is to come.
+
+- **A session's project** is `status.ProjectOf`'s, the project its lines name, else, of a line from
+  before they named one, its directory's, a Claude Code worktree counting as its repository. Inside
+  a project a session keeps its own directory's name, so a worktree's session reads `fix-login`.
+  Sessions of no directory make one `no directory` row. Projects are named as `status.ProjectNames`
+  names them, by their folders, their parents too where two share one.
+- **What it reads:** each closed day's sessions as the day's side holds them (see The request
+  ledger), read once for the period's days and kept, and today's, of the held sessions and today's
+  lines, folded by the hour; a day that turns keeps what today held as that day's, so no line is
+  lost or counted twice. The List says which are running. Worth is priced as it's read, at the
+  prices Past and the List price at.
+- **The list:** a row a project with a session in the period, by worth, greatest first, then by
+  name: its name and path; its sessions running now; its sessions, requests and worth, and worth by
+  family; and when its last request arrived. Then `all projects`, every project's totals.
+- **The chosen project:** its row; its share of every project's worth; its tokens; WORTH BY, by
+  the hour today, the hours to come counted, by the day this week and over 30 days, by the day and
+  by the week over 12 weeks, and by the week over 12 months, each bucket labelled and the peak, the
+  first greatest, named; BY MODEL, Accounts' reckoning by version, greatest first, under 1% left
+  out; ON ACCOUNTS, each account's share by its label; and SESSIONS, in the List's row form and
+  order, running first, each ended one with the day it ended, its model, account and the move that
+  brought it there as the List words an ended session's.
+
 ### History
 
 When: how use has gone over time, by day across a year, week by week against the accounts' limits,
@@ -8103,8 +8129,15 @@ from the first day a router that has it runs, so nothing before then is in it.
   the router writes the day's head beside its digest, `logday-<local date>.json.gz`, holding the
   day's side: each session the day's lines count toward, but Claude Code's quota checks, with its
   whole id, the directory its lines last named, the project the last to name either named, how
-  many they are and when the last arrived, as the find holds it; and where the day's rows lie in
-  its rows file (below). It's built of exactly
+  many they are and when the last arrived, as the find holds it; and, for Projects and the List,
+  when its first and last request that day arrived, its requests and what they spent by account
+  and model, as usage, never dollars, so a day is priced as it's read, at the prices Past and the
+  List price at, what names its model and account as the List names an ended session's, and each
+  model's latest move that day, from where, to where, why and what the move wrote again, as the
+  List words it; no hours, today's being the only day drawn by the hour, of the held sessions and
+  today's lines (settled in the plan, 13 November 2026). A session running over midnight has
+  one a day, started its first request on its first day and ended its last on its last. And where
+  the day's rows lie in its rows file (below). It's built of exactly
   the lines the Log reads of the day, in their order, by the one read of a day's lines both share,
   the day's own files and those either side of it, as a change of time zone files a line under a
   date beside its own, every line handed to the views' builder through the same `ledger.Digester`
@@ -9168,7 +9201,7 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
 | `internal/forecast` | The weeks' forecast (see Forecasting run-outs): the fast and day's rates and the hold curve, each kept as readings and answers arrive, and the pool's use played forward through `internal/score`'s choice of account, to where each week runs out. Pure functions and values handed the clock, as `internal/score`'s are; the router keeps the rates and the curve, `cmd/forecasttool` replays them, and `internal/status` forecasts with them |
 | `internal/prime` | The priming schedule: each account's slot from the day and the accounts, and when a prime is due. Pure functions of the day, the accounts, the window a request starts, which the `score.Policy` names, the readings and a clock |
 | `internal/status` | The status document, each window's allowance and even pace, the pool's room and COMING UP among what it holds, and building it by probing every account; what the router says of a session; and their words: `status`'s text, the countdowns, clocks, titles and state words the dashboard shares, and one map from the router's reasons to the dashboard's words; and a token's year, its one owner: when it was taken and is up, whether it's up within a span, its days left and the share of it gone, which setup, the Accounts tab, `usage` and the router's notifications read |
-| `internal/views` | Each view's data, built by one function from what's read, the status document, the router's sessions and what its request stream tells, the ledger's, the readings history's and the events' readers, the price table and a clock: what a page of the dashboard draws, and its data verb prints, so the two never disagree (see The data verbs); and the one store of sessions the dashboard's readers of the ledger share, fed once a read of its tail, each session's story told on as its lines come, from a digest's state or whole (see Live updates); and a session's state as a day's digest stores it, its page's carried state, its points and its part of each day among it, restored by the store's own steps, and `Digests`, the builder the ledger digests its days with, each day's answers taken once, small, as the ledger's read hands their lines, as a page's read takes them too, each session's page given those of the days after its base, and each day's side, the sessions the Log's find reads of it (see The request ledger). It opens nothing itself; it reads through the readers it's given |
+| `internal/views` | Each view's data, built by one function from what's read, the status document, the router's sessions and what its request stream tells, the ledger's, the readings history's and the events' readers, the price table and a clock: what a page of the dashboard draws, and its data verb prints, so the two never disagree (see The data verbs); and the one store of sessions the dashboard's readers of the ledger share, fed once a read of its tail, each session's story told on as its lines come, from a digest's state or whole (see Live updates); and a session's state as a day's digest stores it, its page's carried state, its points and its part of each day among it, restored by the store's own steps, and `Digests`, the builder the ledger digests its days with, each day's answers taken once, small, as the ledger's read hands their lines, as a page's read takes them too, each session's page given those of the days after its base, and each day's side, the sessions the Log's find and Projects read of it (see The request ledger), which `SessionDays` reads once for a period and carries across midnight. It opens nothing itself; it reads through the readers it's given |
 | `internal/dashboard` | Rendering the dashboard as frames (Lip Gloss): the page's chrome, its title row, status line, heading row and key line; the Overview, Accounts, History, Sessions, Runway, Graphs, the Log and a session's page, each drawn from what `internal/views` builds; the usage block, which `usage` prints and the Overview's USAGE draws; the card a routing picker or a line's details is drawn in, over the page faded; the theme picker; `?`'s help for each page; and setup's full screen, `dashboard.Setup`, a page in the dashboard's chrome drawn from setup's outcomes, its cards placed by the card's rule over the page unfaded |
 | `internal/dashboard/watch` | The live dashboard (Bubble Tea): when to read the router or probe; the ledger's, the readings history's and the events' files, read as they grow through small interfaces it's given, which its tests and the capture harness fake; the history and the request stream; the pages and the stack `esc` goes back through, their keys and clicks, the routing pickers' orders, scrolling, easing and what moves; the theme picker; the preferences; and its desktop notifications while it probes without the router |
 | `internal/theme` | Themes: the tokens, the built-ins, loading `.theme` files, working out `viz.*`, the families', versions' and days' shades among them, picking the light or dark half by the terminal's background, and the preferences file |
