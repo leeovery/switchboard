@@ -16,7 +16,7 @@ ACCOUNTS  ───────────────────────�
                                         │                                                                              │
                                         │  Label     Work                      what every screen calls it              │
                                         │                                                                              │
-                                        │  Plan      □ Pro    □ Max    ■ Ultra    □ not set                            │
+                                        │  Plan      □ Pro    □ Max    ■ Ultra                                         │
                                         │                                                                              │
                                         │  Setup then creates a token with claude setup-token. You approve it in       │
                                         │  the browser while signed in to this subscription. Tokens last a year.       │

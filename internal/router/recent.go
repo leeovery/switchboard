@@ -222,6 +222,21 @@ func (r *recent) change(do func()) {
 	r.fileMarked()
 }
 
+// pooled gives each event kept of a kind that names its pool, as status has
+// it, that names none the pool with the given id, the first, as the move to
+// pools gives those filed: so one filed again as it changes, as a move
+// waiting for what forced it is, names it too. It marks none to be filed, as
+// the files are the move's to rewrite.
+func (r *recent) pooled(first string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for i := range r.kept {
+		if h := &r.kept[i]; h.Pool == "" && status.KindNamesItsPool(h.Kind) {
+			h.Pool = first
+		}
+	}
+}
+
 // fileTo has the events filed to files from now on, as told by the router
 // that started at started, filing at once those kept before, as they stand.
 func (r *recent) fileTo(files *events.Writer, started time.Time) {

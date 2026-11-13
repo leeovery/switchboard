@@ -460,7 +460,7 @@ func moveAccount(draft *config.Draft, a config.Account, id string) error {
 func dropAccount(draft *config.Draft, a config.Account, id string) error {
 	accounts := draft.Config().Accounts
 	kept := accounts[slices.IndexFunc(accounts, func(c config.Account) bool { return c.ID == id })]
-	labelled := draft.Labelled(id)
+	labelled, was := draft.Labelled(id), primacyOf(draft, a.ID, a.Pool)
 	if err := draft.RemoveAccount(a.ID); err != nil {
 		return err
 	}
@@ -470,15 +470,34 @@ func dropAccount(draft *config.Draft, a config.Account, id string) error {
 			return err
 		}
 	}
-	return carry(draft, a, kept)
+	return carry(draft, a, kept, was)
+}
+
+// primacy is whether an account is its pool's primary, marked or as its
+// first with none marked, and whether the config marks it so.
+type primacy struct {
+	primary, marked bool
+}
+
+// primacyOf is the primacy of the account with the given id, in the pool
+// with the given id, as draft configures it now.
+func primacyOf(draft *config.Draft, id, pool string) primacy {
+	primary, _ := draft.Config().Accounts.PrimaryOf(pool)
+	return primacy{primary: primary.ID == id, marked: draft.MarksPrimaryOf(id)}
 }
 
 // carry gives the configured account kept the primary, plan and reserve of
-// the account a, dropped for it, each where it has none of its own.
-func carry(draft *config.Draft, a, kept config.Account) error {
-	if a.Primary && draft.Config().Accounts.Primary().ID != kept.ID {
-		if err := draft.SetPrimary(kept.ID); err != nil {
-			return err
+// the account a, dropped for it, each where it has none of its own. Kept is
+// its pool's primary exactly where a was, as was says, and the two are in
+// one pool, as a's primacy was its own pool's, never another account's in
+// kept's: marked where a was marked, so the mark written holds, or where
+// coming first in it no longer makes kept its primary.
+func carry(draft *config.Draft, a, kept config.Account, was primacy) error {
+	if was.primary && strings.EqualFold(a.Pool, kept.Pool) {
+		if now, _ := draft.Config().Accounts.PrimaryOf(kept.Pool); was.marked || now.ID != kept.ID {
+			if err := draft.SetPrimary(kept.ID); err != nil {
+				return err
+			}
 		}
 	}
 	if kept.Plan == "" && a.Plan != "" {

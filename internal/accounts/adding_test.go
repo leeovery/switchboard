@@ -147,7 +147,7 @@ func TestAddCheckedDecidesTheIDByTheOrganization(t *testing.T) {
 				wantRecord[len(wantRecord)-1].ID = want.ID
 			}
 
-			got, err := w.unasked(t, &user{}).AddChecked(t.Context(), config.NewAccount{Label: "Side"}, tokenOf(t, sideToken),
+			got, err := w.unasked(t, &user{}).AddChecked(t.Context(), accounts.Adding{Account: config.NewAccount{Label: "Side"}}, tokenOf(t, sideToken),
 				accounts.Checked{Organization: tt.organization}, tt.known, tt.answer)
 			if got != want || !sameError(err, tt.wantErr) {
 				t.Fatalf("AddChecked() = %+v, %#v; want %+v, %#v", got, err, want, tt.wantErr)

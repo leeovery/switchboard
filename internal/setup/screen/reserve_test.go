@@ -363,6 +363,7 @@ func TestAFirstRunsAccountsWaitForPThroughSetup(t *testing.T) {
 			h.pressAndDeliver("enter")
 		}
 		h.typeIn(id)
+		choosingUltra(h)
 		h.pressAndDeliver("enter")
 		h.hearAll(5)
 	}

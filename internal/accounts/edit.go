@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/identity"
 )
 
 // Change is what editing an account changes of it: each field left nil, or
@@ -20,13 +21,17 @@ type Change struct {
 	// for none.
 	Reserve *float64
 	// Pool is the id of the pool it's moved into: moved, it's that pool's
-	// primary only as Primary makes it, as Edited's KeptPrimary says.
+	// primary only as Primary makes it, as Edited's KeptPrimary says, or as
+	// the first in it, which it's marked.
 	Pool *string
+	// NewPool is a pool made for it to move into, in the edit that moves it,
+	// in place of Pool: it's the pool's first account, so its primary.
+	NewPool *NewPool
 }
 
 // Asks reports whether the change asks for anything.
 func (c Change) Asks() bool {
-	return c.Label != nil || c.Plan != nil || c.Primary || c.Reserve != nil || c.Pool != nil
+	return c.Label != nil || c.Plan != nil || c.Primary || c.Reserve != nil || c.Pool != nil || c.NewPool != nil
 }
 
 // Edited is an account as it was and as an edit left it, and the account
@@ -78,12 +83,29 @@ func (r Registry) Configured(id string) error {
 }
 
 // Edit changes the account with the given id as change says, in its
-// [[account]] table in the config file. A change that leaves the account as
-// it was, as the config reads it and marks it, writes nothing. It fails,
-// matching config.ErrNotConfigured, when no account has the id; and with
-// ErrNoLabel or ErrLabelTaken for a label that's none, or another configured
-// account's, as CheckNew has them.
+// [[account]] table in the config file, a new pool it moves into made in the
+// same edit, under an id drawn as AddPool draws one, under the record's
+// lock. A change that leaves the account as it was, as the config reads it
+// and marks it, writes nothing. It fails, matching config.ErrNotConfigured,
+// when no account has the id; with ErrNoLabel or ErrLabelTaken for a label
+// that's none, or another configured account's, as CheckNew has them; and
+// with a NewPoolError where the new pool's refused, as CheckNewPool says.
 func (r Registry) Edit(id string, change Change) (Edited, error) {
+	if change.NewPool == nil {
+		return r.edit(id, change, nil)
+	}
+	var edited Edited
+	err := r.Record.Change(func(record *identity.Record, _ func() error) error {
+		var err error
+		edited, err = r.edit(id, change, r.drawnFrom(*record))
+		return err
+	})
+	return edited, err
+}
+
+// edit is Edit, a new pool the change moves the account into made under the
+// id given.
+func (r Registry) edit(id string, change Change, poolID poolID) (Edited, error) {
 	draft, err := config.Edit(r.ConfigPath, r.HomeDir)
 	if err != nil {
 		return Edited{}, err
@@ -95,6 +117,13 @@ func (r Registry) Edit(id string, change Change) (Edited, error) {
 	}
 	if change.Label != nil && *change.Label == "" {
 		return Edited{}, ErrNoLabel
+	}
+	if change.NewPool != nil {
+		made, err := madeIn(draft, *change.NewPool, poolID)
+		if err != nil {
+			return Edited{}, err
+		}
+		change.Pool = &made
 	}
 	wasLabelled, wasMarked, wasAlias := draft.Labelled(id), draft.MarksPrimaryOf(id), draft.PlanAlias(id)
 	kept, err := change.apply(draft, was)
@@ -129,6 +158,10 @@ func (r Registry) Edit(id string, change Change) (Edited, error) {
 	}
 	if err := draft.Save(); err != nil {
 		return Edited{}, err
+	}
+	if change.NewPool != nil {
+		made, _ := draft.Config().Pools.ByID(now.Pool)
+		poolAdded(made)
 	}
 	logger.Info("edited an account", "account", id, "primary", now.Primary, "plan", now.Plan, "reserve", now.Reserve)
 	return edited, nil
@@ -176,17 +209,22 @@ func (c Change) apply(draft *config.Draft, was config.Account) (kept string, err
 }
 
 // move moves the account with the given id into the pool the change names,
-// in the draft. Where the account would take the place of that pool's
+// in the draft, marking it that pool's primary where it's the first in it,
+// as firstIn has it. Where the account would take the place of that pool's
 // primary, as the first with none marked, and the change doesn't make it the
 // primary, it marks the one that is, so the account is its pool's primary
 // only as Primary makes it; it returns the id of the one it marked, "" for
 // none.
 func (c Change) move(draft *config.Draft, id string) (string, error) {
-	primary, has := draft.Config().Accounts.PrimaryOf(*c.Pool)
+	first := firstIn(draft.Config(), *c.Pool)
+	primary, _ := draft.Config().Accounts.PrimaryOf(*c.Pool)
 	if err := draft.SetPool(id, *c.Pool); err != nil {
 		return "", err
 	}
-	if c.Primary || !has {
+	switch {
+	case first:
+		return "", draft.SetPrimary(id)
+	case c.Primary:
 		return "", nil
 	}
 	if now, _ := draft.Config().Accounts.PrimaryOf(*c.Pool); now.ID == primary.ID {

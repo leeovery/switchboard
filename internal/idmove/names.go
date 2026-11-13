@@ -33,10 +33,11 @@ func (n names) rewrittenBy(rename ledger.Renaming) bool {
 // pooling says where a kind of line gives its pool, for a line that gives
 // none to be given one, as the move to pools gives one: after the last of
 // the fields named after that it has, as a line of its type marshals its
-// pool, else first; and, where kinds is set, to a line whose kind is one of
-// them alone. Its zero value gives none.
+// pool, else first; and, where of is set, to a line whose kind it reports
+// naming its pool alone. Its zero value gives none.
 type pooling struct {
-	after, kinds []string
+	after []string
+	of    func(kind string) bool
 }
 
 // gives reports whether p gives a line a pool at all.
@@ -53,7 +54,7 @@ func (p pooling) pooled(data []byte, pool string) ([]byte, bool) {
 		return data, false
 	}
 	at, fields, kind, ok := p.place(data)
-	if !ok || p.kinds != nil && !slices.Contains(p.kinds, kind) {
+	if !ok || p.of != nil && !p.of(kind) {
 		return data, false
 	}
 	// A string always marshals.
@@ -141,12 +142,12 @@ var (
 		pool:   pooling{after: []string{"at", "request", "kind", "session", "dir", "model"}},
 	}
 	// eventNames are a line of the router's events', none a use, as the
-	// events follow the config. A pin's, or an auto's, gives its pool, after
-	// its accounts, as status.Event marshals it.
+	// events follow the config. One of a kind that names its pool, as status
+	// has it, gives it, after its accounts, as status.Event marshals it.
 	eventNames = names{
 		values: patterns("/account", "/accounts/*", "/from", "/to"),
 		texts:  patterns("/reason"),
-		pool:   pooling{after: []string{"id", "at", "kind", "account", "accounts"}, kinds: []string{status.EventPin, status.EventAuto}},
+		pool:   pooling{after: []string{"id", "at", "kind", "account", "accounts"}, of: status.KindNamesItsPool},
 	}
 	// summaryNames are a summary of a day of the request ledger's, none a use
 	// by where it names it: one it names may be one its sessions moved off

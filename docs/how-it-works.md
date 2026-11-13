@@ -605,8 +605,10 @@ With pools, it's the room of the pool shown, as a pool's room can never serve an
 
 [`switchboard pool add Client ~/Code/client`](commands.md#pool) makes a pool, fenced to the
 directories given, and `pool edit` and `pool remove` change and remove one. `accounts add --pool`
-puts an account in a pool, and `accounts edit --pool` moves one. Each pool's table is in the
-config: see [`[[pool]]` keys](configuration.md#pool-keys).
+puts an account in a pool, and `accounts edit --pool` moves one. [`setup`](commands.md#setup)
+does both: its add card's Pool chooses an account's pool, or makes a new one with it, and its
+edit card's moves one. Each pool's table is in the config: see
+[`[[pool]]` keys](configuration.md#pool-keys).
 
 - **One unfenced pool at most:** it serves every session started outside every fence. Where every
   pool is fenced, a session started outside them all doesn't start.
@@ -691,9 +693,9 @@ it moves your history to pools, once, by itself:
    another Mac sharing it moved first, the first of them is this Mac's first pool, and the config
    isn't written.
 2. It takes the pool up at once, and every request it routes from then names a pool.
-3. It gives every request line, pin event and day's summary from before pools the first pool's id,
-   a day's files at a time, and builds what it builds from them again. `pools.moved` in the state
-   directory marks it done.
+3. It gives every request line, every event that names its pool (`started`, `moved`, `pin`, `auto`)
+   and every day's summary from before pools the first pool's id, a day's files at a time, and
+   builds what it builds from them again. `pools.moved` in the state directory marks it done.
 
 It routes throughout, and a stop part way carries on the next time it starts. Until it's done,
 `requests`, `history`, `sessions`, `events` and `import` refuse, the dashboard says what holds the

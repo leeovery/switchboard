@@ -46,10 +46,10 @@ var (
 // same end the next time; written to a config without pools, every account
 // in it, in one edit; taken up by the router running beside it, as TakeUp
 // has it, else ErrAwaitingPools returned for it to take the pool up; then
-// every request line, every pin event and every day's summary given the
-// first pool where it names none, as rewriteHistory writes them, so a file
-// moved reads the same moved again; and what the router builds of them
-// built again.
+// every request line, every event of a kind that names its pool and every
+// day's summary given the first pool where it names none, as rewriteHistory
+// writes them, so a file moved reads the same moved again; and what the
+// router builds of them built again.
 type PoolMover struct {
 	// ConfigPath is the config file, and StateDir the state directory.
 	ConfigPath string
