@@ -13,9 +13,11 @@ const keysColumns = 78
 // keysSaid says, of each page the dashboard's help names, by its name, what
 // its keys do where their words don't say it.
 var keysSaid = map[string]string{
-	"every page": "t and p work where they apply: t not under NO_COLOR, and p neither with one account, " +
-		"unless a pin set from the command line stands, nor with --probe. p opens the routing card, which picks " +
-		"the accounts new sessions go to and changes nothing until enter. j, k, PgDn, PgUp and the wheel scroll " +
+	"every page": "t, p and P work where they apply: t not under NO_COLOR, p neither with one account, " +
+		"unless a pin set from the command line stands, nor with --probe, nor in a pool with no accounts, and P " +
+		"only where there's more than one pool. p opens the routing card, which picks " +
+		"the accounts new sessions go to and changes nothing until enter. P turns to the next pool, starting " +
+		"the view afresh. j, k, PgDn, PgUp and the wheel scroll " +
 		"a view where it doesn't fit: the Overview's USAGE, Accounts' views, History's Year, Weeks' accounts, " +
 		"Days' BY ACCOUNT and Tokens' periods, Sessions' List and lanes, Runway's lanes, Graphs' page, the Log's " +
 		"table, and a session's turns, or an open turn's requests. w, where it's listed as models, shows and hides " +

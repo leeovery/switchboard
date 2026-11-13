@@ -1,0 +1,196 @@
+package cli_test
+
+import (
+	"context"
+	"io"
+	"path/filepath"
+	"slices"
+	"strings"
+	"testing"
+
+	"github.com/leeovery/switchboard/internal/cli"
+	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/dashboard/watch"
+	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/views"
+)
+
+// eventIDs are the ids of the router's events the dashboard reads through
+// events, in their order.
+func eventIDs(events views.Events) []int {
+	var ids []int
+	for _, e := range views.ReadEventsFrom(events, views.RunwayLatelyFrom(ledgerNow), ledgerNow).Events() {
+		ids = append(ids, e.Event.ID)
+	}
+	return ids
+}
+
+// writeDepsConfig writes text as deps' config file.
+func writeDepsConfig(t *testing.T, deps cli.Deps, text string) {
+	t.Helper()
+	path, err := config.Path(deps.Getenv, deps.HomeDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeStateFile(t, filepath.Dir(path), filepath.Base(path), []byte(text))
+}
+
+// The dashboard shows the pool --pool names, else the one the verbs act on:
+// the pool's label, directories and accounts, the pools counted; its share
+// of the router's events alone, by the one rule the verbs read them by.
+func TestTheDashboardShowsThePoolNamedElseTheOneTheVerbsActOn(t *testing.T) {
+	tests := []struct {
+		name   string
+		args   []string
+		want   status.ShownPool
+		events []int
+	}{
+		{name: "none named: the unfenced pool", want: status.ShownPool{ID: "b2n8", Label: "Default", Accounts: 1, Pools: 2}, events: []int{1, 4, 5}},
+		{name: "one named", args: []string{"--pool", "q7mt"}, want: status.ShownPool{ID: "q7mt", Label: "Acme", Dirs: []string{"/work/acme"}, Accounts: 1, Pools: 2}, events: []int{2, 3, 5}},
+		{name: "one named empty: none named", args: []string{"--pool", ""}, want: status.ShownPool{ID: "b2n8", Label: "Default", Accounts: 1, Pools: 2}, events: []int{1, 4, 5}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			deps := pooledDeps(t, false)
+			cfg := recordWatch(t, &deps)
+			if got := run(t, deps, append([]string{"dashboard"}, tt.args...)...); got != (result{}) {
+				t.Fatalf("switchboard dashboard %s = %+v, want exit status 0 and nothing printed", strings.Join(tt.args, " "), got)
+			}
+			if got := cfg.Pool; got.ID != tt.want.ID || got.Label != tt.want.Label || !slices.Equal(got.Dirs, tt.want.Dirs) || got.Accounts != tt.want.Accounts || got.Pools != tt.want.Pools {
+				t.Errorf("the dashboard shows %+v, want %+v", got, tt.want)
+			}
+			if ids := eventIDs(cfg.Events); !slices.Equal(ids, tt.events) {
+				t.Errorf("the dashboard's events are those of the ids %v, want %v", ids, tt.events)
+			}
+		})
+	}
+}
+
+// A pool the config doesn't configure is refused, naming those it does,
+// before the dashboard opens: one never configured, and one the accounts
+// record keeps since its removal, which has no accounts to show.
+func TestTheDashboardRefusesAPoolTheConfigDoesntConfigure(t *testing.T) {
+	tests := []struct {
+		name, pool, want string
+		removed          bool
+	}{
+		{name: "never configured", pool: "x9z9", want: `there's no pool "x9z9": name b2n8 (Default) or q7mt (Acme), with --pool`},
+		{name: "removed", pool: "q7mt", want: `there's no pool "q7mt": name b2n8 (Default), with --pool`, removed: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			deps := pooledDeps(t, false)
+			if tt.removed {
+				onePoolLeft(t, deps, acmeRemovedEntry)
+			}
+			deps.Watch = func(context.Context, watch.Config, io.Writer, []string) error {
+				t.Error("the dashboard opened, want it refused")
+				return nil
+			}
+			if got := run(t, deps, "dashboard", "--pool", tt.pool); got.code == 0 || !strings.Contains(got.stderr, tt.want) {
+				t.Errorf("switchboard dashboard --pool %s = %+v, want it refused, saying %q", tt.pool, got, tt.want)
+			}
+		})
+	}
+}
+
+// Where every pool is fenced and none is named, the dashboard opens on
+// none, its source refused by the router, as the status line says, the
+// pools counted for P to turn to the first, and none of the router's
+// events read. Named, it opens on the pool named.
+func TestWhereEveryPoolIsFencedTheDashboardOpensOnNoneTillOneIsNamed(t *testing.T) {
+	deps := pooledDeps(t, true)
+	cfg := recordWatch(t, &deps)
+	if got := run(t, deps, "dashboard"); got != (result{}) {
+		t.Fatalf("switchboard dashboard = %+v, want exit status 0 and nothing printed", got)
+	}
+	if got := cfg.Pool; got.ID != "" || got.Pools != 2 {
+		t.Errorf("the dashboard shows %+v, want no pool, of two", got)
+	}
+	if ids := eventIDs(cfg.Events); len(ids) != 0 {
+		t.Errorf("the dashboard read the events %v, want none", ids)
+	}
+	if got := run(t, deps, "dashboard", "--pool", "b2n8"); got != (result{}) || cfg.Pool.ID != "b2n8" {
+		t.Errorf("switchboard dashboard --pool b2n8 = %+v, showing %q; want Default shown", got, cfg.Pool.ID)
+	}
+}
+
+// P turns to the next pool in the config's order, round, and from none
+// shown to the first, reading the config afresh at each: a pool added
+// while the dashboard is open shows at the next P, with its share of the
+// router's events and their pools named afresh.
+func TestTheDashboardsTurnReadsThePoolsAfresh(t *testing.T) {
+	deps := pooledDeps(t, false)
+	cfg := recordWatch(t, &deps)
+	if got := run(t, deps, "dashboard"); got != (result{}) {
+		t.Fatalf("switchboard dashboard = %+v, want exit status 0 and nothing printed", got)
+	}
+	turned := func(from string) watch.Pooled {
+		t.Helper()
+		pooled, err := cfg.Turn(t.Context(), from)
+		if err != nil {
+			t.Fatalf("Turn(%q) failed: %v", from, err)
+		}
+		return pooled
+	}
+	for _, tt := range []struct{ from, want string }{{"b2n8", "q7mt"}, {"q7mt", "b2n8"}, {"", "b2n8"}} {
+		if got := turned(tt.from); got.Pool.ID != tt.want || got.Source == nil {
+			t.Errorf("Turn(%q) shows %q, want %q, with a source of its own", tt.from, got.Pool.ID, tt.want)
+		}
+	}
+	if ids := eventIDs(turned("b2n8").Events); !slices.Equal(ids, []int{2, 3, 5}) {
+		t.Errorf("turned to Acme, the dashboard's events are those of the ids %v, want Acme's, 2, 3 and 5", ids)
+	}
+
+	writeDepsConfig(t, deps, pooledConfig(false)+"\n[[pool]]\nid    = \"r2d4\"\nlabel = \"Client\"\ndirs  = [\"/work/client\"]\n")
+	client := turned("q7mt")
+	if client.Pool.ID != "r2d4" || client.Pool.Pools != 3 || !client.Pool.Empty() {
+		t.Errorf("turned from Acme once Client is added, the dashboard shows %+v, want Client, of three pools, with no accounts", client.Pool)
+	}
+	if client.PoolNamed == nil || client.PoolNamed("r2d4") != "Client" {
+		t.Error("turned to Client, its events don't name it, want the pools named afresh")
+	}
+}
+
+// A turn that can't read the config fails, saying why, for the dashboard
+// to keep the pool it shows.
+func TestTheDashboardsTurnFailsWhereTheConfigCantBeRead(t *testing.T) {
+	deps := pooledDeps(t, false)
+	cfg := recordWatch(t, &deps)
+	if got := run(t, deps, "dashboard"); got != (result{}) {
+		t.Fatalf("switchboard dashboard = %+v, want exit status 0 and nothing printed", got)
+	}
+	writeDepsConfig(t, deps, "[[account]\n")
+	if _, err := cfg.Turn(t.Context(), "b2n8"); err == nil {
+		t.Error("Turn() of a config that can't be read turned, want it to fail")
+	}
+}
+
+// In a config without pools, before the move to pools, the dashboard shows
+// no pool, and --pool is passed over, as on every verb.
+func TestADashboardOfAConfigWithoutPoolsPassesOverPool(t *testing.T) {
+	deps := testDeps(map[string]string{"XDG_STATE_HOME": shortTempDir(t)}, t.TempDir())
+	writeDepsConfig(t, deps, "[[account]]\nid = \"work\"\nlabel = \"Work\"\n")
+	markDone(t, stateDir(t, deps), idsMark)
+	cfg := recordWatch(t, &deps)
+	if got := run(t, deps, "dashboard", "--pool", "q7mt"); got != (result{}) {
+		t.Fatalf("switchboard dashboard --pool q7mt = %+v, want exit status 0 and nothing printed", got)
+	}
+	if cfg.Pool.ID != "" || cfg.Pool.Turns() {
+		t.Errorf("the dashboard shows %+v, want no pool, and none to turn to", cfg.Pool)
+	}
+}
+
+// Where nothing names the pools once the move to pools is done, a pool
+// named is refused, saying why, as the verbs refuse it; none named, the
+// dashboard opens, reading none of the router's events.
+func TestADashboardWhereNothingNamesThePoolsRefusesAPoolNamed(t *testing.T) {
+	deps := unpooledDeps(t, unpooledConfig, false)
+	deps.Watch = func(context.Context, watch.Config, io.Writer, []string) error {
+		t.Error("the dashboard opened, want it refused")
+		return nil
+	}
+	if got := run(t, deps, "dashboard", "--pool", "q7mt"); got.code == 0 || !strings.Contains(got.stderr, "can't tell which pool to read") {
+		t.Errorf("switchboard dashboard --pool q7mt = %+v, want it refused, saying it can't tell the pools", got)
+	}
+}
