@@ -605,8 +605,10 @@ With pools, it's the room of the pool shown, as a pool's room can never serve an
 
 [`switchboard pool add Client ~/Code/client`](commands.md#pool) makes a pool, fenced to the
 directories given, and `pool edit` and `pool remove` change and remove one. `accounts add --pool`
-puts an account in a pool, and `accounts edit --pool` moves one. Each pool's table is in the
-config: see [`[[pool]]` keys](configuration.md#pool-keys).
+puts an account in a pool, and `accounts edit --pool` moves one. [`setup`](commands.md#setup)
+does both: its add card's Pool chooses an account's pool, or makes a new one with it, and its
+edit card's moves one. Each pool's table is in the config: see
+[`[[pool]]` keys](configuration.md#pool-keys).
 
 - **One unfenced pool at most:** it serves every session started outside every fence. Where every
   pool is fenced, a session started outside them all doesn't start.

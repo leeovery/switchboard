@@ -255,10 +255,6 @@ are.
   there's no pool for it to show without being told, and this release's dashboard takes no
   `--pool`. Read a pool with `switchboard status --pool <id>`, or leave one pool unfenced with
   `pool edit <id> --unfence`.
-- **`setup` stops adding an account, saying `every pool is fenced, so which the account goes in is
-  yours to say`:** it adds an account to the pool `accounts add` takes without `--pool`, and with
-  every pool fenced there's none. It stops before making a token. Add the account with
-  `switchboard accounts add <label> --pool <id>`, then run `setup` again for the rest.
 - **A client's session in a directory you've just fenced still runs on your accounts:** a
   session's pool is decided as it starts, so one already running when `pool add` or `pool edit`
   made the fence keeps its old pool till it's resumed. Resume the sessions running there.

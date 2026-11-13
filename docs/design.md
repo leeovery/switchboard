@@ -522,7 +522,7 @@ each).
 ## Pools
 
 **Designed** (the owner's calls, 10 and 11 November 2026), **its first phase built**, safety (see
-Building it); the dashboard's pools and setup's, its second, are still to build. The other sections
+Building it), and of its second, setup's cards; the dashboard's pools are still to build. The other sections
 describe switchboard with a single pool, as it runs with one, and hold within each pool where there
 are more: their primary is the pool's, and their global pin the pool's pin. It's built on Account
 identity: accounts are known by the ids switchboard makes, shown by their labels, and never
@@ -1081,11 +1081,40 @@ totals.
   label and directories, once a second pool exists.
 - **Editing an account** moves it to another pool and makes it its pool's primary.
 - Pools with no accounts are removed with `pool remove`, and fenced or unfenced with `pool edit`.
-- **Until it's built,** as the first phase left it, setup's add card asks no pool: the account goes
-  in the pool `accounts add` adds one to without `--pool`, the only pool, else the unfenced one, as
-  the accounts registry gives an account naming none. Where every pool is fenced, there's none, and
-  setup refuses the account before it makes a token, which would last a year on it, saying to add
-  it with `accounts add --pool`, naming the pools.
+- **As built:** the frames are Paper's pools round 3, frames 5 to 7, held as `setup-add-160`,
+  `setup-new-pool-160` and `setup-edit-pool-160`.
+  - The add card's Pool offers every pool by its label, in the config's order, then `new pool`,
+    and opens on the pool `accounts add` takes without `--pool`, else, where every pool is fenced,
+    the first. Its hint says which sessions use the pool chosen: `only sessions started in
+    ~/Code/acme use it`, of the unfenced `sessions started everywhere else use it`, or of the only
+    pool, unfenced, `every session uses it`; of `new pool`, that `enter` gives its label and
+    directories. A config without pools, as on a first run, before the router's move makes the
+    first, has no Pool: there's no pool to choose, nor one to add beside it.
+  - `enter` on `new pool` opens the card `NEW POOL`, over the add card or the edit card: its
+    label, and its directories, `+ another directory` adding one, `enter` there adding it, a
+    directory left empty passed over; with none, the pool's unfenced. `enter` elsewhere has
+    `accounts.Registry.CheckNewPool` check it, by the config's own rules, a refusal said under the
+    label or under the directory refused, which `config.DirError` places; once it passes, the card
+    that opened it holds it among its pools, chosen, and `esc` goes back to that card. The card
+    held is written with the account, in the one edit that adds it, after its token, or moves it,
+    under an id drawn as `pool add` draws one (`accounts.NewPool`).
+  - The add card's `enter` checks the pool chosen and any new pool with the account, as
+    `accounts.Registry.CheckNew` does, before any token is made, a refusal of either said under
+    Pool. An account that's the first in its pool, in a config with pools, is marked its primary,
+    as `accounts add` marks it too, so a second account added later doesn't leave the pool with
+    none marked.
+  - The edit card has a Pool once there's a second pool, with one there's nothing to move it to;
+    its hint, `moving it takes its sessions off at once`. Primary's hint names the pool chosen,
+    `Acme's sessions start on it; the Claude apps sign in to it`. Moving the account, Primary
+    shows `no` till it's chosen, and `yes`, held, of a pool with no accounts or a new one, of
+    which it's the first. The move goes through `accounts.Registry.Edit`, as `accounts edit
+    --pool` and `--primary` do.
+  - The table groups the accounts by pool once there's a second: each pool's label in
+    `text.subtle`, as the table's heads are, and two cells on, its directories, or `everywhere
+    else`, muted; then its accounts, in the config's order, its primary marked `◆`; a pool with no
+    accounts under its heading alone. The review gives the accounts in that order, so `↑` and `↓`
+    go down the rows as they're drawn. A pool of two accounts or more with none marked has a note
+    of its own, `Acme has no primary, …`, and `enter` waits for one, as with one pool.
 
 ### What pools can't hold
 
@@ -1132,7 +1161,8 @@ Pausing an account whose subscription is cancelled is a separate idea, after poo
 
 ### Building it
 
-In two phases, after v1 and Account identity. The first is built, the second to build:
+In two phases, after v1 and Account identity. The first is built, and of the second, setup's
+cards; the rest of it is to build:
 
 1. **Safety,** which a pool's work needs from its first day: the config and the `pool` verbs; the
    move to pools; `run`'s pool, its starting token, its header and its checks; the router's pools,
@@ -1147,7 +1177,8 @@ In two phases, after v1 and Account identity. The first is built, the second to 
    reads are those that stand as it opens, held for its run.
 2. **Sight:** the dashboard's `--pool` and `P`, the title row, the empty pool, notifications, and
    setup's cards, each drawn in Paper first; and the dashboard's ledger tabs made the shown pool's
-   alone, and its pools read afresh, as `P` starts its view afresh.
+   alone, and its pools read afresh, as `P` starts its view afresh. Setup's cards are built (see
+   Setup with pools).
 
 ## Reserves
 
@@ -1965,9 +1996,9 @@ show.
      up without an account, so `enter` waits for one. Once there's one, the line is `Add each Claude
      subscription you want switchboard to route across.` (frame 2).
    - **Adding** (`+ add an account`, then `enter`), the card `ADD AN ACCOUNT`: `Each account is one
-     Claude subscription: a Pro, Max or Ultra plan.`; then Label, `what every screen calls it`, and
-     Plan, `Pro`, `Max`, `Ultra` or `not set`, with no id, which the token's organization decides
-     (see Account identity); then `Setup then creates a token with claude setup-token. You approve
+     Claude subscription: a Pro, Max or Ultra plan.`; then Label, `what every screen calls it`,
+     Plan, `Pro`, `Max` or `Ultra`, and where the config has pools, Pool (see Setup with pools),
+     with no id, which the token's organization decides (see Account identity); then `Setup then creates a token with claude setup-token. You approve
      it in the browser while signed in to this subscription. Tokens last a year.` Its keys: `tab
      next`, `enter create token`, `esc cancel`. The label is held to `accounts add`'s rules, a wrong
      one said under its field. `enter` makes its token in the token card (see The token card,
@@ -1985,7 +2016,8 @@ show.
      says what's missing, and a key sees to it. Its keys: `↑↓ select`, `t new token`, `e edit`, `r
      remove`, `p make primary`. `enter` all the way through changes nothing.
    - **Edit** (`e`, frame 6), the card `EDIT PERSONAL`: Label; Plan, `used by History to value
-     usage`; Primary, `no` or `yes`, `the account the Claude apps are signed in to`; and Reserve,
+     usage`, `not set` among its options only for an account the config gives no plan; Pool, once
+     there's a second pool (see Setup with pools); Primary, `no` or `yes`, `the account the Claude apps are signed in to`; and Reserve,
      `usage kept back for the Claude apps`, a percentage, as `accounts edit` takes it, or `none`,
      so cleared on an account with none, it writes nothing. Its keys: `tab next`, `←→ select`, `enter save`, `esc cancel`. It saves through
      `accounts.Registry.Edit`, as `accounts edit` does.
@@ -2351,7 +2383,7 @@ not the owner's decisions:
   it, and `yes` makes it the primary; on the primary it shows `yes` and doesn't change, as the
   primary moves by making another account the primary (`accounts.Registry.Edit` only makes one).
 - **A card's fields:** the edit card opens on Label, typed in, its cursor after the label, and
-  the add card on ID, its fields empty and its Plan `not set`; `tab` goes on to the next field,
+  the add card on Label, its fields empty and its Plan the first, `Pro`; `tab` goes on to the next field,
   the first after the last; on a choice, `←` and `→` move it no further than its first option or
   its last. While a card is open, its keys alone act: in a field typed in, `q`, `j` and `k` type,
   and elsewhere do nothing, as the key line, empty, offers none; `ctrl+c` always leaves. The

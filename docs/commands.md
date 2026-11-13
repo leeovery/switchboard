@@ -544,15 +544,28 @@ The steps are:
    it. `↑` and `↓` choose an account; `t` makes it a new token, `e` edits its label, plan, reserve
    and whether it's the primary, `r` removes it, asking first, and `p` makes it the primary: the
    account your browser and the Claude apps are signed in to. `+ add an account` adds one: its
-   label and plan, then its token, whose subscription decides its id, as
-   [`accounts add`](#accounts) does: a subscription this Mac had comes back under its old id, and
-   where that can't be told, a card asks whether it's a new account or one of those this Mac had.
-   Where the config has [pools](how-it-works.md#pools), the account goes in the pool `accounts
-   add` adds one to without `--pool`: the only pool, else the unfenced one. Where every pool is
-   fenced, there's no such pool, and `setup` stops before making a token, saying to add the
-   account with `switchboard accounts add <label> --pool <id>`, naming the pools; a later release's
-   add card asks for the pool. With no account, the card adding one opens at once. With two
-   or more and none the primary, `enter` waits for one. On a first run, where the primary has
+   label, its plan, Pro, Max or Ultra, and, where the config has [pools](how-it-works.md#pools),
+   its pool; then its token, whose subscription decides its id, as [`accounts add`](#accounts)
+   does: a subscription this Mac had comes back under its old id, and where that can't be told, a
+   card asks whether it's a new account or one of those this Mac had. With no account, the card
+   adding one opens at once. With two or more in a pool and none its primary, `enter` waits for
+   one.
+
+   **Pools.** The add card's Pool offers every pool by its label, then `new pool`, even while
+   there's one pool, as it's where a second is made. It opens on the pool `accounts add` adds one
+   to without `--pool`, the only pool, else the unfenced one, else, where every pool is fenced,
+   the first; its hint says which sessions use the pool chosen. `enter` on `new pool` opens the
+   new pool card: its label, and its directories, `+ another directory` adding one, each an
+   absolute path or one from `~/`; with none, the pool is unfenced, which is refused where one
+   already is. The pool chosen, and a new pool's label and directories, are checked by the
+   config's rules before any token's made, and a new pool is written with the account, once its
+   token's saved, so an add cancelled leaves none. The first account in a pool is its primary.
+   Once there's a second pool, the table groups the accounts by pool, each under its label and
+   its directories, or `everywhere else` for the unfenced one, each pool's primary marked `◆`; and
+   the edit card has a Pool, which moves the account to another pool, or a new one, taking its
+   sessions off at once, and its Primary makes it its pool's primary, as
+   [`accounts edit --pool` and `--primary`](#accounts) do. The edit card offers a plan of
+   `not set` only to an account the config gives none. On a first run, where the primary has
    no reserve, `enter` asks for one first, once: the share of its windows kept back for the
    Claude apps, as a percentage, or `none`; `esc` leaves it with none, writing nothing.
 
