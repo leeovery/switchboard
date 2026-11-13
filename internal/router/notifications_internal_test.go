@@ -568,6 +568,56 @@ func TestAWindowIsWarnedOfOnceAReset(t *testing.T) {
 	}
 }
 
+// Once there's a second pool, each of the router's notifications is led by
+// the label of the pool of the account it's about, as the dashboard's own
+// are: a warning, a move, a limit and room again. With one pool, they say
+// what they said before pools.
+func TestTheRoutersNotificationsNameThePoolOnceThereIsASecond(t *testing.T) {
+	tests := []struct {
+		name     string
+		accounts []config.Account
+		pools    config.Pools
+		lead     string
+	}{
+		{
+			name:     "two pools",
+			accounts: []config.Account{{ID: "1", Label: "one", Pool: "q7mt"}, {ID: "2", Label: "two", Pool: "q7mt"}, {ID: "3", Label: "three", Pool: "b2n8"}},
+			pools:    config.Pools{{ID: "b2n8", Label: "Default"}, {ID: "q7mt", Label: "Acme", Dirs: []string{"/work/acme"}}},
+			lead:     "Acme · ",
+		},
+		{
+			name:     "one pool",
+			accounts: []config.Account{{ID: "1", Label: "one", Pool: "q7mt"}, {ID: "2", Label: "two", Pool: "q7mt"}, {ID: "3", Label: "three", Pool: "q7mt"}},
+			pools:    config.Pools{{ID: "q7mt", Label: "Acme"}},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				h := newNotifyingOver(t, config.Notifications{Limits: true, Room: true, Warning: 0.9, Moves: true}, tt.accounts)
+				h.state.pools.follow(tt.accounts, tt.pools)
+				h.read("1", h.session(0.2, 5*time.Hour), h.week(0.5, 3*day))
+				h.read("2", h.session(0.2, 5*time.Hour), h.week(0.85, 3*day))
+				h.start()
+				h.after(lookEvery)
+
+				h.read("2", h.week(0.91, 3*day))
+				h.after(lookEvery)
+				h.hear(Moved{Session: "18bb978f", Model: opus, From: "1", To: "2", Reason: "rescored after 1h 2m idle"})
+				h.limit("2", []string{"5h"}, time.Hour)
+				h.after(gatherFor)
+				h.after(time.Hour + lookEvery)
+				h.expect(
+					tt.lead+"2 · two: Week at 91%",
+					tt.lead+"session 18bb978f moved from 1 · one to 2 · two (rescored after 1h 2m idle)",
+					tt.lead+"2 · two hit its 5-hour limit, back at Sat 01:00",
+					tt.lead+"2 · two has room again",
+				)
+			})
+		})
+	}
+}
+
 func TestMoves(t *testing.T) {
 	tests := []struct {
 		name     string
