@@ -461,6 +461,16 @@ func (w weeksDrawn) nameCells() int {
 	return min(w.laid.labels.Size-nameGap, max(w.edge, 0))
 }
 
+// namedCells are the cells an account's name and its ◆ are drawn in: the
+// label column's, as markedCells has them; or where no week shows, the
+// row's, to the edge.
+func (w weeksDrawn) namedCells() int {
+	if len(w.laid.weeks) == 0 {
+		return max(w.edge, 0)
+	}
+	return min(markedCells(w.laid.labels.Size, 0), max(w.edge, 0))
+}
+
 // put draws the parts from x along row y, cut as fitParts cuts them to end
 // before the edge.
 func (w weeksDrawn) put(c *canvas, x, y int, parts ...part) {
@@ -779,7 +789,7 @@ func (w weeksDrawn) named(id string) string {
 // name is an account's name and mark at the start of its row, cut to the
 // cells names are drawn in.
 func (w weeksDrawn) name(row views.WeeksRow) line {
-	return historyAccount(w.named(row.Account), row.Primary, w.nameCells())
+	return historyAccount(w.named(row.Account), row.Primary, w.nameCells(), w.namedCells())
 }
 
 // everyAccount names every account's row, or block, bold text.secondary,

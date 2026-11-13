@@ -592,7 +592,7 @@ func TestWeeksInItsNarrowFormIsTheVerdictAndTheTablesWeeksThatFit(t *testing.T) 
 		"all accounts    74%     73%     82%    59%…",
 		"",
 		"work           100%     81%    100%    34%…",
-		"personal   ◆    69%     90%     85%    66%…",
+		"personal    ◆   69%     90%     85%    66%…",
 		"side            52%     47%     60%    78%…",
 	}
 	rows := weeksText(f)

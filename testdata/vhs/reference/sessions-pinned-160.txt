@@ -11,14 +11,14 @@ db8a infra                    idle 50s     ▸ from work      ●━━━━━
 41e0 docs                     idle 34s     ▸ from personal  ●━━━━━━━━┓  ┃  ┃  ┃  ┃
 9c2e website                  idle 9m      ▸ from personal  ●━━━━━┓  ┃  ┃  ┃  ┃  ┃
                                                                   ┃  ┃  ┃  ┃  ┃  ┃
-                                                                  ┃  ┃  ┃  ┃  ┃  ┃╌╌○ personal   ◆  ■ limit reached · back 15:54                        ● pinned
+                                                                  ┃  ┃  ┃  ┃  ┃  ┃╌╌○ personal    ◆ ■ limit reached · back 15:54                        ● pinned
                                                                   ┃  ┃  ┃  ┃  ┃  ┃╌╌○  Week                            ┃            66%  out ~Sat
                                                                   ┃  ┃  ┃  ┃  ┃  ┃  ○
                                                                   ┃  ┃  ┃  ┃  ┃  ┃  ○  5-hour                             ┃        100%  limit · back 15:54
                                                                   ┃  ┃  ┃  ┃  ┃  ┃
                                                                   ┃  ┃  ┃  ┃  ┃  ┃
                                                                   ┃  ┃  ┃  ┃  ┃  ┃
-                                                                  ┃  ┃  ┃  ┃  ┃  ┗━━◉ side       ▲  ● open · new sessions come here                     ● pinned
+                                                                  ┃  ┃  ┃  ┃  ┃  ┗━━◉ side        ▲ ● open · new sessions come here                     ● pinned
                                                                   ┃  ┃  ┃  ┃  ┗━━━━━◉  Week                      ┃                  78%  out ~Fri
                                                                   ┃  ┃  ┃  ┗━━━━━━━━◉
                                                                   ┃  ┃  ┗━━━━━━━━━━━◉  5-hour         ▏ ┃                           13%  21%/h till 18:50

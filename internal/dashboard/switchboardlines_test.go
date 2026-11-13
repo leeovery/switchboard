@@ -70,19 +70,19 @@ func TestTheLinesCompactAsRowsRunShort(t *testing.T) {
 	}{
 		{name: "step 1", height: 37, step: 1, rows: map[int]string{
 			6: "work          ● at its cap · back 17:10 · new sessions go elsewhere", 7: " Week", 9: " 5-hour", 11: " Fable wk",
-			15: "personal   ◆  ● open", 24: "side       ▲  ● open · new sessions come here",
+			15: "personal    ◆ ● open", 24: "side        ▲ ● open · new sessions come here",
 		}},
 		{name: "step 1, the lines 2 apart", height: 33, step: 1, rows: map[int]string{
-			6: "work ", 14: "personal   ◆", 22: "side       ▲",
+			6: "work ", 14: "personal    ◆", 22: "side        ▲",
 		}},
 		{name: "step 2", height: 29, step: 2, rows: map[int]string{
-			6: "work ", 7: " Week", 8: " 5-hour", 9: " Fable wk", 13: "personal   ◆", 20: "side       ▲",
+			6: "work ", 7: " Week", 8: " 5-hour", 9: " Fable wk", 13: "personal    ◆", 20: "side        ▲",
 		}},
 		{name: "step 3", height: 24, step: 3, rows: map[int]string{
-			6: "work ", 7: " Week", 10: "personal   ◆", 11: " Week", 14: "side       ▲", 15: " Week",
+			6: "work ", 7: " Week", 10: "personal    ◆", 11: " Week", 14: "side        ▲", 15: " Week",
 		}},
 		{name: "step 4", height: 18, step: 4, rows: map[int]string{
-			6: "work      ", 7: "personal   ◆", 9: "side       ▲",
+			6: "work      ", 7: "personal    ◆", 9: "side        ▲",
 		}},
 	}
 	for _, tt := range tests {

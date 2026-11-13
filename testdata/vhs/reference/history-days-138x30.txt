@@ -21,7 +21,7 @@ BY ACCOUNT  the share of its week each day used, on one scale
 
 work        ▪   ▪ ▪ ▪      ▪ ▪ ▪ ▪ ▪      ▪ ▪ ▪ ▪ ▪      ▪ ▪ ▪ ▪ ▪      ▪ ▪ ▪   ▪      ▪ ▪ ▪ ▪ ▪        ▪ ▪   ······     33 5-hour limits
 
-personal ◆  ▪     ▪                         ▪     ▪          ▪          ▪   ▪   ▪      ▪     ▪            ▪   ······     12 5-hour limits
+personal  ◆ ▪     ▪                         ▪     ▪          ▪          ▪   ▪   ▪      ▪     ▪            ▪   ······     12 5-hour limits
 
 side                         ▪                               ▪                               ▪          ▪     ······      4 5-hour limits
 

@@ -196,19 +196,19 @@ func TestEachLaneIsHeadedByItsNameAndItsUseOfTheViewsWindow(t *testing.T) {
 				name: accountName{label: "personal", primary: true, out: true}, account: status.AccountNow{OutOfPool: true},
 				Lane: views.Lane{ID: "personal", Use: views.Use{Key: "7d", Used: 0.39, Read: true}},
 			},
-			head: "personal   ◆", use: "week 39%", useInks: []ink{faintInk, faintInk},
+			head: "personal    ◆", use: "week 39%", useInks: []ink{faintInk, faintInk},
 		},
 		{
 			name: "the widest use, whole", lane: laidLane{
 				name: accountName{label: "personal", primary: true}, Lane: views.Lane{ID: "personal", Use: views.Use{Key: "7d", Used: 1, Read: true, Highest: true}},
 			},
-			head: "personal   ◆", use: "week 100%", useInks: []ink{dimInk, usedFigure(1, "personal", "7d")},
+			head: "personal    ◆", use: "week 100%", useInks: []ink{dimInk, usedFigure(1, "personal", "7d")},
 		},
 		{
 			name: "in a label column too narrow for it, cut, its marks and ▲'s cells kept", x: 12, lane: laidLane{
 				name: accountName{label: "personal", primary: true}, Lane: views.Lane{ID: "personal", Use: views.Use{Key: "7d", Used: 1, Read: true}},
 			},
-			head: "perso…   ◆", use: "week 100%", useInks: []ink{dimInk, usedFigure(1, "personal", "7d")},
+			head: "perso…    ◆", use: "week 100%", useInks: []ink{dimInk, usedFigure(1, "personal", "7d")},
 		},
 		{
 			name: "not read yet, short at the column's most too", x: labelMost,
@@ -226,7 +226,7 @@ func TestEachLaneIsHeadedByItsNameAndItsUseOfTheViewsWindow(t *testing.T) {
 			ln.row = 10
 			c := newCanvas(160, 20)
 			f.runwayLanes(c, runwayLaid{m: status.Moment{Now: routedAt}, x: x, lanes: []laidLane{ln}})
-			if head := textAt(c, 0, 10, x-2); head != tt.head {
+			if head := textAt(c, 0, 10, x-1); head != tt.head {
 				t.Errorf("the lane's head reads %q, want %q", head, tt.head)
 			}
 			use := ln.useLine(runwayWeek, routedAt, x-runwayUseFrom-1)

@@ -18,7 +18,7 @@ STORY   requests a minute ──────────────────
 13:20              14:00                         15:00                        16:00                        17:00                         18:00             ended
 
 work          yesterday 13:20 – 14:57         241 requests                                                                                                $21.92
-side       ▲  yesterday 14:58 – 18:46         354 requests                                                                                                $51.08
+side        ▲ yesterday 14:58 – 18:46         354 requests                                                                                                $51.08
 
 TURNS    ──────────────────────────────────────────────────────────────────────────────────────  16 turns · 595 requests · 98% from cache · $73.00 at API prices
 

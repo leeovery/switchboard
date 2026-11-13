@@ -2302,12 +2302,14 @@ order the view's section gives.
   from there, none counting 8 or 24 itself (`guardlabels_test.go`), but the views whose sections
   give figures of their own: Compare's 8 and 24, Detail's list's 14 and 24, the Sessions List's
   `on`'s 14 and the Switchboard's call's 6.
-- **A column of names right-aligns their marks** (the owner's call, 12 November 2026): each label
-  at the column's left, then as many spaces as it needs, then its marks, `◆ ▲` as one where it
-  carries both, ending where the column's gap starts, so the marks stand in one column down the
-  list whatever the labels' lengths, as `personal   ◆` over `side       ▲`. The column is no wider
-  for it, and a label cut short keeps its marks there. One form lays it out (`accountName`'s
-  `inColumn`), and every column of names draws through it: the Overview's USAGE, ROUTING and
+- **A column of names right-aligns their marks** (the owner's calls, 12 and 13 November 2026):
+  each label at the column's left, then as many spaces as it needs, then its marks, `◆ ▲` as one
+  where it carries both, ending one cell before what follows the column, the bar, the lane or the
+  state, so the marks stand in one column down the list whatever the labels' lengths, as
+  `personal    ◆` over `side        ▲`. The column is no wider for it, a label has the same
+  cells wherever its names start, and a label cut short keeps its marks there.
+  One form lays it out (`accountName`'s `inColumn`), where its marks end worked out once
+  (`markedCells`), and every column of names draws through it: the Overview's USAGE, ROUTING and
   SESSIONS, Detail's list, turned Compare's rows, History's Weeks and wide Days
   (`historyAccount`; narrow Days, its count beside the name, keeps the mark beside the label),
   Sessions' Switchboard, a session's stays (`filled`, cutting a label to keep its own marks
@@ -2315,7 +2317,7 @@ order the view's section gives.
   which share the name column, start their names at one column, so labels and marks line up
   across them: a cell in wherever any of them shown, folded or not, starts its own a cell in,
   as USAGE's windows stacked under their headings or two rows an account, else column 0
-  (`pageNamesAt`). Where names start a cell in, their marks end a cell into the gap, a cell
+  (`pageNamesAt`). Wherever the names start, at column 0 or a cell in, their marks end a cell
   before what follows. A name said alone, in a heading, a sentence or on a line of its own, as a
   card's head, Compare's columns, Detail's heading, a session's header, `usage --by account`'s
   name above its windows and its token lines, keeps its marks right after its label: there's no

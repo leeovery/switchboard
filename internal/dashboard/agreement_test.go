@@ -126,7 +126,7 @@ func (d drawn) destination() []viewSays {
 	usage, next := "none", cmp.Or(d.moment.Next, "none")
 	var routing string
 	for i, a := range d.moment.Accounts {
-		if strings.Contains(d.usage.rows[i].name.plain(), "▲") {
+		if strings.Contains(d.usage.name(d.usage.rows[i]).plain(), "▲") {
 			usage = a.ID
 		}
 		if strings.Contains(standingWords(d.routing.accounts[i].standing, false, 200).plain(), "new sessions come here") {

@@ -10,8 +10,10 @@ import (
 // sizes, as the sweep can't see a cut beside strips that fill the row: the
 // label column as wide as the widest, ◆ at its end, up to its most; or on a
 // phone, each over its strip, beside its count. Every row an account's name
-// starts is that name whole, then two blank cells or nothing; and where the
-// frame is tall enough to show them all, each heads one.
+// starts is that name whole, then nothing, or two blank cells, a cell where
+// its ◆ ends it, as a column of names ends its marks a cell before what
+// follows; and where the frame is tall enough to show them all, each heads
+// one.
 func TestDaysLabelsReadWholeAtTheOwnersSizes(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -33,8 +35,12 @@ func TestDaysLabelsReadWholeAtTheOwnersSizes(t *testing.T) {
 						continue
 					}
 					head := tt.heads[i]
-					if rest, whole := cutHead(row, head); !whole || rest != "" && !strings.HasPrefix(rest, "  ") {
-						t.Errorf("at %s, a row reads %q, want it to start %q whole, then two blank cells or nothing", sizeName(size), row, head)
+					apart := "  "
+					if strings.HasSuffix(head, "◆") {
+						apart = " "
+					}
+					if rest, whole := cutHead(row, head); !whole || rest != "" && !strings.HasPrefix(rest, apart) {
+						t.Errorf("at %s, a row reads %q, want it to start %q whole, then %d blank cells or nothing", sizeName(size), row, head, len(apart))
 					}
 					heads = append(heads, head)
 				}

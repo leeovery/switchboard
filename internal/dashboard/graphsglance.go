@@ -230,7 +230,7 @@ func (g glance) poolLine(names []accountName) *glanceLine {
 	if !ok {
 		return nil
 	}
-	return &glanceLine{name: row.name, gauge: glanceGauge{spark: poolSpark{span: g.pools[GraphsWindow]}, words: row.gauges[0], wordsAtFigure: true}}
+	return &glanceLine{name: poolNamed, gauge: glanceGauge{spark: poolSpark{span: g.pools[GraphsWindow]}, words: row.gauges[0], wordsAtFigure: true}}
 }
 
 // accountGauge is account a's week, of Runway's view of it, as GLANCE draws
