@@ -451,7 +451,7 @@ event can change, so when you read one that changed, take its last version.
 | `family` | On a refusal of a request refused alone, the model family the refusal holds back. |
 | `move` | On a pin, set where the pin moves the running sessions too. |
 | `force` | On a pin, set where the pin cleared every session's own pin. |
-| `by` | What set or cleared a pin: `cli` or `dashboard`. |
+| `by` | What set or cleared a pin: `cli` or `dashboard`; or `router`, on an `auto` event of a pool's pin the router dropped as the pools changed, its accounts gone from the pool, or the pool gone. |
 
 `kind` is one of these:
 
@@ -534,7 +534,7 @@ pass over one you don't know. In the forms below, `<id>` is an account's id.
 |---|---|
 | `generated_at` | When the document was built. |
 | `source` | `router`, or `probe` where the document was built by probing every account. |
-| `fallback` | Why it was built by probing, where the router was asked first. |
+| `fallback` | Why it was built by probing, where the router was asked first: `router`, `not running` or `unhealthy`, and `reason`, why it's unhealthy, as `it doesn't route by pools yet, …` of a router reporting no pools where the config has them, whose document is every account's, never a pool's. |
 | `pool_id` | The id of the pool the document is of. Left out where the config has no pools. |
 | `pool_label` | That pool's label. Left out with `pool_id`. |
 | `best` | The account new sessions go to next. |
@@ -546,7 +546,7 @@ pass over one you don't know. In the forms below, `<id>` is an account's id.
 | `moving` | How the move of the accounts and their history onto the ids switchboard makes stands, while the router owes it, as after the upgrade that made them, then the move of the history to pools that follows it: `move`, `pools` for the move to pools, left out for the move onto the ids; `stage`, `running`, `awaiting api`, `awaiting restart` or `failed`, the move to pools awaiting a restart while the router hasn't taken up the first pool its config now holds, and never the API; and, where it awaits the API, `account`, the account by the id it had, whose token's subscription the API hasn't named, where that's known, and `why`, which is also why it failed. Left out where no move is owed. See [Upgrading to account ids](how-it-works.md#upgrading-to-account-ids). |
 | `export` | How the router's hourly export into [`[export]`](configuration.md#export-keys)'s `dir` stands: `dir`, the folder; `at`, when an export last succeeded; `error`, why the last failed, in plain words; and `running`, when the export under way began. Each of `at`, `error` and `running` is left out when there's none, and `export` where `dir` isn't set. |
 | `sessions` | How many sessions the router has routed in the last hour, in the pool. |
-| `events` | What's happened lately, newest first: the pool's sessions' starts and moves and its pins, by the pool each recorded, one naming none the first pool's; what befell an account, by the pool it's in now, or, of an account since removed, the pool the accounts record keeps for it; and the router's own. An event of a pool since removed is in no pool's. |
+| `events` | What's happened lately, newest first: the pool's sessions' starts and moves and its pins, by the pool each recorded, one naming none the first pool's; what befell an account, by the pool it's in now, or, of an account since removed, the pool the accounts record keeps for it; and the router's own. An event of a pool since removed is in no configured pool's: `events --pool` reads it by that pool's id. |
 | `events_kept` | `{"oldest", "newest"}`: the ids of the oldest and newest events the router keeps, every pool's, so a reader can tell the events it no longer keeps from another pool's, which `events` leaves out. Given wherever the router routes within pools, as `events` are then a pool's: one pool included, and a config naming none but routed by the pools the accounts record keeps. Left out where it routes in no pools, whose `events` are every one it keeps, and from a document built by probing. |
 | `pool` | The room new sessions can go to, summed across the pool's accounts, and their mean use. Each account's room is to its cap, `1 − reserve`, but that of an account the pool's pin names is to its limit, as the pin spends its reserve. Each window gives `of`, how many of the pool's accounts have it, an account not read yet, or without a usable token, counting as having it. The pool keeps a window only where at least two of its accounts have it, or all of them do. |
 | `coming_up` | Each limit, cap or refused token lifting, window running out or resetting, and prime, soonest first. |

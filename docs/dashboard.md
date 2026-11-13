@@ -826,6 +826,13 @@ History and Graphs, still tell of every pool's work together, each account by it
 later release keeps them to the pool shown. It reads the pools as they stand when it opens: start
 it again after you add or remove a pool, or move an account.
 
+Where every pool is fenced, there's no pool the verbs act on, and this release's dashboard takes
+no `--pool` to name one: it reads no pool's accounts. Its status line says it couldn't read usage,
+as every pool is fenced, naming the pools, and tries again at each read; the pages drawn from the
+router's document stay empty, and it reads none of the router's events. The tabs built from the
+request ledger still tell of every pool's work. Read a pool with `switchboard status --pool <id>`
+meanwhile; the dashboard's own `--pool`, in a later release, opens it on the pool named.
+
 ```bash
 switchboard dashboard [interval] [--no-notify] [--probe]
 ```

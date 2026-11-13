@@ -780,7 +780,10 @@ pool for its whole life:
 
 - **Each pool has its own pin,** set and cleared as today's single pin is. Pinning accounts pins
   them in the pool they're in, so `pin k3f9 m2x7` needs no flag. Accounts given from two pools are
-  refused, saying which pool each is in. `pin auto` clears a pool's pin: `pin auto --pool q7mt`
+  refused, saying which pool each is in. An account there's none of is refused naming the accounts
+  that can be pinned in the pin's pool alone, the pool of the accounts beside it, or the one
+  `--pool` names, or of a session's own pin, the session's, as `run --account` names its launch's
+  pool's. `pin auto` clears a pool's pin: `pin auto --pool q7mt`
   clears Acme's, and without the flag it clears the pool the verbs act on (see Reading a pool).
 - **`--move` and `--force`** act inside the pin's pool alone. `--force` clears the own pins of that
   pool's sessions only.
@@ -789,10 +792,13 @@ pool for its whole life:
   this session is in pool Default`.
 - **Pins follow the pools,** as the router takes a change to them up, kept by the table it routes
   by: an account that leaves a pool leaves its pin, a pin of a pool that's gone is dropped, and a
-  pin from before pools, naming none, is the first pool's once the move to pools is done, settled
-  as the pools change, never lazily as it's read. A pin the router drops so is told as an `auto`
-  event, `by` `router`. A pin set as the pools change under it, its accounts moved since the pool
-  was read, is refused, saying to pin them again. A router that routes nothing, as one that can't
+  pin from before pools, naming none, is once the move to pools is done the pin of the pool its
+  accounts are in, else, where they're in none or in several, the first pool's, fitted to its
+  accounts there, settled as the pools change, never lazily as it's read. A pin the router drops
+  so is told as an `auto` event, `by` `router`, which `events` and the Log tell as `cleared by the
+  router, as its accounts left the pool`, with one pool too, as when a pin's last account is
+  removed. A pin set as the pools change under it, its accounts moved since the pool was read, is
+  refused, saying to pin them again. A router that routes nothing, as one that can't
   tell the pools (see Healed), keeps the pins it has, and refuses a new pin, and the clearing of a
   pool's, saying why.
 - **Words:** what this document calls the global pin becomes the pool's pin, and the routed reason
@@ -853,8 +859,8 @@ read as a pool by its leaving one out (the owner's call, 11 November 2026).
     the config carries it to every Mac that shares it, as Account identity says those Macs upgrade
     together. A Mac that moves on a shared config before the first pool has reached it makes one of
     its own, and the configs differ till one is kept; that Mac's history before pools then stays
-    under its own first pool, shown removed, which harms nothing but its name (the owner's call, 12
-    November 2026).
+    under its own first pool, shown removed (the owner's call, 12 November 2026), and read as a
+    removed pool's is, with `--pool` and its id (see Reading a pool).
   - **The files:** every request line, every pin event and every day's summary is given the first
     pool's id, written anew and swapped in, a day's files at a time, holding off their writers, as
     Account identity's move writes them. A line that names a pool already is left as it is, so a
@@ -966,6 +972,23 @@ totals.
   as What's recorded says, a line, start, move or pin from before pools the first pool's; the
   windows, plans and weeks of the accounts in the pool now; and an event by the one rule What's
   recorded gives. `dashboard`'s `--pool` comes with the second phase (see Building it).
+- **A pool the config no longer has** keeps its history, as the accounts record keeps the pool: the
+  verbs that read the recorded files, `requests`, `history`, `sessions` and `events`, take
+  `--pool` with the id of a pool the record keeps that the config doesn't, one removed, or another
+  Mac's from an import, and read its work as it was recorded, under its id alone. Work in no pool
+  stays the first pool's as the config has it, so a removed first pool's history is what the move
+  gave its id, and nothing is folded into another pool, as a removed pool may be a client's and its
+  work in the owner's pool would be a crossing. They name it by the record's label, marked, as a
+  removed account is: `pool Acme (removed 6 Oct)`, or of one never removed here, `pool Client (not
+  configured here)`, whatever pools there are; and `sessions` asks the router nothing of it, as
+  the router runs no session in a pool it doesn't route. The verbs that read the router, `status`,
+  `usage` and `pin`, refuse it, as the router does. `pool remove` says the history stays, read so.
+- **A router that reports no pools,** as one from before pools still running till its restart,
+  answers every account's document whatever pool is asked, so where the config has pools, `status`,
+  `usage` and the dashboard never read it as a pool's: they probe the pool's accounts, saying the
+  router is unhealthy, as `it doesn't route by pools yet, as it started before them: restart it
+  with switchboard service restart`. Where the config can't be read, `status` reads the router's
+  document as before, having no pools to tell it by.
 - **Managing pools:** `pool` lists the pools, with their directories, accounts and primaries. `pool
   add <label> [<dir>...]` makes one, switchboard making its id, as `accounts add <label>` makes an
   account's, fenced to the directories given, or unfenced without any; `pool edit <id>` changes its
@@ -978,7 +1001,9 @@ totals.
   and a pool added before it would take every account in; a removed pool's directories are no
   pool's, so a session started in them goes to the unfenced pool, where there's one; `pool edit
   --dirs` on directories the config writes across lines is refused, to be made by hand, as a
-  label over lines is. An account moved to another pool is its new pool's primary only with
+  label over lines is. `pool add` and `pool edit` say, as they fence a pool, that the sessions
+  running in its directories keep the pool they started in till they're resumed (see What pools
+  can't hold). An account moved to another pool is its new pool's primary only with
   `--primary`: without it, the pool keeps its primary, `accounts edit` marking it where the config
   marks none, so the account moved doesn't take it by coming first in the config's order, and
   saying so. The pool it leaves takes its next account as its primary where it was the primary,
@@ -1003,8 +1028,12 @@ totals.
 ### The dashboard in a pool
 
 - **A dashboard shows one pool,** the one `--pool` names, or without it the pool the verbs act on.
-  As the first phase built it, its ledger tabs still tell of every pool (see Building it). No page
-  adds pools together: a pool's room can never serve another pool's sessions, so a merged
+  As the first phase built it, its ledger tabs still tell of every pool (see Building it), and
+  where every pool is fenced, with no `--pool` to name one, it reads no pool's accounts: the router
+  refuses its reads, its status line says it couldn't read usage, as every pool is fenced, naming
+  the pools, trying again at each read, the pages drawn from the router's document stay empty, and
+  it reads none of the router's events; the second phase's `--pool` opens it on the pool named.
+  No page adds pools together: a pool's room can never serve another pool's sessions, so a merged
   view has nothing to add up. A page across pools waits until one is needed (the owner's call, 11
   November 2026).
 - **`P` cycles the pools,** everywhere, once a second pool exists. Changing pool starts the
@@ -1028,6 +1057,11 @@ totals.
   label and directories, once a second pool exists.
 - **Editing an account** moves it to another pool and makes it its pool's primary.
 - Pools with no accounts are removed with `pool remove`, and fenced or unfenced with `pool edit`.
+- **Until it's built,** as the first phase left it, setup's add card asks no pool: the account goes
+  in the pool `accounts add` adds one to without `--pool`, the only pool, else the unfenced one, as
+  the accounts registry gives an account naming none. Where every pool is fenced, there's none, and
+  setup refuses the account before it makes a token, which would last a year on it, saying to add
+  it with `accounts add --pool`, naming the pools.
 
 ### What pools can't hold
 
@@ -1037,6 +1071,10 @@ totals.
 - **A running session's own token** goes out until the session exits. The router refuses its routed
   requests once its token has left its pool, but what never reaches the router, such as fast mode,
   carries on until then.
+- **A session running in a directory a new or edited fence takes in** keeps the pool it started
+  in till it's resumed, as a session's pool is decided as it starts: a client's work there goes
+  on the owner's accounts till then. `pool add` and `pool edit` say so, in their help and as they
+  fence a pool.
 - **A config file that can't be read even for its pools,** with the router not answering, before
   the move to pools is done, starts `claude` unaided, as Launching in a pool says. Once it's done,
   the accounts record's pools fence it, and with none there, nothing starts.

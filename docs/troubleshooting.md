@@ -239,6 +239,26 @@ are.
   be read, the router isn't running or routes by none, and the accounts record keeps none, so no
   verb can read one pool's work apart from another's. Put the config's pools back, or start the
   router.
+- **A verb says `there's no pool "q7mt": name …` of a pool you removed:** `status`, `usage` and
+  `pin` read the router, which routes nothing in a pool the config no longer has. Its history
+  stays: `requests`, `history`, `sessions` and `events` read it with `--pool q7mt`, naming it
+  `pool Acme (removed 6 Oct)`, as they do a pool another Mac's history brought in by `import`.
+  See [Reading a pool](commands.md#reading-a-pool).
+- **`status` says `probed directly: the router is unhealthy, it doesn't route by pools yet`:** the
+  config has pools and the router reports none, as one from before pools still running after an
+  upgrade, so its document is every account's, never a pool's: `status`, `usage` and the dashboard
+  probe the pool's accounts instead. Run `switchboard service restart`.
+- **The dashboard says `couldn't read usage: every pool is fenced: …`:** with every pool fenced,
+  there's no pool for it to show without being told, and this release's dashboard takes no
+  `--pool`. Read a pool with `switchboard status --pool <id>`, or leave one pool unfenced with
+  `pool edit <id> --unfence`.
+- **`setup` stops adding an account, saying `every pool is fenced, so which the account goes in is
+  yours to say`:** it adds an account to the pool `accounts add` takes without `--pool`, and with
+  every pool fenced there's none. It stops before making a token. Add the account with
+  `switchboard accounts add <label> --pool <id>`, then run `setup` again for the rest.
+- **A client's session in a directory you've just fenced still runs on your accounts:** a
+  session's pool is decided as it starts, so one already running when `pool add` or `pool edit`
+  made the fence keeps its old pool till it's resumed. Resume the sessions running there.
 - **`pin` says `pin accounts of one pool: …`:** a pin is its pool's, so the accounts given must be
   in one. Pin each pool's accounts apart. A session can be pinned only to an account of its own
   pool.

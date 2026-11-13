@@ -39,7 +39,7 @@ Every Claude subscription has a weekly limit, most a 5-hour one too. When you hi
 - **You and Claude both steer.** Pin new sessions to an account, or move running ones, from the command line, the dashboard, or by asking Claude.
 - **A client's accounts stay theirs.** Fence a pool of accounts to a client's directories: sessions started there use those accounts alone, and no other session does.
 - **Told in time.** Desktop notifications when an account hits a limit, has room again, passes a share you set, or its token nears the end of its year.
-- **Never in the way.** If switchboard can't route a session, `claude` starts as it would without it, but never inside a pool's fence.
+- **Never in the way.** If switchboard can't route a session, `claude` starts as it would without it. Once you fence a pool, it starts on its pool's accounts or not at all, so no session crosses a fence.
 
 **Worth it with one subscription.** Claude paces its work on your live usage and your history, every request goes on record, and the dashboard shows where you stand. The router carries every request on that one account; a session that hits a limit has nowhere else to go until you add a second.
 

@@ -80,10 +80,10 @@ is the flag not given. Without `--pool`, a verb reads:
 3. else, where every pool is fenced, none: it fails, naming the pools to choose from, as
    `every pool is fenced: name a pool, q7mt (Acme) or r2d4 (Client), with --pool`.
 
-A pool `--pool` names that isn't configured fails the same way: `there's no pool "x7": name …`.
-The directory a verb is run in never chooses its pool, as that could act on a pool you didn't know
-you were in. Inside a session, the skill has Claude pass `--pool "$SWITCHBOARD_POOL"`, the
-session's own pool.
+A pool `--pool` names that isn't configured fails the same way: `there's no pool "x7": name …`,
+but for the verbs that read the recorded files, below. The directory a verb is run in never chooses
+its pool, as that could act on a pool you didn't know you were in. Inside a session, the skill has
+Claude pass `--pool "$SWITCHBOARD_POOL"`, the session's own pool.
 
 - A verb given accounts or a session finds them in whatever pool they're in: `pin <account>...`,
   `pin --session`, `status --session`, `sessions <id>`, `requests --account` and `requests
@@ -100,8 +100,19 @@ session's own pool.
   else those the accounts record keeps, never every pool's work together. Where none of them names
   a pool, they refuse: `can't tell which pool to read: neither the config, the router nor the
   accounts record names any pools`.
+- **A pool the config no longer has keeps its history.** `requests`, `history`, `sessions` and
+  `events` take `--pool` with the id of a pool the accounts record keeps but the config doesn't:
+  one removed, or another Mac's that [`import`](#import) brought in. They read its work as it was
+  recorded, under its id alone, and name it by its label, marked, as `pool Acme (removed 6 Oct)`,
+  or `pool Client (not configured here)`. `status`, `usage` and `pin` refuse it, as the router
+  routes nothing there.
 - [`dashboard`](#dashboard) shows the pool the verbs act on without `--pool`; `status --pool <id>`
-  shows the others.
+  shows the others. Where every pool is fenced, it reads no pool's accounts, saying it couldn't
+  read usage, as every pool is fenced: this release's dashboard takes no `--pool`.
+- **A router that reports no pools,** as one from before them still running till its restart,
+  isn't read as a pool's where the config has them: `status`, `usage` and the dashboard probe the
+  pool's accounts instead, saying `the router is unhealthy, it doesn't route by pools yet, as it
+  started before them: restart it with switchboard service restart`.
 
 ## Everyday
 
@@ -527,7 +538,11 @@ The steps are:
    label and plan, then its token, whose subscription decides its id, as
    [`accounts add`](#accounts) does: a subscription this Mac had comes back under its old id, and
    where that can't be told, a card asks whether it's a new account or one of those this Mac had.
-   With no account, the card adding one opens at once. With two
+   Where the config has [pools](how-it-works.md#pools), the account goes in the pool `accounts
+   add` adds one to without `--pool`: the only pool, else the unfenced one. Where every pool is
+   fenced, there's no such pool, and `setup` stops before making a token, saying to add the
+   account with `switchboard accounts add <label> --pool <id>`, naming the pools; a later release's
+   add card asks for the pool. With no account, the card adding one opens at once. With two
    or more and none the primary, `enter` waits for one. On a first run, where the primary has
    no reserve, `enter` asks for one first, once: the share of its windows kept back for the
    Claude apps, as a percentage, or `none`; `esc` leaves it with none, writing nothing.
@@ -920,7 +935,9 @@ switchboard pool remove <id>
 The subcommands do the following:
 
 - **`add`** makes a pool, shown as the label given, as a `[[pool]]` table in the config, under an
-  id switchboard makes, and says it: `added pool "Acme" as q7mt, fenced to ~/Code/acme`.
+  id switchboard makes, and says it: `added pool "Acme" as q7mt, fenced to ~/Code/acme; sessions
+  running in its directories keep the pool they started in, and its accounts, till they're
+  resumed`.
   - It's fenced to the directories given, each an absolute path or one starting `~/`, covering
     everything beneath it. Without any, it's the unfenced pool, which serves every session started
     outside every fence.
@@ -929,6 +946,8 @@ The subcommands do the following:
     same, inside or around them.
   - A pool made has no accounts: a session started in its directories refuses until one is added,
     with `accounts add --pool` or `accounts edit --pool`.
+  - A session already running in its directories keeps the pool it started in, and that pool's
+    accounts, till it's resumed: resume the sessions running there once the fence is made.
   - It's refused on a config that names no pools: the router writes them into it, the first as it
     moves the history to pools, and pools are added after. Once the move is done, a config put back
     without its pools is given them back by the router (see
@@ -940,13 +959,17 @@ The subcommands do the following:
   - Its label and directories are refused as `add` refuses them, and so is `--unfence` where
     another pool is unfenced already.
   - Directories the config writes across lines can't be changed in place: edit them by hand.
-  - A session running keeps the pool it started in till it's resumed.
+  - A session running keeps the pool it started in, and that pool's accounts, till it's resumed,
+    even in directories the new fence takes in; where it fences the pool anew, it says so.
 - **`remove`** removes a pool's table from the config, with the comments directly above it.
   - A pool with accounts is refused, naming them: move each to another pool with `accounts edit
     --pool`, or remove it, first, so no edit puts a pool's accounts in another.
   - The last pool can't be removed, as an account added needs a pool to go into.
   - Its directories are no pool's once it's gone, so a session started in them goes to the
     unfenced pool, where there's one.
+  - Its history stays, under its id, and it says so: `removed pool q7mt (Acme): its history stays,
+    read with --pool q7mt by requests, history, sessions and events` (see
+    [Reading a pool](#reading-a-pool)).
 
 The config is edited as text, as [`accounts`](#accounts) edits it. The router takes a change to the
 pools up at its next look at the config, within seconds, rather than at its restart.
@@ -1311,7 +1334,7 @@ switchboard requests [--session <id>] [--account <id>] [--since <when>] [--pool 
 | `--session <id>` | Keep that session's requests. Name the session by its id, or as much of it as is unique among the sessions read. |
 | `--account <id>` | Keep that account's requests, by its id, in any case. A label is refused, naming the id of each account it labels. |
 | `--since <when>` | Start at a day (`2026-10-01`), a time today (`14:00`), or a while ago (`3h`, `2d`). |
-| `--pool <id>` | Keep that pool's requests, each by the pool it was routed within at the time, a request from before pools the first pool's. With `--session` or `--account` and no `--pool`, their requests are found in whatever pool each was routed in. See [Reading a pool](#reading-a-pool). |
+| `--pool <id>` | Keep that pool's requests, each by the pool it was routed within at the time, a request from before pools the first pool's. With `--session` or `--account` and no `--pool`, their requests are found in whatever pool each was routed in. A pool removed, or another Mac's from an import, is read by its id too. See [Reading a pool](#reading-a-pool). |
 | `--json` | Print each line as the ledger holds it, with `"schema": 1` put first, a JSON object a line, even on a terminal. It does so off a terminal anyway. See [The request ledger](reference.md#the-request-ledger). |
 | `--pretty` | Print the text, even off a terminal, as it does on one. |
 
@@ -1348,7 +1371,7 @@ switchboard history [--since <when>] [--windows] [--pool <id>] [--json | --prett
 |---|---|
 | `--since <when>` | Start on the day of `<when>`: a day (`2026-10-01`), a time today (`14:00`), or a while ago (`3h`, `2d`). |
 | `--windows` | Print each account's every window's readings over those days, in place of the days. |
-| `--pool <id>` | Sum up that pool's history: its work as each request recorded its pool at the time, the work from before pools the first pool's, and the windows, plans and weeks of the accounts in it now. With `--windows`, the windows of the accounts in it now. See [Reading a pool](#reading-a-pool). |
+| `--pool <id>` | Sum up that pool's history: its work as each request recorded its pool at the time, the work from before pools the first pool's, and the windows, plans and weeks of the accounts in it now. With `--windows`, the windows of the accounts in it now. A pool removed, or another Mac's from an import, is read by its id too. See [Reading a pool](#reading-a-pool). |
 | `--json` | Print the blocks as JSON, even on a terminal. It does so off a terminal anyway. The JSON holds the day the prices were read, then the days' summaries, priced, then the year, months, weeks, tokens, totals, plans and capacity over them. With `--windows`, it holds the windows' readings. See [`history`'s JSON](reference.md#historys-json). |
 | `--pretty` | Print the text, even off a terminal, as it does on one. |
 
@@ -1499,7 +1522,7 @@ switchboard sessions [<id>] [--pool <id>] [--json | --pretty]
 
 | Flag | What it does |
 |---|---|
-| `--pool <id>` | List that pool's sessions, each by the pool its requests were routed within, a session from before pools the first pool's. A session given is found in whatever pool it's in, or with `--pool`, among that pool's alone. See [Reading a pool](#reading-a-pool). |
+| `--pool <id>` | List that pool's sessions, each by the pool its requests were routed within, a session from before pools the first pool's. A session given is found in whatever pool it's in, or with `--pool`, among that pool's alone. A pool removed, or another Mac's from an import, is read by its id too. See [Reading a pool](#reading-a-pool). |
 | `--json` | Print the sessions, or the session's page, as JSON, even on a terminal. It does so off a terminal anyway. See [`sessions`' JSON](reference.md#sessions-json). |
 | `--pretty` | Print the text, even off a terminal, as it does on one. |
 
@@ -1577,7 +1600,7 @@ switchboard events [--since <when>] [-f] [--pool <id>] [--json | --pretty]
 |---|---|
 | `--since <when>` | Start at a day (`2026-10-01`), a time today (`14:00`), or a while ago (`3h`, `2d`). |
 | `-f`, `--follow` | Then go on printing a line each time the router files one, until interrupted. A changed event is printed again, whole. |
-| `--pool <id>` | List that pool's events: a session's start or move, and a pin, by the pool each was filed in, one from before pools the first pool's; what befell an account, by the pool it's in now; and the router's own. An event of a pool since removed is in no pool's list, and a removed account's go by the pool the accounts record keeps for it. See [Reading a pool](#reading-a-pool). |
+| `--pool <id>` | List that pool's events: a session's start or move, and a pin, by the pool each was filed in, one from before pools the first pool's; what befell an account, by the pool it's in now; and the router's own. An event of a pool since removed is in no configured pool's list, but its own, read with `--pool` and its id, as another Mac's from an import is; and a removed account's go by the pool the accounts record keeps for it. See [Reading a pool](#reading-a-pool). |
 | `--json` | Print each event as the router files it, with `"schema": 1` put first, a JSON object a line, with its `run` and `id`, even on a terminal. It does so off a terminal anyway. Of an event printed again, the last line is how it stands. See [The router's events](reference.md#the-routers-events). |
 | `--pretty` | Print the text, even off a terminal, as it does on one. |
 

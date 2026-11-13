@@ -697,9 +697,17 @@ it moves your history to pools, once, by itself:
 
 It routes throughout, and a stop part way carries on the next time it starts. Until it's done,
 `requests`, `history`, `sessions`, `events` and `import` refuse, the dashboard says what holds the
-move up, and `switchboard status` says how it stands. Work in no pool, from before pools, is the
-first pool's ever after: the one the move made, while the config has it, else the config's first
-pool, as after you empty and remove `Default`.
+move up, and `switchboard status` says how it stands. The move gives the history from before
+pools the first pool's id, so it stays under that pool for good. A line filed naming no pool since,
+as by a router draining as another takes over, is the first pool's: the one the move made, while
+the config has it, else the config's first pool, as after you empty and remove `Default`.
+
+**A pool removed keeps its history.** Its work stays under its id, `Default`'s from before pools
+with it, and nothing moves it into another pool, as a removed pool may be a client's. `requests`,
+`history`, `sessions` and `events` read it with `--pool` and its id, naming it by its label, marked
+removed, as `pool Default (removed 6 Oct)`; so do they a pool another Mac's history brought in with
+`import`, marked `not configured here`. `status`, `usage` and `pin` refuse it, as the router routes
+nothing there. `switchboard pool remove` says so as it removes one.
 
 **A config that loses its pools,** as one put back from before pools by hand or by the repository
 it's kept in, is given them back: the router writes each pool back as the config last wrote it,
@@ -712,7 +720,7 @@ crosses a fence meanwhile. See [Pools](troubleshooting.md#pools).
 **Several Macs** sharing a config should upgrade together, as for the ids: the first to move writes
 the first pool, and the others take it from the config. A Mac that moves before the first pool has
 reached it makes one of its own, and its history from before pools stays under that pool, shown
-removed once the configs agree, which harms nothing but its name.
+removed once the configs agree, and read with `--pool` and that pool's id, as a removed pool's is.
 
 ### What pools can't hold
 
@@ -722,6 +730,10 @@ removed once the configs agree, which harms nothing but its name.
 - **A running session's own token** goes out until the session exits. The router refuses its
   routed requests once its token has left its pool, but what never reaches the router, such as
   fast mode, carries on until then.
+- **A session running where a fence is added,** by `pool add` or `pool edit`, keeps the pool it
+  started in till it's resumed, as a session's pool is decided as it starts: a client's work in a
+  directory a new fence takes in goes on your own accounts till then. Resume the sessions running
+  there once the fence is made.
 - **A config file that can't be read even for its pools,** with the router not answering: before
   the history has moved to pools, `claude` starts as if switchboard weren't there, as it did before
   pools. Once it has, `claude` keeps Claude Code's own login out of the fences the accounts record
