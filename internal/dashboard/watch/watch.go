@@ -142,8 +142,10 @@ type Config struct {
 	// turns to none.
 	Pool status.ShownPool
 	Turn func(ctx context.Context, from string) (Pooled, error)
-	// Accounts are the configured accounts, whose plans History prices its
-	// worth against, and WeekStarts the day its calendar weeks start on.
+	// Accounts are the configured accounts of the pool shown, as status's
+	// PoolAccounts has them, which Accounts lists and whose plans History
+	// prices its worth against, and WeekStarts the day its calendar weeks
+	// start on.
 	// Removed are the accounts removed, as status.RemovedOf gives them, which
 	// every document read names, as status's Moment Named does, and History
 	// by the label each showed last.

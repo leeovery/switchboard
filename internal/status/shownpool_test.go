@@ -3,6 +3,7 @@ package status_test
 import (
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/status"
@@ -46,26 +47,90 @@ func TestAPoolShownIsTheConfigsByItsID(t *testing.T) {
 
 // A pool shown is named, turns to another and is fenced only as its pools
 // say: named and turning once there's a second, never with no pool shown;
-// empty with no accounts, as no pool shown never is.
+// pooled with any; empty with no accounts, as no pool shown never is.
 func TestAPoolShownIsNamedOnceThereIsASecond(t *testing.T) {
 	tests := []struct {
-		name                 string
-		pool                 status.ShownPool
-		named                string
-		turns, empty, fenced bool
+		name                         string
+		pool                         status.ShownPool
+		named                        string
+		turns, pooled, empty, fenced bool
 	}{
-		{name: "the only pool", pool: status.ShownPool{ID: "b2n8", Label: "Default", Accounts: 3, Pools: 1}},
-		{name: "one of two", pool: status.ShownPool{ID: "b2n8", Label: "Default", Accounts: 3, Pools: 2}, named: "Default", turns: true},
-		{name: "fenced, with no accounts", pool: status.ShownPool{ID: "q7mt", Label: "Acme", Dirs: []string{"~/Code/acme"}, Pools: 2}, named: "Acme", turns: true, empty: true, fenced: true},
-		{name: "none shown, every pool fenced", pool: status.ShownPool{Pools: 2}, turns: true},
+		{name: "the only pool", pool: status.ShownPool{ID: "b2n8", Label: "Default", Accounts: 3, Pools: 1}, pooled: true},
+		{name: "one of two", pool: status.ShownPool{ID: "b2n8", Label: "Default", Accounts: 3, Pools: 2}, named: "Default", turns: true, pooled: true},
+		{name: "fenced, with no accounts", pool: status.ShownPool{ID: "q7mt", Label: "Acme", Dirs: []string{"~/Code/acme"}, Pools: 2}, named: "Acme", turns: true, pooled: true, empty: true, fenced: true},
+		{name: "none shown, every pool fenced", pool: status.ShownPool{Pools: 2}, turns: true, pooled: true},
+		{name: "none shown, the only pool fenced", pool: status.ShownPool{Pools: 1}, pooled: true},
 		{name: "no pools", pool: status.ShownPool{}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			p := tt.pool
-			if p.Named() != tt.named || p.Turns() != tt.turns || p.Empty() != tt.empty || p.Fenced() != tt.fenced {
-				t.Errorf("%+v is named %q, turns %v, empty %v, fenced %v; want %q, %v, %v, %v",
-					p, p.Named(), p.Turns(), p.Empty(), p.Fenced(), tt.named, tt.turns, tt.empty, tt.fenced)
+			if p.Named() != tt.named || p.Turns() != tt.turns || p.Pooled() != tt.pooled || p.Empty() != tt.empty || p.Fenced() != tt.fenced {
+				t.Errorf("%+v is named %q, turns %v, pooled %v, empty %v, fenced %v; want %q, %v, %v, %v, %v",
+					p, p.Named(), p.Turns(), p.Pooled(), p.Empty(), p.Fenced(), tt.named, tt.turns, tt.pooled, tt.empty, tt.fenced)
+			}
+		})
+	}
+}
+
+// A screen names the pool it tells of once there's a second, never with
+// one or none.
+func TestThePoolIsNamedOnceThereIsASecond(t *testing.T) {
+	for pools, want := range []bool{false, false, true, true} {
+		if got := status.NamesThePool(pools); got != want {
+			t.Errorf("NamesThePool(%d) = %v, want %v", pools, got, want)
+		}
+	}
+}
+
+// The accounts a dashboard shows are the pool's alone, by its id, ignoring
+// case: every one in a config without pools, and none with no pool shown,
+// so no pool's accounts are listed in another's.
+func TestTheAccountsShownAreThePoolsAlone(t *testing.T) {
+	tests := []struct {
+		name  string
+		pools config.Pools
+		id    string
+		want  []string
+	}{
+		{name: "Acme", pools: shownPools, id: "q7mt", want: []string{"work"}},
+		{name: "Default, its id in another case", pools: shownPools, id: "B2N8", want: []string{"side"}},
+		{name: "Client, with none", pools: shownPools, id: "r2d4"},
+		{name: "none shown, every pool fenced", pools: shownPools},
+		{name: "one not configured", pools: shownPools, id: "x9z9"},
+		{name: "a config without pools", want: []string{"work", "side"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := status.PoolAccounts(tt.pools, shownAccounts, tt.id).IDs(); !slices.Equal(got, tt.want) {
+				t.Errorf("PoolAccounts(%q) = %v, want %v", tt.id, got, tt.want)
+			}
+		})
+	}
+}
+
+// A pool shown is empty as its document read has it, once one is read, an
+// account added since it was chosen, or its last taken out, showing at
+// once; before the first read, as the config had it.
+func TestAPoolShownIsEmptyAsItsDocumentReadHasIt(t *testing.T) {
+	read := time.Date(2026, 11, 13, 9, 0, 0, 0, time.UTC)
+	one := status.Document{GeneratedAt: read, Accounts: []status.Account{{ID: "work"}}}
+	tests := []struct {
+		name  string
+		pool  status.ShownPool
+		doc   status.Document
+		empty bool
+	}{
+		{name: "none in the config, none read yet", pool: status.ShownPool{ID: "q7mt", Pools: 2}, empty: true},
+		{name: "none in the config, one added since", pool: status.ShownPool{ID: "q7mt", Pools: 2}, doc: one},
+		{name: "one in the config, none read yet", pool: status.ShownPool{ID: "q7mt", Accounts: 1, Pools: 2}},
+		{name: "one in the config, taken out since", pool: status.ShownPool{ID: "q7mt", Accounts: 1, Pools: 2}, doc: status.Document{GeneratedAt: read}, empty: true},
+		{name: "no pool shown", pool: status.ShownPool{Pools: 2}, doc: status.Document{GeneratedAt: read}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.pool.AsRead(tt.doc).Empty(); got != tt.empty {
+				t.Errorf("%+v, as read, is empty %v; want %v", tt.pool, got, tt.empty)
 			}
 		})
 	}

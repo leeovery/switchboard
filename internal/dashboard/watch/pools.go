@@ -5,17 +5,21 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
 // Pooled is what the dashboard shows of a pool: the pool, as status's
-// PoolShown has it; the source that reads its document, sessions, history
-// and request stream; its share of the router's events; and what labels a
-// pool by its id in the words of those events, as Config's PoolNamed does.
+// PoolShown has it; its accounts, as status's PoolAccounts has them, which
+// are Config's Accounts; the source that reads its document, sessions,
+// history and request stream; its share of the router's events; and what
+// labels a pool by its id in the words of those events, as Config's
+// PoolNamed does.
 type Pooled struct {
 	Pool      status.ShownPool
+	Accounts  config.Accounts
 	Source    Source
 	Events    views.Events
 	PoolNamed func(id string) string
@@ -78,7 +82,7 @@ func (m Model) turnedTo(msg turnedMsg) (Model, tea.Cmd) {
 func (m Model) freshIn(pooled Pooled) Model {
 	m.stream.end()
 	cfg := m.cfg
-	cfg.Pool, cfg.Source, cfg.Events, cfg.PoolNamed = pooled.Pool, pooled.Source, pooled.Events, pooled.PoolNamed
+	cfg.Pool, cfg.Accounts, cfg.Source, cfg.Events, cfg.PoolNamed = pooled.Pool, pooled.Accounts, pooled.Source, pooled.Events, pooled.PoolNamed
 	cfg.Size, cfg.View, cfg.Sections, cfg.By, cfg.Models, cfg.Graphs = m.size, m.view, m.sections, m.by, m.models, m.graphs
 	cfg.AccountsShown = dashboard.AccountsKept(m.accounts.shown.Kept())
 	cfg.SessionsShown = dashboard.SessionsKept(m.sessionsTab.shown.Kept())

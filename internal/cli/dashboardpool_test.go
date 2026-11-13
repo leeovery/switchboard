@@ -2,15 +2,21 @@ package cli_test
 
 import (
 	"context"
+	"encoding/json"
 	"io"
+	"net/http"
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/leeovery/switchboard/internal/cli"
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard/watch"
+	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -61,6 +67,109 @@ func TestTheDashboardShowsThePoolNamedElseTheOneTheVerbsActOn(t *testing.T) {
 			}
 			if ids := eventIDs(cfg.Events); !slices.Equal(ids, tt.events) {
 				t.Errorf("the dashboard's events are those of the ids %v, want %v", ids, tt.events)
+			}
+		})
+	}
+}
+
+// The dashboard lists the accounts of the pool it shows alone, as named and
+// as P turns to the next, and none where it shows none: no pool's accounts
+// are listed in another's, nor History's kept view of one carried into it.
+func TestTheDashboardListsTheAccountsOfThePoolItShowsAlone(t *testing.T) {
+	deps := pooledDeps(t, false)
+	cfg := recordWatch(t, &deps)
+	if got := run(t, deps, "dashboard", "--pool", "q7mt"); got != (result{}) {
+		t.Fatalf("switchboard dashboard --pool q7mt = %+v, want exit status 0 and nothing printed", got)
+	}
+	if got := cfg.Accounts.IDs(); !slices.Equal(got, []string{"work"}) {
+		t.Errorf("in Acme, the dashboard lists the accounts %v, want Acme's alone, work", got)
+	}
+	turned, err := cfg.Turn(t.Context(), "q7mt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := turned.Accounts.IDs(); !slices.Equal(got, []string{"side"}) {
+		t.Errorf("turned to Default, the dashboard lists the accounts %v, want Default's alone, side", got)
+	}
+
+	fenced := pooledDeps(t, true)
+	none := recordWatch(t, &fenced)
+	if got := run(t, fenced, "dashboard"); got != (result{}) {
+		t.Fatalf("switchboard dashboard = %+v, want exit status 0 and nothing printed", got)
+	}
+	if got := none.Accounts.IDs(); len(got) != 0 {
+		t.Errorf("with every pool fenced and none named, the dashboard lists the accounts %v, want none", got)
+	}
+}
+
+// The dashboard's source reads the router's document, sessions, history and
+// request stream of the pool it shows, as named and as P turns to the next:
+// never another pool's under the pool's name.
+func TestTheDashboardsSourceReadsThePoolItShows(t *testing.T) {
+	deps := pooledDeps(t, false)
+	var mu sync.Mutex
+	asked := map[string][]string{}
+	serveRouter(t, router.SocketPath(stateDir(t, deps)), new(atomic.Int64), map[string]http.HandlerFunc{
+		"GET /health": reportsPools,
+		"GET /": func(w http.ResponseWriter, req *http.Request) {
+			pool := req.URL.Query().Get(router.PoolQuery)
+			mu.Lock()
+			asked[req.URL.Path] = append(asked[req.URL.Path], pool)
+			mu.Unlock()
+			switch req.URL.Path {
+			case "/status":
+				_ = json.NewEncoder(w).Encode(status.Document{PoolID: pool, Accounts: []status.Account{{ID: map[string]string{"q7mt": "work", "b2n8": "side"}[pool]}}})
+			case "/sessions":
+				_, _ = io.WriteString(w, "[]")
+			case "/history":
+				_, _ = io.WriteString(w, "{}")
+			}
+		},
+	})
+	cfg := recordWatch(t, &deps)
+	if got := run(t, deps, "dashboard", "--pool", "q7mt"); got != (result{}) {
+		t.Fatalf("switchboard dashboard --pool q7mt = %+v, want exit status 0 and nothing printed", got)
+	}
+	turned, err := cfg.Turn(t.Context(), "q7mt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tt := range []struct {
+		name, pool, account string
+		source              watch.Source
+	}{
+		{name: "opened on Acme", pool: "q7mt", account: "work", source: cfg.Source},
+		{name: "turned to Default", pool: "b2n8", account: "side", source: turned.Source},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			mu.Lock()
+			clear(asked)
+			mu.Unlock()
+			doc, _, err := tt.source.Read(t.Context(), status.Read{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if doc.PoolID != tt.pool || len(doc.Accounts) != 1 || doc.Accounts[0].ID != tt.account {
+				t.Errorf("the source read the document of %q, holding %+v; want %s's, holding %s", doc.PoolID, doc.Accounts, tt.pool, tt.account)
+			}
+			if _, err := tt.source.Sessions(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := tt.source.History(t.Context(), "7d", time.Hour); err != nil {
+				t.Fatal(err)
+			}
+			stream, err := tt.source.Stream(t.Context())
+			if err != nil {
+				t.Fatal(err)
+			}
+			for range stream {
+			}
+			mu.Lock()
+			defer mu.Unlock()
+			for _, path := range []string{"/status", "/sessions", "/history", "/stream"} {
+				if got := asked[path]; len(got) == 0 || slices.ContainsFunc(got, func(p string) bool { return p != tt.pool }) {
+					t.Errorf("the source asked %s of the pools %q, want %s's alone", path, got, tt.pool)
+				}
 			}
 		})
 	}

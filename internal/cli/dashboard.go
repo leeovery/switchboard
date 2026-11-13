@@ -177,7 +177,6 @@ func (a *app) dashboard(ctx context.Context, out io.Writer, opts dashboardOption
 		Interval:      opts.interval,
 		Policy:        claude.Policy(),
 		WindowName:    status.NameOfKey,
-		Accounts:      cfg.Accounts,
 		WeekStarts:    cfg.WeekStarts,
 		WeekWindow:    claude.WeekWindow,
 		Family:        claude.Provider{}.Family,
@@ -189,7 +188,6 @@ func (a *app) dashboard(ctx context.Context, out io.Writer, opts dashboardOption
 		AccountsShown: dashboard.AccountsKept(kept.Accounts),
 		SessionsShown: dashboard.SessionsKept(kept.Sessions),
 		RunwayShown:   dashboard.RunwayKept(kept.Runway),
-		History:       dashboard.HistoryKept(kept.History, cfg.Accounts),
 		Graphs:        dashboard.GraphsSectionsNamed(kept.GraphsTab.Sections),
 		Log:           dashboard.LogKept(kept.Log),
 		LedgerKeep:    cfg.Ledger.Keep,
@@ -202,7 +200,8 @@ func (a *app) dashboard(ctx context.Context, out io.Writer, opts dashboardOption
 	if err != nil {
 		return err
 	}
-	wc.Pool, wc.Source, wc.Events, wc.PoolNamed, wc.Turn = shown.Pool, shown.Source, shown.Events, shown.PoolNamed, pools.turn
+	wc.Pool, wc.Accounts, wc.Source, wc.Events, wc.PoolNamed, wc.Turn = shown.Pool, shown.Accounts, shown.Source, shown.Events, shown.PoolNamed, pools.turn
+	wc.History = dashboard.HistoryKept(kept.History, wc.Accounts)
 	if t.prefs != nil {
 		wc.Prefs = t.prefs
 	}

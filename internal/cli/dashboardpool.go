@@ -26,8 +26,8 @@ type shownPools struct {
 // pooledConfig has them, as shown has it. It fails where a pool is named
 // and the pools can't be told, as pooledConfig fails; where none is named,
 // it opens on none, warning, its source reading the pool the verbs act on,
-// as before pools, and none of the router's events, so the dashboard never
-// shows every pool's together.
+// as before pools, its accounts the config's, which names none, and none of
+// the router's events, so the dashboard never shows every pool's together.
 func (s shownPools) opened(ctx context.Context, cfg *config.Config, named string) (watch.Pooled, error) {
 	pooled, err := s.a.pooledConfig(ctx, cfg)
 	switch {
@@ -35,7 +35,7 @@ func (s shownPools) opened(ctx context.Context, cfg *config.Config, named string
 		return watch.Pooled{}, err
 	case err != nil:
 		logger.Warn("can't tell which pool the dashboard shows, so it reads none of the router's files of events", "error", err)
-		return watch.Pooled{Source: s.a.source(ctx, cfg, s.probe), Events: events.Empty{}}, nil
+		return watch.Pooled{Accounts: status.PoolAccounts(cfg.Pools, cfg.Accounts, ""), Source: s.a.source(ctx, cfg, s.probe), Events: events.Empty{}}, nil
 	}
 	return s.shown(ctx, cfg, pooled, named)
 }
@@ -62,20 +62,25 @@ func (s shownPools) turn(ctx context.Context, from string) (watch.Pooled, error)
 
 // shown is what the dashboard shows of the pool named of the config cfg,
 // its pools as pooled has them, else of the one the verbs act on, as
-// askedPool has it: the pool, as status.PoolShown has it; its source,
-// reading the router's document of it, else probing its accounts; and its
-// share of the router's events, as shownEvents has it. It fails where the
-// pool named isn't configured, naming those that are: a pool the accounts
-// record keeps alone has no accounts to show, nor a document the router
-// gives. Where every pool is fenced and none is named, it shows none: the
-// router refuses its source's reads, saying so, and it reads none of the
-// router's events, warning.
+// askedPool has it: the pool, as status.PoolShown has it; its accounts, as
+// status.PoolAccounts has them; its source, reading the router's document
+// of it, else probing its accounts; and its share of the router's events,
+// as shownEvents has it. It fails where the pool named isn't configured,
+// naming those that are: a pool the accounts record keeps alone has no
+// accounts to show, nor a document the router gives. Where every pool is
+// fenced and none is named, it shows none, nor any accounts: the router
+// refuses its source's reads, saying so, and it reads none of the router's
+// events, warning.
 func (s shownPools) shown(ctx context.Context, cfg, pooled *config.Config, named string) (watch.Pooled, error) {
 	p, err := askedPool(pooled.Pools, named)
 	if err != nil && named != "" {
 		return watch.Pooled{}, poolFlagNeeded(err)
 	}
-	shown := watch.Pooled{Pool: status.PoolShown(pooled.Pools, pooled.Accounts, p.ID), Source: s.a.source(ctx, cfg, s.probe).inPool(p.ID)}
+	shown := watch.Pooled{
+		Pool:     status.PoolShown(pooled.Pools, pooled.Accounts, p.ID),
+		Accounts: status.PoolAccounts(pooled.Pools, pooled.Accounts, p.ID),
+		Source:   s.a.source(ctx, cfg, s.probe).inPool(p.ID),
+	}
 	if err != nil {
 		logger.Warn("can't tell which pool the dashboard shows, so it reads none of the router's files of events", "error", err)
 		shown.Events = events.Empty{}

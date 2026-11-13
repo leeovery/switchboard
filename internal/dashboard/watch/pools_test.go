@@ -10,6 +10,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/events"
 	"github.com/leeovery/switchboard/internal/status"
@@ -43,20 +44,30 @@ func (p *poolTurns) turn(_ context.Context, from string) (Pooled, error) {
 	return p.pools[p.order[(i+1)%len(p.order)]], nil
 }
 
+// The accounts of these tests' pools, as the config has them: Default's
+// three, and Acme's one.
+var (
+	defaultAccounts = config.Accounts{{ID: "work", Label: "Work", Pool: "b2n8"}, {ID: "personal", Label: "Personal", Pool: "b2n8"}, {ID: "side", Label: "Side", Pool: "b2n8"}}
+	acmeAccounts    = config.Accounts{{ID: "k3f9", Label: "Acme 1", Pool: "q7mt"}}
+)
+
 // pooledHarness is a harness of the router's document of three accounts in
 // Default, shown, beside Acme, whose source reads the router's document of
-// work alone, as acme pooled has it, P turning between them.
+// k3f9 alone, or of none where acme has no accounts, P turning between them.
 func pooledHarness(t *testing.T, acme status.ShownPool) (*harness, *fakeSource, *poolTurns) {
 	t.Helper()
 	h := routedHarness(t, routerDocument(three()...))
-	acmeDoc := routerDocument(account("work", "Work", fableWeek(0.7)))
+	acmeDoc, accounts := routerDocument(), config.Accounts(nil)
+	if acme.Accounts > 0 {
+		acmeDoc, accounts = routerDocument(account("k3f9", "Acme 1", fableWeek(0.7))), acmeAccounts
+	}
 	acmeSource := &fakeSource{doc: probedWithoutTheRouter(), router: &acmeDoc}
 	pools := &poolTurns{order: []string{"b2n8", "q7mt"}, pools: map[string]Pooled{
-		"b2n8": {Pool: defaultShown, Source: h.source, Events: events.Empty{}},
-		"q7mt": {Pool: acme, Source: acmeSource, Events: events.Empty{}},
+		"b2n8": {Pool: defaultShown, Accounts: defaultAccounts, Source: h.source, Events: events.Empty{}},
+		"q7mt": {Pool: acme, Accounts: accounts, Source: acmeSource, Events: events.Empty{}},
 	}}
 	cfg := h.config(Size{Width: 160, Height: 40})
-	cfg.Pool, cfg.Turn = defaultShown, pools.turn
+	cfg.Pool, cfg.Accounts, cfg.Turn = defaultShown, defaultAccounts, pools.turn
 	h.model = New(t.Context(), cfg)
 	return h, acmeSource, pools
 }
@@ -83,9 +94,18 @@ func TestPTurnsToTheNextPoolReadingItAfresh(t *testing.T) {
 	if !slices.Equal(acme.asked, []status.Read{{Probe: true}}) {
 		t.Errorf("Acme's source was asked for %+v, want a full read, as the dashboard opens", acme.asked)
 	}
-	if view := h.view(); !strings.Contains(h.titleRow(), "SWITCHBOARD   Acme ") || strings.Contains(view, "Personal") {
+	if view := h.view(); !strings.Contains(h.titleRow(), "SWITCHBOARD   Acme ") || strings.Contains(view, "Personal") || strings.Contains(view, "Work") {
 		t.Errorf("after P, the screen is\n%s\nwant Acme named, and its accounts alone", view)
 	}
+	m := h.model
+	if got := []string{m.accounts.shown.Accounts.IDs()[0], m.past.page.Accounts.IDs()[0], m.plansAtMost[0].Account}; len(m.accounts.shown.Accounts) != 1 || len(m.past.page.Accounts) != 1 || len(m.plansAtMost) != 2 || !slices.Equal(got, []string{"k3f9", "k3f9", "k3f9"}) {
+		t.Errorf("after P, Accounts lists %v, History %v, and the plans priced are %+v; want Acme's k3f9 alone", m.accounts.shown.Accounts.IDs(), m.past.page.Accounts.IDs(), m.plansAtMost)
+	}
+	h.deliver(h.press("tab")...)
+	if view := h.view(); !strings.Contains(view, "Acme 1") || strings.Contains(view, "Personal") || strings.Contains(view, "Work") {
+		t.Errorf("after P, Accounts is\n%s\nwant Acme 1 listed alone", view)
+	}
+	h.deliver(h.press("shift+tab")...)
 
 	h.deliver(h.press("P")...)
 	if got := h.model.cfg.Pool.ID; got != "b2n8" || !slices.Equal(pools.from, []string{"b2n8", "q7mt"}) {
@@ -119,8 +139,8 @@ func TestATurnStartsTheViewAfresh(t *testing.T) {
 	if m.session != nil || m.scroll != 0 || m.accounts.shown.Focused || m.accounts.shown.Focus != "" {
 		t.Errorf("after P, a session's page open %v, scrolled %d, Compare focused %v on %q; want nothing of the pool before", m.session != nil, m.scroll, m.accounts.shown.Focused, m.accounts.shown.Focus)
 	}
-	if len(m.readings.looks) != 1 || m.readings.looks["work"] == nil {
-		t.Errorf("after P, the readings alerts compare with are of %d accounts, want Acme's work alone", len(m.readings.looks))
+	if len(m.readings.looks) != 1 || m.readings.looks["k3f9"] == nil {
+		t.Errorf("after P, the readings alerts compare with are of %d accounts, want Acme's k3f9 alone", len(m.readings.looks))
 	}
 }
 

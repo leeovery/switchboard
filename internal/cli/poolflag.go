@@ -174,7 +174,7 @@ func (a *app) poolRead(cfg *config.Config, dir string, record func() identity.Re
 // pools are more than one, so a verb's text says which it tells of: "" where
 // there's one or none, as no screen names a pool till there's a second.
 func poolNamed(pools config.Pools, label string) string {
-	if len(pools) < 2 {
+	if !status.NamesThePool(len(pools)) {
 		return ""
 	}
 	return prose.Pool(label)
