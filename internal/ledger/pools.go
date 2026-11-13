@@ -159,16 +159,18 @@ func (a AccountDay) unpooledIn(pool string) (AccountDay, bool) {
 	return a.pooled(mergedBy(days, PoolDay.key, mergedPool, strings.Compare)), true
 }
 
-// InPool reports whether the request was routed in the pool with the given
-// id, ids compared ignoring case, as it recorded at the time. first is the id
-// of the first pool, once the move to pools is done, "" till then: a line
-// naming no pool is the first's, as FirstPool says, and before, the pool of
-// none.
-func (l Line) InPool(pool, first string) bool {
-	if l.Pool == "" {
+// RecordedIn reports whether a request that recorded the pool with the id
+// recorded, as a line records it at the time, "" where it named none, was
+// routed in the pool with the given id, ids compared ignoring case. first is
+// the id of the first pool, once the move to pools is done, "" till then: a
+// request naming no pool is the first's, as FirstPool says, and before, the
+// pool of none. It's the one rule of which pool a request is of, whether
+// read of its line or of what's built of it.
+func RecordedIn(recorded, pool, first string) bool {
+	if recorded == "" {
 		return strings.EqualFold(first, pool)
 	}
-	return strings.EqualFold(l.Pool, pool)
+	return strings.EqualFold(recorded, pool)
 }
 
 // InPool returns the day in the pool with the given id alone: each account's

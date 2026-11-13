@@ -207,6 +207,7 @@ func (a *app) dashboard(ctx context.Context, out io.Writer, opts dashboardOption
 		return err
 	}
 	wc.Pool, wc.Accounts, wc.Source, wc.Events, wc.PoolNamed, wc.Turn = shown.Pool, shown.Accounts, shown.Source, shown.Events, shown.PoolNamed, pools.turn
+	wc.PoolRead = shown.Read
 	wc.History = dashboard.HistoryKept(kept.History, wc.Accounts)
 	if t.prefs != nil {
 		wc.Prefs = t.prefs

@@ -59,10 +59,12 @@ type logBounds struct {
 }
 
 // logReaders are what the Log reads, as the watch's config gives them: the
-// request ledger, the router's files of events, the prices the ledger's
-// lines are priced at, and how long the ledger and the files keep them.
+// request ledger, read in the pool shown alone, as pool reads it; the
+// router's files of events, the pool's already; the prices the ledger's
+// lines are priced at; and how long the ledger and the files keep them.
 type logReaders struct {
 	ledger views.Ledger
+	pool   views.PoolRead
 	filed  views.Events
 	prices ledger.Table
 	keep   time.Duration
@@ -70,7 +72,13 @@ type logReaders struct {
 
 // logReaders are what the Log reads.
 func (m Model) logReaders() logReaders {
-	return logReaders{ledger: m.cfg.Ledger, filed: m.cfg.Events, prices: m.cfg.Prices, keep: m.cfg.LedgerKeep}
+	return logReaders{ledger: m.cfg.Ledger, pool: m.cfg.PoolRead, filed: m.cfg.Events, prices: m.cfg.Prices, keep: m.cfg.LedgerKeep}
+}
+
+// totalsOn are the figures of the days with the dates given in the pool
+// read alone, as views.TotalsOn works them out of its days, at now.
+func (r logReaders) totalsOn(dates []string, now time.Time) []views.DayTotals {
+	return views.TotalsOn(r.pool.Dates(r.ledger), dates, now, r.prices)
 }
 
 // logReadMsg is what a read for the Log of its own found, as it first shows
@@ -165,10 +173,11 @@ func (m Model) keptHidden(now time.Time) Model {
 // read once, from no mark, folded by every reader of the tail as a read of
 // it, the store fed them wanting their sessions, and the tail's mark moved
 // to where they were read to, so the Log is told of none the store wasn't
-// fed, and the tail gives it none of them again; the Log takes them whole,
-// each told by the store as fed. It reads too the router's events from
-// today, as ReadEvents reads them, where Runway's LATELY hasn't read them,
-// and how far back its tables read, as bounds has it.
+// fed, and the tail gives it none of them again; the Log takes those of the
+// pool shown whole, as its pool reads them, each told by the store as fed.
+// It reads too the router's events from today, as ReadEvents reads them,
+// where Runway's LATELY hasn't read them, and how far back its tables read,
+// as bounds has it.
 func (m Model) openLog(now time.Time) (Model, tea.Cmd) {
 	stream, held := m.logStream(now), m.events.opened
 	m.log.reading = true
@@ -177,7 +186,7 @@ func (m Model) openLog(now time.Time) (Model, tea.Cmd) {
 		r := t.r
 		read, next := readLines(r.ledger, t.mark, t.late)
 		read.afresh = true
-		today, opened := views.RecordsOf(read.gained), views.ReadLog(r.prices)
+		today, opened := views.RecordsOf(r.pool.Held(read.gained)), views.ReadLog(r.prices)
 		tailed, _ := t.took(read, next, opened.Wanted(stream, today))
 		g := logGrown{
 			read: opened.Taken(today, true, views.LogTaking{Held: *tailed.held, Stream: stream, Now: now}), from: t.today, logBounds: r.bounds(now),
@@ -242,25 +251,26 @@ func (m Model) logFold(now time.Time) logFold {
 }
 
 // loggedLines are the lines of a read of the ledger's tail the Log takes
-// in, each its record, but those its read holds already, as LogRead's
-// RecordsToTake has them: of today's gained, afresh where they're every one
-// of today's; and of each of its late days, read again whole, by the day's
-// date.
+// in, each its record, those of the pool shown alone, but those its read
+// holds already, as LogRead's RecordsToTake has them: of today's gained,
+// afresh where they're every one of today's; and of each of its late days,
+// read again whole, by the day's date.
 type loggedLines struct {
 	gained views.LogDay
 	afresh bool
 	days   map[string]views.LogDay
 }
 
-// logged are the lines of read the Log takes in as the fold f folds it:
-// none where it doesn't fold it.
-func (f *logFold) logged(read tailLines) loggedLines {
+// logged are the lines of read the Log takes in as the fold f folds it,
+// those of the pool shown alone, as the Log's readers r read them: none
+// where it doesn't fold it.
+func (f *logFold) logged(r logReaders, read tailLines) loggedLines {
 	if f == nil {
 		return loggedLines{}
 	}
-	logged := loggedLines{gained: f.read.RecordsToTake(read.gained), afresh: read.afresh, days: make(map[string]views.LogDay, len(f.late))}
+	logged := loggedLines{gained: f.read.RecordsToTake(r.pool.Held(read.gained)), afresh: read.afresh, days: make(map[string]views.LogDay, len(f.late))}
 	for _, date := range f.late {
-		logged.days[date] = f.read.RecordsToTake(read.days[date])
+		logged.days[date] = f.read.RecordsToTake(r.pool.Held(read.days[date]))
 	}
 	return logged
 }
@@ -300,8 +310,8 @@ func (t logTab) awaitsBefore() bool {
 // as the fold says, the rows of the sessions the feed changed told again
 // once.
 func (f logFold) grown(r logReaders, read loggedLines, t views.LogTaking) *logGrown {
-	l, now := r.ledger, t.Now
-	g := logGrown{read: f.read.Taken(read.gained, read.afresh, t), totals: views.TotalsOn(l, f.late, now, r.prices)}
+	now := t.Now
+	g := logGrown{read: f.read.Taken(read.gained, read.afresh, t), totals: r.totalsOn(f.late, now)}
 	t.Gains = nil
 	for _, date := range f.late {
 		g.read = g.read.Taken(read.days[date], true, t)
@@ -440,17 +450,17 @@ func (b logBack) from(day views.LedgerDay) logGrown {
 		day = before
 	}
 	back := b.events.Back(b.readers.filed, day.Start)
-	g.from, g.found, g.totals = day, &back, views.TotalsOn(b.readers.ledger, dates, b.now, b.readers.prices)
+	g.from, g.found, g.totals = day, &back, b.readers.totalsOn(dates, b.now)
 	return g
 }
 
 // took is read taken in the lines of the day given: read, as ReadDay reads
-// them, through the filter through gives; and taken in as TakenBack takes
-// them, at b's now, beside the store b holds. It holds the sessions the take
-// reads whole, for the watch's to take in.
+// them, in the pool shown, through the filter through gives; and taken in as
+// TakenBack takes them, at b's now, beside the store b holds. It holds the
+// sessions the take reads whole, for the watch's to take in.
 func (b logBack) took(read views.LogRead, day views.LedgerDay) logGrown {
 	l := b.readers.ledger
-	grown, found := read.TakenBack(l, views.ReadDay(l, day.Date, b.through(day.Date)), b.held, b.stream, b.now)
+	grown, found := read.TakenBack(l, views.ReadDay(l, day.Date, b.through(day.Date), b.readers.pool), b.held, b.stream, b.now)
 	return logGrown{read: grown, held: found}
 }
 
@@ -526,17 +536,17 @@ type logRefilter struct {
 }
 
 // of is what reading again the day with the given date found: the day, as
-// ReadDay reads it, through the join of the filter r's read holds it
-// through and r's serving, as RefilterThrough has it, taken in place of the
-// day held, as Refiltered takes it, beside the store it reads, for the
-// watch's to take in; and which read it was, so a Log that has since grown
-// it into another drops it, as dropped has it. Of a day r's read doesn't
-// hold, Refiltered refuses, giving the read as it was, which taken in
-// changes nothing.
+// ReadDay reads it, in the pool shown, through the join of the filter r's
+// read holds it through and r's serving, as RefilterThrough has it, taken in
+// place of the day held, as Refiltered takes it, beside the store it reads,
+// for the watch's to take in; and which read it was, so a Log that has since
+// grown it into another drops it, as dropped has it. Of a day r's read
+// doesn't hold, Refiltered refuses, giving the read as it was, which taken
+// in changes nothing.
 func (r logRefilter) of(date string) logReadMsg {
 	l := r.readers.ledger
 	through := r.read.RefilterThrough(date, r.serving, r.stream)
-	read, found, _ := r.read.Refiltered(l, views.ReadDay(l, date, through), r.held, r.stream, r.now)
+	read, found, _ := r.read.Refiltered(l, views.ReadDay(l, date, through, r.readers.pool), r.held, r.stream, r.now)
 	from := r.read.Gen()
 	return logReadMsg{grown: logGrown{read: read, held: found}, refiltered: &from}
 }

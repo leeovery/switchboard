@@ -303,3 +303,66 @@ func TestADashboardWhereNothingNamesThePoolsRefusesAPoolNamed(t *testing.T) {
 		t.Errorf("switchboard dashboard --pool q7mt = %+v, want it refused, saying it can't tell the pools", got)
 	}
 }
+
+// requestsRead are the requests of the day of pooledLines that read keeps,
+// of the ledger the dashboard given cfg reads.
+func requestsRead(cfg *watch.Config, read views.PoolRead) []string {
+	var ids []string
+	for _, h := range read.Held(cfg.Ledger.Day("2026-10-07")) {
+		ids = append(ids, h.Request)
+	}
+	return ids
+}
+
+// The dashboard reads the request ledger of the pool it shows alone, as
+// named and as P turns to the next, work naming no pool the first pool's:
+// none where it shows none, every pool being fenced and none named, or the
+// pools not to be told; and every line where the files hold one pool's
+// alone, a config of one pool whose accounts record keeps no other, as
+// before pools, though one names another pool here, as only a hand could
+// file it.
+func TestTheDashboardReadsTheLedgerOfThePoolItShowsAlone(t *testing.T) {
+	tests := []struct {
+		name string
+		deps func(t *testing.T) cli.Deps
+		args []string
+		turn string
+		want []string
+	}{
+		{name: "none named: the unfenced pool", deps: func(t *testing.T) cli.Deps { return pooledDeps(t, false) }, want: []string{"p1", "p3"}},
+		{name: "one named", deps: func(t *testing.T) cli.Deps { return pooledDeps(t, false) }, args: []string{"--pool", "q7mt"}, want: []string{"p2"}},
+		{name: "turned to the next", deps: func(t *testing.T) cli.Deps { return pooledDeps(t, false) }, args: []string{"--pool", "q7mt"}, turn: "q7mt", want: []string{"p1", "p3"}},
+		{name: "every pool fenced and none named", deps: func(t *testing.T) cli.Deps { return pooledDeps(t, true) }},
+		{name: "the pools not to be told", deps: func(t *testing.T) cli.Deps { return unpooledDeps(t, unpooledConfig, false) }},
+		{name: "one pool, none other kept", deps: func(t *testing.T) cli.Deps {
+			deps := pooledDeps(t, false)
+			onePoolLeft(t, deps)
+			return deps
+		}, want: []string{"p1", "p2", "p3"}},
+		{name: "one pool, a removed one kept", deps: func(t *testing.T) cli.Deps {
+			deps := pooledDeps(t, false)
+			onePoolLeft(t, deps, acmeRemovedEntry)
+			return deps
+		}, want: []string{"p1", "p3"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			deps := tt.deps(t)
+			cfg := recordWatch(t, &deps)
+			if got := run(t, deps, append([]string{"dashboard"}, tt.args...)...); got != (result{}) {
+				t.Fatalf("switchboard dashboard %s = %+v, want exit status 0 and nothing printed", strings.Join(tt.args, " "), got)
+			}
+			read := cfg.PoolRead
+			if tt.turn != "" {
+				turned, err := cfg.Turn(t.Context(), tt.turn)
+				if err != nil {
+					t.Fatal(err)
+				}
+				read = turned.Read
+			}
+			if got := requestsRead(cfg, read); !slices.Equal(got, tt.want) {
+				t.Errorf("the dashboard reads the requests %q of the ledger, want %q", got, tt.want)
+			}
+		})
+	}
+}

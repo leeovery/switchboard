@@ -1,6 +1,7 @@
 package views_test
 
 import (
+	"reflect"
 	"slices"
 	"testing"
 	"time"
@@ -170,5 +171,113 @@ func TestAPoolsReadOfTheRoutersFilesReadsItsEventsAlone(t *testing.T) {
 	}
 	if acmeRead.Filed(nil) != nil {
 		t.Error("a pool's read of no files reads some, want none")
+	}
+}
+
+func (d givenDays) DaysOn([]string) []ledger.Summary { return d }
+
+// pooledLines are lines of Acme, q7mt, of the first pool, b2n8, of none, as
+// from before pools, the first pool's, and of Acme named in capitals.
+var pooledLines = []ledger.Held{
+	{Request: "acme", Pool: "q7mt"},
+	{Request: "first", Pool: "b2n8"},
+	{Request: "none"},
+	{Request: "acme in capitals", Pool: "Q7MT"},
+}
+
+// requestsOf are the ids of the requests of lines, in order.
+func requestsOf(lines []ledger.Held) []string {
+	var ids []string
+	for _, h := range lines {
+		ids = append(ids, h.Request)
+	}
+	return ids
+}
+
+// A pool read's lines, as Held gives them of a slice and Lines of a
+// sequence, are those that recorded its pool, ids compared ignoring case,
+// those naming none the first pool's, as ledger.RecordedIn has it: of every
+// pool's read every one, and of none's none.
+func TestAPoolReadsLinesAreThoseThatRecordedItsPool(t *testing.T) {
+	tests := []struct {
+		name string
+		read views.PoolRead
+		want []string
+	}{
+		{name: "Acme's", read: acmeRead, want: []string{"acme", "acme in capitals"}},
+		{name: "the first pool's", read: views.PoolRead{ID: "b2n8", First: "b2n8"}, want: []string{"first", "none"}},
+		{name: "every pool's", read: views.PoolRead{}, want: []string{"acme", "first", "none", "acme in capitals"}},
+		{name: "no pool's", read: views.NoPool()},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := requestsOf(tt.read.Held(pooledLines)); !slices.Equal(got, tt.want) {
+				t.Errorf("Held gives the lines %q, want %q", got, tt.want)
+			}
+			if got := requestsOf(slices.Collect(tt.read.Lines(slices.Values(pooledLines)))); !slices.Equal(got, tt.want) {
+				t.Errorf("Lines gives the lines %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+// A pool's days by their dates, as Dates reads them, are its days as Days
+// reads them: one rule of a pool's day, whichever way the days are asked
+// for.
+func TestAPoolsDaysByTheirDatesAreItsDays(t *testing.T) {
+	day := time.Date(2026, 11, 3, 0, 0, 0, 0, time.UTC)
+	read := givenDays{{Day: "2026-11-03", Accounts: []ledger.AccountDay{
+		{Account: "work"}, {Account: "side", Sessions: 3, Pools: []ledger.PoolDay{{Pool: "b2n8", Sessions: 1}, {Pool: "q7mt", Sessions: 2}}}, {Account: "spare"},
+	}}}
+	for _, r := range []views.PoolRead{acmeRead, {}, views.NoPool()} {
+		if got, want := r.Dates(read).DaysOn([]string{"2026-11-03"}), r.Days(read).Days(day); !reflect.DeepEqual(got, want) {
+			t.Errorf("the days of %+v by their dates are\n%+v\nwant, as Days reads them\n%+v", r, got, want)
+		}
+	}
+}
+
+// sessionsHeld is a ledger holding the sessions given, whatever is asked.
+type sessionsHeld struct {
+	views.Ledger
+	sessions map[string]ledger.SessionFrom
+}
+
+func (l sessionsHeld) Sessions([]string, func(string) ledger.Rest, func(string, ledger.Line)) map[string]ledger.SessionFrom {
+	return l.sessions
+}
+
+func (l sessionsHeld) SessionsOf([]string, func(string) ledger.Rest, func(string, ledger.Line)) map[string]ledger.SessionFrom {
+	return l.sessions
+}
+
+// No pool's read, as a dashboard showing no pool reads, reads no pool's
+// work: no line, no day's account, no window, no event, the router's own
+// among them, and no session, one resting on a digest's state among them.
+func TestNoPoolsReadReadsNoPoolsWork(t *testing.T) {
+	none := views.NoPool()
+	if got := none.Held(pooledLines); len(got) != 0 {
+		t.Errorf("no pool's read keeps the lines %q, want none", requestsOf(got))
+	}
+	day := time.Date(2026, 11, 3, 0, 0, 0, 0, time.UTC)
+	read := givenDays{{Day: "2026-11-03", Accounts: []ledger.AccountDay{{Account: "work", Sessions: 1}, {Account: "spare"}}}}
+	if days := none.Days(read).Days(day); len(days) != 1 || len(days[0].Accounts) != 0 {
+		t.Errorf("no pool's read of the days is %+v, want the day, holding no account", days)
+	}
+	if w := none.Windows(views.Windows{Windows: []views.WindowReadings{{Account: "work", Window: "5h"}}}); len(w.Windows) != 0 {
+		t.Errorf("no pool's read keeps the windows %+v, want none", w.Windows)
+	}
+	if none.Shows(status.Event{Kind: status.EventRestart}) || none.Shows(status.Event{Kind: status.EventStarted}) {
+		t.Error("no pool's read shows the router's own event, or a start naming no pool, want neither")
+	}
+	at := time.Date(2026, 11, 3, 9, 0, 0, 0, time.Local)
+	filed := filedLines{{ID: 1, At: at, Kind: status.EventRestart}, {ID: 2, At: at, Kind: status.EventLimit, Account: "work"}}
+	if read := views.ReadEventsFrom(none.Filed(filed), at.Add(-time.Hour), at.Add(time.Hour)); len(read.Events()) != 0 {
+		t.Errorf("no pool's read of the router's files reads %d events, want none", len(read.Events()))
+	}
+	held := sessionsHeld{sessions: map[string]ledger.SessionFrom{
+		"resting": {Base: &ledger.SessionBase{}}, "lined": {Lines: []ledger.Line{{Request: "r1"}}},
+	}}
+	if got := none.Ledger(held).Sessions(nil, nil, nil); len(got) != 0 {
+		t.Errorf("no pool's read of the sessions gives %d, want none", len(got))
 	}
 }

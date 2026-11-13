@@ -17,15 +17,17 @@ import (
 // Pooled is what the dashboard shows of a pool: the pool, as status's
 // PoolShown has it; its accounts, as status's PoolAccounts has them, which
 // are Config's Accounts; the source that reads its document, sessions,
-// history and request stream; its share of the router's events; and what
-// labels a pool by its id in the words of those events, as Config's
-// PoolNamed does.
+// history and request stream; its share of the router's events; what labels
+// a pool by its id in the words of those events, as Config's PoolNamed does;
+// and how the views read its work of the request ledger, as Config's
+// PoolRead does.
 type Pooled struct {
 	Pool      status.ShownPool
 	Accounts  config.Accounts
 	Source    Source
 	Events    views.Events
 	PoolNamed func(id string) string
+	Read      views.PoolRead
 }
 
 // turnedMsg is what the dashboard shows of the pool P turned to, or why it
@@ -104,6 +106,7 @@ func (m Model) freshIn(pooled Pooled) Model {
 	m.stream.end()
 	cfg := m.cfg
 	cfg.Pool, cfg.Accounts, cfg.Source, cfg.Events, cfg.PoolNamed = pooled.Pool, pooled.Accounts, pooled.Source, pooled.Events, pooled.PoolNamed
+	cfg.PoolRead = pooled.Read
 	cfg.Size, cfg.View, cfg.Sections, cfg.By, cfg.Models, cfg.Graphs = m.size, m.view, m.sections, m.by, m.models, m.graphs
 	cfg.AccountsShown = dashboard.AccountsKept(m.accounts.shown.Kept())
 	cfg.SessionsShown = dashboard.SessionsKept(m.sessionsTab.shown.Kept())

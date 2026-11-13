@@ -12,17 +12,17 @@ import (
 // goldenRows are lines of a day, written out in full so no change to a
 // generator moves them, so the golden of a chunk of their records holds a
 // value of every key of a stored row and of a chunk's meta: a subagent's
-// request of session s, moved off the account that hit its limit, with all
-// a router's line says, arriving to the nanosecond, its usage writing to the
-// cache for five minutes and for an hour, reading it and searching the web,
-// its answer reading its account's windows near its limit; a quota check
-// and a count of tokens of the same session; a request of session o without
-// an id, cut off as it went upstream, so it gave no usage; and its next, of
-// a model no price knows, its client gone and its answer an overload, its
-// usage counting its input under a name in capitals, a server tool no price
-// knows, and writes to the cache named beside those it breaks down; and its
-// last, its answer broken off by its upstream after it began, so it gave no
-// usage.
+// request of session s, routed in a pool, moved off the account that hit its
+// limit, with all a router's line says, arriving to the nanosecond, its
+// usage writing to the cache for five minutes and for an hour, reading it
+// and searching the web, its answer reading its account's windows near its
+// limit; a quota check and a count of tokens of the same session, naming no
+// pool, as before pools; a request of session o without an id, cut off as it
+// went upstream, so it gave no usage; and its next, of a model no price
+// knows, its client gone and its answer an overload, its usage counting its
+// input under a name in capitals, a server tool no price knows, and writes
+// to the cache named beside those it breaks down; and its last, its answer
+// broken off by its upstream after it began, so it gave no usage.
 func goldenRows() []ledger.Line {
 	at := func(hour, minute int) time.Time {
 		return time.Date(2026, 10, 8, hour, minute, 0, 0, time.UTC)
@@ -44,6 +44,7 @@ func goldenRows() []ledger.Line {
 		Limits: map[string]string{
 			"status": "allowed_warning", "5h-utilization": "0.92", "5h-reset": "1791378000", "5h-status": "allowed_warning", "7d-utilization": "0.4",
 		},
+		Pool: "q7mt",
 	}
 	check := ledger.Line{
 		At: at(9, 1), Request: "r2", Kind: ledger.KindCheck, Session: "s", Model: foldHaiku, Account: "side", Reason: "sticky", Status: 200, Attempts: 1,

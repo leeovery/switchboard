@@ -142,6 +142,11 @@ type Config struct {
 	// turns to none.
 	Pool status.ShownPool
 	Turn func(ctx context.Context, from string) (Pooled, error)
+	// PoolRead is how the Log reads the pool shown's work of the request
+	// ledger, as the verbs read a pool's: the zero PoolRead reads every
+	// pool's, as of a config without pools, or where the ledger holds one
+	// pool's alone; views.NoPool none, as where no pool is shown.
+	PoolRead views.PoolRead
 	// Accounts are the configured accounts of the pool shown, as status's
 	// PoolAccounts has them, which Accounts lists and whose plans History
 	// prices its worth against, and WeekStarts the day its calendar weeks

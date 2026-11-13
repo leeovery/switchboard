@@ -37,6 +37,33 @@ func TestALineIsReadBackNamingThePoolItWasRoutedInOrNone(t *testing.T) {
 	}
 }
 
+// A request is of the pool it recorded, ids compared ignoring case; one
+// naming none is the first pool's once the move to pools is done, and
+// before, of no pool but none.
+func TestARequestIsOfThePoolItRecordedAndOneNamingNoneTheFirsts(t *testing.T) {
+	tests := []struct {
+		name                  string
+		recorded, pool, first string
+		want                  bool
+	}{
+		{name: "the pool it recorded", recorded: acme, pool: acme, first: first, want: true},
+		{name: "the pool it recorded, in capitals", recorded: "Q7MT", pool: acme, first: first, want: true},
+		{name: "another pool than it recorded", recorded: acme, pool: first, first: first},
+		{name: "naming none, the first pool", pool: first, first: first, want: true},
+		{name: "naming none, the first pool in capitals", pool: "B2N8", first: first, want: true},
+		{name: "naming none, another pool", pool: acme, first: first},
+		{name: "naming none, no pool, the first known", pool: "", first: first},
+		{name: "naming none, no pool, before the move", pool: "", want: true},
+		{name: "naming none, a pool, before the move", pool: acme},
+		{name: "a pool, no pool asked", recorded: acme, pool: "", first: first},
+	}
+	for _, tt := range tests {
+		if got := ledger.RecordedIn(tt.recorded, tt.pool, tt.first); got != tt.want {
+			t.Errorf("%s: RecordedIn(%q, %q, %q) = %v, want %v", tt.name, tt.recorded, tt.pool, tt.first, got, tt.want)
+		}
+	}
+}
+
 // A follower finds a session's lines on a day it hasn't summarised by the
 // sessions its lines name, whatever pools they were routed in.
 func TestAFollowerFindsTheSessionsOfADaysLinesInEveryPoolTheyNamed(t *testing.T) {

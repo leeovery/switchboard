@@ -58,7 +58,7 @@ func rawDay(l Ledger, date string) LogDay {
 // wholeDay is the LogDay of the local day with the given date read back
 // whole through l, as ReadDay reads it through the zero LogFilter.
 func wholeDay(l Ledger, date string) LogDay {
-	return ReadDay(l, date, LogFilter{})
+	return ReadDay(l, date, LogFilter{}, PoolRead{})
 }
 
 // logBack is what the Log's Requests show at now, read through l as the
@@ -605,7 +605,7 @@ func (c *digestChain) readBackThrough(f *ledger.Follower, r *rand.Rand, met map[
 			c.sameThrough(f, date, drawnFilter(r, ids), raw, met)
 		}
 		counted := &readsCounted{Ledger: f}
-		if got := ReadDay(counted, date, LogOpening()); !reflect.DeepEqual(got, wholeDay(f, date)) || counted.summaries > 0 {
+		if got := ReadDay(counted, date, LogOpening(), PoolRead{}); !reflect.DeepEqual(got, wholeDay(f, date)) || counted.summaries > 0 {
 			c.t.Errorf("%s at %v: %s read back through the Log's opening filter, reading %+v, as\n%+v\nwant it read whole, reading no summary",
 				c.name, c.at, date, counted.reads, got.records)
 		}
@@ -621,7 +621,7 @@ func (c *digestChain) readBackThrough(f *ledger.Follower, r *rand.Rand, met map[
 func (c *digestChain) sameThrough(f *ledger.Follower, date string, filter LogFilter, raw LogDay, met map[string]bool) {
 	c.t.Helper()
 	counted := &readsCounted{Ledger: f}
-	got := ReadDay(counted, date, filter)
+	got := ReadDay(counted, date, filter, PoolRead{})
 	if kept, want := keptBy(got.records, filter), keptBy(raw.records, filter); !reflect.DeepEqual(kept, want) {
 		c.t.Errorf("%s at %v: %s read back through %+v, reading %+v, keeps\n%s", c.name, c.at, date, filter, counted.reads, recordsUnlike(kept, want))
 	}
@@ -684,7 +684,7 @@ func TestADayBesideOneAFilterKeepsALineOnIsReadOfItsRowsAlone(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			date := dayfile.DateOf(at(tt.day, 12))
 			counted := &readsCounted{Ledger: f}
-			got := ReadDay(counted, date, tt.f)
+			got := ReadDay(counted, date, tt.f, PoolRead{})
 			if counted.reads != tt.reads {
 				t.Errorf("%s read back through %+v reads %+v, want %+v", date, tt.f, counted.reads, tt.reads)
 			}
