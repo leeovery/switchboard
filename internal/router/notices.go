@@ -82,9 +82,9 @@ func (ss standings) title(id string) string {
 // unknown, every other account's is, so none is said to have no room for
 // want of knowing.
 func (ss standings) fullBut(id string) bool {
-	limited, known := ss.of(id)
+	limited, found := ss.of(id)
 	return !slices.ContainsFunc(ss, func(s standing) bool {
-		inPool := !known || strings.EqualFold(s.in, limited.in)
+		inPool := !found || strings.EqualFold(s.in, limited.in)
 		return s.ID != id && inPool && !s.refused && (s.quota || !s.known)
 	})
 }
