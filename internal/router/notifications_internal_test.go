@@ -154,7 +154,7 @@ func TestALimitsNotificationSaysWhereItsSessionsWent(t *testing.T) {
 // against every other account's room, so it's never said to leave none for
 // want of knowing its pool.
 func TestAnAccountGoneIsWeighedAgainstEveryOthersRoom(t *testing.T) {
-	ss := standings{{Account: status.Account{ID: "1"}, in: "q7mt", known: true}, {Account: status.Account{ID: "3"}, in: "b2n8", quota: true, known: true}}
+	ss := standings{{ID: "1", in: "q7mt", known: true}, {ID: "3", in: "b2n8", quota: true, known: true}}
 	if ss.fullBut("2") {
 		t.Error("fullBut() of an account gone, with 3 in Default having room, = true, want false")
 	}
