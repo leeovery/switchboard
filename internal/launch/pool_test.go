@@ -3,7 +3,6 @@ package launch_test
 import (
 	"context"
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -1835,28 +1834,55 @@ func TestRunThroughARouterThatFailedClosedNeverGoesPastIt(t *testing.T) {
 	}
 }
 
-// A healthy router listing no pools routes by a config from before pools,
-// every account in one pool, before the move to pools or after it, as in the
-// moment before its look follows the move: it's compared, never taken for one
-// that failed closed.
-func TestAHealthyRouterListingNoPoolsCountsAsDown(t *testing.T) {
+// A router listing no pools that hasn't failed closed is compared, waited
+// for, and counted down: a healthy one, which routes by a config from before
+// pools, every account in one pool, before the move to pools or after it, as
+// in the moment before its look follows the move; and, before the move, an
+// unhealthy one, at its first answer or while it's waited for, as when the
+// move waits on the API and its requests fail.
+func TestARouterListingNoPoolsThatHasntFailedClosedCountsAsDown(t *testing.T) {
 	const differs = "switchboard: the router doesn't route by the config's pools ("
-	for _, moved := range []bool{false, true} {
+	healthyNone := func(*config.Config) launch.Router {
+		r := healthy()
+		r.health.ReportsPools = true
+		return r
+	}
+	closing := func(cfg *config.Config) launch.Router {
+		r := &changingRouter{began: time.Now(), at: 1500 * time.Millisecond, after: closedRouter().health}
+		r.before = otherPools(cfg, func(ps []router.RoutedPool) []router.RoutedPool {
+			ps[1].Dirs = []string{homeDir + "/Code/acme-old"}
+			return ps
+		}).health
+		return r
+	}
+	routers := []struct {
+		name   string
+		router func(*config.Config) launch.Router
+		moved  bool
+	}{
+		{name: "healthy, before the move", router: healthyNone},
+		{name: "healthy, after the move", router: healthyNone, moved: true},
+		{name: "unhealthy at its first answer, before the move", router: func(*config.Config) launch.Router { return closedRouter() }},
+		{name: "unhealthy while it's waited for, before the move", router: closing},
+	}
+	for _, rt := range routers {
 		for _, down := range []config.RouterDown{config.Direct, config.Stop} {
-			t.Run(fmt.Sprintf("moved: %v, when_router_down %s", moved, down), func(t *testing.T) {
+			t.Run(rt.name+", when_router_down "+string(down), func(t *testing.T) {
 				synctest.Test(t, func(t *testing.T) {
 					h := newHarness(t, "HOME=/home/tester")
 					h.launcher.Dir = acmeDir
-					healthyNone := healthy()
-					healthyNone.health.ReportsPools = true
 					cfg := pooledConfig()
 					cfg.WhenRouterDown = down
-					r := pooledRoute(cfg, healthyNone, "")
-					r.Moved = moved
+					r := pooledRoute(cfg, rt.router(cfg), "")
+					r.Moved = rt.moved
+					began := time.Now()
 
 					err := h.launcher.Run(t.Context(), r, nil)
 					if said := h.stderr.String(); !strings.HasPrefix(said, differs) {
 						t.Errorf("said %q on stderr, want it to start %q", said, differs)
+					}
+					if waited := time.Since(began); waited != 5*time.Second {
+						t.Errorf("waited %v for the router to take the pools up, want 5s", waited)
 					}
 					if down == config.Stop {
 						if !errors.Is(err, launch.ErrNotStarted) || len(h.starts) > 0 {
@@ -1884,6 +1910,7 @@ func TestRunRoutesThroughARouterThatFailsClosedWhileItsWaitedFor(t *testing.T) {
 	for _, down := range []config.RouterDown{config.Direct, config.Stop} {
 		t.Run("when_router_down "+string(down), func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
+				log := logstest.Capture(t)
 				h := newHarness(t, "HOME=/home/tester")
 				h.launcher.Dir = acmeDir
 				cfg := pooledConfig()
@@ -1908,6 +1935,9 @@ func TestRunRoutesThroughARouterThatFailsClosedWhileItsWaitedFor(t *testing.T) {
 				}
 				if waited := time.Since(rt.began); waited != 1600*time.Millisecond {
 					t.Errorf("waited %v, want 1.6s, till the first answer after it failed closed", waited)
+				}
+				if wantLog := []string{"level=WARN", `msg="starting claude"`, "mode=routed", "router=unhealthy", "asked=1.6s"}; !log.Has(wantLog...) {
+					t.Errorf("log reads\n%s\nwant a line with %q", log, wantLog)
 				}
 			})
 		})
