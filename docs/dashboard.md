@@ -1,8 +1,8 @@
 # Dashboard
 
-The dashboard keeps every account's usage on screen, live. It has seven tabs and a page for each
-session, and shows the router's sessions and its record of every request. To open it, run
-`switchboard dashboard`.
+The dashboard keeps your accounts' usage on screen, live, a pool's at a time where there are
+several (see [In a pool](#in-a-pool)). It has seven tabs and a page for each session, and shows the
+router's sessions and its record of every request. To open it, run `switchboard dashboard`.
 
 - [Terms](#terms)
 - [Overview](#overview)
@@ -812,45 +812,13 @@ The card sits over the page. `j` and `k` scroll it a row, and `PgDn` and `PgUp` 
 
 ## Running it
 
-`switchboard dashboard` shows every account's usage, full screen, until you press `q`. It needs a
-terminal, and refuses to run without one. It reads the router while the router answers, and
-otherwise probes each account. Just after the upgrade that made account ids, while the router
-moves the history onto them, it says what the move waits on, a line each time that changes, and
-opens once it's done (see [Upgrading to account ids](how-it-works.md#upgrading-to-account-ids)),
-and the same while it moves the history to pools.
-
-### In a pool
-
-Where the config has [pools](how-it-works.md#pools), the dashboard shows one pool: the one
-`--pool` names, else the one the verbs act on, the only pool, else the unfenced one (see
-[Reading a pool](commands.md#reading-a-pool)). A pool the config doesn't have is refused, naming
-those it does. What it reads from the router is that pool's: its accounts, windows, room, sessions
-running and pin, and the router's events, the Overview's and Runway's LATELY and the Log's Events
-among them. The tabs it builds from the request ledger, the Log's requests, Sessions, a session's
-page, History and Graphs, still tell of every pool's work together, each account by its label,
-until a later release keeps them to the pool shown.
-
-Once there's a second pool:
-
-- The title row names the pool shown after the badge, by its label, at every size.
-- `P` turns to the next pool, in the config's order, the first after the last, on every tab. It
-  reads the pools afresh, so a pool added or removed while the dashboard is open shows at the next
-  `P`. The view starts afresh, as when another router answers: nothing of the pool before carries
-  over, its pages, what's chosen, a session's page, the routing card or its notifications. The tab
-  shown stays, and what each tab shows as the dashboard remembers it (see
-  [What's remembered](#whats-remembered)).
-- The dashboard's own notifications lead with the pool's label, as `Acme · k3f9 · Acme 1 has room
-  again`.
-
-A pool with no accounts draws the same page on every tab: its status line says `no accounts`, and
-the page says that a session started in its directories doesn't start, how to add an account to it
-or move one in, and that its directories stay fenced until the pool is removed. The key line keeps
-`tab`, `P`, `?` and `q` alone.
-
-Where every pool is fenced and no `--pool` names one, there's no pool the verbs act on: the
-dashboard opens on none. Its status line says it couldn't read usage, as every pool is fenced,
-naming the pools, and tries again at each read; the pages drawn from the router's document stay
-empty, and it reads none of the router's events. `P` turns to the first pool.
+`switchboard dashboard` shows the usage of a pool's accounts, every account's where there's one
+pool, full screen, until you press `q`. It needs a terminal, and refuses to run without one. It
+reads the router while the router answers, and otherwise probes each account. Just after the
+upgrade that made account ids, while the router moves the history onto them, it says what the move
+waits on, a line each time that changes, and opens once it's done (see
+[Upgrading to account ids](how-it-works.md#upgrading-to-account-ids)), and the same while it moves
+the history to pools.
 
 ```bash
 switchboard dashboard [interval] [--no-notify] [--probe] [--pool ID]
@@ -874,6 +842,45 @@ switchboard dashboard 15m       # every 15 minutes
 switchboard dashboard --probe   # every account from the API each interval, whatever the router says
 switchboard dashboard --pool q7mt   # pool q7mt, whatever pool the verbs act on
 ```
+
+### In a pool
+
+Where the config has [pools](how-it-works.md#pools), the dashboard shows one pool: the one
+`--pool` names, else the one the verbs act on, the only pool, else the unfenced one (see
+[Reading a pool](commands.md#reading-a-pool)). A pool the config doesn't have is refused, naming
+those it does. What it reads from the router is that pool's: its accounts, windows, room, sessions
+running and pin, and the router's events, the Overview's and Runway's LATELY and the Log's Events
+among them. Accounts lists the pool's accounts alone. What it builds from the request ledger, the
+Log's requests, Sessions, a session's page, History, Graphs and the worth and tokens on Accounts,
+still tells of every pool's work together, each account by its label, until a later release keeps
+it to the pool shown.
+
+Once there's a second pool:
+
+- The title row names the pool shown after the badge, by its label, at every size.
+- `P` turns to the next pool, in the config's order, the first after the last, on every tab. It
+  reads the pools afresh, so a pool added or removed while the dashboard is open shows at the next
+  `P`. The view starts afresh, as when another router answers: nothing of the pool before carries
+  over, its pages, what's chosen, a session's page, the routing card or its notifications. The tab
+  shown stays, and what each tab shows as the dashboard remembers it (see
+  [What's remembered](#whats-remembered)).
+- Notifications lead with the pool's label, the router's and the dashboard's own, as
+  `Acme · k3f9 · Acme 1 has room again`.
+
+With one pool, `P` isn't listed, but reads the pools afresh all the same: once a second is added,
+it turns to it, and otherwise says there's one pool.
+
+A pool with no accounts draws the same page on every tab: its status line says `no accounts`, and
+the page says that a session started in its directories doesn't start, how to add an account to it
+or move one in, and that its directories stay fenced until the pool is removed. The key line keeps
+`tab`, `P`, `?` and `q` alone. The dashboard judges this from what it reads of the pool: an account
+added to it shows at the next read, as does its last account taken out.
+
+Where every pool is fenced and no `--pool` names one, there's no pool the verbs act on: the
+dashboard opens on none, with no accounts listed. Its status line says it couldn't read usage, as
+every pool is fenced, naming the pools, and tries again at each read; the pages drawn from the
+router's document stay empty, and it reads none of the router's events. `P` turns to the first
+pool.
 
 ### How it reads the router
 
@@ -906,7 +913,7 @@ These keys work on every page. Each page's own keys are under the page:
 | `shift-tab` | Moves to the tab before. From a session's page, moves to the tab before the one the page was opened from. |
 | `[` `]` | On Accounts, History, Sessions and the Log, moves to the sub-tab before or after, round. |
 | `p` | Opens the routing card. See [The routing card](#the-routing-card). |
-| `P` | Turns to the next pool, where there's more than one. See [In a pool](#in-a-pool). |
+| `P` | Turns to the next pool, where the config has pools, the pools read afresh: with one, says so. Listed where there's more than one. See [In a pool](#in-a-pool). |
 | `R` | Refreshes now. See [Refreshing](#refreshing). |
 | `t` | Opens the theme picker. See [Themes](#themes). |
 | `?` | Opens the page's help. See [Help](#help). |

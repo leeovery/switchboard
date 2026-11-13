@@ -109,9 +109,9 @@ Claude pass `--pool "$SWITCHBOARD_POOL"`, the session's own pool.
   and `pin` refuse it, as the router routes nothing there.
 - [`dashboard`](#dashboard) shows the pool `--pool` names, else the one the verbs act on, and
   refuses a pool the config doesn't have, a removed one among them, as it has no accounts to show.
-  Where every pool is fenced and none is named, it opens on none, saying it couldn't read usage,
-  as every pool is fenced; `P` turns to the first pool, and to each after it in turn (see
-  [In a pool](dashboard.md#in-a-pool)).
+  It lists the pool's accounts alone. Where every pool is fenced and none is named, it opens on
+  none, saying it couldn't read usage, as every pool is fenced; `P` turns to the first pool, and to
+  each after it in turn (see [In a pool](dashboard.md#in-a-pool)).
 - **A router that reports no pools,** as one from before them still running till its restart,
   isn't read as a pool's where the config has them, its document and sessions every account's:
   `status`, `usage` and the dashboard probe the pool's accounts instead, saying `the router doesn't

@@ -68,16 +68,22 @@ router's, while it answers, with its sessions and pin, else read by probing
 each account, as --probe does whether the router runs or not. It needs a
 terminal, and refuses without one.
 
-It shows one pool. ` + readingAPool + ` A pool the config doesn't
-configure is refused, naming those it does. Where every pool is fenced and
-none is named, it opens on none, its status line saying it can't read usage
-as every pool is fenced, naming them, and P turns to the first. Where
-there's more than one pool, the title row names the one shown, and P turns
-to the next, in the config's order, the pools read afresh, so one added or
-removed since shows: the view starts afresh, nothing of the pool before
-carried over. A pool with no accounts
-says so on every tab, with how to add one. History, Sessions, Graphs and
-the Log's requests still tell of every pool's work together.
+It shows one pool: the one --pool names by its id, as switchboard pool lists
+them, else the only pool, else the one fenced to no directory. The directory
+it's run in never chooses. A pool the config doesn't configure is refused,
+naming those it does. Where every pool is fenced and none is named, it opens
+on none, listing no accounts, its status line saying it can't read usage as
+every pool is fenced, naming them, and P turns to the first.
+
+Accounts lists the pool's accounts alone. Where there's more than one pool,
+the title row names the one shown, and P turns to the next, in the config's
+order, the pools read afresh, so one added or removed since shows: the view
+starts afresh, nothing of the pool before carried over. With one pool, P
+reads them afresh all the same, turning to a second added since, else
+saying there's one. A pool with no accounts, as its last read has it, says
+so on every tab, with how to add one. History, Sessions, Graphs, the Log's
+requests and the worth and tokens on Accounts still tell of every pool's
+work together.
 
 It reads the router's usage every few seconds, which the router keeps
 current itself, reading every account nothing has read in the last 5

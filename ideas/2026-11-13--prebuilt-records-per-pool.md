@@ -1,10 +1,11 @@
 # The ledger's prebuilt records, per pool
 
 A dashboard shows one pool (see Pools, The dashboard in a pool), the one `--pool` names, `P`
-turning to the next. It filters what the router's document gives, and its reads of the router's
-events, read afresh at each `P`, so Runway's LATELY and the Log's Events tell of the pool shown
-alone. Its reads of the request ledger aren't filtered, as much of what they read is built ahead of
-time with no pool in it:
+turning to the next. It filters what the router's document gives, its reads of the router's
+events, read afresh at each `P`, and the accounts it lists, so Runway's LATELY, the Log's Events
+and the accounts on Accounts, History and Graphs are the pool shown's alone. Its reads of the
+request ledger aren't filtered, as much of what they read is built ahead of time with no pool in
+it:
 
 - **The Log's day rows,** a day's rows in chunks that `DayRows` points at and `RowChunk` reads. A
   row holds no pool, and a chunk's meta names none, so the Log can't keep one pool's rows of a day
@@ -13,8 +14,9 @@ time with no pool in it:
 - **The day digests,** which a session's state rests on, for the Sessions tab and a session's page,
   and which History's and Graphs' points are read from.
 
-So in a config with two pools, the Log's requests, the Sessions tab, a session's page, History and
-Graphs tell of every pool's work together, labelled by account, whichever pool the title row names.
+So in a config with two pools, the Log's requests, the Sessions tab, a session's page, History,
+Graphs and the worth and tokens on Accounts tell of every pool's work together, labelled by
+account, whichever pool the title row names.
 
 ## What it could do
 
