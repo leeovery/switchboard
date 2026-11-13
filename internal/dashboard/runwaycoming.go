@@ -10,6 +10,10 @@ import (
 // cell. A narrower frame has one column take its width.
 const runwayComingWidth = 72
 
+// comingColumn is a column of COMING UP's lines on Runway, as flex lays it:
+// runwayComingWidth at the least and its natural, growing past it.
+var comingColumn = flex.Part{Least: runwayComingWidth, Natural: runwayComingWidth, Grows: true}
+
 // comingApart is the cells between COMING UP's two columns.
 const comingApart = 4
 
@@ -70,10 +74,9 @@ func comingPlaced(things, places int) (shown, more int) {
 // frame's edge, where both fit at their natural; else one at its natural, or
 // the frame's width where that's narrower.
 func (f Frame) comingColumns() []flex.Span {
-	column := flex.Part{Least: runwayComingWidth, Natural: runwayComingWidth, Grows: true}
-	second := column
+	second := comingColumn
 	second.Gap, second.Odd = comingApart, true
-	if two, fits := flex.Lay(f.Width, column, second); fits {
+	if two, fits := flex.Lay(f.Width, comingColumn, second); fits {
 		return two
 	}
 	return []flex.Span{{Size: min(f.Width, runwayComingWidth)}}

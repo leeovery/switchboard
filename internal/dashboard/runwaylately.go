@@ -35,22 +35,33 @@ const agoGap = 2
 
 // runwayLatelyLeast is the fewest cells a column of Runway's LATELY takes: a
 // line's time at its widest, as prose.Befell says it, the blanks after it,
-// an account's name at its least, its fewest words, as views.OpenAgain has
-// them, and how long ago at its widest, agoGap before it.
+// an account's name at its least, as nameLeast has it, its fewest words, as
+// views.OpenAgain has them, and how long ago at its widest, agoGap before it.
 func runwayLatelyLeast() int {
-	return prose.BefellWidth() + len(afterTime) + labelLeast + len(" "+views.OpenAgain) + agoGap + len(prose.AgoWidest())
+	return prose.BefellWidth() + len(afterTime) + nameLeast() + len(" "+views.OpenAgain) + agoGap + len(prose.AgoWidest())
 }
 
-// latelyPlaceOf is where LATELY goes on the frame: beside COMING UP where both
-// columns hold a whole line, COMING UP its natural runwayComingWidth and
-// LATELY its least; else stacked, where one column holds LATELY's least;
-// else nowhere, COMING UP alone.
-func (f Frame) latelyPlaceOf() latelyPlace {
+// latelyColumn is a column of Runway's LATELY, as flex lays it: a whole line
+// at the least, as runwayLatelyLeast has it, growing past it.
+func latelyColumn() flex.Part {
 	least := runwayLatelyLeast()
+	return flex.Part{Least: least, Natural: least, Grows: true}
+}
+
+// latelyPlaceOf is where LATELY goes on the frame, as flex lays its column
+// and COMING UP's: beside COMING UP where the Overview's COMING UP column,
+// comingWidth wide, holds comingColumn, and its LATELY column, from latelyAt
+// to the edge, holds latelyColumn; else stacked, where the frame's width
+// holds latelyColumn; else nowhere, COMING UP alone.
+func (f Frame) latelyPlaceOf() latelyPlace {
+	lately := latelyColumn()
+	_, comingBeside := flex.Lay(comingWidth(f.Width), comingColumn)
+	_, latelyBeside := flex.Lay(f.Width-latelyAt(f.Width), lately)
+	_, latelyUnder := flex.Lay(f.Width, lately)
 	switch {
-	case comingWidth(f.Width) >= runwayComingWidth && f.Width-latelyAt(f.Width) >= least:
+	case comingBeside && latelyBeside:
 		return latelySideBySide
-	case min(f.Width, runwayComingWidth) >= least:
+	case latelyUnder:
 		return latelyStacked
 	}
 	return comingAlone
