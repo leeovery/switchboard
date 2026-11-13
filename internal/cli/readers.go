@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"sync"
 
@@ -95,15 +96,31 @@ func poolLabelsIn(dir string, cfg *config.Config) func(id string) string {
 }
 
 // readers has wc read the request ledger, the readings history and the
-// router's events where they lie, through newStateReaders' readers. Without a
-// state directory to find, they read nothing.
-func (a *app) readers(wc *watch.Config, cfg *config.Config) {
+// router's events where they lie, through newStateReaders' readers, the
+// events those of the pool the dashboard shows, as shownEvents has them.
+// Without a state directory to find, they read nothing.
+func (a *app) readers(ctx context.Context, wc *watch.Config, cfg *config.Config) {
 	r, err := a.newStateReaders(cfg)
 	if err != nil {
 		logger.Debug("can't find the ledger, the readings history or the router's events", "error", err)
-		r = stateReaders{ledger: ledger.NewEmpty(a.Now, caps(cfg)), readings: readings.Empty{}, events: events.Empty{}}
+		wc.Ledger, wc.Readings, wc.Events = ledger.NewEmpty(a.Now, caps(cfg)), readings.Empty{}, events.Empty{}
+		return
 	}
-	wc.Ledger, wc.Readings, wc.Events, wc.Removed = r.ledger, r.readings, r.events, r.removed
+	wc.Ledger, wc.Readings, wc.Events, wc.Removed = r.ledger, r.readings, a.shownEvents(ctx, cfg, r), r.removed
+}
+
+// shownEvents reads the router's events through r's reader as the dashboard
+// shows them: those of the pool it shows, the one the verbs read with none
+// named, as filedPool has it, as the router gives its document of that pool.
+// Where that can't be told, it reads none, warning, so the dashboard never
+// shows every pool's together.
+func (a *app) shownEvents(ctx context.Context, cfg *config.Config, r stateReaders) views.Events {
+	pool, _, err := a.filedPool(ctx, cfg, r.dir, "")
+	if err != nil {
+		logger.Warn("can't tell which pool the dashboard shows, so it reads none of the router's files of events", "error", err)
+		return events.Empty{}
+	}
+	return pool.read.Filed(r.events)
 }
 
 // namesIn are the names of the accounts cfg configures and of those removed

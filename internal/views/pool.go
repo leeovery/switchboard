@@ -119,6 +119,33 @@ func (p PoolRead) Events(held iter.Seq[events.Held]) iter.Seq[events.Held] {
 	}
 }
 
+// Filed reads the router's events through e as the pool read has them: those
+// it shows, as Shows has it, so each read of the files, a first, one back to
+// an earlier day, or one again, reads the pool's alone; e itself where the
+// read is of every pool's, or e is nil.
+func (p PoolRead) Filed(e Events) Events {
+	if p.every() || e == nil {
+		return e
+	}
+	return poolEvents{Events: e, read: p}
+}
+
+// poolEvents reads a pool's events, as PoolRead's Filed has them.
+type poolEvents struct {
+	Events
+	read PoolRead
+}
+
+func (e poolEvents) Between(from, to time.Time) iter.Seq[events.Line] {
+	return func(yield func(events.Line) bool) {
+		for l := range e.Events.Between(from, to) {
+			if e.read.Shows(l.Event) && !yield(l) {
+				return
+			}
+		}
+	}
+}
+
 // Ledger reads l as the pool read has it, for the sessions' List: each
 // session's lines those routed in the pool alone, as ledger.Line's InPool
 // has it, so its requests and their worth are those it made in the pool,

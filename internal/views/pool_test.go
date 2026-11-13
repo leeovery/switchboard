@@ -130,3 +130,45 @@ func TestAPoolsWindowsAreThoseOfItsAccounts(t *testing.T) {
 type givenDays []ledger.Summary
 
 func (d givenDays) Days(time.Time) []ledger.Summary { return d }
+
+// A pool's read of the router's files reads its events alone, as Shows has
+// them, whichever read reads them: the first, one back to an earlier day, or
+// one again as the router restarts; every pool's read reads every one, and
+// one of no files none.
+func TestAPoolsReadOfTheRoutersFilesReadsItsEventsAlone(t *testing.T) {
+	day := time.Date(2026, 11, 3, 0, 0, 0, 0, time.Local)
+	at := func(hour int) time.Time { return day.Add(time.Duration(hour) * time.Hour) }
+	filed := filedLines{
+		{ID: 1, At: at(1), Kind: status.EventCap, Account: "side"},
+		{ID: 2, At: at(2), Kind: status.EventStarted, Account: "side", Pool: "q7mt"},
+		{ID: 3, At: at(13), Kind: status.EventLimit, Account: "side"},
+		{ID: 4, At: at(14), Kind: status.EventLimit, Account: "work"},
+		{ID: 5, At: at(15), Kind: status.EventRestart},
+	}
+	now := at(16)
+	acme := acmeRead.Filed(filed)
+	read := views.ReadEventsFrom(acme, at(12), now)
+	none := views.ReadEventsFrom(nil, at(0), now)
+	tests := []struct {
+		name string
+		read views.EventsRead
+		want []int
+	}{
+		{name: "the first read", read: read, want: []int{4, 5}},
+		{name: "a read back to an earlier day", read: read.Took(read.BackTo(acme, at(0))), want: []int{2, 4, 5}},
+		{name: "a read again", read: none.Took(none.Refiled(acme, at(0), now)), want: []int{2, 4, 5}},
+		{name: "every pool's read", read: views.ReadEventsFrom(views.PoolRead{}.Filed(filed), at(0), now), want: []int{1, 2, 3, 4, 5}},
+	}
+	for _, tt := range tests {
+		var ids []int
+		for _, e := range tt.read.Events() {
+			ids = append(ids, e.Event.ID)
+		}
+		if !slices.Equal(ids, tt.want) {
+			t.Errorf("%s holds the events %v, want %v", tt.name, ids, tt.want)
+		}
+	}
+	if acmeRead.Filed(nil) != nil {
+		t.Error("a pool's read of no files reads some, want none")
+	}
+}

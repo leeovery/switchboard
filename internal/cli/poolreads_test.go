@@ -12,7 +12,54 @@ import (
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/readings"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/views"
 )
+
+// The dashboard reads the router's files of events of the pool it shows
+// alone, the one the verbs read with none named, so the Log's Events and
+// Runway's LATELY, which both read them through it, tell nothing of
+// another pool's.
+func TestTheDashboardReadsTheEventsOfThePoolItShowsAlone(t *testing.T) {
+	deps := pooledDeps(t, false)
+	fileEvent(t, deps, "2026-10-07", eventLine(runOne, 6, status.Event{At: october(7, 12, 10, 0), Kind: status.EventCap, Account: "side", Windows: []string{"5h"}}))
+	fileEvent(t, deps, "2026-10-07", eventLine(runOne, 7, status.Event{At: october(7, 12, 20, 0), Kind: status.EventCap, Account: "work", Windows: []string{"5h"}}))
+	cfg := recordWatch(t, &deps)
+	if got := run(t, deps, "dashboard"); got != (result{}) {
+		t.Fatalf("switchboard dashboard = %+v, want exit status 0 and nothing printed", got)
+	}
+
+	read := views.ReadEventsFrom(cfg.Events, views.RunwayLatelyFrom(ledgerNow), ledgerNow)
+	var ids []int
+	for _, e := range read.Events() {
+		ids = append(ids, e.Event.ID)
+	}
+	if want := []int{1, 4, 5, 6}; !slices.Equal(ids, want) {
+		t.Errorf("the dashboard's events are those of the ids %v, want %v: Default's start, pin and cap, and the router's own", ids, want)
+	}
+	var told []string
+	for _, s := range views.RunwayLately(status.Moment{Now: ledgerNow}, read.Events()) {
+		told = append(told, s.Full.String())
+	}
+	if len(told) != 1 || !strings.HasPrefix(told[0], "side ") {
+		t.Errorf("Runway's LATELY tells %q, want side's cap alone", told)
+	}
+}
+
+// Where nothing names the pools, the dashboard reads none of the router's
+// files of events, warning why, never every pool's together.
+func TestTheDashboardReadsNoEventsWhereNothingNamesThePools(t *testing.T) {
+	deps := unpooledDeps(t, unpooledConfig, false)
+	cfg := recordWatch(t, &deps)
+	if got := run(t, deps, "dashboard"); got != (result{}) {
+		t.Fatalf("switchboard dashboard = %+v, want exit status 0 and nothing printed", got)
+	}
+	if read := views.ReadEventsFrom(cfg.Events, views.RunwayLatelyFrom(ledgerNow), ledgerNow); len(read.Events()) != 0 {
+		t.Errorf("the dashboard read %d events, want none", len(read.Events()))
+	}
+	if log := readLog(t, deps, "cli.log"); !strings.Contains(log, "can't tell which pool the dashboard shows") {
+		t.Errorf("cli.log reads\n%s\nwant it to say it can't tell the dashboard's pool", log)
+	}
+}
 
 // An event naming a pool since removed is no pool's; and where the accounts
 // record notes no first pool, work naming none is none's either.
