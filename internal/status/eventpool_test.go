@@ -137,11 +137,16 @@ func TestAPoolIsLabelledByTheConfigElseTheRecordElseItsID(t *testing.T) {
 	read := 0
 	label := status.PoolLabels(config.Pools{{ID: acme, Label: "Acme"}}, func() identity.Record {
 		read++
-		return identity.Record{Pools: []identity.PoolEntry{{ID: "x9z9", Label: "Client"}, {ID: "k3f9"}}}
+		return identity.Record{Pools: []identity.PoolEntry{
+			{ID: "x9z9", Label: "Client"}, {ID: "k3f9"},
+			// Default, as this Mac's config last wrote it, now naming no pools.
+			{ID: firstPool, First: true, Here: true, Written: identity.PoolWritten{Label: "Default"}},
+		}}
 	})
 	tests := []struct{ id, want string }{
 		{id: "Q7MT", want: "Acme"},
 		{id: "x9z9", want: "Client"},
+		{id: firstPool, want: "Default"},
 		{id: "k3f9", want: "k3f9"},
 		{id: "h4w2", want: "h4w2"},
 	}
@@ -150,7 +155,7 @@ func TestAPoolIsLabelledByTheConfigElseTheRecordElseItsID(t *testing.T) {
 			t.Errorf("label(%s) = %q, want %q", tt.id, got, tt.want)
 		}
 	}
-	if read != 3 {
-		t.Errorf("the record was read %d times, want 3: never for a pool the config configures", read)
+	if read != 4 {
+		t.Errorf("the record was read %d times, want 4: never for a pool the config configures", read)
 	}
 }

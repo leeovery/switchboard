@@ -49,15 +49,16 @@ func RemovedOf(record identity.Record, configured config.Accounts) RemovedAccoun
 // PoolLabels returns what labels a pool by its id, wherever one is named by
 // its id, as the verbs' JSON gives it beside the id: as pools, the
 // configured, label it; else as the accounts record record returns keeps
-// it, as of one removed, record called only for a pool not configured; else
-// its id.
+// it, the label kept of one removed, else the one this Mac's config last
+// wrote, as of a config that has lost its pools, record called only for a
+// pool not configured; else its id.
 func PoolLabels(pools config.Pools, record func() identity.Record) func(id string) string {
 	return func(id string) string {
 		if p, ok := pools.ByID(id); ok {
 			return p.Label
 		}
-		if p, ok := record().PoolByID(id); ok && p.Label != "" {
-			return p.Label
+		if p, ok := record().PoolByID(id); ok {
+			return cmp.Or(p.Label, p.Written.Label, id)
 		}
 		return id
 	}

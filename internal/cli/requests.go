@@ -48,9 +48,9 @@ as much of it as is unique among the sessions read, and --account an
 account's, by its id: a label is refused.
 
 It lists one pool's requests, each by the pool it was routed in at the time,
-one from before pools the first pool's. ` + readingAPool + ` A session's
-requests are found in whatever pool each was routed in, or with --pool, in
-that pool alone.
+one from before pools the first pool's. ` + readingAPool + ` A session's or
+an account's requests are found in whatever pool each was routed in, or with
+--pool, in that pool alone.
 
 On a terminal, requests prints its lines as text. Anywhere else, as in a pipe
 or an agent's shell, it prints each as the ledger holds it, with "schema": 1
@@ -125,15 +125,16 @@ func pricing(cfg *config.Config) ledger.Table {
 }
 
 // requestsPool returns the pool whose lines requests reads as opts ask, of
-// the files in the state directory dir, as filedPool has it of cfg: every
-// pool's where a session is asked for and no pool named, as its lines are
-// found in whatever pool it's in.
-func (a *app) requestsPool(ctx context.Context, cfg *config.Config, dir string, opts requestsOptions) (filedPool, error) {
-	if opts.session != "" && opts.pool == "" {
-		return filedPool{}, nil
+// the files in the state directory dir, as filedPool has it of cfg, and cfg
+// as its pools stand: every pool's where a session or an account is asked
+// for and no pool named, as a verb naming them takes their pool from them,
+// their lines found in whatever pool each was routed in, cfg then as
+// standing has it.
+func (a *app) requestsPool(ctx context.Context, cfg *config.Config, dir string, opts requestsOptions) (filedPool, *config.Config, error) {
+	if (opts.session != "" || opts.account != "") && opts.pool == "" {
+		return filedPool{}, a.standing(ctx, cfg), nil
 	}
-	pool, _, err := a.filedPool(ctx, cfg, dir, opts.pool)
-	return pool, err
+	return a.filedPool(ctx, cfg, dir, opts.pool)
 }
 
 // requests prints the ledger's lines as opts ask.
@@ -142,7 +143,7 @@ func (a *app) requests(ctx context.Context, out io.Writer, opts requestsOptions)
 	if err != nil {
 		return err
 	}
-	pool, err := a.requestsPool(ctx, cfg, dir, opts)
+	pool, cfg, err := a.requestsPool(ctx, cfg, dir, opts)
 	if err != nil {
 		return err
 	}

@@ -70,6 +70,46 @@ func TestTheVerbsProbingCountingOrListingPoolsTakeThemAsTheyStand(t *testing.T) 
 	}
 }
 
+// A config naming no pools once the move is done labels a pool as the record
+// keeps it, as this Mac's config last wrote it, in every verb's JSON alike.
+func TestThePoolsOfAConfigNamingNoneAreLabelledAsTheRecordKeepsThem(t *testing.T) {
+	deps := unpooledDeps(t, unpooledConfig, true)
+	for _, args := range [][]string{{"requests"}, {"events"}} {
+		got := run(t, deps, append(args, "--json", "--pool", "q7mt")...)
+		labels := fieldsOf(t, got, "pool_label")
+		if got.code != 0 || !slices.Contains(labels, "Acme") || slices.Contains(labels, "q7mt") {
+			t.Errorf("switchboard %s --json --pool q7mt labelled the pools %q (%+v), want Acme, as the record keeps it", strings.Join(args, " "), labels, got)
+		}
+	}
+	got := run(t, deps, "history", "--json", "--pool", "q7mt")
+	if accounts := historyAccounts(t, got); !slices.Equal(accounts, []string{"work q7mt Acme s"}) {
+		t.Errorf("switchboard history --json --pool q7mt gave the accounts %q, want work's in Acme, labelled as the record keeps it", accounts)
+	}
+}
+
+// requests --account without --pool reads the account's requests in
+// whatever pool each was routed in, as a verb naming accounts takes their
+// pool from them: none asked for where every pool is fenced.
+func TestRequestsOfAnAccountAreReadInWhateverPoolEachWasRoutedIn(t *testing.T) {
+	for _, fenced := range []bool{false, true} {
+		deps := pooledDeps(t, fenced)
+		tests := []struct {
+			args []string
+			want []string
+		}{
+			{args: []string{"--account", "work"}, want: []string{"p2"}},
+			{args: []string{"--account", "side"}, want: []string{"p1", "p3"}},
+			{args: []string{"--account", "side", "--pool", "q7mt"}},
+		}
+		for _, tt := range tests {
+			got := run(t, deps, append([]string{"requests", "--json"}, tt.args...)...)
+			if requests := fieldsOf(t, got, "request"); got.code != 0 || !slices.Equal(requests, tt.want) {
+				t.Errorf("every pool fenced %v: switchboard requests --json %s printed %q (%+v), want %q", fenced, strings.Join(tt.args, " "), requests, got, tt.want)
+			}
+		}
+	}
+}
+
 // The dashboard reads the router's files of events of the pool it shows
 // alone, the one the verbs read with none named, so the Log's Events and
 // Runway's LATELY, which both read them through it, tell nothing of
