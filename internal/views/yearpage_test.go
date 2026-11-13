@@ -642,6 +642,30 @@ func TestTheYearIsReadFromItsGridsFirstDay(t *testing.T) {
 	}
 }
 
+// The days read for the last 12 months begin the week before the first day
+// of any period counted over them, the 12 months' own, where that's before
+// the Year's grid; a calendar year's begin where the Year reads them.
+func TestTheDaysReadReachTheWeekBeforeEveryPeriod(t *testing.T) {
+	tests := []struct {
+		name   string
+		ask    views.YearAsk
+		now    time.Time
+		starts time.Weekday
+		want   string
+	}{
+		{name: "the last 12 months", now: now, starts: time.Monday, want: "2025-10-01"},
+		{name: "weeks starting on Sunday", now: now, starts: time.Sunday, want: "2025-10-01"},
+		{name: "a calendar year", ask: views.YearAsk{Year: 2025}, now: now, starts: time.Monday, want: "2024-12-30"},
+		{name: "12 months from a 29 February", now: onAt("2028-02-29", "10:00"), starts: time.Monday, want: "2027-02-22"},
+		{name: "12 months before the grid", now: onAt("2028-03-06", "10:00"), starts: time.Monday, want: "2027-02-28"},
+	}
+	for _, tt := range tests {
+		if got, want := views.DaysFrom(tt.ask, tt.now, tt.starts), on(tt.want); !got.Equal(want) {
+			t.Errorf("%s: read from %v, want %v", tt.name, got, want)
+		}
+	}
+}
+
 // The 12 months begin the day after today's date a year back, 1 March where
 // today is 29 February, and count from then: their requests, and their plans,
 // priced as 12 months, though 366 days of them hold a 29 February; the month

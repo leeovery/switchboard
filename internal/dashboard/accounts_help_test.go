@@ -245,7 +245,7 @@ func TestAccountsHelpSaysWhatItsFiguresAre(t *testing.T) {
 		{"worth at API prices", "what the same tokens would have cost through the API, each version at its own prices"},
 		{"why worth is unpriced", "of a model the price table doesn't know or of requests that went upstream without their usage"},
 		{"how a period is priced", "a day 12/365 of a month, a week 12/52, 30 days a month, 12 weeks twelve weeks' and 12 months twelve months'"},
-		{"the periods stepped through", "through today, this week, the last 30 days, the last 12 weeks and the last 12 months"},
+		{"the periods stepped through", "through today, this week, 30 days, 12 weeks and 12 months, Compare and Detail sharing"},
 		{"a period priced whole", "a period still running priced whole"},
 		{"all accounts' plans", "sums the plans it knows, its ratio counting only their accounts' worth"},
 		{"what all accounts counts", "Every configured account, always, whatever is pinned, at its limit or refused"},

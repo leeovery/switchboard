@@ -2546,7 +2546,7 @@ moves a session.
 
 **What's remembered.** The preferences file keeps, as they change: the theme or the pair; the tab
 shown, which the dashboard opens on; the Overview's sections shown and its `b`; Graphs'
-sections shown; `w`; of each
+sections shown; `w`; the dashboard's period, which the entity tabs share; of each
 view, a view at a time, its sub-tab, its period or window and `v`'s choice; Runway's `a`; and the
 Log's columns.
 A file from before the Overview's GRAPHS was removed (see The Overview), which may keep GRAPHS
@@ -3726,8 +3726,8 @@ where it fits** says, and where they don't fit, it's stacked, as **Stacked** say
     bounded part takes, so each reads whole on a row of its own: a limit's hits of any window
     the moment lists, or any the period's page records a limit of, by its short name and
     counted as often as the window can be hit over the longest period, 12 months of 366 days,
-    once a window, `5h ×1,756`, `Fable wk ×52`, 12 cells; and `all accounts`' extra use on for one fewer
-    than every account, `on for 2 of 3`, 13 cells. So 23 with three accounts. It's the same
+    once a window, a part of one at each end among them, `5h ×1,758`, `Fable wk ×54`, 12
+    cells; and `all accounts`' extra use on for one fewer than every account, `on for 2 of 3`, 13 cells. So 23 with three accounts. It's the same
     whichever account is chosen, so nothing moves as the choice does, and it ends at the weeks'
     edge, column 140 at 160.
   - A figure's parts, between its ` · `, go on one row where they fit; where they don't, each

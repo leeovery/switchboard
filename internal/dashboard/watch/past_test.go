@@ -98,15 +98,15 @@ func (h *harness) lookAt(at time.Time) {
 }
 
 // todayStart and yearFrom are when today starts, as the clock starts, and
-// the first day of the Year of the last 12 months then, weeks starting on
-// Monday; and yesterday is the date of the day before.
+// the first day read for the last 12 months then, as DaysFrom has it,
+// weeks starting on Monday; and yesterday is the date of the day before.
 var (
 	todayStart = dayfile.DayStart(start.Local(), 0)
-	yearFrom   = views.YearFrom(views.YearAsk{}, start, time.Monday)
+	yearFrom   = views.DaysFrom(views.YearAsk{}, start, time.Monday)
 	yesterday  = dayfile.DateOf(dayfile.DayStart(start.Local(), -1))
 )
 
-// History reads the year once, from the Year's first day, as YearFrom has
+// History reads the year once, from its first day read, as DaysFrom has
 // it, then at each look today alone, from its start.
 func TestHistoryReadsTheYearOnceThenTodayAloneAtEachLook(t *testing.T) {
 	h, l := historyHarness(t, dashboard.History, dashboard.HistoryPage{})
@@ -183,7 +183,7 @@ func gridDay(page views.YearPage, date string) (views.GridDay, bool) {
 func TestTheYearReadsEachCalendarYearOnceAndStopsWhereTheLedgerBegan(t *testing.T) {
 	h, l := historyHarness(t, dashboard.History, dashboard.HistoryPage{})
 	h.start()
-	read := func(year int) time.Time { return views.YearFrom(views.YearAsk{Year: year}, start, time.Monday) }
+	read := func(year int) time.Time { return views.DaysFrom(views.YearAsk{Year: year}, start, time.Monday) }
 	tests := []struct {
 		key    string
 		period string

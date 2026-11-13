@@ -5,6 +5,8 @@ import (
 	"unicode/utf8"
 
 	"github.com/leeovery/switchboard/internal/dashboard/watch"
+	"github.com/leeovery/switchboard/internal/prose"
+	"github.com/leeovery/switchboard/internal/views"
 )
 
 // keysColumns is the width the dashboard's help wraps its keys to.
@@ -23,7 +25,7 @@ var keysSaid = map[string]string{
 	"Overview": "u, r, s, c and l show and hide USAGE, ROUTING, SESSIONS, COMING UP and LATELY; " +
 		"b groups the windows by window or by account, as the config's [usage] by has them until b is pressed; " +
 		"and ↑↓ scrolls USAGE, as j and k do, where it doesn't fit, left to ? as they are.",
-	"Accounts": "< and > step the period both views count over: today, this week, 30 days, 12 weeks and 12 months. " +
+	"Accounts": "< and > step the period both views count over: " + prose.List(views.PeriodNames()) + ". " +
 		"←→ moves along Compare's accounts, and enter opens one in Detail; there ↑↓ chooses an account, " +
 		"→ moves into its SESSIONS and ← back, and enter opens the session chosen.",
 	"History": "< and > step the Year back through each calendar year the ledger holds and forward again, " +

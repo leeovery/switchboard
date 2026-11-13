@@ -292,7 +292,7 @@ func civilOf(t time.Time) time.Time {
 // day given: 0, the last 12 months, where they do, else the calendar year
 // it falls in.
 func runwayYear(first, now time.Time, starts time.Weekday) int {
-	if first.Before(civilOf(views.YearFrom(views.YearAsk{}, now, starts))) {
+	if first.Before(civilOf(views.DaysFrom(views.YearAsk{}, now, starts))) {
 		return first.Year()
 	}
 	return 0

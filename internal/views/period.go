@@ -57,6 +57,16 @@ func Periods() []Period {
 	return slices.Clone(periods)
 }
 
+// PeriodNames are the periods' names, as Name has them, in the order < and
+// > step through them, the shortest first.
+func PeriodNames() []string {
+	names := make([]string, len(periods))
+	for i, p := range periods {
+		names[i] = p.Name()
+	}
+	return names
+}
+
 // Known reports whether p is one of the periods, as a preference read back
 // may not be.
 func (p Period) Known() bool {
@@ -128,15 +138,18 @@ func (p Period) share() monthPart {
 
 // LimitsHitMost are the most times the limit of the window with the key
 // given can be hit over the longest period the dial steps to, as a limit is
-// hit once a window at most: the period's span over the window's length, as
-// quota.Length reads it from the key, or an hour's where the key doesn't say
-// it. So 1,756 of a 5-hour window over 12 months of 366 days.
+// hit once a window at most: as many windows as the period's span can touch,
+// those it holds whole and a part of one at each end, of the window's length
+// as quota.Length reads it from the key, or an hour's where the key doesn't
+// say it. So 1,758 of a 5-hour window over 12 months of 366 days, and 54 of
+// a week's.
 func LimitsHitMost(key string) int {
 	length, ok := quota.Length(key)
 	if !ok {
 		length = time.Hour
 	}
-	return int(longestSpan() / length)
+	span := longestSpan()
+	return int((span+length-1)/length) + 1
 }
 
 // longestSpan is how long the longest period the dial steps to runs, from
