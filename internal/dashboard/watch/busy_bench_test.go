@@ -476,9 +476,16 @@ func (w busyWorld) harness(tb testing.TB) *harness {
 // showing the pool reads it.
 func (w busyWorld) harnessIn(tb testing.TB, read views.PoolRead) *harness {
 	tb.Helper()
+	return w.harnessListing(tb, read, w.running())
+}
+
+// harnessListing is the world's harness as harnessIn has it, the router
+// listing the sessions running given.
+func (w busyWorld) harnessListing(tb testing.TB, read views.PoolRead, running []status.Session) *harness {
+	tb.Helper()
 	h := routedHarness(tb, busyDocument())
 	h.clock.now = w.now
-	h.source.sessions = w.running()
+	h.source.sessions = running
 	follower, history, filed := w.readers(h.clock.Now)
 	h.model.cfg.Ledger, h.model.cfg.Readings, h.model.cfg.Events = follower, history, filed
 	h.model.cfg.PoolRead = read

@@ -5,6 +5,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
@@ -111,4 +112,57 @@ func BenchmarkThePooledTabs(b *testing.B) {
 			l.DigestEnded(b.Context(), start)
 		}
 	})
+}
+
+// splitPools routes a busy world of two pools as twoPools does, but for the
+// session resumed every day of the four weeks: in Default's for its first
+// two, then in Acme's, as once its directory's fence changes, so every
+// digest from then on holds its state shared between them.
+func splitPools(g, d int) (account, pool string) {
+	if g == busyLong && d >= busyDays/2 {
+		return acmeBusy[0], "q7mt"
+	}
+	return twoPools(g, d)
+}
+
+// runningIn are those of the sessions running at the world's now that route
+// routes in the pool with the given id today, as the router lists a pool's.
+func (w busyWorld) runningIn(route busyRouting, pool string) []status.Session {
+	today := busyDays - 1
+	var in []status.Session
+	for j, s := range w.running() {
+		if _, routed := route(busySeat(today, j), today); routed == pool {
+			in = append(in, s)
+		}
+	}
+	return in
+}
+
+// BenchmarkASplitSession times, in a busy world of two pools whose longest
+// session was resumed in Acme's after two weeks in Default's, as splitPools
+// routes it, in each pool: Sessions shown the first time, till its List's
+// first read lands, the router listing the pool's sessions running alone;
+// and enter on that session in Accounts' Detail till its page shows its
+// lines.
+func BenchmarkASplitSession(b *testing.B) {
+	w := newPooledWorld(b, start, splitPools)
+	for _, pool := range []struct{ name, id string }{{"Default's", "b2n8"}, {"Acme's", "q7mt"}} {
+		read := twoPoolsRead(pool.id)
+		b.Run(pool.name+"/opening Sessions", func(b *testing.B) {
+			h := w.harnessListing(b, read, w.runningIn(splitPools, pool.id))
+			fresh := h.model
+			for b.Loop() {
+				h.model, h.timers, h.waits = fresh, nil, nil
+				h.firstShown(dashboard.Sessions, func(m Model) bool { return m.sessionsTab.listed })
+			}
+		})
+		b.Run(pool.name+"/opening its page", func(b *testing.B) {
+			h := w.onDetailIn(b, read, w.longest())
+			fresh := h.model
+			for b.Loop() {
+				h.model, h.timers, h.waits = fresh, nil, nil
+				h.entered(w.longest())
+			}
+		})
+	}
 }
