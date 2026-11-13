@@ -302,7 +302,8 @@ func (m Model) moving(sent []string) views.Moving {
 }
 
 // costing has views list the sessions the router lists, pricing their
-// moves, while the routing card wants them: while it's open, m ticked, and
+// moves, of their lines in the pool shown, as the store reads them, while
+// the routing card wants them: while it's open, m ticked, and
 // some session would move, where the sessions listed aren't placed as those
 // it last priced were, as views.SamePlaces compares them, whatever document
 // they came with. It starts none while one runs: the sessions are listed
@@ -317,7 +318,7 @@ func (m Model) costing() (Model, tea.Cmd) {
 	}
 	m.routing.priced.listing = true
 	of := m.sessions
-	src := views.SessionSources{Running: of, Ledger: m.cfg.Ledger, Prices: m.cfg.Prices, Now: m.now()}
+	src := views.SessionSources{Running: of, Ledger: m.ledgerSessions(), Prices: m.cfg.Prices, Now: m.now()}
 	return m, func() tea.Msg {
 		return costedMsg{of: of, listed: views.ListSessions(src).Sessions}
 	}

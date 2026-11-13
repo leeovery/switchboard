@@ -214,7 +214,7 @@ func (t tailReading) took(read tailLines, next ledger.Mark, logged []string) (ta
 	msg := tailedMsg{mark: next, day: t.today, at: t.now, lines: read}
 	var gains views.SessionGains
 	if t.held != nil {
-		fed, g := t.held.fed(t.r.ledger, read, logged, t.now)
+		fed, g := t.held.fed(t.r, read, logged, t.now)
 		msg.held, msg.retells, gains = &fed, g.Retell(), g
 	}
 	if t.page != nil {

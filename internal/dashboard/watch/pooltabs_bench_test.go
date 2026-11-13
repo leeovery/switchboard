@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/leeovery/switchboard/internal/dashboard"
+	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
@@ -24,6 +25,18 @@ func (h *harness) firstShown(view dashboard.View, landed func(Model) bool) {
 	}
 }
 
+// digestsMovedOn is views' Digests, its digests of the version given, as
+// after the version of a digest's envelope, or of its sessions' states,
+// moves on.
+type digestsMovedOn struct {
+	views.Digests
+	version int
+}
+
+func (d digestsMovedOn) Version() int {
+	return d.version
+}
+
 // BenchmarkThePooledTabs times the tabs the dashboard builds of the request
 // ledger's digests and summaries on a busy world whose lines record their
 // pools, as newPooledWorld writes it, as the owner meets them: Sessions shown
@@ -34,6 +47,9 @@ func (h *harness) firstShown(view dashboard.View, landed func(Model) bool) {
 // Graphs alike, WEEK and WHEN YOU WORK shown. Of a world of one pool, and of
 // one of two, read every pool's, as they read before they read the pool
 // shown's alone, then each pool's, by its id, as the dashboard reads it.
+// And the first pass of a ledger opened afresh, as the router's once it
+// restarts, with the digests of the four weeks' ended days due, as once
+// after a digest's version moves on.
 func BenchmarkThePooledTabs(b *testing.B) {
 	one, two := newPooledWorld(b, start, onePool), newPooledWorld(b, start, twoPools)
 	for _, on := range []struct {
@@ -85,4 +101,14 @@ func BenchmarkThePooledTabs(b *testing.B) {
 			}
 		})
 	}
+	b.Run("the first pass of a ledger opened afresh, every digest due", func(b *testing.B) {
+		version := views.DigestVersion
+		for b.Loop() {
+			b.StopTimer()
+			version++
+			l := two.ledger(ledger.Digesting(digestsMovedOn{version: version}))
+			b.StartTimer()
+			l.DigestEnded(b.Context(), start)
+		}
+	})
 }
