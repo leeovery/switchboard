@@ -150,6 +150,53 @@ func TestALimitsNotificationSaysWhereItsSessionsWent(t *testing.T) {
 	}
 }
 
+// A limit's notification weighs whether another account has room within
+// the limited account's pool alone: in Acme, with Acme's other account out,
+// Default's room, which Acme's sessions can't use, leaves no other account
+// with room; with one pool, the same account's room counts.
+func TestALimitsNotificationWeighsTheRoomInItsAccountsPoolAlone(t *testing.T) {
+	tests := []struct {
+		name     string
+		accounts []config.Account
+		pools    config.Pools
+		want     string
+	}{
+		{
+			name:     "two pools, the room in the other",
+			accounts: []config.Account{{ID: "1", Label: "one", Pool: "q7mt"}, {ID: "2", Label: "two", Pool: "q7mt"}, {ID: "3", Label: "three", Pool: "b2n8"}},
+			pools:    config.Pools{{ID: "b2n8", Label: "Default"}, {ID: "q7mt", Label: "Acme", Dirs: []string{"/work/acme"}}},
+			want:     "Acme · 2 · two hit its 5-hour limit, back at Sat 03:00 — no other account has room",
+		},
+		{
+			name:     "one pool",
+			accounts: []config.Account{{ID: "1", Label: "one", Pool: "q7mt"}, {ID: "2", Label: "two", Pool: "q7mt"}, {ID: "3", Label: "three", Pool: "q7mt"}},
+			pools:    config.Pools{{ID: "q7mt", Label: "Acme"}},
+			want:     "2 · two hit its 5-hour limit, back at Sat 03:00",
+		},
+		{
+			name:     "no pools",
+			accounts: numbered,
+			want:     "2 · two hit its 5-hour limit, back at Sat 03:00",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				h := newNotifyingOver(t, config.Notifications{Limits: true}, tt.accounts)
+				h.state.pools.follow(tt.accounts, tt.pools)
+				h.read("1", h.session(1, time.Hour), h.week(0.5, 3*day))
+				h.read("2", h.session(1, 3*time.Hour), h.week(0.5, 3*day))
+				h.read("3", h.session(0.2, time.Hour), h.week(0.5, 3*day))
+				h.start()
+
+				h.limit("2", []string{"5h"}, 3*time.Hour)
+				h.after(gatherFor)
+				h.expect(tt.want)
+			})
+		})
+	}
+}
+
 func TestALimitIsToldOfOnce(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		h := newNotifying(t, config.Notifications{Limits: true})

@@ -1410,8 +1410,8 @@ func (s *state) statuses(now time.Time, rd poolRead, pinned []string) []status.A
 }
 
 // standings returns how every account with a token stands at now, in the
-// order configured, each knowing the label of its pool, as the pools stand,
-// where a notification names it.
+// order configured, each knowing its pool, as the pools stand, and the
+// label a notification names it by.
 func (s *state) standings(now time.Time) standings {
 	pools := s.pools.current()
 	s.mu.Lock()
@@ -1420,7 +1420,7 @@ func (s *state) standings(now time.Time) standings {
 	for _, a := range s.accounts {
 		if a.hasToken() {
 			st := s.usage[a.ID].standing(a, s.policy, now)
-			st.pool = pools.named(a.ID)
+			st.in, st.pool = pools.poolOf[a.ID], pools.named(a.ID)
 			all = append(all, st)
 		}
 	}

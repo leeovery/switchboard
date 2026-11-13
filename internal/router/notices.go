@@ -24,15 +24,15 @@ const maxMessage = 100
 // whether its quota leaves it room for a request of any model, which is known
 // once its usage has been read or a limit has barred it, and the keys of the
 // windows that leave it none, where it has none; whether its token was
-// refused too lately for anything to go out on it; and the label of its
-// pool, as a notification of it names the pool once there's a second, ""
-// till then.
+// refused too lately for anything to go out on it; the id of its pool, ""
+// in a config without pools; and the label of its pool, as a notification
+// of it names the pool once there's a second, "" till then.
 type standing struct {
 	status.Account
 	yearOf                string
 	quota, known, refused bool
 	held                  []string
-	pool                  string
+	in, pool              string
 }
 
 // led is what a notification of the account says, led by its pool's label,
@@ -74,12 +74,15 @@ func (ss standings) title(id string) string {
 	return id
 }
 
-// fullBut reports whether no account but the one with the given id has room
-// for a request of any model, as far as anyone knows: one whose quota isn't
-// known might have some, unless its token is refused.
+// fullBut reports whether no account of the pool of the one with the given
+// id, but that one, has room for a request of any model, as far as anyone
+// knows: one whose quota isn't known might have some, unless its token is
+// refused. Another pool's room can't serve the pool's sessions, so it's
+// never counted.
 func (ss standings) fullBut(id string) bool {
+	limited, _ := ss.of(id)
 	return !slices.ContainsFunc(ss, func(s standing) bool {
-		return s.ID != id && !s.refused && (s.quota || !s.known)
+		return s.ID != id && strings.EqualFold(s.in, limited.in) && !s.refused && (s.quota || !s.known)
 	})
 }
 
