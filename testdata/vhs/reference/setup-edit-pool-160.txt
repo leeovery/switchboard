@@ -21,7 +21,7 @@ ACCOUNTS  ───────────────────────�
     Acme 1 ◆        Ultra      none     │  Primary   ■ no    □ yes                                                     │
                                         │            Acme's sessions start on it                                       │
 ▌   Acme 2          Ultra      none     │                                                                              │
-                                        │  Reserve   none                      usage kept back for the Claude apps     │
+                                        │  Reserve   none                      usage the router leaves unused          │
   + add an account                      │                                                                              │
                                         │                              tab next   ←→ select   enter save   esc cancel  │
                                         ╰──────────────────────────────────────────────────────────────────────────────╯

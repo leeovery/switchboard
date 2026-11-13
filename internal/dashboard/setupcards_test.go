@@ -38,6 +38,21 @@ func frame6Card() SetupEditCard {
 	return SetupEditCard{Name: "personal", Label: Field{Value: "Personal", Cursor: 8}, Reserve: Field{Value: "none", Cursor: 4}, Plans: (setup.Reviewed{}).PlanChoices(), Plan: "max", Chosen: setup.PlanField}
 }
 
+// The edit card's hints under Primary and Reserve are setup's, of the pool
+// chosen, where it has a Pool, never its own, which name the Claude apps,
+// true of the first pool alone; its own where it has none.
+func TestTheEditCardsHintsAreSetupsWhereItHasAPool(t *testing.T) {
+	card := frame6Card()
+	if primary, reserve := card.hints(); primary != primaryHint || reserve != reserveHint {
+		t.Errorf("without a Pool, the hints are %q and %q, want the card's own", primary, reserve)
+	}
+	card.Pool = &SetupPool{Options: []string{"Default", "Acme", "new pool"}, Chosen: 1}
+	card.PrimaryHint, card.ReserveHint = "Acme's sessions start on it", setup.PoolReserveHint
+	if primary, reserve := card.hints(); primary != card.PrimaryHint || reserve != card.ReserveHint {
+		t.Errorf("with a Pool, the hints are %q and %q, want setup's", primary, reserve)
+	}
+}
+
 // setupCardRow is the card's row y, from its line to its line, as text.
 func setupCardRow(c *canvas, y int) string {
 	return string([]rune(rowOf(c, y))[editCardX : editCardX+setupCardWidth])

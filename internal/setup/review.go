@@ -461,9 +461,9 @@ func (r Review) unmarkedNotes() []Note {
 		if at := r.PoolIndex(pool); at >= 0 {
 			label = r.Pools[at].Label
 		}
-		says := "has no primary, the account its sessions start on."
+		says := "has no primary marked, so its sessions start on its first account."
 		if strings.EqualFold(pool, r.First) {
-			says = "has no primary, the account its sessions start on and the Claude apps sign in to."
+			says = "has no primary marked, so its sessions start on its first account, and the Claude apps sign in to it."
 		}
 		notes = append(notes, Note{
 			Need:  NeedPrimary,

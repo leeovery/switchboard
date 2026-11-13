@@ -282,6 +282,43 @@ func TestTheEditCardsPoolAndPrimary(t *testing.T) {
 	}
 }
 
+// Primary's and Reserve's hints are of the pool chosen: the Claude apps are
+// the first pool's alone, so of another, or of new pool, before it's made,
+// neither names them.
+func TestTheEditCardsHintsAreThePoolChosens(t *testing.T) {
+	h := accountsHarness(t, pooledSteps())
+	h.start()
+	for range 4 {
+		h.pressAndDeliver("down")
+	}
+	h.pressAndDeliver("e")
+	h.pressAndDeliver("tab")
+	h.pressAndDeliver("tab")
+	for _, tt := range []struct {
+		key, pool, primary, reserve string
+	}{
+		{key: "", pool: "Acme", primary: "Acme's sessions start on it", reserve: setup.PoolReserveHint},
+		{key: "left", pool: "Default", primary: "Default's sessions start on it; the Claude apps sign in to it", reserve: setup.AppsReserveHint},
+		{key: "right", pool: "Acme"},
+		{key: "right", pool: "new pool", primary: "the new pool's sessions start on it", reserve: setup.PoolReserveHint},
+	} {
+		if tt.key != "" {
+			h.pressAndDeliver(tt.key)
+		}
+		if tt.primary == "" {
+			continue
+		}
+		rows := cardRows(h)
+		at := slices.IndexFunc(rows, func(r string) bool { return strings.HasPrefix(r, "  Primary ") })
+		if at < 0 || strings.TrimSpace(rows[at+1]) != tt.primary {
+			t.Errorf("%s chosen, the card reads\n%s\nwant Primary's hint %q", tt.pool, strings.Join(rows, "\n"), tt.primary)
+		}
+		if got := h.cardRow("Reserve"); !strings.HasSuffix(strings.TrimSpace(got), tt.reserve) {
+			t.Errorf("%s chosen, Reserve reads %q, want its hint %q", tt.pool, got, tt.reserve)
+		}
+	}
+}
+
 // With one pool, the edit card has no Pool, as there's no other to move an
 // account to, and Primary's hint is as before pools.
 func TestTheEditCardWithOnePoolHasNoPool(t *testing.T) {

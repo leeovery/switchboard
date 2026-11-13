@@ -78,6 +78,27 @@ func (c PoolChoice) PrimaryHint() string {
 	return hint
 }
 
+// The edit card's hints under Reserve: of an account in the first pool,
+// whose primary the Claude apps sign in to, AppsReserveHint; of one in
+// another, PoolReserveHint, as the apps never use it.
+const (
+	AppsReserveHint = "usage kept back for the Claude apps"
+	PoolReserveHint = "usage the router leaves unused"
+)
+
+// ReserveHint is the edit card's hint under Reserve, of an account in the
+// pool, as AppsReserveHint and PoolReserveHint say.
+func (c PoolChoice) ReserveHint() string {
+	if c.First {
+		return AppsReserveHint
+	}
+	return PoolReserveHint
+}
+
+// NewPoolChoice is the new pool a card's Pool offers before it's made, as
+// Primary's and Reserve's hints name it.
+var NewPoolChoice = PoolChoice{Label: "the new pool"}
+
 // cleaned are texts made safe to show.
 func cleaned(texts []string) []string {
 	out := make([]string, len(texts))

@@ -1,7 +1,6 @@
 package dashboard
 
 import (
-	"cmp"
 	"slices"
 	"strings"
 
@@ -12,9 +11,10 @@ import (
 // SetupEditCard is an account's edit card, open over the Accounts page, as
 // it stands: the account's name; its fields, Label and Reserve as typed, Plan
 // the plan chosen of Plans, those it offers, its Pool, where it has one, and
-// Primary whether yes is chosen, PrimaryHint its hint, "" for the card's
-// own; the field chosen; and where setup refused a value, why, as Why says,
-// under the field Refused names.
+// Primary whether yes is chosen; PrimaryHint and ReserveHint, the hints of
+// the pool chosen, setup's, where it has a Pool, the card's own otherwise;
+// the field chosen; and where setup refused a value, why, as Why says, under
+// the field Refused names.
 type SetupEditCard struct {
 	Name           string
 	Label, Reserve Field
@@ -23,6 +23,7 @@ type SetupEditCard struct {
 	Pool           *SetupPool
 	Primary        bool
 	PrimaryHint    string
+	ReserveHint    string
 	Chosen         setup.Field
 	Refused        setup.Field
 	Why            string
@@ -109,7 +110,7 @@ const (
 	primaryName = "Primary"
 	primaryHint = "the account the Claude apps are signed in to"
 	reserveName = "Reserve"
-	reserveHint = "usage kept back for the Claude apps"
+	reserveHint = setup.AppsReserveHint
 	poolName    = "Pool"
 	dirName     = "Directory"
 	dirHint     = "a session started here, or in any folder inside, is in the pool"
@@ -270,13 +271,24 @@ func (e SetupEditCard) card(width int) *setupCard {
 	}
 	k.card.body = append(k.card.body, nil, focus.planRow(content, e.Plans, e.Plan), hintUnder(content, planHint), nil)
 	k.card.body = append(k.card.body, focus.poolRows(content, e.Pool)...)
+	primaryHinted, reserveHinted := e.hints()
 	k.card.body = append(k.card.body,
 		optionsRow(content, primaryName, primaryChoices, primary, e.Chosen == setup.PrimaryField),
-		hintUnder(content, cmp.Or(e.PrimaryHint, primaryHint)),
+		hintUnder(content, primaryHinted),
 		nil,
 	)
-	k.text(focus.textField(setup.ReserveField, reserveName, reserveHint, e.Reserve), 0, content)
+	k.text(focus.textField(setup.ReserveField, reserveName, reserveHinted, e.Reserve), 0, content)
 	return k
+}
+
+// hints are Primary's and Reserve's hints: setup's, of the pool chosen,
+// where the card has a Pool; else the card's own, true of the one pool
+// there is, or of a config without pools.
+func (e SetupEditCard) hints() (primary, reserve string) {
+	if e.Pool != nil {
+		return e.PrimaryHint, e.ReserveHint
+	}
+	return primaryHint, reserveHint
 }
 
 // poolRows are a card's Pool, width cells wide, and the blank row after it,

@@ -149,25 +149,27 @@ func (c editCard) primaryHeld() bool {
 	return ok && !p.Accounts
 }
 
-// primaryHint is Primary's hint, where the card has a Pool: of the pool it
-// chooses, by its label; "" for the card's own, where it has none, or new
-// pool is chosen.
-func (c editCard) primaryHint() string {
+// hints are Primary's and Reserve's hints, where the card has a Pool: of the
+// pool it chooses, or of new pool, as setup.NewPoolChoice names it; "" for
+// the card's own, where it has none.
+func (c editCard) hints() (primary, reserve string) {
 	if c.pool == nil {
-		return ""
+		return "", ""
 	}
-	if p, ok := c.pool.choice(); ok {
-		return p.PrimaryHint()
+	p, ok := c.pool.choice()
+	if !ok {
+		p = setup.NewPoolChoice
 	}
-	return ""
+	return p.PrimaryHint(), p.ReserveHint()
 }
 
 // drawn is the card as dashboard.Setup draws it.
 func (c editCard) drawn() *dashboard.SetupEditCard {
 	plans := c.opened.PlanChoices()
+	primaryHint, reserveHint := c.hints()
 	card := &dashboard.SetupEditCard{
 		Name: c.opened.Name(), Label: c.label.field(c.chosen == setup.LabelField), Reserve: c.reserve.field(c.chosen == setup.ReserveField),
-		Plans: plans, Plan: plans[c.plan], Primary: c.primary || c.primaryHeld(), PrimaryHint: c.primaryHint(),
+		Plans: plans, Plan: plans[c.plan], Primary: c.primary || c.primaryHeld(), PrimaryHint: primaryHint, ReserveHint: reserveHint,
 		Chosen: c.chosen, Refused: c.refused, Why: c.why,
 	}
 	if c.pool != nil {
