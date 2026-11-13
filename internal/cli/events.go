@@ -49,6 +49,8 @@ pool each was filed in, one from before pools the first pool's; what befell
 an account, by the pool it's in now; and the router's own in every pool. ` + readingAPool + `
 Without a config to read, it lists every event.
 
+` + readingAKeptPool + `
+
 On a terminal, events prints its lines as text. Anywhere else, as in a pipe or
 an agent's shell, it prints each event as the router files it, with "schema": 1
 put first, a JSON object a line, with its run and id, so a reader of a changed

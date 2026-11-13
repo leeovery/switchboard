@@ -182,9 +182,10 @@ func poolAddedSays(out io.Writer, added config.Pool) error {
 }
 
 // poolRemovedSays writes to out that the pool removed was, by its id and
-// label.
+// label, and that its history stays, read by its id.
 func poolRemovedSays(out io.Writer, removed config.Pool) error {
-	_, err := fmt.Fprintf(out, "removed pool %s (%s)\n", removed.ID, prose.Clean(removed.Label))
+	_, err := fmt.Fprintf(out, "removed pool %s (%s): its history stays, read with --pool %s by requests, history, sessions and events\n",
+		removed.ID, prose.Clean(removed.Label), removed.ID)
 	return err
 }
 
@@ -304,7 +305,9 @@ above it. A pool with accounts is refused, naming them: move each to another
 pool with accounts edit --pool, or remove it, first, so no edit puts a pool's
 accounts in another. The last pool can't be removed, as an account added
 needs a pool to go into. Its directories are no pool's once it's gone, so a
-session started in them goes to the unfenced pool, where there's one.
+session started in them goes to the unfenced pool, where there's one. Its
+history stays, under its id: requests, history, sessions and events read it
+with --pool and that id.
 
 ` + editingTheConfig,
 		Args: func(_ *cobra.Command, args []string) error {

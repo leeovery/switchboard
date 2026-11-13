@@ -72,6 +72,8 @@ It shows one pool's history: its work as each request recorded its pool at
 the time, work from before pools the first pool's, and the windows, plans
 and weeks of the accounts in it now. ` + readingAPool + `
 
+` + readingAKeptPool + `
+
 On a terminal, history prints its days as text. Anywhere else, as in a pipe
 or an agent's shell, it prints as JSON the summaries of the days asked for, as
 the ledger holds them, from the first it holds, so the last is today's, each

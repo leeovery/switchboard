@@ -207,7 +207,7 @@ func TestPoolRemoveRemovesAPoolWithNoAccountsAlone(t *testing.T) {
 	if got := run(t, deps, "pool", "remove", "q7mt"); got.code == 0 || !strings.Contains(got.stderr, "has accounts: move each to another pool, or remove it, first") {
 		t.Errorf("switchboard pool remove q7mt = %+v, want it refused while work is in it", got)
 	}
-	if got, want := run(t, deps, "pool", "remove", "h4w2"), (result{stdout: "removed pool h4w2 (Handed back)\n"}); got != want {
+	if got, want := run(t, deps, "pool", "remove", "h4w2"), (result{stdout: "removed pool h4w2 (Handed back): its history stays, read with --pool h4w2 by requests, history, sessions and events\n"}); got != want {
 		t.Errorf("switchboard pool remove h4w2 = %+v, want %+v", got, want)
 	}
 	if pools := loadPooled(t, path).Pools.IDs(); !slices.Equal(pools, []string{"b2n8", "q7mt"}) {

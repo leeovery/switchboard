@@ -58,10 +58,53 @@ func PoolLabels(pools config.Pools, record func() identity.Record) func(id strin
 			return p.Label
 		}
 		if p, ok := record().PoolByID(id); ok {
-			return cmp.Or(p.Label, p.Written.Label, id)
+			return keptLabel(p)
 		}
 		return id
 	}
+}
+
+// keptLabel is the label of a pool the accounts record keeps, as PoolLabels
+// labels one not configured: the label kept of one removed, else the one
+// this Mac's config last wrote, else its id.
+func keptLabel(p identity.PoolEntry) string {
+	return cmp.Or(p.Label, p.Written.Label, p.ID)
+}
+
+// KeptPool is a pool the accounts record keeps that the config doesn't
+// configure: one removed, or one only another Mac configures, as an import
+// joins its record in. The work recorded in it stays under its id, never
+// another pool's, as a removed pool may be a client's. It's kept by its id,
+// its label, as PoolLabels labels it, and, where it was removed, when.
+type KeptPool struct {
+	ID, Label string
+	Removed   time.Time
+}
+
+// KeptPoolOf returns the pool with the given id, ignoring case, that record
+// keeps and pools, the configured, don't, reporting false where one of pools
+// has the id, or record keeps none with it.
+func KeptPoolOf(record identity.Record, pools config.Pools, id string) (KeptPool, bool) {
+	if _, configured := pools.ByID(id); configured {
+		return KeptPool{}, false
+	}
+	p, ok := record.PoolByID(id)
+	if !ok {
+		return KeptPool{}, false
+	}
+	return KeptPool{ID: p.ID, Label: keptLabel(p), Removed: p.Removed}, true
+}
+
+// Said is the pool as the verbs' text names it, cleaned, marked as one not
+// configured: of one removed, when, by its local day, as RemovedAccount's
+// Said says an account's removal, as "pool Acme (removed 4 Sep)"; else as
+// "pool Acme (not configured here)".
+func (p KeptPool) Said() string {
+	mark := "not configured here"
+	if !p.Removed.IsZero() {
+		mark = "removed " + prose.DayMonth(p.Removed.Local())
+	}
+	return prose.Pool(p.Label) + " (" + mark + ")"
 }
 
 // Of returns the removed account with the given id, ids compared ignoring

@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/identity"
 	"github.com/leeovery/switchboard/internal/launch"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/router"
@@ -21,6 +22,12 @@ const readingAPool = `--pool names the pool by its id, as switchboard pool lists
 it's the only pool, where there's one, else the one fenced to no directory;
 where every pool is fenced, it asks for --pool. The directory it's run in
 never chooses.`
+
+// readingAKeptPool says, in the help of the verbs that read the recorded
+// files, which read a pool the config no longer has by its id too.
+const readingAKeptPool = `--pool also takes a pool the config no longer has, removed, or another
+Mac's from an import, by the id its history is kept under, naming it as
+removed, and reads its work as it was recorded, never in another pool.`
 
 // addPoolFlag registers --pool on cmd, naming the pool it reads or acts on,
 // as what says it does, by its id.
@@ -87,8 +94,12 @@ type filedPool struct {
 	config.Pool
 	read views.PoolRead
 	// named is how a verb's text names it, as poolNamed does: "" where
-	// there's one pool or none, and where the read is of every pool's.
+	// there's one pool or none, and where the read is of every pool's; as
+	// status.KeptPool's Said says, where it's kept.
 	named string
+	// kept is set where it's a pool the accounts record keeps that isn't
+	// configured, as keptPool reads one: the router routes nothing in it.
+	kept bool
 }
 
 // heading names the pool in a paragraph of a line, as a verb's text starts
@@ -119,15 +130,43 @@ func (a *app) filedPool(ctx context.Context, cfg *config.Config, dir, named stri
 }
 
 // readPool returns the pool of cfg's pools a verb reading the files in the
-// state directory dir reads, as askedPool has it, named or not, failing as it
-// does, saying --pool names one.
+// state directory dir reads, as askedPool has it, named or not, else the one
+// named that the accounts record keeps, as keptPool has it; failing as
+// askedPool does, saying --pool names one.
 func (a *app) readPool(cfg *config.Config, dir, named string) (filedPool, error) {
+	record := recordIn(dir)
 	p, err := askedPool(cfg.Pools, named)
-	if err != nil || p.ID == "" {
+	switch {
+	case err != nil && named != "":
+		return a.keptPool(cfg, dir, record, named, err)
+	case err != nil || p.ID == "":
 		return filedPool{}, poolFlagNeeded(err)
 	}
-	read := views.PoolRead{ID: p.ID, First: a.firstPool(dir, cfg.Pools), PoolOf: status.AccountPools(cfg.Accounts, recordIn(dir))}
-	return filedPool{Pool: p, read: read, named: poolNamed(cfg.Pools, p.Label)}, nil
+	return filedPool{Pool: p, read: a.poolRead(cfg, dir, record, p.ID), named: poolNamed(cfg.Pools, p.Label)}, nil
+}
+
+// keptPool returns the pool with the id named that the accounts record
+// record returns keeps but cfg doesn't configure, as status.KeptPoolOf has
+// it, removed, or another Mac's from an import: its work read as it was
+// recorded, under its id alone, and named as KeptPool's Said says, whatever
+// pools there are. It fails with err, saying --pool names a pool, where the
+// record keeps none with that id.
+func (a *app) keptPool(cfg *config.Config, dir string, record func() identity.Record, named string, err error) (filedPool, error) {
+	kept, ok := status.KeptPoolOf(record(), cfg.Pools, named)
+	if !ok {
+		return filedPool{}, poolFlagNeeded(err)
+	}
+	pool := config.Pool{ID: kept.ID, Label: kept.Label}
+	return filedPool{Pool: pool, read: a.poolRead(cfg, dir, record, kept.ID), named: kept.Said(), kept: true}, nil
+}
+
+// poolRead is how the views read the work of the pool with the given id
+// from the files in the state directory dir: work in no pool the first
+// pool's, as firstPool has it of cfg's pools, and each account in the pool
+// cfg configures it in, else the one the accounts record record returns
+// keeps for it.
+func (a *app) poolRead(cfg *config.Config, dir string, record func() identity.Record, id string) views.PoolRead {
+	return views.PoolRead{ID: id, First: a.firstPool(dir, cfg.Pools), PoolOf: status.AccountPools(cfg.Accounts, record)}
 }
 
 // poolNamed names the pool with the given label, as prose.Pool does, where
