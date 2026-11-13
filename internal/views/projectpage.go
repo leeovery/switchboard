@@ -223,15 +223,15 @@ func (p *projectTally) byDay(first, last, today time.Time, unit BucketUnit) Wort
 // byWeek is the project's worth by calendar week from the one first falls
 // in to the one last does, each as dayfile.Civil gives a day, weeks
 // starting on the day given, today given: each named by its first day's
-// date, as "17 Aug", the axis naming the month of each that starts in
-// another month than the week before, as "Aug", its worth that of its days
-// from first to last alone.
+// date, as "17 Aug", the axis naming the month of the first of its days
+// from first, as "Aug", where it's another than the week before's, its
+// worth that of its days from first to last alone.
 func (p *projectTally) byWeek(first, last, today time.Time, starts time.Weekday) WorthBy {
 	by := WorthBy{Unit: ByWeek}
 	month := ""
 	for week := weekOf(first, starts); !week.After(last); week = week.AddDate(0, 0, 7) {
 		b := WorthBucket{Start: week, Label: prose.DayMonth(week)}
-		if named := prose.Month(week, false); named != month {
+		if named := prose.Month(score.Later(week, first), false); named != month {
 			b.Axis, month = named, named
 		}
 		for d := score.Later(week, first); d.Before(week.AddDate(0, 0, 7)) && !d.After(last); d = d.AddDate(0, 0, 1) {

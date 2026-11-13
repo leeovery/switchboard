@@ -1,7 +1,6 @@
 package dashboard
 
 import (
-	"math"
 	"slices"
 
 	"github.com/leeovery/switchboard/internal/ledger"
@@ -53,11 +52,12 @@ func lastRun(runs []int) int {
 	return -1
 }
 
-// barEighths is how many eighths of cells cells a worth of w takes against
-// the largest, a half rounded to the even: none of none, else at least one.
-func barEighths(w, largest ledger.Picodollars, cells int) int {
-	if w <= 0 || largest <= 0 {
+// barUnits is how many of the units given a part of a whole takes, as a
+// bar's cells or eighths of them, a half rounded to the even, as halfEven
+// rounds it: none of none, else at least one.
+func barUnits[N ~int64 | ~float64](part, whole N, units int) int {
+	if part <= 0 || whole <= 0 {
 		return 0
 	}
-	return max(1, int(math.RoundToEven(float64(cells*8)*float64(w)/float64(largest))))
+	return max(1, halfEven(float64(units)*float64(part)/float64(whole)))
 }

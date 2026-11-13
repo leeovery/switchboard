@@ -22,8 +22,8 @@ func projectsHelp() []helpPart {
 					"History's BY MONTH splits a month's. Live counts its sessions running now, and last says when its last " +
 					"request came, now while one of them is busy. All projects totals them, a session counted once."),
 				said("`↑` and `↓` choose the project its page under the list shows; the list scrolls with the choice past " +
-					"a third of the view's rows. The periods are rolling, and shared with Accounts: `<` and `>` step " +
-					"through " + prose.List(views.PeriodNames()) + "."),
+					"a third of the view's rows."),
+				said(periodsRun + " They're shared with Accounts: `<` and `>` step through " + prose.List(views.PeriodNames()) + "."),
 			},
 		},
 		{

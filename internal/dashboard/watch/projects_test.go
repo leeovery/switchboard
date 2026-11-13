@@ -3,6 +3,7 @@ package watch
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -35,6 +36,14 @@ const (
 	betaOnly    = "b1000000-0000-4000-8000-000000000003"
 	gammaOnly   = "c1000000-0000-4000-8000-000000000004"
 )
+
+// deltaSessions are delta's six sessions, ten days back: worth more
+// together than alpha's, so top over 30 days, and gone from this week's
+// list.
+var deltaSessions = []string{
+	"d1000000-0000-4000-8000-000000000001", "d2000000-0000-4000-8000-000000000002", "d3000000-0000-4000-8000-000000000003",
+	"d4000000-0000-4000-8000-000000000004", "d5000000-0000-4000-8000-000000000005", "d6000000-0000-4000-8000-000000000006",
+}
 
 // projectAsks are n requests of the session given, in the project given, on
 // work, a minute apart from at.
@@ -72,6 +81,35 @@ func projectsHarness(t *testing.T, opening dashboard.View) *harness {
 	cfg.Ledger, cfg.Accounts, cfg.WeekStarts, cfg.View = l, threeConfigured, time.Monday, opening
 	h.model = New(t.Context(), cfg)
 	return h
+}
+
+// withDelta is h with delta's sessions on its ledger, as deltaSessions has
+// them, a request each, an hour apart. It's given before h starts.
+func withDelta(h *harness) *harness {
+	l := h.model.cfg.Ledger.(*projectsLedger)
+	for i, id := range deltaSessions {
+		lines := projectAsks(id, "/code/delta", start.AddDate(0, 0, -10).Add(time.Duration(i)*time.Hour), 1)
+		date := dayfile.DateOf(lines[0].At)
+		l.lines[date] = append(l.lines[date], lines...)
+	}
+	return h
+}
+
+// running is the router listing the session given running in the project
+// given, from now, its look at it taken in.
+func running(h *harness, id, project string) {
+	h.t.Helper()
+	h.source.sessions = []status.Session{{ID: id, Assignments: []status.Assignment{
+		{Model: opus, Account: "work", Dir: project, Project: project, AssignedAt: h.clock.now, LastSeen: h.clock.now},
+	}}}
+	h.tickUntilAsked()
+}
+
+// selectionInView reports whether SESSIONS shows the session selected,
+// where a click would land on it.
+func selectionInView(h *harness) bool {
+	selected := h.model.projects.shown.Selection()
+	return slices.ContainsFunc(h.targets(), func(t dashboard.Target) bool { return t.On == dashboard.OnSession && t.Session == selected })
 }
 
 // rowsOf are the paths of the list's rows.
@@ -128,17 +166,53 @@ func TestProjectsReadsItsDaysOnceAndAgainOnlyFurtherBack(t *testing.T) {
 	}
 }
 
-// Till its days are read, Projects says it's loading and draws no page;
-// once they land, its page is built of them.
+// Till its days are read, Projects says it's loading and draws no page,
+// as it's first shown, and as the dial steps further back than the days
+// held, never the new period's name over the old period's figures; once
+// they land, its page is built of them.
 func TestProjectsLoadsTillItsDaysAreRead(t *testing.T) {
 	h := projectsHarness(t, dashboard.Projects)
-	held := holdingBack[projectsReadMsg](h, h.init()...)
-	if len(held) != 1 || !h.model.projects.reading || !h.model.awaiting() || h.model.projects.shown.Page != nil {
-		t.Fatalf("its read under way, %d held, reading %v, awaiting %v, its page %v; want one read held, Projects awaiting it, no page", len(held), h.model.projects.reading, h.model.awaiting(), h.model.projects.shown.Page)
+	reads := []struct {
+		name  string
+		msgs  func() []tea.Msg
+		built string
+	}{
+		{"as it's first shown", h.init, "/code/alpha /code/beta"},
+		{"after a step further back", func() []tea.Msg { return h.press(">") }, "/code/alpha /code/beta /code/gamma"},
 	}
-	h.deliver(held...)
-	if h.model.projects.reading || h.model.awaiting() || h.model.projects.shown.Page == nil {
-		t.Errorf("its read landed, reading %v, awaiting %v, its page %v; want its page built", h.model.projects.reading, h.model.awaiting(), h.model.projects.shown.Page)
+	for _, r := range reads {
+		held := holdingBack[projectsReadMsg](h, r.msgs()...)
+		if s := h.model.projects.shown; len(held) != 1 || !h.model.projects.reading || !h.model.awaiting() || s.Page != nil || s.Project != nil {
+			t.Fatalf("%s, its read under way, %d held, reading %v, awaiting %v, its page %v; want one read held, Projects awaiting it, no page", r.name, len(held), h.model.projects.reading, h.model.awaiting(), s.Page)
+		}
+		if strings.Contains(h.view(), "alpha") {
+			t.Errorf("%s, its read under way, the screen draws alpha's row:\n%s\nwant no page", r.name, h.view())
+		}
+		h.deliver(held...)
+		if h.model.projects.reading || h.model.awaiting() || h.model.projects.shown.Page == nil {
+			t.Fatalf("%s, its read landed, reading %v, awaiting %v, its page %v; want its page built", r.name, h.model.projects.reading, h.model.awaiting(), h.model.projects.shown.Page)
+		}
+		if got := strings.Join(rowsOf(h), " "); got != r.built {
+			t.Errorf("%s, its read landed, the rows are %s, want %s", r.name, got, r.built)
+		}
+	}
+}
+
+// Without a ledger, Projects reads nothing and awaits nothing: its page is
+// built of the sessions running alone, as the List's are, and says there
+// are no sessions where none runs.
+func TestProjectsWithoutALedgerShowsTheSessionsRunning(t *testing.T) {
+	h := routedHarness(t, routerDocument(three()...))
+	cfg := h.config(Size{Width: 160, Height: 50})
+	cfg.Ledger, cfg.Accounts, cfg.WeekStarts, cfg.View = nil, threeConfigured, time.Monday, dashboard.Projects
+	h.model = New(t.Context(), cfg)
+	h.start()
+	if h.model.projects.asked != 0 || h.model.awaiting() || !strings.Contains(h.view(), "no sessions") {
+		t.Fatalf("without a ledger, read %d times, awaiting %v, the screen:\n%s\nwant no read, nothing awaited, and no sessions said", h.model.projects.asked, h.model.awaiting(), h.view())
+	}
+	running(h, betaOnly, "/code/beta")
+	if got := strings.Join(rowsOf(h), " "); got != "/code/beta" || !strings.Contains(h.view(), "beta") {
+		t.Errorf("without a ledger, beta's session running, the rows are %q; want beta's alone, drawn", got)
 	}
 }
 
@@ -164,39 +238,106 @@ func TestProjectsPagesAreBuiltOnlyAsWhatTheyreBuiltOfChanges(t *testing.T) {
 	built(1, 2, "↓")
 	h.deliver(h.press("<")...)
 	built(2, 3, "<")
-	h.source.sessions = []status.Session{{ID: betaOnly, Assignments: []status.Assignment{
-		{Model: opus, Account: "work", Dir: "/code/beta", Project: "/code/beta", AssignedAt: start, LastSeen: h.clock.now},
-	}}}
-	h.tickUntilAsked()
+	running(h, betaOnly, "/code/beta")
 	built(3, 4, "a session started running")
 }
 
 // The project chosen and the session selected are kept, by path and by id,
-// across a rebuild; a project that leaves the list leaves the top row
-// chosen.
+// across a rebuild that ranks the list afresh; a project that leaves the
+// list leaves the top row chosen, the list with the choice, SESSIONS'
+// selection let go and SESSIONS from its top.
 func TestProjectsKeepsTheChoiceAcrossRebuilds(t *testing.T) {
-	h := projectsHarness(t, dashboard.Projects)
+	h := withDelta(projectsHarness(t, dashboard.Projects))
 	h.start()
+	h.update(tea.WindowSizeMsg{Width: 108, Height: 24})
 	h.deliver(h.press(">")...)
-	if got := strings.Join(rowsOf(h), " "); got != "/code/alpha /code/beta /code/gamma" {
-		t.Fatalf("over 30 days the rows are %s, want alpha, beta and gamma", got)
+	if got := strings.Join(rowsOf(h), " "); got != "/code/delta /code/alpha /code/beta /code/gamma" {
+		t.Fatalf("over 30 days the rows are %s, want delta, alpha, beta and gamma", got)
 	}
-	h.keys(rightKey, downKey)
-	if s := h.model.projects.shown; !s.InSessions || s.Selection() != alphaFirst {
-		t.Fatalf("after → ↓, in sessions %v, %s selected; want SESSIONS, alpha's first ended last", s.InSessions, s.Selection())
+	h.keys(downKey, rightKey, downKey)
+	if s := h.model.projects.shown; s.Chosen != "/code/alpha" || !s.InSessions || s.Selection() != alphaFirst {
+		t.Fatalf("after ↓ → ↓, %s chosen, in sessions %v, %s selected; want alpha, second, its SESSIONS, its first ended last", s.Chosen, s.InSessions, s.Selection())
 	}
 	h.deliver(h.press("<")...)
 	if s := h.model.projects.shown; s.Chosen != "/code/alpha" || s.Selection() != alphaFirst || !s.InSessions {
-		t.Errorf("rebuilt over this week, %s chosen, %s selected, in sessions %v; want both kept", s.Chosen, s.Selection(), s.InSessions)
+		t.Errorf("rebuilt over this week, alpha first, %s chosen, %s selected, in sessions %v; want both kept", s.Chosen, s.Selection(), s.InSessions)
 	}
 	h.deliver(h.press(">")...)
-	h.keys(leftKey, downKey, downKey)
-	if got := h.model.projects.shown.Chosen; got != "/code/gamma" {
-		t.Fatalf("after ← ↓ ↓, %s chosen, want gamma", got)
+	h.keys(leftKey, upKey, rightKey)
+	for range deltaSessions {
+		h.keys(downKey)
+	}
+	if s := h.model.projects.shown; s.Chosen != "/code/delta" || s.Selection() != deltaSessions[0] || h.model.scroll == 0 {
+		t.Fatalf("after ← ↑ → and ↓ to its last, %s chosen, %s selected, SESSIONS scrolled %d; want delta, its first, listed last, scrolled", s.Chosen, s.Selection(), h.model.scroll)
 	}
 	h.deliver(h.press("<")...)
-	if got := h.model.projects.shown.Chosen; got != "/code/alpha" {
-		t.Errorf("gamma gone from this week's list, %s chosen, want the top row, alpha", got)
+	if s := h.model.projects.shown; s.Chosen != "/code/alpha" || s.InSessions || s.Selected != "" || h.model.scroll != 0 {
+		t.Errorf("delta gone from this week's list, %s chosen, in sessions %v, %q selected, SESSIONS scrolled %d; want the top row, alpha, the list with the choice, none selected, from its top", s.Chosen, s.InSessions, s.Selected, h.model.scroll)
+	}
+}
+
+// The project shown is held as chosen however it came to be shown, the top
+// row's taken into its SESSIONS as one chosen: a list ranked afresh, as the
+// dial steps within the days held, keeps it, never handing SESSIONS to
+// another.
+func TestProjectsHoldsTheTopRowOnceItsSessionsAreTaken(t *testing.T) {
+	takings := []struct {
+		name string
+		take func(h *harness)
+	}{
+		{"→", func(h *harness) { h.keys(rightKey) }},
+		{"a click on its session", func(h *harness) {
+			h.t.Helper()
+			i := slices.IndexFunc(h.targets(), func(t dashboard.Target) bool { return t.On == dashboard.OnSession && t.Session == alphaSecond })
+			if i < 0 {
+				h.t.Fatalf("no target for alpha's second session among %+v", h.targets())
+			}
+			h.clickOn(h.targets()[i])
+		}},
+	}
+	for _, tk := range takings {
+		t.Run(tk.name, func(t *testing.T) {
+			h := withDelta(projectsHarness(t, dashboard.Projects))
+			h.start()
+			h.deliver(h.press(">")...)
+			h.deliver(h.press("<")...)
+			tk.take(h)
+			h.deliver(h.press(">")...)
+			if s := h.model.projects.shown; s.Chosen != "/code/alpha" || !s.InSessions {
+				t.Errorf("after %s, then over 30 days, delta top, %s chosen, in sessions %v; want alpha kept, its SESSIONS", tk.name, s.Chosen, s.InSessions)
+			}
+		})
+	}
+}
+
+// A rebuild that moves the session selected keeps it in view, where it
+// showed: a session starting running in its project, listed first, never
+// pushes it out of SESSIONS.
+func TestProjectsRebuiltKeepsTheSelectionInView(t *testing.T) {
+	h := withDelta(projectsHarness(t, dashboard.Projects))
+	h.start()
+	h.update(tea.WindowSizeMsg{Width: 108, Height: 24})
+	h.deliver(h.press(">")...)
+	h.keys(rightKey)
+	var inView []string
+	for _, tg := range h.targets() {
+		if tg.On == dashboard.OnSession {
+			inView = append(inView, tg.Session)
+		}
+	}
+	if len(inView) == 0 || len(inView) == len(deltaSessions) {
+		t.Fatalf("SESSIONS shows %d of delta's %d sessions at 108×24, want some, not all", len(inView), len(deltaSessions))
+	}
+	for range len(inView) - 1 {
+		h.keys(downKey)
+	}
+	selected := h.model.projects.shown.Selection()
+	if selected != inView[len(inView)-1] || h.model.scroll != 0 {
+		t.Fatalf("%s selected, scrolled %d; want the last in view, %s, unscrolled", selected, h.model.scroll, inView[len(inView)-1])
+	}
+	running(h, "d7000000-0000-4000-8000-000000000007", "/code/delta")
+	if got := h.model.projects.shown.Selection(); got != selected || !selectionInView(h) {
+		t.Errorf("a session of delta's started running, %s selected, in view %v; want %s kept in view", got, selectionInView(h), selected)
 	}
 }
 

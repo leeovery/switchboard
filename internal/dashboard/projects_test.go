@@ -184,6 +184,68 @@ func TestTheChosenProjectsSectionsLeaveInTheirOrder(t *testing.T) {
 	}
 }
 
+// bucketedPage is chosenPage with WORTH BY in n buckets of the unit given,
+// and where weeks are given, by week in as many beside them, as of the last
+// 12 weeks.
+func bucketedPage(unit views.BucketUnit, n, weeks int) views.ProjectPage {
+	buckets := func(unit views.BucketUnit, n int) views.WorthBy {
+		by := views.WorthBy{Unit: unit, Peak: 0}
+		for i := range n {
+			by.Buckets = append(by.Buckets, views.WorthBucket{Start: routedClock(1, 0, 0).AddDate(0, 0, i-n), Worth: worthOf(1000 + i)})
+		}
+		return by
+	}
+	page := chosenPage(chosenSessions())
+	page.WorthBy = buckets(unit, n)
+	if weeks > 0 {
+		byWeek := buckets(views.ByWeek, weeks)
+		page.WorthByWeek = &byWeek
+	}
+	return page
+}
+
+// The chosen project lies wide, on a MacBook, at every period, WORTH BY's
+// columns narrowing to fit the left half, and middling on an iPad; 12 weeks
+// are by day where a cell for each of their days fits the cells WORTH BY
+// takes as the sections lie, the left half's wide, else by week.
+func TestTheChosenProjectLiesWideAtEveryPeriodOnAMacBook(t *testing.T) {
+	doc := framedDoc(nil, nil)
+	drawn := func(width int, page views.ProjectPage) projectDrawn {
+		f := projectsFrame(t, width, 53, projectRows(3), 0, &page)
+		return projectDrawnOf(f, f.Moment(doc, routedAt), routedAt, page)
+	}
+	periods := []struct {
+		name           string
+		unit           views.BucketUnit
+		buckets, weeks int
+	}{
+		{"today", views.ByHour, 24, 0}, {"this week", views.ByDay, 7, 0}, {"30 days", views.ByDay, 30, 0},
+		{"12 weeks", views.ByDay, 84, 12}, {"12 months", views.ByWeek, 53, 0},
+	}
+	for _, p := range periods {
+		d := drawn(173, bucketedPage(p.unit, p.buckets, p.weeks))
+		slots := chartSlots(d.split, len(d.worth.Buckets))
+		if last := slots[len(slots)-1]; d.form != projectWide || last.x+last.width > d.split {
+			t.Errorf("%s at 173 lies as form %d, its last column ending at %d of %d; want wide, within the left half", p.name, d.form, last.x+last.width, d.split)
+		}
+		if d := drawn(108, bucketedPage(p.unit, p.buckets, p.weeks)); d.form != projectMiddling {
+			t.Errorf("%s at 108 lies as form %d, want middling", p.name, d.form)
+		}
+	}
+	twelveWeeks := []struct {
+		width int
+		form  projectForm
+		unit  views.BucketUnit
+	}{
+		{173, projectWide, views.ByDay}, {171, projectWide, views.ByWeek}, {108, projectMiddling, views.ByDay}, {73, projectStacked, views.ByWeek},
+	}
+	for _, tt := range twelveWeeks {
+		if d := drawn(tt.width, bucketedPage(views.ByDay, 84, 12)); d.form != tt.form || d.worth.Unit != tt.unit {
+			t.Errorf("12 weeks at %d lie as form %d by %s, want form %d by %s", tt.width, d.form, bucketWord[d.worth.Unit], tt.form, bucketWord[tt.unit])
+		}
+	}
+}
+
 // The list shows its projects in a third of the view's rows, the line
 // saying how many more among them, and scrolls only as far as it must to
 // keep the chosen in view.
@@ -220,6 +282,40 @@ func TestTheProjectsListTakesAThirdOfTheRowsAndScrollsToTheChosen(t *testing.T) 
 				t.Errorf("ProjectsListScroll is %d, want %d, as the list is laid out", got, l.first)
 			}
 		})
+	}
+}
+
+// SESSIONS' columns give way as it narrows: the session's narrows to its
+// least first, so wherever a column comes back as it widens the session's is
+// at its least; then model leaves, then started, then requests; worth never
+// leaves, nor on.
+func TestSessionsColumnsGiveWayInTheirOrder(t *testing.T) {
+	page := chosenPage(chosenSessions())
+	m := frameOf(173, 53).Moment(framedDoc(nil, nil), routedAt)
+	before := 0
+	for width := 30; width <= 220; width++ {
+		columns := projectSessionsOf(sessionWords{m: m, now: routedAt}, &page, SessionsMeasured{}, width).columns
+		shown := map[listPart]listColumn{}
+		for _, c := range columns {
+			shown[c.part] = c
+		}
+		_, model := shown[listModel]
+		_, started := shown[listStarted]
+		_, requests := shown[listRequests]
+		_, worth := shown[listWorth]
+		_, on := shown[listOn]
+		switch {
+		case !worth || !on:
+			t.Errorf("at %d worth shows %v and on %v, want both always", width, worth, on)
+		case model && !started, started && !requests:
+			t.Errorf("at %d model shows %v, started %v and requests %v; want model to leave first, then started, then requests", width, model, started, requests)
+		case len(columns) > before && before > 0 && shown[listSession].width != listSessionLeast:
+			t.Errorf("at %d a column came back with the session's %d cells, want it at its least, %d, first", width, shown[listSession].width, listSessionLeast)
+		}
+		before = len(columns)
+		if width == 220 && len(columns) != len(projectColumns) {
+			t.Errorf("at 220 SESSIONS has %d columns, want all %d", len(columns), len(projectColumns))
+		}
 	}
 }
 
@@ -339,8 +435,8 @@ func TestABarOfEighthsEndsInItsLastPartsBlock(t *testing.T) {
 		cells      int
 		want       int
 	}{{0, 10, 8, 0}, {1, 1000, 8, 1}, {500, 1000, 8, 32}, {1000, 1000, 10, 80}, {3, 16, 2, 3}} {
-		if got := barEighths(tt.w, tt.largest, tt.cells); got != tt.want {
-			t.Errorf("barEighths(%d, %d, %d) = %d, want %d", tt.w, tt.largest, tt.cells, got, tt.want)
+		if got := barUnits(tt.w, tt.largest, tt.cells*8); got != tt.want {
+			t.Errorf("barUnits(%d, %d, %d) = %d, want %d", tt.w, tt.largest, tt.cells*8, got, tt.want)
 		}
 	}
 	c := newCanvas(6, 1)
@@ -352,6 +448,21 @@ func TestABarOfEighthsEndsInItsLastPartsBlock(t *testing.T) {
 	for x, want := range map[int]theme.Token{1: theme.AccentPrimary, 2: theme.AccentPrimary, 3: theme.StatePositive} {
 		if got := c.at(x, 0).ink.token; got != want {
 			t.Errorf("cell %d is in %v, want %v", x, got, want)
+		}
+	}
+}
+
+// Projects' help says how its periods run, as Accounts' does, each from
+// where it truly starts, and that the two share them.
+func TestProjectsHelpSaysHowItsPeriodsRun(t *testing.T) {
+	var said []string
+	for _, p := range projectsHelp() {
+		said = append(said, plainLines(p.says)...)
+	}
+	all := strings.Join(said, " ")
+	for _, want := range []string{"today and this week run from their starts, 30 days and 12 months back from today, and 12 weeks over this week and the 11 before", "shared with Accounts: < and > step through today, this week, 30 days, 12 weeks and 12 months"} {
+		if !strings.Contains(all, want) {
+			t.Errorf("Projects' help reads\n%s\nwant %q", all, want)
 		}
 	}
 }

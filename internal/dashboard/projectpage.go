@@ -14,13 +14,15 @@ import (
 
 // The chosen project's figures, in cells and rows: WORTH BY's columns' rows,
 // and the rows the section takes, its heading, its columns, its axis and its
-// peak; the cells between the wide form's halves; a day's column at its
-// least, and the cells between two, as the wide form holds a chart of days;
-// and ON ACCOUNTS' bar's least, as it's laid beside another part.
+// peak; the cells between the wide form's halves; a week's days' columns at
+// their least, the cells of each and between two, as the wide form's left
+// half holds them whatever the period; and ON ACCOUNTS' bar's least, as it's
+// laid beside another part.
 const (
 	worthRows       = 6
 	worthTaken      = 1 + worthRows + 2
 	halvesApart     = 4
+	weekDays        = 7
 	dayColumnLeast  = 8
 	dayColumnsApart = 2
 	shareBarLeast   = 20
@@ -53,10 +55,10 @@ const (
 var worthInk = ink{token: theme.AccentPrimary}
 
 // projectDrawn is the chosen project as a frame draws it under the list, of
-// the moment m at now: its page; WORTH BY in the bucket that fits, as
-// worthFitting has it; how its sections lie, and where: the left half's
-// cells, wide, or the column ON ACCOUNTS starts at, middling; and how many
-// of its sections show, from the first, as projectsLaid keeps them.
+// the moment m at now: its page; WORTH BY in the bucket that fits it as it
+// lies, as worthFitting has it; how its sections lie, and where: the left
+// half's cells, wide, or the column ON ACCOUNTS starts at, middling; and how
+// many of its sections show, from the first, as projectsLaid keeps them.
 type projectDrawn struct {
 	f     Frame
 	m     status.Moment
@@ -69,25 +71,30 @@ type projectDrawn struct {
 }
 
 // projectDrawnOf is the chosen project of the frame f, of the moment m at
-// now, laid out across its width, as formOf lays its sections out, all of
+// now, laid out across its width, as formOf lays its sections out, WORTH BY
+// in the finest bucket that fits the cells it takes as they lie, all of
 // them kept.
 func projectDrawnOf(f Frame, m status.Moment, now time.Time, page views.ProjectPage) projectDrawn {
 	d := projectDrawn{f: f, m: m, now: now, page: page, kept: projectSections}
-	d.worth = d.worthFitting()
 	d.form, d.split = d.formOf()
+	d.worth = d.worthFitting()
 	return d
 }
 
-// worthFitting is WORTH BY in the finest bucket that fits: by day where the
-// page gives days and weeks, as of the last 12 weeks, and a cell for each
-// day fits across the frame; else by week; and the page's own of any other
-// period.
+// worthFitting is WORTH BY in the finest bucket that fits it as the
+// sections lie, in the left half, wide, else across the frame: by day where
+// the page gives days and weeks, as of the last 12 weeks, and a cell for
+// each day fits; else by week; and the page's own of any other period.
 func (d projectDrawn) worthFitting() views.WorthBy {
 	weeks := d.page.WorthByWeek
 	if weeks == nil {
 		return d.page.WorthBy
 	}
-	if _, fits := flex.Lay(d.f.Width, chartPart(len(d.page.WorthBy.Buckets), 1, 0)); fits {
+	cells := d.f.Width
+	if d.form == projectWide {
+		cells = d.split
+	}
+	if _, fits := flex.Lay(cells, chartPart(len(d.page.WorthBy.Buckets), 1, 0)); fits {
 		return d.page.WorthBy
 	}
 	return *weeks
@@ -100,25 +107,28 @@ func chartPart(buckets, column, apart int) flex.Part {
 	return flex.Part{Least: least, Natural: least}
 }
 
-// chartLeast is the fewest cells WORTH BY takes as the wide form holds it:
-// a day's column dayColumnLeast cells, dayColumnsApart apart; an hour's or a
-// week's a cell, touching.
-func (d projectDrawn) chartLeast() flex.Part {
-	if d.worth.Unit == views.ByDay {
-		return chartPart(len(d.worth.Buckets), dayColumnLeast, dayColumnsApart)
+// halfLeast is the fewest cells WORTH BY takes in the wide form's left
+// half, whatever the period, so the form holds as the dial turns: a week's
+// days' columns at dayColumnLeast cells, dayColumnsApart apart; or a cell
+// for each bucket of its coarsest, touching, where that's more, as
+// chartSlots narrows its columns to fit.
+func (d projectDrawn) halfLeast() int {
+	coarsest := d.page.WorthBy
+	if d.page.WorthByWeek != nil {
+		coarsest = *d.page.WorthByWeek
 	}
-	return chartPart(len(d.worth.Buckets), 1, 0)
+	return max(chartPart(weekDays, dayColumnLeast, dayColumnsApart).Least, chartPart(len(coarsest.Buckets), 1, 0).Least)
 }
 
 // formOf is how the sections lie across the frame, as flex lays two halves
-// out: wide where WORTH BY at its least, as chartLeast has it, fits the left
+// out: wide where WORTH BY at its least, as halfLeast has it, fits the left
 // half, halvesApart from the right, and BY MODEL and ON ACCOUNTS whole fit
 // the right, the left half's cells given; else middling where BY MODEL and
 // ON ACCOUNTS whole fit a half each, the column the right half starts at
 // given; else stacked.
 func (d projectDrawn) formOf() (projectForm, int) {
 	right := max(d.modelsWhole(), d.accountsWhole())
-	if left, _, ok := halves(d.f.Width, halvesApart, max(d.chartLeast().Least, right)); ok {
+	if left, _, ok := halves(d.f.Width, halvesApart, max(d.halfLeast(), right)); ok {
 		return projectWide, left.Size
 	}
 	if _, half, ok := halves(d.f.Width, 0, right); ok {
@@ -336,7 +346,7 @@ func chartSlots(width, buckets int) []chartSlot {
 func (d projectDrawn) columns(c *canvas, x, floor int, slots []chartSlot) {
 	peak := d.peakWorth()
 	for i, b := range d.worth.Buckets {
-		eighths := barEighths(amountOf(b.Worth), peak, worthRows)
+		eighths := barUnits(amountOf(b.Worth), peak, worthRows*8)
 		for col := range slots[i].width {
 			fillUp(c, d.f.Look, x+slots[i].x+col, floor, eighths, func(int) ink { return worthInk })
 		}
@@ -427,11 +437,11 @@ func (d projectDrawn) accountNamed(a views.AccountShare) accountName {
 	return accountName{label: labelled(a.Label, a.Account)}
 }
 
-// shareEighths are the eighths of cells cells a share takes, a half to the
-// even: none of none, else at least one.
+// shareEighths are the eighths of cells cells a share takes, as barUnits
+// has them: none where it isn't known.
 func shareEighths(share *float64, cells int) int {
-	if share == nil || *share <= 0 {
+	if share == nil {
 		return 0
 	}
-	return max(1, halfEven(*share*float64(cells*8)))
+	return barUnits(*share, 1, cells*8)
 }

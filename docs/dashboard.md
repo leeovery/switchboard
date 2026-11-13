@@ -274,8 +274,9 @@ the accounts' names where the screen has room, as USAGE's name column does.
 ### The period
 
 `<` and `>` step to a shorter or a longer period, which both views count over. The periods are
-today, this week, 30 days, 12 weeks and 12 months. They're rolling, never billing months, and 12
-months are the days History's Year counts as its last 12 months. It's one dial for the dashboard,
+today, this week, 30 days, 12 weeks and 12 months. They're never billing months: today and this
+week run from their starts, 30 days and 12 months back from today, and 12 weeks over this week and
+the 11 before, and 12 months are the days History's Year counts as its last 12 months. It's one dial for the dashboard,
 remembered from one run to the next, and Projects counts over it too.
 
 ## Projects

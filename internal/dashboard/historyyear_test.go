@@ -367,8 +367,8 @@ func TestAMonthsBarIsItsWorthSplitByFamily(t *testing.T) {
 		{worth: 0, largest: 3120, most: 30, want: 0},
 	}
 	for _, tt := range cells {
-		if got := barCells(*usd(tt.worth), *usd(tt.largest), tt.most); got != tt.want {
-			t.Errorf("barCells($%v, $%v, %d) = %d, want %d", tt.worth, tt.largest, tt.most, got, tt.want)
+		if got := barUnits(*usd(tt.worth), *usd(tt.largest), tt.most); got != tt.want {
+			t.Errorf("barUnits($%v, $%v, %d) = %d, want %d", tt.worth, tt.largest, tt.most, got, tt.want)
 		}
 	}
 	families := []views.FamilyWorth{

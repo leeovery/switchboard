@@ -17,8 +17,9 @@ import (
 // toggleModels has it; on the Overview, u, r, s, c and l show and hide its
 // sections and b switches how its windows are grouped, as overviewKey says;
 // on Graphs, w, o, g and h show and hide its sections, as graphsKey says;
-// on Accounts, its keys act as accountsKey says; on History, [ ], < >, v and
-// ← → act as historyKey says; on Sessions, its keys act as sessionsKey says;
+// on Accounts, its keys act as accountsKey says; on Projects, ↑ ↓, ← →, < >
+// and enter act as projectsKey says; on History, [ ], < >, v and ← → act as
+// historyKey says; on Sessions, its keys act as sessionsKey says;
 // on Runway, < > and ← → act as runwayKey says; on the Log, [ ], ↑ ↓, end,
 // esc, enter, s, f and / act as logKey says; tab and shift-tab show the next
 // tab and the one before, as turn has it; and t opens the theme picker. esc,

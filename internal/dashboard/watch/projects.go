@@ -132,29 +132,88 @@ func (m Model) projectsRead(msg projectsReadMsg) Model {
 	return m
 }
 
-// projectsBuilt is m with Projects' page built afresh of the days held at
-// now, while Projects shows, where what it's built of has changed since it
-// was built, as projectsPageOf has it: the days read, the period, the day,
-// or the sessions the List lists running; and the chosen project's page,
-// where the page or the project chosen has, the top row chosen till one
-// is, or where the one chosen leaves the list; never a frame at a time,
-// which takes nothing in.
+// projectsBuilt is m with Projects' page built afresh of the days it's
+// built of at now, as projectsDays has them, while Projects shows, where
+// what it's built of has changed since it was built, as projectsPageOf has
+// it: the days read, the period, the day, or the sessions the List lists
+// running; and the chosen project's page, where the page or the project
+// chosen has, as chosenBuilt has it; SESSIONS scrolled to show the session
+// selected, where it showed before, as selectionShows has it. Where there
+// are no days to build it of, it shows none, as projectsAwaited has it.
+// Never a frame at a time, which takes nothing in.
 func (m Model) projectsBuilt(msg tea.Msg) Model {
-	if _, frame := msg.(frameMsg); frame || m.view != dashboard.Projects || m.projects.days == nil {
+	if _, frame := msg.(frameMsg); frame || m.view != dashboard.Projects {
 		return m
 	}
 	now := m.now()
+	days, ok := m.projectsDays(now)
+	if !ok {
+		return m.projectsAwaited()
+	}
 	list := m.held.List(m.listLive(now, m.traffic.stream(now)))
 	of := projectsPageOf{read: m.projects.read, period: m.period, day: dayfile.DateOf(now), running: runningOf(list)}
 	t := m.projects
-	if t.shown.Page == nil || !t.pageOf.same(of) {
-		page := t.days.Projects(views.ProjectsInput{
+	rebuilt := t.shown.Page == nil || !t.pageOf.same(of)
+	if !rebuilt && t.projectOf == (projectOf{page: t.pages, chosen: t.chosenIn(*t.shown.Page)}) {
+		return m
+	}
+	sighted := m.selectionShows(now)
+	if rebuilt {
+		page := days.Projects(views.ProjectsInput{
 			Period: m.period, List: list, Names: m.moment(now), Prices: m.cfg.Prices, WeekStarts: m.cfg.WeekStarts, Family: m.cfg.Family, Now: now,
 		})
-		t.shown.Page, t.pageOf = &page, of
-		t.pages++
+		m.projects.shown.Page, m.projects.pageOf = &page, of
+		m.projects.pages++
 	}
-	t.shown.Chosen = t.chosenIn(*t.shown.Page)
+	m = m.chosenBuilt(now)
+	if sighted && m.projects.shown.InSessions {
+		m.scroll = m.frame(now).ProjectsSessionsScroll(m.doc, now, m.projects.shown.Selection())
+	}
+	return m
+}
+
+// projectsDays are the days Projects' page is built of at now: those read,
+// where they reach back to the period's first day; none where there's no
+// ledger, the page built of the sessions running alone. It reports false
+// where those read don't reach, as before the first read lands, or as the
+// dial reaches further back, till the read of the days it reaches lands.
+func (m Model) projectsDays(now time.Time) (views.SessionDays, bool) {
+	t := m.projects
+	switch {
+	case m.cfg.Ledger == nil:
+		return views.SessionDays{}, true
+	case t.days == nil || m.period.From(now, m.cfg.WeekStarts).Before(t.from):
+		return views.SessionDays{}, false
+	}
+	return *t.days, true
+}
+
+// projectsAwaited is m with Projects showing no page while its days are
+// read, as before its first read lands: the project chosen and the session
+// selected kept, to choose again once it's built, ↑ and ↓ back in the list,
+// and the list and SESSIONS from their tops.
+func (m Model) projectsAwaited() Model {
+	s := &m.projects.shown
+	if s.Page == nil {
+		return m
+	}
+	s.Page, s.Project, s.InSessions, s.ListScroll = nil, nil, false, 0
+	m.scroll = 0
+	return m
+}
+
+// chosenBuilt is m with the chosen project's page built afresh at now,
+// where the page or the project chosen has changed since it was built: the
+// one chosen, where the page lists it, else its top row, as chosenIn has
+// it. Where the one chosen leaves the list, the list has the choice again,
+// SESSIONS' selection let go and SESSIONS from its top, as before any is
+// chosen.
+func (m Model) chosenBuilt(now time.Time) Model {
+	t := m.projects
+	if chosen := t.chosenIn(*t.shown.Page); chosen != t.shown.Chosen {
+		t.chose, t.shown.Chosen, t.shown.InSessions, t.shown.Selected = false, chosen, false, ""
+		m.scroll = 0
+	}
 	if chosen := (projectOf{page: t.pages, chosen: t.shown.Chosen}); t.projectOf != chosen {
 		t.shown.Project, t.projectOf = nil, chosen
 		if p, ok := t.shown.Page.Project(chosen.chosen); ok {
@@ -165,6 +224,14 @@ func (m Model) projectsBuilt(msg tea.Msg) Model {
 	t.shown.InSessions = t.shown.InSessions && t.shown.Project != nil && len(t.shown.Project.Sessions) > 0
 	m.projects = t
 	return m
+}
+
+// selectionShows reports whether SESSIONS shows the session selected, as
+// the frame lays Projects out at now: where ↑ and ↓ act in it, and
+// scrolling to show it would scroll it no further.
+func (m Model) selectionShows(now time.Time) bool {
+	s := m.projects.shown
+	return s.InSessions && s.Project != nil && m.frame(now).ProjectsSessionsScroll(m.doc, now, s.Selection()) == m.scroll
 }
 
 // chosenIn is the project chosen of the page given, by its path: the one
@@ -219,14 +286,17 @@ func (m Model) projectsKey(key string) (Model, tea.Cmd, bool) {
 	return m, nil, true
 }
 
-// showProjects shows Projects as given: where another project is chosen,
-// its page built for it, SESSIONS from its top, the list scrolled to show
-// it; and where SESSIONS has the choice, scrolled to show the session
-// selected, as the frame lays them out, each from as far as it was left.
+// showProjects shows Projects as given, the project shown held as chosen
+// from then on, however it came to be shown: where another project is
+// chosen, its page built for it, SESSIONS from its top, the list scrolled
+// to show it; and where SESSIONS has the choice, scrolled to show the
+// session selected, as the frame lays them out, each from as far as it was
+// left.
 func (m Model) showProjects(s dashboard.ProjectsShown) Model {
 	if s.Chosen != m.projects.shown.Chosen {
-		m.projects.chose, m.scroll = true, 0
+		m.scroll = 0
 	}
+	m.projects.chose = true
 	m.projects.shown = s
 	m = m.projectsBuilt(nil)
 	now := m.now()

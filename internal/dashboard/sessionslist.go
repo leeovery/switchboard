@@ -146,13 +146,19 @@ func listColumnsOf(width, on int) []listColumn {
 }
 
 // columnsAt are the columns of the kinds given where the spans given lay
-// them, kinds[i] laid at spans[i], from listFrom: none of a span that gave
-// way.
+// them, as laidOut has them.
 func columnsAt(spans []flex.Span, kinds []listPart) []listColumn {
-	columns := make([]listColumn, 0, len(kinds))
+	return laidOut(spans, kinds, func(p listPart, x, width int) listColumn { return listColumn{part: p, x: x, width: width} })
+}
+
+// laidOut are the columns of the kinds given where the spans given lay
+// them, kinds[i] laid at spans[i], from listFrom, each as column makes it:
+// none of a span that gave way.
+func laidOut[P, C any](spans []flex.Span, kinds []P, column func(part P, x, width int) C) []C {
+	columns := make([]C, 0, len(kinds))
 	for i, p := range kinds {
 		if !spans[i].Left {
-			columns = append(columns, listColumn{part: p, x: listFrom + spans[i].At, width: spans[i].Size})
+			columns = append(columns, column(p, listFrom+spans[i].At, spans[i].Size))
 		}
 	}
 	return columns

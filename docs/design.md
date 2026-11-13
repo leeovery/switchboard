@@ -3529,7 +3529,7 @@ frames show the keys from before the sweep of 7 and 8 October 2026, `p` for the 
   it` and `against`, on Compare, in its last column, and on Detail, 15 cells from column 36, say it
   compact, `4.4× · 2/3`, and the ratio alone with every plan known (the owner's call, 15 October
   2026).
-- **Periods are rolling,** never billing months, as switchboard knows no renewal date: today, from
+- **Periods are never billing months,** as switchboard knows no renewal date: today, from
   midnight; this week, from its first day, as `week_starts` sets it (see Config); 30 days, today and
   the 29 before it; 12 weeks, this week and the 11 before it; and 12 months, the days History's Year
   counts as LAST 12 MONTHS, from the day after today's date a year back, 1 March where today is 29
@@ -3974,12 +3974,16 @@ draw it, the tab names in its title row aside, and kept in `testdata/vhs/referen
   splits a month's; `last` is `now` while a session of it is busy, as `Activity.Busy` has it.
   Worth reads to the cent under $100 and to the dollar from it (`Worth.Rounded`). Under the list,
   a blank row between, the head, the numbers, the sections and SESSIONS. The sections lie wide,
-  WORTH BY in the left half and BY MODEL over ON ACCOUNTS in the right, where a day's column of 8
-  cells, 2 apart, fits the half; middling, WORTH BY across and the two side by side under it, where
-  each fits a half whole; else stacked. As rows run short, ON ACCOUNTS leaves first, then BY
-  MODEL, then WORTH BY, so SESSIONS keeps three rows. WORTH BY over 12 weeks is by day where a
-  column a cell wide fits a day, else by week; its axis names buckets from the last back, the one
-  now falls in bold, and weeks by the month they start. SESSIONS is the List's columns, the
+  WORTH BY in the left half and BY MODEL over ON ACCOUNTS in the right, where a week's days'
+  columns of 8 cells, 2 apart, fit the half, whatever the period, so a MacBook's frame stays wide as
+  the dial turns, and the two fit the right half whole; middling, WORTH BY across and the two side
+  by side under it, where each fits a half whole; else stacked. In whichever cells WORTH BY takes as
+  the sections lie, its columns narrow to fit, as middling draws them. As rows run short, ON
+  ACCOUNTS leaves first, then BY MODEL, then WORTH BY, so SESSIONS keeps three rows. WORTH BY over
+  12 weeks is by day where a column a cell wide fits each day in the cells it takes, the left half
+  where it lies wide, else by week; its axis names buckets from the last back, the one now falls in
+  bold, and weeks by the month of their first day in the period, where it's another than the week
+  before's. SESSIONS is the List's columns, the
   session's from 11 cells to its whole, then model, started and requests leaving as the width runs
   short; its rules read `ended today`, `ended yesterday`, a weekday within the week, else the day
   and its date, each session's state its end by the clock alone and its start dated where it began
@@ -3992,11 +3996,16 @@ draw it, the tab names in its title row aside, and kept in `testdata/vhs/referen
   ACCOUNTS its names as Detail's column of names, marks and all. The chosen row is lit where `↑`
   and `↓` act, in the list or SESSIONS, the other's bold, marked `▸`, a bar's own surface kept.
 - **What the watch holds:** the sessions' days, read off the update loop once Projects first
-  shows, from the period's first day, and again only where the dial reaches further back; the
-  page built again only as the days read, the period, the day or the List's sessions running
-  change, and the chosen project's as the page or the choice does. The choice is kept by path, and
-  the session selected by id, across a rebuild; a project that leaves the list leaves the top row
-  chosen.
+  shows, from the period's first day, and again only where the dial reaches further back; no page
+  is built for a period the days held don't reach, so a step further back draws what the first
+  read draws, loading, till its read lands; without a ledger, the page is built of the sessions
+  running alone, as the List's are, and says `no sessions` where none runs. The page is built
+  again only as the days read, the period, the day or the List's sessions running change, and the
+  chosen project's as the page or the choice does. The project shown is held as chosen once any
+  key or click moves the choice, the top row's included, else the top row is chosen as the list
+  ranks afresh. The choice is kept by path, and the session selected by id, across a rebuild, and
+  where the session selected showed, it's kept in view; a project that leaves the list leaves the
+  top row chosen, the list with the choice, no session selected and SESSIONS from its top.
 
 ### History
 

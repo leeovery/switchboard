@@ -337,7 +337,7 @@ func (y yearDrawn) noteAt(m views.MonthRow, largest ledger.Picodollars, most int
 	if note == nil {
 		return 0, false
 	}
-	s, _ := flex.Lay(y.Width, noteParts(y.form, barCells(amountOf(m.Worth), largest, most), partsWidth(note))...)
+	s, _ := flex.Lay(y.Width, noteParts(y.form, barUnits(amountOf(m.Worth), largest, most), partsWidth(note))...)
 	return s[2].At, !s[2].Left
 }
 
@@ -982,21 +982,11 @@ func beforeSaid(b views.MonthsBefore) (months, then string) {
 // largest month's, each ▅: in the version's shade, filtered to one, else
 // split by family, each in its family's colour.
 func (y yearDrawn) monthBar(m views.MonthRow, largest ledger.Picodollars, most int) line {
-	cells := barCells(amountOf(m.Worth), largest, most)
+	cells := barUnits(amountOf(m.Worth), largest, most)
 	if y.ofVersion() {
 		return line{{strings.Repeat("▅", cells), versionHue(y.page.Version).ink()}}
 	}
 	return familySplit(m.ByFamily, cells)
-}
-
-// barCells is how many cells of most a worth of w takes against the largest,
-// a half rounded to the even, as the frames have it: none of none, else at
-// least one.
-func barCells(w, largest ledger.Picodollars, most int) int {
-	if w <= 0 || largest <= 0 {
-		return 0
-	}
-	return max(1, int(math.RoundToEven(float64(most)*float64(w)/float64(largest))))
 }
 
 // familySplit splits cells cells among the families by their worth, in their

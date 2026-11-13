@@ -368,6 +368,19 @@ func TestAProjectsWorthIsBucketedAsItsPeriodHasIt(t *testing.T) {
 	}
 }
 
+// Over 12 months, the axis names the first week by the month of its first
+// day in the period, not of a day before it, where the week begins in the
+// month before.
+func TestTwelveMonthsAxisNamesAWeekByItsFirstDayInThePeriod(t *testing.T) {
+	now := time.Date(2026, 11, 1, 12, 0, 0, 0, time.Local)
+	days := heldDays(now, projectAsks(repoSession, "/code/switchboard", "", "work", now.Add(-time.Hour))...)
+	project, _ := days.Projects(projectsIn(views.PeriodTwelveMonths, now)).Project("/code/switchboard")
+	b := project.WorthBy.Buckets
+	if got := [3]string{b[0].Label, b[0].Axis, b[1].Axis}; got != [3]string{"27 Oct", "Nov", ""} {
+		t.Errorf("the first two weeks are named and on the axis as %q, want the week of 27 Oct on the axis as Nov, its first day in the period's month, and the next unnamed", got)
+	}
+}
+
 // sumOf is a and b summed.
 func sumOf(a, b views.Worth) views.Worth {
 	switch {

@@ -156,13 +156,7 @@ func (l projectsList) columnsOf(width int) []projectColumn {
 	parts[listedBar] = flex.Part{Least: projectBarLeast, Grows: true, Gap: listGap}
 	parts[listedRequests].Leaves, parts[listedLast].Leaves = requestsLeave, lastLeaves
 	spans, _ := flex.Lay(width-listFrom, parts...)
-	var columns []projectColumn
-	for i, p := range kinds {
-		if !spans[i].Left {
-			columns = append(columns, projectColumn{part: p, x: listFrom + spans[i].At, width: spans[i].Size})
-		}
-	}
-	return columns
+	return laidOut(spans, kinds, func(p projectsPart, x, width int) projectColumn { return projectColumn{part: p, x: x, width: width} })
 }
 
 // end is the column after the list's last.
@@ -238,18 +232,13 @@ func (l projectsList) row(c *canvas, y int, lp listedProject, chosen bool) {
 }
 
 // bar draws the row's bar in its column along row y: as many eighths of its
-// cells as its worth is of the top project's, as barEighths has them, split
-// by model family in the families' colours, in the version table's order of
-// families, as BY MONTH splits a month's.
+// cells as its worth is of the top project's, the first row's, as the list
+// ranks by worth, as barUnits has them, split by model family in the
+// families' colours, in the version table's order of families, as BY MONTH
+// splits a month's.
 func (l projectsList) bar(c *canvas, y int, col projectColumn, r views.ProjectRow) {
-	var top views.Worth
-	for _, row := range l.rows {
-		if amountOf(row.Worth) > amountOf(top) {
-			top = row.Worth
-		}
-	}
 	amounts, hues := familyParts(r.ByFamily)
-	eighthsBar(c, l.look, col.x, y, barEighths(amountOf(r.Worth), amountOf(top), col.width), amounts, hues)
+	eighthsBar(c, l.look, col.x, y, barUnits(amountOf(r.Worth), amountOf(l.rows[0].Worth), col.width*8), amounts, hues)
 }
 
 // cell draws what a column says along row y, in its cells: its figures
