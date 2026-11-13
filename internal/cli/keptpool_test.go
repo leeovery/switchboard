@@ -35,9 +35,11 @@ label = "Default"
 `
 
 // keptDeps are pooledDeps once Acme is removed, as acmeRemoved has it, the
-// accounts record keeping it, labelled, removed on 6 October; and keeping
-// Client, f4xk, another Mac's, as an import joins its record in, with its
-// account c1nt, and a request and a session's start of its own filed today.
+// accounts record keeping it, labelled, removed on 6 October, as this Mac's
+// config last wrote it; and keeping Client, f4xk, another Mac's, as an import
+// joins its record in, with its account c1nt, in no pool of this Mac's, as
+// the import leaves it, and a request and a session's start of its own in
+// Client filed today.
 func keptDeps(t *testing.T) cli.Deps {
 	t.Helper()
 	deps := pooledDeps(t, false)
@@ -53,7 +55,7 @@ func keptDeps(t *testing.T) cli.Deps {
 			{ID: "q7mt", Label: "Acme", Added: testNow, Removed: october(6, 18, 0, 0), Written: identity.PoolWritten{Label: "Acme", PrimaryKnown: true}},
 			{ID: "f4xk", Label: "Client", Added: testNow},
 		}
-		r.Accounts = append(r.Accounts, identity.Entry{ID: "c1nt", Label: "Client 1", Pool: "f4xk", Added: testNow})
+		r.Accounts = append(r.Accounts, identity.Entry{ID: "c1nt", Label: "Client 1", Added: testNow})
 		return nil
 	})
 	if err != nil {
