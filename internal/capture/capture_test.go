@@ -187,7 +187,7 @@ func TestAFixtureIsDrawnAtItsMoment(t *testing.T) {
 		"78%  out ~Fri                      ▌ ┃                                    13%  21%/h till 18:50",
 		// What the router tells of lately, none picked out as new, the first
 		// look having seen them all.
-		"14:41  ▲ c61b started on side",
+		"14:41  ▲ mobile started on side",
 	} {
 		if !strings.Contains(frame, want) {
 			t.Errorf("the frame\n%s\nhas no %q", frame, want)
@@ -299,7 +299,7 @@ func TestThePagesShowWhatTheyAreFor(t *testing.T) {
 		{name: "page-session-loading", want: []string{"SESSION   d28c   switchboard  ~/Code/switchboard   loading… ─", "esc back    ? help  q quit"},
 			wantNoneOf: []string{"STORY", "TURNS", "↑↓ turn"}},
 		{name: "page-sessions-chosen", want: []string{"d28c switchboard              ↑ asking     ▸ from work      ●"}},
-		{name: "page-sessions-short", want: []string{"▲ 1 more above", "side ▲", "db8a infra"}, wantNoneOf: []string{"○ work", "◉ work", "▼"}},
+		{name: "page-sessions-short", want: []string{"▲ 1 more above", "side       ▲", "db8a infra"}, wantNoneOf: []string{"○ work", "◉ work", "▼"}},
 		{name: "page-sessions-not-answering", want: []string{"■ the router isn't answering", "c61b mobile                   ↓ answering"}},
 		{name: "page-year-160x24", want: []string{"limits hit   week ×3 · 5-hour ×412", "▲ 3 more above   ·   ▼ 17 more below   ·   j/k to scroll"}},
 		{name: "page-routing-160x16", want: []string{"╭─ ROUTING · NEW SESSIONS ─", "■ auto", "enter apply   esc cancel  │", "╰────"}},
@@ -308,19 +308,18 @@ func TestThePagesShowWhatTheyAreFor(t *testing.T) {
 		{
 			name: "graphs-108x44",
 			want: []string{
-				"work        66% left  ·  capped 14:31  ·  back 17:10    personal ◆                     34% left  ·  out ~Sat",
-				"side ▲    22% left  ·  out ~Fri  ·  resets Mon 10:00",
+				"66% left  ·  capped 14:31  ·  back 17:10                34% left  ·  out ~Sat  ·  resets Sun 02:00",
+				"22% left  ·  out ~Fri  ·  resets Mon 10:00",
 			},
 		},
 		{
 			name: "graphs-73x61",
 			want: []string{
-				"work               66% left  ·  capped 14:31  ·  back 17:10  ·  caps ~Sat", "personal ◆                     34% left  ·  out ~Sat  ·  resets Sun 02:00",
-				"work                            5% left  ·  capped 14:31  ·  resets 17:10",
+				"66% left  ·  capped 14:31  ·  back 17:10  ·  caps ~Sat", "34% left  ·  out ~Sat  ·  resets Sun 02:00",
 			},
 		},
 		{
-			name: "graphs-phone-52", want: []string{"work        66% left  ·  capped 14:31  ·  back 17:10", "personal ◆                     34% left  ·  out ~Sat"},
+			name: "graphs-phone-52", want: []string{"66% left  ·  capped 14:31  ·  back 17:10", "34% left  ·  out ~Sat  ·  resets Sun 02:00"}, wantNoneOf: []string{"5-HOUR", "5% left"},
 		},
 	}
 	for _, tt := range tests {

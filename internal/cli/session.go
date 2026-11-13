@@ -21,8 +21,8 @@ shows a session's own, and inside one, $CLAUDE_CODE_SESSION_ID holds its id.`
 
 // findSession returns the id of the session given names, as lookUpSession
 // finds it.
-func (a *app) findSession(ctx context.Context, client *router.Client, given string) (string, error) {
-	id, _, err := a.lookUpSession(ctx, client, given)
+func (a *app) findSession(ctx context.Context, client *router.Client, names status.Names, given string) (string, error) {
+	id, _, err := a.lookUpSession(ctx, client, names, given)
 	return id, err
 }
 
@@ -30,11 +30,11 @@ func (a *app) findSession(ctx context.Context, client *router.Client, given stri
 // as the router answers for it, where it has seen a session of that whole
 // id, in whatever pool; else nil, and the id of the one given names among
 // those routed in the last hour in every pool, as views.NamedRouted names
-// it, listing them, where it starts several, as they stand now. Given one
-// that starts no such session's id, it returns it as it is, as the whole id
-// of a session idle for longer, for the router to say whether it has seen
-// it.
-func (a *app) lookUpSession(ctx context.Context, client *router.Client, given string) (string, *status.Session, error) {
+// it, listing them, where it starts several, as they stand now, their
+// accounts as names has them. Given one that starts no such session's id, it
+// returns it as it is, as the whole id of a session idle for longer, for the
+// router to say whether it has seen it.
+func (a *app) lookUpSession(ctx context.Context, client *router.Client, names status.Names, given string) (string, *status.Session, error) {
 	s, err := client.Session(ctx, given)
 	switch {
 	case err == nil:
@@ -46,7 +46,7 @@ func (a *app) lookUpSession(ctx context.Context, client *router.Client, given st
 	if err != nil {
 		return "", nil, err
 	}
-	named := views.NamedRouted(given, sessions, a.Now(), a.accountNames())
+	named := views.NamedRouted(given, sessions, a.Now(), names)
 	if named.Several != nil {
 		return "", nil, several(given, named.Several)
 	}

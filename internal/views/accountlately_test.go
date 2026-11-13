@@ -23,7 +23,7 @@ type toldLine struct {
 func accountLately(doc status.Document, id, best string) []toldLine {
 	doc.Best = best
 	var told []toldLine
-	for _, s := range views.AccountLately(doc.At(at(16, 0), claude.Policy()), id, 12) {
+	for _, s := range views.AccountLately(doc.At(at(16, 0), claude.Policy()), id, 12, views.SessionDirs{}) {
 		told = append(told, toldLine{kind: s.Kind, full: s.Full.String(), short: s.Short.String()})
 	}
 	return told
@@ -179,10 +179,53 @@ func TestDetailsLATELYTellsTheAccountsLastNNewestFirst(t *testing.T) {
 	doc := heldBackAt(status.EventCap, false)
 	doc.Events = append(doc.Events, status.Event{ID: 22, Kind: status.EventPrimed, Account: "side", Windows: []string{"5h"}})
 	var got []int
-	for _, s := range views.AccountLately(doc.At(at(16, 0), claude.Policy()), "side", 2) {
+	for _, s := range views.AccountLately(doc.At(at(16, 0), claude.Policy()), "side", 2, views.SessionDirs{}) {
 		got = append(got, s.ID)
 	}
 	if want := []int{28, heldLine}; !slices.Equal(got, want) {
 		t.Errorf("side's LATELY of 2 tells the events %v, want %v", got, want)
+	}
+}
+
+// Detail's LATELY names a session as the Overview's does: by the directory
+// its event carries, else as the router lists it, else by its short id: one
+// that started on the account, came to it, or was pinned to it.
+func TestDetailsLATELYNamesASessionByItsDirectory(t *testing.T) {
+	const session = "c61b2f8d-04a7"
+	a := seatOn(opus, "opus", "side", status.ReasonNew, time.Hour, time.Minute, "")
+	a.Dir = "/code/api"
+	listed := views.SessionDirsOf([]status.Session{{ID: session, Assignments: []status.Assignment{a}}}, views.HeldSessions{})
+	named := []struct {
+		// dir is the directory the event carries: none for "".
+		dir  string
+		dirs views.SessionDirs
+		want string
+	}{
+		{dir: "/code/web", dirs: listed, want: "web"},
+		{dir: "/code/web", want: "web"},
+		{dirs: views.SessionDirsOf([]status.Session{{ID: session, Assignments: []status.Assignment{a}}}, views.HeldSessions{}), want: "api"},
+		{want: "c61b"},
+	}
+	events := []struct {
+		event status.Event
+		full  string
+	}{
+		{event: status.Event{Kind: status.EventStarted, Account: "side", Reason: status.ReasonNew}, full: " started here, the best"},
+		{event: status.Event{Kind: status.EventMoved, From: "personal", To: "side", Reason: status.Rescored(15 * time.Hour)}, full: " came from personal: rescored after 15h idle"},
+		{event: status.Event{Kind: status.EventPin, Account: "side"}, full: " pinned here, by hand"},
+	}
+	cameOfNoReason := latelyOf(status.Event{At: at(15, 0), Kind: status.EventMoved, Session: session, From: "personal", To: "side"}).At(at(16, 0), claude.Policy())
+	if got := views.AccountLately(cameOfNoReason, "side", 1, views.SessionDirs{}); len(got) != 1 || got[0].Full.String() != "c61b came from personal" {
+		t.Errorf("side's LATELY = %+v, want %q, no colon after a reason that says nothing", got, "c61b came from personal")
+	}
+	for _, e := range events {
+		e.event.At, e.event.Session = at(15, 0), session
+		for _, n := range named {
+			e.event.Dir = n.dir
+			m := latelyOf(e.event).At(at(16, 0), claude.Policy())
+			if got := views.AccountLately(m, "side", 1, n.dirs); len(got) != 1 || got[0].Full.String() != n.want+e.full {
+				t.Errorf("side's LATELY = %+v, want %q", got, n.want+e.full)
+			}
+		}
 	}
 }

@@ -52,19 +52,22 @@ func (f Frame) usageSection(doc status.Document, now time.Time) section {
 
 // usageIn is USAGE as s has it, its block drawn in the form of the views
 // given, what's beside its blocks drawn beside them: its heading's rows as
-// the form's headed has them, and its body and how it scrolls the form's.
+// the form's headed has them, and its body and how it scrolls the form's;
+// its names from the page's column, or where its own form as shown in its
+// rows starts them, as nameAt has it, drawn alone.
 func (f Frame) usageIn(s section, form usageViews, beside func(*canvas, blocksBeside)) section {
 	s.heads = form.block.headed()
-	s.draw = func(c *canvas, body bounds) {
+	s.scrolling = form.scrolling
+	s.scrollForm = form.scrollForm
+	own := func(body bounds) int { return form.shown(body.rows, f.Scroll).block.nameAt() }
+	return s.namedFrom(own, func(c *canvas, body bounds, at int) {
 		shown := form.shown(body.rows, f.Scroll)
+		shown.block.namesFrom = at
 		shown.draw(c, body)
 		if beside != nil {
 			beside(c.within(shown.rowsIn(body)), shown.beside(s.aside, body))
 		}
-	}
-	s.scrolling = form.scrolling
-	s.scrollForm = form.scrollForm
-	return s
+	})
 }
 
 // overviewBlock is usage's block of doc at now as the Overview's USAGE draws

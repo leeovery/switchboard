@@ -572,14 +572,11 @@ func (p LogPage) dirOf(id string) string {
 	return ""
 }
 
-// sessionNamed names a session by its id and its directory, as the Log's
-// session column does: "d28c switchboard", the id alone where there's no
-// directory.
+// sessionNamed names a session by its id and its directory as the Log's
+// session column does, as sessionIn names it in sessionColumnCells:
+// "d28c switchboard", the id alone where there's no directory.
 func sessionNamed(id, dir string) string {
-	if name := views.SessionDirName(dir); name != "" {
-		return status.ShownID(id) + " " + name
-	}
-	return status.ShownID(id)
+	return sessionIn(id, dir, secondaryInk, sessionColumnCells).plain()
 }
 
 // state is the Log's state line of the table shown: paused, at the line

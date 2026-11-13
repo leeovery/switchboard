@@ -2,7 +2,6 @@ package dashboard
 
 import (
 	"reflect"
-	"strings"
 	"testing"
 )
 
@@ -192,13 +191,4 @@ func TestWrapBreaksALineAtItsSpaces(t *testing.T) {
 	if got := sentence.wrap(27)[1]; got[0] != (span{"personal", titleInk}) || got[1] != (span{".", secondaryInk}) {
 		t.Errorf("the second line leads %+v, want each part of a word in its own ink", got[:2])
 	}
-}
-
-// plain is the line's text without its inks.
-func (l line) plain() string {
-	var b strings.Builder
-	for _, s := range l {
-		b.WriteString(s.text)
-	}
-	return b.String()
 }

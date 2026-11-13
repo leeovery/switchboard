@@ -66,7 +66,7 @@ func TestGraphsDrawsPoolInItsRowsAtThePlannersSizes(t *testing.T) {
 	tests := []struct {
 		width, height, chart int
 	}{
-		{width: 173, height: 53, chart: 9},
+		{width: 173, height: 53, chart: 5},
 		{width: 108, height: 44, chart: 5},
 		{width: 73, height: 61, chart: 5},
 		{width: 52, height: 63, chart: 5},
@@ -194,7 +194,7 @@ func TestGraphsDrawsWhenYouWorkInItsRows(t *testing.T) {
 	tests := []struct {
 		width, laid int
 	}{
-		{width: 173, laid: 100},
+		{width: 173, laid: 173},
 		{width: 100, laid: 100},
 		{width: 73, laid: 73},
 		{width: 52, laid: 52},

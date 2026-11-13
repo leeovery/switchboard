@@ -59,13 +59,15 @@ type usageBlock struct {
 	// big bars; accountBar is its bars' cells by account, where it sets them;
 	// marks are the marks the key line names after the cap's, in their forms,
 	// the widest first, and markable those its accounts may carry at any
-	// read, which its key line's form is judged by; and given is how far it
-	// has given way to rows short.
+	// read, which its key line's form is judged by; given is how far it
+	// has given way to rows short; and namesFrom is the column its names
+	// start at the least, the page's, as pageNamesAt has it.
 	big        bool
 	accountBar int
 	marks      [][]line
 	markable   [][]line
 	given      giving
+	namesFrom  int
 }
 
 // giving is how far USAGE's block has given way where the Overview's rows
@@ -89,15 +91,17 @@ type shownWindow struct {
 }
 
 // usageRow is a row of the block, an account's or the pool's: its account's
-// id, "" for the pool's; its name; a gauge for each window shown; and its
-// account's cap as the key line names it, as "work at 95%", "" where it has
-// none.
+// id, "" for the pool's; its name, in the name column, and standalone, as
+// a line of its own says it, its marks beside its label, cut as cut cuts
+// it; a gauge for each window shown; and its account's cap as the key line
+// names it, as "work at 95%", "" where it has none.
 type usageRow struct {
-	id     string
-	name   line
-	gauges []gauge
-	pool   bool
-	cap    string
+	id         string
+	name       line
+	standalone line
+	gauges     []gauge
+	pool       bool
+	cap        string
 }
 
 // gauge is a window of an account, or the pool's, as a row draws it: the
@@ -133,7 +137,7 @@ func blockOf(m status.Moment, width int, look Look, by By, windows []shownWindow
 	b := usageBlock{width: width, look: look, by: by, windows: windows, laid: true}
 	b.names = nameColumn(names, width)
 	for i, a := range m.Accounts {
-		row := usageRow{id: a.ID, name: names[i].line(b.names)}
+		row := usageRow{id: a.ID, name: names[i].line(b.names), standalone: names[i].cut(b.names)}
 		if a.Reserve > 0 {
 			row.cap = name(a) + " at " + prose.Percent(a.Cap)
 		}
@@ -196,7 +200,7 @@ func poolRow(m status.Moment, names []accountName, windows []shownWindow) (usage
 	if len(names) < 2 || len(pool.Accounts) == 0 {
 		return usageRow{}, false
 	}
-	row := usageRow{name: poolNamed, pool: true}
+	row := usageRow{name: poolNamed, standalone: poolNamed, pool: true}
 	pinned := pool.Pinned
 	for _, w := range windows {
 		j := slices.IndexFunc(pool.Windows, func(p status.PoolWindowNow) bool { return p.Key == w.key })
@@ -301,10 +305,38 @@ func (n accountName) marksCells() int {
 	return cells
 }
 
-// line is the name, in a name column column cells wide, its label cut short
-// to keep its marks and ▲'s cells.
+// line is the name, in a name column column cells wide, as inColumn lays it
+// before nameGap, its label cut short to keep its marks and ▲'s cells.
 func (n accountName) line(column int) line {
+	return n.inColumn(column-nameGap-n.cells(0), column-nameGap)
+}
+
+// cut is the name as a line of its own says it, where a name column column
+// cells wide would hold it: its label cut as line cuts it, its marks beside
+// it.
+func (n accountName) cut(column int) line {
 	return n.labelIn(column - nameGap - n.cells(0))
+}
+
+// filled is the name, in a name column column cells wide, as inColumn lays
+// it before nameGap, its label cut short to keep its own marks alone, as
+// fitted cuts it.
+func (n accountName) filled(column int) line {
+	return n.inColumn(n.labelRoom(column), column-nameGap)
+}
+
+// inColumn is the name as a column of names draws it, in the cells given:
+// its label at their left, cut to the label cells given as labelledIn cuts
+// it, and its marks, where it has any, right-aligned at their end, both as
+// one, so the marks of every row of the column stand in one column whatever
+// the labels' lengths.
+func (n accountName) inColumn(label, cells int) line {
+	text := labelledIn(n.label, label)
+	marks := n.marks()
+	if len(marks) == 0 {
+		return line{{text, n.inked(titleInk)}}
+	}
+	return n.labelled(padded(text, cells-marks.width()))
 }
 
 // fitted is the name in the cells given, nameGap of them kept after it, its
@@ -524,13 +556,13 @@ func (b usageBlock) lay(c *canvas, y int) laid {
 }
 
 // nameAt is the column the block's rows' names start at, as lay lays them
-// out: a cell in where its windows are stacked, under their headings; else
-// column 0.
+// out: a cell in where its windows are stacked, under their headings, or
+// where the page starts its names so, as namesFrom has it; else column 0.
 func (b usageBlock) nameAt() int {
 	if b.by == ByWindow && !b.matrixed() {
-		return 1
+		return max(1, b.namesFrom)
 	}
-	return 0
+	return b.namesFrom
 }
 
 // matrixed reports whether the block draws as a matrix, its windows side by
@@ -569,7 +601,7 @@ func (b usageBlock) matrix(c *canvas, y int) laid {
 	}
 	first := y + b.underHeading()
 	l := b.each(c, first, 2, func(r usageRow, y int) int {
-		c.line(0, y, r.name)
+		c.line(b.nameAt(), y, r.name)
 		for i, g := range r.gauges {
 			next := b.names + (i+1)*group
 			b.gauge(c, g, next-group, y, bar, next-groupGap)
@@ -669,10 +701,11 @@ func (b usageBlock) split() ([]usageRow, *usageRow) {
 // the pool's last, as far apart as blocksApart has them, the pool's rule in
 // the last blank line before it: the name beside its first window's row and
 // each label in the name column, where they fit, as labels says; else the
-// name on a line of its own above, and the labels a cell in. Its bars take
-// what the block's width leaves them, and its words end a cell before the
-// edge, but where the Overview sets its bars: then its words end besideCells
-// before besideAt, the gap before ROUTING's blocks beside them.
+// name on a line of its own above, as the row says it, and the labels a cell
+// in. Its bars take what the block's width leaves them, and its words end a
+// cell before the edge, but where the Overview sets its bars: then its words
+// end besideCells before besideAt, the gap before ROUTING's blocks beside
+// them.
 func (b usageBlock) byAccount(c *canvas, y int) laid {
 	labelAt, cells, above := b.labels()
 	bar, end := b.bar(), b.width-afterWords
@@ -680,7 +713,11 @@ func (b usageBlock) byAccount(c *canvas, y int) laid {
 		end = b.besideAt() - besideCells
 	}
 	l := b.each(c, y, blocksApart, func(r usageRow, y int) int {
-		c.line(0, y, r.name)
+		name := r.name
+		if above {
+			name = r.standalone
+		}
+		c.line(b.nameAt(), y, name)
 		for j, g := range r.gauges {
 			if r.pool && g.none {
 				continue

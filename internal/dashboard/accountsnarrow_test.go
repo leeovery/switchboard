@@ -349,10 +349,10 @@ func TestStackedDetailStacksSESSIONSBeforeLATELY(t *testing.T) {
 	}
 	want := []string{
 		"SESSIONS  now",
-		"▸ ● c61b  opus    ↓ ~1.2k  now",
-		"  ● d28c  opus    ↑ ask    now",
-		"  ○ 7f3a  sonnet  idle      1m",
-		"  ○ db8a  opus    idle      4m",
+		"▸ ● c61b               opus    ↓ ~1.2k  now",
+		"  ● d28c               opus    ↑ ask    now",
+		"  ○ 7f3a               sonnet  idle      1m",
+		"  ○ db8a               opus    idle      4m",
 		"",
 		"  enter opens c61b's page",
 		"",
@@ -364,12 +364,12 @@ func TestStackedDetailStacksSESSIONSBeforeLATELY(t *testing.T) {
 
 	f.Sessions, f.Accounts.Selected = moreOnSide(), idDB8A
 	rows = textOf(f.Draw(phoneDoc(), routedAt))
-	if got := trimmed(rows, at+1, at+6); got[0] != "  ● d28c  opus    ↑ ask    now" || got[2] != "▸ ○ db8a  opus    idle      4m" || got[3] != "  +2 more" || got[5] != "  enter opens db8a's page" {
+	if got := trimmed(rows, at+1, at+6); got[0] != "  ● d28c               opus    ↑ ask    now" || got[2] != "▸ ○ db8a               opus    idle      4m" || got[3] != "  +2 more" || got[5] != "  enter opens db8a's page" {
 		t.Errorf("SESSIONS with db8a selected of six is\n%s", strings.Join(got, "\n"))
 	}
 	f.Accounts.Selected = moreOnSide()[len(moreOnSide())-1].ID
 	rows = textOf(f.Draw(phoneDoc(), routedAt))
-	if got := trimmed(rows, at+1, at+4); got[0] != "  ○ 7f3a  sonnet  idle      1m" || !strings.HasPrefix(got[3], "▸ ○ f19b") {
+	if got := trimmed(rows, at+1, at+4); got[0] != "  ○ 7f3a               sonnet  idle      1m" || !strings.HasPrefix(got[3], "▸ ○ f19b") {
 		t.Errorf("SESSIONS with the last of six selected is\n%s\nwant the last four, none more", strings.Join(got, "\n"))
 	}
 
@@ -937,7 +937,7 @@ func TestStackedDetailTellsLATELYInFullToTheEdge(t *testing.T) {
 // Stacked Detail picks out each event of LATELY while it's fresh.
 func TestStackedDetailPicksOutAFreshEvent(t *testing.T) {
 	f := phoneFrame(t, 41, AccountsDetail, "work", phonePage(t))
-	newest := views.AccountLately(f.Moment(phoneDoc(), routedAt), "work", 1)[0]
+	newest := views.AccountLately(f.Moment(phoneDoc(), routedAt), "work", 1, f.sessionDirs())[0]
 	f.Fresh = map[int]float64{newest.ID: 0.25}
 	c := f.At(phoneDoc(), routedAt).page(phoneDoc(), routedAt)
 	if c.at(0, 36).ink.on.token != theme.BgAttention || c.at(0, 37).ink.on.token == theme.BgAttention {

@@ -45,7 +45,7 @@ func drawnGlyphs(glyphs []glyph) []line {
 
 func TestGraphsHelpListsItsKeysThenEachSectionInThePagesOrder(t *testing.T) {
 	keys := []Key{
-		tabViews, {Key: "w", Does: "week"}, {Key: "f", Does: "5-hour"}, {Key: "o", Does: "pool"}, {Key: "g", Does: "glance"},
+		tabViews, {Key: "w", Does: "week"}, {Key: "o", Does: "pool"}, {Key: "g", Does: "glance"},
 		{Key: "h", Does: "when"}, {Key: "j k", Does: "scroll"}, {Key: "PgUp PgDn", Does: "page"}, pin,
 		{Key: "t", Does: "themes"}, {Key: "R", Does: "refresh"}, helpQuit[0], helpQuit[1],
 	}
@@ -54,14 +54,14 @@ func TestGraphsHelpListsItsKeysThenEachSectionInThePagesOrder(t *testing.T) {
 		t.Errorf("help is titled %q, want HELP · GRAPHS", card.title)
 	}
 	opens := []string{
-		"tab views   w week   f 5-hour   o pool   g glance   h when   j k scroll   PgUp PgDn page   p pin   t themes   R refresh",
-		"? help   q quit",
+		"tab views   w week   o pool   g glance   h when   j k scroll   PgUp PgDn page   p pin   t themes   R refresh   ? help",
+		"q quit",
 		"",
 	}
 	if got := plainLines(card.body[:len(opens)]); !slices.Equal(got, opens) {
 		t.Errorf("help opens\n%s\nwant its keys, then a blank row\n%s", strings.Join(got, "\n"), strings.Join(opens, "\n"))
 	}
-	if got, want := helpHeadings(card), []string{"WEEK AND 5-HOUR", "POOL", "GLANCE", "WHEN YOU WORK", "ROOM"}; !slices.Equal(got, want) {
+	if got, want := helpHeadings(card), []string{"WEEK", "POOL", "GLANCE", "WHEN YOU WORK", "ROOM"}; !slices.Equal(got, want) {
 		t.Errorf("help explains %q, want %q, each headed in text.subtle after a blank row", got, want)
 	}
 }
@@ -69,7 +69,7 @@ func TestGraphsHelpListsItsKeysThenEachSectionInThePagesOrder(t *testing.T) {
 // A card's marks are explained as v0.1's legend draws them, so help and the
 // page's foot never draw one apart.
 func TestGraphsHelpDrawsACardsMarksAsTheLegendDoes(t *testing.T) {
-	glyphs := drawnGlyphs(graphsHelpGlyphs(Look{}, "WEEK AND 5-HOUR"))
+	glyphs := drawnGlyphs(graphsHelpGlyphs(Look{}, "WEEK"))
 	for _, item := range burnLegend(400, true) {
 		for _, s := range item {
 			if s.ink == mutedInk || strings.TrimSpace(s.text) == "" {
@@ -91,7 +91,7 @@ func TestGraphsHelpDrawsACardsMarksAsTheLegendDoes(t *testing.T) {
 func TestGraphsHelpKeysAWindowsInkOnlyInColour(t *testing.T) {
 	rooms := func(look Look) []theme.Token {
 		var tokens []theme.Token
-		for _, g := range drawnGlyphs(graphsHelpGlyphs(look, "WEEK AND 5-HOUR")) {
+		for _, g := range drawnGlyphs(graphsHelpGlyphs(look, "WEEK")) {
 			if g.plain() == "▆▆" {
 				tokens = append(tokens, g[0].ink.token)
 			}
@@ -144,23 +144,25 @@ func TestGraphsHelpDrawsTheFiveShadesAsTheGridDrawsAnHour(t *testing.T) {
 func TestGraphsHelpSaysWhatItsRulesAre(t *testing.T) {
 	said := graphsSaid()
 	for _, tc := range []struct{ what, want string }{
-		{"a card's span", "its room over its own window, from the window's start to its reset"},
+		{"a card's span", "its room over its own week, from the week's start to its reset"},
+		{"two a row", "Two cards a row at the most, each as wide as the other, so the same burn draws the same slope on every card"},
+		{"an odd one last", "an odd one last sits under the first, as wide. Where two don't fit side by side, a card a row"},
 		{"each card's own clock", "each card keeps its own clock"},
 		{"the room to now", "each column to the room its middle had"},
 		{"a card's room", "the room it has left, as 66% left"},
-		{"Runway's words", "then what Runway says under its lane in that window's view"},
+		{"Runway's words", "then what Runway says under its lane in its week's view"},
 		{"words giving way", "whole parts going from the end where they don't fit"},
 		{"what changes the words", "a hold shorter than one of its columns can go unsaid; a wider terminal, or Runway's labels collapsed, gives finer columns"},
-		{"why the line is straight", "straight to where its forecast takes it: a week as the router would spread the pool's use, the 5-hour holding the rate it's been used at lately"},
-		{"where it runs out", "where the window runs out, its ✕ there"},
+		{"why the line is straight", "straight to where its forecast takes it, as the router would spread the pool's use"},
+		{"where it runs out", "where the week runs out, its ✕ there"},
 		{"the floor after", "then runs along the floor it meets, its cap or empty, to its reset"},
 		{"✕ at a hold's start", "✕ marks the column the hold began, where that's told"},
 		{"the reserve", "Where the account's reserve holds, so not while a pin spends it"},
-		{"the window's ink", "The window's ink is its state's, as Runway's lanes colour one, each window by its own"},
+		{"the week's ink", "The week's ink is its state's, as Runway's lanes colour one"},
 		{"an account not read", "or whose first read failed, has Runway's words for it and its chart empty but for now's │"},
 		{"an account the router lacks", "one the router doesn't hold yet has its label alone, no words, its chart empty but for now's │"},
 		{"faded and faint", "a stale one is faded, and one out of the pool faint"},
-		{"the pool's line", "the pool's room in each window, the week's then the 5-hour's"},
+		{"the pool's line", "the pool's room in the week, as Runway's pool lane words it"},
 		{"the pool's line with one account", "With one account there's no pool, and no line"},
 		{"POOL's span", "The pool's room over Runway's week view, from a day before now for a week"},
 		{"POOL's stack", "stacked from the foot, in the config's order, each in its own colour"},
@@ -168,22 +170,21 @@ func TestGraphsHelpSaysWhatItsRulesAre(t *testing.T) {
 		{"POOL's heading", "from now, faint, where it's heading as forecast"},
 		{"POOL's top cell", "the top cell is the colour of the account with most of it"},
 		{"POOL without colour", "Without colour the accounts can't be told apart, so POOL draws the pool's room alone"},
-		{"GLANCE's sparkline", "A sparkline of 16 cells is the window's room from its start to its reset"},
-		{"GLANCE's words", "then switchboard usage's words for the window"},
+		{"GLANCE's sparkline", "The sparkline is the week's room from its start to its reset"},
+		{"GLANCE's words", "then switchboard usage's words for it"},
+		{"GLANCE's width", "GLANCE takes the width: the sparklines grow with it, from 16 cells, the room left and the words keeping what they need, lined up down the rows"},
 		{"GLANCE's pool", "from its accounts' earliest start to their latest reset"},
 		{"GLANCE narrowing", "its words take switchboard usage's short forms, then its names narrow"},
-		{"GLANCE beside", "It sits beside WHEN YOU WORK where both show and both fit whole, 10 cells apart; elsewhere WHEN YOU WORK comes under it"},
+		{"GLANCE beside", "It sits beside WHEN YOU WORK where both show and both fit whole, 10 cells apart, the two sharing what's spare; elsewhere WHEN YOU WORK comes under it"},
+		{"WHEN YOU WORK's width", "The grid takes the width, every hour's square growing with it, each as wide as the others, the hours over it following their columns"},
 		{"WHEN YOU WORK's rows", "a row a weekday, from the first day of the week, as week_starts begins weeks"},
 		{"the weeks it counts", "summed over the four whole weeks before today and divided by the days of that weekday known"},
 		{"fewer weeks", "or fewer where fewer are known; with none, the heading says no weeks, and the section nothing recorded yet"},
 		{"the requests it counts", "those that spent quota and went upstream, each in the local hour it arrived in"},
 		{"the clocks changing", "an hour the clocks skip has none that day, and one they repeat counts both"},
 		{"its shades", "The shades are History's"},
-		{"the toggles", "w, f, o, g and h show and hide WEEK, 5-HOUR, POOL, GLANCE and WHEN YOU WORK, at any size"},
+		{"the toggles", "w, o, g and h show and hide WEEK, POOL, GLANCE and WHEN YOU WORK, at any size"},
 		{"the toggles kept", "they're kept for next time"},
-		{"5-HOUR's cards", "5-HOUR has a card only for each account that has a 5-hour window, or may yet, as one not read yet may: a verified Ultra account has none"},
-		{"5-HOUR gone", "Where no account has a 5-hour window, 5-HOUR and f are gone; 5-HOUR kept shown shows again once an account has one"},
-		{"the layout following the 5-hour", "never as the data does, but where an account's 5-hour window goes or comes back"},
 		{"rows to spare", "Rows to spare go first to each card's words, a row of their own, then to the charts"},
 		{"the tallest chart", "up to 19 rows"},
 		{"scrolling", "the page scrolls whole, a row at a time, with j and k"},

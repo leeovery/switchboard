@@ -443,7 +443,8 @@ func TestDaysNamesEachFamily(t *testing.T) {
 }
 
 // An account is named by its label, the primary's ◆ after it in
-// text.tertiary, and never ▲, which is routing. A name too long for its room
+// text.tertiary, at the label column's end where it's wide, and never ▲,
+// which is routing. A name too long for its room
 // is cut, keeping ◆: wide, at a label's most, 24 cells, its ◆ and the two
 // blank cells before its strip beside it; in the narrow form, a blank cell before its count,
 // which isn't cut for it: the name keeps two cells, as drawn, the count
@@ -459,7 +460,7 @@ func TestDaysNamesEachAccount(t *testing.T) {
 		whole   bool
 	}{
 		{name: "by its label", account: views.DaysStrip{Of: "work", Label: "Work", Days: stripOf(busy)}, width: 160, want: "Work "},
-		{name: "the primary marked", account: views.DaysStrip{Of: "work", Label: "Work", Primary: true, Days: stripOf(busy)}, width: 160, want: "Work ◆ "},
+		{name: "the primary marked", account: views.DaysStrip{Of: "work", Label: "Work", Primary: true, Days: stripOf(busy)}, width: 160, want: "Work   ◆ "},
 		{name: "cut beside its strip", account: long, width: 160, want: "a-long-account-name-for…  "},
 		{name: "cut, keeping its ◆", account: views.DaysStrip{Of: long.Of, Primary: true, Days: long.Days}, width: 160, want: "a-long-account-name-for… ◆  "},
 		{name: "narrow, cut before its count", account: long, width: 52, want: "a-long-account-name-for…    12 5-hour limits", whole: true},

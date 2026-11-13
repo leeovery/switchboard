@@ -4,34 +4,34 @@
 
 WEEK  ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── w
 
-work                                                  personal ◆                                            side ▲
-66% left  ·  caps ~Sun  ·  resets Sun 21:00           34% left  ·  out ~Sat  ·  resets Sun 02:00            22% left  ·  out ~Fri  ·  resets Mon 10:00
+work                                                                              personal ◆
+66% left  ·  caps ~Sun  ·  resets Sun 21:00                                       34% left  ·  out ~Sat  ·  resets Sun 02:00
 
-    ▆▄▂▁▁▁▁                │                                    ▆▃▁▁▁▁▁               │                     ▇▄▂▁▁▁▁                │
-            ▆▅▄▄▄▄▄▃▁      │                                           ▅              │                            ▆▁              │
-                         ▇▆⠢⢄⡀                                           ▄▄▄▄▄        │                              ▆▃▃▃▃▁        │
-                           │ ⠈⠉⠒⠤⢄⡀                                            ▄      │                                    ▃       │
-                           │      ⠈⠑⠒⠤⣀⡀                                        ▇▇▇▇▇▅⠤⣀⡀                                   ▆▂▂▂▂  │
-                           │           ⠈⠑⠢⠤⣀                                          │ ⠈⠑⠒⠤⢄⣀                                    ▅⠤⢄⡀
-                           │⠠ ⠠ ⠠ ⠠ ⠠ ⠠ ⠠ ⠠ ⠉⠑⠢✕⠤⠤                                    │       ⠉⠒⠢⠤⣀✕⣀⣀⣀⣀                           │ ⠈⠉⠒⠤⢄✕⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀
-╵Mon    ╵Tue   ╵Wed   ╵Thu   ╵Fri   ╵Sat   ╵Sun             ╵Mon   ╵Tue   ╵Wed   ╵Thu    ╵Fri   ╵Sat            ╵Tue   ╵Wed   ╵Thu   ╵Fri   ╵Sat   ╵Sun
-
-5-HOUR  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── f
+      ▇▅▄▂                                │                                                      ▇▅▄▂                               │
+                  ▆▅▄▃▃▃▃▃▃▃▃▁▁           │                                                                 ▆▃                      │
+                               ▇▆▆▆▆▆▆▆▅▄▃⣀⡀                                                                  ▇▄▁▁▁▁▁▁▁             │
+                                          │⠈⠉⠒⠒⠤⢄⣀                                                                     ▇▄▁          │
+                                          │       ⠉⠑⠒⠢⠤⣀⡀                                                                 ▅▂▂▂▂▂▂▂▁ │
+                                          │             ⠈⠉⠑⠒⠤⢄⣀                                                                     ⠒⠒⠤⠤⣀⣀
+                                          │                    ⠉⠉⠒⠢⠤⣀⣀                                                              │     ⠉⠑⠒⠢⠤⢄⣀
+                                          ⠠ ⠠ ⠠ ⠠ ⠠ ⠠ ⠠ ⠠ ⠠ ⠠ ⠠ ⠠ ⠠ ⠠ ⠉⠑⠒✕⠤⠤⠤⠤                                                      │            ⠉⠉⠒⠒⠤⢄⣀✕⣀⣀⣀⣀⣀⣀⣀
+ ╵Mon       ╵Tue       ╵Wed       ╵Thu       ╵Fri        ╵Sat       ╵Sun                    ╵Mon       ╵Tue       ╵Wed       ╵Thu       ╵Fri       ╵Sat
 
 side ▲
-87% left  ·  room all day
+22% left  ·  out ~Fri  ·  resets Mon 10:00
 
-  ▇▆▆▆▆▅▂⡀
-         ⠈⠉⠑⠒⠤⠤⣀⣀
-         │       ⠉⠉⠒⠒⠤⢄⣀⡀
-         │              ⠈⠉⠑⠒⠢⠤⢄⣀⡀
-         │                      ⠈⠉⠒⠒⠤⠤⣀⣀
-         │                              ⠉⠉⠒⠢⠤⢄⣀⡀
-         │                                     ⠈⠉⠑
- ╵14:00    ╵15:00    ╵16:00    ╵17:00    ╵18:00
+▇▅▄▂                                │
+           ▆▃                       │
+             ▇▄                     │
+                      ▆▂            │
+                        ▆▂          │
+                          ▅▅▅▅▅▅▅▃  │
+                                   ▇⠒⠢⠤⣀⣀
+                                    │    ⠉⠉⠒⠢⠤⢄⣀✕⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀
+      ╵Tue       ╵Wed       ╵Thu       ╵Fri        ╵Sat       ╵Sun       ╵Mon
 
 Σ pool   week 1.2 of 3 left
 
 ▆▆ room left   ⠂⠄⡀ where it's heading   ✕ runs out   ⠠ ⠠ reserve
 
-tab views     w week  f 5-hour  o pool  g glance  h when     p pin  ? help  q quit
+tab views     w week  o pool  g glance  h when     p pin  ? help  q quit

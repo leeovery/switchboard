@@ -153,19 +153,18 @@ func TestSameDayIsInNowsTimeZone(t *testing.T) {
 func TestClock(t *testing.T) {
 	utc := time.Date(2026, 9, 28, 13, 12, 0, 0, time.UTC)
 	tests := []struct {
-		name                    string
-		now, time               time.Time
-		want, wantDay, wantHour string
+		name          string
+		now, time     time.Time
+		want, wantDay string
 	}{
-		{name: "afternoon", now: utc, time: time.Date(2026, 9, 28, 18, 10, 0, 0, time.UTC), want: "Mon 18:10", wantDay: "18:10", wantHour: "18"},
-		{name: "just after midnight", now: utc, time: time.Date(2026, 10, 4, 0, 5, 0, 0, time.UTC), want: "Sun 00:05", wantDay: "00:05", wantHour: "00"},
+		{name: "afternoon", now: utc, time: time.Date(2026, 9, 28, 18, 10, 0, 0, time.UTC), want: "Mon 18:10", wantDay: "18:10"},
+		{name: "just after midnight", now: utc, time: time.Date(2026, 10, 4, 0, 5, 0, 0, time.UTC), want: "Sun 00:05", wantDay: "00:05"},
 		{
-			name:     "in now's time zone",
-			now:      utc.In(time.FixedZone("UTC-7", -7*60*60)),
-			time:     time.Date(2026, 9, 29, 6, 30, 0, 0, time.UTC),
-			want:     "Mon 23:30",
-			wantDay:  "23:30",
-			wantHour: "23",
+			name:    "in now's time zone",
+			now:     utc.In(time.FixedZone("UTC-7", -7*60*60)),
+			time:    time.Date(2026, 9, 29, 6, 30, 0, 0, time.UTC),
+			want:    "Mon 23:30",
+			wantDay: "23:30",
 		},
 	}
 	for _, tt := range tests {
@@ -175,9 +174,6 @@ func TestClock(t *testing.T) {
 			}
 			if got := prose.TimeOfDay(tt.now, tt.time); got != tt.wantDay {
 				t.Errorf("TimeOfDay(%v, %v) = %q, want %q", tt.now, tt.time, got, tt.wantDay)
-			}
-			if got := prose.HourOfDay(tt.now, tt.time); got != tt.wantHour {
-				t.Errorf("HourOfDay(%v, %v) = %q, want %q", tt.now, tt.time, got, tt.wantHour)
 			}
 		})
 	}

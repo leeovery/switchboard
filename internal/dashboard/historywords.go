@@ -115,24 +115,29 @@ func familyDot(family string, name ink) line {
 
 // historyAccount is an account as History's rows name it, in room cells: its
 // name, as labelled gives it, bold text.primary, cut to keep the ◆ after
-// the primary's, in text.tertiary, where there's room for it. History
-// shows no routing, so no ▲.
+// the primary's, in text.tertiary, where there's room for it, at the
+// column's end, as inColumn lays it.
 func historyAccount(name string, primary bool, room int) line {
-	mark := historyMark(primary)
-	return append(line{{labelledIn(name, room-mark.width()), titleInk}}, mark...).fit(room)
+	n := historyName(name, primary)
+	return n.inColumn(room-n.cells(0), room).fit(room)
 }
 
-// historyMark is the mark History's rows put after an account's name: ◆
-// after the primary's, none after any other.
-func historyMark(primary bool) line {
-	if primary {
-		return line{{" ◆", primaryInk}}
-	}
-	return nil
+// historyBeside is an account as a row of History says it where no column
+// holds it, in room cells: as historyAccount has it, but its ◆ right after
+// its label.
+func historyBeside(name string, primary bool, room int) line {
+	n := historyName(name, primary)
+	return n.labelIn(room - n.cells(0)).fit(room)
+}
+
+// historyName is an account's name as History has it: ◆ on the primary, and
+// unrouted, as History shows no routing, so no ▲.
+func historyName(name string, primary bool) accountName {
+	return accountName{label: name, primary: primary, unrouted: true}
 }
 
 // historyNamed is an account's name as History's label column holds it,
 // for namesColumn: its name, as labelled gives it, and its mark beside it.
 func historyNamed(name string, primary bool) columnName {
-	return columnName{label: ansi.StringWidth(name), beside: historyMark(primary).width()}
+	return columnName{label: ansi.StringWidth(name), beside: historyName(name, primary).cells(0)}
 }

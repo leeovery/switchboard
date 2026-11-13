@@ -1,6 +1,7 @@
 package capture
 
 import (
+	"slices"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/ledger"
@@ -31,8 +32,9 @@ var longDirs = map[string]string{
 
 // longNames is the scene's world with long names, so a view's cut name shows
 // in its frame: each account labelled as longLabels has it, and each
-// session, as the router lists it and as the ledger holds its lines, in the
-// directory longDirs gives in place of its own.
+// session, as the router lists it, as the ledger holds its lines and as the
+// router records its events, in the directory longDirs gives in place of its
+// own, so an event's directory agrees with its session's lines.
 func (a accountWorlds) longNames() accountWorld {
 	return a.kept("longNames", func() accountWorld {
 		w := a.scene()
@@ -48,8 +50,19 @@ func (a accountWorlds) longNames() accountWorld {
 			}
 			return lines
 		}
+		w.events, w.ownEvents = eventsInLongDirs(w.events), true
 		return w
 	})
+}
+
+// eventsInLongDirs are the events given, each in the directory longDir gives
+// in place of its own.
+func eventsInLongDirs(told []status.Event) []status.Event {
+	long := slices.Clone(told)
+	for i := range long {
+		long[i].Dir = longDir(long[i].Dir)
+	}
+	return long
 }
 
 // inLongDirs are the sessions given, each assignment in the directory

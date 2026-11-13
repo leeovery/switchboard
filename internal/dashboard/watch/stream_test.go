@@ -146,17 +146,17 @@ func TestTheStreamTellsOfRequestsAsTheyHappen(t *testing.T) {
 	h.deliver(h.press("s")...)
 
 	h.hear(told(router.StreamSent, "r1", "work", 0))
-	if !strings.Contains(h.view(), "d28c  opus    now   ↑ ask") {
+	if !strings.Contains(h.view(), "d28c               opus    now   ↑ ask") {
 		t.Errorf("as d28c's request goes out, the screen is\n%s\nwant it asking", h.view())
 	}
 	h.hear(told(router.StreamFirst, "r1", "work", time.Second), alter(told(router.StreamProgress, "r1", "work", 2*time.Second), func(e *router.StreamEvent) { e.Chars = 4936 }))
-	if !strings.Contains(h.view(), "d28c  opus    now   ↓ ~1.2k") {
+	if !strings.Contains(h.view(), "d28c               opus    now   ↓ ~1.2k") {
 		t.Errorf("as its answer streams, the screen is\n%s\nwant its tokens so far", h.view())
 	}
 	h.hear(alter(told(router.StreamDone, "r1", "work", 3*time.Second), func(e *router.StreamEvent) {
 		e.Status, e.Tokens = 200, &quota.Tokens{Output: 1180}
 	}))
-	if !strings.Contains(h.view(), "d28c  opus    now   idle") {
+	if !strings.Contains(h.view(), "d28c               opus    now   idle") {
 		t.Errorf("as its answer ends, the screen is\n%s\nwant it idle", h.view())
 	}
 	if !h.listening() {
@@ -299,7 +299,7 @@ func TestARouterFromBeforeTheStreamGoesWithoutIt(t *testing.T) {
 	if _, ok := h.pendingRejoin(); ok || !h.model.stream.absent {
 		t.Error("a router from before the stream has it asked for again, want the watch to go without it")
 	}
-	if row := "d28c  opus    now   idle"; !strings.Contains(h.view(), row) {
+	if row := "d28c               opus    now   idle"; !strings.Contains(h.view(), row) {
 		t.Errorf("without the stream, the screen is\n%s\nwant d28c as the look read it, %q", h.view(), row)
 	}
 	if !log.Has("level=INFO", `msg="the router is from before GET /stream: the sessions are drawn as each look reads them"`) {
@@ -352,7 +352,7 @@ func TestAnotherRouterAnsweringForgetsWhatTheLastOnesStreamTold(t *testing.T) {
 	h.source.health = router.Health{OK: true, PID: 200, StartedAt: start.Add(time.Minute).UTC()}
 	h.tickUntilAsked()
 	h.tickUntil(past(3 * time.Minute))
-	if view := h.view(); !strings.Contains(view, "d28c  opus") || strings.Contains(view, "d28c  opus    now") {
+	if view := h.view(); !strings.Contains(view, "d28c               opus") || strings.Contains(view, "d28c               opus    now") {
 		t.Errorf("minutes after d28c was last seen, the screen is\n%s\nwant d28c idle, its request that went with the last router no longer in flight", h.view())
 	}
 }
@@ -365,7 +365,7 @@ func TestWhatTheStreamSawOfASessionOutlastsItsAnswer(t *testing.T) {
 	h.hear(alter(told(router.StreamDone, "r1", "work", 90*time.Second), func(e *router.StreamEvent) { e.Status = 200 }))
 
 	h.tickUntil(past(90*time.Second + pulseFor + time.Second))
-	if want := "d28c  opus    now "; !strings.Contains(h.view(), want) {
+	if want := "d28c               opus    now "; !strings.Contains(h.view(), want) {
 		t.Errorf("once its 90-second answer is done with, the screen is\n%s\nwant d28c seen now, as the stream saw it as its answer ended, %q", h.view(), want)
 	}
 }
@@ -393,7 +393,7 @@ func TestASessionsIdleCountsFromItsAnswersEndOnceItsLineTakesOver(t *testing.T) 
 	if _, ok := toldOf(h.model.traffic, "r1"); ok {
 		t.Error("its line read, r1 is kept, want it let go")
 	}
-	if want := "d28c  opus     3m   idle"; !strings.Contains(h.view(), want) {
+	if want := "d28c               opus     3m   idle"; !strings.Contains(h.view(), want) {
 		t.Errorf("three minutes after d28c's answer ended, the screen is\n%s\nwant %q", h.view(), want)
 	}
 }

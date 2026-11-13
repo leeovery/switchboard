@@ -10,9 +10,9 @@ import (
 	"github.com/leeovery/switchboard/internal/views"
 )
 
-// GLANCE's parts, as the design lays them out: a window's sparkline's cells;
-// what goes between the items of its key; and what its key's first item
-// draws a sparkline's cell as.
+// GLANCE's parts, as the design lays them out: the fewest cells of a
+// sparkline; what goes between the items of its key; and what its key's
+// first item draws a sparkline's cell as.
 const (
 	sparkCells     = 16
 	glanceKeyApart = 4
@@ -20,49 +20,36 @@ const (
 )
 
 // glanceLaid is GLANCE laid out across a width, of the configured accounts,
-// in the config's order, whatever the reads say, so it holds
-// still as they come: the accounts; the windows it draws, in runwayWindows'
-// order; the cells of its name column and of each window's words; whether
-// its windows stack, the week's rows then the 5-hour's; the width it takes;
-// and its key, flowed onto as many rows as it takes.
+// in the config's order, whatever the reads say, so it holds still as they
+// come: the accounts; the cells of its name column, of its sparklines and of
+// its words; the width it takes; and its key, flowed onto as many rows as it
+// takes.
 type glanceLaid struct {
 	accounts config.Accounts
-	windows  []views.RunwayWindow
 	column   int
+	spark    int
 	words    int
-	stacked  bool
 	width    int
 	key      []line
 }
 
 // layGlance is GLANCE laid out width cells wide, of the configured accounts
-// given, drawing the windows given: side by side, as glanceRow lays them,
-// where their parts fit at their leasts; else stacked, a window a row. It
-// takes no more than its natural, as it doesn't grow, and its key is flowed
-// in what it takes, its items glanceKeyApart apart, an item never broken.
-func layGlance(accounts config.Accounts, windows []views.RunwayWindow, width int) glanceLaid {
-	names := configuredNames(accounts)
-	l := glanceLaid{accounts: accounts, windows: windows}
-	row := glanceRowOf(names, len(windows))
-	column, words, ok := row.lay(width)
-	if !ok {
-		row, l.stacked = glanceRowOf(names, 1), true
-		column, words, _ = row.lay(width)
-	}
-	l.column, l.words, l.width = column, words, min(width, row.natural())
+// given, as glanceRow lays its rows out, so it takes the width, and its key
+// flowed in it, its items glanceKeyApart apart, an item never broken.
+func layGlance(accounts config.Accounts, width int) glanceLaid {
+	l := glanceLaid{accounts: accounts, width: max(width, 0)}
+	l.column, l.spark, l.words = glanceRowOf(configuredNames(accounts)).lay(width)
 	l.key = wrapped(spaces(glanceKeyApart), l.width, glanceKey())
 	return l
 }
 
 // glancePart is GLANCE across the cells flex lays it in, as Graphs' planner
-// lays it beside WHEN YOU WORK, of the configured accounts given, drawing
-// the windows given: its natural its windows side by side, every part at its
-// natural; its least its windows stacked, every part at its least; and its
-// most its natural, as it doesn't grow.
-func glancePart(accounts config.Accounts, windows []views.RunwayWindow) flex.Part {
-	names := configuredNames(accounts)
-	natural := glanceRowOf(names, len(windows)).natural()
-	return flex.Part{Least: glanceRowOf(names, 1).least(), Natural: natural, Most: natural}
+// lays it beside WHEN YOU WORK, of the configured accounts given: its least
+// every part at its least; its natural every part at its natural; and
+// growing past that, as its sparklines do.
+func glancePart(accounts config.Accounts) flex.Part {
+	row := glanceRowOf(configuredNames(accounts))
+	return flex.Part{Least: row.least(), Natural: row.natural(), Grows: true}
 }
 
 // configuredNames are the configured accounts' names, as the config names
@@ -76,77 +63,56 @@ func configuredNames(accounts config.Accounts) []accountName {
 	return names
 }
 
-// glanceRow is a row of GLANCE, windows windows across, as flex lays it: its
-// name column, as usage's block lays one, narrowing toward its least in
-// usage's names turn; each window's sparkline and the cells beside it, a
-// cell, its figure and two cells, as afterBar counts them, groupGap between
-// two windows; and each window's words, from the widest any says in full,
-// as fullWidest has them, so the next window holds still, narrowing toward
-// the short form's in usage's words turn. None grows.
+// glanceRow is a row of GLANCE as flex lays it: its name column, as usage's
+// block lays one, narrowing toward its least in usage's names turn; its
+// sparkline, from sparkCells, growing with what's spare; the cells beside
+// it, a cell, its figure and two cells, as afterBar counts them; and its
+// words, from the widest any says in full, as fullWidest has them, so they
+// line up down the rows, narrowing toward the short form's in usage's words
+// turn.
 type glanceRow struct {
-	column, kept, words flex.Part
-	windows             int
+	column, spark, kept, words flex.Part
 }
 
-// glanceRowOf is a row of GLANCE of the names given, windows windows across.
-func glanceRowOf(names []accountName, windows int) glanceRow {
+// glanceRowOf is a row of GLANCE of the names given.
+func glanceRowOf(names []accountName) glanceRow {
 	column := namesPart(names)
 	column.Narrows = usageNamesTurn
-	kept := windows*(sparkCells+afterBar) + (windows-1)*groupGap
 	return glanceRow{
-		column:  column,
-		kept:    flex.Part{Least: kept, Natural: kept},
-		words:   flex.Part{Least: windows * shortCells, Natural: windows * fullWidest(), Narrows: usageWordsTurn},
-		windows: windows,
+		column: column,
+		spark:  flex.Part{Least: sparkCells, Natural: sparkCells, Grows: true},
+		kept:   flex.Part{Least: afterBar, Natural: afterBar},
+		words:  flex.Part{Least: shortCells, Natural: fullWidest(), Narrows: usageWordsTurn},
 	}
 }
 
-// lay are the cells of the row's name column and of each window's words
-// width cells wide, as flex lays them, reporting whether they fit at their
-// leasts: where they don't, the words take what the row leaves them, none
-// where it leaves none.
-func (r glanceRow) lay(width int) (column, words int, ok bool) {
-	s, ok := flex.Lay(width, r.column, r.kept, r.words)
-	words = s[2].Size
+// lay are the cells of the row's name column, its sparkline and its words
+// width cells wide, as flex lays them: where they don't fit at their leasts,
+// the words take what the row leaves them, none where it leaves none.
+func (r glanceRow) lay(width int) (column, spark, words int) {
+	s, ok := flex.Lay(width, r.column, r.spark, r.kept, r.words)
+	words = s[3].Size
 	if !ok {
-		words = max(width-s[2].At, 0)
+		words = max(width-s[3].At, 0)
 	}
-	return s[0].Size, words / r.windows, ok
+	return s[0].Size, s[1].Size, words
 }
 
 // least is the cells the row takes, every part at its least.
 func (r glanceRow) least() int {
-	return r.column.Least + r.kept.Least + r.words.Least
+	return r.column.Least + r.spark.Least + r.kept.Least + r.words.Least
 }
 
 // natural is the cells the row takes, every part at its natural.
 func (r glanceRow) natural() int {
-	return r.column.Natural + r.kept.Natural + r.words.Natural
+	return r.column.Natural + r.spark.Natural + r.kept.Natural + r.words.Natural
 }
 
-// windowsDrawn are the places among the windows GLANCE draws of those each
-// of its parts draws, in its order: all of them, side by side; else each a
-// part of its own, stacked.
-func (l glanceLaid) windowsDrawn() [][]int {
-	all := make([]int, len(l.windows))
-	for i := range all {
-		all[i] = i
-	}
-	if !l.stacked {
-		return [][]int{all}
-	}
-	parts := make([][]int, len(all))
-	for i := range all {
-		parts[i] = all[i : i+1]
-	}
-	return parts
-}
-
-// partRows are the rows a part of GLANCE takes: its head row; a row an
+// bodyRows are the rows of GLANCE over its key: its head row; a row an
 // account, the first under a blank row, a blank row before each after it;
 // and usage's rule and the pool's row, where its accounts are a pool, as
 // pooled has it.
-func (l glanceLaid) partRows() int {
+func (l glanceLaid) bodyRows() int {
 	rows := 1 + 2*len(l.accounts)
 	if pooled(l.accounts) {
 		rows += 2
@@ -154,33 +120,17 @@ func (l glanceLaid) partRows() int {
 	return rows
 }
 
-// rows are the rows GLANCE takes as laid out, as draw draws it: each part
-// and a blank row after it; then its key.
+// rows are the rows GLANCE takes as laid out, as draw draws it: its body, a
+// blank row, then its key.
 func (l glanceLaid) rows() int {
-	return len(l.windowsDrawn())*(l.partRows()+1) + len(l.key)
-}
-
-// heads are the rows of each part's head row, from GLANCE's first, as draw
-// draws them, each over a blank row and its first account's.
-func (l glanceLaid) heads() []int {
-	heads := make([]int, len(l.windowsDrawn()))
-	for i := range heads {
-		heads[i] = i * (l.partRows() + 1)
-	}
-	return heads
-}
-
-// group are the cells from a window's sparkline to the next's: the
-// sparkline, the cells beside it, its words and groupGap.
-func (l glanceLaid) group() int {
-	return sparkCells + afterBar + l.words + groupGap
+	return l.bodyRows() + 1 + len(l.key)
 }
 
 // glance is GLANCE as Graphs draws it at a look: the moment; each account's
-// windows' trails, as the cards read them; Runway's lanes over each window's
-// live view, by the window, as the frame has them built, which place a held
-// window's ✕, as a card's; the pool's room over each window's span, by the
-// window, as the watch built it; and the look.
+// trails, as the cards read them; Runway's lanes over its live view of the
+// week, as the frame has them built, which place a held week's ✕, as a
+// card's; the pool's room over the week's span, as the watch built it; and
+// the look.
 type glance struct {
 	m      status.Moment
 	trails Trails
@@ -190,17 +140,16 @@ type glance struct {
 }
 
 // glanceLine is a row of GLANCE drawn, an account's or the pool's: its name,
-// and each window's of those GLANCE draws, in its order, as glanceGauge has
-// it.
+// and its week, as glanceGauge has it.
 type glanceLine struct {
-	name   line
-	gauges []glanceGauge
+	name  line
+	gauge glanceGauge
 }
 
-// glanceGauge is a window of an account, or the pool's, as a row of GLANCE
-// draws it: its sparkline; its figure, the room it has left, none of a
-// window its account lacks; and its words, as a gauge has them. The pool's
-// has its words at the figure: they say its room, from where a figure goes.
+// glanceGauge is the week of an account, or the pool's, as a row of GLANCE
+// draws it: its sparkline; its figure, the room it has left; and its words,
+// as a gauge has them. The pool's has its words at the figure: they say its
+// room, from where a figure goes.
 type glanceGauge struct {
 	spark         sparkline
 	figure        line
@@ -215,130 +164,95 @@ type sparkline interface {
 }
 
 // draw draws GLANCE as l lays it out from x down from row y, and nothing
-// outside the rows and the width it takes: each part a blank row after the
-// one before, as part draws it; then, under a blank row, its key.
+// outside the rows and the width it takes: the week's name, in capitals, in
+// text.subtle, over its sparklines; under a blank row, a row an account, in
+// the config's order, a blank row between; where there's a pool, usage's
+// rule under them and the pool's row; then, under a blank row, its key.
 func (g glance) draw(c *canvas, l glanceLaid, x, y int) {
 	in := c.within(bounds{x: x, y: y, width: l.width, rows: l.rows()})
 	accounts, pool := g.lines(l)
-	for _, windows := range l.windowsDrawn() {
-		y = g.part(in, l, x, y, windows, accounts, pool) + 1
+	in.text(x+l.column, y, strings.ToUpper(runwayNames[GraphsWindow]), dimInk)
+	for i, a := range accounts {
+		g.row(in, l, x, y+2+2*i, a)
+	}
+	if pool != nil {
+		row := y + 2*len(accounts)
+		in.line(x, row+1, line{{rule(l.width), borderInk}})
+		g.row(in, l, x, row+2, *pool)
 	}
 	for i, k := range l.key {
-		in.line(x, y+i, k)
+		in.line(x, y+l.bodyRows()+1+i, k)
 	}
 }
 
-// part draws a part of GLANCE, the windows given by their places among
-// those it draws side by side, from x down from row y, returning the row
-// after its last: each window's name, in capitals, in text.subtle, over its
-// sparkline; under a blank row, a row an account, in the config's order, a
-// blank row between; and where there's a pool, usage's rule under them and
-// the pool's row, as the rows given have it.
-func (g glance) part(c *canvas, l glanceLaid, x, y int, windows []int, accounts []glanceLine, pool *glanceLine) int {
-	for i, w := range windows {
-		c.text(x+l.column+i*l.group(), y, strings.ToUpper(runwayNames[l.windows[w]]), dimInk)
-	}
-	row := y
-	for _, a := range accounts {
-		row += 2
-		g.row(c, l, x, row, windows, a)
-	}
-	if pooled(l.accounts) {
-		if pool != nil {
-			c.line(x, row+1, line{{rule(l.width), borderInk}})
-			g.row(c, l, x, row+2, windows, *pool)
-		}
-		row += 2
-	}
-	return row + 1
-}
-
-// row draws a row of GLANCE, its windows given by their places among those
-// it draws, from x along row y: its name; then each window a group on from
-// the name column: its sparkline, sparkCells long; a cell; its figure,
+// row draws a row of GLANCE from x along row y: its name; then from the name
+// column its sparkline, as wide as the layout gives it; a cell; its figure,
 // right-aligned in percentCells; two cells; and its words, in full where
 // they fit what the layout gives them, else short, as fitted has them, led
 // as led has them; or, of a gauge with its words at the figure, as the
 // pool's, its words from where a figure goes.
-func (g glance) row(c *canvas, l glanceLaid, x, y int, windows []int, r glanceLine) {
+func (g glance) row(c *canvas, l glanceLaid, x, y int, r glanceLine) {
 	c.line(x, y, r.name)
-	for i, w := range windows {
-		gg, at := r.gauges[w], x+l.column+i*l.group()
-		gg.spark.spark(c, g.look, at, y, sparkCells)
-		figure := at + sparkCells + 1
-		words, end := figure, figure+percentCells+2+l.words
-		if !gg.wordsAtFigure {
-			c.right(figure+percentCells, y, gg.figure)
-			words += percentCells + 2
-		}
-		c.line(words, y, gg.words.led(gg.words.words.fitted(end-words)))
+	gg, at := r.gauge, x+l.column
+	gg.spark.spark(c, g.look, at, y, l.spark)
+	figure := at + l.spark + 1
+	words, end := figure, figure+percentCells+2+l.words
+	if !gg.wordsAtFigure {
+		c.right(figure+percentCells, y, gg.figure)
+		words += percentCells + 2
 	}
+	c.line(words, y, gg.words.led(gg.words.words.fitted(end-words)))
 }
 
 // lines are GLANCE's rows of the moment, as l lays them out: each configured
 // account's, in the config's order, as graphsNamed has it, so one the
 // moment doesn't hold yet is one not read yet, named as Runway names it,
-// faint where it's out of the pool, as the Overview names it, and each
-// window it draws as accountGauge has it; and the pool's, as poolLine has
-// it.
+// faint where it's out of the pool, as the Overview names it, and its week
+// as accountGauge has it; and the pool's, as poolLine has it.
 func (g glance) lines(l glanceLaid) ([]glanceLine, *glanceLine) {
 	accounts, names := graphsNamed(g.m, l.accounts)
 	lines := make([]glanceLine, len(accounts))
 	for i, a := range accounts {
-		lines[i].name = names[i].line(l.column)
 		_, known := g.m.Account(a.ID)
-		for _, w := range l.windows {
-			lines[i].gauges = append(lines[i].gauges, g.accountGauge(a, known, w))
-		}
+		lines[i] = glanceLine{name: names[i].line(l.column), gauge: g.accountGauge(a, known)}
 	}
-	return lines, g.poolLine(names, l.windows)
+	return lines, g.poolLine(names)
 }
 
-// poolLine is the pool's row of GLANCE under the accounts named as given, of
-// the windows given, nil where the moment has no pool, as before it holds
-// two accounts: Σ pool, as usage's pool row names it; and each window's
-// sparkline of the pool's room over its span, as poolSpark draws it, and its
-// room, as usage's pool row words it, pinned after the first; nothing of a
-// window the pool lacks, as poolRow has it, whose span has no columns.
-func (g glance) poolLine(names []accountName, windows []views.RunwayWindow) *glanceLine {
-	shown := make([]shownWindow, len(windows))
-	for i, w := range windows {
-		shown[i] = shownWindow{key: w.KeyIn(g.m), name: runwayNames[w]}
-	}
-	row, ok := poolRow(g.m, names, shown)
+// poolLine is the pool's row of GLANCE under the accounts named as given,
+// nil where the moment has no pool, as before it holds two accounts: Σ pool,
+// as usage's pool row names it; and the sparkline of the pool's room over
+// the week's span, as poolSpark draws it, and its room, as usage's pool row
+// words it, pinned after it.
+func (g glance) poolLine(names []accountName) *glanceLine {
+	week := shownWindow{key: GraphsWindow.KeyIn(g.m), name: runwayNames[GraphsWindow]}
+	row, ok := poolRow(g.m, names, []shownWindow{week})
 	if !ok {
 		return nil
 	}
-	pool := &glanceLine{name: row.name}
-	for i, w := range windows {
-		pool.gauges = append(pool.gauges, glanceGauge{spark: poolSpark{span: g.pools[w]}, words: row.gauges[i], wordsAtFigure: true})
-	}
-	return pool
+	return &glanceLine{name: row.name, gauge: glanceGauge{spark: poolSpark{span: g.pools[GraphsWindow]}, words: row.gauges[0], wordsAtFigure: true}}
 }
 
-// accountGauge is account a's window of Runway's view w as GLANCE draws it,
-// known where the moment holds the account, else as one not read yet: its
+// accountGauge is account a's week, of Runway's view of it, as GLANCE draws
+// it, known where the moment holds the account, else as one not read yet: its
 // sparkline, its burn-down card's, as burnCardOf has it from its trail, its
-// ✕ where a hold began as heldSince has it, empty where the account lacks
-// the window; the room it has left, as roomFigure has it, or where nothing's
-// read of it or the account has no usable token, — in text.faint, as
-// usage's figure, and none where it lacks the window, as usage draws no
-// percentage of one; and usage's words for it, as wordsOf has them, faint
+// ✕ where a hold began as heldSince has it, empty where it lacks the week;
+// the room it has left, as roomFigure has it, or where nothing's read of it,
+// the account has no usable token, or it lacks the window, — in text.faint,
+// as usage's figure; and usage's words for it, as wordsOf has them, faint
 // where it's out of the pool.
-func (g glance) accountGauge(a status.AccountNow, known bool, w views.RunwayWindow) glanceGauge {
-	key := w.KeyIn(g.m)
+func (g glance) accountGauge(a status.AccountNow, known bool) glanceGauge {
+	key := GraphsWindow.KeyIn(g.m)
 	win, _ := a.Window(key)
 	if !known {
 		win.Kind = status.WindowUnread
 	}
 	card := burnCardOf(a, key, g.trails[Ref{Account: a.ID, Window: key}], g.m.Now)
-	card.heldSince = g.heldSince(w, a, key)
+	card.heldSince = g.heldSince(a, key)
 	gg := glanceGauge{spark: card, words: gauge{of: Ref{Account: a.ID, Window: key}, words: wordsOf(win, g.m.Now)}}
-	switch {
-	case win.Kind == status.WindowNone:
-	case drawsEmpty(win.Kind):
+	if drawsEmpty(win.Kind) {
 		gg.figure = line{noFigure}
-	default:
+	} else {
 		gg.figure = line{roomFigure(gg.words.of, win.Used, a.OutOfPool, win.Kind == status.WindowStale)}
 	}
 	if a.OutOfPool {
@@ -347,13 +261,14 @@ func (g glance) accountGauge(a status.AccountNow, known bool, w views.RunwayWind
 	return gg
 }
 
-// heldSince is when the hold on account a's window with the given key, of
-// Runway's view w, began, as a card's ✕ is placed: as the account's lane over
-// that view tells, where the frame has the lanes built, else as the moment's
+// heldSince is when the hold on account a's window with the given key, the
+// week's, began, as a card's ✕ is placed: as the account's lane over Runway's
+// view of it tells, where the frame has the lanes built, else as the moment's
 // events tell, as Lane.HeldSince has it.
-func (g glance) heldSince(w views.RunwayWindow, a status.AccountNow, key string) time.Time {
-	l, _ := g.lanes[w].lane(a.ID)
-	return l.HeldSince(a, key, g.lanes[w].Timeline)
+func (g glance) heldSince(a status.AccountNow, key string) time.Time {
+	lanes := g.lanes[GraphsWindow]
+	l, _ := lanes.lane(a.ID)
+	return l.HeldSince(a, key, lanes.Timeline)
 }
 
 // poolSpark is the pool's room over a window's span, as GLANCE's sparkline
@@ -382,9 +297,9 @@ func (p poolSpark) spark(c *canvas, look Look, x, y, width int) {
 
 // glanceDrawn draws GLANCE of the moment m in the section placed, from its
 // left, as laid lays it out across the section's columns: each account's
-// sparklines of its trails, as the cards read them, each held window's ✕
-// placed by the lanes the watch built, as a card's is; and the pool's of its
-// room over each window's span, as the watch built it.
+// sparkline of its trail, as the cards read it, a held week's ✕ placed by the
+// lanes the watch built, as a card's is; and the pool's of its room over the
+// week's span, as the watch built it.
 func (f Frame) glanceDrawn(c *canvas, m status.Moment, laid graphsLaid, placed graphsPlaced) {
 	body := placed.body(laid.glance.width)
 	glance{m: m, trails: f.Trails, lanes: f.Graphs.Lanes, pools: f.Graphs.Spans, look: f.Look}.draw(c, laid.glance, body.x, body.y)

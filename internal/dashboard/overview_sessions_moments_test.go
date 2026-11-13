@@ -46,7 +46,7 @@ func TestSESSIONSSaysWhatEachSessionIsDoingAtEachHardMoment(t *testing.T) {
 					t.Fatalf("row %d is %q, want %s on it", y+1, string(row), shown)
 				}
 				at := utf8.RuneCountInString(before)
-				seenAt := at + runningID + laid.family + familyGap
+				seenAt := at + laid.named + afterNamed + laid.family + familyGap
 				doingAt := seenAt + seenCells + beforeDoing
 				seen, doing := strings.TrimSpace(string(row[seenAt:doingAt])), strings.TrimSpace(string(row[doingAt:doingAt+doingCells]))
 				wantDoing := runningDoing(a)
@@ -56,7 +56,7 @@ func TestSESSIONSSaysWhatEachSessionIsDoingAtEachHardMoment(t *testing.T) {
 				}
 				busy := r
 				busy.Activity = a
-				if got, want := c.cells[y][at].ink, runningIDOf(busy, hm.Now).ink; got != want {
+				if got, want := c.cells[y][at].ink, runningNamed(busy, hm.Now, laid.named)[0].ink; got != want {
 					t.Errorf("%s on %s has its id in %+v, want %+v", shown, r.Account, got, want)
 				}
 			}

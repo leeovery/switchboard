@@ -396,14 +396,15 @@ func (l listed) targets() []Target {
 	return targets
 }
 
-// says is what the column says of the session, in its cells: the model of
-// its latest request, its id less claude-, and its requests today counted,
+// says is what the column says of the session, in its cells: the session
+// named as sessionIn names it, its id in text.secondary; the model of its
+// latest request, its id less claude-, and its requests today counted,
 // in text.muted; its routing in the Log's routing words, cut as the Log cuts
 // them, a move's cost kept whole; and the rest as their own say them.
 func (l listed) says(col listColumn, s views.ListedSession) line {
 	switch col.part {
 	case listSession:
-		return sessionSays(s, col.width)
+		return sessionIn(s.Session, s.Dir, secondaryInk, col.width)
 	case listOn:
 		return l.onSays(s)
 	case listModel:
@@ -421,11 +422,14 @@ func (l listed) says(col listColumn, s views.ListedSession) line {
 	}
 }
 
-// sessionSays names the session in the cells given: its id in
-// text.secondary, a space and its directory, cut to the rest, in text.muted.
-func sessionSays(s views.ListedSession, cells int) line {
-	said := line{{status.ShownID(s.Session), secondaryInk}}
-	if dir := status.DirName(s.Dir, cells-status.IDShown-1); dir != "" {
+// sessionIn names the session with the given id, running in dir, in the
+// cells given, as a column of sessions names one: its id, as status.ShownID
+// has it, in the ink given; then a space and its directory, as
+// status.DirName cuts it to the rest, in text.muted; its id alone where dir
+// names none, or no cell is left for it.
+func sessionIn(id, dir string, idInk ink, cells int) line {
+	said := line{{status.ShownID(id), idInk}}
+	if dir := status.DirName(dir, cells-status.IDShown-1); dir != "" {
 		said = append(said, span{" " + dir, mutedInk})
 	}
 	return said

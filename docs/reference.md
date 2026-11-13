@@ -39,9 +39,11 @@ directly, agents included. Each format is described field by field.
   it, are fixed words. See [Why a request went where it did](#why-a-request-went-where-it-did).
 - **Not a contract:** The text the commands print for a person, on a terminal or with `--pretty`,
   and that of a command without `--json`, can change in any release: read `--json` instead. The
-  exception is `status --session`, which prints the bare id of the session's account on a line of
-  its own, for a statusline to read, and always will. `prefs.json`, the dashboard's own file, can
-  change too, as can the files the table below says are switchboard's own.
+  exception is `status --session`, which prints the label of the session's account on a line of
+  its own, for a statusline to read, and always will: of an account removed since, the label it
+  had and when it was removed, as `spare (removed 1 Aug)`, and its id where nothing names it.
+  `prefs.json`, the dashboard's own file, can change too, as can the files the table below says
+  are switchboard's own.
 
 ## Where things live
 
@@ -418,6 +420,7 @@ event can change, so when you read one that changed, take its last version.
 | `accounts` | The accounts a global pin names. |
 | `session` | The session that started or moved, or whose own pin changed. |
 | `model` | The model whose requests did so. |
+| `dir` | The directory the session ran in as the event befell it, the home as `~`, as the request ledger gives it. Left out where none was known yet, and in events written before switchboard recorded it. |
 | `from` | The account a session moved from. |
 | `to` | The account a session moved to. Also, where the sessions a limit, a cap or a refusal moved all went to one account, that account. |
 | `reason` | Why: why a session went to its account, as [Why a request went where it did](#why-a-request-went-where-it-did) gives it; or, in words for a person, why a restart is due, or why the router turned unhealthy. |

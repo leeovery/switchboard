@@ -5,11 +5,11 @@
 USAGE  ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── u
               WEEK                                                           5-HOUR
 work                    ▌      ┃           ╎   34%  out ~Sat                                 ┃            ╎   95%  at cap · back 17:10
-personal ◆                        ┃            66%  out ~Sat                             ▏       ┃            39%  34%/h till 16:30
-side ▲                      ┃         ▏        78%  out ~Fri                      ┃                           13%  21%/h till 18:50
+personal   ◆                      ┃            66%  out ~Sat                             ▏       ┃            39%  34%/h till 16:30
+side       ▲                ┃         ▏        78%  out ~Fri                      ┃                           13%  21%/h till 18:50
 ▼ 2 more below
 
 ROUTING   auto   no room at 15 rows ──────────────────────────────────────────────────────────────────────────────────────────────────── r
-COMING UP   16:30  personal's 5-hour resets  … ───────────── c         LATELY   14:41  ▲ c61b started on side  … ─────────────────────── l
+COMING UP   16:30  personal's 5-hour resets  … ───────────── c         LATELY   14:41  ▲ mobile started on side  … ───────────────────── l
 
 tab views     u usage  r routing  s sessions  c coming up  l lately  b by: window     p pin  ? help  q quit

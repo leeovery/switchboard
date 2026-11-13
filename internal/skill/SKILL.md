@@ -4,7 +4,7 @@ description: Switchboard spreads Claude Code sessions across several Claude subs
 ---
 
 <!-- switchboard writes this file, and replaces it, edits and all, with each new version. -->
-<!-- switchboard skill version: 15 -->
+<!-- switchboard skill version: 16 -->
 
 `claude` runs through switchboard, a local router that spreads Claude Code sessions across several
 Claude subscriptions, which it calls accounts.
@@ -20,9 +20,10 @@ id; `requests` and `events` give ids alone, as the files keep them. The accounts
 
 `status`, `usage`, `sessions`, `requests`, `history` and `events` print JSON in your Bash tool, as
 anywhere their output isn't a terminal, with no flag. `status --session <id>` alone doesn't: it
-prints the bare account id there too, for a statusline, and JSON only with `--json`. Just after
-an upgrade that made the account ids, the commands that read the history may say it waits on its
-move onto them: `switchboard status` says what holds the move up, and they work once it's done.
+prints the account's label there too, for a statusline, and JSON, the account by its id, only with
+`--json`. Just after an upgrade that made the account ids, the commands that read the history may
+say it waits on its move onto them: `switchboard status` says what holds the move up, and they work
+once it's done.
 
 - To see every account's usage, run `switchboard status`. It prints the status document: each
   account's windows, with how much of each is used, as a fraction, and when it resets; each window's

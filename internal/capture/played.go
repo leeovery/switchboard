@@ -1,6 +1,7 @@
 package capture
 
 import (
+	"cmp"
 	"maps"
 	"slices"
 	"time"
@@ -224,10 +225,32 @@ func (w world) movedOff(id string, at time.Time) string {
 	return status.ReasonMovedOff + id + " " + why
 }
 
+// dirOf is the directory the session with the given id runs in, as the world
+// lists it, as the router has it: that of its model seen last to name one;
+// "" where none does.
+func (w world) dirOf(session string) string {
+	var last status.Assignment
+	for _, s := range w.sessions {
+		if s.ID != session {
+			continue
+		}
+		for _, a := range s.Assignments {
+			if a.Dir != "" && (last.Dir == "" || a.LastSeen.After(last.LastSeen)) {
+				last = a
+			}
+		}
+	}
+	return last.Dir
+}
+
 // tell has the router tell of e, as the newest of its events, numbered on
-// from its base's.
+// from its base's, recording the directory of the session it names, as
+// dirOf has it, as the router does.
 func (w *world) tell(e status.Event) {
 	e.ID = w.base.events + len(w.events) + 1
+	if e.Session != "" {
+		e.Dir = cmp.Or(e.Dir, w.dirOf(e.Session))
+	}
 	w.events = append(w.events, e)
 }
 

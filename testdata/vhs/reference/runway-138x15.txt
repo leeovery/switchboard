@@ -12,4 +12,4 @@ work          ──███████████████───██
 Σ pool        ▃▃ ▃▃▃▃          ▃▃▃                 ▃▃▃▃▃▃▃▃▃▃                             ▃▃▃▃▃▃▃▃▃
                                                              ▅▅▅▅▅▅▅▅▅▅▂▂▂▂▂▅▅▅▅▅▅▅▅▅▅▅▅▅▅
   week 1.2 of 3 left                                                                                                     ▼ 2 more accounts
-tab views   < > window  ←→ week    a names    p pin    ? help  q quit
+tab views   < > window  ←→ week    a collapse    p pin    ? help  q quit
