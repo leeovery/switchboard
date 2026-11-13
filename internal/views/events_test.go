@@ -131,6 +131,35 @@ func TestEachKindOfEventIsToldInTheLogsWords(t *testing.T) {
 	}
 }
 
+// A pool's pin set or cleared with force cleared the own pins of that pool's
+// sessions alone: where there are several pools, the Log names it; where
+// there are one or none, it cleared every session's.
+func TestAForcedPinNamesThePoolWhoseOwnPinsItClearedWhereThereAreSeveral(t *testing.T) {
+	acme := func(id string) string { return map[string]string{"q7mt": "Acme"}[id] }
+	pin := status.Event{At: at(13, 0), Kind: status.EventPin, Account: "side", Accounts: []string{"side"}, Pool: "q7mt", Force: true, By: "cli"}
+	auto := status.Event{At: at(13, 0), Kind: status.EventAuto, Accounts: []string{"side"}, Pool: "q7mt", Force: true, By: "dashboard"}
+	unforced := pin
+	unforced.Force = false
+	tests := []struct {
+		name  string
+		event status.Event
+		pools func(id string) string
+		want  string
+	}{
+		{name: "a pin, of several pools", event: pin, pools: acme, want: "new sessions go there, the own pins of pool Acme's sessions cleared too, set from the command line"},
+		{name: "a pin cleared, of several pools", event: auto, pools: acme, want: "new sessions back from side to the router's choice, the own pins of pool Acme's sessions cleared too, set from the dashboard"},
+		{name: "a pin without force, of several pools", event: unforced, pools: acme, want: "new sessions go there, set from the command line"},
+		{name: "a pin, of one pool or none", event: pin, want: "new sessions go there, every session's own pin cleared too, set from the command line"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := views.NewTelling(windowNames).NamingPools(tt.pools).Line(tt.event, now).What.String(); got != tt.want {
+				t.Errorf("an event %+v is told as %q, want %q", tt.event, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestAnEventsAccountsAreNamedApart(t *testing.T) {
 	e := status.Event{At: at(13, 0), Kind: status.EventLimit, Account: "personal", Windows: []string{"5h"}, Count: 2, To: "side"}
 

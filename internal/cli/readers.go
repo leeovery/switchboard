@@ -141,21 +141,34 @@ func (a *app) readers(ctx context.Context, wc *watch.Config, cfg *config.Config)
 		wc.Ledger, wc.Readings, wc.Events = ledger.NewEmpty(a.Now, caps(cfg)), readings.Empty{}, events.Empty{}
 		return
 	}
-	wc.Ledger, wc.Readings, wc.Events, wc.Removed = r.ledger, r.readings, a.shownEvents(ctx, cfg, r), r.removed
+	wc.Ledger, wc.Readings, wc.Removed = r.ledger, r.readings, r.removed
+	wc.Events, wc.PoolNamed = a.shownEvents(ctx, cfg, r)
 }
 
 // shownEvents reads the router's events through r's reader as the dashboard
 // shows them: those of the pool it shows, the one the verbs read with none
-// named, as filedPool has it, as the router gives its document of that pool.
+// named, as filedPool has it, as the router gives its document of that pool;
+// and names their pools, as poolsNamed has it of the pools filedPool gives.
 // Where that can't be told, it reads none, warning, so the dashboard never
 // shows every pool's together.
-func (a *app) shownEvents(ctx context.Context, cfg *config.Config, r stateReaders) views.Events {
-	pool, _, err := a.filedPool(ctx, cfg, r.dir, "")
+func (a *app) shownEvents(ctx context.Context, cfg *config.Config, r stateReaders) (views.Events, func(id string) string) {
+	pool, pooled, err := a.filedPool(ctx, cfg, r.dir, "")
 	if err != nil {
 		logger.Warn("can't tell which pool the dashboard shows, so it reads none of the router's files of events", "error", err)
-		return events.Empty{}
+		return events.Empty{}, nil
 	}
-	return pool.read.Filed(r.events)
+	return pool.read.Filed(r.events), poolsNamed(r.dir, pooled)
+}
+
+// poolsNamed labels a pool by its id, as poolLabelsIn does, where cfg, as
+// its pools stand, has several, as the words of the router's events name the
+// pool whose sessions' own pins a forced pin cleared: nil, naming none,
+// where it has one or none.
+func poolsNamed(dir string, cfg *config.Config) func(id string) string {
+	if len(cfg.Pools) < 2 {
+		return nil
+	}
+	return poolLabelsIn(dir, cfg)
 }
 
 // namesIn are the names of the accounts cfg configures and of those removed

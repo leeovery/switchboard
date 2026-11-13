@@ -56,8 +56,8 @@ puts every session on the accounts given. "pin auto" goes back to routing
 every session on its merits, and with --force clears every session's own pin
 as well.
 
-Each pool has its own pin, its sessions alone moved or cleared. The accounts
-given are pinned in the pool they're in, so they must be of one pool, and of
+Each pool has its own pin, its sessions alone moved, and with --force, their
+own pins alone cleared. The accounts given are pinned in the pool they're in, so they must be of one pool, and of
 the one --pool names, where it's given. "pin auto" clears the pin of the pool
 --pool names, by its id; without it, the only pool, where there's one, else
 the one fenced to no directory; where every pool is fenced, it asks for
@@ -80,7 +80,7 @@ switchboard serve).`,
 		},
 	}
 	cmd.Flags().BoolVar(&opts.move, "move", false, "move running sessions on other accounts to them too, each on its next request")
-	cmd.Flags().BoolVar(&opts.force, "force", false, "clear every session's own pin too, the one run --account gave it included")
+	cmd.Flags().BoolVar(&opts.force, "force", false, "clear every session's own pin too, the pool's sessions' alone, the one run --account gave it included")
 	cmd.Flags().StringVar(&opts.session, "session", "", "pin session `ID` alone, by as much of its id as is unique")
 	addPoolFlag(cmd, &opts.pool, "set or clear the pin of")
 	return cmd
@@ -145,14 +145,16 @@ func (a *app) pinning(ctx context.Context, client *router.Client, accounts []str
 		if err != nil {
 			return "", err
 		}
-		return forced("routing automatically"+a.inPool(ctx, doc.At(a.Now(), claude.Policy())), opts.force), nil
+		in := a.inPool(ctx, doc.At(a.Now(), claude.Policy()))
+		return forced("routing automatically"+in, in, opts.force), nil
 	}
 	doc, err := client.InPool(opts.pool).Pin(ctx, router.PinRequest{Accounts: accounts, Move: opts.move, Force: opts.force, By: router.ByCLI})
 	if err != nil {
 		return "", err
 	}
 	m := doc.At(a.Now(), claude.Policy())
-	return forced(pinned(m, a.inPool(ctx, m)), opts.force), nil
+	in := a.inPool(ctx, m)
+	return forced(pinned(m, in), in, opts.force), nil
 }
 
 // inPool names the pool the moment is of, as " in pool Acme", where there's
@@ -194,11 +196,16 @@ func pinned(m status.Moment, in string) string {
 	return said
 }
 
-// forced follows what a pin does, as said, with that it cleared every
-// session's own pin, when force says it did.
-func forced(said string, force bool) string {
-	if !force {
+// forced follows what a pin does, as said, with whose own pins it cleared,
+// where force says it did: those of the sessions in the pool in names, as
+// inPool names it where there's more than one, else every session's.
+func forced(said, in string, force bool) string {
+	switch {
+	case !force:
 		return said
+	case in == "":
+		return said + ", every session's own pin cleared"
+	default:
+		return said + ", the own pin of every session" + in + " cleared"
 	}
-	return said + ", every session's own pin cleared"
 }

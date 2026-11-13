@@ -270,7 +270,7 @@ switchboard pin <account>|auto --session <id> [--pool <id>]
 | Flag | What it does |
 |---|---|
 | `--move` | Move running sessions on other accounts there too, each on its next request, at the cost of a cache rebuild each. Not with `auto`. |
-| `--force` | Clear every session's own pin too, including the one `run --account` gave it. |
+| `--force` | Clear every session's own pin too, including the one `run --account` gave it: the pool's sessions' alone, once there's a second pool. |
 | `--session <id>` | Pin one running session alone to one account, from its next request, in place of any pin it had. Takes neither `--move` nor `--force`. |
 | `--pool <id>` | With `auto`, clear that pool's pin. With accounts, they must be that pool's; with `--session`, look for the session in that pool alone. See [Reading a pool](#reading-a-pool). |
 
@@ -315,7 +315,9 @@ and when none of the pin's accounts has room, the router chooses among that pool
 `pin auto` clears the pin of the pool `--pool` names, else of the pool the verbs act on. A session
 can be pinned only to an account of its own pool: `Acme 1 (k3f9) is in pool Acme; this session is
 in pool Default`. Once there's a second pool, what `pin` says names the pool, as `new sessions in
-pool Acme go to Acme 1`.
+pool Acme go to Acme 1`, and with `--force`, whose own pins it cleared, as `routing automatically
+in pool Acme, the own pin of every session in pool Acme cleared`; `events` and the Log say so too,
+as `the own pins of pool Acme's sessions cleared too`.
 
 **Pinning several accounts** sets an order to use them up in. With `pin b6s7 q4tx`, work and side
 take the new sessions, the better of the two first, until both are out. Only then does
@@ -344,7 +346,7 @@ Examples:
 switchboard pin q4tx                  # new sessions go to side
 switchboard pin q4tx --move           # and running ones move there too
 switchboard pin b6s7 q4tx             # new sessions go to the better of work and side
-switchboard pin auto --force          # back to routing, every session's own pin cleared
+switchboard pin auto --force          # back to routing, every session's own pin cleared (the pool's)
 switchboard pin b6s7 --session 18bb   # one session, by the start of its id
 ```
 

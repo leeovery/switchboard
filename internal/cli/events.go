@@ -84,7 +84,7 @@ func (a *app) events(ctx context.Context, out io.Writer, opts eventsOptions) err
 	if err := historyMoved(dir); err != nil {
 		return err
 	}
-	pool, label, err := a.eventsPool(ctx, dir, opts.pool)
+	pool, pooled, err := a.eventsPool(ctx, dir, opts.pool)
 	if err != nil {
 		return err
 	}
@@ -99,7 +99,7 @@ func (a *app) events(ctx context.Context, out io.Writer, opts eventsOptions) err
 		follower = newEventsFollower(events.Files(ledger.Dir(dir), logger), dayfile.DateOf(now), a.Now)
 		today = follower.listing()
 	}
-	printer := a.eventsPrinter(out, opts.form, label, pool.heading())
+	printer := a.eventsPrinter(out, opts.form, poolLabelsIn(dir, pooled), poolsNamed(dir, pooled), pool.heading())
 	held := events.NewReader(dir, a.Now, logger).HeldTailing(printer.readFrom(from), startOfDay(now, -1), today)
 	if err := printer.list(pool.read.Events(held), from, now); err != nil || follower == nil {
 		return err
@@ -113,28 +113,25 @@ func (a *app) events(ctx context.Context, out io.Writer, opts eventsOptions) err
 }
 
 // eventsPool is how events reads the pool named, as filedPool has it, of the
-// files in the state directory dir, and what labels a pool they name, as
-// poolLabelsIn has it. Where the config can't be read, as events reads
-// without one: before the move to pools, every pool's, where none is named;
+// files in the state directory dir, and the config as its pools stand, as
+// filedPool gives it, which labels and names the pools the events name.
+// Where the config can't be read, as events reads without one: before the
+// move to pools, every pool's, where none is named, of a config naming none;
 // once it's done, the pools are those the router routes for, else those the
 // accounts record keeps, as filedPool has them of a config naming none.
-func (a *app) eventsPool(ctx context.Context, dir, named string) (filedPool, func(pool string) string, error) {
+func (a *app) eventsPool(ctx context.Context, dir, named string) (filedPool, *config.Config, error) {
 	cfg, err := a.loadConfig()
 	switch moved := a.poolsMoved(); {
 	case err != nil && !moved && named == "":
 		logger.Debug("can't load the config, so every pool's events are listed", "error", err)
-		return filedPool{}, poolLabelsIn(dir, &config.Config{}), nil
+		return filedPool{}, &config.Config{}, nil
 	case err != nil && !moved:
 		return filedPool{}, nil, err
 	case err != nil:
 		logger.Debug("can't load the config, so the pools are the router's, else the accounts record's", "error", err)
 		cfg = &config.Config{}
 	}
-	pool, cfg, err := a.filedPool(ctx, cfg, dir, named)
-	if err != nil {
-		return filedPool{}, nil, err
-	}
-	return pool, poolLabelsIn(dir, cfg), nil
+	return a.filedPool(ctx, cfg, dir, named)
 }
 
 // eventsPrinter prints the router's events in a form.
@@ -149,14 +146,15 @@ type eventsPrinter interface {
 }
 
 // eventsPrinter returns the printer of the form f chooses, printing to out,
-// its text naming accounts as accountNames names them, under heading, as
-// filedPool's heading names the pool, its JSON labelling a pool as label
-// does.
-func (a *app) eventsPrinter(out io.Writer, f formFlags, label func(pool string) string, heading string) eventsPrinter {
+// its text naming accounts as accountNames names them, and pools as named
+// does, as Telling's NamingPools has it, under heading, as filedPool's
+// heading names the pool, its JSON labelling a pool as label does.
+func (a *app) eventsPrinter(out io.Writer, f formFlags, label, named func(pool string) string, heading string) eventsPrinter {
 	if a.printsJSON(f, out) {
 		return eventsJSON{out: out, label: label}
 	}
-	return &eventsText{out: out, now: a.Now, telling: views.NewTelling(status.NameOfKey), names: a.accountNames(), heading: heading}
+	telling := views.NewTelling(status.NameOfKey).NamingPools(named)
+	return &eventsText{out: out, now: a.Now, telling: telling, names: a.accountNames(), heading: heading}
 }
 
 // eventsJSON prints each event as the router files it, its schema first, a

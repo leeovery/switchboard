@@ -239,8 +239,8 @@ func (m Model) logSources(filter views.LogFilter, now time.Time) views.LogSource
 func (m Model) logEventSources(filter views.EventFilter, now time.Time) views.LogEventSources {
 	t := m.log
 	return views.LogEventSources{
-		From: t.from.Start, Events: m.events.read, Held: m.held, Read: t.read, Filter: filter, Names: m.cfg.WindowName, Totals: t.totals, Oldest: t.oldest,
-		Filed: t.filed, Now: now,
+		From: t.from.Start, Events: m.events.read, Held: m.held, Read: t.read, Filter: filter, Names: m.cfg.WindowName, PoolNamed: m.cfg.PoolNamed,
+		Totals: t.totals, Oldest: t.oldest, Filed: t.filed, Now: now,
 	}
 }
 

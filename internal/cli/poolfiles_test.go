@@ -257,6 +257,30 @@ func TestHistoryShowsThePoolsWorkAsRecordedAndNamesItsPoolByIDAndLabel(t *testin
 	}
 }
 
+// A pin cleared with force in a pool of several cleared the own pins of that
+// pool's sessions alone, so events names the pool; with one pool, it says
+// every session's.
+func TestEventsNameThePoolAForcedPinClearedTheOwnPinsOf(t *testing.T) {
+	deps := pooledDeps(t, false)
+	fileEvent(t, deps, "2026-10-07", eventLine(runOne, 6, status.Event{At: october(7, 12, 30, 0), Kind: status.EventAuto, Accounts: []string{"work"}, Pool: "q7mt", Force: true, By: "cli"}))
+	got := run(t, deps, "events", "--pool", "q7mt", "--pretty")
+	if want := "new sessions back from Work to the router's choice, the own pins of pool Acme's sessions cleared too, set from the command line"; got.code != 0 || !strings.Contains(got.stdout, want) {
+		t.Errorf("switchboard events --pool q7mt = %+v, want it to say %q", got, want)
+	}
+
+	path, err := config.Path(deps.Getenv, deps.HomeDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	onePool := strings.Replace(pooledConfig(false), `pool  = "q7mt"`, `pool  = "b2n8"`, 1)
+	writeStateFile(t, filepath.Dir(path), filepath.Base(path), []byte(onePool[:strings.LastIndex(onePool, "[[pool]]")]))
+	fileEvent(t, deps, "2026-10-07", eventLine(runOne, 7, status.Event{At: october(7, 12, 40, 0), Kind: status.EventAuto, Accounts: []string{"side"}, Pool: "b2n8", Force: true, By: "cli"}))
+	got = run(t, deps, "events", "--pretty")
+	if want := "new sessions back from Side to the router's choice, every session's own pin cleared too, set from the command line"; got.code != 0 || !strings.Contains(got.stdout, want) {
+		t.Errorf("switchboard events with one pool = %+v, want it to say %q", got, want)
+	}
+}
+
 // A day of one pool of several leaves out its files' lines and bytes, the
 // whole day's, never the pool's.
 func TestHistoryOfOnePoolOfSeveralLeavesOutTheDaysFiles(t *testing.T) {

@@ -219,6 +219,23 @@ func TestEachKindsDetailsSayWhatHappened(t *testing.T) {
 	}
 }
 
+// A card of a pin set with force, where there are several pools, says it
+// cleared the own pins of its pool's sessions alone, naming it.
+func TestAForcedPinsCardNamesThePoolWhereThereAreSeveral(t *testing.T) {
+	at, run := october(7, 13, 0), october(7, 8, 0)
+	pin := status.Event{ID: 1, At: at, Kind: status.EventPin, Account: "side", Accounts: []string{"side"}, Pool: "q7mt", Force: true, By: "cli"}
+	read := views.ReadEvents(nil, at, at).Look(liveAt([]status.Event{pin}, at), run)
+	acme := func(id string) string { return map[string]string{"q7mt": "Acme"}[id] }
+	table := views.LogEvents(views.LogEventSources{From: at, Events: read, PoolNamed: acme, Now: at})
+	d, ok := table.Details(views.EventKey{Run: run, ID: 1}, views.LogRead{})
+	if !ok {
+		t.Fatal("there are no details of the event")
+	}
+	if got, want := itemsSaid(d.Happened), "own pins: pool Acme's sessions' cleared"; !slices.Contains(got, want) {
+		t.Errorf("the card's items are %q, want %q among them", got, want)
+	}
+}
+
 // A card counts the sessions on its account in the hour before as a day's
 // summary counts them: a count of tokens toward its session, a quota check,
 // sent under an id never used again, toward none.

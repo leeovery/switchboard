@@ -129,6 +129,10 @@ type Config struct {
 	// as "5-hour" or "Fable week": nil names it by its label in the
 	// document.
 	WindowName func(key string) string
+	// PoolNamed labels a pool by its id where the config has several, as
+	// the Log's events name the pool whose sessions' own pins a forced pin
+	// cleared: nil where it has one or none.
+	PoolNamed func(id string) string
 	// Accounts are the configured accounts, whose plans History prices its
 	// worth against, and WeekStarts the day its calendar weeks start on.
 	// Removed are the accounts removed, as status.RemovedOf gives them, which

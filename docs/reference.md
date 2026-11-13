@@ -450,7 +450,7 @@ event can change, so when you read one that changed, take its last version.
 | `status` | On a refusal, the status the API refused with. |
 | `family` | On a refusal of a request refused alone, the model family the refusal holds back. |
 | `move` | On a pin, set where the pin moves the running sessions too. |
-| `force` | On a pin, set where the pin cleared every session's own pin. |
+| `force` | On a pin, set where the pin cleared every session's own pin: those of its pool's sessions alone, where there are pools. |
 | `by` | What set or cleared a pin: `cli` or `dashboard`; or `router`, on an `auto` event of a pool's pin the router dropped as the pools changed: its accounts gone from the pool, the pool gone, or a later pin holding in its pool. |
 
 `kind` is one of these:

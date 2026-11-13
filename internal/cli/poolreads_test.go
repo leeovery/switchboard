@@ -227,6 +227,45 @@ func TestTheDashboardReadsTheEventsOfThePoolItShowsAlone(t *testing.T) {
 	}
 }
 
+// The dashboard's Log names the pool a pin set or cleared with force cleared
+// the own pins of where there are several pools, and none with one.
+func TestTheDashboardNamesThePoolsOfItsEventsWhereThereAreSeveral(t *testing.T) {
+	deps := pooledDeps(t, false)
+	cfg := recordWatch(t, &deps)
+	if got := run(t, deps, "dashboard"); got != (result{}) {
+		t.Fatalf("switchboard dashboard = %+v, want exit status 0 and nothing printed", got)
+	}
+	if cfg.PoolNamed == nil || cfg.PoolNamed("q7mt") != "Acme" || cfg.PoolNamed("b2n8") != "Default" {
+		t.Errorf("the dashboard names the pools q7mt and b2n8 %q, want Acme and Default", poolsNamedBy(cfg.PoolNamed, "q7mt", "b2n8"))
+	}
+
+	path, err := config.Path(deps.Getenv, deps.HomeDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	onePool := strings.Replace(pooledConfig(false), `pool  = "q7mt"`, `pool  = "b2n8"`, 1)
+	writeStateFile(t, filepath.Dir(path), filepath.Base(path), []byte(onePool[:strings.LastIndex(onePool, "[[pool]]")]))
+	if got := run(t, deps, "dashboard"); got != (result{}) {
+		t.Fatalf("switchboard dashboard = %+v, want exit status 0 and nothing printed", got)
+	}
+	if cfg.PoolNamed != nil {
+		t.Errorf("with one pool, the dashboard names the pools q7mt and b2n8 %q, want none named", poolsNamedBy(cfg.PoolNamed, "q7mt", "b2n8"))
+	}
+}
+
+// poolsNamedBy are the labels named gives the pools with the ids given, none
+// where named is nil.
+func poolsNamedBy(named func(id string) string, ids ...string) []string {
+	if named == nil {
+		return nil
+	}
+	var labels []string
+	for _, id := range ids {
+		labels = append(labels, named(id))
+	}
+	return labels
+}
+
 // Where nothing names the pools, the dashboard reads none of the router's
 // files of events, warning why, never every pool's together.
 func TestTheDashboardReadsNoEventsWhereNothingNamesThePools(t *testing.T) {

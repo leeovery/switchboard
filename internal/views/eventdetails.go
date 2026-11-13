@@ -322,7 +322,7 @@ func (d detailing) pinned() itemList {
 		items.add("goes", saidWords(goes))
 	}
 	if e.Force {
-		items.add("own pins", saidWords("every session's cleared"))
+		items.add("own pins", saidWords(ownPinsCleared(d.fact)))
 	}
 	if e.By == byRouter {
 		items.add("cleared by", saidWords(clearedByRouter))
@@ -330,6 +330,16 @@ func (d detailing) pinned() itemList {
 		items.add("set from", saidWords(setFrom[e.By]))
 	}
 	return items
+}
+
+// ownPinsCleared says whose own pins a pin set or cleared with force
+// cleared, as its fact f has it: those of the sessions of the pool it names,
+// where there are several pools, else every session's.
+func ownPinsCleared(f eventFact) string {
+	if f.pool == "" {
+		return "every session's cleared"
+	}
+	return prose.Pool(f.pool) + "'s sessions' cleared"
 }
 
 // isNewReason reports whether a session started for no reason but being
