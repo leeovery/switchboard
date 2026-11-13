@@ -1114,8 +1114,11 @@ totals.
     out under the accounts record's lock, so a pool given an account since the check doesn't lose
     its primary; a move into a pool configured already is guarded by the config's own
     compare-and-swap, its save refused where the file changed since it was read. `accounts add` and
-    `accounts edit` say where it lands: `the primary there, as the first in it`. A new pool's id is
-    drawn after the account's, apart from it, and the pool made is logged as `pool add` logs one.
+    `accounts edit` say where it lands: `add`, `the primary there, as the first in it`, or `the
+    primary` where it names no pool, as of the config's one; `edit`, `marked the primary there, as
+    the first in it`, or, of one its old pool marked its primary already, `the primary there too, as
+    the first in it`. A new pool's id is drawn after the account's, apart from it, and the pool made
+    is logged as `pool add` logs one.
   - The edit card has a Pool once there's a second pool, with one there's nothing to move it to; its
     hint, `moving it takes its sessions off at once`. Primary's hint names the pool chosen, `Acme's
     sessions start on it`, of `new pool` `the new pool's sessions start on it`, and of the first

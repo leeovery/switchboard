@@ -808,7 +808,8 @@ The subcommands do the following:
     what it isn't given as it is.
   - `--pool` moves the account into the pool with the id given, a pool named that isn't configured
     refused, naming the pools. It's that pool's primary only with `--primary`, or where it's the
-    first in it, which `edit` marks it, and says so: `the primary there, as the first in it`.
+    first in it, which `edit` marks it, and says so: `marked the primary there, as the first in it`,
+    or, of one its old pool marked its primary already, `the primary there too, as the first in it`.
     Otherwise the pool keeps its primary, and where the config marks none, `edit` marks the one it
     has, so the account moved doesn't take it by coming first, and says so: `marked k3f9 the primary
     there, which it stays`.
