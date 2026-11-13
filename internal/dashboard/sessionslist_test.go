@@ -243,8 +243,7 @@ func listWidensSteadily(before, after []listColumn) []string {
 // its least; neither worth nor started shows beside a session cut short;
 // routing, where it shows, ends at the last column, beside the session and
 // on whole, and where it's left, no column is past its natural; and model
-// and worth, where they show, are whole, so neither is ever cut beside
-// routing or a session past its least.
+// and worth, wherever they show, are whole.
 func listLaidAsDesigned(width int, n listNaturals) []string {
 	on := n.on
 	leasts, columns := listLeasts(n), listColumnsOf(width, n)
@@ -282,8 +281,8 @@ func listLaidAsDesigned(width int, n listNaturals) []string {
 	case !hasPart(shown, listRouting) && (session.width > 29 || shown[listOn].width > on || last.x+last.width > width):
 		wrong = append(wrong, "with routing left, a column grows past its natural")
 	}
-	if cut := listCut(shown, listModel, n.model) || listCut(shown, listWorth, n.worth); cut && (hasPart(shown, listRouting) || session.width > leasts[listSession]) {
-		wrong = append(wrong, "model or worth cut short beside routing or a session past its least")
+	if listCut(shown, listModel, n.model) || listCut(shown, listWorth, n.worth) {
+		wrong = append(wrong, "model or worth shown cut short")
 	}
 	return wrong
 }
