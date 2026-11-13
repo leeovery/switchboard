@@ -850,11 +850,13 @@ Where the config has [pools](how-it-works.md#pools), the dashboard shows one poo
 [Reading a pool](commands.md#reading-a-pool)). A pool the config doesn't have is refused, naming
 those it does. What it reads from the router is that pool's: its accounts, windows, room, sessions
 running and pin, and the router's events, the Overview's and Runway's LATELY and the Log's Events
-among them. Accounts lists the pool's accounts alone. The Log's requests are the pool's alone,
-today's and each day it reads back, with each day's figures, and its find finds the pool's
-sessions. What it builds from the request ledger's day digests, Sessions, a session's page,
-History, Graphs and the worth and tokens on Accounts, still tells of every pool's work together,
-each account by its label, until a later release keeps it to the pool shown.
+among them. Accounts lists the pool's accounts alone. What it reads from the request ledger is
+the pool's work alone, a request made before pools the first pool's: the Log's requests, today's
+and each day it reads back, with each day's figures, and its find, which finds the pool's
+sessions; Sessions, each session's requests, worth and tokens those it made in the pool; a
+session's page, its points among them; History's days and weeks; Graphs; and the worth and tokens
+on Accounts. A session resumed in another pool, once its directory's fence changes, shows in each
+pool with the work it did there.
 
 Once there's a second pool:
 
