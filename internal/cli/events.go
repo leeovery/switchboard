@@ -82,7 +82,7 @@ func (a *app) events(ctx context.Context, out io.Writer, opts eventsOptions) err
 	if err := historyMoved(dir); err != nil {
 		return err
 	}
-	pool, label, err := a.eventsPool(dir, opts.pool)
+	pool, label, err := a.eventsPool(ctx, dir, opts.pool)
 	if err != nil {
 		return err
 	}
@@ -97,35 +97,42 @@ func (a *app) events(ctx context.Context, out io.Writer, opts eventsOptions) err
 		follower = newEventsFollower(events.Files(ledger.Dir(dir), logger), dayfile.DateOf(now), a.Now)
 		today = follower.listing()
 	}
-	printer := a.eventsPrinter(out, opts.form, label)
+	printer := a.eventsPrinter(out, opts.form, label, pool.heading())
 	held := events.NewReader(dir, a.Now, logger).HeldTailing(printer.readFrom(from), startOfDay(now, -1), today)
-	if err := printer.list(pool.Events(held), from, now); err != nil || follower == nil {
+	if err := printer.list(pool.read.Events(held), from, now); err != nil || follower == nil {
 		return err
 	}
 	return follower.run(ctx, logs.PollEvery(a.FollowEvery), func(h events.Held) error {
-		if !pool.ShowsHeld(h) {
+		if !pool.read.ShowsHeld(h) {
 			return nil
 		}
 		return printer.follow(h)
 	})
 }
 
-// eventsPool is how events reads the pool named, as readPool has it, of the
+// eventsPool is how events reads the pool named, as filedPool has it, of the
 // files in the state directory dir, and what labels a pool they name, as
-// poolLabelsIn has it: every pool's where none is named and the config can't
-// be read, as events reads without one, the pools labelled as the accounts
-// record keeps them.
-func (a *app) eventsPool(dir, named string) (views.PoolRead, func(pool string) string, error) {
+// poolLabelsIn has it. Where the config can't be read, as events reads
+// without one: before the move to pools, every pool's, where none is named;
+// once it's done, the pools are those the router routes for, else those the
+// accounts record keeps, as filedPool has them of a config naming none.
+func (a *app) eventsPool(ctx context.Context, dir, named string) (filedPool, func(pool string) string, error) {
 	cfg, err := a.loadConfig()
-	switch {
-	case err != nil && named == "":
+	switch moved := a.poolsMoved(); {
+	case err != nil && !moved && named == "":
 		logger.Debug("can't load the config, so every pool's events are listed", "error", err)
-		return views.PoolRead{}, poolLabelsIn(dir, &config.Config{}), nil
+		return filedPool{}, poolLabelsIn(dir, &config.Config{}), nil
+	case err != nil && !moved:
+		return filedPool{}, nil, err
 	case err != nil:
-		return views.PoolRead{}, nil, err
+		logger.Debug("can't load the config, so the pools are the router's, else the accounts record's", "error", err)
+		cfg = &config.Config{}
 	}
-	pool, err := readPool(cfg, dir, named)
-	return pool.read, poolLabelsIn(dir, cfg), err
+	pool, cfg, err := a.filedPool(ctx, cfg, dir, named)
+	if err != nil {
+		return filedPool{}, nil, err
+	}
+	return pool, poolLabelsIn(dir, cfg), nil
 }
 
 // eventsPrinter prints the router's events in a form.
@@ -140,13 +147,14 @@ type eventsPrinter interface {
 }
 
 // eventsPrinter returns the printer of the form f chooses, printing to out,
-// its text naming accounts as accountNames names them, its JSON labelling a
-// pool as label does.
-func (a *app) eventsPrinter(out io.Writer, f formFlags, label func(pool string) string) eventsPrinter {
+// its text naming accounts as accountNames names them, under heading, as
+// filedPool's heading names the pool, its JSON labelling a pool as label
+// does.
+func (a *app) eventsPrinter(out io.Writer, f formFlags, label func(pool string) string, heading string) eventsPrinter {
 	if a.printsJSON(f, out) {
 		return eventsJSON{out: out, label: label}
 	}
-	return &eventsText{out: out, now: a.Now, telling: views.NewTelling(status.NameOfKey), names: a.accountNames()}
+	return &eventsText{out: out, now: a.Now, telling: views.NewTelling(status.NameOfKey), names: a.accountNames(), heading: heading}
 }
 
 // eventsJSON prints each event as the router files it, its schema first, a
@@ -192,6 +200,9 @@ type eventsText struct {
 	telling *views.Telling
 	// names name the accounts the events name, as each row is told.
 	names status.Names
+	// heading names the pool the events are of, printed before the listing,
+	// as filedPool's heading has it.
+	heading string
 	// day is the day of the last heading printed: zero before one is. widths
 	// are the columns every row printed is aligned to: its time's as wide as
 	// prose.DatedWidth, and each as wide as the widest cell of the rows listed
@@ -208,6 +219,9 @@ func (*eventsText) readFrom(from time.Time) time.Time {
 }
 
 func (p *eventsText) list(held iter.Seq[events.Held], from, now time.Time) error {
+	if _, err := io.WriteString(p.out, p.heading); err != nil {
+		return err
+	}
 	var rows []views.EventRow
 	p.widths = []int{len(indent) + prose.DatedWidth()}
 	for h := range held {

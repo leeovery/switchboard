@@ -173,25 +173,18 @@ func (rd poolRead) named() (id, label string) {
 }
 
 // asked returns the id of the pool a reader naming the one given, "" for
-// none, is answered for: the one named, else the one the verbs act on, as
-// config.Pools' Implicit has it; "" in a config from before pools, whatever
-// is named. It fails, naming the pools, where the pool named isn't
-// configured, or none is named and there's none the verbs act on, as where
-// every pool is fenced.
+// none, is answered for, as config.Pools' Asked has it; "" in a config from
+// before pools, whatever is named. It fails, naming the pools, where Asked
+// gives none, as where every pool is fenced.
 func (t *poolTable) asked(named string) (string, error) {
 	if len(t.pools) == 0 {
 		return "", nil
 	}
-	if named == "" {
-		if p, ok := t.pools.Implicit(); ok {
-			return p.ID, nil
-		}
-		return "", NeedPool("", t.pools)
+	p, ok := t.pools.Asked(named)
+	if !ok {
+		return "", NeedPool(named, t.pools)
 	}
-	if p, ok := t.pools.ByID(named); ok {
-		return p.ID, nil
-	}
-	return "", NeedPool(named, t.pools)
+	return p.ID, nil
 }
 
 // PoolNamed is a pool as a refusal for want of one names it.

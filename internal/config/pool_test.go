@@ -542,6 +542,33 @@ func TestPoolsImplicit(t *testing.T) {
 	}
 }
 
+func TestPoolsAsked(t *testing.T) {
+	acme := config.Pool{ID: "q7mt", Dirs: []string{"/Users/test/Code/acme"}}
+	client := config.Pool{ID: "h4w2", Dirs: []string{"/Users/test/Code/client"}}
+	unfenced := config.Pool{ID: "b2n8"}
+	tests := []struct {
+		name  string
+		pools config.Pools
+		named string
+		want  string
+	}{
+		{name: "one named", pools: config.Pools{acme, unfenced}, named: "q7mt", want: "q7mt"},
+		{name: "one named in another case", pools: config.Pools{acme, unfenced}, named: "Q7MT", want: "q7mt"},
+		{name: "one named that isn't configured", pools: config.Pools{acme, unfenced}, named: "x9z9"},
+		{name: "none named: the unfenced", pools: config.Pools{acme, unfenced}, want: "b2n8"},
+		{name: "none named, every pool fenced", pools: config.Pools{acme, client}},
+		{name: "one named, none configured", named: "q7mt"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := tt.pools.Asked(tt.named)
+			if got.ID != tt.want || ok != (tt.want != "") {
+				t.Errorf("Asked(%q) = %q, %v; want %q", tt.named, got.ID, ok, tt.want)
+			}
+		})
+	}
+}
+
 func TestAPoolsAccountsAndPrimary(t *testing.T) {
 	cfg, err := load(writeConfig(t, accountIn("k3f9", "q7mt")+accountIn("b6s7", "b2n8")+accountIn("m2x7", "Q7MT")+"primary = true\n"+
 		poolTOML("b2n8")+poolTOML("q7mt", "~/Code/acme")+poolTOML("h4w2", "~/Code/client")))

@@ -14,10 +14,11 @@ import (
 )
 
 // acmeRead reads Acme, q7mt, where work is now, Default, b2n8, the first
-// pool, holding side; the accounts record keeps lapsed, removed from Acme.
+// pool, holding side and spare; the accounts record keeps lapsed, removed
+// from Acme.
 var acmeRead = views.PoolRead{
 	ID: "q7mt", First: "b2n8",
-	PoolOf: status.AccountPools(config.Accounts{{ID: "work", Pool: "q7mt"}, {ID: "side", Pool: "b2n8"}}, func() identity.Record {
+	PoolOf: status.AccountPools(config.Accounts{{ID: "work", Pool: "q7mt"}, {ID: "side", Pool: "b2n8"}, {ID: "spare", Pool: "b2n8"}}, func() identity.Record {
 		return identity.Record{Accounts: []identity.Entry{{ID: "lapsed", Pool: "q7mt"}}}
 	}),
 }
@@ -68,8 +69,9 @@ func TestAPoolReadShowsTheEventsOfThePoolAsTheEventsRuleHasIt(t *testing.T) {
 }
 
 // A pool's days hold the accounts that worked in it that day, each with its
-// work there alone, and of those idle in it, the ones it holds alone, as
-// PoolOf places them; the days the reader read stay as they were.
+// work there alone, and of those idle in it, the ones status.AccountIn has
+// as the pool's, PoolOf placing them there or nowhere; the days the reader
+// read stay as they were.
 func TestAPoolsDaysHoldItsWorkAndItsOwnIdleAccounts(t *testing.T) {
 	day := time.Date(2026, 11, 3, 0, 0, 0, 0, time.UTC)
 	whole := ledger.Summary{Day: "2026-11-03", Accounts: []ledger.AccountDay{
@@ -90,8 +92,8 @@ func TestAPoolsDaysHoldItsWorkAndItsOwnIdleAccounts(t *testing.T) {
 		kept = append(kept, a.Account)
 		sessions[a.Account] = a.Sessions
 	}
-	if want := []string{"work", "side", "lapsed"}; !slices.Equal(kept, want) {
-		t.Errorf("Acme's day holds %q, want %q: side, which worked in it, and of those idle, the one it holds and the removed one the record keeps in it", kept, want)
+	if want := []string{"work", "side", "lapsed", "gone"}; !slices.Equal(kept, want) {
+		t.Errorf("Acme's day holds %q, want %q: side, which worked in it, and of those idle, the one it holds, the removed one the record keeps in it and the one none places", kept, want)
 	}
 	if sessions["side"] != 2 {
 		t.Errorf("side's day in Acme counts %d sessions, want its 2 there alone", sessions["side"])
@@ -102,6 +104,25 @@ func TestAPoolsDaysHoldItsWorkAndItsOwnIdleAccounts(t *testing.T) {
 	}
 	if every := (views.PoolRead{}).Days(read).Days(day); len(every[0].Accounts) != 6 {
 		t.Errorf("every pool's day holds %d accounts, want all 6", len(every[0].Accounts))
+	}
+}
+
+// A pool's windows are those of the accounts status.AccountIn has as the
+// pool's, the one removed from it and the one none places among them; every
+// pool's are every one.
+func TestAPoolsWindowsAreThoseOfItsAccounts(t *testing.T) {
+	all := views.Windows{Windows: []views.WindowReadings{
+		{Account: "work", Window: "5h"}, {Account: "side", Window: "5h"}, {Account: "lapsed", Window: "7d"}, {Account: "gone", Window: "5h"},
+	}}
+	var accounts []string
+	for _, w := range acmeRead.Windows(all).Windows {
+		accounts = append(accounts, w.Account)
+	}
+	if want := []string{"work", "lapsed", "gone"}; !slices.Equal(accounts, want) {
+		t.Errorf("Acme's windows are of %q, want %q", accounts, want)
+	}
+	if every := (views.PoolRead{}).Windows(all); len(every.Windows) != 4 {
+		t.Errorf("every pool's windows are %d, want all 4", len(every.Windows))
 	}
 }
 

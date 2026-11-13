@@ -883,7 +883,7 @@ func TestAccountsEditChangesNothingGivenWhatTheAccountHas(t *testing.T) {
 
 func TestAccountsEditRefuses(t *testing.T) {
 	const (
-		noFlags      = "give one or more of --label, --plan, --primary, --reserve or --pool"
+		noFlags      = "give one or more of --label, --plan, --primary or --reserve"
 		primaryFalse = "--primary marks this account the primary, and can't be false: the primary moves by giving --primary to another account"
 	)
 	tests := []struct {

@@ -3,7 +3,6 @@ package views
 import (
 	"iter"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/events"
@@ -26,11 +25,10 @@ type PoolRead struct {
 	PoolOf func(account string) (string, bool)
 }
 
-// holds reports whether the account with the given id is in the pool read,
-// as PoolOf places it.
+// holds reports whether the account with the given id is the pool read's,
+// as status.AccountIn has it of PoolOf.
 func (p PoolRead) holds(account string) bool {
-	in, placed := p.PoolOf(account)
-	return placed && strings.EqualFold(in, p.ID)
+	return status.AccountIn(account, p.ID, p.PoolOf)
 }
 
 // every reports whether the read is of every pool's work.
@@ -56,9 +54,9 @@ func (p PoolRead) Lines(lines iter.Seq[ledger.Held]) iter.Seq[ledger.Held] {
 
 // Days reads the pool's days from those l reads, as LedgerDays reads them:
 // each day's work in the pool alone, as ledger.Summary's InPool gives it,
-// and of its accounts, those that worked in the pool that day, or are in it,
-// as PoolOf places them, for their windows: every day whole where the read is
-// of every pool's.
+// and of its accounts, those that worked in the pool that day, or are the
+// pool's, as holds has it, for their windows: every day whole where the read
+// is of every pool's.
 func (p PoolRead) Days(l LedgerDays) LedgerDays {
 	if p.every() {
 		return l
@@ -83,6 +81,16 @@ func (d poolDays) Days(from time.Time) []ledger.Summary {
 		days[i] = s
 	}
 	return days
+}
+
+// Windows are those of w of the accounts the pool read holds, as holds has
+// it, an account's windows being its own whatever pool it's in: every one
+// where the read is of every pool's.
+func (p PoolRead) Windows(w Windows) Windows {
+	if p.every() {
+		return w
+	}
+	return Windows{Windows: slices.DeleteFunc(slices.Clone(w.Windows), func(r WindowReadings) bool { return !p.holds(r.Account) })}
 }
 
 // Shows reports whether the event e is of the pool read, as status.Event's

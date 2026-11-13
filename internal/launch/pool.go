@@ -126,36 +126,62 @@ func (p place) elsewhere(a config.Account) error {
 }
 
 // withPools returns r as Run launches on it, ask asking the router how it
-// is, once, where it's to be asked: as it is, but where its config names no
-// pools once the move to pools is done. Then, as a session naming no pool
-// would be routed in the first pool for its life, which may be fenced, it
-// takes the pools the router routes for, where its answer reports them (see
-// pooledBy); else those the accounts record keeps; else it refuses, failing
-// with ErrNotStarted, Stderr hearing why. Before the move, a config naming no
-// pools launches as before pools.
+// is, once, where it's to be asked: its config as PoolsOf gives it, as a
+// session naming no pool would be routed in the first pool for its life,
+// which may be fenced. Where none names a pool, it refuses, failing with
+// ErrNotStarted, Stderr hearing why.
 func (l Launcher) withPools(r Route, ask func() (router.Health, routerState)) (Route, error) {
-	if !r.Moved || len(r.Config.Pools) > 0 {
-		return r, nil
+	health := func() router.Health {
+		h, _ := ask()
+		return h
 	}
-	h, _ := ask()
+	pooled, from, ok := poolsOf(r.Config, r.Moved, health, r.Kept)
+	if !ok {
+		return r, l.refuse(l.unpooled(), "dir", l.Dir)
+	}
+	r.Config, r.from = pooled, from
+	return r, nil
+}
+
+// PoolsOf returns cfg as its pools stand, for a launch and for every verb
+// that reads a pool: cfg as it is, where it names pools, or the move to
+// pools isn't done, moved saying whether it is, as before pools; else cfg
+// with the pools the router routes for, where its health answer reports
+// them, health asking for it, once (see pooledBy); else with those kept
+// gives, the accounts record's. It reports false where the move is done and
+// none of them names a pool, so which pool any account or directory is in
+// can't be told: NoPoolsNamed says why.
+func PoolsOf(cfg *config.Config, moved bool, health func() router.Health, kept func(cfg *config.Config) (*config.Config, bool)) (*config.Config, bool) {
+	pooled, _, ok := poolsOf(cfg, moved, health, kept)
+	return pooled, ok
+}
+
+// NoPoolsNamed is why which pool an account or a directory is in can't be
+// told, once the move to pools is done, as PoolsOf reports.
+const NoPoolsNamed = "neither the config, the router nor the accounts record names any pools"
+
+// poolsOf is PoolsOf, saying too where the pools come from.
+func poolsOf(cfg *config.Config, moved bool, health func() router.Health, kept func(cfg *config.Config) (*config.Config, bool)) (*config.Config, poolsSource, bool) {
+	if !moved || len(cfg.Pools) > 0 {
+		return cfg, fromConfig, true
+	}
+	h := health()
 	if pools, reported := RoutedPools(h); reported {
-		r.Config, r.from = pooledBy(r.Config, h, pools), fromRouter
-		return r, nil
+		return pooledBy(cfg, h, pools), fromRouter, true
 	}
-	if r.Kept != nil {
-		if kept, ok := r.Kept(r.Config); ok && len(kept.Pools) > 0 {
-			r.Config, r.from = kept, fromRecord
-			return r, nil
+	if kept != nil {
+		if pooled, ok := kept(cfg); ok && len(pooled.Pools) > 0 {
+			return pooled, fromRecord, true
 		}
 	}
-	return r, l.refuse(l.unpooled(), "dir", l.Dir)
+	return cfg, fromConfig, false
 }
 
 // unpooled is why nothing starts where the config names no pools, or can't
 // be read, once the move to pools is done, and neither the router nor the
 // accounts record says which there are: any directory may be in a fence.
 func (l Launcher) unpooled() string {
-	return "can't tell which pool " + l.where() + " is in: neither the config, the router nor the accounts record names any pools"
+	return "can't tell which pool " + l.where() + " is in: " + NoPoolsNamed
 }
 
 // Unpooled starts nothing, for a launch on Claude Code's own login where

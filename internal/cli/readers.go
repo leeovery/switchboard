@@ -89,23 +89,9 @@ func recordIn(dir string) func() identity.Record {
 
 // poolLabelsIn labels a pool by its id, as status.PoolLabels does, of the
 // pools cfg configures and those the accounts record in the state directory
-// dir keeps: of the configured alone, warning, where the record can't be
-// read. The record is read once, and only to label a pool the config doesn't
-// configure.
+// dir keeps, as recordIn reads it.
 func poolLabelsIn(dir string, cfg *config.Config) func(id string) string {
-	kept := sync.OnceValue(func() func(string) string {
-		record, err := identity.NewFile(dir).Read()
-		if err != nil {
-			logger.Warn("can't read the accounts record, so the pools removed are named by their ids", "error", err)
-		}
-		return status.PoolLabels(cfg.Pools, record)
-	})
-	return func(id string) string {
-		if p, ok := cfg.Pools.ByID(id); ok {
-			return p.Label
-		}
-		return kept()(id)
-	}
+	return status.PoolLabels(cfg.Pools, recordIn(dir))
 }
 
 // readers has wc read the request ledger, the readings history and the

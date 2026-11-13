@@ -74,7 +74,7 @@ func oneSessionAtMost(_ *cobra.Command, args []string) error {
 	return nil
 }
 
-// sessions prints today's sessions of the pool named, as readPool has it, as
+// sessions prints today's sessions of the pool named, as filedPool has it, as
 // Sessions' List has them, telling errOut where the router can't say which
 // are running.
 func (a *app) sessions(ctx context.Context, out, errOut io.Writer, named string, asJSON bool) error {
@@ -86,7 +86,7 @@ func (a *app) sessions(ctx context.Context, out, errOut io.Writer, named string,
 	if err != nil {
 		return err
 	}
-	pool, err := readPool(cfg, readers.dir, named)
+	pool, cfg, err := a.filedPool(ctx, cfg, readers.dir, named)
 	if err != nil {
 		return err
 	}
@@ -102,6 +102,9 @@ func (a *app) sessions(ctx context.Context, out, errOut io.Writer, named string,
 	list = list.Named(status.NamesOf(cfg.Accounts, readers.removed))
 	if asJSON {
 		return writeJSON(out, list)
+	}
+	if _, err := io.WriteString(out, pool.heading()); err != nil {
+		return err
 	}
 	return writeSessions(out, list, now)
 }

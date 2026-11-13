@@ -109,6 +109,17 @@ func (ps Pools) Implicit() (Pool, bool) {
 	return ps.Unfenced()
 }
 
+// Asked returns the pool a verb naming the one with the given id, "" for
+// none, reads or acts on: the one named, ids compared ignoring case, else
+// the one Implicit gives. It reports false where the one named isn't
+// configured, or none is named and Implicit gives none.
+func (ps Pools) Asked(named string) (Pool, bool) {
+	if named == "" {
+		return ps.Implicit()
+	}
+	return ps.ByID(named)
+}
+
 // find returns the first pool that matches, reporting false where none does.
 func (ps Pools) find(match func(Pool) bool) (Pool, bool) {
 	i := slices.IndexFunc(ps, match)

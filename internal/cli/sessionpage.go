@@ -18,10 +18,10 @@ import (
 
 // sessionPage prints the page of the session given names, among the
 // router's sessions in the pool pooled names, as sessionsPool has it,
-// telling errOut where the router can't say whether it runs. One read of the ledger gives
-// both the sessions given is named among, as views.NamedAmong names it, and
-// the page: given is read too, as the whole id of a session of an earlier
-// day.
+// telling errOut where the router can't say whether it runs. One read of the
+// ledger gives both the sessions given is named among, as views.NamedAmong
+// names it, and the page: given is read too, as the whole id of a session of
+// an earlier day.
 func (a *app) sessionPage(ctx context.Context, out, errOut io.Writer, given, pooled string, asJSON bool) error {
 	cfg, err := a.loadConfig()
 	if err != nil {
@@ -31,7 +31,7 @@ func (a *app) sessionPage(ctx context.Context, out, errOut io.Writer, given, poo
 	if err != nil {
 		return err
 	}
-	pool, err := sessionsPool(cfg.Pools, pooled)
+	pool, err := a.sessionsPool(ctx, cfg, readers.dir, pooled)
 	if err != nil {
 		return err
 	}
@@ -65,16 +65,16 @@ func (a *app) sessionPage(ctx context.Context, out, errOut io.Writer, given, poo
 // it started; its models, while it runs, else how long its lines are kept;
 // the accounts it ran on, a row each; and its totals, then its turns, a row
 // each, newest first; each account named as the page names it.
-// sessionsPool returns the id of the pool of pools a session given is looked
-// for in, named or not: "" for whatever pool it's in, where none is named,
-// and in a config with no pools; else the one named, as askedPool has it,
-// failing as it does, saying --pool names one.
-func sessionsPool(pools config.Pools, named string) (string, error) {
+// sessionsPool returns the id of the pool a session given is looked for in,
+// named or not: "" for whatever pool it's in, where none is named, and in a
+// config with no pools; else the one named, as filedPool has it of cfg, of
+// the files in the state directory dir, failing as it does.
+func (a *app) sessionsPool(ctx context.Context, cfg *config.Config, dir, named string) (string, error) {
 	if named == "" {
 		return "", nil
 	}
-	p, err := askedPool(pools, named)
-	return p.ID, poolFlagNeeded(err)
+	pool, _, err := a.filedPool(ctx, cfg, dir, named)
+	return pool.ID, err
 }
 
 func writeSessionPage(out io.Writer, p views.SessionPage, now time.Time) error {

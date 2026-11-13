@@ -125,8 +125,16 @@ type editFlags struct {
 	primary                    bool
 }
 
-// editFlagNames are accounts edit's flags, of which it's given one or more.
-var editFlagNames = []string{"--label", "--plan", "--primary", "--reserve", "--pool"}
+// editFlagNames are accounts edit's flags, of which it's given one or more,
+// as said where it's given none: --pool among them only where the config
+// has pools to move an account between, two or more.
+func (a *app) editFlagNames() []string {
+	names := []string{"--label", "--plan", "--primary", "--reserve"}
+	if cfg, err := a.loadConfig(); err == nil && len(cfg.Pools) > 1 {
+		names = append(names, "--pool")
+	}
+	return names
+}
 
 func newAccountsEditCommand(a *app) *cobra.Command {
 	var flags editFlags
@@ -178,8 +186,9 @@ same, ignoring case.
 }
 
 // change is the change the flags ask for, those given as given reports, each
-// read as the config reads it.
-func (f editFlags) change(given func(name string) bool) (accounts.Change, error) {
+// read as the config reads it, failing where they ask for none, saying to
+// give one of those named.
+func (f editFlags) change(given func(name string) bool, named []string) (accounts.Change, error) {
 	if given("primary") && !f.primary {
 		return accounts.Change{}, errors.New("--primary marks this account the primary, and can't be false: the primary moves by giving --primary to another account")
 	}
@@ -205,7 +214,7 @@ func (f editFlags) change(given func(name string) bool) (accounts.Change, error)
 		change.Pool = &f.pool
 	}
 	if !change.Asks() {
-		return accounts.Change{}, errors.New("give one or more of " + prose.ListOr(editFlagNames))
+		return accounts.Change{}, errors.New("give one or more of " + prose.ListOr(named))
 	}
 	return change, nil
 }
@@ -550,7 +559,7 @@ func (a *app) editAccount(cmd *cobra.Command, id string, flags editFlags) error 
 // editChange is the change flags ask for, as cmd was given them, as their
 // change has it, the pool it moves the account into as accountsPool has it.
 func (a *app) editChange(cmd *cobra.Command, flags editFlags) (accounts.Change, error) {
-	change, err := flags.change(cmd.Flags().Changed)
+	change, err := flags.change(cmd.Flags().Changed, a.editFlagNames())
 	if err != nil || change.Pool == nil {
 		return change, err
 	}
@@ -662,13 +671,11 @@ func editedSays(e accounts.Edited) string {
 	return "edited " + e.Now.ID + ": " + strings.Join(changed, ", ")
 }
 
-// poolLabel names the pool of pools with the given id by its label, cleaned,
-// else by its id.
+// poolLabel names an account's pool, of pools, by its id, as
+// status.PoolLabels labels it, cleaned: an account's pool is configured, so
+// no accounts record is read.
 func poolLabel(pools config.Pools, id string) string {
-	if p, ok := pools.ByID(id); ok {
-		return prose.Clean(p.Label)
-	}
-	return prose.Clean(id)
+	return prose.Clean(status.PoolLabels(pools, func() identity.Record { return identity.Record{} })(id))
 }
 
 // nowAndWas says a value an edit changed, as "plan ultra (was max)".

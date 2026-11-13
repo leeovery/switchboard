@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
@@ -8,6 +9,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/idmove"
+	"github.com/leeovery/switchboard/internal/launch"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
@@ -27,23 +29,32 @@ func addPoolFlag(cmd *cobra.Command, pool *string, what string) {
 	cmd.Flags().StringVar(pool, "pool", "", what+" pool `ID`, else the only one, else the unfenced one")
 }
 
-// askedPool returns the pool of pools a verb reads or acts on: the one with
-// the id named, else the one the verbs act on, as config.Pools' Implicit has
-// it, the rule the router answers by too; zero, whatever is named, in a
-// config with no pools. It fails with router.PoolNeeded where the pool named
-// isn't configured, or none is named and there's none the verbs act on.
+// askedPool returns the pool of pools a verb reads or acts on, named or not,
+// as config.Pools' Asked has it, the rule the router answers by too; zero,
+// whatever is named, in a config with no pools. It fails with
+// router.PoolNeeded where Asked gives none.
 func askedPool(pools config.Pools, named string) (config.Pool, error) {
 	if len(pools) == 0 {
 		return config.Pool{}, nil
 	}
-	p, ok := pools.Implicit()
-	if named != "" {
-		p, ok = pools.ByID(named)
-	}
+	p, ok := pools.Asked(named)
 	if !ok {
 		return config.Pool{}, router.NeedPool(named, pools)
 	}
 	return p, nil
+}
+
+// pooledConfig returns cfg as its pools stand, for a verb reading a pool, as
+// launch.PoolsOf has them, as a launch does: of a config naming none once
+// the move to pools is done, the router's, else the accounts record's. It
+// fails, saying why, where none of them names a pool, so no verb reads every
+// pool's work together for want of knowing them.
+func (a *app) pooledConfig(ctx context.Context, cfg *config.Config) (*config.Config, error) {
+	pooled, ok := launch.PoolsOf(cfg, a.poolsMoved(), func() router.Health { return a.routersHealth(ctx) }, a.keptPools)
+	if !ok {
+		return nil, errors.New("can't tell which pool's work to read: " + launch.NoPoolsNamed)
+	}
+	return pooled, nil
 }
 
 // filedPool is the pool a verb reads the recorded files of, as each line
@@ -52,6 +63,36 @@ func askedPool(pools config.Pools, named string) (config.Pool, error) {
 type filedPool struct {
 	config.Pool
 	read views.PoolRead
+	// named is how a verb's text names it, as poolNamed does: "" where
+	// there's one pool or none, and where the read is of every pool's.
+	named string
+}
+
+// heading names the pool in a paragraph of a line, as a verb's text starts
+// where it names it: "" where named is.
+func (p filedPool) heading() string {
+	return poolHeading(p.named)
+}
+
+// poolHeading is the paragraph of a line a verb's text starts with naming a
+// pool, named as poolNamed names it: "" where named is.
+func poolHeading(named string) string {
+	if named == "" {
+		return ""
+	}
+	return named + "\n\n"
+}
+
+// filedPool returns the pool a verb reading the files in the state directory
+// dir reads, named or not, as readPool has it of cfg as its pools stand, as
+// pooledConfig gives it, and cfg so: failing as either does.
+func (a *app) filedPool(ctx context.Context, cfg *config.Config, dir, named string) (filedPool, *config.Config, error) {
+	pooled, err := a.pooledConfig(ctx, cfg)
+	if err != nil {
+		return filedPool{}, nil, err
+	}
+	pool, err := readPool(pooled, dir, named)
+	return pool, pooled, err
 }
 
 // readPool returns the pool of cfg's pools a verb reading the files in the
@@ -63,7 +104,7 @@ func readPool(cfg *config.Config, dir, named string) (filedPool, error) {
 		return filedPool{}, poolFlagNeeded(err)
 	}
 	read := views.PoolRead{ID: p.ID, First: idmove.FirstPoolID(dir), PoolOf: status.AccountPools(cfg.Accounts, recordIn(dir))}
-	return filedPool{Pool: p, read: read}, nil
+	return filedPool{Pool: p, read: read, named: poolNamed(cfg.Pools, p.Label)}, nil
 }
 
 // poolNamed names the pool with the given label, as prose.Pool does, where

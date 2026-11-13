@@ -46,7 +46,8 @@ func newPoolCommand(a *app) *cobra.Command {
 		Short: "List the pools, their directories, accounts and primaries",
 		Long: `List the pools, in the config's order: each one's id and label, the
 directories it's fenced to, or none for the pool that serves every session
-started outside every fence, and its accounts, its primary first among them.
+started outside every fence, and its accounts, in the config's order, its
+primary marked.
 
 A session started inside a pool's directories is routed across that pool's
 accounts and no others; one started outside every fence, across the unfenced

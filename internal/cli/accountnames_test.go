@@ -49,9 +49,9 @@ func namedDeps(t *testing.T) cli.Deps {
 	}
 	writeStateFile(t, filepath.Dir(path), filepath.Base(path), []byte("[[account]]\nid = \""+labelledID+"\"\nlabel = \"work\"\n"))
 	state := stateDir(t, deps)
-	markMoved(t, state)
 	writeStateFile(t, state, "accounts.json", []byte(`{"version":1,"accounts":[`+
 		`{"id":"`+removedLabelledID+`","label":"team","added":"2026-08-01T09:00:00Z","removed":"2026-10-05T12:00:00Z"}]}`+"\n"))
+	markMoved(t, state)
 	var day bytes.Buffer
 	for _, l := range namedLines {
 		l.At = l.At.UTC()
@@ -171,6 +171,7 @@ func TestRequestsTakesAnAccountByItsIDAlone(t *testing.T) {
 	writeStateFile(t, stateDir(t, twice), "accounts.json", []byte(`{"version":1,"accounts":[`+
 		`{"id":"`+removedLabelledID+`","label":"team","added":"2026-08-01T09:00:00Z","removed":"2026-10-05T12:00:00Z"},`+
 		`{"id":"k3f9","label":"Team","added":"2026-06-01T09:00:00Z","removed":"2026-07-01T12:00:00Z"}]}`+"\n"))
+	markMoved(t, stateDir(t, twice))
 	tests := []struct {
 		deps        cli.Deps
 		given, want string
@@ -186,16 +187,24 @@ func TestRequestsTakesAnAccountByItsIDAlone(t *testing.T) {
 	}
 }
 
-// requests reads the accounts record only where it names an account: its
-// JSON, without --account, warns of no damaged record.
+// requests reads the accounts record's accounts only where it names one: its
+// JSON, without --account, warns of no damaged record for want of them. It
+// reads the record's first pool, warning where it can't, as every pool's
+// read does, of a config naming its pools, as the router has it write them.
 func TestRequestsJSONReadsNoAccountsRecord(t *testing.T) {
 	deps := namedDeps(t)
+	path, err := config.Path(deps.Getenv, deps.HomeDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeStateFile(t, filepath.Dir(path), filepath.Base(path),
+		[]byte("[[account]]\nid = \""+labelledID+"\"\nlabel = \"work\"\npool = \"b2n8\"\n\n[[pool]]\nid = \"b2n8\"\nlabel = \"Default\"\n"))
 	writeStateFile(t, stateDir(t, deps), "accounts.json", []byte("{\n"))
 	if got := run(t, deps, "requests", "--json"); got.code != 0 {
 		t.Fatalf("switchboard requests --json = %+v, want its lines", got)
 	}
-	if log := readLog(t, deps, "cli.log"); strings.Contains(log, "accounts record") {
-		t.Errorf("cli.log reads\n%s\nwant no accounts record read", log)
+	if log := readLog(t, deps, "cli.log"); strings.Contains(log, "removed") {
+		t.Errorf("cli.log reads\n%s\nwant no accounts record read for the accounts removed", log)
 	}
 }
 

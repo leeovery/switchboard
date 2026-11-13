@@ -308,6 +308,25 @@ func TestAccountsEditMovesAnAccountToAPoolAndMakesItItsPrimary(t *testing.T) {
 	}
 }
 
+// accounts edit given no flag names --pool among those it takes only where
+// there are pools to move an account between, two or more.
+func TestAccountsEditNamesPoolAmongItsFlagsOnceThereIsASecondPool(t *testing.T) {
+	tests := []struct {
+		name, accounts, want string
+	}{
+		{name: "two pools", accounts: personalAndSidePooled, want: "give one or more of --label, --plan, --primary, --reserve or --pool"},
+		{name: "one pool", accounts: threeInFirstPool, want: "give one or more of --label, --plan, --primary or --reserve"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			deps, _ := accountsDeps(t, "http://127.0.0.1:1", tt.accounts)
+			if got := run(t, deps, "accounts", "edit", "side"); got.code == 0 || !strings.Contains(got.stderr, tt.want) {
+				t.Errorf("switchboard accounts edit side = %+v, want it to say %q", got, tt.want)
+			}
+		})
+	}
+}
+
 // accounts add and edit take --pool "" as --pool not given, and edit checks
 // a pool named before anything, naming the pools, as add does.
 func TestAccountsTakeAPoolGivenEmptyAsNoneAndRefuseOneNotConfigured(t *testing.T) {

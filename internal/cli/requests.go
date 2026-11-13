@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"iter"
@@ -57,7 +58,7 @@ put first, a JSON object a line, for an agent or a script to read. --json
 prints the JSON, and --pretty the text, wherever stdout is.`,
 		Args: a.ledgerArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return a.requests(cmd.OutOrStdout(), opts)
+			return a.requests(cmd.Context(), cmd.OutOrStdout(), opts)
 		},
 	}
 	cmd.Flags().StringVar(&opts.session, "session", "", "keep session `ID`'s requests")
@@ -123,24 +124,25 @@ func pricing(cfg *config.Config) ledger.Table {
 	return table
 }
 
-// readPool returns the pool of cfg's whose lines requests reads, of the files
-// in the state directory dir, as readPool has it, named or not: every pool's
-// where a session is asked for and no pool named, as its lines are found in
-// whatever pool it's in.
-func (o requestsOptions) readPool(cfg *config.Config, dir string) (filedPool, error) {
-	if o.session != "" && o.pool == "" {
+// requestsPool returns the pool whose lines requests reads as opts ask, of
+// the files in the state directory dir, as filedPool has it of cfg: every
+// pool's where a session is asked for and no pool named, as its lines are
+// found in whatever pool it's in.
+func (a *app) requestsPool(ctx context.Context, cfg *config.Config, dir string, opts requestsOptions) (filedPool, error) {
+	if opts.session != "" && opts.pool == "" {
 		return filedPool{}, nil
 	}
-	return readPool(cfg, dir, o.pool)
+	pool, _, err := a.filedPool(ctx, cfg, dir, opts.pool)
+	return pool, err
 }
 
 // requests prints the ledger's lines as opts ask.
-func (a *app) requests(out io.Writer, opts requestsOptions) error {
+func (a *app) requests(ctx context.Context, out io.Writer, opts requestsOptions) error {
 	cfg, dir, err := a.ledgerState()
 	if err != nil {
 		return err
 	}
-	pool, err := opts.readPool(cfg, dir)
+	pool, err := a.requestsPool(ctx, cfg, dir, opts)
 	if err != nil {
 		return err
 	}
@@ -167,6 +169,9 @@ func (a *app) requests(out io.Writer, opts requestsOptions) error {
 	lines = views.OnAccount(lines, opts.account)
 	if a.printsJSON(opts.form, out) {
 		return writeLines(out, lines, poolLabelsIn(dir, cfg))
+	}
+	if _, err := io.WriteString(out, pool.heading()); err != nil {
+		return err
 	}
 	return writeRequests(out, views.RequestLines(lines, names()), from, now)
 }

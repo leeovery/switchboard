@@ -35,9 +35,14 @@ func (e Event) InPool(pool, first string, poolOf func(account string) (string, b
 		return strings.EqualFold(cmp.Or(e.Pool, first), pool)
 	}
 	account := e.Befell()
-	if account == "" {
-		return true
-	}
+	return account == "" || AccountIn(account, pool, poolOf)
+}
+
+// AccountIn reports whether what's of the account with the given id, its
+// windows and what befell it, is of the pool with the id given, poolOf
+// placing it as InPool says: where it places the account there, or nowhere,
+// as one removed before pools, which every pool shows.
+func AccountIn(account, pool string, poolOf func(account string) (string, bool)) bool {
 	in, placed := poolOf(account)
 	return !placed || strings.EqualFold(in, pool)
 }

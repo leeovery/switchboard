@@ -13,6 +13,7 @@ import (
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/identity"
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -69,10 +70,11 @@ var pooledEvents = []filed{
 
 // pooledDeps are deps whose state directory holds the pools' tests' lines
 // and events, the move to pools done with Default the first pool, by a
-// clock stopped at ledgerNow, configured as pooledConfig says.
+// clock stopped at ledgerNow, configured as pooledConfig says. The state
+// directory's path is short enough to hold a router's control socket.
 func pooledDeps(t *testing.T, fenced bool) cli.Deps {
 	t.Helper()
-	deps := testDeps(nil, t.TempDir())
+	deps := testDeps(map[string]string{"XDG_STATE_HOME": shortTempDir(t)}, t.TempDir())
 	deps.Now = func() time.Time { return ledgerNow }
 	path, err := config.Path(deps.Getenv, deps.HomeDir)
 	if err != nil {
@@ -440,5 +442,98 @@ func TestASessionGivenIsFoundInWhateverPoolElseInThePoolNamed(t *testing.T) {
 	}
 	if got := run(t, deps, "sessions", sessionB, "--pool", "x9z9"); got.code == 0 || !strings.Contains(got.stderr, `there's no pool "x9z9": name b2n8 (Default) or q7mt (Acme), with --pool`) {
 		t.Errorf("switchboard sessions %s --pool x9z9 = %+v, want it refused, naming the pools", status.ShortID(sessionB), got)
+	}
+}
+
+// unpooledConfig is pooledConfig's accounts in a config naming no pools, as
+// one put back by hand once the move to pools is done.
+const unpooledConfig = `[[account]]
+id    = "work"
+label = "Work"
+
+[[account]]
+id    = "side"
+label = "Side"
+`
+
+// unpooledDeps are pooledDeps with the config given in place of theirs, and
+// the accounts record keeping pooledConfig's pools as this Mac's config last
+// wrote them where kept is set, else none.
+func unpooledDeps(t *testing.T, cfg string, kept bool) cli.Deps {
+	t.Helper()
+	deps := pooledDeps(t, false)
+	path, err := config.Path(deps.Getenv, deps.HomeDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeStateFile(t, filepath.Dir(path), filepath.Base(path), []byte(cfg))
+	err = identity.NewFile(stateDir(t, deps)).Update(func(r *identity.Record) error {
+		r.Accounts = []identity.Entry{{ID: "work", Added: testNow, Pool: "q7mt"}, {ID: "side", Added: testNow, Pool: "b2n8"}}
+		r.Pools = []identity.PoolEntry{
+			{ID: "b2n8", Added: testNow, First: true, Here: kept, Written: identity.PoolWritten{Label: "Default"}},
+			{ID: "q7mt", Added: testNow, Here: kept, Written: identity.PoolWritten{Label: "Acme", Dirs: []string{"/work/acme"}}},
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return deps
+}
+
+// Once the move to pools is done, a config naming none, or one that can't be
+// read, has the verbs read the pools the router routes for, else those the
+// accounts record keeps, as a launch does; never every pool's work together.
+func TestTheVerbsReadingTheFilesTakeThePoolsOfAConfigNamingNoneAsALaunchDoes(t *testing.T) {
+	const unreadable = "[[account\n"
+	tests := []struct {
+		name   string
+		config string
+		kept   bool
+		router bool
+		args   []string
+		field  string
+		want   []string
+	}{
+		{name: "the record's, none named", config: unpooledConfig, kept: true, args: []string{"requests"}, field: "request", want: []string{"p1", "p3"}},
+		{name: "the record's, Acme named", config: unpooledConfig, kept: true, args: []string{"requests", "--pool", "q7mt"}, field: "request", want: []string{"p2"}},
+		{name: "the record's, Acme's events", config: unpooledConfig, kept: true, args: []string{"events", "--pool", "q7mt"}, field: "kind", want: []string{"started", "limit", "restart"}},
+		{name: "the router's, the record keeping none", config: unpooledConfig, router: true, args: []string{"requests", "--pool", "q7mt"}, field: "request", want: []string{"p2"}},
+		{name: "the router's, Acme's events", config: unpooledConfig, router: true, args: []string{"events", "--pool", "q7mt"}, field: "kind", want: []string{"started", "limit", "restart"}},
+		{name: "a config that can't be read, the record's", config: unreadable, kept: true, args: []string{"events", "--pool", "q7mt"}, field: "kind", want: []string{"started", "limit", "restart"}},
+		{name: "a config that can't be read, none named, the record's", config: unreadable, kept: true, args: []string{"events"}, field: "kind", want: []string{"started", "pin", "restart"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			deps := unpooledDeps(t, tt.config, tt.kept)
+			if tt.router {
+				serveHealth(t, deps, router.Health{OK: true, Listen: "127.0.0.1:4747", StripsOwnHeaders: true, ReportsPools: true, Pools: []router.RoutedPool{
+					{ID: "b2n8", Label: "Default", Accounts: []string{"side"}, Primary: "side"},
+					{ID: "q7mt", Label: "Acme", Dirs: []string{"/work/acme"}, WrittenDirs: []string{"/work/acme"}, Accounts: []string{"work"}, Primary: "work"},
+				}})
+			}
+			got := run(t, deps, append(tt.args, "--json")...)
+			if values := fieldsOf(t, got, tt.field); got.code != 0 || !slices.Equal(values, tt.want) {
+				t.Errorf("switchboard %s --json printed %s %q (%+v), want %q", strings.Join(tt.args, " "), tt.field, values, got, tt.want)
+			}
+		})
+	}
+}
+
+// Where none of the config, the router and the accounts record names a pool
+// once the move is done, the verbs reading the files refuse, saying so.
+func TestTheVerbsReadingTheFilesRefuseWhereNothingNamesThePools(t *testing.T) {
+	const why = "can't tell which pool's work to read: neither the config, the router nor the accounts record names any pools"
+	for _, cfg := range []string{unpooledConfig, "[[account\n"} {
+		deps := unpooledDeps(t, cfg, false)
+		verbs := [][]string{{"events"}}
+		if cfg == unpooledConfig {
+			verbs = append(verbs, []string{"requests"}, []string{"history"}, []string{"sessions"}, []string{"requests", "--pool", "q7mt"})
+		}
+		for _, args := range verbs {
+			if got := run(t, deps, append(args, "--json")...); got.code == 0 || got.stdout != "" || !strings.Contains(got.stderr, why) {
+				t.Errorf("switchboard %s --json = %+v, want it refused, saying %q", strings.Join(args, " "), got, why)
+			}
+		}
 	}
 }

@@ -184,6 +184,7 @@ func TestHistoryJSONGivesTheAccountsRemovedItsDaysName(t *testing.T) {
 	writeStateFile(t, state, "accounts.json", []byte(`{"version":1,"accounts":[`+
 		`{"id":"h7c2","label":"team","added":"2026-08-01T09:00:00Z","removed":"2026-09-25T16:00:00Z"},`+
 		`{"id":"k3f9","label":"spare","added":"2026-08-01T09:00:00Z","removed":"2026-08-02T16:00:00Z"}]}`+"\n"))
+	markMoved(t, state)
 
 	got := run(t, deps, "history", "--json", "--since", "2026-09-14")
 	var doc struct {

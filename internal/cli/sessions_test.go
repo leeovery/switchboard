@@ -101,11 +101,12 @@ func sessionsDepsOf(t *testing.T, days map[string][]ledger.Line) cli.Deps {
 }
 
 // serveSessions answers GET /sessions with sessions on the control socket of
-// the router commands run with deps find, until the test ends, and GET
-// /health as a router reporting no pools.
+// the router commands run with deps find, until the test ends, as a router
+// after the move to pools holding the first pool alone, b2n8, asked of it or
+// of none; and GET /health as one reporting that pool.
 func serveSessions(t *testing.T, deps cli.Deps, sessions []status.Session) {
 	t.Helper()
-	servePooledSessions(t, deps, map[string][]status.Session{"": sessions})
+	servePooledSessions(t, deps, map[string][]status.Session{"": sessions, "b2n8": sessions})
 }
 
 // servePooledSessions answers GET /sessions asking for each pool, by its id,
@@ -161,12 +162,16 @@ const sessionsText = `   session              on    model     state        start
 today  3 sessions  ·  5 requests  ·  $0.15+ at API prices
 `
 
-func TestSessionsListsTheSessionsOfEveryPool(t *testing.T) {
+// A config naming no pools after the move takes the router's: sessions
+// lists the first pool's alone, never every pool's together, the session the
+// router lists in the other read from the ledger alone.
+func TestSessionsOfAConfigNamingNoPoolsAreTheRoutersFirstPoolsAlone(t *testing.T) {
 	deps := sessionsDeps(t)
 	servePooledSessions(t, deps, map[string][]status.Session{"b2n8": routedSessions[:1], "q7mt": routedSessions[1:]})
 
-	if got := run(t, deps, "sessions", "--pretty"); got != (result{stdout: sessionsText}) {
-		t.Errorf("switchboard sessions --pretty = %+v, want it to print\n%s", got, sessionsText)
+	want := "pool b2n8\n\n" + strings.Replace(sessionsText, "idle 22m   ", "ended 11:00", 1)
+	if got := run(t, deps, "sessions", "--pretty"); got != (result{stdout: want}) {
+		t.Errorf("switchboard sessions --pretty = %+v, want it to print\n%s", got, want)
 	}
 }
 

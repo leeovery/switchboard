@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"slices"
@@ -86,9 +87,9 @@ stdout is.`,
 			out := cmd.OutOrStdout()
 			asJSON := a.printsJSON(form, out)
 			if windows {
-				return a.historyWindows(out, given, pool, asJSON)
+				return a.historyWindows(cmd.Context(), out, given, pool, asJSON)
 			}
-			return a.history(out, given, pool, asJSON)
+			return a.history(cmd.Context(), out, given, pool, asJSON)
 		},
 	}
 	cmd.Flags().StringVar(&given, "since", "", "start on the day of `WHEN`: "+sinceForms+" (default the last 30 days)")
@@ -108,13 +109,14 @@ type historyAsked struct {
 }
 
 // askHistory returns what history reads, the days asked for from the one
-// given on, else the last 30, of the pool named, as readPool has it.
-func (a *app) askHistory(given, pool string) (historyAsked, error) {
+// given on, else the last 30, of the pool named, as filedPool has it, of the
+// config as its pools stand.
+func (a *app) askHistory(ctx context.Context, given, pool string) (historyAsked, error) {
 	cfg, dir, err := a.ledgerState()
 	if err != nil {
 		return historyAsked{}, err
 	}
-	read, err := readPool(cfg, dir, pool)
+	read, cfg, err := a.filedPool(ctx, cfg, dir, pool)
 	if err != nil {
 		return historyAsked{}, err
 	}
@@ -140,8 +142,8 @@ func (h historyAsked) accounts() config.Accounts {
 // reads the days once, through a reader, which reads the readings history
 // ahead once for each run of days it summarises, by the time it was asked
 // at, so a run across midnight places every day against one today.
-func (a *app) history(out io.Writer, given, pool string, asJSON bool) error {
-	asked, err := a.askHistory(given, pool)
+func (a *app) history(ctx context.Context, out io.Writer, given, pool string, asJSON bool) error {
+	asked, err := a.askHistory(ctx, given, pool)
 	if err != nil {
 		return err
 	}
@@ -156,20 +158,26 @@ func (a *app) history(out io.Writer, given, pool string, asJSON bool) error {
 	if asJSON {
 		return writeJSON(out, historyDocument{PricesAsOf: prices.AsOf, PricesFromConfig: prices.Overridden, History: history})
 	}
+	if _, err := io.WriteString(out, asked.pool.heading()); err != nil {
+		return err
+	}
 	return writeHistory(out, history, status.NamesOf(asked.cfg.Accounts, removed), prices, asked.from, asked.now)
 }
 
 // historyWindows prints the windows' readings of each account in the pool
 // named now over the days from the one given on, else the last 30.
-func (a *app) historyWindows(out io.Writer, given, pool string, asJSON bool) error {
-	asked, err := a.askHistory(given, pool)
+func (a *app) historyWindows(ctx context.Context, out io.Writer, given, pool string, asJSON bool) error {
+	asked, err := a.askHistory(ctx, given, pool)
 	if err != nil {
 		return err
 	}
 	names := namesIn(asked.stateDir, asked.cfg)
-	windows := views.NewWindows(readings.NewReader(asked.stateDir, logger), asked.accounts(), asked.from, asked.now).Named(names)
+	windows := asked.pool.read.Windows(views.NewWindows(readings.NewReader(asked.stateDir, logger), asked.accounts(), asked.from, asked.now)).Named(names)
 	if asJSON {
 		return writeJSON(out, windows)
+	}
+	if _, err := io.WriteString(out, asked.pool.heading()); err != nil {
+		return err
 	}
 	return writeWindows(out, windows, asked.from, asked.now)
 }

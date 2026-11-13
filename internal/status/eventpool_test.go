@@ -89,6 +89,29 @@ func TestAnAccountsPoolIsTheConfigsElseTheRecordsKeptForItOnceRemoved(t *testing
 	}
 }
 
+// What's of an account is of the pool it's placed in, or of every pool where
+// none places it, as an account removed before pools.
+func TestWhatsOfAnAccountIsOfItsPoolElseOfEvery(t *testing.T) {
+	poolOf := status.AccountPools(pooledAccounts, func() identity.Record { return keptRecord })
+	tests := []struct {
+		account string
+		in      []string
+	}{
+		{account: "work", in: []string{acme}},
+		{account: "side", in: []string{firstPool}},
+		{account: "lapsed", in: []string{acme}},
+		{account: "spare", in: []string{acme, firstPool}},
+		{account: "unknown", in: []string{acme, firstPool}},
+	}
+	for _, tt := range tests {
+		for _, pool := range []string{acme, firstPool} {
+			if got, want := status.AccountIn(tt.account, pool, poolOf), slices.Contains(tt.in, pool); got != want {
+				t.Errorf("AccountIn(%s, %s) = %v, want %v", tt.account, pool, got, want)
+			}
+		}
+	}
+}
+
 func TestAnEventBefallsTheAccountItNamesElseItsPinsElseWhereItsSessionWent(t *testing.T) {
 	tests := []struct {
 		event status.Event
@@ -104,5 +127,30 @@ func TestAnEventBefallsTheAccountItNamesElseItsPinsElseWhereItsSessionWent(t *te
 		if got := tt.event.Befell(); got != tt.want {
 			t.Errorf("Befell(%+v) = %q, want %q", tt.event, got, tt.want)
 		}
+	}
+}
+
+// A pool is labelled as the config labels it, else as the accounts record
+// keeps it, of one removed, else by its id; the record is read for a pool
+// the config doesn't configure alone.
+func TestAPoolIsLabelledByTheConfigElseTheRecordElseItsID(t *testing.T) {
+	read := 0
+	label := status.PoolLabels(config.Pools{{ID: acme, Label: "Acme"}}, func() identity.Record {
+		read++
+		return identity.Record{Pools: []identity.PoolEntry{{ID: "x9z9", Label: "Client"}, {ID: "k3f9"}}}
+	})
+	tests := []struct{ id, want string }{
+		{id: "Q7MT", want: "Acme"},
+		{id: "x9z9", want: "Client"},
+		{id: "k3f9", want: "k3f9"},
+		{id: "h4w2", want: "h4w2"},
+	}
+	for _, tt := range tests {
+		if got := label(tt.id); got != tt.want {
+			t.Errorf("label(%s) = %q, want %q", tt.id, got, tt.want)
+		}
+	}
+	if read != 3 {
+		t.Errorf("the record was read %d times, want 3: never for a pool the config configures", read)
 	}
 }
