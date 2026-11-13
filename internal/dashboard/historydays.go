@@ -115,7 +115,9 @@ func (f Frame) daysStrips(c *canvas, l daysLayout) {
 // it; narrow, its count beside it, as historyBeside has it.
 func (f Frame) daysAccount(c *canvas, l daysLayout, y int, s views.DaysStrip) {
 	if !s.Other {
-		named := func(room int) line { return historyAccount(labelled(s.Label, s.Of), s.Primary, room) }
+		named := func(room int) line {
+			return historyAccount(labelled(s.Label, s.Of), s.Primary, room, markedCells(l.row.labels.Size, 0))
+		}
 		if l.narrow {
 			named = func(room int) line { return historyBeside(labelled(s.Label, s.Of), s.Primary, room) }
 		}

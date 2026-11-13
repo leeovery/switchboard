@@ -26,6 +26,18 @@ const (
 	labelMost  = 24
 )
 
+// marksApart are the cells between a column of names' marks and what
+// follows the column.
+const marksApart = 1
+
+// markedCells are the cells a name takes, drawn from cell from of a column
+// of names column cells wide, gap included, what follows at its end: those
+// to what follows less marksApart, so every column's marks end a cell
+// before what follows it, wherever its names start.
+func markedCells(column, from int) int {
+	return column - from - marksApart
+}
+
 // labelsLeast is the least of a column of names of the natural given:
 // labelLeast, or its natural where that's fewer, so a column of short names
 // narrows only as far as them.

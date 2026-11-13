@@ -89,7 +89,7 @@ func TestTurnedCompareScrollsByRows(t *testing.T) {
 		want   map[int]string
 	}{
 		{name: "at the top", want: map[int]string{9: "WEEK USED", 11: " work        ██████▊    ┃       ╎  34%", 29: "▼ 17 more below · j/k"}},
-		{name: "part-way", scroll: 4, want: map[int]string{9: " personal ◆  █████████████┃        66%", 29: "▲ 4 more above · ▼ 13 more below · j/k"}},
+		{name: "part-way", scroll: 4, want: map[int]string{9: " personal  ◆ █████████████┃        66%", 29: "▲ 4 more above · ▼ 13 more below · j/k"}},
 		{name: "past the foot, as far as it goes", scroll: 40, want: map[int]string{28: " all         $600/mo      $635         4.6×", 29: "▲ 17 more above · j/k"}},
 	}
 	for _, tt := range tests {
@@ -125,7 +125,7 @@ func TestTurnedCompareDrawsWEEKUSEDAloneTillItsDaysAreRead(t *testing.T) {
 	f := phoneText(t, 52, 48, AccountsCompare, "", nil, nil)
 	f.Accounts.Period = views.AccountsThirtyDays
 	got := rowsFrom(textOf(f.Draw(phoneDoc(), routedAt)), 9)
-	want := []string{"WEEK USED  now", "", " work", "", " personal ◆", "", " side", "", " all"}
+	want := []string{"WEEK USED  now", "", " work", "", " personal  ◆", "", " side", "", " all"}
 	for i, w := range want {
 		if !strings.HasPrefix(got[i], w) {
 			t.Errorf("row %d is %q, want it to start %q", 9+i, got[i], w)

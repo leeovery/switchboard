@@ -11,14 +11,14 @@ c61b mobile         ↓ answering            ●━━━━━━━━━━�
 d28c switchboard    ↑ asking     ▸ work    ●━━━━━━━━┓  ┃  ┃  ┃
 7f3a api            ↓ answering  ▸ work    ●━━━━━┓  ┃  ┃  ┃  ┃
 db8a infra          idle 50s     ▸ work    ●━━┓  ┃  ┃  ┃  ┃  ┃
-                                              ┃  ┃  ┃  ┃  ┃  ┗━━◉ personal   ◆  ● open
+                                              ┃  ┃  ┃  ┃  ┃  ┗━━◉ personal    ◆ ● open
                                               ┃  ┃  ┃  ┃  ┗━━━━━◉  Week            ┃    66%  out ~Sat
                                               ┃  ┃  ┃  ┃        ○
                                               ┃  ┃  ┃  ┃        ○  5-hour        ▏ ┃    39%  34%/h · 16:30
                                               ┃  ┃  ┃  ┃
                                               ┃  ┃  ┃  ┃
                                               ┃  ┃  ┃  ┃
-                                              ┃  ┃  ┃  ┗━━━━━━━━◉ side       ▲  ● open · next
+                                              ┃  ┃  ┃  ┗━━━━━━━━◉ side        ▲ ● open · next
                                               ┃  ┃  ┗━━━━━━━━━━━◉  Week           ┃ ▎   78%  out ~Fri
                                               ┃  ┗━━━━━━━━━━━━━━◉
                                               ┗━━━━━━━━━━━━━━━━━◉  5-hour      ┃        13%  21%/h · 18:50

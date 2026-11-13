@@ -1079,12 +1079,12 @@ func TestDetailsListFitsItsNameColumnToTheNames(t *testing.T) {
 		names        int
 		listed, head string
 	}{
-		{name: "the frames' names", width: 160, names: 14, listed: "personal   ◆", head: "personal ◆"},
-		{name: "a long name, room to spare", width: 200, label: long, names: 20, listed: "personal-account ◆", head: "personal-account ◆"},
-		{name: "a long name, 4 cells past the panel's natural", width: 145, label: long, names: 18, listed: "personal-acco… ◆", head: "personal-account ◆"},
-		{name: "a long name, the panel at its natural", width: 141, label: long, names: 14, listed: "personal-… ◆", head: "personal-account ◆"},
-		{name: "a long name, the cells the weeks leave", width: 138, label: long, names: 16, listed: "personal-ac… ◆", head: "personal-account ◆"},
-		{name: "a name past the most", width: 200, label: longest, names: 24, listed: "personal-account-of… ◆", head: longest + " ◆"},
+		{name: "the frames' names", width: 160, names: 14, listed: "personal    ◆", head: "personal ◆"},
+		{name: "a long name, room to spare", width: 200, label: long, names: 20, listed: "personal-account  ◆", head: "personal-account ◆"},
+		{name: "a long name, 4 cells past the panel's natural", width: 145, label: long, names: 18, listed: "personal-acco…  ◆", head: "personal-account ◆"},
+		{name: "a long name, the panel at its natural", width: 141, label: long, names: 14, listed: "personal-…  ◆", head: "personal-account ◆"},
+		{name: "a long name, the cells the weeks leave", width: 138, label: long, names: 16, listed: "personal-ac…  ◆", head: "personal-account ◆"},
+		{name: "a name past the most", width: 200, label: longest, names: 24, listed: "personal-account-of…  ◆", head: longest + " ◆"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

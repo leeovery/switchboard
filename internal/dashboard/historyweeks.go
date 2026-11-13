@@ -452,13 +452,24 @@ func (w weeksDrawn) firstShown() int {
 	return len(w.page.Weeks) - len(w.laid.weeks)
 }
 
-// nameCells are the cells an account's name is drawn in: the label column's
-// less nameGap; or where no week shows, the row's, to the edge.
-func (w weeksDrawn) nameCells() int {
+// labelRoom are the cells a row's label has, an account's ◆ among them: the
+// label column's less nameGap; or where no week shows, the row's, to the
+// edge.
+func (w weeksDrawn) labelRoom() int {
 	if len(w.laid.weeks) == 0 {
 		return max(w.edge, 0)
 	}
 	return min(w.laid.labels.Size-nameGap, max(w.edge, 0))
+}
+
+// namedCells are the cells an account's name and its ◆ are drawn in: the
+// label column's, as markedCells has them; or where no week shows, the
+// row's, to the edge.
+func (w weeksDrawn) namedCells() int {
+	if len(w.laid.weeks) == 0 {
+		return max(w.edge, 0)
+	}
+	return min(markedCells(w.laid.labels.Size, 0), max(w.edge, 0))
 }
 
 // put draws the parts from x along row y, cut as fitParts cuts them to end
@@ -779,13 +790,13 @@ func (w weeksDrawn) named(id string) string {
 // name is an account's name and mark at the start of its row, cut to the
 // cells names are drawn in.
 func (w weeksDrawn) name(row views.WeeksRow) line {
-	return historyAccount(w.named(row.Account), row.Primary, w.nameCells())
+	return historyAccount(w.named(row.Account), row.Primary, w.labelRoom(), w.namedCells())
 }
 
 // everyAccount names every account's row, or block, bold text.secondary,
 // cut to the cells names are drawn in.
 func (w weeksDrawn) everyAccount() line {
-	return line{{everyAccount, strongInk}}.fit(w.nameCells())
+	return line{{everyAccount, strongInk}}.fit(w.labelRoom())
 }
 
 // weekHeads draws the first days of the weeks shown along row y, each

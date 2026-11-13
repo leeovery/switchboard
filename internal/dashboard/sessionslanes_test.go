@@ -103,7 +103,7 @@ func TestALanesNameRowSaysWhetherThePinNamesItOrLeavesItOut(t *testing.T) {
 	work := endsWith("work          ● at its cap", "✕ out of the pool", f.Width)
 	for _, want := range []string{
 		work,
-		endsWith("personal ◆ ▲  ● open · next", "● pinned", f.Width),
+		endsWith("personal  ◆ ▲ ● open · next", "● pinned", f.Width),
 		endsWith("side          ● open", "● pinned", f.Width),
 	} {
 		if !slices.Contains(rows, want) {
@@ -138,7 +138,7 @@ func TestALanesPinMarkGivesWayToItsFirstWords(t *testing.T) {
 	doc := usageWorld(extraOff, usagePinned("personal", "side"))
 	f := lanesFrame(44, 33, Look{}, phoneScene())
 	rows := lanesText(f, doc)
-	for _, want := range []string{"work          ● at its cap · 17:10", endsWith("personal ◆ ▲  ● open · next", "● pinned", f.Width)} {
+	for _, want := range []string{"work          ● at its cap · 17:10", endsWith("personal  ◆ ▲ ● open · next", "● pinned", f.Width)} {
 		if !slices.Contains(rows, want) {
 			t.Errorf("no row reads %q; drew\n%s", want, strings.Join(rows, "\n"))
 		}
@@ -234,7 +234,7 @@ func TestWithOneAccountTheLaneStandsAlone(t *testing.T) {
 	top := f.top()
 	// Each row starts as given, the windows' rows' bars and words held by the
 	// test of a lane's stacked windows.
-	want := []string{"work ▲  ● at its cap · 17:10", " Week ", "", " 5-hour ", "", " Fable wk ", "", fmt.Sprintf("%-33sidle 1m", "  c61b mobile")}
+	want := []string{"work  ▲ ● at its cap · 17:10", " Week ", "", " 5-hour ", "", " Fable wk ", "", fmt.Sprintf("%-33sidle 1m", "  c61b mobile")}
 	for i, w := range want {
 		if got := rows[top+i]; !strings.HasPrefix(got, w) || w == "" && got != "" {
 			t.Errorf("row %d reads %q, want it to start %q; drew\n%s", top+i+1, got, w, strings.Join(rows, "\n"))
@@ -264,7 +264,7 @@ func TestWithNoSessionRunningTheLanesSaySo(t *testing.T) {
 	for _, want := range []struct {
 		y    int
 		says string
-	}{{top + 2, ""}, {top + 4, ""}, {top + 5, ""}, {top + 6, "personal   ◆"}, {top + 8, ""}, {top + 9, ""}, {top + 10, "side       ▲"}} {
+	}{{top + 2, ""}, {top + 4, ""}, {top + 5, ""}, {top + 6, "personal    ◆"}, {top + 8, ""}, {top + 9, ""}, {top + 10, "side        ▲"}} {
 		if got := rows[want.y]; !strings.HasPrefix(got, want.says) || want.says == "" && got != "" {
 			t.Errorf("row %d reads %q, want it to start %q", want.y+1, got, want.says)
 		}
@@ -373,8 +373,8 @@ func TestLanesScrollARowAtATimeWhereALaneDoesntFit(t *testing.T) {
 		over      string
 	}{
 		{offset: 0, scrolling: Scrolling{Most: 8, Page: 6}, first: "work          ● at its cap · 17:10", over: "▼ 8 more below"},
-		{offset: 3, scrolling: Scrolling{Most: 8, Page: 5}, first: "personal   ◆  ● open", over: "▲ 3 more above · ▼ 6 more below"},
-		{offset: 8, scrolling: Scrolling{Most: 8, Page: 6}, first: "side       ▲  ● open · next", over: "▲ 8 more above"},
+		{offset: 3, scrolling: Scrolling{Most: 8, Page: 5}, first: "personal    ◆ ● open", over: "▲ 3 more above · ▼ 6 more below"},
+		{offset: 8, scrolling: Scrolling{Most: 8, Page: 6}, first: "side        ▲ ● open · next", over: "▲ 8 more above"},
 	}
 	seen := make(map[string]bool)
 	for _, tt := range tests {
@@ -599,7 +599,7 @@ func TestALanesLabelIsWholeWhereItFits(t *testing.T) {
 	doc := usageWorld(extraOff, func(d *status.Document) {
 		d.Accounts[0].Label, d.Accounts[1].Label, d.Accounts[2].Label = "work-team-plan", "research", "side-hustle-consulting"
 	})
-	headings := []string{"work-team-plan", fmt.Sprintf("%-22s ◆", "research"), "side-hustle-consulting ▲"}
+	headings := []string{"work-team-plan", fmt.Sprintf("%-23s ◆", "research"), "side-hustle-consulting  ▲"}
 	for _, width := range []int{52, 73, 99} {
 		rows := lanesText(lanesFrame(width, 61, Look{}, phoneScene()), doc)
 		for _, h := range headings {
@@ -614,7 +614,7 @@ func TestALanesLabelIsWholeWhereItFits(t *testing.T) {
 		}
 	}
 	rows := lanesText(lanesFrame(40, 61, Look{}, phoneScene()), doc)
-	if !slices.ContainsFunc(rows, func(r string) bool { return strings.HasPrefix(r, "side-hustle-consult… ▲") }) {
+	if !slices.ContainsFunc(rows, func(r string) bool { return strings.HasPrefix(r, "side-hustle-consult…  ▲") }) {
 		t.Errorf("at 40 columns, side-hustle-consulting isn't cut to leave its state room:\n%s", strings.Join(rows, "\n"))
 	}
 }
