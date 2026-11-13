@@ -1059,9 +1059,10 @@ totals.
   again at each read, the pages drawn from the router's document stay empty, it reads none of the
   router's events, it lists no accounts, and `P` turns to the first pool. The accounts it lists,
   on Accounts, History and Graphs, are the pool shown's alone (`status.PoolAccounts`), none with
-  no pool shown. The Log tells of the pool shown alone, its requests, each day's figures and its
-  find read through the pool's read, as the verbs read a pool's, each day's rows naming their
-  lines' pools (see The Log's In a pool, and The request ledger's Rows a day). What it builds from
+  no pool shown. The Log tells of the pool shown alone, one pool among them, its requests, each
+  day's figures and its find read through the pool's read, by its id, as the verbs read a pool's,
+  each day's rows naming their lines' pools (see The Log's In a pool, and The request ledger's
+  Rows a day). What it builds from
   the day digests, Sessions, a session's page, History, Graphs and the worth and tokens on
   Accounts, still tells of every pool (see Building it). No page adds pools together: a pool's
   room can never serve another pool's sessions, so a merged view has nothing to add up. A page
@@ -6646,23 +6647,30 @@ one:
   tells of. While the Requests show, the days that add nothing to them come in one read, those the
   summaries rule out unread: so the find's pick, reading back through its session's filter, lands
   in one read, however far back (settled in the plan, 20 October 2026).
-- **In a pool:** where the dashboard shows one pool of several, the Log reads the pool's work
-  alone, through the pool's read, `views.PoolRead`, as the verbs read a pool's (see Pools, Reading
-  a pool), by the ledger's one rule of which pool a line is of, `ledger.RecordedIn`: the pool it
-  recorded, the first pool's where it named none. Of today's lines, it takes the pool's; of a past
-  day, it reads only the chunks whose meta names a pool the read keeps, as a filter's read reads
-  those that may keep a line, and holds the pool's rows alone, or the pool's lines where the day
-  reads raw; each day's figures, how far back a filter's lines reach, and the days the find goes
-  back through, are of the pool's summaries; and the find's sessions of a day are read from its
-  side where each session's lines are all of the pool or none of it, else of the day's lines, as
-  where an account moved pool partway through the day, as a side holds each session's pools, not
-  its lines in each. `P` reads the next pool's afresh, as it starts the view afresh. With one pool,
-  and no other the accounts record keeps, it reads every pool's, as before pools, no row's pool
-  read; with no pool shown, none. Two pools' requests share a day's chunks as they interleave, so
-  a pool's day back restores most of them all the same: on the busy world, 5,000 requests a day, a
+- **In a pool:** wherever the config has pools, one among them, the Log reads the work of the pool
+  the dashboard shows alone, by its id, through the pool's read, `views.PoolRead`, as the verbs
+  read a pool's (see Pools, Reading a pool), so a pool added while the dashboard is open never
+  shows in the one it shows. Which pool a line is of is the ledger's one rule, `ledger.RecordedIn`:
+  the pool it recorded, the first pool's where it named none, pool ids compared as the config
+  compares them, ignoring case (`config.SamePool`), as everywhere they're compared. Of today's
+  lines, it takes the pool's; of a past day read through no filter, it passes over one the
+  summaries the ledger holds of it and the days beside it whose files may hold its lines rule
+  out, none telling of the pool's work, summarising none from its lines to tell, as a day not
+  summarised yet, and today's, aren't; else it reads only the chunks whose meta names a pool the
+  read keeps, as a filter's read reads those that may keep a line, and holds the pool's rows
+  alone, or the pool's lines where the day reads raw; each day's figures, how far back a filter's
+  lines reach, and the days the find goes back through, are of the pool's summaries; and the
+  find's sessions of a day are read from its side where each session's lines are all of the pool
+  or none of it, else of the day's lines, as a side holds each session's pools, not its lines in
+  each: as where a session is resumed in another pool once its directory's fence changes, or its
+  lines naming none sit beside lines naming a pool other than the first. `P` reads the next
+  pool's afresh, as it starts the view afresh. A config without pools reads every pool's; with
+  no pool shown, none. Two pools' requests share a day's chunks as they interleave, so a pool's
+  day back restores most of them all the same: on the busy world, 5,000 requests a day, a
   client's pool a fifth of them, the Log opens in some 70 ms on the client's pool and 115 ms on
   the other, against 125 ms reading every pool's, and reads a day back in some 76 and 83 ms against
-  83 (13 November 2026, race detector off).
+  83 (13 November 2026, race detector off). Of one pool, read by its id, it opens in some 128 ms
+  against 127 reading every pool's, and reads a day back in some 88 ms against 85.
 - **Serving the filter:** the read serves the Requests' filter while they show, and every line while
   the Events show, as an event's card reads the lines held and a move row its session's story; a day
   read back while the Events show is read whole. A day held through one filter serves another where
@@ -8776,12 +8784,12 @@ from the first day a router that has it runs, so nothing before then is in it.
   the router writes the day's head beside its digest, `logday-<local date>.json.gz`, holding the
   day's side: each session the day's lines count toward, but Claude Code's quota checks, with its
   whole id, the directory its lines last named, how many they are and when the last arrived, as
-  the find holds it, and the pools they recorded, none where they named none, for a pool's find
-  (see The Log's In a pool); and where the day's rows lie in its rows file (below). It's built of
-  exactly the lines the Log reads of the day, in their order, by the one read of a day's lines
-  both share, the day's own files and those either side of it, as a change of time zone files a
-  line under a date beside its own, every line handed to the views' builder through the same
-  `ledger.Digester` seam, the side its JSON and each chunk of rows its JSON lines, which the
+  the find holds it, and the pools they recorded, for a pool's find, left out where they named
+  none (see The Log's In a pool); and where the day's rows lie in its rows file (below). It's
+  built of exactly the lines the Log reads of the day, in their order, by the one read of a day's
+  lines both share, the day's own files and those either side of it, as a change of time zone
+  files a line under a date beside its own, every line handed to the views' builder through the
+  same `ledger.Digester` seam, the side its JSON and each chunk of rows its JSON lines, which the
   ledger carries as they're given and never reads.
   - **Its head says what it was built from,** as a digest's does: the version of its envelope, the
     ledger's, 3, and of its side and rows, the views' (`views.RowsVersion`, 4); its day, and the
@@ -8841,12 +8849,14 @@ from the first day a router that has it runs, so nothing before then is in it.
     a parts file holds its parts, so a chunk reads alone. The head holds each chunk's place, its
     offset, length and CRC, how many rows it holds, and its meta: when its first and last rows
     arrived; how many it holds of each kind, requests, checks and counts, and how many failed; and
-    how many of them each session, model, account and pool counts, a row naming no pool counted
-    under none, each row counted as it's held, so a line given twice counts twice, where the Log's
-    counts take one with an id once. A meta is read for presence alone, whether its chunk may hold
-    a line wanted, never summed: so its counting a line given twice twice never skips a chunk
-    wrongly. A turn reads its sessions and its span; a filter its sessions, models, accounts and
-    failures; a pool's read its pools; its kinds are read by none.
+    how many of them each session, model and account counts, each row counted as it's held, so a
+    line given twice counts twice, where the Log's counts take one with an id once; and the pools
+    its rows recorded, none of a row naming none, left out where that's the only one, so a head is
+    as it was where no line names a pool, as in a config without pools. A meta is read for
+    presence alone, whether its chunk may hold a line wanted, never summed: so its counting a line
+    given twice twice never skips a chunk wrongly. A turn reads its sessions and its span; a filter
+    its sessions, models, accounts and failures; a pool's read its pools; its kinds are read by
+    none.
   - **When they stand,** for the Log, a turn and the writer alike, by one rule in
     `internal/ledger`: the head stands, as above; it counts a row of each line it was built of; and
     the rows file is as long as the head records, looked at, never read. Each chunk is held to its
@@ -8861,16 +8871,17 @@ from the first day a router that has it runs, so nothing before then is in it.
     `views.ReadDay`, a day's rows being exactly its lines' records in the Log's order, so the table
     is the same either way. Through a filter, it reads first the summaries of the day and the days
     either side of it, of the pool's work alone where it reads a pool's, and none of the day where
-    none may hold a line the filter keeps; else its head, and only the chunks whose meta may keep
-    one, every chunk where the filter keeps every line (see The Log's Where it reads); and of a
-    pool's read, only those whose meta names a pool it keeps besides, holding its rows alone (see
-    The Log's In a pool). A turn opened reads, of each of its own days before the day its horizon
-    falls on, only the chunks whose meta names its session and whose span meets the turn's (see
-    Live updates). The two share one choice of a day's chunks by their metas. The
-    views' guard holds the Log's table and each row's details read from rows, read through filters
-    and read again through their join, and a turn opened over them, to the same read raw, at each
-    hard moment of a day's turning, a chunk damaged, a rows file gone or of another length, and a
-    head of another version or zone among them.
+    none may hold a line the filter keeps; through none, a pool's read reads first those the ledger
+    holds that stand, and none of the day where they tell of none of the pool's work; else its
+    head, and only the chunks whose meta may keep one, every chunk where the filter keeps every
+    line (see The Log's Where it reads); and of a pool's read, only those whose meta names a pool
+    it keeps besides, holding its rows alone (see The Log's In a pool). A turn opened reads, of
+    each of its own days before the day its horizon falls on, only the chunks whose meta names its
+    session and whose span meets the turn's (see Live updates). The two share one choice of a
+    day's chunks by their metas. The views' guard holds the Log's table and each row's details
+    read from rows, read through filters and read again through their join, and a turn opened over
+    them, to the same read raw, at each hard moment of a day's turning, a chunk damaged, a rows
+    file gone or of another length, and a head of another version or zone among them.
   - **What stays raw:** today; yesterday until its head stands, as in the hour or so after
     midnight; a day read again whole for a line it awaits, as of a request sent before midnight;
     and a day whose head or rows don't stand, as where they're missing, outdated, damaged or built
