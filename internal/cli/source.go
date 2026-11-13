@@ -279,8 +279,13 @@ type probeSource struct {
 }
 
 // hasPools reports whether the config, as its pools stand, as pooled gives
-// it, has pools: none where they can't be told, as probing them then fails.
+// it, has pools: none where they can't be told, as probing them then fails,
+// nor where there's no config to probe by, as of a source reading the router
+// alone where the config can't be read.
 func (s probeSource) hasPools() bool {
+	if s.pooled == nil {
+		return false
+	}
 	cfg, err := s.pooled()
 	return err == nil && len(cfg.Pools) > 0
 }

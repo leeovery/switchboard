@@ -10,6 +10,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/quota"
+	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -46,6 +47,9 @@ func TestStatusWorksOutWhatARouterFromBeforeDoesntGive(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			srv := newServeSetup(t, "http://127.0.0.1:1", nil)
 			serveRouter(t, srv.socket(), new(atomic.Int64), map[string]http.HandlerFunc{
+				"GET /health": func(w http.ResponseWriter, _ *http.Request) {
+					_ = json.NewEncoder(w).Encode(router.Health{OK: true, ReportsPools: true})
+				},
 				"GET /status": func(w http.ResponseWriter, _ *http.Request) { _ = json.NewEncoder(w).Encode(tt.doc) },
 			})
 			if got := statusJSON(t, srv.deps); !reflect.DeepEqual(got, want) {

@@ -25,7 +25,7 @@ func TestASourceInAPoolReadsTheRoutersDocumentSessionsHistoryAndStreamOfIt(t *te
 		mu.Lock()
 		asked[req.URL.Path] = req.URL.Query().Get(router.PoolQuery)
 		mu.Unlock()
-		_, _ = io.WriteString(w, map[string]string{"/sessions": "[]", "/history": "{}", "/status": "{}", "/health": `{"ok": true}`}[req.URL.Path])
+		_, _ = io.WriteString(w, map[string]string{"/sessions": "[]", "/history": "{}", "/status": "{}", "/health": `{"ok": true, "reports_pools": true}`}[req.URL.Path])
 	}))
 
 	source := usageSource{ask: true, router: client}.inPool("q7mt")
@@ -80,7 +80,7 @@ func serveControl(t *testing.T, handler http.Handler) *router.Client {
 func TestARouterRefusingForWantOfAPoolIsNeverReadAsOneDown(t *testing.T) {
 	refusing := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		if req.URL.Path == "/health" {
-			_, _ = io.WriteString(w, `{"ok": true}`)
+			_, _ = io.WriteString(w, `{"ok": true, "reports_pools": true}`)
 			return
 		}
 		w.WriteHeader(http.StatusBadRequest)
