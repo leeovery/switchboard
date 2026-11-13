@@ -4924,11 +4924,15 @@ request ledger).
   |---|---|---|
   | Room | `█` | The ramp's first stop |
   | Room, but it runs out at its pace before its window resets | `█` | `accent.attention` |
-  | At its cap | `─` | `accent.attention` |
-  | At its limit | `─` | `state.destructive` |
-  | Its token refused, from the refusal to its until | `─` | `state.destructive` |
+  | At its cap | `━` | `accent.attention` |
+  | At its limit | `━` | `state.destructive` |
+  | Its token refused, from the refusal to its until | `━` | `state.destructive` |
 
-  Room fills its cell whole, as `usage`'s bars do, so a held column's `─` meets it at its middle
+  A column where the account can't take sessions is the heavy `━`, so it holds its own beside the
+  full-height bars, recorded or forecast alike: through the past where it was out, and the tail
+  after its bar up to the reset (the owner's call, 13 November 2026). Every column of a lane,
+  bar or line, starts at the lanes' first, so its lines start where its bars do.
+  Room fills its cell whole, as `usage`'s bars do, so a held column's `━` meets it at its middle
   and a reset's `│` at its top and bottom, where the frames draw `▆`, the lower three quarters of a
   cell. Every window that every model shares counts, the 5-hour among them. `│` in `text.subtle`
   marks where each account's week resets, on now's column or after it. An account without a usable token has no room all along, and one not read
@@ -5014,8 +5018,8 @@ blank row; with two, on the row after its words.
   90%; the past dimmed. An account at its cap or its limit counts without room; one running out at
   its pace has room until it does. A column where none has room, the pool at its limit, is `▂`, a
   quarter-cell, in `state.destructive` along its lower row, so it steps down from a half-cell column
-  beside it, where a lane's `─` would sit level with its top; the past dimmed alike (the owner's
-  call, 21 October 2026). The accounts' lanes keep `─`. So `▂` on the floor means the limit alone,
+  beside it, where a lane's `━` would sit level with its top; the past dimmed alike (the owner's
+  call, 21 October 2026). The accounts' lanes keep `━`. So `▂` on the floor means the limit alone,
   a column where any has room fills three eighths at the least, `▃`, however small its share, as
   one of ten. A column where no account's state is known is blank.
 - **`Σ pool`** on its first row, as an account's name heads its lane: `Σ` in `text.subtle` at the
@@ -5032,8 +5036,8 @@ blank row; with two, on the row after its words.
 
 **The legend,** at the foot, its last row directly over the key line, from column 0 (the owner's
 call, 21 October 2026), keys only what the view draws, four spaces apart: `█` and ` room`; `█` in
-`accent.attention` and ` room, but it runs out at its pace`; `─` in `accent.attention` and
-` at its cap`; `─` in `state.destructive` and ` at its limit`; where the pool's lane draws one,
+`accent.attention` and ` room, but it runs out at its pace`; `━` in `accent.attention` and
+` at its cap`; `━` in `state.destructive` and ` at its limit`; where the pool's lane draws one,
 `▂` in `state.destructive` and ` the pool at its limit`; and `│` and ` its week resets`; each
 glyph in its colour, its words in `text.muted`. Four spaces on, in `text.subtle`, a column's length
 and what's dimmed: `a column ≈ 69 minutes · the past dimmed` at 160; stepped back to a week gone,

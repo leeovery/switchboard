@@ -8,13 +8,13 @@ RUNWAY  ────────────────────────
                    Thu          Fri           Sat          Sun          Mon           Tue          Wed
               ─╵───┬──╵──╵───╵──┬───╵──╵──╵───┬──╵──╵───╵──┬──╵───╵──╵──┬───╵──╵───╵──┬──╵───╵──╵──┬───╵──╵─
 
-work          ─████████████──████████████████████████████──────────────│████████████████████████████████████
+work          ━████████████━━████████████████████████████━━━━━━━━━━━━━━│████████████████████████████████████
   week 34%                 capped 14:31  ·  back 17:10  caps ~Sat  ·  resets Sun 21:00
 
-personal    ◆ ███──██████████████████████████████───────────│███████████████████████████████████████████████
+personal    ◆ ███━━██████████████████████████████━━━━━━━━━━━│███████████████████████████████████████████████
   week 66%                                       out ~Sat  ·  resets Sun 02:00
 
-side        ▲ ████████████████████████████────────────────────────────────────│█████████████████████████████
+side        ▲ ████████████████████████████━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━│█████████████████████████████
   week 78%                               out ~Fri  ·  resets Mon 10:00
 
 Σ pool        ▃  ▃▃        ▃▃             ▃▃▃▃▃▃▃                      ▃▃▃▃▃▃▃▃
@@ -38,7 +38,7 @@ Wed 23:58  personal open again: its 5-hour window reset      14h 43m ago
 Wed 21:40  side under pressure: out ~Wed 23:50               17h 02m ago
 Wed 19:12  personal at its limit: 1 moved to side            19h 29m ago
 
-█ room    █ room, but it runs out at its pace    ─ at its cap    ─ at its limit    ▂ the pool at its limit
+█ room    █ room, but it runs out at its pace    ━ at its cap    ━ at its limit    ▂ the pool at its limit
 │ its week resets
 a column ≈ 107 minutes · the past dimmed
 tab views   ←→ week    a collapse    p pin    ? help  q quit
