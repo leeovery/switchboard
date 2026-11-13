@@ -115,27 +115,57 @@ func TestCheckPoolRefusesAsTheConfigsRulesDo(t *testing.T) {
 // acmePool is a second pool, Acme, fenced to /Code/acme, with no account.
 const acmePool = "[[pool]]\nid    = \"q7mt\"\nlabel = \"Acme\"\ndirs  = [\"/Code/acme\"]\n"
 
-// The add card's pool, chosen or new, refused before any token's made is a
-// Refused of Pool: one config no longer has, or a new pool its rules refuse.
-func TestCheckAddingRefusesThePoolChosen(t *testing.T) {
+// The pool chosen, or new, on the add card or the edit card, refused is a
+// Refused of Pool: one config no longer has, or a new pool its rules refuse,
+// its label among them, though config refuses it as it would an account's.
+func TestThePoolChosenRefusedIsARefusedOfPool(t *testing.T) {
 	tests := []struct {
-		name   string
-		adding setup.Adding
-		why    string
+		name    string
+		pool    string
+		newPool *accounts.NewPool
+		why     string
 	}{
-		{name: "a pool not configured", adding: setup.Adding{Label: "Spare", Plan: "pro", Pool: "z9z9"}, why: `pool "z9z9" is not configured`},
-		{name: "a new pool refused", adding: setup.Adding{Label: "Spare", Plan: "pro", NewPool: &accounts.NewPool{Label: "Default", Dirs: []string{"/Code/spare"}}}, why: `"Default" is Default (b2n8)'s label already, ignoring case: give the pool its own`},
+		{name: "a pool not configured", pool: "z9z9", why: `pool "z9z9" is not configured`},
+		{name: "a new pool's label another's", newPool: &accounts.NewPool{Label: "Default", Dirs: []string{"/Code/spare"}}, why: `"Default" is Default (b2n8)'s label already, ignoring case: give the pool its own`},
+		{name: "a new pool's label config refuses", newPool: &accounts.NewPool{Label: "Acme\tLtd", Dirs: []string{"/Code/spare"}}, why: "holds a control character, such as a newline or a tab, which can't show"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			w := newWorld(t)
 			w.writeConfig(t, doneInPools(defaultPool))
-			_, err := w.setup(t).CheckAdding(tt.adding)
-			if refused, ok := errors.AsType[*setup.Refused](err); !ok || refused.Field != setup.PoolField || refused.Why != tt.why {
-				t.Errorf("CheckAdding() error = %v, want a Refused of Pool saying %q", err, tt.why)
+			s := w.setup(t)
+			var pool *string
+			if tt.pool != "" {
+				pool = &tt.pool
+			}
+
+			for name, err := range map[string]error{
+				"CheckAdding": second(s.CheckAdding(setup.Adding{Label: "Spare", Plan: "pro", Pool: tt.pool, NewPool: tt.newPool})),
+				"EditAccount": second(s.EditAccount("side", setup.Edit{Pool: pool, NewPool: tt.newPool})),
+			} {
+				if refused, ok := errors.AsType[*setup.Refused](err); !ok || refused.Field != setup.PoolField || refused.Why != tt.why {
+					t.Errorf("%s() error = %v (%+v), want a Refused of Pool saying %q", name, err, refused, tt.why)
+				}
 			}
 		})
 	}
+}
+
+// An account edited that's no longer configured fails the edit, as no field
+// of the card can put it right.
+func TestEditAccountOfAnAccountNoLongerConfiguredIsNoRefusal(t *testing.T) {
+	w := newWorld(t)
+	w.writeConfig(t, doneInPools(defaultPool))
+
+	_, err := w.setup(t).EditAccount("gone", setup.Edit{Pool: new("b2n8")})
+	if _, refused := errors.AsType[*setup.Refused](err); refused || !errors.Is(err, config.ErrNotConfigured) {
+		t.Errorf("EditAccount() error = %v, want it not configured, no Refused", err)
+	}
+}
+
+// second is the error of a call that returns a value and an error.
+func second[V any](_ V, err error) error {
+	return err
 }
 
 // Editing an account moves it into the pool chosen, or a new pool made for

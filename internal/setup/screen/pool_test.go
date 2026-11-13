@@ -221,6 +221,14 @@ func TestTheNewPoolCardSaysWhyAPoolIsRefused(t *testing.T) {
 	if strings.Contains(strings.Join(cardRows(h), "\n"), "is inside Acme's") {
 		t.Errorf("changed, the directory's refusal is still said")
 	}
+
+	steps.poolErr = &setup.Refused{Field: setup.DirsField, Dir: 5, Why: "overlaps another pool's"}
+	h.pressAndDeliver("enter")
+	rows = cardRows(h)
+	at = slices.IndexFunc(rows, func(r string) bool { return strings.HasPrefix(strings.TrimSpace(r), "Directory") })
+	if at < 0 || !strings.Contains(rows[at+1], "overlaps another pool's") {
+		t.Errorf("the card reads\n%s\nwant why under the first directory, the one refused not among them", strings.Join(rows, "\n"))
+	}
 }
 
 // The edit card has a Pool once there's a second pool, its hint saying a

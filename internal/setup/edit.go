@@ -125,9 +125,9 @@ func (r *Refused) Unwrap() error {
 // accounts.Registry.Edit, as accounts edit does, and says what it changed:
 // its plan read as config.ParsePlan reads it, and its reserve as
 // config.ParseReserve does, none, or left empty, being none. It fails with a
-// Refused where the label, the plan, the new pool or the reserve is
-// refused, as refusedLabel has a label's and refusedPool a new pool's, and
-// as Registry.Edit does otherwise.
+// Refused where the label, the plan, the pool chosen, the new pool or the
+// reserve is refused, as refusedAccount has a label's and a pool's, and as
+// Registry.Edit does otherwise, as where the account is no longer configured.
 func (s *Setup) EditAccount(id string, edit Edit) (accounts.Edited, error) {
 	change := accounts.Change{Label: edit.Label, Pool: edit.Pool, NewPool: edit.NewPool, Primary: edit.Primary}
 	if edit.Plan != nil {
@@ -146,7 +146,7 @@ func (s *Setup) EditAccount(id string, edit Edit) (accounts.Edited, error) {
 	}
 	edited, err := s.Accounts.Edit(id, change)
 	if err != nil {
-		return accounts.Edited{}, refusedLabel(chosenPoolRefused(err))
+		return accounts.Edited{}, refusedAccount(err)
 	}
 	return edited, nil
 }

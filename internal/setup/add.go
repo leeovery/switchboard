@@ -26,7 +26,7 @@ type Adding struct {
 // checks one, and made with it. It fails with a Refused where the plan isn't
 // one, the label isn't one the account can have, as CheckNew says, or the
 // pool chosen is one config no longer has, or the new pool is refused, said
-// of Pool; with CheckNew's
+// of Pool, as refusedAccount has it; with CheckNew's
 // accounts.PoolNeededError, before any token is made, where every pool is
 // fenced and none is chosen; and as config.Edit does otherwise.
 func (s *Setup) CheckAdding(adding Adding) (accounts.Adding, error) {
@@ -36,11 +36,8 @@ func (s *Setup) CheckAdding(adding Adding) (accounts.Adding, error) {
 	}
 	account := config.NewAccount{Label: adding.Label, Plan: plan, Pool: adding.Pool}
 	checked, err := s.Accounts.CheckNew(accounts.Adding{Account: account, NewPool: adding.NewPool})
-	if errors.Is(err, config.ErrNotConfigured) {
-		return accounts.Adding{}, &Refused{Field: PoolField, Why: err.Error(), err: err}
-	}
 	if err != nil {
-		return accounts.Adding{}, refusedLabel(chosenPoolRefused(err))
+		return accounts.Adding{}, refusedAccount(err)
 	}
 	return checked, nil
 }
@@ -81,6 +78,18 @@ func refusedPool(err error) error {
 	return err
 }
 
+// refusedAccount is err, an account added or edited refused, as a Refused of
+// the field it's of: Pool, where the pool chosen is one config no longer has,
+// or the new pool's refused, as chosenPoolRefused has it; Label, as
+// refusedLabel has it; else err as it is, as where the account edited is no
+// longer configured.
+func refusedAccount(err error) error {
+	if errors.Is(err, config.ErrPoolNotConfigured) {
+		return &Refused{Field: PoolField, Why: err.Error(), err: err}
+	}
+	return refusedLabel(chosenPoolRefused(err))
+}
+
 // chosenPoolRefused is err, of an account added to a pool, or moved into
 // one, as a Refused of its Pool where it's a new pool's refusal, as
 // refusedPool has it; else err as it is.
@@ -94,8 +103,12 @@ func chosenPoolRefused(err error) error {
 // refusedLabel is err, as an account's label is refused: by config, as one
 // no account can have, or as none, or another configured account's, as
 // accounts has them; a Refused of Label, why as config words it alone, or as
-// accounts words it; else err as it is.
+// accounts words it; err as it is where it's a Refused already, as a new
+// pool's label refused is Pool's; else err as it is.
 func refusedLabel(err error) error {
+	if _, ok := errors.AsType[*Refused](err); ok {
+		return err
+	}
 	if wrong, ok := errors.AsType[*config.WrongLabel](err); ok {
 		return &Refused{Field: LabelField, Why: wrong.Why, err: err}
 	}

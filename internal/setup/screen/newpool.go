@@ -183,7 +183,7 @@ func (m Model) poolChecked(msg poolCheckedMsg) (Model, tea.Cmd) {
 	card.checking = false
 	if refused, ok := errors.AsType[*setup.Refused](msg.err); ok {
 		_, at := card.pool()
-		card.refused, card.why = refused.Field, prose.Clean(refused.Why)
+		card.refused, card.why, card.dir = refused.Field, prose.Clean(refused.Why), 0
 		if refused.Field == setup.DirsField && refused.Dir < len(at) {
 			card.dir = at[refused.Dir]
 		}
