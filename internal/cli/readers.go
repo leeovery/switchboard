@@ -85,14 +85,22 @@ func (a *app) stateReadersKnowing(ctx context.Context, cfg *config.Config, first
 	if err := historyMoved(dir); err != nil {
 		return stateReaders{}, err
 	}
-	pools := sync.OnceValue(func() config.Pools { return a.standing(ctx, cfg).Pools })
 	return stateReaders{
-		ledger:   ledger.NewFollower(dir, a.Now, caps(cfg), views.DigestVersion, logger, first(dir, pools)),
+		ledger:   a.followerIn(ctx, dir, cfg, first),
 		readings: readings.NewReader(dir, logger),
 		events:   events.NewReader(dir, a.Now, logger),
 		removed:  removedIn(dir, cfg),
 		dir:      dir,
 	}, nil
+}
+
+// followerIn follows the request ledger in the state directory dir, by the
+// commands' clock, its days summarised with the caps of the accounts cfg
+// configures, knowing the first pool as first has it of cfg's pools as they
+// stand, as standing has them, asked once.
+func (a *app) followerIn(ctx context.Context, dir string, cfg *config.Config, first func(dir string, pools func() config.Pools) ledger.Option) *ledger.Follower {
+	pools := sync.OnceValue(func() config.Pools { return a.standing(ctx, cfg).Pools })
+	return ledger.NewFollower(dir, a.Now, caps(cfg), views.DigestVersion, logger, first(dir, pools))
 }
 
 // removedIn are the accounts removed that the accounts record in the state

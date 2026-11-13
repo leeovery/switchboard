@@ -424,11 +424,11 @@ type Model struct {
 	// poolTurns counts the pools P has turned to, as freshIn has it, for
 	// turns to drop what a command of a pool shown before sends back;
 	// turning is set while a turn is under way, P's or the pool shown read
-	// again; and poolRefused while the router refuses to read the pool shown, as
-	// refusesPool has it.
-	poolTurns   int
-	turning     bool
-	poolRefused bool
+	// again; and refusing is how the router answered while it refuses to
+	// read the pool shown, as refusesPool has it, nil while it doesn't.
+	poolTurns int
+	turning   bool
+	refusing  *status.RouterAnswer
 
 	// shown is what render made of the screen once the last message was
 	// taken in.
@@ -1062,8 +1062,9 @@ func fetchFrom(ctx context.Context, source Source, r status.Read, policy score.P
 // fetched takes in a read: the document to show from now on, or why there's
 // none, and plans the next read by it. A read the router refuses, not
 // knowing the pool shown, as refusesPool has it, isn't a read that failed:
-// the pool routes none, as status's Refused has it, and the router is looked
-// at again as it is once it's found gone. A read that fails notes why, and
+// the router answered, so it's lost no more, and the pool routes none, as
+// status's Refused has it of the router's answer, which the status line
+// says; the router is looked at again as it is once it's found gone. A read that fails notes why, and
 // the router lost, as lose does. Before any document, from a source that asks the
 // router first, as awaitsRouter has it, the status line says the latest
 // read's news either way: a question after the router, or a look at its
@@ -1086,10 +1087,12 @@ func (m Model) fetched(msg fetchedMsg) (tea.Model, tea.Cmd) {
 	m.fetching, m.past.due, m.tail.due, m.runwayTab.due = false, true, true, true
 	var shown tea.Cmd
 	accountsChanged := false
-	m.poolRefused = m.refusesPool(msg.err)
+	m.refusing = nil
 	switch {
-	case m.poolRefused:
-		m.plan, m.failed = m.plan.missed(now), ""
+	case m.refusesPool(msg.err):
+		answer := msg.router.Answer()
+		m.refusing = &answer
+		m.plan, m.failed, m.lost = m.plan.missed(now), "", time.Time{}
 	case errors.Is(msg.err, status.ErrNoRouter):
 		m.plan = m.plan.missed(now)
 		if m.awaitsRouter() {

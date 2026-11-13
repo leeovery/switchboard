@@ -8,6 +8,8 @@ import (
 	"github.com/leeovery/switchboard/internal/dashboard/watch"
 	"github.com/leeovery/switchboard/internal/events"
 	"github.com/leeovery/switchboard/internal/filestate"
+	"github.com/leeovery/switchboard/internal/idmove"
+	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -50,7 +52,9 @@ func (s shownPools) opened(ctx context.Context, cfg *config.Config, named string
 // they stand, so a pool added, removed or changed while it's open shows at
 // the next P, or as the config changes; stamped as the config file stood
 // before it was read, as configStamp has it, so a change as it's read is
-// read again. It fails where the config can't be read, or the pools told.
+// read again; its ledger and the accounts removed as that config has them,
+// as ledgerOf has them. It fails where the config can't be read, or the
+// pools told.
 func (s shownPools) turn(ctx context.Context, from string, ask watch.PoolAsk) (watch.Pooled, error) {
 	stamp := s.a.configStamp()
 	cfg, err := s.a.loadConfig()
@@ -66,8 +70,23 @@ func (s shownPools) turn(ctx context.Context, from string, ask watch.PoolAsk) (w
 		return watch.Pooled{}, err
 	}
 	shown, err := s.shown(ctx, cfg, pooled, named)
+	if err != nil {
+		return watch.Pooled{}, err
+	}
 	shown.Stamp = stamp
-	return shown, err
+	shown.Ledger, shown.Removed = s.ledgerOf(ctx, cfg)
+	return shown, nil
+}
+
+// ledgerOf is the request ledger as the dashboard reads it of the config
+// cfg, its days summarised with the caps of the accounts it configures, and
+// the accounts removed that the accounts record keeps, as removedIn gives
+// them of those: an empty ledger, and none, without a state directory.
+func (s shownPools) ledgerOf(ctx context.Context, cfg *config.Config) (views.Ledger, status.RemovedAccounts) {
+	if !s.read {
+		return ledger.NewEmpty(s.a.Now, caps(cfg)), nil
+	}
+	return s.a.followerIn(ctx, s.r.dir, cfg, idmove.FirstPool), removedIn(s.r.dir, cfg)
 }
 
 // poolAsked is the id of the pool the dashboard asks for, as ask says, of

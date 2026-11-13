@@ -248,6 +248,9 @@ func TestARestartFallingDueIsToldOf(t *testing.T) {
 	waitForStatus(t, socket, func(doc status.Document) bool { return doc.Restart.Reason == "upgraded" })
 	writeFile(t, s.config, twoAccounts)
 	doc := waitForStatus(t, socket, func(doc status.Document) bool { return doc.Restart.Reason == "config changed" })
+	if health, err := router.NewClient(socket).Health(t.Context()); err != nil || health.Restart != doc.Restart {
+		t.Errorf("GET /health gives the restart due %+v, %v; want %+v, as GET /status does", health.Restart, err, doc.Restart)
+	}
 	want := []status.Event{{ID: 1, At: now, Kind: status.EventRestart, Reason: "upgraded"}}
 	if !reflect.DeepEqual(doc.Events, want) {
 		t.Errorf("GET /status gives the events %+v, want %+v: the restart as it fell due, its reason changing since", doc.Events, want)

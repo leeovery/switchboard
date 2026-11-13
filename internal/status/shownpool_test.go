@@ -148,8 +148,8 @@ func TestAPoolShownIsEmptyAsTheRoutersDocumentOfItHasIt(t *testing.T) {
 
 // A pool shown the router refuses a read of, not knowing it, as one added
 // since it started, routes none: empty, and waiting where the config gives
-// it accounts, as one it knows and routes none in. No pool shown is never
-// empty.
+// it accounts, as one it knows and routes none in, holding how the router
+// answered. No pool shown is never empty.
 func TestAPoolShownTheRouterRefusesRoutesNone(t *testing.T) {
 	acme := status.ShownPool{ID: "q7mt", Label: "Acme", Pools: 2}
 	acmeOfOne := acme
@@ -165,9 +165,13 @@ func TestAPoolShownTheRouterRefusesRoutesNone(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := tt.pool.Refused()
+			answer := status.RouterAnswer{Health: status.Health{Healthy: true}, Restart: status.Restart{Reason: status.RestartForConfig}}
+			got := tt.pool.Refused(answer)
 			if got.Empty() != tt.empty || got.Waiting() != tt.waiting {
 				t.Errorf("%+v, refused, is empty %v, waiting %v; want %v, %v", tt.pool, got.Empty(), got.Waiting(), tt.empty, tt.waiting)
+			}
+			if refusing := got.Refusing; (refusing != nil) != tt.empty || refusing != nil && *refusing != answer {
+				t.Errorf("%+v, refused, holds the router's answer %+v; want %+v where it's empty, else none", tt.pool, refusing, answer)
 			}
 		})
 	}

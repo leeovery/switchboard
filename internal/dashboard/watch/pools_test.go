@@ -42,13 +42,16 @@ var testPools = config.Pools{
 // poolTurns is a dashboard's pools as the config has them in these tests,
 // read as Config's Turn reads them: the pools and every account, as the
 // config file at path places them, each pool's source by its id, and the
-// router's files of events, nil for none; the turns P asked for, each by the
-// pool turned from, and the times the pool shown was read again; and what a
-// turn fails with, where it does.
+// router's files of events, nil for none; the request ledger and the
+// accounts removed, as the config file has them; the turns P asked for, each
+// by the pool turned from, and the times the pool shown was read again; and
+// what a turn fails with, where it does.
 type poolTurns struct {
 	t        *testing.T
 	pools    config.Pools
 	accounts config.Accounts
+	ledger   views.Ledger
+	removed  status.RemovedAccounts
 	sources  map[string]Source
 	filed    views.Events
 	path     string
@@ -105,6 +108,8 @@ func (p *poolTurns) pooled(id string) Pooled {
 		Events:   filed,
 		Stamp:    p.configStamp(),
 		Placed:   status.Placed(p.pools, p.accounts),
+		Ledger:   p.ledger,
+		Removed:  p.removed,
 	}
 }
 
@@ -175,6 +180,7 @@ func pooledHarnessFiled(t *testing.T, acme config.Accounts, filed views.Events) 
 // opened is cfg showing the pool with the given id, as the dashboard opens
 // on it.
 func (p *poolTurns) opened(cfg Config, id string) Config {
+	p.ledger, p.removed = cfg.Ledger, cfg.Removed
 	shown := p.pooled(id)
 	cfg.Pool, cfg.Accounts, cfg.Source, cfg.Events, cfg.Turn = shown.Pool, shown.Accounts, shown.Source, shown.Events, p.turn
 	cfg.ConfigStamp, cfg.Stamp, cfg.Placed = p.configStamp, shown.Stamp, shown.Placed
@@ -304,7 +310,7 @@ func TestNothingOfThePoolBeforeLandsAfterATurn(t *testing.T) {
 	h.model.keeping.writing = 1
 
 	tm := turns{Model: h.model}
-	next, _ := tm.Update(ofTurn{turn: before, msg: turnedMsg{pooled: Pooled{Pool: acmeShown, Source: h.source, Events: events.Empty{}}}})
+	next, _ := tm.Update(ofTurn{turn: before, msg: turnedMsg{pooled: Pooled{Pool: acmeShown, Source: h.source, Events: events.Empty{}, Ledger: h.model.cfg.Ledger}}})
 	tm = next.(turns)
 	if tm.poolTurns == before {
 		t.Fatal("the turn landed, but the pools shown weren't counted on")
@@ -341,7 +347,7 @@ func TestNothingOfThePoolBeforeLandsWhereItsCountersMatchTheFreshModels(t *testi
 			msgs = append(msgs, h.run(cmd)...)
 		}
 	}
-	deliver(ofTurn{turn: before, msg: turnedMsg{pooled: Pooled{Pool: acmeShown, Accounts: acmeAccounts, Source: h.source, Events: events.Empty{}}}})
+	deliver(ofTurn{turn: before, msg: turnedMsg{pooled: Pooled{Pool: acmeShown, Accounts: acmeAccounts, Source: h.source, Events: events.Empty{}, Ledger: h.model.cfg.Ledger}}})
 	stream := make(chan router.StreamEvent)
 	sent := router.StreamEvent{At: h.clock.now, Kind: router.StreamSent, Request: "r1", Attempt: 1, Session: idD28C, Model: "claude-opus-5-5", Account: "k3f9"}
 	tests := []struct {
@@ -573,9 +579,10 @@ func TestAnAccountTheRouterHasntTakenUpIsSaidToWaitOnIt(t *testing.T) {
 	h.start()
 	h.deliver(h.press("P")...)
 	pools.changeConfig(func(p *poolTurns) { p.accounts = append(slices.Clone(defaultAccounts), acmeAccounts...) })
+	acme.router.Restart = configChanged
 	h.deliver(h.press("R")...)
 	h.deliver(h.press("R")...)
-	waitsOnTheRouter(t, h)
+	waitsOnTheRouter(t, h, "Acme", "● healthy  ·  restart due (config changed)  ·  no accounts routed yet")
 	*acme.router = ofPool(routerDocument(account("k3f9", "Acme 1", fableWeek(0.7))), "q7mt")
 	h.deliver(h.press("R")...)
 	if view := h.view(); strings.Contains(view, "has no accounts") || !strings.Contains(view, "Acme 1") {
@@ -583,20 +590,39 @@ func TestAnAccountTheRouterHasntTakenUpIsSaidToWaitOnIt(t *testing.T) {
 	}
 }
 
-// waitsOnTheRouter fails the test unless h's screen says Acme waits on the
-// router to take up its account, and how to have it taken up.
-func waitsOnTheRouter(t *testing.T, h *harness) {
+// configChanged is the restart a router has due once its config changed.
+var configChanged = status.Restart{Reason: status.RestartForConfig, InFlight: 1}
+
+// waitsOnTheRouter fails the test unless h's screen says the pool with the
+// label given waits on the router to take up its accounts, and how to have
+// them taken up, its status line reading line in full.
+func waitsOnTheRouter(t *testing.T, h *harness, label, line string) {
 	t.Helper()
 	view := h.view()
-	for _, want := range []string{"no accounts routed yet", "Acme has no accounts the router routes yet", "switchboard service restart"} {
+	for _, want := range []string{label + " has no accounts the router routes yet", "switchboard service restart"} {
 		if !strings.Contains(view, want) {
-			t.Errorf("with Acme 1 in the config, not yet routed, the screen is\n%s\nwant it to say %q", view, want)
+			t.Errorf("with %s's accounts in the config, not yet routed, the screen is\n%s\nwant it to say %q", label, view, want)
 		}
+	}
+	if got := statusLineOf(view); got != line {
+		t.Errorf("with %s's accounts in the config, not yet routed, the status line reads %q, want %q", label, got, line)
 	}
 }
 
+// statusLineOf is the status line of a pool with no accounts on the screen
+// view, as it reads.
+func statusLineOf(view string) string {
+	for l := range strings.Lines(view) {
+		if strings.Contains(l, "  ·  no accounts") {
+			return strings.TrimSpace(l)
+		}
+	}
+	return ""
+}
+
 // refusingSource is a source whose router refuses every read while refusal
-// is set, as it refuses one of a pool it doesn't know.
+// is set, as it refuses one of a pool it doesn't know, giving its health as
+// it answered.
 type refusingSource struct {
 	*fakeSource
 	refusal *error
@@ -605,7 +631,7 @@ type refusingSource struct {
 func (s refusingSource) Read(ctx context.Context, r status.Read) (status.Document, router.Health, error) {
 	if *s.refusal != nil {
 		s.asked = append(s.asked, r)
-		return status.Document{}, router.Health{}, *s.refusal
+		return status.Document{}, s.health, *s.refusal
 	}
 	return s.fakeSource.Read(ctx, r)
 }
@@ -618,20 +644,43 @@ func TestAPoolTheRouterDoesntKnowWaitsOnIt(t *testing.T) {
 	h, acme, pools := pooledHarness(t, acmeAccounts)
 	refusal := error(router.NeedPool("q7mt", testPools[:1]))
 	pools.sources["q7mt"] = refusingSource{fakeSource: acme, refusal: &refusal}
+	acme.health = router.Health{OK: true, Restart: configChanged}
 	h.start()
 	h.deliver(h.press("P")...)
-	waitsOnTheRouter(t, h)
+	refusedLine := "● healthy  ·  restart due (config changed)  ·  no accounts routed yet"
+	waitsOnTheRouter(t, h, "Acme", refusedLine)
 	h.deliver(h.press("R")...)
 	if view := h.view(); h.model.failed != "" || strings.Contains(view, "there's no pool") {
 		t.Errorf("with Acme unknown to the router, the screen is\n%s\nthe read failing %q; want no read failed", view, h.model.failed)
 	}
-	waitsOnTheRouter(t, h)
+	waitsOnTheRouter(t, h, "Acme", refusedLine)
 
 	refusal = nil
 	h.deliver(h.press("R")...)
 	if view := h.view(); strings.Contains(view, "has no accounts") || !strings.Contains(view, "Acme 1") {
 		t.Errorf("once the router routes Acme, the screen is\n%s\nwant Acme's views", view)
 	}
+}
+
+// A refusal after the router was found gone is the router answering: it's
+// lost no more, and the status line says how it stands as it answered.
+func TestARefusalAfterTheRouterWasLostSaysHowItAnswered(t *testing.T) {
+	h, _, _ := pooledHarness(t, acmeAccounts)
+	var refusal error
+	h.model.cfg.Source = refusingSource{fakeSource: h.source, refusal: &refusal}
+	h.start()
+	h.stopRouter()
+	h.tickUntilAsked()
+	if h.model.lost.IsZero() {
+		t.Fatal("a look that found the router gone left it not lost, want it lost")
+	}
+	refusal = router.NeedPool("b2n8", testPools[1:])
+	h.source.health = router.Health{OK: true, Restart: configChanged}
+	h.tickUntilAsked()
+	if !h.model.lost.IsZero() {
+		t.Errorf("the router refusing Default after it was lost leaves it lost since %v, want it lost no more", h.model.lost)
+	}
+	waitsOnTheRouter(t, h, "Default", "● healthy  ·  restart due (config changed)  ·  no accounts routed yet")
 }
 
 // Another pool's refusal, as of a pool named otherwise, is a read that
@@ -716,6 +765,30 @@ func TestAnAccountOfThePoolShownChangedIsFollowedAtTheNextRead(t *testing.T) {
 			}
 		})
 	}
+}
+
+// An account taken out of the config while it's open is named, from the
+// next read, by the accounts removed as the config read has them, the
+// ledger summarised with its caps: the pool shown starts afresh with both.
+func TestAnAccountTakenOutIsNamedAsTheConfigReadHasIt(t *testing.T) {
+	h, _, pools := pooledHarness(t, acmeAccounts)
+	h.start()
+	ledger := &configsLedger{Ledger: h.emptyLedger()}
+	pools.changeConfig(func(p *poolTurns) {
+		p.accounts = slices.Concat(defaultAccounts[:2], acmeAccounts)
+		p.removed, p.ledger = status.RemovedAccounts{{ID: "side", Label: "Side"}}, ledger
+	})
+	h.deliver(h.press("R")...)
+	m := h.model
+	if len(m.cfg.Removed) != 1 || m.cfg.Removed[0].Label != "Side" || m.cfg.Ledger != views.Ledger(ledger) {
+		t.Errorf("side taken out, the dashboard names the accounts removed %+v, its ledger the config read's %v; want side, labelled Side, and that ledger", m.cfg.Removed, m.cfg.Ledger == views.Ledger(ledger))
+	}
+}
+
+// configsLedger is a ledger as a config read has it, told apart by its
+// address.
+type configsLedger struct {
+	views.Ledger
 }
 
 // A change to the config that places nothing otherwise, as a comment

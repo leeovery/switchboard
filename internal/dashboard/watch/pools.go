@@ -23,8 +23,11 @@ import (
 // history and request stream; its share of the router's events; what labels
 // a pool by its id in the words of those events, as Config's PoolNamed does;
 // how the config file stood before it was read, as Config's ConfigStamp
-// gives it; and how it placed the accounts in the pools, as status's Placed
-// has it.
+// gives it; how it placed the accounts in the pools, as status's Placed has
+// it; and, as the config read has them, the request ledger, its days
+// summarised with the caps of the accounts it configures, and the accounts
+// removed, as Config's Ledger and Removed are, so nothing the dashboard
+// works out of the config is of one gone.
 type Pooled struct {
 	Pool      status.ShownPool
 	Accounts  config.Accounts
@@ -33,6 +36,8 @@ type Pooled struct {
 	PoolNamed func(id string) string
 	Stamp     filestate.State
 	Placed    status.Placement
+	Ledger    views.Ledger
+	Removed   status.RemovedAccounts
 }
 
 // PoolAsk is which pool Config's Turn is asked for.
@@ -60,11 +65,11 @@ var poolKey = dashboard.Key{Key: "P", Does: "pool"}
 
 // pool is the pool shown as the moment of the document on screen has it at
 // now, as status's AsRead has it, or, while the router refuses to read it,
-// as status's Refused has it: the frame, the status line and the keys each
-// read whether it's empty here.
+// as status's Refused has it of the router's answer: the frame, the status
+// line and the keys each read whether it's empty here.
 func (m Model) pool(now time.Time) status.ShownPool {
-	if m.poolRefused {
-		return m.cfg.Pool.Refused()
+	if m.refusing != nil {
+		return m.cfg.Pool.Refused(*m.refusing)
 	}
 	return m.cfg.Pool.AsRead(m.moment(now))
 }
@@ -107,6 +112,9 @@ func (m Model) turnPool() (Model, tea.Cmd) {
 // nothing again.
 func (m Model) followConfig(stamp filestate.State, accountsChanged bool) (Model, tea.Cmd) {
 	stamped := m.cfg.ConfigStamp != nil && !stamp.Same(m.cfg.Stamp)
+	// An accounts change found during a turn is dropped, accepted: a turn
+	// lasts milliseconds, the change costs nothing while the config is as
+	// it was, and the stamp, left as it was, catches a config changed.
 	if !m.asksPools() || m.turning || !stamped && !accountsChanged {
 		return m, nil
 	}
@@ -118,6 +126,8 @@ func (m Model) followConfig(stamp filestate.State, accountsChanged bool) (Model,
 // command, of Config's Turn: nothing while a turn is under way, so a second
 // P turns from the pool the first turned to.
 func (m Model) askPool(ask PoolAsk) (Model, tea.Cmd) {
+	// P during a turn is dropped, accepted: a turn lasts milliseconds, and
+	// one dropped fails safe, pressed again.
 	if m.turning {
 		return m, nil
 	}
@@ -182,6 +192,7 @@ func (m Model) freshIn(pooled Pooled) Model {
 	m.stream.end()
 	cfg := m.cfg
 	cfg.Pool, cfg.Accounts, cfg.Source, cfg.Events, cfg.PoolNamed, cfg.Stamp, cfg.Placed = pooled.Pool, pooled.Accounts, pooled.Source, pooled.Events, pooled.PoolNamed, pooled.Stamp, pooled.Placed
+	cfg.Ledger, cfg.Removed = pooled.Ledger, pooled.Removed
 	cfg.Size, cfg.View, cfg.Sections, cfg.By, cfg.Models, cfg.Graphs = m.size, m.view, m.sections, m.by, m.models, m.graphs
 	cfg.AccountsShown = dashboard.AccountsKept(m.accounts.shown.Kept())
 	cfg.SessionsShown = dashboard.SessionsKept(m.sessionsTab.shown.Kept())

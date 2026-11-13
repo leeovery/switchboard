@@ -14,7 +14,9 @@ import (
 // One with no id is no pool: a config without pools, or one of several,
 // every one fenced, with none named. Routed is set once the router's
 // document of it is read, as AsRead has it, and Routing is how many
-// accounts that document routes in it.
+// accounts that document routes in it. Refusing is how the router answered
+// where it refuses to read the pool, as Refused has it: nil where it
+// doesn't.
 type ShownPool struct {
 	ID, Label string
 	Dirs      []string
@@ -22,6 +24,20 @@ type ShownPool struct {
 	Pools     int
 	Routed    bool
 	Routing   int
+	Refusing  *RouterAnswer
+}
+
+// RouterAnswer is how the router answered its health check: its health, and
+// the restart it has due, none where none is.
+type RouterAnswer struct {
+	Health  Health
+	Restart Restart
+}
+
+// Moment is the moment of a router answering so, routing nothing in the
+// pool read, for a status line to say its state as of a pool it knows.
+func (a RouterAnswer) Moment() Moment {
+	return Moment{Routed: true, Health: a.Health, Restart: a.Restart}
 }
 
 // PoolShown is the pool of pools with the id given, ignoring case, as a
@@ -115,12 +131,12 @@ func (p ShownPool) AsRead(mo Moment) ShownPool {
 }
 
 // Refused is the pool shown as the router has it where it refuses a read
-// of it, not knowing it, as a pool added since it started: routing none in
-// it, as AsRead has it of a document of it with none, till it takes the
-// pool up as it restarts.
-func (p ShownPool) Refused() ShownPool {
+// of it, not knowing it, as a pool added since it started, answering as
+// answer says: routing none in it, as AsRead has it of a document of it
+// with none, till it takes the pool up as it restarts.
+func (p ShownPool) Refused(answer RouterAnswer) ShownPool {
 	if p.ID != "" {
-		p.Routed, p.Routing = true, 0
+		p.Routed, p.Routing, p.Refusing = true, 0, &answer
 	}
 	return p
 }

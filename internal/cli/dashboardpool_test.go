@@ -18,6 +18,7 @@ import (
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard/watch"
 	"github.com/leeovery/switchboard/internal/filestate"
+	"github.com/leeovery/switchboard/internal/identity"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
@@ -362,6 +363,40 @@ func TestTheDashboardReadsThePoolItShowsAgainAsTheConfigChanges(t *testing.T) {
 	}
 	if got, err := none.Turn(t.Context(), "", watch.SamePool); err != nil || got.Pool.ID != "" || got.Pool.Pools != 2 {
 		t.Errorf("with every pool fenced, none read again shows %+v, %v; want none again, of two", got.Pool, err)
+	}
+}
+
+// What the dashboard works out of the config follows it at a turn: the
+// accounts removed, so one taken out while it's open is named by the label
+// the accounts record keeps, and a request ledger of its own, summarised
+// with the caps of the accounts the config read configures.
+func TestATurnWorksOutTheAccountsRemovedAndTheLedgerOfTheConfigRead(t *testing.T) {
+	deps := pooledDeps(t, false)
+	err := identity.NewFile(stateDir(t, deps)).Update(func(r *identity.Record) error {
+		r.Accounts = []identity.Entry{{ID: "work", Label: "Work", Added: testNow, Pool: "q7mt"}, {ID: "side", Label: "Side", Added: testNow, Pool: "b2n8"}}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := recordWatch(t, &deps)
+	if got := run(t, deps, "dashboard", "--pool", "q7mt"); got != (result{}) {
+		t.Fatalf("switchboard dashboard --pool q7mt = %+v, want exit status 0 and nothing printed", got)
+	}
+	if len(cfg.Removed) != 0 {
+		t.Fatalf("the dashboard opened with the accounts removed %+v, want none", cfg.Removed)
+	}
+
+	writeDepsConfig(t, deps, strings.Replace(pooledConfig(false), "[[account]]\nid    = \"side\"\nlabel = \"Side\"\npool  = \"b2n8\"\n", "", 1))
+	turned, err := cfg.Turn(t.Context(), "q7mt", watch.SamePool)
+	if err != nil {
+		t.Fatalf("Turn() of the same pool failed: %v", err)
+	}
+	if len(turned.Removed) != 1 || turned.Removed[0].ID != "side" || turned.Removed[0].Label != "Side" {
+		t.Errorf("side taken out of the config, the turn has the accounts removed %+v, want side, labelled Side", turned.Removed)
+	}
+	if turned.Ledger == nil || turned.Ledger == cfg.Ledger {
+		t.Error("the turn has no ledger, or the one the dashboard opened with; want one of its own, of the config read")
 	}
 }
 
