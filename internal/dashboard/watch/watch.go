@@ -134,6 +134,14 @@ type Config struct {
 	// Log's events name the pool whose sessions' own pins a forced pin
 	// cleared: nil where they hold one pool's alone.
 	PoolNamed func(id string) string
+	// Pool is the pool the dashboard shows, whose Source reads it, and whose
+	// Events and PoolNamed are its: the title row names it, and
+	// notifications, once there's a second. Turn gives what the dashboard
+	// shows of the pool P turns to from the one with the id given, as
+	// status.PoolAfter has it, the pools read afresh as they stand: nil
+	// turns to none.
+	Pool status.ShownPool
+	Turn func(ctx context.Context, from string) (Pooled, error)
 	// Accounts are the configured accounts, whose plans History prices its
 	// worth against, and WeekStarts the day its calendar weeks start on.
 	// Removed are the accounts removed, as status.RemovedOf gives them, which
@@ -400,6 +408,12 @@ type Model struct {
 	// keeping is the preferences changed, as they're kept.
 	keeping keeping
 
+	// poolTurns counts the pools P has turned to, as freshIn has it, for
+	// turns to drop what a command of a pool shown before sends back; and
+	// turning is set while P's turn is under way.
+	poolTurns int
+	turning   bool
+
 	// shown is what render made of the screen once the last message was
 	// taken in.
 	shown shown
@@ -501,11 +515,16 @@ func after(d time.Duration, msg tea.Msg) tea.Cmd {
 // the terminal what its background is (OSC 11), the screen staying blank for
 // theme.AnswerWithin at most, so as not to flash one theme then the other.
 func (m Model) Init() tea.Cmd {
-	cmds := []tea.Cmd{m.fetch(m.plan.full()), m.armTick(m.now())}
-	if m.coloured() {
-		cmds = append(cmds, backdrop.Ask(m.after))
+	if !m.coloured() {
+		return m.started()
 	}
-	return tea.Batch(cmds...)
+	return tea.Batch(m.started(), backdrop.Ask(m.after))
+}
+
+// started starts the first read, a full one, and the ticks, as Init does,
+// and as a pool turned to starts afresh.
+func (m Model) started() tea.Cmd {
+	return tea.Batch(m.fetch(m.plan.full()), m.armTick(m.now()))
 }
 
 // Update takes in a message, at the one time it came, as taking has it, as
@@ -676,7 +695,7 @@ func (m Model) render() Model {
 // ledger's days read for History, the router carrying out an order, the
 // sessions listed to price the routing card's moves, the request stream
 // opening, telling of requests or falling due to be asked for again, a tick,
-// a frame, or a session's page read.
+// a frame, a session's page read, or what's shown of the pool P turned to.
 func (m Model) take(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -755,6 +774,8 @@ func (m Model) take(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.runwayRead(msg), nil
 	case latelyReadMsg:
 		return m.latelyRead(msg), nil
+	case turnedMsg:
+		return m.turnedTo(msg)
 	}
 	return m, nil
 }
@@ -812,9 +833,12 @@ func (m Model) viewOf(lines []string, look dashboard.Look) tea.View {
 // open, its keys alone act, as routingKey, helpKey, logCardKey, logPanelKey
 // and turnCardKey take them, as do the find's while the Log's is open. Else q
 // quits; while the theme picker is open, it takes every other key; and
-// otherwise p opens the routing card, ? opens the page's help, R refreshes,
-// and the rest are a session's page's, while one is open, as sessionKey
-// takes them, else the page's, as pageKey takes them.
+// otherwise p opens the routing card, but of a pool with no accounts, ?
+// opens the page's help, R refreshes, P turns to the next pool, where
+// there's a second, as turnPool has it, and the rest are, of a pool with no
+// accounts, as emptyPoolKey takes them, else a session's page's, while one
+// is open, as sessionKey takes them, else the page's, as pageKey takes
+// them.
 func (m Model) pressed(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch k := key.String(); {
 	case k == "ctrl+c":
@@ -835,12 +859,16 @@ func (m Model) pressed(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 	case m.picker.open:
 		return m.pickerKey(k)
-	case k == "p":
+	case k == "p" && !m.cfg.Pool.Empty():
 		return m.openRouting()
 	case k == "?":
 		return m.openHelp(), nil
 	case k == "R":
 		return m.refresh()
+	case k == "P" && m.turnsPools():
+		return m.turnPool()
+	case m.cfg.Pool.Empty():
+		return m.emptyPoolKey(k)
 	case m.shownView() == dashboard.SessionPage:
 		return m.sessionKey(key)
 	}
@@ -928,7 +956,7 @@ func (m Model) uncover() (Model, tea.Cmd) {
 func (m Model) frame(now time.Time) dashboard.Frame {
 	f := dashboard.Frame{
 		Width: m.size.Width, Height: m.size.Height, Look: m.look(),
-		View: m.view,
+		View: m.view, Pool: m.cfg.Pool,
 		Lost: m.lostShown(), Failed: m.failure(), Outdated: m.history.outdated, Fresh: m.news.faded(now), Changed: m.changes.faded(now), StateChanged: m.changes.wordFaded(now), TurnedOut: m.changes.turnedOut(now), Trails: m.trails,
 		Brightened: m.numbers.brightened(now), Sections: m.sections, By: m.by, Models: m.models, Traces: m.traces, TraceScale: m.cfg.TraceScale, Layout: m.layout,
 		Sessions: m.sessions, Unlisted: m.unlisted(), Stream: m.traffic.stream(now), Held: m.held, Traffic: m.traffic.at(now), Scroll: m.scroll, SessionsTab: m.sessionsTab.shown,
@@ -1098,7 +1126,7 @@ func (m Model) show(msg fetchedMsg, look status.Moment) (Model, tea.Cmd) {
 	was := m.numbersDrawn(now)
 	var post, asked tea.Cmd
 	if !look.Routed {
-		post = m.post(m.readings.alerts(look, read, m.cfg.Notifications), routerMayPost(look))
+		post = m.post(m.readings.alerts(look, read, m.cfg.Notifications, m.cfg.Pool.Named()), routerMayPost(look))
 	}
 	ask := look.Routed && (full(msg.read) || !m.answering() || m.news.another(msg.router))
 	if look.Routed {

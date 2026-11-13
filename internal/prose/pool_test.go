@@ -1,0 +1,60 @@
+package prose_test
+
+import (
+	"slices"
+	"testing"
+
+	"github.com/leeovery/switchboard/internal/prose"
+)
+
+// A pool with no accounts says a session started in it doesn't start, by
+// its directories, or outside every fence, how to add an account or move one
+// in by its id, and how long it holds its directories.
+func TestAPoolWithNoAccountsSaysWhatDoesntStartAndHowToAddOne(t *testing.T) {
+	tests := []struct {
+		name  string
+		label string
+		dirs  []string
+		want  [][]string
+	}{
+		{name: "fenced", label: "Acme", dirs: []string{"~/Code/acme"}, want: [][]string{
+			{"Acme has no accounts, so a session started in ~/Code/acme doesn't start."},
+			{"Add one with switchboard accounts add <label> --pool q7mt, or in switchboard setup.", "Move one in with switchboard accounts edit <id> --pool q7mt."},
+			{"Its directories stay fenced until the pool is removed with switchboard pool remove q7mt."},
+		}},
+		{name: "fenced to two directories", label: "Acme", dirs: []string{"~/Code/acme", "~/Code/acme-api"}, want: [][]string{
+			{"Acme has no accounts, so a session started in ~/Code/acme or ~/Code/acme-api doesn't start."},
+			{"Add one with switchboard accounts add <label> --pool q7mt, or in switchboard setup.", "Move one in with switchboard accounts edit <id> --pool q7mt."},
+			{"Its directories stay fenced until the pool is removed with switchboard pool remove q7mt."},
+		}},
+		{name: "unfenced", label: "Default", want: [][]string{
+			{"Default has no accounts, so a session started outside every fence doesn't start."},
+			{"Add one with switchboard accounts add <label> --pool q7mt, or in switchboard setup.", "Move one in with switchboard accounts edit <id> --pool q7mt."},
+			{"It holds every directory outside a fence until the pool is removed with switchboard pool remove q7mt."},
+		}},
+		{name: "its label cleaned", label: "Ac\x1bme", dirs: []string{"~/Code/acme"}, want: [][]string{
+			{"Ac me has no accounts, so a session started in ~/Code/acme doesn't start."},
+			{"Add one with switchboard accounts add <label> --pool q7mt, or in switchboard setup.", "Move one in with switchboard accounts edit <id> --pool q7mt."},
+			{"Its directories stay fenced until the pool is removed with switchboard pool remove q7mt."},
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := prose.EmptyPool(tt.label, "q7mt", tt.dirs)
+			if !slices.EqualFunc(got, tt.want, slices.Equal) {
+				t.Errorf("EmptyPool(%q, %q) = %q, want %q", tt.label, tt.dirs, got, tt.want)
+			}
+		})
+	}
+}
+
+// A title is led by its pool's label where there's one to name, and stands
+// as it is where there isn't.
+func TestATitleIsLedByItsPoolsLabel(t *testing.T) {
+	if got, want := prose.PoolLed("Acme", "k3f9 · Acme 1"), "Acme · k3f9 · Acme 1"; got != want {
+		t.Errorf("PoolLed(Acme) = %q, want %q", got, want)
+	}
+	if got, want := prose.PoolLed("", "k3f9 · Acme 1"), "k3f9 · Acme 1"; got != want {
+		t.Errorf("PoolLed() of no pool = %q, want %q", got, want)
+	}
+}

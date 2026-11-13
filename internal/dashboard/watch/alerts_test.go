@@ -253,9 +253,9 @@ func TestNothingIsPostedAcrossAChangeOfSource(t *testing.T) {
 }
 
 // alertsOf are what's posted of this, a look that follows on from last, the
-// look that last read each account, as alerts has it.
+// look that last read each account, as alerts has it, of one pool.
 func alertsOf(last, this status.Moment, settings config.Notifications) []string {
-	return messagesOf(lastReads{}.with(last, originOf(last, router.Health{})).alerts(this, originOf(this, router.Health{}), settings))
+	return messagesOf(lastReads{}.with(last, originOf(last, router.Health{})).alerts(this, originOf(this, router.Health{}), settings, ""))
 }
 
 func TestAlertsAtEachHardMomentAgreeWithTheMoment(t *testing.T) {
