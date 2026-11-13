@@ -88,7 +88,7 @@ func TestComparesHelpTellsOfNoFocusWithNoAccounts(t *testing.T) {
 func TestComparesFormNeverHangsOnTheData(t *testing.T) {
 	versions := comparedVersions(t)
 	pages := []*views.AccountsPage{nil}
-	for _, period := range []views.AccountsPeriod{views.AccountsToday, views.AccountsThisWeek, views.AccountsThirtyDays, views.AccountsTwelveWeeks} {
+	for _, period := range views.Periods() {
 		pages = append(pages, new(comparedPage(period, versions, compareWork, comparePersonal, compareSide, compareAll)))
 	}
 	doc := usageWorld(extraOff)
@@ -151,7 +151,7 @@ func TestComparesBoundsSayEveryFigureWhole(t *testing.T) {
 // aren't known, says how many are, as its ratio is of those alone: so no
 // form drops it while a shorter one holds it.
 func TestAllAccountsAgainstItsPriceKeepsThePlansKnownInEveryForm(t *testing.T) {
-	page := comparedPage(views.AccountsThisWeek, comparedVersions(t), compareWork, comparePersonal, compareSide, compareAll)
+	page := comparedPage(views.PeriodThisWeek, comparedVersions(t), compareWork, comparePersonal, compareSide, compareAll)
 	page.All.Plan.Plans = views.PlansKnown{Known: 2, Of: 3}
 	for _, form := range againstForms(page, page.All) {
 		if said := plainLines([]line{fitParts(200, form...)})[0]; !strings.Contains(said, "2 of 3") && !strings.Contains(said, "2/3") {
@@ -208,8 +208,8 @@ func TestComparesValuesCutNoFigureAtAnyWidth(t *testing.T) {
 	for _, w := range comparedWorlds() {
 		t.Run(w.name, func(t *testing.T) {
 			doc := w.doc.WorkedOut(claudeLike)
-			from := map[views.AccountsPeriod]int{}
-			for _, period := range views.AccountsPeriods() {
+			from := map[views.Period]int{}
+			for _, period := range views.Periods() {
 				f := compareFrame(t, w.configured, comparedPage(period, versions, w.rows...))
 				f.Look = Look{}
 				taken := map[string][]formTaken{}

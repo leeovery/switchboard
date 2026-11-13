@@ -3505,7 +3505,8 @@ frames show the keys from before the sweep of 7 and 8 October 2026, `p` for the 
   millions and cost little, count for little.
 - **Against its price:** worth over what the plans cost for the same period, a plan's monthly price
   prorated, a day being 12/365 of a month (settled in the plan), a week 12/52 of a month, 30 days a
-  month and 12 weeks twelve weeks' (settled in the plan), and a period so far priced whole. A period
+  month, 12 weeks twelve weeks' (settled in the plan) and 12 months twelve months', whole whether
+  they hold 365 days or 366, as History's Year prices them, and a period so far priced whole. A period
   the ledger began part-way through, as a fresh install's week, is priced from the ledger's first
   day, a day each to the period's end, or today's for today and 30 days, as `history` and History
   price it, as there's no worth for the days before to set against it (the owner's call, 15 October
@@ -3527,8 +3528,14 @@ frames show the keys from before the sweep of 7 and 8 October 2026, `p` for the 
   2026).
 - **Periods are rolling,** never billing months, as switchboard knows no renewal date: today, from
   midnight; this week, from its first day, as `week_starts` sets it (see Config); 30 days, today and
-  the 29 before it; and 12 weeks, this week and the 11 before it, `<` and `>` stepping through them
-  in that order, Compare and Detail sharing the period (settled in the plan).
+  the 29 before it; 12 weeks, this week and the 11 before it; and 12 months, the days History's Year
+  counts as LAST 12 MONTHS, from the day after today's date a year back, 1 March where today is 29
+  February, to today. `<` and `>` step through them in that order, staying put at either end. It's
+  one dial, the dashboard's period, shared by every tab that counts over a period: Compare and
+  Detail, and, as they come, Projects and Sessions' List (the owner's call, 13 November 2026). The
+  preferences file keeps it as `period`, by its name, `today`, `30-days`, `12-weeks` or
+  `12-months`, none for this week; where it keeps none, it reads `accounts.period`, where a build
+  from before the dial was shared kept it, till the period is next kept, which drops it.
 - **Keys:** `[` and `]` move between the sub-tabs, and a click on one shows it; `<` and `>` step the
   period, `<` to a shorter and `>` to a longer, or on History's Year, `<` back a year and `>`
   forward; `v` cycles a view's shape, where it has more than one. The preferences file remembers
@@ -3718,8 +3725,8 @@ where it fits** says, and where they don't fit, it's stacked, as **Stacked** say
   - Its column is its labels and its figures' cells, at least 10, and as many as its widest
     bounded part takes, so each reads whole on a row of its own: a limit's hits of any window
     the moment lists, or any the period's page records a limit of, by its short name and
-    counted as often as the window can be hit over the longest period, twelve weeks, once a
-    window, `5h ×403`, `Fable wk ×12`, 12 cells; and `all accounts`' extra use on for one fewer
+    counted as often as the window can be hit over the longest period, 12 months of 366 days,
+    once a window, `5h ×1,756`, `Fable wk ×52`, 12 cells; and `all accounts`' extra use on for one fewer
     than every account, `on for 2 of 3`, 13 cells. So 23 with three accounts. It's the same
     whichever account is chosen, so nothing moves as the choice does, and it ends at the weeks'
     edge, column 140 at 160.

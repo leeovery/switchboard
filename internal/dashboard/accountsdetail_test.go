@@ -54,7 +54,7 @@ func (f detailFramed) row() views.AccountsRow {
 // the last all accounts', using each of the versions Compare's frames list.
 func detailPage(t *testing.T, rows ...detailFramed) *views.AccountsPage {
 	page := &views.AccountsPage{
-		Period: views.AccountsThisWeek, Recorded: true, ToCome: 3, Versions: comparedVersions(t),
+		Period: views.PeriodThisWeek, Recorded: true, ToCome: 3, Versions: comparedVersions(t),
 		Weeks: []string{"2026-08-24", "2026-08-31", "2026-09-07", "2026-09-14", "2026-09-21", "2026-09-28"},
 	}
 	for _, f := range rows[:len(rows)-1] {
@@ -725,8 +725,8 @@ func TestDetailDrawsWhatItHasOfThePeriod(t *testing.T) {
 // THIS WEEK's title names the period.
 func TestDetailsTHISWEEKNamesThePeriod(t *testing.T) {
 	doc := usageWorld(extraOff)
-	for period, want := range map[views.AccountsPeriod]string{
-		views.AccountsThisWeek: "THIS WEEK", views.AccountsToday: "TODAY", views.AccountsThirtyDays: "LAST 30 DAYS", views.AccountsTwelveWeeks: "LAST 12 WEEKS",
+	for period, want := range map[views.Period]string{
+		views.PeriodThisWeek: "THIS WEEK", views.PeriodToday: "TODAY", views.PeriodThirtyDays: "LAST 30 DAYS", views.PeriodTwelveWeeks: "LAST 12 WEEKS",
 	} {
 		page := detailsPage(t)
 		page.Period = period
@@ -933,8 +933,8 @@ func TestDetailsWideFormKeepsItsWordsWhole(t *testing.T) {
 
 // THIS WEEK is as wide as its labels and the widest bounded part of its
 // figures, at least 20 cells: a limit hit of any window listed, by its short
-// name, counted as often as its window can be hit in twelve weeks, "Fable wk
-// ×12", "5h ×403"; and all accounts' extra use on for one fewer than every
+// name, counted as often as its window can be hit in 12 months, "Fable wk
+// ×52", "5h ×1,756"; and all accounts' extra use on for one fewer than every
 // account. Alike whichever account is chosen, or all of them.
 func TestDetailsTHISWEEKIsAsWideAsItsWidestBoundedPart(t *testing.T) {
 	tests := []struct {
@@ -944,10 +944,10 @@ func TestDetailsTHISWEEKIsAsWideAsItsWidestBoundedPart(t *testing.T) {
 		cells    int
 	}{
 		{name: "one account, its windows' limits within 10", doc: usageWorld(withoutFable), accounts: 1, cells: 20},
-		{name: "one account, Fable wk ×12", doc: usageWorld(), accounts: 1, cells: 22},
+		{name: "one account, Fable wk ×52", doc: usageWorld(), accounts: 1, cells: 22},
 		{name: "three accounts, on for 2 of 3", doc: usageWorld(withoutFable), accounts: 3, cells: 23},
 		{name: "ten accounts, on for 9 of 10", doc: usageWorld(withoutFable), accounts: 10, cells: 24},
-		{name: "a Sonnet week, Sonnet wk ×12", doc: usageWorld(sonnetWeek), accounts: 1, cells: 23},
+		{name: "a Sonnet week, Sonnet wk ×52", doc: usageWorld(sonnetWeek), accounts: 1, cells: 23},
 	}
 	for _, tt := range tests {
 		configured := make(config.Accounts, tt.accounts)

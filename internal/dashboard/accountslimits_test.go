@@ -28,7 +28,7 @@ func TestLimitsHitInThreeWindowsTakeTheFullestFormThatFits(t *testing.T) {
 		{width: 220, want: "week ×1 · 5-hour ×2 · Fable week ×1"},
 	}
 	for _, tt := range tests {
-		page := comparedPage(views.AccountsThisWeek, comparedVersions(t), work, comparePersonal, compareSide, compareAll)
+		page := comparedPage(views.PeriodThisWeek, comparedVersions(t), work, comparePersonal, compareSide, compareAll)
 		f := phoneText(t, tt.width, 60, AccountsCompare, "", &page, nil)
 		rows := f.Draw(phoneDoc().WorkedOut(claudeLike), routedAt)
 		label := "  limits hit"

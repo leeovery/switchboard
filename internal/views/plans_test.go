@@ -86,6 +86,8 @@ func TestAPlansCostIsProratedAsThePeriodAskedFor(t *testing.T) {
 		name       string
 		from       string
 		weekStarts time.Weekday
+		// began is the ledger's first day: "", 1 July.
+		began string
 		// want is what work's Ultra and side's Pro cost, and every
 		// account's together.
 		want string
@@ -102,6 +104,8 @@ func TestAPlansCostIsProratedAsThePeriodAskedFor(t *testing.T) {
 			want: "553.846153846154 55.384615384615 609.230769230769"},
 		{name: "the last 12 weeks, from the day weeks start on", from: "2026-07-19", weekStarts: time.Sunday,
 			want: "553.846153846154 55.384615384615 609.230769230769"},
+		{name: "the last 12 months, twelve months'", from: "2025-10-08", weekStarts: time.Monday, began: "2025-09-01",
+			want: "2400 240 2640"},
 		{name: "any other days, a day each", from: "2026-10-01", weekStarts: time.Monday,
 			want: "46.027397260274 4.602739726027 50.630136986301"},
 		{name: "a week from another day than weeks start on, a day each", from: "2026-10-05", weekStarts: time.Sunday,
@@ -111,7 +115,11 @@ func TestAPlansCostIsProratedAsThePeriodAskedFor(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			in := input(sinceJuly)
+			days := sinceJuly
+			if tt.began != "" {
+				days = daysFrom(tt.began, usedToday...)
+			}
+			in := input(days)
 			in.From, in.WeekStarts = on(tt.from), tt.weekStarts
 			plans := views.NewHistory(in).Plans
 			got := jsonOf(t, plans[0].Cost) + " " + jsonOf(t, plans[1].Cost) + " " + jsonOf(t, plans[3].Cost)
@@ -137,8 +145,8 @@ func TestOnTheWeeksFirstDayTheDaysAskedForFromItAreThisWeek(t *testing.T) {
 	got := map[string]string{
 		"history's plans":     jsonOf(t, history.Plans[len(history.Plans)-1].Cost),
 		"its tokens' row":     jsonOf(t, history.Tokens[len(history.Tokens)-1].Cost),
-		"Accounts' this week": jsonOf(t, past.Accounts(views.AccountsThisWeek).All.Plan.Cost),
-		"Accounts' today":     jsonOf(t, past.Accounts(views.AccountsToday).All.Plan.Cost),
+		"Accounts' this week": jsonOf(t, past.Accounts(views.PeriodThisWeek).All.Plan.Cost),
+		"Accounts' today":     jsonOf(t, past.Accounts(views.PeriodToday).All.Plan.Cost),
 	}
 	want := map[string]string{
 		"history's plans": "50.769230769231", "its tokens' row": "50.769230769231",

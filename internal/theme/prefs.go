@@ -46,6 +46,11 @@ type Prefs struct {
 	// Fable's week, as w last left it: unset, as a file without it reads,
 	// hides them.
 	Models bool `json:"models,omitempty"`
+	// Period is the period the entity tabs count over, one dial they share,
+	// by its name, as < and > last left it: today, "" for this week, 30-days,
+	// 12-weeks or 12-months. "" reads the one Accounts.Period keeps, where a
+	// build from before the dial was shared kept it.
+	Period string `json:"period,omitempty"`
 	// Accounts is what Accounts shows, as its keys last left it.
 	Accounts AccountsPrefs `json:"accounts,omitzero"`
 	// History is what History's views show, as their keys last left them.
@@ -81,10 +86,11 @@ type LogPrefs struct {
 	Columns []string `json:"columns,omitzero"`
 }
 
-// AccountsPrefs are what Accounts shows, each by its name: the view shown,
-// compare or detail; and the period both count over, today, "" for this
-// week, 30-days or 12-weeks. A name the dashboard doesn't know reads as the
-// default. What's chosen in a view is the run's alone.
+// AccountsPrefs are what Accounts shows, by its name: the view shown,
+// compare or detail. A name the dashboard doesn't know reads as the default.
+// What's chosen in a view is the run's alone. Period is where builds from
+// before the dial was shared kept it, as Accounts' own: read where
+// Prefs.Period keeps none, and dropped as the period is next kept.
 type AccountsPrefs struct {
 	View   string `json:"view,omitempty"`
 	Period string `json:"period,omitempty"`

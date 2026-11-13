@@ -23,7 +23,7 @@ type AccountsPage struct {
 	// is set where its days record anything of any account: a request, a
 	// limit, or a minute at a cap or a limit. A period with nothing recorded,
 	// as on a fresh install, shows none of its figures.
-	Period   AccountsPeriod
+	Period   Period
 	Recorded bool
 	// Weeks are the six weeks' first days' dates, oldest first, this week
 	// last, and ToCome how many of this week's days are still to come.
@@ -91,7 +91,7 @@ const accountsWeeks = 6
 
 // Accounts is Accounts' page over the period given, as AccountsPage has it,
 // of the days the Past holds at its Now.
-func (p Past) Accounts(period AccountsPeriod) AccountsPage {
+func (p Past) Accounts(period Period) AccountsPage {
 	in := p.in
 	today := dayfile.CivilOf(in.Now)
 	first := period.first(today, in.WeekStarts)

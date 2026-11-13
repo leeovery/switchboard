@@ -33,7 +33,7 @@ var phoneDays = []views.StripDay{
 // three days to come; and each row's peaks, work's.
 func phonePage(t *testing.T) *views.AccountsPage {
 	t.Helper()
-	page := comparedPage(views.AccountsThisWeek, comparedVersions(t), compareWork, comparePersonal, compareSide, compareAll)
+	page := comparedPage(views.PeriodThisWeek, comparedVersions(t), compareWork, comparePersonal, compareSide, compareAll)
 	page.Weeks = []string{"2026-08-24", "2026-08-31", "2026-09-07", "2026-09-14", "2026-09-21", "2026-09-28"}
 	page.ToCome = 3
 	days := slices.Concat(make([]views.StripDay, 7*len(page.Weeks)-len(phoneDays)), phoneDays)
@@ -123,7 +123,7 @@ func TestTurnedCompareScrollsByRows(t *testing.T) {
 // now.
 func TestTurnedCompareDrawsWEEKUSEDAloneTillItsDaysAreRead(t *testing.T) {
 	f := phoneText(t, 52, 48, AccountsCompare, "", nil, nil)
-	f.Accounts.Period = views.AccountsThirtyDays
+	f.Period = views.PeriodThirtyDays
 	got := rowsFrom(textOf(f.Draw(phoneDoc(), routedAt)), 9)
 	want := []string{"WEEK USED  now", "", " work", "", " personal  ◆", "", " side", "", " all"}
 	for i, w := range want {

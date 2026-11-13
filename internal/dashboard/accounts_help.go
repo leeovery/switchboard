@@ -84,12 +84,13 @@ func (f Frame) valueHelp() helpPart {
 				"of a model the price table doesn't know or of requests that went upstream without their usage; unpriced, " +
 				"all of it."),
 			said("Against its price is that worth over what the plans cost over the same period, a plan's price a month " +
-				"prorated: a day 12/365 of a month, a week 12/52, 30 days a month, and 12 weeks twelve weeks', a period still " +
+				"prorated: a day 12/365 of a month, a week 12/52, 30 days a month, 12 weeks twelve weeks' and 12 months twelve " +
+				"months', a period still " +
 				"running priced whole, and one the ledger began part-way through priced from its first day." + plans +
 				" An account added part-way shows what was recorded of it, priced against the whole period."),
 			said("Extra usage is on where Claude bills past the plan's limit, and off where the limit holds."),
 			said("The periods are rolling, never billing months, as switchboard knows no renewal date: `<` and `>` step " +
-				"through today, this week, the last 30 days and the last 12 weeks" + shared),
+				"through today, this week, the last 30 days, the last 12 weeks and the last 12 months" + shared),
 		},
 		glyphs: []glyph{
 			{drawn: line{{"$184", secondaryInk}, {views.PartUnpriced, faintInk}}, means: "worth, part of it unpriced"},

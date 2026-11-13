@@ -26,16 +26,14 @@ const (
 // accountsViews are Accounts' sub-tabs' names, in the heading row's order.
 var accountsViews = []string{"Compare", "Detail"}
 
-// AccountsShown is Accounts as the watch gives it: the sub-tab shown and the
-// period both count over, which the preferences keep; Compare's focus and
-// the columns it shows; Detail's choice, its list's scroll, and the session
-// selected in its SESSIONS, which hold for the run alone; and the period's
-// page, built of the ledger's days.
+// AccountsShown is Accounts as the watch gives it: the sub-tab shown, which
+// the preferences keep; Compare's focus and the columns it shows; Detail's
+// choice, its list's scroll, and the session selected in its SESSIONS, which
+// hold for the run alone; and the page of the dial's period, built of the
+// ledger's days.
 type AccountsShown struct {
-	// Shown is the sub-tab shown, as View has it, and Period the period
-	// both count over.
-	Shown  AccountsView
-	Period views.AccountsPeriod
+	// Shown is the sub-tab shown, as View has it.
+	Shown AccountsView
 	// Accounts are the configured accounts, in the config's order: Compare's
 	// columns and Detail's list.
 	Accounts config.Accounts
@@ -61,21 +59,17 @@ type AccountsShown struct {
 	Page *views.AccountsPage
 }
 
-// AccountsKept is Accounts as the preferences kept it: the sub-tab and the
-// period, each by its name. What names neither, as a later build's, shows
-// as Accounts opens: Compare, this week.
+// AccountsKept is Accounts as the preferences kept it: the sub-tab, by its
+// name. What names none, as a later build's, shows as Accounts opens:
+// Compare.
 func AccountsKept(kept theme.AccountsPrefs) AccountsShown {
-	s := AccountsShown{Shown: AccountsView(placeAmong(kept.View, lowerNames(accountsViews)))}
-	if period := views.AccountsPeriod(kept.Period); period.Known() {
-		s.Period = period
-	}
-	return s
+	return AccountsShown{Shown: AccountsView(placeAmong(kept.View, lowerNames(accountsViews)))}
 }
 
 // Kept is what the preferences keep of Accounts, as AccountsKept reads it:
-// the sub-tab shown and the period, never what's chosen.
+// the sub-tab shown, never what's chosen.
 func (s AccountsShown) Kept() theme.AccountsPrefs {
-	return theme.AccountsPrefs{View: lowerNames(accountsViews)[s.Shown], Period: string(s.Period)}
+	return theme.AccountsPrefs{View: lowerNames(accountsViews)[s.Shown]}
 }
 
 // Alone reports whether there's one account, which all accounts would only
@@ -103,32 +97,21 @@ func (s AccountsShown) Account() string {
 
 // heading is Accounts' heading row: its name and its sub-tabs, the one drawn
 // picked out, Detail alone where there's one account; and at its right, the
-// period between < and >.
-func (s AccountsShown) heading() heading {
-	h := heading{
-		name: strings.ToUpper(Accounts.Title()), subTabs: accountsViews, shown: int(s.View()),
-		period: s.Period.Name(), widest: widestOf(accountsPeriodNames()),
-	}
+// period given between < and >, as periodDial has it.
+func (s AccountsShown) heading(period views.Period) heading {
+	h := heading{name: strings.ToUpper(Accounts.Title()), subTabs: accountsViews, shown: int(s.View())}
+	h.period, h.widest = periodDial(period)
 	if s.Alone() {
 		h.subTabs, h.shown = accountsViews[AccountsDetail:], 0
 	}
 	return h
 }
 
-// accountsPeriodNames are the names of the periods Accounts steps through.
-func accountsPeriodNames() []string {
-	var names []string
-	for _, period := range views.AccountsPeriods() {
-		names = append(names, period.Name())
-	}
-	return names
-}
-
 // accountsHeading is the frame's heading row on Accounts, as its heading has
 // it, and after [ ], on Compare, which of its accounts it shows, in the forms
 // compareState says it in.
 func (f Frame) accountsHeading() heading {
-	h := f.Accounts.heading()
+	h := f.Accounts.heading(f.Period)
 	if f.Accounts.View() != AccountsCompare {
 		return h
 	}

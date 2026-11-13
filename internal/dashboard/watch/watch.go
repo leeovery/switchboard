@@ -170,6 +170,10 @@ type Config struct {
 	Graphs   dashboard.GraphsSections
 	Log      dashboard.LogTicks
 	Prefs    Prefs
+	// Period is the period the preferences keep the entity tabs counting
+	// over, as dashboard.PeriodKept reads it, which Prefs keeps as it
+	// changes.
+	Period views.Period
 	// AccountsShown is what the preferences keep Accounts showing, as
 	// dashboard.AccountsKept reads it, SessionsShown Sessions, as
 	// dashboard.SessionsKept reads it, and RunwayShown Runway, as
@@ -329,8 +333,11 @@ type Model struct {
 	// was read in, as rescrolled noted it.
 	scroll int
 	readIn scrollRead
+	// period is the period the entity tabs count over, one dial they share,
+	// as < and > step it.
+	period views.Period
 	// accounts is what the watch holds of Accounts: what it shows, and its
-	// page, built of the days past holds.
+	// page, built of the days past holds over the period.
 	accounts accountsTab
 	// past is what the watch holds of History: its page, the ledger's days
 	// it's built of, and the reads of them, which Accounts shares.
@@ -474,7 +481,7 @@ func New(ctx context.Context, cfg Config) Model {
 	m := Model{
 		ctx: ctx, cfg: cfg, after: cfg.After, size: cfg.Size, plan: plan{interval: cfg.Interval}, fetching: true,
 		choice: cfg.Choice, pair: cfg.Pair, view: opening(cfg.View), sections: cfg.Sections, by: cfg.By, models: cfg.Models, graphs: cfg.Graphs,
-		accounts: accountsTab{shown: cfg.AccountsShown}, past: historyTab{page: cfg.History, starts: cfg.WeekStarts},
+		period: cfg.Period, accounts: accountsTab{shown: cfg.AccountsShown}, past: historyTab{page: cfg.History, starts: cfg.WeekStarts},
 		sessionsTab: sessionsTab{shown: cfg.SessionsShown}, runwayTab: runwayTab{shown: cfg.RunwayShown}, log: openingLog(cfg.Log),
 		traffic: traffic{heard: new(views.Hearing)}, held: views.HoldSessions(cfg.Prices), versionNameCells: views.VersionNameCells(cfg.Prices),
 		plansAtMost: views.PlansAtMost(cfg.Accounts, cfg.Prices),
@@ -932,6 +939,7 @@ func (m Model) frame(now time.Time) dashboard.Frame {
 		WeekWindow:       m.cfg.WeekWindow,
 		VersionNameCells: m.versionNameCells,
 		PlansAtMost:      m.plansAtMost,
+		Period:           m.period,
 		Accounts:         m.accounts.shown,
 		Runway:           m.runwayTab.shown,
 		Graphs:           m.graphsShown(),

@@ -283,7 +283,7 @@ func turnedName(col compareColumn, cells int) line {
 // of its token's year, where anything is, as Compare's heads tell it, the
 // turned form having no heads.
 func (cp compared) turnedWeek(c *canvas, y int, l turnedLayout, columns []compareColumn) int {
-	c.line(0, y, weekLabel(cp.f.Accounts.Period))
+	c.line(0, y, weekLabel(cp.f.Period))
 	c.heading(y, y+partsApart)
 	for _, col := range columns {
 		y += partsApart

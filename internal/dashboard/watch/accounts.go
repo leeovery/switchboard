@@ -52,12 +52,12 @@ func (s *stoodAt) holds(doc status.Document, now time.Time, policy score.Policy)
 // counts them as they change, the period, and the local day it was built on.
 type builtOf struct {
 	held   int
-	period views.AccountsPeriod
+	period views.Period
 	day    string
 }
 
 // accountsBuilt is m with Accounts' page built afresh at now of the last 12
-// months' days held, as views.Past.Accounts builds it over the period shown,
+// months' days held, as views.Past.Accounts builds it over the dial's period,
 // where those days, the period or the day have changed since it was built,
 // while Accounts shows: once for each, never a frame at a time. Each look
 // reads today's days afresh, as readHistory reads them, so the page follows
@@ -71,7 +71,7 @@ func (m Model) accountsBuilt() Model {
 		return m
 	}
 	now := m.now()
-	of := builtOf{held: m.past.held, period: m.accounts.shown.Period, day: dayfile.DateOf(now)}
+	of := builtOf{held: m.past.held, period: m.period, day: dayfile.DateOf(now)}
 	if m.accounts.page == nil || m.accounts.of != of {
 		page := m.past.last.past.Since(nil, now).Accounts(of.period)
 		m.accounts.page, m.accounts.of, m.accounts.at = &page, of, nil
@@ -97,22 +97,21 @@ func (t accountsTab) standing(f dashboard.Frame) dashboard.AccountsShown {
 	return s
 }
 
-// showAccounts shows Accounts as given: another sub-tab or period from the
-// view's top; Compare's columns and Detail's list as far along as the frame
-// scrolls them to show the focus and the account shown, as standing has
-// them. It keeps what the preferences keep of it, where that's changed, for
-// the next watch to open with: the sub-tab and the period, its page built
-// afresh as accountsBuilt has it.
+// showAccounts shows Accounts as given: another sub-tab from the view's top;
+// Compare's columns and Detail's list as far along as the frame scrolls them
+// to show the focus and the account shown, as standing has them. It keeps
+// what the preferences keep of it, where that's changed, for the next watch
+// to open with: the sub-tab.
 func (m Model) showAccounts(s dashboard.AccountsShown) Model {
 	was := m.accounts.shown
-	if s.View() != was.View() || s.Period != was.Period {
+	if s.View() != was.View() {
 		m.scroll = 0
 	}
 	m.accounts.shown = s
 	drawn := m.frame(m.now()).Accounts
 	m.accounts.shown.First, m.accounts.shown.ListScroll = drawn.First, drawn.ListScroll
 	if kept := s.Kept(); kept != was.Kept() {
-		m = m.keepPrefs("what Accounts shows", func(prefs *theme.Prefs) { prefs.Accounts = kept }, "accounts", kept)
+		m = m.keepPrefs("what Accounts shows", func(prefs *theme.Prefs) { prefs.Accounts.View = kept.View }, "accounts", kept.View)
 	}
 	return m
 }
@@ -178,9 +177,9 @@ var accountsSteps = map[string]int{"[": -1, "]": 1, "<": -1, ">": 1, "left": -1,
 
 // accountsKey acts on a key of Accounts', reporting false for a key it
 // doesn't take, or on another tab, and the command it starts, if any: [ and
-// ] turn the sub-tab, and < and > step the period, as Turned and Stepped have
-// them; ← and → move Compare's focus, or Detail's ↑ and ↓ between its list
-// and its SESSIONS, as Moved has it; ↑ and ↓ choose in Detail, as Choosing
+// ] turn the sub-tab, as Turned has it, and < and > step the period, as
+// periodStepped has it; ← and → move Compare's focus, or Detail's ↑ and ↓
+// between its list and its SESSIONS, as Moved has it; ↑ and ↓ choose in Detail, as Choosing
 // has it; enter opens what's focused or selected, as entered has it; and esc
 // ends Compare's focus, as Unfocused has it. A key that changes what's shown
 // shows it as showAccounts has it. Where Compare draws no focus, turned,
@@ -199,7 +198,7 @@ func (m Model) accountsKey(key string) (Model, tea.Cmd, bool) {
 	case "[", "]":
 		next, changed = s.Turned(by)
 	case "<", ">":
-		next, changed = s.Stepped(by)
+		return m.periodStepped(by), nil, true
 	case "left", "right":
 		next, changed = s.Moved(by, m.running(now))
 	case "up", "down":
