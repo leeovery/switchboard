@@ -64,6 +64,20 @@ func PoolLabels(pools config.Pools, record func() identity.Record) func(id strin
 	}
 }
 
+// ManyPoolsFiled reports whether the recorded files may hold the work of
+// more than one pool: where pools, the configured, are more than one, or the
+// accounts record record returns keeps one they don't, removed or another
+// Mac's from an import, record called only where pools are one or none.
+func ManyPoolsFiled(pools config.Pools, record func() identity.Record) bool {
+	if len(pools) > 1 {
+		return true
+	}
+	return slices.ContainsFunc(record().Pools, func(p identity.PoolEntry) bool {
+		_, configured := pools.ByID(p.ID)
+		return !configured
+	})
+}
+
 // keptLabel is the label of a pool the accounts record keeps, as PoolLabels
 // labels one not configured: the label kept of one removed, else the one
 // this Mac's config last wrote, else its id.

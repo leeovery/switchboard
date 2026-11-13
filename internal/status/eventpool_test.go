@@ -201,3 +201,28 @@ func TestAPoolTheRecordKeepsButTheConfigDoesntIsKept(t *testing.T) {
 		}
 	}
 }
+
+func TestTheFilesHoldManyPoolsWhereTheConfigOrTheRecordHasMoreThanOne(t *testing.T) {
+	first := identity.PoolEntry{ID: firstPool, First: true, Here: true}
+	one := config.Pools{{ID: firstPool, Label: "Default"}}
+	tests := []struct {
+		name   string
+		pools  config.Pools
+		record []identity.PoolEntry
+		want   bool
+	}{
+		{name: "two configured", pools: append(one, config.Pool{ID: acme, Label: "Acme"}), record: []identity.PoolEntry{first, {ID: acme, Here: true}}, want: true},
+		{name: "one configured, never another", pools: one, record: []identity.PoolEntry{first}},
+		{name: "one configured, another removed", pools: one, record: []identity.PoolEntry{first, {ID: acme, Label: "Acme", Removed: time.Now()}}, want: true},
+		{name: "one configured, another Mac's", pools: one, record: []identity.PoolEntry{first, {ID: "f4xk", Label: "Client"}}, want: true},
+		{name: "none configured, none kept", pools: nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			record := func() identity.Record { return identity.Record{Pools: tt.record} }
+			if got := status.ManyPoolsFiled(tt.pools, record); got != tt.want {
+				t.Errorf("ManyPoolsFiled() = %t, want %t", got, tt.want)
+			}
+		})
+	}
+}

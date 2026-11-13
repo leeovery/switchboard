@@ -620,8 +620,9 @@ added:
 - `pool_label` beside an account's `pool`, and in each of its `pools`, beside that pool's `pool`,
   with that pool's models priced as the whole day's are.
 
-In a read of one pool, where the config has two or more, each day leaves out `lines` and `bytes`,
-which tell of the day's files, every pool's work in them.
+Where the day's files may hold more than one pool's work, as where the config has two or more
+pools, or the accounts record keeps one it doesn't, removed or another Mac's from an import, each
+day leaves out `lines` and `bytes`, which tell of the day's files, every pool's work in them.
 
 A day of no requests, where the history tells of no account that day, has no `accounts`. An account
 has a day there where its quota checks, its counts of tokens or the history give it one, with
