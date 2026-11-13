@@ -186,13 +186,14 @@ func TestTheListsColumnsByWidth(t *testing.T) {
 // listLeaving are the List's columns that leave, in the order they leave.
 var listLeaving = []listPart{listRouting, listWorth, listStarted, listModel}
 
-// listLeasts are the List's columns' leasts as the design gives them, on's
-// natural on: the session its id and 6 of its directory; on its natural, 14
-// at the most; and the others their widths.
-func listLeasts(on int) map[listPart]int {
+// listLeasts are the List's columns' leasts as the design gives them, of the
+// naturals given: the session its id and 6 of its directory; on its natural,
+// 14 at the most; model and worth their widths, or their widest said where
+// it's past them; and the others their widths.
+func listLeasts(n listNaturals) map[listPart]int {
 	return map[listPart]int{
-		listSession: 11, listOn: min(on, 14), listModel: 9, listState: 11,
-		listStarted: 15, listRequests: 8, listWorth: 7, listRouting: 24,
+		listSession: 11, listOn: min(n.on, 14), listModel: max(9, n.model), listState: 11,
+		listStarted: 15, listRequests: 8, listWorth: max(7, n.worth), listRouting: 24,
 	}
 }
 
@@ -202,7 +203,7 @@ func listLeasts(on int) map[listPart]int {
 // has them.
 func TestTheListsColumnsLeaveInTheirOrder(t *testing.T) {
 	for _, on := range []int{8, 14, 22} {
-		for _, said := range []listNaturals{{}, {model: len("sonnet-5-5"), worth: len("$1549.04+")}} {
+		for _, said := range []listNaturals{{}, {model: len("sonnet-5-5"), worth: len("$126.75+")}, {model: len("opus-5-5-preview"), worth: len("$11549.04+")}} {
 			n := listNaturals{on: on, model: said.model, worth: said.worth}
 			before := listColumnsOf(51, n)
 			for width := 52; width <= 220; width++ {
@@ -241,12 +242,12 @@ func listWidensSteadily(before, after []listColumn) []string {
 // past the leasts goes to the session, to 29, before on takes a cell past
 // its least; neither worth nor started shows beside a session cut short;
 // routing, where it shows, ends at the last column, beside the session and
-// on whole, and where it's left, no column is past its natural; and routing
-// takes no cell past its least before model and worth, where they show, are
-// whole.
+// on whole, and where it's left, no column is past its natural; and model
+// and worth, where they show, are whole, so neither is ever cut beside
+// routing or a session past its least.
 func listLaidAsDesigned(width int, n listNaturals) []string {
 	on := n.on
-	leasts, columns := listLeasts(on), listColumnsOf(width, n)
+	leasts, columns := listLeasts(n), listColumnsOf(width, n)
 	shown := map[listPart]listColumn{}
 	var wrong []string
 	taken, x := -listGap, listFrom
@@ -281,8 +282,8 @@ func listLaidAsDesigned(width int, n listNaturals) []string {
 	case !hasPart(shown, listRouting) && (session.width > 29 || shown[listOn].width > on || last.x+last.width > width):
 		wrong = append(wrong, "with routing left, a column grows past its natural")
 	}
-	if routing.width > leasts[listRouting] && (listCut(shown, listModel, n.model) || listCut(shown, listWorth, n.worth)) {
-		wrong = append(wrong, "routing grows past its least beside model or worth cut short")
+	if cut := listCut(shown, listModel, n.model) || listCut(shown, listWorth, n.worth); cut && (hasPart(shown, listRouting) || session.width > leasts[listSession]) {
+		wrong = append(wrong, "model or worth cut short beside routing or a session past its least")
 	}
 	return wrong
 }
@@ -399,11 +400,12 @@ func TestTheListsRoutingSaysWhyInAWordOrTwoNamingEachAccountByItsLabel(t *testin
 		{name: "rescored", routing: movedBy(status.Rescored(15*time.Hour), "personal", 0), want: "from south · rescored after 15h idle"},
 		{name: "moved by a pin", routing: movedBy(status.ReasonMovedByPin, "work", 0), want: "from north · pinned"},
 		{name: "its pin yields", routing: movedBy(status.ReasonPinYields+"side has no room", "personal", 0), want: "from south · pin yields"},
-		{name: "back where it was", routing: movedBy(status.ReasonBack, "personal", 0), want: "from south · back"},
+		{name: "back where it was", routing: movedBy(status.ReasonBack, "personal", 0), want: "from south · back where it was"},
 		{name: "passing an account over", routing: movedBy(status.PassingOver(status.ReasonGlobalPin, "personal"), "work", 0),
 			want: "from north · south under pressure"},
 		{name: "sent again after a limit", routing: views.RoutingSaid{
-			Brief: status.BriefTriedWords("work", status.Tried{Account: "work", Why: status.WhyLimit}), From: "work", Cost: cents(98),
+			Brief: status.BriefTriedWords(status.ReasonMovedOff+"work "+status.WhyLimit, status.Facts{From: "work", To: "side"}, status.Tried{Account: "work", Why: status.WhyLimit}), From: "work",
+			Cost: cents(98),
 		}, want: "from north · at its limit  $0.98"},
 		{name: "pinned there on its own", routing: views.RoutingSaid{Brief: status.BriefWords(status.ReasonPinned, status.Facts{})}, want: "pinned"},
 	}

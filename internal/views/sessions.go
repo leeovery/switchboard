@@ -169,7 +169,7 @@ func (l SessionList) Named(n status.Namer) SessionList {
 func (s ListedSession) named(n status.Namer) ListedSession {
 	s.AccountName = namedOf(n, s.Account)
 	s.Models = modelAccountsNamed(s.Models, n)
-	s.Routing.Words = s.Routing.Words.Named(n)
+	s.Routing.Words, s.Routing.Brief = s.Routing.Words.Named(n), s.Routing.Brief.Named(n)
 	if s.Moved != nil {
 		moved := *s.Moved
 		moved.FromLabel = namedOf(n, moved.From).Label

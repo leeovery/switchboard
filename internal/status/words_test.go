@@ -451,7 +451,7 @@ func TestBriefWordsSayWhereASessionMovedFromAndWhyInAWordOrTwo(t *testing.T) {
 		{name: "its pin yields", reason: status.ReasonPinYields + "side has no room", facts: from, want: "from [work] · pin yields"},
 		{name: "moved by a pin", reason: status.ReasonMovedByPin, facts: from, want: "from [work] · pinned"},
 		{name: "the global pin", reason: status.ReasonGlobalPin, facts: from, want: "from [work] · pinned"},
-		{name: "back where it was", reason: status.ReasonBack, facts: from, want: "from [work] · back"},
+		{name: "back where it was", reason: status.ReasonBack, facts: from, want: "from [work] · back where it was"},
 		{name: "pinned here, moving none", reason: status.ReasonPinned, want: "pinned"},
 		{name: "sticky", reason: status.ReasonSticky, want: "sticky"},
 		{name: "kept for its thinking", reason: status.ReasonBound, want: "kept for its thinking"},
@@ -466,28 +466,38 @@ func TestBriefWordsSayWhereASessionMovedFromAndWhyInAWordOrTwo(t *testing.T) {
 	}
 }
 
-// The List's routing says a request sent again after an account couldn't
-// serve it as a move off that account: the one the session left, else the
-// first tried, and why in a word or two.
+// The List's routing says a request sent again after the accounts tried
+// couldn't serve it briefly, as TriedWords says it in full: where it moved
+// its session, always from the account it left, why that account's own
+// where it was tried, else its reason's, in a word or two; where it moved
+// none, the first tried alone.
 func TestBriefTriedWordsSayTheAccountLeftAndWhyInAWordOrTwo(t *testing.T) {
 	limit, refused := status.Tried{Account: "work", Why: status.WhyLimit}, status.Tried{Account: "personal", Why: status.WhyRefused}
+	offWork := func(why string) string { return status.ReasonMovedOff + "work " + why }
 	tests := []struct {
-		name  string
-		from  string
-		tried []status.Tried
-		want  string
+		name   string
+		reason string
+		from   string
+		tried  []status.Tried
+		want   string
 	}{
-		{name: "none tried", from: "work"},
-		{name: "after a limit", from: "work", tried: []status.Tried{limit}, want: "from [work] · at its limit"},
-		{name: "after a refusal", from: "personal", tried: []status.Tried{refused}, want: "from [personal] · refused"},
-		{name: "the account the session left, of two", from: "personal", tried: []status.Tried{limit, refused}, want: "from [personal] · refused"},
-		{name: "the first, where the session left none tried", tried: []status.Tried{limit, refused}, want: "from [work] · at its limit"},
-		{name: "a why it has no words for, cleaned", from: "work", tried: []status.Tried{{Account: "work", Why: "has a\tnew token"}},
+		{name: "none tried", reason: offWork(status.WhyLimit), from: "work"},
+		{name: "after its own limit", reason: offWork(status.WhyLimit), from: "work", tried: []status.Tried{limit}, want: "from [work] · at its limit"},
+		{name: "after its own refusal", reason: status.ReasonMovedOff + "personal " + status.WhyRefused, from: "personal", tried: []status.Tried{refused},
+			want: "from [personal] · refused"},
+		{name: "the account the session left, of two", reason: status.ReasonMovedOff + "personal " + status.WhyRefused, from: "personal",
+			tried: []status.Tried{limit, refused}, want: "from [personal] · refused"},
+		{
+			name: "moved off its account at its cap, another tried hitting its limit", reason: offWork(status.WhyReserve), from: "work",
+			tried: []status.Tried{{Account: "personal", Why: status.WhyLimit}}, want: "from [work] · at its cap",
+		},
+		{name: "a session's first, moving none", reason: status.ReasonNew, tried: []status.Tried{limit, refused}, want: "after [work]'s limit"},
+		{name: "a why it has no words for, cleaned", reason: offWork("has a new token"), from: "work", tried: []status.Tried{{Account: "work", Why: "has a\tnew token"}},
 			want: "from [work] · has a new token"},
 	}
 	for _, tt := range tests {
-		if got := marked(status.BriefTriedWords(tt.from, tt.tried...)); got != tt.want {
-			t.Errorf("%s: BriefTriedWords(%q, %v) = %q, want %q", tt.name, tt.from, tt.tried, got, tt.want)
+		if got := marked(status.BriefTriedWords(tt.reason, status.Facts{From: tt.from, To: "side"}, tt.tried...)); got != tt.want {
+			t.Errorf("%s: BriefTriedWords(%q, from %q, %v) = %q, want %q", tt.name, tt.reason, tt.from, tt.tried, got, tt.want)
 		}
 	}
 }

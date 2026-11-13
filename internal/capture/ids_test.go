@@ -3,7 +3,6 @@ package capture
 import (
 	"regexp"
 	"slices"
-	"strings"
 	"testing"
 
 	"github.com/leeovery/switchboard/internal/dashboard/watch"
@@ -16,7 +15,7 @@ import (
 // their place, as a config labelling hashed ids does the other way round.
 var unlikeLabels = map[string]string{
 	"work": "a1b2", "personal": "c3d4", "side": "e5f6", "client": "g7h8", "spare": "i9j0",
-	"lab": "k1l2", "team": "m3n4", "extra": "o5p6", "ops": "q7r8", "studio": "s9t0",
+	"lab": "k1l2", "team": "m3n4", "extra": "o5p6", "ops": "q7r8", "studio": "s9t0", teamID: "u1v2",
 }
 
 // idSizes are the sizes the guard draws every fixture at: the owner's phone
@@ -24,7 +23,7 @@ var unlikeLabels = map[string]string{
 var idSizes = []watch.Size{{Width: 73, Height: 61}, {Width: 108, Height: 44}, {Width: 173, Height: 53}, wide(37)}
 
 // unlikeLabelled is the world given, each account, and each removed, labelled
-// as unlikeLabels has it by its id, or its id upper-cased past it.
+// as unlikeLabel has it.
 func unlikeLabelled(w accountWorld) accountWorld {
 	w.accounts = slices.Clone(w.accounts)
 	for i, a := range w.accounts {
@@ -38,23 +37,25 @@ func unlikeLabelled(w accountWorld) accountWorld {
 }
 
 // unlikeLabel is the label unlikeLabels gives the account with the given
-// id, or its id upper-cased, where it gives none.
+// id, or, where it gives none, its id inside a word, which never reads as
+// the id said.
 func unlikeLabel(id string) string {
 	if label, ok := unlikeLabels[id]; ok {
 		return label
 	}
-	return strings.ToUpper(id)
+	return "z" + id + "z"
 }
 
-// wordsLikeIDs are the dashboard's own words that read as an id of the
-// worlds': Claude's extra usage, as Compare names it; History's "plenty to
-// spare"; and a card's key for moving side to side.
-var wordsLikeIDs = regexp.MustCompile(`extra usage|to spare|←→ side`)
+// wordsLikeIDs are the dashboard's own phrases that read as an id of the
+// worlds', each whole: Claude's extra usage, as Compare names it; History's
+// "plenty to spare"; Graphs' WHEN YOU WORK; and a card's key, ←→ moving side
+// to side.
+var wordsLikeIDs = regexp.MustCompile(`(?i)extra usage|plenty to spare|when you work|←→ side   ↑↓ move   space tick   enter apply   esc cancel`)
 
 // idsShown are the ids of the world's accounts, and of those removed, that
 // the rows show as words, as id said: a word of its own, never a part of
-// one, the dashboard's words like them, as wordsLikeIDs has them, passed
-// over.
+// one, in any case, as a heading upper-cases a name, the dashboard's
+// phrases like them, as wordsLikeIDs has them, passed over.
 func idsShown(rows []string, w accountWorld) []string {
 	var ids []string
 	for _, a := range w.accounts {
@@ -65,7 +66,7 @@ func idsShown(rows []string, w accountWorld) []string {
 	}
 	var shown []string
 	for _, id := range ids {
-		said := regexp.MustCompile(`(^|[^\pL\pN_-])` + regexp.QuoteMeta(id) + `($|[^\pL\pN_-])`)
+		said := regexp.MustCompile(`(?i)(^|[^\pL\pN_-])` + regexp.QuoteMeta(id) + `($|[^\pL\pN_-])`)
 		for _, row := range rows {
 			if said.MatchString(wordsLikeIDs.ReplaceAllString(row, "")) {
 				shown = append(shown, id+" in: "+row)

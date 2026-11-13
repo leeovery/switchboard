@@ -4676,12 +4676,29 @@ order, each at least its least and at most its natural:
 |---|---|---|---|
 | `session` | 11 | 29 | The id, cut to 4, in `text.secondary`; a space and the directory, cut with `…` to the rest, in `text.muted`: at its least 6 of the directory, at its natural its most, 24 |
 | `on` | Its natural, 14 at the most | The widest account's name configured, 24 at the most | The account its latest request went to, in `text.primary` |
-| `model` | 9 | 9 | The model of its latest request, its id less `claude-`, as `opus-5-5`, in `text.muted` |
+| `model` | 9, or the widest the List names where wider | Its least | The model of its latest request, its id less `claude-`, as `opus-5-5` or `sonnet-5-5`, in `text.muted`; never cut |
 | `state` | 11 | 11 | `asking` or `answering`, bold `accent.key`; `✕ 429`, bold `state.destructive`; `idle 34s` in `text.muted`; once over, `ended 11:21` in `text.muted` |
 | `started` | 15 | 15 | When its first request came: `12:47` today, `yesterday 15:08`, `Tue 15:08` within the week, `28 Sep 15:08` before it (settled in the plan), in `text.muted` |
 | `requests` | 8 | 8, right-aligned | Its requests today, as `1,240`, in `text.muted` |
-| `worth` | 7 | 7, right-aligned | Theirs at API prices, as `$17.86`, in `text.muted`; unpriced as the Log shows it |
-| `routing` | 24 | To the last column | How it came to the account it's on, in the Log's routing words: `from ` in `text.muted`, the account it left in `text.secondary`, `, at its cap` in `text.muted`, two spaces, and in `accent.attention` what writing its context again cost, `$1.82`; `pinned here` in `text.muted` for a session pinned on its own (settled in the plan); blank where it started there |
+| `worth` | 7, or the widest the List says where wider, its `+` counted | Its least, right-aligned | Theirs at API prices, as `$17.86` or `$126.75+`, in `text.muted`; unpriced as the Log shows it; never cut |
+| `routing` | 24 | To the last column | How it came to the account it's on, in a word or two, as the table below has it: `from ` in `text.muted`, the account it left by its label in `text.secondary`, ` · at its cap` in `text.muted`, two spaces, and in `accent.attention` what writing its context again cost, `$1.82`; `pinned` in `text.muted` for a session pinned on its own; blank where it started there. `on` names where it went; the full reason stays on the session's page and in the Log |
+
+- **Routing's short form,** status's `BriefWords`, beside each reason's other forms: `from <the
+  account it left> · ` and why, by the reason's kind; why alone where it moved from none.
+
+  | Reason | Why |
+  |---|---|
+  | Moved off an account at its cap, its limit, refused, with no room | `at its cap`, `at its limit`, `refused`, `no room` |
+  | Moved off for a why the dashboard has no words for | The why, as the router gives it |
+  | Compacted | `compacted` |
+  | Rescored | `rescored after 15h idle` |
+  | Moved by a pin, the global pin, or pinned on its own | `pinned` |
+  | Its pin yields | `pin yields` |
+  | Back where it was | `back where it was` |
+  | Passing an account over, unforced | `personal under pressure` |
+  | Forced, passing an account over | The forced move's alone |
+  | Sent again after the accounts tried couldn't serve it | Where it moved, why the account it left couldn't, where it was tried, else its reason's; where it moved none, the first tried alone, `after work's limit` |
+  | A reason the dashboard doesn't know | As the router gives it |
 
 - **One narrowing,** from the widest to a phone's 52, with no phone list (the owner's call on the
   spike, 21 October 2026), laid out in two passes, as the Log's Requests are. The first decides
@@ -4692,6 +4709,9 @@ order, each at least its least and at most its natural:
   3. `worth`, then `started`, leave, while the leasts and `session` whole don't fit;
   4. `session` is cut toward its least;
   5. `model` leaves, only while the leasts don't fit, so before `on` is cut below 14.
+
+  `model` and `worth` are whole wherever they show, their leasts their widest, so `routing` never
+  shows, nor `session` grows past its least, beside either cut.
 
   `session`, `on`, `state` and `requests` never leave. The second lays out what shows: what's past
   the leasts goes to `session` first, to its natural, then to `on`, never past what the first left
@@ -4706,9 +4726,10 @@ order, each at least its least and at most its natural:
   14; at 138 both are whole. As `on` never takes back what it gave up for `worth` and `started`, a
   name over 14 cells can stay cut with cells spare at the row's end: with the frames' long names,
   from 82 to 97 columns and from 99 to 106, up to 16 cells.
-- **No natural comes from the rows shown,** so the columns hold still as the List scrolls and as
-  sessions come and go: the session's is the directory's most, 24, and `on`'s the accounts
-  configured.
+- **No natural comes from the rows in view,** so the columns hold still as the List scrolls: the
+  session's is the directory's most, 24, and `on`'s the accounts configured; `model`'s and
+  `worth`'s are the widest of every session the List holds, out of view too, so they widen as a
+  session with a wider one comes, and never otherwise.
 - **What doesn't fit its cells** is cut with `…`: the directory to the cells after the id, the
   account to `on`'s, and `routing` as the Log cuts it, `…` in the colour of what it cuts and a
   move's cost kept whole.

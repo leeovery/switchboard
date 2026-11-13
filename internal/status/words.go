@@ -158,25 +158,31 @@ func BriefWords(reason string, f Facts) Words {
 	return briefFrom(f.From, wordsOf(reason, f).brief)
 }
 
-// BriefTriedWords are the accounts a request went out on that couldn't serve
-// it, as the List's routing reads them in place of its reason's words: the
-// account the session left, from, else the first tried, and why that one
-// couldn't, as a move off it says it, "from work · at its limit". A why the
-// dashboard has no words for reads as the router gives it, cleaned. None
+// BriefTriedWords are a request that went out again after the accounts tried
+// couldn't serve it, as the List's routing reads it in place of its reason's
+// words, briefly saying what TriedWords says. Where it moved its session,
+// the account it left, as From gives it, and why: as a move off it says it,
+// where that's among those tried, "from work · at its limit"; else as
+// BriefWords says the reason, "from work · at its cap". Where it moved none,
+// the first tried alone, as TriedWords says it, "after work's limit". A why
+// the dashboard has no words for reads as the router gives it, cleaned. None
 // where none was tried.
-func BriefTriedWords(from string, tried ...Tried) Words {
-	if len(tried) == 0 {
+func BriefTriedWords(reason string, f Facts, tried ...Tried) Words {
+	switch {
+	case len(tried) == 0:
 		return nil
+	case f.From == "":
+		return TriedWords(tried[0])
 	}
-	left := tried[0]
-	if i := slices.IndexFunc(tried, func(t Tried) bool { return t.Account == from }); i >= 0 {
-		left = tried[i]
+	i := slices.IndexFunc(tried, func(t Tried) bool { return t.Account == f.From })
+	if i < 0 {
+		return BriefWords(reason, f)
 	}
-	why := prose.Clean(left.Why)
-	if said, known := offWords[left.Why]; known {
+	why := prose.Clean(tried[i].Why)
+	if said, known := offWords[tried[i].Why]; known {
 		why = said.brief
 	}
-	return briefFrom(left.Account, Words{Plain(why)})
+	return briefFrom(f.From, Words{Plain(why)})
 }
 
 // briefApart sets the account a session moved from apart from why, as the
@@ -458,7 +464,7 @@ func settled(reason string, f Facts) (forms, bool) {
 	case ReasonGlobalPin, ReasonMovedByPin:
 		return alike(pinnedTo(f.To)).briefly(Plain("pinned")), true
 	case ReasonBack:
-		return alike(Words{Plain("back where it was")}).briefly(Plain("back")), true
+		return alike(Words{Plain("back where it was")}), true
 	}
 	return forms{}, false
 }

@@ -318,7 +318,7 @@ func routingSaid(tried []ledger.Tried, reason string, moved status.Facts, first 
 		for i, t := range tried {
 			accounts[i] = status.Tried(t)
 		}
-		said.Words, said.Brief = status.TriedWords(accounts...), status.BriefTriedWords(moved.From, accounts...)
+		said.Words, said.Brief = status.TriedWords(accounts...), status.BriefTriedWords(reason, moved, accounts...)
 	case moved.From != "":
 		said.Words, said.Brief = status.RoutingWords(reason, moved), status.BriefWords(reason, moved)
 	case first:

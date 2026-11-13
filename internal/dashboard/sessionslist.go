@@ -72,7 +72,7 @@ const (
 
 // listPartFacts are each column's head; its least and its natural, 0 for
 // its least, on's both placeholders for the widest name, and model's and
-// worth's naturals for their widest said, as listParts gives them; how its
+// worth's both raised to their widest said, as listParts gives them; how its
 // words sit; and the turns it narrows and leaves in, 0 never.
 var listPartFacts = [...]struct {
 	head            string
@@ -113,8 +113,10 @@ func listNaturalsOf(m status.Moment, sessions []views.ListedSession) listNatural
 // listParts are the List's columns as flex lays them, listGap apart, each
 // from its least to its natural, holding its natural until it narrows in its
 // turn: on's natural as given, its least that, listOnLeast at the most;
-// model's and worth's as given, past their leasts, which they take before
-// routing grows; and routing taking what's left to the last column.
+// model and worth whole wherever they show, their leasts and naturals the
+// widest given where it's past their own, so routing never shows, nor the
+// session grows past its least, beside either cut; and routing taking what's
+// left to the last column.
 func listParts(n listNaturals) []flex.Part {
 	parts := make([]flex.Part, len(listPartFacts))
 	for p, facts := range listPartFacts {
@@ -124,8 +126,10 @@ func listParts(n listNaturals) []flex.Part {
 		}
 	}
 	parts[listOn].Least, parts[listOn].Natural = min(n.on, listOnLeast), n.on
-	parts[listModel].Natural = max(parts[listModel].Least, n.model)
-	parts[listWorth].Natural = max(parts[listWorth].Least, n.worth)
+	for p, widest := range map[listPart]int{listModel: n.model, listWorth: n.worth} {
+		parts[p].Least = max(parts[p].Least, widest)
+		parts[p].Natural = parts[p].Least
+	}
 	parts[listRouting].Grows = true
 	return parts
 }
@@ -141,9 +145,9 @@ type listColumn struct {
 // wide, of the naturals given, on's at least its head's, in two passes of
 // flex, as the Log's Requests are: the first decides which of listParts
 // show; the second lays out only those, as flex's Decided has them, so
-// what's past the leasts goes to the session first, then on, then model and
-// worth, in the row's order. Nothing grows but routing, so where it's left,
-// the spare lies at the row's end.
+// what's past the leasts goes to the session first, then on, in the row's
+// order. Nothing grows but routing, so where it's left, the spare lies at
+// the row's end.
 func listColumnsOf(width int, n listNaturals) []listColumn {
 	room := width - listFrom
 	n.on = max(n.on, ansi.StringWidth(listPartFacts[listOn].head))
