@@ -1078,18 +1078,25 @@ totals.
   key line giving the first line of why. The key line lists `P pool` once a second pool exists,
   on a phone too, and help gives it. With one pool, `P` isn't listed, but reads the pools afresh
   all the same: it turns to a second added since, else the key line says there's one pool.
-- **What it holds of the pool shown follows the config as it stands:** its label, directories,
-  accounts and the pools counted, so the title row, `P pool`, the empty page and the accounts
-  listed follow a pool relabelled, fenced, given an account or left alone. It's read again,
-  without a fresh start, only as the config changes: where a read finds the config file stamped
-  otherwise, its size or when it was written, than as the pool was read, or the accounts the read
-  found other than the last read's (`status.Moment.AccountsChanged`), as an account the router
-  took up as it restarted. A read that finds neither reads nothing again: what it costs a read is
-  a stat of the config file and a comparison of two lists of ids. It's one path with `P`'s: the
-  watch asks its `Turn` for the pool shown again (`watch.SamePool`, `status.PoolAgain`), and where
-  the pool shown is gone, that's a turn to the next, as `P` would make. A config that can't be read
-  is logged and asked again once it changes again. The router's events are filtered as the pool
-  was turned to, till the next `P`.
+- **A change to the config starts the pool shown afresh,** as `P` does, so nothing it holds of
+  the pool, its label, directories, accounts, the pools counted, the router's events as they're
+  placed, the pools that name them, History, Accounts' page and its choices and the Log's rows,
+  is ever of a config gone. What counts is anything of the pools or the accounts as the pools
+  stand (`status.Placement`): any pool's id, label or directories, the pools counted, and any
+  account's id, label, plan, primary mark, reserve or pool, in any pool, as the router's events of
+  every pool are placed by them. A change to nothing of those, a comment or another table, starts
+  nothing. It's one path with `P`'s: the watch asks its `Turn` for the pool shown again
+  (`watch.SamePool`, `status.PoolAgain`), started afresh on it, or where it's gone, on the first,
+  as `P` would turn to from it; the tab, size, theme and each tab's kept view carry over, as at a
+  turn. It's asked only where a read finds the config file the dashboard reads, the one `--config`
+  names, changed since the pool was read, by the router's own rule for its config
+  (`filestate.State.Same`: another file, or one written since), or the accounts of the router's
+  document other than the last read's (`status.Document.AccountsChanged`), as an account the
+  router took up as it restarted, which finds the config as it was and starts nothing. What it
+  costs a read is a stat of the config file and a comparison of two lists of ids. The stamp is
+  taken as the ask goes out, so a change found while a turn is under way is asked for at the next
+  read; a config that can't be read is logged, with nothing on the key line, and asked again once
+  it changes again.
 - **The title row names the pool shown,** by its label after the badge, once a second pool exists,
   at every size, cut short before the tabs where it's long. The pool's accounts keep the config's
   order, unnumbered, as every screen has them (see Account identity).
@@ -1100,8 +1107,10 @@ totals.
   route (`status.ShownPool.AsRead`): none in the router's document of the pool, once one is read,
   its pool id the pool shown's; else none in the config. A probed document, whose accounts are the
   config's, or one of no pool, as a router that can't tell its pools answers, leaves it to the
-  config. Where the config gives the pool accounts the router hasn't taken up, as it does only as
-  it restarts, at a quiet moment, the status line says `no accounts routed yet` and the page says
+  config. A pool the router doesn't know, as one added since it started, whose reads it refuses
+  (`router.PoolNeeded`, naming the pool shown), routes none in it alike (`status.ShownPool.Refused`):
+  no read that failed. Where the config gives the pool accounts the router hasn't taken up, as it
+  does only as it restarts, at a quiet moment, the status line says `no accounts routed yet` and the page says
   so, and that `switchboard service restart` takes them up now. The page, the status line and the
   keys all read that one fact.
 - **Notifications** name the pool once a second pool exists, its label leading what they say of
@@ -1187,7 +1196,7 @@ pool; its ledger tabs and setup's cards are to build:
 2. **Sight:** the dashboard's `--pool` and `P`, the title row, the empty pool, notifications, and
    setup's cards, each drawn in Paper first; and the dashboard's ledger tabs made the shown pool's
    alone. Built: the dashboard's `--pool`, its accounts the pool's alone, `P` with its pools and
-   events read afresh at each turn, the pool shown following the config as it changes, the title
+   events read afresh at each turn, the pool shown started afresh as the config changes, the title
    row, the empty pool as read, and the notifications, the router's and the dashboard's, each
    fixture named after its frame (`overview-acme-160`, `overview-default-pool-160`,
    `overview-acme-73x61`, `empty-pool-160`). To build: the ledger tabs per pool, the worth and
