@@ -5,8 +5,8 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
-	"strings"
 
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -94,7 +94,7 @@ func (p *proxy) strays(pools *poolTable, named string, s sender) (pool string, l
 		return pool, !pools.holds(pool, s.ID)
 	}
 	was := pools.poolIn(removed)
-	return pool, was != "" && !strings.EqualFold(was, pool)
+	return pool, was != "" && !config.SamePool(was, pool)
 }
 
 // refuseStrayed answers a request of session, in the pool with the given id,

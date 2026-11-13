@@ -15,11 +15,13 @@ import (
 // chunk: all it decodes of its line as the store's request does, in
 // storedRequest's own form; what it asked, by its kind's code, as
 // storedKinds has it; and the Log's facts beyond, each as the record holds
-// it, its answer's blocks as storedBlock has them and the windows its answer
-// read in claude.KeptWindow's own stored form. It holds facts alone: never a
-// price, as what its request was worth is priced of what it spent at the
-// reader's day; nor what its session's story tells of it, whether it's the
-// session's first, wrote its context again, how it was routed and so its
+// it, its answer's blocks as storedBlock has them, the windows its answer
+// read in claude.KeptWindow's own stored form, and the pool it was routed
+// in as its line recorded it, none where it named none, which pool that is
+// its reader's to tell, as PoolRead's keeps has it. It holds facts alone:
+// never a price, as what its request was worth is priced of what it spent at
+// the reader's day; nor what its session's story tells of it, whether it's
+// the session's first, wrote its context again, how it was routed and so its
 // mark, told afresh as it's read. So it restores to the record it stores
 // exactly. Its keys are short and its zeros left out, a pointer's nil apart
 // from what it points at.
@@ -50,6 +52,7 @@ type storedRow struct {
 	Blocks         []storedBlock       `json:"bk,omitempty"`
 	Windows        []claude.KeptWindow `json:"w,omitempty"`
 	Limit          quota.Status        `json:"l,omitempty"`
+	Pool           string              `json:"pl,omitempty"`
 }
 
 // storedKinds are the codes a stored row gives each RowKind by, what its
@@ -75,7 +78,7 @@ func (r *lineRecord) stored() storedRow {
 		Canceled: r.canceled, CutOff: r.cutOff, Broken: r.broken, Attempts: r.attempts, FirstMS: r.firstMS, TotalMS: r.totalMS, Size: r.size,
 		Messages: r.messages, System: r.system, ToolDefs: r.toolDefs, MaxTokens: r.maxTokens, Thinking: r.thinking, Effort: r.effort, Stream: r.stream,
 		Agent: r.agent, Betas: r.betas, Answer: r.answer, Served: r.served,
-		Blocks: eachAs(r.blocks, func(b DetailBlock) storedBlock { return storedBlock(b) }), Windows: r.windows, Limit: r.limit,
+		Blocks: eachAs(r.blocks, func(b DetailBlock) storedBlock { return storedBlock(b) }), Windows: r.windows, Limit: r.limit, Pool: r.pool,
 	}
 }
 
@@ -91,7 +94,7 @@ func (s *storedRow) restored() (lineRecord, error) {
 		canceled: s.Canceled, cutOff: s.CutOff, broken: s.Broken, attempts: s.Attempts, firstMS: s.FirstMS, totalMS: s.TotalMS, size: s.Size,
 		messages: s.Messages, system: s.System, toolDefs: s.ToolDefs, maxTokens: s.MaxTokens, thinking: s.Thinking, effort: s.Effort, stream: s.Stream,
 		agent: s.Agent, betas: s.Betas, answer: s.Answer, served: s.Served,
-		blocks: eachAs(s.Blocks, func(b storedBlock) DetailBlock { return DetailBlock(b) }), windows: s.Windows, limit: s.Limit,
+		blocks: eachAs(s.Blocks, func(b storedBlock) DetailBlock { return DetailBlock(b) }), windows: s.Windows, limit: s.Limit, pool: s.Pool,
 	}, nil
 }
 
@@ -210,21 +213,24 @@ func restoredRows(records []lineRecord, rows []byte) ([]lineRecord, error) {
 }
 
 // chunkMeta is what a chunk of a day's rows says of them without a row
-// read: when the first and the last of them arrived; and what they count,
-// each row as LogCount's count counts one whatever the Log's filter: those
-// of each kind, those that failed, and by the models they asked for, the
-// accounts they're on and the sessions they count toward. It counts each
-// row as often as the day gives its line, as the rows hold them, where the
-// Log takes a request's line given twice in once. So a reader tells which
-// chunks may hold a session's rows, or rows of a time, reading none; and of
-// a day that gives no request's id twice, sums the Log's count of it.
+// read: when the first and the last of them arrived; what they count, each
+// row as LogCount's count counts one whatever the Log's filter: those of
+// each kind, those that failed, and by the models they asked for, the
+// accounts they're on and the sessions they count toward; and the pools
+// they recorded, as recordingPool keeps them, "" of those that named none.
+// It counts each row as often as the day gives its line, as the rows hold
+// them, where the Log takes a request's line given twice in once. So a
+// reader tells which chunks may hold a session's rows, rows of a time, or a
+// pool's, reading none; and of a day that gives no request's id twice, sums
+// the Log's count of it.
 type chunkMeta struct {
 	first, last instant
 	lines       LogCount
+	pools       []string
 }
 
-// take counts the record r, the chunk's next, in m: when it arrived, and its
-// row as its line alone tells it, as lineFacts has it.
+// take counts the record r, the chunk's next, in m: when it arrived, its row
+// as its line alone tells it, as lineFacts has it, and the pool it recorded.
 func (m *chunkMeta) take(r *lineRecord) {
 	none := m.lines.Lines() == 0
 	if none || r.at.compare(m.first) < 0 {
@@ -235,6 +241,15 @@ func (m *chunkMeta) take(r *lineRecord) {
 	}
 	row := lineFacts(&r.rowRecord, nil)
 	m.lines.count(&row)
+	m.pools = recordingPool(m.pools, r.pool)
+}
+
+// holdsPool reports whether the chunk m tells of may hold a row the pool
+// read p keeps, as its keepsOf has it of the pools the chunk's rows
+// recorded: every chunk may, where p reads every pool's.
+func (m *chunkMeta) holdsPool(p PoolRead) bool {
+	some, _ := p.keepsOf(m.pools)
+	return some
 }
 
 // meets reports whether the chunk m tells of may hold a request of the
@@ -264,9 +279,9 @@ func countsAny(counted map[string]int, choice []string) bool {
 
 // storedChunkMeta is a chunk's meta as its stored form holds it: when the
 // first and the last of its rows arrived, exactly; how many of them asked
-// what each kind asks; how many failed; and how many are of each model,
-// account and session, by its whole id. Its keys are short and its zeros
-// left out.
+// what each kind asks; how many failed; how many are of each model, account
+// and session, by its whole id; and the pools they recorded, as storedPools
+// stores them. Its keys are short and its zeros left out.
 type storedChunkMeta struct {
 	First    storedInstant  `json:"f,omitzero"`
 	Last     storedInstant  `json:"l,omitzero"`
@@ -277,6 +292,7 @@ type storedChunkMeta struct {
 	Models   map[string]int `json:"m,omitempty"`
 	Accounts map[string]int `json:"a,omitempty"`
 	Sessions map[string]int `json:"s,omitempty"`
+	Pools    []string       `json:"pl,omitempty"`
 }
 
 // stored is m as its stored form holds it.
@@ -284,7 +300,7 @@ func (m *chunkMeta) stored() storedChunkMeta {
 	c := m.lines
 	return storedChunkMeta{
 		First: m.first.stored(), Last: m.last.stored(), Requests: c.Requests, Checks: c.Checks, Counts: c.Counts, Failed: c.Failed,
-		Models: c.Models, Accounts: c.Accounts, Sessions: c.Sessions,
+		Models: c.Models, Accounts: c.Accounts, Sessions: c.Sessions, Pools: storedPools(m.pools),
 	}
 }
 
@@ -300,5 +316,6 @@ func chunkMetaOf(meta []byte) (chunkMeta, error) {
 		lines: LogCount{
 			Requests: s.Requests, Checks: s.Checks, Counts: s.Counts, Failed: s.Failed, Models: s.Models, Accounts: s.Accounts, Sessions: s.Sessions,
 		},
+		pools: recordedPools(s.Pools),
 	}, nil
 }

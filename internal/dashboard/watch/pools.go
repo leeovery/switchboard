@@ -3,7 +3,6 @@ package watch
 import (
 	"errors"
 	"reflect"
-	"strings"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -23,7 +22,8 @@ import (
 // are Config's Accounts; the source that reads its document, sessions,
 // history and request stream; its share of the router's events; what labels
 // a pool by its id in the words of those events, as Config's PoolNamed does;
-// how the config file stood before it was read, as Config's ConfigStamp
+// how the views read its work of the request ledger, as Config's PoolRead
+// does; how the config file stood before it was read, as Config's ConfigStamp
 // gives it; how it placed the accounts in the pools, as status's Placed has
 // it; and, as the config read has them, the grounds its request ledger is
 // made on, as Config's LedgerGrounds, NewLedger making one on them, and the
@@ -39,6 +39,7 @@ type Pooled struct {
 	Source    Source
 	Events    views.Events
 	PoolNamed func(id string) string
+	Read      views.PoolRead
 	Stamp     filestate.State
 	Placed    status.Placement
 	Grounds   ledger.Grounds
@@ -87,7 +88,7 @@ func (m Model) pool(now time.Time) status.ShownPool {
 // place of the router finds of a pool the config no longer has, isn't.
 func (m Model) refusesPool(msg fetchedMsg) bool {
 	need, ok := errors.AsType[router.PoolNeeded](msg.err)
-	return ok && msg.router.Answered() && m.cfg.Pool.ID != "" && strings.EqualFold(need.Named, m.cfg.Pool.ID)
+	return ok && msg.router.Answered() && m.cfg.Pool.ID != "" && config.SamePool(need.Named, m.cfg.Pool.ID)
 }
 
 // turnsPools reports whether the key line lists P: where there's a second
@@ -113,17 +114,22 @@ func (m Model) turnPool() (Model, tea.Cmd) {
 // finds the config file changed since the pool was read, as the read found
 // it standing, as filestate's Same has it; or, as accountsChanged says, the
 // accounts the read found other than those the last read found, as an
-// account the router took up as it restarted. The stamp found is taken as
-// the one acted on once the ask goes out, so a config that can't be read is
-// asked again only once it changes again, and one found changed during a
-// turn is asked again at the next read. A read that finds neither reads
-// nothing again.
+// account the router took up as it restarted. It does wherever the watch
+// has a Turn to ask, with pools or without, and where it shows none, as
+// they couldn't be told, so the first config naming pools, or one they can
+// be told of, starts the view afresh on the pool the verbs act on: a read
+// stats the config file whether or not there are pools, so it costs a
+// config without pools nothing more. The stamp found is taken as the one
+// acted on once the ask goes out, so a config that can't be read is asked
+// again only once it changes again, and one found changed during a turn is
+// asked again at the next read. A read that finds neither reads nothing
+// again.
 func (m Model) followConfig(stamp filestate.State, accountsChanged bool) (Model, tea.Cmd) {
 	stamped := m.cfg.ConfigStamp != nil && !stamp.Same(m.cfg.Stamp)
 	// An accounts change found during a turn is dropped, accepted: a turn
 	// lasts milliseconds, the change costs nothing while the config is as
 	// it was, and the stamp, left as it was, catches a config changed.
-	if !m.asksPools() || m.turning || !stamped && !accountsChanged {
+	if m.cfg.Turn == nil || m.turning || !stamped && !accountsChanged {
 		return m, nil
 	}
 	m.cfg.Stamp = stamp
@@ -162,7 +168,7 @@ func (m Model) turnedTo(msg turnedMsg) (Model, tea.Cmd) {
 		logger.Warn("can't read the pool shown again as the config changed", "error", msg.err)
 		return m, nil
 	}
-	held := strings.EqualFold(msg.pooled.Pool.ID, m.cfg.Pool.ID)
+	held := config.SamePool(msg.pooled.Pool.ID, m.cfg.Pool.ID)
 	shown, started := m.shownAfresh(msg.pooled)
 	if msg.ask == NextPool && held && !msg.pooled.Pool.Turns() {
 		noted, note := shown.noting(prose.OnePool)
@@ -174,12 +180,13 @@ func (m Model) turnedTo(msg turnedMsg) (Model, tea.Cmd) {
 // shownAfresh is the watch of the pool pooled, started afresh, as freshIn
 // starts it, but where it's the pool shown, its config placing the accounts
 // in the pools as it did, as status's Placement has it, and its ledger on
-// the grounds it was made on: then it's the watch as it was, the config
-// file's stamp that of pooled. So a change to the
-// config that places anything otherwise, in any pool, starts the pool shown
-// afresh, and one that doesn't, as a comment, starts nothing.
+// the grounds it was made on: then it's the watch as it was, its pool's
+// read of the ledger made of the same, the config file's stamp that of
+// pooled. So a change to the config that places anything otherwise, in any
+// pool, starts the pool shown afresh, and one that doesn't, as a comment,
+// starts nothing.
 func (m Model) shownAfresh(pooled Pooled) (Model, tea.Cmd) {
-	if strings.EqualFold(pooled.Pool.ID, m.cfg.Pool.ID) && pooled.Placed.Same(m.cfg.Placed) && pooled.Grounds.Same(m.cfg.LedgerGrounds) {
+	if config.SamePool(pooled.Pool.ID, m.cfg.Pool.ID) && pooled.Placed.Same(m.cfg.Placed) && pooled.Grounds.Same(m.cfg.LedgerGrounds) {
 		m.cfg.Stamp = pooled.Stamp
 		return m, nil
 	}
@@ -203,7 +210,7 @@ func (m Model) freshIn(pooled Pooled) Model {
 	m.stream.end()
 	cfg := m.cfg
 	cfg.Pool, cfg.Accounts, cfg.Source, cfg.Events, cfg.PoolNamed, cfg.Stamp, cfg.Placed = pooled.Pool, pooled.Accounts, pooled.Source, pooled.Events, pooled.PoolNamed, pooled.Stamp, pooled.Placed
-	cfg.Removed = pooled.Removed
+	cfg.Removed, cfg.PoolRead = pooled.Removed, pooled.Read
 	if !pooled.Grounds.Same(cfg.LedgerGrounds) {
 		cfg.Ledger, cfg.LedgerGrounds = pooled.NewLedger(), pooled.Grounds
 	}

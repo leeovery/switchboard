@@ -9,6 +9,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/notify"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
@@ -84,7 +85,7 @@ func (ss standings) title(id string) string {
 func (ss standings) fullBut(id string) bool {
 	limited, found := ss.of(id)
 	return !slices.ContainsFunc(ss, func(s standing) bool {
-		inPool := !found || strings.EqualFold(s.in, limited.in)
+		inPool := !found || config.SamePool(s.in, limited.in)
 		return s.ID != id && inPool && !s.refused && (s.quota || !s.known)
 	})
 }

@@ -1,8 +1,6 @@
 package accounts
 
 import (
-	"strings"
-
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/identity"
 )
@@ -150,10 +148,10 @@ func (r Registry) edit(id string, change Change, poolID poolID) (Edited, error) 
 	if !edited.Changed() {
 		return edited, nil
 	}
-	if now.Primary && (!was.Primary || !strings.EqualFold(was.Pool, now.Pool)) {
+	if now.Primary && (!was.Primary || !config.SamePool(was.Pool, now.Pool)) {
 		edited.FormerPrimary = primaryOf(before, now.Pool)
 	}
-	if !strings.EqualFold(was.Pool, now.Pool) {
+	if !config.SamePool(was.Pool, now.Pool) {
 		edited.Left = leftBy(before, draft.Config(), id)
 	}
 	if err := draft.Save(); err != nil {

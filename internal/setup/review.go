@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/accounts"
@@ -204,7 +203,7 @@ func (s *Setup) Review() (Review, error) {
 // PoolIndex is the place among the review's pools of the one with the given
 // id, ignoring case: -1 where it has none.
 func (r Review) PoolIndex(id string) int {
-	return slices.IndexFunc(r.Pools, func(p config.Pool) bool { return strings.EqualFold(p.ID, id) })
+	return slices.IndexFunc(r.Pools, func(p config.Pool) bool { return config.SamePool(p.ID, id) })
 }
 
 // Resolved is the review, each account's Primary read as the config's mark
@@ -236,7 +235,7 @@ func (r Review) byPool() [][]int {
 	var pools []string
 	var in [][]int
 	for i, a := range r.Accounts {
-		at := slices.IndexFunc(pools, func(p string) bool { return strings.EqualFold(p, a.Pool) })
+		at := slices.IndexFunc(pools, func(p string) bool { return config.SamePool(p, a.Pool) })
 		if at < 0 {
 			pools, in, at = append(pools, a.Pool), append(in, nil), len(pools)
 		}
@@ -462,7 +461,7 @@ func (r Review) unmarkedNotes() []Note {
 			label = r.Pools[at].Label
 		}
 		says := "has no primary marked, so its sessions start on its first account."
-		if strings.EqualFold(pool, r.First) {
+		if config.SamePool(pool, r.First) {
 			says = "has no primary marked, so its sessions start on its first account, and the Claude apps sign in to it."
 		}
 		notes = append(notes, Note{

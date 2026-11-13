@@ -333,7 +333,7 @@ func PoolsKept(record identity.Record, ids []string) (KeptPools, error) {
 		return KeptPools{}, errors.New("the accounts record keeps no pool as this Mac's config's")
 	}
 	written := func(id string) (string, bool) {
-		i := slices.IndexFunc(pools, func(p config.NewPool) bool { return strings.EqualFold(p.ID, id) })
+		i := slices.IndexFunc(pools, func(p config.NewPool) bool { return config.SamePool(p.ID, id) })
 		if i < 0 {
 			return "", false
 		}

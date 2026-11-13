@@ -41,7 +41,7 @@ func readBeside(l Ledger, held HeldSessions, through func(date string) LogFilter
 	take(rawDay(l, Today(now).Date))
 	for day := dayfile.DayStart(now, -1); dayfile.DateOf(day) >= from; day = dayfile.DayStart(day, -1) {
 		date := dayfile.DateOf(day)
-		take(ReadDay(l, date, through(date)))
+		take(ReadDay(l, date, through(date), PoolRead{}))
 	}
 	return read, held
 }
@@ -261,7 +261,7 @@ func refilteredAll(l Ledger, read LogRead, held HeldSessions, f LogFilter, s Str
 	for _, day := range read.Unserved(f) {
 		through[day.Date] = read.RefilterThrough(day.Date, f, s)
 		var fresh *HeldSessions
-		if read, fresh, _ = read.Refiltered(l, ReadDay(l, day.Date, through[day.Date]), held, s, now); fresh != nil {
+		if read, fresh, _ = read.Refiltered(l, ReadDay(l, day.Date, through[day.Date], PoolRead{}), held, s, now); fresh != nil {
 			held = held.With(*fresh)
 		}
 	}

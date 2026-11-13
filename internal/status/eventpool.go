@@ -2,7 +2,6 @@ package status
 
 import (
 	"cmp"
-	"strings"
 
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/identity"
@@ -32,7 +31,7 @@ func (e Event) Befell() string {
 //     an account none places, in every pool.
 func (e Event) InPool(pool, first string, poolOf func(account string) (string, bool)) bool {
 	if KindNamesItsPool(e.Kind) {
-		return strings.EqualFold(cmp.Or(e.Pool, first), pool)
+		return config.SamePool(cmp.Or(e.Pool, first), pool)
 	}
 	account := e.Befell()
 	return account == "" || AccountIn(account, pool, poolOf)
@@ -44,7 +43,7 @@ func (e Event) InPool(pool, first string, poolOf func(account string) (string, b
 // as one removed before pools, which every pool shows.
 func AccountIn(account, pool string, poolOf func(account string) (string, bool)) bool {
 	in, placed := poolOf(account)
-	return !placed || strings.EqualFold(in, pool)
+	return !placed || config.SamePool(in, pool)
 }
 
 // KindNamesItsPool reports whether an event of the kind given names the pool

@@ -59,10 +59,18 @@ func (ps Pools) IDs() []string {
 	return ids
 }
 
-// ByID returns the pool with the given id, ids compared ignoring case,
-// reporting false where none has it.
+// ByID returns the pool with the given id, ids compared as SamePool
+// compares them, reporting false where none has it.
 func (ps Pools) ByID(id string) (Pool, bool) {
-	return ps.find(func(p Pool) bool { return strings.EqualFold(p.ID, id) })
+	return ps.find(func(p Pool) bool { return SamePool(p.ID, id) })
+}
+
+// SamePool reports whether a and b are the ids of one pool: ids compared
+// ignoring case, as the config takes ids differing only in case for the same
+// pool. It's the one comparison of pool ids, wherever they're compared, of
+// the config, a line's, a summary's, an event's or the accounts record's.
+func SamePool(a, b string) bool {
+	return strings.EqualFold(a, b)
 }
 
 // LabelTaken reports whether a pool, but the one with the given id, shows
@@ -136,7 +144,7 @@ func (ps Pools) find(match func(Pool) bool) (Pool, bool) {
 func (as Accounts) InPool(id string) Accounts {
 	var in Accounts
 	for _, a := range as {
-		if strings.EqualFold(a.Pool, id) {
+		if SamePool(a.Pool, id) {
 			in = append(in, a)
 		}
 	}
@@ -543,5 +551,5 @@ func (a fileAccount) checkPool(name string, pools []filePool) error {
 // configuredPool returns where the pool with the given id is among pools,
 // ids compared ignoring case: -1 where none has it.
 func configuredPool(pools []filePool, id string) int {
-	return slices.IndexFunc(pools, func(p filePool) bool { return strings.EqualFold(p.ID, id) })
+	return slices.IndexFunc(pools, func(p filePool) bool { return SamePool(p.ID, id) })
 }

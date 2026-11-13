@@ -150,7 +150,7 @@ func (d *Draft) RemovePool(id string) error {
 func (d *Draft) accountsIn(id string) []string {
 	var in []string
 	for i, a := range d.file.Accounts {
-		if strings.EqualFold(a.Pool, id) {
+		if SamePool(a.Pool, id) {
 			in = append(in, a.name(i))
 		}
 	}
@@ -226,7 +226,7 @@ func (d *Draft) SetPool(id, pool string) error {
 		return PoolNotConfigured(pool)
 	}
 	pool = d.file.Pools[p].ID
-	if strings.EqualFold(d.file.Accounts[i].Pool, pool) {
+	if SamePool(d.file.Accounts[i].Pool, pool) {
 		return nil
 	}
 	change := fmt.Sprintf("set pool to %q in account %q", pool, id)

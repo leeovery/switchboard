@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 	"slices"
-	"strings"
 
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/leeovery/switchboard/internal/accounts"
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/setup"
@@ -135,7 +135,7 @@ func (c editCard) moving() bool {
 		return false
 	}
 	p, ok := c.pool.choice()
-	return !ok || p.Held || !strings.EqualFold(p.ID, c.opened.Pool)
+	return !ok || p.Held || !config.SamePool(p.ID, c.opened.Pool)
 }
 
 // primaryHeld reports whether Primary shows yes, and doesn't change: on its

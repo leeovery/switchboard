@@ -553,7 +553,7 @@ func (l Launcher) unaidedEnv(foundDown bool, pools config.Pools) environ {
 // pool of pools a session started in Dir is in, as sessionPool finds it.
 func (l Launcher) inSessionsPool(env environ, pools config.Pools) bool {
 	p, why := l.sessionPool(pools)
-	return why == "" && strings.EqualFold(env.get(PoolEnv), p.ID)
+	return why == "" && config.SamePool(env.get(PoolEnv), p.ID)
 }
 
 // own returns the environment Claude Code starts from as the user set it:

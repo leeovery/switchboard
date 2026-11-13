@@ -321,6 +321,224 @@ func TestADashboardWhereNothingNamesThePoolsRefusesAPoolNamed(t *testing.T) {
 	}
 }
 
+// A dashboard opened on no pool, in a config without pools before the move
+// to pools, with no history yet to move, or once the move is done where
+// nothing names the pools, reads the pool the verbs act on once the config
+// names pools, as the dashboard reads the pool shown again as the config
+// changes: Default, its requests alone of the ledger filed since, where it
+// read every pool's, or none.
+func TestADashboardOpenedOnNoPoolReadsThePoolTheConfigNamesOnceItDoes(t *testing.T) {
+	tests := []struct {
+		name   string
+		deps   func(t *testing.T) cli.Deps
+		opened []string
+	}{
+		{name: "a config without pools, before the move", deps: func(t *testing.T) cli.Deps {
+			deps := testDeps(map[string]string{"XDG_STATE_HOME": shortTempDir(t)}, t.TempDir())
+			deps.Now = func() time.Time { return ledgerNow }
+			writeDepsConfig(t, deps, unpooledConfig)
+			markDone(t, stateDir(t, deps), idsMark)
+			return deps
+		}, opened: []string{"p1", "p2", "p3"}},
+		{name: "the pools not to be told", deps: func(t *testing.T) cli.Deps { return unpooledDeps(t, unpooledConfig, false) }},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			deps := tt.deps(t)
+			cfg := recordWatch(t, &deps)
+			if got := run(t, deps, "dashboard"); got != (result{}) {
+				t.Fatalf("switchboard dashboard = %+v, want exit status 0 and nothing printed", got)
+			}
+			fileDay(t, stateDir(t, deps), pooledLines...)
+			if got := requestsRead(cfg, cfg.PoolRead); cfg.Pool.ID != "" || !slices.Equal(got, tt.opened) {
+				t.Fatalf("the dashboard opened on %q, reading the requests %q; want no pool, reading %q", cfg.Pool.ID, got, tt.opened)
+			}
+
+			writeDepsConfig(t, deps, pooledConfig(false))
+			again, err := cfg.Turn(t.Context(), "", watch.SamePool)
+			if err != nil {
+				t.Fatalf("Turn() of the same pool failed: %v", err)
+			}
+			if got, want := requestsRead(cfg, again.Read), []string{"p1", "p3"}; again.Pool.ID != "b2n8" || !slices.Equal(got, want) {
+				t.Errorf("the config naming pools, the dashboard reads %q again, reading the requests %q; want Default, reading %q", again.Pool.ID, got, want)
+			}
+		})
+	}
+}
+
+// A dashboard open across the move to pools takes the first pool afresh at
+// each turn, as its ledger and the router do: opened before the move, its
+// grounds naming none, a reserve given before the move has it make a ledger
+// that summarises the day's work, every pool's; it follows the move to the
+// first pool the accounts record notes, Default; and a pool put ahead of
+// Default while it's open leaves its grounds, its pool's read and the
+// ledger it makes on them on Default, work naming no pool still Default's.
+// The ledger's first pool is in its summaries alone: a day's lines name the
+// pool they were routed in, or none.
+func TestADashboardOpenAcrossTheMoveKeepsToTheFirstPoolTheRecordNotes(t *testing.T) {
+	deps := testDeps(map[string]string{"XDG_STATE_HOME": shortTempDir(t)}, t.TempDir())
+	deps.Now = func() time.Time { return ledgerNow }
+	writeDepsConfig(t, deps, unpooledConfig)
+	state := stateDir(t, deps)
+	markDone(t, state, idsMark)
+	cfg := recordWatch(t, &deps)
+	if got := run(t, deps, "dashboard"); got != (result{}) {
+		t.Fatalf("switchboard dashboard = %+v, want exit status 0 and nothing printed", got)
+	}
+	if cfg.LedgerGrounds.First != "" {
+		t.Fatalf("opened before the move, the dashboard's ledger is grounded on the first pool %q, want none", cfg.LedgerGrounds.First)
+	}
+
+	fileDay(t, state, pooledLines...)
+	writeDepsConfig(t, deps, unpooledConfig+"reserve = 0.05\n")
+	reserved, err := cfg.Turn(t.Context(), "", watch.SamePool)
+	if err != nil {
+		t.Fatalf("a reserve given before the move, Turn() of the same pool failed: %v", err)
+	}
+	if got, want := sessionsCounted(reserved.NewLedger(), reserved.Read), sortedSessions(sessionA, sessionB, sessionC); reserved.Grounds.Same(cfg.LedgerGrounds) || !slices.Equal(got, want) {
+		t.Fatalf("a reserve given before the move, the ledger's grounds the same %v, the one made on them counting the sessions %q; want them changed, counting every pool's %q",
+			reserved.Grounds.Same(cfg.LedgerGrounds), got, want)
+	}
+
+	markMoved(t, state)
+	client := "\n[[pool]]\nid    = \"c5d6\"\nlabel = \"Client\"\ndirs  = [\"/work/client\"]\n"
+	for _, tt := range []struct{ name, config string }{
+		{name: "the move followed", config: pooledConfig(false)},
+		{name: "Client put ahead of Default", config: strings.Replace(pooledConfig(false), "\n[[pool]]\nid    = \"b2n8\"", client+"\n[[pool]]\nid    = \"b2n8\"", 1)},
+	} {
+		writeDepsConfig(t, deps, tt.config)
+		again, err := cfg.Turn(t.Context(), "b2n8", watch.SamePool)
+		if err != nil {
+			t.Fatalf("%s, Turn() of the same pool failed: %v", tt.name, err)
+		}
+		if got, want := requestsRead(cfg, again.Read), []string{"p1", "p3"}; again.Pool.ID != "b2n8" || again.Read.First != "b2n8" || again.Grounds.First != "b2n8" || !slices.Equal(got, want) {
+			t.Errorf("%s, the dashboard shows %q, its read of the first pool %q, its ledger grounded on %q, reading %q; want Default, all of Default, reading %q",
+				tt.name, again.Pool.ID, again.Read.First, again.Grounds.First, got, want)
+		}
+		if got, want := sessionsCounted(again.NewLedger(), again.Read), sortedSessions(sessionA, sessionC); !slices.Equal(got, want) {
+			t.Errorf("%s, the ledger made on the turn's grounds counts the sessions %q in Default, want %q, work in no pool among them", tt.name, got, want)
+		}
+	}
+}
+
+// sessionsCounted are the sessions the summary of the day of pooledLines
+// that the ledger l makes counts in the pool read reads, sorted, each once.
+func sessionsCounted(l views.Ledger, read views.PoolRead) []string {
+	var ids []string
+	for _, day := range read.Dates(l).DaysOn([]string{"2026-10-07"}) {
+		for _, a := range day.Accounts {
+			ids = append(ids, a.SessionIDs...)
+		}
+	}
+	slices.Sort(ids)
+	return slices.Compact(ids)
+}
+
+// sortedSessions are the session ids given, sorted.
+func sortedSessions(ids ...string) []string {
+	slices.Sort(ids)
+	return ids
+}
+
+// requestsRead are the requests of the day of pooledLines that read keeps,
+// of the ledger the dashboard given cfg reads.
+func requestsRead(cfg *watch.Config, read views.PoolRead) []string {
+	var ids []string
+	for _, h := range read.Held(cfg.Ledger.Day("2026-10-07")) {
+		ids = append(ids, h.Request)
+	}
+	return ids
+}
+
+// The dashboard reads the request ledger of the pool it shows alone, by its
+// id, as named and as P turns to the next, work naming no pool the first
+// pool's: none where it shows none, every pool being fenced and none named,
+// or the pools not to be told; and the pool's alone where the config has
+// one pool, whatever the accounts record keeps beside it.
+func TestTheDashboardReadsTheLedgerOfThePoolItShowsAlone(t *testing.T) {
+	tests := []struct {
+		name string
+		deps func(t *testing.T) cli.Deps
+		args []string
+		turn string
+		want []string
+	}{
+		{name: "none named: the unfenced pool", deps: func(t *testing.T) cli.Deps { return pooledDeps(t, false) }, want: []string{"p1", "p3"}},
+		{name: "one named", deps: func(t *testing.T) cli.Deps { return pooledDeps(t, false) }, args: []string{"--pool", "q7mt"}, want: []string{"p2"}},
+		{name: "turned to the next", deps: func(t *testing.T) cli.Deps { return pooledDeps(t, false) }, args: []string{"--pool", "q7mt"}, turn: "q7mt", want: []string{"p1", "p3"}},
+		{name: "every pool fenced and none named", deps: func(t *testing.T) cli.Deps { return pooledDeps(t, true) }},
+		{name: "the pools not to be told", deps: func(t *testing.T) cli.Deps { return unpooledDeps(t, unpooledConfig, false) }},
+		{name: "one pool, none other kept", deps: func(t *testing.T) cli.Deps {
+			deps := pooledDeps(t, false)
+			onePoolLeft(t, deps)
+			return deps
+		}, want: []string{"p1", "p3"}},
+		{name: "one pool, a removed one kept", deps: func(t *testing.T) cli.Deps {
+			deps := pooledDeps(t, false)
+			onePoolLeft(t, deps, acmeRemovedEntry)
+			return deps
+		}, want: []string{"p1", "p3"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			deps := tt.deps(t)
+			cfg := recordWatch(t, &deps)
+			if got := run(t, deps, append([]string{"dashboard"}, tt.args...)...); got != (result{}) {
+				t.Fatalf("switchboard dashboard %s = %+v, want exit status 0 and nothing printed", strings.Join(tt.args, " "), got)
+			}
+			read := cfg.PoolRead
+			if tt.turn != "" {
+				turned, err := cfg.Turn(t.Context(), tt.turn, watch.NextPool)
+				if err != nil {
+					t.Fatal(err)
+				}
+				read = turned.Read
+			}
+			if got := requestsRead(cfg, read); !slices.Equal(got, tt.want) {
+				t.Errorf("the dashboard reads the requests %q of the ledger, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+// A dashboard opened on one pool reads its pool's work of the request
+// ledger by its id, so a pool added to the config while it's open, an
+// account moved into it, and that pool's lines filed since, never show in
+// the pool it shows: neither through the read it opened with, nor through
+// the one it reads the pool shown again with as the config changes, placing
+// the accounts otherwise, so the view starts afresh on it.
+func TestADashboardOpenedOnOnePoolNeverReadsAPoolAddedSince(t *testing.T) {
+	deps := pooledDeps(t, false)
+	onePoolLeft(t, deps)
+	state := stateDir(t, deps)
+	fileDay(t, state, pooledLines[0], pooledLines[2])
+	cfg := recordWatch(t, &deps)
+	if got := run(t, deps, "dashboard"); got != (result{}) {
+		t.Fatalf("switchboard dashboard = %+v, want exit status 0 and nothing printed", got)
+	}
+
+	writeDepsConfig(t, deps, pooledConfig(false))
+	err := identity.NewFile(state).Update(func(r *identity.Record) error {
+		r.Pools = append(r.Pools, identity.PoolEntry{ID: "q7mt", Added: testNow, Here: true})
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	fileDay(t, state, pooledLines...)
+	if got, want := requestsRead(cfg, cfg.PoolRead), []string{"p1", "p3"}; !slices.Equal(got, want) {
+		t.Errorf("the dashboard reads the requests %q of the ledger, Acme added since, want %q, Default's alone", got, want)
+	}
+	again, err := cfg.Turn(t.Context(), "b2n8", watch.SamePool)
+	if err != nil {
+		t.Fatalf("Turn() of the same pool failed: %v", err)
+	}
+	if got, want := requestsRead(cfg, again.Read), []string{"p1", "p3"}; again.Placed.Same(cfg.Placed) || !slices.Equal(got, want) {
+		t.Errorf("read again once Acme is added, placed alike %v, the dashboard reads the requests %q of the ledger; want placed otherwise, %q, Default's alone",
+			again.Placed.Same(cfg.Placed), got, want)
+	}
+}
+
 // The dashboard reads the pool it shows again as the config changes: that
 // pool, as the config now has it, its label and pools counted, and every
 // account's placing in the pools, which a change to any of them changes;

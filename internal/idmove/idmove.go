@@ -493,7 +493,7 @@ func primacyOf(draft *config.Draft, id, pool string) primacy {
 // kept's: marked where a was marked, so the mark written holds, or where
 // coming first in it no longer makes kept its primary.
 func carry(draft *config.Draft, a, kept config.Account, was primacy) error {
-	if was.primary && strings.EqualFold(a.Pool, kept.Pool) {
+	if was.primary && config.SamePool(a.Pool, kept.Pool) {
 		if now, _ := draft.Config().Accounts.PrimaryOf(kept.Pool); was.marked || now.ID != kept.ID {
 			if err := draft.SetPrimary(kept.ID); err != nil {
 				return err

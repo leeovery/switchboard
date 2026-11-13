@@ -33,9 +33,10 @@ func (Digests) Builder() ledger.DigestBuilder {
 // its meta, as storedChunkMeta stores it. A release that keeps either
 // otherwise writes another, and a head of another version doesn't stand,
 // nor its rows: the day's lines are read instead. Every head of this
-// version holds a side, and a row of each of its lines: none was released
-// without them.
-const RowsVersion = 3
+// version holds a side, and a row of each of its lines, and names the pools
+// each row, each chunk and each session of its side recorded: none was
+// released without them.
+const RowsVersion = 4
 
 // RowsVersion is the version of the sides and rows of the days' heads the
 // Digests give, RowsVersion.
@@ -76,7 +77,7 @@ func (b *dayBuild) Built() (ledger.DayBuilt, error) {
 	if err != nil {
 		return ledger.DayBuilt{}, err
 	}
-	side, err := daySideOf(b.sessions.sessions())
+	side, err := daySideOf(b.sessions.folded())
 	if err != nil {
 		return ledger.DayBuilt{}, err
 	}

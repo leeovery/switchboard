@@ -23,6 +23,17 @@ type LedgerDays interface {
 	Days(from time.Time) []ledger.Summary
 }
 
+// LedgerHeld reads the summaries the request ledger holds of its days, as a
+// ledger.Follower does, summarising none from its lines: a pool's read of a
+// day passes over one they rule out, never reading a day's lines to tell.
+type LedgerHeld interface {
+	// DaysHeldOn gives the summaries of the local days with the dates given
+	// that stand, oldest first, as LedgerDates' DaysOn gives them,
+	// reporting false where one of them has lines but no summary that
+	// stands, as today's.
+	DaysHeldOn(dates []string) ([]ledger.Summary, bool)
+}
+
 // LedgerStart tells where the request ledger begins, as a ledger.Follower
 // does: History's Year steps back through the calendar years from its
 // first.
@@ -37,6 +48,7 @@ type LedgerStart interface {
 type Ledger interface {
 	LedgerDays
 	LedgerDates
+	LedgerHeld
 	// Today gives today's lines read since mark, and the Mark they're read
 	// to, reporting afresh where they're every one of today's, for those
 	// read before to be let go of: each the line it reads as, none of its

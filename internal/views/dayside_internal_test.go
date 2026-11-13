@@ -69,7 +69,7 @@ func findWalked(l Ledger, now time.Time) FindSources {
 	src.Oldest = OldestKept(first, 0, now)
 	src.Summaries = l.Days(src.Oldest.Day.Start)
 	for found := FindSessions(src); !found.Done(); found = FindSessions(src) {
-		src.Read[found.Next] = DaySessionsOn(l, found.Next)
+		src.Read[found.Next] = DaySessionsOn(l, found.Next, PoolRead{})
 	}
 	return src
 }
@@ -120,7 +120,7 @@ func TestADaysSideIsItsSessionsReadRaw(t *testing.T) {
 					continue
 				}
 				stood++
-				got, err := daySessionsIn(side)
+				got, err := daySessionsIn(side, PoolRead{})
 				if want := DaySessions(RecordsOf(f.Day(date))); err != nil || !reflect.DeepEqual(got, want) {
 					t.Errorf("%s: the side of %s holds\n%+v (%v)\nwant, as its lines read raw give\n%+v", c.name, date, got, err, want)
 				}
@@ -161,8 +161,8 @@ func TestADaysSideOfItsRecordsIsTheSideOfItsLines(t *testing.T) {
 	days = append(days, []ledger.Held{
 		{At: at.In(time.FixedZone("east", 5*60*60+30*60)).Add(123_456_789), Session: "s", Kind: ledger.KindMessage, Dir: "/code/app"},
 		{At: at.Add(time.Minute), Session: "s", Kind: ledger.KindCheck, Dir: "/code/check"},
-		{At: at.Add(2 * time.Minute), Session: "s", Kind: ledger.KindCount},
-		{At: at.Add(3 * time.Minute), Session: "t", Dir: "/code/other"},
+		{At: at.Add(2 * time.Minute), Session: "s", Kind: ledger.KindCount, Pool: "q7mt"},
+		{At: at.Add(3 * time.Minute), Session: "t", Dir: "/code/other", Pool: "b2n8"},
 		{Session: "u", Kind: ledger.KindMessage},
 	})
 	for i, day := range days {
@@ -179,10 +179,10 @@ func TestADaysSideOfItsRecordsIsTheSideOfItsLines(t *testing.T) {
 }
 
 // sessionsOfLines are the sessions of a day's lines, as DaySessions gives
-// them, folded of each line as it is, its record undecoded: the find's fold
-// before it folded records, kept as the reference a side of records is held
-// to.
-func sessionsOfLines(day []ledger.Held) []DaySession {
+// them, folded of each line as it is, its record undecoded, with the pools
+// each's lines recorded: the find's fold before it folded records, kept as
+// the reference a side of records is held to.
+func sessionsOfLines(day []ledger.Held) []daySession {
 	sessions := make(daySessions)
 	for i := range day {
 		l := &day[i].Line
@@ -192,7 +192,7 @@ func sessionsOfLines(day []ledger.Held) []DaySession {
 		}
 		s, ok := sessions[id]
 		if !ok {
-			s = &DaySession{ID: id}
+			s = &daySession{ID: id}
 			sessions[id] = s
 		}
 		s.Lines++
@@ -200,8 +200,13 @@ func sessionsOfLines(day []ledger.Held) []DaySession {
 		if l.Dir != "" {
 			s.Dir = l.Dir
 		}
+		s.pools = append(s.pools, l.Pool)
 	}
-	return sessions.sessions()
+	for _, s := range sessions {
+		slices.Sort(s.pools)
+		s.pools = slices.Compact(s.pools)
+	}
+	return sessions.folded()
 }
 
 // filedDates are the dates of the local days lines arrived on, oldest first.
@@ -222,7 +227,7 @@ func TestTheFindReadsADaysSideOnlyWhereItStands(t *testing.T) {
 	lines := []ledger.Held{{At: time.Date(2026, 10, 8, 9, 0, 0, 0, time.UTC), Session: "s", Kind: ledger.KindMessage, Dir: "/code/app"}}
 	raw := DaySessions(RecordsOf(lines))
 	stale := []DaySession{{ID: "s", Dir: "/code/old", Lines: 7, Last: time.Date(2026, 10, 8, 8, 0, 0, 0, time.UTC)}}
-	staleSide, err := daySideOf(stale)
+	staleSide, err := daySideOf([]daySession{{DaySession: stale[0]}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -241,7 +246,7 @@ func TestTheFindReadsADaysSideOnlyWhereItStands(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			l := readingSides(sided{Ledger: dayHeld{date: date, lines: lines}, side: tt.side, stands: tt.stands})
-			if got := DaySessionsOn(l, date); !reflect.DeepEqual(got, tt.want) || l.raw[date] != tt.read {
+			if got := DaySessionsOn(l, date, PoolRead{}); !reflect.DeepEqual(got, tt.want) || l.raw[date] != tt.read {
 				t.Errorf("DaySessionsOn(%s) = %+v, its lines read %t; want %+v, read %t", date, got, l.raw[date], tt.want, tt.read)
 			}
 		})
@@ -288,7 +293,7 @@ func TestADaysSessionRestoresExactly(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			side, err := daySideOf([]DaySession{tt.s})
+			side, err := daySideOf([]daySession{{DaySession: tt.s}})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -296,7 +301,7 @@ func TestADaysSessionRestoresExactly(t *testing.T) {
 			if !want.Last.IsZero() {
 				want.Last = want.Last.UTC()
 			}
-			if got, err := daySessionsIn(side); err != nil || !reflect.DeepEqual(got, []DaySession{want}) {
+			if got, err := daySessionsIn(side, PoolRead{}); err != nil || !reflect.DeepEqual(got, []DaySession{want}) {
 				t.Errorf("%+v, stored as %s, restores as %+v (%v), want %+v", tt.s, side, got, err, want)
 			}
 		})

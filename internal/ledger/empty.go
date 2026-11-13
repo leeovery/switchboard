@@ -43,6 +43,12 @@ func (e Empty) DaysOn(dates []string) []Summary {
 	return e.Days(e.now())
 }
 
+// DaysHeldOn returns no summary, as a Follower of a ledger that holds no
+// line finds no day with files, so needs none.
+func (Empty) DaysHeldOn([]string) ([]Summary, bool) {
+	return nil, true
+}
+
 // Today returns no line, and the Mark it's read to, reporting afresh from the
 // zero Mark alone, as a Follower does where today's lines begin to be given.
 func (Empty) Today(mark Mark) (lines []Held, next Mark, afresh bool) {

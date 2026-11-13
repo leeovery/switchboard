@@ -25,6 +25,10 @@ func TestAnEmptyLedgerReadsAsAFollowerOfAnEmptyStateDirectory(t *testing.T) {
 		if got, want := empty.DaysOn(dates), follower.DaysOn(dates); !reflect.DeepEqual(got, want) {
 			t.Errorf("DaysOn(%q) = %+v, want %+v, as a Follower of an empty state directory gives", dates, got, want)
 		}
+		got, told := empty.DaysHeldOn(dates)
+		if want, wantTold := follower.DaysHeldOn(dates); !reflect.DeepEqual(got, want) || told != wantTold {
+			t.Errorf("DaysHeldOn(%q) = %+v, %t, want %+v, %t, as a Follower of an empty state directory gives", dates, got, told, want, wantTold)
+		}
 	}
 	gotMark, wantMark := ledger.Mark{}, ledger.Mark{}
 	for _, call := range []string{"first", "second"} {

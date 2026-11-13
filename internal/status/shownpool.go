@@ -2,7 +2,6 @@ package status
 
 import (
 	"slices"
-	"strings"
 
 	"github.com/leeovery/switchboard/internal/config"
 )
@@ -124,7 +123,7 @@ func (p ShownPool) Waiting() bool {
 // the config's, or one of another pool or of none, as a router that can't
 // tell its pools answers, leaves it as the config has it.
 func (p ShownPool) AsRead(mo Moment) ShownPool {
-	if mo.Routed && p.ID != "" && strings.EqualFold(mo.PoolID, p.ID) {
+	if mo.Routed && p.ID != "" && config.SamePool(mo.PoolID, p.ID) {
 		p.Routed, p.Routing = true, len(mo.Accounts)
 	}
 	return p
@@ -190,7 +189,7 @@ func PoolAfter(pools config.Pools, id string) (config.Pool, bool) {
 	if len(pools) == 0 {
 		return config.Pool{}, false
 	}
-	i := slices.IndexFunc(pools, func(p config.Pool) bool { return strings.EqualFold(p.ID, id) })
+	i := slices.IndexFunc(pools, func(p config.Pool) bool { return config.SamePool(p.ID, id) })
 	return pools[(i+1)%len(pools)], true
 }
 

@@ -47,7 +47,7 @@ func busyDays(seed uint64) []ledger.Line {
 // chunk's meta doesn't read.
 func rowsRead(t *testing.T, f *ledger.Follower, date string) ([]lineRecord, []metaRead, bool) {
 	t.Helper()
-	day, ok := restoredDay(f, date, LogFilter{})
+	day, ok := restoredDay(f, date, LogFilter{}, PoolRead{})
 	if !ok {
 		return nil, nil, false
 	}

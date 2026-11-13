@@ -850,10 +850,12 @@ Where the config has [pools](how-it-works.md#pools), the dashboard shows one poo
 [Reading a pool](commands.md#reading-a-pool)). A pool the config doesn't have is refused, naming
 those it does. What it reads from the router is that pool's: its accounts, windows, room, sessions
 running and pin, and the router's events, the Overview's and Runway's LATELY and the Log's Events
-among them. Accounts lists the pool's accounts alone. What it builds from the request ledger, the
-Log's requests, Sessions, a session's page, History, Graphs and the worth and tokens on Accounts,
-still tells of every pool's work together, each account by its label, until a later release keeps
-it to the pool shown: History's Year sets every pool's worth beside the plans of the pool shown.
+among them. Accounts lists the pool's accounts alone. The Log's requests are the pool's alone,
+today's and each day it reads back, with each day's figures, and its find finds the pool's
+sessions. What it builds from the request ledger's day digests, Sessions, a session's page,
+History, Graphs and the worth and tokens on Accounts, still tells of every pool's work together,
+each account by its label, until a later release keeps it to the pool shown: History's Year sets
+every pool's worth beside the plans of the pool shown.
 
 The pool shown follows the config as it changes: where a pool or an account is added, removed,
 relabelled, fenced, moved or reordered, or an account's plan, primary or reserve changes, in any
@@ -861,7 +863,10 @@ pool, the view starts afresh on the pool shown, as `P` does, keeping the tab and
 shows. A change to nothing of those, such as a comment, starts nothing. The dashboard looks at the
 config file it reads, the one `--config` names, at each read, and reads the config again only where
 the file has changed, or the accounts the router routes have: a look costs a stat of the file and a
-compare of two lists of ids. Where the pool shown is removed, it turns to the first.
+compare of two lists of ids. Where the pool shown is removed, it turns to the first. A dashboard
+opened on a config without pools, or where it couldn't tell the pools, looks at the config file
+alike, so once the config names pools the view starts afresh on the pool the commands act on, its
+Log that pool's alone; where every pool is fenced, there's none, and it shows none, as below.
 
 Once there's a second pool:
 

@@ -37,8 +37,8 @@ type PoolChoice struct {
 func (r Review) PoolChoices() []PoolChoice {
 	choices := make([]PoolChoice, len(r.Pools))
 	for i, p := range r.Pools {
-		in := func(a Reviewed) bool { return strings.EqualFold(a.Pool, p.ID) }
-		choices[i] = PoolChoice{ID: p.ID, Label: p.Label, Dirs: p.WrittenDirs, Accounts: slices.ContainsFunc(r.Accounts, in), First: strings.EqualFold(p.ID, r.First)}
+		in := func(a Reviewed) bool { return config.SamePool(a.Pool, p.ID) }
+		choices[i] = PoolChoice{ID: p.ID, Label: p.Label, Dirs: p.WrittenDirs, Accounts: slices.ContainsFunc(r.Accounts, in), First: config.SamePool(p.ID, r.First)}
 	}
 	return choices
 }

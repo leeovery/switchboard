@@ -35,19 +35,22 @@ type shownPools struct {
 // and the pools can't be told, as pooledConfig fails; where none is named,
 // it opens on none, warning, its source reading the pool the verbs act on,
 // as before pools, its accounts the config's, which names none, and none of
-// the router's events, so the dashboard never shows every pool's together.
+// the router's events, nor any pool's work of the request ledger, so the
+// dashboard never shows every pool's together.
 func (s shownPools) opened(ctx context.Context, cfg *config.Config, named string) (watch.Pooled, error) {
 	pooled, err := s.a.pooledConfig(ctx, cfg)
 	switch {
 	case err != nil && named != "":
 		return watch.Pooled{}, err
 	case err != nil:
-		logger.Warn("can't tell which pool the dashboard shows, so it reads none of the router's files of events", "error", err)
-		return watch.Pooled{Accounts: status.PoolAccounts(cfg.Pools, cfg.Accounts, ""), Source: s.a.source(ctx, cfg, s.probe), Events: events.Empty{}, Stamp: s.stamp,
-			Placed: status.Placed(cfg.Pools, cfg.Accounts), Grounds: s.groundsOf(cfg, cfg.Pools)}, nil
+		logger.Warn("can't tell which pool the dashboard shows, so it reads none of the router's files of events, nor the request ledger", "error", err)
+		return watch.Pooled{
+			Accounts: status.PoolAccounts(cfg.Pools, cfg.Accounts, ""), Source: s.a.source(ctx, cfg, s.probe), Events: events.Empty{}, Read: views.NoPool(), Stamp: s.stamp,
+			Placed: status.Placed(cfg.Pools, cfg.Accounts), Grounds: groundsOf(cfg, s.firstOf(cfg.Pools)),
+		}, nil
 	}
 	shown, err := s.shown(ctx, cfg, pooled, named)
-	shown.Stamp, shown.Grounds = s.stamp, s.groundsOf(cfg, pooled.Pools)
+	shown.Stamp = s.stamp
 	return shown, err
 }
 
@@ -56,7 +59,7 @@ func (s shownPools) opened(ctx context.Context, cfg *config.Config, named string
 // they stand, so a pool added, removed or changed while it's open shows at
 // the next P, or as the config changes; stamped as the config file stood
 // before it was read, as configStamp has it, so a change as it's read is
-// read again; the grounds of its ledger, as groundsOf has them, with the
+// read again; the grounds of its ledger, as shown has them, with the
 // ledger made on them, as ledgerOn makes it, for the watch to make only
 // where the one in use was made on others; and the accounts removed, as
 // removedIn gives them where there's a state directory. It fails where the
@@ -79,8 +82,7 @@ func (s shownPools) turn(ctx context.Context, from string, ask watch.PoolAsk) (w
 	if err != nil {
 		return watch.Pooled{}, err
 	}
-	shown.Stamp, shown.Grounds = stamp, s.groundsOf(cfg, pooled.Pools)
-	shown.NewLedger = s.ledgerOn(shown.Grounds.Caps, pooled.Pools)
+	shown.Stamp, shown.NewLedger = stamp, s.ledgerOn(shown.Grounds.Caps, pooled.Pools)
 	if s.read {
 		shown.Removed = removedIn(s.dir, cfg)
 	}
@@ -88,16 +90,24 @@ func (s shownPools) turn(ctx context.Context, from string, ask watch.PoolAsk) (w
 }
 
 // groundsOf are the grounds the dashboard's request ledger is made on, of
-// the config cfg, its pools as pools gives them: the caps of the accounts
-// it configures, and the first pool, as firstPool has it, where there's a
-// state directory, as the one it opens with is made. The first pool is for
-// comparing alone: the ledger reads it afresh as it asks, as ledgerOn has it.
-func (s shownPools) groundsOf(cfg *config.Config, pools config.Pools) ledger.Grounds {
-	grounds := ledger.Grounds{Caps: caps(cfg)}
-	if s.read {
-		grounds.First = s.a.firstPool(s.dir, pools)
+// the config cfg, the first pool being the one with the id first, as
+// firstOf has it: the caps of the accounts it configures, and that pool. The
+// first pool is for comparing alone: the ledger reads it afresh as it asks,
+// as ledgerOn has it.
+func groundsOf(cfg *config.Config, first string) ledger.Grounds {
+	return ledger.Grounds{Caps: caps(cfg), First: first}
+}
+
+// firstOf is the id of the first pool of pools, as idmove.FirstOf has it of
+// the one the accounts record notes, read afresh at each open and turn, as
+// the dashboard's ledger reads it at each ask, so its grounds and its pool's
+// read follow the move to pools while it's open, and keep to the pool the
+// record notes as pools are put ahead of it: "" without a state directory.
+func (s shownPools) firstOf(pools config.Pools) string {
+	if !s.read {
+		return ""
 	}
-	return grounds
+	return idmove.FirstOf(pools, idmove.FirstPoolID(s.dir))
 }
 
 // ledgerOn makes the request ledger as the dashboard reads it, its days
@@ -153,43 +163,52 @@ func (a *app) configStamp() filestate.State {
 // its pools as pooled has them, else of the one the verbs act on, as
 // askedPool has it: the pool, as status.PoolShown has it; its accounts, as
 // status.PoolAccounts has them; its source, reading the router's document
-// of it, else probing its accounts; its share of the router's events, as
-// shownEvents has it; and how pooled places every account in its pools, as
-// status.Placed has it. It fails where the pool named isn't configured,
-// naming those that are: a pool the accounts record keeps alone has no
-// accounts to show, nor a document the router gives. Where every pool is
-// fenced and none is named, it shows none, nor any accounts: the router
-// refuses its source's reads, saying so, and it reads none of the router's
-// events, warning.
+// of it, else probing its accounts; its share of the router's events and the
+// request ledger, as shownFiled has them; how pooled places every account
+// in its pools, as status.Placed has it; and the grounds of its ledger, as
+// groundsOf has them, its first pool read once for them and the pool's read
+// alike, as firstOf reads it. It fails where the pool
+// named isn't configured, naming those that are: a pool the accounts record
+// keeps alone has no accounts to show, nor a document the router gives.
+// Where every pool is fenced and none is named, it shows none, nor any
+// accounts: the router refuses its source's reads, saying so, and it reads
+// none of the router's events, nor any pool's work of the ledger, warning.
 func (s shownPools) shown(ctx context.Context, cfg, pooled *config.Config, named string) (watch.Pooled, error) {
 	p, err := askedPool(pooled.Pools, named)
 	if err != nil && named != "" {
 		return watch.Pooled{}, poolFlagNeeded(err)
 	}
+	first := s.firstOf(pooled.Pools)
 	shown := watch.Pooled{
 		Pool:     status.PoolShown(pooled.Pools, pooled.Accounts, p.ID),
 		Accounts: status.PoolAccounts(pooled.Pools, pooled.Accounts, p.ID),
 		Source:   s.a.source(ctx, cfg, s.probe).inPool(p.ID),
 		Placed:   status.Placed(pooled.Pools, pooled.Accounts),
+		Grounds:  groundsOf(cfg, first),
 	}
 	if err != nil {
-		logger.Warn("can't tell which pool the dashboard shows, so it reads none of the router's files of events", "error", err)
-		shown.Events = events.Empty{}
+		logger.Warn("can't tell which pool the dashboard shows, so it reads none of the router's files of events, nor the request ledger", "error", err)
+		shown.Events, shown.Read = events.Empty{}, views.NoPool()
 		return shown, nil
 	}
-	shown.Events, shown.PoolNamed = s.shownEvents(pooled, p.ID)
+	shown.Events, shown.PoolNamed, shown.Read = s.shownFiled(pooled, p.ID, first)
 	return shown, nil
 }
 
-// shownEvents reads the router's events of the pool with the given id as
-// the dashboard shows them, as the verbs read a pool's, by the one rule
-// status's InPool gives, every pool's in a config without pools; and names
-// their pools, as poolsNamed has it of pooled's pools, the accounts record
-// read afresh. Without a state directory, there are none.
-func (s shownPools) shownEvents(pooled *config.Config, id string) (views.Events, func(id string) string) {
+// shownFiled reads what's recorded of the pool with the given id as the
+// dashboard shows it, by its id, as the verbs read a pool's, every pool's in
+// a config without pools alone: its share of the router's events, by the
+// one rule status's InPool gives; what names their pools, as poolsNamed has
+// it of pooled's pools; and how the views read its work of the request
+// ledger, its read itself, so a pool added while it's open never shows in
+// it, work in no pool the first pool's, the one with the id first; the
+// accounts record read afresh. Without a state directory, there are no
+// events, and the ledger is read as it is, holding none.
+func (s shownPools) shownFiled(pooled *config.Config, id, first string) (views.Events, func(id string) string, views.PoolRead) {
 	if !s.read {
-		return events.Empty{}, nil
+		return events.Empty{}, nil, views.PoolRead{}
 	}
 	record := recordIn(s.dir)
-	return s.a.poolRead(pooled, s.dir, record, id).Filed(s.events), poolsNamed(pooled.Pools, record)
+	read := pooledRead(pooled, first, record, id)
+	return read.Filed(s.events), poolsNamed(pooled.Pools, record), read
 }
