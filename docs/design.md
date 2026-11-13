@@ -1067,8 +1067,9 @@ totals.
   the pool; a session's page, its points those of its requests in the pool, every pool's requests
   on an account sharing its windows' rises as ever; History's days and weeks; Graphs; and the
   worth and tokens on Accounts. Each digest's entry names the pools of the lines its session's
-  state was folded from, so a pool's read rests on a state of its own work alone and reads a
-  session split between pools from its lines (see The request ledger's In a pool). The days begin
+  state was folded from, and holds a session split between pools in each of them apart, so a
+  pool's read rests every session on a state of its own work alone (see The request ledger's In a
+  pool). The days begin
   where the pool's work begins, its first day whose summary holds work in it
   (`views.PoolRead`'s Start), so a pool added to a ledger months old counts no day before it as a
   day of none: History's months, WHEN YOU WORK's weekday averages, Accounts' periods and Runway's
@@ -1200,12 +1201,15 @@ pool, its Log and its other ledger tabs; setup's cards are to build:
    some 47 ms, a session's page 75, History 6 and Graphs 270. With two, Sessions opens in some 29
    ms on the client's pool and 44 on the other, against 49, a session's page as before, and
    History and Graphs as before or a little quicker (13 November 2026, race detector off, the
-   fastest of six rounds each on a busy Mac). A session split between pools costs more where it
-   works now: with the busy world's longest session resumed in the client's pool after two weeks
-   in the other, the client's Sessions opens in some 400 ms and the session's page in either pool
-   in some 0.9 s, each reading its four weeks whole, where the pool it left, reading it no more,
-   opens Sessions in 54 ms, against 350 before it passed over it (the fastest of three rounds
-   each). To build: setup's cards. The dashboard's `--pool` for a pool the config no longer has
+   fastest of six rounds each on a busy Mac). A session split between pools costs its pools what
+   a session of one does, its entry holding its state in each: with the busy world's longest
+   session resumed in the client's pool after two weeks in the other, the client's Sessions opens
+   in some 54 ms, against 442 when a pool's read read the session whole, the other's in 64, as
+   before, and the session's page in either pool in some 95 ms with 35 to 42 MB allocated,
+   against 0.8 to 1 s and some 770 MB; and the first pass building that world's every digest
+   again costs some 0.33 s of CPU a day, against 0.30, its digests 15% larger and its parts files
+   4% (13 November 2026, race detector off, the fastest of three rounds each on a busy Mac). To
+   build: setup's cards. The dashboard's `--pool` for a pool the config no longer has
    stays an idea ([dashboard-removed-pool](../ideas/2026-11-13--dashboard-removed-pool.md)).
 
 ## Reserves
@@ -8671,6 +8675,17 @@ from the first day a router that has it runs, so nothing before then is in it.
     reader of one pool's work tells a state of that pool's alone, or of none of it, from one it
     shares with another, none of it read (see In a pool, below). They're the entry's, the
     ledger's, of the lines it hands the builder and the state they rest on, never the builder's.
+  - **Its states apart:** of a session whose pools were more than one pool's, as `ledger.RecordedIn`
+    tells them, one naming none the first pool's, its state in each of those pools, in the order
+    of their pools, beside its state of every line, which every pool's read rests on as
+    before: each folded from its lines routed in the pool alone, naming the pools they recorded,
+    with its own part, on the chain of its states in the pool on the days below. A session of one
+    pool holds none, its entry as before, so the digests are as large as they were but for those
+    split. The router's builder folds them, handed the day's sessions once a pool, each on its
+    state in the pool the day before and its lines in the pool after it, as a pool's reader rests
+    it (see In a pool, below), and every pool's answers on an account, the session's own those in
+    the pool alone. One whose state in a pool can't be rested on, as where the day before holds
+    none of the pool's alone, is read whole and folded again, in each pool with the rest.
   - **Nothing priced:** no worth, no move's cost, nothing a price table gave. A state is restored at
     the reader's day and priced there by the reader's table, its settled moves' costs worked out
     again, so a new table, or a config's price, applies to the days digested at once, nothing built
@@ -8699,7 +8714,8 @@ from the first day a router that has it runs, so nothing before then is in it.
   request's spend, what a page's requests spent and a window's climb the ledger's, a window an
   answer read the `claude` package's, and a session's state, its part and the part's times the
   views', which the ledger carries as it's given and never reads. The envelope's version is 3,
-  since its entries name their pools, and `views.DigestVersion` 2, from phase 2 of the digests
+  since its entries name their pools and hold a split session's states apart, and
+  `views.DigestVersion` 2, from phase 2 of the digests
   (see Milestones). Version 3 builds every day's digest again once, oldest first, as each rests
   on the day before's: on the busy world, 5,000 requests a day, some 0.4 s of CPU a day, as before
   it, each digest a quarter of a percent larger, so a year of days is some 2½ minutes of CPU,
@@ -8806,32 +8822,33 @@ from the first day a router that has it runs, so nothing before then is in it.
     file.
   - **In a pool,** a reader of one pool's work, as the dashboard showing a pool, or `sessions
     --pool`, reads each session through the pool's read, `views.PoolRead`, a line's pool by the
-    ledger's one rule, `ledger.RecordedIn`, one naming none the first pool's: it rests a session on
-    its state only where every line the state rests on was the pool's, as its entry's pools tell;
-    passes over a state none of whose lines were, its parts with it, the session's lines after it
-    being all it holds of the pool; and takes the pool's of the lines after either. A session whose
-    state the pool shares with another it reads whole instead, its lines in the pool alone, as the
-    Log's find reads a day's lines where its side holds a session split between pools (see The
-    Log's In a pool): a state is one fold of every line it rests on, its story, its page's turns,
-    tallies and points, which can't be told apart by pool, and a fold a pool would be a second to
-    keep equal to the store's, for a session that's rare, resumed in another pool once its
-    directory's fence changes, or whose lines naming none sit beside another pool's than the
-    first. As an entry's pools only grow, every digest after a session splits holds it shared, so
-    one the read wasn't asked for, found among today's sessions, with none of the pool's lines
-    after its state, is passed over unread: with no request in the pool today, and not running
-    there, the List never lists it, and the pool it left doesn't read it whole at every read for
-    as long as it runs. One asked for, as its page, is read whole then. A reader taking every line
-    a read reads, as a page's points take every account's answers, is handed every pool's, as
-    every pool's requests on an account climb its windows, as the builder takes them, each line
-    once, a session read whole again handing it only the days the first read didn't, so a line
-    filed on a day between the two reads misses a page's points till the next look's read of the
-    tail; and a line of another pool as of no session, so a page's points take as the session's
-    own its requests in the pool alone, as the store's read of the tail hands them too. So a
-    pool's every reader through digests shows exactly what the pool's lines read raw show: tests
-    hold the List, each page and the store to them, a session of the pool alone, of none of it, of
-    the pool shared with another, directly and through lines naming none, among them; and a split
-    session's page in a pool, opened and held across the tail's feeds, to that of a ledger whose
-    session made its other pool's requests under another id.
+    ledger's one rule, `ledger.RecordedIn`, one naming none the first pool's, and the ledger rests
+    each on its state in the pool (`ledger.RoutedIn`): its entry's state where every line the
+    state rests on was the pool's, as its entry's pools tell; its state in the pool apart, its
+    page's chain that of its states in the pool, where its lines were split between pools (see
+    Its states apart, above); and none where none of them were, its parts with it, the session's
+    lines after it being all it holds of the pool. It takes the pool's of the lines after its
+    state, as of every session. An entry holding no state of the pool's alone, as one built while
+    another pool was the first, stands for no read of the pool's, which walks back to an older
+    state as past one that doesn't stand. A state is one fold of every line it rests on, its
+    story, its page's turns, tallies and points, which can't be told apart by pool, so a session
+    resumed in another pool once its directory's fence changes, as several are when a client's
+    directory is first fenced into a pool of its own, or whose lines naming none sit beside
+    another pool's than the first, is folded once in each. One the read wasn't asked for, found
+    among today's sessions by its requests in another pool, with none of the pool's lines after
+    its state, is passed over unread: with no request in the pool today, and not running there,
+    the List never lists it, so the pool it left doesn't restore its state at every read for as
+    long as it runs. One asked for, as its page, rests on its state there. A reader taking every
+    line a read reads, as a page's points take every account's answers, is handed every pool's,
+    as every pool's requests on an account climb its windows, as the builder takes them, and a
+    line of another pool as of no session, so a page's points take as the session's own its
+    requests in the pool alone, as the builder's fold in the pool and the store's read of the tail
+    hand them too. So a pool's every reader through digests shows exactly what the pool's lines
+    read raw show: tests hold the List, each page and the store to them, a session of the pool
+    alone, of none of it, split between pools, directly and through lines naming none, and with a
+    line filed late in either pool, among them, a split session's days before its state in the
+    pool never read; and a split session's page in a pool, opened and held across the tail's
+    feeds, to that of a ledger whose session made its other pool's requests under another id.
   - **What it costs,** accepted (settled in the plan, 18 October 2026): the first pass after a start
     reads every digest kept, to judge it; a router stopping waits for a build's read of a heavy day,
     a second at most; and a prune of the ledger's files, once a day, waits for a build's reads, as
