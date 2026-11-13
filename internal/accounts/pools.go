@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"sync"
 
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/identity"
@@ -278,13 +279,20 @@ func (r Registry) FirstPool(cfg *config.Config) string {
 }
 
 // notedFirst is the id of the first pool the accounts record notes: "" where
-// it notes none, or can't be read, which is logged, the config's first pool
-// standing in.
+// it notes none, or can't be read, which is logged once for each record, as
+// unreadFirst keeps them, the config's first pool standing in.
 func (r Registry) notedFirst() string {
 	record, err := r.Record.Read()
 	if err != nil {
-		logger.Warn("can't read the accounts record, so the config's first pool is taken for the one the browser and the Claude apps are signed in to", "error", err)
+		if _, warned := unreadFirst.LoadOrStore(r.Record.Path(), true); !warned {
+			logger.Warn("can't read the accounts record, so the config's first pool is taken for the one the browser and the Claude apps are signed in to", "error", err)
+		}
 	}
 	first, _ := record.FirstPool()
 	return first.ID
 }
+
+// unreadFirst holds the paths of the accounts records notedFirst couldn't
+// read, so each is warned of once, not at every review and token, as
+// idmove's FirstPool warns of one.
+var unreadFirst sync.Map

@@ -23,6 +23,34 @@ func (w *world) writeConfig(t *testing.T, config string) {
 	}
 }
 
+// An accounts record that can't be read has the config's first pool taken
+// for the first, its primary the one signed in, warned of once, however
+// often it's read.
+func TestARecordThatCantBeReadIsWarnedOfOnce(t *testing.T) {
+	w := newWorld(t, pooled(defaultPool, acmePool))
+	if err := os.MkdirAll(w.state, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(identity.NewFile(w.state).Path(), []byte("{"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	registry := w.unasked(t, &user{})
+	cfg := w.load(t)
+	log := logstest.Capture(t)
+
+	for range 3 {
+		if first := registry.FirstPool(cfg); first != "b2n8" {
+			t.Errorf("FirstPool() = %q, want the config's first, b2n8", first)
+		}
+		if signedIn, ok := registry.SignedIn(cfg); !ok || signedIn.ID != "work" {
+			t.Errorf("SignedIn() = %+v, %t; want work, Default's primary", signedIn, ok)
+		}
+	}
+	if got := strings.Count(log.String(), "can't read the accounts record"); got != 1 {
+		t.Errorf("the log reads\n%s\nwant the record warned of once, not %d times", log, got)
+	}
+}
+
 // A pool made with an account, added or moved into it, is logged as AddPool
 // logs one.
 func TestAPoolMadeWithAnAccountIsLogged(t *testing.T) {
