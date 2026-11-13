@@ -31,14 +31,15 @@ type place struct {
 }
 
 // poolsSource is where the pools a launch places a session among, and each
-// account's pool, come from: the zero value is the config's own, which hold
-// every account.
+// account's pool, come from.
 type poolsSource int
 
 const (
+	// fromConfig is the config's own pools, which hold every account.
+	fromConfig poolsSource = iota
 	// fromRouter is the pools the router routes for, as its answers name
 	// them, which hold no account it doesn't route yet.
-	fromRouter poolsSource = iota + 1
+	fromRouter
 	// fromRecord is the pools the accounts record keeps, as Route's Kept
 	// gives them, which hold no account the record keeps in none.
 	fromRecord
@@ -51,6 +52,18 @@ func (s poolsSource) noPool() string {
 		return "no pool the accounts record keeps"
 	}
 	return "no pool the router routes yet"
+}
+
+// whose says whose the pools are, as "the config's", as what a router
+// routes by is compared with them.
+func (s poolsSource) whose() string {
+	switch s {
+	case fromRouter:
+		return "the router's"
+	case fromRecord:
+		return "the accounts record's"
+	}
+	return "the config's"
 }
 
 // pooled reports whether the config has pools, so the session is in one.
@@ -341,20 +354,21 @@ func (l Launcher) refuse(why string, attrs ...any) error {
 
 // takingUp returns how the router is for a launch in place, its health
 // answer h having found it as state: as it is where the pools the router
-// routes for are the config's, as poolsDiffer compares them, or there's one
-// pool alone, with which no session can be spread across pools; else as it
-// answers once it has taken the config's up, asked again Patience's Again
-// apart for as long as its TakeUp; else down, routing by other pools, saying
-// how they differ. Its asked counts the waiting. A router that has failed
-// closed, as it answers at first or while it's waited for, is as it then is:
-// it refuses every request, saying why, so a session routed through it goes
-// nowhere outside its pool, where one counted down would go direct past it,
-// and it routes the session once it takes its pools up.
+// routes for are r's, as poolsDiffer compares them, or there's one pool
+// alone, with which no session can be spread across pools; else as it
+// answers once it has taken them up, asked again Patience's Again apart for
+// as long as its TakeUp; else down, routing by other pools than r's, whose
+// as r's from says, saying how they differ. Its asked counts the waiting. A
+// router that has failed closed, as it answers at first or while it's waited
+// for, is as it then is: it refuses every request, saying why, so a session
+// routed through it goes nowhere outside its pool, where one counted down
+// would go direct past it, and it routes the session once it takes its pools
+// up.
 func (r Route) takingUp(ctx context.Context, h router.Health, state routerState, in place) routerState {
 	if !in.compared() || r.failedClosed(h) {
 		return state
 	}
-	why := poolsDiffer(h, r.Config, in.id())
+	why := r.poolsDiffer(h, in.id())
 	if why == "" {
 		return state
 	}
@@ -368,12 +382,12 @@ func (r Route) takingUp(ctx context.Context, h router.Health, state routerState,
 		if !next.routable() {
 			continue
 		}
-		if why = poolsDiffer(answer, r.Config, in.id()); why == "" || r.failedClosed(answer) {
+		if why = r.poolsDiffer(answer, in.id()); why == "" || r.failedClosed(answer) {
 			next.asked = state.asked + since(began)
 			return next
 		}
 	}
-	return routerState{name: otherPools, reason: why, asked: state.asked + since(began)}
+	return routerState{name: otherPools, reason: why, asked: state.asked + since(began), pools: r.from}
 }
 
 // failedClosed reports whether the router, as its health answer h has it,
@@ -390,28 +404,29 @@ func (r Route) failedClosed(h router.Health) bool {
 const passesHeaders = "it would pass switchboard's own headers on to the API"
 
 // poolsDiffer says how the pools the router routes for, as its health answer
-// h reports them, aren't cfg's, as a launch in the pool with the given id
-// needs them: "" where they are. The router takes switchboard's own headers
-// off what it sends upstream, so it can be told the pool; they're the same
-// pools, by id, each with the same directories, as fencesDiffer compares
-// them; every account the router routes in a pool is in that pool in cfg,
-// while an account cfg has added, which waits for the router's restart, can
-// be missing; each pool's primary is cfg's, where the router has that
-// account; and the router routes one of the launch's pool's accounts at
-// least.
-func poolsDiffer(h router.Health, cfg *config.Config, pool string) string {
+// h reports them, aren't those of r's Config, cfg, as a launch in the pool
+// with the given id needs them, naming whose they are as r's from says: ""
+// where they are. The router takes switchboard's own headers off what it
+// sends upstream, so it can be told the pool; they're the same pools, by id,
+// each with the same directories, as fencesDiffer compares them; every
+// account the router routes in a pool is in that pool in cfg, while an
+// account cfg has added, which waits for the router's restart, can be
+// missing; each pool's primary is cfg's, where the router has that account;
+// and the router routes one of the launch's pool's accounts at least.
+func (r Route) poolsDiffer(h router.Health, pool string) string {
 	switch {
 	case !h.ReportsPools:
 		return "it's from before pools"
 	case !h.StripsOwnHeaders:
 		return passesHeaders
 	}
+	cfg := r.Config
 	routed := routing(h.Pools)
-	if why := routed.fencesDiffer(cfg.Pools); why != "" {
+	if why := routed.fencesDiffer(cfg.Pools, r.from); why != "" {
 		return why
 	}
 	for _, p := range cfg.Pools {
-		if why := routed.accountsDiffer(p, cfg.Accounts); why != "" {
+		if why := routed.accountsDiffer(p, cfg.Accounts, r.from); why != "" {
 			return why
 		}
 	}
@@ -444,41 +459,43 @@ func (r routing) has(id string) bool {
 	})
 }
 
-// fencesDiffer says how the router's pools aren't pools: "" where they're
-// the same pools, by id, each with the same directories, links unresolved.
-// Pools that repeat an id, ignoring case, as pools read unchecked can, are
-// never the router's: two of them could match one of its pools, and leave
-// another unmatched.
-func (r routing) fencesDiffer(pools config.Pools) string {
+// fencesDiffer says how the router's pools aren't pools, whose as from says:
+// "" where they're the same pools, by id, each with the same directories,
+// links unresolved. Pools that repeat an id, ignoring case, as pools read
+// unchecked can, are never the router's: two of them could match one of its
+// pools, and leave another unmatched.
+func (r routing) fencesDiffer(pools config.Pools, from poolsSource) string {
+	whose := from.whose()
 	for i, p := range pools {
 		if slices.ContainsFunc(pools[:i], sameID(p.ID)) {
-			return "the config's pools repeat the id " + prose.Quoted(p.ID)
+			return whose + " pools repeat the id " + prose.Quoted(p.ID)
 		}
 	}
 	if len(r) != len(pools) {
-		return "its pools aren't the config's"
+		return "its pools aren't " + whose
 	}
 	for _, p := range pools {
 		routed, ok := r.of(p.ID)
 		switch {
 		case !ok:
-			return "its pools aren't the config's"
+			return "its pools aren't " + whose
 		case !sameDirs(p.Dirs, routed.Dirs):
-			return "pool " + poolSaid(p) + "'s directories aren't the config's"
+			return "pool " + poolSaid(p) + "'s directories aren't " + whose
 		}
 	}
 	return ""
 }
 
 // accountsDiffer says how the accounts of the router's pool p, of accounts,
-// aren't the config's, as poolsDiffer compares them: "" where they are.
-func (r routing) accountsDiffer(p config.Pool, accounts config.Accounts) string {
+// aren't those of the pools whose from says, as poolsDiffer compares them:
+// "" where they are.
+func (r routing) accountsDiffer(p config.Pool, accounts config.Accounts, from poolsSource) string {
 	routed, _ := r.of(p.ID)
 	switch {
 	case !allIn(routed.Accounts, p.ID, accounts):
-		return "pool " + poolSaid(p) + "'s accounts aren't the config's"
+		return "pool " + poolSaid(p) + "'s accounts aren't " + from.whose()
 	case !r.samePrimary(routed, p.ID, accounts):
-		return "pool " + poolSaid(p) + "'s primary isn't the config's"
+		return "pool " + poolSaid(p) + "'s primary isn't " + from.whose()
 	}
 	return ""
 }
@@ -535,16 +552,28 @@ func (w Written) Fences(routers func() config.Pools) config.Pools {
 
 // unroutedBy says why the router, as its health answer h reports the pools
 // it routes for, isn't routed through where the config can't be read, its
-// file writing w: "" where it is. Where w has a directory that can't be
-// placed, the fences the user would have aren't known. One reporting pools,
-// of several, would pass the pool on to the API; or its pools aren't w's, by
-// id and directories, where w has any, as fencesDiffer compares them, as the
-// router would route by fences the user has since changed. One reporting
-// none routes every account in one pool, which isn't w's where w has
-// several, or any that break the config's rules; nor, once the move to pools
-// is done, moved, where w has none, as the pools there are, which the
-// accounts record keeps, may be fenced.
-func (w Written) unroutedBy(h router.Health, moved bool) string {
+// file writing w, and whose pools, as poolsSource names them, it doesn't
+// route by: "" where it is. It isn't where fileUnrouted says why, the
+// config's; nor, once the move to pools is done, moved, where it reports
+// none and w has none, as it routes every account in one pool, and the pools
+// there are, the accounts record's, may be fenced.
+func (w Written) unroutedBy(h router.Health, moved bool) (string, poolsSource) {
+	if _, reported := RoutedPools(h); !reported && moved && len(w.Pools) == 0 {
+		return "it reports no pools, and the config file writes none once the move to pools is done", fromRecord
+	}
+	return w.fileUnrouted(h), fromConfig
+}
+
+// fileUnrouted says why the router, as its health answer h reports the pools
+// it routes for, doesn't route by those w, the config file, writes: "" where
+// it does. Where w has a directory that can't be placed, the fences the user
+// would have aren't known. One reporting pools, of several, would pass the
+// pool on to the API; or its pools aren't w's, by id and directories, where w
+// has any, as fencesDiffer compares them, as the router would route by
+// fences the user has since changed. One reporting none routes every account
+// in one pool, which isn't w's where w has several, or any that break the
+// config's rules.
+func (w Written) fileUnrouted(h router.Health) string {
 	if slices.ContainsFunc(w.Pools, func(p config.Pool) bool { return len(p.Unplaced) > 0 }) {
 		return "the config file writes a directory that can't be placed"
 	}
@@ -553,7 +582,7 @@ func (w Written) unroutedBy(h router.Health, moved bool) string {
 		case len(h.Pools) > 1 && !h.StripsOwnHeaders:
 			return passesHeaders
 		case len(w.Pools) > 0:
-			return routing(h.Pools).fencesDiffer(w.Pools)
+			return routing(h.Pools).fencesDiffer(w.Pools, fromConfig)
 		}
 		return ""
 	}
@@ -562,8 +591,6 @@ func (w Written) unroutedBy(h router.Health, moved bool) string {
 		return "it reports no pools, and the config file writes several"
 	case w.Unchecked && len(w.Pools) > 0:
 		return "it reports no pools, and the config file's break its rules"
-	case moved && len(w.Pools) == 0:
-		return "it reports no pools, and the config file writes none once the move to pools is done"
 	}
 	return ""
 }

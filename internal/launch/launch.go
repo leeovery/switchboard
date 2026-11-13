@@ -203,8 +203,14 @@ const CouldntReadConfig = "couldn't read the config"
 const (
 	routerUnsaid    = "the running router doesn't say which accounts it routes for"
 	routerTokenless = "the running router names no account with a usable token"
-	routerUnpooled  = "the running router doesn't route by the config's pools"
 )
+
+// routerUnpooled is what keeps RunUnread from routing through a router that
+// answers where it doesn't route by the pools whose from says, as Stderr
+// hears it.
+func routerUnpooled(from poolsSource) string {
+	return "the running router doesn't route by " + from.whose() + " pools"
+}
 
 // RunUnread starts Claude Code with args in this process's place where the
 // config can't be read, as unread says why, but the router's state directory
@@ -251,9 +257,9 @@ func (l Launcher) RunUnread(ctx context.Context, r Route, args []string, unread 
 		logger.Info("the router can't be routed through", "router", state.name, "reason", state.reason, "asked", state.asked)
 		return aside(cant, true)
 	}
-	if why := r.Written.unroutedBy(h, r.Moved); why != "" {
-		logger.Warn("the router doesn't route by the config file's pools", "router", state.name, "reason", why)
-		return aside(cant.besides(routerUnpooled), true)
+	if why, whose := r.Written.unroutedBy(h, r.Moved); why != "" {
+		logger.Warn("the router doesn't route by the pools", "router", state.name, "reason", why)
+		return aside(cant.besides(routerUnpooled(whose)), true)
 	}
 	if r.Config, err = r.routersConfig(ctx, h); err != nil {
 		logger.Warn("can't read which accounts the router routes for", "error", err)
@@ -615,7 +621,7 @@ func (l Launcher) shownDir() string {
 
 // How the router can answer its health check, as the log names it, or
 // notFound, where it couldn't be asked, or otherPools, where it answers with
-// pools other than the config's of several. Healthy and unhealthy alone can
+// pools other than the launch's of several. Healthy and unhealthy alone can
 // be routed through; a launch stops, or goes direct, for each of the others,
 // so none of them reads "unhealthy".
 const (
@@ -629,13 +635,12 @@ const (
 )
 
 // said is how String says the router is, by its state's name, where that
-// isn't "is" and the name.
+// isn't "is" and the name, nor otherPools, which says whose pools.
 var said = map[string]string{
 	notRunning:   "isn't running",
 	notFound:     "couldn't be found",
 	notAnswering: "isn't answering",
 	unusable:     "can't be used",
-	otherPools:   "doesn't route by the config's pools",
 }
 
 // routerState is how the router answered its health check.
@@ -651,6 +656,9 @@ type routerState struct {
 	strips bool
 	// asked is how long asking took, to the millisecond.
 	asked time.Duration
+	// pools is whose pools the router doesn't route by, where it's
+	// otherPools.
+	pools poolsSource
 }
 
 func (s routerState) healthy() bool {
@@ -677,14 +685,23 @@ func (s routerState) told(value string) string {
 // String says how the router is, as "isn't running", "isn't answering (…)"
 // or "is unhealthy (…)", its reason in brackets where it has one.
 func (s routerState) String() string {
-	text, ok := said[s.name]
-	if !ok {
-		text = "is " + s.name
-	}
 	if s.reason == "" {
+		return s.text()
+	}
+	return s.text() + " (" + s.reason + ")"
+}
+
+// text says how the router is, by its state's name: as said says, or, where
+// it routes by other pools, whose it doesn't route by, as "doesn't route by
+// the config's pools".
+func (s routerState) text() string {
+	if s.name == otherPools {
+		return "doesn't route by " + s.pools.whose() + " pools"
+	}
+	if text, ok := said[s.name]; ok {
 		return text
 	}
-	return text + " (" + s.reason + ")"
+	return "is " + s.name
 }
 
 // health asks the router how it is, and where its proxy listens, as patiently
