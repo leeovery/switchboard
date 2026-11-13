@@ -473,11 +473,13 @@ func dropAccount(draft *config.Draft, a config.Account, id string) error {
 	return carry(draft, a, kept)
 }
 
-// carry gives the configured account kept the primary, of its own pool,
-// plan and reserve of the account a, dropped for it, each where it has none
-// of its own.
+// carry gives the configured account kept the primary, plan and reserve of
+// the account a, dropped for it, each where it has none of its own: the
+// primary only where the two are in one pool, as a's mark was its own
+// pool's, never another account's in kept's.
 func carry(draft *config.Draft, a, kept config.Account) error {
-	if primary, _ := draft.Config().Accounts.PrimaryOf(kept.Pool); a.Primary && primary.ID != kept.ID {
+	primary, _ := draft.Config().Accounts.PrimaryOf(kept.Pool)
+	if a.Primary && strings.EqualFold(a.Pool, kept.Pool) && primary.ID != kept.ID {
 		if err := draft.SetPrimary(kept.ID); err != nil {
 			return err
 		}
