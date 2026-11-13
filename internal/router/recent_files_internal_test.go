@@ -3,6 +3,7 @@ package router
 import (
 	"bufio"
 	"context"
+	"maps"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -168,6 +169,34 @@ func TestAnEventIsFiledAgainAsItChangesAndReadBackAsItLastStands(t *testing.T) {
 				t.Errorf("the files hold %v versions of each event, by id, want %v", got, tt.versions)
 			}
 		})
+	}
+}
+
+// A move from before pools, waiting at take-up for the limit that forced
+// it, is filed once the limit's told naming the first pool, as the move to
+// pools gives the version filed before: the limit names none, as its
+// account's windows are its own.
+func TestAMoveWaitingAsThePoolsAreTakenUpIsFiledInTheFirstPool(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.toml")
+	writeConfigFile(t, path, unpooledTOML("work", "personal", "side"))
+	cfg := testConfig(at(start), &stubProber{}, poolTokens.Read)
+	cfg.Accounts, cfg.ConfigFile = config.Accounts{{ID: "work", Label: "work"}, {ID: "personal", Label: "personal"}, {ID: "side", Label: "side"}}, Watch(path)
+	r := newTestRouterOf(t, cfg)
+	files := fileEvents(t, r.recent)
+	r.recent.hear(forced("one", "work", "side"))
+
+	writeConfigFile(t, path, poolsTOML(defaultPool, defaultTOML, acmeTOML))
+	if !r.takeUpPools() {
+		t.Fatal("takeUpPools() = false, want the router routing in the pools")
+	}
+	r.recent.hear(LimitReached{Account: "work", Windows: []string{"5h"}, Until: start.Add(time.Hour), Limit: 1})
+
+	pools := make(map[string]string)
+	for _, line := range files.read() {
+		pools[line.Kind] = line.Pool
+	}
+	if want := map[string]string{status.EventMoved: defaultPool, status.EventLimit: ""}; !maps.Equal(pools, want) {
+		t.Errorf("the events filed last name the pools %v, want %v: the move the first, the limit none", pools, want)
 	}
 }
 
