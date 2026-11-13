@@ -81,9 +81,9 @@ order, the pools read afresh, so one added or removed since shows: the view
 starts afresh, nothing of the pool before carried over. With one pool, P
 reads them afresh all the same, turning to a second added since, else
 saying there's one. A pool with no accounts, as its last read has it, says
-so on every tab, with how to add one. History, Sessions, Graphs, the Log's
-requests and the worth and tokens on Accounts still tell of every pool's
-work together.
+so on every tab, with how to add one. The Log's requests and its find are
+the pool's alone; History, Sessions, Graphs and the worth and tokens on
+Accounts still tell of every pool's work together.
 
 It reads the router's usage every few seconds, which the router keeps
 current itself, reading every account nothing has read in the last 5
