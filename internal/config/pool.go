@@ -85,19 +85,6 @@ func (ps Pools) Unfenced() (Pool, bool) {
 	return ps.find(func(p Pool) bool { return !p.Fenced() })
 }
 
-// Covering returns the pool a session started in dir is in, an absolute,
-// clean path: the fenced pool whose directories cover it, else the unfenced
-// pool. It reports false where neither is, as where every pool is fenced. No
-// two pools' directories overlap, so one covers it at most. It reads no
-// files: links in dir, and in the pools' directories, are resolved first by
-// the caller, where they're to be.
-func (ps Pools) Covering(dir string) (Pool, bool) {
-	if p, ok := ps.find(func(p Pool) bool { return p.Covers(dir) }); ok {
-		return p, true
-	}
-	return ps.Unfenced()
-}
-
 // Implicit returns the pool a verb acts on where none is named: the only
 // pool, where there's one, else the unfenced pool. It reports false where
 // neither is, as where every pool of several is fenced, or none is

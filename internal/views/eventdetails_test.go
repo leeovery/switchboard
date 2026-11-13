@@ -188,6 +188,8 @@ func TestEachKindsDetailsSayWhatHappened(t *testing.T) {
 			headline: "0a1b pinned to side", happened: []string{"session: 0a1b", "accounts: side", "set from: the dashboard"}},
 		{name: "the global pin cleared", event: status.Event{Kind: status.EventAuto, Accounts: []string{"personal"}, By: "dashboard"},
 			headline: "new sessions back to the router's choice", happened: []string{"from: personal", "set from: the dashboard"}},
+		{name: "a pool's pin the router dropped as the pools changed", event: status.Event{Kind: status.EventAuto, Accounts: []string{"personal"}, By: "router"},
+			headline: "new sessions back to the router's choice", happened: []string{"from: personal", "cleared by: the router, as its accounts left the pool"}},
 		{name: "a session's own pin cleared", event: status.Event{Kind: status.EventAuto, Account: "side", Session: older},
 			headline: "0a1b back to the router's choice", happened: []string{"session: 0a1b", "from: side"}},
 		{name: "a restart falling due", event: status.Event{Kind: status.EventRestart, Reason: status.RestartForUpgrade},

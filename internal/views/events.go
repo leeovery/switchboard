@@ -44,14 +44,26 @@ var restartWords = map[string]string{
 	status.RestartForZone:    "the time zone changed",
 }
 
-// setFrom says where a pin was set or cleared from, by who did it, as an
-// event's By gives it, in the Log's words.
+// setFrom says where a pin was set or cleared from by hand, by who did it, as
+// an event's By gives it, in the Log's words.
 var setFrom = map[string]string{"cli": "the command line", "dashboard": "the dashboard"}
 
+// byRouter is the By of a pin the router cleared itself, which it does only
+// as the pools change, dropping one whose accounts have all left its pool,
+// or whose pool is gone; and clearedByRouter says so, in the Log's words.
+const (
+	byRouter        = "router"
+	clearedByRouter = "the router, as its accounts left the pool"
+)
+
 // setBy says who set or cleared a pin, as an event's By gives it, after
-// what was set: ", set from the command line"; nothing for anyone else, or
-// no one.
+// what was set: ", set from the command line", as setFrom has it, or ",
+// cleared by the router, as its accounts left the pool"; nothing for anyone
+// else, or no one.
 func setBy(by string) string {
+	if by == byRouter {
+		return ", cleared by " + clearedByRouter
+	}
 	if from, ok := setFrom[by]; ok {
 		return ", set from " + from
 	}

@@ -324,7 +324,11 @@ func (d detailing) pinned() itemList {
 	if e.Force {
 		items.add("own pins", saidWords("every session's cleared"))
 	}
-	items.add("set from", saidWords(setFrom[e.By]))
+	if e.By == byRouter {
+		items.add("cleared by", saidWords(clearedByRouter))
+	} else {
+		items.add("set from", saidWords(setFrom[e.By]))
+	}
 	return items
 }
 
