@@ -118,8 +118,7 @@ Claude pass `--pool "$SWITCHBOARD_POOL"`, the session's own pool.
   and `status --session --pool` refuse, saying so, asking it nothing. `status --session` without
   `--pool` reads the session as ever, as it's the same session on any router. Where the config has
   no pools before the move to pools, it's read as ever; once the move is done, a config naming no
-  pools has its pools as they stand, from the accounts record, so such a router is refused as
-  above.
+  pools has its pools as they stand, from the accounts record, so such a router is read as above.
 
 ## Everyday
 
