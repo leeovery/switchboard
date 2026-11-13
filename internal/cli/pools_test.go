@@ -61,7 +61,7 @@ func TestASessionIsFoundByAPrefixInAFencedPoolWithEveryPoolFenced(t *testing.T) 
 	srv.start(t)
 	srv.routeInAcme(t, sessionThree)
 
-	if got, want := run(t, srv.deps, "status", "--session", "18bb"), (result{stdout: "work\n"}); got != want {
+	if got, want := run(t, srv.deps, "status", "--session", "18bb"), (result{stdout: "Work\n"}); got != want {
 		t.Errorf("switchboard status --session 18bb = %+v, want %+v", got, want)
 	}
 	want := result{stdout: "session 18bb978f goes to work from its next request\n"}

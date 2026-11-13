@@ -74,10 +74,10 @@ type Moved struct {
 	Reason  string
 	Held    Hold
 	Limit   int
+	Dir     string
 	// Pool is the id of the pool the request was routed within, as the
 	// accounts' view had it: none in a config from before pools.
 	Pool string
-	Dir  string
 }
 
 // Hold is what held a request back on an account it couldn't go out on,
@@ -161,8 +161,8 @@ type RestartHeld struct {
 // Accounts, in the order configured, Account the first of them, moving the
 // pool's running sessions too where Move is set, and having cleared the own
 // pin of every session in the pool where Force is; else that session's own
-// pin, to Account, Dir the directory the session runs in, as sessionDir has
-// it. By says who set it. Pool is the id of the pool: the pin's, or the
+// pin, to Account, Dir the directory the session runs in, as sessions.dir
+// has it. By says who set it. Pool is the id of the pool: the pin's, or the
 // session's; none in a config from before pools.
 type Pinned struct {
 	Accounts    []string
@@ -178,7 +178,7 @@ type Pinned struct {
 // pool's pin cleared, which named Accounts, none when only Force cleared
 // anything, with the own pin of every session in the pool where Force is
 // set; else that session's own pin cleared, which named Account, Dir the
-// directory the session runs in, as sessionDir has it. By says who cleared
+// directory the session runs in, as sessions.dir has it. By says who cleared
 // it. Pool is the id of the pool, as Pinned's is.
 type Unpinned struct {
 	Accounts []string
