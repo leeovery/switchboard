@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"testing"
 	"time"
@@ -196,10 +197,13 @@ type golden struct {
 
 // goldenDigest is the digest of goldenDay of the golden world, written as a
 // real ledger and digested day by day, as digestChain digests it, and its
-// parts, as golden has them, indented, ending its last line.
+// parts, as golden has them, indented, ending its last line; o's last
+// request routed in a pool, where the world's others named none, so o's
+// entry names the pools of its lines.
 func goldenDigest(t *testing.T) []byte {
 	t.Helper()
 	lines, zoned := goldenWorld()
+	lines[slices.IndexFunc(lines, func(l ledger.Line) bool { return l.Request == "o4" })].Pool = "q7mt"
 	c := goldenChain(t, lines, map[string][]ledger.Line{goldenDay: zoned})
 	data, err := os.ReadFile(c.digestPath(goldenDay))
 	if err != nil {

@@ -162,6 +162,36 @@ func (a AccountDay) unpooledIn(pool string) (AccountDay, bool) {
 	return a.pooled(mergedBy(days, PoolDay.key, mergedPool, strings.Compare)), true
 }
 
+// RecordingPool is pools, the pools some lines recorded, each once, in the
+// order of their ids, "" of those that named none, with the pool a line
+// recorded taken in: pools itself where it holds it already.
+func RecordingPool(pools []string, pool string) []string {
+	if i, held := slices.BinarySearch(pools, pool); !held {
+		pools = slices.Insert(pools, i, pool)
+	}
+	return pools
+}
+
+// StoredPools are pools, as RecordingPool keeps them, as what's built of
+// lines stores them, a digest's entry or a day's head: none where the lines
+// named none, as before pools and in a config without them, so what's
+// stored is as it was where no line names a pool.
+func StoredPools(pools []string) []string {
+	if slices.Equal(pools, []string{""}) {
+		return nil
+	}
+	return pools
+}
+
+// RecordedPools are the pools StoredPools stores: none but none where it
+// stores none.
+func RecordedPools(stored []string) []string {
+	if len(stored) == 0 {
+		return []string{""}
+	}
+	return stored
+}
+
 // RecordedIn reports whether a request that recorded the pool with the id
 // recorded, as a line records it at the time, "" where it named none, was
 // routed in the pool with the given id, ids compared as config.SamePool

@@ -22,11 +22,13 @@ import (
 const (
 	// digestVersion is the version of the digests' envelope the ledger
 	// writes: their head, and how each session's entry is kept, its part's
-	// place in the day's parts file among it, but for the sessions' states
-	// and parts, whose version is their builder's. A release that keeps a
-	// digest otherwise writes another, so the digests written before it read
-	// as outdated, and their days are digested again.
-	digestVersion = 2
+	// place in the day's parts file and its pools among it, but for the
+	// sessions' states and parts, whose version is their builder's. A
+	// release that keeps a digest otherwise writes another, so the digests
+	// written before it read as outdated, and their days are digested again.
+	// Every digest of this version names the pools of each entry: none was
+	// released without them.
+	digestVersion = 3
 	// digestPrefix and digestSuffix begin and end the name of a day's digest:
 	// digest-<date>.json.gz.
 	digestPrefix, digestSuffix = "digest-", ".json.gz"
@@ -89,13 +91,18 @@ type DigestHead struct {
 
 // DigestEntry is a session's entry in a digest: RestsOn, each day its state
 // was folded from, by its date, the digest's own day among them, with the
-// Lines of that day's summary as the state was built; State, the session's
-// state at the day's end, a JSON value of its builder's, carried as it's
-// given, its insignificant spaces aside, and never read: so a reader of a
-// few sessions of a busy day decodes theirs alone; and Part, where its part
-// of the day lies in the day's parts file, nil where it has none.
+// Lines of that day's summary as the state was built; Pools, the pools the
+// lines its state was folded from recorded, as RecordingPool keeps them,
+// those of every day it rests on, so a reader of one pool's work tells a
+// state of that pool's alone, or of none of it, from one it shares with
+// another without reading it; State, the session's state at the day's end,
+// a JSON value of its builder's, carried as it's given, its insignificant
+// spaces aside, and never read: so a reader of a few sessions of a busy day
+// decodes theirs alone; and Part, where its part of the day lies in the
+// day's parts file, nil where it has none.
 type DigestEntry struct {
 	RestsOn map[string]int
+	Pools   []string
 	State   json.RawMessage
 	Part    *PartRef
 }
@@ -131,9 +138,11 @@ type storedDigest struct {
 	Sessions     map[string]storedEntry `json:"sessions,omitzero"`
 }
 
-// storedEntry is a session's entry as a digest's file holds it.
+// storedEntry is a session's entry as a digest's file holds it, its pools
+// as StoredPools stores them.
 type storedEntry struct {
 	RestsOn map[string]int  `json:"rests_on,omitzero"`
+	Pools   []string        `json:"pools,omitempty"`
 	State   json.RawMessage `json:"state,omitempty"`
 	Part    *storedPart     `json:"part,omitzero"`
 }
@@ -170,12 +179,12 @@ func (s storedDigest) digest() Digest {
 
 // stored is e as a digest's file holds it.
 func (e DigestEntry) stored() storedEntry {
-	return storedEntry{RestsOn: e.RestsOn, State: e.State, Part: e.Part.stored()}
+	return storedEntry{RestsOn: e.RestsOn, Pools: StoredPools(e.Pools), State: e.State, Part: e.Part.stored()}
 }
 
 // entry is the entry e holds.
 func (e storedEntry) entry() DigestEntry {
-	return DigestEntry{RestsOn: e.RestsOn, State: e.State, Part: e.Part.ref()}
+	return DigestEntry{RestsOn: e.RestsOn, Pools: RecordedPools(e.Pools), State: e.State, Part: e.Part.ref()}
 }
 
 // stored is r as a digest's file holds it: none of none.

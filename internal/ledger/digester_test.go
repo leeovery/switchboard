@@ -450,8 +450,9 @@ func TestFinishedDaysAreDigestedOldestFirstEachOnTheDayBefore(t *testing.T) {
 // A digest is written of the day as its files hold it: its bounds, its
 // summary's lines, as many lines as its files hold, and how many arrived
 // before it began, and after it ended; and each session's entry resting on
-// each day naming it, with the lines its summary counts, pointing at its
-// part, folded on the state it was handed resting on.
+// each day naming it, with the lines its summary counts, its lines naming
+// no pool, pointing at its part, folded on the state it was handed resting
+// on.
 func TestADigestIsWrittenOfTheDayAsItsFilesHoldIt(t *testing.T) {
 	w := newLookupWorld(t)
 	w.file(-3, askedBy("1", "one", on(-3, 9, 0)))
@@ -464,8 +465,8 @@ func TestADigestIsWrittenOfTheDayAsItsFilesHoldIt(t *testing.T) {
 	want := ledger.Digest{
 		Head: ledger.DigestHead{Body: digestBody, Day: dayOf(0), Start: start, End: end, SummaryLines: 3, Lines: 3, Early: 1, Late: 1},
 		Sessions: map[string]ledger.DigestEntry{
-			"one": {RestsOn: map[string]int{dayOf(-3): 1, dayOf(0): 3}, State: json.RawMessage(`{"of":"one@` + dayOf(0) + `","requests":["1","early","2"]}`)},
-			"two": {RestsOn: map[string]int{dayOf(0): 3}, State: json.RawMessage(`{"of":"two@` + dayOf(0) + `","requests":["late"]}`)},
+			"one": {RestsOn: map[string]int{dayOf(-3): 1, dayOf(0): 3}, Pools: []string{""}, State: json.RawMessage(`{"of":"one@` + dayOf(0) + `","requests":["1","early","2"]}`)},
+			"two": {RestsOn: map[string]int{dayOf(0): 3}, Pools: []string{""}, State: json.RawMessage(`{"of":"two@` + dayOf(0) + `","requests":["late"]}`)},
 		},
 	}
 	if got := unparted(w.digestOf(0)); !reflect.DeepEqual(got, want) {
@@ -477,6 +478,54 @@ func TestADigestIsWrittenOfTheDayAsItsFilesHoldIt(t *testing.T) {
 	}
 	if got := w.partsIn(0); !reflect.DeepEqual(got, wantParts) {
 		t.Errorf("the parts of %s are\n%+v\nwant\n%+v", dayOf(0), got, wantParts)
+	}
+}
+
+// A digest's entry names the pools the lines its state was folded from
+// recorded, each once, in the order of their ids, those of every day it
+// rests on: one is Acme's alone, another Default's on its first day and
+// Acme's after, as a session resumed once its directory's fence changes,
+// and a third named none, as before pools; and its own day's digest built
+// again keeps the pools of a session resting on it still.
+func TestADigestsEntryNamesThePoolsOfTheLinesItRestsOn(t *testing.T) {
+	w := newLookupWorld(t)
+	w.file(-3, inPool(askedBy("1", "one", on(-3, 9, 0)), acme), inPool(askedBy("2", "two", on(-3, 10, 0)), first))
+	w.file(-2, inPool(askedBy("3", "two", on(-2, 9, 0)), acme), askedBy("4", "three", on(-2, 10, 0)))
+	w.file(0, inPool(askedBy("5", "one", on(0, 9, 0)), acme), inPool(askedBy("6", "two", on(0, 10, 0)), acme))
+	w.summarise()
+
+	w.digestEnded()
+
+	pooled := func(days int) map[string][]string {
+		got := make(map[string][]string)
+		for id, e := range w.digestOf(days).Sessions {
+			got[id] = e.Pools
+		}
+		return got
+	}
+	for _, tt := range []struct {
+		days int
+		want map[string][]string
+	}{
+		{days: -3, want: map[string][]string{"one": {acme}, "two": {first}}},
+		{days: -2, want: map[string][]string{"two": {first, acme}, "three": {""}}},
+		{days: 0, want: map[string][]string{"one": {acme}, "two": {first, acme}}},
+	} {
+		if got := pooled(tt.days); !reflect.DeepEqual(got, tt.want) {
+			t.Errorf("the entries of %s name the pools %v, want %v", dayOf(tt.days), got, tt.want)
+		}
+	}
+
+	w.fold.days()
+	w.file(-2, inPool(askedBy("late", "two", on(-2, 12, 0)), acme))
+	w.summarise()
+	w.digestEnded()
+	handed := w.fold.days()
+	if i := slices.IndexFunc(handed, func(h handedDay) bool { return h.date == dayOf(0) }); i < 0 || !slices.Equal(slices.Sorted(maps.Keys(handed[i].sessions)), []string{"two"}) {
+		t.Errorf("%s was handed %+v, want two's session alone, one's kept", dayOf(0), handed)
+	}
+	if got, want := pooled(0), map[string][]string{"one": {acme}, "two": {first, acme}}; !reflect.DeepEqual(got, want) {
+		t.Errorf("built again, the entries of %s name the pools %v, want %v, the one kept among them", dayOf(0), got, want)
 	}
 }
 

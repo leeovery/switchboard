@@ -620,16 +620,31 @@ func (s SessionFrom) BaseDate() string {
 }
 
 // entriesOf returns the entries of a digest of sessions, by their ids: each
-// resting on what its SessionFrom says, of its state as folded holds it;
-// none of one it holds none of.
+// resting on what its SessionFrom says, of the pools its lines recorded, as
+// pools has them, of its state as folded holds it; none of one it holds none
+// of.
 func entriesOf(sessions map[string]SessionFrom, folded map[string]sessionFolded) map[string]DigestEntry {
 	entries := make(map[string]DigestEntry, len(sessions))
 	for id, s := range sessions {
 		if f, ok := folded[id]; ok {
-			entries[id] = DigestEntry{RestsOn: s.restsOn, State: f.state}
+			entries[id] = DigestEntry{RestsOn: s.restsOn, Pools: s.pools(), State: f.state}
 		}
 	}
 	return entries
+}
+
+// pools are the pools the lines a state folded from s rests on recorded, as
+// a digest's entry keeps them: its base's, and those of its lines after it,
+// as RecordingPool keeps them.
+func (s SessionFrom) pools() []string {
+	var pools []string
+	if s.Base != nil {
+		pools = slices.Clone(s.Base.Pools)
+	}
+	for i := range s.Lines {
+		pools = RecordingPool(pools, s.Lines[i].Pool)
+	}
+	return pools
 }
 
 // partsOf returns the parts folded holds, by their sessions' ids: none of a
