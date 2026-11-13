@@ -542,6 +542,32 @@ func TestCapsAreTheReservesOfTheAccountsConfigured(t *testing.T) {
 	}
 }
 
+// Grounds are the same where every account's reserve is, one named with
+// none as one not named, the windows shared, and the first pool; any of them
+// changed, they differ.
+func TestGroundsAreTheSameWhereEveryCapAndTheFirstPoolAre(t *testing.T) {
+	was := ledger.Grounds{Caps: ledger.Caps{Reserves: map[string]float64{"work": 0.1, "personal": 0}, Shared: []string{"5h"}}, First: "b2n8"}
+	tests := []struct {
+		name string
+		now  ledger.Grounds
+		same bool
+	}{
+		{name: "alike", now: ledger.Grounds{Caps: ledger.Caps{Reserves: map[string]float64{"personal": 0, "work": 0.1}, Shared: []string{"5h"}}, First: "b2n8"}, same: true},
+		{name: "an account with no reserve added", now: ledger.Grounds{Caps: ledger.Caps{Reserves: map[string]float64{"work": 0.1, "personal": 0, "side": 0}, Shared: []string{"5h"}}, First: "b2n8"}, same: true},
+		{name: "an account with no reserve gone", now: ledger.Grounds{Caps: ledger.Caps{Reserves: map[string]float64{"work": 0.1}, Shared: []string{"5h"}}, First: "b2n8"}, same: true},
+		{name: "a reserve changed", now: ledger.Grounds{Caps: ledger.Caps{Reserves: map[string]float64{"work": 0.2, "personal": 0}, Shared: []string{"5h"}}, First: "b2n8"}},
+		{name: "a reserve given", now: ledger.Grounds{Caps: ledger.Caps{Reserves: map[string]float64{"work": 0.1, "personal": 0.05}, Shared: []string{"5h"}}, First: "b2n8"}},
+		{name: "an account with a reserve gone", now: ledger.Grounds{Caps: ledger.Caps{Reserves: map[string]float64{"personal": 0}, Shared: []string{"5h"}}, First: "b2n8"}},
+		{name: "another window shared", now: ledger.Grounds{Caps: ledger.Caps{Reserves: map[string]float64{"work": 0.1}, Shared: []string{"5h", "7d"}}, First: "b2n8"}},
+		{name: "another first pool", now: ledger.Grounds{Caps: ledger.Caps{Reserves: map[string]float64{"work": 0.1}, Shared: []string{"5h"}}, First: "q7mt"}},
+	}
+	for _, tt := range tests {
+		if got := tt.now.Same(was); got != tt.same {
+			t.Errorf("%s: Same() = %v, want %v", tt.name, got, tt.same)
+		}
+	}
+}
+
 func TestADaySummarisedAgainKnowsNoLessOfItsSessionsAndWindows(t *testing.T) {
 	limitAt, resets := on(0, 11, 30), on(0, 13, 0)
 	// The summary it replaces: of a session since lost with its lines, and
