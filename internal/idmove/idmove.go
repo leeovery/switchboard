@@ -460,7 +460,7 @@ func moveAccount(draft *config.Draft, a config.Account, id string) error {
 func dropAccount(draft *config.Draft, a config.Account, id string) error {
 	accounts := draft.Config().Accounts
 	kept := accounts[slices.IndexFunc(accounts, func(c config.Account) bool { return c.ID == id })]
-	labelled := draft.Labelled(id)
+	labelled, marked := draft.Labelled(id), draft.MarksPrimaryOf(a.ID)
 	if err := draft.RemoveAccount(a.ID); err != nil {
 		return err
 	}
@@ -470,16 +470,17 @@ func dropAccount(draft *config.Draft, a config.Account, id string) error {
 			return err
 		}
 	}
-	return carry(draft, a, kept)
+	return carry(draft, a, kept, marked)
 }
 
 // carry gives the configured account kept the primary, plan and reserve of
 // the account a, dropped for it, each where it has none of its own: the
-// primary only where the two are in one pool, as a's mark was its own
-// pool's, never another account's in kept's.
-func carry(draft *config.Draft, a, kept config.Account) error {
-	primary, _ := draft.Config().Accounts.PrimaryOf(kept.Pool)
-	if a.Primary && strings.EqualFold(a.Pool, kept.Pool) && primary.ID != kept.ID {
+// primary where the config marked a so, as marked says, and only where the
+// two are in one pool, as a's mark was its own pool's, never another
+// account's in kept's. The mark is the one written, not the primary Load
+// derives of a pool's first account, which kept may be, the mark lost.
+func carry(draft *config.Draft, a, kept config.Account, marked bool) error {
+	if marked && strings.EqualFold(a.Pool, kept.Pool) {
 		if err := draft.SetPrimary(kept.ID); err != nil {
 			return err
 		}

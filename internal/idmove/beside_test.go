@@ -333,23 +333,26 @@ func TestHealingDropsAnAccountByItsOldIDWhereItsNewIsConfiguredToo(t *testing.T)
 	}
 }
 
-// The primary an account dropped for its new id carries is its own pool's:
-// the one by its new id is marked where it's in that pool, another pool's
-// primary keeping its mark; in another pool, it takes no mark from that
-// pool's primary.
+// The primary an account dropped for its new id carries is its own pool's,
+// as the config marks it: the one by its new id is marked where it's in that
+// pool, though it comes first there and so is its primary unmarked, another
+// pool's primary keeping its mark; in another pool, it takes no mark from
+// that pool's primary.
 func TestHealingCarriesThePrimaryWithinItsPool(t *testing.T) {
 	const pools = "[[pool]]\nid = \"b2n8\"\n\n[[pool]]\nid   = \"q7mt\"\ndirs = [\"~/Code/acme\"]\n"
+	// acme is an account in the dropped one's pool, after the one by its new
+	// id, never marked.
+	const acme = "m4x9"
 	tests := []struct {
 		name string
 		// newIn is the pool the account by its new id is in.
 		newIn string
-		// want are the pools' primaries, each marked, and unmarked the
-		// accounts not marked.
-		want     map[string]string
-		unmarked []string
+		// marked are the accounts the healed config marks primary, as it's
+		// written, and unmarked those it doesn't.
+		marked, unmarked []string
 	}{
-		{name: "in the dropped one's pool", newIn: "q7mt", want: map[string]string{"b2n8": personalID, "q7mt": workID}},
-		{name: "in another pool", newIn: "b2n8", want: map[string]string{"b2n8": personalID}, unmarked: []string{workID}},
+		{name: "in the dropped one's pool", newIn: "q7mt", marked: []string{personalID, workID}, unmarked: []string{acme}},
+		{name: "in another pool", newIn: "b2n8", marked: []string{personalID}, unmarked: []string{workID, acme}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -358,24 +361,25 @@ func TestHealingCarriesThePrimaryWithinItsPool(t *testing.T) {
 			home := func() (string, error) { return "/Users/test", nil }
 			merged := "[[account]]\nid      = \"personal\"\nprimary = true\npool    = \"b2n8\"\n\n" +
 				"[[account]]\nid      = \"work\"\nprimary = true\npool    = \"q7mt\"\n\n" +
-				"[[account]]\nid   = \"" + workID + "\"\npool = \"" + tt.newIn + "\"\n\n" + pools
+				"[[account]]\nid   = \"" + workID + "\"\npool = \"" + tt.newIn + "\"\n\n" +
+				"[[account]]\nid   = \"" + acme + "\"\npool = \"q7mt\"\n\n" + pools
 			writeFile(t, f.config, merged)
 
 			if healed, err := idmove.Heal(f.config, f.state, home); err != nil || !healed {
 				t.Fatalf("Heal() = %t, %v, want the config healed", healed, err)
 			}
-			cfg, err := config.Load(f.config, home)
+			draft, err := config.Edit(f.config, home)
 			if err != nil {
 				t.Fatal(err)
 			}
-			for pool, want := range tt.want {
-				if got, _ := cfg.Accounts.PrimaryOf(pool); got.ID != want || !got.Primary {
-					t.Errorf("healed, pool %s's primary is %+v, want %s marked", pool, got, want)
+			for _, id := range tt.marked {
+				if !draft.MarksPrimaryOf(id) {
+					t.Errorf("healed, the config doesn't mark %s primary, want it marked", id)
 				}
 			}
 			for _, id := range tt.unmarked {
-				if a, _ := cfg.Accounts.ByID(id); a.Primary {
-					t.Errorf("healed, %s is %+v, want it unmarked", id, a)
+				if draft.MarksPrimaryOf(id) {
+					t.Errorf("healed, the config marks %s primary, want it unmarked", id)
 				}
 			}
 		})
