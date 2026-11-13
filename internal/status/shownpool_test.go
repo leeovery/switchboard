@@ -108,31 +108,57 @@ func TestTheAccountsShownAreThePoolsAlone(t *testing.T) {
 	}
 }
 
-// A pool shown is empty as the moment of its document read has it, once
-// one is read, by the router or by probing, an account added since it was
-// chosen, or its last taken out, showing at once; before the first read, as
-// the config had it.
-func TestAPoolShownIsEmptyAsItsDocumentReadHasIt(t *testing.T) {
+// A pool shown is empty as the router's document of it has it, once one is
+// read: the accounts it routes there, ignoring the id's case. One the config
+// gives accounts the router hasn't taken up is waiting on it. A probed
+// document, one of another pool, and one of none, as a router that can't
+// tell its pools answers, leave it as the config has it.
+func TestAPoolShownIsEmptyAsTheRoutersDocumentOfItHasIt(t *testing.T) {
 	one := []status.AccountNow{{ID: "work"}}
+	acme := status.ShownPool{ID: "q7mt", Label: "Acme", Pools: 2}
+	acmeOfOne := acme
+	acmeOfOne.Accounts = 1
 	tests := []struct {
-		name  string
-		pool  status.ShownPool
-		mo    status.Moment
-		empty bool
+		name           string
+		pool           status.ShownPool
+		mo             status.Moment
+		empty, waiting bool
 	}{
-		{name: "none in the config, none read yet", pool: status.ShownPool{ID: "q7mt", Pools: 2}, empty: true},
-		{name: "none in the config, one added since, as the router reads", pool: status.ShownPool{ID: "q7mt", Pools: 2}, mo: status.Moment{Routed: true, Accounts: one}},
-		{name: "none in the config, one added since, as probed", pool: status.ShownPool{ID: "q7mt", Pools: 2}, mo: status.Moment{Probed: true, Accounts: one}},
-		{name: "one in the config, none read yet", pool: status.ShownPool{ID: "q7mt", Accounts: 1, Pools: 2}},
-		{name: "one in the config, taken out since", pool: status.ShownPool{ID: "q7mt", Accounts: 1, Pools: 2}, mo: status.Moment{Routed: true}, empty: true},
+		{name: "none in the config, none read yet", pool: acme, empty: true},
+		{name: "none in the config, one routed since", pool: acme, mo: status.Moment{Routed: true, PoolID: "Q7MT", Accounts: one}},
+		{name: "one in the config, none read yet", pool: acmeOfOne},
+		{name: "one in the config, none routed yet", pool: acmeOfOne, mo: status.Moment{Routed: true, PoolID: "q7mt"}, empty: true, waiting: true},
+		{name: "one in the config, routed", pool: acmeOfOne, mo: status.Moment{Routed: true, PoolID: "q7mt", Accounts: one}},
+		{name: "one in the config, probed with none", pool: acmeOfOne, mo: status.Moment{Probed: true, PoolID: "q7mt"}},
+		{name: "none in the config, probed with one", pool: acme, mo: status.Moment{Probed: true, PoolID: "q7mt", Accounts: one}, empty: true},
+		{name: "one in the config, another pool's document", pool: acmeOfOne, mo: status.Moment{Routed: true, PoolID: "b2n8"}},
+		{name: "one in the config, a document of no pool", pool: acmeOfOne, mo: status.Moment{Routed: true}},
 		{name: "no pool shown", pool: status.ShownPool{Pools: 2}, mo: status.Moment{Routed: true}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.pool.AsRead(tt.mo).Empty(); got != tt.empty {
-				t.Errorf("%+v, as read, is empty %v; want %v", tt.pool, got, tt.empty)
+			got := tt.pool.AsRead(tt.mo)
+			if got.Empty() != tt.empty || got.Waiting() != tt.waiting {
+				t.Errorf("%+v, as read, is empty %v, waiting %v; want %v, %v", tt.pool, got.Empty(), got.Waiting(), tt.empty, tt.waiting)
 			}
 		})
+	}
+}
+
+// The pool shown is read again by its id, ignoring case; where it's gone,
+// it's the one P would turn to from it.
+func TestThePoolShownIsReadAgainElseTheOnePWouldTurnTo(t *testing.T) {
+	tests := []struct{ id, want string }{
+		{id: "Q7MT", want: "q7mt"},
+		{id: "x9z9", want: "b2n8"},
+	}
+	for _, tt := range tests {
+		if got, ok := status.PoolAgain(shownPools, tt.id); !ok || got.ID != tt.want {
+			t.Errorf("PoolAgain(%q) = %q, %v; want %q", tt.id, got.ID, ok, tt.want)
+		}
+	}
+	if got, ok := status.PoolAgain(nil, "q7mt"); ok {
+		t.Errorf("PoolAgain() of no pools = %q, want none", got.ID)
 	}
 }
 
@@ -155,5 +181,30 @@ func TestPTurnsToTheNextPoolInTheConfigsOrder(t *testing.T) {
 	}
 	if got, ok := status.PoolAfter(nil, "b2n8"); ok {
 		t.Errorf("PoolAfter() of no pools = %q, want none", got.ID)
+	}
+}
+
+// A moment's accounts have changed where the moment before, read, held
+// others, by their ids; never against one before any read.
+func TestAMomentsAccountsHaveChangedWhereTheReadBeforeHeldOthers(t *testing.T) {
+	work, side := status.AccountNow{ID: "work"}, status.AccountNow{ID: "side"}
+	read := func(accounts ...status.AccountNow) status.Moment {
+		return status.Moment{Routed: true, Accounts: accounts}
+	}
+	tests := []struct {
+		name        string
+		before, now status.Moment
+		changed     bool
+	}{
+		{name: "the same", before: read(work, side), now: read(work, side)},
+		{name: "one taken up", before: read(work), now: read(work, side), changed: true},
+		{name: "one let go", before: read(work, side), now: read(work), changed: true},
+		{name: "probed before", before: status.Moment{Probed: true, Accounts: []status.AccountNow{work}}, now: read(side), changed: true},
+		{name: "none read before", now: read(work)},
+	}
+	for _, tt := range tests {
+		if got := tt.now.AccountsChanged(tt.before); got != tt.changed {
+			t.Errorf("%s: AccountsChanged() = %v, want %v", tt.name, got, tt.changed)
+		}
 	}
 }

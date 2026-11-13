@@ -27,24 +27,53 @@ var (
 	emptyAcme    = status.ShownPool{ID: "q7mt", Label: "Acme", Dirs: []string{"~/Code/acme"}, Pools: 2}
 )
 
-// poolTurns is a dashboard's pools as P turns them in these tests: each
-// pool's source, by its id, the turns asked for, each by the pool turned
-// from, and what a turn fails with, where it does.
+// poolTurns is a dashboard's pools as the config has them in these tests:
+// each pool's source, by its id, in the config's order; the turns P asked
+// for, each by the pool turned from, and the times the pool shown was read
+// again; what a turn fails with, where it does; and how the config file
+// stands, as Config's ConfigStamp says it.
 type poolTurns struct {
 	pools   map[string]Pooled
 	order   []string
 	from    []string
+	again   int
 	failure error
+	stamp   string
 }
 
-// turn gives what's shown of the pool after from, as Config's Turn does.
-func (p *poolTurns) turn(_ context.Context, from string) (Pooled, error) {
-	p.from = append(p.from, from)
+// turn gives what's shown of the pool asked for from from, as Config's Turn
+// does: the pool after it, or it again, else, where it's gone, the first.
+func (p *poolTurns) turn(_ context.Context, from string, ask PoolAsk) (Pooled, error) {
+	if ask == SamePool {
+		p.again++
+	} else {
+		p.from = append(p.from, from)
+	}
 	if p.failure != nil {
 		return Pooled{}, p.failure
 	}
 	i := slices.Index(p.order, from)
-	return p.pools[p.order[(i+1)%len(p.order)]], nil
+	if ask == SamePool && i >= 0 {
+		return p.stamped(p.pools[from]), nil
+	}
+	return p.stamped(p.pools[p.order[(i+1)%len(p.order)]]), nil
+}
+
+// stamped is pooled as read of the config as it stands.
+func (p *poolTurns) stamped(pooled Pooled) Pooled {
+	pooled.Stamp = p.stamp
+	return pooled
+}
+
+// configStamp says how the config stands, as Config's ConfigStamp does.
+func (p *poolTurns) configStamp() string {
+	return p.stamp
+}
+
+// ofPool is doc, the router's document of the pool with the given id.
+func ofPool(doc status.Document, id string) status.Document {
+	doc.PoolID = id
+	return doc
 }
 
 // The accounts of these tests' pools, as the config has them: Default's
@@ -60,17 +89,18 @@ var (
 func pooledHarness(t *testing.T, acme status.ShownPool) (*harness, *fakeSource, *poolTurns) {
 	t.Helper()
 	h := routedHarness(t, routerDocument(three()...))
-	acmeDoc, accounts := routerDocument(), config.Accounts(nil)
+	acmeDoc, accounts := ofPool(routerDocument(), "q7mt"), config.Accounts(nil)
 	if acme.Accounts > 0 {
-		acmeDoc, accounts = routerDocument(account("k3f9", "Acme 1", fableWeek(0.7))), acmeAccounts
+		acmeDoc, accounts = ofPool(routerDocument(account("k3f9", "Acme 1", fableWeek(0.7))), "q7mt"), acmeAccounts
 	}
 	acmeSource := &fakeSource{doc: probedWithoutTheRouter(), router: &acmeDoc}
-	pools := &poolTurns{order: []string{"b2n8", "q7mt"}, pools: map[string]Pooled{
+	pools := &poolTurns{order: []string{"b2n8", "q7mt"}, stamp: "1", pools: map[string]Pooled{
 		"b2n8": {Pool: defaultShown, Accounts: defaultAccounts, Source: h.source, Events: events.Empty{}},
 		"q7mt": {Pool: acme, Accounts: accounts, Source: acmeSource, Events: events.Empty{}},
 	}}
 	cfg := h.config(Size{Width: 160, Height: 40})
 	cfg.Pool, cfg.Accounts, cfg.Turn = defaultShown, defaultAccounts, pools.turn
+	cfg.ConfigStamp, cfg.Stamp = pools.configStamp, pools.stamp
 	h.model = New(t.Context(), cfg)
 	return h, acmeSource, pools
 }
@@ -289,7 +319,7 @@ func TestTheDashboardRunsItsModelStampedWithThePoolShown(t *testing.T) {
 	cfg := noColourConfig()
 	cfg.Source = heldSource{fakeSource: &fakeSource{}, doc: routerDocument(three()...), release: release}
 	cfg.Pool, cfg.Accounts, cfg.Events = defaultShown, defaultAccounts, events.Empty{}
-	cfg.Turn = func(context.Context, string) (Pooled, error) {
+	cfg.Turn = func(context.Context, string, PoolAsk) (Pooled, error) {
 		return Pooled{Pool: acmeShown, Accounts: acmeAccounts, Source: &fakeSource{router: &acmeDoc}, Events: events.Empty{}}, nil
 	}
 	filter := func(_ tea.Model, msg tea.Msg) tea.Msg {
@@ -426,31 +456,160 @@ func TestPTurnsToASecondPoolAddedToAConfigOfOne(t *testing.T) {
 	}
 }
 
-// A pool shown is empty as its document read has it: an account added to
-// an empty pool shows at the next read, its views drawn and p, with two,
-// opening the routing card; and a pool whose last account is taken out
-// draws the empty page at the next.
-func TestAPoolIsEmptyAsItsDocumentReadHasIt(t *testing.T) {
-	h, acme, _ := pooledHarness(t, emptyAcme)
+// changeConfig has the config stand as change leaves the pools, its file
+// written again.
+func (p *poolTurns) changeConfig(change func(pools map[string]Pooled)) {
+	change(p.pools)
+	p.stamp += "+"
+}
+
+// An empty pool given an account, the router routing it, lists it at the
+// next read, as the config changed: its views drawn, Accounts, History and
+// Graphs listing it, and p, with two, opening the routing card. One whose
+// last account is taken out draws the empty page at the next.
+func TestAnEmptyPoolGivenAnAccountListsItAtTheNextRead(t *testing.T) {
+	h, acme, pools := pooledHarness(t, emptyAcme)
 	h.start()
 	h.deliver(h.press("P")...)
 	if got, want := h.keyLine(), "tab views · P pool · ? help · q quit"; got != want {
 		t.Fatalf("on empty Acme, the key line reads %q, want %q", got, want)
 	}
-	*acme.router = routerDocument(account("k3f9", "Acme 1", fableWeek(0.7)), account("r5t2", "Acme 2", fableWeek(0.2)))
+	two := config.Accounts{acmeAccounts[0], {ID: "r5t2", Label: "Acme 2", Pool: "q7mt"}}
+	pools.changeConfig(func(p map[string]Pooled) {
+		acmeOfTwo := p["q7mt"]
+		acmeOfTwo.Pool.Accounts, acmeOfTwo.Accounts = 2, two
+		p["q7mt"] = acmeOfTwo
+	})
+	*acme.router = ofPool(routerDocument(account("k3f9", "Acme 1", fableWeek(0.7)), account("r5t2", "Acme 2", fableWeek(0.2))), "q7mt")
 	h.deliver(h.press("R")...)
 	if view := h.view(); strings.Contains(view, "has no accounts") || !strings.Contains(view, "Acme 1") {
 		t.Errorf("once Acme 1 and 2 are added and read, the screen is\n%s\nwant Acme's views, Acme 1 among them", view)
 	}
+	m := h.model
+	for name, listed := range map[string]config.Accounts{"Accounts": m.accounts.shown.Accounts, "History": m.past.page.Accounts, "Graphs": m.graphsShown().Accounts} {
+		if !slices.Equal(listed.IDs(), two.IDs()) {
+			t.Errorf("once Acme 1 and 2 are added and read, %s lists %v, want %v", name, listed.IDs(), two.IDs())
+		}
+	}
 	if h.press("p"); h.model.open != routingOpen {
-		t.Errorf("once Acme 1 is added and read, p opened %v, want the routing card", h.model.open)
+		t.Errorf("once Acme 1 and 2 are added and read, p opened %v, want the routing card", h.model.open)
 	}
 	h.press("esc")
 
-	*acme.router = routerDocument()
+	pools.changeConfig(func(p map[string]Pooled) { p["q7mt"] = Pooled{Pool: emptyAcme, Source: acme, Events: events.Empty{}} })
+	*acme.router = ofPool(routerDocument(), "q7mt")
 	h.deliver(h.press("R")...)
-	if view := h.view(); !strings.Contains(view, "Acme has no accounts") {
-		t.Errorf("once Acme 1 is taken out and read, the screen is\n%s\nwant the empty page", view)
+	if view := h.view(); !strings.Contains(view, "Acme has no accounts, so") {
+		t.Errorf("once Acme 1 and 2 are taken out and read, the screen is\n%s\nwant the empty page", view)
+	}
+}
+
+// An account the config gives a pool that the router hasn't taken up has the
+// page say so, and how to have it taken up; once the router routes it, the
+// views are drawn.
+func TestAnAccountTheRouterHasntTakenUpIsSaidToWaitOnIt(t *testing.T) {
+	h, acme, pools := pooledHarness(t, emptyAcme)
+	h.start()
+	h.deliver(h.press("P")...)
+	pools.changeConfig(func(p map[string]Pooled) {
+		acmeOfOne := p["q7mt"]
+		acmeOfOne.Pool.Accounts, acmeOfOne.Accounts = 1, acmeAccounts
+		p["q7mt"] = acmeOfOne
+	})
+	h.deliver(h.press("R")...)
+	view := h.view()
+	for _, want := range []string{"no accounts routed yet", "Acme has no accounts the router routes yet", "switchboard service restart"} {
+		if !strings.Contains(view, want) {
+			t.Errorf("with Acme 1 in the config, not yet routed, the screen is\n%s\nwant it to say %q", view, want)
+		}
+	}
+	*acme.router = ofPool(routerDocument(account("k3f9", "Acme 1", fableWeek(0.7))), "q7mt")
+	h.deliver(h.press("R")...)
+	if view := h.view(); strings.Contains(view, "has no accounts") || !strings.Contains(view, "Acme 1") {
+		t.Errorf("once the router routes Acme 1, the screen is\n%s\nwant Acme's views", view)
+	}
+}
+
+// The other pool removed, the title row names none and P pool goes from the
+// key line: at the next read, as the config changed, and at P, which finds
+// the pool shown alone.
+func TestTheOtherPoolRemovedUnnamesThePoolShown(t *testing.T) {
+	removed := func(p map[string]Pooled) {
+		delete(p, "q7mt")
+		only := p["b2n8"]
+		only.Pool.Pools = 1
+		p["b2n8"] = only
+	}
+	for _, by := range []string{"R", "P"} {
+		t.Run("at "+by, func(t *testing.T) {
+			h, _, pools := pooledHarness(t, acmeShown)
+			h.start()
+			pools.order = []string{"b2n8"}
+			if by == "R" {
+				pools.changeConfig(removed)
+			} else {
+				removed(pools.pools)
+			}
+			h.deliver(h.press(by)...)
+			if row, line := h.titleRow(), h.keyLine(); strings.Contains(row, "Default") || strings.Contains(line, "P pool") {
+				t.Errorf("Acme removed, after %s the title row reads %q and the key line %q; want Default unnamed, no P pool", by, row, line)
+			}
+		})
+	}
+}
+
+// A pool relabelled is named afresh in the title row at the next read.
+func TestAPoolRelabelledIsNamedAfreshAtTheNextRead(t *testing.T) {
+	h, _, pools := pooledHarness(t, acmeShown)
+	h.start()
+	pools.changeConfig(func(p map[string]Pooled) {
+		home := p["b2n8"]
+		home.Pool.Label = "Home"
+		p["b2n8"] = home
+	})
+	h.deliver(h.press("R")...)
+	if row := h.titleRow(); !strings.Contains(row, "SWITCHBOARD   Home ") {
+		t.Errorf("Default relabelled Home, the title row reads %q, want Home named", row)
+	}
+}
+
+// A router that can't tell its pools answers with a document of no pool and
+// no accounts, which leaves the pool shown as the config has it: no empty
+// page.
+func TestADocumentOfNoPoolDrawsNoEmptyPage(t *testing.T) {
+	h, _, _ := pooledHarness(t, acmeShown)
+	h.start()
+	*h.source.router = routerDocument()
+	h.deliver(h.press("R")...)
+	if view := h.view(); strings.Contains(view, "has no accounts") {
+		t.Errorf("a document of no pool drew\n%s\nwant no empty page", view)
+	}
+}
+
+// The pool shown is read again only where the config changed: never at a
+// read that finds the config file as it was and the accounts as the last
+// read found them.
+func TestThePoolShownIsReadAgainOnlyWhereTheConfigChanged(t *testing.T) {
+	h, _, pools := pooledHarness(t, acmeShown)
+	h.start()
+	for range 3 {
+		h.deliver(h.press("R")...)
+	}
+	if pools.again != 0 {
+		t.Errorf("reads that found nothing changed read the pool shown again %d times, want none", pools.again)
+	}
+	pools.changeConfig(func(map[string]Pooled) {})
+	for range 3 {
+		h.deliver(h.press("R")...)
+	}
+	if pools.again != 1 {
+		t.Errorf("a config changed once had the pool shown read again %d times, want once", pools.again)
+	}
+	*h.source.router = routerDocument(three()[:2]...)
+	h.deliver(h.press("R")...)
+	h.deliver(h.press("R")...)
+	if pools.again != 2 {
+		t.Errorf("a read's accounts changed once had the pool shown read again %d times in all, want twice", pools.again)
 	}
 }
 

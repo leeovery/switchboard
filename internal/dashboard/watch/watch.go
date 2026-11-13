@@ -137,11 +137,18 @@ type Config struct {
 	// Pool is the pool the dashboard shows, whose Source reads it, and whose
 	// Events and PoolNamed are its: the title row names it, and
 	// notifications, once there's a second. Turn gives what the dashboard
-	// shows of the pool P turns to from the one with the id given, as
-	// status.PoolAfter has it, the pools read afresh as they stand: nil
-	// turns to none.
+	// shows of a pool, the pools read afresh as they stand: of the one P
+	// turns to from the one with the id given, as status.PoolAfter has it,
+	// where ask is NextPool; of that one again, as status.PoolAgain has it,
+	// where it's SamePool. nil turns to none.
 	Pool status.ShownPool
-	Turn func(ctx context.Context, from string) (Pooled, error)
+	Turn func(ctx context.Context, from string, ask PoolAsk) (Pooled, error)
+	// ConfigStamp says how the config file stands, as its size and when it
+	// was last written, and Stamp how it stood as the pool shown was read:
+	// a read that finds them differ reads the pool shown again, as
+	// followConfig has it. nil never finds them differ.
+	ConfigStamp func() string
+	Stamp       string
 	// Accounts are the configured accounts of the pool shown, as status's
 	// PoolAccounts has them, which Accounts lists and whose plans History
 	// prices its worth against, and WeekStarts the day its calendar weeks
@@ -475,6 +482,7 @@ type fetchedMsg struct {
 	sessions []status.Session
 	listed   bool
 	err      error
+	stamp    string
 }
 
 // tickMsg wakes the model to redraw, and to read again once that's due.
@@ -1015,9 +1023,13 @@ func (m Model) read(r status.Read) (Model, tea.Cmd) {
 
 // fetch reads the source as r asks, as fetchFrom reads it, asked now.
 func (m Model) fetch(r status.Read) tea.Cmd {
-	ctx, source, policy, asked := m.ctx, m.cfg.Source, m.cfg.Policy, m.now()
+	ctx, source, policy, asked, stamp := m.ctx, m.cfg.Source, m.cfg.Policy, m.now(), m.cfg.ConfigStamp
 	return func() tea.Msg {
-		return fetchFrom(ctx, source, r, policy, asked)
+		msg := fetchFrom(ctx, source, r, policy, asked)
+		if stamp != nil {
+			msg.stamp = stamp()
+		}
+		return msg
 	}
 }
 
@@ -1055,11 +1067,14 @@ func fetchFrom(ctx context.Context, source Source, r status.Read, policy score.P
 // ahead, and as any look does, asks for the ledger's days since History's
 // were read, as readHistory reads them while History or Accounts shows,
 // Runway's lanes want them or Graphs shows WHEN YOU WORK, and what the
-// readings history gained, as readRunway reads it while Runway shows.
+// readings history gained, as readRunway reads it while Runway shows. Where
+// the read finds the config changed, it reads the pool shown again, as
+// followConfig has it.
 func (m Model) fetched(msg fetchedMsg) (tea.Model, tea.Cmd) {
 	now := m.now()
 	m.fetching, m.past.due, m.tail.due, m.runwayTab.due = false, true, true, true
 	var shown tea.Cmd
+	accountsChanged := false
 	switch {
 	case errors.Is(msg.err, status.ErrNoRouter):
 		m.plan = m.plan.missed(now)
@@ -1075,17 +1090,19 @@ func (m Model) fetched(msg fetchedMsg) (tea.Model, tea.Cmd) {
 	default:
 		msg.doc = msg.doc.WithRemoved(m.cfg.Removed)
 		look := msg.doc.At(now, m.cfg.Policy)
+		accountsChanged = look.AccountsChanged(m.moment(now))
 		m.plan = m.plan.landed(msg.read, msg.doc, look.Routed, now)
 		m, shown = m.show(msg, look)
 		logRead(msg, look, m.plan.due)
 	}
+	m, following := m.followConfig(msg.stamp, accountsChanged)
 	m.chain++
 	var again tea.Cmd
 	if m.again {
 		m.again = false
 		m, again = m.reread()
 	}
-	return m, tea.Batch(shown, m.armTick(now), again)
+	return m, tea.Batch(shown, m.armTick(now), again, following)
 }
 
 // logRead notes a read: where it came from, the accounts it read and those it

@@ -84,7 +84,7 @@ func TestTheDashboardListsTheAccountsOfThePoolItShowsAlone(t *testing.T) {
 	if got := cfg.Accounts.IDs(); !slices.Equal(got, []string{"work"}) {
 		t.Errorf("in Acme, the dashboard lists the accounts %v, want Acme's alone, work", got)
 	}
-	turned, err := cfg.Turn(t.Context(), "q7mt")
+	turned, err := cfg.Turn(t.Context(), "q7mt", watch.NextPool)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -130,7 +130,7 @@ func TestTheDashboardsSourceReadsThePoolItShows(t *testing.T) {
 	if got := run(t, deps, "dashboard", "--pool", "q7mt"); got != (result{}) {
 		t.Fatalf("switchboard dashboard --pool q7mt = %+v, want exit status 0 and nothing printed", got)
 	}
-	turned, err := cfg.Turn(t.Context(), "q7mt")
+	turned, err := cfg.Turn(t.Context(), "q7mt", watch.NextPool)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -236,7 +236,7 @@ func TestTheDashboardsTurnReadsThePoolsAfresh(t *testing.T) {
 	}
 	turned := func(from string) watch.Pooled {
 		t.Helper()
-		pooled, err := cfg.Turn(t.Context(), from)
+		pooled, err := cfg.Turn(t.Context(), from, watch.NextPool)
 		if err != nil {
 			t.Fatalf("Turn(%q) failed: %v", from, err)
 		}
@@ -270,7 +270,7 @@ func TestTheDashboardsTurnFailsWhereTheConfigCantBeRead(t *testing.T) {
 		t.Fatalf("switchboard dashboard = %+v, want exit status 0 and nothing printed", got)
 	}
 	writeDepsConfig(t, deps, "[[account]\n")
-	if _, err := cfg.Turn(t.Context(), "b2n8"); err == nil {
+	if _, err := cfg.Turn(t.Context(), "b2n8", watch.NextPool); err == nil {
 		t.Error("Turn() of a config that can't be read turned, want it to fail")
 	}
 }
@@ -292,14 +292,64 @@ func TestADashboardOfAConfigWithoutPoolsPassesOverPool(t *testing.T) {
 
 // Where nothing names the pools once the move to pools is done, a pool
 // named is refused, saying why, as the verbs refuse it; none named, the
-// dashboard opens, reading none of the router's events.
+// dashboard opens on no pool, reading none of the router's events, though
+// their files hold some.
 func TestADashboardWhereNothingNamesThePoolsRefusesAPoolNamed(t *testing.T) {
 	deps := unpooledDeps(t, unpooledConfig, false)
+	cfg := recordWatch(t, &deps)
+	if got := run(t, deps, "dashboard"); got != (result{}) {
+		t.Fatalf("switchboard dashboard = %+v, want exit status 0 and nothing printed", got)
+	}
+	if ids := eventIDs(cfg.Events); cfg.Pool.ID != "" || len(ids) != 0 {
+		t.Errorf("the dashboard shows %+v, reading the events %v; want no pool, and none", cfg.Pool, ids)
+	}
+
 	deps.Watch = func(context.Context, watch.Config, io.Writer, []string) error {
 		t.Error("the dashboard opened, want it refused")
 		return nil
 	}
 	if got := run(t, deps, "dashboard", "--pool", "q7mt"); got.code == 0 || !strings.Contains(got.stderr, "can't tell which pool to read") {
 		t.Errorf("switchboard dashboard --pool q7mt = %+v, want it refused, saying it can't tell the pools", got)
+	}
+}
+
+// The dashboard reads the pool it shows again as the config changes: that
+// pool, as the config now has it, its label and pools counted; where it's
+// gone, the one P would turn to; and of none shown, as where every pool is
+// fenced, none again. Each is stamped as the config file stood, which a
+// change to it changes.
+func TestTheDashboardReadsThePoolItShowsAgainAsTheConfigChanges(t *testing.T) {
+	deps := pooledDeps(t, false)
+	cfg := recordWatch(t, &deps)
+	if got := run(t, deps, "dashboard", "--pool", "q7mt"); got != (result{}) {
+		t.Fatalf("switchboard dashboard --pool q7mt = %+v, want exit status 0 and nothing printed", got)
+	}
+	if cfg.ConfigStamp == nil || cfg.Stamp == "" || cfg.ConfigStamp() != cfg.Stamp {
+		t.Fatalf("the dashboard is stamped %q, the config standing %q; want them the same, as nothing changed", cfg.Stamp, cfg.ConfigStamp())
+	}
+	again := func(from string) watch.Pooled {
+		t.Helper()
+		pooled, err := cfg.Turn(t.Context(), from, watch.SamePool)
+		if err != nil {
+			t.Fatalf("Turn(%q) of the same pool failed: %v", from, err)
+		}
+		return pooled
+	}
+
+	writeDepsConfig(t, deps, strings.Replace(pooledConfig(false), `label = "Acme"`, `label = "Acme Corp"`, 1))
+	if got := again("q7mt"); got.Pool.ID != "q7mt" || got.Pool.Label != "Acme Corp" || got.Stamp != cfg.ConfigStamp() || got.Stamp == cfg.Stamp {
+		t.Errorf("read again once Acme is relabelled, the dashboard shows %+v, stamped %q; want Acme Corp, stamped afresh", got.Pool, got.Stamp)
+	}
+	if got := again("x9z9"); got.Pool.ID != "b2n8" {
+		t.Errorf("read again once the pool shown is gone, the dashboard shows %q, want Default, as P would turn to", got.Pool.ID)
+	}
+
+	fenced := pooledDeps(t, true)
+	none := recordWatch(t, &fenced)
+	if got := run(t, fenced, "dashboard"); got != (result{}) {
+		t.Fatalf("switchboard dashboard = %+v, want exit status 0 and nothing printed", got)
+	}
+	if got, err := none.Turn(t.Context(), "", watch.SamePool); err != nil || got.Pool.ID != "" || got.Pool.Pools != 2 {
+		t.Errorf("with every pool fenced, none read again shows %+v, %v; want none again, of two", got.Pool, err)
 	}
 }

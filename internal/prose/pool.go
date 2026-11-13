@@ -3,16 +3,23 @@ package prose
 import "strings"
 
 // NoAccounts is what's said of a pool with no accounts in the place of how
-// it routes, as the dashboard's status line says it.
-const NoAccounts = "no accounts"
+// it routes, as the dashboard's status line says it; and NoneRouted of one
+// whose accounts the router hasn't taken up yet.
+const (
+	NoAccounts = "no accounts"
+	NoneRouted = "no accounts routed yet"
+)
 
-// EmptyPool is what the dashboard says of a pool with no accounts, the one
-// labelled and with the id given, fenced to the directories given, as the
-// config writes them, or to none, unfenced: a paragraph a slice, a line a
-// sentence. That a session started in it doesn't start; how to add one, or
-// move one in; and that its directories stay closed, fenced, till the pool
-// is removed, or of the unfenced pool, every directory outside a fence.
-func EmptyPool(label, id string, dirs []string) [][]string {
+// EmptyPool is what the dashboard says of a pool with no accounts to route,
+// the one labelled and with the id given, fenced to the directories given,
+// as the config writes them, or to none, unfenced, the config giving it as
+// many accounts as waiting, which the router hasn't taken up: a paragraph a
+// slice, a line a sentence. That a session started in it doesn't start;
+// with none waiting, how to add one, or move one in, else that the router
+// takes them up as it restarts, and how to restart it now; and that its
+// directories stay closed, fenced, till the pool is removed, or of the
+// unfenced pool, every directory outside a fence.
+func EmptyPool(label, id string, dirs []string, waiting int) [][]string {
 	where, held := "outside every fence", "It holds every directory outside a fence"
 	if len(dirs) > 0 {
 		cleaned := make([]string, len(dirs))
@@ -22,12 +29,19 @@ func EmptyPool(label, id string, dirs []string) [][]string {
 		where, held = "in "+ListOr(cleaned), "Its directories stay fenced"
 	}
 	id = Clean(id)
+	none, how := " has no accounts", []string{
+		"Add one with switchboard accounts add <label> --pool " + id + ", or in switchboard setup.",
+		"Move one in with switchboard accounts edit <id> --pool " + id + ".",
+	}
+	if waiting > 0 {
+		none, how = " has no accounts the router routes yet", []string{
+			"The config gives it " + Counted(waiting, "account") + ", which the router takes up as it restarts, at a quiet moment.",
+			"Restart it now with switchboard service restart.",
+		}
+	}
 	return [][]string{
-		{Clean(label) + " has no accounts, so a session started " + where + " doesn't start."},
-		{
-			"Add one with switchboard accounts add <label> --pool " + id + ", or in switchboard setup.",
-			"Move one in with switchboard accounts edit <id> --pool " + id + ".",
-		},
+		{Clean(label) + none + ", so a session started " + where + " doesn't start."},
+		how,
 		{held + " until the pool is removed with switchboard pool remove " + id + "."},
 	}
 }

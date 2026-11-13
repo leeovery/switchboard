@@ -7,17 +7,21 @@ import (
 	"github.com/leeovery/switchboard/internal/config"
 )
 
-// ShownPool is the pool a dashboard shows, as the pools stood as it was
-// chosen: its id and label; its directories, as the config writes them,
+// ShownPool is the pool a dashboard shows, as the config stood as it was
+// last read: its id and label; its directories, as the config writes them,
 // none where it's unfenced; how many accounts the config put in it; and how
 // many pools there are, as no screen names a pool till there's a second.
 // One with no id is no pool: a config without pools, or one of several,
-// every one fenced, with none named.
+// every one fenced, with none named. Routed is set once the router's
+// document of it is read, as AsRead has it, and Routing is how many
+// accounts that document routes in it.
 type ShownPool struct {
 	ID, Label string
 	Dirs      []string
 	Accounts  int
 	Pools     int
+	Routed    bool
+	Routing   int
 }
 
 // PoolShown is the pool of pools with the id given, ignoring case, as a
@@ -77,22 +81,48 @@ func (p ShownPool) Pooled() bool {
 	return p.Pools > 0
 }
 
-// Empty reports whether the pool shown has no accounts, so a session started
-// in it doesn't start, and the dashboard draws a page saying so in place of
-// its views: as AsRead has it, where the dashboard has read the pool.
+// Empty reports whether the pool shown has no accounts to route, so a
+// session started in it doesn't start, and the dashboard draws a page saying
+// so in place of its views: none the router routes in it, once its document
+// of the pool is read, as AsRead has it; else none the config puts in it.
 func (p ShownPool) Empty() bool {
-	return p.ID != "" && p.Accounts == 0
+	if p.ID == "" {
+		return false
+	}
+	if p.Routed {
+		return p.Routing == 0
+	}
+	return p.Accounts == 0
 }
 
-// AsRead is the pool shown as the moment mo of the document read of it has
-// it: its accounts those mo holds, once a document is read, so an account
-// added to the pool, or the last taken out, shows at the next read; before
-// the first, as the config had them.
+// Waiting reports whether the pool shown is empty only as the router hasn't
+// taken up the accounts the config puts in it, as it does as it restarts.
+func (p ShownPool) Waiting() bool {
+	return p.Empty() && p.Accounts > 0
+}
+
+// AsRead is the pool shown as the moment mo of the router's document has it,
+// where the document is of the pool shown, by its id, ignoring case: the
+// accounts it routes there, so an account the router takes up, or the last
+// it lets go, shows at the next read. A probed document, whose accounts are
+// the config's, or one of another pool or of none, as a router that can't
+// tell its pools answers, leaves it as the config has it.
 func (p ShownPool) AsRead(mo Moment) ShownPool {
-	if mo.Routed || mo.Probed {
-		p.Accounts = len(mo.Accounts)
+	if mo.Routed && p.ID != "" && strings.EqualFold(mo.PoolID, p.ID) {
+		p.Routed, p.Routing = true, len(mo.Accounts)
 	}
 	return p
+}
+
+// AccountsChanged reports whether the moment mo holds other accounts, by
+// their ids, than before, a moment of the document read before it, where
+// one was read: as an account the router took up as it restarted, or a
+// config changed.
+func (mo Moment) AccountsChanged(before Moment) bool {
+	if !before.Routed && !before.Probed {
+		return false
+	}
+	return !slices.EqualFunc(before.Accounts, mo.Accounts, func(a, b AccountNow) bool { return a.ID == b.ID })
 }
 
 // Fenced reports whether the pool shown is fenced to directories: else it's
@@ -112,4 +142,15 @@ func PoolAfter(pools config.Pools, id string) (config.Pool, bool) {
 	}
 	i := slices.IndexFunc(pools, func(p config.Pool) bool { return strings.EqualFold(p.ID, id) })
 	return pools[(i+1)%len(pools)], true
+}
+
+// PoolAgain returns the pool of pools with the id given, ignoring case, as
+// the dashboard reads the pool it shows again as the config changes; else,
+// where it's gone, the one P would turn to from it, as PoolAfter has it. It
+// reports false where there are no pools.
+func PoolAgain(pools config.Pools, id string) (config.Pool, bool) {
+	if p, ok := pools.ByID(id); ok {
+		return p, true
+	}
+	return PoolAfter(pools, id)
 }
