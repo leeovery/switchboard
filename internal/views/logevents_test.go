@@ -377,6 +377,43 @@ func TestWhatTheFilesAreFoundToHoldIsTakenInBesideWhatLooksTookIn(t *testing.T) 
 	}
 }
 
+// A read of the files that lands after the events let go of the days it
+// read, as midnight passed while it was under way, claims none of them:
+// the events still begin where they were let go from, and hold none it
+// found before then.
+func TestAReadLandingAfterTheEventsLetGoClaimsNoneOfItsDays(t *testing.T) {
+	run := october(7, 8, 0)
+	room := func(id int, at time.Time, account string) events.Line {
+		return events.Line{ID: id, At: at, Kind: status.EventRoom, Account: account, Run: run}
+	}
+	filed := filedLines{room(1, october(5, 12, 0), "personal"), room(2, october(6, 12, 0), "side"), room(3, october(7, 9, 0), "work")}
+	asked := views.ReadEventsFrom(nil, october(6, 0, 0), october(7, 10, 0))
+	refiled, back := asked.Refiled(filed, october(6, 0, 0), october(7, 10, 0)), asked.BackTo(filed, october(5, 0, 0))
+	letGo := asked.Reaching(october(7, 0, 0))
+	tests := []struct {
+		name string
+		took views.EventsRead
+		want []string
+	}{
+		{name: "refiled", took: letGo.Took(refiled), want: []string{"3 work"}},
+		{name: "read back", took: letGo.Took(back)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var got []string
+			for _, e := range tt.took.Events() {
+				got = append(got, strconv.Itoa(e.Key.ID)+" "+e.Event.Account)
+			}
+			if !tt.took.Since().Equal(october(7, 0, 0)) {
+				t.Errorf("the events begin at %s, want %s, where they were let go from", tt.took.Since(), october(7, 0, 0))
+			}
+			if !slices.Equal(got, tt.want) {
+				t.Errorf("the events read are %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 // A document skips events where its oldest comes more than one after the
 // newest the last document taken in told of, of the same run, as the router
 // gives its newest alone in its document and numbers them one after another

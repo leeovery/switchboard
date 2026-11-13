@@ -81,7 +81,7 @@ func wrapped(apart span, width int, parts []line) []line {
 // each cell, marked as laneMark marks it, then what it means, muted, as
 // cellsMean says it, and after a limit's, where the pool's lane draws one,
 // its own, as poolLimitMark marks it; then, where a lane marks one, │ in
-// text.subtle and the view's window's resets, as " its 5-hour resets".
+// text.subtle and the week's resets, as " its week resets".
 func (f Frame) legendKeys() []line {
 	drawn := f.Runway.Lanes.Drawn
 	var keys []line
@@ -96,7 +96,7 @@ func (f Frame) legendKeys() []line {
 		keys = slices.Insert(keys, after, line{f.Look.poolLimitMark(), {poolLimitMeans, mutedInk}})
 	}
 	if drawn.Resets {
-		keys = append(keys, line{{resetCell, dimInk}, {" its " + runwayNames[f.Runway.Window] + " resets", mutedInk}})
+		keys = append(keys, line{{resetCell, dimInk}, {" its " + runwayWeek + " resets", mutedInk}})
 	}
 	return keys
 }
@@ -117,7 +117,7 @@ func (f Frame) columnSaid() []line {
 		said = append(said, line{{"the past dimmed", dimInk}})
 	}
 	if _, _, named := tl.Named(); named {
-		said = append(said, line{{"under each name, the " + f.Runway.view().period() + "'s highest", dimInk}})
+		said = append(said, line{{"under each name, the " + runwayWeek + "'s highest", dimInk}})
 	}
 	return said
 }

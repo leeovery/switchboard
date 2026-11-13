@@ -14,18 +14,27 @@ import (
 	"github.com/leeovery/switchboard/internal/views"
 )
 
-// runwayLive is Runway's live view of the window given at routedAt, 136
-// columns from 13:40 of the 5-hour, ten minutes each, now's the sixth; or
-// from Wednesday 14:40 of the week, about 74 minutes each, now's the 19th.
-func runwayLive(w views.RunwayWindow) RunwayShown {
-	return RunwayShown{Window: w, Timeline: views.LiveTimeline(w, routedAt, 136)}
+// runwayLive is Runway's live view at routedAt, 136 columns from Wednesday
+// 14:40, about 74 minutes each, now's the 19th.
+func runwayLive() RunwayShown {
+	return RunwayShown{Timeline: views.LiveTimeline(routedAt, 136)}
 }
 
-// runwayBack is Runway's view of the window given stepped back to the day
-// given, as dayfile.Civil gives one, at routedAt, 136 columns, weeks
-// starting on Monday.
-func runwayBack(w views.RunwayWindow, day time.Time) RunwayShown {
-	return RunwayShown{Window: w, Back: day, Timeline: views.Stepped(w, day, routedAt, time.Monday, 136)}
+// runwayHours is Runway's live view at routedAt over a timeline the test
+// builds of hours: columns across the 22 hours and 40 minutes from 13:40,
+// ten minutes each at 136, now's the sixth. The words under a lane are
+// placed alike over any span, and ten-minute columns place them to the
+// minute.
+func runwayHours(columns int) RunwayShown {
+	start := time.Date(2026, 10, 1, 13, 40, 0, 0, time.UTC)
+	return RunwayShown{Timeline: views.Timeline{Start: start, End: start.Add(136 * 10 * time.Minute), Columns: columns, Now: routedAt}}
+}
+
+// runwayBack is Runway stepped back to the week of the day given, as
+// dayfile.Civil gives one, at routedAt, 136 columns, weeks starting on
+// Monday.
+func runwayBack(day time.Time) RunwayShown {
+	return RunwayShown{Back: day, Timeline: views.Stepped(day, routedAt, time.Monday, 136)}
 }
 
 // runwayShowing is a frame 160 wide showing Runway as r.
@@ -42,6 +51,12 @@ func stretchOf(tl views.Timeline, cell views.Cell, start, back time.Time, first,
 		s.Column = max(tl.Column(start), 0)
 	}
 	return s
+}
+
+// stretchBetween is a stretch held as cell from start till back on the
+// timeline tl, over the columns they fall in.
+func stretchBetween(tl views.Timeline, cell views.Cell, start, back time.Time) views.LaneStretch {
+	return stretchOf(tl, cell, start, back, tl.Column(start), tl.Column(back))
 }
 
 // heldOn is the stretch s held on by the stretch after it: lifting as it
@@ -70,8 +85,8 @@ func wordsRead(words []placed) string {
 }
 
 func TestTheWordsUnderALaneSayEachStretchFromItsStart(t *testing.T) {
-	five, week := runwayLive(views.RunwayFiveHour), runwayLive(views.RunwayWeek)
-	tl := five.Timeline
+	hours, week := runwayHours(136), runwayLive()
+	tl := hours.Timeline
 	capped := stretchOf(tl, views.CellCapped, routedClock(1, 14, 31), routedClock(1, 17, 10), 5, 20)
 	capped.AsItResets = true
 	ahead := stretchOf(tl, views.CellCapped, routedClock(1, 15, 45), routedClock(1, 17, 10), 12, 20)
@@ -96,55 +111,55 @@ func TestTheWordsUnderALaneSayEachStretchFromItsStart(t *testing.T) {
 		inks    []ink
 	}{
 		{
-			name: "at its cap, back as its 5-hour resets, said as it resets", shown: five, stretch: capped,
+			name: "at its cap, back as its window resets, said as it resets", shown: hours, stretch: capped,
 			want: "capped 14:31  ·  resets 17:10", inks: []ink{alertInk, mutedInk},
 		},
 		{
-			name: "at its cap, back otherwise than as its window resets", shown: five, stretch: stretchOf(tl, views.CellCapped, routedClock(1, 14, 31), routedClock(1, 17, 10), 5, 20),
+			name: "at its cap, back otherwise than as its window resets", shown: hours, stretch: stretchOf(tl, views.CellCapped, routedClock(1, 14, 31), routedClock(1, 17, 10), 5, 20),
 			want: "capped 14:31  ·  back 17:10", inks: []ink{alertInk, mutedInk},
 		},
 		{
-			name: "a run-out reaching its cap first", shown: five, stretch: ahead,
+			name: "a run-out reaching its cap first", shown: hours, stretch: ahead,
 			want: "caps ~15:45  ·  resets 17:10", inks: []ink{alertInk, mutedInk},
 		},
 		{
-			name: "a run-out reaching its limit", shown: five, stretch: out,
+			name: "a run-out reaching its limit", shown: hours, stretch: out,
 			want: "out ~16:05  ·  resets 16:55", inks: []ink{alertInk, mutedInk},
 		},
 		{
-			name: "at its limit, its back never as its window resets", shown: five, stretch: limited,
+			name: "at its limit, its back never as its window resets", shown: hours, stretch: limited,
 			want: "out 13:58  ·  back 15:30", inks: []ink{exhaustedInk, mutedInk},
 		},
 		{
-			name: "at its limit, held on by the stretch after it, lifting", shown: five, stretch: heldOn(limited, routedClock(4, 21, 0)),
+			name: "at its limit, held on by the stretch after it, lifting", shown: hours, stretch: heldOn(limited, routedClock(4, 21, 0)),
 			want: "out 13:58  ·  lifts 15:30", inks: []ink{exhaustedInk, mutedInk},
 		},
 		{
-			name: "at its cap, held on by the stretch after it, lifting as its 5-hour resets, said as it lifts", shown: five, stretch: heldOn(capped, routedClock(4, 21, 0)),
+			name: "at its cap, held on by the stretch after it, lifting as its window resets, said as it lifts", shown: hours, stretch: heldOn(capped, routedClock(4, 21, 0)),
 			want: "capped 14:31  ·  lifts 17:10", inks: []ink{alertInk, mutedInk},
 		},
 		{
-			name: "at its limit from before the timeline", shown: five, stretch: stretchOf(tl, views.CellLimited, time.Time{}, routedClock(1, 15, 30), 0, 10),
+			name: "at its limit from before the timeline", shown: hours, stretch: stretchOf(tl, views.CellLimited, time.Time{}, routedClock(1, 15, 30), 0, 10),
 			want: "out  ·  back 15:30", inks: []ink{exhaustedInk, mutedInk},
 		},
 		{
-			name: "at its limit, back at no time known", shown: five, stretch: stretchOf(tl, views.CellLimited, routedClock(1, 13, 58), time.Time{}, 2, 135),
+			name: "at its limit, back at no time known", shown: hours, stretch: stretchOf(tl, views.CellLimited, routedClock(1, 13, 58), time.Time{}, 2, 135),
 			want: "out 13:58", inks: []ink{exhaustedInk},
 		},
 		{
-			name: "its token refused, the refusal holding it", shown: five, stretch: refused, account: &refusing,
+			name: "its token refused, the refusal holding it", shown: hours, stretch: refused, account: &refusing,
 			want: "token refused (401) 14:12  ·  back 15:00", inks: []ink{exhaustedInk, mutedInk},
 		},
 		{
-			name: "its token refused, a refusal since gone", shown: five, stretch: refused,
+			name: "its token refused, a refusal since gone", shown: hours, stretch: refused,
 			want: "token refused 14:12  ·  back 15:00", inks: []ink{exhaustedInk, mutedInk},
 		},
 		{
-			name: "without a token", shown: five, stretch: stretchOf(tl, views.CellTokenless, time.Time{}, time.Time{}, 0, 135),
+			name: "without a token", shown: hours, stretch: stretchOf(tl, views.CellTokenless, time.Time{}, time.Time{}, 0, 135),
 			want: "no token", inks: []ink{exhaustedInk},
 		},
 		{
-			name: "its token another subscription's", shown: five, stretch: stretchOf(tl, views.CellTokenless, time.Time{}, time.Time{}, 0, 135), account: &foreign,
+			name: "its token another subscription's", shown: hours, stretch: stretchOf(tl, views.CellTokenless, time.Time{}, time.Time{}, 0, 135), account: &foreign,
 			want: "wrong token", inks: []ink{exhaustedInk},
 		},
 		{
@@ -177,12 +192,15 @@ func TestTheWordsUnderALaneSayEachStretchFromItsStart(t *testing.T) {
 	}
 }
 
-// Today stepped back to is drawn as a day stepped back to, its lanes as views
-// build them from the readings and the router's events: the words under a
-// lane say each stretch it held, those over before now's column among them,
-// the status its token was refused with only of the refusal holding it now.
-func TestTodaySteppedBackToSaysEachStretchOverBeforeNow(t *testing.T) {
+// This week stepped back to is drawn as a week stepped back to, its lanes as
+// views build them from the readings and the router's events: the words
+// under a lane say each stretch it held, those over before now's column among
+// them, the status its token was refused with only of the refusal holding it
+// now.
+func TestThisWeekSteppedBackToSaysEachStretchOverBeforeNow(t *testing.T) {
 	at := func(hour, minute int) time.Time { return routedClock(1, hour, minute) }
+	monday := func(hour, minute int) time.Time { return time.Date(2026, 9, 28, hour, minute, 0, 0, time.UTC) }
+	tuesday := func(hour, minute int) time.Time { return time.Date(2026, 9, 29, hour, minute, 0, 0, time.UTC) }
 	week := routedClock(4, 21, 0)
 	fiveHour := func(used float64, resets time.Time, st quota.Status) quota.Window {
 		return quota.Window{Key: "5h", Utilization: used, ResetsAt: resets, Status: st}
@@ -198,7 +216,7 @@ func TestTodaySteppedBackToSaysEachStretchOverBeforeNow(t *testing.T) {
 			work, {ID: "side", TokenSet: true, FetchedAt: routedAt.Add(-time.Minute), Windows: open},
 		}}.WorkedOut(claudeLike)
 	}
-	both := slices.Concat(read("work", at(8, 0), fiveHour(0.5, at(10, 0), ""), weekOf), read("side", at(8, 0), open...))
+	both := slices.Concat(read("work", monday(8, 0), fiveHour(0.5, monday(10, 0), ""), weekOf), read("side", monday(8, 0), fiveHour(0.2, monday(10, 0), ""), weekOf))
 	refused := func(id int, from, until time.Time) status.Event {
 		return status.Event{ID: id, At: from, Kind: status.EventRefused, Account: "work", Until: until, Status: 401}
 	}
@@ -209,23 +227,23 @@ func TestTodaySteppedBackToSaysEachStretchOverBeforeNow(t *testing.T) {
 		words string
 	}{
 		{
-			name:  "at its limit this morning, room since",
+			name:  "at its limit on Tuesday morning, room since",
 			doc:   doc(status.Account{}),
-			read:  slices.Concat(both, read("work", at(9, 0), fiveHour(1, at(10, 0), quota.StatusRejected)), read("work", at(10, 5), open...)),
-			words: strings.Repeat(" ", 51) + "out 09:00  ·  back 10:00",
+			read:  slices.Concat(both, read("work", tuesday(9, 0), fiveHour(1, tuesday(14, 0), quota.StatusRejected)), read("work", tuesday(14, 5), open...)),
+			words: strings.Repeat(" ", 26) + "out Tue 09:00  ·  back Tue 14:00" + strings.Repeat(" ", 60) + "resets Sun 21:00",
 		},
 		{
-			name:  "its token refused this morning, and again now",
-			doc:   doc(status.Account{Refused: status.Refusal{Until: at(15, 0), Status: 401}}, refused(2, at(14, 12), at(15, 0)), refused(1, at(9, 0), at(9, 30))),
+			name:  "its token refused on Tuesday morning, and again now",
+			doc:   doc(status.Account{Refused: status.Refusal{Until: at(15, 0), Status: 401}}, refused(2, at(14, 12), at(15, 0)), refused(1, tuesday(9, 0), tuesday(13, 0))),
 			read:  both,
-			words: strings.Repeat(" ", 51) + "token refused 09:00  ·  back 09:30  token refused (401) 14:12  ·  back 15:00",
+			words: strings.Repeat(" ", 26) + "token refused Tue 09:00  ·  back Tue 13:00  token refused (401) 14:12  ·  back 15:00" + strings.Repeat(" ", 8) + "resets Sun 21:00",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			shown := runwayBack(views.RunwayFiveHour, civilDay(10, 1))
+			shown := runwayBack(civilDay(9, 28))
 			m := tt.doc.At(routedAt, claudeLike)
-			l := views.Lanes{}.Look(views.LanesFrom{Moment: m, Readings: tt.read, Timeline: shown.Timeline, Window: shown.Window})
+			l := views.Lanes{}.Look(views.LanesFrom{Moment: m, Readings: tt.read, Timeline: shown.Timeline})
 			shown.Lanes = &l
 			ln := laidLane{Lane: l.Accounts[0], account: m.Accounts[0], row: 10}
 			if got := wordsRead(shown.view().wordsUnder(ln, routedAt, 0)); got != tt.words {
@@ -235,21 +253,18 @@ func TestTodaySteppedBackToSaysEachStretchOverBeforeNow(t *testing.T) {
 	}
 }
 
-// A cap outlasting what holds its account back first has words of its own,
-// after that hold's: each stretch said from its own start; the hold it
-// outlasts said to lift as it does, and the cap alone, the run's last, back
-// as the account next has room, as ROUTING says it; the status the token's
-// refused with said of the refusal holding it now.
+// A hold outlasted by what holds its account back after it has words of its
+// own, before that hold's: each stretch said from its own start; the hold
+// outlasted said to lift as it does, and only the run's last back, as the
+// account next has room.
 func TestAHoldOutlastedIsSaidFromItsStartAndOnlyTheLastIsBack(t *testing.T) {
 	tests := []struct {
 		moment string
 		want   string
 	}{
-		{moment: "a cap outlasting a limit", want: "  out 14:00  ·  lifts 15:30  capped 14:00  ·  back Mon 21:00"},
-		{moment: "a cap outlasting a refusal", want: "token refused (401)  ·  lifts 14:52  capped 14:00  ·  back Mon 21:00"},
 		{
 			moment: "stepped back to a cap lifting as its week resets, a limit holding it on",
-			want:   strings.Repeat(" ", 93) + "capped Fri 12:00  ·  lifts Sat 21:00  out Sat 20:00",
+			want:   strings.Repeat(" ", 95) + "capped Fri 12:00  ·  lifts Sat 21:00  out Sat 20:00",
 		},
 	}
 	for _, tt := range tests {
@@ -265,8 +280,8 @@ func TestAHoldOutlastedIsSaidFromItsStartAndOnlyTheLastIsBack(t *testing.T) {
 }
 
 func TestTheWordsUnderALaneArePlacedFromLeftToRightShiftingLeftToFitWhole(t *testing.T) {
-	five := runwayLive(views.RunwayFiveHour)
-	tl := five.Timeline
+	hours := runwayHours(136)
+	tl := hours.Timeline
 	at := func(cell views.Cell, start, back time.Time, first, last int) views.LaneStretch {
 		s := stretchOf(tl, cell, start, back, first, last)
 		s.AsItResets = cell == views.CellCapped
@@ -346,15 +361,15 @@ func TestTheWordsUnderALaneArePlacedFromLeftToRightShiftingLeftToFitWhole(t *tes
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := wordsRead(five.view().wordsUnder(laneWith(tt.stretches...), routedAt, 0)); got != tt.want {
+			if got := wordsRead(hours.view().wordsUnder(laneWith(tt.stretches...), routedAt, 0)); got != tt.want {
 				t.Errorf("the words say\n%q, want\n%q", got, tt.want)
 			}
 		})
 	}
 }
 
-func TestTheWeekViewSaysWhenAWeekResetsEndingAtItsMarkWhereThatClearsTheWordsBefore(t *testing.T) {
-	week := runwayLive(views.RunwayWeek)
+func TestALaneSaysWhenItsWeekResetsEndingAtItsMarkWhereThatClearsTheWordsBefore(t *testing.T) {
+	week := runwayLive()
 	tl := week.Timeline
 	sunday := views.Reset{Column: 82, At: routedClock(4, 21, 0)}
 	capped := stretchOf(tl, views.CellCapped, routedClock(1, 14, 31), routedClock(1, 17, 10), 19, 20)
@@ -378,11 +393,6 @@ func TestTheWeekViewSaysWhenAWeekResetsEndingAtItsMarkWhereThatClearsTheWordsBef
 			lane: withResets(laneWith(stretchOf(tl, views.CellLimited, time.Time{}, routedClock(4, 21, 0), 0, 81)), views.Reset{Column: 82, At: routedClock(4, 21, 0), Back: true}),
 			want: "out  ·  back Sun 21:00",
 		},
-		{
-			name: "in the 5-hour view, never", shown: runwayLive(views.RunwayFiveHour),
-			lane: withResets(laneWith(stretchOf(runwayLive(views.RunwayFiveHour).Timeline, views.CellCapped, routedClock(1, 14, 31), routedClock(1, 17, 10), 5, 20)), views.Reset{Column: 21, At: routedClock(1, 17, 10)}),
-			want: "     capped 14:31  ·  back 17:10",
-		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -400,7 +410,7 @@ func withResets(ln laidLane, resets ...views.Reset) laidLane {
 }
 
 func TestALaneWithNothingElseToSaySaysWhatItHas(t *testing.T) {
-	wednesday := civilDay(9, 30)
+	gone := runwayBack(civilDay(9, 21))
 	roomy := laneWith()
 	roomy.Room = true
 	unreadable := laidLane{ID: "work", Cells: make([]views.Cell, 136), account: status.AccountNow{
@@ -414,22 +424,20 @@ func TestALaneWithNothingElseToSaySaysWhatItHas(t *testing.T) {
 		want  string
 		ink   ink
 	}{
-		{name: "room all day, from the cell after now's column", shown: runwayLive(views.RunwayFiveHour), lane: withRoom(roomy), want: "       room all day", ink: dimInk},
-		{name: "room all week", shown: runwayLive(views.RunwayWeek), lane: withRoom(roomy), want: strings.Repeat(" ", 20) + "room all week", ink: dimInk},
-		{name: "room all day, stepped back, from the first column", shown: runwayBack(views.RunwayFiveHour, wednesday), lane: withRoom(roomy), want: "room all day", ink: dimInk},
-		{name: "room all day, stepped back to today, from the first column", shown: runwayBack(views.RunwayFiveHour, civilDay(10, 1)), lane: withRoom(roomy), want: "room all day", ink: dimInk},
-		{name: "a lane without room throughout, nothing", shown: runwayLive(views.RunwayFiveHour), lane: unknown, want: ""},
+		{name: "room all week, from the cell after now's column", shown: runwayLive(), lane: withRoom(roomy), want: strings.Repeat(" ", 20) + "room all week", ink: dimInk},
+		{name: "room all week, a week gone, from the first column", shown: gone, lane: withRoom(roomy), want: "room all week", ink: dimInk},
+		{name: "room all week, this week stepped back to, from the first column", shown: runwayBack(civilDay(9, 28)), lane: withRoom(roomy), want: "room all week", ink: dimInk},
+		{name: "a lane without room throughout, nothing", shown: runwayLive(), lane: unknown, want: ""},
 		{
-			name: "a first read failed, that it can't be read, and why", shown: runwayLive(views.RunwayFiveHour), lane: unreadable,
+			name: "a first read failed, that it can't be read, and why", shown: runwayLive(), lane: unreadable,
 			want: "can't read it: HTTP 529 · Overloaded", ink: dimInk,
 		},
-		{name: "a day gone that read nothing of it", shown: runwayBack(views.RunwayFiveHour, wednesday), lane: unknown, want: "nothing read that day", ink: faintInk},
+		{name: "a week gone that read nothing of it", shown: gone, lane: unknown, want: "nothing read that week", ink: faintInk},
 		{
-			name: "a day gone that read nothing of it, not why it can't be read now", shown: runwayBack(views.RunwayFiveHour, wednesday), lane: unreadable,
-			want: "nothing read that day", ink: faintInk,
+			name: "a week gone that read nothing of it, not why it can't be read now", shown: gone, lane: unreadable,
+			want: "nothing read that week", ink: faintInk,
 		},
-		{name: "today stepped back to, not read yet, nothing", shown: runwayBack(views.RunwayFiveHour, civilDay(10, 1)), lane: unknown, want: ""},
-		{name: "a week gone that read nothing of it", shown: runwayBack(views.RunwayWeek, civilDay(9, 21)), lane: unknown, want: "nothing read that week", ink: faintInk},
+		{name: "this week stepped back to, not read yet, nothing", shown: runwayBack(civilDay(9, 28)), lane: unknown, want: ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -450,22 +458,22 @@ func withRoom(ln laidLane) laidLane {
 	return ln
 }
 
-// A lane's times are told against the day shown: live, today's times of
-// day, any other day's with its weekday; a day gone, its own times of day,
-// and another day's with its weekday.
-func TestALanesTimesAreToldAgainstTheDayShown(t *testing.T) {
-	wednesday := runwayBack(views.RunwayFiveHour, civilDay(9, 30))
-	overMidnight := stretchOf(wednesday.Timeline, views.CellLimited, time.Date(2026, 9, 30, 15, 0, 0, 0, time.UTC), routedClock(1, 1, 10), 85, 135)
-	live := runwayLive(views.RunwayFiveHour)
+// A lane's times are told against now, live and stepped back alike: today's
+// times of day, any other day's with its weekday.
+func TestALanesTimesAreToldAgainstNow(t *testing.T) {
+	gone := runwayBack(civilDay(9, 21))
+	in := func(day, hour, minute int) time.Time { return time.Date(2026, 9, day, hour, minute, 0, 0, time.UTC) }
+	overMidnight := stretchBetween(gone.Timeline, views.CellLimited, in(23, 15, 0), in(24, 1, 10))
+	live := runwayLive()
 	tests := []struct {
 		name    string
 		shown   RunwayShown
 		stretch views.LaneStretch
 		want    string
 	}{
-		{name: "a day gone, its own times of day, the next day's with its weekday", shown: wednesday, stretch: overMidnight, want: "out 15:00  ·  back Thu 01:10"},
-		{name: "live, today's times of day", shown: live, stretch: stretchOf(live.Timeline, views.CellLimited, routedClock(1, 13, 58), routedClock(1, 15, 30), 2, 10), want: "out 13:58  ·  back 15:30"},
-		{name: "live, tomorrow's with its weekday", shown: live, stretch: stretchOf(live.Timeline, views.CellLimited, routedClock(2, 1, 0), routedClock(2, 3, 0), 68, 79), want: "out Fri 01:00  ·  back Fri 03:00"},
+		{name: "a week gone, its days' with their weekdays", shown: gone, stretch: overMidnight, want: "out Wed 15:00  ·  back Thu 01:10"},
+		{name: "live, today's times of day", shown: live, stretch: stretchBetween(live.Timeline, views.CellLimited, routedClock(1, 13, 58), routedClock(1, 15, 30)), want: "out 13:58  ·  back 15:30"},
+		{name: "live, tomorrow's with its weekday", shown: live, stretch: stretchBetween(live.Timeline, views.CellLimited, routedClock(2, 1, 0), routedClock(2, 3, 0)), want: "out Fri 01:00  ·  back Fri 03:00"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -477,8 +485,8 @@ func TestALanesTimesAreToldAgainstTheDayShown(t *testing.T) {
 }
 
 func TestALanesWordsAreCuedAsItsAccountNewlyStandsSo(t *testing.T) {
-	five := runwayLive(views.RunwayFiveHour)
-	tl := five.Timeline
+	hours := runwayHours(136)
+	tl := hours.Timeline
 	capped := laneWith(stretchOf(tl, views.CellCapped, routedClock(1, 14, 31), routedClock(1, 17, 10), 5, 20))
 	capped.Cells = slices.Repeat([]views.Cell{views.CellCapped}, 136)
 	out := stretchOf(tl, views.CellLimited, routedClock(1, 16, 5), routedClock(1, 16, 55), 14, 18)
@@ -505,7 +513,7 @@ func TestALanesWordsAreCuedAsItsAccountNewlyStandsSo(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			f := runwayShowing(five)
+			f := runwayShowing(hours)
 			f.Changed, f.TurnedOut = tt.changed, tt.turnedOut
 			if got, cued := f.wordsCue(tt.lane, tl.NowColumn()); cued != tt.cued || cued && got != tt.want {
 				t.Errorf("wordsCue = %v, %t, want %v, %t", got, cued, tt.want, tt.cued)
@@ -518,14 +526,14 @@ func TestALanesWordsAreCuedAsItsAccountNewlyStandsSo(t *testing.T) {
 // first column, and cued, every cell from the first word to the last, on
 // bg.attention as far faded as the cue has.
 func TestTheWordsUnderALaneAreDrawnOnTheRowUnderItCuedWhereTheyAre(t *testing.T) {
-	five := runwayLive(views.RunwayFiveHour)
-	tl := five.Timeline
+	hours := runwayHours(136)
+	tl := hours.Timeline
 	ln := laneWith(
 		stretchOf(tl, views.CellCapped, routedClock(1, 14, 31), routedClock(1, 15, 0), 5, 7),
 		stretchOf(tl, views.CellLimited, routedClock(1, 16, 0), routedClock(1, 17, 0), 14, 19),
 	)
 	ln.Cells = slices.Repeat([]views.Cell{views.CellCapped}, 136)
-	f := runwayShowing(five)
+	f := runwayShowing(hours)
 	f.Look, f.Changed = Screen(builtin(t, "nord")), map[string]float64{"work": 0.25}
 	c := newCanvas(160, 20)
 	f.runwayWords(c, runwayLaid{m: status.Moment{Now: routedAt}, x: framesLanesFrom, lanes: []laidLane{ln}})
@@ -550,15 +558,10 @@ func TestTheWordsUnderALaneAreDrawnOnTheRowUnderItCuedWhereTheyAre(t *testing.T)
 // from the end, and a reset that can't end at its mark clear of the use goes
 // unsaid, as one that can't clear the words before.
 func TestCollapsedTheWordsUnderALaneStartTwoCellsAfterItsUseOnlyWhereTheyWouldMeetIt(t *testing.T) {
-	five, week := runwayLive(views.RunwayFiveHour), runwayLive(views.RunwayWeek)
-	read := func(used float64) views.Use { return views.Use{Key: "5h", Used: used, Read: true} }
+	hours, week := runwayHours(136), runwayLive()
+	read := func(used float64) views.Use { return views.Use{Key: "7d", Used: used, Read: true} }
 	limited := func(r RunwayShown, start time.Time, first int) views.LaneStretch {
 		return stretchOf(r.Timeline, views.CellLimited, start, routedClock(1, 15, 30), first, first+10)
-	}
-	narrow := func(cols int) RunwayShown {
-		r := five
-		r.Timeline = views.LiveTimeline(views.RunwayFiveHour, routedAt, cols)
-		return r
 	}
 	roomy := withRoom(laneWith())
 	roomy.Room = true
@@ -569,17 +572,17 @@ func TestCollapsedTheWordsUnderALaneStartTwoCellsAfterItsUseOnlyWhereTheyWouldMe
 		use   views.Use
 		want  string
 	}{
-		{name: "out from the left edge, two cells after the use", shown: five, lane: laneWith(limited(five, routedClock(1, 13, 40), 0)), use: read(1), want: "100%  out 13:40  ·  back 15:30"},
-		{name: "starting inside the use", shown: five, lane: laneWith(limited(five, routedClock(1, 14, 0), 2)), use: read(0.34), want: "34%  out 14:00  ·  back 15:30"},
-		{name: "starting a cell after the use", shown: five, lane: laneWith(limited(five, routedClock(1, 14, 20), 4)), use: read(0.34), want: "34%  out 14:20  ·  back 15:30"},
-		{name: "starting two cells after the use, unmoved", shown: five, lane: laneWith(limited(five, routedClock(1, 14, 31), 5)), use: read(0.34), want: "34%  out 14:31  ·  back 15:30"},
-		{name: "starting further on, unmoved", shown: five, lane: laneWith(limited(five, routedClock(1, 15, 0), 8)), use: read(0.34), want: "34%" + strings.Repeat(" ", 5) + "out 15:00  ·  back 15:30"},
-		{name: "starting far to the right, unmoved", shown: five, lane: laneWith(limited(five, routedClock(1, 23, 40), 60)), use: read(0.34), want: "34%" + strings.Repeat(" ", 57) + "out 23:40  ·  back 15:30"},
-		{name: "no use to show, two cells after its —", shown: five, lane: laneWith(limited(five, routedClock(1, 13, 40), 0)), use: views.Use{Key: "5h", Unread: true}, want: "—  out 13:40  ·  back 15:30"},
-		{name: "room all day from after now, unmoved", shown: five, lane: roomy, use: read(0.34), want: "34%    room all day"},
-		{name: "room all day stepped back, from the first column, after the use", shown: runwayBack(views.RunwayFiveHour, civilDay(9, 30)), lane: roomy, use: read(0.34), want: "34%  room all day"},
-		{name: "narrow, every part fitting after the use", shown: narrow(30), lane: laneWith(limited(five, routedClock(1, 13, 40), 0)), use: read(1), want: "100%  out 13:40  ·  back 15:30"},
-		{name: "narrower, its last part left off", shown: narrow(29), lane: laneWith(limited(five, routedClock(1, 13, 40), 0)), use: read(1), want: "100%  out 13:40"},
+		{name: "out from the left edge, two cells after the use", shown: hours, lane: laneWith(limited(hours, routedClock(1, 13, 40), 0)), use: read(1), want: "100%  out 13:40  ·  back 15:30"},
+		{name: "starting inside the use", shown: hours, lane: laneWith(limited(hours, routedClock(1, 14, 0), 2)), use: read(0.34), want: "34%  out 14:00  ·  back 15:30"},
+		{name: "starting a cell after the use", shown: hours, lane: laneWith(limited(hours, routedClock(1, 14, 20), 4)), use: read(0.34), want: "34%  out 14:20  ·  back 15:30"},
+		{name: "starting two cells after the use, unmoved", shown: hours, lane: laneWith(limited(hours, routedClock(1, 14, 31), 5)), use: read(0.34), want: "34%  out 14:31  ·  back 15:30"},
+		{name: "starting further on, unmoved", shown: hours, lane: laneWith(limited(hours, routedClock(1, 15, 0), 8)), use: read(0.34), want: "34%" + strings.Repeat(" ", 5) + "out 15:00  ·  back 15:30"},
+		{name: "starting far to the right, unmoved", shown: hours, lane: laneWith(limited(hours, routedClock(1, 23, 40), 60)), use: read(0.34), want: "34%" + strings.Repeat(" ", 57) + "out 23:40  ·  back 15:30"},
+		{name: "no use to show, two cells after its —", shown: hours, lane: laneWith(limited(hours, routedClock(1, 13, 40), 0)), use: views.Use{Key: "7d", Unread: true}, want: "—  out 13:40  ·  back 15:30"},
+		{name: "room all week from after now, unmoved", shown: hours, lane: roomy, use: read(0.34), want: "34%    room all week"},
+		{name: "room all week stepped back, from the first column, after the use", shown: runwayBack(civilDay(9, 21)), lane: roomy, use: read(0.34), want: "34%  room all week"},
+		{name: "narrow, every part fitting after the use", shown: runwayHours(30), lane: laneWith(limited(hours, routedClock(1, 13, 40), 0)), use: read(1), want: "100%  out 13:40  ·  back 15:30"},
+		{name: "narrower, its last part left off", shown: runwayHours(29), lane: laneWith(limited(hours, routedClock(1, 13, 40), 0)), use: read(1), want: "100%  out 13:40"},
 		{name: "a reset that can't end at its mark clear of the use, unsaid", shown: week, lane: withResets(laneWith(), views.Reset{Column: 18, At: routedClock(4, 21, 0)}), use: read(0.34), want: "34%"},
 		{name: "a reset ending clear of it, said", shown: week, lane: withResets(laneWith(), views.Reset{Column: 30, At: routedClock(4, 21, 0)}), use: read(0.34), want: "34%" + strings.Repeat(" ", 12) + "resets Sun 21:00"},
 	}
@@ -604,10 +607,10 @@ func TestCollapsedTheWordsUnderALaneStartTwoCellsAfterItsUseOnlyWhereTheyWouldMe
 // Expanded, the words under a lane start under their stretch, from the
 // lanes' first column, as its use is under its name.
 func TestExpandedTheWordsUnderALaneStartUnderTheirStretch(t *testing.T) {
-	five := runwayLive(views.RunwayFiveHour)
-	ln := laneWith(stretchOf(five.Timeline, views.CellLimited, routedClock(1, 13, 40), routedClock(1, 15, 30), 0, 10))
-	ln.Use = views.Use{Key: "5h", Used: 1, Read: true}
-	f := runwayShowing(five)
+	hours := runwayHours(136)
+	ln := laneWith(stretchOf(hours.Timeline, views.CellLimited, routedClock(1, 13, 40), routedClock(1, 15, 30), 0, 10))
+	ln.Use = views.Use{Key: "7d", Used: 1, Read: true}
+	f := runwayShowing(hours)
 	c := newCanvas(f.Width, 20)
 	f.runwayWords(c, runwayLaid{m: status.Moment{Now: routedAt}, x: framesLanesFrom, lanes: []laidLane{ln}})
 	if got, want := rowOf(c, 11), strings.Repeat(" ", framesLanesFrom)+"out 13:40  ·  back 15:30"; got != want {

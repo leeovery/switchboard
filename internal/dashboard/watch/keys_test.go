@@ -48,7 +48,7 @@ func TestTheKeyLineGroupsTheKeysOfEachTab(t *testing.T) {
 			view: dashboard.Sessions, lead: 3, want: [][]string{{"tab"}, {"[ ]"}, {"↑↓", "enter"}, {"p"}, {"?", "q"}},
 			wantPhone: []string{"↑↓", "enter", "[ ]"}, wantHelp: "keys",
 		},
-		{view: dashboard.Runway, lead: 3, want: [][]string{{"tab"}, {"< >", "←→"}, {"a"}, {"p"}, {"?", "q"}}, wantPhone: []string{"< >", "←→"}, wantHelp: "keys"},
+		{view: dashboard.Runway, lead: 3, want: [][]string{{"tab"}, {"←→"}, {"a"}, {"p"}, {"?", "q"}}, wantPhone: []string{"←→"}, wantHelp: "keys"},
 		{view: dashboard.Graphs, lead: 5, after: 5, want: [][]string{{"tab"}, {"w", "o", "g", "h"}, {"p", "?", "q"}}, wantHelp: "keys and toggles"},
 		{
 			view: dashboard.Log, lead: 3, want: [][]string{{"tab"}, {"[ ]"}, {"↑↓", "enter", "f", "/"}, {"p"}, {"?", "q"}},

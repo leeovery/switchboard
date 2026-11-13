@@ -46,7 +46,7 @@ func (f Frame) poolLine(m status.Moment, width int) line {
 	key := GraphsWindow.KeyIn(m)
 	if r, ok := runwayRoom(m, key); ok {
 		g := gauge{of: Ref{Window: key}, words: poolWords(r.room, r.accounts, false)}
-		parts = append(parts, slices.Concat(line{spaces(footApart), {runwayNames[GraphsWindow] + " ", dimInk}}, g.led(g.words.full)))
+		parts = append(parts, slices.Concat(line{spaces(footApart), {runwayWeek + " ", dimInk}}, g.led(g.words.full)))
 		if pool.Pinned {
 			parts = append(parts, line{pinnedSaid})
 		}

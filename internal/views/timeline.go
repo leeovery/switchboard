@@ -6,54 +6,27 @@ import (
 
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/quota"
-	"github.com/leeovery/switchboard/internal/status"
 )
 
-// RunwayWindow is the window Runway's view is named for, as < and > step
-// between them: the week, the first the dashboard shows, or the 5-hour.
+// RunwayWindow is the window a view of Runway's lanes is named for: the
+// week, the one window Runway and Graphs show.
 type RunwayWindow string
 
+// RunwayWeek is the week view.
+const RunwayWeek RunwayWindow = ""
+
+// The live week's span, from a day before now, a week of 10,080 minutes, its
+// start taken back to its ten minutes.
 const (
-	// RunwayWeek is the week view.
-	RunwayWeek RunwayWindow = ""
-	// RunwayFiveHour is the 5-hour view.
-	RunwayFiveHour RunwayWindow = "5-hour"
-)
-
-// RunwayWindows are every window Runway's views can be named for, in the
-// order < and > step between them: the week, then the 5-hour. What Runway
-// offers at a moment is RunwayWindowsOf's.
-func RunwayWindows() []RunwayWindow {
-	return []RunwayWindow{RunwayWeek, RunwayFiveHour}
-}
-
-// RunwayWindowsOf are the windows Runway offers its views of at the moment
-// m, in the order < and > step between them: the week, always; then the
-// 5-hour, while some account has or may have one, as KeyIn finds it.
-func RunwayWindowsOf(m status.Moment) []RunwayWindow {
-	windows := []RunwayWindow{RunwayWeek}
-	if RunwayFiveHour.KeyIn(m) != "" {
-		windows = append(windows, RunwayFiveHour)
-	}
-	return windows
-}
-
-// The live views' spans: the 5-hour's, from the hour before now, 22 hours
-// 40 minutes, shared among the lanes' columns; the week's, from a day
-// before now, a week of 10,080 minutes; each start taken back to its ten
-// minutes.
-const (
-	fiveHourBefore = time.Hour
-	fiveHourSpan   = 22*time.Hour + 40*time.Minute
-	weekBefore     = quota.Day
-	weekSpan       = 7 * quota.Day
-	tenMinutes     = 10 * time.Minute
+	weekBefore = quota.Day
+	weekSpan   = 7 * quota.Day
+	tenMinutes = 10 * time.Minute
 )
 
 // Timeline is the time Runway's lanes show across Columns cells, from Start
 // up to End, the span cut evenly among them to the nanosecond, as Bounds has
-// it. Now is now, where the timeline holds it: zero on a day, or a week,
-// stepped back to that has gone, which has none.
+// it. Now is now, where the timeline holds it: zero on a week stepped back
+// to that has gone, which has none.
 type Timeline struct {
 	Start, End time.Time
 	Columns    int
@@ -63,37 +36,28 @@ type Timeline struct {
 	first, last time.Time
 }
 
-// LiveTimeline is the live view of the window w at now, across columns
-// cells: the 5-hour's from the hour before now, for 22 hours 40 minutes; the
-// week's from a day before now, for a week; each from its ten minutes, as
+// LiveTimeline is the live view of the week at now, across columns cells:
+// from a day before now, for a week, from its ten minutes, as
 // onItsTenMinutes takes it back.
-func LiveTimeline(w RunwayWindow, now time.Time, columns int) Timeline {
-	before, span := fiveHourBefore, fiveHourSpan
-	if w == RunwayWeek {
-		before, span = weekBefore, weekSpan
-	}
-	start := onItsTenMinutes(now.Add(-before))
-	return Timeline{Start: start, End: start.Add(span), Columns: columns, Now: now}
+func LiveTimeline(now time.Time, columns int) Timeline {
+	start := onItsTenMinutes(now.Add(-weekBefore))
+	return Timeline{Start: start, End: start.Add(weekSpan), Columns: columns, Now: now}
 }
 
-// Stepped is the window w's view stepped back to the day given, as
-// dayfile.Civil gives one, at now, across columns cells: of the 5-hour, that
-// day, from its midnight to the next, as the clocks put them, 23 or 25 hours
-// where they change; of the week, the week it falls in, weeks starting on
-// the day given, from its first day's midnight for seven days. It holds now
-// where now falls in it, as on today and this week. The day is kept, not
-// how many steps back it is, so a day stepped back to stays itself as the
-// clock passes midnight. A day given zero is the live view's.
-func Stepped(w RunwayWindow, day, now time.Time, starts time.Weekday, columns int) Timeline {
+// Stepped is the week's view stepped back to the week the day given falls
+// in, as dayfile.Civil gives a day, at now, across columns cells, weeks
+// starting on the day given: from its first day's midnight, as the clocks
+// put it, for seven days. It holds now where now falls in it, as this week
+// does. The day is kept, not how many steps back it is, so a week stepped
+// back to stays itself as the clock passes midnight. A day given zero is the
+// live view's.
+func Stepped(day, now time.Time, starts time.Weekday, columns int) Timeline {
 	if day.IsZero() {
-		return LiveTimeline(w, now, columns)
+		return LiveTimeline(now, columns)
 	}
-	start, days := dayStartOf(day, now.Location()), 1
-	if w == RunwayWeek {
-		start, days = WeekStart(start, starts), 7
-	}
+	start := WeekStart(dayStartOf(day, now.Location()), starts)
 	first := civilOf(start)
-	tl := Timeline{Start: start, End: dayfile.DayStart(start, days), Columns: columns, first: first, last: first.AddDate(0, 0, days-1)}
+	tl := Timeline{Start: start, End: dayfile.DayStart(start, 7), Columns: columns, first: first, last: first.AddDate(0, 0, 6)}
 	if tl.holds(now) {
 		tl.Now = now
 	}
@@ -121,9 +85,8 @@ func (tl Timeline) holds(t time.Time) bool {
 }
 
 // Named is the days a timeline stepped back to shows, its first and its
-// last, each as dayfile.Civil gives a day, as Runway's heading names them:
-// one day twice. It reports false of a live timeline, named by its window
-// alone.
+// last, each as dayfile.Civil gives a day, as Runway's heading names them.
+// It reports false of a live timeline, which Runway's heading names none of.
 func (tl Timeline) Named() (first, last time.Time, ok bool) {
 	return tl.first, tl.last, !tl.first.IsZero()
 }
@@ -171,9 +134,9 @@ func (tl Timeline) NowColumn() int {
 }
 
 // over reports whether what ends in column last is over, as the live views,
-// which say nothing over, have it: it ends before now's column. A day or a
-// week stepped back to, today and this week among them, says all it held, so
-// nothing on it is over.
+// which say nothing over, have it: it ends before now's column. A week
+// stepped back to, this week among them, says all it held, so nothing on it
+// is over.
 func (tl Timeline) over(last int) bool {
 	_, _, named := tl.Named()
 	return !named && last < tl.NowColumn()

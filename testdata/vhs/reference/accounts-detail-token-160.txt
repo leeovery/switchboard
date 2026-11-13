@@ -28,7 +28,7 @@ ACCOUNTS    Compare  Detail  [ ]  ───────────────�
                     │
                     │   LATELY      14:31  ╎ reached its cap: 3 sessions moved to side
                     │               14:12  ▲ api started here, the best
-                    │               13:22  ▸ infra came from personal: personal came under pressure
+                    │               13:22  ▸ infra came from personal: personal came under pressure, its 5-hour to run out at 13:50
                     │
                     │
                     │

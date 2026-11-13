@@ -20,24 +20,25 @@ import (
 )
 
 // runwayTab is what the watch holds of Runway: what it shows, its timeline,
-// lanes and COMING UP as the last look built them; the lanes themselves,
-// which hold what they judged of the past till what that's judged from
-// changes, and the moment of the message they were built at, as each is
-// built once; the readings history's live tail, read for what it gained as
-// readRunway has it, which Graphs' lanes are judged by too, and the readings
-// of each span stepped back to before it, read once and held for the run;
-// the readings the watch read of the documents it read
-// itself, which join them; the start of the first day the history holds, as
-// the live tail last asked it, zero where it holds none, or failed to say;
-// whether a look since asks what the live tail gained; whether a read of the
-// history is under way, one at a time, and whether that's the live tail's;
-// and whether a failure to say where the history begins has been logged, the
-// once.
+// lanes, COMING UP and LATELY as the last look built them; the lanes
+// themselves, which hold what they judged of the past till what that's
+// judged from changes, and the moment of the message they were built at, as
+// each is built once; LATELY as last told, as latelyTold has it; the
+// readings history's live tail, read for what it gained as readRunway has
+// it, which Graphs' lanes are judged by too, and the readings of each span
+// stepped back to before it, read once and held for the run; the readings
+// the watch read of the documents it read itself, which join them; the start
+// of the first day the history holds, as the live tail last asked it, zero
+// where it holds none, or failed to say; whether a look since asks what the
+// live tail gained; whether a read of the history is under way, one at a
+// time, and whether that's the live tail's; and whether a failure to say
+// where the history begins has been logged, the once.
 type runwayTab struct {
 	shown       dashboard.RunwayShown
 	lanes       views.Lanes
 	look        func(views.Lanes, views.LanesFrom) views.Lanes
 	builtAt     *status.HeldMoment
+	lately      latelyBuilt
 	live        readingsTail
 	back        []heldSpan
 	seen        seenReadings
@@ -237,24 +238,26 @@ func (m Model) runwaySaw(look status.Moment) Model {
 // runwayBuilt is m with Runway built afresh at the moment of the message
 // taken in, while it shows with no session's page over it, once a moment:
 // its labels' cells, expanded and collapsed, as Labelled sizes them, which
-// its timeline's columns are counted after; the windows it offers, and the
-// one it shows of them, as Offering has them; its timeline; its lanes, as
+// its timeline's columns are counted after; its timeline; its lanes, as
 // views.Lanes builds them from the last look's, of the readings and the
 // ledger's days they're judged by, as readingsOf and runwayDays have them;
-// and COMING UP, as views.RunwayComing has it.
+// COMING UP, as views.RunwayComing has it; and LATELY, as latelyTold has
+// it.
 func (m Model) runwayBuilt() Model {
 	if m.view != dashboard.Runway || m.session != nil || m.runwayTab.builtAt != nil && m.runwayTab.builtAt == m.taking.moment {
 		return m
 	}
 	now := m.now()
 	mo := m.moment(now)
-	m.runwayTab.shown = m.runwayTab.shown.Labelled(mo).Offering(mo)
+	m.runwayTab.shown = m.runwayTab.shown.Labelled(mo)
 	t, tl, live := m.runwayTab, m.runwayTimeline(now), liveSpan(now)
 	t.lanes = lanesLooking(t.look)(t.lanes, views.LanesFrom{
-		Moment: mo, Readings: t.readingsOf(spanOf(tl, live), live), Days: m.runwayDays(tl, now), Kept: t.kept, Seen: t.seen.from(), Timeline: tl, Window: t.shown.Window,
+		Moment: mo, Readings: t.readingsOf(spanOf(tl, live), live), Days: m.runwayDays(tl, now), Kept: t.kept, Seen: t.seen.from(), Timeline: tl,
 	})
 	lanes := t.lanes
-	t.shown.Timeline, t.shown.Lanes, t.shown.Coming = tl, &lanes, views.RunwayComing(mo, t.shown.Window)
+	t.shown.Timeline, t.shown.Lanes = tl, &lanes
+	t.lately = m.latelyTold(mo)
+	t.shown.Coming, t.shown.Lately = views.RunwayComing(mo), t.lately.sentences
 	t.builtAt = m.taking.moment
 	m.runwayTab = t
 	return m
@@ -330,7 +333,7 @@ func (m Model) runwayDays(tl views.Timeline, now time.Time) []ledger.Summary {
 // readRunway has the watch read the readings history for the lanes of the
 // tab shown, Runway's or Graphs', as lanesShown has it, as a command, once
 // no read of it is under way, as readingsRead reads it: a span of Runway's
-// stepped back to before the live one, of a day or a week gone, once, its
+// stepped back to before the live one, of a week gone, once, its
 // readings held for the run; else the live tail, made afresh as its span
 // moves, as the day turns, and read at once, then at each look since, as due
 // says, for what it gained. A read of the live tail asks where the
@@ -435,16 +438,12 @@ func (m Model) runwayRead(msg runwayReadMsg) Model {
 	return m
 }
 
-// The ways Runway's keys move: < and > between the windows, ← and → back
-// through the days or weeks and on.
-var (
-	runwayWindowKeys = map[string]int{"<": -1, ">": 1}
-	runwayStepKeys   = map[string]int{"left": -1, "right": 1}
-)
+// runwayStepKeys are the ways Runway's ← and → move: back through the weeks
+// and on.
+var runwayStepKeys = map[string]int{"left": -1, "right": 1}
 
 // runwayKey acts on a key of Runway's, reporting false for a key it doesn't
-// take, or on another tab: < and > show the live view of the other window,
-// as Windowed has it; ← and → step back and on, as Stepped has it, ← no
+// take, or on another tab: ← and → step back and on, as Stepped has it, ← no
 // further than runwayReaches says; and a collapses the account column, or
 // expands it, as Collapsing has it. A key that changes what's shown shows it
 // as showRunway has it.
@@ -455,9 +454,7 @@ func (m Model) runwayKey(key string) (Model, bool) {
 	s, now := m.runwayTab.shown, m.now()
 	var next dashboard.RunwayShown
 	var changed bool
-	if by, ok := runwayWindowKeys[key]; ok {
-		next, changed = s.Windowed(by)
-	} else if by, ok := runwayStepKeys[key]; ok {
+	if by, ok := runwayStepKeys[key]; ok {
 		next, changed = s.Stepped(by, now, m.cfg.WeekStarts)
 		changed = changed && m.runwayReaches(next, now)
 	} else if key == "a" {
@@ -471,11 +468,10 @@ func (m Model) runwayKey(key string) (Model, bool) {
 	return m, true
 }
 
-// runwayReaches reports whether ← reaches Runway shown as r at now: live,
-// today and this week always, as the readings history's live tail draws
-// them; a day or a week gone where the ledger holds a summary of a day of
-// it, back to the first it holds, as it tells where it began, none while
-// that isn't known.
+// runwayReaches reports whether ← reaches Runway shown as r at now: live
+// and this week always, as the readings history's live tail draws them; a
+// week gone where the ledger holds a summary of a day of it, back to the
+// first it holds, as it tells where it began, none while that isn't known.
 func (m Model) runwayReaches(r dashboard.RunwayShown, now time.Time) bool {
 	tl := r.TimelineAt(now, m.cfg.WeekStarts, 0)
 	_, last, named := tl.Named()
@@ -483,14 +479,14 @@ func (m Model) runwayReaches(r dashboard.RunwayShown, now time.Time) bool {
 	return !named || !tl.Now.IsZero() || !began.IsZero() && !last.Before(civilOf(began))
 }
 
-// showRunway is m showing Runway as r has it, keeping its window and its
-// account column collapsed or not where either changed, for the next watch
-// to open with: never a step back.
+// showRunway is m showing Runway as r has it, keeping its account column
+// collapsed or not where that changed, for the next watch to open with:
+// never a step back.
 func (m Model) showRunway(r dashboard.RunwayShown) Model {
 	was := m.runwayTab.shown
 	m.runwayTab.shown = r
 	if kept := r.Kept(); kept != was.Kept() {
-		m = m.keepPrefs("what Runway shows", func(prefs *theme.Prefs) { prefs.Runway = kept }, "window", kept.Window, "collapsed", kept.Collapsed)
+		m = m.keepPrefs("what Runway shows", func(prefs *theme.Prefs) { prefs.Runway = kept }, "collapsed", kept.Collapsed)
 	}
 	return m
 }

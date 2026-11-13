@@ -78,8 +78,8 @@ func quietPlan(now time.Time) sessionPlan {
 
 // endedPlan is b9c4 as its page draws it (session2.ENDED, session_final.ENDED):
 // in ~/Code/switchboard, yesterday from 13:20, on work, then on side from
-// 16:02, when work reached its cap, its 16 turns sampled from seed 11, its
-// last from 18:36.
+// 14:58, when work reached its cap, as the readings have it, its 16 turns
+// sampled from seed 11, its last from 18:36.
 func endedPlan(now time.Time) sessionPlan {
 	turns := turnsFrom([][2]int{{0, 322}}, 11)
 	last := &turns[len(turns)-1]
@@ -87,8 +87,8 @@ func endedPlan(now time.Time) sessionPlan {
 	return sessionPlan{
 		id: idB9C4, dir: "~/Code/switchboard", start: clockAt(now, -1, 13, 20, 0),
 		turns: turns,
-		stays: []stay{{"work", 0}, {"side", 162}},
-		moves: []movePlan{{minute: 162, written: 188_000, reason: reasonCapped}},
+		stays: []stay{{"work", 0}, {"side", 98}},
+		moves: []movePlan{{minute: 98, written: 188_000, reason: reasonCapped}},
 	}
 }
 

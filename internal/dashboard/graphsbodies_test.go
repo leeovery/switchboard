@@ -46,7 +46,7 @@ func sameRows(got, want *canvas, from, to int) (x, y int, differ bool) {
 // week's live timeline at now, columns across, each holding the room given
 // in every column.
 func liveStack(columns int, room float64, ids ...string) views.PoolStack {
-	s := views.PoolStack{Timeline: views.LiveTimeline(views.RunwayWeek, now, columns)}
+	s := views.PoolStack{Timeline: views.LiveTimeline(now, columns)}
 	for _, id := range ids {
 		rooms := make([]views.AccountRoom, columns)
 		for c := range rooms {
@@ -146,7 +146,7 @@ func TestGraphsPoolsKeyOfAPinsAccountsStaysWithinItsRows(t *testing.T) {
 func TestGraphsPoolWithNothingToStackDrawsNowTheAxisAndTheKey(t *testing.T) {
 	look := Screen(builtin(t, "nord"))
 	const width = 108
-	tl := views.LiveTimeline(views.RunwayWeek, now, width)
+	tl := views.LiveTimeline(now, width)
 	tests := []struct {
 		name  string
 		stack views.PoolStack
@@ -170,7 +170,7 @@ func TestGraphsPoolWithNothingToStackDrawsNowTheAxisAndTheKey(t *testing.T) {
 				}
 			}
 			axis := newCanvas(width, runwayAxisRows)
-			timeAxis(axis, tl, views.RunwayWeek, 0, 0)
+			timeAxis(axis, tl, 0, 0)
 			for r := range runwayAxisRows {
 				if got, want := rowOf(c, body.y+laid.chart+r), rowOf(axis, r); got != want {
 					t.Errorf("the axis's row %d reads %q, want Runway's week's, %q", r, got, want)

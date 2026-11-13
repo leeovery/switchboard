@@ -5,9 +5,8 @@
 # The Overview of work alone at 14:42:07: USAGE, ROUTING's trace, COMING UP
 # with its cap about 16:05, and LATELY; then shift-tab twice, past the Log,
 # to Graphs, work's week as a burn-down card; then shift-tab to
-# Runway and > to its 5-hour, work's lane alone, the hour past from the
-# readings, its cap at its pace, sooner than 16:05 as its sessions keep busy,
-# and back at 17:10.
+# Runway, work's lane alone across the week, the day past from the
+# readings, with COMING UP and LATELY under it.
 #
 # Record it, and make art/dashboard.webp and art/dashboard.mp4:
 #   demo/record.sh dashboard
@@ -43,11 +42,8 @@ Shift+Tab
 # Graphs from 6.3s, work's week card.
 Sleep 5s
 Shift+Tab
-Sleep 300ms
-Type ">"
-# Runway's 5-hour from 11.6s, > from the week it opens on; work's 5-hour read
-# up to 59% at 14.1s, shown at the look by 15s.
-Sleep 8400ms
+# Runway from 11.3s, on the week it opens on.
+Sleep 8700ms
 
 Hide
 Type "q"

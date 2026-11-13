@@ -36,10 +36,10 @@ func TestTheRoutersEventsAreTheLogsAsItTellsThem(t *testing.T) {
 	now := localMoment()
 	today := dayfile.DayStart(now, 0)
 	told := toldBetween(clockAt(now, -1, 16, 55, 0), now)
-	// The Log's Events (log-events-160), yesterday's from 16:55 and today's
-	// 20, but db8a's move under pressure, which the frame says ran out at
-	// 15:10: no pressure event is told today to say when, and the frame's
-	// counts hold none.
+	// The Log's Events (log-events-160), yesterday's from 16:55, side under
+	// pressure at 21:40 among them, and today's 21, personal under pressure
+	// at 13:04, its 5-hour to run out at 13:50, as db8a's move from it at
+	// 13:22 says.
 	want := []toldEvent{
 		{at: "16:55:20", kind: "started", account: "personal"},
 		{at: "17:10:00", kind: "open", account: "work", what: "its 5-hour window reset"},
@@ -47,6 +47,7 @@ func TestTheRoutersEventsAreTheLogsAsItTellsThem(t *testing.T) {
 		{at: "18:02:40", kind: "auto", what: "new sessions back from personal to the router's choice, set from the dashboard"},
 		{at: "19:12:40", kind: "limit", account: "personal", what: "its 5-hour window, till 23:58: its session moves to side"},
 		{at: "19:12:52", kind: "moved", account: "personal → side", what: "personal reached its limit"},
+		{at: "21:40:00", kind: "pressure", account: "side", what: "its 5-hour to run out at 23:50"},
 		{at: "23:47:30", kind: "started", account: "side"},
 		{at: "23:58:40", kind: "open", account: "personal", what: "its 5-hour window reset"},
 		{at: "07:05:12", kind: "primed", account: "work", what: "its 5-hour window started, resets at 12:05"},
@@ -61,7 +62,8 @@ func TestTheRoutersEventsAreTheLogsAsItTellsThem(t *testing.T) {
 		{at: "12:02:10", kind: "started", account: "work"},
 		{at: "12:10:00", kind: "primed", account: "work", what: "its 5-hour window started, resets at 17:10"},
 		{at: "12:47:12", kind: "started", account: "personal"},
-		{at: "13:22:40", kind: "moved", account: "personal → work", what: "personal came under pressure"},
+		{at: "13:04:00", kind: "pressure", account: "personal", what: "its 5-hour to run out at 13:50"},
+		{at: "13:22:40", kind: "moved", account: "personal → work", what: "personal came under pressure, its 5-hour to run out at 13:50"},
 		{at: "13:50:00", kind: "primed", account: "side", what: "its 5-hour window started, resets at 18:50"},
 		{at: "14:12:30", kind: "started", account: "work"},
 		{at: "14:31:03", kind: "cap", account: "work", what: "95% of its 5-hour window: its 3 sessions move to side as their next requests come"},
@@ -83,7 +85,7 @@ func TestTheRoutersEventsAreTheLogsAsItTellsThem(t *testing.T) {
 	for _, e := range toldBetween(today, now) {
 		kinds[e.kind]++
 	}
-	wantKinds := map[string]int{"started": 10, "moved": 4, "cap": 1, "primed": 5}
+	wantKinds := map[string]int{"started": 10, "moved": 4, "pressure": 1, "cap": 1, "primed": 5}
 	if len(kinds) != len(wantKinds) {
 		t.Errorf("today's events by kind = %v, want %v", kinds, wantKinds)
 	}
@@ -267,31 +269,84 @@ func countsItsMoves(t *testing.T, by status.Event, told []status.Event) {
 	}
 }
 
-func TestTheAutoWorldsRouterNumbersItsDayAsTheLogHasIt(t *testing.T) {
-	told := autoEvents(worldsNow().now)
-	ids := func(kind string) []int {
-		var got []int
-		for _, e := range told {
-			if e.Kind == kind {
-				got = append(got, e.ID)
-			}
+// idsOf are the ids of the events told of the kind given, in their order.
+func idsOf(told []status.Event, kind string) []int {
+	var got []int
+	for _, e := range told {
+		if e.Kind == kind {
+			got = append(got, e.ID)
 		}
-		return got
 	}
-	if got := ids(status.EventLimit); !slices.Equal(got, []int{5}) {
-		t.Errorf("the limits are told as %v, want yesterday's personal's as 5", got)
-	}
-	if got := ids(status.EventCap); !slices.Equal(got, []int{24}) {
-		t.Errorf("the caps are told as %v, want work's as 24", got)
-	}
+	return got
+}
+
+// forcedByOf are the ids of the events each move told is counted in, in
+// their order.
+func forcedByOf(told []status.Event) []int {
 	var forcedBy []int
 	for _, e := range told {
 		if e.Kind == status.EventMoved {
 			forcedBy = append(forcedBy, e.ForcedBy)
 		}
 	}
-	if want := []int{5, 0, 24, 24, 24}; !slices.Equal(forcedBy, want) {
-		t.Errorf("the moves are counted in %v, want %v: 8a2c's in personal's limit, db8a's afresh in none, and the cap's", forcedBy, want)
+	return forcedBy
+}
+
+// The auto world's router numbers its events in the order they came, from
+// its start: its limit, yesterday's personal's; its cap, work's today, after
+// the accounts came under pressure; and each move counted in what forced
+// it.
+func TestTheAutoWorldsRouterNumbersItsDayAsTheLogHasIt(t *testing.T) {
+	told := autoEvents(worldsNow().now)
+	if got := idsOf(told, status.EventLimit); !slices.Equal(got, []int{5}) {
+		t.Errorf("the limits are told as %v, want yesterday's personal's as 5", got)
+	}
+	if got := idsOf(told, status.EventCap); !slices.Equal(got, []int{26}) {
+		t.Errorf("the caps are told as %v, want work's as 26", got)
+	}
+	if got, want := forcedByOf(told), []int{5, 0, 26, 26, 26}; !slices.Equal(got, want) {
+		t.Errorf("the moves are counted in %v, want %v: 8a2c's in personal's limit, db8a's afresh in none, and the cap's", got, want)
+	}
+}
+
+// The router before the auto world's told the week gone's events, numbered
+// from its own start, each move counted in what forced it, as many as it
+// says, b9c4's in work's cap yesterday at 14:58, as its lines tell, and
+// work's cap and limit yesterday as the readings have them, from 14:58 and
+// 15:02 till 17:10; its files hold them, under its run, before the auto
+// world's router's own, whose document tells none of them.
+func TestTheRouterBeforeToldTheWeekGone(t *testing.T) {
+	worlds := worldsNow()
+	told := ofTheRun(happenings{worlds.now}.weekGone())
+	if got, want := idsOf(told, status.EventLimit), []int{2, 7, 17, 21, 26, 33, 39}; !slices.Equal(got, want) {
+		t.Errorf("the week gone's limits are told as %v, want %v", got, want)
+	}
+	if got, want := idsOf(told, status.EventCap), []int{13, 29, 37}; !slices.Equal(got, want) {
+		t.Errorf("the week gone's caps are told as %v, want %v", got, want)
+	}
+	for _, by := range told {
+		if forces(by.Kind) {
+			countsItsMoves(t, by, told)
+		}
+	}
+	works := told[len(told)-3:]
+	capAt, limitAt, until := clockAt(worlds.now, -1, 14, 58, 0), clockAt(worlds.now, -1, 15, 2, 0), clockAt(worlds.now, -1, 17, 10, 0)
+	if c, l := works[0], works[2]; c.Kind != status.EventCap || !c.At.Equal(capAt) || !c.Until.Equal(until) ||
+		l.Kind != status.EventLimit || l.Account != "work" || !l.At.Equal(limitAt) || !l.Until.Equal(until) {
+		t.Errorf("work's last events are %+v, want its cap at 14:58 and its limit at 15:02 yesterday, till 17:10, as the readings have them", works)
+	}
+	if b9c4 := works[1]; b9c4.Session != idB9C4 || b9c4.ForcedBy != 37 || b9c4.To != "side" || b9c4.At.Before(capAt) || !b9c4.At.Before(limitAt) {
+		t.Errorf("b9c4's move is %+v, want it off work to side, counted in work's cap at 14:58 yesterday, before its limit", b9c4)
+	}
+	files := routerEvents(worlds.now)
+	if len(files) != len(told)+len(autoEvents(worlds.now)) || !files[0].Run.Equal(lastRun(worlds.now)) || !files[len(told)].Run.Equal(routerRun(worlds.now)) {
+		t.Errorf("the files hold %d events, the first of run %v; want the week gone's %d of %v, then the router running's of %v",
+			len(files), files[0].Run, len(told), lastRun(worlds.now), routerRun(worlds.now))
+	}
+	for _, e := range worlds.auto().document(worlds.now).Events {
+		if e.At.Before(routerRun(worlds.now)) {
+			t.Errorf("the router's document tells %+v, from before it started at %v", e, routerRun(worlds.now))
+		}
 	}
 }
 
