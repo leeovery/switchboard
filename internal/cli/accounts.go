@@ -326,18 +326,26 @@ func (a *app) addAccount(cmd *cobra.Command, account config.NewAccount, given ac
 	if !asked && contrary(given, added) {
 		launch.Notice(cmd.ErrOrStderr(), unusedAnswer(given, added))
 	}
-	said := "added " + prose.Quoted(account.Label) + " as " + added.ID + a.inPoolOf(cmd.Context(), account.Pool)
+	in := a.inPoolOf(cmd.Context(), account.Pool)
+	said := "added " + prose.Quoted(account.Label) + " as " + added.ID + in
 	if added.Returning {
 		said += ", an account this Mac had, so its history carries on"
 	}
-	switch {
-	case account.Primary:
-		said += ", the primary"
-	case added.Primary:
-		said += ", the primary there, as the first in it"
-	}
-	_, err = io.WriteString(cmd.OutOrStdout(), said+"\n")
+	_, err = io.WriteString(cmd.OutOrStdout(), said+primarySaid(in, account.Primary, added.Primary)+"\n")
 	return err
+}
+
+// primarySaid says an account added is its pool's primary, where primary
+// says it is: marked so by the caller, as own says, else as the first in its
+// pool, there, where in names the pool, as inPoolOf does; "" where it isn't.
+func primarySaid(in string, own, primary bool) string {
+	switch {
+	case !own && !primary:
+		return ""
+	case own, in == "":
+		return ", the primary"
+	}
+	return ", the primary there, as the first in it"
 }
 
 // accountsPool returns the id of the pool an account added goes in, or one
