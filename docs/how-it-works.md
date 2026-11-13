@@ -966,3 +966,7 @@ session needs it explained. See [`setup`](commands.md#setup).
   or `events`, they print JSON with no flag, as they do anywhere their output isn't a terminal. What
   each command prints is built by the same code that its view on the dashboard draws from. So the
   two never disagree, and nothing a view shows is out of Claude's reach.
+- **Claude reads its own pool:** with [pools](#pools), `SWITCHBOARD_POOL` holds the id of the
+  session's pool, and the skill has Claude pass `--pool "$SWITCHBOARD_POOL"` to those commands and
+  to `pin auto`, so it reads the pool it's working in, named, never one the directory decides.
+  Where it's unset, Claude passes no `--pool`.
