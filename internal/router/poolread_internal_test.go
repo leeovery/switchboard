@@ -764,10 +764,14 @@ func TestAConfigWithNoPoolsIsAnsweredAsBeforeWhateverPoolIsAsked(t *testing.T) {
 	}
 	// Its document gives every event the router keeps, so it tells no ids of
 	// those kept, as before pools.
+	answered := askControl(t, r, http.MethodGet, "/status", "")
+	if body := answered.Body.String(); strings.Contains(body, `"events_kept"`) {
+		t.Errorf("GET /status answered\n%s\nwant no events_kept, as before pools", body)
+	}
 	var doc status.Document
-	decodedOK(t, askControl(t, r, http.MethodGet, "/status", ""), &doc)
-	if len(doc.Events) == 0 || doc.EventsKept != (status.EventsKept{}) {
-		t.Errorf("GET /status gives %d events and the ids kept %+v, want its events and no ids, as before pools", len(doc.Events), doc.EventsKept)
+	decodedOK(t, answered, &doc)
+	if len(doc.Events) == 0 {
+		t.Errorf("GET /status gives no events, want every one the router keeps, as before pools")
 	}
 }
 

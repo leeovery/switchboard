@@ -29,6 +29,11 @@ Graphs tell of every pool's work together, labelled by account.
   it shows as it opened: after a pool or an account is edited with a dashboard open, its events
   read from the files keep the old placements until it's started again. `P`, changing the pool
   shown, starts the view afresh, which is where the read is to follow the config too.
+- **The pools as they stand, held for the run.** The dashboard reads the pools as they stand
+  (`pooledConfig`: the config's, else the router's or the accounts record's) once as it opens, as
+  its read of the events is fixed then: the first pool its ledger gives work in no pool follows the
+  accounts record live, but not a pool added or removed while it's open. `P`'s fresh start is
+  where they're read again.
 
 ## Why it's the second phase's
 
