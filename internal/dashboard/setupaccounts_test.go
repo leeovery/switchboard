@@ -533,3 +533,37 @@ func TestTheTableHeadsEachPool(t *testing.T) {
 		t.Errorf("Acme's directory is in %+v, want muted", got)
 	}
 }
+
+// The table takes the accounts in the review's order, which groups them, a
+// pool's heading wherever the pool changes, and heads each pool with no
+// account alone, in its place among the pools, an account in none before
+// every heading.
+func TestTheTableHeadsEachPoolInTheReviewsOrderEmptyOnesToo(t *testing.T) {
+	review := frame3Review()
+	review.Pools = config.Pools{
+		{ID: "b2n8", Label: "Default"},
+		{ID: "q7mt", Label: "Acme", WrittenDirs: []string{"~/Code/acme"}},
+		{ID: "h4w2", Label: "Client", WrittenDirs: []string{"~/Code/client"}},
+		{ID: "r2d4", Label: "Spare", WrittenDirs: []string{"~/Code/spare"}},
+	}
+	working := setup.TokenStanding{State: setup.TokenWorking}
+	review.Accounts = []setup.Reviewed{
+		{ID: "gone", Label: "Gone", Pool: "z9z9", Token: working},
+		{ID: "work", Label: "Work", Pool: "b2n8", Token: working},
+		{ID: "client1", Label: "Client 1", Pool: "h4w2", Token: working},
+	}
+	c := setupDrawn(accountsScreen(review, 0), 160, 60)
+	var heads []string
+	for y := range 60 {
+		if row := strings.TrimLeft(rowOf(c, y), "▌ "); row != "" && !strings.HasPrefix(row, "ACCOUNT") {
+			heads = append(heads, strings.Fields(row)[0])
+		}
+	}
+	at := slices.Index(heads, "Gone")
+	if at < 0 || len(heads) < at+8 {
+		t.Fatalf("the table reads %q, want it to start at Gone", heads)
+	}
+	if got, want := heads[at:at+8], []string{"Gone", "Default", "Work", "Acme", "Client", "Client", "Spare", "+"}; !slices.Equal(got, want) {
+		t.Errorf("the table reads %q, want %q", got, want)
+	}
+}

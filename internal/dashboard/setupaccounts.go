@@ -212,34 +212,34 @@ type poolHeaded struct {
 }
 
 // laid are the table's rows, as slots from its first, one past another: each
-// account's, by its place in the review, and the slot of + add an account,
-// after the last. Where there are two pools or more, the accounts are
-// grouped by pool, in the review's order, each pool's heading in the slot
-// before its accounts', every pool's, in the config's order, an account in
-// none before them, as the review orders them; the one slot the account
-// chosen first can be, its own, where they're not.
+// account's, in the review's order, which groups them by pool, as
+// setup.Review has it, and the slot of + add an account, after the last.
+// Where there are two pools or more, a pool's heading goes in the slot
+// before its accounts', wherever the pool changes, an account in none
+// heading nothing, and each pool with no account has its heading alone, in
+// its place among the pools, so every pool shows.
 func (t reviewTable) laid() (accounts []int, headings []poolHeaded, add int) {
 	accounts = make([]int, len(t.review.Accounts))
-	if len(t.review.Pools) < 2 {
-		for i := range accounts {
-			accounts[i] = i
-		}
-		return accounts, nil, len(accounts)
-	}
-	slot := 0
-	place := func(in func(setup.Reviewed) bool) {
-		for i, a := range t.review.Accounts {
-			if in(a) {
-				accounts[i] = slot
-				slot++
-			}
-		}
-	}
-	place(func(a setup.Reviewed) bool { return t.review.PoolIndex(a.Pool) < 0 })
-	for _, p := range t.review.Pools {
+	pools := t.review.Pools
+	grouped := len(pools) >= 2
+	slot, headed, last := 0, 0, -1
+	head := func(p config.Pool) {
 		headings = append(headings, poolHeaded{slot: slot, pool: p})
 		slot++
-		place(func(a setup.Reviewed) bool { return strings.EqualFold(a.Pool, p.ID) })
+	}
+	for i, a := range t.review.Accounts {
+		if at := t.review.PoolIndex(a.Pool); grouped && at >= 0 && at != last {
+			for ; headed < at; headed++ {
+				head(pools[headed])
+			}
+			head(pools[at])
+			headed, last = max(headed, at+1), at
+		}
+		accounts[i] = slot
+		slot++
+	}
+	for ; grouped && headed < len(pools); headed++ {
+		head(pools[headed])
 	}
 	return accounts, headings, slot
 }
