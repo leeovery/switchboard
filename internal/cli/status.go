@@ -82,7 +82,7 @@ switchboard service install (or switchboard serve).
 				err = writeJSON(out, doc)
 			} else {
 				m := a.withRemoved(doc).At(a.Now(), claude.Policy())
-				_, err = io.WriteString(out, a.unrouted()+a.poolHeading(doc)+m.Text(a.running(cmd.Context(), m)...))
+				_, err = io.WriteString(out, a.unrouted()+a.poolHeading(m)+m.Text(a.running(cmd.Context(), m)...))
 			}
 			return cmp.Or(err, unread)
 		},
@@ -95,15 +95,15 @@ switchboard service install (or switchboard serve).
 	return cmd
 }
 
-// poolHeading names the pool the document is of, in a paragraph of a line,
+// poolHeading names the pool the moment is of, in a paragraph of a line,
 // as poolNamed names it: "" where the config has one pool or none, or can't
 // be loaded, as where the router's document is printed in its place.
-func (a *app) poolHeading(doc status.Document) string {
+func (a *app) poolHeading(m status.Moment) string {
 	cfg, err := a.loadConfig()
 	if err != nil {
 		return ""
 	}
-	if named := poolNamed(cfg.Pools, doc.PoolLabel); named != "" {
+	if named := poolNamed(cfg.Pools, m.PoolLabel); named != "" {
 		return named + "\n\n"
 	}
 	return ""

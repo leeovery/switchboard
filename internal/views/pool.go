@@ -71,7 +71,7 @@ func (d poolDays) Days(from time.Time) []ledger.Summary {
 	for i, s := range days {
 		s = s.InPool(d.read.ID, d.read.First)
 		s.Accounts = slices.DeleteFunc(s.Accounts, func(a ledger.AccountDay) bool {
-			return a.Work.Idle() && (a.Account == "" || !d.read.In(a.Account))
+			return a.Idle() && (a.Account == "" || !d.read.In(a.Account))
 		})
 		days[i] = s
 	}

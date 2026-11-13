@@ -458,8 +458,8 @@ func TestAnAccountsDayInEachPoolIsPricedAsTheWholeIsAndLabelledAsItsReaderNamesI
 		return ledger.ModelDay{Model: "claude-opus-5-5", Upstream: upstream, Sessions: 1, Usage: spent}
 	}
 	summary := ledger.Summary{Version: 7, Day: date, Lines: 2, Accounts: []ledger.AccountDay{{
-		Account: "work", Work: ledger.Work{Sessions: 2, Models: []ledger.ModelDay{opus(2)}},
-		Pools: []ledger.PoolDay{{Pool: "b2n8", Work: ledger.Work{Sessions: 1, Models: []ledger.ModelDay{opus(1)}}}, {Pool: "q7mt", Work: ledger.Work{Sessions: 1, Models: []ledger.ModelDay{opus(1)}}}},
+		Account: "work", Sessions: 2, Models: []ledger.ModelDay{opus(2)},
+		Pools: []ledger.PoolDay{{Pool: "b2n8", Sessions: 1, Models: []ledger.ModelDay{opus(1)}}, {Pool: "q7mt", Sessions: 1, Models: []ledger.ModelDay{opus(1)}}},
 	}}}
 	label := func(pool string) string { return map[string]string{"b2n8": "Default", "q7mt": "Acme"}[pool] }
 
