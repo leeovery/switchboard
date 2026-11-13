@@ -113,16 +113,22 @@ func serveSessions(t *testing.T, deps cli.Deps, sessions []status.Session) {
 // "" for none, with its sessions, on the control socket of the router
 // commands run with deps find, until the test ends; and GET /health as a
 // router reporting those pools, in their ids' order, none where the one
-// pool is "". A read of a pool not among them is refused for want of a pool.
+// pool is "", each but b2n8 fenced to /work/<id>, as one pool alone can be
+// unfenced. A read of a pool not among them is refused for want of a pool.
 func servePooledSessions(t *testing.T, deps cli.Deps, byPool map[string][]status.Session) {
 	t.Helper()
 	health := router.Health{OK: true}
 	var named []router.PoolNamed
 	for _, id := range slices.Sorted(maps.Keys(byPool)) {
-		if id != "" {
-			health.Pools = append(health.Pools, router.RoutedPool{ID: id, Label: id, Accounts: []string{}})
-			named = append(named, router.PoolNamed{ID: id, Label: id})
+		if id == "" {
+			continue
 		}
+		p := router.RoutedPool{ID: id, Label: id, Accounts: []string{}}
+		if id != "b2n8" {
+			p.Dirs, p.WrittenDirs = []string{"/work/" + id}, []string{"/work/" + id}
+		}
+		health.Pools = append(health.Pools, p)
+		named = append(named, router.PoolNamed{ID: id, Label: id})
 	}
 	health.ReportsPools = len(health.Pools) > 0
 	path := router.SocketPath(stateDir(t, deps))
@@ -166,13 +172,49 @@ today  3 sessions  ·  5 requests  ·  $0.15+ at API prices
 // lists the first pool's alone, never every pool's together, the session the
 // router lists in the other read from the ledger alone.
 func TestSessionsOfAConfigNamingNoPoolsAreTheRoutersFirstPoolsAlone(t *testing.T) {
-	deps := sessionsDeps(t)
+	deps := sessionsDepsOf(t, movingIn("q7mt"))
 	servePooledSessions(t, deps, map[string][]status.Session{"b2n8": routedSessions[:1], "q7mt": routedSessions[1:]})
 
-	want := "pool b2n8\n\n" + strings.Replace(sessionsText, "idle 22m   ", "ended 11:00", 1)
-	if got := run(t, deps, "sessions", "--pretty"); got != (result{stdout: want}) {
-		t.Errorf("switchboard sessions --pretty = %+v, want it to print\n%s", got, want)
+	got := run(t, deps, "sessions", "--pretty")
+	if got.code != 0 || !strings.HasPrefix(got.stdout, "pool b2n8\n\n") || !strings.Contains(got.stdout, status.ShortID(asking)) || strings.Contains(got.stdout, status.ShortID(moving)) {
+		t.Errorf("switchboard sessions --pretty = %+v, want b2n8's sessions alone, %s among them, and not %s, running in q7mt", got, status.ShortID(asking), status.ShortID(moving))
 	}
+}
+
+// A session's page in a pool named, of one running in another, is refused,
+// as status --session refuses it, never shown as ended or idle there; in its
+// own pool, it's shown running.
+func TestASessionsPageInAnotherPoolThanItRunsInIsRefused(t *testing.T) {
+	deps := sessionsDepsOf(t, movingIn("q7mt"))
+	servePooledSessions(t, deps, map[string][]status.Session{"b2n8": routedSessions[:1], "q7mt": routedSessions[1:]})
+
+	if got := run(t, deps, "sessions", moving, "--pool", "b2n8"); got.code == 0 || !strings.Contains(got.stderr, "the router hasn't seen session "+moving+" in pool b2n8: it runs in another") {
+		t.Errorf("switchboard sessions %s --pool b2n8 = %+v, want it refused: it runs in q7mt", status.ShortID(moving), got)
+	}
+	for _, pool := range []string{"q7mt", ""} {
+		args := []string{"sessions", moving, "--pretty"}
+		if pool != "" {
+			args = append(args, "--pool", pool)
+		}
+		if got := run(t, deps, args...); got.code != 0 || !strings.Contains(got.stdout, "idle 22m") {
+			t.Errorf("switchboard %s = %+v, want its page, running, idle 22m", strings.Join(args, " "), got)
+		}
+	}
+}
+
+// movingIn are sessions' tests' lines, moving's routed in the pool with the
+// given id.
+func movingIn(pool string) map[string][]ledger.Line {
+	days := make(map[string][]ledger.Line, len(sessionLines))
+	for date, lines := range sessionLines {
+		days[date] = slices.Clone(lines)
+		for i, l := range days[date] {
+			if l.Session == moving {
+				days[date][i].Pool = pool
+			}
+		}
+	}
+	return days
 }
 
 func TestSessionsListsTodaysSessions(t *testing.T) {

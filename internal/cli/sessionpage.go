@@ -12,6 +12,7 @@ import (
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/redact"
+	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -42,6 +43,9 @@ func (a *app) sessionPage(ctx context.Context, out, errOut io.Writer, given, poo
 	if named.Several != nil {
 		return several(given, named.Several)
 	}
+	if err := a.runsElsewhere(ctx, pool, running, unlisted, named.ID); err != nil {
+		return err
+	}
 	page, ok := views.SessionPageOf(named.ID, views.PageSources{
 		Routed:   views.Routed(running, named.ID),
 		Unlisted: unlisted,
@@ -60,11 +64,6 @@ func (a *app) sessionPage(ctx context.Context, out, errOut io.Writer, given, poo
 	return writeSessionPage(out, page, now)
 }
 
-// writeSessionPage writes p as a session's page's text, at now: its id cut
-// short and its directory; what it's doing, where it runs and why, and when
-// it started; its models, while it runs, else how long its lines are kept;
-// the accounts it ran on, a row each; and its totals, then its turns, a row
-// each, newest first; each account named as the page names it.
 // sessionsPool returns the id of the pool a session given is looked for in,
 // named or not: "" for whatever pool it's in, where none is named, and in a
 // config with no pools; else the one named, as filedPool has it of cfg, of
@@ -77,6 +76,33 @@ func (a *app) sessionsPool(ctx context.Context, cfg *config.Config, dir, named s
 	return pool.ID, err
 }
 
+// runsElsewhere fails where the session with the given id, looked for in the
+// pool with the id pool, isn't among those the router lists running there,
+// running, but is among those it lists in every pool, so its page isn't
+// shown as ended or idle there: as findSession refuses a session the router
+// hasn't seen in the pool named. It's nil where no pool is named, and where
+// the router can't say, as unlisted says, or lists it nowhere, the page
+// then the ledger's.
+func (a *app) runsElsewhere(ctx context.Context, pool string, running []status.Session, unlisted bool, id string) error {
+	if pool == "" || unlisted || views.Routed(running, id) != nil {
+		return nil
+	}
+	every, err := a.routerSessions(ctx, func(c *router.Client) ([]status.Session, error) { return c.SessionsInEveryPool(ctx) })
+	if err != nil {
+		logger.Debug("can't ask the router its sessions in every pool", "error", err)
+		return nil
+	}
+	if views.Routed(every, id) == nil {
+		return nil
+	}
+	return fmt.Errorf("%w %s in pool %s: it runs in another; name that one with --pool, or none", router.ErrUnknownSession, redact.Text(id), prose.Clean(pool))
+}
+
+// writeSessionPage writes p as a session's page's text, at now: its id cut
+// short and its directory; what it's doing, where it runs and why, and when
+// it started; its models, while it runs, else how long its lines are kept;
+// the accounts it ran on, a row each; and its totals, then its turns, a row
+// each, newest first; each account named as the page names it.
 func writeSessionPage(out io.Writer, p views.SessionPage, now time.Time) error {
 	heading := "session " + status.ShortID(prose.Clean(p.Session))
 	if p.Dir != "" {
