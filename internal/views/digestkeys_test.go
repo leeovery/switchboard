@@ -41,14 +41,15 @@ var storedAs = map[string]string{
 
 // rawAs are the types a digest's or a day head's JSON holds in the fields
 // its stored forms declare as JSON of another's, by the field: an entry's
-// state, the views' body, a stored session; what that carries of its page;
-// a day head's side, a list of the views' stored sessions of the day; and
-// each of its chunks' meta.
+// state and each of its states apart, the views' body, a stored session;
+// what that carries of its page; a day head's side, a list of the views'
+// stored sessions of the day; and each of its chunks' meta.
 var rawAs = map[storedKey]string{
-	{of: "ledger.storedEntry", key: "state"}:  "views.storedSession",
-	{of: "views.storedSession", key: "p"}:     "views.storedPage",
-	{of: "ledger.storedDayHead", key: "side"}: "[]views.storedDaySession",
-	{of: "ledger.storedChunk", key: "meta"}:   "views.storedChunkMeta",
+	{of: "ledger.storedEntry", key: "state"}:     "views.storedSession",
+	{of: "ledger.storedPoolState", key: "state"}: "views.storedSession",
+	{of: "views.storedSession", key: "p"}:        "views.storedPage",
+	{of: "ledger.storedDayHead", key: "side"}:    "[]views.storedDaySession",
+	{of: "ledger.storedChunk", key: "meta"}:      "views.storedChunkMeta",
 }
 
 // unwritten are the keys a stored form declares that the golden can't hold,
