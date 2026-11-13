@@ -828,6 +828,21 @@ func TestAnAccountTakenOutIsNamedAndTheLedgerMadeOnTheConfigReadsCaps(t *testing
 	}
 }
 
+// A re-read finding the ledger's grounds changed alone, every account and
+// pool placed as it was, as the first pool's moved in the accounts record,
+// starts the pool shown afresh on a ledger made on the new grounds.
+func TestTheLedgersGroundsChangedAloneStartThePoolShownAfresh(t *testing.T) {
+	h, _, pools := pooledHarness(t, acmeAccounts)
+	h.start()
+	turns := h.model.poolTurns
+	pools.changeConfig(func(p *poolTurns) { p.grounds = ledger.Grounds{First: "q7mt"} })
+	h.deliver(h.press("R")...)
+	if m := h.model; m.poolTurns != turns+1 || pools.made != 1 || !m.cfg.LedgerGrounds.Same(pools.grounds) {
+		t.Errorf("the first pool changed alone, the pool shown started afresh %v, %d ledgers made, the one in use on the new grounds %v; want afresh, one made on them",
+			m.poolTurns != turns, pools.made, m.cfg.LedgerGrounds.Same(pools.grounds))
+	}
+}
+
 // A turn on the grounds the ledger in use was made on keeps it, and what it
 // holds of the days read: P to another pool, and a change to the config
 // that leaves every cap and the first pool as they were, make none.

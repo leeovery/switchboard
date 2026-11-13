@@ -30,7 +30,9 @@ import (
 // accounts removed, as Config's Removed, so nothing the dashboard works out
 // of the config is of one gone. NewLedger is called only where the ledger in
 // use was made on other grounds, as freshIn has it: one made at every turn
-// would read today's lines and the summaries cold.
+// would read today's lines and the summaries cold. It's required wherever
+// Grounds is set, as Turn gives them: only a Pooled whose grounds are those
+// of the ledger in use may leave it nil.
 type Pooled struct {
 	Pool      status.ShownPool
 	Accounts  config.Accounts
