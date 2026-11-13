@@ -96,6 +96,14 @@ type nineDays struct {
 // each rests on its state of the day before that.
 func newNineDays(t *testing.T, ids []string, leftOut ...string) nineDays {
 	t.Helper()
+	return newRoutedNineDays(t, ids, func(*ledger.Line, int) {}, leftOut...)
+}
+
+// newRoutedNineDays returns the nine days as newNineDays has them, each
+// line as route has it of its day, recording the pool it routes it in, the
+// nine days the first nine, the day after them the tenth.
+func newRoutedNineDays(t *testing.T, ids []string, route func(l *ledger.Line, day int), leftOut ...string) nineDays {
+	t.Helper()
 	first, today := Today(foldDays[0]), Today(dayfile.DayStart(foldDays[0], 9))
 	var lines []ledger.Line
 	for i, id := range ids {
@@ -105,9 +113,10 @@ func newNineDays(t *testing.T, ids []string, leftOut ...string) nineDays {
 		lines = append(lines, dayAfterDay(session, 9)...)
 		lines = append(lines, early)
 	}
-	r := rand.New(rand.NewPCG(9, 9))
+	r, dates := rand.New(rand.NewPCG(9, 9)), dayfile.Span(first.Start, today.Start)
 	for i := range lines {
 		limitedOf(&lines[i], r, time.Time{})
+		route(&lines[i], slices.Index(dates, dayfile.DateOf(lines[i].At)))
 	}
 	slices.SortStableFunc(lines, func(a, b ledger.Line) int { return ended(&a).Compare(ended(&b)) })
 	c := newDigestChain(t, "nine days", 0, lines)

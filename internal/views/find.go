@@ -60,8 +60,8 @@ func DaySessionsOn(l Ledger, date string, p PoolRead) []DaySession {
 type daySessions map[string]*daySession
 
 // daySession is a session of a day's lines as they're folded: as DaySession
-// has it; and the pools they recorded, as recordingPool keeps them, "" of
-// those that named none, as a day's side holds them for a pool's read.
+// has it; and the pools they recorded, as ledger.RecordingPool keeps them,
+// "" of those that named none, as a day's side holds them for a pool's read.
 type daySession struct {
 	DaySession
 	pools []string
@@ -87,7 +87,7 @@ func (d daySessions) take(r *lineRecord) {
 	if r.dir != "" {
 		s.Dir = r.dir
 	}
-	s.pools = recordingPool(s.pools, r.pool)
+	s.pools = ledger.RecordingPool(s.pools, r.pool)
 }
 
 // folded are the sessions taken in, the last to arrive first, as
@@ -114,10 +114,10 @@ func (d daySessions) sessions() []DaySession {
 // storedDaySession is a session of a day's lines as a day's side stores it,
 // the side a list of them in DaySessions' order: when its last line arrived
 // as nanoseconds since the Unix epoch, restored in UTC, as the ledger writes
-// a line's time; and the pools its lines recorded, as storedPools stores
-// them; zeros left out. A day's head holds its bounds so too, and stands
-// only where they're the day's, so no time a side holds is beyond the years
-// nanoseconds since the epoch hold.
+// a line's time; and the pools its lines recorded, as ledger.StoredPools
+// stores them; zeros left out. A day's head holds its bounds so too, and
+// stands only where they're the day's, so no time a side holds is beyond
+// the years nanoseconds since the epoch hold.
 type storedDaySession struct {
 	ID    string   `json:"id"`
 	Dir   string   `json:"dir,omitzero"`
@@ -128,7 +128,7 @@ type storedDaySession struct {
 
 // stored is s as a day's side stores it.
 func (s daySession) stored() storedDaySession {
-	stored := storedDaySession{ID: s.ID, Dir: s.Dir, Lines: s.Lines, Pools: storedPools(s.pools)}
+	stored := storedDaySession{ID: s.ID, Dir: s.Dir, Lines: s.Lines, Pools: ledger.StoredPools(s.pools)}
 	if !s.Last.IsZero() {
 		stored.Last = s.Last.UnixNano()
 	}
@@ -172,7 +172,7 @@ func daySessionsIn(side json.RawMessage, p PoolRead) ([]DaySession, error) {
 	}
 	sessions := make([]DaySession, 0, len(stored))
 	for _, s := range stored {
-		switch some, all := p.keepsOf(recordedPools(s.Pools)); {
+		switch some, all := p.keepsOf(ledger.RecordedPools(s.Pools)); {
 		case !some:
 			continue
 		case !all:
