@@ -130,6 +130,8 @@ func probedLine(m status.Moment) statusLine {
 		why = " · router not running"
 	case status.RouterUnhealthy:
 		why = " · " + because("router unhealthy", m.Fallback.Reason)
+	case status.RouterBeforePools:
+		why = " · router started before pools"
 	}
 	return statusLine{state: line{{"○ probed" + why, dimInk}}, short: line{{"○ probed", dimInk}}}
 }

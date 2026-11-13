@@ -178,7 +178,10 @@ func TestPinAutoClearsThePinOfThePoolNamedElseOfTheOneTheVerbsActOn(t *testing.T
 		{args: []string{"pin", "side"}, said: "new sessions in pool Default go to side · Side\n", acme: []string{"work"}, dflt: []string{"side"}},
 		{args: []string{"pin", "auto"}, said: "routing automatically in pool Default\n", acme: []string{"work"}},
 		{args: []string{"pin", "side"}, said: "new sessions in pool Default go to side · Side\n", acme: []string{"work"}, dflt: []string{"side"}},
+		{args: []string{"pin", "side", "--force"}, said: "new sessions in pool Default go to side · Side, the own pin of every session in pool Default cleared\n",
+			acme: []string{"work"}, dflt: []string{"side"}},
 		{args: []string{"pin", "auto", "--pool", "q7mt"}, said: "routing automatically in pool Acme\n", dflt: []string{"side"}},
+		{args: []string{"pin", "auto", "--force"}, said: "routing automatically in pool Default, the own pin of every session in pool Default cleared\n"},
 	}
 	for _, step := range steps {
 		if got := run(t, srv.deps, step.args...); got != (result{stdout: step.said}) {

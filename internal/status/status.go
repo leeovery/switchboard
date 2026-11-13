@@ -37,7 +37,30 @@ const (
 	RouterNotRunning = "not running"
 	// RouterUnhealthy is something answering there, but not as a router does.
 	RouterUnhealthy = "unhealthy"
+	// RouterBeforePools is a router answering that routes by no pools where
+	// the config has them, as BeforePools says: one from before pools, still
+	// running till its restart, whose document and sessions are every
+	// account's, never a pool's, so neither is read as one.
+	RouterBeforePools = "before pools"
 )
+
+// BeforePoolsSaid says why a router from before pools, as BeforePools has
+// it, isn't read as a pool's, nor asked to act on one, and what to do; and
+// StartedBeforePools says so short, for the dashboard, whose LATELY and
+// refusals say it where a phone's key line has room for no more.
+const (
+	BeforePoolsSaid    = "the router doesn't route by pools yet, as it started before them: restart it with switchboard service restart"
+	StartedBeforePools = "the router started before pools: restart it"
+)
+
+// BeforePools reports whether a router answering, reporting the pools it
+// routes by or not as reportsPools says, is one from before pools where the
+// config has pools, as pools gives them as they stand, asked only of a
+// router that reports none. A config without pools reads such a router as
+// it always has.
+func BeforePools(reportsPools bool, pools func() config.Pools) bool {
+	return !reportsPools && len(pools()) > 0
+}
 
 // What a move the history makes once does, or waits on, as a Moving's Stage
 // says.
@@ -356,10 +379,21 @@ func (e Event) Same(o Event) bool {
 // Fallback is why a document was built by probing though the router was
 // asked for its own first.
 type Fallback struct {
-	// Router is how the router was found: RouterNotRunning or RouterUnhealthy.
+	// Router is how the router was found: RouterNotRunning, RouterUnhealthy
+	// or RouterBeforePools.
 	Router string `json:"router"`
 	// Reason says what was wrong with its answer, when it answered.
 	Reason string `json:"reason,omitempty"`
+}
+
+// Refusal is why the router, found as f has it while it isn't read, can't
+// be given the dashboard's order: ErrStartedBeforePools for a router from
+// before pools, which answers, else ErrNoRouter.
+func (f Fallback) Refusal() error {
+	if f.Router == RouterBeforePools {
+		return ErrStartedBeforePools
+	}
+	return ErrNoRouter
 }
 
 // Health is how the router has fared with the requests it routed over the

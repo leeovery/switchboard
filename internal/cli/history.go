@@ -72,6 +72,8 @@ It shows one pool's history: its work as each request recorded its pool at
 the time, work from before pools the first pool's, and the windows, plans
 and weeks of the accounts in it now. ` + readingAPool + `
 
+` + readingAKeptPool + `
+
 On a terminal, history prints its days as text. Anywhere else, as in a pipe
 or an agent's shell, it prints as JSON the summaries of the days asked for, as
 the ledger holds them, from the first it holds, so the last is today's, each
@@ -149,11 +151,11 @@ func (a *app) history(ctx context.Context, out io.Writer, given, pool string, as
 	}
 	prices := pricing(asked.cfg)
 	reader := a.ledgerReader(asked.stateDir, asked.cfg, func() time.Time { return asked.now })
-	removed := removedIn(asked.stateDir, asked.cfg)
+	removed, record := removedIn(asked.stateDir, asked.cfg), recordIn(asked.stateDir)
 	history := views.NewHistory(views.HistoryInput{
 		Ledger: asked.pool.read.Days(reader), From: asked.from, Now: asked.now, Prices: prices, Accounts: asked.accounts(), Removed: removed,
 		WeekStarts: asked.cfg.WeekStarts, WeekWindow: claude.WeekWindow, Family: claude.Provider{}.Family,
-		PoolLabel: poolLabelsIn(asked.stateDir, asked.cfg), OnePool: len(asked.cfg.Pools) > 1,
+		PoolLabel: status.PoolLabels(asked.cfg.Pools, record), OnePool: status.ManyPoolsFiled(asked.cfg.Pools, record),
 	})
 	if asJSON {
 		return writeJSON(out, historyDocument{PricesAsOf: prices.AsOf, PricesFromConfig: prices.Overridden, History: history})

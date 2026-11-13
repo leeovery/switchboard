@@ -309,7 +309,7 @@ func TestCheckNew(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			w := newWorld(t, tt.config)
 
-			err := w.registry(&user{}, &fakeAPI{}).CheckNew(config.NewAccount{Label: tt.label})
+			_, err := w.registry(&user{}, &fakeAPI{}).CheckNew(config.NewAccount{Label: tt.label})
 			if !errors.Is(err, tt.wantErr) || (err == nil) != (tt.wantErr == nil) {
 				t.Errorf("CheckNew() error = %v, want %v", err, tt.wantErr)
 			}

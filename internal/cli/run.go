@@ -16,6 +16,7 @@ import (
 	"github.com/leeovery/switchboard/internal/idmove"
 	"github.com/leeovery/switchboard/internal/launch"
 	"github.com/leeovery/switchboard/internal/router"
+	"github.com/leeovery/switchboard/internal/status"
 )
 
 // runOptions are the run command's flags.
@@ -243,20 +244,36 @@ func (a *app) routersPools(ctx context.Context) (config.Pools, bool) {
 	return launch.RoutedPools(a.routersHealth(ctx))
 }
 
-// routersHealth returns the running router's health answer, asked once:
-// zero where it can't be asked, or doesn't answer.
+// routersHealth returns the running router's health answer, asked once, as
+// askHealth asks: zero where it can't be asked, or doesn't answer.
 func (a *app) routersHealth(ctx context.Context) router.Health {
-	client, err := a.routerClient()
-	if err != nil {
-		return router.Health{}
-	}
-	patience := launch.Patience{Answer: cmp.Or(a.Patience.Answer, launch.AskTimeout)}
-	h, err := patience.Ask(ctx, client)
+	h, err := a.askHealth(ctx)
 	if err != nil {
 		logger.Debug("can't ask the router for its pools", "error", err)
 		return router.Health{}
 	}
 	return h
+}
+
+// askHealth asks the running router's health check once, as patiently as run
+// does, failing where it can't be asked, or doesn't answer.
+func (a *app) askHealth(ctx context.Context) (router.Health, error) {
+	client, err := a.routerClient()
+	if err != nil {
+		return router.Health{}, err
+	}
+	patience := launch.Patience{Answer: cmp.Or(a.Patience.Answer, launch.AskTimeout)}
+	return patience.Ask(ctx, client)
+}
+
+// routerBeforePools reports whether the router answering its health check,
+// as askHealth asks it, is one from before pools, as status.BeforePools has
+// it of the config's pools as poolsStanding gives them: so a verb asks it
+// nothing of a pool's, as usageSource reads none of its documents as one.
+// It's false where the router doesn't answer, so the verb fails as it would.
+func (a *app) routerBeforePools(ctx context.Context) bool {
+	h, err := a.askHealth(ctx)
+	return err == nil && status.BeforePools(h.ReportsPools, func() config.Pools { return a.poolsStanding(ctx) })
 }
 
 // poolsMoved reports whether the move to pools is done, as idmove's mark in

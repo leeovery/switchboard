@@ -237,6 +237,8 @@ func (d Document) origin() string {
 		return "probed directly: the router isn't running"
 	case RouterUnhealthy:
 		return "probed directly: " + because("the router is unhealthy", d.Fallback.Reason)
+	case RouterBeforePools:
+		return "probed directly: " + BeforePoolsSaid
 	default:
 		return "probed directly"
 	}

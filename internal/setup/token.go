@@ -557,7 +557,8 @@ func (s *Setup) takes(f TokenFor) (*config.Config, error) {
 	cfg, id := draft.Config(), f.Account.ID
 	switch {
 	case f.Add:
-		return cfg, s.Accounts.CheckNew(f.Account)
+		_, err := s.Accounts.CheckNew(f.Account)
+		return cfg, err
 	case cfg == nil || !slices.Contains(cfg.Accounts.IDs(), id):
 		return nil, config.NotConfigured(id)
 	}

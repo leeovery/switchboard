@@ -257,32 +257,71 @@ func TestHistoryShowsThePoolsWorkAsRecordedAndNamesItsPoolByIDAndLabel(t *testin
 	}
 }
 
+// A pin cleared with force in a pool of several cleared the own pins of that
+// pool's sessions alone, so events names the pool, as it still does once the
+// other is removed, the files holding the work of both; where there never
+// was another pool, it says every session's.
+func TestEventsNameThePoolAForcedPinClearedTheOwnPinsOf(t *testing.T) {
+	deps := pooledDeps(t, false)
+	fileEvent(t, deps, "2026-10-07", eventLine(runOne, 6, status.Event{At: october(7, 12, 30, 0), Kind: status.EventAuto, Accounts: []string{"work"}, Pool: "q7mt", Force: true, By: "cli"}))
+	fileEvent(t, deps, "2026-10-07", eventLine(runOne, 7, status.Event{At: october(7, 12, 40, 0), Kind: status.EventAuto, Accounts: []string{"side"}, Pool: "b2n8", Force: true, By: "cli"}))
+	const (
+		inAcme    = "new sessions back from Work to the router's choice, the own pins of pool Acme's sessions cleared too, set from the command line"
+		inDefault = "new sessions back from Side to the router's choice, the own pins of pool Default's sessions cleared too, set from the command line"
+		everyOne  = "new sessions back from Side to the router's choice, every session's own pin cleared too, set from the command line"
+	)
+	checkSaid := func(when string, args []string, want string) {
+		t.Helper()
+		got := run(t, deps, append(args, "--pretty")...)
+		if got.code != 0 || !strings.Contains(got.stdout, want) {
+			t.Errorf("switchboard %s %s = %+v, want it to say %q", strings.Join(args, " "), when, got, want)
+		}
+	}
+	checkSaid("with two pools", []string{"events", "--pool", "q7mt"}, inAcme)
+	checkSaid("with two pools", []string{"events"}, inDefault)
+
+	onePoolLeft(t, deps, acmeRemovedEntry)
+	checkSaid("once Acme is removed", []string{"events", "--pool", "q7mt"}, inAcme)
+	checkSaid("once Acme is removed", []string{"events"}, inDefault)
+
+	onePoolLeft(t, deps)
+	checkSaid("where there never was another pool", []string{"events"}, everyOne)
+}
+
+// acmeRemovedEntry is Acme as the accounts record keeps it once it's
+// removed, as this Mac's config last wrote it.
+var acmeRemovedEntry = identity.PoolEntry{ID: "q7mt", Label: "Acme", Added: testNow, Removed: testNow, Written: identity.PoolWritten{Label: "Acme", PrimaryKnown: true}}
+
+// onePoolLeft configures pooledDeps' deps with Default alone, every account
+// in it, and has the accounts record keep it, the first pool, and the pools
+// kept beside it.
+func onePoolLeft(t *testing.T, deps cli.Deps, kept ...identity.PoolEntry) {
+	t.Helper()
+	path, err := config.Path(deps.Getenv, deps.HomeDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	onePool := strings.Replace(pooledConfig(false), `pool  = "q7mt"`, `pool  = "b2n8"`, 1)
+	writeStateFile(t, filepath.Dir(path), filepath.Base(path), []byte(onePool[:strings.LastIndex(onePool, "[[pool]]")]))
+	err = identity.NewFile(stateDir(t, deps)).Update(func(r *identity.Record) error {
+		r.Pools = append([]identity.PoolEntry{{ID: "b2n8", Added: testNow, First: true, Here: true}}, kept...)
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
 // A day of one pool of several leaves out its files' lines and bytes, the
 // whole day's, never the pool's.
 func TestHistoryOfOnePoolOfSeveralLeavesOutTheDaysFiles(t *testing.T) {
 	deps := pooledDeps(t, false)
 	for _, args := range [][]string{nil, {"--pool", "q7mt"}} {
-		got := run(t, deps, append([]string{"history", "--json"}, args...)...)
-		var doc struct {
-			Days []map[string]json.RawMessage `json:"days"`
-		}
-		if err := json.Unmarshal([]byte(got.stdout), &doc); err != nil || len(doc.Days) == 0 {
-			t.Fatalf("switchboard history --json %s = %+v (%v), want its days", strings.Join(args, " "), got, err)
-		}
-		for _, d := range doc.Days {
-			if _, lines := d["lines"]; lines {
-				t.Errorf("switchboard history --json %s gave a day its lines, %s, want them left out", strings.Join(args, " "), d["lines"])
-			}
-			if _, bytes := d["bytes"]; bytes {
-				t.Errorf("switchboard history --json %s gave a day its bytes, %s, want them left out", strings.Join(args, " "), d["bytes"])
-			}
-			if _, day := d["day"]; !day {
-				t.Errorf("switchboard history --json %s gave a day without its date: %v", strings.Join(args, " "), d)
-			}
-		}
+		checkDaysFilesLeftOut(t, deps, args)
 	}
 
-	// With one pool, its days are the whole day's, and keep them.
+	// With one pool, its days are the whole day's, and keep them, while
+	// there never was another.
 	path, err := config.Path(deps.Getenv, deps.HomeDir)
 	if err != nil {
 		t.Fatal(err)
@@ -290,9 +329,57 @@ func TestHistoryOfOnePoolOfSeveralLeavesOutTheDaysFiles(t *testing.T) {
 	onePool := strings.Replace(pooledConfig(false), `pool  = "q7mt"`, `pool  = "b2n8"`, 1)
 	onePool = onePool[:strings.LastIndex(onePool, "[[pool]]")]
 	writeStateFile(t, filepath.Dir(path), filepath.Base(path), []byte(onePool))
+	keepPools := func(pools ...identity.PoolEntry) {
+		t.Helper()
+		err := identity.NewFile(stateDir(t, deps)).Update(func(r *identity.Record) error {
+			r.Pools = pools
+			return nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	first := identity.PoolEntry{ID: "b2n8", Added: testNow, First: true, Here: true}
+	keepPools(first)
 	got := run(t, deps, "history", "--json")
 	if !strings.Contains(got.stdout, `"lines": 3`) {
 		t.Errorf("switchboard history --json with one pool = %+v, want its day's lines", got)
+	}
+
+	// Once another was removed, or came in with an import, the days hold
+	// its work too, so even the one pool's leave them out.
+	for _, kept := range []identity.PoolEntry{
+		{ID: "q7mt", Label: "Acme", Added: testNow, Removed: testNow, Written: identity.PoolWritten{Label: "Acme", PrimaryKnown: true}},
+		{ID: "f4xk", Label: "Client", Added: testNow},
+	} {
+		keepPools(first, kept)
+		for _, args := range [][]string{nil, {"--pool", kept.ID}} {
+			checkDaysFilesLeftOut(t, deps, args)
+		}
+	}
+}
+
+// checkDaysFilesLeftOut checks history --json with args gives its days
+// without their files' lines and bytes, each with its date.
+func checkDaysFilesLeftOut(t *testing.T, deps cli.Deps, args []string) {
+	t.Helper()
+	got := run(t, deps, append([]string{"history", "--json"}, args...)...)
+	var doc struct {
+		Days []map[string]json.RawMessage `json:"days"`
+	}
+	if err := json.Unmarshal([]byte(got.stdout), &doc); err != nil || len(doc.Days) == 0 {
+		t.Fatalf("switchboard history --json %s = %+v (%v), want its days", strings.Join(args, " "), got, err)
+	}
+	for _, d := range doc.Days {
+		if _, lines := d["lines"]; lines {
+			t.Errorf("switchboard history --json %s gave a day its lines, %s, want them left out", strings.Join(args, " "), d["lines"])
+		}
+		if _, bytes := d["bytes"]; bytes {
+			t.Errorf("switchboard history --json %s gave a day its bytes, %s, want them left out", strings.Join(args, " "), d["bytes"])
+		}
+		if _, day := d["day"]; !day {
+			t.Errorf("switchboard history --json %s gave a day without its date: %v", strings.Join(args, " "), d)
+		}
 	}
 }
 

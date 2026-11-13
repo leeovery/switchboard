@@ -16,32 +16,36 @@ var (
 )
 
 // CheckNew checks an account to add, its id not yet known, as it would be
-// added to the config file as it stands, writing nothing: its label taken as
-// config takes one, failing with a config.WrongLabel that names no account,
-// or with ErrNoLabel or ErrLabelTaken; and as config.Edit fails.
-func (r Registry) CheckNew(account config.NewAccount) error {
+// added to the config file as it stands, writing nothing, and returns it in
+// the pool it would be added to, as inPool has it: its label taken as config
+// takes one, failing with a config.WrongLabel that names no account, or with
+// ErrNoLabel or ErrLabelTaken; with a PoolNeededError as inPool does; and as
+// config.Edit fails.
+func (r Registry) CheckNew(account config.NewAccount) (config.NewAccount, error) {
 	draft, err := config.Edit(r.ConfigPath, r.HomeDir)
 	if err != nil {
-		return err
+		return config.NewAccount{}, err
 	}
-	_, err = checkNew(draft.Config(), account)
-	return err
+	account, _, err = checkNew(draft.Config(), account)
+	return account, err
 }
 
-// checkNew returns the label of the account to add, as config takes it,
-// failing, as CheckNew says, where it isn't one the account can have, among
-// the accounts cfg configures, nil configuring none.
-func checkNew(cfg *config.Config, account config.NewAccount) (string, error) {
+// checkNew returns the account to add as it would be added among the
+// accounts cfg configures, nil configuring none, in the pool inPool gives it,
+// and its label as config takes it, failing, as CheckNew says, where the
+// label isn't one the account can have, or there's no pool to add it to.
+func checkNew(cfg *config.Config, account config.NewAccount) (config.NewAccount, string, error) {
 	label, err := config.TakeLabel(account.Label)
 	switch {
 	case err != nil:
-		return "", err
+		return config.NewAccount{}, "", err
 	case label == "":
-		return "", ErrNoLabel
+		return config.NewAccount{}, "", ErrNoLabel
 	case labelTaken(cfg, "", label):
-		return "", ErrLabelTaken
+		return config.NewAccount{}, "", ErrLabelTaken
 	}
-	return label, nil
+	account, err = inPool(cfg, account)
+	return account, label, err
 }
 
 // labelTaken reports whether an account cfg configures, but the one with the

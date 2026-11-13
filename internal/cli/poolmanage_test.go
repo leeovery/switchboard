@@ -104,7 +104,7 @@ func TestPoolAddMakesAPoolUnderAnIDSwitchboardMakes(t *testing.T) {
 		said           string
 		dirs           []string
 	}{
-		{name: "fenced", accounts: unfencedBesideFenced, args: []string{"/work/client", "/work/other"}, said: "fenced to /work/client and /work/other", dirs: []string{"/work/client", "/work/other"}},
+		{name: "fenced", accounts: unfencedBesideFenced, args: []string{"/work/client", "/work/other"}, said: "fenced to /work/client and /work/other; sessions running in its directories keep the pool they started in, and its accounts, till they're resumed", dirs: []string{"/work/client", "/work/other"}},
 		{name: "unfenced, where every pool is fenced", accounts: fencedAccounts, said: "unfenced"},
 	}
 	for _, tt := range tests {
@@ -180,7 +180,7 @@ func TestPoolEditChangesALabelAndTheDirectories(t *testing.T) {
 		{name: "the label", accounts: unfencedBesideFenced, args: []string{"--label", "Client"}, said: `edited pool q7mt: label "Client" (was "Acme")`,
 			label: "Client", dirs: []string{"/work/acme"}},
 		{name: "the directories, replaced", accounts: unfencedBesideFenced, args: []string{"--dirs", "/work/client", "--dirs", "/work/other"},
-			said: "edited pool q7mt: fenced to /work/client and /work/other (was fenced to /work/acme)", label: "Acme", dirs: []string{"/work/client", "/work/other"}},
+			said: "edited pool q7mt: fenced to /work/client and /work/other (was fenced to /work/acme); sessions running in its directories keep the pool they started in, and its accounts, till they're resumed", label: "Acme", dirs: []string{"/work/client", "/work/other"}},
 		{name: "unfenced, where every other pool is fenced", accounts: fencedAccounts, args: []string{"--unfence"},
 			said: "edited pool q7mt: unfenced (was fenced to /work/acme)", label: "Acme"},
 		{name: "nothing new", accounts: unfencedBesideFenced, args: []string{"--label", "Acme"}, said: "pool q7mt has every value given already, so nothing changed",
@@ -207,7 +207,7 @@ func TestPoolRemoveRemovesAPoolWithNoAccountsAlone(t *testing.T) {
 	if got := run(t, deps, "pool", "remove", "q7mt"); got.code == 0 || !strings.Contains(got.stderr, "has accounts: move each to another pool, or remove it, first") {
 		t.Errorf("switchboard pool remove q7mt = %+v, want it refused while work is in it", got)
 	}
-	if got, want := run(t, deps, "pool", "remove", "h4w2"), (result{stdout: "removed pool h4w2 (Handed back)\n"}); got != want {
+	if got, want := run(t, deps, "pool", "remove", "h4w2"), (result{stdout: "removed pool h4w2 (Handed back): its history stays, read with --pool h4w2 by requests, history, sessions and events\n"}); got != want {
 		t.Errorf("switchboard pool remove h4w2 = %+v, want %+v", got, want)
 	}
 	if pools := loadPooled(t, path).Pools.IDs(); !slices.Equal(pools, []string{"b2n8", "q7mt"}) {

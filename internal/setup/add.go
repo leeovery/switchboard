@@ -17,17 +17,20 @@ type Adding struct {
 
 // CheckAdding checks the account adding gives as accounts add checks one,
 // against the config as it stands, writing nothing, and gives it as
-// MakeToken adds it: its plan read as config.ParsePlan reads it. It fails
-// with a Refused where the plan isn't one, or the label isn't one the
-// account can have, as accounts.Registry.CheckNew says, and as config.Edit
-// does otherwise.
+// MakeToken adds it: its plan read as config.ParsePlan reads it, in the pool
+// accounts add adds it to without --pool, as accounts.Registry.CheckNew has
+// it. It fails with a Refused where the plan isn't one, or the label isn't
+// one the account can have, as CheckNew says; with CheckNew's
+// accounts.PoolNeededError, before any token is made, where every pool is
+// fenced, as setup doesn't ask for a pool; and as config.Edit does
+// otherwise.
 func (s *Setup) CheckAdding(adding Adding) (config.NewAccount, error) {
 	plan, err := config.ParsePlan(adding.Plan)
 	if err != nil {
 		return config.NewAccount{}, refusedValue(PlanField, err)
 	}
-	account := config.NewAccount{Label: adding.Label, Plan: plan}
-	if err := s.Accounts.CheckNew(account); err != nil {
+	account, err := s.Accounts.CheckNew(config.NewAccount{Label: adding.Label, Plan: plan})
+	if err != nil {
 		return config.NewAccount{}, refusedLabel(err)
 	}
 	return account, nil

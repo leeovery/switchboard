@@ -560,10 +560,17 @@ func TestOneAccountsPinIsClearedFromTheCard(t *testing.T) {
 }
 
 func TestPIsFaintAndSaysWhyWhileTheRouterDoesntAnswer(t *testing.T) {
+	beforePools := func(t *testing.T) *harness {
+		doc := document(three()...)
+		doc.Fallback = status.Fallback{Router: status.RouterBeforePools}
+		return newHarness(t, doc)
+	}
 	tests := []struct {
 		name  string
 		h     func(t *testing.T) *harness
 		after func(h *harness)
+		// why is what the key line says in its place.
+		why error
 	}{
 		{
 			name: "showing the router's last document",
@@ -572,11 +579,19 @@ func TestPIsFaintAndSaysWhyWhileTheRouterDoesntAnswer(t *testing.T) {
 				h.stopRouter()
 				h.tickUntilAsked()
 			},
+			why: status.ErrNoRouter,
 		},
 		{
 			name:  "probing, as the router isn't running",
 			h:     func(t *testing.T) *harness { return newHarness(t, probedWithoutTheRouter()) },
 			after: func(*harness) {},
+			why:   status.ErrNoRouter,
+		},
+		{
+			name:  "probing past a router from before pools",
+			h:     beforePools,
+			after: func(*harness) {},
+			why:   status.ErrStartedBeforePools,
 		},
 	}
 	for _, tt := range tests {
@@ -592,13 +607,48 @@ func TestPIsFaintAndSaysWhyWhileTheRouterDoesntAnswer(t *testing.T) {
 			if h.model.open != nothingOpen {
 				t.Fatal("p opened the routing card, want nothing open")
 			}
-			if got, want := h.keyLine(), status.ErrNoRouter.Error(); got != want {
+			if got, want := h.keyLine(), tt.why.Error(); got != want {
 				t.Errorf("the key line reads %q, want %q in its place", got, want)
 			}
 			if lapse, ok := h.pending(noteMsg{}); !ok || lapse.delay != noteFor {
 				t.Errorf("the note lapses after %v (armed %v), want %v", lapse, ok, noteFor)
 			}
 		})
+	}
+}
+
+// On a phone, p's refusal of a router from before pools keeps what to do.
+func TestPSaysWhatToDoOfARouterFromBeforePoolsOnAPhone(t *testing.T) {
+	doc := document(three()...)
+	doc.Fallback = status.Fallback{Router: status.RouterBeforePools}
+	h := newHarness(t, doc)
+	h.start()
+	h.update(tea.WindowSizeMsg{Width: 73, Height: 61})
+	h.keyed("p")
+	if got := h.keyLine(); !strings.Contains(got, "restart it") {
+		t.Errorf("at 73 columns, the key line reads %q, want it to keep %q", got, "restart it")
+	}
+}
+
+// An order from the routing card, opened while the router answered, is
+// refused in the words of how the router's found by the read after: of a
+// router from before pools, that it started before them.
+func TestAnOpenCardsOrderIsRefusedInTheWordsOfARouterFromBeforePools(t *testing.T) {
+	h := routedHarness(t, routerDocument(three()...))
+	h.start()
+	h.keyed("p")
+	if h.model.open != routingOpen {
+		t.Fatal("p opened no routing card")
+	}
+
+	probed := document(three()...)
+	probed.Fallback = status.Fallback{Router: status.RouterBeforePools}
+	h.stopRouter()
+	h.deliver(fetchedMsg{read: status.Read{Probe: true}, doc: probed})
+	h.keyed("@2 enter")
+	if len(h.source.orders) > 0 || h.model.open != routingOpen || h.card().Refused != status.StartedBeforePools {
+		t.Errorf("enter sent %q, the card open %t, saying %q; want nothing sent, the card open, saying %q",
+			h.source.orders, h.model.open == routingOpen, h.card().Refused, status.StartedBeforePools)
 	}
 }
 

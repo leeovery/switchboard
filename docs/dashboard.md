@@ -39,7 +39,8 @@ This page uses these terms throughout:
 - **Cap:** the point where an account's reserve starts, 1 less its `reserve`. The router passes
   over an account at its cap. See [Reserves](how-it-works.md#reserves).
 - **Pool:** the accounts new sessions can go to now. That's every account on auto, or only the
-  pinned accounts while a global pin holds.
+  pinned accounts while the pin holds. Where the config has [pools](how-it-works.md#pools), the
+  dashboard shows one, and its pool is that pool's.
 - **Pin:** your choice of where sessions go, set with the routing card or with
   [`pin`](commands.md#pin).
 - **The primary:** the account your browser and the Claude apps are signed into. See
@@ -783,7 +784,9 @@ these:
 
 - `● healthy`
 - `■ the router isn't answering  ·  since 14:40:55`, while the router's last view stays on screen
-- `○ probed · router not running`.
+- `○ probed · router not running`
+- `○ probed · router started before pools`, where the config has pools and the router, still
+  running from before them, doesn't route by them: restart it.
 
 Then it says:
 
@@ -812,7 +815,25 @@ The card sits over the page. `j` and `k` scroll it a row, and `PgDn` and `PgUp` 
 terminal, and refuses to run without one. It reads the router while the router answers, and
 otherwise probes each account. Just after the upgrade that made account ids, while the router
 moves the history onto them, it says what the move waits on, a line each time that changes, and
-opens once it's done (see [Upgrading to account ids](how-it-works.md#upgrading-to-account-ids)).
+opens once it's done (see [Upgrading to account ids](how-it-works.md#upgrading-to-account-ids)),
+and the same while it moves the history to pools.
+
+Where the config has [pools](how-it-works.md#pools), the dashboard shows the pool the verbs act on
+without `--pool`: the only pool, else the unfenced one (see
+[Reading a pool](commands.md#reading-a-pool)). `switchboard status --pool <id>` shows the others.
+What it reads from the router is that pool's: its accounts, windows, room, sessions running and
+pin, and the router's events, the Overview's and Runway's LATELY and the Log's Events among them.
+The tabs it builds from the request ledger, the Log's requests, Sessions, a session's page,
+History and Graphs, still tell of every pool's work together, each account by its label, until a
+later release keeps them to the pool shown. It reads the pools as they stand when it opens: start
+it again after you add or remove a pool, or move an account.
+
+Where every pool is fenced, there's no pool the verbs act on, and this release's dashboard takes
+no `--pool` to name one: it reads no pool's accounts. Its status line says it couldn't read usage,
+as every pool is fenced, naming the pools, and tries again at each read; the pages drawn from the
+router's document stay empty, and it reads none of the router's events. The tabs built from the
+request ledger still tell of every pool's work. Read a pool with `switchboard status --pool <id>`
+meanwhile; the dashboard's own `--pool`, in a later release, opens it on the pool named.
 
 ```bash
 switchboard dashboard [interval] [--no-notify] [--probe]

@@ -51,6 +51,8 @@ one from before pools the first pool's. ` + readingAPool + ` A session's or
 an account's requests are found in whatever pool each was routed in, or with
 --pool, in that pool alone.
 
+` + readingAKeptPool + `
+
 On a terminal, requests prints its lines as text. Anywhere else, as in a pipe
 or an agent's shell, it prints each as the ledger holds it, with "schema": 1
 put first, a JSON object a line, for an agent or a script to read. --json

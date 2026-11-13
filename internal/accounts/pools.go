@@ -46,6 +46,46 @@ func (e *UnfencedError) Error() string {
 		poolSaid(e.Unfenced), prose.Clean(e.Unfenced.Label), prose.Clean(e.Unfenced.ID))
 }
 
+// PoolNeededError is what adding an account that names no pool fails with
+// where the config has pools, every one fenced, so there's none the verbs act
+// on to add it to: Pools are those it can go in.
+type PoolNeededError struct {
+	Pools config.Pools
+}
+
+func (e *PoolNeededError) Error() string {
+	named := make([]string, len(e.Pools))
+	for i, p := range e.Pools {
+		named[i] = poolSaid(p)
+	}
+	return "every pool is fenced, so which the account goes in is yours to say: add it with switchboard accounts add <label> --pool <id>, naming " + prose.ListOr(named)
+}
+
+// inPool returns account in the pool it's added to, of those cfg configures,
+// nil configuring none: the one it names, else, where cfg has pools, the one
+// the verbs act on, as config.Pools' Implicit gives it, as accounts add adds
+// one without --pool. It fails, as config.PoolNotConfigured says, where it
+// names one cfg doesn't configure, as in a config without pools, and with a
+// PoolNeededError where it names none and every pool is fenced.
+func inPool(cfg *config.Config, account config.NewAccount) (config.NewAccount, error) {
+	var pools config.Pools
+	if cfg != nil {
+		pools = cfg.Pools
+	}
+	switch _, configured := pools.ByID(account.Pool); {
+	case account.Pool != "" && !configured:
+		return config.NewAccount{}, config.PoolNotConfigured(account.Pool)
+	case account.Pool != "" || len(pools) == 0:
+		return account, nil
+	}
+	p, ok := pools.Implicit()
+	if !ok {
+		return config.NewAccount{}, &PoolNeededError{Pools: pools}
+	}
+	account.Pool = p.ID
+	return account, nil
+}
+
 // poolSaid names a pool by its label and its id, as "Acme (q7mt)".
 func poolSaid(p config.Pool) string {
 	return prose.Clean(p.Label) + " (" + prose.Clean(p.ID) + ")"

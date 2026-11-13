@@ -43,7 +43,7 @@ func (a *app) sessionPage(ctx context.Context, out, errOut io.Writer, given, poo
 	if named.Several != nil {
 		return several(given, named.Several)
 	}
-	if err := a.runsElsewhere(ctx, pool, running, unlisted, named.ID); err != nil {
+	if err := a.runsElsewhere(ctx, pool.ID, running, unlisted, named.ID); err != nil {
 		return err
 	}
 	page, ok := views.SessionPageOf(named.ID, views.PageSources{
@@ -64,16 +64,16 @@ func (a *app) sessionPage(ctx context.Context, out, errOut io.Writer, given, poo
 	return writeSessionPage(out, page, now)
 }
 
-// sessionsPool returns the id of the pool a session given is looked for in,
-// named or not: "" for whatever pool it's in, where none is named, and in a
-// config with no pools; else the one named, as filedPool has it of cfg, of
-// the files in the state directory dir, failing as it does.
-func (a *app) sessionsPool(ctx context.Context, cfg *config.Config, dir, named string) (string, error) {
+// sessionsPool returns the pool a session given is looked for in, named or
+// not: none, for whatever pool it's in, where none is named, and in a config
+// with no pools; else the one named, as filedPool has it of cfg, of the files
+// in the state directory dir, failing as it does.
+func (a *app) sessionsPool(ctx context.Context, cfg *config.Config, dir, named string) (filedPool, error) {
 	if named == "" {
-		return "", nil
+		return filedPool{}, nil
 	}
 	pool, _, err := a.filedPool(ctx, cfg, dir, named)
-	return pool.ID, err
+	return pool, err
 }
 
 // runsElsewhere fails where the session with the given id, looked for in the

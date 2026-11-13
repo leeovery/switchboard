@@ -58,9 +58,83 @@ func PoolLabels(pools config.Pools, record func() identity.Record) func(id strin
 			return p.Label
 		}
 		if p, ok := record().PoolByID(id); ok {
-			return cmp.Or(p.Label, p.Written.Label, id)
+			return keptLabel(p)
 		}
 		return id
+	}
+}
+
+// ManyPoolsFiled reports whether the recorded files may hold the work of
+// more than one pool: where pools, the configured, are more than one, or the
+// accounts record record returns keeps one they don't, removed or another
+// Mac's from an import, record called only where pools are one or none.
+func ManyPoolsFiled(pools config.Pools, record func() identity.Record) bool {
+	if len(pools) > 1 {
+		return true
+	}
+	return slices.ContainsFunc(record().Pools, func(p identity.PoolEntry) bool {
+		_, configured := pools.ByID(p.ID)
+		return !configured
+	})
+}
+
+// keptLabel is the label of a pool the accounts record keeps, as PoolLabels
+// labels one not configured: the label kept of one removed, else the one
+// this Mac's config last wrote, else its id.
+func keptLabel(p identity.PoolEntry) string {
+	return cmp.Or(p.Label, p.Written.Label, p.ID)
+}
+
+// KeptPool is a pool the accounts record keeps that the config doesn't
+// configure: one removed, or one only another Mac configures, as an import
+// joins its record in. The work recorded in it stays under its id, never
+// another pool's, as a removed pool may be a client's. It's kept by its id,
+// its label, as PoolLabels labels it, and whether it was this Mac's, as
+// PoolEntry's Ours says, so removed here, and if so, when, where the record
+// says: never of another Mac's, whose removal there an import carries in.
+type KeptPool struct {
+	ID, Label string
+	Ours      bool
+	Removed   time.Time
+}
+
+// KeptPoolOf returns the pool with the given id, ignoring case, that record
+// keeps and pools, the configured, don't, reporting false where one of pools
+// has the id, or record keeps none with it.
+func KeptPoolOf(record identity.Record, pools config.Pools, id string) (KeptPool, bool) {
+	if _, configured := pools.ByID(id); configured {
+		return KeptPool{}, false
+	}
+	p, ok := record.PoolByID(id)
+	if !ok {
+		return KeptPool{}, false
+	}
+	kept := KeptPool{ID: p.ID, Label: keptLabel(p), Ours: p.Ours()}
+	if kept.Ours {
+		kept.Removed = p.Removed
+	}
+	return kept, true
+}
+
+// Said is the pool as the verbs' text names it, cleaned, marked as one not
+// configured: of one this Mac had, removed, and when, by its local day, where
+// the record says, as RemovedAccount's Said says an account's removal, as
+// "pool Acme (removed 4 Sep)"; else, of another Mac's, as "pool Acme (not
+// configured here)".
+func (p KeptPool) Said() string {
+	return prose.Pool(p.Label) + " (" + p.mark() + ")"
+}
+
+// mark is how Said marks the pool: removed, and when, where it was this
+// Mac's, else not configured here.
+func (p KeptPool) mark() string {
+	switch {
+	case !p.Ours:
+		return "not configured here"
+	case p.Removed.IsZero():
+		return "removed"
+	default:
+		return "removed " + prose.DayMonth(p.Removed.Local())
 	}
 }
 

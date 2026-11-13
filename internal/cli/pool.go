@@ -149,7 +149,8 @@ directories overlap.
 
 A pool made has no accounts: a session started in its directories refuses to
 launch until one is added to it, with accounts add --pool or accounts edit
---pool.
+--pool. A session already running in its directories keeps the pool it
+started in, and that pool's accounts, till it's resumed.
 
 ` + editingTheConfig,
 		Args: func(_ *cobra.Command, args []string) error {
@@ -172,22 +173,34 @@ launch until one is added to it, with accounts add --pool or accounts edit
 	}
 }
 
-// fenceSaid says where a pool is fenced: "fenced to ~/Code/acme", or
-// "unfenced".
 // poolAddedSays writes to out that the pool added was, by its label and the
-// id switchboard made for it, fenced or not as fenceSaid says.
+// id switchboard made for it, fenced or not as fenceSaid says, and of one
+// fenced, that the sessions running in its directories keep the pool they
+// started in till they're resumed, as runningKeepTheirPool says.
 func poolAddedSays(out io.Writer, added config.Pool) error {
-	_, err := fmt.Fprintf(out, "added pool %s as %s, %s\n", prose.Quoted(prose.Clean(added.Label)), added.ID, fenceSaid(added))
+	var running string
+	if added.Fenced() {
+		running = "; " + runningKeepTheirPool
+	}
+	_, err := fmt.Fprintf(out, "added pool %s as %s, %s%s\n", prose.Quoted(prose.Clean(added.Label)), added.ID, fenceSaid(added), running)
 	return err
 }
+
+// runningKeepTheirPool says that the sessions running in directories a fence
+// takes in keep the pool they started in, as a session's pool is decided as
+// it starts: their work goes on that pool's accounts till they're resumed.
+const runningKeepTheirPool = "sessions running in its directories keep the pool they started in, and its accounts, till they're resumed"
 
 // poolRemovedSays writes to out that the pool removed was, by its id and
-// label.
+// label, and that its history stays, read by its id.
 func poolRemovedSays(out io.Writer, removed config.Pool) error {
-	_, err := fmt.Fprintf(out, "removed pool %s (%s)\n", removed.ID, prose.Clean(removed.Label))
+	_, err := fmt.Fprintf(out, "removed pool %s (%s): its history stays, read with --pool %s by requests, history, sessions and events\n",
+		removed.ID, prose.Clean(removed.Label), removed.ID)
 	return err
 }
 
+// fenceSaid says where a pool is fenced: "fenced to ~/Code/acme", or
+// "unfenced".
 func fenceSaid(p config.Pool) string {
 	if !p.Fenced() {
 		return "unfenced"
@@ -220,8 +233,9 @@ already, nothing is written.
 given, each an absolute path or one starting ~/. --unfence takes them out,
 leaving it the unfenced pool, which is refused where another is already,
 saying which. Directories the config writes across lines can't be changed in
-place: edit them by hand. A session running keeps the pool it started in
-till it's resumed.
+place: edit them by hand. A session running keeps the pool it started in,
+and that pool's accounts, till it's resumed, even in directories the pool's
+new fence takes in.
 
 ` + editingTheConfig,
 		Args: func(_ *cobra.Command, args []string) error {
@@ -280,7 +294,9 @@ func poolChangeOf(given func(name string) bool, label string, dirs []string, unf
 }
 
 // poolEditedSays says what an edit changed of a pool, each value as it is
-// now, then as it was, or that it changed nothing.
+// now, then as it was, and where it fenced it anew, that the sessions
+// running in its directories keep their pool, as runningKeepTheirPool
+// says; or that it changed nothing.
 func poolEditedSays(e accounts.EditedPool) string {
 	if !e.Changed() {
 		return "pool " + e.Now.ID + " has every value given already, so nothing changed"
@@ -289,10 +305,14 @@ func poolEditedSays(e accounts.EditedPool) string {
 	if e.Was.Label != e.Now.Label {
 		changed = append(changed, nowAndWas("label", prose.Quoted(prose.Clean(e.Now.Label)), prose.Quoted(prose.Clean(e.Was.Label))))
 	}
+	var running string
 	if !slices.Equal(e.Was.WrittenDirs, e.Now.WrittenDirs) {
 		changed = append(changed, fenceSaid(e.Now)+" (was "+fenceSaid(e.Was)+")")
+		if e.Now.Fenced() {
+			running = "; " + runningKeepTheirPool
+		}
 	}
-	return "edited pool " + e.Now.ID + ": " + strings.Join(changed, ", ")
+	return "edited pool " + e.Now.ID + ": " + strings.Join(changed, ", ") + running
 }
 
 func newPoolRemoveCommand(a *app) *cobra.Command {
@@ -304,7 +324,9 @@ above it. A pool with accounts is refused, naming them: move each to another
 pool with accounts edit --pool, or remove it, first, so no edit puts a pool's
 accounts in another. The last pool can't be removed, as an account added
 needs a pool to go into. Its directories are no pool's once it's gone, so a
-session started in them goes to the unfenced pool, where there's one.
+session started in them goes to the unfenced pool, where there's one. Its
+history stays, under its id: requests, history, sessions and events read it
+with --pool and that id.
 
 ` + editingTheConfig,
 		Args: func(_ *cobra.Command, args []string) error {

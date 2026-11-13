@@ -98,9 +98,10 @@ type routerRead struct {
 // WorkedOut says, is worked out as it's read, as a router from before it
 // gave that, still running between an upgrade and its restart, gives none.
 // It's unread, and says why when the router was asked, when the router isn't
-// to be asked, doesn't answer its health check in time, or doesn't give its
-// document; and fails with router.PoolNeeded where it refuses for want of a
-// pool.
+// to be asked, doesn't answer its health check in time, doesn't give its
+// document, or is one from before pools, as status.BeforePools has it of the
+// config's pools as they stand; and fails with router.PoolNeeded where it
+// refuses for want of a pool.
 func (s usageSource) fromRouter(ctx context.Context, refresh time.Duration) (routerRead, error) {
 	switch {
 	case !s.ask:
@@ -109,8 +110,11 @@ func (s usageSource) fromRouter(ctx context.Context, refresh time.Duration) (rou
 		return routerRead{fallback: status.Fallback{Router: status.RouterNotRunning}}, nil
 	}
 	health, fallback, ok := s.answers(ctx)
-	if !ok {
+	switch {
+	case !ok:
 		return routerRead{fallback: fallback}, nil
+	case status.BeforePools(health.ReportsPools, s.probe.pools):
+		return routerRead{fallback: status.Fallback{Router: status.RouterBeforePools}}, nil
 	}
 	doc, err := s.document(ctx, refresh)
 	if _, needs := errors.AsType[router.PoolNeeded](err); needs {
@@ -267,6 +271,21 @@ type probeSource struct {
 	accounts []config.Account
 	pool     config.Pool
 	prime    config.Prime
+}
+
+// pools are the config's pools as they stand, as pooled gives them: none
+// where they can't be told, as probing them then fails, nor where there's no
+// config to probe by, as of a source reading the router alone where the
+// config can't be read.
+func (s probeSource) pools() config.Pools {
+	if s.pooled == nil {
+		return nil
+	}
+	cfg, err := s.pooled()
+	if err != nil {
+		return nil
+	}
+	return cfg.Pools
 }
 
 // inPool returns the source probing the accounts of the pool with the given

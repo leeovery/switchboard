@@ -5,7 +5,7 @@ This page shows where to look when switchboard doesn't do what you expect, and h
 ## Where to start
 
 - **Where things stand:** to see how each account stands and why, the router's health, any
-  restart the router has due, and a move onto the accounts' ids it owes, run
+  restart the router has due, and a move onto the accounts' ids or to pools it owes, run
   [`switchboard status`](commands.md#status). To see whether the LaunchAgent is installed and
   loaded, run [`switchboard service status`](commands.md#service).
 - **Why a request went where it did:** to follow the router's log, run `switchboard logs -f`. The log
@@ -130,6 +130,8 @@ This page shows where to look when switchboard doesn't do what you expect, and h
   `switchboard run --direct`, or run the real `claude` by its path. If the switchboard binary itself
   breaks, every `claude` breaks with it, until you take switchboard's directory off `PATH`: remove
   the line marked `# switchboard` from your shell's startup file, and open a new terminal.
+- **Pools:** with pools, `claude`, the router and the verbs can refuse for a pool's sake. See
+  [Pools](#pools).
 
 ## The upgrade to account ids
 
@@ -198,6 +200,96 @@ damage kept, and the file set aside beside it as `<name>.damaged`, warned of in 
 removing an account fails, naming it, and History and the verbs name each removed account by its
 id meanwhile. Put it right, or move it aside: see
 [The accounts record](reference.md#the-accounts-record).
+
+## Pools
+
+What a pool can refuse, and what to do about it. See [Pools](how-it-works.md#pools) for what they
+are.
+
+- **`claude` starts nothing in a directory:** it says why, ending `— not starting claude`: no pool
+  covers the directory, two pools' fences hold it through its links, the pool has no accounts, or
+  none of them has a usable token, or it's inside a fence and would start on Claude Code's own
+  login. Each is in [`claude`](commands.md#claude)'s table, with what to do.
+- **`the router doesn't route by the config's pools (…)`:** or `the router routes by other pools
+  (…)`, where the pools come from the router or the accounts record. With two pools or more,
+  `claude` counts a router down where its pools, their directories, accounts or primaries aren't
+  those it launches by, as a router from before pools would spread a session across every
+  account. It waits 5 seconds for
+  the router to take a change up first, so this is a router that can't: one from before pools,
+  still running after an upgrade, or one that routes none of a pool's accounts yet, as they were
+  all added since it started. Run `switchboard service restart`. Meanwhile it stops, or goes
+  direct on the pool's accounts, as `when_router_down` says.
+- **A request answered `switchboard: no account in pool Client can take the request; …`:** none of
+  the pool's accounts can take it, and nothing falls back to another pool's. What follows the `;`
+  says why of each account, as `account m4zq: …`, the problem it has, or `taken up when the router
+  restarts` for one added since it started. Give the account what it lacks, or wait for a window
+  to reset, as with one pool whose accounts are all out.
+- **A session answered `switchboard: this session's account has left pool Client — exit and resume
+  it to carry on in the pool its directory is in now`:** the account whose token the session
+  started on is no longer in the session's pool, as when the pool's primary moved to another pool,
+  or the pool was removed (`this session's pool isn't configured`). Claude Code can't change that
+  token while it runs. Exit the session and resume it: it starts in the pool its directory is in
+  now, on that pool's primary.
+- **A verb says `every pool is fenced: name a pool, q7mt (Acme) or r2d4 (Client), with --pool`:**
+  with every pool fenced, there's no pool to read without being told. Pass `--pool <id>`. A verb
+  never takes its pool from the directory you run it in. See
+  [Reading a pool](commands.md#reading-a-pool).
+- **A verb says `can't tell which pool to read: neither the config, the router nor the accounts
+  record names any pools`:** once the history has moved to pools, the config names none, or can't
+  be read, the router isn't running or routes by none, and the accounts record keeps none, so no
+  verb can read one pool's work apart from another's. Put the config's pools back, or start the
+  router.
+- **A verb says `there's no pool "q7mt": name …` of a pool you removed:** `status`, `usage` and
+  `pin` read the router, which routes nothing in a pool the config no longer has. Its history
+  stays: `requests`, `history`, `sessions` and `events` read it with `--pool q7mt`, naming it
+  `pool Acme (removed 6 Oct)`. They read a pool another Mac's history brought in by `import` so
+  too, naming it `not configured here`, as `pool Client (not configured here)`.
+  See [Reading a pool](commands.md#reading-a-pool).
+- **`status` says `probed directly: the router doesn't route by pools yet`,** or the dashboard
+  `○ probed · router started before pools`: the config has pools and the router reports none, as
+  one from before pools still running after an upgrade, so its document and sessions are every
+  account's, never a pool's: `status`, `usage` and the dashboard probe the pool's accounts instead,
+  `sessions` lists the ledger's alone, and `pin` and `status --session --pool` refuse. Run
+  `switchboard service restart`.
+- **The dashboard says `couldn't read usage: every pool is fenced: …`:** with every pool fenced,
+  there's no pool for it to show without being told, and this release's dashboard takes no
+  `--pool`. Read a pool with `switchboard status --pool <id>`, or leave one pool unfenced with
+  `pool edit <id> --unfence`.
+- **`setup` stops adding an account, saying `every pool is fenced, so which the account goes in is
+  yours to say`:** it adds an account to the pool `accounts add` takes without `--pool`, and with
+  every pool fenced there's none. It stops before making a token. Add the account with
+  `switchboard accounts add <label> --pool <id>`, then run `setup` again for the rest.
+- **A client's session in a directory you've just fenced still runs on your accounts:** a
+  session's pool is decided as it starts, so one already running when `pool add` or `pool edit`
+  made the fence keeps its old pool till it's resumed. Resume the sessions running there.
+- **`pin` says `pin accounts of one pool: …`:** a pin is its pool's, so the accounts given must be
+  in one. Pin each pool's accounts apart. A session can be pinned only to an account of its own
+  pool.
+- **`pool add` says the config names no pools:** the router makes the first pool as it moves the
+  history to pools, the first time it starts on a version with them, and writes a config's pools
+  back once the move is done, where it lost them. Once the config names them, add the rest.
+- **`pool remove` is refused:** the pool still has accounts, which it names, or it's the last pool.
+  Move each account to another pool with `accounts edit <id> --pool <id>`, or remove it, first.
+- **`pool edit --dirs` says to set them by hand:** the config writes the pool's `dirs` across
+  lines, which it can't change in place. Edit them in the config, or write them on one line.
+- **The config is refused for its pools:** the error names what's wrong: two pools without `dirs`,
+  as only one can be unfenced; directories that are the same, or one inside another; an account
+  without a `pool`, or naming one that isn't configured; two primaries in one pool. Put the config
+  right as it says. See [`[[pool]]` keys](configuration.md#pool-keys).
+- **A config put back without its pools:** once the history has moved to pools, the router gives a
+  config that names no pools its pools back from the accounts record, and routes by them
+  meanwhile, whether or not it can write them, so no session crosses a fence. Where it can't, as
+  where every pool is fenced and an account added since has no pool to go to, it says why once in
+  its log, and tries again each minute: give that account a pool, or put the config's pools back
+  yourself. Where the accounts record can't be read either, and the router never routed within any
+  pool, it routes nothing, answering every request with switchboard's refusal saying why, and
+  reports itself unhealthy, till the config has its pools or the record reads again. `claude`
+  routes through it all the same, its sessions refused till then, rather than going direct past
+  the fences.
+- **The move to pools waits, `awaiting restart`:** the router writes the first pool into the
+  config, then takes it up before it moves any file. Where it can't read the config as it takes it
+  up, the move waits: put the config right, as `switchboard status` says. The move never waits on
+  the API.
 
 ## A `wrong token` account
 

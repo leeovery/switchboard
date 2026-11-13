@@ -27,8 +27,18 @@ Graphs tell of every pool's work together, labelled by account.
   files, so every tab tells of the pool shown alone.
 - **The pool's read made live.** The dashboard's read of the router's files of events is the pool
   it shows as it opened: after a pool or an account is edited with a dashboard open, its events
-  read from the files keep the old placements until it's started again. `P`, changing the pool
-  shown, starts the view afresh, which is where the read is to follow the config too.
+  read from the files keep the old placements until it's started again. So is its `PoolNamed`,
+  which names the pool a forced pin cleared the own pins of in the Log's events, worked out from
+  the pools and the accounts record as it opens. `P`, changing the pool shown, starts the view
+  afresh, which is where the read, and `PoolNamed`, are to follow the config too.
+- **A pool the config no longer has.** The verbs that read the files read a removed pool's work,
+  or another Mac's from an import, by its id (`--pool`, as `filedPool`'s kept pool reads it),
+  never folded into another pool. The dashboard can't: its `--pool` could take such a pool for
+  History, the Log's requests and Sessions alone, its windows and Runway having no accounts to
+  show, once the prebuilt records name each line's pool, as above.
+- **Every pool fenced.** The first phase's dashboard takes no `--pool`, so where every pool is
+  fenced the router refuses its reads and it shows no pool's accounts, saying it couldn't read
+  usage. Its `--pool` opens it on the pool named.
 - **The pools as they stand, held for the run.** The dashboard reads the pools as they stand
   (`pooledConfig`: the config's, else the router's or the accounts record's) once as it opens, as
   its read of the events is fixed then: the first pool its ledger gives work in no pool follows the

@@ -46,6 +46,8 @@ one from before pools the first pool's. ` + readingAPool + ` A session
 given is found in whatever pool it's in, or with --pool, among the router's
 sessions in that pool alone.
 
+` + readingAKeptPool + `
+
 On a terminal, sessions prints its lines as text. Anywhere else, as in a pipe
 or an agent's shell, it prints them as JSON, for an agent or a script to read.
 --json prints the JSON, and --pretty the text, wherever stdout is.`,
@@ -90,7 +92,7 @@ func (a *app) sessions(ctx context.Context, out, errOut io.Writer, named string,
 	if err != nil {
 		return err
 	}
-	running, unlisted := a.routedSessions(ctx, errOut, pool.ID, "listing today's sessions from the ledger alone, none as running")
+	running, unlisted := a.routedSessions(ctx, errOut, pool, "listing today's sessions from the ledger alone, none as running")
 	now := a.Now()
 	list := views.ListSessions(views.SessionSources{
 		Running:  running,
@@ -109,17 +111,27 @@ func (a *app) sessions(ctx context.Context, out, errOut io.Writer, named string,
 	return writeSessions(out, list, now)
 }
 
-// routedSessions returns the sessions the router lists in the pool with the
-// given id, or, for "", in every pool, as the ledger's are read in every pool
-// of a config with no pools, and whether no router lists them, as it can't be
-// asked, telling errOut so, and what it does instead, as what's printed is
-// then the ledger's alone.
-func (a *app) routedSessions(ctx context.Context, errOut io.Writer, pool, instead string) (sessions []status.Session, unlisted bool) {
+// routedSessions returns the sessions the router lists in the pool given, or,
+// for none, in every pool, as the ledger's are read in every pool of a config
+// with no pools, and whether no router lists them, as it can't be asked,
+// telling errOut so, and what it does instead, as what's printed is then the
+// ledger's alone. Of a pool kept but not configured, it asks nothing, as the
+// router runs no session in a pool it doesn't route; nor of a router from
+// before pools, as routerBeforePools has it, whose sessions are no pool's,
+// though it says so, as of one that can't be asked.
+func (a *app) routedSessions(ctx context.Context, errOut io.Writer, pool filedPool, instead string) (sessions []status.Session, unlisted bool) {
+	switch {
+	case pool.kept:
+		return nil, false
+	case a.routerBeforePools(ctx):
+		launch.Notice(errOut, status.BeforePoolsSaid+" — "+instead)
+		return nil, true
+	}
 	sessions, err := a.routerSessions(ctx, func(c *router.Client) ([]status.Session, error) {
-		if pool == "" {
+		if pool.ID == "" {
 			return c.SessionsInEveryPool(ctx)
 		}
-		return c.InPool(pool).Sessions(ctx)
+		return c.InPool(pool.ID).Sessions(ctx)
 	})
 	switch {
 	case router.IsNotRunning(err):

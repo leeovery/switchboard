@@ -63,6 +63,13 @@ type PoolWritten struct {
 	PrimaryKnown bool     `json:"primary_known,omitzero"`
 }
 
+// Ours reports whether this Mac's config has had the pool: Here while it
+// has it, and once it's removed, Written, which KeepUp keeps then, and
+// which an import never carries, as one only another Mac had has none.
+func (p PoolEntry) Ours() bool {
+	return p.Here || !p.Written.Equal(PoolWritten{})
+}
+
 // Equal reports whether the pool is other, field for field, its times the
 // same instants.
 func (p PoolEntry) Equal(other PoolEntry) bool {

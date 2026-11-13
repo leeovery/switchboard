@@ -135,11 +135,18 @@ func (a *app) running(ctx context.Context, m status.Moment) []status.Session {
 
 // sessionStatus prints the account the router sends a session's requests to,
 // as the verbs' text names it, the session given by as much of its id as is
-// unique, in the pool with the id given, "" for whatever pool it's in.
+// unique, in the pool with the id given, "" for whatever pool it's in. A
+// session asked by its id alone is what it is on any router, so only one
+// asked in a pool is refused by a router from before pools, as
+// routerBeforePools has it: a statusline asking at every refresh pays for
+// no health check.
 func (a *app) sessionStatus(ctx context.Context, out io.Writer, given, pool string, asJSON bool) error {
 	client, err := a.routerClient()
 	if err != nil {
 		return err
+	}
+	if pool != "" && a.routerBeforePools(ctx) {
+		return expected{status.ErrBeforePools}
 	}
 	names := a.accountNames()
 	session, err := a.session(ctx, client, names, given, pool)

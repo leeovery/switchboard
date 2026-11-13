@@ -159,3 +159,70 @@ func TestAPoolIsLabelledByTheConfigElseTheRecordElseItsID(t *testing.T) {
 		t.Errorf("the record was read %d times, want 4: never for a pool the config configures", read)
 	}
 }
+
+// A pool the accounts record keeps that the config doesn't configure is
+// kept, labelled as PoolLabels labels it, and named marked: when it was
+// removed, else that it isn't configured here. A configured pool, or one the
+// record doesn't keep, isn't.
+func TestAPoolTheRecordKeepsButTheConfigDoesntIsKept(t *testing.T) {
+	removed := time.Date(2026, 10, 6, 18, 0, 0, 0, time.Local)
+	// Each pool removed here is as KeepUp leaves it, no longer Here, but
+	// as this Mac's config last wrote it.
+	written := func(label string) identity.PoolWritten { return identity.PoolWritten{Label: label, PrimaryKnown: true} }
+	record := identity.Record{Pools: []identity.PoolEntry{
+		{ID: acme, Here: true, Written: written("Acme")},
+		{ID: "x9z9", Label: "Acme old", Removed: removed, Written: written("Acme old")},
+		{ID: "f4xk", Label: "Client"},
+		{ID: firstPool, First: true, Label: "Default", Removed: removed, Written: written("Default")},
+		// This Mac's, still Here, its config changed while no router kept
+		// the record up with it, so the record notes no removal.
+		{ID: "m3pq", Here: true, Written: written("Side")},
+		// Another Mac's, removed there, as an import carries it in.
+		{ID: "r7vb", Label: "Studio", Removed: removed},
+	}}
+	pools := config.Pools{{ID: acme, Label: "Acme"}}
+	tests := []struct {
+		id   string
+		want string
+		kept bool
+	}{
+		{id: "X9Z9", want: "pool Acme old (removed 6 Oct)", kept: true},
+		{id: "f4xk", want: "pool Client (not configured here)", kept: true},
+		{id: firstPool, want: "pool Default (removed 6 Oct)", kept: true},
+		{id: "m3pq", want: "pool Side (removed)", kept: true},
+		{id: "r7vb", want: "pool Studio (not configured here)", kept: true},
+		{id: acme},
+		{id: "h4w2"},
+	}
+	for _, tt := range tests {
+		kept, ok := status.KeptPoolOf(record, pools, tt.id)
+		if ok != tt.kept || ok && kept.Said() != tt.want {
+			t.Errorf("KeptPoolOf(%s) = %+v, %t, saying %q; want kept %t, saying %q", tt.id, kept, ok, kept.Said(), tt.kept, tt.want)
+		}
+	}
+}
+
+func TestTheFilesHoldManyPoolsWhereTheConfigOrTheRecordHasMoreThanOne(t *testing.T) {
+	first := identity.PoolEntry{ID: firstPool, First: true, Here: true}
+	one := config.Pools{{ID: firstPool, Label: "Default"}}
+	tests := []struct {
+		name   string
+		pools  config.Pools
+		record []identity.PoolEntry
+		want   bool
+	}{
+		{name: "two configured", pools: append(one, config.Pool{ID: acme, Label: "Acme"}), record: []identity.PoolEntry{first, {ID: acme, Here: true}}, want: true},
+		{name: "one configured, never another", pools: one, record: []identity.PoolEntry{first}},
+		{name: "one configured, another removed", pools: one, record: []identity.PoolEntry{first, {ID: acme, Label: "Acme", Removed: time.Now()}}, want: true},
+		{name: "one configured, another Mac's", pools: one, record: []identity.PoolEntry{first, {ID: "f4xk", Label: "Client"}}, want: true},
+		{name: "none configured, none kept", pools: nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			record := func() identity.Record { return identity.Record{Pools: tt.record} }
+			if got := status.ManyPoolsFiled(tt.pools, record); got != tt.want {
+				t.Errorf("ManyPoolsFiled() = %t, want %t", got, tt.want)
+			}
+		})
+	}
+}

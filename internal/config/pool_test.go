@@ -486,32 +486,30 @@ func TestReadPoolsReadsThemAsLoadReadsAConfigsOwn(t *testing.T) {
 	}
 }
 
-func TestPoolsCovering(t *testing.T) {
+// A pool covers each of its directories and everything beneath them,
+// compared a whole folder name at a time and ignoring case; the unfenced
+// pool covers none.
+func TestPoolCovers(t *testing.T) {
 	acme := config.Pool{ID: "q7mt", Dirs: []string{"/Users/test/Code/acme", "/Volumes/Acme"}}
-	client := config.Pool{ID: "h4w2", Dirs: []string{"/Users/test/Code/client"}}
-	unfenced := config.Pool{ID: "b2n8"}
 	tests := []struct {
-		name  string
-		pools config.Pools
-		dir   string
-		want  string
+		name string
+		pool config.Pool
+		dir  string
+		want bool
 	}{
-		{name: "a fenced pool's directory itself", pools: config.Pools{unfenced, acme}, dir: "/Users/test/Code/acme", want: "q7mt"},
-		{name: "inside a fenced pool's directory", pools: config.Pools{unfenced, acme}, dir: "/Users/test/Code/acme/api/.claude/worktrees/x", want: "q7mt"},
-		{name: "inside a fenced pool's other directory", pools: config.Pools{acme, unfenced}, dir: "/Volumes/Acme/site", want: "q7mt"},
-		{name: "inside one, ignoring case", pools: config.Pools{unfenced, acme}, dir: "/users/TEST/code/ACME/api", want: "q7mt"},
-		{name: "beside one whose name starts the same", pools: config.Pools{unfenced, acme}, dir: "/Users/test/Code/acme-api", want: "b2n8"},
-		{name: "around one", pools: config.Pools{unfenced, acme}, dir: "/Users/test/Code", want: "b2n8"},
-		{name: "outside every fence", pools: config.Pools{acme, client, unfenced}, dir: "/tmp", want: "b2n8"},
-		{name: "in the second of two fenced pools", pools: config.Pools{acme, client, unfenced}, dir: "/Users/test/Code/client/app", want: "h4w2"},
-		{name: "outside every fence, every pool fenced", pools: config.Pools{acme, client}, dir: "/Users/test/Code/other"},
-		{name: "no pools", dir: "/Users/test/Code/acme"},
+		{name: "its directory itself", pool: acme, dir: "/Users/test/Code/acme", want: true},
+		{name: "inside its directory", pool: acme, dir: "/Users/test/Code/acme/api/.claude/worktrees/x", want: true},
+		{name: "inside its other directory", pool: acme, dir: "/Volumes/Acme/site", want: true},
+		{name: "inside it, ignoring case", pool: acme, dir: "/users/TEST/code/ACME/api", want: true},
+		{name: "beside a directory whose name starts the same", pool: acme, dir: "/Users/test/Code/acme-api"},
+		{name: "around one", pool: acme, dir: "/Users/test/Code"},
+		{name: "outside it", pool: acme, dir: "/tmp"},
+		{name: "the unfenced pool", pool: config.Pool{ID: "b2n8"}, dir: "/Users/test/Code/acme"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, ok := tt.pools.Covering(tt.dir)
-			if got.ID != tt.want || ok != (tt.want != "") {
-				t.Errorf("Covering(%q) = %q, %v; want %q", tt.dir, got.ID, ok, tt.want)
+			if got := tt.pool.Covers(tt.dir); got != tt.want {
+				t.Errorf("Covers(%q) = %t, want %t", tt.dir, got, tt.want)
 			}
 		})
 	}
