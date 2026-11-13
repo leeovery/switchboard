@@ -98,7 +98,9 @@ func (b *dayDigest) Take(date string, l ledger.Line) {
 }
 
 // Digest gives each session day hands it folded at the day's end, by its id,
-// as foldedAsOf has it, of the answers taken. It gives none of one whose
+// as foldedAsOf has it, of the answers taken, those of the lines of another
+// pool than day's In's as of no session, as answers' in has them, where the
+// day's sessions are folded in a pool alone. It gives none of one whose
 // base won't decode or restore, nor whose page's points can't take the days
 // after its base in, nor of one with a request that arrived after the day,
 // as a change of time zone files one, which stored refuses: the ledger hands
@@ -106,7 +108,7 @@ func (b *dayDigest) Take(date string, l ledger.Line) {
 // whole, as they read a session of no state. It fails once ctx ends, looked
 // at between sessions.
 func (b *dayDigest) Digest(ctx context.Context, day ledger.DigestDay) (map[string]ledger.Folded, error) {
-	d := LedgerDay{Start: day.Start, Date: day.Date}
+	d, answers := LedgerDay{Start: day.Start, Date: day.Date}, b.answers.in(day.In)
 	folded := make(map[string]ledger.Folded, len(day.Sessions))
 	for id, from := range day.Sessions {
 		if err := ctx.Err(); err != nil {
@@ -114,7 +116,7 @@ func (b *dayDigest) Digest(ctx context.Context, day ledger.DigestDay) (map[strin
 		}
 		// A session left out is no worse than no digest: the session is read
 		// whole, never told otherwise than its lines tell it.
-		if f, err := foldedAsOf(id, from, b.answers, d); err == nil {
+		if f, err := foldedAsOf(id, from, answers, d); err == nil {
 			folded[id] = f
 		}
 	}

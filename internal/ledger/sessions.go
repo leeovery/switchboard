@@ -31,7 +31,22 @@ import (
 // session, with the date of the day whose files hold it, the near days'
 // first.
 func (f *Follower) Sessions(ids []string, rest func(id string) Rest, take func(date string, l Line)) map[string]SessionFrom {
-	read, l, near := f.readingNear(take)
+	return f.SessionsIn(nil, ids, rest, take)
+}
+
+// SessionsIn returns the sessions Sessions reads, as it reads them, but each
+// resting on its state in the pool in reads, as DigestEntry's in has it of
+// its entry: a state folded from the pool's lines alone, so a session split
+// between pools rests on its work in the pool alone, as its entry's state
+// there holds it; on none where none of the lines its entry rests on was in
+// the pool, only the days after it read, as its lines after it are all it
+// holds of the pool; and on an earlier state where its entry holds no state
+// of the pool's alone, or none of their chains reads, as an entry that
+// doesn't stand is passed over. Its lines are every one after it, of every
+// pool, for the reader to keep the pool's. Every pool's are read where in
+// is nil, as Sessions reads them.
+func (f *Follower) SessionsIn(in RoutedIn, ids []string, rest func(id string) Rest, take func(date string, l Line)) map[string]SessionFrom {
+	read, l, near := f.readingNear(in, take)
 	read.days(f.days, near, nil)
 	return f.asOf(l, near, wanting(read.today(dayfile.DayStart(read.now.Local(), 0)), ids), rest, read)
 }
@@ -43,16 +58,24 @@ func (f *Follower) Sessions(ids []string, rest func(id string) Rest, take func(d
 // read for another's, and no day waits on another. take, where it's given,
 // is handed each line read, as Sessions hands it.
 func (f *Follower) SessionsOf(ids []string, rest func(id string) Rest, take func(date string, l Line)) map[string]SessionFrom {
-	read, l, near := f.readingNear(take)
+	return f.SessionsOfIn(nil, ids, rest, take)
+}
+
+// SessionsOfIn returns the sessions with the given ids alone, as SessionsOf
+// gives them, each resting on its state in the pool in reads, as SessionsIn
+// rests them.
+func (f *Follower) SessionsOfIn(in RoutedIn, ids []string, rest func(id string) Rest, take func(date string, l Line)) map[string]SessionFrom {
+	read, l, near := f.readingNear(in, take)
 	return f.asOf(l, near, wanting(make(map[string]bool), ids), rest, read)
 }
 
 // readingNear returns a read of sessions as Sessions reads them, at now,
 // holding none yet, handing take each line read, where it's given; a lookup
-// of sessions by the follower's own look at the ledger's days; and the dates
-// of the near days at now, oldest first, as the lookup finds them.
-func (f *Follower) readingNear(take func(date string, l Line)) (*sessionsRead, *sessionsLookup, []string) {
-	read, l := newSessionsRead(f.now(), take), f.lookup()
+// of sessions by the follower's own look at the ledger's days, resting each
+// in the pool in reads, as lookup has it; and the dates of the near days at
+// now, oldest first, as the lookup finds them.
+func (f *Follower) readingNear(in RoutedIn, take func(date string, l Line)) (*sessionsRead, *sessionsLookup, []string) {
+	read, l := newSessionsRead(f.now(), take), f.lookup(in)
 	return read, l, l.nearDays(read.now)
 }
 

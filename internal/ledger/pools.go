@@ -203,6 +203,82 @@ func RecordedIn(recorded, pool, first string) bool {
 	return config.SamePool(cmp.Or(recorded, first), pool)
 }
 
+// RoutedIn reports whether a request that recorded the pool given, as a line
+// records it at the time, "" where it named none, was routed in the pool a
+// reader of sessions reads, or a builder folds them in, as RecordedIn has it
+// of that pool and the first: nil of every pool's.
+type RoutedIn func(recorded string) bool
+
+// routedIn is what reports whether a request was routed in the pool with
+// the given id, as RecordedIn has it of first, the first pool's id.
+func routedIn(pool, first string) RoutedIn {
+	return func(recorded string) bool { return RecordedIn(recorded, pool, first) }
+}
+
+// poolsApart are pools, as RecordingPool keeps them, apart by the pool each
+// was routed in, as RecordedIn has it of first, the first pool's id: each
+// pool's in their order, the pools in the order of the first of each, one
+// where they're all one pool's, as a first pool's id and none are once the
+// first is known.
+func poolsApart(pools []string, first string) [][]string {
+	var apart [][]string
+	for _, pool := range pools {
+		i := slices.IndexFunc(apart, func(of []string) bool { return RecordedIn(pool, poolOf(of, first), first) })
+		if i < 0 {
+			apart = append(apart, []string{pool})
+			continue
+		}
+		apart[i] = append(apart[i], pool)
+	}
+	return apart
+}
+
+// poolOf is the id of the pool requests that recorded pools, one pool's
+// apart, as poolsApart has them, were routed in, as RecordedIn has it of
+// first: the first's, of those that named none.
+func poolOf(pools []string, first string) string {
+	return cmp.Or(pools[0], first)
+}
+
+// entryState is a state a digest's entry holds of a session, as a reader in
+// a pool rests on it, as DigestEntry's in gives it: entry, the entry as of
+// the state, its RestsOn its own, its Pools, State and Part the state's;
+// apart, which of the entry's states it is, as stateKey has it; and outside,
+// where none of the lines the entry rests on was in the pool, so it holds no
+// state of the pool's, the session's lines after it being all it holds of
+// the pool.
+type entryState struct {
+	entry   DigestEntry
+	apart   int
+	outside bool
+}
+
+// in returns e's state in the pool in reads, as entryState has it: its own
+// where every line it rests on was in's, as every one is where in is nil, of
+// every pool's; none, outside, where none was; else its state apart whose
+// pools are exactly those of e's that are in's, as the builder folded each
+// from its pool's lines alone. It reports false where e holds no state of
+// the pool's alone, as of a builder that placed lines naming none in another
+// pool than the reader's first, or a split it folded none of apart.
+func (e DigestEntry) in(in RoutedIn) (entryState, bool) {
+	if in == nil {
+		return entryState{entry: e}, true
+	}
+	kept := slices.DeleteFunc(slices.Clone(e.Pools), func(pool string) bool { return !in(pool) })
+	switch {
+	case len(kept) == 0:
+		return entryState{outside: true}, true
+	case len(kept) == len(e.Pools):
+		return entryState{entry: e}, true
+	}
+	i := slices.IndexFunc(e.Apart, func(s PoolState) bool { return slices.Equal(s.Pools, kept) })
+	if i < 0 {
+		return entryState{}, false
+	}
+	s := e.Apart[i]
+	return entryState{entry: DigestEntry{RestsOn: e.RestsOn, Pools: s.Pools, State: s.State, Part: s.Part}, apart: i + 1}, true
+}
+
 // InPool returns the day in the pool with the given id alone: each account's
 // day as AccountDay.InPool gives it, first the first pool's id, and the day
 // of the requests no account answered where some of them were in the pool.

@@ -96,3 +96,13 @@ func (Empty) Sessions([]string, func(string) Rest, func(string, Line)) map[strin
 func (Empty) SessionsOf([]string, func(string) Rest, func(string, Line)) map[string]SessionFrom {
 	return map[string]SessionFrom{}
 }
+
+// SessionsIn returns no session, in any pool, and hands take none.
+func (Empty) SessionsIn(RoutedIn, []string, func(string) Rest, func(string, Line)) map[string]SessionFrom {
+	return map[string]SessionFrom{}
+}
+
+// SessionsOfIn returns no session, in any pool, and hands take none.
+func (Empty) SessionsOfIn(RoutedIn, []string, func(string) Rest, func(string, Line)) map[string]SessionFrom {
+	return map[string]SessionFrom{}
+}

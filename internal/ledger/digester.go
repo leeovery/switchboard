@@ -73,11 +73,13 @@ type BuiltChunk struct {
 // hold it, as sessionsLookup.asOf hands a reader's take them, every one
 // before Digest is called; and Digest gives each session day hands it as it
 // folds it, by its id, as Folded has it, failing where it can't fold them,
-// or ctx ends first. A session handed resting on a state it gives none of is
-// handed again read whole, to a builder of its own, handed each line of
-// that read; one it gives no state of then has no entry in the digest,
-// which leaves the day due: it's built again whenever it's judged afresh,
-// as at each start of the router.
+// or ctx ends first. It's called once for the day's sessions, then once a
+// pool for those whose lines were in more than one, each folded in the pool
+// alone, as DigestDay's In has it. A session handed resting on a state it
+// gives none of, of its own or in a pool, is handed again read whole, to a
+// builder of its own, handed each line of that read; one it gives no state
+// of then has no entry in the digest, which leaves the day due: it's built
+// again whenever it's judged afresh, as at each start of the router.
 type DigestBuilder interface {
 	Take(date string, l Line)
 	Digest(ctx context.Context, day DigestDay) (map[string]Folded, error)
@@ -107,11 +109,19 @@ type Folded struct {
 // or on none, and its lines after that, the day's own among them, read by
 // the days' files. A session whose state can't be kept, as a day it rests on
 // can't be told, isn't among them; nor is one resting on the day's own
-// digest still, whose state and part there are as of the day's end.
+// digest still, whose state and part there are as of the day's end. In,
+// where the sessions are folded in one pool alone, reports whether a line
+// was routed in it, as RecordedIn has it: each session rests on its state
+// in the pool, and its lines after it are those in the pool alone; and a
+// builder taking every line read, as a page's points take every account's
+// answers, is to take as a session's own its lines in the pool alone, as a
+// reader in the pool is handed them. Nil where they're folded of every
+// pool's.
 type DigestDay struct {
 	Date       string
 	Start, End time.Time
 	Sessions   map[string]SessionFrom
+	In         RoutedIn
 }
 
 // Option is how Open opens a ledger, or NewFollower follows one, beyond what
@@ -473,14 +483,14 @@ func (d *digesting) build(ctx context.Context, dates []string, view writerLook, 
 // hold them now, as arrivals counts them; and an entry of each session its
 // summary names, as of the day's end, as sessionsLookup.asOf finds it, whose
 // state can be kept, resting to fold, as RestToFold has it, on the state a
-// reader of its page rests it on, its state and its part as readFolded gives
-// them. A
-// session resting on a state fold gives none of, as one the Digester can't
-// restore, or whose page's points can't take the days since in, is handed
-// again read whole, so a spoiled state is folded past, not rested on day
-// after day; one it gives none of then has no entry. It fails where the
-// day's files can't be read, or the Digester fails.
-func (d *digesting) digestOf(ctx context.Context, dates []string, view writerLook, now time.Time) (Digest, map[string]builtPart, error) {
+// reader of its page rests it on, its state, its states apart and their
+// parts as readFolded gives them. A session resting on a state fold gives
+// none of, as one the Digester can't restore, or whose page's points can't
+// take the days since in, of its own or in a pool, is handed again read
+// whole, so a spoiled state is folded past, not rested on day after day; one
+// it gives none of then has no entry. It fails where the day's files can't
+// be read, or the Digester fails.
+func (d *digesting) digestOf(ctx context.Context, dates []string, view writerLook, now time.Time) (Digest, map[stateKey]builtPart, error) {
 	date := dates[len(dates)-1]
 	day := view.day(date)
 	start, end, _ := dayfile.Day(date)
@@ -510,14 +520,18 @@ func (d *digesting) digestOf(ctx context.Context, dates []string, view writerLoo
 // readFolded returns the sessions with the given ids as of the end of the
 // day head is of, the last of the local days with the given dates, those
 // from where the ledger begins, at now, as lookup's foldable finds them,
-// resting as rest says of each; and each folded, as fold folds it, by a
-// builder of the day's digest of their own, as the Digester gives one,
-// handed each line their read reads first, so a second read of the day's
-// sessions hands its lines afresh. It fails as fold fails.
+// resting as rest says of each; and each folded, as fold folds it, then
+// apart, as foldApart folds it, by a builder of the day's digest of their
+// own, as the Digester gives one, handed each line their read reads first,
+// so a second read of the day's sessions hands its lines afresh. It fails as
+// fold and foldApart fail.
 func (d *digesting) readFolded(ctx context.Context, lookup *sessionsLookup, head DigestHead, dates, ids []string, rest func(id string) Rest, now time.Time) (map[string]SessionFrom, map[string]sessionFolded, error) {
 	build := d.digester.Builder()
 	sessions := lookup.foldable(dates, ids, rest, now, build.Take)
 	folded, err := d.fold(ctx, build, head, sessions)
+	if err == nil {
+		err = d.foldApart(ctx, lookup, build, head, sessions, folded)
+	}
 	return sessions, folded, err
 }
 
@@ -533,8 +547,20 @@ func (l *sessionsLookup) foldable(dates, ids []string, rest func(id string) Rest
 
 // sessionFolded is a session folded as of a day's end, as the day's digest
 // and parts file keep it: its state, and its part, none where it has no
-// member.
+// member; and, of one whose lines were in more than one pool, its state in
+// each, as poolFolded has it, in the order of their pools, as poolsApart
+// gives them.
 type sessionFolded struct {
+	state json.RawMessage
+	part  builtPart
+	apart []poolFolded
+}
+
+// poolFolded is a session folded in one of its pools as of a day's end, as
+// PoolState keeps it: the pools its lines there recorded, as RecordingPool
+// keeps them, its state, and its part, none where it has no member.
+type poolFolded struct {
+	pools []string
 	state json.RawMessage
 	part  builtPart
 }
@@ -576,19 +602,155 @@ func (d *digesting) fold(ctx context.Context, build DigestBuilder, head DigestHe
 
 // keptFolded returns the session s, resting on the state the digest of the
 // local day with the given date holds, as it's folded there, as of that
-// day's end: its state, and its part, on the date its entry names, copied
-// as keptPart copies it, none of it inflated. It reports false where s rests
-// on no part of the day's, as a state whose page was left out, or its part
-// doesn't read as written, by its CRC, for it to be folded afresh.
+// day's end: its state and its states apart, and their parts, on the dates
+// its entry names, copied as keptPart copies them, none of them inflated.
+// It reports false where one of them has no part of the day's, as a state
+// whose page was left out, or its part doesn't read as written, by its CRC,
+// for it to be folded afresh.
 func (d *digesting) keptFolded(date string, s SessionFrom) (sessionFolded, bool) {
-	if s.Base.Part == nil {
+	part, ok := d.keptPartOf(date, s.Base.Part)
+	if !ok {
 		return sessionFolded{}, false
 	}
-	part, err := d.days.keptPart(date, *s.Base.Part)
-	if err != nil {
-		return sessionFolded{}, false
+	f := sessionFolded{state: s.Base.State, part: part}
+	for _, st := range s.Base.Apart {
+		part, ok := d.keptPartOf(date, st.Part)
+		if !ok {
+			return sessionFolded{}, false
+		}
+		f.apart = append(f.apart, poolFolded{pools: st.Pools, state: st.State, part: part})
 	}
-	return sessionFolded{state: s.Base.State, part: part}, true
+	return f, true
+}
+
+// keptPartOf returns the part ref points at in the parts file of the local
+// day with the given date, as keptPart copies it, reporting false where ref
+// is nil, or it doesn't read.
+func (d *digesting) keptPartOf(date string, ref *PartRef) (builtPart, bool) {
+	if ref == nil {
+		return builtPart{}, false
+	}
+	part, err := d.days.keptPart(date, *ref)
+	return part, err == nil
+}
+
+// foldApart folds apart those of sessions folded, but those resting on the
+// day's own digest, as fold keeps theirs, whose lines, of their base's and
+// after, were routed in more than one pool, as poolsApart tells them of the
+// first pool, as FirstPool has the ledger know it: in each pool, resting on
+// its state in the pool, as lookup's restingIn rests it, its lines after it
+// those routed in the pool, as pooledFolds gathers them, by build, given
+// the sessions of each pool at once, its In the pool's, as DigestDay has
+// it. Each one's states apart are held in folded, but of one whose state in
+// a pool can't be rested on, or that build gives none of in a pool: it's
+// folded none of, as one build gives none of, so it's read again whole,
+// where it rested on a base, or given no entry. It fails where build fails,
+// or gives a part that isn't JSON.
+func (d *digesting) foldApart(ctx context.Context, lookup *sessionsLookup, build DigestBuilder, head DigestHead, sessions map[string]SessionFrom, folded map[string]sessionFolded) error {
+	folds, apart, failed := d.pooledFolds(lookup, head, sessions, folded)
+	given := make(map[string]map[string]poolFolded, len(folds))
+	for _, pool := range slices.Sorted(maps.Keys(folds)) {
+		f := folds[pool]
+		maps.DeleteFunc(f.sessions, func(id string, _ SessionFrom) bool { return failed[id] })
+		gave, err := build.Digest(ctx, DigestDay{Date: head.Day, Start: head.Start, End: head.End, Sessions: f.sessions, In: f.in})
+		if err != nil {
+			return err
+		}
+		given[pool] = make(map[string]poolFolded, len(gave))
+		for id, s := range f.sessions {
+			g, ok := gave[id]
+			if !ok {
+				failed[id] = true
+				continue
+			}
+			part, err := builtPartOf(s.BaseDate(), g.Part, g.Times)
+			if err != nil {
+				return fmt.Errorf("fold %s of %s in %q: %w", id, head.Day, pool, err)
+			}
+			given[pool][id] = poolFolded{state: g.State, part: part}
+		}
+	}
+	for id, pools := range apart {
+		if failed[id] {
+			delete(folded, id)
+			continue
+		}
+		f := folded[id]
+		for _, p := range pools {
+			in := given[p.pool][id]
+			in.pools = p.pools
+			f.apart = append(f.apart, in)
+		}
+		folded[id] = f
+	}
+	return nil
+}
+
+// pooledFold is a fold of sessions in one pool, as foldApart hands its
+// builder: what reports whether a line was routed in the pool, as
+// DigestDay's In has it; and the sessions, each in the pool, by their ids.
+type pooledFold struct {
+	in       RoutedIn
+	sessions map[string]SessionFrom
+}
+
+// poolApart is one of the pools a session's lines were routed in, as
+// poolsApart tells them: its id, as poolOf has it, and the pools those
+// lines recorded.
+type poolApart struct {
+	pool  string
+	pools []string
+}
+
+// pooledFolds returns the folds in each pool, by the pool's id, of those of
+// sessions folded, but those resting on the day's own digest, whose lines,
+// of their base's and after, were routed in more than one pool, as
+// poolsApart tells them of the first pool: in each, resting on its state in
+// the pool, as lookup's restingIn rests it, its lines after it those routed
+// in the pool. It returns too the pools of each, by its id, and the ids of
+// those whose state in a pool can't be rested on, none of whose pools are
+// folded.
+func (d *digesting) pooledFolds(lookup *sessionsLookup, head DigestHead, sessions map[string]SessionFrom, folded map[string]sessionFolded) (map[string]pooledFold, map[string][]poolApart, map[string]bool) {
+	folds, apart, failed := make(map[string]pooledFold), make(map[string][]poolApart), make(map[string]bool)
+	first := sync.OnceValue(d.days.firstPoolID)
+	for id, s := range sessions {
+		pools := s.pools()
+		if _, ok := folded[id]; !ok || s.restingOn(head.Day) || len(pools) < 2 {
+			continue
+		}
+		groups := poolsApart(pools, first())
+		if len(groups) < 2 {
+			continue
+		}
+		for _, g := range groups {
+			pool := poolOf(g, first())
+			f, ok := folds[pool]
+			if !ok {
+				f = pooledFold{in: routedIn(pool, first()), sessions: make(map[string]SessionFrom)}
+				folds[pool] = f
+			}
+			base, parts, ok := lookup.restingIn(id, s, f.in)
+			if !ok {
+				failed[id] = true
+				break
+			}
+			f.sessions[id] = SessionFrom{Base: base, Parts: parts, Lines: linesIn(s.Lines, f.in), restsOn: s.restsOn}
+			apart[id] = append(apart[id], poolApart{pool: pool, pools: g})
+		}
+	}
+	return folds, apart, failed
+}
+
+// linesIn are those of lines routed in the pool in reads, in their order, as
+// new slices: none where none was.
+func linesIn(lines []Line, in RoutedIn) []Line {
+	var kept []Line
+	for i := range lines {
+		if in(lines[i].Pool) {
+			kept = append(kept, lines[i])
+		}
+	}
+	return kept
 }
 
 // unfolded returns the ids of those of sessions resting on a state that
@@ -621,16 +783,22 @@ func (s SessionFrom) BaseDate() string {
 
 // entriesOf returns the entries of a digest of sessions, by their ids: each
 // resting on what its SessionFrom says, of the pools its lines recorded, as
-// pools has them, of its state as folded holds it; none of one it holds none
-// of.
+// pools has them, of its state and its states apart as folded holds them;
+// none of one it holds none of.
 func entriesOf(sessions map[string]SessionFrom, folded map[string]sessionFolded) map[string]DigestEntry {
 	entries := make(map[string]DigestEntry, len(sessions))
 	for id, s := range sessions {
 		if f, ok := folded[id]; ok {
-			entries[id] = DigestEntry{RestsOn: s.restsOn, Pools: s.pools(), State: f.state}
+			entries[id] = DigestEntry{RestsOn: s.restsOn, Pools: s.pools(), State: f.state, Apart: listAs(f.apart, poolFolded.kept)}
 		}
 	}
 	return entries
+}
+
+// kept is f as an entry's state apart keeps it, its part placed as the
+// digest is written.
+func (f poolFolded) kept() PoolState {
+	return PoolState{Pools: f.pools, State: f.state}
 }
 
 // pools are the pools the lines a state folded from s rests on recorded, as
@@ -647,16 +815,32 @@ func (s SessionFrom) pools() []string {
 	return pools
 }
 
-// partsOf returns the parts folded holds, by their sessions' ids: none of a
-// session whose part has no member, as one given empty.
-func partsOf(folded map[string]sessionFolded) map[string]builtPart {
-	parts := make(map[string]builtPart)
+// partsOf returns the parts folded holds, of each session's state and its
+// states apart, as stateKey keys them: none of a state whose part has no
+// member, as one given empty.
+func partsOf(folded map[string]sessionFolded) map[stateKey]builtPart {
+	parts := make(map[stateKey]builtPart)
+	add := func(key stateKey, part builtPart) {
+		if part.part != nil {
+			parts[key] = part
+		}
+	}
 	for id, f := range folded {
-		if f.part.part != nil {
-			parts[id] = f.part
+		add(stateKey{id: id}, f.part)
+		for i, p := range f.apart {
+			add(stateKey{id: id, apart: i + 1}, p.part)
 		}
 	}
 	return parts
+}
+
+// firstPoolID is the id of the first pool, as FirstPool has the ledger know
+// it: "" where it doesn't.
+func (d days) firstPoolID() string {
+	if d.firstPool == nil {
+		return ""
+	}
+	return d.firstPool()
 }
 
 // warnings are the local days the digesting warned of, by their dates, each

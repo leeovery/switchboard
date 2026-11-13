@@ -183,14 +183,15 @@ func requestsOfSides(built []builtSide) [][]string {
 }
 
 // handedDay is a day as the tests' Digester was handed it: when, by the
-// clock; its date; each session's, by its id, as handedSession tells it; and
-// the lines the builder it was handed to was handed before it, as takenDays
-// notes them.
+// clock; its date; each session's, by its id, as handedSession tells it; the
+// lines the builder it was handed to was handed before it, as takenDays
+// notes them; and its In, where its sessions were handed in a pool alone.
 type handedDay struct {
 	at       time.Time
 	date     string
 	sessions map[string]handedSession
 	taken    takenDays
+	in       ledger.RoutedIn
 }
 
 // handedSession is a session as the tests' Digester was handed it: the date
@@ -305,7 +306,7 @@ func partFrom(id, date string, from ledger.SessionFrom) testPart {
 
 // handedOf is day as handedDay tells it, handed now.
 func handedOf(day ledger.DigestDay) handedDay {
-	handed := handedDay{at: time.Now(), date: day.Date, sessions: make(map[string]handedSession, len(day.Sessions))}
+	handed := handedDay{at: time.Now(), date: day.Date, sessions: make(map[string]handedSession, len(day.Sessions)), in: day.In}
 	for id, s := range day.Sessions {
 		handed.sessions[id] = handedSession{base: s.BaseDate(), requests: requestsOf(s.Lines)}
 	}
@@ -359,9 +360,9 @@ func failingOn(date string) func(context.Context, ledger.DigestDay) error {
 }
 
 // opened returns the world's ledger, opened afresh to digest its days with
-// fold.
-func (w *lookupWorld) opened(fold ledger.Digester) *ledger.Ledger {
-	return ledger.Open(w.dir, 400*24*time.Hour, func() time.Time { return w.at }, historyIn(w.history), caps, logs.For("router"), ledger.Digesting(fold))
+// fold, and as the options given say.
+func (w *lookupWorld) opened(fold ledger.Digester, opts ...ledger.Option) *ledger.Ledger {
+	return ledger.Open(w.dir, 400*24*time.Hour, func() time.Time { return w.at }, historyIn(w.history), caps, logs.For("router"), append(opts, ledger.Digesting(fold))...)
 }
 
 // digestEnded has the world's ledger digest each finished day due, as

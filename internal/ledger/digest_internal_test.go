@@ -148,16 +148,16 @@ type givenPart struct {
 }
 
 // builtOf returns parts, by their sessions' ids, each as builtPartOf builds
-// it, failing the test where one doesn't build.
-func builtOf(t testing.TB, parts map[string]givenPart) map[string]builtPart {
+// it, of each one's own state, failing the test where one doesn't build.
+func builtOf(t testing.TB, parts map[string]givenPart) map[stateKey]builtPart {
 	t.Helper()
-	built := make(map[string]builtPart, len(parts))
+	built := make(map[stateKey]builtPart, len(parts))
 	for id, p := range parts {
 		b, err := builtPartOf(p.on, json.RawMessage(p.part), json.RawMessage(p.times))
 		if err != nil {
 			t.Fatalf("the part of %s: %v", id, err)
 		}
-		built[id] = b
+		built[stateKey{id: id}] = b
 	}
 	return built
 }

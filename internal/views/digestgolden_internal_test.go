@@ -188,7 +188,8 @@ func (g keptGolden) check(t *testing.T, got []byte) {
 
 // golden is the golden of a day's digest: its file's JSON, inflated; and
 // each gzip member of the day's parts file a session's entry there points
-// at, inflated, by the session's id: its part's, and its times'.
+// at, inflated, by the session's id, or of its states apart, as partKeyOf
+// keys them: its part's, and its times'.
 type golden struct {
 	Digest json.RawMessage            `json:"digest"`
 	Parts  map[string]json.RawMessage `json:"parts"`
@@ -199,7 +200,8 @@ type golden struct {
 // real ledger and digested day by day, as digestChain digests it, and its
 // parts, as golden has them, indented, ending its last line; o's last
 // request routed in a pool, where the world's others named none, so o's
-// entry names the pools of its lines.
+// entry names the pools of its lines, and holds its state in each apart,
+// where s's holds its own alone, in the form it had before pools.
 func goldenDigest(t *testing.T) []byte {
 	t.Helper()
 	lines, zoned := goldenWorld()
@@ -245,20 +247,24 @@ func indented(t *testing.T, plain []byte) []byte {
 
 // partsOf are the parts the digest given, the JSON of the digest of the local
 // day with the given date, points at in the day's parts file, and their
-// times, by the ids of their sessions, each member read where its entry
-// says, inflated.
+// times, by the ids of their sessions, and of their states apart, as
+// partKeyOf keys them, each member read where its entry says, inflated.
 func (c *digestChain) partsOf(date string, digest json.RawMessage) (parts, times map[string]json.RawMessage) {
 	c.t.Helper()
 	type member struct {
 		Offset int64 `json:"offset"`
 		Length int64 `json:"length"`
 	}
+	type pointing struct {
+		Part *struct {
+			member
+			Times *member `json:"times"`
+		} `json:"part"`
+	}
 	var entries struct {
 		Sessions map[string]struct {
-			Part *struct {
-				member
-				Times *member `json:"times"`
-			} `json:"part"`
+			pointing
+			Apart []pointing `json:"apart"`
 		} `json:"sessions"`
 	}
 	if err := json.Unmarshal(digest, &entries); err != nil {
@@ -270,16 +276,28 @@ func (c *digestChain) partsOf(date string, digest json.RawMessage) (parts, times
 	}
 	inflated := func(m member) json.RawMessage { return gunzipped(c.t, file[m.Offset:m.Offset+m.Length]) }
 	parts, times = make(map[string]json.RawMessage), make(map[string]json.RawMessage)
-	for id, e := range entries.Sessions {
-		if e.Part == nil {
-			continue
+	read := func(key string, p pointing) {
+		if p.Part == nil {
+			return
 		}
-		parts[id] = inflated(e.Part.member)
-		if e.Part.Times != nil {
-			times[id] = inflated(*e.Part.Times)
+		parts[key] = inflated(p.Part.member)
+		if p.Part.Times != nil {
+			times[key] = inflated(*p.Part.Times)
+		}
+	}
+	for id, e := range entries.Sessions {
+		read(id, e.pointing)
+		for i, p := range e.Apart {
+			read(partKeyOf(id, i), p)
 		}
 	}
 	return parts, times
+}
+
+// partKeyOf is the key a golden keeps the part of the ith state apart of the
+// session with the given id under, from the first.
+func partKeyOf(id string, i int) string {
+	return fmt.Sprintf("%s apart %d", id, i+1)
 }
 
 // envelopeOf is the version of the ledger's envelope a golden's digest's
