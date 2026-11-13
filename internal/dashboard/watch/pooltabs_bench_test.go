@@ -1,6 +1,9 @@
 package watch
 
 import (
+	"io/fs"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/leeovery/switchboard/internal/dashboard"
@@ -143,7 +146,9 @@ func (w busyWorld) runningIn(route busyRouting, pool string) []status.Session {
 // routes it, in each pool: Sessions shown the first time, till its List's
 // first read lands, the router listing the pool's sessions running alone;
 // and enter on that session in Accounts' Detail till its page shows its
-// lines.
+// lines. And the first pass of a ledger opened afresh, every digest due, as
+// once after a digest's version moves on, with the bytes its digests and
+// parts files take.
 func BenchmarkASplitSession(b *testing.B) {
 	w := newPooledWorld(b, start, splitPools)
 	for _, pool := range []struct{ name, id string }{{"Default's", "b2n8"}, {"Acme's", "q7mt"}} {
@@ -165,4 +170,43 @@ func BenchmarkASplitSession(b *testing.B) {
 			}
 		})
 	}
+	b.Run("the first pass of a ledger opened afresh, every digest due", func(b *testing.B) {
+		version := views.DigestVersion
+		for b.Loop() {
+			b.StopTimer()
+			version++
+			l := w.ledger(ledger.Digesting(digestsMovedOn{version: version}))
+			b.StartTimer()
+			l.DigestEnded(b.Context(), start)
+		}
+		digests, parts := w.builtBytes(b)
+		b.ReportMetric(float64(digests), "digest-B")
+		b.ReportMetric(float64(parts), "parts-B")
+	})
+}
+
+// builtBytes are how many bytes the world's ledger's digests take, and its
+// parts files.
+func (w busyWorld) builtBytes(tb testing.TB) (digests, parts int64) {
+	tb.Helper()
+	err := filepath.WalkDir(ledger.Dir(w.state), func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return err
+		}
+		info, err := d.Info()
+		if err != nil {
+			return err
+		}
+		switch name := d.Name(); {
+		case strings.HasPrefix(name, "digest-"):
+			digests += info.Size()
+		case strings.HasPrefix(name, "parts-"):
+			parts += info.Size()
+		}
+		return nil
+	})
+	if err != nil {
+		tb.Fatal(err)
+	}
+	return digests, parts
 }
