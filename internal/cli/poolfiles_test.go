@@ -90,6 +90,17 @@ func pooledDeps(t *testing.T, fenced bool) cli.Deps {
 	if err != nil {
 		t.Fatal(err)
 	}
+	filePooledLines(t, state)
+	for _, f := range pooledEvents {
+		fileEvent(t, deps, f.date, f.line)
+	}
+	return deps
+}
+
+// filePooledLines writes pooledLines as the request ledger's day in the
+// state directory given.
+func filePooledLines(t *testing.T, state string) {
+	t.Helper()
 	var day bytes.Buffer
 	for _, line := range pooledLines {
 		line.At = line.At.UTC()
@@ -100,10 +111,6 @@ func pooledDeps(t *testing.T, fenced bool) cli.Deps {
 		day.Write(append(data, '\n'))
 	}
 	writeStateFile(t, ledger.Dir(state), "requests-2026-10-07.jsonl", day.Bytes())
-	for _, f := range pooledEvents {
-		fileEvent(t, deps, f.date, f.line)
-	}
-	return deps
 }
 
 // fieldsOf returns the given field of each JSON object a line printed, as a

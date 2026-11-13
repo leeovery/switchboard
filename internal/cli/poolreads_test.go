@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/identity"
@@ -158,36 +159,41 @@ func TestTheFirstPoolIsReadOnceAVerb(t *testing.T) {
 }
 
 // The dashboard's ledger reads the first pool afresh at each ask, as it may
-// stay open across the move to pools or a pool's removal: work in no pool is
-// the first's as the accounts record notes it then.
+// stay open across the move to pools: opened before there's a history to
+// wait on it, its work in no pool is in no pool until the move notes the
+// first pool, then the first's.
 func TestTheDashboardsLedgerReadsTheFirstPoolAfresh(t *testing.T) {
-	deps := pooledDeps(t, false)
+	deps := testDeps(map[string]string{"XDG_STATE_HOME": shortTempDir(t)}, t.TempDir())
+	deps.Now = func() time.Time { return ledgerNow }
+	path, err := config.Path(deps.Getenv, deps.HomeDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeStateFile(t, filepath.Dir(path), filepath.Base(path), []byte("[[account]]\nid = \"work\"\nlabel = \"Work\"\n\n[[account]]\nid = \"side\"\nlabel = \"Side\"\n"))
+	state := stateDir(t, deps)
+	markDone(t, state, idsMark)
 	cfg := recordWatch(t, &deps)
 	if got := run(t, deps, "dashboard"); got != (result{}) {
 		t.Fatalf("switchboard dashboard = %+v, want exit status 0 and nothing printed", got)
 	}
-	// side's sessions in Acme today: p1's, from before pools, once the first.
-	inAcme := func() int {
+	filePooledLines(t, state)
+	// side's sessions in Default today: p3's, and p1's, in no pool, once
+	// Default is noted the first.
+	inDefault := func() int {
 		days := cfg.Ledger.Days(ledgerNow)
 		for _, a := range days[len(days)-1].Accounts {
 			if a.Account == "side" {
-				return a.InPool("q7mt", "").Sessions
+				return a.InPool("b2n8", "").Sessions
 			}
 		}
 		return 0
 	}
-	if n := inAcme(); n != 0 {
-		t.Fatalf("side's day has %d sessions in Acme, want none while Default is the first", n)
+	if n := inDefault(); n != 1 {
+		t.Fatalf("side's day has %d sessions in Default before the move to pools, want p3's alone, 1", n)
 	}
-	err := identity.NewFile(stateDir(t, deps)).Update(func(r *identity.Record) error {
-		r.Pools = []identity.PoolEntry{{ID: "b2n8", Added: testNow, Here: true}, {ID: "q7mt", Added: testNow, First: true, Here: true}}
-		return nil
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if n := inAcme(); n != 1 {
-		t.Errorf("side's day has %d sessions in Acme once the record notes it the first, want p1's, 1", n)
+	markMoved(t, state)
+	if n := inDefault(); n != 2 {
+		t.Errorf("side's day has %d sessions in Default once the move notes it the first, want p1's and p3's, 2", n)
 	}
 }
 

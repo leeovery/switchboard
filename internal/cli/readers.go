@@ -131,9 +131,9 @@ func poolLabelsIn(dir string, cfg *config.Config) func(id string) string {
 // readers has wc read the request ledger, the readings history and the
 // router's events where they lie, through stateReadersKnowing's readers, the
 // ledger reading the first pool afresh at each ask, as idmove.FirstPool
-// does, as a dashboard may stay open across the move to pools or a pool's
-// removal; the events those of the pool the dashboard shows, as shownEvents
-// has them. Without a state directory to find, they read nothing.
+// does, as a dashboard may stay open across the move to pools; the events
+// those of the pool the dashboard shows, as shownEvents has them. Without a
+// state directory to find, they read nothing.
 func (a *app) readers(ctx context.Context, wc *watch.Config, cfg *config.Config) {
 	r, err := a.stateReadersKnowing(ctx, cfg, idmove.FirstPool)
 	if err != nil {
