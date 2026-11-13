@@ -856,7 +856,9 @@ and each day it reads back, with each day's figures, and its find, which finds t
 sessions; Sessions, each session's requests, worth and tokens those it made in the pool; a
 session's page, its points among them; History's days and weeks; Graphs; and the worth and tokens
 on Accounts. A session resumed in another pool, once its directory's fence changes, shows in each
-pool with the work it did there.
+pool with the work it did there. The days begin where the pool's work does, so a pool added to a
+ledger months old shows no empty months before it in History, and WHEN YOU WORK averages its own
+days alone.
 
 Once there's a second pool:
 

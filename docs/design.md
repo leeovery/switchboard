@@ -1068,8 +1068,12 @@ totals.
   on an account sharing its windows' rises as ever; History's days and weeks; Graphs; and the
   worth and tokens on Accounts. Each digest's entry names the pools of the lines its session's
   state was folded from, so a pool's read rests on a state of its own work alone and reads a
-  session split between pools from its lines (see The request ledger's In a pool). No page adds
-  pools together: a pool's
+  session split between pools from its lines (see The request ledger's In a pool). The days begin
+  where the pool's work begins, its first day whose summary holds work in it
+  (`views.PoolRead`'s Start), so a pool added to a ledger months old counts no day before it as a
+  day of none: History's months, WHEN YOU WORK's weekday averages, Accounts' periods and Runway's
+  lanes begin there, where every pool's begin where the ledger does. A pool that has worked on no
+  day before today begins with today, told once a run. No page adds pools together: a pool's
   room can never serve another pool's sessions, so a merged view has nothing to add up. A page
   across pools waits until one is needed (the owner's call, 11 November 2026).
 - **`P` cycles the pools,** on every tab, once a second pool exists, in the config's order, round.
@@ -1189,14 +1193,20 @@ pool, its Log and its other ledger tabs; setup's cards are to build:
    The Log's In a pool); and the tabs built from the day digests and summaries, Sessions, a
    session's page, History, Graphs and the worth and tokens on Accounts, the pool shown's alone,
    each digest's entry naming its lines' pools, the digests' envelope at version 3 (see The
-   request ledger's In a pool). On the busy world, 5,000 requests a day over four weeks, a
-   client's pool a fifth of them, one pool read by its id opens each as reading every pool's did:
-   Sessions in some 47 ms, a session's page 75, History 6 and Graphs 270. With two, Sessions opens
-   in some 29 ms on the client's pool and 44 on the other, against 49 reading every pool's, a
-   session's page as before, and History and Graphs as before or a little quicker (13 November
-   2026, race detector off, the fastest of six rounds each on a busy Mac). To build: setup's
-   cards. The dashboard's `--pool` for a pool the config no longer has stays an idea
-   ([dashboard-removed-pool](../ideas/2026-11-13--dashboard-removed-pool.md)).
+   request ledger's In a pool), their days beginning where the pool's work begins. On the busy
+   world, 5,000 requests a day over four weeks, a client's pool a fifth of them, each is measured
+   against every pool's read, which takes the path every read took before, and measured alike on
+   the code before: one pool read by its id opens each as every pool's read does, Sessions in
+   some 47 ms, a session's page 75, History 6 and Graphs 270. With two, Sessions opens in some 29
+   ms on the client's pool and 44 on the other, against 49, a session's page as before, and
+   History and Graphs as before or a little quicker (13 November 2026, race detector off, the
+   fastest of six rounds each on a busy Mac). A session split between pools costs more where it
+   works now: with the busy world's longest session resumed in the client's pool after two weeks
+   in the other, the client's Sessions opens in some 400 ms and the session's page in either pool
+   in some 0.9 s, each reading its four weeks whole, where the pool it left, reading it no more,
+   opens Sessions in 54 ms, against 350 before it passed over it (the fastest of three rounds
+   each). To build: setup's cards. The dashboard's `--pool` for a pool the config no longer has
+   stays an idea ([dashboard-removed-pool](../ideas/2026-11-13--dashboard-removed-pool.md)).
 
 ## Reserves
 
@@ -8691,10 +8701,13 @@ from the first day a router that has it runs, so nothing before then is in it.
   views', which the ledger carries as it's given and never reads. The envelope's version is 3,
   since its entries name their pools, and `views.DigestVersion` 2, from phase 2 of the digests
   (see Milestones). Version 3 builds every day's digest again once, oldest first, as each rests
-  on the day before's: on the busy world, 5,000 requests a day, some 0.4 s a day, as before it,
-  each digest a quarter of a percent larger, so a year of days is some 2½ minutes of work, paced
-  to half a core, the days not yet built read raw meanwhile (13 November 2026, race detector off,
-  on a busy Mac).
+  on the day before's: on the busy world, 5,000 requests a day, some 0.4 s of CPU a day, as before
+  it, each digest a quarter of a percent larger, so a year of days is some 2½ minutes of CPU,
+  paced to half a core, some 5 minutes as the router runs (13 November 2026, race detector off,
+  on a busy Mac). Until a day's digest is built again, its sessions are read from their lines,
+  slower and exact, as of any digest of another version. Released beside the rows' version 4,
+  as each pass builds the heads due after the digests (see A head a day's Who writes it), the
+  Log's heads are built again only once every digest is, their days read raw till then.
 
   - **Derived and disposable.** The day's lines stay the truth. A digest missing, unreadable, of
     another version or no longer standing is read past: the session's days are read raw, slower,
@@ -8803,16 +8816,22 @@ from the first day a router that has it runs, so nothing before then is in it.
     tallies and points, which can't be told apart by pool, and a fold a pool would be a second to
     keep equal to the store's, for a session that's rare, resumed in another pool once its
     directory's fence changes, or whose lines naming none sit beside another pool's than the
-    first. A reader taking every line a read reads, as a page's points take every account's
-    answers, is handed every pool's, as every pool's requests on an account climb its windows, as
-    the builder takes them, each line once, a session read whole again handing it only the days
-    the first read didn't; and a line of another pool as of no session, so a page's points take as
-    the session's own its requests in the pool alone, as the store's read of the tail hands them
-    too. So a pool's every reader through digests shows exactly what the pool's lines read raw
-    show: tests hold the List, each page and the store to them, a session of the pool alone, of
-    none of it, of the pool shared with another, and of lines naming none among them; and a split
-    session's page in a pool to that of a ledger whose session made its other pool's requests
-    under another id.
+    first. As an entry's pools only grow, every digest after a session splits holds it shared, so
+    one the read wasn't asked for, found among today's sessions, with none of the pool's lines
+    after its state, is passed over unread: with no request in the pool today, and not running
+    there, the List never lists it, and the pool it left doesn't read it whole at every read for
+    as long as it runs. One asked for, as its page, is read whole then. A reader taking every line
+    a read reads, as a page's points take every account's answers, is handed every pool's, as
+    every pool's requests on an account climb its windows, as the builder takes them, each line
+    once, a session read whole again handing it only the days the first read didn't, so a line
+    filed on a day between the two reads misses a page's points till the next look's read of the
+    tail; and a line of another pool as of no session, so a page's points take as the session's
+    own its requests in the pool alone, as the store's read of the tail hands them too. So a
+    pool's every reader through digests shows exactly what the pool's lines read raw show: tests
+    hold the List, each page and the store to them, a session of the pool alone, of none of it, of
+    the pool shared with another, directly and through lines naming none, among them; and a split
+    session's page in a pool, opened and held across the tail's feeds, to that of a ledger whose
+    session made its other pool's requests under another id.
   - **What it costs,** accepted (settled in the plan, 18 October 2026): the first pass after a start
     reads every digest kept, to judge it; a router stopping waits for a build's read of a heavy day,
     a second at most; and a prune of the ledger's files, once a day, waits for a build's reads, as
