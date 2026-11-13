@@ -571,6 +571,162 @@ account's: see [`claude`](commands.md#claude).
 So what Claude Code sends that isn't the conversation goes out on the primary, such as publishing an
 artifact or uploading a file. Every session's artifacts open in a browser signed into the primary.
 
+With [pools](#pools), each pool has a primary of its own, and all of this holds within the pool.
+
+## Pools
+
+Every account is in a pool: a set of accounts that sessions are routed across. A pool can be
+fenced to one or more directories, and then a session started inside them is routed across that
+pool's accounts and no others. Nothing crosses between pools, either way: a pool's accounts never
+serve a session from outside it, and a session inside it never goes out on an account outside it.
+It's built for a client who provides Claude accounts for their own work, which have to serve that
+work alone.
+
+```toml
+[[pool]]
+id    = "d3wn"
+label = "Default"
+
+[[pool]]
+id    = "q7mt"
+label = "Client"
+dirs  = ["~/Code/client"]
+```
+
+With one pool, switchboard works as it always has: no screen names a pool, and no command needs
+`--pool`. The first pool is made for you, labelled `Default` (see
+[Upgrading to pools](#upgrading-to-pools)). Every pool is equal: the first can be fenced as any
+other can, so you can fence it to an employer's work and add an unfenced pool for everything else.
+
+The pool on the dashboard's Overview and in `usage`, `Σ pool`, is the room new sessions can go to.
+With pools, it's the room of the pool shown, as a pool's room can never serve another's sessions.
+
+### Making pools
+
+[`switchboard pool add Client ~/Code/client`](commands.md#pool) makes a pool, fenced to the
+directories given, and `pool edit` and `pool remove` change and remove one. `accounts add --pool`
+puts an account in a pool, and `accounts edit --pool` moves one. Each pool's table is in the
+config: see [`[[pool]]` keys](configuration.md#pool-keys).
+
+- **One unfenced pool at most:** it serves every session started outside every fence. Where every
+  pool is fenced, a session started outside them all doesn't start.
+- **No overlap:** no two pools' directories can be the same, or one inside another. A directory
+  covers everything beneath it, a whole folder name at a time, so `~/Code/acme` doesn't cover
+  `~/Code/acme-api`.
+- **A pool can have no accounts:** a session started in its directories doesn't start, saying so.
+  So when a client's last account goes, the client's directories close, rather than falling into
+  the unfenced pool. Removing the pool hands them back.
+- **A pool with accounts can't be removed:** move them to another pool, or remove them, first. The
+  last pool can't be removed.
+
+### Which pool a session is in
+
+`claude` decides as it starts, from the directory Claude Code starts in, and the session keeps that
+pool for its whole life:
+
+- It's the fenced pool whose directories hold the directory, as it's given or as its links lead;
+  else the unfenced pool. Where two pools' fences hold it, one as given and one through a link,
+  it starts nothing.
+- The start directory decides. A session started in `~/Code` that later works in `~/Code/client`
+  stays in the unfenced pool, as Claude Code itself files a session by the directory it started
+  in. A resumed session starts afresh, in the pool its directory is in now.
+- A git worktree made outside a pool's directories is outside the pool. Claude Code's own
+  worktrees, under the project's `.claude/worktrees`, stay inside it.
+
+The commands never choose a pool by the directory you run them in: they read the only pool, else
+the unfenced one, else ask for `--pool` (see [Reading a pool](commands.md#reading-a-pool)).
+
+### Each pool's primary
+
+Each pool has a primary, kept as [the primary](#the-primary) is: `primary = true` marks it, else
+it's the pool's first account. A session starts on its pool's primary's token, so what Claude Code
+sends that isn't the conversation, such as artifacts and uploads, goes out inside the pool, and a
+client's pool keeps its artifacts on the client's account: open them in a browser profile signed
+into it. A session that goes direct goes out on its pool's accounts alone.
+
+### Routing within a pool
+
+Every rule of routing, pinning, reserves, forecasting and priming applies inside each pool, with
+that pool's accounts as the whole set:
+
+- **Pins:** each pool has its own pin. `pin <account>...` pins the accounts in their pool; `pin
+  auto` clears the pin of the pool `--pool` names. A session's own pin must name an account of its
+  pool.
+- **No fallback leaves the pool.** When none of a pool's accounts can take a request, switchboard
+  answers 429 itself, saying why each can't, as `switchboard: no account in pool Client can take the
+  request; account m4zq: …`, while the other pools carry on.
+- **The router takes changes to the pools up within seconds,** at its look at the config every 3
+  seconds: which pool each account is in, each pool's primary and directories, and the pools
+  themselves. An account newly added still waits for the router's restart.
+- **An account that moves to another pool** takes its sessions off at once: each moves on its next
+  request, as `moved: <id> left the pool`, whatever its cache.
+- **A session whose token has left its pool is refused,** as when its pool's primary moved to
+  another pool or the pool was removed: Claude Code can't change the token it started on while it
+  runs, so the router answers its requests itself, `switchboard: this session's account has left
+  pool Client — exit and resume it to carry on in the pool its directory is in now`. Resumed, the
+  session starts in the pool its directory is in then, on that pool's primary.
+- **A router that doesn't route by the pools counts as down,** with two pools or more, as one from
+  before pools would spread a session across every account. `claude` waits 5 seconds for it to
+  take the pools up first (see [`claude`](commands.md#claude)).
+
+### What's recorded
+
+Everything that records a pool's work names its pool: each request line, the router's events of a
+session starting or moving and of each pin, and each day's summary, which splits an account's day
+by pool where it moved partway. An account's windows stay its own, whatever pool it's in. Moving an
+account rewrites nothing: the past stands as it was.
+
+So the views go two ways. Those that show accounts go by the pool each account is in now: its
+windows, Runway, the day strips and Graphs. Those that show work go by the pool recorded at the
+time: the requests and the Log, the sessions, what work was worth, and History's totals. See
+[The request ledger](reference.md#the-request-ledger).
+
+### Upgrading to pools
+
+The first time the router starts on a version with pools, once the move onto account ids is done,
+it moves your history to pools, once, by itself:
+
+1. Where the config has no pools, it makes the first, labelled `Default`, and writes it to the
+   config in one edit, with every account's `pool`. Where the config has pools already, as where
+   another Mac sharing it moved first, the first of them is this Mac's first pool, and the config
+   isn't written.
+2. It takes the pool up at once, and every request it routes from then names a pool.
+3. It gives every request line, pin event and day's summary from before pools the first pool's id,
+   a day's files at a time, and builds what it builds from them again. `pools.moved` in the state
+   directory marks it done.
+
+It routes throughout, and a stop part way carries on the next time it starts. Until it's done,
+`requests`, `history`, `sessions`, `events` and `import` refuse, the dashboard says what holds the
+move up, and `switchboard status` says how it stands. Work in no pool, from before pools, is the
+first pool's ever after.
+
+**A config that loses its pools,** as one put back from before pools by hand or by the repository
+it's kept in, is given them back: the router writes each pool back as the config last wrote it,
+from the accounts record, and each account in the pool it was in. An account added since goes to
+the unfenced pool, never a fenced one; where every pool is fenced, the config is left as it is, and
+tried again each minute. Whether or not the config can be written, the router routes as though it
+were, and `claude` reads the pools from the router, else from the accounts record, so no session
+crosses a fence meanwhile. See [Pools](troubleshooting.md#pools).
+
+**Several Macs** sharing a config should upgrade together, as for the ids: the first to move writes
+the first pool, and the others take it from the config. A Mac that moves before the first pool has
+reached it makes one of its own, and its history from before pools stays under that pool, shown
+removed once the configs agree, which harms nothing but its name.
+
+### What pools can't hold
+
+- **A session started without switchboard's `claude`,** as an editor's extension may start one,
+  isn't routed at all, whatever its directory. The session hook can only tell it so (see
+  [A session that isn't going through switchboard](#a-session-that-isnt-going-through-switchboard)).
+- **A running session's own token** goes out until the session exits. The router refuses its
+  routed requests once its token has left its pool, but what never reaches the router, such as
+  fast mode, carries on until then.
+- **A config file that can't be read even for its pools,** with the router not answering: before
+  the history has moved to pools, `claude` starts as if switchboard weren't there, as it did before
+  pools. Once it has, `claude` keeps Claude Code's own login out of the fences the accounts record
+  keeps, and starts nothing where that keeps none either. Where the config can't be read but its
+  pools can, or the router answers, `claude` never starts on its own login inside a fence.
+
 ## Reserves
 
 Any account can keep a reserve: a share of every window that the router leaves unused, for use
