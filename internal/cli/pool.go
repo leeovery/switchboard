@@ -167,15 +167,27 @@ launch until one is added to it, with accounts add --pool or accounts edit
 			if err != nil {
 				return err
 			}
-			var out io.Writer = cmd.OutOrStdout()
-			_, err = fmt.Fprintf(out, "added pool %s as %s, %s\n", prose.Quoted(prose.Clean(added.Label)), added.ID, fenceSaid(added))
-			return err
+			return poolAddedSays(cmd.OutOrStdout(), added)
 		},
 	}
 }
 
 // fenceSaid says where a pool is fenced: "fenced to ~/Code/acme", or
 // "unfenced".
+// poolAddedSays writes to out that the pool added was, by its label and the
+// id switchboard made for it, fenced or not as fenceSaid says.
+func poolAddedSays(out io.Writer, added config.Pool) error {
+	_, err := fmt.Fprintf(out, "added pool %s as %s, %s\n", prose.Quoted(prose.Clean(added.Label)), added.ID, fenceSaid(added))
+	return err
+}
+
+// poolRemovedSays writes to out that the pool removed was, by its id and
+// label.
+func poolRemovedSays(out io.Writer, removed config.Pool) error {
+	_, err := fmt.Fprintf(out, "removed pool %s (%s)\n", removed.ID, prose.Clean(removed.Label))
+	return err
+}
+
 func fenceSaid(p config.Pool) string {
 	if !p.Fenced() {
 		return "unfenced"
@@ -310,9 +322,7 @@ session started in them goes to the unfenced pool, where there's one.
 			if err != nil {
 				return err
 			}
-			var out io.Writer = cmd.OutOrStdout()
-			_, err = fmt.Fprintf(out, "removed pool %s (%s)\n", removed.ID, prose.Clean(removed.Label))
-			return err
+			return poolRemovedSays(cmd.OutOrStdout(), removed)
 		},
 	}
 }
