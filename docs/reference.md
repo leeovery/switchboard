@@ -256,7 +256,7 @@ line keeps everything about a request except its content. It never holds any of 
 | `kind` | `message`, Claude Code's quota `check`, or a `count` of tokens. |
 | `session` | The request's session id. |
 | `dir` | The directory `run` started Claude Code in, with your home shown as `~`. |
-| `pool` | The pool the request was routed within, by its id, as `run` named it to the router: a request naming none, from a session started before pools, in the first pool. Left out where the config has no pools, and of lines from before pools that the move to pools didn't reach, which are the first pool's. |
+| `pool` | The pool the request was routed within, by its id, as `run` named it to the router: a request naming none, from a session started before pools, in the first pool. Left out where the config has no pools. The move to pools gives every line from before them the first pool; a line without one since, as a release from before pools files after a downgrade, is the first pool's. |
 | `model` | The model the request asked for. |
 | `account` | The account whose answer the client got, by its id alone. Left out where the router answered the request itself. |
 | `reason` | Why the request went to that account, in the words of the log's routed line. See [Why a request went where it did](#why-a-request-went-where-it-did). |
@@ -429,7 +429,7 @@ event can change, so when you read one that changed, take its last version.
 | `kind` | What happened. See below. |
 | `account` | The account the event befell. |
 | `accounts` | The accounts a pool's pin names. |
-| `pool` | The pool the event is of, by its id: on `started` and `moved`, the pool the session's request was routed within; on `pin` and `auto`, the pool whose pin was set or cleared, or, of a session's own pin, the session's pool. Left out where the config has no pools, and of events from before pools: a `pin` or `auto` event from before them is the first pool's once the move to pools is done, and the move gives it the first pool. |
+| `pool` | The pool the event is of, by its id: on `started` and `moved`, the pool the session's request was routed within; on `pin` and `auto`, the pool whose pin was set or cleared, or, of a session's own pin, the session's pool. Left out where the config has no pools, and of a `started` or `moved` event from before them. The move to pools gives every `pin` and `auto` event from before them the first pool, and once it's done, an event of these kinds without a pool is the first pool's. |
 | `session` | The session that started or moved, or whose own pin changed. |
 | `model` | The model whose requests did so. |
 | `dir` | The directory the session ran in as the event befell it, the home as `~`, as the request ledger gives it. Left out where none was known yet, and in events written before switchboard recorded it. |
