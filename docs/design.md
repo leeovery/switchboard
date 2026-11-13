@@ -9159,11 +9159,12 @@ and so does one whose every folder was passed over.
   again. The day's lines and its summary
   are taken in as one, on the ledger's writer, so whatever it ran before, a round, a stop or an
   import cut short, the look sees the day's lines as the take left them. The readings history's
-  writer isn't held off: its summarising before a prune may summarise the day from the lines just
-  taken in, between the take and the look, and the folder's summary then gives way to that one,
-  which loses no request. Else the Mac's own stands, and the round summarises again each day whose
-  lines changed, as its files' sizes tell it, building its digest, parts, head and rows again too
-  (see The request ledger).
+  writer isn't held off: its summarising before a prune, on its first round as the router starts,
+  which may come after the router first answers, and on its first of each day, may summarise the
+  day from the lines just taken in, between the take and the look, and the folder's summary then
+  gives way to that one, which loses no request. Else the Mac's own stands, and the round
+  summarises again each day whose lines changed, as its files' sizes tell it, building its digest,
+  parts, head and rows again too (see The request ledger).
 - **Days past keeping:** a day's lines past the Mac's `[ledger] keep`, or its readings past
   `[history] keep`, aren't taken in, as the next round would remove them; their summaries are, as
   summaries are kept for good.
@@ -11494,5 +11495,4 @@ was dropped binds a later choice, the design proper says so.
 | The v1 fixes' loose ends: the edges past ordinary use, failing safe, and the known costs their reviews accepted | open: after v1 | [v1-fixes-loose-ends](../ideas/2026-11-11--v1-fixes-loose-ends.md) |
 | Account identity's loose ends: the edges past ordinary use, failing safe, its reviews accepted | open: after v1 | [account-identity-loose-ends](../ideas/2026-11-11--account-identity-loose-ends.md) |
 | Pausing an account whose subscription is cancelled: kept whole and out of routing until it's resumed | after Account identity and Pools: the owner, 11 November 2026 | [pausing-accounts](../ideas/2026-11-11--pausing-accounts.md) |
-| A router test of a summary an import copies in, which failed once under load, the day summarised from its lines instead | open: any time | [import-summary-test-flake](../ideas/2026-11-13--import-summary-test-flake.md) |
 | The ledger's prebuilt records per pool: the Log's day rows, a day's side and the digests holding each line's pool, so the dashboard's ledger tabs tell of the pool shown alone | with Pools' second phase | [prebuilt-records-per-pool](../ideas/2026-11-13--prebuilt-records-per-pool.md) |
