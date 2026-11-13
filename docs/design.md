@@ -1075,14 +1075,17 @@ totals.
   first account in a pool becomes its primary. The field names the first pool even while it's the
   only one, as it's where a second is made.
 - **The plan** is a subscription's, which every account setup adds is, so the add card has no `not
-  set` (the owner's call, 11 November 2026). The edit card shows `not set` only for an account whose
-  config has no plan, as one from before plans were recorded.
+  set` (the owner's call, 11 November 2026). It opens with no plan chosen, and `enter` refuses,
+  saying so under Plan, till one is (13 November 2026). The edit card shows `not set` only for an
+  account whose config has no plan, as one from before plans were recorded.
 - **Setup's accounts table** groups the accounts by pool, in the config's order, each pool under its
   label and directories, once a second pool exists.
 - **Editing an account** moves it to another pool and makes it its pool's primary.
 - Pools with no accounts are removed with `pool remove`, and fenced or unfenced with `pool edit`.
 - **As built:** the frames are Paper's pools round 3, frames 5 to 7, held as `setup-add-160`,
-  `setup-new-pool-160` and `setup-edit-pool-160`.
+  `setup-new-pool-160` and `setup-edit-pool-160`, and the add card in one pool as
+  `setup-add-one-pool-160`. The cards sit two or three rows higher than Paper's, by setup's rule
+  for centring a card.
   - The add card's Pool offers every pool by its label, in the config's order, then `new pool`,
     and opens on the pool `accounts add` takes without `--pool`, else, where every pool is fenced,
     the first. Its hint says which sessions use the pool chosen: `only sessions started in
@@ -1103,21 +1106,36 @@ totals.
     under an id drawn as `pool add` draws one (`accounts.NewPool`).
   - The add card's `enter` checks the pool chosen and any new pool with the account, as
     `accounts.Registry.CheckNew` does, before any token is made, a refusal of either said under
-    Pool. An account that's the first in its pool, in a config with pools, is marked its primary,
-    as `accounts add` marks it too, so a second account added later doesn't leave the pool with
-    none marked.
+    Pool, a pool removed meanwhile among them, on the edit card too; with no plan chosen, once the
+    rest passes, it's refused under Plan. An account that's the first in its pool, in a config
+    with pools, is marked its primary, added or moved there, so a second account added later
+    doesn't leave the pool with none marked: `accounts` owns the rule, working it out as it
+    writes, under the record's lock, apart from a primary the caller asks for, so a pool given an
+    account since the check doesn't lose its primary. A new pool's id is drawn after the
+    account's, apart from it, and the pool made is logged as `pool add` logs one.
   - The edit card has a Pool once there's a second pool, with one there's nothing to move it to;
     its hint, `moving it takes its sessions off at once`. Primary's hint names the pool chosen,
-    `Acme's sessions start on it; the Claude apps sign in to it`. Moving the account, Primary
-    shows `no` till it's chosen, and `yes`, held, of a pool with no accounts or a new one, of
-    which it's the first. The move goes through `accounts.Registry.Edit`, as `accounts edit
-    --pool` and `--primary` do.
+    `Acme's sessions start on it`, and of the first pool, whose primary the browser and the
+    Claude apps are signed in to, adds `; the Claude apps sign in to it`. Moving the account,
+    Primary shows `no` till it's chosen, and `yes`, held, of a pool with no accounts or a new
+    one, of which it's the first, which `accounts` marks without being asked. The move goes
+    through `accounts.Registry.Edit`, as `accounts edit --pool` and `--primary` do.
+  - The account the browser is signed in to, which a token's sign-in address opens in the
+    browser as it is for, every other's opening in a private window, is the first pool's
+    primary, the first pool as the accounts record notes it (`config.Config.SignedIn`): never
+    another pool's, though it's marked and comes first. Where the first pool has no account,
+    every sign-in opens in a private window.
   - The table groups the accounts by pool once there's a second: each pool's label in
     `text.subtle`, as the table's heads are, and two cells on, its directories, or `everywhere
     else`, muted; then its accounts, in the config's order, its primary marked `◆`; a pool with no
-    accounts under its heading alone. The review gives the accounts in that order, so `↑` and `↓`
-    go down the rows as they're drawn. A pool of two accounts or more with none marked has a note
-    of its own, `Acme has no primary, …`, and `enter` waits for one, as with one pool.
+    accounts under its heading alone. The review gives the accounts in that order, and the table
+    walks it, heading each pool where its accounts start, so `↑` and `↓` go down the rows as
+    they're drawn. A pool of two accounts or more with none marked has a note of its own, `Acme
+    has no primary, …`, naming the Claude apps of the first pool's alone, and `enter` waits for
+    one, as with one pool.
+  - Done's summary names each pool's primary by its pool's label once there's a second pool,
+    `Default's primary: work · Acme's primary: acme1`, the Claude apps' reserve the first pool's
+    primary's alone, and a pool without one as `Acme has no primary`.
 
 ### What pools can't hold
 

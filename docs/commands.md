@@ -542,10 +542,11 @@ The steps are:
    token is checked with the API as `setup` opens, and shows the date its year is up, with the
    days left. A note under the table says what an account is missing, and the key that sees to
    it. `↑` and `↓` choose an account; `t` makes it a new token, `e` edits its label, plan, reserve
-   and whether it's the primary, `r` removes it, asking first, and `p` makes it the primary: the
-   account your browser and the Claude apps are signed in to. `+ add an account` adds one: its
-   label, its plan, Pro, Max or Ultra, and, where the config has [pools](how-it-works.md#pools),
-   its pool; then its token, whose subscription decides its id, as [`accounts add`](#accounts)
+   and whether it's the primary, and, once there's a second pool, moves it to another, `r`
+   removes it, asking first, and `p` makes it its pool's primary, the account its sessions start
+   on: your browser and the Claude apps are signed in to the first pool's. `+ add an account`
+   adds one: its label, its plan, Pro, Max or Ultra, none chosen till you choose one, and, where
+   the config has [pools](how-it-works.md#pools), its pool; then its token, whose subscription decides its id, as [`accounts add`](#accounts)
    does: a subscription this Mac had comes back under its old id, and where that can't be told, a
    card asks whether it's a new account or one of those this Mac had. With no account, the card
    adding one opens at once. With two or more in a pool and none its primary, `enter` waits for
@@ -804,8 +805,8 @@ The subcommands do the following:
   - It takes one or more of `--label`, `--plan`, `--pool`, `--primary` and `--reserve`, and leaves
     what it isn't given as it is.
   - `--pool` moves the account into the pool with the id given, a pool named that isn't configured
-    refused, naming the pools. It's that pool's primary only with `--primary`: without it, the
-    pool keeps its primary, and where the config marks none, `edit` marks the one it has, so the
+    refused, naming the pools. It's that pool's primary only with `--primary`, or where it's the
+    first in it, which `edit` marks it: without, the pool keeps its primary, and where the config marks none, `edit` marks the one it has, so the
     account moved doesn't take it by coming first, and says so: `marked k3f9 the primary there,
     which it stays`.
   - The sessions the router sent to the account in the pool it left move off it on their next
