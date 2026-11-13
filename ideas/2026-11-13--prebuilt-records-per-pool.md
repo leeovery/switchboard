@@ -16,7 +16,8 @@ it:
 
 So in a config with two pools, the Log's requests, the Sessions tab, a session's page, History,
 Graphs and the worth and tokens on Accounts tell of every pool's work together, labelled by
-account, whichever pool the title row names.
+account, whichever pool the title row names; History's Year sets every pool's worth beside the
+plans of the pool shown.
 
 ## What it could do
 

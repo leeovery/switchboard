@@ -1061,7 +1061,8 @@ totals.
   on Accounts, History and Graphs, are the pool shown's alone (`status.PoolAccounts`), none with
   no pool shown. What it builds from the request ledger's prebuilt records, the Log's requests,
   Sessions, a session's page, History, Graphs and the worth and tokens on Accounts, still tells of
-  every pool (see Building it). No page adds pools together: a pool's room can never serve another
+  every pool (see Building it): History's Year sets every pool's worth beside the plans of the
+  pool shown. No page adds pools together: a pool's room can never serve another
   pool's sessions, so a merged view has nothing to add up. A page across pools waits until one is
   needed (the owner's call, 11 November 2026).
 - **`P` cycles the pools,** on every tab, once a second pool exists, in the config's order, round.
@@ -1077,17 +1078,32 @@ totals.
   key line giving the first line of why. The key line lists `P pool` once a second pool exists,
   on a phone too, and help gives it. With one pool, `P` isn't listed, but reads the pools afresh
   all the same: it turns to a second added since, else the key line says there's one pool.
+- **What it holds of the pool shown follows the config as it stands:** its label, directories,
+  accounts and the pools counted, so the title row, `P pool`, the empty page and the accounts
+  listed follow a pool relabelled, fenced, given an account or left alone. It's read again,
+  without a fresh start, only as the config changes: where a read finds the config file stamped
+  otherwise, its size or when it was written, than as the pool was read, or the accounts the read
+  found other than the last read's (`status.Moment.AccountsChanged`), as an account the router
+  took up as it restarted. A read that finds neither reads nothing again: what it costs a read is
+  a stat of the config file and a comparison of two lists of ids. It's one path with `P`'s: the
+  watch asks its `Turn` for the pool shown again (`watch.SamePool`, `status.PoolAgain`), and where
+  the pool shown is gone, that's a turn to the next, as `P` would make. A config that can't be read
+  is logged and asked again once it changes again. The router's events are filtered as the pool
+  was turned to, till the next `P`.
 - **The title row names the pool shown,** by its label after the badge, once a second pool exists,
   at every size, cut short before the tabs where it's long. The pool's accounts keep the config's
   order, unnumbered, as every screen has them (see Account identity).
 - **A pool with no accounts** draws a page that says so on every tab, its status line `● healthy ·
   no accounts`: a session started in its directories, or for an unfenced pool outside every fence,
   doesn't start; how to add an account to it or move one in; and that its directories stay fenced
-  until it's removed. Its key line is `tab views  P pool  ? help  q quit`. Whether the pool is
-  empty is judged from what's read of it (`status.ShownPool.AsRead`): its document's accounts,
-  once one is read, else the config's as the pool was chosen, so an account added to the pool, or
-  its last taken out, shows at the next read. The page, the status line and the keys all read
-  that one fact.
+  until it's removed. Its key line is `tab views  P pool  ? help  q quit`. Empty means none to
+  route (`status.ShownPool.AsRead`): none in the router's document of the pool, once one is read,
+  its pool id the pool shown's; else none in the config. A probed document, whose accounts are the
+  config's, or one of no pool, as a router that can't tell its pools answers, leaves it to the
+  config. Where the config gives the pool accounts the router hasn't taken up, as it does only as
+  it restarts, at a quiet moment, the status line says `no accounts routed yet` and the page says
+  so, and that `switchboard service restart` takes them up now. The page, the status line and the
+  keys all read that one fact.
 - **Notifications** name the pool once a second pool exists, its label leading what they say of
   the account, as `Acme · k3f9 · Acme 1 has room again`: the router's, and the dashboard's own
   without the router, by the one wording (`prose.PoolLed`). With one pool, they're as they were.
@@ -1145,9 +1161,6 @@ Accepted as the first phase was built, each failing safe, with nothing crossing 
   draining router or a downgrade filed without a pool, can count those requests twice: the summary
   held puts them in the old first pool, the new one in the config's first, and both are kept. It
   needs all three rare events together, for a handful of requests.
-- **The dashboard's pool's label and directories read as it opens and at each `P`,** held till the
-  next: a pool relabelled or fenced while one is open shows in its title row and its empty page's
-  words at the next `P`.
 - **Several Macs** whose configs differ until one is kept: a pool removed on one Mac alone, and an
   account configured under its id, which the record holds for that pool, leaves the account out of
   this Mac's record, logged, till the configs agree.
@@ -1174,10 +1187,11 @@ pool; its ledger tabs and setup's cards are to build:
 2. **Sight:** the dashboard's `--pool` and `P`, the title row, the empty pool, notifications, and
    setup's cards, each drawn in Paper first; and the dashboard's ledger tabs made the shown pool's
    alone. Built: the dashboard's `--pool`, its accounts the pool's alone, `P` with its pools and
-   events read afresh at each turn, the title row, the empty pool as read, and the notifications,
-   the router's and the dashboard's, each fixture named after its frame (`overview-acme-160`,
-   `overview-default-pool-160`, `overview-acme-73x61`, `empty-pool-160`). To build: the ledger
-   tabs per pool, the worth and tokens on Accounts among them, and setup's cards.
+   events read afresh at each turn, the pool shown following the config as it changes, the title
+   row, the empty pool as read, and the notifications, the router's and the dashboard's, each
+   fixture named after its frame (`overview-acme-160`, `overview-default-pool-160`,
+   `overview-acme-73x61`, `empty-pool-160`). To build: the ledger tabs per pool, the worth and
+   tokens on Accounts and History's Year among them, and setup's cards.
 
 ## Reserves
 
