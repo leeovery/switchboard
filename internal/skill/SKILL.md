@@ -13,7 +13,8 @@ Each account has a label, such as `Work`, which is what the user calls it, and a
 made from its subscription, such as `b6s7`. Name accounts to the user by their labels. Commands
 take the id: `pin`, `--account` and `accounts edit`, `token` and `remove`. `switchboard status`
 gives each account's `id` and `label`, and `sessions` and `history` a `label` beside each account's
-id; `requests` and `events` give ids alone, as the files keep them. The accounts aren't numbered.
+id; `requests` and `events` give accounts by their ids alone, as the files keep them, and a line's
+pool by its id with its `pool_label`. The accounts aren't numbered.
 
 The accounts can be split into pools. A session started inside a pool's directories is routed
 across that pool's accounts alone, and one started outside every fence across the unfenced pool's.
@@ -21,7 +22,9 @@ A session started through switchboard has its pool's id in `$SWITCHBOARD_POOL`: 
 `--pool "$SWITCHBOARD_POOL"` to every `status`, `usage`, `sessions`, `requests`, `history`,
 `events` and `pin`, so you read and act on your own pool, named explicitly. It's empty with a
 config without pools or in a session not started through switchboard, and `--pool ""` is no flag.
-`switchboard pool` lists the pools, their directories and accounts.
+`switchboard pool` lists the pools, their directories and accounts. A pool since removed, or another
+Mac's brought in by `import`, keeps its history: `requests`, `history`, `sessions` and `events`
+read it with `--pool` and its id.
 
 - To find the account a session is on, run `switchboard status --session <id>`. Your own session's
   id is in `$CLAUDE_CODE_SESSION_ID`, and Claude Code's `/status` shows a session's id.
@@ -74,9 +77,9 @@ once it's done.
   every one of them is out, and only then to the others. A pin is its pool's: the accounts given
   must be of one pool, and it steers that pool's sessions alone. Add `--move` to move running
   sessions there too, or `--session <id>` to pin that one session alone to one account. Add
-  `--force` to clear every session's own pin as well, so `--move --force` puts every session on
-  those accounts. `switchboard pin auto` goes back to routing, and `pin auto --force` clears every
-  session's own pin too.
+  `--force` to clear the own pins of the pool's sessions as well, so `--move --force` puts every
+  session of the pool on those accounts. `switchboard pin auto` goes back to routing, and
+  `pin auto --force` clears the own pins of the pool's sessions too.
 - To read the router's log, which says why each request went to its account, run
   `switchboard logs`.
 
