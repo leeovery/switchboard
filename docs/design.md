@@ -522,7 +522,8 @@ each).
 ## Pools
 
 **Designed** (the owner's calls, 10 and 11 November 2026), **its first phase built**, safety (see
-Building it); the dashboard's pools and setup's, its second, are still to build. The other sections
+Building it), **and of its second the dashboard's pool**; the dashboard's ledger tabs per pool and
+setup's cards are still to build. The other sections
 describe switchboard with a single pool, as it runs with one, and hold within each pool where there
 are more: their primary is the pool's, and their global pin the pool's pin. It's built on Account
 identity: accounts are known by the ids switchboard makes, shown by their labels, and never
@@ -979,7 +980,7 @@ totals.
   record names any pools`. Reading the recorded files, a verb reads the work recorded in the pool,
   as What's recorded says, a line, start, move or pin from before pools the first pool's; the
   windows, plans and weeks of the accounts in the pool now; and an event by the one rule What's
-  recorded gives. `dashboard`'s `--pool` comes with the second phase (see Building it).
+  recorded gives. `dashboard` takes `--pool` too, as The dashboard in a pool says.
 - **A pool the config no longer has** keeps its history, as the accounts record keeps the pool: the
   verbs that read the recorded files, `requests`, `history`, `sessions` and `events`, take
   `--pool` with the id of a pool the record keeps that the config doesn't, one removed, or another
@@ -1051,22 +1052,34 @@ totals.
 
 ### The dashboard in a pool
 
-- **A dashboard shows one pool,** the one `--pool` names, or without it the pool the verbs act on.
-  As the first phase built it, its ledger tabs still tell of every pool (see Building it), and
-  where every pool is fenced, with no `--pool` to name one, it reads no pool's accounts: the router
-  refuses its reads, its status line says it couldn't read usage, as every pool is fenced, naming
-  the pools, trying again at each read, the pages drawn from the router's document stay empty, and
-  it reads none of the router's events; the second phase's `--pool` opens it on the pool named.
-  No page adds pools together: a pool's room can never serve another pool's sessions, so a merged
-  view has nothing to add up. A page across pools waits until one is needed (the owner's call, 11
-  November 2026).
-- **`P` cycles the pools,** everywhere, once a second pool exists. Changing pool starts the
-  dashboard's view afresh, as a router change does, so nothing it remembered of one pool carries
-  into the next.
-- **The title row names the pool shown,** by its label, once a second pool exists. The pool's
-  accounts keep the config's order, unnumbered, as every screen has them (see Account identity).
-- **A pool with no accounts** draws a page that says so, with how to add one.
-- **Notifications** name the pool once a second pool exists. Paper settles how each of these looks.
+- **A dashboard shows one pool,** the one `--pool` names, or without it the pool the verbs act on;
+  a pool the config doesn't configure is refused, naming those it does. Where every pool is
+  fenced, with no `--pool` to name one, it reads no pool's accounts: the router refuses its reads,
+  its status line says it couldn't read usage, as every pool is fenced, naming the pools, trying
+  again at each read, the pages drawn from the router's document stay empty, it reads none of the
+  router's events, and `P` turns to the first pool. Its ledger tabs, built from the request
+  ledger's prebuilt records, still tell of every pool (see Building it). No page adds pools
+  together: a pool's room can never serve another pool's sessions, so a merged view has nothing to
+  add up. A page across pools waits until one is needed (the owner's call, 11 November 2026).
+- **`P` cycles the pools,** on every tab, once a second pool exists, in the config's order, round.
+  Changing pool starts the dashboard's view afresh, as a router change does, so nothing it
+  remembered of one pool carries into the next: its pages, cursors, a session's page, the routing
+  card, the notifications it posted and the moments it held. What's kept for the next dashboard to
+  open with, the tab, its sections and each tab's view, carries on. Each `P` reads the pools as
+  they stand, the router's events of the pool turned to and the pools that name them afresh, so a
+  pool added or removed while it's open shows at the next. A second `P` while a turn is under way
+  waits for it, and a turn that can't read the config keeps the pool shown, saying why. The key
+  line lists `P pool` once a second pool exists, on a phone too, and help gives it.
+- **The title row names the pool shown,** by its label after the badge, once a second pool exists,
+  at every size, cut short before the tabs where it's long. The pool's accounts keep the config's
+  order, unnumbered, as every screen has them (see Account identity).
+- **A pool with no accounts** draws a page that says so on every tab, its status line `● healthy ·
+  no accounts`: a session started in its directories, or for an unfenced pool outside every fence,
+  doesn't start; how to add an account to it or move one in; and that its directories stay fenced
+  until it's removed. Its key line is `tab views  P pool  ? help  q quit`.
+- **Notifications** the dashboard posts, without the router, name the pool once a second pool
+  exists, its label leading the title, as `Acme · k3f9 · Acme 1`. The router's own, posted while
+  it runs, don't name it yet.
 
 ### Setup with pools
 
@@ -1121,8 +1134,10 @@ Accepted as the first phase was built, each failing safe, with nothing crossing 
   draining router or a downgrade filed without a pool, can count those requests twice: the summary
   held puts them in the old first pool, the new one in the config's first, and both are kept. It
   needs all three rare events together, for a handful of requests.
-- **The dashboard's pools and events read as it opens,** held for its run: a pool or an account
-  edited while one is open shows in it once it's started again, as phase 2's `P` reads them afresh.
+- **The dashboard's pool read as it opens and at each `P`,** held till the next: a pool relabelled,
+  fenced or given accounts while one is open shows in its title row and empty page at the next `P`,
+  and a second pool added while it shows the only one, once it's started again, as `P` waits on a
+  second.
 - **Several Macs** whose configs differ until one is kept: a pool removed on one Mac alone, and an
   account configured under its id, which the record holds for that pool, leaves the account out of
   this Mac's record, logged, till the configs agree.
@@ -1132,7 +1147,8 @@ Pausing an account whose subscription is cancelled is a separate idea, after poo
 
 ### Building it
 
-In two phases, after v1 and Account identity. The first is built, the second to build:
+In two phases, after v1 and Account identity. The first is built, and of the second the dashboard's
+pool; its ledger tabs and setup's cards are to build:
 
 1. **Safety,** which a pool's work needs from its first day: the config and the `pool` verbs; the
    move to pools; `run`'s pool, its starting token, its header and its checks; the router's pools,
@@ -1147,7 +1163,10 @@ In two phases, after v1 and Account identity. The first is built, the second to 
    reads are those that stand as it opens, held for its run.
 2. **Sight:** the dashboard's `--pool` and `P`, the title row, the empty pool, notifications, and
    setup's cards, each drawn in Paper first; and the dashboard's ledger tabs made the shown pool's
-   alone, and its pools read afresh, as `P` starts its view afresh.
+   alone. Built: the dashboard's `--pool`, `P` with its pools and events read afresh at each turn,
+   the title row, the empty pool and the dashboard's notifications, each fixture named after its
+   frame (`overview-acme-160`, `overview-default-pool-160`, `overview-acme-73x61`,
+   `empty-pool-160`). To build: the ledger tabs per pool and setup's cards.
 
 ## Reserves
 

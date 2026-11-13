@@ -21,8 +21,8 @@ import (
 // to SKILL.md fails TestTheVersionIsBumpedWhenTheTextChanges until its version
 // is bumped, and both are recorded here afresh.
 const (
-	recordedVersion = 17
-	recordedDigest  = "a5afaa73228405b720a5298c091a4a36673c5a3dcb0fa50b95721a03fa75fcd0"
+	recordedVersion = 18
+	recordedDigest  = "47eb0f2c24633d362dc80b2160fe0d38957ee82041c96abdc97c02439c2dbd87"
 )
 
 func TestTheVersionIsBumpedWhenTheTextChanges(t *testing.T) {
