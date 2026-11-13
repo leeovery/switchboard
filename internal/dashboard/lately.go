@@ -129,9 +129,10 @@ func (f Frame) drawLately(c *canvas, m status.Moment, sentences []views.Sentence
 
 // quiet is what LATELY says where it lists no events, of the document as m
 // has it: that the router isn't running, or answering as it should, or
-// started before pools, while probing for want of it; that probing as asked reads none; that the router,
-// from before it told of events, wants restarting; or that it has told of
-// none lately. It's nil while nothing has been read.
+// started before pools, while probing for want of it; that probing as asked
+// reads none; that the router, from before it told of events, wants
+// restarting; or that it has told of none lately. It's nil while nothing has
+// been read.
 func (f Frame) quiet(m status.Moment) line {
 	switch {
 	case m.Routed && f.Outdated:

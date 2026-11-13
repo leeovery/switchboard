@@ -57,12 +57,13 @@ every session on its merits, and with --force clears every session's own pin
 as well.
 
 Each pool has its own pin, its sessions alone moved, and with --force, their
-own pins alone cleared. The accounts given are pinned in the pool they're in, so they must be of one pool, and of
-the one --pool names, where it's given. "pin auto" clears the pin of the pool
---pool names, by its id; without it, the only pool, where there's one, else
-the one fenced to no directory; where every pool is fenced, it asks for
---pool. The directory it's run in never chooses. Where there's more than one
-pool, what's said names it.
+own pins alone cleared. The accounts given are pinned in the pool they're
+in, so they must be of one pool, and of the one --pool names, where it's
+given. "pin auto" clears the pin of the pool --pool names, by its id;
+without it, the only pool, where there's one, else the one fenced to no
+directory; where every pool is fenced, it asks for --pool. The directory
+it's run in never chooses. Where there's more than one pool, what's said
+names it.
 
 With --session, pin one running session alone to one account, from its next
 request, in place of any pin it had, the one run --account gave it included;

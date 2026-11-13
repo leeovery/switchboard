@@ -135,10 +135,6 @@ probed directly: the router is unhealthy, no answer within 100ms
 	}
 }
 
-// A router that reports no pools, as one from before them still running till
-// its restart, where the config has pools, has its document read by no verb
-// as a pool's, as it's every account's: status probes the pool's accounts,
-// saying why, the document naming the pool probed.
 // beforePools is why a router from before pools isn't read as a pool's, nor
 // asked to act on one, where the config has pools.
 const beforePools = "the router doesn't route by pools yet, as it started before them: restart it with switchboard service restart"
@@ -158,6 +154,10 @@ func serveRouterBeforePools(t *testing.T, srv *serveSetup) *atomic.Int64 {
 	return asked
 }
 
+// A router that reports no pools, as one from before them still running till
+// its restart, where the config has pools, has its document read by no verb
+// as a pool's, as it's every account's: status probes the pool's accounts,
+// saying why, the document naming the pool probed.
 func TestStatusProbesPastARouterFromBeforePoolsWhereTheConfigHasThem(t *testing.T) {
 	srv := newServeSetup(t, fakeClaudeAPI(t), nil)
 	asked := serveRouterBeforePools(t, srv)

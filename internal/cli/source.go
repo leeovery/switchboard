@@ -100,8 +100,8 @@ type routerRead struct {
 // It's unread, and says why when the router was asked, when the router isn't
 // to be asked, doesn't answer its health check in time, doesn't give its
 // document, or is one from before pools, as status.BeforePools has it of the
-// config's pools as they stand; and fails with router.PoolNeeded where it refuses for want of a
-// pool.
+// config's pools as they stand; and fails with router.PoolNeeded where it
+// refuses for want of a pool.
 func (s usageSource) fromRouter(ctx context.Context, refresh time.Duration) (routerRead, error) {
 	switch {
 	case !s.ask:
