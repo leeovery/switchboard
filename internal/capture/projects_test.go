@@ -44,8 +44,10 @@ func figuresOf(t *testing.T, name string, totals views.ProjectTotals) projectFig
 }
 
 // This week the auto world's projects are the design's world's: six, each
-// running a session now, summing to Accounts' every account this week, 27
-// sessions, 5,410 requests and $635.
+// running a session now, of the design's sessions, summing to Accounts'
+// every account this week, 27 sessions, 5,410 requests and $635; docs and
+// mobile, all of whose sessions ran yesterday or today, as their lines tell
+// them, what the design gives them besides going to the other four.
 func TestTheProjectsOfThisWeekAreTheDesignsWorld(t *testing.T) {
 	page := projectsOf(autoWorld(), views.PeriodThisWeek)
 	var got []projectFigures
@@ -53,8 +55,8 @@ func TestTheProjectsOfThisWeekAreTheDesignsWorld(t *testing.T) {
 		got = append(got, figuresOf(t, r.Name, r.ProjectTotals))
 	}
 	want := []projectFigures{
-		{"switchboard", 1, 8, 1874, 22140}, {"website", 1, 5, 1102, 13980}, {"infra", 1, 5, 846, 9810},
-		{"api", 1, 4, 702, 8730}, {"docs", 1, 3, 611, 6120}, {"mobile", 1, 2, 275, 2720},
+		{"switchboard", 1, 8, 2059, 23864}, {"website", 1, 5, 1281, 15885}, {"infra", 1, 5, 992, 11241},
+		{"api", 1, 4, 823, 9992}, {"docs", 1, 3, 213, 2181}, {"mobile", 1, 2, 42, 333},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("this week's projects are\n%+v\nwant\n%+v", got, want)

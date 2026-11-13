@@ -3,6 +3,7 @@ package views_test
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"reflect"
 	"slices"
 	"testing"
@@ -215,7 +216,7 @@ func TestAProjectsSessionsAreRowedAsTheListRowsThem(t *testing.T) {
 // A session ended on a day gone is brought to its account as the List says
 // it of one ended today: by its model's latest move, onto the account it's
 // named on, its words the router's reason and what writing its context
-// again there cost.
+// again there cost, marked ▸.
 func TestAnEndedSessionKeepsTheMoveThatBroughtItToItsAccount(t *testing.T) {
 	moved := projectAsk(worktreeSession, "/code/switchboard", "", "work", opus, october(6, 10, 0))
 	moved.From, moved.Reason = "side", "moved: side hit its limit"
@@ -227,20 +228,24 @@ func TestAnEndedSessionKeepsTheMoveThatBroughtItToItsAccount(t *testing.T) {
 	if s.Account != "work" || s.Moved == nil || s.Moved.From != "side" || s.Routing.From != "side" || !s.Routing.Rewrote || s.Routing.Cost == nil {
 		t.Errorf("the session is on %q, moved %+v, routed %+v; want on work, moved from side, its context written again at a cost", s.Account, s.Moved, s.Routing)
 	}
-	if s.Mark != views.NoMark {
-		t.Errorf("its mark is %v, want none", s.Mark)
+	if s.Mark != views.MarkMoved {
+		t.Errorf("its mark is %v, want ▸, as the List marks a session a move brought", s.Mark)
 	}
 }
 
 // BY MODEL gives each version's share of the project's worth as Accounts
 // reckons a row's, the greatest first, one whose share rounds to none left
-// out; ON ACCOUNTS each account's, the greatest first.
+// out; ON ACCOUNTS each account's, the greatest first, of the worth of the
+// requests that went to one, so their shares make the whole.
 func TestAProjectsWorthIsSharedByModelAndByAccount(t *testing.T) {
 	small := projectAsk(repoSession, "/code/switchboard", "", "work", haiku, october(7, 9, 30))
 	small.Usage = json.RawMessage(smallUsage)
 	lines := slices.Concat(
 		projectAsks(repoSession, "/code/switchboard", "", "side", times(october(7, 9, 0), 3)...),
-		[]ledger.Held{projectAsk(repoSession, "/code/switchboard", "", "work", "claude-sonnet-5-5", october(7, 9, 10)), small},
+		[]ledger.Held{
+			projectAsk(repoSession, "/code/switchboard", "", "work", "claude-sonnet-5-5", october(7, 9, 10)), small,
+			projectAsk(repoSession, "/code/switchboard", "", "", "claude-sonnet-5-5", october(7, 9, 20)),
+		},
 	)
 	page := heldDays(now, lines...).Projects(projectsIn(views.PeriodToday, now))
 	project, _ := page.Project("/code/switchboard")
@@ -257,6 +262,13 @@ func TestAProjectsWorthIsSharedByModelAndByAccount(t *testing.T) {
 	}
 	if want := []string{"side", "work"}; !reflect.DeepEqual(accounts, want) {
 		t.Errorf("ON ACCOUNTS names %v, want %v, the greatest first", accounts, want)
+	}
+	shares := 0.0
+	for _, a := range project.OnAccounts {
+		shares += *a.Share
+	}
+	if math.Abs(shares-1) > 1e-9 {
+		t.Errorf("ON ACCOUNTS' shares make %v, want the whole", shares)
 	}
 	if project.Share == nil || *project.Share != 1 {
 		t.Errorf("its share of every project's worth is %v, want all of it", project.Share)
@@ -317,8 +329,11 @@ func TestAProjectsWorthIsBucketedAsItsPeriodHasIt(t *testing.T) {
 				t.Errorf("WORTH BY WEEK is %+v, want %+v", of(*project.WorthByWeek), *tt.weeks)
 			}
 			var sum views.Worth
-			for _, b := range project.WorthBy.Buckets {
+			for h, b := range project.WorthBy.Buckets {
 				sum = sumOf(sum, b.Worth)
+				if at := b.Start.Local(); tt.period == views.PeriodToday && (at.Hour() != h || dayfile.DateOf(at) != dayfile.DateOf(now)) {
+					t.Errorf("hour %d's bucket starts at %v, want as today's clock reads it", h, at)
+				}
 			}
 			if !reflect.DeepEqual(sum, project.Worth) {
 				t.Errorf("the buckets sum to %+v, want the project's worth, %+v", sum, project.Worth)
@@ -383,6 +398,125 @@ func TestTheDayTurningLosesNoLineAndTakesNoneTwice(t *testing.T) {
 	}
 	if again := held.Tailed(nil, false, nil, tuesday).Projects(projectsIn(views.PeriodThisWeek, tuesday)); again.All.Requests != 1 {
 		t.Errorf("held, the day not turned, the page counts %d requests, want 1", again.All.Requests)
+	}
+}
+
+// Built once the day has turned, before the tail is read again, the page
+// counts what was folded of the day gone as that day's; and the days held
+// say the day gone is owed a read of its lines whole, each day the watch
+// slept through too, till the tail's late read gives them, the lines of the
+// day gone that came after its last read among them.
+func TestTheDayGoneIsOwedTillItsLinesAreReadWhole(t *testing.T) {
+	tuesday := october(6, 23, 0)
+	early := projectAsk(repoSession, "/code/switchboard", "", "work", opus, october(6, 10, 0))
+	late := projectAsk(repoSession, "/code/switchboard", "", "work", opus, october(6, 23, 59))
+	held := views.ReadSessionDays(ledgerOfLines(), tuesday.AddDate(0, -1, 0), tuesday).Tailed([]ledger.Held{early}, true, nil, tuesday)
+	wednesday := october(7, 0, 10)
+	if got := held.Projects(projectsIn(views.PeriodThisWeek, wednesday)).All.Requests; got != 1 {
+		t.Errorf("built after the day turned, before the tail's read, the page counts %d requests, want Tuesday's 1", got)
+	}
+	if got := held.Projects(projectsIn(views.PeriodToday, wednesday)).All.Requests; got != 0 {
+		t.Errorf("today's page counts %d requests of the day gone, want none", got)
+	}
+	if got, want := held.Owed(wednesday), []string{"2026-10-06"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("the day turned, the days owe %v, want %v", got, want)
+	}
+	if got, want := held.Owed(october(9, 8, 0)), []string{"2026-10-06", "2026-10-07", "2026-10-08"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("days later, the days owe %v, want %v", got, want)
+	}
+	unread := held.Tailed(nil, true, nil, wednesday)
+	if got, want := unread.Owed(wednesday), []string{"2026-10-06"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("tailed without the day gone, the days owe %v, want %v still", got, want)
+	}
+	read := unread.Tailed(nil, false, map[string][]ledger.Held{"2026-10-06": {early, late}}, wednesday)
+	if got := read.Owed(wednesday); len(got) != 0 {
+		t.Errorf("given the day gone whole, the days owe %v, want none", got)
+	}
+	if got := read.Projects(projectsIn(views.PeriodThisWeek, wednesday)).All.Requests; got != 2 {
+		t.Errorf("given the day gone whole, the page counts %d requests, want 2, its line after the last read among them", got)
+	}
+}
+
+// A line the ledger's files hold twice is counted once, as the List and the
+// Log count it, by its id, in a day read whole and across the tail's reads
+// of today; one with no id is counted as often as it's given, as a read
+// can't tell two such requests apart.
+func TestALineHeldTwiceIsCountedOnce(t *testing.T) {
+	twice := projectAsk(repoSession, "/code/switchboard", "", "work", opus, october(6, 10, 0))
+	idless := projectAsk(repoSession, "/code/switchboard", "", "work", opus, october(6, 11, 0))
+	idless.Request = ""
+	if got := heldDays(now, twice, twice, idless, idless).Projects(projectsIn(views.PeriodThisWeek, now)).All.Requests; got != 3 {
+		t.Errorf("a day read whole counts %d requests, want 3: the line with an id once, the two without each", got)
+	}
+	today := projectAsk(repoSession, "/code/switchboard", "", "work", opus, october(7, 9, 0))
+	tailed := views.ReadSessionDays(ledgerOfLines(), now.AddDate(0, -1, 0), now).
+		Tailed([]ledger.Held{today}, true, nil, now).Tailed([]ledger.Held{today}, false, nil, now)
+	if got := tailed.Projects(projectsIn(views.PeriodToday, now)).All.Requests; got != 1 {
+		t.Errorf("today's line given by two reads of the tail counts %d requests, want 1", got)
+	}
+}
+
+// A session's start is its first request wherever it fell: before the
+// period, as the days held give it, or as ReadSessionDays walks back for it
+// from the first day it reads, while it ran on the day after, so a session
+// that ran over midnight starts yesterday on today's page; and the walk
+// stops 31 days back.
+func TestASessionStartsAtItsFirstRequestBeforeThePeriod(t *testing.T) {
+	sunday := projectAsk(worktreeSession, "/code/switchboard", "", "work", opus, october(4, 22, 0))
+	monday := projectAsk(worktreeSession, "/code/switchboard", "", "work", opus, october(5, 9, 0))
+	overnight := projectAsks(repoSession, "/code/switchboard", "", "work", october(6, 23, 30), october(7, 0, 30))
+	l := ledgerOfLines(slices.Concat([]ledger.Held{sunday, monday}, overnight)...)
+	todays := l.days["2026-10-07"]
+	var month []ledger.Held
+	for d := range 40 {
+		month = append(month, projectAsk(clientSession, "/code/client", "", "work", opus, october(7, 8, 0).AddDate(0, 0, -d)))
+	}
+	lm := ledgerOfLines(month...)
+	tests := []struct {
+		name    string
+		days    views.SessionDays
+		period  views.Period
+		session string
+		want    time.Time
+	}{
+		{"of the days held", heldDays(now, sunday, monday), views.PeriodThisWeek, worktreeSession, october(4, 22, 0)},
+		{"walked back from the week's first day", views.ReadSessionDays(l, october(5, 0, 0), now).Tailed(todays, true, nil, now), views.PeriodThisWeek, worktreeSession, october(4, 22, 0)},
+		{"over midnight, of today's", views.ReadSessionDays(l, now, now).Tailed(todays, true, nil, now), views.PeriodToday, repoSession, october(6, 23, 30)},
+		{"walked back no further than 31 days", views.ReadSessionDays(lm, now, now).Tailed(lm.days["2026-10-07"], true, nil, now), views.PeriodToday, clientSession, october(7, 8, 0).AddDate(0, 0, -31)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			page := tt.days.Projects(projectsIn(tt.period, now))
+			var started time.Time
+			for _, r := range page.Rows {
+				project, _ := page.Project(r.Path)
+				for _, s := range project.Sessions {
+					if s.Session == tt.session {
+						started = s.Started
+					}
+				}
+			}
+			if !started.Equal(tt.want) {
+				t.Errorf("the session started at %v, want %v", started, tt.want)
+			}
+		})
+	}
+}
+
+// A session is one project's, the one of where its latest day ran, however
+// its days name it: one in a subdirectory running across the upgrade that
+// began recording projects, its lines first naming none, then the project
+// run told, is counted once, in that project.
+func TestASessionAcrossTheUpgradeIsOneProjects(t *testing.T) {
+	before := projectAsk(repoSession, "/code/switchboard/internal", "", "work", opus, october(5, 10, 0))
+	after := projectAsk(repoSession, "/code/switchboard/internal", "/code/switchboard", "work", opus, october(6, 10, 0))
+	page := heldDays(now, before, after).Projects(projectsIn(views.PeriodThisWeek, now))
+	var got []string
+	for _, r := range page.Rows {
+		got = append(got, fmt.Sprintf("%s %d sessions %d requests", r.Path, r.Sessions, r.Requests))
+	}
+	if want := []string{"/code/switchboard 1 sessions 2 requests"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("the rows are %v, want %v", got, want)
 	}
 }
 

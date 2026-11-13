@@ -78,33 +78,104 @@ func (r ProjectRow) NoDirectory() bool {
 }
 
 // Projects is Projects' page over in's period, as ProjectsPage has it, of
-// the days d holds at in's Now: the days of the period gone, and today's,
-// with the sessions in's List lists running.
+// the days d holds at in's Now, as each has it: the days of the period
+// gone, and the day d's fold of the tail is of, today's or, where the day
+// turned since the tail was last read, the day it turned from; with the
+// sessions in's List lists running. Each session is one project's, the one
+// of where it last ran, as sessionPlaces has it, and started at its first
+// request wherever it fell, as startedBefore has it of the days before the
+// period's.
 func (d SessionDays) Projects(in ProjectsInput) ProjectsPage {
 	today := dayfile.CivilOf(in.Now)
 	first := in.Period.first(today, in.WeekStarts).Format(time.DateOnly)
 	todayDate := today.Format(time.DateOnly)
 	t := projectTallies{all: make(map[string]*projectTally), price: pricing{prices: in.Prices, date: todayDate}, v: versions{table: in.Prices, family: in.Family}}
+	places := d.sessionPlaces(first, todayDate, in.List)
+	d.each(first, todayDate, func(date string, s *foldedSession) {
+		p := t.of(places[s.ID])
+		p.take(date, s.DaySession, t.price, t.v)
+		if date == todayDate {
+			p.hourly(s.hours, t.price)
+		}
+	})
+	for _, s := range in.List.Sessions {
+		if s.Running {
+			t.of(places[s.Session]).run(s)
+		}
+	}
+	t.started(d.startedBefore(first))
+	return t.page(in)
+}
+
+// sessionPlace is where a session ran, its directory and its project, as
+// placeAfter has them.
+type sessionPlace struct {
+	dir, project string
+}
+
+// sessionPlaces are where each session of the period from the date first to
+// the date today ran last, by its id, as placeAfter has it of its days in
+// their order, then of list's listing of it, where it runs.
+func (d SessionDays) sessionPlaces(first, today string, list SessionList) map[string]sessionPlace {
+	places := make(map[string]sessionPlace)
+	ranIn := func(id, dir, project string) {
+		was := places[id]
+		was.dir, was.project = placeAfter(was.dir, was.project, dir, project)
+		places[id] = was
+	}
+	d.each(first, today, func(_ string, s *foldedSession) { ranIn(s.ID, s.Dir, s.Project) })
+	for _, s := range list.Sessions {
+		if s.Running {
+			ranIn(s.Session, s.Dir, s.Project)
+		}
+	}
+	return places
+}
+
+// each hands f each session of each day of the period from the date first
+// to the date today d holds, oldest first, with its day's date: of the days
+// gone, as their records hold them; and of the day d's fold of the tail is
+// of, as the fold holds them, what they spent by the hour too.
+func (d SessionDays) each(first, today string, f func(date string, s *foldedSession)) {
 	for _, day := range d.days {
-		if day.date >= first && day.date < todayDate {
+		if day.date >= first && day.date < today && day.date != d.today.Date {
 			for _, s := range day.sessions {
-				t.of(s.Project, s.Dir).take(day.date, s, t.price, t.v)
+				f(day.date, &foldedSession{DaySession: s})
 			}
 		}
 	}
-	if d.today.Date == todayDate {
+	if d.today.Date >= first && d.today.Date <= today {
 		for _, s := range d.held.held {
-			p := t.of(s.Project, s.Dir)
-			p.take(todayDate, s.DaySession, t.price, t.v)
-			p.hourly(s.hours, t.price)
+			f(d.today.Date, s)
 		}
 	}
-	for _, s := range in.List.Sessions {
-		if s.Running {
-			t.of(s.Project, s.Dir).run(s)
+}
+
+// startedBefore are when the sessions d holds of the days before the date
+// first made their first requests, by their ids: the earliest each made of
+// those days d holds, or of the days before them ReadSessionDays walked back
+// over, as begun has them.
+func (d SessionDays) startedBefore(first string) map[string]time.Time {
+	started := make(map[string]time.Time, len(d.begun))
+	maps.Copy(started, d.begun)
+	note := func(s *DaySession) {
+		if was, ok := started[s.ID]; !s.FirstRequest.IsZero() && (!ok || s.FirstRequest.Before(was)) {
+			started[s.ID] = s.FirstRequest
 		}
 	}
-	return t.page(in)
+	for _, day := range d.days {
+		if day.date < first {
+			for i := range day.sessions {
+				note(&day.sessions[i])
+			}
+		}
+	}
+	if d.today.Date < first {
+		for _, s := range d.held.held {
+			note(&s.DaySession)
+		}
+	}
+	return started
 }
 
 // Project is the page of the project of the row with the given path, as
@@ -125,10 +196,10 @@ type projectTallies struct {
 	v     versions
 }
 
-// of is the tally of the project a session in dir with the given project
-// is of, as status.ProjectOf reads it: begun where none is yet.
-func (t projectTallies) of(project, dir string) *projectTally {
-	path := status.ProjectOf(project, dir)
+// of is the tally of the project a session that ran where given is of, as
+// status.ProjectOf reads it: begun where none is yet.
+func (t projectTallies) of(ran sessionPlace) *projectTally {
+	path := status.ProjectOf(ran.project, ran.dir)
 	p, ok := t.all[path]
 	if !ok {
 		p = &projectTally{path: path, sessions: make(map[string]*sessionTally), families: familySums{}, models: modelTally{},
@@ -136,6 +207,18 @@ func (t projectTallies) of(project, dir string) *projectTally {
 		t.all[path] = p
 	}
 	return p
+}
+
+// started has each session the tallies hold start at its first request
+// before the period, where started gives one, by its id.
+func (t projectTallies) started(started map[string]time.Time) {
+	for _, p := range t.all {
+		for id, st := range p.sessions {
+			if at, ok := started[id]; ok && (st.firstRequest.IsZero() || at.Before(st.firstRequest)) {
+				st.firstRequest = at
+			}
+		}
+	}
 }
 
 // page is the list of the tallies, as Projects has it.
@@ -183,8 +266,9 @@ type projectTally struct {
 
 // sessionTally is a session of a project over the period as its days are
 // taken in, oldest first: where it ran, as its last day to name a directory
-// or a project named them; its requests and their worth; when its first and
-// last request arrived, and its last line, of those counted toward it; what
+// or a project named them; its requests and their worth; when its first
+// request arrived, wherever it fell, as started has it, its last, and its
+// last line, of those counted toward it; what
 // names it over its days; and its last day, by date, and the moves of each
 // of its models that day.
 type sessionTally struct {

@@ -332,14 +332,41 @@ func newSession() status.Words {
 // Its routing is the row's of m's request, and what m cost; else, where it's
 // pinned to Account on its own, "pinned here".
 func (l *ListedSession) cameBy(m *move) {
-	l.Mark = marking{stage: l.Activity.stage(), moved: m != nil}.mark()
+	if m == nil {
+		l.broughtBy(nil, RoutingSaid{})
+		return
+	}
+	l.broughtBy(&Move{At: m.at.UTC(), From: m.from, Reason: m.reason, Cost: m.cost}, m.routing())
+}
+
+// broughtBy has the session brought to Account by the move given, as the
+// List gives one, and as routing says it, nil where none brought it there:
+// its mark as cameBy has it, ▸ of a move; and its routing, the move's, else
+// "pinned here" where it's pinned to Account on its own.
+func (l *ListedSession) broughtBy(moved *Move, routing RoutingSaid) {
+	l.Mark = marking{stage: l.Activity.stage(), moved: moved != nil}.mark()
 	switch {
-	case m != nil:
-		l.Moved = &Move{At: m.at.UTC(), From: m.from, Reason: m.reason, Cost: m.cost}
-		l.Routing = m.routing()
+	case moved != nil:
+		l.Moved, l.Routing = moved, routing
 	case slices.ContainsFunc(l.Models, func(s SessionModel) bool { return s.Account == l.Account && s.Reason == status.ReasonPinned }):
 		l.Routing = RoutingSaid{Words: status.SessionWords(status.ReasonPinned, status.Facts{})}
 	}
+}
+
+// movedOnto is the move of the model given, among moves, the latest of it,
+// where it took its session onto account: of a session's story, or of a
+// day's record of it, as either keeps its moves in the order they came;
+// nil where its latest went elsewhere, or it never moved.
+func movedOnto[M any](moves []M, model, account string, of func(*M) (model, to string)) *M {
+	for i := range slices.Backward(moves) {
+		if m, to := of(&moves[i]); m == model {
+			if to != account {
+				return nil
+			}
+			return &moves[i]
+		}
+	}
+	return nil
 }
 
 // lineRow is the row of the request of the record r, a line of the session

@@ -314,8 +314,8 @@ func inFlight(at, arrived, ended time.Time) bool {
 // models are routed apart, so another's move tells nothing of how this one
 // came there.
 func (s *story) moveOnto(model, account string) *move {
-	m := s.latestMove(model)
-	if m == nil || !s.day.Holds(m.at) || m.to != account {
+	m := movedOnto(s.moves, model, account, func(m *move) (string, string) { return m.model, m.to })
+	if m == nil || !s.day.Holds(m.at) {
 		return nil
 	}
 	return m

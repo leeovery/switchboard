@@ -3935,13 +3935,18 @@ is built (`views.ProjectsPage`); its drawing is to come.
 - **A session's project** is `status.ProjectOf`'s, the project its lines name, else, of a line from
   before they named one, its directory's, a Claude Code worktree counting as its repository. Inside
   a project a session keeps its own directory's name, so a worktree's session reads `fix-login`.
+  A session is one project's, the one of where its latest day ran, as its story places it, so one
+  whose days name it two ways, as across the upgrade that began recording projects, counts once.
   Sessions of no directory make one `no directory` row. Projects are named as `status.ProjectNames`
   names them, by their folders, their parents too where two share one.
 - **What it reads:** each closed day's sessions as the day's side holds them (see The request
   ledger), read once for the period's days and kept, and today's, of the held sessions and today's
-  lines, folded by the hour; a day that turns keeps what today held as that day's, so no line is
-  lost or counted twice. The List says which are running. Worth is priced as it's read, at the
-  prices Past and the List price at.
+  lines, folded by the hour, a line the ledger's files hold twice counted once, as the List and the
+  Log count it. A day that turns keeps what today held as that day's, owed a read of its lines
+  whole, and every day slept through owed too, till the tail's read of the days it followed no
+  further gives them (`SessionDays.Owed` names them), so no line is lost or counted twice; a page
+  built before that read counts what was held as the day gone's. The List says which are running.
+  Worth is priced as it's read, at the prices Past and the List price at.
 - **The list:** a row a project with a session in the period, by worth, greatest first, then by
   name: its name and path; its sessions running now; its sessions, requests and worth, and worth by
   family; and when its last request arrived. Then `all projects`, every project's totals.
@@ -3949,9 +3954,12 @@ is built (`views.ProjectsPage`); its drawing is to come.
   the hour today, the hours to come counted, by the day this week and over 30 days, by the day and
   by the week over 12 weeks, and by the week over 12 months, each bucket labelled and the peak, the
   first greatest, named; BY MODEL, Accounts' reckoning by version, greatest first, under 1% left
-  out; ON ACCOUNTS, each account's share by its label; and SESSIONS, in the List's row form and
-  order, running first, each ended one with the day it ended, its model, account and the move that
-  brought it there as the List words an ended session's.
+  out; ON ACCOUNTS, each account's share by its label, of the worth of the requests that went to an
+  account, so the shares make the whole; and SESSIONS, in the List's row form and order, running
+  first, each ended one with the day it ended, its model, account, mark and the move that brought
+  it there as the List says an ended session's, and each started at its first request wherever it
+  fell: before the period, as the days read give it, walking back day by day from the first read,
+  31 days at most, while the session ran on the day after.
 
 ### History
 

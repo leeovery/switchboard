@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"math"
 	"slices"
 	"time"
@@ -39,6 +40,9 @@ type projectWeek struct {
 
 // projectWeeks are the six projects' weeks as the design's world has them,
 // summing to Accounts' every account this week, 5,410 requests and $635.
+// The world keeps them but docs' and mobile's, each of whose sessions this
+// week ran yesterday or today, as the lines tell them whole: what the lines
+// don't give of those two goes to the other four, as weekLeft shares it.
 var projectWeeks = []projectWeek{
 	{switchboardProject, 1874, 22140}, {websiteProject, 1102, 13980}, {infraProject, 846, 9810},
 	{apiProject, 702, 8730}, {docsProject, 611, 6120}, {mobileProject, 275, 2720},
@@ -86,21 +90,6 @@ var weekPlaces = map[string][]projectPlace{
 		worktreeOf("pools", opus55), worktreeOf("pools", sonnet55), placeIn(switchboardProject, opus55),
 		placeIn(websiteProject, sonnet55), placeIn(infraProject, opus55), placeIn(apiProject, opus55),
 	},
-}
-
-// resumedRun is a session today's lines tell of that ran on Monday and
-// Tuesday too, on the account given, in its place.
-type resumedRun struct {
-	id, account string
-	place       projectPlace
-}
-
-// resumedRuns are the sessions today's lines tell of that ran on Monday and
-// Tuesday, giving docs' and mobile's weeks what their lines leave: 8a2c's,
-// on personal, and 5b19's, on side.
-var resumedRuns = []resumedRun{
-	{id8A2C, "personal", placeIn(docsProject, sonnet55)},
-	{id5B19, "side", placeIn(mobileProject, opus55)},
 }
 
 // yearProject is a project of the year's sessions before this week, and how
@@ -155,7 +144,7 @@ func (r projectRun) lines() []ledger.Line {
 			usage = fmt.Appendf(nil, `{"cache_read_input_tokens":%d}`, r.reads)
 		}
 		lines[i] = ledger.Line{
-			At: r.from.Add(time.Duration(i) * step).UTC(), Request: fmt.Sprintf("%s-%d-%d", r.session[:8], r.d, i), Kind: ledger.KindMessage,
+			At: r.from.Add(time.Duration(i) * step).UTC(), Request: fmt.Sprintf("%s-%s-%d-%d", r.session[:8], r.account, r.d, i), Kind: ledger.KindMessage,
 			Session: r.session, Dir: r.place.dir, Project: r.place.project, Model: r.place.model, Account: r.account,
 			Status: 200, Attempts: 1, Class: ledger.ClassMain, Agent: claudeCodeAgent, Usage: usage,
 		}
@@ -316,18 +305,23 @@ func shared(placed []string, projects []yearProject) {
 }
 
 // weekRuns are the runs of this week's sessions before today that no lines
-// tell of, as weekPlaces places them, and of those of resumedRuns, each
-// project's week, with the lines given, its own as projectWeeks has it.
-// Yesterday's requests the lines leave of the three's are shared among the
-// projects with sessions in weekPlaces, as what's left them is; Monday's
-// among the six; and Tuesday's are what's left of each; and each project's
-// of a day among its sessions running that day, as runWeights weighs them.
+// tell of, as weekPlaces places them, each running Monday to yesterday,
+// each project's week, with the lines given, as weekLeft leaves it.
+// Yesterday's and Monday's requests the lines leave of the three's are
+// shared among the projects with such sessions, as what's left them is;
+// Tuesday's are what's left of each; and each project's of a day among its
+// sessions, as runWeights weighs them.
 func (y year) weekRuns(lines []filed) []projectRun {
 	runners := y.weekRunners()
-	left, ofLines := weekLeft(lines, y.now)
+	left, ofLines := weekLeft(lines, y.now, runners)
+	var of []int
+	for p := range runners {
+		if len(runners[p]) > 0 {
+			of = append(of, p)
+		}
+	}
 	var runs []projectRun
 	for _, d := range []int{today - 1, thisWeek} {
-		of := projectsRunning(runners, d)
 		requests := apportion(y.dayRequests(d)-ofLines[d].requests, weightsOf(of, func(p int) float64 { return float64(left[p].requests) }))
 		reads := apportion(y.dayReads(d)-ofLines[d].reads, weightsOf(of, func(p int) float64 { return float64(left[p].reads) }))
 		for i, p := range of {
@@ -335,68 +329,54 @@ func (y year) weekRuns(lines []filed) []projectRun {
 			left[p] = projectUse{requests: left[p].requests - requests[i], reads: left[p].reads - reads[i]}
 		}
 	}
-	tuesday := thisWeek + 1
-	for _, p := range projectsRunning(runners, tuesday) {
-		runs = append(runs, y.runsOf(runners[p], tuesday, left[p].requests, left[p].reads)...)
+	for _, p := range of {
+		runs = append(runs, y.runsOf(runners[p], thisWeek+1, left[p].requests, left[p].reads)...)
 	}
 	return runs
 }
 
 // weekRunner is a session running this week that no lines tell of, on the
-// account given, in its place, from Monday to the day before the one given.
+// account given, in its place.
 type weekRunner struct {
 	id, account string
 	place       projectPlace
-	until       int
 }
 
 // weekRunners are the sessions of each of projectWeeks's projects running
 // this week that no lines tell of, in its order: the three's that
-// sessionThisWeek gives Monday, each to yesterday; and resumedRuns's, to
-// Tuesday.
+// sessionThisWeek gives Monday.
 func (y year) weekRunners() [][]weekRunner {
 	runners := make([][]weekRunner, len(projectWeeks))
-	add := func(r weekRunner) {
-		p := slices.IndexFunc(projectWeeks, func(w projectWeek) bool { return w.project == status.ProjectOf(r.place.project, r.place.dir) })
-		runners[p] = append(runners[p], r)
-	}
 	for _, id := range three {
 		for i, s := range y.days[id][thisWeek].sessions {
-			add(weekRunner{id: s, account: id, place: weekPlaces[id][i], until: today})
+			p := projectWeekOf(weekPlaces[id][i].project, weekPlaces[id][i].dir)
+			runners[p] = append(runners[p], weekRunner{id: s, account: id, place: weekPlaces[id][i]})
 		}
-	}
-	for _, r := range resumedRuns {
-		add(weekRunner{id: r.id, account: r.account, place: r.place, until: thisWeek + 2})
 	}
 	return runners
 }
 
-// projectsRunning are the places in projectWeeks of the projects with a
-// session of runners running on day d of the year.
-func projectsRunning(runners [][]weekRunner, d int) []int {
-	var of []int
-	for p, rs := range runners {
-		if slices.ContainsFunc(rs, func(r weekRunner) bool { return d < r.until }) {
-			of = append(of, p)
-		}
+// projectWeekOf is the place in projectWeeks of the project a session in
+// dir of the project given is of, as status.ProjectOf reads it.
+func projectWeekOf(project, dir string) int {
+	p := slices.IndexFunc(projectWeeks, func(w projectWeek) bool { return w.project == status.ProjectOf(project, dir) })
+	if p < 0 {
+		panic(fmt.Sprintf("capture: no week of the project of %q in %q", project, dir))
 	}
-	return of
+	return p
 }
 
-// runsOf are the runs of the project's sessions running on day d of the
-// year, sharing the requests and reads given.
+// runsOf are the runs of the project's sessions given on day d of the year,
+// sharing the requests and reads given.
 func (y year) runsOf(runners []weekRunner, d, requests, reads int) []projectRun {
-	var running []weekRunner
-	var ids []string
-	for _, r := range runners {
-		if d < r.until {
-			running, ids = append(running, r), append(ids, r.id)
-		}
+	ids := make([]string, len(runners))
+	for i, r := range runners {
+		ids[i] = r.id
 	}
 	weights := runWeights(d, ids)
 	counts, worths := atLeastOne(requests, weights), apportion(reads, weights)
-	runs := make([]projectRun, len(running))
-	for i, r := range running {
+	runs := make([]projectRun, len(runners))
+	for i, r := range runners {
 		runs[i] = y.runOn(d, r.id, r.account, r.place, counts[i], worths[i])
 	}
 	return runs
@@ -409,8 +389,12 @@ type projectUse struct {
 
 // weekLeft are what projectWeeks leaves of each project's week, in its
 // order, once the lines given that arrived this week by now are taken from
-// it; and what the lines hold of each of this week's days of the year.
-func weekLeft(lines []filed, now time.Time) ([]projectUse, map[int]projectUse) {
+// it; and what the lines hold of each of this week's days of the year. What
+// it leaves of a project with no session among runners, as docs' and
+// mobile's, all of whose sessions this week the lines tell of, goes to
+// those with one, shared as what it leaves them is, so the week still sums
+// to Accounts'.
+func weekLeft(lines []filed, now time.Time, runners [][]weekRunner) ([]projectUse, map[int]projectUse) {
 	left := make([]projectUse, len(projectWeeks))
 	for p, w := range projectWeeks {
 		left[p] = projectUse{requests: w.requests, reads: int(w.cents) * readsADollar / 100}
@@ -421,11 +405,26 @@ func weekLeft(lines []filed, now time.Time) ([]projectUse, map[int]projectUse) {
 		if d < thisWeek || f.At.After(now) || !f.Counted() || f.Session == "" {
 			continue
 		}
-		p := slices.IndexFunc(projectWeeks, func(w projectWeek) bool { return w.project == status.ProjectOf(f.Project, f.Dir) })
+		p := projectWeekOf(f.Project, f.Dir)
 		worth, _ := drawnPrices.SummedSpend(f.Model, f.Shape.InferenceGeo, ledger.SpendOf(&f.Line), f.date)
 		reads := int(worth.Cost) / (1_000_000_000_000 / readsADollar)
 		left[p] = projectUse{requests: left[p].requests - 1, reads: left[p].reads - reads}
 		ofLines[d] = projectUse{requests: ofLines[d].requests + 1, reads: ofLines[d].reads + reads}
+	}
+	var unrun projectUse
+	var run []int
+	for p := range left {
+		if len(runners[p]) == 0 {
+			unrun = projectUse{requests: unrun.requests + left[p].requests, reads: unrun.reads + left[p].reads}
+			left[p] = projectUse{}
+		} else {
+			run = append(run, p)
+		}
+	}
+	requests := apportion(unrun.requests, weightsOf(run, func(p int) float64 { return float64(left[p].requests) }))
+	reads := apportion(unrun.reads, weightsOf(run, func(p int) float64 { return float64(left[p].reads) }))
+	for i, p := range run {
+		left[p] = projectUse{requests: left[p].requests + requests[i], reads: left[p].reads + reads[i]}
 	}
 	return left, ofLines
 }
@@ -449,38 +448,108 @@ func (y year) dayReads(d int) int {
 	return int(math.Round(worth * readsADollar))
 }
 
-// side is the side of the day with the given date, as the views' Digests
-// build it of its lines, as lines gives them, and its runs' lines, built
-// once and kept; none of a day of no runs, whose lines are read in its place.
-func (r *records) side(date string, lines func() []ledger.Held) (json.RawMessage, bool) {
+// runsOn are the lines of the records' runs of the days with the given
+// dates that arrived by now, as the ledger files them, each day's made once
+// and kept: each after the records' own lines, in its day's order, so a
+// reader orders them as it orders its own.
+func (r *records) runsOn(dates []string, now time.Time) []filed {
+	var lines []filed
+	for _, date := range dates {
+		for _, f := range r.runLines(date) {
+			if !f.At.After(now) {
+				lines = append(lines, f)
+			}
+		}
+	}
+	return lines
+}
+
+// runLines are the lines of the records' runs of the day with the given
+// date, as runsOn has them, made once.
+func (r *records) runLines(date string) []filed {
 	runs := r.runs[date]
 	if len(runs) == 0 {
-		return nil, false
+		return nil
 	}
-	r.sidesMu.Lock()
-	defer r.sidesMu.Unlock()
-	if side, ok := r.sides[date]; ok {
-		return side, true
+	r.made.mu.Lock()
+	defer r.made.mu.Unlock()
+	if lines, ok := r.made.lines[date]; ok {
+		return lines
 	}
 	var day []ledger.Line
-	for _, h := range lines() {
-		day = append(day, h.Line)
-	}
 	for _, run := range runs {
 		day = append(day, run.lines()...)
 	}
 	slices.SortStableFunc(day, func(a, b ledger.Line) int { return a.At.Compare(b.At) })
+	first := len(r.lines) + runs[0].d*maxRunLinesADay
+	lines := make([]filed, len(day))
+	for i, l := range day {
+		lines[i] = filed{Line: l, date: date, place: first + i}
+	}
+	if r.made.lines == nil {
+		r.made.lines = make(map[string][]filed)
+	}
+	r.made.lines[date] = lines
+	return lines
+}
+
+// maxRunLinesADay is more lines than the runs of any day of the year make,
+// so each day's are placed after the day's before.
+const maxRunLinesADay = 1_000_000
+
+// firstRun is the date of the first day the records' runs ran on, none
+// where they ran on none.
+func (r *records) firstRun() []string {
+	if len(r.runs) == 0 {
+		return nil
+	}
+	return []string{slices.Min(slices.Collect(maps.Keys(r.runs)))}
+}
+
+// datesOfRuns are the dates of the days each session of the runs given ran
+// on, by its id, oldest first.
+func datesOfRuns(runs map[string][]projectRun) map[string][]string {
+	dates := make(map[string][]string)
+	for date, day := range runs {
+		for _, run := range day {
+			if !slices.Contains(dates[run.session], date) {
+				dates[run.session] = append(dates[run.session], date)
+			}
+		}
+	}
+	for _, d := range dates {
+		slices.Sort(d)
+	}
+	return dates
+}
+
+// side is the side of the day with the given date, as the views' Digests
+// build it of its lines, as lines gives them, the day's runs' among them,
+// as a finished day's is built of its lines alone, made once and kept;
+// none of a day of no runs, whose lines are read in its place alike.
+func (r *records) side(date string, lines func() []ledger.Held) (json.RawMessage, bool) {
+	if len(r.runs[date]) == 0 {
+		return nil, false
+	}
+	r.made.mu.Lock()
+	side, ok := r.made.sides[date]
+	r.made.mu.Unlock()
+	if ok {
+		return side, true
+	}
 	build := views.Digests{}.Day()
-	for _, l := range day {
-		build.Take(l)
+	for _, h := range lines() {
+		build.Take(h.Line)
 	}
 	built, err := build.Built()
 	if err != nil {
 		panic(fmt.Sprintf("capture: the side of %s: %v", date, err))
 	}
-	if r.sides == nil {
-		r.sides = make(map[string]json.RawMessage)
+	r.made.mu.Lock()
+	defer r.made.mu.Unlock()
+	if r.made.sides == nil {
+		r.made.sides = make(map[string]json.RawMessage)
 	}
-	r.sides[date] = built.Side
+	r.made.sides[date] = built.Side
 	return built.Side, true
 }

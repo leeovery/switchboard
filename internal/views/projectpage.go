@@ -91,7 +91,7 @@ type WorthBy struct {
 }
 
 // WorthBucket is a bucket of WORTH BY: when it starts, as dayfile.Civil
-// gives a day, its hour too of an hour's; what its axis names it, as "14",
+// gives a day, or of an hour's, as byHour has it; what its axis names it, as "14",
 // "Wed" or "17 Aug"; and what the project's requests in it were worth.
 type WorthBucket struct {
 	Start time.Time
@@ -127,12 +127,16 @@ func (p *projectTally) byModel(v versions) []VersionShare {
 }
 
 // onAccounts are each account the project's requests went to, its share of
-// their worth, the one worth most first, then by id, each named as names
-// name it.
+// the worth of those that went to one, so the shares make the whole of it,
+// the one worth most first, then by id, each named as names name it.
 func (p *projectTally) onAccounts(names status.Namer) []AccountShare {
+	var named Worth
+	for _, w := range p.accounts {
+		named.add(w)
+	}
 	on := make([]AccountShare, 0, len(p.accounts))
 	for id, w := range p.accounts {
-		on = append(on, AccountShare{Account: id, AccountName: namedOf(names, id), Worth: w, Share: shareOf(w, p.worth.amount())})
+		on = append(on, AccountShare{Account: id, AccountName: namedOf(names, id), Worth: w, Share: shareOf(w, named.amount())})
 	}
 	slices.SortFunc(on, func(a, b AccountShare) int {
 		return cmp.Or(cmp.Compare(b.amount(), a.amount()), strings.Compare(a.Account, b.Account))
@@ -149,7 +153,7 @@ func (p *projectTally) worthBy(in ProjectsInput) (WorthBy, *WorthBy) {
 	first, last := in.Period.first(today, in.WeekStarts), in.Period.last(today, in.WeekStarts)
 	switch in.Period {
 	case PeriodToday:
-		return p.byHour(today, in.Now), nil
+		return p.byHour(in.Now), nil
 	case PeriodTwelveWeeks:
 		weeks := p.byWeek(first, last, today, in.WeekStarts)
 		return p.byDay(first, last, today, ByDay), &weeks
@@ -159,12 +163,15 @@ func (p *projectTally) worthBy(in ProjectsInput) (WorthBy, *WorthBy) {
 	return p.byDay(first, last, today, ByDay), nil
 }
 
-// byHour is the project's worth today by the local hour, today and now
-// given, as WORTH BY HOUR names them, "00" to "23".
-func (p *projectTally) byHour(today, now time.Time) WorthBy {
+// byHour is the project's worth today by the local hour, now given, as
+// WORTH BY HOUR names them, "00" to "23", each starting as today's clocks
+// first read it, or went forward over it, as dayfile.TimeOfDay has it, so
+// an hour a clock change repeats is one bucket, and one it skips starts with
+// the next.
+func (p *projectTally) byHour(now time.Time) WorthBy {
 	buckets := make([]WorthBucket, len(p.hours))
 	for h, w := range p.hours {
-		buckets[h] = WorthBucket{Start: today.Add(time.Duration(h) * time.Hour), Label: prose.HourNamed(h), Worth: w}
+		buckets[h] = WorthBucket{Start: dayfile.TimeOfDay(now.Local(), h, 0), Label: prose.HourNamed(h), Worth: w}
 	}
 	return peaked(WorthBy{Unit: ByHour, Buckets: buckets, ToCome: len(buckets) - 1 - now.Local().Hour()})
 }
@@ -251,8 +258,9 @@ func (p *projectTally) rows(in ProjectsInput) []ProjectSession {
 // of the project, it last named; its requests and their worth; started at
 // its first request and ended at its last, or of none, its last line; named
 // as names has it of what names it over its days, as no router lists it;
-// and brought to its account by its model's latest move, on its last day,
-// where that was onto it, its cost priced as price prices it; with no mark.
+// and brought to its account, as the List brings one, by its model's latest
+// move, on its last day, where that was onto it, as movedOnto has it, its
+// cost priced as price prices it, marked ▸.
 func (st *sessionTally) listedEnded(price pricing) ListedSession {
 	ended := cmp.Or(st.lastRequest, st.lastLine)
 	s := ListedSession{
@@ -260,13 +268,10 @@ func (st *sessionTally) listedEnded(price pricing) ListedSession {
 		Started: st.firstRequest, Ended: ended, Activity: Activity{Doing: Ended, Since: ended, LastSeen: ended},
 	}
 	s.Account, s.Model = st.naming.names(nil)
-	for _, m := range slices.Backward(st.moves) {
-		if m.model == s.Model {
-			if m.to == s.Account {
-				s.Moved, s.Routing = m.brought(price)
-			}
-			break
-		}
+	if m := movedOnto(st.moves, s.Model, s.Account, func(m *dayMove) (string, string) { return m.model, m.to }); m != nil {
+		s.broughtBy(m.brought(price))
+	} else {
+		s.broughtBy(nil, RoutingSaid{})
 	}
 	return s
 }

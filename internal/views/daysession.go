@@ -65,11 +65,7 @@ type dayMove struct {
 // oldest first, each its record: those its summary names, each line counting
 // toward the one Line.CountedSession says, the last to arrive first.
 func DaySessions(day LogDay) []DaySession {
-	sessions := newDaySessions(true)
-	for i := range day.records {
-		sessions.take(&day.records[i])
-	}
-	return sessions.sessions()
+	return newDaySessions(true).with(day.records).sessions()
 }
 
 // DaySessionsOn are the sessions of the past day with the given date, as
@@ -93,9 +89,13 @@ func DaySessionsOn(l Ledger, date string) []DaySession {
 // them. Where told says, each session's requests are held, for its story to
 // tell its moves once the day's lines are all taken in; and where hourly
 // says, what each spent by the local hour its requests arrived in, as
-// today's hours are drawn of them.
+// today's hours are drawn of them. Where the fold takes in more reads than
+// one, as today's does, keys are the keys of the lines it took, as
+// turnKeyOf has them, each counted, so a read given again counts none of
+// them twice; nil of a fold of one read.
 type daySessions struct {
 	held   map[string]*foldedSession
+	keys   map[turnKey]int
 	told   bool
 	hourly bool
 }
@@ -115,16 +115,26 @@ func newDaySessions(told bool) daySessions {
 	return daySessions{held: make(map[string]*foldedSession), told: told}
 }
 
-// take takes in r, the record of the day's next line in Day's order, toward
-// the session it counts toward, as its countedSession has it, where it
-// counts toward one: when it arrived in UTC, as the ledger writes it, and a
-// day's side restores it, whatever zone a line edited by hand names; and,
-// of a session's request, as isRequest has it, what it spent, and what
-// names the session.
-func (d daySessions) take(r *lineRecord) {
+// take takes in r, the record of the day's next line in Day's order, of the
+// read read tells, toward the session it counts toward, as its
+// countedSession has it, where it counts toward one, and it isn't given
+// again, as read tells it by its key, as turnKeyOf has it, against those d
+// keeps, so a line the ledger's files hold twice counts as the List and the
+// Log count it: when it arrived in UTC, as the ledger writes it, and a day's
+// side restores it, whatever zone a line edited by hand names; and, of a
+// session's request, as isRequest has it, what it spent, and what names the
+// session.
+func (d daySessions) take(r *lineRecord, read *countedOnce) {
 	id := r.countedSession
 	if id == "" {
 		return
+	}
+	k := turnKeyOf(r)
+	if read.again(k, d.keys[k]) {
+		return
+	}
+	if d.keys != nil {
+		d.keys[k]++
 	}
 	s, ok := d.held[id]
 	if !ok {
@@ -185,12 +195,15 @@ func usedOn(uses []SessionUse, r *lineRecord) []SessionUse {
 	return uses
 }
 
-// with is d, the records of lines given taken in too, in their order, as
-// take takes each: afresh, each session they change copied, so d, and any
-// copy of it, never sees them.
+// with is d, the records of a read's lines given taken in too, in their
+// order, as take takes each: afresh, each session they change copied, and
+// its keys, so d, and any copy of it, never sees them.
 func (d daySessions) with(records []lineRecord) daySessions {
 	if len(records) == 0 {
 		return d
+	}
+	if d.keys != nil {
+		d.keys = maps.Clone(d.keys)
 	}
 	held := maps.Clone(d.held)
 	changed := make(map[string]bool)
@@ -201,8 +214,9 @@ func (d daySessions) with(records []lineRecord) daySessions {
 		}
 	}
 	d.held = held
+	read := countedOnceOf(len(records))
 	for i := range records {
-		d.take(&records[i])
+		d.take(&records[i], read)
 	}
 	return d
 }
