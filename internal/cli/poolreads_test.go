@@ -3,10 +3,12 @@ package cli_test
 import (
 	"bytes"
 	"encoding/json"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/identity"
 	"github.com/leeovery/switchboard/internal/launch"
 	"github.com/leeovery/switchboard/internal/ledger"
@@ -110,6 +112,46 @@ func TestRequestsOfAnAccountAreReadInWhateverPoolEachWasRoutedIn(t *testing.T) {
 	}
 }
 
+// Once the first pool the accounts record notes is no longer configured, as
+// after pool remove of an emptied Default, the work recorded in no pool is
+// the config's first pool's, as the router routes it: never in no pool.
+func TestWorkInNoPoolIsTheConfigsFirstOnceTheOneNotedIsRemoved(t *testing.T) {
+	deps := pooledDeps(t, false)
+	path, err := config.Path(deps.Getenv, deps.HomeDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeStateFile(t, filepath.Dir(path), filepath.Base(path), []byte("[[account]]\nid = \"work\"\nlabel = \"Work\"\npool = \"q7mt\"\n\n"+
+		"[[account]]\nid = \"side\"\nlabel = \"Side\"\npool = \"q7mt\"\n\n[[pool]]\nid = \"q7mt\"\nlabel = \"Acme\"\n"))
+	tests := []struct {
+		args  []string
+		field string
+		want  []string
+	}{
+		{args: []string{"requests"}, field: "request", want: []string{"p1", "p2"}},
+		{args: []string{"events"}, field: "kind", want: []string{"started", "started", "limit", "pin", "restart"}},
+	}
+	for _, tt := range tests {
+		got := run(t, deps, append(tt.args, "--json")...)
+		if values := fieldsOf(t, got, tt.field); got.code != 0 || !slices.Equal(values, tt.want) {
+			t.Errorf("switchboard %s --json printed %s %q (%+v), want %q: those from before pools Acme's, the first now", strings.Join(tt.args, " "), tt.field, values, got, tt.want)
+		}
+	}
+}
+
+// A damaged accounts record is read for the first pool once a verb, and
+// warned of once, by the pool's read and the ledger's alike.
+func TestTheFirstPoolIsReadOnceAVerb(t *testing.T) {
+	deps := pooledDeps(t, false)
+	writeStateFile(t, stateDir(t, deps), "accounts.json", []byte("{\n"))
+	if got := run(t, deps, "history", "--json", "--since", "2026-10-07"); got.code != 0 {
+		t.Fatalf("switchboard history --json = %+v, want its days", got)
+	}
+	if log := readLog(t, deps, "cli.log"); strings.Count(log, "first pool") != 1 {
+		t.Errorf("cli.log reads\n%s\nwant the first pool unread warned of once", log)
+	}
+}
+
 // The dashboard reads the router's files of events of the pool it shows
 // alone, the one the verbs read with none named, so the Log's Events and
 // Runway's LATELY, which both read them through it, tell nothing of
@@ -157,8 +199,9 @@ func TestTheDashboardReadsNoEventsWhereNothingNamesThePools(t *testing.T) {
 }
 
 // An event naming a pool since removed is no pool's; and where the accounts
-// record notes no first pool, work naming none is none's either.
-func TestWorkNamingAPoolRemovedOrNoneWithTheFirstUnknownIsNoPools(t *testing.T) {
+// record notes no first pool, work naming none is the config's first pool's,
+// as the router routes it.
+func TestWorkNamingAPoolRemovedIsNoPoolsAndNoneWithTheFirstUnknownTheConfigsFirsts(t *testing.T) {
 	deps := pooledDeps(t, false)
 	fileEvent(t, deps, "2026-10-07", eventLine(runOne, 6, status.Event{At: october(7, 12, 30, 0), Kind: status.EventStarted, Session: sessionC, Account: "work", Pool: "x9z9", Reason: status.ReasonNew}))
 	for _, args := range [][]string{{"events"}, {"events", "--pool", "q7mt"}} {
@@ -180,8 +223,9 @@ func TestWorkNamingAPoolRemovedOrNoneWithTheFirstUnknownIsNoPools(t *testing.T) 
 		field string
 		want  []string
 	}{
-		{args: []string{"requests"}, field: "request", want: []string{"p3"}},
-		{args: []string{"events"}, field: "kind", want: []string{"restart"}},
+		{args: []string{"requests"}, field: "request", want: []string{"p1", "p3"}},
+		{args: []string{"requests", "--pool", "q7mt"}, field: "request", want: []string{"p2"}},
+		{args: []string{"events"}, field: "kind", want: []string{"started", "pin", "restart"}},
 	}
 	for _, tt := range tests {
 		got := run(t, deps, append(tt.args, "--json")...)

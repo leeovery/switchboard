@@ -569,6 +569,29 @@ func TestPoolsAsked(t *testing.T) {
 	}
 }
 
+// The first pool is the one the record notes, where it's configured, else
+// the config's first, as once the one noted is removed.
+func TestTheFirstPoolIsTheOneNotedElseTheConfigsFirst(t *testing.T) {
+	pools := config.Pools{{ID: "q7mt"}, {ID: "b2n8"}}
+	tests := []struct {
+		name  string
+		pools config.Pools
+		noted string
+		want  string
+	}{
+		{name: "the one noted, configured", pools: pools, noted: "b2n8", want: "b2n8"},
+		{name: "the one noted, in another case", pools: pools, noted: "B2N8", want: "b2n8"},
+		{name: "the one noted, removed", pools: pools, noted: "x9z9", want: "q7mt"},
+		{name: "none noted, as of a record that can't be read", pools: pools, want: "q7mt"},
+		{name: "none configured", noted: "b2n8"},
+	}
+	for _, tt := range tests {
+		if got := tt.pools.First(tt.noted); got != tt.want {
+			t.Errorf("%s: First(%q) = %q, want %q", tt.name, tt.noted, got, tt.want)
+		}
+	}
+}
+
 func TestAPoolsAccountsAndPrimary(t *testing.T) {
 	cfg, err := load(writeConfig(t, accountIn("k3f9", "q7mt")+accountIn("b6s7", "b2n8")+accountIn("m2x7", "Q7MT")+"primary = true\n"+
 		poolTOML("b2n8")+poolTOML("q7mt", "~/Code/acme")+poolTOML("h4w2", "~/Code/client")))

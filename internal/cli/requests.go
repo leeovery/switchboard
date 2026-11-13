@@ -13,7 +13,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/leeovery/switchboard/internal/config"
-	"github.com/leeovery/switchboard/internal/idmove"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/redact"
@@ -107,9 +106,10 @@ func (a *app) ledgerState() (*config.Config, string, error) {
 
 // ledgerReader returns a reader of the request ledger in the state directory
 // dir, by the clock now, which summarises days with the caps of the accounts
-// cfg configures, knowing the first pool as idmove.FirstPool does.
-func ledgerReader(dir string, cfg *config.Config, now func() time.Time) *ledger.Reader {
-	return ledger.NewReader(dir, now, caps(cfg), logger, idmove.FirstPool(dir))
+// cfg configures, knowing the first pool as ledgerFirst has it of cfg's
+// pools, cfg as they stand.
+func (a *app) ledgerReader(dir string, cfg *config.Config, now func() time.Time) *ledger.Reader {
+	return ledger.NewReader(dir, now, caps(cfg), logger, a.ledgerFirst(dir, func() config.Pools { return cfg.Pools }))
 }
 
 // pricing is the price table, cfg's prices in place of its own, warning of
@@ -147,7 +147,7 @@ func (a *app) requests(ctx context.Context, out io.Writer, opts requestsOptions)
 	if err != nil {
 		return err
 	}
-	reader := ledgerReader(dir, cfg, a.Now)
+	reader := a.ledgerReader(dir, cfg, a.Now)
 	now := a.Now()
 	from, err := sinceOr(opts.since, now, startOfDay(now, 0))
 	if err != nil {

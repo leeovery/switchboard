@@ -27,7 +27,7 @@ func (a *app) sessionPage(ctx context.Context, out, errOut io.Writer, given, poo
 	if err != nil {
 		return err
 	}
-	readers, err := a.newStateReaders(cfg)
+	readers, err := a.newStateReaders(ctx, cfg)
 	if err != nil {
 		return err
 	}

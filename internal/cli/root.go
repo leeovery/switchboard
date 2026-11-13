@@ -282,6 +282,10 @@ type app struct {
 	// routercopy.FromFlag names it: the one service install was run by, of
 	// which the router runs a copy.
 	from string
+	// noted reads the first pool the accounts record notes, once a run, as
+	// notedFirst has it.
+	noted     func() string
+	notedOnce sync.Once
 }
 
 // startLog starts this invocation's log, in the role the command plays: the

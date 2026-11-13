@@ -8,7 +8,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/leeovery/switchboard/internal/config"
-	"github.com/leeovery/switchboard/internal/idmove"
 	"github.com/leeovery/switchboard/internal/launch"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/router"
@@ -115,19 +114,19 @@ func (a *app) filedPool(ctx context.Context, cfg *config.Config, dir, named stri
 	if err != nil {
 		return filedPool{}, nil, err
 	}
-	pool, err := readPool(pooled, dir, named)
+	pool, err := a.readPool(pooled, dir, named)
 	return pool, pooled, err
 }
 
 // readPool returns the pool of cfg's pools a verb reading the files in the
 // state directory dir reads, as askedPool has it, named or not, failing as it
 // does, saying --pool names one.
-func readPool(cfg *config.Config, dir, named string) (filedPool, error) {
+func (a *app) readPool(cfg *config.Config, dir, named string) (filedPool, error) {
 	p, err := askedPool(cfg.Pools, named)
 	if err != nil || p.ID == "" {
 		return filedPool{}, poolFlagNeeded(err)
 	}
-	read := views.PoolRead{ID: p.ID, First: idmove.FirstPoolID(dir), PoolOf: status.AccountPools(cfg.Accounts, recordIn(dir))}
+	read := views.PoolRead{ID: p.ID, First: a.firstPool(dir, cfg.Pools), PoolOf: status.AccountPools(cfg.Accounts, recordIn(dir))}
 	return filedPool{Pool: p, read: read, named: poolNamed(cfg.Pools, p.Label)}, nil
 }
 

@@ -504,17 +504,30 @@ func (m *PoolMover) takeUp() error {
 }
 
 // FirstPool is the ledger's option that has it know the first pool, as
-// ledger.FirstPool says, as FirstPoolID reads it as the ledger asks, a record
-// that can't be read logged once.
-func FirstPool(stateDir string) ledger.Option {
+// ledger.FirstPool says, as FirstOf has it of the pools pools gives and the
+// one FirstPoolID reads as the ledger asks, a record that can't be read
+// logged once.
+func FirstPool(stateDir string, pools func() config.Pools) ledger.Option {
 	var warned atomic.Bool
 	return ledger.FirstPool(func() string {
-		return firstPoolID(stateDir, func(err error) {
+		return FirstOf(pools(), firstPoolID(stateDir, func(err error) {
 			if !warned.Swap(true) {
 				logger.Warn("can't read the accounts record, so a day's work in no pool can't be given the first pool's", "error", err)
 			}
-		})
+		}))
 	})
+}
+
+// FirstOf returns the id of the first pool of pools, as config.Pools' First
+// has it of the one the accounts record notes, noted: noted itself where
+// pools holds none, as while the router takes up the pools the move to
+// pools made, or "" before the move. The router and every reader of the
+// recorded files go by it.
+func FirstOf(pools config.Pools, noted string) string {
+	if len(pools) == 0 {
+		return noted
+	}
+	return pools.First(noted)
 }
 
 // FirstPoolID returns the id of the first pool, as the accounts record in

@@ -82,7 +82,7 @@ func (a *app) sessions(ctx context.Context, out, errOut io.Writer, named string,
 	if err != nil {
 		return err
 	}
-	readers, err := a.newStateReaders(cfg)
+	readers, err := a.newStateReaders(ctx, cfg)
 	if err != nil {
 		return err
 	}

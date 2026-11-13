@@ -120,6 +120,21 @@ func (ps Pools) Asked(named string) (Pool, bool) {
 	return ps.ByID(named)
 }
 
+// First returns the id of the first pool, where work recorded in no pool is:
+// the one with the id noted, as the accounts record notes it, where it's
+// among ps, as ps spells its id; else ps's first, as where the one noted has
+// been removed, or can't be read; "" where ps holds none. The router and
+// every reader of the recorded files go by it alike.
+func (ps Pools) First(noted string) string {
+	switch p, ok := ps.ByID(noted); {
+	case ok:
+		return p.ID
+	case len(ps) > 0:
+		return ps[0].ID
+	}
+	return ""
+}
+
 // find returns the first pool that matches, reporting false where none does.
 func (ps Pools) find(match func(Pool) bool) (Pool, bool) {
 	i := slices.IndexFunc(ps, match)

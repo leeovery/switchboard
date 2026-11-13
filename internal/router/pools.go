@@ -69,7 +69,7 @@ func newPoolTable(accounts config.Accounts, pools config.Pools, first string, id
 			t.primary[a.Pool] = id
 		}
 	}
-	t.first = firstPool(pools, first)
+	t.first = pools.First(first)
 	return t
 }
 
@@ -78,19 +78,6 @@ func newPoolTable(accounts config.Accounts, pools config.Pools, first string, id
 // on any account, and every request is answered by switchboard, saying why.
 func closedTable(why string) *poolTable {
 	return &poolTable{poolOf: map[string]string{}, primary: map[string]string{}, closed: why}
-}
-
-// firstPool returns the id of the first of pools: the one with the id first,
-// as the accounts record notes it, where pools has it, else the first
-// configured, as the config spells its id; "" where there are none.
-func firstPool(pools config.Pools, first string) string {
-	switch p, ok := pools.ByID(first); {
-	case ok:
-		return p.ID
-	case len(pools) > 0:
-		return pools[0].ID
-	}
-	return ""
 }
 
 // of returns the id of the pool a request naming the pool given is in, as its

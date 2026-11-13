@@ -148,7 +148,7 @@ func (a *app) history(ctx context.Context, out io.Writer, given, pool string, as
 		return err
 	}
 	prices := pricing(asked.cfg)
-	reader := ledgerReader(asked.stateDir, asked.cfg, func() time.Time { return asked.now })
+	reader := a.ledgerReader(asked.stateDir, asked.cfg, func() time.Time { return asked.now })
 	removed := removedIn(asked.stateDir, asked.cfg)
 	history := views.NewHistory(views.HistoryInput{
 		Ledger: asked.pool.read.Days(reader), From: asked.from, Now: asked.now, Prices: prices, Accounts: asked.accounts(), Removed: removed,
