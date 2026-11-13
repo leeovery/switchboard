@@ -46,17 +46,18 @@ func (Digests) RowsVersion() int {
 // Day gives a builder of a finished day's side and rows, as dayBuild has it,
 // none of the day's lines taken in yet.
 func (Digests) Day() ledger.DayBuilder {
-	return &dayBuild{sessions: make(daySessions)}
+	return &dayBuild{sessions: newDaySessions(true), read: countedOnceOf(0)}
 }
 
 // dayBuild is a builder of a finished day's side and rows by the views'
 // Digests, of the record of each line Day gives, in its order: the day's
-// sessions, folded as DaySessions folds them, so DaySessionsOn reads from
-// its side what it would read of the lines; and its rows, as rowsBuild
-// builds them, so a reader of them restores the records of those lines, in
-// order.
+// sessions, folded as DaySessions folds them, of the one read read tells,
+// so DaySessionsOn reads from its side what it would read of the lines;
+// and its rows, as rowsBuild builds them, so a reader of them restores the
+// records of those lines, in order.
 type dayBuild struct {
 	sessions daySessions
+	read     *countedOnce
 	rows     rowsBuild
 }
 
@@ -64,7 +65,7 @@ type dayBuild struct {
 // rowsBuild take it.
 func (b *dayBuild) Take(l ledger.Line) {
 	rec := lineRecordOf(&l)
-	b.sessions.take(&rec)
+	b.sessions.take(&rec, b.read)
 	b.rows.take(&rec)
 }
 

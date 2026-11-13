@@ -685,7 +685,8 @@ Every `worth` is exact, with `unpriced` beside it naming what the worth leaves o
 
 `sessions` lists each session, with these:
 
-- Its whole id, its directory, `account` and its `label`, and model.
+- Its whole id, its directory, its `project` where it names one, `account` and its `label`, and
+  model.
 - Whether it's `running`.
 - For a running session: when it was last seen, each of its models' `account`, its `label`, and
   why, what it's doing, and its `move_cost`, what moving it now would cost.

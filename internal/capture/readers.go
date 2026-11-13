@@ -8,6 +8,7 @@ import (
 	"iter"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/claude"
@@ -23,13 +24,29 @@ import (
 // every line the ledger keeps, of whatever day, in the order the router wrote
 // them, each as it's filed; the readings history, in the order its readings
 // were read; and the router's events, every version of each in the order it
-// was filed. caps are the accounts' caps today is summarised with.
+// was filed. caps are the accounts' caps today is summarised with. runs are
+// the runs of the sessions of the days before today's that today's traffic
+// doesn't hold, by the date of their day, their lines among the days' lines
+// as runsOn gives them, and runDates the dates of each one's, by its id;
+// and made, each day's runs' lines and its side, as runsOn and side make
+// them, each once it's asked for.
 type records struct {
 	days     []ledger.Summary
 	lines    []filed
 	readings history
 	events   []events.Line
 	caps     ledger.Caps
+	runs     map[string][]projectRun
+	runDates map[string][]string
+	made     madeDays
+}
+
+// madeDays are the lines of each day's runs, and each day's side, by its
+// date, made once each is asked for.
+type madeDays struct {
+	mu    sync.Mutex
+	lines map[string][]filed
+	sides map[string]json.RawMessage
 }
 
 // recordsOf are the world's records: the year's days of its accounts,
@@ -37,7 +54,9 @@ type records struct {
 // that history, and its accounts' caps; and, where today's traffic of the
 // three is the world's, every line the sessions' world holds, or the world's
 // own lines in their place, and the router's events, or, where its records
-// hold its own, those.
+// hold its own, those; and, where the lines are the sessions' world's, the
+// runs of its accounts' sessions that no lines tell of, as projectRuns has
+// them.
 func (a accountWorlds) recordsOf(w accountWorld) *records {
 	days := withGone(a.year.summaries(w.history, w.accounts), w.gone)
 	r := &records{days: days, readings: w.history, caps: ledger.CapsOf(w.accounts, claude.SharedWindows())}
@@ -49,6 +68,10 @@ func (a accountWorlds) recordsOf(w accountWorld) *records {
 	}
 	if w.ownEvents {
 		r.events = logged(w.events, a.now)
+	}
+	if w.traffic && w.lines == nil {
+		r.runs = a.year.projectRuns(w.accounts, r.lines)
+		r.runDates = datesOfRuns(r.runs)
 	}
 	return r
 }
@@ -160,7 +183,7 @@ func (l heldLedger) FirstDay(now time.Time) (time.Time, error) {
 // arrived by now are filed under, as a Follower finds the first day its
 // files hold lines of, failing with fs.ErrNotExist where none has.
 func (l heldLedger) FirstLinesDay(now time.Time) (time.Time, error) {
-	lines := l.arrived(now)
+	lines := append(l.arrived(now), l.records.runsOn(l.records.firstRun(), now)...)
 	if len(lines) == 0 {
 		return time.Time{}, fmt.Errorf("the records hold no day's lines: %w", fs.ErrNotExist)
 	}
@@ -193,14 +216,15 @@ func (l heldLedger) Today(ledger.Mark) (lines []ledger.Held, next ledger.Mark, a
 // Day gives the lines that arrived on the local day with the given date, by
 // now, oldest first, as a Follower orders them, none of its JSON held, as a
 // Follower gives them: whichever day's files hold them, as a Follower reads
-// the day's files and its neighbours'.
+// the day's files and its neighbours', the records' runs' among them.
 func (l heldLedger) Day(date string) []ledger.Held {
 	bounds, ok := dayfile.DayBounds(date)
 	if !ok {
 		return nil
 	}
+	now := l.now()
 	var day []filed
-	for _, f := range l.arrived(l.now()) {
+	for _, f := range append(l.arrived(now), l.records.runsOn([]string{date}, now)...) {
 		if bounds.Holds(f.At) {
 			day = append(day, f)
 		}
@@ -213,11 +237,16 @@ func (l heldLedger) Day(date string) []ledger.Held {
 	return lines
 }
 
-// DaySide gives no side, whatever the day, as a Follower of a ledger that
-// holds no day's head gives it: the find reads each day's lines, as Day
-// gives them.
-func (heldLedger) DaySide(string, int) (json.RawMessage, bool) {
-	return nil, false
+// DaySide gives the side of a day before now's that the records' runs ran
+// on, as side builds it of the lines Day gives of it, as a Follower gives a
+// finished day's side, built of its lines; else none, as a Follower of a
+// ledger that holds no day's head gives it: the find reads the day's lines,
+// as Day gives them, alike.
+func (l heldLedger) DaySide(date string, _ int) (json.RawMessage, bool) {
+	if date >= dayfile.DateOf(l.now()) {
+		return nil, false
+	}
+	return l.records.side(date, func() []ledger.Held { return l.Day(date) })
 }
 
 // DayRows gives no rows, whatever the day, as a Follower of a ledger that
@@ -237,10 +266,12 @@ func (heldLedger) RowChunk(date string, _ ledger.RowsChunk) ([]byte, error) {
 // now, newest first, as a Follower orders them, as far as the caller goes on:
 // of each day that names it, as its summary would, as a Follower reads them,
 // so none of a day it made only quota checks on; and of those, the days
-// ledger.Spanning gives of the spans given alone, as a Follower reads them.
+// ledger.Spanning gives of the spans given alone, as a Follower reads them;
+// the records' runs' lines among them, as runsOn gives them.
 func (l heldLedger) Session(id string, within ...ledger.Span) iter.Seq[ledger.Held] {
 	return func(yield func(ledger.Held) bool) {
-		lines := l.arrived(l.now())
+		now := l.now()
+		lines := append(l.arrived(now), l.records.runsOn(l.records.runDates[id], now)...)
 		named, spanned := naming(lines, map[string]bool{id: true}), ledger.Spanning(within)
 		lines = slices.DeleteFunc(lines, func(f filed) bool { return f.Session != id || !named[f.date] || !spanned(f.date) })
 		slices.SortStableFunc(lines, func(a, b filed) int { return byArrival(b, a) })
@@ -271,7 +302,8 @@ func (l heldLedger) SessionsOf(ids []string, _ func(id string) ledger.Rest, take
 }
 
 // sessions gives the lines of the sessions with the given ids, and where
-// todays is set, of today's, as Sessions gives them.
+// todays is set, of today's, as Sessions gives them, the records' runs'
+// lines among the days it reads, as runsOn gives them.
 func (l heldLedger) sessions(ids []string, todays bool, take func(date string, line ledger.Line)) map[string][]ledger.Line {
 	now := l.now()
 	lines := l.arrived(now)
@@ -286,6 +318,12 @@ func (l heldLedger) sessions(ids []string, todays bool, take func(date string, l
 			wanted[f.Session] = true
 		}
 	}
+	ran := slices.Clone(near)
+	for id := range wanted {
+		ran = append(ran, l.records.runDates[id]...)
+	}
+	slices.Sort(ran)
+	lines = append(lines, l.records.runsOn(slices.Compact(ran), now)...)
 	named := naming(lines, wanted)
 	read := func(f filed) bool { return slices.Contains(near, f.date) }
 	more := func(f filed) bool { return f.date < near[0] && named[f.date] }

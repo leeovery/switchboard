@@ -32,6 +32,9 @@ type ListedSession struct {
 	// Dir is the directory it runs in, as the router gives it, else as its
 	// lines last name it, the home as ~: "" where neither names one.
 	Dir string `json:"dir,omitempty"`
+	// Project is its project, from where Dir comes from, which
+	// status.ProjectOf reads with Dir: "" where that names none.
+	Project string `json:"project,omitempty"`
 	// Account and Model name it, following its main thread: the model of its
 	// latest main request, and the account that model goes to now, as the
 	// router lists it and the request stream has moved it since, else the
@@ -269,12 +272,13 @@ func newLister(running []status.Session, unlisted bool, s Stream, now time.Time)
 }
 
 // listed returns the session with the given id as the List has it, its story
-// s telling of its requests: in the directory dir gives; ended at its last
-// request; named as names has it; running, where the router lists it, as run
-// has it; doing as activity has it; and come to its account as cameBy has
-// it.
+// s telling of its requests: in the directory and project place gives; ended
+// at its last request; named as names has it; running, where the router lists
+// it, as run has it; doing as activity has it; and come to its account as
+// cameBy has it.
 func (by lister) listed(id string, s *story) ListedSession {
-	listed := ListedSession{Session: id, Dir: by.dir(id, s), Requests: s.requests, Worth: s.worth}
+	listed := ListedSession{Session: id, Requests: s.requests, Worth: s.worth}
+	listed.Dir, listed.Project = by.place(id, s)
 	if s.begun {
 		listed.Started, listed.Ended = s.first.arrived(), s.last.arrived()
 	}
@@ -293,6 +297,12 @@ func (by lister) dir(id string, s *story) string {
 	return listedDir(by.routed[id], s.dir)
 }
 
+// place is the directory the session with the given id runs in, and its
+// project, its story s telling of its lines, as listedPlace has them.
+func (by lister) place(id string, s *story) (dir, project string) {
+	return listedPlace(by.routed[id], s.dir, s.project)
+}
+
 // listedDir is the directory a session runs in as the List names it: as the
 // router gives it in routed, its listing, of the model seen most lately that
 // names one; else lines, the directory its lines last name; "" where neither
@@ -301,14 +311,33 @@ func listedDir(routed status.Session, lines string) string {
 	return cmp.Or(routedDir(routed), lines)
 }
 
+// listedPlace is the directory a session runs in, as listedDir has it, and
+// its project, from the same place, as status.ProjectOf reads them together:
+// of the router's listing where it names a directory, else as its lines last
+// named them.
+func listedPlace(routed status.Session, dir, project string) (string, string) {
+	if a, ok := routedAt(routed); ok {
+		return a.Dir, a.Project
+	}
+	return dir, project
+}
+
 // routedDir is the directory the session s runs in as the router lists it:
 // of its model seen most lately that names one; "" where none does.
 func routedDir(s status.Session) string {
+	a, _ := routedAt(s)
+	return a.Dir
+}
+
+// routedAt is the assignment of the session s's model seen most lately that
+// names a directory, as the router lists it, reporting false where none
+// does.
+func routedAt(s status.Session) (status.Assignment, bool) {
 	named := slices.DeleteFunc(slices.Clone(s.Assignments), func(a status.Assignment) bool { return a.Dir == "" })
 	if len(named) == 0 {
-		return ""
+		return status.Assignment{}, false
 	}
-	return slices.MaxFunc(named, func(a, b status.Assignment) int { return a.LastSeen.Compare(b.LastSeen) }).Dir
+	return slices.MaxFunc(named, func(a, b status.Assignment) int { return a.LastSeen.Compare(b.LastSeen) }), true
 }
 
 // names are the account and model naming the session with the given id, its

@@ -56,14 +56,15 @@ func goldenHead(t *testing.T) []byte {
 }
 
 // headChecked are the lines goldenHead adds to goldenDay, so its rows fill
-// a chunk and begin another, and their meta holds a value of every key: a
-// quota check of session o's every five minutes from just past five past midnight,
-// enough of them that the day's lines are one more than a chunk holds, one
-// refused as overloaded; and a count of tokens of session s's in the
-// afternoon.
+// a chunk and begin another, and their meta and its side hold a value of
+// every key: a quota check of session o's every five minutes from just past
+// five past midnight, enough of them that the day's lines are one more than
+// a chunk holds, one refused as overloaded; a count of tokens of session
+// s's in the afternoon; and a request of session o's asking for its
+// inference in the US, its answer giving no usage.
 func headChecked() []ledger.Line {
 	from := time.Date(2026, 10, 8, 0, 5, 0, 987_654_321, time.Local).UTC()
-	checks := rowsAChunk - 7
+	checks := rowsAChunk - 8
 	lines := make([]ledger.Line, 0, checks+1)
 	for i := range checks {
 		check := ledger.Line{
@@ -75,7 +76,12 @@ func headChecked() []ledger.Line {
 		}
 		lines = append(lines, check)
 	}
-	return append(lines, ledger.Line{
+	unmetered := ledger.Line{
+		At: time.Date(2026, 10, 8, 15, 0, 0, 0, time.Local).UTC(), Request: "g1", Kind: ledger.KindMessage, Session: "o", Model: foldSonnet,
+		Account: "side", Reason: "sticky", Status: 200, Attempts: 1, TotalMS: 2000, Class: ledger.ClassMain,
+	}
+	unmetered.Shape.InferenceGeo = "us"
+	return append(lines, unmetered, ledger.Line{
 		At: time.Date(2026, 10, 8, 16, 0, 0, 0, time.Local).UTC(), Request: "n1", Kind: ledger.KindCount, Session: "s", Model: foldOpus,
 		Account: "side", Reason: "sticky", Status: 200, Attempts: 1, TotalMS: 90,
 	})

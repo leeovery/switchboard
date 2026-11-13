@@ -291,9 +291,16 @@ func resetWindows(days []ledger.AccountDay) []string {
 // byModel is each model version's worth, and its share of the account's,
 // none where none of its use is priced.
 func (t *totalling) byModel() []ModelShare {
-	listed := t.models.list(status.Names{})
+	return sharesOf(t.models, t.amount())
+}
+
+// sharesOf are each model version's worth that models tallies, in the
+// version table's order, and its share of the worth given, as BY MODEL
+// reckons it: none where none of its use is priced, or the worth given is
+// none.
+func sharesOf(models modelTally, worth ledger.Picodollars) []ModelShare {
+	listed := models.list(status.Names{})
 	shares := make([]ModelShare, len(listed))
-	worth := t.amount()
 	for i, m := range listed {
 		shares[i] = ModelShare{Model: m.Model, Worth: m.Worth}
 		if m.Amount != nil && *m.Amount > 0 && worth > 0 {

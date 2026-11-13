@@ -9,11 +9,11 @@ import (
 )
 
 // assigned is the account a session's requests of the model go to, as the
-// router assigns it, in the directory given, since when and why, last seen
-// when given, doing what its request in flight does.
+// router assigns it, in the directory given, the project at its root, since
+// when and why, last seen when given, doing what its request in flight does.
 func assigned(model, account, dir, reason string, since, seen time.Time, inFlight string) status.Assignment {
 	return status.Assignment{
-		Model: model, Family: claude.Provider{}.Family(model), Account: account, Dir: dir, InFlight: inFlight,
+		Model: model, Family: claude.Provider{}.Family(model), Account: account, Dir: dir, Project: dir, InFlight: inFlight,
 		Reason: reason, AssignedAt: since.UTC(), LastSeen: seen.UTC(),
 	}
 }

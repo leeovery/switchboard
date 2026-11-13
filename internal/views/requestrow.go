@@ -287,7 +287,16 @@ func (r routed) said(to string, first bool, made *move) RoutingSaid {
 // routing is how the router chose the account of the request that made m,
 // as routingOf says it of its line.
 func (m *move) routing() RoutingSaid {
-	return RoutingSaid{From: m.from, Words: routingWords(m.tried, m.reason, status.Facts{From: m.from, To: m.to}, false), Cost: m.cost, Rewrote: m.rewrote != nil}
+	return movedRouting(m.tried, m.reason, status.Facts{From: m.from, To: m.to}, m.cost, m.rewrote != nil)
+}
+
+// movedRouting is how the router brought a session onto the account a move
+// took it to, as routing says it: of the accounts the request that made it
+// went out on that couldn't serve it, tried; the router's reason; the account
+// it left and the one it went to; and what writing the session's context
+// again there cost, and whether it was written again, priced or not.
+func movedRouting(tried []ledger.Tried, reason string, moved status.Facts, cost *ledger.Picodollars, rewrote bool) RoutingSaid {
+	return RoutingSaid{From: moved.From, Words: routingWords(tried, reason, moved, false), Cost: cost, Rewrote: rewrote}
 }
 
 // routingWords are the words of a request's routing, as routingOf has them,
@@ -323,14 +332,41 @@ func newSession() status.Words {
 // Its routing is the row's of m's request, and what m cost; else, where it's
 // pinned to Account on its own, "pinned here".
 func (l *ListedSession) cameBy(m *move) {
-	l.Mark = marking{stage: l.Activity.stage(), moved: m != nil}.mark()
+	if m == nil {
+		l.broughtBy(nil, RoutingSaid{})
+		return
+	}
+	l.broughtBy(&Move{At: m.at.UTC(), From: m.from, Reason: m.reason, Cost: m.cost}, m.routing())
+}
+
+// broughtBy has the session brought to Account by the move given, as the
+// List gives one, and as routing says it, nil where none brought it there:
+// its mark as cameBy has it, ▸ of a move; and its routing, the move's, else
+// "pinned here" where it's pinned to Account on its own.
+func (l *ListedSession) broughtBy(moved *Move, routing RoutingSaid) {
+	l.Mark = marking{stage: l.Activity.stage(), moved: moved != nil}.mark()
 	switch {
-	case m != nil:
-		l.Moved = &Move{At: m.at.UTC(), From: m.from, Reason: m.reason, Cost: m.cost}
-		l.Routing = m.routing()
+	case moved != nil:
+		l.Moved, l.Routing = moved, routing
 	case slices.ContainsFunc(l.Models, func(s SessionModel) bool { return s.Account == l.Account && s.Reason == status.ReasonPinned }):
 		l.Routing = RoutingSaid{Words: status.SessionWords(status.ReasonPinned, status.Facts{})}
 	}
+}
+
+// movedOnto is the move of the model given, among moves, the latest of it,
+// where it took its session onto account: of a session's story, or of a
+// day's record of it, as either keeps its moves in the order they came;
+// nil where its latest went elsewhere, or it never moved.
+func movedOnto[M any](moves []M, model, account string, of func(*M) (model, to string)) *M {
+	for i := range slices.Backward(moves) {
+		if m, to := of(&moves[i]); m == model {
+			if to != account {
+				return nil
+			}
+			return &moves[i]
+		}
+	}
+	return nil
 }
 
 // lineRow is the row of the request of the record r, a line of the session
