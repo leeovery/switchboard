@@ -206,10 +206,15 @@ const (
 )
 
 // routerUnpooled is what keeps RunUnread from routing through a router that
-// answers where it doesn't route by the pools whose from says, as Stderr
-// hears it.
+// answers where it doesn't route by the pools from says, as Stderr hears it:
+// "the config's", as whose names them; else, naming no source, what differs,
+// as Written's unroutedBy refuses a router for pools that aren't the
+// config's only where it reports none.
 func routerUnpooled(from poolsSource) string {
-	return "the running router doesn't route by " + from.whose() + " pools"
+	if whose := from.whose(); whose != "" {
+		return "the running router doesn't route by " + whose + " pools"
+	}
+	return "the running router reports no pools"
 }
 
 // RunUnread starts Claude Code with args in this process's place where the
@@ -635,7 +640,7 @@ const (
 )
 
 // said is how String says the router is, by its state's name, where that
-// isn't "is" and the name, nor otherPools, which says whose pools.
+// isn't "is" and the name, nor otherPools, which text says.
 var said = map[string]string{
 	notRunning:   "isn't running",
 	notFound:     "couldn't be found",
@@ -692,11 +697,14 @@ func (s routerState) String() string {
 }
 
 // text says how the router is, by its state's name: as said says, or, where
-// it routes by other pools, whose it doesn't route by, as "doesn't route by
-// the config's pools".
+// it routes by other pools, as "doesn't route by the config's pools", whose
+// as the pools' whose names them, else "routes by other pools".
 func (s routerState) text() string {
+	if whose := s.pools.whose(); s.name == otherPools && whose != "" {
+		return "doesn't route by " + whose + " pools"
+	}
 	if s.name == otherPools {
-		return "doesn't route by " + s.pools.whose() + " pools"
+		return "routes by other pools"
 	}
 	if text, ok := said[s.name]; ok {
 		return text

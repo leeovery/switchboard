@@ -1708,13 +1708,24 @@ func TestRunAfterTheMoveToPoolsNeverLaunchesAConfigNamingNoneAsItIs(t *testing.T
 		{name: "the router's pools", moved: true, router: healthy().reporting(pooledConfig()), wantPool: "q7mt", wantToken: acme1Token},
 		{name: "the router's pools before the record's", moved: true, router: healthy().reporting(pooledConfig()), kept: kept, wantPool: "q7mt", wantToken: acme1Token},
 		{
+			name:  "the router's pools, listing an account the config has dropped: the router counting as down, naming no source",
+			moved: true,
+			router: otherPools(pooledConfig(), func(ps []router.RoutedPool) []router.RoutedPool {
+				ps[0].Accounts = append(ps[0].Accounts, "gone")
+				return ps
+			}),
+			wantPool:  "q7mt",
+			wantToken: acme1Token,
+			wantSaid:  "switchboard: the router routes by other pools (pool Default's accounts aren't the same) — connecting directly on acme1 · Acme 1\n",
+		},
+		{
 			name:      "a router from before pools: the record's, the router counting as down",
 			moved:     true,
 			router:    healthy(),
 			kept:      kept,
 			wantPool:  "q7mt",
 			wantToken: acme2Token,
-			wantSaid:  "switchboard: the router doesn't route by the accounts record's pools (it's from before pools) — connecting directly on acme2 · Acme 2\n",
+			wantSaid:  "switchboard: the router routes by other pools (it's from before pools) — connecting directly on acme2 · Acme 2\n",
 		},
 		{
 			name:      "a healthy router listing no pools: the record's, the router counting as down",
@@ -1723,7 +1734,7 @@ func TestRunAfterTheMoveToPoolsNeverLaunchesAConfigNamingNoneAsItIs(t *testing.T
 			kept:      kept,
 			wantPool:  "q7mt",
 			wantToken: acme2Token,
-			wantSaid:  "switchboard: the router doesn't route by the accounts record's pools (its pools aren't the accounts record's) — connecting directly on acme2 · Acme 2\n",
+			wantSaid:  "switchboard: the router routes by other pools (its pools aren't the same) — connecting directly on acme2 · Acme 2\n",
 		},
 		{
 			name:      "the router down: the record's, direct on the pool's primary",
@@ -1955,7 +1966,7 @@ func TestRunRoutesThroughARouterThatFailsClosedWhileItsWaitedFor(t *testing.T) {
 
 func TestRunUnreadNeverStartsOnItsOwnLoginInsideAFenceTheRecordKeeps(t *testing.T) {
 	kept := func(*config.Config) (*config.Config, bool) { return pooledConfig(), true }
-	const unpooled = unreadSaid + "the running router doesn't route by the accounts record's pools — "
+	const unpooled = unreadSaid + "the running router reports no pools — "
 	// fromBefore is a router from before pools naming every account, which
 	// would be routed through on them, every account in one pool, as before
 	// pools.

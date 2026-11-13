@@ -54,16 +54,22 @@ func (s poolsSource) noPool() string {
 	return "no pool the router routes yet"
 }
 
-// whose says whose the pools are, as "the config's", as what a router
-// routes by is compared with them.
+// whose names whose the pools are, as what a router routes by is compared
+// with them, where that's the config's, "the config's", which the user can
+// change by editing it. Pools from anywhere else are named by no source, "",
+// and what differs is said plainly instead (see unlike).
 func (s poolsSource) whose() string {
-	switch s {
-	case fromRouter:
-		return "the router's"
-	case fromRecord:
-		return "the accounts record's"
+	if s == fromConfig {
+		return "the config's"
 	}
-	return "the config's"
+	return ""
+}
+
+// unlike says that what, of the router's, as "its pools", isn't as the pools
+// s says have it, verb saying it, as "aren't": as "its pools aren't the
+// config's", or, where whose names no source, "its pools aren't the same".
+func (s poolsSource) unlike(what, verb string) string {
+	return what + " " + verb + " " + cmp.Or(s.whose(), "the same")
 }
 
 // pooled reports whether the config has pools, so the session is in one.
@@ -459,43 +465,42 @@ func (r routing) has(id string) bool {
 	})
 }
 
-// fencesDiffer says how the router's pools aren't pools, whose as from says:
-// "" where they're the same pools, by id, each with the same directories,
-// links unresolved. Pools that repeat an id, ignoring case, as pools read
-// unchecked can, are never the router's: two of them could match one of its
-// pools, and leave another unmatched.
+// fencesDiffer says how the router's pools aren't pools, as from's unlike
+// says it: "" where they're the same pools, by id, each with the same
+// directories, links unresolved. Pools that repeat an id, ignoring case, as
+// pools read unchecked can, are never the router's: two of them could match
+// one of its pools, and leave another unmatched.
 func (r routing) fencesDiffer(pools config.Pools, from poolsSource) string {
-	whose := from.whose()
 	for i, p := range pools {
 		if slices.ContainsFunc(pools[:i], sameID(p.ID)) {
-			return whose + " pools repeat the id " + prose.Quoted(p.ID)
+			return cmp.Or(from.whose(), "the") + " pools repeat the id " + prose.Quoted(p.ID)
 		}
 	}
 	if len(r) != len(pools) {
-		return "its pools aren't " + whose
+		return from.unlike("its pools", "aren't")
 	}
 	for _, p := range pools {
 		routed, ok := r.of(p.ID)
 		switch {
 		case !ok:
-			return "its pools aren't " + whose
+			return from.unlike("its pools", "aren't")
 		case !sameDirs(p.Dirs, routed.Dirs):
-			return "pool " + poolSaid(p) + "'s directories aren't " + whose
+			return from.unlike("pool "+poolSaid(p)+"'s directories", "aren't")
 		}
 	}
 	return ""
 }
 
 // accountsDiffer says how the accounts of the router's pool p, of accounts,
-// aren't those of the pools whose from says, as poolsDiffer compares them:
-// "" where they are.
+// aren't those of the pools from says, as from's unlike says it and
+// poolsDiffer compares them: "" where they are.
 func (r routing) accountsDiffer(p config.Pool, accounts config.Accounts, from poolsSource) string {
 	routed, _ := r.of(p.ID)
 	switch {
 	case !allIn(routed.Accounts, p.ID, accounts):
-		return "pool " + poolSaid(p) + "'s accounts aren't " + from.whose()
+		return from.unlike("pool "+poolSaid(p)+"'s accounts", "aren't")
 	case !r.samePrimary(routed, p.ID, accounts):
-		return "pool " + poolSaid(p) + "'s primary isn't " + from.whose()
+		return from.unlike("pool "+poolSaid(p)+"'s primary", "isn't")
 	}
 	return ""
 }
