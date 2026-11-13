@@ -1,12 +1,15 @@
 package views_test
 
 import (
+	"errors"
+	"io/fs"
 	"reflect"
 	"slices"
 	"testing"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/events"
 	"github.com/leeovery/switchboard/internal/identity"
 	"github.com/leeovery/switchboard/internal/ledger"
@@ -279,5 +282,73 @@ func TestNoPoolsReadReadsNoPoolsWork(t *testing.T) {
 	}}
 	if got := none.Ledger(held).Sessions(nil, nil, nil); len(got) != 0 {
 		t.Errorf("no pool's read of the sessions gives %d, want none", len(got))
+	}
+}
+
+// startedDays is a ledger that began at first, holding the days given by
+// their dates, as DaysOn asks for them, or failing to say where it began.
+type startedDays struct {
+	views.Ledger
+	first  time.Time
+	failed error
+	days   map[string]ledger.Summary
+}
+
+func (l startedDays) FirstDay(time.Time) (time.Time, error) {
+	return l.first, l.failed
+}
+
+func (l startedDays) DaysOn(dates []string) []ledger.Summary {
+	var held []ledger.Summary
+	for _, date := range dates {
+		if s, ok := l.days[date]; ok {
+			held = append(held, s)
+		}
+	}
+	return held
+}
+
+// A pool's work begins on the first day the ledger holds whose summary in
+// the pool holds work, however far into it: Acme's, on the 40th of 60 days,
+// past a month's read of them, on that day; Default's, working on the first,
+// where the ledger began; a pool that worked on no day before today, and no
+// pool's read, today. Every pool's read begins where the ledger does, as the
+// ledger tells it, and a ledger that fails to say fails the pool's read.
+func TestAPoolsWorkBeginsOnTheFirstDayItsSummaryHoldsWork(t *testing.T) {
+	now := time.Date(2026, 11, 3, 15, 0, 0, 0, time.Local)
+	dayOf := func(back int) time.Time { return dayfile.DayStart(now, -back) }
+	l := &startedDays{first: dayOf(60), days: make(map[string]ledger.Summary)}
+	for back := 60; back > 0; back-- {
+		date := dayfile.DateOf(dayOf(back))
+		day := ledger.Summary{Day: date, Accounts: []ledger.AccountDay{{Account: "side", Pool: "b2n8", Work: ledger.Work{Sessions: 1}}, {Account: "work", Pool: "q7mt"}}}
+		if back <= 20 {
+			day.Accounts[1].Sessions = 1
+		}
+		l.days[date] = day
+	}
+	idle := views.PoolRead{ID: "x9z9", First: "b2n8", PoolOf: acmeRead.PoolOf}
+	for _, tt := range []struct {
+		name string
+		read views.PoolRead
+		want time.Time
+	}{
+		{name: "Acme's", read: acmeRead, want: dayOf(20)},
+		{name: "Default's", read: views.PoolRead{ID: "b2n8", First: "b2n8", PoolOf: acmeRead.PoolOf}, want: dayOf(60)},
+		{name: "a pool yet to work", read: idle, want: dayOf(0)},
+		{name: "no pool's", read: views.NoPool(), want: dayOf(0)},
+	} {
+		if got, err := tt.read.Start(l).FirstDay(now); err != nil || !got.Equal(tt.want) {
+			t.Errorf("%s work begins %v, %v, want %v", tt.name, got, err, tt.want)
+		}
+	}
+	if start := (views.PoolRead{}).Start(l); start != views.LedgerStart(l) {
+		t.Errorf("every pool's read begins as %v tells it, want the ledger itself", start)
+	}
+	failing := &startedDays{failed: fs.ErrPermission}
+	if _, err := acmeRead.Start(failing).FirstDay(now); !errors.Is(err, fs.ErrPermission) {
+		t.Errorf("a pool's read of a ledger that fails to say where it began fails with %v, want its failure", err)
+	}
+	if start := acmeRead.Start(nil); start != nil {
+		t.Errorf("a pool's read of no ledger begins as %v tells it, want nothing to tell", start)
 	}
 }

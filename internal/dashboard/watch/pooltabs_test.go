@@ -1,6 +1,7 @@
 package watch
 
 import (
+	"fmt"
 	"maps"
 	"testing"
 	"time"
@@ -135,5 +136,54 @@ func TestTheDaysHistoryAndGraphsReadAreThePoolShowns(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+// A pool added to a ledger weeks old begins where its work begins: Acme,
+// whose first request was ten days ago, Default working every day of five
+// weeks. WHEN YOU WORK counts Acme's ten days alone, two weeks, none of the
+// days before it as days of none, and History begins on its first day;
+// Default's and every pool's count the four weeks, beginning where the
+// ledger began.
+func TestAPoolsDaysBeginWhereItsWorkBegins(t *testing.T) {
+	var lines []ledger.Held
+	for back := 1; back <= 35; back++ {
+		lines = append(lines, pooledArrived(fmt.Sprintf("0b%06d", back), "work", "b2n8", -time.Duration(back)*day))
+		if back <= 10 {
+			lines = append(lines, pooledArrived(fmt.Sprintf("0a%06d", back), "k3f9", "q7mt", -time.Duration(back)*day))
+		}
+	}
+	tests := []struct {
+		name         string
+		read         views.PoolRead
+		began        int
+		known, weeks int
+	}{
+		{name: "Acme's", read: acmeRead, began: 10, known: 10, weeks: 2},
+		{name: "Default's", read: firstRead, began: 35, known: 28, weeks: 4},
+		{name: "every pool's", read: views.PoolRead{}, began: 35, known: 28, weeks: 4},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			state := t.TempDir()
+			writeLines(t, state, lines...)
+			h := newHarness(t, probedWithoutTheRouter())
+			h.model.cfg.Ledger = ledger.NewFollower(state, h.clock.Now, ledger.Caps{Shared: policy.Shared}, views.DigestVersion, logs.For("watch"))
+			h.model.cfg.PoolRead, h.model.view = tt.read, dashboard.Graphs
+			h.model.graphs = dashboard.GraphsSectionsNamed([]string{"when"})
+			h.start()
+
+			if want := dayfile.DayStart(past(-time.Duration(tt.began)*day).Local(), 0); !h.model.past.began.Equal(want) {
+				t.Errorf("History begins %v, want %v, where the pool's work begins", h.model.past.began, want)
+			}
+			hours := h.model.past.last.past.Hours()
+			known := 0
+			for _, d := range hours.Days {
+				known += d.Known
+			}
+			if known != tt.known || hours.Weeks != tt.weeks {
+				t.Errorf("WHEN YOU WORK counts %d days over %d weeks, want %d over %d", known, hours.Weeks, tt.known, tt.weeks)
+			}
+		})
 	}
 }

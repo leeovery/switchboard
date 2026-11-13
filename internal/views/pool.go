@@ -236,6 +236,59 @@ func (d poolDays) Days(from time.Time) []ledger.Summary {
 	return d.read.summaries(d.days.Days(from))
 }
 
+// Start tells where the pool read's work begins, as l tells where the
+// ledger begins, for the days History, Accounts, Runway and Graphs read to
+// begin there: l itself where the read is of every pool's; else the first
+// day the ledger holds whose summary in the pool holds work, so a pool added
+// to a ledger months old never counts the days before it as days of none.
+// Nil where l can't tell where it begins.
+func (p PoolRead) Start(l Ledger) LedgerStart {
+	start, ok := l.(LedgerStart)
+	if !ok || p.every() {
+		return start
+	}
+	return poolStart{start: start, dates: p.Dates(l)}
+}
+
+// poolStart tells where a pool's work begins, as PoolRead's Start has it.
+type poolStart struct {
+	start LedgerStart
+	dates LedgerDates
+}
+
+// poolStartRead is how many days poolStart reads at a time, from the first
+// the ledger holds, till it finds the pool's first.
+const poolStartRead = 31
+
+// FirstDay gives the start of the first local day the ledger holds whose
+// summary in the pool holds work, at now, read from the first it holds,
+// failing as it fails to say; today's where no day before today's does. A
+// pool yet to work so begins with today as a ledger yet to hold a day does,
+// but isn't asked again at each read, as that would read every day's
+// summary each time: one that first works while the dashboard is open
+// begins where it was opened, till it's opened again.
+func (s poolStart) FirstDay(now time.Time) (time.Time, error) {
+	first, err := s.start.FirstDay(now)
+	if err != nil {
+		return first, err
+	}
+	today := dayfile.DayStart(now.Local(), 0)
+	for dates := range slices.Chunk(dayfile.Span(first, dayfile.DayStart(today, -1)), poolStartRead) {
+		for _, day := range s.dates.DaysOn(dates) {
+			if workedOn(day) {
+				start, _, _ := dayfile.Day(day.Day)
+				return start, nil
+			}
+		}
+	}
+	return today, nil
+}
+
+// workedOn reports whether any account's day the summary s holds has work.
+func workedOn(s ledger.Summary) bool {
+	return slices.ContainsFunc(s.Accounts, func(a ledger.AccountDay) bool { return !a.Idle() })
+}
+
 // poolDates reads a pool's days by their dates, as PoolRead's Dates has
 // them.
 type poolDates struct {
