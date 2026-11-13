@@ -3,6 +3,8 @@ package config_test
 import (
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"reflect"
 	"slices"
 	"strings"
@@ -304,6 +306,138 @@ func TestLoadAsksForTheHomeDirectoryOnlyForAPoolsDirectoryInIt(t *testing.T) {
 			}
 			if got := problems(t, path, err); !slices.Equal(got, []string{tt.wantErr}) {
 				t.Errorf("Load() problems = %q, want %q", got, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestPoolsOfReadsThePoolsWhateverElseIsWrong(t *testing.T) {
+	const pools = "[[pool]]\nid = \"b2n8\"\nlabel = \"Default\"\n\n[[pool]]\nid = \"q7mt\"\nlabel = \"Acme\"\ndirs = [\"~/Code/acme\", \"/Volumes/Acme/\"]\n"
+	read := config.Pools{
+		{ID: "b2n8", Label: "Default"},
+		{ID: "q7mt", Label: "Acme", Dirs: []string{"/Users/test/Code/acme", "/Volumes/Acme"}, WrittenDirs: []string{"~/Code/acme", "/Volumes/Acme/"}},
+	}
+	tests := []struct {
+		name string
+		// text is the config file's, or none where there's no file.
+		text    *string
+		want    config.Pools
+		wantErr string
+	}{
+		{name: "no config"},
+		{name: "no pools", text: new("[[account]]\nid = \"work\"\nlabel = \"Work\"\n")},
+		{name: "pools", text: new(pools + "\n[[account]]\nid = \"work\"\nlabel = \"Work\"\npool = \"b2n8\"\n"), want: read},
+		{
+			name: "a config otherwise invalid, its accounts naming no pool and a key gone: read all the same",
+			text: new("week_starts = 3\n[[account]]\nid = \"work\"\ntoken_env = \"CLAUDE_TOKEN_WORK\"\n\n" + pools),
+			want: read,
+		},
+		{name: "not TOML", text: new("[[pool]\n"), wantErr: "parse config "},
+		{name: "a pool's table of the wrong type", text: new("[[pool]]\nid = \"b2n8\"\ndirs = \"~/Code/acme\"\n"), wantErr: "parse config "},
+		{name: "pools Load refuses", text: new(pools + "\n[[pool]]\nid = \"h4w2\"\nlabel = \"Client\"\n"), wantErr: "only one pool can be unfenced"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "config.toml")
+			if tt.text != nil {
+				if err := os.WriteFile(path, []byte(*tt.text), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			got, err := config.PoolsOf(path, homeAt(testHome))
+			if tt.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+					t.Errorf("PoolsOf() = %+v, %v; want an error saying %q", got, err, tt.wantErr)
+				}
+				return
+			}
+			if err != nil || !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("PoolsOf() = %+v, %v; want %+v", got, err, tt.want)
+			}
+		})
+	}
+}
+
+func TestFencesOfReadsEveryPoolsDirectoriesWhateverIsWrongWithThem(t *testing.T) {
+	tests := []struct {
+		name string
+		// text is the config file's, or none where there's no file.
+		text    *string
+		want    config.Pools
+		wantErr string
+	}{
+		{name: "no config"},
+		{name: "no pools", text: new("[[account]]\nid = \"work\"\n")},
+		{
+			name: "two unfenced, overlapping fences, a label too long and a directory that can't be placed: every fence found, and that one unplaced",
+			text: new("[[pool]]\nid = \"b2n8\"\n\n[[pool]]\nid = \"h4w2\"\n\n" +
+				"[[pool]]\nid = \"q7mt\"\nlabel = \"" + strings.Repeat("A", 101) + "\"\ndirs = [\"~/Code/acme/\", \"Code/relative\"]\n\n" +
+				"[[pool]]\nid = \"m5r1\"\nlabel = \"Client\"\ndirs = [\"/Users/test/Code/acme/client\"]\n"),
+			want: config.Pools{
+				{ID: "b2n8", Label: "b2n8"},
+				{ID: "h4w2", Label: "h4w2"},
+				{ID: "q7mt", Label: strings.Repeat("A", 101), Dirs: []string{"/Users/test/Code/acme"}, WrittenDirs: []string{"~/Code/acme/", "Code/relative"}, Unplaced: []string{"Code/relative"}},
+				{ID: "m5r1", Label: "Client", Dirs: []string{"/Users/test/Code/acme/client"}, WrittenDirs: []string{"/Users/test/Code/acme/client"}},
+			},
+		},
+		{name: "not TOML", text: new("[[pool]\n"), wantErr: "parse config "},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "config.toml")
+			if tt.text != nil {
+				if err := os.WriteFile(path, []byte(*tt.text), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			got, err := config.FencesOf(path, homeAt(testHome))
+			if tt.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+					t.Errorf("FencesOf() = %+v, %v; want an error saying %q", got, err, tt.wantErr)
+				}
+				return
+			}
+			if err != nil || !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("FencesOf() = %+v, %v; want %+v", got, err, tt.want)
+			}
+		})
+	}
+}
+
+func TestFencesOfWithoutAHomeDirectoryLeavesThoseInItUnplaced(t *testing.T) {
+	path := writeConfig(t, "[[pool]]\nid = \"q7mt\"\ndirs = [\"~/Code/acme\", \"/Volumes/Acme\"]\n")
+
+	got, err := config.FencesOf(path, func() (string, error) { return "", errors.New("no home directory") })
+	wantDirs, wantUnplaced := []string{"/Volumes/Acme"}, []string{"~/Code/acme"}
+	if err != nil || len(got) != 1 || !slices.Equal(got[0].Dirs, wantDirs) || !slices.Equal(got[0].Unplaced, wantUnplaced) {
+		t.Errorf("FencesOf() = %+v, %v; want one pool fenced to %q, %q unplaced", got, err, wantDirs, wantUnplaced)
+	}
+}
+
+func TestPoolPlacedIn(t *testing.T) {
+	tests := []struct {
+		name         string
+		home         string
+		unplaced     []string
+		wantDirs     []string
+		wantUnplaced []string
+	}{
+		{name: "none"},
+		{name: "absolute, cleaned", unplaced: []string{"/Volumes/Acme/"}, wantDirs: []string{"/Volumes/Acme"}},
+		{name: "in the home directory", home: testHome, unplaced: []string{"~/Code/acme"}, wantDirs: []string{testHome + "/Code/acme"}},
+		{name: "in the home directory, none found", unplaced: []string{"~/Code/acme"}, wantUnplaced: []string{"~/Code/acme"}},
+		{name: "in the home directory, a relative one", home: "home/test", unplaced: []string{"~/Code/acme"}, wantUnplaced: []string{"~/Code/acme"}},
+		{name: "relative", home: testHome, unplaced: []string{"Code/acme"}, wantUnplaced: []string{"Code/acme"}},
+		{name: "a home directory written plainly", home: testHome, unplaced: []string{"~"}, wantUnplaced: []string{"~"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			placed := config.Pool{ID: "q7mt", Dirs: []string{"/Volumes/Old"}, Unplaced: tt.unplaced}.PlacedIn(tt.home)
+			wantDirs := append([]string{"/Volumes/Old"}, tt.wantDirs...)
+			if !slices.Equal(placed.Dirs, wantDirs) || !slices.Equal(placed.Unplaced, tt.wantUnplaced) {
+				t.Errorf("PlacedIn(%q) = dirs %q, unplaced %q; want %q, %q", tt.home, placed.Dirs, placed.Unplaced, wantDirs, tt.wantUnplaced)
 			}
 		})
 	}
