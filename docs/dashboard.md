@@ -863,7 +863,10 @@ pool, the view starts afresh on the pool shown, as `P` does, keeping the tab and
 shows. A change to nothing of those, such as a comment, starts nothing. The dashboard looks at the
 config file it reads, the one `--config` names, at each read, and reads the config again only where
 the file has changed, or the accounts the router routes have: a look costs a stat of the file and a
-compare of two lists of ids. Where the pool shown is removed, it turns to the first.
+compare of two lists of ids. Where the pool shown is removed, it turns to the first. A dashboard
+opened on a config without pools, or where it couldn't tell the pools, looks at the config file
+alike, so once the config names pools the view starts afresh on the pool the commands act on, its
+Log that pool's alone.
 
 Once there's a second pool:
 

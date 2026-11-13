@@ -321,6 +321,51 @@ func TestADashboardWhereNothingNamesThePoolsRefusesAPoolNamed(t *testing.T) {
 	}
 }
 
+// A dashboard opened on no pool, in a config without pools before the move
+// to pools, with no history yet to move, or once the move is done where
+// nothing names the pools, reads the pool the verbs act on once the config
+// names pools, as the dashboard reads the pool shown again as the config
+// changes: Default, its requests alone of the ledger filed since, where it
+// read every pool's, or none.
+func TestADashboardOpenedOnNoPoolReadsThePoolTheConfigNamesOnceItDoes(t *testing.T) {
+	tests := []struct {
+		name   string
+		deps   func(t *testing.T) cli.Deps
+		opened []string
+	}{
+		{name: "a config without pools, before the move", deps: func(t *testing.T) cli.Deps {
+			deps := testDeps(map[string]string{"XDG_STATE_HOME": shortTempDir(t)}, t.TempDir())
+			deps.Now = func() time.Time { return ledgerNow }
+			writeDepsConfig(t, deps, unpooledConfig)
+			markDone(t, stateDir(t, deps), idsMark)
+			return deps
+		}, opened: []string{"p1", "p2", "p3"}},
+		{name: "the pools not to be told", deps: func(t *testing.T) cli.Deps { return unpooledDeps(t, unpooledConfig, false) }},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			deps := tt.deps(t)
+			cfg := recordWatch(t, &deps)
+			if got := run(t, deps, "dashboard"); got != (result{}) {
+				t.Fatalf("switchboard dashboard = %+v, want exit status 0 and nothing printed", got)
+			}
+			fileDay(t, stateDir(t, deps), pooledLines...)
+			if got := requestsRead(cfg, cfg.PoolRead); cfg.Pool.ID != "" || !slices.Equal(got, tt.opened) {
+				t.Fatalf("the dashboard opened on %q, reading the requests %q; want no pool, reading %q", cfg.Pool.ID, got, tt.opened)
+			}
+
+			writeDepsConfig(t, deps, pooledConfig(false))
+			again, err := cfg.Turn(t.Context(), "", watch.SamePool)
+			if err != nil {
+				t.Fatalf("Turn() of the same pool failed: %v", err)
+			}
+			if got, want := requestsRead(cfg, again.Read), []string{"p1", "p3"}; again.Pool.ID != "b2n8" || !slices.Equal(got, want) {
+				t.Errorf("the config naming pools, the dashboard reads %q again, reading the requests %q; want Default, reading %q", again.Pool.ID, got, want)
+			}
+		})
+	}
+}
+
 // requestsRead are the requests of the day of pooledLines that read keeps,
 // of the ledger the dashboard given cfg reads.
 func requestsRead(cfg *watch.Config, read views.PoolRead) []string {

@@ -1102,10 +1102,15 @@ totals.
   `--config` names, changed since the pool was read, by the router's own rule for its config
   (`filestate.State.Same`: another file, or one written since), or the accounts of the router's
   document other than the last read's (`status.Document.AccountsChanged`), as an account the router
-  took up as it restarted, which finds the config as it was and starts nothing. What it costs a read
-  is a stat of the config file and a comparison of two lists of ids. The stamp is taken as the ask
-  goes out, so a change found while a turn is under way is asked for at the next read; a config that
-  can't be read is logged, with nothing on the key line, and asked again once it changes again.
+  took up as it restarted, which finds the config as it was and starts nothing. It's asked alike
+  where the dashboard opened on no pool, in a config without pools or where the pools couldn't be
+  told, so the first config that names pools, or one they can be told of, starts it afresh on the
+  pool the verbs act on (`config.Pools.Implicit`), its Log that pool's alone: a dashboard opened
+  before the move to pools and left open never shows every pool's work together once there are
+  pools. What it costs a read, with pools or without, is a stat of the config file and a comparison
+  of two lists of ids. The stamp is taken as the ask goes out, so a change found while a turn is
+  under way is asked for at the next read; a config that can't be read is logged, with nothing on
+  the key line, and asked again once it changes again.
 - **The title row names the pool shown,** by its label after the badge, once a second pool exists,
   at every size, cut short before the tabs where it's long. The pool's accounts keep the config's
   order, unnumbered, as every screen has them (see Account identity).

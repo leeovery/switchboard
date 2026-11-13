@@ -78,7 +78,8 @@ func newPoolTurns(t *testing.T, pools config.Pools, accounts config.Accounts, so
 
 // turn gives what's shown of the pool asked for from from, as Config's Turn
 // does: the pool after it, or it again, else, where it's gone, the first;
-// of none shown, none again.
+// of none shown, the one the verbs act on, as config's Pools Implicit has
+// it, none where every pool is fenced or there are none.
 func (p *poolTurns) turn(_ context.Context, from string, ask PoolAsk) (Pooled, error) {
 	if ask == SamePool {
 		p.again++
@@ -89,7 +90,8 @@ func (p *poolTurns) turn(_ context.Context, from string, ask PoolAsk) (Pooled, e
 		return Pooled{}, p.failure
 	}
 	if ask == SamePool && from == "" {
-		return p.pooled(""), nil
+		implicit, _ := p.pools.Implicit()
+		return p.pooled(implicit.ID), nil
 	}
 	pick := status.PoolAfter
 	if ask == SamePool {
@@ -102,15 +104,16 @@ func (p *poolTurns) turn(_ context.Context, from string, ask PoolAsk) (Pooled, e
 // pooled is what's shown of the pool with the given id, as the config
 // stands: its share of the router's events, as the verbs read them, by the
 // one rule the dashboard reads them by; and how the Log reads its work of
-// the request ledger, as poolRead has it, none's of none shown.
+// the request ledger, as poolRead has it, none's of none shown where there
+// are pools.
 func (p *poolTurns) pooled(id string) Pooled {
 	var filed views.Events = events.Empty{}
 	if p.filed != nil {
 		filed = p.poolRead(id).Filed(p.filed)
 	}
-	read := views.NoPool()
-	if id != "" {
-		read = p.poolRead(id)
+	read := p.poolRead(id)
+	if id == "" && len(p.pools) > 0 {
+		read = views.NoPool()
 	}
 	return Pooled{
 		Pool:     status.PoolShown(p.pools, p.accounts, id),

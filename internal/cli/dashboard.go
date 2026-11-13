@@ -83,7 +83,9 @@ reads them afresh all the same, turning to a second added since, else
 saying there's one. A change to the pools or the accounts in the config
 starts the view afresh on the pool shown, as P does, the config file read
 again only where a read finds it, or the accounts routed, changed; a pool
-shown that's removed turns to the first. A pool with no accounts the router
+shown that's removed turns to the first. Opened on a config without pools,
+or where it can't tell them, it turns to the pool the commands act on once
+the config names pools. A pool with no accounts the router
 routes says so on every tab, with how to add one, or where the config gives
 it some the router hasn't taken up, as a pool added since it started, that
 switchboard service restart takes them up. The Log's requests and its find

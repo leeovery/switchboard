@@ -114,17 +114,22 @@ func (m Model) turnPool() (Model, tea.Cmd) {
 // finds the config file changed since the pool was read, as the read found
 // it standing, as filestate's Same has it; or, as accountsChanged says, the
 // accounts the read found other than those the last read found, as an
-// account the router took up as it restarted. The stamp found is taken as
-// the one acted on once the ask goes out, so a config that can't be read is
-// asked again only once it changes again, and one found changed during a
-// turn is asked again at the next read. A read that finds neither reads
-// nothing again.
+// account the router took up as it restarted. It does wherever the watch
+// has a Turn to ask, with pools or without, and where it shows none, as
+// they couldn't be told, so the first config naming pools, or one they can
+// be told of, starts the view afresh on the pool the verbs act on: a read
+// stats the config file whether or not there are pools, so it costs a
+// config without pools nothing more. The stamp found is taken as the one
+// acted on once the ask goes out, so a config that can't be read is asked
+// again only once it changes again, and one found changed during a turn is
+// asked again at the next read. A read that finds neither reads nothing
+// again.
 func (m Model) followConfig(stamp filestate.State, accountsChanged bool) (Model, tea.Cmd) {
 	stamped := m.cfg.ConfigStamp != nil && !stamp.Same(m.cfg.Stamp)
 	// An accounts change found during a turn is dropped, accepted: a turn
 	// lasts milliseconds, the change costs nothing while the config is as
 	// it was, and the stamp, left as it was, catches a config changed.
-	if !m.asksPools() || m.turning || !stamped && !accountsChanged {
+	if m.cfg.Turn == nil || m.turning || !stamped && !accountsChanged {
 		return m, nil
 	}
 	m.cfg.Stamp = stamp

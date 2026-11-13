@@ -233,6 +233,52 @@ func TestAChangeToTheConfigStartsTheLogAfreshOnThePoolShownsRead(t *testing.T) {
 	}
 }
 
+// A dashboard opened on no pool follows the config as one showing a pool
+// does: opened on a config without pools, reading every pool's work, or
+// where the pools couldn't be told, reading none, once the config names two
+// pools it starts afresh at the next read on the pool the verbs act on,
+// Default, its Log Default's alone: the line from before pools, naming
+// none, and Default's filed since, never Acme's.
+func TestADashboardOpenedOnNoPoolStartsAfreshOnThePoolTheConfigNames(t *testing.T) {
+	tests := []struct {
+		name   string
+		read   views.PoolRead
+		opened []string
+	}{
+		{name: "a config without pools", opened: []string{"0a000001"}},
+		{name: "the pools not to be told", read: views.NoPool()},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			state := t.TempDir()
+			writeLines(t, state, pooledArrived("0a000001", "work", "", -3*time.Minute))
+			h := newHarness(t, probedWithoutTheRouter())
+			onTheLog(h, state)
+			unpooled := config.Accounts{{ID: "work", Label: "Work"}, {ID: "personal", Label: "Personal"}, {ID: "side", Label: "Side"}, {ID: "k3f9", Label: "Acme 1"}}
+			pools := newPoolTurns(t, nil, unpooled, map[string]Source{"": h.source, "b2n8": h.source, "q7mt": h.source})
+			h.model.cfg = pools.opened(h.model.cfg, "")
+			h.model.cfg.PoolRead = tt.read
+			h.start()
+			if got := shownRequests(h); !slices.Equal(got, tt.opened) {
+				t.Fatalf("opened on no pool, the Requests show %v, want %v", got, tt.opened)
+			}
+
+			turns := h.model.poolTurns
+			pools.changeConfig(func(p *poolTurns) { p.pools, p.accounts = testPools, slices.Concat(defaultAccounts, acmeAccounts) })
+			writeLines(t, state, pooledArrived("0a000002", "work", "b2n8", -2*time.Minute), pooledArrived("0a000003", "k3f9", "q7mt", -time.Minute))
+			h.deliver(h.press("R")...)
+			m := h.model
+			if m.poolTurns != turns+1 || m.cfg.Pool.ID != "b2n8" || m.cfg.PoolRead.ID != "b2n8" {
+				t.Errorf("the config naming pools, the view started afresh %d times, on %q, its read %q; want afresh once, on Default, Default's read",
+					m.poolTurns-turns, m.cfg.Pool.ID, m.cfg.PoolRead.ID)
+			}
+			if got, want := shownRequests(h), []string{"0a000001", "0a000002"}; !slices.Equal(got, want) {
+				t.Errorf("the config naming pools, the Requests show %v, want Default's %v alone", got, want)
+			}
+		})
+	}
+}
+
 // pooledAt is arrivedAt, on the account given, routed in the pool with the
 // given id, "" for none.
 func pooledAt(request, account, pool string, at time.Time) ledger.Held {
