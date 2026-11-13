@@ -15,9 +15,9 @@ import (
 // them, as of a day with no rows standing, today's among them, and
 // yesterday's until its head is built, or one a chunk of whose rows won't
 // read. A day's rows are exactly its lines' records, in Day's order, so
-// either way it's the same day. Through any other filter, it's none where
-// the day's summaries in the pool, as p's Dates gives them, say it may hold
-// none the through keeps; else it's read as the day whole is, of those
+// either way it's the same day. Through any other filter, or of a pool's
+// read, it's none where the day may hold none the through keeps in the
+// pool, as mayHold has it; else it's read as the day whole is, of those
 // chunks of its rows alone whose meta may keep one, of the pool, as a
 // pool's read keeps only the chunks that may hold its rows. Of a pool's
 // read, it holds the pool's records alone, as p's keeps has them. So it
@@ -33,12 +33,12 @@ func ReadDay(l Ledger, date string, through LogFilter, p PoolRead) LogDay {
 
 // readThrough is the LogDay of the local day with the given date in the
 // pool read p, read through the filter given, a through, as ReadDay reads
-// it, its through left unset: none where the day's summaries in the pool say
-// it may hold none through keeps, as LogFilter's mayKeepOn has it; else of
-// its rows, as restoredDay has them; else of its lines in the pool, as l's
-// Day gives them and p's Held keeps them.
+// it, its through left unset: none where it may hold none through keeps in
+// the pool, as mayHold has it; else of its rows, as restoredDay has them;
+// else of its lines in the pool, as l's Day gives them and p's Held keeps
+// them.
 func readThrough(l Ledger, date string, through LogFilter, p PoolRead) LogDay {
-	if !through.mayKeepOn(p.Dates(l), date) {
+	if !mayHold(l, date, through, p) {
 		// A day of none holds none, not nil, as RecordsOf has it of no lines.
 		return LogDay{records: []lineRecord{}}
 	}
@@ -46,6 +46,19 @@ func readThrough(l Ledger, date string, through LogFilter, p PoolRead) LogDay {
 		return day
 	}
 	return RecordsOf(p.Held(l.Day(date)))
+}
+
+// mayHold reports whether the local day with the given date may hold a line
+// through keeps in the pool read p: through a filter, as the day's
+// summaries in the pool say, as p's Dates gives them and LogFilter's
+// mayKeepOn reads them; through none, as those the ledger holds say, as p's
+// mayHoldOn has it, so a pool's read back passes over a day they rule out,
+// summarising none from its lines, as today's is, to tell.
+func mayHold(l Ledger, date string, through LogFilter, p PoolRead) bool {
+	if through.whole() {
+		return p.mayHoldOn(l, date)
+	}
+	return through.mayKeepOn(p.Dates(l), date)
 }
 
 // restoredDay is the LogDay the rows of the local day with the given date

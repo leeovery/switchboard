@@ -164,6 +164,44 @@ func (f *Follower) Days(from time.Time) []Summary {
 // today's. Only those days' files are looked at, however long ago they
 // were.
 func (f *Follower) DaysOn(dates []string) []Summary {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	now := f.now()
+	reachOf := f.days.reaching(func() ([]string, error) { return f.readingsDates(now) }, &f.unlisted)
+	var summaries []Summary
+	for _, date := range f.datesOn(dates, now) {
+		summaries = append(summaries, f.summaryOf(date, now, reachOf))
+	}
+	return summaries
+}
+
+// DaysHeldOn returns the summaries the ledger holds of the local days with
+// the dates given, oldest first, each once, of the days DaysOn gives, where
+// each stands, as Days finds it: reporting false where one of them has files
+// but no summary that stands, as today's never does, nor yesterday's till
+// it's summarised, so none is summarised from its lines, as DaysOn
+// summarises such a day. A day with no files holds no line, and needs none.
+// Only those days' files are looked at, as DaysOn looks at them.
+func (f *Follower) DaysHeldOn(dates []string) ([]Summary, bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	var held []Summary
+	for _, date := range f.datesOn(dates, f.now()) {
+		switch d := f.follow(date); {
+		case d.stands:
+			held = append(held, *d.held)
+		case !d.look.none:
+			return nil, false
+		}
+	}
+	return held, true
+}
+
+// datesOn returns those of the dates given a read of the ledger's days
+// gives at now, as dates has them, oldest first, each once: none before
+// the first day the ledger holds or after today's, nor where the earliest
+// isn't a date. The follower is held.
+func (f *Follower) datesOn(dates []string, now time.Time) []string {
 	wanted := slices.Compact(slices.Sorted(slices.Values(dates)))
 	if len(wanted) == 0 {
 		return nil
@@ -172,18 +210,8 @@ func (f *Follower) DaysOn(dates []string) []Summary {
 	if !ok {
 		return nil
 	}
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	now := f.now()
-	reachOf := f.days.reaching(func() ([]string, error) { return f.readingsDates(now) }, &f.unlisted)
 	first, today := dayfile.DateOf(f.start(from, now)), dayfile.DateOf(now)
-	var summaries []Summary
-	for _, date := range wanted {
-		if date >= first && date <= today {
-			summaries = append(summaries, f.summaryOf(date, now, reachOf))
-		}
-	}
-	return summaries
+	return slices.DeleteFunc(wanted, func(date string) bool { return date < first || date > today })
 }
 
 // dates returns the dates of the local days from from's to today's that a

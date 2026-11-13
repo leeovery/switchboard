@@ -131,6 +131,15 @@ func (f fakeLedger) DaysOn(dates []string) []ledger.Summary {
 	return slices.DeleteFunc(slices.Clone(f.summaries), func(s ledger.Summary) bool { return !slices.Contains(dates, s.Day) })
 }
 
+// DaysHeldOn gives the summaries of the days before now's, as they're
+// held, and tells of none where now's is among the dates given.
+func (f fakeLedger) DaysHeldOn(dates []string) ([]ledger.Summary, bool) {
+	if slices.Contains(dates, dayfile.DateOf(f.now)) {
+		return nil, false
+	}
+	return f.DaysOn(dates), true
+}
+
 func (f fakeLedger) Today(ledger.Mark) ([]ledger.Held, ledger.Mark, bool) {
 	start := dayfile.DayStart(f.now, 0)
 	var today []ledger.Held

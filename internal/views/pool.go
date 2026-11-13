@@ -5,6 +5,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/events"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/status"
@@ -55,8 +56,9 @@ func (p PoolRead) keeps(recorded string) bool {
 }
 
 // keepsOf reports whether the read keeps any of the requests that recorded
-// the pools given, as keeps has it of each, and whether it keeps them all:
-// both where it reads every pool's.
+// the pools given, one at least, as recordedPools restores a head's, as
+// keeps has it of each, and whether it keeps them all: both where it reads
+// every pool's.
 func (p PoolRead) keepsOf(pools []string) (some, all bool) {
 	if p.every() {
 		return true, true
@@ -68,6 +70,59 @@ func (p PoolRead) keepsOf(pools []string) (some, all bool) {
 		}
 	}
 	return kept > 0, kept == len(pools)
+}
+
+// mayHoldOn reports whether the local day with the given date may hold a
+// line the read keeps, as the summaries l holds of the days whose files may
+// hold its lines, as dayfile's FileDates has them, the files Day reads them
+// of, tell of the pool's work, as summary has it of each and the zero
+// LogFilter's mayKeep reads it: every day of every pool's read; none of
+// NoPool's, nor of a date that isn't one; and every day where one of those
+// days has lines but no summary that stands, as today's, as l's DaysHeldOn
+// tells, so it summarises none from its lines to tell.
+func (p PoolRead) mayHoldOn(l LedgerHeld, date string) bool {
+	switch {
+	case p.every():
+		return true
+	case p.none:
+		return false
+	}
+	day, ok := dayfile.DayBounds(date)
+	if !ok {
+		return false
+	}
+	held, told := l.DaysHeldOn(day.FileDates())
+	return !told || slices.ContainsFunc(p.summaries(held), LogFilter{}.through().mayKeep)
+}
+
+// recordingPool is pools, the pools some lines recorded, each once, in the
+// order of their ids, "" of those that named none, with the pool a line
+// recorded taken in.
+func recordingPool(pools []string, pool string) []string {
+	if i, held := slices.BinarySearch(pools, pool); !held {
+		pools = slices.Insert(pools, i, pool)
+	}
+	return pools
+}
+
+// storedPools are pools, as recordingPool keeps them, as a day's head
+// stores them, of a chunk of its rows or a session of its side: none where
+// the lines named none, as before pools and in a config without them, so a
+// head is as it was where no line names a pool.
+func storedPools(pools []string) []string {
+	if slices.Equal(pools, []string{""}) {
+		return nil
+	}
+	return pools
+}
+
+// recordedPools are the pools a day's head stores, as storedPools stores
+// them: none but none where it stores none.
+func recordedPools(stored []string) []string {
+	if len(stored) == 0 {
+		return []string{""}
+	}
+	return stored
 }
 
 // Lines are those of lines routed in the pool read, as each recorded at the
@@ -86,15 +141,28 @@ func (p PoolRead) Lines(lines iter.Seq[ledger.Held]) iter.Seq[ledger.Held] {
 }
 
 // Held are those of lines routed in the pool read, in their order, as Lines
-// has them: lines themselves where the read is of every pool's.
+// has them: lines themselves where the read keeps every one, as every
+// pool's does, and a pool's of a ledger of its work alone, none copied.
 func (p PoolRead) Held(lines []ledger.Held) []ledger.Held {
 	if p.every() {
 		return lines
 	}
-	var held []ledger.Held
-	for _, h := range lines {
-		if p.keeps(h.Pool) {
-			held = append(held, h)
+	for i := range lines {
+		if !p.keeps(lines[i].Pool) {
+			return p.heldPast(lines, i)
+		}
+	}
+	return lines
+}
+
+// heldPast are those of lines routed in the pool read, as Held has them,
+// the read dropping the one at dropped and keeping each before it: those
+// before it, and those after it the read keeps, copied.
+func (p PoolRead) heldPast(lines []ledger.Held, dropped int) []ledger.Held {
+	held := slices.Clone(lines[:dropped])
+	for i := dropped + 1; i < len(lines); i++ {
+		if p.keeps(lines[i].Pool) {
+			held = append(held, lines[i])
 		}
 	}
 	return held

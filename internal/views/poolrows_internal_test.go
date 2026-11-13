@@ -1,6 +1,7 @@
 package views
 
 import (
+	"bytes"
 	"fmt"
 	"math/rand/v2"
 	"reflect"
@@ -36,6 +37,15 @@ var poolReads = []struct {
 // pools.
 func placedNowhere(string) (string, bool) {
 	return "", false
+}
+
+// pooledLine is a request's line, of the session with the given id, routed
+// in the pool with the given id, "" for none, arriving at at.
+func pooledLine(request, session, pool string, at time.Time) ledger.Line {
+	return ledger.Line{
+		At: at, Request: request, Kind: ledger.KindMessage, Session: session, Model: foldOpus, Account: "work", Reason: "sticky", Status: 200,
+		Attempts: 1, TotalMS: 100, Class: ledger.ClassMain, Pool: pool,
+	}
 }
 
 // rawIn is the LogDay of the local day with the given date read raw, through
@@ -117,7 +127,7 @@ func TestAPoolsDayBackIsItsLinesInThePoolReadRaw(t *testing.T) {
 
 // A day back in a pool restores only the chunks of its rows whose meta names
 // a pool the read keeps, as a filter's read restores those that may keep a
-// line, and keeps the pool's records of them alone, reading no summary
+// line, and keeps the pool's records of them alone, summarising no day
 // through no filter: of a day of Acme's lines in the morning, a chunk and
 // part of the next, and the first pool's in the afternoon, some naming it
 // and some none, Acme's read restores the first two chunks, the first
@@ -126,18 +136,12 @@ func TestAPoolsDayBackRestoresOnlyTheChunksThatMayHoldItsRows(t *testing.T) {
 	at := func(hour int, i int) time.Time {
 		return time.Date(2026, 10, 7, hour, 0, i, 0, time.Local)
 	}
-	line := func(request, session, pool string, at time.Time) ledger.Line {
-		return ledger.Line{
-			At: at, Request: request, Kind: ledger.KindMessage, Session: session, Model: foldOpus, Account: "work", Reason: "sticky", Status: 200,
-			Attempts: 1, TotalMS: 100, Class: ledger.ClassMain, Pool: pool,
-		}
-	}
 	var lines []ledger.Line
 	for i := range 300 {
-		lines = append(lines, line(fmt.Sprintf("a%d", i), "a", acmePool, at(9, i)))
+		lines = append(lines, pooledLine(fmt.Sprintf("a%d", i), "a", acmePool, at(9, i)))
 	}
 	for i := range 300 {
-		lines = append(lines, line(fmt.Sprintf("b%d", i), "b", []string{firstPool, ""}[i%2], at(15, i)))
+		lines = append(lines, pooledLine(fmt.Sprintf("b%d", i), "b", []string{firstPool, ""}[i%2], at(15, i)))
 	}
 	c := newDigestChain(t, "a morning in Acme, an afternoon in the first pool", 0, lines)
 	c.digestDayByDay(func(LedgerDay) {})
@@ -151,11 +155,120 @@ func TestAPoolsDayBackRestoresOnlyTheChunksThatMayHoldItsRows(t *testing.T) {
 		counted := &readsCounted{Ledger: f}
 		got := ReadDay(counted, date, LogFilter{}, p.read)
 		if counted.chunks != chunks[p.name] || counted.summaries > 0 || counted.raw > 0 {
-			t.Errorf("%s read of the day reads %+v, want %d chunks, no summary and no line", p.name, counted.reads, chunks[p.name])
+			t.Errorf("%s read of the day reads %+v, want %d chunks, no day summarised and no line", p.name, counted.reads, chunks[p.name])
 		}
 		if want := rawIn(f, date, p.read); len(got.records) != kept[p.name] || !reflect.DeepEqual(got.records, want.records) {
 			t.Errorf("%s read of the day gives %d records, want %d:\n%s", p.name, len(got.records), kept[p.name], recordsUnlike(got.records, want.records))
 		}
+	}
+}
+
+// A sparse pool's day back through no filter passes over a day the
+// summaries the ledger holds rule out, of the day and the days beside it
+// whose files may hold its lines, none telling of the pool's work, reading
+// neither its head nor its lines, and summarising none: of Acme's lines on
+// the first day and the fifth alone, and the first pool's every day, Acme's
+// read passes over the third, and reads the second and the fourth, beside a
+// day of its work, the first pool's reading each, every read as the day's
+// lines in the pool read raw give it.
+func TestASparsePoolsDayBackPassesOverTheDaysItsSummariesRuleOut(t *testing.T) {
+	at := func(d, hour int) time.Time {
+		return time.Date(2026, 10, 5+d, hour, 0, 0, 0, time.Local)
+	}
+	var lines []ledger.Line
+	for d := range 5 {
+		lines = append(lines, pooledLine(fmt.Sprintf("b%d", d), "b", firstPool, at(d, 15)))
+		if d == 0 || d == 4 {
+			lines = append(lines, pooledLine(fmt.Sprintf("a%d", d), "a", acmePool, at(d, 9)))
+		}
+	}
+	c := newDigestChain(t, "a sparse pool", 0, lines)
+	c.digestDayByDay(func(LedgerDay) {})
+	f := c.follower()
+	for d := 1; d < 4; d++ {
+		date := dayfile.DateOf(at(d, 0))
+		for _, p := range poolReads[:2] {
+			counted := &readsCounted{Ledger: f}
+			got := ReadDay(counted, date, LogFilter{}, p.read)
+			read, passed := counted.rows+counted.chunks+counted.raw > 0, p.read.ID == acmePool && d == 2
+			if read == passed || counted.summaries > 0 {
+				t.Errorf("%s, %s read reads %+v, want the day passed over unread %t, and no day summarised", date, p.name, counted.reads, passed)
+			}
+			if want := rawIn(f, date, p.read); !reflect.DeepEqual(got.records, want.records) {
+				t.Errorf("%s, %s read gives\n%s", date, p.name, recordsUnlike(got.records, want.records))
+			}
+		}
+	}
+}
+
+// A day's head built of lines naming no pool, as before pools and in a
+// config without them, names no pool: neither its chunks' metas nor its
+// side's sessions; and is read as of lines naming none, the first pool's
+// read keeping each of its chunks and its sessions, read from its side,
+// and Acme's none.
+func TestADayOfLinesNamingNoPoolHasAHeadNamingNone(t *testing.T) {
+	at := func(i int) time.Time {
+		return time.Date(2026, 10, 7, 9, 0, i, 0, time.Local)
+	}
+	var lines []ledger.Line
+	for i := range 300 {
+		lines = append(lines, pooledLine(fmt.Sprintf("n%d", i), []string{"m", "n"}[i%2], "", at(i)))
+	}
+	c := newDigestChain(t, "a day naming no pool", 0, lines)
+	c.digestDayByDay(func(LedgerDay) {})
+	f, date := c.follower(), dayfile.DateOf(at(0))
+	rows, ok := f.DayRows(date, RowsVersion)
+	side, sided := f.DaySide(date, RowsVersion)
+	if !ok || !sided || len(rows.Chunks) != 2 {
+		t.Fatalf("the day's head stands %t, its side %t, its rows in %d chunks, want it standing, its rows in 2", ok, sided, len(rows.Chunks))
+	}
+	for i, chunk := range rows.Chunks {
+		if bytes.Contains(chunk.Meta, []byte(`"pl"`)) {
+			t.Errorf("chunk %d's meta is %s, want it naming no pool", i, chunk.Meta)
+		}
+	}
+	if bytes.Contains(side, []byte(`"pools"`)) {
+		t.Errorf("the day's side is %s, want it naming no pool", side)
+	}
+	kept := map[string]int{"Acme's": 0, "the first pool's": len(rows.Chunks)}
+	for _, p := range poolReads[:2] {
+		chunks, _ := chunksThrough(f, date, LogFilter{}, p.read)
+		l := readingSides(f)
+		got, want := DaySessionsOn(l, date, p.read), DaySessions(rawIn(f, date, p.read))
+		if len(chunks) != kept[p.name] {
+			t.Errorf("%s read keeps %d of the day's %d chunks, want %d", p.name, len(chunks), len(rows.Chunks), kept[p.name])
+		}
+		if !reflect.DeepEqual(got, want) || l.raw[date] {
+			t.Errorf("%s sessions are %+v, its lines read %t; want %+v, as its lines in the pool read raw give, from its side", p.name, got, l.raw[date], want)
+		}
+	}
+}
+
+// A session whose lines name none and the first pool, as before and after
+// the move to pools, is the first pool's whole, as each of its lines is:
+// read from the day's side, its lines unread, in the first pool's read,
+// all six of its lines; and in Acme's, none of it, from the side too.
+func TestASessionNamingNoneAndTheFirstPoolIsTheFirstPoolsFromItsSide(t *testing.T) {
+	at := func(i int) time.Time {
+		return time.Date(2026, 10, 7, 9, i, 0, 0, time.Local)
+	}
+	var lines []ledger.Line
+	for i := range 6 {
+		lines = append(lines, pooledLine(fmt.Sprintf("m%d", i), "m", []string{"", firstPool}[i%2], at(i)))
+	}
+	c := newDigestChain(t, "a session naming none and the first pool", 0, lines)
+	c.digestDayByDay(func(LedgerDay) {})
+	f, date := c.follower(), dayfile.DateOf(at(0))
+	for _, p := range poolReads[:2] {
+		l := readingSides(f)
+		got, want := DaySessionsOn(l, date, p.read), DaySessions(rawIn(f, date, p.read))
+		if !reflect.DeepEqual(got, want) || !l.sides[date] || l.raw[date] {
+			t.Errorf("%s sessions are %+v, its side read %t and its lines %t; want %+v, as its lines in the pool read raw give, from its side alone",
+				p.name, got, l.sides[date], l.raw[date], want)
+		}
+	}
+	if got := DaySessionsOn(f, date, poolReads[1].read); len(got) != 1 || got[0].Lines != 6 {
+		t.Errorf("the first pool's sessions are %+v, want m's six lines", got)
 	}
 }
 

@@ -145,6 +145,24 @@ func (l heldLedger) DaysOn(dates []string) []ledger.Summary {
 	return on
 }
 
+// DaysHeldOn gives the summaries the records hold of the days with the
+// dates given, oldest first, as a Follower gives those that stand: false
+// where today's is among them, which none holds, as a Follower holds no
+// summary of today.
+func (l heldLedger) DaysHeldOn(dates []string) ([]ledger.Summary, bool) {
+	today := dayfile.DateOf(l.now())
+	if slices.Contains(dates, today) {
+		return nil, false
+	}
+	var held []ledger.Summary
+	for _, s := range l.records.days {
+		if s.Day < today && slices.Contains(dates, s.Day) {
+			held = append(held, s)
+		}
+	}
+	return held, true
+}
+
 // FirstDay gives the start of the first day the records hold a summary of,
 // else today's, as a Follower finds the first day its files are of.
 func (l heldLedger) FirstDay(now time.Time) (time.Time, error) {

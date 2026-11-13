@@ -216,17 +216,17 @@ func restoredRows(records []lineRecord, rows []byte) ([]lineRecord, error) {
 // read: when the first and the last of them arrived; what they count, each
 // row as LogCount's count counts one whatever the Log's filter: those of
 // each kind, those that failed, and by the models they asked for, the
-// accounts they're on and the sessions they count toward; and how many of
-// them recorded each pool, as each line recorded it, "" counting those that
-// named none. It counts each row as often as the day gives its line, as the
-// rows hold them, where the Log takes a request's line given twice in once.
-// So a reader tells which chunks may hold a session's rows, rows of a time,
-// or a pool's, reading none; and of a day that gives no request's id twice,
-// sums the Log's count of it.
+// accounts they're on and the sessions they count toward; and the pools
+// they recorded, as recordingPool keeps them, "" of those that named none.
+// It counts each row as often as the day gives its line, as the rows hold
+// them, where the Log takes a request's line given twice in once. So a
+// reader tells which chunks may hold a session's rows, rows of a time, or a
+// pool's, reading none; and of a day that gives no request's id twice, sums
+// the Log's count of it.
 type chunkMeta struct {
 	first, last instant
 	lines       LogCount
-	pools       map[string]int
+	pools       []string
 }
 
 // take counts the record r, the chunk's next, in m: when it arrived, its row
@@ -241,25 +241,15 @@ func (m *chunkMeta) take(r *lineRecord) {
 	}
 	row := lineFacts(&r.rowRecord, nil)
 	m.lines.count(&row)
-	if m.pools == nil {
-		m.pools = make(map[string]int)
-	}
-	m.pools[r.pool]++
+	m.pools = recordingPool(m.pools, r.pool)
 }
 
 // holdsPool reports whether the chunk m tells of may hold a row the pool
-// read p keeps, as its keeps has it of the pools the chunk's rows recorded:
-// every chunk may, where p reads every pool's.
+// read p keeps, as its keepsOf has it of the pools the chunk's rows
+// recorded: every chunk may, where p reads every pool's.
 func (m *chunkMeta) holdsPool(p PoolRead) bool {
-	if p.every() {
-		return true
-	}
-	for pool := range m.pools {
-		if p.keeps(pool) {
-			return true
-		}
-	}
-	return false
+	some, _ := p.keepsOf(m.pools)
+	return some
 }
 
 // meets reports whether the chunk m tells of may hold a request of the
@@ -290,8 +280,8 @@ func countsAny(counted map[string]int, choice []string) bool {
 // storedChunkMeta is a chunk's meta as its stored form holds it: when the
 // first and the last of its rows arrived, exactly; how many of them asked
 // what each kind asks; how many failed; how many are of each model, account
-// and session, by its whole id; and how many recorded each pool, by its id,
-// "" of none. Its keys are short and its zeros left out.
+// and session, by its whole id; and the pools they recorded, as storedPools
+// stores them. Its keys are short and its zeros left out.
 type storedChunkMeta struct {
 	First    storedInstant  `json:"f,omitzero"`
 	Last     storedInstant  `json:"l,omitzero"`
@@ -302,7 +292,7 @@ type storedChunkMeta struct {
 	Models   map[string]int `json:"m,omitempty"`
 	Accounts map[string]int `json:"a,omitempty"`
 	Sessions map[string]int `json:"s,omitempty"`
-	Pools    map[string]int `json:"pl,omitempty"`
+	Pools    []string       `json:"pl,omitempty"`
 }
 
 // stored is m as its stored form holds it.
@@ -310,7 +300,7 @@ func (m *chunkMeta) stored() storedChunkMeta {
 	c := m.lines
 	return storedChunkMeta{
 		First: m.first.stored(), Last: m.last.stored(), Requests: c.Requests, Checks: c.Checks, Counts: c.Counts, Failed: c.Failed,
-		Models: c.Models, Accounts: c.Accounts, Sessions: c.Sessions, Pools: m.pools,
+		Models: c.Models, Accounts: c.Accounts, Sessions: c.Sessions, Pools: storedPools(m.pools),
 	}
 }
 
@@ -326,6 +316,6 @@ func chunkMetaOf(meta []byte) (chunkMeta, error) {
 		lines: LogCount{
 			Requests: s.Requests, Checks: s.Checks, Counts: s.Counts, Failed: s.Failed, Models: s.Models, Accounts: s.Accounts, Sessions: s.Sessions,
 		},
-		pools: s.Pools,
+		pools: recordedPools(s.Pools),
 	}, nil
 }
