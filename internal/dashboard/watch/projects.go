@@ -16,9 +16,10 @@ import (
 // days read for it, as views.ReadSessionDays reads them, from the start of
 // the day from, none till the first read lands, and how many reads have
 // landed; whether a read is under way, and how many were asked, a read
-// another overtook passed over; and what its page and the chosen project's
-// were built of, as pageOf and projectOf have them, and how many times each
-// was built.
+// another overtook passed over; what its page and the chosen project's were
+// built of, as pageOf and projectOf have them, and how many times each was
+// built; and where the user was as its page was let go to await a read, nil
+// where it wasn't.
 type projectsTab struct {
 	shown     dashboard.ProjectsShown
 	chose     bool
@@ -31,6 +32,14 @@ type projectsTab struct {
 	projectOf projectOf
 	pages     int
 	projects  int
+	left      *projectsPlace
+}
+
+// projectsPlace is where the user was on Projects: whether ↑ and ↓ acted in
+// SESSIONS, and how far the list and SESSIONS were scrolled.
+type projectsPlace struct {
+	inSessions         bool
+	listScroll, scroll int
 }
 
 // projectsPageOf is what Projects' page was built of: the reads of the days
@@ -138,9 +147,10 @@ func (m Model) projectsRead(msg projectsReadMsg) Model {
 // it: the days read, the period, the day, or the sessions the List lists
 // running; and the chosen project's page, where the page or the project
 // chosen has, as chosenBuilt has it; SESSIONS scrolled to show the session
-// selected, where it showed before, as selectionShows has it. Where there
-// are no days to build it of, it shows none, as projectsAwaited has it.
-// Never a frame at a time, which takes nothing in.
+// selected, where it showed before, as selectionShows has it, or where the
+// user was in it as the page was let go, as projectsReturned has it. Where
+// there are no days to build it of, it shows none, as projectsAwaited has
+// it. Never a frame at a time, which takes nothing in.
 func (m Model) projectsBuilt(msg tea.Msg) Model {
 	if _, frame := msg.(frameMsg); frame || m.view != dashboard.Projects {
 		return m
@@ -158,6 +168,8 @@ func (m Model) projectsBuilt(msg tea.Msg) Model {
 		return m
 	}
 	sighted := m.selectionShows(now)
+	m, returned := m.projectsReturned()
+	sighted = sighted || returned
 	if rebuilt {
 		page := days.Projects(views.ProjectsInput{
 			Period: m.period, List: list, Names: m.moment(now), Prices: m.cfg.Prices, WeekStarts: m.cfg.WeekStarts, Family: m.cfg.Family, Now: now,
@@ -189,17 +201,35 @@ func (m Model) projectsDays(now time.Time) (views.SessionDays, bool) {
 }
 
 // projectsAwaited is m with Projects showing no page while its days are
-// read, as before its first read lands: the project chosen and the session
-// selected kept, to choose again once it's built, ↑ and ↓ back in the list,
-// and the list and SESSIONS from their tops.
+// read, as before its first read lands, ↑ and ↓ in the list and the list and
+// SESSIONS from their tops: the project chosen and the session selected
+// kept, and where the user was, as projectsPlace has it, for the page built
+// once they land to return to, as projectsReturned has it.
 func (m Model) projectsAwaited() Model {
 	s := &m.projects.shown
 	if s.Page == nil {
 		return m
 	}
+	m.projects.left = &projectsPlace{inSessions: s.InSessions, listScroll: s.ListScroll, scroll: m.scroll}
 	s.Page, s.Project, s.InSessions, s.ListScroll = nil, nil, false, 0
 	m.scroll = 0
 	return m
+}
+
+// projectsReturned is m returned to where the user was as its page was let
+// go, as projectsAwaited left it, reporting whether ↑ and ↓ return to
+// SESSIONS, to show the session selected; and m as it is where it wasn't
+// let go. The chosen project's page, as chosenBuilt builds it, lets go of
+// SESSIONS where it has no sessions, and of the place where the project
+// left the list.
+func (m Model) projectsReturned() (Model, bool) {
+	left := m.projects.left
+	if left == nil {
+		return m, false
+	}
+	m.projects.left = nil
+	m.projects.shown.InSessions, m.projects.shown.ListScroll, m.scroll = left.inSessions, left.listScroll, left.scroll
+	return m, left.inSessions
 }
 
 // chosenBuilt is m with the chosen project's page built afresh at now,

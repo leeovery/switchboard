@@ -198,6 +198,45 @@ func TestProjectsLoadsTillItsDaysAreRead(t *testing.T) {
 	}
 }
 
+// A step further back returns, once its read lands, to where the user was
+// before it: the project chosen, ↑ and ↓ in SESSIONS, the session selected
+// and in view, though the read draws no page while it's under way. Only
+// where the project chosen left the list does the list take the choice, as
+// a rebuild that loses it gives it.
+func TestProjectsReturnsToWhereTheUserWasOnceAStepBacksReadLands(t *testing.T) {
+	t.Run("the project still listed", func(t *testing.T) {
+		h := withDelta(projectsHarness(t, dashboard.Projects))
+		h.start()
+		h.update(tea.WindowSizeMsg{Width: 108, Height: 24})
+		h.keys(rightKey, downKey)
+		held := holdingBack[projectsReadMsg](h, h.press(">")...)
+		if s := h.model.projects.shown; len(held) != 1 || s.Page != nil || s.InSessions {
+			t.Fatalf("its read under way, %d held, its page %v, in sessions %v; want no page, as the first read draws", len(held), s.Page, s.InSessions)
+		}
+		h.deliver(held...)
+		if s := h.model.projects.shown; s.Chosen != "/code/alpha" || !s.InSessions || s.Selection() != alphaFirst || !selectionInView(h) {
+			t.Errorf("its read landed, %s chosen, in sessions %v, %s selected, in view %v; want alpha, its SESSIONS, %s, in view", s.Chosen, s.InSessions, s.Selection(), selectionInView(h), alphaFirst)
+		}
+	})
+	t.Run("the project gone", func(t *testing.T) {
+		h := projectsHarness(t, dashboard.Projects)
+		h.start()
+		const epsilon = "e1000000-0000-4000-8000-000000000005"
+		running(h, epsilon, "/code/epsilon")
+		h.keys(downKey, downKey, rightKey)
+		if s := h.model.projects.shown; s.Chosen != "/code/epsilon" || !s.InSessions {
+			t.Fatalf("after ↓ ↓ →, %s chosen, in sessions %v; want epsilon, its SESSIONS", s.Chosen, s.InSessions)
+		}
+		held := holdingBack[projectsReadMsg](h, h.press(">")...)
+		h.source.sessions = nil
+		h.tickUntilAsked()
+		h.deliver(held...)
+		if s := h.model.projects.shown; s.Chosen != "/code/alpha" || s.InSessions || s.Selected != "" || h.model.scroll != 0 {
+			t.Errorf("its read landed, epsilon gone, %s chosen, in sessions %v, %q selected, scrolled %d; want the top row, alpha, the list with the choice, none selected, from its top", s.Chosen, s.InSessions, s.Selected, h.model.scroll)
+		}
+	})
+}
+
 // Without a ledger, Projects reads nothing and awaits nothing: its page is
 // built of the sessions running alone, as the List's are, and says there
 // are no sessions where none runs.
