@@ -92,14 +92,20 @@ type routerRead struct {
 	ok       bool
 }
 
+// routesNoPools is why the router's document isn't read where the config has
+// pools and the router reports none, as one from before pools still running
+// till its restart: its document is every account's, never a pool's.
+const routesNoPools = "it doesn't route by pools yet, as it started before them: restart it with switchboard service restart"
+
 // fromRouter reads the router's document, having the router probe the
 // accounts it hasn't read for refresh first, when that's more than zero, and
 // its health check's answer. What's worked out of the document, as
 // WorkedOut says, is worked out as it's read, as a router from before it
 // gave that, still running between an upgrade and its restart, gives none.
 // It's unread, and says why when the router was asked, when the router isn't
-// to be asked, doesn't answer its health check in time, or doesn't give its
-// document; and fails with router.PoolNeeded where it refuses for want of a
+// to be asked, doesn't answer its health check in time, doesn't give its
+// document, or reports no pools where the config has them, as routesNoPools
+// says; and fails with router.PoolNeeded where it refuses for want of a
 // pool.
 func (s usageSource) fromRouter(ctx context.Context, refresh time.Duration) (routerRead, error) {
 	switch {
@@ -109,8 +115,11 @@ func (s usageSource) fromRouter(ctx context.Context, refresh time.Duration) (rou
 		return routerRead{fallback: status.Fallback{Router: status.RouterNotRunning}}, nil
 	}
 	health, fallback, ok := s.answers(ctx)
-	if !ok {
+	switch {
+	case !ok:
 		return routerRead{fallback: fallback}, nil
+	case !health.ReportsPools && s.probe.hasPools():
+		return routerRead{fallback: status.Fallback{Router: status.RouterUnhealthy, Reason: routesNoPools}}, nil
 	}
 	doc, err := s.document(ctx, refresh)
 	if _, needs := errors.AsType[router.PoolNeeded](err); needs {
@@ -267,6 +276,13 @@ type probeSource struct {
 	accounts []config.Account
 	pool     config.Pool
 	prime    config.Prime
+}
+
+// hasPools reports whether the config, as its pools stand, as pooled gives
+// it, has pools: none where they can't be told, as probing them then fails.
+func (s probeSource) hasPools() bool {
+	cfg, err := s.pooled()
+	return err == nil && len(cfg.Pools) > 0
 }
 
 // inPool returns the source probing the accounts of the pool with the given

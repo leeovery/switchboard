@@ -135,6 +135,40 @@ probed directly: the router is unhealthy, no answer within 100ms
 	}
 }
 
+// A router that reports no pools, as one from before them still running till
+// its restart, where the config has pools, has its document read by no verb
+// as a pool's, as it's every account's: status probes the pool's accounts,
+// saying why, the document naming the pool probed.
+func TestStatusProbesPastARouterThatReportsNoPoolsWhereTheConfigHasThem(t *testing.T) {
+	srv := newServeSetup(t, fakeClaudeAPI(t), nil)
+	asked := new(atomic.Int64)
+	serveRouter(t, srv.socket(), new(atomic.Int64), map[string]http.HandlerFunc{
+		"GET /health": func(w http.ResponseWriter, _ *http.Request) { _ = json.NewEncoder(w).Encode(router.Health{OK: true}) },
+		"GET /status": func(w http.ResponseWriter, _ *http.Request) {
+			asked.Add(1)
+			_ = json.NewEncoder(w).Encode(status.Document{Source: status.SourceRouter})
+		},
+	})
+	const why = "it doesn't route by pools yet, as it started before them: restart it with switchboard service restart"
+
+	for _, args := range [][]string{nil, {"--pool", "b2n8"}} {
+		doc := statusJSON(t, srv.deps, args...)
+		if want := (status.Fallback{Router: status.RouterUnhealthy, Reason: why}); doc.Source != status.SourceProbe || doc.Fallback != want {
+			t.Errorf("switchboard status --json %s printed source %q and fallback %+v, want probe, %+v", strings.Join(args, " "), doc.Source, doc.Fallback, want)
+		}
+		if doc.PoolID != "b2n8" || doc.PoolLabel != "Default" || len(doc.Accounts) != 3 {
+			t.Errorf("switchboard status --json %s printed pool %q (%q) of %d accounts, want Default's three", strings.Join(args, " "), doc.PoolID, doc.PoolLabel, len(doc.Accounts))
+		}
+	}
+	got := run(t, srv.deps, "status", "--pretty", "--pool", "b2n8")
+	if want := "\nprobed directly: the router is unhealthy, " + why + "\n"; !strings.HasSuffix(got.stdout, want) {
+		t.Errorf("switchboard status --pool b2n8 = %+v, want it to end %q", got, want)
+	}
+	if asked.Load() != 0 {
+		t.Errorf("the router's document was asked for %d times, want never", asked.Load())
+	}
+}
+
 func TestStatusProbesAsAsked(t *testing.T) {
 	srv := routingSetup(t)
 
