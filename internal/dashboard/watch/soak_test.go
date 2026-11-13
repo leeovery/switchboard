@@ -181,14 +181,27 @@ func (s *soak) deliver(msgs ...tea.Msg) {
 	}
 }
 
+// commandedGuard is a soakGuard told what each command the model returned
+// gave, once it's run, so it can tell whose the reads it made are.
+type commandedGuard interface {
+	ran(msg tea.Msg)
+}
+
 // run runs cmd, and every command it batches, returning what they send
-// back, each timed by the message it gives.
+// back, each timed by the message it gives, and told the guard of, where
+// it's told of commands.
 func (s *soak) run(cmd tea.Cmd) []tea.Msg {
 	if cmd == nil {
 		return nil
 	}
 	began := time.Now()
-	switch msg := cmd().(type) {
+	msg := cmd()
+	if g, ok := s.guard.(commandedGuard); ok {
+		if _, batch := msg.(tea.BatchMsg); !batch {
+			g.ran(msg)
+		}
+	}
+	switch msg := msg.(type) {
 	case nil:
 		return nil
 	case tea.BatchMsg:
