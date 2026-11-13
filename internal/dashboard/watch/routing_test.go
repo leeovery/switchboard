@@ -769,6 +769,37 @@ func pricedHarness(t *testing.T) (*harness, *sessionsLedger) {
 	return h, l
 }
 
+// The card prices each move by the session's lines in the pool shown alone,
+// as the store reads them: d28c's last request, writing the cache for an
+// hour, made in Acme's, costs $0.81 to write again in Acme's, and in
+// Default's is none of its, so none of the three moves is priced.
+func TestTheCardPricesTheMovesOfTheSessionsLinesInThePoolShown(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		read views.PoolRead
+		cost string
+	}{
+		{name: "Acme's", read: acmeRead, cost: "$0.81"},
+		{name: "Default's", read: firstRead},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			h, l := pricedHarness(t)
+			l.lines[idD28C][0].Pool = "q7mt"
+			h.model.cfg.PoolRead = tt.read
+
+			h.keyed("p @2")
+			h.keyed("m")
+			got, cost := h.card(), ""
+			if got.Cost != nil {
+				cost = got.Cost.Cents()
+			}
+			if got.Moving != 3 || cost != tt.cost {
+				t.Errorf("m ticked, the card moves %d sessions at %q, want 3 at %q, d28c's of its lines in the pool", got.Moving, cost, tt.cost)
+			}
+		})
+	}
+}
+
 func TestTheCardPricesTheMovesOnceMIsTicked(t *testing.T) {
 	h, l := pricedHarness(t)
 	h.keyed("p @2")
