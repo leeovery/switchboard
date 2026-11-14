@@ -189,9 +189,10 @@ func TestAnAccountsWorthIsChartedAsProjectsChartAProjects(t *testing.T) {
 
 // Accounts' today, fed the tail's fold of it, charts each account's worth by
 // the hour its requests arrived in, and by two hours, as Projects charts a
-// project's, all accounts' every account's, one answered by no account
-// among them; a fold of another day, or any other period, leaves the page
-// by the day, as the summaries have it.
+// project's, a request of no session among them, all accounts' every
+// account's, a session's request answered by no account among them; a fold
+// of another day, or any other period, leaves the page by the day, as the
+// summaries have it.
 func TestAccountsTodayIsChartedByTheHourOfTheTailsFold(t *testing.T) {
 	lines := slices.Concat(
 		projectAsks(repoSession, "/code/switchboard", "", "work", times(october(7, 9, 0), 2)...),
@@ -199,6 +200,7 @@ func TestAccountsTodayIsChartedByTheHourOfTheTailsFold(t *testing.T) {
 		projectAsks(ownSession, "/code/own/api", "", "side", times(october(7, 12, 0), 3)...),
 		projectAsks(ownSession, "/code/own/api", "", "work", october(7, 13, 0)),
 		projectAsks(ownSession, "/code/own/api", "", "", october(7, 13, 5)),
+		projectAsks("", "/code/switchboard", "", "work", october(7, 10, 30)),
 	)
 	in := input(nil)
 	in.Accounts = workAndSide
@@ -225,16 +227,16 @@ func TestAccountsTodayIsChartedByTheHourOfTheTailsFold(t *testing.T) {
 		want []chart
 	}{
 		{"work", page.Rows[0], []chart{
-			{views.ByHour, 24, 10, map[int]views.Worth{9: hoursWorth(2), 13: hoursWorth(1)}, "09:00"},
-			{views.ByTwoHours, 12, 5, map[int]views.Worth{4: hoursWorth(2), 6: hoursWorth(1)}, "08:00–10:00"},
+			{views.ByHour, 24, 10, map[int]views.Worth{9: hoursWorth(2), 10: hoursWorth(1), 13: hoursWorth(1)}, "09:00"},
+			{views.ByTwoHours, 12, 5, map[int]views.Worth{4: hoursWorth(2), 5: hoursWorth(1), 6: hoursWorth(1)}, "08:00–10:00"},
 		}},
 		{"side", page.Rows[1], []chart{
 			{views.ByHour, 24, 10, map[int]views.Worth{9: hoursWorth(1), 12: hoursWorth(3)}, "12:00"},
 			{views.ByTwoHours, 12, 5, map[int]views.Worth{4: hoursWorth(1), 6: hoursWorth(3)}, "12:00–14:00"},
 		}},
 		{"all accounts", page.All, []chart{
-			{views.ByHour, 24, 10, map[int]views.Worth{9: hoursWorth(3), 12: hoursWorth(3), 13: hoursWorth(2)}, "09:00"},
-			{views.ByTwoHours, 12, 5, map[int]views.Worth{4: hoursWorth(3), 6: hoursWorth(5)}, "12:00–14:00"},
+			{views.ByHour, 24, 10, map[int]views.Worth{9: hoursWorth(3), 10: hoursWorth(1), 12: hoursWorth(3), 13: hoursWorth(2)}, "09:00"},
+			{views.ByTwoHours, 12, 5, map[int]views.Worth{4: hoursWorth(3), 5: hoursWorth(1), 6: hoursWorth(5)}, "12:00–14:00"},
 		}},
 	}
 	for _, tt := range tests {
@@ -295,5 +297,19 @@ func TestAccountsTodaysHoursSumToItsWorth(t *testing.T) {
 	}
 	if got, want := page.Rows[0].Totals.Worth, hoursWorth(3); !reflect.DeepEqual(got, want) {
 		t.Errorf("work's worth is %+v, want its three requests', %+v, the one of no session among them", got, want)
+	}
+}
+
+// A request of no session that a later read of the tail gives again counts
+// once in today's hours, as a session's does.
+func TestARequestOfNoSessionGivenAgainCountsOnce(t *testing.T) {
+	line := projectAsks("", "/code/switchboard", "", "work", october(7, 10, 0))
+	days := views.ReadSessionDays(ledgerOfLines(), now.AddDate(0, 0, -1), now).
+		Tailed(line, true, nil, nil, now).Tailed(line, false, nil, nil, now)
+	in := input(nil)
+	in.Accounts = workAndSide
+	page := views.NewPast(in, nil).Accounts(views.PeriodToday).Hourly(days)
+	if got := page.Rows[0].WorthBy[0].Buckets[10].Worth; !reflect.DeepEqual(got, hoursWorth(1)) {
+		t.Errorf("given twice, work's 10:00 is worth %+v, want the request's once, %+v", got, hoursWorth(1))
 	}
 }

@@ -34,9 +34,10 @@ const (
 	// leastColumn are the fewest cells a column takes, as many accounts
 	// showing as fit at it, less all accounts'. It's a floor: the rows'
 	// shortest forms at their bounds, as compareFigures has them, set the
-	// least where they need more, as with many hundreds of accounts. At 19
-	// the wide form holds from 83 columns, every one of three accounts shows
-	// at 108, and six of ten at 160.
+	// least where they need more, as from 1,000 accounts, whose extra usage
+	// at its bound, on for 999 of 1,000, takes 19 cells. At 19 the wide form
+	// holds from 83 columns, every one of three accounts shows at 108, and
+	// six of ten at 160.
 	leastColumn = 19
 	// barMost are the most cells a bar beside words takes, so none reads as
 	// a rule; and shareSpare the cells a column keeps beside BY MODEL's.

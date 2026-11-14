@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/charmbracelet/x/ansi"
+
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
@@ -148,12 +150,18 @@ func TestComparesBoundsSayEveryFigureWhole(t *testing.T) {
 }
 
 // The moves are bound by their shortest form, the count alone, as every
-// row's bound is, so they leave the least at 19: every one of three
-// accounts shows at 108, and six of ten at 160. Where the whole form, in
-// and out, doesn't fit a column, the count alone does.
+// row's bound is, so they leave the least at 19, with three accounts
+// configured or ten: every one of three shows at 108, and six of ten at
+// 160. A column says the moves whole, in and out, where they fit it less a
+// cell, else their count: side's at their bound, 28 cells whole, in a column
+// of 29 and of 28.
 func TestComparesMovesAreBoundByTheirShortestForm(t *testing.T) {
-	if got := frameOf(108, 37).leastCompared(); got != leastColumn {
-		t.Errorf("a column's least is %d cells, want %d", got, leastColumn)
+	for _, configured := range []config.Accounts{threeFramed, tenFramed} {
+		f := frameOf(108, 37)
+		f.View, f.Accounts = Accounts, AccountsShown{Accounts: configured}
+		if got := f.leastCompared(); got != leastColumn {
+			t.Errorf("of %d accounts, a column's least is %d cells, want %d", len(configured), got, leastColumn)
+		}
 	}
 	three, doc := threeCompared(t, 108, 37)
 	if got := three.At(doc, routedAt).compareShows(); got != 3 {
@@ -163,13 +171,20 @@ func TestComparesMovesAreBoundByTheirShortestForm(t *testing.T) {
 	if got := ten.At(doc, routedAt).compareShows(); got != 6 {
 		t.Errorf("of ten accounts at 160 columns, Compare shows %d, want 6", got)
 	}
-	moved := compareColumn{row: compareBound(1, false)}.moved()
 	for _, tt := range []struct {
-		cells int
-		want  string
-	}{{30, "9,999,999 in · 9,999,999 out"}, {18, "19,999,998"}} {
-		if got := fitParts(tt.cells, moved.fitting(tt.cells)...).plain(); got != tt.want {
-			t.Errorf("in %d cells the moves read %q, want %q", tt.cells, got, tt.want)
+		width, column int
+		want          string
+	}{{142, 29, "9,999,999 in · 9,999,999 out"}, {141, 28, "19,999,998"}} {
+		f, doc := threeCompared(t, tt.width, 60)
+		side := &f.Accounts.Page.Rows[2].Totals
+		side.MovedOn, side.MovedOff = requestsMost, requestsMost
+		rows := textOf(f.Draw(doc, routedAt))
+		x, all := columnOf(rows[6], "side"), columnOf(rows[6], "all accounts")
+		if all-x != tt.column {
+			t.Fatalf("at %d columns side's column is %d cells, want %d", tt.width, all-x, tt.column)
+		}
+		if got := strings.TrimSpace(ansi.Cut(rows[rowWith(rows, "sessions moved")], x, all)); got != tt.want {
+			t.Errorf("in a column of %d cells side's moves read %q, want %q", tt.column, got, tt.want)
 		}
 	}
 }

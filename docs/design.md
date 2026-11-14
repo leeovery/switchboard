@@ -3555,10 +3555,10 @@ frames show the keys from before the sweep of 7 and 8 October 2026, `p` for the 
   no name is cut where another account's column would show it whole; or, where it's more, the
   widest of its rows' shortest forms and a cell, each figure at its stated bound over the longest
   period, so no figure is cut at a column's least, whatever the period: the sessions moved by
-  their count alone, as a move counts once a session a day, so its requests bound it. As many accounts show as fit, at least two, as a
-  comparison needs two, the last giving way first: six of ten at 160 columns, every one of three
-  at 108, two of three with long names. The columns shown share the
-  rest alike, the odd cells `all accounts`' and then the first's, `all accounts`' values running
+  their count alone, as a move counts once a session a day, so its requests bound it. As many
+  accounts show as fit, at least two, as a comparison needs two, the last giving way first: six
+  of ten at 160 columns, every one of three at 108, two of three with long names. The columns
+  shown share the rest alike, the odd cells `all accounts`' and then the first's, `all accounts`' values running
   to the frame's edge. Past them, `←` and `→` move the
   focus along the accounts, the columns scrolling to keep it in view and `all accounts` staying put
   at the right, and the heading's state says which show:
@@ -3625,9 +3625,9 @@ frames show the keys from before the sweep of 7 and 8 October 2026, `p` for the 
   hours sum to its worth: the summaries keep no hours. While Accounts shows today, the tail is
   read at each look, and at once as it comes to show today, so its hours keep up; till its first
   read of the day, today is by the day. Today's page, Accounts' and Projects' alike, is built
-  afresh as the local hour turns too, so the hour marked now's moves with nothing arriving. At 173 columns with three accounts that's an
-  hour a column today, a day at this week and 30 days, a week at 12 weeks and a month at 12
-  months; with four, 30 days are by week. The accounts share one scale, the highest bucket of
+  afresh as the local hour turns too, so the hour marked now's moves with nothing arriving. At
+  173 columns with three accounts that's an hour a column today, a day at this week and 30 days,
+  a week at 12 weeks and a month at 12 months; with four, 30 days are by week. The accounts share one scale, the highest bucket of
   every configured account's, shown or not, so their columns compare; `all accounts` has its
   own. Its axis is WORTH BY's, and under it its peak, `peak Wed $148`, two hours by their span,
   `peak 12:00–14:00 $36`, and a month with its year where the period touches two of its name,
