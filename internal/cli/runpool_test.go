@@ -69,6 +69,14 @@ func pooledSetup(t *testing.T, env map[string]string) *serveSetup {
 func TestRunStartsASessionInItsDirectorysPool(t *testing.T) {
 	srv := pooledSetup(t, map[string]string{"ANTHROPIC_CUSTOM_HEADERS": "X-Trace: on"})
 	srv.start(t)
+	home, err := srv.deps.HomeDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A worktree of a repository in Acme's directory, made beside it, as git
+	// links one.
+	writeAt(t, filepath.Join(home, "Code", "acme", ".git", "worktrees", "feature", "commondir"), "../..\n")
+	writeAt(t, filepath.Join(home, "Code", "acme-feature", ".git"), "gitdir: "+filepath.Join(home, "Code", "acme", ".git", "worktrees", "feature")+"\n")
 	tests := []struct {
 		name        string
 		dir         string
@@ -81,6 +89,13 @@ func TestRunStartsASessionInItsDirectorysPool(t *testing.T) {
 			dir:         "Code/acme/api",
 			wantToken:   "test-token-side",
 			wantHeaders: "X-Trace: on\nX-Switchboard-Dir: ~/Code/acme/api\nX-Switchboard-Pool: q7mt",
+			wantPool:    "q7mt",
+		},
+		{
+			name:        "a worktree outside every fence, of a repository inside one",
+			dir:         "Code/acme-feature",
+			wantToken:   "test-token-side",
+			wantHeaders: "X-Trace: on\nX-Switchboard-Dir: ~/Code/acme-feature\nX-Switchboard-Pool: q7mt",
 			wantPool:    "q7mt",
 		},
 		{

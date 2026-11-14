@@ -188,7 +188,7 @@ yours to edit, by hand or with `pool edit`.
 |---|---|---|
 | `id` | Required | The pool's id, which switchboard writes as it makes the pool, and every record and command names it by. Don't change it by hand. |
 | `label` | The pool's id | What the pool is shown as, at most 100 characters. It can't hold anything shaped like a token. `pool add` and `pool edit` keep it no other pool's, ignoring case. |
-| `dirs` | None (unfenced) | The directories the pool is fenced to, each an absolute path or one starting `~/`, covering everything beneath it. A session started inside them is routed across this pool's accounts and no others. Without any, it's the unfenced pool, which serves every session started outside every fence. |
+| `dirs` | None (unfenced) | The directories the pool is fenced to, each an absolute path or one starting `~/`, covering everything beneath it. A session started inside them, or in a git worktree of a repository inside them, is routed across this pool's accounts and no others. Without any, it's the unfenced pool, which serves every session started outside every fence. |
 
 The ids switchboard makes for pools are 4 lowercase letters and digits, a letter first, random, as
 no subscription stands behind a pool, and never one the accounts record holds. The config is

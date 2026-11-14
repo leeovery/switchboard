@@ -45,7 +45,7 @@ Every Claude subscription has a weekly limit, most a 5-hour one too. When you hi
 
 ## Pools
 
-**Choose which Claude accounts work on which projects.** Keep a client's accounts on the client's code, your employer's account on your employer's work, or one account for one project. Put the accounts in a pool and fence it to the project's directories: every Claude session started in them, or in any folder beneath, uses that pool's accounts and nothing else, and no session started anywhere else touches them.
+**Choose which Claude accounts work on which projects.** Keep a client's accounts on the client's code, your employer's account on your employer's work, or one account for one project. Put the accounts in a pool and fence it to the project's directories: every Claude session started in them, in any folder beneath, or in a worktree of a repository in them, uses that pool's accounts and nothing else, and no session started anywhere else touches them.
 
 Within a pool, everything above holds across its accounts: limits replayed, sessions kept warm, its own primary to start on. When they're all out, its work waits for a reset rather than spill onto another pool's accounts. Sessions started outside every fence use the pool you leave unfenced, where your accounts are to begin with. Each pool has its own screens and records, and nothing of one shows on another's.
 

@@ -2231,7 +2231,7 @@ type harness struct {
 // newHarness returns a harness whose launches start from environ, for a user
 // whose home is homeDir, in a working directory not known unless a test gives
 // one. No path's links are resolved, as none of those it's given is there,
-// unless a test resolves them itself.
+// nor any directory found in a worktree, unless a test does so itself.
 func newHarness(t *testing.T, environ ...string) *harness {
 	t.Helper()
 	dir := t.TempDir()

@@ -638,8 +638,62 @@ pool for its whole life:
 - **The start directory decides.** A session started in `~/Code` that later works in `~/Code/acme`
   stays in the unfenced pool, as Claude Code itself files a session by the directory it started in.
   A resumed session is started afresh, so it gets the pool its directory is in now, if any.
-- A git worktree made outside a pool's directories is outside the pool. Claude Code's own worktrees,
-  under the project's `.claude/worktrees`, stay inside it.
+- **A linked git worktree is in its repository's pool,** wherever it lives (the owner's call, 14
+  November 2026), so `git worktree add ../acme-feature`, run in a fenced `~/Code/acme`, makes a
+  worktree that's still Acme's. `run` maps the start directory onto the repository's main
+  checkout, the same path below the main checkout as below the worktree's root, and the mapped
+  directory's pool comes from the rule above, links resolved both sides; so a fence on a
+  repository's subfolder holds that subfolder in every worktree of it too. The main checkout is
+  found from the worktree's `.git` file and its git directory's `commondir`, running no git, each
+  path read as git reads it: one written relative, as git writes every submodule's `.git`, from
+  the real path of the directory holding it, every link resolved.
+  - **Every `.git` up from the start directory is read,** to the filesystem's root, not the
+    nearest alone, so what has a `.git` of its own inside a worktree, a submodule checked out in
+    it, a clone nested in it, or another repository's worktree, is placed by the worktree around
+    it too. A `.git` that isn't a linked worktree's, a main checkout's directory, or a file whose
+    git directory has no `commondir`, as a submodule's or a separate git directory's checkout, is
+    passed over. Within several, the nearest is the start directory's repository, and its places
+    in the repositories of those around it count as where it lies, so a worktree nested in a
+    fenced repository's worktree is placed as it would be nested in the main checkout, and the
+    refusal names the worktree it lies in a fence through: `~/wt/x/web lies in pool Acme, through
+    the worktree ~/wt/x, but …`.
+  - **What changes outside every linked worktree:** a main checkout, and a submodule or a clone
+    in one, are placed by the rule above alone, as before. But while a pool is fenced, wherever a
+    `.git` up from the start directory leads to no repository that can be found, as one left in a
+    home folder whose git directory has gone, everything below it refuses, as described below.
+  - **A bare repository's worktree** is in the pool where the bare repository lies, its own
+    directory standing for every place in the worktree, so a bare clone's worktrees, made beside
+    it in `.bare` or anywhere else, are its pool's. A repository is bare where its common
+    directory, not named `.git`, sets `bare = true` under `[core]` as git reads it: in its config,
+    or, where that turns on `extensions.worktreeConfig`, in its `config.worktree`, where git's
+    sparse checkout moves it, the later file winning and the last setting in each; it isn't where
+    either file, being there, can't be read, or runs past 1 MiB, rather than read in part. A bare
+    repository outside every fence with worktrees inside one refuses them, by the rule below;
+    where the start directory itself lies in that one fence, it says how to start there: `…, but
+    in its repository it's at ~/repos/app.git, in pool Default: add that bare repository to pool
+    Client's directories`, mended by giving `pool edit` the pool's directories and the bare
+    repository's together, since `--dirs` replaces them, as
+    `switchboard pool edit r2d4 --dirs ~/Code/client --dirs ~/repos/app.git`.
+  - Where the start directory itself and its place in its repository both have a pool, the
+    unfenced pool counting as no fence, they must agree. A worktree outside every fence is in its
+    repository's pool, and Claude Code's own worktrees, under the repository's `.claude/worktrees`,
+    are inside its fence both ways. A worktree inside one fence of a repository in another, or
+    inside a fence of a repository outside every fence, is refused, naming both, as the owner chose
+    to refuse these rather than guess: `switchboard: ~/wt/x is in pool Acme, but in its repository
+    it's at ~/Code/web, in pool Default — not starting claude`, or `in no pool` where every pool
+    is fenced. Where the start directory as given and with its links resolved are in different
+    worktrees, it names the place whose fence decides.
+  - **Where a linked worktree around the start directory can't be placed,** as given or with its
+    links resolved, and a pool is fenced, `run` refuses, as for a start directory that can't be
+    read, as it may be a fenced repository's worktree. It says which of two it is, and where:
+    - its repository can't be found: its `.git` can't be read, or names a git directory that's
+      gone, or its git directory's `commondir` can't be read, is empty or names no directory:
+      `can't tell which pool ~/wt/x is in: its .git file at ~/wt/x leads to no repository that can
+      be found`, mended with `git worktree repair`;
+    - it's a submodule's or a separate git directory's worktree: its common directory, not named
+      `.git`, is of a repository that isn't bare: `can't tell which pool ~/wt/x is in: its
+      worktree at ~/wt/x is a submodule's or a separate git directory's, which can't be placed`,
+      worked in from the submodule's or the separate git directory's checkout instead.
 
 ### Launching in a pool
 
@@ -691,10 +745,13 @@ pool for its whole life:
   the config read, a config with pools goes as with the router down, direct on the pool's tokens
   or stopped, and refuses where none is usable, rather than start unaided, but for a config of one
   pool, unfenced, as above.
-- **Never on Claude Code's own login inside a fence.** A start directory inside a pool's directories
-  refuses rather than start unaided, and so does `--direct`, as both would go out on whatever
+- **Never on Claude Code's own login inside a fence.** A start directory inside a pool's
+  directories, or in a worktree of a repository inside them, as Which pool a session is in places
+  it, refuses rather than start unaided, and so does `--direct`, as both would go out on whatever
   account Claude Code is signed into: `switchboard: ~/Code/acme is in pool Acme, where claude never
-  starts on its own login — not starting claude`. Claude Code's local subcommands, which look after
+  starts on its own login — not starting claude`, and from a worktree outside the fence, `in its
+  repository, ~/Code/acme-feature is at ~/Code/acme, in pool Acme, where claude never starts on
+  its own login`. Claude Code's local subcommands, which look after
   Claude Code rather than run a session, start on its own login wherever they're asked for. Where a
   pool is fenced, an unaided start within a session passes the session's routing on only where the
   session's pool, as its `SWITCHBOARD_POOL` names it, is the start directory's, else it drops the
@@ -10827,10 +10884,10 @@ verbs).
   (unverified).
 - **No shell integration:** switchboard defines no shell function or launcher. Per-account
   launchers are the user's own aliases for `switchboard run --account <id> --`.
-- **In a pool:** with pools, the session is in the pool of its start directory, and every account
-  below is that pool's alone: its primary, its first with a usable token, and `--account`'s, which
-  must be in it. Launching in a pool says what `run` adds and refuses for the pools, and what's
-  said below holds within them.
+- **In a pool:** with pools, the session is in the pool of its start directory, as Which pool a
+  session is in finds it, and every account below is that pool's alone: its primary, its first with
+  a usable token, and `--account`'s, which must be in it. Launching in a pool says what `run` adds
+  and refuses for the pools, and what's said below holds within them.
 - **Asking the router:** `run` gives the router 5 seconds, from its first ask, to answer `GET
   /health`: a slow router isn't a dead one, and on a machine far behind a live router takes
   seconds to answer. A router that isn't running, nothing listening on its socket, is asked again

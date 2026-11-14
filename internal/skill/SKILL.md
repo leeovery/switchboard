@@ -4,7 +4,7 @@ description: Switchboard spreads Claude Code sessions across several Claude subs
 ---
 
 <!-- switchboard writes this file, and replaces it, edits and all, with each new version. -->
-<!-- switchboard skill version: 18 -->
+<!-- switchboard skill version: 19 -->
 
 `claude` runs through switchboard, a local router that spreads Claude Code sessions across several
 Claude subscriptions, which it calls accounts.
@@ -16,8 +16,9 @@ gives each account's `id` and `label`, and `sessions` and `history` a `label` be
 id; `requests` and `events` give accounts by their ids alone, as the files keep them, and a line's
 pool by its id with its `pool_label`. The accounts aren't numbered.
 
-The accounts can be split into pools. A session started inside a pool's directories is routed
-across that pool's accounts alone, and one started outside every fence across the unfenced pool's.
+The accounts can be split into pools. A session started inside a pool's directories, or in a git
+worktree of a repository inside them, is routed across that pool's accounts alone, and one started
+outside every fence across the unfenced pool's.
 A session started through switchboard has its pool's id in `$SWITCHBOARD_POOL`: pass
 `--pool "$SWITCHBOARD_POOL"` to every `status`, `usage`, `sessions`, `requests`, `history`,
 `events` and `pin`, so you read and act on your own pool, named explicitly. It's empty with a

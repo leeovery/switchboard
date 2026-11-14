@@ -633,8 +633,26 @@ pool for its whole life:
 - The start directory decides. A session started in `~/Code` that later works in `~/Code/client`
   stays in the unfenced pool, as Claude Code itself files a session by the directory it started
   in. A resumed session starts afresh, in the pool its directory is in now.
-- A git worktree made outside a pool's directories is outside the pool. Claude Code's own
-  worktrees, under the project's `.claude/worktrees`, stay inside it.
+- A git worktree is in its repository's pool, wherever it lives: `git worktree add
+  ../client-feature`, run in a fenced `~/Code/client`, makes a worktree that's still Client's.
+  The directory is taken to the same place in the repository's main checkout, so a fence on a
+  repository's subfolder holds that subfolder in every worktree of it too. Claude Code's own
+  worktrees, under the repository's `.claude/worktrees`, stay inside it. A submodule or a clone
+  checked out inside a worktree goes by the worktree, and a bare repository's worktree by where
+  the bare repository lies, so a bare clone's worktrees are its pool's.
+- Where a worktree lies inside one pool's fence and its repository in another pool, or outside
+  every fence, it starts nothing, naming both, rather than guess. A bare repository kept outside
+  every fence refuses its worktrees inside one so: add the bare repository's directory to that
+  pool's directories, giving `pool edit --dirs` the pool's and the bare repository's together,
+  since it replaces them, as
+  `switchboard pool edit q7mt --dirs ~/Code/client --dirs ~/repos/app.git`.
+- While a pool is fenced, it starts nothing in a worktree it can't place, as it may be a fenced
+  repository's, saying where the worktree is and which it is: one whose repository can't be
+  found, as when its git directory has gone (`git worktree repair` mends it); or a submodule's
+  or a separate git directory's worktree (work in their checkout instead). Such a `.git` refuses
+  everything below it, even a main checkout, as a `.git` file left in a home folder whose git
+  directory has gone would. Outside these, a main checkout and a submodule of one are placed as
+  before.
 
 The commands never choose a pool by the directory you run them in: they read the only pool, else
 the unfenced one, else ask for `--pool` (see [Reading a pool](commands.md#reading-a-pool)).
