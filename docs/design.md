@@ -8936,27 +8936,30 @@ from the first day a router that has it runs, so nothing before then is in it.
     doesn't stand. So once the noted first pool is removed, and the config's first takes over, a
     split session some of whose lines named none holds no state of the new first's: every read of it
     walks back, exactly, to a state of one pool's work or to none, reading the days since from their
-    lines, as slow as a read whole, until the router's next day's build, unable to rest it there,
-    reads it whole once and folds it apart as the new first tells its lines. A digest of version 3
-    built before entries held states apart heals the same way, which is why the envelope stayed at
-    version 3. A state is one fold of every line it rests on, its story, its page's turns, tallies
-    and points, which can't be told apart by pool, so a session resumed in another pool once its
-    directory's fence changes, as several are when a client's directory is first fenced into a pool
-    of its own, or whose lines naming none sit beside another pool's than the first, is folded once
-    in each. One the read wasn't asked for, found among today's sessions by its requests in another
-    pool, with none of the pool's lines after its state, is passed over unread: with no request in
-    the pool today, and not running there, the List never lists it, so the pool it left doesn't
-    restore its state at every read for as long as it runs. One asked for, as its page, rests on its
-    state there. A reader taking every line a read reads, as a page's points take every account's
-    answers, is handed every pool's, as every pool's requests on an account climb its windows, as
-    the builder takes them, and a line of another pool as of no session, so a page's points take as
-    the session's own its requests in the pool alone, as the builder's fold in the pool and the
-    store's read of the tail hand them too. So a pool's every reader through digests shows exactly
-    what the pool's lines read raw show: tests hold the List, each page and the store to them, a
-    session of the pool alone, of none of it, split between pools, directly and through lines naming
-    none, and with a line filed late in either pool, among them, a split session's days before its
-    state in the pool never read; and a split session's page in a pool, opened and held across the
-    tail's feeds, to that of a ledger whose session made its other pool's requests under another id.
+    lines, as slow as a read whole. A later day it runs on heals it: that day's build, unable to
+    rest it there, reads it whole once and folds it apart as the new first tells its lines. One that
+    never runs again, as one that had ended before, isn't healed: its page in a pool walks back so
+    each time it's opened, for as long as its days are kept. A digest of version 3 built before
+    entries held states apart heals the same way, and alike only where its session runs again, which
+    is why the envelope stayed at version 3. A state is one fold of every line it rests on, its
+    story, its page's turns, tallies and points, which can't be told apart by pool, so a session
+    resumed in another pool once its directory's fence changes, as several are when a client's
+    directory is first fenced into a pool of its own, or whose lines naming none sit beside another
+    pool's than the first, is folded once in each. One the read wasn't asked for, found among
+    today's sessions by its requests in another pool, with none of the pool's lines after its state,
+    is passed over unread: with no request in the pool today, and not running there, the List never
+    lists it, so the pool it left doesn't restore its state at every read for as long as it runs.
+    One asked for, as its page, rests on its state there. A reader taking every line a read reads,
+    as a page's points take every account's answers, is handed every pool's, as every pool's
+    requests on an account climb its windows, as the builder takes them, and a line of another pool
+    as of no session, so a page's points take as the session's own its requests in the pool alone,
+    as the builder's fold in the pool and the store's read of the tail hand them too. So a pool's
+    every reader through digests shows exactly what the pool's lines read raw show: tests hold the
+    List, each page and the store to them, a session of the pool alone, of none of it, split between
+    pools, directly and through lines naming none, and with a line filed late in either pool, among
+    them, a split session's days before its state in the pool never read; and a split session's page
+    in a pool, opened and held across the tail's feeds, to that of a ledger whose session made its
+    other pool's requests under another id.
   - **What it costs,** accepted (settled in the plan, 18 October 2026): the first pass after a start
     reads every digest kept, to judge it; a router stopping waits for a build's read of a heavy day,
     a second at most; and a prune of the ledger's files, once a day, waits for a build's reads, as

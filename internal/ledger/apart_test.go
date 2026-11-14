@@ -378,14 +378,15 @@ func TestADaysBuildAsksTheFirstPoolOfASplitSessionNamingNoneAlone(t *testing.T) 
 	}
 	w.file(0, askedBy("3", "two", on(0, 9, 0)))
 	w.summarise()
+	asked.Store(0)
 
 	w.digestEnded()
 
 	if got, want := w.apartIn(0)["two"], []apartState{
 		{pools: []string{"", first}, requests: []string{"1", "3"}, on: dayOf(-2), part: []string{"3"}},
 		{pools: []string{acme}, requests: []string{"2"}, on: dayOf(-2), part: []string{}},
-	}; asked.Load() == 0 || !reflect.DeepEqual(got, want) {
-		t.Errorf("once two named none, the build asked the first pool %d times, two's entry of %s holding the states apart\n%+v\nwant it asked, and\n%+v", asked.Load(), dayOf(0), got, want)
+	}; asked.Load() != 1 || !reflect.DeepEqual(got, want) {
+		t.Errorf("once two named none, the build asked the first pool %d times, two's entry of %s holding the states apart\n%+v\nwant it asked once, and\n%+v", asked.Load(), dayOf(0), got, want)
 	}
 }
 

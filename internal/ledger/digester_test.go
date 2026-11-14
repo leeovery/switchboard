@@ -28,12 +28,13 @@ import (
 // its part as partFrom gives it; first doing what during does, where it's
 // set, failing where that fails; giving none of the session refused, where
 // it's handed resting on a base, as a Digester gives none of one whose base
-// it can't restore, nor of the one refusedIn refuses in its pool; and noting each day it's handed, in the order handed, as
-// handedDay tells it. Each day's side it builds as sideOf gives it, and its
-// rows as chunksOf gives them, doing what taking does with each line's
-// request it's handed, where it's set, and what building does as it builds
-// them, failing where that fails; and noting each side built, in the order
-// built, as builtSide tells it.
+// it can't restore, nor of the one refusedIn refuses in its pool; and
+// noting each day it's handed, in the order handed, as handedDay tells it.
+// Each day's side it builds as sideOf gives it, and its rows as chunksOf
+// gives them, doing what taking does with each line's request it's handed,
+// where it's set, and what building does as it builds them, failing where
+// that fails; and noting each side built, in the order built, as builtSide
+// tells it.
 type folding struct {
 	mu        sync.Mutex
 	during    func(ctx context.Context, day ledger.DigestDay) error
