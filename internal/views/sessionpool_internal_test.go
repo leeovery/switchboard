@@ -23,13 +23,13 @@ func (b *readBack) Session(string, ...ledger.Span) iter.Seq[ledger.Held] {
 
 // heldIn is a line read back of the pool with the given id, "" naming none.
 func heldIn(pool string) ledger.Held {
-	return ledger.Held{Line: ledger.Line{Pool: pool}}
+	return ledger.Held{Pool: pool}
 }
 
 // restingOn is a session resting on a state folded from the pools given, as
 // a digest's entry stores them, none of its lines after it unless given.
 func restingOn(pools []string, after ...string) ledger.SessionFrom {
-	s := ledger.SessionFrom{Base: &ledger.SessionBase{Date: "2026-10-06", DigestEntry: ledger.DigestEntry{Pools: pools}}}
+	s := ledger.SessionFrom{Base: &ledger.SessionBase{Date: "2026-10-06", Pools: pools}}
 	for _, pool := range after {
 		s.Lines = append(s.Lines, ledger.Line{Pool: pool})
 	}
