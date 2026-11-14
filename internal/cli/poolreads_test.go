@@ -146,7 +146,9 @@ label = "Acme"
 // newest one was routed in, as of a session: one an import brought, whose
 // pool the record doesn't keep, its requests in the other Mac's pool; and
 // one removed before pools, its requests in no pool, so the first's,
-// Default's, though Acme is the pool the verbs act on without --pool.
+// Default's, though Acme is the pool the verbs act on without --pool. Each
+// has an older request in another pool, never read beside them. One with no
+// requests has none read, in no pool named.
 func TestRequestsOfAnAccountNoPoolPlacesAreReadInThePoolItsNewestWasRoutedIn(t *testing.T) {
 	deps := pooledDeps(t, false)
 	path, err := config.Path(deps.Getenv, deps.HomeDir)
@@ -155,7 +157,8 @@ func TestRequestsOfAnAccountNoPoolPlacesAreReadInThePoolItsNewestWasRoutedIn(t *
 	}
 	writeStateFile(t, filepath.Dir(path), filepath.Base(path), []byte(defaultFencedConfig))
 	err = identity.NewFile(stateDir(t, deps)).Update(func(r *identity.Record) error {
-		r.Accounts = append(r.Accounts, identity.Entry{ID: "other", Added: testNow}, identity.Entry{ID: "gone", Label: "Gone", Added: testNow, Removed: testNow})
+		r.Accounts = append(r.Accounts, identity.Entry{ID: "other", Added: testNow}, identity.Entry{ID: "gone", Label: "Gone", Added: testNow, Removed: testNow},
+			identity.Entry{ID: "idle", Added: testNow})
 		r.Pools = append(r.Pools, identity.PoolEntry{ID: "z5k1", Added: testNow, Written: identity.PoolWritten{Label: "Elsewhere"}})
 		return nil
 	})
@@ -163,6 +166,8 @@ func TestRequestsOfAnAccountNoPoolPlacesAreReadInThePoolItsNewestWasRoutedIn(t *
 		t.Fatal(err)
 	}
 	appendRequests(t, deps,
+		ledger.Line{At: october(7, 7, 0, 0), Request: "x0", Session: sessionA, Account: "other", Pool: "b2n8"},
+		ledger.Line{At: october(7, 7, 30, 0), Request: "o0", Session: sessionB, Account: "gone", Pool: "q7mt"},
 		ledger.Line{At: october(7, 8, 0, 0), Request: "x1", Session: sessionC, Account: "other", Pool: "z5k1"},
 		ledger.Line{At: october(7, 8, 30, 0), Request: "o1", Session: sessionC, Account: "gone"},
 	)
@@ -172,11 +177,35 @@ func TestRequestsOfAnAccountNoPoolPlacesAreReadInThePoolItsNewestWasRoutedIn(t *
 	}{
 		{account: "other", want: []string{"x1"}},
 		{account: "gone", want: []string{"o1"}},
+		{account: "idle", want: nil},
 	} {
 		got := run(t, deps, "requests", "--account", tt.account, "--json")
 		if requests := fieldsOf(t, got, "request"); got.code != 0 || !slices.Equal(requests, tt.want) {
 			t.Errorf("switchboard requests --account %s --json printed %q (%+v), want %q", tt.account, requests, got, tt.want)
 		}
+	}
+	got := run(t, deps, "requests", "--account", "idle", "--pretty")
+	if got.code != 0 || strings.HasPrefix(got.stdout, "pool ") {
+		t.Errorf("switchboard requests --account idle --pretty = %+v, want it to name no pool, as it read none", got)
+	}
+}
+
+// requests --account without --pool, of an account removed from a pool the
+// accounts record no longer keeps, can't read it: refused, saying so, never
+// asking for a --pool that wasn't given.
+func TestRequestsOfAnAccountInAPoolNothingKeepsAreRefusedSayingSo(t *testing.T) {
+	deps := pooledDeps(t, false)
+	err := identity.NewFile(stateDir(t, deps)).Update(func(r *identity.Record) error {
+		r.Accounts = append(r.Accounts, identity.Entry{ID: "left", Added: testNow, Removed: testNow, Pool: "x9z9"})
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	const want = `can't tell which pool to read: account left is in pool "x9z9", which neither the config nor the accounts record keeps`
+	got := run(t, deps, "requests", "--account", "left", "--json")
+	if got.code == 0 || got.stdout != "" || !strings.Contains(got.stderr, want) || strings.Contains(got.stderr, "--pool") {
+		t.Errorf("switchboard requests --account left --json = %+v, want it refused, saying %q", got, want)
 	}
 }
 

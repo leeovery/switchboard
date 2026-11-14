@@ -10,6 +10,7 @@ import (
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/events"
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/readings"
 	"github.com/leeovery/switchboard/internal/redact"
 	"github.com/leeovery/switchboard/internal/router"
@@ -18,10 +19,13 @@ import (
 )
 
 // What a verb reads of the recorded files is read here alone, through the
-// pool's read, filedPool's, and the readers a verb reads them by are made
-// here, or in readers.go for the verbs' and the dashboard's together: the
-// request ledger's lines, days and sessions, the readings history's
-// windows, and the router's events, listed and followed. So no verb reads
+// pool's read, filedPool's: the request ledger's lines, days and sessions,
+// the readings history's windows, and the router's events, listed and
+// followed. The readers it reads them by are made here, but for those
+// readers.go makes for the verbs and the dashboard together
+// (app.followerIn, app.stateReadersKnowing), and the follower of the
+// events, eventsfollower.go's; the dashboard's ledger for a turn is made in
+// dashboardpool.go, by shownPools.ledgerOn. So no verb reads
 // the whole ledger, or every day of it, once its pool is known, and a verb
 // given a session or an account, and no pool, reads the pool it's in, never
 // every pool's work together. poolfiles_guard_test.go holds it.
@@ -80,6 +84,15 @@ func (a *app) eventsHeld(p filedPool, dir string, from, to time.Time, today even
 	return p.read.Events(events.NewReader(dir, a.Now, logger).HeldTailing(from, to, today))
 }
 
+// eventsFollowing returns a follower of the router's events in the state
+// directory dir, by the commands' clock, from the start of the local day
+// with the given date, today's, as newEventsFollower has it, and that day as
+// the listing reads it through the follower, for eventsHeld to read.
+func (a *app) eventsFollowing(dir, today string) (*eventsFollower, events.Tailed) {
+	f := newEventsFollower(events.Files(ledger.Dir(dir), logger), today, a.Now)
+	return f, f.listing()
+}
+
 // followed hands print each event of the pool, as its read's ShowsHeld has
 // it, that f finds filed after those it began from, every interval given,
 // as f's run does, until ctx ends or print fails.
@@ -135,27 +148,33 @@ func (a *app) linesIn(cfg *config.Config, dir string, held []ledger.Held) ([]led
 // accountIn returns the pool the account with the given id is in now, as
 // status.AccountPools places it, of cfg's accounts, its pools as they stand,
 // or of the accounts record in the state directory dir, of one removed, as
-// readPool has it, failing as it does; and whether either places it: the
-// zero pool where neither does, as of an account an import brought, or one
-// removed before pools, for the pool its lines tell, as linesIn has it.
+// poolTold has it; and whether either places it: the zero pool where
+// neither does, as of an account an import brought, or one removed before
+// pools, for the pool its lines tell, as linesIn has it.
 func (a *app) accountIn(cfg *config.Config, dir, account string) (filedPool, bool, error) {
 	in, placed := status.AccountPools(cfg.Accounts, recordIn(dir))(account)
 	if !placed {
 		return filedPool{}, false, nil
 	}
-	pool, err := a.readPool(cfg, dir, in)
+	pool, err := a.poolTold(cfg, dir, in, "account "+prose.Clean(redact.Text(account))+" is in")
 	return pool, true, err
 }
 
-// poolNow returns the pool with the id in, as readPool has it of cfg, of
-// the files in the state directory dir, that the newest of the lines of a
-// session or an account given, and no pool, recorded: failing, where
-// neither the config nor the accounts record keeps it, saying so, as no
-// --pool was given to name another.
+// poolNow returns the pool with the id in that the newest of the lines of
+// a session or an account given, and no pool, recorded, as poolTold has it.
 func (a *app) poolNow(cfg *config.Config, dir, in string) (filedPool, error) {
+	return a.poolTold(cfg, dir, in, "the newest request names")
+}
+
+// poolTold returns the pool with the id in, as readPool has it of cfg, of
+// the files in the state directory dir, that a verb given a session or an
+// account, and no pool, reads: failing, where neither the config nor the
+// accounts record keeps it, saying what told it, as told says, never
+// asking for a --pool that wasn't given.
+func (a *app) poolTold(cfg *config.Config, dir, in, told string) (filedPool, error) {
 	pool, err := a.readPool(cfg, dir, in)
 	if _, unknown := errors.AsType[router.PoolNeeded](err); unknown {
-		return filedPool{}, fmt.Errorf("can't tell which pool to read: the newest request names pool %q, which neither the config nor the accounts record keeps", redact.Text(in))
+		return filedPool{}, fmt.Errorf("can't tell which pool to read: %s pool %q, which neither the config nor the accounts record keeps", told, redact.Text(in))
 	}
 	return pool, err
 }

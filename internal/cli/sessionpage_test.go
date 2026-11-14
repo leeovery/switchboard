@@ -164,6 +164,20 @@ func TestASessionsPageJSONHoldsItsShape(t *testing.T) {
 	}
 }
 
+// With one pool, a session's page names it in its JSON, as every verb's
+// JSON gives a pool, but not in its text, as no verb's text names the pool
+// till there's a second.
+func TestASessionsPageOfOnePoolNamesItInItsJSONAlone(t *testing.T) {
+	deps := pageDeps(t, true)
+	got := run(t, deps, "sessions", gone, "--json")
+	if page := jsonObject(t, got.stdout); got.code != 0 || page["pool"] != "b2n8" || page["pool_label"] != "b2n8" {
+		t.Errorf("switchboard sessions %s --json gave the pool %v labelled %v (%+v), want b2n8, the one pool, labelled by its id", gone, page["pool"], page["pool_label"], got)
+	}
+	if got := run(t, deps, "sessions", gone, "--pretty"); got.code != 0 || !strings.HasPrefix(got.stdout, "session ") {
+		t.Errorf("switchboard sessions %s --pretty printed\n%s\nwant it unheaded, starting at the session", gone, got.stdout)
+	}
+}
+
 func TestSessionsFindsASessionOfAnEarlierDayByItsWholeIdAlone(t *testing.T) {
 	deps := pageDeps(t, true)
 	const want = `session 3c4d5e6f  ~/Code/old

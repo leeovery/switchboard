@@ -23,10 +23,15 @@ var poolFilesAllowed = []string{
 	// through poolfiles.go.
 	"internal/cli/readers.go:app.followerIn",
 	"internal/cli/readers.go:app.stateReadersKnowing",
+	// The router's events' follower, which reads their files itself: a verb
+	// makes and follows one through poolfiles.go.
+	"internal/cli/eventsfollower.go",
 	// The dashboard's ledger, its events and its readers, handed to the
 	// watch, which reads them through the pool it shows, its PoolRead.
-	"internal/cli/dashboard.go:app.dashboard",
 	"internal/cli/dashboardpool.go:shownPools.ledgerOn",
+	"internal/cli/dashboardpool.go:shownPools.shownFiled",
+	"internal/cli/dashboardpool.go:shownPools.turn",
+	"internal/cli/readers.go:app.dashboardPools",
 	"internal/cli/readers.go:app.readers",
 }
 
@@ -44,11 +49,20 @@ const poolFilesAllowedFix = "remove it from poolFilesAllowed in internal/cli/poo
 var rawReads = []string{
 	"cli.app.followerIn",
 	"cli.app.ledgerReader",
+	"cli.app.readers",
+	"cli.eventsFollower.listing",
+	"cli.eventsFollower.poll",
+	"cli.eventsFollower.readOn",
 	"cli.eventsFollower.run",
 	"cli.filedPool.read",
+	"cli.newEventsFollower",
+	"cli.shownPools.events",
+	"cli.shownPools.ledgerOn",
 	"cli.stateReaders.events",
 	"cli.stateReaders.ledger",
 	"cli.stateReaders.readings",
+	"dayfile.NewTail",
+	"events.Files",
 	"events.NewReader",
 	"ledger.NewFollower",
 	"ledger.NewReader",
@@ -92,6 +106,15 @@ func TestThePoolFilesGuardFindsWhatItGuardsAgainst(t *testing.T) {
 		"internal/cli/dashboard.go:kept",
 	})
 	want := []string{
+		"internal/cli/follow.go:9: " + rawReadSays("cli.eventsFollower.listing"),
+		"internal/cli/follow.go:10: " + rawReadSays("cli.eventsFollower.poll"),
+		"internal/cli/follow.go:11: " + rawReadSays("cli.eventsFollower.readOn"),
+		"internal/cli/follow.go:12: " + rawReadSays("cli.newEventsFollower"),
+		"internal/cli/follow.go:12: " + rawReadSays("events.Files"),
+		"internal/cli/follow.go:13: " + rawReadSays("dayfile.NewTail"),
+		"internal/cli/follow.go:14: " + rawReadSays("cli.shownPools.events"),
+		"internal/cli/follow.go:15: " + rawReadSays("cli.shownPools.ledgerOn"),
+		"internal/cli/follow.go:16: " + rawReadSays("cli.app.readers"),
 		"internal/cli/verbs.go:26: " + rawReadSays("ledger.Reader.Lines"),
 		"internal/cli/verbs.go:30: " + rawReadSays("cli.filedPool.read"),
 		"internal/cli/verbs.go:30: " + rawReadSays("cli.stateReaders.ledger"),
@@ -116,8 +139,10 @@ func TestThePoolFilesGuardFindsWhatItGuardsAgainst(t *testing.T) {
 // them, as the rule lets it; its verbs.go reads lines, a pool's read of a
 // ledger, and days raw, hands a reader it made to a view as a value, makes
 // the ledger's readers, the events' and the readings', reads the readers'
-// events and readings, and follows the events raw; and its dashboard.go
-// hands the ledger on, allowed, and reads nothing, allowed all the same.
+// events and readings, and follows the events raw; its follow.go reads the
+// events' follower and its files raw, makes one, and reads the dashboard's
+// events, ledger and readers; and its dashboard.go hands the ledger on,
+// allowed, and reads nothing, allowed all the same.
 var poolFilesFixture = map[string]string{
 	"go.mod": "module example.com/fixture\n",
 	"internal/ledger/ledger.go": `package ledger
@@ -133,11 +158,23 @@ type Follower struct{}
 
 func NewFollower() *Follower { return nil }
 `,
+	"internal/dayfile/dayfile.go": `package dayfile
+
+type Files struct{}
+
+type Tail struct{}
+
+func NewTail() *Tail { return nil }
+`,
 	"internal/events/events.go": `package events
+
+import "example.com/fixture/internal/dayfile"
 
 type Reader struct{}
 
 func NewReader() *Reader { return nil }
+
+func Files() *dayfile.Files { return nil }
 `,
 	"internal/readings/readings.go": `package readings
 
@@ -160,6 +197,7 @@ func NewHistory(HistoryInput) []string { return nil }
 	"internal/cli/poolfiles.go": `package cli
 
 import (
+	"example.com/fixture/internal/dayfile"
 	"example.com/fixture/internal/events"
 	"example.com/fixture/internal/ledger"
 	"example.com/fixture/internal/readings"
@@ -167,6 +205,12 @@ import (
 )
 
 type app struct{}
+
+type shownPools struct{ events *events.Reader }
+
+func (shownPools) ledgerOn() *ledger.Follower { return ledger.NewFollower() }
+
+func (*app) readers() stateReaders { return stateReaders{} }
 
 type filedPool struct{ read views.PoolRead }
 
@@ -179,6 +223,22 @@ type stateReaders struct {
 type eventsFollower struct{}
 
 func (*eventsFollower) run() {}
+
+func (*eventsFollower) listing() *dayfile.Tail { return dayfile.NewTail() }
+
+func (*eventsFollower) poll() {}
+
+func (*eventsFollower) readOn() {}
+
+func newEventsFollower(*dayfile.Files) *eventsFollower { return nil }
+
+func eventsFollowing(s shownPools, a *app) *eventsFollower {
+	f := newEventsFollower(events.Files())
+	_, _, _, _ = f.listing(), s.events, s.ledgerOn(), a.readers()
+	f.poll()
+	f.readOn()
+	return f
+}
 
 func (*app) ledgerReader() *ledger.Reader { return ledger.NewReader() }
 
@@ -248,6 +308,24 @@ func rawReadings(s stateReaders) (*readings.Reader, *readings.Reader) {
 
 func rawFollowed(f *eventsFollower) {
 	f.run()
+}
+`,
+	"internal/cli/follow.go": `package cli
+
+import (
+	"example.com/fixture/internal/dayfile"
+	"example.com/fixture/internal/events"
+)
+
+func rawFollowing(f *eventsFollower, s shownPools, a *app) {
+	_ = f.listing()
+	f.poll()
+	f.readOn()
+	_ = newEventsFollower(events.Files())
+	_ = dayfile.NewTail()
+	_ = s.events
+	_ = s.ledgerOn()
+	_ = a.readers()
 }
 `,
 	"internal/cli/dashboard.go": `package cli
