@@ -2,7 +2,7 @@
 
 ● healthy  ·  auto  ·  6 sessions  ·  new sessions → ▲ side
 
-ACCOUNTS    Compare  Detail  [ ]  ─────────────────────────────────────────────────────────────────────────────────────────  < this week >
+ACCOUNTS    Compare  Detail  Tokens  [ ]  ─────────────────────────────────────────────────────────────────────────────────  < this week >
 
  all accounts       │   work   ● at its cap · new sessions go elsewhere
                     │
