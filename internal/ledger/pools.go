@@ -214,7 +214,9 @@ func RecordedPools(stored []string) []string {
 // was routed in. first is the id of the first pool, once the move to pools
 // is done, "" till then: a request naming no pool is the first's, as
 // FirstPool says, and before, the pool of none. It's the one rule of which
-// pool a request is of, whether read of its line or of what's built of it.
+// pool a request is of, whether read of its line or of what's built of it,
+// and of a router's event that records its pool, as status's InPool reads
+// one.
 func PoolRecorded(recorded, first string) string {
 	return cmp.Or(recorded, first)
 }

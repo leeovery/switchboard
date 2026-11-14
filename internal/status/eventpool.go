@@ -5,6 +5,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/identity"
+	"github.com/leeovery/switchboard/internal/ledger"
 )
 
 // Befell returns the account the event befell, as the pool it's of goes by:
@@ -31,7 +32,7 @@ func (e Event) Befell() string {
 //     an account none places, in every pool.
 func (e Event) InPool(pool, first string, poolOf func(account string) (string, bool)) bool {
 	if KindNamesItsPool(e.Kind) {
-		return config.SamePool(cmp.Or(e.Pool, first), pool)
+		return config.SamePool(ledger.PoolRecorded(e.Pool, first), pool)
 	}
 	account := e.Befell()
 	return account == "" || AccountIn(account, pool, poolOf)
