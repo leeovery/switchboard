@@ -40,14 +40,14 @@ func TestALaneDrawsEachColumnAsItsAccountStoodThen(t *testing.T) {
 		{name: "nothing known, left blank", look: nord, cell: views.CellUnknown, glyph: " "},
 		{name: "with room", look: nord, cell: views.CellRoom, glyph: "█", token: theme.VizRamp1},
 		{name: "running out at its pace", look: nord, cell: views.CellRunsOut, glyph: "█", token: theme.AccentAttention},
-		{name: "at its cap", look: nord, cell: views.CellCapped, glyph: "─", token: theme.AccentAttention},
-		{name: "at its limit", look: nord, cell: views.CellLimited, glyph: "─", token: theme.StateDestructive},
-		{name: "its token refused", look: nord, cell: views.CellRefused, glyph: "─", token: theme.StateDestructive},
-		{name: "without a token", look: nord, cell: views.CellTokenless, glyph: "─", token: theme.StateDestructive},
+		{name: "at its cap", look: nord, cell: views.CellCapped, glyph: "━", token: theme.AccentAttention},
+		{name: "at its limit", look: nord, cell: views.CellLimited, glyph: "━", token: theme.StateDestructive},
+		{name: "its token refused", look: nord, cell: views.CellRefused, glyph: "━", token: theme.StateDestructive},
+		{name: "without a token", look: nord, cell: views.CellTokenless, glyph: "━", token: theme.StateDestructive},
 		{name: "running out, without colour, shaded", look: plain, cell: views.CellRunsOut, glyph: "▒", token: theme.AccentAttention},
-		{name: "at its cap, without colour, plain", look: plain, cell: views.CellCapped, glyph: "─", token: theme.AccentAttention},
-		{name: "at its limit, without colour, bold", look: plain, cell: views.CellLimited, glyph: "─", token: theme.StateDestructive, bold: true},
-		{name: "its token refused, without colour, bold", look: plain, cell: views.CellRefused, glyph: "─", token: theme.StateDestructive, bold: true},
+		{name: "at its cap, without colour, plain", look: plain, cell: views.CellCapped, glyph: "━", token: theme.AccentAttention},
+		{name: "at its limit, without colour, bold", look: plain, cell: views.CellLimited, glyph: "━", token: theme.StateDestructive, bold: true},
+		{name: "its token refused, without colour, bold", look: plain, cell: views.CellRefused, glyph: "━", token: theme.StateDestructive, bold: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -62,6 +62,80 @@ func TestALaneDrawsEachColumnAsItsAccountStoodThen(t *testing.T) {
 			}
 		})
 	}
+}
+
+// A stretch its account can't take sessions through, out at its limit or at
+// its cap, is the heavy ━ in its own ink, recorded before now's column and
+// forecast after it alike.
+func TestALanesStretchWithoutRoomIsAHeavyLineRecordedOrForecast(t *testing.T) {
+	f := runwayShowing(runwayLive())
+	f.Look = Screen(builtin(t, "nord"))
+	now := f.Runway.Timeline.NowColumn()
+	for _, tt := range []struct {
+		name  string
+		cell  views.Cell
+		token theme.Token
+	}{
+		{name: "out at its limit", cell: views.CellLimited, token: theme.StateDestructive},
+		{name: "at its cap", cell: views.CellCapped, token: theme.AccentAttention},
+	} {
+		for _, when := range []struct {
+			name string
+			col  int
+		}{{name: "recorded", col: now - 3}, {name: "forecast", col: now + 3}} {
+			t.Run(tt.name+", "+when.name, func(t *testing.T) {
+				ln := laneWith()
+				ln.Cells = laneCells()
+				ln.Cells[when.col] = tt.cell
+				got := drawnLane(f, ln).at(framesLanesFrom+when.col, 10)
+				if got.glyph != "━" || got.ink.token != tt.token {
+					t.Errorf("column %d is %q in %v, want ━ in %v", when.col, got.glyph, got.ink.token, tt.token)
+				}
+			})
+		}
+	}
+}
+
+// Every lane starts at the lanes' first column, a stretch without room as a
+// bar does: at the edge with the account column collapsed, and after the
+// label column with it shown.
+func TestALanesLineStartsWhereItsBarsDo(t *testing.T) {
+	doc := runwayDoc(2)
+	for _, collapsed := range []bool{true, false} {
+		t.Run(fmt.Sprintf("collapsed %t", collapsed), func(t *testing.T) {
+			f := runwayFrame(t, 37, nil, nil)
+			r := RunwayShown{Collapsed: collapsed}.Labelled(f.Moment(doc, routedAt))
+			r.Timeline = r.TimelineAt(routedAt, time.Monday, f.Width)
+			room := slices.Repeat([]views.Cell{views.CellRoom}, r.Timeline.Columns)
+			held := slices.Concat([]views.Cell{views.CellLimited, views.CellLimited, views.CellLimited}, room[3:])
+			r.Lanes = &views.Lanes{Accounts: []views.Lane{{ID: "a1", Cells: held}, {ID: "a2", Cells: room}}}
+			f.Runway = r
+			c := runwayDrawn(f, doc)
+			fit := f.runwayFitted(f.top())
+			line, _ := fit.laneRow(0)
+			bar, _ := fit.laneRow(1)
+			x := r.lanesFrom(f.Width)
+			if collapsed && x != 0 {
+				t.Errorf("collapsed, the lanes start at column %d, want the edge", x)
+			}
+			if got := firstOf(c, line, "━"); got != x {
+				t.Errorf("the line starts at column %d, want the lanes' first, %d", got, x)
+			}
+			if got := firstOf(c, bar, "█"); got != x {
+				t.Errorf("the bar starts at column %d, want the lanes' first, %d", got, x)
+			}
+		})
+	}
+}
+
+// firstOf is the first column of row y holding glyph, -1 where none does.
+func firstOf(c *canvas, y int, glyph string) int {
+	for x := range c.width {
+		if c.at(x, y).glyph == glyph {
+			return x
+		}
+	}
+	return -1
 }
 
 // A lane's past, each column before now's, keeps 45% of its colour; a lane
@@ -196,19 +270,19 @@ func TestEachLaneIsHeadedByItsNameAndItsUseOfTheViewsWindow(t *testing.T) {
 				name: accountName{label: "personal", primary: true, out: true}, account: status.AccountNow{OutOfPool: true},
 				Lane: views.Lane{ID: "personal", Use: views.Use{Key: "7d", Used: 0.39, Read: true}},
 			},
-			head: "personal   ◆", use: "week 39%", useInks: []ink{faintInk, faintInk},
+			head: "personal    ◆", use: "week 39%", useInks: []ink{faintInk, faintInk},
 		},
 		{
 			name: "the widest use, whole", lane: laidLane{
 				name: accountName{label: "personal", primary: true}, Lane: views.Lane{ID: "personal", Use: views.Use{Key: "7d", Used: 1, Read: true, Highest: true}},
 			},
-			head: "personal   ◆", use: "week 100%", useInks: []ink{dimInk, usedFigure(1, "personal", "7d")},
+			head: "personal    ◆", use: "week 100%", useInks: []ink{dimInk, usedFigure(1, "personal", "7d")},
 		},
 		{
 			name: "in a label column too narrow for it, cut, its marks and ▲'s cells kept", x: 12, lane: laidLane{
 				name: accountName{label: "personal", primary: true}, Lane: views.Lane{ID: "personal", Use: views.Use{Key: "7d", Used: 1, Read: true}},
 			},
-			head: "perso…   ◆", use: "week 100%", useInks: []ink{dimInk, usedFigure(1, "personal", "7d")},
+			head: "perso…    ◆", use: "week 100%", useInks: []ink{dimInk, usedFigure(1, "personal", "7d")},
 		},
 		{
 			name: "not read yet, short at the column's most too", x: labelMost,
@@ -226,7 +300,7 @@ func TestEachLaneIsHeadedByItsNameAndItsUseOfTheViewsWindow(t *testing.T) {
 			ln.row = 10
 			c := newCanvas(160, 20)
 			f.runwayLanes(c, runwayLaid{m: status.Moment{Now: routedAt}, x: x, lanes: []laidLane{ln}})
-			if head := textAt(c, 0, 10, x-2); head != tt.head {
+			if head := textAt(c, 0, 10, x-1); head != tt.head {
 				t.Errorf("the lane's head reads %q, want %q", head, tt.head)
 			}
 			use := ln.useLine(runwayWeek, routedAt, x-runwayUseFrom-1)

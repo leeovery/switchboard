@@ -146,6 +146,58 @@ func ShortWords(reason string, f Facts) Words {
 	return w.event
 }
 
+// BriefWords are the reason as the List's routing reads it, in a word or
+// two after the account the session moved from, as From gives it, "from
+// work · at its cap"; why alone where it moved from none, as "pinned"; and
+// "new session" for a session's first request. Any reason not in the
+// dashboard's words reads as the router gives it, cleaned.
+func BriefWords(reason string, f Facts) Words {
+	if isNew(prose.Clean(reason)) {
+		return Words{Plain("new session")}
+	}
+	return briefFrom(f.From, wordsOf(reason, f).brief)
+}
+
+// BriefTriedWords are a request that went out again after the accounts tried
+// couldn't serve it, as the List's routing reads it in place of its reason's
+// words, briefly saying what TriedWords says. Where it moved its session,
+// the account it left, as From gives it, and why: as a move off it says it,
+// where that's among those tried, "from work · at its limit"; else as
+// BriefWords says the reason, "from work · at its cap". Where it moved none,
+// the first tried alone, as TriedWords says it, "after work's limit". A why
+// the dashboard has no words for reads as the router gives it, cleaned. None
+// where none was tried.
+func BriefTriedWords(reason string, f Facts, tried ...Tried) Words {
+	switch {
+	case len(tried) == 0:
+		return nil
+	case f.From == "":
+		return TriedWords(tried[0])
+	}
+	i := slices.IndexFunc(tried, func(t Tried) bool { return t.Account == f.From })
+	if i < 0 {
+		return BriefWords(reason, f)
+	}
+	why := prose.Clean(tried[i].Why)
+	if said, known := offWords[tried[i].Why]; known {
+		why = said.brief
+	}
+	return briefFrom(f.From, Words{Plain(why)})
+}
+
+// briefApart sets the account a session moved from apart from why, as the
+// List's routing says them.
+const briefApart = " · "
+
+// briefFrom is why, after the account the session moved from where there's
+// one, as BriefWords says them: "from work · at its cap".
+func briefFrom(from string, why Words) Words {
+	if from == "" {
+		return why
+	}
+	return slices.Concat(FromWords(from), Words{Plain(briefApart)}, why)
+}
+
 // RunningWords are the reason as a session running reads, with when it went
 // to its account, as prose.Dated says it: "started here 14:41", ending ",
 // the best" while that's where new sessions go; "pinned here 14:39", its own
@@ -190,18 +242,28 @@ func RunningWords(reason string, f Facts) Words {
 
 // forms are a reason's words in each place the dashboard says it: routed is
 // why, as a request's routing says it after the account the session left;
-// and short, where it's given, why as a phone says it, as ShortWords has it.
+// short, where it's given, why as a phone says it, as ShortWords has it; and
+// brief, why in a word or two, as the List's routing says it after the
+// account the session left, as BriefWords has it.
 type forms struct {
-	event, routed, session, short Words
+	event, routed, session, short, brief Words
 }
 
 // alike is words that read the same everywhere.
 func alike(w Words) forms {
-	return forms{event: w, routed: w, session: w}
+	return forms{event: w, routed: w, session: w, brief: w}
+}
+
+// briefly is the forms with why in a word or two as given, as the List's
+// routing says it.
+func (w forms) briefly(why ...Part) forms {
+	w.brief = why
+	return w
 }
 
 // then is each of w's forms followed by a further clause, after ", ": none
-// where a form is none, as ShortWords reads the event's in its place.
+// where a form is none, as ShortWords reads the event's in its place. The
+// brief form is as it was, as it says why in a word or two.
 func (w forms) then(clause Words) forms {
 	further := func(form Words) Words {
 		if form == nil {
@@ -209,7 +271,7 @@ func (w forms) then(clause Words) forms {
 		}
 		return slices.Concat(form, Words{Plain(", ")}, clause)
 	}
-	return forms{event: further(w.event), routed: further(w.routed), session: further(w.session), short: further(w.short)}
+	return forms{event: further(w.event), routed: further(w.routed), session: further(w.session), short: further(w.short), brief: w.brief}
 }
 
 // Plain is words around the accounts and times named.
@@ -371,7 +433,7 @@ func pressured(reason string, f Facts) (forms, bool) {
 	if why, ok := forced(base, f); ok {
 		return why.then(w), true
 	}
-	return alike(w), true
+	return alike(w).briefly(Named(account), Plain(" under pressure")), true
 }
 
 // forced reads the reasons for going elsewhere than a session would, as the
@@ -393,13 +455,14 @@ func settled(reason string, f Facts) (forms, bool) {
 	case ReasonNew:
 		return forms{event: Words{Plain("started")}, session: Words{Plain("since it started")}}, true
 	case ReasonSticky:
-		return forms{event: Words{Plain("sticky")}, routed: given, session: Words{Plain("sticky")}}, true
+		return forms{event: Words{Plain("sticky")}, routed: given, session: Words{Plain("sticky")}, brief: Words{Plain("sticky")}}, true
 	case ReasonBound:
-		return forms{event: Words{Plain("kept for its thinking")}, routed: given, session: Words{Plain("kept for its thinking")}}, true
+		kept := Words{Plain("kept for its thinking")}
+		return forms{event: kept, routed: given, session: kept, brief: kept}, true
 	case ReasonPinned:
-		return alike(Words{Plain("pinned here")}), true
+		return alike(Words{Plain("pinned here")}).briefly(Plain("pinned")), true
 	case ReasonPoolPin, ReasonGlobalPin, ReasonMovedByPin:
-		return alike(pinnedTo(f.To)), true
+		return alike(pinnedTo(f.To)).briefly(Plain("pinned")), true
 	case ReasonBack:
 		return alike(Words{Plain("back where it was")}), true
 	}
@@ -442,7 +505,7 @@ func compacted(reason string, _ Facts) (forms, bool) {
 	if !ok || !named || !ends || account == "" || strings.Contains(account, " ") || !wholePercent(share) {
 		return forms{}, false
 	}
-	return alike(Words{Plain(ReasonCompacted), Named(account), Plain(compactedResets), Figure(share), Plain(compactedLeft)}), true
+	return alike(Words{Plain(ReasonCompacted), Named(account), Plain(compactedResets), Figure(share), Plain(compactedLeft)}).briefly(Plain("compacted")), true
 }
 
 // wholePercent reports whether s is a whole percentage, as "35%".
@@ -461,12 +524,13 @@ const (
 )
 
 // offWords are why a move off an account was forced, as the router says it,
-// in the words of an event, of a request's routing, and of a phone.
-var offWords = map[string]struct{ event, routed, short string }{
-	WhyReserve: {event: " reached its cap", routed: AtCap, short: "its cap"},
-	WhyLimit:   {event: " reached its limit", routed: AtLimit, short: "its limit"},
-	WhyRefused: {event: " refused the request", routed: "refused", short: "refused"},
-	WhyNoRoom:  {event: " had no room", routed: "with no room", short: "no room"},
+// in the words of an event, of a request's routing, of a phone, and of the
+// List's routing.
+var offWords = map[string]struct{ event, routed, short, brief string }{
+	WhyReserve: {event: " reached its cap", routed: AtCap, short: "its cap", brief: AtCap},
+	WhyLimit:   {event: " reached its limit", routed: AtLimit, short: "its limit", brief: AtLimit},
+	WhyRefused: {event: " refused the request", routed: "refused", short: "refused", brief: "refused"},
+	WhyNoRoom:  {event: " had no room", routed: "with no room", short: "no room", brief: "no room"},
 }
 
 // Tried is an account a request went out on that couldn't serve it, and
@@ -516,10 +580,10 @@ func movedOff(reason string, _ Facts) (forms, bool) {
 	}
 	said, known := offWords[why]
 	if !known {
-		return alike(Words{Plain(ReasonMovedOff), Named(account), Plain(" " + why)}), true
+		return alike(Words{Plain(ReasonMovedOff), Named(account), Plain(" " + why)}).briefly(Plain(why)), true
 	}
 	event := Words{Named(account), Plain(said.event)}
-	return forms{event: event, routed: Words{Plain(said.routed)}, session: event, short: Words{Plain(said.short)}}, true
+	return forms{event: event, routed: Words{Plain(said.routed)}, session: event, short: Words{Plain(said.short)}, brief: Words{Plain(said.brief)}}, true
 }
 
 // pinYields reads the reason for going elsewhere than the session's own pin
@@ -530,7 +594,7 @@ func pinYields(reason string, _ Facts) (forms, bool) {
 	if !ok {
 		return forms{}, false
 	}
-	return alike(Words{Plain("its pin to "), Named(account), Plain(" yields: "), Named(account), Plain(" " + why)}), true
+	return alike(Words{Plain("its pin to "), Named(account), Plain(" yields: "), Named(account), Plain(" " + why)}).briefly(Plain("pin yields")), true
 }
 
 // cutAccount cuts a reason that starts as given and names an account, as

@@ -158,7 +158,7 @@ const routingCaption = "requests a minute, last 30 minutes"
 // it's out of the pool, which fades its trace and its rate.
 type accountRouting struct {
 	id       string
-	name     line
+	name     accountName
 	standing status.Routing
 	pinned   bool
 	sessions int
@@ -193,7 +193,7 @@ func (f Frame) routingTableOf(doc status.Document, now time.Time) routingTable {
 	var pooled []status.AccountNow
 	for i, a := range m.Accounts {
 		r := accountRouting{
-			id: a.ID, name: names[i].line(t.columns.names), standing: a.Routing, pinned: a.Pinned,
+			id: a.ID, name: names[i], standing: a.Routing, pinned: a.Pinned,
 			sessions: a.Sessions, trace: f.Traces.Accounts[a.ID], faded: a.OutOfPool,
 		}
 		if running != nil {
@@ -344,7 +344,7 @@ func routingSized(a int, body bounds) bool {
 // its last row at the edge rateEdge gives it.
 func (f Frame) wideRouting(c *canvas, t routingTable, r accountRouting, y, rows, namesFrom int) {
 	at := t.columns
-	c.line(namesFrom, y, r.name)
+	c.line(namesFrom, y, r.name.lineFrom(at.names, namesFrom))
 	words, pinned := rowState(r, at.words)
 	if pinned {
 		c.line(at.sessions-pinnedApart-pinnedCells(), y, line{pinnedSpan})
@@ -363,7 +363,7 @@ func (f Frame) wideRouting(c *canvas, t routingTable, r accountRouting, y, rows,
 // second, its trace from the name column to narrowTail cells short of the
 // edge, then its sessions and its rate right-aligned.
 func (f Frame) narrowRouting(c *canvas, t routingTable, r accountRouting, y, namesFrom int) {
-	c.line(namesFrom, y, r.name)
+	c.line(namesFrom, y, r.name.lineFrom(t.columns.names, namesFrom))
 	end := f.Width
 	if r.pinned {
 		end = c.right(f.Width, y, line{pinnedSpan})

@@ -8,7 +8,7 @@ USAGE  ────────────────────────�
 
 work                        ▎       ┃                 ╎   34%  out ~Sat                                      ┃                 ▉╎   95%  at cap · back 17:10
 
-personal ◆ ▲                             ┃                66%  out ~Sat                                 ▍          ┃                39%  34%/h till 16:30
+personal  ◆ ▲                            ┃                66%  out ~Sat                                 ▍          ┃                39%  34%/h till 16:30
 
 side                             ┃            ▊           78%  out ~Fri                      ▌ ┃                                    13%  21%/h till 18:50
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -21,7 +21,7 @@ ROUTING   pinned to personal since 14:02   p back to auto ───────�
 work          ● at its cap · back 17:10 · new sessions go elsewhere          0 sessions
                                                                                                        ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁   0/min
 
-personal ◆ ▲  ● open · new sessions come here                     ● pinned   3 sessions
+personal  ◆ ▲ ● open · new sessions come here                     ● pinned   3 sessions
                                                                                                        ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁   0/min
 
 side          ● open                                                         3 sessions

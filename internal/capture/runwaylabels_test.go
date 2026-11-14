@@ -8,7 +8,7 @@ import (
 
 // laneHead is the label heading a row of Runway's lanes: its name, then its
 // marks at the label column's end, up to the lane's first glyph.
-var laneHead = regexp.MustCompile(`^[^ █▒─│]+( [^ █▒─│]+)*( +[◆▲])*`)
+var laneHead = regexp.MustCompile(`^[^ █▒━│]+( [^ █▒━│]+)*( +[◆▲])*`)
 
 // Runway's labels read whole beside its lanes at every one of the owner's
 // sizes, as the sweep can't see a cut beside lanes that fill the row: the
@@ -18,7 +18,7 @@ var laneHead = regexp.MustCompile(`^[^ █▒─│]+( [^ █▒─│]+)*( +[�
 // row, with no name or marks. Every lane row drawn is headed by one of the labels, and
 // each label heads one.
 func TestRunwaysLabelsReadWholeAtTheOwnersSizes(t *testing.T) {
-	frames := []string{"work", "personal   ◆", "side       ▲"}
+	frames := []string{"work", "personal    ◆", "side        ▲"}
 	tests := []struct {
 		name  string
 		heads []string
@@ -28,10 +28,10 @@ func TestRunwaysLabelsReadWholeAtTheOwnersSizes(t *testing.T) {
 		{
 			name: "runway-ten-accounts-160",
 			heads: []string{
-				"work", "personal   ◆", "side       ▲", "client", "spare", "lab", "team", "extra", "ops", "studio",
+				"work", "personal    ◆", "side        ▲", "client", "spare", "lab", "team", "extra", "ops", "studio",
 			},
 		},
-		{name: "long-names-runway", heads: []string{"work-team-plan", "personal-research      ◆", "side-hustle-consulting ▲"}},
+		{name: "long-names-runway", heads: []string{"work-team-plan", "personal-research       ◆", "side-hustle-consulting  ▲"}},
 		{name: "runway-collapsed-160", heads: []string{"", "", ""}},
 	}
 	for _, tt := range tests {

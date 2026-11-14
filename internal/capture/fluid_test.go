@@ -563,7 +563,7 @@ func (d fluidFrame) outOfView() string {
 var (
 	// laneShown is a row of Runway's lanes: an account's name, or with the
 	// labels collapsed nothing, then its lane to the row's end.
-	laneShown = regexp.MustCompile(`^[^█▒─│]*[█▒─│ ]*[█▒][█▒─│ ]*$`)
+	laneShown = regexp.MustCompile(`^[^█▒━│]*[█▒━│ ]*[█▒][█▒━│ ]*$`)
 	// turnShown is a row of a session's turns: its number and when it started.
 	turnShown = regexp.MustCompile(`^ *[0-9]+ +[0-9]{1,2}:[0-9]{2} `)
 	// named is a row and what it leads with, as an account's name leads its
@@ -740,7 +740,7 @@ func TestTheFluidSweepFindsWhatItSweepsFor(t *testing.T) {
 			rows: []string{"LOG", across, "▼ 5 more below · j/k", "", "", ""}, want: []fluidRule{foldWithRowsSpare},
 		},
 		{name: "a week still running over blank rows", view: "Log Requests", rows: []string{"LOG", across, "WEEKS       74%   73%   59%…", "", "", ""}},
-		{name: "Runway with a lane", view: "Runway", rows: []string{"RUNWAY", "", "work          ─" + strings.Repeat("█", 105)}},
+		{name: "Runway with a lane", view: "Runway", rows: []string{"RUNWAY", "", "work          ━" + strings.Repeat("█", 105)}},
 		{name: "Runway without a lane", view: "Runway", rows: []string{"RUNWAY", "", across, "", "", ""}, want: []fluidRule{nothingDrawn}},
 		{name: "Runway without a lane in five rows of view", view: "Runway", rows: []string{"RUNWAY", "", across, "", ""}},
 		{name: "a session's page with a turn", view: sessionPage, rows: []string{"SESSION  d28c", across, "13 14:40   3m…   6 req"}},

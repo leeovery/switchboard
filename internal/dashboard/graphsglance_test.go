@@ -147,9 +147,9 @@ func TestGlanceDrawsEveryAccountAndThePoolAsItsWidthLaysThemOut(t *testing.T) {
 			"",
 			"work          ▇▇▇▇▇▆▆▆▆▅▅▄▄▄▃▃  66%  19%/day till Sun 21:00",
 			"",
-			"personal   ◆  ▆▆▆▆▆▄▄▄▄▂▂▁✕     34%  out ~Sat",
+			"personal    ◆ ▆▆▆▆▆▄▄▄▄▂▂▁✕     34%  out ~Sat",
 			"",
-			"side       ▲  ▆▆▆▆▆▃▃▃▃▁✕       22%  out ~Fri",
+			"side        ▲ ▆▆▆▆▆▃▃▃▃▁✕       22%  out ~Fri",
 			strings.Repeat("─", 61),
 			"Σ pool                ▃▃▂▂▁▁▁▁ 1.2 of 3 left",
 			"",
@@ -161,9 +161,9 @@ func TestGlanceDrawsEveryAccountAndThePoolAsItsWidthLaysThemOut(t *testing.T) {
 			"",
 			"work          ▇▇▇▇▇▆▆▆▆▅▅▄▄▄▃▃  66%  19%/day · Sun",
 			"",
-			"personal   ◆  ▆▆▆▆▆▄▄▄▄▂▂▁✕     34%  out ~Sat",
+			"personal    ◆ ▆▆▆▆▆▄▄▄▄▂▂▁✕     34%  out ~Sat",
 			"",
-			"side       ▲  ▆▆▆▆▆▃▃▃▃▁✕       22%  out ~Fri",
+			"side        ▲ ▆▆▆▆▆▃▃▃▃▁✕       22%  out ~Fri",
 			strings.Repeat("─", 52),
 			"Σ pool                ▃▃▂▂▁▁▁▁ 1.2 of 3 left",
 			"",
@@ -239,7 +239,7 @@ func TestGlancesNamesNarrowOnceItsWordsAreShort(t *testing.T) {
 	if l.column != 20 || l.words != shortCells {
 		t.Fatalf("at 57 columns the names take %d and the words %d, want 20 and %d", l.column, l.words, shortCells)
 	}
-	want := "personal-rese…   ◆  ▆▆▆▆▆▄▄▄▄▂▂▁✕     34%  out ~Sat"
+	want := "personal-rese…    ◆ ▆▆▆▆▆▄▄▄▄▂▂▁✕     34%  out ~Sat"
 	if got := rowOf(c, 4); !strings.HasPrefix(got, want) {
 		t.Errorf("personal's row is %q, want it to start %q", got, want)
 	}

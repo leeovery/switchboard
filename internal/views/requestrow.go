@@ -230,7 +230,7 @@ func (a Activity) stage() RowStage {
 
 // RoutingSaid is how the router chose a request's account, or brought a
 // session to the account it's on, in the views' words: the Log's routing,
-// as a turn opened and the List say it too.
+// as a turn opened says it too, and briefly, as the List says it.
 type RoutingSaid struct {
 	// Words are the router's reason, as status.RoutingWords says it: "from
 	// work, at its cap", or of a session's first request, "new session"; of
@@ -239,6 +239,9 @@ type RoutingSaid struct {
 	// a session on the List pinned there on its own, "pinned here". None
 	// where it stayed where its session was.
 	Words status.Words
+	// Brief are those words in a word or two, as status.BriefWords and
+	// status.BriefTriedWords say them: "from work · at its cap", or "pinned".
+	Brief status.Words
 	// From is the account the request, or the move that brought the session,
 	// took the session from: "" where it moved none.
 	From string
@@ -252,11 +255,22 @@ type RoutingSaid struct {
 }
 
 // Said is how the router chose, as the Log's routing says it: its words,
-// each account named; then, where the move it made wrote the session's
-// context again, two cells on, what that cost, as CostSaid says it, as
-// RowCost.
+// then its cost, as costed has it.
 func (s RoutingSaid) Said() RowWords {
-	w := rowWordsOf(s.Words)
+	return s.costed(s.Words)
+}
+
+// BriefSaid is how the router chose, as the List's routing says it: its
+// brief words, then its cost, as costed has it.
+func (s RoutingSaid) BriefSaid() RowWords {
+	return s.costed(s.Brief)
+}
+
+// costed are the words given, each account apart, as rowWordsOf has them;
+// then, where the move it made wrote the session's context again, two cells
+// on, what that cost, as CostSaid says it, as RowCost.
+func (s RoutingSaid) costed(words status.Words) RowWords {
+	w := rowWordsOf(words)
 	if cost := s.CostSaid(); cost != "" {
 		w = append(w, RowPart{Text: "  "}, RowPart{Text: cost, Kind: RowCost})
 	}
@@ -277,7 +291,7 @@ func (s RoutingSaid) CostSaid() string {
 // else, where it moved its session, the reason; else, where it's the
 // session's first, "new session". The cost is its move's.
 func (r routed) said(to string, first bool, made *move) RoutingSaid {
-	said := RoutingSaid{From: r.from, Words: routingWords(r.tried, r.reason, status.Facts{From: r.from, To: to}, first)}
+	said := routingSaid(r.tried, r.reason, status.Facts{From: r.from, To: to}, first)
 	if made != nil {
 		said.Cost, said.Rewrote = made.cost, made.rewrote != nil
 	}
@@ -287,27 +301,30 @@ func (r routed) said(to string, first bool, made *move) RoutingSaid {
 // routing is how the router chose the account of the request that made m,
 // as routingOf says it of its line.
 func (m *move) routing() RoutingSaid {
-	return RoutingSaid{From: m.from, Words: routingWords(m.tried, m.reason, status.Facts{From: m.from, To: m.to}, false), Cost: m.cost, Rewrote: m.rewrote != nil}
+	said := routingSaid(m.tried, m.reason, status.Facts{From: m.from, To: m.to}, false)
+	said.Cost, said.Rewrote = m.cost, m.rewrote != nil
+	return said
 }
 
-// routingWords are the words of a request's routing, as routingOf has them,
-// of the accounts it went out on that couldn't serve it, tried; the router's
-// reason; the account it moved its session from, none where it moved none,
-// and the one it went to; and whether it's its session's first.
-func routingWords(tried []ledger.Tried, reason string, moved status.Facts, first bool) status.Words {
+// routingSaid is a request's routing, as routingOf has it, its words and its
+// brief words, of the accounts it went out on that couldn't serve it, tried;
+// the router's reason; the account it moved its session from, none where it
+// moved none, and the one it went to; and whether it's its session's first.
+func routingSaid(tried []ledger.Tried, reason string, moved status.Facts, first bool) RoutingSaid {
+	said := RoutingSaid{From: moved.From}
 	switch {
 	case len(tried) > 0:
 		accounts := make([]status.Tried, len(tried))
 		for i, t := range tried {
 			accounts[i] = status.Tried(t)
 		}
-		return status.TriedWords(accounts...)
+		said.Words, said.Brief = status.TriedWords(accounts...), status.BriefTriedWords(reason, moved, accounts...)
 	case moved.From != "":
-		return status.RoutingWords(reason, moved)
+		said.Words, said.Brief = status.RoutingWords(reason, moved), status.BriefWords(reason, moved)
 	case first:
-		return newSession()
+		said.Words, said.Brief = newSession(), newSession()
 	}
-	return nil
+	return said
 }
 
 // newSession is a session's first request's routing: "new session".
@@ -329,7 +346,7 @@ func (l *ListedSession) cameBy(m *move) {
 		l.Moved = &Move{At: m.at.UTC(), From: m.from, Reason: m.reason, Cost: m.cost}
 		l.Routing = m.routing()
 	case slices.ContainsFunc(l.Models, func(s SessionModel) bool { return s.Account == l.Account && s.Reason == status.ReasonPinned }):
-		l.Routing = RoutingSaid{Words: status.SessionWords(status.ReasonPinned, status.Facts{})}
+		l.Routing = RoutingSaid{Words: status.SessionWords(status.ReasonPinned, status.Facts{}), Brief: status.BriefWords(status.ReasonPinned, status.Facts{})}
 	}
 }
 
@@ -471,12 +488,16 @@ const (
 	// RowBetween stands between what's said and what's named, as the · after
 	// tool_use.
 	RowBetween
-	// RowNamed is what's named: a tool, or an account.
+	// RowNamed is what's named: a tool.
 	RowNamed
 	// RowDoing is what a request in flight is doing: asking, or answering.
 	RowDoing
 	// RowCost is what a move cost, kept whole as the row's cut, as $1.82.
 	RowCost
+	// RowAccount is an account, by its id, as status's words give it, which
+	// whatever draws the row names, as its Named names it: drawn as what's
+	// named.
+	RowAccount
 )
 
 // String runs the words together, as a row drawn without colour shows them.
@@ -588,13 +609,14 @@ func (r RequestRow) tools() RowWords {
 	return w
 }
 
-// rowWordsOf are status's words as a row draws them, each account named.
+// rowWordsOf are status's words as a row draws them, each account apart, as
+// RowAccount.
 func rowWordsOf(w status.Words) RowWords {
 	said := make(RowWords, len(w))
 	for i, p := range w {
 		said[i] = RowPart{Text: p.Text}
 		if p.Kind == status.PartAccount {
-			said[i].Kind = RowNamed
+			said[i].Kind = RowAccount
 		}
 	}
 	return said

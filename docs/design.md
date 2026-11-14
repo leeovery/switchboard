@@ -3109,12 +3109,14 @@ order the view's section gives.
   from there, none counting 8 or 24 itself (`guardlabels_test.go`), but the views whose sections
   give figures of their own: Compare's 8 and 24, Detail's list's 14 and 24, the Sessions List's
   `on`'s 14 and the Switchboard's call's 6.
-- **A column of names right-aligns their marks** (the owner's call, 12 November 2026): each label
-  at the column's left, then as many spaces as it needs, then its marks, `◆ ▲` as one where it
-  carries both, ending where the column's gap starts, so the marks stand in one column down the
-  list whatever the labels' lengths, as `personal   ◆` over `side       ▲`. The column is no wider
-  for it, and a label cut short keeps its marks there. One form lays it out (`accountName`'s
-  `inColumn`), and every column of names draws through it: the Overview's USAGE, ROUTING and
+- **A column of names right-aligns their marks** (the owner's calls, 12 and 13 November 2026):
+  each label at the column's left, then as many spaces as it needs, then its marks, `◆ ▲` as one
+  where it carries both, ending one cell before what follows the column, the bar, the lane or the
+  state, so the marks stand in one column down the list whatever the labels' lengths, as
+  `personal    ◆` over `side        ▲`. The column is no wider for it, a label has the same
+  cells wherever its names start, and a label cut short keeps its marks there.
+  One form lays it out (`accountName`'s `inColumn`), where its marks end worked out once
+  (`markedCells`), and every column of names draws through it: the Overview's USAGE, ROUTING and
   SESSIONS, Detail's list, turned Compare's rows, History's Weeks and wide Days
   (`historyAccount`; narrow Days, its count beside the name, keeps the mark beside the label),
   Sessions' Switchboard, a session's stays (`filled`, cutting a label to keep its own marks
@@ -3122,7 +3124,7 @@ order the view's section gives.
   which share the name column, start their names at one column, so labels and marks line up
   across them: a cell in wherever any of them shown, folded or not, starts its own a cell in,
   as USAGE's windows stacked under their headings or two rows an account, else column 0
-  (`pageNamesAt`). Where names start a cell in, their marks end a cell into the gap, a cell
+  (`pageNamesAt`). Wherever the names start, at column 0 or a cell in, their marks end a cell
   before what follows. A name said alone, in a heading, a sentence or on a line of its own, as a
   card's head, Compare's columns, Detail's heading, a session's header, `usage --by account`'s
   name above its windows and its token lines, keeps its marks right after its label: there's no
@@ -5483,12 +5485,29 @@ order, each at least its least and at most its natural:
 |---|---|---|---|
 | `session` | 11 | 29 | The id, cut to 4, in `text.secondary`; a space and the directory, cut with `…` to the rest, in `text.muted`: at its least 6 of the directory, at its natural its most, 24 |
 | `on` | Its natural, 14 at the most | The widest account's name configured, 24 at the most | The account its latest request went to, in `text.primary` |
-| `model` | 9 | 9 | The model of its latest request, its id less `claude-`, as `opus-5-5`, in `text.muted` |
+| `model` | 9, or the widest the List names where wider | Its least | The model of its latest request, its id less `claude-`, as `opus-5-5` or `sonnet-5-5`, in `text.muted`; never cut |
 | `state` | 11 | 11 | `asking` or `answering`, bold `accent.key`; `✕ 429`, bold `state.destructive`; `idle 34s` in `text.muted`; once over, `ended 11:21` in `text.muted` |
 | `started` | 15 | 15 | When its first request came: `12:47` today, `yesterday 15:08`, `Tue 15:08` within the week, `28 Sep 15:08` before it (settled in the plan), in `text.muted` |
 | `requests` | 8 | 8, right-aligned | Its requests today, as `1,240`, in `text.muted` |
-| `worth` | 7 | 7, right-aligned | Theirs at API prices, as `$17.86`, in `text.muted`; unpriced as the Log shows it |
-| `routing` | 24 | To the last column | How it came to the account it's on, in the Log's routing words: `from ` in `text.muted`, the account it left in `text.secondary`, `, at its cap` in `text.muted`, two spaces, and in `accent.attention` what writing its context again cost, `$1.82`; `pinned here` in `text.muted` for a session pinned on its own (settled in the plan); blank where it started there |
+| `worth` | 7, or the widest the List says where wider, its `+` counted | Its least, right-aligned | Theirs at API prices, as `$17.86` or `$126.75+`, in `text.muted`; unpriced as the Log shows it; never cut |
+| `routing` | 24 | To the last column | How it came to the account it's on, in a word or two, as the table below has it: `from ` in `text.muted`, the account it left by its label in `text.secondary`, ` · at its cap` in `text.muted`, two spaces, and in `accent.attention` what writing its context again cost, `$1.82`; `pinned` in `text.muted` for a session pinned on its own; blank where it started there. `on` names where it went; the full reason stays on the session's page and in the Log |
+
+- **Routing's short form,** status's `BriefWords`, beside each reason's other forms: `from <the
+  account it left> · ` and why, by the reason's kind; why alone where it moved from none.
+
+  | Reason | Why |
+  |---|---|
+  | Moved off an account at its cap, its limit, refused, with no room | `at its cap`, `at its limit`, `refused`, `no room` |
+  | Moved off for a why the dashboard has no words for | The why, as the router gives it |
+  | Compacted | `compacted` |
+  | Rescored | `rescored after 15h idle` |
+  | Moved by a pin, the global pin, or pinned on its own | `pinned` |
+  | Its pin yields | `pin yields` |
+  | Back where it was | `back where it was` |
+  | Passing an account over, unforced | `personal under pressure` |
+  | Forced, passing an account over | The forced move's alone |
+  | Sent again after the accounts tried couldn't serve it | Where it moved, why the account it left couldn't, where it was tried, else its reason's; where it moved none, the first tried alone, `after work's limit` |
+  | A reason the dashboard doesn't know | As the router gives it |
 
 - **One narrowing,** from the widest to a phone's 52, with no phone list (the owner's call on the
   spike, 21 October 2026), laid out in two passes, as the Log's Requests are. The first decides
@@ -5500,10 +5519,16 @@ order, each at least its least and at most its natural:
   4. `session` is cut toward its least;
   5. `model` leaves, only while the leasts don't fit, so before `on` is cut below 14.
 
+  `model` and `worth` are whole wherever they show, their leasts their widest, so `routing` never
+  shows, nor `session` grows past its least, beside either cut. A dated model id, as
+  `sonnet-4-5-20250929`, widens `model`'s least, so the columns leave sooner; that's accepted, as it
+  fails safe.
+
   `session`, `on`, `state` and `requests` never leave. The second lays out what shows: what's past
   the leasts goes to `session` first, to its natural, then to `on`, never past what the first left
   it; then, where it shows, to `routing`, to the last column. Nothing else grows, so the spare lies
-  at the row's end until the next column fits. So, as the frame widens, `on` never narrows, and
+  at the row's end until the next column fits. With a `model` of 9 cells and a `worth` of 7 at
+  most, as `opus-5-5` and `$48.20`: as the frame widens, `on` never narrows, and
   `session` narrows only once, where `model` comes back: at 57 columns with names of 8 cells, from
   21 cells to 11, and at 63 with names of 14 or more, likewise. `session` is whole from 75 with
   names of 8 cells and from 81 with names of 14 or more; `started` comes back at 92 with names of
@@ -5512,10 +5537,14 @@ order, each at least its least and at most its natural:
   takes 29 and `on` 15; at 73 `worth` and `started` have too, `session` takes 21 and `on` holds its
   14; at 138 both are whole. As `on` never takes back what it gave up for `worth` and `started`, a
   name over 14 cells can stay cut with cells spare at the row's end: with the frames' long names,
-  from 82 to 97 columns and from 99 to 106, up to 16 cells.
-- **No natural comes from the rows shown,** so the columns hold still as the List scrolls and as
-  sessions come and go: the session's is the directory's most, 24, and `on`'s the accounts
-  configured.
+  from 82 to 97 columns and from 99 to 106, up to 16 cells. With `sonnet-5-5` and `$126.75+`, as
+  the frames' `sessions-list-sizable-200` has them, with names of 8 cells, `model` comes back at
+  58, `started` at 93, `worth` at 103 and `routing` at 129.
+- **No natural comes from the rows in view,** so the columns hold still as the List scrolls: the
+  session's is the directory's most, 24, and `on`'s the accounts configured; `model`'s and
+  `worth`'s are the widest of every session the List holds, out of view too. So they widen as a
+  session with a wider one comes, or as a running session's worth gains a digit, and narrow as
+  the widest session leaves the List or its latest request's model changes.
 - **What doesn't fit its cells** is cut with `…`: the directory to the cells after the id, the
   account to `on`'s, and `routing` as the Log cuts it, `…` in the colour of what it cuts and a
   move's cost kept whole.
@@ -5702,11 +5731,15 @@ request ledger).
   |---|---|---|
   | Room | `█` | The ramp's first stop |
   | Room, but it runs out at its pace before its window resets | `█` | `accent.attention` |
-  | At its cap | `─` | `accent.attention` |
-  | At its limit | `─` | `state.destructive` |
-  | Its token refused, from the refusal to its until | `─` | `state.destructive` |
+  | At its cap | `━` | `accent.attention` |
+  | At its limit | `━` | `state.destructive` |
+  | Its token refused, from the refusal to its until | `━` | `state.destructive` |
 
-  Room fills its cell whole, as `usage`'s bars do, so a held column's `─` meets it at its middle
+  A column where the account can't take sessions is the heavy `━`, so it holds its own beside the
+  full-height bars, recorded or forecast alike: through the past where it was out, and the tail
+  after its bar up to the reset (the owner's call, 13 November 2026). Every column of a lane,
+  bar or line, starts at the lanes' first, so its lines start where its bars do.
+  Room fills its cell whole, as `usage`'s bars do, so a held column's `━` meets it at its middle
   and a reset's `│` at its top and bottom, where the frames draw `▆`, the lower three quarters of a
   cell. Every window that every model shares counts, the 5-hour among them. `│` in `text.subtle`
   marks where each account's week resets, on now's column or after it. An account without a usable token has no room all along, and one not read
@@ -5792,8 +5825,8 @@ blank row; with two, on the row after its words.
   90%; the past dimmed. An account at its cap or its limit counts without room; one running out at
   its pace has room until it does. A column where none has room, the pool at its limit, is `▂`, a
   quarter-cell, in `state.destructive` along its lower row, so it steps down from a half-cell column
-  beside it, where a lane's `─` would sit level with its top; the past dimmed alike (the owner's
-  call, 21 October 2026). The accounts' lanes keep `─`. So `▂` on the floor means the limit alone,
+  beside it, where a lane's `━` would sit level with its top; the past dimmed alike (the owner's
+  call, 21 October 2026). The accounts' lanes keep `━`. So `▂` on the floor means the limit alone,
   a column where any has room fills three eighths at the least, `▃`, however small its share, as
   one of ten. A column where no account's state is known is blank.
 - **`Σ pool`** on its first row, as an account's name heads its lane: `Σ` in `text.subtle` at the
@@ -5810,8 +5843,8 @@ blank row; with two, on the row after its words.
 
 **The legend,** at the foot, its last row directly over the key line, from column 0 (the owner's
 call, 21 October 2026), keys only what the view draws, four spaces apart: `█` and ` room`; `█` in
-`accent.attention` and ` room, but it runs out at its pace`; `─` in `accent.attention` and
-` at its cap`; `─` in `state.destructive` and ` at its limit`; where the pool's lane draws one,
+`accent.attention` and ` room, but it runs out at its pace`; `━` in `accent.attention` and
+` at its cap`; `━` in `state.destructive` and ` at its limit`; where the pool's lane draws one,
 `▂` in `state.destructive` and ` the pool at its limit`; and `│` and ` its week resets`; each
 glyph in its colour, its words in `text.muted`. Four spaces on, in `text.subtle`, a column's length
 and what's dimmed: `a column ≈ 69 minutes · the past dimmed` at 160; stepped back to a week gone,

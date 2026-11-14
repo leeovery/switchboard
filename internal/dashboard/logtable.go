@@ -27,6 +27,7 @@ var (
 // accent.key, and a move's cost accent.attention.
 var rowPartInks = map[views.RowPartKind]ink{
 	views.RowSaid: mutedInk, views.RowBetween: faintInk, views.RowNamed: secondaryInk, views.RowDoing: keyInk, views.RowCost: warningInk,
+	views.RowAccount: secondaryInk,
 }
 
 // requestLines are the Requests' lines, the oldest first, as the table
@@ -157,7 +158,7 @@ func requestRow(c *canvas, y int, r views.RequestRow, layout logLayout, name fun
 	for _, p := range layout.places {
 		said := requestCell(r, p.column, layout, name, now).fit(p.width)
 		if p.column == LogStopped || p.column == LogRouting {
-			said = rowWordsIn(requestWords(r, p.column, layout), p.width)
+			said = rowWordsIn(requestWords(r, p.column, layout), name, p.width)
 		}
 		if p.aligned == alignRight {
 			c.right(p.x+p.width, y, said)
@@ -328,20 +329,24 @@ func requestWords(r views.RequestRow, column LogColumn, layout logLayout) views.
 	return r.Stopped()
 }
 
-// rowWordsIn are a row's words in cells cells, each part in its kind's ink:
-// whole where they fit; else cut with an ellipsis in the ink of what it
-// cuts, a move's cost, which ends them, kept whole after them, as "from
-// work, at it…  $1.82", where the words before it keep a cell and the
-// ellipsis.
-func rowWordsIn(w views.RowWords, cells int) line {
-	return costKept(rowLine(w), len(w) > 1 && w[len(w)-1].Kind == views.RowCost, cells)
+// rowWordsIn are a row's words in cells cells, as rowLine has them, each
+// account named as name names it: whole where they fit; else cut with an
+// ellipsis in the ink of what it cuts, a move's cost, which ends them, kept
+// whole after them, as "from work, at it…  $1.82", where the words before it
+// keep a cell and the ellipsis.
+func rowWordsIn(w views.RowWords, name func(id string) string, cells int) line {
+	return costKept(rowLine(w, name), len(w) > 1 && w[len(w)-1].Kind == views.RowCost, cells)
 }
 
-// rowLine is the words w, each part in its kind's ink.
-func rowLine(w views.RowWords) line {
+// rowLine is the words w, each part in its kind's ink, each account named
+// as name names it, cut as asLabelled cuts it.
+func rowLine(w views.RowWords, name func(id string) string) line {
 	said := make(line, len(w))
 	for i, p := range w {
 		said[i] = span{p.Text, rowPartInks[p.Kind]}
+		if p.Kind == views.RowAccount {
+			said[i].text = asLabelled(name(p.Text))
+		}
 	}
 	return said
 }
