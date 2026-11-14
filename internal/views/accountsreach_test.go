@@ -2,12 +2,14 @@ package views_test
 
 import (
 	"fmt"
+	"iter"
 	"reflect"
 	"slices"
 	"testing"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/readings"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
@@ -187,14 +189,16 @@ func TestAnAccountsWorthIsChartedAsProjectsChartAProjects(t *testing.T) {
 
 // Accounts' today, fed the tail's fold of it, charts each account's worth by
 // the hour its requests arrived in, and by two hours, as Projects charts a
-// project's, all accounts' every account's; a fold of another day, or any
-// other period, leaves the page by the day, as the summaries have it.
+// project's, all accounts' every account's, one answered by no account
+// among them; a fold of another day, or any other period, leaves the page
+// by the day, as the summaries have it.
 func TestAccountsTodayIsChartedByTheHourOfTheTailsFold(t *testing.T) {
 	lines := slices.Concat(
 		projectAsks(repoSession, "/code/switchboard", "", "work", times(october(7, 9, 0), 2)...),
 		projectAsks(repoSession, "/code/switchboard", "", "side", october(7, 9, 30)),
 		projectAsks(ownSession, "/code/own/api", "", "side", times(october(7, 12, 0), 3)...),
 		projectAsks(ownSession, "/code/own/api", "", "work", october(7, 13, 0)),
+		projectAsks(ownSession, "/code/own/api", "", "", october(7, 13, 5)),
 	)
 	in := input(nil)
 	in.Accounts = workAndSide
@@ -229,8 +233,8 @@ func TestAccountsTodayIsChartedByTheHourOfTheTailsFold(t *testing.T) {
 			{views.ByTwoHours, 12, 5, map[int]views.Worth{4: hoursWorth(1), 6: hoursWorth(3)}, "12:00–14:00"},
 		}},
 		{"all accounts", page.All, []chart{
-			{views.ByHour, 24, 10, map[int]views.Worth{9: hoursWorth(3), 12: hoursWorth(3), 13: hoursWorth(1)}, "09:00"},
-			{views.ByTwoHours, 12, 5, map[int]views.Worth{4: hoursWorth(3), 6: hoursWorth(4)}, "12:00–14:00"},
+			{views.ByHour, 24, 10, map[int]views.Worth{9: hoursWorth(3), 12: hoursWorth(3), 13: hoursWorth(2)}, "09:00"},
+			{views.ByTwoHours, 12, 5, map[int]views.Worth{4: hoursWorth(3), 6: hoursWorth(5)}, "12:00–14:00"},
 		}},
 	}
 	for _, tt := range tests {
@@ -255,5 +259,41 @@ func TestAccountsTodayIsChartedByTheHourOfTheTailsFold(t *testing.T) {
 	week := views.NewPast(in, nil).Accounts(views.PeriodThisWeek)
 	if got := week.Hourly(heldDays(now, lines...)); !reflect.DeepEqual(charts(got), charts(week)) {
 		t.Errorf("fed today's fold, this week's page is charted %+v, want it by the day, %+v", charts(got), charts(week))
+	}
+}
+
+// Today's hours count every request, as the day's summary does, those of no
+// session among them, so each row's hours sum to its worth, all accounts'
+// to theirs.
+func TestAccountsTodaysHoursSumToItsWorth(t *testing.T) {
+	lines := slices.Concat(
+		projectAsks(repoSession, "/code/switchboard", "", "work", times(october(7, 9, 0), 2)...),
+		projectAsks("", "/code/switchboard", "", "work", october(7, 10, 0)),
+		projectAsks(ownSession, "/code/own/api", "", "side", october(7, 12, 0)),
+	)
+	var held []ledger.Line
+	for _, l := range lines {
+		held = append(held, l.Line)
+	}
+	none := func(time.Time, time.Time) iter.Seq[readings.Reading] { return func(func(readings.Reading) bool) {} }
+	summary, err := ledger.Summarise("2026-10-07", slices.Values(held), none, nil, ledger.Caps{}, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	days := []ledger.Summary{summary}
+	in := input(days)
+	in.Accounts = workAndSide
+	page := views.NewPast(in, days).Accounts(views.PeriodToday).Hourly(heldDays(now, lines...))
+	for _, row := range append(slices.Clone(page.Rows), page.All) {
+		var sum views.Worth
+		for _, b := range row.WorthBy[0].Buckets {
+			sum = sumOf(sum, b.Worth)
+		}
+		if row.WorthBy[0].Unit != views.ByHour || !reflect.DeepEqual(sum, row.Totals.Worth) {
+			t.Errorf("%q's hours by %d sum to %+v, want its worth, %+v", row.Totals.Account, row.WorthBy[0].Unit, sum, row.Totals.Worth)
+		}
+	}
+	if got, want := page.Rows[0].Totals.Worth, hoursWorth(3); !reflect.DeepEqual(got, want) {
+		t.Errorf("work's worth is %+v, want its three requests', %+v, the one of no session among them", got, want)
 	}
 }

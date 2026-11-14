@@ -94,10 +94,11 @@ func worthsByDay(days []Day, accounts config.Accounts) []dayWorths {
 // Hourly is the page with today's worth charted by the hour, where its
 // period is today and d's fold of the tail is of today: each row's, what
 // the requests the fold holds that went to its account were worth by the
-// local hour each arrived in, and all accounts', every one's, those none
-// answered among them, priced at today's prices, as Projects charts a
-// project's today, worthCharts' one rule. Else it's the page as it is, its
-// today by the day.
+// local hour each arrived in, those of no session among them, as the day's
+// summary counts them, and all accounts', every one's, those none answered
+// among them, priced at today's prices, as Projects charts a project's
+// today, worthCharts' one rule. Else it's the page as it is, its today by
+// the day.
 func (p AccountsPage) Hourly(d SessionDays) AccountsPage {
 	today := dayfile.DateOf(p.in.Now)
 	if p.Period != PeriodToday || d.today.Date != today {
@@ -113,21 +114,25 @@ func (p AccountsPage) Hourly(d SessionDays) AccountsPage {
 	return p
 }
 
-// worthByHour is what the fold's sessions' requests were worth by the local
-// hour each arrived in, priced as price prices them: by the account each
-// went to, and every account's together.
+// worthByHour is what the fold's requests were worth by the local hour each
+// arrived in, its sessions' and those of none, priced as price prices them:
+// by the account each went to, and every account's together.
 func (d daySessions) worthByHour(price pricing) (byAccount map[string][24]Worth, all [24]Worth) {
 	byAccount = make(map[string][24]Worth)
-	for _, s := range d.held {
-		for account, on := range s.hours {
-			hours := byAccount[account]
+	take := func(hours accountHours) {
+		for account, on := range hours {
+			sums := byAccount[account]
 			for h := range on {
 				w := price.worth(on[h])
-				hours[h].add(w)
+				sums[h].add(w)
 				all[h].add(w)
 			}
-			byAccount[account] = hours
+			byAccount[account] = sums
 		}
 	}
+	for _, s := range d.held {
+		take(s.hours)
+	}
+	take(d.loose)
 	return byAccount, all
 }

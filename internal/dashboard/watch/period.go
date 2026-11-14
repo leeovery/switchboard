@@ -1,9 +1,22 @@
 package watch
 
 import (
+	"time"
+
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/theme"
+	"github.com/leeovery/switchboard/internal/views"
 )
+
+// todayHour is the local hour now falls in, where the period is today, as
+// today's charts mark it now's, else -1: what a page of today is built of
+// besides, so it's built afresh as the hour turns, though nothing arrives.
+func todayHour(period views.Period, now time.Time) int {
+	if period != views.PeriodToday {
+		return -1
+	}
+	return now.Local().Hour()
+}
 
 // periodStepped is m with the dial's period stepped, by -1 to a shorter one,
 // as < steps it, or by 1 to a longer, as > does, the view shown from its top

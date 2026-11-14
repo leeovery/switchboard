@@ -231,8 +231,8 @@ Compare has a column for each account, and one for `all accounts`. Each column s
 - its share of use by model version
 - WEEKS: how full each of its weeks got, as columns, at least the last eight, or every week of
   the period where there are more. At 12 months a column is a month, its fullest week. A dotted
-  line marks the cap of an account that keeps a reserve, and `…` marks this week, so far, but at
-  12 months, where a column is a month. Under
+  line marks the cap of an account that keeps a reserve, and `…` marks this week, so far, except
+  at 12 months, where a column is a month. Under
   them, how many of those weeks it hit its limit in and what they had left at a reset, on average:
   `limit hit 3 of 7 · 9% left at a reset`. `all accounts` says how many weeks some account was
   short: `short on 3 of 7`.

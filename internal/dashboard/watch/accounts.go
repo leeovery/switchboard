@@ -26,6 +26,7 @@ type accountsTab struct {
 	stood   *views.AccountsPage
 	at      *stoodAt
 	running []string
+	today   bool
 }
 
 // stoodAt is what a page was stood at: the moment, held, and its time; and
@@ -52,12 +53,13 @@ func (s *stoodAt) holds(doc status.Document, now time.Time, policy score.Policy)
 // counts them as they change, the period, and the local day it was built on;
 // and of today, the reads of the ledger's tail that told otherwise of the
 // days it fed, as projectsTab counts them, today's worth by the hour being
-// its fold's.
+// its fold's, and the hour, as todayHour has it.
 type builtOf struct {
 	held   int
 	period views.Period
 	day    string
 	fed    int
+	hour   int
 }
 
 // accountsToday reports whether Accounts shows today.
@@ -65,23 +67,40 @@ func (m Model) accountsToday() bool {
 	return m.shownView() == dashboard.Accounts && m.period == views.PeriodToday
 }
 
+// accountsEntered is m with a read of the ledger's tail due at once where
+// Accounts has come to show today since the last message, where none is
+// under way, as projectsWaiting asks one: the tail isn't followed while
+// Accounts shows another period or another tab shows, so its fold may be
+// behind.
+func (m Model) accountsEntered() Model {
+	today := m.accountsToday()
+	if today && !m.accounts.today {
+		m.tail.due = m.tail.due || !m.tail.busy()
+	}
+	m.accounts.today = today
+	return m
+}
+
 // accountsBuilt is m with Accounts' page built afresh at now of the last 12
 // months' days held, as views.Past.Accounts builds it over the dial's period,
 // today's worth by the hour of the tail's fold, as its Hourly has it, where
 // those days, the period or the day have changed since it was built, or, of
 // today, the fold has, while Accounts shows: once for each, never a frame at
-// a time. Each look reads today's days afresh, as readHistory reads them, so
-// the page follows them from look to look; and past midnight it moves on to
-// the new day before the next look reads it. It's stood at the moment of the
-// message taken in, as views.AccountsPage.At stands it, where it's built
-// afresh, the document or the policy is another, or the page stands
-// otherwise since, as its Until has it: never a frame at a time.
+// a time, but of today, as its hour turns, too, for its charts to mark the
+// hour now falls in, as accountsEntered has the tail read. Each look reads
+// today's days afresh, as readHistory reads them, so the page follows them
+// from look to look; and past midnight it moves on to the new day before
+// the next look reads it. It's stood at the moment of the message taken in,
+// as views.AccountsPage.At stands it, where it's built afresh, the document
+// or the policy is another, or the page stands otherwise since, as its
+// Until has it: never a frame at a time.
 func (m Model) accountsBuilt() Model {
+	m = m.accountsEntered()
 	if m.view != dashboard.Accounts || !m.past.last.held() {
 		return m
 	}
 	now := m.now()
-	of := builtOf{held: m.past.held, period: m.period, day: dayfile.DateOf(now)}
+	of := builtOf{held: m.past.held, period: m.period, day: dayfile.DateOf(now), hour: todayHour(m.period, now)}
 	if of.period == views.PeriodToday {
 		of.fed = m.projects.fed
 	}

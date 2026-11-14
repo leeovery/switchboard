@@ -317,7 +317,7 @@ func TestAccountsHelpExplainsComparesFocusWhereItsDrawn(t *testing.T) {
 	for _, tc := range []struct {
 		width int
 		want  bool
-	}{{160, true}, {95, true}, {94, false}, {52, false}} {
+	}{{160, true}, {83, true}, {82, false}, {52, false}} {
 		said := strings.Join(plainLines(accountsHelping(tc.width, threeShown, Look{}).body), " ")
 		if got := strings.Contains(said, focus); got != tc.want {
 			t.Errorf("at %d columns, help reads\n%s\nwant %q said %v", tc.width, said, focus, tc.want)
@@ -332,7 +332,7 @@ func TestAccountsHelpExplainsComparesChartsWhereTheyreDrawn(t *testing.T) {
 	for _, tc := range []struct {
 		width int
 		want  bool
-	}{{160, true}, {95, true}, {94, false}, {52, false}} {
+	}{{160, true}, {83, true}, {82, false}, {52, false}} {
 		said := strings.Join(plainLines(accountsHelping(tc.width, threeShown, Look{}).body), " ")
 		for _, chart := range charts {
 			if got := strings.Contains(said, chart); got != tc.want {

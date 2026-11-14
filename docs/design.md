@@ -3554,17 +3554,15 @@ frames show the keys from before the sweep of 7 and 8 October 2026, `p` for the 
   account's head and a cell where that's more, its name whole at most 24 cells with its marks, so
   no name is cut where another account's column would show it whole; or, where it's more, the
   widest of its rows' shortest forms and a cell, each figure at its stated bound over the longest
-  period, so no figure is cut at a column's least, whatever the period. The sessions moved are
-  bound as the sessions served are, 99,999 each way, as a move counts once a session a day, so
-  only requests would bound them otherwise, a figure no real use nears: `99,999 in · 99,999 out`
-  sets the least at 23, and the wide form holds from 95 columns. As many accounts show as fit,
-  at least two, as a comparison needs two, the last giving way first: four of ten at 160
-  columns, every one of three at 108, two of three with long names. The columns shown share the
+  period, so no figure is cut at a column's least, whatever the period: the sessions moved by
+  their count alone, as a move counts once a session a day, so its requests bound it. As many accounts show as fit, at least two, as a
+  comparison needs two, the last giving way first: six of ten at 160 columns, every one of three
+  at 108, two of three with long names. The columns shown share the
   rest alike, the odd cells `all accounts`' and then the first's, `all accounts`' values running
   to the frame's edge. Past them, `←` and `→` move the
   focus along the accounts, the columns scrolling to keep it in view and `all accounts` staying put
   at the right, and the heading's state says which show:
-  `accounts 1–4 of 10  ·  ←→ moves along them; all accounts stays put`, its `←→` bold `accent.key`.
+  `accounts 1–6 of 10  ·  ←→ moves along them; all accounts stays put`, its `←→` bold `accent.key`.
   The range is of the accounts' places in the config's order.
 - **The heads,** on the view's first two rows, wherever the heading's rows end, held however far
   the rest scrolls: an account's name and marks, bold, as `usage` draws a name
@@ -3621,10 +3619,13 @@ frames show the keys from before the sweep of 7 and 8 October 2026, `p` for the 
   day; 30 days' and 12 weeks' by day, or by week where their days don't fit; and 12 months' by
   week, or by month. Every period's coarsest has 13 buckets at most (`views.BucketsMost`), which
   a column at its least holds a cell each, so no chart is ever crushed. Today's hours are the
-  tail's fold's, each account's worth by the local hour its requests arrived in, priced as the
-  fold prices today, all accounts' every account's (`AccountsPage.Hourly`): the summaries keep no
-  hours. While Accounts shows today, the tail is read at each look, so its hours keep up; till
-  its first read of the day, today is by the day. At 173 columns with three accounts that's an
+  tail's fold's, each account's worth by the local hour its requests arrived in, those of no
+  session among them, kept apart from the sessions so Projects charts sessions alone, priced as
+  the fold prices today, all accounts' every account's (`AccountsPage.Hourly`), so each column's
+  hours sum to its worth: the summaries keep no hours. While Accounts shows today, the tail is
+  read at each look, and at once as it comes to show today, so its hours keep up; till its first
+  read of the day, today is by the day. Today's page, Accounts' and Projects' alike, is built
+  afresh as the local hour turns too, so the hour marked now's moves with nothing arriving. At 173 columns with three accounts that's an
   hour a column today, a day at this week and 30 days, a week at 12 weeks and a month at 12
   months; with four, 30 days are by week. The accounts share one scale, the highest bucket of
   every configured account's, shown or not, so their columns compare; `all accounts` has its
@@ -3654,9 +3655,8 @@ frames show the keys from before the sweep of 7 and 8 October 2026, `p` for the 
   - **Each value in its forms,** fullest first, taking the fullest its column holds, less a cell:
     words give way, never a figure. The shortest are turned Compare's words, one owner of each.
     `sessions moved` says how many moves, the in and out summed, `21`, and for `all accounts` its
-    moves, `5`, in the column's ink, as `all accounts` says its count of limits; wide Compare's
-    least holds the moves in full, so only turned Compare's `moved` says the count, where the full
-    doesn't fit a cell short of the next column. `limits hit` names its windows short,
+    moves, `5`, in the column's ink, as `all accounts` says its count of limits, wide or turned,
+    where the full doesn't fit a cell short of the next column. `limits hit` names its windows short,
     `week ×1 · 5h ×2`, then says how many, `3`, in the column's ink, as `all accounts` says its
     count; turned Compare's `hit` takes the same forms but the full, the fullest its column holds,
     so three windows read `4` there. `left at its last reset` drops the day, `0%`; `plan` drops the
@@ -4061,10 +4061,10 @@ draw it, the tab names in its title row aside, and kept in `testdata/vhs/referen
   back; and today's, folded off the loop at every read of the ledger's tail from the first, whether
   or not Projects has shown, with each day turned since Projects first asked for its own. By the
   end of a day of 25,000 requests the fold holds some 2 MB, nearly all of it the keys of the lines
-  taken, kept so a line given again counts once, its sessions' spend by the hour by account, 24
-  sums for each account a session ran on, small beside them; and as the fold is a value, a read
-  that gains a line copies those keys whole, so a read costs what the day holds, under a millisecond by its end,
-  not what it gained, and holds about twice the 2 MB while a copy is under way. No page is built
+  taken, kept so a line given again counts once, its spend by the hour by account, of each
+  session and of the requests of none, 24 sums for each account, small beside them; and as the
+  fold is a value, a read that gains a line copies those keys whole, so a read costs what the day
+  holds, under a millisecond by its end, not what it gained, and holds about twice the 2 MB while a copy is under way. No page is built
   for a period the days held don't reach, nor before the tail's first read of the day, so a step
   further back draws what the first read draws, loading only while there's no page to draw, till
   its read lands, and then returns

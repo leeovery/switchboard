@@ -367,15 +367,12 @@ func TestWORTHsScaleIsEveryAccountsShownOrNot(t *testing.T) {
 
 // WORTH holds every period's chart in the narrowest column Compare draws, a
 // cell a bucket at the fewest, never a chart crushed into a cell: where the
-// period's finest buckets don't fit, coarser ones do. At 95 columns, the
-// narrowest Compare is wide at, today is by two hours and 30 days by week;
-// at 173 with four accounts, a MacBook's, today is by the hour and 30 days
-// still by week. The fewest cells a head takes hold as many buckets as any
-// period's coarsest chart has.
+// period's finest buckets don't fit, coarser ones do. At 83 columns, the
+// narrowest Compare is wide at, its columns at their least, today is by two
+// hours and 30 days by week; at 173 with four accounts, a MacBook's, today
+// is by the hour and 30 days still by week. Every head holds as many
+// buckets as any period's coarsest chart has.
 func TestWORTHFitsEveryPeriodInTheNarrowestColumn(t *testing.T) {
-	if !chartFits(leastColumn - 1)(views.BucketsMost) {
-		t.Errorf("a head of %d cells doesn't hold %d buckets, the most a period's coarsest chart has", leastColumn-1, views.BucketsMost)
-	}
 	in := views.HistoryInput{Ledger: ledger.Empty{}, Now: routedAt, Prices: ledger.Pricing, Accounts: tenFramed[:4], WeekStarts: time.Monday, WeekWindow: "7d"}
 	fed := views.ReadSessionDays(ledger.Empty{}, routedAt, routedAt).Tailed(nil, true, nil, nil, routedAt)
 	ten := tenRows()
@@ -383,7 +380,7 @@ func TestWORTHFitsEveryPeriodInTheNarrowestColumn(t *testing.T) {
 		width int
 		units map[views.Period]views.BucketUnit
 	}{
-		{95, map[views.Period]views.BucketUnit{
+		{83, map[views.Period]views.BucketUnit{
 			views.PeriodToday: views.ByTwoHours, views.PeriodThisWeek: views.ByDay, views.PeriodThirtyDays: views.ByWeek,
 			views.PeriodTwelveWeeks: views.ByWeek, views.PeriodTwelveMonths: views.ByMonth,
 		}},
@@ -403,6 +400,12 @@ func TestWORTHFitsEveryPeriodInTheNarrowestColumn(t *testing.T) {
 			f := compareFrame(t, tenFramed[:4], page)
 			f.Width, f.Height, f.Look = tt.width, 60, Look{}
 			head := f.compareLaid().narrowest()
+			if tt.width == 83 && head != f.leastCompared()-1 {
+				t.Fatalf("at 83 columns the narrowest head is %d cells, want the least, %d", head, f.leastCompared()-1)
+			}
+			if !chartFits(head)(views.BucketsMost) {
+				t.Errorf("at %d columns a head of %d cells doesn't hold %d buckets, the most a period's coarsest chart has", tt.width, head, views.BucketsMost)
+			}
 			by := page.All.WorthBy.Fitting(chartFits(head))
 			if by.Unit != unit || !chartFits(head)(len(by.Buckets)) {
 				t.Errorf("%s at %d columns, its head %d cells, WORTH is by %s in %d buckets, want by %s, fitting", period.Name(), tt.width, head, bucketWord[by.Unit], len(by.Buckets), bucketWord[unit])

@@ -34,9 +34,9 @@ const (
 	// leastColumn are the fewest cells a column takes, as many accounts
 	// showing as fit at it, less all accounts'. It's a floor: the rows'
 	// shortest forms at their bounds, as compareFigures has them, set the
-	// least where they need more: an account's moves at their bound set 23,
-	// so the wide form holds from 95 columns, and ten accounts show four at
-	// 160.
+	// least where they need more, as with many hundreds of accounts. At 19
+	// the wide form holds from 83 columns, every one of three accounts shows
+	// at 108, and six of ten at 160.
 	leastColumn = 19
 	// barMost are the most cells a bar beside words takes, so none reads as
 	// a rule; and shareSpare the cells a column keeps beside BY MODEL's.
@@ -190,11 +190,9 @@ const (
 	requestsMost = 9_999_999
 	// sessionsMost are the most sessions served.
 	sessionsMost = 99_999
-	// movesMost are the most sessions moved onto an account, and off it:
-	// as many as sessionsMost. A move is counted once a session a day, so
-	// only requests bound them, which would widen every column to 30 cells
-	// for a figure no real use nears; 99,999 in a period is far past any.
-	movesMost = sessionsMost
+	// movesMost are the most sessions moved onto an account, and off it: a
+	// move is counted once a session a day, so as many as its requests.
+	movesMost = requestsMost
 	// limitsMost are the most limits hit: 12 months touch 1,758 of a 5-hour
 	// window, and fewer of a week's.
 	limitsMost = 9_999
@@ -226,15 +224,13 @@ func compareFigures(n int) [][]part {
 }
 
 // boundFigures are the shortest forms of Compare's rows of the row given, as
-// compareFigures has them, but extra usage, which is the moment's, and the
-// sessions moved, in full: wide, a column says its moves whole, its count
-// being turned Compare's alone.
+// compareFigures has them, but extra usage, which is the moment's.
 func boundFigures(row views.AccountsRow, k ink) [][]part {
 	col := compareColumn{row: row, all: row.Totals.All}
 	return [][]part{
 		col.requests(),
 		col.sessions(),
-		col.moved()[0],
+		col.moved().shortest(),
 		limitsForms(row.Totals, func(key string) string { return key }, k).shortest(),
 		col.atCap(),
 		leftForms(row, k).shortest(),

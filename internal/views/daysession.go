@@ -90,12 +90,15 @@ func DaySessionsOn(l Ledger, date string) []DaySession {
 // tell its moves once the day's lines are all taken in; and where hourly
 // says, what each spent by the local hour its requests arrived in, by the
 // account each went to, as today's hours are drawn of them, Projects' and
-// Accounts' alike. Where the fold takes in more reads than
-// one, as today's does, keys are the keys of the lines it took, as
-// turnKeyOf has them, each counted, so a read given again counts none of
-// them twice; nil of a fold of one read.
+// Accounts' alike; and loose, what the requests of no session spent so,
+// apart from the sessions, for Accounts' hours to count every request, as
+// the day's summary does, nil where hourly doesn't say. Where the fold
+// takes in more reads than one, as today's does, keys are the keys of the
+// lines it took, as turnKeyOf has them, each counted, so a read given again
+// counts none of them twice; nil of a fold of one read.
 type daySessions struct {
 	held   map[string]*foldedSession
+	loose  accountHours
 	keys   map[turnKey]int
 	told   bool
 	hourly bool
@@ -150,10 +153,11 @@ func newDaySessions(told bool) daySessions {
 // Log count it: when it arrived in UTC, as the ledger writes it, and a day's
 // side restores it, whatever zone a line edited by hand names; and, of a
 // session's request, as isRequest has it, what it spent, and what names the
-// session.
+// session. A request of no session, where d keeps loose hours, it takes in
+// there alone, given again or not as a session's is.
 func (d daySessions) take(r *lineRecord, read *countedOnce) {
 	id := r.countedSession
-	if id == "" {
+	if id == "" && (d.loose == nil || r.kind != RowRequest) {
 		return
 	}
 	k := turnKeyOf(r)
@@ -162,6 +166,10 @@ func (d daySessions) take(r *lineRecord, read *countedOnce) {
 	}
 	if d.keys != nil {
 		d.keys[k]++
+	}
+	if id == "" {
+		d.loose.add(r)
+		return
 	}
 	s, ok := d.held[id]
 	if !ok {
@@ -224,13 +232,16 @@ func usedOn(uses []SessionUse, r *lineRecord) []SessionUse {
 
 // with is d, the records of a read's lines given taken in too, in their
 // order, as take takes each: afresh, each session they change copied, and
-// its keys, so d, and any copy of it, never sees them.
+// its loose hours and keys, so d, and any copy of it, never sees them.
 func (d daySessions) with(records []lineRecord) daySessions {
 	if len(records) == 0 {
 		return d
 	}
 	if d.keys != nil {
 		d.keys = maps.Clone(d.keys)
+	}
+	if d.loose != nil {
+		d.loose = d.loose.copied()
 	}
 	held := maps.Clone(d.held)
 	changed := make(map[string]bool)

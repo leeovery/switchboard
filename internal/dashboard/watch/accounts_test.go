@@ -91,7 +91,7 @@ func TestAccountsPageIsBuiltOnceForTheDaysHeldAndThePeriod(t *testing.T) {
 	}
 
 	h.model = h.model.periodStepped(-1)
-	h.update(frameMsg{gen: h.model.frames})
+	h.deliver(h.update(frameMsg{gen: h.model.frames})...)
 	today := h.model.accounts.page
 	if today == looked || today.Period != views.PeriodToday {
 		t.Errorf("today shown, Accounts' page is over %q, want it built afresh over today", today.Period)
@@ -147,6 +147,65 @@ func TestAccountsTodayFollowsTheTailsFoldByTheHour(t *testing.T) {
 	h.update(frameMsg{gen: h.model.frames})
 	if h.model.accounts.page != week {
 		t.Errorf("the tail fed its fold otherwise, Accounts' week was built afresh, want it held")
+	}
+}
+
+// Today's charts mark the hour now falls in, Accounts' and Projects' alike,
+// so as the hour turns with nothing arriving, each page is built afresh,
+// the next hour now's; over another period, the hour builds nothing.
+func TestTodaysPagesAreBuiltAfreshAsTheHourTurns(t *testing.T) {
+	h := projectsHarness(t, dashboard.Accounts)
+	h.start()
+	h.tickUntilAsked()
+	week := h.model.accounts.page
+	local := h.clock.now.Local()
+	turned := time.Date(local.Year(), local.Month(), local.Day(), local.Hour()+1, 0, 30, 0, time.Local)
+	h.clock.now = turned
+	h.update(frameMsg{gen: h.model.frames})
+	if h.model.accounts.page != week {
+		t.Errorf("the hour turned, Accounts' week was built afresh, want it held")
+	}
+	h.model = h.model.periodStepped(-1)
+	h.deliver(h.update(frameMsg{gen: h.model.frames})...)
+	today := h.model.accounts.page
+	if got := today.All.WorthBy[0].Now(); got != turned.Hour() {
+		t.Fatalf("today, all accounts' worth marks hour %d now's, want %d", got, turned.Hour())
+	}
+	h.clock.now = turned.Add(time.Hour)
+	h.update(frameMsg{gen: h.model.frames})
+	if page := h.model.accounts.page; page == today || page.All.WorthBy[0].Now() != turned.Hour()+1 {
+		t.Errorf("the hour turned with nothing arriving, Accounts' today marks hour %d now's, want it built afresh, %d", page.All.WorthBy[0].Now(), turned.Hour()+1)
+	}
+
+	h.keys(tabKey)
+	if h.model.view != dashboard.Projects {
+		t.Fatalf("tab from Accounts shows %s, want Projects", h.model.view)
+	}
+	h.tickUntilAsked()
+	pages := h.model.projects.pages
+	h.clock.now = h.clock.now.Add(time.Hour)
+	h.update(tea.WindowSizeMsg{Width: 160, Height: 50})
+	if got := h.model.projects.pages; got != pages+1 {
+		t.Errorf("the hour turned with nothing arriving, Projects' today was built %d times, want once", got-pages)
+	}
+}
+
+// Coming to show today, Accounts asks for a read of the ledger's tail at
+// once, as its fold wasn't followed meanwhile: a line the tail gained while
+// Accounts showed this week is charted in its hour by the first message
+// that shows today, though no look has made a read due since the last.
+func TestAccountsAsksTheTailAtOnceAsItComesToToday(t *testing.T) {
+	h := projectsHarness(t, dashboard.Accounts)
+	h.start()
+	h.tickUntilAsked()
+	at := h.clock.now.Add(-time.Second)
+	projectsLedgerOf(h).write(projectAsks(betaOnly, "/code/beta", at, 1)...)
+	h.model = h.model.periodStepped(-1)
+	h.model.tail.due = false
+	h.deliver(h.update(frameMsg{gen: h.model.frames})...)
+	hours := h.model.accounts.page.All.WorthBy[0]
+	if by := hours.Buckets[at.Local().Hour()]; hours.Unit != views.ByHour || by.Amount == nil || *by.Amount == 0 {
+		t.Errorf("today shown, all accounts' worth is by %d, its hour of the new line %+v; want it by the hour, the line charted", hours.Unit, by.Worth)
 	}
 }
 
@@ -610,8 +669,8 @@ func TestComparesFocusMovesAlongItsColumnsAndEnterOpensItInDetail(t *testing.T) 
 	}
 
 	h.keys(slices.Repeat([]tea.KeyPressMsg{rightKey}, 7)...)
-	if s := h.model.accounts.shown; s.Focus != "acct-7" || s.First != 3 {
-		t.Fatalf("→ 7 times focused %q, the columns from %d; want acct-7, from the 4th, four showing", s.Focus, s.First)
+	if s := h.model.accounts.shown; s.Focus != "acct-7" || s.First != 1 {
+		t.Fatalf("→ 7 times focused %q, the columns from %d; want acct-7, from the 2nd, six showing", s.Focus, s.First)
 	}
 	h.model.scroll = 2
 	h.keys(enterKey)
@@ -658,8 +717,8 @@ func TestEscClosesWhatsOpenOverCompareBeforeItEndsItsFocus(t *testing.T) {
 }
 
 // A frame too narrow for the columns Compare showed its focus among scrolls
-// them on to show it: ten accounts focused on acct-7 at 160 columns, four
-// showing, show acct-5 to acct-7 at 122, three showing, as the heading says.
+// them on to show it: ten accounts focused on acct-7 at 160 columns, six
+// showing, show acct-4 to acct-7 at 122, four showing, as the heading says.
 func TestAResizeKeepsComparesFocusInView(t *testing.T) {
 	h := accountsHarness(t, dashboard.AccountsShown{})
 	h.model.accounts.shown.Accounts = tenAccounts()
@@ -672,8 +731,8 @@ func TestAResizeKeepsComparesFocusInView(t *testing.T) {
 		}
 	}
 	heading := strings.Split(h.view(), "\n")[4]
-	if want := []string{"acct-5", "acct-6", "acct-7", ""}; !slices.Equal(columns, want) || !strings.Contains(heading, "accounts 5–7 of 10") {
-		t.Errorf("at 122 columns, focused on acct-7, Compare draws the columns %q under %q; want %q, accounts 5–7 of 10", columns, heading, want)
+	if want := []string{"acct-4", "acct-5", "acct-6", "acct-7", ""}; !slices.Equal(columns, want) || !strings.Contains(heading, "accounts 4–7 of 10") {
+		t.Errorf("at 122 columns, focused on acct-7, Compare draws the columns %q under %q; want %q, accounts 4–7 of 10", columns, heading, want)
 	}
 }
 

@@ -215,11 +215,10 @@ func columnOf(row, text string) int {
 	return ansi.StringWidth(before)
 }
 
-// As many accounts show as fit 23 cells each, the least the figures' bounds
-// set, less all accounts', at least one and no more than there are, from
-// column 26, all accounts' last; the columns share the room alike, the odd
-// cells all accounts' and then the first's; past the first shown, those
-// before it are out of view.
+// As many accounts show as fit 19 cells each, less all accounts', at least
+// one and no more than there are, from column 26, all accounts' last; the
+// columns share the room alike, the odd cells all accounts' and then the
+// first's; past the first shown, those before it are out of view.
 func TestCompareShowsAColumnAnAccountAsManyAsFitAllAccountsLast(t *testing.T) {
 	three := func(width int) func(t *testing.T) (Frame, status.Document) {
 		return func(t *testing.T) (Frame, status.Document) { return threeCompared(t, width, 37) }
@@ -235,9 +234,9 @@ func TestCompareShowsAColumnAnAccountAsManyAsFitAllAccountsLast(t *testing.T) {
 		{name: "three at 200, 43 each, 2 over", frame: three(200), want: map[string]int{"work": 26, "personal": 70, "side": 113, "all accounts": 156}},
 		{name: "three at 122, 24 each", frame: three(122), want: map[string]int{"work": 26, "personal": 50, "side": 74, "all accounts": 98}},
 		{name: "three at 100: two shown, 24 each, 2 over", frame: three(100), want: map[string]int{"work": 26, "personal": 51, "side": -1, "all accounts": 75}},
-		{name: "ten at 200: six shown, 24 each, 6 over", frame: ten(200, 0), want: map[string]int{"work": 26, "personal": 51, "side": 76, "lab": 151, "team": -1, "all accounts": 175}},
-		{name: "ten at 160, from the fourth", frame: ten(160, 3), want: map[string]int{"side": -1, "client": 26, "team": 107, "extra": -1, "all accounts": 133}},
-		{name: "ten at 160, from further than leaves four", frame: ten(160, 8), want: map[string]int{"lab": -1, "team": 26, "studio": 107, "all accounts": 133}},
+		{name: "ten at 200: eight shown, 19 each, 3 over", frame: ten(200, 0), want: map[string]int{"work": 26, "personal": 46, "side": 66, "extra": 161, "ops": -1, "all accounts": 180}},
+		{name: "ten at 160, from the fourth", frame: ten(160, 3), want: map[string]int{"side": -1, "client": 26, "ops": 121, "studio": -1, "all accounts": 140}},
+		{name: "ten at 160, from further than leaves six", frame: ten(160, 8), want: map[string]int{"client": -1, "spare": 26, "studio": 121, "all accounts": 140}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -254,7 +253,7 @@ func TestCompareShowsAColumnAnAccountAsManyAsFitAllAccountsLast(t *testing.T) {
 
 // Where Compare shows fewer accounts than there are, the heading says which,
 // that ←→ moves along them and that all accounts stays put, dropping its
-// last clause where it hasn't the room, as at 100 columns and at 95, the
+// last clause where it hasn't the room, as at 100 columns and at 83, the
 // narrowest ten accounts' Compare is drawn wide at, its period on a row of
 // its own under a phone's chrome; where it shows every account, nothing.
 func TestComparesHeadingSaysWhichAccountsItShowsOfMoreThanFit(t *testing.T) {
@@ -267,7 +266,7 @@ func TestComparesHeadingSaysWhichAccountsItShowsOfMoreThanFit(t *testing.T) {
 		{
 			name:  "ten from the fourth",
 			frame: func(t *testing.T) (Frame, status.Document) { return tenOnCompare(t, 160, 37, 3) },
-			want:  "accounts 4–7 of 10  ·  ←→ moves along them; all accounts stays put",
+			want:  "accounts 4–9 of 10  ·  ←→ moves along them; all accounts stays put",
 		},
 		{
 			name:  "three at 100, its last clause dropped",
@@ -280,8 +279,8 @@ func TestComparesHeadingSaysWhichAccountsItShowsOfMoreThanFit(t *testing.T) {
 			want:  "accounts 9–10 of 10  ·  ←→ moves along them",
 		},
 		{
-			name:  "ten at 95, the narrowest wide, from the ninth",
-			frame: func(t *testing.T) (Frame, status.Document) { return tenOnCompare(t, 95, 37, 8) },
+			name:  "ten at 83, the narrowest wide, from the ninth",
+			frame: func(t *testing.T) (Frame, status.Document) { return tenOnCompare(t, 83, 37, 8) },
 			want:  "accounts 9–10 of 10  ·  ←→ moves along them",
 		},
 	}
@@ -307,15 +306,15 @@ func TestComparesColumnsScrollToShowTheFocusNoFurtherThanTheyMust(t *testing.T) 
 		id    string
 		want  int
 	}{
-		{name: "one shown", id: "side", want: 0},
-		{name: "one past the last shown", id: "spare", want: 1},
-		{name: "the last", id: "studio", want: 6},
+		{name: "one shown", id: "lab", want: 0},
+		{name: "one past the last shown", id: "team", want: 1},
+		{name: "the last", id: "studio", want: 4},
 		{name: "one before the first shown", first: 4, id: "work", want: 0},
 		{name: "all accounts", first: 2, id: "", want: 2},
 		{name: "one the config doesn't hold", first: 2, id: "gone", want: 2},
 		{name: "from further than they go", first: 9, id: "side", want: 2},
-		{name: "all accounts, from further than they go", first: 9, id: "", want: 6},
-		{name: "the last, from further than they go", first: 9, id: "studio", want: 6},
+		{name: "all accounts, from further than they go", first: 9, id: "", want: 4},
+		{name: "the last, from further than they go", first: 9, id: "studio", want: 4},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -334,17 +333,17 @@ func TestComparesColumnsScrollToShowTheFocusNoFurtherThanTheyMust(t *testing.T) 
 // dash, its label alone.
 func TestComparesHeadsKeepToTheirColumns(t *testing.T) {
 	configured := append(slices.Clone(tenFramed[:9]), config.Account{ID: "added"})
-	f, doc := tenOnCompare(t, 160, 54, 6)
+	f, doc := tenOnCompare(t, 160, 54, 4)
 	f.Accounts.Accounts = configured
 	rows := f.Draw(doc.WorkedOut(claudeLike), routedAt)
 	tests := []struct {
 		row, column int
 		want        string
 	}{
-		{row: 6, column: 107, want: "added                    "},
-		{row: 7, column: 107, want: "○ not read               "},
-		{row: 9, column: 107, want: "                     —   "},
-		{row: 48, column: 107, want: "—                        "},
+		{row: 6, column: 121, want: "added              "},
+		{row: 7, column: 121, want: "○ not read         "},
+		{row: 9, column: 121, want: "              —    "},
+		{row: 48, column: 121, want: "—                  "},
 	}
 	for _, tt := range tests {
 		if got := ansi.Cut(rows[tt.row], tt.column, tt.column+ansi.StringWidth(tt.want)); got != tt.want {
@@ -369,14 +368,14 @@ func TestComparesHeadingSaysWhichAccountsItShowsByTheirPlaces(t *testing.T) {
 		width      int
 	}{
 		{name: "ten, the config and the router agreeing", configured: tenFramed, doc: ten, width: 160},
-		{name: "four, one added at the end", configured: slices.Concat(tenFramed[:3], configured("added")), doc: usageWorld(extraOff), width: 100},
+		{name: "four, one added at the end", configured: slices.Concat(tenFramed[:3], configured("added")), doc: usageWorld(extraOff), width: 90},
 		{name: "nine of ten, the last removed", configured: tenFramed[:9], doc: ten, width: 160},
-		{name: "three of four, the first removed", configured: tenFramed[1:4], doc: four, width: 100},
+		{name: "three of four, the first removed", configured: tenFramed[1:4], doc: four, width: 90},
 		{name: "nine of ten, the first removed", configured: tenFramed[1:], doc: ten, width: 160},
 		{name: "nine of ten, the fifth removed", configured: slices.Concat(tenFramed[:4], tenFramed[5:]), doc: ten, width: 160},
-		{name: "four, reordered", configured: slices.Concat(tenFramed[2:4], tenFramed[:2]), doc: four, width: 100},
+		{name: "four, reordered", configured: slices.Concat(tenFramed[2:4], tenFramed[:2]), doc: four, width: 90},
 		{name: "ten, the last two swapped", configured: slices.Concat(tenFramed[:8], tenFramed[9:], tenFramed[8:9]), doc: ten, width: 160},
-		{name: "three, one removed and one added", configured: configured("work", "side", "client"), doc: usageWorld(extraOff), width: 100},
+		{name: "three, one removed and one added", configured: configured("work", "side", "client"), doc: usageWorld(extraOff), width: 90},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -559,18 +558,18 @@ func TestComparesFocusedColumnsHeadsAreSelected(t *testing.T) {
 func TestComparesValuesTakeTheFullestFormTheirColumnsHold(t *testing.T) {
 	f, doc := tenOnCompare(t, 122, 54, 0)
 	account("work", func(a *status.Account) { a.Extra = quota.ExtraUsage{Status: quota.StatusAllowed} })(&doc)
-	f.Accounts.Page.Rows[0].Totals.Limits = map[string]int{"5h": 2000, "7d": 100}
+	f.Accounts.Page.Rows[0].Totals.Limits = map[string]int{"5h": 2, "7d": 1}
 	rows := f.Draw(doc.WorkedOut(claudeLike), routedAt)
 	tests := []struct {
 		row, column int
 		want        string
 	}{
-		{row: 42, column: 26, want: "week ×100 · 5h ×2,000   n"},
-		{row: 48, column: 26, want: "on                      o"},
-		{row: 48, column: 98, want: "on for 1 of 10"},
-		{row: 47, column: 98, want: "$1,700/mo · 10 plans"},
-		{row: 50, column: 26, want: "4.0× its $46 week       "},
-		{row: 50, column: 98, want: "3.4× its $392 week"},
+		{row: 42, column: 26, want: "week ×1 · 5h ×2    n"},
+		{row: 48, column: 26, want: "on                 o"},
+		{row: 48, column: 102, want: "on for 1 of 10"},
+		{row: 47, column: 102, want: "$1,700/mo · 10 plans"},
+		{row: 50, column: 26, want: "4.0× its $46 week  "},
+		{row: 50, column: 102, want: "3.4× its $392 week"},
 	}
 	for _, tt := range tests {
 		if got := ansi.Cut(rows[tt.row], tt.column, tt.column+ansi.StringWidth(tt.want)); got != tt.want {
