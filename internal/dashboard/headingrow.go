@@ -141,7 +141,7 @@ func (f Frame) tabHeading() heading {
 	case History:
 		return f.History.heading()
 	case Sessions:
-		return f.SessionsTab.heading()
+		return f.SessionsTab.heading(f.Period)
 	case Runway:
 		return f.Runway.heading()
 	case Log:

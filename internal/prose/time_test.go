@@ -296,10 +296,11 @@ func TestBefellIsDatedButAWeekBackItsDate(t *testing.T) {
 	}
 }
 
-// A day gone and a time lately name the day before now, in now's time zone,
-// alike: yesterday; its weekday within the six days before today; else its
-// date, a day gone with its weekday. Today, a day gone is today and a time
-// lately its time.
+// A day gone, a time lately and a time begun name the day before now, in
+// now's time zone, alike: yesterday; its weekday within the six days before
+// today; else its date, a day gone and a time begun with its weekday, a time
+// begun with its time after the day. Today, a day gone is today, and a time
+// lately and a time begun its time.
 func TestADayGoneAndATimeLatelyNameTheDayBeforeNow(t *testing.T) {
 	zone := time.FixedZone("UTC+1", 60*60)
 	now := time.Date(2026, 11, 19, 16, 0, 0, 0, zone)
@@ -307,13 +308,14 @@ func TestADayGoneAndATimeLatelyNameTheDayBeforeNow(t *testing.T) {
 		name            string
 		t               time.Time
 		dayGone, lately string
+		begun           string
 	}{
-		{name: "earlier today", t: now.Add(-90 * time.Minute), dayGone: "today", lately: "14:30"},
-		{name: "after midnight, in now's zone", t: time.Date(2026, 11, 18, 23, 30, 0, 0, time.UTC), dayGone: "today", lately: "00:30"},
-		{name: "yesterday", t: now.Add(-20 * time.Hour), dayGone: "yesterday", lately: "yesterday"},
-		{name: "six days back", t: now.AddDate(0, 0, -6), dayGone: "Fri", lately: "Fri"},
-		{name: "a week back", t: now.AddDate(0, 0, -7), dayGone: "Thu 12 Nov", lately: "12 Nov"},
-		{name: "a month back", t: now.AddDate(0, -1, -16), dayGone: "Sat 3 Oct", lately: "3 Oct"},
+		{name: "earlier today", t: now.Add(-90 * time.Minute), dayGone: "today", lately: "14:30", begun: "14:30"},
+		{name: "after midnight, in now's zone", t: time.Date(2026, 11, 18, 23, 30, 0, 0, time.UTC), dayGone: "today", lately: "00:30", begun: "00:30"},
+		{name: "yesterday", t: now.Add(-20 * time.Hour), dayGone: "yesterday", lately: "yesterday", begun: "yesterday 20:00"},
+		{name: "six days back", t: now.AddDate(0, 0, -6), dayGone: "Fri", lately: "Fri", begun: "Fri 16:00"},
+		{name: "a week back", t: now.AddDate(0, 0, -7), dayGone: "Thu 12 Nov", lately: "12 Nov", begun: "Thu 12 Nov 16:00"},
+		{name: "a month back", t: now.AddDate(0, -1, -16), dayGone: "Sat 3 Oct", lately: "3 Oct", begun: "Sat 3 Oct 16:00"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -322,6 +324,9 @@ func TestADayGoneAndATimeLatelyNameTheDayBeforeNow(t *testing.T) {
 			}
 			if got := prose.Lately(now, tt.t); got != tt.lately {
 				t.Errorf("Lately(%v, %v) = %q, want %q", now, tt.t, got, tt.lately)
+			}
+			if got := prose.Begun(now, tt.t); got != tt.begun {
+				t.Errorf("Begun(%v, %v) = %q, want %q", now, tt.t, got, tt.begun)
 			}
 		})
 	}

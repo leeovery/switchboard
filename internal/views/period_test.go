@@ -44,22 +44,24 @@ func TestEachPeriodBeginsOnItsFirstDay(t *testing.T) {
 }
 
 // Each period has its name, as the heading and the key line give it, THIS
-// WEEK's title naming it, and the unit against its price names it by.
+// WEEK's title naming it, the unit against its price names it by, and its
+// words after what's in it, as the List says it has no session in it.
 func TestEachPeriodIsNamedTitledAndPriced(t *testing.T) {
 	tests := []struct {
-		period            views.Period
-		name, title, unit string
+		period                    views.Period
+		name, title, unit, within string
 	}{
-		{period: views.PeriodToday, name: "today", title: "TODAY", unit: "day"},
-		{period: views.PeriodThisWeek, name: "this week", title: "THIS WEEK", unit: "week"},
-		{period: views.PeriodThirtyDays, name: "30 days", title: "LAST 30 DAYS", unit: "month"},
-		{period: views.PeriodTwelveWeeks, name: "12 weeks", title: "LAST 12 WEEKS", unit: "12 weeks"},
-		{period: views.PeriodTwelveMonths, name: "12 months", title: "LAST 12 MONTHS", unit: "12 months"},
+		{period: views.PeriodToday, name: "today", title: "TODAY", unit: "day", within: "today"},
+		{period: views.PeriodThisWeek, name: "this week", title: "THIS WEEK", unit: "week", within: "this week"},
+		{period: views.PeriodThirtyDays, name: "30 days", title: "LAST 30 DAYS", unit: "month", within: "in the last 30 days"},
+		{period: views.PeriodTwelveWeeks, name: "12 weeks", title: "LAST 12 WEEKS", unit: "12 weeks", within: "in the last 12 weeks"},
+		{period: views.PeriodTwelveMonths, name: "12 months", title: "LAST 12 MONTHS", unit: "12 months", within: "in the last 12 months"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := [3]string{tt.period.Name(), tt.period.Title(), tt.period.Unit()}; got != [3]string{tt.name, tt.title, tt.unit} {
-				t.Errorf("%q is named, titled and priced %q, want %q", tt.period, got, [3]string{tt.name, tt.title, tt.unit})
+			got := [4]string{tt.period.Name(), tt.period.Title(), tt.period.Unit(), tt.period.Within()}
+			if want := [4]string{tt.name, tt.title, tt.unit, tt.within}; got != want {
+				t.Errorf("%q is named, titled, priced and said within %q, want %q", tt.period, got, want)
 			}
 			if !tt.period.Known() {
 				t.Errorf("%q isn't known", tt.period)

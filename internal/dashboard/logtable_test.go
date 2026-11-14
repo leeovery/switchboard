@@ -243,6 +243,24 @@ func TestACostIsKeptWholeWhereTheWordsBeforeItKeepACell(t *testing.T) {
 	}
 }
 
+// The routing column, the Log's and the List's, names an account cut to a
+// label's most, however wide the column, as every column of names does.
+func TestRoutingNamesALabelCutToItsMost(t *testing.T) {
+	label := "work-account-labelled-thirty-c"
+	routing := views.RoutingSaid{Words: status.Words{{Text: "from "}, {Text: label, Kind: status.PartAccount}, {Text: ", at its cap"}}}
+	want := "from " + prose.Cut(label, labelMost) + ", at its cap"
+	for name, said := range map[string]line{
+		"the Log":  rowWordsIn(requestWords(views.RequestRow{Routing: routing}, LogRouting, logLayout{}), 80),
+		"the List": sessionWords{}.says(listColumn{part: listRouting, width: 80}, views.ListedSession{Routing: routing}),
+	} {
+		c := newCanvas(80, 1)
+		c.line(0, 0, said)
+		if got := strings.TrimRight(textOf(c.rows(Look{}))[0], " "); got != want {
+			t.Errorf("%s's routing reads %q, want %q", name, got, want)
+		}
+	}
+}
+
 // A row in flight is drawn as it stands at the moment it's drawn, its table
 // made once: its took counting on to that moment, and answering, its
 // characters as the stream the page holds then counts them.

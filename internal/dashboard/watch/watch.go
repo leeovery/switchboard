@@ -342,9 +342,11 @@ type Model struct {
 	// past is what the watch holds of History: its page, the ledger's days
 	// it's built of, and the reads of them, which Accounts shares.
 	past historyTab
-	// projects is what the watch holds of Projects: what it shows, the
-	// sessions' days it's built of, and its pages.
-	projects projectsTab
+	// projects is what the watch holds of Projects: what it shows, and its
+	// pages. sessionDays are the sessions' days it's built of, as Sessions'
+	// List is, one read of the period serving both.
+	projects    projectsTab
+	sessionDays periodDays
 	// sessionsTab is what the watch holds of Sessions: what it shows, its
 	// Switchboard and its List as the last look built them, and whether the
 	// List is held. held are the sessions its readers want, the store
@@ -547,7 +549,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	tuned, closed := next.(Model).letGo().relived(msg, now).closing()
 	tuned, stream := tuned.tune()
 	tuned, past := tuned.readHistory()
-	tuned, projected := tuned.readProjects()
+	tuned, projected := tuned.readDays()
 	tuned = tuned.historyBuilt().accountsBuilt().projectsBuilt(msg).followed(msg).sessionsLooked(msg).runwayLooked(msg)
 	tuned, paged := tuned.readPage()
 	tuned, logged := tuned.readLog()
@@ -719,8 +721,8 @@ func (m Model) take(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.yearRead(msg), nil
 	case sinceMsg:
 		return m.sinceRead(msg), nil
-	case projectsReadMsg:
-		return m.projectsRead(msg), nil
+	case daysReadMsg:
+		return m.daysRead(msg), nil
 	case tailedMsg:
 		return m.tailed(msg), nil
 	case logReadMsg:

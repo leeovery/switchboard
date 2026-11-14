@@ -1,0 +1,61 @@
+ SWITCHBOARD                                          Thu 1 Oct  14:42:07
+ Overview  Accounts  Projects  History  Sessions  Runway  Graphs  Log
+
+● healthy · auto · 6 sessions · new → ▲ side
+
+SESSIONS   Switchboard  List                                  < 30 days >
+
+  session                      on        model      state        requests
+▸ db8a infra                   side      opus-5-5   idle 50s          153
+  9c2e website                 personal  opus-5-5   idle 9m           267
+↑ d28c switchboard             side      opus-5-5   asking            445
+  41e0 docs                    personal  opus-5-5   idle 34s          158
+↓ 7f3a api                     side      opus-5-5   answering          84
+↓ c61b mobile                  side      opus-5-5   answering           4
+  ended today  ──────────────────────────────────────────────────────────
+  5b19 mobile                  personal  opus-5-5   ended 11:21        38
+  3d7a docs                    work      opus-5-5   ended 10:15        12
+  e0c4 infra                   work      opus-5-5   ended 10:02        19
+  a8f1 website                 side      opus-5-5   ended 09:28        24
+  2b6d api                     work      opus-5-5   ended 09:05        31
+  5e7d api                     side      opus-5-5   ended 00:41        39
+  4b0e infra                   work      opus-5-5   ended 00:31        13
+  8a2c docs                    side      opus-5-5   ended 00:18        43
+  ended yesterday  ──────────────────────────────────────────────────────
+▸ b9c4 switchboard             side      opus-5-5   ended 18:46       595
+  9814 switchboard             personal  opus-5-5   ended 16:45       201
+  d29e infra                   side      opus-5-5   ended 16:27       410
+  3a3a fix-login               personal  opus-5-5   ended 15:23       179
+  fd98 infra                   personal  opus-5     ended 14:47       397
+  dd8d website                 personal  sonnet-5…  ended 14:23       398
+  1cb3 pools                   side      sonnet-5…  ended 13:27       159
+  3449 website                 side      sonnet-5…  ended 12:57       260
+  0084 pools                   side      opus-5-5   ended 12:17       192
+  e9d9 api                     side      opus-5-5   ended 12:16       669
+  f17c website                 personal  opus-5-5   ended 12:12       332
+  31e1 switchboard             side      opus-5-5   ended 11:33       146
+  96f9 release                 work      opus-5-5   ended 11:23       142
+  ended Sat  ────────────────────────────────────────────────────────────
+  0606 website                 personal  sonnet-5…  ended 15:33        69
+  24da switchboard             side      opus-5-5   ended 13:14        51
+  ended Fri  ────────────────────────────────────────────────────────────
+  c646 switchboard             personal  sonnet-5…  ended 16:53       130
+  8efd docs                    work      sonnet-5…  ended 16:05       138
+  69d4 website                 work      opus-5-5   ended 14:47       192
+  e595 api                     personal  sonnet-5…  ended 12:13        97
+  b19e infra                   side      opus-5-5   ended 10:55        78
+  ended Thu 24 Sep  ─────────────────────────────────────────────────────
+  a0db infra                   work      sonnet-5…  ended 16:18       304
+  d07a mobile                  work      opus-5-5   ended 15:48       215
+  7902 switchboard             personal  haiku-4-5  ended 14:08       238
+  a358 switchboard             work      opus-5-5   ended 13:32       260
+  a9cc website                 work      sonnet-5…  ended 12:48       102
+  a165 switchboard             side      opus-5-5   ended 12:42        37
+  b557 api                     personal  opus-5-5   ended 11:07       165
+  8096 infra                   side      opus-5-5   ended 10:48        87
+  ended Wed 23 Sep  ─────────────────────────────────────────────────────
+  2ed2 website                 work      opus-5-5   ended 17:36       186
+  3e08 website                 side      fable-5-1  ended 16:22       117
+30 days  162 sessions · 26,469 requests · $3,061.31 at API prices
+  ▼ 118 more sessions
+tab views   ↑↓ session   [ ] view   < > period   ? keys   q quit

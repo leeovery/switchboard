@@ -149,8 +149,8 @@ var (
 		// lists them and a project's page totals them.
 		"status.ProjectNames":           "views.ProjectsPage",
 		"views.DaySession.Uses":         "views.ProjectsPage",
-		"views.DaySession.FirstRequest": "views.ProjectSession",
-		"views.DaySession.LastRequest":  "views.ProjectSession",
+		"views.DaySession.FirstRequest": "views.PeriodSession",
+		"views.DaySession.LastRequest":  "views.PeriodSession",
 	}
 	// absorbedIn are the packages, by directory from the module's root, what
 	// absorbed names is absorbed in, where it isn't in every drawing package.

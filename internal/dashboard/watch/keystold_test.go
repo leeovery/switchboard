@@ -49,8 +49,8 @@ func TestEveryPagesKeysAreEachPagesAsItsHelpListsThem(t *testing.T) {
 		t.Errorf("the pages are told in the order %q, want %q", named, want)
 	}
 	sessions := pages[slices.IndexFunc(pages, func(p PageKeys) bool { return p.Page == "Sessions" })]
-	if got := keysTold(sessions.Keys); len(got) < 3 || !slices.Equal(got[:3], []string{"[ ] view", "↑↓ session", "enter its page"}) {
-		t.Errorf("Sessions' keys are told %q, want them to start [ ] view, ↑↓ session, enter its page", got)
+	if got := keysTold(sessions.Keys); len(got) < 4 || !slices.Equal(got[:4], []string{"[ ] view", "< > period", "↑↓ session", "enter its page"}) {
+		t.Errorf("Sessions' keys are told %q, want them to start [ ] view, < > period, ↑↓ session, enter its page", got)
 	}
 }
 

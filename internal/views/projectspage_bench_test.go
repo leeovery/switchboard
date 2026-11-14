@@ -72,3 +72,14 @@ func BenchmarkProjectsOverTwelveMonths(b *testing.B) {
 		page.Project(page.Rows[0].Path)
 	}
 }
+
+// Sessions' log over the last 12 months, of a year of days held, as the
+// watch builds it as the List shows.
+func BenchmarkSessionLogOverTwelveMonths(b *testing.B) {
+	now := october(7, 13, 12)
+	days := views.ReadSessionDays(yearOfSides(b, now), now.AddDate(-1, 0, 0), now)
+	in := projectsIn(views.PeriodTwelveMonths, now)
+	for b.Loop() {
+		days.SessionLog(in)
+	}
+}
