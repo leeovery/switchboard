@@ -1057,7 +1057,7 @@ func TestTheLedgersCommandsNeedAConfig(t *testing.T) {
 func TestHistoryHelpSaysWhichDaysItsJSONGives(t *testing.T) {
 	got := run(t, testDeps(nil, t.TempDir()), "history", "--help")
 	help := strings.Join(strings.Fields(got.stdout), " ")
-	want := "it prints as JSON the summaries of the days asked for, as the ledger holds them, from the first it holds, so the last is today's"
+	want := "it prints as JSON the summaries of the days asked for, as the ledger holds them, from the first it holds, or a pool's first day of work, so the last is today's"
 	if got.code != 0 || !strings.Contains(help, want) || strings.Contains(help, "every day since the ledger began") {
 		t.Errorf("switchboard history --help = %+v, want help saying %q: the last 30 days, or --since's, not every day the ledger holds", got, want)
 	}

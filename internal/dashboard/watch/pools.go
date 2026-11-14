@@ -47,6 +47,20 @@ type Pooled struct {
 	Removed   status.RemovedAccounts
 }
 
+// ErrPoolsTold is what the source of a dashboard showing no pool, as its
+// pools couldn't be told, fails a read with once they can be, as the router
+// answers with the pools it routes for: the watch reads the pool shown
+// again, as at a change to the config, so it starts afresh on the pool the
+// verbs act on.
+var ErrPoolsTold = errors.New("the pools can be told now")
+
+// ErrConfigUnread is what Config's Turn fails with, joined to why, where
+// the config can't be read: that holds till the config file changes, so the
+// pools told ask for the pool shown again only then, where a turn that
+// failed otherwise, as where the router's health didn't answer in time, is
+// asked again at the next read.
+var ErrConfigUnread = errors.New("the config can't be read")
+
 // PoolAsk is which pool Config's Turn is asked for.
 type PoolAsk int
 
@@ -112,9 +126,10 @@ func (m Model) turnPool() (Model, tea.Cmd) {
 
 // followConfig reads the pool shown again, as askPool asks, where a read
 // finds the config file changed since the pool was read, as the read found
-// it standing, as filestate's Same has it; or, as accountsChanged says, the
+// it standing, as filestate's Same has it; or, as changed says, the
 // accounts the read found other than those the last read found, as an
-// account the router took up as it restarted. It does wherever the watch
+// account the router took up as it restarted, or the pools told where they
+// couldn't be, as ErrPoolsTold says. It does wherever the watch
 // has a Turn to ask, with pools or without, and where it shows none, as
 // they couldn't be told, so the first config naming pools, or one they can
 // be told of, starts the view afresh on the pool the verbs act on: a read
@@ -124,12 +139,13 @@ func (m Model) turnPool() (Model, tea.Cmd) {
 // again only once it changes again, and one found changed during a turn is
 // asked again at the next read. A read that finds neither reads nothing
 // again.
-func (m Model) followConfig(stamp filestate.State, accountsChanged bool) (Model, tea.Cmd) {
+func (m Model) followConfig(stamp filestate.State, changed bool) (Model, tea.Cmd) {
 	stamped := m.cfg.ConfigStamp != nil && !stamp.Same(m.cfg.Stamp)
 	// An accounts change found during a turn is dropped, accepted: a turn
 	// lasts milliseconds, the change costs nothing while the config is as
-	// it was, and the stamp, left as it was, catches a config changed.
-	if m.cfg.Turn == nil || m.turning || !stamped && !accountsChanged {
+	// it was, and the stamp, left as it was, catches a config changed. The
+	// pools told during a turn are told again at the next read.
+	if m.cfg.Turn == nil || m.turning || !stamped && !changed {
 		return m, nil
 	}
 	m.cfg.Stamp = stamp
@@ -156,8 +172,10 @@ func (m Model) askPool(ask PoolAsk) (Model, tea.Cmd) {
 // turnedTo shows the pool asked for, as shownAfresh shows it, and where P
 // asked, with no other to turn to, says so. Where it couldn't be told, it
 // keeps to the pool shown, and where P asked, the key line says why; where
-// the config changed, it's logged alone, and asked again once the config
-// changes again.
+// the config changed, or the pools were told, it's logged alone, and asked
+// again at the next read that calls for it; but where the config couldn't
+// be read, as ErrConfigUnread says, only once the config changes again, or
+// the pools are told afresh, as toldInVain has it.
 func (m Model) turnedTo(msg turnedMsg) (Model, tea.Cmd) {
 	m.turning = false
 	switch {
@@ -166,8 +184,10 @@ func (m Model) turnedTo(msg turnedMsg) (Model, tea.Cmd) {
 		return m.noting(prose.TurnFailed(msg.err.Error()))
 	case msg.err != nil:
 		logger.Warn("can't read the pool shown again as the config changed", "error", msg.err)
+		m.toldInVain = errors.Is(msg.err, ErrConfigUnread)
 		return m, nil
 	}
+	m.toldInVain = false
 	held := config.SamePool(msg.pooled.Pool.ID, m.cfg.Pool.ID)
 	shown, started := m.shownAfresh(msg.pooled)
 	if msg.ask == NextPool && held && !msg.pooled.Pool.Turns() {
@@ -184,7 +204,11 @@ func (m Model) turnedTo(msg turnedMsg) (Model, tea.Cmd) {
 // file's stamp that of pooled. Its pool's read of the ledger is made of the
 // same, the pool's id, the grounds' first pool and the accounts' places, and
 // every tab reads the ledger through it, the days, where they begin and the
-// sessions, so what each holds is what a fresh start would read. So a change
+// sessions, so what each holds is what a fresh start would read; but for a
+// page's turn, which readTurn reads of the whole ledger, safely: what it
+// takes of them is one prompt's lines alone, as views.HeldPage's mine
+// keeps them, and one prompt is one pool's, a session's pool being fixed
+// for its process. So a change
 // to the config that places anything otherwise, in any pool, starts the
 // pool shown afresh, and one that doesn't, as a comment, starts nothing.
 func (m Model) shownAfresh(pooled Pooled) (Model, tea.Cmd) {

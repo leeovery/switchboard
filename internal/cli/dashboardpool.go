@@ -3,13 +3,17 @@ package cli
 import (
 	"context"
 	"errors"
+	"fmt"
+	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard/watch"
 	"github.com/leeovery/switchboard/internal/events"
 	"github.com/leeovery/switchboard/internal/filestate"
 	"github.com/leeovery/switchboard/internal/idmove"
+	"github.com/leeovery/switchboard/internal/launch"
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -33,10 +37,10 @@ type shownPools struct {
 // else the one the verbs act on, of the pools as they stand, as
 // pooledConfig has them, as shown has it. It fails where a pool is named
 // and the pools can't be told, as pooledConfig fails; where none is named,
-// it opens on none, warning, its source reading the pool the verbs act on,
-// as before pools, its accounts the config's, which names none, and none of
-// the router's events, nor any pool's work of the request ledger, so the
-// dashboard never shows every pool's together.
+// it opens on none, warning, as where every pool is fenced: no accounts, a
+// source reading none, as untoldSource has it, till the router tells the
+// pools, and none of the router's events, nor any pool's work of the
+// request ledger, so the dashboard never shows every pool's together.
 func (s shownPools) opened(ctx context.Context, cfg *config.Config, named string) (watch.Pooled, error) {
 	pooled, err := s.a.pooledConfig(ctx, cfg)
 	switch {
@@ -45,13 +49,64 @@ func (s shownPools) opened(ctx context.Context, cfg *config.Config, named string
 	case err != nil:
 		logger.Warn("can't tell which pool the dashboard shows, so it reads none of the router's files of events, nor the request ledger", "error", err)
 		return watch.Pooled{
-			Accounts: status.PoolAccounts(cfg.Pools, cfg.Accounts, ""), Source: s.a.source(ctx, cfg, s.probe), Events: events.Empty{}, Read: views.NoPool(), Stamp: s.stamp,
+			Source: untoldSource{usageSource: s.a.source(ctx, cfg, s.probe), why: err}, Events: events.Empty{}, Read: views.NoPool(), Stamp: s.stamp,
 			Placed: status.Placed(cfg.Pools, cfg.Accounts), Grounds: groundsOf(cfg, s.firstOf(cfg.Pools)),
 		}, nil
 	}
 	shown, err := s.shown(ctx, cfg, pooled, named)
 	shown.Stamp = s.stamp
 	return shown, err
+}
+
+// untoldSource is the source of a dashboard opened on no pool as its pools
+// couldn't be told: it reads no document, nor probes, nor reads the router's
+// sessions, history or request stream, nor gives it an order, each failing
+// with why, so the dashboard never shows every pool's accounts together. A
+// read asks the router's health all the same, and once it answers with the
+// pools it routes for, fails with watch.ErrPoolsTold, so the dashboard reads
+// the pool shown again, starting afresh on the pool the verbs act on.
+type untoldSource struct {
+	usageSource
+	why error
+}
+
+func (s untoldSource) Read(ctx context.Context, _ status.Read) (status.Document, router.Health, error) {
+	if s.router == nil {
+		return status.Document{}, router.Health{}, s.why
+	}
+	health, _, answered := s.answers(ctx)
+	if _, told := launch.RoutedPools(health); answered && told {
+		return status.Document{}, health, fmt.Errorf("%w: the router routes for them", watch.ErrPoolsTold)
+	}
+	return status.Document{}, health, s.why
+}
+
+func (s untoldSource) History(context.Context, string, time.Duration) (router.History, error) {
+	return router.History{}, s.why
+}
+
+func (s untoldSource) Sessions(context.Context) ([]status.Session, error) {
+	return nil, s.why
+}
+
+func (s untoldSource) Stream(context.Context) (<-chan router.StreamEvent, error) {
+	return nil, s.why
+}
+
+func (s untoldSource) Pin(context.Context, []string, bool) error {
+	return s.why
+}
+
+func (s untoldSource) Unpin(context.Context) error {
+	return s.why
+}
+
+func (s untoldSource) PinSession(context.Context, string, string) error {
+	return s.why
+}
+
+func (s untoldSource) UnpinSession(context.Context, string) error {
+	return s.why
 }
 
 // turn is what the dashboard shows of the pool asked for, as poolAsked has
@@ -63,12 +118,12 @@ func (s shownPools) opened(ctx context.Context, cfg *config.Config, named string
 // ledger made on them, as ledgerOn makes it, for the watch to make only
 // where the one in use was made on others; and the accounts removed, as
 // removedIn gives them where there's a state directory. It fails where the
-// config can't be read, or the pools told.
+// config can't be read, joining watch.ErrConfigUnread, or the pools told.
 func (s shownPools) turn(ctx context.Context, from string, ask watch.PoolAsk) (watch.Pooled, error) {
 	stamp := s.a.configStamp()
 	cfg, err := s.a.loadConfig()
 	if err != nil {
-		return watch.Pooled{}, err
+		return watch.Pooled{}, errors.Join(watch.ErrConfigUnread, err)
 	}
 	pooled, err := s.a.pooledConfig(ctx, cfg)
 	if err != nil {

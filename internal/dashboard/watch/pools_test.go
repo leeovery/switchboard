@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -921,9 +922,20 @@ func TestATurnOnTheSameGroundsKeepsTheLedgerInUse(t *testing.T) {
 }
 
 // configsLedger is a ledger as a config read has it, told apart by its
-// address.
+// address, telling where it begins as the ledger it holds does, so a turn
+// built on it asks where the pool shown begins.
 type configsLedger struct {
 	views.Ledger
+}
+
+// FirstDay tells where the ledger held begins, as its LedgerStart does:
+// failing as one holding no day does, where it can't tell.
+func (l *configsLedger) FirstDay(now time.Time) (time.Time, error) {
+	start, ok := l.Ledger.(views.LedgerStart)
+	if !ok {
+		return time.Time{}, fs.ErrNotExist
+	}
+	return start.FirstDay(now)
 }
 
 // A change to the config that places nothing otherwise, as a comment
@@ -1131,6 +1143,93 @@ func TestThePoolShownIsReadAgainOnlyWhereTheConfigChanged(t *testing.T) {
 				t.Errorf("a read's accounts changed once had the pool shown read again %d times in all, started afresh %v; want twice, nothing started", pools.again, h.model.poolTurns != turns)
 			}
 		})
+	}
+}
+
+// A dashboard showing no pool, as its pools couldn't be told, reads the pool
+// shown again at a read its source fails with ErrPoolsTold, as at a change
+// to the config, once a read: never at a read failing otherwise, as one
+// saying the pools can't be told.
+func TestAReadTellingThePoolsReadsThePoolShownAgain(t *testing.T) {
+	h, pools := unpooledHarness(t)
+	h.source.router = nil
+	h.source.err = errors.New("can't tell which pool to read: neither the config, the router nor the accounts record names any pools")
+	h.start()
+	h.deliver(h.press("R")...)
+	if pools.again != 0 {
+		t.Errorf("a read failing as the pools can't be told read the pool shown again %d times, want none", pools.again)
+	}
+	h.source.err = errors.Join(ErrPoolsTold, errors.New("the router routes for them"))
+	h.deliver(h.press("R")...)
+	if pools.again != 1 {
+		t.Errorf("a read telling the pools read the pool shown again %d times, want once", pools.again)
+	}
+}
+
+// Where the pool shown is read again in vain as the pools are told, as when
+// the config can't be read, the reads telling them ask for it no more, till
+// something it rests on changes: the router going away and telling them
+// again as it comes back, or the config changing. Once the turn can be made,
+// the router telling them again shows the pool.
+func TestPoolsToldInVainAreAskedForAgainOnlyOnceTheyMayBeToldAfresh(t *testing.T) {
+	h, pools := unpooledHarness(t)
+	h.source.router = nil
+	untold := errors.New("can't tell which pool to read: neither the config, the router nor the accounts record names any pools")
+	told := errors.Join(ErrPoolsTold, errors.New("the router routes for them"))
+	pools.failure = errors.Join(ErrConfigUnread, errors.New("config file makes no valid config"))
+	h.source.err = told
+	h.start()
+	steps := []struct {
+		name  string
+		err   error
+		turn  func()
+		again int
+	}{
+		{name: "the pools told, the turn failing", err: told, again: 1},
+		{name: "the pools told again, nothing changed", err: told, again: 1},
+		{name: "and again", err: told, again: 1},
+		{name: "the router gone", err: untold, again: 1},
+		{name: "the router back, telling them afresh", err: told, again: 2},
+		{name: "the config changed", err: told, turn: func() { pools.changeConfig(func(*poolTurns) {}) }, again: 3},
+		{name: "the pools told again, nothing changed since", err: told, again: 3},
+		{name: "the router gone, the config readable", err: untold, turn: func() { pools.failure = nil }, again: 3},
+		{name: "the router back, the turn made", err: told, again: 4},
+	}
+	for _, step := range steps {
+		if step.turn != nil {
+			step.turn()
+		}
+		h.source.err = step.err
+		h.deliver(h.press("R")...)
+		if pools.again != step.again {
+			t.Fatalf("%s: the pool shown was read again %d times in all, want %d", step.name, pools.again, step.again)
+		}
+	}
+	if h.model.toldInVain {
+		t.Error("the pool shown once read again, the pools told are still taken as told in vain")
+	}
+}
+
+// Where the pool shown is read again in vain as the pools are told, for a
+// reason that may pass, as the router's health not answering the turn in
+// time, the next read telling them asks for it again.
+func TestPoolsToldInVainForAPassingReasonAreAskedForAgainAtTheNextRead(t *testing.T) {
+	h, pools := unpooledHarness(t)
+	h.source.router = nil
+	pools.failure = errors.New("can't tell which pool to read: neither the config, the router nor the accounts record names any pools")
+	h.source.err = errors.Join(ErrPoolsTold, errors.New("the router routes for them"))
+	h.start()
+	if pools.again != 1 {
+		t.Fatalf("the pools told as it starts, the pool shown was read again %d times, want once", pools.again)
+	}
+	h.deliver(h.press("R")...)
+	if pools.again != 2 {
+		t.Fatalf("the pools told again after a turn that failed for a reason that may pass, the pool shown was read again %d times in all, want twice", pools.again)
+	}
+	pools.failure = nil
+	h.deliver(h.press("R")...)
+	if pools.again != 3 || h.model.toldInVain {
+		t.Fatalf("the pools told again, the turn able to be made, the pool shown was read again %d times in all, told in vain %v; want three times, not in vain", pools.again, h.model.toldInVain)
 	}
 }
 

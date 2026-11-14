@@ -17,12 +17,17 @@ import (
 	"github.com/leeovery/switchboard/internal/views"
 )
 
-// sessionPage prints the page of the session given names, among the
-// router's sessions in the pool pooled names, as sessionsPool has it,
-// telling errOut where the router can't say whether it runs. One read of the
-// ledger gives both the sessions given is named among, as views.NamedAmong
-// names it, and the page: given is read too, as the whole id of a session of
-// an earlier day.
+// sessionPage prints the page of the session given names, in the pool pooled
+// names, as sessionsPool has it, among the router's sessions there, telling
+// errOut where the router can't say whether it runs: its work in that pool
+// alone, and of one with none there, that there's no such session in it.
+// Where pooled names none, it's of every pool's sessions, the page of the
+// session's work in the pool it's in now, as sessionIn reads it. One read
+// of the ledger gives both the sessions given is named among, as
+// views.NamedAmong names it, and the page, but of a session split between
+// pools, read again in its pool: given is read too, as the whole id of a
+// session of an earlier day. The page names the pool it's of, its text as
+// filedPool's heading heads it, its JSON as pooledPage gives it.
 func (a *app) sessionPage(ctx context.Context, out, errOut io.Writer, given, pooled string, asJSON bool) error {
 	cfg, err := a.loadConfig()
 	if err != nil {
@@ -38,13 +43,18 @@ func (a *app) sessionPage(ctx context.Context, out, errOut io.Writer, given, poo
 	}
 	running, unlisted := a.routedSessions(ctx, errOut, pool, "showing the session from the ledger alone, as not running")
 	now := a.Now()
-	read := views.ReadSessions(readers.ledger, running, now, given)
+	read := views.ReadSessions(pool.sessions(readers), running, now, given)
 	named := views.NamedAmong(given, read.Named(running))
 	if named.Several != nil {
 		return several(given, named.Several)
 	}
 	if err := a.runsElsewhere(ctx, pool.ID, running, unlisted, named.ID); err != nil {
 		return err
+	}
+	if pooled == "" {
+		if read, pool, err = a.sessionIn(ctx, cfg, readers, read, named.ID, now); err != nil {
+			return err
+		}
 	}
 	page, ok := views.SessionPageOf(named.ID, views.PageSources{
 		Routed:   views.Routed(running, named.ID),
@@ -55,13 +65,25 @@ func (a *app) sessionPage(ctx context.Context, out, errOut io.Writer, given, poo
 		Now:      now,
 	})
 	if !ok {
-		return fmt.Errorf("no session %s in the ledger, or among the router's sessions", prose.Clean(redact.Text(given)))
+		return fmt.Errorf("no session %s in the ledger, or among the router's sessions%s", prose.Clean(redact.Text(given)), inNamed(pool.named))
 	}
 	page = page.Named(status.NamesOf(cfg.Accounts, readers.removed))
 	if asJSON {
-		return writeJSON(out, page)
+		return writeJSON(out, pooledPage{SessionPage: page, Pool: pool.ID, PoolLabel: pool.Label})
+	}
+	if _, err := io.WriteString(out, pool.heading()); err != nil {
+		return err
 	}
 	return writeSessionPage(out, page, now)
+}
+
+// pooledPage is a session's page as its JSON gives it: the page, and the
+// pool it's of, by its id and its label, once the config has pools, as
+// every verb's JSON gives a pool.
+type pooledPage struct {
+	views.SessionPage
+	Pool      string `json:"pool,omitempty"`
+	PoolLabel string `json:"pool_label,omitempty"`
 }
 
 // sessionsPool returns the pool a session given is looked for in, named or

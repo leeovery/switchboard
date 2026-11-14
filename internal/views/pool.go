@@ -237,16 +237,28 @@ func (d poolDays) Days(from time.Time) []ledger.Summary {
 
 // Start tells where the pool read's work begins, as l tells where the
 // ledger begins, for the days History, Accounts, Runway and Graphs read to
-// begin there: l itself where the read is of every pool's; else the first
+// begin there, and the days history counts: l itself where the read is of
+// every pool's; today, reading nothing, where it's NoPool's; else the first
 // day the ledger holds whose summary in the pool holds work, so a pool added
 // to a ledger months old never counts the days before it as days of none.
 // Nil where l can't tell where it begins.
-func (p PoolRead) Start(l Ledger) LedgerStart {
+func (p PoolRead) Start(l LedgerDates) LedgerStart {
 	start, ok := l.(LedgerStart)
-	if !ok || p.every() {
+	switch {
+	case !ok || p.every():
 		return start
+	case p.none:
+		return todayStart{}
 	}
 	return poolStart{start: start, dates: p.Dates(l)}
+}
+
+// todayStart tells that work begins today, as a pool's that worked on no day
+// before today does, reading nothing to tell.
+type todayStart struct{}
+
+func (todayStart) FirstDay(now time.Time) (time.Time, error) {
+	return dayfile.DayStart(now.Local(), 0), nil
 }
 
 // poolStart tells where a pool's work begins, as PoolRead's Start has it.
@@ -264,8 +276,9 @@ const poolStartRead = 31
 // failing as it fails to say; today's where no day before today's does. A
 // pool yet to work so begins with today as a ledger yet to hold a day does,
 // but isn't asked again at each read, as that would read every day's
-// summary each time: one that first works while the dashboard is open
-// begins where it was opened, till it's opened again.
+// summary each time: one that first works while the dashboard shows it
+// begins on the day it was asked, till the pool shown starts afresh, at a P
+// or a change to the config, which asks again.
 func (s poolStart) FirstDay(now time.Time) (time.Time, error) {
 	first, err := s.start.FirstDay(now)
 	if err != nil {

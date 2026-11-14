@@ -209,15 +209,23 @@ func RecordedPools(stored []string) []string {
 	return stored
 }
 
-// RecordedIn reports whether a request that recorded the pool with the id
-// recorded, as a line records it at the time, "" where it named none, was
-// routed in the pool with the given id, ids compared as config.SamePool
-// compares them. first is the id of the first pool, once the move to pools
+// PoolRecorded is the id of the pool a request that recorded the pool with
+// the id recorded, as a line records it at the time, "" where it named none,
+// was routed in. first is the id of the first pool, once the move to pools
 // is done, "" till then: a request naming no pool is the first's, as
 // FirstPool says, and before, the pool of none. It's the one rule of which
-// pool a request is of, whether read of its line or of what's built of it.
+// pool a request is of, whether read of its line or of what's built of it,
+// and of a router's event that records its pool, as status's InPool reads
+// one.
+func PoolRecorded(recorded, first string) string {
+	return cmp.Or(recorded, first)
+}
+
+// RecordedIn reports whether a request that recorded the pool with the id
+// recorded was routed in the pool with the given id, as PoolRecorded has it
+// of first, ids compared as config.SamePool compares them.
 func RecordedIn(recorded, pool, first string) bool {
-	return config.SamePool(cmp.Or(recorded, first), pool)
+	return config.SamePool(PoolRecorded(recorded, first), pool)
 }
 
 // RoutedIn reports whether a request that recorded the pool given, as a line
@@ -264,10 +272,10 @@ func poolsApart(pools []string, first string) [][]string {
 }
 
 // poolOf is the id of the pool requests that recorded pools, one pool's
-// apart, as poolsApart has them, were routed in, as RecordedIn has it of
+// apart, as poolsApart has them, were routed in, as PoolRecorded has it of
 // first: the first's, of those that named none.
 func poolOf(pools []string, first string) string {
-	return cmp.Or(pools[0], first)
+	return PoolRecorded(pools[0], first)
 }
 
 // entryState is a state a digest's entry holds of a session, as a reader in

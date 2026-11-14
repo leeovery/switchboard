@@ -346,10 +346,14 @@ func TestDaysStartWhereTheLedgerBegins(t *testing.T) {
 			tt.lay(t, dir)
 			follower := followerOf(state, &testClock{at: today}, caps)
 
-			first, err := follower.FirstDay(today)
-			began, none, err := ledger.Begins(first, err, today)
-			if want, _, _ := dayfile.Day(tt.began); err != nil || !began.Equal(want) || none != tt.none {
-				t.Errorf("the ledger begins %v, holding none %t, failing %v; want %v, %t", began, none, err, want, tt.none)
+			for name, start := range map[string]interface {
+				FirstDay(now time.Time) (time.Time, error)
+			}{"Reader": readerAt(state, today), "Follower": follower} {
+				first, err := start.FirstDay(today)
+				began, none, err := ledger.Begins(first, err, today)
+				if want, _, _ := dayfile.Day(tt.began); err != nil || !began.Equal(want) || none != tt.none {
+					t.Errorf("by a %s, the ledger begins %v, holding none %t, failing %v; want %v, %t", name, began, none, err, want, tt.none)
+				}
 			}
 			for name, days := range map[string][]ledger.Summary{
 				"Reader": readerAt(state, today).Days(tt.from), "Follower": follower.Days(tt.from),

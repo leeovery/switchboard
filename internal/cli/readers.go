@@ -9,6 +9,7 @@ import (
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard/watch"
 	"github.com/leeovery/switchboard/internal/events"
+	"github.com/leeovery/switchboard/internal/filestate"
 	"github.com/leeovery/switchboard/internal/identity"
 	"github.com/leeovery/switchboard/internal/idmove"
 	"github.com/leeovery/switchboard/internal/ledger"
@@ -152,6 +153,16 @@ func (a *app) readers(ctx context.Context, wc *watch.Config, cfg *config.Config)
 	}
 	wc.Ledger, wc.Readings, wc.Removed = r.ledger, r.readings, r.removed
 	return r, true
+}
+
+// dashboardPools is how the dashboard reads the pool it shows, as
+// shownPools has it, probing alone where probe says, the config file
+// standing as stamp says: wc reading the request ledger and the readings
+// history as readers has it, and the router's events read through it, of
+// the pool shown alone.
+func (a *app) dashboardPools(ctx context.Context, wc *watch.Config, cfg *config.Config, probe bool, stamp filestate.State) shownPools {
+	r, read := a.readers(ctx, wc, cfg)
+	return shownPools{a: a, probe: probe, dir: r.dir, events: r.events, read: read, stamp: stamp}
 }
 
 // poolsNamed labels a pool by its id, as status.PoolLabels does, where the

@@ -120,6 +120,23 @@ func fileDay(t *testing.T, state string, lines ...ledger.Line) {
 	writeStateFile(t, ledger.Dir(state), "requests-2026-10-07.jsonl", day.Bytes())
 }
 
+// appendRequests appends lines, each a message answered with hourUsage, to
+// the request ledger's days in deps' state directory, each under the local
+// day it arrived on.
+func appendRequests(t *testing.T, deps cli.Deps, lines ...ledger.Line) {
+	t.Helper()
+	dir := ledger.Dir(stateDir(t, deps))
+	for _, l := range lines {
+		date := l.At.Format(time.DateOnly)
+		l.At, l.Kind, l.Model, l.Reason, l.Status, l.Attempts, l.TotalMS, l.Usage = l.At.UTC(), ledger.KindMessage, "claude-opus-5-5", "new", 200, 1, 100, json.RawMessage(hourUsage)
+		data, err := json.Marshal(l)
+		if err != nil {
+			t.Fatal(err)
+		}
+		appendTo(t, filepath.Join(dir, "requests-"+date+".jsonl"), string(data)+"\n")
+	}
+}
+
 // fieldsOf returns the given field of each JSON object a line printed, as a
 // string.
 func fieldsOf(t *testing.T, got result, field string) []string {
@@ -437,20 +454,11 @@ func TestSessionsListsThePoolsSessionsAlone(t *testing.T) {
 func TestASessionInTwoPoolsIsCountedInEachByItsOwnRequests(t *testing.T) {
 	const twoPools = "7c1d2e3f-0004-4a00-8000-000000000004"
 	deps := pooledDeps(t, false)
-	var lines bytes.Buffer
-	for _, l := range []ledger.Line{
-		{At: october(7, 11, 30, 0), Request: "p4", Session: twoPools, Account: "side", Pool: "b2n8"},
-		{At: october(7, 11, 40, 0), Request: "p5", Session: twoPools, Account: "work", Pool: "q7mt"},
-		{At: october(7, 11, 50, 0), Request: "p6", Session: twoPools, Account: "side", Pool: "b2n8"},
-	} {
-		l.At, l.Kind, l.Model, l.Reason, l.Status, l.Attempts, l.TotalMS, l.Usage = l.At.UTC(), ledger.KindMessage, "claude-opus-5-5", "new", 200, 1, 100, json.RawMessage(hourUsage)
-		data, err := json.Marshal(l)
-		if err != nil {
-			t.Fatal(err)
-		}
-		lines.Write(append(data, '\n'))
-	}
-	appendTo(t, filepath.Join(ledger.Dir(stateDir(t, deps)), "requests-2026-10-07.jsonl"), lines.String())
+	appendRequests(t, deps,
+		ledger.Line{At: october(7, 11, 30, 0), Request: "p4", Session: twoPools, Account: "side", Pool: "b2n8"},
+		ledger.Line{At: october(7, 11, 40, 0), Request: "p5", Session: twoPools, Account: "work", Pool: "q7mt"},
+		ledger.Line{At: october(7, 11, 50, 0), Request: "p6", Session: twoPools, Account: "side", Pool: "b2n8"},
+	)
 
 	type listed struct {
 		Session  string      `json:"session"`
@@ -515,10 +523,10 @@ func TestAPoolGivenEmptyIsNoneGiven(t *testing.T) {
 	}
 }
 
-// A session given to requests --session is found in whatever pool it's in,
-// or with --pool, in that pool alone, its requests those routed there; one
-// given to sessions takes --pool, a pool configured, for the router's
-// sessions it's found among, and without the router, shows from the ledger.
+// A session given to requests --session, or to sessions, is found in
+// whatever pool it's in, or with --pool, in that pool alone, its requests
+// those routed there, and without the router, its page from the ledger; a
+// pool --pool names that's neither configured nor kept is refused.
 func TestASessionGivenIsFoundInWhateverPoolElseInThePoolNamed(t *testing.T) {
 	deps := pooledDeps(t, false)
 	tests := []struct {
@@ -536,9 +544,9 @@ func TestASessionGivenIsFoundInWhateverPoolElseInThePoolNamed(t *testing.T) {
 			t.Errorf("switchboard %s --json printed the requests %q (%+v), want %q", strings.Join(tt.args, " "), requests, got, tt.want)
 		}
 	}
-	for _, pool := range []string{"q7mt", "b2n8"} {
-		if got := run(t, deps, "sessions", sessionB, "--pool", pool, "--json"); got.code != 0 || !strings.Contains(got.stdout, sessionB) {
-			t.Errorf("switchboard sessions %s --pool %s --json = %+v, want the session's page", status.ShortID(sessionB), pool, got)
+	for _, args := range [][]string{nil, {"--pool", "q7mt"}} {
+		if got := run(t, deps, append([]string{"sessions", sessionB, "--json"}, args...)...); got.code != 0 || !strings.Contains(got.stdout, sessionB) {
+			t.Errorf("switchboard sessions %s --json %s = %+v, want the session's page", status.ShortID(sessionB), strings.Join(args, " "), got)
 		}
 	}
 	if got := run(t, deps, "sessions", sessionB, "--pool", "x9z9"); got.code == 0 || !strings.Contains(got.stderr, `there's no pool "x9z9": name b2n8 (Default) or q7mt (Acme), with --pool`) {
@@ -629,7 +637,8 @@ func TestTheVerbsReadingTheFilesRefuseWhereNothingNamesThePools(t *testing.T) {
 		deps := unpooledDeps(t, cfg, false)
 		verbs := [][]string{{"events"}}
 		if cfg == unpooledConfig {
-			verbs = append(verbs, []string{"requests"}, []string{"history"}, []string{"sessions"}, []string{"requests", "--pool", "q7mt"})
+			verbs = append(verbs, []string{"requests"}, []string{"history"}, []string{"sessions"}, []string{"requests", "--pool", "q7mt"},
+				[]string{"sessions", sessionB}, []string{"requests", "--session", sessionB}, []string{"requests", "--account", "work"})
 		}
 		for _, args := range verbs {
 			if got := run(t, deps, append(args, "--json")...); got.code == 0 || got.stdout != "" || !strings.Contains(got.stderr, why) {

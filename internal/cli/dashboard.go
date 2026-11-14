@@ -209,8 +209,7 @@ func (a *app) dashboard(ctx context.Context, out io.Writer, opts dashboardOption
 		Prices:        pricing(cfg),
 		Home:          home,
 	}
-	r, read := a.readers(ctx, &wc, cfg)
-	pools := shownPools{a: a, probe: opts.probe, dir: r.dir, events: r.events, read: read, stamp: stamp}
+	pools := a.dashboardPools(ctx, &wc, cfg, opts.probe, stamp)
 	shown, err := pools.opened(ctx, cfg, opts.pool)
 	if err != nil {
 		return err

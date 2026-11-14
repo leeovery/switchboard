@@ -15,7 +15,6 @@ import (
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
-	"github.com/leeovery/switchboard/internal/readings"
 	"github.com/leeovery/switchboard/internal/redact"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
@@ -70,19 +69,22 @@ the readings history holds it.
 
 It shows one pool's history: its work as each request recorded its pool at
 the time, work from before pools the first pool's, and the windows, plans
-and weeks of the accounts in it now. ` + readingAPool + `
+and weeks of the accounts in it now. A pool's days, year, months and tokens,
+and the removed accounts they name, are listed from its first day of work,
+and its plans priced from it, as the dashboard's are, never the days before
+it worked. ` + readingAPool + `
 
 ` + readingAKeptPool + `
 
 On a terminal, history prints its days as text. Anywhere else, as in a pipe
 or an agent's shell, it prints as JSON the summaries of the days asked for, as
-the ledger holds them, from the first it holds, so the last is today's, each
-model's worth in US dollars added, and what it leaves unpriced, with each
-day's worth by family; then, over those days, the year's grid of requests a
-day, each month's, each week's peaks and its tokens, each account's totals,
-its plan and its worth against it, and the capacity Weeks gives its verdicts
-from, for an agent or a script to read; or, with --windows, each account's
-windows' readings. --json prints the JSON, and --pretty the text, wherever
+the ledger holds them, from the first it holds, or a pool's first day of work,
+so the last is today's, each model's worth in US dollars added, and what it
+leaves unpriced, with each day's worth by family; then, over those days, the
+year's grid of requests a day, each month's, each week's peaks and its tokens,
+each account's totals, its plan and its worth against it, and the capacity
+Weeks gives its verdicts from, for an agent or a script to read; or, with
+--windows, each account's windows' readings. --json prints the JSON, and --pretty the text, wherever
 stdout is.`,
 		Args: a.ledgerArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -150,10 +152,10 @@ func (a *app) history(ctx context.Context, out io.Writer, given, pool string, as
 		return err
 	}
 	prices := pricing(asked.cfg)
-	reader := a.ledgerReader(asked.stateDir, asked.cfg, func() time.Time { return asked.now })
+	days, began := a.requestDays(asked.pool, asked.stateDir, asked.cfg, asked.now)
 	removed, record := removedIn(asked.stateDir, asked.cfg), recordIn(asked.stateDir)
 	history := views.NewHistory(views.HistoryInput{
-		Ledger: asked.pool.read.Days(reader), From: asked.from, Now: asked.now, Prices: prices, Accounts: asked.accounts(), Removed: removed,
+		Ledger: days, From: asked.from, Now: asked.now, Began: began, Prices: prices, Accounts: asked.accounts(), Removed: removed,
 		WeekStarts: asked.cfg.WeekStarts, WeekWindow: claude.WeekWindow, Family: claude.Provider{}.Family,
 		PoolLabel: status.PoolLabels(asked.cfg.Pools, record), OnePool: status.ManyPoolsFiled(asked.cfg.Pools, record),
 	})
@@ -174,7 +176,7 @@ func (a *app) historyWindows(ctx context.Context, out io.Writer, given, pool str
 		return err
 	}
 	names := namesIn(asked.stateDir, asked.cfg)
-	windows := asked.pool.read.Windows(views.NewWindows(readings.NewReader(asked.stateDir, logger), asked.accounts(), asked.from, asked.now)).Named(names)
+	windows := asked.pool.windows(asked.stateDir, asked.accounts(), asked.from, asked.now).Named(names)
 	if asJSON {
 		return writeJSON(out, windows)
 	}

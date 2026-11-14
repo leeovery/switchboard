@@ -343,13 +343,16 @@ type startedDays struct {
 	first  time.Time
 	failed error
 	days   map[string]ledger.Summary
+	// asked are the dates asked for, every DaysOn's in turn.
+	asked []string
 }
 
 func (l startedDays) FirstDay(time.Time) (time.Time, error) {
 	return l.first, l.failed
 }
 
-func (l startedDays) DaysOn(dates []string) []ledger.Summary {
+func (l *startedDays) DaysOn(dates []string) []ledger.Summary {
+	l.asked = append(l.asked, dates...)
 	var held []ledger.Summary
 	for _, date := range dates {
 		if s, ok := l.days[date]; ok {
@@ -391,6 +394,10 @@ func TestAPoolsWorkBeginsOnTheFirstDayItsSummaryHoldsWork(t *testing.T) {
 		if got, err := tt.read.Start(l).FirstDay(now); err != nil || !got.Equal(tt.want) {
 			t.Errorf("%s work begins %v, %v, want %v", tt.name, got, err, tt.want)
 		}
+	}
+	l.asked = nil
+	if got, err := views.NoPool().Start(l).FirstDay(now); err != nil || !got.Equal(dayOf(0)) || len(l.asked) > 0 {
+		t.Errorf("no pool's work begins %v, %v, read from the summaries of %d days, want today, none read", got, err, len(l.asked))
 	}
 	if start := (views.PoolRead{}).Start(l); start != views.LedgerStart(l) {
 		t.Errorf("every pool's read begins as %v tells it, want the ledger itself", start)

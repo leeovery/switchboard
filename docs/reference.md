@@ -600,7 +600,9 @@ began, oldest first and today's last.
 
 Once the config has pools, it's one pool's history: the work each request recorded in the pool at
 the time, the work from before pools the first pool's, and the windows, plans and weeks of the
-accounts in the pool now, as an account's windows are its own whatever pool it's in.
+accounts in the pool now, as an account's windows are its own whatever pool it's in. Its `days`,
+`year`, `months`, `tokens` and `removed` begin at the pool's first day of work, where that falls
+after the days asked for begin, while `weeks`, `totals` and `plans` cover every day asked for.
 
 ### `prices_as_of`
 
@@ -642,7 +644,7 @@ Each month's:
 - `by_family`.
 - `cost`: the cost of the month's plans. It's the whole month's, or, where the days asked for begin
   part-way through the month, its days' from the first asked for, or from the ledger's first day
-  where it began later.
+  or the pool's first day of work, where it began later.
 - `against`: the worth of the month's accounts against that cost, as a ratio. The month so far has
   none.
 - `plans`: how many accounts' plans are `known`, of how many there are, as in `plans` below.
@@ -756,8 +758,8 @@ Every `worth` is exact, with `unpriced` beside it naming what the worth leaves o
 
 `sessions`' JSON is `{"schema", "generated_at", "prices_as_of", "sessions", "today"}`. Once the
 config has pools, it lists one pool's sessions, each by the pool its requests were routed within, a
-session from before pools the first pool's; a session's page is the session's, whatever pool it's
-in.
+session from before pools the first pool's; a session's page is its work in the pool `--pool`
+names, else in the pool it's in now, the one its newest request was routed in.
 
 `sessions` lists each session, with these:
 
@@ -790,6 +792,11 @@ Given a session, `sessions` prints that session's page:
   worth, accounts, labels}`, `labels` the labels of `accounts`, in the same order. `ended` is left
   out of a turn still going.
 - **`totals`:** `{turns, requests, from_cache, worth, unpriced}`.
+- **`pool` and `pool_label`:** Once the config has pools, the pool the page is of: the one `--pool`
+  names, else the one the session is in now. Without `--pool`, both are left out where the pool
+  can't be read from the ledger: a running session that hasn't filed a request yet, as the
+  router's list of sessions names no pool, and a session of one pool whose pool neither the config
+  nor the accounts record keeps.
 
 Every `worth` is exact, and left out where nothing was priced. `unpriced` names what the worth
 leaves out, as `history` names it.

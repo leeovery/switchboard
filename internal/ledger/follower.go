@@ -202,6 +202,14 @@ func (f *Follower) DaysHeldOn(dates []string) ([]Summary, bool) {
 // the first day the ledger holds or after today's, nor where the earliest
 // isn't a date. The follower is held.
 func (f *Follower) datesOn(dates []string, now time.Time) []string {
+	return datesFrom(dates, func(from time.Time) time.Time { return f.start(from, now) }, now)
+}
+
+// datesFrom returns those of the dates given a read of the ledger's days
+// gives at now, oldest first, each once: none before where a read of them
+// from the earliest starts, as start gives it, or after today's, nor where
+// the earliest isn't a date.
+func datesFrom(dates []string, start func(from time.Time) time.Time, now time.Time) []string {
 	wanted := slices.Compact(slices.Sorted(slices.Values(dates)))
 	if len(wanted) == 0 {
 		return nil
@@ -210,7 +218,7 @@ func (f *Follower) datesOn(dates []string, now time.Time) []string {
 	if !ok {
 		return nil
 	}
-	first, today := dayfile.DateOf(f.start(from, now)), dayfile.DateOf(now)
+	first, today := dayfile.DateOf(start(from)), dayfile.DateOf(now)
 	return slices.DeleteFunc(wanted, func(date string) bool { return date < first || date > today })
 }
 

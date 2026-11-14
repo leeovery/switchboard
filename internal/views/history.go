@@ -39,7 +39,8 @@ type HistoryInput struct {
 	// the local days from From's to today's, those the ledger holds.
 	From, Now time.Time
 	// Began is the start of the ledger's first day, as LedgerStart tells it,
-	// for a Past to take as the day the ledger began recording: zero where
+	// a pool's first day of work of a pool's days, as PoolRead's Start tells
+	// it, for a Past, and NewHistory, to count the days from: zero where
 	// it's unknown.
 	Began time.Time
 	// Prices price the days' requests, at today's prices, and the plans, and
@@ -79,15 +80,21 @@ const lookBack = 7
 
 // NewHistory builds the History of the days in asks for, its plans priced
 // over the period they make, as askedPeriod has it, from the first counted,
-// as countedFrom has it.
+// as countedFrom has it. The days, the Year, the months and the tokens list
+// the days from the first counted alone, as the dashboard's Year and Tokens
+// do, as a pool's read holds the ledger's days before the pool began, which
+// aren't its; the accounts' weeks, totals and plans are over every day
+// asked for, as the dashboard's Weeks and Accounts are, as an account's
+// windows are its own, whatever pool it worked in.
 func NewHistory(in HistoryInput) History {
 	from, to := dayfile.CivilOf(in.From), dayfile.CivilOf(in.Now)
 	asked, today := from.Format(time.DateOnly), to.Format(time.DateOnly)
 	v := versions{table: in.Prices, family: in.Family}
 	p := plans{accounts: in.Accounts, table: in.Prices}
-	before, days := splitAt(pricedDays(in.Ledger.Days(in.From.AddDate(0, 0, -lookBack)), in, today, v), asked)
-	placed := weeklyOf(in.WeekWindow, in.WeekStarts, in.Now).placedWeeks(before, days, in.Accounts)
-	counted := countedFrom(asked, days)
+	before, all := splitAt(pricedDays(in.Ledger.Days(in.From.AddDate(0, 0, -lookBack)), in, today, v), asked)
+	placed := weeklyOf(in.WeekWindow, in.WeekStarts, in.Now).placedWeeks(before, all, in.Accounts)
+	counted := countedFrom(asked, all, in.Began)
+	_, days := splitAt(all, counted)
 	last, whole := askedPeriod(from, to, in.WeekStarts)
 	return History{
 		Days:     days,
@@ -95,9 +102,9 @@ func NewHistory(in HistoryInput) History {
 		Months:   monthsOf(days, p, v, counted, today),
 		Weeks:    weeksOf(placed, in.Accounts),
 		Tokens:   tokensOf(days, p, in.Removed, v, counted, in.WeekStarts),
-		Totals:   accountTotalsOf(before, days, in.Accounts, v),
-		Plans:    plansOf(days, p, pricedOver(asked, last.Format(time.DateOnly), counted, whole)),
-		Capacity: capacityOf(placed, wholeWeek(days, weekOf(to, in.WeekStarts)), in.Accounts, p, in.WeekWindow),
+		Totals:   accountTotalsOf(before, all, in.Accounts, v),
+		Plans:    plansOf(all, p, pricedOver(asked, last.Format(time.DateOnly), counted, whole)),
+		Capacity: capacityOf(placed, wholeWeek(all, weekOf(to, in.WeekStarts)), in.Accounts, p, in.WeekWindow),
 		Removed:  removedNamed(in.Removed, days),
 	}
 }
@@ -122,13 +129,19 @@ func (d Day) names(id string) bool {
 
 // countedFrom is the date of the first day counted of the days asked for
 // from the one with the date asked, days being those of them the ledger
-// gives: the later of it and the first the ledger holds, as the ledger gives
-// every day from the later of the two.
-func countedFrom(asked string, days []Day) string {
-	if len(days) == 0 {
-		return asked
+// gives: the latest of it, the first the ledger holds, as the ledger gives
+// every day from the later of the two, and the day work began, began's,
+// where it's known, as a pool's work begins after the ledger does, as
+// PoolRead's Start tells it.
+func countedFrom(asked string, days []Day, began time.Time) string {
+	counted := asked
+	if len(days) > 0 {
+		counted = max(counted, days[0].Day)
 	}
-	return max(asked, days[0].Day)
+	if !began.IsZero() {
+		counted = max(counted, dayfile.DateOf(began))
+	}
+	return counted
 }
 
 // splitAt splits days, in order, at the one with the given date: those
