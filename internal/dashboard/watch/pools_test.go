@@ -1134,6 +1134,26 @@ func TestThePoolShownIsReadAgainOnlyWhereTheConfigChanged(t *testing.T) {
 	}
 }
 
+// A dashboard showing no pool, as its pools couldn't be told, reads the pool
+// shown again at a read its source fails with ErrPoolsTold, as at a change
+// to the config, once a read: never at a read failing otherwise, as one
+// saying the pools can't be told.
+func TestAReadTellingThePoolsReadsThePoolShownAgain(t *testing.T) {
+	h, pools := unpooledHarness(t)
+	h.source.router = nil
+	h.source.err = errors.New("can't tell which pool to read: neither the config, the router nor the accounts record names any pools")
+	h.start()
+	h.deliver(h.press("R")...)
+	if pools.again != 0 {
+		t.Errorf("a read failing as the pools can't be told read the pool shown again %d times, want none", pools.again)
+	}
+	h.source.err = errors.Join(ErrPoolsTold, errors.New("the router routes for them"))
+	h.deliver(h.press("R")...)
+	if pools.again != 1 {
+		t.Errorf("a read telling the pools read the pool shown again %d times, want once", pools.again)
+	}
+}
+
 // P with no pools, though the watch has a Turn to ask, asks for no pool and
 // starts nothing: there's none to turn to.
 func TestPWithoutPoolsTurnsToNone(t *testing.T) {

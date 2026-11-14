@@ -1090,19 +1090,22 @@ func fetchFrom(ctx context.Context, source Source, r status.Read, policy score.P
 // lanes want them or Graphs shows WHEN YOU WORK, and what the readings history
 // gained, as readRunway reads it while Runway shows. Where the read finds the
 // config file changed, or the accounts other than the last document's, as
-// status's AccountsChanged has it, it reads the pool shown again, as
-// followConfig has it.
+// status's AccountsChanged has it, or the pools told, as ErrPoolsTold says,
+// where they couldn't be, it reads the pool shown again, as followConfig has
+// it.
 func (m Model) fetched(msg fetchedMsg) (tea.Model, tea.Cmd) {
 	now := m.now()
 	m.fetching, m.past.due, m.tail.due, m.runwayTab.due = false, true, true, true
 	var shown tea.Cmd
-	accountsChanged := false
+	changed := false
 	m.refusing = nil
 	switch {
 	case m.refusesPool(msg):
 		answer := msg.router.Answer()
 		m.refusing = &answer
 		m.plan, m.failed, m.lost = m.plan.missed(now), "", time.Time{}
+	case errors.Is(msg.err, ErrPoolsTold):
+		m.plan, changed = m.plan.missed(now), true
 	case errors.Is(msg.err, status.ErrNoRouter):
 		m.plan = m.plan.missed(now)
 		if m.awaitsRouter() {
@@ -1117,12 +1120,12 @@ func (m Model) fetched(msg fetchedMsg) (tea.Model, tea.Cmd) {
 	default:
 		msg.doc = msg.doc.WithRemoved(m.cfg.Removed)
 		look := msg.doc.At(now, m.cfg.Policy)
-		accountsChanged = msg.doc.AccountsChanged(m.doc)
+		changed = msg.doc.AccountsChanged(m.doc)
 		m.plan = m.plan.landed(msg.read, msg.doc, look.Routed, now)
 		m, shown = m.show(msg, look)
 		logRead(msg, look, m.plan.due)
 	}
-	m, following := m.followConfig(msg.stamp, accountsChanged)
+	m, following := m.followConfig(msg.stamp, changed)
 	m.chain++
 	var again tea.Cmd
 	if m.again {

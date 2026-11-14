@@ -47,6 +47,13 @@ type Pooled struct {
 	Removed   status.RemovedAccounts
 }
 
+// ErrPoolsTold is what the source of a dashboard showing no pool, as its
+// pools couldn't be told, fails a read with once they can be, as the router
+// answers with the pools it routes for: the watch reads the pool shown
+// again, as at a change to the config, so it starts afresh on the pool the
+// verbs act on.
+var ErrPoolsTold = errors.New("the pools can be told now")
+
 // PoolAsk is which pool Config's Turn is asked for.
 type PoolAsk int
 
@@ -112,9 +119,10 @@ func (m Model) turnPool() (Model, tea.Cmd) {
 
 // followConfig reads the pool shown again, as askPool asks, where a read
 // finds the config file changed since the pool was read, as the read found
-// it standing, as filestate's Same has it; or, as accountsChanged says, the
+// it standing, as filestate's Same has it; or, as changed says, the
 // accounts the read found other than those the last read found, as an
-// account the router took up as it restarted. It does wherever the watch
+// account the router took up as it restarted, or the pools told where they
+// couldn't be, as ErrPoolsTold says. It does wherever the watch
 // has a Turn to ask, with pools or without, and where it shows none, as
 // they couldn't be told, so the first config naming pools, or one they can
 // be told of, starts the view afresh on the pool the verbs act on: a read
@@ -124,12 +132,13 @@ func (m Model) turnPool() (Model, tea.Cmd) {
 // again only once it changes again, and one found changed during a turn is
 // asked again at the next read. A read that finds neither reads nothing
 // again.
-func (m Model) followConfig(stamp filestate.State, accountsChanged bool) (Model, tea.Cmd) {
+func (m Model) followConfig(stamp filestate.State, changed bool) (Model, tea.Cmd) {
 	stamped := m.cfg.ConfigStamp != nil && !stamp.Same(m.cfg.Stamp)
 	// An accounts change found during a turn is dropped, accepted: a turn
 	// lasts milliseconds, the change costs nothing while the config is as
-	// it was, and the stamp, left as it was, catches a config changed.
-	if m.cfg.Turn == nil || m.turning || !stamped && !accountsChanged {
+	// it was, and the stamp, left as it was, catches a config changed. The
+	// pools told during a turn are told again at the next read.
+	if m.cfg.Turn == nil || m.turning || !stamped && !changed {
 		return m, nil
 	}
 	m.cfg.Stamp = stamp

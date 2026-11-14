@@ -3,6 +3,7 @@ package cli_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"os"
@@ -318,6 +319,53 @@ func TestADashboardWhereNothingNamesThePoolsRefusesAPoolNamed(t *testing.T) {
 	}
 	if got := run(t, deps, "dashboard", "--pool", "q7mt"); got.code == 0 || !strings.Contains(got.stderr, "can't tell which pool to read") {
 		t.Errorf("switchboard dashboard --pool q7mt = %+v, want it refused, saying it can't tell the pools", got)
+	}
+}
+
+// A dashboard opened where nothing names the pools lists no accounts, and
+// its source reads none, as where every pool is fenced: no document, probed
+// or the router's, no sessions, history or request stream, no order given,
+// each saying why. Once the router answers with the pools it routes for, a
+// read fails with watch.ErrPoolsTold, for the dashboard to read the pool
+// shown again, telling them.
+func TestADashboardWhereNothingNamesThePoolsReadsNoneTillTheRouterTellsThem(t *testing.T) {
+	const why = "can't tell which pool to read"
+	deps := unpooledDeps(t, unpooledConfig, false)
+	cfg := recordWatch(t, &deps)
+	if got := run(t, deps, "dashboard"); got != (result{}) {
+		t.Fatalf("switchboard dashboard = %+v, want exit status 0 and nothing printed", got)
+	}
+	if len(cfg.Accounts) != 0 {
+		t.Errorf("the dashboard lists the accounts %+v, want none", cfg.Accounts)
+	}
+	ctx := t.Context()
+	doc, _, err := cfg.Source.Read(ctx, status.Read{Probe: true})
+	if err == nil || !strings.Contains(err.Error(), why) || len(doc.Accounts) != 0 {
+		t.Errorf("the dashboard's source read %d accounts, failing with %v; want none, saying %q", len(doc.Accounts), err, why)
+	}
+	_, sessionsErr := cfg.Source.Sessions(ctx)
+	_, historyErr := cfg.Source.History(ctx, "5h", time.Minute)
+	_, streamErr := cfg.Source.Stream(ctx)
+	for name, err := range map[string]error{
+		"sessions": sessionsErr, "history": historyErr, "stream": streamErr,
+		"pin": cfg.Source.Pin(ctx, []string{"work"}, false), "unpin": cfg.Source.Unpin(ctx),
+		"session's pin": cfg.Source.PinSession(ctx, sessionA, "work"), "session's unpin": cfg.Source.UnpinSession(ctx, sessionA),
+	} {
+		if err == nil || !strings.Contains(err.Error(), why) {
+			t.Errorf("the dashboard's source's %s failed with %v, want it refused, saying %q", name, err, why)
+		}
+	}
+
+	serveHealth(t, deps, router.Health{OK: true, Listen: "127.0.0.1:4747", StripsOwnHeaders: true, ReportsPools: true, Pools: []router.RoutedPool{
+		{ID: "b2n8", Label: "Default", Accounts: []string{"side"}, Primary: "side"},
+		{ID: "q7mt", Label: "Acme", Dirs: []string{"/work/acme"}, WrittenDirs: []string{"/work/acme"}, Accounts: []string{"work"}, Primary: "work"},
+	}})
+	if doc, _, err := cfg.Source.Read(ctx, status.Read{Probe: true}); !errors.Is(err, watch.ErrPoolsTold) || len(doc.Accounts) != 0 {
+		t.Errorf("with the router telling the pools, the dashboard's source read %d accounts, failing with %v; want none, failing with watch.ErrPoolsTold", len(doc.Accounts), err)
+	}
+	turned, err := cfg.Turn(ctx, "", watch.SamePool)
+	if err != nil || turned.Pool.ID != "b2n8" || len(turned.Accounts) != 1 {
+		t.Errorf("the pool shown read again, the dashboard shows %+v of the accounts %+v, failing with %v; want Default, of side", turned.Pool, turned.Accounts, err)
 	}
 }
 
