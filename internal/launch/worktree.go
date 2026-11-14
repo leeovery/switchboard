@@ -10,7 +10,7 @@ import (
 )
 
 // worktreeFileMost is the most bytes read of a .git file or a commondir, a
-// path on a line: one longer is none git wrote, as FindProject reads them.
+// path on a line: one longer is none git wrote.
 // configMost is the most read of a common directory's config, for its
 // [core] section, which git writes first.
 const (
