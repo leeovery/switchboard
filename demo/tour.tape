@@ -63,7 +63,8 @@ Sleep 4s
 # History's Year.
 Shift+Tab
 Sleep 3s
-# Accounts' Compare.
+# Accounts' Compare, passing over Projects.
+Shift+Tab
 Shift+Tab
 Sleep 3s
 # Round to the Overview, as the clip began.

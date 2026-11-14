@@ -296,6 +296,37 @@ func TestBefellIsDatedButAWeekBackItsDate(t *testing.T) {
 	}
 }
 
+// A day gone and a time lately name the day before now, in now's time zone,
+// alike: yesterday; its weekday within the six days before today; else its
+// date, a day gone with its weekday. Today, a day gone is today and a time
+// lately its time.
+func TestADayGoneAndATimeLatelyNameTheDayBeforeNow(t *testing.T) {
+	zone := time.FixedZone("UTC+1", 60*60)
+	now := time.Date(2026, 11, 19, 16, 0, 0, 0, zone)
+	tests := []struct {
+		name            string
+		t               time.Time
+		dayGone, lately string
+	}{
+		{name: "earlier today", t: now.Add(-90 * time.Minute), dayGone: "today", lately: "14:30"},
+		{name: "after midnight, in now's zone", t: time.Date(2026, 11, 18, 23, 30, 0, 0, time.UTC), dayGone: "today", lately: "00:30"},
+		{name: "yesterday", t: now.Add(-20 * time.Hour), dayGone: "yesterday", lately: "yesterday"},
+		{name: "six days back", t: now.AddDate(0, 0, -6), dayGone: "Fri", lately: "Fri"},
+		{name: "a week back", t: now.AddDate(0, 0, -7), dayGone: "Thu 12 Nov", lately: "12 Nov"},
+		{name: "a month back", t: now.AddDate(0, -1, -16), dayGone: "Sat 3 Oct", lately: "3 Oct"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := prose.DayGone(now, tt.t); got != tt.dayGone {
+				t.Errorf("DayGone(%v, %v) = %q, want %q", now, tt.t, got, tt.dayGone)
+			}
+			if got := prose.Lately(now, tt.t); got != tt.lately {
+				t.Errorf("Lately(%v, %v) = %q, want %q", now, tt.t, got, tt.lately)
+			}
+		})
+	}
+}
+
 // Befell dates a time by the calendar in now's time zone, not by the hours
 // gone: in London, 00:30 on the day the clocks go back, 24h15m before 23:45
 // that day, reads as today's, the one time before now a rule of hours dates

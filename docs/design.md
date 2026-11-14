@@ -2205,11 +2205,13 @@ A person has two views of their accounts:
   scrollback and left there, to compare by eye with one printed an hour before (see `usage`, the
   printout).
 - **`dashboard`, the live page:** it fills the terminal and redraws as things change, reading the
-  router as Live updates says. It has seven tabs, in this order in its title row:
+  router as Live updates says. It has eight tabs, in this order in its title row:
   - **Overview,** the default: every account's windows and the router, understood at a glance
     (see The Overview);
   - **Accounts:** each account in depth, and all of them together: what each is, what it does,
     what it costs and whether it pays (see Accounts);
+  - **Projects:** where the use went, each project the period's sessions ran in, and the one
+    chosen in full (see Projects);
   - **History:** when: the weeks and days gone, and what used them (see History);
   - **Sessions:** where each running session's requests are going now, as a switchboard and as a
     list (see Sessions);
@@ -3527,13 +3529,13 @@ frames show the keys from before the sweep of 7 and 8 October 2026, `p` for the 
   it` and `against`, on Compare, in its last column, and on Detail, 15 cells from column 36, say it
   compact, `4.4× · 2/3`, and the ratio alone with every plan known (the owner's call, 15 October
   2026).
-- **Periods are rolling,** never billing months, as switchboard knows no renewal date: today, from
+- **Periods are never billing months,** as switchboard knows no renewal date: today, from
   midnight; this week, from its first day, as `week_starts` sets it (see Config); 30 days, today and
   the 29 before it; 12 weeks, this week and the 11 before it; and 12 months, the days History's Year
   counts as LAST 12 MONTHS, from the day after today's date a year back, 1 March where today is 29
   February, to today. `<` and `>` step through them in that order, staying put at either end. It's
   one dial, the dashboard's period, shared by every tab that counts over a period: Compare and
-  Detail, and, as they come, Projects and Sessions' List (the owner's call, 13 November 2026). The
+  Detail, Projects, and, as it comes, Sessions' List (the owner's call, 13 November 2026). The
   preferences file keeps it as `period`, by its name, `today`, `30-days`, `12-weeks` or
   `12-months`, none for this week; where it keeps none, it reads `accounts.period`, where a build
   from before the dial was shared kept it, till the period is next kept, which drops it.
@@ -3930,7 +3932,10 @@ no figures of the period, and show as they are (the owner's decision, 14 Oct 202
 ### Projects
 
 Where the use went: each project the period's sessions ran in, and the one chosen in full. Its data
-is built (`views.ProjectsPage`); its drawing is to come.
+is built (`views.ProjectsPage`) and drawn, as the Paper frames of round 1 of the redesign by entity
+draw it, the tab names in its title row aside, and kept in `testdata/vhs/reference/` as
+`projects-173x53`, `projects-108x44`, `projects-73x61`, `projects-sessions-73x61`,
+`projects-108x24` and `projects-12-months-173x53`.
 
 - **A session's project** is `status.ProjectOf`'s, the project its lines name, else, of a line from
   before they named one, its directory's, a Claude Code worktree counting as its repository. Inside
@@ -3961,6 +3966,50 @@ is built (`views.ProjectsPage`); its drawing is to come.
   it there as the List says an ended session's, and each started at its first request wherever it
   fell: before the period, as the days read give it, walking back day by day from the first read,
   31 days at most, while the session ran on the day after.
+- **The drawing:** the list across the width over the chosen project, at every size. The list
+  takes up to a third of the view's rows, two at the fewest, and scrolls with the choice past
+  them, a line saying how many more; its columns lie as flex lays them, the bar narrowing to 8
+  cells first, then requests and `last` leaving, and only then the name cut, to 10 cells. Its
+  bar is its worth in eighths of a cell against the top project's, split by family as BY MONTH
+  splits a month's; `last` is `now` while a session of it is busy, as `Activity.Busy` has it.
+  Worth reads to the cent under $100 and to the dollar from it (`Worth.Rounded`). Under the list,
+  a blank row between, the head, the numbers, the sections and SESSIONS. The sections lie wide,
+  WORTH BY in the left half and BY MODEL over ON ACCOUNTS in the right, where a week's days'
+  columns of 8 cells, 2 apart, fit the half, whatever the period, so a MacBook's frame stays wide as
+  the dial turns, and the two fit the right half whole; middling, WORTH BY across and the two side
+  by side under it, where each fits a half whole; else stacked. In whichever cells WORTH BY takes as
+  the sections lie, its columns narrow to fit, as middling draws them. As rows run short, ON
+  ACCOUNTS leaves first, then BY MODEL, then WORTH BY, so SESSIONS keeps three rows. WORTH BY over
+  12 weeks is by day where a column a cell wide fits each day in the cells it takes, the left half
+  where it lies wide, else by week; its axis names buckets from the last back, the one now falls in
+  bold, and weeks by the month of their first day in the period, where it's another than the week
+  before's. SESSIONS is the List's columns, the
+  session's from 11 cells to its whole, then model, started and requests leaving as the width runs
+  short; its rules read `ended today`, `ended yesterday`, a weekday within the week, else the day
+  and its date, each session's state its end by the clock alone and its start dated where it began
+  on another day than the one it ended on. Its columns are as wide as the widest each says of all
+  the project's sessions, so they hold still as it scrolls; the ended sessions are measured once,
+  as the watch builds the project's page (`dashboard.MeasureSessions`), and only those running at
+  each frame. Where rows run shorter than its least, a page of one line shows no rule, a rule
+  showing only with the session under it, and where no line fits, SESSIONS shows nothing, its
+  heading never alone. BY MODEL draws a version as Compare's BY MODEL does, ON
+  ACCOUNTS its names as Detail's column of names, marks and all. The chosen row is lit where `↑`
+  and `↓` act, in the list or SESSIONS, the other's bold, marked `▸`, a bar's own surface kept.
+- **What the watch holds:** the sessions' days, read off the update loop once Projects first
+  shows, from the period's first day, and again only where the dial reaches further back; no page
+  is built for a period the days held don't reach, so a step further back draws what the first
+  read draws, loading only while there's no page to draw, till its read lands, and then returns
+  to where the user was, in the list or SESSIONS, scrolled as far as it was, the session selected
+  kept in view, but where the project chosen left the list; without a ledger, the page is built
+  of the sessions running alone, as the List's are, and says `no sessions` where none runs. A
+  step of the dial on Projects keeps SESSIONS' scroll, where every other tab's view goes back to
+  its top, and each rebuild scrolls it no further than it then goes. The page is built again only
+  as the days read, the period, the day or the List's sessions running change, and the chosen
+  project's as the page or the choice does. The project shown is held as chosen once any
+  key or click moves the choice, the top row's included, else the top row is chosen as the list
+  ranks afresh. The choice is kept by path, and the session selected by id, across a rebuild, and
+  where the session selected showed, it's kept in view; a project that leaves the list leaves the
+  top row chosen, the list with the choice, no session selected and SESSIONS from its top.
 
 ### History
 
@@ -6806,12 +6855,14 @@ that work there (see The page); `?` lists every one, with what it does.
 | `b` | Overview | By window, or by account |
 | `↑` `↓` | Overview, where USAGE scrolls | Scroll USAGE a row, as `j` `k` do |
 | `[` `]` | Accounts, History, Sessions, the Log | The sub-tab before or after |
-| `<` `>` | Accounts, History | A shorter period, a longer one; on History's Year, the year before, the one after |
+| `<` `>` | Accounts, Projects, History | A shorter period, a longer one; on History's Year, the year before, the one after |
 | `v` | History | The next shape or split of the view |
 | `←` `→` | Accounts' Compare | Move the focus along the accounts' columns |
 | `←` `→` | History's Year, filtered to an account | The account before or after |
 | `↑` `↓` | Accounts' Detail | Choose an account in the list, all accounts first; or, in its SESSIONS, a session |
 | `→` `←` | Accounts' Detail | Into the account's SESSIONS, and back to the list |
+| `↑` `↓` | Projects | Choose a project in the list; or, in its SESSIONS, a session |
+| `→` `←` | Projects | Into the project's SESSIONS, and back to the list |
 | `←` `→` | Runway | Step back to this week, then a week at a time; step forward, to the live view (the owner's call, 12 November 2026) |
 | `a` | Runway | Collapse the account column to each account's use, the lanes from column 0, or expand it (the owner's calls, 17 October and 12 November 2026) |
 | `w` `o` `g` `h` | Graphs | Show or hide WEEK, POOL, GLANCE, WHEN YOU WORK |
@@ -6823,7 +6874,7 @@ that work there (see The page); `?` lists every one, with what it does.
 | `f` | The Log | What it shows: the panel |
 | `/` | The Log | Find a session by its id's start or its directory's name, today's first, then back a day at a time; `↑↓` and `enter` pick one, filtering both tables to it |
 | `↑` `↓` | A session's page | Choose a turn; with one open, a request of it |
-| `enter` | Accounts, Sessions, the Log, a session's page | Open what's chosen: from Compare, the account in Detail; a session's row, its page; a line of the Log, its details; a turn, its requests, in place |
+| `enter` | Accounts, Projects, Sessions, the Log, a session's page | Open what's chosen: from Compare, the account in Detail; a session's row, its page; a line of the Log, its details; a turn, its requests, in place |
 | `↑` `↓`, `space`, `m`, `enter`, `esc` | The routing card | Move, pick, move the sessions running too, apply, cancel (see Routing by hand) |
 | `←` `→`, `↑` `↓`, `space`, `enter`, `esc` | The Log's panel | A side, a row, tick, apply, cancel (see The Log) |
 | `↑` `↓`, `enter`, `d`, `l`, `y` `n`, `esc` | The theme picker | Preview, set one theme, set the dark or light half, answer, put back (see Themes) |
@@ -9211,7 +9262,7 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
 | `internal/prime` | The priming schedule: each account's slot from the day and the accounts, and when a prime is due. Pure functions of the day, the accounts, the window a request starts, which the `score.Policy` names, the readings and a clock |
 | `internal/status` | The status document, each window's allowance and even pace, the pool's room and COMING UP among what it holds, and building it by probing every account; what the router says of a session; and their words: `status`'s text, the countdowns, clocks, titles and state words the dashboard shares, and one map from the router's reasons to the dashboard's words; and a token's year, its one owner: when it was taken and is up, whether it's up within a span, its days left and the share of it gone, which setup, the Accounts tab, `usage` and the router's notifications read |
 | `internal/views` | Each view's data, built by one function from what's read, the status document, the router's sessions and what its request stream tells, the ledger's, the readings history's and the events' readers, the price table and a clock: what a page of the dashboard draws, and its data verb prints, so the two never disagree (see The data verbs); and the one store of sessions the dashboard's readers of the ledger share, fed once a read of its tail, each session's story told on as its lines come, from a digest's state or whole (see Live updates); and a session's state as a day's digest stores it, its page's carried state, its points and its part of each day among it, restored by the store's own steps, and `Digests`, the builder the ledger digests its days with, each day's answers taken once, small, as the ledger's read hands their lines, as a page's read takes them too, each session's page given those of the days after its base, and each day's side, the sessions the Log's find and Projects read of it (see The request ledger), which `SessionDays` reads once for a period and carries across midnight. It opens nothing itself; it reads through the readers it's given |
-| `internal/dashboard` | Rendering the dashboard as frames (Lip Gloss): the page's chrome, its title row, status line, heading row and key line; the Overview, Accounts, History, Sessions, Runway, Graphs, the Log and a session's page, each drawn from what `internal/views` builds; the usage block, which `usage` prints and the Overview's USAGE draws; the card a routing picker or a line's details is drawn in, over the page faded; the theme picker; `?`'s help for each page; and setup's full screen, `dashboard.Setup`, a page in the dashboard's chrome drawn from setup's outcomes, its cards placed by the card's rule over the page unfaded |
+| `internal/dashboard` | Rendering the dashboard as frames (Lip Gloss): the page's chrome, its title row, status line, heading row and key line; the Overview, Accounts, Projects, History, Sessions, Runway, Graphs, the Log and a session's page, each drawn from what `internal/views` builds; the usage block, which `usage` prints and the Overview's USAGE draws; the card a routing picker or a line's details is drawn in, over the page faded; the theme picker; `?`'s help for each page; and setup's full screen, `dashboard.Setup`, a page in the dashboard's chrome drawn from setup's outcomes, its cards placed by the card's rule over the page unfaded |
 | `internal/dashboard/watch` | The live dashboard (Bubble Tea): when to read the router or probe; the ledger's, the readings history's and the events' files, read as they grow through small interfaces it's given, which its tests and the capture harness fake; the history and the request stream; the pages and the stack `esc` goes back through, their keys and clicks, the routing pickers' orders, scrolling, easing and what moves; the theme picker; the preferences; and its desktop notifications while it probes without the router |
 | `internal/theme` | Themes: the tokens, the built-ins, loading `.theme` files, working out `viz.*`, the families', versions' and days' shades among them, picking the light or dark half by the terminal's background, and the preferences file |
 | `internal/capture` | The capture harness's fixtures, a fixture a frame, each a moment of the dashboard or a printout of `usage`: the specs' sample worlds; a fake router serving them, with its history and request stream; fakes of the ledger's, the readings history's and the events' readers, holding a year of days, a session's lines and the router's events, and of the price table; and the real watch model built through `watch.New` with every seam faked, or `usage`'s printout drawn through a path of its own, from its fake router's status document, read as `usage` reads the router's, so it never dials the router, probes, runs a program, or reads or writes the real config, themes, state, ledger, preferences or tokens; and setup's full screen's fixtures, a moment of it each, built through `internal/setup/screen` with its `Steps` faked. Imported by `cmd/capturetool` alone |

@@ -127,13 +127,6 @@ func RowOfTold(t Told, now time.Time) RequestRow {
 	return toldRow(t, now)
 }
 
-// From is when the period begins at now, weeks starting on the day given: at
-// the start of its first local day.
-func (p Period) From(now time.Time, starts time.Weekday) time.Time {
-	start, _, _ := dayfile.Day(p.first(dayfile.CivilOf(now), starts).Format(time.DateOnly))
-	return start
-}
-
 // Spans are the dates of the period's first day and its last at now, weeks
 // starting on the day given: its last as it's priced to.
 func (p Period) Spans(now time.Time, starts time.Weekday) (first, last string) {

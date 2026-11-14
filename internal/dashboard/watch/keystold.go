@@ -37,6 +37,10 @@ func tabListings(v dashboard.View) [][]keyListing {
 		return [][]keyListing{m.overviewListings()}
 	case dashboard.Accounts:
 		return [][]keyListing{m.accountsListings(nil)}
+	case dashboard.Projects:
+		sessions := m
+		sessions.projects.shown.InSessions = true
+		return [][]keyListing{m.projectsListings(), sessions.projectsListings()}
 	case dashboard.History:
 		return [][]keyListing{m.historyListings()}
 	case dashboard.Sessions:

@@ -6,12 +6,12 @@ import (
 	"testing"
 )
 
-func TestTheSevenTabsInTheirOrder(t *testing.T) {
+func TestTheEightTabsInTheirOrder(t *testing.T) {
 	var titles []string
 	for _, v := range Views() {
 		titles = append(titles, v.Title())
 	}
-	if want := []string{"Overview", "Accounts", "History", "Sessions", "Runway", "Graphs", "Log"}; !slices.Equal(titles, want) {
+	if want := []string{"Overview", "Accounts", "Projects", "History", "Sessions", "Runway", "Graphs", "Log"}; !slices.Equal(titles, want) {
 		t.Errorf("the tabs are %q, want %q", titles, want)
 	}
 }
@@ -25,6 +25,7 @@ func TestEachTabsSubViewsInTheirOrder(t *testing.T) {
 	}{
 		{view: Overview},
 		{view: Accounts, want: []string{"compare", "detail"}},
+		{view: Projects},
 		{view: History, want: []string{"year", "weeks", "days", "tokens"}},
 		{view: Sessions, want: []string{"switchboard", "list"}},
 		{view: Runway},

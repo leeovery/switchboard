@@ -104,11 +104,11 @@ func (m Model) readSessions() (Model, tea.Cmd) {
 }
 
 // namesSessions reports whether what the watch shows names the sessions
-// running, as the List held names each: Sessions, the Overview with
-// SESSIONS shown, and Accounts' Detail.
+// running, as the List held names each: Sessions, Projects, the Overview
+// with SESSIONS shown, and Accounts' Detail.
 func (m Model) namesSessions() bool {
 	switch m.view {
-	case dashboard.Sessions:
+	case dashboard.Sessions, dashboard.Projects:
 		return true
 	case dashboard.Overview:
 		return m.sections.Has(dashboard.SectionSessions)

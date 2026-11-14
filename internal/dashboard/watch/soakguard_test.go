@@ -12,6 +12,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/views"
@@ -234,7 +235,9 @@ func (c *countingLedger) SessionsOf(ids []string, rest func(string) ledger.Rest,
 // it's filed; a session's lines are read whole only of one the store
 // doesn't hold, every one of today's once, by the List's first read; a day
 // before today is read again only as the day turns, for the lines of the
-// requests that ended across midnight; a read of sessions reads no day
+// requests that ended across midnight, but by Projects' read, passed on the
+// way to Sessions, held to its own rule, as projectsRead has it; a read of
+// sessions reads no day
 // behind the digests' states the sessions it gives rest on, and gives some
 // resting on one; and a feed folds only what it gained and the requests the
 // store held open, none open longer than the store's rule keeps it. As the
@@ -250,6 +253,8 @@ func TestTheStoreHoldsOnlyWhatTheListShows(t *testing.T) {
 	g := &storeGuard{t: t, ids: make(map[int]string), held: []time.Time{guardStart, midnight.Add(guardLateFor), last},
 		checks: []time.Time{midnight, midnight.Add(90 * time.Second), last}}
 	s := newSoak(t, soakSetup{start: guardStart, days: guardDays, pace: guardPace, guard: g})
+	s.show("projects")
+	s.typed(">", "<", ">")
 	s.show("sessions")
 	if !s.h.model.sessionsTab.listed {
 		t.Fatal("Sessions shows no List held, its first read landed")
@@ -277,35 +282,44 @@ func TestTheStoreHoldsOnlyWhatTheListShows(t *testing.T) {
 	if g.rested == 0 {
 		t.Error("no read of sessions gave one resting on a digest's state, want the long session on its state at the end of the day before")
 	}
+	if g.projected < 2 || g.further == 0 {
+		t.Errorf("Projects' reads judged were %d, %d of them further back, want its first read and one as the dial stepped further back, each held to its own rule", g.projected, g.further)
+	}
 }
 
 // storeGuard holds the store to what the List shows, read by read: s is the
 // soak; unjudged are the reads of the ledger's lines since a read of the
 // List or the tail last landed; today the ids of today's lines the tail was
 // handed, as each request's id knows its line; want what the read under
-// way wants of the store; checks the moments still to compare the store
+// way wants of the store; running the reads of the command running, till
+// it's told whose they are; checks the moments still to compare the store
 // with one read whole at, and held those still to see what it holds at,
 // each the earliest first, holding the sessions it held then; listed how
-// many times every one of today's sessions was read whole, fed how many
-// reads of the tail fed the store, late how many times the day before was
-// read again, rested how many sessions its reads of sessions gave resting on
-// a digest's state, and letGo whether the store let go of a session it held
-// at the moment before; and ids the world's sessions' ids, by their numbers.
+// many times every one of today's sessions was read whole, projected how
+// many of Projects' reads were judged and further how many of those reached
+// further back than the days held, fed how many reads of the tail fed
+// the store, late how many times the day before was read again, rested how
+// many sessions its reads of sessions gave resting on a digest's state, and
+// letGo whether the store let go of a session it held at the moment before;
+// and ids the world's sessions' ids, by their numbers.
 type storeGuard struct {
-	t        *testing.T
-	s        *soak
-	unjudged []ledgerRead
-	today    map[string]bool
-	want     views.SessionsWanted
-	checks   []time.Time
-	held     []time.Time
-	holding  []string
-	listed   int
-	fed      int
-	late     int
-	rested   int
-	letGo    bool
-	ids      map[int]string
+	t         *testing.T
+	s         *soak
+	running   []ledgerRead
+	unjudged  []ledgerRead
+	projected int
+	further   int
+	today     map[string]bool
+	want      views.SessionsWanted
+	checks    []time.Time
+	held      []time.Time
+	holding   []string
+	listed    int
+	fed       int
+	late      int
+	rested    int
+	letGo     bool
+	ids       map[int]string
 }
 
 func (g *storeGuard) reads(s *soak, l views.Ledger) views.Ledger {
@@ -313,10 +327,11 @@ func (g *storeGuard) reads(s *soak, l views.Ledger) views.Ledger {
 	return &countingLedger{Ledger: l, read: g.read}
 }
 
-// read holds a read of the ledger's lines, as it's made, to judge once the
-// read it's made for lands; and what the read under way wants of the store,
-// for a store read whole to want the same: as the List wants it, of its
-// first read, and as the tail's fold has it, of a read of the tail.
+// read holds a read of the ledger's lines, as it's made, as the reads of
+// the command running, to judge once it's told whose they are; and what the
+// read under way wants of the store, for a store read whole to want the
+// same: as the List wants it, of its first read, and as the tail's fold has
+// it, of a read of the tail.
 func (g *storeGuard) read(r ledgerRead) {
 	m := g.s.h.model
 	now := m.now()
@@ -328,10 +343,76 @@ func (g *storeGuard) read(r ledgerRead) {
 			g.want = f.want
 		}
 	}
-	g.unjudged = append(g.unjudged, r)
+	g.running = append(g.running, r)
+}
+
+// ran is told what a command gave, its reads made: Projects' read's are
+// judged as Projects', as projectsRead has it; every other's held to judge
+// once the read they're made for lands.
+func (g *storeGuard) ran(msg tea.Msg) {
+	if read, ok := msg.(projectsReadMsg); ok {
+		g.projectsRead(read)
+	} else {
+		g.unjudged = append(g.unjudged, g.running...)
+	}
+	g.running = nil
+}
+
+// projectsRead judges the reads of Projects' read that gave msg, the model as
+// it stands as the read runs, the days held still those read before: asked
+// for while Projects shows, of the dial's period, as it's first shown, or
+// where the dial reaches further back than the days held; each day read
+// once; a day before today read whole only where its head's side doesn't
+// stand, as views.DaySessionsOn falls back to its lines; today read whole,
+// as each such read reads it; and nothing else.
+// The next slice takes today's lines from the tail, and tightens this to a
+// day before today alone.
+func (g *storeGuard) projectsRead(msg projectsReadMsg) {
+	g.t.Helper()
+	m := g.s.h.model
+	now, p := m.now(), m.projects
+	at := now.Format(time.DateTime)
+	if !p.reading || msg.asked != p.asked || p.days != nil && !msg.from.Before(p.from) {
+		g.t.Errorf("at %s Projects read the days from %s, holding them from %s, want a read only as it's first shown, or further back", at, msg.from.Format(time.DateTime),
+			p.from.Format(time.DateTime))
+	}
+	if m.view != dashboard.Projects || !msg.from.Equal(m.period.From(now, m.cfg.WeekStarts)) {
+		g.t.Errorf("at %s Projects read the days from %s on %s, the dial at %s, want a read of the dial's period while Projects shows",
+			at, msg.from.Format(time.DateTime), m.view, m.period.Name())
+	}
+	if p.days != nil {
+		g.further++
+	}
+	today := dayfile.DateOf(now)
+	read := make(map[string]map[string]bool)
+	mark := func(key, date string) {
+		if read[key] == nil {
+			read[key] = make(map[string]bool)
+		}
+		read[key][date] = true
+	}
+	for _, r := range g.running {
+		date := r.asked[0]
+		switch {
+		case r.method != "Day" && r.method != "DaySide":
+			g.t.Errorf("at %s Projects read %s, want the days alone", at, r.method)
+		case read[r.method][date]:
+			g.t.Errorf("at %s Projects read %s of %s twice", at, r.method, date)
+		case r.method == "Day" && date != today && !read["unstood"][date]:
+			g.t.Errorf("at %s Projects read %s whole, want only a day whose side doesn't stand, or today", at, date)
+		case date > today:
+			g.t.Errorf("at %s Projects read %s, a day to come", at, date)
+		}
+		mark(r.method, date)
+		if r.method == "DaySide" && !r.stood {
+			mark("unstood", date)
+		}
+	}
+	g.projected++
 }
 
 func (g *storeGuard) took(msg tea.Msg, was Model) {
+	g.unjudged, g.running = append(g.unjudged, g.running...), nil
 	switch msg := msg.(type) {
 	case listReadMsg:
 		g.judged(was)

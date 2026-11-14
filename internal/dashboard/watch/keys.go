@@ -17,8 +17,9 @@ import (
 // toggleModels has it; on the Overview, u, r, s, c and l show and hide its
 // sections and b switches how its windows are grouped, as overviewKey says;
 // on Graphs, w, o, g and h show and hide its sections, as graphsKey says;
-// on Accounts, its keys act as accountsKey says; on History, [ ], < >, v and
-// ← → act as historyKey says; on Sessions, its keys act as sessionsKey says;
+// on Accounts, its keys act as accountsKey says; on Projects, ↑ ↓, ← →, < >
+// and enter act as projectsKey says; on History, [ ], < >, v and ← → act as
+// historyKey says; on Sessions, its keys act as sessionsKey says;
 // on Runway, < > and ← → act as runwayKey says; on the Log, [ ], ↑ ↓, end,
 // esc, enter, s, f and / act as logKey says; tab and shift-tab show the next
 // tab and the one before, as turn has it; and t opens the theme picker. esc,
@@ -47,6 +48,9 @@ func (m Model) pageKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return next, nil
 	}
 	if next, cmd, ok := afresh.accountsKey(k); ok {
+		return next, cmd
+	}
+	if next, cmd, ok := afresh.projectsKey(k); ok {
 		return next, cmd
 	}
 	if next, ok := afresh.historyKey(k); ok {
@@ -126,7 +130,8 @@ func (m Model) graphsKey(key string) (Model, bool) {
 // from the keys before it, in a group of its own; whether a phone's line
 // leaves it to help, keeping it to a line wider than a phone's; whether it
 // scrolls the view, working only where the view scrolls; and the word a
-// phone's line gives it, where that's another, as enter's open.
+// phone's line gives it, its state left off, where that's another, as
+// enter's open.
 type keyListing struct {
 	dashboard.Key
 	works, helpful, leads, apart, wide, scrolls bool
@@ -163,7 +168,7 @@ func (m Model) keys(running []string) pageKeys {
 	}
 	toggles := shown == dashboard.Overview || shown == dashboard.Graphs
 	pin, pinned := m.pinKey()
-	own := slices.Concat(m.overviewListings(), m.accountsListings(running), m.historyListings(), m.sessionsListings(), m.runwayListings(), m.graphsListings(), m.logListings())
+	own := slices.Concat(m.overviewListings(), m.accountsListings(running), m.projectsListings(), m.historyListings(), m.sessionsListings(), m.runwayListings(), m.graphsListings(), m.logListings())
 	scrollsAlways := toggles || shown == dashboard.Log
 	return pageKeys{own: own, toggles: toggles, scrollsAlways: scrollsAlways, pin: pin, pinned: pinned, coloured: m.coloured()}
 }
@@ -310,6 +315,8 @@ func (m Model) keyLine(f dashboard.Frame, now time.Time) dashboard.KeyLine {
 	}
 	l.Phone = page.phone
 	switch m.shownView() {
+	case dashboard.Projects:
+		l.After = apart
 	case dashboard.Log:
 		l.Phone = m.logPhoneKeys()
 	case dashboard.Sessions:
@@ -353,10 +360,11 @@ func grouped(listed []keyListing) lineKeys {
 	return keys
 }
 
-// phoned is the key as a phone's line words it.
+// phoned is the key as a phone's line words it: by its phone's word, its
+// state left off, where it has one.
 func (k keyListing) phoned() dashboard.Key {
 	if k.phoneDoes != "" {
-		k.Does = k.phoneDoes
+		k.Does, k.State = k.phoneDoes, ""
 	}
 	return k.Key
 }

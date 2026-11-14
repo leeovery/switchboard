@@ -63,13 +63,16 @@ type ProjectTotals struct {
 // last part, and its parents' too where two share it, as
 // status.ProjectNames names them, uncut, "" of no directory; its totals; its
 // worth by model family, in the version table's order of families, as BY
-// MONTH splits a month's; and when its last request arrived, in UTC, zero
-// where none did.
+// MONTH splits a month's; when its last request arrived, in UTC, zero
+// where none did; and what its sessions running are doing, the busiest's,
+// as busiest has it, Idle where none runs, so its last request reads as now
+// while one of them is busy, as Activity's Busy has it.
 type ProjectRow struct {
 	Path, Name string
 	ProjectTotals
 	ByFamily []FamilyWorth
 	Last     time.Time
+	Activity Activity
 }
 
 // NoDirectory reports whether the row is of the sessions with no directory.
@@ -245,7 +248,8 @@ func (t projectTallies) page(in ProjectsInput) ProjectsPage {
 }
 
 // projectTally is a project's use over the period as it's taken in: its
-// path; its sessions, by their ids; how many of them run now; its requests,
+// path; its sessions, by their ids; how many of them run now, and the
+// busiest's activity; its requests,
 // their worth and tokens; its worth by family, by model version and by the
 // account it ran on; and by day, by date, and today by the local hour; and
 // when its last request arrived.
@@ -253,6 +257,7 @@ type projectTally struct {
 	path     string
 	sessions map[string]*sessionTally
 	live     int
+	activity Activity
 	requests int
 	worth    Worth
 	tokens   Tokens
@@ -344,6 +349,7 @@ func (p *projectTally) hourly(hours *[24]ledger.Spent, price pricing) {
 // run takes in s, a session of today's List the router lists running.
 func (p *projectTally) run(s ListedSession) {
 	p.live++
+	p.activity = p.activity.with(s.Activity)
 	p.session(s.Session)
 }
 
@@ -352,6 +358,6 @@ func (p *projectTally) row(name string, v versions) ProjectRow {
 	return ProjectRow{
 		Path: p.path, Name: name,
 		Live: p.live, Sessions: len(p.sessions), Requests: p.requests, Worth: p.worth,
-		ByFamily: v.byFamily(p.families), Last: p.last,
+		ByFamily: v.byFamily(p.families), Last: p.last, Activity: p.activity,
 	}
 }

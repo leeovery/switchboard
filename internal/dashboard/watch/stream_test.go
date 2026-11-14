@@ -24,7 +24,7 @@ import (
 // Sessions from the Overview.
 var (
 	tabKey     = tea.KeyPressMsg{Code: tea.KeyTab}
-	toSessions = []tea.KeyPressMsg{tabKey, tabKey, tabKey}
+	toSessions = []tea.KeyPressMsg{tabKey, tabKey, tabKey, tabKey}
 )
 
 // streamingHarness is a model of the router of three, d28c busy on work and
@@ -83,6 +83,7 @@ func TestTheStreamIsReadWhileSessionsTheLogOrTheOverviewsROUTINGShows(t *testing
 		open   bool
 	}{
 		{key: "", opened: 1, open: true},
+		{key: "tab", opened: 1},
 		{key: "tab", opened: 1},
 		{key: "tab", opened: 1},
 		{key: "tab", opened: 2, open: true},

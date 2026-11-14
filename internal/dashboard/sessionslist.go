@@ -142,9 +142,24 @@ func listColumnsOf(width, on int) []listColumn {
 		shown, kept = append(shown, listPart(p)), append(kept, part)
 	}
 	spans, _ := flex.Lay(room, kept...)
-	columns := make([]listColumn, len(shown))
-	for i, p := range shown {
-		columns[i] = listColumn{part: p, x: listFrom + spans[i].At, width: spans[i].Size}
+	return columnsAt(spans, shown)
+}
+
+// columnsAt are the columns of the kinds given where the spans given lay
+// them, as spannedColumns has them.
+func columnsAt(spans []flex.Span, kinds []listPart) []listColumn {
+	return spannedColumns(spans, kinds, func(p listPart, x, width int) listColumn { return listColumn{part: p, x: x, width: width} })
+}
+
+// spannedColumns are the columns of the kinds given where the spans given lay
+// them, kinds[i] laid at spans[i], from listFrom, each as column makes it:
+// none of a span that gave way.
+func spannedColumns[P, C any](spans []flex.Span, kinds []P, column func(part P, x, width int) C) []C {
+	columns := make([]C, 0, len(kinds))
+	for i, p := range kinds {
+		if !spans[i].Left {
+			columns = append(columns, column(p, listFrom+spans[i].At, spans[i].Size))
+		}
 	}
 	return columns
 }
@@ -161,13 +176,13 @@ type listLine struct {
 	ruled   bool
 }
 
-// listed is the List as a frame lays it out of a moment at now: its columns;
-// its lines; its today line, a row each, the last on the row over the key
-// line; its heads' row; and how many rows its lines show in under them.
+// listed is the List as a frame lays it out of a moment at now, its words as
+// sessionWords say them: its columns; its lines; its today line, a row
+// each, the last on the row over the key line; its heads' row; and how many
+// rows its lines show in under them.
 type listed struct {
+	sessionWords
 	f       Frame
-	m       status.Moment
-	now     time.Time
 	columns []listColumn
 	lines   []listLine
 	today   []line
@@ -193,7 +208,7 @@ func (f Frame) listing(doc status.Document, now time.Time) listed {
 	m := f.Moment(doc, now)
 	top := f.top()
 	l := listed{
-		f: f, m: m, now: now, columns: listColumnsOf(f.Width, widestLabel(m)),
+		m: m, now: now, f: f, columns: listColumnsOf(f.Width, widestLabel(m)),
 		today: todayIn(todayLine(f.SessionsTab.List.Today, f.Width), f.Height-underView-top), top: top,
 	}
 	l.rows = max(l.todayAt()-l.top-2, 0)
@@ -302,16 +317,22 @@ func (l listed) todayAt() int {
 	return l.f.Height - underView - len(l.today) + 1
 }
 
-// heads draws the List's heads along row y, in text.subtle: each at its
-// column's start, or ending at its end where it's right-aligned.
+// heads draws the List's heads along row y, as columnHeads draws them.
 func (l listed) heads(c *canvas, y int) {
-	for _, col := range l.columns {
-		l.cell(c, y, col, line{{col.head(), dimInk}})
+	columnHeads(c, y, l.columns)
+}
+
+// columnHeads draws the heads of the columns given along row y, in
+// text.subtle: each at its column's start, or ending at its end where it's
+// right-aligned.
+func columnHeads(c *canvas, y int, columns []listColumn) {
+	for _, col := range columns {
+		col.draw(c, y, line{{col.head(), dimInk}})
 	}
 }
 
-// cell draws what a column says along row y, in its cells.
-func (l listed) cell(c *canvas, y int, col listColumn, said line) {
+// draw draws what the column says along row y, in its cells.
+func (col listColumn) draw(c *canvas, y int, said line) {
 	if listPartFacts[col.part].aligned == alignRight {
 		c.right(col.x+col.width, y, said)
 		return
@@ -344,8 +365,7 @@ func (l listed) paged() rowsPaged {
 func (l listed) drawLine(c *canvas, y int, ll listLine) {
 	switch {
 	case ll.ruled:
-		x := c.line(listFrom, y, endedToday) + endedApart
-		c.line(x, y, line{{rule(l.f.Width - x), borderInk}})
+		endedRule(c, y, l.f.Width, endedToday)
 	case ll.session == nil:
 		c.line(listFrom, y, noSessionsToday.fit(l.f.Width-listFrom))
 	default:
@@ -353,21 +373,36 @@ func (l listed) drawLine(c *canvas, y int, ll listLine) {
 	}
 }
 
-// row draws the session's row along row y: its mark, bold, at column 0, as
-// the Log's, but a mark of what's in flight as last known, as asKnown has
-// it; each column's words, cut to its cells; lit across the width where it's
-// chosen.
+// endedRule draws the rule over the sessions that ended on a day along row
+// y, across a view width cells wide: its words, said, from listFrom, then
+// endedApart cells on, the rule to the last column.
+func endedRule(c *canvas, y, width int, said line) {
+	x := c.line(listFrom, y, said) + endedApart
+	c.line(x, y, line{{rule(width - x), borderInk}})
+}
+
+// row draws the session's row along row y, as sessionRow draws it, lit
+// where it's chosen.
 func (l listed) row(c *canvas, y int, s views.ListedSession) {
+	l.sessionRow(c, y, l.columns, s, l.f.Width, l.f.SessionsTab.Chosen.Session == s.Session)
+}
+
+// sessionRow draws the session's row along row y in the columns given, as
+// the List draws one: its mark, bold, at column 0, as the Log's, but a mark
+// of what's in flight as last known, as asKnown has it; each column's
+// words, as says has them, cut to its cells; and where lit says, lit across
+// width cells.
+func (w sessionWords) sessionRow(c *canvas, y int, columns []listColumn, s views.ListedSession, width int, lit bool) {
 	mark := rowMarkInks[s.Mark]
 	if s.Mark == views.MarkAsking || s.Mark == views.MarkAnswering {
 		mark = asKnown(s.Activity, mark)
 	}
 	c.line(0, y, line{{s.Mark.String(), mark}})
-	for _, col := range l.columns {
-		l.cell(c, y, col, l.says(col, s).fit(col.width))
+	for _, col := range columns {
+		col.draw(c, y, w.says(col, s).fit(col.width))
 	}
-	if l.f.SessionsTab.Chosen.Session == s.Session {
-		c.surface(0, y, l.f.Width, litInk)
+	if lit {
+		c.surface(0, y, width, litInk)
 	}
 }
 
@@ -396,23 +431,33 @@ func (l listed) targets() []Target {
 	return targets
 }
 
+// sessionWords say what the List's columns say of a session, of the moment
+// m at now: as the List says it; or where byDay says, as Projects' SESSIONS
+// does, grouped by the day each ended, its end and its start said on that
+// day.
+type sessionWords struct {
+	m     status.Moment
+	now   time.Time
+	byDay bool
+}
+
 // says is what the column says of the session, in its cells: the session
 // named as sessionIn names it, its id in text.secondary; the model of its
-// latest request, its id less claude-, and its requests today counted,
-// in text.muted; its routing in the Log's routing words, cut as the Log cuts
+// latest request, its id less claude-, and its requests counted, in
+// text.muted; its routing in the Log's routing words, cut as the Log cuts
 // them, a move's cost kept whole; and the rest as their own say them.
-func (l listed) says(col listColumn, s views.ListedSession) line {
+func (w sessionWords) says(col listColumn, s views.ListedSession) line {
 	switch col.part {
 	case listSession:
 		return sessionIn(s.Session, s.Dir, secondaryInk, col.width)
 	case listOn:
-		return l.onSays(s)
+		return w.onSays(s)
 	case listModel:
 		return line{{modelNamed(s.Model), mutedInk}}
 	case listState:
-		return l.stateSays(s)
+		return w.stateSays(s)
 	case listStarted:
-		return l.startedSays(s)
+		return w.startedSays(s)
 	case listRequests:
 		return line{{prose.Grouped(s.Requests), mutedInk}}
 	case listWorth:
@@ -436,11 +481,11 @@ func sessionIn(id, dir string, idInk ink, cells int) line {
 }
 
 // onSays names the account its latest request went to, in text.primary.
-func (l listed) onSays(s views.ListedSession) line {
+func (w sessionWords) onSays(s views.ListedSession) line {
 	if s.Account == "" {
 		return nil
 	}
-	return line{{named(l.m, s.Account), accountInk}}
+	return line{{named(w.m, s.Account), accountInk}}
 }
 
 // listStateInks are the inks of what a session's doing, as the List's state
@@ -452,19 +497,37 @@ var listStateInks = map[views.Doing]ink{
 	views.Idle: mutedInk, views.Ended: mutedInk,
 }
 
-// stateSays is what it's doing at now, as its Activity's State says it, as
-// last known where asKnown says.
-func (l listed) stateSays(s views.ListedSession) line {
-	return line{{s.Activity.State(l.now), asKnown(s.Activity, listStateInks[s.Activity.Doing])}}
+// stateSays is what it's doing at now, as its Activity's State says it, or
+// grouped by day, its DayState, as last known where asKnown says.
+func (w sessionWords) stateSays(s views.ListedSession) line {
+	said := s.Activity.State(w.now)
+	if w.byDay {
+		said = s.Activity.DayState(w.now)
+	}
+	return line{{said, asKnown(s.Activity, listStateInks[s.Activity.Doing])}}
 }
 
-// startedSays is when its first request came, as prose.Past says it, in
-// text.muted: nothing where that isn't known.
-func (l listed) startedSays(s views.ListedSession) line {
-	if s.Started.IsZero() {
+// startedSays is when its first request came, in text.muted: as prose.Past
+// says it; or grouped by day, by the clock, with its weekday where it came on
+// another day than the one the session's grouped under, as prose.Dated says
+// it of that day; nothing where that isn't known.
+func (w sessionWords) startedSays(s views.ListedSession) line {
+	switch {
+	case s.Started.IsZero():
 		return nil
+	case w.byDay:
+		return line{{prose.Dated(w.dayOf(s), s.Started), mutedInk}}
 	}
-	return line{{prose.Past(l.now, s.Started), mutedInk}}
+	return line{{prose.Past(w.now, s.Started), mutedInk}}
+}
+
+// dayOf is a time on the day the session's grouped under, in now's time
+// zone: when it ended, or now, while it runs.
+func (w sessionWords) dayOf(s views.ListedSession) time.Time {
+	if s.Activity.Doing == views.Ended {
+		return s.Ended.In(w.now.Location())
+	}
+	return w.now
 }
 
 // worthSays is what its requests today were worth, to the cent, as the Log

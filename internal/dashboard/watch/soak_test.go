@@ -27,7 +27,7 @@ import (
 // clock, which take minutes of the real one.
 var (
 	soakFor     = flag.Duration("soak", 0, "run the dashboard soak for this long on the simulated clock, as 12h: none skips it")
-	soakOn      = flag.String("soak.on", "rounds", "what the soak shows: overview, accounts, history, sessions, runway, log, events (the Log's, paged back), session (a session's page), rounds, each in turn, turning (the Overview, a phone turned every ten seconds) or stepping (a tab on every half minute)")
+	soakOn      = flag.String("soak.on", "rounds", "what the soak shows: overview, accounts, projects, history, sessions, runway, log, events (the Log's, paged back), session (a session's page), rounds, each in turn, turning (the Overview, a phone turned every ten seconds) or stepping (a tab on every half minute)")
 	soakDays    = flag.Int("soak.days", 9, "how many days the soak's world has run as it starts, its long session in each")
 	soakEvery   = flag.Duration("soak.every", 20*time.Minute, "how long the rounds stay on each station")
 	soakFrames  = flag.Bool("soak.frames", true, "fire the frames the model arms: false lets them lapse, for a faster soak")
@@ -181,14 +181,27 @@ func (s *soak) deliver(msgs ...tea.Msg) {
 	}
 }
 
+// commandedGuard is a soakGuard told what each command the model returned
+// gave, once it's run, so it can tell whose the reads it made are.
+type commandedGuard interface {
+	ran(msg tea.Msg)
+}
+
 // run runs cmd, and every command it batches, returning what they send
-// back, each timed by the message it gives.
+// back, each timed by the message it gives, and told the guard of, where
+// it's told of commands.
 func (s *soak) run(cmd tea.Cmd) []tea.Msg {
 	if cmd == nil {
 		return nil
 	}
 	began := time.Now()
-	switch msg := cmd().(type) {
+	msg := cmd()
+	if g, ok := s.guard.(commandedGuard); ok {
+		if _, batch := msg.(tea.BatchMsg); !batch {
+			g.ran(msg)
+		}
+	}
+	switch msg := msg.(type) {
 	case nil:
 		return nil
 	case tea.BatchMsg:
@@ -332,7 +345,7 @@ func (s *soak) tell(events []router.StreamEvent) {
 // it goes round them in.
 var (
 	soakTabs = map[string]dashboard.View{
-		"overview": dashboard.Overview, "accounts": dashboard.Accounts, "history": dashboard.History,
+		"overview": dashboard.Overview, "accounts": dashboard.Accounts, "projects": dashboard.Projects, "history": dashboard.History,
 		"sessions": dashboard.Sessions, "runway": dashboard.Runway, "log": dashboard.Log, "events": dashboard.Log,
 	}
 	soakRounds = []string{"overview", "log", "runway", "sessions", "session", "accounts", "history", "events"}

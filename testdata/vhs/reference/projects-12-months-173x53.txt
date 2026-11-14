@@ -1,0 +1,53 @@
+ SWITCHBOARD    Overview   Accounts   Projects   History   Sessions   Runway   Graphs   Log                                                               Thu 1 Oct  14:42:07
+
+● healthy  ·  auto  ·  6 sessions  ·  new sessions → ▲ side
+
+PROJECTS  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  < 12 months >
+
+  project       live  sessions    worth                                                                                                                      requests  last
+▸ switchboard   ● 1        506   $7,447                                                                                                                        64,135  now
+  website       ● 1        304   $4,456                                                                      ▎                                                 38,266  14:32
+  infra         ● 1        253   $3,761                                                           ▋                                                            32,414  14:40
+  api           ● 1        219   $3,466                                                                                                                        29,799  now
+  kit                      152   $1,945                               ▊                                                                                        16,721  13 Jun
+  docs          ● 1        135   $1,940                               ▊                                                                                        16,723  now
+  mobile        ● 1         68   $1,144                   ▌                                                                                                     9,865  now
+  old-site                  51     $577          ▉                                                                                                              4,962  2 Mar
+  ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  all projects  ● 6      1,688  $24,736                                                                                                                       212,885
+
+switchboard  ~/Code/switchboard                                                                                                                                   ● 1 running
+506 sessions · 64,135 requests · $7,447 at API prices · 30% of all use · 14.78B tokens
+
+WORTH BY WEEK                                                                           BY MODEL
+                                          ▁ ▂▁▁▁▇▂▃▄▆                                     ● Sonnet 5    34%
+                       ▄      ▃   ▆ ▃   ▄▆ ▁                                              ● Opus 5      25%
+                  ▃   ▄ ▄ ▃▆    ▇▅    ▆                                                   ● Opus 5.5    21%
+       ▅▁  ▁  ▅ ▁▇ ▂           ▆                                                          ● Sonnet 5.5  16%
+ ▃▁▅▅    ▅  ▇                                                                             ● Haiku 4.5    4%
+▄
+Oct  Nov Dec  Jan Feb Mar  Apr May Jun  Jul Aug  Sep                                    ON ACCOUNTS
+peak week of 29 Jun $248                                                                  personal    ◆                          ▊                                        41%
+                                                                                          work                                  ▏                                         38%
+                                                                                          side        ▲              ▎                                                    21%
+
+SESSIONS
+  session                        on        model       state        started    requests   worth
+↑ d28c switchboard               side      opus-5-5    asking       12:02           445  $48.20
+  ended yesterday  ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+▸ b9c4 switchboard               side      opus-5-5    ended 18:46  13:20           595  $73.00
+  9814 switchboard               personal  opus-5-5    ended 16:45  Mon 12:08       201  $22.65
+  3a3a fix-login                 personal  opus-5-5    ended 15:23  Mon 11:37       179  $20.56
+  1cb3 pools                     side      sonnet-5-5  ended 13:27  Mon 10:39       159  $18.20
+  0084 pools                     side      opus-5-5    ended 12:17  Mon 13:27       192  $22.23
+  31e1 switchboard               side      opus-5-5    ended 11:33  Mon 12:34       146  $17.19
+  96f9 release                   work      opus-5-5    ended 11:23  Mon 09:36       142  $16.63
+  ended Sat  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  24da switchboard               side      opus-5-5    ended 13:14  12:40            51   $5.90
+  ended Fri  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  c646 switchboard               personal  sonnet-5-5  ended 16:53  15:27           130  $15.01
+  ended Thu 24 Sep  ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  7902 switchboard               personal  haiku-4-5   ended 14:08  12:15           238  $27.43
+  a358 switchboard               work      opus-5-5    ended 13:32  10:39           260  $30.01
+
+tab views   ↑↓ project   → its sessions   < > period: 12 months   p pin   ? help  q quit

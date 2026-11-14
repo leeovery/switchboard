@@ -205,6 +205,16 @@ func (w Worth) Dollars() string {
 	return w.Amount.GroupedDollars()
 }
 
+// Rounded is the worth as a list ranked by worth says it, as Projects' does:
+// under $100 to the cent, as Cents says it, "$98.10"; from $100 to the
+// dollar, as Dollars says it, "$221".
+func (w Worth) Rounded() string {
+	if w.amount().ToTheCent() < 100*ledger.Dollar {
+		return w.Cents()
+	}
+	return w.Dollars()
+}
+
 // amount is what the priced requests cost: none where none was priced.
 func (w Worth) amount() ledger.Picodollars {
 	if w.Amount == nil {

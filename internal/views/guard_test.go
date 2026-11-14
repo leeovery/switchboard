@@ -181,7 +181,7 @@ var (
 		"views.HeldPage.Closing", "views.HeldPage.Found", "views.HeldPage.Held", "views.HeldPage.Joined", "views.HeldPage.Opening", "views.HeldPage.ReadTurn", "views.HeldPage.TurnOf", "views.HeldPage.Turned", "views.ReadPage",
 		"views.SessionsWanted.Paging", "views.HeldSessions.Len",
 		"views.HeldPage.On",
-		"views.ReadSessionDays", "views.SessionDays.Tailed",
+		"views.ReadSessionDays", "views.SessionDays.Tailed", "views.SessionDays.Projects", "views.ProjectsPage.Project",
 	}
 )
 

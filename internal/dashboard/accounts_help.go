@@ -60,6 +60,10 @@ func statesHelp() []glyph {
 	return glyphs
 }
 
+// periodsRun is how the periods run, as Accounts' and Projects' helps say it.
+const periodsRun = "The periods are never billing months, as switchboard knows no renewal date: today and this week run " +
+	"from their starts, 30 days and 12 months back from today, and 12 weeks over this week and the 11 before."
+
 // valueHelp is what the period's use was worth as help explains it: worth at
 // API prices, as of the price table's date where the page is read; against
 // its price, how a period is priced, and how all accounts sums the plans,
@@ -90,8 +94,7 @@ func (f Frame) valueHelp() helpPart {
 				"running priced whole, and one the ledger began part-way through priced from its first day." + plans +
 				" An account added part-way shows what was recorded of it, priced against the whole period."),
 			said("Extra usage is on where Claude bills past the plan's limit, and off where the limit holds."),
-			said("The periods are rolling, never billing months, as switchboard knows no renewal date: `<` and `>` step " +
-				"through " + prose.List(views.PeriodNames()) + shared),
+			said(periodsRun + " `<` and `>` step through " + prose.List(views.PeriodNames()) + shared),
 		},
 		glyphs: []glyph{
 			{drawn: line{{"$184", secondaryInk}, {views.PartUnpriced, faintInk}}, means: "worth, part of it unpriced"},

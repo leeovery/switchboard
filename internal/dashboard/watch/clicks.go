@@ -43,25 +43,29 @@ func targetAt(targets []dashboard.Target, x, y int) (dashboard.Target, bool) {
 }
 
 // clickedOn does what a click on the target does, which is what its key
-// does, the page acting as acting has it: on Accounts and Sessions, as
-// accountsClick and sessionsClick have it; on a tab, it shows it, as showTab
-// has it; on a sub-tab, it shows it, as showSubTab has it, or the Log's; on <
-// or > by a period or Runway's week, it presses it; on a key of the key
-// line, it presses it, as pressOf says; on what on the page stands for a
-// key, it presses that key alike, as the Log's ▼ N new presses end, and a
-// Graphs section's heading its key, which hides the section; on an
-// Overview's section's heading, it hides the section, as its key does; on a
-// session's row, it opens its page, as openSession has it; on a turn's row on
-// its page, it acts as clickTurn has it, and on a request's row of its turn
-// open, as clickRequest has it; and on a line of the Log's table, it chooses
-// it, as clickedLine has it. Nothing else on the page takes a click yet. While
-// the theme picker is open, a click on what it doesn't take, as pickerTakes
-// has it, does nothing.
+// does, the page acting as acting has it: on Accounts, Projects and
+// Sessions, as accountsClick, projectsClick and sessionsClick have it; on a
+// tab, it shows it, as showTab has it; on a sub-tab, it shows it, as
+// showSubTab has it, or the Log's; on < or > by a period or Runway's week,
+// it presses it; on a key of the key line, it presses it, as pressOf says;
+// on what on the page stands for a key, it presses that key alike, as the
+// Log's ▼ N new presses end, and a Graphs section's heading its key, which
+// hides the section; on an Overview's section's heading, it hides the
+// section, as its key does; on a session's row, it opens its page, as
+// openSession has it; on a turn's row on its page, it acts as clickTurn has
+// it, and on a request's row of its turn open, as clickRequest has it; and
+// on a line of the Log's table, it chooses it, as clickedLine has it.
+// Nothing else on the page takes a click yet. While the theme picker is
+// open, a click on what it doesn't take, as pickerTakes has it, does
+// nothing.
 func (m Model) clickedOn(t dashboard.Target) (tea.Model, tea.Cmd) {
 	if m.picker.open && !pickerTakes(t.On) {
 		return m, nil
 	}
 	if next, cmd, ok := m.accountsClick(t); ok {
+		return next, cmd
+	}
+	if next, cmd, ok := m.projectsClick(t); ok {
 		return next, cmd
 	}
 	if next, cmd, ok := m.sessionsClick(t); ok {

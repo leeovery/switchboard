@@ -391,13 +391,15 @@ func (s *SessionShown) turnsScrolling(l sessionLayout) Scrolling {
 // scrollingAt is how far the frame's view of doc scrolls at now, scrolled to
 // each offset given: a session's page's turns, where one is open, as
 // TurnsScrolling has them; History's, of the ledger's days alone, as
-// historyScrolling says; Sessions', as sessionsScrolling says; Graphs', as
+// historyScrolling says; Projects', SESSIONS' lines, as projectsLaid pages
+// them; Sessions', as sessionsScrolling says; Graphs', as
 // graphsScrolling says; the Overview's, as overviewScrolling says, laid out
 // once for every offset; Accounts', as accountsScrolling says; and Runway's,
 // as runwayScrolling says. A frame too short for the view, as cramped says,
 // never scrolls, nor one of a document of no accounts, but History,
-// Sessions, whose List lists the ledger's sessions whatever the document
-// holds, Graphs, laid out by the configured accounts, and a session's page.
+// Projects and Sessions, whose pages list the ledger's sessions whatever
+// the document holds, Graphs, laid out by the configured accounts, and a
+// session's page.
 func (f Frame) scrollingAt(doc status.Document, now time.Time) func(offset int) Scrolling {
 	shown := f.Shown()
 	if shown == SessionPage {
@@ -410,6 +412,8 @@ func (f Frame) scrollingAt(doc status.Document, now time.Time) func(offset int) 
 	case f.cramped():
 	case shown == History:
 		return f.historyScrolling(top)
+	case shown == Projects:
+		return f.projectsLaying(doc, now).scrolling
 	case shown == Sessions:
 		return f.sessionsScrolling(doc, now)
 	case shown == Graphs:

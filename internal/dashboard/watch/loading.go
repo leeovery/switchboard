@@ -32,23 +32,27 @@ type pageLoadingMsg struct {
 }
 
 // awaiting reports whether the tab shown waits on a read of the files it's
-// drawn of: Accounts and History on the ledger's days, and Detail's
-// SESSIONS, listing a session, as followed held them for the message, on
-// the List held, as the Overview's SESSIONS and Sessions do, which names
-// their sessions, till its first read lands, as listAwaited has it; Runway
-// on the readings history; Graphs on its live tail, while it reads lanes,
-// POOL or GLANCE's pool's room of it, as graphsReadsHistory has it, never on
-// a span Runway stepped back to, and on the ledger's days while WHEN YOU
-// WORK shows; and the Log on its lines
-// and events, from as it first shows till its first read lands, whether or
-// not that read has begun, as it waits for another read of the ledger to
-// land first. A session's page says its own, as pageLoading has it.
+// drawn of: Accounts and History on the ledger's days; Projects on the
+// sessions' days while it has no page to draw, and the List held, which
+// names its sessions running, as listAwaited has it; and Detail's SESSIONS,
+// listing a session, as followed held them for the message, on the List
+// held, as the Overview's SESSIONS and Sessions do, which names their
+// sessions, till its first read lands, as listAwaited has it; Runway on the
+// readings history; Graphs on its live
+// tail, while it reads lanes, POOL or GLANCE's pool's room of it, as
+// graphsReadsHistory has it, never on a span Runway stepped back to, and on
+// the ledger's days while WHEN YOU WORK shows; and the Log on its lines and
+// events, from as it first shows till its first read lands, whether or not
+// that read has begun, as it waits for another read of the ledger to land
+// first. A session's page says its own, as pageLoading has it.
 func (m Model) awaiting() bool {
 	switch m.shownView() {
 	case dashboard.Overview:
 		return m.sections.Has(dashboard.SectionSessions) && m.listAwaited()
 	case dashboard.Accounts:
 		return m.past.reading || m.detailShown() && len(m.accounts.running) > 0 && m.listAwaited()
+	case dashboard.Projects:
+		return m.projects.reading && m.projects.shown.Page == nil || m.listAwaited()
 	case dashboard.History:
 		return m.past.reading
 	case dashboard.Sessions:

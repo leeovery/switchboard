@@ -55,7 +55,7 @@ func TestEachTapePlaysItsScenarioAsItsCuesAreTimedFor(t *testing.T) {
 			keys: []press{
 				{4.5, shiftTab}, {7.4, up}, {8.1, keysOf("s")},
 				{11.6, shiftTab}, {14.6, shiftTab}, {17.6, shiftTab},
-				{21.6, shiftTab}, {24.6, shiftTab}, {27.6, shiftTab},
+				{21.6, shiftTab}, {24.6, slices.Concat(shiftTab, shiftTab)}, {27.6, shiftTab},
 			},
 			shows: []shows{
 				{at: 0, says: []string{"auto  ·  6 sessions  ·  new sessions → ▲ side", "ROUTING   auto"}},
@@ -98,7 +98,7 @@ func TestEachTapePlaysItsScenarioAsItsCuesAreTimedFor(t *testing.T) {
 		},
 		{
 			tape: "repatch", scenario: "repatch", theme: "tokyo-night", size: wide(37),
-			keys: []press{{0, repeated(tabKey, 3)}},
+			keys: []press{{0, repeated(tabKey, 4)}},
 			shows: []shows{
 				{at: 2, says: []string{"SESSIONS    Switchboard", "personal    ◆ ● under pressure"}},
 				{at: 15.5, says: []string{"■ limit reached · back 16:30", "100%  limit · back 16:30"}, not: []string{"╌"}},
@@ -134,7 +134,7 @@ func TestEachTapePlaysItsScenarioAsItsCuesAreTimedFor(t *testing.T) {
 		},
 		{
 			tape: "runway-week", scenario: "routing", theme: "tokyo-night", size: wide(37),
-			keys:  []press{{2, repeated(tabKey, 4)}},
+			keys:  []press{{2, repeated(tabKey, 5)}},
 			shows: []shows{{at: 5, says: []string{"RUNWAY", "work", "personal    ◆", "side        ▲"}, not: []string{"< week >"}}},
 		},
 		{

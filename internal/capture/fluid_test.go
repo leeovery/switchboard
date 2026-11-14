@@ -611,6 +611,7 @@ func (d fluidFrame) reach() int {
 var tabs = map[string][]string{
 	"Overview": nil,
 	"Accounts": {"Compare", "Detail"},
+	"Projects": nil,
 	"History":  {"Year", "Weeks", "Days", "Tokens"},
 	"Sessions": {"Switchboard", "List"},
 	"Runway":   nil,

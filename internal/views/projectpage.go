@@ -91,12 +91,37 @@ type WorthBy struct {
 }
 
 // WorthBucket is a bucket of WORTH BY: when it starts, as dayfile.Civil
-// gives a day, or of an hour's, as byHour has it; what its axis names it, as "14",
-// "Wed" or "17 Aug"; and what the project's requests in it were worth.
+// gives a day, or of an hour's, as byHour has it; its name, as "14", "Wed"
+// or "17 Aug"; what its axis names it, as Axis has it; and what the
+// project's requests in it were worth.
 type WorthBucket struct {
 	Start time.Time
 	Label string
+	Axis  string
 	Worth
+}
+
+// PeakNamed names WORTH BY's peak bucket, as the line under it says it: an
+// hour by its start, "14:00"; a day by its name, "Wed"; a week by its first
+// day, "week of 17 Aug"; "" where there's no peak.
+func (by WorthBy) PeakNamed() string {
+	if by.Peak < 0 {
+		return ""
+	}
+	b := by.Buckets[by.Peak]
+	switch by.Unit {
+	case ByHour:
+		return prose.TimeOfDay(b.Start, b.Start)
+	case ByWeek:
+		return "week of " + b.Label
+	}
+	return b.Label
+}
+
+// Now is the index of the bucket now falls in, the last of those not still
+// to come, as the axis picks its name out: -1 where all are to come.
+func (by WorthBy) Now() int {
+	return len(by.Buckets) - 1 - by.ToCome
 }
 
 // page is the project's page, its row given, every project's totals given,
@@ -164,21 +189,22 @@ func (p *projectTally) worthBy(in ProjectsInput) (WorthBy, *WorthBy) {
 }
 
 // byHour is the project's worth today by the local hour, now given, as
-// WORTH BY HOUR names them, "00" to "23", each starting as today's clocks
+// WORTH BY HOUR names them, on the axis too, "00" to "23", each starting as today's clocks
 // first read it, or went forward over it, as dayfile.TimeOfDay has it, so
 // an hour a clock change repeats is one bucket, and one it skips starts with
 // the next.
 func (p *projectTally) byHour(now time.Time) WorthBy {
 	buckets := make([]WorthBucket, len(p.hours))
 	for h, w := range p.hours {
-		buckets[h] = WorthBucket{Start: dayfile.TimeOfDay(now.Local(), h, 0), Label: prose.HourNamed(h), Worth: w}
+		named := prose.HourNamed(h)
+		buckets[h] = WorthBucket{Start: dayfile.TimeOfDay(now.Local(), h, 0), Label: named, Axis: named, Worth: w}
 	}
 	return peaked(WorthBy{Unit: ByHour, Buckets: buckets, ToCome: len(buckets) - 1 - now.Local().Hour()})
 }
 
 // byDay is the project's worth by day from first to last, each as
-// dayfile.Civil gives a day, today given: each named by its weekday where
-// they're a week or fewer, else by its date, as "21 Sep".
+// dayfile.Civil gives a day, today given: each named, on the axis too, by
+// its weekday where they're a week or fewer, else by its date, as "21 Sep".
 func (p *projectTally) byDay(first, last, today time.Time, unit BucketUnit) WorthBy {
 	named := prose.DayMonth
 	if last.Sub(first) < 7*24*time.Hour {
@@ -186,7 +212,7 @@ func (p *projectTally) byDay(first, last, today time.Time, unit BucketUnit) Wort
 	}
 	by := WorthBy{Unit: unit}
 	for d := first; !d.After(last); d = d.AddDate(0, 0, 1) {
-		by.Buckets = append(by.Buckets, WorthBucket{Start: d, Label: named(d), Worth: p.days[d.Format(time.DateOnly)]})
+		by.Buckets = append(by.Buckets, WorthBucket{Start: d, Label: named(d), Axis: named(d), Worth: p.days[d.Format(time.DateOnly)]})
 		if d.After(today) {
 			by.ToCome++
 		}
@@ -197,11 +223,17 @@ func (p *projectTally) byDay(first, last, today time.Time, unit BucketUnit) Wort
 // byWeek is the project's worth by calendar week from the one first falls
 // in to the one last does, each as dayfile.Civil gives a day, weeks
 // starting on the day given, today given: each named by its first day's
-// date, as "17 Aug", its worth that of its days from first to last alone.
+// date, as "17 Aug", the axis naming the month of the first of its days
+// from first, as "Aug", where it's another than the week before's, its
+// worth that of its days from first to last alone.
 func (p *projectTally) byWeek(first, last, today time.Time, starts time.Weekday) WorthBy {
 	by := WorthBy{Unit: ByWeek}
+	month := ""
 	for week := weekOf(first, starts); !week.After(last); week = week.AddDate(0, 0, 7) {
 		b := WorthBucket{Start: week, Label: prose.DayMonth(week)}
+		if named := prose.Month(score.Later(week, first), false); named != month {
+			b.Axis, month = named, named
+		}
 		for d := score.Later(week, first); d.Before(week.AddDate(0, 0, 7)) && !d.After(last); d = d.AddDate(0, 0, 1) {
 			b.add(p.days[d.Format(time.DateOnly)])
 		}

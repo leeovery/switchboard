@@ -170,7 +170,7 @@ func routedBeforeTheLimit(now time.Time) []status.Session {
 // refusal's pulse comes home, before the frame at 16:05:42, its old cord
 // hanging from the look by 20, as the limit counts it; and 9c2e asking at
 // 21, after that look, moved to side, the limit counting it second, its cord
-// hanging from the look by 25. demo/repatch.tape presses tab three times,
+// hanging from the look by 25. demo/repatch.tape presses tab four times,
 // hidden, to Sessions' Switchboard, shows it from 2, and hides it at 27,
 // the second cord hanging 2 seconds.
 var repatchCues = []cue{

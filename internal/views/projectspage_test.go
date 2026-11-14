@@ -155,6 +155,24 @@ func TestProjectsListsEachProjectByWorthWithEveryProjectsTotals(t *testing.T) {
 	}
 }
 
+// A project's row does what its busiest session running does, so its last
+// request reads as now while one is busy; one with none running is idle.
+func TestAProjectsRowDoesWhatItsBusiestSessionRunningDoes(t *testing.T) {
+	answering := listedRunning(worktreeSession, "/code/switchboard/.claude/worktrees/fix", "/code/switchboard")
+	answering.Activity = views.Activity{Doing: views.Answering, Since: october(7, 9, 1)}
+	running := []views.ListedSession{listedRunning(repoSession, "/code/switchboard", "/code/switchboard"), answering}
+	page := heldDays(now, projectsWorld()...).Projects(projectsIn(views.PeriodThisWeek, now, running...))
+	for _, r := range page.Rows {
+		want := views.Activity{}
+		if r.Path == "/code/switchboard" {
+			want = answering.Activity
+		}
+		if !reflect.DeepEqual(r.Activity, want) {
+			t.Errorf("%q does %+v, want %+v", r.Path, r.Activity, want)
+		}
+	}
+}
+
 // A session is its project's as status.ProjectOf reads its lines: one in a
 // worktree Claude Code made, from a line before projects, its repository's;
 // one in a subdirectory, the project run told. Inside its project, a session
@@ -278,7 +296,10 @@ func TestAProjectsWorthIsSharedByModelAndByAccount(t *testing.T) {
 // WORTH BY gives a project's worth in the period's buckets: today's by hour,
 // this week's and the last 30 days' by day, the last 12 weeks' by day and by
 // week, the last 12 months' by week; each its label, the peak the first
-// bucket worth most, and those of the period still to come counted.
+// bucket worth most, and those of the period still to come counted, the one
+// now falls in the last before them. The peak is named as the line under
+// the chart says it; the axis names each hour and day, and a week only where
+// its month starts.
 func TestAProjectsWorthIsBucketedAsItsPeriodHasIt(t *testing.T) {
 	world := slices.Concat(
 		projectAsks(repoSession, "/code/switchboard", "", "work", times(october(7, 13, 0), 2)...),
@@ -292,27 +313,32 @@ func TestAProjectsWorthIsBucketedAsItsPeriodHasIt(t *testing.T) {
 	)
 	days := heldDays(now, world...)
 	type bucketed struct {
-		unit                  views.BucketUnit
-		buckets, peak, toCome int
-		first, peakLabel      string
-		peakWorth             views.Worth
+		unit                       views.BucketUnit
+		buckets, peak, toCome, now int
+		first, peakLabel           string
+		peakWorth                  views.Worth
+		peakNamed                  string
+		axis                       [2]string
 	}
 	of := func(by views.WorthBy) bucketed {
-		return bucketed{by.Unit, len(by.Buckets), by.Peak, by.ToCome, by.Buckets[0].Label, by.Buckets[by.Peak].Label, by.Buckets[by.Peak].Worth}
+		return bucketed{
+			by.Unit, len(by.Buckets), by.Peak, by.ToCome, by.Now(), by.Buckets[0].Label, by.Buckets[by.Peak].Label, by.Buckets[by.Peak].Worth,
+			by.PeakNamed(), [2]string{by.Buckets[0].Axis, by.Buckets[1].Axis},
+		}
 	}
 	tests := []struct {
 		period views.Period
 		want   bucketed
 		weeks  *bucketed
 	}{
-		{period: views.PeriodToday, want: bucketed{views.ByHour, 24, 13, 10, "00", "13", hoursWorth(2)}},
-		{period: views.PeriodThisWeek, want: bucketed{views.ByDay, 7, 1, 4, "Mon", "Tue", hoursWorth(3)}},
-		{period: views.PeriodThirtyDays, want: bucketed{views.ByDay, 30, 24, 0, "8 Sep", "2 Oct", hoursWorth(4)}},
+		{period: views.PeriodToday, want: bucketed{views.ByHour, 24, 13, 10, 13, "00", "13", hoursWorth(2), "13:00", [2]string{"00", "01"}}},
+		{period: views.PeriodThisWeek, want: bucketed{views.ByDay, 7, 1, 4, 2, "Mon", "Tue", hoursWorth(3), "Tue", [2]string{"Mon", "Tue"}}},
+		{period: views.PeriodThirtyDays, want: bucketed{views.ByDay, 30, 24, 0, 29, "8 Sep", "2 Oct", hoursWorth(4), "2 Oct", [2]string{"8 Sep", "9 Sep"}}},
 		{
-			period: views.PeriodTwelveWeeks, want: bucketed{views.ByDay, 84, 74, 4, "20 Jul", "2 Oct", hoursWorth(4)},
-			weeks: &bucketed{views.ByWeek, 12, 11, 0, "20 Jul", "5 Oct", hoursWorth(7)},
+			period: views.PeriodTwelveWeeks, want: bucketed{views.ByDay, 84, 74, 4, 79, "20 Jul", "2 Oct", hoursWorth(4), "2 Oct", [2]string{"20 Jul", "21 Jul"}},
+			weeks: &bucketed{views.ByWeek, 12, 11, 0, 11, "20 Jul", "5 Oct", hoursWorth(7), "week of 5 Oct", [2]string{"Jul", ""}},
 		},
-		{period: views.PeriodTwelveMonths, want: bucketed{views.ByWeek, 53, 52, 0, "6 Oct", "5 Oct", hoursWorth(7)}},
+		{period: views.PeriodTwelveMonths, want: bucketed{views.ByWeek, 53, 52, 0, 52, "6 Oct", "5 Oct", hoursWorth(7), "week of 5 Oct", [2]string{"Oct", ""}}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.period.Name(), func(t *testing.T) {
@@ -339,6 +365,19 @@ func TestAProjectsWorthIsBucketedAsItsPeriodHasIt(t *testing.T) {
 				t.Errorf("the buckets sum to %+v, want the project's worth, %+v", sum, project.Worth)
 			}
 		})
+	}
+}
+
+// Over 12 months, the axis names the first week by the month of its first
+// day in the period, not of a day before it, where the week begins in the
+// month before.
+func TestTwelveMonthsAxisNamesAWeekByItsFirstDayInThePeriod(t *testing.T) {
+	now := time.Date(2026, 11, 1, 12, 0, 0, 0, time.Local)
+	days := heldDays(now, projectAsks(repoSession, "/code/switchboard", "", "work", now.Add(-time.Hour))...)
+	project, _ := days.Projects(projectsIn(views.PeriodTwelveMonths, now)).Project("/code/switchboard")
+	b := project.WorthBy.Buckets
+	if got := [3]string{b[0].Label, b[0].Axis, b[1].Axis}; got != [3]string{"27 Oct", "Nov", ""} {
+		t.Errorf("the first two weeks are named and on the axis as %q, want the week of 27 Oct on the axis as Nov, its first day in the period's month, and the next unnamed", got)
 	}
 }
 
