@@ -3998,10 +3998,12 @@ draw it, the tab names in its title row aside, and kept in `testdata/vhs/referen
 - **What the watch holds:** the sessions' days, read off the update loop once Projects first
   shows, from the period's first day, and again only where the dial reaches further back; no page
   is built for a period the days held don't reach, so a step further back draws what the first
-  read draws, loading, till its read lands, and then returns to where the user was, in the list
-  or SESSIONS, the session selected kept in view, but where the project chosen left the list;
-  without a ledger, the page is built of the sessions
-  running alone, as the List's are, and says `no sessions` where none runs. The page is built
+  read draws, loading only while there's no page to draw, till its read lands, and then returns
+  to where the user was, in the list or SESSIONS, scrolled as far as it was, the session selected
+  kept in view, but where the project chosen left the list; without a ledger, the page is built
+  of the sessions running alone, as the List's are, and says `no sessions` where none runs. A
+  step of the dial on Projects keeps SESSIONS' scroll, where every other tab's view goes back to
+  its top. The page is built
   again only as the days read, the period, the day or the List's sessions running change, and the
   chosen project's as the page or the choice does. The project shown is held as chosen once any
   key or click moves the choice, the top row's included, else the top row is chosen as the list

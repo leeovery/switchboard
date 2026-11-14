@@ -47,9 +47,8 @@ func targetAt(targets []dashboard.Target, x, y int) (dashboard.Target, bool) {
 // Sessions, as accountsClick, projectsClick and sessionsClick have it; on a
 // tab, it shows it, as showTab has it; on a sub-tab, it shows it, as
 // showSubTab has it, or the Log's; on < or > by a period or Runway's week,
-// it presses it; on a key of the key
-// line, it presses it, as pressOf says; on what on the page stands for a
-// key, it presses that key alike, as the Log's ▼ N new presses end, and a
+// it presses it; on a key of the key line, it presses it, as pressOf says;
+// on what on the page stands for a key, it presses that key alike, as the Log's ▼ N new presses end, and a
 // Graphs section's heading its key, which hides the section; on an
 // Overview's section's heading, it hides the section, as its key does; on a
 // session's row, it opens its page, as openSession has it; on a turn's row on

@@ -156,7 +156,7 @@ func (l projectsList) columnsOf(width int) []projectColumn {
 	parts[listedBar] = flex.Part{Least: projectBarLeast, Grows: true, Gap: listGap}
 	parts[listedRequests].Leaves, parts[listedLast].Leaves = requestsLeave, lastLeaves
 	spans, _ := flex.Lay(width-listFrom, parts...)
-	return laidOut(spans, kinds, func(p projectsPart, x, width int) projectColumn { return projectColumn{part: p, x: x, width: width} })
+	return spannedColumns(spans, kinds, func(p projectsPart, x, width int) projectColumn { return projectColumn{part: p, x: x, width: width} })
 }
 
 // end is the column after the list's last.

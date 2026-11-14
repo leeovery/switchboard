@@ -12,6 +12,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/views"
@@ -252,6 +253,8 @@ func TestTheStoreHoldsOnlyWhatTheListShows(t *testing.T) {
 	g := &storeGuard{t: t, ids: make(map[int]string), held: []time.Time{guardStart, midnight.Add(guardLateFor), last},
 		checks: []time.Time{midnight, midnight.Add(90 * time.Second), last}}
 	s := newSoak(t, soakSetup{start: guardStart, days: guardDays, pace: guardPace, guard: g})
+	s.show("projects")
+	s.typed(">", "<", ">")
 	s.show("sessions")
 	if !s.h.model.sessionsTab.listed {
 		t.Fatal("Sessions shows no List held, its first read landed")
@@ -279,8 +282,8 @@ func TestTheStoreHoldsOnlyWhatTheListShows(t *testing.T) {
 	if g.rested == 0 {
 		t.Error("no read of sessions gave one resting on a digest's state, want the long session on its state at the end of the day before")
 	}
-	if g.projected == 0 {
-		t.Error("Projects read no days, want it read as Sessions was stepped to past it, its reads held to its own rule")
+	if g.projected < 2 || g.further == 0 {
+		t.Errorf("Projects' reads judged were %d, %d of them further back, want its first read and one as the dial stepped further back, each held to its own rule", g.projected, g.further)
 	}
 }
 
@@ -293,7 +296,8 @@ func TestTheStoreHoldsOnlyWhatTheListShows(t *testing.T) {
 // with one read whole at, and held those still to see what it holds at,
 // each the earliest first, holding the sessions it held then; listed how
 // many times every one of today's sessions was read whole, projected how
-// many of Projects' reads were judged, fed how many reads of the tail fed
+// many of Projects' reads were judged and further how many of those reached
+// further back than the days held, fed how many reads of the tail fed
 // the store, late how many times the day before was read again, rested how
 // many sessions its reads of sessions gave resting on a digest's state, and
 // letGo whether the store let go of a session it held at the moment before;
@@ -304,6 +308,7 @@ type storeGuard struct {
 	running   []ledgerRead
 	unjudged  []ledgerRead
 	projected int
+	further   int
 	today     map[string]bool
 	want      views.SessionsWanted
 	checks    []time.Time
@@ -355,8 +360,8 @@ func (g *storeGuard) ran(msg tea.Msg) {
 
 // projectsRead judges the reads of Projects' read that gave msg, the model as
 // it stands as the read runs, the days held still those read before: asked
-// for as it's first shown, or where the dial reaches further back than the
-// days held; each day read once; a day before today read whole only where
+// for while Projects shows, of the dial's period, as it's first shown, or
+// where the dial reaches further back than the days held; each day read once; a day before today read whole only where
 // its head's side doesn't stand, as views.DaySessionsOn falls back to its
 // lines; today read whole, as each such read reads it; and nothing else.
 // The next slice takes today's lines from the tail, and tightens this to a
@@ -369,6 +374,13 @@ func (g *storeGuard) projectsRead(msg projectsReadMsg) {
 	if !p.reading || msg.asked != p.asked || p.days != nil && !msg.from.Before(p.from) {
 		g.t.Errorf("at %s Projects read the days from %s, holding them from %s, want a read only as it's first shown, or further back", at, msg.from.Format(time.DateTime),
 			p.from.Format(time.DateTime))
+	}
+	if m.shownView() != dashboard.Projects || !msg.from.Equal(m.period.From(now, m.cfg.WeekStarts)) {
+		g.t.Errorf("at %s Projects read the days from %s on %s, the dial at %s, want a read of the dial's period while Projects shows", at, msg.from.Format(time.DateTime),
+			m.shownView(), m.period.Name())
+	}
+	if p.days != nil {
+		g.further++
 	}
 	today := dayfile.DateOf(now)
 	read := make(map[string]map[string]bool)

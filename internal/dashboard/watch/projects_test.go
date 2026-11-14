@@ -196,6 +196,12 @@ func TestProjectsLoadsTillItsDaysAreRead(t *testing.T) {
 			t.Errorf("%s, its read landed, the rows are %s, want %s", r.name, got, r.built)
 		}
 	}
+	held := holdingBack[projectsReadMsg](h, h.press(">")...)
+	h.deliver(h.press("<")...)
+	if !h.model.projects.reading || h.model.projects.shown.Page == nil || h.model.awaiting() {
+		t.Errorf("a step back within the days held as a read further back runs, reading %v, its page %v, awaiting %v; want its page built and drawn, not loading", h.model.projects.reading, h.model.projects.shown.Page, h.model.awaiting())
+	}
+	h.deliver(held...)
 }
 
 // A step further back returns, once its read lands, to where the user was
@@ -235,6 +241,56 @@ func TestProjectsReturnsToWhereTheUserWasOnceAStepBacksReadLands(t *testing.T) {
 			t.Errorf("its read landed, epsilon gone, %s chosen, in sessions %v, %q selected, scrolled %d; want the top row, alpha, the list with the choice, none selected, from its top", s.Chosen, s.InSessions, s.Selected, h.model.scroll)
 		}
 	})
+}
+
+// A step of the dial keeps the session selected where the user was in
+// SESSIONS, scrolled as far as it was, past what showing it alone takes, and
+// in view: within the days held, as the page is built at once, and further
+// back, as the read lands.
+func TestProjectsDialStepKeepsTheSelectionScrolledInView(t *testing.T) {
+	steps := []struct {
+		name string
+		step func(h *harness)
+	}{
+		{"within the days held", func(h *harness) {
+			h.deliver(h.press(">")...)
+			if h.model.projects.reading {
+				h.t.Fatal("the step to 12 weeks asked for a read, want the days held to reach it")
+			}
+		}},
+		{"further back", func(h *harness) {
+			held := holdingBack[projectsReadMsg](h, h.press(">")...)
+			if len(held) != 1 {
+				h.t.Fatalf("the step to 12 weeks held %d reads, want one", len(held))
+			}
+			h.deliver(held...)
+		}},
+	}
+	for _, st := range steps {
+		t.Run(st.name, func(t *testing.T) {
+			h := withDelta(projectsHarness(t, dashboard.Projects))
+			h.start()
+			h.update(tea.WindowSizeMsg{Width: 108, Height: 24})
+			h.deliver(h.press(">")...)
+			if st.name == "within the days held" {
+				h.deliver(h.press(">")...)
+				h.deliver(h.press("<")...)
+			}
+			h.keys(rightKey)
+			for range deltaSessions {
+				h.keys(downKey)
+			}
+			scrolled := h.model.scroll
+			h.keys(upKey)
+			if s := h.model.projects.shown; s.Chosen != "/code/delta" || s.Selection() != deltaSessions[1] || scrolled == 0 || h.model.scroll != scrolled || !selectionInView(h) {
+				t.Fatalf("over 30 days, → and ↓ to the last, then ↑, %s chosen, %s selected, scrolled %d, in view %v; want delta's last but one, still scrolled %d", s.Chosen, s.Selection(), h.model.scroll, selectionInView(h), scrolled)
+			}
+			st.step(h)
+			if s := h.model.projects.shown; h.model.period != views.PeriodTwelveWeeks || s.Chosen != "/code/delta" || !s.InSessions || s.Selection() != deltaSessions[1] || h.model.scroll != scrolled || !selectionInView(h) {
+				t.Errorf("over %s, %s chosen, in sessions %v, %s selected, scrolled %d, in view %v; want 12 weeks, delta's SESSIONS, %s, scrolled %d, in view", h.model.period.Name(), s.Chosen, s.InSessions, s.Selection(), h.model.scroll, selectionInView(h), deltaSessions[1], scrolled)
+			}
+		})
+	}
 }
 
 // Without a ledger, Projects reads nothing and awaits nothing: its page is

@@ -33,8 +33,8 @@ type pageLoadingMsg struct {
 
 // awaiting reports whether the tab shown waits on a read of the files it's
 // drawn of: Accounts and History on the ledger's days; Projects on the
-// sessions' days and the List held, which names its sessions running, as
-// listAwaited has it; and Detail's SESSIONS, listing a session, as followed
+// sessions' days while it has no page to draw, and the List held, which
+// names its sessions running, as listAwaited has it; and Detail's SESSIONS, listing a session, as followed
 // held them for the message, on the List held, as the Overview's SESSIONS
 // and Sessions do, which names their sessions, till its first read lands,
 // as listAwaited has it; Runway on the readings history; Graphs on its live
@@ -51,7 +51,7 @@ func (m Model) awaiting() bool {
 	case dashboard.Accounts:
 		return m.past.reading || m.detailShown() && len(m.accounts.running) > 0 && m.listAwaited()
 	case dashboard.Projects:
-		return m.projects.reading || m.listAwaited()
+		return m.projects.reading && m.projects.shown.Page == nil || m.listAwaited()
 	case dashboard.History:
 		return m.past.reading
 	case dashboard.Sessions:
