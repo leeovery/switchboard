@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -921,9 +922,20 @@ func TestATurnOnTheSameGroundsKeepsTheLedgerInUse(t *testing.T) {
 }
 
 // configsLedger is a ledger as a config read has it, told apart by its
-// address.
+// address, telling where it begins as the ledger it holds does, so a turn
+// built on it asks where the pool shown begins.
 type configsLedger struct {
 	views.Ledger
+}
+
+// FirstDay tells where the ledger held begins, as its LedgerStart does:
+// failing as one holding no day does, where it can't tell.
+func (l *configsLedger) FirstDay(now time.Time) (time.Time, error) {
+	start, ok := l.Ledger.(views.LedgerStart)
+	if !ok {
+		return time.Time{}, fs.ErrNotExist
+	}
+	return start.FirstDay(now)
 }
 
 // A change to the config that places nothing otherwise, as a comment
