@@ -703,3 +703,85 @@ func poolTOML(id string, dirs ...string) string {
 func accountIn(id, pool string) string {
 	return accountTOML(id) + fmt.Sprintf("pool = %q\n", pool)
 }
+
+// A directory the pools' rules refuse is a DirError of the pool's place and
+// the directory's among its own, saying why for a form showing the
+// directory: of two that overlap, the later's, naming the earlier by its
+// pool's label, as a form adding a pool gives its own last.
+func TestADirectoryRefusedSaysWhichAndWhy(t *testing.T) {
+	tests := []struct {
+		name  string
+		pools []config.NewPool
+		want  config.DirError
+	}{
+		{
+			name:  "inside another pool's",
+			pools: []config.NewPool{{ID: "b2n8", Label: "Acme", Dirs: []string{"~/Code/acme"}}, {ID: "q7mt", Label: "Client", Dirs: []string{"/Volumes/Client", "~/Code/acme/api"}}},
+			want:  config.DirError{Pool: 1, Dir: 1, Why: "is inside Acme's ~/Code/acme: no directory may be the same as, inside or around another pool's"},
+		},
+		{
+			name:  "holding another pool's, shown by its id",
+			pools: []config.NewPool{{ID: "b2n8", Dirs: []string{"~/Code/acme/api"}}, {ID: "q7mt", Label: "Client", Dirs: []string{"~/Code/acme"}}},
+			want:  config.DirError{Pool: 1, Dir: 0, Why: "holds b2n8's ~/Code/acme/api: no directory may be the same as, inside or around another pool's"},
+		},
+		{
+			name:  "the same as its own pool's",
+			pools: []config.NewPool{{ID: "b2n8"}, {ID: "q7mt", Label: "Client", Dirs: []string{"~/Code/client", "/Users/test/Code/client"}}},
+			want:  config.DirError{Pool: 1, Dir: 1, Why: "is the same as ~/Code/client, given it already: a pool's directories mustn't overlap"},
+		},
+		{
+			name:  "neither absolute nor from ~",
+			pools: []config.NewPool{{ID: "b2n8"}, {ID: "q7mt", Label: "Client", Dirs: []string{"~/Code/client", "Code/side"}}},
+			want:  config.DirError{Pool: 1, Dir: 1, Why: "must be an absolute path, or one starting ~/, the home directory's, such as ~/Code/acme"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := config.ReadPools(tt.pools, homeAt(testHome))
+			got, ok := errors.AsType[*config.DirError](err)
+			if !ok {
+				t.Fatalf("ReadPools() error = %v, want a DirError", err)
+			}
+			if got.Pool != tt.want.Pool || got.Dir != tt.want.Dir || got.Why != tt.want.Why {
+				t.Errorf("DirError = pool %d, dir %d, %q; want pool %d, dir %d, %q", got.Pool, got.Dir, got.Why, tt.want.Pool, tt.want.Dir, tt.want.Why)
+			}
+		})
+	}
+}
+
+// The browser and the Claude apps are signed in to the first pool's primary,
+// the first the one noted, else the config's first: never another pool's
+// marked primary, though Accounts' Primary, across pools, would give it. In
+// a config without pools, it's the primary.
+func TestTheAccountSignedInIsTheFirstPoolsPrimary(t *testing.T) {
+	pooled, err := load(writeConfig(t, accountIn("b6s7", "b2n8")+accountIn("k3f9", "q7mt")+"primary = true\n"+
+		accountIn("m2x7", "b2n8")+poolTOML("b2n8")+poolTOML("q7mt", "~/Code/acme")+poolTOML("h4w2", "~/Code/client")))
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	plain, err := load(writeConfig(t, "[[account]]\nid = \"b6s7\"\n\n[[account]]\nid = \"k3f9\"\nprimary = true\n"))
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	tests := []struct {
+		name   string
+		cfg    *config.Config
+		noted  string
+		want   string
+		wantOK bool
+	}{
+		{name: "the first pool noted, its only mark another pool's", cfg: pooled, noted: "b2n8", want: "b6s7", wantOK: true},
+		{name: "none noted: the config's first", cfg: pooled, want: "b6s7", wantOK: true},
+		{name: "another pool noted", cfg: pooled, noted: "q7mt", want: "k3f9", wantOK: true},
+		{name: "a first pool with no account", cfg: pooled, noted: "h4w2"},
+		{name: "a config without pools", cfg: plain, want: "k3f9", wantOK: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := tt.cfg.SignedIn(tt.noted)
+			if got.ID != tt.want || ok != tt.wantOK {
+				t.Errorf("SignedIn(%q) = %q, %t; want %q, %t", tt.noted, got.ID, ok, tt.want, tt.wantOK)
+			}
+		})
+	}
+}

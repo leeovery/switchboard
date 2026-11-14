@@ -114,7 +114,7 @@ The state directory holds these files:
 | `accounts.json` | The [accounts record](#the-accounts-record): every account this Mac has had, removed ones among them, kept for good. |
 | `accounts.lock` | The file a change to the accounts record holds a lock on. It's left there, as the lock goes with the process that held it. |
 | `accounts.moved` | Marks the move of the history onto the accounts' ids done, holding when it was. See [Upgrading to account ids](how-it-works.md#upgrading-to-account-ids). |
-| `pools.moved` | Marks the move of the history to pools done, holding when it was: every request line, pin event and day's summary from before pools given the first pool. |
+| `pools.moved` | Marks the move of the history to pools done, holding when it was: every request line, every event that names its pool (`started`, `moved`, `pin`, `auto`) and every day's summary from before pools given the first pool. |
 | `logs/` | `router.log`, `cli.log` and `launchd.log`. See [The logs](troubleshooting.md#the-logs). |
 | `history/readings-<date>.jsonl` | The [readings history](#the-readings-history), one file for each day. |
 | `ledger/requests-<date>.jsonl` | The [request ledger](#the-request-ledger)'s lines, one file for each day. |
@@ -431,7 +431,7 @@ event can change, so when you read one that changed, take its last version.
 | `kind` | What happened. See below. |
 | `account` | The account the event befell. |
 | `accounts` | The accounts a pool's pin names. |
-| `pool` | The pool the event is of, by its id: on `started` and `moved`, the pool the session's request was routed within; on `pin` and `auto`, the pool whose pin was set or cleared, or, of a session's own pin, the session's pool. Left out where the config has no pools, and of a `started` or `moved` event from before them. The move to pools gives every `pin` and `auto` event from before them the first pool, and once it's done, an event of these kinds without a pool is the first pool's. |
+| `pool` | The pool the event is of, by its id: on `started` and `moved`, the pool the session's request was routed within; on `pin` and `auto`, the pool whose pin was set or cleared, or, of a session's own pin, the session's pool. Left out where the config has no pools. The move to pools, and an import of a folder exported before them, give every event of these kinds from before them the first pool, and once the move's done, an event of these kinds without a pool is the first pool's. |
 | `session` | The session that started or moved, or whose own pin changed. |
 | `model` | The model whose requests did so. |
 | `dir` | The directory the session ran in as the event befell it, the home as `~`, as the request ledger gives it. Left out where none was known yet, and in events written before switchboard recorded it. |
@@ -836,7 +836,8 @@ The commands and the dashboard talk to the router over `control.sock` in the sta
 readable by its owner alone. Its answers are JSON. Two of them matter for pools.
 
 `GET /health` answers `{ok, reason, listen, version, pid, started_at, strips_own_headers,
-reports_pools, pools, moving}`:
+reports_pools, pools, moving, restart}`, `restart` the restart the router has due, as the status
+document gives it, left out where none is:
 
 - `reports_pools`: `true` from a router that reports the pools it routes for. One from before
   pools leaves it out, and `claude` counts it down where the config has two pools or more.

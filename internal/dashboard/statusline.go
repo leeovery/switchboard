@@ -49,13 +49,17 @@ func (f Frame) routerStatus(c *canvas, doc status.Document, now time.Time) {
 }
 
 // pageStatus is the page's status line of doc at now, as statusOf has it;
-// but of a pool with no accounts, as accountless has it.
+// but of a pool with no accounts, as accountless has it, the router's state
+// as it answered where it refuses to read the pool, not knowing it, as of a
+// pool it knows.
 func (f Frame) pageStatus(doc status.Document, now time.Time) statusLine {
-	s := f.statusOf(doc, now)
-	if f.Pool.Empty() {
-		return s.accountless()
+	switch {
+	case !f.Pool.Empty():
+		return f.statusOf(doc, now)
+	case f.Pool.Refusing != nil:
+		return newStatusLine(f.Pool.Refusing.Moment()).accountless(f.Pool.Waiting())
 	}
-	return s
+	return f.statusOf(doc, now).accountless(f.Pool.Waiting())
 }
 
 // statusOf is the status line of doc at now: the router's, as
@@ -109,11 +113,17 @@ func (f Frame) failing(s statusLine, now time.Time) statusLine {
 	return s
 }
 
-// accountless is s of a pool with no accounts: its state, since when and
-// short, and in the place of the rest, as nothing routes in the pool, that
-// it has no accounts.
-func (s statusLine) accountless() statusLine {
-	return statusLine{state: s.state, since: s.since, short: s.short, mode: line{{prose.NoAccounts, secondaryInk}}}
+// accountless is s of a pool with no accounts to route: its state, since
+// when, short and the restart due, which takes up any the config gives it,
+// and in the place of the rest, as nothing routes in the pool, that it has
+// no accounts, or none routed yet where waiting says the config gives it
+// some the router hasn't taken up.
+func (s statusLine) accountless(waiting bool) statusLine {
+	said := prose.NoAccounts
+	if waiting {
+		said = prose.NoneRouted
+	}
+	return statusLine{state: s.state, since: s.since, short: s.short, restart: s.restart, mode: line{{said, secondaryInk}}}
 }
 
 // newStatusLine is the status line of the moment m, its mode shown only while

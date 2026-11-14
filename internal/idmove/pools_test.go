@@ -224,7 +224,7 @@ func pooledLines(t *testing.T, files *dayfile.Files, of func(line []byte) string
 	return pools
 }
 
-func TestEveryRequestLineAndPinEventAndSummaryNamesTheFirstPoolMoved(t *testing.T) {
+func TestEveryRequestLineEventOfItsPoolAndSummaryNamesTheFirstPoolMoved(t *testing.T) {
 	f := newIDsFixture(t)
 	readings := readFile(t, plainPath(readingsFiles(f.state), today))
 	first := f.pooled(t)
@@ -248,9 +248,9 @@ func TestEveryRequestLineAndPinEventAndSummaryNamesTheFirstPoolMoved(t *testing.
 		_ = json.Unmarshal(l, &e)
 		return e.Kind
 	})
-	want := map[string]string{longAgo + " " + status.EventLimit: "", longAgo + " " + status.EventMoved: "", today + " " + status.EventPin: first}
+	want := map[string]string{longAgo + " " + status.EventLimit: "", longAgo + " " + status.EventMoved: first, today + " " + status.EventPin: first}
 	if !maps.Equal(pins, want) {
-		t.Errorf("the events name the pools %v, want %v: a pin's the first, every other's none", pins, want)
+		t.Errorf("the events name the pools %v, want %v: a move's and a pin's the first, a limit's none", pins, want)
 	}
 	for _, date := range []string{longAgo, yesterday} {
 		var s ledger.Summary

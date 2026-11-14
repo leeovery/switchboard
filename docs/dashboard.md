@@ -854,11 +854,22 @@ among them. Accounts lists the pool's accounts alone. What it reads from the req
 the pool's work alone, a request made before pools the first pool's: the Log's requests, today's
 and each day it reads back, with each day's figures, and its find, which finds the pool's
 sessions; Sessions, each session's requests, worth and tokens those it made in the pool; a
-session's page, its points among them; History's days and weeks; Graphs; and the worth and tokens
-on Accounts. A session resumed in another pool, once its directory's fence changes, shows in each
-pool with the work it did there. The days begin where the pool's work does, so a pool added to a
-ledger months old shows no empty months before it in History, and WHEN YOU WORK averages its own
-days alone.
+session's page, its points among them; History, its Year among them; Graphs; and the worth and
+tokens on Accounts. A session resumed in another pool, once its directory's fence changes, shows
+in each pool with the work it did there. The days begin where the pool's work does, so a pool
+added to a ledger months old shows no empty months before it in History, and WHEN YOU WORK
+averages its own days alone.
+
+The pool shown follows the config as it changes: where a pool or an account is added, removed,
+relabelled, fenced, moved or reordered, or an account's plan, primary or reserve changes, in any
+pool, the view starts afresh on the pool shown, as `P` does, keeping the tab and what each tab
+shows. A change to nothing of those, such as a comment, starts nothing. The dashboard looks at the
+config file it reads, the one `--config` names, at each read, and reads the config again only where
+the file has changed, or the accounts the router routes have: a look costs a stat of the file and a
+compare of two lists of ids. Where the pool shown is removed, it turns to the first. A dashboard
+opened on a config without pools, or where it couldn't tell the pools, looks at the config file
+alike, so once the config names pools the view starts afresh on the pool the commands act on, every
+tab that pool's alone; where every pool is fenced, there's none, and it shows none, as below.
 
 Once there's a second pool:
 
@@ -878,8 +889,11 @@ it turns to it, and otherwise says there's one pool.
 A pool with no accounts draws the same page on every tab: its status line says `no accounts`, and
 the page says that a session started in its directories doesn't start, how to add an account to it
 or move one in, and that its directories stay fenced until the pool is removed. The key line keeps
-`tab`, `P`, `?` and `q` alone. The dashboard judges this from what it reads of the pool: an account
-added to it shows at the next read, as does its last account taken out.
+`tab`, `P`, `?` and `q` alone. The dashboard judges this from the router's view of the pool: an
+account added to it shows at the next read, as does its last account taken out. The router takes
+up an account added to the config, or a pool added, only as it restarts, at a quiet moment: till
+then, the status line says how the router stands, the restart it has due and `no accounts routed
+yet`, and the page says that `switchboard service restart` takes it up now.
 
 Where every pool is fenced and no `--pool` names one, there's no pool the verbs act on: the
 dashboard opens on none, with no accounts listed. Its status line says it couldn't read usage, as

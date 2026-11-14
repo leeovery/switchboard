@@ -71,24 +71,42 @@ func TestThePoolsNameIsSetupsInkAndTheTabsTargetsFollowIt(t *testing.T) {
 }
 
 // A pool with no accounts says so on its status line, after how the router
-// stands, in place of how it routes, whichever way the document was read.
+// stands and the restart it has due, which takes up any the config gives it,
+// in place of how it routes, whichever way the document was read. A pool the
+// router refuses to read, not knowing it, says how the router stands as it
+// answered, as one it knows does, whatever document is on screen.
 func TestThePoolWithNoAccountsSaysSoOnItsStatusLine(t *testing.T) {
 	probed := func(d *status.Document) {
 		d.Source, d.Fallback, d.Accounts = status.SourceProbe, status.Fallback{Router: status.RouterNotRunning}, nil
 	}
+	none := func(d *status.Document) { d.Accounts, d.Best, d.Sessions = nil, "", 0 }
+	due := status.Restart{Reason: status.RestartForConfig, InFlight: 1}
+	waiting := emptyAcme
+	waiting.Accounts = 1
+	refused := func(health status.Health) status.ShownPool {
+		return waiting.Refused(status.RouterAnswer{Health: health, Restart: due})
+	}
 	tests := []struct {
 		name  string
+		pool  status.ShownPool
 		doc   status.Document
 		width int
 		want  string
 	}{
+		{name: "routed, a restart due", pool: waiting, doc: routed(none, func(d *status.Document) { d.PoolID, d.Restart = "q7mt", due }), width: 160, want: "● healthy  ·  restart due (config changed)  ·  no accounts routed yet"},
+		{name: "refused by a healthy router, a restart due", pool: refused(status.Health{Healthy: true}), width: 160, want: "● healthy  ·  restart due (config changed)  ·  no accounts routed yet"},
+		{name: "refused by an unhealthy router", pool: refused(status.Health{Reason: "every account refused"}), doc: routed(), width: 160, want: "● unhealthy  ·  restart due (config changed)  ·  no accounts routed yet"},
 		{name: "routed, as empty-pool-160 draws it", doc: routed(func(d *status.Document) { d.Accounts, d.Best, d.Sessions = nil, "", 0 }), width: 160, want: "● healthy  ·  no accounts"},
 		{name: "probed", doc: routed(probed), width: 160, want: "○ probed · router not running  ·  no accounts"},
 		{name: "on a phone", doc: routed(func(d *status.Document) { d.Accounts, d.Best, d.Sessions = nil, "", 0 }), width: 52, want: "● healthy · no accounts"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			f := Frame{Width: tt.width, Height: 8, Pool: emptyAcme}
+			pool := tt.pool
+			if pool.ID == "" {
+				pool = emptyAcme
+			}
+			f := Frame{Width: tt.width, Height: 8, Pool: pool.AsRead(tt.doc.At(printNow, printPolicy))}
 			c := newCanvas(f.Width, f.Height)
 			f.routerStatus(c, tt.doc, printNow)
 			if got := strings.TrimRight(c.rows(Look{})[f.statusRow()], " "); got != tt.want {

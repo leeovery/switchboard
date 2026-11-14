@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dayfile"
-	"github.com/leeovery/switchboard/internal/events"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
@@ -159,11 +159,8 @@ func TestPTurnsTheLogToTheNextPoolsRequests(t *testing.T) {
 	writeLines(t, state, pooledDays...)
 	h := newHarness(t, probedWithoutTheRouter())
 	onTheLog(h, state)
-	pools := &poolTurns{order: []string{"q7mt", "b2n8"}, pools: map[string]Pooled{
-		"q7mt": {Pool: acmeShown, Accounts: acmeAccounts, Source: h.source, Events: events.Empty{}, Read: acmeRead},
-		"b2n8": {Pool: defaultShown, Accounts: defaultAccounts, Source: h.source, Events: events.Empty{}, Read: firstRead},
-	}}
-	h.model.cfg.Pool, h.model.cfg.Accounts, h.model.cfg.Turn, h.model.cfg.PoolRead = acmeShown, acmeAccounts, pools.turn, acmeRead
+	pools := newPoolTurns(t, testPools, slices.Concat(defaultAccounts, acmeAccounts), map[string]Source{"b2n8": h.source, "q7mt": h.source})
+	h.model.cfg = pools.opened(h.model.cfg, "q7mt")
 	h.model.cfg.LedgerKeep = 2 * day
 	h.start()
 	if got, want := shownRequests(h), []string{"0b000001", "0a000001"}; !slices.Equal(got, want) {
@@ -173,6 +170,111 @@ func TestPTurnsTheLogToTheNextPoolsRequests(t *testing.T) {
 	h.deliver(h.press("P")...)
 	if got, want := shownRequests(h), []string{"0b000002", "0b000003", "0a000002", "0a000003"}; h.model.cfg.Pool.ID != "b2n8" || !slices.Equal(got, want) {
 		t.Errorf("after P, in %q, the Requests show %v, want Default's %v", h.model.cfg.Pool.ID, got, want)
+	}
+}
+
+// A change to the config starts the pool shown afresh at the next read on
+// its read of the request ledger as the config now has it: the Log reads
+// today's lines again, and never shows another pool's, filed since. Default
+// shown alone, Acme added with an account placed in it, Default's read is of
+// Default as it was, its lines and those naming none; Default shown beside
+// Acme, where the accounts record notes no first pool, so the config's first
+// is it, Acme put first moves it to Acme, and Default's read keeps its own
+// lines alone, those naming none now Acme's.
+func TestAChangeToTheConfigStartsTheLogAfreshOnThePoolShownsRead(t *testing.T) {
+	everyAccount := slices.Concat(defaultAccounts, acmeAccounts)
+	tests := []struct {
+		name     string
+		pools    config.Pools
+		accounts config.Accounts
+		change   func(p *poolTurns)
+		first    string
+		want     []string
+	}{
+		{
+			name: "Acme added", pools: testPools[:1], accounts: defaultAccounts,
+			change: func(p *poolTurns) { p.pools, p.accounts = testPools, everyAccount },
+			first:  "b2n8", want: []string{"0a000001", "0a000002"},
+		},
+		{
+			name: "Acme put first, the record noting no first pool", pools: testPools, accounts: everyAccount,
+			change: func(p *poolTurns) { p.pools = config.Pools{testPools[1], testPools[0]} },
+			first:  "q7mt", want: []string{"0a000001"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			state := t.TempDir()
+			writeLines(t, state, pooledArrived("0a000001", "work", "b2n8", -3*time.Minute), pooledArrived("0a000002", "work", "", -2*time.Minute))
+			h := newHarness(t, probedWithoutTheRouter())
+			onTheLog(h, state)
+			pools := newPoolTurns(t, tt.pools, tt.accounts, map[string]Source{"b2n8": h.source, "q7mt": h.source})
+			h.model.cfg = pools.opened(h.model.cfg, "b2n8")
+			h.start()
+			if got, want := shownRequests(h), []string{"0a000001", "0a000002"}; !slices.Equal(got, want) {
+				t.Fatalf("before the change, Default's Requests show %v, want %v", got, want)
+			}
+
+			turns := h.model.poolTurns
+			pools.changeConfig(tt.change)
+			writeLines(t, state, pooledArrived("0a000003", "k3f9", "q7mt", -time.Minute))
+			h.deliver(h.press("R")...)
+			m := h.model
+			if m.poolTurns != turns+1 || m.cfg.Pool.ID != "b2n8" || m.cfg.PoolRead.ID != "b2n8" || m.cfg.PoolRead.First != tt.first {
+				t.Errorf("the pool shown started afresh %d times, on %q, its read %q of the first pool %q; want afresh once, on Default's own, of the first pool %q",
+					m.poolTurns-turns, m.cfg.Pool.ID, m.cfg.PoolRead.ID, m.cfg.PoolRead.First, tt.first)
+			}
+			if got := shownRequests(h); !slices.Equal(got, tt.want) {
+				t.Errorf("Default's Requests show %v, want %v alone", got, tt.want)
+			}
+		})
+	}
+}
+
+// A dashboard opened on no pool follows the config as one showing a pool
+// does: opened on a config without pools, reading every pool's work, or
+// where the pools couldn't be told, reading none, once the config names two
+// pools it starts afresh at the next read on the pool the verbs act on,
+// Default, its Log Default's alone: the line from before pools, naming
+// none, and Default's filed since, never Acme's; and on a ledger made on
+// Default's grounds, its first pool, where none was.
+func TestADashboardOpenedOnNoPoolStartsAfreshOnThePoolTheConfigNames(t *testing.T) {
+	tests := []struct {
+		name   string
+		read   views.PoolRead
+		opened []string
+	}{
+		{name: "a config without pools", opened: []string{"0a000001"}},
+		{name: "the pools not to be told", read: views.NoPool()},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			state := t.TempDir()
+			writeLines(t, state, pooledArrived("0a000001", "work", "", -3*time.Minute))
+			h := newHarness(t, probedWithoutTheRouter())
+			onTheLog(h, state)
+			unpooled := config.Accounts{{ID: "work", Label: "Work"}, {ID: "personal", Label: "Personal"}, {ID: "side", Label: "Side"}, {ID: "k3f9", Label: "Acme 1"}}
+			pools := newPoolTurns(t, nil, unpooled, map[string]Source{"": h.source, "b2n8": h.source, "q7mt": h.source})
+			h.model.cfg = pools.opened(h.model.cfg, "")
+			h.model.cfg.PoolRead = tt.read
+			h.start()
+			if got := shownRequests(h); !slices.Equal(got, tt.opened) {
+				t.Fatalf("opened on no pool, the Requests show %v, want %v", got, tt.opened)
+			}
+
+			turns := h.model.poolTurns
+			pools.changeConfig(func(p *poolTurns) { p.pools, p.accounts = testPools, slices.Concat(defaultAccounts, acmeAccounts) })
+			writeLines(t, state, pooledArrived("0a000002", "work", "b2n8", -2*time.Minute), pooledArrived("0a000003", "k3f9", "q7mt", -time.Minute))
+			h.deliver(h.press("R")...)
+			m := h.model
+			if m.poolTurns != turns+1 || m.cfg.Pool.ID != "b2n8" || m.cfg.PoolRead.ID != "b2n8" || pools.made != 1 || m.cfg.LedgerGrounds.First != "b2n8" {
+				t.Errorf("the config naming pools, the view started afresh %d times, on %q, its read %q, %d ledgers made, the one in use grounded on %q; want afresh once, on Default, Default's read, one made, on Default",
+					m.poolTurns-turns, m.cfg.Pool.ID, m.cfg.PoolRead.ID, pools.made, m.cfg.LedgerGrounds.First)
+			}
+			if got, want := shownRequests(h), []string{"0a000001", "0a000002"}; !slices.Equal(got, want) {
+				t.Errorf("the config naming pools, the Requests show %v, want Default's %v alone", got, want)
+			}
+		})
 	}
 }
 

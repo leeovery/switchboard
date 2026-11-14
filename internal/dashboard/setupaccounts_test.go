@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/setup"
 	"github.com/leeovery/switchboard/internal/status"
@@ -499,5 +500,70 @@ func TestScrolledIntoTheTableItsHeadsAreKeptAndWhatsOutOfViewNamesNoKeys(t *test
 	}
 	if got := rows[22]; got != "▲ 6 more above   ·   ▼ 7 more below" {
 		t.Errorf("the line saying what's out of view reads %q, want it naming no keys, as ↑↓ choose here", got)
+	}
+}
+
+// Once there's a second pool, the table groups the accounts by pool: each
+// pool's label, in text.subtle as the table's heads are, over its accounts,
+// and two cells on, its directories, or everywhere else of the unfenced,
+// muted; the rows chosen among them as among the accounts.
+func TestTheTableHeadsEachPool(t *testing.T) {
+	review := frame3Review()
+	review.Pools = config.Pools{{ID: "b2n8", Label: "Default"}, {ID: "q7mt", Label: "Acme", Dirs: []string{"/home/user/Code/acme"}, WrittenDirs: []string{"~/Code/acme"}}}
+	for i := range review.Accounts {
+		review.Accounts[i].Pool = "b2n8"
+	}
+	review.Accounts = append(review.Accounts, setup.Reviewed{ID: "acme1", Label: "Acme 1", Plan: "ultra", Primary: true, Pool: "q7mt", Token: setup.TokenStanding{State: setup.TokenWorking}})
+	c := setupDrawn(accountsScreen(review, 3), 160, 37)
+	for y, want := range map[int]string{
+		10: "    Default  everywhere else",
+		12: "    Work ◆          Ultra",
+		18: "    Acme  ~/Code/acme",
+		20: "▌   Acme 1 ◆        Ultra",
+		22: "  + add an account",
+	} {
+		if got := rowOf(c, y); !strings.HasPrefix(got, want) {
+			t.Errorf("row %d reads %q, want it to start %q", y, got, want)
+		}
+	}
+	if got := inkAt(c, 4, 18); got != dimInk {
+		t.Errorf("Acme's label is in %+v, want text.subtle", got)
+	}
+	if got := inkAt(c, 10, 18); got != mutedInk {
+		t.Errorf("Acme's directory is in %+v, want muted", got)
+	}
+}
+
+// The table takes the accounts in the review's order, which groups them, a
+// pool's heading wherever the pool changes, and heads each pool with no
+// account alone, in its place among the pools, an account in none before
+// every heading.
+func TestTheTableHeadsEachPoolInTheReviewsOrderEmptyOnesToo(t *testing.T) {
+	review := frame3Review()
+	review.Pools = config.Pools{
+		{ID: "b2n8", Label: "Default"},
+		{ID: "q7mt", Label: "Acme", WrittenDirs: []string{"~/Code/acme"}},
+		{ID: "h4w2", Label: "Client", WrittenDirs: []string{"~/Code/client"}},
+		{ID: "r2d4", Label: "Spare", WrittenDirs: []string{"~/Code/spare"}},
+	}
+	working := setup.TokenStanding{State: setup.TokenWorking}
+	review.Accounts = []setup.Reviewed{
+		{ID: "gone", Label: "Gone", Pool: "z9z9", Token: working},
+		{ID: "work", Label: "Work", Pool: "b2n8", Token: working},
+		{ID: "client1", Label: "Client 1", Pool: "h4w2", Token: working},
+	}
+	c := setupDrawn(accountsScreen(review, 0), 160, 60)
+	var heads []string
+	for y := range 60 {
+		if row := strings.TrimLeft(rowOf(c, y), "▌ "); row != "" && !strings.HasPrefix(row, "ACCOUNT") {
+			heads = append(heads, strings.Fields(row)[0])
+		}
+	}
+	at := slices.Index(heads, "Gone")
+	if at < 0 || len(heads) < at+8 {
+		t.Fatalf("the table reads %q, want it to start at Gone", heads)
+	}
+	if got, want := heads[at:at+8], []string{"Gone", "Default", "Work", "Acme", "Client", "Client", "Spare", "+"}; !slices.Equal(got, want) {
+		t.Errorf("the table reads %q, want %q", got, want)
 	}
 }

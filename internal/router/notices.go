@@ -79,11 +79,14 @@ func (ss standings) title(id string) string {
 // id, but that one, has room for a request of any model, as far as anyone
 // knows: one whose quota isn't known might have some, unless its token is
 // refused. Another pool's room can't serve the pool's sessions, so it's
-// never counted.
+// never counted; but where the account has left the standings, its pool
+// unknown, every other account's is, so none is said to have no room for
+// want of knowing.
 func (ss standings) fullBut(id string) bool {
-	limited, _ := ss.of(id)
+	limited, found := ss.of(id)
 	return !slices.ContainsFunc(ss, func(s standing) bool {
-		return s.ID != id && config.SamePool(s.in, limited.in) && !s.refused && (s.quota || !s.known)
+		inPool := !found || config.SamePool(s.in, limited.in)
+		return s.ID != id && inPool && !s.refused && (s.quota || !s.known)
 	})
 }
 

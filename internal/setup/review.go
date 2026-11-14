@@ -128,10 +128,12 @@ type Reviewed struct {
 	Plan string
 	// Reserve is the share of every window the router leaves unused on it.
 	Reserve float64
-	// Primary is set on the primary: the one the config marks, or the only
-	// account. With two or more and none marked, none is.
+	// Primary is set on its pool's primary: the one the config marks, or
+	// the pool's only account. With two or more and none marked, none is.
 	Primary bool
-	Token   TokenStanding
+	// Pool is the id of the pool it's in: "" in a config without pools.
+	Pool  string
+	Token TokenStanding
 }
 
 // Name is how setup names the account to the user: by its label, else by
@@ -155,15 +157,23 @@ func PlanName(plan string) string {
 	return ""
 }
 
-// Review is every configured account, in the config's order, as read from
-// the config and the token files, no token checked.
+// Review is every configured account, as read from the config and the token
+// files, no token checked: by pool, in the config's order, each pool's
+// accounts in the config's order.
 type Review struct {
 	// At is when it was read, in the local time zone, which a token's days
 	// left are counted in.
 	At       time.Time
 	Accounts []Reviewed
-	// Unmarked is set where two accounts or more are configured and none is
-	// marked the primary, which one must be.
+	// Pools are the config's pools, in its order: none in a config without
+	// them.
+	Pools config.Pools
+	// First is the id of the first pool, whose primary the browser and the
+	// Claude apps are signed in to, as accounts.Registry's FirstPool has it:
+	// "" in a config without pools.
+	First string
+	// Unmarked is set where a pool has two accounts or more, or a config
+	// without pools does, and none is marked the primary, which one must be.
 	Unmarked bool
 }
 
@@ -179,33 +189,67 @@ func (s *Setup) Review() (Review, error) {
 	if cfg == nil {
 		return review, nil
 	}
+	review.Pools, review.First = cfg.Pools, s.Accounts.FirstPool(cfg)
 	for _, a := range cfg.Accounts {
 		row, _ := s.reviewed(a, draft.MarksPrimaryOf(a.ID))
 		review.Accounts = append(review.Accounts, row)
 	}
+	slices.SortStableFunc(review.Accounts, func(a, b Reviewed) int {
+		return cmp.Compare(review.PoolIndex(a.Pool), review.PoolIndex(b.Pool))
+	})
 	return review.Resolved(), nil
 }
 
+// PoolIndex is the place among the review's pools of the one with the given
+// id, ignoring case: -1 where it has none.
+func (r Review) PoolIndex(id string) int {
+	return slices.IndexFunc(r.Pools, func(p config.Pool) bool { return config.SamePool(p.ID, id) })
+}
+
 // Resolved is the review, each account's Primary read as the config's mark
-// of it, with the primary as setup shows it: the account marked; else one
-// alone, for want of a mark, as config.PrimaryIndex has it; and of two or
-// more, none marked, none, the review Unmarked, as one must be marked.
+// of it, with each pool's primary as setup shows it: the account marked;
+// else one alone, for want of a mark, as config.PrimaryIndex has it; and of
+// two or more, none marked, none, the review Unmarked, as one must be
+// marked. A config without pools is one pool of every account.
 func (r Review) Resolved() Review {
 	isMarked := func(a Reviewed) bool { return a.Primary }
 	r.Accounts = slices.Clone(r.Accounts)
-	r.Unmarked = len(r.Accounts) > 1 && !slices.ContainsFunc(r.Accounts, isMarked)
-	if len(r.Accounts) > 0 && !r.Unmarked {
-		r.Accounts[config.PrimaryIndex(r.Accounts, isMarked)].Primary = true
+	r.Unmarked = false
+	for _, in := range r.byPool() {
+		pool := make([]Reviewed, len(in))
+		for i, at := range in {
+			pool[i] = r.Accounts[at]
+		}
+		if len(pool) > 1 && !slices.ContainsFunc(pool, isMarked) {
+			r.Unmarked = true
+			continue
+		}
+		r.Accounts[in[config.PrimaryIndex(pool, isMarked)]].Primary = true
 	}
 	return r
 }
 
-// marked is the config's accounts, each by its id, its Primary as the draft
-// marks it, as Resolved reads them.
+// byPool are the places of the review's accounts, by the pool each is in, in
+// the order the pools are first met, each pool's in the review's order.
+func (r Review) byPool() [][]int {
+	var pools []string
+	var in [][]int
+	for i, a := range r.Accounts {
+		at := slices.IndexFunc(pools, func(p string) bool { return config.SamePool(p, a.Pool) })
+		if at < 0 {
+			pools, in, at = append(pools, a.Pool), append(in, nil), len(pools)
+		}
+		in[at] = append(in[at], i)
+	}
+	return in
+}
+
+// marked is the config's accounts, each by its id, in its pool, its Primary
+// as the draft marks it, as Resolved reads them.
 func marked(draft *config.Draft, cfg *config.Config) Review {
 	var review Review
 	for _, a := range cfg.Accounts {
-		review.Accounts = append(review.Accounts, Reviewed{ID: a.ID, Primary: draft.MarksPrimaryOf(a.ID)})
+		review.Accounts = append(review.Accounts, Reviewed{ID: a.ID, Pool: a.Pool, Primary: draft.MarksPrimaryOf(a.ID)})
 	}
 	return review
 }
@@ -310,7 +354,7 @@ func (r Review) Keeping(earlier Review) Review {
 // reviewed is the account's row, the primary as primary says, its token
 // read but unchecked, and the token read, for checking.
 func (s *Setup) reviewed(a config.Account, primary bool) (Reviewed, tokens.Token) {
-	row := Reviewed{ID: a.ID, Label: a.Label, Plan: a.Plan, Reserve: a.Reserve, Primary: primary}
+	row := Reviewed{ID: a.ID, Label: a.Label, Plan: a.Plan, Reserve: a.Reserve, Primary: primary, Pool: a.Pool}
 	token, err := s.Accounts.Tokens.Read(a.ID)
 	switch {
 	case errors.Is(err, tokens.ErrMissing):
@@ -379,15 +423,7 @@ type Note struct {
 // by their most pressing need, so those without a working token come first,
 // and then in the config's order.
 func (r Review) Notes() []Note {
-	var notes []Note
-	if r.Unmarked {
-		notes = append(notes, Note{
-			Need:  NeedPrimary,
-			Says:  "No account is the primary, the one the browser and the Claude apps are signed in to.",
-			Press: "Choose it, and press p to make it the primary.",
-			Key:   "p",
-		})
-	}
+	notes := r.unmarkedNotes()
 	var each [][]Note
 	for _, a := range r.Accounts {
 		if its := r.notesOf(a); len(its) > 0 {
@@ -396,6 +432,47 @@ func (r Review) Notes() []Note {
 	}
 	slices.SortStableFunc(each, func(a, b []Note) int { return cmp.Compare(a[0].Need, b[0].Need) })
 	return append(notes, slices.Concat(each...)...)
+}
+
+// unmarkedNotes are the notes of the review's pools with two accounts or
+// more, none the primary: of the one pool there is, that no account is; of
+// each of several, that it has none, led by its label, the Claude apps
+// signing in to the first's alone.
+func (r Review) unmarkedNotes() []Note {
+	if !r.Unmarked {
+		return nil
+	}
+	if len(r.Pools) < 2 {
+		return []Note{{
+			Need:  NeedPrimary,
+			Says:  "No account is the primary, the one the browser and the Claude apps are signed in to.",
+			Press: "Choose it, and press p to make it the primary.",
+			Key:   "p",
+		}}
+	}
+	var notes []Note
+	for _, in := range r.byPool() {
+		if slices.ContainsFunc(in, func(at int) bool { return r.Accounts[at].Primary }) {
+			continue
+		}
+		pool := r.Accounts[in[0]].Pool
+		label := pool
+		if at := r.PoolIndex(pool); at >= 0 {
+			label = r.Pools[at].Label
+		}
+		says := "has no primary marked, so its sessions start on its first account."
+		if config.SamePool(pool, r.First) {
+			says = "has no primary marked, so its sessions start on its first account, and the Claude apps sign in to it."
+		}
+		notes = append(notes, Note{
+			Need:  NeedPrimary,
+			Label: label,
+			Says:  says,
+			Press: "Choose one of its accounts, and press p to make it the primary.",
+			Key:   "p",
+		})
+	}
+	return notes
 }
 
 // notesOf are the account's notes, its token's first.

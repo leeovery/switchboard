@@ -112,7 +112,7 @@ it asks for --pool. --primary makes it its pool's primary.
 			return a.addAccount(cmd, account, answer)
 		},
 	}
-	cmd.Flags().BoolVar(&account.Primary, "primary", false, "make it its pool's primary, the account the browser and the Claude apps use")
+	cmd.Flags().BoolVar(&account.Primary, "primary", false, "make it its pool's primary, the account its sessions start on; the browser and the Claude apps use the first pool's")
 	addPoolFlag(cmd, &pool, "add it to")
 	cmd.Flags().BoolVar(&answer.New, "new", false, "where it asks, answer that it's a new account")
 	cmd.Flags().StringVar(&answer.ID, "returning", "", "where it asks, answer that it's the account `ID` this Mac had")
@@ -181,7 +181,7 @@ same, ignoring case.
 	plans := prose.ListOr(config.PlanChoices())
 	cmd.Flags().StringVar(&flags.label, "label", "", "show the account as `LABEL`")
 	cmd.Flags().StringVar(&flags.plan, "plan", "", "the `PLAN` its subscription is on: "+plans)
-	cmd.Flags().BoolVar(&flags.primary, "primary", false, "make it its pool's primary, the account the browser and the Claude apps use")
+	cmd.Flags().BoolVar(&flags.primary, "primary", false, "make it its pool's primary, the account its sessions start on; the browser and the Claude apps use the first pool's")
 	cmd.Flags().StringVar(&flags.reserve, "reserve", "", "leave `PERCENT` of every window unused, such as 5%, or 0 for none")
 	cmd.Flags().StringVar(&flags.pool, "pool", "", "move it into pool `ID`")
 	return cmd
@@ -228,9 +228,9 @@ func newAccountsTokenCommand(a *app) *cobra.Command {
 		Short: "Replace an account's token, making it with claude setup-token",
 		Long: `Replace an account's token, in its token file, <state dir>/tokens/<id>.
 
-At a terminal, it makes the token as setup does, saying each step as it
-goes: it runs claude setup-token, which opens its sign-in page in the
-browser, as it is for the primary, as the browser is signed in to it, and in
+At a terminal, it makes the token as setup does, saying each step as it goes:
+it runs claude setup-token, which opens its sign-in page in the browser, as
+it is for the first pool's primary, as the browser is signed in to it, and in
 a private window for any other account, where the browser can open one, or
 else shows the address to open in one. Once you approve it there, the token
 is checked with the API and saved, a year from today. It isn't saved where
@@ -238,8 +238,8 @@ the API refuses it, or where its subscription is another account's already,
 as the organization the API names it in says: the other accounts' tokens are
 checked first, to know theirs. An interrupt before the token's made stops
 claude setup-token, saving nothing. Once it's made, as it lasts a year on the
-account, it's saved whatever stops the command, saved unchecked where the
-API doesn't answer, or shown to copy and paste where it can't be.
+account, it's saved whatever stops the command, saved unchecked where the API
+doesn't answer, or shown to copy and paste where it can't be.
 
 --paste asks for the token instead, which doesn't show as it's pasted: make
 one with claude setup-token, run while signed in to that subscription. Away
@@ -326,15 +326,26 @@ func (a *app) addAccount(cmd *cobra.Command, account config.NewAccount, given ac
 	if !asked && contrary(given, added) {
 		launch.Notice(cmd.ErrOrStderr(), unusedAnswer(given, added))
 	}
-	said := "added " + prose.Quoted(account.Label) + " as " + added.ID + a.inPoolOf(cmd.Context(), account.Pool)
+	in := a.inPoolOf(cmd.Context(), account.Pool)
+	said := "added " + prose.Quoted(account.Label) + " as " + added.ID + in
 	if added.Returning {
 		said += ", an account this Mac had, so its history carries on"
 	}
-	if account.Primary {
-		said += ", the primary"
-	}
-	_, err = io.WriteString(cmd.OutOrStdout(), said+"\n")
+	_, err = io.WriteString(cmd.OutOrStdout(), said+primarySaid(in, account.Primary, added.Primary)+"\n")
 	return err
+}
+
+// primarySaid says an account added is its pool's primary, where primary
+// says it is: marked so by the caller, as own says, else as the first in its
+// pool, there, where in names the pool, as inPoolOf does; "" where it isn't.
+func primarySaid(in string, own, primary bool) string {
+	switch {
+	case !own && !primary:
+		return ""
+	case own, in == "":
+		return ", the primary"
+	}
+	return ", the primary there, as the first in it"
 }
 
 // accountsPool returns the id of the pool an account added goes in, or one
@@ -650,7 +661,8 @@ func editedSays(e accounts.Edited) string {
 	if e.Was.Label != e.Now.Label {
 		changed = append(changed, labelChanged(e))
 	}
-	if !config.SamePool(e.Was.Pool, e.Now.Pool) {
+	moved := !config.SamePool(e.Was.Pool, e.Now.Pool)
+	if moved {
 		changed = append(changed, nowAndWas("pool", poolLabel(e.Before.Pools, e.Now.Pool), poolLabel(e.Before.Pools, e.Was.Pool)))
 	}
 	if e.KeptPrimary != "" {
@@ -665,6 +677,10 @@ func editedSays(e accounts.Edited) string {
 	switch {
 	case e.FormerPrimary != "":
 		changed = append(changed, "the primary in place of "+e.FormerPrimary)
+	case e.Marked && moved:
+		changed = append(changed, "marked the primary there, as the first in it")
+	case e.Now.Primary && moved:
+		changed = append(changed, "the primary there too, as the first in it")
 	case e.Marked:
 		changed = append(changed, "marked the primary, which it was as the first with none marked")
 	}
