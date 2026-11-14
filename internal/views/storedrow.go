@@ -217,9 +217,9 @@ func restoredRows(records []lineRecord, rows []byte) ([]lineRecord, error) {
 // row as LogCount's count counts one whatever the Log's filter: those of
 // each kind, those that failed, and by the models they asked for, the
 // accounts they're on and the sessions they count toward; and the pools
-// they recorded, as recordingPool keeps them, "" of those that named none.
-// It counts each row as often as the day gives its line, as the rows hold
-// them, where the Log takes a request's line given twice in once. So a
+// they recorded, as ledger.RecordingPool keeps them, "" of those that named
+// none. It counts each row as often as the day gives its line, as the rows
+// hold them, where the Log takes a request's line given twice in once. So a
 // reader tells which chunks may hold a session's rows, rows of a time, or a
 // pool's, reading none; and of a day that gives no request's id twice, sums
 // the Log's count of it.
@@ -241,7 +241,7 @@ func (m *chunkMeta) take(r *lineRecord) {
 	}
 	row := lineFacts(&r.rowRecord, nil)
 	m.lines.count(&row)
-	m.pools = recordingPool(m.pools, r.pool)
+	m.pools = ledger.RecordingPool(m.pools, r.pool)
 }
 
 // holdsPool reports whether the chunk m tells of may hold a row the pool
@@ -280,8 +280,8 @@ func countsAny(counted map[string]int, choice []string) bool {
 // storedChunkMeta is a chunk's meta as its stored form holds it: when the
 // first and the last of its rows arrived, exactly; how many of them asked
 // what each kind asks; how many failed; how many are of each model, account
-// and session, by its whole id; and the pools they recorded, as storedPools
-// stores them. Its keys are short and its zeros left out.
+// and session, by its whole id; and the pools they recorded, as
+// ledger.StoredPools stores them. Its keys are short and its zeros left out.
 type storedChunkMeta struct {
 	First    storedInstant  `json:"f,omitzero"`
 	Last     storedInstant  `json:"l,omitzero"`
@@ -300,7 +300,7 @@ func (m *chunkMeta) stored() storedChunkMeta {
 	c := m.lines
 	return storedChunkMeta{
 		First: m.first.stored(), Last: m.last.stored(), Requests: c.Requests, Checks: c.Checks, Counts: c.Counts, Failed: c.Failed,
-		Models: c.Models, Accounts: c.Accounts, Sessions: c.Sessions, Pools: storedPools(m.pools),
+		Models: c.Models, Accounts: c.Accounts, Sessions: c.Sessions, Pools: ledger.StoredPools(m.pools),
 	}
 }
 
@@ -316,6 +316,6 @@ func chunkMetaOf(meta []byte) (chunkMeta, error) {
 		lines: LogCount{
 			Requests: s.Requests, Checks: s.Checks, Counts: s.Counts, Failed: s.Failed, Models: s.Models, Accounts: s.Accounts, Sessions: s.Sessions,
 		},
-		pools: recordedPools(s.Pools),
+		pools: ledger.RecordedPools(s.Pools),
 	}, nil
 }

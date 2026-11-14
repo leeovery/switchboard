@@ -1,12 +1,15 @@
 package views_test
 
 import (
+	"errors"
+	"io/fs"
 	"reflect"
 	"slices"
 	"testing"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
+	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/events"
 	"github.com/leeovery/switchboard/internal/identity"
 	"github.com/leeovery/switchboard/internal/ledger"
@@ -242,12 +245,63 @@ type sessionsHeld struct {
 	sessions map[string]ledger.SessionFrom
 }
 
-func (l sessionsHeld) Sessions([]string, func(string) ledger.Rest, func(string, ledger.Line)) map[string]ledger.SessionFrom {
+func (l sessionsHeld) Sessions(ledger.RoutedIn, []string, func(string) ledger.Rest, func(string, ledger.Line)) map[string]ledger.SessionFrom {
 	return l.sessions
 }
 
-func (l sessionsHeld) SessionsOf([]string, func(string) ledger.Rest, func(string, ledger.Line)) map[string]ledger.SessionFrom {
+func (l sessionsHeld) SessionsOf(ledger.RoutedIn, []string, func(string) ledger.Rest, func(string, ledger.Line)) map[string]ledger.SessionFrom {
 	return l.sessions
+}
+
+// poolsAsked is a ledger holding no session, which notes the pool each read
+// of its sessions asked for, as each was handed it.
+type poolsAsked struct {
+	views.Ledger
+	asked *[]ledger.RoutedIn
+}
+
+func (l poolsAsked) Sessions(in ledger.RoutedIn, _ []string, _ func(string) ledger.Rest, _ func(string, ledger.Line)) map[string]ledger.SessionFrom {
+	*l.asked = append(*l.asked, in)
+	return nil
+}
+
+func (l poolsAsked) SessionsOf(in ledger.RoutedIn, _ []string, _ func(string) ledger.Rest, _ func(string, ledger.Line)) map[string]ledger.SessionFrom {
+	*l.asked = append(*l.asked, in)
+	return nil
+}
+
+// A pool's read asks the ledger it reads through for the pool's sessions
+// alone, by each read: Acme's, of the requests routed in Acme's, none in
+// Default's, the first's, nor naming none. Read through another pool's read
+// again, it asks for those routed in both, so a read through a second pool
+// reads no wider than the first: Default's within Acme's, none at all. Every
+// pool's read asks for every pool's.
+func TestAPoolsReadAsksTheLedgerForThePoolsSessionsAlone(t *testing.T) {
+	var asked []ledger.RoutedIn
+	held := poolsAsked{asked: &asked}
+	defaultRead := views.PoolRead{ID: "b2n8", First: "b2n8"}
+	acmeRead.Ledger(held).Sessions(nil, nil, nil, nil)
+	acmeRead.Ledger(held).SessionsOf(nil, []string{"one"}, nil, nil)
+	acmeRead.Ledger(defaultRead.Ledger(held)).Sessions(nil, nil, nil, nil)
+	views.PoolRead{}.Ledger(held).SessionsOf(nil, []string{"one"}, nil, nil)
+
+	recorded := []string{"q7mt", "b2n8", ""}
+	want := [][]bool{{true, false, false}, {true, false, false}, {false, false, false}}
+	if len(asked) != 4 {
+		t.Fatalf("the ledger was asked %d reads, want 4", len(asked))
+	}
+	for i, w := range want {
+		got := make([]bool, len(recorded))
+		for j, pool := range recorded {
+			got[j] = asked[i] != nil && asked[i](pool)
+		}
+		if !slices.Equal(got, w) {
+			t.Errorf("read %d asked for the requests of %q as %v, want %v", i, recorded, got, w)
+		}
+	}
+	if asked[3] != nil {
+		t.Error("every pool's read asked the ledger for one pool's, want every pool's")
+	}
 }
 
 // No pool's read, as a dashboard showing no pool reads, reads no pool's
@@ -277,7 +331,75 @@ func TestNoPoolsReadReadsNoPoolsWork(t *testing.T) {
 	held := sessionsHeld{sessions: map[string]ledger.SessionFrom{
 		"resting": {Base: &ledger.SessionBase{}}, "lined": {Lines: []ledger.Line{{Request: "r1"}}},
 	}}
-	if got := none.Ledger(held).Sessions(nil, nil, nil); len(got) != 0 {
+	if got := none.Ledger(held).Sessions(nil, nil, nil, nil); len(got) != 0 {
 		t.Errorf("no pool's read of the sessions gives %d, want none", len(got))
+	}
+}
+
+// startedDays is a ledger that began at first, holding the days given by
+// their dates, as DaysOn asks for them, or failing to say where it began.
+type startedDays struct {
+	views.Ledger
+	first  time.Time
+	failed error
+	days   map[string]ledger.Summary
+}
+
+func (l startedDays) FirstDay(time.Time) (time.Time, error) {
+	return l.first, l.failed
+}
+
+func (l startedDays) DaysOn(dates []string) []ledger.Summary {
+	var held []ledger.Summary
+	for _, date := range dates {
+		if s, ok := l.days[date]; ok {
+			held = append(held, s)
+		}
+	}
+	return held
+}
+
+// A pool's work begins on the first day the ledger holds whose summary in
+// the pool holds work, however far into it: Acme's, on the 40th of 60 days,
+// past a month's read of them, on that day; Default's, working on the first,
+// where the ledger began; a pool that worked on no day before today, and no
+// pool's read, today. Every pool's read begins where the ledger does, as the
+// ledger tells it, and a ledger that fails to say fails the pool's read.
+func TestAPoolsWorkBeginsOnTheFirstDayItsSummaryHoldsWork(t *testing.T) {
+	now := time.Date(2026, 11, 3, 15, 0, 0, 0, time.Local)
+	dayOf := func(back int) time.Time { return dayfile.DayStart(now, -back) }
+	l := &startedDays{first: dayOf(60), days: make(map[string]ledger.Summary)}
+	for back := 60; back > 0; back-- {
+		date := dayfile.DateOf(dayOf(back))
+		day := ledger.Summary{Day: date, Accounts: []ledger.AccountDay{{Account: "side", Pool: "b2n8", Sessions: 1}, {Account: "work", Pool: "q7mt"}}}
+		if back <= 20 {
+			day.Accounts[1].Sessions = 1
+		}
+		l.days[date] = day
+	}
+	idle := views.PoolRead{ID: "x9z9", First: "b2n8", PoolOf: acmeRead.PoolOf}
+	for _, tt := range []struct {
+		name string
+		read views.PoolRead
+		want time.Time
+	}{
+		{name: "Acme's", read: acmeRead, want: dayOf(20)},
+		{name: "Default's", read: views.PoolRead{ID: "b2n8", First: "b2n8", PoolOf: acmeRead.PoolOf}, want: dayOf(60)},
+		{name: "a pool yet to work", read: idle, want: dayOf(0)},
+		{name: "no pool's", read: views.NoPool(), want: dayOf(0)},
+	} {
+		if got, err := tt.read.Start(l).FirstDay(now); err != nil || !got.Equal(tt.want) {
+			t.Errorf("%s work begins %v, %v, want %v", tt.name, got, err, tt.want)
+		}
+	}
+	if start := (views.PoolRead{}).Start(l); start != views.LedgerStart(l) {
+		t.Errorf("every pool's read begins as %v tells it, want the ledger itself", start)
+	}
+	failing := &startedDays{failed: fs.ErrPermission}
+	if _, err := acmeRead.Start(failing).FirstDay(now); !errors.Is(err, fs.ErrPermission) {
+		t.Errorf("a pool's read of a ledger that fails to say where it began fails with %v, want its failure", err)
+	}
+	if start := acmeRead.Start(nil); start != nil {
+		t.Errorf("a pool's read of no ledger begins as %v tells it, want nothing to tell", start)
 	}
 }

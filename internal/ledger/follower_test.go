@@ -1035,7 +1035,7 @@ func TestSessionsReadsTodaysAndThoseAskedForEachAsSessionReadsOne(t *testing.T) 
 	follower := followerOf(state, clock, caps)
 
 	taken := make(map[string]string)
-	got := follower.Sessions([]string{"old"}, eachWhole, func(date string, l ledger.Line) { taken[l.Request] += date })
+	got := follower.Sessions(nil, []string{"old"}, eachWhole, func(date string, l ledger.Line) { taken[l.Request] += date })
 	want := map[string][]string{"one": {"1", "4", "7"}, "two": {"3", "5", "6"}, "three": {"9"}, "old": {"2"}}
 	if len(got) != len(want) {
 		t.Errorf("Sessions() read %d sessions, want %d: today's, and old, asked for", len(got), len(want))
@@ -1088,7 +1088,7 @@ func TestSessionsOfTakesInTheDaysItReadsSideBySideOldestFirst(t *testing.T) {
 	follower := followerOf(state, &testClock{at: on(0, 12, 0)}, caps)
 
 	var taken []string
-	got := follower.SessionsOf([]string{"one"}, eachWhole, func(_ string, l ledger.Line) { taken = append(taken, l.Request) })
+	got := follower.SessionsOf(nil, []string{"one"}, eachWhole, func(_ string, l ledger.Line) { taken = append(taken, l.Request) })
 	if !slices.Equal(taken, want) {
 		t.Errorf("SessionsOf() handed take %q, want each day's lines in its files' order, the days oldest first, %q", taken, want)
 	}
@@ -1107,7 +1107,7 @@ func TestSessionsReadsNoDayBeforeYesterdayWhereNoSessionIsRead(t *testing.T) {
 	unopenable(t, dir, "*2026-10-03*")
 	follower := followerOf(state, &testClock{at: on(1, 12, 0)}, caps)
 
-	if got := follower.Sessions(nil, eachWhole, nil); len(got) != 0 || opened(log) != 0 {
+	if got := follower.Sessions(nil, nil, eachWhole, nil); len(got) != 0 || opened(log) != 0 {
 		t.Errorf("log reads\n%s\nSessions() = %v, want no session read, nor a day before yesterday opened", log, got)
 	}
 }
@@ -1158,7 +1158,7 @@ func TestASessionsDaysAreFoundWithoutTheReadingsHistory(t *testing.T) {
 			for range f.Session("one") {
 			}
 		}},
-		{name: "by Sessions", read: func(f *ledger.Follower) { f.Sessions([]string{"one"}, eachWhole, nil) }},
+		{name: "by Sessions", read: func(f *ledger.Follower) { f.Sessions(nil, []string{"one"}, eachWhole, nil) }},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

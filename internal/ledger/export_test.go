@@ -46,16 +46,16 @@ func WriteParts(dir, date string, parts map[string]json.RawMessage) error {
 }
 
 // builtParts returns parts, by their sessions' ids, each as builtPartOf
-// builds it of no times, folded on the state of the date on gives it, ""
-// for none.
-func builtParts(parts map[string]json.RawMessage, on map[string]string) (map[string]builtPart, error) {
-	built := make(map[string]builtPart, len(parts))
+// builds it of no times, of each one's own state, folded on the state of
+// the date on gives it, "" for none.
+func builtParts(parts map[string]json.RawMessage, on map[string]string) (map[stateKey]builtPart, error) {
+	built := make(map[stateKey]builtPart, len(parts))
 	for id, part := range parts {
 		b, err := builtPartOf(on[id], part, nil)
 		if err != nil {
 			return nil, err
 		}
-		built[id] = b
+		built[stateKey{id: id}] = b
 	}
 	return built, nil
 }
@@ -91,7 +91,7 @@ func ReadTimes(dir, date string, ref PartRef) (json.RawMessage, error) {
 // given, for tests of the lookup.
 func (f *Follower) SessionsAsOf(ids []string, date string, rest func(id string) Rest, take func(date string, l Line)) map[string]SessionFrom {
 	read := newSessionsRead(f.now(), take)
-	return f.lookup().asOf(f.datesBefore(date, read.now), nil, wanting(make(map[string]bool), ids), rest, read)
+	return f.lookup(nil).asOf(f.datesBefore(date, read.now), nil, wanting(make(map[string]bool), ids), rest, read)
 }
 
 // RestsAsOf returns the date of the state each of the sessions with the given
@@ -101,7 +101,7 @@ func (f *Follower) SessionsAsOf(ids []string, date string, rest func(id string) 
 // after it that arrived before the base's day ended, as asOf drops it, for
 // tests of the rest alone.
 func (f *Follower) RestsAsOf(ids []string, date string, rest func(id string) Rest) map[string]string {
-	l := f.lookup()
+	l := f.lookup(nil)
 	rests := make(map[string]string, len(ids))
 	for id, s := range l.namingEach(f.datesBefore(date, f.now()), nil, wanting(make(map[string]bool), ids)) {
 		l.rest(id, s, rest(id))

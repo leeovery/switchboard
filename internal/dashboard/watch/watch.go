@@ -144,10 +144,12 @@ type Config struct {
 	// where it's SamePool. nil turns to none.
 	Pool status.ShownPool
 	Turn func(ctx context.Context, from string, ask PoolAsk) (Pooled, error)
-	// PoolRead is how the Log reads the pool shown's work of the request
-	// ledger, by its id, as the verbs read a pool's: the zero PoolRead reads
-	// every pool's, as of a config without pools alone; views.NoPool none,
-	// as where no pool is shown.
+	// PoolRead is how the dashboard reads the pool shown's work of the
+	// request ledger, by its id, as the verbs read a pool's: the Log's lines,
+	// the sessions the store holds, for Sessions, a session's page and the
+	// Log alike, and the days History, Accounts, Runway and Graphs read. The
+	// zero PoolRead reads every pool's, as of a config without pools alone;
+	// views.NoPool none, as where no pool is shown.
 	PoolRead views.PoolRead
 	// ConfigStamp says how the config file stands, and Stamp how it stood
 	// as the pool shown was read: a read that finds it changed since reads

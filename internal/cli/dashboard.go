@@ -88,11 +88,10 @@ or where it can't tell them, it turns to the pool the commands act on once
 the config names pools, none where every pool is fenced. A pool with no
 accounts the router routes says so on every tab, with how to add one, or
 where the config gives it some the router hasn't taken up, as a pool added
-since it started, that switchboard service restart takes them up. The Log's
-requests and its find are the pool's alone; History, Sessions, Graphs and
-the worth and tokens on Accounts still tell of every pool's work together,
-History's Year setting every pool's worth beside the plans of the pool
-shown.
+since it started, that switchboard service restart takes them up. Every tab
+tells of the pool's work alone: the Log's requests and its find, Sessions
+and a session's page, History, Graphs, and the worth and tokens on Accounts,
+work recorded before pools the first pool's.
 
 It reads the router's usage every few seconds, which the router keeps
 current itself, reading every account nothing has read in the last 5

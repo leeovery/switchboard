@@ -81,6 +81,19 @@ func (r logReaders) totalsOn(dates []string, now time.Time) []views.DayTotals {
 	return views.TotalsOn(r.pool.Dates(r.ledger), dates, now, r.prices)
 }
 
+// sessions reads the request ledger's sessions in the pool read alone, as
+// its Ledger reads them, for the store every reader of them reads: nil
+// where there's no ledger.
+func (r logReaders) sessions() views.Ledger {
+	return r.pool.Ledger(r.ledger)
+}
+
+// ledgerSessions reads the request ledger's sessions in the pool shown
+// alone, as the Log's readers' sessions read them.
+func (m Model) ledgerSessions() views.Ledger {
+	return m.logReaders().sessions()
+}
+
 // logReadMsg is what a read for the Log of its own found, as it first shows
 // or as its tables reach back a day; as it first shows, what the read of
 // the ledger's tail it opens with found for every reader, as tailedMsg has
@@ -457,10 +470,11 @@ func (b logBack) from(day views.LedgerDay) logGrown {
 // took is read taken in the lines of the day given: read, as ReadDay reads
 // them, in the pool shown, through the filter through gives; and taken in as
 // TakenBack takes them, at b's now, beside the store b holds. It holds the
-// sessions the take reads whole, for the watch's to take in.
+// sessions the take reads whole, in the pool shown alone, for the watch's
+// to take in.
 func (b logBack) took(read views.LogRead, day views.LedgerDay) logGrown {
-	l := b.readers.ledger
-	grown, found := read.TakenBack(l, views.ReadDay(l, day.Date, b.through(day.Date), b.readers.pool), b.held, b.stream, b.now)
+	r := b.readers
+	grown, found := read.TakenBack(r.sessions(), views.ReadDay(r.ledger, day.Date, b.through(day.Date), r.pool), b.held, b.stream, b.now)
 	return logGrown{read: grown, held: found}
 }
 
@@ -539,14 +553,14 @@ type logRefilter struct {
 // ReadDay reads it, in the pool shown, through the join of the filter r's
 // read holds it through and r's serving, as RefilterThrough has it, taken in
 // place of the day held, as Refiltered takes it, beside the store it reads,
-// for the watch's to take in; and which read it was, so a Log that has since
-// grown it into another drops it, as dropped has it. Of a day r's read
-// doesn't hold, Refiltered refuses, giving the read as it was, which taken
-// in changes nothing.
+// in the pool shown alone, for the watch's to take in; and which read it
+// was, so a Log that has since grown it into another drops it, as dropped
+// has it. Of a day r's read doesn't hold, Refiltered refuses, giving the
+// read as it was, which taken in changes nothing.
 func (r logRefilter) of(date string) logReadMsg {
-	l := r.readers.ledger
+	l := r.readers
 	through := r.read.RefilterThrough(date, r.serving, r.stream)
-	read, found, _ := r.read.Refiltered(l, views.ReadDay(l, date, through, r.readers.pool), r.held, r.stream, r.now)
+	read, found, _ := r.read.Refiltered(l.sessions(), views.ReadDay(l.ledger, date, through, l.pool), r.held, r.stream, r.now)
 	from := r.read.Gen()
 	return logReadMsg{grown: logGrown{read: read, held: found}, refiltered: &from}
 }

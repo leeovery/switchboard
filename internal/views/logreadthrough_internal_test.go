@@ -377,14 +377,14 @@ type sessionsAsked struct {
 	ids *[]string
 }
 
-func (a sessionsAsked) Sessions(ids []string, rest func(string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
+func (a sessionsAsked) Sessions(in ledger.RoutedIn, ids []string, rest func(string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
 	*a.ids = append(*a.ids, ids...)
-	return a.filedLedger.Sessions(ids, rest, take)
+	return a.filedLedger.Sessions(in, ids, rest, take)
 }
 
-func (a sessionsAsked) SessionsOf(ids []string, rest func(string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
+func (a sessionsAsked) SessionsOf(in ledger.RoutedIn, ids []string, rest func(string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
 	*a.ids = append(*a.ids, ids...)
-	return a.filedLedger.SessionsOf(ids, rest, take)
+	return a.filedLedger.SessionsOf(in, ids, rest, take)
 }
 
 // The Log wants the store to hold the sessions of the lines its read keeps,

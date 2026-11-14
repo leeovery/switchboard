@@ -201,7 +201,9 @@ type digestChain struct {
 // each; and how many times a builder was handed one. What they give of a
 // day is changed as alter changes it, where it's set, before it's recorded;
 // but of the day with the date spoiled, where it's set, they give
-// spoiledState of each session, recording none.
+// spoiledState of each session, recording none. A day's sessions handed in
+// a pool alone, as ledger.DigestDay's In has it, are folded as the views'
+// Digests fold them, none of it recorded.
 type recordedDigests struct {
 	Digests
 	handed  map[string]ledger.DigestDay
@@ -253,6 +255,9 @@ type recordedDay struct {
 // Digest gives what the views' builder gives of day, recording both, or
 // spoiled states, of the day spoiled.
 func (b recordedDay) Digest(ctx context.Context, day ledger.DigestDay) (map[string]ledger.Folded, error) {
+	if day.In != nil {
+		return b.DigestBuilder.Digest(ctx, day)
+	}
 	r := b.r
 	r.calls++
 	r.handed[day.Date] = day
@@ -624,10 +629,10 @@ func (c *digestChain) checkFollowed(now time.Time, prices []pricedAs) {
 	c.t.Helper()
 	ids := sessionsIn(c.lines)
 	follower := ledger.NewFollower(c.state, func() time.Time { return now }, ledger.CapsOf(nil, nil), DigestVersion, quiet)
-	based := follower.SessionsOf(ids, nil, nil)
+	based := follower.SessionsOf(nil, ids, nil, nil)
 	pagedAnswers, wholeAnswers := make(takenAnswers), make(takenAnswers)
-	paged := follower.SessionsOf(ids, onPage, pagedAnswers.take)
-	whole := follower.SessionsOf(ids, eachWhole, wholeAnswers.take)
+	paged := follower.SessionsOf(nil, ids, onPage, pagedAnswers.take)
+	whole := follower.SessionsOf(nil, ids, eachWhole, wholeAnswers.take)
 	day, horizon := Today(now), horizonAt(now, nil)
 	for _, id := range slices.Sorted(maps.Keys(whole)) {
 		from, through := based[id], ""

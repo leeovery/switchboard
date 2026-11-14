@@ -55,10 +55,19 @@ func (p PoolRead) keeps(recorded string) bool {
 	return p.every() || !p.none && ledger.RecordedIn(recorded, p.ID, p.First)
 }
 
+// in is what reports whether the read keeps a request, as keeps has it, as
+// the ledger reads a pool's sessions: nil where it reads every pool's.
+func (p PoolRead) in() ledger.RoutedIn {
+	if p.every() {
+		return nil
+	}
+	return p.keeps
+}
+
 // keepsOf reports whether the read keeps any of the requests that recorded
-// the pools given, one at least, as recordedPools restores a head's, as
-// keeps has it of each, and whether it keeps them all: both where it reads
-// every pool's.
+// the pools given, one at least, as ledger.RecordedPools restores a head's,
+// or a digest's entry holds them, as keeps has it of each, and whether it
+// keeps them all: both where it reads every pool's.
 func (p PoolRead) keepsOf(pools []string) (some, all bool) {
 	if p.every() {
 		return true, true
@@ -95,36 +104,6 @@ func (p PoolRead) mayHoldOn(l LedgerHeld, date string) bool {
 	return !told || slices.ContainsFunc(p.summaries(held), LogFilter{}.through().mayKeep)
 }
 
-// recordingPool is pools, the pools some lines recorded, each once, in the
-// order of their ids, "" of those that named none, with the pool a line
-// recorded taken in.
-func recordingPool(pools []string, pool string) []string {
-	if i, held := slices.BinarySearch(pools, pool); !held {
-		pools = slices.Insert(pools, i, pool)
-	}
-	return pools
-}
-
-// storedPools are pools, as recordingPool keeps them, as a day's head
-// stores them, of a chunk of its rows or a session of its side: none where
-// the lines named none, as before pools and in a config without them, so a
-// head is as it was where no line names a pool.
-func storedPools(pools []string) []string {
-	if slices.Equal(pools, []string{""}) {
-		return nil
-	}
-	return pools
-}
-
-// recordedPools are the pools a day's head stores, as storedPools stores
-// them: none but none where it stores none.
-func recordedPools(stored []string) []string {
-	if len(stored) == 0 {
-		return []string{""}
-	}
-	return stored
-}
-
 // Lines are those of lines routed in the pool read, as each recorded at the
 // time, as keeps has it: every one where the read is of every pool's.
 func (p PoolRead) Lines(lines iter.Seq[ledger.Held]) iter.Seq[ledger.Held] {
@@ -144,28 +123,61 @@ func (p PoolRead) Lines(lines iter.Seq[ledger.Held]) iter.Seq[ledger.Held] {
 // has them: lines themselves where the read keeps every one, as every
 // pool's does, and a pool's of a ledger of its work alone, none copied.
 func (p PoolRead) Held(lines []ledger.Held) []ledger.Held {
+	return keptIn(p, lines, func(h *ledger.Held) string { return h.Pool })
+}
+
+// keptIn are those of lines routed in the pool read p, in their order, as
+// Held has them, each line's pool as pool reads it.
+func keptIn[L any](p PoolRead, lines []L, pool func(*L) string) []L {
 	if p.every() {
 		return lines
 	}
 	for i := range lines {
-		if !p.keeps(lines[i].Pool) {
-			return p.heldPast(lines, i)
+		if !p.keeps(pool(&lines[i])) {
+			return keptPast(p, lines, i, pool)
 		}
 	}
 	return lines
 }
 
-// heldPast are those of lines routed in the pool read, as Held has them,
-// the read dropping the one at dropped and keeping each before it: those
-// before it, and those after it the read keeps, copied.
-func (p PoolRead) heldPast(lines []ledger.Held, dropped int) []ledger.Held {
+// keptPast are those of lines routed in the pool read p, as keptIn has
+// them, the read dropping the one at dropped and keeping each before it:
+// those before it, and those after it the read keeps, copied.
+func keptPast[L any](p PoolRead, lines []L, dropped int, pool func(*L) string) []L {
 	held := slices.Clone(lines[:dropped])
 	for i := dropped + 1; i < len(lines); i++ {
-		if p.keeps(lines[i].Pool) {
+		if p.keeps(pool(&lines[i])) {
 			held = append(held, lines[i])
 		}
 	}
 	return held
+}
+
+// Took decodes a read of the ledger's tail for the store, as the package's
+// Took does, the requests of the pool read alone taken, as Held has them:
+// every line kept for a page's points all the same, as ownedAll hands them.
+func (p PoolRead) Took(gained []ledger.Held, days map[string][]ledger.Held) Taken {
+	t := Taken{gained: takenOf(p.Held(gained)), days: make(map[string]takenLines, len(days)), read: tailRead{gained: p.ownedAll(gained), days: make(map[string][]ledger.Held, len(days))}}
+	for date, lines := range days {
+		t.days[date], t.read.days[date] = takenOf(p.Held(lines)), p.ownedAll(lines)
+	}
+	return t
+}
+
+// ownedAll are lines as the pool read hands them to a page's points, each
+// of the session ledger.RoutedIn's Owner has it of, as the read keeps it:
+// lines themselves where that changes none, as of every pool's read.
+func (p PoolRead) ownedAll(lines []ledger.Held) []ledger.Held {
+	in := p.in()
+	i := slices.IndexFunc(lines, func(h ledger.Held) bool { return in.Owner(h.Pool, h.Session) != h.Session })
+	if i < 0 {
+		return lines
+	}
+	owned := slices.Clone(lines)
+	for ; i < len(owned); i++ {
+		owned[i].Session = in.Owner(owned[i].Pool, owned[i].Session)
+	}
+	return owned
 }
 
 // Days reads the pool's days from those l reads, as LedgerDays reads them,
@@ -221,6 +233,59 @@ type poolDays struct {
 
 func (d poolDays) Days(from time.Time) []ledger.Summary {
 	return d.read.summaries(d.days.Days(from))
+}
+
+// Start tells where the pool read's work begins, as l tells where the
+// ledger begins, for the days History, Accounts, Runway and Graphs read to
+// begin there: l itself where the read is of every pool's; else the first
+// day the ledger holds whose summary in the pool holds work, so a pool added
+// to a ledger months old never counts the days before it as days of none.
+// Nil where l can't tell where it begins.
+func (p PoolRead) Start(l Ledger) LedgerStart {
+	start, ok := l.(LedgerStart)
+	if !ok || p.every() {
+		return start
+	}
+	return poolStart{start: start, dates: p.Dates(l)}
+}
+
+// poolStart tells where a pool's work begins, as PoolRead's Start has it.
+type poolStart struct {
+	start LedgerStart
+	dates LedgerDates
+}
+
+// poolStartRead is how many days poolStart reads at a time, from the first
+// the ledger holds, till it finds the pool's first.
+const poolStartRead = 31
+
+// FirstDay gives the start of the first local day the ledger holds whose
+// summary in the pool holds work, at now, read from the first it holds,
+// failing as it fails to say; today's where no day before today's does. A
+// pool yet to work so begins with today as a ledger yet to hold a day does,
+// but isn't asked again at each read, as that would read every day's
+// summary each time: one that first works while the dashboard is open
+// begins where it was opened, till it's opened again.
+func (s poolStart) FirstDay(now time.Time) (time.Time, error) {
+	first, err := s.start.FirstDay(now)
+	if err != nil {
+		return first, err
+	}
+	today := dayfile.DayStart(now.Local(), 0)
+	for dates := range slices.Chunk(dayfile.Span(first, dayfile.DayStart(today, -1)), poolStartRead) {
+		for _, day := range s.dates.DaysOn(dates) {
+			if workedOn(day) {
+				start, _, _ := dayfile.Day(day.Day)
+				return start, nil
+			}
+		}
+	}
+	return today, nil
+}
+
+// workedOn reports whether any account's day the summary s holds has work.
+func workedOn(s ledger.Summary) bool {
+	return slices.ContainsFunc(s.Accounts, func(a ledger.AccountDay) bool { return !a.Idle() })
 }
 
 // poolDates reads a pool's days by their dates, as PoolRead's Dates has
@@ -298,13 +363,21 @@ func (e poolEvents) Between(from, to time.Time) iter.Seq[events.Line] {
 	}
 }
 
-// Ledger reads l as the pool read has it, for the sessions' List: each
-// session's lines those routed in the pool alone, as keeps has it, so its
-// requests and their worth are those it made in the pool, and one with none
-// in the pool, resting on no state, none of the pool's; l itself where the
-// read is of every pool's.
+// Ledger reads l as the pool read has it, for the sessions the store holds,
+// the List, a session's page and the Log's telling of its rows among them:
+// each session as a read of its lines routed in the pool alone, as keeps
+// has it, would hold it, so its story, its requests and their worth, and
+// its page are those of its work in the pool, and one with none there none
+// of the pool's. Each rests on its state in the pool, as l's Sessions
+// rests it: a state folded from its lines in the pool alone, of a session
+// split between pools its state there apart, or none, read after the state
+// it holds of none of the pool's work; and its lines after it are those in
+// the pool, as inPool has them. A reader taking every line read, as a
+// page's points take every account's answers, is handed every pool's, as
+// owning hands each. l itself where the read is of every pool's, or l is
+// nil.
 func (p PoolRead) Ledger(l Ledger) Ledger {
-	if p.every() {
+	if p.every() || l == nil {
 		return l
 	}
 	return poolLedger{Ledger: l, read: p}
@@ -316,44 +389,58 @@ type poolLedger struct {
 	read PoolRead
 }
 
-func (l poolLedger) Sessions(ids []string, rest func(id string) ledger.Rest, take func(date string, line ledger.Line)) map[string]ledger.SessionFrom {
-	return l.inPool(l.Ledger.Sessions(ids, rest, l.taking(take)))
+func (l poolLedger) Sessions(in ledger.RoutedIn, ids []string, rest func(id string) ledger.Rest, take func(date string, line ledger.Line)) map[string]ledger.SessionFrom {
+	return l.inPool(ids, l.Ledger.Sessions(l.within(in), ids, rest, l.owning(take)))
 }
 
-func (l poolLedger) SessionsOf(ids []string, rest func(id string) ledger.Rest, take func(date string, line ledger.Line)) map[string]ledger.SessionFrom {
-	return l.inPool(l.Ledger.SessionsOf(ids, rest, l.taking(take)))
+func (l poolLedger) SessionsOf(in ledger.RoutedIn, ids []string, rest func(id string) ledger.Rest, take func(date string, line ledger.Line)) map[string]ledger.SessionFrom {
+	return l.inPool(ids, l.Ledger.SessionsOf(l.within(in), ids, rest, l.owning(take)))
 }
 
-// taking is take, handed the lines routed in the pool alone: nil where take
-// is.
-func (l poolLedger) taking(take func(date string, line ledger.Line)) func(date string, line ledger.Line) {
+// within is what reports whether a request was routed in the pool read and
+// in the pool in reads, as a reader of a pool of its own reads through l:
+// so a read through more than one pool's reads no wider than any of them;
+// the pool read's alone, as in has it, where in is nil.
+func (l poolLedger) within(in ledger.RoutedIn) ledger.RoutedIn {
+	keeps := l.read.in()
+	if in == nil {
+		return keeps
+	}
+	return func(recorded string) bool { return in(recorded) && keeps(recorded) }
+}
+
+// owning is take, handed each line as a page's points take it, of the
+// session ledger.RoutedIn's Owner has it of, as the pool read keeps it: nil
+// where take is.
+func (l poolLedger) owning(take func(string, ledger.Line)) func(string, ledger.Line) {
 	if take == nil {
 		return nil
 	}
+	in := l.read.in()
 	return func(date string, line ledger.Line) {
-		if l.read.keeps(line.Pool) {
-			take(date, line)
-		}
+		line.Session = in.Owner(line.Pool, line.Session)
+		take(date, line)
 	}
 }
 
-// inPool returns the sessions given, each with its lines routed in the pool
-// alone, as new slices, leaving those given as they are: none of one with no
-// such line that rests on no state, nor of NoPool's any.
-func (l poolLedger) inPool(sessions map[string]ledger.SessionFrom) map[string]ledger.SessionFrom {
+// inPool returns the sessions given, each resting on its state in the pool,
+// as the read gave it, its lines those routed in the pool, as keeps has it,
+// the slice given where they all are, leaving those given as they are. It
+// gives none of one with no such line, but one with the ids asked for
+// resting on a state: so none of NoPool's, nor one found among today's
+// sessions by its requests in another pool, as one resumed there, which,
+// with no request in the pool today and not running there, the List never
+// lists, so its state isn't restored for it at every read for as long as it
+// runs there.
+func (l poolLedger) inPool(asked []string, sessions map[string]ledger.SessionFrom) map[string]ledger.SessionFrom {
 	in := make(map[string]ledger.SessionFrom, len(sessions))
 	for id, s := range sessions {
-		var lines []ledger.Line
-		for _, line := range s.Lines {
-			if l.read.keeps(line.Pool) {
-				lines = append(lines, line)
-			}
+		if s.Lines = keptIn(l.read, s.Lines, func(line *ledger.Line) string { return line.Pool }); len(s.Lines) == 0 {
+			s.Lines = nil
 		}
-		if len(lines) == 0 && (s.Base == nil || l.read.none) {
-			continue
+		if s.Lines != nil || s.Base != nil && slices.Contains(asked, id) {
+			in[id] = s
 		}
-		s.Lines = lines
-		in[id] = s
 	}
 	return in
 }

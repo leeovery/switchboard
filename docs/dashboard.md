@@ -850,12 +850,15 @@ Where the config has [pools](how-it-works.md#pools), the dashboard shows one poo
 [Reading a pool](commands.md#reading-a-pool)). A pool the config doesn't have is refused, naming
 those it does. What it reads from the router is that pool's: its accounts, windows, room, sessions
 running and pin, and the router's events, the Overview's and Runway's LATELY and the Log's Events
-among them. Accounts lists the pool's accounts alone. The Log's requests are the pool's alone,
-today's and each day it reads back, with each day's figures, and its find finds the pool's
-sessions. What it builds from the request ledger's day digests, Sessions, a session's page,
-History, Graphs and the worth and tokens on Accounts, still tells of every pool's work together,
-each account by its label, until a later release keeps it to the pool shown: History's Year sets
-every pool's worth beside the plans of the pool shown.
+among them. Accounts lists the pool's accounts alone. What it reads from the request ledger is
+the pool's work alone, a request made before pools the first pool's: the Log's requests, today's
+and each day it reads back, with each day's figures, and its find, which finds the pool's
+sessions; Sessions, each session's requests, worth and tokens those it made in the pool; a
+session's page, its points among them; History, its Year among them; Graphs; and the worth and
+tokens on Accounts. A session resumed in another pool, once its directory's fence changes, shows
+in each pool with the work it did there. The days begin where the pool's work does, so a pool
+added to a ledger months old shows no empty months before it in History, and WHEN YOU WORK
+averages its own days alone.
 
 The pool shown follows the config as it changes: where a pool or an account is added, removed,
 relabelled, fenced, moved or reordered, or an account's plan, primary or reserve changes, in any
@@ -865,8 +868,8 @@ config file it reads, the one `--config` names, at each read, and reads the conf
 the file has changed, or the accounts the router routes have: a look costs a stat of the file and a
 compare of two lists of ids. Where the pool shown is removed, it turns to the first. A dashboard
 opened on a config without pools, or where it couldn't tell the pools, looks at the config file
-alike, so once the config names pools the view starts afresh on the pool the commands act on, its
-Log that pool's alone; where every pool is fenced, there's none, and it shows none, as below.
+alike, so once the config names pools the view starts afresh on the pool the commands act on, every
+tab that pool's alone; where every pool is fenced, there's none, and it shows none, as below.
 
 Once there's a second pool:
 

@@ -521,13 +521,12 @@ each).
 
 ## Pools
 
-**Designed** (the owner's calls, 10 and 11 November 2026), **its first phase built**, safety (see
-Building it), **and of its second the dashboard's pool, its Log and setup's cards**; the
-dashboard's other ledger tabs per pool are still to build. The other sections
-describe switchboard with a single pool, as it runs with one, and hold within each pool where there
-are more: their primary is the pool's, and their global pin the pool's pin. It's built on Account
-identity: accounts are known by the ids switchboard makes, shown by their labels, and never
-numbered.
+**Designed** (the owner's calls, 10 and 11 November 2026), **and built in both its phases** (see
+Building it): safety, and sight, the dashboard's pool, its Log, its other ledger tabs and setup's
+cards. The other sections describe switchboard with a single pool, as it runs with one, and hold
+within each pool where there are more: their primary is the pool's, and their global pin the
+pool's pin. It's built on Account identity: accounts are known by the ids switchboard makes, shown
+by their labels, and never numbered.
 
 Every account is in a pool, a set of accounts that sessions are routed across. A pool can be fenced
 to one or more directories: a session started inside them is routed across that pool's accounts and
@@ -1064,11 +1063,20 @@ totals.
   no pool shown. The Log tells of the pool shown alone, one pool among them, its requests, each
   day's figures and its find read through the pool's read, by its id, as the verbs read a pool's,
   each day's rows naming their lines' pools (see The Log's In a pool, and The request ledger's
-  Rows a day). What it builds from the day digests, Sessions, a session's page, History, Graphs
-  and the worth and tokens on Accounts, still tells of every pool (see Building it): History's
-  Year sets every pool's worth beside the plans of the pool shown. No page adds pools together: a
-  pool's room can never serve another pool's sessions, so a merged view has nothing to add up. A
-  page across pools waits until one is needed (the owner's call, 11 November 2026).
+  Rows a day). What it builds from the day digests and summaries is the pool shown's alone too,
+  read through the same read: Sessions, each session's requests, worth and tokens those it made in
+  the pool; a session's page, its points those of its requests in the pool, every pool's requests
+  on an account sharing its windows' rises as ever; History, its Year among them; Graphs; and the
+  worth and tokens on Accounts. Each digest's entry names the pools of the lines its session's
+  state was folded from, and holds a session split between pools in each of them apart, so a
+  pool's read rests every session on a state of its own work alone (see The request ledger's In a
+  pool). The days begin where the pool's work begins, its first day whose summary holds work in
+  it (`views.PoolRead`'s Start), so a pool added to a ledger months old counts no day before it as
+  a day of none: History's months, WHEN YOU WORK's weekday averages, Accounts' periods and
+  Runway's lanes begin there, where every pool's begin where the ledger does. A pool that has
+  worked on no day before today begins with today, told once a run. No page adds pools together:
+  a pool's room can never serve another pool's sessions, so a merged view has nothing to add up.
+  A page across pools waits until one is needed (the owner's call, 11 November 2026).
 - **`P` cycles the pools,** on every tab, once a second pool exists, in the config's order, round.
   Changing pool starts the dashboard's view afresh, as a router change does, so nothing it
   remembered of one pool carries into the next: its pages, cursors, a session's page, the routing
@@ -1105,7 +1113,7 @@ totals.
   took up as it restarted, which finds the config as it was and starts nothing. It's asked alike
   where the dashboard opened on no pool, in a config without pools or where the pools couldn't be
   told, so the first config that names pools, or one they can be told of, starts it afresh on the
-  pool the verbs act on (`config.Pools.Implicit`), its Log that pool's alone, or on none where
+  pool the verbs act on (`config.Pools.Implicit`), every tab that pool's alone, or on none where
   every pool is fenced: a dashboard opened on no pool and left open never shows every pool's work
   together once there are pools. Its first pool, for its ledger's grounds and its pool's read, is
   taken afresh at each turn, as its ledger takes it at each ask (`idmove.FirstOf` of the one the
@@ -1248,7 +1256,10 @@ Accepted as the first phase was built, each failing safe, with nothing crossing 
 - **A day's work in no pool summarised before and after the first pool's removal,** as lines a
   draining router or a downgrade filed without a pool, can count those requests twice: the summary
   held puts them in the old first pool, the new one in the config's first, and both are kept. It
-  needs all three rare events together, for a handful of requests.
+  needs all three rare events together, for a handful of requests. Summarised before it alone, a
+  day's work in no pool stays the old first pool's on what reads the summaries, History, Graphs and
+  the worth on Accounts, while what reads the lines, the Log's requests, Sessions and a session's
+  page, tells it as the new first's.
 - **Several Macs** whose configs differ until one is kept: a pool removed on one Mac alone, and an
   account configured under its id, which the record holds for that pool, leaves the account out of
   this Mac's record, logged, till the configs agree.
@@ -1258,8 +1269,7 @@ Pausing an account whose subscription is cancelled is a separate idea, after poo
 
 ### Building it
 
-In two phases, after v1 and Account identity. The first is built, and of the second the dashboard's
-pool, its Log and setup's cards; its other ledger tabs are to build:
+In two phases, after v1 and Account identity, both built:
 
 1. **Safety,** which a pool's work needs from its first day: the config and the `pool` verbs; the
    move to pools; `run`'s pool, its starting token, its header and its checks; the router's pools,
@@ -1279,10 +1289,27 @@ pool, its Log and setup's cards; its other ledger tabs are to build:
    row, the empty pool as read, and the notifications, the router's and the dashboard's, each
    fixture named after its frame (`overview-acme-160`, `overview-default-pool-160`,
    `overview-acme-73x61`, `empty-pool-160`); the Log, the pool shown's alone, each day's rows and
-   side naming their lines' pools, `views.RowsVersion` 4 (see The Log's In a pool); and setup's
-   cards (see Setup with pools). To build: the tabs built from the day digests per pool, Sessions,
-   a session's page, History, Graphs and the worth and tokens on Accounts, History's Year among
-   them ([prebuilt-records-per-pool](../ideas/2026-11-13--prebuilt-records-per-pool.md)).
+   side naming their lines' pools, `views.RowsVersion` 4 (see The Log's In a pool); setup's cards
+   (see Setup with pools); and the tabs built from the day digests and summaries, Sessions, a
+   session's page, History, its Year among them, Graphs and the worth and tokens on Accounts, the
+   pool shown's alone, each digest's entry naming its lines' pools, the digests' envelope at
+   version 3 (see The request ledger's In a pool), their days beginning where the pool's work
+   begins. On the busy world, 5,000 requests a day over four weeks, a client's pool a fifth of
+   them, each is measured against every pool's read, which takes the path every read took before,
+   and measured alike on the code before: one pool read by its id opens each as every pool's read
+   does, Sessions in some 47 ms, a session's page 75, History 6 and Graphs 270. With two, Sessions
+   opens in some 29 ms on the client's pool and 44 on the other, against 49, a session's page as
+   before, and History and Graphs as before or a little quicker (13 November 2026, race detector
+   off, the fastest of six rounds each on a busy Mac). A session split between pools costs its
+   pools what a session of one does, its entry holding its state in each: with the busy world's
+   longest session resumed in the client's pool after two weeks in the other, the client's
+   Sessions opens in some 54 ms, against 442 when a pool's read read the session whole, the
+   other's in 64, as before, and the session's page in either pool in some 95 ms with 35 to 42 MB
+   allocated, against 0.8 to 1 s and some 770 MB; and the first pass building that world's every
+   digest again costs some 0.33 s of CPU a day, against 0.30, its digests 15% larger and its parts
+   files 4% (13 November 2026, race detector off, the fastest of three rounds each on a busy Mac).
+   The dashboard's `--pool` for a pool the config no longer has stays an idea
+   ([dashboard-removed-pool](../ideas/2026-11-13--dashboard-removed-pool.md)).
 
 ## Reserves
 
@@ -7959,7 +7986,9 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
     them: the state restored onto its day, rolled on to the store's day as midnight rolls a session,
     its settled moves priced there, the lines since told on, and sealed at the session's horizon. So
     the List, read at half past one, reads today's and tomorrow's files alone, however long its
-    sessions have run. **The page rests too:** the session whose page is open, whether the page's
+    sessions have run. In a pool, a session rests so on a state of the pool's work alone, the
+    store taking the pool's lines alone, as the request ledger's digests say (see In a pool,
+    there). **The page rests too:** the session whose page is open, whether the page's
     own read or the store's feed reads it, and the session `sessions <id>` names, is given on the
     newest state whose chain of parts reads, with that chain, by the ledger's one rule for a page's
     base, which the router's builder shares; every other session of the read on its state, as the
@@ -8744,6 +8773,22 @@ from the first day a router that has it runs, so nothing before then is in it.
     parts kept in the digest, for the same reason (settled in the plan, 19 October 2026).
   - **What the state rests on:** each day naming the session up to the digest's own, as their
     summaries name it, each with the `lines` its summary counted as the state was built.
+  - **Its pools:** the pools the lines its state was folded from recorded, every day's it rests on,
+    each once, left out where they named none, as before pools and in a config without them: so a
+    reader of one pool's work tells a state of that pool's alone, or of none of it, from one it
+    shares with another, none of it read (see In a pool, below). They're the entry's, the
+    ledger's, of the lines it hands the builder and the state they rest on, never the builder's.
+  - **Its states apart:** of a session whose pools were more than one pool's, as `ledger.RecordedIn`
+    tells them, one naming none the first pool's, its state in each of those pools, in the order
+    of their pools, beside its state of every line, which every pool's read rests on as
+    before: each folded from its lines routed in the pool alone, naming the pools they recorded,
+    with its own part, on the chain of its states in the pool on the days below. A session of one
+    pool holds none, its entry as before, so the digests are as large as they were but for those
+    split. The router's builder folds them, handed the day's sessions once a pool, each on its
+    state in the pool the day before and its lines in the pool after it, as a pool's reader rests
+    it (see In a pool, below), and every pool's answers on an account, the session's own those in
+    the pool alone. One whose state in a pool can't be rested on, as where the day before holds
+    none of the pool's alone, is read whole and folded again, in each pool with the rest.
   - **Nothing priced:** no worth, no move's cost, nothing a price table gave. A state is restored at
     the reader's day and priced there by the reader's table, its settled moves' costs worked out
     again, so a new table, or a config's price, applies to the days digested at once, nothing built
@@ -8771,8 +8816,17 @@ from the first day a router that has it runs, so nothing before then is in it.
   stored form is a struct of its own beside the type it stores: the envelope, the parts file, a
   request's spend, what a page's requests spent and a window's climb the ledger's, a window an
   answer read the `claude` package's, and a session's state, its part and the part's times the
-  views', which the ledger carries as it's given and never reads. The envelope's version is 2,
-  and `views.DigestVersion` 2, from phase 2 of the digests (see Milestones).
+  views', which the ledger carries as it's given and never reads. The envelope's version is 3,
+  since its entries name their pools and hold a split session's states apart, and
+  `views.DigestVersion` 2, from phase 2 of the digests
+  (see Milestones). Version 3 builds every day's digest again once, oldest first, as each rests
+  on the day before's: on the busy world, 5,000 requests a day, some 0.4 s of CPU a day, as before
+  it, each digest a quarter of a percent larger, so a year of days is some 2½ minutes of CPU,
+  paced to half a core, some 5 minutes as the router runs (13 November 2026, race detector off,
+  on a busy Mac). Until a day's digest is built again, its sessions are read from their lines,
+  slower and exact, as of any digest of another version. Released beside the rows' version 4,
+  as each pass builds the heads due after the digests (see A head a day's Who writes it), the
+  Log's heads are built again only once every digest is, their days read raw till then.
 
   - **Derived and disposable.** The day's lines stay the truth. A digest missing, unreadable, of
     another version or no longer standing is read past: the session's days are read raw, slower,
@@ -8869,6 +8923,43 @@ from the first day a router that has it runs, so nothing before then is in it.
     base's day ended (settled in the plan, 19 October 2026). Only the builder and a page's session
     rest so: the List, the store's other sessions and the digests' judging never open a parts
     file.
+  - **In a pool,** a reader of one pool's work, as the dashboard showing a pool, or `sessions
+    --pool`, reads each session through the pool's read, `views.PoolRead`, a line's pool by the
+    ledger's one rule, `ledger.RecordedIn`, one naming none the first pool's, and the ledger rests
+    each on its state in the pool (`ledger.RoutedIn`): its entry's state where every line the state
+    rests on was the pool's, as its entry's pools tell; its state in the pool apart, its page's
+    chain that of its states in the pool, where its lines were split between pools (see Its states
+    apart, above); and none where none of them were, its parts with it, the session's lines after it
+    being all it holds of the pool. It takes the pool's of the lines after its state, as of every
+    session. An entry holding no state of the pool's alone, as one built while another pool was the
+    first, stands for no read of the pool's, which walks back to an older state as past one that
+    doesn't stand. So once the noted first pool is removed, and the config's first takes over, a
+    split session some of whose lines named none holds no state of the new first's: every read of it
+    walks back, exactly, to a state of one pool's work or to none, reading the days since from their
+    lines, as slow as a read whole. A later day it runs on heals it: that day's build, unable to
+    rest it there, reads it whole once and folds it apart as the new first tells its lines. One that
+    never runs again, as one that had ended before, isn't healed: its page in a pool walks back so
+    each time it's opened, for as long as its days are kept. A digest of version 3 built before
+    entries held states apart heals the same way, and alike only where its session runs again, which
+    is why the envelope stayed at version 3. A state is one fold of every line it rests on, its
+    story, its page's turns, tallies and points, which can't be told apart by pool, so a session
+    resumed in another pool once its directory's fence changes, as several are when a client's
+    directory is first fenced into a pool of its own, or whose lines naming none sit beside another
+    pool's than the first, is folded once in each. One the read wasn't asked for, found among
+    today's sessions by its requests in another pool, with none of the pool's lines after its state,
+    is passed over unread: with no request in the pool today, and not running there, the List never
+    lists it, so the pool it left doesn't restore its state at every read for as long as it runs.
+    One asked for, as its page, rests on its state there. A reader taking every line a read reads,
+    as a page's points take every account's answers, is handed every pool's, as every pool's
+    requests on an account climb its windows, as the builder takes them, and a line of another pool
+    as of no session, so a page's points take as the session's own its requests in the pool alone,
+    as the builder's fold in the pool and the store's read of the tail hand them too. So a pool's
+    every reader through digests shows exactly what the pool's lines read raw show: tests hold the
+    List, each page and the store to them, a session of the pool alone, of none of it, split between
+    pools, directly and through lines naming none, and with a line filed late in either pool, among
+    them, a split session's days before its state in the pool never read; and a split session's page
+    in a pool, opened and held across the tail's feeds, to that of a ledger whose session made its
+    other pool's requests under another id.
   - **What it costs,** accepted (settled in the plan, 18 October 2026): the first pass after a start
     reads every digest kept, to judge it; a router stopping waits for a build's read of a heavy day,
     a second at most; and a prune of the ledger's files, once a day, waits for a build's reads, as
@@ -11600,4 +11691,4 @@ was dropped binds a later choice, the design proper says so.
 | The v1 fixes' loose ends: the edges past ordinary use, failing safe, and the known costs their reviews accepted | open: after v1 | [v1-fixes-loose-ends](../ideas/2026-11-11--v1-fixes-loose-ends.md) |
 | Account identity's loose ends: the edges past ordinary use, failing safe, its reviews accepted | open: after v1 | [account-identity-loose-ends](../ideas/2026-11-11--account-identity-loose-ends.md) |
 | Pausing an account whose subscription is cancelled: kept whole and out of routing until it's resumed | after Account identity and Pools: the owner, 11 November 2026 | [pausing-accounts](../ideas/2026-11-11--pausing-accounts.md) |
-| The ledger's day digests per pool, so Sessions, a session's page, History, Graphs and the worth and tokens on Accounts tell of the pool shown alone, as the Log does | with Pools' second phase | [prebuilt-records-per-pool](../ideas/2026-11-13--prebuilt-records-per-pool.md) |
+| The dashboard's `--pool` for a pool the config no longer has, its recorded work read by its id, as the verbs read it | later: found with Pools' second phase, 13 November 2026 | [dashboard-removed-pool](../ideas/2026-11-13--dashboard-removed-pool.md) |

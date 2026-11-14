@@ -64,6 +64,33 @@ func TestARequestIsOfThePoolItRecordedAndOneNamingNoneTheFirsts(t *testing.T) {
 	}
 }
 
+// A request's points are its session's own where it was routed in the pool
+// read or folded in, and of no session where it was routed in another, as
+// RecordedIn tells it, one naming none the first pool's; its session's own,
+// whatever pool it was routed in, of every pool's.
+func TestARequestsPointsAreItsSessionsOwnInThePoolAlone(t *testing.T) {
+	inAcme := ledger.RoutedIn(func(recorded string) bool { return ledger.RecordedIn(recorded, acme, first) })
+	inFirst := ledger.RoutedIn(func(recorded string) bool { return ledger.RecordedIn(recorded, first, first) })
+	tests := []struct {
+		name     string
+		in       ledger.RoutedIn
+		recorded string
+		want     string
+	}{
+		{name: "in Acme's, routed there", in: inAcme, recorded: acme, want: "one"},
+		{name: "in Acme's, routed in the first", in: inAcme, recorded: first},
+		{name: "in Acme's, naming none", in: inAcme},
+		{name: "in the first's, naming none", in: inFirst, want: "one"},
+		{name: "every pool's, routed in Acme's", recorded: acme, want: "one"},
+		{name: "every pool's, naming none", want: "one"},
+	}
+	for _, tt := range tests {
+		if got := tt.in.Owner(tt.recorded, "one"); got != tt.want {
+			t.Errorf("%s: Owner(%q, one) = %q, want %q", tt.name, tt.recorded, got, tt.want)
+		}
+	}
+}
+
 // A follower finds a session's lines on a day it hasn't summarised by the
 // sessions its lines name, whatever pools they were routed in.
 func TestAFollowerFindsTheSessionsOfADaysLinesInEveryPoolTheyNamed(t *testing.T) {
