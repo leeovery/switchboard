@@ -425,7 +425,7 @@ func (w sessionWords) says(col listColumn, s views.ListedSession) line {
 	case listWorth:
 		return worthSays(s)
 	default:
-		return rowWordsIn(s.Routing.Said(), col.width)
+		return rowWordsIn(routingSaid(s.Routing), col.width)
 	}
 }
 
