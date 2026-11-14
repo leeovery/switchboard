@@ -421,3 +421,42 @@ func TestASplitSessionTheBuilderGivesNoneOfInAPoolHasNoEntry(t *testing.T) {
 		t.Errorf("a ledger opened afresh digested %q, want %s among them, its digest due", dates, dayOf(0))
 	}
 }
+
+// A day built again for one of its sessions has a session split between
+// pools that rests on the day's own digest still keep its states apart, in
+// the order of their pools, each with its part, as they were: none handed
+// to be folded again. one's line filed late under the day before, a day of
+// no lines till then, has one's entry rest on another day, so the day is
+// built again; two and three ran on no such day. A parts file of another
+// length wouldn't do: its digest is then built again as one gone, none
+// rested on its own.
+func TestASplitSessionOnItsDaysOwnDigestKeepsItsStatesApart(t *testing.T) {
+	w := apartDays(t)
+	was := w.apartIn(0)
+	wasRefs := make(map[string][]ledger.PartRef)
+	for _, id := range []string{"two", "three"} {
+		for _, s := range w.digestOf(0).Sessions[id].Apart {
+			wasRefs[id] = append(wasRefs[id], *s.Part)
+		}
+	}
+	w.fold.days()
+	w.file(-1, inPool(askedBy("late", "one", on(-1, 9, 0)), acme))
+	w.summarise()
+
+	w.digestEnded()
+
+	handed := w.fold.days()
+	if i := slices.IndexFunc(handed, func(h handedDay) bool { return h.date == dayOf(0) && h.in == nil }); i < 0 || !slices.Equal(slices.Sorted(maps.Keys(handed[i].sessions)), []string{"one"}) {
+		t.Fatalf("%s was handed %+v, want one's session alone, two and three kept", dayOf(0), handed)
+	}
+	for _, id := range []string{"two", "three"} {
+		if got := w.apartIn(0)[id]; !reflect.DeepEqual(got, was[id]) {
+			t.Errorf("built again, %s's entry of %s holds the states apart\n%+v\nwant them kept as they were\n%+v", id, dayOf(0), got, was[id])
+		}
+		for i, s := range w.digestOf(0).Sessions[id].Apart {
+			if ref := *s.Part; ref.On != wasRefs[id][i].On || ref.CRC != wasRefs[id][i].CRC {
+				t.Errorf("built again, %s's part apart in %v of %s is at %+v, want it of the date and CRC it was written with, %+v", id, s.Pools, dayOf(0), ref, wasRefs[id][i])
+			}
+		}
+	}
+}
