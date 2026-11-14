@@ -256,10 +256,11 @@ func (m Model) followTail() (Model, tea.Cmd) {
 // tailFollowed reports whether a reader follows the ledger's tail: one that
 // folds it, the Log once opened, Sessions' List once held or a session's
 // page open, so each keeps up while another tab shows; Accounts, while it
-// shows today, its worth by the hour being the tail's fold's; the stream,
-// while it told of a request whose line it awaits, as the traffic lets one
-// go only once a read of the tail has read its line; or the store, while it
-// holds a session, for it to let go of those no reader wants.
+// shows today on Compare or Detail, its worth by the hour being the tail's
+// fold's; the stream, while it told of a request whose line it awaits, as
+// the traffic lets one go only once a read of the tail has read its line;
+// or the store, while it holds a session, for it to let go of those no
+// reader wants.
 func (m Model) tailFollowed() bool {
 	return m.log.opened || m.sessionsTab.listed || m.session != nil || m.accountsToday() || m.traffic.awaitsLines() || m.held.Len() > 0
 }

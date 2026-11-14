@@ -2,7 +2,7 @@
 
 ● healthy  ·  auto  ·  3 sessions  ·  new sessions → ▲ work
 
-ACCOUNTS    Detail   ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  < this week >
+ACCOUNTS    Detail  Tokens  [ ]  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────  < this week >
 
 work ◆   ● under pressure · new sessions still come here
 
@@ -34,4 +34,4 @@ LATELY      14:38  ◔ came under pressure: out ~16:05 at this pace
 
 
 
-tab views   < > period: this week    ? help  q quit
+tab views   [ ] view    < > period: this week    ? help  q quit

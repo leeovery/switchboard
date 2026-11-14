@@ -373,19 +373,18 @@ func (f Frame) CompareFirst(id string) int {
 
 // compareState is what Compare's heading says after [ ] where it shows fewer
 // accounts than there are: which it shows, as comparedShown says it, that ←→
-// moves along them, and that all accounts stays put; and, a clause shorter,
-// for less room, without the last. It says nothing where Compare is turned,
-// as CompareWide has it, showing every account a row.
+// moves along them, and that all accounts stays put; and, a clause shorter
+// each time, for less room, without the last, then which it shows alone. It
+// says nothing where Compare is turned, as CompareWide has it, showing every
+// account a row.
 func (f Frame) compareState() []line {
 	n, shown := len(f.Accounts.Accounts), f.compareShows()
 	if !f.CompareWide() || shown >= n {
 		return nil
 	}
-	moves := line{
-		{comparedShown(len(f.Accounts.Accounts), f.compareFirst(), shown), faintInk},
-		{"  ·  ", faintInk}, {"←→", keyInk}, {" moves along them", faintInk},
-	}
-	return []line{slices.Concat(moves, line{{"; all accounts stays put", faintInk}}), moves}
+	which := line{{comparedShown(n, f.compareFirst(), shown), faintInk}}
+	moves := slices.Concat(which, line{{"  ·  ", faintInk}, {"←→", keyInk}, {" moves along them", faintInk}})
+	return []line{slices.Concat(moves, line{{"; all accounts stays put", faintInk}}), moves, which}
 }
 
 // comparedShown says which of the configured accounts, of their count,

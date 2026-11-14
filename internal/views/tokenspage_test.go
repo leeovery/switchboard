@@ -220,3 +220,149 @@ func TestTokensOfNothingRecordedHasNoPeriods(t *testing.T) {
 		t.Errorf("Tokens is %+v, want no periods, its prices as of %s", page, ledger.Pricing.AsOf)
 	}
 }
+
+// Over each of the dial's periods, Tokens' rows are the period's, newest
+// first, those with nothing recorded left out: a day over this week and 30
+// days, this week from the day weeks start on; a week over 12 weeks; a month
+// over 12 months. Over today, the period is a row alone, which its total
+// would only repeat, so there are none, the total standing alone.
+func TestTokensOverEachPeriodIsItsRowsNewestFirst(t *testing.T) {
+	tests := []struct {
+		period views.Period
+		rows   views.TokensPeriod
+		first  []string
+		total  string
+	}{
+		{period: views.PeriodToday, rows: views.TokensByDay, total: "2026-10-07"},
+		{period: views.PeriodThisWeek, rows: views.TokensByDay, first: []string{"2026-10-07", "2026-10-05"}, total: "2026-10-05"},
+		{period: views.PeriodThirtyDays, rows: views.TokensByDay, first: []string{"2026-10-07", "2026-10-05", "2026-10-03", "2026-09-29"}, total: "2026-09-08"},
+		{period: views.PeriodTwelveWeeks, rows: views.TokensByWeek, first: []string{"2026-10-05", "2026-09-28"}, total: "2026-07-20"},
+		{period: views.PeriodTwelveMonths, rows: views.TokensByMonth, first: []string{"2026-10", "2026-09"}, total: "2025-10-08"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.period.Name(), func(t *testing.T) {
+			if got := tt.period.Rows(); got != tt.rows {
+				t.Errorf("its rows are by %s, want by %s", got.Name(), tt.rows.Name())
+			}
+			page := views.NewPast(input(usedAcrossTwoMonths), usedAcrossTwoMonths).TokensOver(tt.period)
+			var first []string
+			for _, p := range page.Periods {
+				first = append(first, p.First)
+			}
+			if !slices.Equal(first, tt.first) {
+				t.Errorf("its rows are %q, want %q", first, tt.first)
+			}
+			if page.Total == nil || page.Total.First != tt.total || !page.Total.SoFar {
+				t.Fatalf("its total is %+v, want the period from %s, so far", page.Total, tt.total)
+			}
+		})
+	}
+}
+
+// The period's total is its rows' summed, their tokens and worth, by account
+// too, but its versions are those the period used, each once: over 30 days,
+// Claude Opus 5.5 and Claude Haiku 4.5, two, though the rows count five.
+func TestTokensOverTotalIsItsRowsSummedAndItsVersionsCountedOnce(t *testing.T) {
+	page := views.NewPast(input(usedAcrossTwoMonths), usedAcrossTwoMonths).TokensOver(views.PeriodThirtyDays)
+	var tokens views.Tokens
+	var worth ledger.Picodollars
+	byAccount := map[string]int{}
+	for _, p := range page.Periods {
+		tokens.Input, tokens.Total = tokens.Input+p.Input, tokens.Total+p.Total
+		worth += *p.Amount
+		for _, a := range p.ByAccount {
+			byAccount[a.Account] += a.Total
+		}
+	}
+	total := page.Total
+	if total.Input != tokens.Input || total.Total != tokens.Total || *total.Amount != worth {
+		t.Errorf("the total is %d input of %d, worth %v; its rows sum %d of %d, worth %v", total.Input, total.Total, *total.Amount, tokens.Input, tokens.Total, worth)
+	}
+	for _, a := range total.ByAccount {
+		if a.Total != byAccount[a.Account] {
+			t.Errorf("%s's total is %d tokens, its rows sum %d", a.Account, a.Total, byAccount[a.Account])
+		}
+	}
+	if total.Versions != 2 {
+		t.Errorf("the total used %d versions, want 2", total.Versions)
+	}
+}
+
+// The period's total is set against what the plans cost over the period
+// whole, as Accounts' all accounts is, the two agreeing at every period.
+func TestTokensOverTotalIsAgainstItsPriceAsAccountsHasIt(t *testing.T) {
+	past := views.NewPast(input(usedAcrossTwoMonths), usedAcrossTwoMonths)
+	for _, period := range views.Periods() {
+		t.Run(period.Name(), func(t *testing.T) {
+			got, want := jsonOf(t, past.TokensOver(period).Total.Against), jsonOf(t, past.Accounts(period).All.Plan.Against)
+			if got != want {
+				t.Errorf("the total is against %s, Accounts' all accounts %s", got, want)
+			}
+		})
+	}
+}
+
+// Over 12 months, the oldest month begins part-way through, on the 12
+// months' first day, and costs its plans its days from then alone, as the
+// Year's BY MONTH has it: 24 days of October, from the 8th.
+func TestTokensOverTwelveMonthsPricesTheirPartMonthByItsDays(t *testing.T) {
+	in := input(overTheYear)
+	in.From = views.YearFrom(views.YearAsk{}, now, time.Monday)
+	past := views.NewPast(in, overTheYear)
+	rows := past.TokensOver(views.PeriodTwelveMonths).Periods
+	oldest := rows[len(rows)-1]
+	if oldest.First != "2025-10" {
+		t.Fatalf("the oldest month is %s, want 2025-10", oldest.First)
+	}
+	year := past.Year(views.YearAsk{}).ByMonth
+	i := slices.IndexFunc(year, func(m views.MonthRow) bool { return m.Month.Month == oldest.First })
+	if got, want := jsonOf(t, oldest.Against), jsonOf(t, year[i].Against); got != want {
+		t.Errorf("October costs %s, the Year's %s", got, want)
+	}
+	if got, want := jsonOf(t, oldest.Cost), "173.58904109589"; got != want {
+		t.Errorf("October costs %s, want %s, 24 days of $220 a month", got, want)
+	}
+}
+
+// With nothing recorded over the period, there's no total, and no rows.
+func TestTokensOverNothingRecordedHasNoTotal(t *testing.T) {
+	days := daysFrom("2026-10-01")
+	page := views.NewPast(input(days), days).TokensOver(views.PeriodThisWeek)
+	if page.Total != nil || len(page.Periods) != 0 {
+		t.Errorf("Tokens over this week is %+v, want no total and no rows", page)
+	}
+}
+
+// The period's total is over the days its rows hold: a day of checks alone,
+// as one recorded before the ledger's version 5 holds their usage, has no
+// row, so adds nothing to the total, its tokens and worth its rows' summed.
+func TestTokensOverTotalIsOfTheDaysItsRowsHold(t *testing.T) {
+	checked := ledger.Summary{Version: 4, Day: "2026-10-06", Accounts: []ledger.AccountDay{
+		account("work", ledger.ModelDay{Model: "claude-opus-5-5", Checks: 3, Usage: []byte(inputUsage)}),
+	}}
+	days := daysFrom("2026-09-28",
+		day("2026-10-05", account("side", sent("claude-opus-5-5", 1, inputUsage))),
+		checked,
+		day("2026-10-07", account("work", sent("claude-opus-5-5", 1, inputUsage))),
+	)
+	page := views.NewPast(input(days), days).TokensOver(views.PeriodThisWeek)
+	var first []string
+	var input int
+	var worth ledger.Picodollars
+	for _, p := range page.Periods {
+		if p.Amount == nil {
+			t.Fatalf("the row of %s has no worth; want one", p.First)
+		}
+		first, input, worth = append(first, p.First), input+p.Input, worth+*p.Amount
+	}
+	if want := []string{"2026-10-07", "2026-10-05"}; !slices.Equal(first, want) {
+		t.Fatalf("the rows are %q, want %q, the day of checks alone left out", first, want)
+	}
+	total := page.Total
+	if total == nil || total.Amount == nil {
+		t.Fatalf("the total is %+v; want one with its worth", total)
+	}
+	if total.Input != input || *total.Amount != worth {
+		t.Errorf("the total is %d input, worth %v; its rows sum %d, worth %v", total.Input, *total.Amount, input, worth)
+	}
+}

@@ -86,13 +86,15 @@ type LogPrefs struct {
 	Columns []string `json:"columns,omitzero"`
 }
 
-// AccountsPrefs are what Accounts shows, by its name: the view shown,
-// compare or detail. A name the dashboard doesn't know reads as the default.
-// What's chosen in a view is the run's alone. Period is where builds from
-// before the dial was shared kept it, as Accounts' own: read where
-// Prefs.Period keeps none, and dropped as the period is next kept.
+// AccountsPrefs are what Accounts shows, each by its name: the view shown,
+// compare, detail or tokens; and Tokens' split, account, model,
+// account+model or none. A name the dashboard doesn't know reads as the
+// default. What's chosen in a view is the run's alone. Period is where
+// builds from before the dial was shared kept it, as Accounts' own: read
+// where Prefs.Period keeps none, and dropped as the period is next kept.
 type AccountsPrefs struct {
 	View   string `json:"view,omitempty"`
+	Split  string `json:"split,omitempty"`
 	Period string `json:"period,omitempty"`
 }
 
