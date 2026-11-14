@@ -12,7 +12,8 @@ import (
 // worktreeFileMost is the most bytes read of a .git file or a commondir, a
 // path on a line: one longer is none git wrote.
 // configMost is the most read of a common directory's config or
-// config.worktree, for the settings in it, last ones winning.
+// config.worktree: one longer can't be read, as a part of it may say
+// otherwise than the whole, its settings' last ones winning.
 const (
 	worktreeFileMost = 4096
 	configMost       = 1 << 20
@@ -146,20 +147,35 @@ func gitPath(dir, name, prefix string) (string, bool) {
 // isBare reports whether the repository whose common directory is common is
 // bare, as git reads core.bare there: from its config, then, where that
 // turns on extensions.worktreeConfig, from its config.worktree, where git
-// moves core.bare, the later setting winning.
+// moves core.bare, the later setting winning. It isn't where either can't
+// be read, as readConfig says, config.worktree being read only where it's
+// there, as git dies on one it can't read.
 func isBare(common string) bool {
-	read := func(name string) []byte {
-		data, _ := readHead(filepath.Join(common, name), configMost)
-		return data
+	config, ok := readConfig(filepath.Join(common, "config"))
+	if !ok {
+		return false
 	}
-	config := read("config")
 	bare, _ := configBool(config, "core", "bare")
-	if perWorktree, _ := configBool(config, "extensions", "worktreeConfig"); perWorktree {
-		if moved, set := configBool(read("config.worktree"), "core", "bare"); set {
-			bare = moved
-		}
+	perWorktree, _ := configBool(config, "extensions", "worktreeConfig")
+	path := filepath.Join(common, "config.worktree")
+	if _, err := os.Stat(path); !perWorktree || errors.Is(err, fs.ErrNotExist) {
+		return bare
+	}
+	worktree, ok := readConfig(path)
+	if !ok {
+		return false
+	}
+	if moved, set := configBool(worktree, "core", "bare"); set {
+		bare = moved
 	}
 	return bare
+}
+
+// readConfig returns the git config at path, reporting false where it can't
+// be read, or is longer than configMost.
+func readConfig(path string) ([]byte, bool) {
+	data, ok := readHead(path, configMost)
+	return data, ok && len(data) <= configMost
 }
 
 // configBool returns the last setting of key in section of a git config,

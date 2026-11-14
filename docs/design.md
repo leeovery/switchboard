@@ -658,14 +658,14 @@ pool for its whole life:
   - **What changes outside every linked worktree:** a main checkout, and a submodule or a clone
     in one, are placed by the rule above alone, as before. But while a pool is fenced, wherever a
     `.git` up from the start directory leads to no repository that can be found, as one left in a
-    home folder whose git directory has gone, everything below it refuses; and so does a
-    submodule's or a separate git directory's worktree, each described below.
+    home folder whose git directory has gone, everything below it refuses, as described below.
   - **A bare repository's worktree** is in the pool where the bare repository lies, its own
     directory standing for every place in the worktree, so a bare clone's worktrees, made beside
     it in `.bare` or anywhere else, are its pool's. A repository is bare where its common
     directory, not named `.git`, sets `bare = true` under `[core]` as git reads it: in its config,
     or, where that turns on `extensions.worktreeConfig`, in its `config.worktree`, where git's
-    sparse checkout moves it, the later file winning and the last setting in each. A bare
+    sparse checkout moves it, the later file winning and the last setting in each; it isn't where
+    either file, being there, can't be read, or runs past 1 MiB, rather than read in part. A bare
     repository outside every fence with worktrees inside one refuses them, by the rule below;
     where the start directory itself lies in that one fence, it says how to start there: `…, but
     in its repository it's at ~/repos/app.git, in pool Default: add that bare repository to pool

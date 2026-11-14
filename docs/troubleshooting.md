@@ -210,8 +210,8 @@ are.
   covers the directory, two pools' fences hold it through its links, a git worktree lies in one
   pool's fence and its repository in another pool, a worktree's repository can't be found, or
   it's a submodule's or a separate git directory's worktree, the pool has no accounts, or none of
-  them has a usable token, or it's inside a fence and would start on Claude Code's own login. Each is in
-  [`claude`](commands.md#claude)'s table, with what to do.
+  them has a usable token, or it's inside a fence and would start on Claude Code's own login.
+  Each is in [`claude`](commands.md#claude)'s table, with what to do.
 - **`the router doesn't route by the config's pools (…)`:** or `the router routes by other pools
   (…)`, where the pools come from the router or the accounts record. With two pools or more,
   `claude` counts a router down where its pools, their directories, accounts or primaries aren't

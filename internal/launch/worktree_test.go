@@ -2,6 +2,7 @@ package launch_test
 
 import (
 	"errors"
+	"fmt"
 	"maps"
 	"os"
 	"path/filepath"
@@ -37,8 +38,8 @@ const (
 
 // perWorktree is a common directory's config turning on
 // extensions.worktreeConfig, as git's sparse-checkout does, moving a bare
-// repository's core.bare to its config.worktree; more is written in its
-// [core] section.
+// repository's core.bare to its config.worktree; more is written after its
+// [core] section's first line, before its remote.
 func perWorktree(more string) string {
 	return "[core]\n\trepositoryformatversion = 1\n" + more + "[remote \"origin\"]\n\turl = x\n[extensions]\n\tworktreeConfig = true\n"
 }
@@ -173,12 +174,12 @@ func TestFindWorktreeFindsEveryLinkedWorktreeAroundADirectory(t *testing.T) {
 			start: "api/main/web", wantAround: []launch.Linked{{Root: "api/main", Place: "api/.bare", Bare: true}},
 		},
 		{
-			name: "a worktree of a separate git directory: no checkout", dirs: []string{"store/api.git/worktrees/fix", "fix"},
+			name: "a worktree of a separate git directory: lost, unplaceable", dirs: []string{"store/api.git/worktrees/fix", "fix"},
 			files: map[string]string{"fix/.git": gitFile("store/api.git/worktrees/fix"), "store/api.git/worktrees/fix/commondir": toMain, "store/api.git/config": notBareConfig},
 			start: "fix", wantLost: "fix", wantNoCheckout: true,
 		},
 		{
-			name: "a worktree of a submodule: no checkout", dirs: []string{"app/.git/modules/lib/worktrees/fix", "fix"},
+			name: "a worktree of a submodule: lost, unplaceable", dirs: []string{"app/.git/modules/lib/worktrees/fix", "fix"},
 			files: map[string]string{
 				"fix/.git": gitFile("app/.git/modules/lib/worktrees/fix"), "app/.git/modules/lib/worktrees/fix/commondir": toMain,
 				"app/.git/modules/lib/config": submoduleConfig,
@@ -262,12 +263,23 @@ func sameWorktree(a, b launch.Worktree) bool {
 }
 
 func TestFindWorktreeReadsWhetherARepositoryIsBare(t *testing.T) {
+	// branches are the sections of a bare clone's many tracked branches,
+	// which git writes before the [extensions] section it appends: past 64
+	// KiB, and within configMost.
+	var branches strings.Builder
+	for i := range 1500 {
+		fmt.Fprintf(&branches, "[branch \"feature-%04d\"]\n\tremote = origin\n\tmerge = refs/heads/feature-%04d\n", i, i)
+	}
+	// overLong is a comment taking a config past configMost.
+	overLong := "# " + strings.Repeat("x", 1<<20) + "\n"
 	tests := []struct {
 		name   string
 		config string
-		// worktree is the common directory's config.worktree, none where "".
-		worktree string
-		bare     bool
+		// worktree is the common directory's config.worktree, none where "";
+		// unreadable makes it unreadable.
+		worktree   string
+		unreadable bool
+		bare       bool
 	}{
 		{name: "bare = true", config: bareConfig, bare: true},
 		{name: "bare = false", config: notBareConfig},
@@ -284,6 +296,11 @@ func TestFindWorktreeReadsWhetherARepositoryIsBare(t *testing.T) {
 		{name: "config's standing, config.worktree not setting it", config: perWorktree("\tbare = true\n"), worktree: "[core]\n\tsparseCheckout = true\n", bare: true},
 		{name: "config.worktree's last counting", config: perWorktree(""), worktree: "[core]\n\tbare = false\n\tbare = true\n", bare: true},
 		{name: "config.worktree unread, the extension off", config: "[core]\n\tbare = false\n", worktree: movedBare},
+		{name: "config.worktree unread, the extension set off", config: "[core]\n\trepositoryformatversion = 1\n[extensions]\n\tworktreeConfig = false\n", worktree: movedBare},
+		{name: "the extension after many branches", config: perWorktree(branches.String()), worktree: movedBare, bare: true},
+		{name: "a config too long to read", config: bareConfig + overLong},
+		{name: "a config.worktree too long to read", config: perWorktree(""), worktree: movedBare + overLong},
+		{name: "a config.worktree that can't be read", config: perWorktree("\tbare = true\n"), worktree: movedBare, unreadable: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -296,6 +313,11 @@ func TestFindWorktreeReadsWhetherARepositoryIsBare(t *testing.T) {
 				files["api.git/config.worktree"] = tt.worktree
 			}
 			planted(t, root, []string{"api.git/worktrees/fix", "fix"}, files, nil)
+			if tt.unreadable {
+				if err := os.Chmod(filepath.Join(root, "api.git/config.worktree"), 0); err != nil {
+					t.Fatal(err)
+				}
+			}
 
 			want := launch.Worktree{Lost: filepath.Join(root, "fix"), NoCheckout: true}
 			if tt.bare {
