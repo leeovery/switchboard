@@ -310,7 +310,7 @@ func TestSessionsChoiceFollowsItsSessionAtEachLook(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			h := streamingHarness(t)
-			h.withLines(promptedLines(2, start.Add(-10*time.Minute)))
+			followLines(t, h, promptedLines(2, start.Add(-10*time.Minute)))
 			h.keys(toSessions...)
 			if tt.list {
 				h.keyed("]")
@@ -326,6 +326,19 @@ func TestSessionsChoiceFollowsItsSessionAtEachLook(t *testing.T) {
 			}
 		})
 	}
+}
+
+// followLines has the model follow a ledger of its own, in a state
+// directory of its own, holding the lines given, each a request of its own,
+// as the List's log reads its sessions' days from it.
+func followLines(t *testing.T, h *harness, lines []ledger.Line) {
+	t.Helper()
+	state := t.TempDir()
+	for i, line := range lines {
+		line.Request = fmt.Sprintf("r%d", i+1)
+		writeLines(t, state, ledger.Held{Line: line})
+	}
+	h.model.cfg.Ledger = ledger.NewFollower(state, h.clock.Now, ledger.Caps{Shared: policy.Shared}, views.DigestVersion, logs.For("watch"))
 }
 
 // A view keeps the row chosen in view, scrolling no further than it must:
@@ -474,7 +487,7 @@ func TestTheListIsReadOnceAsSessionsFirstShowsThenFedByTheTail(t *testing.T) {
 	}
 	h.keys(toSessions...)
 	requests := func() int {
-		list := h.model.sessionsTab.shown.List.Sessions
+		list := heldList(h).Sessions
 		if i := slices.IndexFunc(list, func(s views.ListedSession) bool { return s.Session == idD28C }); i >= 0 {
 			return list[i].Requests
 		}
@@ -544,7 +557,7 @@ func TestAViewNamingTheSessionsRunningReadsTheListAndNamesThemByIt(t *testing.T)
 // listedOf is the session with the given id as the List Sessions holds lists
 // it, reporting false where it doesn't.
 func listedOf(h *harness, id string) (views.ListedSession, bool) {
-	list := h.model.sessionsTab.shown.List.Sessions
+	list := heldList(h).Sessions
 	if i := slices.IndexFunc(list, func(s views.ListedSession) bool { return s.Session == id }); i >= 0 {
 		return list[i], true
 	}
@@ -646,7 +659,7 @@ func endedToday(n int) []ledger.Line {
 // sub-tab, the row chosen, and how far it's scrolled to show it.
 func TestEscFromASessionsPageComesBackToSessionsAsItWasLeft(t *testing.T) {
 	h := streamingHarness(t)
-	h.withLines(endedToday(30))
+	followLines(t, h, endedToday(30))
 	h.update(tea.WindowSizeMsg{Width: 160, Height: 20})
 	h.keys(toSessions...)
 	h.keyed("] up")
@@ -715,13 +728,20 @@ func TestATailReadLandingOnAnEmptyStoreKeepsItPriced(t *testing.T) {
 	writeLines(t, state, line)
 	h.clock.now = h.clock.now.Add(time.Second)
 	h.read(routerDocument(three()...))
-	got, want := h.model.sessionsTab.shown.List, builtAfresh(h, l)
+	got, want := heldList(h), builtAfresh(h, l)
 	if len(want.Sessions) == 0 || want.Sessions[0].Amount == nil {
 		t.Fatalf("the List built afresh is %+v, want a session worth what it cost", want)
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("the List is\n%+v\nwant it as built afresh of every line, priced\n%+v", got, want)
 	}
+}
+
+// heldList is today's List as the store the watch holds builds it at the
+// clock's time, as the List's log is built of it.
+func heldList(h *harness) views.SessionList {
+	now := h.clock.now
+	return h.model.held.List(h.model.listLive(now, h.model.traffic.stream(now)))
 }
 
 // builtAfresh is the List built afresh of every line the ledger l holds, at
@@ -768,7 +788,7 @@ func TestTheListTakesInTheDayBeforeAsTheDayTurns(t *testing.T) {
 	if want := []string{yesterday, yesterday}; !slices.Equal(l.days, want) {
 		t.Errorf("the days %v were read whole, want %v: the day before at the turn, then as the stream told its request ended", l.days, want)
 	}
-	if got, want := h.model.sessionsTab.shown.List, builtAfresh(h, l); !reflect.DeepEqual(got, want) {
+	if got, want := heldList(h), builtAfresh(h, l); !reflect.DeepEqual(got, want) {
 		t.Errorf("the List is\n%+v\nwant it as built afresh of every line\n%+v", got, want)
 	}
 }

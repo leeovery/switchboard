@@ -512,9 +512,11 @@ var (
 	// and a note after them, as "share of use".
 	headingText = regexp.MustCompile(`^[A-Z0-9-]*[A-Z]{2}[A-Z0-9-]*( +[A-Z0-9][A-Z0-9-]*)*( {2,}[a-z(].*)?$`)
 	// ruledText is a heading in words ruled to the view's edge, as the
-	// List's ended today, or Detail's the last six weeks, ruled from its
-	// left too.
-	ruledText = regexp.MustCompile(`^(┄+ )?[a-z][a-z ]*[a-z] +(─+|┄+)$`)
+	// List's ended today and ended Tue 22 Sep, or Detail's the last six
+	// weeks, ruled from its left too.
+	ruledText = regexp.MustCompile(`^(┄+ )?[a-z][A-Za-z0-9 ]*[A-Za-z0-9] +(─+|┄+)$`)
+	// periodLineText is the List's period line, led by the period's name.
+	periodLineText = regexp.MustCompile(`^(today|this week|30 days|12 weeks|12 months)  `)
 	// outLine is a line saying how much of a view is out of view.
 	outLine = regexp.MustCompile(`[▲▼] [0-9,]+ more`)
 )
@@ -534,7 +536,7 @@ func panelOf(row string) string {
 
 // headingAlone is the row of the page drawing a heading, in capitals or
 // ruled, with nothing under it before what ends its view: a line saying
-// what's out of view, a section's rule, USAGE's key line, the List's today
+// what's out of view, a section's rule, USAGE's key line, the List's period
 // line, or the key line; -1 where none does. A heading on its view's first
 // row has no row over it to end a page on, and one drawn on a bar, as BY
 // MODEL's is, heads the bar.
@@ -570,7 +572,7 @@ func viewsFirst(rows []string, y, chrome int) bool {
 
 // headsARow reports whether a row under row y is drawn on before what ends
 // its view, as headingAlone has it: the row a line saying what lies below is
-// on, a section's rule, USAGE's key line, the List's today line, or the key
+// on, a section's rule, USAGE's key line, the List's period line, or the key
 // line.
 func headsARow(rows []string, y int) bool {
 	for _, row := range rows[y+1 : len(rows)-1] {
@@ -578,7 +580,7 @@ func headsARow(rows []string, y int) bool {
 		switch {
 		case text == "":
 			continue
-		case strings.Contains(outLine.FindString(text), "▼"), strings.Contains(text, "─"), strings.HasPrefix(text, "┃ even pace"), strings.HasPrefix(text, "today  "):
+		case strings.Contains(outLine.FindString(text), "▼"), strings.Contains(text, "─"), strings.HasPrefix(text, "┃ even pace"), periodLineText.MatchString(text):
 			return false
 		}
 		return true

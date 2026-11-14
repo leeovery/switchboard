@@ -135,7 +135,7 @@ func TestAccountsTodayFollowsTheTailsFoldByTheHour(t *testing.T) {
 		t.Errorf("the tail gained a line, its hour's worth is %d, want more than %d", after, before)
 	}
 	fed := h.model.accounts.page
-	h.model.projects.fed++
+	h.model.sessionDays.fed++
 	h.update(frameMsg{gen: h.model.frames})
 	if h.model.accounts.page == fed {
 		t.Errorf("the tail fed its fold otherwise, Accounts' today is as it was built, want it built afresh")
@@ -143,7 +143,7 @@ func TestAccountsTodayFollowsTheTailsFoldByTheHour(t *testing.T) {
 	h.model = h.model.periodStepped(1)
 	h.update(frameMsg{gen: h.model.frames})
 	week := h.model.accounts.page
-	h.model.projects.fed++
+	h.model.sessionDays.fed++
 	h.update(frameMsg{gen: h.model.frames})
 	if h.model.accounts.page != week {
 		t.Errorf("the tail fed its fold otherwise, Accounts' week was built afresh, want it held")

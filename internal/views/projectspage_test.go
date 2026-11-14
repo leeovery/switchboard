@@ -76,8 +76,8 @@ func heldDays(now time.Time, lines ...ledger.Held) views.SessionDays {
 
 // projectsIn is what Projects' page is built of over the period given at
 // now, the List's sessions given, weeks starting on Monday.
-func projectsIn(period views.Period, now time.Time, listed ...views.ListedSession) views.ProjectsInput {
-	return views.ProjectsInput{
+func projectsIn(period views.Period, now time.Time, listed ...views.ListedSession) views.PeriodInput {
+	return views.PeriodInput{
 		Period: period, List: views.SessionList{Sessions: listed}, Names: status.Names{}, Prices: ledger.Pricing,
 		WeekStarts: time.Monday, Family: family, Now: now,
 	}

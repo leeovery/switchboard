@@ -49,7 +49,7 @@ func (s ProjectsShown) chosenAt() int {
 
 // sessions are the chosen project's sessions, as SESSIONS rows them: none
 // till its page is built.
-func (s ProjectsShown) sessions() []views.ProjectSession {
+func (s ProjectsShown) sessions() []views.PeriodSession {
 	if s.Project == nil {
 		return nil
 	}
@@ -60,7 +60,7 @@ func (s ProjectsShown) sessions() []views.ProjectSession {
 // chosen project has it, else its first; "" where it has none.
 func (s ProjectsShown) Selection() string {
 	sessions := s.sessions()
-	if i := slices.IndexFunc(sessions, func(p views.ProjectSession) bool { return p.Session == s.Selected }); i >= 0 {
+	if i := slices.IndexFunc(sessions, func(p views.PeriodSession) bool { return p.Session == s.Selected }); i >= 0 {
 		return s.Selected
 	}
 	if len(sessions) == 0 {
@@ -82,7 +82,7 @@ func (s ProjectsShown) Opens() bool {
 func (s ProjectsShown) Choosing(by int) (ProjectsShown, bool) {
 	if s.InSessions {
 		sessions := s.sessions()
-		at := slices.IndexFunc(sessions, func(p views.ProjectSession) bool { return p.Session == s.Selection() })
+		at := slices.IndexFunc(sessions, func(p views.PeriodSession) bool { return p.Session == s.Selection() })
 		if next := at + by; at >= 0 && next >= 0 && next < len(sessions) {
 			s.Selected = sessions[next].Session
 			return s, true

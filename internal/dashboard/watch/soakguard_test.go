@@ -12,7 +12,6 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/views"
@@ -353,7 +352,7 @@ func (g *storeGuard) read(r ledgerRead) {
 // judged as Projects', as projectsRead has it; every other's held to judge
 // once the read they're made for lands.
 func (g *storeGuard) ran(msg tea.Msg) {
-	if read, ok := msg.(projectsReadMsg); ok {
+	if read, ok := msg.(daysReadMsg); ok {
 		g.projectsRead(read)
 	} else {
 		g.unjudged = append(g.unjudged, g.running...)
@@ -368,17 +367,17 @@ func (g *storeGuard) ran(msg tea.Msg) {
 // once; a day before today read whole only where its head's side doesn't
 // stand, as views.DaySessionsOn falls back to its lines; never today, nor a
 // day to come, today's lines the tail's; and nothing else.
-func (g *storeGuard) projectsRead(msg projectsReadMsg) {
+func (g *storeGuard) projectsRead(msg daysReadMsg) {
 	g.t.Helper()
 	m := g.s.h.model
-	now, p := m.now(), m.projects
+	now, p := m.now(), m.sessionDays
 	at := now.Format(time.DateTime)
 	if !p.reading || msg.asked != p.asked || p.days != nil && !msg.from.Before(p.from) {
 		g.t.Errorf("at %s Projects read the days from %s, holding them from %s, want a read only as it's first shown, or further back", at, msg.from.Format(time.DateTime),
 			p.from.Format(time.DateTime))
 	}
-	if m.view != dashboard.Projects || !msg.from.Equal(m.period.From(now, m.cfg.WeekStarts)) {
-		g.t.Errorf("at %s Projects read the days from %s on %s, the dial at %s, want a read of the dial's period while Projects shows",
+	if !m.readsDays() || !msg.from.Equal(m.period.From(now, m.cfg.WeekStarts)) {
+		g.t.Errorf("at %s the sessions' days were read from %s on %s, the dial at %s, want a read of the dial's period while Projects or the List shows",
 			at, msg.from.Format(time.DateTime), m.view, m.period.Name())
 	}
 	if p.days != nil {
@@ -433,7 +432,7 @@ func (g *storeGuard) tailed(msg tailedMsg, was Model) {
 	g.t.Helper()
 	g.judged(was)
 	g.todays(msg, was.tail)
-	now, p := g.s.h.model.now(), g.s.h.model.projects
+	now, p := g.s.h.model.now(), g.s.h.model.sessionDays
 	if owed := p.tailed.Owed(now); len(owed) > 0 {
 		g.t.Errorf("at %s the sessions' days the tail fed owe %v, want each day they owed read whole in the read that found the day turned", now.Format(time.DateTime), owed)
 	}
@@ -693,19 +692,19 @@ func (g *storeGuard) sameAsOneRead(now time.Time) {
 }
 
 // sameProjectsAsOneRead judges Projects' page at now, of the days its read
-// and the tail's fed, as projectsDays joins them, the page of its days read
+// and the tail's fed, as joinedDays joins them, the page of its days read
 // afresh at now, from the day its read reached back to, today's whole: its
 // totals and every project's page alike, as projectsDrawn has them.
 func (g *storeGuard) sameProjectsAsOneRead(now time.Time) {
 	g.t.Helper()
 	m, l := g.s.h.model, g.s.follower
-	if !m.projectsReady(now) {
+	if !m.daysReady(now) {
 		g.t.Errorf("at %s Projects has no days to build its page of, want its read's joined to the tail's", now.Format(time.DateTime))
 		return
 	}
-	fresh := views.ReadSessionDays(l, m.projects.from, now).Tailed(l.Day(dayfile.DateOf(now)), true, nil, nil, now)
-	in := m.projectsInput(now, m.held.List(m.listLive(now, m.traffic.stream(now))))
-	if got, want := drawnOf(m.projectsDays().Projects(in)), drawnOf(fresh.Projects(in)); !reflect.DeepEqual(got, want) {
+	fresh := views.ReadSessionDays(l, m.sessionDays.from, now).Tailed(l.Day(dayfile.DateOf(now)), true, nil, nil, now)
+	in := m.periodInput(now, m.held.List(m.listLive(now, m.traffic.stream(now))))
+	if got, want := drawnOf(m.joinedDays().Projects(in)), drawnOf(fresh.Projects(in)); !reflect.DeepEqual(got, want) {
 		gotJSON, _ := json.MarshalIndent(got, "", "  ")
 		wantJSON, _ := json.MarshalIndent(want, "", "  ")
 		g.t.Errorf("at %s Projects' page of the days read and the tail's is\n%s\nwant the page of its days read afresh\n%s", now.Format(time.DateTime), gotJSON, wantJSON)

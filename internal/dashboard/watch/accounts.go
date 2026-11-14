@@ -102,10 +102,10 @@ func (m Model) accountsBuilt() Model {
 	now := m.now()
 	of := builtOf{held: m.past.held, period: m.period, day: dayfile.DateOf(now), hour: todayHour(m.period, now)}
 	if of.period == views.PeriodToday {
-		of.fed = m.projects.fed
+		of.fed = m.sessionDays.fed
 	}
 	if m.accounts.page == nil || m.accounts.of != of {
-		page := m.past.last.past.Since(nil, now).Accounts(of.period).Hourly(m.projects.tailed)
+		page := m.past.last.past.Since(nil, now).Accounts(of.period).Hourly(m.sessionDays.tailed)
 		m.accounts.page, m.accounts.of, m.accounts.at = &page, of, nil
 	}
 	if !m.accounts.at.holds(m.doc, now, m.cfg.Policy) {

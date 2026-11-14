@@ -3,10 +3,10 @@
 
 ● healthy · auto · 6 sessions · new → ▲ side
 
-SESSIONS   Switchboard  List
+SESSIONS   Switchboard  List                                                 < this week >
 
   session                        on        model      state        requests
-▸ db8a infra                     side      opus-5-5   idle 50s          126
+▸ db8a infra                     side      opus-5-5   idle 50s          153
   9c2e website                   personal  opus-5-5   idle 9m           267
 ↑ d28c switchboard               side      opus-5-5   asking            445
   41e0 docs                      personal  opus-5-5   idle 34s          158
@@ -18,23 +18,23 @@ SESSIONS   Switchboard  List
   e0c4 infra                     work      opus-5-5   ended 10:02        19
   a8f1 website                   side      opus-5-5   ended 09:28        24
   2b6d api                       work      opus-5-5   ended 09:05        31
-  5e7d api                       side      opus-5-5   ended 00:41        17
-  4b0e infra                     work      opus-5-5   ended 00:31         5
-  8a2c docs                      side      opus-5-5   ended 00:18         9
+  5e7d api                       side      opus-5-5   ended 00:41        39
+  4b0e infra                     work      opus-5-5   ended 00:31        13
+  8a2c docs                      side      opus-5-5   ended 00:18        43
+  ended yesterday  ───────────────────────────────────────────────────────────────────────
+▸ b9c4 switchboard               side      opus-5-5   ended 18:46       595
+  9814 switchboard               personal  opus-5-5   ended 16:45       201
+  d29e infra                     side      opus-5-5   ended 16:27       410
+  3a3a fix-login                 personal  opus-5-5   ended 15:23       179
+  fd98 infra                     personal  opus-5     ended 14:47       397
+  dd8d website                   personal  sonnet-5…  ended 14:23       398
+  1cb3 pools                     side      sonnet-5…  ended 13:27       159
+  3449 website                   side      sonnet-5…  ended 12:57       260
+  0084 pools                     side      opus-5-5   ended 12:17       192
+  e9d9 api                       side      opus-5-5   ended 12:16       669
+  f17c website                   personal  opus-5-5   ended 12:12       332
+  31e1 switchboard               side      opus-5-5   ended 11:33       146
+  96f9 release                   work      opus-5-5   ended 11:23       142
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-today  14 sessions · 1,239 requests · $125.94 at API prices
-tab views   ↑↓ session   enter open   [ ] view   ? keys   q quit
+this week  27 sessions · 5,410 requests · $635.00 at API prices
+tab views   ↑↓ session   [ ] view   < > period   ? keys   q quit
