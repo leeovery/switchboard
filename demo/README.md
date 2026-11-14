@@ -35,6 +35,7 @@ demo/record.sh routing help   # the tapes named
 | `session` | fixture `session-turn-opened-160` | 160 × 37 | `art/session.webp`, a still: a session's page, a turn opened into its requests |
 | `overview` | fixture `overview-default-160` | 160 × 37 | `art/overview.webp`, a still: the Overview |
 | `sessions` | fixture `sessions-switchboard-160` | 160 × 37 | `art/sessions.webp`, a still: Sessions' Switchboard |
+| `pools` | fixture `overview-acme-160` | 160 × 37 | `art/pools.webp`, a still: the Overview of Acme, a client's pool, its title row naming it |
 | `theme-picker` | `routing` | 160 × 37 | `art/theme-picker.webp`, a still: the theme picker over the Overview, previewing tokyo-night-day |
 | `theme-tokyo-night` | fixture `overview-default-160` | 160 × 37 | `art/theme-tokyo-night.webp`, a still: the Overview in `tokyo-night` |
 | `theme-tokyo-night-day` | fixture `overview-default-160` | 160 × 37 | `art/theme-tokyo-night-day.webp`, a still: the Overview in `tokyo-night-day` |

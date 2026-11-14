@@ -15,7 +15,7 @@ Switchboard is a local router for Claude Code. With more than one Claude subscri
 [![Go](https://img.shields.io/badge/Go-1.27+-00ADD8.svg)](https://go.dev)
 [![Platform: macOS](https://img.shields.io/badge/platform-macOS-lightgrey.svg)](#install)
 
-[Install](#install) · [Quick start](#quick-start) · [Screens](#screens) · [How it works](#how-it-works) · [Commands](#commands) · [Documentation](#documentation)
+[Install](#install) · [Quick start](#quick-start) · [Pools](#pools) · [Screens](#screens) · [How it works](#how-it-works) · [Commands](#commands) · [Documentation](#documentation)
 
 <br>
 
@@ -30,6 +30,7 @@ Switchboard is a local router for Claude Code. With more than one Claude subscri
 Every Claude subscription has a weekly limit, most a 5-hour one too. When you hit one, Claude Code stops. Claude can't see the limits coming, and switching accounts by hand means quitting, resuming and starting again with a cold prompt cache.
 
 - **Limits stop interrupting you.** A request that hits a limit is replayed on another account before Claude Code sees it, and the session carries on.
+- **Accounts stay on their projects.** Fence a pool of accounts to a project's directories, a client's say: sessions started anywhere in them use those accounts alone, and no other session does.
 - **No quota goes to waste.** New sessions go to the account whose weekly quota is most at risk of going unused.
 - **Claude sees its own limits.** A skill lets Claude read every account's usage, pace and resets, and plan its work around them.
 - **Sessions stay put.** A session keeps its account while its prompt cache is warm, and moves only when it must.
@@ -37,11 +38,27 @@ Every Claude subscription has a weekly limit, most a 5-hour one too. When you hi
 - **Every request on record.** Kept for a year, so you can follow any session and see what your use was worth at API prices against what your plans cost.
 - **Your usage, always in view.** A live dashboard shows what's left in each window, when you'll run out at your pace, and when it resets.
 - **You and Claude both steer.** Pin new sessions to an account, or move running ones, from the command line, the dashboard, or by asking Claude.
-- **A client's accounts stay theirs.** Fence a pool of accounts to a client's directories: sessions started there use those accounts alone, and no other session does.
 - **Told in time.** Desktop notifications when an account hits a limit, has room again, passes a share you set, or its token nears the end of its year.
 - **Never in the way.** If switchboard can't route a session, `claude` starts as it would without it. Once you fence a pool, it starts on its pool's accounts or not at all, so no session crosses a fence.
 
 **Worth it with one subscription.** Claude paces its work on your live usage and your history, every request goes on record, and the dashboard shows where you stand. The router carries every request on that one account; a session that hits a limit has nowhere else to go until you add a second.
+
+## Pools
+
+**Choose which Claude accounts work on which projects.** Keep a client's accounts on the client's code, your employer's account on your employer's work, or one account for one project. Put the accounts in a pool and fence it to the project's directories: every Claude session started in them, or in any folder beneath, uses that pool's accounts and nothing else, and no session started anywhere else touches them.
+
+Within a pool, everything above holds across its accounts: limits replayed, sessions kept warm, its own primary to start on. When they're all out, its work waits for a reset rather than spill onto another pool's accounts. Sessions started outside every fence use the pool you leave unfenced, where your accounts are to begin with. Each pool has its own screens and records, and nothing of one shows on another's.
+
+```bash
+switchboard pool add Acme ~/Code/acme                    # a pool fenced to the client's directories, given an id: q7mt
+switchboard accounts add "Acme 1" --pool q7mt --primary  # the client's account, in the pool, its primary
+```
+
+On the dashboard, `P` turns from one pool to the next, and the title row names the pool shown.
+
+<p align="center"><a href="docs/dashboard.md#in-a-pool"><img src="art/pools.webp" alt="The Overview of Acme, a client's pool: its title row naming the pool, and the pool's three accounts alone" width="840"></a></p>
+
+See [Pools](docs/how-it-works.md#pools) for how a session finds its pool, [Upgrading to pools](docs/how-it-works.md#upgrading-to-pools) for what an upgrade moves, [`pool`](docs/commands.md#pool) for the command, and [the dashboard in a pool](docs/dashboard.md#in-a-pool).
 
 ## Screens
 
@@ -157,7 +174,7 @@ Every key is in [Configuration](docs/configuration.md).
 ## Documentation
 
 - [Dashboard](docs/dashboard.md): every page, its keys, and themes
-- [How it works](docs/how-it-works.md): routing, what's recorded, accounts and their ids, the primary, reserves and priming
+- [How it works](docs/how-it-works.md): routing, what's recorded, accounts and their ids, pools, the primary, reserves and priming
 - [Commands](docs/commands.md): every command and flag
 - [Configuration](docs/configuration.md): every config key, tokens and notifications
 - [Reference](docs/reference.md): where switchboard keeps its files, their formats, and the JSON its commands print
