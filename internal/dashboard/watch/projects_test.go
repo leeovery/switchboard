@@ -293,6 +293,34 @@ func TestProjectsDialStepKeepsTheSelectionScrolledInView(t *testing.T) {
 	}
 }
 
+// A rebuild scrolls SESSIONS no further than it now goes: a step to a
+// period with fewer of its lines leaves it no further down than they go, so
+// the step back never brings back the offset it had.
+func TestProjectsRebuiltScrollsSessionsNoFurtherThanItGoes(t *testing.T) {
+	h := withDelta(projectsHarness(t, dashboard.Projects))
+	l := h.model.cfg.Ledger.(*projectsLedger)
+	today := projectAsks("d8000000-0000-4000-8000-000000000008", "/code/delta", start.Add(-30*time.Minute), 1)
+	l.lines[dayfile.DateOf(start)] = append(l.lines[dayfile.DateOf(start)], today...)
+	h.start()
+	h.update(tea.WindowSizeMsg{Width: 108, Height: 24})
+	h.deliver(h.press(">")...)
+	h.keys(downKey, upKey)
+	for range deltaSessions {
+		h.keys(tea.KeyPressMsg{Code: 'j', Text: "j"})
+	}
+	if s := h.model.projects.shown; s.Chosen != "/code/delta" || s.InSessions || h.model.scroll == 0 {
+		t.Fatalf("over 30 days, delta chosen by ↓ ↑ and j to SESSIONS' foot, %s chosen, in sessions %v, scrolled %d; want delta, the list with the choice, scrolled", s.Chosen, s.InSessions, h.model.scroll)
+	}
+	h.deliver(h.press("<")...)
+	if s := h.model.projects.shown; s.Chosen != "/code/delta" || h.model.scroll != 0 {
+		t.Fatalf("over this week, its one session today, %s chosen, scrolled %d; want delta, scrolled no further than its one line goes, 0", s.Chosen, h.model.scroll)
+	}
+	h.deliver(h.press(">")...)
+	if h.model.scroll != 0 {
+		t.Errorf("back over 30 days, SESSIONS scrolled %d, want 0: the offset gone as this week's lines went no further", h.model.scroll)
+	}
+}
+
 // Without a ledger, Projects reads nothing and awaits nothing: its page is
 // built of the sessions running alone, as the List's are, and says there
 // are no sessions where none runs.

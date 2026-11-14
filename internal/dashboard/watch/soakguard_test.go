@@ -361,9 +361,10 @@ func (g *storeGuard) ran(msg tea.Msg) {
 // projectsRead judges the reads of Projects' read that gave msg, the model as
 // it stands as the read runs, the days held still those read before: asked
 // for while Projects shows, of the dial's period, as it's first shown, or
-// where the dial reaches further back than the days held; each day read once; a day before today read whole only where
-// its head's side doesn't stand, as views.DaySessionsOn falls back to its
-// lines; today read whole, as each such read reads it; and nothing else.
+// where the dial reaches further back than the days held; each day read
+// once; a day before today read whole only where its head's side doesn't
+// stand, as views.DaySessionsOn falls back to its lines; today read whole,
+// as each such read reads it; and nothing else.
 // The next slice takes today's lines from the tail, and tightens this to a
 // day before today alone.
 func (g *storeGuard) projectsRead(msg projectsReadMsg) {
@@ -375,9 +376,9 @@ func (g *storeGuard) projectsRead(msg projectsReadMsg) {
 		g.t.Errorf("at %s Projects read the days from %s, holding them from %s, want a read only as it's first shown, or further back", at, msg.from.Format(time.DateTime),
 			p.from.Format(time.DateTime))
 	}
-	if m.shownView() != dashboard.Projects || !msg.from.Equal(m.period.From(now, m.cfg.WeekStarts)) {
-		g.t.Errorf("at %s Projects read the days from %s on %s, the dial at %s, want a read of the dial's period while Projects shows", at, msg.from.Format(time.DateTime),
-			m.shownView(), m.period.Name())
+	if m.view != dashboard.Projects || !msg.from.Equal(m.period.From(now, m.cfg.WeekStarts)) {
+		g.t.Errorf("at %s Projects read the days from %s on %s, the dial at %s, want a read of the dial's period while Projects shows",
+			at, msg.from.Format(time.DateTime), m.view, m.period.Name())
 	}
 	if p.days != nil {
 		g.further++

@@ -146,9 +146,10 @@ func (m Model) projectsRead(msg projectsReadMsg) Model {
 // what it's built of has changed since it was built, as projectsPageOf has
 // it: the days read, the period, the day, or the sessions the List lists
 // running; and the chosen project's page, where the page or the project
-// chosen has, as chosenBuilt has it; SESSIONS scrolled to show the session
-// selected, where it showed before, as selectionShows has it, or where the
-// user was in it as the page was let go, as projectsReturned has it. Where
+// chosen has, as chosenBuilt has it; SESSIONS scrolled no further than it
+// now goes, and to show the session selected, where it showed before, as
+// selectionShows has it, or where the user was in it as the page was let
+// go, as projectsReturned has it. Where
 // there are no days to build it of, it shows none, as projectsAwaited has
 // it. Never a frame at a time, which takes nothing in.
 func (m Model) projectsBuilt(msg tea.Msg) Model {
@@ -178,8 +179,11 @@ func (m Model) projectsBuilt(msg tea.Msg) Model {
 		m.projects.pages++
 	}
 	m = m.chosenBuilt(now)
+	f := m.frame(now)
+	m.scroll = min(m.scroll, f.Scrolling(m.doc, now).Most)
 	if sighted && m.projects.shown.InSessions {
-		m.scroll = m.frame(now).ProjectsSessionsScroll(m.doc, now, m.projects.shown.Selection())
+		f.Scroll = m.scroll
+		m.scroll = f.ProjectsSessionsScroll(m.doc, now, m.projects.shown.Selection())
 	}
 	return m
 }

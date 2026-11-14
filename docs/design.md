@@ -4003,9 +4003,9 @@ draw it, the tab names in its title row aside, and kept in `testdata/vhs/referen
   kept in view, but where the project chosen left the list; without a ledger, the page is built
   of the sessions running alone, as the List's are, and says `no sessions` where none runs. A
   step of the dial on Projects keeps SESSIONS' scroll, where every other tab's view goes back to
-  its top. The page is built
-  again only as the days read, the period, the day or the List's sessions running change, and the
-  chosen project's as the page or the choice does. The project shown is held as chosen once any
+  its top, and each rebuild scrolls it no further than it then goes. The page is built again only
+  as the days read, the period, the day or the List's sessions running change, and the chosen
+  project's as the page or the choice does. The project shown is held as chosen once any
   key or click moves the choice, the top row's included, else the top row is chosen as the list
   ranks afresh. The choice is kept by path, and the session selected by id, across a rebuild, and
   where the session selected showed, it's kept in view; a project that leaves the list leaves the
