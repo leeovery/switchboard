@@ -600,7 +600,9 @@ began, oldest first and today's last.
 
 Once the config has pools, it's one pool's history: the work each request recorded in the pool at
 the time, the work from before pools the first pool's, and the windows, plans and weeks of the
-accounts in the pool now, as an account's windows are its own whatever pool it's in.
+accounts in the pool now, as an account's windows are its own whatever pool it's in. Its `days`,
+`year`, `months`, `tokens` and `removed` begin at the pool's first day of work, where that falls
+after the days asked for begin, while `weeks`, `totals` and `plans` cover every day asked for.
 
 ### `prices_as_of`
 
@@ -642,7 +644,7 @@ Each month's:
 - `by_family`.
 - `cost`: the cost of the month's plans. It's the whole month's, or, where the days asked for begin
   part-way through the month, its days' from the first asked for, or from the ledger's first day
-  where it began later.
+  or the pool's first day of work, where it began later.
 - `against`: the worth of the month's accounts against that cost, as a ratio. The month so far has
   none.
 - `plans`: how many accounts' plans are `known`, of how many there are, as in `plans` below.

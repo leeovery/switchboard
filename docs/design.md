@@ -994,8 +994,8 @@ totals.
   neither the config nor the record keeps, `can't tell which pool to read: the newest request names
   pool "x9z9", …`, and where the record places an account in one, `… account left is in pool
   "x9z9", …`. `history` counts its days from where the pool's work begins (`views.PoolRead`'s
-  Start), as the dashboard does, its days, months and tokens listing none before, nor the accounts
-  removed that only those days name, as Year and Tokens list none, so a verb and the dashboard
+  Start), as the dashboard does, its days, months and tokens listing none before, as Year and
+  Tokens list none, nor the accounts removed that only those days name, so a verb and the dashboard
   price a pool over the same days; the accounts' weeks and totals are over every day asked for, as
   Weeks and Accounts are. What a verb reads of the recorded files is read in one place, through the
   pool's read (`cli/poolfiles.go`), where the verbs' readers of the ledger, the readings and the
