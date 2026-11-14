@@ -276,7 +276,7 @@ func (d *Draft) SetPrimary(id string) error {
 		return d.take(doc.without(marks), want, change)
 	}
 	doc := d.doc.without(marks)
-	doc = doc.putKey(doc.accounts()[i], "primary = true")
+	doc = doc.putKey(doc.accounts()[i], "primary", "true")
 	return d.take(doc, want, change)
 }
 

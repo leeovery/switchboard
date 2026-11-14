@@ -831,6 +831,13 @@ func (ex *exchange) event(kind string) StreamEvent {
 	}
 }
 
+// of is what a routed request is of, in full, as the request stream keeps it
+// in flight: its session, in the pool the last choice made for it found it,
+// and its model.
+func (ex *exchange) of() key {
+	return key{session: ex.req.Session, pool: ex.pool, model: ex.req.Model}
+}
+
 // boundedMost is how many bytes of a session's id or a model's an event
 // gives, at most: Claude Code's are a few dozen, and a request can send one
 // as long as its header or body runs to.

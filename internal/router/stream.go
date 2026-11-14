@@ -161,7 +161,7 @@ type stream struct {
 // flight is a request in flight, as the stream keeps it: the inflight event
 // that tells of it as it stands, its Chars those its answer has streamed so
 // far, told those last told of, and of its session and model in full, which
-// the event may cut.
+// the event may cut, with the pool it was found in.
 type flight struct {
 	StreamEvent
 	told int
@@ -189,7 +189,7 @@ func (s *stream) publish(e StreamEvent) {
 
 // publishOf tells every reader of e, as happening now, and keeps the request
 // in flight as e leaves it: of names, in full, the session and model of a
-// request going upstream.
+// request going upstream, with the pool it was found in.
 func (s *stream) publishOf(e StreamEvent, of key) {
 	s.mu.Lock()
 	e.At = s.now().UTC()
@@ -291,8 +291,8 @@ func (s *stream) join() ([]StreamEvent, *streamReader) {
 	return inFlight, r
 }
 
-// doing returns what the requests in flight are doing, by the session and
-// model they're of, as an assignment's InFlight gives it: status.Answering
+// doing returns what the requests in flight are doing, by the session, pool
+// and model they're of, as an assignment's InFlight gives it: status.Answering
 // where an answer streams to any of them, else status.Asking. The client's
 // quota checks, which are no session's work, are left out.
 func (s *stream) doing() map[key]string {

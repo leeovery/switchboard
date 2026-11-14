@@ -39,11 +39,20 @@ dirs  = ["/work/acme"]
 `
 
 // routeInAcme sends a messages request of the session given through the
-// router, as one started in Acme does.
+// router, as one started in Acme does, on work's token.
 func (s *serveSetup) routeInAcme(t *testing.T, session string) {
 	t.Helper()
+	s.routeInPool(t, session, "q7mt", "test-token-work")
+}
+
+// routeInPool sends a messages request of the session given through the
+// router, as one started in the pool with the given id does, on the token
+// given.
+func (s *serveSetup) routeInPool(t *testing.T, session, pool, token string) {
+	t.Helper()
 	req := s.messages(t, session, "claude-haiku-4-5-20251001", "")
-	req.Header.Set(router.PoolHeader, "q7mt")
+	req.Header.Set(router.PoolHeader, pool)
+	req.Header.Set("Authorization", "Bearer "+token)
 	resp, err := (&http.Client{Timeout: 10 * time.Second}).Do(req)
 	if err != nil {
 		t.Fatalf("POST /v1/messages through the router: %v", err)

@@ -224,7 +224,7 @@ func TestARequestNeverGoesOutOnAnotherPoolsAccount(t *testing.T) {
 		{
 			name: "a session on another pool's account, its cache warm: chosen afresh in its own",
 			setUp: func(t *testing.T, r *Router) {
-				assign(r.sessions, key{session: "one", model: opus}, "", decision{account: "personal", reason: reasonNew}, start.Add(-5*time.Minute))
+				assign(r.sessions, key{session: "one", pool: defaultPool, model: opus}, "", decision{account: "personal", reason: reasonNew}, start.Add(-5*time.Minute))
 			},
 			wantSent: []string{"work"}, wantCode: http.StatusOK,
 		},
@@ -238,7 +238,7 @@ func TestARequestNeverGoesOutOnAnotherPoolsAccount(t *testing.T) {
 		{
 			name: "another pool's pin moving its running sessions: the session stays",
 			setUp: func(t *testing.T, r *Router) {
-				assign(r.sessions, key{session: "one", model: opus}, "", decision{account: "work", reason: reasonNew}, start.Add(-5*time.Minute))
+				assign(r.sessions, key{session: "one", pool: defaultPool, model: opus}, "", decision{account: "work", reason: reasonNew}, start.Add(-5*time.Minute))
 				pinnedIn(t, r, acmePool, status.Pin{Accounts: []string{"personal"}, Since: start, Move: true})
 			},
 			wantSent: []string{"work"}, wantCode: http.StatusOK, wantReason: reasonSticky,
@@ -260,8 +260,8 @@ func TestARequestNeverGoesOutOnAnotherPoolsAccount(t *testing.T) {
 		{
 			name: "the session pinned to another pool's account as it runs: no pin for it",
 			setUp: func(t *testing.T, r *Router) {
-				assign(r.sessions, key{session: "one", model: opus}, "", decision{account: "work", reason: reasonNew}, start.Add(-5*time.Minute))
-				r.sessions.pinSession("one", "personal")
+				assign(r.sessions, key{session: "one", pool: defaultPool, model: opus}, "", decision{account: "work", reason: reasonNew}, start.Add(-5*time.Minute))
+				r.sessions.pinSession(sessionIn{session: "one", pool: defaultPool}, "personal")
 			},
 			wantSent: []string{"work"}, wantCode: http.StatusOK, wantReason: reasonSticky,
 			wantLog: []string{"level=DEBUG", `msg="pin ignored: account isn't in the request's pool"`, "pin=personal", "pool=" + defaultPool},
@@ -269,8 +269,8 @@ func TestARequestNeverGoesOutOnAnotherPoolsAccount(t *testing.T) {
 		{
 			name: "the session pinned to another pool's account as it runs, launched pinned to one of its own: the one it launched with",
 			setUp: func(t *testing.T, r *Router) {
-				assign(r.sessions, key{session: "one", model: opus}, "", decision{account: "work", reason: reasonNew}, start.Add(-5*time.Minute))
-				r.sessions.pinSession("one", "personal")
+				assign(r.sessions, key{session: "one", pool: defaultPool, model: opus}, "", decision{account: "work", reason: reasonNew}, start.Add(-5*time.Minute))
+				r.sessions.pinSession(sessionIn{session: "one", pool: defaultPool}, "personal")
 			},
 			headers:  map[string]string{PinHeader: "side"},
 			wantSent: []string{"side"}, wantCode: http.StatusOK, wantReason: reasonPinned,
@@ -342,7 +342,7 @@ func TestARequestNeverGoesOutOnAnotherPoolsAccount(t *testing.T) {
 			if w.Code != tt.wantCode {
 				t.Errorf("answered %d, want %d", w.Code, tt.wantCode)
 			}
-			if a := r.sessions.lookup(key{session: "one", model: opus}).current; a.Account == "personal" {
+			if a := r.sessions.lookup(key{session: "one", pool: defaultPool, model: opus}).current; a.Account == "personal" {
 				t.Errorf("the session is left on personal, another pool's account")
 			}
 			if got := reasonsOf(lines()); tt.wantReason != "" && !slices.Equal(got, []string{tt.wantReason}) {
@@ -621,7 +621,7 @@ func TestACompactionNeverMovesASessionOutOfItsPool(t *testing.T) {
 				r.state.record("side", []quota.Window{risingSession, latestWeek}, r.state.mark())
 				r.state.record("personal", []quota.Window{risingSession, {Key: "7d", Label: "Week", Utilization: u, ResetsAt: sideSooner}}, r.state.mark())
 			}
-			assign(r.sessions, key{session: "one", model: opus}, "", decision{account: "work", reason: reasonNew}, start.Add(-5*time.Minute))
+			assign(r.sessions, key{session: "one", pool: r.proxy.pools.current().of(defaultPool), model: opus}, "", decision{account: "work", reason: reasonNew}, start.Add(-5*time.Minute))
 			upstream := servingAll(served, served, served)
 			r.proxy.transport = upstream
 
@@ -682,7 +682,7 @@ func TestASessionsNextAccountIsJudgedWithinItsPool(t *testing.T) {
 			assignFor(r.sessions, Request{Session: "one", Model: opus, Pool: tt.pool}, decision{account: tt.on, reason: reasonNew}, start)
 			clock.now = start.Add(2 * time.Hour)
 
-			if got := r.scheduler.auto("one", opus, clock.now); got != tt.want {
+			if got := r.scheduler.auto(sessionIn{session: "one", pool: tt.pool}, opus, clock.now); got != tt.want {
 				t.Errorf("auto(one, %s) = %q, want %s", opus, got, tt.want)
 			}
 			if s, err := r.session("one", anyPool); err != nil || s.Assignments[0].Auto != tt.want {
@@ -1073,6 +1073,38 @@ func TestARouterRoutesAConfigNamingNoPoolsAsBeforePoolsTillTheMoveToPoolsIsDone(
 	routeIn(t, r, workToken, "three", defaultPool, nil)
 	if sent, want := upstream.sent(), []string{"personal", "personal", "work"}; !slices.Equal(sent, want) {
 		t.Errorf("the requests went out on %q, want %q: once the move is done, Default's on work, personal in Acme, as the record keeps it", sent, want)
+	}
+}
+
+func TestTheMoveToPoolsKeepsEachRunningSessionWhereItRuns(t *testing.T) {
+	logstest.Capture(t)
+	path := filepath.Join(t.TempDir(), "config.toml")
+	writeConfigFile(t, path, unpooledTOML("work", "personal", "side"))
+	cfg := testConfig(at(start), &stubProber{}, poolTokens.Read)
+	cfg.Accounts, cfg.ConfigFile = config.Accounts{{ID: "work", Label: "work"}, {ID: "personal", Label: "personal"}, {ID: "side", Label: "side"}}, Watch(path)
+	r := newTestRouterOf(t, cfg)
+	upstream := servingAll(served, served, served)
+	r.proxy.transport = upstream
+	readWeeks(r, map[string]quota.Window{"work": soonWeek, "personal": laterWeek, "side": latestWeek})
+	routeIn(t, r, workToken, "one", "", nil)
+	routeIn(t, r, workToken, "two", "", nil)
+	askedOK(t, r, http.MethodPost, "/sessions/two/pin", `{"account": "work"}`)
+	// Side's quota needs using first now, so a session chosen afresh goes
+	// there.
+	readWeeks(r, map[string]quota.Window{"side": soonWeek, "work": laterWeek})
+
+	writeConfigFile(t, path, poolsTOML(defaultPool, defaultTOML, acmeTOML))
+	r.upkeep.look()
+	was := len(upstream.sent())
+	lines := keepingLedger(t, r)
+	routeIn(t, r, workToken, "one", "", nil)
+	routeIn(t, r, workToken, "two", "", nil)
+
+	if got, want := upstream.sent()[was:], []string{"work", "work"}; !slices.Equal(got, want) {
+		t.Errorf("the sessions' requests went out on %q once the pools came, want %q: each where it ran", got, want)
+	}
+	if got, want := reasonsOf(lines()), []string{reasonSticky, reasonPinned}; !slices.Equal(got, want) {
+		t.Errorf("the ledger's lines give the reasons %q, want %q: one's assignment and two's own pin found in the first pool", got, want)
 	}
 }
 
@@ -1781,4 +1813,49 @@ func isClosed(ch chan struct{}) bool {
 	default:
 		return false
 	}
+}
+
+// A request naming no pool, as one of a session started before pools does,
+// or naming its pool in another case, is done in the pool it's in, as one
+// naming the first pool is: a new session whose request is refused is
+// forgotten there, one answered is told of as started there, and an answer
+// is weighed by its session's time on its account there.
+func TestARequestNamingNoPoolOrItsPoolInAnotherCaseIsDoneInThePoolItsIn(t *testing.T) {
+	for _, named := range []string{"", strings.ToUpper(defaultPool)} {
+		t.Run("naming "+cmp.Or(named, "none"), func(t *testing.T) {
+			logstest.Capture(t)
+			r, upstream := newPairedRouter(t, at(start))
+			upstream.answers[workToken] = []answer{refusedAlone, served}
+
+			if w := routeIn(t, r, workToken, "one", named, nil); w.Code != http.StatusTooManyRequests {
+				t.Fatalf("the session's first request answered %d, want 429, passed on", w.Code)
+			}
+			if held := assignedIn(r.sessions); len(held) != 0 {
+				t.Errorf("once its first request was refused, the session is held as %+v, want it forgotten", held)
+			}
+			if w := routeIn(t, r, workToken, "one", named, nil); w.Code != http.StatusOK {
+				t.Fatalf("the session's second request answered %d, want 200", w.Code)
+			}
+			if got, want := startsOf(r), []string{defaultPool}; !slices.Equal(got, want) {
+				t.Errorf("the router told of the session's start in the pools %q, want %q", got, want)
+			}
+			req := Request{Session: "one", Model: opus, Pool: named}
+			if got := r.scheduler.OnAccount(req, "work", start.Add(time.Hour)); got != time.Hour {
+				t.Errorf("an hour on, the session has been on work %v, want an hour", got)
+			}
+		})
+	}
+}
+
+// startsOf returns the pool of each start of session one the router told
+// of, in turn.
+func startsOf(r *Router) []string {
+	var pools []string
+	for _, e := range r.recent.events() {
+		if e.Kind == status.EventStarted && e.Session == "one" {
+			pools = append(pools, e.Pool)
+		}
+	}
+	slices.Reverse(pools)
+	return pools
 }

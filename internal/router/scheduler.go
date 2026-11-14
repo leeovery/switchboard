@@ -85,7 +85,7 @@ func (s *scheduler) Answered(req Request, account, reason string) {
 	if req.Check {
 		return
 	}
-	a, ok := s.sessions.started(req.key())
+	a, ok := s.sessions.started(s.placed(req).key())
 	if !ok {
 		return
 	}
@@ -96,7 +96,7 @@ func (s *scheduler) Answered(req Request, account, reason string) {
 }
 
 func (s *scheduler) Forget(req Request) (string, bool) {
-	left, back, ok := s.sessions.forget(req)
+	left, back, ok := s.sessions.forget(s.placed(req))
 	attrs := []any{"id", req.ID, "session", status.ShortID(req.Session), "model", req.Model}
 	switch {
 	case !ok:
@@ -112,15 +112,26 @@ func (s *scheduler) Forget(req Request) (string, bool) {
 }
 
 func (s *scheduler) OnAccount(req Request, account string, now time.Time) time.Duration {
-	return s.sessions.onAccount(req.key(), account, now)
+	return s.sessions.onAccount(s.placed(req).key(), account, now)
+}
+
+// placed returns req in the pool it's in as the pools stand now, as a choice
+// finds it, rather than as its header names it: the pool whose assignment of
+// its session a choice for it made or kept.
+func (s *scheduler) placed(req Request) Request {
+	req.Pool = s.state.pools.current().of(req.Pool)
+	return req
 }
 
 // decide chooses on what's known now, and returns the situation the choice
-// was made in, as situation builds it.
+// was made in, as situation builds it, of the session's assignment in the
+// pool the view of the accounts finds the request in: a session new to that
+// pool is new there, whatever it has in another.
 func (s *scheduler) decide(req Request) (decision, situation) {
 	now := s.now()
-	found := s.sessions.lookup(req.key())
-	on := found.situation(req, now, s.view(req, now))
+	accounts := s.view(req, now)
+	req.Pool = accounts.pool
+	on := s.sessions.lookup(req.key()).situation(req, now, accounts)
 	return decide(on), on
 }
 
@@ -156,30 +167,29 @@ func (d decision) changes(was decision) []any {
 	return attrs
 }
 
-// auto returns the account the next request of model, of the session with the
-// given id, would go out on at now were the session to have no pin of its own,
-// as decide chooses it, in the pool its last request was routed within: the
-// router's own rule for the session, which keeps it where it runs while that
-// account has room and a move would cost it something. It chooses on what's
-// known, probing no account and noting nothing in the log. It returns ""
-// where it can't say: the session has no assignment for the model, or no
-// account has room for the request, which would have the accounts probed
-// again before it went out, if only for the upstream to refuse it.
-func (s *scheduler) auto(id, model string, now time.Time) string {
-	return s.autoOn(id, model, now, func(pool string) view { return s.state.glance(pool, model, now) })
+// auto returns the account the next request of model, of the session in, in
+// its pool, would go out on at now were the session to have no pin of its
+// own there, as decide chooses it: the router's own rule for the session,
+// which keeps it where it runs while that account has room and a move would
+// cost it something. It chooses on what's known, probing no account and
+// noting nothing in the log. It returns "" where it can't say: the session
+// has no assignment for the model there, or no account has room for the
+// request, which would have the accounts probed again before it went out,
+// if only for the upstream to refuse it.
+func (s *scheduler) auto(in sessionIn, model string, now time.Time) string {
+	return s.autoOn(in, model, now, func(pool string) view { return s.state.glance(pool, model, now) })
 }
 
 // autoOn is auto, the accounts of a pool as glance gives them, glanced at
-// only where the session has an assignment for the model. A session the state
-// file kept from a router that didn't know pools is in the first, as a
-// request naming none is.
-func (s *scheduler) autoOn(id, model string, now time.Time, glance func(pool string) view) string {
-	req := Request{Session: id, Model: model, Bound: s.sessions.bound(model)}
+// only where the session has an assignment for the model there. A session
+// the state file kept from a router that didn't know pools is in the first,
+// as a request naming none is.
+func (s *scheduler) autoOn(in sessionIn, model string, now time.Time, glance func(pool string) view) string {
+	req := Request{Session: in.session, Pool: in.pool, Model: model, Bound: s.sessions.bound(model)}
 	found := s.sessions.lookup(req.key())
 	if !found.assigned {
 		return ""
 	}
-	req.Pool = found.current.Pool
 	found.given = false
 	d := decide(found.situation(req, now, glance(req.Pool)))
 	if d.noRoom {

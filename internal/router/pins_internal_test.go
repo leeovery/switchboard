@@ -179,12 +179,12 @@ func TestAPinMovesThePoolsRunningSessionsAlone(t *testing.T) {
 			if got := upstream.sent()[was:]; !slices.Equal(got, tt.want) {
 				t.Errorf("Default's running session and Acme's went out on %q once pinned with move, want %q: the pin's pool's alone moved", got, tt.want)
 			}
-			for _, session := range []string{"default", "acme"} {
+			for session, pool := range map[string]string{"default": defaultPool, "acme": acmePool} {
 				want := reasonNew
 				if session == tt.moved {
 					want = reasonMovedByPin
 				}
-				if got := r.sessions.lookup(key{session: session + "-running", model: opus}).current.Reason; got != want {
+				if got := r.sessions.lookup(key{session: session + "-running", pool: pool, model: opus}).current.Reason; got != want {
 					t.Errorf("%s's session gives the reason %q, want %q", session, got, want)
 				}
 			}
@@ -209,10 +209,10 @@ func TestForceClearsTheOwnPinsOfThePoolsSessionsAlone(t *testing.T) {
 			askedOK(t, r, http.MethodPost, "/sessions/acme/pin", `{"account": "extra"}`)
 
 			askedOK(t, r, tt.method, tt.target, tt.body)
-			if got := r.sessions.lookup(key{session: "acme", model: opus}); !got.given || got.own.Account != "" {
+			if got := r.sessions.lookup(key{session: "acme", pool: acmePool, model: opus}); !got.given || got.own.Account != "" {
 				t.Errorf("Acme's session's own pin is %+v, want it cleared", got.own)
 			}
-			if got := r.sessions.lookup(key{session: "default", model: opus}); got.own.Account != "side" {
+			if got := r.sessions.lookup(key{session: "default", pool: defaultPool, model: opus}); got.own.Account != "side" {
 				t.Errorf("Default's session's own pin is %+v, want side's, as it was", got.own)
 			}
 		})
@@ -250,7 +250,7 @@ func TestASessionsOwnPinToAnotherPoolsAccountIsRefused(t *testing.T) {
 			routeIn(t, r, tokenIn(tt.pool), tt.session, tt.pool, nil)
 
 			rec := askControl(t, r, http.MethodPost, "/sessions/"+tt.session+"/pin", `{"account": "`+tt.account+`"}`)
-			got := r.sessions.lookup(key{session: tt.session, model: opus})
+			got := r.sessions.lookup(key{session: tt.session, pool: r.proxy.pools.current().of(tt.pool), model: opus})
 			if tt.refused == "" {
 				if rec.Code != http.StatusOK || got.own.Account != tt.account {
 					t.Errorf("answered %d %s, the session's own pin %+v; want 200, pinned to %s", rec.Code, rec.Body, got.own, tt.account)
@@ -432,7 +432,7 @@ func TestAPinFromBeforePoolsHoldsInItsPoolOnceThePoolsAreTakenUp(t *testing.T) {
 	if got, want := upstream.sent(), []string{"personal", "work"}; !slices.Equal(got, want) {
 		t.Errorf("Acme's new session and Default's went out on %q, want %q: the pin Acme's alone", got, want)
 	}
-	if got := r.sessions.lookup(key{session: "acme", model: opus}).current.Reason; got != reasonPoolPin {
+	if got := r.sessions.lookup(key{session: "acme", pool: acmePool, model: opus}).current.Reason; got != reasonPoolPin {
 		t.Errorf("Acme's session gives the reason %q, want %q", got, reasonPoolPin)
 	}
 	if doc := statusIn(t, r, defaultPool); !doc.Pin.IsZero() {
@@ -1042,6 +1042,9 @@ func TestAClosedTableLeavesEachPoolsPinStandingTillThePoolsComeBack(t *testing.T
 	}
 	if got := pinnedAccounts(r); !reflect.DeepEqual(got, want) {
 		t.Errorf("once pinning and unpinning were refused, the pins are %q, want %q, as kept", got, want)
+	}
+	if rec := askControl(t, r, http.MethodDelete, "/sessions/one/pin", ""); rec.Code != http.StatusOK {
+		t.Errorf("DELETE /sessions/one/pin while the pools are closed answered %d %s, want 200, the session's own pin cleared", rec.Code, rec.Body)
 	}
 
 	// The config has its pools again: each pin stands in its own.

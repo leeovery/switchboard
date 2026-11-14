@@ -19,7 +19,7 @@ func TestAutoProbesNoAccountWhereAChoiceWould(t *testing.T) {
 	// account's usage has gone stale.
 	clock.now = start.Add(2 * time.Hour)
 
-	if got := r.scheduler.auto("one", opus, clock.now); got != "work" {
+	if got := r.scheduler.auto(sessionIn{session: "one"}, opus, clock.now); got != "work" {
 		t.Errorf("auto(one, %s) = %q, want work, whose quota needs using first", opus, got)
 	}
 	if got := prober.counts(); len(got) > 0 {
@@ -35,13 +35,13 @@ func TestAutoLeavesTheLogToTellOfAReserveAsAChoiceFindsIt(t *testing.T) {
 	log := logstest.Capture(t)
 	clock := &testClock{now: start}
 	r := newThreeRouter(t, clock, &stubProber{}, map[string]float64{"work": 0.1})
-	r.state.record("work", []quota.Window{sessionIn(0.95, 3*time.Hour), weekIn(0.5, day)}, r.state.mark())
+	r.state.record("work", []quota.Window{sessionWindowIn(0.95, 3*time.Hour), weekIn(0.5, day)}, r.state.mark())
 	for _, id := range []string{"side", "spare"} {
-		r.state.record(id, []quota.Window{sessionIn(0.2, 3*time.Hour), weekIn(0.5, 5*day)}, r.state.mark())
+		r.state.record(id, []quota.Window{sessionWindowIn(0.2, 3*time.Hour), weekIn(0.5, 5*day)}, r.state.mark())
 	}
 	assign(r.sessions, key{session: "one", model: opus}, "", decision{account: "work", reason: reasonNew}, start)
 
-	r.scheduler.auto("one", opus, start)
+	r.scheduler.auto(sessionIn{session: "one"}, opus, start)
 	if log.Has(`msg="held back by its reserve"`) {
 		t.Errorf("log reads\n%s\nwant nothing of work's reserve once auto alone has looked", log)
 	}
@@ -66,7 +66,7 @@ func TestAutoNamesNoAccountForAnAssignmentTheRouterHasNone(t *testing.T) {
 			r.state.record("side", []quota.Window{session, laterWeek}, r.state.mark())
 			assign(r.sessions, key{session: "one", model: opus}, "", decision{account: "work", reason: reasonNew}, start)
 
-			if got := r.scheduler.auto(tt.session, tt.model, start); got != "" {
+			if got := r.scheduler.auto(sessionIn{session: tt.session}, tt.model, start); got != "" {
 				t.Errorf("auto(%s, %s) = %q, want none", tt.session, tt.model, got)
 			}
 		})
@@ -103,7 +103,7 @@ func TestTheListingGlancesAtTheAccountsOnceForEachModel(t *testing.T) {
 	}
 	for _, s := range listed {
 		for _, a := range s.Assignments {
-			if want := r.scheduler.auto(s.ID, a.Model, start); a.Auto != want {
+			if want := r.scheduler.auto(sessionIn{session: s.ID}, a.Model, start); a.Auto != want {
 				t.Errorf("the listing says %s's %s goes to %q, auto %q", s.ID, a.Model, a.Auto, want)
 			}
 		}

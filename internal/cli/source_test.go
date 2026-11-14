@@ -191,7 +191,6 @@ func TestAVerbActingOnAPoolRefusesARouterFromBeforePools(t *testing.T) {
 		{"pin", "auto", "--force"},
 		{"pin", "work", "--session", "0b5c"},
 		{"pin", "auto", "--session", "0b5c"},
-		{"status", "--session", "0b5c", "--pool", "b2n8"},
 		{"status", "--session", "0b5c", "--pool", "b2n8", "--json"},
 	} {
 		if got, want := run(t, srv.deps, args...), (result{stderr: "Error: " + beforePools + "\n", code: 1}); got != want {
@@ -203,10 +202,12 @@ func TestAVerbActingOnAPoolRefusesARouterFromBeforePools(t *testing.T) {
 	}
 }
 
-// A session asked by its id alone is what it is on any router, so status
-// --session without --pool reads it from a router from before pools, never
-// asking its health, as a statusline asks at every refresh.
-func TestStatusSessionWithoutAPoolReadsARouterFromBeforePools(t *testing.T) {
+// A router from before pools passes --pool over and answers for a session by
+// its id, what it is on any router, so the label status --session prints, as
+// a statusline asks at every refresh, with --pool or without, and its JSON
+// without --pool, are read from such a router without asking its health; its
+// JSON in a pool asks, and is refused.
+func TestStatusSessionsLabelReadsARouterFromBeforePoolsWithoutAskingItsHealth(t *testing.T) {
 	srv := newServeSetup(t, fakeClaudeAPI(t), nil)
 	health := new(atomic.Int64)
 	session := status.Session{ID: sessionOne, Assignments: []status.Assignment{{Model: "claude-haiku-4-5-20251001", Account: "side"}}, Account: status.Account{ID: "side"}}
@@ -219,11 +220,25 @@ func TestStatusSessionWithoutAPoolReadsARouterFromBeforePools(t *testing.T) {
 		"GET /sessions/{id}": func(w http.ResponseWriter, _ *http.Request) { _ = json.NewEncoder(w).Encode(session) },
 	})
 
-	if got, want := run(t, srv.deps, "status", "--session", sessionOne), (result{stdout: "Side\n"}); got != want {
-		t.Errorf("switchboard status --session = %+v, want %+v", got, want)
+	for _, args := range [][]string{{"status", "--session", sessionOne}, {"status", "--session", sessionOne, "--pool", "b2n8"}} {
+		if got, want := run(t, srv.deps, args...), (result{stdout: "Side\n"}); got != want {
+			t.Errorf("switchboard %s = %+v, want %+v", strings.Join(args, " "), got, want)
+		}
+	}
+	got := run(t, srv.deps, "status", "--session", sessionOne, "--json")
+	var answered status.Session
+	if err := json.Unmarshal([]byte(got.stdout), &answered); got.code != 0 || err != nil || answered.ID != sessionOne || answered.AccountID() != "side" {
+		t.Errorf("switchboard status --session --json = %+v (%v), want the session's JSON, on side", got, err)
 	}
 	if health.Load() != 0 {
 		t.Errorf("the router's health was asked %d times, want never", health.Load())
+	}
+
+	if got, want := run(t, srv.deps, "status", "--session", sessionOne, "--pool", "b2n8", "--json"), (result{stderr: "Error: " + beforePools + "\n", code: 1}); got != want {
+		t.Errorf("switchboard status --session --pool b2n8 --json = %+v, want %+v", got, want)
+	}
+	if health.Load() == 0 {
+		t.Error("asked for the session's JSON in a pool, the router's health was never asked, want it asked")
 	}
 }
 

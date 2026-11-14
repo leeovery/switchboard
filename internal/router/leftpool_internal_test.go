@@ -133,7 +133,7 @@ func TestASessionWhoseTokensAccountLeavesItsPoolIsRefusedWhileOneInThePoolItJoin
 	if routed := []string{"msg=routed", "session=one", "status=400", `reason="` + status.ReasonTokenLeftPool + `"`}; !log.Has(routed...) {
 		t.Errorf("log reads\n%s\nwant a line with %q", log, routed)
 	}
-	if a := r.sessions.lookup(key{session: "one", model: opus}); a.assigned {
+	if a := r.sessions.lookup(key{session: "one", pool: acmePool, model: opus}); a.assigned {
 		t.Errorf("Acme's session is assigned to %s, want it remembered nowhere: nothing was chosen for it", a.current.Account)
 	}
 	if log.Has("pin ignored") {
@@ -418,7 +418,7 @@ func TestASessionOnAnAccountThatLeftItsPoolMovesOffItSayingSoWhereThereArePoolsT
 			if routed := []string{"msg=routed", "account=work", `reason="` + tt.want + `"`}; !log.Has(routed...) {
 				t.Errorf("log reads\n%s\nwant a line with %q", log, routed)
 			}
-			if a := r.sessions.lookup(key{session: "one", model: opus}).current; a.Account != "work" {
+			if a := r.sessions.lookup(key{session: "one", pool: defaultPool, model: opus}).current; a.Account != "work" {
 				t.Errorf("the session is on %q, want work", a.Account)
 			}
 		})

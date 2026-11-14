@@ -161,9 +161,9 @@ type RestartHeld struct {
 // Accounts, in the order configured, Account the first of them, moving the
 // pool's running sessions too where Move is set, and having cleared the own
 // pin of every session in the pool where Force is; else that session's own
-// pin, to Account, Dir the directory the session runs in, as sessions.dir
-// has it. By says who set it. Pool is the id of the pool: the pin's, or the
-// session's; none in a config from before pools.
+// pin, to Account, Dir the directory the session runs in, in the pool, as
+// sessions.dirIn has it. By says who set it. Pool is the id of the pool: the
+// pin's, or the session's; none in a config from before pools.
 type Pinned struct {
 	Accounts    []string
 	Account     string
@@ -178,8 +178,8 @@ type Pinned struct {
 // pool's pin cleared, which named Accounts, none when only Force cleared
 // anything, with the own pin of every session in the pool where Force is
 // set; else that session's own pin cleared, which named Account, Dir the
-// directory the session runs in, as sessions.dir has it. By says who cleared
-// it. Pool is the id of the pool, as Pinned's is.
+// directory the session runs in, in the pool, as sessions.dirIn has it. By
+// says who cleared it. Pool is the id of the pool, as Pinned's is.
 type Unpinned struct {
 	Accounts []string
 	Account  string

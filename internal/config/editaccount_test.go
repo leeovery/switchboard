@@ -265,7 +265,7 @@ func TestAnAccountWithALabelOverLinesTakesAPlanBelowIt(t *testing.T) {
 	if err := draft.SetPlan("work", "pro"); err != nil {
 		t.Fatalf("SetPlan() error = %v", err)
 	}
-	checkSaved(t, path, draft, "work", overLines+"plan = \"pro\"\n")
+	checkSaved(t, path, draft, "work", overLines+"plan  = \"pro\"\n")
 }
 
 func TestAnAccountWithALabelOverLinesTakesAReserveBelowIt(t *testing.T) {
@@ -299,7 +299,7 @@ func TestALabelOverLinesHoldingAKeyLineTakesThatKeyBelowIt(t *testing.T) {
 		set  func(d *config.Draft) error
 		want string
 	}{
-		{name: "a plan", set: func(d *config.Draft) error { return d.SetPlan("work", "pro") }, want: "plan = \"pro\"\n"},
+		{name: "a plan", set: func(d *config.Draft) error { return d.SetPlan("work", "pro") }, want: "plan  = \"pro\"\n"},
 		{name: "a reserve", set: func(d *config.Draft) error { return d.SetReserve("work", 0.05) }, want: "reserve = 0.05\n"},
 	}
 	for _, tt := range tests {
@@ -349,7 +349,7 @@ func TestSetPlan(t *testing.T) {
 			config: workThenSide,
 			id:     "side",
 			plan:   "max",
-			want:   replaced(t, workThenSide, "label = \"Side\"\n", "label = \"Side\"\nplan = \"max\"\n"),
+			want:   replaced(t, workThenSide, "label = \"Side\"\n", "label = \"Side\"\nplan  = \"max\"\n"),
 			loads:  "max",
 		},
 		{
@@ -373,7 +373,7 @@ func TestSetPlan(t *testing.T) {
 			config: workThenSide,
 			id:     "side",
 			plan:   "max20x",
-			want:   replaced(t, workThenSide, "label = \"Side\"\n", "label = \"Side\"\nplan = \"ultra\"\n"),
+			want:   replaced(t, workThenSide, "label = \"Side\"\n", "label = \"Side\"\nplan  = \"ultra\"\n"),
 			loads:  "ultra",
 		},
 		{
