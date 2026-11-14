@@ -249,6 +249,7 @@ func TestAccountsHelpSaysWhatItsFiguresAre(t *testing.T) {
 		{"the periods stepped through", "through today, this week, 30 days, 12 weeks and 12 months, Compare, Detail and Tokens sharing"},
 		{"Tokens' total", "The whole period's row leads, named for it, its figures its rows' summed, but its models, each counted once"},
 		{"Tokens' rows", "a day each over this week and 30 days, a week each over 12 weeks and a month each over 12 months"},
+		{"a part-way row priced by its days", "but for one that begins part-way through, as the oldest month at 12 months or the one the ledger began in, priced by its days from then"},
 		{"Tokens over today", "Today is the period's row alone."},
 		{"Tokens' splits", "v splits each row by account, by model, each version at its own price, by both, or not at all"},
 		{"Tokens' rows filling the screen", "The rows fill the screen to the footnote, scrolling a row at a time."},

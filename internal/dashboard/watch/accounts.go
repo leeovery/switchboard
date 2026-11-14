@@ -65,16 +65,19 @@ type builtOf struct {
 	hour   int
 }
 
-// accountsToday reports whether Accounts shows today.
+// accountsToday reports whether Accounts shows today on a view that charts
+// its worth by the hour of the tail's fold: Compare or Detail, never Tokens,
+// which reads the days held alone.
 func (m Model) accountsToday() bool {
-	return m.shownView() == dashboard.Accounts && m.period == views.PeriodToday
+	return m.shownView() == dashboard.Accounts && m.period == views.PeriodToday &&
+		m.accounts.shown.View() != dashboard.AccountsTokens
 }
 
 // accountsEntered is m with a read of the ledger's tail due at once where
-// Accounts has come to show today since the last message, where none is
-// under way, as projectsWaiting asks one: the tail isn't followed while
-// Accounts shows another period or another tab shows, so its fold may be
-// behind.
+// Accounts has come to show today since the last message, on a view that
+// folds the tail, as accountsToday has it, where none is under way, as
+// projectsWaiting asks one: the tail isn't followed while Accounts shows
+// another period, Tokens, or another tab shows, so its fold may be behind.
 func (m Model) accountsEntered() Model {
 	today := m.accountsToday()
 	if today && !m.accounts.today {

@@ -31,8 +31,10 @@ func tokensHelp() helpPart {
 			said("The period's tokens as ccusage reports them, split by what ccusage can't split by: the account. The whole " +
 				"period's row leads, named for it, its figures its rows' summed, but its models, each counted once, and its " +
 				"worth set against what the plans cost over the period. Under it come its rows, newest first: a day each over " +
-				"this week and 30 days, a week each over 12 weeks and a month each over 12 months, each set against a whole " +
-				"day's, week's or month's price, as its words name it. Today is the period's row alone."),
+				"this week and 30 days, a week each over 12 weeks and a month each over 12 months, each set against what the " +
+				"plans cost over it, as its words name it: a whole day's, week's or month's price, but for one that begins " +
+				"part-way through, as the oldest month at 12 months or the one the ledger began in, priced by its days from " +
+				"then. Today is the period's row alone."),
 			said("Its columns are ccusage's: input; output; cache write, both lifetimes' writes together; cache read; and " +
 				"total, the four kinds. Worth and against its price are as VALUE has them, and against its price is over the " +
 				"plans known where some aren't, as it says. A model of quota checks alone wasn't used, so has no row."),

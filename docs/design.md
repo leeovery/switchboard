@@ -3917,8 +3917,10 @@ footnote alike, drawn by the one drawing (see History's Tokens), with its period
   are: a day each over this week and 30 days, this week from the day weeks start on, as the dial's
   is everywhere; a week each over 12 weeks; a month each over 12 months, the first priced from the
   12 months' first day where it begins part-way through, as the Year's BY MONTH has it. The names'
-  head is what a row is, `day`, `week` or `month`. Each row's against its price is over a whole
-  row's period, its unit named, `5.6× its $20 day`, `its $138 week`, `its $600 month`.
+  head is what a row is, `day`, `week` or `month`. Each row's against its price is over its
+  period, its unit named, `5.6× its $20 day`, `its $138 week`, `its $600 month`: priced whole,
+  but where the 12 months or the ledger begin part-way through it, by its days from then, as
+  Against its price says.
 - **The period's total leads:** a row for the whole period, split as the rows are, named by the
   dial's words, `this week`, in a row's head's ink. Its tokens and worth are its rows' summed, and
   its models count the versions the period used, each once, never a sum. Its against its price is

@@ -141,6 +141,11 @@ func (f Frame) accountsHeading() heading {
 	}
 	if forms := f.compareState(); len(forms) > 0 {
 		h.state, h.shorter = forms[0], forms[1:]
+		// A compact heading takes the row under its sub-tabs by its state's
+		// least: held at the clause, which alone, the last resort of a wide
+		// heading, never keeps the state beside them where the clause fits
+		// on the row under.
+		h.least = forms[1].plain()
 	}
 	return h
 }

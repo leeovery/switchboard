@@ -67,28 +67,28 @@ type TokenPeriod struct {
 
 // tokens is History's Tokens' page, its rows the periods asked for over the
 // last 12 months' days, as the Year's are, the days its grid draws before
-// them left out, the oldest priced from their first day, or the later day
-// the days were asked for from, or the ledger began on, as tokenPeriodsOf
-// says, newest first.
+// them left out, counted from the later of their first day, the day the
+// days were asked for from and the day the ledger began on, as tokensFrom
+// counts them.
 func (p Past) tokens(ask TokensAsk) TokensPage {
 	span := yearSpanOf(0, dayfile.CivilOf(p.in.Now), p.in.WeekStarts)
-	return p.tokensBetween(span.first, span.last, p.counted(max(span.first, dayfile.DateOf(p.in.From))), ask.Period)
+	page, _ := p.tokensFrom(p.counted(max(span.first, dayfile.DateOf(p.in.From))), span.last, ask.Period)
+	return page
 }
 
 // TokensOver is Accounts' Tokens' page over the dial's period given: its
-// rows the period's, as its Rows has them, newest first, priced as
-// tokenPeriodsOf prices them; and its Total, the whole period's, its tokens
-// and worth the rows' summed, its versions those it used, each once, and
-// against its price as Accounts' all accounts has it, so the two agree. Over
-// today, one row would only repeat the total, so it has none.
+// rows the period's, as its Rows has them, counted from its first day, or
+// the later day the ledger began on, as tokensFrom counts them; and its
+// Total, the whole period's over the days its rows hold, so its tokens and
+// worth are theirs summed, its versions those they used, each once, and
+// against its price as Accounts' all accounts has it. Over today, one row
+// would only repeat the total, so it has none.
 func (p Past) TokensOver(period Period) TokensPage {
 	today := dayfile.CivilOf(p.in.Now)
-	first := period.first(today, p.in.WeekStarts).Format(time.DateOnly)
-	last := period.last(today, p.in.WeekStarts).Format(time.DateOnly)
-	from := p.counted(first)
-	page := p.tokensBetween(first, last, from, period.Rows())
+	from := p.counted(period.first(today, p.in.WeekStarts).Format(time.DateOnly))
+	page, held := p.tokensFrom(from, period.last(today, p.in.WeekStarts).Format(time.DateOnly), period.Rows())
 	known := plans{accounts: p.in.Accounts, table: p.in.Prices}
-	whole := tokenPeriodsOf(between(p.days, first, last), known, p.in.Removed, p.versions(), from, period.shape(today, p.in.WeekStarts))
+	whole := tokenPeriodsOf(held, known, p.in.Removed, p.versions(), from, period.shape(today, p.in.WeekStarts))
 	if len(whole) == 1 && len(whole[0].ByAccount) > 0 {
 		whole[0].SoFar = true
 		page.Total = &whole[0]
@@ -99,29 +99,36 @@ func (p Past) TokensOver(period Period) TokensPage {
 	return page
 }
 
-// tokensBetween is a page of Tokens, its rows the periods given over the
-// days from the one with the date first to the one with the date last,
-// counted from the day with the date from, as tokenPeriodsOf counts them,
-// newest first, those with nothing recorded in them left out, the one today
-// is in so far.
-func (p Past) tokensBetween(first, last, from string, rows TokensPeriod) TokensPage {
+// tokensFrom is a page of Tokens, its rows the periods given over the days
+// from the one with the date from to the one with the date last, counted
+// from the first of them, as tokenPeriodsOf counts them, newest first, those
+// with nothing recorded in them left out, the one today is in so far; and
+// the days its rows hold, oldest first, those of the rows left out gone.
+func (p Past) tokensFrom(from, last string, rows TokensPeriod) (TokensPage, []Day) {
 	by := rows.shape(p.in.WeekStarts)
 	today, _ := by.of(dayfile.DateOf(p.in.Now))
 	known := plans{accounts: p.in.Accounts, table: p.in.Prices}
-	all := tokenPeriodsOf(between(p.days, first, last), known, p.in.Removed, p.versions(), from, by)
+	days := between(p.days, from, last)
+	all := tokenPeriodsOf(days, known, p.in.Removed, p.versions(), from, by)
 	var periods []TokenPeriod
+	shown := make(map[string]bool, len(all))
 	for _, t := range slices.Backward(all) {
 		if len(t.ByAccount) > 0 {
 			t.SoFar = t.First == today
 			periods = append(periods, t)
+			shown[t.First] = true
 		}
 	}
+	held := slices.DeleteFunc(slices.Clone(days), func(d Day) bool {
+		key, ok := by.key(d)
+		return !ok || !shown[key]
+	})
 	whole := known.against(nil, priced{share: by.share, at: dayfile.DateOf(p.in.Now)})
 	page := TokensPage{Periods: periods, PricesAsOf: p.in.Prices.AsOf}
 	if whole.Ratio != nil {
 		page.PeriodCost = whole.Cost
 	}
-	return page
+	return page, held
 }
 
 // periodShape is how Tokens' rows split days into periods: of gives the key

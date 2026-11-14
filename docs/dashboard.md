@@ -293,8 +293,10 @@ their worth at API prices against what the plans cost.
   its worth against what the plans cost over the period, `4.6× its $138 week`, as Compare has it.
   A rule sets it off from the rows under it.
 - Then a row a day over this week and 30 days, a week over 12 weeks, or a month over 12 months,
-  newest first, each against a whole day's, week's or month's price: `5.6× its $20 day`. Today is
-  the period's row alone.
+  newest first, each against what the plans cost over it, `5.6× its $20 day`: a whole day's,
+  week's or month's price, but for one that begins part-way through, as the oldest month at 12
+  months or the one the ledger began in, priced by its days from then. Today is the period's row
+  alone.
 - `v` splits each row by account, by model, by both, or not at all.
 - The rows fill the screen down to the footnote, and `j` and `k` scroll them a row at a time.
 - On a narrower screen, the columns give way as History's Tokens' do.

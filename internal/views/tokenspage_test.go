@@ -332,3 +332,30 @@ func TestTokensOverNothingRecordedHasNoTotal(t *testing.T) {
 		t.Errorf("Tokens over this week is %+v, want no total and no rows", page)
 	}
 }
+
+// The period's total is over the days its rows hold: a day of checks alone,
+// as one recorded before the ledger's version 5 holds their usage, has no
+// row, so adds nothing to the total, its tokens and worth its rows' summed.
+func TestTokensOverTotalIsOfTheDaysItsRowsHold(t *testing.T) {
+	checked := ledger.Summary{Version: 4, Day: "2026-10-06", Accounts: []ledger.AccountDay{
+		account("work", ledger.ModelDay{Model: "claude-opus-5-5", Checks: 3, Usage: []byte(inputUsage)}),
+	}}
+	days := daysFrom("2026-09-28",
+		day("2026-10-05", account("side", sent("claude-opus-5-5", 1, inputUsage))),
+		checked,
+		day("2026-10-07", account("work", sent("claude-opus-5-5", 1, inputUsage))),
+	)
+	page := views.NewPast(input(days), days).TokensOver(views.PeriodThisWeek)
+	var first []string
+	var input int
+	var worth ledger.Picodollars
+	for _, p := range page.Periods {
+		first, input, worth = append(first, p.First), input+p.Input, worth+*p.Amount
+	}
+	if want := []string{"2026-10-07", "2026-10-05"}; !slices.Equal(first, want) {
+		t.Fatalf("the rows are %q, want %q, the day of checks alone left out", first, want)
+	}
+	if total := page.Total; total.Input != input || *total.Amount != worth {
+		t.Errorf("the total is %d input, worth %v; its rows sum %d, worth %v", total.Input, *total.Amount, input, worth)
+	}
+}

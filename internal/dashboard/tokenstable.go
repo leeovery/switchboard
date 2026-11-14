@@ -236,8 +236,10 @@ func (r tokensRow) number(column string) Number {
 	switch {
 	case !r.lit:
 		return Number{}
+	case r.total && r.split:
+		return Number{Kind: NumberPeriod, Account: r.account, Of: "tokens split " + of}
 	case r.total:
-		return Number{Kind: NumberPeriod, Account: r.account, Of: "tokens " + of}
+		return Number{Kind: NumberPeriod, Of: "tokens " + of}
 	case r.split:
 		return Number{Kind: NumberTokensSplit, Account: r.account, Of: of}
 	}

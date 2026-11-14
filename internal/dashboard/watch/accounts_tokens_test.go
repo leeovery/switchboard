@@ -3,6 +3,7 @@ package watch
 import (
 	"reflect"
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -80,5 +81,29 @@ func TestVCyclesTokensSplitAndKeepsIt(t *testing.T) {
 			t.Fatalf("after v, Accounts shows %+v, the preferences keep %+v, updated %d times, scrolled %d; want %+v kept, %d times, at the top",
 				got, prefs.kept.Accounts, prefs.updates, h.model.scroll, want, updates)
 		}
+	}
+}
+
+// Tokens reads the days held alone, so at today it asks for no read of the
+// ledger's tail, nor follows it; turned to Compare, which charts today by
+// the tail's fold, Accounts asks for one at once.
+func TestAccountsTokensAtTodayAsksNoReadOfTheTail(t *testing.T) {
+	h := projectsHarness(t, dashboard.Accounts)
+	h.start()
+	h.tickUntilAsked()
+	h.keyed("[")
+	h.model = h.model.periodStepped(-1)
+	h.model.tail.due = false
+	h.deliver(h.update(frameMsg{gen: h.model.frames})...)
+	if h.model.accounts.shown.View() != dashboard.AccountsTokens || h.model.tail.due || h.model.tailFollowed() {
+		t.Fatalf("on %d at today, a read of the tail is due: %v, the tail followed: %v; want Tokens, neither",
+			h.model.accounts.shown.View(), h.model.tail.due, h.model.tailFollowed())
+	}
+	at := h.clock.now.Add(-time.Second)
+	projectsLedgerOf(h).write(projectAsks(betaOnly, "/code/beta", at, 1)...)
+	h.keyed("]")
+	hours := h.model.accounts.page.All.WorthBy[0]
+	if by := hours.Buckets[at.Local().Hour()]; h.model.accounts.shown.View() != dashboard.AccountsCompare || by.Amount == nil || *by.Amount == 0 {
+		t.Errorf("turned to %d at today, the new line's hour is %+v; want Compare, the tail read at once and the line charted", h.model.accounts.shown.View(), by.Worth)
 	}
 }

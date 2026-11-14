@@ -217,15 +217,45 @@ func TestAccountsTokensRowsFillTheViewAndCutTheLast(t *testing.T) {
 func TestAccountsTokensTotalAndTodayAreNumberedApart(t *testing.T) {
 	got := accountsTokensFrame(160, 37, views.PeriodThisWeek, TokensByAccount, periodTokens()).Numbers(threeRouted(), now)
 	for n, want := range map[Number]string{
-		{Kind: NumberPeriod, Of: "tokens total"}:                  "660M",
-		{Kind: NumberPeriod, Account: "side", Of: "tokens worth"}: "$239+",
-		{Kind: NumberTokens, Of: "total"}:                         "660M",
-		{Kind: NumberTokens, Of: "against"}:                       "2.0×$20",
-		{Kind: NumberTokensSplit, Account: "side", Of: "worth"}:   "$239+",
+		{Kind: NumberPeriod, Of: "tokens total"}:                        "660M",
+		{Kind: NumberPeriod, Account: "side", Of: "tokens split worth"}: "$239+",
+		{Kind: NumberTokens, Of: "total"}:                               "660M",
+		{Kind: NumberTokens, Of: "against"}:                             "2.0×$20",
+		{Kind: NumberTokensSplit, Account: "side", Of: "worth"}:         "$239+",
 	} {
 		if got[n] != want {
 			t.Errorf("%+v reads %q, want %q", n, got[n], want)
 		}
+	}
+}
+
+// Split by account, the row of the requests no account answered is a number
+// of its own, apart from the total's: a change to its figures brightens it
+// alone, the total's own standing as they were.
+func TestAccountsTokensNoAccountsRowIsNumberedApartFromTheTotal(t *testing.T) {
+	page := func(noAccount int) *views.TokensPage {
+		p := periodTokens()
+		total := *p.Total
+		total.ByAccount = append(slices.Clone(total.ByAccount), views.AccountTokens{Tokens: byKind(noAccount, 0, 0, 0), Worth: worthIn(0)})
+		p.Total = &total
+		return p
+	}
+	was := accountsTokensFrame(160, 37, views.PeriodThisWeek, TokensByAccount, page(100_000)).Numbers(threeRouted(), now)
+	is := accountsTokensFrame(160, 37, views.PeriodThisWeek, TokensByAccount, page(2_000_000)).Numbers(threeRouted(), now)
+	var changed []Number
+	for n, v := range is {
+		if was[n] != v {
+			changed = append(changed, n)
+		}
+	}
+	noAccount := func(of string) Number { return Number{Kind: NumberPeriod, Of: "tokens split " + of} }
+	want := []Number{noAccount("input"), noAccount("total")}
+	slices.SortFunc(changed, func(a, b Number) int { return strings.Compare(a.Of, b.Of) })
+	if !slices.Equal(changed, want) {
+		t.Errorf("the no-account row's input grown, the numbers changed are %+v, want its own alone, %+v", changed, want)
+	}
+	if got := is[Number{Kind: NumberPeriod, Of: "tokens input"}]; got != "4.2M" {
+		t.Errorf("the total's own input reads %q, want 4.2M, apart from the no-account row's", got)
 	}
 }
 
