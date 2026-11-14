@@ -366,15 +366,26 @@ func TestStandingThePageADayOnStandsItsWeeksFromOneCount(t *testing.T) {
 }
 
 // A window a week long of a model's own, as Fable's week, reset since it was
-// read, leaves the page's weeks as they were built: Accounts' weeks are of
-// the accounts' own week alone, so nothing of Fable's is filed among them.
+// read, files nothing among the page's days, and leaves its weeks as they
+// were built: Accounts' weeks are of the accounts' own week alone. The
+// account's own week, reset since it was read, is filed, the one reset.
 func TestAResetOfAWindowButTheAccountsWeekLeavesThePageAsBuilt(t *testing.T) {
 	am := accountsMoment(t, aSecondBefore)
 	fable := quota.Window{Key: "7d_oi", Label: "Fable week", Utilization: 0.5, ResetsAt: am.Now.Add(-15 * time.Second)}
 	am = withWindow(am, "work", fable)
 	built := views.NewPast(accountsIn(am), am.Days).Accounts(am.Period)
-	if stood := built.At(am.Doc.At(am.Now, claude.Policy())); weeksSaid(stood) != weeksSaid(built) {
+	m := am.Doc.At(am.Now, claude.Policy())
+	if filed := built.Unfiled(m); len(filed) > 0 {
+		t.Errorf("standing the page at Fable's week reset files %q, want nothing filed", filed)
+	}
+	if stood := built.At(m); weeksSaid(stood) != weeksSaid(built) {
 		t.Errorf("standing the page at Fable's week reset says its weeks\n%s\nwant them as built\n%s", weeksSaid(stood), weeksSaid(built))
+	}
+
+	reset := accountsMoment(t, beforeTheRead)
+	page := views.NewPast(accountsIn(reset), reset.Days).Accounts(reset.Period)
+	if filed, want := page.Unfiled(reset.Doc.At(reset.Now, claude.Policy())), []string{"work " + claude.WeekWindow}; !slices.Equal(filed, want) {
+		t.Errorf("standing the page at work's week reset files %q, want %q", filed, want)
 	}
 }
 

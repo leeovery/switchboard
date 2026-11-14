@@ -19,6 +19,7 @@ import (
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/logs"
 	"github.com/leeovery/switchboard/internal/prose"
+	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
@@ -851,19 +852,43 @@ func showsSESSIONS(t *testing.T, h *harness, after string) {
 	}
 }
 
-// Stacked at 52 columns, SESSIONS stay in view while they hold the focus as
-// what places them changes: the period's page read once → has taken the
-// focus there, pushing them down past the foot; the period stepped; and the
-// session selected ending, the selection falling to the one in its place.
-// A look where none changed leaves the view where it is.
-func TestDetailsSESSIONSStayInViewAsWhatPlacesThemChanges(t *testing.T) {
+// sessionsHarness is the moment of six sessions running on side, Accounts
+// showing Detail on side among the accounts given, stacked at 52x37:
+// started on the Overview, so the period's page isn't read till Accounts
+// shows, which it does once the harness is returned.
+func sessionsHarness(t *testing.T, accounts config.Accounts) (*harness, viewstest.AccountsMoment) {
+	t.Helper()
 	mo := accountsMoment(t, "six sessions on the account shown")
 	h := momentHarness(t, mo, dashboard.Overview)
 	h.source.sessions = mo.Sessions
-	h.model.accounts.shown = dashboard.AccountsShown{Shown: dashboard.AccountsDetail, Accounts: mo.Accounts, Chosen: "side"}
+	h.model.accounts.shown = dashboard.AccountsShown{Shown: dashboard.AccountsDetail, Accounts: accounts, Chosen: "side"}
 	h.deliver(h.update(tea.WindowSizeMsg{Width: 52, Height: 37})...)
 	h.start()
 	h.model.view = dashboard.Accounts
+	return h, mo
+}
+
+// withWindow is the document with a window more on the account with the
+// given id, as one more of its windows read.
+func withWindow(doc status.Document, id string, w quota.Window) status.Document {
+	doc.Accounts = slices.Clone(doc.Accounts)
+	for i, a := range doc.Accounts {
+		if a.ID == id {
+			doc.Accounts[i].Windows = append(slices.Clone(a.Windows), w)
+		}
+	}
+	return doc
+}
+
+// Stacked at 52 columns, SESSIONS stay in view while they hold the focus,
+// wherever what's above them or the size lays them: the period's page read
+// once → has taken the focus there, pushing them down past the foot; the
+// period stepped; a window more in USAGE, which moves them down; the
+// terminal resized; and the session selected ending, the selection falling
+// to the one in its place, with the view scrolled off them. k, and a look
+// where nothing moved them, leave the view where it is.
+func TestDetailsSESSIONSStayInViewAsWhatPlacesThemChanges(t *testing.T) {
+	h, mo := sessionsHarness(t, accountsMoment(t, "six sessions on the account shown").Accounts)
 	reading := h.update(rightKey)
 	if h.model.accounts.stood != nil || !h.model.accounts.shown.InSessions {
 		t.Fatal("the period's page is read before → takes the focus to SESSIONS, so the test reads none arriving")
@@ -878,9 +903,29 @@ func TestDetailsSESSIONSStayInViewAsWhatPlacesThemChanges(t *testing.T) {
 	h.keyed("<")
 	showsSESSIONS(t, h, "< stepped the period")
 
+	was := h.model.scroll
+	week := quota.Window{Key: claude.WeekWindow, Label: "Week", Utilization: 0.3, ResetsAt: mo.Now.Add(72 * time.Hour)}
+	h.source.router = new(withWindow(mo.Doc, "side", week))
+	h.tickUntilAsked()
+	if h.model.scroll == was {
+		t.Errorf("a window more in USAGE left the view scrolled %d, want it following SESSIONS down", was)
+	}
+	showsSESSIONS(t, h, "a window more in USAGE")
+
+	h.deliver(h.update(tea.WindowSizeMsg{Width: 52, Height: 30})...)
+	showsSESSIONS(t, h, "a resize to 52x30")
+
+	h.keyed("k")
+	scrolled := h.model.scroll
+	h.deliver(h.press("R")...)
+	if h.model.scroll != scrolled {
+		t.Errorf("a look after k scrolled the view to %d, want it left at %d", h.model.scroll, scrolled)
+	}
+
 	h.keys(downKey, downKey)
 	selected := h.model.accounts.shown.Selection(h.model.accounts.running)
 	h.source.sessions = slices.DeleteFunc(slices.Clone(mo.Sessions), func(s status.Session) bool { return s.ID == selected })
+	h.model.scroll = 0
 	h.deliver(h.press("R")...)
 	if h.model.accounts.shown.Selection(h.model.accounts.running) == selected {
 		t.Fatalf("%s is still selected once it ended", status.ShownID(selected))
@@ -890,8 +935,44 @@ func TestDetailsSESSIONSStayInViewAsWhatPlacesThemChanges(t *testing.T) {
 	h.model.scroll = 0
 	h.deliver(h.press("R")...)
 	if h.model.scroll != 0 {
-		t.Errorf("a look where nothing that places SESSIONS changed scrolled the view to %d, want it left at 0", h.model.scroll)
+		t.Errorf("a look where nothing moved SESSIONS scrolled the view to %d, want it left at 0", h.model.scroll)
 	}
+}
+
+// Leaving Detail with SESSIONS focused and coming back, by ] and [ or by tab
+// and shift-tab, each showing it from its top, shows SESSIONS again, stacked
+// at 52 columns.
+func TestDetailsSESSIONSShowAgainComingBackToDetail(t *testing.T) {
+	for _, keys := range [][]string{{"]", "["}, {"tab", "shift+tab"}} {
+		t.Run(strings.Join(keys, " "), func(t *testing.T) {
+			h, _ := sessionsHarness(t, accountsMoment(t, "six sessions on the account shown").Accounts)
+			h.keys(rightKey)
+			showsSESSIONS(t, h, "→")
+			for _, key := range keys {
+				h.keyed(key)
+			}
+			if h.model.view != dashboard.Accounts || !h.model.detailShown() || !h.model.accounts.shown.InSessions {
+				t.Fatalf("after %v, %s shows, Detail %v, SESSIONS focused %v; want Detail back, SESSIONS focused", keys, h.model.view, h.model.detailShown(), h.model.accounts.shown.InSessions)
+			}
+			showsSESSIONS(t, h, strings.Join(keys, " "))
+		})
+	}
+}
+
+// With one account, SESSIONS hold ↑↓ from the start, but Detail opens at its
+// top all the same; the first ↓, selecting the next session, scrolls the
+// view as far as shows SESSIONS.
+func TestDetailOfOneAccountShowsSESSIONSOnceASessionIsSelected(t *testing.T) {
+	h, _ := sessionsHarness(t, config.Accounts{{ID: "side"}})
+	h.deliver(h.press("R")...)
+	if h.model.scroll != 0 {
+		t.Errorf("Detail of one account opened scrolled to %d, want its top", h.model.scroll)
+	}
+	h.keys(downKey)
+	if h.model.accounts.shown.Selected == "" || h.model.scroll == 0 {
+		t.Fatalf("↓ selected %q, the view scrolled to %d; want a session selected and the view on SESSIONS", h.model.accounts.shown.Selected, h.model.scroll)
+	}
+	showsSESSIONS(t, h, "the first ↓")
 }
 
 // enter on a session in Detail opens its page as a session's page opens

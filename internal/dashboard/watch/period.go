@@ -21,8 +21,10 @@ func todayHour(period views.Period, now time.Time) int {
 // periodStepped is m with the dial's period stepped, by -1 to a shorter one,
 // as < steps it, or by 1 to a longer, as > does, the view shown from its top
 // but Projects, whose SESSIONS keeps its place for projectsBuilt to judge
-// and keep the session selected in view by, and Sessions' List, which keeps
-// its place for sessionsLooked to judge alike, and kept in the preferences for
+// and keep the session selected in view by, Sessions' List, which keeps its
+// place for sessionsLooked to judge alike, and Detail with its SESSIONS
+// shown for the focus, which keeps its place for sessionsKept to judge, and
+// kept in the preferences for
 // the next watch to open with, the page built afresh as accountsBuilt has
 // it. At either end it stays as it is.
 func (m Model) periodStepped(by int) Model {
@@ -31,7 +33,7 @@ func (m Model) periodStepped(by int) Model {
 		return m
 	}
 	m.period = period
-	if m.shownView() != dashboard.Projects && !m.listShown() {
+	if m.shownView() != dashboard.Projects && !m.listShown() && !m.sessionsHeld() {
 		m.scroll = 0
 	}
 	return m.keepPrefs("the period", func(prefs *theme.Prefs) { dashboard.KeepPeriod(prefs, period) }, "period", string(period))

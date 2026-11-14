@@ -18,7 +18,7 @@ import (
 // built of, as builtOf has it; that page stood at a moment, and what it was
 // stood at, as accountsBuilt stands it; the sessions Detail's SESSIONS
 // listed last, by id, in their order, for its selection to follow, as
-// followed has it; and what placed SESSIONS when the view was last scrolled
+// followed has it; and where SESSIONS lay when the view was last scrolled
 // to show them, as sessionsKept has it.
 type accountsTab struct {
 	shown   dashboard.AccountsShown
@@ -28,19 +28,7 @@ type accountsTab struct {
 	at      *stoodAt
 	running []string
 	today   bool
-	placed  sessionsPlaced
-}
-
-// sessionsPlaced is what places Detail's SESSIONS on its view while they
-// hold the focus: the account shown and the session selected, as Selection
-// resolves it; the period, and whether its page is read, which draw the
-// parts above them; and the size. The zero one is SESSIONS without the
-// focus.
-type sessionsPlaced struct {
-	account, selected string
-	period            views.Period
-	read              bool
-	size              Size
+	placed  dashboard.SessionsPlace
 }
 
 // stoodAt is what a page was stood at: the moment, held, and its time; and
@@ -207,11 +195,15 @@ func (m Model) detailsSessions() bool {
 // followed is m with Detail's SESSIONS' selection following the sessions
 // running on the account it shows, as Following has it, from those it listed
 // last to those it lists now, kept for the next, and the view on SESSIONS,
-// as sessionsKept keeps it: while Detail shows, but for
-// a frame, which takes nothing in; while it doesn't, the selection holds as
-// it was, for the run.
+// as sessionsKept keeps it: while Detail shows, but for a frame, which takes
+// nothing in; while it doesn't, the selection holds as it was, for the run,
+// and where SESSIONS lay is forgotten, so coming back shows them.
 func (m Model) followed(msg tea.Msg) Model {
-	if _, frame := msg.(frameMsg); frame || !m.detailShown() {
+	if _, frame := msg.(frameMsg); frame {
+		return m
+	}
+	if !m.detailShown() {
+		m.accounts.placed = dashboard.SessionsPlace{}
 		return m
 	}
 	is := m.running(m.now())
@@ -219,25 +211,35 @@ func (m Model) followed(msg tea.Msg) Model {
 	return m.sessionsKept()
 }
 
+// sessionsHeld reports whether Detail shows with its SESSIONS kept in view
+// for the focus, as sessionsKept keeps them.
+func (m Model) sessionsHeld() bool {
+	return m.detailShown() && m.accounts.placed != dashboard.SessionsPlace{}
+}
+
 // sessionsKept is m with the view scrolled as far as shows Detail's
 // SESSIONS, as DetailSessionsScroll has it, while they hold the focus, taken
-// there by →, or with one account by ↑ or ↓, and what places them, as
-// sessionsPlaced has it, has changed since the view last showed them: so
-// they stay in view as the focus moves into them or along them, as the
-// session selected ends, as the period steps or its page is read, and as the
-// terminal is resized, and never move on a look where none of those changed.
+// there by →, or with one account by ↑ or ↓, wherever they lie otherwise
+// than when the view last showed them, as DetailSessionsPlace lays them out
+// before the view's scrolled: so whatever moves them, the focus coming into
+// them or moving along them, the session selected ending, a part above them
+// growing or shrinking as its page is read, its period steps or the
+// document changes, or the terminal resized, they stay in view; and j and k,
+// which scroll the view and move them nowhere, are never undone. Detail
+// left clears where they lay, as followed has it, so coming back shows them.
 func (m Model) sessionsKept() Model {
 	s := m.accounts.shown
 	if !s.InSessions && (!s.Alone() || s.Selected == "") {
-		m.accounts.placed = sessionsPlaced{}
-		return m
-	}
-	placed := sessionsPlaced{account: s.Account(), selected: s.Selection(m.accounts.running), period: m.period, read: m.accounts.stood != nil, size: m.size}
-	if placed == m.accounts.placed {
+		m.accounts.placed = dashboard.SessionsPlace{}
 		return m
 	}
 	now := m.now()
-	m.accounts.placed, m.scroll = placed, m.frame(now).DetailSessionsScroll(m.doc, now)
+	f := m.frame(now)
+	placed := f.DetailSessionsPlace(m.doc, now)
+	if placed == m.accounts.placed {
+		return m
+	}
+	m.accounts.placed, m.scroll = placed, f.DetailSessionsScroll(m.doc, now)
 	return m
 }
 

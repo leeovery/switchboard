@@ -184,13 +184,12 @@ func (f Frame) detailStackedBody(doc status.Document, now time.Time) accountsFor
 }
 
 // stack is a view stacked and drawn whole: its rows, on a canvas the frame's
-// width; the zones of them a click acts on, by their rows on it; and the
-// rows that show its SESSIONS, as sessionsRows has them, none where it has
-// none.
+// width; the zones of them a click acts on, by their rows on it; and where
+// its SESSIONS lie, as sessionsAt has it, nowhere where it has none.
 type stack struct {
 	c        *canvas
 	targets  []Target
-	sessions []int
+	sessions detailSessions
 }
 
 // stackForm is the form of the stack drawn whole as drawn draws it, drawn
@@ -205,15 +204,16 @@ func (f Frame) stackForm(drawn func() stack, filled func() map[Ref]float64) acco
 		scrolling: func(offset int) Scrolling { return pagedWhole(drawn().c, f.viewRows()).scrolling(offset) },
 		targets:   func() []Target { return f.stackTargets(drawn()) },
 		filled:    filled,
-		sessions:  func(offset int) int { return f.stackSessionsShown(drawn(), offset) },
+		sessions:  func() detailSessions { return f.stackSessions(drawn()) },
 	}
 }
 
-// stackSessionsShown is how far the stack is scrolled from offset to show
-// its SESSIONS, as revealingAll reveals their rows; as far as it is where
-// it has none.
-func (f Frame) stackSessionsShown(s stack, offset int) int {
-	return revealingAll(pagedWhole(s.c, f.viewRows()), offset, s.sessions)
+// stackSessions is where the stack lays its SESSIONS out, as its sessions
+// has them, none where it has none; and how the stack pages.
+func (f Frame) stackSessions(s stack) detailSessions {
+	laid := s.sessions
+	laid.paged = pagedWhole(s.c, f.viewRows())
+	return laid
 }
 
 // drawStack draws the stack's rows the view shows from row top, and over the
@@ -534,9 +534,9 @@ func (s stacked) whole() stack {
 		y = s.stackedWorth(c, y+partsApart)
 	}
 	var targets []Target
-	var sessions []int
+	var sessions detailSessions
 	if len(s.running) > 0 {
-		sessions = s.sessionsRows(y + partsApart)
+		sessions = s.sessionsAt(y + partsApart)
 		y, targets = s.sessions(c, y+partsApart)
 	}
 	y += partsApart
