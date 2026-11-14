@@ -6,32 +6,32 @@ ACCOUNTS    Compare  Detail  [ ]  ───────────────�
 
  all accounts       │   personal ◆   ■ limit reached · new sessions go elsewhere
                     │
- work          ■    │   USAGE                                                                                        THIS WEEK
-                    │   Week                               ┃               66%  out ~Fri                             requests  1,867
- personal    ◆ ■    │                                                                                                limits    5-hour ×2
-                    │   5-hour                                 ┃          100%  limit · back 15:54                   plan      Ultra
- side          ●    │                                                                                                worth     $164  3.6×
-                    │                                                                                                extra use off
+ work          ■    │   USAGE                                                                                                          THIS WEEK
+                    │   Week                               ┃               66%  out ~Fri                                               requests  1,867
+ personal    ◆ ■    │                                                                                                                  limits    5-hour ×2
+                    │   5-hour                                 ┃          100%  limit · back 15:54                                     plan      Ultra
+ side          ●    │                                                                                                                  worth     $164  3.6×
+                    │                                                                                                                  extra use off
                     │
  ↑↓ choose          │   BY MODEL
                     │               ● Opus 5.5 8%  ● Sonnet 5.5 78%  ● Sonnet 5 9%  ● Haiku 4.5 5%
                     │
-                    │   ┄┄ the last six weeks ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
+                    │   ┄┄ the last seven weeks ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
                     │
-                    │   BY DAY                          ▪     ▪             ▪             ▪   ▪   ▪         ▪     ▪               ▪ ▪ ······
-                    │               24 Aug            31 Aug            7 Sep             14 Sep            21 Sep            28 Sep
+                    │   BY DAY      ▪     ▪                               ▪     ▪             ▪             ▪   ▪   ▪         ▪     ▪               ▪ ▪ ······
+                    │               17 Aug            24 Aug            31 Aug            7 Sep             14 Sep            21 Sep            28 Sep
                     │
-                    │   WEEKS            ▎    58            ▉   77            ▎   69              ▏ 90             ▋  85                66
+                    │   WEEKS             ▎   70           ▎    58            ▉   77            ▎   69              ▏ 90             ▋  85                66
                     │
-                    │   ends most weeks with room   limit hit 0 of the last 7 weeks · 27% left at a reset, on average
+                    │   limit hit 0 of the last 6 weeks · 25% left at a reset, on average
                     │
-                    │   LATELY      14:12  ■ reached its 5-hour limit: 2 sessions moved to side
-                    │               13:40  ● pinned with side, by hand
-                    │               12:47  ▲ docs started here, the best
+                    │   WORTH
                     │
                     │
                     │
-
-
-
+                    │
+                    │
+                    │               Mon              Tue              Wed              Thu              Fri              Sat              Sun
+                    │               peak Wed $81.32
+                        ▼ 11 more below · j/k
 tab views   [ ] view    < > period: this week    ↑↓ account  enter its page    p pin    ? help  q quit

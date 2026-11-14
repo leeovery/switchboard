@@ -1,0 +1,53 @@
+ SWITCHBOARD    Overview   Accounts   Projects   History   Sessions   Runway   Graphs   Log                                                               Thu 1 Oct  14:42:07
+
+● healthy  ·  auto  ·  6 sessions  ·  new sessions → ▲ side
+
+ACCOUNTS    Compare  Detail  [ ]  ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────  < 12 weeks >
+
+ all accounts       │   work   ● at its cap · new sessions go elsewhere
+                    │
+ work          ●    │   USAGE                                                                                                                     LAST 12 WEEKS
+                    │   Week                  ▋       ┃                ╎   34%  out ~Sat                                                          requests  29,141
+ personal    ◆ ●    │                                                                                                                             limits    week ×3
+                    │   5-hour                       ┃                 ╎   95%  at cap · back 17:10                                                         5-hour ×51
+ side          ●    │                                                                                                                             plan      Ultra
+                    │                                                                                                                             worth     $3,422  6.2×
+                    │                                                                                                                             extra use off
+ ↑↓ choose          │
+                    │   BY MODEL
+                    │               ● Opus 5.5 51%  ● Opus 5 5%  ● Sonnet 5.5 35%  ● Sonnet 5 4%  ● Fable 5.1 2%  ● Haiku 4.5 2%
+                    │
+                    │   ┄┄ the last 15 weeks ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
+                    │
+                    │   BY DAY      ▪▪▪▪▪    ▪▪▪▪▪    ▪▪▪▪▪    ▪▪▪▪▪    ▪▪▪▪▪    ▪▪▪▪▪    ▪ ▪ ▪    ▪ ▪ ▪    ▪ ▪▪▪    ▪▪▪▪▪    ▪▪▪▪▪    ▪▪▪▪▪    ▪▪▪ ▪    ▪▪▪▪▪     ▪▪ ···
+                    │               22 Jun   29 Jun   6 Jul    13 Jul   20 Jul   27 Jul   3 Aug    10 Aug   17 Aug   24 Aug   31 Aug   7 Sep    14 Sep   21 Sep   28 Sep
+                    │
+                    │   WEEKS        ▋ 81     ▋ 81     ▋ 79     ▊ 86     ▊ 88     ▊ 88     ▊ 90     ▌ 72     ▊ 88       100    ▉ 94       100    ▋ 81       100   ▋  34
+                    │
+                    │   limit hit 3 of the last 14 weeks · 12% left at a reset, on average
+                    │
+                    │   WORTH                                                          ▃
+                    │                                            ▇      ▁▆      ▇     ▆
+                    │                  ▆   ▇      ▆  ▇    ▂ ▁▅  ▁ ▅                           ▆    ▄      ▃ ▁    ▁  ▁
+                    │                ▁▄ ▅      ▇   ▅  ▆            ▁▂     ▃▂  ▆  ▃▇     ▆    ▅  ▂    ▄            ▄
+                    │                        ▇      ▆      ▆                             ▇             ▇   ▇  ▆    ▂
+                    │                    ▂▁     ▂      ▂▁     ▃▁            ▄▂            ▄              ▂
+                    │                 15 Jul 22 Jul 29 Jul 5 Aug 11 Aug 18 Aug 25 Aug 1 Sep 7 Sep 13 Sep 20 Sep 27 Sep 4 Oct
+                    │               peak 25 Aug $111
+                    │
+                    │   LATELY      14:31      ╎ reached its cap: 3 sessions moved to side
+                    │               14:12      ▲ api started here, the best
+                    │               13:22      ▸ infra came from personal: personal came under pressure, its 5-hour to run out at 13:50
+                    │               12:10      ◇ primed: its 5-hour window started
+                    │               12:02      ▲ switchboard started here, the best
+                    │               09:40      ▲ docs started here, the best
+                    │               09:12      ▲ infra started here, the best
+                    │               07:58      ▲ api started here, the best
+                    │               07:05      ◇ primed: its 5-hour window started
+                    │               Wed 17:10  ✓ open again: its 5-hour window reset
+                    │
+                    │
+                    │
+                    │
+
+tab views   [ ] view    < > period: 12 weeks    ↑↓ account  enter its page    p pin    ? help  q quit

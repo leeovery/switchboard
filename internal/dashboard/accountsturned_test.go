@@ -53,10 +53,11 @@ func TestTurnedComparesMovedFallsToHowMany(t *testing.T) {
 		width int
 		want  string
 	}{{52, "1 in · 3 out"}, {44, "4"}, {40, "4"}} {
-		f := phoneText(t, tt.width, 60, AccountsCompare, "", page, nil)
-		rows := textOf(f.Draw(phoneDoc(), routedAt))[f.top():]
-		if got := strings.TrimSpace(ansi.Cut(rows[21], columnOf(rows[20], "moved"), tt.width)); got != tt.want {
-			t.Errorf("at %d, work's moved reads %q, want %q, in %q", tt.width, got, tt.want, rows[21])
+		f := phoneText(t, tt.width, turnedRows, AccountsCompare, "", page, nil)
+		rows := textOf(f.Draw(phoneDoc(), routedAt))
+		heads := slices.Index(rows, rowStarting(t, rows, "ACTIVITY"))
+		if got := strings.TrimSpace(ansi.Cut(rows[heads+1], columnOf(rows[heads], "moved"), tt.width)); got != tt.want {
+			t.Errorf("at %d, work's moved reads %q, want %q, in %q", tt.width, got, tt.want, rows[heads+1])
 		}
 	}
 }
@@ -154,7 +155,7 @@ func TestTurnedComparesPlansHoldStillAcrossADatedPriceChange(t *testing.T) {
 			page.Rows[i].Plan.Price = usd(monthly)
 		}
 		page.All.Plan.Price = usd(3 * monthly)
-		f := phoneText(t, 40, 60, AccountsCompare, "", page, nil)
+		f := phoneText(t, 40, turnedRows, AccountsCompare, "", page, nil)
 		f.Accounts.Accounts, f.PlansAtMost = accounts, views.PlansAtMost(accounts, table)
 		rows := textOf(f.Draw(phoneDoc(), routedAt))
 		i := slices.IndexFunc(rows, func(row string) bool { return strings.HasPrefix(row, "VALUE") })
@@ -181,12 +182,62 @@ func TestTurnedComparesAgainstItIsWholeAt40(t *testing.T) {
 	page := phonePage(t)
 	page.Rows[2].Plan.Price, page.All.Plan.Price = nil, usd(400)
 	page.All.Plan.Plans = views.PlansKnown{Known: 2, Of: 3}
-	f := phoneText(t, 40, 60, AccountsCompare, "", page, nil)
+	f := phoneText(t, 40, turnedRows, AccountsCompare, "", page, nil)
 	f.Accounts.Accounts, f.PlansAtMost = accounts, views.PlansAtMost(accounts, ledger.Pricing)
 	rows := textOf(f.Draw(phoneDoc(), routedAt))
 	for _, want := range []string{"VALUE      plan     worth    against it", " side      —        $239     5.2×", " all       $400/mo  $635     4.6× · 2/3"} {
 		if !slices.ContainsFunc(rows, func(row string) bool { return strings.TrimRight(row, " ") == want }) {
 			t.Errorf("Compare reads\n%s\nwant a row %q", strings.Join(rows, "\n"), want)
+		}
+	}
+}
+
+// Turned Compare gains WEEKS and WORTH after BY MODEL, a band each column,
+// the accounts' then all accounts': WEEKS' bands back to back under its
+// heading, each its name, the latest of the reach's peaks under their
+// columns, how many more the first band's peaks' row says, and Weeks'
+// facts at the right; WORTH's a blank row before each, its name on its
+// chart's top row, its chart from where the bars start to the frame's edge,
+// its axis and its peak under it, all accounts' on its own scale.
+func TestTurnedComparesWEEKSAndWORTHAreBands(t *testing.T) {
+	const at = 13
+	_, rows := chartedCompare(t, 73, turnedRows, chartedPage(t))
+	weeks := slices.Index(rows, rowStarting(t, rows, "WEEKS  each week at its peak"))
+	if byModel := slices.Index(rows, rowStarting(t, rows, "BY MODEL")); byModel > weeks {
+		t.Errorf("WEEKS is on row %d, want it after BY MODEL, on %d", weeks, byModel)
+	}
+	for i, want := range []struct{ name, facts, left string }{
+		{" work", "limit hit 3 of 7", "9% left at a reset"},
+		{" personal  ◆", "limit hit 0 of 7", "27% left at a reset"},
+		{" side", "limit hit 0 of 7", "59% left at a reset"},
+		{" all", "short on 3 of 7", "32% left at a reset"},
+	} {
+		top := weeks + 2 + i*bandHeight
+		if !strings.HasPrefix(rows[top], want.name+" ") || !strings.HasSuffix(rows[top], want.facts) || !strings.HasSuffix(rows[top+1], want.left) {
+			t.Errorf("band %d reads %q, %q, want %s, its facts %q, %q", i, rows[top], rows[top+1], want.name, want.facts, want.left)
+		}
+	}
+	if peaks := rows[weeks+2+bandRows]; !strings.HasPrefix(peaks, " ‹ 4 more ") || !strings.HasSuffix(peaks, "100%    81%     100%    34%…") {
+		t.Errorf("work's peaks read %q, want the reach's last four, and 4 more", peaks)
+	}
+	worth := slices.Index(rows, rowStarting(t, rows, "WORTH  at API prices, by day"))
+	activity := slices.Index(rows, rowStarting(t, rows, "ACTIVITY"))
+	if worth < weeks || activity < worth {
+		t.Errorf("WEEKS, WORTH and ACTIVITY are on rows %d, %d and %d, want them in that order", weeks, worth, activity)
+	}
+	for i, want := range []struct{ name, peak string }{{" work", "peak Wed $148"}, {" all", "peak Wed $222 · its own scale"}} {
+		top := worth + 2
+		if i > 0 {
+			top = activity - 1 - (worthChartRows + 2)
+		}
+		if !strings.HasPrefix(rows[top], want.name) || rows[top-1] != "" {
+			t.Errorf("WORTH's band reads %q, a row before %q, want %s after a blank row", rows[top], rows[top-1], want.name)
+		}
+		if axis := rows[top+worthChartRows]; columnOf(axis, "Mon") != at || !strings.HasSuffix(strings.TrimRight(axis, " "), "Sun") {
+			t.Errorf("%s's axis reads %q, want Mon at %d to Sun", want.name, axis, at)
+		}
+		if peak := rows[top+worthChartRows+1]; columnOf(peak, want.peak) != at {
+			t.Errorf("%s's peak reads %q, want %q at %d", want.name, peak, want.peak, at)
 		}
 	}
 }

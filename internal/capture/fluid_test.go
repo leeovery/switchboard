@@ -175,15 +175,16 @@ var knownBreaks = []known{
 	},
 	{
 		byDesign: "Detail's LATELY's directories, as the Log cuts them", cuts: logDirCuts(), rule: cutWithRoom,
-		sizes:    []string{"73x61", "73x36", "108x44", "173x53", "109x53"},
+		sizes:    []string{"73x61", "108x44", "173x53", "109x53"},
 		fixtures: []string{"long-names-accounts-detail"},
 	},
 	// Detail's list, which gives way first, its names cut to what the panel
 	// leaves them, down to 14 cells, before its weeks narrow (the owner's call,
-	// 15 October 2026).
+	// 15 October 2026): at 108, eight weeks of one-cell days take 70 cells,
+	// THIS WEEK's title row blank past it.
 	{
-		byDesign: "Detail's list giving way at 109", cuts: []string{"personal-rese…"}, rule: cutWithRoom,
-		sizes: []string{"109x53"}, fixtures: []string{"long-names-accounts-detail"},
+		byDesign: "Detail's list giving way at 108", cuts: []string{"work-team-pl…"}, rule: cutWithRoom,
+		sizes: []string{"108x44", "108x24"}, fixtures: []string{"long-names-accounts-detail"},
 	},
 	// The List's directories at their most, where the session's column is
 	// whole and the rows end blank.

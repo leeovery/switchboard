@@ -58,15 +58,71 @@ func verdictRead(v views.AccountVerdict) string {
 	if v.Weeks == 0 {
 		return "0 weeks"
 	}
-	return fmt.Sprintf("%s %d/%d %s", v.Verdict, v.Limits, v.Weeks, shareRead(v.LeftAtReset))
+	return v.Verdict + " " + factsRead(v)
 }
 
-// Detail's WEEKS and verdicts are the frames': each account's last six
-// weeks' peaks, this week's so far, and its verdict over the last 7 whole
-// weeks, its limits and what it left at a reset, on average; every
-// account's, the mean of their peaks, and room to spare together, naming
-// side as the one ending weeks with the most left and work the least.
-func TestDetailsWeeksAndVerdictsAreTheFrames(t *testing.T) {
+// factsRead reads a verdict's facts alone, its limits over its weeks and its
+// share left on average, as "2/6 23%": "0 weeks" over none.
+func factsRead(v views.AccountVerdict) string {
+	if v.Weeks == 0 {
+		return "0 weeks"
+	}
+	return fmt.Sprintf("%d/%d %s", v.Limits, v.Weeks, shareRead(v.LeftAtReset))
+}
+
+// weeksJudged are the weeks Weeks' own page shows, whose whole weeks its
+// verdict is over: this one and the seven before it.
+const weeksJudged = 8
+
+// lastOf are the last n of the things given, every one where there are
+// fewer.
+func lastOf[T any](all []T, n int) []T {
+	return all[max(len(all)-n, 0):]
+}
+
+// Detail's WEEKS and facts are the frames': each account's last six weeks'
+// peaks, this week's so far, and Weeks' facts on the last eight, Weeks' own,
+// over their 7 whole weeks, its limits and what it left at a reset, on
+// average; every account's, the mean of their peaks, the weeks some account
+// was short and what every account's weeks left. The page holds the weeks
+// of the last 12 months, the 52 to this one.
+func TestDetailsWeeksAndFactsAreTheFrames(t *testing.T) {
+	page := framesPage()
+	tests := []struct {
+		name         string
+		row          views.AccountsRow
+		peaks, facts string
+	}{
+		{name: "work", row: page.Rows[0], peaks: "100 94 100 81 100 34…", facts: "3/7 9%"},
+		{name: "personal", row: page.Rows[1], peaks: "58 77 69 90 85 66…", facts: "0/7 27%"},
+		{name: "side", row: page.Rows[2], peaks: "41 30 52 47 60 78…", facts: "0/7 59%"},
+		{name: "all accounts", row: page.All, peaks: "66 67 74 73 82 59…", facts: "3/7 32%"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := peaksRead(lastOf(tt.row.Peaks, 6)); got != tt.peaks {
+				t.Errorf("%s's weeks are %s, want %s", tt.name, got, tt.peaks)
+			}
+			if got := factsRead(tt.row.Facts(weeksJudged)); got != tt.facts {
+				t.Errorf("%s's facts are %s, want %s", tt.name, got, tt.facts)
+			}
+			if got := tt.row.Facts(weeksJudged); got.All != (tt.name == "all accounts") {
+				t.Errorf("%s's facts are every account's: %v", tt.name, got.All)
+			}
+		})
+	}
+	if want := []string{"2026-08-31", "2026-09-07", "2026-09-14", "2026-09-21", "2026-09-28", "2026-10-05"}; !slices.Equal(lastOf(page.Weeks, 6), want) {
+		t.Errorf("the last six weeks are %v, want %v", lastOf(page.Weeks, 6), want)
+	}
+	if len(page.Weeks) != 52 || page.Weeks[0] != "2025-10-13" || len(page.Rows[0].Peaks) != 52 {
+		t.Errorf("the page holds %d weeks from %s, %d peaks, want the 52 from 13 Oct 2025", len(page.Weeks), page.Weeks[0], len(page.Rows[0].Peaks))
+	}
+}
+
+// framesPage is Accounts' page over this week of the frames' weeks: work's,
+// personal's and side's last seven, and this week's so far, now Wednesday 7
+// October.
+func framesPage() views.AccountsPage {
 	days := peaking(map[string][]float64{
 		"work":     {0.72, 0.88, 1, 0.94, 1, 0.81, 1},
 		"personal": {0.64, 0.70, 0.58, 0.77, 0.69, 0.90, 0.85},
@@ -76,33 +132,46 @@ func TestDetailsWeeksAndVerdictsAreTheFrames(t *testing.T) {
 		windowsDay{highest: map[string]float64{"7d": 0.66}}.of("personal"),
 		windowsDay{highest: map[string]float64{"7d": 0.78}}.of("side"),
 		windowsDay{highest: map[string]float64{"7d": 0.34}}.of("work"))
-	page := accountsPageOf(days, threeAccounts)
+	return accountsPageOf(days, threeAccounts)
+}
 
+// Weeks' facts on the last weeks asked for are on the whole weeks among
+// them alone, this week never one: the last four are the three before this
+// one; this week alone is none; and more than the page holds are every one.
+func TestFactsAreOnTheWholeWeeksAmongTheLastAsked(t *testing.T) {
+	page := framesPage()
 	tests := []struct {
-		name           string
-		row            views.AccountsRow
-		peaks, verdict string
+		name  string
+		row   views.AccountsRow
+		weeks int
+		want  string
 	}{
-		{name: "work", row: page.Rows[0], peaks: "100 94 100 81 100 34…", verdict: views.HitsItsLimit + " 3/7 9%"},
-		{name: "personal", row: page.Rows[1], peaks: "58 77 69 90 85 66…", verdict: views.EndsWithRoom + " 0/7 27%"},
-		{name: "side", row: page.Rows[2], peaks: "41 30 52 47 60 78…", verdict: views.PlentyToSpare + " 0/7 59%"},
-		{name: "all accounts", row: page.All, peaks: "66 67 74 73 82 59…", verdict: views.RoomToSpare + " 3/7 32%"},
+		{"work's last four", page.Rows[0], 4, "2/3 6%"},
+		{"personal's last four", page.Rows[1], 4, "0/3 19%"},
+		{"every account's last four", page.All, 4, "2/3 24%"},
+		{"work's this week alone", page.Rows[0], 1, "0 weeks"},
+		{"work's every week", page.Rows[0], 100, "3/7 9%"},
 	}
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := peaksRead(tt.row.Peaks); got != tt.peaks {
-				t.Errorf("%s's weeks are %s, want %s", tt.name, got, tt.peaks)
-			}
-			if got := verdictRead(tt.row.Verdict); got != tt.verdict {
-				t.Errorf("%s's verdict is %s, want %s", tt.name, got, tt.verdict)
-			}
-		})
+		if got := factsRead(tt.row.Facts(tt.weeks)); got != tt.want {
+			t.Errorf("%s: the facts are %s, want %s", tt.name, got, tt.want)
+		}
 	}
-	if want := []string{"2026-08-31", "2026-09-07", "2026-09-14", "2026-09-21", "2026-09-28", "2026-10-05"}; !slices.Equal(page.Weeks, want) {
-		t.Errorf("the six weeks are %v, want %v", page.Weeks, want)
-	}
-	if most, least, ok := page.Ends(); !ok || most.Totals.Account != "side" || least.Totals.Account != "work" {
-		t.Errorf("weeks end with the most left on %q and the least on %q (%v), want side and work", most.Totals.Account, least.Totals.Account, ok)
+}
+
+// Detail's weeks section reaches over the weeks that begin in the period,
+// this one last, but never fewer than six: six at today, this week and 30
+// days, 12 at 12 weeks and 52 at 12 months; and so it does at the fewest
+// whatever the day, before any page is read.
+func TestDetailReachesOverThePeriodsWeeksAtLeastSix(t *testing.T) {
+	want := map[views.Period]int{views.PeriodToday: 6, views.PeriodThisWeek: 6, views.PeriodThirtyDays: 6, views.PeriodTwelveWeeks: 12, views.PeriodTwelveMonths: 52}
+	for _, period := range views.Periods() {
+		days := daysFrom("2026-10-07")
+		in := input(days)
+		page := views.NewPast(in, days).Accounts(period)
+		if page.Reaches != want[period] || period.WeeksLeast() != want[period] {
+			t.Errorf("at %s, Detail reaches over %d weeks, at the fewest %d, want %d", period.Name(), page.Reaches, period.WeeksLeast(), want[period])
+		}
 	}
 }
 
@@ -154,29 +223,6 @@ func TestThePagesPricesAreAsOfThePriceTablesDate(t *testing.T) {
 	}
 }
 
-// Where one account's weeks are known, it ends weeks with both the most and
-// the least left; where none's are, none does.
-func TestTheEndsOfOneAccountsWeeksAreItsOwn(t *testing.T) {
-	days := peaking(map[string][]float64{"work": {0.5, 0.6, 0.7}})
-	page := accountsPageOf(days, workAndSide)
-	if most, least, ok := page.Ends(); !ok || most.Totals.Account != "work" || least.Totals.Account != "work" {
-		t.Errorf("the ends are %q and %q (%v), want work both", most.Totals.Account, least.Totals.Account, ok)
-	}
-	if _, _, ok := accountsPageOf(daysFrom("2026-10-07"), workAndSide).Ends(); ok {
-		t.Error("with no week known, the ends are known")
-	}
-}
-
-// Of the accounts that tie, the first configured ends weeks with the most
-// left, and with the least.
-func TestTheFirstConfiguredEndsWeeksOfThoseThatTie(t *testing.T) {
-	days := peaking(map[string][]float64{"work": {0.5, 0.5}, "side": {0.5, 0.5}, "spare": {0.5, 0.5}})
-	most, least, _ := accountsPageOf(days, accounts).Ends()
-	if most.Totals.Account != "work" || least.Totals.Account != "work" {
-		t.Errorf("of three that tie, the ends are %q and %q, want work, the first configured, both", most.Totals.Account, least.Totals.Account)
-	}
-}
-
 // BY DAY shades each account's days on its own scale, the quarters of its
 // own active days, where Days' BY ACCOUNT shades every account on one: so
 // side, which used a tenth of what work did each day, is shaded as work is.
@@ -197,7 +243,7 @@ func TestByDayShadesEachAccountOnItsOwnScale(t *testing.T) {
 
 	levels := func(days []views.StripDay) []int {
 		var got []int
-		for _, d := range days[:4] {
+		for _, d := range lastOf(days, 7*6)[:4] {
 			got = append(got, d.Level)
 		}
 		return got
@@ -210,7 +256,7 @@ func TestByDayShadesEachAccountOnItsOwnScale(t *testing.T) {
 	}
 	marked := func(days []views.StripDay) []bool {
 		var got []bool
-		for _, d := range days[:4] {
+		for _, d := range lastOf(days, 7*6)[:4] {
 			got = append(got, d.Limit)
 		}
 		return got
@@ -227,22 +273,30 @@ func TestByDayShadesEachAccountOnItsOwnScale(t *testing.T) {
 	}
 }
 
-// BY DAY is the six weeks to this one, a day at a time, its days to come
-// counted, as many as are left of this week on each of its days; a week of
-// no use is its days at level 0.
-func TestByDayIsTheSixWeeksToThisOneItsDaysToComeCounted(t *testing.T) {
+// BY DAY is the page's weeks to this one, those that begin in the last 12
+// months, 53 on the Monday a year back is one and 52 after, a day at a
+// time, its days to come counted, as many as are left of this week on each
+// of its days; a week of no use is its days at level 0.
+func TestByDayIsThePagesWeeksToThisOneItsDaysToComeCounted(t *testing.T) {
 	for i := range 7 {
 		now := on("2026-10-05").AddDate(0, 0, i).Add(13 * time.Hour)
 		days := daysTo("2026-10-01", now, day("2026-10-01", rose("work", map[string]float64{"7d": 0.1})))
 		in := input(days)
 		in.Now = now
 		page := views.NewPast(in, days).Accounts(views.PeriodThisWeek)
+		weeks, first := 52, "2025-10-13"
+		if i == 0 {
+			weeks, first = 53, "2025-10-06"
+		}
 		t.Run(now.Weekday().String(), func(t *testing.T) {
-			if page.ToCome != 6-i || len(page.Rows[0].Days) != 42 || page.Weeks[0] != "2026-08-31" {
-				t.Errorf("on %v, %d of %d days are to come, from %s, want %d of 42, from 31 Aug", now.Weekday(), page.ToCome, len(page.Rows[0].Days), page.Weeks[0], 6-i)
+			if page.ToCome != 6-i || len(page.Rows[0].Days) != 7*len(page.Weeks) || len(page.Weeks) != weeks || page.Weeks[0] != first ||
+				page.Weeks[len(page.Weeks)-1] != "2026-10-05" {
+				t.Errorf("on %v, %d of %d days are to come, of %d weeks from %s, want %d of %d weeks' from %s to 5 Oct",
+					now.Weekday(), page.ToCome, len(page.Rows[0].Days), len(page.Weeks), page.Weeks[0], 6-i, weeks, first)
 			}
-			if slices.ContainsFunc(page.Rows[0].Days[:7*4], func(d views.StripDay) bool { return d.Level > 0 }) {
-				t.Errorf("the weeks of no use are at levels %v, want 0", page.Rows[0].Days[:7*4])
+			lastSix := lastOf(page.Rows[0].Days, 7*6)
+			if slices.ContainsFunc(lastSix[:7*4], func(d views.StripDay) bool { return d.Level > 0 }) {
+				t.Errorf("the weeks of no use are at levels %v, want 0", lastSix[:7*4])
 			}
 		})
 	}

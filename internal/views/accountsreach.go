@@ -1,6 +1,7 @@
 package views
 
 import (
+	"math"
 	"slices"
 	"time"
 
@@ -9,21 +10,59 @@ import (
 )
 
 // reachLeast are the fewest weeks Compare's WEEKS reaches over, whatever the
-// period.
-const reachLeast = 8
+// period, and detailLeast the fewest Detail's weeks section does.
+const (
+	reachLeast  = 8
+	detailLeast = 6
+)
 
 // reachWeeks is how many weeks Compare's WEEKS reaches over at the period,
 // today being the day given, as dayfile.Civil gives a day, weeks starting on
-// the day given: the weeks that begin in the period, to this one, but never
-// fewer than reachLeast. So eight at today, this week and the last 30 days,
-// 12 at the last 12 weeks, and 52 at the last 12 months.
+// the day given: the weeks that begin in the period, to this one, as
+// begunWeeks counts them, but never fewer than reachLeast. So eight at
+// today, this week and the last 30 days, 12 at the last 12 weeks, and 52 at
+// the last 12 months.
 func (p Period) reachWeeks(today time.Time, starts time.Weekday) int {
+	return max(p.begunWeeks(today, starts), reachLeast)
+}
+
+// begunWeeks is how many weeks begin in the period, today being the day
+// given, as dayfile.Civil gives a day, weeks starting on the day given: from
+// the first that begins on its first day or after, to this one, which it
+// counts whether it begins in the period or not.
+func (p Period) begunWeeks(today time.Time, starts time.Weekday) int {
 	first := p.first(today, starts)
 	begun := weekOf(first, starts)
 	if begun.Before(first) {
 		begun = begun.AddDate(0, 0, 7)
 	}
-	return max(int(weekOf(today, starts).Sub(begun)/(7*24*time.Hour))+1, reachLeast)
+	return int(weekOf(today, starts).Sub(begun)/(7*24*time.Hour)) + 1
+}
+
+// detailWeeks is how many weeks Detail's weeks section reaches over at the
+// period at the fewest, today being the day given, as dayfile.Civil gives a
+// day, weeks starting on the day given: the weeks that begin in the period,
+// as begunWeeks counts them, but never fewer than detailLeast. So six at
+// today, this week and the last 30 days, 12 at the last 12 weeks, and 52 or
+// 53 at the last 12 months. It shows more where more fit.
+func (p Period) detailWeeks(today time.Time, starts time.Weekday) int {
+	return max(p.begunWeeks(today, starts), detailLeast)
+}
+
+// WeeksLeast is how many weeks Detail's weeks section reaches over at the
+// period at the fewest, as detailWeeks has it, whatever the day and the day
+// weeks start on: the fewest of any day of a week, as each falls on another
+// day of its week, of a year without a 29 February. So six at today, this
+// week and the last 30 days, 12 at the last 12 weeks, and 52 at the last 12
+// months. It's known before any page is read, for Detail to lay its weeks
+// out by, so they hold still as its page is read.
+func (p Period) WeeksLeast() int {
+	least := math.MaxInt
+	for d := range 7 {
+		day := time.Date(2027, time.March, 1+d, 0, 0, 0, 0, time.UTC)
+		least = min(least, p.detailWeeks(day, time.Monday))
+	}
+	return least
 }
 
 // reached sets the page's reach and each row's peaks in it and Weeks'

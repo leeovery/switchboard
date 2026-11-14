@@ -1,0 +1,61 @@
+ SWITCHBOARD                                          Thu 1 Oct  14:42:07
+ Overview  Accounts  Projects  History  Sessions  Runway  Graphs  Log
+
+● healthy · auto · 6 sessions · new → ▲ side
+
+ACCOUNTS   Compare  Detail                                  < this week >
+
+◂ all accounts ▸                                    ↑↓ an account, or all
+2 open · 1 at cap
+
+USAGE
+Week                      ┃                59%  1.2 of 3 left
+
+5-hour                 ┃▋                  49%  1.5 of 3 left
+
+THIS WEEK
+requests  5,410           worth     $635
+limits    4               extra use off
+plan      $600/mo         against   4.6×
+
+BY MODEL
+● Opus 5.5 56%  ● Opus 5 2%  ● Sonnet 5.5 34%  ● Sonnet 5 3%
+● Fable 5.1 2%  ● Haiku 4.5 2%
+
+WEEKS
+‹ 3 more      14 Sep  21 Sep  28 Sep  limits              at a reset
+all accounts    73%     82%     59%…  short on 3 of 5     28% left
+
+work            81%    100%     34%…  limit hit 3 of 5    5% left
+personal    ◆   90%     85%     66%…  limit hit 0 of 5    24% left
+side            47%     60%     78%…  limit hit 0 of 5    54% left
+
+WORTH
+
+          ▇▇▇▇▇▇▇▇
+▄▄▄▄▄▄▄▄                      ▅▅▅▅▅▅▅▅
+
+
+
+Mon       Tue       Wed       Thu       Fri       Sat       Sun
+peak Wed $212
+
+LATELY
+14:41      ▲ mobile started on side, the best
+14:31      ╎ work reached its cap: 3 sessions moved to side
+14:12      ▲ api started on work, the best
+13:50      ◇ side primed: its 5-hour window started
+13:22      ▸ infra moved personal → work: personal came under pressure,…
+13:04      ◔ personal came under pressure: its 5-hour runs out ~13:50
+12:47      ▲ docs started on personal, the best
+12:10      ◇ work primed: its 5-hour window started
+12:02      ▲ switchboard started on work, the best
+11:55      ▲ website started on personal, the best
+11:30      ◇ personal primed: its 5-hour window started
+10:02      ▲ mobile started on personal, the best
+09:40      ▲ docs started on work, the best
+09:12      ▲ infra started on work, the best
+08:47      ◇ side primed: its 5-hour window started
+08:31      ▲ website started on side, the best
+▼ 9 more below · j/k
+tab views   [ ] view   ? keys   q quit

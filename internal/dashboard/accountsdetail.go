@@ -2,8 +2,8 @@ package dashboard
 
 import (
 	"fmt"
+	"math"
 	"slices"
-	"strings"
 	"sync"
 	"time"
 
@@ -50,18 +50,31 @@ const (
 // token line, where it has one; USAGE's heading, a row under the head's
 // last, its windows from the row after, windowsApart rows apart, and THIS WEEK's
 // title on its row, its items under it, thisWeekLeastRows rows at the
-// fewest; BY MODEL, byModelGap rows under the lower of the two; and the
-// parts under BY MODEL, each the rows given under it.
+// fewest; BY MODEL, byModelGap rows under the lower of the two; the rule,
+// ruleUnder rows under BY MODEL; and under it, a blank row before each, the
+// weeks section, WORTH and LATELY.
 const (
 	usageUnder        = 2
 	windowsApart      = 2
 	thisWeekLeastRows = 5
 	byModelGap        = 2
 	ruleUnder         = 3
-	byDayUnder        = 5
-	weeksUnder        = 8
-	verdictUnder      = 10
-	latelyUnder       = 12
+)
+
+// One account's weeks section, in rows from BY DAY's: the weeks' first days
+// under it; WEEKS, weeksUnderDays rows under it; and the facts, factsUnderDays;
+// so oneWeeksRows rows in all.
+const (
+	weeksUnderDays = 3
+	factsUnderDays = 5
+	oneWeeksRows   = factsUnderDays + 1
+)
+
+// Detail's WORTH: its chart's rows, and the rows it takes in all, its axis
+// and its peak under them.
+const (
+	detailWorthChart = 6
+	detailWorthRows  = detailWorthChart + 2
 )
 
 // THIS WEEK's labels' cells and its figures' fewest, ending at the weeks'
@@ -89,15 +102,16 @@ const (
 	enterIn     = 2
 )
 
-// The wide form's weeks: six at most, the last of them this one; their gap
-// at its widest, narrowing a cell at a time to its least before a week
-// leaves; and their days' cells at least, growing where six weeks at the
-// widest gap have room for wider.
+// The wide form's weeks: six at their natural, the last of them this one;
+// their gap at its widest, narrowing a cell at a time to its least before a
+// week leaves; and their days' cells, dayCellsWide where the period's own weeks
+// fit so, else dayCellsNarrow.
 const (
-	sixWeeks      = 6
-	weeksGapMost  = 4
-	weeksGapLeast = 2
-	dayCellsLeast = swatchCells
+	sixWeeks       = 6
+	weeksGapMost   = 4
+	weeksGapLeast  = 2
+	dayCellsWide   = swatchCells
+	dayCellsNarrow = 1
 )
 
 // The wide form's parts across a frame, in the order detailLaid lays them:
@@ -142,17 +156,18 @@ type detailLayout struct {
 // widest gap, at least weeksLeast, and past it, growing. The list gives way
 // first: its names narrow toward their least before the weeks narrow, and
 // past the weeks' natural, they take their most before the weeks grow (the
-// owner's call, 15 October 2026). The names are laid at their most whatever
-// the labels, so the panel's layout follows the width alone; the list then
-// takes what its names need of that, and of what the weeks, as wideWeeks
-// lays them, leave of their room, and the panel sits after it. The weeks'
-// least follows from USAGE's row, its window names as usageWide has them,
-// and THIS WEEK, as thisWeekCells has it, of the windows the moment m lists
-// and the limits the page records. The layout follows the width, the
-// accounts configured, the windows listed and the limits recorded.
+// owner's call, 15 October 2026). The list takes what its names need of
+// what they're laid in, and the weeks what it leaves, so they reach across
+// the width, as many as wideWeeks lays of the period's own; where the names
+// are cut, they take what the weeks leave of their room too; and the panel
+// sits after the list. The weeks' least follows from USAGE's row, its window
+// names as usageWide has them, and THIS WEEK, as thisWeekCells has it, of the
+// windows the moment m lists and the limits the page records. The layout
+// follows the width, the period, the accounts configured and their labels,
+// the windows listed and the limits recorded.
 func (f Frame) detailLaid(m status.Moment) (detailLayout, bool) {
 	l := detailLayout{into: panelCX, thisWeek: f.thisWeekCells(m)}
-	natural := detailLayout{dw: dayCellsLeast, gap: weeksGapMost, weeks: sixWeeks}.weeksCells()
+	natural := detailLayout{dw: dayCellsWide, gap: weeksGapMost, weeks: sixWeeks}.weeksCells()
 	parts := []flex.Part{
 		detailIndent:    {},
 		detailNames:     {},
@@ -169,9 +184,13 @@ func (f Frame) detailLaid(m status.Moment) (detailLayout, bool) {
 	}
 	s, ok := flex.Lay(f.edge(), parts...)
 	room := s[detailWeeks].Size + s[detailWeeksPast].Size
-	l = l.wideWeeks(room)
 	if l.list {
-		l.names = min(f.listNames(), s[detailNames].Size+room-l.weeksCells())
+		l.names = min(f.listNames(), s[detailNames].Size)
+		room += s[detailNames].Size - l.names
+	}
+	l = l.wideWeeks(room, f.Period.WeeksLeast())
+	if l.list {
+		l.names = min(f.listNames(), l.names+room-l.weeksCells())
 		l.panel = l.dotAt() + panelPastDot
 	}
 	return l, ok
@@ -187,29 +206,64 @@ func (f Frame) usageWide(m status.Moment) detailUsageRow {
 }
 
 // weeksLeast are the fewest cells the wide form's weeks take: the least room
-// whose weeks, as wideWeeks lays them, end reach cells past the panel's
-// left, as USAGE's row and THIS WEEK, ending at the weeks' edge, need.
+// whose weeks, as weeksAt lays them with days of either width any period's
+// take, end reach cells past the panel's left, as USAGE's row and THIS
+// WEEK, ending at the weeks' edge, need, so the form holds as the dial
+// turns.
 func weeksLeast(reach int) int {
 	room := max(reach-panelCX, 0)
-	for (detailLayout{}).wideWeeks(room).weeksCells() < reach-panelCX {
+	for !reachesWhateverTheDays(room, reach-panelCX) {
 		room++
 	}
 	return room
 }
 
-// wideWeeks is the layout with its weeks laid out wide in room cells: its
-// days dayCellsLeast cells, or as many more as six weeks at the widest gap
-// have room for; then as many weeks as fit, six at most, as latestFitting
-// lays them at the least gap; and their gap the widest from weeksGapMost
-// they still fit at.
-func (l detailLayout) wideWeeks(room int) detailLayout {
-	l.dw = max(dayCellsLeast, (room-(sixWeeks-1)*weeksGapMost)/(7*sixWeeks))
-	l.weeks = len(latestFitting(room, sixWeeks, 7*l.dw, weeksGapLeast))
+// reachesWhateverTheDays reports whether weeks laid in room cells, as weeksAt
+// lays them, take cells or more with days of either width.
+func reachesWhateverTheDays(room, cells int) bool {
+	for _, dw := range []int{dayCellsWide, dayCellsNarrow} {
+		if (detailLayout{}).weeksAt(room, dw).weeksCells() < cells {
+			return false
+		}
+	}
+	return true
+}
+
+// wideWeeks is the layout with its weeks laid out wide in room cells, least
+// of them the period's own, as views.Period's WeeksLeast has them: its days
+// dayCellsWide cells where least weeks fit so at the least gap, else
+// dayCellsNarrow, as daysFitting has it; then laid as weeksAt lays them.
+func (l detailLayout) wideWeeks(room, least int) detailLayout {
+	return l.weeksAt(room, daysFitting(room, least, weeksGapLeast))
+}
+
+// weeksAt is the layout with its weeks laid out wide in room cells, their
+// days dw cells: as many weeks as fit at the least gap, as weeksFitting has
+// them, and their gap the widest from weeksGapMost they still fit at.
+func (l detailLayout) weeksAt(room, dw int) detailLayout {
+	l.dw = dw
+	l.weeks = weeksFitting(room, 7*dw, weeksGapLeast)
 	l.gap = weeksGapMost
-	for l.gap > weeksGapLeast && len(latestFitting(room, l.weeks, 7*l.dw, l.gap)) < l.weeks {
+	for l.gap > weeksGapLeast && weeksFitting(room, 7*dw, l.gap) < l.weeks {
 		l.gap--
 	}
 	return l
+}
+
+// daysFitting are the cells a day of BY DAY takes in room cells, its weeks
+// gap apart, least of them the period's own: dayCellsWide where least weeks fit
+// so, else dayCellsNarrow, so the period's weeks show wherever they fit.
+func daysFitting(room, least, gap int) int {
+	if weeksFitting(room, 7*dayCellsWide, gap) >= least {
+		return dayCellsWide
+	}
+	return dayCellsNarrow
+}
+
+// weeksFitting is how many weeks of cells cells each, gap apart, fit in
+// room cells: none where not one does.
+func weeksFitting(room, cells, gap int) int {
+	return max((room+gap)/(cells+gap), 0)
 }
 
 // listNames is the cells of the name column Detail's list fits its accounts'
@@ -261,12 +315,6 @@ func (l detailLayout) edge() int {
 	return l.cx() + l.weeksCells()
 }
 
-// shownWeeks are where the weeks shown wide lie, from cx, as weeksIn lays
-// them.
-func (l detailLayout) shownWeeks() []flex.Span {
-	return l.weeksIn(l.weeksCells(), l.weeks)
-}
-
 // thisWeekAt is the column THIS WEEK starts at, its figures ending at the
 // weeks' edge.
 func (l detailLayout) thisWeekAt() int {
@@ -281,13 +329,13 @@ func (l detailLayout) weekBar() int {
 
 // detailIn is the layout Detail is drawn in, of the moment m: its wide
 // layout, where its leasts fit the frame, as detailLaid has it; else the
-// stack's; and whether it's wide. Detail's form and help's key to it both
-// choose by it.
+// stack's, as stackLaid has it; and whether it's wide. Detail's form and
+// help's key to it both choose by it.
 func (f Frame) detailIn(m status.Moment) (detailLayout, bool) {
 	if l, wide := f.detailLaid(m); wide {
 		return l, true
 	}
-	return stackLayout, false
+	return f.stackLaid(), false
 }
 
 // detailForm is Detail of doc at now, in the layout detailIn chooses: drawn
@@ -317,7 +365,7 @@ func (f Frame) detailForm(doc status.Document, now time.Time) accountsForm {
 // stack's where it holds none, as it's drawn of none.
 func (f Frame) detailDays() int {
 	if f.held == nil {
-		return stackLayout.dw
+		return f.stackLaid().dw
 	}
 	l, _ := f.detailIn(f.held.Moment())
 	return l.dw
@@ -497,33 +545,40 @@ func (d detailDrawn) underModels() int {
 	return d.byModelAt() + max(len(d.versionLines())-1, 0)
 }
 
+// ruleRow is the row of the panel the rule heading the weeks section is on,
+// ruleUnder rows under BY MODEL's last row.
+func (d detailDrawn) ruleRow() int {
+	return d.underModels() + ruleUnder
+}
+
 // latelyAt is the row of the panel LATELY's heading is on, or SESSIONS'
-// where sessions run on the account, LATELY beside it.
+// where sessions run on the account, LATELY beside it: a blank row under
+// WORTH, under the weeks section in its form, whether the period's page is
+// read or not.
 func (d detailDrawn) latelyAt() int {
-	return d.underModels() + latelyUnder
+	return d.latelyFrom(d.weeksRows())
 }
 
 // panel is Detail's panel drawn whole, from row 0 of a canvas the frame's
 // width: its head, and under it its token line; USAGE, and THIS WEEK beside
-// it; BY MODEL, the rule, BY DAY, WEEKS and the verdict, where the period's
+// it; BY MODEL, the rule, the weeks section and WORTH, where the period's
 // page is read, the rule and what's under it moved down a row for each row
 // BY MODEL's versions take past the first; and LATELY, beside SESSIONS where
 // sessions run on the account, its heading on SESSIONS' row and its lines
-// under it, their words cut at the frame's edge.
+// under it, their words cut at the frame's edge, every event the document
+// carries, filling the rows down to the key line and the rest scrolling.
 func (d detailDrawn) panel() *canvas {
 	c := growing(d.f.Width)
 	d.head(c, 0)
 	usage := d.usageAt()
 	d.usage(c, usage)
-	if at := d.underModels(); d.page != nil {
+	if d.page != nil {
 		d.thisWeek(c, usage)
 		d.byModel(c, d.byModelAt())
-		d.rule(c, at+ruleUnder)
-		c.heading(at+ruleUnder, at+byDayUnder)
-		weeks := d.l.shownWeeks()
-		d.byDay(c, at+byDayUnder, weeks)
-		d.weeks(c, at+weeksUnder, weeks)
-		d.verdict(c, at+verdictUnder)
+		d.rule(c, d.ruleRow())
+		c.heading(d.ruleRow(), d.weeksAt())
+		d.weeksSection(c, d.weeksAt())
+		d.worth(c, d.worthAt())
 	}
 	y, x := d.latelyAt(), d.l.cx()
 	if len(d.running) == 0 {
@@ -636,23 +691,15 @@ func (d detailDrawn) byModel(c *canvas, y int) {
 	}
 }
 
-// rule draws the rule heading the weeks shown along row y, from the panel's
-// column to the weeks' edge: ┄┄ in border, the weeks counted, "the last four
-// weeks", in text.faint, and ┄ in border to the edge.
-func (d detailDrawn) rule(c *canvas, y int) {
-	head := line{{"┄┄ ", borderInk}, {"the last " + prose.Number(d.l.weeks) + " weeks", faintInk}, {" ", borderInk}}
-	rest := d.l.edge() - d.l.panel - head.width()
-	c.line(d.l.panel, y, append(head, span{strings.Repeat("┄", max(rest, 0)), borderInk}))
-}
+// everyEvent asks LATELY for every event the document carries.
+const everyEvent = math.MaxInt
 
-// latelyLines are how many lines LATELY tells.
-const latelyLines = 3
-
-// lately draws LATELY's lines from x along row y on, as accountLatelyLines
-// has them, their words cut to the cells given, each cut short of the
-// frame's edge and picked out while it's fresh; or why it has none.
+// lately draws LATELY's lines from x along row y on, every event the
+// document carries, as accountLatelyLines has them, their words cut to the cells given, each cut
+// short of the frame's edge and picked out while it's fresh; or why it has
+// none.
 func (d detailDrawn) lately(c *canvas, y, x, words int) {
-	sentences := views.AccountLately(d.m, d.id, latelyLines, d.f.sessionDirs())
+	sentences := views.AccountLately(d.m, d.id, everyEvent, d.f.sessionDirs())
 	if len(sentences) == 0 {
 		d.f.quietly(c, d.m, x, y, d.f.edge())
 		return
@@ -809,7 +856,7 @@ func chosenRow(c *canvas, x, y, width int, focused bool) {
 // StateInAWord and stateMark have it, cued over the row's light while it's
 // newly changed, as cueState has it; the chosen row picked out, as listRow
 // has it; ↑↓ choose chooseUnder rows under the last; and the │ beside them,
-// to the panel's foot.
+// down the view's rows, as LATELY fills the panel to its foot.
 func (d detailDrawn) list(c *canvas, top, rows int) {
 	d.listRow(c, top, allAccountsNamed, d.id == "")
 	first, shown := d.listShown()
@@ -821,7 +868,7 @@ func (d detailDrawn) list(c *canvas, top, rows int) {
 		d.f.cueState(c, a.ID, d.l.dotAt(), y, 1)
 	}
 	c.line(listAt, y+chooseUnder, line{{"↑↓", keyInk}, {" choose", dimInk}})
-	for row := range min(d.ruleRows(), rows) {
+	for row := range rows {
 		c.line(d.l.ruleAt(), top+row, line{{"│", borderInk}})
 	}
 }
@@ -841,16 +888,6 @@ func (d detailDrawn) listRow(c *canvas, y int, name line, chosen bool) {
 		c.line(listAt-1, y, line{{"▸", keyInk}})
 	}
 	chosenRow(c, 0, y, d.l.lit(), focused)
-}
-
-// ruleRows are the rows the list's │ runs down: to the row over SESSIONS'
-// enter line, or with sessions, to it.
-func (d detailDrawn) ruleRows() int {
-	rows := d.latelyAt() + enterUnder
-	if len(d.running) > 0 {
-		return rows + 1
-	}
-	return rows
 }
 
 // listShown are the first of the configured accounts the list shows, by

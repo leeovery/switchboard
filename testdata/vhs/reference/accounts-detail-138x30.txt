@@ -23,8 +23,8 @@ ACCOUNTS    Compare  Detail  [ ]  ───────────────�
                     │
                     │   WEEKS                 100            ▌ 94               100           ▎  81               100              34
                     │
-                    │   hits its limit most weeks   limit hit 3 of the last 7 weeks · 9% left at a reset, on average
+                    │   limit hit 3 of the last 5 weeks · 5% left at a reset, on average
                     │
-                    │   LATELY      14:31  ╎ reached its cap: 3 sessions moved to side
-                        ▼ 2 more below · j/k
+                    │   WORTH                                                 ▇▇▇▇▇▇▇▇▇▇▇▇
+                        ▼ 18 more below · j/k
 tab views   [ ] view    < > period: this week    ↑↓ account  enter its page    p pin    ? help  q quit
