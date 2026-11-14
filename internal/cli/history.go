@@ -69,9 +69,9 @@ the readings history holds it.
 
 It shows one pool's history: its work as each request recorded its pool at
 the time, work from before pools the first pool's, and the windows, plans
-and weeks of the accounts in it now. A pool's plans, months and tokens count
-from its first day of work, as the dashboard's do, never the days before it
-worked. ` + readingAPool + `
+and weeks of the accounts in it now. A pool's days, weeks, months, tokens
+and plans are listed and counted from its first day of work, as the
+dashboard's are, never the days before it worked. ` + readingAPool + `
 
 ` + readingAKeptPool + `
 
