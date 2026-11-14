@@ -24,7 +24,7 @@ func TestEachTabsSubViewsInTheirOrder(t *testing.T) {
 		want []string
 	}{
 		{view: Overview},
-		{view: Accounts, want: []string{"compare", "detail"}},
+		{view: Accounts, want: []string{"compare", "detail", "tokens"}},
 		{view: Projects},
 		{view: History, want: []string{"year", "weeks", "days", "tokens"}},
 		{view: Sessions, want: []string{"switchboard", "list"}},

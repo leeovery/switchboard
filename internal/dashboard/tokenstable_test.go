@@ -419,7 +419,7 @@ func TestTokensScrollsAPeriodAtATime(t *testing.T) {
 	}
 	f.History.Tokens = page // 12 periods of 4, 3 and 2 rows
 	top := f.top()
-	scrolling := f.tokensScrolling(top)
+	scrolling := f.historyTokens().scrolling(top)
 	tests := []struct {
 		name   string
 		scroll int
@@ -779,11 +779,11 @@ func TestTokensColumnsLeaveOneAtATime(t *testing.T) {
 		for names, accounts := range map[string]config.Accounts{"short": nil, "long": longTokensAccounts} {
 			f := tokensFrame(220, 37, split)
 			f.History.Accounts = accounts
-			natural := f.tokensNamesNatural()
+			natural := f.historyTokens().namesNatural()
 			wasLeft, wasName := 0, natural
 			for width := 220; width >= 40; width-- {
 				f.Width = width
-				cols := f.tokensColumns()
+				cols := f.historyTokens().columns()
 				left, inOrder := tokensLeft(cols)
 				name := cols.spans[tokensName].Size
 				switch {
@@ -827,7 +827,7 @@ func TestTokensShowsTheColumnsThatFit(t *testing.T) {
 	for _, tt := range tests {
 		f := tokensFrame(tt.width, 37, TokensByAccount)
 		f.History.Accounts = tt.accounts
-		if left, _ := tokensLeft(f.tokensColumns()); left != tt.left {
+		if left, _ := tokensLeft(f.historyTokens().columns()); left != tt.left {
 			t.Errorf("at %d columns, of %d labels configured, %d columns have left, want %d", tt.width, len(tt.accounts), left, tt.left)
 		}
 	}
@@ -861,11 +861,11 @@ func TestTokensNamesNaturalIsOfWhatTheSplitNames(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			f := tokensFrame(160, 37, tt.split)
 			f.History.Accounts = tt.accounts
-			if got := f.tokensColumns().spans[tokensName].Size; got != tt.want {
+			if got := f.historyTokens().columns().spans[tokensName].Size; got != tt.want {
 				t.Errorf("the names take %d cells, want %d", got, tt.want)
 			}
 			f.History.Tokens.Periods[0].ByAccount[0].Label = strings.Repeat("x", 30)
-			if got := f.tokensColumns().spans[tokensName].Size; got != tt.want {
+			if got := f.historyTokens().columns().spans[tokensName].Size; got != tt.want {
 				t.Errorf("of a label the rows carry, the names take %d cells, want %d still", got, tt.want)
 			}
 		})
@@ -904,12 +904,12 @@ func TestTokensOnTakesTheAccountsConfigured(t *testing.T) {
 	if !strings.HasPrefix(rows[3], "└ opus-5-5    "+on+"  ") {
 		t.Errorf("at 200 columns, the version reads %q, want it on %q whole", rows[3], on)
 	}
-	if got := f.tokensColumns().spans[tokensOf].Size; got != len(on) {
+	if got := f.historyTokens().columns().spans[tokensOf].Size; got != len(on) {
 		t.Errorf("on takes %d cells, want its natural %d", got, len(on))
 	}
 	for width := 200; width >= 100; width-- {
 		f.Width = width
-		cols := f.tokensColumns()
+		cols := f.historyTokens().columns()
 		if left, _ := tokensLeft(cols); left > 0 && cols.spans[tokensOf].Size > tokensOfCells {
 			t.Errorf("at %d columns, a column left with on at %d cells, past its least", width, cols.spans[tokensOf].Size)
 		}
@@ -925,10 +925,10 @@ func TestTokensTotalSitsACellAfterTheNamesAlone(t *testing.T) {
 	for _, accounts := range []config.Accounts{nil, longTokensAccounts} {
 		f := tokensFrame(60, 37, TokensByAccount)
 		f.History.Accounts = accounts
-		natural := f.tokensNamesNatural()
+		natural := f.historyTokens().namesNatural()
 		for width := 30; width <= 60; width++ {
 			f.Width = width
-			cols := f.tokensColumns()
+			cols := f.historyTokens().columns()
 			if cols.shows(tokensCacheRead) {
 				continue
 			}
@@ -969,12 +969,12 @@ func TestTokensAgainstItsPriceIsNeverCut(t *testing.T) {
 					t.Errorf("by %s at %d columns, a period reads %q, want against its price whole", tt.period.Name(), width, row)
 				}
 			}
-			if f.tokensColumns().shows(tokensAgainst) {
+			if f.historyTokens().columns().shows(tokensAgainst) {
 				narrowest = width
 			}
 		}
 		f.Width = narrowest
-		if at := f.tokensColumns().at(tokensAgainst); at+ansi.StringWidth(tt.widest) != narrowest {
+		if at := f.historyTokens().columns().at(tokensAgainst); at+ansi.StringWidth(tt.widest) != narrowest {
 			t.Errorf("by %s, against its price shows from %d columns, at %d, want it where %q ends at the edge", tt.period.Name(), narrowest, at, tt.widest)
 		}
 	}
@@ -991,7 +991,7 @@ func TestTokensOnCutsEachNameAtLabelMost(t *testing.T) {
 	period.ByAccount[0].Label = long
 	period.ByModel[0].On = []string{"work", "side"}
 	on := strings.Repeat("r", labelMost-1) + "… side"
-	if got := f.tokensColumns().spans[tokensOf].Size; got != ansi.StringWidth(on) {
+	if got := f.historyTokens().columns().spans[tokensOf].Size; got != ansi.StringWidth(on) {
 		t.Errorf("on takes %d cells, want its natural %d", got, ansi.StringWidth(on))
 	}
 	if row := tokensRowsOf(f)[3]; !strings.HasPrefix(row, "└ opus-5-5    "+on+" ") {
@@ -1006,7 +1006,7 @@ func TestTokensOfIsItsLeastWhereItNamesNoAccounts(t *testing.T) {
 	for _, split := range []TokensSplit{TokensByAccount, TokensByAccountAndModel, TokensUnsplit} {
 		f := tokensFrame(220, 37, split)
 		f.History.Accounts = tenConfigured()
-		if got := f.tokensColumns().spans[tokensOf].Size; got != tokensOfCells {
+		if got := f.historyTokens().columns().spans[tokensOf].Size; got != tokensOfCells {
 			t.Errorf("split %d, of ten accounts, at 220 columns the split's column takes %d cells, want %d", split, got, tokensOfCells)
 		}
 	}

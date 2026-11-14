@@ -178,7 +178,17 @@ func (f Frame) history(c *canvas, top int) {
 	case HistoryDays:
 		f.historyDays(c, top)
 	case HistoryTokens:
-		f.historyTokens(c, top)
+		f.historyTokens().draw(c, top)
+	}
+}
+
+// historyTokens is History's Tokens, as the frame has it: its rows the
+// period < and > step, split as v has it.
+func (f Frame) historyTokens() tokensTable {
+	h := f.History
+	return tokensTable{
+		page: h.Tokens, rows: h.TokensAsk.Period, split: h.TokensSplit, accounts: h.Accounts,
+		width: f.Width, viewRows: f.viewRows(), scroll: f.Scroll,
 	}
 }
 
@@ -235,7 +245,7 @@ func (f Frame) historyScrollsRows() bool {
 		p := f.History.Days
 		return p != nil && p.Recorded() && f.layOutDays(*p, f.top()).whole
 	case HistoryTokens:
-		placed, _ := f.tokensPlaced(f.top())
+		placed, _ := f.historyTokens().placed(f.top())
 		return placed.byRows()
 	}
 	return false
@@ -257,7 +267,7 @@ func (f Frame) historyScrolling(top int) func(offset int) Scrolling {
 	case HistoryDays:
 		return f.daysScrolling
 	case HistoryTokens:
-		return f.tokensScrolling(top)
+		return f.historyTokens().scrolling(top)
 	}
 	return func(int) Scrolling { return Scrolling{} }
 }
@@ -272,7 +282,7 @@ func (f Frame) historyScrolls() (y, rows int) {
 	case HistoryDays:
 		return f.daysScrolls()
 	case HistoryTokens:
-		placed, _ := f.tokensPlaced(f.top())
+		placed, _ := f.historyTokens().placed(f.top())
 		return placed.first, placed.rows
 	}
 	return f.top(), f.viewRows()

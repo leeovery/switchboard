@@ -215,9 +215,9 @@ columns, its ROUTING beside it. The pool's block comes last.
 
 ## Accounts
 
-**Accounts** shows each account in depth, and every account together. It has two views on
-sub-tabs, Compare and Detail, and `[` and `]` move between them. With one account, Accounts shows
-Detail alone, and `[` and `]` do nothing there.
+**Accounts** shows each account in depth, and every account together. It has three views on
+sub-tabs, Compare, Detail and Tokens, and `[` and `]` move between them. With one account, Compare
+goes, and `[` and `]` move between Detail and Tokens.
 
 <div align="center">
 <img src="../art/accounts-compare.webp" alt="Accounts' Compare over this week: a column each for work, personal and side and one for all accounts, each with its week used, its use by model version, its requests, sessions and moves, its limits and time at its cap, and what its plan costs against the worth of its use at API prices, 4.0× to 5.2×" width="840">
@@ -284,9 +284,24 @@ The chosen row is lit only where `↑` and `↓` act, in the list or in the sess
 row stays bold, marked `▸`, and `SESSIONS` is bright while you're in them. The list widens to fit
 the accounts' names where the screen has room, as USAGE's name column does.
 
+### Tokens
+
+Tokens is ccusage's report inside switchboard, over the period. It shows the tokens by kind, and
+their worth at API prices against what the plans cost.
+
+- The whole period's row comes first, named for it, `this week`, its figures its rows' summed and
+  its worth against what the plans cost over the period, `4.6× its $138 week`, as Compare has it.
+  A rule sets it off from the rows under it.
+- Then a row a day over this week and 30 days, a week over 12 weeks, or a month over 12 months,
+  newest first, each against a whole day's, week's or month's price: `5.6× its $20 day`. Today is
+  the period's row alone.
+- `v` splits each row by account, by model, by both, or not at all.
+- The rows fill the screen down to the footnote, and `j` and `k` scroll them a row at a time.
+- On a narrower screen, the columns give way as History's Tokens' do.
+
 ### The period
 
-`<` and `>` step to a shorter or a longer period, which both views count over. The periods are
+`<` and `>` step to a shorter or a longer period, which every view counts over. The periods are
 today, this week, 30 days, 12 weeks and 12 months. They're never billing months: today and this
 week run from their starts, 30 days and 12 months back from today, and 12 weeks over this week and
 the 11 before, and 12 months are the days History's Year counts as its last 12 months. It's one dial for the dashboard,

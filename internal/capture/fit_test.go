@@ -519,6 +519,15 @@ var (
 	outLine = regexp.MustCompile(`[▲▼] [0-9,]+ more`)
 )
 
+// beforeFootnote is a view's rows over its footnote, where it ends on one
+// saying what worth is, as Tokens' does: its rows whole where it doesn't.
+func beforeFootnote(view []string) []string {
+	if i := slices.IndexFunc(view, func(r string) bool { return strings.HasPrefix(r, "worth: ") }); i >= 0 {
+		return view[:i]
+	}
+	return view
+}
+
 // panelOf is the part of a row a view scrolls, where something held beside
 // it is ruled off, as Detail's list is: what's after the rule. A box's right
 // edge closing a row its left edge opens is no such rule.
@@ -610,13 +619,15 @@ func saysMore(rows []string, mark string) bool {
 
 // reachOf is what of the fixture's view, by name, at the width given, the
 // sweep holds paged to reach every row of, from its rows as drawn: History's
-// views, from the row under the view's heading, but for their footnote;
+// views, from the row under the view's heading, but for their footnote, as
+// beforeFootnote cuts it;
 // the Overview's USAGE under 150 columns, where nothing is drawn beside its
 // blocks, and where its windows stack, as it's drawn alike paged and at its
 // tallest, not side by side, which grow to its big bars, from its heading to
 // its key line, or where the page doesn't show that, to the next section's
 // heading;
-// Accounts' views, but for Detail's list; a phone's Switchboard in lanes,
+// Accounts' views, but for Detail's list and Tokens' footnote; a phone's
+// Switchboard in lanes,
 // from the row under the view's heading to the foot, which gives way where
 // they scroll. Elsewhere it's nil: the rest of the views fold and drop what
 // they show by the room they have, as the design lays them out.
@@ -625,11 +636,7 @@ func reachOf(name string, width int) func(rows []string) []string {
 	switch {
 	case strings.HasPrefix(name, "history-"):
 		return func(rows []string) []string {
-			view := rows[chrome+2 : len(rows)-1]
-			if i := slices.IndexFunc(view, func(r string) bool { return strings.HasPrefix(r, "worth: ") }); i >= 0 {
-				view = view[:i]
-			}
-			return shownRows(view)
+			return shownRows(beforeFootnote(rows[chrome+2 : len(rows)-1]))
 		}
 	case strings.HasPrefix(name, "overview-") && width < 150:
 		return func(rows []string) []string {
@@ -654,7 +661,7 @@ func reachOf(name string, width int) func(rows []string) []string {
 			for _, r := range rows[chrome+2 : len(rows)-1] {
 				view = append(view, panelOf(r))
 			}
-			return shownRows(view)
+			return shownRows(beforeFootnote(view))
 		}
 	case strings.HasPrefix(name, "sessions-") && !strings.Contains(name, "-list") && dashboard.Phone(width):
 		return func(rows []string) []string {

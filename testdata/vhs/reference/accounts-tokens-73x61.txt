@@ -1,0 +1,61 @@
+ SWITCHBOARD                                          Thu 1 Oct  14:42:07
+ Overview  Accounts  Projects  History  Sessions  Runway  Graphs  Log
+
+● healthy · auto · 6 sessions · new → ▲ side
+
+ACCOUNTS   Compare  Detail  Tokens                          < this week >
+
+day             cache read         total  worth     against its price
+
+this week             618M          658M  $635      4.6× its $138 week
+└ work                177M          188M  $184
+└ personal            212M          225M  $212
+└ side                229M          245M  $239
+─────────────────────────────────────────────────────────────────────
+
+Thu 1 Oct             125M          129M  $126      6.4× its $20 day
+└ work               54.1M         56.2M  $57
+└ personal           52.8M         54.4M  $48
+└ side               17.7M         18.6M  $21
+
+Wed 30 Sep            205M          220M  $212      10.7× its $20 day
+└ work               22.4M         24.0M  $23
+└ personal           78.8M         84.5M  $81
+└ side                104M          112M  $108
+
+Tue 29 Sep            167M          179M  $172      8.7× its $20 day
+└ work               44.7M         48.0M  $46
+└ personal           53.2M         57.1M  $55
+└ side               68.7M         73.8M  $71
+
+Mon 28 Sep            121M          130M  $125      6.3× its $20 day
+└ work               55.9M         60.0M  $58
+└ personal           26.7M         28.7M  $28
+└ side               38.5M         41.3M  $40
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+worth: what the same tokens would cost through the API, at its prices as
+of 1 Oct 2026
+
+tab views   [ ] view   ? keys   q quit

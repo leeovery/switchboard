@@ -6,8 +6,10 @@ import (
 
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard/flex"
 	"github.com/leeovery/switchboard/internal/dayfile"
+	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -104,79 +106,106 @@ type tokensColumns struct {
 	width int
 }
 
-// tokensColumns are Tokens' parts, as tokensParts has them, laid out across
-// the frame's width.
-func (f Frame) tokensColumns() tokensColumns {
-	spans, _ := flex.Lay(f.Width, f.tokensParts()...)
-	return tokensColumns{spans: spans, width: f.Width}
+// tokensTable is Tokens as a tab draws it, History's or Accounts': its page;
+// the period each of its rows is, which names them, heads their column and
+// names the unit against its price says; of one of the dial's periods, as
+// Accounts' has it, that period, which names its total and its unit; how each
+// row is split; the accounts configured, whose labels the names' and the
+// split's columns hold; whether its rows fill the view to its foot, a row at a
+// time, as Accounts' do, rather than a period at a time where each fits whole,
+// as History's do; and the frame's width, its view's rows, and how far it's
+// scrolled.
+type tokensTable struct {
+	page     *views.TokensPage
+	rows     views.TokensPeriod
+	period   views.Period
+	split    TokensSplit
+	accounts config.Accounts
+	fills    bool
+
+	width, viewRows, scroll int
 }
 
-// tokensParts are Tokens' parts, in their order: the names, from their
-// least, labelsLeast of their natural, as tokensNamesNatural has it, holding
-// it until every column that leaves has left; the split's column, raised
-// toward its natural, as tokensOfNatural has it, before against its price
-// grows; each count's; worth; and against its price, from its least, as
-// tokensAgainst has it, which takes the rest of the row.
-func (f Frame) tokensParts() []flex.Part {
+// columns are Tokens' parts, as parts has them, laid out across the frame's
+// width.
+func (t tokensTable) columns() tokensColumns {
+	spans, _ := flex.Lay(t.width, t.parts()...)
+	return tokensColumns{spans: spans, width: t.width}
+}
+
+// parts are Tokens' parts, in their order: the names, from their least,
+// labelsLeast of their natural, as namesNatural has it, holding it until
+// every column that leaves has left; the split's column, raised toward its
+// natural, as ofNatural has it, before against its price grows; each
+// count's; worth; and against its price, from its least, as againstLeast has
+// it, which takes the rest of the row.
+func (t tokensTable) parts() []flex.Part {
 	parts := make([]flex.Part, tokensPartsCount)
-	names := f.tokensNamesNatural()
+	names := t.namesNatural()
 	parts[tokensName] = flex.Part{Least: labelsLeast(names), Natural: names, Narrows: namesNarrow}
-	parts[tokensOf] = flex.Part{Least: tokensOfCells, Natural: f.tokensOfNatural(), Leaves: ofLeaves, Gap: tokensOfGap}
+	parts[tokensOf] = flex.Part{Least: tokensOfCells, Natural: t.ofNatural(), Leaves: ofLeaves, Gap: tokensOfGap}
 	for _, count := range tokensCounts {
 		parts[count.part] = flex.Part{Least: count.cells + count.after, Natural: count.cells + count.after, Leaves: count.leaves}
 	}
 	parts[tokensTotal].Gap = tokensTotalGap
 	parts[tokensWorth] = flex.Part{Least: tokensWorthCells, Natural: tokensWorthCells, Gap: tokensWorthGap}
-	against := f.tokensAgainstLeast()
+	against := t.againstLeast()
 	parts[tokensAgainst] = flex.Part{Least: against, Natural: against, Grows: true, Leaves: againstLeaves, Gap: tokensAgainstGap}
 	return parts
 }
 
-// tokensNamesNatural is the names' natural, of what the split names and
-// what's configured, never of the rows shown: tokensNamesCells, which holds
-// the periods' names and the versions'; split by account, or by account and
-// model, each account configured, as Tokens names it, after its branch, as
-// labelColumnCells counts it; and by account and model, a version's id
-// nested under its account.
-func (f Frame) tokensNamesNatural() int {
+// namesNatural is the names' natural, of what the split names and what's
+// configured, never of the rows shown: tokensNamesCells, which holds the
+// periods' names, the dial's among them, and the versions'; split by account,
+// or by account and model, each account configured, as Tokens names it,
+// after its branch, as labelColumnCells counts it; and by account and model,
+// a version's id nested under its account.
+func (t tokensTable) namesNatural() int {
 	natural := tokensNamesCells
-	split := f.History.TokensSplit
-	if split == TokensByAccountAndModel {
+	if t.split == TokensByAccountAndModel {
 		natural += ansi.StringWidth(tokensNested) - ansi.StringWidth(tokensBranch)
 	}
-	if split == TokensByAccount || split == TokensByAccountAndModel {
-		for _, a := range f.History.Accounts {
+	if t.split == TokensByAccount || t.split == TokensByAccountAndModel {
+		for _, a := range t.accounts {
 			natural = max(natural, ansi.StringWidth(tokensBranch)+labelColumnCells(labelled(a.Label, a.ID)))
 		}
 	}
 	return natural
 }
 
-// tokensOfNatural is the split's column's natural: its least, and split by
-// model, where it names the accounts a version ran on, every account
-// configured, as Tokens names it, a space apart, each as labelColumnCells
-// counts it.
-func (f Frame) tokensOfNatural() int {
-	if f.History.TokensSplit != TokensByModel || len(f.History.Accounts) == 0 {
+// ofNatural is the split's column's natural: its least, and split by model,
+// where it names the accounts a version ran on, every account configured, as
+// Tokens names it, a space apart, each as labelColumnCells counts it.
+func (t tokensTable) ofNatural() int {
+	if t.split != TokensByModel || len(t.accounts) == 0 {
 		return tokensOfCells
 	}
-	listed := len(f.History.Accounts) - 1
-	for _, a := range f.History.Accounts {
+	listed := len(t.accounts) - 1
+	for _, a := range t.accounts {
 		listed += labelColumnCells(labelled(a.Label, a.ID))
 	}
 	return max(listed, tokensOfCells)
 }
 
-// tokensAgainstLeast is against its price's least, of what's configured,
-// never of the rows shown: its head; and where the plans configured cost
-// anything, its words at their widest for what they cost over a whole
-// period, the ratio at tokensRatioMost, so where they don't fit it leaves,
-// never cut.
-func (f Frame) tokensAgainstLeast() int {
+// againstLeast is against its price's least, of what's configured, never of
+// the rows shown: its head; and where the plans configured cost anything,
+// its words at their widest for what they cost over a whole row's period,
+// and where there's a total, over the dial's, the ratio at tokensRatioMost,
+// so where they don't fit it leaves, never cut.
+func (t tokensTable) againstLeast() int {
 	least := ansi.StringWidth(againstHead)
-	if page := f.History.Tokens; page != nil && page.PeriodCost != nil {
-		widest := againstItsPrice(views.Against{Ratio: new(float64(tokensRatioMost)), Cost: page.PeriodCost}, f.History.TokensAsk.Period.Name(), 0)
-		least = max(least, partsWidth(widest))
+	widest := func(cost *ledger.Picodollars, unit string) {
+		said := againstItsPrice(views.Against{Ratio: new(float64(tokensRatioMost)), Cost: cost}, unit, 0)
+		least = max(least, partsWidth(said))
+	}
+	if t.page == nil {
+		return least
+	}
+	if t.page.PeriodCost != nil {
+		widest(t.page.PeriodCost, t.rows.Name())
+	}
+	if total := t.page.Total; total != nil && pricedAgainst(total.Against) {
+		widest(total.Cost, t.period.Unit())
 	}
 	return least
 }
@@ -186,108 +215,154 @@ func (f Frame) tokensAgainstLeast() int {
 // ran on, what says which; its counts and its worth, in their ink; and its
 // worth against its price, a period's alone. A row of the period still
 // running is lit, its figures numbered as Tokens', or where it's split,
-// as its account's, its version's, or both.
+// as its account's, its version's, or both; of the dial's period's total,
+// as figures of the period Accounts counts over.
 type tokensRow struct {
-	name        []part
-	of          []part
-	ofIs        string
-	tokens      views.Tokens
-	worth       views.Worth
-	ink         ink
-	against     []part
-	lit, split  bool
-	account, id string
+	name              []part
+	of                []part
+	ofIs              string
+	tokens            views.Tokens
+	worth             views.Worth
+	ink               ink
+	against           []part
+	lit, split, total bool
+	account, id       string
 }
 
 // number is the number the row's figure in the column named is, where the
 // row is lit: none where it isn't.
 func (r tokensRow) number(column string) Number {
+	of := strings.TrimSpace(r.id + " " + column)
 	switch {
 	case !r.lit:
 		return Number{}
+	case r.total:
+		return Number{Kind: NumberPeriod, Account: r.account, Of: "tokens " + of}
 	case r.split:
-		return Number{Kind: NumberTokensSplit, Account: r.account, Of: strings.TrimSpace(r.id + " " + column)}
+		return Number{Kind: NumberTokensSplit, Account: r.account, Of: of}
 	}
 	return Number{Kind: NumberTokens, Of: column}
 }
 
-// historyTokens draws Tokens from row top: its heads; then its periods,
-// newest first, a blank row between them, as periods or byRows draws them,
-// as each fits whole or not; and the footnote on the view's last rows. With
-// nothing recorded, it says so.
-func (f Frame) historyTokens(c *canvas, top int) {
-	page := f.History.Tokens
-	if page == nil || len(page.Periods) == 0 {
-		c.line(0, top, line{{nothingRecorded, dimInk}}.fit(f.Width))
+// tokensBlock is a run of Tokens' rows that stand together: a period's, as
+// rowsOf makes them, or of the dial's period whole, its total, ruled off
+// from the periods under it, where there are any.
+type tokensBlock struct {
+	period       views.TokenPeriod
+	total, ruled bool
+}
+
+// blocks are Tokens' blocks in their order down the view: the total, where
+// the page has one, then each period, newest first.
+func (t tokensTable) blocks() []tokensBlock {
+	if t.page == nil {
+		return nil
+	}
+	var blocks []tokensBlock
+	if total := t.page.Total; total != nil {
+		blocks = append(blocks, tokensBlock{period: *total, total: true, ruled: len(t.page.Periods) > 0})
+	}
+	for _, p := range t.page.Periods {
+		blocks = append(blocks, tokensBlock{period: p})
+	}
+	return blocks
+}
+
+// height is how many rows the block takes, split as the table has it, as
+// rowsOf makes them, and its rule.
+func (t tokensTable) height(b tokensBlock) int {
+	h := tokensHeight(b.period, t.split)
+	if b.ruled {
+		h++
+	}
+	return h
+}
+
+// draw draws Tokens from row top: its heads; then its blocks, a blank row
+// between them, as byPeriods or byRows draws them, as each fits whole or not,
+// or as the table fills the view; and the footnote on the view's last rows.
+// With nothing recorded, it says so.
+func (t tokensTable) draw(c *canvas, top int) {
+	if len(t.blocks()) == 0 {
+		c.line(0, top, line{{nothingRecorded, dimInk}}.fit(t.width))
 		return
 	}
-	cols := f.tokensColumns()
-	f.tokensHeads(c, top, cols)
-	placed, note := f.tokensPlaced(top)
+	cols := t.columns()
+	t.heads(c, top, cols)
+	placed, note := t.placed(top)
 	for i, l := range note {
-		c.line(0, top+f.viewRows()-len(note)+i, l)
+		c.line(0, top+t.viewRows-len(note)+i, l)
 	}
 	switch {
 	case placed.rows < 1:
 	case placed.byRows():
-		f.tokensByRows(c, cols, placed)
+		t.byRows(c, cols, placed)
 	default:
-		f.tokensByPeriods(c, cols, placed)
+		t.byPeriods(c, cols, placed)
 	}
 }
 
-// tokensByPeriods draws Tokens' periods, every one of which fits whole, as
-// placed places them: as many as fit, scrolled as the frame has it, a period
-// at a time, and under them how many more are below.
-func (f Frame) tokensByPeriods(c *canvas, cols tokensColumns, placed tokensPlaced) {
-	periods := f.History.Tokens.Periods
-	from := min(max(f.Scroll, 0), placed.most())
+// byPeriods draws Tokens' blocks, every one of which fits whole, as placed
+// places them: as many as fit, scrolled as the table has it, a block at a
+// time, and under them how many more periods are below.
+func (t tokensTable) byPeriods(c *canvas, cols tokensColumns, placed tokensPlaced) {
+	blocks := t.blocks()
+	from := min(max(t.scroll, 0), placed.most())
 	shown := placed.shown(from)
-	below := len(periods) - from - shown
+	below := len(blocks) - from - shown
 	out := min(below, 1)
 	body := c.within(bounds{y: placed.first, width: c.width, rows: placed.rows - out})
 	y := placed.first
-	for i, period := range periods[from : from+shown] {
+	for i, b := range blocks[from : from+shown] {
 		if i > 0 {
 			y++
 		}
-		for _, r := range f.tokensRows(period) {
-			cols.draw(body, y, r)
-			y++
-		}
+		t.drawBlock(body, cols, y, b)
+		y += t.height(b)
 	}
 	if out > 0 {
-		c.line(0, y, outOfView(0, below, f.Width, periodsOut(f.History.TokensAsk.Period.Name())))
+		c.line(0, y, outOfView(0, below, t.width, periodsOut(t.rows.Name())))
 	}
 }
 
-// tokensByRows draws Tokens' periods, where one doesn't fit whole, a row at
-// a time, as placed pages them: the rows shown, scrolled as the frame has
-// it, and after them how many rows are out of view, above and below.
-func (f Frame) tokensByRows(c *canvas, cols tokensColumns, placed tokensPlaced) {
+// byRows draws Tokens' blocks a row at a time, as placed pages them: the
+// rows shown, scrolled as the table has it, and after them how many rows are
+// out of view, above and below.
+func (t tokensTable) byRows(c *canvas, cols tokensColumns, placed tokensPlaced) {
 	paged := placed.paged()
-	from, to := paged.shown(f.Scroll)
+	from, to := paged.shown(t.scroll)
 	body := c.within(bounds{y: placed.first, width: c.width, rows: to - from})
 	y := placed.first - from
-	for i, period := range f.History.Tokens.Periods {
+	for i, b := range t.blocks() {
 		if height := placed.heights[i]; y+height > placed.first && y < placed.first+to-from {
-			for j, r := range f.tokensRows(period) {
-				cols.draw(body, y+j, r)
-			}
+			t.drawBlock(body, cols, y, b)
 		}
 		y += placed.heights[i] + 1
 	}
-	paged.said(c, placed.first, from, to, f.Width, historyRowsOut...)
+	paged.said(c, placed.first, from, to, t.width, historyRowsOut...)
 }
 
-// tokensHeads draws Tokens' heads along row y, each cut to its column, as
-// the row under it is: the period, then models, or split by model, on; each
-// count's; worth; and against its price.
-func (f Frame) tokensHeads(c *canvas, y int, cols tokensColumns) {
-	c.line(0, y, line{{f.History.TokensAsk.Period.Name(), dimInk}}.fit(cols.cells(tokensName)))
+// drawBlock draws the block from row y: its rows, as rowsOf makes them, then,
+// where it's ruled, its rule, in border.subtle, as far across as the heads
+// run.
+func (t tokensTable) drawBlock(c *canvas, cols tokensColumns, y int, b tokensBlock) {
+	rows := t.rowsOf(b)
+	for i, r := range rows {
+		cols.draw(c, y+i, r)
+	}
+	if b.ruled {
+		c.line(0, y+len(rows), line{{rule(cols.headsEnd()), borderInk}})
+	}
+}
+
+// heads draws Tokens' heads along row y, each cut to its column, as the row
+// under it is: the period its rows are, then models, or split by model, on;
+// each count's; worth; and against its price.
+func (t tokensTable) heads(c *canvas, y int, cols tokensColumns) {
+	c.line(0, y, line{{t.rows.Name(), dimInk}}.fit(cols.cells(tokensName)))
 	if cols.shows(tokensOf) {
 		of := "models"
-		if f.History.TokensSplit == TokensByModel {
+		if t.split == TokensByModel {
 			of = "on"
 		}
 		c.line(cols.at(tokensOf), y, line{{of, dimInk}}.fit(cols.cells(tokensOf)))
@@ -307,12 +382,12 @@ const (
 	againstHead = "against its price"
 )
 
-// tokensFootnote says what worth is, as of the price table's date, and
-// where the rows are split by model, that each version is at its own price:
-// the date a figure, so it's never cut or broken across rows.
-func (f Frame) tokensFootnote(asOf string) []part {
+// footnote says what worth is, as of the price table's date, and where the
+// rows are split by model, that each version is at its own price: the date
+// a figure, so it's never cut or broken across rows.
+func (t tokensTable) footnote(asOf string) []part {
 	note := []part{wordsIn("worth: what the same tokens would cost through the API, at its prices as of ", faintInk), figureIn(pricesDated(asOf), faintInk)}
-	if f.History.TokensSplit == TokensByModel || f.History.TokensSplit == TokensByAccountAndModel {
+	if t.split == TokensByModel || t.split == TokensByAccountAndModel {
 		note = append(note, wordsIn(", each version at its own price", faintInk))
 	}
 	return note
@@ -368,6 +443,17 @@ func (cols tokensColumns) cells(part int) int {
 	return max(min(cols.end(part), cols.width)-cols.at(part), 0)
 }
 
+// headsEnd is the column the heads end before, as far across as the table
+// runs: against its price's head's end, where it shows, else worth's; never
+// past the frame's width.
+func (cols tokensColumns) headsEnd() int {
+	end := cols.at(tokensWorth) + ansi.StringWidth(worthHead)
+	if cols.shows(tokensAgainst) {
+		end = cols.at(tokensAgainst) + ansi.StringWidth(againstHead)
+	}
+	return min(end, cols.width)
+}
+
 // worthCells is how many cells a row's worth has: its own, where against its
 // price shows after it, else to the frame's width.
 func (cols tokensColumns) worthCells() int {
@@ -392,26 +478,34 @@ func (r tokensRow) numbered(column string, parts ...part) []part {
 	return numbered
 }
 
-// tokensRows are the period's rows: its own, then those Tokens splits it
-// into, as the frame has it split.
-func (f Frame) tokensRows(t views.TokenPeriod) []tokensRow {
-	split := tokensRow{ink: mutedInk, lit: t.SoFar, split: true}
+// rowsOf are the block's rows: its own, then those Tokens splits it into, as
+// the table has it split. A period's is named as periodName names it, and
+// its worth set against the price of a whole period of its kind; the total's
+// is named by the dial's period, its price over that period, as its unit
+// names it.
+func (t tokensTable) rowsOf(b tokensBlock) []tokensRow {
+	p := b.period
+	name, unit := periodName(p.First, t.rows), t.rows.Name()
+	if b.total {
+		name, unit = t.period.Name(), t.period.Unit()
+	}
+	split := tokensRow{ink: mutedInk, lit: p.SoFar, split: true, total: b.total}
 	rows := []tokensRow{{
-		name: []part{figureIn(periodName(t.First, f.History.TokensAsk.Period), titleInk)}, of: countedParts(t.Versions, "model", mutedInk), ofIs: "models",
-		tokens: t.Tokens, worth: t.Worth, ink: titleInk, against: againstItsPrice(t.Against, f.History.TokensAsk.Period.Name(), f.tokensColumns().cells(tokensAgainst)), lit: t.SoFar,
+		name: []part{figureIn(name, titleInk)}, of: countedParts(p.Versions, "model", mutedInk), ofIs: "models",
+		tokens: p.Tokens, worth: p.Worth, ink: titleInk, against: againstItsPrice(p.Against, unit, t.columns().cells(tokensAgainst)), lit: p.SoFar, total: b.total,
 	}}
-	switch f.History.TokensSplit {
+	switch t.split {
 	case TokensByAccount:
-		for _, a := range t.ByAccount {
+		for _, a := range p.ByAccount {
 			rows = append(rows, split.ofAccount(a))
 		}
 	case TokensByModel:
-		named := tokensAccounts(t.ByAccount)
-		for _, m := range t.ByModel {
+		named := tokensAccounts(p.ByAccount)
+		for _, m := range p.ByModel {
 			rows = append(rows, split.ofModel(m, tokensBranch).on(m.On, named))
 		}
 	case TokensByAccountAndModel:
-		for _, a := range t.ByAccount {
+		for _, a := range p.ByAccount {
 			nested := split
 			nested.account = a.Account
 			rows = append(rows, split.ofAccount(a))
@@ -563,14 +657,16 @@ func knownForms(k views.PlansKnown) []string {
 	return []string{accountsApart + k.Said(), accountsApart + k.SaidShort(), accountsApart + k.SaidCompact()}
 }
 
-// tokensPlaced is how Tokens' periods fit in the rows they have, from row
+// tokensPlaced is how Tokens' blocks fit in the rows they have, from row
 // first, a blank row between each and a row under the last shown where more
-// are below: each period's height, as the frame has them split; and their
-// headings, laid out one after another, as periodHeads has them.
+// are below: each block's height, as the table has them split; their
+// headings, laid out one after another, as periodHeads has them; and whether
+// they fill the rows, a row at a time, as the table has it.
 type tokensPlaced struct {
 	heights     []int
 	heads       []headed
 	first, rows int
+	fills       bool
 }
 
 // Tokens' parts down its view, in their order: its heads' row, the blank row
@@ -590,48 +686,47 @@ const (
 	tokensUnderHeadsLeaves
 )
 
-// tokensPlaced is the frame's periods of Tokens, its view from row top,
-// placed from a blank row under its heads to a blank row over its footnote,
-// and the footnote, wrapped to the frame's width, which ends on the view's
-// last row, as flex lays them down the view. Where that leaves the periods
-// fewer than leastPaged rows, a period's first and the line saying what's
-// below, the footnote goes, as it would soon reach the heads, and the
-// periods run to the view's last row; and where that still does, the blank
-// row under the heads goes too, the periods starting on the row under them.
-func (f Frame) tokensPlaced(top int) (tokensPlaced, []line) {
-	page := f.History.Tokens
-	if page == nil {
+// placed are the table's blocks of Tokens, its view from row top, placed
+// from a blank row under its heads to a blank row over its footnote, and the
+// footnote, wrapped to the frame's width, which ends on the view's last row,
+// as flex lays them down the view. Where that leaves the blocks fewer than
+// leastPaged rows, a block's first and the line saying what's below, the
+// footnote goes, as it would soon reach the heads, and the blocks run to the
+// view's last row; and where that still does, the blank row under the heads
+// goes too, the blocks starting on the row under them.
+func (t tokensTable) placed(top int) (tokensPlaced, []line) {
+	if t.page == nil {
 		return tokensPlaced{}, nil
 	}
-	note := wrapParts(f.Width, f.tokensFootnote(page.PricesAsOf)...)
+	note := wrapParts(t.width, t.footnote(t.page.PricesAsOf)...)
 	rows := make([]flex.Part, tokensRowsCount)
 	rows[tokensHeadsRow] = flex.Part{Least: 1, Natural: 1}
 	rows[tokensUnderHeadsRow] = flex.Part{Least: 1, Natural: 1, Leaves: tokensUnderHeadsLeaves}
 	rows[tokensPeriodsRows] = flex.Part{Least: leastPaged, Natural: leastPaged, Grows: true}
 	rows[tokensNoteRows] = flex.Part{Least: len(note), Natural: len(note), Leaves: tokensNoteLeaves, Gap: min(len(note), 1)}
-	spans, _ := flex.Lay(f.viewRows(), rows...)
+	spans, _ := flex.Lay(t.viewRows, rows...)
 	if spans[tokensNoteRows].Left {
 		note = nil
 	}
 	periods := spans[tokensPeriodsRows]
-	p := tokensPlaced{first: top + periods.At, rows: min(periods.Size, f.viewRows()-periods.At)}
+	p := tokensPlaced{first: top + periods.At, rows: min(periods.Size, t.viewRows-periods.At), fills: t.fills}
 	y := 0
-	for _, t := range page.Periods {
-		height := tokensHeight(t, f.History.TokensSplit)
+	for _, b := range t.blocks() {
+		height := t.height(b)
 		p.heights = append(p.heights, height)
-		p.heads = append(p.heads, periodHeads(t, f.History.TokensSplit, y)...)
+		p.heads = append(p.heads, periodHeads(b.period, t.split, y)...)
 		y += height + 1
 	}
 	return p, note
 }
 
-// byRows reports whether Tokens' periods show a row at a time, as
-// pagesByRows has it: where one of them doesn't fit whole in the rows they
-// have, with a row under it where more are below; and on up from there,
-// while a period at a time would show less than a row at a time a row
-// shorter.
+// byRows reports whether Tokens' blocks show a row at a time: wherever they
+// fill the rows they have; else as pagesByRows has it, where one of them
+// doesn't fit whole in the rows they have, with a row under it where more
+// are below; and on up from there, while a block at a time would show less
+// than a row at a time a row shorter.
 func (p tokensPlaced) byRows() bool {
-	return pagesByRows(p.rows, p.eachFits, p.wholeRows, func(rows int) rowsPaged {
+	return p.fills || pagesByRows(p.rows, p.eachFits, p.wholeRows, func(rows int) rowsPaged {
 		return p.in(rows).paged()
 	})
 }
@@ -749,12 +844,12 @@ func (p tokensPlaced) most() int {
 	return 0
 }
 
-// tokensScrolling is how far Tokens, from row top, scrolls, scrolled to each
+// scrolling is how far Tokens, from row top, scrolls, scrolled to each
 // offset given: a row at a time, where byRows says so, as paged has it; else
-// a period at a time, as far as most says, and as many periods at once as
-// show from there, paged as thingsPaged has it.
-func (f Frame) tokensScrolling(top int) func(offset int) Scrolling {
-	placed, _ := f.tokensPlaced(top)
+// a block at a time, as far as most says, and as many blocks at once as show
+// from there, paged as thingsPaged has it.
+func (t tokensTable) scrolling(top int) func(offset int) Scrolling {
+	placed, _ := t.placed(top)
 	switch {
 	case len(placed.heights) == 0 || placed.rows < 1:
 		return func(int) Scrolling { return Scrolling{} }

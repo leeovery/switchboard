@@ -204,27 +204,30 @@ func (m Model) graphsListings() []keyListing {
 
 // accountsListings are Accounts' own keys, each move with enter in a group
 // of its own, as the facts Accounts' moves act on have them, Detail's
-// SESSIONS listing the sessions running given: [ ] view, where
-// there are sub-tabs; < > and the period; on Compare, ←→ along the
+// SESSIONS listing the sessions running given: [ ] view; < > and the
+// period; on Tokens, v and its split; on Compare, ←→ along the
 // accounts, enter opening the one focused in Detail, faint till one is, and
 // esc ending the focus while there is one, none of them where Compare is
 // turned, drawing no focus; on Detail's list, ↑↓ through the accounts, → into
 // the chosen one's SESSIONS, which the key line leaves to help, and enter
 // opening the session selected there, faint where none is; in its SESSIONS,
 // ↑↓ through them, ← back to the list and enter; with one account, which
-// has no list, ↑↓ and enter while a session is selected; and on Detail, w,
-// as modelsKey has it, which the key line leaves to help. A phone's line
-// keeps [ ] view alone.
+// has no list, ↑↓ and enter while a session is selected on Detail; and on
+// Detail, w, as modelsKey has it, which the key line leaves to help. A
+// phone's line keeps [ ] view alone.
 func (m Model) accountsListings(running []string) []keyListing {
 	s := m.accounts.shown
 	shown := m.shownView() == dashboard.Accounts
 	compare := m.comparing()
-	listed, alone := shown && s.View() == dashboard.AccountsDetail && !s.Alone(), shown && s.Alone()
+	detail := shown && s.View() == dashboard.AccountsDetail
+	listed, alone := detail && !s.Alone(), detail && s.Alone()
 	selected := s.Selection(running) != ""
 	inSessions := listed && s.InSessions || alone && selected
+	split := s.Split()
 	return []keyListing{
-		{Key: dashboard.Key{Key: "[ ]", Does: "view"}, works: shown && !alone, apart: true},
+		{Key: dashboard.Key{Key: "[ ]", Does: "view"}, works: shown, apart: true},
 		{Key: dashboard.Key{Key: "< >", Does: "period", State: m.period.Name()}, works: shown, apart: true, wide: true},
+		{Key: dashboard.Key{Key: "v", Does: "split", State: split}, works: shown && split != "", apart: true, wide: true},
 		{Key: dashboard.Key{Key: "←→", Does: "account"}, works: compare, apart: true, wide: true},
 		{Key: dashboard.Key{Key: "↑↓", Does: "account"}, works: listed && !s.InSessions, apart: true, wide: true},
 		{Key: dashboard.Key{Key: "↑↓", Does: "session"}, works: inSessions, apart: true, wide: true},

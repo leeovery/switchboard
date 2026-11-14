@@ -11,7 +11,7 @@ import (
 )
 
 // AccountsView is one of Accounts' views, its sub-tabs: Compare, the
-// default, and Detail.
+// default, Detail and Tokens.
 type AccountsView int
 
 const (
@@ -21,16 +21,19 @@ const (
 	// AccountsDetail shows one account in full, or all of them, chosen from
 	// a list.
 	AccountsDetail
+	// AccountsTokens is the period's tokens, a row a day, a week or a month,
+	// led by the whole period's, as ccusage reports them, split by account.
+	AccountsTokens
 )
 
 // accountsViews are Accounts' sub-tabs' names, in the heading row's order.
-var accountsViews = []string{"Compare", "Detail"}
+var accountsViews = []string{"Compare", "Detail", "Tokens"}
 
-// AccountsShown is Accounts as the watch gives it: the sub-tab shown, which
-// the preferences keep; Compare's focus and the columns it shows; Detail's
-// choice, its list's scroll, and the session selected in its SESSIONS, which
-// hold for the run alone; and the page of the dial's period, built of the
-// ledger's days.
+// AccountsShown is Accounts as the watch gives it: the sub-tab shown, and how
+// Tokens splits its rows, which the preferences keep; Compare's focus and the
+// columns it shows; Detail's choice, its list's scroll, and the session
+// selected in its SESSIONS, which hold for the run alone; and the pages of
+// the dial's period, built of the ledger's days.
 type AccountsShown struct {
 	// Shown is the sub-tab shown, as View has it.
 	Shown AccountsView
@@ -57,19 +60,27 @@ type AccountsShown struct {
 	// Page is the period's page, stood at the moment drawn, as
 	// views.AccountsPage.At stands it: nil till the days are read.
 	Page *views.AccountsPage
+	// TokensSplit is how Tokens splits each row, as v cycles it; and Tokens
+	// is its page over the period: nil till the days are read, and while
+	// Tokens isn't shown.
+	TokensSplit TokensSplit
+	Tokens      *views.TokensPage
 }
 
-// AccountsKept is Accounts as the preferences kept it: the sub-tab, by its
-// name. What names none, as a later build's, shows as Accounts opens:
-// Compare.
+// AccountsKept is Accounts as the preferences kept it: the sub-tab and
+// Tokens' split, each by its name. What names none, as a later build's,
+// shows as Accounts opens: Compare, split by account.
 func AccountsKept(kept theme.AccountsPrefs) AccountsShown {
-	return AccountsShown{Shown: AccountsView(placeAmong(kept.View, lowerNames(accountsViews)))}
+	return AccountsShown{
+		Shown:       AccountsView(placeAmong(kept.View, lowerNames(accountsViews))),
+		TokensSplit: TokensSplit(placeAmong(kept.Split, tokensSplitNames)),
+	}
 }
 
 // Kept is what the preferences keep of Accounts, as AccountsKept reads it:
-// the sub-tab shown, never what's chosen.
+// the sub-tab shown and Tokens' split, never what's chosen.
 func (s AccountsShown) Kept() theme.AccountsPrefs {
-	return theme.AccountsPrefs{View: lowerNames(accountsViews)[s.Shown]}
+	return theme.AccountsPrefs{View: lowerNames(accountsViews)[s.Shown], Split: tokensSplitNames[s.TokensSplit]}
 }
 
 // Alone reports whether there's one account, which all accounts would only
@@ -78,9 +89,19 @@ func (s AccountsShown) Alone() bool {
 	return len(s.Accounts) == 1
 }
 
-// View is the sub-tab drawn: Shown, but Detail where there's one account.
-func (s AccountsShown) View() AccountsView {
+// views are the sub-tabs drawn, in the heading row's order: Compare, Detail
+// and Tokens, but Compare going where there's one account.
+func (s AccountsShown) views() []AccountsView {
 	if s.Alone() {
+		return []AccountsView{AccountsDetail, AccountsTokens}
+	}
+	return []AccountsView{AccountsCompare, AccountsDetail, AccountsTokens}
+}
+
+// View is the sub-tab drawn: Shown, but Detail in Compare's place where
+// there's one account.
+func (s AccountsShown) View() AccountsView {
+	if s.Alone() && s.Shown == AccountsCompare {
 		return AccountsDetail
 	}
 	return s.Shown
@@ -95,15 +116,18 @@ func (s AccountsShown) Account() string {
 	return s.Chosen
 }
 
-// heading is Accounts' heading row: its name and its sub-tabs, the one drawn
-// picked out, Detail alone where there's one account; and at its right, the
-// period given between < and >, as periodDial has it.
+// heading is Accounts' heading row: its name and its sub-tabs drawn, as
+// views has them, the one drawn picked out; and at its right, the period
+// given between < and >, as periodDial has it.
 func (s AccountsShown) heading(period views.Period) heading {
-	h := heading{name: strings.ToUpper(Accounts.Title()), subTabs: accountsViews, shown: int(s.View())}
-	h.period, h.widest = periodDial(period)
-	if s.Alone() {
-		h.subTabs, h.shown = accountsViews[AccountsDetail:], 0
+	h := heading{name: strings.ToUpper(Accounts.Title())}
+	for i, v := range s.views() {
+		h.subTabs = append(h.subTabs, accountsViews[v])
+		if v == s.View() {
+			h.shown = i
+		}
 	}
+	h.period, h.widest = periodDial(period)
 	return h
 }
 
@@ -158,10 +182,14 @@ func (f Frame) accountsForm(doc status.Document, now time.Time) accountsForm {
 
 // buildAccountsForm builds the form Accounts' view shown is drawn in, of doc
 // at now: Compare's, as compareForm has it, or Detail's, as detailForm has
-// it, each choosing its own form by its parts.
+// it, each choosing its own form by its parts; or Tokens', as tokensForm has
+// it.
 func (f Frame) buildAccountsForm(doc status.Document, now time.Time) accountsForm {
-	if f.Accounts.View() == AccountsCompare {
+	switch f.Accounts.View() {
+	case AccountsCompare:
 		return f.compareForm(doc, now)
+	case AccountsTokens:
+		return f.tokensForm()
 	}
 	return f.detailForm(doc, now)
 }

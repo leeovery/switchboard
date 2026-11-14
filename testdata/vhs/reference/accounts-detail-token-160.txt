@@ -2,7 +2,7 @@
 
 ● healthy  ·  auto  ·  6 sessions  ·  new sessions → ▲ side
 
-ACCOUNTS    Compare  Detail  [ ]  ───────────────────────────────────────────────────────────────────────────────────────────────────────────────  < this week >
+ACCOUNTS    Compare  Detail  Tokens  [ ]  ───────────────────────────────────────────────────────────────────────────────────────────────────────  < this week >
 
  all accounts       │   work   ● at its cap · new sessions go elsewhere
                     │            token expires 22 Oct 2026 · 21 days left — switchboard setup makes a new one

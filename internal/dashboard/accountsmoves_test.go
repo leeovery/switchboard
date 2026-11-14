@@ -20,14 +20,15 @@ func tenConfigured() config.Accounts {
 // Sessions running on work, by id, in SESSIONS' order.
 var workRunning = []string{"d28c", "7f3a", "9e21"}
 
-// [ and ] move between Compare and Detail, round; a click picks one, but the
-// one shown. With one account, Detail alone is drawn, and neither moves.
+// [ and ] move through Compare, Detail and Tokens, round; a click picks one,
+// but the one shown. With one account, Compare goes, and they move between
+// Detail and Tokens, the heading's first sub-tab Detail.
 func TestAccountsSubTabsTurnRound(t *testing.T) {
 	s := AccountsShown{Accounts: threeConfigured}
 	for _, step := range []struct {
 		by   int
 		want AccountsView
-	}{{-1, AccountsDetail}, {-1, AccountsCompare}, {1, AccountsDetail}, {1, AccountsCompare}} {
+	}{{-1, AccountsTokens}, {-1, AccountsDetail}, {-1, AccountsCompare}, {1, AccountsDetail}, {1, AccountsTokens}, {1, AccountsCompare}} {
 		var ok bool
 		if s, ok = s.Turned(step.by); !ok || s.Shown != step.want {
 			t.Errorf("turned %d to %d, %v; want %d", step.by, s.Shown, ok, step.want)
@@ -36,20 +37,66 @@ func TestAccountsSubTabsTurnRound(t *testing.T) {
 	if _, ok := s.Showing(int(AccountsCompare)); ok {
 		t.Error("Showing() the sub-tab shown reports a change, want none")
 	}
-	if got, ok := s.Showing(int(AccountsDetail)); !ok || got.Shown != AccountsDetail {
-		t.Errorf("Showing(Detail) = %d, %v; want Detail shown", got.Shown, ok)
+	for _, v := range []AccountsView{AccountsDetail, AccountsTokens} {
+		if got, ok := s.Showing(int(v)); !ok || got.Shown != v {
+			t.Errorf("Showing(%d) = %d, %v; want it shown", v, got.Shown, ok)
+		}
 	}
 	if _, ok := s.Showing(len(accountsViews)); ok {
 		t.Error("Showing() a sub-tab there isn't reports a change, want none")
 	}
 	one := AccountsShown{Accounts: threeConfigured[:1]}
 	for _, by := range []int{-1, 1} {
-		if got, ok := one.Turned(by); ok || got.View() != AccountsDetail {
-			t.Errorf("with one account, turned %d to %d, %v; want Detail, unmoved", by, got.View(), ok)
+		got, ok := one.Turned(by)
+		if !ok || got.View() != AccountsTokens {
+			t.Errorf("with one account, turned %d to %d, %v; want Tokens", by, got.View(), ok)
+		}
+		if back, ok := got.Turned(by); !ok || back.View() != AccountsDetail {
+			t.Errorf("with one account, turned %d again to %d, %v; want Detail", by, back.View(), ok)
 		}
 	}
 	if _, ok := one.Showing(0); ok {
-		t.Error("with one account, a click on Detail, the sub-tab there is, reports a change, want none")
+		t.Error("with one account, a click on Detail, the sub-tab drawn, reports a change, want none")
+	}
+	if got, ok := one.Showing(1); !ok || got.View() != AccountsTokens {
+		t.Errorf("with one account, a click on its second sub-tab shows %d, %v; want Tokens", got.View(), ok)
+	}
+	if _, ok := one.Showing(2); ok {
+		t.Error("with one account, a click past its two sub-tabs reports a change, want none")
+	}
+}
+
+// v cycles Tokens' split, by account, by model, by both and not at all,
+// round, the key line naming each; off Tokens, it does nothing, and the key
+// line names none.
+func TestTokensSplitCyclesOnTokensAlone(t *testing.T) {
+	s := AccountsShown{Shown: AccountsTokens, Accounts: threeConfigured}
+	for _, want := range []string{"by model", "by account and model", "none", "by account"} {
+		var ok bool
+		if s, ok = s.Cycled(); !ok || s.Split() != want {
+			t.Errorf("cycled to %q, %v; want %q", s.Split(), ok, want)
+		}
+	}
+	for _, v := range []AccountsView{AccountsCompare, AccountsDetail} {
+		off := AccountsShown{Shown: v, Accounts: threeConfigured}
+		if got, ok := off.Cycled(); ok || got.TokensSplit != off.TokensSplit || off.Split() != "" {
+			t.Errorf("on %d, v cycles to %d, %v, the key line saying %q; want nothing", v, got.TokensSplit, ok, off.Split())
+		}
+	}
+}
+
+// On Tokens, ← and → move nothing and enter opens nothing, whatever runs.
+func TestTokensTakesNoneOfComparesOrDetailsMoves(t *testing.T) {
+	for _, accounts := range []int{1, 3} {
+		s := AccountsShown{Shown: AccountsTokens, Accounts: threeConfigured[:accounts]}
+		for _, by := range []int{-1, 1} {
+			if got, ok := s.Moved(by, workRunning); ok || got.InSessions || got.Focused {
+				t.Errorf("of %d accounts, Moved(%d) = %+v, %v; want nothing moved", accounts, by, got, ok)
+			}
+		}
+		if s.Opens(workRunning) {
+			t.Errorf("of %d accounts, enter opens something on Tokens, want nothing", accounts)
+		}
 	}
 }
 

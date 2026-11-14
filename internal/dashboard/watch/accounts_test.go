@@ -325,9 +325,9 @@ func TestAccountsSubTabAndThePeriodAreKeptAsTheyChange(t *testing.T) {
 		updates  int
 	}{
 		{name: "the period", change: func(m Model) Model { return m.periodStepped(1) }, period: "30-days", updates: 1},
-		{name: "the sub-tab", change: show(func(s *dashboard.AccountsShown) { s.Shown = dashboard.AccountsDetail }), period: "30-days", accounts: theme.AccountsPrefs{View: "detail"}, updates: 2},
-		{name: "the account chosen", change: show(func(s *dashboard.AccountsShown) { s.Chosen = "work" }), period: "30-days", accounts: theme.AccountsPrefs{View: "detail"}, updates: 2},
-		{name: "Compare's focus", change: show(func(s *dashboard.AccountsShown) { s.Focused, s.Focus = true, "side" }), period: "30-days", accounts: theme.AccountsPrefs{View: "detail"}, updates: 2},
+		{name: "the sub-tab", change: show(func(s *dashboard.AccountsShown) { s.Shown = dashboard.AccountsDetail }), period: "30-days", accounts: theme.AccountsPrefs{View: "detail", Split: "account"}, updates: 2},
+		{name: "the account chosen", change: show(func(s *dashboard.AccountsShown) { s.Chosen = "work" }), period: "30-days", accounts: theme.AccountsPrefs{View: "detail", Split: "account"}, updates: 2},
+		{name: "Compare's focus", change: show(func(s *dashboard.AccountsShown) { s.Focused, s.Focus = true, "side" }), period: "30-days", accounts: theme.AccountsPrefs{View: "detail", Split: "account"}, updates: 2},
 	}
 	for _, step := range steps {
 		h.model = step.change(h.model)
@@ -647,7 +647,7 @@ func TestAccountsKeysTurnTheSubTabAndStepThePeriodKeptAsTheyChange(t *testing.T)
 		if step.scroll == 0 {
 			updates++
 		}
-		kept := theme.AccountsPrefs{View: step.view}
+		kept := theme.AccountsPrefs{View: step.view, Split: "account"}
 		if got := h.model.accounts.shown.Kept(); got != kept || h.model.period != step.period || prefs.kept.Accounts != kept ||
 			prefs.kept.Period != string(step.period) || prefs.updates != updates || h.model.scroll != step.scroll {
 			t.Fatalf("after %s, Accounts shows %+v over %q, the preferences keep %+v over %q, updated %d times, the view scrolled %d; "+

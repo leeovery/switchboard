@@ -36,20 +36,22 @@ const (
 var periods = []Period{PeriodToday, PeriodThisWeek, PeriodThirtyDays, PeriodTwelveWeeks, PeriodTwelveMonths}
 
 // periodIs is what a period is: what the heading and the key line call it;
-// THIS WEEK's title, naming it; the unit against its price names it by; and
-// the share of a month its plans cost over it.
+// THIS WEEK's title, naming it; the unit against its price names it by; the
+// share of a month its plans cost over it; and the period each of Accounts'
+// Tokens' rows is over it.
 type periodIs struct {
 	name, title, unit string
 	share             monthPart
+	rows              TokensPeriod
 }
 
 // periodsAre are each period's words and price.
 var periodsAre = map[Period]periodIs{
-	PeriodToday:        {name: "today", title: "TODAY", unit: "day", share: days(1)},
-	PeriodThisWeek:     {name: "this week", title: "THIS WEEK", unit: "week", share: aWeek},
-	PeriodThirtyDays:   {name: "30 days", title: "LAST 30 DAYS", unit: "month", share: aMonth},
-	PeriodTwelveWeeks:  {name: "12 weeks", title: "LAST 12 WEEKS", unit: "12 weeks", share: twelveWeeks},
-	PeriodTwelveMonths: {name: "12 months", title: "LAST 12 MONTHS", unit: "12 months", share: aYear},
+	PeriodToday:        {name: "today", title: "TODAY", unit: "day", share: days(1), rows: TokensByDay},
+	PeriodThisWeek:     {name: "this week", title: "THIS WEEK", unit: "week", share: aWeek, rows: TokensByDay},
+	PeriodThirtyDays:   {name: "30 days", title: "LAST 30 DAYS", unit: "month", share: aMonth, rows: TokensByDay},
+	PeriodTwelveWeeks:  {name: "12 weeks", title: "LAST 12 WEEKS", unit: "12 weeks", share: twelveWeeks, rows: TokensByWeek},
+	PeriodTwelveMonths: {name: "12 months", title: "LAST 12 MONTHS", unit: "12 months", share: aYear, rows: TokensByMonth},
 }
 
 // Periods are the periods in the order < and > step through them, the
@@ -91,6 +93,13 @@ func (p Period) Title() string {
 // in "its $46 week": "day", "week", "month", "12 weeks" or "12 months".
 func (p Period) Unit() string {
 	return periodsAre[p].unit
+}
+
+// Rows is the period each of Accounts' Tokens' rows is over the period: a
+// day over today, this week and 30 days, a week over 12 weeks, and a month
+// over 12 months.
+func (p Period) Rows() TokensPeriod {
+	return periodsAre[p].rows
 }
 
 // Stepped is the period < steps to, by -1, a shorter one, or > does, by 1, a
@@ -138,6 +147,19 @@ func (p Period) last(today time.Time, starts time.Weekday) time.Time {
 		return today
 	}
 	return weekOf(today, starts).AddDate(0, 0, 6)
+}
+
+// shape is the period as one of Tokens' rows, today being the day given, as
+// dayfile.Civil gives a day, weeks starting on the day given: every day from
+// its first to its last one row, by its first day's date, priced as Accounts
+// prices the period, its share of a month whole.
+func (p Period) shape(today time.Time, starts time.Weekday) periodShape {
+	first, last := p.first(today, starts).Format(time.DateOnly), p.last(today, starts).Format(time.DateOnly)
+	return periodShape{
+		of:    func(date string) (string, bool) { return first, first <= date && date <= last },
+		dates: func(string) (string, string) { return first, last },
+		share: p.share(),
+	}
 }
 
 // share is the share of a month the plans cost over the period, whole.

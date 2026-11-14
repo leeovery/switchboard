@@ -65,8 +65,8 @@ func TestAccountsHelpListsItsKeysThenEachPartInTheDesignsOrder(t *testing.T) {
 		shown AccountsShown
 		want  []string
 	}{
-		{"three accounts", threeShown, []string{"COMPARE", "VALUE", "ALL ACCOUNTS", "DETAIL"}},
-		{"one account, Compare and all accounts gone from the page", oneShown, []string{"VALUE", "DETAIL"}},
+		{"three accounts", threeShown, []string{"COMPARE", "VALUE", "ALL ACCOUNTS", "DETAIL", "TOKENS"}},
+		{"one account, Compare and all accounts gone from the page", oneShown, []string{"VALUE", "DETAIL", "TOKENS"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			card := accountsHelping(160, tc.shown, Look{}, tabViews, helpQuit[0], helpQuit[1])
@@ -201,7 +201,7 @@ func TestAccountsHelpDrawsADayAsWideAsDetailDrawsItsDays(t *testing.T) {
 			want = append(want, limited, line{{strings.Repeat("·", tt.cells), faintInk}})
 			doc := usageWorld(extraOff)
 			parts := Frame{Width: tt.width, Height: 37, View: Accounts, Accounts: tt.shown, Look: look, Policy: claudeLike}.At(doc, routedAt).accountsHelp()
-			glyphs := parts[len(parts)-1].glyphs
+			glyphs := parts[slices.IndexFunc(parts, func(p helpPart) bool { return p.heading == "DETAIL" })].glyphs
 			var got []line
 			for _, g := range glyphs[:len(glyphs)-1] {
 				got = append(got, g.drawn)
@@ -246,7 +246,12 @@ func TestAccountsHelpSaysWhatItsFiguresAre(t *testing.T) {
 		{"why worth is unpriced", "of a model the price table doesn't know or of requests that went upstream without their usage"},
 		{"how a period is priced", "a day 12/365 of a month, a week 12/52, 30 days a month, 12 weeks twelve weeks' and 12 months twelve months'"},
 		{"how the periods run", "today and this week run from their starts, 30 days and 12 months back from today, and 12 weeks over this week and the 11 before"},
-		{"the periods stepped through", "through today, this week, 30 days, 12 weeks and 12 months, Compare and Detail sharing"},
+		{"the periods stepped through", "through today, this week, 30 days, 12 weeks and 12 months, Compare, Detail and Tokens sharing"},
+		{"Tokens' total", "The whole period's row leads, named for it, its figures its rows' summed, but its models, each counted once"},
+		{"Tokens' rows", "a day each over this week and 30 days, a week each over 12 weeks and a month each over 12 months"},
+		{"Tokens over today", "Today is the period's row alone."},
+		{"Tokens' splits", "v splits each row by account, by model, each version at its own price, by both, or not at all"},
+		{"Tokens' rows filling the screen", "The rows fill the screen to the footnote, scrolling a row at a time."},
 		{"a period priced whole", "a period still running priced whole"},
 		{"all accounts' plans", "sums the plans it knows, its ratio counting only their accounts' worth"},
 		{"what all accounts counts", "Every configured account, always, whatever is pinned, at its limit or refused"},
@@ -259,6 +264,14 @@ func TestAccountsHelpSaysWhatItsFiguresAre(t *testing.T) {
 		if !strings.Contains(said, tc.want) {
 			t.Errorf("help reads\n%s\nwant it to explain %s, %q", said, tc.what, tc.want)
 		}
+	}
+}
+
+// With one account, Compare gone, help says Detail and Tokens share the
+// period.
+func TestAccountsHelpOfOneAccountSaysItsViewsShareThePeriod(t *testing.T) {
+	if said, want := accountsHelpSaid(oneShown), "12 weeks and 12 months, Detail and Tokens sharing the period."; !strings.Contains(said, want) {
+		t.Errorf("help reads\n%s\nwant it to say %q", said, want)
 	}
 }
 

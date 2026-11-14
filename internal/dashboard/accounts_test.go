@@ -12,15 +12,18 @@ import (
 )
 
 // What the preferences keep of Accounts reads back as it was kept: the
-// sub-tab, by its name; never what's chosen in it, which is the run's alone.
+// sub-tab and Tokens' split, by their names; never what's chosen in it,
+// which is the run's alone.
 func TestAccountsChoicesAreKeptByNameAndReadBack(t *testing.T) {
 	tests := []struct {
 		name  string
 		shown AccountsShown
 		kept  theme.AccountsPrefs
 	}{
-		{name: "as Accounts opens", kept: theme.AccountsPrefs{View: "compare"}},
-		{name: "Detail", shown: AccountsShown{Shown: AccountsDetail}, kept: theme.AccountsPrefs{View: "detail"}},
+		{name: "as Accounts opens", kept: theme.AccountsPrefs{View: "compare", Split: "account"}},
+		{name: "Detail", shown: AccountsShown{Shown: AccountsDetail}, kept: theme.AccountsPrefs{View: "detail", Split: "account"}},
+		{name: "Tokens, by model", shown: AccountsShown{Shown: AccountsTokens, TokensSplit: TokensByModel}, kept: theme.AccountsPrefs{View: "tokens", Split: "model"}},
+		{name: "Compare, not split", shown: AccountsShown{TokensSplit: TokensUnsplit}, kept: theme.AccountsPrefs{View: "compare", Split: "none"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -40,16 +43,17 @@ func TestAccountsChoicesAreKeptByNameAndReadBack(t *testing.T) {
 // What the preferences kept that names nothing Accounts knows, as a later
 // build's, shows as Accounts opens: Compare.
 func TestAccountsChoicesKeptThatNameNothingReadAsItOpens(t *testing.T) {
-	for _, kept := range []theme.AccountsPrefs{{View: "chart"}, {View: "Detail"}, {Period: "30-days"}} {
+	for _, kept := range []theme.AccountsPrefs{{View: "chart"}, {View: "Detail"}, {Period: "30-days"}, {Split: "by model"}} {
 		if got := AccountsKept(kept); !reflect.DeepEqual(got, AccountsShown{}) {
 			t.Errorf("AccountsKept(%+v) = %+v, want Compare", kept, got)
 		}
 	}
 }
 
-// With one account, Compare goes, whatever was kept: Detail shows it, the
-// one there is, whatever was chosen. With more, the sub-tab shown is drawn,
-// and Detail shows the account chosen, or all accounts.
+// With one account, Compare goes, whatever was kept: Detail shows it in its
+// place, the one there is, whatever was chosen, and Tokens stays. With more,
+// the sub-tab shown is drawn, and Detail shows the account chosen, or all
+// accounts.
 func TestOneAccountIsShownInDetailAlone(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -62,6 +66,7 @@ func TestOneAccountIsShownInDetailAlone(t *testing.T) {
 		{name: "Detail, of three, one chosen", shown: AccountsShown{Shown: AccountsDetail, Accounts: threeConfigured, Chosen: "side"}, wantView: AccountsDetail, wantAccount: "side"},
 		{name: "Compare kept, of one", shown: AccountsShown{Accounts: threeConfigured[:1]}, wantView: AccountsDetail, wantAccount: "work"},
 		{name: "Detail, of one, all accounts chosen", shown: AccountsShown{Shown: AccountsDetail, Accounts: threeConfigured[:1]}, wantView: AccountsDetail, wantAccount: "work"},
+		{name: "Tokens, of one", shown: AccountsShown{Shown: AccountsTokens, Accounts: threeConfigured[:1]}, wantView: AccountsTokens, wantAccount: "work"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -75,13 +80,12 @@ func TestOneAccountIsShownInDetailAlone(t *testing.T) {
 	}
 }
 
-// Accounts' heading row names it and its sub-tabs, the one drawn picked out,
-// and [ ] after them; with one account, Detail alone, with no [ ], as there's
-// no sub-tab to turn to, the rule two cells after it, where
-// accounts-detail-one-160 draws [ ]; and at its right its period between <
+// Accounts' heading row names it and its sub-tabs, Compare, Detail and
+// Tokens, the one drawn picked out, and [ ] after them; with one account,
+// Detail and Tokens, Compare gone; and at its right its period between <
 // and >, which the frames draw before the sweep of keys as p and the period.
 func TestAccountsHeadingRow(t *testing.T) {
-	const named = "ACCOUNTS    Compare  Detail  [ ]  "
+	const named = "ACCOUNTS    Compare  Detail  Tokens  [ ]  "
 	tests := []struct {
 		name   string
 		shown  AccountsShown
@@ -90,12 +94,13 @@ func TestAccountsHeadingRow(t *testing.T) {
 		other  int
 		want   string
 	}{
-		{name: "Compare, this week", shown: AccountsShown{Accounts: threeConfigured}, picked: 11, other: 20, want: named + rule(111) + "  < this week >"},
-		{name: "Detail, today", shown: AccountsShown{Shown: AccountsDetail, Accounts: threeConfigured}, period: views.PeriodToday, picked: 20, other: 11, want: named + rule(115) + "  < today >"},
-		{name: "the last 30 days", shown: AccountsShown{Accounts: threeConfigured}, period: views.PeriodThirtyDays, picked: 11, other: 20, want: named + rule(113) + "  < 30 days >"},
-		{name: "the last 12 weeks", shown: AccountsShown{Accounts: threeConfigured}, period: views.PeriodTwelveWeeks, picked: 11, other: 20, want: named + rule(112) + "  < 12 weeks >"},
-		{name: "the last 12 months", shown: AccountsShown{Accounts: threeConfigured}, period: views.PeriodTwelveMonths, picked: 11, other: 20, want: named + rule(111) + "  < 12 months >"},
-		{name: "one account, Detail alone", shown: AccountsShown{Accounts: threeConfigured[:1]}, picked: 11, other: -1, want: "ACCOUNTS    Detail   " + rule(124) + "  < this week >"},
+		{name: "Compare, this week", shown: AccountsShown{Accounts: threeConfigured}, picked: 11, other: 20, want: named + rule(103) + "  < this week >"},
+		{name: "Detail, today", shown: AccountsShown{Shown: AccountsDetail, Accounts: threeConfigured}, period: views.PeriodToday, picked: 20, other: 28, want: named + rule(107) + "  < today >"},
+		{name: "Tokens, this week", shown: AccountsShown{Shown: AccountsTokens, Accounts: threeConfigured}, picked: 28, other: 11, want: named + rule(103) + "  < this week >"},
+		{name: "the last 30 days", shown: AccountsShown{Accounts: threeConfigured}, period: views.PeriodThirtyDays, picked: 11, other: 20, want: named + rule(105) + "  < 30 days >"},
+		{name: "the last 12 weeks", shown: AccountsShown{Accounts: threeConfigured}, period: views.PeriodTwelveWeeks, picked: 11, other: 20, want: named + rule(104) + "  < 12 weeks >"},
+		{name: "the last 12 months", shown: AccountsShown{Accounts: threeConfigured}, period: views.PeriodTwelveMonths, picked: 11, other: 20, want: named + rule(103) + "  < 12 months >"},
+		{name: "one account, Compare gone", shown: AccountsShown{Accounts: threeConfigured[:1]}, picked: 11, other: 19, want: "ACCOUNTS    Detail  Tokens  [ ]  " + rule(112) + "  < this week >"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -126,7 +131,7 @@ func TestAccountsHeadingOnAPhone(t *testing.T) {
 	f.View, f.Accounts = Accounts, AccountsShown{Accounts: threeConfigured}
 	rows := f.page(threeRouted(), now).rows(Look{})
 
-	if got, want := rows[6], "ACCOUNTS   Compare  Detail"; strings.TrimRight(got, " ") != want {
+	if got, want := rows[6], "ACCOUNTS   Compare  Detail  Tokens"; strings.TrimRight(got, " ") != want {
 		t.Errorf("row 7 reads %q, want %q", got, want)
 	}
 	if got, want := rows[7], blanks(39)+"< this week >"; got != want {

@@ -25,7 +25,7 @@ func TestEveryPagesKeysAreEachPagesAsItsHelpListsThem(t *testing.T) {
 		"every page": {"tab views", "p pin", "t themes", "R refresh", "? help", "q quit", "j k scroll", "PgUp PgDn page", "wheel scroll"},
 		"Overview":   {"u usage", "r routing", "s sessions", "c coming up", "l lately", "w models", "b by", "↑↓ scroll"},
 		"Accounts": {
-			"[ ] view", "< > period", "←→ account", "↑↓ account", "↑↓ session", "→ sessions", "← accounts", "enter its page", "esc unfocus", "w models",
+			"[ ] view", "< > period", "v split", "←→ account", "↑↓ account", "↑↓ session", "→ sessions", "← accounts", "enter its page", "esc unfocus", "w models",
 		},
 		"Projects": {"↑↓ project", "→ its sessions", "↑↓ session", "← projects", "enter its page", "< > period"},
 		"History":  {"[ ] view", "< > period", "v split", "←→ account"},

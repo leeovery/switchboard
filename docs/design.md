@@ -3447,8 +3447,11 @@ doing; and LATELY's marks.
 
 Each account in depth, and every account together: what each is, what it does, what it costs and
 whether it pays. The Overview says how each account stands now, History when the accounts were used,
-and Runway when they'll have room; Accounts says who. It has two views, as sub-tabs: **Compare**, a
-column an account, and **Detail**, one account, or all of them, in full. They're drawn in the Paper
+and Runway when they'll have room; Accounts says who. It has three views, as sub-tabs: **Compare**,
+a column an account; **Detail**, one account, or all of them, in full; and **Tokens**, History's
+Tokens over the dial's period, drawn in the Paper file
+*Switchboard · Entities*, page p-2-0, and kept as `accounts-tokens-173x53` and
+`accounts-tokens-73x61`. Compare and Detail are drawn in the Paper
 file *Switchboard · Accounts*, on its page **FINAL · accounts · signed off 5 Oct 2026 · revised 6
 Oct**, and kept in `testdata/vhs/reference/` as `accounts-compare-160`, `accounts-compare-ten-160`,
 `accounts-compare-month-160`, `accounts-compare-bad-hour-160`, `accounts-detail-all-160`,
@@ -3534,8 +3537,8 @@ frames show the keys from before the sweep of 7 and 8 October 2026, `p` for the 
   the 29 before it; 12 weeks, this week and the 11 before it; and 12 months, the days History's Year
   counts as LAST 12 MONTHS, from the day after today's date a year back, 1 March where today is 29
   February, to today. `<` and `>` step through them in that order, staying put at either end. It's
-  one dial, the dashboard's period, shared by every tab that counts over a period: Compare and
-  Detail, Projects, and, as it comes, Sessions' List (the owner's call, 13 November 2026). The
+  one dial, the dashboard's period, shared by every tab that counts over a period: Compare, Detail
+  and Tokens, Projects, and, as it comes, Sessions' List (the owner's call, 13 November 2026). The
   preferences file keeps it as `period`, by its name, `today`, `30-days`, `12-weeks` or
   `12-months`, none for this week; where it keeps none, it reads `accounts.period`, where a build
   from before the dial was shared kept it, till the period is next kept, which drops it.
@@ -3907,12 +3910,40 @@ where it fits** says, and where they don't fit, it's stacked, as **Stacked** say
   - Bars stay one row; the stack ends where its parts end, and the rows to spare stay blank above
     the key line.
 
-**Keys.** `tab` views; `[ ]` view; `<` `>` the period, on both views; `←` `→` the focus along
+**Tokens** is History's Tokens, its columns, the order they give way in, its splits and its
+footnote alike, drawn by the one drawing (see History's Tokens), with its period the dial's.
+
+- **Its rows** are the period's, newest first, those with nothing recorded left out, as History's
+  are: a day each over this week and 30 days, this week from the day weeks start on, as the dial's
+  is everywhere; a week each over 12 weeks; a month each over 12 months, the first priced from the
+  12 months' first day where it begins part-way through, as the Year's BY MONTH has it. The names'
+  head is what a row is, `day`, `week` or `month`. Each row's against its price is over a whole
+  row's period, its unit named, `5.6× its $20 day`, `its $138 week`, `its $600 month`.
+- **The period's total leads:** a row for the whole period, split as the rows are, named by the
+  dial's words, `this week`, in a row's head's ink. Its tokens and worth are its rows' summed, and
+  its models count the versions the period used, each once, never a sum. Its against its price is
+  Compare's all accounts' over the period, the one figure (`views` works it out once), its unit the
+  period's, `4.6× its $138 week`, `3.4× its $2,400 12 months`. A rule in `border.subtle` runs under
+  it as far as the heads run, to `against its price`'s end, or `worth`'s where that's left, then a
+  blank row. Over today the period is one row, so the total stands alone, with no rule and no row
+  repeating it.
+- **`v` splits each row,** the total's too, by account, by model, by both, or not at all, as
+  History's does; the split is Accounts' own, kept in the preferences file as `accounts.split`, by
+  name, `account`, `model`, `account+model` or `none`.
+- **The rows fill the view** to a blank row over the footnote, always a row at a time, never a page
+  of whole rows with blank rows under them: where they don't fit, the last shown is cut where its
+  split rows don't fit, and the row after says `▼ 9 more below   ·   j/k to scroll`, as History's
+  Tokens says it where it scrolls by rows. `j` and `k` scroll a row, PgUp and PgDn a page.
+- **Its figures** are the ledger's days held, as History's Tokens reads them, built once for the
+  days held, the period and the day, while Tokens shows. Those of the row today is in brighten as a
+  look changes them, as History's do; the total's are figures of the period Accounts counts over.
+
+**Keys.** `tab` views; `[ ]` view; `<` `>` the period, on every view; `←` `→` the focus along
 Compare's accounts; `↑` `↓` the account in Detail's list, or the session in its SESSIONS; `enter`
-opens, from Compare, the account in Detail, and from a session row, the session's page; `p` new
-sessions' routing picker; `?` help; `q` quit. A click picks a sub-tab, an account, a column or a
-session. The key lines, where the frames draw the keys from before the sweep of 7 and 8 October 2026
-(settled in the plan):
+opens, from Compare, the account in Detail, and from a session row, the session's page; `v` Tokens'
+split; `p` new sessions' routing picker; `?` help; `q` quit. A click picks a sub-tab, an account, a
+column or a session. The key lines, where the frames draw the keys from before the sweep of 7 and 8
+October 2026 (settled in the plan):
 
 - Compare:
   `tab views   [ ] view    < > period: this week    ←→ account  enter its page    p pin    ? help  q quit`.
@@ -3920,10 +3951,12 @@ session. The key lines, where the frames draw the keys from before the sweep of 
   `tab views   [ ] view    < > period: this week    ↑↓ account  enter its page    p pin    ? help  q quit`,
   and in its SESSIONS `↑↓ session  ← accounts  enter its page` in place of
   `↑↓ account  enter its page` (settled in the plan).
-- With one account, with no sub-tabs and so no `[ ] view`:
-  `tab views   < > period: this week    ? help  q quit`, `↑↓ session  enter its page` joining it
-  while it has sessions; no page shows `p pin` with one account, unless a pin set from the command
-  line stands (see Routing by hand).
+- Tokens:
+  `tab views   [ ] view    < > period: this week    v split: by account    p pin    ? help  q quit`.
+- With one account, Compare gone and its sub-tabs Detail and Tokens:
+  `tab views   [ ] view    < > period: this week    ? help  q quit` on Detail, `↑↓ session  enter
+  its page` joining it while it has sessions, and Tokens' `v split` on Tokens; no page shows `p pin`
+  with one account, unless a pin set from the command line stands (see Routing by hand).
 - On a phone: `tab views   [ ] view   ? keys   q quit`.
 
 **A token's year.** Accounts tells of an account whose token's year is up within 30 days, or is up,
@@ -3954,7 +3987,8 @@ counted, a session served once however many days and accounts it ran on, the tim
 what its week had left at its last reset; worth at API prices and the price table's date; against
 its price and how a period is priced; what `all accounts` counts, and why it isn't the pool;
 Detail's windows, read as `usage` reads them, BY DAY's shades and its red `▪`, and WEEKS' peaks and
-what each verdict means.
+what each verdict means; and Tokens' total and rows, its columns, `v`'s splits, and how its rows
+fill the screen.
 
 **Its figures.** The states, the windows, WEEK USED, extra usage, LATELY and SESSIONS are live, read
 as the Overview reads them: the status document, the router's events, `GET /sessions` and the

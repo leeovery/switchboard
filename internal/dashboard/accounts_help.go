@@ -12,13 +12,34 @@ import (
 // accountsHelp are Accounts' parts as help explains them, after its keys, in
 // the design's order: Compare, its columns and how each row is counted; the
 // value of the period's use, worth and against its price; what all accounts
-// counts; and Detail. With one account, Compare and all accounts go, as they
-// do from the page.
+// counts; Detail; and Tokens. With one account, Compare and all accounts go,
+// as they do from the page.
 func (f Frame) accountsHelp() []helpPart {
 	if f.Accounts.Alone() {
-		return []helpPart{f.valueHelp(), f.detailHelp()}
+		return []helpPart{f.valueHelp(), f.detailHelp(), tokensHelp()}
 	}
-	return []helpPart{f.compareHelp(), f.valueHelp(), allAccountsHelp(), f.detailHelp()}
+	return []helpPart{f.compareHelp(), f.valueHelp(), allAccountsHelp(), f.detailHelp(), tokensHelp()}
+}
+
+// tokensHelp is Accounts' Tokens as help explains it: the period's total and
+// its rows, as each period has them; its columns; v's splits; and how its
+// rows fill the screen and scroll.
+func tokensHelp() helpPart {
+	return helpPart{
+		heading: accountsHeading(AccountsTokens),
+		says: []line{
+			said("The period's tokens as ccusage reports them, split by what ccusage can't split by: the account. The whole " +
+				"period's row leads, named for it, its figures its rows' summed, but its models, each counted once, and its " +
+				"worth set against what the plans cost over the period. Under it come its rows, newest first: a day each over " +
+				"this week and 30 days, a week each over 12 weeks and a month each over 12 months, each set against a whole " +
+				"day's, week's or month's price, as its words name it. Today is the period's row alone."),
+			said("Its columns are ccusage's: input; output; cache write, both lifetimes' writes together; cache read; and " +
+				"total, the four kinds. Worth and against its price are as VALUE has them, and against its price is over the " +
+				"plans known where some aren't, as it says. A model of quota checks alone wasn't used, so has no row."),
+			said("`v` splits each row by account, by model, each version at its own price, by both, or not at all. The rows " +
+				"fill the screen to the footnote, scrolling a row at a time."),
+		},
+	}
 }
 
 // compareHelp is Compare as help explains it: its columns and heads, and
@@ -73,10 +94,10 @@ const periodsRun = "The periods are never billing months, as switchboard knows n
 // valueHelp is what the period's use was worth as help explains it: worth at
 // API prices, as of the price table's date where the page is read; against
 // its price, how a period is priced, and how all accounts sums the plans,
-// where there's more than one account; extra usage; and a key to their
-// marks.
+// where there's more than one account; extra usage; the periods, each view
+// drawn sharing them; and a key to their marks.
 func (f Frame) valueHelp() helpPart {
-	asOf, plans, shared := "", " An account without a plan has none.", "."
+	asOf, plans := "", " An account without a plan has none."
 	if page := f.Accounts.Page; page != nil {
 		asOf = " as of " + pricesDated(page.PricesAsOf)
 	}
@@ -84,8 +105,12 @@ func (f Frame) valueHelp() helpPart {
 		plans = " An account without a plan has none, and all accounts sums the plans it knows, its ratio counting only " +
 			"their accounts' worth and saying how many plans it knows where it doesn't know them all, as the worth " +
 			"beside it is every account's."
-		shared = ", Compare and Detail sharing the period."
 	}
+	var drawn []string
+	for _, v := range f.Accounts.views() {
+		drawn = append(drawn, accountsViews[v])
+	}
+	shared := ", " + prose.List(drawn) + " sharing the period."
 	more, less := 4.0, 0.6
 	return helpPart{
 		heading: "VALUE",

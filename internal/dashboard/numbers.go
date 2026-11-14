@@ -71,8 +71,10 @@ const (
 	// NumberPeriod is a figure of the period Accounts counts over, a look
 	// reading today's days: of a row of Compare's groups or THIS WEEK, which
 	// Of names as its label does, as "requests", every figure of the row one
-	// number; or a version's share of use, after its name, as "Opus 5.5
-	// share". Its Account is the account's id, "" for all accounts'.
+	// number; a version's share of use, after its name, as "Opus 5.5
+	// share"; or a figure of Tokens' total, after "tokens" and the id of the
+	// version it's of, where it's of one, by its column, as "tokens input".
+	// Its Account is the account's id, "" for all accounts'.
 	NumberPeriod
 	// NumberPoints are the points of an account's window a session took, on
 	// its page, as in "≈ 41", which Of names by the window's key.

@@ -2,21 +2,45 @@ package dashboard
 
 import "slices"
 
-// Showing is Accounts with its sub-tab i shown, as a click on it shows it. It
-// reports false where that's the one drawn, or there's no such sub-tab: with
-// one account, Detail, the one there is, is drawn always.
+// Showing is Accounts with its sub-tab i shown, of those the heading row
+// draws, as views has them, as a click on it shows it. It reports false
+// where that's the one drawn, or there's no such sub-tab: with one account,
+// Compare, which it doesn't draw.
 func (s AccountsShown) Showing(i int) (AccountsShown, bool) {
-	if s.Alone() || i < 0 || i >= len(accountsViews) || AccountsView(i) == s.Shown {
+	drawn := s.views()
+	if i < 0 || i >= len(drawn) || drawn[i] == s.View() {
 		return s, false
 	}
-	s.Shown = AccountsView(i)
+	s.Shown = drawn[i]
 	return s, true
 }
 
-// Turned is Accounts with the sub-tab by places on from the one shown shown,
-// round, as ] and [ move, a place each, as Showing has it.
+// Turned is Accounts with the sub-tab by places on from the one drawn shown,
+// round, among those the heading row draws, as ] and [ move, a place each,
+// as Showing has it.
 func (s AccountsShown) Turned(by int) (AccountsShown, bool) {
-	return s.Showing(round(int(s.Shown)+by, len(accountsViews)))
+	drawn := s.views()
+	return s.Showing(round(slices.Index(drawn, s.View())+by, len(drawn)))
+}
+
+// Cycled is Accounts with Tokens' split cycled on, round, as v does: by
+// account, by model, by both, and not at all. It reports false off Tokens,
+// where v does nothing.
+func (s AccountsShown) Cycled() (AccountsShown, bool) {
+	if s.View() != AccountsTokens {
+		return s, false
+	}
+	s.TokensSplit = TokensSplit(round(int(s.TokensSplit)+1, len(tokensSplitNames)))
+	return s, true
+}
+
+// Split is what v has Tokens split each row by, as the key line names it:
+// by account, by model, by account and model, or none; "" off Tokens.
+func (s AccountsShown) Split() string {
+	if s.View() != AccountsTokens {
+		return ""
+	}
+	return tokensSplitWords[s.TokensSplit]
 }
 
 // Moved is Accounts with ← or → pressed, by -1 or 1, running being the
@@ -25,12 +49,13 @@ func (s AccountsShown) Turned(by int) (AccountsShown, bool) {
 // on Detail, ↑ and ↓ taken into its SESSIONS by →, where sessions run there,
 // the selection put on the session it lands on, as Selection has it, so it
 // stays with it as they reorder; and back to its list by ←. It reports false
-// where nothing changes, as with one account, which has no list.
+// where nothing changes, as with one account, which has no list, and on
+// Tokens.
 func (s AccountsShown) Moved(by int, running []string) (AccountsShown, bool) {
 	switch {
 	case s.View() == AccountsCompare:
 		return s.focusing(by)
-	case s.Alone() || by > 0 && len(running) == 0:
+	case s.View() != AccountsDetail || s.Alone() || by > 0 && len(running) == 0:
 		return s, false
 	}
 	in := by > 0
@@ -95,11 +120,15 @@ func (s AccountsShown) Opened() (AccountsShown, bool) {
 // running being the sessions running on the account Detail shows, by id, in
 // its SESSIONS' order: on Compare, the column focused, as Opened has it; on
 // Detail, the session selected, from its list as from its SESSIONS, as
-// Selection has it. Where it doesn't, the key line draws enter faint.
+// Selection has it; on Tokens, nothing. Where it doesn't, the key line draws
+// enter faint.
 func (s AccountsShown) Opens(running []string) bool {
-	if s.View() == AccountsCompare {
+	switch s.View() {
+	case AccountsCompare:
 		_, opened := s.Opened()
 		return opened
+	case AccountsTokens:
+		return false
 	}
 	return s.Selection(running) != ""
 }
