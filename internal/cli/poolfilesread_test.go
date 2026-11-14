@@ -309,13 +309,13 @@ dirs  = ["/work/acme"]
 `
 
 // history --pool of a pool whose first work falls after the days asked for
-// begin counts its plans, months and tokens from that first day, as the
-// dashboard's History tab counts them, its Past begun where the pool's read's
-// Start tells it begins: the verb's plans as the tab's Accounts over its 30
-// days, the days the verb reads by default, its months as the Year's BY
-// MONTH, and its weeks' tokens as Tokens' weeks. Its days, Year, months and
-// tokens list no period before the pool worked, as the tab's Year and
-// Tokens list none.
+// begin, in a later month than the first of them, counts its plans, months
+// and tokens from that first day, as the dashboard's History tab counts
+// them, its Past begun where the pool's read's Start tells it begins: the
+// verb's plans as the tab's Accounts over its 30 days, the days the verb
+// reads by default, its months as the Year's BY MONTH, every one, and its
+// weeks' tokens as Tokens' weeks. Its days, Year, months and tokens list no
+// period before the pool worked, as the tab's Year and Tokens list none.
 func TestHistoryOfAPoolCountsItsDaysFromItsFirstWork(t *testing.T) {
 	deps := pooledDeps(t, false)
 	path, err := config.Path(deps.Getenv, deps.HomeDir)
@@ -323,6 +323,7 @@ func TestHistoryOfAPoolCountsItsDaysFromItsFirstWork(t *testing.T) {
 		t.Fatal(err)
 	}
 	writeStateFile(t, filepath.Dir(path), filepath.Base(path), []byte(acmeLaterConfig))
+	appendRequests(t, deps, ledger.Line{At: time.Date(2026, 9, 28, 9, 0, 0, 0, time.Local), Request: "d0", Session: sessionC, Account: "side", Pool: "b2n8"})
 	for day := 1; day <= 6; day++ {
 		appendRequests(t, deps, ledger.Line{At: october(day, 9, 0, 0), Request: "d" + strconv.Itoa(day), Session: sessionC, Account: "side", Pool: "b2n8"})
 	}
@@ -350,7 +351,7 @@ func TestHistoryOfAPoolCountsItsDaysFromItsFirstWork(t *testing.T) {
 		of   func(views.Past) any
 	}{
 		{name: "plans", of: pastPlans},
-		{name: "months", of: func(p views.Past) any { return pastMonths(t, p, printed["months"]) }},
+		{name: "months", of: pastMonths},
 		{name: "tokens", of: pastTokens},
 	} {
 		want, before := asJSON(t, figures.of(tab)), asJSON(t, figures.of(unbegun))
@@ -397,21 +398,13 @@ func pastPlans(p views.Past) any {
 	return append(plans, page.All.Plan)
 }
 
-// pastMonths are the months of the Year's BY MONTH among those history's
-// JSON gave, printed, as it gives them, failing where any it gave isn't
-// among them.
-func pastMonths(t *testing.T, p views.Past, printed any) any {
-	t.Helper()
+// pastMonths are the months of the Year's BY MONTH, every one, as
+// history's JSON gives them.
+func pastMonths(p views.Past) any {
 	rows := p.Year(views.YearAsk{}).ByMonth
-	gave, _ := printed.([]any)
-	months := make([]views.Month, 0, len(gave))
-	for _, m := range gave {
-		month, _ := m.(map[string]any)["month"].(string)
-		i := slices.IndexFunc(rows, func(r views.MonthRow) bool { return r.Month.Month == month })
-		if i < 0 {
-			t.Fatalf("history gave the month %q, which the Year's BY MONTH doesn't hold", month)
-		}
-		months = append(months, rows[i].Month)
+	months := make([]views.Month, len(rows))
+	for i, r := range rows {
+		months[i] = r.Month
 	}
 	return months
 }
