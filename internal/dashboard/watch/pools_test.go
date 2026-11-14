@@ -1166,6 +1166,50 @@ func TestAReadTellingThePoolsReadsThePoolShownAgain(t *testing.T) {
 	}
 }
 
+// Where the pool shown is read again in vain as the pools are told, as when
+// the config can't be read, the reads telling them ask for it no more, till
+// something it rests on changes: the router going away and telling them
+// again as it comes back, or the config changing. Once the turn can be made,
+// the router telling them again shows the pool.
+func TestPoolsToldInVainAreAskedForAgainOnlyOnceTheyMayBeToldAfresh(t *testing.T) {
+	h, pools := unpooledHarness(t)
+	h.source.router = nil
+	untold := errors.New("can't tell which pool to read: neither the config, the router nor the accounts record names any pools")
+	told := errors.Join(ErrPoolsTold, errors.New("the router routes for them"))
+	pools.failure = errors.New("the config can't be read")
+	h.source.err = told
+	h.start()
+	steps := []struct {
+		name  string
+		err   error
+		turn  func()
+		again int
+	}{
+		{name: "the pools told, the turn failing", err: told, again: 1},
+		{name: "the pools told again, nothing changed", err: told, again: 1},
+		{name: "and again", err: told, again: 1},
+		{name: "the router gone", err: untold, again: 1},
+		{name: "the router back, telling them afresh", err: told, again: 2},
+		{name: "the config changed", err: told, turn: func() { pools.changeConfig(func(*poolTurns) {}) }, again: 3},
+		{name: "the pools told again, nothing changed since", err: told, again: 3},
+		{name: "the router gone, the config readable", err: untold, turn: func() { pools.failure = nil }, again: 3},
+		{name: "the router back, the turn made", err: told, again: 4},
+	}
+	for _, step := range steps {
+		if step.turn != nil {
+			step.turn()
+		}
+		h.source.err = step.err
+		h.deliver(h.press("R")...)
+		if pools.again != step.again {
+			t.Fatalf("%s: the pool shown was read again %d times in all, want %d", step.name, pools.again, step.again)
+		}
+	}
+	if h.model.toldInVain {
+		t.Error("the pool shown once read again, the pools told are still taken as told in vain")
+	}
+}
+
 // P with no pools, though the watch has a Turn to ask, asks for no pool and
 // starts nothing: there's none to turn to.
 func TestPWithoutPoolsTurnsToNone(t *testing.T) {

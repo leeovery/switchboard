@@ -435,10 +435,15 @@ type Model struct {
 	// turns to drop what a command of a pool shown before sends back;
 	// turning is set while a turn is under way, P's or the pool shown read
 	// again; and refusing is how the router answered while it refuses to
-	// read the pool shown, as refusesPool has it, nil while it doesn't.
-	poolTurns int
-	turning   bool
-	refusing  *status.RouterAnswer
+	// read the pool shown, as refusesPool has it, nil while it doesn't;
+	// toldInVain is set where the pool shown was last read again in vain,
+	// its turn failing, so the pools told, as ErrPoolsTold says, ask for it
+	// again only once a read has failed otherwise since, as when the router
+	// went away and came back, or the config changes, as followConfig has it.
+	poolTurns  int
+	turning    bool
+	refusing   *status.RouterAnswer
+	toldInVain bool
 
 	// shown is what render made of the screen once the last message was
 	// taken in.
@@ -1091,21 +1096,22 @@ func fetchFrom(ctx context.Context, source Source, r status.Read, policy score.P
 // gained, as readRunway reads it while Runway shows. Where the read finds the
 // config file changed, or the accounts other than the last document's, as
 // status's AccountsChanged has it, or the pools told, as ErrPoolsTold says,
-// where they couldn't be, it reads the pool shown again, as followConfig has
-// it.
+// where they couldn't be, but not again once that was in vain, as
+// toldInVain has it, it reads the pool shown again, as followConfig has it.
 func (m Model) fetched(msg fetchedMsg) (tea.Model, tea.Cmd) {
 	now := m.now()
 	m.fetching, m.past.due, m.tail.due, m.runwayTab.due = false, true, true, true
 	var shown tea.Cmd
 	changed := false
-	m.refusing = nil
+	told := errors.Is(msg.err, ErrPoolsTold)
+	m.refusing, m.toldInVain = nil, m.toldInVain && told
 	switch {
 	case m.refusesPool(msg):
 		answer := msg.router.Answer()
 		m.refusing = &answer
 		m.plan, m.failed, m.lost = m.plan.missed(now), "", time.Time{}
-	case errors.Is(msg.err, ErrPoolsTold):
-		m.plan, changed = m.plan.missed(now), true
+	case told:
+		m.plan, changed = m.plan.missed(now), !m.toldInVain
 	case errors.Is(msg.err, status.ErrNoRouter):
 		m.plan = m.plan.missed(now)
 		if m.awaitsRouter() {

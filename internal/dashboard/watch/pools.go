@@ -165,8 +165,9 @@ func (m Model) askPool(ask PoolAsk) (Model, tea.Cmd) {
 // turnedTo shows the pool asked for, as shownAfresh shows it, and where P
 // asked, with no other to turn to, says so. Where it couldn't be told, it
 // keeps to the pool shown, and where P asked, the key line says why; where
-// the config changed, it's logged alone, and asked again once the config
-// changes again.
+// the config changed, or the pools were told, it's logged alone, and asked
+// again once the config changes again, or the pools are told afresh, as
+// toldInVain has it.
 func (m Model) turnedTo(msg turnedMsg) (Model, tea.Cmd) {
 	m.turning = false
 	switch {
@@ -175,8 +176,10 @@ func (m Model) turnedTo(msg turnedMsg) (Model, tea.Cmd) {
 		return m.noting(prose.TurnFailed(msg.err.Error()))
 	case msg.err != nil:
 		logger.Warn("can't read the pool shown again as the config changed", "error", msg.err)
+		m.toldInVain = true
 		return m, nil
 	}
+	m.toldInVain = false
 	held := config.SamePool(msg.pooled.Pool.ID, m.cfg.Pool.ID)
 	shown, started := m.shownAfresh(msg.pooled)
 	if msg.ask == NextPool && held && !msg.pooled.Pool.Turns() {
