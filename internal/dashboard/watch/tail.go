@@ -41,13 +41,16 @@ type tailRead struct {
 }
 
 // tailedMsg is what a read of the ledger's tail found: where it read
-// today's lines to; the lines it read; and each reader as the read grew it,
-// where it was read for one: the Log, as logGrown has it, a session's page,
-// as pageTaken has it, and the store, as views.HeldSessions holds it, and
-// whether its feed told otherwise of a request it holds, as Retell has it.
+// today's lines to; the lines it read; the sessions' days Projects is built
+// of as it fed them, as views.SessionDays' Tailed takes a read; and each
+// reader as the read grew it, where it was read for one: the Log, as
+// logGrown has it, a session's page, as pageTaken has it, and the store, as
+// views.HeldSessions holds it, and whether its feed told otherwise of a
+// request it holds, as Retell has it.
 type tailedMsg struct {
 	tailRead
 	lines   tailLines
+	days    views.SessionDays
 	log     *logGrown
 	page    *pageTaken
 	held    *views.HeldSessions
@@ -73,6 +76,12 @@ func (r tailLines) all() [][]ledger.Held {
 // today's lines whole reads them for it.
 func (t ledgerTail) unread() bool {
 	return t.day.Date == ""
+}
+
+// readOn reports whether the tail was last read on today: never before its
+// first read.
+func (t ledgerTail) readOn(today views.LedgerDay) bool {
+	return t.day.Date == today.Date
 }
 
 // turned reports whether the day has turned since the tail was last read,
@@ -150,18 +159,20 @@ func (m Model) readTail(now time.Time) (Model, tea.Cmd) {
 }
 
 // tailReading is a read of the ledger's tail as it was asked: what it reads
-// through, from the mark given, on the day it's of, at now; and the fold of
-// each reader it grows, nil for one it doesn't, and the late days it reads
-// again for them.
+// through, from the mark given, on the day it's of, at now; what it feeds
+// the sessions' days Projects is built of, as projectsFeed has it; and the
+// fold of each reader it grows, nil for one it doesn't, and the late days
+// it reads again for them all.
 type tailReading struct {
-	r     logReaders
-	mark  ledger.Mark
-	today views.LedgerDay
-	now   time.Time
-	log   *logFold
-	page  *pageFold
-	held  *heldFold
-	late  []string
+	r        logReaders
+	mark     ledger.Mark
+	today    views.LedgerDay
+	now      time.Time
+	projects projectsFeed
+	log      *logFold
+	page     *pageFold
+	held     *heldFold
+	late     []string
 }
 
 // askingTail is m with a read of the ledger's tail at now asked, and what it
@@ -178,9 +189,12 @@ type tailReading struct {
 // the store, once the List is held, the Log opened or a page open, or while
 // it holds anything, as heldFold has it, or where the read opens the Log,
 // as storeFold has it for the Log, whatever else it holds, shown or not,
-// fed once for them all, the first.
+// fed once for them all, the first; and the sessions' days Projects is
+// built of, whether or not it has shown, the days read again whole for
+// them, as projectsFeed has them, among the late days, so a day another
+// reader reads too is read once.
 func (m Model) askingTail(now time.Time, opens bool) (Model, tailReading) {
-	t := tailReading{r: m.logReaders(), mark: m.tail.mark, today: views.Today(now), now: now}
+	t := tailReading{r: m.logReaders(), mark: m.tail.mark, today: views.Today(now), now: now, projects: m.projectsFeed(now)}
 	if opens {
 		t.mark = ledger.Mark{}
 	}
@@ -196,7 +210,7 @@ func (m Model) askingTail(now time.Time, opens bool) (Model, tailReading) {
 		t.held = m.heldFold(now)
 	}
 	m = m.pageAwaiting(t.page).heldAwaiting(t.held)
-	t.late = lateDays(t.log, t.page, t.held)
+	t.late = lateDays(t.projects.owed, t.log, t.page, t.held)
 	if t.log != nil {
 		t.log.late = m.log.spanned(t.late)
 	}
@@ -207,11 +221,12 @@ func (m Model) askingTail(now time.Time, opens bool) (Model, tailReading) {
 	return m, t
 }
 
-// took is what the read found of read, read to the mark next: the store fed
-// it, wanting the sessions of the Log's lines, logged, too, and what the
-// feed changed of each session; and the page open grown by it.
+// took is what the read found of read, read to the mark next: the
+// sessions' days fed it, as projectsFeed's fed has it; the store fed it,
+// wanting the sessions of the Log's lines, logged, too, and what the feed
+// changed of each session; and the page open grown by it.
 func (t tailReading) took(read tailLines, next ledger.Mark, logged []string) (tailedMsg, views.SessionGains) {
-	msg := tailedMsg{mark: next, day: t.today, at: t.now, lines: read}
+	msg := tailedMsg{mark: next, day: t.today, at: t.now, lines: read, days: t.projects.fed(read, t.now)}
 	var gains views.SessionGains
 	if t.held != nil {
 		fed, g := t.held.fed(t.r.ledger, read, logged, t.now)
@@ -248,11 +263,11 @@ func (m Model) tailFollowed() bool {
 	return m.log.opened || m.sessionsTab.listed || m.session != nil || m.traffic.awaitsLines() || m.held.Len() > 0
 }
 
-// lateDays are the dates of the days before today the readers that fold a
-// read of the tail read again whole, each once, the oldest first: nil where
-// a reader doesn't fold it.
-func lateDays(log *logFold, page *pageFold, held *heldFold) []string {
-	var late []string
+// lateDays are the dates of the days before today a read of the tail reads
+// again whole, each once, the oldest first: those the sessions' days owe,
+// and those of each reader that folds it, nil of one that doesn't.
+func lateDays(owed []string, log *logFold, page *pageFold, held *heldFold) []string {
+	late := slices.Clone(owed)
 	if log != nil {
 		late = append(late, log.late...)
 	}
@@ -277,7 +292,8 @@ func readLines(l views.Ledger, mark ledger.Mark, late []string) (tailLines, ledg
 }
 
 // tailed takes in what a read of the ledger's tail found: the tail read to
-// its mark; the store as the read fed it, with the sessions taken into it
+// its mark; the sessions' days as it fed them, as tailFed has it, whatever
+// shows; the store as the read fed it, with the sessions taken into it
 // as the read was under way, as heldWith keeps them, and none the read let
 // go; each reader grown by it, where it was read for one, as logGrown and
 // pageTaken have them, the page taking its session from the store; today's
@@ -286,6 +302,7 @@ func readLines(l views.Ledger, mark ledger.Mark, late []string) (tailLines, ledg
 // lined has it, for letGo.
 func (m Model) tailed(msg tailedMsg) Model {
 	m.tail = m.tail.read(msg.tailRead)
+	m.projects = m.projects.tailFed(msg.days)
 	m = m.traced(msg.lines.gained)
 	if msg.held != nil {
 		m = m.holding(msg.held.With(m.merged), msg.retells || m.mergedAny)

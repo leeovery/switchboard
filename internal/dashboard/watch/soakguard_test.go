@@ -235,17 +235,20 @@ func (c *countingLedger) SessionsOf(ids []string, rest func(string) ledger.Rest,
 // it's filed; a session's lines are read whole only of one the store
 // doesn't hold, every one of today's once, by the List's first read; a day
 // before today is read again only as the day turns, for the lines of the
-// requests that ended across midnight, but by Projects' read, passed on the
-// way to Sessions, held to its own rule, as projectsRead has it; a read of
-// sessions reads no day
-// behind the digests' states the sessions it gives rest on, and gives some
-// resting on one; and a feed folds only what it gained and the requests the
-// store held open, none open longer than the store's rule keeps it. As the
-// run starts, once the day before is no longer read again, and at the end,
-// the store holds today's sessions and those running alone, having let go
-// by the end of those that stopped running before midnight; and as the day
+// requests that ended across midnight, and once a read however many readers
+// want it, but by Projects' read, passed on the way to Sessions, held to
+// its own rule, as projectsRead has it; the sessions' days the tail feeds
+// owe no day once a read of it lands, so each day they owe is read in the
+// read that finds the day turned; a read of sessions reads no day behind
+// the digests' states the sessions it gives rest on, and gives some resting
+// on one; and a feed folds only what it gained and the requests the store
+// held open, none open longer than the store's rule keeps it. As the run
+// starts, once the day before is no longer read again, and at the end, the
+// store holds today's sessions and those running alone, having let go by
+// the end of those that stopped running before midnight; and as the day
 // turns, just after, and at the end, the List of the store as the reads fed
-// it is the List of one read whole.
+// it is the List of one read whole, and Projects' page of the days its read
+// and the tail's fed is the page of its days read afresh.
 func TestTheStoreHoldsOnlyWhatTheListShows(t *testing.T) {
 	t.Parallel()
 	midnight := dayfile.DayStart(guardStart, 1)
@@ -363,10 +366,8 @@ func (g *storeGuard) ran(msg tea.Msg) {
 // for while Projects shows, of the dial's period, as it's first shown, or
 // where the dial reaches further back than the days held; each day read
 // once; a day before today read whole only where its head's side doesn't
-// stand, as views.DaySessionsOn falls back to its lines; today read whole,
-// as each such read reads it; and nothing else.
-// The next slice takes today's lines from the tail, and tightens this to a
-// day before today alone.
+// stand, as views.DaySessionsOn falls back to its lines; never today, nor a
+// day to come, today's lines the tail's; and nothing else.
 func (g *storeGuard) projectsRead(msg projectsReadMsg) {
 	g.t.Helper()
 	m := g.s.h.model
@@ -396,12 +397,12 @@ func (g *storeGuard) projectsRead(msg projectsReadMsg) {
 		switch {
 		case r.method != "Day" && r.method != "DaySide":
 			g.t.Errorf("at %s Projects read %s, want the days alone", at, r.method)
+		case date >= today:
+			g.t.Errorf("at %s Projects read %s of %s, want the days before today alone, today's lines the tail's", at, r.method, date)
 		case read[r.method][date]:
 			g.t.Errorf("at %s Projects read %s of %s twice", at, r.method, date)
-		case r.method == "Day" && date != today && !read["unstood"][date]:
-			g.t.Errorf("at %s Projects read %s whole, want only a day whose side doesn't stand, or today", at, date)
-		case date > today:
-			g.t.Errorf("at %s Projects read %s, a day to come", at, date)
+		case r.method == "Day" && !read["unstood"][date]:
+			g.t.Errorf("at %s Projects read %s whole, want only a day whose side doesn't stand", at, date)
 		}
 		mark(r.method, date)
 		if r.method == "DaySide" && !r.stood {
@@ -422,18 +423,27 @@ func (g *storeGuard) took(msg tea.Msg, was Model) {
 }
 
 // tailed judges a read of the tail that landed, the model as it was before:
-// what it read, as judged and todays have it; and, where it fed the store,
-// what the feed folded and the store holds open, as fedFrom has them, then
-// what it holds and its List, at the moments due.
+// what it read, as judged and todays have it; the sessions' days it fed
+// owing no day, and holding nothing views.SessionDays' Without would let go
+// of against Projects' read, the watch having let go of it, as Without's
+// own tests hold what it lets go of; and, where it fed the store, what the
+// feed folded and the store holds open, as fedFrom has them, then what it
+// holds, its List and Projects' page, at the moments due.
 func (g *storeGuard) tailed(msg tailedMsg, was Model) {
 	g.t.Helper()
 	g.judged(was)
 	g.todays(msg, was.tail)
+	now, p := g.s.h.model.now(), g.s.h.model.projects
+	if owed := p.tailed.Owed(now); len(owed) > 0 {
+		g.t.Errorf("at %s the sessions' days the tail fed owe %v, want each day they owed read whole in the read that found the day turned", now.Format(time.DateTime), owed)
+	}
+	if p.days != nil && p.tailed.Told(p.tailed.Without(*p.days)) {
+		g.t.Errorf("at %s the sessions' days the tail fed hold what Without lets go of against Projects' read, want the watch to have let go of it", now.Format(time.DateTime))
+	}
 	if msg.held == nil {
 		return
 	}
 	g.fed++
-	now := g.s.h.model.now()
 	g.fedFrom(was.held.Holding(), now)
 	if len(g.held) > 0 && !now.Before(g.held[0]) {
 		g.holds(now)
@@ -441,19 +451,22 @@ func (g *storeGuard) tailed(msg tailedMsg, was Model) {
 	}
 	if len(g.checks) > 0 && !now.Before(g.checks[0]) {
 		g.sameAsOneRead(now)
+		g.sameProjectsAsOneRead(now)
 		g.checks = g.checks[1:]
 	}
 }
 
 // judged judges the reads of the ledger's lines since a read last landed,
 // as the one that landed now made them, the model as it was before: a day
-// before today read only as the day turns; no session read whole that the
-// store holds; and every one of today's sessions read whole, by the List's
-// first read alone. None are left to judge.
+// before today read only as the day turns, and once, for every reader that
+// wants it; no session read whole that the store holds; and every one of
+// today's sessions read whole, by the List's first read alone. None are
+// left to judge.
 func (g *storeGuard) judged(was Model) {
 	g.t.Helper()
 	now := g.s.h.model.now()
 	held := was.held.Holding().Open
+	read := make(map[string]bool)
 	for _, r := range g.unjudged {
 		switch r.method {
 		case "Day":
@@ -462,6 +475,10 @@ func (g *storeGuard) judged(was Model) {
 				g.t.Errorf("at %s the day %s was read again, want only the day before today, in the first %s of the day", now.Format(time.DateTime), r.asked[0],
 					guardLateFor)
 			}
+			if read[r.asked[0]] {
+				g.t.Errorf("at %s the day %s was read again twice in one read, want once for every reader", now.Format(time.DateTime), r.asked[0])
+			}
+			read[r.asked[0]] = true
 		case "Sessions":
 			g.listed++
 			fallthrough
@@ -673,4 +690,41 @@ func (g *storeGuard) sameAsOneRead(now time.Time) {
 		wantJSON, _ := json.MarshalIndent(want, "", "  ")
 		g.t.Errorf("at %s the List of the store fed read by read is\n%s\nwant the List of one read whole\n%s", now.Format(time.DateTime), gotJSON, wantJSON)
 	}
+}
+
+// sameProjectsAsOneRead judges Projects' page at now, of the days its read
+// and the tail's fed, as projectsDays joins them, the page of its days read
+// afresh at now, from the day its read reached back to, today's whole: its
+// totals and every project's page alike, as projectsDrawn has them.
+func (g *storeGuard) sameProjectsAsOneRead(now time.Time) {
+	g.t.Helper()
+	m, l := g.s.h.model, g.s.follower
+	if !m.projectsReady(now) {
+		g.t.Errorf("at %s Projects has no days to build its page of, want its read's joined to the tail's", now.Format(time.DateTime))
+		return
+	}
+	fresh := views.ReadSessionDays(l, m.projects.from, now).Tailed(l.Day(dayfile.DateOf(now)), true, nil, nil, now)
+	in := m.projectsInput(now, m.held.List(m.listLive(now, m.traffic.stream(now))))
+	if got, want := drawnOf(m.projectsDays().Projects(in)), drawnOf(fresh.Projects(in)); !reflect.DeepEqual(got, want) {
+		gotJSON, _ := json.MarshalIndent(got, "", "  ")
+		wantJSON, _ := json.MarshalIndent(want, "", "  ")
+		g.t.Errorf("at %s Projects' page of the days read and the tail's is\n%s\nwant the page of its days read afresh\n%s", now.Format(time.DateTime), gotJSON, wantJSON)
+	}
+}
+
+// projectsDrawn is what Projects draws of a page: its totals, and each
+// project's page, as it draws the project chosen, in the list's order.
+type projectsDrawn struct {
+	All      views.ProjectTotals
+	Projects []views.ProjectPage
+}
+
+// drawnOf is what Projects draws of page, as projectsDrawn has it.
+func drawnOf(page views.ProjectsPage) projectsDrawn {
+	drawn := projectsDrawn{All: page.All}
+	for _, r := range page.Rows {
+		p, _ := page.Project(r.Path)
+		drawn.Projects = append(drawn.Projects, p)
+	}
+	return drawn
 }
