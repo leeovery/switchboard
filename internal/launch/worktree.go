@@ -18,18 +18,27 @@ const (
 	configMost       = 64 << 10
 )
 
-// Worktree is what FindWorktree finds of the linked worktrees a directory is
-// in.
+// Worktree is what FindWorktree finds of the linked worktrees around a
+// directory.
 type Worktree struct {
-	// Mapped are the directory's places in the repositories of the linked
-	// worktrees it's in, nearest first: as far below a main checkout as the
-	// directory is below the worktree's root, or a bare repository's own
-	// directory, whatever the directory's path below the root.
-	Mapped []string
+	// Around are the linked worktrees around the directory, nearest first.
+	Around []Linked
 	// Lost is the root of the nearest linked worktree around the directory
-	// whose repository can't be found, Mapped then being none: "" where
-	// there's none.
-	Lost string
+	// that can't be placed, Around then being none: "" where there's none.
+	// NoCheckout says why: its repository has no checkout to place it by, as
+	// a submodule's or a separate git directory's; else its repository
+	// can't be found.
+	Lost       string
+	NoCheckout bool
+}
+
+// Linked is a linked worktree around a directory: its root, and the
+// directory's place in its repository, as far below the main checkout as
+// the directory is below the root; or, Bare, the bare repository's own
+// directory, whatever the directory's path below the root.
+type Linked struct {
+	Root, Place string
+	Bare        bool
 }
 
 // worktreeKind is what a directory's .git says of a linked worktree there.
@@ -45,26 +54,29 @@ const (
 	// worktreeLost is a .git that can't be looked at, or a file leading to
 	// no repository that can be found.
 	worktreeLost
+	// worktreeNoCheckout is a linked worktree's whose repository has no
+	// checkout to place it by: its common directory isn't named .git, and
+	// the repository isn't bare.
+	worktreeNoCheckout
 )
 
 // FindWorktree returns what dir is in among linked worktrees, walking up
 // from dir, as it's given, through every directory to the filesystem's
-// root, as worktreeAt reads each one's .git: its place in the repository of
-// every linked worktree around it, so a submodule or a clone nested in a
-// worktree is placed by the worktree around it; or, where it meets a linked
-// worktree whose repository can't be found, that worktree's root alone. It
-// runs no git. None for "".
+// root, as worktreeAt reads each one's .git: every linked worktree around
+// it, so a submodule or a clone nested in a worktree is placed by the
+// worktree around it; or, where it meets one that can't be placed, that one
+// alone, as Lost. It runs no git. None for "".
 func FindWorktree(dir string) Worktree {
 	if dir == "" {
 		return Worktree{}
 	}
 	var w Worktree
 	for at, rest := filepath.Clean(dir), ""; ; at, rest = filepath.Dir(at), filepath.Join(filepath.Base(at), rest) {
-		switch place, kind := worktreeAt(at, rest); kind {
+		switch linked, kind := worktreeAt(at, rest); kind {
 		case worktreeLinked:
-			w.Mapped = append(w.Mapped, place)
-		case worktreeLost:
-			return Worktree{Lost: at}
+			w.Around = append(w.Around, linked)
+		case worktreeLost, worktreeNoCheckout:
+			return Worktree{Lost: at, NoCheckout: kind == worktreeNoCheckout}
 		}
 		if filepath.Dir(at) == at {
 			return w
@@ -72,58 +84,65 @@ func FindWorktree(dir string) Worktree {
 	}
 }
 
-// worktreeAt says what the .git in the directory at is, and where a path
-// rest below at is in the repository of a linked worktree there: below the
-// main checkout, the directory holding the common directory its git
+// worktreeAt says what the .git in the directory at is, and, where it's a
+// linked worktree's, where a path rest below at is in its repository: below
+// the main checkout, the directory holding the common directory its git
 // directory's commondir names, where that's named .git; else, where the
 // common directory's config says the repository is bare, the common
 // directory itself. It's lost where the .git can't be looked at, or names
 // no git directory that's there, or the git directory's commondir can't be
-// read, is empty or names no directory, or names one of a repository that
-// isn't bare, as a separate git directory's, whose main checkout nothing
-// names.
-func worktreeAt(at, rest string) (string, worktreeKind) {
+// read, is empty or names no directory; and it has no checkout where the
+// common directory, not named .git, is of a repository that isn't bare, as
+// a submodule's or a separate git directory's, whose checkout nothing names.
+// Each path read is read as git reads it, from the real path of where it's
+// written (see gitPath).
+func worktreeAt(at, rest string) (Linked, worktreeKind) {
 	info, err := os.Stat(filepath.Join(at, ".git"))
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
-		return "", worktreeNone
+		return Linked{}, worktreeNone
 	case err != nil:
-		return "", worktreeLost
+		return Linked{}, worktreeLost
 	case info.IsDir():
-		return "", worktreeNone
+		return Linked{}, worktreeNone
 	}
 	gitDir, ok := gitPath(at, ".git", "gitdir: ")
 	if !ok || !isDirectory(gitDir) {
-		return "", worktreeLost
+		return Linked{}, worktreeLost
 	}
 	if _, err := os.Stat(filepath.Join(gitDir, "commondir")); errors.Is(err, fs.ErrNotExist) {
-		return "", worktreeNone
+		return Linked{}, worktreeNone
 	}
 	common, ok := gitPath(gitDir, "commondir", "")
 	switch {
 	case !ok || !isDirectory(common):
-		return "", worktreeLost
+		return Linked{}, worktreeLost
 	case filepath.Base(common) == ".git":
-		return filepath.Join(filepath.Dir(common), rest), worktreeLinked
+		return Linked{Root: at, Place: filepath.Join(filepath.Dir(common), rest)}, worktreeLinked
 	case isBare(common):
-		return common, worktreeLinked
+		return Linked{Root: at, Place: common, Bare: true}, worktreeLinked
 	}
-	return "", worktreeLost
+	return Linked{}, worktreeNoCheckout
 }
 
 // gitPath returns the path the file name in the directory dir names, as git
-// writes one: on a line, after prefix, relative to dir where it isn't
-// absolute. It reports false where the file can't be read, or names none.
+// writes one: on a line, after prefix, and where it isn't absolute, relative
+// to dir's real path, every link resolved, as git reads it, so a submodule's
+// .git, which git writes relative, reads alike through a link to it. It
+// reports false where the file can't be read, or names none.
 func gitPath(dir, name, prefix string) (string, bool) {
 	data, read := readHead(filepath.Join(dir, name), worktreeFileMost)
 	named, ok := strings.CutPrefix(strings.TrimRight(string(data), "\r\n"), prefix)
 	if !read || len(data) > worktreeFileMost || !ok || named == "" {
 		return "", false
 	}
-	if !filepath.IsAbs(named) {
-		named = filepath.Join(dir, named)
+	if filepath.IsAbs(named) {
+		return filepath.Clean(named), true
 	}
-	return filepath.Clean(named), true
+	if real, err := filepath.EvalSymlinks(dir); err == nil {
+		dir = real
+	}
+	return filepath.Join(dir, named), true
 }
 
 // isBare reports whether the repository whose common directory is common is
