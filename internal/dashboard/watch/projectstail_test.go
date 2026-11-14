@@ -271,6 +271,26 @@ func TestProjectsKeepsItsPageAcrossMidnightTillTheTailsReadOfTheDay(t *testing.T
 	sameAsFresh(t, h, 7, "the tail's read of the day landed")
 }
 
+// A project chosen while Projects keeps its page past midnight, the tail's
+// read of the day yet to land, is the project its page shows, of the page
+// kept, and stays chosen once the read lands.
+func TestAProjectChosenWhileThePageIsKeptAcrossMidnightIsTheOneShown(t *testing.T) {
+	h := projectsHarness(t, dashboard.Projects)
+	h.clock.now = onTheDay(23, 59, 30)
+	h.start()
+	page := h.model.projects.shown.Page
+	h.clock.now = onTheDay(24, 0, 5)
+	held := holdingBack[tailedMsg](h, h.update(downKey)...)
+	if s := h.model.projects.shown; len(held) != 1 || s.Page != page || s.Chosen != "/code/beta" || s.Project == nil || s.Project.Path != "/code/beta" {
+		t.Fatalf("↓ past midnight, %d reads of the tail held, the page kept %v, %s chosen, its page shown %v; want the tail's read asked, the page kept, beta chosen and shown",
+			len(held), s.Page == page, s.Chosen, s.Project != nil && s.Project.Path == "/code/beta")
+	}
+	h.deliver(held...)
+	if s := h.model.projects.shown; s.Page == page || s.Project == nil || s.Project.Path != "/code/beta" {
+		t.Errorf("the tail's read of the day landed, the page built afresh %v, beta's page shown %v; want both", s.Page != page, s.Project != nil && s.Project.Path == "/code/beta")
+	}
+}
+
 // A later read of a day gone stands for the tail's copy of it: the day read
 // whole as it turned, a line filed on it after with no reader awaiting it,
 // and a step further back hours later reading it with the line, the page

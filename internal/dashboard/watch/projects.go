@@ -207,19 +207,11 @@ func (t projectsTab) tailFed(days views.SessionDays) projectsTab {
 	return t
 }
 
-// projectsBuilt is m with Projects' page built afresh of the days it's
-// built of at now, as projectsDays has them, while Projects shows, where
-// they're ready, as projectsReady has it, and what it's built of has
-// changed since it was built, as projectsPageOf has
-// it: the days read, those the ledger's tail fed, the period, the day, or
-// the sessions the List lists running, so a change while another tab shows
-// builds it only as Projects shows again; and the chosen project's page,
-// where the page or the project chosen has, as chosenBuilt has it;
-// SESSIONS scrolled no further than it now goes, and to show the session
-// selected, where it showed before, as selectionShows has it, or where the
-// user was in it as the page was let go, as projectsReturned has it. Where
-// there are no days to build it of, it waits, as projectsWaiting has it.
-// Never a frame at a time, which takes nothing in.
+// projectsBuilt is m with Projects' page, while Projects shows, built afresh
+// where the days it's built of are ready, as projectsReady has it, and what
+// it's built of has changed, as projectsRebuilt has it, and shown, as
+// projectsShown has it. Where there are no days to build it of, it waits, as
+// projectsWaiting has it. Never a frame at a time, which takes nothing in.
 func (m Model) projectsBuilt(msg tea.Msg) Model {
 	if _, frame := msg.(frameMsg); frame || m.view != dashboard.Projects {
 		return m
@@ -228,19 +220,47 @@ func (m Model) projectsBuilt(msg tea.Msg) Model {
 	if !m.projectsReady(now) {
 		return m.projectsWaiting(now)
 	}
+	return m.projectsShown(now, m.projectsRebuilt(now))
+}
+
+// projectsBuild is a page of Projects built afresh, and what it's built of.
+type projectsBuild struct {
+	page views.ProjectsPage
+	of   projectsPageOf
+}
+
+// projectsRebuilt is Projects' page built afresh at now of the days it's
+// built of, as projectsDays has them, where what it's built of has changed
+// since it was built, as projectsPageOf has it: the days read, those the
+// ledger's tail fed, the period, the day, or the sessions the List lists
+// running, so a change while another tab shows builds it only as Projects
+// shows again; nil where it hasn't.
+func (m Model) projectsRebuilt(now time.Time) *projectsBuild {
 	list := m.held.List(m.listLive(now, m.traffic.stream(now)))
 	of := projectsPageOf{read: m.projects.read, fed: m.projects.fed, period: m.period, day: dayfile.DateOf(now), running: runningOf(list)}
+	if m.projects.shown.Page != nil && m.projects.pageOf.same(of) {
+		return nil
+	}
+	return &projectsBuild{page: m.projectsDays().Projects(m.projectsInput(now, list)), of: of}
+}
+
+// projectsShown is m with Projects' page shown at now: the page built,
+// where one is given, else the page shown kept; the chosen project's page
+// of it, where the page or the project chosen has changed, as chosenBuilt
+// has it; SESSIONS scrolled no further than it now goes, and to show the
+// session selected, where it showed before, as selectionShows has it, or
+// where the user was in it as the page was let go, as projectsReturned has
+// it. m as it is where neither the page nor the project chosen has changed.
+func (m Model) projectsShown(now time.Time, built *projectsBuild) Model {
 	t := m.projects
-	rebuilt := t.shown.Page == nil || !t.pageOf.same(of)
-	if !rebuilt && t.projectOf == (projectOf{page: t.pages, chosen: t.chosenIn(*t.shown.Page)}) {
+	if built == nil && t.projectOf == (projectOf{page: t.pages, chosen: t.chosenIn(*t.shown.Page)}) {
 		return m
 	}
 	sighted := m.selectionShows(now)
 	m, returned := m.projectsReturned()
 	sighted = sighted || returned
-	if rebuilt {
-		page := m.projectsDays().Projects(m.projectsInput(now, list))
-		m.projects.shown.Page, m.projects.pageOf = &page, of
+	if built != nil {
+		m.projects.shown.Page, m.projects.pageOf = &built.page, built.of
 		m.projects.pages++
 	}
 	m = m.chosenBuilt(now)
@@ -266,9 +286,9 @@ func (m Model) projectsInput(now time.Time, list views.SessionList) views.Projec
 // sessions running alone, where there's no ledger; else where the days read
 // reach back to the period's first day, and the tail was last read today,
 // so its fold of a day gone never stands for that day. Not before the first
-// read lands, nor before the tail's first read of the day, as after a night
-// on another tab, nor as the dial reaches further back, till the read of the
-// days it reaches lands.
+// read lands, nor before the tail's first read of the day, as just past
+// midnight or after a night asleep, nor as the dial reaches further back,
+// till the read of the days it reaches lands.
 func (m Model) projectsReady(now time.Time) bool {
 	return m.cfg.Ledger == nil || m.projectsReached(now) && m.tail.readOn(views.Today(now))
 }
@@ -282,18 +302,19 @@ func (m Model) projectsReached(now time.Time) bool {
 
 // projectsWaiting is m with Projects waiting at now on what its page is
 // built of, as projectsReady has it. Where the tail alone is yet to be read
-// on the day, as just past midnight or after a night on another tab, a read
-// of it is due at once, not at the next look, where none is under way; and
-// the page is kept drawn as it was built, never built again of the fold of
-// a day gone, where it was built for the period shown. Else it's let go to
-// await what it's built of, as projectsAwaited has it.
+// on the day, as just past midnight or after a night asleep, a read of it is
+// due at once, not at the next look, where none is under way; and the page,
+// where it was built for the period shown, is kept as it was built, never
+// built again of the fold of a day gone, and shown, as projectsShown has it,
+// so a project chosen meanwhile is followed. Else it's let go to await what
+// it's built of, as projectsAwaited has it.
 func (m Model) projectsWaiting(now time.Time) Model {
 	if !m.projectsReached(now) {
 		return m.projectsAwaited()
 	}
 	m.tail.due = m.tail.due || !m.tail.busy()
 	if m.projects.shown.Page != nil && m.projects.pageOf.period == m.period {
-		return m
+		return m.projectsShown(now, nil)
 	}
 	return m.projectsAwaited()
 }
