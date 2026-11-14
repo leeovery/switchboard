@@ -84,23 +84,26 @@ func TestVCyclesTokensSplitAndKeepsIt(t *testing.T) {
 	}
 }
 
-// Tokens reads the days held alone, so at today it asks for no read of the
-// ledger's tail, nor follows it; turned to Compare, which charts today by
-// the tail's fold, Accounts asks for one at once.
+// Tokens reads the days held alone, so at today a look leaves the read of
+// the ledger's tail it makes due untaken, the tail unfollowed; turned to
+// Compare, which charts today by the tail's fold, Accounts reads it at once.
 func TestAccountsTokensAtTodayAsksNoReadOfTheTail(t *testing.T) {
 	h := projectsHarness(t, dashboard.Accounts)
 	h.start()
 	h.tickUntilAsked()
 	h.keyed("[")
-	h.model = h.model.periodStepped(-1)
-	h.model.tail.due = false
-	h.deliver(h.update(frameMsg{gen: h.model.frames})...)
-	if h.model.accounts.shown.View() != dashboard.AccountsTokens || h.model.tail.due || h.model.tailFollowed() {
-		t.Fatalf("on %d at today, a read of the tail is due: %v, the tail followed: %v; want Tokens, neither",
-			h.model.accounts.shown.View(), h.model.tail.due, h.model.tailFollowed())
-	}
+	h.keyed("<")
+	read := h.model.tail.tailRead
 	at := h.clock.now.Add(-time.Second)
 	projectsLedgerOf(h).write(projectAsks(betaOnly, "/code/beta", at, 1)...)
+	h.tickUntilAsked()
+	if h.model.accounts.shown.View() != dashboard.AccountsTokens || h.model.period != views.PeriodToday {
+		t.Fatalf("after [ and <, Accounts shows %d at %s; want Tokens at today", h.model.accounts.shown.View(), h.model.period)
+	}
+	if !h.model.tail.due || h.model.tail.tailRead != read || h.model.tailFollowed() {
+		t.Fatalf("after a look on Tokens at today, a read of the tail is due: %v, one taken: %v, the tail followed: %v; want it due, none taken, unfollowed",
+			h.model.tail.due, h.model.tail.tailRead != read, h.model.tailFollowed())
+	}
 	h.keyed("]")
 	hours := h.model.accounts.page.All.WorthBy[0]
 	if by := hours.Buckets[at.Local().Hour()]; h.model.accounts.shown.View() != dashboard.AccountsCompare || by.Amount == nil || *by.Amount == 0 {

@@ -350,12 +350,19 @@ func TestTokensOverTotalIsOfTheDaysItsRowsHold(t *testing.T) {
 	var input int
 	var worth ledger.Picodollars
 	for _, p := range page.Periods {
+		if p.Amount == nil {
+			t.Fatalf("the row of %s has no worth; want one", p.First)
+		}
 		first, input, worth = append(first, p.First), input+p.Input, worth+*p.Amount
 	}
 	if want := []string{"2026-10-07", "2026-10-05"}; !slices.Equal(first, want) {
 		t.Fatalf("the rows are %q, want %q, the day of checks alone left out", first, want)
 	}
-	if total := page.Total; total.Input != input || *total.Amount != worth {
+	total := page.Total
+	if total == nil || total.Amount == nil {
+		t.Fatalf("the total is %+v; want one with its worth", total)
+	}
+	if total.Input != input || *total.Amount != worth {
 		t.Errorf("the total is %d input, worth %v; its rows sum %d, worth %v", total.Input, *total.Amount, input, worth)
 	}
 }
