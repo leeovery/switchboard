@@ -89,14 +89,14 @@ Claude pass `--pool "$SWITCHBOARD_POOL"`, the session's own pool.
   `pin --session`, `status --session`, `sessions <id>`, `requests --account` and `requests
   --session`. With `--pool` beside, it looks in that pool alone, and a pin of accounts outside it is
   refused, so passing `--pool` to every verb is always safe. A session resumed in another pool has
-  work, and an own pin, in each: `pin --session` sets or clears its pin in the pool `--pool` names;
-  without it, a pin to an account acts in the account's pool where the session runs there, else, as
-  `pin auto --session` does, in the pool it was routed in last. Reading the recorded files, it never
-  reads every pool's work together: a session's page and its requests are its work in the pool it's
-  in now, the one its newest request was routed in, as a session resumed in another pool may have
-  work in both, and an account's requests are those in the pool it's in now, or, of one no pool
-  keeps, as one an import brought, the pool its newest request was routed in. With `--pool`, a
-  session with no work in that pool isn't found there.
+  work in each, and can have an own pin in each: `pin --session` sets or clears its pin in the pool
+  `--pool` names; without it, a pin to an account acts in the account's pool where the session runs
+  there, else, as `pin auto --session` does, in the pool it was routed in last. Reading the recorded
+  files, it never reads every pool's work together: a session's page and its requests are its work
+  in the pool it's in now, the one its newest request was routed in, as a session resumed in another
+  pool may have work in both, and an account's requests are those in the pool it's in now, or, of
+  one no pool keeps, as one an import brought, the pool its newest request was routed in. With
+  `--pool`, a session with no work in that pool isn't found there.
 - Once there's a second pool, the text `status`, `usage`, `history`, `requests`, `sessions` and
   `events` print names the pool it read, as `pool Acme`, and the JSON gives each pool's id and
   label, as `pool` and `pool_label` (see
@@ -125,10 +125,11 @@ Claude pass `--pool "$SWITCHBOARD_POOL"`, the session's own pool.
   `status`, `usage` and the dashboard probe the pool's accounts instead, saying `the router doesn't
   route by pools yet, as it started before them: restart it with switchboard service restart`;
   `sessions` lists the ledger's alone, none as running, saying so; and `pin`, the dashboard's `p`
-  and `status --session --pool` refuse, saying so, asking it nothing. `status --session` without
-  `--pool` reads the session as ever, as it's the same session on any router. Where the config has
-  no pools before the move to pools, it's read as ever; once the move is done, a config naming no
-  pools has its pools as they stand, from the accounts record, so such a router is read as above.
+  and `status --session --pool --json` refuse, saying so, asking it nothing. The label `status
+  --session` prints, with `--pool` or without, reads the session as ever, as such a router passes
+  the pool over and it's the same session on any router. Where the config has no pools before the
+  move to pools, it's read as ever; once the move is done, a config naming no pools has its pools as
+  they stand, from the accounts record, so such a router is read as above.
 
 ## Everyday
 
@@ -1248,7 +1249,7 @@ JSON instead.
 
 ```bash
 switchboard status [--json | --pretty] [--pool <id>] [--probe] [-r]
-switchboard status --session <id> [--json | --pretty]
+switchboard status --session <id> [--json | --pretty] [--pool <id>]
 ```
 
 | Flag | What it does |
@@ -1258,7 +1259,7 @@ switchboard status --session <id> [--json | --pretty]
 | `--pool <id>` | Show that pool's accounts, the text naming it first once there's a second pool. With `--session`, look for the session in that pool alone. See [Reading a pool](#reading-a-pool). |
 | `--probe` | Probe every account, even while the router runs. |
 | `-r`, `--refresh` | Have the router first read every account it may, as [`usage -r`](#usage) does, and wait for it, ten seconds at most. Without the router, or with `--probe`, every account is probed anyway. |
-| `--session <id>` | Print the label of the account the router sends that session's requests to: the one its last-used model went to, as a statusline asks. It does so on a terminal or off one. An account removed since is named by the label it had, saying when it was removed, and one nothing names by its id. It needs the router, and takes no `--probe` or `--refresh`. |
+| `--session <id>` | Print the label of the account the router sends that session's requests to: the one its last-used model went to, as a statusline asks, in one pool where a session resumed in another runs in two, the one `--pool` names, else the one it was routed in last. It does so on a terminal or off one. An account removed since is named by the label it had, saying when it was removed, and one nothing names by its id. It needs the router, and takes no `--probe` or `--refresh`. |
 
 `status` reads the router while it runs. Otherwise, it probes each account. When the `claude` a
 shell runs from `PATH` isn't switchboard, the first line says so.
@@ -1318,7 +1319,9 @@ switchboard status --session "$CLAUDE_CODE_SESSION_ID" --pool "$SWITCHBOARD_POOL
 In a config with pools, a statusline passes `--pool "$SWITCHBOARD_POOL"`, the session's own pool, as
 in the last example: a session resumed in another pool runs in both while the process it started as
 lives, and asked after by its id alone, it reads as the pool its latest request came from, so each
-process's statusline would show the other's account in turn.
+process's statusline would show the other's account in turn. The flag costs the label no health
+check, as a statusline asking at every refresh mustn't pay one: a router from before pools passes
+the pool over and answers for the session by its id.
 
 ### `logs`
 

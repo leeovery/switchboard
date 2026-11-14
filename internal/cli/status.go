@@ -53,9 +53,11 @@ With --session, print the label of the account the router sends a Claude Code
 session's requests to, the one its last-used model went to, as a statusline
 asks, on a terminal or off one; or with --json, the session's every model and
 why it went where it did, each account by its id. The session is found in
-whatever pool it's in, or with --pool, in that pool alone. It needs the
-router running: start it with switchboard service install (or switchboard
-serve).
+whatever pool it's in, or with --pool, in that pool alone. A session resumed
+in another pool runs in both, and reads as the pool --pool names, else as the
+one it was routed in last, so a statusline in a config with pools passes
+--pool "$SWITCHBOARD_POOL". It needs the router running: start it with
+switchboard service install (or switchboard serve).
 
 ` + namingASession,
 		Args: func(cmd *cobra.Command, args []string) error {
@@ -136,16 +138,16 @@ func (a *app) running(ctx context.Context, m status.Moment) []status.Session {
 // sessionStatus prints the account the router sends a session's requests to,
 // as the verbs' text names it, the session given by as much of its id as is
 // unique, in the pool with the id given, "" for whatever pool it's in. A
-// session asked by its id alone is what it is on any router, so only one
-// asked in a pool is refused by a router from before pools, as
-// routerBeforePools has it: a statusline asking at every refresh pays for
-// no health check.
+// router from before pools passes the pool over and answers for the session
+// by its id, what it is on any router, so only its JSON asked in a pool is
+// refused by such a router, as routerBeforePools has it: a statusline asking
+// at every refresh, with --pool or without, pays for no health check.
 func (a *app) sessionStatus(ctx context.Context, out io.Writer, given, pool string, asJSON bool) error {
 	client, err := a.routerClient()
 	if err != nil {
 		return err
 	}
-	if pool != "" && a.routerBeforePools(ctx) {
+	if pool != "" && asJSON && a.routerBeforePools(ctx) {
 		return expected{status.ErrBeforePools}
 	}
 	names := a.accountNames()

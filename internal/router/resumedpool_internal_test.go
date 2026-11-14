@@ -252,23 +252,46 @@ func TestForceInOnePoolLeavesThePinOfASessionResumedInAnotherInTheOther(t *testi
 	}
 }
 
-func TestAPinToAnAccountOfAPoolASessionRanInOnceIsRefusedWhereItRunsNow(t *testing.T) {
-	// Session one ran in Default, on work, and a day on is resumed in Acme,
-	// its process in Default gone: a pin to side, Default's, by its id alone,
-	// acts in Acme, where it runs, which side is outside.
-	logstest.Capture(t)
-	clock := &setClock{now: start}
-	r, _ := newPairedRouter(t, clock.read)
-	routeIn(t, r, workToken, "one", defaultPool, nil)
-	clock.set(start.Add(26 * time.Hour))
-	routeIn(t, r, personalToken, "one", acmePool, nil)
-
-	rec := askControl(t, r, http.MethodPost, "/sessions/one/pin", `{"account": "side"}`)
-	if want := "side is in pool Default; this session is in pool Acme"; rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), want) {
-		t.Errorf("answered %d %s, want 400 saying %q", rec.Code, rec.Body, want)
+func TestAPinToAnAccountOfAPoolActsThereWhileTheSessionRunsThere(t *testing.T) {
+	// Session one ran in Default, on work, and is resumed in Acme a while on,
+	// just before a pin to side, Default's, by its id alone: the pin acts in
+	// Default while the session runs there, as it's listed running there, its
+	// last request there no longer than cacheLife before; past that, in Acme,
+	// the pool it was routed in last, which side is outside.
+	tests := []struct {
+		name  string
+		after time.Duration
+		// wantPins are the session's pins in Default and Acme after, where it's
+		// pinned; else wantRefused is what the refusal says.
+		wantPins    [2]string
+		wantRefused string
+	}{
+		{name: "the hour on", after: cacheLife, wantPins: [2]string{"side", ""}},
+		{name: "a second past the hour", after: cacheLife + time.Second, wantRefused: "side is in pool Default; this session is in pool Acme"},
+		{name: "a day on", after: 26 * time.Hour, wantRefused: "side is in pool Default; this session is in pool Acme"},
 	}
-	if got := pinsOfOne(t, r); got != [2]string{} {
-		t.Errorf("the session's pins in Default and Acme are %q, want none", got)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			logstest.Capture(t)
+			clock := &setClock{now: start}
+			r, _ := newPairedRouter(t, clock.read)
+			routeIn(t, r, workToken, "one", defaultPool, nil)
+			clock.set(start.Add(tt.after))
+			routeIn(t, r, personalToken, "one", acmePool, nil)
+
+			rec := askControl(t, r, http.MethodPost, "/sessions/one/pin", `{"account": "side"}`)
+			switch {
+			case tt.wantRefused != "":
+				if rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), tt.wantRefused) {
+					t.Errorf("answered %d %s, want 400 saying %q", rec.Code, rec.Body, tt.wantRefused)
+				}
+			case rec.Code != http.StatusOK:
+				t.Errorf("answered %d %s, want 200", rec.Code, rec.Body)
+			}
+			if got := pinsOfOne(t, r); got != tt.wantPins {
+				t.Errorf("the session's pins in Default and Acme are %q, want %q", got, tt.wantPins)
+			}
+		})
 	}
 }
 

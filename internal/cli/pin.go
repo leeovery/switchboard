@@ -68,9 +68,9 @@ names it.
 With --session, pin one running session alone to one account, from its next
 request, in place of any pin it had, the one run --account gave it included;
 "pin auto --session" clears its own pin, and it's routed like any other. The
-session is found in whatever pool it's in, or with --pool, in that pool
-alone. A session resumed in another pool has a pin in each: --pool names the
-one set or cleared; without it, a pin acts in the account's pool, where the
+session is found in whatever pool it's in, or with --pool, in that pool alone.
+A session resumed in another pool can have a pin in each: --pool names the one
+set or cleared; without it, a pin acts in the account's pool, where the
 session runs there, else in the pool it was routed in last, where "pin auto
 --session" clears it.
 

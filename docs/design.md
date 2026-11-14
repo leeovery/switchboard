@@ -1046,15 +1046,16 @@ totals.
   before them: restart it with switchboard service restart`, the dashboard `○ probed · router
   started before pools` and, in LATELY, `the router started before pools: restart it`; `sessions`
   lists the ledger's alone, as of a router that can't be asked, saying so; and `pin` and
-  `status --session --pool` refuse in those words, asking it nothing, the dashboard's `p` and its
-  card's orders in LATELY's, short enough for a phone's key line.
-  `status --session` without `--pool` asks no health and reads the session as ever, a session asked
-  by its id being what it is on any router, so a statusline asking at every refresh pays nothing
-  for the check. It answers all the same, so the dashboard leaves the notifications to it, as
-  while probing as asked. Where the config has no pools before the move to pools, or can't be
-  read, the router is read as before, there being no pools to tell it by; once the move is done, a
-  config naming no pools has its pools as they stand, from the accounts record, as
-  `launch.PoolsOf` gives them, so such a router is read as above.
+  `status --session --pool --json` refuse in those words, asking it nothing, the dashboard's `p` and
+  its card's orders in LATELY's, short enough for a phone's key line.
+  The label `status --session` prints, with `--pool` or without, asks no health and reads the
+  session as ever, as such a router passes the pool over and a session asked by its id is what it is
+  on any router, so a statusline asking at every refresh pays nothing for the check, nor a pooled
+  one passing `--pool` (see The data verbs). It answers all the same, so the dashboard leaves the
+  notifications to it, as while probing as asked. Where the config has no pools before the move to
+  pools, or can't be read, the router is read as before, there being no pools to tell it by; once
+  the move is done, a config naming no pools has its pools as they stand, from the accounts record,
+  as `launch.PoolsOf` gives them, so such a router is read as above.
 - **Managing pools:** `pool` lists the pools, with their directories, accounts and primaries. `pool
   add <label> [<dir>...]` makes one, switchboard making its id, as `accounts add <label>` makes an
   account's, fenced to the directories given, or unfenced without any; `pool edit <id>` changes its
@@ -2874,7 +2875,7 @@ argument Claude Code's own, so `claude --help` is Claude Code's (see Launching).
 | `accounts token <id> [--paste]` | Replace an account's token, making it with `claude setup-token` at a terminal, or taking one pasted or on stdin: see Accounts and tokens |
 | `accounts remove <id>` | Remove an account, and its token file, the accounts record keeping it, removed, with its label |
 | `setup` | Walk through setting up, or what's left of it: see Setup |
-| `status [--session <id>] [--json \| --pretty] [--probe] [--refresh]` | Accounts, windows, sessions, pin, what holds an account back, reserves, pressure, the priming schedule, and router health, read as `usage` reads them, and from the router, the sessions it has routed in the last hour: a line each, with its id cut short, the account each of its models goes to, its own pin, and when it was last seen. When the `claude` a shell runs from `PATH` isn't switchboard, so the sessions it starts don't go through the router, the first line says so, pointing to `setup`. Its JSON is the status document, which is what an agent reads (see The data verbs). `-r`, `--refresh` has the router first read every account it may, as `usage --refresh` does. `--session` prints one line, on a terminal or off one, as a statusline asks: the label of the account the router sends a session's requests to, the one its last-used model went to, as the verbs' text names it (one removed by the label it had, saying when, and one nothing names by its id); or with `--json`, `/sessions/{id}`'s answer. `<id>` is the session's id, or as much of it as is unique among those sessions, as `pin --session` takes it, and it needs the router, taking neither `--probe` nor `--refresh` |
+| `status [--session <id>] [--json \| --pretty] [--pool <id>] [--probe] [--refresh]` | Accounts, windows, sessions, pin, what holds an account back, reserves, pressure, the priming schedule, and router health, read as `usage` reads them, and from the router, the sessions it has routed in the last hour: a line each, with its id cut short, the account each of its models goes to, its own pin, and when it was last seen. When the `claude` a shell runs from `PATH` isn't switchboard, so the sessions it starts don't go through the router, the first line says so, pointing to `setup`. Its JSON is the status document, which is what an agent reads (see The data verbs). `-r`, `--refresh` has the router first read every account it may, as `usage --refresh` does. `--session` prints one line, on a terminal or off one, as a statusline asks: the label of the account the router sends a session's requests to, the one its last-used model went to, in one pool where a session resumed in another runs in two, the one `--pool` names, else the one it was routed in last, as the verbs' text names it (one removed by the label it had, saying when, and one nothing names by its id); or with `--json`, `/sessions/{id}`'s answer. `<id>` is the session's id, or as much of it as is unique among those sessions, as `pin --session` takes it, and it needs the router, taking neither `--probe` nor `--refresh` |
 | `usage [--5h] [--week] [--<model>] [--by window\|account] [--probe] [--refresh] [--json \| --pretty]` | Every account's windows as they stand, printed once into the scrollback with the time they were read, to hold against one printed earlier: see `usage`, the printout. `--by` lays them out by window, each window's rows together, or by account, each account's windows together, over `[usage] by` (see Config); by window where neither says. `--5h`, `--week`, and a flag for each model's own window, named for its model, as `--fable` is for Fable's week, print the windows given alone, with the header and the key line. Its JSON is the status document, as `status --json` prints it, read as its flags say (see The data verbs). It reads the router while it answers; `--probe` probes instead. `-r`, `--refresh` has the router first read every account it may, as the dashboard's `R` does, and waits for it, ten seconds at most; without the router, or with `--probe`, every account is probed anyway |
 | `dashboard [interval] [--no-notify] [--probe]` | The dashboard, full screen until `q`: see Dashboard. It needs a terminal, and refuses without one. It reads the router while it answers, which reads idle accounts itself, on its rounds, and `R` has it read them at once (see Live updates). Without the router, or with `--probe`, it probes every account instead, each interval: 30m unless given, 5m at the least, as a duration, such as `15m`, or a number of minutes. `--no-notify` has it post none of the notifications it posts while it probes without the router (see Notifications) |
 | `requests [--session <id>] [--account <id>] [--since <when>] [--json \| --pretty]` | The request ledger's lines (see The request ledger): today's, unless `--since` reaches further back, oldest first, under the day each arrived on, a line each with the time, the session's id cut short, the model, the account, the status, `canceled`, `cut off` or `broken off` after it where its line says so, the tokens in and out, and how long the request took. `--session` keeps a session's own, by its id or as much of it as is unique among the sessions read, failing, listing them, for as much as starts several; `--account` keeps an account's own, by its id in any case, refusing a label, the refusal naming the id of each account it labels, configured or removed; `--since` starts at a day (`2026-10-01`), a time today (`14:00`), as the clocks first read it that day, so `00:00` is the day's first instant, or a duration ago (`3h`, `2d`, a day being 24 hours), and one still to come is refused. Its JSON is each line as the ledger holds it with `"schema": 1` put first, a JSON object a line, fields a later release added included (see The data verbs). It reads the ledger's files, so it needs no router |
@@ -2937,8 +2938,11 @@ what switchboard knows of one thing, in a form for a person to read or for an ag
   columns (settled in the plan).
 - **`status --session` keeps its bare label:** the label of the account the router sends the
   session's requests to, as the verbs' text names it, on a terminal or off one, as a statusline
-  reads it; with `--json`, `/sessions/{id}`'s answer, the account by its id. It printed the id
-  until account identity made ids switchboard's own, which mean nothing on a status line.
+  reads it; with `--json`, `/sessions/{id}`'s answer, the account by its id. Of a session resumed in
+  another pool, which runs in two, each is of one pool: the one `--pool` names, else the one it was
+  routed in last, so a statusline in a config with pools passes `--pool "$SWITCHBOARD_POOL"`. It
+  printed the id until account identity made ids switchboard's own, which mean nothing on a status
+  line.
 - **The person's form:** `usage`'s printout (see `usage`, the printout); `status`'s text; and, in
   plain text, first cuts to be designed with their owner (see Backlog): `requests` and `events`, a
   line each; `sessions`, a line each and one summing them; `history`, its days' tables and the
@@ -10260,11 +10264,12 @@ hiding it behind the provider would take a wider interface than it's worth:
   ignoring the fields, takes them all for, one without `windows_absent` as accounts that have every
   window they report, one without `hold`, or with one of a shape it doesn't know, as a curve of no
   answers, a reading that holds nothing else as none, and a pin that names its account alone, as
-  pins did before they named several, as a pin to that one, and a session's assignments and own pin
-  without a pool, as a router from before kept them, as the first pool's, while a router from before
-  reads of a session the assignment of each model used last, and its own pin in `session_pins`, the
-  one in the pool it was routed in last, passing over those kept apart in `session_pins_apart`, as
-  it passes over any field it doesn't know. It's rewritten whole (written beside it,
+  pins did before they named several, as a pin to that one, a session's assignment without a pool as
+  the first pool's, and its own pin without one as the pin in the pool it was routed in last, the
+  first pool for a file from before pools, while a router from before reads of a session the
+  assignment of each model used last, and its own pin in `session_pins`, the one in the pool it was
+  routed in last, passing over those kept apart in `session_pins_apart`, as it passes over any field
+  it doesn't know. It's rewritten whole (written beside it,
   synced, and renamed over it) a second after a change and on the way out, but once a minute at most
   while its only changes are routine: those every request makes, its session's assignment used
   again, the reading off its answer and the answer in the hold curve, and those every probe makes,
