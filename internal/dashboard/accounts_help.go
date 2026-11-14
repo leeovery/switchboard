@@ -1,7 +1,6 @@
 package dashboard
 
 import (
-	"strconv"
 	"strings"
 
 	"github.com/leeovery/switchboard/internal/prose"
@@ -22,9 +21,9 @@ func (f Frame) accountsHelp() []helpPart {
 }
 
 // compareHelp is Compare as help explains it: its columns and heads, and
-// their focus, and its charts, but where Compare is turned, as CompareWide
-// has it, drawing neither; each group and how each row is counted; and a
-// key to the states its heads say.
+// their focus, but where Compare is turned, as CompareWide has it, holding
+// none; its charts; each group and how each row is counted; and a key to the
+// states its heads say.
 func (f Frame) compareHelp() helpPart {
 	focus := " `←` and `→` move the focus along the columns, scrolling them past as many as fit, all accounts staying " +
 		"put at the right; `enter` opens the account focused in Detail, and `esc` ends the focus."
@@ -35,7 +34,7 @@ func (f Frame) compareHelp() helpPart {
 		"WORTH is what its use was worth at API prices over the period, in the finest buckets that fit, its peak " +
 		"under it: the accounts share one scale, so their columns compare, and all accounts has its own."
 	if !f.CompareWide() {
-		focus, charts = "", ""
+		focus = ""
 	}
 	return helpPart{
 		heading: accountsHeading(AccountsCompare),
@@ -124,16 +123,17 @@ func allAccountsHelp() helpPart {
 				"counting as open."),
 			said("It isn't the pool, the accounts new sessions can go to now, each to its cap, which only the Overview " +
 				"shows: an account's state on Accounts is its own."),
-			said("In Detail, its days are every account's together, marked where any hit a 5-hour limit, and each week's " +
-				"peak the mean of theirs. Its verdict is " + views.RoomToSpare + " where their weeks left " +
-				strconv.Itoa(views.RoomLeft) + "% or more at a reset, on average, else " + views.LittleToSpare + ", naming " +
-				"the accounts that end weeks with the most and the least left."),
+			said("In Detail, it has no BY DAY, and WEEKS gives a band of each account's week peaks, all accounts' first, " +
+				"each week's peak the mean of theirs, the cap's level marked where an account keeps a reserve; at each " +
+				"band's right, how many of the weeks shown it hit its limit in, or of all accounts how many some account " +
+				"was short, and what they left at a reset, on average. Where the rows don't hold the bands, as on a " +
+				"phone, a table gives the same, a row an account."),
 		},
 	}
 }
 
 // detailHelp is Detail as help explains it: the list, where there's more
-// than one account; the panel, above the rule and below it; the verdict;
+// than one account; the panel, above the rule and below it; WORTH and LATELY;
 // SESSIONS; and a key to BY DAY's shades and marks and WEEKS'.
 func (f Frame) detailHelp() helpPart {
 	var says []line
@@ -152,12 +152,16 @@ func (f Frame) detailHelp() helpPart {
 				"is now, every window read as switchboard usage reads them; THIS WEEK, named for the period, and BY MODEL "+
 				"are the period's, THIS WEEK counting its requests and the limits it hit, by window, beside its plan, its "+
 				"worth against its price, and whether its extra usage is on. Below the rule, BY DAY and WEEKS cover the "+
-				"weeks it names, the last six where they fit."),
+				"weeks it names, as many as fit across the panel, the period's own at least where they fit, and never "+
+				"fewer than six; at 12 months the newest, saying how many more there are."),
 			said("BY DAY shades each day by how much of its week the account used that day, in History's five shades, on "+
 				"the account's own scale: each a quarter of its active days."),
 			said("WEEKS gives each week's peak, the use read just before the reset that ended it, and this week's, its "+
-				"highest so far. Under them, the verdict on the last 7 whole weeks, as History's Weeks gives it: "+
-				accountVerdictsMean()),
+				"highest so far. Under them, how many of the whole weeks shown it hit its limit in, and what they left at "+
+				"a reset, on average."),
+			said("WORTH is what its use was worth at API prices over the period, across the panel, in the finest buckets "+
+				"that fit, its peak under it. LATELY tells every event the router has for the account, newest first, "+
+				"down to the key line, and the rest scrolls."),
 			said(sessions),
 		),
 		glyphs: append(shadesHelp("a day", "days", f.byDaySwatch),

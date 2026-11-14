@@ -35,9 +35,9 @@ func accountsHelpSaid(shown AccountsShown) string {
 }
 
 // accountsHelpGlyphs are the glyphs Accounts' help explains under the part
-// headed heading, in the look given.
+// headed heading, in the look given, 160 columns wide.
 func accountsHelpGlyphs(look Look, heading string) []line {
-	parts := Frame{View: Accounts, Accounts: threeShown, Look: look}.accountsHelp()
+	parts := Frame{Width: 160, View: Accounts, Accounts: threeShown, Look: look}.accountsHelp()
 	var drawn []line
 	if i := slices.IndexFunc(parts, func(p helpPart) bool { return p.heading == heading }); i >= 0 {
 		for _, g := range parts[i].glyphs {
@@ -166,26 +166,31 @@ func TestAccountsHelpDrawsBYDAYAndWEEKSAsDetailDoes(t *testing.T) {
 
 // BY DAY's key draws a day as many cells wide as Detail draws its days, of
 // the moment the frame holds, as the watch draws help, over a frame it never
-// builds, from Compare as from Detail: the limit's ▪ in its middle cell, the
-// first of two, and a day to come a · a cell. Two with the list at 160, three
-// at 200 and 220, where the days grow; three with one account at 160, two at
-// 120, where they don't yet, and two where it's stacked, as on a phone.
+// builds, from Compare as from Detail: the limit's ▪ in its first cell, and a
+// day to come a · a cell. Two where the period's own weeks fit so, wide or
+// stacked, whatever the width past it; one where they don't, as at 12 weeks
+// beside the list, or stacked on a phone.
 func TestAccountsHelpDrawsADayAsWideAsDetailDrawsItsDays(t *testing.T) {
 	look := Screen(builtin(t, "nord"))
 	compared := threeShown
 	compared.Shown = AccountsCompare
 	tests := []struct {
-		name  string
-		shown AccountsShown
-		width int
-		cells int
+		name   string
+		shown  AccountsShown
+		period views.Period
+		width  int
+		cells  int
 	}{
 		{name: "three accounts, the list beside the panel", shown: threeShown, width: 160, cells: 2},
-		{name: "three accounts, from Compare, its days grown", shown: compared, width: 220, cells: 3},
-		{name: "three accounts, on Detail, its days grown", shown: threeShown, width: 200, cells: 3},
-		{name: "one account, wide", shown: oneShown, width: 160, cells: 3},
-		{name: "one account, its days not yet grown", shown: oneShown, width: 120, cells: 2},
-		{name: "one account on a phone", shown: oneShown, width: 52, cells: 2},
+		{name: "three accounts, from Compare, wider", shown: compared, width: 220, cells: 2},
+		{name: "three accounts, on Detail, wider", shown: threeShown, width: 200, cells: 2},
+		{name: "one account, wide", shown: oneShown, width: 160, cells: 2},
+		{name: "one account, 120 wide", shown: oneShown, width: 120, cells: 2},
+		{name: "three accounts at 12 weeks, the list beside the panel", shown: threeShown, period: views.PeriodTwelveWeeks, width: 173, cells: 1},
+		{name: "one account at 12 weeks, wider", shown: oneShown, period: views.PeriodTwelveWeeks, width: 220, cells: 2},
+		{name: "one account at 100, its period's weeks too many for two-cell days", shown: oneShown, width: 100, cells: 1},
+		{name: "three accounts stacked, 105 wide", shown: threeShown, width: 105, cells: 2},
+		{name: "one account on a phone", shown: oneShown, width: 52, cells: 1},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -195,12 +200,12 @@ func TestAccountsHelpDrawsADayAsWideAsDetailDrawsItsDays(t *testing.T) {
 			}
 			on := ink{on: dayInk(2).hue()}
 			limited := line{{"▪", ink{token: theme.StateDestructive, on: on.on}}, {" ", on}}
-			if tt.cells == 3 {
-				limited = slices.Concat(line{{" ", on}}, limited)
+			if tt.cells == 1 {
+				limited = limited[:1]
 			}
 			want = append(want, limited, line{{strings.Repeat("·", tt.cells), faintInk}})
 			doc := usageWorld(extraOff)
-			parts := Frame{Width: tt.width, Height: 37, View: Accounts, Accounts: tt.shown, Look: look, Policy: claudeLike}.At(doc, routedAt).accountsHelp()
+			parts := Frame{Width: tt.width, Height: 37, View: Accounts, Accounts: tt.shown, Period: tt.period, Look: look, Policy: claudeLike}.At(doc, routedAt).accountsHelp()
 			glyphs := parts[len(parts)-1].glyphs
 			var got []line
 			for _, g := range glyphs[:len(glyphs)-1] {
@@ -262,10 +267,10 @@ func TestAccountsHelpSaysWhatItsFiguresAre(t *testing.T) {
 	}
 }
 
-// History's help and Accounts' say each verdict at the cuts views judges it
-// by, each word as views words it.
+// History's help says each verdict at the cuts views judges it by, each word
+// as views words it; Accounts' says none, as Detail gives the facts alone.
 func TestHelpSaysEachVerdictAtViewsCuts(t *testing.T) {
-	accountsVerdicts := []string{
+	verdicts := []string{
 		fmt.Sprintf("%s, in %d or more of the %d;", views.HitsItsLimit, views.LimitWeeks, views.VerdictWeeks),
 		fmt.Sprintf("%s, %d%% or more left at a reset on average;", views.PlentyToSpare, views.PlentyLeft),
 		"else " + views.EndsWithRoom + ".",
@@ -273,20 +278,17 @@ func TestHelpSaysEachVerdictAtViewsCuts(t *testing.T) {
 		fmt.Sprintf("used %d%% or less on average;", views.CouldGoUsed),
 		fmt.Sprintf("%s, %d%% or more left at a reset on average.", views.BarelyUsed, views.BarelyLeft),
 	}
-	for _, tc := range []struct {
-		name string
-		said string
-		want []string
-	}{
-		{"History's", historySaid(), accountsVerdicts},
-		{"Accounts'", accountsHelpSaid(threeShown), append(accountsVerdicts,
-			fmt.Sprintf("%s where their weeks left %d%% or more at a reset", views.RoomToSpare, views.RoomLeft),
-			"else "+views.LittleToSpare+",",
-		)},
-	} {
-		for _, verdict := range tc.want {
-			if !strings.Contains(tc.said, verdict) {
-				t.Errorf("%s help reads\n%s\nwant it to say %q", tc.name, tc.said, verdict)
+	said := historySaid()
+	for _, verdict := range verdicts {
+		if !strings.Contains(said, verdict) {
+			t.Errorf("History's help reads\n%s\nwant it to say %q", said, verdict)
+		}
+	}
+	for _, shown := range []AccountsShown{threeShown, oneShown} {
+		said := accountsHelpSaid(shown)
+		for _, verdict := range []string{views.HitsItsLimit, views.PlentyToSpare, views.EndsWithRoom, views.RoomToSpare, views.LittleToSpare} {
+			if strings.Contains(said, verdict) {
+				t.Errorf("Accounts' help reads\n%s\nwant no verdict, but it says %q", said, verdict)
 			}
 		}
 	}
@@ -325,18 +327,15 @@ func TestAccountsHelpExplainsComparesFocusWhereItsDrawn(t *testing.T) {
 	}
 }
 
-// Compare's charts, WEEKS and WORTH, are explained where they're drawn,
-// wide; turned Compare draws neither.
+// Compare's charts, WEEKS and WORTH, are explained at every width, wide or
+// turned, as both draw them.
 func TestAccountsHelpExplainsComparesChartsWhereTheyreDrawn(t *testing.T) {
 	charts := []string{"WEEKS is how full each of its weeks got", "WORTH is what its use was worth"}
-	for _, tc := range []struct {
-		width int
-		want  bool
-	}{{160, true}, {83, true}, {82, false}, {52, false}} {
-		said := strings.Join(plainLines(accountsHelping(tc.width, threeShown, Look{}).body), " ")
+	for _, width := range []int{160, 83, 82, 52} {
+		said := strings.Join(plainLines(accountsHelping(width, threeShown, Look{}).body), " ")
 		for _, chart := range charts {
-			if got := strings.Contains(said, chart); got != tc.want {
-				t.Errorf("at %d columns, help reads\n%s\nwant %q said %v", tc.width, said, chart, tc.want)
+			if !strings.Contains(said, chart) {
+				t.Errorf("at %d columns, help reads\n%s\nwant %q said", width, said, chart)
 			}
 		}
 	}

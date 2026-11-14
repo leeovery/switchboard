@@ -57,42 +57,41 @@ type Figures map[string]string
 
 // The names of the figures wanted of Accounts' page, its rows and the
 // moment, each written as the views' tests read it off: of the page, whether
-// its period records anything, "yes" or "no", the six weeks' first days, and
-// how many of this week's days are to come; of a row, its requests, its
-// sessions served, the sessions moved on and off, as "on 1 off 3", its limits
-// by window, as "5h×2 7d×1", its minutes at a cap or a limit, "—" where
-// none was read, and whether some days never read them, "partial"; its share
-// left at its last reset, "—" where none ended, and the date its week ran
-// out in, "" where it didn't; its plan's name and its price, as "Ultra
-// $200/mo", its worth, as Worth.Dollars says it, and against its price, as
-// "4.0× of $46"; its six weeks' peaks, as "55 100 — 34…"; its verdict, as
-// "ends most weeks with room 2/6 23%", its limits over its weeks, and its
-// share left on average; of the moment, its week window's use, WEEK USED's,
+// its period records anything, "yes" or "no", the last six weeks' first
+// days, and how many of this week's days are to come; of a row, its
+// requests, its sessions served, the sessions moved on and off, as "on 1 off
+// 3", its limits by window, as "5h×2 7d×1", its minutes at a cap or a limit,
+// "—" where none was read, and whether some days never read them,
+// "partial"; its share left at its last reset, "—" where none ended, and the
+// date its week ran out in, "" where it didn't; its plan's name and its
+// price, as "Ultra $200/mo", its worth, as Worth.Dollars says it, and
+// against its price, as "4.0× of $46"; its last six weeks' peaks, as "55 100
+// — 34…"; Weeks' facts on the last eight, Weeks' own, as "2/6 23%", its
+// limits over its whole weeks, and its share left on average, "0 weeks"
+// where none is whole; of the moment, its week window's use, WEEK USED's,
 // the sessions running on the account, by their shown ids, and its LATELY,
 // each sentence in full, " | " between.
 const (
-	FigureRecorded  = "recorded"
-	FigureWeeks     = "weeks"
-	FigureToCome    = "to come"
-	FigureRequests  = "requests"
-	FigureSessions  = "sessions"
-	FigureMoved     = "moved"
-	FigureLimits    = "limits"
-	FigureMinutes   = "minutes"
-	FigurePartial   = "partial"
-	FigureLeft      = "left"
-	FigureRanOut    = "ran out"
-	FigurePlan      = "plan"
-	FigureWorth     = "worth"
-	FigureAgainst   = "against"
-	FigurePeaks     = "peaks"
-	FigureVerdict   = "verdict"
-	FigureWeekUsed  = "week used"
-	FigureRunning   = "running"
-	FigureLately    = "lately"
-	FigurePlansOf   = "plans known"
-	FigureMostLeft  = "most left"
-	FigureLeastLeft = "least left"
+	FigureRecorded = "recorded"
+	FigureWeeks    = "weeks"
+	FigureToCome   = "to come"
+	FigureRequests = "requests"
+	FigureSessions = "sessions"
+	FigureMoved    = "moved"
+	FigureLimits   = "limits"
+	FigureMinutes  = "minutes"
+	FigurePartial  = "partial"
+	FigureLeft     = "left"
+	FigureRanOut   = "ran out"
+	FigurePlan     = "plan"
+	FigureWorth    = "worth"
+	FigureAgainst  = "against"
+	FigurePeaks    = "peaks"
+	FigureFacts    = "facts"
+	FigureWeekUsed = "week used"
+	FigureRunning  = "running"
+	FigureLately   = "lately"
+	FigurePlansOf  = "plans known"
 )
 
 // AccountsMoments are the moments Accounts has to get right: a week at its
@@ -136,8 +135,8 @@ func in2026(month time.Month, day, hour, minute, second int) time.Time {
 // resets each Monday at 10:00. At 20:59:59, work's week still runs, placed
 // under this week, and the one before shows none of its. At 21:00:01, before
 // the reread, WEEK USED reads none, and its left at its last reset, its
-// peaks and its verdict change with it: the week that reset closed at its
-// use, 100%, under 28 September, a whole week, so its verdict now counts it.
+// peaks and its facts change with it: the week that reset closed at its
+// use, 100%, under 28 September, a whole week, so its facts now count it.
 // Once reread, the days hold the reset, and every figure is as it was at
 // 21:00:01; and so it is reread over days read at 20:58, before the router
 // last read the week before its reset, as a page built of them then has
@@ -156,9 +155,9 @@ func weekResetBeforeTheReread() []AccountsMoment {
 	sixWeeks := Figures{FigureWeeks: "2026-08-31 2026-09-07 2026-09-14 2026-09-21 2026-09-28 2026-10-05"}
 	afterTheReset := map[string]Figures{
 		work: {FigureWeekUsed: "0%", FigureLeft: "0%", FigureRanOut: "2026-10-02", FigurePeaks: "55 100 66 74 100 0…",
-			FigureVerdict: views.HitsItsLimit + " 3/7 19%"},
-		side: {FigureLeft: "50%", FigurePeaks: "40 35 20 45 50 4…", FigureVerdict: views.PlentyToSpare + " 0/7 65%"},
-		"":   {FigurePeaks: "48 68 43 60 75 2…", FigureVerdict: views.RoomToSpare + " 3/7 42%", FigureMostLeft: side, FigureLeastLeft: work},
+			FigureFacts: "3/7 19%"},
+		side: {FigureLeft: "50%", FigurePeaks: "40 35 20 45 50 4…", FigureFacts: "0/7 65%"},
+		"":   {FigurePeaks: "48 68 43 60 75 2…", FigureFacts: "3/7 42%"},
 	}
 	return []AccountsMoment{
 		{
@@ -166,9 +165,9 @@ func weekResetBeforeTheReread() []AccountsMoment {
 			Days: before, Doc: readBefore, Now: in2026(time.October, 5, 20, 59, 59), Page: sixWeeks,
 			Want: map[string]Figures{
 				work: {FigureWeekUsed: "100%", FigureLeft: "26%", FigureRanOut: "", FigurePeaks: "55 100 66 74 — 100…",
-					FigureVerdict: views.EndsWithRoom + " 2/6 22%"},
-				side: {FigureLeft: "50%", FigurePeaks: "40 35 20 45 50 4…", FigureVerdict: views.PlentyToSpare + " 0/7 65%"},
-				"":   {FigurePeaks: "48 68 43 60 50 52…", FigureVerdict: views.RoomToSpare + " 2/6 45%", FigureMostLeft: side, FigureLeastLeft: work},
+					FigureFacts: "2/6 22%"},
+				side: {FigureLeft: "50%", FigurePeaks: "40 35 20 45 50 4…", FigureFacts: "0/7 65%"},
+				"":   {FigurePeaks: "48 68 43 60 50 52…", FigureFacts: "2/6 45%"},
 			},
 		},
 		{
@@ -219,7 +218,7 @@ func mondayWeeks(filed bool) []ledger.Summary {
 
 // fewerThanSevenWeeks is Thursday 1 October, the ledger begun on Monday 14
 // September: work's weeks, from Sunday at 21:00, and side's, from Wednesday
-// at 10:00, have ended in two whole weeks alone, which their verdicts are
+// at 10:00, have ended in two whole weeks alone, which their facts are
 // over. Work's first, from the 13th, began nearest the ledger's first week,
 // so counts; side's first, from the 9th, nearest the week before it, so
 // doesn't.
@@ -236,9 +235,9 @@ func fewerThanSevenWeeks() AccountsMoment {
 		Name: "fewer than seven weeks recorded", Accounts: config.Accounts{workUltra, sideUltra}, WeekStarts: time.Monday,
 		Days: f.summaries(in2026(time.September, 14, 0, 0, 0), now), Doc: readDoc(now), Now: now,
 		Want: map[string]Figures{
-			work: {FigureLeft: "40%", FigurePeaks: "— — — 40 60 34…", FigureVerdict: views.PlentyToSpare + " 0/2 50%"},
-			side: {FigureLeft: "65%", FigurePeaks: "— — — 30 35 —", FigureVerdict: views.PlentyToSpare + " 0/2 68%"},
-			"":   {FigureVerdict: views.RoomToSpare + " 0/2 59%", FigureMostLeft: side, FigureLeastLeft: work},
+			work: {FigureLeft: "40%", FigurePeaks: "— — — 40 60 34…", FigureFacts: "0/2 50%"},
+			side: {FigureLeft: "65%", FigurePeaks: "— — — 30 35 —", FigureFacts: "0/2 68%"},
+			"":   {FigureFacts: "0/2 59%"},
 		},
 	}
 }
@@ -253,7 +252,7 @@ func freshInstall() AccountsMoment {
 	f.on(work, At(9, 0, 0)).Highest[week] = 0.3
 	f.on(side, At(9, 0, 0)).Highest[week] = 0.12
 	now := At(14, 42, 7)
-	nothing := Figures{FigureRequests: "0", FigureWorth: "—", FigureLeft: "—", FigurePeaks: "— — — — — —", FigureVerdict: "0 weeks"}
+	nothing := Figures{FigureRequests: "0", FigureWorth: "—", FigureLeft: "—", FigurePeaks: "— — — — — —", FigureFacts: "0 weeks"}
 	doc := readDoc(now,
 		readAccount(work, now, window(fiveHour, 0.2, At(18, 0, 0)), window(week, 0.3, in2026(time.October, 5, 21, 0, 0))),
 		readAccount(side, now, window(fiveHour, 0.1, At(19, 0, 0)), window(week, 0.12, in2026(time.October, 7, 10, 0, 0))))
@@ -261,7 +260,7 @@ func freshInstall() AccountsMoment {
 		Name: "a fresh install", Accounts: config.Accounts{workUltra, sideUltra}, WeekStarts: time.Monday,
 		Days: f.summaries(At(0, 0, 0), now), Doc: doc, Now: now,
 		Page: Figures{FigureRecorded: "no"},
-		Want: map[string]Figures{work: nothing, side: nothing, "": {FigureRequests: "0", FigureWorth: "—", FigureVerdict: "0 weeks", FigureMostLeft: ""}},
+		Want: map[string]Figures{work: nothing, side: nothing, "": {FigureRequests: "0", FigureWorth: "—", FigureFacts: "0 weeks"}},
 	}
 }
 

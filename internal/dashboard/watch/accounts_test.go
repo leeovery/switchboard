@@ -384,7 +384,7 @@ func TestTurnedComparesPlansAreSizedByTheConfigsPlansAtTheirMost(t *testing.T) {
 		All:  priced("", true, 400*ledger.Dollar),
 	}
 	f := m.frame(h.clock.now)
-	f.Width, f.Height, f.View, f.Accounts.Page = 40, 60, dashboard.Accounts, &page
+	f.Width, f.Height, f.View, f.Accounts.Page = 40, 120, dashboard.Accounts, &page
 	rows := f.Draw(probedWithoutTheRouter(), h.clock.now)
 	i := slices.IndexFunc(rows, func(row string) bool { return strings.HasPrefix(ansi.Strip(row), "VALUE") })
 	if i < 0 {
@@ -420,8 +420,8 @@ func TestEachLookStandsAccountsPageAtItsMoment(t *testing.T) {
 
 // History's Weeks is stood at each look's moment, as Accounts' page is: a
 // week reset before the router reads it again closes that week in both, so
-// each account's peaks over Accounts' six weeks, and its verdict, and every
-// account's, are drawn alike on each.
+// each account's peaks over Weeks' weeks, and Weeks' facts on them, and
+// every account's, are drawn alike on each.
 func TestHistorysWeeksTellTheAccountsWeeksAsAccountsAtTheMoment(t *testing.T) {
 	mo := resetBeforeTheReread(t)
 	h := momentHarness(t, mo, dashboard.History)
@@ -432,14 +432,14 @@ func TestHistorysWeeksTellTheAccountsWeeksAsAccountsAtTheMoment(t *testing.T) {
 	if weeks == nil || page == nil {
 		t.Fatalf("Weeks is %v drawn, Accounts' page %v; want both", weeks, page)
 	}
-	shown := len(weeks.Weeks) - len(page.Weeks)
+	judged := len(weeks.Weeks)
 	rows := append(slices.Clone(weeks.Accounts), weeks.All)
 	for i, row := range append(slices.Clone(page.Rows), page.All) {
-		if got, want := rows[i].Peaks[shown:], row.Peaks; !reflect.DeepEqual(got, want) {
+		if got, want := rows[i].Peaks, row.Peaks[len(row.Peaks)-judged:]; !reflect.DeepEqual(got, want) {
 			t.Errorf("row %d's peaks are drawn %v on Weeks, %v on Accounts", i, peaksOf(got), peaksOf(want))
 		}
-		if got, want := rows[i].AccountVerdict, row.Verdict; !reflect.DeepEqual(got, want) {
-			t.Errorf("row %d's verdict is drawn %s on Weeks, %s on Accounts", i, verdictSaid(got), verdictSaid(want))
+		if got, want := factsSaid(rows[i].AccountVerdict), factsSaid(row.Facts(judged)); got != want {
+			t.Errorf("row %d's facts are drawn %s on Weeks, %s on Accounts", i, got, want)
 		}
 	}
 }
@@ -526,16 +526,15 @@ func peaksOf(peaks []views.WeekPeak) []string {
 	return read
 }
 
-// verdictSaid says a verdict, its limits over its weeks, the share left on
-// average and the weeks short without its account, where known, as "hits
-// its limit most weeks 3/7 19% short 2".
-func verdictSaid(v views.AccountVerdict) string {
-	said := fmt.Sprintf("%s %d/%d", v.Verdict, v.Limits, v.Weeks)
+// factsSaid says Weeks' facts, its limits over its weeks and the share left
+// on average, where known, as "3/7 19%", of every account's "all 3/7 42%".
+func factsSaid(v views.AccountVerdict) string {
+	said := fmt.Sprintf("%d/%d", v.Limits, v.Weeks)
+	if v.All {
+		said = "all " + said
+	}
 	if v.LeftAtReset != nil {
 		said += " " + prose.Percent(*v.LeftAtReset)
-	}
-	if v.WithoutIt != nil {
-		said += fmt.Sprintf(" short %d", *v.WithoutIt)
 	}
 	return said
 }

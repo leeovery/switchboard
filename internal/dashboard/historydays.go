@@ -539,7 +539,7 @@ func (f Frame) swatch(k ink, level int, limited bool) line {
 // daySwatch is a day cells wide in its shade's ink, k, at its level: spaces
 // on its colour; or where the look blends nothing, its level's glyph, in its
 // colour. A day it hit a 5-hour limit has a red ▪ in its middle cell, the
-// first of two.
+// first of two, its only one at one.
 func (f Frame) daySwatch(k ink, level int, limited bool, cells int) line {
 	glyph, drawn := " ", ink{on: k.hue()}
 	if !f.Look.blends() {
@@ -549,7 +549,10 @@ func (f Frame) daySwatch(k ink, level int, limited bool, cells int) line {
 		return line{{strings.Repeat(glyph, cells), drawn}}
 	}
 	before := (cells - 1) / 2
-	marked := line{{limitMark, ink{token: theme.StateDestructive, on: drawn.on}}, {strings.Repeat(glyph, cells-1-before), drawn}}
+	marked := line{{limitMark, ink{token: theme.StateDestructive, on: drawn.on}}}
+	if after := cells - 1 - before; after > 0 {
+		marked = append(marked, span{strings.Repeat(glyph, after), drawn})
+	}
 	if before == 0 {
 		return marked
 	}

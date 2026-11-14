@@ -14,8 +14,9 @@ import (
 
 // AccountsPage is Accounts as the dashboard draws it, Compare and Detail
 // alike: each configured account's row and every account's, their totals and
-// plans over the period, and their last six weeks, a day at a time and a week
-// at a time, with Weeks' verdict on them; and, for Compare's WEEKS and WORTH,
+// plans over the period; their weeks of the last 12 months, a day at a time
+// and a week at a time, with Weeks' facts on any number of the last of them,
+// for Detail to show as many as fit; and, for Compare's WEEKS and WORTH,
 // their weeks over the period's reach and their worth charted over the
 // period. It's built of the days held once
 // for each period, never a frame at a time, and stood at each look's moment
@@ -27,10 +28,15 @@ type AccountsPage struct {
 	// as on a fresh install, shows none of its figures.
 	Period   Period
 	Recorded bool
-	// Weeks are the six weeks' first days' dates, oldest first, this week
-	// last, and ToCome how many of this week's days are still to come.
-	Weeks  []string
-	ToCome int
+	// Weeks are the first days' dates of the weeks Detail may show, oldest
+	// first, this week last: as many as Compare reaches over at 12 months,
+	// whatever the period, as heldWeeks has them; ToCome how many of this
+	// week's days are still to come; and Reaches how many of the last of
+	// them Detail's weeks section reaches over at the fewest, as detailWeeks
+	// counts them, those that don't fit counted out of view.
+	Weeks   []string
+	ToCome  int
+	Reaches int
 	// Reach are the columns Compare's WEEKS draws over the period, oldest
 	// first, as reached has them: a week each, those that begin in the
 	// period, this one last, as reachWeeks counts them; or of the last 12
@@ -48,10 +54,10 @@ type AccountsPage struct {
 	// was read, as help gives it.
 	PricesAsOf string
 
-	// in and days are what the six weeks are worked out from, for At to
-	// work them out afresh: the input the page was built of, and the days
-	// from lookBack before the first of the eight weeks Weeks judges, or of
-	// the reach's weeks, where they're more.
+	// in and days are what the weeks are worked out from, for At to work
+	// them out afresh: the input the page was built of, and the days from
+	// lookBack before the first of the weeks Detail may show, which hold the
+	// reach's.
 	in   HistoryInput
 	days []Day
 }
@@ -75,26 +81,24 @@ type AccountsRow struct {
 	// just before that reset taken from the whole, and RanOut the date of the
 	// local day it last reached its week's limit in the week that reset
 	// ended, "" where it didn't, whatever the period: nil, and "", where none
-	// of its weeks ended among the six weeks' days and the week before, and
-	// of every account's.
+	// of its weeks ended among the last resetWeeks weeks' days and the week
+	// before, and of every account's.
 	WeekLeft *float64
 	RanOut   string
-	// Days are the six weeks' days, from the first, those to come among
-	// them: each at the level, on its own scale, of the points of its week
-	// it used that day, marked where it hit a 5-hour limit. Of every
-	// account's, each day is every account's points together, marked where
-	// any hit one.
+	// Days are the days of the page's weeks, from the first, those to come
+	// among them: each at the level, on its own scale over them all, of the
+	// points of its week it used that day, marked where it hit a 5-hour
+	// limit. Of every account's, each day is every account's points
+	// together, marked where any hit one.
 	Days []StripDay
-	// Peaks are its six weeks' peaks, as Weeks places its own weeks under
-	// them, this week's so far, and of every account's, the mean of theirs;
-	// and Verdict is Weeks' verdict on it, over the last 7 whole weeks, or of
-	// every account's, on them together.
-	Peaks   []WeekPeak
-	Verdict AccountVerdict
+	// Peaks are its peaks in the page's weeks, as Weeks places its own weeks
+	// under them, this week's so far, and of every account's, the mean of
+	// theirs, whose facts Facts says.
+	Peaks []WeekPeak
 	// Reached are its peaks in each of the reach's columns: a week's, as
 	// Peaks has them, or a month's, its fullest week's, as fullestIn has
-	// it; and Reaching is Weeks' verdict on the whole weeks among them, as
-	// Verdict is on its last 7, whose facts Compare's WEEKS says.
+	// it; and Reaching is Weeks' verdict on the whole weeks among them, whose
+	// facts Compare's WEEKS says.
 	Reached  []WeekPeak
 	Reaching AccountVerdict
 	// WorthBy is what its requests were worth over the period in each
@@ -102,11 +106,39 @@ type AccountsRow struct {
 	// till Hourly charts it by the hour, for Compare's WORTH to take the
 	// finest that fits.
 	WorthBy WorthCharts
+
+	// told is what each of the page's weeks tells of it, as Weeks' facts sum
+	// them, and all is set of every account's.
+	told []told
+	all  bool
 }
 
-// accountsWeeks are the weeks Accounts' BY DAY and WEEKS show: this one, so
-// far, and the five before it.
-const accountsWeeks = 6
+// Facts are Weeks' facts on the whole weeks among the last n of the row's,
+// as Weeks' verdict counts them, its words unsaid: how many there are, how
+// many it hit its limit in, or of every account's, how many some account
+// was short in, and what they left at a reset, on average, where it's
+// known. Every one of its weeks, where n is more.
+func (r AccountsRow) Facts(n int) AccountVerdict {
+	var t told
+	for _, week := range r.told[max(len(r.told)-n, 0):] {
+		t = t.plus(week)
+	}
+	v := t.facts()
+	v.All = r.all
+	return v
+}
+
+// resetWeeks are the weeks an account's last reset is looked for in, as
+// WeekLeft has it: this one and the five before it.
+const resetWeeks = 6
+
+// heldWeeks is how many weeks the page holds for Detail, today being the
+// day given, as dayfile.Civil gives a day, weeks starting on the day given:
+// as many as Compare reaches over at the last 12 months, the most any
+// period reaches over.
+func heldWeeks(today time.Time, starts time.Weekday) int {
+	return PeriodTwelveMonths.reachWeeks(today, starts)
+}
 
 // Accounts is Accounts' page over the period given, as AccountsPage has it,
 // of the days the Past holds at its Now.
@@ -120,9 +152,8 @@ func (p Past) Accounts(period Period) AccountsPage {
 	known := plans{accounts: in.Accounts, table: in.Prices}
 	firstDate := first.Format(time.DateOnly)
 	costs := plansOf(days, known, pricedOver(firstDate, period.last(today, in.WeekStarts).Format(time.DateOnly), p.counted(firstDate), period.share()))
-	reach := max(weeksShown, period.reachWeeks(today, in.WeekStarts))
-	_, weeks := splitAt(p.days, weeksTo(today, in.WeekStarts, reach).AddDate(0, 0, -lookBack).Format(time.DateOnly))
-	page := AccountsPage{Period: period, Rows: make([]AccountsRow, len(in.Accounts)), PricesAsOf: in.Prices.AsOf, in: in, days: weeks}
+	_, weeks := splitAt(p.days, weeksTo(today, in.WeekStarts, heldWeeks(today, in.WeekStarts)).AddDate(0, 0, -lookBack).Format(time.DateOnly))
+	page := AccountsPage{Period: period, Reaches: period.detailWeeks(today, in.WeekStarts), Rows: make([]AccountsRow, len(in.Accounts)), PricesAsOf: in.Prices.AsOf, in: in, days: weeks}
 	worths := worthsByDay(days, in.Accounts)
 	for x, a := range in.Accounts {
 		plan, _ := known.of(a.ID)
@@ -130,7 +161,7 @@ func (p Past) Accounts(period Period) AccountsPage {
 			WorthBy: worthCharts(period, in.Now, in.WeekStarts, worths[x], nil)}
 	}
 	all := len(in.Accounts)
-	page.All = AccountsRow{Totals: totals.Accounts[all], Plan: costs[all], WorthBy: worthCharts(period, in.Now, in.WeekStarts, worths[all], nil)}
+	page.All = AccountsRow{Totals: totals.Accounts[all], Plan: costs[all], WorthBy: worthCharts(period, in.Now, in.WeekStarts, worths[all], nil), all: true}
 	page.Versions = p.versions().named(page.All.Totals.ByModel)
 	page.Recorded = page.All.Totals.recorded()
 	page.byDay()
@@ -145,11 +176,11 @@ func (t AccountTotals) recorded() bool {
 	return t.Requests > 0 || len(t.Limits) > 0 || minutes(t.MinutesAtCap) || minutes(t.MinutesAtLimit)
 }
 
-// byDay sets BY DAY's days of each row, of the six weeks to the page's Now,
-// and how many of this week's are still to come.
+// byDay sets BY DAY's days of each row, of the weeks the page holds to its
+// Now, and how many of this week's are still to come.
 func (page *AccountsPage) byDay() {
 	in := page.in
-	w := weekDaysOf(page.days, in.Now, in.WeekStarts, accountsWeeks)
+	w := weekDaysOf(page.days, in.Now, in.WeekStarts, heldWeeks(dayfile.CivilOf(in.Now), in.WeekStarts))
 	page.ToCome = len(w.days) - 1 - w.today
 	every, anyLimits := make([]float64, len(w.days)), make([]int, len(w.days))
 	for x, a := range in.Accounts {
@@ -174,52 +205,33 @@ func onItsOwnScale(values []float64, limits []int) []StripDay {
 	return days
 }
 
-// weeked sets the page's six weeks and each row's peaks and verdict, as
-// Weeks gives them of days at in's Now, and each account's left at its last
-// reset, as lastEnded tells its week's of the six weeks' days and the week
-// before them; and the page's reach and each row's peaks in it, as reached
-// has them.
+// weeked sets the page's weeks and each row's peaks in them and what each
+// tells, as Weeks gives them of days at in's Now, over the weeks the page
+// holds, and each account's left at its last reset, as lastEnded tells its
+// week's of the last resetWeeks weeks' days and the week before them; and
+// the page's reach and each row's peaks in it, as reached has them, of
+// Weeks over the reach's weeks, those the page holds where they're as many.
 func (page *AccountsPage) weeked(in HistoryInput, days []Day) {
+	today := dayfile.CivilOf(in.Now)
 	past := Past{in: in, days: days}
-	weeks, reach := past.weeksPage(), page.Period.reachWeeks(dayfile.CivilOf(in.Now), in.WeekStarts)
+	held, reach := heldWeeks(today, in.WeekStarts), page.Period.reachWeeks(today, in.WeekStarts)
+	weeks := past.weeksOver(held)
 	reaching := weeks
-	if reach != weeksShown {
+	if reach != held {
 		reaching = past.weeksOver(reach)
 	}
 	page.reached(in, reaching)
-	shown := len(weeks.Weeks) - accountsWeeks
-	page.Weeks = weeks.Weeks[shown:]
-	_, ended := splitAt(days, weeksTo(dayfile.CivilOf(in.Now), in.WeekStarts, accountsWeeks).AddDate(0, 0, -lookBack).Format(time.DateOnly))
+	page.Weeks = weeks.Weeks
+	_, ended := splitAt(days, weeksTo(today, in.WeekStarts, resetWeeks).AddDate(0, 0, -lookBack).Format(time.DateOnly))
 	for x, a := range in.Accounts {
 		row := &page.Rows[x]
-		row.Peaks, row.Verdict = weeks.Accounts[x].Peaks[shown:], weeks.Accounts[x].AccountVerdict
+		row.Peaks, row.told = weeks.Accounts[x].Peaks, weeks.Accounts[x].told
 		row.WeekLeft, row.RanOut = nil, ""
 		if run, ok := lastEnded(accountDays(ended, a.ID), in.WeekWindow); ok {
 			row.WeekLeft, row.RanOut = &run.left, run.ranOut
 		}
 	}
-	page.All.Peaks, page.All.Verdict = weeks.All.Peaks[shown:], weeks.All.AccountVerdict
-}
-
-// Ends are the accounts whose weeks end with the most left at a reset, on
-// average, and with the least, as Detail's verdict on every account names
-// them: of those whose verdict knows it, the first configured of any that
-// tie, the one both where only one knows it. It reports false where none
-// does.
-func (p AccountsPage) Ends() (most, least AccountsRow, ok bool) {
-	for _, row := range p.Rows {
-		left := row.Verdict.LeftAtReset
-		switch {
-		case left == nil:
-		case !ok:
-			most, least, ok = row, row, true
-		case *left > *most.Verdict.LeftAtReset:
-			most = row
-		case *left < *least.Verdict.LeftAtReset:
-			least = row
-		}
-	}
-	return most, least, ok
+	page.All.Peaks, page.All.told = weeks.All.Peaks, weeks.All.told
 }
 
 // LimitedWindows are the windows any row of the page records a limit of,

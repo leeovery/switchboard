@@ -139,9 +139,7 @@ func (j judging) capacity() Capacity {
 		}
 		c.Accounts = append(c.Accounts, v)
 	}
-	all := r.together()
-	all.Weeks, all.Limits = c.Weeks, c.Short
-	c.Accounts = append(c.Accounts, all)
+	c.Accounts = append(c.Accounts, r.together())
 	return c
 }
 
@@ -390,25 +388,63 @@ func (r replay) used(x int) millionths {
 	return used
 }
 
-// together is Accounts' verdict on every account, over the weeks replayed:
-// room to spare together where every account's weeks had a quarter or more
-// left at a reset, on average, else little to spare together; none where no
-// week is replayed.
+// together is Accounts' verdict on every account, over the weeks replayed,
+// as toldOf tells each: room to spare together where every account's weeks
+// had a quarter or more left at a reset, on average, else little to spare
+// together; none where no week is replayed.
 func (r replay) together() AccountVerdict {
-	var rec record
+	var t told
 	for _, week := range r.weeks {
-		for _, use := range week {
-			rec.add(use)
-		}
+		t = t.plus(r.toldOf(week))
 	}
-	v := AccountVerdict{All: true}
-	if rec.weeks == 0 {
+	v := t.facts()
+	v.All = true
+	if t.rec.weeks == 0 {
 		return v
 	}
-	share := meanOf(rec.left, rec.weeks)
-	v.LeftAtReset, v.Verdict = &share, LittleToSpare
-	if rec.leftAtLeast(RoomLeft) {
+	v.Verdict = LittleToSpare
+	if t.rec.leftAtLeast(RoomLeft) {
 		v.Verdict = RoomToSpare
+	}
+	return v
+}
+
+// toldOf is what a week the replay judges tells of every account together:
+// the record of each account's week in it, the week, and whether it was
+// short, as the accounts stand.
+func (r replay) toldOf(week []millionths) told {
+	t := told{weeks: 1}
+	for _, use := range week {
+		t.rec.add(use)
+	}
+	if r.shortAsNow(week) {
+		t.short = 1
+	}
+	return t
+}
+
+// told is what weeks tell of an account, or of every account together, as
+// Weeks' facts say it: the record of the account's weeks, or of each
+// account's in the weeks judged; how many weeks there are; and how many it
+// hit its limit in, or of every account, how many were short.
+type told struct {
+	rec          record
+	weeks, short int
+}
+
+// plus is what the weeks t and o tell together.
+func (t told) plus(o told) told {
+	return told{rec: t.rec.plus(o.rec), weeks: t.weeks + o.weeks, short: t.short + o.short}
+}
+
+// facts are Weeks' facts of what's told, its words unsaid: how many weeks,
+// how many it hit its limit in, or were short, and the share they had left
+// at their resets, on average, where any is known.
+func (t told) facts() AccountVerdict {
+	v := AccountVerdict{Weeks: t.weeks, Limits: t.short}
+	if t.rec.weeks > 0 {
+		share := meanOf(t.rec.left, t.rec.weeks)
+		v.LeftAtReset = &share
 	}
 	return v
 }
@@ -427,14 +463,36 @@ type record struct {
 func recordOf(placed []placedWeek, isWhole func(week string) bool, x int, capAt millionths, key string) record {
 	var rec record
 	for _, w := range placed {
-		if peak, ok := w.peaks[x][key]; ok && peak.known && !peak.open && isWhole(w.week) {
-			rec.add(peak.use)
-			if peak.use >= capAt {
-				rec.limits++
-			}
+		if isWhole(w.week) {
+			rec = rec.plus(w.recordOf(x, capAt, key))
 		}
 	}
 	return rec
+}
+
+// recordOf is the record of the account with index x in the week, its cap
+// that given, where its week of the window with the given key is known and
+// ended: none where it isn't.
+func (p placedWeek) recordOf(x int, capAt millionths, key string) record {
+	var rec record
+	if peak, ok := p.peaks[x][key]; ok && peak.known && !peak.open {
+		rec.add(peak.use)
+		if peak.use >= capAt {
+			rec.limits++
+		}
+	}
+	return rec
+}
+
+// told is what the record tells of its account's weeks, as Weeks' facts say
+// it: its weeks, and the limits it hit in them.
+func (rec record) told() told {
+	return told{rec: rec, weeks: rec.weeks, short: rec.limits}
+}
+
+// plus is the record with the record o's weeks added.
+func (rec record) plus(o record) record {
+	return record{used: rec.used + o.used, left: rec.left + o.left, weeks: rec.weeks + o.weeks, limits: rec.limits + o.limits}
 }
 
 // add adds a week whose peak was use to what the record's weeks used and
@@ -466,12 +524,10 @@ func (rec record) usedSaid() int {
 // you need, so it could go; none where no week knows its use. The thresholds
 // Weeks gives of 7 weeks hold in proportion to the weeks there are.
 func (rec record) verdict(spared bool) AccountVerdict {
-	v := AccountVerdict{Weeks: rec.weeks, Limits: rec.limits}
+	v := rec.told().facts()
 	if rec.weeks == 0 {
 		return v
 	}
-	share := meanOf(rec.left, rec.weeks)
-	v.LeftAtReset = &share
 	switch {
 	case spared && rec.limits == 0 && rec.usedSaid() <= CouldGoUsed:
 		v.Verdict = CouldGo

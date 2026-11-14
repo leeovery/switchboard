@@ -72,6 +72,10 @@ type WeeksRow struct {
 	Primary bool
 	Used    *float64
 	Peaks   []WeekPeak
+
+	// told is what each of the page's weeks tells of it, as its peaks are
+	// placed, as Weeks' facts sum them: none of a week not whole.
+	told []told
 }
 
 // WeekPeak is how full an account's week got: Share, its peak, from 0 to 1,
@@ -130,17 +134,49 @@ func (p Past) weeksOver(n int) WeeksPage {
 	for _, w := range weeksOf(placed, in.Accounts) {
 		byWeek[w.Week] = w
 	}
+	tells := page.toldOf(placed, isWhole, j.r)
 	for x, a := range in.Accounts {
-		row := WeeksRow{AccountVerdict: page.Capacity.Accounts[x], Primary: a.Primary, Peaks: page.peaksOf(byWeek, x)}
+		row := WeeksRow{AccountVerdict: page.Capacity.Accounts[x], Primary: a.Primary, Peaks: page.peaksOf(byWeek, x), told: tells[x]}
 		if rec := j.records[x]; rec.weeks > 0 {
 			used := meanOf(rec.used, rec.weeks)
 			row.Used = &used
 		}
 		page.Accounts = append(page.Accounts, row)
 	}
-	page.All = WeeksRow{AccountVerdict: page.Capacity.Accounts[len(in.Accounts)], Peaks: page.peaksOf(byWeek, len(in.Accounts))}
+	all := len(in.Accounts)
+	page.All = WeeksRow{AccountVerdict: page.Capacity.Accounts[all], Peaks: page.peaksOf(byWeek, all), told: tells[all]}
 	page.judge(j.r, pl, dayfile.DateOf(in.Now))
 	return page
+}
+
+// toldOf is what each of the page's weeks tells of each account, in the
+// config's order, then of every account together, of the weeks placed that
+// isWhole reports are whole, as the replay r judges them: of an account, its
+// record in it, as recordOf has it; of every account, what toldOf tells of
+// a week the replay judges. A week not whole, or not placed, tells nothing.
+func (page WeeksPage) toldOf(placed []placedWeek, isWhole func(week string) bool, r replay) [][]told {
+	accounts := len(r.caps)
+	byWeek := make(map[string]placedWeek, len(placed))
+	for _, w := range placed {
+		byWeek[w.week] = w
+	}
+	tells := make([][]told, accounts+1)
+	for x := range tells {
+		tells[x] = make([]told, len(page.Weeks))
+	}
+	for i, date := range page.Weeks {
+		w, ok := byWeek[date]
+		if !ok || !isWhole(date) {
+			continue
+		}
+		for x := range accounts {
+			tells[x][i] = w.recordOf(x, r.caps[x], page.Window).told()
+		}
+		if week, judged := w.judged(accounts, page.Window); judged {
+			tells[accounts][i] = r.toldOf(week)
+		}
+	}
+	return tells
 }
 
 // peaksOf are the peaks of the account with index x among the weeks' own,

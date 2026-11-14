@@ -93,10 +93,12 @@ var labelledViews = []page{
 // with %s where the label stands: the status line's best account; the
 // legend's cap; Compare's verdict; Detail's picker and its head; and a line
 // of LATELY's or a session's story beside the list, as "came from work: work
-// came under pressure".
+// came under pressure", "side primed: its 5-hour window started" or "infra
+// moved personal → work: personal came under pressure".
 var sayings = []string{
 	`new( sessions)? → ▲ %s`, `cap: %s at `, `time %s alone`, `^\s*%s alone`, `◂ %s ▸`, `│ +%s +●`,
 	`%s reached its cap`, `%s came under`, `moved to %s`, `started on %s,`, `came from %s:`,
+	`%s primed`, `moved %s → `, ` → %s:`,
 }
 
 // unsaid is the row with each saying of the label given taken out.

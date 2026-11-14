@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/leeovery/switchboard/internal/quota"
@@ -14,8 +15,7 @@ import (
 // 20x at $46 a week where its plan is known, or every account's, id "", on
 // three at $138: the sessions moved onto it and off it, its limits, its
 // minutes at its cap and at a limit, or none read, what its week left at its
-// last reset and the day it ran out, its worth and its ratio, and its
-// verdict.
+// last reset and the day it ran out, and its worth and its ratio.
 type accountsFramed struct {
 	id, label      string
 	on, off        int
@@ -24,9 +24,6 @@ type accountsFramed struct {
 	left           *float64
 	ranOut         string
 	worth, ratio   float64
-	verdict        string
-	weeks, limited int
-	leftOnAverage  *float64
 	unknownMinutes bool
 	planKnown      bool
 }
@@ -43,7 +40,6 @@ func (f accountsFramed) row() views.AccountsRow {
 	}
 	row := views.AccountsRow{
 		Label: f.label, Totals: totals, Plan: views.PlanCost{Account: f.id, All: all}, WeekLeft: f.left, RanOut: f.ranOut,
-		Verdict: views.AccountVerdict{Account: f.id, All: all, Verdict: f.verdict, Weeks: f.weeks, Limits: f.limited, LeftAtReset: f.leftOnAverage},
 	}
 	if f.planKnown {
 		price, cost := usd(200), usd(46)
@@ -62,19 +58,19 @@ func (f accountsFramed) row() views.AccountsRow {
 var (
 	framedWork = accountsFramed{
 		id: "work", off: 3, limits: map[string]int{"5h": 2}, atCap: 150, atLimit: 40, left: new(0.0), ranOut: "2026-09-25",
-		worth: 184, ratio: 4.0, verdict: views.HitsItsLimit, weeks: 7, limited: 3, leftOnAverage: new(0.09), planKnown: true,
+		worth: 184, ratio: 4.0, planKnown: true,
 	}
 	framedPersonal = accountsFramed{
 		id: "personal", off: 1, left: new(0.15),
-		worth: 212, ratio: 4.6, verdict: views.EndsWithRoom, weeks: 7, leftOnAverage: new(0.27), planKnown: true,
+		worth: 212, ratio: 4.6, planKnown: true,
 	}
 	framedSide = accountsFramed{
 		id: "side", on: 4, limits: map[string]int{"5h": 1}, atCap: 52, left: new(0.40),
-		worth: 239, ratio: 5.2, verdict: views.PlentyToSpare, weeks: 7, leftOnAverage: new(0.59), planKnown: true,
+		worth: 239, ratio: 5.2, planKnown: true,
 	}
 	framedAll = accountsFramed{
 		on: 4, limits: map[string]int{"5h": 3}, atCap: 202, atLimit: 40,
-		worth: 635, ratio: 4.6, verdict: views.RoomToSpare, leftOnAverage: new(0.30), planKnown: true,
+		worth: 635, ratio: 4.6, planKnown: true,
 	}
 )
 
@@ -188,61 +184,46 @@ func (f accountsFramed) withoutWeek() accountsFramed {
 	return f
 }
 
-// The verdict says not enough weeks yet where no week can be judged; and
-// every account's names the one account whose weeks are known alone, and
-// none where none's are; little to spare together in accent.attention.
-func TestTheVerdictSaysEachForm(t *testing.T) {
-	unjudged := func(f accountsFramed) accountsFramed {
-		f.verdict, f.weeks, f.limited, f.leftOnAverage = "", 0, 0, nil
-		return f
-	}
-	little := framedAll
-	little.verdict, little.leftOnAverage = views.LittleToSpare, new(0.12)
-	oneKnown := framedPage(framedWork, unjudged(framedSide), framedAll)
-	byLabel := func(f accountsFramed, id string) accountsFramed {
-		f.id, f.label = id, f.id
-		return f
-	}
-	labelled := framedPage(byLabel(framedWork, "acct-1"), byLabel(framedSide, "acct-2"), framedAll)
-	noneKnown := framedPage(unjudged(framedWork), unjudged(framedSide), framedAll)
-	notEnough := line{{views.NotEnoughWeeks, dimInk}}
+// Detail's facts on an account's weeks say how many it hit its limit in and
+// what they left at a reset, on average, in text.muted, never the verdict's
+// words: in full, then shorter, then the limits alone; without a share left,
+// the limits alone; and not enough weeks yet, in text.subtle, where no whole
+// week is judged.
+func TestDetailsFactsSayEachForm(t *testing.T) {
+	left := 0.09
 	tests := []struct {
-		name  string
-		parts []part
-		want  line
+		name string
+		v    views.AccountVerdict
+		want []string
 	}{
-		{name: "an account with no week judged", parts: verdictParts(noneKnown, noneKnown.Rows[0]), want: notEnough},
-		{name: "every account with no week judged", parts: verdictParts(noneKnown, unjudged(framedAll).row()), want: notEnough},
-		{name: "every account, one account's weeks known", parts: verdictParts(oneKnown, oneKnown.All),
-			want: line{{views.RoomToSpare, boldPositiveInk}, {"   30% left at a reset, on average · work ends weeks with 9% left", mutedInk}}},
-		{name: "every account, its accounts labelled apart from their ids", parts: verdictParts(labelled, labelled.All),
-			want: line{{views.RoomToSpare, boldPositiveInk}, {"   30% left at a reset, on average · side ends weeks with 59% left, work with 9%", mutedInk}}},
-		{name: "every account, none's weeks known", parts: verdictParts(noneKnown, noneKnown.All),
-			want: line{{views.RoomToSpare, boldPositiveInk}, {"   30% left at a reset, on average", mutedInk}}},
-		{name: "every account, little to spare", parts: verdictParts(noneKnown, little.row()),
-			want: line{{views.LittleToSpare, alertInk}, {"   12% left at a reset, on average", mutedInk}}},
-		{name: "an account's verdict without a share left", parts: verdictParts(oneKnown, accountsFramed{id: "work", verdict: views.CouldGo, weeks: 7}.row()),
-			want: line{{views.CouldGo, alertInk}, {"   limit hit 0 of the last 7 weeks", mutedInk}}},
+		{name: "limits and a share left", v: views.AccountVerdict{Verdict: views.HitsItsLimit, Weeks: 7, Limits: 3, LeftAtReset: &left},
+			want: []string{"limit hit 3 of the last 7 weeks · 9% left at a reset, on average", "limit hit 3 of 7 weeks · 9% left at a reset", "limit hit 3 of 7 weeks"}},
+		{name: "no share left", v: views.AccountVerdict{Weeks: 7},
+			want: []string{"limit hit 0 of the last 7 weeks", "limit hit 0 of 7 weeks"}},
+		{name: "no whole week judged", v: views.AccountVerdict{}, want: []string{views.NotEnoughWeeks}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := fitParts(200, tt.parts...).inked(); !slices.Equal(got, tt.want) {
-				t.Errorf("said %+v, want %+v", got, tt.want)
+			forms := detailFacts(tt.v)
+			var got []string
+			for _, form := range forms {
+				said := fitParts(200, form...)
+				got = append(got, said.plain())
+				if strings.Contains(said.plain(), views.HitsItsLimit) {
+					t.Errorf("the facts say the verdict: %q", said.plain())
+				}
+			}
+			if !slices.Equal(got, tt.want) {
+				t.Errorf("the facts read %q, want %q", got, tt.want)
 			}
 		})
 	}
-	short := func(row views.AccountsRow) []line {
-		var got []line
-		for _, parts := range verdictShort(row) {
-			got = append(got, fitParts(52, parts...).inked())
-		}
-		return got
+	if got := fitParts(200, detailFacts(views.AccountVerdict{Weeks: 7, Limits: 3, LeftAtReset: &left})[0]...).inked(); !slices.Equal(got,
+		line{{"limit hit 3 of the last 7 weeks · 9% left at a reset, on average", mutedInk}}) {
+		t.Errorf("the facts are inked %+v, want text.muted", got)
 	}
-	if got, want := short(framedAll.row()), []line{{{views.RoomToSpare, boldPositiveInk}}, {{"30% left at a reset", mutedInk}}}; !slices.EqualFunc(got, want, slices.Equal) {
-		t.Errorf("every account's short verdict is %+v, want %+v", got, want)
-	}
-	if got, want := short(unjudged(framedWork).row()), []line{notEnough}; !slices.EqualFunc(got, want, slices.Equal) {
-		t.Errorf("an account's short verdict with no week judged is %+v, want %+v", got, want)
+	if got := fitParts(200, detailFacts(views.AccountVerdict{})[0]...).inked(); !slices.Equal(got, line{{views.NotEnoughWeeks, dimInk}}) {
+		t.Errorf("no week judged is inked %+v, want text.subtle", got)
 	}
 }
 

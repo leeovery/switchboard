@@ -27,22 +27,22 @@ BY MODEL
 
  all                               ● Opus 5.5 56%
 
-ACTIVITY     reqs         sessions     moved
- work        1,204        9            1 in · 3 out
- personal  ◆ 2,330        10           2 out
- side        1,876        14           4 in
- all         5,410        27           5 moves
+WEEKS  each week at its peak
 
-LIMITS       hit          at cap       left
- work        5h ×2        3h 10m       0%
- personal  ◆ 5h ×1        4h 45m       15%
- side        5h ×1        52m          40%
- all         4            8h 47m       —
+ work             ┄┄┄┄┄┄┄┄   limit hit 3 of 7
+                             9% left at a reset
+                     ▃▃▃▃▃
 
-VALUE        plan         worth        against it
- work        $200/mo      $184         4.0×
- personal  ◆ $200/mo      $212         4.6×
- side        $200/mo      $239         5.2×
- all         $600/mo      $635         4.6×
+ ‹ 6 more     100%    34%…
+ personal  ◆ ▃▃▃▃▃           limit hit 0 of 7
+                     ▅▅▅▅▅   27% left at a reset
 
+
+              85%     66%…
+ side                ▁▁▁▁▁   limit hit 0 of 7
+             ▃▃▃▃▃           59% left at a reset
+
+
+              60%     78%…
+▼ 53 more below · j/k
 tab views   [ ] view   ? keys   q quit

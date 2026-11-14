@@ -6,32 +6,32 @@ ACCOUNTS    Compare  Detail  [ ]  ───────────────�
 
  all accounts       │   work   ● at its cap · new sessions go elsewhere
                     │
- work          ●    │   USAGE                                                                                        THIS WEEK
-                    │   Week                  ▋       ┃                ╎   34%  out ~Sat                             requests  1,204
- personal    ◆ ●    │                                                                                                limits    5-hour ×2
-                    │   5-hour                       ┃                 ╎   95%  at cap · back 17:10                  plan      Ultra
- side          ●    │                                                                                                worth     $184  4.0×
-                    │                                                                                                extra use off
+ work          ●    │   USAGE                                                                                                          THIS WEEK
+                    │   Week                  ▋       ┃                ╎   34%  out ~Sat                                               requests  1,204
+ personal    ◆ ●    │                                                                                                                  limits    5-hour ×2
+                    │   5-hour                       ┃                 ╎   95%  at cap · back 17:10                                    plan      Ultra
+ side          ●    │                                                                                                                  worth     $184  4.0×
+                    │                                                                                                                  extra use off
                     │
  ↑↓ choose          │   BY MODEL
                     │               ● Opus 5.5 55%  ● Opus 5 7%  ● Sonnet 5.5 28%  ● Sonnet 5 3%  ● Fable 5.1 5%  ● Haiku 4.5 2%
                     │
-                    │   ┄┄ the last six weeks ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
+                    │   ┄┄ the last seven weeks ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
                     │
-                    │   BY DAY      ▪ ▪ ▪ ▪ ▪         ▪ ▪ ▪ ▪ ▪         ▪ ▪ ▪ ▪ ▪         ▪ ▪ ▪   ▪         ▪ ▪ ▪ ▪ ▪           ▪ ▪   ······
-                    │               24 Aug            31 Aug            7 Sep             14 Sep            21 Sep            28 Sep
+                    │   BY DAY      ▪   ▪ ▪ ▪         ▪ ▪ ▪ ▪ ▪         ▪ ▪ ▪ ▪ ▪         ▪ ▪ ▪ ▪ ▪         ▪ ▪ ▪   ▪         ▪ ▪ ▪ ▪ ▪           ▪ ▪   ······
+                    │               17 Aug            24 Aug            31 Aug            7 Sep             14 Sep            21 Sep            28 Sep
                     │
-                    │   WEEKS                 100             ▌ 94                100            ▎  81                100               34
+                    │   WEEKS              ▉  88                100             ▌ 94                100            ▎  81                100               34
                     │
-                    │   hits its limit most weeks   limit hit 3 of the last 7 weeks · 9% left at a reset, on average
+                    │   limit hit 3 of the last 6 weeks · 6% left at a reset, on average
                     │
-                    │   LATELY      14:31  ╎ reached its cap: 3 sessions moved to side
-                    │               14:12  ▲ api started here, the best
-                    │               13:22  ▸ infra came from personal: personal came under pressure, its 5-hour to run out at 13:50
+                    │   WORTH                                                          ▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇
+                    │                                ▆▆▆▆▆▆▆▆▆▆▆▆▆▆▆
+                    │
+                    │                                                 ▃▃▃▃▃▃▃▃▃▃▃▃▃▃▃
                     │
                     │
-                    │
-
-
-
+                    │               Mon              Tue              Wed              Thu              Fri              Sat              Sun
+                    │               peak Mon $57.70
+                        ▼ 11 more below · j/k
 tab views   [ ] view    < > period: this week    ↑↓ account  enter its page    p pin    ? help  q quit

@@ -39,16 +39,14 @@ func accountsMoment(t *testing.T, name string) viewstest.AccountsMoment {
 
 // weeksSaid says every figure of the page's weeks, each row's and every
 // account's: its left at its last reset and the day its week ran out, its
-// peaks and its verdict; and the accounts whose weeks end with the most and
-// the least left.
+// peaks and Weeks' facts on the weeks Weeks judges.
 func weeksSaid(page views.AccountsPage) string {
 	var said []string
 	for _, row := range append(page.Rows, page.All) {
 		said = append(said, fmt.Sprintf("%s: left %s, ran out %q, peaks %s, %s", row.Totals.Account,
-			shareRead(row.WeekLeft), row.RanOut, peaksRead(row.Peaks), verdictRead(row.Verdict)))
+			shareRead(row.WeekLeft), row.RanOut, peaksRead(row.Peaks), factsRead(row.Facts(weeksJudged))))
 	}
-	most, least, _ := page.Ends()
-	return strings.Join(append(said, "ends "+most.Totals.Account+" and "+least.Totals.Account), "\n")
+	return strings.Join(said, "\n")
 }
 
 // A week reset since it was read, before the router reads it again, changes
