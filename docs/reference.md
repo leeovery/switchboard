@@ -791,7 +791,10 @@ Given a session, `sessions` prints that session's page:
   out of a turn still going.
 - **`totals`:** `{turns, requests, from_cache, worth, unpriced}`.
 - **`pool` and `pool_label`:** Once the config has pools, the pool the page is of: the one `--pool`
-  names, else the one the session is in now.
+  names, else the one the session is in now. Without `--pool`, both are left out where the pool
+  can't be read from the ledger: a running session that hasn't filed a request yet, as the
+  router's list of sessions names no pool, and a session of one pool whose pool neither the config
+  nor the accounts record keeps.
 
 Every `worth` is exact, and left out where nothing was priced. `unpriced` names what the worth
 leaves out, as `history` names it.
