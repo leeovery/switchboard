@@ -196,7 +196,7 @@ func TestRequestsOfAnAccountNoPoolPlacesAreReadInThePoolItsNewestWasRoutedIn(t *
 func TestRequestsOfAnAccountInAPoolNothingKeepsAreRefusedSayingSo(t *testing.T) {
 	deps := pooledDeps(t, false)
 	err := identity.NewFile(stateDir(t, deps)).Update(func(r *identity.Record) error {
-		r.Accounts = append(r.Accounts, identity.Entry{ID: "left", Added: testNow, Removed: testNow, Pool: "x9z9"})
+		r.Accounts = append(r.Accounts, identity.Entry{ID: "left", Label: "Left", Added: testNow, Removed: testNow, Pool: "x9z9"})
 		return nil
 	})
 	if err != nil {

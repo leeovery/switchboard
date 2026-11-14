@@ -78,21 +78,23 @@ type HistoryInput struct {
 // running as the days asked for begin is known by the reset that began it.
 const lookBack = 7
 
-// NewHistory builds the History of the days in asks for, from the first
-// counted, as countedFrom has it, its plans priced over the period they
-// make, as askedPeriod has it. Every block lists the days from the first
-// counted alone, as the dashboard's do: a pool's read holds the ledger's
-// days before the pool began, which aren't its.
+// NewHistory builds the History of the days in asks for, its plans priced
+// over the period they make, as askedPeriod has it, from the first counted,
+// as countedFrom has it. The days, the Year, the months and the tokens list
+// the days from the first counted alone, as the dashboard's Year and Tokens
+// do, as a pool's read holds the ledger's days before the pool began, which
+// aren't its; the accounts' weeks, totals and plans are over every day
+// asked for, as the dashboard's Weeks and Accounts are, as an account's
+// windows are its own, whatever pool it worked in.
 func NewHistory(in HistoryInput) History {
 	from, to := dayfile.CivilOf(in.From), dayfile.CivilOf(in.Now)
 	asked, today := from.Format(time.DateOnly), to.Format(time.DateOnly)
 	v := versions{table: in.Prices, family: in.Family}
 	p := plans{accounts: in.Accounts, table: in.Prices}
-	read := pricedDays(in.Ledger.Days(in.From.AddDate(0, 0, -lookBack)), in, today, v)
-	_, asks := splitAt(read, asked)
-	counted := countedFrom(asked, asks, in.Began)
-	before, days := splitAt(read, counted)
-	placed := weeklyOf(in.WeekWindow, in.WeekStarts, in.Now).placedWeeks(before, days, in.Accounts)
+	before, all := splitAt(pricedDays(in.Ledger.Days(in.From.AddDate(0, 0, -lookBack)), in, today, v), asked)
+	placed := weeklyOf(in.WeekWindow, in.WeekStarts, in.Now).placedWeeks(before, all, in.Accounts)
+	counted := countedFrom(asked, all, in.Began)
+	_, days := splitAt(all, counted)
 	last, whole := askedPeriod(from, to, in.WeekStarts)
 	return History{
 		Days:     days,
@@ -100,9 +102,9 @@ func NewHistory(in HistoryInput) History {
 		Months:   monthsOf(days, p, v, counted, today),
 		Weeks:    weeksOf(placed, in.Accounts),
 		Tokens:   tokensOf(days, p, in.Removed, v, counted, in.WeekStarts),
-		Totals:   accountTotalsOf(before, days, in.Accounts, v),
-		Plans:    plansOf(days, p, pricedOver(asked, last.Format(time.DateOnly), counted, whole)),
-		Capacity: capacityOf(placed, wholeWeek(days, weekOf(to, in.WeekStarts)), in.Accounts, p, in.WeekWindow),
+		Totals:   accountTotalsOf(before, all, in.Accounts, v),
+		Plans:    plansOf(all, p, pricedOver(asked, last.Format(time.DateOnly), counted, whole)),
+		Capacity: capacityOf(placed, wholeWeek(all, weekOf(to, in.WeekStarts)), in.Accounts, p, in.WeekWindow),
 		Removed:  removedNamed(in.Removed, days),
 	}
 }

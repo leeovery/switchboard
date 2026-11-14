@@ -176,13 +176,13 @@ func TestHistoryJSONGivesEachWeeksPeaksAndTheCapacity(t *testing.T) {
 func TestHistoryJSONGivesTheAccountsRemovedItsDaysName(t *testing.T) {
 	deps, _ := ledgerDeps(t)
 	state := stateDir(t, deps)
-	day, err := json.Marshal(ledger.Summary{Version: 2, Day: "2026-09-21", Accounts: []ledger.AccountDay{{Account: "h7c2", SessionIDs: []string{}}}})
+	day, err := json.Marshal(ledger.Summary{Version: 2, Day: "2026-10-05", Accounts: []ledger.AccountDay{{Account: "h7c2", SessionIDs: []string{}}}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	writeStateFile(t, ledger.Dir(state), "day-2026-09-21.json", append(day, '\n'))
+	writeStateFile(t, ledger.Dir(state), "day-2026-10-05.json", append(day, '\n'))
 	writeStateFile(t, state, "accounts.json", []byte(`{"version":1,"accounts":[`+
-		`{"id":"h7c2","label":"team","added":"2026-08-01T09:00:00Z","removed":"2026-09-25T16:00:00Z"},`+
+		`{"id":"h7c2","label":"team","added":"2026-08-01T09:00:00Z","removed":"2026-10-05T16:00:00Z"},`+
 		`{"id":"k3f9","label":"spare","added":"2026-08-01T09:00:00Z","removed":"2026-08-02T16:00:00Z"}]}`+"\n"))
 	markMoved(t, state)
 
@@ -193,7 +193,7 @@ func TestHistoryJSONGivesTheAccountsRemovedItsDaysName(t *testing.T) {
 	if err := json.Unmarshal([]byte(got.stdout), &doc); err != nil || got.code != 0 {
 		t.Fatalf("switchboard history --json = %+v (%v), want the blocks", got, err)
 	}
-	want := `[{"id":"h7c2","label":"team","removed":"2026-09-25T16:00:00Z"}]`
+	want := `[{"id":"h7c2","label":"team","removed":"2026-10-05T16:00:00Z"}]`
 	var compact bytes.Buffer
 	if err := json.Compact(&compact, doc.Removed); err != nil || compact.String() != want {
 		t.Errorf("switchboard history --json gives the accounts removed\n%s (%v)\nwant\n%s", compact.String(), err, want)

@@ -313,8 +313,9 @@ dirs  = ["/work/acme"]
 // dashboard's History tab counts them, its Past begun where the pool's read's
 // Start tells it begins: the verb's plans as the tab's Accounts over its 30
 // days, the days the verb reads by default, its months as the Year's BY
-// MONTH, and its weeks' tokens as Tokens' weeks. Never the days before the
-// pool worked as days of none.
+// MONTH, and its weeks' tokens as Tokens' weeks. Its days, Year, months and
+// tokens list no period before the pool worked, as the tab's Year and
+// Tokens list none.
 func TestHistoryOfAPoolCountsItsDaysFromItsFirstWork(t *testing.T) {
 	deps := pooledDeps(t, false)
 	path, err := config.Path(deps.Getenv, deps.HomeDir)
@@ -332,7 +333,6 @@ func TestHistoryOfAPoolCountsItsDaysFromItsFirstWork(t *testing.T) {
 	printed := jsonObject(t, got.stdout)
 	for _, first := range []struct{ block, key, want string }{
 		{block: "days", key: "day", want: "2026-10-07"},
-		{block: "weeks", key: "week", want: "2026-10-05"},
 		{block: "tokens", key: "week", want: "2026-10-05"},
 		{block: "months", key: "month", want: "2026-10"},
 	} {
