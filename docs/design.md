@@ -994,18 +994,20 @@ totals.
   neither the config nor the record keeps, `can't tell which pool to read: the newest request names
   pool "x9z9", …`, and where the record places an account in one, `… account left is in pool
   "x9z9", …`. `history` counts its days from where the pool's work begins (`views.PoolRead`'s
-  Start), as the dashboard does, its days, months and tokens listing none before, as Year and
-  Tokens list none, so a verb and the dashboard price a pool over the same days; the accounts'
-  weeks and totals are over every day asked for, as Weeks and Accounts are. What a verb reads of
-  the recorded files is read in one place, through the pool's read (`cli/poolfiles.go`), where the
-  verbs' readers of the ledger, the readings and the events are made too, held by a guard
-  (`cli/poolfiles_guard_test.go`) that bans making, handing on or reading one elsewhere. Its
+  Start), as the dashboard does, its days, months and tokens listing none before, nor the accounts
+  removed that only those days name, as Year and Tokens list none, so a verb and the dashboard
+  price a pool over the same days; the accounts' weeks and totals are over every day asked for, as
+  Weeks and Accounts are. What a verb reads of the recorded files is read in one place, through the
+  pool's read (`cli/poolfiles.go`), where the verbs' readers of the ledger, the readings and the
+  events are made too, held by a guard (`cli/poolfiles_guard_test.go`) that bans making, handing
+  on or reading one elsewhere. Its
   exceptions: `readers.go`, which makes the verbs' and the dashboard's readers (`app.followerIn`,
   `app.stateReadersKnowing`) and hands the dashboard's on (`app.readers`, `app.dashboardPools`);
   `eventsfollower.go`, the events' follower; and `dashboardpool.go`, where the dashboard's ledger
   is made for a turn (`shownPools.ledgerOn`, at its one call, `shownPools.turn`) and its events
-  read in the pool shown (`shownPools.shownFiled`). `dashboard` takes `--pool` too, as The
-  dashboard in a pool says.
+  read in the pool shown (`shownPools.shownFiled`). The guard matches names, so it holds every
+  reader the verbs make today, not every route a new one could take. `dashboard` takes `--pool`
+  too, as The dashboard in a pool says.
 - **A pool the config no longer has** keeps its history, as the accounts record keeps the pool: the
   verbs that read the recorded files, `requests`, `history`, `sessions` and `events`, take
   `--pool` with the id of a pool the record keeps that the config doesn't, one removed, or another
