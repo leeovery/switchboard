@@ -50,6 +50,10 @@ type Launcher struct {
 	// EvalSymlinks resolves the links in a path, as filepath.EvalSymlinks
 	// does, so the pool Dir is in is the pool of where it leads.
 	EvalSymlinks func(path string) (string, error)
+	// Worktree finds a directory's place in its repository's main checkout,
+	// where it's in a linked worktree, as FindWorktree does, so the pool Dir
+	// is in is its repository's too: nil for none.
+	Worktree func(dir string) Worktree
 	// InstallPaths are where Claude Code's installers put it, tried in order
 	// when it isn't on PATH.
 	InstallPaths []string
@@ -612,16 +616,21 @@ func (l Launcher) find() (string, error) {
 	return claude.FindAfter(after, env.get("PATH"), l.InstallPaths, l.Executable)
 }
 
-// shownDir returns Dir as the router is told it: within Home, from there, as
-// ~/Code/api, and anywhere else as it is.
+// shownDir returns Dir as the router is told it, as shown shows it.
 func (l Launcher) shownDir() string {
+	return l.shown(l.Dir)
+}
+
+// shown returns path within Home from there, as ~/Code/api, and anywhere
+// else as it is.
+func (l Launcher) shown(path string) string {
 	if l.Home == "" {
-		return l.Dir
+		return path
 	}
-	if rel, err := filepath.Rel(l.Home, l.Dir); err == nil && filepath.IsLocal(rel) {
+	if rel, err := filepath.Rel(l.Home, path); err == nil && filepath.IsLocal(rel) {
 		return filepath.Join("~", rel)
 	}
-	return l.Dir
+	return path
 }
 
 // How the router can answer its health check, as the log names it, or

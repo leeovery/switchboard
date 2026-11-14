@@ -632,8 +632,15 @@ pool for its whole life:
 - The start directory decides. A session started in `~/Code` that later works in `~/Code/client`
   stays in the unfenced pool, as Claude Code itself files a session by the directory it started
   in. A resumed session starts afresh, in the pool its directory is in now.
-- A git worktree made outside a pool's directories is outside the pool. Claude Code's own
-  worktrees, under the project's `.claude/worktrees`, stay inside it.
+- A git worktree is in its repository's pool, wherever it lives: `git worktree add
+  ../client-feature`, run in a fenced `~/Code/client`, makes a worktree that's still Client's.
+  The directory is taken to the same place in the repository's main checkout, so a fence on a
+  repository's subfolder holds that subfolder in every worktree of it too. Claude Code's own
+  worktrees, under the repository's `.claude/worktrees`, stay inside it. A submodule, and a bare
+  repository's worktree, count as themselves.
+- Where a worktree lies inside one pool's fence and its repository in another pool, or outside
+  every fence, it starts nothing, naming both, rather than guess. Nor does it start in a worktree
+  whose repository can't be found while a pool is fenced, as it may be a fenced repository's.
 
 The commands never choose a pool by the directory you run them in: they read the only pool, else
 the unfenced one, else ask for `--pool` (see [Reading a pool](commands.md#reading-a-pool)).

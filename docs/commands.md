@@ -440,7 +440,9 @@ in, and keeps it for its whole life, a resumed session getting the pool its dire
 (see [Pools](how-it-works.md#pools)):
 
 - **Which pool:** the fenced pool whose directories hold the directory, as it's given or as its
-  links lead, else the unfenced pool.
+  links lead, else the unfenced pool. In a git worktree, it's the pool of the same place in the
+  repository's main checkout, wherever the worktree lives; where the worktree itself lies in a
+  fence, the two must agree.
 - **Routed,** Claude Code starts on the pool's primary's token, else on the first of the pool's
   accounts with a usable token. The router is told the pool in a header, and `SWITCHBOARD_POOL`
   holds its id, for the skill (see [What `claude` sets](reference.md#what-claude-sets)).
@@ -459,9 +461,10 @@ in, and keeps it for its whole life, a resumed session getting the pool its dire
   same)`. A pool whose accounts were all added since the router started has none it routes till it
   restarts.
 - **Never on Claude Code's own login inside a fence:** `--direct`, and starting without
-  switchboard, refuse inside a fenced pool's directories, as Claude Code's own login would go out
-  on whatever account it's signed into. Where the config can't be read, the fences come from the
-  config file, read for its pools alone, else from the running router.
+  switchboard, refuse inside a fenced pool's directories, and in a worktree of a repository inside
+  them, as Claude Code's own login would go out on whatever account it's signed into. Where the
+  config can't be read, the fences come from the config file, read for its pools alone, else from
+  the running router.
 
 With pools, `claude` starts nothing, exits with status 1, and says why on stderr, ending
 `— not starting claude`, where:
@@ -470,10 +473,12 @@ With pools, `claude` starts nothing, exits with status 1, and says why on stderr
 |---|---|---|
 | `no pool covers ~/Code/other` | Every pool is fenced, and none holds the directory. | Start it inside a pool's directories, or make a pool unfenced with [`pool edit --unfence`](#pool). |
 | `~/Code/both is in pools Acme and Client, as its links lead` | The directory, or where its links lead, is inside two pools' directories. | Start it where only one pool's directories hold it. |
+| `~/wt/x is in pool Acme, its repository ~/Code/web in pool Default` | The directory is in a git worktree inside one pool's fence, and the same place in its repository's main checkout is in another pool, or in no fence, `in no pool` where every pool is fenced. | Make the worktree outside every fence, or inside the fence its repository is in. |
 | `can't tell which pool the directory claude starts in is in` | The directory it starts in can't be read, as when it's been removed, while a pool is fenced. | Start it in a directory that's there. |
+| `can't tell which pool ~/wt/x is in: its .git file leads to no repository that can be found` | The directory is in what may be a git worktree, but its `.git` file can't be read, or names a git directory that's gone, as when its repository was moved or removed, while a pool is fenced: it may be a fenced repository's. | Repair it with `git worktree repair <worktree>`, run in its repository, or remove it. |
 | `pool Acme has no accounts` | The pool has none. | Add one with `accounts add <label> --pool <id>`, or move one there with `accounts edit <id> --pool <id>`. |
 | `pool Acme has no account with a usable token` | None of the pool's accounts has a token switchboard can use, and Claude Code's own login could go out on another pool's account. | Give one a token with [`accounts token`](#accounts). |
-| `~/Code/acme is in pool Acme, where claude never starts on its own login` | `--direct`, or a start without switchboard, inside a fence. | Start it through the router, or outside the pool's directories. |
+| `~/Code/acme is in pool Acme, where claude never starts on its own login` | `--direct`, or a start without switchboard, inside a fence, or `as its repository ~/Code/acme is` in a worktree of a repository inside one. | Start it through the router, or outside the pool's directories and the worktrees of repositories in them. |
 | `can't tell which pool ~/Code/x is in: pool Acme's directory "…" can't be placed` | On Claude Code's own login, the config file writes a pool's directory that can't be placed, which may hold the directory. | Put the directory right in the config. |
 | `can't tell which pool ~/Code/x is in: neither the config, the router nor the accounts record names any pools` | Once the history has moved to pools, the config names none, nor does the router or the accounts record, so any directory may be in a fence. | Put the config's pools back, or see [Pools](troubleshooting.md#pools). |
 | `the router routes no account of pool Acme yet: any the config gives it waits for the router to restart` | The config names no pools, so the router's are taken, and it routes none of this pool's accounts yet. | `switchboard service restart`. |
@@ -976,8 +981,9 @@ The subcommands do the following:
   running in its directories keep the pool they started in, and its accounts, till they're
   resumed`.
   - It's fenced to the directories given, each an absolute path or one starting `~/`, covering
-    everything beneath it. Without any, it's the unfenced pool, which serves every session started
-    outside every fence.
+    everything beneath it, and every git worktree of a repository in them, wherever it lives (see
+    [Which pool a session is in](how-it-works.md#which-pool-a-session-is-in)). Without any, it's
+    the unfenced pool, which serves every session started outside every fence.
   - It's refused where its label is another pool's, ignoring case; where it would be a second
     unfenced pool, naming the one that is; and where its directories overlap another pool's, the
     same, inside or around them.
@@ -1864,12 +1870,13 @@ switchboard run [--account <id>] [--direct] [-- <claude args>]
 | Flag | What it does |
 |---|---|
 | `--account <id>` | Pin the session's conversation to account `<id>`, which must be configured, in the pool of the directory it starts in, and have a usable token. |
-| `--direct` | Start Claude Code on its own login, without the router or a token, for what needs the login. Not with `--account`, and not inside a fenced pool's directories. |
+| `--direct` | Start Claude Code on its own login, without the router or a token, for what needs the login. Not with `--account`, and not inside a fenced pool's directories, nor in a worktree of a repository inside them. |
 
 `--account` pins the session's conversation to an account while that account can take it. Claude
 Code's own token stays the primary's, or is `--account`'s while the primary's isn't usable. Without
 the router, going direct, Claude Code connects on `--account`'s token. With pools, the session is in
-the pool of the directory it starts in, and `run` refuses as [`claude`](#claude) says.
+the pool of the directory it starts in, or, in a git worktree, of its repository, and `run` refuses
+as [`claude`](#claude) says.
 
 Examples:
 

@@ -636,8 +636,26 @@ pool for its whole life:
 - **The start directory decides.** A session started in `~/Code` that later works in `~/Code/acme`
   stays in the unfenced pool, as Claude Code itself files a session by the directory it started in.
   A resumed session is started afresh, so it gets the pool its directory is in now, if any.
-- A git worktree made outside a pool's directories is outside the pool. Claude Code's own worktrees,
-  under the project's `.claude/worktrees`, stay inside it.
+- **A linked git worktree is in its repository's pool,** wherever it lives (the owner's call, 14
+  November 2026), so `git worktree add ../acme-feature`, run in a fenced `~/Code/acme`, makes a
+  worktree that's still Acme's. `run` maps the start directory onto the repository's main
+  checkout, the same path below the main checkout as below the worktree's root, and the mapped
+  directory's pool comes from the rule above, links resolved both sides; so a fence on a
+  repository's subfolder holds that subfolder in every worktree of it too. The main checkout is
+  found from the worktree's `.git` file and its git directory's `commondir`, running no git. A
+  submodule, and a bare repository's worktree, count as themselves, under the rule above alone, as
+  does a main checkout.
+  - Where the start directory itself and its mapping both have a pool, the unfenced pool counting
+    as no fence, they must agree. A worktree outside every fence is in its repository's pool, and
+    Claude Code's own worktrees, under the repository's `.claude/worktrees`, are inside its fence
+    both ways. A worktree inside one fence of a repository in another, or inside a fence of a
+    repository outside every fence, is refused, naming both, as the owner chose to refuse these
+    rather than guess: `switchboard: ~/wt/x is in pool Acme, its repository ~/Code/web in pool
+    Default — not starting claude`, or `in no pool` where every pool is fenced.
+  - Where a `.git` file up from the start directory leads to no repository that can be found,
+    unreadable or naming a git directory that's gone, and a pool is fenced, `run` refuses, as for a
+    start directory that can't be read, as it may be a fenced repository's worktree: `can't tell
+    which pool ~/wt/x is in: its .git file leads to no repository that can be found`.
 
 ### Launching in a pool
 
@@ -689,10 +707,13 @@ pool for its whole life:
   the config read, a config with pools goes as with the router down, direct on the pool's tokens
   or stopped, and refuses where none is usable, rather than start unaided, but for a config of one
   pool, unfenced, as above.
-- **Never on Claude Code's own login inside a fence.** A start directory inside a pool's directories
-  refuses rather than start unaided, and so does `--direct`, as both would go out on whatever
+- **Never on Claude Code's own login inside a fence.** A start directory inside a pool's
+  directories, or in a worktree of a repository inside them, as Which pool a session is in places
+  it, refuses rather than start unaided, and so does `--direct`, as both would go out on whatever
   account Claude Code is signed into: `switchboard: ~/Code/acme is in pool Acme, where claude never
-  starts on its own login — not starting claude`. Claude Code's local subcommands, which look after
+  starts on its own login — not starting claude`, and from a worktree outside the fence,
+  `~/Code/acme-feature is in pool Acme, as its repository ~/Code/acme is, where claude never starts
+  on its own login`. Claude Code's local subcommands, which look after
   Claude Code rather than run a session, start on its own login wherever they're asked for. Where a
   pool is fenced, an unaided start within a session passes the session's routing on only where the
   session's pool, as its `SWITCHBOARD_POOL` names it, is the start directory's, else it drops the
@@ -10803,10 +10824,10 @@ verbs).
   (unverified).
 - **No shell integration:** switchboard defines no shell function or launcher. Per-account
   launchers are the user's own aliases for `switchboard run --account <id> --`.
-- **In a pool:** with pools, the session is in the pool of its start directory, and every account
-  below is that pool's alone: its primary, its first with a usable token, and `--account`'s, which
-  must be in it. Launching in a pool says what `run` adds and refuses for the pools, and what's
-  said below holds within them.
+- **In a pool:** with pools, the session is in the pool of its start directory, as Which pool a
+  session is in finds it, and every account below is that pool's alone: its primary, its first with
+  a usable token, and `--account`'s, which must be in it. Launching in a pool says what `run` adds
+  and refuses for the pools, and what's said below holds within them.
 - **Asking the router:** `run` gives the router 5 seconds, from its first ask, to answer `GET
   /health`: a slow router isn't a dead one, and on a machine far behind a live router takes
   seconds to answer. A router that isn't running, nothing listening on its socket, is asked again

@@ -131,6 +131,7 @@ func (a *app) run(ctx context.Context, stderr io.Writer, opts runOptions, args [
 		Dir:          dir,
 		Home:         home,
 		EvalSymlinks: filepath.EvalSymlinks,
+		Worktree:     launch.FindWorktree,
 		InstallPaths: claude.InstallPaths(home),
 		Executable:   a.Executable,
 		PID:          a.PID,

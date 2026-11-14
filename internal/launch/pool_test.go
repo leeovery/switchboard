@@ -114,7 +114,7 @@ func TestRunStartsASessionInThePoolItsDirectoryIsIn(t *testing.T) {
 		{name: "inside it", dir: acmeDir + "/api/src", wantPool: "q7mt", wantToken: acme1Token},
 		{name: "inside it, ignoring case", dir: homeDir + "/code/ACME/api", wantPool: "q7mt", wantToken: acme1Token},
 		{name: "a Claude Code worktree of a project inside it", dir: acmeDir + "/api/.claude/worktrees/agent-1", wantPool: "q7mt", wantToken: acme1Token},
-		{name: "a worktree made outside it, beside it", dir: acmeDir + "-api-worktree", wantPool: "b2n8", wantToken: workToken},
+		{name: "beside it, its name running on from the fence's", dir: acmeDir + "-api", wantPool: "b2n8", wantToken: workToken},
 		{name: "outside every fence: the unfenced pool", dir: elsewhere, wantPool: "b2n8", wantToken: workToken},
 		{name: "around a fence: the unfenced pool", dir: homeDir + "/Code", wantPool: "b2n8", wantToken: workToken},
 		{name: "a directory not known, no pool fenced: the unfenced pool", pools: config.Pools{defaultPool}, wantPool: "b2n8", wantToken: workToken},
