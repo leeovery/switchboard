@@ -417,6 +417,15 @@ func (s *sessions) routedIn(in sessionIn) bool {
 	return s.seenIn(in)
 }
 
+// runsIn reports whether the session in runs in its pool at now, as it's
+// listed running there: it was routed there within cacheLife.
+func (s *sessions) runsIn(in sessionIn, now time.Time) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	last, seen := s.lastUsed(in.holds)
+	return seen && last.warm(now)
+}
+
 // pinSession gives the session in its own pin to account in its pool from now
 // on, passing over the one it was launched with there, or, where account is
 // "", clears its own pin there, the one it was launched with included: its

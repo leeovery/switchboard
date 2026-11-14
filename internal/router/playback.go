@@ -88,21 +88,21 @@ func (p *Playback) Read(r readings.Reading) {
 }
 
 // Line takes in the request the line of the request ledger is of, as the
-// router took it in. As it arrived, its session is remembered on each
-// account it went out on, in the order it did, as the scheduler remembers
-// where it sent the session at each choice: a session comes to an account at
-// its first request there, and stays on it while its requests go there. As
-// it ended, its answer's tokens, where its request spends quota and its
-// usage gave them, are taken into the hold curve by how long its session had
-// been on its account by then, as the proxy weighs an answer; then its
-// session is forgotten where the router forgot it: one new to the request,
-// as the request wasn't answered with success, and one the router took the
-// request's moves of back, as every account that judged it refused it.
-// Lines are given in the order their requests arrived, as the ledger gives
-// them, each after what was read before it.
+// router took it in. As it arrived, its session is remembered on each account
+// it went out on, in the order it did, in the pool the line gives, as the
+// scheduler remembers where it sent the session at each choice: a session
+// comes to an account at its first request there, and stays on it while its
+// requests go there. As it ended, its answer's tokens, where its request
+// spends quota and its usage gave them, are taken into the hold curve by how
+// long its session had been on its account by then, as the proxy weighs an
+// answer; then its session is forgotten where the router forgot it: one new
+// to the request, as the request wasn't answered with success, and one the
+// router took the request's moves of back, as every account that judged it
+// refused it. Lines are given in the order their requests arrived, as the
+// ledger gives them, each after what was read before it.
 func (p *Playback) Line(l ledger.Line) {
 	p.until(l.At)
-	req := Request{ID: l.Request, Session: l.Session, Model: l.Model, Check: l.Kind == ledger.KindCheck, Tried: attemptsOf(l.Tried)}
+	req := Request{ID: l.Request, Session: l.Session, Model: l.Model, Pool: l.Pool, Check: l.Kind == ledger.KindCheck, Tried: attemptsOf(l.Tried)}
 	fresh := p.wentOut(req, l)
 	tokens, answered := l.Tokens()
 	e := requestEnd{

@@ -121,10 +121,11 @@ week.
 Prompt caches are per account. The first turn after a session moves costs around 40 times a warm
 turn. So the router keeps each session on its account:
 
-- **Remembering a session:** the router remembers a session by its session id and model once a
-  request of that session is answered with success. A resumed session finds its account again. A
-  request that fails, under an id never used again, leaves nothing behind. The quota check that
-  `claude --resume` sends as it starts can be such a request.
+- **Remembering a session:** the router remembers a session by its session id, its pool and its
+  model once a request of that session is answered with success. A session resumed in its pool finds
+  its account again; resumed in another pool, it's new there, and keeps its account in the first for
+  the process still running there. A request that fails, under an id never used again, leaves
+  nothing behind. The quota check that `claude --resume` sends as it starts can be such a request.
 - **While the cache is warm:** the session stays on its account for an hour after its last request,
   as long as the account has room.
 - **After an hour idle:** the session's cache is cold, and a move costs nothing. The router scores

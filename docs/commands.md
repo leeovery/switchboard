@@ -87,13 +87,16 @@ Claude pass `--pool "$SWITCHBOARD_POOL"`, the session's own pool.
 
 - A verb given accounts or a session finds them in whatever pool they're in: `pin <account>...`,
   `pin --session`, `status --session`, `sessions <id>`, `requests --account` and `requests
-  --session`. With `--pool` beside, it looks in that pool alone, and a pin of accounts outside it
-  is refused, so passing `--pool` to every verb is always safe. Reading the recorded files, it
-  never reads every pool's work together: a session's page and its requests are its work in the
-  pool it's in now, the one its newest request was routed in, as a session resumed in another
-  pool may have work in both, and an account's requests are those in the pool it's in now, or, of
-  one no pool keeps, as one an import brought, the pool its newest request was routed in. With
-  `--pool`, a session with no work in that pool isn't found there.
+  --session`. With `--pool` beside, it looks in that pool alone, and a pin of accounts outside it is
+  refused, so passing `--pool` to every verb is always safe. A session resumed in another pool has
+  work, and an own pin, in each: `pin --session` sets or clears its pin in the pool `--pool` names;
+  without it, a pin to an account acts in the account's pool where the session runs there, else, as
+  `pin auto --session` does, in the pool it was routed in last. Reading the recorded files, it never
+  reads every pool's work together: a session's page and its requests are its work in the pool it's
+  in now, the one its newest request was routed in, as a session resumed in another pool may have
+  work in both, and an account's requests are those in the pool it's in now, or, of one no pool
+  keeps, as one an import brought, the pool its newest request was routed in. With `--pool`, a
+  session with no work in that pool isn't found there.
 - Once there's a second pool, the text `status`, `usage`, `history`, `requests`, `sessions` and
   `events` print names the pool it read, as `pool Acme`, and the JSON gives each pool's id and
   label, as `pool` and `pool_label` (see
@@ -283,7 +286,7 @@ switchboard pin <account>|auto --session <id> [--pool <id>]
 | `--move` | Move running sessions on other accounts there too, each on its next request, at the cost of a cache rebuild each. Not with `auto`. |
 | `--force` | Clear every session's own pin too, including the one `run --account` gave it: the pool's sessions' alone, once there's a second pool. |
 | `--session <id>` | Pin one running session alone to one account, from its next request, in place of any pin it had. Takes neither `--move` nor `--force`. |
-| `--pool <id>` | With `auto`, clear that pool's pin. With accounts, they must be that pool's; with `--session`, look for the session in that pool alone. See [Reading a pool](#reading-a-pool). |
+| `--pool <id>` | With `auto`, clear that pool's pin. With accounts, they must be that pool's; with `--session`, look for the session in that pool alone, and pin it, or clear its pin, there. See [Reading a pool](#reading-a-pool). |
 
 Name each account by its id, as `switchboard accounts` lists it; below, `b6s7` is work's and
 `q4tx` side's. `pin <account>...` sends every new session, and any other session whose account is
@@ -306,7 +309,7 @@ accounts.
 | `pin auto` | routed | stay where they are while their caches are warm and their accounts have room |
 | `pin auto --force` | routed | as `pin auto`, their own pins cleared |
 | `pin b6s7 --session 18bb978f` | unaffected | that session moves to work on its next request, and stays pinned there |
-| `pin auto --session 18bb978f` | unaffected | that session's own pin is cleared, and it's routed like any other |
+| `pin auto --session 18bb978f` | unaffected | that session's own pin is cleared, and it's routed like any other: in one pool, where it runs in two (see [Reading a pool](#reading-a-pool)) |
 
 Pins follow these rules:
 
@@ -496,7 +499,7 @@ Examples:
 
 ```bash
 claude                                             # routed
-claude --resume                                    # the session finds its account again
+claude --resume                                    # the session finds its account again, in its pool
 claude doctor                                      # a local subcommand: straight to Claude Code
 alias cxside='switchboard run --account q4tx --'   # a launcher pinned to side
 ```
@@ -1309,7 +1312,13 @@ switchboard status
 switchboard status --json | jq '.accounts[] | {id, windows}'
 switchboard status --json -r   # have the router read every account it may first, as after a reset made by hand
 switchboard status --session "$CLAUDE_CODE_SESSION_ID"   # inside a session: the label of the account it's on, such as Work
+switchboard status --session "$CLAUDE_CODE_SESSION_ID" --pool "$SWITCHBOARD_POOL"   # the same, in a config with pools
 ```
+
+In a config with pools, a statusline passes `--pool "$SWITCHBOARD_POOL"`, the session's own pool, as
+in the last example: a session resumed in another pool runs in both while the process it started as
+lives, and asked after by its id alone, it reads as the pool its latest request came from, so each
+process's statusline would show the other's account in turn.
 
 ### `logs`
 

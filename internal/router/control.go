@@ -299,7 +299,7 @@ func (r *Router) Control() http.Handler {
 		}
 		id := req.PathValue("id")
 		pool, err := r.pinSession(id, named, pin.Account, pin.By)
-		r.answerSession(w, id, r.onlyIn(pool), err)
+		r.answerSession(w, id, onlyIn(pool), err)
 	})
 	mux.HandleFunc("DELETE /sessions/{id}/pin", func(w http.ResponseWriter, req *http.Request) {
 		named, err := r.sessionPoolNamed(req)
@@ -313,7 +313,7 @@ func (r *Router) Control() http.Handler {
 		if err == nil {
 			pool, err = r.unpinSession(id, named, by)
 		}
-		r.answerSession(w, id, r.onlyIn(pool), err)
+		r.answerSession(w, id, onlyIn(pool), err)
 	})
 	mux.HandleFunc("POST /pin", func(w http.ResponseWriter, req *http.Request) {
 		var pin PinRequest
@@ -453,10 +453,10 @@ func anyPool(string) bool {
 	return true
 }
 
-// onlyIn holds a session in the pool with the given id alone, as a read of
-// that pool does, as the pools stand now.
-func (r *Router) onlyIn(pool string) func(pool string) bool {
-	return r.state.poolReadOf(r.state.pools.current(), pool).routes
+// onlyIn holds a session in the pool with the given id alone, as its
+// assignments are kept by it, whether the pools route anything or not.
+func onlyIn(pool string) func(pool string) bool {
+	return func(p string) bool { return p == pool }
 }
 
 // maxAge reads how old an account's usage can be before POST /refresh probes
@@ -815,10 +815,12 @@ func (r *Router) unpinSession(id, named string, by By) (string, error) {
 // sessionPool returns the id of the pool the session with the given id has
 // its own pin set or cleared in, a pin naming the account given, "" for
 // none: the pool named, ?pool='s, where it's named; else the account's pool,
-// where the session runs there; else the one the session was routed in
-// last. So a pin acts within its account's pool, and a session resumed in
-// another pool keeps its pin in the first. It fails with ErrUnknownSession
-// for a session the router hasn't seen, in the pool named where one is.
+// where the session runs there now, as runsIn has it; else the one the
+// session was routed in last, which a pin to an account of another pool is
+// refused in. So a pin acts within its account's pool, and a session resumed
+// in another pool keeps its pin in the first. It fails with
+// ErrUnknownSession for a session the router hasn't seen, in the pool named
+// where one is.
 func (r *Router) sessionPool(id, named, account string) (string, error) {
 	last, seen := r.sessions.poolOf(id)
 	switch {
@@ -827,7 +829,7 @@ func (r *Router) sessionPool(id, named, account string) (string, error) {
 	case named != "":
 		return named, nil
 	}
-	if pool, ok := r.state.pools.current().in(account); ok && r.sessions.routedIn(sessionIn{session: id, pool: pool}) {
+	if pool, ok := r.state.pools.current().in(account); ok && r.sessions.runsIn(sessionIn{session: id, pool: pool}, r.cfg.Now()) {
 		return pool, nil
 	}
 	return last, nil

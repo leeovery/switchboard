@@ -561,11 +561,6 @@ func TestAPinReplacesTheOneBeforeAndUnpinningSaysWhatItWas(t *testing.T) {
 	}
 }
 
-// onlyIn holds a session in the pool with the given id alone.
-func onlyIn(pool string) func(string) bool {
-	return func(p string) bool { return p == pool }
-}
-
 func TestASessionsAssignmentInEachPoolIsItsOwn(t *testing.T) {
 	s := newSessions(at(start), unkept, unkept)
 	assign(s, key{session: "one", pool: defaultPool, model: opus}, "", decision{account: "work", reason: reasonNew}, start.Add(-2*time.Minute))

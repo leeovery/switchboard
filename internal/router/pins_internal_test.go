@@ -1043,6 +1043,9 @@ func TestAClosedTableLeavesEachPoolsPinStandingTillThePoolsComeBack(t *testing.T
 	if got := pinnedAccounts(r); !reflect.DeepEqual(got, want) {
 		t.Errorf("once pinning and unpinning were refused, the pins are %q, want %q, as kept", got, want)
 	}
+	if rec := askControl(t, r, http.MethodDelete, "/sessions/one/pin", ""); rec.Code != http.StatusOK {
+		t.Errorf("DELETE /sessions/one/pin while the pools are closed answered %d %s, want 200, the session's own pin cleared", rec.Code, rec.Body)
+	}
 
 	// The config has its pools again: each pin stands in its own.
 	writeConfigFile(t, path, poolsTOML(defaultPool, defaultTOML, acmeTOML))

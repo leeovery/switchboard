@@ -863,7 +863,11 @@ document gives it, left out where none is:
 every account. Where the pool named isn't configured, or none is named and every pool is fenced,
 the router answers 400, `{error, pools, named}`: `error` in words, `pools` each pool to name, as
 `{id, label}`, and `named` the id named, where one was. `POST /refresh` and `DELETE /pin` take
-`?pool=` too.
+`?pool=` too, as do `GET /sessions/{id}` and a session's pin, `POST` and `DELETE
+/sessions/{id}/pin`: each answers or acts for the session in that pool, a 404 where it was never
+seen there. Without it, `GET /sessions/{id}` answers for the pool the session was routed in last,
+and a pin acts in the account's pool, where the session runs there, else in that last pool, where an
+account of another pool is refused.
 
 `GET /stream` tells of each routed request as it happens, a JSON object a line, each naming the
 request's `pool`, by its id, where the config has pools.

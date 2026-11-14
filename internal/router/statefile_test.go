@@ -1596,9 +1596,10 @@ func countWrites(f *stateFile) *atomic.Int32 {
 
 // savedResumed returns r, and the path of the state file it has saved,
 // keeping session one resumed in Acme, as resumeInAcme has it, pinned in each
-// pool, to side in Default and to extra in Acme, then routed last in
-// Default, which sorts before Acme by its id: on side, as pinned.
-func savedResumed(t *testing.T) (*Router, string) {
+// pool, to side in Default and to extra in Acme, then routed last in the
+// pool given, on the token given: on side in Default, which sorts before
+// Acme by its id, or on extra in Acme, each as pinned.
+func savedResumed(t *testing.T, pool, token string) (*Router, string) {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "state.json")
 	clock := &setClock{now: start}
@@ -1608,14 +1609,14 @@ func savedResumed(t *testing.T) (*Router, string) {
 	askedOK(t, r, http.MethodPost, "/sessions/one/pin", `{"account": "side"}`)
 	askedOK(t, r, http.MethodPost, "/sessions/one/pin", `{"account": "extra"}`)
 	clock.set(start.Add(10 * time.Minute))
-	routeIn(t, r, workToken, "one", defaultPool, nil)
+	routeIn(t, r, token, "one", pool, nil)
 	r.file.save()
 	return r, path
 }
 
 func TestTheStateFileKeepsASessionsWorkInEachPool(t *testing.T) {
 	logstest.Capture(t)
-	r, path := savedResumed(t)
+	r, path := savedResumed(t, defaultPool, workToken)
 
 	saved := readState(t, path)
 	var kept []string
@@ -1650,7 +1651,7 @@ func savedJSON(t *testing.T, r *Router) string {
 
 func TestARouterThatKeptOneAssignmentASessionAndModelReadsTheOneUsedLast(t *testing.T) {
 	logstest.Capture(t)
-	_, path := savedResumed(t)
+	_, path := savedResumed(t, acmePool, personalToken)
 	data, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
@@ -1670,11 +1671,11 @@ func TestARouterThatKeptOneAssignmentASessionAndModelReadsTheOneUsedLast(t *test
 	for _, a := range before.Sessions {
 		kept[a.Session+" "+a.Model] = a.Account
 	}
-	if got := kept["one "+opus]; got != "side" {
-		t.Errorf("it keeps the session on %q, want side, Default's, the one used last", got)
+	if got := kept["one "+opus]; got != "extra" {
+		t.Errorf("it keeps the session on %q, want extra, Acme's, the one used last", got)
 	}
-	if got := before.SessionPins["one"].Account; got != "side" {
-		t.Errorf("it keeps the session's pin to %q, want side, its pin in Default, the pool it was routed in last", got)
+	if got := before.SessionPins["one"].Account; got != "extra" {
+		t.Errorf("it keeps the session's pin to %q, want extra, its pin in Acme, the pool it was routed in last", got)
 	}
 }
 

@@ -1814,3 +1814,48 @@ func isClosed(ch chan struct{}) bool {
 		return false
 	}
 }
+
+// A request naming no pool, as one of a session started before pools does,
+// or naming its pool in another case, is done in the pool it's in, as one
+// naming the first pool is: a new session whose request is refused is
+// forgotten there, one answered is told of as started there, and an answer
+// is weighed by its session's time on its account there.
+func TestARequestNamingNoPoolOrItsPoolInAnotherCaseIsDoneInThePoolItsIn(t *testing.T) {
+	for _, named := range []string{"", strings.ToUpper(defaultPool)} {
+		t.Run("naming "+cmp.Or(named, "none"), func(t *testing.T) {
+			logstest.Capture(t)
+			r, upstream := newPairedRouter(t, at(start))
+			upstream.answers[workToken] = []answer{refusedAlone, served}
+
+			if w := routeIn(t, r, workToken, "one", named, nil); w.Code != http.StatusTooManyRequests {
+				t.Fatalf("the session's first request answered %d, want 429, passed on", w.Code)
+			}
+			if held := assignedIn(r.sessions); len(held) != 0 {
+				t.Errorf("once its first request was refused, the session is held as %+v, want it forgotten", held)
+			}
+			if w := routeIn(t, r, workToken, "one", named, nil); w.Code != http.StatusOK {
+				t.Fatalf("the session's second request answered %d, want 200", w.Code)
+			}
+			if got, want := startsOf(r), []string{defaultPool}; !slices.Equal(got, want) {
+				t.Errorf("the router told of the session's start in the pools %q, want %q", got, want)
+			}
+			req := Request{Session: "one", Model: opus, Pool: named}
+			if got := r.scheduler.OnAccount(req, "work", start.Add(time.Hour)); got != time.Hour {
+				t.Errorf("an hour on, the session has been on work %v, want an hour", got)
+			}
+		})
+	}
+}
+
+// startsOf returns the pool of each start of session one the router told
+// of, in turn.
+func startsOf(r *Router) []string {
+	var pools []string
+	for _, e := range r.recent.events() {
+		if e.Kind == status.EventStarted && e.Session == "one" {
+			pools = append(pools, e.Pool)
+		}
+	}
+	slices.Reverse(pools)
+	return pools
+}

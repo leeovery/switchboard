@@ -252,6 +252,60 @@ func TestForceInOnePoolLeavesThePinOfASessionResumedInAnotherInTheOther(t *testi
 	}
 }
 
+func TestAPinToAnAccountOfAPoolASessionRanInOnceIsRefusedWhereItRunsNow(t *testing.T) {
+	// Session one ran in Default, on work, and a day on is resumed in Acme,
+	// its process in Default gone: a pin to side, Default's, by its id alone,
+	// acts in Acme, where it runs, which side is outside.
+	logstest.Capture(t)
+	clock := &setClock{now: start}
+	r, _ := newPairedRouter(t, clock.read)
+	routeIn(t, r, workToken, "one", defaultPool, nil)
+	clock.set(start.Add(26 * time.Hour))
+	routeIn(t, r, personalToken, "one", acmePool, nil)
+
+	rec := askControl(t, r, http.MethodPost, "/sessions/one/pin", `{"account": "side"}`)
+	if want := "side is in pool Default; this session is in pool Acme"; rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), want) {
+		t.Errorf("answered %d %s, want 400 saying %q", rec.Code, rec.Body, want)
+	}
+	if got := pinsOfOne(t, r); got != [2]string{} {
+		t.Errorf("the session's pins in Default and Acme are %q, want none", got)
+	}
+}
+
+func TestASessionResumedInAnotherPoolIsListedInFlightInThePoolItsRequestIsIn(t *testing.T) {
+	logstest.Capture(t)
+	clock := &setClock{now: start}
+	r, upstream := newPairedRouter(t, clock.read)
+	resumeInAcme(t, r, clock)
+	sent, release, done := make(chan struct{}), make(chan struct{}), make(chan struct{})
+	upstream.answers[personalToken] = []answer{func(req *http.Request) *http.Response {
+		close(sent)
+		<-release
+		return served(req)
+	}}
+	go func() {
+		defer close(done)
+		routeIn(t, r, personalToken, "one", acmePool, nil)
+	}()
+	t.Cleanup(func() {
+		close(release)
+		<-done
+	})
+	select {
+	case <-sent:
+	case <-done:
+		t.Fatal("Acme's request was answered without going out on personal")
+	}
+
+	for pool, want := range map[string]string{defaultPool: "", acmePool: status.Asking} {
+		var listed []status.Session
+		decodedOK(t, askControl(t, r, http.MethodGet, withPool("/sessions", pool), ""), &listed)
+		if len(listed) != 1 || len(listed[0].Assignments) != 1 || listed[0].Assignments[0].InFlight != want {
+			t.Errorf("pool %s lists the sessions %+v, want session one with a request in flight %q", pool, listed, want)
+		}
+	}
+}
+
 // pinsOfOne returns session one's pins in Default and in Acme, as r answers
 // for it in each.
 func pinsOfOne(t *testing.T, r *Router) [2]string {
