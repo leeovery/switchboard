@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"reflect"
 	"slices"
 	"testing"
 	"testing/synctest"
@@ -130,7 +131,7 @@ func TestAskWaitsForASlowRouterAndAsksOneComingBackAgain(t *testing.T) {
 				if took := time.Since(tt.router.began); took != tt.wantTook {
 					t.Errorf("asking took %v, want %v", took, tt.wantTook)
 				}
-				if got != tt.want || errText(err) != tt.wantErr || errors.Is(err, router.ErrNotRunning) != tt.wantNotRunning {
+				if !reflect.DeepEqual(got, tt.want) || errText(err) != tt.wantErr || errors.Is(err, router.ErrNotRunning) != tt.wantNotRunning {
 					t.Errorf("Ask() = %+v, %v; want %+v, %q (not running: %v)", got, err, tt.want, tt.wantErr, tt.wantNotRunning)
 				}
 				if !slices.Equal(tt.router.asks, tt.wantAsks) {
@@ -242,7 +243,7 @@ func TestAskSaysWhichDeadlineRanOut(t *testing.T) {
 
 				got, err := launch.Patience{}.Ask(ctx, tt.router)
 
-				if took := time.Since(tt.router.began); got != tt.want || errText(err) != tt.wantErr || took != tt.wantTook {
+				if took := time.Since(tt.router.began); !reflect.DeepEqual(got, tt.want) || errText(err) != tt.wantErr || took != tt.wantTook {
 					t.Errorf("Ask() = %+v, %v after %v; want %+v, %q after %v", got, err, took, tt.want, tt.wantErr, tt.wantTook)
 				}
 			})

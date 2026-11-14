@@ -271,7 +271,7 @@ func TestALimitFromBeforeAResetMadeByHandHoldsInTheWindowsNotReset(t *testing.T)
 			if got := s.usage["work"].limited; got.inForce(clock.now) != tt.holds || !slices.Equal(got.windows, tt.want) {
 				t.Errorf("work's limit is %+v, want it in force (%t) in %q", got, tt.holds, tt.want)
 			}
-			if got := s.view(opus, clock.now).room("work"); got == tt.holds {
+			if got := s.view("", opus, clock.now).room("work"); got == tt.holds {
 				t.Errorf("work has room: %t, want %t", got, !tt.holds)
 			}
 		})
@@ -313,7 +313,7 @@ func TestAReadingFromBeforeALimitNeverLiftsIt(t *testing.T) {
 	clock.now = start.Add(2 * time.Second)
 	s.record("work", []quota.Window{sessionAt(0.965, quota.StatusAllowed)}, earlierStill)
 
-	if s.view(opus, clock.now).room("work") {
+	if s.view("", opus, clock.now).room("work") {
 		t.Error("work has room, want its limit to hold: the reading with room is from before it")
 	}
 	if got, want := s.usage["work"].windows["5h"], sessionAt(0.97, quota.StatusRejected); got != want {
@@ -336,7 +336,7 @@ func TestAReadingAsHighArrivingLateLiftsNoLimit(t *testing.T) {
 	withRoom.Status = quota.StatusAllowedWarning
 	s.record("work", []quota.Window{withRoom}, sent)
 
-	if s.view(opus, clock.now).room("work") {
+	if s.view("", opus, clock.now).room("work") {
 		t.Error("work has room, want its limit to hold: a reading as high that may be the older can't lift a rejection")
 	}
 	if got := s.usage["work"].windows["5h"]; got != spent {
@@ -758,7 +758,7 @@ func TestTheBestIsWhereANewSessionGoes(t *testing.T) {
 		want   string
 	}{
 		{name: "unpinned", change: func() {}, want: "work"},
-		{name: "pinned to side", change: func() { r.sessions.setPin(status.Pin{Accounts: []string{"side"}, Since: start}, false) }, want: "side"},
+		{name: "pinned to side", change: func() { r.sessions.setPin(beforePools(), status.Pin{Accounts: []string{"side"}, Since: start}, false) }, want: "side"},
 		{name: "pinned to side, whose token is refused", change: func() { r.state.refuse("side", http.StatusUnauthorized, someRequest, r.state.mark()) }, want: "work"},
 	}
 	for i, step := range steps {
@@ -819,7 +819,7 @@ func TestTheWindowARequestStartsReadsEmptyOnceItHasLapsed(t *testing.T) {
 		if !reflect.DeepEqual(work.Windows, step.want) || !slices.Equal(work.Lapsed, step.wantLapsed) {
 			t.Errorf("%s: work reads %+v, lapsed %q; want %+v, lapsed %q", step.name, work.Windows, work.Lapsed, step.want, step.wantLapsed)
 		}
-		if !s.view(opus, step.at).room("work") || !s.standings(step.at)[0].quota {
+		if !s.view("", opus, step.at).room("work") || !s.standings(step.at)[0].quota {
 			t.Errorf("%s: work has no room, want room: a request would start its session", step.name)
 		}
 	}
@@ -877,7 +877,7 @@ func TestTheStateTellsOfEachChangeTheStateFileKeeps(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var changes, routine changeCount
-			s := newState(testAccounts(), testPolicy, claude.Provider{}.Family, at(start), changes.hear, routine.hear)
+			s := newState(testAccounts(), unpooled(), testPolicy, claude.Provider{}.Family, at(start), changes.hear, routine.hear)
 			earlier := s.mark()
 			s.record("work", []quota.Window{session, week}, s.mark())
 			s.learn(opus, []quota.Window{session, week})
@@ -1011,7 +1011,7 @@ func TestStateIsSafeForConcurrentUse(t *testing.T) {
 			s.recordProbe("work", quota.Probe{}, errors.New("HTTP 529 · Overloaded"), s.mark(), readings.FromProbe)
 		})
 		wg.Go(func() { _ = s.document() })
-		wg.Go(func() { _ = s.view(opus, start).room("work") })
+		wg.Go(func() { _ = s.view("", opus, start).room("work") })
 		wg.Go(func() { _ = s.standings(start) })
 		wg.Go(func() { _ = s.due("side", start) })
 		wg.Go(func() { _ = s.dueAgain("side", start) })
@@ -1031,7 +1031,7 @@ func TestAWholeReadingRetiresEachSharedWindowItDoesntReport(t *testing.T) {
 	log := logstest.Capture(t)
 	var changes changeCount
 	clock := &testClock{now: start}
-	s := newState(testAccounts(), testPolicy, claude.Provider{}.Family, clock.read, changes.hear, unkept)
+	s := newState(testAccounts(), unpooled(), testPolicy, claude.Provider{}.Family, clock.read, changes.hear, unkept)
 	busier := session
 	busier.Utilization = 0.5
 	emptied := session
@@ -1218,7 +1218,7 @@ func TestARetiredWindowReadOffARequestSentSinceIsBack(t *testing.T) {
 	log := logstest.Capture(t)
 	var changes changeCount
 	clock := &testClock{now: start}
-	s := newState(testAccounts(), testPolicy, claude.Provider{}.Family, clock.read, changes.hear, unkept)
+	s := newState(testAccounts(), unpooled(), testPolicy, claude.Provider{}.Family, clock.read, changes.hear, unkept)
 	s.record("work", []quota.Window{session, week}, s.mark())
 	s.recordAnswer("work", []quota.Window{week}, s.mark(), true)
 	var lines []readings.Reading

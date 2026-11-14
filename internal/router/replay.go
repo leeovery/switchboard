@@ -40,6 +40,8 @@ const (
 	whyNewToken  = status.WhyNewToken
 	whyReset     = "was reset by hand"
 	whyTokenless = "has no usable token"
+	whyLeftPool  = status.WhyLeftPool
+	whyNoRoom    = status.WhyNoRoom
 )
 
 // reasonBack is why a session goes back to the account it was on before a
@@ -202,16 +204,32 @@ func (rp *replay) tokenRefused(ctx context.Context, resp *http.Response) (*http.
 }
 
 // again has the request go out again on its account, for the reason why,
-// where the router can still send on that: else, as a probe has found its
-// token another subscription's, or its file gone, since the request went out,
-// on another, as elsewhere says, the request answered as unsendable says
-// where none takes it.
+// where the router can still send on that, and the account is still in the
+// request's pool: else, as a probe has found its token another
+// subscription's, or its file gone, or the pools have changed, since the
+// request went out, on another, as elsewhere says, the request answered as
+// unsendable says where none takes it.
 func (rp *replay) again(ctx context.Context, why string) (*http.Response, bool, error) {
-	if !rp.ex.account.hasToken() {
+	ex, pools := rp.ex, rp.p.pools.current()
+	switch {
+	case !ex.account.hasToken():
 		return rp.elsewhere(ctx, whyTokenless, errUnsendable)
+	case !pools.serves(ex.req.Pool, ex.account.ID):
+		return rp.elsewhere(ctx, whyOutside(pools), errUnsendable)
 	}
 	rp.replaying(rp.ex.account.ID, why)
 	return nil, true, nil
+}
+
+// whyOutside is why a request leaves an account outside its pool, as pools
+// has them: the account has left the pool, where there are pools to tell
+// apart; else, of the one pool, which nothing names, it has no room, as a
+// session's account out of it has, as the view's left says.
+func whyOutside(pools *poolTable) string {
+	if pools.apart() {
+		return whyLeftPool
+	}
+	return whyNoRoom
 }
 
 // barToken bars the account the request went out on from every request, as
@@ -385,7 +403,8 @@ func (rp *replay) elsewhere(ctx context.Context, why string, answer error) (*htt
 // request stream is told, and the bars it placed on its model family, each
 // told of as it lifts. An account the request left for a new token judged
 // nothing, as its 401 was to a token it no longer held, nor one it left as it
-// could no longer be sent on, as that was the token's doing. A bar on an
+// could no longer be sent on, as that was the token's doing, nor one it left
+// as it had left the request's pool, as that was the pools'. A bar on an
 // account's token stands, as it says something of the account, and so does a
 // bar another request placed; and so do the session's moves, the request's
 // own among them, once another request of the session has been routed since.
@@ -407,10 +426,14 @@ func (rp *replay) takeBack() {
 
 // refusedEverywhere reports whether every account the request went out on
 // that judged it refused it, as takeBack takes it: one did, at least, and
-// none did otherwise. An account it left for a new token, or as it could no
-// longer be sent on, judged nothing.
+// none did otherwise. An account it left for a new token, as it could no
+// longer be sent on, or as it was outside the request's pool, as whyOutside
+// says, judged nothing: whyNoRoom, which a reason alone gives otherwise, is
+// tried only of an account out of the one pool.
 func (r Request) refusedEverywhere() bool {
-	judged := slices.DeleteFunc(slices.Clone(r.Tried), func(a Attempt) bool { return a.Why == whyNewToken || a.Why == whyTokenless })
+	judged := slices.DeleteFunc(slices.Clone(r.Tried), func(a Attempt) bool {
+		return a.Why == whyNewToken || a.Why == whyTokenless || a.Why == whyLeftPool || a.Why == whyNoRoom
+	})
 	return len(judged) > 0 && !slices.ContainsFunc(judged, func(a Attempt) bool { return a.Why != whyRefused })
 }
 
@@ -437,7 +460,7 @@ func (rp *replay) moveOn(ctx context.Context, why string) bool {
 		logger.Warn("no account left to try", "id", ex.id, "attempts", ex.attempts)
 		return false
 	}
-	ex.account, ex.reason = to, choice.Reason
+	ex.account, ex.reason, ex.pool = to, choice.Reason, choice.Pool
 	rp.throttled, rp.newToken = 0, false
 	rp.replaying(from, why)
 	rp.p.moved(ex, choice.From)

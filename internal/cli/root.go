@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/charmbracelet/x/term"
@@ -180,7 +181,7 @@ func NewRootCommand(deps Deps) *cobra.Command {
 	root.SetFlagErrorFunc(hideTokens)
 	root.AddCommand(newAccountsCommand(a), newSetupCommand(a), newUninstallCommand(a), newStatusCommand(a), newUsageCommand(a), newDashboardCommand(a), newRequestsCommand(a),
 		newHistoryCommand(a), newSessionsCommand(a), newEventsCommand(a), newExportCommand(a), newImportCommand(a), newLogsCommand(a), newServeCommand(a), newPinCommand(a), newRunCommand(a),
-		newServiceCommand(a), newVersionCommand(a), newHookCommand(a))
+		newServiceCommand(a), newVersionCommand(a), newHookCommand(a), newPoolCommand(a))
 	return root
 }
 
@@ -281,6 +282,10 @@ type app struct {
 	// routercopy.FromFlag names it: the one service install was run by, of
 	// which the router runs a copy.
 	from string
+	// noted reads the first pool the accounts record notes, once a run, as
+	// notedFirst has it.
+	noted     func() string
+	notedOnce sync.Once
 }
 
 // startLog starts this invocation's log, in the role the command plays: the
@@ -418,7 +423,7 @@ func (a *app) loadConfig() (*config.Config, error) {
 
 // loadConfigAt loads the config file at path.
 func (a *app) loadConfigAt(path string) (*config.Config, error) {
-	cfg, err := config.Load(path)
+	cfg, err := config.Load(path, a.HomeDir)
 	if errors.Is(err, fs.ErrNotExist) {
 		example := strings.TrimSuffix(config.Example, "\n")
 		return nil, fmt.Errorf("no config file at %s\n\nCreate one like this:\n\n%s", redact.Text(path), example)
@@ -437,33 +442,35 @@ func (a *app) configFile() (string, error) {
 	return config.Path(a.Getenv, a.HomeDir)
 }
 
-// collect loads the config and reads the status document usage prints, as r
-// asks, from the source that decides where it comes from,
-// probing alone when probe says so. It gives the config too, as usage lays
-// its printout out as the config says: nil where the config can't be read.
-func (a *app) collect(ctx context.Context, probe bool, r status.Read) (*config.Config, status.Document, error) {
+// collect loads the config and reads the status document usage prints, of
+// the pool with the given id, else of the one the verbs act on, as r asks,
+// from the source that decides where it comes from, probing alone when probe
+// says so. It gives the config too, as usage lays its printout out as the
+// config says: nil where the config can't be read.
+func (a *app) collect(ctx context.Context, probe bool, r status.Read, pool string) (*config.Config, status.Document, error) {
 	cfg, err := a.loadConfig()
 	if err != nil {
 		return nil, status.Document{}, err
 	}
-	doc, _, err := a.source(cfg, probe).Read(ctx, r)
-	return cfg, doc, err
+	doc, _, err := a.source(ctx, cfg, probe).inPool(pool).Read(ctx, r)
+	return cfg, doc, poolFlagNeeded(err)
 }
 
-// statusDocument reads the document status prints, as collect does; or,
-// where the config can't be read, and probing alone isn't asked for, the
-// router's, which the router keeps giving as it routes on, as while a newer
+// statusDocument reads the document status prints, of the pool with the
+// given id, else of the one the verbs act on, as collect does; or, where the
+// config can't be read, and probing alone isn't asked for, the router's of
+// that pool, which the router keeps giving as it routes on, as while a newer
 // binary's refusal of the config holds its restart: it gives the config's
 // error as unread then, beside the router's document. Where the router
 // doesn't give its document either, it fails with the config's error, as
 // collect does. The router is asked once there, not waited for as it comes
 // back, so the config's error is told at once where no router runs.
-func (a *app) statusDocument(ctx context.Context, probe bool, r status.Read) (doc status.Document, unread, err error) {
-	cfg, doc, err := a.collect(ctx, probe, r)
+func (a *app) statusDocument(ctx context.Context, probe bool, r status.Read, pool string) (doc status.Document, unread, err error) {
+	cfg, doc, err := a.collect(ctx, probe, r, pool)
 	if cfg != nil || probe {
 		return doc, nil, err
 	}
-	source := a.routerSource()
+	source := a.routerSource().inPool(pool)
 	source.patience = launch.Patience{Answer: cmp.Or(a.Patience.Answer, launch.AskTimeout)}
 	doc, _, readErr := source.Read(ctx, status.Read{Refresh: r.Refresh})
 	if readErr != nil {
@@ -474,12 +481,16 @@ func (a *app) statusDocument(ctx context.Context, probe bool, r status.Read) (do
 }
 
 // source returns where the status document is read for the config given: the
-// router, unless probe says to probe alone, else probing every account in the
-// config. Every command that reports usage reads it here, so they all read it
-// the same way.
-func (a *app) source(cfg *config.Config, probe bool) usageSource {
+// router, unless probe says to probe alone, else probing every account of the
+// pool read, the config's pools as they stand, as pooledConfig has them,
+// asked the first time they're probed. Every command that reports usage reads
+// it here, so they all read it the same way.
+func (a *app) source(ctx context.Context, cfg *config.Config, probe bool) usageSource {
 	source := a.routerSource()
-	source.probe = probeSource{deps: a.Deps, readToken: a.readToken, tokenTaken: a.tokenTaken, upstream: cfg.Upstream, accounts: cfg.Accounts, prime: cfg.Prime}
+	source.probe = probeSource{
+		deps: a.Deps, readToken: a.readToken, tokenTaken: a.tokenTaken, upstream: cfg.Upstream,
+		pooled: sync.OnceValues(func() (*config.Config, error) { return a.pooledConfig(ctx, cfg) }), prime: cfg.Prime,
+	}
 	source.ask = !probe
 	return source
 }

@@ -49,9 +49,10 @@ type Follower struct {
 // stateDir, by now's clock, which summarises days with the accounts' caps as
 // caps gives them, and rests the sessions it reads on the states digests
 // hold of the version body, as their builder gives it, what it can't read
-// logged to logger.
-func NewFollower(stateDir string, now func() time.Time, caps Caps, body int, logger *slog.Logger) *Follower {
+// logged to logger; and knows the first pool as the options given say.
+func NewFollower(stateDir string, now func() time.Time, caps Caps, body int, logger *slog.Logger, opts ...Option) *Follower {
 	d, history := daysIn(stateDir, caps, logger)
+	d.firstPool = optionsOf(opts).firstPool
 	return &Follower{days: d, history: history, now: now, body: body, followed: make(map[string]*followedDay), heads: make(map[string]heldHead)}
 }
 
@@ -163,6 +164,52 @@ func (f *Follower) Days(from time.Time) []Summary {
 // today's. Only those days' files are looked at, however long ago they
 // were.
 func (f *Follower) DaysOn(dates []string) []Summary {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	now := f.now()
+	reachOf := f.days.reaching(func() ([]string, error) { return f.readingsDates(now) }, &f.unlisted)
+	var summaries []Summary
+	for _, date := range f.datesOn(dates, now) {
+		summaries = append(summaries, f.summaryOf(date, now, reachOf))
+	}
+	return summaries
+}
+
+// DaysHeldOn returns the summaries the ledger holds of the local days with
+// the dates given, oldest first, each once, of the days DaysOn gives, where
+// each stands, as Days finds it: reporting false where one of them has files
+// but no summary that stands, as today's never does, nor yesterday's till
+// it's summarised, so none is summarised from its lines, as DaysOn
+// summarises such a day. A day with no files holds no line, and needs none.
+// Only those days' files are looked at, as DaysOn looks at them.
+func (f *Follower) DaysHeldOn(dates []string) ([]Summary, bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	var held []Summary
+	for _, date := range f.datesOn(dates, f.now()) {
+		switch d := f.follow(date); {
+		case d.stands:
+			held = append(held, *d.held)
+		case !d.look.none:
+			return nil, false
+		}
+	}
+	return held, true
+}
+
+// datesOn returns those of the dates given a read of the ledger's days
+// gives at now, as dates has them, oldest first, each once: none before
+// the first day the ledger holds or after today's, nor where the earliest
+// isn't a date. The follower is held.
+func (f *Follower) datesOn(dates []string, now time.Time) []string {
+	return datesFrom(dates, func(from time.Time) time.Time { return f.start(from, now) }, now)
+}
+
+// datesFrom returns those of the dates given a read of the ledger's days
+// gives at now, oldest first, each once: none before where a read of them
+// from the earliest starts, as start gives it, or after today's, nor where
+// the earliest isn't a date.
+func datesFrom(dates []string, start func(from time.Time) time.Time, now time.Time) []string {
 	wanted := slices.Compact(slices.Sorted(slices.Values(dates)))
 	if len(wanted) == 0 {
 		return nil
@@ -171,18 +218,8 @@ func (f *Follower) DaysOn(dates []string) []Summary {
 	if !ok {
 		return nil
 	}
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	now := f.now()
-	reachOf := f.days.reaching(func() ([]string, error) { return f.readingsDates(now) }, &f.unlisted)
-	first, today := dayfile.DateOf(f.start(from, now)), dayfile.DateOf(now)
-	var summaries []Summary
-	for _, date := range wanted {
-		if date >= first && date <= today {
-			summaries = append(summaries, f.summaryOf(date, now, reachOf))
-		}
-	}
-	return summaries
+	first, today := dayfile.DateOf(start(from)), dayfile.DateOf(now)
+	return slices.DeleteFunc(wanted, func(date string) bool { return date < first || date > today })
 }
 
 // dates returns the dates of the local days from from's to today's that a
@@ -427,9 +464,11 @@ func (d *liveDay) read(logger *slog.Logger) bool {
 func (d *liveDay) naming(wanted map[string]bool) map[string]bool {
 	named := make(map[string]bool)
 	for _, a := range d.tally {
-		for id := range a.sessions {
-			if wanted[id] {
-				named[id] = true
+		for _, w := range a.pools {
+			for id := range w.sessions {
+				if wanted[id] {
+					named[id] = true
+				}
 			}
 		}
 	}
@@ -454,11 +493,11 @@ func (d *liveDay) counting(logger *slog.Logger, held int) (noMore, exactly bool)
 // summary returns the day summarised from its lines as last read, and the
 // readings history as it's read now, where reads reports its summary reads
 // them, as of asOf, as Reader.Days summarises a day from its lines, knowing
-// no less than held, where it's given: its tally, and the line the day's
-// plain file ends in, cut short, where it reads as one, as a read of the day
-// whole would read it. So the minutes at each account's cap and at a limit,
-// and each window's last reading standing, move on with the clock, as
-// summarising the day afresh moves them.
+// no less than held, where it's given, the two fitted as fitted says: its
+// tally, and the line the day's plain file ends in, cut short, where it
+// reads as one, as a read of the day whole would read it. So the minutes at each account's
+// cap and at a limit, and each window's last reading standing, move on with
+// the clock, as summarising the day afresh moves them.
 func (d *liveDay) summary(f *Follower, held *Summary, asOf time.Time, reads bool) Summary {
 	t, n := d.tally.clone(), d.tallied
 	if cut, ok := d.lines.Cut(); ok {
@@ -476,7 +515,9 @@ func (d *liveDay) summary(f *Follower, held *Summary, asOf time.Time, reads bool
 		}
 		return slices.Values(d.history.Read())
 	}
-	return t.day(d.date, n, read, held, f.days.caps, asOf).made(lines, held)
+	made := t.day(d.date, n, read, held, f.days.caps, asOf)
+	made, held = f.days.fitted(made, held)
+	return made.made(lines, held)
 }
 
 // tailed is the ledger's files of a local day, by its date, read as they

@@ -56,6 +56,35 @@ type Health struct {
 	// took the pin off alone, by its name, and would send the directory on to
 	// the API.
 	StripsOwnHeaders bool `json:"strips_own_headers"`
+	// ReportsPools is set by a router that reports the pools it routes for,
+	// as Pools: a launch compares those with the config's, which one from
+	// before can't be asked for, its answer decoding without them.
+	ReportsPools bool `json:"reports_pools"`
+	// Pools are the pools the router routes for now, as the config it follows
+	// makes them, in its order: none in a config from before pools.
+	Pools []RoutedPool `json:"pools,omitempty"`
+	// Moving is how the router's move of the accounts and their history
+	// stands, as its status document gives it, given here too as it's no
+	// pool's: zero where none is owed, and from a router that doesn't say
+	// ReportsPools.
+	Moving status.Moving `json:"moving,omitzero"`
+	// Restart is the restart the router has due, as its status document
+	// gives it, given here too for a pool it can't give one of, as one added
+	// since it started, which waits on that restart: zero where none is, and
+	// from a router from before it.
+	Restart status.Restart `json:"restart,omitzero"`
+}
+
+// Answered reports whether h is a router's answer to its health check: the
+// zero Health, as a read that asked no router gives, is none.
+func (h Health) Answered() bool {
+	return h.PID != 0
+}
+
+// Answer is how h says the router stands, as a status line says it: its
+// health, and the restart it has due.
+func (h Health) Answer() status.RouterAnswer {
+	return status.RouterAnswer{Health: status.Health{Healthy: h.OK, Reason: h.Reason}, Restart: h.Restart}
 }
 
 // Same reports whether h and o are the answers of one router: the same
@@ -107,8 +136,8 @@ type Restart struct {
 }
 
 // By says who set or cleared a pin, for the event the router tells it as:
-// ByCLI or ByDashboard, or "" where it doesn't say, as a switchboard from
-// before doesn't.
+// ByCLI or ByDashboard, ByRouter, or "" where it doesn't say, as a
+// switchboard from before doesn't.
 type By string
 
 const (
@@ -116,6 +145,9 @@ const (
 	ByCLI By = "cli"
 	// ByDashboard is the dashboard's routing card.
 	ByDashboard By = "dashboard"
+	// ByRouter is the router itself, dropping a pin the pools no longer
+	// leave standing, which no one asking may say.
+	ByRouter By = "router"
 )
 
 // check fails, saying what to give, for anyone but ByCLI, ByDashboard or no
@@ -173,6 +205,21 @@ type problem struct {
 	// restart was refused for, as ExportUnderWay has it: "" for any other
 	// refusal.
 	Exporting string `json:"exporting,omitempty"`
+	// Pools are the pools to name one of, and Named the one named that isn't
+	// configured, of a read refused for want of a pool, as PoolNeeded has
+	// them: none for any other refusal.
+	Pools []PoolNamed `json:"pools,omitempty"`
+	Named string      `json:"named,omitempty"`
+}
+
+// writeRefusal answers with a 400 saying why err refuses the request: with
+// the pools to name one of, where it's a PoolNeeded.
+func writeRefusal(w http.ResponseWriter, err error) {
+	refusal := problem{Error: err.Error()}
+	if need, ok := errors.AsType[PoolNeeded](err); ok {
+		refusal.Pools, refusal.Named = need.Pools, need.Named
+	}
+	writeProblemOf(w, http.StatusBadRequest, refusal)
 }
 
 // Control is the control API: GET /health says the router is alive, and
@@ -180,7 +227,7 @@ type problem struct {
 // /sessions lists the sessions routed in the last hour, and GET
 // /sessions/{id} says where a session's requests go, which POST and DELETE
 // /sessions/{id}/pin change as they set and clear its own pin, answering with
-// the session as they leave it. POST and DELETE /pin set and clear the global
+// the session as they leave it. POST and DELETE /pin set and clear a pool's
 // pin, and POST /refresh probes the accounts whose usage is older than it
 // asks, and those that can take no request anyway, each of the three
 // answering with the status document as it leaves it. GET /history gives
@@ -196,6 +243,11 @@ type problem struct {
 // export of the history under way, which it never restarts in place over.
 // POST /import takes in the history import staged, answering with what it
 // took in, one import at a time, and GET /import says whether one is running.
+//
+// The status document, the sessions, the windows' history and the stream are
+// one pool's, as ?pool= names it, else the one the verbs act on, refused,
+// naming the pools, where there's none; GET /health reports every pool, and a
+// session named by its id is in its own pool unless ?pool= names another.
 func (r *Router) Control() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
@@ -217,14 +269,19 @@ func (r *Router) Control() http.Handler {
 		_ = http.NewResponseController(w).Flush()
 		r.upkeep.restartNow(cleared)
 	})
-	mux.HandleFunc("GET /status", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, r.Status())
-	})
-	mux.HandleFunc("GET /sessions", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, r.running())
-	})
+	mux.HandleFunc("GET /status", r.forPool(func(w http.ResponseWriter, _ *http.Request, rd poolRead) {
+		writeJSON(w, r.statusOf(rd))
+	}))
+	mux.HandleFunc("GET /sessions", r.forPool(func(w http.ResponseWriter, _ *http.Request, rd poolRead) {
+		writeJSON(w, r.running(rd))
+	}))
 	mux.HandleFunc("GET /sessions/{id}", func(w http.ResponseWriter, req *http.Request) {
-		r.answerSession(w, req.PathValue("id"), nil)
+		in, err := r.sessionPoolAsked(req)
+		if err != nil {
+			writeRefusal(w, err)
+			return
+		}
+		r.answerSession(w, req.PathValue("id"), in, nil)
 	})
 	mux.HandleFunc("POST /sessions/{id}/pin", func(w http.ResponseWriter, req *http.Request) {
 		var pin sessionPinRequest
@@ -233,7 +290,7 @@ func (r *Router) Control() http.Handler {
 			return
 		}
 		id := req.PathValue("id")
-		r.answerSession(w, id, r.pinSession(id, pin.Account, pin.By))
+		r.answerSession(w, id, anyPool, r.pinSession(id, pin.Account, pin.By))
 	})
 	mux.HandleFunc("DELETE /sessions/{id}/pin", func(w http.ResponseWriter, req *http.Request) {
 		id := req.PathValue("id")
@@ -241,7 +298,7 @@ func (r *Router) Control() http.Handler {
 		if err == nil {
 			err = r.unpinSession(id, by)
 		}
-		r.answerSession(w, id, err)
+		r.answerSession(w, id, anyPool, err)
 	})
 	mux.HandleFunc("POST /pin", func(w http.ResponseWriter, req *http.Request) {
 		var pin PinRequest
@@ -249,13 +306,17 @@ func (r *Router) Control() http.Handler {
 			writeProblem(w, http.StatusBadRequest, `give the accounts to pin as JSON, such as {"accounts": ["work"], "move": false, "force": false}`)
 			return
 		}
-		if err := r.pin(pin); err != nil {
-			writeProblem(w, http.StatusBadRequest, err.Error())
+		rd, err := r.pinRead(req, pin.ids())
+		if err == nil {
+			err = r.pin(rd, pin)
+		}
+		if err != nil {
+			writeRefusal(w, err)
 			return
 		}
-		writeJSON(w, r.Status())
+		writeJSON(w, r.statusOf(rd))
 	})
-	mux.HandleFunc("DELETE /pin", func(w http.ResponseWriter, req *http.Request) {
+	mux.HandleFunc("DELETE /pin", r.forPool(func(w http.ResponseWriter, req *http.Request, rd poolRead) {
 		force, err := forceAsked(req)
 		if err != nil {
 			writeProblem(w, http.StatusBadRequest, err.Error())
@@ -266,27 +327,30 @@ func (r *Router) Control() http.Handler {
 			writeProblem(w, http.StatusBadRequest, err.Error())
 			return
 		}
-		r.unpin(force, by)
-		writeJSON(w, r.Status())
-	})
-	mux.HandleFunc("POST /refresh", func(w http.ResponseWriter, req *http.Request) {
+		if err := r.unpin(rd, force, by); err != nil {
+			writeRefusal(w, err)
+			return
+		}
+		writeJSON(w, r.statusOf(rd))
+	}))
+	mux.HandleFunc("POST /refresh", r.forPool(func(w http.ResponseWriter, req *http.Request, rd poolRead) {
 		age, err := maxAge(w, req)
 		if err != nil {
 			writeProblem(w, http.StatusBadRequest, err.Error())
 			return
 		}
-		r.refresh(req.Context(), age)
-		writeJSON(w, r.Status())
-	})
-	mux.HandleFunc("GET /history", func(w http.ResponseWriter, req *http.Request) {
+		r.refresh(req.Context(), age, rd)
+		writeJSON(w, r.statusOf(rd))
+	}))
+	mux.HandleFunc("GET /history", r.forPool(func(w http.ResponseWriter, req *http.Request, rd poolRead) {
 		asked, err := historyAsked(req)
 		if err != nil {
 			writeProblem(w, http.StatusBadRequest, err.Error())
 			return
 		}
-		writeJSON(w, r.windowHistory(asked))
-	})
-	mux.HandleFunc("GET /stream", r.serveStream)
+		writeJSON(w, r.windowHistory(asked, rd))
+	}))
+	mux.HandleFunc("GET /stream", r.forPool(r.serveStream))
 	mux.HandleFunc("GET /import", r.serveImportRunning)
 	mux.HandleFunc("POST /import", r.serveImport)
 	return mux
@@ -295,7 +359,71 @@ func (r *Router) Control() http.Handler {
 // healthNow is what GET /health answers now.
 func (r *Router) healthNow() Health {
 	h := r.health.report()
-	return Health{OK: h.Healthy, Reason: h.Reason, Listen: r.proxyAddr, Version: r.cfg.Version, PID: os.Getpid(), StartedAt: r.started, StripsOwnHeaders: true}
+	return Health{
+		OK: h.Healthy, Reason: h.Reason, Listen: r.proxyAddr, Version: r.cfg.Version, PID: os.Getpid(), StartedAt: r.started,
+		StripsOwnHeaders: true, ReportsPools: true, Pools: r.state.pools.current().reported(r.accounts), Moving: r.moving.report(),
+		Restart: r.upkeep.restartDue(),
+	}
+}
+
+// forPool is the handler that answers a request with serve, for the pool it
+// asks for, as poolAsked has it, or with a 400 saying why it can't be
+// answered for one, before serve does anything.
+func (r *Router) forPool(serve func(w http.ResponseWriter, req *http.Request, rd poolRead)) http.HandlerFunc {
+	return func(w http.ResponseWriter, req *http.Request) {
+		rd, err := r.poolAsked(req)
+		if err != nil {
+			writeRefusal(w, err)
+			return
+		}
+		serve(w, req, rd)
+	}
+}
+
+// pinRead returns what POST /pin answers for, pinning the accounts with the
+// given ids: the pool they're in, as one reading of the pools has it, which
+// ?pool= needn't name, and, where it does, must be that pool; else, where
+// the router has none of them, which pinning them refuses, the pool ?pool=
+// names, so the refusal names that pool's accounts. It fails,
+// naming each account's pool, where they're in two, or one the router has is
+// in none; and where ?pool= names another pool, or none configured.
+func (r *Router) pinRead(req *http.Request, ids []string) (poolRead, error) {
+	t := r.state.pools.current()
+	pool, err := t.poolOfAll(ids, r.accounts)
+	if err != nil {
+		return poolRead{}, err
+	}
+	if named := poolNamed(req); named != "" {
+		asked, err := t.asked(named)
+		if err != nil {
+			return poolRead{}, err
+		}
+		if pool != "" && asked != pool {
+			return poolRead{}, fmt.Errorf("the accounts to pin are in pool %s, not %s: pin them in their own pool", t.label(pool), t.label(asked))
+		}
+		pool = asked
+	}
+	return r.state.poolReadOf(t, pool), nil
+}
+
+// sessionPoolAsked returns what tells whether GET /sessions/{id} answers for
+// a session, by its pool: one in the pool ?pool= names, as poolAsked has
+// it, and any where it names none, as a session's id names its pool. It
+// fails, naming the pools, where the pool named isn't configured.
+func (r *Router) sessionPoolAsked(req *http.Request) (func(pool string) bool, error) {
+	if poolNamed(req) == "" {
+		return anyPool, nil
+	}
+	rd, err := r.poolAsked(req)
+	if err != nil {
+		return nil, err
+	}
+	return rd.routes, nil
+}
+
+// anyPool holds a session in any pool.
+func anyPool(string) bool {
+	return true
 }
 
 // maxAge reads how old an account's usage can be before POST /refresh probes
@@ -346,15 +474,15 @@ func historyAsked(req *http.Request) (historyAsk, error) {
 	return historyAsk{window: window, step: step, asked: asked}, nil
 }
 
-// refresh probes the accounts it can send on that nothing has been read of
-// for longer than age, and those that can take no request anyway, as
-// refreshing says, sharing any probe of them already under way, and waits for
-// those probes: for refreshWait at most, or until ctx ends, after which they
-// go on without it. One holding the token a probe found another
-// subscription's isn't probed again till it takes up another, as on its
-// rounds.
-func (r *Router) refresh(ctx context.Context, age time.Duration) {
-	underway := r.probes.start(r.accounts.sendable(), r.state.refreshing(age))
+// refresh probes the accounts of the pool rd reads it can send on that
+// nothing has been read of for longer than age, and those that can take no
+// request anyway, as refreshing says, sharing any probe of them already
+// under way, and waits for those probes: for refreshWait at most, or until
+// ctx ends, after which they go on without it. One holding the token a probe
+// found another subscription's isn't probed again till it takes up another,
+// as on its rounds.
+func (r *Router) refresh(ctx context.Context, age time.Duration, rd poolRead) {
+	underway := r.probes.start(r.accounts.sendable().held(rd.holds), r.state.refreshing(age))
 	if len(underway) == 0 {
 		return
 	}
@@ -391,11 +519,11 @@ func byAsked(req *http.Request) (By, error) {
 
 // answerSession answers as GET /sessions/{id} does, with the session as it
 // stands, unless err, from what was asked of the session, says why not: 404
-// for a session the router hasn't seen, else 400.
-func (r *Router) answerSession(w http.ResponseWriter, id string, err error) {
+// for a session the router hasn't seen in a pool in holds, else 400.
+func (r *Router) answerSession(w http.ResponseWriter, id string, in func(pool string) bool, err error) {
 	var session status.Session
 	if err == nil {
-		session, err = r.session(id)
+		session, err = r.session(id, in)
 	}
 	switch {
 	case errors.Is(err, ErrUnknownSession):
@@ -409,9 +537,9 @@ func (r *Router) answerSession(w http.ResponseWriter, id string, err error) {
 
 // session reports where the session with the given id has its requests go,
 // with the status of the account its last-used model went to. It fails with
-// ErrUnknownSession when the router hasn't seen it.
-func (r *Router) session(id string) (status.Session, error) {
-	s, ok := r.sessions.session(id)
+// ErrUnknownSession when the router hasn't seen it in a pool in holds.
+func (r *Router) session(id string, in func(pool string) bool) (status.Session, error) {
+	s, ok := r.sessions.session(id, in)
 	if !ok {
 		return status.Session{}, unknownSession(id)
 	}
@@ -419,11 +547,12 @@ func (r *Router) session(id string) (status.Session, error) {
 	return r.described(s, r.stream.doing(), r.glancing(r.cfg.Now())), nil
 }
 
-// running reports the sessions routed in the last hour, the one seen last
-// first, each as session does but for its account's status.
-func (r *Router) running() []status.Session {
+// running reports the sessions routed in the last hour in the pool rd reads,
+// the one seen last first, each as session does but for its account's
+// status.
+func (r *Router) running(rd poolRead) []status.Session {
 	now := r.cfg.Now()
-	listed := r.sessions.running(now)
+	listed := r.sessions.running(now, rd.routes)
 	doing, g := r.stream.doing(), r.glancing(now)
 	for i, s := range listed {
 		listed[i] = r.described(s, doing, g)
@@ -435,127 +564,184 @@ func (r *Router) running() []status.Session {
 // names it, what a request of each in flight is doing, as doing, the
 // stream's, has it, and the account auto would send each's next request to
 // at the moment g glances at the accounts, as the scheduler's auto says, on
-// the accounts as g glances at them. Auto is worked out here, once the
-// sessions have been read, so their lock, which every request's choice
-// takes, is never held while the accounts are viewed.
+// the accounts of its pool as g glances at them. Auto is worked out here,
+// once the sessions have been read, so their lock, which every request's
+// choice takes, is never held while the accounts are viewed.
 func (r *Router) described(s status.Session, doing map[key]string, g *glances) status.Session {
 	for i, a := range s.Assignments {
 		s.Assignments[i].Family = r.cfg.Provider.Family(a.Model)
 		s.Assignments[i].InFlight = doing[key{session: s.ID, model: a.Model}]
-		s.Assignments[i].Auto = r.scheduler.autoOn(s.ID, a.Model, g.now, func() view { return g.of(a.Model) })
+		s.Assignments[i].Auto = r.scheduler.autoOn(s.ID, a.Model, g.now, func(pool string) view { return g.of(pool, a.Model) })
 	}
 	return s
 }
 
 // glances are the accounts as a listing of the sessions at now glances at
-// them, as the state's glance gives them, by model: each model's glanced at
-// once, for every session of the listing that runs it, as a glance takes the
-// lock every request's choice takes.
+// them, as the state's glance gives them, by pool and model: each glanced at
+// once, for every session of the listing in the pool that runs the model, as
+// a glance takes the lock every request's choice takes.
 type glances struct {
 	state *state
 	now   time.Time
-	views map[string]view
+	views map[glanced]view
+}
+
+// glanced is what a glance at the accounts is of: a pool, by its id, and a
+// model.
+type glanced struct {
+	pool, model string
 }
 
 // glancing is the router's glances at the accounts at now, none glanced at
 // yet.
 func (r *Router) glancing(now time.Time) *glances {
-	return &glances{state: r.state, now: now, views: make(map[string]view)}
+	return &glances{state: r.state, now: now, views: make(map[glanced]view)}
 }
 
-// of is the accounts as a request of model finds them, glanced at the first
-// time it's asked: a view is never changed, but afresh, so every session's
-// auto may read the one.
-func (g *glances) of(model string) view {
-	v, ok := g.views[model]
+// of is the accounts of the pool with the given id as a request of model
+// finds them, glanced at the first time it's asked: a view is never changed,
+// but afresh, so every session's auto may read the one.
+func (g *glances) of(pool, model string) view {
+	at := glanced{pool: pool, model: model}
+	v, ok := g.views[at]
 	if !ok {
-		v = g.state.glance(model, g.now)
-		g.views[model] = v
+		v = g.state.glance(pool, model, g.now)
+		g.views[at] = v
 	}
 	return v
 }
 
-// pin sends every new session to the best of the accounts the request names,
-// with Move, every running session on another account too, and with Force,
-// clears every session's own pin, as pinTo has it, telling it as Pinned. It
-// fails, saying why, for anyone asking but ByCLI or ByDashboard, for no
-// account, or for one nothing can go out on, and then tells nothing.
-func (r *Router) pin(p PinRequest) error {
+// pin sends every new session in the pool rd reads to the best of the
+// accounts the request names, with Move, every running session of the pool
+// on another account too, and with Force, clears the own pin of every
+// session in the pool, as pinTo has it. It fails, saying why, for anyone
+// asking but ByCLI or ByDashboard, for no account, for one nothing can go
+// out on, or as pinTo does, and then tells nothing.
+func (r *Router) pin(rd poolRead, p PinRequest) error {
 	if err := p.By.check(); err != nil {
 		return err
 	}
-	ids, err := r.pinnableAll(p.ids())
+	ids, err := r.pinnableAll(p.ids(), rd.pool)
 	if err != nil {
 		return err
 	}
-	cleared := r.pinTo(status.Pin{Accounts: ids, Since: r.cfg.Now().UTC(), Move: p.Move}, p.Force)
-	attrs := []any{"accounts", strings.Join(ids, ","), "move", p.Move}
-	if p.Force {
+	return r.pinTo(rd, status.Pin{Accounts: ids, Since: r.cfg.Now().UTC(), Move: p.Move}, p.Force, p.By)
+}
+
+// pinTo sets the pin of the pool rd reads, as the sessions' setPin does, by
+// the one given, the pins fitted to the pools as they stand now and told the
+// state, as fitPins does, and tells it as Pinned: one step, under pinning,
+// rd read again of those pools, so no other change of the pins comes
+// between them, and no pin is told as set after a change of the pools has
+// dropped it. It fails, changing and telling nothing, unless the pin's
+// accounts are all in that pool as the pools stand now, as pinStands says,
+// so a pin that wouldn't stand as asked is never answered as set.
+func (r *Router) pinTo(rd poolRead, pin status.Pin, force bool, by By) error {
+	r.pinning.Lock()
+	defer r.pinning.Unlock()
+	t := r.state.pools.current()
+	if err := t.pinStands(rd.pool, pin.Accounts, r.accounts); err != nil {
+		return err
+	}
+	rd = r.state.poolReadOf(t, rd.pool)
+	cleared := r.sessions.setPin(rd, pin, force)
+	r.fitPins(t)
+	attrs := append(poolSaid(rd.pool), "accounts", strings.Join(pin.Accounts, ","), "move", pin.Move)
+	if force {
 		attrs = append(attrs, "force", true, "sessions_unpinned", cleared)
 	}
 	logger.Info("pinned", attrs...)
-	r.emit(Pinned{Accounts: ids, Account: ids[0], Move: p.Move, Force: p.Force, By: p.By})
+	r.emit(Pinned{Accounts: pin.Accounts, Account: pin.Accounts[0], Move: pin.Move, Force: force, By: by, Pool: rd.pool})
 	return nil
 }
 
-// unpin clears the global pin, so every session is routed on its merits but
-// for those with pins of their own, and with force, clears theirs too, as
-// clearPin has it, telling it as Unpinned unless it cleared nothing.
-func (r *Router) unpin(force bool, by By) {
-	was, cleared := r.clearPin(force)
-	accounts := strings.Join(was.Accounts, ",")
+// unpin clears the pin of the pool rd reads, as the sessions' unpin does, so
+// every session in it is routed on its merits but for those with pins of
+// their own, and with force, clears theirs too, the pins fitted and told the
+// state, and tells it as Unpinned, by the one given, unless it cleared
+// nothing: one step, under pinning, rd read again of the pools as they stand
+// now, as pinTo has it. It fails, changing and telling nothing, where the
+// pools are closed, as shut says: no pool's pin can be told apart from
+// another's till they're back.
+func (r *Router) unpin(rd poolRead, force bool, by By) error {
+	r.pinning.Lock()
+	defer r.pinning.Unlock()
+	t := r.state.pools.current()
+	if err := t.shut(); err != nil {
+		return err
+	}
+	rd = r.state.poolReadOf(t, rd.pool)
+	was, cleared := r.sessions.unpin(rd, force)
+	r.fitPins(t)
+	attrs := append(poolSaid(rd.pool), "accounts", strings.Join(was.Accounts, ","))
 	switch {
 	case force:
-		logger.Info("unpinned", "accounts", accounts, "force", true, "sessions_unpinned", cleared)
+		logger.Info("unpinned", append(attrs, "force", true, "sessions_unpinned", cleared)...)
 	case !was.IsZero():
-		logger.Info("unpinned", "accounts", accounts)
+		logger.Info("unpinned", attrs...)
 	}
 	if !was.IsZero() || cleared > 0 {
-		r.emit(Unpinned{Accounts: was.Accounts, Force: force, By: by})
+		r.emit(Unpinned{Accounts: was.Accounts, Force: force, By: by, Pool: rd.pool})
 	}
+	return nil
 }
 
-// pinTo sets the global pin, as the sessions' setPin does, and tells the
-// state, which judges the pool's room by it, as repin says: one step, under
-// pinning, so no other change of the pin comes between the two. It returns
-// how many sessions had a pin of their own, cleared with force.
-func (r *Router) pinTo(pin status.Pin, force bool) (cleared int) {
+// repool has the router take up the pools as membership has just replaced
+// them: each pool's priming schedule worked out again, as the primer's
+// replan does, so none shows another's slots, and each pool's pin fitted to
+// them, as fitPins does, under pinning, so a pin never follows its accounts
+// into another pool, nor names one that has left its pool.
+func (r *Router) repool() {
+	if r.primer != nil {
+		r.primer.replan()
+	}
 	r.pinning.Lock()
 	defer r.pinning.Unlock()
-	cleared = r.sessions.setPin(pin, force)
-	r.state.repin(pin)
-	return cleared
+	r.fitPins(r.state.pools.current())
 }
 
-// clearPin clears the global pin, as the sessions' unpin does, and tells the
-// state, as pinTo does. It returns the pin as it was, and how many sessions
-// had a pin of their own, cleared with force.
-func (r *Router) clearPin(force bool) (was status.Pin, cleared int) {
-	r.pinning.Lock()
-	defer r.pinning.Unlock()
-	was, cleared = r.sessions.unpin(force)
-	r.state.repin(status.Pin{})
-	return was, cleared
+// fitPins fits each pool's pin to the pools as t has them, as the sessions'
+// fit does, tells the state, which judges each pool's room by its pin, as
+// repin says, and tells each pin the fit dropped whole as Unpinned, by the
+// router. t is read with pinning held, so a pin set against pools since
+// replaced is fitted, here or by the repool after them. r.pinning must be
+// held.
+func (r *Router) fitPins(t *poolTable) {
+	ps, gone := r.sessions.fit(t)
+	r.state.repin(ps)
+	for _, g := range gone {
+		r.emit(g.unpinned())
+	}
 }
 
 // pinSession sends the requests of the session with the given id to the
 // account with the given id from its next request on, passing over the pin it
 // was launched with, telling it as Pinned. It fails, saying why, for anyone
-// asking but ByCLI or ByDashboard, or for an account nothing can go out on,
-// and with ErrUnknownSession for a session the router hasn't seen, and then
-// tells nothing.
+// asking but ByCLI or ByDashboard, for an account nothing can go out on, or
+// one outside the session's pool, as sessionMay says, and with
+// ErrUnknownSession for a session the router hasn't seen, and then tells
+// nothing.
 func (r *Router) pinSession(id, account string, by By) error {
 	if err := by.check(); err != nil {
 		return err
 	}
-	if err := r.pinnable(account); err != nil {
+	t := r.state.pools.current()
+	in, seen := r.sessions.poolOf(id)
+	if !seen {
+		return unknownSession(id)
+	}
+	if err := r.pinnable(account, t.of(in)); err != nil {
+		return err
+	}
+	a, _ := r.accounts.byID(account)
+	if err := t.sessionMay(in, a); err != nil {
 		return err
 	}
 	if _, seen := r.sessions.pinSession(id, account); !seen {
 		return unknownSession(id)
 	}
-	logger.Info("pinned session", "session", status.ShortID(id), "account", account)
-	r.emit(Pinned{Account: account, Session: id, Dir: r.sessions.dir(id), By: by})
+	logger.Info("pinned session", append(poolSaid(t.of(in)), "session", status.ShortID(id), "account", account)...)
+	r.emit(Pinned{Account: account, Session: id, Dir: r.sessions.dir(id), By: by, Pool: t.of(in)})
 	return nil
 }
 
@@ -564,26 +750,29 @@ func (r *Router) pinSession(id, account string, by By) error {
 // request, telling it as Unpinned unless it had none. It fails with
 // ErrUnknownSession for a session the router hasn't seen.
 func (r *Router) unpinSession(id string, by By) error {
+	in, _ := r.sessions.poolOf(id)
 	was, seen := r.sessions.pinSession(id, "")
 	if !seen {
 		return unknownSession(id)
 	}
-	logger.Info("unpinned session", "session", status.ShortID(id))
+	pool := r.state.pools.current().of(in)
+	logger.Info("unpinned session", append(poolSaid(pool), "session", status.ShortID(id))...)
 	if was != "" {
-		r.emit(Unpinned{Account: was, Session: id, Dir: r.sessions.dir(id), By: by})
+		r.emit(Unpinned{Account: was, Session: id, Dir: r.sessions.dir(id), By: by, Pool: pool})
 	}
 	return nil
 }
 
 // pinnableAll returns the accounts with the given ids once each, in the order
-// configured, as the global pin names them. It fails, saying why, for none,
-// or unless requests can go out on each, as pinnable says.
-func (r *Router) pinnableAll(ids []string) ([]string, error) {
+// configured, as the pin of the pool with the given id names them. It fails,
+// saying why, for none, or unless requests can go out on each, as pinnable
+// says.
+func (r *Router) pinnableAll(ids []string, pool string) ([]string, error) {
 	if len(ids) == 0 {
 		return nil, errors.New(`give the accounts to pin, such as {"accounts": ["work"]}`)
 	}
 	for _, id := range ids {
-		if err := r.pinnable(id); err != nil {
+		if err := r.pinnable(id, pool); err != nil {
 			return nil, err
 		}
 	}
@@ -591,36 +780,48 @@ func (r *Router) pinnableAll(ids []string) ([]string, error) {
 }
 
 // pinnable fails, saying why, unless requests can go out on the account with
-// the given id, as a pin to it needs.
-func (r *Router) pinnable(id string) error {
+// the given id, as a pin to it in the pool with the given id needs: one
+// there's none of is refused naming those that can be pinned in that pool,
+// as pinnableIn has them, as run --account names a launch's pool's.
+func (r *Router) pinnable(id, pool string) error {
 	a, ok := r.accounts.byID(id)
 	switch {
 	case id == "":
 		return errors.New(`give the account to pin, such as {"account": "b6s7"}`)
 	case !ok:
-		return UnknownAccount(id, r.accounts.sendable().configured())
+		return UnknownAccount(id, r.pinnableIn(pool))
 	case !a.hasToken():
 		return fmt.Errorf("account %s has no usable token, so nothing can go out on it: %s", id, a.problem())
 	}
 	return nil
 }
 
+// pinnableIn returns the accounts that can be pinned in the pool with the
+// given id: those requests can go out on that it holds, as the pools stand
+// now; every one, for "", as of a config from before pools, or a pin whose
+// pool isn't known.
+func (r *Router) pinnableIn(pool string) config.Accounts {
+	sendable := r.accounts.sendable()
+	if pool == "" {
+		return sendable.configured()
+	}
+	t := r.state.pools.current()
+	return sendable.held(func(id string) bool { return t.holds(pool, id) }).configured()
+}
+
 // UnknownAccount says there's no account with the given id to pin, naming
 // the accounts that can be pinned instead, pinnable, those with a usable
-// token, each by its id and its label, as "pin b6s7 (Work) or q4tx (Side)",
-// one labelled by its id named once, or saying there are none: pin and run --account say it alike. It hides
-// anything in the id that looks like a token, as a token pasted where an id
-// goes would be.
+// token, each by its label and its id, as "pin Work (b6s7) or Side (q4tx)",
+// one labelled by its id named once, or saying there are none: pin and run
+// --account say it alike. It hides anything in the id that looks like a
+// token, as a token pasted where an id goes would be.
 func UnknownAccount(id string, pinnable config.Accounts) error {
 	if len(pinnable) == 0 {
 		return fmt.Errorf("there's no account %q, and no account has a usable token to pin", redact.Text(id))
 	}
 	named := make([]string, len(pinnable))
 	for i, a := range pinnable {
-		named[i] = prose.Clean(a.ID)
-		if label := status.ConfiguredName(a).Said(); !strings.EqualFold(label, named[i]) {
-			named[i] += " (" + label + ")"
-		}
+		named[i] = accountSaid(a)
 	}
 	return fmt.Errorf("there's no account %q: pin %s", redact.Text(id), prose.ListOr(named))
 }

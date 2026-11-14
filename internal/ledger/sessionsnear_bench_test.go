@@ -30,12 +30,12 @@ func BenchmarkTodaysSessionsAtHalfPastOne(b *testing.B) {
 	follower := w.follower()
 	b.Run("read whole", func(b *testing.B) {
 		for b.Loop() {
-			follower.Sessions(nil, eachWhole, nil)
+			follower.Sessions(nil, nil, eachWhole, nil)
 		}
 	})
 	b.Run("on yesterday's digest", func(b *testing.B) {
 		for b.Loop() {
-			follower.Sessions(nil, nil, nil)
+			follower.Sessions(nil, nil, nil, nil)
 		}
 	})
 }

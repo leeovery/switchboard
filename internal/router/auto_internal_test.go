@@ -93,11 +93,11 @@ func TestTheListingGlancesAtTheAccountsOnceForEachModel(t *testing.T) {
 		return family(model)
 	}
 	r.state.mu.Unlock()
-	r.state.glance(opus, start)
+	r.state.glance("", opus, start)
 	glance := looks
 
 	looks = 0
-	listed := r.running()
+	listed := r.running(r.state.everyAccount())
 	if want := 2 * glance; looks != want {
 		t.Errorf("listing three sessions of opus and haiku looked at the accounts %d times, want %d: a glance for each model", looks/glance, want/glance)
 	}

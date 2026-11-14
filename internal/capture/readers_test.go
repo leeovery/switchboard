@@ -104,6 +104,13 @@ func requestsOf(held []ledger.Held) []string {
 // as.
 func fileLedger(t *testing.T, r *records, now func() time.Time) *ledger.Follower {
 	t.Helper()
+	return ledger.NewFollower(filedState(t, r, now), now, r.caps, views.DigestVersion, slog.New(slog.DiscardHandler))
+}
+
+// filedState is a state directory of the test's own, holding the records'
+// lines that arrived by now, as the ledger files them.
+func filedState(t *testing.T, r *records, now func() time.Time) string {
+	t.Helper()
 	state := t.TempDir()
 	dir := ledger.Dir(state)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
@@ -120,7 +127,7 @@ func fileLedger(t *testing.T, r *records, now func() time.Time) *ledger.Follower
 			t.Fatal(err)
 		}
 	}
-	return ledger.NewFollower(state, now, r.caps, views.DigestVersion, slog.New(slog.DiscardHandler))
+	return state
 }
 
 func TestTheRecordsLedgerGivesTheDaysBeforeTodaysAsHeldAndTodaysSummarised(t *testing.T) {
@@ -185,6 +192,50 @@ func TestTheRecordsLedgerSummarisesTodayAsAFollowerOfItsFilesDoes(t *testing.T) 
 	want[0].Bytes = ledger.Bytes{}
 	if got := l.Days(readersNow); !reflect.DeepEqual(got, want) {
 		t.Errorf("Days(today) = %+v, want %+v, as a Follower of the records' files gives it", got, want)
+	}
+}
+
+// The records' ledger gives the summaries it holds of the days asked for,
+// and tells where one of them has lines but none, as a Follower of its
+// files, summarised alike, does: of two days ago, summarised, held; of
+// yesterday's lines and today's, summarised by none, untold; of a day of no
+// lines, and one after today, none needed.
+func TestTheRecordsLedgerTellsTheSummariesItHoldsAsAFollowerOfItsFilesDoes(t *testing.T) {
+	r := heldRecords(t)
+	now := func() time.Time { return readersNow }
+	twoDaysAgo := dayfile.DateOf(readersAt(-2, 12, 0, 0))
+	r.days = []ledger.Summary{{Version: 4, Day: twoDaysAgo}}
+	l, _, _ := r.readers(now)
+	state := filedState(t, r, now)
+	yesterday := readersAt(-1, 2, 0, 0)
+	ledger.Open(ledger.Dir(state), 400*24*time.Hour, func() time.Time { return yesterday }, ledger.HistoryIn(readings.Files(readings.Dir(state), slog.New(slog.DiscardHandler))),
+		r.caps, slog.New(slog.DiscardHandler)).SummariseEnded(yesterday)
+	follower := ledger.NewFollower(state, now, r.caps, views.DigestVersion, slog.New(slog.DiscardHandler))
+	dated := func(days []ledger.Summary) []string {
+		var dates []string
+		for _, s := range days {
+			dates = append(dates, s.Day)
+		}
+		return dates
+	}
+	tests := []struct {
+		name  string
+		dates []string
+		want  []string
+		told  bool
+	}{
+		{name: "a day summarised, asked twice, beside a day of no lines", dates: []string{twoDaysAgo, dayfile.DateOf(readersAt(-3, 12, 0, 0)), twoDaysAgo},
+			want: []string{twoDaysAgo}, told: true},
+		{name: "a day of lines summarised by none", dates: []string{twoDaysAgo, dayfile.DateOf(yesterday)}},
+		{name: "today", dates: []string{dayfile.DateOf(readersNow)}},
+		{name: "a day after today", dates: []string{dayfile.DateOf(readersAt(1, 12, 0, 0))}, told: true},
+	}
+	for _, tt := range tests {
+		got, told := l.DaysHeldOn(tt.dates)
+		followed, followerTold := follower.DaysHeldOn(tt.dates)
+		if !slices.Equal(dated(got), tt.want) || told != tt.told || !slices.Equal(dated(followed), tt.want) || followerTold != tt.told {
+			t.Errorf("%s: DaysHeldOn(%q) holds %q, %t, and a Follower %q, %t; want %q, %t", tt.name, tt.dates, dated(got), told, dated(followed), followerTold, tt.want, tt.told)
+		}
 	}
 }
 
@@ -296,8 +347,8 @@ func TestTheRecordsLedgerGivesTheSessionsAFollowerReadsAndHandsOnTheirDaysLines(
 
 	var took, wantTook []string
 	whole := func(string) ledger.Rest { return ledger.RestWhole }
-	got := l.Sessions([]string{sessionAsked}, whole, func(_ string, line ledger.Line) { took = append(took, line.Request) })
-	want := follower.Sessions([]string{sessionAsked}, whole, func(_ string, line ledger.Line) { wantTook = append(wantTook, line.Request) })
+	got := l.Sessions(nil, []string{sessionAsked}, whole, func(_ string, line ledger.Line) { took = append(took, line.Request) })
+	want := follower.Sessions(nil, []string{sessionAsked}, whole, func(_ string, line ledger.Line) { wantTook = append(wantTook, line.Request) })
 	ids := func(m map[string]ledger.SessionFrom) map[string][]string {
 		out := make(map[string][]string)
 		for id, from := range m {
@@ -321,7 +372,7 @@ func TestTheRecordsLedgerGivesTheSessionsAFollowerReadsAndHandsOnTheirDaysLines(
 	}
 
 	took = nil
-	if got := l.Sessions(nil, whole, func(_ string, line ledger.Line) { took = append(took, line.Request) }); len(got) != 2 {
+	if got := l.Sessions(nil, nil, whole, func(_ string, line ledger.Line) { took = append(took, line.Request) }); len(got) != 2 {
 		t.Errorf("Sessions(none) = %v, want today's two alone", ids(got))
 	}
 	slices.Sort(took)

@@ -542,6 +542,32 @@ func TestCapsAreTheReservesOfTheAccountsConfigured(t *testing.T) {
 	}
 }
 
+// Grounds are the same where every account's reserve is, one named with
+// none as one not named, the windows shared, and the first pool; any of them
+// changed, they differ.
+func TestGroundsAreTheSameWhereEveryCapAndTheFirstPoolAre(t *testing.T) {
+	was := ledger.Grounds{Caps: ledger.Caps{Reserves: map[string]float64{"work": 0.1, "personal": 0}, Shared: []string{"5h"}}, First: "b2n8"}
+	tests := []struct {
+		name string
+		now  ledger.Grounds
+		same bool
+	}{
+		{name: "alike", now: ledger.Grounds{Caps: ledger.Caps{Reserves: map[string]float64{"personal": 0, "work": 0.1}, Shared: []string{"5h"}}, First: "b2n8"}, same: true},
+		{name: "an account with no reserve added", now: ledger.Grounds{Caps: ledger.Caps{Reserves: map[string]float64{"work": 0.1, "personal": 0, "side": 0}, Shared: []string{"5h"}}, First: "b2n8"}, same: true},
+		{name: "an account with no reserve gone", now: ledger.Grounds{Caps: ledger.Caps{Reserves: map[string]float64{"work": 0.1}, Shared: []string{"5h"}}, First: "b2n8"}, same: true},
+		{name: "a reserve changed", now: ledger.Grounds{Caps: ledger.Caps{Reserves: map[string]float64{"work": 0.2, "personal": 0}, Shared: []string{"5h"}}, First: "b2n8"}},
+		{name: "a reserve given", now: ledger.Grounds{Caps: ledger.Caps{Reserves: map[string]float64{"work": 0.1, "personal": 0.05}, Shared: []string{"5h"}}, First: "b2n8"}},
+		{name: "an account with a reserve gone", now: ledger.Grounds{Caps: ledger.Caps{Reserves: map[string]float64{"personal": 0}, Shared: []string{"5h"}}, First: "b2n8"}},
+		{name: "another window shared", now: ledger.Grounds{Caps: ledger.Caps{Reserves: map[string]float64{"work": 0.1}, Shared: []string{"5h", "7d"}}, First: "b2n8"}},
+		{name: "another first pool", now: ledger.Grounds{Caps: ledger.Caps{Reserves: map[string]float64{"work": 0.1}, Shared: []string{"5h"}}, First: "q7mt"}},
+	}
+	for _, tt := range tests {
+		if got := tt.now.Same(was); got != tt.same {
+			t.Errorf("%s: Same() = %v, want %v", tt.name, got, tt.same)
+		}
+	}
+}
+
 func TestADaySummarisedAgainKnowsNoLessOfItsSessionsAndWindows(t *testing.T) {
 	limitAt, resets := on(0, 11, 30), on(0, 13, 0)
 	// The summary it replaces: of a session since lost with its lines, and
@@ -578,7 +604,7 @@ func TestAnAccountKeptFromASummaryOfVersionOneIsKeptAsItWasNeverRead(t *testing.
 		`"usage":{"input_tokens":10,"output_tokens":20}}],"sessions":1,"moved_on":0,"moved_off":0,"highest":{"5h":0.4}}`
 	work := strings.TrimSuffix(strings.TrimPrefix(versionOne(date, 2, 2, ""), `{"version":1,"day":"2026-10-05","lines":2,"accounts":[`), "]}")
 	held := `{"version":1,"day":"2026-10-05","lines":3,"accounts":[` + side + `,` + work + `]}`
-	want := `{"version":6,"day":"2026-10-05","lines":4,"accounts":[` + side + `,` + workDayJSON(windowsRead{}, on(0, 9, 0), on(0, 10, 0), on(0, 23, 59)) + `]}`
+	want := `{"version":7,"day":"2026-10-05","lines":4,"accounts":[` + side + `,` + workDayJSON(windowsRead{}, on(0, 9, 0), on(0, 10, 0), on(0, 23, 59)) + `]}`
 	for _, by := range []string{"the router", "a reader"} {
 		t.Run("by "+by, func(t *testing.T) {
 			state, dir, _ := stateDirs(t)
@@ -586,7 +612,7 @@ func TestAnAccountKeptFromASummaryOfVersionOneIsKeptAsItWasNeverRead(t *testing.
 			holdLines(t, dir, date, asked("1", on(0, 9, 0)), asked("2", on(0, 10, 0)), asked("3", on(0, 23, 59)))
 
 			if got := summaryAgain(t, by, state, dir, on(1, 11, 0), nil); got != want {
-				t.Errorf("the day's summary is\n%s\nwant one of version 6, side's day kept as version 1 gave it, what it never read absent\n%s", got, want)
+				t.Errorf("the day's summary is\n%s\nwant one of version 7, side's day kept as version 1 gave it, what it never read absent\n%s", got, want)
 			}
 		})
 	}

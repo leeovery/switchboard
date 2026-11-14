@@ -455,7 +455,7 @@ func TestALookupRestsAPageAsARawReadHasItOverAGeneratedLedger(t *testing.T) {
 			stands := g.standing()
 
 			for _, id := range generatedSessions {
-				lines := follower.SessionsOf([]string{id}, eachWhole, nil)[id].Lines
+				lines := follower.SessionsOf(nil, []string{id}, eachWhole, nil)[id].Lines
 				raw := requestsOf(lines)
 				from, base := pages[id], ""
 				if from.Base != nil {

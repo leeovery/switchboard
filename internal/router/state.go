@@ -243,7 +243,10 @@ func (l limit) admits(sent moment) bool {
 // counts. It's safe for concurrent use.
 type state struct {
 	accounts accounts
-	policy   score.Policy
+	// pools are the pools the accounts are in, which a choice's view is
+	// narrowed to the request's of.
+	pools  *membership
+	policy score.Policy
 	// family names the family of models a model belongs to.
 	family func(model string) string
 	now    func() time.Time
@@ -269,23 +272,27 @@ type state struct {
 	// limits counts the limits reached, each one's identity the count as it
 	// was reached, from 1 as the router starts.
 	limits int
-	// sizes holds each account's size, in Pro weeks, by its id, as sizes has
-	// them; and day is the pool's day rate, of its accounts' weeks' rises, as
-	// rose takes them in, over the time it had room, as judgeRoom judges it.
-	sizes map[string]float64
-	day   forecast.Day
+	// grouped are the pools each pool's demand is reckoned in, as regroup
+	// last found them; sizes holds each account's size, in Pro weeks, by its
+	// id, as sizesIn has them; and days holds each pool's day rate, by the
+	// pool's id, of its accounts' weeks' rises, as rose takes them in, over
+	// the time it had room, as judgeRooms judges it.
+	grouped *poolTable
+	sizes   map[string]float64
+	days    map[string]forecast.Day
 	// hold is the hold curve, of the answers' tokens by how long their
 	// sessions had been on their accounts, as answered takes them in, which
 	// the state file keeps.
 	hold forecast.Hold
-	// pin is the global pin, as the router last told it, as repin and
-	// recallPin have it: zero while there's none.
-	pin status.Pin
+	// pins are each pool's pin, as the router last told them, as repin and
+	// recallPins have them.
+	pins pins
 }
 
-func newState(accounts accounts, policy score.Policy, family func(string) string, now func() time.Time, changed, routine func()) *state {
+func newState(accounts accounts, pools *membership, policy score.Policy, family func(string) string, now func() time.Time, changed, routine func()) *state {
 	s := &state{
 		accounts: accounts,
+		pools:    pools,
 		policy:   policy,
 		family:   family,
 		now:      now,
@@ -294,8 +301,10 @@ func newState(accounts accounts, policy score.Policy, family func(string) string
 		history:  func([]readings.Reading) {},
 		usage:    make(map[string]*usage, len(accounts)),
 		seen:     make(map[string]map[string]bool),
-		sizes:    accounts.sizes(),
+		grouped:  pools.current(),
+		days:     make(map[string]forecast.Day),
 	}
+	s.sizes = s.sizesIn(s.grouped)
 	for _, a := range accounts {
 		s.usage[a.ID] = &usage{
 			windows:   make(map[string]quota.Window),
@@ -348,12 +357,14 @@ func (s *state) recordAnswer(id string, windows []quota.Window, sent moment, who
 // the answer to a request sent at sent, as its usage's take does, but those
 // of windows retired since, as unretire says; and, of a whole reading, as
 // whole says, retires each window every model shares it doesn't report, as
-// retire says. The pool's day rate takes in the rises it reads, as rose says,
-// and the pool is judged afresh for room, as judgeRoom says. It notes in the
-// log each window retired, and each back. It returns the windows that read
-// otherwise, and whether it took any, as its usage's take does, and whether a
-// window was retired or is back, which is news. s.mu must be held.
+// retire says. The day rate of the account's pool, as the pools are
+// regrouped first, takes in the rises it reads, as rose says, and the pools
+// are judged afresh for room, as judgeRooms says. It notes in the log each
+// window retired, and each back. It returns the windows that read otherwise,
+// and whether it took any, as its usage's take does, and whether a window was
+// retired or is back, which is news. s.mu must be held.
 func (s *state) take(id string, windows []quota.Window, at time.Time, sent moment, whole bool) (changed []quota.Window, took, news bool) {
+	s.regroup()
 	u := s.usage[id]
 	taken := s.mark()
 	counting, back := u.unretire(windows, sent)
@@ -365,7 +376,7 @@ func (s *state) take(id string, windows []quota.Window, at time.Time, sent momen
 	for key, rise := range risen {
 		s.rose(id, key, rise, at)
 	}
-	s.judgeRoom(s.weekHeld, s.pin.Accounts, at)
+	s.judgeRooms(s.weekHeld, s.pinnedIn, at)
 	for _, key := range back {
 		logger.Info("reports the window again", "account", id, "window", key)
 	}
@@ -1050,34 +1061,44 @@ func (u *usage) primeFailed(policy score.Policy) bool {
 	return u.probeErr != "" || len(windows) == 0 || len(policy.Lapsed(windows, u.ended)) > 0
 }
 
-// view returns what a choice of account for a request of model knows at now:
-// every account with a token, as it stands, with its reserve, the pace its
-// pressure window is being used at and its perishable window's recent rate,
-// which windows count the request, which accounts have no room for it whatever
-// their windows read, which of those refused it lately, and which limits hold
-// it back on the others. It notes in the log how the accounts' reserves hold
-// them back, as noteReserves says.
-func (s *state) view(model string, now time.Time) view {
+// view returns what a choice of account for a request of model, naming the
+// pool with the given id, "" for none, knows at now: the pool it's in, as
+// viewing has it, and every account in the pool with a token, as it stands,
+// with its reserve, the pace its pressure window is being used at and its
+// perishable window's recent rate, which windows count the request, which
+// accounts have no room for it whatever their windows read, which of those
+// refused it lately, and which limits hold it back on the others. It notes
+// in the log how the accounts' reserves hold them back, as noteReserves says.
+func (s *state) view(pool, model string, now time.Time) view {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.noteReserves(now)
-	return s.viewing(model, now)
+	return s.viewing(pool, model, now)
 }
 
 // glance returns what view does, noting nothing in the log: for saying where
 // a request would go without one being sent, which leaves the log to tell of
 // a reserve as a choice finds it.
-func (s *state) glance(model string, now time.Time) view {
+func (s *state) glance(pool, model string, now time.Time) view {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.viewing(model, now)
+	return s.viewing(pool, model, now)
 }
 
-// viewing returns what view does, but for noting anything. s.mu must be held.
-func (s *state) viewing(model string, now time.Time) view {
+// viewing returns what view does, but for noting anything. The pool is the
+// one named, else the first, as the pools stand as it reads them, whose
+// accounts are the only ones it knows: every choice is made from a view, so
+// none goes outside the pool, and none mixes two readings of the pools.
+// s.mu must be held.
+func (s *state) viewing(pool, model string, now time.Time) view {
 	family, applies := s.family(model), s.counting(model)
-	v := view{policy: s.policy, now: now, applies: applies}
+	pools := s.pools.current()
+	v := view{policy: s.policy, now: now, applies: applies, pool: pools.of(pool), apart: pools.apart()}
 	for _, a := range s.accounts {
+		if !pools.holds(v.pool, a.ID) {
+			continue
+		}
+		v.members = append(v.members, a.ID)
 		if !a.hasToken() {
 			continue
 		}
@@ -1332,51 +1353,75 @@ func startedAgain(held, kept quota.Window, at time.Time) quota.Window {
 	return kept
 }
 
-// document reports every account's usage as the router knows it, in the
-// order configured, with how each stands under pressure, the accounts pinned
-// spending their reserves, the best account to use next, where a new session
-// goes, as status.Best chooses it, the primary, and the pool's use, as demand
-// has it.
+// document is documentOf every account, as a config from before pools has
+// them, those given pinned.
 func (s *state) document(pinned ...string) status.Document {
+	return s.documentOf(s.everyAccount(), pinned)
+}
+
+// documentOf reports the usage of every account of the pool rd reads as the
+// router knows it, in the order configured, with how each stands under
+// pressure, the accounts pinned spending their reserves, the best of them to
+// use next, where a new session in the pool goes, as status.Best chooses it,
+// the pool's primary, and the pool's use, as demand has it, where the read
+// has a pool's, as demandOf says.
+func (s *state) documentOf(rd poolRead, pinned []string) status.Document {
 	now := s.now()
-	accounts := s.statuses(now, pinned)
-	return status.Document{
+	accounts := s.statuses(now, rd, pinned)
+	doc := status.Document{
 		GeneratedAt: now.UTC(),
 		Source:      status.SourceRouter,
 		Best:        status.Best(s.policy, accounts, pinned, now),
 		Primary:     status.PrimaryOf(accounts),
-		Demand:      s.demand(now),
 		Accounts:    accounts,
 	}
+	if pool, ok := rd.demandOf(); ok {
+		doc.Demand = s.demand(now, pool)
+	}
+	return doc
 }
 
-// statuses returns every account's status at now, with how it stands under
-// pressure, those pinned spending their reserves, and how fast its windows
-// have been used lately.
-func (s *state) statuses(now time.Time, pinned []string) []status.Account {
+// statuses returns the status at now of every account of the pool rd reads,
+// marked its primary where rd names one, with how it stands under pressure,
+// those pinned spending their reserves, and how fast its windows have been
+// used lately, the pools regrouped first, so an account that has moved pools
+// gives no rate it had in the pool before.
+func (s *state) statuses(now time.Time, rd poolRead, pinned []string) []status.Account {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	all := make([]status.Account, len(s.accounts))
-	for i, a := range s.accounts {
-		u := s.usage[a.ID]
-		all[i] = u.status(a, s.policy, now)
-		if a.hasToken() {
-			all[i].Pressure = u.pressure(a, s.policy, slices.Contains(pinned, a.ID), now)
-			all[i].Rates = u.rates(now)
+	s.regroup()
+	all := []status.Account{}
+	for _, a := range s.accounts {
+		if !rd.holds(a.ID) {
+			continue
 		}
+		u := s.usage[a.ID]
+		st := u.status(a, s.policy, now)
+		if primary, known := rd.primary(a.ID); known {
+			st.Primary = primary
+		}
+		if a.hasToken() {
+			st.Pressure = u.pressure(a, s.policy, slices.Contains(pinned, a.ID), now)
+			st.Rates = u.rates(now)
+		}
+		all = append(all, st)
 	}
 	return all
 }
 
 // standings returns how every account with a token stands at now, in the
-// order configured.
+// order configured, each knowing its pool, as the pools stand, and the
+// label a notification names it by.
 func (s *state) standings(now time.Time) standings {
+	pools := s.pools.current()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	var all standings
 	for _, a := range s.accounts {
 		if a.hasToken() {
-			all = append(all, s.usage[a.ID].standing(a, s.policy, now))
+			st := s.usage[a.ID].standing(a, s.policy, now)
+			st.in, st.pool = pools.poolOf[a.ID], pools.named(a.ID)
+			all = append(all, st)
 		}
 	}
 	return all

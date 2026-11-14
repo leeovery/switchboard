@@ -172,30 +172,41 @@ func TestHistoryJSONGivesEachWeeksPeaksAndTheCapacity(t *testing.T) {
 
 // History's JSON gives each account removed that its days name by its id,
 // the label it showed last and when it was removed, as the accounts record
-// keeps them.
+// keeps them, of the days from the pool's first work, 4 October: one that
+// only a day before it names, none.
 func TestHistoryJSONGivesTheAccountsRemovedItsDaysName(t *testing.T) {
-	deps, _ := ledgerDeps(t)
-	state := stateDir(t, deps)
-	day, err := json.Marshal(ledger.Summary{Version: 2, Day: "2026-09-21", Accounts: []ledger.AccountDay{{Account: "h7c2", SessionIDs: []string{}}}})
-	if err != nil {
-		t.Fatal(err)
+	tests := []struct {
+		name, day, removed, want string
+	}{
+		{name: "named on a day of the pool's work", day: "2026-10-05", removed: "2026-10-05T16:00:00Z", want: `[{"id":"h7c2","label":"team","removed":"2026-10-05T16:00:00Z"}]`},
+		{name: "named only before the pool's first work", day: "2026-09-21", removed: "2026-09-25T16:00:00Z", want: `[]`},
 	}
-	writeStateFile(t, ledger.Dir(state), "day-2026-09-21.json", append(day, '\n'))
-	writeStateFile(t, state, "accounts.json", []byte(`{"version":1,"accounts":[`+
-		`{"id":"h7c2","label":"team","added":"2026-08-01T09:00:00Z","removed":"2026-09-25T16:00:00Z"},`+
-		`{"id":"k3f9","label":"spare","added":"2026-08-01T09:00:00Z","removed":"2026-08-02T16:00:00Z"}]}`+"\n"))
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			deps, _ := ledgerDeps(t)
+			state := stateDir(t, deps)
+			day, err := json.Marshal(ledger.Summary{Version: 2, Day: tt.day, Accounts: []ledger.AccountDay{{Account: "h7c2", SessionIDs: []string{}}}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			writeStateFile(t, ledger.Dir(state), "day-"+tt.day+".json", append(day, '\n'))
+			writeStateFile(t, state, "accounts.json", []byte(`{"version":1,"accounts":[`+
+				`{"id":"h7c2","label":"team","added":"2026-08-01T09:00:00Z","removed":"`+tt.removed+`"},`+
+				`{"id":"k3f9","label":"spare","added":"2026-08-01T09:00:00Z","removed":"2026-08-02T16:00:00Z"}]}`+"\n"))
+			markMoved(t, state)
 
-	got := run(t, deps, "history", "--json", "--since", "2026-09-14")
-	var doc struct {
-		Removed json.RawMessage `json:"removed"`
-	}
-	if err := json.Unmarshal([]byte(got.stdout), &doc); err != nil || got.code != 0 {
-		t.Fatalf("switchboard history --json = %+v (%v), want the blocks", got, err)
-	}
-	want := `[{"id":"h7c2","label":"team","removed":"2026-09-25T16:00:00Z"}]`
-	var compact bytes.Buffer
-	if err := json.Compact(&compact, doc.Removed); err != nil || compact.String() != want {
-		t.Errorf("switchboard history --json gives the accounts removed\n%s (%v)\nwant\n%s", compact.String(), err, want)
+			got := run(t, deps, "history", "--json", "--since", "2026-09-14")
+			var doc struct {
+				Removed json.RawMessage `json:"removed"`
+			}
+			if err := json.Unmarshal([]byte(got.stdout), &doc); err != nil || got.code != 0 {
+				t.Fatalf("switchboard history --json = %+v (%v), want the blocks", got, err)
+			}
+			var compact bytes.Buffer
+			if err := json.Compact(&compact, doc.Removed); err != nil || compact.String() != tt.want {
+				t.Errorf("switchboard history --json gives the accounts removed\n%s (%v)\nwant\n%s", compact.String(), err, tt.want)
+			}
+		})
 	}
 }
 

@@ -84,6 +84,9 @@ type LogEventSources struct {
 	// Names name a window by its key, as the moment's NameOf does: nil names
 	// it as status.NameOfKey does.
 	Names func(key string) string
+	// PoolNamed labels a pool by its id where there are several, as
+	// Telling's NamingPools has it: nil where there are one or none.
+	PoolNamed func(id string) string
 	// Totals are the figures of the days it spans, as LogSources' are, which
 	// its day rules say; and Oldest the oldest day the ledger keeps, as
 	// LogSources' is, which its oldest day's line says where it reaches it.
@@ -155,7 +158,7 @@ func LogEvents(src LogEventSources) EventsTable {
 	if whole := src.Read.wholeFrom(); whole.Start.After(first.Start) {
 		first = whole
 	}
-	telling, held := NewTelling(src.Names), src.Held.at(src.Now)
+	telling, held := NewTelling(src.Names).NamingPools(src.PoolNamed), src.Held.at(src.Now)
 	table := EventsTable{names: src.Names, filed: src.Filed, first: first}
 	for _, e := range src.Events.Events() {
 		line, fact := telling.tell(e.Event, src.Now)

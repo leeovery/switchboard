@@ -56,6 +56,10 @@ type Line struct {
 	Session string `json:"session,omitempty"`
 	Dir     string `json:"dir,omitempty"`
 	Model   string `json:"model,omitempty"`
+	// Pool is the id of the pool the request was routed in, as it was at the
+	// time, as an account's pool can change and the config keeps no history
+	// of it: none where the request named none, as none did before pools.
+	Pool string `json:"pool,omitempty"`
 	// Account is the account whose answer the client got, none where the
 	// router answered it itself, and Reason why it was chosen, in the words
 	// the routed line uses.
@@ -309,7 +313,7 @@ func (l *Line) written() *Line {
 	w := *l
 	w.At = l.At.UTC().Truncate(time.Millisecond)
 	w.Request, w.Kind, w.Session, w.Model = cut(l.Request), cut(l.Kind), cut(l.Session), cut(l.Model)
-	w.Dir = LineDir(l.Dir)
+	w.Dir, w.Pool = LineDir(l.Dir), cut(l.Pool)
 	w.Account, w.Reason, w.From, w.Agent = cut(l.Account), cut(l.Reason), cut(l.From), cut(l.Agent)
 	w.Tried = cutAll(l.Tried, func(t Tried) Tried { return Tried{Account: cut(t.Account), Why: cut(t.Why)} })
 	w.Betas = cutAll(l.Betas, cut)

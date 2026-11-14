@@ -100,6 +100,12 @@ type Prober interface {
 type Config struct {
 	// Accounts are the configured accounts, in the order they're shown.
 	Accounts config.Accounts
+	// Pools are the pools the accounts are in, as the config the router
+	// started from has them: none in a config from before pools. Each request
+	// is routed within its pool, as the accounts' pools say, which the router
+	// takes up afresh, with the pools, once the config file makes others,
+	// without waiting for the restart.
+	Pools config.Pools
 	// Token reads an account's token, by the account's id, from its file: as
 	// the router starts, again every so often while Run runs, and whenever
 	// the upstream refuses the token it has, which may have been replaced
@@ -115,6 +121,13 @@ type Config struct {
 	// before then pins its account by that id for as long as it runs, which
 	// the router takes for the account's id now. Nil knows of none.
 	Formerly func(id string) (string, bool)
+	// Unhealed is why the config couldn't be healed as the router started,
+	// its accounts' ids or its pools, as serve heals it before it reads it:
+	// nil where it was, or needn't be. The router tells of it; where the move
+	// to pools is done and the config it starts on names none, it tries
+	// again, as it tells of and tries a heal of its own, and else no heal
+	// follows till one is needed.
+	Unhealed error
 	// Upstream is the API's base URL, such as https://api.anthropic.com.
 	Upstream string
 	Provider Provider
@@ -243,6 +256,12 @@ type Config struct {
 	// rest beside it, again a minute after it fails, until it's done, and its
 	// status says it's moving the history meanwhile. Nil moves nothing.
 	Move Mover
+	// PoolMove moves the history to pools, where that's owed, once Move's
+	// move is done: beside the router, again a minute after it fails, or
+	// while it waits for the router to take up the first pool, until it's
+	// done, its status saying it's moving the history meanwhile. Nil moves
+	// nothing.
+	PoolMove PoolMover
 }
 
 // Router is switchboard's router: the proxy, the scheduler that chooses the
@@ -260,9 +279,9 @@ type Router struct {
 	accounts accounts
 	state    *state
 	sessions *sessions
-	// pinning is held across each change of the global pin and its telling
+	// pinning is held across each change of a pool's pin and its telling
 	// the state, so no other change comes between them, and the state's copy
-	// is the pin the sessions hold.
+	// is the pins the sessions hold.
 	pinning sync.Mutex
 	// scheduler is the proxy's chooser, which also says where it would send
 	// each session's next request, as the sessions are listed.
@@ -297,7 +316,7 @@ type Router struct {
 	// exports export the history into the folder the config names.
 	exports *exports
 	// moving moves the accounts and their history onto the ids switchboard
-	// makes, where that's owed.
+	// makes, then the history to pools, where each is owed.
 	moving *moving
 	// notifications is nil when the router posts none.
 	notifications *notifications
@@ -325,7 +344,9 @@ func New(cfg Config) (*Router, error) {
 		return nil, fmt.Errorf("upstream: %w", err)
 	}
 	changes := newChanges()
-	state := newState(accounts, cfg.Policy, cfg.Provider.Family, cfg.Now, changes.note, changes.routine)
+	pools := newMembership(recordIn(cfg.StateDir), movedIn(cfg.StateDir), func(id string) string { return accounts.idNow(cfg.Formerly, id) }, cfg.HomeDir)
+	pools.follow(cfg.Accounts, cfg.Pools)
+	state := newState(accounts, pools, cfg.Policy, cfg.Provider.Family, cfg.Now, changes.note, changes.routine)
 	history := newHistory(cfg.History, cfg.Now)
 	state.history = history.note
 	sessions := newSessions(cfg.Now, changes.note, changes.routine)
@@ -341,10 +362,11 @@ func New(cfg Config) (*Router, error) {
 	}
 	emit := hearing(listeners...)
 	transport := newPool()
-	moving := newMoving(cfg.Move)
-	organizations := organizations{record: identity.NewFile(cfg.StateDir), owed: moving.owed}
+	moving := newMoving(cfg.Move, cfg.PoolMove)
+	organizations := organizations{record: identity.NewFile(cfg.StateDir), owed: moving.idsOwed}
 	probes := newProbes(cfg.Prober, transport, state, organizations, changes.note, cfg.Now, emit)
 	health := newHealth(cfg.Now, emit)
+	health.closed = func() string { return pools.current().closed }
 	recent.judge = health.look
 	scheduler := &scheduler{
 		accounts: accounts, state: state, sessions: sessions, probes: probes,
@@ -370,7 +392,7 @@ func New(cfg Config) (*Router, error) {
 		recent:    recent,
 		emit:      emit,
 		stream:    stream,
-		file:      newStateFile(cfg.Now, changes, sessions, accounts, state, told),
+		file:      newStateFile(cfg.Now, changes, sessions, accounts, state, told, pools.heirs(cfg.Accounts, cfg.Pools)),
 		history:   history,
 		ledger:    requests,
 		imports:   newImports(),
@@ -386,6 +408,7 @@ func New(cfg Config) (*Router, error) {
 			formerly:       cfg.Formerly,
 			tokensReplaced: changes.note,
 			state:          state,
+			pools:          pools,
 			provider:       cfg.Provider,
 			chooser:        scheduler,
 			health:         health,
@@ -402,8 +425,10 @@ func New(cfg Config) (*Router, error) {
 		notifications: notices,
 		started:       cfg.Now().UTC(),
 	}
+	pools.swapped = r.repool
+	r.file.emit = emit
 	r.exports = newExports(cfg, r.tendHistory, r.restartComing, r.moving.owed)
-	r.upkeep = newUpkeep(cfg, accounts, state, changes, primer, inFlight, awake, r.exports, newAccountsRecord(cfg, accounts, moving.owed), emit)
+	r.upkeep = newUpkeep(cfg, accounts, state, changes, primer, inFlight, awake, r.exports, newAccountsRecord(cfg, accounts, moving.idsOwed), emit)
 	return r, nil
 }
 
@@ -444,14 +469,27 @@ func (r *Router) Proxy() http.Handler {
 	return r.inFlight.count(r.proxy)
 }
 
-// Status reports every account's usage as the router knows it, with how many
-// sessions each has, and all have, the best account to use next, the priming
-// schedule, with when it next primes each account, the global pin, the
-// router's own health, a restart it has due, what has happened lately, and,
-// worked out of all that once it's set, as WorkedOut says, each window's even
-// pace and allowance, the pool and what's coming up.
+// Status reports the usage of every account of a pool as the router knows
+// it, with how many of the pool's sessions each has, and all have, the best
+// account to use next, the priming schedule, with when it next primes each
+// account, the pool's pin, the router's own health, a restart it has due,
+// what has happened lately, and, worked out of all that once it's set, as
+// WorkedOut says, each window's even pace and allowance, the pool's room and
+// what's coming up: of the pool GET /status answers for asking for none,
+// else, where every pool is fenced, of the first, where a request naming none
+// is routed.
 func (r *Router) Status() status.Document {
-	return r.assembled().WorkedOut(r.cfg.Policy)
+	t := r.state.pools.current()
+	pool, err := t.asked("")
+	if err != nil {
+		pool = t.of("")
+	}
+	return r.statusOf(r.state.poolReadOf(t, pool))
+}
+
+// statusOf is the status document of the pool rd reads, as Status gives it.
+func (r *Router) statusOf(rd poolRead) status.Document {
+	return r.assembled(rd).WorkedOut(r.cfg.Policy)
 }
 
 // accountStatus reports the status of the account with the given id as Status
@@ -459,26 +497,29 @@ func (r *Router) Status() status.Document {
 // out the pool or what's coming up, which it doesn't need: a session's
 // account is asked for every few seconds, as a statusline shows it.
 func (r *Router) accountStatus(id string) status.Account {
-	a, _ := r.assembled().AccountWorkedOut(id, r.cfg.Policy)
+	a, _ := r.assembled(r.state.everyAccount()).AccountWorkedOut(id, r.cfg.Policy)
 	return a
 }
 
-// assembled is the document Status gives, but for what's worked out of it.
-func (r *Router) assembled() status.Document {
+// assembled is the document of the pool rd reads, as Status gives it, but
+// for what's worked out of it. The router's health, its restart, its moves,
+// its export, its priming and the events that name no pool are every pool's.
+func (r *Router) assembled(rd poolRead) status.Document {
 	now := r.cfg.Now()
-	pin := r.sessions.globalPin()
-	doc := r.state.document(pin.Accounts...)
+	pin := rd.pin(r.sessions.pinsNow(), r.accounts)
+	doc := r.state.documentOf(rd, pin.Accounts)
+	doc.PoolID, doc.PoolLabel = rd.named()
 	doc.Pin = pin
 	doc.Router = r.health.report()
 	doc.Restart = r.upkeep.restartDue()
 	doc.Moving = r.moving.report()
 	doc.Export = r.exports.report()
-	doc.Events = r.recent.events()
+	doc.Events, doc.EventsKept = rd.events(r.recent.keptWithIDs())
 	if r.primer != nil {
-		doc.Prime = r.primer.report(now)
+		doc.Prime = r.primer.report(now, rd.routes)
 	}
 	var byAccount map[string]int
-	byAccount, doc.Sessions = r.sessions.active(now)
+	byAccount, doc.Sessions = r.sessions.active(now, rd.routes)
 	for i, a := range doc.Accounts {
 		doc.Accounts[i].Sessions = byAccount[a.ID]
 	}

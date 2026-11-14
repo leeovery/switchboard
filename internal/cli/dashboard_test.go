@@ -92,7 +92,7 @@ func TestDashboardHelpSaysWhatTheKeysWordsDont(t *testing.T) {
 	got := run(t, testDeps(nil, t.TempDir()), "dashboard", "--help")
 	help := strings.Join(strings.Fields(got.stdout), " ")
 	tests := []struct{ page, next, says string }{
-		{page: "every page", next: "Overview:", says: "t and p work where they apply: t not under NO_COLOR, and p neither with one account"},
+		{page: "every page", next: "Overview:", says: "t, p and P work where they apply: t not under NO_COLOR, p neither with one account"},
 		{page: "every page", next: "Overview:", says: "nor with --probe"},
 		{page: "every page", next: "Overview:", says: "j, k, PgDn, PgUp and the wheel scroll a view where it doesn't fit: the Overview's USAGE"},
 		{page: "every page", next: "Overview:", says: "Runway's lanes, Graphs' page, the Log's table"},

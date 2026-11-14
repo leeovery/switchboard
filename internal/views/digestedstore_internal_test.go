@@ -32,12 +32,12 @@ func takingDates(l Ledger) datesTaken {
 	return datesTaken{Ledger: l, dates: make(map[string]bool), parts: make(map[string][]string)}
 }
 
-func (c datesTaken) Sessions(ids []string, rest func(string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
-	return c.gave(c.Ledger.Sessions(ids, rest, c.taking(take)))
+func (c datesTaken) Sessions(in ledger.RoutedIn, ids []string, rest func(string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
+	return c.gave(c.Ledger.Sessions(in, ids, rest, c.taking(take)))
 }
 
-func (c datesTaken) SessionsOf(ids []string, rest func(string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
-	return c.gave(c.Ledger.SessionsOf(ids, rest, c.taking(take)))
+func (c datesTaken) SessionsOf(in ledger.RoutedIn, ids []string, rest func(string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
+	return c.gave(c.Ledger.SessionsOf(in, ids, rest, c.taking(take)))
 }
 
 // gave is sessions, as a read gave them, the dates of each one's chain of
@@ -96,6 +96,14 @@ type nineDays struct {
 // each rests on its state of the day before that.
 func newNineDays(t *testing.T, ids []string, leftOut ...string) nineDays {
 	t.Helper()
+	return newRoutedNineDays(t, ids, func(*ledger.Line, int) {}, leftOut...)
+}
+
+// newRoutedNineDays returns the nine days as newNineDays has them, each
+// line as route has it of its day, recording the pool it routes it in, the
+// nine days the first nine, the day after them the tenth.
+func newRoutedNineDays(t *testing.T, ids []string, route func(l *ledger.Line, day int), leftOut ...string) nineDays {
+	t.Helper()
 	first, today := Today(foldDays[0]), Today(dayfile.DayStart(foldDays[0], 9))
 	var lines []ledger.Line
 	for i, id := range ids {
@@ -105,9 +113,10 @@ func newNineDays(t *testing.T, ids []string, leftOut ...string) nineDays {
 		lines = append(lines, dayAfterDay(session, 9)...)
 		lines = append(lines, early)
 	}
-	r := rand.New(rand.NewPCG(9, 9))
+	r, dates := rand.New(rand.NewPCG(9, 9)), dayfile.Span(first.Start, today.Start)
 	for i := range lines {
 		limitedOf(&lines[i], r, time.Time{})
+		route(&lines[i], slices.Index(dates, dayfile.DateOf(lines[i].At)))
 	}
 	slices.SortStableFunc(lines, func(a, b ledger.Line) int { return ended(&a).Compare(ended(&b)) })
 	c := newDigestChain(t, "nine days", 0, lines)
@@ -152,7 +161,7 @@ func TestAListOverDigestsReadsTheNearDaysFilesAlone(t *testing.T) {
 	ids := []string{"a", "b", "c"}
 	n := newNineDays(t, ids)
 	yesterday := yesterdayOf(n.today)
-	for id, from := range n.follower(DigestVersion).SessionsOf(ids, nil, nil) {
+	for id, from := range n.follower(DigestVersion).SessionsOf(nil, ids, nil, nil) {
 		if from.Base == nil || from.Base.Date != yesterday {
 			t.Fatalf("session %s rests on %+v, want its state at the end of %s", id, from.Base, yesterday)
 		}

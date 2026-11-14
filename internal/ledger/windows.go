@@ -38,6 +38,24 @@ func CapsOf(accounts []config.Account, shared []string) Caps {
 	return Caps{Reserves: reserves, Shared: shared}
 }
 
+// Same reports whether c and d put every account's cap in the same place:
+// each account's reserve the same, an account one names and the other
+// doesn't with none, as it has no cap either way, and the same windows
+// shared.
+func (c Caps) Same(d Caps) bool {
+	for id, reserve := range c.Reserves {
+		if d.Reserves[id] != reserve {
+			return false
+		}
+	}
+	for id, reserve := range d.Reserves {
+		if c.Reserves[id] != reserve {
+			return false
+		}
+	}
+	return slices.Equal(c.Shared, d.Shared)
+}
+
 // windowDay is how a window of an account went through a day, as it's
 // summarised from its readings, taken in the order they came, each standing
 // from when it was read until the next, its reset, or until, where the day

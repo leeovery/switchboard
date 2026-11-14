@@ -9,6 +9,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/notify"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
@@ -23,13 +24,23 @@ const maxMessage = 100
 // the hash of the token whose year its status gives, "" where it gives none;
 // whether its quota leaves it room for a request of any model, which is known
 // once its usage has been read or a limit has barred it, and the keys of the
-// windows that leave it none, where it has none; and whether its token was
-// refused too lately for anything to go out on it.
+// windows that leave it none, where it has none; whether its token was
+// refused too lately for anything to go out on it; the id of its pool, ""
+// in a config without pools; and the label of its pool, as a notification
+// of it names the pool once there's a second, "" till then.
 type standing struct {
 	status.Account
 	yearOf                string
 	quota, known, refused bool
 	held                  []string
+	in, pool              string
+}
+
+// led is what a notification of the account says, led by its pool's label,
+// as prose.PoolLed has it: as it is with one pool, as the dashboard's own
+// notifications are.
+func (s standing) led(said string) string {
+	return prose.PoolLed(s.pool, said)
 }
 
 // windowName names the account's window with the given key as a sentence
@@ -64,12 +75,18 @@ func (ss standings) title(id string) string {
 	return id
 }
 
-// fullBut reports whether no account but the one with the given id has room
-// for a request of any model, as far as anyone knows: one whose quota isn't
-// known might have some, unless its token is refused.
+// fullBut reports whether no account of the pool of the one with the given
+// id, but that one, has room for a request of any model, as far as anyone
+// knows: one whose quota isn't known might have some, unless its token is
+// refused. Another pool's room can't serve the pool's sessions, so it's
+// never counted; but where the account has left the standings, its pool
+// unknown, every other account's is, so none is said to have no room for
+// want of knowing.
 func (ss standings) fullBut(id string) bool {
+	limited, found := ss.of(id)
 	return !slices.ContainsFunc(ss, func(s standing) bool {
-		return s.ID != id && !s.refused && (s.quota || !s.known)
+		inPool := !found || config.SamePool(s.in, limited.in)
+		return s.ID != id && inPool && !s.refused && (s.quota || !s.known)
 	})
 }
 
@@ -227,7 +244,7 @@ func (g *gathering) notice(accounts standings, now time.Time) notify.Notice {
 	if g.Until.After(now) {
 		text.back = prose.Clock(now, g.Until)
 	}
-	message := func() string { return accounts.title(g.Account) + " " + text.say(accounts.title) }
+	message := func() string { return limited.led(accounts.title(g.Account) + " " + text.say(accounts.title)) }
 	if utf8.RuneCountInString(message()) > maxMessage {
 		text.back = ""
 	}
@@ -276,14 +293,15 @@ func (t limitText) say(name func(id string) string) string {
 // setup makes a new token, as Accounts tells it.
 func yearNotice(s standing, now time.Time) notify.Notice {
 	ending := s.TokenYear().Ending(now)
-	return notify.Notice{Account: s.ID, News: prose.TokenSaid(ending.News()), Message: s.Title() + ": " + prose.TokenSaid(ending.Told())}
+	return notify.Notice{Account: s.ID, News: prose.TokenSaid(ending.News()), Message: s.led(s.Title() + ": " + prose.TokenSaid(ending.Told()))}
 }
 
 // moveNotice is the notification of a session's move, which is about the
-// account the session left.
+// account the session left, led by its pool's label, as led has it.
 func moveNotice(e Moved, accounts standings) notify.Notice {
 	say := func(name func(id string) string) string {
 		return fmt.Sprintf("session %s moved from %s to %s (%s)", status.ShortID(e.Session), name(e.From), name(e.To), e.Reason)
 	}
-	return notify.Notice{Account: e.From, News: say(byID), Message: say(accounts.title)}
+	from, _ := accounts.of(e.From)
+	return notify.Notice{Account: e.From, News: say(byID), Message: from.led(say(accounts.title))}
 }

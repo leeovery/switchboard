@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -28,7 +29,13 @@ var importedOn = time.Date(2026, 9, 28, 13, 12, 0, 0, time.UTC)
 // first round is done.
 func runningLedger(t *testing.T) *Ledger {
 	t.Helper()
-	l := Open(t.TempDir(), 365*24*time.Hour, func() time.Time { return importedOn }, &asking{}, Caps{}, logs.For("router"))
+	return runningLedgerOf(t, &asking{})
+}
+
+// runningLedgerOf is runningLedger, its days summarised with history.
+func runningLedgerOf(t *testing.T, history History) *Ledger {
+	t.Helper()
+	l := Open(t.TempDir(), 365*24*time.Hour, func() time.Time { return importedOn }, history, Caps{}, logs.For("router"))
 	ctx, cancel := context.WithCancel(t.Context())
 	done := make(chan struct{})
 	go func() {
@@ -66,7 +73,7 @@ func staged(t *testing.T) StagedDay {
 		t.Fatal(err)
 	}
 	day := StagedDay{Date: date, Lines: filepath.Join(dir, "requests-"+date+".jsonl.gz"), Summary: SummaryFile(dir, date)}
-	for path, data := range map[string][]byte{day.Lines: lines.Bytes(), day.Summary: []byte(`{"version":6,"day":"` + date + `","lines":1}` + "\n")} {
+	for path, data := range map[string][]byte{day.Lines: lines.Bytes(), day.Summary: []byte(`{"version":7,"day":"` + date + `","lines":1}` + "\n")} {
 		if err := os.WriteFile(path, data, 0o600); err != nil {
 			t.Fatal(err)
 		}
@@ -98,6 +105,14 @@ func inRound(t *testing.T, l *Ledger, day StagedDay) (imported <-chan error, can
 		_, err := l.Import(ctx, day)
 		answered <- err
 	}()
+	linesTakenIn(t, l, day)
+	return answered, cancel, endRound
+}
+
+// linesTakenIn returns once l holds the day's lines, failing the test where
+// it doesn't within a few seconds.
+func linesTakenIn(t *testing.T, l *Ledger, day StagedDay) {
+	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
 	for lines, _ := holding(l, day); !lines; lines, _ = holding(l, day) {
 		if time.Now().After(deadline) {
@@ -105,7 +120,6 @@ func inRound(t *testing.T, l *Ledger, day StagedDay) (imported <-chan error, can
 		}
 		time.Sleep(5 * time.Millisecond)
 	}
-	return answered, cancel, endRound
 }
 
 func TestADaysSummaryIsCopiedInOnlyOnceARoundUnderWayIsDone(t *testing.T) {
@@ -125,6 +139,71 @@ func TestADaysSummaryIsCopiedInOnlyOnceARoundUnderWayIsDone(t *testing.T) {
 	}
 	if _, summary := holding(l, day); !summary {
 		t.Error("once the round was done and the day taken in, the ledger holds no summary of it, want the one staged")
+	}
+}
+
+// listingHeld is a readings history of none whose listing, once holding is
+// set, waits until let is closed, closing held as it starts to: so a round
+// summarising before the history's prune, which lists it first, holds the
+// ledger's summaries with its listing of the ledger's own days still to come.
+type listingHeld struct {
+	asking
+	holding   atomic.Bool
+	held, let chan struct{}
+}
+
+func (h *listingHeld) Dates() ([]string, error) {
+	if h.holding.CompareAndSwap(true, false) {
+		close(h.held)
+		<-h.let
+	}
+	return nil, nil
+}
+
+func TestADaySummarisedFromItsLinesBetweenTheirTakeAndTheLookAtItsSummaryKeepsThatSummary(t *testing.T) {
+	logstest.Capture(t)
+	history := &listingHeld{held: make(chan struct{}), let: make(chan struct{})}
+	l := runningLedgerOf(t, history)
+	letGo := sync.OnceFunc(func() { close(history.let) })
+	t.Cleanup(letGo)
+	day := staged(t)
+	stagedSummary, err := os.ReadFile(day.Summary)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// An import doesn't hold the readings history's writer off: its round,
+	// summarising before its prune, as on its first round as the router
+	// starts and on its first of each day, holds the summaries as the day's
+	// lines are taken in, then finds them.
+	history.holding.Store(true)
+	rounded := make(chan struct{})
+	go func() {
+		defer close(rounded)
+		l.SummariseBeforePrune(importedOn, 400*24*time.Hour)
+	}()
+	select {
+	case <-history.held:
+	case <-time.After(5 * time.Second):
+		t.Fatal("gave up waiting for the round to list the readings history")
+	}
+	type answer struct {
+		imported ImportedDay
+		err      error
+	}
+	answered := make(chan answer, 1)
+	go func() {
+		imported, err := l.Import(t.Context(), day)
+		answered <- answer{imported, err}
+	}()
+	linesTakenIn(t, l, day)
+	letGo()
+	<-rounded
+
+	if got := <-answered; got.err != nil || got.imported.Summary {
+		t.Errorf("Import() = %+v, %v; want no summary copied in: the round's, of the day's lines just taken in, loses no request", got.imported, got.err)
+	}
+	if held, err := l.days.held(day.Date); err != nil || held.Lines != 1 || string(held.written) == string(stagedSummary) {
+		t.Errorf("once imported, the ledger's summary of the day holds %q (%v); want the round's, of its line, standing against the one staged, %q", held.written, err, stagedSummary)
 	}
 }
 
@@ -212,11 +291,11 @@ func TestASummaryGivesWayWhereItsNoneOrOfTheReadingsAloneAndTheOneStagedCountsAL
 	}{
 		{name: "none", staged: 2, want: true},
 		{name: "none, against one staged of the readings alone", want: true},
-		{name: "one of the readings alone", summary: `{"version":6,"day":"` + date + `","lines":0}` + "\n", staged: 2, want: true},
-		{name: "one of the readings alone, against another", summary: `{"version":6,"day":"` + date + `","lines":0}` + "\n"},
-		{name: "one counting a line", summary: `{"version":6,"day":"` + date + `","lines":3}` + "\n", staged: 5},
-		{name: "one cut short, which may have counted some", summary: `{"version":6,"day":"` + date + `","li`, staged: 2},
-		{name: "one of another day", summary: `{"version":6,"day":"2026-09-17","lines":0}` + "\n", staged: 2},
+		{name: "one of the readings alone", summary: `{"version":7,"day":"` + date + `","lines":0}` + "\n", staged: 2, want: true},
+		{name: "one of the readings alone, against another", summary: `{"version":7,"day":"` + date + `","lines":0}` + "\n"},
+		{name: "one counting a line", summary: `{"version":7,"day":"` + date + `","lines":3}` + "\n", staged: 5},
+		{name: "one cut short, which may have counted some", summary: `{"version":7,"day":"` + date + `","li`, staged: 2},
+		{name: "one of another day", summary: `{"version":7,"day":"2026-09-17","lines":0}` + "\n", staged: 2},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -244,7 +323,7 @@ func stagedSummaryAlone(t *testing.T, lines int, stamp time.Time) StagedDay {
 	t.Helper()
 	date := dayfile.DateOf(importedOn.AddDate(0, 0, -10))
 	day := StagedDay{Date: date, Summary: SummaryFile(t.TempDir(), date)}
-	if err := os.WriteFile(day.Summary, []byte(`{"version":6,"day":"`+date+`","lines":`+strconv.Itoa(lines)+`}`+"\n"), 0o600); err != nil {
+	if err := os.WriteFile(day.Summary, []byte(`{"version":7,"day":"`+date+`","lines":`+strconv.Itoa(lines)+`}`+"\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.Chtimes(day.Summary, stamp, stamp); err != nil {
@@ -284,7 +363,7 @@ func TestASummaryStagedAloneOfADayTheLedgerHoldsLinesOfIsntCopiedIn(t *testing.T
 		held string
 	}{
 		{name: "of no summary"},
-		{name: "of a summary counting no line", held: `{"version":6,"day":"` + date + `","lines":0}` + "\n"},
+		{name: "of a summary counting no line", held: `{"version":7,"day":"` + date + `","lines":0}` + "\n"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

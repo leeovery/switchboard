@@ -123,6 +123,7 @@ func TestTheSummaryAsTheWalkLeavesIt(t *testing.T) {
 }
 
 func TestTheAccountsLine(t *testing.T) {
+	pooled := config.Pools{{ID: "b2n8", Label: "Default"}, {ID: "q7mt", Label: "Acme", WrittenDirs: []string{"~/Code/acme"}}}
 	working := setup.TokenStanding{State: setup.TokenWorking}
 	refused := setup.TokenStanding{State: setup.TokenNotTaken}
 	unchecked := setup.TokenStanding{State: setup.TokenUnchecked}
@@ -166,6 +167,18 @@ func TestTheAccountsLine(t *testing.T) {
 		{name: "unchecked while one is still to be checked: checking", review: setup.Review{Accounts: []setup.Reviewed{
 			{ID: "work", Primary: true, Token: setup.TokenStanding{State: setup.TokenRead}}, {ID: "personal", Token: unchecked},
 		}}, want: "2, checking… · primary: work"},
+		{name: "one pool: as without pools", review: setup.Review{Pools: config.Pools{{ID: "b2n8", Label: "Default"}}, First: "b2n8", Accounts: []setup.Reviewed{
+			{ID: "work", Primary: true, Reserve: 0.05, Pool: "b2n8", Token: working}, {ID: "personal", Pool: "b2n8", Token: working},
+		}}, want: "2, all working · primary: work, with 5% reserved for the Claude apps"},
+		{name: "a second pool: each pool's primary by its label, the apps' reserve the first's", review: setup.Review{Pools: pooled, First: "q7mt", Accounts: []setup.Reviewed{
+			{ID: "work", Primary: true, Reserve: 0.05, Pool: "b2n8", Token: working}, {ID: "acme1", Primary: true, Reserve: 0.1, Pool: "q7mt", Token: working},
+		}}, want: "2, all working · Default's primary: work · Acme's primary: acme1, with 10% reserved for the Claude apps"},
+		{name: "a second pool, one without a primary: a warning, saying which", review: setup.Review{Pools: pooled, First: "b2n8", Unmarked: true, Accounts: []setup.Reviewed{
+			{ID: "work", Primary: true, Pool: "b2n8", Token: working}, {ID: "acme1", Pool: "q7mt", Token: working}, {ID: "acme2", Pool: "q7mt", Token: working},
+		}}, mark: setup.Warning, want: "3, all working · Default's primary: work · Acme has no primary"},
+		{name: "a second pool with no account: passed over", review: setup.Review{Pools: pooled, First: "b2n8", Accounts: []setup.Reviewed{
+			{ID: "work", Primary: true, Pool: "b2n8", Token: working},
+		}}, want: "1, working · Default's primary: work"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

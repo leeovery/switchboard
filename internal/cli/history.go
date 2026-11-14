@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"slices"
@@ -14,7 +15,6 @@ import (
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
-	"github.com/leeovery/switchboard/internal/readings"
 	"github.com/leeovery/switchboard/internal/redact"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
@@ -35,9 +35,9 @@ type historyDocument struct {
 
 func newHistoryCommand(a *app) *cobra.Command {
 	var (
-		given   string
-		windows bool
-		form    formFlags
+		given, pool string
+		windows     bool
+		form        formFlags
 	)
 	cmd := &cobra.Command{
 		Use:   "history",
@@ -67,44 +67,60 @@ ago, as 3h or 2d, the day it falls on.
 days: a line each time a window's use, its reset or its status changed, as
 the readings history holds it.
 
+It shows one pool's history: its work as each request recorded its pool at
+the time, work from before pools the first pool's, and the windows, plans
+and weeks of the accounts in it now. A pool's days, year, months and tokens,
+and the removed accounts they name, are listed from its first day of work,
+and its plans priced from it, as the dashboard's are, never the days before
+it worked. ` + readingAPool + `
+
+` + readingAKeptPool + `
+
 On a terminal, history prints its days as text. Anywhere else, as in a pipe
 or an agent's shell, it prints as JSON the summaries of the days asked for, as
-the ledger holds them, from the first it holds, so the last is today's, each
-model's worth in US dollars added, and what it leaves unpriced, with each
-day's worth by family; then, over those days, the year's grid of requests a
-day, each month's, each week's peaks and its tokens, each account's totals,
-its plan and its worth against it, and the capacity Weeks gives its verdicts
-from, for an agent or a script to read; or, with --windows, each account's
-windows' readings. --json prints the JSON, and --pretty the text, wherever
+the ledger holds them, from the first it holds, or a pool's first day of work,
+so the last is today's, each model's worth in US dollars added, and what it
+leaves unpriced, with each day's worth by family; then, over those days, the
+year's grid of requests a day, each month's, each week's peaks and its tokens,
+each account's totals, its plan and its worth against it, and the capacity
+Weeks gives its verdicts from, for an agent or a script to read; or, with
+--windows, each account's windows' readings. --json prints the JSON, and --pretty the text, wherever
 stdout is.`,
 		Args: a.ledgerArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			out := cmd.OutOrStdout()
 			asJSON := a.printsJSON(form, out)
 			if windows {
-				return a.historyWindows(out, given, asJSON)
+				return a.historyWindows(cmd.Context(), out, given, pool, asJSON)
 			}
-			return a.history(out, given, asJSON)
+			return a.history(cmd.Context(), out, given, pool, asJSON)
 		},
 	}
 	cmd.Flags().StringVar(&given, "since", "", "start on the day of `WHEN`: "+sinceForms+" (default the last 30 days)")
 	cmd.Flags().BoolVar(&windows, "windows", false, "print each account's windows' readings over those days, in place of the days")
+	addPoolFlag(cmd, &pool, "show the history of")
 	form.add(cmd)
 	return cmd
 }
 
-// historyAsked is what history reads: the config, the state directory, and
-// the days asked for, from from's to now's.
+// historyAsked is what history reads: the config, the state directory, the
+// pool, and the days asked for, from from's to now's.
 type historyAsked struct {
 	cfg       *config.Config
 	stateDir  string
+	pool      filedPool
 	from, now time.Time
 }
 
 // askHistory returns what history reads, the days asked for from the one
-// given on, else the last 30.
-func (a *app) askHistory(given string) (historyAsked, error) {
+// given on, else the last 30, of the pool named, as filedPool has it, of the
+// config as its pools stand.
+func (a *app) askHistory(ctx context.Context, given, pool string) (historyAsked, error) {
 	cfg, dir, err := a.ledgerState()
+	if err != nil {
+		return historyAsked{}, err
+	}
+	read, cfg, err := a.filedPool(ctx, cfg, dir, pool)
 	if err != nil {
 		return historyAsked{}, err
 	}
@@ -113,43 +129,59 @@ func (a *app) askHistory(given string) (historyAsked, error) {
 	if err != nil {
 		return historyAsked{}, err
 	}
-	return historyAsked{cfg: cfg, stateDir: dir, from: from, now: now}, nil
+	return historyAsked{cfg: cfg, stateDir: dir, pool: read, from: from, now: now}, nil
 }
 
-// history prints the ledger's days from the one given on, else the last 30,
-// priced at today's prices, and the blocks over them. It reads the days once,
-// through a reader, which reads the readings history ahead once for each run
-// of days it summarises, by the time it was asked at, so a run across
-// midnight places every day against one today.
-func (a *app) history(out io.Writer, given string, asJSON bool) error {
-	asked, err := a.askHistory(given)
+// accounts are the accounts configured in the pool asked for now, every
+// account in a config with no pools.
+func (h historyAsked) accounts() config.Accounts {
+	if h.pool.ID == "" {
+		return h.cfg.Accounts
+	}
+	return h.cfg.Accounts.InPool(h.pool.ID)
+}
+
+// history prints the ledger's days of the pool named from the one given on,
+// else the last 30, priced at today's prices, and the blocks over them. It
+// reads the days once, through a reader, which reads the readings history
+// ahead once for each run of days it summarises, by the time it was asked
+// at, so a run across midnight places every day against one today.
+func (a *app) history(ctx context.Context, out io.Writer, given, pool string, asJSON bool) error {
+	asked, err := a.askHistory(ctx, given, pool)
 	if err != nil {
 		return err
 	}
 	prices := pricing(asked.cfg)
-	reader := ledgerReader(asked.stateDir, asked.cfg, func() time.Time { return asked.now })
-	removed := removedIn(asked.stateDir, asked.cfg)
+	days, began := a.requestDays(asked.pool, asked.stateDir, asked.cfg, asked.now)
+	removed, record := removedIn(asked.stateDir, asked.cfg), recordIn(asked.stateDir)
 	history := views.NewHistory(views.HistoryInput{
-		Ledger: reader, From: asked.from, Now: asked.now, Prices: prices, Accounts: asked.cfg.Accounts, Removed: removed,
+		Ledger: days, From: asked.from, Now: asked.now, Began: began, Prices: prices, Accounts: asked.accounts(), Removed: removed,
 		WeekStarts: asked.cfg.WeekStarts, WeekWindow: claude.WeekWindow, Family: claude.Provider{}.Family,
+		PoolLabel: status.PoolLabels(asked.cfg.Pools, record), OnePool: status.ManyPoolsFiled(asked.cfg.Pools, record),
 	})
 	if asJSON {
 		return writeJSON(out, historyDocument{PricesAsOf: prices.AsOf, PricesFromConfig: prices.Overridden, History: history})
 	}
+	if _, err := io.WriteString(out, asked.pool.heading()); err != nil {
+		return err
+	}
 	return writeHistory(out, history, status.NamesOf(asked.cfg.Accounts, removed), prices, asked.from, asked.now)
 }
 
-// historyWindows prints each account's windows' readings over the days from
-// the one given on, else the last 30.
-func (a *app) historyWindows(out io.Writer, given string, asJSON bool) error {
-	asked, err := a.askHistory(given)
+// historyWindows prints the windows' readings of each account in the pool
+// named now over the days from the one given on, else the last 30.
+func (a *app) historyWindows(ctx context.Context, out io.Writer, given, pool string, asJSON bool) error {
+	asked, err := a.askHistory(ctx, given, pool)
 	if err != nil {
 		return err
 	}
 	names := namesIn(asked.stateDir, asked.cfg)
-	windows := views.NewWindows(readings.NewReader(asked.stateDir, logger), asked.cfg.Accounts, asked.from, asked.now).Named(names)
+	windows := asked.pool.windows(asked.stateDir, asked.accounts(), asked.from, asked.now).Named(names)
 	if asJSON {
 		return writeJSON(out, windows)
+	}
+	if _, err := io.WriteString(out, asked.pool.heading()); err != nil {
+		return err
 	}
 	return writeWindows(out, windows, asked.from, asked.now)
 }

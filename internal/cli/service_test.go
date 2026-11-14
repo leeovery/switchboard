@@ -484,15 +484,23 @@ func serveRouter(t *testing.T, path string, pid *atomic.Int64, handlers map[stri
 		t.Fatal(err)
 	}
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
-		_ = json.NewEncoder(w).Encode(router.Health{OK: true, Listen: "127.0.0.1:4747", PID: int(pid.Load())})
-	})
+	if _, own := handlers["GET /health"]; !own {
+		mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
+			_ = json.NewEncoder(w).Encode(router.Health{OK: true, Listen: "127.0.0.1:4747", PID: int(pid.Load())})
+		})
+	}
 	for pattern, handler := range handlers {
 		mux.HandleFunc(pattern, handler)
 	}
 	srv := &http.Server{Handler: mux, ReadHeaderTimeout: time.Second}
 	go func() { _ = srv.Serve(ln) }()
 	t.Cleanup(func() { _ = srv.Close() })
+}
+
+// reportsPools answers a router's health check as one that routes by pools
+// does, so a verb acting on a pool of a config with pools asks it.
+func reportsPools(w http.ResponseWriter, _ *http.Request) {
+	_ = json.NewEncoder(w).Encode(router.Health{OK: true, ReportsPools: true})
 }
 
 // setenv has the command line, and the router launchd starts, see key set

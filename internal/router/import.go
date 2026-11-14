@@ -148,8 +148,9 @@ func (r *Router) serveImportRunning(w http.ResponseWriter, _ *http.Request) {
 // where a folder's hasn't synced yet; 422 where one doesn't read, and where a
 // folder another Mac exported before switchboard made ids has none; 400 with
 // nothing staged, 503 while the router can't import, as it stops or while
-// the history waits on its move onto the accounts' ids, and 500 where a day
-// couldn't be taken in.
+// the history waits on a move, onto the accounts' ids or to pools, and 500
+// otherwise, as where a day couldn't be taken in, or the Mac's record notes
+// no first pool to give a folder exported before pools.
 func importStatus(err error) int {
 	switch {
 	case errors.Is(err, export.ErrImportRunning), errors.Is(err, identity.ErrConflict), errors.Is(err, idmove.ErrUnsynced):
@@ -170,16 +171,20 @@ func importStatus(err error) int {
 // work it handed a writer has then returned, so none still reads it, and a
 // failed import's copy, as big as the export, never stays to fill the disk.
 // It fails as takeStaged does, keeping what it took in before; and, taking
-// in none, with errHistoryMoving while the history waits on its move onto
-// the accounts' ids, which would leave what it took in under the old ids.
+// in none, with errHistoryMoving while the history waits on a move, onto the
+// accounts' ids or to pools, which would leave what it took in under the old
+// ids, or in no pool.
 func (r *Router) importStaged(ctx context.Context) (Imported, error) {
 	// The ledger's events are opened last of the history's files.
 	if r.eventFiles == nil {
 		return Imported{}, errHistoryUnkept
 	}
 	dir := ImportDir(r.cfg.StateDir)
-	imported, err := Imported{}, errHistoryMoving
-	if !r.moving.owed() {
+	var imported Imported
+	var err error
+	if r.moving.owed() {
+		err = r.moving.historyMoving()
+	} else {
 		imported, err = r.takeStaged(ctx, dir)
 	}
 	if err == nil || !r.imports.stopped(err) {
@@ -243,7 +248,7 @@ func (r *Router) joinStaged(folders []string) ([]idmove.Renames, error) {
 	here := idmove.Here{Install: sync.OnceValues(func() (string, error) { return export.InstallID(r.cfg.StateDir) })}
 	renames := make([]idmove.Renames, len(folders))
 	err := identity.NewFile(r.cfg.StateDir).Change(func(record *identity.Record, _ func() error) error {
-		here.Accounts = r.upkeep.record.followed()
+		here.Accounts, here.Pools = r.upkeep.record.followed()
 		for i, folder := range folders {
 			rename, err := idmove.JoinFolder(folder, record, here)
 			if err != nil {

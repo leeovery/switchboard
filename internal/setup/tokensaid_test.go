@@ -11,14 +11,17 @@ import (
 
 func TestTheTokenCardSaysHowTheSignInAddressOpened(t *testing.T) {
 	ready := func(opened setuptoken.Opened, browser, signedIn string) setup.Making {
-		return setup.Making{Step: setup.AddressReady, Opened: opened, Browser: browser, For: "Personal", SignedIn: signedIn}
+		return setup.Making{Step: setup.AddressReady, Opened: opened, Browser: browser, For: "Personal", SignedIn: signedIn, Private: true}
+	}
+	asItIs := func(opened setuptoken.Opened) setup.Making {
+		return setup.Making{Step: setup.AddressReady, Opened: opened, For: "Personal"}
 	}
 	tests := []struct {
 		name string
 		at   setup.Making
 		want string
 	}{
-		{name: "in the browser as it is: nothing more", at: ready(setuptoken.OpenedInBrowser, "", ""), want: ""},
+		{name: "in the browser as it is: nothing more", at: asItIs(setuptoken.OpenedInBrowser), want: ""},
 		{
 			name: "in a private window, the browser named",
 			at:   ready(setuptoken.OpenedPrivately, "Firefox", "Work"),
@@ -30,13 +33,23 @@ func TestTheTokenCardSaysHowTheSignInAddressOpened(t *testing.T) {
 			want: "Your browser is signed in to Work, so setup opened a private window. Sign in to Personal there, then approve.",
 		},
 		{
+			name: "in a private window, the first pool without an account to be signed in to",
+			at:   ready(setuptoken.OpenedPrivately, "Firefox", ""),
+			want: "Setup opened a private Firefox window. Sign in to Personal there, then approve.",
+		},
+		{
 			name: "no private window opened: the address to open in one",
 			at:   ready(setuptoken.NotOpened, "Safari", "Work"),
 			want: "Your browser is signed in to Work, and setup couldn't open a private Safari window. Open this address in one, sign in to Personal there, then approve:",
 		},
 		{
+			name: "no private window opened, the first pool without an account to be signed in to: the address to open in one",
+			at:   ready(setuptoken.NotOpened, "Safari", ""),
+			want: "Setup couldn't open a private Safari window. Open this address in one, sign in to Personal there, then approve:",
+		},
+		{
 			name: "the browser as it is not opened: the address to open in it",
-			at:   ready(setuptoken.NotOpened, "", ""),
+			at:   asItIs(setuptoken.NotOpened),
 			want: "Setup couldn't open your browser. Open this address in it, signed in to Personal, then approve:",
 		},
 		{name: "a step past the address", at: setup.Making{Step: setup.AwaitingApproval, For: "Personal", SignedIn: "Work"}, want: ""},

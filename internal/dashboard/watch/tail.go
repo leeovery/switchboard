@@ -140,7 +140,7 @@ func (m Model) readTail(now time.Time) (Model, tea.Cmd) {
 	m, t := m.askingTail(now, false)
 	return m, func() tea.Msg {
 		read, next := readLines(t.r.ledger, t.mark, t.late)
-		logged := t.log.logged(read)
+		logged := t.log.logged(t.r, read)
 		msg, gains := t.took(read, next, t.log.wants(logged))
 		if msg.held != nil && t.log != nil {
 			msg.log = t.log.grown(t.r, logged, views.LogTaking{Held: *msg.held, Gains: gains, Stream: t.log.stream, Now: now})
@@ -214,7 +214,7 @@ func (t tailReading) took(read tailLines, next ledger.Mark, logged []string) (ta
 	msg := tailedMsg{mark: next, day: t.today, at: t.now, lines: read}
 	var gains views.SessionGains
 	if t.held != nil {
-		fed, g := t.held.fed(t.r.ledger, read, logged, t.now)
+		fed, g := t.held.fed(t.r, read, logged, t.now)
 		msg.held, msg.retells, gains = &fed, g.Retell(), g
 	}
 	if t.page != nil {

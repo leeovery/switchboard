@@ -92,6 +92,7 @@ func addTeam(h *harness, downs int, ends setup.Tokened) {
 	}
 	h.pressAndDeliver("enter")
 	h.typeIn("team")
+	choosingUltra(h)
 	h.pressAndDeliver("enter")
 	h.hearAll(5)
 }

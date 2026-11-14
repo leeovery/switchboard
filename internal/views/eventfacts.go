@@ -17,6 +17,9 @@ import (
 // status.NameOfKey does. eventFacts aren't safe for concurrent use.
 type eventFacts struct {
 	name func(key string) string
+	// pool labels a pool by its id, where there are several, as
+	// Telling's NamingPools has it: nil where there are one or none.
+	pool func(id string) string
 	// runsOut is when each account the run's pressure events told of runs
 	// out, by its id, cleaned, as the latest of them to say said it.
 	runsOut map[string]time.Time
@@ -43,6 +46,11 @@ type eventFact struct {
 	// joined are the windows that joined the event after it began, in its
 	// order, each named as windows are, with when it joined.
 	joined []joinedWindow
+	// pool is the label of the pool whose sessions' own pins a pin set or
+	// cleared with force cleared, where there are several pools, as
+	// eventFacts' pool labels it: "" where there are one or none, so it
+	// cleared every session's.
+	pool string
 }
 
 // joinedWindow is a window that joined an event after it began, named as a
@@ -67,6 +75,9 @@ func (f *eventFacts) take(e status.Event) eventFact {
 		fact.moved, fact.to = e.Count, e.To
 	case status.EventPressure:
 		f.pressed(e)
+	}
+	if e.Force && f.pool != nil {
+		fact.pool = f.pool(e.Pool)
 	}
 	return fact
 }

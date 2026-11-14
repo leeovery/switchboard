@@ -7,6 +7,7 @@ import (
 
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard/flex"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/setup"
@@ -19,7 +20,8 @@ import (
 // a first run, setup having first read no account; the row chosen, an
 // account's by its place among them, or past the last, + add an account;
 // the card open over it, the card adding an account, the chosen account's
-// edit card, the card asking before it's removed, the token card, the card
+// edit card, the new pool card over either, the card asking before it's
+// removed, the token card, the card
 // pasting a token, the card asking which account a token is for, or the
 // primary's reserve card, where one is; and what the step failed at, where
 // it did.
@@ -28,6 +30,7 @@ type SetupAccountsPage struct {
 	Chosen   int
 	Add      *SetupAddCard
 	Edit     *SetupEditCard
+	NewPool  *SetupNewPoolCard
 	Remove   *SetupRemoveCard
 	Token    *SetupTokenCard
 	Paste    *SetupPasteCard
@@ -171,26 +174,81 @@ const (
 )
 
 // draw draws the table from row y, width cells wide: its heads, then from
-// reviewRowsApart rows on, a row an account, reviewRowsApart apart, then +
-// add an account; then the notes, notesUnderAdd rows under it, as notes has
-// them. It returns the row after the last it drew on, the heads kept over
-// the rows, and the row to show the row chosen: its own, but the page's
-// first for the first, so what's over the table shows with it.
+// reviewRowsApart rows on, its rows, reviewRowsApart apart, as laid has
+// them, an account's each, each pool's heading over its accounts, where
+// they're grouped by pool, and + add an account; then the notes,
+// notesUnderAdd rows under it, as notes has them. It returns the row after
+// the last it drew on, the heads kept over the rows, and the row to show the
+// row chosen: its own, but the page's first for the first, so what's over
+// the table shows with it.
 func (t reviewTable) draw(c *canvas, y, width int) (next int, kept []keptHeading, chosen int) {
 	cols := t.columns(width)
 	t.heads(c, y, cols)
 	first := y + reviewRowsApart
-	add := first + reviewRowsApart*len(t.review.Accounts)
+	rowAt := func(slot int) int { return first + reviewRowsApart*slot }
+	accounts, headings, add := t.laid()
 	c.heading(y, first)
+	for _, h := range headings {
+		c.line(cols[reviewAccount].At, rowAt(h.slot), poolHeading(h.pool).fit(width-cols[reviewAccount].At))
+	}
 	for i, a := range t.review.Accounts {
-		t.row(c, first+reviewRowsApart*i, width, cols, i, a)
+		t.row(c, rowAt(accounts[i]), width, cols, i, a)
 	}
-	t.addRow(c, add, width, cols)
-	next = t.notes(c, add+notesUnderAdd, width)
-	if t.chosen > 0 {
-		chosen = first + reviewRowsApart*t.chosen
+	t.addRow(c, rowAt(add), width, cols)
+	next = t.notes(c, rowAt(add)+notesUnderAdd, width)
+	switch {
+	case t.adding() && t.chosen > 0:
+		chosen = rowAt(add)
+	case t.chosen > 0:
+		chosen = rowAt(accounts[t.chosen])
 	}
-	return next, []keptHeading{{at: y, end: add + 1}}, chosen
+	return next, []keptHeading{{at: y, end: rowAt(add) + 1}}, chosen
+}
+
+// poolHeaded is a pool's heading over its accounts, in the table's slot given.
+type poolHeaded struct {
+	slot int
+	pool config.Pool
+}
+
+// laid are the table's rows, as slots from its first, one past another: each
+// account's, in the review's order, which groups them by pool, as
+// setup.Review has it, and the slot of + add an account, after the last.
+// Where there are two pools or more, a pool's heading goes in the slot
+// before its accounts', wherever the pool changes, an account in none
+// heading nothing, and each pool with no account has its heading alone, in
+// its place among the pools, so every pool shows.
+func (t reviewTable) laid() (accounts []int, headings []poolHeaded, add int) {
+	accounts = make([]int, len(t.review.Accounts))
+	pools := t.review.Pools
+	grouped := len(pools) >= 2
+	slot, headed, last := 0, 0, -1
+	head := func(p config.Pool) {
+		headings = append(headings, poolHeaded{slot: slot, pool: p})
+		slot++
+	}
+	for i, a := range t.review.Accounts {
+		if at := t.review.PoolIndex(a.Pool); grouped && at >= 0 && at != last {
+			for ; headed < at; headed++ {
+				head(pools[headed])
+			}
+			head(pools[at])
+			headed, last = max(headed, at+1), at
+		}
+		accounts[i] = slot
+		slot++
+	}
+	for ; grouped && headed < len(pools); headed++ {
+		head(pools[headed])
+	}
+	return accounts, headings, slot
+}
+
+// poolHeading is a pool's heading over its accounts: its label, in
+// text.subtle, as the table's heads are, and two cells on, where its
+// sessions start, as setup.Places says it, muted.
+func poolHeading(p config.Pool) line {
+	return line{{prose.Clean(p.Label), dimInk}, spaces(2), {setup.Places(p), mutedInk}}
 }
 
 // The table's parts, as columns lays them out: an account's label, its plan

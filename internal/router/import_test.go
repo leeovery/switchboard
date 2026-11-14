@@ -191,13 +191,13 @@ func stageManifest(t *testing.T, folder string, m export.Manifest) {
 // writes one, of the lines given, marked with a compressed file of the size
 // given.
 func summaryOf(date string, lines int, compressed int) string {
-	return fmt.Sprintf(`{"version":6,"day":%q,"lines":%d,"bytes":{"plain":0,"compressed":%d},"accounts":[]}`+"\n", date, lines, compressed)
+	return fmt.Sprintf(`{"version":7,"day":%q,"lines":%d,"bytes":{"plain":0,"compressed":%d},"accounts":[]}`+"\n", date, lines, compressed)
 }
 
 // stamped is a summary's stamp, as the router stamps one of its version of a
 // day whose compressed file was last modified at modified.
 func stamped(modified time.Time) time.Time {
-	return modified.Add(5 * time.Second)
+	return modified.Add(6 * time.Second)
 }
 
 // held returns the lines files hold of the local day with the given date,
@@ -254,11 +254,18 @@ func filesUnder(t *testing.T, dir string) map[string]fileState {
 }
 
 // importNow runs a router with cfg, has it import what's staged in its state
-// directory, and returns its answer, failing the test where the import
-// fails.
+// directory once its readings history has made the round it makes as it
+// starts, and returns its answer, failing the test where the import fails.
+// The router answers before that round, whose summarising before the
+// history's prune would otherwise race the import, and could summarise a day
+// from the lines just taken in before its summary staged is looked at.
 func importNow(t *testing.T, cfg router.Config) router.Imported {
 	t.Helper()
-	runRouter(t, cfg)
+	rt := newRouterFrom(t, cfg)
+	runBuilt(t, rt, cfg)
+	if err := rt.TendHistory(t.Context()); err != nil {
+		t.Fatalf("TendHistory() error = %v", err)
+	}
 	imported, err := router.NewClient(router.SocketPath(cfg.StateDir)).Import(t.Context())
 	if err != nil {
 		t.Fatalf("Import() error = %v", err)
@@ -693,6 +700,93 @@ func TestImportingSummariesOfNoRequestAgainCopiesNoneAgain(t *testing.T) {
 	for path, was := range summaries {
 		if got := stateOf(t, path); got != was {
 			t.Errorf("once imported again, %s is %+v, want it as the first import left it, %+v", path, got, was)
+		}
+	}
+}
+
+// pooledAfter is line, a line of the history's, given the pool with the
+// given id after member, one of its members as it's written, as the move to
+// pools gives a line its pool.
+func pooledAfter(line, member, pool string) string {
+	return strings.Replace(line, member, member+`,"pool":"`+pool+`"`, 1)
+}
+
+// workSummaryOf is a summary of the given version of the local day with the
+// given date, of work's two requests, in the pool with the given id, none
+// where it's "".
+func workSummaryOf(version int, date, pool string) string {
+	in := ""
+	if pool != "" {
+		in = `"pool":"` + pool + `",`
+	}
+	return fmt.Sprintf(`{"version":%d,"day":%q,"lines":2,"accounts":[{"account":"work",%s"models":[{"model":%q,"upstream":2,"sessions":1}],"sessions":1}]}`+"\n",
+		version, date, in, opus)
+}
+
+// Another Mac's folder taken in before that Mac moved to pools, then again
+// after, its lines, pins and summaries then in that Mac's first pool, counts
+// each day once: in this Mac's first pool, as the first import gave it, the
+// other Mac's first pool counting none of it.
+func TestAnotherMacsFolderTakenInAgainAfterItsMoveToPoolsCountsEachDayOnce(t *testing.T) {
+	const firstHere, firstThere = "q7mt", "b2n8"
+	cfg := importConfig(t)
+	if err := identity.NewFile(cfg.StateDir).Update(func(r *identity.Record) error {
+		r.Pools = []identity.PoolEntry{{ID: firstHere, Added: stagedOn, First: true}}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	kept, pastKeep := dateOf(10), dateOf(60)
+	requests, pin := requestLines.linesOf(kept, 1, 2), eventLines.linesOf(kept, 1)
+	runRouter(t, cfg)
+	client := router.NewClient(router.SocketPath(cfg.StateDir))
+
+	beforePools := fmt.Sprintf(`{"version":2,"install":%q,"exported_at":"2026-09-20T09:30:00Z","ids":true}`+"\n", otherInstall)
+	put(t, filepath.Join(folder(cfg, 1), "export.json"), []byte(beforePools), stagedOn)
+	stageLines(t, folder(cfg, 1), requestLines, kept, requests...)
+	stageLines(t, folder(cfg, 1), eventLines, kept, pin...)
+	stageLines(t, folder(cfg, 1), requestLines, pastKeep, requestLines.linesOf(pastKeep, 1, 2)...)
+	put(t, ledger.SummaryFile(ledger.Dir(folder(cfg, 1)), pastKeep), []byte(workSummaryOf(6, pastKeep, "")), stamped(stagedOn))
+	if first, err := client.Import(t.Context()); err != nil || first.Summaries != 1 {
+		t.Fatalf("Import() of the folder before pools = %+v, %v, want the summary of the day past keeping copied in", first, err)
+	}
+
+	stageManifest(t, folder(cfg, 1), export.Manifest{Install: otherInstall, IDs: true})
+	moved := make([]string, len(requests))
+	for i, line := range requests {
+		moved[i] = pooledAfter(line, `"model":"`+opus+`"`, firstThere)
+	}
+	stageLines(t, folder(cfg, 1), requestLines, kept, moved...)
+	stageLines(t, folder(cfg, 1), eventLines, kept, pooledAfter(pin[0], `"account":"work"`, firstThere))
+	put(t, ledger.SummaryFile(ledger.Dir(folder(cfg, 1)), pastKeep), []byte(workSummaryOf(7, pastKeep, firstThere)), stamped(stagedOn))
+	second, err := client.Import(t.Context())
+	if err != nil || second.Lines != 0 || second.Summaries != 0 {
+		t.Errorf("Import() again, after the other Mac's move = %+v, %v, want no line nor summary taken in: each the same as one held, but for its pool", second, err)
+	}
+
+	if got := held(t, requestLines.files(cfg.StateDir), kept); len(got) != 2 {
+		t.Errorf("once imported again, the request ledger of %s holds\n%s\nwant its two requests once", kept, strings.Join(got, "\n"))
+	}
+	if got := held(t, eventLines.files(cfg.StateDir), kept); len(got) != 1 {
+		t.Errorf("once imported again, the router's events of %s hold\n%s\nwant its pin once", kept, strings.Join(got, "\n"))
+	}
+	for _, date := range []string{kept, pastKeep} {
+		var summary ledger.Summary
+		if err := json.Unmarshal([]byte(stateOf(t, ledger.SummaryFile(ledger.Dir(cfg.StateDir), date)).data), &summary); err != nil {
+			t.Fatal(err)
+		}
+		upstream := func(s ledger.Summary) int {
+			for _, a := range s.Accounts {
+				if a.Account == "work" && len(a.Models) > 0 {
+					return a.Models[0].Upstream
+				}
+			}
+			return 0
+		}
+		whole, here, there := upstream(summary), upstream(summary.InPool(firstHere, firstHere)), upstream(summary.InPool(firstThere, firstHere))
+		if whole != 2 || here != 2 || there != 0 {
+			t.Errorf("once imported again, work's requests upstream on %s are %d in all, %d in this Mac's first pool, %d in the other's; want 2, 2, 0",
+				date, whole, here, there)
 		}
 	}
 }

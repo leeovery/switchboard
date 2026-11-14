@@ -27,12 +27,12 @@ import (
 	"github.com/leeovery/switchboard/internal/tokens/tokenstest"
 )
 
-func TestTheStateFileKeepsSessionsTheirPinsAndTheGlobalPin(t *testing.T) {
+func TestTheStateFileKeepsSessionsTheirPinsAndThePoolsPin(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "state.json")
 	saved := newTestFile(at(start), testAccounts())
 	saved.load(path)
 	s := saved.sessions
-	s.setPin(status.Pin{Accounts: []string{"work", "side"}, Since: start.Add(-time.Hour), Move: true}, false)
+	s.setPin(beforePools(), status.Pin{Accounts: []string{"work", "side"}, Since: start.Add(-time.Hour), Move: true}, false)
 	assign(s, key{session: "one", model: opus}, "", decision{account: "work", reason: reasonNew}, start.Add(-2*time.Hour))
 	assign(s, key{session: "one", model: opus}, "", decision{account: "work", reason: reasonSticky, sticky: true}, start.Add(-time.Hour))
 	assign(s, key{session: "one", model: haiku}, "side", decision{account: "side", reason: reasonPinned}, start.Add(-time.Minute))
@@ -43,9 +43,9 @@ func TestTheStateFileKeepsSessionsTheirPinsAndTheGlobalPin(t *testing.T) {
 
 	loaded := newTestFile(at(start), testAccounts())
 	loaded.load(path)
-	if l := loaded.sessions; !maps.Equal(l.assignments, s.assignments) || !maps.Equal(l.own, s.own) || !reflect.DeepEqual(l.pin, s.pin) {
+	if l := loaded.sessions; !maps.Equal(l.assignments, s.assignments) || !maps.Equal(l.own, s.own) || !reflect.DeepEqual(l.pins, s.pins) {
 		t.Errorf("loaded\n%+v, pins %+v, pin %+v\nwant what was saved\n%+v, pins %+v, pin %+v",
-			l.assignments, l.own, l.pin, s.assignments, s.own, s.pin)
+			l.assignments, l.own, l.pins, s.assignments, s.own, s.pins)
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -143,7 +143,7 @@ func TestTheStateFileKeepsEachAccountsReadings(t *testing.T) {
 	if !reflect.DeepEqual(loaded.state.seen, saved.state.seen) {
 		t.Errorf("loaded the windows as seen on %v, want what was saved: %v", loaded.state.seen, saved.state.seen)
 	}
-	if loaded.state.view(opus, start).applies("7d_oi") {
+	if loaded.state.view("", opus, start).applies("7d_oi") {
 		t.Error("once loaded, the Fable week counts an Opus request, want it to count Fable's alone, as it was seen to")
 	}
 	data, err := os.ReadFile(path)
@@ -723,7 +723,7 @@ func TestAStateFileFromBeforeReadingsLoadsWithNone(t *testing.T) {
 	f := newTestFile(at(start), testAccounts())
 
 	f.load(path)
-	if got := f.sessions.lookup(key{session: "one", model: opus}); !got.assigned || got.current.Account != "work" || !slices.Equal(got.global.Accounts, []string{"side"}) {
+	if got := f.sessions.lookup(key{session: "one", model: opus}); !got.assigned || got.current.Account != "work" || !slices.Equal(got.pins[""].Accounts, []string{"side"}) {
 		t.Errorf("loaded %+v, want the session on work, and the pin to side, as the file holds", got)
 	}
 	for _, id := range []string{"work", "side"} {
@@ -754,7 +754,7 @@ func TestAStateFileFromBeforeDirectoriesLoadsItsAssignmentsWithNone(t *testing.T
 	f := newTestFile(at(start), testAccounts())
 
 	f.load(path)
-	got, ok := f.sessions.session("one")
+	got, ok := f.sessions.session("one", anyPool)
 	if !ok || len(got.Assignments) != 1 || got.Assignments[0].Account != "work" || got.Assignments[0].Dir != "" {
 		t.Errorf("loaded %+v (seen: %v), want the session on work, naming no directory", got, ok)
 	}
@@ -808,7 +808,7 @@ func TestLoadingThePin(t *testing.T) {
 			f := newTestFile(at(start), testAccounts())
 
 			f.load(path)
-			if got := f.sessions.globalPin(); !reflect.DeepEqual(got, tt.want) {
+			if got := f.sessions.pinsNow()[""]; !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("loaded pin %+v, want %+v", got, tt.want)
 			}
 			for _, id := range tt.wantDropped {
@@ -1054,7 +1054,7 @@ func TestTheTokensOfAnAccountThatLeftTheConfigOutlastARestartAsThePrimarysAlone(
 	running := testAccounts()
 	f := newTestFile(at(start), running)
 	f.load(path)
-	if !running.retire(withoutWork, start) {
+	if !running.retire(heirs{accounts: withoutWork}, start) {
 		t.Fatal("retire() = false, want work's tokens left to side")
 	}
 	f.changes.note()
@@ -1089,6 +1089,29 @@ func TestTheTokensOfAnAccountThatLeftTheConfigOutlastARestartAsThePrimarysAlone(
 				t.Errorf("work's token counts as side's: %v, want %v", got, tt.wantSides)
 			}
 		})
+	}
+}
+
+func TestATokenAnAccountRemovedKeptOfOneConfiguredAgainGoesBackToItAsTheRouterStarts(t *testing.T) {
+	// Side took up an older token of work's as work left the config; then
+	// side left it too while the router was away, and work is configured
+	// again, personal the primary.
+	const olderToken = "test-token-work-older"
+	logstest.Capture(t)
+	path := filepath.Join(t.TempDir(), "state.json")
+	older := formerToken{SHA256: hash(olderToken), ReplacedAt: start.Add(-time.Hour), From: "work"}
+	putState(t, path, savedState{Version: stateVersion, Tokens: map[string]savedTokens{
+		"side": {SHA256: sideHash, Former: []formerToken{older}},
+	}})
+	restarted := resolve(config.Accounts{{ID: "work", Label: "Work"}, {ID: "personal", Label: "Personal", Primary: true}}, poolTokens.Read, unrecorded)
+
+	newTestFile(at(start), restarted).load(path)
+
+	if a, ok := restarted.byToken(olderToken, start); !ok || a.ID != "work" {
+		t.Errorf("work's older token is %q's (%v), want work's own again", a.ID, ok)
+	}
+	if personal, _ := restarted.byID("personal"); personal.secret.was(hash(olderToken), start) {
+		t.Error("personal, which took side's tokens up, keeps work's older token, want it given back to work")
 	}
 }
 
@@ -1175,8 +1198,8 @@ func TestLoadingForgetsWhatCantBeUsed(t *testing.T) {
 	if want := map[string]ownPin{"pinned": {Account: "side", Since: start}}; !maps.Equal(s.own, want) {
 		t.Errorf("loaded sessions' pins %+v, want %+v alone: the others' sessions or accounts are gone", s.own, want)
 	}
-	if !s.pin.IsZero() {
-		t.Errorf("loaded pin %+v, want none: its account is no longer configured", s.pin)
+	if len(s.pins) > 0 {
+		t.Errorf("loaded pins %+v, want none: its account is no longer configured", s.pins)
 	}
 	for _, want := range [][]string{
 		{"level=WARN", `msg="dropped from the pin: the account is no longer configured"`, "account=retired"},
@@ -1209,9 +1232,9 @@ func TestLoadingKeepsWhatsOfAnAccountWhoseTokenFileCantBeReadAsTheRouterStarts(t
 	f := newTestFile(at(start), resolve(testConfigured, tokenstest.Files{"work": "", "side": sideToken}.Read, unrecorded))
 
 	f.load(path)
-	if s := f.sessions; !maps.Equal(s.assignments, assignments) || !maps.Equal(s.own, own) || !reflect.DeepEqual(s.pin, pin) {
+	if s := f.sessions; !maps.Equal(s.assignments, assignments) || !maps.Equal(s.own, own) || !reflect.DeepEqual(s.pins[""], pin) {
 		t.Errorf("loaded %+v, pins %+v, pin %+v\nwant what was saved\n%+v, pins %+v, pin %+v: work is still configured",
-			s.assignments, s.own, s.pin, assignments, own, pin)
+			s.assignments, s.own, s.pins[""], assignments, own, pin)
 	}
 	if log.Has("dropped") {
 		t.Errorf("log reads\n%s\nwant nothing dropped", log)
@@ -1232,7 +1255,7 @@ func TestAssignmentsKeepTheirTimesInUTC(t *testing.T) {
 	f.load(path)
 	assign(f.sessions, key{session: "new", model: opus}, "", decision{account: "side", reason: reasonNew}, local)
 	for _, id := range []string{"saved", "new"} {
-		if got, _ := f.sessions.session(id); len(got.Assignments) != 1 || got.Assignments[0].AssignedAt != start || got.Assignments[0].LastSeen != start {
+		if got, _ := f.sessions.session(id, anyPool); len(got.Assignments) != 1 || got.Assignments[0].AssignedAt != start || got.Assignments[0].LastSeen != start {
 			t.Errorf("session %s is %+v, want its times in UTC", id, got)
 		}
 	}
@@ -1334,7 +1357,7 @@ func TestTheStateFileIsItsOwnersAlone(t *testing.T) {
 	}
 	f := newTestFile(at(start), testAccounts())
 	f.load(path)
-	f.sessions.setPin(status.Pin{Accounts: []string{"side"}, Since: start}, false)
+	f.sessions.setPin(beforePools(), status.Pin{Accounts: []string{"side"}, Since: start}, false)
 
 	f.save()
 	info, err := os.Stat(path)
@@ -1467,7 +1490,7 @@ func TestStoppingSavesWhatsUnsaved(t *testing.T) {
 		f := newTestFile(time.Now, testAccounts())
 		f.load(path)
 		stop := keep(f)
-		f.sessions.setPin(status.Pin{Accounts: []string{"side"}, Since: time.Now()}, false)
+		f.sessions.setPin(beforePools(), status.Pin{Accounts: []string{"side"}, Since: time.Now()}, false)
 		synctest.Wait()
 
 		began := time.Now()
@@ -1497,13 +1520,13 @@ func TestSessionsUnusedForAWeekAreForgottenHourlyWithTheirPins(t *testing.T) {
 
 		time.Sleep(pruneEvery - time.Nanosecond)
 		synctest.Wait()
-		if _, seen := s.session("fading"); !seen {
+		if _, seen := s.session("fading", anyPool); !seen {
 			t.Fatal("forgot a session before the hour was up")
 		}
 		time.Sleep(time.Nanosecond)
 		synctest.Wait()
-		_, fading := s.session("fading")
-		_, recent := s.session("recent")
+		_, fading := s.session("fading", anyPool)
+		_, recent := s.session("recent", anyPool)
 		if fading || !recent {
 			t.Errorf("an hour on, sessions are %+v, want the one unused for a week forgotten, and the other kept", s.assignments)
 		}
@@ -1533,7 +1556,7 @@ func TestASaveThatFailsIsTriedAgain(t *testing.T) {
 			return writeState(path, data)
 		}
 		stop := keep(f)
-		f.sessions.setPin(status.Pin{Accounts: []string{"side"}, Since: time.Now()}, false)
+		f.sessions.setPin(beforePools(), status.Pin{Accounts: []string{"side"}, Since: time.Now()}, false)
 
 		time.Sleep(saveAfter)
 		synctest.Wait()

@@ -4,7 +4,7 @@ description: Switchboard spreads Claude Code sessions across several Claude subs
 ---
 
 <!-- switchboard writes this file, and replaces it, edits and all, with each new version. -->
-<!-- switchboard skill version: 16 -->
+<!-- switchboard skill version: 18 -->
 
 `claude` runs through switchboard, a local router that spreads Claude Code sessions across several
 Claude subscriptions, which it calls accounts.
@@ -13,7 +13,18 @@ Each account has a label, such as `Work`, which is what the user calls it, and a
 made from its subscription, such as `b6s7`. Name accounts to the user by their labels. Commands
 take the id: `pin`, `--account` and `accounts edit`, `token` and `remove`. `switchboard status`
 gives each account's `id` and `label`, and `sessions` and `history` a `label` beside each account's
-id; `requests` and `events` give ids alone, as the files keep them. The accounts aren't numbered.
+id; `requests` and `events` give accounts by their ids alone, as the files keep them, and a line's
+pool by its id with its `pool_label`. The accounts aren't numbered.
+
+The accounts can be split into pools. A session started inside a pool's directories is routed
+across that pool's accounts alone, and one started outside every fence across the unfenced pool's.
+A session started through switchboard has its pool's id in `$SWITCHBOARD_POOL`: pass
+`--pool "$SWITCHBOARD_POOL"` to every `status`, `usage`, `sessions`, `requests`, `history`,
+`events` and `pin`, so you read and act on your own pool, named explicitly. It's empty with a
+config without pools or in a session not started through switchboard, and `--pool ""` is no flag.
+`switchboard pool` lists the pools, their directories and accounts. A pool since removed, or another
+Mac's brought in by `import`, keeps its history: `requests`, `history`, `sessions` and `events`
+read it with `--pool` and its id.
 
 - To find the account a session is on, run `switchboard status --session <id>`. Your own session's
   id is in `$CLAUDE_CODE_SESSION_ID`, and Claude Code's `/status` shows a session's id.
@@ -33,9 +44,9 @@ once it's done.
   subscription's token, so it takes no requests till `switchboard accounts token <id>` gives it its
   own; how fast its 5-hour window, where it has one, as a verified
   Ultra account hasn't, has been used lately, and whether that has it under pressure, running out
-  before it resets; and its sessions. With the accounts come the pool, the room new sessions can go
-  to, summed across its accounts; what's coming up, soonest first, as a limit lifting, a window
-  running out or resetting, or a prime; the global pin, the account best used next, the router's
+  before it resets; and its sessions. With the accounts come `pool`, the room new sessions can go
+  to, summed across the accounts; what's coming up, soonest first, as a limit lifting, a window
+  running out or resetting, or a prime; the pool's pin, the account best used next, the router's
   health, and, where the config's `[export] dir` names a folder, how the router's hourly export of
   the history into it stands: when one last succeeded, why the last failed, in plain words, and
   when the one under way began, as one waiting on macOS asking the user to allow it waits.
@@ -59,21 +70,24 @@ once it's done.
   limits, caps, refusals, primes and pins. `--since` reaches back to a day, a time today or a while
   ago: `2026-10-01`, `14:00`, `2d`.
 - `switchboard usage` is the user's printout of every account's windows, and `switchboard dashboard`
-  their live dashboard. Point the user to them when they want to look, rather than running them;
+  their live dashboard, of one pool: the pool the verbs act on, or with `--pool <id>` that pool,
+  `P` turning to the next. Point the user to them when they want to look, rather than running them;
   read `status` yourself, as it gives what they show.
 - To steer sessions, run `switchboard pin <id>`, which sends new sessions to that account, or
   `switchboard pin <id> <id>...`, which sends them to the best of those accounts until
-  every one of them is out, and only then to the others. Add `--move` to move running sessions
-  there too, or `--session <id>` to pin that one session alone to one account. Add `--force` to
-  clear every session's own pin as well, so `--move --force` puts every session on those accounts.
-  `switchboard pin auto` goes back to routing, and `pin auto --force` clears every session's own
-  pin too.
+  every one of them is out, and only then to the others. A pin is its pool's: the accounts given
+  must be of one pool, and it steers that pool's sessions alone. Add `--move` to move running
+  sessions there too, or `--session <id>` to pin that one session alone to one account. Add
+  `--force` to clear the own pins of the pool's sessions as well, so `--move --force` puts every
+  session of the pool on those accounts. `switchboard pin auto` goes back to routing, and
+  `pin auto --force` clears the own pins of the pool's sessions too.
 - To read the router's log, which says why each request went to its account, run
   `switchboard logs`.
 
 A move to another account costs one slower turn while the cache rebuilds there, and a
 Claude Sonnet 5.5 session that moves carries on without its earlier reasoning.
 
-Artifacts and uploads always live on the primary account, whichever account the conversation is on.
+Artifacts and uploads always live on the primary account of the session's pool, whichever account
+the conversation is on.
 
 For the rest, run `switchboard --help`, or a command's `--help`.

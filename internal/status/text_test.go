@@ -370,6 +370,21 @@ probed directly: the router is unhealthy, no answer within 5s
 `,
 		},
 		{
+			name: "probed, as the router started before pools",
+			doc: status.Document{
+				GeneratedAt: now.UTC(),
+				Source:      status.SourceProbe,
+				Fallback:    status.Fallback{Router: status.RouterBeforePools},
+				Accounts:    []status.Account{personal},
+			},
+			want: `personal · Personal
+  token missing: write it to /Users/tester/.local/state/switchboard/tokens/personal
+
+best next: personal · Personal
+probed directly: the router doesn't route by pools yet, as it started before them: restart it with switchboard service restart
+`,
+		},
+		{
 			name: "no accounts",
 			doc:  status.Document{GeneratedAt: now.UTC(), Source: status.SourceProbe},
 			want: "probed directly\n",

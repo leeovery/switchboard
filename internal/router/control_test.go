@@ -35,7 +35,7 @@ func TestClientHealth(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Health() error = %v", err)
 	}
-	if want := (router.Health{OK: true, Version: "1.2.3", PID: os.Getpid(), StartedAt: now, StripsOwnHeaders: true}); got != want {
+	if want := (router.Health{OK: true, Version: "1.2.3", PID: os.Getpid(), StartedAt: now, StripsOwnHeaders: true, ReportsPools: true}); !reflect.DeepEqual(got, want) {
 		t.Errorf("Health() = %+v, want %+v", got, want)
 	}
 }
@@ -628,28 +628,28 @@ func TestPinningIsToldAsAnEventSayingWhoAsked(t *testing.T) {
 		want         status.Event
 	}{
 		{
-			name:   "the global pin set",
+			name:   "the pool's pin set",
 			method: http.MethodPost,
 			path:   "/pin",
 			body:   map[string]any{"accounts": []string{"side", "work"}, "move": true, "force": true},
 			want:   status.Event{Kind: status.EventPin, Account: "work", Accounts: []string{"work", "side"}, Move: true, Force: true},
 		},
 		{
-			name:   "the global pin set to one account, as a switchboard from before asks",
+			name:   "the pool's pin set to one account, as a switchboard from before asks",
 			method: http.MethodPost,
 			path:   "/pin",
 			body:   map[string]any{"account": "side"},
 			want:   status.Event{Kind: status.EventPin, Account: "side", Accounts: []string{"side"}},
 		},
 		{
-			name:   "the global pin cleared",
+			name:   "the pool's pin cleared",
 			pinned: true,
 			method: http.MethodDelete,
 			path:   "/pin",
 			want:   status.Event{Kind: status.EventAuto, Accounts: []string{"work", "side"}},
 		},
 		{
-			name:   "the global pin cleared, with every session's own",
+			name:   "the pool's pin cleared, with every session's own",
 			pinned: true,
 			method: http.MethodDelete,
 			path:   "/pin?force=true",
@@ -778,11 +778,11 @@ func TestClearingAPinIsToldOnlyWhereItClearsOne(t *testing.T) {
 		// want are the events told after the session started, none for nil.
 		want []status.Event
 	}{
-		{name: "the global pin, without one", path: "/pin"},
-		{name: "the global pin, with every session's own, without any", path: "/pin?force=true"},
+		{name: "the pool's pin, without one", path: "/pin"},
+		{name: "the pool's pin, with every session's own, without any", path: "/pin?force=true"},
 		{name: "a session's own pin, without one", path: "/sessions/" + sessionID + "/pin"},
 		{
-			name:     "the global pin, without one, with every session's own, one among them",
+			name:     "the pool's pin, without one, with every session's own, one among them",
 			launched: "work",
 			path:     "/pin?force=true",
 			want:     []status.Event{{ID: 2, At: now, Kind: status.EventAuto, Force: true}},
@@ -1007,16 +1007,16 @@ func serveOn(t *testing.T, path string, h http.Handler) {
 }
 
 // There's no account to pin with an id that's none, the accounts that can be
-// pinned named instead each by its id and its label, one labelled by its id
+// pinned named instead each by its label and its id, one labelled by its id
 // named once.
-func TestAnUnknownAccountNamesThoseToPinByTheirIDsAndLabels(t *testing.T) {
+func TestAnUnknownAccountNamesThoseToPinByTheirLabelsAndIDs(t *testing.T) {
 	pinnable := config.Accounts{{ID: "b6s7", Label: "Work"}, {ID: "side", Label: "side"}, {ID: "q4tx", Label: "Spare"}}
 	tests := []struct {
 		id       string
 		pinnable config.Accounts
 		want     string
 	}{
-		{id: "work", pinnable: pinnable, want: `there's no account "work": pin b6s7 (Work), side or q4tx (Spare)`},
+		{id: "work", pinnable: pinnable, want: `there's no account "work": pin Work (b6s7), side or Spare (q4tx)`},
 		{id: "work", want: `there's no account "work", and no account has a usable token to pin`},
 	}
 	for _, tt := range tests {

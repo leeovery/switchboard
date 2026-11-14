@@ -8,11 +8,12 @@ import (
 
 // Chooser picks the account a routed request goes out on.
 type Chooser interface {
-	// Choose picks an account for req. When nothing better can take the
-	// request, it picks one for the upstream to refuse it on, and the choice
-	// says no account has room; or it picks none, and says so, when every
-	// account it could fall back to is held back by its reserve alone,
-	// which the router never spends, or the request has been tried already.
+	// Choose picks an account for req, of those in its pool. When nothing
+	// better can take the request, it picks one for the upstream to refuse
+	// it on, and the choice says no account has room; or it picks none, and
+	// says so, when every account it could fall back to is held back by its
+	// reserve alone, which the router never spends, when none in the pool
+	// will take it, or when the request has been tried already.
 	// A session is remembered on the account picked, and on none when none
 	// is, but for the client's quota check, which no session is remembered
 	// for.
@@ -55,6 +56,11 @@ type Request struct {
 	// router, in the form the request ledger gives it, or "" when the request
 	// doesn't say.
 	Dir string
+	// Pool is the id of the pool the request's header names, or "" where it
+	// names none, as a request from a session started before pools: each
+	// choice finds the request in that pool, else the first, as the pools
+	// stand as it's made, so no choice mixes two readings of them.
+	Pool string
 	// Model is the model the request asks for, or "" when it doesn't say.
 	Model string
 	// Check is set when the request is the client's quota check, which asks
@@ -75,7 +81,8 @@ type Request struct {
 	// launched with it, or "" when it isn't: a pin the session is given while
 	// it runs passes over it. It's only ever an account with a token.
 	Pin string
-	// Client is the account whose token the client sent.
+	// Client is the account whose token the client sent, which the request
+	// falls back to only where it's in the request's pool.
 	Client string
 	// Tried are the accounts the request has gone out on already, none of
 	// which could serve it, in the order tried: choosing again, the choice is
@@ -123,16 +130,24 @@ func (r Request) attempt(id string) (Attempt, bool) {
 type Choice struct {
 	Account string
 	Reason  string
+	// Pool is the id of the pool the choice found the request in, as the
+	// request's line records it: "" in a config from before pools.
+	Pool string
 	// NoRoom is set when no account has room for the request: Account is only
 	// where it falls back to, for the upstream to answer, or none, when
-	// Reserved is set, the request has been tried already, or no account the
-	// router can send on will take it.
+	// Reserved or Closed is set, the request has been tried already, or no
+	// account the router can send on will take it.
 	NoRoom bool
 	// Reserved is set when the request goes out on no account, as every one
 	// it could fall back to is held back by its reserve alone. Back is when
 	// the first of them has room again, zero when that isn't known.
 	Reserved bool
 	Back     time.Time
+	// Closed is set when the request goes out on no account, as none in its
+	// pool will take it, and its client's account, which it would fall back
+	// to last, isn't in the pool: switchboard answers it as at a limit,
+	// sending nothing on another pool's account.
+	Closed bool
 	// New is set when the choice gave the request's session its first account
 	// for the request's model: the session is new, and is remembered once the
 	// request is answered, as Chooser's Forget says.

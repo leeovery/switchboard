@@ -174,22 +174,24 @@ func (m Model) readFind() (Model, tea.Cmd) {
 	return m.walkFind()
 }
 
-// walkFind reads for the find, while it's open, one read at a time: the
-// summaries of the days the ledger keeps, once each time it opens, once the
-// oldest is known; then the sessions of the next day it names to read,
-// newest first, for their directories, as views.DaySessionsOn reads them,
-// each day once a run.
+// walkFind reads for the find, while it's open, one read at a time, of the
+// pool shown alone, as the Log's readers read it: the summaries of the days
+// the ledger keeps, once each time it opens, once the oldest is known; then
+// the sessions of the next day it names to read, newest first, for their
+// directories, as views.DaySessionsOn reads them, each day once a run.
 func (m Model) walkFind() (Model, tea.Cmd) {
-	l, oldest, next, opening := m.cfg.Ledger, m.log.oldest.Day, m.log.page.Finding.Found.Next, m.log.find.opening
-	if m.log.find.reading || l == nil || oldest.Date == "" {
+	r, oldest, next, opening := m.logReaders(), m.log.oldest.Day, m.log.page.Finding.Found.Next, m.log.find.opening
+	if m.log.find.reading || r.ledger == nil || oldest.Date == "" {
 		return m, nil
 	}
 	var read func() tea.Msg
 	switch {
 	case !m.log.find.summed:
-		read = func() tea.Msg { return findReadMsg{summed: true, opening: opening, summaries: l.Days(oldest.Start)} }
+		read = func() tea.Msg {
+			return findReadMsg{summed: true, opening: opening, summaries: r.pool.Days(r.ledger).Days(oldest.Start)}
+		}
 	case next != "":
-		read = func() tea.Msg { return findReadMsg{date: next, sessions: views.DaySessionsOn(l, next)} }
+		read = func() tea.Msg { return findReadMsg{date: next, sessions: views.DaySessionsOn(r.ledger, next, r.pool)} }
 	default:
 		return m, nil
 	}

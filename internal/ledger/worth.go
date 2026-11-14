@@ -595,10 +595,36 @@ type Priced struct {
 	Accounts []PricedAccount `json:"accounts,omitempty"`
 }
 
-// PricedAccount is an account's day, its models' priced.
+// PricedAccount is an account's day, its models' priced, in every pool
+// together and in each pool, where it was in more than one. PoolLabel is
+// the label of the pool it names, as its reader names it: none till then.
 type PricedAccount struct {
 	AccountDay
-	Models []PricedModel `json:"models,omitempty"`
+	PoolLabel string        `json:"pool_label,omitempty"`
+	Models    []PricedModel `json:"models,omitempty"`
+	Pools     []PricedPool  `json:"pools,omitempty"`
+}
+
+// PricedPool is an account's day in a pool, its models' priced as the
+// whole day's are. PoolLabel is the pool's label, as its reader names it:
+// none till then.
+type PricedPool struct {
+	PoolDay
+	PoolLabel string        `json:"pool_label,omitempty"`
+	Models    []PricedModel `json:"models,omitempty"`
+}
+
+// Named returns the account's day with the pool it names and each of its
+// pools labelled as label labels a pool by its id.
+func (a PricedAccount) Named(label func(pool string) string) PricedAccount {
+	if a.Pool != "" {
+		a.PoolLabel = label(a.Pool)
+	}
+	a.Pools = slices.Clone(a.Pools)
+	for i, p := range a.Pools {
+		a.Pools[i].PoolLabel = label(p.Pool)
+	}
+	return a
 }
 
 // PricedModel is a model's day on an account, with what its requests would
@@ -627,18 +653,28 @@ const (
 func (t Table) Priced(s Summary, date string) Priced {
 	priced := Priced{Summary: s}
 	for _, a := range s.Accounts {
-		account := PricedAccount{AccountDay: a}
-		for _, m := range a.Models {
-			model := PricedModel{ModelDay: m}
-			held := countsOf(m.Usage)
-			w, ok := t.summable(m.Model, m.InferenceGeo, billOf(held), held.costly(), m.NoUsage > 0, date)
-			if ok {
-				model.Worth = &w.Cost
-			}
-			model.Unpriced = w.Unpriced
-			account.Models = append(account.Models, model)
+		account := PricedAccount{AccountDay: a, Models: t.pricedModels(a.Models, date)}
+		for _, p := range a.Pools {
+			account.Pools = append(account.Pools, PricedPool{PoolDay: p, Models: t.pricedModels(p.Models, date)})
 		}
 		priced.Accounts = append(priced.Accounts, account)
+	}
+	return priced
+}
+
+// pricedModels returns models' days priced at the prices in effect on the
+// local day with the given date: none for none.
+func (t Table) pricedModels(models []ModelDay, date string) []PricedModel {
+	var priced []PricedModel
+	for _, m := range models {
+		model := PricedModel{ModelDay: m}
+		held := countsOf(m.Usage)
+		w, ok := t.summable(m.Model, m.InferenceGeo, billOf(held), held.costly(), m.NoUsage > 0, date)
+		if ok {
+			model.Worth = &w.Cost
+		}
+		model.Unpriced = w.Unpriced
+		priced = append(priced, model)
 	}
 	return priced
 }

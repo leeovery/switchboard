@@ -10,18 +10,19 @@ import (
 // knowing returns s, a day summarised afresh, as it replaces held, the day's
 // summary before, so it knows no less. Every count is held's where that's
 // more, as a line can't be taken away while the day's are kept, so fewer
-// means some were lost since, as to a damaged file: so are a model's
-// counts and usage, and an account's sessions and moves; and the accounts
-// and models held that the lines no longer give are kept. Which lines were
-// lost can't be told, so where some of a model's were lost and as many or
-// more filed since, its counts are the more of the two summaries', fewer
-// than there were; and its hours go with the count upstream they sum to, as
-// hoursKnowing says. Its lines are as many as the more of the two were made
-// from, and as its counts stand for where those are more, as the lines lost
-// were held's. Each window's highest use, and its rise, is held's where that's
-// higher, as are the minutes at its cap and at a limit; and held's limits,
-// resets, session ids and the windows it read in the week before are among
-// its own, as the readings they came from may have been pruned since.
+// means some were lost since, as to a damaged file: so are a model's counts
+// and usage, and an account's sessions and moves, in every pool together and
+// in each; and the accounts, their pools and models held that the lines no
+// longer give are kept. Which lines were lost can't be told, so where some
+// of a model's were lost and as many or more filed since, its counts are the
+// more of the two summaries', fewer than there were; and its hours go with
+// the count upstream they sum to, as hoursKnowing says. Its lines are as
+// many as the more of the two were made from, and as its counts stand for
+// where those are more, as the lines lost were held's. Each window's highest
+// use, and its rise, is held's where that's higher, as are the minutes at its
+// cap and at a limit; and held's limits, resets, session ids and the windows
+// it read in the week before are among its own, as the readings they came
+// from may have been pruned since.
 func (s Summary) knowing(held Summary) Summary {
 	s.Accounts = knowingAll(s.Accounts, held.Accounts, func(a AccountDay) string { return a.Account }, AccountDay.knowing, strings.Compare)
 	s.Lines = max(s.Lines, held.Lines, s.linesCounted())
@@ -40,19 +41,58 @@ func (s Summary) made(lines int, held *Summary) Summary {
 }
 
 // knowing returns a, an account's day summarised afresh, knowing no less
-// than held, its day as summarised before, as Summary.knowing says, its
-// sessions named as named says.
+// than held, its day as summarised before, as Summary.knowing says: its work
+// in every pool together and in each pool, as Work.knowing says, the pools
+// held that the lines no longer give kept; and its work in every pool
+// together their work summed where that counts more, as where some of one
+// pool's lines were lost and others filed since in another, so its pools
+// always add up to its whole.
 func (a AccountDay) knowing(held AccountDay) AccountDay {
-	a.SessionIDs = named(a.SessionIDs, held.SessionIDs, held.Sessions)
-	a.Sessions = max(a.Sessions, held.Sessions, len(a.SessionIDs))
-	a.MovedOn, a.MovedOff = max(a.MovedOn, held.MovedOn), max(a.MovedOff, held.MovedOff)
+	a = a.pooled(knowingAll(a.poolDays(), held.poolDays(), PoolDay.key, PoolDay.knowing, strings.Compare))
+	a.Work = a.Work.knowing(held.Work)
+	if whole := wholeOf(a.Pools); len(a.Pools) > 1 && !a.covers(whole) {
+		a.Work = whole
+	}
 	a.Highest, a.Rise = higher(a.Highest, held.Highest), higher(a.Rise, held.Rise)
 	a.Limits = limitsKnowing(a.Limits, held.Limits)
 	a.Resets = resetsKnowing(a.Resets, held.Resets)
 	a.MinutesAtCap, a.MinutesAtLimit = more(a.MinutesAtCap, held.MinutesAtCap), more(a.MinutesAtLimit, held.MinutesAtLimit)
 	a.ReadBefore = together(a.ReadBefore, held.ReadBefore)
-	a.Models = knowingAll(a.Models, held.Models, ModelDay.key, ModelDay.knowing, byModel)
 	return a
+}
+
+// wholeOf returns the work of every pool given together, as mergedWork merges
+// two.
+func wholeOf(pools []PoolDay) Work {
+	var whole Work
+	for i, p := range pools {
+		if i == 0 {
+			whole = p.Work
+			continue
+		}
+		whole = mergedWork(whole, p.Work)
+	}
+	return whole
+}
+
+// knowing returns p, an account's work in a pool summarised afresh, knowing
+// no less than held, its work there as summarised before, as Work.knowing
+// says.
+func (p PoolDay) knowing(held PoolDay) PoolDay {
+	p.Work = p.Work.knowing(held.Work)
+	return p
+}
+
+// knowing returns w, work summarised afresh, knowing no less than held, the
+// same work as summarised before: its sessions and moves held's where that's
+// more, its sessions named as named says, and its models as ModelDay.knowing
+// says, those held that the lines no longer give kept.
+func (w Work) knowing(held Work) Work {
+	w.SessionIDs = named(w.SessionIDs, held.SessionIDs, held.Sessions)
+	w.Sessions = max(w.Sessions, held.Sessions, len(w.SessionIDs))
+	w.MovedOn, w.MovedOff = max(w.MovedOn, held.MovedOn), max(w.MovedOff, held.MovedOff)
+	w.Models = knowingAll(w.Models, held.Models, ModelDay.key, ModelDay.knowing, byModel)
+	return w
 }
 
 // named returns ids, the sessions a day summarised afresh names, and held,

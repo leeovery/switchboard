@@ -8,9 +8,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"syscall"
 	"time"
@@ -78,6 +80,9 @@ const (
 // its control socket.
 type Client struct {
 	http *http.Client
+	// pool is the id of the pool the router's answers are asked for, as
+	// InPool names it: "" for the one the router answers for without.
+	pool string
 }
 
 // NewClient returns a client of the router whose control socket is at path.
@@ -94,6 +99,37 @@ func NewClient(path string) *Client {
 	return &Client{http: &http.Client{Transport: transport}}
 }
 
+// InPool returns a client of the same router whose questions of a pool, of
+// its status document, sessions, windows' history and request stream, ask
+// for the pool with the given id, as ?pool= names it: "" asks for none, which
+// the router answers for the pool the verbs act on.
+func (c *Client) InPool(pool string) *Client {
+	named := *c
+	named.pool = pool
+	return &named
+}
+
+// inPool is path, with the query given, asking for the pool the client
+// names, where it names one.
+func (c *Client) inPool(path string, query url.Values) string {
+	if c.pool != "" {
+		query = maps.Clone(query)
+		if query == nil {
+			query = url.Values{}
+		}
+		query.Set(PoolQuery, c.pool)
+	}
+	return pathOf(path, query)
+}
+
+// pathOf is path with the query given, where it has any.
+func pathOf(path string, query url.Values) string {
+	if len(query) == 0 {
+		return path
+	}
+	return path + "?" + query.Encode()
+}
+
 // Health asks whether the router is alive, and which it is.
 func (c *Client) Health(ctx context.Context) (Health, error) {
 	var h Health
@@ -101,34 +137,87 @@ func (c *Client) Health(ctx context.Context) (Health, error) {
 	return h, err
 }
 
-// Status asks for the router's status document.
+// Status asks for the router's status document, of the pool the client
+// names, else of the one the verbs act on.
 func (c *Client) Status(ctx context.Context) (status.Document, error) {
 	var doc status.Document
-	err := c.call(ctx, clientTimeout, http.MethodGet, "/status", nil, &doc)
+	err := c.call(ctx, clientTimeout, http.MethodGet, c.inPool("/status", nil), nil, &doc)
 	return doc, err
 }
 
 // Moving asks how the router's move of the accounts and their history onto
-// the ids switchboard makes stands, as its status document says: zero where
-// it owes none.
+// the ids switchboard makes stands, as its health answer says, which is no
+// pool's, or, from a router from before pools, its status document: zero
+// where it owes none.
 func (c *Client) Moving(ctx context.Context) (status.Moving, error) {
-	doc, err := c.Status(ctx)
+	h, err := c.Health(ctx)
+	if err != nil || h.ReportsPools {
+		return h.Moving, err
+	}
+	doc, err := c.InPool("").Status(ctx)
 	return doc.Moving, err
 }
 
-// Sessions asks which sessions the router has routed in the last hour, the
-// one seen last first, and where their requests go.
+// SessionsInEveryPool asks which sessions the router has routed in the last
+// hour, in every pool its health answer reports, the one seen last first, as
+// Sessions asks of each: those of the one pool there is, where it reports
+// none, as a router from before pools.
+func (c *Client) SessionsInEveryPool(ctx context.Context) ([]status.Session, error) {
+	h, err := c.Health(ctx)
+	if err != nil {
+		return nil, err
+	}
+	listed, err := inEveryPool(ctx, c, h, (*Client).Sessions)
+	if err != nil {
+		return nil, err
+	}
+	all := slices.Concat(listed...)
+	slices.SortFunc(all, status.SeenLastFirst)
+	return all, nil
+}
+
+// StatusInEveryPool asks for the status document of every pool the router's
+// health answer h reports, in their order, as Status asks for each: the one
+// there is, where it reports none, as a router from before pools.
+func (c *Client) StatusInEveryPool(ctx context.Context, h Health) ([]status.Document, error) {
+	return inEveryPool(ctx, c, h, (*Client).Status)
+}
+
+// inEveryPool asks read of c in every pool the router's health answer h
+// reports, in their order, and returns what each answered: once, naming none,
+// where it reports none.
+func inEveryPool[T any](ctx context.Context, c *Client, h Health, read func(*Client, context.Context) (T, error)) ([]T, error) {
+	pools := []string{""}
+	if len(h.Pools) > 0 {
+		pools = pools[:0]
+		for _, p := range h.Pools {
+			pools = append(pools, p.ID)
+		}
+	}
+	answers := make([]T, len(pools))
+	for i, pool := range pools {
+		var err error
+		if answers[i], err = read(c.InPool(pool), ctx); err != nil {
+			return nil, err
+		}
+	}
+	return answers, nil
+}
+
+// Sessions asks which sessions the router has routed in the last hour, in
+// the pool the client names, else in the one the verbs act on, the one seen
+// last first, and where their requests go.
 func (c *Client) Sessions(ctx context.Context) ([]status.Session, error) {
 	var sessions []status.Session
-	err := c.call(ctx, clientTimeout, http.MethodGet, "/sessions", nil, &sessions)
+	err := c.call(ctx, clientTimeout, http.MethodGet, c.inPool("/sessions", nil), nil, &sessions)
 	return sessions, err
 }
 
 // Session asks which accounts the session with the given id has its requests
 // go to. It fails with ErrUnknownSession for a session the router hasn't
-// seen.
+// seen, in the pool the client names, where it names one.
 func (c *Client) Session(ctx context.Context, id string) (status.Session, error) {
-	return c.session(ctx, http.MethodGet, id, "", nil)
+	return c.session(ctx, http.MethodGet, id, c.inPool("", nil), nil)
 }
 
 // PinSession has the router send the requests of the session with the given
@@ -147,7 +236,7 @@ func (c *Client) PinSession(ctx context.Context, id, account string, by By) (sta
 // leaves it, and fails with ErrUnknownSession for a session the router hasn't
 // seen. By says who asks.
 func (c *Client) UnpinSession(ctx context.Context, id string, by By) (status.Session, error) {
-	return c.session(ctx, http.MethodDelete, id, "/pin"+unpinQuery(by, false), nil)
+	return c.session(ctx, http.MethodDelete, id, pathOf("/pin", unpinQuery(by, false)), nil)
 }
 
 // session sends the router a request for path under the session with the
@@ -185,7 +274,7 @@ func (c *Client) Pin(ctx context.Context, p PinRequest) (status.Document, error)
 		p.Account = p.Accounts[0]
 	}
 	var doc status.Document
-	err := c.call(ctx, clientTimeout, http.MethodPost, "/pin", p, &doc)
+	err := c.call(ctx, clientTimeout, http.MethodPost, c.inPool("/pin", nil), p, &doc)
 	return doc, err
 }
 
@@ -194,13 +283,13 @@ func (c *Client) Pin(ctx context.Context, p PinRequest) (status.Document, error)
 // status document as unpinning leaves it. By says who asks.
 func (c *Client) Unpin(ctx context.Context, force bool, by By) (status.Document, error) {
 	var doc status.Document
-	err := c.call(ctx, clientTimeout, http.MethodDelete, "/pin"+unpinQuery(by, force), nil, &doc)
+	err := c.call(ctx, clientTimeout, http.MethodDelete, c.inPool("/pin", unpinQuery(by, force)), nil, &doc)
 	return doc, err
 }
 
 // unpinQuery is the query clearing a pin takes: who asks, and whether every
 // session's own pin is cleared too, each left out where it's not given.
-func unpinQuery(by By, force bool) string {
+func unpinQuery(by By, force bool) url.Values {
 	query := url.Values{}
 	if by != "" {
 		query.Set("by", string(by))
@@ -208,10 +297,7 @@ func unpinQuery(by By, force bool) string {
 	if force {
 		query.Set("force", "true")
 	}
-	if len(query) == 0 {
-		return ""
-	}
-	return "?" + query.Encode()
+	return query
 }
 
 // Refresh has the router probe the accounts it hasn't read for longer than
@@ -219,7 +305,7 @@ func unpinQuery(by By, force bool) string {
 // most for those probes, and returns the status document as they leave it.
 func (c *Client) Refresh(ctx context.Context, maxAge time.Duration) (status.Document, error) {
 	var doc status.Document
-	err := c.call(ctx, refreshTimeout, http.MethodPost, "/refresh", refreshRequest{MaxAge: maxAge.String()}, &doc)
+	err := c.call(ctx, refreshTimeout, http.MethodPost, c.inPool("/refresh", nil), refreshRequest{MaxAge: maxAge.String()}, &doc)
 	return doc, err
 }
 
@@ -256,7 +342,7 @@ func (c *Client) Restart(ctx context.Context) (Restart, error) {
 func (c *Client) History(ctx context.Context, window string, step time.Duration) (History, error) {
 	var h History
 	query := url.Values{"window": {window}, "step": {step.String()}}
-	err := c.call(ctx, clientTimeout, http.MethodGet, "/history?"+query.Encode(), nil, &h)
+	err := c.call(ctx, clientTimeout, http.MethodGet, c.inPool("/history", query), nil, &h)
 	if d, ok := errors.AsType[declined](err); ok && d.status == http.StatusNotFound && d.reason == "" {
 		return History{}, fmt.Errorf("%w: %w", ErrNoHistory, err)
 	}
@@ -328,7 +414,7 @@ func (c *Client) Stream(ctx context.Context) (<-chan StreamEvent, error) {
 // ctx does, giving up, by cancel, should it not answer within clientTimeout.
 func (c *Client) openStream(ctx context.Context, cancel context.CancelFunc) (*http.Response, error) {
 	answering := time.AfterFunc(clientTimeout, cancel)
-	resp, err := c.send(ctx, http.MethodGet, "/stream", nil)
+	resp, err := c.send(ctx, http.MethodGet, c.inPool("/stream", nil), nil)
 	if !answering.Stop() {
 		if err == nil {
 			_ = resp.Body.Close()
@@ -442,6 +528,9 @@ func (d declined) Error() string {
 func refused(resp *http.Response, method, path string) error {
 	var p problem
 	_ = json.NewDecoder(io.LimitReader(resp.Body, maxControlBody)).Decode(&p)
+	if resp.StatusCode == http.StatusBadRequest && len(p.Pools) > 0 {
+		return PoolNeeded{Named: p.Named, Pools: p.Pools}
+	}
 	return declined{status: resp.StatusCode, reason: p.Error, exporting: p.Exporting, method: method, path: path}
 }
 

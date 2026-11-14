@@ -20,7 +20,8 @@ type helping struct {
 // in.
 func (m Model) openHelp() Model {
 	m = m.cover(helpOpen)
-	m.help = helping{over: m.keys(m.running(m.now()))}
+	now := m.now()
+	m.help = helping{over: m.keys(m.running(now), m.pool(now))}
 	return m
 }
 

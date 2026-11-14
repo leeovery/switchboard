@@ -21,6 +21,7 @@ leaves the rest of the file as it is. There's nothing in it to set. See
 - [How switchboard reads the config](#how-switchboard-reads-the-config)
 - [Top-level keys](#top-level-keys)
 - [`[[account]]` keys](#account-keys)
+- [`[[pool]]` keys](#pool-keys)
 - [`[prime]` keys](#prime-keys)
 - [`[notifications]` keys](#notifications-keys)
 - [`[history]` keys](#history-keys)
@@ -40,18 +41,30 @@ when_router_down = "stop"    # optional: with the router down, claude stops, or 
 [[account]]
 id      = "b6s7"        # written by switchboard, from the account's subscription; its token is tokens/b6s7
 label   = "Work"        # what every screen shows
-primary = true          # the account the browser and the Claude apps are signed into
+pool    = "d3wn"        # the id of the pool it's in
+primary = true          # its pool's primary: the account the browser and the Claude apps are signed into
 reserve = 0.1           # optional, on any account: the share of every window the router leaves unused
 plan    = "ultra"       # optional, on any account: its plan, pro, max or ultra
 
 [[account]]
 id    = "k2m9"
 label = "Personal"
+pool  = "d3wn"
 plan  = "max"
 
 [[account]]
 id    = "q4tx"
 label = "Side"
+pool  = "q7mt"          # the only account in its pool, so its primary
+
+[[pool]]
+id    = "d3wn"          # written by switchboard, as it makes the pool
+label = "Default"       # the first pool's label, until you change it
+
+[[pool]]
+id    = "q7mt"
+label = "Client"
+dirs  = ["~/Code/client"]   # sessions started in here use the pool's accounts alone
 
 [prime]
 day = "08:00-23:00"     # your day, in local time: priming spreads the 5-hour resets over it
@@ -117,6 +130,8 @@ cache_write_1h = 6.4
   unrecorded, and it can spend the primary's reserve, which only the router honours.
   `SWITCHBOARD_WHEN_ROUTER_DOWN=direct` or `=stop` overrides the key for the one launch it's given
   to, as in `SWITCHBOARD_WHEN_ROUTER_DOWN=direct claude`. See [`claude`](commands.md#claude).
+  With pools, a session that goes direct goes out on its pool's accounts alone, and with two pools
+  or more, a router that doesn't route by the config's pools counts as down.
 
 ## `[[account]]` keys
 
@@ -130,7 +145,8 @@ edit, by hand or with `accounts edit`.
 |---|---|---|
 | `id` | Required | The account's id, which switchboard writes as it adds the account, and every record and command names it by. It's also the name of the account's token file. Don't change it by hand. |
 | `label` | Required | What the account is shown as, at most 100 characters, and no other account's, ignoring case. It can't hold anything shaped like a token. A config edited by hand without one still loads, the account shown by its id. |
-| `primary` | The first account | Marks the account the browser and the Claude apps are signed into: [the primary](how-it-works.md#the-primary). At most one account can set it. |
+| `pool` | Required where the config has pools | The id of the pool the account is in. `accounts edit <id> --pool <id>` moves it. A config without `[[pool]]` tables has none, and an account naming one there is an error. |
+| `primary` | The pool's first account | Marks the account the browser and the Claude apps are signed into: [the primary](how-it-works.md#the-primary), one for each pool. At most one account in a pool can set it. |
 | `reserve` | `0` | The share of every window the router leaves unused: `0`, or more than `0` and less than `1`. [`accounts edit <id> --reserve <percent>`](commands.md#accounts) sets it, as a percentage. See [Reserves](how-it-works.md#reserves). |
 | `plan` | None (unknown) | The plan the account's subscription is on: `pro`, `max` or `ultra`. The names the plans had before Anthropic renamed them, `max5x` for `max` and `max20x` for `ultra`, still load. |
 
@@ -158,6 +174,41 @@ An account's size is its plan's week, in Pro weeks: Pro 1, Max 5 and Ultra 10.
 
 Without a `plan`, the account's plan shows as `-`, and nothing is priced against it. It's sized as
 the plan most of the accounts have, and where no account has one, every account is the same size.
+
+## `[[pool]]` keys
+
+A pool is a set of accounts that sessions are routed across, fenced to directories or not. See
+[Pools](how-it-works.md#pools). Once the router has moved the history to pools, the config has a
+`[[pool]]` table for each pool, and at least one: the router makes the first, labelled `Default`, as
+it moves (see [Upgrading to pools](how-it-works.md#upgrading-to-pools)). Make, edit and remove
+pools with [`pool`](commands.md#pool), which write the table, its `id` among it. The other keys are
+yours to edit, by hand or with `pool edit`.
+
+| Key | Default | Description |
+|---|---|---|
+| `id` | Required | The pool's id, which switchboard writes as it makes the pool, and every record and command names it by. Don't change it by hand. |
+| `label` | The pool's id | What the pool is shown as, at most 100 characters. It can't hold anything shaped like a token. `pool add` and `pool edit` keep it no other pool's, ignoring case. |
+| `dirs` | None (unfenced) | The directories the pool is fenced to, each an absolute path or one starting `~/`, covering everything beneath it. A session started inside them is routed across this pool's accounts and no others. Without any, it's the unfenced pool, which serves every session started outside every fence. |
+
+The ids switchboard makes for pools are 4 lowercase letters and digits, a letter first, random, as
+no subscription stands behind a pool, and never one the accounts record holds. The config is
+checked as it's read:
+
+- **Ids:** a pool's id follows the rules an account's does, is unique among the pools, ignoring
+  case, and is never an account's.
+- **One unfenced pool at most:** two would leave a session outside every fence with two pools to
+  be in. Every pool can be fenced, the first among them: a session started outside every fence
+  then doesn't start.
+- **No overlap:** no directory may be the same as, inside or around another, the same pool's or
+  another's. Directories are compared a whole folder name at a time, so `~/Code/acme` doesn't
+  cover `~/Code/acme-api`, and without regard to case, as macOS compares them.
+- **Membership:** where the config has pools, every account names one of them in `pool`, so no
+  account can be in two.
+- **A pool can have no accounts:** a session started in its directories then doesn't start, rather
+  than falling into the unfenced pool.
+
+Write `dirs` on one line: `pool edit --dirs` can't change an array written across lines, and says
+to edit it by hand.
 
 ## `[prime]` keys
 
@@ -382,6 +433,10 @@ when 30 days or fewer are left, and again at 7, such as
 `b6s7 · Work: token expires 17 Nov 2026 · 21 days left — switchboard setup makes a new one`, or
 `token expired …` once it's past. A router started with a token already within either tells only
 the nearest. A restart doesn't tell either again, and a new token starts afresh.
+
+Once there's a second [pool](how-it-works.md#pools), each notification is led by the label of the
+pool its account is in, as `Acme · k3f9 · Acme 1 has room again`, the dashboard's own too. With
+one pool, they read as above.
 
 ### Switchboard's own notifications
 

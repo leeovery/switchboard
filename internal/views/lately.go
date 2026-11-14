@@ -208,7 +208,7 @@ func (t latelyTeller) startedWhy(e status.Event, f eventFact, saysBest bool) sta
 			return clause(", the best")
 		}
 		return nil
-	case status.ReasonPinned, status.ReasonGlobalPin:
+	case status.ReasonPinned, status.ReasonPoolPin, status.ReasonGlobalPin:
 		return clause(", as pinned")
 	}
 	return slices.Concat(clause(": "), status.EventWords(e.Reason, t.facts(f, "", e.Account)))

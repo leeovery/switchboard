@@ -18,13 +18,16 @@ type Event interface {
 
 // SessionStarted is a session first remembered, for its requests of Model:
 // the first of them answered with success, as its answer comes, on Account,
-// where the session went as the routed line's Reason says. Dir is the
-// directory it runs in, as its assignment has it: "" where none was named.
+// where the session went as the routed line's Reason says, within Pool, the
+// id of the pool its request was routed within: none in a config from before
+// pools. Dir is the directory it runs in, as its assignment has it: "" where
+// none was named.
 type SessionStarted struct {
 	Session string
 	Model   string
 	Account string
 	Reason  string
+	Pool    string
 	Dir     string
 }
 
@@ -72,6 +75,9 @@ type Moved struct {
 	Held    Hold
 	Limit   int
 	Dir     string
+	// Pool is the id of the pool the request was routed within, as the
+	// accounts' view had it: none in a config from before pools.
+	Pool string
 }
 
 // Hold is what held a request back on an account it couldn't go out on,
@@ -151,11 +157,13 @@ type RestartHeld struct {
 	Refusal string
 }
 
-// Pinned is routing set by hand: where Session is "", the global pin, to
+// Pinned is routing set by hand: where Session is "", the pool's pin, to
 // Accounts, in the order configured, Account the first of them, moving the
-// running sessions too where Move is set, and having cleared every session's
-// own pin where Force is; else that session's own pin, to Account, Dir the
-// directory the session runs in, as sessionDir has it. By says who set it.
+// pool's running sessions too where Move is set, and having cleared the own
+// pin of every session in the pool where Force is; else that session's own
+// pin, to Account, Dir the directory the session runs in, as sessions.dir
+// has it. By says who set it. Pool is the id of the pool: the pin's, or the
+// session's; none in a config from before pools.
 type Pinned struct {
 	Accounts    []string
 	Account     string
@@ -163,13 +171,15 @@ type Pinned struct {
 	Dir         string
 	Move, Force bool
 	By          By
+	Pool        string
 }
 
 // Unpinned is routing given back to the router: where Session is "", the
-// global pin cleared, which named Accounts, none when only Force cleared
-// anything, with every session's own pin where Force is set; else that
-// session's own pin cleared, which named Account, Dir the directory the
-// session runs in, as sessionDir has it. By says who cleared it.
+// pool's pin cleared, which named Accounts, none when only Force cleared
+// anything, with the own pin of every session in the pool where Force is
+// set; else that session's own pin cleared, which named Account, Dir the
+// directory the session runs in, as sessions.dir has it. By says who cleared
+// it. Pool is the id of the pool, as Pinned's is.
 type Unpinned struct {
 	Accounts []string
 	Account  string
@@ -177,6 +187,7 @@ type Unpinned struct {
 	Dir      string
 	Force    bool
 	By       By
+	Pool     string
 }
 
 func (SessionStarted) event() {}

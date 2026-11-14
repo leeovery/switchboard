@@ -23,6 +23,17 @@ type LedgerDays interface {
 	Days(from time.Time) []ledger.Summary
 }
 
+// LedgerHeld reads the summaries the request ledger holds of its days, as a
+// ledger.Follower does, summarising none from its lines: a pool's read of a
+// day passes over one they rule out, never reading a day's lines to tell.
+type LedgerHeld interface {
+	// DaysHeldOn gives the summaries of the local days with the dates given
+	// that stand, oldest first, as LedgerDates' DaysOn gives them,
+	// reporting false where one of them has lines but no summary that
+	// stands, as today's.
+	DaysHeldOn(dates []string) ([]ledger.Summary, bool)
+}
+
 // LedgerStart tells where the request ledger begins, as a ledger.Follower
 // does: History's Year steps back through the calendar years from its
 // first.
@@ -37,6 +48,7 @@ type LedgerStart interface {
 type Ledger interface {
 	LedgerDays
 	LedgerDates
+	LedgerHeld
 	// Today gives today's lines read since mark, and the Mark they're read
 	// to, reporting afresh where they're every one of today's, for those
 	// read before to be let go of: each the line it reads as, none of its
@@ -104,14 +116,18 @@ type LedgerSessions interface {
 	// the newest state a digest holds that stands where rest is nil, none of
 	// one no digest holds a state of that stands; and its lines after it that
 	// arrived by now, oldest first, as Ledger's Session reads one's, each
-	// day's files read once. It hands take, where it's given, each line it
-	// reads, of whichever session, with the date of the day whose files hold
-	// it.
-	Sessions(ids []string, rest func(id string) ledger.Rest, take func(date string, l ledger.Line)) map[string]ledger.SessionFrom
+	// day's files read once. Each rests on its state in the pool in reads, as
+	// in reports of the pool each line recorded: so a session split between
+	// pools rests on its state of its work in the pool alone, one of none of
+	// it on none, read after its state; every pool's where in is nil. It
+	// hands take, where it's given, each line it reads, of whichever session,
+	// with the date of the day whose files hold it.
+	Sessions(in ledger.RoutedIn, ids []string, rest func(id string) ledger.Rest, take func(date string, l ledger.Line)) map[string]ledger.SessionFrom
 	// SessionsOf gives the sessions with the given ids alone, as Sessions
-	// gives them, but none of today's others, so none of their days is read;
-	// and hands take each line it reads, as Sessions does.
-	SessionsOf(ids []string, rest func(id string) ledger.Rest, take func(date string, l ledger.Line)) map[string]ledger.SessionFrom
+	// gives them, in the pool in reads, but none of today's others, so none
+	// of their days is read; and hands take each line it reads, as Sessions
+	// does.
+	SessionsOf(in ledger.RoutedIn, ids []string, rest func(id string) ledger.Rest, take func(date string, l ledger.Line)) map[string]ledger.SessionFrom
 }
 
 // Readings reads the readings history where it lies, with no router, as a

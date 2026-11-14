@@ -60,7 +60,7 @@ func TestAPlaybackOfTheReadingsHistoryGivesTheRatesAndDemandTheRouterHad(t *test
 	configured[0].Reserve = 0.1
 	clock := &testClock{now: start}
 	live := newState(resolve(configured, tokenstest.Files{"work": workToken, "personal": personalToken, "side": sideToken}.Read, unrecorded),
-		testPolicy, claude.Provider{}.Family, clock.read, unkept, unkept)
+		unpooled(), testPolicy, claude.Provider{}.Family, clock.read, unkept, unkept)
 	var heard []readings.Reading
 	live.history = func(read []readings.Reading) { heard = append(heard, read...) }
 	p := NewPlayback(configured, testPolicy)

@@ -200,7 +200,7 @@ type SessionsRead struct {
 // other on its state.
 func ReadSessions(l Ledger, running []status.Session, now time.Time, ids ...string) SessionsRead {
 	read := readOn(l, Today(now))
-	read.sessions = l.Sessions(append(runningIDs(running), ids...), pagedIfNamed(ids), read.answers.take)
+	read.sessions = l.Sessions(nil, append(runningIDs(running), ids...), pagedIfNamed(ids), read.answers.take)
 	return read
 }
 
@@ -222,7 +222,7 @@ func pagedIfNamed(ids []string) func(string) ledger.Rest {
 // sessions' days is read for it.
 func ReadSession(l LedgerSessions, now time.Time, id string) SessionsRead {
 	read := readOn(l, Today(now))
-	read.sessions = l.SessionsOf([]string{id}, onPage, read.answers.take)
+	read.sessions = l.SessionsOf(nil, []string{id}, onPage, read.answers.take)
 	return read
 }
 
@@ -232,7 +232,7 @@ func ReadSession(l LedgerSessions, now time.Time, id string) SessionsRead {
 // read.
 func (r SessionsRead) whole(id string) SessionsRead {
 	read := readOn(r.l, r.day)
-	read.sessions = r.l.SessionsOf([]string{id}, eachWhole, read.answers.take)
+	read.sessions = r.l.SessionsOf(nil, []string{id}, eachWhole, read.answers.take)
 	return read
 }
 

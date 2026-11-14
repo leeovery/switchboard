@@ -41,7 +41,7 @@ func readBeside(l Ledger, held HeldSessions, through func(date string) LogFilter
 	take(rawDay(l, Today(now).Date))
 	for day := dayfile.DayStart(now, -1); dayfile.DateOf(day) >= from; day = dayfile.DayStart(day, -1) {
 		date := dayfile.DateOf(day)
-		take(ReadDay(l, date, through(date)))
+		take(ReadDay(l, date, through(date), PoolRead{}))
 	}
 	return read, held
 }
@@ -261,7 +261,7 @@ func refilteredAll(l Ledger, read LogRead, held HeldSessions, f LogFilter, s Str
 	for _, day := range read.Unserved(f) {
 		through[day.Date] = read.RefilterThrough(day.Date, f, s)
 		var fresh *HeldSessions
-		if read, fresh, _ = read.Refiltered(l, ReadDay(l, day.Date, through[day.Date]), held, s, now); fresh != nil {
+		if read, fresh, _ = read.Refiltered(l, ReadDay(l, day.Date, through[day.Date], PoolRead{}), held, s, now); fresh != nil {
 			held = held.With(*fresh)
 		}
 	}
@@ -377,14 +377,14 @@ type sessionsAsked struct {
 	ids *[]string
 }
 
-func (a sessionsAsked) Sessions(ids []string, rest func(string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
+func (a sessionsAsked) Sessions(in ledger.RoutedIn, ids []string, rest func(string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
 	*a.ids = append(*a.ids, ids...)
-	return a.filedLedger.Sessions(ids, rest, take)
+	return a.filedLedger.Sessions(in, ids, rest, take)
 }
 
-func (a sessionsAsked) SessionsOf(ids []string, rest func(string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
+func (a sessionsAsked) SessionsOf(in ledger.RoutedIn, ids []string, rest func(string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
 	*a.ids = append(*a.ids, ids...)
-	return a.filedLedger.SessionsOf(ids, rest, take)
+	return a.filedLedger.SessionsOf(in, ids, rest, take)
 }
 
 // The Log wants the store to hold the sessions of the lines its read keeps,

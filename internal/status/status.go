@@ -37,18 +37,43 @@ const (
 	RouterNotRunning = "not running"
 	// RouterUnhealthy is something answering there, but not as a router does.
 	RouterUnhealthy = "unhealthy"
+	// RouterBeforePools is a router answering that routes by no pools where
+	// the config has them, as BeforePools says: one from before pools, still
+	// running till its restart, whose document and sessions are every
+	// account's, never a pool's, so neither is read as one.
+	RouterBeforePools = "before pools"
 )
 
-// What the move of the accounts and their history onto the ids switchboard
-// makes does, or waits on, as a Moving's Stage says.
+// BeforePoolsSaid says why a router from before pools, as BeforePools has
+// it, isn't read as a pool's, nor asked to act on one, and what to do; and
+// StartedBeforePools says so short, for the dashboard, whose LATELY and
+// refusals say it where a phone's key line has room for no more.
+const (
+	BeforePoolsSaid    = "the router doesn't route by pools yet, as it started before them: restart it with switchboard service restart"
+	StartedBeforePools = "the router started before pools: restart it"
+)
+
+// BeforePools reports whether a router answering, reporting the pools it
+// routes by or not as reportsPools says, is one from before pools where the
+// config has pools, as pools gives them as they stand, asked only of a
+// router that reports none. A config without pools reads such a router as
+// it always has.
+func BeforePools(reportsPools bool, pools func() config.Pools) bool {
+	return !reportsPools && len(pools()) > 0
+}
+
+// What a move the history makes once does, or waits on, as a Moving's Stage
+// says.
 const (
 	// MoveRunning is the router making the move.
 	MoveRunning = "running"
-	// MoveAwaitingAPI is the move waiting for the API to answer for the
-	// accounts' tokens, whose organizations make their ids.
+	// MoveAwaitingAPI is the move onto the ids waiting for the API to answer
+	// for the accounts' tokens, whose organizations make their ids.
 	MoveAwaitingAPI = "awaiting api"
 	// MoveAwaitingRestart is the rest of the move waiting for the router to
-	// restart onto the accounts' new ids, which its config holds.
+	// restart onto the accounts' new ids, which its config holds; or, of the
+	// move to pools, to take up the first pool its config holds, as it does
+	// as it restarts.
 	MoveAwaitingRestart = "awaiting restart"
 	// MoveFailed is the move failing, the router to make it again.
 	MoveFailed = "failed"
@@ -64,11 +89,24 @@ const (
 	MoveOlderRouter = "older router"
 )
 
-// Moving is how the move of the accounts and their history onto the ids
-// switchboard makes stands: zero where none is owed.
+// The moves the history makes once, as a Moving's Move names them.
+const (
+	// MovingIDs is the move of the accounts and their history onto the ids
+	// switchboard makes.
+	MovingIDs = "ids"
+	// MovingPools is the move of the history to pools, after it.
+	MovingPools = "pools"
+)
+
+// Moving is how a move the history makes once stands, the move of the
+// accounts and their history onto the ids switchboard makes, then the move
+// of the history to pools: zero where none is owed.
 type Moving struct {
 	// Stage says what the move does or waits on, such as MoveRunning.
 	Stage string `json:"stage"`
+	// Move is the move it is, such as MovingPools: "" is MovingIDs, as from
+	// a router of a version before pools, which makes that move alone.
+	Move string `json:"move,omitempty"`
 	// Account is the account, by the id it had, whose token the API hasn't
 	// named the organization of, where Stage is MoveAwaitingAPI: "" where
 	// that isn't known.
@@ -79,20 +117,21 @@ type Moving struct {
 	Why string `json:"why,omitempty"`
 }
 
-// MovingAsked is how the move stands, as a command that finds the history
-// waiting on it tells it, having asked the router how it stands, which told
-// moving, or failed with err, notRunning where no router listens: no router
-// to make it, then; the router not saying, where it failed otherwise, as by
-// taking too long; one of a version from before ids were made, where the
-// one that answered owes none; else as the router tells it.
-func MovingAsked(moving Moving, err error, notRunning bool) Moving {
+// MovingAsked is how move, the move a command finds the history waiting on,
+// such as MovingPools, stands, as the command tells it, having asked the
+// router how it stands, which told moving, or failed with err, notRunning
+// where no router listens: no router to make it, then; the router not
+// saying, where it failed otherwise, as by taking too long; one of a version
+// from before the move, where the one that answered owes none; else as the
+// router tells it.
+func MovingAsked(move string, moving Moving, err error, notRunning bool) Moving {
 	switch {
 	case err != nil && notRunning:
-		return Moving{Stage: MoveNoRouter}
+		return Moving{Stage: MoveNoRouter, Move: move}
 	case err != nil:
-		return Moving{Stage: MoveUntold}
+		return Moving{Stage: MoveUntold, Move: move}
 	case moving == Moving{}:
-		return Moving{Stage: MoveOlderRouter}
+		return Moving{Stage: MoveOlderRouter, Move: move}
 	}
 	return moving
 }
@@ -107,18 +146,26 @@ type Document struct {
 	// the router was asked for its own first: zero in the router's own, and
 	// in one probed as asked.
 	Fallback Fallback `json:"fallback,omitzero"`
-	// Best is the account to use next: of those with room in the windows every
-	// model shares, the one whose quota most needs using, or, from the router,
-	// of those the global pin names while one has room, passing over those
-	// under pressure while another isn't. Empty when there's none.
+	// PoolID and PoolLabel are the id and the label of the pool the document
+	// is of, whose accounts, primary, pin, room and sessions it holds, as
+	// every document of a config with pools is one pool's: "" in a config
+	// from before pools. Pool, below, is the room new sessions in it have.
+	PoolID    string `json:"pool_id,omitempty"`
+	PoolLabel string `json:"pool_label,omitempty"`
+	// Best is the account of the pool to use next: of those with room in the
+	// windows every model shares, the one whose quota most needs using, or,
+	// from the router, of those the pool's pin names while one has room,
+	// passing over those under pressure while another isn't. Empty when
+	// there's none.
 	Best string `json:"best,omitempty"`
-	// Primary is the id of the primary account, whose token Claude Code
-	// holds: empty only when no account is marked the primary.
+	// Primary is the id of the pool's primary account, whose token Claude
+	// Code holds: empty only when no account is marked the primary.
 	Primary string `json:"primary,omitempty"`
 	// Prime is the priming schedule: zero when priming is off.
 	Prime Prime `json:"prime,omitzero"`
-	// Pin is the router's global pin: zero when there's none, and in a
-	// document that isn't the router's.
+	// Pin is the pool's pin, as the router holds it, naming the pool's
+	// accounts alone: zero when it names none of them, and in a document
+	// that isn't the router's.
 	Pin Pin `json:"pin,omitzero"`
 	// Router is the router's health: zero in a document that isn't the
 	// router's.
@@ -136,13 +183,19 @@ type Document struct {
 	// zero where the config names no folder, and in a document that isn't
 	// the router's.
 	Export Export `json:"export,omitzero"`
-	// Sessions is how many sessions the router has sent anywhere in the last
-	// hour, each counted once however many accounts its models went to: zero
-	// in a document that isn't the router's.
+	// Sessions is how many of the pool's sessions the router has sent
+	// anywhere in the last hour, each counted once however many accounts its
+	// models went to: zero in a document that isn't the router's.
 	Sessions int `json:"sessions,omitzero"`
 	// Events are what has happened lately, as the router tells of it, the
-	// newest first: none in a document that isn't the router's.
+	// newest first: those of the pool and its accounts, and those of no pool
+	// or account; none in a document that isn't the router's.
 	Events []Event `json:"events,omitempty"`
+	// EventsKept are the ids of the events the router kept as it built the
+	// document, every pool's, which Events are those of the pool among: zero
+	// where Events are every one it kept, as in a config without pools, in a
+	// document that isn't the router's, and in one from before it told them.
+	EventsKept EventsKept `json:"events_kept,omitzero"`
 	// Pool is the accounts new sessions can go to now, taken as one: zero
 	// with one account, whose own windows say the same.
 	Pool Pool `json:"pool,omitzero"`
@@ -202,9 +255,9 @@ const (
 	// EventRoom is an account that could take no request, at its limit or its
 	// cap, having room again.
 	EventRoom = "room"
-	// EventPin is routing set by hand: the global pin, or a session's own.
+	// EventPin is routing set by hand: the pool's pin, or a session's own.
 	EventPin = "pin"
-	// EventAuto is routing given back to the router: the global pin cleared,
+	// EventAuto is routing given back to the router: the pool's pin cleared,
 	// or a session's own.
 	EventAuto = "auto"
 	// EventRestart is a restart falling due, or held, as the router's binary
@@ -213,6 +266,15 @@ const (
 	// EventHealth is the router turning unhealthy, or healthy again.
 	EventHealth = "health"
 )
+
+// EventsKept are the ids of the oldest and the newest of the events the
+// router keeps, of every pool, as it numbers them one after another as it
+// runs: so a pool's document, whose events leave other pools' out, tells
+// which of those it didn't give it no longer keeps. Zero where it keeps none.
+type EventsKept struct {
+	Oldest int `json:"oldest"`
+	Newest int `json:"newest"`
+}
 
 // Event is something that happened lately, as the router tells of it: what
 // kind of thing, and the rest as each kind needs, left out where it doesn't.
@@ -226,12 +288,19 @@ type Event struct {
 	// Account is the account it befell: the one a session started on, or that
 	// came under pressure, reached its cap or its limit, was refused, had its
 	// token found another subscription's, was primed or has room again. Of a
-	// pin, the first of the global pin's Accounts, or the one a session's own
+	// pin, the first of the pool's pin's Accounts, or the one a session's own
 	// pin names; of an auto, the one a session's own named.
 	Account string `json:"account,omitempty"`
-	// Accounts are the accounts the global pin names, in the order
+	// Accounts are the accounts the pool's pin names, in the order
 	// configured, as it's set or cleared.
 	Accounts []string `json:"accounts,omitempty"`
+	// Pool is the id of the pool the event is of, of a kind that names it,
+	// as KindNamesItsPool has it: of a pin's or an auto's, the pool whose pin
+	// it is; of a session's start or move, the pool its request was routed
+	// within. None of one from before pools, as the move to pools gives those
+	// the first pool, so one naming none once it's done is the first's; and
+	// none of every other kind.
+	Pool string `json:"pool,omitempty"`
 	// Session and Model are the session that started or moved, and the model
 	// whose requests did; Session is the one whose own pin was set or
 	// cleared, too.
@@ -289,9 +358,9 @@ type Event struct {
 	// request refused alone, the model family the refusal holds back.
 	Status int    `json:"status,omitzero"`
 	Family string `json:"family,omitempty"`
-	// Move and Force are, of a global pin set, that it moves the running
-	// sessions too, and that it cleared every session's own pin; Force is the
-	// latter of a global pin cleared, too.
+	// Move and Force are, of a pool's pin set, that it moves the pool's
+	// running sessions too, and that it cleared the own pin of every session
+	// in the pool; Force is the latter of a pool's pin cleared, too.
 	Move  bool `json:"move,omitzero"`
 	Force bool `json:"force,omitzero"`
 	// By says who set or cleared a pin, such as "cli": "" where what did
@@ -303,7 +372,7 @@ type Event struct {
 // same instants: a version of an event the router tells again unchanged is
 // the same, so what's built of the one stands for the other.
 func (e Event) Same(o Event) bool {
-	return e.ID == o.ID && e.At.Equal(o.At) && e.Kind == o.Kind && e.Account == o.Account && slices.Equal(e.Accounts, o.Accounts) &&
+	return e.ID == o.ID && e.At.Equal(o.At) && e.Kind == o.Kind && e.Account == o.Account && slices.Equal(e.Accounts, o.Accounts) && e.Pool == o.Pool &&
 		e.Session == o.Session && e.Model == o.Model && e.Dir == o.Dir && e.From == o.From && e.To == o.To && e.Reason == o.Reason && e.Held == o.Held &&
 		slices.Equal(e.Windows, o.Windows) && maps.EqualFunc(e.Joined, o.Joined, time.Time.Equal) && e.Until.Equal(o.Until) &&
 		e.Since.Equal(o.Since) && e.Count == o.Count && e.Limit == o.Limit && e.ForcedBy == o.ForcedBy && e.Reserve == o.Reserve &&
@@ -313,10 +382,21 @@ func (e Event) Same(o Event) bool {
 // Fallback is why a document was built by probing though the router was
 // asked for its own first.
 type Fallback struct {
-	// Router is how the router was found: RouterNotRunning or RouterUnhealthy.
+	// Router is how the router was found: RouterNotRunning, RouterUnhealthy
+	// or RouterBeforePools.
 	Router string `json:"router"`
 	// Reason says what was wrong with its answer, when it answered.
 	Reason string `json:"reason,omitempty"`
+}
+
+// Refusal is why the router, found as f has it while it isn't read, can't
+// be given the dashboard's order: ErrStartedBeforePools for a router from
+// before pools, which answers, else ErrNoRouter.
+func (f Fallback) Refusal() error {
+	if f.Router == RouterBeforePools {
+		return ErrStartedBeforePools
+	}
+	return ErrNoRouter
 }
 
 // Health is how the router has fared with the requests it routed over the
@@ -581,7 +661,7 @@ type Pressure struct {
 	Since  time.Time `json:"since,omitzero"`
 	// RunsOut is when, at Rate, the window reaches where the account's room
 	// ends: where its reserve starts, or its limit, without one or where the
-	// global pin spends it. Zero when it never does, at no rate, and when it
+	// pool's pin spends it. Zero when it never does, at no rate, and when it
 	// has already.
 	RunsOut time.Time `json:"runs_out,omitzero"`
 	// Under is set when RunsOut comes before the window resets.
@@ -778,7 +858,7 @@ func (d Document) runOutOf(a Account, w quota.Window, now time.Time, policy scor
 }
 
 // reserveHolds reports whether the account's reserve holds it back once its
-// use reaches it: it has one, and the global pin doesn't name it, as a pin
+// use reaches it: it has one, and the pool's pin doesn't name it, as a pin
 // spends it.
 func (d Document) reserveHolds(a Account) bool {
 	return a.Reserve > 0 && !d.Pin.Has(a.ID)

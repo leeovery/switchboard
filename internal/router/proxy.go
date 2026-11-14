@@ -21,6 +21,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
+	"github.com/leeovery/switchboard/internal/redact"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/tokens"
 )
@@ -37,6 +38,9 @@ const (
 	// DirHeader names the directory run started claude in, as EncodeDir
 	// encodes it, for the request ledger.
 	DirHeader = ownPrefix + "Dir"
+	// PoolHeader names the pool run started claude in, by its id, which the
+	// router routes the session's requests within.
+	PoolHeader = ownPrefix + "Pool"
 )
 
 const (
@@ -46,7 +50,7 @@ const (
 	// refusing a request the log shows, and the client, when no account is
 	// left to try.
 	refusalShown = 200
-	// toldAtMost bounds what ignoredPins holds: the sessions of an account,
+	// toldAtMost bounds what warned holds: the sessions of an account,
 	// and the accounts.
 	toldAtMost = 1000
 )
@@ -71,10 +75,13 @@ type proxy struct {
 	// the state file is to keep.
 	tokensReplaced func()
 	state          *state
-	provider       Provider
-	chooser        Chooser
-	health         *health
-	emit           func(Event)
+	// pools are the pools a request is routed within, which its header
+	// names.
+	pools    *membership
+	provider Provider
+	chooser  Chooser
+	health   *health
+	emit     func(Event)
 	// stream tells of what befalls each routed request as it happens, and
 	// ledger keeps a line of each once it's done.
 	stream *stream
@@ -86,8 +93,14 @@ type proxy struct {
 	// errorLog takes what the reverse proxy reports itself, such as an
 	// upstream failing mid-stream.
 	errorLog *log.Logger
-	// ignored is what the log has said of the pins the proxy ignores.
-	ignored ignoredPins
+	// ignored is what the log has said of the pins the proxy ignores, and
+	// outside of those it ignores as they name an account outside the
+	// request's pool, kept apart, as a pin honoured in the account's own pool
+	// says nothing of them: a session's is warned of once for each spell the
+	// account spends outside its pool, as honouredFor says. left is what it
+	// has said of the sessions refused as their token's account isn't in
+	// their pool, by that account: each is warned of once.
+	ignored, outside, left warned
 }
 
 // exchange is one request on its way through the proxy, and what's known of
@@ -112,6 +125,9 @@ type exchange struct {
 	// request moved it: "" while it hasn't, and once its moves are taken
 	// back.
 	from string
+	// pool is the id of the pool a routed request was found in, as the last
+	// choice made for it found it, which its line records.
+	pool string
 	// id is a routed request's own while it runs, which ties its lines in the
 	// log together, and its events in the request stream.
 	id      string
@@ -176,28 +192,33 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		p.route(w, r, client)
 		return
 	}
+	if p.strayedThrough(w, r) {
+		return
+	}
 	p.passThrough(w, r)
 }
 
-// routable returns the account whose token a request carries, or carried
-// before it was replaced, and reports whether the request may go out on
-// another: only when it's to a path the provider routes and its token is, or
-// was, one of the accounts', so a process that doesn't hold a token can't
-// borrow one.
-func (p *proxy) routable(r *http.Request) (account, bool) {
+// routable returns who sent a request, as the token it carries says, and
+// reports whether the request may go out on another account: only when it's
+// to a path the provider routes and its token is, or was, one of the
+// accounts', so a process that doesn't hold a token can't borrow one.
+func (p *proxy) routable(r *http.Request) (sender, bool) {
 	if !p.provider.Routable(r.URL.Path) {
-		return account{}, false
+		return sender{}, false
 	}
-	return p.accounts.byToken(bearer(r.Header), p.now())
+	return p.accounts.sender(bearer(r.Header), p.now())
 }
 
-// route sends a request on the account the chooser picks for it, and on
-// others while that one can't serve it. When the chooser picks none, as only
-// accounts held back by their reserves are left, the router answers as the
-// upstream would at a limit, and as unsendable says where no account it can
-// send on will take the request. The request counts as routing until its line
-// is noted, but for one that upgrades its connection.
-func (p *proxy) route(w http.ResponseWriter, r *http.Request, client account) {
+// route sends a request from client on the account the chooser picks for it,
+// and on others while that one can't serve it. One from a session whose token
+// has left its pool switchboard refuses, as strayed says, choosing nothing,
+// nor reading its pin. When the chooser picks none, as only accounts held
+// back by their reserves are left, or none in the request's pool will take
+// it, the router answers as the upstream would at a limit, and as unchosen
+// says where no account it can send on will take the request. The request
+// counts as routing until its line is noted, but for one that upgrades its
+// connection.
+func (p *proxy) route(w http.ResponseWriter, r *http.Request, client sender) {
 	if !upgrades(r) {
 		p.routing.begin()
 		defer p.routing.end()
@@ -208,47 +229,62 @@ func (p *proxy) route(w http.ResponseWriter, r *http.Request, client account) {
 		p.unread(w, r, ex, err)
 		return
 	}
-	ex.req, ex.shape = p.request(r, body, ex, client)
-	choice := p.rechosen(r.Context(), ex.req, p.chooser.Choose(r.Context(), ex.req))
-	ex.newSession = choice.New
+	ex.req, ex.shape = p.request(r, body, ex, client.account)
 	defer p.done(r, ex)
-	if choice.Reserved {
+	if p.strayed(w, ex, client) {
+		return
+	}
+	ex.req.Pin = p.pin(r, ex, ex.req.Session, ex.req.Pool)
+	choice := p.rechosen(r.Context(), ex.req, p.chooser.Choose(r.Context(), ex.req))
+	ex.newSession, ex.pool = choice.New, choice.Pool
+	switch {
+	case choice.Reserved:
 		p.reserved(w, ex, choice)
 		return
-	}
-	a, reason, ok := p.chosen(ex, choice, client)
-	if !ok {
-		ex.reason = choice.Reason
-		p.unsendable(w, ex, client)
+	case choice.Closed:
+		p.closed(w, ex, choice)
 		return
 	}
-	ex.account, ex.reason = a, reason
+	a, ok := p.sendable(choice.Account)
+	if !ok {
+		p.unchosen(w, ex, choice, client.account)
+		return
+	}
+	ex.account, ex.reason = a, choice.Reason
 	p.moved(ex, choice.From)
 	p.forward(w, withBody(r, body), ex)
 }
 
 // request is what the chooser is to know of a routed request, whose body is
-// body, sent by client's token: its session and the directory it was started
-// in, its model and whether the model's thinking is bound to its account,
-// whether it's the client's quota check, whether it's the first of its
-// session's main conversation after that was compacted, and its pin; and the
+// body, sent by client's token, but for its pin, which route reads once the
+// request is to be routed: its session, the directory it was started in and
+// the pool it names, its model and whether the model's thinking is bound to
+// its account, whether it's the client's quota check, and whether it's the
+// first of its session's main conversation after that was compacted; and the
 // request's shape, which the provider reads in the same pass over the body. A
 // subagent's own conversation is compacted too, and marked alike, but its
 // session's main conversation keeps its cache, which a move would throw away.
 func (p *proxy) request(r *http.Request, body []byte, ex *exchange, client account) (Request, ledger.Shape) {
 	model, check, shape := p.provider.Asks(body)
-	session := p.provider.Session(r.Header)
 	return Request{
 		ID:        ex.id,
-		Session:   session,
+		Session:   p.provider.Session(r.Header),
 		Dir:       dirOf(r.Header),
+		Pool:      namedPool(r.Header),
 		Model:     model,
 		Check:     check,
 		Bound:     p.provider.ThinkingBound(model),
 		Compacted: ex.hints.Class == ledger.ClassMain && ex.hints.Compacted != "",
-		Pin:       p.pin(r, ex, session),
 		Client:    client.ID,
 	}, shape
+}
+
+// namedPool returns the id of the pool a request whose header is h names, ""
+// for none, cut short, with anything shaped like a token hidden, as the
+// request is remembered and logged by the pool it's in, which may be one the
+// config doesn't have.
+func namedPool(h http.Header) string {
+	return bounded(redact.Text(strings.TrimSpace(h.Get(PoolHeader))))
 }
 
 // passThrough sends a request upstream as it came.
@@ -261,62 +297,53 @@ func (p *proxy) passThrough(w http.ResponseWriter, r *http.Request) {
 }
 
 // pin returns the account the pin header of a request of session names, when
-// it names one the router can send on: by its id, or, from a session started
-// before switchboard made ids, the id it had before, as pinned explains. It
+// it names one the router can send on in pool, the pool the request names, as
+// the pools stand now: by its id, or, from a session started before
+// switchboard made ids, the id it had before, as accounts' idNow gives it. It
 // warns of a pin it ignores, once for each session and account, as
-// ignoredPins says, and notes it at debug after.
-func (p *proxy) pin(r *http.Request, ex *exchange, session string) string {
-	id := p.pinned(r.Header.Get(PinHeader))
+// warned says, and notes it at debug after.
+func (p *proxy) pin(r *http.Request, ex *exchange, session, pool string) string {
+	id := p.accounts.idNow(p.formerly, r.Header.Get(PinHeader))
 	if id == "" {
 		return ""
 	}
 	a, ok := p.accounts.byID(id)
-	var why string
+	why, told := "", &p.ignored
 	switch {
 	case !ok:
 		why = "pin ignored: no such account"
 	case !a.hasToken():
 		why = "pin ignored: account has no usable token"
+	case !p.pools.current().serves(pool, id):
+		why, told = "pin ignored: account isn't in the request's pool", &p.outside
 	default:
 		p.ignored.honoured(id)
+		p.outside.honouredFor(id, session)
 		return id
 	}
 	level := slog.LevelDebug
-	if p.ignored.first(id, session) {
+	if told.first(id, session) {
 		level = slog.LevelWarn
 	}
 	logger.Log(context.Background(), level, why, "id", ex.id, "pin", id, "session", status.ShortID(session))
 	return ""
 }
 
-// pinned is the id of the account a pin header's id names: the id given,
-// where the router has an account of it, else the id of the one that had it
-// before switchboard made ids, as formerly gives it, where one did.
-func (p *proxy) pinned(id string) string {
-	if _, ok := p.accounts.byID(id); ok || id == "" || p.formerly == nil {
-		return id
-	}
-	if now, ok := p.formerly(id); ok {
-		return now
-	}
-	return id
-}
-
-// ignoredPins holds, by account, the sessions whose pins to it the log has
-// warned are ignored, so it warns once for each, not at every request, until
-// the account can be sent on again. Sessions come and go, and an account
-// that isn't configured is never sent on, so it forgets an account's sessions
-// once it holds toldAtMost of them, and every account's once it holds that
-// many accounts, the log warning of each pin once more. It's safe for
-// concurrent use.
-type ignoredPins struct {
+// warned holds, by account, the sessions the log has warned of something to
+// do with the account, as a pin to it ignored, so it warns once for each, not
+// at every request, until a pin to the account is honoured, where that's what
+// it warned of. Sessions come and go, and an account that isn't configured is
+// never sent on, so it forgets an account's sessions once it holds toldAtMost
+// of them, and every account's once it holds that many accounts, the log
+// warning of each once more. It's safe for concurrent use.
+type warned struct {
 	mu   sync.Mutex
 	told map[string]map[string]bool
 }
 
-// first reports whether a pin to account, of a request of session, is the
-// first ignored since the account was last sent on.
-func (p *ignoredPins) first(account, session string) bool {
+// first reports whether what's warned of, to do with account, of a request of
+// session, is the first since a pin to the account was last honoured.
+func (p *warned) first(account, session string) bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if p.told[account][session] {
@@ -334,10 +361,20 @@ func (p *ignoredPins) first(account, session string) bool {
 
 // honoured notes that a pin to account is honoured, as it can be sent on: a
 // pin to it ignored after is warned of afresh.
-func (p *ignoredPins) honoured(account string) {
+func (p *warned) honoured(account string) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	delete(p.told, account)
+}
+
+// honouredFor notes that a pin to account of a request of session is
+// honoured: that session's pin to it ignored after is warned of afresh, and
+// another's isn't, as the pin of a session in another pool says nothing of
+// it.
+func (p *warned) honouredFor(account, session string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	delete(p.told[account], session)
 }
 
 // rechosen is choice, the chooser's for req, unless it names an account that
@@ -357,20 +394,30 @@ func (p *proxy) rechosen(ctx context.Context, req Request, choice Choice) Choice
 	return choice
 }
 
-// chosen returns the account a request goes out on first, as the chooser
-// chose it, and why. Should it name one the router can't send on, the request
-// keeps to its client's, where the router can send on that. It reports false
-// where it can't either, as where the choice names none, no account the
-// router can send on taking the request.
-func (p *proxy) chosen(ex *exchange, choice Choice, client account) (account, string, bool) {
-	if a, ok := p.accounts.byID(choice.Account); ok && a.hasToken() {
-		return a, choice.Reason, true
+// sendable returns the account with the given id, reporting false where the
+// router can't send on it, or has none of it, as for "".
+func (p *proxy) sendable(id string) (account, bool) {
+	a, ok := p.accounts.byID(id)
+	return a, ok && a.hasToken()
+}
+
+// unchosen answers a request the chooser chose no account for that the router
+// can send on, as unsendable says, naming why the account chosen can't take
+// it, else why its client's can't: where the choice names none, no account
+// the router can send on in the request's pool takes it. The request never
+// goes out on its client's token in place of the account chosen, as the
+// client's may be another pool's. A choice of one the router can't send on,
+// which rechosen has asked again for already, is a bug, which it logs as an
+// error.
+func (p *proxy) unchosen(w http.ResponseWriter, ex *exchange, choice Choice, client account) {
+	ex.reason = choice.Reason
+	chosen, ok := p.accounts.byID(choice.Account)
+	if !ok {
+		p.unsendable(w, ex, client)
+		return
 	}
-	if !client.hasToken() {
-		return account{}, "", false
-	}
-	logger.Error("chooser picked an account it can't send on; keeping the client's", "id", ex.id, "picked", choice.Account)
-	return client, status.ReasonClient, true
+	logger.Error("chooser picked an account it can't send on; refusing the request", "id", ex.id, "picked", choice.Account)
+	p.unsendable(w, ex, chosen)
 }
 
 // unsendable answers a request that can go out on no account the router can
@@ -405,6 +452,63 @@ func (p *proxy) reserved(w http.ResponseWriter, ex *exchange, choice Choice) {
 	p.provider.MarkLimited(w.Header(), choice.Back)
 	writeError(w, ex.status, "rate_limit_error",
 		"switchboard: no account has room outside its reserve, which switchboard leaves unused but on the accounts pinned (switchboard pin <id>...)")
+}
+
+// closed answers a request that no account in its pool will take, its
+// client's account outside the pool, as the upstream answers one over its
+// account's limit, as reserved does, when it can go out again not known:
+// nothing goes out on another pool's account, its client's own token among
+// them. Where there are pools to tell apart, it names the pool. It says why,
+// as whyClosed has it, as the limit the answer reads as isn't. A request
+// whose client's account is outside its pool as it arrives strayed refuses,
+// so this answers one whose account left the pool between that check and a
+// choice, as the pools changed; or, with nothing changed, one on a token of
+// an account that has left the config, which strays lets in, as its pool, or
+// none known, is the request's, while its client's account is outside it:
+// the account its tokens went to, in another pool, or, as it holds its own
+// token still, the removed account itself, in none; and the request's pool
+// has none to fall back to.
+func (p *proxy) closed(w http.ResponseWriter, ex *exchange, choice Choice) {
+	ex.reason, ex.status = choice.Reason, http.StatusTooManyRequests
+	pools := p.pools.current()
+	why := p.whyClosed(pools, ex.pool)
+	logger.Warn("no account in the request's pool can take it; answering 429", "id", ex.id, "pool", ex.pool, "why", why)
+	p.provider.MarkLimited(w.Header(), time.Time{})
+	message := "switchboard: no account can take the request"
+	if pool := pools.shown(ex.pool); pool != "" {
+		message = "switchboard: no account in pool " + pool + " can take the request"
+	}
+	writeError(w, ex.status, "rate_limit_error", message+"; "+why)
+}
+
+// whyClosed says why no account in the pool with the given id, as pools has
+// it, takes a request closed answers, account by account: of each the router
+// has, in the order configured, the problem of one without a usable token,
+// as unsendable names one, which says how to fix it, else that the upstream
+// refused it lately, as that alone leaves it nothing to fall back to; then
+// of each the config added since the router started, that it's taken up
+// when the router restarts. Where the pool has none, it says so, and where
+// the pools are closed, why, as poolTable's closed says.
+func (p *proxy) whyClosed(pools *poolTable, pool string) string {
+	if pools.closed != "" {
+		return pools.closed
+	}
+	members := pools.members(pool)
+	if len(members) == 0 {
+		return "the pool has no accounts"
+	}
+	whys := make([]string, 0, len(members))
+	for _, a := range p.accounts {
+		if pools.holds(pool, a.ID) {
+			whys = append(whys, "account "+a.ID+": "+cmp.Or(a.problem(), "the upstream refused it lately"))
+		}
+	}
+	for _, id := range members {
+		if !p.accounts.includes(id) {
+			whys = append(whys, "account "+id+": taken up when the router restarts")
+		}
+	}
+	return strings.Join(whys, "; ")
 }
 
 // next asks the chooser which account a request goes out on after those it
@@ -717,6 +821,7 @@ func (ex *exchange) event(kind string) StreamEvent {
 		Session: bounded(ex.req.Session),
 		Dir:     ex.req.Dir,
 		Model:   bounded(ex.req.Model),
+		Pool:    ex.pool,
 		Account: ex.answering().account,
 		Prompt:  ex.hints.Prompt,
 		Class:   ex.hints.Class,
@@ -765,7 +870,8 @@ func (p *proxy) logRouted(ex *exchange, f finish) {
 func (p *proxy) unread(w http.ResponseWriter, r *http.Request, ex *exchange, err error) {
 	f := finishing(r, time.Since(ex.started), false)
 	logger.Warn("request refused: body unread", append([]any{"id", ex.id, "method", r.Method, "path", r.URL.Path, "error", err}, f.attrs()...)...)
-	ex.req.Session, ex.req.Dir = p.provider.Session(r.Header), dirOf(r.Header)
+	ex.req.Session, ex.req.Dir, ex.req.Pool = p.provider.Session(r.Header), dirOf(r.Header), namedPool(r.Header)
+	ex.pool = p.pools.current().of(ex.req.Pool)
 	ex.status = http.StatusBadRequest
 	kind, message := "invalid_request_error", "switchboard: couldn't read the request body"
 	if _, tooLarge := errors.AsType[*http.MaxBytesError](err); tooLarge {

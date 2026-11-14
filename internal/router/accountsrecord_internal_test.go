@@ -134,6 +134,96 @@ func TestAnAccountThatLeftTheConfigIsMarkedRemovedWithTheLabelItLastHad(t *testi
 	}
 }
 
+func TestThePoolsConfiguredAreRecordedAndOneThatLeftMarkedRemovedWithTheLabelItHad(t *testing.T) {
+	log := logstest.Capture(t)
+	clock := &testClock{now: start}
+	cfg := testConfig(clock.read, &stubProber{}, testTokens.Read)
+	cfg.StateDir = t.TempDir()
+	cfg.HomeDir = func() (string, error) { return "/Users/test", nil }
+	path := filepath.Join(t.TempDir(), "config.toml")
+	accounts := "[[account]]\nid = \"work\"\npool = \"b2n8\"\n\n[[account]]\nid = \"personal\"\npool = \"b2n8\"\n\n[[account]]\nid = \"side\"\npool = \"b2n8\"\n"
+	writeFile(t, path, accounts+"\n[[pool]]\nid = \"b2n8\"\n\n[[pool]]\nid = \"h4w2\"\nlabel = \"Client\"\ndirs = [\"~/Code/client\"]\n")
+	cfg.ConfigFile = Watch(path)
+	r := newTestRouterOf(t, cfg)
+	pools := func() []identity.PoolEntry {
+		t.Helper()
+		record, err := identity.NewFile(cfg.StateDir).Read()
+		if err != nil {
+			t.Fatal(err)
+		}
+		return record.Pools
+	}
+
+	// As the router starts: the pools the config file makes, a directory
+	// in the home among them, are added, this Mac's, as the config writes
+	// them with their primaries, and each account keeps its pool.
+	clock.now = start.Add(time.Minute)
+	r.upkeep.keepRecord()
+	client := identity.PoolWritten{Label: "Client", Dirs: []string{"~/Code/client"}, PrimaryKnown: true}
+	want := []identity.PoolEntry{
+		{ID: "b2n8", Added: clock.now, Here: true, Written: identity.PoolWritten{Primary: "work", PrimaryKnown: true}},
+		{ID: "h4w2", Added: clock.now, Here: true, Written: client},
+	}
+	if got := pools(); !slices.EqualFunc(got, want, identity.PoolEntry.Equal) {
+		t.Errorf("the record's pools are %+v, want %+v", got, want)
+	}
+	if !log.Has("level=INFO", `msg="pool configured here added to the accounts record"`, "pool=h4w2") {
+		t.Errorf("log reads\n%s\nwant h4w2 told added to the record", log)
+	}
+	for _, id := range []string{"work", "personal", "side"} {
+		if e := entryOf(t, r, id); e.Pool != "b2n8" {
+			t.Errorf("the record holds %+v, want %s in b2n8, as the config has it", e, id)
+		}
+	}
+
+	// The client's pool leaves the config: it's marked removed, labelled as
+	// it was there.
+	clock.now = start.Add(time.Hour)
+	writeFile(t, path, accounts+"\n[[pool]]\nid = \"b2n8\"\n")
+	configure(r, without("side"))
+	want[1].Label, want[1].Removed, want[1].Here = "Client", clock.now, false
+	if got := pools(); !slices.EqualFunc(got, want, identity.PoolEntry.Equal) {
+		t.Errorf("the record's pools are %+v, want %+v", got, want)
+	}
+	if !log.Has("level=INFO", `msg="pool no longer configured marked removed in the accounts record"`, "pool=h4w2") {
+		t.Errorf("log reads\n%s\nwant h4w2 told marked removed", log)
+	}
+}
+
+// A pool that leaves the config before the record is first kept in step,
+// as while the move holds that back, is labelled as the config the router
+// started from had it.
+func TestAPoolThatLeftTheConfigBeforeTheFirstLookIsLabelledAsTheRouterStartedWithIt(t *testing.T) {
+	clock := &testClock{now: start}
+	cfg := testConfig(clock.read, &stubProber{}, testTokens.Read)
+	cfg.StateDir = t.TempDir()
+	cfg.Pools = config.Pools{{ID: "b2n8", Label: "b2n8"}, {ID: "h4w2", Label: "Client", Dirs: []string{"/Volumes/Client"}}}
+	path := filepath.Join(t.TempDir(), "config.toml")
+	writeFile(t, path, "[[account]]\nid = \"work\"\npool = \"b2n8\"\n\n[[account]]\nid = \"personal\"\npool = \"b2n8\"\n\n[[account]]\nid = \"side\"\npool = \"b2n8\"\n\n[[pool]]\nid = \"b2n8\"\n")
+	cfg.ConfigFile = Watch(path)
+	if err := identity.NewFile(cfg.StateDir).Update(func(r *identity.Record) error {
+		r.Pools = []identity.PoolEntry{{ID: "b2n8", Added: start, Here: true}, {ID: "h4w2", Added: start, Here: true}}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	r := newTestRouterOf(t, cfg)
+
+	clock.now = start.Add(time.Minute)
+	r.upkeep.keepRecord()
+	record, err := identity.NewFile(cfg.StateDir).Read()
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []identity.PoolEntry{
+		{ID: "b2n8", Added: start, Here: true, Written: identity.PoolWritten{Primary: "work", PrimaryKnown: true}},
+		{ID: "h4w2", Label: "Client", Added: start, Removed: clock.now},
+	}
+	if !slices.EqualFunc(record.Pools, want, identity.PoolEntry.Equal) {
+		t.Errorf("the record's pools are %+v, want %+v", record.Pools, want)
+	}
+}
+
 func TestAnAccountPutBackInTheConfigIsLiveAgain(t *testing.T) {
 	log := logstest.Capture(t)
 	clock := &testClock{now: start}
@@ -161,7 +251,7 @@ func TestAnAccountPutBackInTheConfigIsLiveAgain(t *testing.T) {
 func TestTheRecordIsKeptInStepWithTheConfigOnlyOnceTheMoveIsDone(t *testing.T) {
 	clock := &testClock{now: start}
 	r := newHeldRouter(t, clock, &stubProber{}, testTokens.Read, heldWork, heldSide)
-	r.moving.standing(status.Moving{Stage: status.MoveRunning})
+	r.moving.standing(status.Moving{Stage: status.MoveRunning, Move: status.MovingIDs})
 	path := identity.NewFile(r.cfg.StateDir).Path()
 	before, err := os.ReadFile(path)
 	if err != nil {
@@ -288,10 +378,10 @@ func TestAConfigPutBackOnTheIDsBeforeTheMoveChangesNothingTillItsHealed(t *testi
 
 	// The router restarting heals the config, and the look after changes
 	// nothing.
-	if healed, err := idmove.Heal(path, cfg.StateDir); err != nil || !healed {
+	if healed, err := idmove.Heal(path, cfg.StateDir, noHome); err != nil || !healed {
 		t.Fatalf("Heal() = %v, %v; want the config healed", healed, err)
 	}
-	healed, err := config.Load(path)
+	healed, err := config.Load(path, noHome)
 	if err != nil {
 		t.Fatal(err)
 	}

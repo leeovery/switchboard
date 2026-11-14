@@ -148,7 +148,7 @@ func TestASessionsPageJSONHoldsItsShape(t *testing.T) {
 		`"tools":[{"tool":"Read","times":3},{"tool":"Edit","times":1},{"tool":"Grep","times":1}],"read":200000,"written":2000,"out":1001,"worth":0.076093,"accounts":["side"],"labels":["side"]},` +
 		`{"turn":1,"started":` + at(october(6, 16, 40, 0)) + `,"ended":` + at(october(6, 18, 6, 0)) + `,"requests":2,"tools":[{"tool":"Bash","times":2}],` +
 		`"read":200000,"written":2000,"out":1000,"worth":0.07608,"accounts":["work"],"labels":["work"]}],` +
-		`"totals":{"turns":2,"requests":5,"from_cache":` + fromCache + `,"worth":0.152173}}`
+		`"totals":{"turns":2,"requests":5,"from_cache":` + fromCache + `,"worth":0.152173},"pool":"b2n8","pool_label":"b2n8"}`
 	for _, form := range jsonForms() {
 		t.Run(form.name, func(t *testing.T) {
 			got := form.run(t, deps, "sessions", "5e6f9")
@@ -161,6 +161,20 @@ func TestASessionsPageJSONHoldsItsShape(t *testing.T) {
 				t.Errorf("switchboard sessions 5e6f9 %s printed\n%s\nwant\n%s", strings.Join(form.args, " "), compact.String(), want)
 			}
 		})
+	}
+}
+
+// With one pool, a session's page names it in its JSON, as every verb's
+// JSON gives a pool, but not in its text, as no verb's text names the pool
+// till there's a second.
+func TestASessionsPageOfOnePoolNamesItInItsJSONAlone(t *testing.T) {
+	deps := pageDeps(t, true)
+	got := run(t, deps, "sessions", gone, "--json")
+	if page := jsonObject(t, got.stdout); got.code != 0 || page["pool"] != "b2n8" || page["pool_label"] != "b2n8" {
+		t.Errorf("switchboard sessions %s --json gave the pool %v labelled %v (%+v), want b2n8, the one pool, labelled by its id", gone, page["pool"], page["pool_label"], got)
+	}
+	if got := run(t, deps, "sessions", gone, "--pretty"); got.code != 0 || !strings.HasPrefix(got.stdout, "session ") {
+		t.Errorf("switchboard sessions %s --pretty printed\n%s\nwant it unheaded, starting at the session", gone, got.stdout)
 	}
 }
 

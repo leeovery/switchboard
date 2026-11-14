@@ -12,6 +12,7 @@ import (
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/score"
+	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/tokens"
 	"github.com/leeovery/switchboard/internal/tokens/tokenstest"
 )
@@ -68,16 +69,16 @@ func testAccounts() accounts {
 // newTestState builds the state of testAccounts on clock's time, knowing
 // Claude's model families and scoring as Claude's policy does.
 func newTestState(clock *testClock) *state {
-	return newState(testAccounts(), testPolicy, claude.Provider{}.Family, clock.read, unkept, unkept)
+	return newState(testAccounts(), unpooled(), testPolicy, claude.Provider{}.Family, clock.read, unkept, unkept)
 }
 
 // newTestFile builds a state file on now's time keeping what's known of the
-// accounts given: their sessions, their tokens, their usage, as Claude's
-// policy judges it, and what's been told of their tokens' years.
+// accounts given, in no pools: their sessions, their tokens, their usage, as
+// Claude's policy judges it, and what's been told of their tokens' years.
 func newTestFile(now func() time.Time, as accounts) *stateFile {
 	changes := newChanges()
-	usage := newState(as, testPolicy, claude.Provider{}.Family, now, changes.note, changes.routine)
-	return newStateFile(now, changes, newSessions(now, changes.note, changes.routine), as, usage, newYearsTold(changes.note))
+	usage := newState(as, unpooled(), testPolicy, claude.Provider{}.Family, now, changes.note, changes.routine)
+	return newStateFile(now, changes, newSessions(now, changes.note, changes.routine), as, usage, newYearsTold(changes.note), heirs{accounts: as.configured()})
 }
 
 // record takes in a reading of an account's windows off the answer to a
@@ -213,4 +214,30 @@ func (p *stubProber) counts() map[string]int {
 // its key.
 func probed(models map[string][]string, windows ...quota.Window) quota.Probe {
 	return quota.Probe{Windows: windows, Models: models}
+}
+
+// beforePools is a read of the one pool of a config from before pools, which
+// every session is in.
+func beforePools() poolRead {
+	return poolRead{pools: unpooled().current()}
+}
+
+// readOf is a read of the pool with the given id, as r's pools stand now.
+func (r *Router) readOf(pool string) poolRead {
+	return r.state.poolReadOf(r.state.pools.current(), pool)
+}
+
+// pinnedIn has r set pin as the pin of the pool with the given id, as
+// pinTo does, failing the test where it refuses.
+func pinnedIn(t *testing.T, r *Router, pool string, pin status.Pin) {
+	t.Helper()
+	if err := r.pinTo(r.readOf(pool), pin, false, ByCLI); err != nil {
+		t.Fatalf("pinTo(%s, %+v) = %v", pool, pin, err)
+	}
+}
+
+// poolPin returns the pin of the pool with the given id, as r holds it:
+// zero where it has none.
+func (r *Router) poolPin(pool string) status.Pin {
+	return r.sessions.pinsNow()[pool]
 }

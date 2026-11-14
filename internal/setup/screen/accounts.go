@@ -32,7 +32,7 @@ func (m Model) reviewed(msg reviewMsg) Model {
 		m.walk = m.walk.finished(err)
 	}
 	if was == nil && m.status.review != nil && len(m.status.review.Accounts) == 0 {
-		m.firstRun, m.add = true, addOpened()
+		m.firstRun, m.add = true, addOpened(m.status.review)
 	}
 	return m.following(was).madeChosen(msg)
 }
@@ -151,7 +151,7 @@ func (m Model) accountsEntered() (tea.Model, tea.Cmd) {
 	switch {
 	case m.settling():
 	case m.adding():
-		m.add = addOpened()
+		m.add = addOpened(m.status.review)
 	case m.status.review.Unmarked:
 	default:
 		if card := m.askingReserve(); card != nil {
@@ -175,6 +175,9 @@ func (m Model) accountsPage() *dashboard.SetupAccountsPage {
 	}
 	if m.edit != nil {
 		p.Edit = m.edit.drawn()
+	}
+	if m.newPool != nil {
+		p.NewPool = m.newPool.drawn()
 	}
 	if m.remove != nil {
 		p.Remove = m.remove.drawn()
@@ -216,7 +219,7 @@ func (m Model) chosenAccount() (setup.Reviewed, bool) {
 func (m Model) accountKey(key string, a setup.Reviewed) (tea.Model, tea.Cmd) {
 	switch key {
 	case "e":
-		m.edit = editing(a)
+		m.edit = editing(a, m.status.review)
 	case "r":
 		m.remove = &removeCard{id: a.ID, name: a.Name()}
 	case "p":

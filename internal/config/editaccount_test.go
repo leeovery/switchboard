@@ -953,7 +953,7 @@ func checkSaved(t *testing.T, path string, draft *config.Draft, id, want string)
 	if got := readFile(t, path); got != want {
 		t.Errorf("the config reads\n%s\nwant\n%s", got, want)
 	}
-	cfg, err := config.Load(path)
+	cfg, err := load(path)
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
 	}
