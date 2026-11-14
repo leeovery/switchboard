@@ -170,10 +170,11 @@ func TestDetailsWeeksReachAtEachPeriodAndWidth(t *testing.T) {
 // then an account's each, 5 rows apart, its name at the left, each week's
 // peak under its column, and its facts at its right, Weeks' facts on the
 // weeks it reaches over, all accounts' saying how many some account was
-// short. In the stack, it's Weeks' table: WEEKS on its heads' row, all
-// accounts' row, a blank row, then an account's each, its facts in two
-// headed columns. Neither draws BY DAY, nor any verdict.
-func TestDetailOfAllAccountsDrawsBandsWhereTheyFitElseTheTable(t *testing.T) {
+// short. In the stack, as on a phone at 73 columns, it's Weeks'
+// table, however tall the view: WEEKS, its heads' row, all accounts' row,
+// a blank row, then an account's each, its facts in two headed columns.
+// Neither draws BY DAY, nor any verdict.
+func TestDetailOfAllAccountsDrawsBandsWideAndTheTableStacked(t *testing.T) {
 	doc := usageWorld(extraOff)
 	verdicts := []string{"BY DAY", views.HitsItsLimit, views.PlentyToSpare, views.EndsWithRoom, views.RoomToSpare, views.LittleToSpare}
 	bands := map[int]string{
@@ -229,6 +230,27 @@ func TestDetailOfAllAccountsDrawsBandsWhereTheyFitElseTheTable(t *testing.T) {
 			}
 		}
 	})
+
+	for _, height := range []int{37, 61, turnedRows} {
+		t.Run(fmt.Sprintf("stacked, 73x%d", height), func(t *testing.T) {
+			f := phoneText(t, 73, height, AccountsDetail, "", phonePage(t), nil).At(phoneDoc(), routedAt)
+			rows := textOf(f.stackedOf(phoneDoc(), routedAt).whole().c.rows(Look{}))
+			at := slices.Index(rows, "WEEKS")
+			if at < 0 || at+6 >= len(rows) {
+				t.Fatalf("no WEEKS heading the table among\n%s", strings.Join(rows, "\n"))
+			}
+			for dy, want := range []string{"all accounts", "", "work", "personal", "side"} {
+				if got := rows[at+2+dy]; !strings.HasPrefix(got, want) || (want == "") != (strings.TrimSpace(got) == "") {
+					t.Errorf("the table's row %d reads %q, want it to start %q", dy, got, want)
+				}
+			}
+			for _, row := range rows {
+				if strings.Contains(row, "BY DAY") {
+					t.Errorf("a row reads %q, want no BY DAY", row)
+				}
+			}
+		})
+	}
 }
 
 // WORTH reaches across the panel, from cx to the weeks' edge, a blank row

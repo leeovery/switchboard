@@ -835,6 +835,65 @@ func TestDetailsSESSIONSShowAsTheyTakeTheFocus(t *testing.T) {
 	}
 }
 
+// showsSESSIONS fails the test where the view doesn't show Detail's
+// SESSIONS with the session selected, as the watch resolves it: its heading,
+// ▸ on the session, and what enter opens.
+func showsSESSIONS(t *testing.T, h *harness, after string) {
+	t.Helper()
+	s := h.model.accounts.shown
+	selected := status.ShownID(s.Selection(h.model.accounts.running))
+	view := strings.Split(h.view(), "\n")
+	shows := func(want func(string) bool) bool { return slices.ContainsFunc(view, want) }
+	if !shows(func(r string) bool { return strings.Contains(r, "SESSIONS  now") }) ||
+		!shows(func(r string) bool { return strings.Contains(r, "enter opens "+selected+"'s page") }) ||
+		!shows(func(r string) bool { return strings.Contains(r, "▸ ") && strings.Contains(r, " "+selected+" ") }) {
+		t.Errorf("after %s, the view doesn't show SESSIONS with %s selected:\n%s", after, selected, strings.Join(view, "\n"))
+	}
+}
+
+// Stacked at 52 columns, SESSIONS stay in view while they hold the focus as
+// what places them changes: the period's page read once → has taken the
+// focus there, pushing them down past the foot; the period stepped; and the
+// session selected ending, the selection falling to the one in its place.
+// A look where none changed leaves the view where it is.
+func TestDetailsSESSIONSStayInViewAsWhatPlacesThemChanges(t *testing.T) {
+	mo := accountsMoment(t, "six sessions on the account shown")
+	h := momentHarness(t, mo, dashboard.Overview)
+	h.source.sessions = mo.Sessions
+	h.model.accounts.shown = dashboard.AccountsShown{Shown: dashboard.AccountsDetail, Accounts: mo.Accounts, Chosen: "side"}
+	h.deliver(h.update(tea.WindowSizeMsg{Width: 52, Height: 37})...)
+	h.start()
+	h.model.view = dashboard.Accounts
+	reading := h.update(rightKey)
+	if h.model.accounts.stood != nil || !h.model.accounts.shown.InSessions {
+		t.Fatal("the period's page is read before → takes the focus to SESSIONS, so the test reads none arriving")
+	}
+	unread := h.model.scroll
+	h.deliver(reading...)
+	if h.model.accounts.stood == nil || h.model.scroll == unread {
+		t.Fatalf("with the period's page read, the view is scrolled %d, as before it was read, want it moved", h.model.scroll)
+	}
+	showsSESSIONS(t, h, "the period's page read")
+
+	h.keyed("<")
+	showsSESSIONS(t, h, "< stepped the period")
+
+	h.keys(downKey, downKey)
+	selected := h.model.accounts.shown.Selection(h.model.accounts.running)
+	h.source.sessions = slices.DeleteFunc(slices.Clone(mo.Sessions), func(s status.Session) bool { return s.ID == selected })
+	h.deliver(h.press("R")...)
+	if h.model.accounts.shown.Selection(h.model.accounts.running) == selected {
+		t.Fatalf("%s is still selected once it ended", status.ShownID(selected))
+	}
+	showsSESSIONS(t, h, status.ShownID(selected)+" ended")
+
+	h.model.scroll = 0
+	h.deliver(h.press("R")...)
+	if h.model.scroll != 0 {
+		t.Errorf("a look where nothing that places SESSIONS changed scrolled the view to %d, want it left at 0", h.model.scroll)
+	}
+}
+
 // enter on a session in Detail opens its page as a session's page opens
 // anywhere: drawn in Detail's place once its lines are read, those waiting
 // on a read of the ledger's tail under way, Detail showing and acting as it

@@ -276,7 +276,8 @@ and shows:
     History's Weeks.
   - Of all accounts, History's Weeks without its verdict: a band of week columns an account,
     `all accounts` first, each week's peak under its column and its facts at the right; or, where
-    Detail is stacked, as on a phone, a table, a row an account, its facts in two columns.
+    Detail is stacked, as on a phone, or too narrow for a week of bands, a table, a row an
+    account, its facts in two columns.
 - WORTH: what its use was worth at API prices over the period, across the screen, and its peak
 - its SESSIONS now
 - its LATELY, every event the router reports, filling the screen down to the key line; the rest

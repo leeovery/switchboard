@@ -3835,7 +3835,7 @@ where it fits** says, and where they don't fit, it's stacked, as **Stacked** say
   `text.subtle`, where none is whole. As it fits to the weeks' edge, never the frame's, its form
   follows the layout alone.
 - **All accounts' weeks** are History's Weeks without its verdict, in bands in the wide form,
-  and as its table in the stack.
+  and as its table in the stack, or in the wide form where not a week of bands fits across.
   - **The bands,** from a blank row under the rule: `all accounts`' band first, then each
     account's, back to back, each 4 rows of week columns and a row of peaks, as turned Compare's
     WEEKS draws them: its name and marks at the panel's left, in a column as wide as the widest
@@ -3846,10 +3846,11 @@ where it fits** says, and where they don't fit, it's stacked, as **Stacked** say
     over don't all show, `‹ 6 more` in `text.subtle`; and at its right, Weeks' facts on the weeks
     reached over, a part a row: `limit hit 3 of 14`, `text.subtle`, or `all accounts`'
     `short on 3 of 14`, bold `text.secondary`, then `31% left at a reset`. The bands are drawn
-    wherever the wide form is, however short the view, the panel scrolling past them, so a
-    shorter view never draws a form a taller one wouldn't (the owner's call, 14 November 2026).
-  - **The table,** in the stack, as on a phone: `WEEKS` on its heads' row, or where the
-    weeks reached over don't all show, `‹ 6 more`; the weeks' first days right-aligned over their
+    wherever a week of them fits across the wide form, however short the view, the panel
+    scrolling past them, so a shorter view never draws a form a taller one wouldn't (the owner's
+    call, 14 November 2026).
+  - **The table,** in the stack, as on a phone, or wide where not a week of bands fits: `WEEKS`
+    on its heads' row, or where the weeks reached over don't all show, `‹ 6 more`; the weeks' first days right-aligned over their
     columns, 8 apart, and the facts' two columns headed `limits` and `at a reset`, in
     `text.faint`; `all accounts`' row, a blank row, then a row an account: its peaks, `72%`, this
     week's `34%…` bold `text.secondary`, and its facts, `limit hit 3 of 6` and `9% left`. The
@@ -3882,9 +3883,11 @@ where it fits** says, and where they don't fit, it's stacked, as **Stacked** say
   `enter opens d28c's page`, `enter` bold `accent.key` and the rest `text.muted` (see A session's
   page). `→` takes the selection from the list into them, and `←` back; there `↑` `↓` select a
   session, and `enter` opens its page; more sessions than its four rows hold end with `+2 more`
-  (settled in the plan). As the focus moves into them, and as `↑` `↓` select another, the view
-  scrolls as little as shows SESSIONS' heading, the session selected and its `enter` line, as the
-  List keeps its choice in view, wide and stacked alike (`DetailSessionsScroll`). LATELY moves
+  (settled in the plan). As the focus moves into them, as `↑` `↓` select another, and while they
+  hold it, as the session selected ends, the period steps, its page is read or the terminal is
+  resized, the view scrolls as little as shows SESSIONS' heading, the session selected and its
+  `enter` line, as the List keeps its choice in view, wide and stacked alike
+  (`DetailSessionsScroll`); never on a look where none of those changed. LATELY moves
   beside them, 48 columns into the panel, at column 72, its rows from the row under its heading,
   every event still, and its words cut short of the frame's edge.
 - **With one account,** there's no list and no Compare: the panel from column 0, `cx` 12, laid as

@@ -34,10 +34,10 @@ func framedLayout() detailLayout {
 }
 
 // detailFramed is a row of Detail's frames, as compareFramed has it, with
-// its six weeks' days, as their use, a digit a day, the level each is shaded
-// at where its six weeks show, a week a word, and those to come "-", and the
-// days it hit a 5-hour limit, "x", and its six weeks' peaks, as whole
-// percentages.
+// its six weeks' days, each day's use a digit, a week a word, and those to
+// come "-", and the days it hit a 5-hour limit, "x", and its six weeks'
+// peaks, as whole percentages. The uses are chosen so views.ShadedDays,
+// shading the six weeks, puts each day at the level its digit reads.
 type detailFramed struct {
 	compareFramed
 	days, limits string
@@ -210,21 +210,30 @@ func sixOnSide() []status.Session {
 	return sessions
 }
 
-// While SESSIONS holds the focus, the view scrolls as far as shows them: its
-// heading, the session selected and what enter opens, wide at 160x37 and
-// stacked on the phone, from the view's top as from its foot, whichever
-// session is selected; and while the list holds it, the view stays where it
-// is.
+// While SESSIONS holds the focus, the view scrolls as far as shows them, and
+// no further: its heading, the session selected and what enter opens, wide
+// at 160x37 and stacked at 73 and 52 columns, from the view's top, the enter
+// line coming to rest on the view's last row, as from its foot, the heading
+// on its first, or not at all where the foot shows them, whichever session
+// is selected; and while the list holds it, the view stays where it is.
 func TestDetailScrollsToSESSIONSWhileTheyHoldTheFocus(t *testing.T) {
 	wide := detailFrame(Look{}, framedAccounts, "side", "", detailsPage(t), sixOnSide())
 	wide.Height = 37
-	phone := phoneText(t, 73, 40, AccountsDetail, "side", phonePage(t), sixOnSide())
-	doc := usageWorld(extraOff)
+	var events []status.Event
+	for i := range 40 {
+		events = append(events, startedAt(13, 59-i, fmt.Sprintf("%08x", i+1), "side", status.ReasonNew))
+	}
+	doc := usageWorld(extraOff, happened(events...))
 	running := views.RunningOn(wide.running(doc, routedAt), "side")
 	if len(running) != 6 {
 		t.Fatalf("%d sessions run on side, want 6", len(running))
 	}
-	for name, f := range map[string]Frame{"wide": wide, "stacked": phone} {
+	frames := map[string]Frame{
+		"wide":       wide,
+		"stacked 73": phoneText(t, 73, 40, AccountsDetail, "side", phonePage(t), sixOnSide()),
+		"stacked 52": phoneText(t, 52, 37, AccountsDetail, "side", phonePage(t), sixOnSide()),
+	}
+	for name, f := range frames {
 		for _, picked := range []int{0, 5} {
 			for _, from := range []string{"top", "foot"} {
 				t.Run(fmt.Sprintf("%s, %s selected, from the %s", name, status.ShownID(running[picked].Session), from), func(t *testing.T) {
@@ -233,10 +242,14 @@ func TestDetailScrollsToSESSIONSWhileTheyHoldTheFocus(t *testing.T) {
 					if from == "foot" {
 						f.Scroll = f.Scrolling(doc, routedAt).Most
 					}
+					id := status.ShownID(running[picked].Session)
+					was, shown := f.Scroll, func(view []string) bool {
+						return rowWith(view, "SESSIONS  now") >= 0 && rowWith(view, "enter opens "+id+"'s page") >= 0
+					}
+					wasShown := shown(textOf(f.Draw(doc, routedAt))[f.top() : f.top()+f.viewRows()])
 					f.Scroll = f.DetailSessionsScroll(doc, routedAt)
 					rows := textOf(f.Draw(doc, routedAt))
 					view := rows[f.top() : f.top()+f.viewRows()]
-					id := status.ShownID(running[picked].Session)
 					for _, want := range []string{"SESSIONS  now", "enter opens " + id + "'s page"} {
 						if rowWith(view, want) < 0 {
 							t.Errorf("scrolled %d, the view shows no %q:\n%s", f.Scroll, want, strings.Join(rows, "\n"))
@@ -244,6 +257,15 @@ func TestDetailScrollsToSESSIONSWhileTheyHoldTheFocus(t *testing.T) {
 					}
 					if y := rowWith(view, "▸ "); y < 0 || !strings.Contains(view[y], " "+id+" ") {
 						t.Errorf("scrolled %d, the view shows no ▸ on %s:\n%s", f.Scroll, id, strings.Join(rows, "\n"))
+					}
+					rest := map[string]int{"top": len(view) - 1, "foot": 0}[from]
+					at := map[string]int{"top": rowWith(view, "enter opens"), "foot": rowWith(view, "SESSIONS  now")}[from]
+					switch {
+					case wasShown && f.Scroll != was:
+						t.Errorf("scrolled from the %s, where SESSIONS showed, to %d, want it left at %d", from, f.Scroll, was)
+					case !wasShown && at != rest:
+						t.Errorf("scrolled from the %s to %d, SESSIONS' %s rests on the view's row %d, want %d, no further than shows it:\n%s",
+							from, f.Scroll, map[string]string{"top": "enter line", "foot": "heading"}[from], at, rest, strings.Join(rows, "\n"))
 					}
 				})
 			}

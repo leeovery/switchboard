@@ -187,11 +187,11 @@ func (p Past) Accounts(period Period) AccountsPage {
 }
 
 // stand sets all the page tells of its weeks, of the input and days given,
-// as they stand at in's Now, from the one count of the weeks it holds, as
-// heldWeeks has it: how many Detail reaches over, as detailWeeks counts
-// them; BY DAY's days, as byDay has them; and their peaks, facts and
-// resets, as weeked has them. So a day that changes how many weeks it holds
-// changes them all alike.
+// as they stand at in's Now: how many Detail reaches over, as detailWeeks
+// counts them that day; and over the weeks the page holds, as heldWeeks
+// counts them that day, BY DAY's days, as byDay has them, and their peaks,
+// facts and resets, as weeked has them. So a day that changes either count
+// changes all they tell alike.
 func (page *AccountsPage) stand(in HistoryInput, days []Day) {
 	page.Reaches = page.Period.detailWeeks(dayfile.CivilOf(in.Now), in.WeekStarts)
 	page.byDay(in, days)

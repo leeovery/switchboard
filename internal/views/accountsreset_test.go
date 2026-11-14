@@ -321,45 +321,60 @@ func TestStandingThePageAtAResetLeavesTheBuiltPageAndThePeriodAsTheyWere(t *test
 }
 
 // Standing the page a day on stands all it tells of its weeks from the one
-// count of the weeks it holds: at 12 months, where the day drops them from
-// 53 to 52, how many Detail reaches over, the weeks, BY DAY's days and how
-// many are to come are all as a page built that day has them, so ‹ N more
-// never counts a week the page no longer holds.
+// count of the weeks it holds, whether the moment has a reset to file or
+// not: at 12 months, where the day drops them from 53 to 52, how many Detail
+// reaches over, the weeks, BY DAY's days and how many are to come, and each
+// row's peaks, are as a page built that day has them, so ‹ N more never
+// counts a week the page no longer holds. With a reset to file, the peaks
+// are the reset's, so the rest alone is held to the page built that day.
 func TestStandingThePageADayOnStandsItsWeeksFromOneCount(t *testing.T) {
-	am := accountsMoment(t, beforeTheRead)
-	m := am.Doc.At(am.Now, claude.Policy())
-	crossed := false
-	for starts := time.Sunday; starts <= time.Saturday; starts++ {
-		t.Run(starts.String(), func(t *testing.T) {
-			in := accountsIn(am)
-			in.WeekStarts = starts
-			fresh := views.NewPast(in, am.Days).Accounts(views.PeriodTwelveMonths)
-			in.Now = am.Now.AddDate(0, 0, -1)
-			built := views.NewPast(in, am.Days).Accounts(views.PeriodTwelveMonths)
-			crossed = crossed || len(built.Weeks) != len(fresh.Weeks)
-			stood := built.At(m)
-			got := []int{stood.Reaches, len(stood.Weeks), len(stood.Rows[0].Days), len(stood.All.Days), stood.ToCome}
-			want := []int{fresh.Reaches, len(fresh.Weeks), len(fresh.Rows[0].Days), len(fresh.All.Days), fresh.ToCome}
-			if !slices.Equal(got, want) {
-				t.Errorf("stood a day on, the page reaches over, holds, and has days and days to come %v, want %v as built that day", got, want)
-			}
-		})
-	}
-	if !crossed {
-		t.Error("no day the week can start on drops the weeks held a day on: the test doesn't cross the edge")
+	for _, tt := range []struct {
+		moment string
+		filed  bool
+	}{{moment: aSecondBefore}, {moment: beforeTheRead, filed: true}} {
+		am := accountsMoment(t, tt.moment)
+		m := am.Doc.At(am.Now, claude.Policy())
+		crossed := false
+		for starts := time.Sunday; starts <= time.Saturday; starts++ {
+			t.Run(fmt.Sprintf("%s, weeks from %s", tt.moment, starts), func(t *testing.T) {
+				in := accountsIn(am)
+				in.WeekStarts = starts
+				fresh := views.NewPast(in, am.Days).Accounts(views.PeriodTwelveMonths)
+				in.Now = am.Now.AddDate(0, 0, -1)
+				built := views.NewPast(in, am.Days).Accounts(views.PeriodTwelveMonths)
+				crossed = crossed || len(built.Weeks) != len(fresh.Weeks)
+				stood := built.At(m)
+				if stood.Reaches != fresh.Reaches || !slices.Equal(stood.Weeks, fresh.Weeks) || stood.ToCome != fresh.ToCome {
+					t.Errorf("stood a day on, the page reaches over %d of the weeks %v, %d days to come; want %d of %v, %d, as built that day",
+						stood.Reaches, stood.Weeks, stood.ToCome, fresh.Reaches, fresh.Weeks, fresh.ToCome)
+				}
+				for i, row := range append(stood.Rows, stood.All) {
+					want := append(fresh.Rows, fresh.All)[i]
+					if !slices.Equal(row.Days, want.Days) {
+						t.Errorf("stood a day on, row %d's days are %v, want %v, as built that day", i, row.Days, want.Days)
+					}
+					if !tt.filed && !reflect.DeepEqual(row.Peaks, want.Peaks) {
+						t.Errorf("stood a day on, row %d's peaks are %s, want %s, as built that day", i, peaksRead(row.Peaks), peaksRead(want.Peaks))
+					}
+				}
+			})
+		}
+		if !crossed {
+			t.Errorf("at %s, no day the week can start on drops the weeks held a day on: the test doesn't cross the edge", tt.moment)
+		}
 	}
 }
 
 // A window a week long of a model's own, as Fable's week, reset since it was
-// read, leaves the page as it was built: Accounts' weeks are of the accounts'
-// own week alone, so nothing of it is worked out again.
+// read, leaves the page's weeks as they were built: Accounts' weeks are of
+// the accounts' own week alone, so nothing of Fable's is filed among them.
 func TestAResetOfAWindowButTheAccountsWeekLeavesThePageAsBuilt(t *testing.T) {
 	am := accountsMoment(t, aSecondBefore)
 	fable := quota.Window{Key: "7d_oi", Label: "Fable week", Utilization: 0.5, ResetsAt: am.Now.Add(-15 * time.Second)}
 	am = withWindow(am, "work", fable)
 	built := views.NewPast(accountsIn(am), am.Days).Accounts(am.Period)
-	if stood := built.At(am.Doc.At(am.Now, claude.Policy())); &stood.Rows[0] != &built.Rows[0] {
-		t.Errorf("standing the page at Fable's week reset worked its rows out again, want the page as built")
+	if stood := built.At(am.Doc.At(am.Now, claude.Policy())); weeksSaid(stood) != weeksSaid(built) {
+		t.Errorf("standing the page at Fable's week reset says its weeks\n%s\nwant them as built\n%s", weeksSaid(stood), weeksSaid(built))
 	}
 }
 
