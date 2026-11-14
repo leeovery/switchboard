@@ -45,7 +45,7 @@ type SessionsMeasured struct {
 // MeasureSessions measures the ended sessions of the page given at the
 // moment m at now, as SessionsMeasured has them.
 func MeasureSessions(page *views.ProjectPage, m status.Moment, now time.Time) SessionsMeasured {
-	words := sessionWords{m: m, now: now, weekdays: true}
+	words := sessionWords{m: m, now: now}
 	widest := make([]int, len(projectColumns))
 	for i, p := range projectColumns {
 		widest[i] = words.widest(p, page.Sessions, sessionEnded)
@@ -68,7 +68,6 @@ func sessionRunning(s views.PeriodSession) bool {
 // its columns out, of the ended sessions as measured measures them, where
 // it's of the page, their lines as sessionLines has them.
 func projectSessionsOf(words sessionWords, page *views.ProjectPage, measured SessionsMeasured, width int) projectSessions {
-	words.weekdays = true
 	s := projectSessions{words: words, lines: sessionLines(page.Sessions), width: width}
 	if measured.of != page {
 		measured = MeasureSessions(page, words.m, words.now)

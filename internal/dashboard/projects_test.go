@@ -410,7 +410,7 @@ func TestSessionsStartedGivesItsDayWhereItBeganOnAnother(t *testing.T) {
 	f := projectsFrame(t, 173, 60, projectRows(3), 0, &page)
 	rows := textOf(f.page(framedDoc(nil, nil), routedAt).rows(Look{}))
 	tests := []struct{ id, state, started string }{
-		{id: "d28c", state: "answering", started: "Wed 15:08"},
+		{id: "d28c", state: "answering", started: "yesterday 15:08"},
 		{id: "5b19", state: "ended 11:21", started: "10:02"},
 		{id: "3d7a", state: "ended 16:40", started: "Tue 09:00"},
 		{id: "e0c4", state: "ended 10:02", started: "09:12"},

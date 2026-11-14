@@ -105,7 +105,7 @@ func (m Model) logBuilt(now time.Time, s views.Stream) Model {
 		return m
 	}
 	log := m.joinedDays().SessionLog(m.periodInput(now, list))
-	m.sessionsTab.shown.Log, m.sessionsTab.logOf = &log, of
+	m.sessionsTab.shown.Log, m.sessionsTab.shown.Measured, m.sessionsTab.logOf = &log, dashboard.MeasureLog(&log, now), of
 	m.sessionsTab.logs++
 	return m
 }

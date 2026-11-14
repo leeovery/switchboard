@@ -4000,8 +4000,8 @@ draw it, the tab names in its title row aside, and kept in `testdata/vhs/referen
   before's. SESSIONS is the List's columns, the
   session's from 11 cells to its whole, then model, started and requests leaving as the width runs
   short; its rules read `ended today`, `ended yesterday`, a weekday within the week, else the day
-  and its date, each session's state its end by the clock alone and its start dated where it began
-  on another day than the one it ended on. Its columns are as wide as the widest each says of all
+  and its date, each session's state its end by the clock alone and its start, where it began on
+  another day than the one it ended on, as the List's (see Sessions). Its columns are as wide as the widest each says of all
   the project's sessions, so they hold still as it scrolls; the ended sessions are measured once,
   as the watch builds the project's page (`dashboard.MeasureSessions`), and only those running at
   each frame. Where rows run shorter than its least, a page of one line shows no rule, a rule
@@ -4808,7 +4808,7 @@ each at least its least and at most its natural:
 | `on` | Its natural, 14 at the most | The widest account's name configured, 24 at the most | The account its latest request went to, in `text.primary` |
 | `model` | 9 | 9 | The model of its latest request, its id less `claude-`, as `opus-5-5`, in `text.muted` |
 | `state` | 11 | 11 | `asking` or `answering`, bold `accent.key`; `✕ 429`, bold `state.destructive`; `idle 34s` in `text.muted`; once over, when it ended by the clock on the day its rule names, `ended 11:21`, in `text.muted` |
-| `started` | 15 | 15 | When its first request came: by the clock alone, `12:47`, on the day its rule names, or today while it runs; else `yesterday 15:08`, `Tue 15:08` within the week, `28 Sep 15:08` before it (settled in the plan; yesterday never by its weekday, round 3's frames), in `text.muted` |
+| `started` | The log's widest, 15 at least | Its least | When its first request came: by the clock alone, `12:47`, on the day its rule names, or today while it runs; else after its day as the rules name days, `yesterday 15:08`, `Tue 09:12` within the six days before today, `Mon 21 Sep 09:12` before them (yesterday never by its weekday, round 3's frames; one rule for the List and Projects' SESSIONS). As wide as the widest of the whole log says, the ended sessions measured once as the watch builds the log (`dashboard.MeasureLog`), so it holds still as the List scrolls; in `text.muted` |
 | `requests` | 8 | 8, right-aligned | Its requests in the period, as `1,240`, in `text.muted`: today's over today |
 | `worth` | 7 | 7, right-aligned | Theirs at API prices, as `$17.86`, in `text.muted`; unpriced as the Log shows it |
 | `routing` | 24 | To the last column | How it came to the account it's on, in the Log's routing words: `from ` in `text.muted`, the account it left in `text.secondary`, `, at its cap` in `text.muted`, two spaces, and in `accent.attention` what writing its context again cost, `$1.82`; `pinned here` in `text.muted` for a session pinned on its own (settled in the plan); blank where it started there |

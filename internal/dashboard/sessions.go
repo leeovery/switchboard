@@ -30,14 +30,16 @@ var sessionsViews = []string{"Switchboard", "List"}
 // the preferences keep; who sits where on the Switchboard, kept from look to
 // look as views.Patch keeps it, and the calls the look found, as
 // views.CallsOf has them; the List's log of the period, as the watch built
-// it of the sessions' days, nil till they're read; and the row chosen,
-// which holds for the run alone. The watch builds each as what it's built
-// of changes: what draws them reads what it built.
+// it of the sessions' days, nil till they're read, and its ended sessions
+// measured, as MeasureLog measures them as the log is built; and the row
+// chosen, which holds for the run alone. The watch builds each as what it's
+// built of changes: what draws them reads what it built.
 type SessionsShown struct {
-	Shown   SessionsView
-	Patched views.Patched
-	Calls   []views.Call
-	Log     *views.SessionLog
+	Shown    SessionsView
+	Patched  views.Patched
+	Calls    []views.Call
+	Log      *views.SessionLog
+	Measured LogMeasured
 	// Chosen is the row chosen: on the Switchboard, a session's call on an
 	// account, as each of a session's rows is chosen on its own; on the
 	// List, a session, its Account "". It's the zero Plug while none is.

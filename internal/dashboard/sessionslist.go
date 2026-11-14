@@ -86,11 +86,12 @@ var listPartFacts = [...]struct {
 // listParts are the List's columns as flex lays them, listGap apart, each
 // from its least to its natural, holding its natural until it narrows in its
 // turn: on's natural the cells given, its least that, listOnLeast at the
-// most; and routing taking what's left to the last column.
+// most; started at the cells given where they're more than its least; and
+// routing taking what's left to the last column.
 //
-// No natural comes from the rows shown, so the columns hold still as the
-// List scrolls and as sessions come and go.
-func listParts(on int) []flex.Part {
+// No natural comes from the rows shown, but started's from the whole log,
+// so the columns hold still as the List scrolls.
+func listParts(on, started int) []flex.Part {
 	parts := make([]flex.Part, len(listPartFacts))
 	for p, facts := range listPartFacts {
 		parts[p] = flex.Part{
@@ -99,6 +100,8 @@ func listParts(on int) []flex.Part {
 		}
 	}
 	parts[listOn].Least, parts[listOn].Natural = min(on, listOnLeast), on
+	started = max(started, parts[listStarted].Least)
+	parts[listStarted].Least, parts[listStarted].Natural = started, started
 	parts[listRouting].Grows = true
 	return parts
 }
@@ -111,15 +114,16 @@ type listColumn struct {
 }
 
 // listColumnsOf are the List's columns shown across a frame width cells
-// wide, on's natural the cells given, at least its head's, in two passes of
+// wide, on's natural the cells given, at least its head's, and started the
+// cells given, as listParts has them, in two passes of
 // flex, as the Log's Requests are: the first decides which of listParts
 // show; the second lays out only those, as flex's Decided has them, so
 // what's past the leasts goes to the session first, then on, in the row's
 // order. Nothing grows but routing, so where it's left, the spare lies at
 // the row's end.
-func listColumnsOf(width, on int) []listColumn {
+func listColumnsOf(width, on, started int) []listColumn {
 	room := width - listFrom
-	parts := listParts(max(on, ansi.StringWidth(listPartFacts[listOn].head)))
+	parts := listParts(max(on, ansi.StringWidth(listPartFacts[listOn].head)), started)
 	decided, _ := flex.Lay(room, parts...)
 	var shown []listPart
 	var kept []flex.Part
@@ -183,6 +187,22 @@ type listed struct {
 // sessions · ▼ 130 more sessions", and for less room, the counts alone.
 var sessionsOut = []outForm{{noun: "session", gap: " · ", inks: keyedOut}, {gap: " · ", inks: keyedOut}}
 
+// LogMeasured are the cells of the widest start the ended sessions of the
+// List's log say, as the watch measures them as it builds the log, and the
+// log it measured, so the List's started column is as wide as the log
+// needs, whatever it scrolls to.
+type LogMeasured struct {
+	of      *views.SessionLog
+	started int
+}
+
+// MeasureLog measures the ended sessions of the log given at now, as
+// LogMeasured has them.
+func MeasureLog(log *views.SessionLog, now time.Time) LogMeasured {
+	words := sessionWords{now: now}
+	return LogMeasured{of: log, started: words.widest(listStarted, log.Sessions, sessionEnded)}
+}
+
 // listForm is Sessions' List as its form draws it, of doc at now, once the
 // watch has built its log of the period: nothing before, as its heading
 // says it's loading.
@@ -200,14 +220,21 @@ func (f Frame) listForm(doc status.Document, now time.Time) sessionsForm {
 // sessions are out of view, so long as that leaves them a row, the period
 // line a row up over it. Its day rules show where its page has room, as
 // sessionsByDay's within has it. The view's least, leastView, leaves its
-// lines a row under the period line's two at their most.
+// lines a row under the period line's two at their most. Its started column
+// is as wide as the widest start of the whole log, the ended as measured
+// has them, where it's of the log, and those running as they say now.
 func (f Frame) listing(doc status.Document, now time.Time) listed {
 	m := f.Moment(doc, now)
-	log := f.SessionsTab.Log
+	log, words := f.SessionsTab.Log, sessionWords{m: m, now: now}
+	measured := f.SessionsTab.Measured
+	if measured.of != log {
+		measured = MeasureLog(log, now)
+	}
+	started := max(measured.started, words.widest(listStarted, log.Sessions, sessionRunning))
 	rows := f.Height - underView - f.top()
 	l := listed{
 		f: f, period: log.Period, top: f.top(), foot: periodLine(*log, f.Width),
-		words: sessionWords{m: m, now: now}, columns: listColumnsOf(f.Width, widestLabel(m)),
+		words: words, columns: listColumnsOf(f.Width, widestLabel(m), started),
 		lines: sessionLines(log.Sessions), width: f.Width, lit: f.SessionsTab.Chosen.Session,
 	}
 	l.page = rows - len(l.foot)
@@ -355,13 +382,11 @@ func (w sessionWords) sessionRow(c *canvas, y int, columns []listColumn, s views
 
 // sessionWords say what the List's columns say of a session, of the moment
 // m at now, grouped by the day each ended, as the List and Projects'
-// SESSIONS group them: its end and its start said on that day; and a start
-// on another day, where weekdays says, by its weekday, as Projects' SESSIONS
-// says it, else by how far back it is, as the List does.
+// SESSIONS group them: its end and its start said on that day, and a start
+// on another day with that day, as the rules name the days.
 type sessionWords struct {
-	m        status.Moment
-	now      time.Time
-	weekdays bool
+	m   status.Moment
+	now time.Time
 }
 
 // says is what the column says of the session, in its cells: the session
@@ -427,20 +452,17 @@ func (w sessionWords) stateSays(s views.ListedSession) line {
 }
 
 // startedSays is when its first request came, in text.muted: by the clock
-// alone where it came on the day the session's grouped under; else, where
-// weekdays says, with its weekday, as prose.Dated says it of that day, or
-// as prose.Past says it, so one of yesterday's reads so; nothing where that
-// isn't known.
+// alone where it came on the day the session's grouped under; else as
+// prose.Begun says it, its day as the rules name days, as "yesterday 15:08"
+// or "Mon 21 Sep 09:12"; nothing where that isn't known.
 func (w sessionWords) startedSays(s views.ListedSession) line {
 	switch {
 	case s.Started.IsZero():
 		return nil
-	case w.weekdays:
-		return line{{prose.Dated(w.dayOf(s), s.Started), mutedInk}}
 	case prose.SameDay(w.now, w.dayOf(s), s.Started):
 		return line{{prose.TimeOfDay(w.now, s.Started), mutedInk}}
 	}
-	return line{{prose.Past(w.now, s.Started), mutedInk}}
+	return line{{prose.Begun(w.now, s.Started), mutedInk}}
 }
 
 // dayOf is a time on the day the session's grouped under, in now's time

@@ -197,6 +197,10 @@ func TestTheListsColumnsByWidth(t *testing.T) {
 // listLeaving are the List's columns that leave, in the order they leave.
 var listLeaving = []listPart{listRouting, listWorth, listStarted, listModel}
 
+// startedLeast is the started column's least, where no session of the log
+// says a start wider.
+var startedLeast = listPartFacts[listStarted].least
+
 // listLeasts are the List's columns' leasts as the design gives them, on's
 // natural on: the session its id and 6 of its directory; on its natural, 14
 // at the most; and the others their widths.
@@ -212,9 +216,9 @@ func listLeasts(on int) map[listPart]int {
 // listWidensSteadily has them.
 func TestTheListsColumnsLeaveInTheirOrder(t *testing.T) {
 	for _, on := range []int{8, 14, 22} {
-		before := listColumnsOf(51, on)
+		before := listColumnsOf(51, on, startedLeast)
 		for width := 52; width <= 220; width++ {
-			columns := listColumnsOf(width, on)
+			columns := listColumnsOf(width, on, startedLeast)
 			for _, wrong := range slices.Concat(listLaidAsDesigned(width, on), listWidensSteadily(before, columns)) {
 				t.Errorf("on %d at %d, %s: %+v", on, width, wrong, columns)
 			}
@@ -250,7 +254,7 @@ func listWidensSteadily(before, after []listColumn) []string {
 // and routing, where it shows, ends at the last column, beside the session
 // and on whole, and where it's left, no column is past its natural.
 func listLaidAsDesigned(width, on int) []string {
-	leasts, columns := listLeasts(on), listColumnsOf(width, on)
+	leasts, columns := listLeasts(on), listColumnsOf(width, on, startedLeast)
 	shown := map[listPart]listColumn{}
 	var wrong []string
 	taken, x := -listGap, listFrom
@@ -832,8 +836,9 @@ func endedAtOn(at time.Time) views.Activity {
 // under a rule for the day they ended, newest first: today, yesterday, a
 // weekday within the six days before today, else the weekday and its date.
 // Within a day, state reads when it ended, and started its time alone where
-// it started that day, else as prose.Past says it, yesterday never by its
-// weekday.
+// it started that day, else its day as the rules name days, then its time;
+// and the started column is as wide as the widest start of the log, a date
+// of two figures with its weekday and its time.
 func TestTheLogGroupsEndedSessionsUnderTheirDaysRules(t *testing.T) {
 	b519 := listedSession{"5b19d3e7", "~/Code/mobile", "personal", endedAt(11, 21), routedClock(1, 10, 2), 38, 312, views.NoMark, 0}
 	e5d7 := listedSession{"5e7d0a3b", "~/Code/api", "side", endedAt(0, 41), yesterdayClock(23, 47), 17, 128, views.NoMark, 0}
@@ -855,7 +860,7 @@ func TestTheLogGroupsEndedSessionsUnderTheirDaysRules(t *testing.T) {
 		{line: "  ended Tue  ─"},
 		{line: "  9a04", started: "Mon 13:10", state: "ended 18:25"},
 		{line: "  ended Mon 21 Sep  ─"},
-		{line: "  47bf", started: "20 Sep 23:00", state: "ended 18:22"},
+		{line: "  47bf", started: "Sun 20 Sep 23:00", state: "ended 18:22"},
 	}
 	state := strings.Index(rowOf(c, top), "state")
 	for i, tt := range tests {
@@ -866,11 +871,40 @@ func TestTheLogGroupsEndedSessionsUnderTheirDaysRules(t *testing.T) {
 		if tt.started == "" {
 			continue
 		}
-		if got := strings.TrimSpace(glyphsAt(c, started, y, 15)); got != tt.started {
+		if got := strings.TrimSpace(glyphsAt(c, started, y, 16)); got != tt.started {
 			t.Errorf("%s started %q, want %q", strings.TrimSpace(tt.line), got, tt.started)
 		}
 		if got := strings.TrimSpace(glyphsAt(c, state, y, 11)); got != tt.state {
 			t.Errorf("%s's state reads %q, want %q", strings.TrimSpace(tt.line), got, tt.state)
+		}
+	}
+}
+
+// The started column is as wide as the widest start of the whole log, out
+// of view or in it, measured once as the watch builds the log or as it's
+// drawn: so it's alike at the top and scrolled to the foot.
+func TestTheListsStartedIsAsWideAsTheWholeLogsWidest(t *testing.T) {
+	log := heldDay()
+	wide := listedSession{"47bf2a90", "~/Code/switchboard", "personal", endedAtOn(septemberClock(21, 18, 22)), septemberClock(20, 23, 0), 240, 2490, views.NoMark, 0}
+	log.Sessions = append(log.Sessions, wide.logged())
+	doc := framedDoc(nil, nil)
+	startedWidth := func(f Frame) int {
+		for _, col := range f.listing(doc, routedAt).columns {
+			if col.part == listStarted {
+				return col.width
+			}
+		}
+		return 0
+	}
+	for _, measured := range []bool{false, true} {
+		f := listFrame(t, 160, 16, log)
+		if measured {
+			f.SessionsTab.Measured = MeasureLog(log, routedAt)
+		}
+		top := startedWidth(f)
+		f.Scroll = f.Scrolling(doc, routedAt).Most
+		if foot := startedWidth(f); top != 16 || foot != top {
+			t.Errorf("measured as built %t, started is %d cells at the top and %d at the foot, want 16 at both, as Sun 20 Sep 23:00", measured, top, foot)
 		}
 	}
 }

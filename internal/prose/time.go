@@ -246,6 +246,14 @@ func DayGone(now, t time.Time) string {
 	return dayBefore(now, t, "today", Day)
 }
 
+// Begun says when t was, before now, in now's time zone, as a session's
+// start is said beside the rules DayGone words: its time of day today, as
+// "14:12"; else after the day as DayGone names it, as "yesterday 15:08",
+// "Tue 09:12" or "Mon 21 Sep 09:12".
+func Begun(now, t time.Time) string {
+	return strings.TrimSpace(dayBefore(now, t, "", Day) + " " + TimeOfDay(now, t))
+}
+
 // Lately says when t was, before now, in now's time zone, as briefly as a
 // column of last requests has room for: its time of day today, as "14:12";
 // "yesterday"; its weekday within the six days before today, as "Tue"; else

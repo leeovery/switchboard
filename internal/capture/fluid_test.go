@@ -79,8 +79,9 @@ const leastView = 6
 // working, not a loosening. The cards are never judged: the sweep closes
 // what's open over the page.
 var natural = map[string]string{
-	"Sessions List": "its columns at their most from 138 on, routing blank on a row whose session wasn't moved, " +
-		"so a page of the log with none moved, as scrolled into the days gone, reaches its worth alone",
+	"Sessions List": "its columns at their most from 138 on, laid out of the whole log, never the rows shown, so they " +
+		"hold still as it scrolls, routing growing to the edge and blank on a row whose session wasn't moved: " +
+		"a page of the log with none moved, as scrolled into the days gone, reaches its worth alone",
 }
 
 // known is what the design draws that the sweep would take for a rule the
