@@ -3,6 +3,7 @@ package dashboard
 import (
 	"cmp"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/x/ansi"
@@ -30,13 +31,6 @@ const (
 	listSessionLeast = status.IDShown + 1 + listDirLeast
 	listSessionWhole = status.IDShown + 1 + views.SessionDirMost
 	listOnLeast      = 14
-)
-
-// The List's words where it has no session to list: where its rows would
-// be, and as its today line.
-var (
-	noSessionsToday = line{{"no sessions today", faintInk}}
-	endedToday      = line{{"ended today", dimInk}}
 )
 
 // listPart is one of the List's columns.
@@ -169,157 +163,149 @@ func (c listColumn) head() string {
 	return listPartFacts[c.part].head
 }
 
-// listLine is a line of the List's table: a session's row; the rule over
-// those that ended today; or, with neither, the words saying it has none.
-type listLine struct {
-	session *views.ListedSession
-	ruled   bool
+// listed is the List as a frame lays it out of a moment at now, its heads
+// on row top: the log's sessions by day, in the List's own columns; the
+// log's period; its period line, a row each; how many rows its lines show
+// in under its heads, a page; and whether the row over the key line says
+// how many sessions are out of view, the period line a row up for it.
+type listed struct {
+	sessionsByDay
+	f      Frame
+	period views.Period
+	foot   []line
+	top    int
+	page   int
+	marked bool
 }
 
-// listed is the List as a frame lays it out of a moment at now, its words as
-// sessionWords say them: its columns; its lines; its today line, a row
-// each, the last on the row over the key line; its heads' row; and how many
-// rows its lines show in under them.
-type listed struct {
-	sessionWords
-	f       Frame
-	columns []listColumn
-	lines   []listLine
-	today   []line
-	top     int
-	rows    int
-}
+// sessionsOut are the forms of the line saying how many of the List's
+// sessions are out of view, as Detail's list says its accounts: "▲ 12 more
+// sessions · ▼ 130 more sessions", and for less room, the counts alone.
+var sessionsOut = []outForm{{noun: "session", gap: " · ", inks: keyedOut}, {gap: " · ", inks: keyedOut}}
 
 // listForm is Sessions' List as its form draws it, of doc at now, once the
-// watch has built it: nothing before.
+// watch has built its log of the period: nothing before, as its heading
+// says it's loading.
 func (f Frame) listForm(doc status.Document, now time.Time) sessionsForm {
-	if f.SessionsTab.List.GeneratedAt.IsZero() {
+	if f.SessionsTab.Log == nil {
 		return sessionsForm{}
 	}
 	l := f.listing(doc, now)
 	return sessionsForm{draw: l.draw, scrolling: l.scrolling, scrolls: l.scrolls, targets: l.targets}
 }
 
-// listing is the List of doc at now, laid out as the frame has it: its
-// lines from the row under its heads to the one before the blank row over
-// its today line, as todayIn lays them, the ended rule among them where
-// ruledIn says those rows hold it.
+// listing is the List of doc at now laid out as the frame has it: its lines
+// from the row under its heads down to its period line, over the key line;
+// and where they don't all fit, the row over the key line saying how many
+// sessions are out of view, so long as that leaves them a row, the period
+// line a row up over it. Its day rules show where its page has room, as
+// sessionsByDay's within has it. The view's least, leastView, leaves its
+// lines a row under the period line's two at their most.
 func (f Frame) listing(doc status.Document, now time.Time) listed {
 	m := f.Moment(doc, now)
-	top := f.top()
+	log := f.SessionsTab.Log
+	rows := f.Height - underView - f.top()
 	l := listed{
-		m: m, now: now, f: f, columns: listColumnsOf(f.Width, widestLabel(m)),
-		today: todayIn(todayLine(f.SessionsTab.List.Today, f.Width), f.Height-underView-top), top: top,
+		f: f, period: log.Period, top: f.top(), foot: periodLine(*log, f.Width),
+		words: sessionWords{m: m, now: now}, columns: listColumnsOf(f.Width, widestLabel(m)),
+		lines: sessionLines(log.Sessions), width: f.Width, lit: f.SessionsTab.Chosen.Session,
 	}
-	l.rows = max(l.todayAt()-l.top-2, 0)
-	l.lines = listLines(f.SessionsTab.List.Sessions, ruledIn(l.rows))
+	l.page = rows - len(l.foot)
+	if l.marked = len(l.lines) > l.page && l.page > 1; l.marked {
+		l.page--
+	}
+	l.sessionsByDay = l.within(l.page)
 	return l
 }
 
-// todayIn is the List's today line, today's rows, in the rows from under
-// its heads to the one over the key line, rows of them, as flex lays them
-// down those: the List's lines, a row at least, a blank row, then the
-// today line's rows, those after its first giving way where they'd leave
-// the lines none, so the worth, on a row of its own, goes first.
-func todayIn(today []line, rows int) []line {
-	parts := []flex.Part{{Least: 1, Natural: 1, Grows: true}}
-	for i := range today {
-		part := flex.Part{Least: 1, Natural: 1}
-		if i == 0 {
-			part.Gap = 1
-		} else {
-			part.Leaves = 1
-		}
-		parts = append(parts, part)
-	}
-	spans, _ := flex.Lay(rows, parts...)
-	var kept []line
-	for i, said := range today {
-		if !spans[i+1].Left {
-			kept = append(kept, said)
-		}
-	}
-	return kept
-}
-
-// ruledIn reports whether the List's lines, rows of them, hold its ended
-// rule with the first session under it, as flex lays the two down them: the
-// rule shown with that session or not at all, so where they don't, the rule
-// gives way and the ended sessions follow the running.
-func ruledIn(rows int) bool {
-	ruled, first := flex.Part{Least: 1, Natural: 1, Leaves: 1}, flex.Part{Least: 1, Natural: 1}
-	spans, _ := flex.Lay(rows, ruled, first)
-	return !spans[0].Left
-}
-
-// listLines are the List's lines of its sessions, in the order it lists
-// them: those running, then, where any ended today, the ended rule, where
-// ruled, and them; or, of none, the words saying so.
-func listLines(sessions []views.ListedSession, ruled bool) []listLine {
-	if len(sessions) == 0 {
-		return []listLine{{}}
-	}
-	lines := make([]listLine, 0, len(sessions)+1)
-	for i := range sessions {
-		s := &sessions[i]
-		if ruled && !s.Running && (i == 0 || sessions[i-1].Running) {
-			lines = append(lines, listLine{ruled: true})
-		}
-		lines = append(lines, listLine{session: s})
-	}
-	return lines
-}
-
-// todayLine is the List's today line, width cells wide, its rows top to
-// bottom: on one row where it fits; else broken after the requests, the
-// worth on a row of its own. Of no sessions, it says so.
-func todayLine(t views.SessionsToday, width int) []line {
-	said, apart := line{{"today  ", dimInk}}, line{{" · ", mutedInk}}
-	if t.Sessions == 0 {
+// periodLine is the List's period line, width cells wide, its rows top to
+// bottom: the period's name, then its sessions, their requests and their
+// worth, on one row where it fits; else broken after the requests, the worth
+// on a row of its own. Of no sessions, it says so.
+func periodLine(log views.SessionLog, width int) []line {
+	said, apart := line{{log.Period.Name() + "  ", dimInk}}, line{{" · ", mutedInk}}
+	if log.All.Sessions == 0 {
 		return []line{slices.Concat(said, line{{prose.SessionCount(0), mutedInk}})}
 	}
-	counts := slices.Concat(said, logCounted(t.Sessions, "session", secondaryInk), apart, logCounted(t.Requests, "request", secondaryInk))
-	worth := todayWorth(t.Worth)
+	counts := slices.Concat(said, logCounted(log.All.Sessions, "session", secondaryInk), apart, logCounted(log.All.Requests, "request", secondaryInk))
+	worth := periodWorth(log.All.Worth)
 	if whole := slices.Concat(counts, apart, worth); whole.width() <= width {
 		return []line{whole}
 	}
 	return []line{counts.fit(width), worth.fit(width)}
 }
 
-// todayWorth is what today's sessions were worth, to the cent, bold
-// text.secondary, " at API prices" after it in text.muted, but where none
-// of it is priced.
-func todayWorth(w views.Worth) line {
-	said := line{{w.Cents(), strongInk}}
+// periodWorth is what the period's sessions were worth, to the cent, its
+// thousands set apart, bold text.secondary, " at API prices" after it in
+// text.muted, but where none of it is priced.
+func periodWorth(w views.Worth) line {
+	said := line{{w.GroupedCents(), strongInk}}
 	if w.Amount == nil && len(w.Unpriced) > 0 {
 		return said
 	}
 	return append(said, span{" at API prices", mutedInk})
 }
 
+// noSessionsIn are the List's words where it has no session of the period
+// to list, in place of its rows: "no sessions today", "no sessions this
+// week", or of a longer period, "no sessions in the last 30 days".
+func noSessionsIn(p views.Period) line {
+	when := p.Name()
+	if p != views.PeriodToday && p != views.PeriodThisWeek {
+		when = "in the " + strings.ToLower(p.Title())
+	}
+	return line{{"no sessions " + when, faintInk}}
+}
+
 // draw draws the List from row top: its heads; its lines in view, as far as
-// the frame has them scrolled, the session chosen lit across the width; and
-// its today line from column 0, as the key line is, held over it.
+// the frame has them scrolled, a day's rule kept on the first row while its
+// sessions scroll under it, the session chosen lit across the width, or the
+// words saying there's none; its period line from column 0, as the key line
+// is, held over it; and where they show, how many sessions are out of view,
+// on the row over the key line.
 func (l listed) draw(c *canvas, top int) {
-	l.heads(c, top)
-	first, last := l.shown()
-	for i := first; i < last; i++ {
-		l.drawLine(c, top+1+i-first, l.lines[i])
+	columnHeads(c, top, l.columns)
+	if len(l.lines) == 0 {
+		c.line(listFrom, top+1, noSessionsIn(l.period).fit(l.f.Width-listFrom))
 	}
-	for i, said := range l.today {
-		c.line(0, l.todayAt()+i, said)
+	paged := l.paged()
+	l.drawPage(c, top+1, paged, l.f.Scroll)
+	at := l.f.stateRow() - len(l.foot) + 1
+	if l.marked {
+		at--
+		from, to := paged.shown(l.f.Scroll)
+		above, below := l.outOfView(paged.top(from, to), to)
+		c.line(listFrom, l.f.stateRow(), outOfView(above, below, l.f.Width-listFrom, sessionsOut...))
+	}
+	for i, said := range l.foot {
+		c.line(0, at+i, said)
 	}
 }
 
-// todayAt is the row the List's today line starts on: its last row the one
-// over the key line.
-func (l listed) todayAt() int {
-	return l.f.Height - underView - len(l.today) + 1
+// paged is how the List's lines page in its rows, a row at a time, each
+// day's rule shown with the first session under it, or not at all, and kept
+// on the first row while the page is scrolled into its sessions.
+func (l listed) paged() rowsPaged {
+	return rowsPaged{rows: l.page, content: len(l.lines), heads: l.heads(), kept: l.kept()}
 }
 
-// heads draws the List's heads along row y, as columnHeads draws them.
-func (l listed) heads(c *canvas, y int) {
-	columnHeads(c, y, l.columns)
+// scrolling is how far the List's lines scroll under its heads, a row at a
+// time, scrolled offset down, as paged has them.
+func (l listed) scrolling(offset int) Scrolling {
+	return l.paged().scrolling(offset)
+}
+
+// scrolls is what of the List scrolls: its lines under its heads, across
+// the frame.
+func (l listed) scrolls() (x, y, width, rows int) {
+	return 0, l.top + 1, l.f.Width, l.page
+}
+
+// targets are the List's sessions' rows in view, a click on which chooses
+// the session, and opens the one chosen, each across the width, as
+// sessionsByDay's targets has them.
+func (l listed) targets() []Target {
+	return l.sessionsByDay.targets(l.top+1, l.paged(), l.f.Scroll)
 }
 
 // columnHeads draws the heads of the columns given along row y, in
@@ -340,51 +326,12 @@ func (col listColumn) draw(c *canvas, y int, said line) {
 	c.line(col.x, y, said)
 }
 
-// shown are the List's lines in view, from first to before last, as far as
-// the frame has them scrolled, as paged has them.
-func (l listed) shown() (first, last int) {
-	return l.paged().shown(l.f.Scroll)
-}
-
-// paged is how the List's lines page in its rows, a row at a time, the
-// ended rule shown with the first session under it, or not at all. It says
-// nothing of what's out of view, as the Log's table doesn't.
-func (l listed) paged() rowsPaged {
-	var heads []headed
-	for i, ll := range l.lines {
-		if ll.ruled {
-			heads = append(heads, headed{at: i, first: i + 1})
-		}
-	}
-	return rowsPaged{rows: l.rows, content: len(l.lines), heads: heads}
-}
-
-// drawLine draws the line ll along row y: a session's row, its mark two
-// cells before its first column, lit where it's chosen; the ended rule, to
-// the last column; or the words saying there's none.
-func (l listed) drawLine(c *canvas, y int, ll listLine) {
-	switch {
-	case ll.ruled:
-		endedRule(c, y, l.f.Width, endedToday)
-	case ll.session == nil:
-		c.line(listFrom, y, noSessionsToday.fit(l.f.Width-listFrom))
-	default:
-		l.row(c, y, *ll.session)
-	}
-}
-
 // endedRule draws the rule over the sessions that ended on a day along row
 // y, across a view width cells wide: its words, said, from listFrom, then
 // endedApart cells on, the rule to the last column.
 func endedRule(c *canvas, y, width int, said line) {
 	x := c.line(listFrom, y, said) + endedApart
 	c.line(x, y, line{{rule(width - x), borderInk}})
-}
-
-// row draws the session's row along row y, as sessionRow draws it, lit
-// where it's chosen.
-func (l listed) row(c *canvas, y int, s views.ListedSession) {
-	l.sessionRow(c, y, l.columns, s, l.f.Width, l.f.SessionsTab.Chosen.Session == s.Session)
 }
 
 // sessionRow draws the session's row along row y in the columns given, as
@@ -406,39 +353,15 @@ func (w sessionWords) sessionRow(c *canvas, y int, columns []listColumn, s views
 	}
 }
 
-// scrolling is how far the List's lines scroll under its heads, a row at a
-// time, scrolled offset down, as paged has them.
-func (l listed) scrolling(offset int) Scrolling {
-	return l.paged().scrolling(offset)
-}
-
-// scrolls is what of the List scrolls: its lines under its heads, across
-// the frame.
-func (l listed) scrolls() (x, y, width, rows int) {
-	return 0, l.top + 1, l.f.Width, l.rows
-}
-
-// targets are the List's sessions' rows in view, a click on which chooses
-// the session, and opens the one chosen, each across the width.
-func (l listed) targets() []Target {
-	var targets []Target
-	first, last := l.shown()
-	for i := first; i < last; i++ {
-		if s := l.lines[i].session; s != nil {
-			targets = append(targets, Target{Y: l.top + 1 + i - first, Width: l.f.Width, On: OnSession, Session: s.Session})
-		}
-	}
-	return targets
-}
-
 // sessionWords say what the List's columns say of a session, of the moment
-// m at now: as the List says it; or where byDay says, as Projects' SESSIONS
-// does, grouped by the day each ended, its end and its start said on that
-// day.
+// m at now, grouped by the day each ended, as the List and Projects'
+// SESSIONS group them: its end and its start said on that day; and a start
+// on another day, where weekdays says, by its weekday, as Projects' SESSIONS
+// says it, else by how far back it is, as the List does.
 type sessionWords struct {
-	m     status.Moment
-	now   time.Time
-	byDay bool
+	m        status.Moment
+	now      time.Time
+	weekdays bool
 }
 
 // says is what the column says of the session, in its cells: the session
@@ -497,26 +420,25 @@ var listStateInks = map[views.Doing]ink{
 	views.Idle: mutedInk, views.Ended: mutedInk,
 }
 
-// stateSays is what it's doing at now, as its Activity's State says it, or
-// grouped by day, its DayState, as last known where asKnown says.
+// stateSays is what it's doing at now, as its Activity's DayState says it,
+// as last known where asKnown says.
 func (w sessionWords) stateSays(s views.ListedSession) line {
-	said := s.Activity.State(w.now)
-	if w.byDay {
-		said = s.Activity.DayState(w.now)
-	}
-	return line{{said, asKnown(s.Activity, listStateInks[s.Activity.Doing])}}
+	return line{{s.Activity.DayState(w.now), asKnown(s.Activity, listStateInks[s.Activity.Doing])}}
 }
 
-// startedSays is when its first request came, in text.muted: as prose.Past
-// says it; or grouped by day, by the clock, with its weekday where it came on
-// another day than the one the session's grouped under, as prose.Dated says
-// it of that day; nothing where that isn't known.
+// startedSays is when its first request came, in text.muted: by the clock
+// alone where it came on the day the session's grouped under; else, where
+// weekdays says, with its weekday, as prose.Dated says it of that day, or
+// as prose.Past says it, so one of yesterday's reads so; nothing where that
+// isn't known.
 func (w sessionWords) startedSays(s views.ListedSession) line {
 	switch {
 	case s.Started.IsZero():
 		return nil
-	case w.byDay:
+	case w.weekdays:
 		return line{{prose.Dated(w.dayOf(s), s.Started), mutedInk}}
+	case prose.SameDay(w.now, w.dayOf(s), s.Started):
+		return line{{prose.TimeOfDay(w.now, s.Started), mutedInk}}
 	}
 	return line{{prose.Past(w.now, s.Started), mutedInk}}
 }

@@ -26,11 +26,14 @@ type listedSession struct {
 	moved       int64
 }
 
-// listed is the session as the List has it.
+// listed is the session as the List has it, one ended ending as it did.
 func (s listedSession) listed() views.ListedSession {
 	l := views.ListedSession{
 		Session: s.id, Dir: s.dir, Account: s.on, Model: opus, Running: s.doing.Doing != views.Ended,
 		Started: s.started, Requests: s.requests, Worth: worthOf(s.worth), Activity: s.doing, Mark: s.mark,
+	}
+	if !l.Running {
+		l.Ended = s.doing.Since
 	}
 	if s.moved > 0 {
 		l.Routing = views.RoutingSaid{
@@ -39,6 +42,16 @@ func (s listedSession) listed() views.ListedSession {
 		}
 	}
 	return l
+}
+
+// logged is the session as the List's log rows it: as the List has it, one
+// ended on the day it ended, by routedAt's clock.
+func (s listedSession) logged() views.PeriodSession {
+	l := s.listed()
+	if l.Running {
+		return views.PeriodSession{ListedSession: l}
+	}
+	return views.PeriodSession{ListedSession: l, EndedOn: l.Ended.Format(time.DateOnly)}
 }
 
 // idleFor is a session idle the time given at routedAt; endedAt one ended
@@ -61,11 +74,11 @@ func yesterdayClock(hour, minute int) time.Time {
 	return routedClock(1, hour, minute).AddDate(0, 0, -1)
 }
 
-// framedList is the List sessions-list-160 and sessions-list-phone-52 draw,
-// at 14:42:07: six running, the oldest started first, and eight ended today,
-// the latest ended first. 8a2c's move came yesterday, so the List gives it
-// no routing, where the frames draw one.
-func framedList() views.SessionList {
+// framedList is today's log of the List sessions-list-160 and
+// sessions-list-phone-52 drew, at 14:42:07: six running, the oldest started
+// first, and eight ended today, the latest ended first. 8a2c's move came
+// yesterday, so the List gives it no routing, where the frames draw one.
+func framedList() *views.SessionLog {
 	sessions := []listedSession{
 		{"db8a71e3", "~/Code/infra", "side", idleFor(50 * time.Second), yesterdayClock(15, 8), 126, 1137, views.MarkMoved, 66},
 		{"9c2e47b1", "~/Code/website", "personal", idleFor(9 * time.Minute), routedClock(1, 11, 55), 267, 2715, views.NoMark, 0},
@@ -82,36 +95,42 @@ func framedList() views.SessionList {
 		{"4b0e6c1f", "~/Code/infra", "work", endedAt(0, 31), yesterdayClock(15, 52), 5, 31, views.NoMark, 0},
 		{"8a2c5e7b", "~/Code/docs", "side", endedAt(0, 18), yesterdayClock(16, 55), 9, 63, views.NoMark, 0},
 	}
-	list := views.SessionList{GeneratedAt: routedAt}
+	log := views.SessionLog{Period: views.PeriodToday}
 	for _, s := range sessions {
-		list.Sessions = append(list.Sessions, s.listed())
+		log.Sessions = append(log.Sessions, s.logged())
 	}
-	list.Today = views.SessionsToday{Sessions: 14, Requests: 1240, Worth: worthOf(12602)}
-	return list
+	log.All = views.ProjectTotals{Live: 6, Sessions: 14, Requests: 1240, Worth: worthOf(12602)}
+	return &log
 }
 
-// listFrame is a frame width by height showing Sessions' List of list, in
-// nord.
-func listFrame(t *testing.T, width, height int, list views.SessionList) Frame {
+// listFrame is a frame width by height showing Sessions' List of the log
+// given, in nord.
+func listFrame(t *testing.T, width, height int, log *views.SessionLog) Frame {
 	t.Helper()
 	f := frameOf(width, height)
 	f.Look = Screen(builtin(t, "nord"))
-	f.View, f.SessionsTab = Sessions, SessionsShown{Shown: SessionsList, List: list}
+	f.View, f.SessionsTab = Sessions, SessionsShown{Shown: SessionsList, Log: log}
 	return f
 }
 
-// listOf is a List of the sessions given, as built at routedAt, summing
-// them as its today line does.
-func listOf(sessions ...listedSession) views.SessionList {
-	list := views.SessionList{GeneratedAt: routedAt}
+// listOf is today's log of the sessions given, summing them as its period
+// line does.
+func listOf(sessions ...listedSession) *views.SessionLog {
+	return logOver(views.PeriodToday, sessions...)
+}
+
+// logOver is the log of the sessions given over the period given, summing
+// them as its period line does.
+func logOver(period views.Period, sessions ...listedSession) *views.SessionLog {
+	log := views.SessionLog{Period: period}
 	cents := 0
 	for _, s := range sessions {
-		list.Sessions = append(list.Sessions, s.listed())
-		list.Today.Requests += s.requests
+		log.Sessions = append(log.Sessions, s.logged())
+		log.All.Requests += s.requests
 		cents += s.worth
 	}
-	list.Today.Sessions, list.Today.Worth = len(sessions), worthOf(cents)
-	return list
+	log.All.Sessions, log.All.Worth = len(sessions), worthOf(cents)
+	return &log
 }
 
 // d28cMoved is d28c, asking on side, which a move from work at its cap
@@ -357,7 +376,7 @@ func TestTheListsColumnsHoldStill(t *testing.T) {
 			if got := f.listing(doc, routedAt).columns; !slices.Equal(got, still) {
 				t.Errorf("scrolled, its columns are\n%+v\nwant\n%+v", got, still)
 			}
-			f.SessionsTab.List.Sessions = slices.Concat([]views.ListedSession{arrives.listed()}, f.SessionsTab.List.Sessions)
+			f.SessionsTab.Log.Sessions = slices.Concat([]views.PeriodSession{arrives.logged()}, f.SessionsTab.Log.Sessions)
 			if got := f.listing(doc, routedAt).columns; !slices.Equal(got, still) {
 				t.Errorf("with %s arrived, its columns are\n%+v\nwant\n%+v", arrives.dir, got, still)
 			}
@@ -424,7 +443,7 @@ func TestTheListsLinesAndItsEndedRule(t *testing.T) {
 	b519 := listedSession{"5b19d3e7", "~/Code/mobile", "personal", endedAt(11, 21), routedClock(1, 10, 2), 38, 312, views.NoMark, 0}
 	tests := []struct {
 		name  string
-		list  views.SessionList
+		list  *views.SessionLog
 		lines []string
 		today string
 	}{
@@ -475,27 +494,32 @@ func TestTheEndedRuleAndTheEmptyListsInks(t *testing.T) {
 	if words, ruled := c.at(2, y).ink, c.at(119, y).ink; words != dimInk || ruled != borderInk {
 		t.Errorf("the ended rule's words are in %+v and its rule %+v, want %+v and %+v", words, ruled, dimInk, borderInk)
 	}
-	f.SessionsTab.List = listOf()
+	f.SessionsTab.Log = listOf()
 	c = f.page(framedDoc(nil, nil), routedAt)
 	if got := c.at(2, y).ink; got != faintInk {
 		t.Errorf("no sessions today is in %+v, want %+v", got, faintInk)
 	}
 }
 
-// The today line sums today's sessions from column 0, as the key line is, on
-// the row over it: on one row where it fits, as at 80 columns; else broken
+// The period line sums the period's sessions from column 0, as the key line
+// is, on the row over it while all show: today's as the today line did, the
+// period by its name; on one row where it fits, as at 80 columns; else broken
 // after the requests, the worth on the row over the key line, the rest on the
-// row above; the row above it blank. Where none of the worth is priced, it
-// says so, with no "at API prices".
-func TestTheTodayLine(t *testing.T) {
+// row above. Where none of the worth is priced, it says so, with no "at API
+// prices".
+func TestThePeriodLine(t *testing.T) {
 	unpriced := listOf(d28cMoved)
-	unpriced.Today.Worth = views.Worth{Unpriced: []string{"no_usage"}}
+	unpriced.All.Worth = views.Worth{Unpriced: []string{"no_usage"}}
+	week := logOver(views.PeriodThisWeek, d28cMoved)
 	tests := []struct {
 		name          string
 		width, height int
-		list          views.SessionList
+		list          *views.SessionLog
 		rows          map[int]string
 	}{
+		{name: "this week", width: 160, height: 37, list: week, rows: map[int]string{
+			35: "this week  1 session · 445 requests · $48.20 at API prices",
+		}},
 		{name: "wide", width: 160, height: 37, list: framedList(), rows: map[int]string{
 			34: "", 35: "today  14 sessions · 1,240 requests · $126.02 at API prices",
 		}},
@@ -522,10 +546,10 @@ func TestTheTodayLine(t *testing.T) {
 	}
 }
 
-// The today line's inks: today in text.subtle, the counts in
+// The period line's inks: its period in text.subtle, the counts in
 // text.secondary, the worth bold text.secondary, and the rest in
 // text.muted.
-func TestTheTodayLinesInks(t *testing.T) {
+func TestThePeriodLinesInks(t *testing.T) {
 	f := listFrame(t, 160, 37, framedList())
 	c := f.page(framedDoc(nil, nil), routedAt)
 	for x, want := range map[int]ink{0: dimInk, 7: secondaryInk, 9: mutedInk, 21: secondaryInk, 27: mutedInk, 38: strongInk, 46: mutedInk} {
@@ -574,27 +598,66 @@ func TestTheListCutsItsCellsToTheirWidths(t *testing.T) {
 	}
 }
 
-// Past a screen, the List's lines scroll a row at a time under its heads,
-// which hold, as its today line does, the row above it blank: at 160 by 24,
-// fourteen rows, from 7 to 20, show fifteen lines, so they scroll a row, and
-// no further, however far they're asked to.
-func TestTheListScrollsUnderItsHeads(t *testing.T) {
+// The List's lines run down to its period line, the row over the key line,
+// while they all show: at 160 by 24, fifteen rows, from 7 to 21, show all
+// fifteen, so they don't scroll, and nothing says any is out of view.
+func TestTheListRunsDownToItsPeriodLine(t *testing.T) {
 	doc := framedDoc(nil, nil)
 	f := listFrame(t, 160, 24, framedList())
-	if got, want := f.Scrolling(doc, routedAt), (Scrolling{Most: 1, Page: 14}); got != want {
+	if got := f.Scrolling(doc, routedAt); got.Most != 0 {
+		t.Errorf("it scrolls %+v, want nowhere", got)
+	}
+	c := f.page(doc, routedAt)
+	for y, want := range map[int]string{7: "▸ db8a", 21: "  8a2c", 22: "today  14"} {
+		if got := rowOf(c, y); !strings.HasPrefix(got, want) {
+			t.Errorf("row %d reads %q, want it to start %q", y+1, got, want)
+		}
+	}
+}
+
+// Past a screen, the List's lines scroll a row at a time under its heads,
+// which hold, as its period line does, a row up over the row saying how many
+// sessions are out of view, as Detail's list says its accounts: at 160 by
+// 23, thirteen rows, from 7 to 19, show fifteen lines, so they scroll two
+// rows, and no further, however far they're asked to.
+func TestTheListScrollsUnderItsHeads(t *testing.T) {
+	doc := framedDoc(nil, nil)
+	f := listFrame(t, 160, 23, framedList())
+	if got, want := f.Scrolling(doc, routedAt), (Scrolling{Most: 2, Page: 13}); got != want {
 		t.Errorf("it scrolls %+v, want %+v", got, want)
 	}
-	if x, y, width, rows := f.scrolls(doc, routedAt); x != 0 || y != 7 || width != 160 || rows != 14 {
-		t.Errorf("what scrolls is from %d along row %d, %d wide and %d rows, want its lines' rows, 8 to 21, across the frame", x, y+1, width, rows)
+	if x, y, width, rows := f.scrolls(doc, routedAt); x != 0 || y != 7 || width != 160 || rows != 13 {
+		t.Errorf("what scrolls is from %d along row %d, %d wide and %d rows, want its lines' rows, 8 to 20, across the frame", x, y+1, width, rows)
 	}
-	for _, scroll := range []int{1, 5} {
-		f.Scroll = scroll
+	tests := []struct {
+		scroll int
+		rows   map[int]string
+	}{
+		{scroll: 0, rows: map[int]string{7: "▸ db8a", 19: "  5e7d", 20: "today  14", 21: "  ▼ 2 more sessions"}},
+		{scroll: 1, rows: map[int]string{7: "  9c2e", 19: "  4b0e", 20: "today  14", 21: "  ▲ 1 more session · ▼ 1 more session"}},
+		{scroll: 5, rows: map[int]string{6: "  session", 7: "↑ d28c", 11: "  ended today", 12: "  5b19", 19: "  8a2c", 20: "today  14", 21: "  ▲ 2 more sessions"}},
+	}
+	for _, tt := range tests {
+		f.Scroll = tt.scroll
 		c := f.page(doc, routedAt)
-		rows := map[int]string{6: "  session", 7: "  9c2e", 12: "  ended today", 13: "  5b19", 20: "  8a2c", 21: "", 22: "today  14"}
-		for y, want := range rows {
-			if got := rowOf(c, y); !strings.HasPrefix(got, want) || want == "" && got != "" {
-				t.Errorf("scrolled %d, row %d reads %q, want it to start %q", scroll, y+1, got, want)
+		for y, want := range tt.rows {
+			if got := rowOf(c, y); !strings.HasPrefix(got, want) {
+				t.Errorf("scrolled %d, row %d reads %q, want it to start %q", tt.scroll, y+1, got, want)
 			}
+		}
+	}
+}
+
+// The mark saying how many sessions are out of view is in Detail's list's
+// inks: its marks accent.key, its counts text.muted and the gap between
+// them text.faint.
+func TestTheListsMarkIsInDetailsInks(t *testing.T) {
+	f := listFrame(t, 160, 23, framedList())
+	f.Scroll = 1
+	c := f.page(framedDoc(nil, nil), routedAt)
+	for x, want := range map[int]ink{2: keyMarkInk, 4: mutedInk, 19: faintInk, 21: keyMarkInk} {
+		if got := c.at(x, 21).ink; got != want {
+			t.Errorf("column %d of the mark is in %+v, want %+v", x+1, got, want)
 		}
 	}
 }
@@ -649,34 +712,23 @@ func TestTheListOfARowShowsNoEndedRule(t *testing.T) {
 	}
 }
 
-// At the view's least, at 52 by 13, a today line broken onto two rows would
-// leave the List none, so its worth gives way, the counts on the row over
-// the key line, and the List keeps a row, paging a session at a time. A row
-// taller, the today line keeps both its rows.
-func TestTheTodayLinesWorthGivesWayAtTheListsLeast(t *testing.T) {
+// At the view's least, at 52 by 14 on a phone, the dial under the heading,
+// the period line keeps both its rows, its worth on the second, and the
+// List keeps a row, paging a session at a time, with no room to say how
+// many are out of view.
+func TestThePeriodLineKeepsBothRowsAtTheListsLeast(t *testing.T) {
 	doc := framedDoc(nil, nil)
 	list := framedList()
-	tests := []struct {
-		height int
-		today  []string
-	}{
-		{height: 13, today: []string{"today  14 sessions · 1,240 requests"}},
-		{height: 14, today: []string{"today  14 sessions · 1,240 requests", "$126.02 at API prices"}},
+	f := listFrame(t, 52, 14, list)
+	if got, want := f.Scrolling(doc, routedAt), (Scrolling{Most: len(list.Sessions) - 1, Page: 1}); got != want {
+		t.Errorf("it scrolls %+v, want %+v", got, want)
 	}
-	for _, tt := range tests {
-		f := listFrame(t, 52, tt.height, list)
-		if got, want := f.Scrolling(doc, routedAt), (Scrolling{Most: len(list.Sessions) - 1, Page: 1}); got != want {
-			t.Errorf("at 52×%d, it scrolls %+v, want %+v", tt.height, got, want)
-		}
-		c := f.page(doc, routedAt)
-		last := f.Height - underView
-		var today []string
-		for y := last - len(tt.today) + 1; y <= last; y++ {
-			today = append(today, rowOf(c, y))
-		}
-		if !slices.Equal(today, tt.today) || rowOf(c, last-len(tt.today)) != "" {
-			t.Errorf("at 52×%d, the today line reads %q, a blank row over it, want %q", tt.height, today, tt.today)
-		}
+	c := f.page(doc, routedAt)
+	last := f.Height - underView
+	want := []string{"today  14 sessions · 1,240 requests", "$126.02 at API prices"}
+	got := []string{rowOf(c, last-1), rowOf(c, last)}
+	if over := rowOf(c, last-2); !slices.Equal(got, want) || !strings.HasPrefix(over, "▸ db8a") {
+		t.Errorf("the period line reads %q under %q, want %q under db8a's row", got, over, want)
 	}
 }
 
@@ -693,12 +745,12 @@ func TestTheSessionChosenIsLitAcrossTheWidth(t *testing.T) {
 	}{
 		{name: "none chosen"},
 		{name: "d28c", chosen: "d28c5e17", want: []int{9}},
-		{name: "8a2c, ended", chosen: "8a2c5e7b", scroll: 1, want: []int{20}},
+		{name: "8a2c, ended", chosen: "8a2c5e7b", scroll: 2, want: []int{19}},
 		{name: "db8a, scrolled out of view", chosen: "db8a71e3", scroll: 1},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			f := listFrame(t, 160, 24, framedList())
+			f := listFrame(t, 160, 23, framedList())
 			f.SessionsTab.Chosen, f.Scroll = Plug{Session: tt.chosen}, tt.scroll
 			c := f.page(doc, routedAt)
 			var lit []int
@@ -724,7 +776,7 @@ func TestTheSessionChosenIsLitAcrossTheWidth(t *testing.T) {
 // on no account; the heads, the ended rule and the today line are none.
 func TestAClickOnTheListsRowChoosesItsSession(t *testing.T) {
 	doc := framedDoc(nil, nil)
-	f := listFrame(t, 160, 24, framedList())
+	f := listFrame(t, 160, 23, framedList())
 	f.Scroll = 1
 	var got []Target
 	for _, target := range f.Targets(doc, routedAt) {
@@ -732,7 +784,7 @@ func TestAClickOnTheListsRowChoosesItsSession(t *testing.T) {
 			got = append(got, target)
 		}
 	}
-	ids := []string{"9c2e47b1", "d28c5e17", "41e0b6c2", "7f3a0c94", "c61b2f8d", "", "5b19d3e7", "3d7a8e12", "e0c4f5a9", "a8f1b2c6", "2b6d9f04", "5e7d0a3b", "4b0e6c1f", "8a2c5e7b"}
+	ids := []string{"9c2e47b1", "d28c5e17", "41e0b6c2", "7f3a0c94", "c61b2f8d", "", "5b19d3e7", "3d7a8e12", "e0c4f5a9", "a8f1b2c6", "2b6d9f04", "5e7d0a3b", "4b0e6c1f"}
 	var want []Target
 	for i, id := range ids {
 		if id != "" {
@@ -748,7 +800,7 @@ func TestAClickOnTheListsRowChoosesItsSession(t *testing.T) {
 // draws nothing, scrolls nowhere, and nothing on it takes a click.
 func TestTheListUnbuiltDrawsNothing(t *testing.T) {
 	doc := framedDoc(nil, nil)
-	f := listFrame(t, 160, 37, views.SessionList{})
+	f := listFrame(t, 160, 37, nil)
 	c := f.page(doc, routedAt)
 	for y := f.top(); y < f.Height-1; y++ {
 		if got := rowOf(c, y); got != "" {
@@ -762,5 +814,130 @@ func TestTheListUnbuiltDrawsNothing(t *testing.T) {
 		if target.On == OnSession {
 			t.Errorf("%+v takes a click, want none", target)
 		}
+	}
+}
+
+// septemberClock is the time given on a day of September, the month before
+// routedAt's.
+func septemberClock(day, hour, minute int) time.Time {
+	return time.Date(2026, 9, day, hour, minute, 0, 0, time.UTC)
+}
+
+// endedAtOn is a session ended at the time given.
+func endedAtOn(at time.Time) views.Activity {
+	return views.Activity{Doing: views.Ended, Since: at}
+}
+
+// The log lists the sessions running first, with no rule, then those ended
+// under a rule for the day they ended, newest first: today, yesterday, a
+// weekday within the six days before today, else the weekday and its date.
+// Within a day, state reads when it ended, and started its time alone where
+// it started that day, else as prose.Past says it, yesterday never by its
+// weekday.
+func TestTheLogGroupsEndedSessionsUnderTheirDaysRules(t *testing.T) {
+	b519 := listedSession{"5b19d3e7", "~/Code/mobile", "personal", endedAt(11, 21), routedClock(1, 10, 2), 38, 312, views.NoMark, 0}
+	e5d7 := listedSession{"5e7d0a3b", "~/Code/api", "side", endedAt(0, 41), yesterdayClock(23, 47), 17, 128, views.NoMark, 0}
+	b931 := listedSession{"9b31c4d2", "~/Code/switchboard", "work", endedAtOn(septemberClock(30, 18, 20)), septemberClock(30, 14, 5), 402, 4790, views.NoMark, 0}
+	a904 := listedSession{"9a04e1f7", "~/Code/api", "side", endedAtOn(septemberClock(29, 18, 25)), septemberClock(28, 13, 10), 400, 5500, views.NoMark, 0}
+	f47b := listedSession{"47bf2a90", "~/Code/switchboard", "personal", endedAtOn(septemberClock(21, 18, 22)), septemberClock(20, 23, 0), 240, 2490, views.NoMark, 0}
+	f := listFrame(t, 160, 37, logOver(views.PeriodThirtyDays, d28cMoved, b519, e5d7, b931, a904, f47b))
+	c := f.page(framedDoc(nil, nil), routedAt)
+	top, started := f.top(), strings.Index(rowOf(c, f.top()), "started")
+	tests := []struct {
+		line, started, state string
+	}{
+		{line: "↑ d28c", started: "12:02", state: "asking"},
+		{line: "  ended today  ─"},
+		{line: "  5b19", started: "10:02", state: "ended 11:21"},
+		{line: "  5e7d", started: "yesterday 23:47", state: "ended 00:41"},
+		{line: "  ended yesterday  ─"},
+		{line: "  9b31", started: "14:05", state: "ended 18:20"},
+		{line: "  ended Tue  ─"},
+		{line: "  9a04", started: "Mon 13:10", state: "ended 18:25"},
+		{line: "  ended Mon 21 Sep  ─"},
+		{line: "  47bf", started: "20 Sep 23:00", state: "ended 18:22"},
+	}
+	state := strings.Index(rowOf(c, top), "state")
+	for i, tt := range tests {
+		y := top + 1 + i
+		if got := rowOf(c, y); !strings.HasPrefix(got, tt.line) {
+			t.Errorf("line %d reads %q, want it to start %q", i+1, got, tt.line)
+		}
+		if tt.started == "" {
+			continue
+		}
+		if got := strings.TrimSpace(glyphsAt(c, started, y, 15)); got != tt.started {
+			t.Errorf("%s started %q, want %q", strings.TrimSpace(tt.line), got, tt.started)
+		}
+		if got := strings.TrimSpace(glyphsAt(c, state, y, 11)); got != tt.state {
+			t.Errorf("%s's state reads %q, want %q", strings.TrimSpace(tt.line), got, tt.state)
+		}
+	}
+}
+
+// heldDay is a log over 30 days of d28c running, ten sessions ended
+// yesterday and three on Tuesday, a rule over each day's.
+func heldDay() *views.SessionLog {
+	sessions := []listedSession{d28cMoved}
+	for i := range 13 {
+		at := septemberClock(30, 20-i, 0)
+		if i >= 10 {
+			at = septemberClock(29, 20-i, 0)
+		}
+		id := fmt.Sprintf("%04x0000", 0xa000+i)
+		sessions = append(sessions, listedSession{id, "~/Code/infra", "work", endedAtOn(at), at.Add(-time.Hour), 10, 100, views.NoMark, 0})
+	}
+	return logOver(views.PeriodThirtyDays, sessions...)
+}
+
+// Scrolled past a day's rule into its sessions, the rule stays on the
+// List's first row, so the day always shows, in place of the session there,
+// which counts among those out of view above and takes no click; scrolled
+// to the rule itself, it shows as itself, its first session under it. The
+// mark says how many sessions are out of view each way.
+func TestADaysRuleStaysAtTheTopWhileItsSessionsScrollUnderIt(t *testing.T) {
+	doc := framedDoc(nil, nil)
+	f := listFrame(t, 160, 16, heldDay())
+	tests := []struct {
+		scroll int
+		rows   map[int]string
+		first  string
+	}{
+		{scroll: 1, rows: map[int]string{7: "  ended yesterday  ─", 8: "  a000", 12: "  a004", 14: "  ▲ 1 more session · ▼ 8 more sessions"}, first: "a0000000"},
+		{scroll: 4, rows: map[int]string{7: "  ended yesterday  ─", 8: "  a003", 12: "  a007", 14: "  ▲ 4 more sessions · ▼ 5 more sessions"}, first: "a0030000"},
+		{scroll: 11, rows: map[int]string{7: "  ended yesterday  ─", 8: "  a009", 9: "  ended Tue  ─", 10: "  a00a", 14: "  ▲ 10 more sessions"}, first: "a0090000"},
+	}
+	for _, tt := range tests {
+		f.Scroll = tt.scroll
+		c := f.page(doc, routedAt)
+		for y, want := range tt.rows {
+			if got := rowOf(c, y); !strings.HasPrefix(got, want) {
+				t.Errorf("scrolled %d, row %d reads %q, want it to start %q", tt.scroll, y+1, got, want)
+			}
+		}
+		var first Target
+		for _, target := range f.Targets(doc, routedAt) {
+			if target.On == OnSession && (first.Session == "" || target.Y < first.Y) {
+				first = target
+			}
+		}
+		if first.Y != 8 || first.Session != tt.first {
+			t.Errorf("scrolled %d, the first row a click takes is %d, of %q; want 9, of %s", tt.scroll, first.Y+1, first.Session, tt.first)
+		}
+	}
+}
+
+// The period's dial shows at the heading's right while the List shows, the
+// rule ending two cells before it, and leaves with the Switchboard.
+func TestTheDialShowsOnTheListAlone(t *testing.T) {
+	doc := framedDoc(nil, nil)
+	f := listFrame(t, 160, 37, logOver(views.PeriodThirtyDays))
+	f.Period = views.PeriodThirtyDays
+	if got := textOf(f.Draw(doc, routedAt))[f.headingY()]; !strings.HasSuffix(got, "─  < 30 days >") {
+		t.Errorf("on the List, the heading reads %q, want it to end with the dial", got)
+	}
+	f.SessionsTab.Shown = SessionsSwitchboard
+	if got := textOf(f.Draw(doc, routedAt))[f.headingY()]; strings.Contains(got, "<") {
+		t.Errorf("on the Switchboard, the heading reads %q, want no dial", got)
 	}
 }

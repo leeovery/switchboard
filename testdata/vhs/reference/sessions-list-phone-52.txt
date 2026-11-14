@@ -5,9 +5,10 @@
 ● healthy · auto · 6 sessions · new → ▲ side
 
 SESSIONS   Switchboard  List
+                                       < this week >
 
   session            on        state        requests
-▸ db8a infra         side      idle 50s          126
+▸ db8a infra         side      idle 50s          153
   9c2e website       personal  idle 9m           267
 ↑ d28c switchboard   side      asking            445
   41e0 docs          personal  idle 34s          158
@@ -19,15 +20,14 @@ SESSIONS   Switchboard  List
   e0c4 infra         work      ended 10:02        19
   a8f1 website       side      ended 09:28        24
   2b6d api           work      ended 09:05        31
-  5e7d api           side      ended 00:41        17
-  4b0e infra         work      ended 00:31         5
-  8a2c docs          side      ended 00:18         9
-
-
-
-
-
-
-today  14 sessions · 1,239 requests
-$125.94 at API prices
-↑↓ session   enter open   [ ] view   ? keys   q quit
+  5e7d api           side      ended 00:41        39
+  4b0e infra         work      ended 00:31        13
+  8a2c docs          side      ended 00:18        43
+  ended yesterday  ─────────────────────────────────
+▸ b9c4 switchboard   side      ended 18:46       595
+  9814 switchboard   personal  ended 16:45       201
+  d29e infra         side      ended 16:27       410
+this week  27 sessions · 5,410 requests
+$635.00 at API prices
+  ▼ 10 more sessions
+↑↓ session   [ ] view   < > period   ? keys   q quit

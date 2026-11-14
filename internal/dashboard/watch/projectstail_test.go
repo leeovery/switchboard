@@ -28,8 +28,8 @@ func projectsLedgerOf(h *harness) *projectsLedger {
 func freshPage(h *harness) views.ProjectsPage {
 	now, m := h.clock.now, h.model
 	l := projectsLedgerOf(h).Ledger
-	days := views.ReadSessionDays(l, m.projects.from, now).Tailed(l.Day(dayfile.DateOf(now)), true, nil, nil, now)
-	return days.Projects(m.projectsInput(now, m.held.List(m.listLive(now, m.traffic.stream(now)))))
+	days := views.ReadSessionDays(l, m.sessionDays.from, now).Tailed(l.Day(dayfile.DateOf(now)), true, nil, nil, now)
+	return days.Projects(m.periodInput(now, m.held.List(m.listLive(now, m.traffic.stream(now)))))
 }
 
 // sameAsFresh fails the test where Projects' page shown isn't the one its
@@ -62,13 +62,13 @@ func TestTodayIsFedFromTheFirstReadOfTheTailThoughProjectsNeverShows(t *testing.
 	now := h.clock.now
 	rows := func(days views.SessionDays) []string {
 		var paths []string
-		for _, r := range days.Projects(h.model.projectsInput(now, views.SessionList{})).Rows {
+		for _, r := range days.Projects(h.model.periodInput(now, views.SessionList{})).Rows {
 			paths = append(paths, r.Path)
 		}
 		return paths
 	}
-	if got, want := rows(h.model.projects.tailed), []string{"/code/alpha", "/code/beta"}; h.model.projects.asked != 0 || !slices.Equal(got, want) {
-		t.Fatalf("on Sessions, Projects read %d times, the tail's days hold %v; want no read, and today's sessions, %v", h.model.projects.asked, got, want)
+	if got, want := rows(h.model.sessionDays.tailed), []string{"/code/alpha", "/code/beta"}; h.model.sessionDays.asked != 0 || !slices.Equal(got, want) {
+		t.Fatalf("on Sessions, Projects read %d times, the tail's days hold %v; want no read, and today's sessions, %v", h.model.sessionDays.asked, got, want)
 	}
 	projectsLedgerOf(h).write(projectAsks(betaOnly, "/code/beta", now.Add(time.Second), 1)...)
 	h.tickUntilAsked()
@@ -88,9 +88,9 @@ func TestTodayIsFedFromTheFirstReadOfTheTailThoughProjectsNeverShows(t *testing.
 func TestProjectsAwaitsTheTailsFirstRead(t *testing.T) {
 	h := projectsHarness(t, dashboard.Projects)
 	held := holdingBack[tailedMsg](h, h.init()...)
-	if p := h.model.projects; len(held) != 1 || p.days == nil || !h.model.sessionsTab.listed || p.shown.Page != nil || !h.model.awaiting() {
+	if p := h.model.projects; len(held) != 1 || h.model.sessionDays.days == nil || !h.model.sessionsTab.listed || p.shown.Page != nil || !h.model.awaiting() {
 		t.Fatalf("the tail's first read held back, %d held, Projects' days read %v, the List held %v, a page built %v, awaiting %v; want one held, its days and the List read, no page, awaiting",
-			len(held), p.days != nil, h.model.sessionsTab.listed, p.shown.Page != nil, h.model.awaiting())
+			len(held), h.model.sessionDays.days != nil, h.model.sessionsTab.listed, p.shown.Page != nil, h.model.awaiting())
 	}
 	h.deliver(held...)
 	sameAsFresh(t, h, 6, "the tail's first read landed")
@@ -149,7 +149,7 @@ func TestProjectsLosesNoLineAndCountsNoneTwiceAsTheDayTurns(t *testing.T) {
 				l.write(projectAsks(betaOnly, "/code/beta", at, 1)...)
 			}
 			days := dayfile.Span(dayfile.DayStart(tt.from, 0), dayfile.DayStart(tt.to, -1))
-			if owed, unread := h.model.projectsFeed(tt.to).owed, h.model.held.Unread(days); !slices.Equal(owed, days) || !slices.Equal(unread, days) {
+			if owed, unread := h.model.daysFeed(tt.to).owed, h.model.held.Unread(days); !slices.Equal(owed, days) || !slices.Equal(unread, days) {
 				t.Fatalf("before the turn's read, Projects wants %v read again and the store %v; want both to want %v", owed, unread, days)
 			}
 			read := len(l.days)
@@ -159,7 +159,7 @@ func TestProjectsLosesNoLineAndCountsNoneTwiceAsTheDayTurns(t *testing.T) {
 				t.Errorf("the turn's read read the days %v whole, want each day before today since the last read once, %v", got, days)
 			}
 			sameAsFresh(t, h, 6+len(tt.after), "the turn's read")
-			if owed := h.model.projects.tailed.Owed(tt.to); len(owed) > 0 {
+			if owed := h.model.sessionDays.tailed.Owed(tt.to); len(owed) > 0 {
 				t.Errorf("after the turn's read, the tail's days owe %v, want none", owed)
 			}
 		})
@@ -192,7 +192,7 @@ func TestTheTurnReadsNoDayForTheTailsDaysTillProjectsAsks(t *testing.T) {
 	if got := l.days[read:]; len(got) > 0 {
 		t.Errorf("the turn's read read the days %v whole, want none, no reader wanting them", got)
 	}
-	if owed := h.model.projects.tailed.Owed(h.clock.now); h.model.tail.unread() || len(owed) > 0 {
+	if owed := h.model.sessionDays.tailed.Owed(h.clock.now); h.model.tail.unread() || len(owed) > 0 {
 		t.Errorf("after the turn's read, the tail read %v, its days owing %v; want it read, owing none", !h.model.tail.unread(), owed)
 	}
 	h.keys(tabKey, tabKey)
@@ -216,12 +216,12 @@ func TestTheDaysTheTailsDaysOweAreReadThoughNoReaderWantsThem(t *testing.T) {
 	early := projectAsks(alphaFirst, "/code/alpha", night.Add(-time.Hour), 3)
 	late := projectAsks(alphaFirst, "/code/alpha", night.Add(59*time.Minute), 1)
 	days := views.ReadSessionDays(ledger.Empty{}, onTheDay(0, 0, 0), night).Tailed(early, true, nil, nil, night)
-	feed := projectsFeed{days: days, keeps: true, owed: []string{gone}}
+	feed := daysFeed{days: days, keeps: true, owed: []string{gone}}
 	fed := feed.fed(tailLines{gained: projectAsks(betaOnly, "/code/beta", turned, 1), afresh: true, days: map[string][]ledger.Held{gone: slices.Concat(early, late)}}, turned)
 	if owed := fed.Owed(turned); len(owed) > 0 {
 		t.Errorf("fed the day gone whole, the days owe %v, want none", owed)
 	}
-	in := views.ProjectsInput{Period: views.PeriodThisWeek, Names: status.Names{}, Prices: ledger.Pricing, WeekStarts: time.Monday, Family: claude.Provider{}.Family, Now: turned}
+	in := views.PeriodInput{Period: views.PeriodThisWeek, Names: status.Names{}, Prices: ledger.Pricing, WeekStarts: time.Monday, Family: claude.Provider{}.Family, Now: turned}
 	if got := fed.Projects(in).All.Requests; got != 5 {
 		t.Errorf("fed the day gone whole, the days count %d requests, want its 4 and today's 1", got)
 	}
@@ -240,9 +240,9 @@ func TestProjectsAwaitsTheTailsFirstReadOfTheDay(t *testing.T) {
 	h.clock.now = onTheDay(24+9, 0, 0)
 	h.keys(tabKey)
 	held := holdingBack[tailedMsg](h, h.update(tabKey)...)
-	if p := h.model.projects; h.model.view != dashboard.Projects || len(held) != 1 || p.days == nil || p.shown.Page != nil || !h.model.awaiting() {
+	if p := h.model.projects; h.model.view != dashboard.Projects || len(held) != 1 || h.model.sessionDays.days == nil || p.shown.Page != nil || !h.model.awaiting() {
 		t.Fatalf("shown the morning after, on %s, %d reads of the tail held, its days read %v, a page built %v, awaiting %v; want Projects, the tail's read asked, its days read, no page, awaiting it",
-			h.model.view, len(held), p.days != nil, p.shown.Page != nil, h.model.awaiting())
+			h.model.view, len(held), h.model.sessionDays.days != nil, p.shown.Page != nil, h.model.awaiting())
 	}
 	h.deliver(held...)
 	sameAsFresh(t, h, 7, "the tail's first read of the day")
@@ -307,7 +307,7 @@ func TestALaterReadOfADayGoneStandsForTheTailsCopy(t *testing.T) {
 	h.clock.now = onTheDay(24+10, 0, 0)
 	h.deliver(h.press(">")...)
 	sameAsFresh(t, h, 8, "a step to 30 days at ten read the day gone again")
-	if p := h.model.projects; p.tailed.Told(p.tailed.Without(*p.days)) {
+	if d := h.model.sessionDays; d.tailed.Told(d.tailed.Without(*d.days)) {
 		t.Error("the tail's days hold what Without lets go of, want the watch to have let go of it")
 	}
 }
@@ -321,7 +321,7 @@ func TestATailReadUnderWayAsProjectsFirstShowsBuildsItsPageAgain(t *testing.T) {
 	h.start()
 	projectsLedgerOf(h).write(projectAsks(betaOnly, "/code/beta", h.clock.now.Add(-time.Second), 1)...)
 	read := h.readingTheTail()
-	if h.model.projects.asked != 0 {
+	if h.model.sessionDays.asked != 0 {
 		t.Fatal("Projects asked for its days before the read of the tail was asked, want it not yet shown")
 	}
 	h.keys(shiftTabKey, shiftTabKey)
@@ -340,7 +340,7 @@ func TestProjectsCountsAsFedOnlyWhatChangedItsDays(t *testing.T) {
 	h := projectsHarness(t, dashboard.Projects)
 	h.start()
 	h.deliver(h.press(">")...)
-	p, now := h.model.projects, h.clock.now
+	d, now := h.model.sessionDays, h.clock.now
 	later := now.Add(time.Second)
 	gamma := projectAsks(gammaOnly, "/code/gamma", now.AddDate(0, 0, -1), 1)
 	tests := []struct {
@@ -358,8 +358,8 @@ func TestProjectsCountsAsFedOnlyWhatChangedItsDays(t *testing.T) {
 		{name: "a day before Projects' read's first read whole", days: map[string][]ledger.Held{dayfile.DateOf(now.AddDate(0, 0, -40)): nil}},
 	}
 	for _, tt := range tests {
-		fed := p.tailFed(projectsFeed{days: p.tailed, keeps: true}.fed(tailLines{gained: tt.gained, afresh: tt.afresh, days: tt.days}, later))
-		if got := fed.fed != p.fed; got != tt.fed {
+		fed := d.tailFed(daysFeed{days: d.tailed, keeps: true}.fed(tailLines{gained: tt.gained, afresh: tt.afresh, days: tt.days}, later))
+		if got := fed.fed != d.fed; got != tt.fed {
 			t.Errorf("%s, counted as fed %t, want %t", tt.name, got, tt.fed)
 		}
 	}
@@ -393,7 +393,7 @@ func TestALateLineOfTheDayGoneReachesProjectsThroughAnotherReadersRead(t *testin
 	read := len(l.days)
 	for _, second := range []int{35, 40, 45} {
 		h.clock.now = onTheDay(24, 0, second)
-		if owed := h.model.projectsFeed(h.clock.now).owed; len(owed) > 0 {
+		if owed := h.model.daysFeed(h.clock.now).owed; len(owed) > 0 {
 			t.Fatalf("at 00:00:%d Projects' days owe %v, want none, the day gone read whole as it turned", second, owed)
 		}
 		h.read(routerDocument(three()...))
@@ -410,7 +410,7 @@ func TestALateLineOfTheDayGoneReachesProjectsThroughAnotherReadersRead(t *testin
 func TestAReadFurtherBackKeepsTheLinesTheTailGaveMeanwhile(t *testing.T) {
 	h := projectsHarness(t, dashboard.Projects)
 	h.start()
-	held := holdingBack[projectsReadMsg](h, h.press(">")...)
+	held := holdingBack[daysReadMsg](h, h.press(">")...)
 	if len(held) != 1 {
 		t.Fatalf("a step to 30 days held %d reads, want one", len(held))
 	}
@@ -426,11 +426,11 @@ func TestProjectsHiddenIsBuiltOnShow(t *testing.T) {
 	h := projectsHarness(t, dashboard.Projects)
 	h.start()
 	h.keys(tabKey)
-	pages, fed := h.model.projects.pages, h.model.projects.fed
+	pages, fed := h.model.projects.pages, h.model.sessionDays.fed
 	projectsLedgerOf(h).write(projectAsks(betaOnly, "/code/beta", h.clock.now.Add(time.Second), 1)...)
 	h.tickUntilAsked()
-	if p := h.model.projects; p.pages != pages || p.fed == fed || p.pageOf.fed == p.fed {
-		t.Fatalf("hidden, a read of the tail gaining a line built the page %d times, fed %d to %d, the page of %d; want none built, the page stale", p.pages-pages, fed, p.fed, p.pageOf.fed)
+	if p, d := h.model.projects, h.model.sessionDays; p.pages != pages || d.fed == fed || p.pageOf.fed == d.fed {
+		t.Fatalf("hidden, a read of the tail gaining a line built the page %d times, fed %d to %d, the page of %d; want none built, the page stale", p.pages-pages, fed, d.fed, p.pageOf.fed)
 	}
 	h.keys(shiftTabKey)
 	if got := h.model.projects.pages; got != pages+1 {

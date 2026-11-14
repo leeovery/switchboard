@@ -48,8 +48,9 @@ func TestSessionsChoicesKeptThatNameNothingReadAsItOpens(t *testing.T) {
 }
 
 // Sessions' heading row names it and its sub-tabs, the one shown picked out,
-// and [ ] after them, as sessions-switchboard-160 draws it; on a phone, its
-// sub-tabs set apart after its name, as sessions-phone-52 draws them.
+// and [ ] after them, as sessions-switchboard-160 draws it, and on the List
+// the period's dial at its right; on a phone, its sub-tabs set apart after
+// its name, as sessions-phone-52 draws them.
 func TestSessionsHeadingRow(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -59,7 +60,7 @@ func TestSessionsHeadingRow(t *testing.T) {
 		want          string
 	}{
 		{name: "the Switchboard", width: 160, row: 4, picked: 12, other: 25, want: "SESSIONS    Switchboard  List  [ ]  " + rule(124)},
-		{name: "the List", width: 160, row: 4, shown: SessionsList, picked: 25, other: 12, want: "SESSIONS    Switchboard  List  [ ]  " + rule(124)},
+		{name: "the List", width: 160, row: 4, shown: SessionsList, picked: 25, other: 12, want: "SESSIONS    Switchboard  List  [ ]  " + rule(109) + "  < this week >"},
 		{name: "on a phone", width: 52, row: 6, picked: 11, other: 24, want: "SESSIONS   Switchboard  List"},
 	}
 	for _, tt := range tests {
@@ -81,8 +82,8 @@ func TestSessionsHeadingRow(t *testing.T) {
 }
 
 // sessionsOnTheBoard is Sessions with d28c on work and side, a row on each,
-// and 7f3a and 41e0 on side, as the patch keeps them; the List listing 41e0,
-// then d28c, then 9c2e, ended today.
+// and 7f3a and 41e0 on side, as the patch keeps them; the List's log listing
+// 41e0, then d28c, then 9c2e, ended today.
 func sessionsOnTheBoard(shown SessionsView) SessionsShown {
 	calls := []views.Call{
 		{Session: "41e0", Account: "side"},
@@ -90,8 +91,11 @@ func sessionsOnTheBoard(shown SessionsView) SessionsShown {
 		{Session: idD28C, Account: "work"},
 		{Session: id7F3A, Account: "side"},
 	}
-	list := views.SessionList{Sessions: []views.ListedSession{{Session: "41e0"}, {Session: idD28C}, {Session: "9c2e"}}}
-	return SessionsShown{Shown: shown, Patched: views.Patch(views.Patched{}, calls, nil), Calls: calls, List: list}
+	log := &views.SessionLog{Sessions: []views.PeriodSession{
+		{Session: "41e0"}, {Session: idD28C},
+		{Session: "9c2e", EndedOn: "2026-10-01"},
+	}}
+	return SessionsShown{Shown: shown, Patched: views.Patch(views.Patched{}, calls, nil), Calls: calls, Log: log}
 }
 
 // ↑ and ↓ step through the rows top to bottom, no further than the first and
@@ -186,25 +190,31 @@ func TestSessionsSubTabTurnsKeepingTheChoiceWhereItsSessionShows(t *testing.T) {
 // The choice follows its session from look to look: kept on its row where it
 // still shows, a row in two groups among them; else on its session's first
 // row, as where a move took it to another account; else it ends, as once
-// the router stops listing it, or the List lets it go.
+// the router stops listing it, or the List lets it go. While the List awaits
+// its log, the choice is kept, for the log to keep once it's built.
 func TestSessionsChoiceFollowsItsSessionFromLookToLook(t *testing.T) {
 	accounts := []string{"work", "personal", "side"}
 	tests := []struct {
-		name   string
-		shown  SessionsView
-		chosen Plug
-		want   Plug
+		name    string
+		shown   SessionsView
+		chosen  Plug
+		want    Plug
+		unbuilt bool
 	}{
 		{name: "a call still there", chosen: Plug{Session: idD28C, Account: "side"}, want: Plug{Session: idD28C, Account: "side"}},
 		{name: "a call moved to another account", chosen: Plug{Session: "41e0", Account: "work"}, want: Plug{Session: "41e0", Account: "side"}},
 		{name: "a call the router lists no more", chosen: Plug{Session: "9e21", Account: "work"}},
 		{name: "a row of the List, ended", shown: SessionsList, chosen: Plug{Session: "9c2e"}, want: Plug{Session: "9c2e"}},
 		{name: "a row the List let go", shown: SessionsList, chosen: Plug{Session: "5e7d"}},
+		{name: "a row of the List awaiting its log", shown: SessionsList, chosen: Plug{Session: "5e7d"}, want: Plug{Session: "5e7d"}, unbuilt: true},
 		{name: "none chosen"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := sessionsOnTheBoard(tt.shown)
+			if tt.unbuilt {
+				s.Log = nil
+			}
 			s.Chosen = tt.chosen
 			if got := s.Following(accounts).Chosen; got != tt.want {
 				t.Errorf("Following() chose %+v, want %+v", got, tt.want)

@@ -34,11 +34,13 @@ type pageLoadingMsg struct {
 // awaiting reports whether the tab shown waits on a read of the files it's
 // drawn of: Accounts and History on the ledger's days; Projects on the
 // sessions' days, read for it and of the ledger's tail, while it has no
-// page to draw, as projectsReady has it, and the List held, which
+// page to draw, as daysReady has it, and the List held, which
 // names its sessions running, as listAwaited has it; and Detail's SESSIONS,
 // listing a session, as followed held them for the message, on the List
 // held, as the Overview's SESSIONS and Sessions do, which names their
-// sessions, till its first read lands, as listAwaited has it; Runway on the
+// sessions, till its first read lands, as listAwaited has it, and Sessions'
+// List on the sessions' days too, as Projects does, while it has no log to
+// draw; Runway on the
 // readings history; Graphs on its live
 // tail, while it reads lanes, POOL or GLANCE's pool's room of it, as
 // graphsReadsHistory has it, never on a span Runway stepped back to, and on
@@ -57,7 +59,7 @@ func (m Model) awaiting() bool {
 	case dashboard.History:
 		return m.past.reading
 	case dashboard.Sessions:
-		return m.listAwaited()
+		return m.listAwaited() || m.listShown() && m.cfg.Ledger != nil && m.sessionsTab.shown.Log == nil
 	case dashboard.Runway:
 		return m.runwayTab.reading
 	case dashboard.Graphs:

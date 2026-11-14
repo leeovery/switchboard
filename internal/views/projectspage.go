@@ -14,14 +14,15 @@ import (
 	"github.com/leeovery/switchboard/internal/status"
 )
 
-// ProjectsInput is what Projects' page is built of beside the sessions'
-// days: the period it counts over; today's List, as HeldSessions' List gives
-// it, its sessions running and those of today, as SESSIONS rows them; what
+// PeriodInput is what Projects' page and Sessions' log are built of beside
+// the sessions' days: the period they count over; today's List, as
+// HeldSessions' List gives it, its sessions running and those of today, as
+// SESSIONS and the log row them; what
 // names the accounts, configured and removed; the prices worth is priced by,
 // at now's day's prices, as Past and the List price theirs, and the version
 // table that names the models; the day weeks start on; how a model's family
 // is read from its id, for one the table doesn't name; and now.
-type ProjectsInput struct {
+type PeriodInput struct {
 	Period     Period
 	List       SessionList
 	Names      status.Namer
@@ -46,7 +47,7 @@ type ProjectsPage struct {
 	PricesAsOf string
 
 	tallies map[string]*projectTally
-	in      ProjectsInput
+	in      PeriodInput
 }
 
 // ProjectTotals are a project's totals over the period, or every project's:
@@ -81,14 +82,41 @@ func (r ProjectRow) NoDirectory() bool {
 }
 
 // Projects is Projects' page over in's period, as ProjectsPage has it, of
-// the days d holds at in's Now, as each has it: the days of the period
-// gone, and the day d's fold of the tail is of, today's or, where the day
-// turned since the tail was last read, the day it turned from; with the
-// sessions in's List lists running. Each session is one project's, the one
-// of where it last ran, as sessionPlaces has it, and started at its first
-// request wherever it fell, as startedBefore has it of the days before the
-// period's.
-func (d SessionDays) Projects(in ProjectsInput) ProjectsPage {
+// the days d holds at in's Now, each project tallied as tallied has it.
+func (d SessionDays) Projects(in PeriodInput) ProjectsPage {
+	return d.tallied(in).page(in)
+}
+
+// SessionLog is Sessions' List over the period, as the dashboard draws it:
+// every session of the period, as SESSIONS rows a project's, in the List's
+// order, those running first, then those ended, the latest ended first; and
+// what they come to together, as every project's together on Projects.
+type SessionLog struct {
+	Period   Period
+	Sessions []PeriodSession
+	All      ProjectTotals
+}
+
+// SessionLog is Sessions' List over in's period, as SessionLog has it, of
+// the days d holds at in's Now, each project tallied as tallied has it, so
+// it rows every session alike with Projects' pages.
+func (d SessionDays) SessionLog(in PeriodInput) SessionLog {
+	t := d.tallied(in)
+	sessions := make(map[string]*sessionTally)
+	for _, p := range t.all {
+		maps.Copy(sessions, p.sessions)
+	}
+	return SessionLog{Period: in.Period, Sessions: periodRows(sessions, in), All: t.totals()}
+}
+
+// tallied are the projects of in's period, each tallied of the days d holds
+// at in's Now, as each has it: the days of the period gone, and the day d's
+// fold of the tail is of, today's or, where the day turned since the tail
+// was last read, the day it turned from; with the sessions in's List lists
+// running. Each session is one project's, the one of where it last ran, as
+// sessionPlaces has it, and started at its first request wherever it fell,
+// as startedBefore has it of the days before the period's.
+func (d SessionDays) tallied(in PeriodInput) projectTallies {
 	today := dayfile.CivilOf(in.Now)
 	first := in.Period.first(today, in.WeekStarts).Format(time.DateOnly)
 	todayDate := today.Format(time.DateOnly)
@@ -107,7 +135,7 @@ func (d SessionDays) Projects(in ProjectsInput) ProjectsPage {
 		}
 	}
 	t.started(d.startedBefore(first))
-	return t.page(in)
+	return t
 }
 
 // sessionPlace is where a session ran, its directory and its project, as
@@ -225,26 +253,33 @@ func (t projectTallies) started(started map[string]time.Time) {
 }
 
 // page is the list of the tallies, as Projects has it.
-func (t projectTallies) page(in ProjectsInput) ProjectsPage {
+func (t projectTallies) page(in PeriodInput) ProjectsPage {
 	paths := slices.Collect(maps.Keys(t.all))
 	names := status.ProjectNames(paths, math.MaxInt)
-	page := ProjectsPage{Period: in.Period, PricesAsOf: in.Prices.AsOf, tallies: t.all, in: in}
-	sessions := make(map[string]bool)
+	page := ProjectsPage{Period: in.Period, All: t.totals(), PricesAsOf: in.Prices.AsOf, tallies: t.all, in: in}
 	for _, p := range t.all {
-		row := p.row(names[p.path], t.v)
-		page.Rows = append(page.Rows, row)
-		page.All.Live += row.Live
-		page.All.Requests += row.Requests
-		page.All.add(row.Worth)
-		for id := range p.sessions {
-			sessions[id] = true
-		}
+		page.Rows = append(page.Rows, p.row(names[p.path], t.v))
 	}
-	page.All.Sessions = len(sessions)
 	slices.SortFunc(page.Rows, func(a, b ProjectRow) int {
 		return cmp.Or(cmp.Compare(b.amount(), a.amount()), strings.Compare(a.Name, b.Name), strings.Compare(a.Path, b.Path))
 	})
 	return page
+}
+
+// totals are every project's tallied together, each session once.
+func (t projectTallies) totals() ProjectTotals {
+	var all ProjectTotals
+	sessions := make(map[string]bool)
+	for _, p := range t.all {
+		all.Live += p.live
+		all.Requests += p.requests
+		all.add(p.worth)
+		for id := range p.sessions {
+			sessions[id] = true
+		}
+	}
+	all.Sessions = len(sessions)
+	return all
 }
 
 // projectTally is a project's use over the period as it's taken in: its

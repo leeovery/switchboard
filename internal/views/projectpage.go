@@ -38,7 +38,7 @@ type ProjectPage struct {
 	// Sessions are its sessions over the period, in the List's order: those
 	// running first, the oldest started first, then those ended, the latest
 	// ended first.
-	Sessions []ProjectSession
+	Sessions []PeriodSession
 }
 
 // VersionShare is a model version's share of a project's worth: the
@@ -58,11 +58,11 @@ type AccountShare struct {
 	Share *float64
 }
 
-// ProjectSession is a session of a project as SESSIONS rows it, in the
-// List's form, so it's drawn in the List's columns: its requests and their
-// worth over the period. EndedOn is the date of the local day it ended on,
-// as its rule groups it, "" where it hasn't ended.
-type ProjectSession struct {
+// PeriodSession is a session of the period as the List and a project's
+// SESSIONS row it, in the List's form, so it's drawn in the List's columns:
+// its requests and their worth over the period. EndedOn is the date of the
+// local day it ended on, as its rule groups it, "" where it hasn't ended.
+type PeriodSession struct {
 	ListedSession
 	EndedOn string
 }
@@ -126,11 +126,11 @@ func (by WorthBy) Now() int {
 
 // page is the project's page, its row given, every project's totals given,
 // the page built of in.
-func (p *projectTally) page(row ProjectRow, all ProjectTotals, in ProjectsInput) ProjectPage {
+func (p *projectTally) page(row ProjectRow, all ProjectTotals, in PeriodInput) ProjectPage {
 	v := versions{table: in.Prices, family: in.Family}
 	page := ProjectPage{ProjectRow: row, Share: shareOf(p.worth, all.amount()), Tokens: p.tokens, ByModel: p.byModel(v), OnAccounts: p.onAccounts(in.Names)}
 	page.WorthBy, page.WorthByWeek = p.worthBy(in)
-	page.Sessions = p.rows(in)
+	page.Sessions = periodRows(p.sessions, in)
 	return page
 }
 
@@ -173,7 +173,7 @@ func (p *projectTally) onAccounts(names status.Namer) []AccountShare {
 // WORTH BY draws them: today's by hour; this week's and the last 30 days' by
 // day; the last 12 weeks' by day, and by week beside them; and the last 12
 // months' by week.
-func (p *projectTally) worthBy(in ProjectsInput) (WorthBy, *WorthBy) {
+func (p *projectTally) worthBy(in PeriodInput) (WorthBy, *WorthBy) {
 	today := dayfile.CivilOf(in.Now)
 	first, last := in.Period.first(today, in.WeekStarts), in.Period.last(today, in.WeekStarts)
 	switch in.Period {
@@ -257,17 +257,18 @@ func peaked(by WorthBy) WorthBy {
 	return by
 }
 
-// rows are the project's sessions as SESSIONS rows them, in the List's
-// order: each of in's List as the List has it, its requests and worth those
-// of the period; each other as listedEnded has it.
-func (p *projectTally) rows(in ProjectsInput) []ProjectSession {
+// periodRows are the sessions given as the List and SESSIONS row them, in
+// the List's order: each of in's List as the List has it, its requests and
+// worth those of the period; each other as listedEnded has it. It's the one
+// way a session of the period is rowed, a project's or the List's.
+func periodRows(sessions map[string]*sessionTally, in PeriodInput) []PeriodSession {
 	listed := make(map[string]ListedSession, len(in.List.Sessions))
 	for _, s := range in.List.Sessions {
 		listed[s.Session] = s
 	}
 	price := pricing{prices: in.Prices, date: dayfile.DateOf(in.Now)}
-	rows := make([]ProjectSession, 0, len(p.sessions))
-	for _, st := range p.sessions {
+	rows := make([]PeriodSession, 0, len(sessions))
+	for _, st := range sessions {
 		s, ok := listed[st.id]
 		if ok {
 			s.Requests, s.Worth = st.requests, st.worth
@@ -275,13 +276,13 @@ func (p *projectTally) rows(in ProjectsInput) []ProjectSession {
 		} else {
 			s = st.listedEnded(price)
 		}
-		row := ProjectSession{ListedSession: s.named(in.Names)}
+		row := PeriodSession{ListedSession: s.named(in.Names)}
 		if s.Activity.Doing == Ended {
 			row.EndedOn = dayfile.DateOf(s.Ended)
 		}
 		rows = append(rows, row)
 	}
-	slices.SortFunc(rows, func(a, b ProjectSession) int { return inListOrder(a.ListedSession, b.ListedSession) })
+	slices.SortFunc(rows, func(a, b PeriodSession) int { return inListOrder(a.ListedSession, b.ListedSession) })
 	return rows
 }
 

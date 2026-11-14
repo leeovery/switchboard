@@ -43,6 +43,29 @@ func TestAWorthIsSaidToTheCent(t *testing.T) {
 	}
 }
 
+// A worth to the cent summed over a period sets its thousands apart, and
+// says the rest as Cents does.
+func TestAWorthIsSaidToTheCentItsThousandsSetApart(t *testing.T) {
+	tests := []struct {
+		name  string
+		worth views.Worth
+		want  string
+	}{
+		{name: "under a thousand", worth: views.Worth{Amount: usd(412.53)}, want: "$412.53"},
+		{name: "a thousand or more", worth: views.Worth{Amount: usd(3257.86)}, want: "$3,257.86"},
+		{name: "under half a cent", worth: views.Worth{Amount: usd(0.0049)}, want: "<$0.01"},
+		{name: "part unpriced", worth: views.Worth{Amount: usd(1234.5), Unpriced: []string{"no_usage"}}, want: "$1,234.50+"},
+		{name: "wholly unpriced", worth: views.Worth{Unpriced: []string{"claude-opus-9"}}, want: "unpriced"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.worth.GroupedCents(); got != tt.want {
+				t.Errorf("GroupedCents() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 // A worth to the dollar is History's: its thousands set apart, a + after it
 // where part is unpriced, unpriced where all is, and nothing for none, which
 // each surface says its own way.

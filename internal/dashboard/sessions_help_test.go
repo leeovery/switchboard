@@ -101,7 +101,7 @@ func TestSessionsHelpSaysWhatEachPartShows(t *testing.T) {
 		{"the List's still order", "rows never slide from under the choice"},
 		{"the List's worth", "at API prices, at today's"},
 		{"a session's end", "an hour after its last request"},
-		{"the today line", "The today line sums today's sessions, running and ended"},
+		{"the period line", "The period line, at the foot, sums the period's sessions, running and ended"},
 	} {
 		if !strings.Contains(said, tc.want) {
 			t.Errorf("help reads\n%s\nwant it to explain %s, %q", said, tc.what, tc.want)

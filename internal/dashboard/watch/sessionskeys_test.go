@@ -40,16 +40,26 @@ func (h *harness) phoneOffKeys() []string {
 	return off
 }
 
-// Sessions' key lines are the design's, on both sub-tabs alike: enter faint
-// till a session is chosen; with one account, no p pin, but where a pin set
-// from the command line stands; p pin faint while the router doesn't
-// answer; and a phone's line keeping ↑↓ session, enter open and [ ] view, in
-// that order.
+// Sessions' key lines are the design's: on the Switchboard, ↑↓ session and
+// enter its page grouped; on the List, the dial after [ ] view and every key
+// a group of its own, as Projects' are; enter faint till a session is chosen;
+// with one account, no p pin, but where a pin set from the command line
+// stands; p pin faint while the router doesn't answer; and a phone's line
+// keeping ↑↓ session, enter open and [ ] view on the Switchboard, and ↑↓
+// session, [ ] view and < > period on the List, in those orders.
 func TestSessionsKeyLinesAreTheDesigns(t *testing.T) {
-	const (
-		wide  = "tab views   [ ] view    ↑↓ session  enter its page    p pin    ? help  q quit"
-		alone = "tab views   [ ] view    ↑↓ session  enter its page    ? help  q quit"
-		phone = "↑↓ session   enter open   [ ] view   ? keys   q quit"
+	type lines [2]string
+	var (
+		wide = lines{
+			"tab views   [ ] view    ↑↓ session  enter its page    p pin    ? help  q quit",
+			"tab views   [ ] view   < > period: this week   ↑↓ session   enter its page   p pin   ? help  q quit",
+		}
+		alone = lines{
+			"tab views   [ ] view    ↑↓ session  enter its page    ? help  q quit",
+			"tab views   [ ] view   < > period: this week   ↑↓ session   enter its page   ? help  q quit",
+		}
+		phone = lines{"↑↓ session   enter open   [ ] view   ? keys   q quit", "↑↓ session   [ ] view   < > period   ? keys   q quit"}
+		enter = [2][]string{{"enter"}, {"enter"}}
 	)
 	pinned := routerDocument(three()[0])
 	pinned.Pin = status.Pin{Accounts: []string{"work"}}
@@ -59,15 +69,15 @@ func TestSessionsKeyLinesAreTheDesigns(t *testing.T) {
 		width   int
 		chosen  bool
 		gone    bool
-		want    string
-		wantOff []string
+		want    lines
+		wantOff [2][]string
 	}{
-		{name: "nothing chosen", width: 160, want: wide, wantOff: []string{"enter"}},
+		{name: "nothing chosen", width: 160, want: wide, wantOff: enter},
 		{name: "a session chosen", width: 160, chosen: true, want: wide},
-		{name: "the router not answering", width: 160, chosen: true, gone: true, want: wide, wantOff: []string{"p"}},
-		{name: "one account", doc: routerDocument(three()[0]), width: 160, want: alone, wantOff: []string{"enter"}},
-		{name: "one account, pinned from the command line", doc: pinned, width: 160, want: wide, wantOff: []string{"enter"}},
-		{name: "a phone, nothing chosen", width: 52, want: phone, wantOff: []string{"enter"}},
+		{name: "the router not answering", width: 160, chosen: true, gone: true, want: wide, wantOff: [2][]string{{"p"}, {"p"}}},
+		{name: "one account", doc: routerDocument(three()[0]), width: 160, want: alone, wantOff: enter},
+		{name: "one account, pinned from the command line", doc: pinned, width: 160, want: wide, wantOff: enter},
+		{name: "a phone, nothing chosen", width: 52, want: phone, wantOff: [2][]string{{"enter"}}},
 		{name: "a phone, a session chosen", width: 52, chosen: true, want: phone},
 	}
 	for _, tt := range tests {
@@ -86,15 +96,15 @@ func TestSessionsKeyLinesAreTheDesigns(t *testing.T) {
 					h.model.sessionsTab.shown.Chosen = dashboard.Plug{Session: idD28C, Account: "work"}
 				}
 				rows := strings.Split(h.view(), "\n")
-				if got := strings.TrimRight(rows[len(rows)-1], " "); got != tt.want {
-					t.Errorf("the key line reads\n%q\nwant\n%q", got, tt.want)
+				if got := strings.TrimRight(rows[len(rows)-1], " "); got != tt.want[shown] {
+					t.Errorf("the key line reads\n%q\nwant\n%q", got, tt.want[shown])
 				}
 				off := h.offKeys()
 				if tt.width < 100 {
 					off = h.phoneOffKeys()
 				}
-				if !slices.Equal(off, tt.wantOff) {
-					t.Errorf("the key line draws %q faint, want %q", off, tt.wantOff)
+				if !slices.Equal(off, tt.wantOff[shown]) {
+					t.Errorf("the key line draws %q faint, want %q", off, tt.wantOff[shown])
 				}
 			})
 		}
@@ -170,7 +180,11 @@ func TestSessionsHelpListsItsKeysAsTheKeyLineWordsThem(t *testing.T) {
 	for _, shown := range []dashboard.SessionsView{dashboard.SessionsSwitchboard, dashboard.SessionsList} {
 		t.Run([]string{"Switchboard", "List"}[shown], func(t *testing.T) {
 			h := sessionsKeysHarness(t, routerDocument(three()...), shown, 160)
-			want := []dashboard.Key{{Key: "tab", Does: "views"}, {Key: "[ ]", Does: "view"}, {Key: "↑↓", Does: "session"}, {Key: "enter", Does: "its page", Off: true}}
+			want := []dashboard.Key{{Key: "tab", Does: "views"}, {Key: "[ ]", Does: "view"}}
+			if shown == dashboard.SessionsList {
+				want = append(want, dashboard.Key{Key: "< >", Does: "period", State: "this week"})
+			}
+			want = append(want, dashboard.Key{Key: "↑↓", Does: "session"}, dashboard.Key{Key: "enter", Does: "its page", Off: true})
 			if shown == dashboard.SessionsSwitchboard {
 				want = append(want, dashboard.Key{Key: "w", Does: "models", Hidden: true})
 			}

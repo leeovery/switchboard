@@ -277,7 +277,7 @@ the accounts' names where the screen has room, as USAGE's name column does.
 today, this week, 30 days, 12 weeks and 12 months. They're never billing months: today and this
 week run from their starts, 30 days and 12 months back from today, and 12 weeks over this week and
 the 11 before, and 12 months are the days History's Year counts as its last 12 months. It's one dial for the dashboard,
-remembered from one run to the next, and Projects counts over it too.
+remembered from one run to the next, and Projects and Sessions' List count over it too.
 
 ## Projects
 
@@ -326,7 +326,7 @@ On Projects:
 - `↑` and `↓` choose the project.
 - `→` moves into the chosen project's sessions, and `←` goes back to the list.
 - In the sessions, `↑` and `↓` choose a session, and `enter` opens its page.
-- `<` and `>` step the period, shared with Accounts. See [The period](#the-period).
+- `<` and `>` step the period, shared with Accounts and Sessions' List. See [The period](#the-period).
 
 The chosen row is lit only where `↑` and `↓` act, in the list or in the sessions. The other's chosen
 row stays bold, marked `▸`.
@@ -441,19 +441,29 @@ tab, as it may have ended since.
 
 ### The List
 
-The List is one table of today's sessions: those running first, then those ended. Each row shows
-the session's:
+The List is a log of every session in the period the dial shows at its heading's right, the one
+Accounts and Projects share: those running first, then those ended, newest first, under a rule for
+the day they ended, `ended today`, `ended yesterday`, `ended Tue`, or beyond six days,
+`ended Mon 21 Sep`. Over today, it's today's sessions. Each row shows the session's:
 
-- account, model and state
-- start time
-- requests, and their worth at API prices
+- account, model and state, as `ended 18:20` once it's over
+- start time, with its day where it started on another
+- requests in the period, and their worth at API prices
 - how it came to its account.
+
+A row reads as it does in a project's sessions on Projects. The line over the key line sums the
+period, as `30 days  150 sessions · 33,010 requests · $3,257.86 at API prices`. Where the sessions
+don't all fit, the row over the key line says how many are out of view, as
+`▲ 12 more sessions · ▼ 130 more sessions`, and a day's rule stays at the top while its sessions
+scroll under it, so the day always shows.
 
 ### Keys on Sessions
 
 - `↑` and `↓` choose a session: a call on the Switchboard, or a row on the List. Where it's out of
   view, the view scrolls to it.
-- `enter` opens the chosen session's page.
+- `j` and `k` scroll the List a row.
+- `<` and `>` step the List's period, on the List alone. See [The period](#the-period).
+- `enter` opens the chosen session's page, ended or running.
 - `esc` deselects it.
 
 ## Runway

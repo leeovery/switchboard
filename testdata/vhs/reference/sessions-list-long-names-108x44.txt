@@ -2,10 +2,10 @@
 
 ● healthy  ·  auto  ·  6 sessions  ·  new sessions → ▲ side-hustle-consulting
 
-SESSIONS    Switchboard  List  [ ]  ────────────────────────────────────────────────────────────────────────
+SESSIONS    Switchboard  List  [ ]  ─────────────────────────────────────────────────────────  < this week >
 
   session                        on               model      state        started          requests    worth
-▸ db8a infra-terraform-modules   side-hustle-co…  opus-5-5   idle 50s     yesterday 15:08       126   $11.37
+▸ db8a infra-terraform-modules   side-hustle-co…  opus-5-5   idle 50s     yesterday 15:08       153   $12.64
   9c2e website-marketing-redes…  personal-resea…  opus-5-5   idle 9m      11:55                 267   $27.15
 ↑ d28c switchboard-dashboard-f…  side-hustle-co…  opus-5-5   asking       12:02                 445   $48.20
   41e0 docs-site-getting-start…  personal-resea…  opus-5-5   idle 34s     12:47                 158   $17.86
@@ -17,9 +17,11 @@ SESSIONS    Switchboard  List  [ ]  ──────────────�
   e0c4 infra-terraform-modules   work-team-plan   opus-5-5   ended 10:02  09:12                  19    $1.47
   a8f1 website-marketing-redes…  side-hustle-co…  opus-5-5   ended 09:28  08:31                  24    $1.95
   2b6d api-gateway-rate-limits   work-team-plan   opus-5-5   ended 09:05  07:58                  31    $2.61
-  5e7d api-gateway-rate-limits   side-hustle-co…  opus-5-5   ended 00:41  yesterday 23:47        17    $1.28
-  4b0e infra-terraform-modules   work-team-plan   opus-5-5   ended 00:31  yesterday 15:52         5    $0.31
-  8a2c docs-site-getting-start…  side-hustle-co…  opus-5-5   ended 00:18  yesterday 16:55         9    $0.63
+  5e7d api-gateway-rate-limits   side-hustle-co…  opus-5-5   ended 00:41  yesterday 23:47        39    $2.41
+  4b0e infra-terraform-modules   work-team-plan   opus-5-5   ended 00:31  yesterday 15:52        13    $0.83
+  8a2c docs-site-getting-start…  side-hustle-co…  opus-5-5   ended 00:18  yesterday 16:55        43    $3.12
+  ended yesterday  ─────────────────────────────────────────────────────────────────────────────────────────
+▸ b9c4 switchboard-dashboard-f…  side-hustle-co…  opus-5-5   ended 18:46  13:20                 595   $73.00
 
 
 
@@ -38,7 +40,5 @@ SESSIONS    Switchboard  List  [ ]  ──────────────�
 
 
 
-
-
-today  14 sessions · 1,239 requests · $125.94 at API prices
-tab views   [ ] view    ↑↓ session  enter its page    p pin    ? help  q quit
+this week  15 sessions · 1,925 requests · $204.36 at API prices
+tab views   [ ] view   < > period: this week   ↑↓ session   enter its page   p pin   ? help  q quit

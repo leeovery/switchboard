@@ -78,7 +78,10 @@ const leastView = 6
 // names it, with why: a view added here with its reason is the rule
 // working, not a loosening. The cards are never judged: the sweep closes
 // what's open over the page.
-var natural = map[string]string{}
+var natural = map[string]string{
+	"Sessions List": "its columns at their most from 138 on, routing blank on a row whose session wasn't moved, " +
+		"so a page of the log with none moved, as scrolled into the days gone, reaches its worth alone",
+}
 
 // known is what the design draws that the sweep would take for a rule the
 // views of the fixtures named break at the owner's sizes given, as "73x61":

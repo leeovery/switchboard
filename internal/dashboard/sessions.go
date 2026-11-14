@@ -18,7 +18,8 @@ const (
 	// SessionsSwitchboard draws each session running as a call, its cord
 	// plugged into its account's line.
 	SessionsSwitchboard SessionsView = iota
-	// SessionsList lists today's sessions, and those the router lists.
+	// SessionsList lists every session of the dial's period, those the
+	// router lists first.
 	SessionsList
 )
 
@@ -28,14 +29,15 @@ var sessionsViews = []string{"Switchboard", "List"}
 // SessionsShown is Sessions as the watch gives it: the sub-tab shown, which
 // the preferences keep; who sits where on the Switchboard, kept from look to
 // look as views.Patch keeps it, and the calls the look found, as
-// views.CallsOf has them; the List, as the List held builds it; and the row
-// chosen, which holds for the run alone. The watch builds each once a look:
-// what draws them reads what it built.
+// views.CallsOf has them; the List's log of the period, as the watch built
+// it of the sessions' days, nil till they're read; and the row chosen,
+// which holds for the run alone. The watch builds each as what it's built
+// of changes: what draws them reads what it built.
 type SessionsShown struct {
 	Shown   SessionsView
 	Patched views.Patched
 	Calls   []views.Call
-	List    views.SessionList
+	Log     *views.SessionLog
 	// Chosen is the row chosen: on the Switchboard, a session's call on an
 	// account, as each of a session's rows is chosen on its own; on the
 	// List, a session, its Account "". It's the zero Plug while none is.
@@ -56,9 +58,15 @@ func (s SessionsShown) Kept() theme.SessionsPrefs {
 }
 
 // heading is Sessions' heading row: its name and its sub-tabs, the one shown
-// picked out, set apart on a phone as the Log's are.
-func (s SessionsShown) heading() heading {
-	return heading{name: strings.ToUpper(Sessions.Title()), subTabs: sessionsViews, shown: int(s.Shown)}
+// picked out, set apart on a phone as the Log's are; and while the List
+// shows, at its right, the period given between < and >, as periodDial has
+// it.
+func (s SessionsShown) heading(period views.Period) heading {
+	h := heading{name: strings.ToUpper(Sessions.Title()), subTabs: sessionsViews, shown: int(s.Shown)}
+	if s.Shown == SessionsList {
+		h.period, h.widest = periodDial(period)
+	}
+	return h
 }
 
 // Showing is Sessions with the sub-tab at place i shown, as a click on it
@@ -90,8 +98,12 @@ func (s SessionsShown) Following(accounts []string) SessionsShown {
 // chosenThere is the row of the sub-tab shown that keeps the choice: its
 // own, where it shows; else its session's: on the List, its session's row;
 // on the Switchboard, its session's first call, on the lines of the accounts
-// given; none where its session shows on neither.
+// given; none where its session shows on neither. While the List awaits its
+// log, the choice is kept as it is, for the log to keep once it's built.
 func (s SessionsShown) chosenThere(accounts []string) Plug {
+	if s.Shown == SessionsList && s.Log == nil {
+		return s.Chosen
+	}
 	stops := s.stops(accounts)
 	if slices.Contains(stops, s.Chosen) {
 		return s.Chosen
@@ -105,12 +117,14 @@ func (s SessionsShown) chosenThere(accounts []string) Plug {
 // stops are the rows ↑ and ↓ choose among, top to bottom, on the sub-tab
 // shown: on the Switchboard, each call, the lines of the accounts given in
 // their order, each line's calls in the order it keeps them; on the List,
-// its sessions.
+// its log's sessions, none till it's built.
 func (s SessionsShown) stops(accounts []string) []Plug {
 	var stops []Plug
 	if s.Shown == SessionsList {
-		for _, l := range s.List.Sessions {
-			stops = append(stops, Plug{Session: l.Session})
+		if s.Log != nil {
+			for _, l := range s.Log.Sessions {
+				stops = append(stops, Plug{Session: l.Session})
+			}
 		}
 		return stops
 	}

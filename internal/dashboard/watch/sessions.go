@@ -14,19 +14,22 @@ import (
 )
 
 // sessionsTab is what the watch holds of Sessions: what it shows, its
-// Switchboard and its List as the last look built them; whether the List is
-// held, in the store, from its first read, as a view naming the sessions
-// running first shows, as namesSessions has it, for the run, fed by the
-// ledger's tail; whether that read is under way; when each day the store
-// awaits a line on was last read for it; and how many moves the views read
-// as the last look built Sessions, for a frame to build it afresh only as a
-// move comes to show.
+// Switchboard as the last look built it and its List's log; whether today's
+// List is held, in the store, from its first read, as a view naming the
+// sessions running first shows, as namesSessions has it, for the run, fed
+// by the ledger's tail; whether that read is under way; when each day the
+// store awaits a line on was last read for it; how many moves the views
+// read as the last look built Sessions, for a frame to build it afresh only
+// as a move comes to show; and what the log was built of, as periodBuiltOf
+// has it, and how many times it was built.
 type sessionsTab struct {
 	shown   dashboard.SessionsShown
 	listed  bool
 	reading bool
 	awaited awaitedReads
 	moves   int
+	logOf   periodBuiltOf
+	logs    int
 }
 
 // listReadMsg is the List's first read, the sessions it lists held as a
@@ -40,8 +43,8 @@ type listReadMsg struct {
 // it shows with no session's page over it: the calls of the sessions
 // running, as views.CallsOf has them, of the List held; who sits where on
 // the Switchboard, kept from the look before, as views.Patch keeps it, the
-// stubs hanging as views.StubsOf has them; the List, as the List held
-// builds it, once it's held; and the choice following its session, as
+// stubs hanging as views.StubsOf has them; the List's log, while the List
+// shows, as logBuilt has it; and the choice following its session, as
 // Following has it, kept in view where it was, as revealing has it. A frame
 // takes nothing in, so builds nothing, but where a move the views read
 // comes to show at it, putting its session on the account it went to.
@@ -56,10 +59,8 @@ func (m Model) sessionsLooked(msg tea.Msg) Model {
 	}
 	sighted := m.sessionsTab.shown.Chosen != (dashboard.Plug{}) && chosenShows(m.frame(now), m.doc, now, m.scroll)
 	mo := m.moment(now)
+	m = m.logBuilt(now, s)
 	t := m.sessionsTab
-	if t.listed {
-		t.shown.List = m.held.List(m.listLive(now, s))
-	}
 	t.shown.Calls = views.CallsOf(mo, m.listLive(now, s), m.held)
 	t.shown.Patched = views.Patch(t.shown.Patched, t.shown.Calls, views.StubsOf(mo))
 	t.shown = t.shown.Following(accountIDs(mo))
@@ -77,6 +78,42 @@ func (m Model) sessionsLooked(msg tea.Msg) Model {
 // request stream told, s.
 func (m Model) listLive(now time.Time, s views.Stream) views.ListLive {
 	return views.ListLive{Running: m.sessions, Unlisted: m.unlisted(), Stream: s, Now: now}
+}
+
+// logBuilt is m with the List's log, while the List shows, built afresh at
+// now, the request stream telling s, of the sessions' days and today's
+// List, once that's held or there's no ledger: where the days are ready, as
+// daysReady has it, and what it's built of has changed, as periodBuiltOf
+// has it, every session today's List lists among it, so a session ending
+// builds it afresh. Where the days aren't ready, it waits, as daysWaited has
+// it, its log kept or let go, for its heading to say it's loading.
+func (m Model) logBuilt(now time.Time, s views.Stream) Model {
+	t := m.sessionsTab
+	if t.shown.Shown != dashboard.SessionsList || !t.listed && m.cfg.Ledger != nil {
+		return m
+	}
+	if !m.daysReady(now) {
+		waited, kept := m.daysWaited(now, t.shown.Log != nil, t.logOf.period)
+		if !kept {
+			waited.sessionsTab.shown.Log = nil
+		}
+		return waited
+	}
+	list := m.held.List(m.listLive(now, s))
+	of := m.builtOf(now, listingKeys(list, func(views.ListedSession) bool { return true }))
+	if t.shown.Log != nil && t.logOf.same(of) {
+		return m
+	}
+	log := m.joinedDays().SessionLog(m.periodInput(now, list))
+	m.sessionsTab.shown.Log, m.sessionsTab.logOf = &log, of
+	m.sessionsTab.logs++
+	return m
+}
+
+// listShown reports whether Sessions' List shows, with no session's page
+// over it.
+func (m Model) listShown() bool {
+	return m.shownView() == dashboard.Sessions && m.sessionsTab.shown.Shown == dashboard.SessionsList
 }
 
 // unlisted reports whether no router lists the sessions, those the watch
@@ -258,15 +295,16 @@ func (f heldFold) fed(l views.LedgerSessions, read tailLines, logged []string, n
 const noSessionChosen = "no session is chosen"
 
 // sessionsSteps are the ways Sessions' keys move: back, -1, or on, 1.
-var sessionsSteps = map[string]int{"[": -1, "]": 1, "up": -1, "down": 1}
+var sessionsSteps = map[string]int{"[": -1, "]": 1, "up": -1, "down": 1, "<": -1, ">": 1}
 
 // sessionsKey acts on a key of Sessions', reporting false for a key it
 // doesn't take, or on another tab, and the command it starts, if any: [ and
 // ] turn the sub-tab, as Turned has it; ↑ and ↓ choose a row, as Choosing
 // has it; enter opens the page of the session chosen, as openSession opens
 // it, and while none is, as the key line draws it faint, says why in the key
-// line's place; and esc deselects, as Unchosen has it. A key that
-// changes what's shown shows it as showSessions has it.
+// line's place; esc deselects, as Unchosen has it; and on the List, < and >
+// step the period, as periodStepped has it. A key that changes what's shown
+// shows it as showSessions has it.
 func (m Model) sessionsKey(key string) (Model, tea.Cmd, bool) {
 	if m.view != dashboard.Sessions {
 		return m, nil, false
@@ -275,6 +313,11 @@ func (m Model) sessionsKey(key string) (Model, tea.Cmd, bool) {
 	var next dashboard.SessionsShown
 	var changed bool
 	switch key {
+	case "<", ">":
+		if s.Shown != dashboard.SessionsList {
+			return m, nil, false
+		}
+		return m.periodStepped(sessionsSteps[key]), nil, true
 	case "[", "]":
 		next, changed = s.Turned(sessionsSteps[key], m.boardAccounts())
 	case "up", "down":

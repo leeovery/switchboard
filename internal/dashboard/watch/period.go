@@ -22,3 +22,9 @@ func (m Model) periodStepped(by int) Model {
 	}
 	return m.keepPrefs("the period", func(prefs *theme.Prefs) { dashboard.KeepPeriod(prefs, period) }, "period", string(period))
 }
+
+// periodKey is < >, which steps the dial's period, as the key line and help
+// list it on each tab the dial shows on, its state the period's name.
+func (m Model) periodKey() dashboard.Key {
+	return dashboard.Key{Key: "< >", Does: "period", State: m.period.Name()}
+}

@@ -122,14 +122,26 @@ func (w Worth) Cents() string {
 	return w.centsAt(w.amount().ToTheCent())
 }
 
+// GroupedCents is the worth to the cent as Cents says it, its thousands set
+// apart, as a sum over a period is said: "$3,257.86".
+func (w Worth) GroupedCents() string {
+	return w.saidAt(w.amount().ToTheCent(), ledger.Picodollars.GroupedCents)
+}
+
 // centsAt says the worth as Cents does, its amount to the cent the one
 // given, as a part's is where its rounding is reconciled to a whole's, as
 // toTheCent reconciles it: "<$0.01" where that's none but the worth is more.
 func (w Worth) centsAt(rounded ledger.Picodollars) string {
+	return w.saidAt(rounded, ledger.Picodollars.Cents)
+}
+
+// saidAt says the worth as centsAt does, its amount to the cent the one
+// given shown as shown has it.
+func (w Worth) saidAt(rounded ledger.Picodollars, shown func(ledger.Picodollars) string) string {
 	if w.Amount == nil && len(w.Unpriced) > 0 {
 		return unpriced
 	}
-	said := rounded.Cents()
+	said := shown(rounded)
 	if w.amount() > 0 && rounded == 0 {
 		said = underACent
 	}
