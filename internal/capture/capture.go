@@ -496,6 +496,7 @@ var pages = []page{
 	{name: "accounts-compare-160", size: wide(37), world: accountWorlds.auto, keys: toAccounts()},
 	{name: "accounts-compare-month-160", size: wide(37), world: accountWorlds.auto, keys: toAccounts(">")},
 	{name: "accounts-compare-12-months-160", size: wide(37), world: accountWorlds.auto, keys: toAccounts(">", ">", ">")},
+	{name: "accounts-compare-12-months-173x53", size: watch.Size{Width: 173, Height: 53}, world: accountWorlds.auto, keys: toAccounts(">", ">", ">")},
 	{name: "accounts-compare-plan-unknown-160", size: wide(37), world: accountWorlds.sidesPlanUnknown, keys: toAccounts()},
 	{name: "accounts-compare-ten-160", size: wide(37), world: manyAccounts(10), keys: toAccounts()},
 	{name: "accounts-compare-bad-hour-160", size: wide(37), world: accountWorlds.badHour, keys: toAccounts()},

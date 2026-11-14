@@ -41,12 +41,12 @@ type sessionDay struct {
 }
 
 // todaysSessions is a fold of today's sessions of no line yet, what each
-// spent kept by the hour, no story told of its requests, as the List tells
-// today's, keeping the keys of the lines it takes, as it takes a read of
-// the tail at a time.
+// spent kept by the hour, and what requests of no session spent, no story
+// told of its requests, as the List tells today's, keeping the keys of the
+// lines it takes, as it takes a read of the tail at a time.
 func todaysSessions() daySessions {
 	d := newDaySessions(false)
-	d.hourly, d.keys = true, make(map[turnKey]int)
+	d.hourly, d.loose, d.keys = true, accountHours{}, make(map[turnKey]int)
 	return d
 }
 

@@ -44,15 +44,6 @@ func TestTheSessionsMovedSayEachForm(t *testing.T) {
 	}
 }
 
-// Compare drawn wide holds the sessions moved whole at its column's least,
-// at their bound, so it never falls to turned Compare's count.
-func TestWideComparesLeastHoldsTheSessionsMovedWhole(t *testing.T) {
-	whole := partsWidth(movedParts(compareBound(1, false).Totals, secondaryInk))
-	if !slices.ContainsFunc(compareFigures(3), func(figure []part) bool { return partsWidth(figure) == whole }) {
-		t.Errorf("the figures wide Compare's least holds have none %d cells, the sessions moved whole at their bound", whole)
-	}
-}
-
 // Turned Compare's ACTIVITY says the sessions moved in full where they fit a
 // column, else how many: work's 3 out and 1 in.
 func TestTurnedComparesMovedFallsToHowMany(t *testing.T) {

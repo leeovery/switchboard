@@ -34,9 +34,10 @@ const (
 	// leastColumn are the fewest cells a column takes, as many accounts
 	// showing as fit at it, less all accounts'. It's a floor: the rows'
 	// shortest forms at their bounds, as compareFigures has them, set the
-	// least where they need more, as with many hundreds of accounts. At 19
-	// the wide form holds from 83 columns, and ten accounts show six at 160,
-	// as before the figures set a least.
+	// least where they need more, as from 1,000 accounts, whose extra usage
+	// at its bound, on for 999 of 1,000, takes 19 cells. At 19 the wide form
+	// holds from 83 columns, every one of three accounts shows at 108, and
+	// six of ten at 160.
 	leastColumn = 19
 	// barMost are the most cells a bar beside words takes, so none reads as
 	// a rule; and shareSpare the cells a column keeps beside BY MODEL's.
@@ -93,6 +94,12 @@ type compareLayout struct {
 // accounts'.
 func (l compareLayout) shown() int {
 	return len(l.slots) - 1
+}
+
+// narrowest are the cells of the narrowest column's head, which its charts
+// take, so every column charts its worth in the same bucket.
+func (l compareLayout) narrowest() int {
+	return slices.MinFunc(l.slots, func(a, b flex.Span) int { return a.Size - b.Size }).Size - 1
 }
 
 // comparedAlways are the accounts' columns, from the first, that never give
@@ -184,8 +191,9 @@ const (
 	requestsMost = 9_999_999
 	// sessionsMost are the most sessions served.
 	sessionsMost = 99_999
-	// movesMost are the most sessions moved onto an account, and off it.
-	movesMost = 999
+	// movesMost are the most sessions moved onto an account, and off it: a
+	// move is counted once a session a day, so as many as its requests.
+	movesMost = requestsMost
 	// limitsMost are the most limits hit: 12 months touch 1,758 of a 5-hour
 	// window, and fewer of a week's.
 	limitsMost = 9_999
@@ -217,15 +225,13 @@ func compareFigures(n int) [][]part {
 }
 
 // boundFigures are the shortest forms of Compare's rows of the row given, as
-// compareFigures has them, but extra usage, which is the moment's, and the
-// sessions moved, in full: wide, a column says its moves whole, its count
-// being turned Compare's alone.
+// compareFigures has them, but extra usage, which is the moment's.
 func boundFigures(row views.AccountsRow, k ink) [][]part {
 	col := compareColumn{row: row, all: row.Totals.All}
 	return [][]part{
 		col.requests(),
 		col.sessions(),
-		col.moved()[0],
+		col.moved().shortest(),
 		limitsForms(row.Totals, func(key string) string { return key }, k).shortest(),
 		col.atCap(),
 		leftForms(row, k).shortest(),
@@ -593,7 +599,8 @@ func stateMark(s status.AccountState) span {
 
 // body is Compare's rows under its heads, drawn on a canvas of their own:
 // WEEK USED; then, once the period's page is read, BY MODEL and its
-// versions, ACTIVITY, LIMITS and VALUE, a blank row before each.
+// versions, WEEKS, WORTH, ACTIVITY, LIMITS and VALUE, a blank row before
+// each.
 func (cp compared) body(columns []compareColumn) *canvas {
 	if cp.page == nil {
 		c := newCanvas(cp.f.Width, 1)
@@ -601,13 +608,15 @@ func (cp compared) body(columns []compareColumn) *canvas {
 		return c
 	}
 	groups := cp.groups()
-	rows := compareByModel + 1 + len(cp.page.Versions)
+	rows := compareByModel + 1 + len(cp.page.Versions) + groupApart + compareWeeksUnder + groupApart + compareWorthUnder
 	for _, g := range groups {
 		rows += groupApart + len(g.rows)
 	}
 	c := newCanvas(cp.f.Width, rows)
 	cp.weekUsed(c, 0, columns)
 	y := cp.byModel(c, compareByModel, columns)
+	y = cp.weeksSection(c, y+groupApart, columns)
+	y = cp.worthSection(c, y+groupApart, columns)
 	for _, g := range groups {
 		y += groupApart
 		c.line(0, y, line{{g.name, dimInk}})

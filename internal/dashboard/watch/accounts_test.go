@@ -91,7 +91,7 @@ func TestAccountsPageIsBuiltOnceForTheDaysHeldAndThePeriod(t *testing.T) {
 	}
 
 	h.model = h.model.periodStepped(-1)
-	h.update(frameMsg{gen: h.model.frames})
+	h.deliver(h.update(frameMsg{gen: h.model.frames})...)
 	today := h.model.accounts.page
 	if today == looked || today.Period != views.PeriodToday {
 		t.Errorf("today shown, Accounts' page is over %q, want it built afresh over today", today.Period)
@@ -101,6 +101,111 @@ func TestAccountsPageIsBuiltOnceForTheDaysHeldAndThePeriod(t *testing.T) {
 	h.update(tea.WindowSizeMsg{Width: 160, Height: 37})
 	if page := h.model.accounts.page; page == today || page.ToCome != today.ToCome-1 {
 		t.Errorf("past midnight, before a look, Accounts' page has %d days of the week to come, want it built afresh with %d", page.ToCome, today.ToCome-1)
+	}
+}
+
+// Accounts' today charts its worth by the hour of the tail's fold, and
+// follows the tail while it shows: a line the tail gains is charted in its
+// hour at the next look. It's built afresh as a read of the tail feeds the
+// fold otherwise; over any other period, the fold's reads build nothing.
+func TestAccountsTodayFollowsTheTailsFoldByTheHour(t *testing.T) {
+	h := projectsHarness(t, dashboard.Accounts)
+	h.start()
+	h.tickUntilAsked()
+	h.model = h.model.periodStepped(-1)
+	h.tickUntilAsked()
+	today := h.model.accounts.page
+	if today == nil || today.Period != views.PeriodToday {
+		t.Fatalf("today shown, Accounts' page is %+v, want it built over today", today)
+	}
+	if by := today.All.WorthBy[0]; by.Unit != views.ByHour || by.Peak < 0 {
+		t.Fatalf("today, all accounts' worth is charted by %d, its peak %d; want by the hour, today's requests in it", by.Unit, by.Peak)
+	}
+	at := h.clock.now.Add(time.Second)
+	worthAt := func(page *views.AccountsPage) ledger.Picodollars {
+		if amount := page.All.WorthBy[0].Buckets[at.Local().Hour()].Amount; amount != nil {
+			return *amount
+		}
+		return 0
+	}
+	before := worthAt(today)
+	projectsLedgerOf(h).write(projectAsks(betaOnly, "/code/beta", at, 1)...)
+	h.tickUntilAsked()
+	if after := worthAt(h.model.accounts.page); after <= before {
+		t.Errorf("the tail gained a line, its hour's worth is %d, want more than %d", after, before)
+	}
+	fed := h.model.accounts.page
+	h.model.sessionDays.fed++
+	h.update(frameMsg{gen: h.model.frames})
+	if h.model.accounts.page == fed {
+		t.Errorf("the tail fed its fold otherwise, Accounts' today is as it was built, want it built afresh")
+	}
+	h.model = h.model.periodStepped(1)
+	h.update(frameMsg{gen: h.model.frames})
+	week := h.model.accounts.page
+	h.model.sessionDays.fed++
+	h.update(frameMsg{gen: h.model.frames})
+	if h.model.accounts.page != week {
+		t.Errorf("the tail fed its fold otherwise, Accounts' week was built afresh, want it held")
+	}
+}
+
+// Today's charts mark the hour now falls in, Accounts' and Projects' alike,
+// so as the hour turns with nothing arriving, each page is built afresh,
+// the next hour now's; over another period, the hour builds nothing.
+func TestTodaysPagesAreBuiltAfreshAsTheHourTurns(t *testing.T) {
+	h := projectsHarness(t, dashboard.Accounts)
+	h.start()
+	h.tickUntilAsked()
+	week := h.model.accounts.page
+	local := h.clock.now.Local()
+	turned := time.Date(local.Year(), local.Month(), local.Day(), local.Hour()+1, 0, 30, 0, time.Local)
+	h.clock.now = turned
+	h.update(frameMsg{gen: h.model.frames})
+	if h.model.accounts.page != week {
+		t.Errorf("the hour turned, Accounts' week was built afresh, want it held")
+	}
+	h.model = h.model.periodStepped(-1)
+	h.deliver(h.update(frameMsg{gen: h.model.frames})...)
+	today := h.model.accounts.page
+	if got := today.All.WorthBy[0].Now(); got != turned.Hour() {
+		t.Fatalf("today, all accounts' worth marks hour %d now's, want %d", got, turned.Hour())
+	}
+	h.clock.now = turned.Add(time.Hour)
+	h.update(frameMsg{gen: h.model.frames})
+	if page := h.model.accounts.page; page == today || page.All.WorthBy[0].Now() != turned.Hour()+1 {
+		t.Errorf("the hour turned with nothing arriving, Accounts' today marks hour %d now's, want it built afresh, %d", page.All.WorthBy[0].Now(), turned.Hour()+1)
+	}
+
+	h.keys(tabKey)
+	if h.model.view != dashboard.Projects {
+		t.Fatalf("tab from Accounts shows %s, want Projects", h.model.view)
+	}
+	h.tickUntilAsked()
+	pages := h.model.projects.pages
+	h.clock.now = h.clock.now.Add(time.Hour)
+	h.update(tea.WindowSizeMsg{Width: 160, Height: 50})
+	if got := h.model.projects.pages; got != pages+1 {
+		t.Errorf("the hour turned with nothing arriving, Projects' today was built %d times, want once", got-pages)
+	}
+}
+
+// Coming to show today, Accounts asks for a read of the ledger's tail at
+// once, as its fold wasn't followed meanwhile: a line the tail gained while
+// Accounts showed this week is charted in its hour by the first message
+// that shows today, though no look has made a read due since the last.
+func TestAccountsAsksTheTailAtOnceAsItComesToToday(t *testing.T) {
+	h := projectsHarness(t, dashboard.Accounts)
+	h.start()
+	h.tickUntilAsked()
+	at := h.clock.now.Add(-time.Second)
+	projectsLedgerOf(h).write(projectAsks(betaOnly, "/code/beta", at, 1)...)
+	h.model = h.model.periodStepped(-1)
+	h.model.tail.due = false
+	h.deliver(h.update(frameMsg{gen: h.model.frames})...)
+	hours := h.model.accounts.page.All.WorthBy[0]
+	if by := hours.Buckets[at.Local().Hour()]; hours.Unit != views.ByHour || by.Amount == nil || *by.Amount == 0 {
+		t.Errorf("today shown, all accounts' worth is by %d, its hour of the new line %+v; want it by the hour, the line charted", hours.Unit, by.Worth)
 	}
 }
 

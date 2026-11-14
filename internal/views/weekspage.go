@@ -86,26 +86,34 @@ type WeekPeak struct {
 	AtCap bool
 }
 
-// peakSoFar marks a peak so far, of a week still running, after it.
-const peakSoFar = "…"
+// PeakSoFar marks a peak so far, of a week still running: after it, or
+// under its column, where Compare's WEEKS charts it.
+const PeakSoFar = "…"
 
 // Peak says a week's peak, share, as a whole percentage, as "60%"; and of a
 // week still running, open, as its peak so far, as "34%…".
 func Peak(share float64, open bool) string {
 	if open {
-		return prose.Percent(share) + peakSoFar
+		return prose.Percent(share) + PeakSoFar
 	}
 	return prose.Percent(share)
 }
 
-// weeksPage is Weeks' page: the eight weeks to this one, the accounts' own
+// weeksPage is Weeks' page: the eight weeks to this one, as weeksOver has
+// them.
+func (p Past) weeksPage() WeeksPage {
+	return p.weeksOver(weeksShown)
+}
+
+// weeksOver is Weeks' page over the n weeks to this one: the accounts' own
 // weeks placed under them as Weeks places them, the resets of the days
 // lookBack before them telling the week still running as they begin; and
-// the capacity verdict over those of them that are whole.
-func (p Past) weeksPage() WeeksPage {
+// the capacity verdict over those of them that are whole. Weeks' own page
+// is of eight; Compare's WEEKS reaches over as many as its period has.
+func (p Past) weeksOver(n int) WeeksPage {
 	in := p.in
 	today := dayfile.CivilOf(in.Now)
-	this, first := weekOf(today, in.WeekStarts), weeksTo(today, in.WeekStarts, weeksShown)
+	this, first := weekOf(today, in.WeekStarts), weeksTo(today, in.WeekStarts, n)
 	before, days := splitAt(p.days, first.Format(time.DateOnly))
 	_, before = splitAt(before, first.AddDate(0, 0, -lookBack).Format(time.DateOnly))
 	placed := weeklyOf(in.WeekWindow, in.WeekStarts, in.Now).placedWeeks(before, days, in.Accounts)
@@ -113,7 +121,7 @@ func (p Past) weeksPage() WeeksPage {
 	pl := plans{accounts: in.Accounts, table: in.Prices}
 	j := judgingOf(placed, isWhole, in.Accounts, pl, in.WeekWindow)
 	page := WeeksPage{
-		Weeks:    weekDates(first, weeksShown),
+		Weeks:    weekDates(first, n),
 		Capacity: j.capacity(),
 		Window:   in.WeekWindow,
 		past:     p,

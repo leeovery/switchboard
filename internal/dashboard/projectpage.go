@@ -2,13 +2,13 @@ package dashboard
 
 import (
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/dashboard/flex"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
-	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
@@ -50,10 +50,6 @@ const (
 	projectWide
 )
 
-// worthInk is the ink of WORTH BY's columns and ON ACCOUNTS' bars:
-// accent.primary.
-var worthInk = ink{token: theme.AccentPrimary}
-
 // projectDrawn is the chosen project as a frame draws it under the list, of
 // the moment m at now: its page; WORTH BY in the bucket that fits it as it
 // lies, as worthFitting has it; how its sections lie, and where: the left
@@ -82,22 +78,25 @@ func projectDrawnOf(f Frame, m status.Moment, now time.Time, page views.ProjectP
 }
 
 // worthFitting is WORTH BY in the finest bucket that fits it as the
-// sections lie, in the left half, wide, else across the frame: by day where
-// the page gives days and weeks, as of the last 12 weeks, and a cell for
-// each day fits; else by week; and the page's own of any other period.
+// sections lie, in the left half, wide, else across the frame, as chartFits
+// has it: of the last 12 weeks, by day where a cell for each day fits, else
+// by week; of the last 12 months, by week, else by month.
 func (d projectDrawn) worthFitting() views.WorthBy {
-	weeks := d.page.WorthByWeek
-	if weeks == nil {
-		return d.page.WorthBy
-	}
 	cells := d.f.Width
 	if d.form == projectWide {
 		cells = d.split
 	}
-	if _, fits := flex.Lay(cells, chartPart(len(d.page.WorthBy.Buckets), 1, 0)); fits {
-		return d.page.WorthBy
+	return d.page.WorthBy.Fitting(chartFits(cells))
+}
+
+// chartFits reports whether a chart of as many buckets as given fits the
+// cells given, a cell for each, touching, as chartSlots narrows its columns
+// to fit.
+func chartFits(cells int) func(buckets int) bool {
+	return func(buckets int) bool {
+		_, fits := flex.Lay(cells, chartPart(buckets, 1, 0))
+		return fits
 	}
-	return *weeks
 }
 
 // chartPart is the cells a chart of the buckets given takes at the fewest,
@@ -113,10 +112,7 @@ func chartPart(buckets, column, apart int) flex.Part {
 // for each bucket of its coarsest, touching, where that's more, as
 // chartSlots narrows its columns to fit.
 func (d projectDrawn) halfLeast() int {
-	coarsest := d.page.WorthBy
-	if d.page.WorthByWeek != nil {
-		coarsest = *d.page.WorthByWeek
-	}
+	coarsest := d.page.WorthBy.Coarsest()
 	return max(chartPart(weekDays, dayColumnLeast, dayColumnsApart).Least, chartPart(len(coarsest.Buckets), 1, 0).Least)
 }
 
@@ -296,101 +292,14 @@ func (d projectDrawn) section(c *canvas, section, x, y, width int) int {
 }
 
 // worthBy draws WORTH BY from x along row y, width cells wide: its heading,
-// naming its bucket; its columns, as columns draws them; its axis; and its
-// peak, as peak says it. It returns the row after it.
+// naming its bucket; its columns and their axis, as worthChart draws them,
+// against its peak's; and its peak, as worthPeak says it. It returns the
+// row after it.
 func (d projectDrawn) worthBy(c *canvas, x, y, width int) int {
-	c.line(x, y, line{{"WORTH BY " + bucketWord[d.worth.Unit], dimInk}})
-	slots := chartSlots(width, len(d.worth.Buckets))
-	d.columns(c, x, y+1+worthRows-1, slots)
-	d.axis(c, x, y+1+worthRows, width, slots)
-	c.line(x, y+1+worthRows+1, d.peak())
+	c.line(x, y, line{{"WORTH BY " + strings.ToUpper(bucketWord[d.worth.Unit]), dimInk}})
+	worthChart(c, d.f.Look, x, y+1, width, worthRows, d.worth, peakWorth(d.worth))
+	c.line(x, y+1+worthRows+1, worthPeak(d.worth))
 	return y + worthTaken
-}
-
-// bucketWord names WORTH BY's bucket in its heading.
-var bucketWord = map[views.BucketUnit]string{views.ByHour: "HOUR", views.ByDay: "DAY", views.ByWeek: "WEEK"}
-
-// chartSlot is where a bucket's column lies across a chart: from x, width
-// cells wide.
-type chartSlot struct {
-	x, width int
-}
-
-// chartSlots are where the buckets' columns lie across a chart width cells
-// wide, each as wide as the rest, and as far apart, the spare at the right:
-// two cells apart where each is four cells or more, else a cell apart where
-// each has one, else touching, as flex fits them.
-func chartSlots(width, buckets int) []chartSlot {
-	if buckets == 0 {
-		return nil
-	}
-	apart := 0
-	for _, try := range []struct{ apart, least int }{{2, 4}, {1, 1}} {
-		if _, fits := flex.Lay(width, chartPart(buckets, try.least, try.apart)); fits {
-			apart = try.apart
-			break
-		}
-	}
-	step := (width + apart) / buckets
-	slots := make([]chartSlot, buckets)
-	for i := range slots {
-		slots[i] = chartSlot{x: i * step, width: max(step-apart, 1)}
-	}
-	return slots
-}
-
-// columns draws each bucket's column up from row floor, in accent.primary,
-// as tall against worthRows as its worth is against the peak's, in eighths
-// of a cell, a half to the even, at least one where it's worth anything:
-// its full cells and its top's eighths as fillUp draws them.
-func (d projectDrawn) columns(c *canvas, x, floor int, slots []chartSlot) {
-	peak := d.peakWorth()
-	for i, b := range d.worth.Buckets {
-		eighths := barUnits(amountOf(b.Worth), peak, worthRows*8)
-		for col := range slots[i].width {
-			fillUp(c, d.f.Look, x+slots[i].x+col, floor, eighths, func(int) ink { return worthInk })
-		}
-	}
-}
-
-// peakWorth is what the peak bucket was worth: none where none was worth
-// anything.
-func (d projectDrawn) peakWorth() ledger.Picodollars {
-	if d.worth.Peak < 0 {
-		return 0
-	}
-	return amountOf(d.worth.Buckets[d.worth.Peak].Worth)
-}
-
-// axis draws WORTH BY's axis along row y, width cells from x: each bucket's
-// name, as its Axis gives it, from its column's first cell, in text.subtle,
-// now's in bold text.secondary, as Graphs' axes ink today's; but of each
-// whose name wouldn't end a cell before the next drawn, or within the chart,
-// nothing, the names from the last back giving way.
-func (d projectDrawn) axis(c *canvas, x, y, width int, slots []chartSlot) {
-	next := width + 1
-	for i, b := range slices.Backward(d.worth.Buckets) {
-		named := line{{b.Axis, dimInk}}
-		if i == d.worth.Now() {
-			named[0].ink = strongInk
-		}
-		if b.Axis == "" || slots[i].x+named.width() >= next {
-			continue
-		}
-		c.line(x+slots[i].x, y, named)
-		next = slots[i].x
-	}
-}
-
-// peak is the line under WORTH BY: peak, its bucket, as PeakNamed names it,
-// in text.muted, and what it was worth, as Rounded says it, bold
-// text.primary; nothing where nothing was worth anything.
-func (d projectDrawn) peak() line {
-	named := d.worth.PeakNamed()
-	if named == "" {
-		return nil
-	}
-	return line{{"peak " + named + " ", mutedInk}, {d.worth.Buckets[d.worth.Peak].Rounded(), titleInk}}
 }
 
 // byModel draws BY MODEL from x along row y, width cells wide: its heading;

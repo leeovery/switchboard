@@ -293,13 +293,14 @@ func TestAProjectsWorthIsSharedByModelAndByAccount(t *testing.T) {
 	}
 }
 
-// WORTH BY gives a project's worth in the period's buckets: today's by hour,
-// this week's and the last 30 days' by day, the last 12 weeks' by day and by
-// week, the last 12 months' by week; each its label, the peak the first
-// bucket worth most, and those of the period still to come counted, the one
-// now falls in the last before them. The peak is named as the line under
-// the chart says it; the axis names each hour and day, and a week only where
-// its month starts.
+// WORTH BY gives a project's worth in each of the period's buckets, the
+// finest first: today's by hour and by two hours, this week's by day, the
+// last 30 days' and 12 weeks' by day and by week, the last 12 months' by
+// week and by month; each its label, the peak the first bucket worth most,
+// and those of the period still to come counted, the one now falls in the
+// last before them. The peak is named as the line under the chart says it,
+// a month with its year where the period touches two of its name; the axis
+// names each hour, day and month, and a week only where its month starts.
 func TestAProjectsWorthIsBucketedAsItsPeriodHasIt(t *testing.T) {
 	world := slices.Concat(
 		projectAsks(repoSession, "/code/switchboard", "", "work", times(october(7, 13, 0), 2)...),
@@ -326,43 +327,47 @@ func TestAProjectsWorthIsBucketedAsItsPeriodHasIt(t *testing.T) {
 			by.PeakNamed(), [2]string{by.Buckets[0].Axis, by.Buckets[1].Axis},
 		}
 	}
+	weeks := bucketed{views.ByWeek, 12, 11, 0, 11, "20 Jul", "5 Oct", hoursWorth(7), "week of 5 Oct", [2]string{"Jul", ""}}
 	tests := []struct {
 		period views.Period
-		want   bucketed
-		weeks  *bucketed
+		want   []bucketed
 	}{
-		{period: views.PeriodToday, want: bucketed{views.ByHour, 24, 13, 10, 13, "00", "13", hoursWorth(2), "13:00", [2]string{"00", "01"}}},
-		{period: views.PeriodThisWeek, want: bucketed{views.ByDay, 7, 1, 4, 2, "Mon", "Tue", hoursWorth(3), "Tue", [2]string{"Mon", "Tue"}}},
-		{period: views.PeriodThirtyDays, want: bucketed{views.ByDay, 30, 24, 0, 29, "8 Sep", "2 Oct", hoursWorth(4), "2 Oct", [2]string{"8 Sep", "9 Sep"}}},
-		{
-			period: views.PeriodTwelveWeeks, want: bucketed{views.ByDay, 84, 74, 4, 79, "20 Jul", "2 Oct", hoursWorth(4), "2 Oct", [2]string{"20 Jul", "21 Jul"}},
-			weeks: &bucketed{views.ByWeek, 12, 11, 0, 11, "20 Jul", "5 Oct", hoursWorth(7), "week of 5 Oct", [2]string{"Jul", ""}},
-		},
-		{period: views.PeriodTwelveMonths, want: bucketed{views.ByWeek, 53, 52, 0, 52, "6 Oct", "5 Oct", hoursWorth(7), "week of 5 Oct", [2]string{"Oct", ""}}},
+		{period: views.PeriodToday, want: []bucketed{
+			{views.ByHour, 24, 13, 10, 13, "00", "13", hoursWorth(2), "13:00", [2]string{"00", "01"}},
+			{views.ByTwoHours, 12, 6, 5, 6, "00", "12", hoursWorth(2), "12:00–14:00", [2]string{"00", "02"}},
+		}},
+		{period: views.PeriodThisWeek, want: []bucketed{{views.ByDay, 7, 1, 4, 2, "Mon", "Tue", hoursWorth(3), "Tue", [2]string{"Mon", "Tue"}}}},
+		{period: views.PeriodThirtyDays, want: []bucketed{
+			{views.ByDay, 30, 24, 0, 29, "8 Sep", "2 Oct", hoursWorth(4), "2 Oct", [2]string{"8 Sep", "9 Sep"}},
+			{views.ByWeek, 5, 4, 0, 4, "7 Sep", "5 Oct", hoursWorth(7), "week of 5 Oct", [2]string{"Sep", ""}},
+		}},
+		{period: views.PeriodTwelveWeeks, want: []bucketed{{views.ByDay, 84, 74, 4, 79, "20 Jul", "2 Oct", hoursWorth(4), "2 Oct", [2]string{"20 Jul", "21 Jul"}}, weeks}},
+		{period: views.PeriodTwelveMonths, want: []bucketed{
+			{views.ByWeek, 53, 52, 0, 52, "6 Oct", "5 Oct", hoursWorth(7), "week of 5 Oct", [2]string{"Oct", ""}},
+			{views.ByMonth, 13, 12, 0, 12, "Oct", "Oct", hoursWorth(11), "Oct 2026", [2]string{"Oct", "Nov"}},
+		}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.period.Name(), func(t *testing.T) {
 			project, _ := days.Projects(projectsIn(tt.period, now)).Project("/code/switchboard")
-			if got := of(project.WorthBy); !reflect.DeepEqual(got, tt.want) {
+			var got []bucketed
+			for _, by := range project.WorthBy {
+				got = append(got, of(by))
+			}
+			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("WORTH BY is %+v, want %+v", got, tt.want)
 			}
-			switch {
-			case tt.weeks == nil && project.WorthByWeek != nil:
-				t.Errorf("WORTH BY WEEK is %+v, want none", *project.WorthByWeek)
-			case tt.weeks != nil && project.WorthByWeek == nil:
-				t.Error("WORTH BY WEEK is none, want the period's weeks")
-			case tt.weeks != nil && !reflect.DeepEqual(of(*project.WorthByWeek), *tt.weeks):
-				t.Errorf("WORTH BY WEEK is %+v, want %+v", of(*project.WorthByWeek), *tt.weeks)
-			}
-			var sum views.Worth
-			for h, b := range project.WorthBy.Buckets {
-				sum = sumOf(sum, b.Worth)
-				if at := b.Start.Local(); tt.period == views.PeriodToday && (at.Hour() != h || dayfile.DateOf(at) != dayfile.DateOf(now)) {
-					t.Errorf("hour %d's bucket starts at %v, want as today's clock reads it", h, at)
+			for _, by := range project.WorthBy {
+				var sum views.Worth
+				for h, b := range by.Buckets {
+					sum = sumOf(sum, b.Worth)
+					if at := b.Start.Local(); by.Unit == views.ByHour && (at.Hour() != h || dayfile.DateOf(at) != dayfile.DateOf(now)) {
+						t.Errorf("hour %d's bucket starts at %v, want as today's clock reads it", h, at)
+					}
 				}
-			}
-			if !reflect.DeepEqual(sum, project.Worth) {
-				t.Errorf("the buckets sum to %+v, want the project's worth, %+v", sum, project.Worth)
+				if !reflect.DeepEqual(sum, project.Worth) {
+					t.Errorf("the buckets by %d sum to %+v, want the project's worth, %+v", by.Unit, sum, project.Worth)
+				}
 			}
 		})
 	}
@@ -375,7 +380,7 @@ func TestTwelveMonthsAxisNamesAWeekByItsFirstDayInThePeriod(t *testing.T) {
 	now := time.Date(2026, 11, 1, 12, 0, 0, 0, time.Local)
 	days := heldDays(now, projectAsks(repoSession, "/code/switchboard", "", "work", now.Add(-time.Hour))...)
 	project, _ := days.Projects(projectsIn(views.PeriodTwelveMonths, now)).Project("/code/switchboard")
-	b := project.WorthBy.Buckets
+	b := project.WorthBy[0].Buckets
 	if got := [3]string{b[0].Label, b[0].Axis, b[1].Axis}; got != [3]string{"27 Oct", "Nov", ""} {
 		t.Errorf("the first two weeks are named and on the axis as %q, want the week of 27 Oct on the axis as Nov, its first day in the period's month, and the next unnamed", got)
 	}
@@ -693,13 +698,14 @@ func TestTheDesignsWorldSumsAsTheDesignSays(t *testing.T) {
 	}
 	switchboard, _ := week.Project(viewstest.Switchboard)
 	var byDay []views.Worth
-	for _, b := range switchboard.WorthBy.Buckets[:4] {
+	byWeekday := switchboard.WorthBy[0]
+	for _, b := range byWeekday.Buckets[:4] {
 		byDay = append(byDay, b.Worth)
 	}
 	if want := []views.Worth{cents(2740), cents(3900), cents(8470), cents(7030)}; !reflect.DeepEqual(byDay, want) {
 		t.Errorf("switchboard's worth Monday to today is %+v, want %+v", byDay, want)
 	}
-	if peak := switchboard.WorthBy.Buckets[switchboard.WorthBy.Peak]; peak.Label != "Wed" {
+	if peak := byWeekday.Buckets[byWeekday.Peak]; peak.Label != "Wed" {
 		t.Errorf("switchboard's peak is %s, want Wednesday's", peak.Label)
 	}
 	var dirs []string

@@ -196,25 +196,28 @@ func (m Model) joinedDays() views.SessionDays {
 
 // periodBuiltOf is what a page of the sessions' days was built of: the
 // reads of the days landed, and the reads of the ledger's tail that told
-// otherwise of the days it fed; the period; the local day it was built on;
-// and the sessions of the List it draws, by what's drawn of each, as
-// runningKey keys them.
+// otherwise of the days it fed; the period; the local day it was built on,
+// and of today, the hour, as todayHour has it; and the sessions of the List
+// it draws, by what's drawn of each, as runningKey keys them.
 type periodBuiltOf struct {
 	read, fed int
 	period    views.Period
 	day       string
+	hour      int
 	listed    []runningKey
 }
 
-// builtOf is what a page of the sessions' days built at now is built of, as
+// daysBuiltOf is what a page of the sessions' days built at now is built of, as
 // periodBuiltOf has it, the List's sessions it draws as given.
-func (m Model) builtOf(now time.Time, listed []runningKey) periodBuiltOf {
-	return periodBuiltOf{read: m.sessionDays.read, fed: m.sessionDays.fed, period: m.period, day: dayfile.DateOf(now), listed: listed}
+func (m Model) daysBuiltOf(now time.Time, listed []runningKey) periodBuiltOf {
+	return periodBuiltOf{
+		read: m.sessionDays.read, fed: m.sessionDays.fed, period: m.period, day: dayfile.DateOf(now), hour: todayHour(m.period, now), listed: listed,
+	}
 }
 
 // same reports whether the page was built of what o says.
 func (b periodBuiltOf) same(o periodBuiltOf) bool {
-	return b.read == o.read && b.fed == o.fed && b.period == o.period && b.day == o.day && slices.Equal(b.listed, o.listed)
+	return b.read == o.read && b.fed == o.fed && b.period == o.period && b.day == o.day && b.hour == o.hour && slices.Equal(b.listed, o.listed)
 }
 
 // runningKey is a session the List lists, by what of it a page of the

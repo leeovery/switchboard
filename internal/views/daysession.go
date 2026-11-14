@@ -88,13 +88,17 @@ func DaySessionsOn(l Ledger, date string) []DaySession {
 // built of them, or of today's as the tail gives them, as SessionDays folds
 // them. Where told says, each session's requests are held, for its story to
 // tell its moves once the day's lines are all taken in; and where hourly
-// says, what each spent by the local hour its requests arrived in, as
-// today's hours are drawn of them. Where the fold takes in more reads than
-// one, as today's does, keys are the keys of the lines it took, as
-// turnKeyOf has them, each counted, so a read given again counts none of
-// them twice; nil of a fold of one read.
+// says, what each spent by the local hour its requests arrived in, by the
+// account each went to, as today's hours are drawn of them, Projects' and
+// Accounts' alike; and loose, what the requests of no session spent so,
+// apart from the sessions, for Accounts' hours to count every request, as
+// the day's summary does, nil where hourly doesn't say. Where the fold
+// takes in more reads than one, as today's does, keys are the keys of the
+// lines it took, as turnKeyOf has them, each counted, so a read given again
+// counts none of them twice; nil of a fold of one read.
 type daySessions struct {
 	held   map[string]*foldedSession
+	loose  accountHours
 	keys   map[turnKey]int
 	told   bool
 	hourly bool
@@ -102,11 +106,37 @@ type daySessions struct {
 
 // foldedSession is a session of a day as daySessions folds it: its record
 // so far; its requests, where its story is to be told of them; and what
-// they spent by the local hour each arrived in, where that's kept.
+// they spent by the local hour each arrived in, by account, where that's
+// kept.
 type foldedSession struct {
 	DaySession
 	requests []heldRequest
-	hours    *[24]ledger.Spent
+	hours    accountHours
+}
+
+// accountHours are what requests spent by the local hour each arrived in,
+// by the account each went to, "" of those none answered: 24 sums an
+// account, as few as a session's day ran on.
+type accountHours map[string]*[24]ledger.Spent
+
+// add adds what r, a request, spent to its account's hour it arrived in.
+func (h accountHours) add(r *lineRecord) {
+	hours := h[r.account]
+	if hours == nil {
+		hours = new([24]ledger.Spent)
+		h[r.account] = hours
+	}
+	hours[r.arrived().Local().Hour()].Add(r.model, r.geo, r.spend)
+}
+
+// copied is a copy of the hours sharing nothing a fold changes with them.
+func (h accountHours) copied() accountHours {
+	c := make(accountHours, len(h))
+	for account, hours := range h {
+		kept := *hours
+		c[account] = &kept
+	}
+	return c
 }
 
 // newDaySessions is a fold of a day's sessions of no line yet, holding each
@@ -123,10 +153,11 @@ func newDaySessions(told bool) daySessions {
 // Log count it: when it arrived in UTC, as the ledger writes it, and a day's
 // side restores it, whatever zone a line edited by hand names; and, of a
 // session's request, as isRequest has it, what it spent, and what names the
-// session.
+// session. A request of no session, where d keeps loose hours, it takes in
+// there alone, given again or not as a session's is.
 func (d daySessions) take(r *lineRecord, read *countedOnce) {
 	id := r.countedSession
-	if id == "" {
+	if id == "" && (d.loose == nil || r.kind != RowRequest) {
 		return
 	}
 	k := turnKeyOf(r)
@@ -136,11 +167,15 @@ func (d daySessions) take(r *lineRecord, read *countedOnce) {
 	if d.keys != nil {
 		d.keys[k]++
 	}
+	if id == "" {
+		d.loose.add(r)
+		return
+	}
 	s, ok := d.held[id]
 	if !ok {
 		s = &foldedSession{ID: id}
 		if d.hourly {
-			s.hours = new([24]ledger.Spent)
+			s.hours = accountHours{}
 		}
 		d.held[id] = s
 	}
@@ -152,7 +187,7 @@ func (d daySessions) take(r *lineRecord, read *countedOnce) {
 	}
 	s.requested(r)
 	if s.hours != nil {
-		s.hours[r.arrived().Local().Hour()].Add(r.model, r.geo, r.spend)
+		s.hours.add(r)
 	}
 	if d.told {
 		s.requests = append(s.requests, newHeldRequest(r.decodedRequest))
@@ -197,13 +232,16 @@ func usedOn(uses []SessionUse, r *lineRecord) []SessionUse {
 
 // with is d, the records of a read's lines given taken in too, in their
 // order, as take takes each: afresh, each session they change copied, and
-// its keys, so d, and any copy of it, never sees them.
+// its loose hours and keys, so d, and any copy of it, never sees them.
 func (d daySessions) with(records []lineRecord) daySessions {
 	if len(records) == 0 {
 		return d
 	}
 	if d.keys != nil {
 		d.keys = maps.Clone(d.keys)
+	}
+	if d.loose != nil {
+		d.loose = d.loose.copied()
 	}
 	held := maps.Clone(d.held)
 	changed := make(map[string]bool)
@@ -228,8 +266,7 @@ func (s *foldedSession) copied() *foldedSession {
 	c := *s
 	c.requests = slices.Clip(s.requests)
 	if s.hours != nil {
-		hours := *s.hours
-		c.hours = &hours
+		c.hours = s.hours.copied()
 	}
 	return &c
 }

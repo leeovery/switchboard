@@ -100,7 +100,7 @@ func (m Model) logBuilt(now time.Time, s views.Stream) Model {
 		return waited
 	}
 	list := m.held.List(m.listLive(now, s))
-	of := m.builtOf(now, listingKeys(list, func(views.ListedSession) bool { return true }))
+	of := m.daysBuiltOf(now, listingKeys(list, func(views.ListedSession) bool { return true }))
 	if t.shown.Log != nil && t.logOf.same(of) {
 		return m
 	}

@@ -76,7 +76,7 @@ type projectsBuild struct {
 // shows again; nil where it hasn't.
 func (m Model) projectsRebuilt(now time.Time) *projectsBuild {
 	list := m.held.List(m.listLive(now, m.traffic.stream(now)))
-	of := m.builtOf(now, runningOf(list))
+	of := m.daysBuiltOf(now, runningOf(list))
 	if m.projects.shown.Page != nil && m.projects.pageOf.same(of) {
 		return nil
 	}
