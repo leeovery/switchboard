@@ -118,6 +118,68 @@ func TestRequestsOfAnAccountAreReadInThePoolItsInNow(t *testing.T) {
 	}
 }
 
+// defaultFencedConfig is pooledConfig with Default fenced and Acme not, so
+// the pool the verbs act on without --pool is Acme, and the work in no pool
+// Default's.
+const defaultFencedConfig = `[[account]]
+id    = "work"
+label = "Work"
+pool  = "q7mt"
+
+[[account]]
+id    = "side"
+label = "Side"
+pool  = "b2n8"
+
+[[pool]]
+id    = "b2n8"
+label = "Default"
+dirs  = ["/work/default"]
+
+[[pool]]
+id    = "q7mt"
+label = "Acme"
+`
+
+// requests --account without --pool, of an account neither the config nor
+// the accounts record places in a pool, reads its requests in the pool its
+// newest one was routed in, as of a session: one an import brought, whose
+// pool the record doesn't keep, its requests in the other Mac's pool; and
+// one removed before pools, its requests in no pool, so the first's,
+// Default's, though Acme is the pool the verbs act on without --pool.
+func TestRequestsOfAnAccountNoPoolPlacesAreReadInThePoolItsNewestWasRoutedIn(t *testing.T) {
+	deps := pooledDeps(t, false)
+	path, err := config.Path(deps.Getenv, deps.HomeDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeStateFile(t, filepath.Dir(path), filepath.Base(path), []byte(defaultFencedConfig))
+	err = identity.NewFile(stateDir(t, deps)).Update(func(r *identity.Record) error {
+		r.Accounts = append(r.Accounts, identity.Entry{ID: "other", Added: testNow}, identity.Entry{ID: "gone", Label: "Gone", Added: testNow, Removed: testNow})
+		r.Pools = append(r.Pools, identity.PoolEntry{ID: "z5k1", Added: testNow, Written: identity.PoolWritten{Label: "Elsewhere"}})
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	appendRequests(t, deps,
+		ledger.Line{At: october(7, 8, 0, 0), Request: "x1", Session: sessionC, Account: "other", Pool: "z5k1"},
+		ledger.Line{At: october(7, 8, 30, 0), Request: "o1", Session: sessionC, Account: "gone"},
+	)
+	for _, tt := range []struct {
+		account string
+		want    []string
+	}{
+		{account: "other", want: []string{"x1"}},
+		{account: "gone", want: []string{"o1"}},
+	} {
+		got := run(t, deps, "requests", "--account", tt.account, "--json")
+		if requests := fieldsOf(t, got, "request"); got.code != 0 || !slices.Equal(requests, tt.want) {
+			t.Errorf("switchboard requests --account %s --json printed %q (%+v), want %q", tt.account, requests, got, tt.want)
+		}
+	}
+}
+
 // Once the first pool the accounts record notes is no longer configured, as
 // after pool remove of an emptied Default, the work recorded in no pool is
 // the config's first pool's, as the router routes it: never in no pool.

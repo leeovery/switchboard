@@ -148,7 +148,7 @@ func TestASessionsPageJSONHoldsItsShape(t *testing.T) {
 		`"tools":[{"tool":"Read","times":3},{"tool":"Edit","times":1},{"tool":"Grep","times":1}],"read":200000,"written":2000,"out":1001,"worth":0.076093,"accounts":["side"],"labels":["side"]},` +
 		`{"turn":1,"started":` + at(october(6, 16, 40, 0)) + `,"ended":` + at(october(6, 18, 6, 0)) + `,"requests":2,"tools":[{"tool":"Bash","times":2}],` +
 		`"read":200000,"written":2000,"out":1000,"worth":0.07608,"accounts":["work"],"labels":["work"]}],` +
-		`"totals":{"turns":2,"requests":5,"from_cache":` + fromCache + `,"worth":0.152173}}`
+		`"totals":{"turns":2,"requests":5,"from_cache":` + fromCache + `,"worth":0.152173},"pool":"b2n8","pool_label":"b2n8"}`
 	for _, form := range jsonForms() {
 		t.Run(form.name, func(t *testing.T) {
 			got := form.run(t, deps, "sessions", "5e6f9")

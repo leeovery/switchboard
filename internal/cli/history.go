@@ -15,7 +15,6 @@ import (
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
-	"github.com/leeovery/switchboard/internal/readings"
 	"github.com/leeovery/switchboard/internal/redact"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
@@ -70,7 +69,9 @@ the readings history holds it.
 
 It shows one pool's history: its work as each request recorded its pool at
 the time, work from before pools the first pool's, and the windows, plans
-and weeks of the accounts in it now. ` + readingAPool + `
+and weeks of the accounts in it now. A pool's plans, months and tokens count
+from its first day of work, as the dashboard's do, never the days before it
+worked. ` + readingAPool + `
 
 ` + readingAKeptPool + `
 
@@ -150,7 +151,7 @@ func (a *app) history(ctx context.Context, out io.Writer, given, pool string, as
 		return err
 	}
 	prices := pricing(asked.cfg)
-	days, began := asked.pool.days(a.ledgerReader(asked.stateDir, asked.cfg, func() time.Time { return asked.now }), asked.now)
+	days, began := a.requestDays(asked.pool, asked.stateDir, asked.cfg, asked.now)
 	removed, record := removedIn(asked.stateDir, asked.cfg), recordIn(asked.stateDir)
 	history := views.NewHistory(views.HistoryInput{
 		Ledger: days, From: asked.from, Now: asked.now, Began: began, Prices: prices, Accounts: asked.accounts(), Removed: removed,
@@ -174,7 +175,7 @@ func (a *app) historyWindows(ctx context.Context, out io.Writer, given, pool str
 		return err
 	}
 	names := namesIn(asked.stateDir, asked.cfg)
-	windows := asked.pool.windows(views.NewWindows(readings.NewReader(asked.stateDir, logger), asked.accounts(), asked.from, asked.now)).Named(names)
+	windows := asked.pool.windows(asked.stateDir, asked.accounts(), asked.from, asked.now).Named(names)
 	if asJSON {
 		return writeJSON(out, windows)
 	}

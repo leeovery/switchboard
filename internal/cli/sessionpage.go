@@ -26,7 +26,8 @@ import (
 // of the ledger gives both the sessions given is named among, as
 // views.NamedAmong names it, and the page, but of a session split between
 // pools, read again in its pool: given is read too, as the whole id of a
-// session of an earlier day.
+// session of an earlier day. The page names the pool it's of, its text as
+// filedPool's heading heads it, its JSON as pooledPage gives it.
 func (a *app) sessionPage(ctx context.Context, out, errOut io.Writer, given, pooled string, asJSON bool) error {
 	cfg, err := a.loadConfig()
 	if err != nil {
@@ -68,9 +69,21 @@ func (a *app) sessionPage(ctx context.Context, out, errOut io.Writer, given, poo
 	}
 	page = page.Named(status.NamesOf(cfg.Accounts, readers.removed))
 	if asJSON {
-		return writeJSON(out, page)
+		return writeJSON(out, pooledPage{SessionPage: page, Pool: pool.ID, PoolLabel: pool.Label})
+	}
+	if _, err := io.WriteString(out, pool.heading()); err != nil {
+		return err
 	}
 	return writeSessionPage(out, page, now)
+}
+
+// pooledPage is a session's page as its JSON gives it: the page, and the
+// pool it's of, by its id and its label, once the config has pools, as
+// every verb's JSON gives a pool.
+type pooledPage struct {
+	views.SessionPage
+	Pool      string `json:"pool,omitempty"`
+	PoolLabel string `json:"pool_label,omitempty"`
 }
 
 // sessionsPool returns the pool a session given is looked for in, named or

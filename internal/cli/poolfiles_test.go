@@ -637,7 +637,8 @@ func TestTheVerbsReadingTheFilesRefuseWhereNothingNamesThePools(t *testing.T) {
 		deps := unpooledDeps(t, cfg, false)
 		verbs := [][]string{{"events"}}
 		if cfg == unpooledConfig {
-			verbs = append(verbs, []string{"requests"}, []string{"history"}, []string{"sessions"}, []string{"requests", "--pool", "q7mt"})
+			verbs = append(verbs, []string{"requests"}, []string{"history"}, []string{"sessions"}, []string{"requests", "--pool", "q7mt"},
+				[]string{"sessions", sessionB}, []string{"requests", "--session", sessionB}, []string{"requests", "--account", "work"})
 		}
 		for _, args := range verbs {
 			if got := run(t, deps, append(args, "--json")...); got.code == 0 || got.stdout != "" || !strings.Contains(got.stderr, why) {

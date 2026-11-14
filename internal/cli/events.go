@@ -101,16 +101,11 @@ func (a *app) events(ctx context.Context, out io.Writer, opts eventsOptions) err
 	}
 	record := recordIn(dir)
 	printer := a.eventsPrinter(out, opts.form, status.PoolLabels(pooled.Pools, record), poolsNamed(pooled.Pools, record), pool.heading())
-	held := events.NewReader(dir, a.Now, logger).HeldTailing(printer.readFrom(from), startOfDay(now, -1), today)
-	if err := printer.list(pool.events(held), from, now); err != nil || follower == nil {
+	held := a.eventsHeld(pool, dir, printer.readFrom(from), startOfDay(now, -1), today)
+	if err := printer.list(held, from, now); err != nil || follower == nil {
 		return err
 	}
-	return follower.run(ctx, logs.PollEvery(a.FollowEvery), func(h events.Held) error {
-		if !pool.shows(h) {
-			return nil
-		}
-		return printer.follow(h)
-	})
+	return pool.followed(ctx, follower, logs.PollEvery(a.FollowEvery), printer.follow)
 }
 
 // eventsPool is how events reads the pool named, as filedPool has it, of the
