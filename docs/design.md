@@ -4047,8 +4047,8 @@ draw it, the tab names in its title row aside, and kept in `testdata/vhs/referen
   their first day in the period, where it's another than the week before's. SESSIONS is the
   List's columns, the session's from 11 cells to its whole, then model, started and requests leaving as the width runs
   short; its rules read `ended today`, `ended yesterday`, a weekday within the week, else the day
-  and its date, each session's state its end by the clock alone and its start dated where it began
-  on another day than the one it ended on. Its columns are as wide as the widest each says of all
+  and its date, each session's state its end by the clock alone and its start, where it began on
+  another day than the one it ended on, as the List's (see Sessions). Its columns are as wide as the widest each says of all
   the project's sessions, so they hold still as it scrolls; the ended sessions are measured once,
   as the watch builds the project's page (`dashboard.MeasureSessions`), and only those running at
   each frame. Where rows run shorter than its least, a page of one line shows no rule, a rule
@@ -4057,9 +4057,10 @@ draw it, the tab names in its title row aside, and kept in `testdata/vhs/referen
   ACCOUNTS its names as Detail's column of names, marks and all. The chosen row is lit where `↑`
   and `↓` act, in the list or SESSIONS, the other's bold, marked `▸`, a bar's own surface kept.
 - **What the watch holds:** the sessions' days before today, read off the update loop once
-  Projects first shows, from the period's first day, and again only where the dial reaches further
-  back; and today's, folded off the loop at every read of the ledger's tail from the first, whether
-  or not Projects has shown, with each day turned since Projects first asked for its own. By the
+  Projects or Sessions' List first shows, one read serving both, from the period's first day, and
+  again only where the dial reaches further back; and today's, folded off the loop at every read of
+  the ledger's tail from the first, whether or not either has shown, with each day turned since one
+  first asked for its own. By the
   end of a day of 25,000 requests the fold holds some 2 MB, nearly all of it the keys of the lines
   taken, kept so a line given again counts once, its spend by the hour by account, of each
   session and of the requests of none, 24 sums for each account, small beside them; and as the
@@ -4509,22 +4510,28 @@ says `not enough weeks yet` until a whole week is recorded, and Days and Tokens
 
 Where each session's requests are going, now, in two views on sub-tabs: **Switchboard**, the
 default, the sessions down the left as calls and the accounts down the right as lines, `usage`'s
-rows, with a cord from each call to its account and its requests travelling it; and **List**, one
-table of today's sessions, those running, then those ended. The frames are in the Paper file
+rows, with a cord from each call to its account and its requests travelling it; and **List**, a
+log of every session in the dial's period, those running, then those ended, a rule a day. The
+Switchboard stays live, with no dial. The frames are in the Paper file
 *Switchboard · Sessions and Runway*, on the page **FINAL · Sessions and Runway · signed off · 8 Oct
 2026**; the references are `testdata/vhs/reference/sessions-*`: `sessions-switchboard-160`,
 `sessions-refused-160`, `sessions-moved-160`, `sessions-pinned-160`, `sessions-ten-accounts-160`,
 `sessions-one-account-160`, `sessions-list-160`, `sessions-phone-52`, `sessions-list-phone-52` and
-`sessions-switchboard-mixed-160` (work and personal without a 5-hour window). Columns and rows are
-at 160 by 37 unless they say otherwise.
+`sessions-switchboard-mixed-160` (work and personal without a 5-hour window). The List as a log is
+in the Paper file *Switchboard · Entities*, on page `p-3-0` (round 3, signed off 13 November 2026),
+and its references are `sessions-list-30-days-173x53`, `sessions-list-30-days-73x61` and
+`sessions-list-30-days-108x44`, scrolled to `ended Tue 22 Sep`. Columns and rows are at 160 by 37
+unless they say otherwise.
 
 **The heading row,** row 4: `SESSIONS` in `text.subtle`; three spaces; the sub-tabs, `Switchboard`
 and `List`, each with a space either side, the one shown bold `text.primary` on `bg.subtle` and the
 other `text.subtle`; a space and `[ ]` in `text.faint`; two spaces, and a rule of `─` in `border` to
 the last column. `SESSIONS` takes 0–7, `Switchboard` with its spaces 11–23, `List` with its spaces
-24–29 and `[ ]` 31–33, and the rule starts at 36. The view starts on row 6, and the row over the
-key line holds its state line, where it has one (see The page). The sub-tab shown is kept in the
-preferences file (settled in the plan).
+24–29 and `[ ]` 31–33, and the rule starts at 36. While the List shows, the dial sits at the
+row's right, `< 30 days >`, the rule ending two cells before it, as Accounts' and Projects' do: the
+one period the entity tabs share, which `<` and `>` step there; it leaves with the Switchboard. The
+view starts on row 6, and the row over the key line holds its state line, where it has one (see The
+page). The sub-tab shown is kept in the preferences file (settled in the plan).
 
 **The Switchboard.** A call's parts run from column 0: its session id and directory, what it's
 doing, and where it moved from; then its cord's plug. At 160 columns, of the accounts `work`,
@@ -4834,20 +4841,25 @@ October 2026).
 - **The heading:** `SESSIONS` in `text.subtle`, two spaces and the sub-tabs, with no `[ ]` and no
   rule, as on the Log's phone (see The Log).
 
-**The List.** Today's sessions in one table, a row each, even one whose models are on two accounts
-(settled in the plan); an earlier day's are found through the Log's `/` (see The Log). Its heads are
-on row 6 in `text.subtle`, each at its column's start, or right-aligned where its column is, and its
-rows run from row 7 (settled in the plan). Its columns run from column 2, two cells apart, in this
-order, each at least its least and at most its natural:
+**The List.** Every session of the dial's period in one table, a row each, even one whose models are
+on two accounts (settled in the plan; the period the owner's call of 13 November 2026, round 3):
+today's List over today, row for row, and over a longer period, every day's under its own rule:
+those running and those with requests in the period, as the List lists those running and those
+with requests today. Its rows are a
+project's SESSIONS rows on Projects, the same function's (`SessionDays.SessionLog`, of the tallies
+`SessionDays.Projects` keeps), so a session reads alike on either. Its heads are on row 6 in
+`text.subtle`, each at its column's start, or right-aligned where its column is, and its rows run
+from row 7 (settled in the plan). Its columns run from column 2, two cells apart, in this order,
+each at least its least and at most its natural:
 
 | Column | Least | Natural | Shows |
 |---|---|---|---|
 | `session` | 11 | 29 | The id, cut to 4, in `text.secondary`; a space and the directory, cut with `…` to the rest, in `text.muted`: at its least 6 of the directory, at its natural its most, 24 |
 | `on` | Its natural, 14 at the most | The widest account's name configured, 24 at the most | The account its latest request went to, in `text.primary` |
 | `model` | 9 | 9 | The model of its latest request, its id less `claude-`, as `opus-5-5`, in `text.muted` |
-| `state` | 11 | 11 | `asking` or `answering`, bold `accent.key`; `✕ 429`, bold `state.destructive`; `idle 34s` in `text.muted`; once over, `ended 11:21` in `text.muted` |
-| `started` | 15 | 15 | When its first request came: `12:47` today, `yesterday 15:08`, `Tue 15:08` within the week, `28 Sep 15:08` before it (settled in the plan), in `text.muted` |
-| `requests` | 8 | 8, right-aligned | Its requests today, as `1,240`, in `text.muted` |
+| `state` | 11 | 11 | `asking` or `answering`, bold `accent.key`; `✕ 429`, bold `state.destructive`; `idle 34s` in `text.muted`; once over, when it ended by the clock on the day its rule names, `ended 11:21`, in `text.muted` |
+| `started` | The log's widest, 15 at least | Its least | When its first request came: by the clock alone, `12:47`, on the day its rule names, or today while it runs; else after its day as the rules name days, `yesterday 15:08`, `Tue 09:12` within the six days before today, `Mon 21 Sep 09:12` before them (yesterday never by its weekday, round 3's frames; one rule for the List and Projects' SESSIONS). As wide as the widest of the whole log says, the ended sessions measured once as the watch builds the log (`dashboard.MeasureLog`), so it holds still as the List scrolls; in `text.muted` |
+| `requests` | 8 | 8, right-aligned | Its requests in the period, as `1,240`, in `text.muted`: today's over today |
 | `worth` | 7 | 7, right-aligned | Theirs at API prices, as `$17.86`, in `text.muted`; unpriced as the Log shows it |
 | `routing` | 24 | To the last column | How it came to the account it's on, in the Log's routing words: `from ` in `text.muted`, the account it left in `text.secondary`, `, at its cap` in `text.muted`, two spaces, and in `accent.attention` what writing its context again cost, `$1.82`; `pinned here` in `text.muted` for a session pinned on its own (settled in the plan); blank where it started there |
 
@@ -4885,35 +4897,51 @@ order, each at least its least and at most its natural:
   it asks; `↓` in `accent.key` while it's answering; `▸` in `accent.key` where it moved to the
   account it's on. Else none.
 - **The order:** the running sessions first, in the order they started, the oldest first, a new one
-  joining their foot; then `ended today` in `text.subtle` from column 2, two cells, and a rule of
-  `─` in `border` to the last column; under it, today's ended sessions, the newest end first. The
-  order stays still, never reshuffled by activity, as rows would slide from under the cursor: a row
-  moves only as its session ends, from running to the top of ended, or as it asks again, back to its
-  place by start among the running. The rule shows with the first session under it or not at all,
-  so a List of one row, at its least, shows no `ended today` rule, the ended sessions following the
-  running, each saying it ended (settled in the plan).
-- **The `today` line,** on the row over the key line, from column 0, as the key line and the Log's
+  joining their foot, with no rule; then the rest, every one the router doesn't list, under a rule
+  for the day each ended, as its last request's day has it, as of one the stream told of before the
+  router lists it, the newest end first: the day's words in `text.subtle` from column 2, two cells,
+  and a rule of `─` in `border` to the last column. The rules read `ended today`, `ended yesterday`,
+  the weekday within the six days before today, `ended Tue`, and the weekday and date beyond,
+  `ended Mon 21 Sep`, as Projects' SESSIONS reads them. The order stays still, never reshuffled by
+  activity, as rows would slide from under the cursor: a row moves only as its session ends, from
+  running to the top of ended, or as it asks again, back to its place by start among the running. A
+  rule shows with the first session under it or not at all, so a List of one row, at its least,
+  shows no rule, the ended sessions following the running, each saying it ended (settled in the
+  plan).
+- **The period line,** on the row over the key line, from column 0, as the key line and the Log's
   state line are, so it reads as words, not keys (the owner's call on the spike, 21 October 2026):
-  `today  14 sessions · 1,240 requests · $126.02 at API prices`, `today` in `text.subtle`, the
-  counts in `text.secondary`, the worth bold `text.secondary`, and the rest in `text.muted`. It sums
-  today's sessions, running and ended, their requests today and their worth, so it carries the
-  day's worth where `worth` has left. Where it doesn't fit its row, it breaks after `requests`, the
-  worth on the row over the key line and the rest on the row above; but where those two rows would
-  leave the table no row, at its least, the worth gives way, and the rest takes the row over the
-  key line alone (settled in the plan). Where the sessions fit their
-  rows, the rows left over lie between the last session and it: every session shows, and nothing
-  folds. Where they don't, the table scrolls (below).
-- **Past a screen,** the table scrolls, its heads held, the row above the `today` line blank and the
-  line held, as the Log's table does (settled in the plan).
+  `30 days  150 sessions · 33,010 requests · $3,257.86 at API prices`, the period's name in
+  `text.subtle`, as `today` over today, the counts in `text.secondary`, the worth bold
+  `text.secondary`, its thousands set apart, and the rest in `text.muted`. It sums the period's
+  sessions, running and ended, their requests in it and their worth, as Projects' every project's
+  row does, so it carries the period's worth where `worth` has left. Where it doesn't fit its row,
+  it breaks after `requests`, the worth on the row under the rest; the view's least, three rows,
+  always leaves the table a row over the two, so the worth never gives way. The sessions run down
+  to it; where they fit, the rows left over lie between the last session and it: every session
+  shows, and nothing folds.
+- **Past a screen,** the table scrolls a row at a time, its heads held, and the row over the key
+  line says how many sessions are out of view, as Detail's list says its accounts: `▲ 12 more
+  sessions · ▼ 130 more sessions` from column 2, the marks in `accent.key`, the counts in
+  `text.muted` and the gap in `text.faint`, the counts alone where that doesn't fit; the period
+  line moves up a row over it. A page that would leave a single row to the sessions says nothing of
+  what's out of view. A day's rule is held on the first row while any of its sessions shows under
+  it, its last or a day's only one among them, the sessions under it a row fewer, so it hides none
+  of them and the day always shows (round 3). `↑` and `↓` scroll to the row chosen from its place,
+  never trying page after page, and a step of the dial keeps it in view where the new period lists
+  it, else shows the List from its top.
 
 **Keys.** Where a reference's key row differs from these, these hold:
 
 | Where | Key line |
 |---|---|
-| Both sub-tabs | `tab views   [ ] view    ↑↓ session  enter its page    p pin    ? help  q quit` |
-| A phone | `↑↓ session   enter open   [ ] view   ? keys   q quit` |
+| The Switchboard | `tab views   [ ] view    ↑↓ session  enter its page    p pin    ? help  q quit` |
+| The List | `tab views   [ ] view   < > period: 30 days   ↑↓ session   enter its page   p pin   ? help  q quit` |
+| A phone, the Switchboard | `↑↓ session   enter open   [ ] view   ? keys   q quit` |
+| A phone, the List | `tab views   ↑↓ session   [ ] view   < > period   ? keys   q quit` |
 
 - `[` and `]` switch between Switchboard and List.
+- `<` and `>` step the dial's period on the List, the shared one Accounts and Projects step, the
+  List from its top; on the Switchboard they do nothing.
 - `↑` and `↓` choose a session, a call on the Switchboard or a row on the List, on `bg.selection`:
   a row on the List, or a session's row in lanes, across the width; a call over its own columns
   alone, from the row's first through its id, name, state and `from`, to the cell before its plug,
@@ -4923,7 +4951,8 @@ order, each at least its least and at most its natural:
   2026). A session with a row in two groups is chosen on either (settled in the plan). Where the
   call or row chosen is out of view, the view scrolls no further than shows it.
 - `enter` opens the chosen session's page (see A session's page), the tab staying lit, and `esc`
-  comes back. An ended session's page is as ended, with no `p` (settled in the plan).
+  comes back, whether it runs or ended on a day the period reaches. An ended session's page is as
+  ended, with no `p` (settled in the plan).
 - `p` opens new sessions' picker, whatever is chosen (see Routing by hand); a session's own routing
   is set from its page, `enter` then `p`. With one account, `p` does nothing and no key line shows
   `p pin`, unless a pin set from the command line holds, when `p` opens the picker to clear it.
@@ -4975,11 +5004,21 @@ order, each at least its least and at most its natural:
 - **The lines, their state, and `● pinned`:** the status document, as `usage` and the Overview read
   it, and its `pin`.
 - **The List's requests, worth, start, end and routing:** the request ledger, read where it lies,
-  with no router (see The request ledger). A session's requests are its lines today that spend
-  quota; its worth, theirs priced by the dated table at today's prices; its start, its first line,
-  on the first day the summaries' session ids give it; its end, its last line's. A session ends as
+  with no router (see The request ledger). A session's requests are its lines in the period that
+  spend quota; its worth, theirs priced by the dated table at today's prices; its start, its first
+  line, wherever it fell, as Projects walks back for it; its end, its last line's. A session ends as
   `GET /sessions` stops listing it, an hour after its last request, and runs again as it asks again
   (settled in the plan). Today's lines are read as they're appended, never afresh at each look.
+- **The period's days:** the sessions' days Projects holds, one read of the period serving both
+  tabs (see Projects): each closed day's sessions as its side holds them, read once, as Projects or
+  the List first shows, and again only where the dial reaches further back, today's of the
+  ledger's tail. SPEC round 3 has a long period read its days as the List scrolls to them; reading
+  the period at once meets that, as a year of sides, ten sessions a day, reads in about 36 ms, and the
+  log of 12 months of them builds in about 16 ms more (an M1 Max, loaded, 14 November 2026), so
+  the List reads them whole. Till they're read, the List draws no
+  log, its heading saying `loading…`, as Projects does; once read, a step back within them draws at
+  once, and past midnight it keeps the log it built till the tail's first read of the day. The log
+  is built again only as the days read, the period, the day or today's List's sessions change.
 - **Agents** read the same through the data verbs: `sessions` lists the running sessions and today's
   ended ones, the List's own function (see The data verbs).
 

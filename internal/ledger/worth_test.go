@@ -305,6 +305,24 @@ func TestAnAmountIsShownToTheCentOrTheDollarAndGivenInDollarsExactly(t *testing.
 	}
 }
 
+func TestAnAmountIsShownToTheCentItsThousandsSetApart(t *testing.T) {
+	tests := []struct {
+		amount ledger.Picodollars
+		want   string
+	}{
+		{amount: 0, want: "$0.00"},
+		{amount: dollars(412.532118), want: "$412.53"},
+		{amount: dollars(3257.855), want: "$3,257.86"},
+		{amount: dollars(27479.5), want: "$27,479.50"},
+		{amount: -dollars(1234.4), want: "-$1,234.40"},
+	}
+	for _, tt := range tests {
+		if got := tt.amount.GroupedCents(); got != tt.want {
+			t.Errorf("%d picodollars shows as %s, want %s", tt.amount, got, tt.want)
+		}
+	}
+}
+
 func TestAnAmountToTheCentIsWhatCentsShows(t *testing.T) {
 	tests := []struct {
 		amount, want ledger.Picodollars

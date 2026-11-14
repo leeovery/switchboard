@@ -283,8 +283,8 @@ func (w ProjectsWorld) Days() views.SessionDays {
 }
 
 // Input is what the world's page is built of over the period given.
-func (w ProjectsWorld) Input(period views.Period) views.ProjectsInput {
-	return views.ProjectsInput{
+func (w ProjectsWorld) Input(period views.Period) views.PeriodInput {
+	return views.PeriodInput{
 		Period: period, List: w.List, Names: status.Names{}, Prices: w.Prices, WeekStarts: w.WeekStarts, Family: ledger.FamilyOf, Now: w.Now,
 	}
 }

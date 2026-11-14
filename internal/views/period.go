@@ -39,17 +39,17 @@ var periods = []Period{PeriodToday, PeriodThisWeek, PeriodThirtyDays, PeriodTwel
 // THIS WEEK's title, naming it; the unit against its price names it by; and
 // the share of a month its plans cost over it.
 type periodIs struct {
-	name, title, unit string
-	share             monthPart
+	name, title, unit, within string
+	share                     monthPart
 }
 
 // periodsAre are each period's words and price.
 var periodsAre = map[Period]periodIs{
-	PeriodToday:        {name: "today", title: "TODAY", unit: "day", share: days(1)},
-	PeriodThisWeek:     {name: "this week", title: "THIS WEEK", unit: "week", share: aWeek},
-	PeriodThirtyDays:   {name: "30 days", title: "LAST 30 DAYS", unit: "month", share: aMonth},
-	PeriodTwelveWeeks:  {name: "12 weeks", title: "LAST 12 WEEKS", unit: "12 weeks", share: twelveWeeks},
-	PeriodTwelveMonths: {name: "12 months", title: "LAST 12 MONTHS", unit: "12 months", share: aYear},
+	PeriodToday:        {name: "today", title: "TODAY", unit: "day", within: "today", share: days(1)},
+	PeriodThisWeek:     {name: "this week", title: "THIS WEEK", unit: "week", within: "this week", share: aWeek},
+	PeriodThirtyDays:   {name: "30 days", title: "LAST 30 DAYS", unit: "month", within: "in the last 30 days", share: aMonth},
+	PeriodTwelveWeeks:  {name: "12 weeks", title: "LAST 12 WEEKS", unit: "12 weeks", within: "in the last 12 weeks", share: twelveWeeks},
+	PeriodTwelveMonths: {name: "12 months", title: "LAST 12 MONTHS", unit: "12 months", within: "in the last 12 months", share: aYear},
 }
 
 // Periods are the periods in the order < and > step through them, the
@@ -85,6 +85,13 @@ func (p Period) Name() string {
 // "LAST 30 DAYS", "LAST 12 WEEKS" or "LAST 12 MONTHS".
 func (p Period) Title() string {
 	return periodsAre[p].title
+}
+
+// Within is the period said after what's in it, as in "no sessions this
+// week": "today", "this week", or "in the last 30 days", "in the last 12
+// weeks" or "in the last 12 months".
+func (p Period) Within() string {
+	return periodsAre[p].within
 }
 
 // Unit is what against its price names the period by, after the price, as

@@ -4,10 +4,12 @@ import (
 	"cmp"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
+	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -33,7 +35,7 @@ type ProjectPage struct {
 	// Sessions are its sessions over the period, in the List's order: those
 	// running first, the oldest started first, then those ended, the latest
 	// ended first.
-	Sessions []ProjectSession
+	Sessions []PeriodSession
 }
 
 // VersionShare is a model version's share of a project's worth: the
@@ -53,22 +55,23 @@ type AccountShare struct {
 	Share *float64
 }
 
-// ProjectSession is a session of a project as SESSIONS rows it, in the
-// List's form, so it's drawn in the List's columns: its requests and their
-// worth over the period. EndedOn is the date of the local day it ended on,
-// as its rule groups it, "" where it hasn't ended.
-type ProjectSession struct {
+// PeriodSession is a session of the period as the List and a project's
+// SESSIONS row it, in the List's form, so it's drawn in the List's columns:
+// its requests and their worth over the period. EndedOn is the date of the
+// local day it ended on, as its rule groups it, by its last request; ""
+// while it runs.
+type PeriodSession struct {
 	ListedSession
 	EndedOn string
 }
 
 // page is the project's page, its row given, every project's totals given,
 // the page built of in.
-func (p *projectTally) page(row ProjectRow, all ProjectTotals, in ProjectsInput) ProjectPage {
+func (p *projectTally) page(row ProjectRow, all ProjectTotals, in PeriodInput) ProjectPage {
 	v := versions{table: in.Prices, family: in.Family}
 	page := ProjectPage{ProjectRow: row, Share: shareOf(p.worth, all.amount()), Tokens: p.tokens, ByModel: p.byModel(v), OnAccounts: p.onAccounts(in.Names)}
 	page.WorthBy = worthCharts(in.Period, in.Now, in.WeekStarts, p.days, &p.hours)
-	page.Sessions = p.rows(in)
+	page.Sessions = periodRows(p.sessions, in)
 	return page
 }
 
@@ -107,32 +110,59 @@ func (p *projectTally) onAccounts(names status.Namer) []AccountShare {
 	return on
 }
 
-// rows are the project's sessions as SESSIONS rows them, in the List's
-// order: each of in's List as the List has it, its requests and worth those
-// of the period; each other as listedEnded has it.
-func (p *projectTally) rows(in ProjectsInput) []ProjectSession {
+// periodRows are the sessions given as the List and SESSIONS row them, in
+// the order inPeriodOrder has: each of in's List as the List has it, its
+// requests and worth those of the period, started at the earlier of the
+// List's start and its first request, as the days and the walk back before
+// them found it; each other as listedEnded has it. It's the one way a
+// session of the period is rowed, a project's or the List's.
+func periodRows(sessions map[string]*sessionTally, in PeriodInput) []PeriodSession {
 	listed := make(map[string]ListedSession, len(in.List.Sessions))
 	for _, s := range in.List.Sessions {
 		listed[s.Session] = s
 	}
 	price := pricing{prices: in.Prices, date: dayfile.DateOf(in.Now)}
-	rows := make([]ProjectSession, 0, len(p.sessions))
-	for _, st := range p.sessions {
+	rows := make([]PeriodSession, 0, len(sessions))
+	for _, st := range sessions {
 		s, ok := listed[st.id]
 		if ok {
 			s.Requests, s.Worth = st.requests, st.worth
-			s.Started = cmp.Or(s.Started, st.firstRequest)
+			s.Started = earliestKnown(s.Started, st.firstRequest)
 		} else {
 			s = st.listedEnded(price)
 		}
-		row := ProjectSession{ListedSession: s.named(in.Names)}
-		if s.Activity.Doing == Ended {
-			row.EndedOn = dayfile.DateOf(s.Ended)
+		row := PeriodSession{ListedSession: s.named(in.Names)}
+		if !s.Running {
+			row.EndedOn = dayfile.DateOf(cmp.Or(s.Ended, in.Now))
 		}
 		rows = append(rows, row)
 	}
-	slices.SortFunc(rows, func(a, b ProjectSession) int { return inListOrder(a.ListedSession, b.ListedSession) })
+	slices.SortFunc(rows, inPeriodOrder)
 	return rows
+}
+
+// inPeriodOrder orders the sessions of a period: those running first, as
+// the List orders them; then those it lists as not running, by the day each
+// ended, the latest first, as its last request's day has it, as of one the
+// stream told of before the router lists it, each day's as the List orders
+// them.
+func inPeriodOrder(a, b PeriodSession) int {
+	if a.Running || b.Running {
+		return inListOrder(a.ListedSession, b.ListedSession)
+	}
+	return cmp.Or(strings.Compare(b.EndedOn, a.EndedOn), inListOrder(a.ListedSession, b.ListedSession))
+}
+
+// earliestKnown is the earlier of a and b, either where the other is zero,
+// as not known.
+func earliestKnown(a, b time.Time) time.Time {
+	switch {
+	case a.IsZero():
+		return b
+	case b.IsZero():
+		return a
+	}
+	return score.Earlier(a, b)
 }
 
 // listedEnded is the session as the List lists one that ended, of the days

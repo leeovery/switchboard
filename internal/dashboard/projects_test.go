@@ -35,12 +35,12 @@ func projectRows(n int) []views.ProjectRow {
 
 // projectSessionOf is a session of the chosen project, on work, doing as
 // given, started at started and ended on the date given, "" where it runs.
-func projectSessionOf(id string, doing views.Activity, started time.Time, endedOn string) views.ProjectSession {
+func projectSessionOf(id string, doing views.Activity, started time.Time, endedOn string) views.PeriodSession {
 	s := listedSession{id: id, dir: "~/Code/agentic-workflows", on: "work", doing: doing, started: started, requests: 40, worth: 1200}.listed()
 	if endedOn != "" {
 		s.Ended = doing.Since
 	}
-	return views.ProjectSession{ListedSession: s, EndedOn: endedOn}
+	return views.PeriodSession{ListedSession: s, EndedOn: endedOn}
 }
 
 // endedOn is a session's Activity having ended on the day days before
@@ -53,8 +53,8 @@ func endedOn(days, hour, minute int) views.Activity {
 // them: one running, started yesterday; then one ended today; two
 // yesterday, the later started the day before; one on Tuesday; and one ten
 // days before.
-func chosenSessions() []views.ProjectSession {
-	return []views.ProjectSession{
+func chosenSessions() []views.PeriodSession {
+	return []views.PeriodSession{
 		projectSessionOf("d28c5e17", answering, yesterdayClock(15, 8), ""),
 		projectSessionOf("5b19d3e7", endedAt(11, 21), routedClock(1, 10, 2), "2026-10-01"),
 		projectSessionOf("3d7a8e12", endedOn(1, 16, 40), yesterdayClock(9, 0).AddDate(0, 0, -1), "2026-09-30"),
@@ -67,7 +67,7 @@ func chosenSessions() []views.ProjectSession {
 // chosenPage is the page of the first of projectRows, this week by day,
 // Thursday's peak, three days to come; on two versions and three accounts;
 // its sessions those given.
-func chosenPage(sessions []views.ProjectSession) views.ProjectPage {
+func chosenPage(sessions []views.PeriodSession) views.ProjectPage {
 	half, third := 0.5, 1.0/3
 	page := views.ProjectPage{ProjectRow: projectRowOf("agentic-workflows", 12, 2059, 23900), Share: &half, Sessions: sessions}
 	page.Tokens.Total = 365_000_000
@@ -435,7 +435,7 @@ func TestSessionsStartedGivesItsDayWhereItBeganOnAnother(t *testing.T) {
 	f := projectsFrame(t, 173, 60, projectRows(3), 0, &page)
 	rows := textOf(f.page(framedDoc(nil, nil), routedAt).rows(Look{}))
 	tests := []struct{ id, state, started string }{
-		{id: "d28c", state: "answering", started: "Wed 15:08"},
+		{id: "d28c", state: "answering", started: "yesterday 15:08"},
 		{id: "5b19", state: "ended 11:21", started: "10:02"},
 		{id: "3d7a", state: "ended 16:40", started: "Tue 09:00"},
 		{id: "e0c4", state: "ended 10:02", started: "09:12"},

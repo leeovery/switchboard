@@ -319,13 +319,25 @@ func lined(r views.RequestRow, said string) line {
 func requestWords(r views.RequestRow, column LogColumn, layout logLayout) views.RowWords {
 	switch {
 	case column == LogRouting:
-		return r.Routing.Said()
+		return routingSaid(r.Routing)
 	case layout.brief:
 		return r.BriefStopped()
 	case layout.folded:
 		return r.Folded()
 	}
 	return r.Stopped()
+}
+
+// routingSaid is how the router chose, as the routing column says it: as
+// RoutingSaid says it, each account it names cut as asLabelled cuts it.
+func routingSaid(r views.RoutingSaid) views.RowWords {
+	w := r.Said()
+	for i, p := range w {
+		if p.Kind == views.RowNamed {
+			w[i].Text = asLabelled(p.Text)
+		}
+	}
+	return w
 }
 
 // rowWordsIn are a row's words in cells cells, each part in its kind's ink:

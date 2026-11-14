@@ -541,6 +541,12 @@ var pages = []page{
 	{name: "sessions-list-90x40", size: watch.Size{Width: 90, Height: 40}, world: accountWorlds.scene, keys: toSessions("]")},
 	{name: "sessions-switchboard-long-names-108x44", size: watch.Size{Width: 108, Height: 44}, world: accountWorlds.longNames, keys: toSessions()},
 	{name: "sessions-list-long-names-108x44", size: watch.Size{Width: 108, Height: 44}, world: accountWorlds.longNames, keys: toSessions("]")},
+	{name: "sessions-list-30-days-173x53", size: watch.Size{Width: 173, Height: 53}, world: accountWorlds.scene, keys: toSessions("]", ">")},
+	{name: "sessions-list-30-days-73x61", size: watch.Size{Width: 73, Height: 61}, world: accountWorlds.scene, keys: toSessions("]", ">")},
+	{
+		name: "sessions-list-30-days-108x44", size: watch.Size{Width: 108, Height: 44}, world: accountWorlds.scene,
+		keys: append(toSessions("]", ">"), slices.Repeat(keysOf("j"), toTuesday22)...),
+	},
 	{
 		name: "sessions-ten-accounts-160", size: wide(37), world: accountWorlds.ten, before: lookedAway(time.Minute), keys: cameBack,
 		looked: &looked{listed: inTheFramesOrder(tenSessions)},
@@ -605,6 +611,12 @@ func lookedAway(by time.Duration) earlier {
 // cameBack are the keys pressed at the moment of a page looked away from, as
 // lookedAway has it: shift-tab, back to Sessions, its stream opening again.
 var cameBack = []tea.KeyPressMsg{{Code: tea.KeyTab, Mod: tea.ModShift}}
+
+// toTuesday22 are the rows sessions-list-30-days-108x44 scrolls the List
+// down by, j a row, a day's rule passed over being no row of its own, to
+// the sessions that ended on Tuesday 22 September under their rule, as the
+// design's frame is scrolled.
+const toTuesday22 = 51
 
 // keysOf are the keys pressed as the text given, a key a character.
 func keysOf(text ...string) []tea.KeyPressMsg {

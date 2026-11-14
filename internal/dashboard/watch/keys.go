@@ -224,7 +224,7 @@ func (m Model) accountsListings(running []string) []keyListing {
 	inSessions := listed && s.InSessions || alone && selected
 	return []keyListing{
 		{Key: dashboard.Key{Key: "[ ]", Does: "view"}, works: shown && !alone, apart: true},
-		{Key: dashboard.Key{Key: "< >", Does: "period", State: m.period.Name()}, works: shown, apart: true, wide: true},
+		{Key: m.periodKey(), works: shown, apart: true, wide: true},
 		{Key: dashboard.Key{Key: "←→", Does: "account"}, works: compare, apart: true, wide: true},
 		{Key: dashboard.Key{Key: "↑↓", Does: "account"}, works: listed && !s.InSessions, apart: true, wide: true},
 		{Key: dashboard.Key{Key: "↑↓", Does: "session"}, works: inSessions, apart: true, wide: true},
@@ -321,6 +321,9 @@ func (m Model) keyLine(f dashboard.Frame, now time.Time) dashboard.KeyLine {
 		l.Phone = m.logPhoneKeys()
 	case dashboard.Sessions:
 		l.Phone = m.sessionsPhoneKeys()
+		if m.sessionsTab.shown.Shown == dashboard.SessionsList {
+			l.After = apart
+		}
 	}
 	if keys.pinned {
 		l.Groups = append(l.Groups, []dashboard.Key{keys.pin})

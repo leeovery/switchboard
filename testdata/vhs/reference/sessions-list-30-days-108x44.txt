@@ -1,0 +1,44 @@
+ SWITCHBOARD    Overview   Accounts   Projects   History   Sessions   Runway   Graphs   Log         14:42:07
+
+● healthy  ·  auto  ·  6 sessions  ·  new sessions → ▲ side
+
+SESSIONS    Switchboard  List  [ ]  ───────────────────────────────────────────────────────────  < 30 days >
+
+  session                        on        model      state        started          requests    worth
+  ended Tue 22 Sep  ────────────────────────────────────────────────────────────────────────────────────────
+  a861 infra                     side      sonnet-5…  ended 17:01  15:55                 100   $11.57
+  6634 switchboard               personal  sonnet-5…  ended 16:56  14:50                 190   $21.90
+  11a0 docs                      personal  opus-5-5   ended 15:32  14:09                 125   $14.37
+  cfee switchboard               side      opus-5-5   ended 13:51  12:54                  87    $9.97
+  4f47 switchboard               work      opus-5-5   ended 13:48  11:57                 296   $34.11
+  81b7 website                   personal  sonnet-5…  ended 12:14  10:33                 153   $17.67
+  6c2e api                       work      opus-5     ended 11:27  09:56                 138   $15.88
+  ended Mon 21 Sep  ────────────────────────────────────────────────────────────────────────────────────────
+  f3c7 website                   work      sonnet-5…  ended 16:16  14:37                 150   $17.23
+  f239 switchboard               work      opus-5-5   ended 15:51  13:40                 197   $22.70
+  e034 mobile                    personal  sonnet-5…  ended 15:26  13:32                 199   $22.97
+  e425 switchboard               personal  sonnet-5…  ended 14:48  13:09                 149   $17.15
+  9c0d website                   side      opus-5-5   ended 14:45  14:03                  64    $7.42
+  0d66 api                       work      opus-5-5   ended 14:11  12:07                 243   $28.02
+  04c9 infra                     side      opus-5-5   ended 10:11  09:46                  39    $4.50
+  ended Sun 20 Sep  ────────────────────────────────────────────────────────────────────────────────────────
+  3399 switchboard               personal  sonnet-5…  ended 15:57  15:43                  21    $2.41
+  a12b infra                     side      sonnet-5…  ended 15:14  15:05                  15    $1.72
+  1a4c docs                      work      sonnet-5…  ended 13:48  13:25                  36    $4.17
+  ended Fri 18 Sep  ────────────────────────────────────────────────────────────────────────────────────────
+  3628 switchboard               work      opus-5-5   ended 17:54  15:59                 230   $26.53
+  d7fe website                   work      opus-5-5   ended 16:41  15:14                 131   $15.04
+  5c11 switchboard               personal  opus-5-5   ended 15:37  14:04                 184   $21.26
+  1541 switchboard               side      sonnet-5…  ended 15:32  14:57                  53    $6.09
+  ab2a website                   side      opus-5-5   ended 13:48  13:10                  58    $6.70
+  a2c0 infra                     personal  opus-5-5   ended 13:11  10:40                 228   $26.32
+  d823 api                       personal  sonnet-5…  ended 11:25  10:22                  96   $11.01
+  ended Thu 17 Sep  ────────────────────────────────────────────────────────────────────────────────────────
+  a990 switchboard               work      sonnet-5…  ended 15:37  13:50                 161   $18.50
+  a725 docs                      side      opus-5-5   ended 14:09  13:15                  81    $9.31
+  1967 infra                     side      opus-5-5   ended 13:36  12:32                  97   $11.20
+  6fcf switchboard               personal  sonnet-5…  ended 13:36  11:43                 170   $19.52
+  6363 mobile                    work      sonnet-5…  ended 13:33  10:08                 308   $35.59
+30 days  162 sessions · 26,469 requests · $3,061.31 at API prices
+  ▲ 51 more sessions · ▼ 82 more sessions
+tab views   [ ] view   < > period: 30 days   ↑↓ session   enter its page   p pin   ? help  q quit

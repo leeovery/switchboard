@@ -128,14 +128,14 @@ func rowsOf(h *harness) []string {
 func TestProjectsReadsItsDaysOnceAndAgainOnlyFurtherBack(t *testing.T) {
 	h := projectsHarness(t, dashboard.Overview)
 	h.start()
-	if h.model.projects.asked != 0 {
-		t.Fatalf("on the Overview, Projects' days were read %d times, want none", h.model.projects.asked)
+	if h.model.sessionDays.asked != 0 {
+		t.Fatalf("on the Overview, Projects' days were read %d times, want none", h.model.sessionDays.asked)
 	}
 	h.keys(tabKey, tabKey)
 	now := h.clock.now
 	from := func(p views.Period) time.Time { return p.From(now, time.Monday) }
-	if h.model.view != dashboard.Projects || h.model.projects.asked != 1 || !h.model.projects.from.Equal(from(views.PeriodThisWeek)) {
-		t.Fatalf("on %s, the days were read %d times, from %v; want Projects, read once from %v", h.model.view, h.model.projects.asked, h.model.projects.from, from(views.PeriodThisWeek))
+	if h.model.view != dashboard.Projects || h.model.sessionDays.asked != 1 || !h.model.sessionDays.from.Equal(from(views.PeriodThisWeek)) {
+		t.Fatalf("on %s, the days were read %d times, from %v; want Projects, read once from %v", h.model.view, h.model.sessionDays.asked, h.model.sessionDays.from, from(views.PeriodThisWeek))
 	}
 	steps := []struct {
 		key    string
@@ -153,16 +153,16 @@ func TestProjectsReadsItsDaysOnceAndAgainOnlyFurtherBack(t *testing.T) {
 	}
 	for _, s := range steps {
 		h.deliver(h.press(s.key)...)
-		if h.model.period != s.period || h.model.projects.asked != s.asked {
-			t.Fatalf("after %s, %q shown, the days were read %d times; want %q, read %d", s.key, h.model.period.Name(), h.model.projects.asked, s.period.Name(), s.asked)
+		if h.model.period != s.period || h.model.sessionDays.asked != s.asked {
+			t.Fatalf("after %s, %q shown, the days were read %d times; want %q, read %d", s.key, h.model.period.Name(), h.model.sessionDays.asked, s.period.Name(), s.asked)
 		}
 	}
-	if want := from(views.PeriodTwelveMonths); !h.model.projects.from.Equal(want) {
-		t.Errorf("the days held are from %v, want the furthest back read, %v", h.model.projects.from, want)
+	if want := from(views.PeriodTwelveMonths); !h.model.sessionDays.from.Equal(want) {
+		t.Errorf("the days held are from %v, want the furthest back read, %v", h.model.sessionDays.from, want)
 	}
 	h.keys(tabKey, shiftTabKey)
-	if h.model.projects.asked != 4 {
-		t.Errorf("shown again, the days were read %d times, want 4: none again", h.model.projects.asked)
+	if h.model.sessionDays.asked != 4 {
+		t.Errorf("shown again, the days were read %d times, want 4: none again", h.model.sessionDays.asked)
 	}
 }
 
@@ -181,25 +181,25 @@ func TestProjectsLoadsTillItsDaysAreRead(t *testing.T) {
 		{"after a step further back", func() []tea.Msg { return h.press(">") }, "/code/alpha /code/beta /code/gamma"},
 	}
 	for _, r := range reads {
-		held := holdingBack[projectsReadMsg](h, r.msgs()...)
-		if s := h.model.projects.shown; len(held) != 1 || !h.model.projects.reading || !h.model.awaiting() || s.Page != nil || s.Project != nil {
-			t.Fatalf("%s, its read under way, %d held, reading %v, awaiting %v, its page %v; want one read held, Projects awaiting it, no page", r.name, len(held), h.model.projects.reading, h.model.awaiting(), s.Page)
+		held := holdingBack[daysReadMsg](h, r.msgs()...)
+		if s := h.model.projects.shown; len(held) != 1 || !h.model.sessionDays.reading || !h.model.awaiting() || s.Page != nil || s.Project != nil {
+			t.Fatalf("%s, its read under way, %d held, reading %v, awaiting %v, its page %v; want one read held, Projects awaiting it, no page", r.name, len(held), h.model.sessionDays.reading, h.model.awaiting(), s.Page)
 		}
 		if strings.Contains(h.view(), "alpha") {
 			t.Errorf("%s, its read under way, the screen draws alpha's row:\n%s\nwant no page", r.name, h.view())
 		}
 		h.deliver(held...)
-		if h.model.projects.reading || h.model.awaiting() || h.model.projects.shown.Page == nil {
-			t.Fatalf("%s, its read landed, reading %v, awaiting %v, its page %v; want its page built", r.name, h.model.projects.reading, h.model.awaiting(), h.model.projects.shown.Page)
+		if h.model.sessionDays.reading || h.model.awaiting() || h.model.projects.shown.Page == nil {
+			t.Fatalf("%s, its read landed, reading %v, awaiting %v, its page %v; want its page built", r.name, h.model.sessionDays.reading, h.model.awaiting(), h.model.projects.shown.Page)
 		}
 		if got := strings.Join(rowsOf(h), " "); got != r.built {
 			t.Errorf("%s, its read landed, the rows are %s, want %s", r.name, got, r.built)
 		}
 	}
-	held := holdingBack[projectsReadMsg](h, h.press(">")...)
+	held := holdingBack[daysReadMsg](h, h.press(">")...)
 	h.deliver(h.press("<")...)
-	if !h.model.projects.reading || h.model.projects.shown.Page == nil || h.model.awaiting() {
-		t.Errorf("a step back within the days held as a read further back runs, reading %v, its page %v, awaiting %v; want its page built and drawn, not loading", h.model.projects.reading, h.model.projects.shown.Page, h.model.awaiting())
+	if !h.model.sessionDays.reading || h.model.projects.shown.Page == nil || h.model.awaiting() {
+		t.Errorf("a step back within the days held as a read further back runs, reading %v, its page %v, awaiting %v; want its page built and drawn, not loading", h.model.sessionDays.reading, h.model.projects.shown.Page, h.model.awaiting())
 	}
 	h.deliver(held...)
 }
@@ -215,7 +215,7 @@ func TestProjectsReturnsToWhereTheUserWasOnceAStepBacksReadLands(t *testing.T) {
 		h.start()
 		h.update(tea.WindowSizeMsg{Width: 108, Height: 24})
 		h.keys(rightKey, downKey)
-		held := holdingBack[projectsReadMsg](h, h.press(">")...)
+		held := holdingBack[daysReadMsg](h, h.press(">")...)
 		if s := h.model.projects.shown; len(held) != 1 || s.Page != nil || s.InSessions {
 			t.Fatalf("its read under way, %d held, its page %v, in sessions %v; want no page, as the first read draws", len(held), s.Page, s.InSessions)
 		}
@@ -233,7 +233,7 @@ func TestProjectsReturnsToWhereTheUserWasOnceAStepBacksReadLands(t *testing.T) {
 		if s := h.model.projects.shown; s.Chosen != "/code/epsilon" || !s.InSessions {
 			t.Fatalf("after ↓ ↓ →, %s chosen, in sessions %v; want epsilon, its SESSIONS", s.Chosen, s.InSessions)
 		}
-		held := holdingBack[projectsReadMsg](h, h.press(">")...)
+		held := holdingBack[daysReadMsg](h, h.press(">")...)
 		h.source.sessions = nil
 		h.tickUntilAsked()
 		h.deliver(held...)
@@ -254,12 +254,12 @@ func TestProjectsDialStepKeepsTheSelectionScrolledInView(t *testing.T) {
 	}{
 		{"within the days held", func(h *harness) {
 			h.deliver(h.press(">")...)
-			if h.model.projects.reading {
+			if h.model.sessionDays.reading {
 				h.t.Fatal("the step to 12 weeks asked for a read, want the days held to reach it")
 			}
 		}},
 		{"further back", func(h *harness) {
-			held := holdingBack[projectsReadMsg](h, h.press(">")...)
+			held := holdingBack[daysReadMsg](h, h.press(">")...)
 			if len(held) != 1 {
 				h.t.Fatalf("the step to 12 weeks held %d reads, want one", len(held))
 			}
@@ -328,8 +328,8 @@ func TestProjectsWithoutALedgerShowsTheSessionsRunning(t *testing.T) {
 	cfg.Ledger, cfg.Accounts, cfg.WeekStarts, cfg.View = nil, threeConfigured, time.Monday, dashboard.Projects
 	h.model = New(t.Context(), cfg)
 	h.start()
-	if h.model.projects.asked != 0 || h.model.awaiting() || !strings.Contains(h.view(), "no sessions") {
-		t.Fatalf("without a ledger, read %d times, awaiting %v, the screen:\n%s\nwant no read, nothing awaited, and no sessions said", h.model.projects.asked, h.model.awaiting(), h.view())
+	if h.model.sessionDays.asked != 0 || h.model.awaiting() || !strings.Contains(h.view(), "no sessions") {
+		t.Fatalf("without a ledger, read %d times, awaiting %v, the screen:\n%s\nwant no read, nothing awaited, and no sessions said", h.model.sessionDays.asked, h.model.awaiting(), h.view())
 	}
 	running(h, betaOnly, "/code/beta")
 	if got := strings.Join(rowsOf(h), " "); got != "/code/beta" || !strings.Contains(h.view(), "beta") {

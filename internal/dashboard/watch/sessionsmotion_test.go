@@ -206,7 +206,7 @@ func TestUpFromNoneScrollsToTheLastRow(t *testing.T) {
 		{name: "the Switchboard at step 5", on: boardOfTwelve, keys: "up", want: dashboard.Plug{Session: id7F3A, Account: "l"}},
 		{name: "a long List", on: func(t *testing.T) *harness {
 			h := streamingHarness(t)
-			h.withLines(endedToday(30))
+			followLines(t, h, endedToday(30))
 			h.update(tea.WindowSizeMsg{Width: 160, Height: 20})
 			h.keys(toSessions...)
 			return h
