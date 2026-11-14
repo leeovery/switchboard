@@ -1083,7 +1083,9 @@ totals.
   it (`views.PoolRead`'s Start), so a pool added to a ledger months old counts no day before it as
   a day of none: History's months, WHEN YOU WORK's weekday averages, Accounts' periods and
   Runway's lanes begin there, where every pool's begin where the ledger does. A pool that has
-  worked on no day before today begins with today, told once a run. No page adds pools together:
+  worked on no day before today begins with today, asked again at each fresh start of the pool
+  shown, a `P` or a config's turn, and not at each read, which would read every summary each
+  time; no pool shown begins with today, reading none. No page adds pools together:
   a pool's room can never serve another pool's sessions, so a merged view has nothing to add up.
   A page across pools waits until one is needed (the owner's call, 11 November 2026).
 - **`P` cycles the pools,** on every tab, once a second pool exists, in the config's order, round.
@@ -1128,9 +1130,15 @@ totals.
   taken afresh at each turn, as its ledger takes it at each ask (`idmove.FirstOf` of the one the
   accounts record notes), so a pool put ahead of the first never takes its work in no pool. What it
   costs a read, with pools or without, is a stat of the config file and a comparison of two lists
-  of ids. The stamp is taken as the ask goes out, so a change found while a turn is under way is
-  asked for at the next read; a config that can't be read is logged, with nothing on the key line,
-  and asked again once it changes again.
+  of ids. The stamp is taken as the ask goes out, so a config changed while a turn is under way is
+  asked for at the next read; an accounts change found then is dropped, harmlessly, as with the
+  config as it was the ask would start nothing; a config that can't be read is logged, with
+  nothing on the key line, and asked again once it changes again. A dashboard opened on no pool
+  as its pools couldn't be told lists no accounts, its source reading none, as where every pool is
+  fenced, its status line saying why; a read still asks the router's health, and once the router
+  answers with the pools it routes for, the read fails with `watch.ErrPoolsTold` and the pool
+  shown is asked for again, as at a change to the config, starting afresh on the pool the verbs
+  act on.
 - **The title row names the pool shown,** by its label after the badge, once a second pool exists,
   at every size, cut short before the tabs where it's long. The pool's accounts keep the config's
   order, unnumbered, as every screen has them (see Account identity).
@@ -1265,13 +1273,47 @@ Accepted as the first phase was built, each failing safe, with nothing crossing 
 - **A day's work in no pool summarised before and after the first pool's removal,** as lines a
   draining router or a downgrade filed without a pool, can count those requests twice: the summary
   held puts them in the old first pool, the new one in the config's first, and both are kept. It
-  needs all three rare events together, for a handful of requests. Summarised before it alone, a
-  day's work in no pool stays the old first pool's on what reads the summaries, History, Graphs and
-  the worth on Accounts, while what reads the lines, the Log's requests, Sessions and a session's
-  page, tells it as the new first's.
+  needs all three rare events together, for a handful of requests.
 - **Several Macs** whose configs differ until one is kept: a pool removed on one Mac alone, and an
   account configured under its id, which the record holds for that pool, leaves the account out of
   this Mac's record, logged, till the configs agree.
+
+Accepted as the second phase was built, each failing safe, with nothing crossing a pool:
+
+- **`P`, and an accounts change, found while a turn is under way** are dropped: a turn lasts
+  milliseconds, `P` pressed again turns, and an accounts change with the config as it was would
+  start nothing; a config changed meanwhile is asked for at the next read (see The dashboard in a
+  pool).
+- **A router draining across the upgrade** can file a few lines naming no pool after the move,
+  read as the first pool's work (see What's recorded).
+- **A pool's id re-cased by a hand edit** lists the pool twice in the day's summary, once each
+  spelling, and so in `history`'s JSON, each priced; every read of the pool takes both, as the
+  config, the readers and a pool's read compare ids ignoring case.
+- **A pool that hasn't worked yet** begins today, asked again at each fresh start of the pool
+  shown, a `P` or a config's turn, not at each read (see The dashboard in a pool).
+- **Once the noted first pool is removed,** and the config's first takes work in no pool on (see
+  The request ledger's In a pool):
+  - work in no pool summarised before stays the old first pool's on the tabs that read the
+    summaries: History, Graphs, the worth and tokens on Accounts, and the Log's day figures;
+  - the Log's rows, Sessions and a session's page read the lines, by the new first;
+  - a split session holding such lines walks back, exactly, at each read till a later day it runs
+    on is built, which heals it;
+  - one that never runs again walks back each time its page opens, for as long as its days are
+    kept.
+- **A page's turn** is read of the whole ledger (`readTurn`), not through the pool's read: what it
+  takes of it is one prompt's lines alone, and one prompt is one pool's, a session's pool being
+  fixed for its process.
+- **An accounts record that can't be read** is warned of at each turn, once for each read of it:
+  the accounts removed, the pools removed and the first pool are each read of it afresh.
+- **Downgrading to v0.7.2:**
+  - the second phase's files, the rows of version 4 and the digests of envelope 3 with their
+    parts, are derived, so v0.7.2 builds them again in its own versions, and the second phase
+    builds them again on the way back up;
+  - v0.7.2 can't read a config with pools, so a pools router still running holds its restart, as
+    the new binary says it can't start, and v0.7.2's `claude` routes through it naming no pool, so
+    every session lands in the first pool; with the router down, sessions start on Claude Code's
+    own login;
+  - no data is harmed: nothing but what's derived is written again.
 
 Pausing an account whose subscription is cancelled is a separate idea, after pools
 ([pausing-accounts](../ideas/2026-11-11--pausing-accounts.md)).
