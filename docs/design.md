@@ -981,7 +981,16 @@ totals.
   record names any pools`. Reading the recorded files, a verb reads the work recorded in the pool,
   as What's recorded says, a line, start, move or pin from before pools the first pool's; the
   windows, plans and weeks of the accounts in the pool now; and an event by the one rule What's
-  recorded gives. `dashboard` takes `--pool` too, as The dashboard in a pool says.
+  recorded gives. It never reads every pool's work together: given a session and no `--pool`, it
+  reads the session's work in the pool it's in now, the one its newest line recorded
+  (`views.PoolNow`), its page and its requests, as a session resumed in another pool has work in
+  both, a session of one pool read as ever; given an account, the account's in the pool it's in
+  now; and with `--pool`, a session with no work in that pool isn't found there, `no session …
+  in pool Acme`. `history` counts its days from where the pool's work begins (`views.PoolRead`'s
+  Start), as the dashboard does, so a verb and the dashboard price a pool over the same days. What
+  a verb reads in a pool is built in one place, from the pool's read (`cli/poolfiles.go`), held
+  by a guard (`cli/poolfiles_guard_test.go`). `dashboard` takes `--pool` too, as The dashboard in
+  a pool says.
 - **A pool the config no longer has** keeps its history, as the accounts record keeps the pool: the
   verbs that read the recorded files, `requests`, `history`, `sessions` and `events`, take
   `--pool` with the id of a pool the record keeps that the config doesn't, one removed, or another

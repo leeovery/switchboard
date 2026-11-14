@@ -39,7 +39,8 @@ type HistoryInput struct {
 	// the local days from From's to today's, those the ledger holds.
 	From, Now time.Time
 	// Began is the start of the ledger's first day, as LedgerStart tells it,
-	// for a Past to take as the day the ledger began recording: zero where
+	// a pool's first day of work of a pool's days, as PoolRead's Start tells
+	// it, for a Past, and NewHistory, to count the days from: zero where
 	// it's unknown.
 	Began time.Time
 	// Prices price the days' requests, at today's prices, and the plans, and
@@ -87,7 +88,7 @@ func NewHistory(in HistoryInput) History {
 	p := plans{accounts: in.Accounts, table: in.Prices}
 	before, days := splitAt(pricedDays(in.Ledger.Days(in.From.AddDate(0, 0, -lookBack)), in, today, v), asked)
 	placed := weeklyOf(in.WeekWindow, in.WeekStarts, in.Now).placedWeeks(before, days, in.Accounts)
-	counted := countedFrom(asked, days)
+	counted := countedFrom(asked, days, in.Began)
 	last, whole := askedPeriod(from, to, in.WeekStarts)
 	return History{
 		Days:     days,
@@ -122,13 +123,19 @@ func (d Day) names(id string) bool {
 
 // countedFrom is the date of the first day counted of the days asked for
 // from the one with the date asked, days being those of them the ledger
-// gives: the later of it and the first the ledger holds, as the ledger gives
-// every day from the later of the two.
-func countedFrom(asked string, days []Day) string {
-	if len(days) == 0 {
-		return asked
+// gives: the latest of it, the first the ledger holds, as the ledger gives
+// every day from the later of the two, and the day work began, began's,
+// where it's known, as a pool's work begins after the ledger does, as
+// PoolRead's Start tells it.
+func countedFrom(asked string, days []Day, began time.Time) string {
+	counted := asked
+	if len(days) > 0 {
+		counted = max(counted, days[0].Day)
 	}
-	return max(asked, days[0].Day)
+	if !began.IsZero() {
+		counted = max(counted, dayfile.DateOf(began))
+	}
+	return counted
 }
 
 // splitAt splits days, in order, at the one with the given date: those

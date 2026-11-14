@@ -150,10 +150,10 @@ func (a *app) history(ctx context.Context, out io.Writer, given, pool string, as
 		return err
 	}
 	prices := pricing(asked.cfg)
-	reader := a.ledgerReader(asked.stateDir, asked.cfg, func() time.Time { return asked.now })
+	days, began := asked.pool.days(a.ledgerReader(asked.stateDir, asked.cfg, func() time.Time { return asked.now }), asked.now)
 	removed, record := removedIn(asked.stateDir, asked.cfg), recordIn(asked.stateDir)
 	history := views.NewHistory(views.HistoryInput{
-		Ledger: asked.pool.read.Days(reader), From: asked.from, Now: asked.now, Prices: prices, Accounts: asked.accounts(), Removed: removed,
+		Ledger: days, From: asked.from, Now: asked.now, Began: began, Prices: prices, Accounts: asked.accounts(), Removed: removed,
 		WeekStarts: asked.cfg.WeekStarts, WeekWindow: claude.WeekWindow, Family: claude.Provider{}.Family,
 		PoolLabel: status.PoolLabels(asked.cfg.Pools, record), OnePool: status.ManyPoolsFiled(asked.cfg.Pools, record),
 	})
@@ -174,7 +174,7 @@ func (a *app) historyWindows(ctx context.Context, out io.Writer, given, pool str
 		return err
 	}
 	names := namesIn(asked.stateDir, asked.cfg)
-	windows := asked.pool.read.Windows(views.NewWindows(readings.NewReader(asked.stateDir, logger), asked.accounts(), asked.from, asked.now)).Named(names)
+	windows := asked.pool.windows(views.NewWindows(readings.NewReader(asked.stateDir, logger), asked.accounts(), asked.from, asked.now)).Named(names)
 	if asJSON {
 		return writeJSON(out, windows)
 	}

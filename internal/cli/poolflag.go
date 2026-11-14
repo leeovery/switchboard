@@ -192,10 +192,16 @@ func poolNamed(pools config.Pools, label string) string {
 // it, as " in pool Acme", where pools are more than one, as poolNamed names
 // it: "" where there's one or none.
 func inPoolNamed(pools config.Pools, label string) string {
-	if named := poolNamed(pools, label); named != "" {
-		return " in " + named
+	return inNamed(poolNamed(pools, label))
+}
+
+// inNamed names a pool, named as poolNamed or status.KeptPool's Said names
+// it, after what a verb says of it, as " in pool Acme": "" where named is.
+func inNamed(named string) string {
+	if named == "" {
+		return ""
 	}
-	return ""
+	return " in " + named
 }
 
 // poolFlagNeeded is err, where it's a router.PoolNeeded, saying --pool is

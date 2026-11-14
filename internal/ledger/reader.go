@@ -300,7 +300,32 @@ func arrived(h filedHeld) time.Time {
 // readings history tells of alone, of none where it tells of none.
 func (r *Reader) Days(from time.Time) []Summary {
 	now := r.now()
-	dates := dayfile.Span(r.days.start(from, now), now)
+	return r.summaries(dayfile.Span(r.days.start(from, now), now), now)
+}
+
+// DaysOn returns the summaries of the local days with the dates given,
+// oldest first, each once, as Days gives them from the earliest: none of a
+// date Days gives none of, before the first day the ledger holds or after
+// today's.
+func (r *Reader) DaysOn(dates []string) []Summary {
+	now := r.now()
+	on := datesFrom(dates, func(from time.Time) time.Time { return r.days.start(from, now) }, now)
+	if len(on) == 0 {
+		return nil
+	}
+	return r.summaries(on, now)
+}
+
+// FirstDay returns the start of the first local day the ledger holds, as
+// Days reads from it, whatever the time now: it fails with fs.ErrNotExist
+// where it holds none.
+func (r *Reader) FirstDay(time.Time) (time.Time, error) {
+	return r.days.first()
+}
+
+// summaries returns the summaries of the local days with the dates given,
+// oldest first, at now, each as Days has it.
+func (r *Reader) summaries(dates []string, now time.Time) []Summary {
 	days := make([]Summary, len(dates))
 	var due []dueDay
 	var at []int

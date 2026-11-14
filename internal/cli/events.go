@@ -102,11 +102,11 @@ func (a *app) events(ctx context.Context, out io.Writer, opts eventsOptions) err
 	record := recordIn(dir)
 	printer := a.eventsPrinter(out, opts.form, status.PoolLabels(pooled.Pools, record), poolsNamed(pooled.Pools, record), pool.heading())
 	held := events.NewReader(dir, a.Now, logger).HeldTailing(printer.readFrom(from), startOfDay(now, -1), today)
-	if err := printer.list(pool.read.Events(held), from, now); err != nil || follower == nil {
+	if err := printer.list(pool.events(held), from, now); err != nil || follower == nil {
 		return err
 	}
 	return follower.run(ctx, logs.PollEvery(a.FollowEvery), func(h events.Held) error {
-		if !pool.read.ShowsHeld(h) {
+		if !pool.shows(h) {
 			return nil
 		}
 		return printer.follow(h)

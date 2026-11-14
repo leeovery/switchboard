@@ -88,7 +88,11 @@ Claude pass `--pool "$SWITCHBOARD_POOL"`, the session's own pool.
 - A verb given accounts or a session finds them in whatever pool they're in: `pin <account>...`,
   `pin --session`, `status --session`, `sessions <id>`, `requests --account` and `requests
   --session`. With `--pool` beside, it looks in that pool alone, and a pin of accounts outside it
-  is refused, so passing `--pool` to every verb is always safe.
+  is refused, so passing `--pool` to every verb is always safe. Reading the recorded files, it
+  never reads every pool's work together: a session's page and its requests are its work in the
+  pool it's in now, the one its newest request was routed in, as a session resumed in another
+  pool may have work in both, and an account's requests are those in the pool it's in now. With
+  `--pool`, a session with no work in that pool isn't found there.
 - Once there's a second pool, the text `status`, `usage`, `history`, `requests`, `sessions` and
   `events` print names the pool it read, as `pool Acme`, and the JSON gives each pool's id and
   label, as `pool` and `pool_label` (see
@@ -1366,7 +1370,7 @@ switchboard requests [--session <id>] [--account <id>] [--since <when>] [--pool 
 | `--session <id>` | Keep that session's requests. Name the session by its id, or as much of it as is unique among the sessions read. |
 | `--account <id>` | Keep that account's requests, by its id, in any case. A label is refused, naming the id of each account it labels. |
 | `--since <when>` | Start at a day (`2026-10-01`), a time today (`14:00`), or a while ago (`3h`, `2d`). |
-| `--pool <id>` | Keep that pool's requests, each by the pool it was routed within at the time, a request from before pools the first pool's. With `--session` or `--account` and no `--pool`, their requests are found in whatever pool each was routed in. A pool removed, or another Mac's from an import, is read by its id too. See [Reading a pool](#reading-a-pool). |
+| `--pool <id>` | Keep that pool's requests, each by the pool it was routed within at the time, a request from before pools the first pool's. With `--session` and no `--pool`, the session's requests in the pool it's in now, the one its newest request was routed in; with `--account`, the account's in the pool it's in now. A pool removed, or another Mac's from an import, is read by its id too. See [Reading a pool](#reading-a-pool). |
 | `--json` | Print each line as the ledger holds it, with `"schema": 1` put first, a JSON object a line, even on a terminal. It does so off a terminal anyway. See [The request ledger](reference.md#the-request-ledger). |
 | `--pretty` | Print the text, even off a terminal, as it does on one. |
 
@@ -1554,7 +1558,7 @@ switchboard sessions [<id>] [--pool <id>] [--json | --pretty]
 
 | Flag | What it does |
 |---|---|
-| `--pool <id>` | List that pool's sessions, each by the pool its requests were routed within, a session from before pools the first pool's. A session given is found in whatever pool it's in, or with `--pool`, among that pool's alone. A pool removed, or another Mac's from an import, is read by its id too. See [Reading a pool](#reading-a-pool). |
+| `--pool <id>` | List that pool's sessions, each by the pool its requests were routed within, a session from before pools the first pool's. A session given is found in whatever pool it's in, its page its work in the pool it's in now, or with `--pool`, in that pool alone, its page its work there. A pool removed, or another Mac's from an import, is read by its id too. See [Reading a pool](#reading-a-pool). |
 | `--json` | Print the sessions, or the session's page, as JSON, even on a terminal. It does so off a terminal anyway. See [`sessions`' JSON](reference.md#sessions-json). |
 | `--pretty` | Print the text, even off a terminal, as it does on one. |
 

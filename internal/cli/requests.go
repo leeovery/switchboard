@@ -47,9 +47,10 @@ as much of it as is unique among the sessions read, and --account an
 account's, by its id: a label is refused.
 
 It lists one pool's requests, each by the pool it was routed in at the time,
-one from before pools the first pool's. ` + readingAPool + ` A session's or
-an account's requests are found in whatever pool each was routed in, or with
---pool, in that pool alone.
+one from before pools the first pool's. ` + readingAPool + ` A session's
+requests are those in the pool it's in now, the one its newest request was
+routed in, and an account's those in the pool it's in now, or with --pool,
+in that pool alone, never every pool's together.
 
 ` + readingAKeptPool + `
 
@@ -128,15 +129,23 @@ func pricing(cfg *config.Config) ledger.Table {
 
 // requestsPool returns the pool whose lines requests reads as opts ask, of
 // the files in the state directory dir, as filedPool has it of cfg, and cfg
-// as its pools stand: every pool's where a session or an account is asked
-// for and no pool named, as a verb naming them takes their pool from them,
-// their lines found in whatever pool each was routed in, cfg then as
-// standing has it.
+// as its pools stand, as a verb naming a session or an account takes its
+// pool from it where no pool is named, cfg then as standing has it: a
+// session's, every pool's, its lines narrowed to the pool it's in once
+// they're found, as linesIn has them; an account's, the pool it's in now, as
+// accountIn has it.
 func (a *app) requestsPool(ctx context.Context, cfg *config.Config, dir string, opts requestsOptions) (filedPool, *config.Config, error) {
-	if (opts.session != "" || opts.account != "") && opts.pool == "" {
+	switch {
+	case opts.pool != "":
+		return a.filedPool(ctx, cfg, dir, opts.pool)
+	case opts.session != "":
 		return filedPool{}, a.standing(ctx, cfg), nil
+	case opts.account != "":
+		standing := a.standing(ctx, cfg)
+		pool, err := a.accountIn(standing, dir, opts.account)
+		return pool, standing, err
 	}
-	return a.filedPool(ctx, cfg, dir, opts.pool)
+	return a.filedPool(ctx, cfg, dir, "")
 }
 
 // requests prints the ledger's lines as opts ask.
@@ -161,11 +170,16 @@ func (a *app) requests(ctx context.Context, out io.Writer, opts requestsOptions)
 			return err
 		}
 	}
-	lines := pool.read.Lines(reader.Lines(from))
+	lines := pool.lines(reader, from)
 	if opts.session != "" {
 		named, held := views.NamedLines(lines, opts.session)
 		if named.Several != nil {
 			return several(opts.session, named.Several)
+		}
+		if opts.pool == "" {
+			if held, pool, err = a.linesIn(cfg, dir, held); err != nil {
+				return err
+			}
 		}
 		lines = slices.Values(held)
 	}

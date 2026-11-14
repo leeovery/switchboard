@@ -756,8 +756,8 @@ Every `worth` is exact, with `unpriced` beside it naming what the worth leaves o
 
 `sessions`' JSON is `{"schema", "generated_at", "prices_as_of", "sessions", "today"}`. Once the
 config has pools, it lists one pool's sessions, each by the pool its requests were routed within, a
-session from before pools the first pool's; a session's page is the session's, whatever pool it's
-in.
+session from before pools the first pool's; a session's page is its work in the pool `--pool`
+names, else in the pool it's in now, the one its newest request was routed in.
 
 `sessions` lists each session, with these:
 

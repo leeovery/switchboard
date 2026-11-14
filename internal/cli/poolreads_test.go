@@ -91,17 +91,21 @@ func TestThePoolsOfAConfigNamingNoneAreLabelledAsTheRecordKeepsThem(t *testing.T
 	}
 }
 
-// requests --account without --pool reads the account's requests in
-// whatever pool each was routed in, as a verb naming accounts takes their
-// pool from them: none asked for where every pool is fenced.
-func TestRequestsOfAnAccountAreReadInWhateverPoolEachWasRoutedIn(t *testing.T) {
+// requests --account without --pool reads the account's requests in the
+// pool it's in now, as a verb naming accounts takes their pool from them,
+// none asked for where every pool is fenced: so one moved from Default into
+// Acme has its requests in Acme listed, never Default's with them; with
+// --pool, those in that pool alone.
+func TestRequestsOfAnAccountAreReadInThePoolItsInNow(t *testing.T) {
 	for _, fenced := range []bool{false, true} {
 		deps := pooledDeps(t, fenced)
+		appendRequests(t, deps, ledger.Line{At: october(7, 8, 0, 0), Request: "p0", Session: sessionC, Account: "work", Pool: "b2n8"})
 		tests := []struct {
 			args []string
 			want []string
 		}{
 			{args: []string{"--account", "work"}, want: []string{"p2"}},
+			{args: []string{"--account", "work", "--pool", "b2n8"}, want: []string{"p0"}},
 			{args: []string{"--account", "side"}, want: []string{"p1", "p3"}},
 			{args: []string{"--account", "side", "--pool", "q7mt"}},
 		}

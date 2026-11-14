@@ -43,8 +43,10 @@ it, and its totals. A session of an earlier day is found by its whole id.
 
 It lists one pool's sessions, each by the pool its requests were routed in,
 one from before pools the first pool's. ` + readingAPool + ` A session
-given is found in whatever pool it's in, or with --pool, among the router's
-sessions in that pool alone.
+given is found in whatever pool it's in, its page that of its work in the
+pool it's in now, the one its newest request was routed in; or with
+--pool, in that pool alone, its page that of its work there, among the
+router's sessions there.
 
 ` + readingAKeptPool + `
 
@@ -97,7 +99,7 @@ func (a *app) sessions(ctx context.Context, out, errOut io.Writer, named string,
 	list := views.ListSessions(views.SessionSources{
 		Running:  running,
 		Unlisted: unlisted,
-		Ledger:   pool.read.Ledger(readers.ledger),
+		Ledger:   pool.sessions(readers),
 		Prices:   pricing(cfg),
 		Now:      now,
 	})
