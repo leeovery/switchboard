@@ -213,10 +213,11 @@ func (d SessionDays) readLater(day sessionDay) bool {
 	return found && d.days[i].at.After(day.at)
 }
 
-// TodayAlone is d's fold of today's sessions alone, the days gone it holds
+// TodayAlone is d's fold of today's sessions alone, and how many times it
+// took lines in or began afresh, so Told sees each; the days gone it holds
 // let go of, so it owes none of them a read.
 func (d SessionDays) TodayAlone() SessionDays {
-	return SessionDays{today: d.today, held: d.held}
+	return SessionDays{today: d.today, held: d.held, folds: d.folds}
 }
 
 // turned reports whether the day has turned at now since d's today, the

@@ -218,15 +218,15 @@ func (t projectsTab) tailFed(days views.SessionDays) projectsTab {
 // SESSIONS scrolled no further than it now goes, and to show the session
 // selected, where it showed before, as selectionShows has it, or where the
 // user was in it as the page was let go, as projectsReturned has it. Where
-// there are no days to build it of, it shows none, as projectsAwaited has
-// it. Never a frame at a time, which takes nothing in.
+// there are no days to build it of, it waits, as projectsWaiting has it.
+// Never a frame at a time, which takes nothing in.
 func (m Model) projectsBuilt(msg tea.Msg) Model {
 	if _, frame := msg.(frameMsg); frame || m.view != dashboard.Projects {
 		return m
 	}
 	now := m.now()
 	if !m.projectsReady(now) {
-		return m.projectsAwaited()
+		return m.projectsWaiting(now)
 	}
 	list := m.held.List(m.listLive(now, m.traffic.stream(now)))
 	of := projectsPageOf{read: m.projects.read, fed: m.projects.fed, period: m.period, day: dayfile.DateOf(now), running: runningOf(list)}
@@ -270,11 +270,32 @@ func (m Model) projectsInput(now time.Time, list views.SessionList) views.Projec
 // on another tab, nor as the dial reaches further back, till the read of the
 // days it reaches lands.
 func (m Model) projectsReady(now time.Time) bool {
+	return m.cfg.Ledger == nil || m.projectsReached(now) && m.tail.readOn(views.Today(now))
+}
+
+// projectsReached reports whether the days read for Projects reach back to
+// the first day of the period at now.
+func (m Model) projectsReached(now time.Time) bool {
 	t := m.projects
-	if m.cfg.Ledger == nil {
-		return true
+	return t.days != nil && !m.period.From(now, m.cfg.WeekStarts).Before(t.from)
+}
+
+// projectsWaiting is m with Projects waiting at now on what its page is
+// built of, as projectsReady has it. Where the tail alone is yet to be read
+// on the day, as just past midnight or after a night on another tab, a read
+// of it is due at once, not at the next look, where none is under way; and
+// the page is kept drawn as it was built, never built again of the fold of
+// a day gone, where it was built for the period shown. Else it's let go to
+// await what it's built of, as projectsAwaited has it.
+func (m Model) projectsWaiting(now time.Time) Model {
+	if !m.projectsReached(now) {
+		return m.projectsAwaited()
 	}
-	return t.days != nil && m.tail.readOn(views.Today(now)) && !m.period.From(now, m.cfg.WeekStarts).Before(t.from)
+	m.tail.due = m.tail.due || !m.tail.busy()
+	if m.projects.shown.Page != nil && m.projects.pageOf.period == m.period {
+		return m
+	}
+	return m.projectsAwaited()
 }
 
 // projectsDays are the days Projects' page is built of, once they're ready,

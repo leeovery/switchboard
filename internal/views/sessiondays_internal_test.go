@@ -51,8 +51,8 @@ func TestTheLaterReadOfADayStands(t *testing.T) {
 
 // Days tell otherwise than those they were fed from where today is another
 // day, its fold took lines in or began afresh, or a day gone is of another
-// read, or another day is held, or one let go of; never where they hold the
-// same reads.
+// read or owed where it wasn't, or another day is held, or one let go of;
+// never where they hold the same reads.
 func TestDaysToldOtherwiseAsTheirDayFoldOrReadsChange(t *testing.T) {
 	at := time.Date(2026, 10, 8, 0, 30, 0, 0, time.UTC)
 	was := SessionDays{today: LedgerDay{Date: "2026-10-08"}, folds: 3, days: []sessionDay{dayCopy("2026-10-07", "tail", at, false)}}
@@ -66,6 +66,10 @@ func TestDaysToldOtherwiseAsTheirDayFoldOrReadsChange(t *testing.T) {
 		{"today's fold taking lines in", func(d SessionDays) SessionDays { d.folds++; return d }, true},
 		{"a day of another read", func(d SessionDays) SessionDays {
 			d.days = []sessionDay{dayCopy("2026-10-07", "tail", at.Add(time.Minute), false)}
+			return d
+		}, true},
+		{"a day owed alone", func(d SessionDays) SessionDays {
+			d.days = []sessionDay{dayCopy("2026-10-07", "tail", at, true)}
 			return d
 		}, true},
 		{"another day held", func(d SessionDays) SessionDays {

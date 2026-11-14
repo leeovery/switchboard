@@ -3957,8 +3957,9 @@ draw it, the tab names in its title row aside, and kept in `testdata/vhs/referen
   read of its lines whole, and every day slept through owed too, till the tail's read of the days
   it followed no further gives them (`SessionDays.Owed` names them, and `Tailed` takes every date
   read, so a day read of no lines is owed no more), so no line is lost or counted twice. The watch
-  builds no page of a fold whose day has gone: till the tail is read on the day, as after a night on
-  another tab or past midnight, Projects awaits it, as before its first read. The read of the tail
+  builds no page of a fold whose day has gone: till the tail is read on the day, as past midnight or
+  after a night asleep, Projects keeps the page it built, drawn as it was, and asks the tail's read
+  at once; with no page of the period to keep, it awaits it, as before its first read. The read of the tail
   that finds the day turned reads them, once for every reader that wants a day; and every day any
   read of the tail reads again whole is taken in too, so the line of a request across midnight,
   filed on the day gone after the turn's read, comes as the List's read for it finds it. Till

@@ -522,7 +522,7 @@ func TestTheDaysReadJoinTheDaysTheTailFed(t *testing.T) {
 }
 
 // Today's fold alone lets go of the days gone the days hold, owing none of
-// them a read, and folds on what the tail gives of today.
+// them a read, and folds on what the tail gives of today, each fold told.
 func TestTodayAloneLetsGoOfTheDaysGone(t *testing.T) {
 	tuesday, wednesday := october(6, 23, 0), october(7, 0, 5)
 	early := projectAsk(repoSession, "/code/switchboard", "", "work", opus, october(6, 10, 0))
@@ -536,8 +536,12 @@ func TestTodayAloneLetsGoOfTheDaysGone(t *testing.T) {
 	if owed := alone.Owed(wednesday); len(owed) > 0 {
 		t.Errorf("today's alone owes %v, want none", owed)
 	}
-	if got := alone.Tailed(after[1:], false, nil, nil, wednesday).Projects(projectsIn(views.PeriodThisWeek, wednesday)).All.Requests; got != 2 {
+	fed := alone.Tailed(after[1:], false, nil, nil, wednesday).TodayAlone()
+	if got := fed.Projects(projectsIn(views.PeriodThisWeek, wednesday)).All.Requests; got != 2 {
 		t.Errorf("today's alone, fed today's second, counts %d requests this week, want today's 2", got)
+	}
+	if !fed.Told(alone) {
+		t.Error("today's alone, fed today's second, tells nothing otherwise, want it told")
 	}
 }
 

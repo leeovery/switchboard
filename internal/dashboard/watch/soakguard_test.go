@@ -424,10 +424,11 @@ func (g *storeGuard) took(msg tea.Msg, was Model) {
 
 // tailed judges a read of the tail that landed, the model as it was before:
 // what it read, as judged and todays have it; the sessions' days it fed
-// owing no day, nor holding one Projects' read stands for, so they hold
-// only the days since; and, where it fed the store, what the feed folded
-// and the store holds open, as fedFrom has them, then what it holds, its
-// List and Projects' page, at the moments due.
+// owing no day, and holding nothing views.SessionDays' Without would let go
+// of against Projects' read, the watch having let go of it, as Without's
+// own tests hold what it lets go of; and, where it fed the store, what the
+// feed folded and the store holds open, as fedFrom has them, then what it
+// holds, its List and Projects' page, at the moments due.
 func (g *storeGuard) tailed(msg tailedMsg, was Model) {
 	g.t.Helper()
 	g.judged(was)
@@ -437,7 +438,7 @@ func (g *storeGuard) tailed(msg tailedMsg, was Model) {
 		g.t.Errorf("at %s the sessions' days the tail fed owe %v, want each day they owed read whole in the read that found the day turned", now.Format(time.DateTime), owed)
 	}
 	if p.days != nil && p.tailed.Told(p.tailed.Without(*p.days)) {
-		g.t.Errorf("at %s the sessions' days the tail fed hold a day Projects' read stands for, want it let go of", now.Format(time.DateTime))
+		g.t.Errorf("at %s the sessions' days the tail fed hold what Without lets go of against Projects' read, want the watch to have let go of it", now.Format(time.DateTime))
 	}
 	if msg.held == nil {
 		return

@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	tea "charm.land/bubbletea/v2"
+
 	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/dayfile"
@@ -226,28 +228,54 @@ func TestTheDaysTheTailsDaysOweAreReadThoughNoReaderWantsThem(t *testing.T) {
 }
 
 // After a night on another tab, Projects first shown builds no page till
-// the tail is read on the new day, though its own read lands first: the
-// tail's fold of the day gone never stands for that day, whose lines filed
-// after the tail's last read the page then counts.
+// the tail is read on the new day, though its own read lands first, and
+// asks that read at once, not at the next look: the tail's fold of the day
+// gone never stands for that day, whose lines filed after the tail's last
+// read the page then counts.
 func TestProjectsAwaitsTheTailsFirstReadOfTheDay(t *testing.T) {
 	h := projectsHarness(t, dashboard.Overview)
 	h.clock.now = onTheDay(23, 0, 0)
 	h.start()
 	projectsLedgerOf(h).write(projectAsks(betaOnly, "/code/beta", onTheDay(23, 30, 0), 1)...)
 	h.clock.now = onTheDay(24+9, 0, 0)
-	h.keys(tabKey, tabKey)
-	if p := h.model.projects; h.model.view != dashboard.Projects || p.days == nil || p.shown.Page != nil || !h.model.awaiting() {
-		t.Fatalf("shown the morning after, on %s, its days read %v, a page built %v, awaiting %v; want Projects, its days read, no page, awaiting the tail's read",
-			h.model.view, p.days != nil, p.shown.Page != nil, h.model.awaiting())
+	h.keys(tabKey)
+	held := holdingBack[tailedMsg](h, h.update(tabKey)...)
+	if p := h.model.projects; h.model.view != dashboard.Projects || len(held) != 1 || p.days == nil || p.shown.Page != nil || !h.model.awaiting() {
+		t.Fatalf("shown the morning after, on %s, %d reads of the tail held, its days read %v, a page built %v, awaiting %v; want Projects, the tail's read asked, its days read, no page, awaiting it",
+			h.model.view, len(held), p.days != nil, p.shown.Page != nil, h.model.awaiting())
 	}
-	h.read(routerDocument(three()...))
+	h.deliver(held...)
 	sameAsFresh(t, h, 7, "the tail's first read of the day")
+}
+
+// Open across midnight, Projects keeps its page drawn as it was built, not
+// loading, nor built again of the tail's fold of the day gone, and asks a
+// read of the tail at once, not at the next look; once it lands, the page is
+// today's, the day gone's and today's lines counted.
+func TestProjectsKeepsItsPageAcrossMidnightTillTheTailsReadOfTheDay(t *testing.T) {
+	h := projectsHarness(t, dashboard.Projects)
+	h.clock.now = onTheDay(23, 59, 30)
+	h.start()
+	if h.model.tail.due || h.model.tail.busy() {
+		t.Fatal("the read of the tail is due or under way before midnight, want neither, for the turn to ask it")
+	}
+	pages, page := h.model.projects.pages, h.model.projects.shown.Page
+	projectsLedgerOf(h).write(projectAsks(betaOnly, "/code/beta", onTheDay(24, 0, 2), 1)...)
+	h.clock.now = onTheDay(24, 0, 5)
+	held := holdingBack[tailedMsg](h, h.update(tea.WindowSizeMsg{Width: 160, Height: 50})...)
+	if p := h.model.projects; len(held) != 1 || p.shown.Page != page || p.pages != pages || h.model.awaiting() {
+		t.Fatalf("past midnight, %d reads of the tail held, the page kept %v, built %d times more, awaiting %v; want the tail's read asked, the page kept unbuilt, not awaiting",
+			len(held), p.shown.Page == page, p.pages-pages, h.model.awaiting())
+	}
+	h.deliver(held...)
+	sameAsFresh(t, h, 7, "the tail's read of the day landed")
 }
 
 // A later read of a day gone stands for the tail's copy of it: the day read
 // whole as it turned, a line filed on it after with no reader awaiting it,
 // and a step further back hours later reading it with the line, the page
-// counts the line, and the tail's copy is let go of.
+// counts the line; and the watch has let go of what Without lets go of,
+// whose drops views' TestTheLaterReadOfADayStands holds.
 func TestALaterReadOfADayGoneStandsForTheTailsCopy(t *testing.T) {
 	night := onTheDay(23, 59, 30)
 	h := projectsHarness(t, dashboard.Projects)
@@ -260,8 +288,28 @@ func TestALaterReadOfADayGoneStandsForTheTailsCopy(t *testing.T) {
 	h.deliver(h.press(">")...)
 	sameAsFresh(t, h, 8, "a step to 30 days at ten read the day gone again")
 	if p := h.model.projects; p.tailed.Told(p.tailed.Without(*p.days)) {
-		t.Error("the tail's days hold a day the read stands for, want it let go of")
+		t.Error("the tail's days hold what Without lets go of, want the watch to have let go of it")
 	}
+}
+
+// A read of the tail under way as Projects first shows, asked before it
+// asked for its days, so feeding them today's alone, still tells its page
+// the line it gained once it lands, though Projects' read landed first and
+// the page was built of the fold before it.
+func TestATailReadUnderWayAsProjectsFirstShowsBuildsItsPageAgain(t *testing.T) {
+	h := projectsHarness(t, dashboard.Sessions)
+	h.start()
+	projectsLedgerOf(h).write(projectAsks(betaOnly, "/code/beta", h.clock.now.Add(-time.Second), 1)...)
+	read := h.readingTheTail()
+	if h.model.projects.asked != 0 {
+		t.Fatal("Projects asked for its days before the read of the tail was asked, want it not yet shown")
+	}
+	h.keys(shiftTabKey, shiftTabKey)
+	if p := h.model.projects; h.model.view != dashboard.Projects || p.shown.Page == nil || p.shown.Page.All.Requests != 6 {
+		t.Fatalf("shown, on %s, a page built %v; want Projects, its page built of the fold before the read under way, 6 requests", h.model.view, p.shown.Page != nil)
+	}
+	h.deliver(h.run(read)...)
+	sameAsFresh(t, h, 7, "the read under way landed")
 }
 
 // A read of the tail counts as feeding Projects' days only where it changed
@@ -273,21 +321,24 @@ func TestProjectsCountsAsFedOnlyWhatChangedItsDays(t *testing.T) {
 	h.start()
 	h.deliver(h.press(">")...)
 	p, now := h.model.projects, h.clock.now
+	later := now.Add(time.Second)
 	gamma := projectAsks(gammaOnly, "/code/gamma", now.AddDate(0, 0, -1), 1)
 	tests := []struct {
 		name   string
 		gained []ledger.Held
+		afresh bool
 		days   map[string][]ledger.Held
 		fed    bool
 	}{
 		{name: "nothing read"},
 		{name: "a line of today", gained: projectAsks(betaOnly, "/code/beta", now, 1), fed: true},
+		{name: "today's read afresh", afresh: true, fed: true},
 		{name: "lines all of another day", gained: gamma},
-		{name: "a day they keep read whole", days: map[string][]ledger.Held{dayfile.DateOf(gamma[0].At): gamma}, fed: true},
+		{name: "a day they keep read whole after Projects' read", days: map[string][]ledger.Held{dayfile.DateOf(gamma[0].At): gamma}, fed: true},
 		{name: "a day before Projects' read's first read whole", days: map[string][]ledger.Held{dayfile.DateOf(now.AddDate(0, 0, -40)): nil}},
 	}
 	for _, tt := range tests {
-		fed := p.tailFed(projectsFeed{days: p.tailed, keeps: true}.fed(tailLines{gained: tt.gained, days: tt.days}, now))
+		fed := p.tailFed(projectsFeed{days: p.tailed, keeps: true}.fed(tailLines{gained: tt.gained, afresh: tt.afresh, days: tt.days}, later))
 		if got := fed.fed != p.fed; got != tt.fed {
 			t.Errorf("%s, counted as fed %t, want %t", tt.name, got, tt.fed)
 		}
