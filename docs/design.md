@@ -3949,16 +3949,20 @@ draw it, the tab names in its title row aside, and kept in `testdata/vhs/referen
   lines as each read of the ledger's tail gives them, folded by the hour, a line the ledger's files
   hold twice counted once, as the List and the Log count it. Projects never reads today's lines
   whole: its reads read the days before today alone, joined to those the tail fed
-  (`SessionDays.Joined`), today's and each day the tail turned or read again whole the tail's, so a
-  read landing after a read of the tail keeps what the tail gave meanwhile. A day that turns keeps
-  what today held as that day's, owed a read of its lines whole, and every day slept through owed
-  too, till the tail's read of the days it followed no further gives them (`SessionDays.Owed` names
-  them, and `Tailed` takes every date read, so a day read of no lines is owed no more), so no line
-  is lost or counted twice; a page built before that read counts what was held as the day gone's.
-  The read of the tail that finds the day turned reads them, once for every reader that wants a
-  day; and every day any read of the tail reads again whole is taken in too, so the line of a
-  request across midnight, filed on the day gone after the turn's read, comes as the List's read
-  for it finds it. Till Projects first asks for its own days, the tail's keep today's alone, the
+  (`SessionDays.Joined`), today's the tail's, so a read landing after a read of the tail keeps what
+  the tail gave meanwhile, and of each day gone both hold, the copy read whole later, an owed one
+  never; as a read of Projects' lands, and at each read of the tail, the tail's days let go of each
+  day the read holds of a later read, and of each before the first it read (`SessionDays.Without`),
+  so they hold only the days since it. A day that turns keeps what today held as that day's, owed a
+  read of its lines whole, and every day slept through owed too, till the tail's read of the days
+  it followed no further gives them (`SessionDays.Owed` names them, and `Tailed` takes every date
+  read, so a day read of no lines is owed no more), so no line is lost or counted twice. The watch
+  builds no page of a fold whose day has gone: till the tail is read on the day, as after a night on
+  another tab or past midnight, Projects awaits it, as before its first read. The read of the tail
+  that finds the day turned reads them, once for every reader that wants a day; and every day any
+  read of the tail reads again whole is taken in too, so the line of a request across midnight,
+  filed on the day gone after the turn's read, comes as the List's read for it finds it. Till
+  Projects first asks for its own days, the tail's keep today's alone, the
   days gone let go of and none read again for them, as that first read reads every day gone it
   shows: so a watch that never shows Projects reads no day more than it did. The List says which
   are running. Worth is priced as it's read, at the prices Past and the List price at.
@@ -4007,22 +4011,26 @@ draw it, the tab names in its title row aside, and kept in `testdata/vhs/referen
 - **What the watch holds:** the sessions' days before today, read off the update loop once
   Projects first shows, from the period's first day, and again only where the dial reaches further
   back; and today's, folded off the loop at every read of the ledger's tail from the first, whether
-  or not Projects has shown, with each day turned since Projects first asked for its own, each fold
-  costing what the read gained: by the end of a day of 25,000 requests it holds some 2 MB, nearly
-  all of it the keys of the lines taken, kept so a line given again counts once. No page is built
-  for a period the days held
-  don't reach, nor before the tail's first read, so a step further back draws what the first
-  read draws, loading only while there's no page to draw, till its read lands, and then returns
+  or not Projects has shown, with each day turned since Projects first asked for its own. By the
+  end of a day of 25,000 requests the fold holds some 2 MB, nearly all of it the keys of the lines
+  taken, kept so a line given again counts once; and as the fold is a value, a read that gains a
+  line copies those keys whole, so a read costs what the day holds, under a millisecond by its end,
+  not what it gained, and holds about twice the 2 MB while a copy is under way. No page is built
+  for a period the days held don't reach, nor before the tail's first read of the day, so a step
+  further back draws what the first read draws, loading only while there's no page to draw, till
+  its read lands, and then returns
   to where the user was, in the list or SESSIONS, scrolled as far as it was, the session selected
   kept in view, but where the project chosen left the list; without a ledger, the page is built
   of the sessions running alone, as the List's are, and says `no sessions` where none runs. A
   step of the dial on Projects keeps SESSIONS' scroll, where every other tab's view goes back to
   its top, and each rebuild scrolls it no further than it then goes. The page is built again only
   as the days read, the period, the day or the List's sessions running change, or a read of the
-  tail could tell otherwise of today's or a day gone, as one gaining a line, reading today afresh
-  or a day again whole can; while another tab shows, such a change leaves it stale, built as
-  Projects next shows, never a frame at a time; and the chosen project's as the page or the choice
-  does. The project shown is held as chosen once any
+  tail tells otherwise of the days it fed (`SessionDays.Told`): today another day, its fold taking
+  a line of today in or begun afresh, or a day it keeps read again; never lines all of another day,
+  nor a day read whole for another reader that it lets go of. Whether it's to be built is judged
+  before the days are joined, joined only to build it. While another tab shows, such a change
+  leaves it stale, built as Projects next shows, never a frame at a time; and the chosen project's
+  as the page or the choice does. The project shown is held as chosen once any
   key or click moves the choice, the top row's included, else the top row is chosen as the list
   ranks afresh. The choice is kept by path, and the session selected by id, across a rebuild, and
   where the session selected showed, it's kept in view; a project that leaves the list leaves the

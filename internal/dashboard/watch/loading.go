@@ -34,7 +34,7 @@ type pageLoadingMsg struct {
 // awaiting reports whether the tab shown waits on a read of the files it's
 // drawn of: Accounts and History on the ledger's days; Projects on the
 // sessions' days, read for it and of the ledger's tail, while it has no
-// page to draw, as projectsDays has it, and the List held, which
+// page to draw, as projectsReady has it, and the List held, which
 // names its sessions running, as listAwaited has it; and Detail's SESSIONS,
 // listing a session, as followed held them for the message, on the List
 // held, as the Overview's SESSIONS and Sessions do, which names their

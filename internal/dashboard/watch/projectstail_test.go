@@ -6,9 +6,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/claude"
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/dayfile"
+	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/router"
+	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
@@ -28,15 +31,16 @@ func freshPage(h *harness) views.ProjectsPage {
 }
 
 // sameAsFresh fails the test where Projects' page shown isn't the one its
-// days read afresh build, as freshPage builds it, counting requests in all.
+// days read afresh build, as freshPage builds it, every project's page and
+// sessions alike, as drawnOf has them, counting requests in all.
 func sameAsFresh(t *testing.T, h *harness, requests int, after string) {
 	t.Helper()
-	page, fresh := h.model.projects.shown.Page, freshPage(h)
+	page := h.model.projects.shown.Page
 	if page == nil {
 		t.Fatalf("after %s, Projects shows no page, want one built", after)
 	}
-	if page.All.Requests != requests || !reflect.DeepEqual(page.Rows, fresh.Rows) {
-		t.Errorf("after %s, the page counts %d requests in rows\n%+v\nwant %d, the rows of the days read afresh\n%+v", after, page.All.Requests, page.Rows, requests, fresh.Rows)
+	if got, want := drawnOf(*page), drawnOf(freshPage(h)); page.All.Requests != requests || !reflect.DeepEqual(got, want) {
+		t.Errorf("after %s, the page counts %d requests, its projects\n%+v\nwant %d, the projects of the days read afresh\n%+v", after, page.All.Requests, got, requests, want)
 	}
 }
 
@@ -102,7 +106,11 @@ func TestProjectsIsBuiltAfreshOnlyAsTheTailGainsALine(t *testing.T) {
 		t.Errorf("a read of the tail gaining a line built the page %d times, want once", got-pages)
 	}
 	sameAsFresh(t, h, 7, "a read of the tail gained beta's third")
+	read := h.model.tail.at
 	h.tickUntilAsked()
+	if h.model.tail.at.Equal(read) {
+		t.Fatal("the second look read no more of the tail, want a read of it landed")
+	}
 	if got := h.model.projects.pages; got != pages+1 {
 		t.Errorf("a read of the tail gaining none built the page %d times more, want none", got-pages-1)
 	}
@@ -190,16 +198,140 @@ func TestTheTurnReadsNoDayForTheTailsDaysTillProjectsAsks(t *testing.T) {
 }
 
 // The days the sessions' days owe a read are read again whole by the read of
-// the tail, though no reader that folds it wants them, so the days read
-// always hold their lines.
+// the tail, though no reader that folds it wants them, and the days take
+// them in whole: so they owe none after, and count the day gone's lines
+// after their last read.
 func TestTheDaysTheTailsDaysOweAreReadThoughNoReaderWantsThem(t *testing.T) {
-	owed := []string{"2026-09-27", "2026-09-28"}
+	night, turned := onTheDay(23, 0, 0), onTheDay(24, 0, 10)
+	gone := dayfile.DateOf(night)
+	owed := []string{dayfile.DateOf(night.AddDate(0, 0, -1)), gone}
 	if got := lateDays(owed, nil, nil, nil); !slices.Equal(got, owed) {
 		t.Errorf("no reader folding the read, its late days are %v, want those owed, %v", got, owed)
 	}
 	if got := lateDays(owed, nil, nil, &heldFold{late: owed[1:]}); !slices.Equal(got, owed) {
 		t.Errorf("the store wanting the second too, the late days are %v, want each once, %v", got, owed)
 	}
+	early := projectAsks(alphaFirst, "/code/alpha", night.Add(-time.Hour), 3)
+	late := projectAsks(alphaFirst, "/code/alpha", night.Add(59*time.Minute), 1)
+	days := views.ReadSessionDays(ledger.Empty{}, onTheDay(0, 0, 0), night).Tailed(early, true, nil, nil, night)
+	feed := projectsFeed{days: days, keeps: true, owed: []string{gone}}
+	fed := feed.fed(tailLines{gained: projectAsks(betaOnly, "/code/beta", turned, 1), afresh: true, days: map[string][]ledger.Held{gone: slices.Concat(early, late)}}, turned)
+	if owed := fed.Owed(turned); len(owed) > 0 {
+		t.Errorf("fed the day gone whole, the days owe %v, want none", owed)
+	}
+	in := views.ProjectsInput{Period: views.PeriodThisWeek, Names: status.Names{}, Prices: ledger.Pricing, WeekStarts: time.Monday, Family: claude.Provider{}.Family, Now: turned}
+	if got := fed.Projects(in).All.Requests; got != 5 {
+		t.Errorf("fed the day gone whole, the days count %d requests, want its 4 and today's 1", got)
+	}
+}
+
+// After a night on another tab, Projects first shown builds no page till
+// the tail is read on the new day, though its own read lands first: the
+// tail's fold of the day gone never stands for that day, whose lines filed
+// after the tail's last read the page then counts.
+func TestProjectsAwaitsTheTailsFirstReadOfTheDay(t *testing.T) {
+	h := projectsHarness(t, dashboard.Overview)
+	h.clock.now = onTheDay(23, 0, 0)
+	h.start()
+	projectsLedgerOf(h).write(projectAsks(betaOnly, "/code/beta", onTheDay(23, 30, 0), 1)...)
+	h.clock.now = onTheDay(24+9, 0, 0)
+	h.keys(tabKey, tabKey)
+	if p := h.model.projects; h.model.view != dashboard.Projects || p.days == nil || p.shown.Page != nil || !h.model.awaiting() {
+		t.Fatalf("shown the morning after, on %s, its days read %v, a page built %v, awaiting %v; want Projects, its days read, no page, awaiting the tail's read",
+			h.model.view, p.days != nil, p.shown.Page != nil, h.model.awaiting())
+	}
+	h.read(routerDocument(three()...))
+	sameAsFresh(t, h, 7, "the tail's first read of the day")
+}
+
+// A later read of a day gone stands for the tail's copy of it: the day read
+// whole as it turned, a line filed on it after with no reader awaiting it,
+// and a step further back hours later reading it with the line, the page
+// counts the line, and the tail's copy is let go of.
+func TestALaterReadOfADayGoneStandsForTheTailsCopy(t *testing.T) {
+	night := onTheDay(23, 59, 30)
+	h := projectsHarness(t, dashboard.Projects)
+	h.clock.now = night
+	h.start()
+	h.clock.now = onTheDay(24, 0, 30)
+	h.read(routerDocument(three()...))
+	projectsLedgerOf(h).write(projectAsks(betaOnly, "/code/beta", night.Add(20*time.Second), 1)...)
+	h.clock.now = onTheDay(24+10, 0, 0)
+	h.deliver(h.press(">")...)
+	sameAsFresh(t, h, 8, "a step to 30 days at ten read the day gone again")
+	if p := h.model.projects; p.tailed.Told(p.tailed.Without(*p.days)) {
+		t.Error("the tail's days hold a day the read stands for, want it let go of")
+	}
+}
+
+// A read of the tail counts as feeding Projects' days only where it changed
+// them: a line of today, or a day they keep read whole again; never lines
+// all of another day, nor a day read whole for another reader before the
+// first Projects' read reads.
+func TestProjectsCountsAsFedOnlyWhatChangedItsDays(t *testing.T) {
+	h := projectsHarness(t, dashboard.Projects)
+	h.start()
+	h.deliver(h.press(">")...)
+	p, now := h.model.projects, h.clock.now
+	gamma := projectAsks(gammaOnly, "/code/gamma", now.AddDate(0, 0, -1), 1)
+	tests := []struct {
+		name   string
+		gained []ledger.Held
+		days   map[string][]ledger.Held
+		fed    bool
+	}{
+		{name: "nothing read"},
+		{name: "a line of today", gained: projectAsks(betaOnly, "/code/beta", now, 1), fed: true},
+		{name: "lines all of another day", gained: gamma},
+		{name: "a day they keep read whole", days: map[string][]ledger.Held{dayfile.DateOf(gamma[0].At): gamma}, fed: true},
+		{name: "a day before Projects' read's first read whole", days: map[string][]ledger.Held{dayfile.DateOf(now.AddDate(0, 0, -40)): nil}},
+	}
+	for _, tt := range tests {
+		fed := p.tailFed(projectsFeed{days: p.tailed, keeps: true}.fed(tailLines{gained: tt.gained, days: tt.days}, now))
+		if got := fed.fed != p.fed; got != tt.fed {
+			t.Errorf("%s, counted as fed %t, want %t", tt.name, got, tt.fed)
+		}
+	}
+}
+
+// A line filed on the day gone after the turn's read reaches Projects as
+// another reader reads the day again for it: on Sessions, Projects' days
+// read, the store, awaiting the line of a request across midnight the
+// stream told of, reads the day gone again once a read of today's lines
+// hasn't found it, and Projects' days take it in, though they owe it
+// nothing, its page counting it as Projects shows again.
+func TestALateLineOfTheDayGoneReachesProjectsThroughAnotherReadersRead(t *testing.T) {
+	night := onTheDay(23, 59, 30)
+	h := projectsHarness(t, dashboard.Projects)
+	h.clock.now = night
+	h.start()
+	h.keys(tabKey, tabKey)
+	if h.model.view != dashboard.Sessions {
+		t.Fatalf("tab twice from Projects shows %s, want Sessions", h.model.view)
+	}
+	h.clock.now = onTheDay(24, 0, 10)
+	h.read(routerDocument(three()...))
+	arrival := onTheDay(23, 59, 50)
+	line := took(arrivedAt("0a000009", arrival), 40*time.Second)
+	at := func(kind string, when time.Time) router.StreamEvent {
+		return alter(told(kind, "0a000009", "work", 0), func(e *router.StreamEvent) { e.At, e.Status = when.UTC(), 200 })
+	}
+	l := projectsLedgerOf(h)
+	l.write(line)
+	h.hear(at(router.StreamSent, arrival.Add(100*time.Millisecond)), at(router.StreamDone, line.At.Add(40*time.Second)))
+	read := len(l.days)
+	for _, second := range []int{35, 40, 45} {
+		h.clock.now = onTheDay(24, 0, second)
+		if owed := h.model.projectsFeed(h.clock.now).owed; len(owed) > 0 {
+			t.Fatalf("at 00:00:%d Projects' days owe %v, want none, the day gone read whole as it turned", second, owed)
+		}
+		h.read(routerDocument(three()...))
+	}
+	if gone := dayfile.DateOf(night); !slices.Contains(l.days[read:], gone) {
+		t.Fatalf("the looks after the request ended read the days %v whole, want the day gone among them, for the store", l.days[read:])
+	}
+	h.keys(shiftTabKey, shiftTabKey)
+	sameAsFresh(t, h, 7, "the store read the day gone again for its line, then Projects showed")
 }
 
 // A read further back landing after a read of the tail keeps what the tail

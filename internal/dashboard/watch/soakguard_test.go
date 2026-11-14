@@ -424,16 +424,20 @@ func (g *storeGuard) took(msg tea.Msg, was Model) {
 
 // tailed judges a read of the tail that landed, the model as it was before:
 // what it read, as judged and todays have it; the sessions' days it fed
-// owing no day; and, where it fed the store, what the feed folded and the
-// store holds open, as fedFrom has them, then what it holds, its List and
-// Projects' page, at the moments due.
+// owing no day, nor holding one Projects' read stands for, so they hold
+// only the days since; and, where it fed the store, what the feed folded
+// and the store holds open, as fedFrom has them, then what it holds, its
+// List and Projects' page, at the moments due.
 func (g *storeGuard) tailed(msg tailedMsg, was Model) {
 	g.t.Helper()
 	g.judged(was)
 	g.todays(msg, was.tail)
-	now := g.s.h.model.now()
-	if owed := g.s.h.model.projects.tailed.Owed(now); len(owed) > 0 {
+	now, p := g.s.h.model.now(), g.s.h.model.projects
+	if owed := p.tailed.Owed(now); len(owed) > 0 {
 		g.t.Errorf("at %s the sessions' days the tail fed owe %v, want each day they owed read whole in the read that found the day turned", now.Format(time.DateTime), owed)
+	}
+	if p.days != nil && p.tailed.Told(p.tailed.Without(*p.days)) {
+		g.t.Errorf("at %s the sessions' days the tail fed hold a day Projects' read stands for, want it let go of", now.Format(time.DateTime))
 	}
 	if msg.held == nil {
 		return
@@ -694,14 +698,13 @@ func (g *storeGuard) sameAsOneRead(now time.Time) {
 func (g *storeGuard) sameProjectsAsOneRead(now time.Time) {
 	g.t.Helper()
 	m, l := g.s.h.model, g.s.follower
-	days, ok := m.projectsDays(now)
-	if !ok {
+	if !m.projectsReady(now) {
 		g.t.Errorf("at %s Projects has no days to build its page of, want its read's joined to the tail's", now.Format(time.DateTime))
 		return
 	}
 	fresh := views.ReadSessionDays(l, m.projects.from, now).Tailed(l.Day(dayfile.DateOf(now)), true, nil, nil, now)
 	in := m.projectsInput(now, m.held.List(m.listLive(now, m.traffic.stream(now))))
-	if got, want := drawnOf(days.Projects(in)), drawnOf(fresh.Projects(in)); !reflect.DeepEqual(got, want) {
+	if got, want := drawnOf(m.projectsDays().Projects(in)), drawnOf(fresh.Projects(in)); !reflect.DeepEqual(got, want) {
 		gotJSON, _ := json.MarshalIndent(got, "", "  ")
 		wantJSON, _ := json.MarshalIndent(want, "", "  ")
 		g.t.Errorf("at %s Projects' page of the days read and the tail's is\n%s\nwant the page of its days read afresh\n%s", now.Format(time.DateTime), gotJSON, wantJSON)

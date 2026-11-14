@@ -72,17 +72,16 @@ func (r tailLines) all() [][]ledger.Held {
 	return append([][]ledger.Held{r.gained}, slices.Collect(maps.Values(r.days))...)
 }
 
-// told reports whether a read of the tail could tell otherwise of what was
-// folded of the lines before it: it gained a line, read today's afresh, or
-// read a day before today again whole.
-func (r tailLines) told() bool {
-	return len(r.gained) > 0 || r.afresh || len(r.days) > 0
-}
-
 // unread reports whether no reader has read the tail yet: the first to read
 // today's lines whole reads them for it.
 func (t ledgerTail) unread() bool {
 	return t.day.Date == ""
+}
+
+// readOn reports whether the tail was last read on today: never before its
+// first read.
+func (t ledgerTail) readOn(today views.LedgerDay) bool {
+	return t.day.Date == today.Date
 }
 
 // turned reports whether the day has turned since the tail was last read,
@@ -303,7 +302,7 @@ func readLines(l views.Ledger, mark ledger.Mark, late []string) (tailLines, ledg
 // lined has it, for letGo.
 func (m Model) tailed(msg tailedMsg) Model {
 	m.tail = m.tail.read(msg.tailRead)
-	m.projects = m.projects.tailFed(msg.days, msg.lines)
+	m.projects = m.projects.tailFed(msg.days)
 	m = m.traced(msg.lines.gained)
 	if msg.held != nil {
 		m = m.holding(msg.held.With(m.merged), msg.retells || m.mergedAny)

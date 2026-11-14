@@ -134,16 +134,28 @@ func (m Model) readProjects() (Model, tea.Cmd) {
 }
 
 // projectsRead takes in a read of the sessions' days for Projects, but one
-// another overtook: held in place of those held before, for its page to be
-// built afresh of them.
+// another overtook: held in place of those held before, the days the tail
+// fed letting go of those it stands for, as withoutRead has it, for its
+// page to be built afresh of them.
 func (m Model) projectsRead(msg projectsReadMsg) Model {
 	if msg.asked != m.projects.asked {
 		return m
 	}
 	m.projects.reading = false
 	m.projects.days, m.projects.from = &msg.days, msg.from
+	m.projects.tailed = m.projects.withoutRead(m.projects.tailed)
 	m.projects.read++
 	return m
+}
+
+// withoutRead is days, as the ledger's tail fed them, without those the
+// days read for Projects stand for, as views.SessionDays' Without has it:
+// every one kept till a read has landed.
+func (t projectsTab) withoutRead(days views.SessionDays) views.SessionDays {
+	if t.days == nil {
+		return days
+	}
+	return days.Without(*t.days)
 }
 
 // projectsFeed is what a read of the ledger's tail feeds the sessions' days
@@ -183,19 +195,22 @@ func (f projectsFeed) fed(read tailLines, now time.Time) views.SessionDays {
 }
 
 // tailFed is t with the sessions' days as a read of the ledger's tail fed
-// them, counted as fed where what it read could tell otherwise of them, as
-// told has it, for Projects' page to be built afresh of them as it shows.
-func (t projectsTab) tailFed(days views.SessionDays, read tailLines) projectsTab {
-	t.tailed = days
-	if read.told() {
+// them, without those the days read stand for, as withoutRead has it,
+// counted as fed where they tell otherwise than those held, as Told has it,
+// for Projects' page to be built afresh of them as it shows.
+func (t projectsTab) tailFed(days views.SessionDays) projectsTab {
+	days = t.withoutRead(days)
+	if days.Told(t.tailed) {
 		t.fed++
 	}
+	t.tailed = days
 	return t
 }
 
 // projectsBuilt is m with Projects' page built afresh of the days it's
 // built of at now, as projectsDays has them, while Projects shows, where
-// what it's built of has changed since it was built, as projectsPageOf has
+// they're ready, as projectsReady has it, and what it's built of has
+// changed since it was built, as projectsPageOf has
 // it: the days read, those the ledger's tail fed, the period, the day, or
 // the sessions the List lists running, so a change while another tab shows
 // builds it only as Projects shows again; and the chosen project's page,
@@ -210,8 +225,7 @@ func (m Model) projectsBuilt(msg tea.Msg) Model {
 		return m
 	}
 	now := m.now()
-	days, ok := m.projectsDays(now)
-	if !ok {
+	if !m.projectsReady(now) {
 		return m.projectsAwaited()
 	}
 	list := m.held.List(m.listLive(now, m.traffic.stream(now)))
@@ -225,7 +239,7 @@ func (m Model) projectsBuilt(msg tea.Msg) Model {
 	m, returned := m.projectsReturned()
 	sighted = sighted || returned
 	if rebuilt {
-		page := days.Projects(m.projectsInput(now, list))
+		page := m.projectsDays().Projects(m.projectsInput(now, list))
 		m.projects.shown.Page, m.projects.pageOf = &page, of
 		m.projects.pages++
 	}
@@ -248,23 +262,30 @@ func (m Model) projectsInput(now time.Time, list views.SessionList) views.Projec
 	}
 }
 
-// projectsDays are the days Projects' page is built of at now: those read,
-// joined to those the ledger's tail fed, as Joined joins them, where those
-// read reach back to the period's first day and the tail has been read, so
-// today's are the tail's, however late a read lands; none where there's no
-// ledger, the page built of the sessions running alone. It reports false
-// where they don't, as before the first read lands, or the tail's first,
-// or as the dial reaches further back, till the read of the days it reaches
-// lands.
-func (m Model) projectsDays(now time.Time) (views.SessionDays, bool) {
+// projectsReady reports whether Projects' page can be built at now: of the
+// sessions running alone, where there's no ledger; else where the days read
+// reach back to the period's first day, and the tail was last read today,
+// so its fold of a day gone never stands for that day. Not before the first
+// read lands, nor before the tail's first read of the day, as after a night
+// on another tab, nor as the dial reaches further back, till the read of the
+// days it reaches lands.
+func (m Model) projectsReady(now time.Time) bool {
 	t := m.projects
-	switch {
-	case m.cfg.Ledger == nil:
-		return views.SessionDays{}, true
-	case t.days == nil || m.tail.unread() || m.period.From(now, m.cfg.WeekStarts).Before(t.from):
-		return views.SessionDays{}, false
+	if m.cfg.Ledger == nil {
+		return true
 	}
-	return t.tailed.Joined(*t.days), true
+	return t.days != nil && m.tail.readOn(views.Today(now)) && !m.period.From(now, m.cfg.WeekStarts).Before(t.from)
+}
+
+// projectsDays are the days Projects' page is built of, once they're ready,
+// as projectsReady has it: those read, joined to those the ledger's tail
+// fed, as Joined joins them, so today's are the tail's, however late a read
+// lands; none where there's no ledger.
+func (m Model) projectsDays() views.SessionDays {
+	if m.cfg.Ledger == nil {
+		return views.SessionDays{}
+	}
+	return m.projects.tailed.Joined(*m.projects.days)
 }
 
 // projectsAwaited is m with Projects showing no page while its days are
