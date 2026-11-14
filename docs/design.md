@@ -1045,12 +1045,12 @@ totals.
   dashboard probe the pool's accounts, saying `the router doesn't route by pools yet, as it started
   before them: restart it with switchboard service restart`, the dashboard `○ probed · router
   started before pools` and, in LATELY, `the router started before pools: restart it`; `sessions`
-  lists the ledger's alone, as of a router that can't be asked, saying so; and `pin` and
-  `status --session --pool --json` refuse in those words, asking it nothing, the dashboard's `p` and
-  its card's orders in LATELY's, short enough for a phone's key line.
-  The label `status --session` prints, with `--pool` or without, asks no health and reads the
-  session as ever, as such a router passes the pool over and a session asked by its id is what it is
-  on any router, so a statusline asking at every refresh pays nothing for the check, nor a pooled
+  lists the ledger's alone, as of a router that can't be asked, saying so; and `pin` refuses in
+  those words, asking it nothing, the dashboard's `p` and its card's orders in LATELY's, short
+  enough for a phone's key line. `status --session` asks no health and reads the session as ever,
+  its label with `--pool` or without and its JSON without `--pool`, as such a router passes the pool
+  over and a session asked by its id is what it is on any router, refusing its JSON in a pool alone,
+  in those words: so a statusline asking at every refresh pays nothing for the check, nor a pooled
   one passing `--pool` (see The data verbs). It answers all the same, so the dashboard leaves the
   notifications to it, as while probing as asked. Where the config has no pools before the move to
   pools, or can't be read, the router is read as before, there being no pools to tell it by; once

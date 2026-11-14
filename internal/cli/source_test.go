@@ -204,9 +204,9 @@ func TestAVerbActingOnAPoolRefusesARouterFromBeforePools(t *testing.T) {
 
 // A router from before pools passes --pool over and answers for a session by
 // its id, what it is on any router, so the label status --session prints, as
-// a statusline asks at every refresh, with --pool or without, is read from
-// such a router without asking its health; its JSON in a pool asks, and is
-// refused.
+// a statusline asks at every refresh, with --pool or without, and its JSON
+// without --pool, are read from such a router without asking its health; its
+// JSON in a pool asks, and is refused.
 func TestStatusSessionsLabelReadsARouterFromBeforePoolsWithoutAskingItsHealth(t *testing.T) {
 	srv := newServeSetup(t, fakeClaudeAPI(t), nil)
 	health := new(atomic.Int64)
@@ -224,6 +224,11 @@ func TestStatusSessionsLabelReadsARouterFromBeforePoolsWithoutAskingItsHealth(t 
 		if got, want := run(t, srv.deps, args...), (result{stdout: "Side\n"}); got != want {
 			t.Errorf("switchboard %s = %+v, want %+v", strings.Join(args, " "), got, want)
 		}
+	}
+	got := run(t, srv.deps, "status", "--session", sessionOne, "--json")
+	var answered status.Session
+	if err := json.Unmarshal([]byte(got.stdout), &answered); got.code != 0 || err != nil || answered.ID != sessionOne || answered.AccountID() != "side" {
+		t.Errorf("switchboard status --session --json = %+v (%v), want the session's JSON, on side", got, err)
 	}
 	if health.Load() != 0 {
 		t.Errorf("the router's health was asked %d times, want never", health.Load())
