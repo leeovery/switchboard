@@ -790,6 +790,8 @@ Given a session, `sessions` prints that session's page:
   worth, accounts, labels}`, `labels` the labels of `accounts`, in the same order. `ended` is left
   out of a turn still going.
 - **`totals`:** `{turns, requests, from_cache, worth, unpriced}`.
+- **`pool` and `pool_label`:** Once the config has pools, the pool the page is of: the one `--pool`
+  names, else the one the session is in now.
 
 Every `worth` is exact, and left out where nothing was priced. `unpriced` names what the worth
 leaves out, as `history` names it.

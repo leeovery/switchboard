@@ -91,7 +91,8 @@ Claude pass `--pool "$SWITCHBOARD_POOL"`, the session's own pool.
   is refused, so passing `--pool` to every verb is always safe. Reading the recorded files, it
   never reads every pool's work together: a session's page and its requests are its work in the
   pool it's in now, the one its newest request was routed in, as a session resumed in another
-  pool may have work in both, and an account's requests are those in the pool it's in now. With
+  pool may have work in both, and an account's requests are those in the pool it's in now, or, of
+  one no pool keeps, as one an import brought, the pool its newest request was routed in. With
   `--pool`, a session with no work in that pool isn't found there.
 - Once there's a second pool, the text `status`, `usage`, `history`, `requests`, `sessions` and
   `events` print names the pool it read, as `pool Acme`, and the JSON gives each pool's id and
@@ -1407,7 +1408,7 @@ switchboard history [--since <when>] [--windows] [--pool <id>] [--json | --prett
 |---|---|
 | `--since <when>` | Start on the day of `<when>`: a day (`2026-10-01`), a time today (`14:00`), or a while ago (`3h`, `2d`). |
 | `--windows` | Print each account's every window's readings over those days, in place of the days. |
-| `--pool <id>` | Sum up that pool's history: its work as each request recorded its pool at the time, the work from before pools the first pool's, and the windows, plans and weeks of the accounts in it now. With `--windows`, the windows of the accounts in it now. A pool removed, or another Mac's from an import, is read by its id too. See [Reading a pool](#reading-a-pool). |
+| `--pool <id>` | Sum up that pool's history: its work as each request recorded its pool at the time, the work from before pools the first pool's, and the windows, plans and weeks of the accounts in it now. Its plans, months and tokens count from its first day of work, as the dashboard's do. With `--windows`, the windows of the accounts in it now. A pool removed, or another Mac's from an import, is read by its id too. See [Reading a pool](#reading-a-pool). |
 | `--json` | Print the blocks as JSON, even on a terminal. It does so off a terminal anyway. The JSON holds the day the prices were read, then the days' summaries, priced, then the year, months, weeks, tokens, totals, plans and capacity over them. With `--windows`, it holds the windows' readings. See [`history`'s JSON](reference.md#historys-json). |
 | `--pretty` | Print the text, even off a terminal, as it does on one. |
 

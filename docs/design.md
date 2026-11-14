@@ -985,11 +985,18 @@ totals.
   reads the session's work in the pool it's in now, the one its newest line recorded
   (`views.PoolNow`), its page and its requests, as a session resumed in another pool has work in
   both, a session of one pool read as ever; given an account, the account's in the pool it's in
-  now; and with `--pool`, a session with no work in that pool isn't found there, `no session …
-  in pool Acme`. `history` counts its days from where the pool's work begins (`views.PoolRead`'s
+  now, or, of one neither the config nor the accounts record places, as one an import brought or
+  one removed before pools, the pool its newest line recorded; and with `--pool`, a session with
+  no work in that pool isn't found there, `no session … in pool Acme`. A session's page names the
+  pool it read, its text headed `pool Acme` once there's a second, its JSON giving `pool` and
+  `pool_label`. Where the pools can't be told, a session or an account given without `--pool` is
+  refused as the listing verbs are; where a session's newest line names a pool neither the config
+  nor the record keeps, `can't tell which pool to read: the newest request names pool "x9z9", …`. `history` counts its days from where the pool's work begins (`views.PoolRead`'s
   Start), as the dashboard does, so a verb and the dashboard price a pool over the same days. What
-  a verb reads in a pool is built in one place, from the pool's read (`cli/poolfiles.go`), held
-  by a guard (`cli/poolfiles_guard_test.go`). `dashboard` takes `--pool` too, as The dashboard in
+  a verb reads of the recorded files is read in one place, through the pool's read
+  (`cli/poolfiles.go`), where the verbs' readers of the ledger, the readings and the events are
+  made too, held by a guard (`cli/poolfiles_guard_test.go`) that bans making or reading one
+  elsewhere, but where `readers.go` makes the verbs' and the dashboard's. `dashboard` takes `--pool` too, as The dashboard in
   a pool says.
 - **A pool the config no longer has** keeps its history, as the accounts record keeps the pool: the
   verbs that read the recorded files, `requests`, `history`, `sessions` and `events`, take
@@ -1303,6 +1310,9 @@ Accepted as the second phase was built, each failing safe, with nothing crossing
 - **A page's turn** is read of the whole ledger (`readTurn`), not through the pool's read: what it
   takes of it is one prompt's lines alone, and one prompt is one pool's, a session's pool being
   fixed for its process.
+- **A running session resumed in another pool,** read by a verb without `--pool`, reads its old
+  pool's work till its first request in the new one, as its pool now is the one its newest line
+  recorded, though the router already lists it running in the new one (see Reading a pool).
 - **An accounts record that can't be read** is warned of at each turn, once for each read of it:
   the accounts removed, the pools removed and the first pool are each read of it afresh.
 - **Downgrading to v0.7.2:**
@@ -1310,7 +1320,7 @@ Accepted as the second phase was built, each failing safe, with nothing crossing
     parts, are derived, so v0.7.2 builds them again in its own versions, and the second phase
     builds them again on the way back up;
   - v0.7.2 can't read a config with pools, so a pools router still running holds its restart, as
-    the new binary says it can't start, and v0.7.2's `claude` routes through it naming no pool, so
+    v0.7.2 says it can't start, and v0.7.2's `claude` routes through it naming no pool, so
     every session lands in the first pool; with the router down, sessions start on Claude Code's
     own login;
   - no data is harmed: nothing but what's derived is written again.
