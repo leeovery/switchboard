@@ -68,8 +68,8 @@ one pool, a router that doesn't route by the config's pools counts as down. A
 directory no pool covers starts nothing, nor does one two fenced pools hold,
 nor a worktree in one pool's fence whose place in its repository is in
 another pool or none, nor one run can't tell, as in a worktree whose
-repository can't be found or has no checkout to place it by, as a
-submodule's worktree, and nor does Claude Code's own login inside a
+repository can't be found, or a submodule's or a separate git
+directory's worktree, and nor does Claude Code's own login inside a
 fenced pool's directories or a worktree of a repository inside them, with
 --direct or without switchboard.
 

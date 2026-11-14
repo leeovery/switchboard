@@ -35,6 +35,18 @@ const (
 	submoduleConfig = "[core]\n\trepositoryformatversion = 0\n\tbare = false\n\tworktree = ../../../lib\n"
 )
 
+// perWorktree is a common directory's config turning on
+// extensions.worktreeConfig, as git's sparse-checkout does, moving a bare
+// repository's core.bare to its config.worktree; more is written in its
+// [core] section.
+func perWorktree(more string) string {
+	return "[core]\n\trepositoryformatversion = 1\n" + more + "[remote \"origin\"]\n\turl = x\n[extensions]\n\tworktreeConfig = true\n"
+}
+
+// movedBare is a bare repository's config.worktree once core.bare has been
+// moved there.
+const movedBare = "[core]\n\tbare = true\n"
+
 // planted lays out a fixture at root: its directories, dirs; its files,
 // files, each holding its text, "<root>" in it standing for root, the
 // directories they're in made too; and its links, each to the path it names,
@@ -253,7 +265,9 @@ func TestFindWorktreeReadsWhetherARepositoryIsBare(t *testing.T) {
 	tests := []struct {
 		name   string
 		config string
-		bare   bool
+		// worktree is the common directory's config.worktree, none where "".
+		worktree string
+		bare     bool
 	}{
 		{name: "bare = true", config: bareConfig, bare: true},
 		{name: "bare = false", config: notBareConfig},
@@ -264,6 +278,12 @@ func TestFindWorktreeReadsWhetherARepositoryIsBare(t *testing.T) {
 		{name: "1", config: "[core]\n\tbare = 1\n", bare: true},
 		{name: "commented out", config: "[core]\n\t# bare = true\n"},
 		{name: "in another section", config: "[core]\n\tfilemode = true\n[remote \"origin\"]\n\tbare = true\n"},
+		{name: "set twice, the last counting", config: "[core]\n\tbare = true\n\tbare = false\n"},
+		{name: "moved to config.worktree, as sparse-checkout moves it", config: perWorktree(""), worktree: movedBare, bare: true},
+		{name: "config.worktree's winning", config: perWorktree("\tbare = true\n"), worktree: "[core]\n\tbare = false\n"},
+		{name: "config's standing, config.worktree not setting it", config: perWorktree("\tbare = true\n"), worktree: "[core]\n\tsparseCheckout = true\n", bare: true},
+		{name: "config.worktree's last counting", config: perWorktree(""), worktree: "[core]\n\tbare = false\n\tbare = true\n", bare: true},
+		{name: "config.worktree unread, the extension off", config: "[core]\n\tbare = false\n", worktree: movedBare},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -271,6 +291,9 @@ func TestFindWorktreeReadsWhetherARepositoryIsBare(t *testing.T) {
 			files := map[string]string{"fix/.git": gitFile("api.git/worktrees/fix"), "api.git/worktrees/fix/commondir": toMain}
 			if tt.config != "" {
 				files["api.git/config"] = tt.config
+			}
+			if tt.worktree != "" {
+				files["api.git/config.worktree"] = tt.worktree
 			}
 			planted(t, root, []string{"api.git/worktrees/fix", "fix"}, files, nil)
 
@@ -314,21 +337,27 @@ func TestFindWorktreeOfNoDirectoryIsNone(t *testing.T) {
 //   - acme, in Acme's fence, with a submodule, lib, a link, clientward, into
 //     Client's fence, and a worktree of lib, lib-wt; its worktrees
 //     acme-feature, beside it, with lib checked out, a clone nested at
-//     vendor/dep, a worktree of web nested at web-wt, a plain folder
-//     clientward, and links shared, out to elsewhere-data, and gone-link,
-//     into gone-wt; one Claude Code made within it; client/acme-wt, in
-//     Client's fence; via-wt, whose .git names acme through links/acme; and
-//     rel-wt, made with relative paths, holding a link, webby, to web's
-//     worktree web-wt2, and reached through shortcuts/rel-wt too;
+//     vendor/dep, a worktree of web nested at web-wt, holding a worktree of
+//     mono, mono-in, a worktree of repos/tools.git nested at tools, a plain
+//     folder clientward, and links shared, out to elsewhere-data, and
+//     gone-link, into gone-wt; one Claude Code made within it;
+//     client/acme-wt, in Client's fence; via-wt, whose .git names acme
+//     through links/acme; viagit-wt, whose .git names its git directory
+//     through a link to it, links/viagit; and rel-wt, made with relative
+//     paths, holding a link, webby, to web's worktree web-wt2, and reached
+//     through shortcuts/rel-wt too;
 //   - web, in no fence, with a submodule, lib, and worktrees inside Acme's
 //     fence, acme/web-wt, and beside it, web-wt2;
 //   - mono, whose api subfolder is Client's, with a worktree beside it,
 //     mono-wt, holding a link, to-acme, to acme-feature/api;
 //   - other/app, in no fence, with a submodule, lib;
-//   - bare repositories: acme/api.git, with a worktree beside acme, bare-wt;
-//     client/svc/.bare, with worktrees client/svc/main and svc-hot;
-//     tools/.bare, in no fence, with a worktree tools/main; and repos/app.git,
-//     beside Code, in no fence, with a worktree in Client's, client/app;
+//   - bare repositories: acme/api.git, with worktrees beside acme, bare-wt,
+//     and in Client's fence, client/api-wt; client/svc/.bare, with worktrees
+//     client/svc/main and svc-hot; client/sparse/.bare, its core.bare moved
+//     to its config.worktree, with a worktree client/sparse/main;
+//     tools/.bare, in no fence, with a worktree tools/main; and, beside Code,
+//     in no fence, repos/app.git, with a worktree in Client's fence,
+//     client/app, and repos/tools.git;
 //   - gitdirs/proj.git, beside Code, the separate git directory of
 //     client/proj, with a worktree beside it, proj-wt;
 //   - gone-wt, a worktree whose git directory isn't there, holding a link,
@@ -348,6 +377,8 @@ func worktreeTree(t *testing.T) string {
 			"Code/web-wt2", "Code/mono/api", "Code/mono-wt/api", "Code/via-wt", "Code/rel-wt", "shortcuts",
 			"Code/other/app/.git/modules/lib", "Code/other/app/lib", "Code/bare-wt", "Code/client/svc/main", "Code/svc-hot",
 			"Code/tools/main", "Code/client/app", "Code/client/proj", "Code/proj-wt", "Code/gone-wt/sub", "links",
+			"Code/lib-wt/src", "Code/acme-feature/web-wt/mono-in", "Code/acme-feature/tools", "Code/viagit-wt",
+			"Code/client/api-wt", "Code/client/sparse/main",
 		},
 		map[string]string{
 			"Code/acme/lib/.git": "gitdir: ../.git/modules/lib\n",
@@ -394,6 +425,20 @@ func worktreeTree(t *testing.T) string {
 			"Code/proj-wt/.git":                                     gitFile("gitdirs/proj.git/worktrees/proj-wt"),
 			"gitdirs/proj.git/worktrees/proj-wt/commondir":          toMain,
 			"Code/gone-wt/.git":                                     gitFile("Code/gone/.git/worktrees/gone-wt"),
+			"Code/acme-feature/web-wt/mono-in/.git":                 gitFile("Code/mono/.git/worktrees/mono-in"),
+			"Code/mono/.git/worktrees/mono-in/commondir":            toMain,
+			"Code/acme-feature/tools/.git":                          gitFile("repos/tools.git/worktrees/tools"),
+			"repos/tools.git/worktrees/tools/commondir":             toMain,
+			"repos/tools.git/config":                                bareConfig,
+			"Code/viagit-wt/.git":                                   gitFile("links/viagit"),
+			"Code/acme/.git/worktrees/viagit/commondir":             toMain,
+			"Code/client/api-wt/.git":                               gitFile("Code/acme/api.git/worktrees/api-wt"),
+			"Code/acme/api.git/worktrees/api-wt/commondir":          toMain,
+			"Code/client/sparse/.git":                               "gitdir: ./.bare\n",
+			"Code/client/sparse/main/.git":                          gitFile("Code/client/sparse/.bare/worktrees/main"),
+			"Code/client/sparse/.bare/worktrees/main/commondir":     toMain,
+			"Code/client/sparse/.bare/config":                       perWorktree(""),
+			"Code/client/sparse/.bare/config.worktree":              movedBare,
 		},
 		map[string]string{
 			"links/acme": "../Code/acme", "shortcuts/rel-wt": "../Code/rel-wt", "Code/rel-wt/webby": "../web-wt2",
@@ -401,6 +446,7 @@ func worktreeTree(t *testing.T) string {
 			"Code/acme-feature/gone-link": "../gone-wt/sub", "Code/gone-wt/into-feature": "../acme-feature/api",
 			"Code/mono-wt/to-acme": "../acme-feature/api", "Code/link-wt": "acme-feature", "Code/link-api": "mono-wt/api",
 			"Code/to-gone": "gone-wt/sub", "alib": "Code/acme/lib", "wlib": "Code/web/lib",
+			"links/viagit": "../Code/acme/.git/worktrees/viagit",
 		},
 	)
 	return root
@@ -436,10 +482,11 @@ func goneWhy(dir string) string {
 	return "can't tell which pool ~/" + dir + " is in: its .git file at ~/Code/gone-wt leads to no repository that can be found"
 }
 
-// noCheckoutWhy is why claude doesn't start in dir, the worktree's root, of
-// a repository with no checkout, by its path from home.
-func noCheckoutWhy(dir string) string {
-	return "can't tell which pool ~/" + dir + " is in: the repository of its worktree at ~/" + dir + " has no checkout to place it by"
+// noCheckoutWhy is why claude doesn't start in dir, in a submodule's or a
+// separate git directory's worktree, rooted at root, by their paths from
+// home.
+func noCheckoutWhy(dir, root string) string {
+	return "can't tell which pool ~/" + dir + " is in: its worktree at ~/" + root + " is a submodule's or a separate git directory's, which can't be placed"
 }
 
 func TestRunPlacesAWorktreeInItsRepositorysPool(t *testing.T) {
@@ -483,13 +530,24 @@ func TestRunPlacesAWorktreeInItsRepositorysPool(t *testing.T) {
 		{name: "a bare clone's worktree inside its fence", dir: "Code/client/svc/main", wantPool: "h4w2"},
 		{name: "the same's worktree outside it", dir: "Code/svc-hot", wantPool: "h4w2"},
 		{name: "a bare clone's worktree in no fence", dir: "Code/tools/main", wantPool: "b2n8"},
+		{name: "a bare clone's worktree inside its fence, core.bare moved to config.worktree", dir: "Code/client/sparse/main", wantPool: "h4w2"},
+		{name: "one whose .git names its git directory through a link, commondir read from where it leads", dir: "Code/viagit-wt", wantPool: "q7mt"},
 		{
 			name: "a worktree in a fence, of a bare repository outside every fence: refused, saying how to start there", dir: "Code/client/app",
 			wantWhy: "~/Code/client/app is in pool Client, but in its repository it's at ~/repos/app.git, in pool Default: add that bare repository to pool Client's directories",
 		},
 		{name: "a separate git directory's checkout: where it lies", dir: "Code/client/proj", wantPool: "h4w2"},
-		{name: "its worktree, its repository with no checkout", dir: "Code/proj-wt", wantWhy: noCheckoutWhy("Code/proj-wt")},
-		{name: "a submodule's worktree, its repository with no checkout", dir: "Code/lib-wt", wantWhy: noCheckoutWhy("Code/lib-wt")},
+		{
+			name: "a worktree in a fence, of a bare repository in another: refused, naming no remedy", dir: "Code/client/api-wt",
+			wantWhy: "~/Code/client/api-wt is in pool Client, but in its repository it's at ~/Code/acme/api.git, in pool Acme",
+		},
+		{
+			name: "a bare repository's worktree outside every fence, lying in one through an outer worktree: refused, naming no remedy", dir: "Code/acme-feature/tools",
+			wantWhy: "~/Code/acme-feature/tools lies in pool Acme, through the worktree ~/Code/acme-feature, but in its repository it's at ~/repos/tools.git, in pool Default",
+		},
+		{name: "a separate git directory's worktree", dir: "Code/proj-wt", wantWhy: noCheckoutWhy("Code/proj-wt", "Code/proj-wt")},
+		{name: "a submodule's worktree", dir: "Code/lib-wt", wantWhy: noCheckoutWhy("Code/lib-wt", "Code/lib-wt")},
+		{name: "below a submodule's worktree's root, by its root", dir: "Code/lib-wt/src", wantWhy: noCheckoutWhy("Code/lib-wt/src", "Code/lib-wt")},
 		{
 			name: "a worktree in one fence, of a repository in another", dir: "Code/client/acme-wt",
 			wantWhy: "~/Code/client/acme-wt is in pool Client, but in its repository it's at ~/Code/acme, in pool Acme",
@@ -501,6 +559,10 @@ func TestRunPlacesAWorktreeInItsRepositorysPool(t *testing.T) {
 		{
 			name: "the same, nested in a fenced repository's worktree outside the fence, naming that worktree", dir: "Code/acme-feature/web-wt",
 			wantWhy: "~/Code/acme-feature/web-wt lies in pool Acme, through the worktree ~/Code/acme-feature, but in its repository it's at ~/Code/web, in pool Default",
+		},
+		{
+			name: "a worktree nested in two, naming the outer one whose place is fenced", dir: "Code/acme-feature/web-wt/mono-in",
+			wantWhy: "~/Code/acme-feature/web-wt/mono-in lies in pool Acme, through the worktree ~/Code/acme-feature, but in its repository it's at ~/Code/mono, in pool Default",
 		},
 		{
 			name: "a link in a fenced repository's worktree made with relative paths, to an unfenced one's", dir: "Code/rel-wt/webby",
@@ -611,8 +673,8 @@ func TestOnItsOwnLoginClaudeNeverStartsInAFencedRepositorysWorktree(t *testing.T
 		},
 		{name: "a worktree whose git directory is gone", dir: "Code/gone-wt", wantWhy: goneWhy("Code/gone-wt")},
 		{name: "found as given, lost where its link leads", dir: "Code/acme-feature/gone-link", wantWhy: goneWhy("Code/acme-feature/gone-link")},
-		{name: "a separate git directory's worktree", dir: "Code/proj-wt", wantWhy: noCheckoutWhy("Code/proj-wt")},
-		{name: "a submodule's worktree", dir: "Code/lib-wt", wantWhy: noCheckoutWhy("Code/lib-wt")},
+		{name: "a separate git directory's worktree", dir: "Code/proj-wt", wantWhy: noCheckoutWhy("Code/proj-wt", "Code/proj-wt")},
+		{name: "a submodule's worktree", dir: "Code/lib-wt", wantWhy: noCheckoutWhy("Code/lib-wt", "Code/lib-wt")},
 		{name: "a worktree of an unfenced repository, outside every fence", dir: "Code/mono-wt"},
 	}
 	for _, mode := range modes {

@@ -655,19 +655,23 @@ pool for its whole life:
     fenced repository's worktree is placed as it would be nested in the main checkout, and the
     refusal names the worktree it lies in a fence through: `~/wt/x/web lies in pool Acme, through
     the worktree ~/wt/x, but …`.
-  - **What changes outside the worktrees of fenced repositories:** a main checkout, and a
-    submodule or a clone in one, are placed by the rule above alone, as before. But while a pool
-    is fenced, wherever a `.git` up from the start directory leads to no repository that can be
-    found, as one left in a home folder whose git directory has gone, everything below it refuses;
-    and so does a worktree whose repository has no checkout, as a submodule's or a separate git
-    directory's, both below.
+  - **What changes outside every linked worktree:** a main checkout, and a submodule or a clone
+    in one, are placed by the rule above alone, as before. But while a pool is fenced, wherever a
+    `.git` up from the start directory leads to no repository that can be found, as one left in a
+    home folder whose git directory has gone, everything below it refuses; and so does a
+    submodule's or a separate git directory's worktree, each described below.
   - **A bare repository's worktree** is in the pool where the bare repository lies, its own
     directory standing for every place in the worktree, so a bare clone's worktrees, made beside
     it in `.bare` or anywhere else, are its pool's. A repository is bare where its common
-    directory, not named `.git`, has `bare = true` under `[core]` in its config. A bare repository
-    outside every fence with worktrees inside one refuses them, by the rule below, saying how to
-    start there: `…, but in its repository it's at ~/repos/app.git, in pool Default: add that bare
-    repository to pool Client's directories`.
+    directory, not named `.git`, sets `bare = true` under `[core]` as git reads it: in its config,
+    or, where that turns on `extensions.worktreeConfig`, in its `config.worktree`, where git's
+    sparse checkout moves it, the later file winning and the last setting in each. A bare
+    repository outside every fence with worktrees inside one refuses them, by the rule below;
+    where the start directory itself lies in that one fence, it says how to start there: `…, but
+    in its repository it's at ~/repos/app.git, in pool Default: add that bare repository to pool
+    Client's directories`, mended by giving `pool edit` the pool's directories and the bare
+    repository's together, since `--dirs` replaces them, as
+    `switchboard pool edit r2d4 --dirs ~/Code/client --dirs ~/repos/app.git`.
   - Where the start directory itself and its place in its repository both have a pool, the
     unfenced pool counting as no fence, they must agree. A worktree outside every fence is in its
     repository's pool, and Claude Code's own worktrees, under the repository's `.claude/worktrees`,
@@ -684,11 +688,10 @@ pool for its whole life:
       gone, or its git directory's `commondir` can't be read, is empty or names no directory:
       `can't tell which pool ~/wt/x is in: its .git file at ~/wt/x leads to no repository that can
       be found`, mended with `git worktree repair`;
-    - its repository has no checkout to place it by: its common directory, not named `.git`, is
-      of a repository that isn't bare, as a submodule's worktree's or a separate git directory's
-      worktree's, whose checkout nothing names: `can't tell which pool ~/wt/x is in: the
-      repository of its worktree at ~/wt/x has no checkout to place it by`, worked in from a
-      checkout instead.
+    - it's a submodule's or a separate git directory's worktree: its common directory, not named
+      `.git`, is of a repository that isn't bare: `can't tell which pool ~/wt/x is in: its
+      worktree at ~/wt/x is a submodule's or a separate git directory's, which can't be placed`,
+      worked in from the submodule's or the separate git directory's checkout instead.
 
 ### Launching in a pool
 

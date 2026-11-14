@@ -11,11 +11,11 @@ import (
 
 // worktreeFileMost is the most bytes read of a .git file or a commondir, a
 // path on a line: one longer is none git wrote.
-// configMost is the most read of a common directory's config, for its
-// [core] section, which git writes first.
+// configMost is the most read of a common directory's config or
+// config.worktree, for the settings in it, last ones winning.
 const (
 	worktreeFileMost = 4096
-	configMost       = 64 << 10
+	configMost       = 1 << 20
 )
 
 // Worktree is what FindWorktree finds of the linked worktrees around a
@@ -25,9 +25,8 @@ type Worktree struct {
 	Around []Linked
 	// Lost is the root of the nearest linked worktree around the directory
 	// that can't be placed, Around then being none: "" where there's none.
-	// NoCheckout says why: its repository has no checkout to place it by, as
-	// a submodule's or a separate git directory's; else its repository
-	// can't be found.
+	// NoCheckout says why: it's a submodule's or a separate git directory's
+	// worktree, which can't be placed; else its repository can't be found.
 	Lost       string
 	NoCheckout bool
 }
@@ -54,9 +53,9 @@ const (
 	// worktreeLost is a .git that can't be looked at, or a file leading to
 	// no repository that can be found.
 	worktreeLost
-	// worktreeNoCheckout is a linked worktree's whose repository has no
-	// checkout to place it by: its common directory isn't named .git, and
-	// the repository isn't bare.
+	// worktreeNoCheckout is a linked worktree's that can't be placed: its
+	// common directory isn't named .git, and the repository isn't bare, as a
+	// submodule's or a separate git directory's.
 	worktreeNoCheckout
 )
 
@@ -88,14 +87,13 @@ func FindWorktree(dir string) Worktree {
 // linked worktree's, where a path rest below at is in its repository: below
 // the main checkout, the directory holding the common directory its git
 // directory's commondir names, where that's named .git; else, where the
-// common directory's config says the repository is bare, the common
-// directory itself. It's lost where the .git can't be looked at, or names
-// no git directory that's there, or the git directory's commondir can't be
-// read, is empty or names no directory; and it has no checkout where the
-// common directory, not named .git, is of a repository that isn't bare, as
-// a submodule's or a separate git directory's, whose checkout nothing names.
-// Each path read is read as git reads it, from the real path of where it's
-// written (see gitPath).
+// repository is bare, as isBare reads it, the common directory itself.
+// It's lost where the .git can't be looked at, or names no git directory
+// that's there, or the git directory's commondir can't be read, is empty or
+// names no directory; and it can't be placed where the common directory,
+// not named .git, is of a repository that isn't bare, as a submodule's or a
+// separate git directory's. Each path read is read as git reads it, from
+// the real path of where it's written (see gitPath).
 func worktreeAt(at, rest string) (Linked, worktreeKind) {
 	info, err := os.Stat(filepath.Join(at, ".git"))
 	switch {
@@ -146,27 +144,42 @@ func gitPath(dir, name, prefix string) (string, bool) {
 }
 
 // isBare reports whether the repository whose common directory is common is
-// bare, as its config's [core] section says: bare = true, yes, on or 1, or
-// bare alone.
+// bare, as git reads core.bare there: from its config, then, where that
+// turns on extensions.worktreeConfig, from its config.worktree, where git
+// moves core.bare, the later setting winning.
 func isBare(common string) bool {
-	data, ok := readHead(filepath.Join(common, "config"), configMost)
-	if !ok {
-		return false
+	read := func(name string) []byte {
+		data, _ := readHead(filepath.Join(common, name), configMost)
+		return data
 	}
-	section := ""
+	config := read("config")
+	bare, _ := configBool(config, "core", "bare")
+	if perWorktree, _ := configBool(config, "extensions", "worktreeConfig"); perWorktree {
+		if moved, set := configBool(read("config.worktree"), "core", "bare"); set {
+			bare = moved
+		}
+	}
+	return bare
+}
+
+// configBool returns the last setting of key in section of a git config,
+// data, as git reads a boolean: true, yes, on or 1, or key alone; and
+// whether it's set at all.
+func configBool(data []byte, section, key string) (value, set bool) {
+	at := ""
 	for line := range strings.Lines(string(data)) {
 		line, _, _ = strings.Cut(strings.TrimSpace(line), "#")
 		line, _, _ = strings.Cut(line, ";")
-		key, value, valued := strings.Cut(line, "=")
+		name, said, valued := strings.Cut(line, "=")
 		switch {
 		case strings.HasPrefix(line, "["):
-			section, _, _ = strings.Cut(line[1:], "]")
-		case strings.EqualFold(strings.TrimSpace(section), "core") && strings.EqualFold(strings.TrimSpace(key), "bare"):
-			value = strings.ToLower(strings.TrimSpace(value))
-			return !valued || value == "true" || value == "yes" || value == "on" || value == "1"
+			at, _, _ = strings.Cut(line[1:], "]")
+		case strings.EqualFold(strings.TrimSpace(at), section) && strings.EqualFold(strings.TrimSpace(name), key):
+			said = strings.ToLower(strings.TrimSpace(said))
+			value, set = !valued || said == "true" || said == "yes" || said == "on" || said == "1", true
 		}
 	}
-	return false
+	return value, set
 }
 
 // readHead returns the start of the regular file at path: most bytes and

@@ -392,11 +392,11 @@ func (l Launcher) worktreesAround() worktrees {
 // lostWhy says why a session doesn't start where Worktree found w, a linked
 // worktree around Dir, lost: as "can't tell which pool ~/wt/x/api is in: its
 // .git file at ~/wt/x leads to no repository that can be found", or, where
-// its repository has no checkout to place it by, saying so.
+// it's a submodule's or a separate git directory's worktree, saying so.
 func (l Launcher) lostWhy(w Worktree) string {
 	why := "its .git file at " + l.shown(w.Lost) + " leads to no repository that can be found"
 	if w.NoCheckout {
-		why = "the repository of its worktree at " + l.shown(w.Lost) + " has no checkout to place it by"
+		why = "its worktree at " + l.shown(w.Lost) + " is a submodule's or a separate git directory's, which can't be placed"
 	}
 	return "can't tell which pool " + l.where() + " is in: " + why
 }
@@ -428,16 +428,18 @@ func (l Launcher) inWorktree(pools config.Pools, around worktrees) (fencing, str
 // through an outer worktree's place in its repository, it names that
 // worktree: "~/wt/x/web lies in pool Acme, through the worktree ~/wt/x". It
 // names the place that decides, of Dir as given and resolved; and where
-// that's a bare repository's, outside every fence, how to start there: "add
-// that bare repository to pool Client's directories".
+// that's a bare repository's, outside every fence, while Dir itself lies in
+// one fence alone, how to start there: "add that bare repository to pool
+// Client's directories".
 func (l Launcher) disagreed(pools config.Pools, around worktrees, lying, theirs config.Pools) string {
+	own := l.fencesHolding(pools, l.Dir)
 	said := l.where() + " is in " + poolsNamed(lying)
-	if len(l.fencesHolding(pools, l.Dir)) == 0 {
+	if len(own) == 0 {
 		said = l.where() + " lies in " + poolsNamed(lying) + ", through the worktree " + l.shown(l.deciding(pools, around.outer).Root)
 	}
 	decides := l.deciding(pools, around.nearest)
 	said += ", but in its repository it's at " + l.shown(decides.Place) + ", in " + inPools(pools, theirs)
-	if decides.Bare && len(theirs) == 0 && len(lying) == 1 {
+	if decides.Bare && len(theirs) == 0 && len(own) == 1 && len(lying) == 1 {
 		said += ": add that bare repository to pool " + poolSaid(lying[0]) + "'s directories"
 	}
 	return said
