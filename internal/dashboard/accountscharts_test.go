@@ -1,12 +1,15 @@
 package dashboard
 
 import (
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
@@ -161,13 +164,19 @@ func TestWEEKSMarksTheCapWhereAReserveIsKept(t *testing.T) {
 	}
 }
 
-// At 12 months WEEKS' heading says a month's column is its fullest week.
+// At 12 months WEEKS' heading says a month's column is its fullest week,
+// and its axis marks no column this week's, so far, as a month's isn't,
+// though its fullest week may be.
 func TestWEEKSSaysAMonthIsItsFullestAt12Months(t *testing.T) {
 	page := chartedPage(t)
 	page.Period = views.PeriodTwelveMonths
 	_, rows := chartedCompare(t, 173, 60, page)
-	if rowWith(rows, "WEEKS  each week at its peak, a month its fullest") < 0 {
-		t.Errorf("no heading naming a month's fullest week in\n%s", strings.Join(rows, "\n"))
+	head := rowWith(rows, "WEEKS  each week at its peak, a month its fullest")
+	if head < 0 {
+		t.Fatalf("no heading naming a month's fullest week in\n%s", strings.Join(rows, "\n"))
+	}
+	if axis := rows[head+weeksChartRows+1]; strings.Contains(axis, views.PeakSoFar) {
+		t.Errorf("the axis reads %q, want no column marked this week's", axis)
 	}
 }
 
@@ -315,5 +324,93 @@ func TestWEEKSAndWORTHScrollWhereTheyDontFit(t *testing.T) {
 	rows := textOf(f.Draw(doc, routedAt))
 	if rowWith(rows, "peak Wed $148") < 0 || !strings.HasPrefix(rows[6], "                          work") {
 		t.Errorf("scrolled down, WORTH's peaks don't show under the heads held:\n%s", strings.Join(rows, "\n"))
+	}
+}
+
+// The cap's level falls on the row of the chart its cap is in, a fifth of a
+// week each: a 30% reserve's cap of 70% on the fourth row up, never the top.
+func TestWEEKSMarksTheCapOnTheRowItFallsIn(t *testing.T) {
+	page := chartedPage(t)
+	f, doc := threeCompared(t, 173, 60)
+	account("work", func(a *status.Account) { a.Reserve = 0.3 })(&doc)
+	f.Accounts.Page = &page
+	rows := textOf(f.Draw(doc, routedAt))
+	head, work := rowWith(rows, "WEEKS  each week at its peak"), columnOf(rows[6], "work")
+	for r := 1; r <= weeksChartRows; r++ {
+		marked := strings.Contains(ansi.Cut(rows[head+r], work, work+31), capLevel)
+		if want := r == weeksChartRows-3; marked != want {
+			t.Errorf("work's chart's row %d up marks the cap %v, want %v", weeksChartRows+1-r, marked, want)
+		}
+	}
+}
+
+// Every account's worth is charted against the highest bucket of any
+// configured account's, one scrolled out of view among them: side's
+// Wednesday, twice work's, out of view at 100 columns, so work's fills half
+// the chart.
+func TestWORTHsScaleIsEveryAccountsShownOrNot(t *testing.T) {
+	page := chartedPage(t)
+	page.Rows[2].WorthBy = views.WorthCharts{weekByDay([]float64{0, 0, 296, 0})}
+	_, rows := chartedCompare(t, 100, 60, page)
+	if x := columnOf(rows[6], "side"); x >= 0 {
+		t.Fatalf("side shows at column %d at 100 columns, want it scrolled out of view", x)
+	}
+	head, work := rowWith(rows, "WORTH  at API prices, by day"), columnOf(rows[6], "work")
+	var cells []string
+	for r := 1; r <= worthChartRows; r++ {
+		cells = append(cells, ansi.Cut(rows[head+r], work+3*2, work+3*2+2))
+	}
+	if got, want := strings.Join(cells, "|"), "  |  |██|██"; got != want {
+		t.Errorf("work's Wednesday reads %q, want half the chart, against side's, %q", got, want)
+	}
+}
+
+// WORTH holds every period's chart in the narrowest column Compare draws, a
+// cell a bucket at the fewest, never a chart crushed into a cell: where the
+// period's finest buckets don't fit, coarser ones do. At 95 columns, the
+// narrowest Compare is wide at, today is by two hours and 30 days by week;
+// at 173 with four accounts, a MacBook's, today is by the hour and 30 days
+// still by week. The fewest cells a head takes hold as many buckets as any
+// period's coarsest chart has.
+func TestWORTHFitsEveryPeriodInTheNarrowestColumn(t *testing.T) {
+	if !chartFits(leastColumn - 1)(views.BucketsMost) {
+		t.Errorf("a head of %d cells doesn't hold %d buckets, the most a period's coarsest chart has", leastColumn-1, views.BucketsMost)
+	}
+	in := views.HistoryInput{Ledger: ledger.Empty{}, Now: routedAt, Prices: ledger.Pricing, Accounts: tenFramed[:4], WeekStarts: time.Monday, WeekWindow: "7d"}
+	fed := views.ReadSessionDays(ledger.Empty{}, routedAt, routedAt).Tailed(nil, true, nil, nil, routedAt)
+	ten := tenRows()
+	tests := []struct {
+		width int
+		units map[views.Period]views.BucketUnit
+	}{
+		{95, map[views.Period]views.BucketUnit{
+			views.PeriodToday: views.ByTwoHours, views.PeriodThisWeek: views.ByDay, views.PeriodThirtyDays: views.ByWeek,
+			views.PeriodTwelveWeeks: views.ByWeek, views.PeriodTwelveMonths: views.ByMonth,
+		}},
+		{173, map[views.Period]views.BucketUnit{
+			views.PeriodToday: views.ByHour, views.PeriodThisWeek: views.ByDay, views.PeriodThirtyDays: views.ByWeek,
+			views.PeriodTwelveWeeks: views.ByWeek, views.PeriodTwelveMonths: views.ByMonth,
+		}},
+	}
+	for _, tt := range tests {
+		for period, unit := range tt.units {
+			charted := views.NewPast(in, nil).Accounts(period).Hourly(fed)
+			page := comparedPage(period, comparedVersions(t), append(slices.Clone(ten[:4]), ten[len(ten)-1])...)
+			for x := range page.Rows {
+				page.Rows[x].WorthBy = charted.Rows[x].WorthBy
+			}
+			page.All.WorthBy = charted.All.WorthBy
+			f := compareFrame(t, tenFramed[:4], page)
+			f.Width, f.Height, f.Look = tt.width, 60, Look{}
+			head := f.compareLaid().narrowest()
+			by := page.All.WorthBy.Fitting(chartFits(head))
+			if by.Unit != unit || !chartFits(head)(len(by.Buckets)) {
+				t.Errorf("%s at %d columns, its head %d cells, WORTH is by %s in %d buckets, want by %s, fitting", period.Name(), tt.width, head, bucketWord[by.Unit], len(by.Buckets), bucketWord[unit])
+			}
+			rows := textOf(f.Draw(usageWorld(tenCompared, extraOff, heldFirst(4)), routedAt))
+			if said := "WORTH  at API prices, by " + bucketWord[unit]; rowWith(rows, said) < 0 {
+				t.Errorf("%s at %d columns, no heading reads %q", period.Name(), tt.width, said)
+			}
+		}
 	}
 }

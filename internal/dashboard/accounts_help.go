@@ -22,14 +22,20 @@ func (f Frame) accountsHelp() []helpPart {
 }
 
 // compareHelp is Compare as help explains it: its columns and heads, and
-// their focus, but where Compare is turned, as CompareWide has it, drawing
-// none; each group and how each row is counted; and a key to the states its
-// heads say.
+// their focus, and its charts, but where Compare is turned, as CompareWide
+// has it, drawing neither; each group and how each row is counted; and a
+// key to the states its heads say.
 func (f Frame) compareHelp() helpPart {
 	focus := " `←` and `→` move the focus along the columns, scrolling them past as many as fit, all accounts staying " +
 		"put at the right; `enter` opens the account focused in Detail, and `esc` ends the focus."
+	charts := " WEEKS is how full each of its weeks got, at least the last eight, or every week the period begins where " +
+		"there are more, a month its fullest week at 12 months; a dotted line marks the cap of an account that keeps " +
+		"a reserve, and the axis marks this week, so far. Under them, how many of those weeks it hit its limit in, " +
+		"and what they had left at a reset, on average; all accounts says how many weeks some account was short. " +
+		"WORTH is what its use was worth at API prices over the period, in the finest buckets that fit, its peak " +
+		"under it: the accounts share one scale, so their columns compare, and all accounts has its own."
 	if !f.CompareWide() {
-		focus = ""
+		focus, charts = "", ""
 	}
 	return helpPart{
 		heading: accountsHeading(AccountsCompare),
@@ -39,7 +45,7 @@ func (f Frame) compareHelp() helpPart {
 			said("WEEK USED is each account's week window as switchboard usage draws it, its cap and even pace marked, and " +
 				"always as it stands now, whatever the period. BY MODEL is each account's share of use over the period, a " +
 				"row a version, its tokens weighed as worth weighs them, so cache reads, which run to millions and cost " +
-				"little, count for little."),
+				"little, count for little." + charts),
 			said("ACTIVITY counts the period's requests; the sessions served, each counted once, however many days and " +
 				"accounts it ran on; and the sessions moved onto each account and off it. LIMITS counts the limits each hit, " +
 				"by window; the time it spent at its cap or at a limit; and what its week had left as it last reset, 100% " +

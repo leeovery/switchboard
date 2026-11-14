@@ -14,7 +14,7 @@ import (
 var worthInk = ink{token: theme.AccentPrimary}
 
 // bucketWord names a chart's bucket, as its heading says it.
-var bucketWord = map[views.BucketUnit]string{views.ByHour: "hour", views.ByDay: "day", views.ByWeek: "week", views.ByMonth: "month"}
+var bucketWord = map[views.BucketUnit]string{views.ByHour: "hour", views.ByTwoHours: "2 hours", views.ByDay: "day", views.ByWeek: "week", views.ByMonth: "month"}
 
 // chartSlot is where a bucket's column lies across a chart: from x, width
 // cells wide.

@@ -334,13 +334,12 @@ func (p *projectTally) take(date string, s DaySession, price pricing, v versions
 }
 
 // hourly takes in what a session of the project's spent today by the local
-// hour, as hours holds it, priced as price prices it.
-func (p *projectTally) hourly(hours *[24]ledger.Spent, price pricing) {
-	if hours == nil {
-		return
-	}
-	for h := range hours {
-		p.hours[h].add(price.worth(hours[h]))
+// hour, on every account, as hours holds it, priced as price prices it.
+func (p *projectTally) hourly(hours accountHours, price pricing) {
+	for _, on := range hours {
+		for h := range on {
+			p.hours[h].add(price.worth(on[h]))
+		}
 	}
 }
 

@@ -8,13 +8,15 @@ import (
 	"github.com/leeovery/switchboard/internal/score"
 )
 
-// BucketUnit is what a bucket of a chart over a period spans: an hour, a
-// day, a week or a month.
+// BucketUnit is what a bucket of a chart over a period spans: an hour, two
+// hours, a day, a week or a month.
 type BucketUnit int
 
 const (
 	// ByHour is an hour of today, by the local clock.
 	ByHour BucketUnit = iota
+	// ByTwoHours is two hours of today, by the local clock, from midnight.
+	ByTwoHours
 	// ByDay is a local day.
 	ByDay
 	// ByWeek is a calendar week, from the day weeks start on.
@@ -51,9 +53,10 @@ type WorthBucket struct {
 }
 
 // PeakNamed names WORTH BY's peak bucket, as the line under it says it: an
-// hour by its start, "14:00"; a day by its name, "Wed"; a week by its first
-// day, "week of 17 Aug"; a month by its name, "Sep"; "" where there's no
-// peak.
+// hour by its start, "14:00"; two hours by their span, "14:00–16:00"; a day
+// by its name, "Wed"; a week by its first day, "week of 17 Aug"; a month by
+// its name, "Sep", or with its year, "Oct 2026", where another bucket has
+// its name; "" where there's no peak.
 func (by WorthBy) PeakNamed() string {
 	if by.Peak < 0 {
 		return ""
@@ -62,10 +65,28 @@ func (by WorthBy) PeakNamed() string {
 	switch by.Unit {
 	case ByHour:
 		return prose.TimeOfDay(b.Start, b.Start)
+	case ByTwoHours:
+		from := time.Duration(by.Peak*hoursSpanned) * time.Hour
+		return prose.ClockSpan(from, from+hoursSpanned*time.Hour)
 	case ByWeek:
 		return "week of " + b.Label
+	case ByMonth:
+		if by.named(b.Label) > 1 {
+			return prose.Month(b.Start, true)
+		}
 	}
 	return b.Label
+}
+
+// named is how many of the buckets have the name given.
+func (by WorthBy) named(label string) int {
+	n := 0
+	for _, b := range by.Buckets {
+		if b.Label == label {
+			n++
+		}
+	}
+	return n
 }
 
 // Now is the index of the bucket now falls in, the last of those not still
@@ -110,12 +131,22 @@ func (d dayWorths) add(date string, w Worth) {
 	d[date] = day
 }
 
+// BucketsMost are the most buckets the coarsest of any period's charts has,
+// as worthCharts has them, so a drawing that fits so many fits every
+// period's: the last 12 weeks' weeks, or the last 12 months' months, where
+// either begins partway through its first.
+const BucketsMost = 13
+
+// hoursSpanned are the hours a bucket ByTwoHours spans.
+const hoursSpanned = 2
+
 // worthCharts are the worth of days, and of today's hours, where they're
 // given, over the period at now, weeks starting on the day given, in the
-// buckets WORTH BY may chart it in, the finest first: today's by hour, or
-// where the hours aren't given, by the day; this week's and the last 30
-// days' by day; the last 12 weeks' by day and by week; and the last 12
-// months' by week and by month.
+// buckets WORTH BY may chart it in, the finest first, the coarsest of no
+// more than BucketsMost: today's by hour and by two hours, or where the
+// hours aren't given, by the day; this week's by day; the last 30 days'
+// and the last 12 weeks' by day and by week; and the last 12 months' by
+// week and by month.
 func worthCharts(period Period, now time.Time, starts time.Weekday, days dayWorths, hours *[24]Worth) WorthCharts {
 	today := dayfile.CivilOf(now)
 	first, last := period.first(today, starts), period.last(today, starts)
@@ -123,9 +154,10 @@ func worthCharts(period Period, now time.Time, starts time.Weekday, days dayWort
 	switch period {
 	case PeriodToday:
 		if hours != nil {
-			return WorthCharts{byHour(*hours, now)}
+			hourly := byHour(*hours, now)
+			return WorthCharts{hourly, byTwoHours(hourly)}
 		}
-	case PeriodTwelveWeeks:
+	case PeriodThirtyDays, PeriodTwelveWeeks:
 		return WorthCharts{byDay, days.by(ByWeek, weekBuckets(first, last, starts), first, last, today)}
 	case PeriodTwelveMonths:
 		return WorthCharts{days.by(ByWeek, weekBuckets(first, last, starts), first, last, today), days.by(ByMonth, monthBuckets(first, last), first, last, today)}
@@ -140,6 +172,21 @@ func byHour(hours [24]Worth, now time.Time) WorthBy {
 	by := WorthBy{Unit: ByHour, Buckets: make([]WorthBucket, len(heads)), ToCome: len(heads) - 1 - now.Local().Hour()}
 	for h, b := range heads {
 		by.Buckets[h] = WorthBucket{Bucket: b, Worth: hours[h]}
+	}
+	return peaked(by)
+}
+
+// byTwoHours is today's worth by hour, as byHour has it, by two hours from
+// midnight: each pair's worth together, starting as its first hour does
+// and named as it is.
+func byTwoHours(hourly WorthBy) WorthBy {
+	by := WorthBy{Unit: ByTwoHours, Buckets: make([]WorthBucket, len(hourly.Buckets)/hoursSpanned), ToCome: hourly.ToCome / hoursSpanned}
+	for h, b := range hourly.Buckets {
+		span := &by.Buckets[h/hoursSpanned]
+		if h%hoursSpanned == 0 {
+			span.Bucket = b.Bucket
+		}
+		span.add(b.Worth)
 	}
 	return peaked(by)
 }

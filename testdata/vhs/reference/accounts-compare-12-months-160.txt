@@ -23,7 +23,7 @@ WEEKS  each week at its peak, a month its fullest
                           ▃ ▅ ▆                               ▁ ▂ ▄ ▅ ▆                                                           ▁ ▃ ▃ ▅ ▆ ▇
                                                                                              ▁ ▂ ▂ ▃ ▄ ▄ ▅ ▆ ▇                ▆
 
-                          Oct Dec Feb Apr Jun Aug Oct       Oct Dec Feb Apr Jun Aug Oct        Nov Jan Mar May Jul … Oct      Oct Dec Feb Apr Jun Aug Oct
+                          Oct Dec Feb Apr Jun Aug Oct       Oct Dec Feb Apr Jun Aug Oct      Oct Dec Feb Apr Jun Aug Oct      Oct Dec Feb Apr Jun Aug Oct
                           limit hit 3 of 51 · 31% left      limit hit 0 of 51 · 44% left     limit hit 0 of 51 · 69% left     short on 3 of 51 · 48% left
 
 WORTH  at API prices, by month

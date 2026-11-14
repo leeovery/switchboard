@@ -49,31 +49,44 @@ func (s *stoodAt) holds(doc status.Document, now time.Time, policy score.Policy)
 }
 
 // builtOf is what Accounts' page was built of: the days held, as historyTab
-// counts them as they change, the period, and the local day it was built on.
+// counts them as they change, the period, and the local day it was built on;
+// and of today, the reads of the ledger's tail that told otherwise of the
+// days it fed, as projectsTab counts them, today's worth by the hour being
+// its fold's.
 type builtOf struct {
 	held   int
 	period views.Period
 	day    string
+	fed    int
+}
+
+// accountsToday reports whether Accounts shows today.
+func (m Model) accountsToday() bool {
+	return m.shownView() == dashboard.Accounts && m.period == views.PeriodToday
 }
 
 // accountsBuilt is m with Accounts' page built afresh at now of the last 12
 // months' days held, as views.Past.Accounts builds it over the dial's period,
-// where those days, the period or the day have changed since it was built,
-// while Accounts shows: once for each, never a frame at a time. Each look
-// reads today's days afresh, as readHistory reads them, so the page follows
-// them from look to look; and past midnight it moves on to the new day
-// before the next look reads it. It's stood at the moment of the message
-// taken in, as views.AccountsPage.At stands it, where it's built afresh, the
-// document or the policy is another, or the page stands otherwise since, as
-// its Until has it: never a frame at a time.
+// today's worth by the hour of the tail's fold, as its Hourly has it, where
+// those days, the period or the day have changed since it was built, or, of
+// today, the fold has, while Accounts shows: once for each, never a frame at
+// a time. Each look reads today's days afresh, as readHistory reads them, so
+// the page follows them from look to look; and past midnight it moves on to
+// the new day before the next look reads it. It's stood at the moment of the
+// message taken in, as views.AccountsPage.At stands it, where it's built
+// afresh, the document or the policy is another, or the page stands
+// otherwise since, as its Until has it: never a frame at a time.
 func (m Model) accountsBuilt() Model {
 	if m.view != dashboard.Accounts || !m.past.last.held() {
 		return m
 	}
 	now := m.now()
 	of := builtOf{held: m.past.held, period: m.period, day: dayfile.DateOf(now)}
+	if of.period == views.PeriodToday {
+		of.fed = m.projects.fed
+	}
 	if m.accounts.page == nil || m.accounts.of != of {
-		page := m.past.last.past.Since(nil, now).Accounts(of.period)
+		page := m.past.last.past.Since(nil, now).Accounts(of.period).Hourly(m.projects.tailed)
 		m.accounts.page, m.accounts.of, m.accounts.at = &page, of, nil
 	}
 	if !m.accounts.at.holds(m.doc, now, m.cfg.Policy) {

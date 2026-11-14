@@ -246,6 +246,31 @@ func TestTheChosenProjectLiesWideAtEveryPeriodOnAMacBook(t *testing.T) {
 	}
 }
 
+// Over 12 months WORTH BY is by week where a cell for each week fits the
+// cells it takes, else by month, as on a narrow screen, its heading saying
+// which.
+func TestTwelveMonthsAreByMonthWhereTheirWeeksDontFit(t *testing.T) {
+	doc := framedDoc(nil, nil)
+	page := bucketedPage(views.ByWeek, 53, 0)
+	page.WorthBy = append(page.WorthBy, bucketedPage(views.ByMonth, 13, 0).WorthBy...)
+	for i, by := range page.WorthBy {
+		page.WorthBy[i].Peak = len(by.Buckets) - 1
+	}
+	for _, tt := range []struct {
+		width int
+		unit  views.BucketUnit
+		said  string
+	}{{73, views.ByWeek, "WORTH BY WEEK"}, {52, views.ByMonth, "WORTH BY MONTH"}} {
+		f := projectsFrame(t, tt.width, 53, projectRows(3), 0, &page)
+		if d := projectDrawnOf(f, f.Moment(doc, routedAt), routedAt, page); d.worth.Unit != tt.unit {
+			t.Errorf("12 months at %d are by %s, want by %s", tt.width, bucketWord[d.worth.Unit], bucketWord[tt.unit])
+		}
+		if rows := textOf(f.Draw(doc, routedAt)); rowWith(rows, tt.said) < 0 {
+			t.Errorf("12 months at %d, no row reads %q, in\n%s", tt.width, tt.said, strings.Join(rows, "\n"))
+		}
+	}
+}
+
 // The list shows its projects in a third of the view's rows, the line
 // saying how many more among them, and scrolls only as far as it must to
 // keep the chosen in view.

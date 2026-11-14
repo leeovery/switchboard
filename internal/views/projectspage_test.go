@@ -294,11 +294,12 @@ func TestAProjectsWorthIsSharedByModelAndByAccount(t *testing.T) {
 }
 
 // WORTH BY gives a project's worth in each of the period's buckets, the
-// finest first: today's by hour, this week's and the last 30 days' by day,
-// the last 12 weeks' by day and by week, the last 12 months' by week and by
-// month; each its label, the peak the first bucket worth most, and those of
-// the period still to come counted, the one now falls in the last before
-// them. The peak is named as the line under the chart says it; the axis
+// finest first: today's by hour and by two hours, this week's by day, the
+// last 30 days' and 12 weeks' by day and by week, the last 12 months' by
+// week and by month; each its label, the peak the first bucket worth most,
+// and those of the period still to come counted, the one now falls in the
+// last before them. The peak is named as the line under the chart says it,
+// a month with its year where the period touches two of its name; the axis
 // names each hour, day and month, and a week only where its month starts.
 func TestAProjectsWorthIsBucketedAsItsPeriodHasIt(t *testing.T) {
 	world := slices.Concat(
@@ -331,13 +332,19 @@ func TestAProjectsWorthIsBucketedAsItsPeriodHasIt(t *testing.T) {
 		period views.Period
 		want   []bucketed
 	}{
-		{period: views.PeriodToday, want: []bucketed{{views.ByHour, 24, 13, 10, 13, "00", "13", hoursWorth(2), "13:00", [2]string{"00", "01"}}}},
+		{period: views.PeriodToday, want: []bucketed{
+			{views.ByHour, 24, 13, 10, 13, "00", "13", hoursWorth(2), "13:00", [2]string{"00", "01"}},
+			{views.ByTwoHours, 12, 6, 5, 6, "00", "12", hoursWorth(2), "12:00–14:00", [2]string{"00", "02"}},
+		}},
 		{period: views.PeriodThisWeek, want: []bucketed{{views.ByDay, 7, 1, 4, 2, "Mon", "Tue", hoursWorth(3), "Tue", [2]string{"Mon", "Tue"}}}},
-		{period: views.PeriodThirtyDays, want: []bucketed{{views.ByDay, 30, 24, 0, 29, "8 Sep", "2 Oct", hoursWorth(4), "2 Oct", [2]string{"8 Sep", "9 Sep"}}}},
+		{period: views.PeriodThirtyDays, want: []bucketed{
+			{views.ByDay, 30, 24, 0, 29, "8 Sep", "2 Oct", hoursWorth(4), "2 Oct", [2]string{"8 Sep", "9 Sep"}},
+			{views.ByWeek, 5, 4, 0, 4, "7 Sep", "5 Oct", hoursWorth(7), "week of 5 Oct", [2]string{"Sep", ""}},
+		}},
 		{period: views.PeriodTwelveWeeks, want: []bucketed{{views.ByDay, 84, 74, 4, 79, "20 Jul", "2 Oct", hoursWorth(4), "2 Oct", [2]string{"20 Jul", "21 Jul"}}, weeks}},
 		{period: views.PeriodTwelveMonths, want: []bucketed{
 			{views.ByWeek, 53, 52, 0, 52, "6 Oct", "5 Oct", hoursWorth(7), "week of 5 Oct", [2]string{"Oct", ""}},
-			{views.ByMonth, 13, 12, 0, 12, "Oct", "Oct", hoursWorth(11), "Oct", [2]string{"Oct", "Nov"}},
+			{views.ByMonth, 13, 12, 0, 12, "Oct", "Oct", hoursWorth(11), "Oct 2026", [2]string{"Oct", "Nov"}},
 		}},
 	}
 	for _, tt := range tests {
@@ -354,7 +361,7 @@ func TestAProjectsWorthIsBucketedAsItsPeriodHasIt(t *testing.T) {
 				var sum views.Worth
 				for h, b := range by.Buckets {
 					sum = sumOf(sum, b.Worth)
-					if at := b.Start.Local(); tt.period == views.PeriodToday && (at.Hour() != h || dayfile.DateOf(at) != dayfile.DateOf(now)) {
+					if at := b.Start.Local(); by.Unit == views.ByHour && (at.Hour() != h || dayfile.DateOf(at) != dayfile.DateOf(now)) {
 						t.Errorf("hour %d's bucket starts at %v, want as today's clock reads it", h, at)
 					}
 				}

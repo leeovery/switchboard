@@ -1,6 +1,7 @@
 package views
 
 import (
+	"slices"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/config"
@@ -26,14 +27,12 @@ func (p Period) reachWeeks(today time.Time, starts time.Weekday) int {
 }
 
 // reached sets the page's reach and each row's peaks in it and Weeks'
-// verdict on it, as Weeks gives them over the weeks the reach is of, of the
-// Past: a column a week, as weekBuckets names them; or of the last 12
+// verdict on it, as weeks gives them, Weeks over the weeks the reach is of,
+// at in: a column a week, as weekBuckets names them; or of the last 12
 // months, a column a month, the months they fall in, as monthBuckets names
 // them, each its fullest week's.
-func (page *AccountsPage) reached(p Past) {
-	in := p.in
+func (page *AccountsPage) reached(in HistoryInput, weeks WeeksPage) {
 	today := dayfile.CivilOf(in.Now)
-	weeks := p.weeksOver(page.Period.reachWeeks(today, in.WeekStarts))
 	first, _ := dayfile.Civil(weeks.Weeks[0])
 	page.Reach = weekBuckets(first, today, in.WeekStarts)
 	columns := func(peaks []WeekPeak) []WeekPeak { return peaks }
@@ -90,4 +89,45 @@ func worthsByDay(days []Day, accounts config.Accounts) []dayWorths {
 		}
 	}
 	return worths
+}
+
+// Hourly is the page with today's worth charted by the hour, where its
+// period is today and d's fold of the tail is of today: each row's, what
+// the requests the fold holds that went to its account were worth by the
+// local hour each arrived in, and all accounts', every one's, those none
+// answered among them, priced at today's prices, as Projects charts a
+// project's today, worthCharts' one rule. Else it's the page as it is, its
+// today by the day.
+func (p AccountsPage) Hourly(d SessionDays) AccountsPage {
+	today := dayfile.DateOf(p.in.Now)
+	if p.Period != PeriodToday || d.today.Date != today {
+		return p
+	}
+	byAccount, all := d.held.worthByHour(pricing{prices: p.in.Prices, date: today})
+	p.Rows = slices.Clone(p.Rows)
+	for x, a := range p.in.Accounts {
+		hours := byAccount[a.ID]
+		p.Rows[x].WorthBy = worthCharts(PeriodToday, p.in.Now, p.in.WeekStarts, nil, &hours)
+	}
+	p.All.WorthBy = worthCharts(PeriodToday, p.in.Now, p.in.WeekStarts, nil, &all)
+	return p
+}
+
+// worthByHour is what the fold's sessions' requests were worth by the local
+// hour each arrived in, priced as price prices them: by the account each
+// went to, and every account's together.
+func (d daySessions) worthByHour(price pricing) (byAccount map[string][24]Worth, all [24]Worth) {
+	byAccount = make(map[string][24]Worth)
+	for _, s := range d.held {
+		for account, on := range s.hours {
+			hours := byAccount[account]
+			for h := range on {
+				w := price.worth(on[h])
+				hours[h].add(w)
+				all[h].add(w)
+			}
+			byAccount[account] = hours
+		}
+	}
+	return byAccount, all
 }

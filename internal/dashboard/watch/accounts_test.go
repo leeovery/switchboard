@@ -104,6 +104,52 @@ func TestAccountsPageIsBuiltOnceForTheDaysHeldAndThePeriod(t *testing.T) {
 	}
 }
 
+// Accounts' today charts its worth by the hour of the tail's fold, and
+// follows the tail while it shows: a line the tail gains is charted in its
+// hour at the next look. It's built afresh as a read of the tail feeds the
+// fold otherwise; over any other period, the fold's reads build nothing.
+func TestAccountsTodayFollowsTheTailsFoldByTheHour(t *testing.T) {
+	h := projectsHarness(t, dashboard.Accounts)
+	h.start()
+	h.tickUntilAsked()
+	h.model = h.model.periodStepped(-1)
+	h.tickUntilAsked()
+	today := h.model.accounts.page
+	if today == nil || today.Period != views.PeriodToday {
+		t.Fatalf("today shown, Accounts' page is %+v, want it built over today", today)
+	}
+	if by := today.All.WorthBy[0]; by.Unit != views.ByHour || by.Peak < 0 {
+		t.Fatalf("today, all accounts' worth is charted by %d, its peak %d; want by the hour, today's requests in it", by.Unit, by.Peak)
+	}
+	at := h.clock.now.Add(time.Second)
+	worthAt := func(page *views.AccountsPage) ledger.Picodollars {
+		if amount := page.All.WorthBy[0].Buckets[at.Local().Hour()].Amount; amount != nil {
+			return *amount
+		}
+		return 0
+	}
+	before := worthAt(today)
+	projectsLedgerOf(h).write(projectAsks(betaOnly, "/code/beta", at, 1)...)
+	h.tickUntilAsked()
+	if after := worthAt(h.model.accounts.page); after <= before {
+		t.Errorf("the tail gained a line, its hour's worth is %d, want more than %d", after, before)
+	}
+	fed := h.model.accounts.page
+	h.model.projects.fed++
+	h.update(frameMsg{gen: h.model.frames})
+	if h.model.accounts.page == fed {
+		t.Errorf("the tail fed its fold otherwise, Accounts' today is as it was built, want it built afresh")
+	}
+	h.model = h.model.periodStepped(1)
+	h.update(frameMsg{gen: h.model.frames})
+	week := h.model.accounts.page
+	h.model.projects.fed++
+	h.update(frameMsg{gen: h.model.frames})
+	if h.model.accounts.page != week {
+		t.Errorf("the tail fed its fold otherwise, Accounts' week was built afresh, want it held")
+	}
+}
+
 // Accounts' page is stood afresh only as what it stands at changes, for
 // every frame to read: frames read the one stood, as does a message of the
 // same moment; one that builds it afresh stands it afresh, as < does.
@@ -564,8 +610,8 @@ func TestComparesFocusMovesAlongItsColumnsAndEnterOpensItInDetail(t *testing.T) 
 	}
 
 	h.keys(slices.Repeat([]tea.KeyPressMsg{rightKey}, 7)...)
-	if s := h.model.accounts.shown; s.Focus != "acct-7" || s.First != 1 {
-		t.Fatalf("→ 7 times focused %q, the columns from %d; want acct-7, from the 2nd, six showing", s.Focus, s.First)
+	if s := h.model.accounts.shown; s.Focus != "acct-7" || s.First != 3 {
+		t.Fatalf("→ 7 times focused %q, the columns from %d; want acct-7, from the 4th, four showing", s.Focus, s.First)
 	}
 	h.model.scroll = 2
 	h.keys(enterKey)
@@ -612,8 +658,8 @@ func TestEscClosesWhatsOpenOverCompareBeforeItEndsItsFocus(t *testing.T) {
 }
 
 // A frame too narrow for the columns Compare showed its focus among scrolls
-// them on to show it: ten accounts focused on acct-7 at 160 columns, six
-// showing, show acct-4 to acct-7 at 122, four showing, as the heading says.
+// them on to show it: ten accounts focused on acct-7 at 160 columns, four
+// showing, show acct-5 to acct-7 at 122, three showing, as the heading says.
 func TestAResizeKeepsComparesFocusInView(t *testing.T) {
 	h := accountsHarness(t, dashboard.AccountsShown{})
 	h.model.accounts.shown.Accounts = tenAccounts()
@@ -626,8 +672,8 @@ func TestAResizeKeepsComparesFocusInView(t *testing.T) {
 		}
 	}
 	heading := strings.Split(h.view(), "\n")[4]
-	if want := []string{"acct-4", "acct-5", "acct-6", "acct-7", ""}; !slices.Equal(columns, want) || !strings.Contains(heading, "accounts 4–7 of 10") {
-		t.Errorf("at 122 columns, focused on acct-7, Compare draws the columns %q under %q; want %q, accounts 4–7 of 10", columns, heading, want)
+	if want := []string{"acct-5", "acct-6", "acct-7", ""}; !slices.Equal(columns, want) || !strings.Contains(heading, "accounts 5–7 of 10") {
+		t.Errorf("at 122 columns, focused on acct-7, Compare draws the columns %q under %q; want %q, accounts 5–7 of 10", columns, heading, want)
 	}
 }
 

@@ -3554,14 +3554,17 @@ frames show the keys from before the sweep of 7 and 8 October 2026, `p` for the 
   account's head and a cell where that's more, its name whole at most 24 cells with its marks, so
   no name is cut where another account's column would show it whole; or, where it's more, the
   widest of its rows' shortest forms and a cell, each figure at its stated bound over the longest
-  period, so no figure is cut at a column's least, whatever the period. As many accounts show as
-  fit, at least two, as a comparison needs two, the last giving way first: six of ten at 160
+  period, so no figure is cut at a column's least, whatever the period. The sessions moved are
+  bound as the sessions served are, 99,999 each way, as a move counts once a session a day, so
+  only requests would bound them otherwise, a figure no real use nears: `99,999 in · 99,999 out`
+  sets the least at 23, and the wide form holds from 95 columns. As many accounts show as fit,
+  at least two, as a comparison needs two, the last giving way first: four of ten at 160
   columns, every one of three at 108, two of three with long names. The columns shown share the
   rest alike, the odd cells `all accounts`' and then the first's, `all accounts`' values running
   to the frame's edge. Past them, `←` and `→` move the
   focus along the accounts, the columns scrolling to keep it in view and `all accounts` staying put
   at the right, and the heading's state says which show:
-  `accounts 1–6 of 10  ·  ←→ moves along them; all accounts stays put`, its `←→` bold `accent.key`.
+  `accounts 1–4 of 10  ·  ←→ moves along them; all accounts stays put`, its `←→` bold `accent.key`.
   The range is of the accounts' places in the config's order.
 - **The heads,** on the view's first two rows, wherever the heading's rows end, held however far
   the rest scrolls: an account's name and marks, bold, as `usage` draws a name
@@ -3599,11 +3602,13 @@ frames show the keys from before the sweep of 7 and 8 October 2026, `p` for the 
     has begun in yet, as on the 1st, is empty, so the months stand over WORTH's.
   - **Its columns,** 5 rows tall at a full week, drawn as Weeks draws its columns: up the ramp in
     `viz.ramp`, this week's dimmer, its top cell in eighths. They're laid across the column less a
-    cell as WORTH BY lays its buckets, a cell apart at 12 months. Where the account keeps a
+    cell as WORTH BY lays its buckets: at 12 months a cell apart where each has a cell, as at
+    160 and 173 columns, touching narrower, as at 100. Where the account keeps a
     reserve, its cap's level is marked `┄` in `text.subtle` along the row its cap falls in, under
     the columns. The axis names a month where it starts, and at 12 months each month, giving way
     from the last back, as WORTH BY's does, the last bold; under this week's column, so far, `…`
-    in `text.secondary`, in place of its name.
+    in `text.secondary`, in place of its name, where its columns are weeks: at 12 months none,
+    as a month's column isn't this week's, though its fullest week may be.
   - **Under it,** Weeks' facts on the reach's whole weeks, never its verdict's words, which stay in
     `switchboard history`: `limit hit 3 of 7 · 9% left at a reset`, in `text.subtle`, its last
     part giving way to `9% left`, then going; `all accounts`, the pool's peaks the mean of the
@@ -3612,13 +3617,20 @@ frames show the keys from before the sweep of 7 and 8 October 2026, `p` for the 
 - **WORTH,** a blank row under WEEKS, `at API prices, by day` after it, naming the bucket: what
   each column's requests were worth over the period, 4 rows tall in `accent.primary`, in the
   finest bucket that fits the narrowest column, as Projects' WORTH BY takes its, one rule
-  (`views.WorthCharts`): today's by the day, as the summaries keep no hours; this week's and 30
-  days' by day; 12 weeks' by day, or by week where 84 days don't fit; and 12 months' by week, or by
-  month. At 173 columns that's a day a column at this week and 30 days, a week at 12 weeks and a
-  month at 12 months. The accounts share one scale, the highest bucket of every configured
-  account's, shown or not, so their columns compare; `all accounts` has its own. Its axis is
-  WORTH BY's, and under it its peak, `peak Wed $148`, `all accounts`' adding ` · its own scale` in
-  `text.subtle`.
+  (`views.WorthCharts`): today's by the hour, or by two hours where 24 don't fit; this week's by
+  day; 30 days' and 12 weeks' by day, or by week where their days don't fit; and 12 months' by
+  week, or by month. Every period's coarsest has 13 buckets at most (`views.BucketsMost`), which
+  a column at its least holds a cell each, so no chart is ever crushed. Today's hours are the
+  tail's fold's, each account's worth by the local hour its requests arrived in, priced as the
+  fold prices today, all accounts' every account's (`AccountsPage.Hourly`): the summaries keep no
+  hours. While Accounts shows today, the tail is read at each look, so its hours keep up; till
+  its first read of the day, today is by the day. At 173 columns with three accounts that's an
+  hour a column today, a day at this week and 30 days, a week at 12 weeks and a month at 12
+  months; with four, 30 days are by week. The accounts share one scale, the highest bucket of
+  every configured account's, shown or not, so their columns compare; `all accounts` has its
+  own. Its axis is WORTH BY's, and under it its peak, `peak Wed $148`, two hours by their span,
+  `peak 12:00–14:00 $36`, and a month with its year where the period touches two of its name,
+  `peak Oct 2026 $310`; `all accounts`' adding ` · its own scale` in `text.subtle`.
 - **At 12 months** each column holds the 12 months' totals, and against its price names them:
   `3.4× its $2,400 12 months`.
 - **Three groups** follow, a blank row before each, every value from its column's first cell in
@@ -3662,7 +3674,8 @@ frames show the keys from before the sweep of 7 and 8 October 2026, `p` for the 
   or the period changes; its focus, help and the key line follow the form drawn, so where it's
   turned they have no focus. The phone's chrome takes no part in it.
 - **Turned,** Compare is a group at a time, an account a row, its name from column 1, and
-  `all` last, with no WEEKS or WORTH. More accounts than its height holds scroll with `j/k`, the last row saying
+  `all` last, with no WEEKS or WORTH: those are to come, as Detail's `all accounts` bands, an
+  account a band of week columns. More accounts than its height holds scroll with `j/k`, the last row saying
   `▼ 2 more below · j/k` (settled in the plan).
   - Its parts, laid by flex across the width: the names at their widest whole, at least 8 and at
     most 24 cells, its marks among them; 2 cells on, the bars, at 20, at most 40, giving way to a
@@ -4003,9 +4016,10 @@ draw it, the tab names in its title row aside, and kept in `testdata/vhs/referen
   name: its name and path; its sessions running now; its sessions, requests and worth, and worth by
   family; and when its last request arrived. Then `all projects`, every project's totals.
 - **The chosen project:** its row; its share of every project's worth; its tokens; WORTH BY, by
-  the hour today, the hours to come counted, by the day this week and over 30 days, by the day and
-  by the week over 12 weeks, and by the week, or the month, over 12 months, each bucket labelled and the peak, the
-  first greatest, named; BY MODEL, Accounts' reckoning by version, greatest first, under 1% left
+  the hour today, or by two hours, the hours to come counted, by the day this week, by the day and
+  by the week over 30 days and 12 weeks, and by the week, or the month, over 12 months, each
+  bucket labelled and the peak, the first greatest, named, a month with its year where the period
+  touches two of its name; BY MODEL, Accounts' reckoning by version, greatest first, under 1% left
   out; ON ACCOUNTS, each account's share by its label, of the worth of the requests that went to an
   account, so the shares make the whole; and SESSIONS, in the List's row form and order, running
   first, each ended one with the day it ended, its model, account, mark and the move that brought
@@ -4025,13 +4039,13 @@ draw it, the tab names in its title row aside, and kept in `testdata/vhs/referen
   the dial turns, and the two fit the right half whole; middling, WORTH BY across and the two side
   by side under it, where each fits a half whole; else stacked. In whichever cells WORTH BY takes as
   the sections lie, its columns narrow to fit, as middling draws them. As rows run short, ON
-  ACCOUNTS leaves first, then BY MODEL, then WORTH BY, so SESSIONS keeps three rows. WORTH BY over
-  12 weeks is by day where a column a cell wide fits each day in the cells it takes, the left half
-  where it lies wide, else by week; over 12 months, by week where a column a cell wide fits each week, else by
-  month. Its axis names buckets from the last back, the one now falls in
-  bold, and weeks by the month of their first day in the period, where it's another than the week
-  before's. SESSIONS is the List's columns, the
-  session's from 11 cells to its whole, then model, started and requests leaving as the width runs
+  ACCOUNTS leaves first, then BY MODEL, then WORTH BY, so SESSIONS keeps three rows. WORTH BY
+  today is by the hour where a column a cell wide fits each hour in the cells it takes, the left
+  half where it lies wide, else by two hours; over 30 days and 12 weeks, by day where one fits
+  each day, else by week; over 12 months, by week where one fits each week, else by month. Its
+  axis names buckets from the last back, the one now falls in bold, and weeks by the month of
+  their first day in the period, where it's another than the week before's. SESSIONS is the
+  List's columns, the session's from 11 cells to its whole, then model, started and requests leaving as the width runs
   short; its rules read `ended today`, `ended yesterday`, a weekday within the week, else the day
   and its date, each session's state its end by the clock alone and its start dated where it began
   on another day than the one it ended on. Its columns are as wide as the widest each says of all
@@ -4047,8 +4061,9 @@ draw it, the tab names in its title row aside, and kept in `testdata/vhs/referen
   back; and today's, folded off the loop at every read of the ledger's tail from the first, whether
   or not Projects has shown, with each day turned since Projects first asked for its own. By the
   end of a day of 25,000 requests the fold holds some 2 MB, nearly all of it the keys of the lines
-  taken, kept so a line given again counts once; and as the fold is a value, a read that gains a
-  line copies those keys whole, so a read costs what the day holds, under a millisecond by its end,
+  taken, kept so a line given again counts once, its sessions' spend by the hour by account, 24
+  sums for each account a session ran on, small beside them; and as the fold is a value, a read
+  that gains a line copies those keys whole, so a read costs what the day holds, under a millisecond by its end,
   not what it gained, and holds about twice the 2 MB while a copy is under way. No page is built
   for a period the days held don't reach, nor before the tail's first read of the day, so a step
   further back draws what the first read draws, loading only while there's no page to draw, till
@@ -7229,7 +7244,8 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
     never the day. A file found replaced, or shorter than where the last read ended, is read again
     from its start. The tail is read at each look whatever tab shows, while a reader holds today's
     lines, as the Log once shown, the List once read and a session's page open do, or the stream
-    awaits a line, so each keeps up while another tab shows; and once after the stream opens, for
+    awaits a line, so each keeps up while another tab shows, and while Accounts shows today, its
+    worth by the hour being the tail's fold's; and once after the stream opens, for
     the traces, whether a reader holds them or not. The tail alone asks the follower for today's
     lines, with its one mark. A line one read finds, of today or of a day before read again whole,
     every reader takes in, the store of sessions once for them all (settled in the plan). The

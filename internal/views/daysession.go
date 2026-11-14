@@ -88,8 +88,9 @@ func DaySessionsOn(l Ledger, date string) []DaySession {
 // built of them, or of today's as the tail gives them, as SessionDays folds
 // them. Where told says, each session's requests are held, for its story to
 // tell its moves once the day's lines are all taken in; and where hourly
-// says, what each spent by the local hour its requests arrived in, as
-// today's hours are drawn of them. Where the fold takes in more reads than
+// says, what each spent by the local hour its requests arrived in, by the
+// account each went to, as today's hours are drawn of them, Projects' and
+// Accounts' alike. Where the fold takes in more reads than
 // one, as today's does, keys are the keys of the lines it took, as
 // turnKeyOf has them, each counted, so a read given again counts none of
 // them twice; nil of a fold of one read.
@@ -102,11 +103,37 @@ type daySessions struct {
 
 // foldedSession is a session of a day as daySessions folds it: its record
 // so far; its requests, where its story is to be told of them; and what
-// they spent by the local hour each arrived in, where that's kept.
+// they spent by the local hour each arrived in, by account, where that's
+// kept.
 type foldedSession struct {
 	DaySession
 	requests []heldRequest
-	hours    *[24]ledger.Spent
+	hours    accountHours
+}
+
+// accountHours are what requests spent by the local hour each arrived in,
+// by the account each went to, "" of those none answered: 24 sums an
+// account, as few as a session's day ran on.
+type accountHours map[string]*[24]ledger.Spent
+
+// add adds what r, a request, spent to its account's hour it arrived in.
+func (h accountHours) add(r *lineRecord) {
+	hours := h[r.account]
+	if hours == nil {
+		hours = new([24]ledger.Spent)
+		h[r.account] = hours
+	}
+	hours[r.arrived().Local().Hour()].Add(r.model, r.geo, r.spend)
+}
+
+// copied is a copy of the hours sharing nothing a fold changes with them.
+func (h accountHours) copied() accountHours {
+	c := make(accountHours, len(h))
+	for account, hours := range h {
+		kept := *hours
+		c[account] = &kept
+	}
+	return c
 }
 
 // newDaySessions is a fold of a day's sessions of no line yet, holding each
@@ -140,7 +167,7 @@ func (d daySessions) take(r *lineRecord, read *countedOnce) {
 	if !ok {
 		s = &foldedSession{ID: id}
 		if d.hourly {
-			s.hours = new([24]ledger.Spent)
+			s.hours = accountHours{}
 		}
 		d.held[id] = s
 	}
@@ -152,7 +179,7 @@ func (d daySessions) take(r *lineRecord, read *countedOnce) {
 	}
 	s.requested(r)
 	if s.hours != nil {
-		s.hours[r.arrived().Local().Hour()].Add(r.model, r.geo, r.spend)
+		s.hours.add(r)
 	}
 	if d.told {
 		s.requests = append(s.requests, newHeldRequest(r.decodedRequest))
@@ -228,8 +255,7 @@ func (s *foldedSession) copied() *foldedSession {
 	c := *s
 	c.requests = slices.Clip(s.requests)
 	if s.hours != nil {
-		hours := *s.hours
-		c.hours = &hours
+		c.hours = s.hours.copied()
 	}
 	return &c
 }

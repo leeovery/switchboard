@@ -33,9 +33,9 @@ const compareWidthsFrom, compareWidthsTo = 40, 220
 // Compare is drawn wide from the width where its wide form's parts fit at
 // their leasts, and turned narrower, switching once as the width grows: the
 // labels' column, 24, and its gap, 2, then the first two accounts' columns
-// and all accounts', which never give way, each at least 19 cells, or the
-// widest head and a cell: from 83 with short names, from 101 with names of
-// 24 cells, however many there are, as no number heads a name. The rest of
+// and all accounts', which never give way, each at least 23 cells, the
+// least the figures' bounds set, or the widest head and a cell: from 95 with
+// short names, from 101 with names of 24 cells, however many there are, as no number heads a name. The rest of
 // the accounts' columns give way, so how many there are past two moves nothing.
 // With fewer than two there's nothing to compare, and it's never wide.
 func TestCompareIsWideFromWhereItsLeastsFit(t *testing.T) {
@@ -48,11 +48,11 @@ func TestCompareIsWideFromWhereItsLeastsFit(t *testing.T) {
 		{name: "none", from: never},
 		{name: "one, short", accounts: comparedAccounts(1, false), from: never},
 		{name: "one, long", accounts: comparedAccounts(1, true), from: never},
-		{name: "two, short", accounts: comparedAccounts(2, false), from: 83},
-		{name: "three, short", accounts: comparedAccounts(3, false), from: 83},
-		{name: "three, as the frames configure them", accounts: threeFramed, from: 83},
-		{name: "ten, as the frames configure them", accounts: tenFramed, from: 83},
-		{name: "ten, short", accounts: comparedAccounts(10, false), from: 83},
+		{name: "two, short", accounts: comparedAccounts(2, false), from: 95},
+		{name: "three, short", accounts: comparedAccounts(3, false), from: 95},
+		{name: "three, as the frames configure them", accounts: threeFramed, from: 95},
+		{name: "ten, as the frames configure them", accounts: tenFramed, from: 95},
+		{name: "ten, short", accounts: comparedAccounts(10, false), from: 95},
 		{name: "two, long", accounts: comparedAccounts(2, true), from: 101},
 		{name: "nine, long", accounts: comparedAccounts(9, true), from: 101},
 		{name: "ten, long", accounts: comparedAccounts(10, true), from: 101},
@@ -144,6 +144,31 @@ func TestComparesBoundsSayEveryFigureWhole(t *testing.T) {
 				t.Errorf("of %d accounts, a bound says %q, want it whole and positive", n, said)
 			}
 		}
+	}
+}
+
+// The moves are bound as the sessions are, 99,999 onto an account and as
+// many off, said whole: the widest of the bounds, so a column takes 23 cells
+// at least, however many accounts there are. Compare is wide at 108, and
+// four of ten show at 160.
+func TestComparesMovesAreBoundAsTheSessionsAre(t *testing.T) {
+	moves := plainLines([]line{partsSaid(compareColumn{row: compareBound(1, false)}.moved()[0])})[0]
+	if want := "99,999 in · 99,999 out"; moves != want {
+		t.Errorf("an account's moves at their bound say %q, want %q", moves, want)
+	}
+	for _, n := range []int{2, 3, 10} {
+		f := frameOf(108, 37)
+		f.View, f.Accounts = Accounts, AccountsShown{Accounts: comparedAccounts(n, false)}
+		if got := f.leastCompared(); got != 23 {
+			t.Errorf("of %d accounts, a column's least is %d cells, want 23", n, got)
+		}
+		if !f.CompareWide() {
+			t.Errorf("of %d accounts, Compare is turned at 108 columns, want wide", n)
+		}
+	}
+	f, doc := tenOnCompare(t, 160, 37, 0)
+	if got := f.At(doc, routedAt).compareShows(); got != 4 {
+		t.Errorf("of ten accounts at 160 columns, Compare shows %d, want 4", got)
 	}
 }
 

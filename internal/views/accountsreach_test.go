@@ -129,10 +129,12 @@ func TestTheReachAt12WeeksAnd12MonthsIsTheirWeeks(t *testing.T) {
 }
 
 // What an account's requests were worth is charted in the buckets Projects
-// charts a project's in, the finest first, but today's by the day, as the
-// summaries hold no hours: this week's and 30 days' by day, 12 weeks' by
-// day and by week, 12 months' by week and by month; each chart's buckets
-// summing to the row's worth, every account's to theirs.
+// charts a project's in, the finest first, but today's by the day, till
+// Hourly charts it by the hour, as the summaries hold no hours: this week's
+// by day, 30 days' and 12 weeks' by day and by week, 12 months' by week and
+// by month, its peak month named with its year where the period touches
+// two of its name; each chart's buckets summing to the row's worth, every
+// account's to theirs.
 func TestAnAccountsWorthIsChartedAsProjectsChartAProjects(t *testing.T) {
 	days := daysFrom("2025-09-01",
 		day("2025-11-03", account("work", sent("claude-opus-5-5", 2, inputUsage))),
@@ -154,9 +156,9 @@ func TestAnAccountsWorthIsChartedAsProjectsChartAProjects(t *testing.T) {
 	}{
 		{views.PeriodToday, []chart{{views.ByDay, 1, "Wed"}}},
 		{views.PeriodThisWeek, []chart{{views.ByDay, 7, "Wed"}}},
-		{views.PeriodThirtyDays, []chart{{views.ByDay, 30, "7 Oct"}}},
+		{views.PeriodThirtyDays, []chart{{views.ByDay, 30, "7 Oct"}, {views.ByWeek, 5, "week of 5 Oct"}}},
 		{views.PeriodTwelveWeeks, []chart{{views.ByDay, 84, "7 Oct"}, {views.ByWeek, 12, "week of 5 Oct"}}},
-		{views.PeriodTwelveMonths, []chart{{views.ByWeek, 53, "week of 5 Oct"}, {views.ByMonth, 13, "Oct"}}},
+		{views.PeriodTwelveMonths, []chart{{views.ByWeek, 53, "week of 5 Oct"}, {views.ByMonth, 13, "Oct 2026"}}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.period.Name(), func(t *testing.T) {
@@ -180,5 +182,78 @@ func TestAnAccountsWorthIsChartedAsProjectsChartAProjects(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// Accounts' today, fed the tail's fold of it, charts each account's worth by
+// the hour its requests arrived in, and by two hours, as Projects charts a
+// project's, all accounts' every account's; a fold of another day, or any
+// other period, leaves the page by the day, as the summaries have it.
+func TestAccountsTodayIsChartedByTheHourOfTheTailsFold(t *testing.T) {
+	lines := slices.Concat(
+		projectAsks(repoSession, "/code/switchboard", "", "work", times(october(7, 9, 0), 2)...),
+		projectAsks(repoSession, "/code/switchboard", "", "side", october(7, 9, 30)),
+		projectAsks(ownSession, "/code/own/api", "", "side", times(october(7, 12, 0), 3)...),
+		projectAsks(ownSession, "/code/own/api", "", "work", october(7, 13, 0)),
+	)
+	in := input(nil)
+	in.Accounts = workAndSide
+	byDay := views.NewPast(in, nil).Accounts(views.PeriodToday)
+	page := byDay.Hourly(heldDays(now, lines...))
+	type chart struct {
+		unit            views.BucketUnit
+		buckets, toCome int
+		worths          map[int]views.Worth
+		peak            string
+	}
+	of := func(by views.WorthBy) chart {
+		worths := map[int]views.Worth{}
+		for i, b := range by.Buckets {
+			if b.Amount != nil && *b.Amount > 0 {
+				worths[i] = b.Worth
+			}
+		}
+		return chart{by.Unit, len(by.Buckets), by.ToCome, worths, by.PeakNamed()}
+	}
+	tests := []struct {
+		name string
+		row  views.AccountsRow
+		want []chart
+	}{
+		{"work", page.Rows[0], []chart{
+			{views.ByHour, 24, 10, map[int]views.Worth{9: hoursWorth(2), 13: hoursWorth(1)}, "09:00"},
+			{views.ByTwoHours, 12, 5, map[int]views.Worth{4: hoursWorth(2), 6: hoursWorth(1)}, "08:00–10:00"},
+		}},
+		{"side", page.Rows[1], []chart{
+			{views.ByHour, 24, 10, map[int]views.Worth{9: hoursWorth(1), 12: hoursWorth(3)}, "12:00"},
+			{views.ByTwoHours, 12, 5, map[int]views.Worth{4: hoursWorth(1), 6: hoursWorth(3)}, "12:00–14:00"},
+		}},
+		{"all accounts", page.All, []chart{
+			{views.ByHour, 24, 10, map[int]views.Worth{9: hoursWorth(3), 12: hoursWorth(3), 13: hoursWorth(1)}, "09:00"},
+			{views.ByTwoHours, 12, 5, map[int]views.Worth{4: hoursWorth(3), 6: hoursWorth(4)}, "12:00–14:00"},
+		}},
+	}
+	for _, tt := range tests {
+		var got []chart
+		for _, by := range tt.row.WorthBy {
+			got = append(got, of(by))
+		}
+		if !reflect.DeepEqual(got, tt.want) {
+			t.Errorf("%s's today is charted as %+v, want %+v", tt.name, got, tt.want)
+		}
+	}
+	if !reflect.DeepEqual(byDay.Rows[0].Totals, page.Rows[0].Totals) {
+		t.Errorf("charted by the hour, work's totals are %+v, want the page's, %+v", page.Rows[0].Totals, byDay.Rows[0].Totals)
+	}
+	charts := func(page views.AccountsPage) []views.WorthCharts {
+		return []views.WorthCharts{page.Rows[0].WorthBy, page.Rows[1].WorthBy, page.All.WorthBy}
+	}
+	yesterday := heldDays(october(6, 23, 0), projectAsks(repoSession, "/code/switchboard", "", "work", october(6, 22, 0))...)
+	if got := byDay.Hourly(yesterday); !reflect.DeepEqual(charts(got), charts(byDay)) {
+		t.Errorf("fed yesterday's fold, today's page is charted %+v, want it by the day, %+v", charts(got), charts(byDay))
+	}
+	week := views.NewPast(in, nil).Accounts(views.PeriodThisWeek)
+	if got := week.Hourly(heldDays(now, lines...)); !reflect.DeepEqual(charts(got), charts(week)) {
+		t.Errorf("fed today's fold, this week's page is charted %+v, want it by the day, %+v", charts(got), charts(week))
 	}
 }

@@ -231,13 +231,15 @@ Compare has a column for each account, and one for `all accounts`. Each column s
 - its share of use by model version
 - WEEKS: how full each of its weeks got, as columns, at least the last eight, or every week of
   the period where there are more. At 12 months a column is a month, its fullest week. A dotted
-  line marks the cap of an account that keeps a reserve, and `…` marks this week, so far. Under
+  line marks the cap of an account that keeps a reserve, and `…` marks this week, so far, but at
+  12 months, where a column is a month. Under
   them, how many of those weeks it hit its limit in and what they had left at a reset, on average:
   `limit hit 3 of 7 · 9% left at a reset`. `all accounts` says how many weeks some account was
   short: `short on 3 of 7`.
-- WORTH: what its use was worth at API prices across the period, by day, week or month, the
-  finest that fits, and its peak, `peak Wed $148`. The accounts share one scale, so their
-  columns compare; `all accounts` has its own, and says so.
+- WORTH: what its use was worth at API prices across the period, by hour, two hours, day, week
+  or month, the finest that fits, and its peak, `peak Wed $148`. Today is by the hour its
+  requests arrived in. The accounts share one scale, so their columns compare; `all accounts`
+  has its own, and says so.
 - its requests, and the sessions it served and moved
 - its limits hit
 - the time it spent at its cap or a limit, and what it had left at its last reset
@@ -254,7 +256,7 @@ Where the rows don't all fit, Compare scrolls them under the accounts' names wit
 opens the focused account in Detail.
 
 Where two accounts' columns and `all accounts`' don't fit side by side, as on a phone, Compare
-turns: a group at a time, an account a row. Turned, it has no focus, and no WEEKS or WORTH.
+turns: a group at a time, an account a row. Turned, it has no focus, and no WEEKS or WORTH yet.
 
 ### Detail
 
@@ -318,9 +320,10 @@ Under the list, the chosen project shows:
 - its name, its path and its sessions running
 - its numbers over the period: its sessions, requests and worth, its share of every project's
   worth, and its tokens
-- WORTH BY, its worth in the finest bucket that fits: today by hour; this week and 30 days by day;
-  12 weeks by day where a column a day fits, else by week; and 12 months by week where a
-  column a week fits, else by month, the peak named under it
+- WORTH BY, its worth in the finest bucket that fits: today by hour where a column an hour fits,
+  else by two hours; this week by day; 30 days and 12 weeks by day where a column a day fits,
+  else by week; and 12 months by week where a column a week fits, else by month, the peak named
+  under it
 - BY MODEL, each version's share of its worth, those under 1% left out
 - ON ACCOUNTS, each account's share, the greatest first
 - SESSIONS, its sessions over the period in the List's columns: those running first, then the rest

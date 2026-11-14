@@ -189,8 +189,8 @@ func TestAccountsListsCompareFocusKeysOnlyWhereTheFocusIsDrawn(t *testing.T) {
 		want     bool
 	}{
 		{name: "wide", width: 160, accounts: threeConfigured, want: true},
-		{name: "at the narrowest wide", width: 83, accounts: threeConfigured, want: true},
-		{name: "turned, at its widest", width: 82, accounts: threeConfigured},
+		{name: "at the narrowest wide", width: 95, accounts: threeConfigured, want: true},
+		{name: "turned, at its widest", width: 94, accounts: threeConfigured},
 		{name: "a phone's narrowest", width: 52, accounts: threeConfigured},
 		{name: "no accounts", width: 160},
 	} {

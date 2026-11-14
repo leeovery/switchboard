@@ -34,9 +34,9 @@ const (
 	// leastColumn are the fewest cells a column takes, as many accounts
 	// showing as fit at it, less all accounts'. It's a floor: the rows'
 	// shortest forms at their bounds, as compareFigures has them, set the
-	// least where they need more, as with many hundreds of accounts. At 19
-	// the wide form holds from 83 columns, and ten accounts show six at 160,
-	// as before the figures set a least.
+	// least where they need more: an account's moves at their bound set 23,
+	// so the wide form holds from 95 columns, and ten accounts show four at
+	// 160.
 	leastColumn = 19
 	// barMost are the most cells a bar beside words takes, so none reads as
 	// a rule; and shareSpare the cells a column keeps beside BY MODEL's.
@@ -190,8 +190,11 @@ const (
 	requestsMost = 9_999_999
 	// sessionsMost are the most sessions served.
 	sessionsMost = 99_999
-	// movesMost are the most sessions moved onto an account, and off it.
-	movesMost = 999
+	// movesMost are the most sessions moved onto an account, and off it:
+	// as many as sessionsMost. A move is counted once a session a day, so
+	// only requests bound them, which would widen every column to 30 cells
+	// for a figure no real use nears; 99,999 in a period is far past any.
+	movesMost = sessionsMost
 	// limitsMost are the most limits hit: 12 months touch 1,758 of a 5-hour
 	// window, and fewer of a week's.
 	limitsMost = 9_999

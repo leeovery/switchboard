@@ -98,8 +98,9 @@ type AccountsRow struct {
 	Reached  []WeekPeak
 	Reaching AccountVerdict
 	// WorthBy is what its requests were worth over the period in each
-	// bucket it's charted in, as worthCharts has them, today's by the day,
-	// for Compare's WORTH to take the finest that fits.
+	// bucket it's charted in, as worthCharts has them, today's by the day
+	// till Hourly charts it by the hour, for Compare's WORTH to take the
+	// finest that fits.
 	WorthBy WorthCharts
 }
 
@@ -180,8 +181,12 @@ func onItsOwnScale(values []float64, limits []int) []StripDay {
 // has them.
 func (page *AccountsPage) weeked(in HistoryInput, days []Day) {
 	past := Past{in: in, days: days}
-	page.reached(past)
-	weeks := past.weeksPage()
+	weeks, reach := past.weeksPage(), page.Period.reachWeeks(dayfile.CivilOf(in.Now), in.WeekStarts)
+	reaching := weeks
+	if reach != weeksShown {
+		reaching = past.weeksOver(reach)
+	}
+	page.reached(in, reaching)
 	shown := len(weeks.Weeks) - accountsWeeks
 	page.Weeks = weeks.Weeks[shown:]
 	_, ended := splitAt(days, weeksTo(dayfile.CivilOf(in.Now), in.WeekStarts, accountsWeeks).AddDate(0, 0, -lookBack).Format(time.DateOnly))
