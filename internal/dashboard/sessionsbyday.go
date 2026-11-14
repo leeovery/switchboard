@@ -97,8 +97,8 @@ func (s sessionsByDay) drawPage(c *canvas, y int, paged rowsPaged, scroll int) {
 
 // drawLine draws the line l along row y: a day's rule, as the List's ended
 // today is drawn, naming the day as prose.DayGone does, of the first
-// session's end, today where none of it is known; or the session's row, as
-// the List draws one, lit where it's the one lit.
+// session's end; or the session's row, as the List draws one, lit where it's
+// the one lit.
 func (s sessionsByDay) drawLine(c *canvas, y int, l sessionLine) {
 	if l.ruled {
 		endedRule(c, y, s.width, line{{"ended " + prose.DayGone(s.words.now, cmp.Or(l.session.Ended, s.words.now)), dimInk}})

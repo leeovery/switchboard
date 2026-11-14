@@ -166,6 +166,89 @@ func TestTheListsLogIsBuiltOnlyAsWhatItsBuiltOfChanges(t *testing.T) {
 	}
 }
 
+// onTheList reports whether the List shows the session with the given id,
+// where a click would land on it.
+func onTheList(h *harness, id string) bool {
+	return slices.ContainsFunc(h.targets(), func(t dashboard.Target) bool { return t.On == dashboard.OnSession && t.Session == id })
+}
+
+// steppedWaiting is a List of 30 days at 160 by 16, the clock at the time
+// given, its first session chosen and scrolled out of view, six rows down,
+// that id.
+func steppedWaiting(t *testing.T, at time.Time) (*harness, string) {
+	t.Helper()
+	h := withDelta(projectsHarness(t, dashboard.Sessions))
+	h.clock.now = at
+	h.start()
+	h.deliver(h.update(tea.WindowSizeMsg{Width: 160, Height: 16})...)
+	h.keyed("] >")
+	h.keys(downKey)
+	first := h.model.sessionsTab.shown.Chosen.Session
+	h.keyed("j j j j j j")
+	if first == "" || onTheList(h, first) {
+		t.Fatalf("scrolled six rows, %q chosen, in view %v; want the first chosen, out of view", first, onTheList(h, first))
+	}
+	return h, first
+}
+
+// A step whose log waits on a read keeps the session chosen in view once
+// the read lands: to 12 weeks, the days read reaching 30 days back, the log
+// is let go for its read, and built as it lands, the session revealed.
+func TestAStepAwaitingTheDaysReadRevealsTheChosenSessionAsItLands(t *testing.T) {
+	h, first := steppedWaiting(t, start)
+	held := holdingBack[daysReadMsg](h, h.press(">")...)
+	if len(held) != 1 || h.model.sessionsTab.shown.Log != nil {
+		t.Fatalf("stepped to 12 weeks, %d reads held, its log %v; want the read held, no log", len(held), h.model.sessionsTab.shown.Log)
+	}
+	h.deliver(held...)
+	if h.model.period != views.PeriodTwelveWeeks || h.model.sessionsTab.shown.Chosen.Session != first || !onTheList(h, first) {
+		t.Errorf("the read landed, %q shown, %s chosen, in view %v; want 12 weeks, %s chosen and in view", h.model.period.Name(), h.model.sessionsTab.shown.Chosen.Session, onTheList(h, first), first)
+	}
+}
+
+// A step back to the period the log was last built of, before the step's
+// read lands, builds it as it was, the List where it was left.
+func TestAStepBackBeforeTheReadLandsLeavesTheListWhereItWas(t *testing.T) {
+	h, first := steppedWaiting(t, start)
+	scroll := h.model.scroll
+	holdingBack[daysReadMsg](h, h.press(">")...)
+	h.keyed("<")
+	if h.model.period != views.PeriodThirtyDays || h.model.sessionsTab.shown.Log == nil || h.model.scroll != scroll || h.model.sessionsTab.shown.Chosen.Session != first {
+		t.Errorf("stepped back before the read landed, %q shown, log %v, scroll %d, %s chosen; want 30 days built, scroll %d, %s chosen", h.model.period.Name(), h.model.sessionsTab.shown.Log != nil, h.model.scroll, h.model.sessionsTab.shown.Chosen.Session, scroll, first)
+	}
+}
+
+// Two steps taken while the first's read is out keep the session chosen in
+// view once the log is built of the second.
+func TestTwoStepsAwaitingTheirReadsRevealTheChosenSessionAsTheLogIsBuilt(t *testing.T) {
+	h, first := steppedWaiting(t, start)
+	held := holdingBack[daysReadMsg](h, h.press(">")...)
+	held = append(held, holdingBack[daysReadMsg](h, h.press(">")...)...)
+	if h.model.sessionsTab.shown.Log != nil {
+		t.Fatalf("stepped twice, its log %v; want no log while its reads are out", h.model.sessionsTab.shown.Log)
+	}
+	h.deliver(held...)
+	if h.model.period != views.PeriodTwelveMonths || h.model.sessionsTab.shown.Chosen.Session != first || !onTheList(h, first) {
+		t.Errorf("the reads landed, %q shown, %s chosen, in view %v; want 12 months, %s chosen and in view", h.model.period.Name(), h.model.sessionsTab.shown.Chosen.Session, onTheList(h, first), first)
+	}
+}
+
+// A step past midnight, the tail yet to be read on the day, keeps the
+// session chosen in view once the tail's read lands: the log is let go for
+// it, and built as it lands, the session revealed.
+func TestAStepPastMidnightRevealsTheChosenSessionAsTheTailsReadLands(t *testing.T) {
+	h, first := steppedWaiting(t, onTheDay(23, 59, 30))
+	h.clock.now = onTheDay(24, 0, 5)
+	held := holdingBack[tailedMsg](h, h.press(">")...)
+	if len(held) != 1 || h.model.sessionsTab.shown.Log != nil {
+		t.Fatalf("stepped past midnight, %d reads of the tail held, its log %v; want the read held, no log", len(held), h.model.sessionsTab.shown.Log)
+	}
+	h.deliver(held...)
+	if h.model.period != views.PeriodTwelveWeeks || h.model.sessionsTab.shown.Chosen.Session != first || !onTheList(h, first) {
+		t.Errorf("the tail's read landed, %q shown, %s chosen, in view %v; want 12 weeks, %s chosen and in view", h.model.period.Name(), h.model.sessionsTab.shown.Chosen.Session, onTheList(h, first), first)
+	}
+}
+
 // A period stepped on the List keeps the session chosen in view, where the
 // new period's log lists it, as Projects keeps its place; and where it
 // doesn't, the List shows from its top, nothing chosen.

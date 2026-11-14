@@ -46,10 +46,14 @@ type listReadMsg struct {
 // stubs hanging as views.StubsOf has them; the List's log, while the List
 // shows, as logBuilt has it; and the choice following its session, as
 // Following has it, kept in view where it was, as revealing has it, or
-// where the log is built of another period, as the dial steps, in view
-// wherever it was, where it's in the log, else the log from its top. A frame
-// takes nothing in, so builds nothing, but where a move the views read
-// comes to show at it, putting its session on the account it went to.
+// where the log is built of another period than it was last built of, as
+// the dial steps, in view wherever it was, where it's in the log, else the
+// log from its top: at the look that builds it, however many looks its read
+// took, and however many steps were taken meanwhile. A step back to the
+// period it was last built of before the read lands builds it as it was,
+// the List where it was left. A frame takes nothing in, so builds nothing,
+// but where a move the views read comes to show at it, putting its session
+// on the account it went to.
 func (m Model) sessionsLooked(msg tea.Msg) Model {
 	if m.view != dashboard.Sessions || m.session != nil {
 		return m
@@ -60,7 +64,7 @@ func (m Model) sessionsLooked(msg tea.Msg) Model {
 		return m
 	}
 	sighted := m.sessionsTab.shown.Chosen != (dashboard.Plug{}) && chosenShows(m.frame(now), m.doc, now, m.scroll)
-	stepped := m.sessionsTab.shown.Log != nil && m.sessionsTab.logOf.period != m.period
+	stepped := m.sessionsTab.logOf.period != m.period
 	mo := m.moment(now)
 	m = m.logBuilt(now, s)
 	t := m.sessionsTab

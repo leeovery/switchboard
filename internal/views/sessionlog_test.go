@@ -136,13 +136,13 @@ func TestASessionAcrossMidnightStartsTheDayBefore(t *testing.T) {
 
 // A session the List lists as neither running nor ended, as one the stream
 // told of before the router lists it, is ruled by the day of its last
-// request, among those of its day in the List's order, never apart from
-// them.
+// request, yesterday's, among those of its day in the List's order, never
+// apart from them.
 func TestASessionNeitherRunningNorEndedIsRuledByItsLastRequestsDay(t *testing.T) {
-	asking := views.ListedSession{Session: yesterdaysSession, Dir: "/code/client", Activity: views.Activity{Doing: views.Asking}, Ended: october(7, 9, 0), Requests: 1}
+	asking := views.ListedSession{Session: yesterdaysSession, Dir: "/code/client", Activity: views.Activity{Doing: views.Asking}, Ended: october(6, 20, 0), Requests: 1}
 	days := heldDays(now, slices.Concat(
 		projectAsks(ownSession, "/code/own", "/code/own", "work", october(7, 10, 0)),
-		projectAsks(yesterdaysSession, "/code/client", "/code/client", "work", october(7, 9, 0)),
+		projectAsks(yesterdaysSession, "/code/client", "/code/client", "work", october(6, 20, 0)),
 		projectAsks(worktreeSession, "/code/switchboard", "/code/switchboard", "work", october(7, 8, 0)),
 		projectAsks(clientSession, "/code/client", "/code/client", "work", october(6, 15, 0)),
 	)...)
@@ -151,7 +151,7 @@ func TestASessionNeitherRunningNorEndedIsRuledByItsLastRequestsDay(t *testing.T)
 	for _, s := range log.Sessions {
 		got = append(got, s.Session+" "+s.EndedOn)
 	}
-	want := []string{ownSession + " 2026-10-07", yesterdaysSession + " 2026-10-07", worktreeSession + " 2026-10-07", clientSession + " 2026-10-06"}
+	want := []string{ownSession + " 2026-10-07", worktreeSession + " 2026-10-07", yesterdaysSession + " 2026-10-06", clientSession + " 2026-10-06"}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("the log lists\n%v\nwant\n%v", got, want)
 	}

@@ -627,6 +627,7 @@ func TestASessionStartsAtItsFirstRequestBeforeThePeriod(t *testing.T) {
 	}{
 		{"of the days held", heldDays(now, sunday, monday), views.PeriodThisWeek, worktreeSession, october(4, 22, 0)},
 		{"walked back from the week's first day", views.ReadSessionDays(l, october(5, 0, 0), now).Tailed(todays, true, nil, nil, now), views.PeriodThisWeek, worktreeSession, october(4, 22, 0)},
+		{"over midnight, of today's", views.ReadSessionDays(l, now, now).Tailed(todays, true, nil, nil, now), views.PeriodToday, repoSession, october(6, 23, 30)},
 		{"walked back no further than 31 days", views.ReadSessionDays(lm, now, now).Tailed(lm.days["2026-10-07"], true, nil, nil, now), views.PeriodToday, clientSession, october(7, 8, 0).AddDate(0, 0, -31)},
 	}
 	for _, tt := range tests {

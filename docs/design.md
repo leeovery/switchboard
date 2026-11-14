@@ -4898,15 +4898,16 @@ each at least its least and at most its natural:
   account it's on. Else none.
 - **The order:** the running sessions first, in the order they started, the oldest first, a new one
   joining their foot, with no rule; then the rest, every one the router doesn't list, under a rule
-  for the day each ended, as its last request's day has it, today's where none of it is known, as
-  of one the stream told of before the router lists it, the newest end first: the day's words in `text.subtle` from column 2, two cells, and a rule of `─` in
-  `border` to the last column. The rules read `ended today`, `ended yesterday`, the weekday within
-  the six days before today, `ended Tue`, and the weekday and date beyond, `ended Mon 21 Sep`, as
-  Projects' SESSIONS reads them. The order stays still, never reshuffled by activity, as rows would
-  slide from under the cursor: a row moves only as its session ends, from running to the top of
-  ended, or as it asks again, back to its place by start among the running. A rule shows with the
-  first session under it or not at all, so a List of one row, at its least, shows no rule, the ended
-  sessions following the running, each saying it ended (settled in the plan).
+  for the day each ended, as its last request's day has it, as of one the stream told of before the
+  router lists it, the newest end first: the day's words in `text.subtle` from column 2, two cells,
+  and a rule of `─` in `border` to the last column. The rules read `ended today`, `ended yesterday`,
+  the weekday within the six days before today, `ended Tue`, and the weekday and date beyond,
+  `ended Mon 21 Sep`, as Projects' SESSIONS reads them. The order stays still, never reshuffled by
+  activity, as rows would slide from under the cursor: a row moves only as its session ends, from
+  running to the top of ended, or as it asks again, back to its place by start among the running. A
+  rule shows with the first session under it or not at all, so a List of one row, at its least,
+  shows no rule, the ended sessions following the running, each saying it ended (settled in the
+  plan).
 - **The period line,** on the row over the key line, from column 0, as the key line and the Log's
   state line are, so it reads as words, not keys (the owner's call on the spike, 21 October 2026):
   `30 days  150 sessions · 33,010 requests · $3,257.86 at API prices`, the period's name in
