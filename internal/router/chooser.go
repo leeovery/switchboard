@@ -20,26 +20,26 @@ type Chooser interface {
 	Choose(ctx context.Context, req Request) Choice
 	// Answered notes that req was answered with success, as its answer
 	// comes, by the account with the id given, where it went for reason: its
-	// session's assignment for the request's model, made by req or another,
-	// is told of as started once, as the first is answered, on that account,
-	// as the assignment says while the session is still there, else as req
-	// went there, another request having moved it since. The client's quota
-	// check starts none.
+	// session's assignment for the request's model in its pool, made by req
+	// or another, is told of as started once, as the first is answered, on
+	// that account, as the assignment says while the session is still there,
+	// else as req went there, another request having moved it since. The
+	// client's quota check starts none.
 	Answered(req Request, account, reason string)
 	// Forget takes back the accounts chosen for req, as they came to nothing:
-	// its session's assignment for the request's model goes back to what it
-	// was before req, none for a session req's first choice said was new,
-	// which is remembered once a request is answered with success, or when
-	// req was refused on every account it went out on. An account chosen for
-	// another request of the session since stands. It returns the account
-	// the session is back on, "" when it has none, and reports whether it
-	// took the accounts back: not when one chosen since stands.
+	// its session's assignment for the request's model in its pool goes back
+	// to what it was before req, none for a session req's first choice said
+	// was new, which is remembered once a request is answered with success,
+	// or when req was refused on every account it went out on. An account
+	// chosen for another request of the session since stands. It returns the
+	// account the session is back on, "" when it has none, and reports
+	// whether it took the accounts back: not when one chosen since stands.
 	Forget(req Request) (string, bool)
 	// OnAccount returns how long, at now, req's session has been on the
-	// account with the id given, for its requests of the request's model:
-	// since it came to the account, which a choice that keeps it there
-	// doesn't start again. It's none where the session isn't remembered on
-	// the account, as a request without a session never is.
+	// account with the id given, for its requests of the request's model in
+	// its pool: since it came to the account, which a choice that keeps it
+	// there doesn't start again. It's none where the session isn't
+	// remembered on the account, as a request without a session never is.
 	OnAccount(req Request, account string, now time.Time) time.Duration
 }
 
@@ -153,7 +153,8 @@ type Choice struct {
 	// request is answered, as Chooser's Forget says.
 	New bool
 	// From is the account the choice moved the request's session from, for
-	// its requests of the request's model, as Moved tells of it: "" when it
-	// didn't move it.
+	// its requests of the request's model in its pool, as Moved tells of it:
+	// "" when it didn't move it, as for a session new to the pool, whatever
+	// it has in another.
 	From string
 }

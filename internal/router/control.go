@@ -246,8 +246,11 @@ func writeRefusal(w http.ResponseWriter, err error) {
 //
 // The status document, the sessions, the windows' history and the stream are
 // one pool's, as ?pool= names it, else the one the verbs act on, refused,
-// naming the pools, where there's none; GET /health reports every pool, and a
-// session named by its id is in its own pool unless ?pool= names another.
+// naming the pools, where there's none; GET /health reports every pool. A
+// session named by its id is read, pinned and unpinned in the pool ?pool=
+// names, else in the one it was routed in last, but pinned to an account in
+// that account's pool, where it runs there too: a session resumed in another
+// pool runs in both, and each pool's work is its own.
 func (r *Router) Control() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
@@ -289,16 +292,28 @@ func (r *Router) Control() http.Handler {
 			writeProblem(w, http.StatusBadRequest, `give the account to pin the session to as JSON, such as {"account": "b6s7"}`)
 			return
 		}
+		named, err := r.sessionPoolNamed(req)
+		if err != nil {
+			writeRefusal(w, err)
+			return
+		}
 		id := req.PathValue("id")
-		r.answerSession(w, id, anyPool, r.pinSession(id, pin.Account, pin.By))
+		pool, err := r.pinSession(id, named, pin.Account, pin.By)
+		r.answerSession(w, id, r.onlyIn(pool), err)
 	})
 	mux.HandleFunc("DELETE /sessions/{id}/pin", func(w http.ResponseWriter, req *http.Request) {
+		named, err := r.sessionPoolNamed(req)
+		if err != nil {
+			writeRefusal(w, err)
+			return
+		}
 		id := req.PathValue("id")
 		by, err := byAsked(req)
+		var pool string
 		if err == nil {
-			err = r.unpinSession(id, by)
+			pool, err = r.unpinSession(id, named, by)
 		}
-		r.answerSession(w, id, anyPool, err)
+		r.answerSession(w, id, r.onlyIn(pool), err)
 	})
 	mux.HandleFunc("POST /pin", func(w http.ResponseWriter, req *http.Request) {
 		var pin PinRequest
@@ -421,9 +436,27 @@ func (r *Router) sessionPoolAsked(req *http.Request) (func(pool string) bool, er
 	return rd.routes, nil
 }
 
+// sessionPoolNamed returns the id of the pool ?pool= names, as poolAsked has
+// it, of a session pinned or unpinned by its id: "" where it names none, or
+// in a config from before pools, whatever it names. It fails, naming the
+// pools, where the pool named isn't configured.
+func (r *Router) sessionPoolNamed(req *http.Request) (string, error) {
+	if poolNamed(req) == "" {
+		return "", nil
+	}
+	rd, err := r.poolAsked(req)
+	return rd.pool, err
+}
+
 // anyPool holds a session in any pool.
 func anyPool(string) bool {
 	return true
+}
+
+// onlyIn holds a session in the pool with the given id alone, as a read of
+// that pool does, as the pools stand now.
+func (r *Router) onlyIn(pool string) func(pool string) bool {
+	return r.state.poolReadOf(r.state.pools.current(), pool).routes
 }
 
 // maxAge reads how old an account's usage can be before POST /refresh probes
@@ -536,15 +569,16 @@ func (r *Router) answerSession(w http.ResponseWriter, id string, in func(pool st
 }
 
 // session reports where the session with the given id has its requests go,
-// with the status of the account its last-used model went to. It fails with
+// in the pool it was routed in last of those in holds, with the status of
+// the account its last-used model there went to. It fails with
 // ErrUnknownSession when the router hasn't seen it in a pool in holds.
 func (r *Router) session(id string, in func(pool string) bool) (status.Session, error) {
-	s, ok := r.sessions.session(id, in)
+	l, ok := r.sessions.session(id, in)
 	if !ok {
 		return status.Session{}, unknownSession(id)
 	}
-	s.Account = r.accountStatus(s.Assignments[0].Account)
-	return r.described(s, r.stream.doing(), r.glancing(r.cfg.Now())), nil
+	l.Account = r.accountStatus(l.Assignments[0].Account)
+	return r.described(l, r.stream.doing(), r.glancing(r.cfg.Now())), nil
 }
 
 // running reports the sessions routed in the last hour in the pool rd reads,
@@ -554,24 +588,27 @@ func (r *Router) running(rd poolRead) []status.Session {
 	now := r.cfg.Now()
 	listed := r.sessions.running(now, rd.routes)
 	doing, g := r.stream.doing(), r.glancing(now)
-	for i, s := range listed {
-		listed[i] = r.described(s, doing, g)
+	running := make([]status.Session, len(listed))
+	for i, l := range listed {
+		running[i] = r.described(l, doing, g)
 	}
-	return listed
+	return running
 }
 
-// described is s with the family of each of its models, as the provider
-// names it, what a request of each in flight is doing, as doing, the
-// stream's, has it, and the account auto would send each's next request to
-// at the moment g glances at the accounts, as the scheduler's auto says, on
-// the accounts of its pool as g glances at them. Auto is worked out here,
-// once the sessions have been read, so their lock, which every request's
-// choice takes, is never held while the accounts are viewed.
-func (r *Router) described(s status.Session, doing map[key]string, g *glances) status.Session {
+// described is the session l lists with the family of each of its models, as
+// the provider names it, what a request of each in flight in its pool is
+// doing, as doing, the stream's, has it, and the account auto would send
+// each's next request there to at the moment g glances at the accounts, as
+// the scheduler's auto says, on the accounts of its pool as g glances at
+// them. Auto is worked out here, once the sessions have been read, so their
+// lock, which every request's choice takes, is never held while the accounts
+// are viewed.
+func (r *Router) described(l listed, doing map[key]string, g *glances) status.Session {
+	s, in := l.Session, sessionIn{session: l.ID, pool: l.pool}
 	for i, a := range s.Assignments {
 		s.Assignments[i].Family = r.cfg.Provider.Family(a.Model)
-		s.Assignments[i].InFlight = doing[key{session: s.ID, model: a.Model}]
-		s.Assignments[i].Auto = r.scheduler.autoOn(s.ID, a.Model, g.now, func(pool string) view { return g.of(pool, a.Model) })
+		s.Assignments[i].InFlight = doing[key{session: in.session, pool: in.pool, model: a.Model}]
+		s.Assignments[i].Auto = r.scheduler.autoOn(in, a.Model, g.now, func(pool string) view { return g.of(pool, a.Model) })
 	}
 	return s
 }
@@ -687,11 +724,15 @@ func (r *Router) unpin(rd poolRead, force bool, by By) error {
 }
 
 // repool has the router take up the pools as membership has just replaced
-// them: each pool's priming schedule worked out again, as the primer's
-// replan does, so none shows another's slots, and each pool's pin fitted to
-// them, as fitPins does, under pinning, so a pin never follows its accounts
-// into another pool, nor names one that has left its pool.
+// them: the sessions' assignments and own pins of no pool, kept from before
+// pools, given the first, as the sessions' pooled does, so a session's next
+// request there finds them; each pool's priming schedule worked out again,
+// as the primer's replan does, so none shows another's slots; and each
+// pool's pin fitted to them, as fitPins does, under pinning, so a pin never
+// follows its accounts into another pool, nor names one that has left its
+// pool.
 func (r *Router) repool() {
+	r.sessions.pooled(r.state.pools.current().of(""))
 	if r.primer != nil {
 		r.primer.replan()
 	}
@@ -715,52 +756,81 @@ func (r *Router) fitPins(t *poolTable) {
 }
 
 // pinSession sends the requests of the session with the given id to the
-// account with the given id from its next request on, passing over the pin it
-// was launched with, telling it as Pinned. It fails, saying why, for anyone
-// asking but ByCLI or ByDashboard, for an account nothing can go out on, or
-// one outside the session's pool, as sessionMay says, and with
-// ErrUnknownSession for a session the router hasn't seen, and then tells
-// nothing.
-func (r *Router) pinSession(id, account string, by By) error {
+// account with the given id from its next request on, in the pool
+// sessionPool pins it in, of the pool named, ?pool='s, "" for none, passing
+// over the pin it was launched with there, telling it as Pinned, and returns
+// that pool. It fails, saying why, for anyone asking but ByCLI or
+// ByDashboard, for an account nothing can go out on, or one outside that
+// pool, as sessionMay says, and with ErrUnknownSession for a session the
+// router hasn't seen, there where a pool is named, and then tells nothing.
+func (r *Router) pinSession(id, named, account string, by By) (string, error) {
 	if err := by.check(); err != nil {
-		return err
+		return "", err
+	}
+	in, err := r.sessionPool(id, named, account)
+	if err != nil {
+		return "", err
 	}
 	t := r.state.pools.current()
-	in, seen := r.sessions.poolOf(id)
-	if !seen {
-		return unknownSession(id)
-	}
 	if err := r.pinnable(account, t.of(in)); err != nil {
-		return err
+		return "", err
 	}
 	a, _ := r.accounts.byID(account)
 	if err := t.sessionMay(in, a); err != nil {
-		return err
+		return "", err
 	}
-	if _, seen := r.sessions.pinSession(id, account); !seen {
-		return unknownSession(id)
+	at := sessionIn{session: id, pool: in}
+	if _, seen := r.sessions.pinSession(at, account); !seen {
+		return "", unknownSession(id)
 	}
 	logger.Info("pinned session", append(poolSaid(t.of(in)), "session", status.ShortID(id), "account", account)...)
-	r.emit(Pinned{Account: account, Session: id, Dir: r.sessions.dir(id), By: by, Pool: t.of(in)})
-	return nil
+	r.emit(Pinned{Account: account, Session: id, Dir: r.sessions.dirIn(at), By: by, Pool: t.of(in)})
+	return in, nil
 }
 
 // unpinSession clears the own pin of the session with the given id, the one
-// it was launched with included, so it's routed like any other from its next
-// request, telling it as Unpinned unless it had none. It fails with
-// ErrUnknownSession for a session the router hasn't seen.
-func (r *Router) unpinSession(id string, by By) error {
-	in, _ := r.sessions.poolOf(id)
-	was, seen := r.sessions.pinSession(id, "")
+// it was launched with included, in the pool sessionPool clears it in, of the
+// pool named, ?pool='s, "" for none, so it's routed like any other there from
+// its next request, telling it as Unpinned unless it had none, and returns
+// that pool. It fails with ErrUnknownSession for a session the router hasn't
+// seen, there where a pool is named.
+func (r *Router) unpinSession(id, named string, by By) (string, error) {
+	in, err := r.sessionPool(id, named, "")
+	if err != nil {
+		return "", err
+	}
+	at := sessionIn{session: id, pool: in}
+	was, seen := r.sessions.pinSession(at, "")
 	if !seen {
-		return unknownSession(id)
+		return "", unknownSession(id)
 	}
 	pool := r.state.pools.current().of(in)
 	logger.Info("unpinned session", append(poolSaid(pool), "session", status.ShortID(id))...)
 	if was != "" {
-		r.emit(Unpinned{Account: was, Session: id, Dir: r.sessions.dir(id), By: by, Pool: pool})
+		r.emit(Unpinned{Account: was, Session: id, Dir: r.sessions.dirIn(at), By: by, Pool: pool})
 	}
-	return nil
+	return in, nil
+}
+
+// sessionPool returns the id of the pool the session with the given id has
+// its own pin set or cleared in, a pin naming the account given, "" for
+// none: the pool named, ?pool='s, where it's named; else the account's pool,
+// where the session runs there; else the one the session was routed in
+// last. So a pin acts within its account's pool, and a session resumed in
+// another pool keeps its pin in the first. It fails with ErrUnknownSession
+// for a session the router hasn't seen, in the pool named where one is.
+func (r *Router) sessionPool(id, named, account string) (string, error) {
+	last, seen := r.sessions.poolOf(id)
+	switch {
+	case !seen, named != "" && !r.sessions.routedIn(sessionIn{session: id, pool: named}):
+		return "", unknownSession(id)
+	case named != "":
+		return named, nil
+	}
+	if pool, ok := r.state.pools.current().in(account); ok && r.sessions.routedIn(sessionIn{session: id, pool: pool}) {
+		return pool, nil
+	}
+	return last, nil
 }
 
 // pinnableAll returns the accounts with the given ids once each, in the order

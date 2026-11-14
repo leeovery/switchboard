@@ -60,6 +60,7 @@ func askEveryRead(t *testing.T, client *router.Client) {
 		func() error { _, err := client.Refresh(ctx, time.Minute); return err },
 		func() error { _, err := client.Pin(ctx, router.PinRequest{Accounts: []string{"work"}}); return err },
 		func() error { _, err := client.Unpin(ctx, true, router.ByCLI); return err },
+		func() error { _, err := client.PinSession(ctx, "one", "work", router.ByCLI); return err },
 		func() error { _, err := client.UnpinSession(ctx, "one", router.ByCLI); return err },
 		func() error {
 			streamed, cancel := context.WithCancel(ctx)
@@ -93,7 +94,8 @@ func TestAClientInAPoolAsksForItWhereverItReadsAPool(t *testing.T) {
 				"POST /refresh":            "pool=q7mt",
 				"POST /pin":                "pool=q7mt",
 				"DELETE /pin":              "by=cli&force=true&pool=q7mt",
-				"DELETE /sessions/one/pin": "by=cli",
+				"POST /sessions/one/pin":   "pool=q7mt",
+				"DELETE /sessions/one/pin": "by=cli&pool=q7mt",
 				"GET /stream":              "pool=q7mt",
 			},
 		},
@@ -107,6 +109,7 @@ func TestAClientInAPoolAsksForItWhereverItReadsAPool(t *testing.T) {
 				"POST /refresh":            "",
 				"POST /pin":                "",
 				"DELETE /pin":              "by=cli&force=true",
+				"POST /sessions/one/pin":   "",
 				"DELETE /sessions/one/pin": "by=cli",
 				"GET /stream":              "",
 			},

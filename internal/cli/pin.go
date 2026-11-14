@@ -175,6 +175,7 @@ func (a *app) pinSession(ctx context.Context, client *router.Client, given, pool
 		return "", fromRouter(err)
 	}
 	session := "session " + status.ShortID(prose.Clean(id))
+	client = client.InPool(pool)
 	if isAuto(account) {
 		if _, err := client.UnpinSession(ctx, id, router.ByCLI); err != nil {
 			return "", err

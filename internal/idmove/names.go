@@ -156,11 +156,11 @@ var (
 	summaryNames = names{values: patterns("/accounts/*/account")}
 	// stateNames are the router's state file's: its pin from before pools,
 	// as each form of it gives its accounts, and each pool's pin, its
-	// sessions' assignments and their own pins, what it keeps by account of
-	// the tokens, readings and tokens' years, and the account a former token
-	// was taken up from.
+	// sessions' assignments and their own pins, in each pool, what it keeps
+	// by account of the tokens, readings and tokens' years, and the account a
+	// former token was taken up from.
 	stateNames = names{
-		values: patterns("/pin/accounts/*", "/pin/account", "/pins/*/accounts/*", "/sessions/*/account", "/sessions/*/pin", "/session_pins/*/account", "/tokens/*/former/*/from"),
+		values: patterns("/pin/accounts/*", "/pin/account", "/pins/*/accounts/*", "/sessions/*/account", "/sessions/*/pin", "/session_pins/*/account", "/session_pins_apart/*/account", "/tokens/*/former/*/from"),
 		texts:  patterns("/sessions/*/reason"),
 		keys:   patterns("/tokens/*", "/readings/*", "/token_years/*"),
 	}
