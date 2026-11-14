@@ -50,19 +50,20 @@ type projectsPlace struct {
 
 // projectsPageOf is what Projects' page was built of: the reads of the days
 // landed, and the reads of the ledger's tail that told otherwise of the days
-// it fed; the period; the local day it was built on; and the sessions
-// running, as the List lists them, by what's drawn of each, as runningOf
-// keys them.
+// it fed; the period; the local day it was built on, and of today, the
+// hour, as todayHour has it; and the sessions running, as the List lists
+// them, by what's drawn of each, as runningOf keys them.
 type projectsPageOf struct {
 	read, fed int
 	period    views.Period
 	day       string
+	hour      int
 	running   []runningKey
 }
 
 // same reports whether the page was built of what o says.
 func (b projectsPageOf) same(o projectsPageOf) bool {
-	return b.read == o.read && b.fed == o.fed && b.period == o.period && b.day == o.day && slices.Equal(b.running, o.running)
+	return b.read == o.read && b.fed == o.fed && b.period == o.period && b.day == o.day && b.hour == o.hour && slices.Equal(b.running, o.running)
 }
 
 // projectOf is what the chosen project's page was built of: the page,
@@ -237,7 +238,7 @@ type projectsBuild struct {
 // shows again; nil where it hasn't.
 func (m Model) projectsRebuilt(now time.Time) *projectsBuild {
 	list := m.held.List(m.listLive(now, m.traffic.stream(now)))
-	of := projectsPageOf{read: m.projects.read, fed: m.projects.fed, period: m.period, day: dayfile.DateOf(now), running: runningOf(list)}
+	of := projectsPageOf{read: m.projects.read, fed: m.projects.fed, period: m.period, day: dayfile.DateOf(now), hour: todayHour(m.period, now), running: runningOf(list)}
 	if m.projects.shown.Page != nil && m.projects.pageOf.same(of) {
 		return nil
 	}

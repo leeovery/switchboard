@@ -325,6 +325,23 @@ func TestAccountsHelpExplainsComparesFocusWhereItsDrawn(t *testing.T) {
 	}
 }
 
+// Compare's charts, WEEKS and WORTH, are explained where they're drawn,
+// wide; turned Compare draws neither.
+func TestAccountsHelpExplainsComparesChartsWhereTheyreDrawn(t *testing.T) {
+	charts := []string{"WEEKS is how full each of its weeks got", "WORTH is what its use was worth"}
+	for _, tc := range []struct {
+		width int
+		want  bool
+	}{{160, true}, {83, true}, {82, false}, {52, false}} {
+		said := strings.Join(plainLines(accountsHelping(tc.width, threeShown, Look{}).body), " ")
+		for _, chart := range charts {
+			if got := strings.Contains(said, chart); got != tc.want {
+				t.Errorf("at %d columns, help reads\n%s\nwant %q said %v", tc.width, said, chart, tc.want)
+			}
+		}
+	}
+}
+
 // Detail's list, and → and ← between it and SESSIONS, are explained where
 // there's a list; with one account, which has none, ↑ and ↓ move through
 // SESSIONS alone.

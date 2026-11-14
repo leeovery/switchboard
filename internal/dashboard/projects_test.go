@@ -71,10 +71,11 @@ func chosenPage(sessions []views.ProjectSession) views.ProjectPage {
 	half, third := 0.5, 1.0/3
 	page := views.ProjectPage{ProjectRow: projectRowOf("agentic-workflows", 12, 2059, 23900), Share: &half, Sessions: sessions}
 	page.Tokens.Total = 365_000_000
-	page.WorthBy = views.WorthBy{Unit: views.ByDay, Peak: 3, ToCome: 3}
+	byDay := views.WorthBy{Unit: views.ByDay, Peak: 3, ToCome: 3}
 	for i, day := range []string{"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"} {
-		page.WorthBy.Buckets = append(page.WorthBy.Buckets, views.WorthBucket{Start: routedClock(1, 0, 0).AddDate(0, 0, i-3), Label: day, Axis: day, Worth: worthOf((i + 1) * 1000 % 5000)})
+		byDay.Buckets = append(byDay.Buckets, views.WorthBucket{Start: routedClock(1, 0, 0).AddDate(0, 0, i-3), Label: day, Axis: day, Worth: worthOf((i + 1) * 1000 % 5000)})
 	}
+	page.WorthBy = views.WorthCharts{byDay}
 	for _, v := range []string{"Opus 5.5", "Sonnet 5"} {
 		page.ByModel = append(page.ByModel, views.VersionShare{Version: ledger.Version{Name: v, Family: "opus", Shade: 1}, Share: &half})
 	}
@@ -196,10 +197,9 @@ func bucketedPage(unit views.BucketUnit, n, weeks int) views.ProjectPage {
 		return by
 	}
 	page := chosenPage(chosenSessions())
-	page.WorthBy = buckets(unit, n)
+	page.WorthBy = views.WorthCharts{buckets(unit, n)}
 	if weeks > 0 {
-		byWeek := buckets(views.ByWeek, weeks)
-		page.WorthByWeek = &byWeek
+		page.WorthBy = append(page.WorthBy, buckets(views.ByWeek, weeks))
 	}
 	return page
 }
@@ -242,6 +242,31 @@ func TestTheChosenProjectLiesWideAtEveryPeriodOnAMacBook(t *testing.T) {
 	for _, tt := range twelveWeeks {
 		if d := drawn(tt.width, bucketedPage(views.ByDay, 84, 12)); d.form != tt.form || d.worth.Unit != tt.unit {
 			t.Errorf("12 weeks at %d lie as form %d by %s, want form %d by %s", tt.width, d.form, bucketWord[d.worth.Unit], tt.form, bucketWord[tt.unit])
+		}
+	}
+}
+
+// Over 12 months WORTH BY is by week where a cell for each week fits the
+// cells it takes, else by month, as on a narrow screen, its heading saying
+// which.
+func TestTwelveMonthsAreByMonthWhereTheirWeeksDontFit(t *testing.T) {
+	doc := framedDoc(nil, nil)
+	page := bucketedPage(views.ByWeek, 53, 0)
+	page.WorthBy = append(page.WorthBy, bucketedPage(views.ByMonth, 13, 0).WorthBy...)
+	for i, by := range page.WorthBy {
+		page.WorthBy[i].Peak = len(by.Buckets) - 1
+	}
+	for _, tt := range []struct {
+		width int
+		unit  views.BucketUnit
+		said  string
+	}{{73, views.ByWeek, "WORTH BY WEEK"}, {52, views.ByMonth, "WORTH BY MONTH"}} {
+		f := projectsFrame(t, tt.width, 53, projectRows(3), 0, &page)
+		if d := projectDrawnOf(f, f.Moment(doc, routedAt), routedAt, page); d.worth.Unit != tt.unit {
+			t.Errorf("12 months at %d are by %s, want by %s", tt.width, bucketWord[d.worth.Unit], bucketWord[tt.unit])
+		}
+		if rows := textOf(f.Draw(doc, routedAt)); rowWith(rows, tt.said) < 0 {
+			t.Errorf("12 months at %d, no row reads %q, in\n%s", tt.width, tt.said, strings.Join(rows, "\n"))
 		}
 	}
 }

@@ -206,7 +206,7 @@ func (t projectTallies) of(ran sessionPlace) *projectTally {
 	p, ok := t.all[path]
 	if !ok {
 		p = &projectTally{path: path, sessions: make(map[string]*sessionTally), families: familySums{}, models: modelTally{},
-			accounts: make(map[string]Worth), days: make(map[string]Worth)}
+			accounts: make(map[string]Worth), days: dayWorths{}}
 		t.all[path] = p
 	}
 	return p
@@ -264,7 +264,7 @@ type projectTally struct {
 	families familySums
 	models   modelTally
 	accounts map[string]Worth
-	days     map[string]Worth
+	days     dayWorths
 	hours    [24]Worth
 	last     time.Time
 }
@@ -329,20 +329,17 @@ func (p *projectTally) take(date string, s DaySession, price pricing, v versions
 			on.add(w)
 			p.accounts[u.Account] = on
 		}
-		day := p.days[date]
-		day.add(w)
-		p.days[date] = day
+		p.days.add(date, w)
 	}
 }
 
 // hourly takes in what a session of the project's spent today by the local
-// hour, as hours holds it, priced as price prices it.
-func (p *projectTally) hourly(hours *[24]ledger.Spent, price pricing) {
-	if hours == nil {
-		return
-	}
-	for h := range hours {
-		p.hours[h].add(price.worth(hours[h]))
+// hour, on every account, as hours holds it, priced as price prices it.
+func (p *projectTally) hourly(hours accountHours, price pricing) {
+	for _, on := range hours {
+		for h := range on {
+			p.hours[h].add(price.worth(on[h]))
+		}
 	}
 }
 

@@ -4,12 +4,10 @@ import (
 	"cmp"
 	"slices"
 	"strings"
-	"time"
 
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
-	"github.com/leeovery/switchboard/internal/score"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -22,12 +20,9 @@ type ProjectPage struct {
 	ProjectRow
 	Share  *float64
 	Tokens Tokens
-	// WorthBy is its worth by the bucket the period has it in, as
-	// worthBuckets has them: of the last 12 weeks, by day, and WorthByWeek
-	// by week, for the drawing to take whichever fits; nil of any other
-	// period.
-	WorthBy     WorthBy
-	WorthByWeek *WorthBy
+	// WorthBy is its worth in each bucket the period charts it in, as
+	// worthCharts has them, for the drawing to take the finest that fits.
+	WorthBy WorthCharts
 	// ByModel are each model version's share of its worth, as Accounts'
 	// BY MODEL reckons a row's, the greatest first, those whose share
 	// rounds to none, or isn't known, left out.
@@ -67,69 +62,12 @@ type ProjectSession struct {
 	EndedOn string
 }
 
-// BucketUnit is what a bucket of WORTH BY spans: an hour, a day or a week.
-type BucketUnit int
-
-const (
-	// ByHour is an hour of today, by the local clock.
-	ByHour BucketUnit = iota
-	// ByDay is a local day.
-	ByDay
-	// ByWeek is a calendar week, from the day weeks start on.
-	ByWeek
-)
-
-// WorthBy is a project's worth in buckets, oldest first, as WORTH BY draws
-// it: what each spans; each bucket; the index of the one worth most, the
-// first of any that tie, -1 where none is worth anything; and how many of
-// the last are still to come, as a week's days after today are.
-type WorthBy struct {
-	Unit    BucketUnit
-	Buckets []WorthBucket
-	Peak    int
-	ToCome  int
-}
-
-// WorthBucket is a bucket of WORTH BY: when it starts, as dayfile.Civil
-// gives a day, or of an hour's, as byHour has it; its name, as "14", "Wed"
-// or "17 Aug"; what its axis names it, as Axis has it; and what the
-// project's requests in it were worth.
-type WorthBucket struct {
-	Start time.Time
-	Label string
-	Axis  string
-	Worth
-}
-
-// PeakNamed names WORTH BY's peak bucket, as the line under it says it: an
-// hour by its start, "14:00"; a day by its name, "Wed"; a week by its first
-// day, "week of 17 Aug"; "" where there's no peak.
-func (by WorthBy) PeakNamed() string {
-	if by.Peak < 0 {
-		return ""
-	}
-	b := by.Buckets[by.Peak]
-	switch by.Unit {
-	case ByHour:
-		return prose.TimeOfDay(b.Start, b.Start)
-	case ByWeek:
-		return "week of " + b.Label
-	}
-	return b.Label
-}
-
-// Now is the index of the bucket now falls in, the last of those not still
-// to come, as the axis picks its name out: -1 where all are to come.
-func (by WorthBy) Now() int {
-	return len(by.Buckets) - 1 - by.ToCome
-}
-
 // page is the project's page, its row given, every project's totals given,
 // the page built of in.
 func (p *projectTally) page(row ProjectRow, all ProjectTotals, in ProjectsInput) ProjectPage {
 	v := versions{table: in.Prices, family: in.Family}
 	page := ProjectPage{ProjectRow: row, Share: shareOf(p.worth, all.amount()), Tokens: p.tokens, ByModel: p.byModel(v), OnAccounts: p.onAccounts(in.Names)}
-	page.WorthBy, page.WorthByWeek = p.worthBy(in)
+	page.WorthBy = worthCharts(in.Period, in.Now, in.WeekStarts, p.days, &p.hours)
 	page.Sessions = p.rows(in)
 	return page
 }
@@ -167,94 +105,6 @@ func (p *projectTally) onAccounts(names status.Namer) []AccountShare {
 		return cmp.Or(cmp.Compare(b.amount(), a.amount()), strings.Compare(a.Account, b.Account))
 	})
 	return on
-}
-
-// worthBy is the project's worth in the buckets in's period has it in, as
-// WORTH BY draws them: today's by hour; this week's and the last 30 days' by
-// day; the last 12 weeks' by day, and by week beside them; and the last 12
-// months' by week.
-func (p *projectTally) worthBy(in ProjectsInput) (WorthBy, *WorthBy) {
-	today := dayfile.CivilOf(in.Now)
-	first, last := in.Period.first(today, in.WeekStarts), in.Period.last(today, in.WeekStarts)
-	switch in.Period {
-	case PeriodToday:
-		return p.byHour(in.Now), nil
-	case PeriodTwelveWeeks:
-		weeks := p.byWeek(first, last, today, in.WeekStarts)
-		return p.byDay(first, last, today, ByDay), &weeks
-	case PeriodTwelveMonths:
-		return p.byWeek(first, last, today, in.WeekStarts), nil
-	}
-	return p.byDay(first, last, today, ByDay), nil
-}
-
-// byHour is the project's worth today by the local hour, now given, as
-// WORTH BY HOUR names them, on the axis too, "00" to "23", each starting as today's clocks
-// first read it, or went forward over it, as dayfile.TimeOfDay has it, so
-// an hour a clock change repeats is one bucket, and one it skips starts with
-// the next.
-func (p *projectTally) byHour(now time.Time) WorthBy {
-	buckets := make([]WorthBucket, len(p.hours))
-	for h, w := range p.hours {
-		named := prose.HourNamed(h)
-		buckets[h] = WorthBucket{Start: dayfile.TimeOfDay(now.Local(), h, 0), Label: named, Axis: named, Worth: w}
-	}
-	return peaked(WorthBy{Unit: ByHour, Buckets: buckets, ToCome: len(buckets) - 1 - now.Local().Hour()})
-}
-
-// byDay is the project's worth by day from first to last, each as
-// dayfile.Civil gives a day, today given: each named, on the axis too, by
-// its weekday where they're a week or fewer, else by its date, as "21 Sep".
-func (p *projectTally) byDay(first, last, today time.Time, unit BucketUnit) WorthBy {
-	named := prose.DayMonth
-	if last.Sub(first) < 7*24*time.Hour {
-		named = func(d time.Time) string { return prose.Weekday(d.Weekday()) }
-	}
-	by := WorthBy{Unit: unit}
-	for d := first; !d.After(last); d = d.AddDate(0, 0, 1) {
-		by.Buckets = append(by.Buckets, WorthBucket{Start: d, Label: named(d), Axis: named(d), Worth: p.days[d.Format(time.DateOnly)]})
-		if d.After(today) {
-			by.ToCome++
-		}
-	}
-	return peaked(by)
-}
-
-// byWeek is the project's worth by calendar week from the one first falls
-// in to the one last does, each as dayfile.Civil gives a day, weeks
-// starting on the day given, today given: each named by its first day's
-// date, as "17 Aug", the axis naming the month of the first of its days
-// from first, as "Aug", where it's another than the week before's, its
-// worth that of its days from first to last alone.
-func (p *projectTally) byWeek(first, last, today time.Time, starts time.Weekday) WorthBy {
-	by := WorthBy{Unit: ByWeek}
-	month := ""
-	for week := weekOf(first, starts); !week.After(last); week = week.AddDate(0, 0, 7) {
-		b := WorthBucket{Start: week, Label: prose.DayMonth(week)}
-		if named := prose.Month(score.Later(week, first), false); named != month {
-			b.Axis, month = named, named
-		}
-		for d := score.Later(week, first); d.Before(week.AddDate(0, 0, 7)) && !d.After(last); d = d.AddDate(0, 0, 1) {
-			b.add(p.days[d.Format(time.DateOnly)])
-		}
-		by.Buckets = append(by.Buckets, b)
-		if week.After(today) {
-			by.ToCome++
-		}
-	}
-	return peaked(by)
-}
-
-// peaked is by with its peak found: the first of the buckets worth most,
-// -1 where none is worth anything.
-func peaked(by WorthBy) WorthBy {
-	by.Peak = -1
-	for i, b := range by.Buckets {
-		if b.amount() > 0 && (by.Peak < 0 || b.amount() > by.Buckets[by.Peak].amount()) {
-			by.Peak = i
-		}
-	}
-	return by
 }
 
 // rows are the project's sessions as SESSIONS rows them, in the List's
