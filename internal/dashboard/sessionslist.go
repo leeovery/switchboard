@@ -3,7 +3,6 @@ package dashboard
 import (
 	"cmp"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/charmbracelet/x/ansi"
@@ -274,14 +273,11 @@ func periodWorth(w views.Worth) line {
 }
 
 // noSessionsIn are the List's words where it has no session of the period
-// to list, in place of its rows: "no sessions today", "no sessions this
-// week", or of a longer period, "no sessions in the last 30 days".
+// to list, in place of its rows, the period as its Within says it: "no
+// sessions today", "no sessions this week" or "no sessions in the last 30
+// days".
 func noSessionsIn(p views.Period) line {
-	when := p.Name()
-	if p != views.PeriodToday && p != views.PeriodThisWeek {
-		when = "in the " + strings.ToLower(p.Title())
-	}
-	return line{{"no sessions " + when, faintInk}}
+	return line{{prose.SessionCount(0) + " " + p.Within(), faintInk}}
 }
 
 // draw draws the List from row top: its heads; its lines in view, as far as
@@ -309,11 +305,29 @@ func (l listed) draw(c *canvas, top int) {
 	}
 }
 
+// ListScroll is how far Sessions' List is scrolled, by rows, to show the
+// session chosen, as listing lays it out of doc at now: as far as the
+// frame's Scroll has it, where that shows it, else as little further as
+// shows it, as its rows' places have it; as far as Scroll has it where
+// there's no log, or the session chosen isn't in it.
+func (f Frame) ListScroll(doc status.Document, now time.Time) int {
+	if f.SessionsTab.Log == nil {
+		return f.Scroll
+	}
+	l := f.listing(doc, now)
+	r := l.lineOf(f.SessionsTab.Chosen.Session)
+	if r < 0 {
+		return f.Scroll
+	}
+	return l.paged().revealing(f.Scroll, r)
+}
+
 // paged is how the List's lines page in its rows, a row at a time, each
-// day's rule shown with the first session under it, or not at all, and kept
-// on the first row while the page is scrolled into its sessions.
+// day's rule shown with the first session under it, or not at all, and held
+// over the first row while any of its sessions shows there, hiding none of
+// them, so the day always shows.
 func (l listed) paged() rowsPaged {
-	return rowsPaged{rows: l.page, content: len(l.lines), heads: l.heads(), kept: l.kept()}
+	return rowsPaged{rows: l.page, content: len(l.lines), heads: l.heads(), kept: l.kept(), inserts: true}
 }
 
 // scrolling is how far the List's lines scroll under its heads, a row at a
@@ -474,8 +488,8 @@ func (w sessionWords) dayOf(s views.ListedSession) time.Time {
 	return w.now
 }
 
-// worthSays is what its requests today were worth, to the cent, as the Log
-// says a worth, in text.muted: — in text.faint where it made none today.
+// worthSays is what its requests in the period were worth, to the cent, as
+// the Log says a worth, in text.muted: — in text.faint where it made none.
 func worthSays(s views.ListedSession) line {
 	if s.Requests == 0 {
 		return line{{"—", faintInk}}

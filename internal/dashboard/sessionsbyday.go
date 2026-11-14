@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"cmp"
 	"slices"
 
 	"github.com/leeovery/switchboard/internal/dashboard/flex"
@@ -82,23 +83,25 @@ func (s sessionsByDay) kept() []keptHeading {
 }
 
 // drawPage draws the lines paged shows, scrolled as given, from row y: a
-// rule kept in place of the first, where paged keeps one, then the rest.
+// rule kept on the first row, where paged keeps one, then the rest, each on
+// its row as paged's rowOf has it.
 func (s sessionsByDay) drawPage(c *canvas, y int, paged rowsPaged, scroll int) {
 	from, to := paged.shown(scroll)
 	if at, ok := paged.keeps(from, to); ok {
 		s.drawLine(c, y, s.lines[at])
 	}
 	for i := paged.top(from, to); i < to; i++ {
-		s.drawLine(c, y+i-from, s.lines[i])
+		s.drawLine(c, y+paged.rowOf(from, to, i), s.lines[i])
 	}
 }
 
 // drawLine draws the line l along row y: a day's rule, as the List's ended
-// today is drawn, naming the day as prose.DayGone does; or the session's
-// row, as the List draws one, lit where it's the one lit.
+// today is drawn, naming the day as prose.DayGone does, of the first
+// session's end, today where none of it is known; or the session's row, as
+// the List draws one, lit where it's the one lit.
 func (s sessionsByDay) drawLine(c *canvas, y int, l sessionLine) {
 	if l.ruled {
-		endedRule(c, y, s.width, line{{"ended " + prose.DayGone(s.words.now, l.session.Ended), dimInk}})
+		endedRule(c, y, s.width, line{{"ended " + prose.DayGone(s.words.now, cmp.Or(l.session.Ended, s.words.now)), dimInk}})
 		return
 	}
 	s.words.sessionRow(c, y, s.columns, l.session.ListedSession, s.width, l.session.Session == s.lit)
@@ -123,16 +126,15 @@ func (s sessionsByDay) targets(y int, paged rowsPaged, scroll int) []Target {
 	from, to := paged.shown(scroll)
 	for i := paged.top(from, to); i < to; i++ {
 		if l := s.lines[i]; !l.ruled {
-			targets = append(targets, Target{Y: y + i - from, Width: s.width, On: OnSession, Session: l.session.Session})
+			targets = append(targets, Target{Y: y + paged.rowOf(from, to, i), Width: s.width, On: OnSession, Session: l.session.Session})
 		}
 	}
 	return targets
 }
 
 // outOfView are how many sessions are out of view of a page showing the
-// lines from top up to to, as paged's top has it, a rule kept on its first
-// row: those above, the one the rule takes the place of among them, and
-// those below.
+// lines from top up to to, as paged's top has it: those above, any a rule
+// kept on its first row takes the place of among them, and those below.
 func (s sessionsByDay) outOfView(top, to int) (above, below int) {
 	return sessionsAmong(s.lines[:top]), sessionsAmong(s.lines[to:])
 }

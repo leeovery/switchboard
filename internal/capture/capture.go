@@ -613,9 +613,10 @@ func lookedAway(by time.Duration) earlier {
 var cameBack = []tea.KeyPressMsg{{Code: tea.KeyTab, Mod: tea.ModShift}}
 
 // toTuesday22 are the rows sessions-list-30-days-108x44 scrolls the List
-// down by, j a row, to the rule over the sessions that ended on Tuesday 22
-// September, as the design's frame is scrolled.
-const toTuesday22 = 57
+// down by, j a row, a day's rule passed over being no row of its own, to
+// the sessions that ended on Tuesday 22 September under their rule, as the
+// design's frame is scrolled.
+const toTuesday22 = 51
 
 // keysOf are the keys pressed as the text given, a key a character.
 func keysOf(text ...string) []tea.KeyPressMsg {

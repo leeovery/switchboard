@@ -659,7 +659,7 @@ func endedToday(n int) []ledger.Line {
 // sub-tab, the row chosen, and how far it's scrolled to show it.
 func TestEscFromASessionsPageComesBackToSessionsAsItWasLeft(t *testing.T) {
 	h := streamingHarness(t)
-	h.withLines(endedToday(30))
+	followLines(t, h, endedToday(30))
 	h.update(tea.WindowSizeMsg{Width: 160, Height: 20})
 	h.keys(toSessions...)
 	h.keyed("] up")

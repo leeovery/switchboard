@@ -165,3 +165,32 @@ func TestTheListsLogIsBuiltOnlyAsWhatItsBuiltOfChanges(t *testing.T) {
 		t.Errorf("the period stepped, the log was built %d times more, want once", got-logs)
 	}
 }
+
+// A period stepped on the List keeps the session chosen in view, where the
+// new period's log lists it, as Projects keeps its place; and where it
+// doesn't, the List shows from its top, nothing chosen.
+func TestASteppedPeriodKeepsTheChosenSessionInView(t *testing.T) {
+	h := withDelta(projectsHarness(t, dashboard.Sessions))
+	h.start()
+	h.deliver(h.update(tea.WindowSizeMsg{Width: 160, Height: 16})...)
+	h.keyed("] >")
+	ids := loggedIDs(h)
+	for range ids {
+		h.keys(downKey)
+	}
+	last := ids[len(ids)-1]
+	if h.model.scroll == 0 || h.model.sessionsTab.shown.Chosen.Session != last {
+		t.Fatalf("the last chosen, %s, the List scrolled %d; want it chosen, scrolled to it", h.model.sessionsTab.shown.Chosen.Session, h.model.scroll)
+	}
+	inView := func() bool {
+		return slices.ContainsFunc(h.targets(), func(t dashboard.Target) bool { return t.On == dashboard.OnSession && t.Session == last })
+	}
+	h.keyed(">")
+	if h.model.period != views.PeriodTwelveWeeks || h.model.sessionsTab.shown.Chosen.Session != last || !inView() {
+		t.Errorf("stepped to %q, %s chosen, in view %v; want 12 weeks, %s chosen and in view", h.model.period.Name(), h.model.sessionsTab.shown.Chosen.Session, inView(), last)
+	}
+	h.keyed("< < < <")
+	if h.model.period != views.PeriodToday || h.model.sessionsTab.shown.Chosen != (dashboard.Plug{}) || h.model.scroll != 0 {
+		t.Errorf("stepped to %q, %+v chosen, scrolled %d; want today, none chosen, the List from its top", h.model.period.Name(), h.model.sessionsTab.shown.Chosen, h.model.scroll)
+	}
+}

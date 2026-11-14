@@ -623,11 +623,12 @@ func TestTheListRunsDownToItsPeriodLine(t *testing.T) {
 // which hold, as its period line does, a row up over the row saying how many
 // sessions are out of view, as Detail's list says its accounts: at 160 by
 // 23, thirteen rows, from 7 to 19, show fifteen lines, so they scroll two
-// rows, and no further, however far they're asked to.
+// rows, and no further, however far they're asked to; a page down is twelve
+// of them, as the rule passed over is no row scrolled of its own.
 func TestTheListScrollsUnderItsHeads(t *testing.T) {
 	doc := framedDoc(nil, nil)
 	f := listFrame(t, 160, 23, framedList())
-	if got, want := f.Scrolling(doc, routedAt), (Scrolling{Most: 2, Page: 13}); got != want {
+	if got, want := f.Scrolling(doc, routedAt), (Scrolling{Most: 2, Page: 12}); got != want {
 		t.Errorf("it scrolls %+v, want %+v", got, want)
 	}
 	if x, y, width, rows := f.scrolls(doc, routedAt); x != 0 || y != 7 || width != 160 || rows != 13 {
@@ -912,52 +913,167 @@ func TestTheListsStartedIsAsWideAsTheWholeLogsWidest(t *testing.T) {
 // heldDay is a log over 30 days of d28c running, ten sessions ended
 // yesterday and three on Tuesday, a rule over each day's.
 func heldDay() *views.SessionLog {
+	return daysLog(10, 3)
+}
+
+// daysLog is a log over 30 days of d28c running, then of as many sessions
+// ended on each day back from yesterday as given, a rule over each day's,
+// their ids counting up from a000.
+func daysLog(perDay ...int) *views.SessionLog {
 	sessions := []listedSession{d28cMoved}
-	for i := range 13 {
-		at := septemberClock(30, 20-i, 0)
-		if i >= 10 {
-			at = septemberClock(29, 20-i, 0)
+	n := 0
+	for day, count := range perDay {
+		for i := range count {
+			at := septemberClock(30-day, 20-i, 0)
+			id := fmt.Sprintf("%04x0000", 0xa000+n)
+			sessions = append(sessions, listedSession{id, "~/Code/infra", "work", endedAtOn(at), at.Add(-time.Hour), 10, 100, views.NoMark, 0})
+			n++
 		}
-		id := fmt.Sprintf("%04x0000", 0xa000+i)
-		sessions = append(sessions, listedSession{id, "~/Code/infra", "work", endedAtOn(at), at.Add(-time.Hour), 10, 100, views.NoMark, 0})
 	}
 	return logOver(views.PeriodThirtyDays, sessions...)
 }
 
-// Scrolled past a day's rule into its sessions, the rule stays on the
-// List's first row, so the day always shows, in place of the session there,
-// which counts among those out of view above and takes no click; scrolled
-// to the rule itself, it shows as itself, its first session under it. The
-// mark says how many sessions are out of view each way.
+// Rows paged a row at a time reveal a row from its place, at the offset
+// nearest where they are that shows it, the one above where two are as
+// near, as trying each offset in turn finds it: every session's row of the
+// List, from every offset, its rules held over its rows, and held in place
+// of them, as USAGE holds its windows'.
+func TestRowsRevealARowAtTheNearestOffsetThatShowsIt(t *testing.T) {
+	nearest := func(p rowsPaged, at, r int) int {
+		for d := range p.most() + 1 {
+			if up := at - d; up >= 0 && p.shows(up, r) {
+				return up
+			}
+			if down := at + d; d > 0 && down <= p.most() && p.shows(down, r) {
+				return down
+			}
+		}
+		return at
+	}
+	for _, log := range []*views.SessionLog{heldDay(), daysLog(10, 1, 8), daysLog(1, 1, 1, 6)} {
+		l := listFrame(t, 160, 16, log).listing(framedDoc(nil, nil), routedAt)
+		for _, inserts := range []bool{true, false} {
+			p := l.paged()
+			p.inserts = inserts
+			for r, line := range l.lines {
+				if line.ruled {
+					continue
+				}
+				for at := range p.most() + 1 {
+					if got, want := p.revealing(at, r), nearest(p, at, r); got != want {
+						t.Errorf("of %d lines, held over %t, from %d, row %d is revealed at %d, want %d", len(l.lines), inserts, at, r, got, want)
+					}
+				}
+			}
+		}
+	}
+}
+
+// Paged down from the top, and up from the foot, the List shows every one
+// of its sessions either way, at every height, its rules held over them:
+// a page up from under a rule held over its first row goes on from the row
+// over the rule, the rule having shown.
+func TestTheListPagesThroughEverySessionEitherWay(t *testing.T) {
+	for _, log := range []*views.SessionLog{heldDay(), daysLog(10, 1, 8), daysLog(1, 1, 1, 6)} {
+		lines := sessionLines(log.Sessions)
+		for rows := 2; rows <= 8; rows++ {
+			p := listFrame(t, 160, 16, log).listing(framedDoc(nil, nil), routedAt).paged()
+			p.rows = rows
+			walk := func(from, pages int) map[int]bool {
+				seen := make(map[int]bool)
+				for offset, before := from, -1; offset != before; before, offset = offset, p.scrolling(offset).Paged(offset, pages) {
+					shownFrom, to := p.shown(offset)
+					for r := p.top(shownFrom, to); r < to; r++ {
+						seen[r] = true
+					}
+				}
+				return seen
+			}
+			down, up := walk(0, 1), walk(p.most(), -1)
+			for r, l := range lines {
+				if !l.ruled && (!down[r] || !up[r]) {
+					t.Errorf("of %d lines in %d rows, %s shows paged down %t, up %t; want both", len(lines), rows, l.session.Session, down[r], up[r])
+				}
+			}
+		}
+	}
+}
+
+// Scrolled past a day's rule into its sessions, the rule is held over the
+// List's first row while any of the day's sessions shows there, so the day
+// always shows, the rows under it a row fewer, so it hides none of them: of
+// any of a day's sessions at the top, its last, and a day's only one. The
+// mark says how many sessions are out of view each way, the click on the
+// first session's row under the rule.
 func TestADaysRuleStaysAtTheTopWhileItsSessionsScrollUnderIt(t *testing.T) {
 	doc := framedDoc(nil, nil)
-	f := listFrame(t, 160, 16, heldDay())
 	tests := []struct {
+		name   string
+		log    *views.SessionLog
 		scroll int
 		rows   map[int]string
 		first  string
 	}{
-		{scroll: 1, rows: map[int]string{7: "  ended yesterday  ─", 8: "  a000", 12: "  a004", 14: "  ▲ 1 more session · ▼ 8 more sessions"}, first: "a0000000"},
-		{scroll: 4, rows: map[int]string{7: "  ended yesterday  ─", 8: "  a003", 12: "  a007", 14: "  ▲ 4 more sessions · ▼ 5 more sessions"}, first: "a0030000"},
-		{scroll: 11, rows: map[int]string{7: "  ended yesterday  ─", 8: "  a009", 9: "  ended Tue  ─", 10: "  a00a", 14: "  ▲ 10 more sessions"}, first: "a0090000"},
+		{
+			name: "to the day's first session", log: heldDay(), scroll: 1,
+			rows:  map[int]string{7: "  ended yesterday  ─", 8: "  a000", 12: "  a004", 14: "  ▲ 1 more session · ▼ 8 more sessions"},
+			first: "a0000000",
+		},
+		{
+			name: "past it, into its sessions", log: heldDay(), scroll: 3,
+			rows:  map[int]string{7: "  ended yesterday  ─", 8: "  a002", 12: "  a006", 14: "  ▲ 3 more sessions · ▼ 6 more sessions"},
+			first: "a0020000",
+		},
+		{
+			name: "to the day's last session", log: heldDay(), scroll: 10,
+			rows:  map[int]string{7: "  ended yesterday  ─", 8: "  a009", 9: "  ended Tue  ─", 10: "  a00a", 14: "  ▲ 10 more sessions"},
+			first: "a0090000",
+		},
+		{
+			name: "to a day's only session", log: daysLog(10, 1, 8), scroll: 11,
+			rows:  map[int]string{7: "  ended Tue  ─", 8: "  a00a", 9: "  ended Mon  ─", 10: "  a00b", 12: "  a00d", 14: "  ▲ 11 more sessions · ▼ 5 more sessions"},
+			first: "a00a0000",
+		},
 	}
 	for _, tt := range tests {
-		f.Scroll = tt.scroll
-		c := f.page(doc, routedAt)
-		for y, want := range tt.rows {
-			if got := rowOf(c, y); !strings.HasPrefix(got, want) {
-				t.Errorf("scrolled %d, row %d reads %q, want it to start %q", tt.scroll, y+1, got, want)
+		t.Run(tt.name, func(t *testing.T) {
+			f := listFrame(t, 160, 16, tt.log)
+			f.Scroll = tt.scroll
+			c := f.page(doc, routedAt)
+			for y, want := range tt.rows {
+				if got := rowOf(c, y); !strings.HasPrefix(got, want) {
+					t.Errorf("row %d reads %q, want it to start %q", y+1, got, want)
+				}
 			}
-		}
-		var first Target
-		for _, target := range f.Targets(doc, routedAt) {
-			if target.On == OnSession && (first.Session == "" || target.Y < first.Y) {
-				first = target
+			var first Target
+			for _, target := range f.Targets(doc, routedAt) {
+				if target.On == OnSession && (first.Session == "" || target.Y < first.Y) {
+					first = target
+				}
 			}
+			if first.Y != 8 || first.Session != tt.first {
+				t.Errorf("the first row a click takes is %d, of %q; want 9, of %s", first.Y+1, first.Session, tt.first)
+			}
+		})
+	}
+}
+
+// A row scrolled is a page another than the one before: as a rule held over
+// a day's first session draws the page alike to the one the rule starts,
+// the rule is never an offset of its own, so no row scrolled draws the page
+// it scrolled from.
+func TestEveryRowTheListScrollsDrawsAnotherPage(t *testing.T) {
+	doc := framedDoc(nil, nil)
+	f := listFrame(t, 160, 16, daysLog(10, 1, 8))
+	most := f.Scrolling(doc, routedAt).Most
+	before := strings.Join(textOf(f.page(doc, routedAt).rows(Look{})), "\n")
+	for scroll := 1; scroll <= most; scroll++ {
+		f.Scroll = scroll
+		page := strings.Join(textOf(f.page(doc, routedAt).rows(Look{})), "\n")
+		if page == before {
+			t.Errorf("scrolled to %d, the List draws the page it drew a row before:\n%s", scroll, page)
 		}
-		if first.Y != 8 || first.Session != tt.first {
-			t.Errorf("scrolled %d, the first row a click takes is %d, of %q; want 9, of %s", tt.scroll, first.Y+1, first.Session, tt.first)
-		}
+		before = page
 	}
 }
 

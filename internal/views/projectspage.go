@@ -88,9 +88,11 @@ func (d SessionDays) Projects(in PeriodInput) ProjectsPage {
 }
 
 // SessionLog is Sessions' List over the period, as the dashboard draws it:
-// every session of the period, as SESSIONS rows a project's, in the List's
-// order, those running first, then those ended, the latest ended first; and
-// what they come to together, as every project's together on Projects.
+// every session of the period the List would list, as SESSIONS rows a
+// project's, those running first, then those ended, by the day they ended,
+// the latest first, as periodRows orders them; and what they come to
+// together, as every project's together on Projects, counting the sessions
+// it lists.
 type SessionLog struct {
 	Period   Period
 	Sessions []PeriodSession
@@ -99,14 +101,19 @@ type SessionLog struct {
 
 // SessionLog is Sessions' List over in's period, as SessionLog has it, of
 // the days d holds at in's Now, each project tallied as tallied has it, so
-// it rows every session alike with Projects' pages.
+// it rows every session alike with Projects' pages: but as the List lists
+// those running and those with requests, none that neither runs nor made a
+// request in the period.
 func (d SessionDays) SessionLog(in PeriodInput) SessionLog {
 	t := d.tallied(in)
 	sessions := make(map[string]*sessionTally)
 	for _, p := range t.all {
 		maps.Copy(sessions, p.sessions)
 	}
-	return SessionLog{Period: in.Period, Sessions: periodRows(sessions, in), All: t.totals()}
+	rows := slices.DeleteFunc(periodRows(sessions, in), func(s PeriodSession) bool { return !s.Running && s.Requests == 0 })
+	all := t.totals()
+	all.Sessions = len(rows)
+	return SessionLog{Period: in.Period, Sessions: rows, All: all}
 }
 
 // tallied are the projects of in's period, each tallied of the days d holds

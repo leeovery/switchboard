@@ -4843,7 +4843,9 @@ October 2026).
 
 **The List.** Every session of the dial's period in one table, a row each, even one whose models are
 on two accounts (settled in the plan; the period the owner's call of 13 November 2026, round 3):
-today's List over today, and over a longer period, every day's under its own rule. Its rows are a
+today's List over today, row for row, and over a longer period, every day's under its own rule:
+those running and those with requests in the period, as the List lists those running and those
+with requests today. Its rows are a
 project's SESSIONS rows on Projects, the same function's (`SessionDays.SessionLog`, of the tallies
 `SessionDays.Projects` keeps), so a session reads alike on either. Its heads are on row 6 in
 `text.subtle`, each at its column's start, or right-aligned where its column is, and its rows run
@@ -4895,8 +4897,9 @@ each at least its least and at most its natural:
   it asks; `↓` in `accent.key` while it's answering; `▸` in `accent.key` where it moved to the
   account it's on. Else none.
 - **The order:** the running sessions first, in the order they started, the oldest first, a new one
-  joining their foot, with no rule; then the ended ones, under a rule for the day each ended, the
-  newest end first: the day's words in `text.subtle` from column 2, two cells, and a rule of `─` in
+  joining their foot, with no rule; then the rest, every one the router doesn't list, under a rule
+  for the day each ended, as its last request's day has it, today's where none of it is known, as
+  of one the stream told of before the router lists it, the newest end first: the day's words in `text.subtle` from column 2, two cells, and a rule of `─` in
   `border` to the last column. The rules read `ended today`, `ended yesterday`, the weekday within
   the six days before today, `ended Tue`, and the weekday and date beyond, `ended Mon 21 Sep`, as
   Projects' SESSIONS reads them. The order stays still, never reshuffled by activity, as rows would
@@ -4920,9 +4923,11 @@ each at least its least and at most its natural:
   sessions · ▼ 130 more sessions` from column 2, the marks in `accent.key`, the counts in
   `text.muted` and the gap in `text.faint`, the counts alone where that doesn't fit; the period
   line moves up a row over it. A page that would leave a single row to the sessions says nothing of
-  what's out of view. A day's rule stays on the first row while its sessions scroll under it, in
-  place of the session there, which counts among those above and takes no click, so the day always
-  shows (round 3).
+  what's out of view. A day's rule is held on the first row while any of its sessions shows under
+  it, its last or a day's only one among them, the sessions under it a row fewer, so it hides none
+  of them and the day always shows (round 3). `↑` and `↓` scroll to the row chosen from its place,
+  never trying page after page, and a step of the dial keeps it in view where the new period lists
+  it, else shows the List from its top.
 
 **Keys.** Where a reference's key row differs from these, these hold:
 

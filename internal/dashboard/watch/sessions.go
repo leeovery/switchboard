@@ -45,7 +45,9 @@ type listReadMsg struct {
 // the Switchboard, kept from the look before, as views.Patch keeps it, the
 // stubs hanging as views.StubsOf has them; the List's log, while the List
 // shows, as logBuilt has it; and the choice following its session, as
-// Following has it, kept in view where it was, as revealing has it. A frame
+// Following has it, kept in view where it was, as revealing has it, or
+// where the log is built of another period, as the dial steps, in view
+// wherever it was, where it's in the log, else the log from its top. A frame
 // takes nothing in, so builds nothing, but where a move the views read
 // comes to show at it, putting its session on the account it went to.
 func (m Model) sessionsLooked(msg tea.Msg) Model {
@@ -58,6 +60,7 @@ func (m Model) sessionsLooked(msg tea.Msg) Model {
 		return m
 	}
 	sighted := m.sessionsTab.shown.Chosen != (dashboard.Plug{}) && chosenShows(m.frame(now), m.doc, now, m.scroll)
+	stepped := m.sessionsTab.shown.Log != nil && m.sessionsTab.logOf.period != m.period
 	mo := m.moment(now)
 	m = m.logBuilt(now, s)
 	t := m.sessionsTab
@@ -66,7 +69,10 @@ func (m Model) sessionsLooked(msg tea.Msg) Model {
 	t.shown = t.shown.Following(accountIDs(mo))
 	t.moves = len(s.Moves)
 	m.sessionsTab = t
-	if sighted {
+	switch {
+	case stepped && t.logOf.period == m.period && t.shown.Chosen == (dashboard.Plug{}):
+		m.scroll = 0
+	case sighted || stepped && t.logOf.period == m.period:
 		m = m.revealing(now)
 	}
 	return m
@@ -373,13 +379,18 @@ func (m Model) showSessions(s dashboard.SessionsShown) Model {
 }
 
 // revealing is m with Sessions' view scrolled no further than shows the row
-// chosen on the page m draws at now, as revealed has it: where it is, with
-// none chosen.
+// chosen on the page m draws at now: on the List, as its rows' places have
+// it, as ListScroll does; else as revealed has it; where it is, with none
+// chosen.
 func (m Model) revealing(now time.Time) Model {
 	if m.sessionsTab.shown.Chosen == (dashboard.Plug{}) {
 		return m
 	}
 	f := m.frame(now)
+	if m.listShown() {
+		m.scroll = f.ListScroll(m.doc, now)
+		return m
+	}
 	m.scroll = revealed(m.scroll, f.Scrolling(m.doc, now), func(offset int) bool { return chosenShows(f, m.doc, now, offset) })
 	return m
 }
