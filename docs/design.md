@@ -1256,7 +1256,10 @@ Accepted as the first phase was built, each failing safe, with nothing crossing 
 - **A day's work in no pool summarised before and after the first pool's removal,** as lines a
   draining router or a downgrade filed without a pool, can count those requests twice: the summary
   held puts them in the old first pool, the new one in the config's first, and both are kept. It
-  needs all three rare events together, for a handful of requests.
+  needs all three rare events together, for a handful of requests. Summarised before it alone, a
+  day's work in no pool stays the old first pool's on what reads the summaries, History, Graphs and
+  the worth on Accounts, while what reads the lines, the Log's requests, Sessions and a session's
+  page, tells it as the new first's.
 - **Several Macs** whose configs differ until one is kept: a pool removed on one Mac alone, and an
   account configured under its id, which the record holds for that pool, leaves the account out of
   this Mac's record, logged, till the configs agree.
