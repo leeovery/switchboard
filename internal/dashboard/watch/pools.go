@@ -180,11 +180,13 @@ func (m Model) turnedTo(msg turnedMsg) (Model, tea.Cmd) {
 // shownAfresh is the watch of the pool pooled, started afresh, as freshIn
 // starts it, but where it's the pool shown, its config placing the accounts
 // in the pools as it did, as status's Placement has it, and its ledger on
-// the grounds it was made on: then it's the watch as it was, its pool's
-// read of the ledger made of the same, the config file's stamp that of
-// pooled. So a change to the config that places anything otherwise, in any
-// pool, starts the pool shown afresh, and one that doesn't, as a comment,
-// starts nothing.
+// the grounds it was made on: then it's the watch as it was, the config
+// file's stamp that of pooled. Its pool's read of the ledger is made of the
+// same, the pool's id, the grounds' first pool and the accounts' places, and
+// every tab reads the ledger through it, the days, where they begin and the
+// sessions, so what each holds is what a fresh start would read. So a change
+// to the config that places anything otherwise, in any pool, starts the
+// pool shown afresh, and one that doesn't, as a comment, starts nothing.
 func (m Model) shownAfresh(pooled Pooled) (Model, tea.Cmd) {
 	if config.SamePool(pooled.Pool.ID, m.cfg.Pool.ID) && pooled.Placed.Same(m.cfg.Placed) && pooled.Grounds.Same(m.cfg.LedgerGrounds) {
 		m.cfg.Stamp = pooled.Stamp

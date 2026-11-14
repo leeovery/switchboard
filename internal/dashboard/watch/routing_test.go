@@ -11,6 +11,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/router"
@@ -796,6 +797,63 @@ func TestTheCardPricesTheMovesOfTheSessionsLinesInThePoolShown(t *testing.T) {
 			}
 			if got.Moving != 3 || cost != tt.cost {
 				t.Errorf("m ticked, the card moves %d sessions at %q, want 3 at %q, d28c's of its lines in the pool", got.Moving, cost, tt.cost)
+			}
+		})
+	}
+}
+
+// pricedMoves are the sessions the card moves, m ticked, its routing opened
+// afresh with the second row pinned, and what it prices them at: "" where
+// it prices none.
+func (h *harness) pricedMoves() (int, string) {
+	h.t.Helper()
+	h.keyed("p @2")
+	h.keyed("m")
+	got := h.card()
+	if got.Cost == nil {
+		return got.Moving, ""
+	}
+	return got.Moving, got.Cost.Cents()
+}
+
+// After a turn, the card prices each move by the session's lines in the
+// pool turned to, as the turn reads it, its first pool among it: d28c's
+// last request, writing the cache for an hour, costs $0.81 to write again
+// in its own pool, and nothing once a turn leaves it another's: P to
+// Default, from Acme, where it was made; and, where it named none, Acme put
+// first, the accounts record noting no first pool, so it's Acme's.
+func TestATurnPricesTheCardsMovesInThePoolTurnedTo(t *testing.T) {
+	everyAccount := slices.Concat(defaultAccounts, acmeAccounts)
+	tests := []struct {
+		name   string
+		pool   string
+		opened string
+		turn   func(h *harness, p *poolTurns)
+	}{
+		{name: "P, Acme to Default", pool: "q7mt", opened: "q7mt", turn: func(h *harness, _ *poolTurns) { h.deliver(h.press("P")...) }},
+		{name: "Acme put first, the record noting no first pool", opened: "b2n8", turn: func(h *harness, p *poolTurns) {
+			p.changeConfig(func(p *poolTurns) { p.pools = config.Pools{testPools[1], testPools[0]} })
+			h.deliver(h.press("R")...)
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h, l := pricedHarness(t)
+			l.lines[idD28C][0].Pool = tt.pool
+			pools := newPoolTurns(t, testPools, everyAccount, map[string]Source{"b2n8": h.source, "q7mt": h.source})
+			h.model.cfg = pools.opened(h.model.cfg, tt.opened)
+			if moving, cost := h.pricedMoves(); moving != 3 || cost != "$0.81" {
+				t.Fatalf("before the turn, the card moves %d sessions at %q, want 3 at $0.81, d28c's in its pool", moving, cost)
+			}
+			h.keyed("esc")
+
+			turns := h.model.poolTurns
+			tt.turn(h, pools)
+			if h.model.poolTurns != turns+1 || h.model.cfg.Pool.ID != "b2n8" {
+				t.Fatalf("the turn started the view afresh %d times, on %q; want once, on Default", h.model.poolTurns-turns, h.model.cfg.Pool.ID)
+			}
+			if moving, cost := h.pricedMoves(); moving != 3 || cost != "" {
+				t.Errorf("after the turn, the card moves %d sessions at %q, want 3 at none, d28c's line of another pool", moving, cost)
 			}
 		})
 	}
