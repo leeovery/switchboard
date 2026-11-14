@@ -1219,14 +1219,17 @@ func TestPoolsToldInVainForAPassingReasonAreAskedForAgainAtTheNextRead(t *testin
 	pools.failure = errors.New("can't tell which pool to read: neither the config, the router nor the accounts record names any pools")
 	h.source.err = errors.Join(ErrPoolsTold, errors.New("the router routes for them"))
 	h.start()
-	h.deliver(h.press("R")...)
 	if pools.again != 1 {
-		t.Fatalf("the pools told, the pool shown was read again %d times, want once", pools.again)
+		t.Fatalf("the pools told as it starts, the pool shown was read again %d times, want once", pools.again)
 	}
-	pools.failure = nil
 	h.deliver(h.press("R")...)
 	if pools.again != 2 {
 		t.Fatalf("the pools told again after a turn that failed for a reason that may pass, the pool shown was read again %d times in all, want twice", pools.again)
+	}
+	pools.failure = nil
+	h.deliver(h.press("R")...)
+	if pools.again != 3 || h.model.toldInVain {
+		t.Fatalf("the pools told again, the turn able to be made, the pool shown was read again %d times in all, told in vain %v; want three times, not in vain", pools.again, h.model.toldInVain)
 	}
 }
 
