@@ -11,21 +11,25 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/leeovery/switchboard/internal/dashboard"
-	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/logs"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
-// projectsLedger reads as a request ledger holding the lines given, each on
-// the local day it arrived on.
+// projectsLedger is a test's request ledger for Projects, in a state
+// directory of its own, followed as the dashboard follows it, its days read
+// whole counted, as daysCounted counts them.
 type projectsLedger struct {
-	ledger.Empty
-	lines map[string][]ledger.Held
+	daysCounted
+	t     *testing.T
+	state string
 }
 
-func (l *projectsLedger) Day(date string) []ledger.Held {
-	return l.lines[date]
+// write files the lines given, each on the local day it arrived on.
+func (l *projectsLedger) write(lines ...ledger.Held) {
+	l.t.Helper()
+	writeLines(l.t, l.state, lines...)
 }
 
 // The sessions of Projects' tests: two of alpha's, the one worth most; one
@@ -67,16 +71,14 @@ func projectAsks(session, project string, at time.Time, n int) []ledger.Held {
 func projectsHarness(t *testing.T, opening dashboard.View) *harness {
 	t.Helper()
 	h := routedHarness(t, routerDocument(three()...))
-	l := &projectsLedger{Empty: h.emptyLedger(), lines: map[string][]ledger.Held{}}
-	for _, lines := range [][]ledger.Held{
+	l := &projectsLedger{t: t, state: t.TempDir()}
+	l.Ledger = ledger.NewFollower(l.state, h.clock.Now, ledger.Caps{Shared: policy.Shared}, views.DigestVersion, logs.For("watch"))
+	l.write(slices.Concat(
 		projectAsks(alphaFirst, "/code/alpha", start.Add(-3*time.Hour), 3),
 		projectAsks(alphaSecond, "/code/alpha", start.Add(-2*time.Hour), 1),
 		projectAsks(betaOnly, "/code/beta", start.Add(-time.Hour), 2),
 		projectAsks(gammaOnly, "/code/gamma", start.AddDate(0, 0, -1), 1),
-	} {
-		date := dayfile.DateOf(lines[0].At)
-		l.lines[date] = append(l.lines[date], lines...)
-	}
+	)...)
 	cfg := h.config(Size{Width: 160, Height: 50})
 	cfg.Ledger, cfg.Accounts, cfg.WeekStarts, cfg.View = l, threeConfigured, time.Monday, opening
 	h.model = New(t.Context(), cfg)
@@ -88,9 +90,7 @@ func projectsHarness(t *testing.T, opening dashboard.View) *harness {
 func withDelta(h *harness) *harness {
 	l := h.model.cfg.Ledger.(*projectsLedger)
 	for i, id := range deltaSessions {
-		lines := projectAsks(id, "/code/delta", start.AddDate(0, 0, -10).Add(time.Duration(i)*time.Hour), 1)
-		date := dayfile.DateOf(lines[0].At)
-		l.lines[date] = append(l.lines[date], lines...)
+		l.write(projectAsks(id, "/code/delta", start.AddDate(0, 0, -10).Add(time.Duration(i)*time.Hour), 1)...)
 	}
 	return h
 }
@@ -298,9 +298,7 @@ func TestProjectsDialStepKeepsTheSelectionScrolledInView(t *testing.T) {
 // the step back never brings back the offset it had.
 func TestProjectsRebuiltScrollsSessionsNoFurtherThanItGoes(t *testing.T) {
 	h := withDelta(projectsHarness(t, dashboard.Projects))
-	l := h.model.cfg.Ledger.(*projectsLedger)
-	today := projectAsks("d8000000-0000-4000-8000-000000000008", "/code/delta", start.Add(-30*time.Minute), 1)
-	l.lines[dayfile.DateOf(start)] = append(l.lines[dayfile.DateOf(start)], today...)
+	h.model.cfg.Ledger.(*projectsLedger).write(projectAsks("d8000000-0000-4000-8000-000000000008", "/code/delta", start.Add(-30*time.Minute), 1)...)
 	h.start()
 	h.update(tea.WindowSizeMsg{Width: 108, Height: 24})
 	h.deliver(h.press(">")...)

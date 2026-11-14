@@ -51,7 +51,8 @@ const startedBack = 31
 
 // ReadSessionDays reads the sessions of each day from from's to the day
 // before now's, oldest first, as DaySessionsOn reads each: of today's none
-// yet, for the ledger's tail to give, as Tailed takes them. It walks back
+// yet, for the ledger's tail to give, as Tailed takes them, or as Joined
+// joins the days read to those the tail fed. It walks back
 // from the day before from's, as begunBefore has it, for when the sessions
 // running into the first day began, so a session's start is its first
 // request wherever it fell.
@@ -156,6 +157,28 @@ func (d SessionDays) Tailed(gained []ledger.Held, afresh bool, read []string, la
 	records := slices.DeleteFunc(RecordsOf(gained).records, func(r lineRecord) bool { return dayfile.DateOf(r.arrived()) != today.Date })
 	d.held = d.held.with(records)
 	return d
+}
+
+// Joined is the days read, as ReadSessionDays reads them, joined to d, the
+// days the ledger's tail fed, as Tailed takes its reads: each day read, but
+// where d holds that day, as the tail turned it or read it again whole, d's
+// in its place, and d's days besides; today's sessions d's, never read's;
+// and the first requests of the sessions running into the first day read
+// read's, as it walked back for them. So a read landing after a read of the
+// tail never stands for what the tail gave meanwhile.
+func (d SessionDays) Joined(read SessionDays) SessionDays {
+	joined := read
+	joined.today, joined.held = d.today, d.held
+	for _, day := range d.days {
+		joined.days = withDay(joined.days, day)
+	}
+	return joined
+}
+
+// TodayAlone is d's fold of today's sessions alone, the days gone it holds
+// let go of, so it owes none of them a read.
+func (d SessionDays) TodayAlone() SessionDays {
+	return SessionDays{today: d.today, held: d.held}
 }
 
 // turned reports whether the day has turned at now since d's today, the

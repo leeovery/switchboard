@@ -3946,13 +3946,22 @@ draw it, the tab names in its title row aside, and kept in `testdata/vhs/referen
   names them, by their folders, their parents too where two share one.
 - **What it reads:** each closed day's sessions as the day's side holds them (see The request
   ledger), read once for the period's days and kept, and today's, of the held sessions and today's
-  lines, folded by the hour, a line the ledger's files hold twice counted once, as the List and the
-  Log count it. A day that turns keeps what today held as that day's, owed a read of its lines
-  whole, and every day slept through owed too, till the tail's read of the days it followed no
-  further gives them (`SessionDays.Owed` names them, and `Tailed` takes every date read, so a day
-  read of no lines is owed no more), so no line is lost or counted twice; a page
-  built before that read counts what was held as the day gone's. The List says which are running.
-  Worth is priced as it's read, at the prices Past and the List price at.
+  lines as each read of the ledger's tail gives them, folded by the hour, a line the ledger's files
+  hold twice counted once, as the List and the Log count it. Projects never reads today's lines
+  whole: its reads read the days before today alone, joined to those the tail fed
+  (`SessionDays.Joined`), today's and each day the tail turned or read again whole the tail's, so a
+  read landing after a read of the tail keeps what the tail gave meanwhile. A day that turns keeps
+  what today held as that day's, owed a read of its lines whole, and every day slept through owed
+  too, till the tail's read of the days it followed no further gives them (`SessionDays.Owed` names
+  them, and `Tailed` takes every date read, so a day read of no lines is owed no more), so no line
+  is lost or counted twice; a page built before that read counts what was held as the day gone's.
+  The read of the tail that finds the day turned reads them, once for every reader that wants a
+  day; and every day any read of the tail reads again whole is taken in too, so the line of a
+  request across midnight, filed on the day gone after the turn's read, comes as the List's read
+  for it finds it. Till Projects first asks for its own days, the tail's keep today's alone, the
+  days gone let go of and none read again for them, as that first read reads every day gone it
+  shows: so a watch that never shows Projects reads no day more than it did. The List says which
+  are running. Worth is priced as it's read, at the prices Past and the List price at.
 - **The list:** a row a project with a session in the period, by worth, greatest first, then by
   name: its name and path; its sessions running now; its sessions, requests and worth, and worth by
   family; and when its last request arrived. Then `all projects`, every project's totals.
@@ -3995,17 +4004,25 @@ draw it, the tab names in its title row aside, and kept in `testdata/vhs/referen
   heading never alone. BY MODEL draws a version as Compare's BY MODEL does, ON
   ACCOUNTS its names as Detail's column of names, marks and all. The chosen row is lit where `↑`
   and `↓` act, in the list or SESSIONS, the other's bold, marked `▸`, a bar's own surface kept.
-- **What the watch holds:** the sessions' days, read off the update loop once Projects first
-  shows, from the period's first day, and again only where the dial reaches further back; no page
-  is built for a period the days held don't reach, so a step further back draws what the first
+- **What the watch holds:** the sessions' days before today, read off the update loop once
+  Projects first shows, from the period's first day, and again only where the dial reaches further
+  back; and today's, folded off the loop at every read of the ledger's tail from the first, whether
+  or not Projects has shown, with each day turned since Projects first asked for its own, each fold
+  costing what the read gained: by the end of a day of 25,000 requests it holds some 2 MB, nearly
+  all of it the keys of the lines taken, kept so a line given again counts once. No page is built
+  for a period the days held
+  don't reach, nor before the tail's first read, so a step further back draws what the first
   read draws, loading only while there's no page to draw, till its read lands, and then returns
   to where the user was, in the list or SESSIONS, scrolled as far as it was, the session selected
   kept in view, but where the project chosen left the list; without a ledger, the page is built
   of the sessions running alone, as the List's are, and says `no sessions` where none runs. A
   step of the dial on Projects keeps SESSIONS' scroll, where every other tab's view goes back to
   its top, and each rebuild scrolls it no further than it then goes. The page is built again only
-  as the days read, the period, the day or the List's sessions running change, and the chosen
-  project's as the page or the choice does. The project shown is held as chosen once any
+  as the days read, the period, the day or the List's sessions running change, or a read of the
+  tail could tell otherwise of today's or a day gone, as one gaining a line, reading today afresh
+  or a day again whole can; while another tab shows, such a change leaves it stale, built as
+  Projects next shows, never a frame at a time; and the chosen project's as the page or the choice
+  does. The project shown is held as chosen once any
   key or click moves the choice, the top row's included, else the top row is chosen as the list
   ranks afresh. The choice is kept by path, and the session selected by id, across a rebuild, and
   where the session selected showed, it's kept in view; a project that leaves the list leaves the
@@ -9261,7 +9278,7 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
 | `internal/forecast` | The weeks' forecast (see Forecasting run-outs): the fast and day's rates and the hold curve, each kept as readings and answers arrive, and the pool's use played forward through `internal/score`'s choice of account, to where each week runs out. Pure functions and values handed the clock, as `internal/score`'s are; the router keeps the rates and the curve, `cmd/forecasttool` replays them, and `internal/status` forecasts with them |
 | `internal/prime` | The priming schedule: each account's slot from the day and the accounts, and when a prime is due. Pure functions of the day, the accounts, the window a request starts, which the `score.Policy` names, the readings and a clock |
 | `internal/status` | The status document, each window's allowance and even pace, the pool's room and COMING UP among what it holds, and building it by probing every account; what the router says of a session; and their words: `status`'s text, the countdowns, clocks, titles and state words the dashboard shares, and one map from the router's reasons to the dashboard's words; and a token's year, its one owner: when it was taken and is up, whether it's up within a span, its days left and the share of it gone, which setup, the Accounts tab, `usage` and the router's notifications read |
-| `internal/views` | Each view's data, built by one function from what's read, the status document, the router's sessions and what its request stream tells, the ledger's, the readings history's and the events' readers, the price table and a clock: what a page of the dashboard draws, and its data verb prints, so the two never disagree (see The data verbs); and the one store of sessions the dashboard's readers of the ledger share, fed once a read of its tail, each session's story told on as its lines come, from a digest's state or whole (see Live updates); and a session's state as a day's digest stores it, its page's carried state, its points and its part of each day among it, restored by the store's own steps, and `Digests`, the builder the ledger digests its days with, each day's answers taken once, small, as the ledger's read hands their lines, as a page's read takes them too, each session's page given those of the days after its base, and each day's side, the sessions the Log's find and Projects read of it (see The request ledger), which `SessionDays` reads once for a period and carries across midnight. It opens nothing itself; it reads through the readers it's given |
+| `internal/views` | Each view's data, built by one function from what's read, the status document, the router's sessions and what its request stream tells, the ledger's, the readings history's and the events' readers, the price table and a clock: what a page of the dashboard draws, and its data verb prints, so the two never disagree (see The data verbs); and the one store of sessions the dashboard's readers of the ledger share, fed once a read of its tail, each session's story told on as its lines come, from a digest's state or whole (see Live updates); and a session's state as a day's digest stores it, its page's carried state, its points and its part of each day among it, restored by the store's own steps, and `Digests`, the builder the ledger digests its days with, each day's answers taken once, small, as the ledger's read hands their lines, as a page's read takes them too, each session's page given those of the days after its base, and each day's side, the sessions the Log's find and Projects read of it (see The request ledger), which `SessionDays` reads once for a period, joins to the days the tail fed, and carries across midnight. It opens nothing itself; it reads through the readers it's given |
 | `internal/dashboard` | Rendering the dashboard as frames (Lip Gloss): the page's chrome, its title row, status line, heading row and key line; the Overview, Accounts, Projects, History, Sessions, Runway, Graphs, the Log and a session's page, each drawn from what `internal/views` builds; the usage block, which `usage` prints and the Overview's USAGE draws; the card a routing picker or a line's details is drawn in, over the page faded; the theme picker; `?`'s help for each page; and setup's full screen, `dashboard.Setup`, a page in the dashboard's chrome drawn from setup's outcomes, its cards placed by the card's rule over the page unfaded |
 | `internal/dashboard/watch` | The live dashboard (Bubble Tea): when to read the router or probe; the ledger's, the readings history's and the events' files, read as they grow through small interfaces it's given, which its tests and the capture harness fake; the history and the request stream; the pages and the stack `esc` goes back through, their keys and clicks, the routing pickers' orders, scrolling, easing and what moves; the theme picker; the preferences; and its desktop notifications while it probes without the router |
 | `internal/theme` | Themes: the tokens, the built-ins, loading `.theme` files, working out `viz.*`, the families', versions' and days' shades among them, picking the light or dark half by the terminal's background, and the preferences file |

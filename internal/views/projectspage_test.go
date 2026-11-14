@@ -489,6 +489,58 @@ func TestTheDayGoneIsOwedTillItsLinesAreReadWhole(t *testing.T) {
 	}
 }
 
+// The days read, joined to those the tail fed, take today's sessions from
+// the tail, never the read; the day the tail turned and read again whole in
+// place of the read's of it, read before its last line came; the read's
+// other days; and the read's walk back for the sessions running into its
+// first day: so a read landing after the tail's turn builds the page the
+// days read afresh give.
+func TestTheDaysReadJoinTheDaysTheTailFed(t *testing.T) {
+	sunday := projectAsk(worktreeSession, "/code/switchboard", "", "work", opus, october(4, 22, 0))
+	monday := projectAsk(worktreeSession, "/code/switchboard", "", "work", opus, october(5, 9, 0))
+	tuesday := projectAsks(repoSession, "/code/switchboard", "", "work", october(6, 10, 0), october(6, 23, 59))
+	today := projectAsks(repoSession, "/code/switchboard", "", "work", october(7, 0, 1), october(7, 9, 0))
+	turned := october(7, 0, 0)
+	read := views.ReadSessionDays(ledgerOfLines(sunday, monday, tuesday[0]), october(5, 0, 0), turned).Tailed(today[:1], true, nil, nil, turned)
+	wednesday := october(7, 9, 30)
+	tailed := views.ReadSessionDays(ledgerOfLines(), october(6, 0, 0), october(6, 23, 0)).Tailed(tuesday[:1], true, nil, nil, october(6, 23, 0)).
+		Tailed(today, true, []string{"2026-10-06"}, map[string][]ledger.Held{"2026-10-06": tuesday}, wednesday)
+
+	joined := tailed.Joined(read).Projects(projectsIn(views.PeriodThisWeek, wednesday))
+	if got := joined.All.Requests; got != 5 {
+		t.Errorf("the page counts %d requests, want 5: Monday's of the read, Tuesday's 2 and today's 2 of the tail", got)
+	}
+	whole := heldDays(wednesday, slices.Concat([]ledger.Held{sunday, monday}, tuesday, today)...).Projects(projectsIn(views.PeriodThisWeek, wednesday))
+	if !reflect.DeepEqual(joined.Rows, whole.Rows) {
+		t.Errorf("the rows joined are\n%+v\nwant, as the days read afresh give\n%+v", joined.Rows, whole.Rows)
+	}
+	got, _ := joined.Project("/code/switchboard")
+	want, _ := whole.Project("/code/switchboard")
+	if !reflect.DeepEqual(got.Sessions, want.Sessions) {
+		t.Errorf("the sessions joined are\n%+v\nwant, the worktree's started on Sunday, as the read walked back for it\n%+v", got.Sessions, want.Sessions)
+	}
+}
+
+// Today's fold alone lets go of the days gone the days hold, owing none of
+// them a read, and folds on what the tail gives of today.
+func TestTodayAloneLetsGoOfTheDaysGone(t *testing.T) {
+	tuesday, wednesday := october(6, 23, 0), october(7, 0, 5)
+	early := projectAsk(repoSession, "/code/switchboard", "", "work", opus, october(6, 10, 0))
+	after := projectAsks(repoSession, "/code/switchboard", "", "work", october(7, 0, 1), october(7, 0, 3))
+	turned := views.ReadSessionDays(ledgerOfLines(), october(5, 0, 0), tuesday).Tailed([]ledger.Held{early}, true, nil, nil, tuesday).
+		Tailed(after[:1], true, nil, nil, wednesday)
+	if got := turned.Projects(projectsIn(views.PeriodThisWeek, wednesday)).All.Requests; got != 2 {
+		t.Fatalf("turned, the days count %d requests this week, want Tuesday's and today's, 2", got)
+	}
+	alone := turned.TodayAlone()
+	if owed := alone.Owed(wednesday); len(owed) > 0 {
+		t.Errorf("today's alone owes %v, want none", owed)
+	}
+	if got := alone.Tailed(after[1:], false, nil, nil, wednesday).Projects(projectsIn(views.PeriodThisWeek, wednesday)).All.Requests; got != 2 {
+		t.Errorf("today's alone, fed today's second, counts %d requests this week, want today's 2", got)
+	}
+}
+
 // A line the ledger's files hold twice is counted once, as the List and the
 // Log count it, by its id, in a day read whole, in a day's side, and across
 // the tail's reads of today; one with no id as often as a read gives it

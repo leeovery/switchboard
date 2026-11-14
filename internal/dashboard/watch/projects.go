@@ -15,17 +15,23 @@ import (
 // project has been chosen yet, the top row chosen till one is; the sessions'
 // days read for it, as views.ReadSessionDays reads them, from the start of
 // the day from, none till the first read lands, and how many reads have
-// landed; whether a read is under way, and how many were asked, a read
-// another overtook passed over; what its page and the chosen project's were
-// built of, as pageOf and projectOf have them, and how many times each was
-// built; and where the user was as its page was let go to await a read, nil
-// where it wasn't.
+// landed; the sessions' days the ledger's tail fed, today's at every read
+// of it from the first, whether or not Projects has shown, and each day
+// gone since it first asked for its own, as projectsFeed has it, and how
+// many reads told otherwise of them;
+// whether a read is under way, and how many were asked, a read another
+// overtook passed over; what its page and the chosen project's were built
+// of, as pageOf and projectOf have them, and how many times each was built;
+// and where the user was as its page was let go to await a read, nil where
+// it wasn't.
 type projectsTab struct {
 	shown     dashboard.ProjectsShown
 	chose     bool
 	days      *views.SessionDays
 	from      time.Time
 	read      int
+	tailed    views.SessionDays
+	fed       int
 	reading   bool
 	asked     int
 	pageOf    projectsPageOf
@@ -43,19 +49,20 @@ type projectsPlace struct {
 }
 
 // projectsPageOf is what Projects' page was built of: the reads of the days
-// landed, the period, the local day it was built on, and the sessions
+// landed, and the reads of the ledger's tail that told otherwise of the days
+// it fed; the period; the local day it was built on; and the sessions
 // running, as the List lists them, by what's drawn of each, as runningOf
 // keys them.
 type projectsPageOf struct {
-	read    int
-	period  views.Period
-	day     string
-	running []runningKey
+	read, fed int
+	period    views.Period
+	day       string
+	running   []runningKey
 }
 
 // same reports whether the page was built of what o says.
 func (b projectsPageOf) same(o projectsPageOf) bool {
-	return b.read == o.read && b.period == o.period && b.day == o.day && slices.Equal(b.running, o.running)
+	return b.read == o.read && b.fed == o.fed && b.period == o.period && b.day == o.day && slices.Equal(b.running, o.running)
 }
 
 // projectOf is what the chosen project's page was built of: the page,
@@ -94,7 +101,7 @@ func runningOf(list views.SessionList) []runningKey {
 }
 
 // projectsReadMsg is a read of the sessions' days for Projects, the asked'th:
-// the days, from the start of the day from to now, and today's whole, as
+// the days from the start of the day from to the day before now's, as
 // readProjects read them.
 type projectsReadMsg struct {
 	asked int
@@ -105,9 +112,8 @@ type projectsReadMsg struct {
 // readProjects has the watch read the sessions' days for Projects while it
 // shows, one read at a time: once, as it's first shown, from the start of
 // the period's first day; and again where the dial steps to a period
-// reaching further back than the days held. Each read reads today's lines
-// whole, as the ledger's Day gives them, the tail feeding none of them in
-// yet.
+// reaching further back than the days held. Each reads the days before
+// today's alone, today's the tail's, as projectsDays joins them.
 func (m Model) readProjects() (Model, tea.Cmd) {
 	t := m.projects
 	if m.view != dashboard.Projects || t.reading || m.cfg.Ledger == nil {
@@ -123,8 +129,7 @@ func (m Model) readProjects() (Model, tea.Cmd) {
 	m.projects.reading = true
 	asked := m.projects.asked
 	return m, func() tea.Msg {
-		days := views.ReadSessionDays(l, from, now).Tailed(l.Day(dayfile.DateOf(now)), true, nil, nil, now)
-		return projectsReadMsg{asked: asked, days: days, from: from}
+		return projectsReadMsg{asked: asked, days: views.ReadSessionDays(l, from, now), from: from}
 	}
 }
 
@@ -141,15 +146,63 @@ func (m Model) projectsRead(msg projectsReadMsg) Model {
 	return m
 }
 
+// projectsFeed is what a read of the ledger's tail feeds the sessions' days
+// Projects is built of: the days as the read was asked; whether Projects
+// had asked for its own by then, from which on the days keep each day
+// gone, else today's alone, as Projects' first read reads every day gone it
+// shows; and the dates of the days before today's the read reads again
+// whole for them, each once, the oldest first, none till Projects asks.
+type projectsFeed struct {
+	days  views.SessionDays
+	keeps bool
+	owed  []string
+}
+
+// projectsFeed is what a read of the ledger's tail asked at now feeds the
+// sessions' days, as projectsFeed has it: the days read again for them
+// those they owe, as Owed has them, and those the tail followed no further,
+// as missed has them.
+func (m Model) projectsFeed(now time.Time) projectsFeed {
+	f := projectsFeed{days: m.projects.tailed, keeps: m.projects.asked > 0}
+	if f.keeps {
+		owed := slices.Concat(f.days.Owed(now), m.tail.missed(views.Today(now)))
+		f.owed = slices.Compact(slices.Sorted(slices.Values(owed)))
+	}
+	return f
+}
+
+// fed is the sessions' days fed, at now, what a read of the tail read: the
+// days owed among those it read again whole, and every day it read whole
+// taken in, so a line another reader awaited reaches them too; or, till
+// Projects asks for its own, today's alone, none read again for them.
+func (f projectsFeed) fed(read tailLines, now time.Time) views.SessionDays {
+	if !f.keeps {
+		return f.days.Tailed(read.gained, read.afresh, nil, nil, now).TodayAlone()
+	}
+	return f.days.Tailed(read.gained, read.afresh, f.owed, read.days, now)
+}
+
+// tailFed is t with the sessions' days as a read of the ledger's tail fed
+// them, counted as fed where what it read could tell otherwise of them, as
+// told has it, for Projects' page to be built afresh of them as it shows.
+func (t projectsTab) tailFed(days views.SessionDays, read tailLines) projectsTab {
+	t.tailed = days
+	if read.told() {
+		t.fed++
+	}
+	return t
+}
+
 // projectsBuilt is m with Projects' page built afresh of the days it's
 // built of at now, as projectsDays has them, while Projects shows, where
 // what it's built of has changed since it was built, as projectsPageOf has
-// it: the days read, the period, the day, or the sessions the List lists
-// running; and the chosen project's page, where the page or the project
-// chosen has, as chosenBuilt has it; SESSIONS scrolled no further than it
-// now goes, and to show the session selected, where it showed before, as
-// selectionShows has it, or where the user was in it as the page was let
-// go, as projectsReturned has it. Where
+// it: the days read, those the ledger's tail fed, the period, the day, or
+// the sessions the List lists running, so a change while another tab shows
+// builds it only as Projects shows again; and the chosen project's page,
+// where the page or the project chosen has, as chosenBuilt has it;
+// SESSIONS scrolled no further than it now goes, and to show the session
+// selected, where it showed before, as selectionShows has it, or where the
+// user was in it as the page was let go, as projectsReturned has it. Where
 // there are no days to build it of, it shows none, as projectsAwaited has
 // it. Never a frame at a time, which takes nothing in.
 func (m Model) projectsBuilt(msg tea.Msg) Model {
@@ -162,7 +215,7 @@ func (m Model) projectsBuilt(msg tea.Msg) Model {
 		return m.projectsAwaited()
 	}
 	list := m.held.List(m.listLive(now, m.traffic.stream(now)))
-	of := projectsPageOf{read: m.projects.read, period: m.period, day: dayfile.DateOf(now), running: runningOf(list)}
+	of := projectsPageOf{read: m.projects.read, fed: m.projects.fed, period: m.period, day: dayfile.DateOf(now), running: runningOf(list)}
 	t := m.projects
 	rebuilt := t.shown.Page == nil || !t.pageOf.same(of)
 	if !rebuilt && t.projectOf == (projectOf{page: t.pages, chosen: t.chosenIn(*t.shown.Page)}) {
@@ -172,9 +225,7 @@ func (m Model) projectsBuilt(msg tea.Msg) Model {
 	m, returned := m.projectsReturned()
 	sighted = sighted || returned
 	if rebuilt {
-		page := days.Projects(views.ProjectsInput{
-			Period: m.period, List: list, Names: m.moment(now), Prices: m.cfg.Prices, WeekStarts: m.cfg.WeekStarts, Family: m.cfg.Family, Now: now,
-		})
+		page := days.Projects(m.projectsInput(now, list))
 		m.projects.shown.Page, m.projects.pageOf = &page, of
 		m.projects.pages++
 	}
@@ -188,20 +239,32 @@ func (m Model) projectsBuilt(msg tea.Msg) Model {
 	return m
 }
 
+// projectsInput is what Projects' page is built of at now beside its days:
+// the dial's period, the List given, the accounts' names, the prices, the
+// day weeks start on and how a model's family is read.
+func (m Model) projectsInput(now time.Time, list views.SessionList) views.ProjectsInput {
+	return views.ProjectsInput{
+		Period: m.period, List: list, Names: m.moment(now), Prices: m.cfg.Prices, WeekStarts: m.cfg.WeekStarts, Family: m.cfg.Family, Now: now,
+	}
+}
+
 // projectsDays are the days Projects' page is built of at now: those read,
-// where they reach back to the period's first day; none where there's no
+// joined to those the ledger's tail fed, as Joined joins them, where those
+// read reach back to the period's first day and the tail has been read, so
+// today's are the tail's, however late a read lands; none where there's no
 // ledger, the page built of the sessions running alone. It reports false
-// where those read don't reach, as before the first read lands, or as the
-// dial reaches further back, till the read of the days it reaches lands.
+// where they don't, as before the first read lands, or the tail's first,
+// or as the dial reaches further back, till the read of the days it reaches
+// lands.
 func (m Model) projectsDays(now time.Time) (views.SessionDays, bool) {
 	t := m.projects
 	switch {
 	case m.cfg.Ledger == nil:
 		return views.SessionDays{}, true
-	case t.days == nil || m.period.From(now, m.cfg.WeekStarts).Before(t.from):
+	case t.days == nil || m.tail.unread() || m.period.From(now, m.cfg.WeekStarts).Before(t.from):
 		return views.SessionDays{}, false
 	}
-	return *t.days, true
+	return t.tailed.Joined(*t.days), true
 }
 
 // projectsAwaited is m with Projects showing no page while its days are
