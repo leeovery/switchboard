@@ -437,7 +437,8 @@ type Model struct {
 	// again; and refusing is how the router answered while it refuses to
 	// read the pool shown, as refusesPool has it, nil while it doesn't;
 	// toldInVain is set where the pool shown was last read again in vain,
-	// its turn failing, so the pools told, as ErrPoolsTold says, ask for it
+	// its turn failing as the config couldn't be read, as ErrConfigUnread
+	// says, so the pools told, as ErrPoolsTold says, ask for it
 	// again only once a read has failed otherwise since, as when the router
 	// went away and came back, or the config changes, as followConfig has it.
 	poolTurns  int

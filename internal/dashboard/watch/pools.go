@@ -54,6 +54,13 @@ type Pooled struct {
 // verbs act on.
 var ErrPoolsTold = errors.New("the pools can be told now")
 
+// ErrConfigUnread is what Config's Turn fails with, joined to why, where
+// the config can't be read: that holds till the config file changes, so the
+// pools told ask for the pool shown again only then, where a turn that
+// failed otherwise, as where the router's health didn't answer in time, is
+// asked again at the next read.
+var ErrConfigUnread = errors.New("the config can't be read")
+
 // PoolAsk is which pool Config's Turn is asked for.
 type PoolAsk int
 
@@ -166,8 +173,9 @@ func (m Model) askPool(ask PoolAsk) (Model, tea.Cmd) {
 // asked, with no other to turn to, says so. Where it couldn't be told, it
 // keeps to the pool shown, and where P asked, the key line says why; where
 // the config changed, or the pools were told, it's logged alone, and asked
-// again once the config changes again, or the pools are told afresh, as
-// toldInVain has it.
+// again at the next read that calls for it; but where the config couldn't
+// be read, as ErrConfigUnread says, only once the config changes again, or
+// the pools are told afresh, as toldInVain has it.
 func (m Model) turnedTo(msg turnedMsg) (Model, tea.Cmd) {
 	m.turning = false
 	switch {
@@ -176,7 +184,7 @@ func (m Model) turnedTo(msg turnedMsg) (Model, tea.Cmd) {
 		return m.noting(prose.TurnFailed(msg.err.Error()))
 	case msg.err != nil:
 		logger.Warn("can't read the pool shown again as the config changed", "error", msg.err)
-		m.toldInVain = true
+		m.toldInVain = errors.Is(msg.err, ErrConfigUnread)
 		return m, nil
 	}
 	m.toldInVain = false

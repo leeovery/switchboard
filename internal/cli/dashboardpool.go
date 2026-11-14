@@ -118,12 +118,12 @@ func (s untoldSource) UnpinSession(context.Context, string) error {
 // ledger made on them, as ledgerOn makes it, for the watch to make only
 // where the one in use was made on others; and the accounts removed, as
 // removedIn gives them where there's a state directory. It fails where the
-// config can't be read, or the pools told.
+// config can't be read, joining watch.ErrConfigUnread, or the pools told.
 func (s shownPools) turn(ctx context.Context, from string, ask watch.PoolAsk) (watch.Pooled, error) {
 	stamp := s.a.configStamp()
 	cfg, err := s.a.loadConfig()
 	if err != nil {
-		return watch.Pooled{}, err
+		return watch.Pooled{}, errors.Join(watch.ErrConfigUnread, err)
 	}
 	pooled, err := s.a.pooledConfig(ctx, cfg)
 	if err != nil {

@@ -271,16 +271,30 @@ func TestTheDashboardsTurnReadsThePoolsAfresh(t *testing.T) {
 }
 
 // A turn that can't read the config fails, saying why, for the dashboard
-// to keep the pool it shows.
+// to keep the pool it shows, and saying it's the config, as
+// watch.ErrConfigUnread does, as that holds till the config changes; a turn
+// failing otherwise, as where the pools can't be told, the router not
+// answering, doesn't say so.
 func TestTheDashboardsTurnFailsWhereTheConfigCantBeRead(t *testing.T) {
 	deps := pooledDeps(t, false)
 	cfg := recordWatch(t, &deps)
 	if got := run(t, deps, "dashboard"); got != (result{}) {
 		t.Fatalf("switchboard dashboard = %+v, want exit status 0 and nothing printed", got)
 	}
+	writeDepsConfig(t, deps, "[[account]]\nid = \"work\"\n")
+	err := identity.NewFile(stateDir(t, deps)).Update(func(r *identity.Record) error {
+		r.Pools = nil
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := cfg.Turn(t.Context(), "b2n8", watch.NextPool); err == nil || errors.Is(err, watch.ErrConfigUnread) {
+		t.Errorf("Turn() where the pools can't be told = %v, want it to fail, not saying the config can't be read", err)
+	}
 	writeDepsConfig(t, deps, "[[account]\n")
-	if _, err := cfg.Turn(t.Context(), "b2n8", watch.NextPool); err == nil {
-		t.Error("Turn() of a config that can't be read turned, want it to fail")
+	if _, err := cfg.Turn(t.Context(), "b2n8", watch.NextPool); !errors.Is(err, watch.ErrConfigUnread) {
+		t.Errorf("Turn() of a config that can't be read = %v, want it to fail as watch.ErrConfigUnread says", err)
 	}
 }
 
