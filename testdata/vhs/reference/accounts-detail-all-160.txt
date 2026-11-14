@@ -16,22 +16,22 @@ ACCOUNTS    Compare  Detail  [ ]  ───────────────�
  ↑↓ choose          │   BY MODEL
                     │               ● Opus 5.5 56%  ● Opus 5 2%  ● Sonnet 5.5 34%  ● Sonnet 5 3%  ● Fable 5.1 2%  ● Haiku 4.5 2%
                     │
-                    │   ┄┄ the last 11 weeks ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
+                    │   ┄┄ the last 12 weeks ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
                     │
-                    │   WEEKS         20 Jul  27 Jul   3 Aug  10 Aug  17 Aug  24 Aug  31 Aug   7 Sep  14 Sep  21 Sep  28 Sep  limits              at a reset
-                    │   all accounts    67%     66%     68%     53%     64%     66%     67%     74%     73%     82%     59%…  short on 3 of 10    32% left
-                    │
-                    │   work            88%     88%     90%     72%     88%    100%     94%    100%     81%    100%     34%…  limit hit 3 of 10   10% left
-                    │   personal    ◆   72%     70%     72%     64%     70%     58%     77%     69%     90%     85%     66%…  limit hit 0 of 10   27% left
-                    │   side            40%     40%     41%     22%     35%     41%     30%     52%     47%     60%     78%…  limit hit 0 of 10   59% left
-                    │
-                    │   WORTH
-                    │                                ▇▇▇▇▇▇▇▇▇▇▇▇▇▇▇
-                    │               ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄                                    ▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅
+                    │   all accounts                                                                                 ▂▂▂▂▂           short on 3 of 11
+                    │                ▅▅▅▅▅   ▅▅▅▅▅   ▅▅▅▅▅   ▆▆▆▆▆   ▁▁▁▁▁   ▄▄▄▄▄   ▅▅▅▅▅   ▅▅▅▅▅           ▇▇▇▇▇           ▃▃▃▃▃   32% left at a reset
                     │
                     │
+                    │                 65%     67%     66%     68%     53%     64%     66%     67%     74%     73%     82%     59%…
+                    │   work         ▄▄▄▄▄┄┄┄▄▄▄▄▄┄┄┄▄▄▄▄▄┄┄┄▅▅▅▅▅┄┄┄┄┄┄┄┄┄┄┄▄▄▄▄▄┄┄┄     ┄┄┄▆▆▆▆▆┄┄┄     ┄┄┄▂▂▂▂▂┄┄┄     ┄┄┄┄┄┄┄┄   limit hit 3 of 11
+                    │                                                ▇▇▇▇▇                                                           10% left at a reset
+                    │                                                                                                        ▃▃▃▃▃
                     │
-                    │               Mon              Tue              Wed              Thu              Fri              Sat              Sun
-                    │               peak Wed $212
-                        ▼ 26 more below · j/k
+                    │                 86%     88%     88%     90%     72%     88%     100%    94%     100%    81%     100%    34%…
+                    │   personal   ◆                                                         ▁▁▁▁▁           ▅▅▅▅▅   ▃▃▃▃▃           limit hit 0 of 11
+                    │                ▆▆▆▆▆   ▇▇▇▇▇   ▆▆▆▆▆   ▇▇▇▇▇   ▄▄▄▄▄   ▆▆▆▆▆   ▃▃▃▃▃           ▆▆▆▆▆                   ▅▅▅▅▅   28% left at a reset
+                    │
+                    │
+                    │                 69%     72%     70%     72%     64%     70%     58%     77%     69%     90%     85%     66%…
+                        ▼ 40 more below · j/k
 tab views   [ ] view    < > period: this week    ↑↓ account  enter its page    p pin    ? help  q quit

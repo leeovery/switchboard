@@ -14,16 +14,16 @@ import (
 
 // At is the page as it stands at the moment m, of the document of its
 // accounts: its weeks as the days stand at m, as Past's filedAt files them,
-// so its left at its last reset, its peaks and its verdict change on the
-// second WEEK USED reads none, and stay so, as Weeks' do. The rest stands as
-// it was built.
+// so its left at its last reset, its peaks and its facts change on the
+// second WEEK USED reads none, and stay so, as Weeks' do; and with them all
+// else stand tells of its weeks. The rest stands as it was built.
 func (p AccountsPage) At(m status.Moment) AccountsPage {
 	stood, ok := Past{in: p.in, days: p.days}.filedAt(m)
 	if !ok {
 		return p
 	}
 	p.Rows = slices.Clone(p.Rows)
-	p.weeked(stood.in, stood.days)
+	p.stand(stood.in, stood.days)
 	return p
 }
 

@@ -791,7 +791,9 @@ func TestDetailsKeysChooseAnAccountAndOpenTheSelectedSessionsPage(t *testing.T) 
 	}
 	for _, step := range steps {
 		h.model.scroll = 1
-		h.keys(step.keys...)
+		h.keys(step.keys[:len(step.keys)-1]...)
+		left := h.model.scroll
+		h.keys(step.keys[len(step.keys)-1])
 		step.want.Shown, step.want.Accounts = dashboard.AccountsDetail, threeConfigured
 		if got := h.model.accounts.shown; h.pageOpen() != step.opened || !reflect.DeepEqual(got, step.want) {
 			t.Fatalf("after %s, %q's page is open, Accounts shows %+v; want %q's, over %+v", step.name, h.pageOpen(), got, step.opened, step.want)
@@ -800,8 +802,35 @@ func TestDetailsKeysChooseAnAccountAndOpenTheSelectedSessionsPage(t *testing.T) 
 			continue
 		}
 		h.keys(escKey)
-		if got := h.model.accounts.shown; h.model.session != nil || h.model.view != dashboard.Accounts || !reflect.DeepEqual(got, step.want) || h.model.scroll != 1 {
-			t.Fatalf("esc left %q's page open, %s showing %+v, scrolled %d; want Accounts as left, %+v, scrolled 1", h.pageOpen(), h.model.view, got, h.model.scroll, step.want)
+		if got := h.model.accounts.shown; h.model.session != nil || h.model.view != dashboard.Accounts || !reflect.DeepEqual(got, step.want) || h.model.scroll != left {
+			t.Fatalf("esc left %q's page open, %s showing %+v, scrolled %d; want Accounts as left, %+v, scrolled %d", h.pageOpen(), h.model.view, got, h.model.scroll, step.want, left)
+		}
+	}
+}
+
+// At 160x37, where WORTH and the weeks push Detail's SESSIONS past the
+// view's foot, → taking ↑↓ into them and ↓ selecting the next each scroll
+// the view as far as shows SESSIONS' heading, the session selected and what
+// enter opens, as the key line says ↑↓ act on them there.
+func TestDetailsSESSIONSShowAsTheyTakeTheFocus(t *testing.T) {
+	h := accountsHarness(t, dashboard.AccountsShown{Shown: dashboard.AccountsDetail})
+	h.keys(downKey)
+	if strings.Contains(h.view(), "SESSIONS") {
+		t.Fatalf("SESSIONS shows with the list focused, so the test shows nothing:\n%s", h.view())
+	}
+	for _, step := range []struct {
+		key      tea.KeyPressMsg
+		selected string
+	}{{key: rightKey, selected: "d28c"}, {key: downKey, selected: "9e21"}} {
+		h.keys(step.key)
+		view := strings.Split(h.view(), "\n")
+		for _, want := range []string{"SESSIONS  now", "enter opens " + step.selected + "'s page"} {
+			if !slices.ContainsFunc(view, func(r string) bool { return strings.Contains(r, want) }) {
+				t.Errorf("the view shows no %q:\n%s", want, strings.Join(view, "\n"))
+			}
+		}
+		if !slices.ContainsFunc(view, func(r string) bool { return strings.Contains(r, "▸ ") && strings.Contains(r, " "+step.selected+" ") }) {
+			t.Errorf("the view shows no ▸ on %s:\n%s", step.selected, strings.Join(view, "\n"))
 		}
 	}
 }

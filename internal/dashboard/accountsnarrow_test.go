@@ -20,11 +20,12 @@ import (
 
 // phoneDays are the days of each row's last three weeks on the phone's
 // Detail, of which its stack shows as many weeks as fit, two to six: each
-// day's level, and whether a limit was reached on it.
-var phoneDays = []views.StripDay{
-	{Level: 3, Limit: true}, {Level: 3, Limit: true}, {Level: 4, Limit: true}, {Level: 4}, {Level: 2, Limit: true}, {Level: 1}, {Level: 1},
-	{Level: 4, Limit: true}, {Level: 3, Limit: true}, {Level: 3, Limit: true}, {Level: 4, Limit: true}, {Level: 4, Limit: true}, {Level: 1}, {Level: 1},
-	{Level: 2}, {Level: 2, Limit: true}, {Level: 2}, {Level: 2, Limit: true}, {}, {}, {},
+// day's use, the level it's shaded at where the three weeks show, and the
+// limits reached on it.
+var phoneDays = []views.DayUsed{
+	{Used: 3, Limits: 1}, {Used: 3, Limits: 1}, {Used: 4, Limits: 1}, {Used: 4}, {Used: 2, Limits: 1}, {Used: 1}, {Used: 1},
+	{Used: 4, Limits: 1}, {Used: 3, Limits: 1}, {Used: 3, Limits: 1}, {Used: 4, Limits: 1}, {Used: 4, Limits: 1}, {Used: 1}, {Used: 1},
+	{Used: 2}, {Used: 2, Limits: 1}, {Used: 2}, {Used: 2, Limits: 1}, {}, {}, {},
 }
 
 // phonePage is Accounts' page of the phone's frames, as Compare's frames have
@@ -37,7 +38,7 @@ func phonePage(t *testing.T) *views.AccountsPage {
 	page := comparedPage(views.PeriodThisWeek, comparedVersions(t), compareWork, comparePersonal, compareSide, compareAll)
 	page.Weeks = []string{"2026-08-24", "2026-08-31", "2026-09-07", "2026-09-14", "2026-09-21", "2026-09-28"}
 	page.ToCome, page.Reaches = 3, sixWeeks
-	days := slices.Concat(make([]views.StripDay, 7*len(page.Weeks)-len(phoneDays)), phoneDays)
+	days := slices.Concat(make([]views.DayUsed, 7*len(page.Weeks)-len(phoneDays)), phoneDays)
 	var peaks []views.WeekPeak
 	for i, p := range []float64{1, 0.94, 1, 0.81, 1, 0.34} {
 		peaks = append(peaks, views.WeekPeak{Share: new(p), Open: i == 5, AtCap: p >= 1})
@@ -452,10 +453,9 @@ func TestDetailsStackedBodyFollowsTheWidth(t *testing.T) {
 // bar from column 10 to the frame's edge, as it's no bar beside words; the
 // latest of BY DAY's weeks that fit, from column 10, their days two cells
 // where the period's six weeks fit so, else one, and where they don't all
-// show, how many more there are from column 0; and WEEKS' peaks, every one,
-// this week's % in line with the others' and its … a cell past.
+// show, how many more there are from column 0; and WEEKS' peaks, one under
+// each of BY DAY's weeks, this week's last.
 func TestStackedDetailLaysItsPartsAcrossTheWidth(t *testing.T) {
-	const peaks = "WEEKS      100%   94%  100%   81%  100%   34%…"
 	tests := []struct {
 		width, bar, byModel int
 		weeks               []string
@@ -497,27 +497,49 @@ func TestStackedDetailLaysItsPartsAcrossTheWidth(t *testing.T) {
 			if !slices.Equal(got, tt.weeks) || columnOf(heads, tt.weeks[0]) != stackAt || ansi.StringWidth(byDay) > f.edge() {
 				t.Errorf("BY DAY shows\n%s\n%s\nwant the weeks %v from column %d, within the frame's edge", byDay, heads, tt.weeks, stackAt)
 			}
-			if got := rowStarting(t, rows, "WEEKS"); got != peaks {
-				t.Errorf("WEEKS is %q, want %q", got, peaks)
+			if got := rowStarting(t, rows, "WEEKS"); strings.Count(got, "%") != len(tt.weeks) || !strings.HasSuffix(got, "34%…") {
+				t.Errorf("WEEKS is %q, want a peak under each of BY DAY's %d weeks, this week's 34%%… last", got, len(tt.weeks))
 			}
 		})
 	}
 }
 
-// WEEKS shows the latest peaks that fit, the earliest giving way first,
-// keeping a cell for this week's … at the frame's edge: all six from 47
-// columns, five at 46.
-func TestStackedDetailsWEEKSKeepsTheLatestPeaksThatFit(t *testing.T) {
+// WEEKS takes BY DAY's weeks: a peak under each, right-aligned in
+// stackPeakCells from its first day, this week's … a cell past, so BY DAY's
+// ‹ 1 more holds for both: five weeks and ‹ 1 more at 52 columns, six at 73,
+// and five again at 12 months, more of them out of view.
+func TestStackedDetailsWEEKSTakesBYDAYsWeeks(t *testing.T) {
+	year := phonePage(t)
+	year.Period, year.Reaches = views.PeriodTwelveMonths, yearWeeks
 	for _, tt := range []struct {
-		width int
-		want  string
+		name         string
+		width        int
+		page         *views.AccountsPage
+		heads, weeks string
 	}{
-		{width: 46, want: "WEEKS       94%  100%   81%  100%   34%…"},
-		{width: 47, want: "WEEKS      100%   94%  100%   81%  100%   34%…"},
+		{name: "52", width: 52, page: phonePage(t),
+			heads: "‹ 1 more  31 Aug  7 Sep   14 Sep  21 Sep  28 Sep", weeks: "WEEKS       94%    100%     81%    100%     34%…"},
+		{name: "73", width: 73, page: phonePage(t),
+			heads: "          24 Aug  31 Aug  7 Sep   14 Sep  21 Sep  28 Sep", weeks: "WEEKS      100%     94%    100%     81%    100%     34%…"},
+		{name: "12 months at 52", width: 52, page: year,
+			heads: "‹ 48 more 31 Aug  7 Sep   14 Sep  21 Sep  28 Sep", weeks: "WEEKS       94%    100%     81%    100%     34%…"},
 	} {
-		if _, rows := stackRows(t, tt.width); rowStarting(t, rows, "WEEKS") != tt.want {
-			t.Errorf("at %d columns, WEEKS is %q, want %q", tt.width, rowStarting(t, rows, "WEEKS"), tt.want)
-		}
+		t.Run(tt.name, func(t *testing.T) {
+			f := phoneText(t, tt.width, 60, AccountsDetail, "work", tt.page, nil)
+			rows := textOf(f.Draw(phoneDoc(), routedAt))
+			by := slices.IndexFunc(rows, func(r string) bool { return strings.HasPrefix(r, "BY DAY") })
+			weeks := rowStarting(t, rows, "WEEKS")
+			if rows[by+1] != tt.heads || weeks != tt.weeks {
+				t.Errorf("BY DAY's heads read\n%q\nand WEEKS\n%q\nwant\n%q\n%q", rows[by+1], weeks, tt.heads, tt.weeks)
+			}
+			d := f.stackedOf(phoneDoc(), routedAt)
+			for _, span := range d.daysWeeks() {
+				end := d.l.cx() + span.At + stackPeakCells
+				if cell := ansi.Cut(weeks, end-1, end); cell != "%" {
+					t.Errorf("WEEKS reads %q at column %d, want a peak's %% at the end of the %d cells from its week's first day", cell, end-1, stackPeakCells)
+				}
+			}
+		})
 	}
 }
 

@@ -28,13 +28,13 @@ const (
 
 // weeksForm is the form the panel's weeks section takes: one account's,
 // where one is shown; all accounts' bands, where at least a week of them
-// fits across the weeks' edge and their rows, WORTH's and a line of
-// LATELY's fit the view; else their table.
+// fits across the weeks' edge, whatever the view's height, the panel
+// scrolling where they run past it; else their table.
 func (d detailDrawn) weeksForm() sectionForm {
 	switch {
 	case d.id != "":
 		return weeksOfOne
-	case d.bands().shown > 0 && d.latelyFrom(d.bandsRows())+1 <= d.f.viewRows():
+	case d.bands().shown > 0:
 		return weeksInBands
 	}
 	return weeksInATable
@@ -88,12 +88,6 @@ func (d detailDrawn) weeksAt() int {
 // as weeksRows has it.
 func (d detailDrawn) worthAt() int {
 	return d.weeksAt() + d.weeksRows() + 1
-}
-
-// latelyFrom is the row LATELY starts at, a blank row under WORTH, under
-// the weeks section rows rows tall.
-func (d detailDrawn) latelyFrom(rows int) int {
-	return d.weeksAt() + rows + 1 + detailWorthRows + 1
 }
 
 // weeksSection draws the weeks section from row y in its form, as weeksForm
@@ -200,22 +194,23 @@ func (l detailLayout) weeksIn(room, count int) []flex.Span {
 
 // byDay draws BY DAY along row y: its heading; from cx, the days of the last
 // of its weeks, as many as given, each week where its span lies, a day dw
-// cells wide, each in Days' shades at its level on the account's own scale,
-// a red ▪ in its middle where it hit a 5-hour limit, and · in text.faint a
-// cell of each day still to come; and on the row under them, each week's
-// first day, this week's bold, and at the panel's left, where the weeks
-// reached over don't all show, how many don't.
+// cells wide, each in Days' shades at its level on the scale of the days
+// drawn, as views.ShadedDays shades them, a red ▪ in its middle where it hit a
+// 5-hour limit, and · in text.faint a cell of each day still to come; and on
+// the row under them, each week's first day, this week's bold, and at the
+// panel's left, where the weeks reached over don't all show, how many don't.
 func (d detailDrawn) byDay(c *canvas, y int, weeks []flex.Span) {
 	c.line(d.l.panel, y, line{{"BY DAY", dimInk}})
-	days, coming := d.row.Days, len(d.row.Days)-d.page.ToCome
-	first := max(len(days)-7*len(weeks), 0)
-	for i := first; i < len(days); i++ {
-		x := d.l.cx() + weeks[(i-first)/7].At + (i-first)%7*d.l.dw
+	held := d.row.Days
+	first := max(len(held)-7*len(weeks), 0)
+	coming := len(held) - d.page.ToCome - first
+	for i, day := range views.ShadedDays(held[first:]) {
+		x := d.l.cx() + weeks[i/7].At + i%7*d.l.dw
 		if i >= coming {
 			c.line(x, y, dayToCome(d.l.dw))
 			continue
 		}
-		c.line(x, y, d.f.daySwatch(dayInk(days[i].Level), days[i].Level, days[i].Limit, d.l.dw))
+		c.line(x, y, d.f.daySwatch(dayInk(day.Level), day.Level, day.Limit, d.l.dw))
 	}
 	heads := d.page.Weeks[max(len(d.page.Weeks)-len(weeks), 0):]
 	for i, week := range heads {
@@ -275,11 +270,8 @@ func (d detailDrawn) facts(c *canvas, y int) {
 	c.line(d.l.panel, y, fitParts(cells, detailFacts(d.row.Facts(d.reach())).fitting(cells)...))
 }
 
-// worth draws WORTH from row y: its heading; from cx to the weeks' edge,
-// what the row's requests were worth over the period, detailWorthChart rows
-// tall against its own peak, in the finest bucket that fits, as
-// worthChart draws it with its axis; and under the axis its peak, as
-// peakForms has it, the fullest that fits.
+// worth draws WORTH from row y: its heading on the panel's left, and the
+// row's worth from cx to the weeks' edge, as worthAcross draws it.
 func (d detailDrawn) worth(c *canvas, y int) {
 	c.line(d.l.panel, y, line{{"WORTH", dimInk}})
 	cells := d.l.weeksCells()

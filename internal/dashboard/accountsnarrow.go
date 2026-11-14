@@ -112,15 +112,14 @@ func largestIn(used versionUsed, cells int) line {
 
 // Stacked Detail's columns: USAGE's bars at least stackBarLeast cells;
 // THIS WEEK's two columns stackHalf apart, their labels stackLabels cells;
-// and from stackAt, BY MODEL's bar, BY DAY's weeks and WEEKS' peaks, the
-// peaks each right-aligned in stackPeakCells, stackPeakGap between.
+// and from stackAt, BY MODEL's bar, BY DAY's weeks and WEEKS' peaks, each
+// peak right-aligned in stackPeakCells from its week's first day.
 const (
 	stackBarLeast  = 18
 	stackHalf      = 26
 	stackLabels    = 10
 	stackAt        = 10
 	stackPeakCells = 5
-	stackPeakGap   = 1
 )
 
 // The parts of Detail's USAGE row, stacked or wide, in the order
@@ -185,10 +184,13 @@ func (f Frame) detailStackedBody(doc status.Document, now time.Time) accountsFor
 }
 
 // stack is a view stacked and drawn whole: its rows, on a canvas the frame's
-// width; and the zones of them a click acts on, by their rows on it.
+// width; the zones of them a click acts on, by their rows on it; and the
+// rows that show its SESSIONS, as sessionsRows has them, none where it has
+// none.
 type stack struct {
-	c       *canvas
-	targets []Target
+	c        *canvas
+	targets  []Target
+	sessions []int
 }
 
 // stackForm is the form of the stack drawn whole as drawn draws it, drawn
@@ -203,7 +205,15 @@ func (f Frame) stackForm(drawn func() stack, filled func() map[Ref]float64) acco
 		scrolling: func(offset int) Scrolling { return pagedWhole(drawn().c, f.viewRows()).scrolling(offset) },
 		targets:   func() []Target { return f.stackTargets(drawn()) },
 		filled:    filled,
+		sessions:  func(offset int) int { return f.stackSessionsShown(drawn(), offset) },
 	}
+}
+
+// stackSessionsShown is how far the stack is scrolled from offset to show
+// its SESSIONS, as revealingAll reveals their rows; as far as it is where
+// it has none.
+func (f Frame) stackSessionsShown(s stack, offset int) int {
+	return revealingAll(pagedWhole(s.c, f.viewRows()), offset, s.sessions)
 }
 
 // drawStack draws the stack's rows the view shows from row top, and over the
@@ -524,14 +534,16 @@ func (s stacked) whole() stack {
 		y = s.stackedWorth(c, y+partsApart)
 	}
 	var targets []Target
+	var sessions []int
 	if len(s.running) > 0 {
+		sessions = s.sessionsRows(y + partsApart)
 		y, targets = s.sessions(c, y+partsApart)
 	}
 	y += partsApart
 	c.line(0, y, line{{"LATELY", dimInk}})
 	c.heading(y, y+1)
 	s.lately(c, y+1, 0, s.f.edge())
-	return stack{c: c, targets: targets}
+	return stack{c: c, targets: targets, sessions: sessions}
 }
 
 // stackedWeeks draws the weeks from row y, and returns their last row: of
@@ -715,19 +727,16 @@ func (s stacked) daysWeeks() []flex.Span {
 var openHang = ansi.StringWidth(views.Peak(0, true)) - ansi.StringWidth(views.Peak(0, false))
 
 // weeks draws WEEKS along row y, and returns the facts' row: its heading;
-// across the stretch, keeping openHang cells at its end, the latest peaks
-// that fit of the weeks reached over, as latestFitting lays them, each as
-// peakPart has it, this week's bold text.secondary, right-aligned in
-// stackPeakCells, stackPeakGap between, an open week's … past them; and
-// under it Weeks' facts on the weeks reached over, as detailFacts says
+// under each of BY DAY's weeks, its peak, as peakPart has it, this week's
+// bold text.secondary, right-aligned in stackPeakCells from the week's
+// first day, an open week's … past it, so BY DAY's ‹ 1 more holds for both;
+// and under it Weeks' facts on the weeks reached over, as detailFacts says
 // them, the fullest that fits.
 func (s stacked) weeks(c *canvas, y int) int {
 	c.line(0, y, line{{"WEEKS", dimInk}})
-	stretch := s.stretch()
-	reached := lastPeaks(s.row.Peaks, s.reach())
-	spans := latestFitting(stretch.Size-openHang, len(reached), stackPeakCells, stackPeakGap)
-	for i, p := range lastPeaks(reached, len(spans)) {
-		end := stretch.At + spans[i].At + spans[i].Size
+	spans := s.daysWeeks()
+	for i, p := range lastPeaks(s.row.Peaks, len(spans)) {
+		end := s.l.cx() + spans[i].At + stackPeakCells
 		if p.Open && p.Share != nil {
 			end += openHang
 		}

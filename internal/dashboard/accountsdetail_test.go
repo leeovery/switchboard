@@ -34,9 +34,10 @@ func framedLayout() detailLayout {
 }
 
 // detailFramed is a row of Detail's frames, as compareFramed has it, with
-// its six weeks' days, as levels, a digit a day, a week a word, and those to
-// come "-", and the days it hit a 5-hour limit, "x", and its six weeks'
-// peaks, as whole percentages.
+// its six weeks' days, as their use, a digit a day, the level each is shaded
+// at where its six weeks show, a week a word, and those to come "-", and the
+// days it hit a 5-hour limit, "x", and its six weeks' peaks, as whole
+// percentages.
 type detailFramed struct {
 	compareFramed
 	days, limits string
@@ -48,7 +49,11 @@ func (f detailFramed) row() views.AccountsRow {
 	row := f.compareFramed.row()
 	levels, limits := strings.ReplaceAll(f.days, " ", ""), strings.ReplaceAll(f.limits, " ", "")
 	for i, level := range levels {
-		row.Days = append(row.Days, views.StripDay{Level: max(int(level-'0'), 0), Limit: limits[i] == 'x'})
+		day := views.DayUsed{Used: float64(max(int(level-'0'), 0))}
+		if limits[i] == 'x' {
+			day.Limits = 1
+		}
+		row.Days = append(row.Days, day)
 	}
 	for i, p := range f.peaks {
 		row.Peaks = append(row.Peaks, views.WeekPeak{Share: new(float64(p) / 100), Open: i == len(f.peaks)-1, AtCap: p >= 100})
@@ -203,6 +208,54 @@ func sixOnSide() []status.Session {
 		sessions = append(sessions, status.Session{ID: id, Assignments: []status.Assignment{seat}})
 	}
 	return sessions
+}
+
+// While SESSIONS holds the focus, the view scrolls as far as shows them: its
+// heading, the session selected and what enter opens, wide at 160x37 and
+// stacked on the phone, from the view's top as from its foot, whichever
+// session is selected; and while the list holds it, the view stays where it
+// is.
+func TestDetailScrollsToSESSIONSWhileTheyHoldTheFocus(t *testing.T) {
+	wide := detailFrame(Look{}, framedAccounts, "side", "", detailsPage(t), sixOnSide())
+	wide.Height = 37
+	phone := phoneText(t, 73, 40, AccountsDetail, "side", phonePage(t), sixOnSide())
+	doc := usageWorld(extraOff)
+	running := views.RunningOn(wide.running(doc, routedAt), "side")
+	if len(running) != 6 {
+		t.Fatalf("%d sessions run on side, want 6", len(running))
+	}
+	for name, f := range map[string]Frame{"wide": wide, "stacked": phone} {
+		for _, picked := range []int{0, 5} {
+			for _, from := range []string{"top", "foot"} {
+				t.Run(fmt.Sprintf("%s, %s selected, from the %s", name, status.ShownID(running[picked].Session), from), func(t *testing.T) {
+					f := f
+					f.Accounts.InSessions, f.Accounts.Selected = true, running[picked].Session
+					if from == "foot" {
+						f.Scroll = f.Scrolling(doc, routedAt).Most
+					}
+					f.Scroll = f.DetailSessionsScroll(doc, routedAt)
+					rows := textOf(f.Draw(doc, routedAt))
+					view := rows[f.top() : f.top()+f.viewRows()]
+					id := status.ShownID(running[picked].Session)
+					for _, want := range []string{"SESSIONS  now", "enter opens " + id + "'s page"} {
+						if rowWith(view, want) < 0 {
+							t.Errorf("scrolled %d, the view shows no %q:\n%s", f.Scroll, want, strings.Join(rows, "\n"))
+						}
+					}
+					if y := rowWith(view, "▸ "); y < 0 || !strings.Contains(view[y], " "+id+" ") {
+						t.Errorf("scrolled %d, the view shows no ▸ on %s:\n%s", f.Scroll, id, strings.Join(rows, "\n"))
+					}
+				})
+			}
+		}
+		t.Run(name+", the list focused", func(t *testing.T) {
+			f := f
+			f.Scroll = 3
+			if got := f.DetailSessionsScroll(doc, routedAt); got != 3 {
+				t.Errorf("with the list focused, the view is scrolled to %d, want it left at 3", got)
+			}
+		})
+	}
 }
 
 // SESSIONS shows as many sessions as its four rows hold: past four, they

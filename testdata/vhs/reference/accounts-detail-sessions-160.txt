@@ -4,24 +4,16 @@
 
 ACCOUNTS    Compare  Detail  [ ]  ───────────────────────────────────────────────────────────────────────────────────────────────────────────────  < this week >
 
- all accounts       │   side   ● open · new sessions come here
+ all accounts       │
+                    │   BY MODEL
+ work          ●    │               ● Opus 5.5 82%  ● Sonnet 5.5 16%  ● Fable 5.1 1%  ● Haiku 4.5 1%
                     │
- work          ●    │   USAGE                                                                                                          THIS WEEK
-                    │   Week                       ┃            ▎          78%  out ~Fri                                               requests  1,876
- personal    ◆ ●    │                                                                                                                  limits    5-hour ×1
-                    │   5-hour        ▎ ┃                                  13%  21%/h till 18:50                                       plan      Ultra
-▸side          ●    │                                                                                                                  worth     $239  5.2×
-                    │                                                                                                                  extra use off
+ personal    ◆ ●    │   ┄┄ the last seven weeks ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
                     │
- ↑↓ choose          │   BY MODEL
-                    │               ● Opus 5.5 82%  ● Sonnet 5.5 16%  ● Fable 5.1 1%  ● Haiku 4.5 1%
-                    │
-                    │   ┄┄ the last seven weeks ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
-                    │
-                    │   BY DAY                          ▪                                     ▪                                     ▪             ▪     ······
+▸side          ●    │   BY DAY                          ▪                                     ▪                                     ▪             ▪     ······
                     │               17 Aug            24 Aug            31 Aug            7 Sep             14 Sep            21 Sep            28 Sep
                     │
-                    │   WEEKS          ▏      35         ▊      41        ▊       30          ▋     52          ▎     47           ▍    60                78
+ ↑↓ choose          │   WEEKS          ▏      35         ▊      41        ▊       30          ▋     52          ▎     47           ▍    60                78
                     │
                     │   limit hit 0 of the last 6 weeks · 56% left at a reset, on average
                     │
@@ -33,5 +25,13 @@ ACCOUNTS    Compare  Detail  [ ]  ───────────────�
                     │
                     │               Mon              Tue              Wed              Thu              Fri              Sat              Sun
                     │               peak Wed $108
-                        ▼ 10 more below · j/k
+                    │
+                    │   SESSIONS  now                                   LATELY
+                    │     ● c61b mobile        opus    ↓ ~1.2k  now     14:41      ▲ mobile started here, the best
+                    │   ▸ ● d28c switchboard   opus    ↑ ask    now     14:31      ▸ 3 sessions came from work: work reached its cap
+                    │     ○ 7f3a api           sonnet  idle      1m     13:50      ◇ primed: its 5-hour window started
+                    │     ○ db8a infra         opus    idle      4m     08:47      ◇ primed: its 5-hour window started
+                    │                                                   08:31      ▲ website started here, the best
+                    │     enter opens d28c's page                       Wed 23:47  ▲ api started here, the best
+                        ▲ 8 more above · ▼ 2 more below · j/k
 tab views   [ ] view    < > period: this week    ↑↓ session  ← accounts  enter its page    p pin    ? help  q quit

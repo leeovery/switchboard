@@ -131,7 +131,9 @@ func (t accountsTab) standing(f dashboard.Frame) dashboard.AccountsShown {
 
 // showAccounts shows Accounts as given: another sub-tab from the view's top;
 // Compare's columns and Detail's list as far along as the frame scrolls them
-// to show the focus and the account shown, as standing has them. It keeps
+// to show the focus and the account shown, as standing has them; and where
+// SESSIONS takes the focus or selects another session, the view as far as
+// shows them, as DetailSessionsScroll has it. It keeps
 // what the preferences keep of it, where that's changed, for the next watch
 // to open with: the sub-tab.
 func (m Model) showAccounts(s dashboard.AccountsShown) Model {
@@ -140,8 +142,12 @@ func (m Model) showAccounts(s dashboard.AccountsShown) Model {
 		m.scroll = 0
 	}
 	m.accounts.shown = s
-	drawn := m.frame(m.now()).Accounts
-	m.accounts.shown.First, m.accounts.shown.ListScroll = drawn.First, drawn.ListScroll
+	now := m.now()
+	f := m.frame(now)
+	m.accounts.shown.First, m.accounts.shown.ListScroll = f.Accounts.First, f.Accounts.ListScroll
+	if s.InSessions != was.InSessions || s.Selected != was.Selected {
+		m.scroll = f.DetailSessionsScroll(m.doc, now)
+	}
 	if kept := s.Kept(); kept != was.Kept() {
 		m = m.keepPrefs("what Accounts shows", func(prefs *theme.Prefs) { prefs.Accounts.View = kept.View }, "accounts", kept.View)
 	}

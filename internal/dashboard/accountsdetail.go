@@ -349,7 +349,7 @@ func (f Frame) detailForm(doc status.Document, now time.Time) accountsForm {
 			return f.detailStackedBody(doc, now)
 		}
 		d := f.detailDrawn(doc, now, l)
-		return accountsForm{draw: d.draw, scrolling: d.scrolling, scrolls: d.scrolls, targets: d.targets}
+		return accountsForm{draw: d.draw, scrolling: d.scrolling, scrolls: d.scrolls, targets: d.targets, sessions: d.sessionsShown}
 	})
 	return accountsForm{
 		draw:      func(c *canvas, top int) { chosen().draw(c, top) },
@@ -357,6 +357,7 @@ func (f Frame) detailForm(doc status.Document, now time.Time) accountsForm {
 		scrolls:   func() (x, y, width, rows int) { return chosen().scrolled(f) },
 		targets:   func() []Target { return chosen().targets() },
 		filled:    func() map[Ref]float64 { return f.detailDrawn(doc, now, detailLayout{}).filled() },
+		sessions:  func(offset int) int { return chosen().sessions(offset) },
 	}
 }
 
@@ -452,6 +453,35 @@ func (d detailDrawn) draw(c *canvas, top int) {
 // down, as pagedWhole pages it.
 func (d detailDrawn) scrolling(offset int) Scrolling {
 	return pagedWhole(d.drawn(), d.f.viewRows()).scrolling(offset)
+}
+
+// sessionsShown is how far Detail's panel is scrolled from offset to show
+// SESSIONS, as revealingAll reveals its rows, sessionsRows of them; as far
+// as it is where none run.
+func (d detailDrawn) sessionsShown(offset int) int {
+	if len(d.running) == 0 {
+		return offset
+	}
+	return revealingAll(pagedWhole(d.drawn(), d.f.viewRows()), offset, d.sessionsRows(d.latelyAt()))
+}
+
+// sessionsRows are the rows of SESSIONS drawn from row y that show it, in
+// the order they're revealed: its enter line, its heading, then the
+// session selected, so the one selected shows at any height, and with it
+// all of SESSIONS the view has rows for.
+func (d detailDrawn) sessionsRows(y int) []int {
+	selected := d.selected()
+	first, _ := sessionsScrolled(len(d.running), selected)
+	return []int{y + enterUnder, y, y + 1 + selected - first}
+}
+
+// revealingAll is how far the rows paged as p pages them, scrolled at, are
+// scrolled to show each of the rows given in turn, as revealing has it.
+func revealingAll(p rowsPaged, at int, rows []int) int {
+	for _, r := range rows {
+		at = p.revealing(at, r)
+	}
+	return at
 }
 
 // scrolls is what of Detail scrolls: its panel, from its column to the
@@ -556,7 +586,7 @@ func (d detailDrawn) ruleRow() int {
 // WORTH, under the weeks section in its form, whether the period's page is
 // read or not.
 func (d detailDrawn) latelyAt() int {
-	return d.latelyFrom(d.weeksRows())
+	return d.worthAt() + detailWorthRows + 1
 }
 
 // panel is Detail's panel drawn whole, from row 0 of a canvas the frame's

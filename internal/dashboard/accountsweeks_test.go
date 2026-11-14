@@ -165,38 +165,36 @@ func TestDetailsWeeksReachAtEachPeriodAndWidth(t *testing.T) {
 	}
 }
 
-// All accounts' weeks are bands where they fit the view with WORTH and a
-// line of LATELY under them: all accounts' band first, then an account's
-// each, 5 rows apart, its name at the left, each week's peak under its
-// column, and its facts at its right, Weeks' facts on the weeks it reaches
-// over, all accounts' saying how many some account was short. At 173
-// columns, three accounts' bands take 20 rows, and fit from 53 rows; at 52,
-// it's Weeks' table: WEEKS on its heads' row, all accounts' row, a blank
-// row, then an account's each, its facts in two headed columns. Neither
-// draws BY DAY, nor any verdict.
+// All accounts' weeks are bands wherever the wide form draws them, however
+// short the view, the panel scrolling past them: all accounts' band first,
+// then an account's each, 5 rows apart, its name at the left, each week's
+// peak under its column, and its facts at its right, Weeks' facts on the
+// weeks it reaches over, all accounts' saying how many some account was
+// short. In the stack, it's Weeks' table: WEEKS on its heads' row, all
+// accounts' row, a blank row, then an account's each, its facts in two
+// headed columns. Neither draws BY DAY, nor any verdict.
 func TestDetailOfAllAccountsDrawsBandsWhereTheyFitElseTheTable(t *testing.T) {
 	doc := usageWorld(extraOff)
 	verdicts := []string{"BY DAY", views.HitsItsLimit, views.PlentyToSpare, views.EndsWithRoom, views.RoomToSpare, views.LittleToSpare}
+	bands := map[int]string{
+		0: "all accounts", bandRows: "74%     73%     82%", bandHeight: "work", 2 * bandHeight: "personal   ◆", 3 * bandHeight: "side",
+	}
 	tests := []struct {
-		height int
-		form   sectionForm
-		rule   string
-		rows   map[int]string
+		width, height int
+		rule          string
+		rows          map[int]string
 	}{
-		{height: 53, form: weeksInBands, rule: "the last 14 weeks", rows: map[int]string{
-			0: "all accounts", bandRows: "74%     73%     82%", bandHeight: "work", 2 * bandHeight: "personal   ◆", 3 * bandHeight: "side",
-		}},
-		{height: 52, form: weeksInATable, rule: "the last 12 weeks", rows: map[int]string{
-			0: "WEEKS         13 Jul", 1: "all accounts    82%", 2: "", 3: "work           100%", 4: "personal    ◆   85%", 5: "side            60%",
-		}},
+		{width: 173, height: 53, rule: "the last 14 weeks", rows: bands},
+		{width: 173, height: 24, rule: "the last 14 weeks", rows: bands},
+		{width: 107, height: 37, rule: "the last six weeks", rows: map[int]string{0: "all accounts", bandHeight: "work"}},
 	}
 	for _, tt := range tests {
-		t.Run(fmt.Sprint(tt.height), func(t *testing.T) {
+		t.Run(fmt.Sprintf("%dx%d", tt.width, tt.height), func(t *testing.T) {
 			f := detailFrame(Look{}, framedAccounts, "", "", yearPage(t, views.PeriodThisWeek, sixWeeks), nil)
-			f.Width, f.Height = 173, tt.height
+			f.Width, f.Height = tt.width, tt.height
 			rows, d := panelOf(f, doc)
-			if got := d.weeksForm(); got != tt.form {
-				t.Fatalf("at %d rows, the weeks are drawn in form %d, want %d", tt.height, got, tt.form)
+			if got := d.weeksForm(); got != weeksInBands {
+				t.Fatalf("at %dx%d, the weeks are drawn in form %d, want bands", tt.width, tt.height, got)
 			}
 			if got := fromPanel(rows[d.ruleRow()], d.l); !strings.HasPrefix(got, "┄┄ "+tt.rule+" ┄") {
 				t.Errorf("the rule reads %q, want it to name %q", got, tt.rule)

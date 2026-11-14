@@ -86,11 +86,9 @@ type AccountsRow struct {
 	WeekLeft *float64
 	RanOut   string
 	// Days are the days of the page's weeks, from the first, those to come
-	// among them: each at the level, on its own scale over them all, of the
-	// points of its week it used that day, marked where it hit a 5-hour
-	// limit. Of every account's, each day is every account's points
-	// together, marked where any hit one.
-	Days []StripDay
+	// among them, each as DayUsed has it, for ShadedDays to shade those BY DAY
+	// draws.
+	Days []DayUsed
 	// Peaks are its peaks in the page's weeks, as Weeks places its own weeks
 	// under them, this week's so far, and of every account's, the mean of
 	// theirs, whose facts Facts says.
@@ -128,6 +126,26 @@ func (r AccountsRow) Facts(n int) AccountVerdict {
 	return v
 }
 
+// DayUsed is a day of an account's: Used, the points of its week it used
+// that day, and Limits, the 5-hour limits it hit that day; of every
+// account's, theirs together.
+type DayUsed struct {
+	Used   float64
+	Limits int
+}
+
+// ShadedDays are the days given as BY DAY shades them: each at the level of its
+// use on those days' own scale, the quarters of their active days, marked
+// where it hit a 5-hour limit, so the days BY DAY draws are shaded against
+// each other alone, never against days out of view.
+func ShadedDays(days []DayUsed) []StripDay {
+	used, limits := make([]float64, len(days)), make([]int, len(days))
+	for i, day := range days {
+		used[i], limits[i] = day.Used, day.Limits
+	}
+	return onItsOwnScale(used, limits)
+}
+
 // resetWeeks are the weeks an account's last reset is looked for in, as
 // WeekLeft has it: this one and the five before it.
 const resetWeeks = 6
@@ -153,7 +171,7 @@ func (p Past) Accounts(period Period) AccountsPage {
 	firstDate := first.Format(time.DateOnly)
 	costs := plansOf(days, known, pricedOver(firstDate, period.last(today, in.WeekStarts).Format(time.DateOnly), p.counted(firstDate), period.share()))
 	_, weeks := splitAt(p.days, weeksTo(today, in.WeekStarts, heldWeeks(today, in.WeekStarts)).AddDate(0, 0, -lookBack).Format(time.DateOnly))
-	page := AccountsPage{Period: period, Reaches: period.detailWeeks(today, in.WeekStarts), Rows: make([]AccountsRow, len(in.Accounts)), PricesAsOf: in.Prices.AsOf, in: in, days: weeks}
+	page := AccountsPage{Period: period, Rows: make([]AccountsRow, len(in.Accounts)), PricesAsOf: in.Prices.AsOf, in: in, days: weeks}
 	worths := worthsByDay(days, in.Accounts)
 	for x, a := range in.Accounts {
 		plan, _ := known.of(a.ID)
@@ -164,9 +182,20 @@ func (p Past) Accounts(period Period) AccountsPage {
 	page.All = AccountsRow{Totals: totals.Accounts[all], Plan: costs[all], WorthBy: worthCharts(period, in.Now, in.WeekStarts, worths[all], nil), all: true}
 	page.Versions = p.versions().named(page.All.Totals.ByModel)
 	page.Recorded = page.All.Totals.recorded()
-	page.byDay()
-	page.weeked(in, weeks)
+	page.stand(in, weeks)
 	return page
+}
+
+// stand sets all the page tells of its weeks, of the input and days given,
+// as they stand at in's Now, from the one count of the weeks it holds, as
+// heldWeeks has it: how many Detail reaches over, as detailWeeks counts
+// them; BY DAY's days, as byDay has them; and their peaks, facts and
+// resets, as weeked has them. So a day that changes how many weeks it holds
+// changes them all alike.
+func (page *AccountsPage) stand(in HistoryInput, days []Day) {
+	page.Reaches = page.Period.detailWeeks(dayfile.CivilOf(in.Now), in.WeekStarts)
+	page.byDay(in, days)
+	page.weeked(in, days)
 }
 
 // recorded reports whether the totals record anything: a request, a limit,
@@ -176,22 +205,23 @@ func (t AccountTotals) recorded() bool {
 	return t.Requests > 0 || len(t.Limits) > 0 || minutes(t.MinutesAtCap) || minutes(t.MinutesAtLimit)
 }
 
-// byDay sets BY DAY's days of each row, of the weeks the page holds to its
-// Now, and how many of this week's are still to come.
-func (page *AccountsPage) byDay() {
-	in := page.in
-	w := weekDaysOf(page.days, in.Now, in.WeekStarts, heldWeeks(dayfile.CivilOf(in.Now), in.WeekStarts))
+// byDay sets BY DAY's days of each row, of the days given over the weeks
+// the page holds to in's Now, and how many of this week's are still to come.
+func (page *AccountsPage) byDay(in HistoryInput, days []Day) {
+	w := weekDaysOf(days, in.Now, in.WeekStarts, heldWeeks(dayfile.CivilOf(in.Now), in.WeekStarts))
 	page.ToCome = len(w.days) - 1 - w.today
-	every, anyLimits := make([]float64, len(w.days)), make([]int, len(w.days))
+	every := make([]DayUsed, len(w.days))
 	for x, a := range in.Accounts {
 		rises, limits := w.risesOf(a.ID, in.WeekWindow)
-		page.Rows[x].Days = onItsOwnScale(rises, limits)
+		days := make([]DayUsed, len(rises))
 		for d := range rises {
-			every[d] += rises[d]
-			anyLimits[d] += limits[d]
+			days[d] = DayUsed{Used: rises[d], Limits: limits[d]}
+			every[d].Used += rises[d]
+			every[d].Limits += limits[d]
 		}
+		page.Rows[x].Days = days
 	}
-	page.All.Days = onItsOwnScale(every, anyLimits)
+	page.All.Days = every
 }
 
 // onItsOwnScale are a strip's days, each at the level its value is shaded at

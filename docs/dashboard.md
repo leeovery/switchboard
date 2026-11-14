@@ -276,8 +276,7 @@ and shows:
     History's Weeks.
   - Of all accounts, History's Weeks without its verdict: a band of week columns an account,
     `all accounts` first, each week's peak under its column and its facts at the right; or, where
-    the rows don't hold the bands, as on a phone, a table, a row an account, its facts in two
-    columns.
+    Detail is stacked, as on a phone, a table, a row an account, its facts in two columns.
 - WORTH: what its use was worth at API prices over the period, across the screen, and its peak
 - its SESSIONS now
 - its LATELY, every event the router reports, filling the screen down to the key line; the rest
@@ -291,7 +290,8 @@ In Detail:
 
 - `↑` and `↓` choose the account in the list, `all accounts` first.
 - `→` moves into the chosen account's sessions, and `←` goes back to the list.
-- In the sessions, `↑` and `↓` choose a session, and `enter` opens its page.
+- In the sessions, `↑` and `↓` choose a session, and `enter` opens its page. The screen scrolls to
+  keep the sessions and the chosen one in view.
 
 The chosen row is lit only where `↑` and `↓` act, in the list or in the sessions. The other's chosen
 row stays bold, marked `▸`, and `SESSIONS` is bright while you're in them. The list widens to fit

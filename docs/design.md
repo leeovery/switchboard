@@ -3817,7 +3817,8 @@ where it fits** says, and where they don't fit, it's stacked, as **Stacked** say
   weeks it names, then WORTH the period again, and LATELY.
 - **BY DAY,** row 20: the weeks' days, from `cx`, `dw` cells a day and `gap` cells between weeks, 2
   and 4 at 160, so `step = 7 × dw + gap` is 18: each day the points of its week the account used,
-  in History's five shades on the account's own scale, over the 12 months' weeks (see History); a
+  in History's five shades on the account's own scale, the quarters of the active days among those
+  drawn and no others, so a heavy month out of view dims none of them (`views.ShadedDays`); a
   red `▪`, in `state.destructive`, in the middle of a day it hit a 5-hour limit, its one cell at
   1-cell days; and `··` in `text.faint` for days still to come. On row 21, under each week, its
   first day, `24 Aug`, a `step` apart, this week's bold `text.secondary` and the rest
@@ -3833,8 +3834,8 @@ where it fits** says, and where they don't fit, it's stacked, as **Stacked** say
   of 7 weeks · 9% left at a reset`, then the limits alone; and `not enough weeks yet`, in
   `text.subtle`, where none is whole. As it fits to the weeks' edge, never the frame's, its form
   follows the layout alone.
-- **All accounts' weeks** are History's Weeks without its verdict, in bands where they fit, else
-  as its table.
+- **All accounts' weeks** are History's Weeks without its verdict, in bands in the wide form,
+  and as its table in the stack.
   - **The bands,** from a blank row under the rule: `all accounts`' band first, then each
     account's, back to back, each 4 rows of week columns and a row of peaks, as turned Compare's
     WEEKS draws them: its name and marks at the panel's left, in a column as wide as the widest
@@ -3845,9 +3846,9 @@ where it fits** says, and where they don't fit, it's stacked, as **Stacked** say
     over don't all show, `‹ 6 more` in `text.subtle`; and at its right, Weeks' facts on the weeks
     reached over, a part a row: `limit hit 3 of 14`, `text.subtle`, or `all accounts`'
     `short on 3 of 14`, bold `text.secondary`, then `31% left at a reset`. The bands are drawn
-    where they, WORTH and a line of LATELY fit the view's rows: at 173 columns with three
-    accounts, from 53 rows.
-  - **The table,** where they don't, as on a phone: `WEEKS` on its heads' row, or where the
+    wherever the wide form is, however short the view, the panel scrolling past them, so a
+    shorter view never draws a form a taller one wouldn't (the owner's call, 14 November 2026).
+  - **The table,** in the stack, as on a phone: `WEEKS` on its heads' row, or where the
     weeks reached over don't all show, `‹ 6 more`; the weeks' first days right-aligned over their
     columns, 8 apart, and the facts' two columns headed `limits` and `at a reset`, in
     `text.faint`; `all accounts`' row, a blank row, then a row an account: its peaks, `72%`, this
@@ -3881,8 +3882,11 @@ where it fits** says, and where they don't fit, it's stacked, as **Stacked** say
   `enter opens d28c's page`, `enter` bold `accent.key` and the rest `text.muted` (see A session's
   page). `→` takes the selection from the list into them, and `←` back; there `↑` `↓` select a
   session, and `enter` opens its page; more sessions than its four rows hold end with `+2 more`
-  (settled in the plan). LATELY moves beside them, 48 columns into the panel, at column 72, its rows
-  from the row under its heading, every event still, and its words cut short of the frame's edge.
+  (settled in the plan). As the focus moves into them, and as `↑` `↓` select another, the view
+  scrolls as little as shows SESSIONS' heading, the session selected and its `enter` line, as the
+  List keeps its choice in view, wide and stacked alike (`DetailSessionsScroll`). LATELY moves
+  beside them, 48 columns into the panel, at column 72, its rows from the row under its heading,
+  every event still, and its words cut short of the frame's edge.
 - **With one account,** there's no list and no Compare: the panel from column 0, `cx` 12, laid as
   with the list. At 160, nine weeks of 2-cell days at a gap of 2, so `step` is 16, and the weeks,
   BY MODEL and THIS WEEK end at column 154.
@@ -3928,7 +3932,7 @@ where it fits** says, and where they don't fit, it's stacked, as **Stacked** say
   `worth`, `extra use` and `against`; BY MODEL, its versions over two rows; BY DAY, its days 2
   cells where the period's own weeks fit so, else 1, with their first days under them, and where
   the weeks reached over don't all show, `‹ 1 more` at the left on their row; WEEKS, its peaks as
-  percentages, right-aligned in 5 cells, 6 apart, `34%…` this week's, and Weeks' facts under it,
+  percentages, one under each of BY DAY's weeks, `34%…` this week's, and Weeks' facts under it,
   `limit hit 3 of 7 weeks · 9% left at a reset`, on one row; WORTH, across the frame; and LATELY,
   down to the key line. `all accounts` has no BY DAY: its WEEKS is the weeks' table, from column
   0, as many weeks as fit, none at 52 columns. No rule. Its parts are laid across the width by
@@ -3950,10 +3954,9 @@ where it fits** says, and where they don't fit, it's stacked, as **Stacked** say
   - BY DAY shows the latest weeks that fit from column 10 to the frame's edge, a week 14 cells,
     or 7 of 1-cell days, and a cell between: five of 1-cell days at 52 columns, seven at 73, and
     six of 2-cell days where they fit, from 100.
-  - WEEKS shows the latest peaks of the weeks it reaches over that fit from column 10, keeping a
-    cell at the edge for this week's `…`, every one of the period's six from 47 columns. This
-    week's `%` is in line with the others', its `…` a cell past. They aren't aligned to BY DAY's
-    weeks.
+  - WEEKS takes BY DAY's weeks: under each, its peak right-aligned in 5 cells from the week's
+    first day, so one `‹ 1 more` holds for both. This week's `%` is in line with the others', its
+    `…` a cell past.
   - LATELY's lines are whole where they fit, cut at the frame's edge where they don't.
   - Bars stay one row; the stack ends where LATELY's every event ends, filling the rows to the
     key line and scrolling on past it.

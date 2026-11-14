@@ -135,16 +135,30 @@ func (f Frame) cueState(c *canvas, id string, x, y, width int) {
 // accountsForm is Accounts' view shown as its form draws it: what it draws
 // from row top; how far it scrolls, scrolled to each offset; what of it
 // scrolls, from column x along row y, width cells wide and rows tall; the
-// zones a click acts on; and how much of each bar it draws it fills, as
-// Filled has them. Each is nothing where it's nil: it draws nothing, never
-// scrolls, its view scrolls whole, nothing takes a click, and it fills no
-// bar.
+// zones a click acts on; how much of each bar it draws it fills, as Filled
+// has them; and how far it's scrolled from each offset to show Detail's
+// SESSIONS while they hold the focus. Each is nothing where it's nil: it
+// draws nothing, never scrolls, its view scrolls whole, nothing takes a
+// click, it fills no bar, and it stays scrolled as it is.
 type accountsForm struct {
 	draw      func(c *canvas, top int)
 	scrolling func(offset int) Scrolling
 	scrolls   func() (x, y, width, rows int)
 	targets   func() []Target
 	filled    func() map[Ref]float64
+	sessions  func(offset int) int
+}
+
+// DetailSessionsScroll is how far Accounts' view shown of doc at now is
+// scrolled, from as far as the frame has it, to show Detail's SESSIONS while
+// they hold the focus, as its form shows them: its heading, the session
+// selected and what enter opens, as the List keeps its choice in view; as
+// far as it is where they don't hold the focus or none run.
+func (f Frame) DetailSessionsScroll(doc status.Document, now time.Time) int {
+	if form := f.accountsForm(doc, now); form.sessions != nil && f.Accounts.sessionsFocused() {
+		return form.sessions(f.Scroll)
+	}
+	return f.Scroll
 }
 
 // accountsForm is the form Accounts' view shown is drawn in, of doc at now:

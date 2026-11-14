@@ -320,6 +320,36 @@ func TestStandingThePageAtAResetLeavesTheBuiltPageAndThePeriodAsTheyWere(t *test
 	}
 }
 
+// Standing the page a day on stands all it tells of its weeks from the one
+// count of the weeks it holds: at 12 months, where the day drops them from
+// 53 to 52, how many Detail reaches over, the weeks, BY DAY's days and how
+// many are to come are all as a page built that day has them, so ‹ N more
+// never counts a week the page no longer holds.
+func TestStandingThePageADayOnStandsItsWeeksFromOneCount(t *testing.T) {
+	am := accountsMoment(t, beforeTheRead)
+	m := am.Doc.At(am.Now, claude.Policy())
+	crossed := false
+	for starts := time.Sunday; starts <= time.Saturday; starts++ {
+		t.Run(starts.String(), func(t *testing.T) {
+			in := accountsIn(am)
+			in.WeekStarts = starts
+			fresh := views.NewPast(in, am.Days).Accounts(views.PeriodTwelveMonths)
+			in.Now = am.Now.AddDate(0, 0, -1)
+			built := views.NewPast(in, am.Days).Accounts(views.PeriodTwelveMonths)
+			crossed = crossed || len(built.Weeks) != len(fresh.Weeks)
+			stood := built.At(m)
+			got := []int{stood.Reaches, len(stood.Weeks), len(stood.Rows[0].Days), len(stood.All.Days), stood.ToCome}
+			want := []int{fresh.Reaches, len(fresh.Weeks), len(fresh.Rows[0].Days), len(fresh.All.Days), fresh.ToCome}
+			if !slices.Equal(got, want) {
+				t.Errorf("stood a day on, the page reaches over, holds, and has days and days to come %v, want %v as built that day", got, want)
+			}
+		})
+	}
+	if !crossed {
+		t.Error("no day the week can start on drops the weeks held a day on: the test doesn't cross the edge")
+	}
+}
+
 // A window a week long of a model's own, as Fable's week, reset since it was
 // read, leaves the page as it was built: Accounts' weeks are of the accounts'
 // own week alone, so nothing of it is worked out again.

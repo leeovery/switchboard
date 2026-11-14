@@ -125,9 +125,9 @@ func allAccountsHelp() helpPart {
 				"shows: an account's state on Accounts is its own."),
 			said("In Detail, it has no BY DAY, and WEEKS gives a band of each account's week peaks, all accounts' first, " +
 				"each week's peak the mean of theirs, the cap's level marked where an account keeps a reserve; at each " +
-				"band's right, how many of the weeks shown it hit its limit in, or of all accounts how many some account " +
-				"was short, and what they left at a reset, on average. Where the rows don't hold the bands, as on a " +
-				"phone, a table gives the same, a row an account."),
+				"band's right, how many of the period's whole weeks or those shown, whichever are more, it hit its limit in, " +
+				"or of all accounts how many some account was short, and what they left at a reset, on average. Where " +
+				"Detail is stacked, as on a phone, a table gives the same, a row an account."),
 		},
 	}
 }
@@ -157,8 +157,8 @@ func (f Frame) detailHelp() helpPart {
 			said("BY DAY shades each day by how much of its week the account used that day, in History's five shades, on "+
 				"the account's own scale: each a quarter of its active days."),
 			said("WEEKS gives each week's peak, the use read just before the reset that ended it, and this week's, its "+
-				"highest so far. Under them, how many of the whole weeks shown it hit its limit in, and what they left at "+
-				"a reset, on average."),
+				"highest so far. Under them, how many of the period's whole weeks or those shown, whichever are more, it "+
+				"hit its limit in, and what they left at a reset, on average."),
 			said("WORTH is what its use was worth at API prices over the period, across the panel, in the finest buckets "+
 				"that fit, its peak under it. LATELY tells every event the router has for the account, newest first, "+
 				"down to the key line, and the rest scrolls."),

@@ -229,6 +229,7 @@ func TestThePagesPricesAreAsOfThePriceTablesDate(t *testing.T) {
 // Every account's days are their points together, on a scale of their own,
 // marked where any hit a 5-hour limit.
 func TestByDayShadesEachAccountOnItsOwnScale(t *testing.T) {
+	shaded := func(days []views.DayUsed) []views.StripDay { return views.ShadedDays(lastOf(days, 7*6))[:4] }
 	rises := []float64{0.04, 0.08, 0.12, 0.16}
 	var given []ledger.Summary
 	for i, rise := range rises {
@@ -243,20 +244,20 @@ func TestByDayShadesEachAccountOnItsOwnScale(t *testing.T) {
 
 	levels := func(days []views.StripDay) []int {
 		var got []int
-		for _, d := range lastOf(days, 7*6)[:4] {
+		for _, d := range days {
 			got = append(got, d.Level)
 		}
 		return got
 	}
-	if work, side := levels(page.Rows[0].Days), levels(page.Rows[1].Days); !slices.Equal(work, []int{1, 2, 3, 4}) || !slices.Equal(side, work) {
+	if work, side := levels(shaded(page.Rows[0].Days)), levels(shaded(page.Rows[1].Days)); !slices.Equal(work, []int{1, 2, 3, 4}) || !slices.Equal(side, work) {
 		t.Errorf("work's first days are at levels %v and side's %v, want each 1, 2, 3, 4 on its own scale", work, side)
 	}
-	if got := levels(page.All.Days); !slices.Equal(got, []int{1, 2, 3, 4}) {
+	if got := levels(shaded(page.All.Days)); !slices.Equal(got, []int{1, 2, 3, 4}) {
 		t.Errorf("every account's first days are at levels %v, want 1, 2, 3, 4", got)
 	}
-	marked := func(days []views.StripDay) []bool {
+	marked := func(days []views.DayUsed) []bool {
 		var got []bool
-		for _, d := range lastOf(days, 7*6)[:4] {
+		for _, d := range shaded(days) {
 			got = append(got, d.Limit)
 		}
 		return got
@@ -268,8 +269,30 @@ func TestByDayShadesEachAccountOnItsOwnScale(t *testing.T) {
 	}
 	// Days' eight weeks begin two before BY DAY's six.
 	shared := daysOf(daysFrom("2026-08-24", given...)).ByAccount[1].Days[7*2:]
-	if got := levels(shared); !slices.Equal(got, []int{1, 1, 2, 2}) {
+	if got := levels(shared[:4]); !slices.Equal(got, []int{1, 1, 2, 2}) {
 		t.Errorf("Days' BY ACCOUNT shades side's first days at levels %v, want 1, 1, 2, 2, every account on one scale", got)
+	}
+}
+
+// BY DAY shades the days it draws against each other alone: days out of
+// view, as a heavy month a year back, dim none of them, so the last week's
+// four days of use are at levels 1 to 4, where shaded with the year they'd
+// be dimmed.
+func TestShadedDaysShadeTheDaysGivenAlone(t *testing.T) {
+	week := []views.DayUsed{{Used: 0.04}, {Used: 0.08}, {Used: 0.12}, {Used: 0.16, Limits: 1}, {}, {}, {}}
+	held := slices.Concat(slices.Repeat([]views.DayUsed{{Used: 0.9}}, 28), make([]views.DayUsed, 7*47), week)
+	var got []int
+	for _, d := range views.ShadedDays(lastOf(held, 7)) {
+		got = append(got, d.Level)
+	}
+	if want := []int{1, 2, 3, 4, 0, 0, 0}; !slices.Equal(got, want) {
+		t.Errorf("the last week's days are at levels %v, want %v", got, want)
+	}
+	if all := views.ShadedDays(held); all[len(held)-4].Level >= 4 {
+		t.Errorf("shaded with the year, the week's heaviest day is at level %d, want it dimmed by the heavier day", all[len(held)-4].Level)
+	}
+	if !views.ShadedDays(week)[3].Limit {
+		t.Error("the day of a 5-hour limit isn't marked")
 	}
 }
 
@@ -295,7 +318,7 @@ func TestByDayIsThePagesWeeksToThisOneItsDaysToComeCounted(t *testing.T) {
 					now.Weekday(), page.ToCome, len(page.Rows[0].Days), len(page.Weeks), page.Weeks[0], 6-i, weeks, first)
 			}
 			lastSix := lastOf(page.Rows[0].Days, 7*6)
-			if slices.ContainsFunc(lastSix[:7*4], func(d views.StripDay) bool { return d.Level > 0 }) {
+			if slices.ContainsFunc(lastSix[:7*4], func(d views.DayUsed) bool { return d.Used > 0 }) {
 				t.Errorf("the weeks of no use are at levels %v, want 0", lastSix[:7*4])
 			}
 		})

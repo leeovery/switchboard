@@ -260,6 +260,9 @@ func TestAccountsHelpSaysWhatItsFiguresAre(t *testing.T) {
 		{"Detail's windows", "every window read as switchboard usage reads them"},
 		{"BY DAY's scale", "in History's five shades, on the account's own scale"},
 		{"WEEKS' peaks", "the use read just before the reset that ended it, and this week's, its highest so far"},
+		{"the weeks an account's facts count", "how many of the period's whole weeks or those shown, whichever are more, it hit its limit in"},
+		{"the weeks all accounts' facts count", "how many of the period's whole weeks or those shown, whichever are more, it hit its limit in, or of all accounts"},
+		{"all accounts' table", "Where Detail is stacked, as on a phone, a table gives the same"},
 	} {
 		if !strings.Contains(said, tc.want) {
 			t.Errorf("help reads\n%s\nwant it to explain %s, %q", said, tc.what, tc.want)
