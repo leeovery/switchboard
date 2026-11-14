@@ -9,102 +9,167 @@ import (
 	"strings"
 )
 
-// worktreeFileMost is the most bytes FindWorktree reads of a .git file, a
-// path on a line: one longer is none git wrote, as FindProject reads it.
-const worktreeFileMost = 4096
+// worktreeFileMost is the most bytes read of a .git file or a commondir, a
+// path on a line: one longer is none git wrote, as FindProject reads them.
+// configMost is the most read of a common directory's config, for its
+// [core] section, which git writes first.
+const (
+	worktreeFileMost = 4096
+	configMost       = 64 << 10
+)
 
-// Worktree is what FindWorktree finds of the linked worktree a directory is
+// Worktree is what FindWorktree finds of the linked worktrees a directory is
 // in.
 type Worktree struct {
-	// Mapped is the directory's place in the main checkout of the repository
-	// the worktree is of: as far below the main checkout as the directory is
-	// below the worktree's root. "" where the directory is in no linked
-	// worktree.
-	Mapped string
-	// Lost reports a .git file up from the directory that leads to no
-	// repository that can be found: it may be a worktree of any.
-	Lost bool
+	// Mapped are the directory's places in the repositories of the linked
+	// worktrees it's in, nearest first: as far below a main checkout as the
+	// directory is below the worktree's root, or a bare repository's own
+	// directory, whatever the directory's path below the root.
+	Mapped []string
+	// Lost is the root of the nearest linked worktree around the directory
+	// whose repository can't be found, Mapped then being none: "" where
+	// there's none.
+	Lost string
 }
 
-// FindWorktree returns what dir is in, where it's in a linked worktree: its
-// place in its repository's main checkout, as FindProject finds the main
-// checkout, the worktree's root being the first directory up from dir, as
-// it's given, holding a .git, there a file. Where FindProject finds no
-// repository but the worktree itself, as a submodule's or a bare
-// repository's, it's in none; but Lost where the .git file names no git
-// directory that's there, or can't be read. FindProject gives a worktree
-// started at its root as itself both where it counts as itself and where it
-// can't be read, so the .git file is read here to tell the two apart. It's
-// in none, too, in a main checkout, or where no directory up from dir holds
-// a .git. It runs no git. None for "".
+// worktreeKind is what a directory's .git says of a linked worktree there.
+type worktreeKind int
+
+const (
+	// worktreeNone is no .git, or one that isn't a linked worktree's: a
+	// directory, or a file whose git directory has no commondir, as a main
+	// checkout's or a submodule's.
+	worktreeNone worktreeKind = iota
+	// worktreeLinked is a linked worktree's, whose repository is found.
+	worktreeLinked
+	// worktreeLost is a .git that can't be looked at, or a file leading to
+	// no repository that can be found.
+	worktreeLost
+)
+
+// FindWorktree returns what dir is in among linked worktrees, walking up
+// from dir, as it's given, through every directory to the filesystem's
+// root, as worktreeAt reads each one's .git: its place in the repository of
+// every linked worktree around it, so a submodule or a clone nested in a
+// worktree is placed by the worktree around it; or, where it meets a linked
+// worktree whose repository can't be found, that worktree's root alone. It
+// runs no git. None for "".
 func FindWorktree(dir string) Worktree {
 	if dir == "" {
 		return Worktree{}
 	}
-	dir = filepath.Clean(dir)
-	root, rest, linked := worktreeRoot(dir)
-	if !linked {
-		return Worktree{}
-	}
-	switch repo := FindProject(dir); {
-	case repo != root && repo != dir:
-		return Worktree{Mapped: filepath.Join(repo, rest)}
-	case namesGitDir(root):
-		return Worktree{}
-	}
-	return Worktree{Lost: true}
-}
-
-// worktreeRoot returns the first directory up from dir, itself included,
-// holding a .git, and the rest of dir's path below it, where that .git isn't
-// a directory, or can't be looked at: reporting false where it's a
-// directory, as a main checkout's, or no directory holds one.
-func worktreeRoot(dir string) (string, string, bool) {
-	for at, rest := dir, ""; ; at, rest = filepath.Dir(at), filepath.Join(filepath.Base(at), rest) {
-		info, err := os.Stat(filepath.Join(at, ".git"))
-		switch {
-		case err == nil:
-			return at, rest, !info.IsDir()
-		case !errors.Is(err, fs.ErrNotExist):
-			return at, rest, true
-		case filepath.Dir(at) == at:
-			return "", "", false
+	var w Worktree
+	for at, rest := filepath.Clean(dir), ""; ; at, rest = filepath.Dir(at), filepath.Join(filepath.Base(at), rest) {
+		switch place, kind := worktreeAt(at, rest); kind {
+		case worktreeLinked:
+			w.Mapped = append(w.Mapped, place)
+		case worktreeLost:
+			return Worktree{Lost: at}
+		}
+		if filepath.Dir(at) == at {
+			return w
 		}
 	}
 }
 
-// namesGitDir reports whether the .git file in the directory at names a git
-// directory that's there, as git writes one: "gitdir: " and its path, on a
-// line, relative to at where it isn't absolute.
-func namesGitDir(at string) bool {
-	line, read := worktreeLine(filepath.Join(at, ".git"))
-	named, ok := strings.CutPrefix(line, "gitdir: ")
-	if !read || !ok || named == "" {
-		return false
+// worktreeAt says what the .git in the directory at is, and where a path
+// rest below at is in the repository of a linked worktree there: below the
+// main checkout, the directory holding the common directory its git
+// directory's commondir names, where that's named .git; else, where the
+// common directory's config says the repository is bare, the common
+// directory itself. It's lost where the .git can't be looked at, or names
+// no git directory that's there, or the git directory's commondir can't be
+// read, is empty or names no directory, or names one of a repository that
+// isn't bare, as a separate git directory's, whose main checkout nothing
+// names.
+func worktreeAt(at, rest string) (string, worktreeKind) {
+	info, err := os.Stat(filepath.Join(at, ".git"))
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		return "", worktreeNone
+	case err != nil:
+		return "", worktreeLost
+	case info.IsDir():
+		return "", worktreeNone
 	}
-	if !filepath.IsAbs(named) {
-		named = filepath.Join(at, named)
+	gitDir, ok := gitPath(at, ".git", "gitdir: ")
+	if !ok || !isDirectory(gitDir) {
+		return "", worktreeLost
 	}
-	info, err := os.Stat(named)
-	return err == nil && info.IsDir()
+	if _, err := os.Stat(filepath.Join(gitDir, "commondir")); errors.Is(err, fs.ErrNotExist) {
+		return "", worktreeNone
+	}
+	common, ok := gitPath(gitDir, "commondir", "")
+	switch {
+	case !ok || !isDirectory(common):
+		return "", worktreeLost
+	case filepath.Base(common) == ".git":
+		return filepath.Join(filepath.Dir(common), rest), worktreeLinked
+	case isBare(common):
+		return common, worktreeLinked
+	}
+	return "", worktreeLost
 }
 
-// worktreeLine returns what the file at path holds, its line ending let go,
-// reporting false where it can't be read, is no regular file, as opening a
-// pipe would wait, or runs past worktreeFileMost.
-func worktreeLine(path string) (string, bool) {
+// gitPath returns the path the file name in the directory dir names, as git
+// writes one: on a line, after prefix, relative to dir where it isn't
+// absolute. It reports false where the file can't be read, or names none.
+func gitPath(dir, name, prefix string) (string, bool) {
+	data, read := readHead(filepath.Join(dir, name), worktreeFileMost)
+	named, ok := strings.CutPrefix(strings.TrimRight(string(data), "\r\n"), prefix)
+	if !read || len(data) > worktreeFileMost || !ok || named == "" {
+		return "", false
+	}
+	if !filepath.IsAbs(named) {
+		named = filepath.Join(dir, named)
+	}
+	return filepath.Clean(named), true
+}
+
+// isBare reports whether the repository whose common directory is common is
+// bare, as its config's [core] section says: bare = true, yes, on or 1, or
+// bare alone.
+func isBare(common string) bool {
+	data, ok := readHead(filepath.Join(common, "config"), configMost)
+	if !ok {
+		return false
+	}
+	section := ""
+	for line := range strings.Lines(string(data)) {
+		line, _, _ = strings.Cut(strings.TrimSpace(line), "#")
+		line, _, _ = strings.Cut(line, ";")
+		key, value, valued := strings.Cut(line, "=")
+		switch {
+		case strings.HasPrefix(line, "["):
+			section, _, _ = strings.Cut(line[1:], "]")
+		case strings.EqualFold(strings.TrimSpace(section), "core") && strings.EqualFold(strings.TrimSpace(key), "bare"):
+			value = strings.ToLower(strings.TrimSpace(value))
+			return !valued || value == "true" || value == "yes" || value == "on" || value == "1"
+		}
+	}
+	return false
+}
+
+// readHead returns the start of the regular file at path: most bytes and
+// one more at the most, so a reader can tell one longer than most. It
+// reports false where it can't be read, or is no regular file, as opening a
+// pipe would wait.
+func readHead(path string, most int64) ([]byte, bool) {
 	info, err := os.Stat(path)
 	if err != nil || !info.Mode().IsRegular() {
-		return "", false
+		return nil, false
 	}
 	file, err := os.Open(path)
 	if err != nil {
-		return "", false
+		return nil, false
 	}
 	defer func() { _ = file.Close() }()
-	data, err := io.ReadAll(io.LimitReader(file, worktreeFileMost+1))
-	if err != nil || len(data) > worktreeFileMost {
-		return "", false
-	}
-	return strings.TrimRight(string(data), "\r\n"), true
+	data, err := io.ReadAll(io.LimitReader(file, most+1))
+	return data, err == nil
+}
+
+// isDirectory reports whether path is a directory.
+func isDirectory(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && info.IsDir()
 }

@@ -642,20 +642,39 @@ pool for its whole life:
   checkout, the same path below the main checkout as below the worktree's root, and the mapped
   directory's pool comes from the rule above, links resolved both sides; so a fence on a
   repository's subfolder holds that subfolder in every worktree of it too. The main checkout is
-  found from the worktree's `.git` file and its git directory's `commondir`, running no git. A
-  submodule, and a bare repository's worktree, count as themselves, under the rule above alone, as
-  does a main checkout.
-  - Where the start directory itself and its mapping both have a pool, the unfenced pool counting
-    as no fence, they must agree. A worktree outside every fence is in its repository's pool, and
-    Claude Code's own worktrees, under the repository's `.claude/worktrees`, are inside its fence
-    both ways. A worktree inside one fence of a repository in another, or inside a fence of a
-    repository outside every fence, is refused, naming both, as the owner chose to refuse these
-    rather than guess: `switchboard: ~/wt/x is in pool Acme, its repository ~/Code/web in pool
-    Default — not starting claude`, or `in no pool` where every pool is fenced.
-  - Where a `.git` file up from the start directory leads to no repository that can be found,
-    unreadable or naming a git directory that's gone, and a pool is fenced, `run` refuses, as for a
-    start directory that can't be read, as it may be a fenced repository's worktree: `can't tell
-    which pool ~/wt/x is in: its .git file leads to no repository that can be found`.
+  found from the worktree's `.git` file and its git directory's `commondir`, running no git.
+  - **Every `.git` up from the start directory is read,** to the filesystem's root, not the
+    nearest alone, so what has a `.git` of its own inside a worktree, a submodule checked out in
+    it, a clone nested in it, or another repository's worktree, is placed by the worktree around
+    it too. A `.git` that isn't a linked worktree's, a main checkout's directory, or a file whose
+    git directory has no `commondir`, as a submodule's or a separate git directory's checkout, is
+    passed over. Outside every linked worktree, nothing changes: a main checkout and a submodule
+    of one are placed by the rule above alone. Within several, the nearest is the start
+    directory's repository, and its places in the repositories of those around it count as where
+    it lies, so a worktree nested in a fenced repository's worktree is placed as it would be
+    nested in the main checkout.
+  - **A bare repository's worktree** is in the pool where the bare repository lies, its own
+    directory standing for every place in the worktree, so a bare clone's worktrees, made beside
+    it in `.bare` or anywhere else, are its pool's. A repository is bare where its common
+    directory, not named `.git`, has `bare = true` under `[core]` in its config.
+  - Where the start directory itself and its place in its repository both have a pool, the
+    unfenced pool counting as no fence, they must agree. A worktree outside every fence is in its
+    repository's pool, and Claude Code's own worktrees, under the repository's `.claude/worktrees`,
+    are inside its fence both ways. A worktree inside one fence of a repository in another, or
+    inside a fence of a repository outside every fence, is refused, naming both, as the owner chose
+    to refuse these rather than guess: `switchboard: ~/wt/x is in pool Acme, but in its repository
+    it's at ~/Code/web, in pool Default — not starting claude`, or `in no pool` where every pool
+    is fenced.
+  - Where a linked worktree around the start directory leads to no repository that can be found,
+    and a pool is fenced, `run` refuses, as for a start directory that can't be read, as it may be
+    a fenced repository's worktree: its `.git` can't be read, or names a git directory that's
+    gone; or its git directory's `commondir` can't be read, is empty or names no directory; or it
+    names a common directory, not named `.git`, of a repository that isn't bare, as a separate git
+    directory's, whose main checkout nothing names. It says where the `.git` is: `can't tell which
+    pool ~/wt/x is in: its .git file at ~/wt/x leads to no repository that can be found`. The start
+    directory is looked at as given and with its links resolved, and it refuses only where neither
+    finds a place in a repository, as git resolves a relative `gitdir` from where a link leads, so
+    a worktree reached through a link can read as lost as given.
 
 ### Launching in a pool
 
@@ -711,9 +730,9 @@ pool for its whole life:
   directories, or in a worktree of a repository inside them, as Which pool a session is in places
   it, refuses rather than start unaided, and so does `--direct`, as both would go out on whatever
   account Claude Code is signed into: `switchboard: ~/Code/acme is in pool Acme, where claude never
-  starts on its own login — not starting claude`, and from a worktree outside the fence,
-  `~/Code/acme-feature is in pool Acme, as its repository ~/Code/acme is, where claude never starts
-  on its own login`. Claude Code's local subcommands, which look after
+  starts on its own login — not starting claude`, and from a worktree outside the fence, `in its
+  repository, ~/Code/acme-feature is at ~/Code/acme, in pool Acme, where claude never starts on
+  its own login`. Claude Code's local subcommands, which look after
   Claude Code rather than run a session, start on its own login wherever they're asked for. Where a
   pool is fenced, an unaided start within a session passes the session's routing on only where the
   session's pool, as its `SWITCHBOARD_POOL` names it, is the start directory's, else it drops the

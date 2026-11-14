@@ -50,9 +50,9 @@ type Launcher struct {
 	// EvalSymlinks resolves the links in a path, as filepath.EvalSymlinks
 	// does, so the pool Dir is in is the pool of where it leads.
 	EvalSymlinks func(path string) (string, error)
-	// Worktree finds a directory's place in its repository's main checkout,
-	// where it's in a linked worktree, as FindWorktree does, so the pool Dir
-	// is in is its repository's too: nil for none.
+	// Worktree finds a directory's places in the repositories of the linked
+	// worktrees it's in, as FindWorktree does, so the pool Dir is in is its
+	// repository's too: nil for none.
 	Worktree func(dir string) Worktree
 	// InstallPaths are where Claude Code's installers put it, tried in order
 	// when it isn't on PATH.

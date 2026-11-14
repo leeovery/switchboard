@@ -441,8 +441,9 @@ in, and keeps it for its whole life, a resumed session getting the pool its dire
 
 - **Which pool:** the fenced pool whose directories hold the directory, as it's given or as its
   links lead, else the unfenced pool. In a git worktree, it's the pool of the same place in the
-  repository's main checkout, wherever the worktree lives; where the worktree itself lies in a
-  fence, the two must agree.
+  repository's main checkout, wherever the worktree lives, or, in a bare repository's worktree,
+  the pool where the bare repository lies; where the worktree itself lies in a fence, the two
+  must agree. A submodule or a clone checked out inside a worktree goes by the worktree.
 - **Routed,** Claude Code starts on the pool's primary's token, else on the first of the pool's
   accounts with a usable token. The router is told the pool in a header, and `SWITCHBOARD_POOL`
   holds its id, for the skill (see [What `claude` sets](reference.md#what-claude-sets)).
@@ -473,12 +474,12 @@ With pools, `claude` starts nothing, exits with status 1, and says why on stderr
 |---|---|---|
 | `no pool covers ~/Code/other` | Every pool is fenced, and none holds the directory. | Start it inside a pool's directories, or make a pool unfenced with [`pool edit --unfence`](#pool). |
 | `~/Code/both is in pools Acme and Client, as its links lead` | The directory, or where its links lead, is inside two pools' directories. | Start it where only one pool's directories hold it. |
-| `~/wt/x is in pool Acme, its repository ~/Code/web in pool Default` | The directory is in a git worktree inside one pool's fence, and the same place in its repository's main checkout is in another pool, or in no fence, `in no pool` where every pool is fenced. | Make the worktree outside every fence, or inside the fence its repository is in. |
+| `~/wt/x is in pool Acme, but in its repository it's at ~/Code/web, in pool Default` | The directory is in a git worktree inside one pool's fence, or in one nested in a fenced repository's worktree, and the same place in its repository is in another pool, or in no fence, `in no pool` where every pool is fenced. | Make the worktree outside every fence, or inside the fence its repository is in. |
 | `can't tell which pool the directory claude starts in is in` | The directory it starts in can't be read, as when it's been removed, while a pool is fenced. | Start it in a directory that's there. |
-| `can't tell which pool ~/wt/x is in: its .git file leads to no repository that can be found` | The directory is in what may be a git worktree, but its `.git` file can't be read, or names a git directory that's gone, as when its repository was moved or removed, while a pool is fenced: it may be a fenced repository's. | Repair it with `git worktree repair <worktree>`, run in its repository, or remove it. |
+| `can't tell which pool ~/wt/x is in: its .git file at ~/wt/x leads to no repository that can be found` | The directory is in what may be a git worktree, at the place named, but its `.git` file can't be read, or names a git directory that's gone, as when its repository was moved or removed, or its git directory's `commondir` can't be read, or it's a worktree of a separate git directory, whose main checkout nothing names, while a pool is fenced: it may be a fenced repository's. | Repair it with `git worktree repair <worktree>`, run in its repository, or remove it. A separate git directory's worktree can't be placed: work in its checkout instead. |
 | `pool Acme has no accounts` | The pool has none. | Add one with `accounts add <label> --pool <id>`, or move one there with `accounts edit <id> --pool <id>`. |
 | `pool Acme has no account with a usable token` | None of the pool's accounts has a token switchboard can use, and Claude Code's own login could go out on another pool's account. | Give one a token with [`accounts token`](#accounts). |
-| `~/Code/acme is in pool Acme, where claude never starts on its own login` | `--direct`, or a start without switchboard, inside a fence, or `as its repository ~/Code/acme is` in a worktree of a repository inside one. | Start it through the router, or outside the pool's directories and the worktrees of repositories in them. |
+| `~/Code/acme is in pool Acme, where claude never starts on its own login` | `--direct`, or a start without switchboard, inside a fence, or, as `in its repository, ~/Code/acme-feature is at ~/Code/acme, in pool Acme, …`, in a worktree of a repository inside one. | Start it through the router, or outside the pool's directories and the worktrees of repositories in them. |
 | `can't tell which pool ~/Code/x is in: pool Acme's directory "…" can't be placed` | On Claude Code's own login, the config file writes a pool's directory that can't be placed, which may hold the directory. | Put the directory right in the config. |
 | `can't tell which pool ~/Code/x is in: neither the config, the router nor the accounts record names any pools` | Once the history has moved to pools, the config names none, nor does the router or the accounts record, so any directory may be in a fence. | Put the config's pools back, or see [Pools](troubleshooting.md#pools). |
 | `the router routes no account of pool Acme yet: any the config gives it waits for the router to restart` | The config names no pools, so the router's are taken, and it routes none of this pool's accounts yet. | `switchboard service restart`. |

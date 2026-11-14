@@ -2,6 +2,7 @@ package launch_test
 
 import (
 	"errors"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -20,8 +21,15 @@ func gitFile(gitDir string) string {
 }
 
 // toMain is a worktree's commondir as git writes it, leading back from its
-// git directory to the main repository's .git, two directories up.
+// git directory to the repository's common directory, two directories up.
 const toMain = "../..\n"
+
+// A common directory's config as git writes it, of a bare repository, and
+// of one that isn't, as a separate git directory's.
+const (
+	bareConfig    = "[core]\n\trepositoryformatversion = 0\n\tbare = true\n"
+	notBareConfig = "[core]\n\trepositoryformatversion = 0\n\tbare = false\n"
+)
 
 // planted lays out a fixture at root: its directories, dirs; its files,
 // files, each holding its text, "<root>" in it standing for root, the
@@ -61,69 +69,131 @@ func resolvedTempDir(t *testing.T) string {
 	return dir
 }
 
-func TestFindWorktreeMapsALinkedWorktreeOntoItsMainCheckout(t *testing.T) {
+// fromRoot returns paths, each by its path from root.
+func fromRoot(root string, paths []string) []string {
+	var joined []string
+	for _, path := range paths {
+		joined = append(joined, filepath.Join(root, path))
+	}
+	return joined
+}
+
+func TestFindWorktreeMapsADirectoryOntoTheRepositoriesOfTheWorktreesAroundIt(t *testing.T) {
+	// fix is a worktree beside api, its git directory fixGit.
+	const fixGit = "api/.git/worktrees/fix"
+	fix := map[string]string{"fix/.git": gitFile(fixGit), fixGit + "/commondir": toMain}
+	// withFix is fix's files and more, more's in place of fix's.
+	withFix := func(more map[string]string) map[string]string {
+		all := maps.Clone(fix)
+		maps.Copy(all, more)
+		return all
+	}
 	tests := []struct {
 		name  string
 		dirs  []string
 		files map[string]string
 		pipes []string
-		// start is where the session starts, and wantMapped its place in the
-		// main checkout, by their paths from the root, "" for none.
-		start, wantMapped string
-		wantLost          bool
+		// start is where the session starts, wantMapped its places, nearest
+		// worktree first, and wantLost the root of a worktree whose
+		// repository can't be found, by their paths from the root.
+		start      string
+		wantMapped []string
+		wantLost   string
 	}{
 		{name: "a main checkout: in none", dirs: []string{"api/.git", "api/cmd"}, start: "api/cmd"},
 		{name: "in no repository: in none", dirs: []string{"notes"}, start: "notes"},
+		{name: "a linked worktree beside its repository, at its root", dirs: []string{fixGit, "fix"}, files: fix, start: "fix", wantMapped: []string{"api"}},
 		{
-			name: "a linked worktree beside its repository, at its root", dirs: []string{"api/.git/worktrees/fix", "fix"},
-			files: map[string]string{"fix/.git": gitFile("api/.git/worktrees/fix"), "api/.git/worktrees/fix/commondir": toMain},
-			start: "fix", wantMapped: "api",
-		},
-		{
-			name: "a subdirectory of one, the same below the main checkout", dirs: []string{"api/.git/worktrees/fix", "fix/cmd/server"},
-			files: map[string]string{"fix/.git": gitFile("api/.git/worktrees/fix"), "api/.git/worktrees/fix/commondir": toMain},
-			start: "fix/cmd/server", wantMapped: "api/cmd/server",
+			name: "a subdirectory of one, the same below the main checkout", dirs: []string{fixGit, "fix/cmd/server"}, files: fix,
+			start: "fix/cmd/server", wantMapped: []string{"api/cmd/server"},
 		},
 		{
 			name: "a worktree Claude Code made within its repository", dirs: []string{"api/.git/worktrees/agent-1", "api/.claude/worktrees/agent-1/web"},
 			files: map[string]string{
 				"api/.claude/worktrees/agent-1/.git": gitFile("api/.git/worktrees/agent-1"), "api/.git/worktrees/agent-1/commondir": toMain,
 			},
-			start: "api/.claude/worktrees/agent-1/web", wantMapped: "api/web",
+			start: "api/.claude/worktrees/agent-1/web", wantMapped: []string{"api/web"},
 		},
 		{
-			name: "a submodule: in none", dirs: []string{"app/.git/modules/lib", "app/lib/src"},
+			name: "a submodule of a main checkout: in none", dirs: []string{"app/.git/modules/lib", "app/lib/src"},
 			files: map[string]string{"app/lib/.git": "gitdir: ../.git/modules/lib\n"},
 			start: "app/lib/src",
 		},
 		{
-			name: "a bare repository's worktree: in none", dirs: []string{"api.git/worktrees/fix", "fix"},
-			files: map[string]string{"fix/.git": gitFile("api.git/worktrees/fix"), "api.git/worktrees/fix/commondir": toMain},
-			start: "fix",
+			name: "a submodule within a linked worktree: the worktree's", dirs: []string{fixGit + "/modules/lib", "fix/lib/src"},
+			files: withFix(map[string]string{"fix/lib/.git": gitFile(fixGit + "/modules/lib")}),
+			start: "fix/lib/src", wantMapped: []string{"api/lib/src"},
+		},
+		{
+			name: "a clone nested within a linked worktree: the worktree's", dirs: []string{fixGit, "fix/vendor/dep/.git"}, files: fix,
+			start: "fix/vendor/dep", wantMapped: []string{"api/vendor/dep"},
+		},
+		{
+			name: "a linked worktree nested within another: both, the nearest first", dirs: []string{fixGit, "web/.git/worktrees/w", "fix/web-wt/src"},
+			files: withFix(map[string]string{"fix/web-wt/.git": gitFile("web/.git/worktrees/w"), "web/.git/worktrees/w/commondir": toMain}),
+			start: "fix/web-wt/src", wantMapped: []string{"web/src", "api/web-wt/src"},
+		},
+		{
+			name: "a bare repository's worktree: the bare repository, whatever the folder below", dirs: []string{"api.git/worktrees/fix", "fix/web"},
+			files: map[string]string{"fix/.git": gitFile("api.git/worktrees/fix"), "api.git/worktrees/fix/commondir": toMain, "api.git/config": bareConfig},
+			start: "fix/web", wantMapped: []string{"api.git"},
+		},
+		{
+			name: "a worktree beside a bare repository in .bare", dirs: []string{"api/.bare/worktrees/main", "api/main/web"},
+			files: map[string]string{"api/main/.git": gitFile("api/.bare/worktrees/main"), "api/.bare/worktrees/main/commondir": toMain, "api/.bare/config": bareConfig},
+			start: "api/main/web", wantMapped: []string{"api/.bare"},
+		},
+		{
+			name: "a worktree of a separate git directory, its main checkout named nowhere: lost", dirs: []string{"store/api.git/worktrees/fix", "fix"},
+			files: map[string]string{"fix/.git": gitFile("store/api.git/worktrees/fix"), "store/api.git/worktrees/fix/commondir": toMain, "store/api.git/config": notBareConfig},
+			start: "fix", wantLost: "fix",
+		},
+		{
+			name: "a separate git directory's checkout: in none", dirs: []string{"store/api.git", "api/cmd"},
+			files: map[string]string{"api/.git": gitFile("store/api.git"), "store/api.git/config": notBareConfig},
+			start: "api/cmd",
 		},
 		{
 			name: "a .git file naming a git directory that isn't there, at its root: lost", dirs: []string{"fix"},
 			files: map[string]string{"fix/.git": gitFile("gone/.git/worktrees/fix")},
-			start: "fix", wantLost: true,
+			start: "fix", wantLost: "fix",
 		},
 		{
-			name: "below its root: lost", dirs: []string{"fix/web"},
+			name: "below its root: lost, by its root", dirs: []string{"fix/web"},
 			files: map[string]string{"fix/.git": gitFile("gone/.git/worktrees/fix")},
-			start: "fix/web", wantLost: true,
+			start: "fix/web", wantLost: "fix",
+		},
+		{
+			name: "a linked worktree within a lost one: lost", dirs: []string{fixGit, "lost/fix"},
+			files: map[string]string{"lost/.git": gitFile("gone/.git/worktrees/lost"), "lost/fix/.git": gitFile(fixGit), fixGit + "/commondir": toMain},
+			start: "lost/fix", wantLost: "lost",
 		},
 		{
 			name: "a .git file naming no git directory: lost", dirs: []string{"fix"},
 			files: map[string]string{"fix/.git": "not a link to a git directory\n"},
-			start: "fix", wantLost: true,
+			start: "fix", wantLost: "fix",
 		},
 		{
-			name: "a .git file longer than git writes: lost", dirs: []string{"api/.git/worktrees/fix", "fix"},
-			files: map[string]string{
-				"fix/.git": gitFile("api/.git/worktrees/fix") + strings.Repeat("\n", 4096), "api/.git/worktrees/fix/commondir": toMain,
-			},
-			start: "fix", wantLost: true,
+			name: "a .git file longer than git writes: lost", dirs: []string{fixGit, "fix"},
+			files: withFix(map[string]string{"fix/.git": gitFile(fixGit) + strings.Repeat("\n", 4096)}),
+			start: "fix", wantLost: "fix",
 		},
-		{name: "a .git that's a pipe, never read: lost", dirs: []string{"fix"}, pipes: []string{"fix/.git"}, start: "fix", wantLost: true},
+		{name: "a .git that's a pipe, never read: lost", dirs: []string{"fix"}, pipes: []string{"fix/.git"}, start: "fix", wantLost: "fix"},
+		{
+			name: "an empty commondir: lost", dirs: []string{fixGit, "fix"},
+			files: withFix(map[string]string{fixGit + "/commondir": "\n"}),
+			start: "fix", wantLost: "fix",
+		},
+		{
+			name: "a commondir naming a directory that isn't there: lost", dirs: []string{fixGit, "fix"},
+			files: withFix(map[string]string{fixGit + "/commondir": "../../../../gone/.git\n"}),
+			start: "fix", wantLost: "fix",
+		},
+		{
+			name: "a commondir that's a pipe, never read: lost", dirs: []string{fixGit, "fix"},
+			files: map[string]string{"fix/.git": gitFile(fixGit)}, pipes: []string{fixGit + "/commondir"},
+			start: "fix", wantLost: "fix",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -135,76 +205,158 @@ func TestFindWorktreeMapsALinkedWorktreeOntoItsMainCheckout(t *testing.T) {
 				}
 			}
 
-			want := launch.Worktree{Lost: tt.wantLost}
-			if tt.wantMapped != "" {
-				want.Mapped = filepath.Join(root, tt.wantMapped)
+			got := launch.FindWorktree(filepath.Join(root, tt.start))
+			want := launch.Worktree{Mapped: fromRoot(root, tt.wantMapped)}
+			if tt.wantLost != "" {
+				want.Lost = filepath.Join(root, tt.wantLost)
 			}
-			if got := launch.FindWorktree(filepath.Join(root, tt.start)); got != want {
+			if !slices.Equal(got.Mapped, want.Mapped) || got.Lost != want.Lost {
 				t.Errorf("FindWorktree(%q) = %+v, want %+v", tt.start, got, want)
 			}
 		})
 	}
 }
 
-func TestFindWorktreeTakesAnUnreadableGitFileForLost(t *testing.T) {
-	root := resolvedTempDir(t)
-	planted(t, root, []string{"api/.git/worktrees/fix", "fix"}, map[string]string{
-		"fix/.git": gitFile("api/.git/worktrees/fix"), "api/.git/worktrees/fix/commondir": toMain,
-	}, nil)
-	if err := os.Chmod(filepath.Join(root, "fix", ".git"), 0); err != nil {
-		t.Fatal(err)
+func TestFindWorktreeReadsWhetherARepositoryIsBare(t *testing.T) {
+	tests := []struct {
+		name   string
+		config string
+		bare   bool
+	}{
+		{name: "bare = true", config: bareConfig, bare: true},
+		{name: "bare = false", config: notBareConfig},
+		{name: "no bare", config: "[core]\n\trepositoryformatversion = 0\n"},
+		{name: "no config"},
+		{name: "bare alone", config: "[core]\n\tbare\n", bare: true},
+		{name: "spelled otherwise, with a comment", config: "[CORE]\n\tBare = Yes ; set by hand\n", bare: true},
+		{name: "1", config: "[core]\n\tbare = 1\n", bare: true},
+		{name: "commented out", config: "[core]\n\t# bare = true\n"},
+		{name: "in another section", config: "[core]\n\tfilemode = true\n[remote \"origin\"]\n\tbare = true\n"},
 	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := resolvedTempDir(t)
+			files := map[string]string{"fix/.git": gitFile("api.git/worktrees/fix"), "api.git/worktrees/fix/commondir": toMain}
+			if tt.config != "" {
+				files["api.git/config"] = tt.config
+			}
+			planted(t, root, []string{"api.git/worktrees/fix", "fix"}, files, nil)
 
-	if got := launch.FindWorktree(filepath.Join(root, "fix")); got != (launch.Worktree{Lost: true}) {
-		t.Errorf("FindWorktree() = %+v, want it lost, its .git file unreadable", got)
+			got := launch.FindWorktree(filepath.Join(root, "fix"))
+			want := launch.Worktree{Lost: filepath.Join(root, "fix")}
+			if tt.bare {
+				want = launch.Worktree{Mapped: []string{filepath.Join(root, "api.git")}}
+			}
+			if !slices.Equal(got.Mapped, want.Mapped) || got.Lost != want.Lost {
+				t.Errorf("FindWorktree() = %+v, want %+v", got, want)
+			}
+		})
+	}
+}
+
+func TestFindWorktreeTakesAnUnreadableFileForLost(t *testing.T) {
+	const fixGit = "api/.git/worktrees/fix"
+	for _, unreadable := range []string{"fix/.git", fixGit + "/commondir"} {
+		t.Run(unreadable, func(t *testing.T) {
+			root := resolvedTempDir(t)
+			planted(t, root, []string{fixGit, "fix"}, map[string]string{"fix/.git": gitFile(fixGit), fixGit + "/commondir": toMain}, nil)
+			if err := os.Chmod(filepath.Join(root, unreadable), 0); err != nil {
+				t.Fatal(err)
+			}
+
+			got := launch.FindWorktree(filepath.Join(root, "fix"))
+			if got.Lost != filepath.Join(root, "fix") || got.Mapped != nil {
+				t.Errorf("FindWorktree() = %+v, want it lost, %s unreadable", got, unreadable)
+			}
+		})
 	}
 }
 
 func TestFindWorktreeOfNoDirectoryIsNone(t *testing.T) {
-	if got := launch.FindWorktree(""); got != (launch.Worktree{}) {
+	if got := launch.FindWorktree(""); got.Mapped != nil || got.Lost != "" {
 		t.Errorf(`FindWorktree("") = %+v, want none`, got)
 	}
 }
 
 // worktreeTree lays out, under a directory of the test's own, which it
 // returns, links resolved, the repositories the worktree tests start in, as
-// git writes them, each in Code: acme, Acme's directory, with a worktree
-// beside it, acme-feature, one Claude Code made within it, one inside
-// Client's directory, client/acme-wt, and one, via-wt, whose .git names acme
-// through the link links/acme; web, in no fence, with a worktree inside
-// Acme's, acme/web-wt; mono, whose api subfolder is Client's, with a worktree
-// beside it, mono-wt; a submodule, other/app/lib, its git directory within
-// acme's; a worktree, bare-wt, of a bare repository within acme; a worktree,
-// gone-wt, whose git directory isn't there; and the links link-wt, to
-// acme-feature, and link-api, to mono-wt's api.
+// git writes them, each in Code:
+//   - acme, in Acme's fence, with a submodule, lib, and a link, clientward,
+//     into Client's fence; its worktrees acme-feature, beside it, with lib
+//     checked out, a clone nested at vendor/dep, a worktree of web nested at
+//     web-wt, a plain folder clientward, and links shared, out to
+//     elsewhere-data, and gone-link, into gone-wt; one Claude Code made within
+//     it; client/acme-wt, in Client's fence; via-wt, whose .git names acme
+//     through links/acme; and rel-wt, whose .git names its git directory
+//     relative to itself, reached through shortcuts/rel-wt too;
+//   - web, in no fence, with a worktree inside Acme's, acme/web-wt;
+//   - mono, whose api subfolder is Client's, with a worktree beside it,
+//     mono-wt;
+//   - a submodule, other/app/lib, its git directory within acme's;
+//   - bare repositories: acme/api.git, with a worktree beside acme, bare-wt;
+//     client/svc/.bare, with worktrees client/svc/main and svc-hot; and
+//     tools/.bare, in no fence, with a worktree tools/main;
+//   - gitdirs/proj.git, the separate git directory of client/proj, with a
+//     worktree beside it, proj-wt;
+//   - gone-wt, a worktree whose git directory isn't there, holding a link,
+//     into-feature, to acme-feature/api;
+//   - and the links link-wt, to acme-feature, link-api, to mono-wt's api, and
+//     to-gone, to gone-wt/sub.
 func worktreeTree(t *testing.T) string {
 	t.Helper()
 	root := resolvedTempDir(t)
 	planted(t, root,
 		[]string{
-			"Code/acme/api", "Code/acme/.git/modules/lib", "Code/acme-feature/api", "Code/acme/.claude/worktrees/agent-1",
-			"Code/client/acme-wt", "Code/acme/web-wt", "Code/web", "Code/mono/api", "Code/mono-wt/api", "Code/via-wt",
-			"Code/other/app/.git", "Code/other/app/lib", "Code/bare-wt", "Code/gone-wt/sub", "links",
+			"Code/acme/api", "Code/acme/.git/modules/lib", "Code/acme/lib", "Code/acme/.claude/worktrees/agent-1",
+			"Code/acme/.git/worktrees/feature/modules/lib", "Code/acme-feature/api", "Code/acme-feature/lib/src",
+			"Code/acme-feature/vendor/dep/.git", "Code/acme-feature/clientward", "Code/elsewhere-data",
+			"Code/client/acme-wt", "Code/client/site", "Code/acme/web-wt", "Code/web", "Code/mono/api", "Code/mono-wt/api",
+			"Code/via-wt", "Code/rel-wt", "shortcuts", "Code/other/app/.git", "Code/other/app/lib", "Code/bare-wt",
+			"Code/client/svc/main", "Code/svc-hot", "Code/tools/main", "Code/client/proj", "Code/proj-wt",
+			"Code/gone-wt/sub", "links",
 		},
 		map[string]string{
-			"Code/acme-feature/.git":                        gitFile("Code/acme/.git/worktrees/feature"),
-			"Code/acme/.git/worktrees/feature/commondir":    toMain,
-			"Code/acme/.claude/worktrees/agent-1/.git":      gitFile("Code/acme/.git/worktrees/agent-1"),
-			"Code/acme/.git/worktrees/agent-1/commondir":    toMain,
-			"Code/client/acme-wt/.git":                      gitFile("Code/acme/.git/worktrees/client-wt"),
-			"Code/acme/.git/worktrees/client-wt/commondir":  toMain,
-			"Code/via-wt/.git":                              gitFile("links/acme/.git/worktrees/via"),
-			"Code/acme/.git/worktrees/via/commondir":        toMain,
-			"Code/acme/web-wt/.git":                         gitFile("Code/web/.git/worktrees/in-acme"),
-			"Code/web/.git/worktrees/in-acme/commondir":     toMain,
-			"Code/mono-wt/.git":                             gitFile("Code/mono/.git/worktrees/mono-wt"),
-			"Code/mono/.git/worktrees/mono-wt/commondir":    toMain,
-			"Code/other/app/lib/.git":                       gitFile("Code/acme/.git/modules/lib"),
-			"Code/bare-wt/.git":                             gitFile("Code/acme/api.git/worktrees/bare-wt"),
-			"Code/acme/api.git/worktrees/bare-wt/commondir": toMain,
-			"Code/gone-wt/.git":                             gitFile("Code/gone/.git/worktrees/gone-wt"),
+			"Code/acme-feature/.git":                            gitFile("Code/acme/.git/worktrees/feature"),
+			"Code/acme/.git/worktrees/feature/commondir":        toMain,
+			"Code/acme-feature/lib/.git":                        gitFile("Code/acme/.git/worktrees/feature/modules/lib"),
+			"Code/acme-feature/web-wt/.git":                     gitFile("Code/web/.git/worktrees/in-feature"),
+			"Code/web/.git/worktrees/in-feature/commondir":      toMain,
+			"Code/acme/.claude/worktrees/agent-1/.git":          gitFile("Code/acme/.git/worktrees/agent-1"),
+			"Code/acme/.git/worktrees/agent-1/commondir":        toMain,
+			"Code/client/acme-wt/.git":                          gitFile("Code/acme/.git/worktrees/client-wt"),
+			"Code/acme/.git/worktrees/client-wt/commondir":      toMain,
+			"Code/via-wt/.git":                                  gitFile("links/acme/.git/worktrees/via"),
+			"Code/acme/.git/worktrees/via/commondir":            toMain,
+			"Code/rel-wt/.git":                                  "gitdir: ../acme/.git/worktrees/rel\n",
+			"Code/acme/.git/worktrees/rel/commondir":            toMain,
+			"Code/acme/web-wt/.git":                             gitFile("Code/web/.git/worktrees/in-acme"),
+			"Code/web/.git/worktrees/in-acme/commondir":         toMain,
+			"Code/mono-wt/.git":                                 gitFile("Code/mono/.git/worktrees/mono-wt"),
+			"Code/mono/.git/worktrees/mono-wt/commondir":        toMain,
+			"Code/other/app/lib/.git":                           gitFile("Code/acme/.git/modules/lib"),
+			"Code/bare-wt/.git":                                 gitFile("Code/acme/api.git/worktrees/bare-wt"),
+			"Code/acme/api.git/worktrees/bare-wt/commondir":     toMain,
+			"Code/acme/api.git/config":                          bareConfig,
+			"Code/client/svc/main/.git":                         gitFile("Code/client/svc/.bare/worktrees/main"),
+			"Code/client/svc/.bare/worktrees/main/commondir":    toMain,
+			"Code/svc-hot/.git":                                 gitFile("Code/client/svc/.bare/worktrees/svc-hot"),
+			"Code/client/svc/.bare/worktrees/svc-hot/commondir": toMain,
+			"Code/client/svc/.bare/config":                      bareConfig,
+			"Code/tools/main/.git":                              gitFile("Code/tools/.bare/worktrees/main"),
+			"Code/tools/.bare/worktrees/main/commondir":         toMain,
+			"Code/tools/.bare/config":                           bareConfig,
+			"Code/client/proj/.git":                             gitFile("gitdirs/proj.git"),
+			"gitdirs/proj.git/config":                           notBareConfig,
+			"Code/proj-wt/.git":                                 gitFile("gitdirs/proj.git/worktrees/proj-wt"),
+			"gitdirs/proj.git/worktrees/proj-wt/commondir":      toMain,
+			"Code/gone-wt/.git":                                 gitFile("Code/gone/.git/worktrees/gone-wt"),
 		},
-		map[string]string{"links/acme": "../Code/acme", "Code/link-wt": "acme-feature", "Code/link-api": "mono-wt/api"},
+		map[string]string{
+			"links/acme": "../Code/acme", "shortcuts/rel-wt": "../Code/rel-wt", "Code/acme/clientward": "../client/site",
+			"Code/acme-feature/shared": "../elsewhere-data", "Code/acme-feature/gone-link": "../gone-wt/sub",
+			"Code/gone-wt/into-feature": "../acme-feature/api", "Code/link-wt": "acme-feature", "Code/link-api": "mono-wt/api",
+			"Code/to-gone": "gone-wt/sub",
+		},
 	)
 	return root
 }
@@ -233,11 +385,19 @@ func worktreeHarness(t *testing.T, root, dir string) *harness {
 	return h
 }
 
+// goneWhy is why claude doesn't start in dir, inside gone-wt, whose
+// repository can't be found, by their paths from home.
+func goneWhy(dir string) string {
+	return "can't tell which pool ~/" + dir + " is in: its .git file at ~/Code/gone-wt leads to no repository that can be found"
+}
+
 func TestRunPlacesAWorktreeInItsRepositorysPool(t *testing.T) {
 	root := worktreeTree(t)
 	tests := []struct {
 		name string
 		dir  string
+		// folded has dir spelled in another case from the fixture's.
+		folded bool
 		// only are the ids of the pools configured, every one of
 		// worktreeConfig's where nil.
 		only []string
@@ -250,39 +410,60 @@ func TestRunPlacesAWorktreeInItsRepositorysPool(t *testing.T) {
 		{name: "a worktree Claude Code made within a fenced repository", dir: "Code/acme/.claude/worktrees/agent-1", wantPool: "q7mt"},
 		{name: "a worktree outside every fence, of a fenced repository: the repository's", dir: "Code/acme-feature", wantPool: "q7mt"},
 		{name: "a subfolder of one", dir: "Code/acme-feature/api", wantPool: "q7mt"},
+		{name: "a submodule checked out in one", dir: "Code/acme-feature/lib/src", wantPool: "q7mt"},
+		{name: "a clone nested in one", dir: "Code/acme-feature/vendor/dep", wantPool: "q7mt"},
+		{name: "a link in one leading out of it: the worktree's, as given", dir: "Code/acme-feature/shared", wantPool: "q7mt"},
 		{name: "one whose .git names its repository through a link", dir: "Code/via-wt", wantPool: "q7mt"},
 		{name: "one reached through a link", dir: "Code/link-wt", wantPool: "q7mt"},
+		{name: "one whose relative gitdir reads as lost through a link, found where it leads", dir: "shortcuts/rel-wt", wantPool: "q7mt"},
+		{name: "lost as given, found where its link leads", dir: "Code/gone-wt/into-feature", wantPool: "q7mt"},
+		{name: "found as given, lost where its link leads", dir: "Code/acme-feature/gone-link", wantPool: "q7mt"},
 		{name: "a fenced subfolder of a repository, in a worktree", dir: "Code/mono-wt/api", wantPool: "h4w2"},
 		{name: "the same, reached through a link", dir: "Code/link-api", wantPool: "h4w2"},
+		{name: "the same, spelled in another case", dir: "code/MONO-WT/API", folded: true, wantPool: "h4w2"},
 		{name: "a worktree of a repository whose fence is a subfolder, outside it", dir: "Code/mono-wt", wantPool: "b2n8"},
-		{name: "a submodule, its git directory within a fence: where it lies", dir: "Code/other/app/lib", wantPool: "b2n8"},
-		{name: "a bare repository's worktree, the repository within a fence: where it lies", dir: "Code/bare-wt", wantPool: "b2n8"},
+		{name: "a submodule of a main checkout, its git directory within a fence: where it lies", dir: "Code/other/app/lib", wantPool: "b2n8"},
+		{name: "a bare repository's worktree, the repository within a fence: the repository's", dir: "Code/bare-wt", wantPool: "q7mt"},
+		{name: "a bare clone's worktree inside its fence", dir: "Code/client/svc/main", wantPool: "h4w2"},
+		{name: "the same's worktree outside it", dir: "Code/svc-hot", wantPool: "h4w2"},
+		{name: "a bare clone's worktree in no fence", dir: "Code/tools/main", wantPool: "b2n8"},
+		{name: "a separate git directory's checkout: where it lies", dir: "Code/client/proj", wantPool: "h4w2"},
+		{
+			name: "its worktree, its main checkout named nowhere", dir: "Code/proj-wt",
+			wantWhy: "can't tell which pool ~/Code/proj-wt is in: its .git file at ~/Code/proj-wt leads to no repository that can be found",
+		},
 		{
 			name: "a worktree in one fence, of a repository in another", dir: "Code/client/acme-wt",
-			wantWhy: "~/Code/client/acme-wt is in pool Client, its repository ~/Code/acme in pool Acme",
+			wantWhy: "~/Code/client/acme-wt is in pool Client, but in its repository it's at ~/Code/acme, in pool Acme",
 		},
 		{
 			name: "a worktree in a fence, of an unfenced repository", dir: "Code/acme/web-wt",
-			wantWhy: "~/Code/acme/web-wt is in pool Acme, its repository ~/Code/web in pool Default",
+			wantWhy: "~/Code/acme/web-wt is in pool Acme, but in its repository it's at ~/Code/web, in pool Default",
+		},
+		{
+			name: "the same, nested in a fenced repository's worktree outside the fence", dir: "Code/acme-feature/web-wt",
+			wantWhy: "~/Code/acme-feature/web-wt is in pool Acme, but in its repository it's at ~/Code/web, in pool Default",
 		},
 		{
 			name: "a worktree in a fence, of a repository in no pool, every pool fenced", dir: "Code/acme/web-wt",
 			only:    []string{acmePool.ID, clientPool.ID},
-			wantWhy: "~/Code/acme/web-wt is in pool Acme, its repository ~/Code/web in no pool",
+			wantWhy: "~/Code/acme/web-wt is in pool Acme, but in its repository it's at ~/Code/web, in no pool",
 		},
 		{
-			name: "a worktree whose git directory is gone, a pool fenced", dir: "Code/gone-wt",
-			wantWhy: "can't tell which pool ~/Code/gone-wt is in: its .git file leads to no repository that can be found",
+			name: "a worktree whose place in its repository is in two pools, through its links", dir: "Code/acme-feature/clientward",
+			wantWhy: "in its repository, ~/Code/acme-feature/clientward is at ~/Code/acme/clientward, in pools Acme and Client, as its links lead",
 		},
-		{
-			name: "below its root", dir: "Code/gone-wt/sub",
-			wantWhy: "can't tell which pool ~/Code/gone-wt/sub is in: its .git file leads to no repository that can be found",
-		},
+		{name: "a worktree whose git directory is gone, a pool fenced", dir: "Code/gone-wt", wantWhy: goneWhy("Code/gone-wt")},
+		{name: "below its root, by its root", dir: "Code/gone-wt/sub", wantWhy: goneWhy("Code/gone-wt/sub")},
+		{name: "in none as given, lost where its link leads", dir: "Code/to-gone", wantWhy: goneWhy("Code/to-gone")},
 		{name: "a worktree whose git directory is gone, no pool fenced: the unfenced pool", dir: "Code/gone-wt", only: []string{defaultPool.ID}, wantPool: "b2n8"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			h := worktreeHarness(t, root, tt.dir)
+			if _, err := os.Stat(h.launcher.Dir); err != nil && tt.folded {
+				t.Skipf("the filesystem tells case apart: %v", err)
+			}
 			cfg := worktreeConfig(root)
 			if tt.only != nil {
 				cfg.Pools = slices.DeleteFunc(cfg.Pools, func(p config.Pool) bool { return !slices.Contains(tt.only, p.ID) })
@@ -330,6 +511,11 @@ func TestOnItsOwnLoginClaudeNeverStartsInAFencedRepositorysWorktree(t *testing.T
 			said: "couldn't read the config (invalid config) — ",
 		},
 	}
+	// inAcme is why claude doesn't start on its own login in dir, by its
+	// path from home, at the same place in acme.
+	inAcme := func(dir string) string {
+		return "in its repository, ~/Code/acme-feature" + dir + " is at ~/Code/acme" + dir + ", in pool Acme, where claude never starts on its own login"
+	}
 	tests := []struct {
 		name string
 		dir  string
@@ -337,21 +523,18 @@ func TestOnItsOwnLoginClaudeNeverStartsInAFencedRepositorysWorktree(t *testing.T
 		// starts.
 		wantWhy string
 	}{
-		{
-			name: "a worktree outside every fence, of a fenced repository", dir: "Code/acme-feature",
-			wantWhy: "~/Code/acme-feature is in pool Acme, as its repository ~/Code/acme is, where claude never starts on its own login",
-		},
-		{
-			name: "a subfolder of one", dir: "Code/acme-feature/api",
-			wantWhy: "~/Code/acme-feature/api is in pool Acme, as its repository ~/Code/acme/api is, where claude never starts on its own login",
-		},
+		{name: "a worktree outside every fence, of a fenced repository", dir: "Code/acme-feature", wantWhy: inAcme("")},
+		{name: "a subfolder of one", dir: "Code/acme-feature/api", wantWhy: inAcme("/api")},
+		{name: "a submodule checked out in one", dir: "Code/acme-feature/lib/src", wantWhy: inAcme("/lib/src")},
+		{name: "a clone nested in one", dir: "Code/acme-feature/vendor/dep", wantWhy: inAcme("/vendor/dep")},
 		{
 			name: "a worktree in one fence, of a repository in another", dir: "Code/client/acme-wt",
-			wantWhy: "~/Code/client/acme-wt is in pool Client, its repository ~/Code/acme in pool Acme",
+			wantWhy: "~/Code/client/acme-wt is in pool Client, but in its repository it's at ~/Code/acme, in pool Acme",
 		},
+		{name: "a worktree whose git directory is gone", dir: "Code/gone-wt", wantWhy: goneWhy("Code/gone-wt")},
 		{
-			name: "a worktree whose git directory is gone", dir: "Code/gone-wt",
-			wantWhy: "can't tell which pool ~/Code/gone-wt is in: its .git file leads to no repository that can be found",
+			name: "a separate git directory's worktree", dir: "Code/proj-wt",
+			wantWhy: "can't tell which pool ~/Code/proj-wt is in: its .git file at ~/Code/proj-wt leads to no repository that can be found",
 		},
 		{name: "a worktree of an unfenced repository, outside every fence", dir: "Code/mono-wt"},
 	}
@@ -375,5 +558,28 @@ func TestOnItsOwnLoginClaudeNeverStartsInAFencedRepositorysWorktree(t *testing.T
 				}
 			})
 		}
+	}
+}
+
+func TestNoWorktreeIsLookedForWhereNoPoolIsFenced(t *testing.T) {
+	root := worktreeTree(t)
+	cfg := worktreeConfig(root)
+	cfg.Pools = config.Pools{defaultPool}
+	starts := map[string]func(h *harness) error{
+		"Run":      func(h *harness) error { return h.launcher.Run(t.Context(), pooledRoute(cfg, knowing(cfg), ""), nil) },
+		"--direct": func(h *harness) error { return h.launcher.Direct(nil, cfg.Pools) },
+	}
+	for name, start := range starts {
+		t.Run(name, func(t *testing.T) {
+			h := worktreeHarness(t, root, "Code/gone-wt")
+			h.launcher.Worktree = func(dir string) launch.Worktree {
+				t.Errorf("looked for a worktree around %s, no pool fenced", dir)
+				return launch.Worktree{}
+			}
+
+			if err := start(h); err != nil || len(h.starts) != 1 {
+				t.Errorf("error = %v, starting %q; want claude started", err, h.starts)
+			}
+		})
 	}
 }

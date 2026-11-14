@@ -636,11 +636,14 @@ pool for its whole life:
   ../client-feature`, run in a fenced `~/Code/client`, makes a worktree that's still Client's.
   The directory is taken to the same place in the repository's main checkout, so a fence on a
   repository's subfolder holds that subfolder in every worktree of it too. Claude Code's own
-  worktrees, under the repository's `.claude/worktrees`, stay inside it. A submodule, and a bare
-  repository's worktree, count as themselves.
+  worktrees, under the repository's `.claude/worktrees`, stay inside it. A submodule or a clone
+  checked out inside a worktree goes by the worktree, and a bare repository's worktree by where
+  the bare repository lies, so a bare clone's worktrees are its pool's.
 - Where a worktree lies inside one pool's fence and its repository in another pool, or outside
   every fence, it starts nothing, naming both, rather than guess. Nor does it start in a worktree
-  whose repository can't be found while a pool is fenced, as it may be a fenced repository's.
+  whose repository can't be found while a pool is fenced, as it may be a fenced repository's,
+  naming where its `.git` is: one whose git directory is gone, or a worktree of a separate git
+  directory, whose main checkout nothing names.
 
 The commands never choose a pool by the directory you run them in: they read the only pool, else
 the unfenced one, else ask for `--pool` (see [Reading a pool](commands.md#reading-a-pool)).
