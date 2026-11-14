@@ -241,7 +241,9 @@ func TestASessionWithNoWorkInThePoolNamedIsNotFoundThere(t *testing.T) {
 // requests --session without --pool reads the session's requests in the
 // pool it's in now, the one its newest request was routed in, so a session
 // split between pools never has every pool's requests listed together;
-// with --pool, those in that pool alone.
+// with --pool, those in that pool alone. An account given beside it has no
+// say in the pool: side's requests of the session, all in Default, are read
+// in Acme, where it's now, so none.
 func TestASplitSessionsRequestsAreThoseInItsPoolNowElseInThePoolNamed(t *testing.T) {
 	deps := splitDeps(t)
 	for _, tt := range []struct {
@@ -251,6 +253,8 @@ func TestASplitSessionsRequestsAreThoseInItsPoolNowElseInThePoolNamed(t *testing
 		{args: nil, want: []string{"s3"}},
 		{args: []string{"--pool", "q7mt"}, want: []string{"s3"}},
 		{args: []string{"--pool", "b2n8"}, want: []string{"s1", "s2"}},
+		{args: []string{"--account", "side"}, want: nil},
+		{args: []string{"--account", "work"}, want: []string{"s3"}},
 	} {
 		got := run(t, deps, append([]string{"requests", "--session", splitSession, "--json"}, tt.args...)...)
 		if requests := fieldsOf(t, got, "request"); got.code != 0 || !slices.Equal(requests, tt.want) {
@@ -326,7 +330,20 @@ func TestHistoryOfAPoolCountsItsDaysFromItsFirstWork(t *testing.T) {
 		t.Fatalf("switchboard history --pool q7mt --json = %+v", got)
 	}
 	printed := jsonObject(t, got.stdout)
-	printed["tokens"] = weeksRecorded(printed["tokens"])
+	for _, first := range []struct{ block, key, want string }{
+		{block: "days", key: "day", want: "2026-10-07"},
+		{block: "weeks", key: "week", want: "2026-10-05"},
+		{block: "tokens", key: "week", want: "2026-10-05"},
+		{block: "months", key: "month", want: "2026-10"},
+	} {
+		if got := firstListed(printed[first.block], first.key); got != first.want {
+			t.Errorf("switchboard history --pool q7mt --json lists its %s from %q, want from %q, the first holding Acme's first work", first.block, got, first.want)
+		}
+	}
+	year, _ := printed["year"].(map[string]any)
+	if got := firstListed(year["days"], "day"); got != "2026-10-07" {
+		t.Errorf("switchboard history --pool q7mt --json lists its year from %q, want from Acme's first work, 2026-10-07", got)
+	}
 	tab, unbegun := dashboardsPast(t, deps, "q7mt", october(7, 0, 0, 0))
 	for _, figures := range []struct {
 		name string
@@ -410,18 +427,15 @@ func pastTokens(p views.Past) any {
 	return weeks
 }
 
-// weeksRecorded are the weeks of history's JSON tokens, printed, with
-// anything recorded of any account, as Tokens lists them: history lists
-// every week its days span.
-func weeksRecorded(printed any) any {
-	weeks, _ := printed.([]any)
-	recorded := []any{}
-	for _, w := range weeks {
-		if _, ok := w.(map[string]any)["by_account"]; ok {
-			recorded = append(recorded, w)
-		}
+// firstListed is the value under key of the first row of a block of JSON,
+// printed: "" where it lists none.
+func firstListed(printed any, key string) string {
+	rows, _ := printed.([]any)
+	if len(rows) == 0 {
+		return ""
 	}
-	return recorded
+	value, _ := rows[0].(map[string]any)[key].(string)
+	return value
 }
 
 // asJSON is v as JSON decodes it once marshalled.
