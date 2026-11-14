@@ -121,8 +121,12 @@ type savedSessions struct {
 	Pins     pins              `json:"pins,omitempty"`
 	Sessions []savedAssignment `json:"sessions"`
 	// SessionPins are the pins sessions were given while they ran, by the
-	// session's id.
-	SessionPins map[string]ownPin `json:"session_pins,omitempty"`
+	// session's id, each in the pool its session was routed in last of those
+	// it has one in, the one pin a router that kept a session's assignments
+	// whatever its pool reads; and SessionPinsApart, those of the sessions'
+	// other pools.
+	SessionPins      map[string]savedPin `json:"session_pins,omitempty"`
+	SessionPinsApart []savedPinApart     `json:"session_pins_apart,omitempty"`
 }
 
 // everyPin returns every pin saved, by the id of its pool: "" for the one
@@ -144,6 +148,22 @@ type savedAssignment struct {
 	Session string `json:"session"`
 	Model   string `json:"model"`
 	assignment
+}
+
+// savedPin is a session's own pin as the state file holds it, in the pool
+// with the id Pool gives: none in a config from before pools, nor as a
+// router that kept a session's one pin whatever its pool wrote it, which is
+// taken in in the pool the session was routed in last.
+type savedPin struct {
+	ownPin
+	Pool string `json:"pool,omitempty"`
+}
+
+// savedPinApart is a session's own pin in a pool other than the one
+// SessionPins holds its pin in, with the session's id.
+type savedPinApart struct {
+	Session string `json:"session"`
+	savedPin
 }
 
 // savedUsage is what the state file holds of the accounts' usage.

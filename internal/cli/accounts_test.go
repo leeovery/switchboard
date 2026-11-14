@@ -641,7 +641,7 @@ func TestAccountsEdit(t *testing.T) {
 			args:    []string{"--plan", "max"},
 			wantOut: "edited side: plan max (was none)\n",
 			old:     "label = \"Side\"\n",
-			new:     "label = \"Side\"\nplan = \"max\"\n",
+			new:     "label = \"Side\"\nplan  = \"max\"\n",
 		},
 		{
 			name:    "the primary, in place of the first, the primary for want of a mark",
@@ -665,7 +665,7 @@ func TestAccountsEdit(t *testing.T) {
 			args:    []string{"--label", "Day job", "--plan", "ultra", "--primary", "--reserve", "2.5%"},
 			wantOut: "edited side: label \"Day job\" (was \"Side\"), plan ultra (was none), the primary in place of personal, reserve 2.5% (was none)\n" + primaryFromPersonal,
 			old:     "label = \"Side\"\n",
-			new:     "label = \"Day job\"\nplan = \"ultra\"\nprimary = true\nreserve = 0.025\n",
+			new:     "label = \"Day job\"\nplan  = \"ultra\"\nprimary = true\nreserve = 0.025\n",
 		},
 		{
 			name:    "no plan and no reserve, taking out their lines and the comments beside them",

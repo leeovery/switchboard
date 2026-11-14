@@ -60,13 +60,18 @@ without the router or a token, for what needs the login.
 
 With pools, a session is in the pool of the directory it starts in, for its
 whole life: the fenced pool whose directories hold it, as it's given or as
-its links lead, else the unfenced pool. Claude Code starts on that pool's
-primary's token, --account names one of the pool's accounts, and going
-direct goes on the pool's accounts alone. With more than one pool, a router
-that doesn't route by the config's pools counts as down. A directory no pool
-covers starts nothing, nor does one two fenced pools hold, nor one run can't
-tell, and nor does Claude Code's own login inside a fenced pool's
-directories, with --direct or without switchboard.
+its links lead, else the unfenced pool. In a git worktree, it's the pool of
+the same place in its repository, wherever the worktree lives. Claude Code
+starts on that pool's primary's token, --account names one of the pool's
+accounts, and going direct goes on the pool's accounts alone. With more than
+one pool, a router that doesn't route by the config's pools counts as down. A
+directory no pool covers starts nothing, nor does one two fenced pools hold,
+nor a worktree in one pool's fence whose place in its repository is in
+another pool or none, nor one run can't tell, as in a worktree whose
+repository can't be found, or a submodule's or a separate git
+directory's worktree, and nor does Claude Code's own login inside a
+fenced pool's directories or a worktree of a repository inside them, with
+--direct or without switchboard.
 
 Claude Code's local subcommands, such as doctor, mcp and setup-token, and
 its --version and --help, start as if switchboard weren't there, saying
@@ -131,6 +136,7 @@ func (a *app) run(ctx context.Context, stderr io.Writer, opts runOptions, args [
 		Dir:          dir,
 		Home:         home,
 		EvalSymlinks: filepath.EvalSymlinks,
+		Worktree:     launch.FindWorktree,
 		InstallPaths: claude.InstallPaths(home),
 		Executable:   a.Executable,
 		PID:          a.PID,

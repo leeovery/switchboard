@@ -431,7 +431,7 @@ event can change, so when you read one that changed, take its last version.
 | `kind` | What happened. See below. |
 | `account` | The account the event befell. |
 | `accounts` | The accounts a pool's pin names. |
-| `pool` | The pool the event is of, by its id: on `started` and `moved`, the pool the session's request was routed within; on `pin` and `auto`, the pool whose pin was set or cleared, or, of a session's own pin, the session's pool. Left out where the config has no pools. The move to pools, and an import of a folder exported before them, give every event of these kinds from before them the first pool, and once the move's done, an event of these kinds without a pool is the first pool's. |
+| `pool` | The pool the event is of, by its id: on `started` and `moved`, the pool the session's request was routed within; on `pin` and `auto`, the pool whose pin was set or cleared, or, of a session's own pin, the pool it was set or cleared in. Left out where the config has no pools. The move to pools, and an import of a folder exported before them, give every event of these kinds from before them the first pool, and once the move's done, an event of these kinds without a pool is the first pool's. |
 | `session` | The session that started or moved, or whose own pin changed. |
 | `model` | The model whose requests did so. |
 | `dir` | The directory the session ran in as the event befell it, the home as `~`, as the request ledger gives it. Left out where none was known yet, and in events written before switchboard recorded it. |
@@ -575,11 +575,12 @@ Each entry in `accounts` holds these:
 ## `status --session`'s JSON
 
 `status --session`'s JSON is `{"schema", "session", "pin", "assignments", "account"}`, of one
-session the router has seen.
+session the router has seen, in one pool: the one `--pool` names, else the one it was routed in
+last, where a session resumed in another pool runs in two.
 
 - **`session`:** The session's whole id.
 - **`pin`:** The session's own pin, where it has one.
-- **`assignments`:** One for each model, the one used last first. See below.
+- **`assignments`:** One for each model in that pool, the one used last first. See below.
 - **`account`:** The account the session's last-used model went to, in the form the status
   document's `accounts` give each account.
 
@@ -863,7 +864,11 @@ document gives it, left out where none is:
 every account. Where the pool named isn't configured, or none is named and every pool is fenced,
 the router answers 400, `{error, pools, named}`: `error` in words, `pools` each pool to name, as
 `{id, label}`, and `named` the id named, where one was. `POST /refresh` and `DELETE /pin` take
-`?pool=` too.
+`?pool=` too, as do `GET /sessions/{id}` and a session's pin, `POST` and `DELETE
+/sessions/{id}/pin`: each answers or acts for the session in that pool, a 404 where it was never
+seen there. Without it, `GET /sessions/{id}` answers for the pool the session was routed in last,
+and a pin acts in the account's pool, where the session runs there, else in that last pool, where an
+account of another pool is refused.
 
 `GET /stream` tells of each routed request as it happens, a JSON object a line, each naming the
 request's `pool`, by its id, where the config has pools.

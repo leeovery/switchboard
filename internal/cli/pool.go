@@ -50,11 +50,12 @@ directories it's fenced to, or none for the pool that serves every session
 started outside every fence, and its accounts, in the config's order, its
 primary marked.
 
-A session started inside a pool's directories is routed across that pool's
-accounts and no others; one started outside every fence, across the unfenced
-pool's, where there's one. pool add, edit and remove make a pool, change its
-label or its directories, and remove one that has no accounts. accounts add
-and edit put an account in a pool with --pool.
+A session started inside a pool's directories, or in a git worktree of a
+repository inside them, is routed across that pool's accounts and no others;
+one started outside every fence, across the unfenced pool's, where there's
+one. pool add, edit and remove make a pool, change its label or its
+directories, and remove one that has no accounts. accounts add and edit put
+an account in a pool with --pool.
 
 On a terminal, pool prints its pools as text. Anywhere else, as in a pipe or
 an agent's shell, it prints them as JSON, for an agent or a script to read.
@@ -140,8 +141,9 @@ func newPoolAddCommand(a *app) *cobra.Command {
 		Use:   "add <label> [<dir>...]",
 		Short: "Make a pool, fenced to the directories given, or unfenced",
 		Long: `Make a pool, shown as the label given, and fenced to the directories given,
-each an absolute path or one starting ~/, covering everything beneath it: a
-[[pool]] table in the config, under an id switchboard makes. Without any, it's
+each an absolute path or one starting ~/, covering everything beneath it, and
+every git worktree of a repository in them, wherever it lives: a [[pool]]
+table in the config, under an id switchboard makes. Without any, it's
 the unfenced pool, which serves every session started outside every fence;
 only one pool can be, so it's refused where one is already, saying which.
 Every pool has a label, no two alike, ignoring case, and no two pools'

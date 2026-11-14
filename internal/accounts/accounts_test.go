@@ -330,7 +330,7 @@ func TestAConfigOfOneLabelTwiceTakesEditsOfAnythingButALabel(t *testing.T) {
 	if _, err := w.registry(&user{}, &fakeAPI{}).Edit("side", accounts.Change{Plan: new("max")}); err != nil {
 		t.Fatalf("Edit() error = %v, want the plan set", err)
 	}
-	w.checkConfig(t, twice+"plan = \"max\"\n")
+	w.checkConfig(t, twice+"plan  = \"max\"\n")
 }
 
 func TestSetToken(t *testing.T) {

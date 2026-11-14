@@ -946,7 +946,7 @@ func TestOnlyAMoveTheSessionHadToMakeSaysWhatHeldItsRequestBack(t *testing.T) {
 				r, heard := newReserving(t)
 				assign(r.sessions, key{session: "one", model: opus}, m.launched, decision{account: "work", reason: reasonNew}, start.Add(-m.idle))
 				if m.own != "" {
-					r.sessions.pinSession("one", m.own)
+					r.sessions.pinSession(sessionIn{session: "one"}, m.own)
 				}
 				if len(m.poolPin.Accounts) > 0 {
 					r.sessions.setPin(beforePools(), m.poolPin, false)

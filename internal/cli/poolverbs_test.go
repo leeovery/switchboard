@@ -3,11 +3,15 @@ package cli_test
 import (
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"slices"
 	"strings"
 	"testing"
 
 	"github.com/leeovery/switchboard/internal/cli"
+	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -267,4 +271,48 @@ func TestTheVerbsGivenAccountsOrASessionPassThePoolOn(t *testing.T) {
 			t.Errorf("switchboard %q = %+v, want it to say %q", tt.args, got, tt.stdout)
 		}
 	}
+}
+
+// A session resumed in Acme while it runs on in Default has a pin in each,
+// and --pool names the one pin --session clears. Its requests are seen at
+// the one time, the commands' clock's, so by its id alone it reads as routed
+// last in Default, whose id sorts first: --pool names Acme.
+func TestPinningASessionThatRunsInTwoPoolsActsInThePoolNamed(t *testing.T) {
+	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if token := r.Header.Get("Authorization"); token != "Bearer test-token-work" && token != "Bearer test-token-side" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		_, _ = io.WriteString(w, `{"type":"message"}`)
+	}))
+	t.Cleanup(api.Close)
+	srv := newServeSetup(t, api.URL, nil)
+	srv.accounts = unfencedBesideFenced
+	srv.writeConfig(t)
+	srv.start(t)
+	srv.routeInPool(t, sessionThree, "b2n8", "test-token-side")
+	srv.routeInAcme(t, sessionThree)
+	for _, account := range []string{"side", "work"} {
+		if got := run(t, srv.deps, "pin", account, "--session", sessionThree); got.code != 0 {
+			t.Fatalf("switchboard pin %s --session = %+v, want it pinned", account, got)
+		}
+	}
+
+	if got := run(t, srv.deps, "pin", "auto", "--session", sessionThree, "--pool", "q7mt"); got.code != 0 {
+		t.Fatalf("switchboard pin auto --session --pool q7mt = %+v, want its pin cleared", got)
+	}
+	if dflt, acme := srv.sessionPin(t, "b2n8", sessionThree), srv.sessionPin(t, "q7mt", sessionThree); dflt != "side" || acme != "" {
+		t.Errorf("the session's pin is %q in Default and %q in Acme, want Acme's alone cleared, Default's to side standing", dflt, acme)
+	}
+}
+
+// sessionPin returns the pin of the session with the given id in the pool
+// with the given id, as the router answers for it there.
+func (s *serveSetup) sessionPin(t *testing.T, pool, id string) string {
+	t.Helper()
+	session, err := router.NewClient(s.socket()).InPool(pool).Session(t.Context(), id)
+	if err != nil {
+		t.Fatalf("Session() in pool %s: error = %v", pool, err)
+	}
+	return session.Pin
 }

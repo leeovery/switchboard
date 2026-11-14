@@ -37,6 +37,9 @@ var (
 	primaryKeyLine    = regexp.MustCompile(`^(?:primary|"primary"|'primary')\s*=`)
 	primeHeaderLine   = regexp.MustCompile(`^\[\s*(?:prime|"prime"|'prime')\s*\]\s*(?:#.*)?$`)
 	poolHeaderLine    = regexp.MustCompile(`^\[\[\s*(?:pool|"pool"|'pool')\s*\]\]\s*(?:#.*)?$`)
+	// keyLead matches the key a line sets, bare or quoted, and the space
+	// between it and its =.
+	keyLead = regexp.MustCompile(`^([A-Za-z0-9_-]+|"[^"]*"|'[^']*')(\s*)=`)
 	// multilineOpening matches a key whose value opens a string that can go
 	// on over lines, capturing the quotes that open it and what follows them.
 	multilineOpening = regexp.MustCompile(`^[^=]*=\s*("""|''')(.*)$`)
@@ -361,13 +364,35 @@ func (d document) withKey(s span, key, value string) document {
 	case value == "":
 		return d
 	}
-	return d.putKey(s, key+" = "+value)
+	return d.putKey(s, key, value)
 }
 
-// putKey returns the document with line, a key and its value, put below the
-// last key of the table within s, indented as the table's first key is.
-func (d document) putKey(s span, line string) document {
-	return d.put(d.keysEnd(s), d.keyIndent(s)+line)
+// putKey returns the document with a line setting key to value put below the
+// last key of the table within s, indented as the table's first key is, and
+// lined up with its keys where they're lined up, as tableLines lines up the
+// keys of a table it writes.
+func (d document) putKey(s span, key, value string) document {
+	return d.put(d.keysEnd(s), d.keyIndent(s)+fmt.Sprintf("%-*s = %s", d.keyWidth(s), key, value))
+}
+
+// keyWidth returns the width the keys of the table within s are padded to,
+// before the space ahead of each one's =, where every one is padded alike,
+// as tableLines pads them: else, or where it has none, 0.
+func (d document) keyWidth(s span) int {
+	width := -1
+	for i := s.start; i < s.end; i++ {
+		lead := keyLead.FindStringSubmatch(strings.TrimSpace(d.lines[i]))
+		if d.kinds[i] != content && d.kinds[i] != primaryKey || lead == nil {
+			continue
+		}
+		switch padded := len(lead[1]) + len(lead[2]) - 1; {
+		case width < 0:
+			width = padded
+		case padded != width:
+			return 0
+		}
+	}
+	return max(width, 0)
 }
 
 // keyIndent returns the whitespace the first key of the table within s is

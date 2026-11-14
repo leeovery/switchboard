@@ -99,12 +99,12 @@ id      = "work"  # for good
 label   = "Work"  # optional; defaults to the id
 primary = true    # optional: the account the browser and the Claude apps use
 reserve = 0.1     # optional
-pool = "b2n8"
+pool    = "b2n8"
 
 [[account]]
 id    = "personal"
 label = "Personal"
-pool = "b2n8"
+pool  = "b2n8"
 
 [[pool]]
 id    = "b2n8"
@@ -158,10 +158,16 @@ label = "Default"
 			want:   pooledWith(t, `dirs  = ["~/Code/acme"]`, `dirs  = ["/Volumes/Acme"]  # the client's repos, "]" and all`),
 		},
 		{
+			name:   "adding the first pool to a config from before pools whose keys aren't lined up, putting every account in it",
+			config: "[[account]]\nid = \"work\"\nlabel = \"Work\"\n",
+			edit:   func(d *config.Draft) error { return d.AddPool(config.NewPool{ID: "b2n8", Label: "Default"}) },
+			want:   "[[account]]\nid = \"work\"\nlabel = \"Work\"\npool = \"b2n8\"\n\n[[pool]]\nid    = \"b2n8\"\nlabel = \"Default\"\n",
+		},
+		{
 			name:   "fencing the unfenced pool, below its last key",
 			config: pooled,
 			edit:   func(d *config.Draft) error { return d.SetPoolDirs("b2n8", []string{"~/Work"}) },
-			want:   pooledWith(t, "label = \"Default\"\n", "label = \"Default\"\ndirs = [\"~/Work\"]\n"),
+			want:   pooledWith(t, "label = \"Default\"\n", "label = \"Default\"\ndirs  = [\"~/Work\"]\n"),
 		},
 		{
 			name:   "unfencing a pool where none is unfenced, taking its directories out",

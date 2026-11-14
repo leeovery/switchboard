@@ -87,10 +87,13 @@ Claude pass `--pool "$SWITCHBOARD_POOL"`, the session's own pool.
 
 - A verb given accounts or a session finds them in whatever pool they're in: `pin <account>...`,
   `pin --session`, `status --session`, `sessions <id>`, `requests --account` and `requests
-  --session`. With `--pool` beside, it looks in that pool alone, and a pin of accounts outside it
-  is refused, so passing `--pool` to every verb is always safe. Reading the recorded files, it
-  never reads every pool's work together: a session's page and its requests are its work in the
-  pool it's in now, the one its newest request was routed in, as a session resumed in another
+  --session`. With `--pool` beside, it looks in that pool alone, and a pin of accounts outside it is
+  refused, so passing `--pool` to every verb is always safe. A session resumed in another pool has
+  work in each, and can have an own pin in each: `pin --session` sets or clears its pin in the pool
+  `--pool` names; without it, a pin to an account acts in the account's pool where the session runs
+  there, else, as `pin auto --session` does, in the pool it was routed in last. Reading the recorded
+  files, it never reads every pool's work together: a session's page and its requests are its work
+  in the pool it's in now, the one its newest request was routed in, as a session resumed in another
   pool may have work in both, and an account's requests are those in the pool it's in now, or, of
   one no pool keeps, as one an import brought, the pool its newest request was routed in. With
   `--pool`, a session with no work in that pool isn't found there.
@@ -121,11 +124,12 @@ Claude pass `--pool "$SWITCHBOARD_POOL"`, the session's own pool.
   isn't read as a pool's where the config has them, its document and sessions every account's:
   `status`, `usage` and the dashboard probe the pool's accounts instead, saying `the router doesn't
   route by pools yet, as it started before them: restart it with switchboard service restart`;
-  `sessions` lists the ledger's alone, none as running, saying so; and `pin`, the dashboard's `p`
-  and `status --session --pool` refuse, saying so, asking it nothing. `status --session` without
-  `--pool` reads the session as ever, as it's the same session on any router. Where the config has
-  no pools before the move to pools, it's read as ever; once the move is done, a config naming no
-  pools has its pools as they stand, from the accounts record, so such a router is read as above.
+  `sessions` lists the ledger's alone, none as running, saying so; and `pin` and the dashboard's `p`
+  refuse, saying so, asking it nothing. `status --session` reads the session as ever, its label with
+  `--pool` or without and its JSON without `--pool`, as such a router passes the pool over and it's
+  the same session on any router, refusing its JSON in a pool alone. Where the config has no pools
+  before the move to pools, it's read as ever; once the move is done, a config naming no pools has
+  its pools as they stand, from the accounts record, so such a router is read as above.
 
 ## Everyday
 
@@ -283,7 +287,7 @@ switchboard pin <account>|auto --session <id> [--pool <id>]
 | `--move` | Move running sessions on other accounts there too, each on its next request, at the cost of a cache rebuild each. Not with `auto`. |
 | `--force` | Clear every session's own pin too, including the one `run --account` gave it: the pool's sessions' alone, once there's a second pool. |
 | `--session <id>` | Pin one running session alone to one account, from its next request, in place of any pin it had. Takes neither `--move` nor `--force`. |
-| `--pool <id>` | With `auto`, clear that pool's pin. With accounts, they must be that pool's; with `--session`, look for the session in that pool alone. See [Reading a pool](#reading-a-pool). |
+| `--pool <id>` | With `auto`, clear that pool's pin. With accounts, they must be that pool's; with `--session`, look for the session in that pool alone, and pin it, or clear its pin, there. See [Reading a pool](#reading-a-pool). |
 
 Name each account by its id, as `switchboard accounts` lists it; below, `b6s7` is work's and
 `q4tx` side's. `pin <account>...` sends every new session, and any other session whose account is
@@ -306,7 +310,7 @@ accounts.
 | `pin auto` | routed | stay where they are while their caches are warm and their accounts have room |
 | `pin auto --force` | routed | as `pin auto`, their own pins cleared |
 | `pin b6s7 --session 18bb978f` | unaffected | that session moves to work on its next request, and stays pinned there |
-| `pin auto --session 18bb978f` | unaffected | that session's own pin is cleared, and it's routed like any other |
+| `pin auto --session 18bb978f` | unaffected | that session's own pin is cleared, and it's routed like any other: in one pool, where it runs in two (see [Reading a pool](#reading-a-pool)) |
 
 Pins follow these rules:
 
@@ -440,7 +444,10 @@ in, and keeps it for its whole life, a resumed session getting the pool its dire
 (see [Pools](how-it-works.md#pools)):
 
 - **Which pool:** the fenced pool whose directories hold the directory, as it's given or as its
-  links lead, else the unfenced pool.
+  links lead, else the unfenced pool. In a git worktree, it's the pool of the same place in the
+  repository's main checkout, wherever the worktree lives, or, in a bare repository's worktree,
+  the pool where the bare repository lies; where the worktree itself lies in a fence, the two
+  must agree. A submodule or a clone checked out inside a worktree goes by the worktree.
 - **Routed,** Claude Code starts on the pool's primary's token, else on the first of the pool's
   accounts with a usable token. The router is told the pool in a header, and `SWITCHBOARD_POOL`
   holds its id, for the skill (see [What `claude` sets](reference.md#what-claude-sets)).
@@ -459,9 +466,10 @@ in, and keeps it for its whole life, a resumed session getting the pool its dire
   same)`. A pool whose accounts were all added since the router started has none it routes till it
   restarts.
 - **Never on Claude Code's own login inside a fence:** `--direct`, and starting without
-  switchboard, refuse inside a fenced pool's directories, as Claude Code's own login would go out
-  on whatever account it's signed into. Where the config can't be read, the fences come from the
-  config file, read for its pools alone, else from the running router.
+  switchboard, refuse inside a fenced pool's directories, and in a worktree of a repository inside
+  them, as Claude Code's own login would go out on whatever account it's signed into. Where the
+  config can't be read, the fences come from the config file, read for its pools alone, else from
+  the running router.
 
 With pools, `claude` starts nothing, exits with status 1, and says why on stderr, ending
 `— not starting claude`, where:
@@ -470,10 +478,13 @@ With pools, `claude` starts nothing, exits with status 1, and says why on stderr
 |---|---|---|
 | `no pool covers ~/Code/other` | Every pool is fenced, and none holds the directory. | Start it inside a pool's directories, or make a pool unfenced with [`pool edit --unfence`](#pool). |
 | `~/Code/both is in pools Acme and Client, as its links lead` | The directory, or where its links lead, is inside two pools' directories. | Start it where only one pool's directories hold it. |
+| `~/wt/x is in pool Acme, but in its repository it's at ~/Code/web, in pool Default` | The directory is in a git worktree inside one pool's fence, or, saying `lies in pool Acme, through the worktree ~/wt`, in one nested in a fenced repository's worktree, and the same place in its repository is in another pool, or in no fence, `in no pool` where every pool is fenced. | Make the worktree outside every fence, or inside the fence its repository is in. Where it ends `: add that bare repository to pool Acme's directories`, its repository is a bare one outside every fence: give [`pool edit --dirs`](#pool) the pool's directories and the bare repository's together, since `--dirs` replaces them: `switchboard pool edit q7mt --dirs ~/Code/acme --dirs ~/repos/app.git`. |
 | `can't tell which pool the directory claude starts in is in` | The directory it starts in can't be read, as when it's been removed, while a pool is fenced. | Start it in a directory that's there. |
+| `can't tell which pool ~/wt/x is in: its .git file at ~/wt/x leads to no repository that can be found` | The directory is in what may be a git worktree, at the place named, but its `.git` file can't be read, or names a git directory that's gone, as when its repository was moved or removed, or its git directory's `commondir` can't be read, while a pool is fenced: it may be a fenced repository's. A stale `.git` file so refuses every directory below it. | Repair it with `git worktree repair <worktree>`, run in its repository, or remove it. |
+| `can't tell which pool ~/wt/x is in: its worktree at ~/wt/x is a submodule's or a separate git directory's, which can't be placed` | The directory is in a submodule's worktree, or a separate git directory's, at the place named, while a pool is fenced: switchboard places neither, and it may be a fenced repository's. | Work in a checkout instead: the submodule's, or the separate git directory's. |
 | `pool Acme has no accounts` | The pool has none. | Add one with `accounts add <label> --pool <id>`, or move one there with `accounts edit <id> --pool <id>`. |
 | `pool Acme has no account with a usable token` | None of the pool's accounts has a token switchboard can use, and Claude Code's own login could go out on another pool's account. | Give one a token with [`accounts token`](#accounts). |
-| `~/Code/acme is in pool Acme, where claude never starts on its own login` | `--direct`, or a start without switchboard, inside a fence. | Start it through the router, or outside the pool's directories. |
+| `~/Code/acme is in pool Acme, where claude never starts on its own login` | `--direct`, or a start without switchboard, inside a fence, or, as `in its repository, ~/Code/acme-feature is at ~/Code/acme, in pool Acme, …`, in a worktree of a repository inside one. | Start it through the router, or outside the pool's directories and the worktrees of repositories in them. |
 | `can't tell which pool ~/Code/x is in: pool Acme's directory "…" can't be placed` | On Claude Code's own login, the config file writes a pool's directory that can't be placed, which may hold the directory. | Put the directory right in the config. |
 | `can't tell which pool ~/Code/x is in: neither the config, the router nor the accounts record names any pools` | Once the history has moved to pools, the config names none, nor does the router or the accounts record, so any directory may be in a fence. | Put the config's pools back, or see [Pools](troubleshooting.md#pools). |
 | `the router routes no account of pool Acme yet: any the config gives it waits for the router to restart` | The config names no pools, so the router's are taken, and it routes none of this pool's accounts yet. | `switchboard service restart`. |
@@ -496,7 +507,7 @@ Examples:
 
 ```bash
 claude                                             # routed
-claude --resume                                    # the session finds its account again
+claude --resume                                    # the session finds its account again, in its pool
 claude doctor                                      # a local subcommand: straight to Claude Code
 alias cxside='switchboard run --account q4tx --'   # a launcher pinned to side
 ```
@@ -976,8 +987,9 @@ The subcommands do the following:
   running in its directories keep the pool they started in, and its accounts, till they're
   resumed`.
   - It's fenced to the directories given, each an absolute path or one starting `~/`, covering
-    everything beneath it. Without any, it's the unfenced pool, which serves every session started
-    outside every fence.
+    everything beneath it, and every git worktree of a repository in them, wherever it lives (see
+    [Which pool a session is in](how-it-works.md#which-pool-a-session-is-in)). Without any, it's
+    the unfenced pool, which serves every session started outside every fence.
   - It's refused where its label is another pool's, ignoring case; where it would be a second
     unfenced pool, naming the one that is; and where its directories overlap another pool's, the
     same, inside or around them.
@@ -1245,7 +1257,7 @@ JSON instead.
 
 ```bash
 switchboard status [--json | --pretty] [--pool <id>] [--probe] [-r]
-switchboard status --session <id> [--json | --pretty]
+switchboard status --session <id> [--json | --pretty] [--pool <id>]
 ```
 
 | Flag | What it does |
@@ -1255,7 +1267,7 @@ switchboard status --session <id> [--json | --pretty]
 | `--pool <id>` | Show that pool's accounts, the text naming it first once there's a second pool. With `--session`, look for the session in that pool alone. See [Reading a pool](#reading-a-pool). |
 | `--probe` | Probe every account, even while the router runs. |
 | `-r`, `--refresh` | Have the router first read every account it may, as [`usage -r`](#usage) does, and wait for it, ten seconds at most. Without the router, or with `--probe`, every account is probed anyway. |
-| `--session <id>` | Print the label of the account the router sends that session's requests to: the one its last-used model went to, as a statusline asks. It does so on a terminal or off one. An account removed since is named by the label it had, saying when it was removed, and one nothing names by its id. It needs the router, and takes no `--probe` or `--refresh`. |
+| `--session <id>` | Print the label of the account the router sends that session's requests to: the one its last-used model went to, as a statusline asks, in one pool where a session resumed in another runs in two, the one `--pool` names, else the one it was routed in last. It does so on a terminal or off one. An account removed since is named by the label it had, saying when it was removed, and one nothing names by its id. It needs the router, and takes no `--probe` or `--refresh`. |
 
 `status` reads the router while it runs. Otherwise, it probes each account. When the `claude` a
 shell runs from `PATH` isn't switchboard, the first line says so.
@@ -1309,7 +1321,15 @@ switchboard status
 switchboard status --json | jq '.accounts[] | {id, windows}'
 switchboard status --json -r   # have the router read every account it may first, as after a reset made by hand
 switchboard status --session "$CLAUDE_CODE_SESSION_ID"   # inside a session: the label of the account it's on, such as Work
+switchboard status --session "$CLAUDE_CODE_SESSION_ID" --pool "$SWITCHBOARD_POOL"   # the same, in a config with pools
 ```
+
+In a config with pools, a statusline passes `--pool "$SWITCHBOARD_POOL"`, the session's own pool, as
+in the last example: a session resumed in another pool runs in both while the process it started as
+lives, and asked after by its id alone, it reads as the pool its latest request came from, so each
+process's statusline would show the other's account in turn. The flag costs the label no health
+check, as a statusline asking at every refresh mustn't pay one: a router from before pools passes
+the pool over and answers for the session by its id.
 
 ### `logs`
 
@@ -1864,12 +1884,13 @@ switchboard run [--account <id>] [--direct] [-- <claude args>]
 | Flag | What it does |
 |---|---|
 | `--account <id>` | Pin the session's conversation to account `<id>`, which must be configured, in the pool of the directory it starts in, and have a usable token. |
-| `--direct` | Start Claude Code on its own login, without the router or a token, for what needs the login. Not with `--account`, and not inside a fenced pool's directories. |
+| `--direct` | Start Claude Code on its own login, without the router or a token, for what needs the login. Not with `--account`, and not inside a fenced pool's directories, nor in a worktree of a repository inside them. |
 
 `--account` pins the session's conversation to an account while that account can take it. Claude
 Code's own token stays the primary's, or is `--account`'s while the primary's isn't usable. Without
 the router, going direct, Claude Code connects on `--account`'s token. With pools, the session is in
-the pool of the directory it starts in, and `run` refuses as [`claude`](#claude) says.
+the pool of the directory it starts in, or, in a git worktree, of its repository, and `run` refuses
+as [`claude`](#claude) says.
 
 Examples:
 

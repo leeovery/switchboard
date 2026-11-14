@@ -207,9 +207,11 @@ What a pool can refuse, and what to do about it. See [Pools](how-it-works.md#poo
 are.
 
 - **`claude` starts nothing in a directory:** it says why, ending `— not starting claude`: no pool
-  covers the directory, two pools' fences hold it through its links, the pool has no accounts, or
-  none of them has a usable token, or it's inside a fence and would start on Claude Code's own
-  login. Each is in [`claude`](commands.md#claude)'s table, with what to do.
+  covers the directory, two pools' fences hold it through its links, a git worktree lies in one
+  pool's fence and its repository in another pool, a worktree's repository can't be found, or
+  it's a submodule's or a separate git directory's worktree, the pool has no accounts, or none of
+  them has a usable token, or it's inside a fence and would start on Claude Code's own login.
+  Each is in [`claude`](commands.md#claude)'s table, with what to do.
 - **`the router doesn't route by the config's pools (…)`:** or `the router routes by other pools
   (…)`, where the pools come from the router or the accounts record. With two pools or more,
   `claude` counts a router down where its pools, their directories, accounts or primaries aren't
@@ -249,8 +251,9 @@ are.
   `○ probed · router started before pools`: the config has pools and the router reports none, as
   one from before pools still running after an upgrade, so its document and sessions are every
   account's, never a pool's: `status`, `usage` and the dashboard probe the pool's accounts instead,
-  `sessions` lists the ledger's alone, and `pin` and `status --session --pool` refuse. Run
-  `switchboard service restart`.
+  `sessions` lists the ledger's alone, and `pin` refuses. `status --session` reads the session as
+  ever, its label with `--pool` or without and its JSON without `--pool`, refusing its JSON in a
+  pool alone. Run `switchboard service restart`.
 - **The dashboard says `couldn't read usage: every pool is fenced: …`:** with every pool fenced,
   there's no pool for it to show without being told. Press `P` to turn to the first, or open it on
   one with `switchboard dashboard --pool <id>`. To open on one without naming it, leave one pool

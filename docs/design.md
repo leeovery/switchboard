@@ -208,20 +208,21 @@ lost (see Choosing an account).
    restart: as it starts, the router takes them up, baselines included, from its readings history,
    which holds each change of a window's use (see Files), but for a window that has reset since.
 4. **New session:** the best candidate is assigned, keyed on the session id Claude Code sends
-   (`x-claude-code-session-id`) and the model, and remembered as it's chosen, then forgotten unless
-   the request is answered with success. Caches are per model anyway, so a session's Haiku calls can
-   sit on a different account from its Opus calls at no cache cost. The id survives `--resume`, so a
-   resumed session finds its account again. A new session's request that ends otherwise, in a 429, a
-   refusal, another error or its client gone, leaves nothing remembered, unless another request of
-   the session has been routed since, whose account stands: the quota check `--resume` sends as it
-   starts goes under an id it never uses again, and refused, as on Claude Opus 5.5 today (step 7),
-   would otherwise be kept, and listed among the sessions, for a week. A request the router knows
-   for that quota check, `max_tokens` 1 and one message whose content is `quota`, is never
-   remembered, whatever its answer: on Claude Haiku it's answered with success, and would otherwise
-   claim the session's first account, and keep a `--resume` check's throwaway id for a week. A
-   session already remembered keeps its account whatever its requests end in, but for a request
-   every account it went out on refused, which leaves the session where it was before (see Requests
-   that need special handling).
+   (`x-claude-code-session-id`), its pool and the model, and remembered as it's chosen, then
+   forgotten unless the request is answered with success. Caches are per model anyway, so a
+   session's Haiku calls can sit on a different account from its Opus calls at no cache cost. The id
+   survives `--resume`, so a session resumed in its pool finds its account again, and one resumed in
+   another pool is new there (see Routing within a pool). A new session's request that ends
+   otherwise, in a 429, a refusal, another error or its client gone, leaves nothing remembered,
+   unless another request of the session has been routed since, whose account stands: the quota
+   check `--resume` sends as it starts goes under an id it never uses again, and refused, as on
+   Claude Opus 5.5 today (step 7), would otherwise be kept, and listed among the sessions, for a
+   week. A request the router knows for that quota check, `max_tokens` 1 and one message whose
+   content is `quota`, is never remembered, whatever its answer: on Claude Haiku it's answered with
+   success, and would otherwise claim the session's first account, and keep a `--resume` check's
+   throwaway id for a week. A session already remembered keeps its account whatever its requests end
+   in, but for a request every account it went out on refused, which leaves the session where it was
+   before (see Requests that need special handling).
 5. **Sticky:** the session stays on that account. It is only re-scored when:
    - it has been idle for more than an hour, the cache TTL, by the wall clock, which runs on while
      the Mac sleeps, so its cache is cold and a move costs nothing. Re-scoring prefers its own
@@ -361,8 +362,8 @@ guard holds its list to the code's (the owner's call, 10 November 2026).
 | `pin <id>... --move --force` | Every session, their own pins included, which it clears: its pool's sessions alone, where there are several pools | Those on an account not given move on their next request |
 | `pin auto` | Back to routing (`auto` in any case) | Stay where they are while their caches are warm and their accounts have room |
 | `pin auto --force` | Back to routing, every session's own pin cleared too: its pool's sessions' alone, where there are several pools | As `pin auto` |
-| `pin <id> --session <session>` | That one session, to one account, its own pin from now on, replacing any it had | Moves on its next request |
-| `pin auto --session <session>` | That one session's own pin cleared | Routed like any other from its next request |
+| `pin <id> --session <session>` | That one session, to one account, its own pin from now on, replacing any it had: in one pool, where it runs in several (see Pinning in a pool) | Moves on its next request |
+| `pin auto --session <session>` | That one session's own pin cleared: in one pool, where it runs in several | Routed like any other from its next request |
 
 Where the table has a running session stay while its cache is warm, one on a model whose thinking
 is bound to its account stays while the account has room, however long it idles: see Choosing an
@@ -381,14 +382,15 @@ status line names after `new sessions →`, is where a new session goes, the pin
 one on an account it names stays.
 
 A per-session pin beats a global pin. The pin `run --account` sets reaches the proxy as a request
-header the launcher sets through `ANTHROPIC_CUSTOM_HEADERS`. A pin set with `--session` outranks
-it: the router remembers the new pin in `state.json`, with the session's assignments, and passes
-over the launch pin's header from then on, as it does once `pin auto --session` has cleared the
-session's pin. It holds as long as the router remembers the session, so a session resumed with
-`--resume` keeps it. A session is named by its id, or as much of it as is unique among the
-sessions routed in the last hour: `status` lists them with their ids, Claude Code's `/status`
-shows a session's own, and inside a session, `$CLAUDE_CODE_SESSION_ID` holds it; one idle for
-longer is named by its whole id. `--session` pins one session alone, to one account, so it takes
+header the launcher sets through `ANTHROPIC_CUSTOM_HEADERS`. A pin set with `--session` outranks it:
+the router remembers the new pin in `state.json`, with the session's assignments, each by its pool,
+and passes over the launch pin's header from then on, as it does once `pin auto --session` has
+cleared the session's pin. It holds as long as the router remembers the session in its pool, so a
+session resumed with `--resume` in that pool keeps it; resumed in another, it has none there, as a
+pin is a pool's (see Pinning in a pool). A session is named by its id, or as much of it as is unique
+among the sessions routed in the last hour: `status` lists them with their ids, Claude Code's
+`/status` shows a session's own, and inside a session, `$CLAUDE_CODE_SESSION_ID` holds it; one idle
+for longer is named by its whole id. `--session` pins one session alone, to one account, so it takes
 neither `--move` nor `--force`, nor more than one account.
 
 `--force` clears every session's own pin, launch pins included, which the router passes over from
@@ -636,8 +638,62 @@ pool for its whole life:
 - **The start directory decides.** A session started in `~/Code` that later works in `~/Code/acme`
   stays in the unfenced pool, as Claude Code itself files a session by the directory it started in.
   A resumed session is started afresh, so it gets the pool its directory is in now, if any.
-- A git worktree made outside a pool's directories is outside the pool. Claude Code's own worktrees,
-  under the project's `.claude/worktrees`, stay inside it.
+- **A linked git worktree is in its repository's pool,** wherever it lives (the owner's call, 14
+  November 2026), so `git worktree add ../acme-feature`, run in a fenced `~/Code/acme`, makes a
+  worktree that's still Acme's. `run` maps the start directory onto the repository's main
+  checkout, the same path below the main checkout as below the worktree's root, and the mapped
+  directory's pool comes from the rule above, links resolved both sides; so a fence on a
+  repository's subfolder holds that subfolder in every worktree of it too. The main checkout is
+  found from the worktree's `.git` file and its git directory's `commondir`, running no git, each
+  path read as git reads it: one written relative, as git writes every submodule's `.git`, from
+  the real path of the directory holding it, every link resolved.
+  - **Every `.git` up from the start directory is read,** to the filesystem's root, not the
+    nearest alone, so what has a `.git` of its own inside a worktree, a submodule checked out in
+    it, a clone nested in it, or another repository's worktree, is placed by the worktree around
+    it too. A `.git` that isn't a linked worktree's, a main checkout's directory, or a file whose
+    git directory has no `commondir`, as a submodule's or a separate git directory's checkout, is
+    passed over. Within several, the nearest is the start directory's repository, and its places
+    in the repositories of those around it count as where it lies, so a worktree nested in a
+    fenced repository's worktree is placed as it would be nested in the main checkout, and the
+    refusal names the worktree it lies in a fence through: `~/wt/x/web lies in pool Acme, through
+    the worktree ~/wt/x, but …`.
+  - **What changes outside every linked worktree:** a main checkout, and a submodule or a clone
+    in one, are placed by the rule above alone, as before. But while a pool is fenced, wherever a
+    `.git` up from the start directory leads to no repository that can be found, as one left in a
+    home folder whose git directory has gone, everything below it refuses, as described below.
+  - **A bare repository's worktree** is in the pool where the bare repository lies, its own
+    directory standing for every place in the worktree, so a bare clone's worktrees, made beside
+    it in `.bare` or anywhere else, are its pool's. A repository is bare where its common
+    directory, not named `.git`, sets `bare = true` under `[core]` as git reads it: in its config,
+    or, where that turns on `extensions.worktreeConfig`, in its `config.worktree`, where git's
+    sparse checkout moves it, the later file winning and the last setting in each; it isn't where
+    either file, being there, can't be read, or runs past 1 MiB, rather than read in part. A bare
+    repository outside every fence with worktrees inside one refuses them, by the rule below;
+    where the start directory itself lies in that one fence, it says how to start there: `…, but
+    in its repository it's at ~/repos/app.git, in pool Default: add that bare repository to pool
+    Client's directories`, mended by giving `pool edit` the pool's directories and the bare
+    repository's together, since `--dirs` replaces them, as
+    `switchboard pool edit r2d4 --dirs ~/Code/client --dirs ~/repos/app.git`.
+  - Where the start directory itself and its place in its repository both have a pool, the
+    unfenced pool counting as no fence, they must agree. A worktree outside every fence is in its
+    repository's pool, and Claude Code's own worktrees, under the repository's `.claude/worktrees`,
+    are inside its fence both ways. A worktree inside one fence of a repository in another, or
+    inside a fence of a repository outside every fence, is refused, naming both, as the owner chose
+    to refuse these rather than guess: `switchboard: ~/wt/x is in pool Acme, but in its repository
+    it's at ~/Code/web, in pool Default — not starting claude`, or `in no pool` where every pool
+    is fenced. Where the start directory as given and with its links resolved are in different
+    worktrees, it names the place whose fence decides.
+  - **Where a linked worktree around the start directory can't be placed,** as given or with its
+    links resolved, and a pool is fenced, `run` refuses, as for a start directory that can't be
+    read, as it may be a fenced repository's worktree. It says which of two it is, and where:
+    - its repository can't be found: its `.git` can't be read, or names a git directory that's
+      gone, or its git directory's `commondir` can't be read, is empty or names no directory:
+      `can't tell which pool ~/wt/x is in: its .git file at ~/wt/x leads to no repository that can
+      be found`, mended with `git worktree repair`;
+    - it's a submodule's or a separate git directory's worktree: its common directory, not named
+      `.git`, is of a repository that isn't bare: `can't tell which pool ~/wt/x is in: its
+      worktree at ~/wt/x is a submodule's or a separate git directory's, which can't be placed`,
+      worked in from the submodule's or the separate git directory's checkout instead.
 
 ### Launching in a pool
 
@@ -689,10 +745,13 @@ pool for its whole life:
   the config read, a config with pools goes as with the router down, direct on the pool's tokens
   or stopped, and refuses where none is usable, rather than start unaided, but for a config of one
   pool, unfenced, as above.
-- **Never on Claude Code's own login inside a fence.** A start directory inside a pool's directories
-  refuses rather than start unaided, and so does `--direct`, as both would go out on whatever
+- **Never on Claude Code's own login inside a fence.** A start directory inside a pool's
+  directories, or in a worktree of a repository inside them, as Which pool a session is in places
+  it, refuses rather than start unaided, and so does `--direct`, as both would go out on whatever
   account Claude Code is signed into: `switchboard: ~/Code/acme is in pool Acme, where claude never
-  starts on its own login — not starting claude`. Claude Code's local subcommands, which look after
+  starts on its own login — not starting claude`, and from a worktree outside the fence, `in its
+  repository, ~/Code/acme-feature is at ~/Code/acme, in pool Acme, where claude never starts on
+  its own login`. Claude Code's local subcommands, which look after
   Claude Code rather than run a session, start on its own login wherever they're asked for. Where a
   pool is fenced, an unaided start within a session passes the session's routing on only where the
   session's pool, as its `SWITCHBOARD_POOL` names it, is the start directory's, else it drops the
@@ -732,6 +791,11 @@ pool for its whole life:
   pool's pin, stickiness, pressure, compaction moves, replays after a limit or a refusal, and the
   429 switchboard answers itself all stay inside the pool. Its probes before a choice read only the
   pool's accounts.
+- **A session's work is each pool's own.** The router remembers a session's assignments, and its own
+  pin, by the pool its requests are in. A session resumed in another pool's directories, while the
+  process it started as may run on in the first, is new in the second: chosen for as any new session
+  there, with no account it moved from, and its assignment in the first pool stands, sticky, for
+  that process. So each pool's ledger lines, summaries and sessions name its own accounts alone.
 - **No fallback leaves the pool.** When no account has room, a request goes where step 5 of Choosing
   an account says, among the pool's accounts alone. Where that leaves none, switchboard answers 429
   itself, as it does for an account held back by its reserve alone, the limit's usage headers set
@@ -795,8 +859,12 @@ pool for its whole life:
   pool Acme's sessions cleared too`, and the event's card as `own pins: pool Acme's sessions'
   cleared`; else every session's, as before pools.
 - **A session's own pin**, from `pin --session` or `run --account`, must name an account in the
-  session's pool. One naming another pool's account is refused: `Acme 1 (k3f9) is in pool Acme;
-  this session is in pool Default`.
+  session's pool. One naming another pool's account is refused: `Acme 1 (k3f9) is in pool Acme; this
+  session is in pool Default`. A session with work in two pools has an own pin in each, and a pin by
+  its id acts in one: the pool `--pool` names; else, for a pin to an account, the account's pool,
+  where the session runs there, routed within the hour; else the pool it was routed in last, where
+  an account of another pool is refused. `pin auto --session` without `--pool` clears its pin in the
+  pool it was routed in last alone.
 - **Pins follow the pools,** as the router takes a change to them up, kept by the table it routes
   by: an account that leaves a pool leaves its pin, a pin of a pool that's gone is dropped, and a
   pin from before pools, naming none, is once the move to pools is done the pin of the pool its
@@ -955,12 +1023,14 @@ totals.
 - **The router answers for one pool at a time:** its status document, history, sessions and request
   stream each take `?pool=<id>`, as do a refresh and the clearing of a pool's pin. Without it, they
   answer for the pool the verbs act on, below, and where there's none, or the pool named isn't
-  configured, the router refuses, a 400 naming the pools to name one of, `{error, pools, named}`.
-  Each pool's document has its own accounts, best next account, primary, pin, room, sessions and
-  demand, and names its pool as `pool_id` and `pool_label`, as its `pool` is its room (see The
-  status document). The router's health, restarts, export and events that aren't a pool's are
-  shared by every pool's. Everything that reads a document reads it as it does today. In a config
-  without pools, each answers for every account, as before.
+  configured, the router refuses, a 400 naming the pools to name one of, `{error, pools, named}`. A
+  session asked after or pinned by its id takes `?pool=<id>` too, and without it is read in the pool
+  it was routed in last, a pin acting as Pinning in a pool says. Each pool's document has its own
+  accounts, best next account, primary, pin, room, sessions and demand, and names its pool as
+  `pool_id` and `pool_label`, as its `pool` is its room (see The status document). The router's
+  health, restarts, export and events that aren't a pool's are shared by every pool's. Everything
+  that reads a document reads it as it does today. In a config without pools, each answers for every
+  account, as before.
 - **Verbs** that read or act on a pool take `--pool <id>`: `status`, `usage`, `sessions`,
   `requests`, `history`, `events`, `dashboard` and `pin`. Without the flag, they act on the
   only pool, where there's one, else the unfenced pool. Where every pool is fenced, they ask for
@@ -971,7 +1041,8 @@ totals.
   over in a config without pools; and a verb given a session or accounts, `status --session`,
   `sessions <id>`, `pin <id>...`, `pin --session`, and `requests --session` or `--account`, finds
   them in whatever pool they're in, and with `--pool` beside, in that pool alone, a pin of
-  accounts outside it refused. A pool needed is asked for as `every pool is fenced: name a pool,
+  accounts outside it refused, and `pin --session` setting or clearing the session's own pin
+  there (see Pinning in a pool). A pool needed is asked for as `every pool is fenced: name a pool,
   q7mt (Acme) or r2d4 (Client), with --pool`. Once a second pool exists, the text of `status`,
   `usage`, `history`, `requests`, `sessions` and `events` names the pool it reads, as `pool Acme`.
   A verb takes the pools as `run` does (`launch.PoolsOf`), probing included: a config naming no
@@ -1031,16 +1102,17 @@ totals.
   dashboard probe the pool's accounts, saying `the router doesn't route by pools yet, as it started
   before them: restart it with switchboard service restart`, the dashboard `○ probed · router
   started before pools` and, in LATELY, `the router started before pools: restart it`; `sessions`
-  lists the ledger's alone, as of a router that can't be asked, saying so; and `pin` and
-  `status --session --pool` refuse in those words, asking it nothing, the dashboard's `p` and its
-  card's orders in LATELY's, short enough for a phone's key line.
-  `status --session` without `--pool` asks no health and reads the session as ever, a session asked
-  by its id being what it is on any router, so a statusline asking at every refresh pays nothing
-  for the check. It answers all the same, so the dashboard leaves the notifications to it, as
-  while probing as asked. Where the config has no pools before the move to pools, or can't be
-  read, the router is read as before, there being no pools to tell it by; once the move is done, a
-  config naming no pools has its pools as they stand, from the accounts record, as
-  `launch.PoolsOf` gives them, so such a router is read as above.
+  lists the ledger's alone, as of a router that can't be asked, saying so; and `pin` refuses in
+  those words, asking it nothing, the dashboard's `p` and its card's orders in LATELY's, short
+  enough for a phone's key line. `status --session` asks no health and reads the session as ever,
+  its label with `--pool` or without and its JSON without `--pool`, as such a router passes the pool
+  over and a session asked by its id is what it is on any router, refusing its JSON in a pool alone,
+  in those words: so a statusline asking at every refresh pays nothing for the check, nor a pooled
+  one passing `--pool` (see The data verbs). It answers all the same, so the dashboard leaves the
+  notifications to it, as while probing as asked. Where the config has no pools before the move to
+  pools, or can't be read, the router is read as before, there being no pools to tell it by; once
+  the move is done, a config naming no pools has its pools as they stand, from the accounts record,
+  as `launch.PoolsOf` gives them, so such a router is read as above.
 - **Managing pools:** `pool` lists the pools, with their directories, accounts and primaries. `pool
   add <label> [<dir>...]` makes one, switchboard making its id, as `accounts add <label>` makes an
   account's, fenced to the directories given, or unfenced without any; `pool edit <id>` changes its
@@ -1322,7 +1394,8 @@ Accepted as the second phase was built, each failing safe, with nothing crossing
   fixed for its process.
 - **A running session resumed in another pool,** read by a verb without `--pool`, reads its old
   pool's work till its first request in the new one, as its pool now is the one its newest line
-  recorded, though the router already lists it running in the new one (see Reading a pool).
+  recorded; the router lists it in each pool it runs in, on that pool's account, and asked after by
+  its id alone, in the one it was routed in last (see Routing within a pool and Reading a pool).
 - **An accounts record that can't be read** is warned of at each turn, once for each read of it:
   the accounts removed, the pools removed and the first pool are each read of it afresh.
 - **Downgrading to v0.7.2:**
@@ -2859,7 +2932,7 @@ argument Claude Code's own, so `claude --help` is Claude Code's (see Launching).
 | `accounts token <id> [--paste]` | Replace an account's token, making it with `claude setup-token` at a terminal, or taking one pasted or on stdin: see Accounts and tokens |
 | `accounts remove <id>` | Remove an account, and its token file, the accounts record keeping it, removed, with its label |
 | `setup` | Walk through setting up, or what's left of it: see Setup |
-| `status [--session <id>] [--json \| --pretty] [--probe] [--refresh]` | Accounts, windows, sessions, pin, what holds an account back, reserves, pressure, the priming schedule, and router health, read as `usage` reads them, and from the router, the sessions it has routed in the last hour: a line each, with its id cut short, the account each of its models goes to, its own pin, and when it was last seen. When the `claude` a shell runs from `PATH` isn't switchboard, so the sessions it starts don't go through the router, the first line says so, pointing to `setup`. Its JSON is the status document, which is what an agent reads (see The data verbs). `-r`, `--refresh` has the router first read every account it may, as `usage --refresh` does. `--session` prints one line, on a terminal or off one, as a statusline asks: the label of the account the router sends a session's requests to, the one its last-used model went to, as the verbs' text names it (one removed by the label it had, saying when, and one nothing names by its id); or with `--json`, `/sessions/{id}`'s answer. `<id>` is the session's id, or as much of it as is unique among those sessions, as `pin --session` takes it, and it needs the router, taking neither `--probe` nor `--refresh` |
+| `status [--session <id>] [--json \| --pretty] [--pool <id>] [--probe] [--refresh]` | Accounts, windows, sessions, pin, what holds an account back, reserves, pressure, the priming schedule, and router health, read as `usage` reads them, and from the router, the sessions it has routed in the last hour: a line each, with its id cut short, the account each of its models goes to, its own pin, and when it was last seen. When the `claude` a shell runs from `PATH` isn't switchboard, so the sessions it starts don't go through the router, the first line says so, pointing to `setup`. Its JSON is the status document, which is what an agent reads (see The data verbs). `-r`, `--refresh` has the router first read every account it may, as `usage --refresh` does. `--session` prints one line, on a terminal or off one, as a statusline asks: the label of the account the router sends a session's requests to, the one its last-used model went to, in one pool where a session resumed in another runs in two, the one `--pool` names, else the one it was routed in last, as the verbs' text names it (one removed by the label it had, saying when, and one nothing names by its id); or with `--json`, `/sessions/{id}`'s answer. `<id>` is the session's id, or as much of it as is unique among those sessions, as `pin --session` takes it, and it needs the router, taking neither `--probe` nor `--refresh` |
 | `usage [--5h] [--week] [--<model>] [--by window\|account] [--probe] [--refresh] [--json \| --pretty]` | Every account's windows as they stand, printed once into the scrollback with the time they were read, to hold against one printed earlier: see `usage`, the printout. `--by` lays them out by window, each window's rows together, or by account, each account's windows together, over `[usage] by` (see Config); by window where neither says. `--5h`, `--week`, and a flag for each model's own window, named for its model, as `--fable` is for Fable's week, print the windows given alone, with the header and the key line. Its JSON is the status document, as `status --json` prints it, read as its flags say (see The data verbs). It reads the router while it answers; `--probe` probes instead. `-r`, `--refresh` has the router first read every account it may, as the dashboard's `R` does, and waits for it, ten seconds at most; without the router, or with `--probe`, every account is probed anyway |
 | `dashboard [interval] [--no-notify] [--probe]` | The dashboard, full screen until `q`: see Dashboard. It needs a terminal, and refuses without one. It reads the router while it answers, which reads idle accounts itself, on its rounds, and `R` has it read them at once (see Live updates). Without the router, or with `--probe`, it probes every account instead, each interval: 30m unless given, 5m at the least, as a duration, such as `15m`, or a number of minutes. `--no-notify` has it post none of the notifications it posts while it probes without the router (see Notifications) |
 | `requests [--session <id>] [--account <id>] [--since <when>] [--json \| --pretty]` | The request ledger's lines (see The request ledger): today's, unless `--since` reaches further back, oldest first, under the day each arrived on, a line each with the time, the session's id cut short, the model, the account, the status, `canceled`, `cut off` or `broken off` after it where its line says so, the tokens in and out, and how long the request took. `--session` keeps a session's own, by its id or as much of it as is unique among the sessions read, failing, listing them, for as much as starts several; `--account` keeps an account's own, by its id in any case, refusing a label, the refusal naming the id of each account it labels, configured or removed; `--since` starts at a day (`2026-10-01`), a time today (`14:00`), as the clocks first read it that day, so `00:00` is the day's first instant, or a duration ago (`3h`, `2d`, a day being 24 hours), and one still to come is refused. Its JSON is each line as the ledger holds it with `"schema": 1` put first, a JSON object a line, fields a later release added included (see The data verbs). It reads the ledger's files, so it needs no router |
@@ -2922,8 +2995,11 @@ what switchboard knows of one thing, in a form for a person to read or for an ag
   columns (settled in the plan).
 - **`status --session` keeps its bare label:** the label of the account the router sends the
   session's requests to, as the verbs' text names it, on a terminal or off one, as a statusline
-  reads it; with `--json`, `/sessions/{id}`'s answer, the account by its id. It printed the id
-  until account identity made ids switchboard's own, which mean nothing on a status line.
+  reads it; with `--json`, `/sessions/{id}`'s answer, the account by its id. Of a session resumed in
+  another pool, which runs in two, each is of one pool: the one `--pool` names, else the one it was
+  routed in last, so a statusline in a config with pools passes `--pool "$SWITCHBOARD_POOL"`. It
+  printed the id until account identity made ids switchboard's own, which mean nothing on a status
+  line.
 - **The person's form:** `usage`'s printout (see `usage`, the printout); `status`'s text; and, in
   plain text, first cuts to be designed with their owner (see Backlog): `requests` and `events`, a
   line each; `sessions`, a line each and one summing them; `history`, its days' tables and the
@@ -10245,7 +10321,12 @@ hiding it behind the provider would take a wider interface than it's worth:
   ignoring the fields, takes them all for, one without `windows_absent` as accounts that have every
   window they report, one without `hold`, or with one of a shape it doesn't know, as a curve of no
   answers, a reading that holds nothing else as none, and a pin that names its account alone, as
-  pins did before they named several, as a pin to that one. It's rewritten whole (written beside it,
+  pins did before they named several, as a pin to that one, a session's assignment without a pool as
+  the first pool's, and its own pin without one as the pin in the pool it was routed in last, the
+  first pool for a file from before pools, while a router from before reads of a session the
+  assignment of each model used last, and its own pin in `session_pins`, the one in the pool it was
+  routed in last, passing over those kept apart in `session_pins_apart`, as it passes over any field
+  it doesn't know. It's rewritten whole (written beside it,
   synced, and renamed over it) a second after a change and on the way out, but once a minute at most
   while its only changes are routine: those every request makes, its session's assignment used
   again, the reading off its answer and the answer in the hold curve, and those every probe makes,
@@ -10592,10 +10673,10 @@ HTTP over `control.sock` (mode 0600, so file permissions are the authentication)
 | Endpoint | Job |
 |---|---|
 | `GET /health` | `{ok, reason, listen, version, pid, started_at, strips_own_headers, reports_pools, pools, moving, restart}`: the router is alive, and `ok` is its health, the judgment the status document's `router.healthy` gives, `false` while it's unhealthy, with a `reason` (see Health). `listen` is the address its proxy listens on. `strips_own_headers`, `true`, says it takes every `X-Switchboard-…` header off a request going upstream (see Proxy rules); a router from before leaves it out. `run` sends sessions to a router that gives `listen`, `ok` or not, and tells the directory a session starts in only to one that says `strips_own_headers`; `usage`, `status` and `dashboard` read the document of any router that answers at all. `reports_pools`, `true`, says it reports the pools it routes for, as `pools`, a router from before leaving both out: in the config's order, each `{id, label, dirs, written_dirs, accounts, primary}`, `dirs` its directories absolute and clean and `written_dirs` as the config writes them, both left out for the unfenced pool, `accounts` the ids of those of its accounts the router has, one the config added since it started left out, and `primary` its primary among them, left out where it has none; `pools` is left out in a config without pools, and by a router that routes nothing, as one that can't tell the pools, which answers `ok` `false`. `run` compares them with the config's (see Launching in a pool). `moving` is how the moves of the history stand, as the status document's `moving`, given here as it's no pool's. `restart` is the restart it has due, as the status document's `restart`, left out where none is, given here for a pool it can't give a document of, as one added since it started, which waits on that restart: the dashboard says it on such a pool's status line |
-| `GET /status` | The status document, as `status --json` prints it but for the `"schema": 1` the verbs put first: see below. It, `GET /sessions`, `GET /history`, `GET /stream`, `POST /refresh` and `DELETE /pin` take `?pool=<id>`, and answer for that pool, else the one the verbs act on, refusing with a 400 `{error, pools, named}` where there's none, or the pool named isn't configured (see Reading a pool); `POST /pin` takes its pool from the accounts it names. Each stream event names its request's `pool`, where there are pools |
-| `GET /sessions/{id}` | For statuslines and the dashboard: `{"session": "<id>", "pin": "<id>", "assignments": [{model, family, account, auto, dir, in_flight, pinned, yielded, pinned_at, reason, assigned_at, last_seen}], "account": {…}}`. `pin` is the session's own pin, left out when it has none: the one `pin --session` gave it, else the one `run --account` did, as its requests last carried it. `assignments` are the session's, a model each, the one used last first, each naming its model's family, such as `opus`, and its account by id; `auto`, the account auto would send the model's next request to, by id, as the routing card names it on its `auto` line (see Routing by hand): where the router's own rule sends a request with the session's own pin passed over and the global pin counting, on what the router knows, probing none (see Choosing an account), and left out where no account has room for the request; `dir`, the directory the session's last request of the model named, as the request ledger keeps it, the home as `~` and cut as a line's is (see The request ledger), kept with the assignment in `state.json`, and left out where none has named one; `in_flight`, what a request of its model in flight is doing, as the request stream tells of it: `answering` while an answer streams to one, else `asking` while one waits for its answer's first byte, and left out while none is in flight, so one read says what each running session is doing, as the request stream's first events don't say when they're all in; `yielded` set while the session's own pin has yielded, the account it names having had no room for a request of it, and it stays where it went; and `pinned_at` when it was given its own pin as it ran, left out for the one it was launched with, and while it has none. `account` at the top is the whole status of the account the last used went to, as the document gives it. 404 for a session never seen |
+| `GET /status` | The status document, as `status --json` prints it but for the `"schema": 1` the verbs put first: see below. It, `GET /sessions`, `GET /history`, `GET /stream`, `POST /refresh` and `DELETE /pin` take `?pool=<id>`, and answer for that pool, else the one the verbs act on, refusing with a 400 `{error, pools, named}` where there's none, or the pool named isn't configured (see Reading a pool); `POST /pin` takes its pool from the accounts it names; and `GET /sessions/{id}` and a session's pin take `?pool=<id>` as they say. Each stream event names its request's `pool`, where there are pools |
+| `GET /sessions/{id}` | For statuslines and the dashboard: `{"session": "<id>", "pin": "<id>", "assignments": [{model, family, account, auto, dir, in_flight, pinned, yielded, pinned_at, reason, assigned_at, last_seen}], "account": {…}}`. `pin` is the session's own pin, left out when it has none: the one `pin --session` gave it, else the one `run --account` did, as its requests last carried it. `assignments` are the session's, a model each, the one used last first, each naming its model's family, such as `opus`, and its account by id; `auto`, the account auto would send the model's next request to, by id, as the routing card names it on its `auto` line (see Routing by hand): where the router's own rule sends a request with the session's own pin passed over and the global pin counting, on what the router knows, probing none (see Choosing an account), and left out where no account has room for the request; `dir`, the directory the session's last request of the model named, as the request ledger keeps it, the home as `~` and cut as a line's is (see The request ledger), kept with the assignment in `state.json`, and left out where none has named one; `in_flight`, what a request of its model in flight is doing, as the request stream tells of it: `answering` while an answer streams to one, else `asking` while one waits for its answer's first byte, and left out while none is in flight, so one read says what each running session is doing, as the request stream's first events don't say when they're all in; `yielded` set while the session's own pin has yielded, the account it names having had no room for a request of it, and it stays where it went; and `pinned_at` when it was given its own pin as it ran, left out for the one it was launched with, and while it has none. `account` at the top is the whole status of the account the last used went to, as the document gives it. With `?pool=<id>`, it answers for the session in that pool, a 404 where it was never seen there; without, for the pool it was routed in last, as a session resumed in another pool has work in each. 404 for a session never seen |
 | `GET /sessions` | The sessions routed in the last hour, the one seen last first, each as `/sessions/{id}` gives it but for `account`. `status` lists them, and `pin --session` and `status --session` find a session from part of its id here |
-| `POST /sessions/{id}/pin`, `DELETE /sessions/{id}/pin` | Set (`{"account": "work", "by": "dashboard"}`) or clear (`?by=dashboard`) one session's own pin, answering as `/sessions/{id}` does. `by`, `cli` or `dashboard`, says who did, for the `pin` or `auto` event it's told as (see The router's events); without it, the event names no one, and a router from before passes it over. 404 for a session never seen; pinning to an account nothing can go out on is a 400 |
+| `POST /sessions/{id}/pin`, `DELETE /sessions/{id}/pin` | Set (`{"account": "work", "by": "dashboard"}`) or clear (`?by=dashboard`) one session's own pin, answering as `/sessions/{id}` does. `by`, `cli` or `dashboard`, says who did, for the `pin` or `auto` event it's told as (see The router's events); without it, the event names no one, and a router from before passes it over. Each acts in one pool: the one `?pool=<id>` names, a 404 for a session never seen there; else, for a pin, the account's pool, where the session runs there, routed within the hour; else the pool the session was routed in last, where a pin to an account outside it is a 400 (see Pinning in a pool). 404 for a session never seen; pinning to an account nothing can go out on is a 400 |
 | `POST /pin`, `DELETE /pin` | Set (`{"accounts": ["work", "side"], "move": false, "force": false, "by": "cli"}`) or clear (`?by=cli`, with `&force=true` to clear every session's own pin too) the global pin, answering with the status document. `account`, naming one account, is taken as well, as a switchboard from before pins named several sends it, and sent beside `accounts` with a pin of one account, as such a router reads a pin, one still running between an upgrade and its restart. `by`, `cli` or `dashboard`, says who did, for the `pin` or `auto` event it's told as (see The router's events); without it, the event names no one, and a router from before passes it over. Pinning no account, or any account nothing can go out on, is a 400, saying why (see Pinning), and pins nothing |
 | `GET /history?window=<key>&step=<duration>` | Every account's use of a window over its current length, from the readings history and the readings since: `{"window": "7d", "step": "30m", "accounts": [{"id": "work", "start": …, "points": [{at, utilization}]}]}`, `start` when the account's window started, its reset less its length, or its `restarted_at`, and a point each step from it to now, at most 1,000, each the last reading at or before it, left out where none was; an account whose window isn't running, or wasn't read, has no points, and one whose window has reset since it was read has no `start` either. A window whose length can't be read, or a step that isn't a duration, isn't more than 0, or would take more than 1,000 steps over the window's whole length, is a 400, saying what to give, the least step included. The dashboard's charts ask for `5h` at 5-minute steps and the weeks at 30-minute steps, with each full read |
 | `GET /stream` | The requests as they happen, for the dashboard's views of what's in flight: the Overview's ROUTING and SESSIONS, Accounts' Detail, Sessions, the Log and a session's page. Held open, `application/x-ndjson`, a line of JSON an event, every one `{at, kind, request, attempt, session, dir, model, account, prompt, class, agent_id}` and what its kind adds, `request` the router's id for the request, counting up from a random start, and unique while it runs, `attempt` which time it went upstream, `session` and `model` cut to 200 bytes, `dir` the directory the request's session was started in, as its line in the ledger will give it, the home as `~` and cut as a line's is (see The request ledger), left out where the request names none, `account` the account it goes out on, or, of `first` and `done`, the one whose answer the client got, and `prompt`, `class` and `agent_id` as its line in the ledger will give them, each left out where the request carries none, so a session's page counts a request into its turn as it's sent (see A session's page). It opens with an `inflight` for each request already in flight, adding `sent_at`, `first_at` and `chars`, and `verdict`, the last of `limited`, `throttled` or `refused` told of it on the account it went out on last, with that answer's `status`; then `sent` as one goes upstream; `first` at its answer's first byte; `progress`, with `chars`, the characters of its text, thinking and tool input so far, a quarter second after its answer streams more, then every quarter second while it does, as the API counts tokens only as an answer ends; `done` as it ends, told before the router has finished with the request, with `status`, its final `chars`, `tokens`, the closing usage's counts, `{input, output, cache_read, cache_write}`, left out without one, and `broken: true` where the upstream broke its answer off after it began, as its line in the ledger will give it; `limited`, a 429 at a limit, `throttled`, a 429 sent again on the account, and `refused`, a 401 or 403, each with `status`; and `moved`, with `from`, `to` and `reason`, its `account` the `to`, which a request every account refused tells as it takes its session back, `back where it was before its request`. `limited` and `refused` are told once the router has judged the answer a limit or a refusal of the account: a 429 from before a reset made by hand, which goes out again on the same account, or a 401 to a token replaced since, which goes out again on it once, then on another, are neither. A request the router knows for Claude Code's quota check carries `check: true`. A token count carries `count: true`. Requests that never go upstream, and those passed through, aren't on it. Reading the counts reads a copy of the answer's stream as it passes, decoded where it's gzip or deflate, as the request asked for one of those alone (see Proxy rules), never changing or holding the bytes passed on; an answer in another encoding goes uncounted, its bytes untouched. A reader that falls 256 events behind is dropped, and reconnects, and one that takes more than 10 seconds over a write is cut off. A stream ends as the control API closes; a restart in place ends it first, after its drain, once each reader has written what it was told of, waiting half a second at most, so its readers see the requests the router finished, and the dashboard reconnects to the router it becomes, while one that can't replace itself, and exits for launchd to start it again, ends it as the control API closes, as stopping does, its readers writing what they were told of within the second the control API gives the requests it accepted (see The router looking after itself) |
@@ -10803,10 +10884,10 @@ verbs).
   (unverified).
 - **No shell integration:** switchboard defines no shell function or launcher. Per-account
   launchers are the user's own aliases for `switchboard run --account <id> --`.
-- **In a pool:** with pools, the session is in the pool of its start directory, and every account
-  below is that pool's alone: its primary, its first with a usable token, and `--account`'s, which
-  must be in it. Launching in a pool says what `run` adds and refuses for the pools, and what's
-  said below holds within them.
+- **In a pool:** with pools, the session is in the pool of its start directory, as Which pool a
+  session is in finds it, and every account below is that pool's alone: its primary, its first with
+  a usable token, and `--account`'s, which must be in it. Launching in a pool says what `run` adds
+  and refuses for the pools, and what's said below holds within them.
 - **Asking the router:** `run` gives the router 5 seconds, from its first ask, to answer `GET
   /health`: a slow router isn't a dead one, and on a machine far behind a live router takes
   seconds to answer. A router that isn't running, nothing listening on its socket, is asked again

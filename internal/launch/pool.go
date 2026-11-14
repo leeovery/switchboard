@@ -269,41 +269,42 @@ func (l Launcher) placed(r Route) (place, error) {
 const unknownDir = "can't tell which pool the directory claude starts in is in"
 
 // sessionPool returns the pool of pools a session started in Dir is in: the
-// fenced pool holding Dir, as fencesHolding finds it, so a link into a fence
-// or out of one leaves the session inside it; else the unfenced pool. Where
-// it can be in none, it returns why instead: Dir isn't known while a pool is
-// fenced; two fenced pools hold it, through its links; or none covers it, as
-// where every pool is fenced.
+// fenced pool holding it, as fencesOf finds it; else the unfenced pool.
+// Where it can be in none, it returns why instead: as fencesOf says; two
+// fenced pools hold it, through its links; or none covers it, as where every
+// pool is fenced.
 func (l Launcher) sessionPool(pools config.Pools) (config.Pool, string) {
-	if l.Dir == "" && slices.ContainsFunc(pools, config.Pool.Fenced) {
-		return config.Pool{}, unknownDir
+	f, why := l.fencesOf(pools)
+	if why != "" {
+		return config.Pool{}, why
 	}
-	switch held := l.fencesHolding(pools); len(held) {
+	switch len(f.held) {
 	case 0:
 		if p, ok := pools.Unfenced(); ok {
 			return p, ""
 		}
 		return config.Pool{}, "no pool covers " + l.where()
 	case 1:
-		return held[0], ""
+		return f.held[0], ""
 	default:
-		return config.Pool{}, l.where() + " is in " + poolsNamed(held) + ", as its links lead"
+		return config.Pool{}, l.placeSaid(f) + ", as its links lead"
 	}
 }
 
 // ownLoginBarred says why Claude Code doesn't start on its own login in Dir,
 // of pools, placed as placedInHome places them, which would go out on
-// whatever account it's signed into: Dir is in a fenced pool, as
-// fencesHolding finds it, or isn't known while a pool is fenced; or a pool
-// writes a directory that can't be placed, which may hold Dir. It says ""
-// where it can start so. What a pool writes is redacted, as a token pasted
-// into a pool's directories reads as one that can't be placed.
+// whatever account it's signed into: a fenced pool holds it, as fencesOf
+// finds it, or fencesOf can't tell; or a pool writes a directory that can't
+// be placed, which may hold Dir. It says "" where it can start so. What a
+// pool writes is redacted, as a token pasted into a pool's directories reads
+// as one that can't be placed.
 func (l Launcher) ownLoginBarred(pools config.Pools) string {
-	if l.Dir == "" && slices.ContainsFunc(pools, config.Pool.Fenced) {
-		return unknownDir
-	}
-	if held := l.fencesHolding(pools); len(held) > 0 {
-		return l.where() + " is in " + poolsNamed(held) + ", where claude never starts on its own login"
+	f, why := l.fencesOf(pools)
+	switch {
+	case why != "":
+		return why
+	case len(f.held) > 0:
+		return l.placeSaid(f) + ", where claude never starts on its own login"
 	}
 	if i := slices.IndexFunc(pools, func(p config.Pool) bool { return len(p.Unplaced) > 0 }); i >= 0 {
 		return "can't tell which pool " + l.where() + " is in: pool " + poolSaid(pools[i]) + "'s directory " + prose.Quoted(redact.Text(pools[i].Unplaced[0])) + " can't be placed"
@@ -322,13 +323,175 @@ func (l Launcher) placedInHome(pools config.Pools) config.Pools {
 	return placed
 }
 
-// fencesHolding returns the fenced pools of pools that hold Dir, in their
-// order, each id once: those with a directory that Dir, as given or with its
-// links resolved, is within, the directory as written or with its own links
-// resolved. No two pools' directories overlap as written, but they can once
-// links are resolved, so more than one can.
-func (l Launcher) fencesHolding(pools config.Pools) config.Pools {
-	starts := l.alsoResolved(l.Dir)
+// fencing is the fenced pools a session started in Dir is in, as fencesOf
+// finds them.
+type fencing struct {
+	// held are the pools, in pools' order, each id once: none for the
+	// unfenced pool.
+	held config.Pools
+	// mapped is Dir's place in its repository, where held are found there
+	// alone, Dir lying in no fence itself: "" otherwise.
+	mapped string
+}
+
+// fencesOf returns the fenced pools of pools a session started in Dir is in,
+// as the directory rule, fencesHolding, finds them where Dir lies; or, where
+// it's in a linked worktree, as inWorktree finds them. Where no pool is
+// fenced, it's in none. Where it can be in none, it says why instead, while
+// a pool is fenced: Dir isn't known; a linked worktree around it, as given
+// or with its links resolved, can't be placed, as lostWhy says, as it may be
+// a fenced repository's; or as inWorktree says.
+func (l Launcher) fencesOf(pools config.Pools) (fencing, string) {
+	if !slices.ContainsFunc(pools, config.Pool.Fenced) {
+		return fencing{}, ""
+	}
+	if l.Dir == "" {
+		return fencing{}, unknownDir
+	}
+	around := l.worktreesAround()
+	switch {
+	case around.lost.Lost != "":
+		return fencing{}, l.lostWhy(around.lost)
+	case len(around.nearest) == 0:
+		return fencing{held: l.fencesHolding(pools, l.Dir)}, ""
+	}
+	return l.inWorktree(pools, around)
+}
+
+// worktrees is what Worktree finds around Dir, as given and with its links
+// resolved.
+type worktrees struct {
+	// nearest are the nearest linked worktree around each, where there's
+	// one, and outer those around the nearest.
+	nearest, outer []Linked
+	// lost is the first that Worktree finds lost, its Lost "" where neither
+	// is.
+	lost Worktree
+}
+
+// worktreesAround returns the linked worktrees around Dir, as given and
+// with its links resolved, as Worktree finds them: none where it's nil.
+func (l Launcher) worktreesAround() worktrees {
+	var w worktrees
+	if l.Worktree == nil {
+		return w
+	}
+	for _, start := range l.alsoResolved(l.Dir) {
+		found := l.Worktree(start)
+		if found.Lost != "" && w.lost.Lost == "" {
+			w.lost = found
+		}
+		if len(found.Around) > 0 {
+			w.nearest = append(w.nearest, found.Around[0])
+			w.outer = append(w.outer, found.Around[1:]...)
+		}
+	}
+	return w
+}
+
+// lostWhy says why a session doesn't start where Worktree found w, a linked
+// worktree around Dir, lost: as "can't tell which pool ~/wt/x/api is in: its
+// .git file at ~/wt/x leads to no repository that can be found", or, where
+// it's a submodule's or a separate git directory's worktree, saying so.
+func (l Launcher) lostWhy(w Worktree) string {
+	why := "its .git file at " + l.shown(w.Lost) + " leads to no repository that can be found"
+	if w.NoCheckout {
+		why = "its worktree at " + l.shown(w.Lost) + " is a submodule's or a separate git directory's, which can't be placed"
+	}
+	return "can't tell which pool " + l.where() + " is in: " + why
+}
+
+// inWorktree returns the fenced pools of pools a session started in Dir, in
+// the linked worktrees around, is in: those holding its places in the
+// nearest one's repository, where those holding it where it lies are none,
+// the unfenced pool counting as no fence, or where they're the same. It
+// lies where Dir does and where its places in the repositories of the outer
+// worktrees do, so a worktree nested in another lies where the outer one
+// does in its repository. Otherwise it lies in a fence its place in its
+// repository isn't in, and it says so, as disagreed says.
+func (l Launcher) inWorktree(pools config.Pools, around worktrees) (fencing, string) {
+	lying := l.fencesHolding(pools, append([]string{l.Dir}, placesOf(around.outer)...)...)
+	theirs := l.fencesHolding(pools, placesOf(around.nearest)...)
+	switch {
+	case len(lying) == 0 && len(theirs) > 0:
+		return fencing{held: theirs, mapped: l.deciding(pools, around.nearest).Place}, ""
+	case slices.EqualFunc(lying, theirs, func(a, b config.Pool) bool { return config.SamePool(a.ID, b.ID) }):
+		return fencing{held: lying}, ""
+	}
+	return fencing{}, l.disagreed(pools, around, lying, theirs)
+}
+
+// disagreed says why a session doesn't start in Dir, in the linked
+// worktrees around, which lies in the pools lying while its place in its
+// repository is in theirs: as "~/wt/x is in pool Acme, but in its repository
+// it's at ~/Code/web, in pool Default". Where Dir lies in a fence only
+// through an outer worktree's place in its repository, it names that
+// worktree: "~/wt/x/web lies in pool Acme, through the worktree ~/wt/x". It
+// names the place that decides, of Dir as given and resolved; and where
+// that's a bare repository's, outside every fence, while Dir itself lies in
+// one fence alone, how to start there: "add that bare repository to pool
+// Client's directories".
+func (l Launcher) disagreed(pools config.Pools, around worktrees, lying, theirs config.Pools) string {
+	own := l.fencesHolding(pools, l.Dir)
+	said := l.where() + " is in " + poolsNamed(lying)
+	if len(own) == 0 {
+		said = l.where() + " lies in " + poolsNamed(lying) + ", through the worktree " + l.shown(l.deciding(pools, around.outer).Root)
+	}
+	decides := l.deciding(pools, around.nearest)
+	said += ", but in its repository it's at " + l.shown(decides.Place) + ", in " + inPools(pools, theirs)
+	if decides.Bare && len(theirs) == 0 && len(own) == 1 && len(lying) == 1 {
+		said += ": add that bare repository to pool " + poolSaid(lying[0]) + "'s directories"
+	}
+	return said
+}
+
+// deciding returns the first of linked whose place a fenced pool of pools
+// holds, else the first, as the one whose place decides. linked has one at
+// least.
+func (l Launcher) deciding(pools config.Pools, linked []Linked) Linked {
+	i := slices.IndexFunc(linked, func(w Linked) bool { return len(l.fencesHolding(pools, w.Place)) > 0 })
+	return linked[max(i, 0)]
+}
+
+// placesOf returns the places of linked, in their order.
+func placesOf(linked []Linked) []string {
+	places := make([]string, len(linked))
+	for i, w := range linked {
+		places[i] = w.Place
+	}
+	return places
+}
+
+// inPools names the pools of pools a place is in, held, as "pool Client";
+// where held is none, the unfenced pool, as "pool Default", where there's
+// one, else "no pool".
+func inPools(pools, held config.Pools) string {
+	if len(held) > 0 {
+		return poolsNamed(held)
+	}
+	if p, ok := pools.Unfenced(); ok {
+		return poolsNamed(config.Pools{p})
+	}
+	return "no pool"
+}
+
+// placeSaid says which pools, f's, Dir is in, as "~/wt/x is in pool Acme",
+// or, where they're found by its place in its repository alone, "in its
+// repository, ~/wt/x is at ~/Code/acme, in pool Acme".
+func (l Launcher) placeSaid(f fencing) string {
+	if f.mapped == "" {
+		return l.where() + " is in " + poolsNamed(f.held)
+	}
+	return "in its repository, " + l.where() + " is at " + l.shown(f.mapped) + ", in " + poolsNamed(f.held)
+}
+
+// fencesHolding returns the fenced pools of pools that hold any of dirs, in
+// their order, each id once: those with a directory that one of dirs, as
+// given or with its links resolved, is within, the directory as written or
+// with its own links resolved. No two pools' directories overlap as written,
+// but they can once links are resolved, so more than one can.
+func (l Launcher) fencesHolding(pools config.Pools, dirs ...string) config.Pools {
+	starts := l.alsoResolved(dirs...)
 	var held config.Pools
 	for _, p := range pools {
 		fence := config.Pool{Dirs: l.alsoResolved(p.Dirs...)}

@@ -222,21 +222,23 @@ func (c *Client) Session(ctx context.Context, id string) (status.Session, error)
 
 // PinSession has the router send the requests of the session with the given
 // id to the account with the given id from its next request on, passing over
-// the pin the session was launched with. It returns the session as that
-// leaves it, and fails with ErrUnknownSession for a session the router hasn't
-// seen, and saying why for an account the router can't send requests on. By
-// says who asks.
+// the pin the session was launched with, in the pool the client names, else
+// in the account's. It returns the session as that leaves it, and fails with
+// ErrUnknownSession for a session the router hasn't seen, there where the
+// client names a pool, and saying why for an account the router can't send
+// requests on, or one outside that pool. By says who asks.
 func (c *Client) PinSession(ctx context.Context, id, account string, by By) (status.Session, error) {
-	return c.session(ctx, http.MethodPost, id, "/pin", sessionPinRequest{Account: account, By: by})
+	return c.session(ctx, http.MethodPost, id, c.inPool("/pin", nil), sessionPinRequest{Account: account, By: by})
 }
 
 // UnpinSession has the router clear the own pin of the session with the
 // given id, the one it was launched with included, so the session is routed
-// like any other from its next request. It returns the session as that
+// like any other from its next request, in the pool the client names, else
+// in the one the session was routed in last. It returns the session as that
 // leaves it, and fails with ErrUnknownSession for a session the router hasn't
-// seen. By says who asks.
+// seen, there where the client names a pool. By says who asks.
 func (c *Client) UnpinSession(ctx context.Context, id string, by By) (status.Session, error) {
-	return c.session(ctx, http.MethodDelete, id, pathOf("/pin", unpinQuery(by, false)), nil)
+	return c.session(ctx, http.MethodDelete, id, c.inPool("/pin", unpinQuery(by, false)), nil)
 }
 
 // session sends the router a request for path under the session with the

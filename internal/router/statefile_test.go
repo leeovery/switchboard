@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"maps"
 	"math"
+	"net/http"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -37,8 +38,8 @@ func TestTheStateFileKeepsSessionsTheirPinsAndThePoolsPin(t *testing.T) {
 	assign(s, key{session: "one", model: opus}, "", decision{account: "work", reason: reasonSticky, sticky: true}, start.Add(-time.Hour))
 	assign(s, key{session: "one", model: haiku}, "side", decision{account: "side", reason: reasonPinned}, start.Add(-time.Minute))
 	assignFor(s, Request{Session: "two", Model: opus, Pin: "work", Dir: "~/Code/api"}, decision{account: "work", reason: reasonPinned}, start.Add(-time.Minute))
-	s.pinSession("one", "work")
-	s.pinSession("two", "")
+	s.pinSession(sessionIn{session: "one"}, "work")
+	s.pinSession(sessionIn{session: "two"}, "")
 	saved.save()
 
 	loaded := newTestFile(at(start), testAccounts())
@@ -1178,10 +1179,10 @@ func TestLoadingForgetsWhatCantBeUsed(t *testing.T) {
 			{Session: "gone", Model: opus, Account: "retired", LastSeen: start},
 			{Model: opus, Account: "work", LastSeen: start},
 		},
-		SessionPins: map[string]ownPin{
-			"pinned": {Account: "side", Since: start},
-			"recent": {Account: "retired", Since: start},
-			"old":    {Account: "side", Since: start},
+		SessionPins: map[string]savedPin{
+			"pinned": {ownPin: ownPin{Account: "side", Since: start}},
+			"recent": {ownPin: ownPin{Account: "retired", Since: start}},
+			"old":    {ownPin: ownPin{Account: "side", Since: start}},
 		},
 	})
 	f := newTestFile(at(start), testAccounts())
@@ -1195,7 +1196,7 @@ func TestLoadingForgetsWhatCantBeUsed(t *testing.T) {
 	if !maps.Equal(s.assignments, want) {
 		t.Errorf("loaded %+v, want %+v alone", s.assignments, want)
 	}
-	if want := map[string]ownPin{"pinned": {Account: "side", Since: start}}; !maps.Equal(s.own, want) {
+	if want := map[sessionIn]ownPin{{session: "pinned"}: {Account: "side", Since: start}}; !maps.Equal(s.own, want) {
 		t.Errorf("loaded sessions' pins %+v, want %+v alone: the others' sessions or accounts are gone", s.own, want)
 	}
 	if len(s.pins) > 0 {
@@ -1220,12 +1221,12 @@ func TestLoadingKeepsWhatsOfAnAccountWhoseTokenFileCantBeReadAsTheRouterStarts(t
 	path := filepath.Join(t.TempDir(), "state.json")
 	pin := status.Pin{Accounts: []string{"work"}, Since: start.Add(-time.Hour)}
 	assignments := map[key]assignment{{session: "one", model: opus}: {Account: "work", LastSeen: start}}
-	own := map[string]ownPin{"one": {Account: "work", Since: start}}
+	own := map[sessionIn]ownPin{{session: "one"}: {Account: "work", Since: start}}
 	putState(t, path, savedState{
 		Version:     stateVersion,
 		Pin:         pin,
 		Sessions:    []savedAssignment{{Session: "one", Model: opus, Account: "work", LastSeen: start}},
-		SessionPins: own,
+		SessionPins: map[string]savedPin{"one": {ownPin: ownPin{Account: "work", Since: start}}},
 		Tokens:      map[string]savedTokens{"work": {SHA256: workHash}, "side": {SHA256: sideHash}},
 	})
 	// Work's token file is caught emptied as it's rewritten.
@@ -1515,7 +1516,7 @@ func TestSessionsUnusedForAWeekAreForgottenHourlyWithTheirPins(t *testing.T) {
 		assign(s, key{session: "fading", model: opus}, "", decision{account: "work", reason: reasonNew}, time.Now().Add(-7*24*time.Hour+30*time.Minute))
 		assign(s, key{session: "recent", model: opus}, "", decision{account: "work", reason: reasonNew}, time.Now())
 		for _, id := range []string{"fading", "recent"} {
-			s.pinSession(id, "side")
+			s.pinSession(sessionIn{session: id}, "side")
 		}
 
 		time.Sleep(pruneEvery - time.Nanosecond)
@@ -1591,6 +1592,127 @@ func countWrites(f *stateFile) *atomic.Int32 {
 		return write(path, data)
 	}
 	return &writes
+}
+
+// savedResumed returns r, and the path of the state file it has saved,
+// keeping session one resumed in Acme, as resumeInAcme has it, pinned in each
+// pool, to side in Default and to extra in Acme, then routed last in the
+// pool given, on the token given: on side in Default, which sorts before
+// Acme by its id, or on extra in Acme, each as pinned.
+func savedResumed(t *testing.T, pool, token string) (*Router, string) {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "state.json")
+	clock := &setClock{now: start}
+	r, _ := newPairedRouter(t, clock.read)
+	r.file.load(path)
+	resumeInAcme(t, r, clock)
+	askedOK(t, r, http.MethodPost, "/sessions/one/pin", `{"account": "side"}`)
+	askedOK(t, r, http.MethodPost, "/sessions/one/pin", `{"account": "extra"}`)
+	clock.set(start.Add(10 * time.Minute))
+	routeIn(t, r, token, "one", pool, nil)
+	r.file.save()
+	return r, path
+}
+
+func TestTheStateFileKeepsASessionsWorkInEachPool(t *testing.T) {
+	logstest.Capture(t)
+	r, path := savedResumed(t, defaultPool, workToken)
+
+	saved := readState(t, path)
+	var kept []string
+	for _, a := range saved.Sessions {
+		kept = append(kept, a.Pool+" "+a.Account)
+	}
+	if want := []string{acmePool + " personal", defaultPool + " side"}; !slices.Equal(kept, want) {
+		t.Errorf("the state file keeps the session's assignments %q, want %q: each pool's, the one used last last", kept, want)
+	}
+	if got := saved.SessionPins["one"]; got.Account != "side" || got.Pool != defaultPool {
+		t.Errorf("the state file keeps the session's pin %+v, want side in Default, the pool it was routed in last", got)
+	}
+	if got := saved.SessionPinsApart; len(got) != 1 || got[0].Session != "one" || got[0].Account != "extra" || got[0].Pool != acmePool {
+		t.Errorf("the state file keeps the session's pins apart %+v, want extra's in Acme alone", got)
+	}
+	loaded, _ := newPairedRouter(t, at(start.Add(time.Hour)))
+	loaded.file.load(path)
+	if got, want := savedJSON(t, loaded), savedJSON(t, r); got != want {
+		t.Errorf("loaded\n%s\nwant what was saved\n%s", got, want)
+	}
+}
+
+// savedJSON is what r's sessions have the state file keep, as JSON.
+func savedJSON(t *testing.T, r *Router) string {
+	t.Helper()
+	data, err := json.Marshal(r.sessions.saved())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(data)
+}
+
+func TestARouterThatKeptOneAssignmentASessionAndModelReadsTheOneUsedLast(t *testing.T) {
+	logstest.Capture(t)
+	_, path := savedResumed(t, acmePool, personalToken)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Read as a router from before sessions were kept a pool each reads it:
+	// an assignment a session and model, the last read standing, and a
+	// session's one pin.
+	var before struct {
+		Sessions    []struct{ Session, Model, Account string } `json:"sessions"`
+		SessionPins map[string]struct{ Account string }        `json:"session_pins"`
+	}
+	if err := json.Unmarshal(data, &before); err != nil {
+		t.Fatal(err)
+	}
+	kept := make(map[string]string)
+	for _, a := range before.Sessions {
+		kept[a.Session+" "+a.Model] = a.Account
+	}
+	if got := kept["one "+opus]; got != "extra" {
+		t.Errorf("it keeps the session on %q, want extra, Acme's, the one used last", got)
+	}
+	if got := before.SessionPins["one"].Account; got != "extra" {
+		t.Errorf("it keeps the session's pin to %q, want extra, its pin in Acme, the pool it was routed in last", got)
+	}
+}
+
+func TestAStateFileFromBeforeSessionsWereKeptAPoolEachLoadsEachInItsPool(t *testing.T) {
+	logstest.Capture(t)
+	path := filepath.Join(t.TempDir(), "state.json")
+	seen := start.Add(-5 * time.Minute).Format(time.RFC3339)
+	// One ran in Acme; two before pools, naming none. One's pin names no
+	// pool, as a router that kept a session's one pin wrote it.
+	before := `{
+  "version": 1,
+  "sessions": [
+    {"session": "one", "model": "` + opus + `", "account": "personal", "pool": "` + acmePool + `", "reason": "new", "assigned_at": "` + seen + `", "last_seen": "` + seen + `"},
+    {"session": "two", "model": "` + opus + `", "account": "side", "reason": "new", "assigned_at": "` + seen + `", "last_seen": "` + seen + `"}
+  ],
+  "session_pins": {"one": {"account": "extra", "since": "` + seen + `"}}
+}
+`
+	if err := os.WriteFile(path, []byte(before), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	r, upstream := newPairedRouter(t, at(start))
+	r.file.load(path)
+	lines := keepingLedger(t, r)
+
+	routeIn(t, r, workToken, "two", "", nil)
+	routeIn(t, r, personalToken, "one", acmePool, nil)
+
+	if got, want := upstream.sent(), []string{"side", "extra"}; !slices.Equal(got, want) {
+		t.Errorf("the sessions' requests went out on %q, want %q: two kept on side in the first pool, one pinned to extra in Acme", got, want)
+	}
+	if got, want := reasonsOf(lines()), []string{reasonSticky, reasonPinned}; !slices.Equal(got, want) {
+		t.Errorf("the ledger's lines give the reasons %q, want %q", got, want)
+	}
+	if got := r.sessions.lookup(key{session: "two", pool: defaultPool, model: opus}).current; got.Pool != defaultPool {
+		t.Errorf("two's assignment is %+v, want it in the first pool, as a request naming none is", got)
+	}
 }
 
 // putState writes saved to the state file at path.
