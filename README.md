@@ -30,7 +30,7 @@ Switchboard is a local router for Claude Code. With more than one Claude subscri
 Every Claude subscription has a weekly limit, most a 5-hour one too. When you hit one, Claude Code stops. Claude can't see the limits coming, and switching accounts by hand means quitting, resuming and starting again with a cold prompt cache.
 
 - **Limits stop interrupting you.** A request that hits a limit is replayed on another account before Claude Code sees it, and the session carries on.
-- **A client's accounts stay theirs.** Fence a pool of accounts to a client's directories: sessions started there use those accounts alone, and no other session does.
+- **Accounts stay on their projects.** Fence a pool of accounts to a project's directories, a client's say: sessions started anywhere in them use those accounts alone, and no other session does.
 - **No quota goes to waste.** New sessions go to the account whose weekly quota is most at risk of going unused.
 - **Claude sees its own limits.** A skill lets Claude read every account's usage, pace and resets, and plan its work around them.
 - **Sessions stay put.** A session keeps its account while its prompt cache is warm, and moves only when it must.
@@ -45,7 +45,9 @@ Every Claude subscription has a weekly limit, most a 5-hour one too. When you hi
 
 ## Pools
 
-A client who gives you Claude accounts for their work wants them on that work and nothing else. Put the client's accounts in a pool and fence it to the client's directories: a session started there uses those accounts alone, starting on the pool's primary, and no session from outside uses them. When they're all out, the client's work waits for a reset rather than spill onto your accounts. Nothing of the client's shows on your pools' screens, or yours on theirs.
+**Choose which Claude accounts work on which projects.** Keep a client's accounts on the client's code, your employer's account on your employer's work, or one account for one project. Put the accounts in a pool and fence it to the project's directories: every Claude session started in them, or in any folder beneath, uses that pool's accounts and nothing else, and no session started anywhere else touches them.
+
+Within a pool, everything above holds across its accounts: limits replayed, sessions kept warm, its own primary to start on. When they're all out, its work waits for a reset rather than spill onto another pool's accounts. Sessions started outside every fence use the pool you leave unfenced, where your accounts are to begin with. Each pool has its own screens and records, and nothing of one shows on another's.
 
 ```bash
 switchboard pool add Acme ~/Code/acme                    # a pool fenced to the client's directories, given an id: q7mt
