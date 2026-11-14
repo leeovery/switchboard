@@ -17,21 +17,21 @@ BY MODEL  share of use
   ● Fable 5.1               5%                                1%                               1%                               3%
   ● Haiku 4.5               2%                                4%                               1%                               2%
 
-ACTIVITY
-  requests                10,192                            9,846                            6,431                            26,469
-  sessions served         59                                57                               77                               162
-  sessions moved          1 in · 20 out                     2 in · 9 out                     28 in · 2 out                    31 moves
+WEEKS  each week at its peak
+                          ┄┄┄┄▃▃▃┄   ┄▆▆▆┄   ┄┄┄┄┄   ┄┄┄┄                       ▄▄▄ ▂▂▂                                                               ▁▁▁
+                          ▅▅▅                               ▂▂▂ ▄▄▄     ▇▇▇ ▄▄▄         ▂▂▂                              ▇▇▇      ▂▂▂ ▂▂▂ ▃▃▃ ▆▆▆ ▅▅▅
+                                                                    ▇▇▇                                      ▅▅▅ ▃▃▃          ▅▅▅
+                                                      ▆▆▆                                    ▁▁▁ ▆▆▆     ▄▄▄
 
-LIMITS
-  limits hit              week ×2 · 5-hour ×19              5-hour ×8                        5-hour ×3                        32
-  at cap or limit         5d 22h                            18h 45m                          4h 52m                           6d 21h
-  left at its last reset  0% (limit Fri)                    15%                              40%                              —
+                          Aug             Sep         …     Aug             Sep         …    Aug             Sep         …    Aug             Sep         …
+                          limit hit 3 of 7 · 9% left        limit hit 0 of 7 · 27% left      limit hit 0 of 7 · 59% left      short on 3 of 7 · 32% left
 
-VALUE
-  plan                    Ultra · $200/mo                   Ultra · $200/mo                  Ultra · $200/mo                  $600/mo · 3 plans
-  extra usage             off                               off                              off                              off on all
-  worth at API prices     $1,219                            $1,078                           $764                             $3,061
-  against its price       6.1× its $200 month               5.4× its $200 month              3.8× its $200 month              5.1× its $600 month
-
-
+WORTH  at API prices, by day
+                          ▆       ▃             ▃                                                                                         ▁        ▂     ▂
+                               ▁ ▄    ▃  ▆   ▂ ▁    ▁  ▁                ▆▇       ▂                                      ▅     ▇    ▅▄▁ ▃    ▁▅▁  ▂▃     ▃  ▃
+                           ▇▂   ▆  ▄   ▃▆ ▂   ▂  ▂   ▆      ▃▅▆   ▆ ▅▆    ▃▅   ▃  ▃      ▆        ▂▄  ▂  ▁▅      ▃ ▁   ▄        ▇                    ▃
+                             ▃              ▁         ▇        ▁   ▇  ▂▁      ▁     ▂        ▄▄▆▁   ▆  ▂▁   ▆▇ ▁▆   ▄▂    ▆      ▂      ▂▁      ▁     ▂
+                           3 Sep 9 Sep 15 Sep 22 Sep 29 Sep 2 Sep 8 Sep 14 Sep 21 Sep 28 Sep 2 Sep 8 Sep 14 Sep 21 Sep 28 Sep  3 Sep 9 Sep 15 Sep 22 Sep 29 Sep
+                          peak 2 Sep $99.47                 peak 30 Sep $81.32               peak 30 Sep $108                 peak 30 Sep $212 · its own scale
+▼ 16 more below · j/k
 tab views   [ ] view    < > period: 30 days    ←→ account  enter its page    p pin    ? help  q quit

@@ -107,6 +107,25 @@ func limitHit(limits int, of string, weeks int) status.Words {
 		CountedWords(weeks, "week"))
 }
 
+// LimitHitOutOf says how many of an account's weeks it hit its limit in, as
+// Compare's WEEKS says it: "limit hit 3 of 51", its counts figures.
+func LimitHitOutOf(limits, weeks int) status.Words {
+	return slices.Concat(status.Words{status.Plain("limit hit ")}, OutOf(limits, weeks))
+}
+
+// ShortOnOutOf says how many of the weeks judged were short, n of them, as
+// Compare's WEEKS says it of every account: "short on 3 of 51", or "short
+// on none of 51", its counts figures.
+func ShortOnOutOf(n, weeks int) status.Words {
+	return slices.Concat(ShortOn(n), status.Words{status.Plain(" of "), status.Figure(prose.Grouped(weeks))})
+}
+
+// Left says what an account's weeks left at a reset, on average, short, as
+// Compare's WEEKS says it where LeftAtAReset doesn't fit: "21% left".
+func Left(share float64) status.Words {
+	return status.Words{status.Figure(prose.Percent(share)), status.Plain(" left")}
+}
+
 // LeftOnAverage says what an account's weeks left at a reset, on average, as
 // LeftAtAReset says it: "9% left at a reset, on average".
 func LeftOnAverage(share float64) status.Words {

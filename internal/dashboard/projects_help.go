@@ -32,9 +32,9 @@ func projectsHelp() []helpPart {
 				said("Its head gives its path and its sessions running; under it, its numbers over the period: its " +
 					"sessions, requests and worth, its share of every project's worth, and its tokens."),
 				said("WORTH BY charts its worth in the finest bucket that fits: today by hour; this week and 30 days by " +
-					"day; 12 weeks by day where a column a day fits, else by week; and 12 months by week, the peak under " +
-					"it. BY MODEL is each version's share of its worth, those under 1% left out, and ON ACCOUNTS each " +
-					"account's, the greatest first."),
+					"day; 12 weeks by day where a column a day fits, else by week; and 12 months by week where a column " +
+					"a week fits, else by month, the peak under it. BY MODEL is each version's share of its worth, those " +
+					"under 1% left out, and ON ACCOUNTS each account's, the greatest first."),
 				said("Where rows run short, ON ACCOUNTS leaves first, then BY MODEL, then WORTH BY, so SESSIONS keeps " +
 					"three rows at least."),
 			},

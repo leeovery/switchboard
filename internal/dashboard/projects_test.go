@@ -71,10 +71,11 @@ func chosenPage(sessions []views.ProjectSession) views.ProjectPage {
 	half, third := 0.5, 1.0/3
 	page := views.ProjectPage{ProjectRow: projectRowOf("agentic-workflows", 12, 2059, 23900), Share: &half, Sessions: sessions}
 	page.Tokens.Total = 365_000_000
-	page.WorthBy = views.WorthBy{Unit: views.ByDay, Peak: 3, ToCome: 3}
+	byDay := views.WorthBy{Unit: views.ByDay, Peak: 3, ToCome: 3}
 	for i, day := range []string{"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"} {
-		page.WorthBy.Buckets = append(page.WorthBy.Buckets, views.WorthBucket{Start: routedClock(1, 0, 0).AddDate(0, 0, i-3), Label: day, Axis: day, Worth: worthOf((i + 1) * 1000 % 5000)})
+		byDay.Buckets = append(byDay.Buckets, views.WorthBucket{Start: routedClock(1, 0, 0).AddDate(0, 0, i-3), Label: day, Axis: day, Worth: worthOf((i + 1) * 1000 % 5000)})
 	}
+	page.WorthBy = views.WorthCharts{byDay}
 	for _, v := range []string{"Opus 5.5", "Sonnet 5"} {
 		page.ByModel = append(page.ByModel, views.VersionShare{Version: ledger.Version{Name: v, Family: "opus", Shade: 1}, Share: &half})
 	}
@@ -196,10 +197,9 @@ func bucketedPage(unit views.BucketUnit, n, weeks int) views.ProjectPage {
 		return by
 	}
 	page := chosenPage(chosenSessions())
-	page.WorthBy = buckets(unit, n)
+	page.WorthBy = views.WorthCharts{buckets(unit, n)}
 	if weeks > 0 {
-		byWeek := buckets(views.ByWeek, weeks)
-		page.WorthByWeek = &byWeek
+		page.WorthBy = append(page.WorthBy, buckets(views.ByWeek, weeks))
 	}
 	return page
 }

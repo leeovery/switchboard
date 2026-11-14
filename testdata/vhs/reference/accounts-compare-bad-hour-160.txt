@@ -17,21 +17,21 @@ BY MODEL  share of use
   ● Fable 5.1               7%                                 —                               1%                               2%
   ● Haiku 4.5               3%                                5%                               1%                               3%
 
-ACTIVITY
-  requests                612                               1,867                            1,692                            4,171
-  sessions served         3                                 7                                9                                17
-  sessions moved          —                                 1 out                            1 in                             1 move
+WEEKS  each week at its peak
+                          ┄┄┄┄▃▃▃┄   ┄▆▆▆┄   ┄┄┄┄┄   ┄┄┄┄                       ▄▄▄ ▂▂▂                                                               ▁▁▁
+                          ▅▅▅                               ▂▂▂ ▄▄▄     ▇▇▇ ▄▄▄         ▂▂▂                              ▇▇▇      ▂▂▂ ▂▂▂ ▃▃▃ ▆▆▆ ▅▅▅
+                                                                    ▇▇▇                                      ▅▅▅ ▃▃▃          ▅▅▅
+                                                      ▆▆▆                                    ▁▁▁ ▆▆▆     ▄▄▄
 
-LIMITS
-  limits hit              5-hour ×2                         5-hour ×2                        5-hour ×1                        5
-  at cap or limit         3h 26m                            5h 15m                           52m                              9h 33m
-  left at its last reset  0% (limit Fri)                    15%                              40%                              —
+                          Aug             Sep         …     Aug             Sep         …    Aug             Sep         …    Aug             Sep         …
+                          limit hit 3 of 7 · 9% left        limit hit 0 of 7 · 27% left      limit hit 0 of 7 · 59% left      short on 3 of 7 · 32% left
 
-VALUE
-  plan                    Ultra · $200/mo                   Ultra · $200/mo                  Ultra · $200/mo                  $600/mo · 3 plans
-  extra usage             off                               off                              off                              off on all
-  worth at API prices     $127                              $164                             $218                             $509
-  against its price       2.8× its $46 week                 3.6× its $46 week                4.7× its $46 week                3.7× its $138 week
-
-
+WORTH  at API prices, by day
+                                                                                                                                  ▂▂▂
+                          ▁▁▁                                                                    ▅▅▅                          ▃▃▃
+                              ▆▆▆                                                            ▄▄▄
+                                  ▇▇▇
+                          Mon Tue Wed Thu Fri Sat Sun       Mon Tue Wed Thu Fri Sat Sun      Mon Tue Wed Thu Fri Sat Sun      Mon Tue Wed Thu Fri Sat Sun
+                          peak Mon $57.70                   peak Wed $81.32                  peak Wed $108                    peak Wed $212 · its own scale
+▼ 16 more below · j/k
 tab views   [ ] view    < > period: this week    ←→ account  enter its page    p pin    ? help  q quit

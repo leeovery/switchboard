@@ -95,6 +95,12 @@ func (l compareLayout) shown() int {
 	return len(l.slots) - 1
 }
 
+// narrowest are the cells of the narrowest column's head, which its charts
+// take, so every column charts its worth in the same bucket.
+func (l compareLayout) narrowest() int {
+	return slices.MinFunc(l.slots, func(a, b flex.Span) int { return a.Size - b.Size }).Size - 1
+}
+
 // comparedAlways are the accounts' columns, from the first, that never give
 // way to the frame's width: a comparison needs two.
 const comparedAlways = 2
@@ -593,7 +599,8 @@ func stateMark(s status.AccountState) span {
 
 // body is Compare's rows under its heads, drawn on a canvas of their own:
 // WEEK USED; then, once the period's page is read, BY MODEL and its
-// versions, ACTIVITY, LIMITS and VALUE, a blank row before each.
+// versions, WEEKS, WORTH, ACTIVITY, LIMITS and VALUE, a blank row before
+// each.
 func (cp compared) body(columns []compareColumn) *canvas {
 	if cp.page == nil {
 		c := newCanvas(cp.f.Width, 1)
@@ -601,13 +608,15 @@ func (cp compared) body(columns []compareColumn) *canvas {
 		return c
 	}
 	groups := cp.groups()
-	rows := compareByModel + 1 + len(cp.page.Versions)
+	rows := compareByModel + 1 + len(cp.page.Versions) + groupApart + compareWeeksUnder + groupApart + compareWorthUnder
 	for _, g := range groups {
 		rows += groupApart + len(g.rows)
 	}
 	c := newCanvas(cp.f.Width, rows)
 	cp.weekUsed(c, 0, columns)
 	y := cp.byModel(c, compareByModel, columns)
+	y = cp.weeksSection(c, y+groupApart, columns)
+	y = cp.worthSection(c, y+groupApart, columns)
 	for _, g := range groups {
 		y += groupApart
 		c.line(0, y, line{{g.name, dimInk}})

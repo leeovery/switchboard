@@ -3589,6 +3589,38 @@ frames show the keys from before the sweep of 7 and 8 October 2026, `p` for the 
   shade from column 2 and the version's name in `text.secondary`, cut to the labels' column, and in
   each column its share, right-aligned in 4, `—` in `text.faint` for none, and `<1%` for a share
   that rounds to nothing (settled in the plan).
+- **WEEKS,** a blank row under BY MODEL, `each week at its peak` after it in `text.faint`, and at
+  12 months `, a month its fullest`: how full each column's weeks got, Weeks' own peaks and facts
+  over the period's reach, as `views.AccountsRow`'s `Reached` and `Reaching` give them, worked out
+  once, by Weeks' `weeksOver`, never again for Compare.
+  - **Its reach:** the weeks that begin in the period, this one last, never fewer than eight:
+    eight at today, this week and 30 days, and 12 at 12 weeks. At 12 months, a column a month, the
+    13 months the period touches, each its fullest week of those beginning in it; a month no week
+    has begun in yet, as on the 1st, is empty, so the months stand over WORTH's.
+  - **Its columns,** 5 rows tall at a full week, drawn as Weeks draws its columns: up the ramp in
+    `viz.ramp`, this week's dimmer, its top cell in eighths. They're laid across the column less a
+    cell as WORTH BY lays its buckets, a cell apart at 12 months. Where the account keeps a
+    reserve, its cap's level is marked `┄` in `text.subtle` along the row its cap falls in, under
+    the columns. The axis names a month where it starts, and at 12 months each month, giving way
+    from the last back, as WORTH BY's does, the last bold; under this week's column, so far, `…`
+    in `text.secondary`, in place of its name.
+  - **Under it,** Weeks' facts on the reach's whole weeks, never its verdict's words, which stay in
+    `switchboard history`: `limit hit 3 of 7 · 9% left at a reset`, in `text.subtle`, its last
+    part giving way to `9% left`, then going; `all accounts`, the pool's peaks the mean of the
+    accounts', `short on 3 of 7 · 32% left at a reset`, `short on 3 of 7` bold `text.secondary`.
+    A dash where no whole week is judged yet.
+- **WORTH,** a blank row under WEEKS, `at API prices, by day` after it, naming the bucket: what
+  each column's requests were worth over the period, 4 rows tall in `accent.primary`, in the
+  finest bucket that fits the narrowest column, as Projects' WORTH BY takes its, one rule
+  (`views.WorthCharts`): today's by the day, as the summaries keep no hours; this week's and 30
+  days' by day; 12 weeks' by day, or by week where 84 days don't fit; and 12 months' by week, or by
+  month. At 173 columns that's a day a column at this week and 30 days, a week at 12 weeks and a
+  month at 12 months. The accounts share one scale, the highest bucket of every configured
+  account's, shown or not, so their columns compare; `all accounts` has its own. Its axis is
+  WORTH BY's, and under it its peak, `peak Wed $148`, `all accounts`' adding ` · its own scale` in
+  `text.subtle`.
+- **At 12 months** each column holds the 12 months' totals, and against its price names them:
+  `3.4× its $2,400 12 months`.
 - **Three groups** follow, a blank row before each, every value from its column's first cell in
   `text.secondary`, `—` and `none` in `text.faint`, and `all accounts`' bold:
   - **ACTIVITY:** `requests`, `1,204`; `sessions served`, `9`, each session counted once, however
@@ -3630,7 +3662,7 @@ frames show the keys from before the sweep of 7 and 8 October 2026, `p` for the 
   or the period changes; its focus, help and the key line follow the form drawn, so where it's
   turned they have no focus. The phone's chrome takes no part in it.
 - **Turned,** Compare is a group at a time, an account a row, its name from column 1, and
-  `all` last. More accounts than its height holds scroll with `j/k`, the last row saying
+  `all` last, with no WEEKS or WORTH. More accounts than its height holds scroll with `j/k`, the last row saying
   `▼ 2 more below · j/k` (settled in the plan).
   - Its parts, laid by flex across the width: the names at their widest whole, at least 8 and at
     most 24 cells, its marks among them; 2 cells on, the bars, at 20, at most 40, giving way to a
@@ -3972,7 +4004,7 @@ draw it, the tab names in its title row aside, and kept in `testdata/vhs/referen
   family; and when its last request arrived. Then `all projects`, every project's totals.
 - **The chosen project:** its row; its share of every project's worth; its tokens; WORTH BY, by
   the hour today, the hours to come counted, by the day this week and over 30 days, by the day and
-  by the week over 12 weeks, and by the week over 12 months, each bucket labelled and the peak, the
+  by the week over 12 weeks, and by the week, or the month, over 12 months, each bucket labelled and the peak, the
   first greatest, named; BY MODEL, Accounts' reckoning by version, greatest first, under 1% left
   out; ON ACCOUNTS, each account's share by its label, of the worth of the requests that went to an
   account, so the shares make the whole; and SESSIONS, in the List's row form and order, running
@@ -3995,7 +4027,8 @@ draw it, the tab names in its title row aside, and kept in `testdata/vhs/referen
   the sections lie, its columns narrow to fit, as middling draws them. As rows run short, ON
   ACCOUNTS leaves first, then BY MODEL, then WORTH BY, so SESSIONS keeps three rows. WORTH BY over
   12 weeks is by day where a column a cell wide fits each day in the cells it takes, the left half
-  where it lies wide, else by week; its axis names buckets from the last back, the one now falls in
+  where it lies wide, else by week; over 12 months, by week where a column a cell wide fits each week, else by
+  month. Its axis names buckets from the last back, the one now falls in
   bold, and weeks by the month of their first day in the period, where it's another than the week
   before's. SESSIONS is the List's columns, the
   session's from 11 cells to its whole, then model, started and requests leaving as the width runs

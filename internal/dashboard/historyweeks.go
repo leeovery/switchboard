@@ -886,38 +886,44 @@ func (w weeksDrawn) columnPeak(row views.WeeksRow, p views.WeekPeak) part {
 	return figureIn(text, mutedInk)
 }
 
-// column draws a week's column, filled from the bottom to its peak as it's
-// written under it, a whole percent, its top cell in eighths, from row y down
-// columnRows, as look draws its cells: each row in the ramp's colour at its
-// middle, mixed from the canvas toward it; a week of no use ▁▁▁▁▁ in
-// text.faint along the bottom; and one whose peak isn't known, nothing.
+// column draws a week's column from row y down columnRows, columnCells
+// wide, as peakColumn draws it.
 func (w weeksDrawn) column(c *canvas, look Look, x, y int, p views.WeekPeak) {
+	peakColumn(c, look, x, y+columnRows-1, columnRows, columnCells, p)
+}
+
+// peakColumn draws a week's column, filled from row bottom up to its peak as
+// Weeks writes it, a whole percent, rows tall at a full week, cells wide,
+// its top cell in eighths, as look draws its cells: each row in the ramp's
+// colour at its middle, mixed from the canvas toward it; a week of no use
+// ▁ in text.faint along the bottom; and one whose peak isn't known,
+// nothing. Weeks' columns and Compare's WEEKS are drawn so.
+func peakColumn(c *canvas, look Look, x, bottom, rows, cells int, p views.WeekPeak) {
 	if p.Share == nil {
 		return
 	}
-	bottom := y + columnRows - 1
 	if *p.Share <= 0 {
-		c.text(x, bottom, strings.Repeat(levels[1], columnCells), faintInk)
+		c.text(x, bottom, strings.Repeat(levels[1], cells), faintInk)
 		return
 	}
-	filled := halfEven(min(float64(prose.WholePercent(*p.Share))/100, 1) * columnRows * 8)
-	for r := range columnRows {
+	filled := halfEven(min(float64(prose.WholePercent(*p.Share))/100, 1) * float64(rows) * 8)
+	for r := range rows {
 		eighths := min(max(filled-8*r, 0), 8)
 		if eighths == 0 {
 			continue
 		}
-		glyph, k := w.columnCell(look, eighths, (float64(r)+0.5)/columnRows, p.Open)
-		c.text(x, bottom-r, strings.Repeat(glyph, columnCells), k)
+		glyph, k := weekCell(look, eighths, (float64(r)+0.5)/float64(rows), p.Open)
+		c.text(x, bottom-r, strings.Repeat(glyph, cells), k)
 	}
 }
 
-// columnCell is a cell of a column's row filled eighths of it, 1 to 8, at t
-// up the ramp, as look draws it, mixed columnMix from the canvas toward the
-// ramp's colour there, or this week's thisWeekMix: where it blends, a
-// filled cell is a space on that colour and a part-filled one its eighth
-// block in it; where it doesn't, the fill is in blocks, █ and the eighths,
-// this week's dim.
-func (weeksDrawn) columnCell(look Look, eighths int, t float64, thisWeek bool) (string, ink) {
+// weekCell is a cell of a week's column's row filled eighths of it, 1 to
+// 8, at t up the ramp, as look draws it, mixed columnMix from the canvas
+// toward the ramp's colour there, or this week's thisWeekMix: where it
+// blends, a filled cell is a space on that colour and a part-filled one its
+// eighth block in it; where it doesn't, the fill is in blocks, █ and the
+// eighths, this week's dim.
+func weekCell(look Look, eighths int, t float64, thisWeek bool) (string, ink) {
 	fade := 1 - columnMix
 	if thisWeek {
 		fade = 1 - thisWeekMix
