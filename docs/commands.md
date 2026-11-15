@@ -1543,8 +1543,8 @@ right accounts. An account is matched by its subscription, and failing that by i
 identical id being the same account unless both subscriptions are known and differ. Matched, its
 days go to this Mac's account, under this Mac's id. An account this Mac has never had is added to
 its record, named by the label the other Mac gives it, so the verbs name its days and Accounts'
-Tokens its weeks, marked removed where it was removed there. A label changed on the other Mac for an account this
-Mac neither configures nor removed arrives with it.
+Tokens its weeks, marked removed where it was removed there. A label changed on the other Mac for
+an account this Mac neither configures nor removed arrives with it.
 
 What it takes in:
 
