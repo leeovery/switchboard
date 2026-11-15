@@ -69,11 +69,11 @@ func (f Frame) sessionStory(c *canvas, m status.Moment, l sessionLayout, story v
 	}
 }
 
-// storyHeading draws the story's heading along row y: STORY in text.subtle,
+// storyHeading draws the story's heading along row y: STORY in text.muted,
 // what it says headingGap cells on, and a cell after that a rule in border to
 // storyRuleShort cells short of the frame's edge.
 func (f Frame) storyHeading(c *canvas, y int, says line) {
-	x := c.line(0, y, line{{storyHeading, dimInk}})
+	x := c.line(0, y, line{{storyHeading, headingInk}})
 	x = c.line(x+headingGap, y, says)
 	c.text(x+1, y, rule(f.Width-storyRuleShort-x-1), borderInk)
 }

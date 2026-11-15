@@ -47,11 +47,11 @@ func accountsHelpGlyphs(look Look, heading string) []line {
 }
 
 // helpHeadings are the parts' headings a help card's body explains, each in
-// text.subtle after a blank row.
+// text.muted after a blank row.
 func helpHeadings(card Card) []string {
 	var headings []string
 	for i, row := range card.body[1:] {
-		if len(card.body[i]) == 0 && len(row) == 1 && row[0].ink == dimInk {
+		if len(card.body[i]) == 0 && len(row) == 1 && row[0].ink == headingInk {
 			headings = append(headings, row[0].text)
 		}
 	}
@@ -76,7 +76,7 @@ func TestAccountsHelpListsItsKeysThenEachPartInTheDesignsOrder(t *testing.T) {
 				t.Errorf("help opens %q, want its keys, then a blank row", got)
 			}
 			if got := helpHeadings(card); !slices.Equal(got, tc.want) {
-				t.Errorf("help explains %q, want %q, each headed in text.subtle after a blank row", got, tc.want)
+				t.Errorf("help explains %q, want %q, each headed in text.muted after a blank row", got, tc.want)
 			}
 		})
 	}

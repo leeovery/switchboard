@@ -183,7 +183,7 @@ func TestOverviewHelpListsItsKeysThenEachSectionInThePagesOrder(t *testing.T) {
 	}
 	var headings, want []string
 	for i, row := range card.body[1:] {
-		if len(card.body[i]) == 0 && len(row) == 1 && row[0].ink == dimInk {
+		if len(card.body[i]) == 0 && len(row) == 1 && row[0].ink == headingInk {
 			headings = append(headings, row[0].text)
 		}
 	}
@@ -191,7 +191,7 @@ func TestOverviewHelpListsItsKeysThenEachSectionInThePagesOrder(t *testing.T) {
 		want = append(want, s.heading())
 	}
 	if !slices.Equal(headings, want) {
-		t.Errorf("help explains %q, want each section in the page's order, %q, each headed in text.subtle after a blank row", headings, want)
+		t.Errorf("help explains %q, want each section in the page's order, %q, each headed in text.muted after a blank row", headings, want)
 	}
 }
 

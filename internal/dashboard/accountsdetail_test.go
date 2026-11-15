@@ -452,7 +452,7 @@ func TestDetailLightsTheChosenRowWhereTheFocusIs(t *testing.T) {
 					t.Errorf("before side's row in the list is %+v, want %q, ▸ bold accent.key alone while its focus is left", *mark, want)
 				}
 			}
-			head, wantHead := c.at(l.panel, heading).ink, dimInk
+			head, wantHead := c.at(l.panel, heading).ink, headingInk
 			if tt.inSessions {
 				wantHead = titleInk
 			}

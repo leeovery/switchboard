@@ -30,13 +30,13 @@ func TestLogHelpListsItsKeysThenEachPartInTheDesignsOrder(t *testing.T) {
 	}
 	var headings []string
 	for i, row := range card.body[1:] {
-		if len(card.body[i]) == 0 && len(row) == 1 && row[0].ink == dimInk {
+		if len(card.body[i]) == 0 && len(row) == 1 && row[0].ink == headingInk {
 			headings = append(headings, row[0].text)
 		}
 	}
 	want := []string{"REQUESTS", "EVENTS", "COLUMNS", "FIND", "CHECKS AND COUNTS", "WORTH AT API PRICES", "NEVER KEPT"}
 	if !slices.Equal(headings, want) {
-		t.Errorf("help explains %q, want %q, each headed in text.subtle after a blank row", headings, want)
+		t.Errorf("help explains %q, want %q, each headed in text.muted after a blank row", headings, want)
 	}
 }
 

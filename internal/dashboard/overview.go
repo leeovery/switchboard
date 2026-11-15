@@ -967,14 +967,14 @@ func (f Frame) sectionHeading(c *canvas, p planned) {
 }
 
 // headSection draws a section's heading along h's row, in the columns it
-// spans, as the Overview and Graphs head theirs: its name in text.subtle;
+// spans, as the Overview and Graphs head theirs: its name in text.muted;
 // three cells on, what says has it say, cut to the cells it's given, which
 // keep leastRule cells of rule, where it says anything; a cell after that,
 // or two after the name, a rule in border; and a cell on, at its last
 // column, key, the key that hides it, in bold accent.key.
 func headSection(c *canvas, h bounds, name, key string, says headingWords) {
 	last := h.x + h.width - 1
-	x := c.line(h.x, h.y, line{{name, dimInk}})
+	x := c.line(h.x, h.y, line{{name, headingInk}})
 	ruled, at := x+ruleGap, x+headingGap
 	if said := says(last - at - leastRule - 2); len(said) > 0 {
 		ruled = c.line(at, h.y, said) + 1

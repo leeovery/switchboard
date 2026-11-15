@@ -342,8 +342,8 @@ func TestEveryCellOfThePageBehindACardButTheClockIsFadedAndNothingInItBold(t *te
 			}
 		}
 	}
-	if title := behind[y][x+3]; title.fg != shadeOf(f.Look.theme.Colour(theme.TextSubtle)) {
-		t.Errorf("the card's title is %s, want it in text.subtle, not faded", title)
+	if title := behind[y][x+3]; title.fg != shadeOf(f.Look.theme.Colour(theme.TextMuted)) {
+		t.Errorf("the card's title is %s, want it in text.muted, not faded", title)
 	}
 }
 

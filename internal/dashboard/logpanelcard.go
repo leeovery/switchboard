@@ -289,7 +289,7 @@ func (p LogPanel) leftPane() pane {
 // shown then hidden, in its third.
 func (p LogPanel) columnsPane() pane {
 	var pn pane
-	pn.put(0, 0, line{{"COLUMNS", dimInk}})
+	pn.put(0, 0, line{{"COLUMNS", headingInk}})
 	shown, _ := p.laidColumns()
 	paired := min(len(shown), 2*columnsDown)
 	for i, t := range p.columnTicks() {
@@ -307,7 +307,7 @@ func (p LogPanel) columnsPane() pane {
 // is, in text.muted.
 func (p LogPanel) eventKindsPane() pane {
 	var pn pane
-	pn.put(0, 0, line{{"EVENTS", dimInk}})
+	pn.put(0, 0, line{{"EVENTS", headingInk}})
 	pn.put(0, kindCountEnd-len("today"), line{{"today", dimInk}})
 	for i, t := range p.eventKindTicks() {
 		row, n := 1+i, p.Events.Kinds[t.on.id]
@@ -329,7 +329,7 @@ func (p LogPanel) eventKindsPane() pane {
 // saying how many more there are and how to find one from another day.
 func (p LogPanel) onlyPane(width int) pane {
 	var pn pane
-	pn.put(0, 0, line{{"ONLY", dimInk}})
+	pn.put(0, 0, line{{"ONLY", headingInk}})
 	row := 1
 	for _, r := range p.choiceRows() {
 		pn.put(row, 0, line{{r.label, dimInk}})

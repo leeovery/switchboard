@@ -280,7 +280,7 @@ func (h heading) pieces(y, width int, phone bool) []piece {
 // it's compact, and a cell on, [ ], but where it's compact, or has one
 // sub-tab alone, with none to turn to; and returns the column after them.
 func (h heading) named(laid *laying, y int, phone bool) int {
-	x := laid.put(0, y, line{{h.name, dimInk}}, Target{})
+	x := laid.put(0, y, line{{h.name, headingInk}}, Target{})
 	if len(h.subTabs) == 0 {
 		return x
 	}

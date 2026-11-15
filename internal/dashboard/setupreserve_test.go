@@ -66,7 +66,7 @@ func TestTheReserveCardsInks(t *testing.T) {
 		x, y int
 		want ink
 	}{
-		{name: "its title, as every card's", x: editCardX + 3, y: reserveCardTop, want: dimInk},
+		{name: "its title, as every card's", x: editCardX + 3, y: reserveCardTop, want: headingInk},
 		{name: "what the primary is", x: editCardContent, y: reserveCardTop + 2, want: secondaryInk},
 		{name: "what its reserve is", x: editCardContent, y: reserveCardTop + 3, want: secondaryInk},
 		{name: "its field's name", x: editCardContent, y: reserveFieldRow, want: dimInk},
