@@ -950,8 +950,10 @@ among them; a session's page, its points among them; Trends, its YEAR among them
 and tokens on Accounts. A session resumed in another pool, once its directory's fence changes,
 shows in each pool with the work it did there, and a project worked on in two pools shows each
 pool's work alone. The days begin where the pool's work does, so a pool added to a ledger months
-old shows no empty months before it on Trends, Projects or the List, and WHEN YOU WORK averages
-its own days alone.
+old shows no empty days or months before it on Trends, Projects, a project's WORTH BY among them,
+the List, or Accounts' WORTH and Tokens, and WHEN YOU WORK averages its own days alone. Accounts'
+weeks, on Compare's WEEKS and on Detail, are the accounts' own windows, so they reach back before
+the pool's work, as an account's windows are its own whatever pool it worked in.
 
 The pool shown follows the config as it changes: where a pool or an account is added, removed,
 relabelled, fenced, moved or reordered, or an account's plan, primary or reserve changes, in any

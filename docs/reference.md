@@ -289,13 +289,16 @@ line keeps everything about a request except its content. It never holds any of 
 - **`dir`:** `run` tells the router the directory in a header the API never sees. A `claude`
   started within that session other than through `run` carries the directory too.
 - **`project`:** `run` finds the repository as it starts the session, walking up from the
-  directory to the first `.git`, without running git. A linked worktree counts as its main
-  repository's, by the path the walk took where it went through it or a folder it's in, so a
-  repository in a folder reached through a link stays one project, its worktrees beside it in
+  directory, its links resolved as its pool's are, to the first `.git`, without running git, so a
+  link into a repository's subdirectory counts as that repository's. A linked worktree counts as
+  its main repository's, by the path the walk took where it went through it or a folder it's in,
+  so a repository in a folder reached through a link stays one project, its worktrees beside it in
   that folder too. A repository folder that is itself a link, with a worktree beside it, and
   worktrees kept outside the linked folder, still count as two. A worktree of a bare repository
-  counts as itself, and a directory in no repository counts as itself. On a line without it, a
-  `dir` in `<repo>/.claude/worktrees/<name>` counts as `<repo>`, and any other `dir` as itself.
+  counts as the bare repository's folder, `~/repos/api.git`, or, where that folder's name starts
+  with a dot, as a `.bare` layout's, as the folder holding it, `~/Code/api`. A directory in no
+  repository counts as itself. On a line without it, a `dir` in `<repo>/.claude/worktrees/<name>`
+  counts as `<repo>`, and any other `dir` as itself.
 - **`agent_id` and `parent_agent_id`:** Claude Code's id for a subagent is random. For a member of
   an agent team, the id comes from its name.
 
@@ -774,8 +777,9 @@ names, else in the pool it's in now, the one its newest request was routed in.
 
 `sessions` lists each session, with these:
 
-- Its whole id, its directory, its `project` where it names one, `account` and its `label`, and
-  model.
+- Its whole id, its directory, its `project`, as the dashboard's Projects reads it: the one its
+  lines or the router name, else its directory's, so a session from before switchboard recorded it
+  in `<repo>/.claude/worktrees/<name>` gives `<repo>`; `account` and its `label`; and model.
 - Whether it's `running`.
 - For a running session: when it was last seen, each of its models' `account`, its `label`, and
   why, what it's doing, and its `move_cost`, what moving it now would cost.

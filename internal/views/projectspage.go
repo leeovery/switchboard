@@ -21,7 +21,10 @@ import (
 // names the accounts, configured and removed; the prices worth is priced by,
 // at now's day's prices, as Past and the List price theirs, and the version
 // table that names the models; the day weeks start on; how a model's family
-// is read from its id, for one the table doesn't name; and now.
+// is read from its id, for one the table doesn't name; now; and Began, the
+// start of the first day of the work the days are of, a pool's first day of
+// work of a pool's, as PoolRead's Start tells it, for a page's charts to
+// begin there, as worthCharts has it: zero where it's unknown.
 type PeriodInput struct {
 	Period     Period
 	List       SessionList
@@ -30,6 +33,7 @@ type PeriodInput struct {
 	WeekStarts time.Weekday
 	Family     func(model string) string
 	Now        time.Time
+	Began      time.Time
 }
 
 // ProjectsPage is Projects' list, as the dashboard draws it: a row for each

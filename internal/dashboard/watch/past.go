@@ -17,19 +17,16 @@ import (
 // months, read once a run, as Accounts is first shown, Runway's lanes first
 // want them or Trends first shows a section drawn of them, and of the
 // earliest calendar year the lanes reach back to that they don't, each
-// brought up to today at each look since; the day the ledger began, where it
-// tells it, and whether that's today's as it holds no day yet, beganNone,
-// and whether a failure to has been logged, the once; the day weeks start
-// on; and the reads of the ledger asked for, one under way at a time, and
-// whether a look since the last asks for the days since. held counts the
-// changes to the last 12 months' days held, as each read and look brings
-// them, for the pages built of them to be built afresh.
+// brought up to today at each look since; where the ledger began, as begun
+// has it; the day weeks start on; and the reads of the ledger asked for,
+// one under way at a time, and whether a look since the last asks for the
+// days since. held counts the changes to the last 12 months' days held, as
+// each read and look brings them, for the pages built of them to be built
+// afresh.
 type pastDays struct {
+	begun
 	last, back heldDays
 	held       int
-	began      time.Time
-	beganNone  bool
-	warned     bool
 	starts     time.Weekday
 	asked      int
 	reading    bool
@@ -83,6 +80,17 @@ type beginning struct {
 	began time.Time
 	none  bool
 	err   error
+}
+
+// begun is where the pool shown's work of the ledger begins, as a reader of
+// it learns it from the reads that ask, as beganAsked has them: the start of
+// its first day, zero till one tells it, and whether that's today's as it
+// holds no day yet, beganNone; and whether a failure to tell has been
+// logged, the once.
+type begun struct {
+	began     time.Time
+	beganNone bool
+	warned    bool
 }
 
 // readPast has the watch read the ledger's days for Accounts while it's
@@ -163,11 +171,25 @@ func (m Model) ledgerStart() views.LedgerStart {
 // ledgerBegan asks it: while that's unknown, after a failure to say, or
 // while the ledger holds no day, as on a fresh install, so begins with
 // today, whichever that is, start, where it's given; else nil, not asking.
-func (t pastDays) beganAsked(start views.LedgerStart) views.LedgerStart {
-	if start == nil || !t.began.IsZero() && !t.beganNone {
+func (b begun) beganAsked(start views.LedgerStart) views.LedgerStart {
+	if start == nil || !b.began.IsZero() && !b.beganNone {
 		return nil
 	}
 	return start
+}
+
+// told is b once a read has asked where the ledger began: where it told,
+// held; where it failed to say, logged, the first time alone, as each read
+// after asks again.
+func (b begun) told(n beginning) begun {
+	if n.err != nil && !b.warned {
+		logger.Warn("couldn't read where the request ledger begins", "error", n.err)
+		b.warned = true
+	}
+	if !n.began.IsZero() {
+		b.began, b.beganNone = n.began, n.none
+	}
+	return b
 }
 
 // ledgerBegan is where the ledger began, at now, as it tells it and
@@ -230,19 +252,14 @@ func (m Model) yearRead(msg yearReadMsg) Model {
 	return m
 }
 
-// learned is the days held once a read has asked where the ledger began:
-// where it told, held, and taken by every Past held, the 12 months' and a
-// calendar year's alike; where it failed to say, logged, the first time
-// alone, as each read after asks again.
+// learned is the days held once a read has asked where the ledger began, as
+// begun's told has it, where it told taken by every Past held, the 12
+// months' and a calendar year's alike.
 func (t pastDays) learned(b beginning) pastDays {
-	if b.err != nil && !t.warned {
-		logger.Warn("couldn't read where the request ledger begins", "error", b.err)
-		t.warned = true
-	}
+	t.begun = t.told(b)
 	if b.began.IsZero() {
 		return t
 	}
-	t.began, t.beganNone = b.began, b.none
 	for _, d := range []*heldDays{&t.last, &t.back} {
 		if d.held() {
 			d.past = d.past.Begun(b.began)

@@ -168,18 +168,17 @@ func (p Past) Accounts(period Period) AccountsPage {
 	_, before = splitAt(before, first.AddDate(0, 0, -lookBack).Format(time.DateOnly))
 	totals := accountTotalsOf(before, days, in.Accounts, p.versions())
 	known := plans{accounts: in.Accounts, table: in.Prices}
-	firstDate := first.Format(time.DateOnly)
-	costs := plansOf(days, known, pricedOver(firstDate, period.last(today, in.WeekStarts).Format(time.DateOnly), p.counted(firstDate), period.share()))
+	costs := plansOf(days, known, pricedOver(first.Format(time.DateOnly), period.last(today, in.WeekStarts).Format(time.DateOnly), p.counted(first).Format(time.DateOnly), period.share()))
 	_, weeks := splitAt(p.days, weeksTo(today, in.WeekStarts, heldWeeks(today, in.WeekStarts)).AddDate(0, 0, -lookBack).Format(time.DateOnly))
 	page := AccountsPage{Period: period, Rows: make([]AccountsRow, len(in.Accounts)), PricesAsOf: in.Prices.AsOf, in: in, days: weeks}
 	worths := worthsByDay(days, in.Accounts)
 	for x, a := range in.Accounts {
 		plan, _ := known.of(a.ID)
 		page.Rows[x] = AccountsRow{Label: a.Label, Totals: totals.Accounts[x], Plan: costs[x], PlanName: plan.Name,
-			WorthBy: worthCharts(period, in.Now, in.WeekStarts, worths[x], nil)}
+			WorthBy: worthCharts(period, in.Now, in.WeekStarts, in.Began, worths[x], nil)}
 	}
 	all := len(in.Accounts)
-	page.All = AccountsRow{Totals: totals.Accounts[all], Plan: costs[all], WorthBy: worthCharts(period, in.Now, in.WeekStarts, worths[all], nil), all: true}
+	page.All = AccountsRow{Totals: totals.Accounts[all], Plan: costs[all], WorthBy: worthCharts(period, in.Now, in.WeekStarts, in.Began, worths[all], nil), all: true}
 	page.Versions = p.versions().named(page.All.Totals.ByModel)
 	page.Recorded = page.All.Totals.recorded()
 	page.stand(in, weeks)

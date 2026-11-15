@@ -23,32 +23,29 @@ import (
 // them; whether a read is under way, and how many were asked, a read
 // another overtook passed over; the date of the day they were last bounded
 // on, or read on, as bounded has it; and where the pool shown's work
-// begins, as the first read to land learned it, zero where it couldn't
-// tell, and whether one has.
+// begins, as begun has it, the reads asking till one tells it.
 type periodDays struct {
-	days      *views.SessionDays
-	from      time.Time
-	read      int
-	tailed    views.SessionDays
-	fed       int
-	reading   bool
-	asked     int
-	boundOn   string
-	began     time.Time
-	beganRead bool
+	begun
+	days    *views.SessionDays
+	from    time.Time
+	read    int
+	tailed  views.SessionDays
+	fed     int
+	reading bool
+	asked   int
+	boundOn string
 }
 
 // daysReadMsg is a read of the sessions' days, the asked'th: the days from
 // the start of the day from to the day before now's, as readDays read them,
-// and the date of now's day; and, where the read asked it, where the pool
-// shown's work begins.
+// and the date of now's day; and where the pool shown's work begins, where
+// the read asked it.
 type daysReadMsg struct {
-	asked     int
-	days      views.SessionDays
-	from      time.Time
-	on        string
-	began     time.Time
-	beganRead bool
+	asked int
+	days  views.SessionDays
+	from  time.Time
+	on    string
+	beginning
 }
 
 // readsDays reports whether what the watch shows is built of the sessions'
@@ -67,11 +64,11 @@ func (m Model) readsDays() bool {
 // built of them, as readsDays has it, one read at a time, in the pool shown,
 // as its PoolRead reads them: once, as one first shows, from the start of
 // the period's first day, or of the pool's first day of work, where that's
-// later, as daysFrom has it, the first read asking where that is, as the
-// pool's read's Start tells it, once the pool shown; and again where the
-// dial steps to a period reaching further back than the days held. Each
-// reads the days before today's alone, today's the tail's, as joinedDays
-// joins them.
+// later, as daysFrom has it, each read asking where that is, as the pool's
+// read's Start tells it, till one tells it, as beganAsked has it; and again
+// where the dial steps to a period reaching further back than the days
+// held. Each reads the days before today's alone, today's the tail's, as
+// joinedDays joins them.
 func (m Model) readDays() (Model, tea.Cmd) {
 	d := m.sessionDays
 	if !m.readsDays() || d.reading || m.cfg.Ledger == nil {
@@ -82,18 +79,14 @@ func (m Model) readDays() (Model, tea.Cmd) {
 	if d.days != nil && !from.Before(d.from) {
 		return m, nil
 	}
-	l, pool := m.cfg.Ledger, m.cfg.PoolRead
-	var start views.LedgerStart
-	if !d.beganRead {
-		start = m.ledgerStart()
-	}
+	l, pool, start := m.cfg.Ledger, m.cfg.PoolRead, d.beganAsked(m.ledgerStart())
 	m.sessionDays.asked++
 	m.sessionDays.reading = true
 	asked := m.sessionDays.asked
 	return m, func() tea.Msg {
 		msg := daysReadMsg{asked: asked, on: dayfile.DateOf(now)}
 		if start != nil {
-			msg.began, msg.beganRead = ledgerBegan(start, now).began, true
+			msg.beginning = ledgerBegan(start, now)
 			from = score.Later(from, msg.began)
 		}
 		msg.days, msg.from = views.ReadSessionDays(l, from, now, pool), from
@@ -113,16 +106,15 @@ func (m Model) daysFrom(now time.Time) time.Time {
 // held in place of those held before, the days the tail fed letting go of
 // those it stands for, as withoutRead has it, for what's built of them to
 // be built afresh, bounded next on a day after the one it was read on, as
-// bounded has it; and where the pool shown's work begins, where it asked.
+// bounded has it; and where the pool shown's work begins, as begun's told
+// has it.
 func (m Model) daysRead(msg daysReadMsg) Model {
 	if msg.asked != m.sessionDays.asked {
 		return m
 	}
 	m.sessionDays.reading = false
 	m.sessionDays.days, m.sessionDays.from, m.sessionDays.boundOn = &msg.days, msg.from, msg.on
-	if msg.beganRead {
-		m.sessionDays.began, m.sessionDays.beganRead = msg.began, true
-	}
+	m.sessionDays.begun = m.sessionDays.told(msg.beginning)
 	m.sessionDays.tailed = m.sessionDays.withoutRead(m.sessionDays.tailed)
 	m.sessionDays.read++
 	return m
@@ -323,9 +315,11 @@ func listingKeys(list views.SessionList, of func(views.ListedSession) bool) []ru
 
 // periodInput is what a page of the sessions' days is built of at now
 // beside its days: the dial's period, the List given, the accounts' names,
-// the prices, the day weeks start on and how a model's family is read.
+// the prices, the day weeks start on, how a model's family is read, and
+// where the pool shown's work begins, as the days' reads learned it.
 func (m Model) periodInput(now time.Time, list views.SessionList) views.PeriodInput {
 	return views.PeriodInput{
 		Period: m.period, List: list, Names: m.moment(now), Prices: m.cfg.Prices, WeekStarts: m.cfg.WeekStarts, Family: m.cfg.Family, Now: now,
+		Began: m.sessionDays.began,
 	}
 }

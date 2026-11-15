@@ -147,9 +147,9 @@ func (p AccountsPage) Hourly(d SessionDays) AccountsPage {
 	p.Rows = slices.Clone(p.Rows)
 	for x, a := range p.in.Accounts {
 		hours := byAccount[a.ID]
-		p.Rows[x].WorthBy = worthCharts(PeriodToday, p.in.Now, p.in.WeekStarts, nil, &hours)
+		p.Rows[x].WorthBy = worthCharts(PeriodToday, p.in.Now, p.in.WeekStarts, p.in.Began, nil, &hours)
 	}
-	p.All.WorthBy = worthCharts(PeriodToday, p.in.Now, p.in.WeekStarts, nil, &all)
+	p.All.WorthBy = worthCharts(PeriodToday, p.in.Now, p.in.WeekStarts, p.in.Began, nil, &all)
 	return p
 }
 

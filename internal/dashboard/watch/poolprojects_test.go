@@ -93,10 +93,11 @@ func periodRequests(sessions []views.PeriodSession) map[string]int {
 // reads them, each day's head built as the router builds it: a project
 // worked on in two pools shows each pool's work alone, the session split
 // between them its requests in the pool alone, read from its day's lines
-// where its head holds it whole; and the days are read from where the pool's
-// work begins, never before, Acme's five days back; and a project's page
-// names the accounts of the pool's work alone. Every pool's read holds every
-// pool's work, from where the ledger begins.
+// where its head holds it whole; and the days are read, and a project's
+// WORTH BY charted, from where the pool's work begins, never before, Acme's
+// five days back; and a project's page names the accounts of the pool's work
+// alone. Every pool's read holds every pool's work, from where the ledger
+// begins.
 func TestProjectsAndTheListReadThePoolShownsWorkAlone(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -144,6 +145,9 @@ func TestProjectsAndTheListReadThePoolShownsWorkAlone(t *testing.T) {
 			}
 			if want := dayfile.DayStart(past(-tt.began).Local(), 0); !h.model.sessionDays.from.Equal(want) {
 				t.Errorf("the sessions' days are read from %v, want %v, where the pool's work begins", h.model.sessionDays.from, want)
+			}
+			if got, want := h.model.projects.shown.Project.WorthBy[0].Buckets[0].Start, dayfile.CivilOf(past(-tt.began)); !got.Equal(want) {
+				t.Errorf("api's WORTH BY begins %v, want %v, where the pool's work begins", got, want)
 			}
 
 			h.model.view, h.model.sessionsTab.shown.Shown = dashboard.Sessions, dashboard.SessionsList

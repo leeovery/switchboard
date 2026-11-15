@@ -2,6 +2,7 @@ package watch
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -11,6 +12,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/leeovery/switchboard/internal/dashboard"
+	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/logs"
 	"github.com/leeovery/switchboard/internal/status"
@@ -171,6 +173,49 @@ func TestProjectsReadsItsDaysOnceAndAgainOnlyFurtherBack(t *testing.T) {
 	h.keys(tabKey, shiftTabKey)
 	if h.model.sessionDays.asked != 4 {
 		t.Errorf("shown again, the days were read %d times, want 4: none again", h.model.sessionDays.asked)
+	}
+}
+
+// beginsFlaky is a Projects ledger that fails to say where it begins the
+// first fails times it's asked, as of too many files open, then tells it
+// begins at began; and counts the times it's asked.
+type beginsFlaky struct {
+	*projectsLedger
+	began        time.Time
+	fails, asked int
+}
+
+func (l *beginsFlaky) FirstDay(time.Time) (time.Time, error) {
+	l.asked++
+	if l.asked <= l.fails {
+		return time.Time{}, errors.New("too many open files")
+	}
+	return l.began, nil
+}
+
+// A read of the sessions' days the ledger fails to say where it begins for
+// reads from the period's start, and the next read asks again: once one
+// tells it, the days are read from there, where the period begins before,
+// and no read asks again.
+func TestTheSessionsDaysAskWhereTheLedgerBeginsTillItSays(t *testing.T) {
+	h := projectsHarness(t, dashboard.Projects)
+	began := dayfile.DayStart(start.Local(), -10)
+	l := &beginsFlaky{projectsLedger: h.model.cfg.Ledger.(*projectsLedger), began: began, fails: 1}
+	h.model.cfg.Ledger = l
+	h.start()
+	from := func(p views.Period) time.Time { return p.From(h.clock.now, time.Monday) }
+	if d := h.model.sessionDays; l.asked != 1 || !d.began.IsZero() || !d.from.Equal(from(views.PeriodThisWeek)) {
+		t.Fatalf("asked %d times, the days begin %v, read from %v; want asked once, unknown, read from the week's start %v", l.asked, d.began, d.from, from(views.PeriodThisWeek))
+	}
+
+	h.deliver(h.press(">")...)
+	if d := h.model.sessionDays; l.asked != 2 || !d.began.Equal(began) || !d.from.Equal(began) {
+		t.Fatalf("over 30 days, asked %d times, the days begin %v, read from %v; want asked again, beginning and read from %v", l.asked, d.began, d.from, began)
+	}
+
+	h.deliver(h.press(">")...)
+	if d := h.model.sessionDays; l.asked != 2 || d.asked != 2 || !d.from.Equal(began) {
+		t.Errorf("over 12 weeks, asked %d times, the days read %d times, from %v; want asked twice, read twice, from %v", l.asked, d.asked, d.from, began)
 	}
 }
 

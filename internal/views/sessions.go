@@ -32,8 +32,9 @@ type ListedSession struct {
 	// Dir is the directory it runs in, as the router gives it, else as its
 	// lines last name it, the home as ~: "" where neither names one.
 	Dir string `json:"dir,omitempty"`
-	// Project is its project, from where Dir comes from, which
-	// status.ProjectOf reads with Dir: "" where that names none.
+	// Project is its project, as status.ProjectOf reads it from where Dir
+	// comes from: the repository named with Dir, else Dir's, as a line from
+	// before projects were recorded has it; "" where neither names one.
 	Project string `json:"project,omitempty"`
 	// Account and Model name it, following its main thread: the model of its
 	// latest main request, and the account that model goes to now, as the
@@ -317,9 +318,9 @@ func listedDir(routed status.Session, lines string) string {
 // named them.
 func listedPlace(routed status.Session, dir, project string) (string, string) {
 	if a, ok := routedAt(routed); ok {
-		return a.Dir, a.Project
+		dir, project = a.Dir, a.Project
 	}
-	return dir, project
+	return dir, status.ProjectOf(project, dir)
 }
 
 // routedDir is the directory the session s runs in as the router lists it:

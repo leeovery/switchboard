@@ -80,11 +80,11 @@ func TestFindProjectWalksUpToTheRepositoryItsDirectoryIsIn(t *testing.T) {
 			start: "fix-login/web", want: "api.git",
 		},
 		{
-			name: "a worktree beside a bare repository in .bare, the bare repository", dirs: []string{"api/.bare/worktrees/main", "api/main/web"},
+			name: "a worktree beside a bare repository in .bare, the folder holding it", dirs: []string{"api/.bare/worktrees/main", "api/main/web"},
 			files: map[string]string{
 				"api/main/.git": "gitdir: <root>/api/.bare/worktrees/main\n", "api/.bare/worktrees/main/commondir": commonDir, "api/.bare/config": bareConfig,
 			},
-			start: "api/main/web", want: "api/.bare",
+			start: "api/main/web", want: "api",
 		},
 		{
 			name:  "a worktree whose common directory, not .git, no config says is bare, the worktree's own",
@@ -161,9 +161,15 @@ func TestFindProjectWalksUpToTheRepositoryItsDirectoryIsIn(t *testing.T) {
 			start: "fix-login", want: "fix-login",
 		},
 		{
-			name: "started through a link into a repository's subdirectory, walked up as given: the directory itself",
+			name: "started through a link into a repository's subdirectory, its links resolved as a pool's are: the repository, by the path given",
 			dirs: []string{"api/.git", "api/cmd"}, links: map[string]string{"cmd": "api/cmd"},
-			start: "cmd", want: "cmd",
+			start: "cmd", want: "api",
+		},
+		{
+			name: "started through a link into a worktree's subdirectory, its links resolved as a pool's are: the worktree's repository, as its pool is",
+			dirs: []string{"code/acme/.git/worktrees/x", "wt/x/web"}, links: map[string]string{"acme-web": "wt/x/web"},
+			files: map[string]string{"wt/x/.git": "gitdir: <root>/code/acme/.git/worktrees/x\n", "code/acme/.git/worktrees/x/commondir": commonDir},
+			start: "acme-web", want: "code/acme",
 		},
 		{
 			name: "started through a link, a worktree whose repository is outside it, the repository named by the shared folder above the link",

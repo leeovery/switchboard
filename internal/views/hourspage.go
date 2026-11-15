@@ -70,7 +70,7 @@ const (
 // within them, as Past's counted has it.
 func (p Past) Hours() HoursPage {
 	today := dayfile.CivilOf(p.in.Now)
-	first := p.counted(today.AddDate(0, 0, -hoursWeeks*weekdays).Format(time.DateOnly))
+	first := p.counted(today.AddDate(0, 0, -hoursWeeks*weekdays)).Format(time.DateOnly)
 	last := today.AddDate(0, 0, -1).Format(time.DateOnly)
 	var tally hoursTally
 	for _, d := range between(p.days, first, last) {

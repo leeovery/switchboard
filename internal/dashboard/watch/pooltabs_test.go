@@ -37,15 +37,15 @@ var pooledToday = []ledger.Held{
 	ofSession(arrived("0a000005", "k3f9", -10*time.Minute), id9E21, "q7mt"),
 }
 
-// listedRequests are the requests of each session today's List lists, by
-// its id, as the store the watch holds lists them.
+// listedRequests are the requests of each session the List draws, by its
+// id.
 func listedRequests(h *harness) map[string]int {
-	requests := make(map[string]int)
-	now := h.clock.Now()
-	for _, s := range h.model.held.List(h.model.listLive(now, h.model.traffic.stream(now))).Sessions {
-		requests[s.Session] = s.Requests
+	h.t.Helper()
+	log := h.model.sessionsTab.shown.Log
+	if log == nil {
+		h.t.Fatal("the List built no log")
 	}
-	return requests
+	return periodRequests(log.Sessions)
 }
 
 // Sessions lists the sessions of the pool shown alone, each with its
@@ -74,6 +74,7 @@ func TestSessionsAndAPageHoldThePoolShownsWorkAlone(t *testing.T) {
 			h.start()
 
 			h.keys(toSessions...)
+			h.keyed("] <")
 			if got := listedRequests(h); !maps.Equal(got, tt.listed) {
 				t.Errorf("Sessions lists %v, want %v, the pool's requests alone", got, tt.listed)
 			}
@@ -324,6 +325,7 @@ func TestATurnReadsEveryTabOfThePoolTurnedTo(t *testing.T) {
 				t.Errorf("Accounts begins %v, want %v, where the pool's work begins", h.model.past.began, want)
 			}
 			h.keys(tabKey, tabKey)
+			h.keyed("] <")
 			if got := listedRequests(h); !maps.Equal(got, tt.listed) {
 				t.Errorf("Sessions lists %v, want %v, the pool's requests alone", got, tt.listed)
 			}

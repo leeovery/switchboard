@@ -293,6 +293,24 @@ func TestAProjectsWorthIsSharedByModelAndByAccount(t *testing.T) {
 	}
 }
 
+// Where the work began part-way through the period, as a young pool's did,
+// a project's WORTH BY charts it from the day it began, as Accounts charts
+// an account's, no bucket before it as a day of none.
+func TestAProjectsWorthIsChartedFromTheDayTheWorkBegan(t *testing.T) {
+	days := heldDays(now,
+		slices.Concat(
+			projectAsks(repoSession, "/code/switchboard", "", "work", october(5, 9, 0)),
+			projectAsks(repoSession, "/code/switchboard", "", "work", october(7, 9, 0)),
+		)...)
+	in := projectsIn(views.PeriodThirtyDays, now)
+	in.Began = on("2026-10-02")
+	project, _ := days.Projects(in).Project("/code/switchboard")
+	want := []chartFrom{{views.ByDay, 6, "2026-10-02"}, {views.ByWeek, 2, "2026-09-28"}}
+	if got := chartsFrom(project.WorthBy); !reflect.DeepEqual(got, want) {
+		t.Errorf("WORTH BY is charted as %+v, want %+v", got, want)
+	}
+}
+
 // WORTH BY gives a project's worth in each of the period's buckets, the
 // finest first: today's by hour and by two hours, this week's by day, the
 // last 30 days' and 12 weeks' by day and by week, the last 12 months' by

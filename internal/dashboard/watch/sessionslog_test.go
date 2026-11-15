@@ -5,8 +5,10 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/status"
@@ -167,9 +169,25 @@ func TestTheListsLogIsBuiltOnlyAsWhatItsBuiltOfChanges(t *testing.T) {
 	}
 }
 
-// A session running pinned to the account it's on reads "pinned" on the
-// List as the router lists the pin, though no line of the ledger tells of
-// it; unpinned, it no longer does, as soon.
+// routingOf is what the List draws in its routing column on the row of the
+// session with the id given: "" where it draws no such row.
+func routingOf(h *harness, id string) string {
+	h.t.Helper()
+	screen := h.view()
+	before, _, found := strings.Cut(ansi.Strip(rowWith(screen, "  session  ")), "routing")
+	if !found {
+		h.t.Fatalf("the List draws no routing column:\n%s", screen)
+	}
+	row := []rune(ansi.Strip(rowWith(screen, id[:4]+" ")))
+	if x := utf8.RuneCountInString(before); x < len(row) {
+		return strings.TrimSpace(string(row[x:]))
+	}
+	return ""
+}
+
+// A session running pinned to the account it's on reads "pinned" in the
+// List's routing column as the router lists the pin, though no line of the
+// ledger tells of it; unpinned, it no longer does, as soon.
 func TestAPinOfASessionRunningIsDrawnAsTheRouterListsIt(t *testing.T) {
 	h := listHarness(t, Size{Width: 160, Height: 50})
 	running(h, alphaSecond, "/code/alpha")
@@ -182,8 +200,8 @@ func TestAPinOfASessionRunningIsDrawnAsTheRouterListsIt(t *testing.T) {
 		if got := h.model.sessionDays.fed; got != fed {
 			t.Fatalf("the tail fed the days %d times, want none, the pin told by the router alone", got-fed)
 		}
-		if pinned := strings.Contains(h.view(), "pinned"); pinned != step.pinned {
-			t.Errorf("the router listing it %q, the List says pinned %t, want %t:\n%s", step.reason, pinned, step.pinned, h.view())
+		if pinned := routingOf(h, alphaSecond) == "pinned"; pinned != step.pinned {
+			t.Errorf("the router listing it %q, its routing says pinned %t, want %t:\n%s", step.reason, pinned, step.pinned, h.view())
 		}
 	}
 }

@@ -6,6 +6,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/score"
 )
 
 // Past is the ledger's days, priced once as they're given, which Accounts'
@@ -81,11 +82,23 @@ func (p Past) began() string {
 	return dayfile.DateOf(p.in.Began)
 }
 
-// counted is the date of the first day the Past counts of the days from the
-// one with the date first: the later of it and the day the ledger began,
+// counted is the first day the Past counts of the days from first, as
+// dayfile.Civil gives a day, as begunFrom has it, the ledger having begun
 // where the input tells it.
-func (p Past) counted(first string) string {
-	return max(first, p.began())
+func (p Past) counted(first time.Time) time.Time {
+	return begunFrom(first, p.in.Began)
+}
+
+// begunFrom is the first day counted of the days from first, as
+// dayfile.Civil gives a day, the work they're of having begun at began:
+// began's day, where that's later, so nothing counts or charts a day before
+// it, as a pool's days hold none of its work before; first where began is
+// zero, as where it isn't known.
+func begunFrom(first, began time.Time) time.Time {
+	if began.IsZero() {
+		return first
+	}
+	return score.Later(first, dayfile.CivilOf(began))
 }
 
 // Summaries are the summaries of the days the Past holds from first to last,

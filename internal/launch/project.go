@@ -5,58 +5,89 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // FindProject returns the project a session started in dir runs in: the
-// repository dir is in, by its path, found by walking up from dir as it's
-// given, never resolving a link, to the first directory holding a .git,
-// stopping at the filesystem's root, each read as worktreeAt reads it, so a
-// project and a pool agree on what a worktree belongs to. A linked
+// repository dir is in, found by walking up from dir with its links
+// resolved, as a pool's reading resolves them, so a project and a pool agree
+// on where a directory lies, to the first directory holding a .git, stopping
+// at the filesystem's root, each read as worktreeAt reads it. A linked
 // worktree counts as its repository: its main checkout, or, where the
 // repository is bare, the bare repository's directory, so its worktrees are
-// one project; each by the path the walk took, as walkedTo has it, where it
-// went through the repository, or a directory it's in, as from a worktree
-// within it or beside it; else by the path git wrote, every link resolved.
-// A worktree whose git directory has no commondir, as a submodule's, counts
-// as itself, as does one worktreeAt can't place, as a submodule's linked
-// worktree, or a separate git directory's. Where no directory holds a .git,
-// or the first that does can't be read as a repository, as worktreeAt finds
-// it lost, the project is dir itself. It runs no git. "" for "".
+// one project, or, where that directory's name starts with a dot, as a .bare
+// layout's, the folder holding it, as projectOf has it. A worktree whose git
+// directory has no commondir, as a submodule's, counts as itself, as does
+// one worktreeAt can't place, as a submodule's linked worktree, or a
+// separate git directory's. Each is given by the path dir is given by, as
+// walkedTo has it, where that goes through the repository or a directory
+// it's in; else by its path with every link resolved. Where no directory
+// holds a .git, or the first that does can't be read as a repository, as
+// worktreeAt finds it lost, the project is dir itself, as given. It runs no
+// git. "" for "".
 func FindProject(dir string) string {
 	if dir == "" {
 		return ""
 	}
 	dir = filepath.Clean(dir)
-	for at := dir; ; at = filepath.Dir(at) {
+	repo, found := repositoryAround(resolvedPath(dir))
+	if !found {
+		return dir
+	}
+	return walkedTo(dir, repo)
+}
+
+// resolvedPath is path with its links resolved, as a pool's reading
+// resolves the directory a session starts in, or path as it is where they
+// can't be, as where nothing's there.
+func resolvedPath(path string) string {
+	if real, err := filepath.EvalSymlinks(path); err == nil {
+		return real
+	}
+	return path
+}
+
+// repositoryAround returns the repository the directory from is in, walking
+// up from it to the first directory holding a .git, to the filesystem's root
+// at most, as repositoryAt reads it, and whether there's one that can be
+// read as a repository.
+func repositoryAround(from string) (string, bool) {
+	for at := from; ; at = filepath.Dir(at) {
 		if repo, held := repositoryAt(at); held {
-			switch repo {
-			case "":
-				return dir
-			case at:
-				return at
-			}
-			return walkedTo(dir, repo)
+			return repo, repo != ""
 		}
 		if filepath.Dir(at) == at {
-			return dir
+			return "", false
 		}
 	}
 }
 
 // repositoryAt returns the repository whose .git the directory at holds, and
 // whether it holds one, as worktreeAt reads it: a linked worktree's is its
-// repository's place, and every other's at itself; "" where it's lost.
+// repository, as projectOf has it, and every other's at itself; "" where
+// it's lost.
 func repositoryAt(at string) (string, bool) {
 	if _, err := os.Stat(filepath.Join(at, ".git")); errors.Is(err, fs.ErrNotExist) {
 		return "", false
 	}
 	switch linked, kind := worktreeAt(at, ""); kind {
 	case worktreeLinked:
-		return linked.Place, true
+		return projectOf(linked), true
 	case worktreeLost:
 		return "", true
 	}
 	return at, true
+}
+
+// projectOf is the project of the linked worktree w: its repository's
+// place, but the folder holding a bare repository's directory whose name
+// starts with a dot, as a .bare layout's, as a project is named by its
+// folder's name, and .bare would name every such project alike.
+func projectOf(w Linked) string {
+	if w.Bare && strings.HasPrefix(filepath.Base(w.Place), ".") {
+		return filepath.Dir(w.Place)
+	}
+	return w.Place
 }
 
 // walkedTo returns the repository repo, as a commondir leads to it, every

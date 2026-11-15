@@ -187,6 +187,57 @@ func TestAnAccountsWorthIsChartedAsProjectsChartAProjects(t *testing.T) {
 	}
 }
 
+// chartFrom is a chart of WORTH BY as where it begins tells it: its unit,
+// how many buckets it has, and the date its first starts on.
+type chartFrom struct {
+	unit    views.BucketUnit
+	buckets int
+	first   string
+}
+
+// chartsFrom are the charts given, as chartFrom has them.
+func chartsFrom(charts views.WorthCharts) []chartFrom {
+	var from []chartFrom
+	for _, by := range charts {
+		from = append(from, chartFrom{by.Unit, len(by.Buckets), by.Buckets[0].Start.Format(time.DateOnly)})
+	}
+	return from
+}
+
+// Where the work began part-way through the period, as a young pool's did,
+// each account's worth is charted from the day it began, no bucket before
+// it as a day of none, its first week the one that day falls in; where it
+// began before the period, the whole period is charted.
+func TestAnAccountsWorthIsChartedFromTheDayTheWorkBegan(t *testing.T) {
+	days := daysFrom("2026-10-02",
+		day("2026-10-05", account("work", sent("claude-opus-5-5", 1, inputUsage))),
+		day("2026-10-07", account("work", sent("claude-opus-5-5", 3, opusUsage))),
+	)
+	tests := []struct {
+		name   string
+		began  string
+		period views.Period
+		want   []chartFrom
+	}{
+		{"begun on Friday, over 30 days", "2026-10-02", views.PeriodThirtyDays, []chartFrom{{views.ByDay, 6, "2026-10-02"}, {views.ByWeek, 2, "2026-09-28"}}},
+		{"begun on Friday, over 12 months", "2026-10-02", views.PeriodTwelveMonths, []chartFrom{{views.ByWeek, 2, "2026-09-28"}, {views.ByMonth, 1, "2026-10-01"}}},
+		{"begun on Friday, over this week", "2026-10-02", views.PeriodThisWeek, []chartFrom{{views.ByDay, 7, "2026-10-05"}}},
+		{"begun in January, over 30 days", "2026-01-01", views.PeriodThirtyDays, []chartFrom{{views.ByDay, 30, "2026-09-08"}, {views.ByWeek, 5, "2026-09-07"}}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			in := input(days)
+			in.Accounts, in.Began = workAndSide, on(tt.began)
+			page := views.NewPast(in, days).Accounts(tt.period)
+			for _, row := range append(slices.Clone(page.Rows), page.All) {
+				if got := chartsFrom(row.WorthBy); !reflect.DeepEqual(got, tt.want) {
+					t.Errorf("%q's worth is charted as %+v, want %+v", row.Totals.Account, got, tt.want)
+				}
+			}
+		})
+	}
+}
+
 // Accounts' today, fed the tail's fold of it, charts each account's worth by
 // the hour its requests arrived in, and by two hours, as Projects charts a
 // project's, a request of no session among them, all accounts' every

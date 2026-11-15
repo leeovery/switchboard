@@ -314,7 +314,7 @@ func TestTheListHoldsTodaysSessionsRunningThenEnded(t *testing.T) {
 	got := views.ListSessions(views.SessionSources{Running: routed, Ledger: world(), Prices: ledger.Pricing, Now: now})
 	want := views.SessionList{GeneratedAt: utc(now), PricesAsOf: "2026-10-11", Sessions: []views.ListedSession{
 		{
-			Session: older, Dir: "~/Code/api", Account: "work", Model: opus, Running: true, LastSeen: utc(october(7, 13, 10)),
+			Session: older, Dir: "~/Code/api", Project: "~/Code/api", Account: "work", Model: opus, Running: true, LastSeen: utc(october(7, 13, 10)),
 			// Its last request ended at 9:00, and its cache with it, however
 			// lately the router saw it.
 			Models:  []views.SessionModel{{Model: opus, Account: "work", Reason: "sticky"}},
@@ -323,7 +323,7 @@ func TestTheListHoldsTodaysSessionsRunningThenEnded(t *testing.T) {
 			Activity: views.Activity{Since: utc(october(7, 13, 10)), LastSeen: utc(october(7, 13, 10))},
 		},
 		{
-			Session: mover, Dir: "~/Code/cli", Account: "side", Model: opus, Running: true, LastSeen: utc(october(7, 13, 11)),
+			Session: mover, Dir: "~/Code/cli", Project: "~/Code/cli", Account: "side", Model: opus, Running: true, LastSeen: utc(october(7, 13, 11)),
 			Models: []views.SessionModel{
 				{Model: opus, Account: "side", Reason: "moved: work hit its limit"},
 				{Model: haiku, Account: "work", Reason: "sticky"},
@@ -347,7 +347,7 @@ func TestTheListHoldsTodaysSessionsRunningThenEnded(t *testing.T) {
 			Mark:     views.MarkMoved, Routing: routingSaid("rescored after 3h idle", "work", "side", nil),
 		},
 		{
-			Session: early, Dir: "~/Code/web", Account: "work", Model: opus, Ended: utc(october(7, 11, 0)), Started: utc(october(7, 8, 0)),
+			Session: early, Dir: "~/Code/web", Project: "~/Code/web", Account: "work", Model: opus, Ended: utc(october(7, 11, 0)), Started: utc(october(7, 8, 0)),
 			Requests: 3, Worth: priced(hourWorth, "claude-opus-9", "no_usage"),
 			Activity: views.Activity{Doing: views.Ended, Since: utc(october(7, 11, 0)), LastSeen: utc(october(7, 11, 0))},
 		},

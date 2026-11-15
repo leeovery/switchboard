@@ -1178,8 +1178,10 @@ Accounts' totals.
   request ledger's In a pool). The days begin where the pool's work begins, its first day whose
   summary holds work in it (`views.PoolRead`'s Start), so a pool added to a ledger months old counts
   no day before it as a day of none: Trends' months, WHEN YOU WORK's weekday averages, Accounts'
-  periods, the List's and Projects' periods, 12 months among them, and Runway's lanes begin there,
-  where every pool's begin where the ledger does. A pool that has worked on no day before today
+  periods, its WORTH and Tokens among them, the List's and Projects' periods, a project's WORTH BY
+  among them, 12 months among them, and Runway's lanes begin there, where every pool's begin where
+  the ledger does, each chart's first day the later of its period's and that one
+  (`views.begunFrom`). A pool that has worked on no day before today
   begins with today, asked again at each fresh start of the pool shown, a `P` or a config's turn,
   and not at each read, which would read every summary each time; no pool shown begins with today,
   reading none. No page adds pools together: a pool's room can never serve another pool's sessions,
@@ -1411,7 +1413,7 @@ Accepted as the second phase was built, each failing safe, with nothing crossing
 - **An accounts record that can't be read** is warned of at each turn, once for each read of it:
   the accounts removed, the pools removed and the first pool are each read of it afresh.
 - **Downgrading to v0.7.2:**
-  - the second phase's files, the rows of version 4 and the digests of envelope 3 with their
+  - the second phase's files, the rows of version 5 and the digests of envelope 3 with their
     parts, are derived, so v0.7.2 builds them again in its own versions, and the second phase
     builds them again on the way back up;
   - v0.7.2 can't read a config with pools, so a pools router still running holds its restart, as
@@ -5154,7 +5156,8 @@ draw it, the tab names in its title row aside, and kept in `testdata/vhs/referen
 `projects-108x24` and `projects-12-months-173x53`.
 
 - **A session's project** is `status.ProjectOf`'s, the project its lines name, else, of a line from
-  before they named one, its directory's, a Claude Code worktree counting as its repository. Inside
+  before they named one, its directory's, a Claude Code worktree counting as its repository, as the
+  List's sessions carry it (`views.ListedSession`'s `Project`), `sessions`' JSON among them. Inside
   a project a session keeps its own directory's name, so a worktree's session reads `fix-login`.
   A session is one project's, the one of where its latest day ran, as its story places it, so one
   whose days name it two ways, as across the upgrade that began recording projects, counts once.
@@ -7234,7 +7237,9 @@ session page · signed off · 7 Oct 2026**, its frames kept as `testdata/vhs/ref
   another directory shows the latest (settled in the plan).
 - **A project:** the repository a session ran in, keyed by the repository's path, as `run` tells the
   router and the ledger keeps it beside its directory (`project`). `run` finds it as it starts the
-  session, walking up from the directory it starts in, as it's given, to the first `.git`, to the
+  session, walking up from the directory it starts in, its links resolved as Which pool a session is
+  in resolves them, so a project and a pool agree on where a directory lies, a link into a
+  repository's subdirectory counting as that repository's, to the first `.git`, to the
   filesystem's root at most, and running no git: a session in a subdirectory counts as its
   repository's, and one in a linked worktree as its main repository's, the worktree's `.git` file
   naming its git directory, whose `commondir` leads there. Git writes those paths with every link
@@ -7247,9 +7252,14 @@ session page · signed off · 7 Oct 2026**, its frames kept as `testdata/vhs/ref
   worktrees kept outside the linked folder, as `~/wt/api-fix`. A worktree's project is its
   repository's, as its pool is (the owner's call, merging pools and projects): each `.git` is read
   as Which pool a session is in reads it (`launch.worktreeAt`), so a `commondir` not named `.git` of
-  a bare repository, as git reads `core.bare`, counts as the bare repository's directory, a `.bare`
-  layout's among them, its worktrees one project; one of no bare repository, a separate git
-  directory's or a submodule's worktree, counts as the worktree's own directory. One outside any
+  a bare repository, as git reads `core.bare`, counts as the bare repository's directory, its
+  worktrees one project, `~/repos/api.git`; but where that directory's name starts with a dot, as a
+  `.bare` layout's, as the folder holding it, `~/Code/api`, as a project is named by its folder's
+  name and `.bare` would name every such project alike. One of no bare repository, a separate git
+  directory's or a submodule's worktree, counts as the worktree's own directory. One case parts a
+  project from its pool, accepted: a submodule or a clone nested inside a linked worktree is its own
+  project, the walk stopping at its own `.git`, where its pool is placed through the worktree it's
+  in, as that reading walks every `.git` up. One outside any
   repository, or where what it finds can't be read as one (a `.git` file unreadable or naming
   nothing, a git or common directory that isn't there), counts as its own directory. `run` finds it
   through a seam of its own (`cli.Deps.FindProject`), never through the pools' worktree lookup, so a
