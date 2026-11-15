@@ -1,53 +1,84 @@
-# A session's page
+# The session page: one session, start to finish
 
-**A session's page** follows one session through its whole life.
+The session page follows one session through its whole life: every request, every move, and what
+each cost. Open it to see why a session moved, what a move cost in cache, or which turn took the
+most.
 
 <div align="center">
 <img src="../../art/session.webp" alt="A session's page for d28c in ~/Code/switchboard: its STORY of requests a minute, its move from work to side at 14:31 marked with the $1.82 its cache cost, its time and worth on each account, and its turns, the one that moved it opened into its requests" width="840">
 </div>
 
-The page shows:
+*The page for d28c: a move from work to side at 14:31, and the turn that moved it opened.*
 
-- what the session is doing now, and where it runs
-- its STORY: its requests a minute, from its first to now, with each move marked and costed
-- the accounts it ran on, and what it took of each, their worth adding up to its turns', to the
-  cent
-- its turns, newest first.
+## Opening the page
 
-To open a session's page, do one of these:
+To open the page, do one of these:
 
-- Press `enter` on a session's row on Sessions, or on Accounts' Detail.
-- Press `s` on a line of the Log.
-- Click a row of the Overview's SESSIONS.
+- Press `enter` on a session on [Sessions](sessions.md), or in Detail on [Accounts](accounts.md).
+- Press `s` on a line of [the Log](log.md).
+- Click a session row in SESSIONS on the [Overview](overview.md).
 
-A session's page opens over a tab. `esc` goes back to where you opened it from, with the tab as you
-left it.
+The page opens over a tab. `esc` goes back to where you opened it from, with the tab as you left
+it. A session that has run for weeks takes a moment to read. While it does, the heading says
+`loading…`, and `esc` still goes back.
 
-A session that has run for weeks takes a moment to read. While it does, the page shows its heading
-with `loading…` after it, and `esc` goes back.
+## What the page shows
 
-A turn's requests are read from the ledger as you open it. If that takes a moment, the turn's foot
-says `loading…` until they're read. An open turn's requests fill the rows there are as you open
-it: those left under the turns, or where the turns fill them, those under the turn, up to five;
-and down to one on a short screen. That holds as new turns arrive, until you open it again or
-resize the screen. An account joining takes a row from the turns, and the turn shows one fewer
-only where it had no row to spare. The request you've chosen stays in view through all of it.
+From top to bottom:
 
-On a short screen, the page keeps its rows for its turns. The STORY's bars give up a row first,
-then the turns, from eight down to three, though a turn you've opened keeps its eight rows there,
-then the STORY folds to its heading (on a phone it's left out), then the accounts give way to a
-count, `+2 more accounts`, then the blank rows, then the turns, down to one. With a turn open, it
-keeps five of the turn's requests until the blank rows have gone, then shows fewer, down to one.
-Last, that count, the STORY's heading and the two rows saying what the session is doing give way,
-one at a time. From 10 rows tall and 11 on a phone, it always shows a turn, and from 13 and 14 a
-turn you've opened, whole.
+1. **Now:** what the session is doing, and where it runs.
+2. **STORY:** the requests a minute, from the first to now, with each move marked and costed.
+3. **The accounts** the session ran on, and what it took of each. Their worth adds up to the worth
+   of the turns, to the cent.
+4. **TURNS:** every turn, newest first.
 
-Keys on a session's page:
+Press `enter` on a turn to open it into its requests, in place. Press `enter` on a request to open
+its details.
+
+## An open turn
+
+The requests of a turn are read from the ledger as you open it. If that takes a moment, the foot
+of the turn says `loading…` until they're read.
+
+An open turn fills the rows there are as you open it, up to five requests:
+
+- the rows left under the turns;
+- or, if the turns fill the screen, the rows under the turn.
+
+On a short screen, that's down to one. The number holds as new turns arrive, until you open the
+turn again or resize the screen. An account joining takes a row from the turns. The open turn
+shows one request fewer only if it had no row to spare. The request you've chosen stays in view
+through all of it.
+
+## Room on a short screen
+
+On a short screen, the page keeps its rows for the turns. The other parts give way in this order:
+
+1. The STORY bars give up a row.
+2. The turns go from eight rows down to three. A turn you've opened keeps its eight.
+3. The STORY folds to its heading. On a phone, it's left out.
+4. The accounts give way to a count, such as `+2 more accounts`.
+5. The blank rows go.
+6. The turns go down to one.
+7. Last, that count, the STORY heading and the two rows on what the session is doing go, one at a
+   time.
+
+With a turn open, the page keeps five of its requests until the blank rows have gone. Then it
+shows fewer, down to one.
+
+| Height | Always shows |
+|---|---|
+| From 10 rows, or 11 on a phone | a turn |
+| From 13 rows, or 14 on a phone | a turn you've opened, whole |
+
+## Keys on the session page
 
 | Key | Does |
 |---|---|
-| `↑` `↓` | Chooses a turn, or with a turn open, a request of it. |
-| `enter` | Opens the chosen turn into its requests, in place. With a turn open, opens the chosen request's details. |
-| `esc` | Closes the open turn, or goes back. See [Closing and going back](every-page.md). |
-| `p` | While the session runs, opens the session's own routing card to pin it. See [The routing card](routing-card.md). |
+| `↑` `↓` | Chooses a turn, or with a turn open, a request in it. |
+| `enter` | Opens the chosen turn into its requests. With a turn open, opens the details of the chosen request. |
+| `esc` | Closes the open turn, or goes back. |
+| `p` | While the session runs, opens the routing card for this session, to pin it. See [The routing card](routing-card.md). |
 | `tab` `shift-tab` | Moves to the tab after or before the one the page was opened from. |
+
+The keys every page shares are on [Every page](every-page.md).
