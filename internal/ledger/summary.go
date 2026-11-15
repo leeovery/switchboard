@@ -29,8 +29,11 @@ const (
 	// checks' usage out of a model's, as worthUsage does, so nothing prices
 	// it: a day summarised before it keeps theirs when summarised again, as
 	// a summary written again knows no less. Version 6 adds each model's
-	// requests upstream by the local hour, as ModelDay's Hours says.
-	summaryVersion = 6
+	// requests upstream by the local hour, as ModelDay's Hours says. Version
+	// 7 splits each account's day's work by the pool its requests were in,
+	// as AccountDay's Pool and Pools say: a summary before it holds all its
+	// work in no pool.
+	summaryVersion = 7
 	// readingsBefore is how far before a day the readings that say the use
 	// each window began it at are looked for: a week, the longest a window
 	// runs, so a window read before then has reset since.
@@ -76,12 +79,12 @@ func bytesOf(stat dayfile.DayStat) Bytes {
 	return Bytes{Plain: stat.PlainSize, Compressed: stat.CompressedSize}
 }
 
-// AccountDay is an account's day: its requests, by the model each asked for,
-// and, of the account as a whole, its sessions, those moved onto it and off
-// it, each window's highest use, how far it rose and when it reset, the
-// limits it reached, and the minutes it spent at its cap and at a limit. Of
-// an account the readings history alone tells of, which served no request,
-// it has no models, and no sessions or moves.
+// AccountDay is an account's day: its work, what its requests did, in every
+// pool together and by the pool they were in; and, of the account as a
+// whole, whatever pool it's in, each window's highest use, how far it rose
+// and when it reset, the limits it reached, and the minutes it spent at its
+// cap and at a limit. Of an account the readings history alone tells of,
+// which served no request, its work is none.
 //
 // Those a summary of version 2 added, SessionIDs, Rise, Resets,
 // MinutesAtCap and MinutesAtLimit, are nil where they were never read, as of
@@ -95,18 +98,17 @@ type AccountDay struct {
 	// Account is the account's id, left out of the requests no account
 	// answered.
 	Account string `json:"account,omitempty"`
-	// Models are the account's requests by the model each asked for, in the
-	// order of their names.
-	Models []ModelDay `json:"models,omitempty"`
-	// Sessions counts the sessions its requests were of, as
-	// Line.CountedSession says, and SessionIDs are their ids, in order, each
-	// once, so a span of days, or every account, counts a session once.
-	// MovedOn and MovedOff count those its requests moved onto it, and off
-	// it.
-	Sessions   int      `json:"sessions"`
-	SessionIDs []string `json:"session_ids,omitzero"`
-	MovedOn    int      `json:"moved_on"`
-	MovedOff   int      `json:"moved_off"`
+	// Pool is the id of the pool all the day's work was in, left out where
+	// its requests named none, as every request did before pools, and where
+	// its work was in more than one pool, as of an account moved partway
+	// through the day.
+	Pool string `json:"pool,omitempty"`
+	// Work is the account's work that day, in every pool together.
+	Work
+	// Pools is the work in each pool, where it was in more than one, in the
+	// order of their ids, that of the requests that named none first: none
+	// where all of it was in one, as Pool says.
+	Pools []PoolDay `json:"pools,omitempty"`
 	// Highest is each window's highest use that day, by its key: the use it
 	// began the day at among it, unless the window had reset by then.
 	Highest map[string]float64 `json:"highest,omitempty"`
@@ -129,13 +131,38 @@ type AccountDay struct {
 	ReadBefore []string `json:"read_before,omitempty"`
 }
 
-// Unnamed is how many of the sessions the account's day counts it doesn't
-// name by their ids, those it might be of beyond those it names: every one,
-// of a day summarised before version 2, which named none; none, of one that
-// names them all, or that counts none, as an account the readings history
-// alone tells of.
-func (a AccountDay) Unnamed() int {
-	return unnamed(a.Sessions, a.SessionIDs)
+// Work is what requests did on an account's day, every pool's together or a
+// pool's alone: the requests by the model each asked for, the sessions they
+// were of, and those they moved onto the account and off it.
+type Work struct {
+	// Models are the requests by the model each asked for, in the order of
+	// their names.
+	Models []ModelDay `json:"models,omitempty"`
+	// Sessions counts the sessions the requests were of, as
+	// Line.CountedSession says, and SessionIDs are their ids, in order, each
+	// once, so a span of days, or every account, counts a session once.
+	// MovedOn and MovedOff count those the requests moved onto the account,
+	// and off it.
+	Sessions   int      `json:"sessions"`
+	SessionIDs []string `json:"session_ids,omitzero"`
+	MovedOn    int      `json:"moved_on"`
+	MovedOff   int      `json:"moved_off"`
+}
+
+// PoolDay is the work of an account's day in a pool: of the requests that
+// named the pool, by its id, "" for those that named none.
+type PoolDay struct {
+	Pool string `json:"pool,omitempty"`
+	Work
+}
+
+// Unnamed is how many of the sessions the work counts it doesn't name by
+// their ids, those it might be of beyond those it names: every one, of a day
+// summarised before version 2, which named none; none, of work that names
+// them all, or that counts none, as an account's the readings history alone
+// tells of.
+func (w Work) Unnamed() int {
+	return unnamed(w.Sessions, w.SessionIDs)
 }
 
 // unnamed is how many of the sessions counted the ids given don't name.
@@ -144,7 +171,7 @@ func unnamed(sessions int, ids []string) int {
 }
 
 // Unnamed is how many of the sessions its accounts' days count they don't
-// name, as AccountDay.Unnamed says: a day with any might be of any session.
+// name, as Work.Unnamed says: a day with any might be of any session.
 func (s Summary) Unnamed() int {
 	n := 0
 	for _, a := range s.Accounts {
@@ -212,7 +239,7 @@ func (m ModelDay) Requests() int {
 }
 
 // Unnamed is how many of the sessions the model's day counts it doesn't name
-// by their ids, as AccountDay.Unnamed says of an account's: every one, where
+// by their ids, as Work.Unnamed says of an account's: every one, where
 // its sessions were never named, as ModelDay says; none, of one that names
 // them all.
 func (m ModelDay) Unnamed() int {
@@ -505,18 +532,31 @@ func (s *Summary) readBefore(w accountWindow) bool {
 // requests no account answered.
 type tally map[string]*accountTally
 
-// accountTally is an account's day as it's summarised: readBefore holds the
+// accountTally is an account's day as it's summarised: pools holds its work
+// by the pool each of its requests named, "" for none; readBefore holds the
 // windows read in the week before it, and windows how each window read went
 // through it, by its key; read is set once the readings history gives a
 // reading of any of its windows, in the day or the week before it.
 type accountTally struct {
+	pools      map[string]*workTally
+	highest    map[string]float64
+	limits     []Limit
+	readBefore map[string]bool
+	windows    map[string]*windowDay
+	read       bool
+}
+
+// workTally is an account's work in a pool as it's summarised: its requests
+// by model, and the sessions they were of, moved onto the account and off
+// it.
+type workTally struct {
 	models                      map[modelKey]*modelTally
 	sessions, movedOn, movedOff sessions
-	highest                     map[string]float64
-	limits                      []Limit
-	readBefore                  map[string]bool
-	windows                     map[string]*windowDay
-	read                        bool
+}
+
+// newWorkTally begins work tallied from nothing.
+func newWorkTally() *workTally {
+	return &workTally{models: make(map[modelKey]*modelTally), sessions: make(sessions), movedOn: make(sessions), movedOff: make(sessions)}
 }
 
 // modelKey names a model's requests on an account as a summary keeps them
@@ -546,11 +586,21 @@ func (t tally) account(id string) *accountTally {
 	if a, ok := t[id]; ok {
 		return a
 	}
-	a := &accountTally{models: make(map[modelKey]*modelTally), sessions: make(sessions), movedOn: make(sessions),
-		movedOff: make(sessions), highest: make(map[string]float64), readBefore: make(map[string]bool),
+	a := &accountTally{pools: make(map[string]*workTally), highest: make(map[string]float64), readBefore: make(map[string]bool),
 		windows: make(map[string]*windowDay)}
 	t[id] = a
 	return a
+}
+
+// pool returns the tally of the account's work in the pool with the given
+// id, starting it where there's none yet.
+func (a *accountTally) pool(id string) *workTally {
+	if w, ok := a.pools[id]; ok {
+		return w
+	}
+	w := newWorkTally()
+	a.pools[id] = w
+	return w
 }
 
 // clone returns a copy of t, a tally of lines alone, with no readings
@@ -559,36 +609,76 @@ func (t tally) clone() tally {
 	c := make(tally, len(t))
 	for id, a := range t {
 		ca := c.account(id)
-		ca.sessions, ca.movedOn, ca.movedOff = maps.Clone(a.sessions), maps.Clone(a.movedOn), maps.Clone(a.movedOff)
-		for key, m := range a.models {
-			ca.models[key] = &modelTally{day: m.day, hours: m.hours, sessions: maps.Clone(m.sessions), usage: m.usage.clone()}
+		for pool, w := range a.pools {
+			ca.pools[pool] = w.clone()
 		}
+	}
+	return c
+}
+
+// clone returns a copy of w, to tally more in without changing w.
+func (w *workTally) clone() *workTally {
+	c := &workTally{models: make(map[modelKey]*modelTally, len(w.models)), sessions: maps.Clone(w.sessions),
+		movedOn: maps.Clone(w.movedOn), movedOff: maps.Clone(w.movedOff)}
+	for key, m := range w.models {
+		c.models[key] = &modelTally{day: m.day, hours: m.hours, sessions: maps.Clone(m.sessions), usage: m.usage.clone()}
 	}
 	return c
 }
 
 // model returns the tally of the model's requests key names, starting it
 // where there's none yet.
-func (a *accountTally) model(key modelKey) *modelTally {
-	if m, ok := a.models[key]; ok {
+func (w *workTally) model(key modelKey) *modelTally {
+	if m, ok := w.models[key]; ok {
 		return m
 	}
 	m := &modelTally{day: ModelDay{Model: key.model, InferenceGeo: key.geo}, sessions: make(sessions), usage: make(counts)}
-	a.models[key] = m
+	w.models[key] = m
 	return m
 }
 
-// line tallies one of the day's lines: on its account, and its model there,
-// and as a move of its session from the account it was on before, where it
-// moved it.
+// line tallies one of the day's lines: on its account, in the pool it named,
+// and as a move of its session off the account it was on before, where it
+// moved it, in that pool too.
 func (t tally) line(l *Line) {
-	a := t.account(l.Account)
-	a.model(keyOf(l)).line(l)
-	a.sessions.add(l.CountedSession())
+	t.account(l.Account).pool(l.Pool).line(l)
 	if l.From != "" {
-		a.movedOn.add(l.Session)
-		t.account(l.From).movedOff.add(l.Session)
+		t.account(l.From).pool(l.Pool).movedOff.add(l.Session)
 	}
+}
+
+// line tallies one of the day's lines of the account's work in a pool: on
+// its model, and as a move of its session onto the account, where it moved
+// it.
+func (w *workTally) line(l *Line) {
+	w.model(keyOf(l)).line(l)
+	w.sessions.add(l.CountedSession())
+	if l.From != "" {
+		w.movedOn.add(l.Session)
+	}
+}
+
+// plus adds o, the account's work in another pool, to w, as though w had
+// tallied o's lines too.
+func (w *workTally) plus(o *workTally) {
+	for key, m := range o.models {
+		w.model(key).plus(m)
+	}
+	maps.Copy(w.sessions, o.sessions)
+	maps.Copy(w.movedOn, o.movedOn)
+	maps.Copy(w.movedOff, o.movedOff)
+}
+
+// plus adds o, the model's requests of another tally, to m, as though m had
+// tallied o's lines too.
+func (m *modelTally) plus(o *modelTally) {
+	m.day.Upstream, m.day.NoUsage, m.day.Unsent = m.day.Upstream+o.day.Upstream, m.day.NoUsage+o.day.NoUsage, m.day.Unsent+o.day.Unsent
+	m.day.Checks, m.day.Counts = m.day.Checks+o.day.Checks, m.day.Counts+o.day.Counts
+	for hour, n := range o.hours {
+		m.hours[hour] += n
+	}
+	maps.Copy(m.sessions, o.sessions)
+	m.usage.plus(o.usage)
 }
 
 // line tallies one of the day's lines of the model's requests on the
@@ -757,16 +847,44 @@ func (t tally) summary(date string, lines int, caps Caps) Summary {
 // caps gives it: its windows' rises, resets and minutes never read where the
 // readings history held none of them, as AccountDay says.
 func (a *accountTally) summary(id string, caps Caps) AccountDay {
-	day := AccountDay{Account: id, Sessions: len(a.sessions), SessionIDs: a.sessions.ids(), MovedOn: len(a.movedOn),
-		MovedOff: len(a.movedOff), Highest: a.highest, Limits: a.limits, ReadBefore: slices.Sorted(maps.Keys(a.readBefore))}
+	work, pools := a.work()
+	day := AccountDay{Account: id, Work: work, Highest: a.highest, Limits: a.limits, ReadBefore: slices.Sorted(maps.Keys(a.readBefore))}
 	if a.read {
 		atCap, atLimit := minutesAt(a.windows, caps.Reserves[id], caps.Shared)
 		day.Rise, day.Resets, day.MinutesAtCap, day.MinutesAtLimit = risesOf(a.windows), resetsOf(a.windows), &atCap, &atLimit
 	}
-	for _, key := range slices.SortedFunc(maps.Keys(a.models), byModel) {
-		day.Models = append(day.Models, a.models[key].summary())
+	return day.pooled(pools)
+}
+
+// work returns the account's work, every pool's together, as though its
+// lines were tallied as one, and each pool's, in the order of their ids. A pool
+// of no work, as one a move of no session off the account names alone, is left
+// out, as the day made again over itself, or merged, leaves it out.
+func (a *accountTally) work() (Work, []PoolDay) {
+	ids := slices.Sorted(maps.Keys(a.pools))
+	var pools []PoolDay
+	for _, id := range ids {
+		if w := a.pools[id].summary(); !w.Idle() {
+			pools = append(pools, PoolDay{Pool: id, Work: w})
+		}
 	}
-	return day
+	if len(pools) == 1 {
+		return pools[0].Work, pools
+	}
+	whole := newWorkTally()
+	for _, id := range ids {
+		whole.plus(a.pools[id])
+	}
+	return whole.summary(), pools
+}
+
+// summary returns the account's work in a pool.
+func (w *workTally) summary() Work {
+	work := Work{Sessions: len(w.sessions), SessionIDs: w.sessions.ids(), MovedOn: len(w.movedOn), MovedOff: len(w.movedOff)}
+	for _, key := range slices.SortedFunc(maps.Keys(w.models), byModel) {
+		work.Models = append(work.Models, w.models[key].summary())
+	}
+	return work
 }
 
 // byModel orders the keys of a model's requests by the model's name, then by
@@ -858,6 +976,20 @@ func (c counts) addTyped(list []any) {
 		fields, _ := item.(map[string]any)
 		if kind, ok := fields["type"].(string); ok {
 			c.within(kind).addFields(fields)
+		}
+	}
+}
+
+// plus adds the counts o holds to c, as add adds a usage's: each by its
+// name, those within an object within it.
+func (c counts) plus(o counts) {
+	for name, v := range o {
+		switch v := v.(type) {
+		case int64:
+			sum, _ := c[name].(int64)
+			c[name] = sum + v
+		case counts:
+			c.within(name).plus(v)
 		}
 	}
 }

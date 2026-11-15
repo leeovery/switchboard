@@ -59,9 +59,10 @@ func goldenHead(t *testing.T) []byte {
 // a chunk and begin another, and their meta and its side hold a value of
 // every key: a quota check of session o's every five minutes from just past
 // five past midnight, enough of them that the day's lines are one more than
-// a chunk holds, one refused as overloaded; a count of tokens of session
-// s's in the afternoon; and a request of session o's asking for its
-// inference in the US, its answer giving no usage.
+// a chunk holds, one refused as overloaded; a request of session o's asking
+// for its inference in the US, its answer giving no usage; and a count of
+// tokens of session s's in the afternoon, routed in a pool, where the day's
+// others named none.
 func headChecked() []ledger.Line {
 	from := time.Date(2026, 10, 8, 0, 5, 0, 987_654_321, time.Local).UTC()
 	checks := rowsAChunk - 8
@@ -83,7 +84,7 @@ func headChecked() []ledger.Line {
 	unmetered.Shape.InferenceGeo = "us"
 	return append(lines, unmetered, ledger.Line{
 		At: time.Date(2026, 10, 8, 16, 0, 0, 0, time.Local).UTC(), Request: "n1", Kind: ledger.KindCount, Session: "s", Model: foldOpus,
-		Account: "side", Reason: "sticky", Status: 200, Attempts: 1, TotalMS: 90,
+		Account: "side", Reason: "sticky", Status: 200, Attempts: 1, TotalMS: 90, Pool: "q7mt",
 	})
 }
 

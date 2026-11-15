@@ -183,8 +183,9 @@ func (p Past) year(ask YearAsk) YearPage {
 	drawn := yearDays(filter.days(between(p.days, span.earliest(), span.gridLast())))
 	y := yearView{
 		ask: ask, span: span, v: v, plans: shownPlans(ask.Account, p.in.Accounts, p.in.Prices),
-		all: between(p.days, span.first, span.last), shown: between(drawn, span.first, span.last), began: p.began(),
+		all: between(p.days, span.first, span.last), began: p.in.Began,
 	}
+	y.shown = between(drawn, y.counted(), span.last)
 	cuts := quarterCuts(y.shown.active())
 	page := YearPage{
 		Weeks: span.weeksOf(drawn.requests(), cuts), Cuts: cuts, KeyCuts: keyCuts(cuts, yearKeyRounding), Months: span.labels(),
@@ -406,7 +407,7 @@ func (f yearFilter) days(days []Day) []Day {
 				priced.Accounts = append(priced.Accounts, kept)
 			}
 		}
-		narrowed[i] = f.v.day(priced)
+		narrowed[i] = f.v.day(priced, nil)
 	}
 	return narrowed
 }
@@ -538,9 +539,10 @@ func (days yearDays) versions(v versions) []string {
 }
 
 // yearView is the Year's period as asked for: what it is, the plans of the
-// accounts shown, the period's days, every account's use and as narrowed to
-// what's shown, and the date the ledger began recording on, where it tells
-// it: "" where it doesn't.
+// accounts shown, the period's days, every account's use, and as narrowed to
+// what's shown from the first day counted, as a pool's read holds the days
+// before it began, which aren't its, and where the ledger began recording,
+// where it tells it: zero where it doesn't.
 type yearView struct {
 	ask   YearAsk
 	span  yearSpan
@@ -548,7 +550,7 @@ type yearView struct {
 	plans plans
 	all   yearDays
 	shown yearDays
-	began string
+	began time.Time
 }
 
 // totals are the shown days' totals, as Accounts counts every account's:
@@ -588,9 +590,10 @@ func (y yearView) against() Against {
 }
 
 // counted is the date of the first day of the period counted: the later of
-// its first and the day the ledger began, where it's told.
+// its first and the day the ledger began, where it's told, as begunOn has
+// it.
 func (y yearView) counted() string {
-	return max(y.span.first, y.began)
+	return begunOn(y.span.first, y.began)
 }
 
 // months are BY MONTH's rows of all use, or an account's: each against what
@@ -600,7 +603,7 @@ func (y yearView) months() []MonthRow {
 	months := monthsOf(y.shown, y.plans, y.v, y.counted(), y.span.today)
 	rows := make([]MonthRow, len(months))
 	for i, m := range months {
-		rows[i] = MonthRow{Month: m, From: y.span.partWay(m.Month, y.began), SoFar: y.span.running(m.Month)}
+		rows[i] = MonthRow{Month: m, From: y.span.partWay(m.Month, beganOn(y.began)), SoFar: y.span.running(m.Month)}
 	}
 	return rows
 }

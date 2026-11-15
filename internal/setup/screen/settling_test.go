@@ -12,7 +12,6 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/leeovery/switchboard/internal/accounts"
-	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/identity"
 	"github.com/leeovery/switchboard/internal/setup"
@@ -53,7 +52,7 @@ func (s *registered) Review() (setup.Review, error) {
 	return s.setup.Review()
 }
 
-func (s *registered) CheckAdding(adding setup.Adding) (config.NewAccount, error) {
+func (s *registered) CheckAdding(adding setup.Adding) (accounts.Adding, error) {
 	return s.setup.CheckAdding(adding)
 }
 

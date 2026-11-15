@@ -141,15 +141,17 @@ const BucketsMost = 13
 const hoursSpanned = 2
 
 // worthCharts are the worth of days, and of today's hours, where they're
-// given, over the period at now, weeks starting on the day given, in the
-// buckets WORTH BY may chart it in, the finest first, the coarsest of no
-// more than BucketsMost: today's by hour and by two hours, or where the
+// given, over the period at now, weeks starting on the day given, from the
+// day the work they're of began at began, where that's within it, as
+// begunFrom has it, so no chart shows days before it as days of none, in
+// the buckets WORTH BY may chart it in, the finest first, the coarsest of
+// no more than BucketsMost: today's by hour and by two hours, or where the
 // hours aren't given, by the day; this week's by day; the last 30 days'
 // and the last 12 weeks' by day and by week; and the last 12 months' by
 // week and by month.
-func worthCharts(period Period, now time.Time, starts time.Weekday, days dayWorths, hours *[24]Worth) WorthCharts {
+func worthCharts(period Period, now time.Time, starts time.Weekday, began time.Time, days dayWorths, hours *[24]Worth) WorthCharts {
 	today := dayfile.CivilOf(now)
-	first, last := period.first(today, starts), period.last(today, starts)
+	first, last := begunFrom(period.first(today, starts), began), period.last(today, starts)
 	byDay := days.by(ByDay, dayBuckets(first, last), first, last, today)
 	switch period {
 	case PeriodToday:

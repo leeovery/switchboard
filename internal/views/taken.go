@@ -35,12 +35,9 @@ type takenLines map[string][]heldRequest
 // whole, by their dates, as Ledger's Day gives them. Each line is decoded
 // once, and only a session's request kept, as isRequest says, each once;
 // the lines given are the read's, kept as Taken's read for a page's points.
+// Every pool's are taken: a PoolRead's Took takes one pool's.
 func Took(gained []ledger.Held, days map[string][]ledger.Held) Taken {
-	t := Taken{gained: takenOf(gained), days: make(map[string]takenLines, len(days)), read: tailRead{gained: gained, days: days}}
-	for date, lines := range days {
-		t.days[date] = takenOf(lines)
-	}
-	return t
+	return PoolRead{}.Took(gained, days)
 }
 
 // takenOf is the requests among lines, by their sessions' ids, as

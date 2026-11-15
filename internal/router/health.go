@@ -33,6 +33,9 @@ type health struct {
 	now func() time.Time
 	// emit hears each change, as it's logged.
 	emit func(Event)
+	// closed, where it's set, says why the router routes nothing, as its
+	// pools are closed: "" while it routes.
+	closed func() string
 
 	mu sync.Mutex
 	// results are those of the requests answered in the window.
@@ -83,11 +86,17 @@ func (h *health) look() {
 }
 
 // judge forgets the requests that have left the window at now, and judges the
-// router's health on the rest, logging and announcing any change. A change
+// router's health on the rest, logging and announcing any change: unhealthy,
+// whatever they say, while it routes nothing, as closed says why. A change
 // is announced as it's judged, under h.mu, so announcements can't cross.
 func (h *health) judge(now time.Time) status.Health {
 	h.results = slices.DeleteFunc(h.results, func(r result) bool { return !inWindow(r, now) })
 	judged := assess(h.results, now)
+	if h.closed != nil {
+		if why := h.closed(); why != "" {
+			judged.Healthy, judged.Reason = false, why
+		}
+	}
 	if judged.Healthy == h.healthy {
 		return judged
 	}

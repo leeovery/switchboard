@@ -46,6 +46,20 @@ func named(m status.Moment, id string) string {
 	return prose.Clean(m.Named(id).Label)
 }
 
+// namedSaid runs the words w together, each account they name named as
+// named names it of m, cut as asLabelled cuts it.
+func namedSaid(w status.Words, m status.Moment) string {
+	var b strings.Builder
+	for _, p := range w {
+		if p.Kind == status.PartAccount {
+			b.WriteString(asLabelled(named(m, p.Text)))
+			continue
+		}
+		b.WriteString(p.Text)
+	}
+	return b.String()
+}
+
 // names names the accounts of m with the given ids as a list, as in "work and
 // side".
 func names(m status.Moment, ids []string) string {

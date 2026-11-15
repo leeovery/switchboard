@@ -150,6 +150,66 @@ func TestALimitsNotificationSaysWhereItsSessionsWent(t *testing.T) {
 	}
 }
 
+// An account that has left the standings, its pool unknown, is weighed
+// against every other account's room, so it's never said to leave none for
+// want of knowing its pool.
+func TestAnAccountGoneIsWeighedAgainstEveryOthersRoom(t *testing.T) {
+	ss := standings{{ID: "1", in: "q7mt", known: true}, {ID: "3", in: "b2n8", quota: true, known: true}}
+	if ss.fullBut("2") {
+		t.Error("fullBut() of an account gone, with 3 in Default having room, = true, want false")
+	}
+	if !ss[:1].fullBut("2") {
+		t.Error("fullBut() of an account gone, with none having room, = false, want true")
+	}
+}
+
+// A limit's notification weighs whether another account has room within
+// the limited account's pool alone: in Acme, with Acme's other account out,
+// Default's room, which Acme's sessions can't use, leaves no other account
+// with room; with one pool, the same account's room counts.
+func TestALimitsNotificationWeighsTheRoomInItsAccountsPoolAlone(t *testing.T) {
+	tests := []struct {
+		name     string
+		accounts []config.Account
+		pools    config.Pools
+		want     string
+	}{
+		{
+			name:     "two pools, the room in the other",
+			accounts: []config.Account{{ID: "1", Label: "one", Pool: "q7mt"}, {ID: "2", Label: "two", Pool: "q7mt"}, {ID: "3", Label: "three", Pool: "b2n8"}},
+			pools:    config.Pools{{ID: "b2n8", Label: "Default"}, {ID: "q7mt", Label: "Acme", Dirs: []string{"/work/acme"}}},
+			want:     "Acme · 2 · two hit its 5-hour limit, back at Sat 03:00 — no other account has room",
+		},
+		{
+			name:     "one pool",
+			accounts: []config.Account{{ID: "1", Label: "one", Pool: "q7mt"}, {ID: "2", Label: "two", Pool: "q7mt"}, {ID: "3", Label: "three", Pool: "q7mt"}},
+			pools:    config.Pools{{ID: "q7mt", Label: "Acme"}},
+			want:     "2 · two hit its 5-hour limit, back at Sat 03:00",
+		},
+		{
+			name:     "no pools",
+			accounts: numbered,
+			want:     "2 · two hit its 5-hour limit, back at Sat 03:00",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				h := newNotifyingOver(t, config.Notifications{Limits: true}, tt.accounts)
+				h.state.pools.follow(tt.accounts, tt.pools)
+				h.read("1", h.session(1, time.Hour), h.week(0.5, 3*day))
+				h.read("2", h.session(1, 3*time.Hour), h.week(0.5, 3*day))
+				h.read("3", h.session(0.2, time.Hour), h.week(0.5, 3*day))
+				h.start()
+
+				h.limit("2", []string{"5h"}, 3*time.Hour)
+				h.after(gatherFor)
+				h.expect(tt.want)
+			})
+		})
+	}
+}
+
 func TestALimitIsToldOfOnce(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		h := newNotifying(t, config.Notifications{Limits: true})
@@ -565,6 +625,62 @@ func TestAWindowIsWarnedOfOnceAReset(t *testing.T) {
 	}
 	if want := []string{"2 · two: Week at 91%", "2 · two: Week at 94%"}; !slices.Equal(warned, want) {
 		t.Errorf("warned %q, want %q: once a reset, however its readings come and go", warned, want)
+	}
+}
+
+// Once there's a second pool, each of the router's notifications is led by
+// the label of the pool of the account it's about, as the dashboard's own
+// are: a warning, a move, a limit and room again. With one pool, they say
+// what they said before pools.
+func TestTheRoutersNotificationsNameThePoolOnceThereIsASecond(t *testing.T) {
+	tests := []struct {
+		name     string
+		accounts []config.Account
+		pools    config.Pools
+		// lead leads the notices of Acme's accounts, 1 and 2, and
+		// defaultLead those of Default's, 3.
+		lead, defaultLead string
+	}{
+		{
+			name:        "two pools",
+			accounts:    []config.Account{{ID: "1", Label: "one", Pool: "q7mt"}, {ID: "2", Label: "two", Pool: "q7mt"}, {ID: "3", Label: "three", Pool: "b2n8"}},
+			pools:       config.Pools{{ID: "b2n8", Label: "Default"}, {ID: "q7mt", Label: "Acme", Dirs: []string{"/work/acme"}}},
+			lead:        "Acme · ",
+			defaultLead: "Default · ",
+		},
+		{
+			name:     "one pool",
+			accounts: []config.Account{{ID: "1", Label: "one", Pool: "q7mt"}, {ID: "2", Label: "two", Pool: "q7mt"}, {ID: "3", Label: "three", Pool: "q7mt"}},
+			pools:    config.Pools{{ID: "q7mt", Label: "Acme"}},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				h := newNotifyingOver(t, config.Notifications{Limits: true, Room: true, Warning: 0.9, Moves: true}, tt.accounts)
+				h.state.pools.follow(tt.accounts, tt.pools)
+				h.read("1", h.session(0.2, 5*time.Hour), h.week(0.5, 3*day))
+				h.read("2", h.session(0.2, 5*time.Hour), h.week(0.85, 3*day))
+				h.read("3", h.session(0.2, 5*time.Hour), h.week(0.85, 3*day))
+				h.start()
+				h.after(lookEvery)
+
+				h.read("2", h.week(0.91, 3*day))
+				h.read("3", h.week(0.92, 3*day))
+				h.after(lookEvery)
+				h.hear(Moved{Session: "18bb978f", Model: opus, From: "1", To: "2", Reason: "rescored after 1h 2m idle"})
+				h.limit("2", []string{"5h"}, time.Hour)
+				h.after(gatherFor)
+				h.after(time.Hour + lookEvery)
+				h.expect(
+					tt.lead+"2 · two: Week at 91%",
+					tt.defaultLead+"3 · three: Week at 92%",
+					tt.lead+"session 18bb978f moved from 1 · one to 2 · two (rescored after 1h 2m idle)",
+					tt.lead+"2 · two hit its 5-hour limit, back at Sat 01:00",
+					tt.lead+"2 · two has room again",
+				)
+			})
+		})
 	}
 }
 
@@ -1047,7 +1163,7 @@ func newNotifyingOver(t *testing.T, settings config.Notifications, configured []
 func newNotifyingIn(t *testing.T, settings config.Notifications, as accounts, zone *time.Location, years *yearsTold) *notifying {
 	t.Helper()
 	now := func() time.Time { return time.Now().In(zone) }
-	s := newState(as, testPolicy, claude.Provider{}.Family, now, unkept, unkept)
+	s := newState(as, unpooled(), testPolicy, claude.Provider{}.Family, now, unkept, unkept)
 	notifier := &noting{}
 	return &notifying{t: t, state: s, n: newNotifications(settings, notifier, s, years, now), notifier: notifier, began: now()}
 }

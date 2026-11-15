@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/launch"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/router"
 )
@@ -40,14 +41,14 @@ func TestRunTellsTheProjectThroughTheRouterToTheStreamTheSessionsAndTheLedger(t 
 			t.Fatal(err)
 		}
 	}
-	srv.deps.Getwd = func() (string, error) { return worktree, nil }
+	srv.deps.Getwd, srv.deps.FindProject = func() (string, error) { return worktree, nil }, launch.FindProject
 	handed := recordHandOffs(t, &srv.deps)
 
 	if got := run(t, srv.deps, "run"); got != (result{}) {
 		t.Fatalf("switchboard run = %+v, want exit status 0 and no output", got)
 	}
 	headers := handed.only(t).env["ANTHROPIC_CUSTOM_HEADERS"]
-	if want := "X-Switchboard-Dir: ~/Code/api/.claude/worktrees/fix-login\nX-Switchboard-Project: ~/Code/api"; headers != want {
+	if want := "X-Switchboard-Dir: ~/Code/api/.claude/worktrees/fix-login\nX-Switchboard-Project: ~/Code/api\nX-Switchboard-Pool: b2n8"; headers != want {
 		t.Fatalf("handed over with ANTHROPIC_CUSTOM_HEADERS %q, want %q", headers, want)
 	}
 	want := place{dir: "~/Code/api/.claude/worktrees/fix-login", project: "~/Code/api"}

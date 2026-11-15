@@ -239,7 +239,8 @@ var knownBreaks = []known{
 // with nothing open over its page: no known name cut with room at its row's
 // end; no part out of view with rows blank at its foot; Runway, a session's
 // page and the Overview drawing a lane, a turn and an account; and the view
-// reaching two thirds of the width, but where it's natural. What
+// reaching two thirds of the width, but where it's natural; the empty pool's
+// page, drawn in place of the view, held to the first two alone. What
 // knownBreaks names is passed over, and fails where it no longer breaks: a
 // rule, or a cut the design draws.
 func TestEveryViewIsFluidAtTheOwnersSizes(t *testing.T) {
@@ -251,6 +252,7 @@ func TestEveryViewIsFluidAtTheOwnersSizes(t *testing.T) {
 			names := knownNames(f)
 			for _, size := range ownersSizes {
 				d, at := fluidAt(m, size), sizeName(size)
+				d.emptyPool = f.pool.Empty()
 				designed := designedAt(knownBreaks, f.Name, at)
 				unknown, cleared := judged(d.breaks(view, names, cutsOf(designed)), brokenAt(knownBreaks, f.Name, at))
 				for _, b := range unknown {
@@ -427,11 +429,14 @@ func knownNames(f Fixture) []string {
 }
 
 // fluidFrame is a frame as the sweep reads it: its size, its rows as plain
-// text, and how many rows its chrome takes over the view's heading.
+// text, and how many rows its chrome takes over the view's heading; and
+// whether the pool it shows has no accounts, so the empty pool's page is
+// drawn in place of its view.
 type fluidFrame struct {
-	size   watch.Size
-	rows   []string
-	chrome int
+	size      watch.Size
+	rows      []string
+	chrome    int
+	emptyPool bool
 }
 
 // fluidAt is m drawn at size.
@@ -456,8 +461,11 @@ type fluidBreak struct {
 }
 
 // breaks are the rules the view named breaks as drawn, of the names given,
-// but for the cuts excused: one still loading draws nothing and so wastes no
-// width.
+// but for the cuts excused. What isn't the view is judged by the cut and
+// fold rules alone: one still loading draws nothing and so wastes no width;
+// and the empty pool's page, drawn in place of every tab's view, has no
+// account to draw, its words at the measure the design gives them, as the
+// signed-off empty-pool-160 draws them to about 90 columns at 160.
 func (d fluidFrame) breaks(view string, names, excused []string) []fluidBreak {
 	var breaks []fluidBreak
 	cuts := slices.DeleteFunc(d.cutsWithRoom(names), func(c fluidCut) bool { return slices.Contains(excused, c.cut) })
@@ -467,7 +475,7 @@ func (d fluidFrame) breaks(view string, names, excused []string) []fluidBreak {
 	if out := d.outOfView(); out != "" && d.footBlank() >= foldSpare {
 		breaks = append(breaks, fluidBreak{foldWithRowsSpare, fmt.Sprintf("%q over %d blank rows", out, d.footBlank())})
 	}
-	if d.loading() {
+	if d.loading() || d.emptyPool {
 		return breaks
 	}
 	if len(d.view()) >= leastView && !d.drawsWhatItsFor(view, names) {
@@ -566,7 +574,7 @@ func (d fluidFrame) outOfView() string {
 var (
 	// laneShown is a row of Runway's lanes: an account's name, or with the
 	// labels collapsed nothing, then its lane to the row's end.
-	laneShown = regexp.MustCompile(`^[^█▒─│]*[█▒─│ ]*[█▒][█▒─│ ]*$`)
+	laneShown = regexp.MustCompile(`^[^█▒━│]*[█▒━│ ]*[█▒][█▒━│ ]*$`)
 	// turnShown is a row of a session's turns: its number and when it started.
 	turnShown = regexp.MustCompile(`^ *[0-9]+ +[0-9]{1,2}:[0-9]{2} `)
 	// named is a row and what it leads with, as an account's name leads its
@@ -698,12 +706,14 @@ func boldOf(row []cell, words []string) string {
 func TestTheFluidSweepFindsWhatItSweepsFor(t *testing.T) {
 	names := []string{"personal", "side", "work", "work-team-plan"}
 	across := strings.Repeat("■", 120)
+	emptyPage := []string{"● healthy · no accounts", "", "  Acme has no accounts, so a session started in ~/Code/acme doesn't start.", "", "", ""}
 	for _, tt := range []struct {
-		name    string
-		view    string
-		rows    []string
-		excused []string
-		want    []fluidRule
+		name      string
+		view      string
+		rows      []string
+		emptyPool bool
+		excused   []string
+		want      []fluidRule
 	}{
 		{name: "a view across the width", view: "Log Requests", rows: []string{"LOG", "", across}},
 		{
@@ -749,7 +759,7 @@ func TestTheFluidSweepFindsWhatItSweepsFor(t *testing.T) {
 			rows: []string{"LOG", across, "▼ 5 more below · j/k", "", "", ""}, want: []fluidRule{foldWithRowsSpare},
 		},
 		{name: "a week still running over blank rows", view: "Log Requests", rows: []string{"LOG", across, "WEEKS       74%   73%   59%…", "", "", ""}},
-		{name: "Runway with a lane", view: "Runway", rows: []string{"RUNWAY", "", "work          ─" + strings.Repeat("█", 105)}},
+		{name: "Runway with a lane", view: "Runway", rows: []string{"RUNWAY", "", "work          ━" + strings.Repeat("█", 105)}},
 		{name: "Runway without a lane", view: "Runway", rows: []string{"RUNWAY", "", across, "", "", ""}, want: []fluidRule{nothingDrawn}},
 		{name: "Runway without a lane in five rows of view", view: "Runway", rows: []string{"RUNWAY", "", across, "", ""}},
 		{name: "a session's page with a turn", view: sessionPage, rows: []string{"SESSION  d28c", across, "13 14:40   3m…   6 req"}},
@@ -767,6 +777,16 @@ func TestTheFluidSweepFindsWhatItSweepsFor(t *testing.T) {
 		{name: "Trends with YEAR's days", view: "Trends", rows: []string{"YEAR", across, "M   ■ ■ ■ ■", "", "", ""}},
 		{name: "Trends with YEAR's totals", view: "Trends", rows: []string{"LAST 12 MONTHS", across, "requests     212,885", "", "", ""}},
 		{name: "Trends with nothing under its heading", view: "Trends", rows: []string{"YEAR", across, "", "", "", ""}, want: []fluidRule{nothingDrawn}},
+		{name: "the empty pool's page", view: "Overview", rows: emptyPage, emptyPool: true},
+		{name: "the empty pool's words where its pool isn't empty", view: "Overview", rows: emptyPage, want: []fluidRule{nothingDrawn, wastedThird}},
+		{
+			name: "the empty pool's page folded over blank rows", view: "Overview",
+			rows: []string{"● healthy · no accounts", "▼ 2 more below · j/k", "", "", ""}, emptyPool: true, want: []fluidRule{foldWithRowsSpare},
+		},
+		{
+			name: "the empty pool's page cutting a name with room", view: "Overview",
+			rows: []string{"● healthy · no accounts", "", "  Move work-tea… in"}, emptyPool: true, want: []fluidRule{cutWithRoom},
+		},
 		{
 			name: "content short of two thirds, but for a rule and its key", view: "Log Requests",
 			rows: []string{"LOG", strings.Repeat("■", 79), "ROUTING   auto " + strings.Repeat("─", 103) + " r", strings.Repeat("┄", 120)},
@@ -776,7 +796,9 @@ func TestTheFluidSweepFindsWhatItSweepsFor(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			var got []fluidRule
-			for _, b := range sweptView(120, tt.rows...).breaks(tt.view, names, tt.excused) {
+			d := sweptView(120, tt.rows...)
+			d.emptyPool = tt.emptyPool
+			for _, b := range d.breaks(tt.view, names, tt.excused) {
 				got = append(got, b.rule)
 			}
 			if !slices.Equal(got, tt.want) {

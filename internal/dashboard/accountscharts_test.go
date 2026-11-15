@@ -374,7 +374,7 @@ func TestWORTHsScaleIsEveryAccountsShownOrNot(t *testing.T) {
 // buckets as any period's coarsest chart has.
 func TestWORTHFitsEveryPeriodInTheNarrowestColumn(t *testing.T) {
 	in := views.HistoryInput{Ledger: ledger.Empty{}, Now: routedAt, Prices: ledger.Pricing, Accounts: tenFramed[:4], WeekStarts: time.Monday, WeekWindow: "7d"}
-	fed := views.ReadSessionDays(ledger.Empty{}, routedAt, routedAt).Tailed(nil, true, nil, nil, routedAt)
+	fed := views.ReadSessionDays(ledger.Empty{}, routedAt, routedAt, views.PoolRead{}).Tailed(nil, true, nil, nil, routedAt, views.PoolRead{})
 	ten := tenRows()
 	tests := []struct {
 		width int

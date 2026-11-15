@@ -19,7 +19,7 @@ const (
 	reasonMovedByPin  = status.ReasonMovedByPin
 	reasonSticky      = status.ReasonSticky
 	reasonBound       = status.ReasonBound
-	reasonGlobalPin   = status.ReasonGlobalPin
+	reasonPoolPin     = status.ReasonPoolPin
 	reasonNew         = status.ReasonNew
 	reasonUnsessioned = status.ReasonUnsessioned
 	reasonNoRoom      = status.ReasonNoRoom
@@ -27,17 +27,21 @@ const (
 
 // situation is what's known when a request's account is chosen.
 type situation struct {
-	// req is pinned as its session's own pin has it.
+	// req is pinned as its session's own pin has it, in the pool the view of
+	// the accounts has it in.
 	req Request
 	now time.Time
 	// pinnedAt is when the session was given its own pin while it ran, zero
-	// for the one it was launched with.
+	// for the one it was launched with; unpooled is the account its own pin
+	// names where that's outside the request's pool, which is no pin for it,
+	// "" otherwise.
 	pinnedAt time.Time
+	unpooled string
 	// current is the session's assignment for the request's model, when
 	// assigned is set.
 	current  assignment
 	assigned bool
-	// pin is the global pin, zero when there's none.
+	// pin is the pin of the request's pool, zero when there's none.
 	pin status.Pin
 	// accounts are what's known of the accounts, among which those the
 	// request has been tried on have no room.
@@ -69,6 +73,9 @@ type decision struct {
 	// when that isn't known.
 	reserved bool
 	back     time.Time
+	// closed is set when the request goes out on no account, as none in its
+	// pool will take it, and its client's account isn't in the pool.
+	closed bool
 	// held is what holds the request back on the session's account, where
 	// the choice has to move the session off it, as it can't take the
 	// request, and limit the identity of the limit, where that's what does,
@@ -91,12 +98,12 @@ type decision struct {
 //     given while it ran, else the one it was launched with. A session that
 //     yielded its pin at a limit stays where it went while step 3 would keep
 //     it there, until it's given a pin again.
-//  2. The best of the global pin's accounts, for a session on another
+//  2. The best of the pool's pin's accounts, for a session on another
 //     account, assigned before a pin that moves running sessions: once each,
 //     while one of them has room.
 //  3. The session's account, while it has room and its cache there is warm,
 //     or its model's thinking is bound to it, which a move would lose.
-//  4. Afresh: the best of the global pin's accounts while one has room, else
+//  4. Afresh: the best of the pool's pin's accounts while one has room, else
 //     the account whose quota most needs using, of every account; either
 //     way, a session that has idled keeps to its own account unless another
 //     is well ahead, and those under pressure are passed over while another
@@ -105,6 +112,12 @@ type decision struct {
 //     else any, passing over those that refused the request lately and those
 //     held back by their reserve alone; with none left but the latter, none.
 //     A request tried already goes out on none.
+//
+// Every account it chooses among is in the request's pool, as the view of
+// them holds no other: the client's account is fallen back to only where
+// it's in the pool, a pin naming no account in it is no pin for it, and a
+// session on an account that has left it moves off it, its cache's warmth
+// disregarded, as why says.
 //
 // Where step 3 keeps the session at the first request after its compaction,
 // as compacted says, it moves instead where step 4 would send a new session,
@@ -129,7 +142,7 @@ func decide(s situation) decision {
 // request after its compaction, to the account step 4 would send a new
 // session to, as the view's atCompaction does: where it moves, the decision
 // is that choice, made afresh, its reason the compaction's whether or not
-// the global pin made the choice; else d. Either way it carries how the move
+// the pool's pin made the choice; else d. Either way it carries how the move
 // was judged.
 func (s situation) atCompaction(d decision) decision {
 	c, m := s.accounts.atCompaction(s.current.Account, s.pin.Accounts)
@@ -201,7 +214,7 @@ func (s situation) yielded() bool {
 		s.current.Account != s.req.Pin && s.keepable()
 }
 
-// moving returns the account the global pin moves the session to, the best of
+// moving returns the account the pool's pin moves the session to, the best of
 // its accounts, as the view's pinned says: it moves running sessions, it was
 // set after the session was assigned, and the session's account isn't one of
 // them. It reports false when the pin doesn't move the session, or none of
@@ -239,7 +252,7 @@ func (s situation) keep() decision {
 
 // afresh chooses the account of a new session, of one that can move at no
 // cost, or of one whose account has no room, which has to leave it: among the
-// global pin's accounts while one has room, else among every account.
+// pool's pin's accounts while one has room, else among every account.
 func (s situation) afresh() decision {
 	reason, preferred, forced := s.why()
 	d := s.best(reason, preferred)
@@ -250,7 +263,7 @@ func (s situation) afresh() decision {
 }
 
 // best chooses the account a request chosen afresh goes to, for reason, or as
-// the global pin's where it's one of those, keeping to preferred unless
+// the pool's pin's where it's one of those, keeping to preferred unless
 // another is well ahead, as afresh says.
 func (s situation) best(reason, preferred string) decision {
 	c, ok := s.accounts.pick(preferred, s.pin.Accounts...)
@@ -258,7 +271,7 @@ func (s situation) best(reason, preferred string) decision {
 	case !ok:
 		return s.noRoom()
 	case c.Pinned:
-		return chosen(c, reasonGlobalPin)
+		return chosen(c, reasonPoolPin)
 	}
 	return chosen(c, reason)
 }
@@ -271,16 +284,20 @@ func chosen(c score.Choice, reason string) decision {
 }
 
 // why says why the account is being chosen afresh, which account the choice
-// prefers, and whether the session has to leave its own: a session that has
-// idled keeps to its own when another is only a little ahead, so near-equal
-// accounts don't trade places, and moves by choice; one that hasn't is chosen
-// afresh as its account can't take the request.
+// prefers, and whether the session has to leave its own: one whose account
+// has left the request's pool, as the view's left says, leaves it, however
+// its cache stands; a session that has idled keeps to its own when another is
+// only a little ahead, so near-equal accounts don't trade places, and moves
+// by choice; one that hasn't is chosen afresh as its account can't take the
+// request.
 func (s situation) why() (reason, preferred string, forced bool) {
 	switch {
 	case s.req.Session == "":
 		return reasonUnsessioned, "", false
 	case !s.assigned:
 		return reasonNew, "", false
+	case s.accounts.left(s.current.Account):
+		return status.ReasonMovedOff + s.current.Account + " " + whyLeftPool, "", true
 	case s.movesFree():
 		return status.Rescored(s.now.Sub(s.current.LastSeen)), s.current.Account, false
 	default:
@@ -304,13 +321,15 @@ func (s situation) unable(id string) string {
 
 // noRoom is where a request goes when no account has room for it, for the
 // upstream to refuse it there, saying why: the session's account, else the
-// client's, else any other the view falls back to. With every one refused,
-// it's the client's, where the request can go out on that; with none it can,
-// it's none, and the proxy answers for it, sending nothing, the session left
-// where it was. With none left but those held back by their reserve alone,
-// it's none, and switchboard answers for the upstream: the router never
-// spends a reserve. A request tried already goes nowhere else: the upstream
-// has said why on the accounts it was tried on.
+// client's, else any other the view falls back to, each in the request's
+// pool. With every one refused, it's the client's, where the request can go
+// out on that; with none it can, it's none, and the proxy answers for it,
+// sending nothing, the session left where it was: as the router can't send
+// on the client's account, or, closed, as it's outside the pool. With none
+// left but those held back by their reserve alone, it's none, and
+// switchboard answers for the upstream: the router never spends a reserve. A
+// request tried already goes nowhere else: the upstream has said why on the
+// accounts it was tried on.
 func (s situation) noRoom() decision {
 	d := decision{reason: reasonNoRoom, afresh: true, noRoom: true}
 	if len(s.req.Tried) > 0 {
@@ -328,8 +347,11 @@ func (s situation) noRoom() decision {
 		d.reserved, d.back = true, back
 		return d
 	}
-	if s.accounts.has(s.req.Client) {
+	switch {
+	case s.accounts.has(s.req.Client):
 		d.account = s.req.Client
+	case !s.accounts.pooled(s.req.Client):
+		d.closed = true
 	}
 	return d
 }

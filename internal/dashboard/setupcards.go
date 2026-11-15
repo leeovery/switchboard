@@ -4,24 +4,54 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/setup"
 	"github.com/leeovery/switchboard/internal/theme"
 )
 
 // SetupEditCard is an account's edit card, open over the Accounts page, as
 // it stands: the account's name; its fields, Label and Reserve as typed, Plan
-// the plan chosen, one of config.PlanChoices, and Primary whether yes is
-// chosen; the field chosen; and where setup refused a value, why, as Why
-// says, under the field Refused names.
+// the plan chosen of Plans, those it offers, its Pool, where it has one, and
+// Primary whether yes is chosen; PrimaryHint and ReserveHint, the hints of
+// the pool chosen, setup's, where it has a Pool, the card's own otherwise;
+// the field chosen; and where setup refused a value, why, as Why says, under
+// the field Refused names.
 type SetupEditCard struct {
 	Name           string
 	Label, Reserve Field
+	Plans          []string
 	Plan           string
+	Pool           *SetupPool
 	Primary        bool
+	PrimaryHint    string
+	ReserveHint    string
 	Chosen         setup.Field
 	Refused        setup.Field
 	Why            string
+}
+
+// SetupPool is a card's Pool, as it stands: its options, each pool by its
+// label, then new pool; the one chosen, by its place among them; the hint
+// under it, as setup words it; and whether new pool is chosen, where enter
+// opens the new pool card, whichever field is chosen.
+type SetupPool struct {
+	Options []string
+	Chosen  int
+	Hint    string
+	New     bool
+}
+
+// SetupNewPoolCard is the new pool card, open over the add card or the edit
+// card that opened it, as it stands: its Label and its Dirs, as typed; the
+// row chosen, its label's, a directory's, or past the last, + another
+// directory; and where setup refused a value, why, as Why says, under the
+// field Refused names, of the directories, the one at Dir.
+type SetupNewPoolCard struct {
+	Label   Field
+	Dirs    []Field
+	Chosen  int
+	Refused setup.Field
+	Dir     int
+	Why     string
 }
 
 // SetupReserveCard is the primary's reserve card, open over the Accounts
@@ -34,12 +64,15 @@ type SetupReserveCard struct {
 }
 
 // SetupAddCard is the card adding an account, open over the Accounts page,
-// as it stands: its fields, Label as typed, and Plan the plan chosen, one of
-// config.PlanChoices; the field chosen; and where setup refused a value,
-// why, as Why says, under the field Refused names.
+// as it stands: its fields, Label as typed, Plan the plan chosen of Plans,
+// those it offers, "" for none, and its Pool, where it has one; the field chosen; and
+// where setup refused a value, why, as Why says, under the field Refused
+// names.
 type SetupAddCard struct {
 	Label   Field
+	Plans   []string
 	Plan    string
+	Pool    *SetupPool
 	Chosen  setup.Field
 	Refused setup.Field
 	Why     string
@@ -77,8 +110,19 @@ const (
 	primaryName = "Primary"
 	primaryHint = "the account the Claude apps are signed in to"
 	reserveName = "Reserve"
-	reserveHint = "usage kept back for the Claude apps"
+	reserveHint = setup.AppsReserveHint
+	poolName    = "Pool"
+	dirName     = "Directory"
+	dirHint     = "a session started here, or in any folder inside, is in the pool"
+	anotherDir  = "another directory"
 )
+
+// newPoolSays is what the new pool card says of a pool, over its fields,
+// muted, in the lines the card breaks it into.
+var newPoolSays = []line{
+	{{"A pool's accounts serve only the sessions started in its directories,", mutedInk}},
+	{{"and those sessions go out on its accounts alone.", mutedInk}},
+}
 
 // What the add card says: what an account is, over its fields.
 const addCardIntro = "Each account is one Claude subscription: a Pro, Max or Ultra plan."
@@ -96,6 +140,9 @@ var (
 	primaryChoices = []string{"no", "yes"}
 	editKeys       = []Key{{Key: "tab", Does: "next"}, {Key: "←→", Does: "select"}, {Key: "enter", Does: "save"}, {Key: "esc", Does: "cancel"}}
 	addKeys        = []Key{{Key: "tab", Does: "next"}, {Key: "enter", Does: "create token"}, {Key: "esc", Does: "cancel"}}
+	newPoolKeys    = []Key{{Key: "tab", Does: "next"}, {Key: "enter", Does: "create pool"}, {Key: "esc", Does: "back"}}
+	makingPoolKey  = Key{Key: "enter", Does: "new pool"}
+	addingDirKey   = Key{Key: "enter", Does: "add a directory"}
 	whichKeys      = []Key{{Key: "↑↓", Does: "select"}, {Key: "enter", Does: "save"}, {Key: "esc", Does: "cancel"}}
 	removeKeys     = []Key{{Key: "enter", Does: "remove"}, {Key: "esc", Does: "keep it"}}
 	reserveKeys    = []Key{{Key: "enter", Does: "save"}, {Key: "esc", Does: "no reserve"}}
@@ -135,7 +182,8 @@ func (s Setup) card(width int) *setupCard {
 	return nil
 }
 
-// accountsCard is the card open over the Accounts page: its add card, its
+// accountsCard is the card open over the Accounts page: the new pool card,
+// over the add card or the edit card that opened it; its add card, its
 // edit card, its remove card, its token card, its paste card, the card
 // asking which account a token is for, or the primary's reserve card, at the
 // screen's time; nil where none is.
@@ -145,6 +193,8 @@ func (s Setup) accountsCard(width int) *setupCard {
 	}
 	cardWidth, _ := cardAcross(width, setupCardWidth)
 	switch a := s.Accounts; {
+	case a.NewPool != nil:
+		return a.NewPool.card(cardWidth)
 	case a.Add != nil:
 		return a.Add.card(cardWidth)
 	case a.Edit != nil:
@@ -207,28 +257,75 @@ func (k setupCard) draw(c *canvas) {
 
 // card is the edit card, width cells wide: EDIT and the account's name in its
 // top edge; then a blank row apart, its fields, Label, Plan and its hint,
-// Primary and its hint, and Reserve, its hint after it, each refusal under
-// the field it's of; and its keys.
+// Pool and its hint, where it has one, Primary and its hint, and Reserve,
+// its hint after it, each refusal under the field it's of; and its keys,
+// enter opening the new pool card where Pool is on new pool.
 func (e SetupEditCard) card(width int) *setupCard {
 	content := width - 2*cardInset
 	focus := cardFocus{chosen: e.Chosen, refused: e.Refused, why: e.Why}
-	k := &setupCard{card: Card{title: "EDIT " + strings.ToUpper(e.Name), width: width, keys: editKeys}}
+	k := &setupCard{card: Card{title: "EDIT " + strings.ToUpper(e.Name), width: width, keys: poolKeys(editKeys, e.Pool)}}
 	k.text(focus.textField(setup.LabelField, labelName, "", e.Label), 0, content)
 	primary := 0
 	if e.Primary {
 		primary = 1
 	}
+	k.card.body = append(k.card.body, nil, focus.planRow(content, e.Plans, e.Plan), hintUnder(content, planHint), nil)
+	k.card.body = append(k.card.body, focus.poolRows(content, e.Pool)...)
+	primaryHinted, reserveHinted := e.hints()
 	k.card.body = append(k.card.body,
-		nil,
-		focus.planRow(content, e.Plan),
-		hintUnder(content, planHint),
-		nil,
 		optionsRow(content, primaryName, primaryChoices, primary, e.Chosen == setup.PrimaryField),
-		hintUnder(content, primaryHint),
+		hintUnder(content, primaryHinted),
 		nil,
 	)
-	k.text(focus.textField(setup.ReserveField, reserveName, reserveHint, e.Reserve), 0, content)
+	k.text(focus.textField(setup.ReserveField, reserveName, reserveHinted, e.Reserve), 0, content)
 	return k
+}
+
+// hints are Primary's and Reserve's hints: setup's, of the pool chosen,
+// where the card has a Pool; else the card's own, true of the one pool
+// there is, or of a config without pools.
+func (e SetupEditCard) hints() (primary, reserve string) {
+	if e.Pool != nil {
+		return e.PrimaryHint, e.ReserveHint
+	}
+	return primaryHint, reserveHint
+}
+
+// poolRows are a card's Pool, width cells wide, and the blank row after it,
+// where it has one: its options, the one chosen bold where Pool is the field
+// chosen; its hint under it; and why setup refused the pool chosen, where it
+// did, under that. None where it has no Pool.
+func (f cardFocus) poolRows(width int, pool *SetupPool) []line {
+	if pool == nil {
+		return nil
+	}
+	rows := []line{optionsRow(width, poolName, pool.Options, pool.Chosen, f.chosen == setup.PoolField), hintUnder(width, pool.Hint)}
+	return append(append(rows, f.whyUnder(setup.PoolField, width)...), nil)
+}
+
+// whyUnder is why setup refused the value of the choice of the field given,
+// where it did, on the rows under it, width cells wide, from its value's
+// column: none where it didn't.
+func (f cardFocus) whyUnder(of setup.Field, width int) []line {
+	if f.refused != of {
+		return nil
+	}
+	var rows []line
+	for _, l := range (line{{f.why, errorInk}}).wrap(width - valueAt(width)) {
+		rows = append(rows, append(line{spaces(valueAt(width))}, l...))
+	}
+	return rows
+}
+
+// poolKeys are a card's keys, given, but where Pool is on new pool, for
+// enter, which opens the new pool card.
+func poolKeys(keys []Key, pool *SetupPool) []Key {
+	if pool == nil || !pool.New {
+		return keys
+	}
+	keys = slices.Clone(keys)
+	keys[slices.IndexFunc(keys, func(k Key) bool { return k.Key == makingPoolKey.Key })] = makingPoolKey
+	return keys
 }
 
 // card is the primary's reserve card, width cells wide, its words setup's:
@@ -253,15 +350,19 @@ func (r SetupReserveCard) card(width int) *setupCard {
 
 // card is the add card, width cells wide: ADD AN ACCOUNT in its top edge;
 // what an account is, muted; then a blank row apart, its fields, Label, its
-// hint after it, and Plan, each refusal under the field it's of; what setup
-// does next, making the account's token; and its keys.
+// hint after it, Plan, and Pool and its hint, where it has one, each refusal
+// under the field it's of; what setup does next, making the account's
+// token; and its keys, enter opening the new pool card where Pool is on new
+// pool.
 func (a SetupAddCard) card(width int) *setupCard {
 	content := width - 2*cardInset
 	focus := cardFocus{chosen: a.Chosen, refused: a.Refused, why: a.Why}
-	k := &setupCard{card: Card{title: "ADD AN ACCOUNT", width: width, keys: addKeys}}
+	k := &setupCard{card: Card{title: "ADD AN ACCOUNT", width: width, keys: poolKeys(addKeys, a.Pool)}}
 	k.card.body = append(line{{addCardIntro, mutedInk}}.wrap(content), nil)
 	k.text(focus.textField(setup.LabelField, labelName, labelHint, a.Label), 0, content)
-	k.card.body = append(k.card.body, nil, focus.planRow(content, a.Plan), nil)
+	k.card.body = append(k.card.body, nil, focus.planRow(content, a.Plans, a.Plan))
+	k.card.body = append(append(k.card.body, focus.whyUnder(setup.PlanField, content)...), nil)
+	k.card.body = append(k.card.body, focus.poolRows(content, a.Pool)...)
 	for _, l := range addTokenSays {
 		k.card.body = append(k.card.body, l.wrap(content)...)
 	}
@@ -332,11 +433,63 @@ func (f cardFocus) textField(of setup.Field, name, hint string, value Field) tex
 	return field
 }
 
-// planRow is the card's Plan, width cells wide, its options config.PlanChoices,
-// plan the one chosen, bold where Plan is the field chosen.
-func (f cardFocus) planRow(width int, plan string) line {
-	plans := config.PlanChoices()
+// planRow is the card's Plan, width cells wide, its options plans, plan the
+// one chosen, bold where Plan is the field chosen.
+func (f cardFocus) planRow(width int, plans []string, plan string) line {
 	return optionsRow(width, planName, planNames(plans), slices.Index(plans, plan), f.chosen == setup.PlanField)
+}
+
+// card is the new pool card, width cells wide: NEW POOL in its top edge;
+// what a pool is, muted; then a blank row apart, its Label, its hint after
+// it; a blank row on, its directories, the first named Directory, its hint
+// under it; then + another directory, chosen as the Accounts page's + add an
+// account is; each refusal under the field it's of; and its keys, enter
+// adding a directory where + another directory is chosen.
+func (n SetupNewPoolCard) card(width int) *setupCard {
+	content := width - 2*cardInset
+	focus := cardFocus{chosen: setup.NoField, refused: n.Refused, why: n.Why}
+	if n.Chosen == 0 {
+		focus.chosen = setup.PoolLabelField
+	}
+	keys := newPoolKeys
+	if n.Chosen > len(n.Dirs) {
+		keys = slices.Clone(keys)
+		keys[1] = addingDirKey
+	}
+	k := &setupCard{card: Card{title: "NEW POOL", width: width, keys: keys}}
+	for _, l := range newPoolSays {
+		k.card.body = append(k.card.body, l.wrap(content)...)
+	}
+	k.card.body = append(k.card.body, nil)
+	k.text(focus.textField(setup.PoolLabelField, labelName, labelHint, n.Label), 0, content)
+	k.card.body = append(k.card.body, nil)
+	for i, dir := range n.Dirs {
+		f := textField{field: dir}
+		f.field.Typing = n.Chosen == i+1
+		if i == 0 {
+			f.name = dirName
+		}
+		if n.Refused == setup.DirsField && n.Dir == i {
+			f.wrong = n.Why
+		}
+		k.text(f, 0, content)
+		if i == 0 {
+			k.card.body = append(k.card.body, hintUnder(content, dirHint))
+		}
+	}
+	k.card.body = append(k.card.body, anotherDirRow(content, n.Chosen > len(n.Dirs)))
+	return k
+}
+
+// anotherDirRow is the new pool card's + another directory, width cells
+// wide, from its value's column: faint, as a hint; or chosen, + bold
+// accent.key and its words text.primary, as the Accounts page's + add an
+// account is chosen.
+func anotherDirRow(width int, chosen bool) line {
+	if !chosen {
+		return line{spaces(valueAt(width)), {"+ " + anotherDir, faintInk}}
+	}
+	return line{spaces(valueAt(width)), {"+", ink{token: theme.AccentKey, bold: true}}, {" " + anotherDir, ink{token: theme.TextPrimary}}}
 }
 
 // text puts f on the card's next row of its body, content cells wide, from

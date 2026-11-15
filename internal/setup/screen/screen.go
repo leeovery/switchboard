@@ -55,9 +55,13 @@ type Steps interface {
 	// failure, it says so too, as the screen draws it.
 	Skill() (setup.Said, error)
 	// CheckAdding checks the account adding gives, as it would be added,
-	// writing nothing, failing with a setup.Refused where config refuses a
-	// value.
-	CheckAdding(adding setup.Adding) (config.NewAccount, error)
+	// with the new pool it goes in, where it goes in one, writing nothing,
+	// failing with a setup.Refused where config refuses a value.
+	CheckAdding(adding setup.Adding) (accounts.Adding, error)
+	// CheckPool checks a pool to make with an account, writing nothing,
+	// failing with a setup.Refused of its label or its directories where
+	// config refuses one.
+	CheckPool(pool accounts.NewPool) error
 	// EditAccount changes the account id as edit says, failing with a
 	// setup.Refused where config refuses a value.
 	EditAccount(id string, edit setup.Edit) (accounts.Edited, error)
@@ -172,10 +176,12 @@ type Model struct {
 	// over the Accounts page, the card adding an account, the chosen
 	// account's edit card, the card asking before it's removed, the token
 	// card, the card pasting a token, the card asking which account a token
-	// is for, or the primary's reserve card: nil where none is. reserveAsked
+	// is for, or the primary's reserve card: nil where none is. newPool is
+	// the new pool card, open over the add card or the edit card. reserveAsked
 	// is set once the reserve card has opened, as it opens once only.
 	add          *addCard
 	edit         *editCard
+	newPool      *newPoolCard
 	remove       *removeCard
 	token        *tokenCard
 	paste        *pasteCard
@@ -318,6 +324,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.skilled(msg), nil
 	case addCheckedMsg:
 		return m.addChecked(msg)
+	case poolCheckedMsg:
+		return m.poolChecked(msg)
 	case editedMsg:
 		return m.editSaved(msg)
 	case removedMsg:

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"maps"
 	"path/filepath"
 	"slices"
@@ -36,8 +37,10 @@ const (
 	// proxyAddr is where a healthy router says its proxy listens, which isn't
 	// where the config says: the router's word is the one that counts.
 	proxyAddr = "127.0.0.1:4848"
-	// unhealthy is why an unhealthy router says it is.
+	// unhealthy is why an unhealthy router says it is, and closed why one
+	// that routes nothing does.
 	unhealthy = "5 of the 8 requests in the last 5 minutes failed"
+	closed    = "the config names no pools and the accounts record can't be read, so the pool each account is in can't be told"
 	// homeDir is the user's home directory, and project a directory in it
 	// that Claude Code starts in.
 	homeDir = "/home/tester"
@@ -81,7 +84,7 @@ func route(r launch.Router, account string) launch.Route {
 
 func TestRunThroughAHealthyRouter(t *testing.T) {
 	path := t.TempDir()
-	h := newHarness(t, "HOME=/home/tester", "PATH="+path, "ANTHROPIC_CUSTOM_HEADERS=X-Trace: on")
+	h := newHarness(t, "HOME=/home/tester", "PATH="+path, "ANTHROPIC_CUSTOM_HEADERS=X-Trace: on").projected()
 	h.launcher.Dir = project
 	args := []string{"--print", "a prompt", "--account", "work", "", "--", "--direct"}
 
@@ -503,7 +506,7 @@ func TestRouterUnfoundStopsUnlessToldToGoDirect(t *testing.T) {
 			log := logstest.Capture(t)
 			h := newHarness(t, d.environ()...)
 
-			err := h.launcher.RouterUnfound(d.configured, []string{"--resume"}, errors.New(unfound+"\nmore"))
+			err := h.launcher.RouterUnfound(launch.Route{Config: &config.Config{WhenRouterDown: d.configured}}, []string{"--resume"}, errors.New(unfound+"\nmore"))
 
 			if !d.wantDirect {
 				if !errors.Is(err, launch.ErrNotStarted) {
@@ -552,6 +555,14 @@ func TestARouterThatAnswersRoutesWhateverTheRouterDownSettingSays(t *testing.T) 
 			r:        unhealthyRouter(),
 			wantSaid: "switchboard: the router is unhealthy (" + unhealthy + ") — starting claude through it all the same\n",
 			wantLog:  []string{"level=WARN", "router=unhealthy", `reason="` + unhealthy + `"`},
+		},
+		{
+			// Never down, so never gone round, whatever the setting says:
+			// started directly, its sessions would leave their pools.
+			name:     "routing nothing, as it can't tell which pool an account is in",
+			r:        closedRouter(),
+			wantSaid: "switchboard: the router is unhealthy (" + closed + ") — starting claude through it all the same\n",
+			wantLog:  []string{"level=WARN", "router=unhealthy", `reason="` + closed + `"`},
 		},
 	}
 	for _, rt := range routers {
@@ -625,7 +636,7 @@ func TestRunThroughAnUnhealthyRouter(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			log := logstest.Capture(t)
-			h := newHarness(t, "HOME=/home/tester")
+			h := newHarness(t, "HOME=/home/tester").projected()
 			h.launcher.Dir = project
 
 			if err := h.launcher.Run(t.Context(), route(&fakeRouter{health: tt.health}, tt.account), []string{"--resume"}); err != nil {
@@ -805,7 +816,7 @@ func TestRunKeepsTheOtherCustomHeaders(t *testing.T) {
 			if tt.headers != "" {
 				environ = append(environ, "ANTHROPIC_CUSTOM_HEADERS="+tt.headers)
 			}
-			h := newHarness(t, environ...)
+			h := newHarness(t, environ...).projected()
 			h.launcher.Dir = tt.dir
 
 			if err := h.launcher.Run(t.Context(), route(healthy(), tt.account), nil); err != nil {
@@ -849,7 +860,7 @@ func TestRunTellsTheRouterTheDirectoryClaudeCodeStartsIn(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := newHarness(t)
+			h := newHarness(t).projected()
 			h.launcher.Dir, h.launcher.Home = tt.dir, tt.home
 
 			if err := h.launcher.Run(t.Context(), route(healthy(), ""), nil); err != nil {
@@ -1092,7 +1103,7 @@ func TestUnaidedStartsClaudeAsIfSwitchboardWerentThere(t *testing.T) {
 			h := newHarness(t, inherited...)
 			args := []string{"--account", "side", "--resume"}
 
-			if err := h.launcher.Unaided(args, "couldn't read the config", tt.err); err != nil {
+			if err := h.launcher.Unaided(args, nil, "couldn't read the config", tt.err); err != nil {
 				t.Fatalf("Unaided() error = %v", err)
 			}
 
@@ -1111,7 +1122,7 @@ func TestUnaidedWithoutClaude(t *testing.T) {
 	h := newHarness(t)
 	h.launcher.InstallPaths = []string{filepath.Join(t.TempDir(), "claude")}
 
-	err := h.launcher.Unaided(nil, "couldn't read the config", errors.New("no config file at /home/tester/config.toml"))
+	err := h.launcher.Unaided(nil, nil, "couldn't read the config", errors.New("no config file at /home/tester/config.toml"))
 	if err == nil || !strings.HasPrefix(err.Error(), "can't find claude") || len(h.starts) > 0 {
 		t.Errorf("Unaided() error = %v, starting %q; want claude not found, and nothing started", err, h.starts)
 	}
@@ -1126,7 +1137,7 @@ func TestDirectStartsClaudeCodeOnItsOwnLogin(t *testing.T) {
 	)
 	h.launcher.Dir = project
 
-	if err := h.launcher.Direct([]string{"--print", "a prompt"}); err != nil {
+	if err := h.launcher.Direct([]string{"--print", "a prompt"}, nil); err != nil {
 		t.Fatalf("Direct() error = %v", err)
 	}
 
@@ -1227,14 +1238,14 @@ var withoutSwitchboard = []struct {
 	{
 		name: "unaided, without a config",
 		launch: func(_ context.Context, l launch.Launcher) error {
-			return l.Unaided(nil, "couldn't read the config", errors.New("no config file at /home/tester/config.toml"))
+			return l.Unaided(nil, nil, "couldn't read the config", errors.New("no config file at /home/tester/config.toml"))
 		},
 		keepsRouting: true,
 	},
 	{
 		name: "unaided, the router not found, going direct",
 		launch: func(_ context.Context, l launch.Launcher) error {
-			return l.RouterUnfound(config.Direct, nil, errors.New("locate state directory: no home directory"))
+			return l.RouterUnfound(launch.Route{Config: &config.Config{WhenRouterDown: config.Direct}}, nil, errors.New("locate state directory: no home directory"))
 		},
 		keepsRouting: true,
 	},
@@ -1302,7 +1313,7 @@ func TestUnaidedSaysWhereClaudeGoes(t *testing.T) {
 		{
 			name: "without a config",
 			launch: func(_ context.Context, l launch.Launcher) error {
-				return l.Unaided(nil, "couldn't read the config", errors.New("no config file at /home/tester/config.toml"))
+				return l.Unaided(nil, nil, "couldn't read the config", errors.New("no config file at /home/tester/config.toml"))
 			},
 			couldnt:     "couldn't read the config",
 			wantThrough: true,
@@ -1310,7 +1321,7 @@ func TestUnaidedSaysWhereClaudeGoes(t *testing.T) {
 		{
 			name: "the router not found, going direct",
 			launch: func(_ context.Context, l launch.Launcher) error {
-				return l.RouterUnfound(config.Direct, nil, errors.New("locate state directory: no home directory"))
+				return l.RouterUnfound(launch.Route{Config: &config.Config{WhenRouterDown: config.Direct}}, nil, errors.New("locate state directory: no home directory"))
 			},
 			couldnt:     "couldn't find the router",
 			wantThrough: true,
@@ -1390,7 +1401,7 @@ func TestUnaidedSaysWhereClaudeGoes(t *testing.T) {
 // inherits it.
 func routedSession(t *testing.T, own []string, account string) []string {
 	t.Helper()
-	h := newHarness(t, own...)
+	h := newHarness(t, own...).projected()
 	h.launcher.Dir = project
 	if err := h.launcher.Run(t.Context(), route(healthy(), account), nil); err != nil {
 		t.Fatalf("Run() error = %v", err)
@@ -1659,7 +1670,7 @@ func TestDirectWithinASessionStartsFromTheUsersEnvironment(t *testing.T) {
 		},
 		{
 			name:   "on its own login",
-			launch: func(_ context.Context, l launch.Launcher) error { return l.Direct(nil) },
+			launch: func(_ context.Context, l launch.Launcher) error { return l.Direct(nil, nil) },
 			want:   map[string]string{"HOME": homeDir, "ANTHROPIC_CUSTOM_HEADERS": "X-Trace: on"},
 		},
 	}
@@ -1723,7 +1734,7 @@ func TestNothingSecretIsWrittenIntoTheMarkOfWhatRunSet(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			session := newHarness(t, append([]string{"HOME=" + homeDir, "ANTHROPIC_API_KEY=test-key"}, tt.own...)...)
+			session := newHarness(t, append([]string{"HOME=" + homeDir, "ANTHROPIC_API_KEY=test-key"}, tt.own...)...).projected()
 			session.launcher.Dir = tt.dir
 			if err := session.launcher.Run(t.Context(), route(healthy(), ""), nil); err != nil {
 				t.Fatalf("Run() error = %v", err)
@@ -1782,7 +1793,7 @@ func TestFindsClaude(t *testing.T) {
 			h := newHarness(t, "PATH="+tt.path)
 			h.launcher.InstallPaths = tt.installs
 
-			err := h.launcher.Direct(nil)
+			err := h.launcher.Direct(nil, nil)
 			if tt.wantErr != "" {
 				if err == nil || err.Error() != tt.wantErr || len(h.starts) > 0 {
 					t.Errorf("Direct() error = %v, starting %q; want %q, starting nothing", err, h.starts, tt.wantErr)
@@ -1806,11 +1817,11 @@ var everyLaunch = []struct {
 }{
 	{name: "through the router", launch: func(ctx context.Context, l launch.Launcher) error { return l.Run(ctx, route(healthy(), ""), nil) }},
 	{name: "directly", launch: func(ctx context.Context, l launch.Launcher) error { return l.Run(ctx, route(notRunning(), ""), nil) }},
-	{name: "on its own login", launch: func(_ context.Context, l launch.Launcher) error { return l.Direct(nil) }},
+	{name: "on its own login", launch: func(_ context.Context, l launch.Launcher) error { return l.Direct(nil, nil) }},
 	{
 		name: "without switchboard",
 		launch: func(_ context.Context, l launch.Launcher) error {
-			return l.Unaided(nil, "couldn't read the config", errors.New("no config file at /home/tester/config.toml"))
+			return l.Unaided(nil, nil, "couldn't read the config", errors.New("no config file at /home/tester/config.toml"))
 		},
 	},
 	{name: "a local subcommand", launch: func(_ context.Context, l launch.Launcher) error { return l.Local([]string{"doctor"}) }},
@@ -1818,7 +1829,7 @@ var everyLaunch = []struct {
 	{
 		name: "the router not found, going direct",
 		launch: func(_ context.Context, l launch.Launcher) error {
-			return l.RouterUnfound(config.Direct, nil, errors.New("locate state directory: no home directory"))
+			return l.RouterUnfound(launch.Route{Config: &config.Config{WhenRouterDown: config.Direct}}, nil, errors.New("locate state directory: no home directory"))
 		},
 	},
 	{
@@ -2094,13 +2105,13 @@ func TestLaunchesLogWhatWasDecided(t *testing.T) {
 		},
 		{
 			name:   "on its own login",
-			launch: func(_ context.Context, l launch.Launcher) error { return l.Direct(args) },
+			launch: func(_ context.Context, l launch.Launcher) error { return l.Direct(args, nil) },
 			want:   []string{"level=INFO", `msg="starting claude" component=launch`, `mode="own login"`},
 		},
 		{
 			name: "without switchboard",
 			launch: func(_ context.Context, l launch.Launcher) error {
-				return l.Unaided(args, "couldn't read the config", errors.New("no config file at /home/tester/config.toml"))
+				return l.Unaided(args, nil, "couldn't read the config", errors.New("no config file at /home/tester/config.toml"))
 			},
 			want: []string{
 				"level=WARN", `msg="starting claude without switchboard" component=launch`, `reason="couldn't read the config"`,
@@ -2171,15 +2182,17 @@ func TestLaunchesLogWhatWasDecided(t *testing.T) {
 }
 
 // fakeRouter answers as a router does: its health, or healthErr; and its
-// status document, or docErr.
+// status document, or docErr. asks counts the times it's asked its health.
 type fakeRouter struct {
 	health    router.Health
 	healthErr error
 	doc       status.Document
 	docErr    error
+	asks      int
 }
 
 func (r *fakeRouter) Health(context.Context) (router.Health, error) {
+	r.asks++
 	return r.health, r.healthErr
 }
 
@@ -2197,6 +2210,15 @@ func healthy() *fakeRouter {
 func unhealthyRouter() *fakeRouter {
 	r := healthy()
 	r.health.OK, r.health.Reason = false, unhealthy
+	return r
+}
+
+// closedRouter answers as a router that routes nothing, as it can't tell
+// which pool any account is in: unhealthy, saying why, reporting pools, none
+// of them.
+func closedRouter() *fakeRouter {
+	r := healthy()
+	r.health.OK, r.health.Reason, r.health.ReportsPools = false, closed, true
 	return r
 }
 
@@ -2279,8 +2301,9 @@ type harness struct {
 
 // newHarness returns a harness whose launches start from environ, for a user
 // whose home is homeDir, in a working directory not known unless a test gives
-// one, each directory its own project, as one in no repository is, unless a
-// test says otherwise.
+// one, finding no project unless a test gives a finder, as projected does.
+// No path's links are resolved, as none of those it's given is there, nor
+// any directory found in a worktree, unless a test does so itself.
 func newHarness(t *testing.T, environ ...string) *harness {
 	t.Helper()
 	dir := t.TempDir()
@@ -2289,9 +2312,11 @@ func newHarness(t *testing.T, environ ...string) *harness {
 		switchboard: claudetest.Program(t, filepath.Join(dir, "switchboard")),
 	}
 	h.launcher = launch.Launcher{
-		Environ:      environ,
-		Home:         homeDir,
-		Project:      func(dir string) string { return dir },
+		Environ: environ,
+		Home:    homeDir,
+		EvalSymlinks: func(path string) (string, error) {
+			return "", &fs.PathError{Op: "lstat", Path: path, Err: fs.ErrNotExist}
+		},
 		InstallPaths: []string{h.claude},
 		Executable:   func() (string, error) { return h.switchboard, nil },
 		PID:          pid,
@@ -2303,6 +2328,13 @@ func newHarness(t *testing.T, environ ...string) *harness {
 		},
 		Stderr: &h.stderr,
 	}
+	return h
+}
+
+// projected is h, its launcher finding each directory its own project, as
+// one in no repository is.
+func (h *harness) projected() *harness {
+	h.launcher.Project = func(dir string) string { return dir }
 	return h
 }
 

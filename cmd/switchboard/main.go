@@ -23,14 +23,22 @@ import (
 var version = "dev"
 
 func main() {
+	root := cli.NewRootCommand(deps())
+	root.SetArgs(cli.Args(os.Args))
+	os.Exit(cli.Execute(root))
+}
+
+// deps are the real machine's, which switchboard's commands run on.
+func deps() cli.Deps {
 	programs := setuptoken.Programs(os.Getenv)
-	root := cli.NewRootCommand(cli.Deps{
+	return cli.Deps{
 		Version:       version,
 		Getenv:        os.Getenv,
 		Environ:       os.Environ,
 		Args:          os.Args,
 		HomeDir:       os.UserHomeDir,
 		Getwd:         os.Getwd,
+		FindProject:   launch.FindProject,
 		Executable:    os.Executable,
 		Now:           time.Now,
 		ClaudeVersion: claude.InstalledVersion(os.Getenv, os.UserHomeDir, os.Executable),
@@ -53,7 +61,5 @@ func main() {
 		PID:           os.Getpid(),
 		Pause:         time.Sleep,
 		ZoneFile:      "/etc/localtime",
-	})
-	root.SetArgs(cli.Args(os.Args))
-	os.Exit(cli.Execute(root))
+	}
 }

@@ -74,7 +74,7 @@ func TestWindowsCountTheFamiliesTheyveBeenSeenOn(t *testing.T) {
 
 			tt.learn(s)
 			for model, want := range tt.room {
-				if got := s.view(model, start).room("work"); got != want {
+				if got := s.view("", model, start).room("work"); got != want {
 					t.Errorf("work has room for %q: %v, want %v", model, got, want)
 				}
 			}
@@ -89,7 +89,7 @@ func TestWindowsEveryModelSharesCountEveryModel(t *testing.T) {
 	s.record("work", []quota.Window{spent, week}, s.mark())
 
 	s.learn(fable, []quota.Window{spent, week})
-	if s.view(haiku, start).room("work") {
+	if s.view("", haiku, start).room("work") {
 		t.Error("work has room for Haiku, want none: its session is spent, and every model shares it")
 	}
 }
@@ -98,7 +98,7 @@ func TestView(t *testing.T) {
 	s := newTestState(&testClock{now: start})
 	s.record("side", []quota.Window{week, session}, s.mark())
 
-	v := s.view(opus, start)
+	v := s.view("", opus, start)
 	want := []score.Candidate{{ID: "work"}, {ID: "side", Windows: []quota.Window{session, week}}}
 	if !reflect.DeepEqual(v.candidates, want) {
 		t.Errorf("candidates =\n%+v\nwant every account with a token, in order, as last read:\n%+v", v.candidates, want)
@@ -137,7 +137,7 @@ func TestARefusedAccountHasNoRoomForTenMinutes(t *testing.T) {
 
 			for model, room := range tt.room {
 				for after, lifted := range map[time.Duration]bool{0: false, 10*time.Minute - time.Nanosecond: false, 10 * time.Minute: true} {
-					v := s.view(model, start.Add(after))
+					v := s.view("", model, start.Add(after))
 					want := room || lifted
 					if got := v.room("work"); got != want {
 						t.Errorf("%v after the refusal, room(work) for %q = %v, want %v", after, model, got, want)
@@ -184,10 +184,10 @@ func TestALimitHoldsBackTheRequestsItsWindowsCount(t *testing.T) {
 			reached, _ := s.limit("work", tt.windows, start.Add(time.Hour), s.mark())
 			until := reached.Until
 			for model, want := range tt.room {
-				if got := s.view(model, start).room("work"); got != want {
+				if got := s.view("", model, start).room("work"); got != want {
 					t.Errorf("under the limit, work has room for %q: %v, want %v", model, got, want)
 				}
-				if !s.view(model, until).room("work") {
+				if !s.view("", model, until).room("work") {
 					t.Errorf("once the limit lifts, work has no room for %q, want room", model)
 				}
 			}
@@ -301,7 +301,7 @@ func TestALimitReachedAgainInAnotherWindowHoldsAsItsLatestAnswerSays(t *testing.
 	clock.now = start.Add(time.Hour)
 	s.limit("work", []string{"5h"}, start.Add(3*time.Hour), s.mark())
 
-	if !s.view(haiku, start.Add(3*time.Hour)).room("work") {
+	if !s.view("", haiku, start.Add(3*time.Hour)).room("work") {
 		t.Error("once the session resets, work has no room for Haiku, want room: the Fable week never held Haiku back")
 	}
 }
@@ -330,7 +330,7 @@ func TestAViewWithoutAccounts(t *testing.T) {
 	s.record("work", []quota.Window{spent, week}, s.mark())
 	s.record("side", []quota.Window{session, week}, s.mark())
 
-	v := s.view(opus, start)
+	v := s.view("", opus, start)
 	if got := v.full(); !slices.Equal(got, []string{"work"}) {
 		t.Errorf("full() = %q, want work, whose session is spent", got)
 	}

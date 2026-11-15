@@ -26,7 +26,7 @@ func NewPast(in HistoryInput, days []ledger.Summary) Past {
 	in.read = in.Now
 	today := dayfile.DateOf(in.Now)
 	v := versions{table: in.Prices, family: in.Family}
-	return Past{in: in, days: pricedDays(days, in.Prices, today, v)}
+	return Past{in: in, days: pricedDays(days, in, today, v)}
 }
 
 // Since is the Past at now, the days given, the summaries the ledger holds of
@@ -43,7 +43,7 @@ func (p Past) Since(days []ledger.Summary, now time.Time) Past {
 	p.in.read = now
 	today := dayfile.DateOf(now)
 	before, _ := splitAt(p.days, days[0].Day)
-	p.days = slices.Concat(before, pricedDays(days, p.in.Prices, today, p.versions()))
+	p.days = slices.Concat(before, pricedDays(days, p.in, today, p.versions()))
 	return p
 }
 
@@ -72,20 +72,42 @@ func (p Past) versions() versions {
 	return versions{table: p.in.Prices, family: p.in.Family}
 }
 
-// began is the date the ledger began recording on, as the input tells it:
-// "" where it doesn't.
-func (p Past) began() string {
-	if p.in.Began.IsZero() {
-		return ""
-	}
-	return dayfile.DateOf(p.in.Began)
+// counted is the first day the Past counts of the days from first, as
+// dayfile.Civil gives a day, as begunFrom has it, the ledger having begun
+// where the input tells it.
+func (p Past) counted(first time.Time) time.Time {
+	return begunFrom(first, p.in.Began)
 }
 
-// counted is the date of the first day the Past counts of the days from the
-// one with the date first: the later of it and the day the ledger began,
-// where the input tells it.
-func (p Past) counted(first string) string {
-	return max(first, p.began())
+// begunFrom is the first day counted of the days from first, as
+// dayfile.Civil gives a day, as begunOn has it of their dates.
+func begunFrom(first, began time.Time) time.Time {
+	if began.IsZero() {
+		return first
+	}
+	// Both dates begunOn compares are written from times, so the later
+	// parses.
+	day, _ := dayfile.Civil(begunOn(first.Format(time.DateOnly), began))
+	return day
+}
+
+// begunOn is the date of the first day counted of the days from the one
+// with the date first, the work they're of having begun at began: began's
+// date, as beganOn has it, where that's later, so nothing counts or charts
+// a day before it, as a pool's days hold none of its work before; first
+// where began is zero, as where it isn't known. It's the one rule of where
+// counting begins, every page's and history's.
+func begunOn(first string, began time.Time) string {
+	return max(first, beganOn(began))
+}
+
+// beganOn is the date of the day work began, at began: "" where began is
+// zero, as where it isn't known.
+func beganOn(began time.Time) string {
+	if began.IsZero() {
+		return ""
+	}
+	return dayfile.DateOf(began)
 }
 
 // Summaries are the summaries of the days the Past holds from first to last,

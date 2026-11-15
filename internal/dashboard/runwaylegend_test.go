@@ -40,19 +40,19 @@ func TestTheLegendKeysOnlyWhatTheLanesDrawThenWhatAColumnIs(t *testing.T) {
 		{
 			name: "live", shown: runwayLive(), look: nord,
 			drawn: views.Drawn{Cells: []views.Cell{views.CellRoom, views.CellCapped}, Resets: true},
-			want:  []string{"█ room    ─ at its cap    │ its week resets    a column ≈ 74 minutes · the past dimmed"},
+			want:  []string{"█ room    ━ at its cap    │ its week resets    a column ≈ 74 minutes · the past dimmed"},
 		},
 		{
 			name: "live, a run-out and a limit", shown: runwayLive(), look: nord,
 			drawn: views.Drawn{Cells: []views.Cell{views.CellRoom, views.CellRunsOut, views.CellCapped, views.CellLimited}, Resets: true},
 			want: []string{
-				"█ room    █ room, but it runs out at its pace    ─ at its cap    ─ at its limit    │ its week resets    a column ≈ 74 minutes · the past dimmed",
+				"█ room    █ room, but it runs out at its pace    ━ at its cap    ━ at its limit    │ its week resets    a column ≈ 74 minutes · the past dimmed",
 			},
 		},
 		{
 			name: "a week gone", shown: runwayBack(civilDay(9, 21)), look: nord,
 			drawn: views.Drawn{Cells: []views.Cell{views.CellRoom, views.CellLimited}, Resets: true},
-			want:  []string{"█ room    ─ at its limit    │ its week resets    a column ≈ 74 minutes · under each name, the week's highest"},
+			want:  []string{"█ room    ━ at its limit    │ its week resets    a column ≈ 74 minutes · under each name, the week's highest"},
 		},
 		{
 			name: "this week, stepped back to", shown: runwayBack(civilDay(9, 28)), look: nord,
@@ -62,7 +62,7 @@ func TestTheLegendKeysOnlyWhatTheLanesDrawThenWhatAColumnIs(t *testing.T) {
 		{
 			name: "a refusal and no token, each keyed", shown: runwayLive(), look: nord,
 			drawn: views.Drawn{Cells: []views.Cell{views.CellRefused, views.CellTokenless}},
-			want:  []string{"─ token refused    ─ no token    a column ≈ 74 minutes · the past dimmed"},
+			want:  []string{"━ token refused    ━ no token    a column ≈ 74 minutes · the past dimmed"},
 		},
 		{
 			name: "a look that can't blend, nothing said dimmed", shown: runwayLive(), look: Screen(builtin(t, "terminal")),
@@ -91,7 +91,7 @@ func TestTheLegendKeysOnlyWhatTheLanesDrawThenWhatAColumnIs(t *testing.T) {
 func TestTheLegendTakesOneLineWhereItFitsElseWrapsWholeKeys(t *testing.T) {
 	nord := Screen(builtin(t, "nord"))
 	four := views.Drawn{Cells: []views.Cell{views.CellRoom, views.CellRunsOut, views.CellCapped, views.CellLimited}, Resets: true}
-	keys := "█ room    █ room, but it runs out at its pace    ─ at its cap    ─ at its limit    │ its week resets"
+	keys := "█ room    █ room, but it runs out at its pace    ━ at its cap    ━ at its limit    │ its week resets"
 	column := "a column ≈ 74 minutes · the past dimmed"
 	tests := []struct {
 		name  string
@@ -103,7 +103,7 @@ func TestTheLegendTakesOneLineWhereItFitsElseWrapsWholeKeys(t *testing.T) {
 		{name: "100 columns, the keys whole on a line", width: 100, want: []string{keys, column}},
 		{
 			name: "99 columns, the keys wrapped whole", width: 99,
-			want: []string{"█ room    █ room, but it runs out at its pace    ─ at its cap    ─ at its limit", "│ its week resets", column},
+			want: []string{"█ room    █ room, but it runs out at its pace    ━ at its cap    ━ at its limit", "│ its week resets", column},
 		},
 	}
 	for _, tt := range tests {
@@ -152,7 +152,7 @@ func TestTheLegendIsDrawnFromItsRowALineARow(t *testing.T) {
 	f.Runway.Lanes = &views.Lanes{Drawn: everyCell}
 	c := newCanvas(f.Width, 40)
 	f.runwayLegend(c, runwayLaid{fit: runwayFit{fits: true, legend: 23}})
-	for y, want := range map[int]string{22: "", 23: "█ room    █ room, but it runs out at its pace    ─ at its cap    ─ at its limit    ─ token refused", 24: "─ no token    │ its week resets", 25: "a column ≈ 74 minutes · the past dimmed", 26: ""} {
+	for y, want := range map[int]string{22: "", 23: "█ room    █ room, but it runs out at its pace    ━ at its cap    ━ at its limit    ━ token refused", 24: "━ no token    │ its week resets", 25: "a column ≈ 74 minutes · the past dimmed", 26: ""} {
 		if got := textAt(c, 0, y, f.Width); got != want {
 			t.Errorf("row %d reads %q, want %q", y, got, want)
 		}
@@ -175,7 +175,7 @@ func TestOnAPhoneTheLegendIsOneLineWhereItFitsElseWrapsItsParts(t *testing.T) {
 		{
 			name: "its keys, then what a column is, at 52", shown: phoneRunwayLive(52), width: 52,
 			drawn: views.Drawn{Cells: []views.Cell{views.CellRoom, views.CellCapped}, Resets: true},
-			want:  []string{"█ room    ─ at its cap    │ its week resets", "a column 252 minutes · the past dimmed"},
+			want:  []string{"█ room    ━ at its cap    │ its week resets", "a column 252 minutes · the past dimmed"},
 		},
 		{
 			name: "one key, beside what a column is", shown: phoneRunwayLive(52), width: 52,
@@ -185,8 +185,8 @@ func TestOnAPhoneTheLegendIsOneLineWhereItFitsElseWrapsItsParts(t *testing.T) {
 		{
 			name: "every key, wrapped whole", shown: phoneRunwayLive(52), width: 52, drawn: everyCell,
 			want: []string{
-				"█ room    █ room, but it runs out at its pace", "─ at its cap    ─ at its limit    ─ token refused",
-				"─ no token    │ its week resets", "a column 252 minutes · the past dimmed",
+				"█ room    █ room, but it runs out at its pace", "━ at its cap    ━ at its limit    ━ token refused",
+				"━ no token    │ its week resets", "a column 252 minutes · the past dimmed",
 			},
 		},
 		{
@@ -218,7 +218,7 @@ func TestOnAPhoneTheLegendIsOneLineWhereItFitsElseWrapsItsParts(t *testing.T) {
 
 // Where none of the pool has room in a column (B3), the pool's lane draws ▂
 // along its floor, in a limit's red, where an account's lane at its limit
-// keeps its ─; and the legend keys it, " the pool at its limit", after an
+// keeps its ━; and the legend keys it, " the pool at its limit", after an
 // account's limit's key, or where that would stand where no lane draws one.
 // Where the pool's lane draws none, the legend doesn't key it.
 func TestThePoolAtItsLimitIsAQuarterCellTheLegendKeys(t *testing.T) {
@@ -246,7 +246,7 @@ func TestThePoolAtItsLimitIsAQuarterCellTheLegendKeys(t *testing.T) {
 	if lane, _ := fit.laneRow(0); cellAt(c, x, lane).glyph != heldCell {
 		t.Errorf("an account's lane at its limit is %q, want %q", cellAt(c, x, lane).glyph, heldCell)
 	}
-	if got, want := rowOf(c, fit.legend), "█ room    ─ at its cap    ─ at its limit    ▂ the pool at its limit    ─ no token    a column ≈ 68 minutes · the past dimmed"; got != want {
+	if got, want := rowOf(c, fit.legend), "█ room    ━ at its cap    ━ at its limit    ▂ the pool at its limit    ━ no token    a column ≈ 68 minutes · the past dimmed"; got != want {
 		t.Errorf("the legend reads %q, want %q", got, want)
 	}
 	tests := []struct {
@@ -255,9 +255,9 @@ func TestThePoolAtItsLimitIsAQuarterCellTheLegendKeys(t *testing.T) {
 		drawn []views.Cell
 		want  []string
 	}{
-		{name: "no lane at its limit", pool: pool, drawn: []views.Cell{views.CellRoom, views.CellRefused}, want: []string{"█ room", "▂ the pool at its limit", "─ token refused"}},
+		{name: "no lane at its limit", pool: pool, drawn: []views.Cell{views.CellRoom, views.CellRefused}, want: []string{"█ room", "▂ the pool at its limit", "━ token refused"}},
 		{name: "after every lane's key", pool: pool, drawn: []views.Cell{views.CellRoom}, want: []string{"█ room", "▂ the pool at its limit"}},
-		{name: "the pool's lane not at its limit", pool: views.Pool{Of: 3, Key: "7d", Columns: []views.PoolColumn{{With: 1, Known: true}}}, drawn: []views.Cell{views.CellRoom, views.CellLimited}, want: []string{"█ room", "─ at its limit"}},
+		{name: "the pool's lane not at its limit", pool: views.Pool{Of: 3, Key: "7d", Columns: []views.PoolColumn{{With: 1, Known: true}}}, drawn: []views.Cell{views.CellRoom, views.CellLimited}, want: []string{"█ room", "━ at its limit"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

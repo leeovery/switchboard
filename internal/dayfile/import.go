@@ -2,16 +2,19 @@ package dayfile
 
 import (
 	"bufio"
+	"bytes"
 	"compress/gzip"
 	"context"
 	"crypto/sha256"
 	"encoding/json"
+	"encoding/json/jsontext"
 	"errors"
 	"fmt"
 	"io"
 	"io/fs"
 	"maps"
 	"os"
+	"slices"
 	"time"
 
 	"github.com/leeovery/switchboard/internal/atomicfile"
@@ -197,32 +200,103 @@ func (f *Files) copyIn(s stagedDay) (bool, error) {
 	return err == nil, err
 }
 
-// lineCounts counts lines, held by their hashes: none of the lines
-// themselves, as a day's can run to tens of megabytes.
+// lineCounts counts lines, held by the hashes of their keys, as keyOf gives
+// them: none of the lines themselves, as a day's can run to tens of
+// megabytes.
 type lineCounts map[[sha256.Size]byte]int
 
-// add counts line once more.
-func (c lineCounts) add(line []byte) {
-	c[sha256.Sum256(line)]++
+// add counts the line of the given key once more.
+func (c lineCounts) add(key [sha256.Size]byte) {
+	c[key]++
 }
 
-// take counts line once less, reporting whether it was counted at all.
-func (c lineCounts) take(line []byte) bool {
-	sum := sha256.Sum256(line)
-	if c[sum] == 0 {
+// take counts the line of the given key once less, reporting whether it was
+// counted at all.
+func (c lineCounts) take(key [sha256.Size]byte) bool {
+	if c[key] == 0 {
 		return false
 	}
-	c[sum]--
+	c[key]--
 	return true
 }
 
+// keyOf returns the hash of line's key, as the files' Key gives it: of the
+// line itself where they have none.
+func (f *Files) keyOf(line []byte) [sha256.Size]byte {
+	if f.Key != nil {
+		line = f.Key(line)
+	}
+	return sha256.Sum256(line)
+}
+
+// Without returns a Key, as Files have one, that's a line without its member
+// of the given name, one of the JSON object's own, the rest's bytes as they
+// were: so two lines alike but for that member, or for whether they have it,
+// are one. A line without one, or that doesn't read as one JSON object, is
+// its own.
+func Without(name string) func(line []byte) []byte {
+	return func(line []byte) []byte {
+		from, to, ok := memberAt(line, name)
+		if !ok {
+			return line
+		}
+		return slices.Concat(line[:from], line[to:])
+	}
+}
+
+// memberAt returns where line, a JSON object, holds its first member of the
+// given name, with the comma that parts it from the one before, or, where
+// it's the object's first, from the one after, so the rest is the object
+// without it: reporting false where it has none, or doesn't read as one JSON
+// object.
+func memberAt(line []byte, name string) (from, to int64, ok bool) {
+	dec := jsontext.NewDecoder(bytes.NewReader(line), jsontext.AllowDuplicateNames(true), jsontext.AllowInvalidUTF8(true))
+	if open, err := dec.ReadToken(); err != nil || open.Kind() != '{' {
+		return 0, 0, false
+	}
+	for i, prev := 0, dec.InputOffset(); dec.PeekKind() != '}'; i, prev = i+1, dec.InputOffset() {
+		token, err := dec.ReadToken()
+		if err != nil {
+			return 0, 0, false
+		}
+		key := token.String()
+		if _, err := dec.ReadValue(); err != nil {
+			return 0, 0, false
+		}
+		if !ok && key == name {
+			from, to, ok = prev, dec.InputOffset(), true
+			if i == 0 {
+				to = pastComma(line, to)
+			}
+		}
+	}
+	if _, err := dec.ReadToken(); err != nil {
+		return 0, 0, false
+	}
+	if _, err := dec.ReadToken(); !errors.Is(err, io.EOF) {
+		return 0, 0, false
+	}
+	return from, to, ok
+}
+
+// pastComma returns the offset in line, JSON, past the comma that follows at,
+// whitespace aside, where one does: else at.
+func pastComma(line []byte, at int64) int64 {
+	rest := bytes.TrimLeft(line[at:], " \t\r\n")
+	if len(rest) > 0 && rest[0] == ',' {
+		return int64(len(line)-len(rest)) + 1
+	}
+	return at
+}
+
 // heldLines returns the lines the files of the local day with the given date
-// hold, each as many times as they hold it, as ReadDay reads them, failing as
-// it does: with fs.ErrNotExist where the day has none.
+// hold, by their keys, as keyOf gives them, each as many times as they hold
+// it, as ReadDay reads them, failing as it does: with fs.ErrNotExist where
+// the day has none.
 func (f *Files) heldLines(date string) (lineCounts, error) {
 	held := make(lineCounts)
 	_, _, err := ReadDay(f, date, func(line []byte) (struct{}, bool) {
-		held.add(line)
+		held.add(f.keyOf(line))
 		return struct{}{}, true
 	}, func(struct{}) bool { return true })
 	return held, err
@@ -276,11 +350,12 @@ func (f *Files) addingMember(date string) sink {
 }
 
 // addLines adds, through to, each line of the staged file at path, as
-// readStaged hands them, but as many of each as held counts, which it takes
-// from held, and returns how many it added: a line staged more times than the
-// day held it is added the times more, as an event that changed back to how
-// it stood has that version written whole again. Where there's none to add,
-// it leaves the files as they are.
+// readStaged hands them, but as many of each as held counts of its key, as
+// keyOf gives it, which it takes from held, and returns how many it added: a
+// line staged more times than the day held it is added the times more, as an
+// event that changed back to how it stood has that version written whole
+// again. A line held stands, a staged one of its key passed over. Where
+// there's none to add, it leaves the files as they are.
 func (f *Files) addLines(path string, held lineCounts, to sink) (int, error) {
 	if more, err := f.anyNew(path, maps.Clone(held)); err != nil || !more {
 		return 0, err
@@ -289,7 +364,7 @@ func (f *Files) addLines(path string, held lineCounts, to sink) (int, error) {
 	err := to(func(w io.Writer) error {
 		var written error
 		read := f.readStaged(path, func(line []byte) bool {
-			if held.take(line) {
+			if held.take(f.keyOf(line)) {
 				return true
 			}
 			if _, written = w.Write(line); written == nil {
@@ -310,7 +385,7 @@ func (f *Files) addLines(path string, held lineCounts, to sink) (int, error) {
 func (f *Files) anyNew(path string, held lineCounts) (bool, error) {
 	found := false
 	err := f.readStaged(path, func(line []byte) bool {
-		found = !held.take(line)
+		found = !held.take(f.keyOf(line))
 		return !found
 	})
 	return found, err

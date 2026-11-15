@@ -110,14 +110,15 @@ func (t logTab) atReach() bool {
 	return kept || t.boundsFiled() && t.filedReach.of(t.page.Shows) && reaches(t.filedReach.from, t.from)
 }
 
-// readReach reads the summaries of the days the ledger keeps for how far
-// back the lines of the filter the page's Reach gives reach.
+// readReach reads the summaries of the days the ledger keeps, in the pool
+// shown, as the Log's readers read them, for how far back the lines of the
+// filter the page's Reach gives reach.
 func (m Model) readReach() (Model, tea.Cmd) {
-	l, oldest := m.cfg.Ledger, m.log.oldest.Day
+	r, oldest := m.logReaders(), m.log.oldest.Day
 	filter, _ := m.log.page.Reach()
 	m.log.reading = true
 	return m, func() tea.Msg {
-		return reachMsg{reach: keptReach{filter: filter, from: filter.KeptFrom(l.Days(oldest.Start)), read: true}}
+		return reachMsg{reach: keptReach{filter: filter, from: filter.KeptFrom(r.pool.Days(r.ledger).Days(oldest.Start)), read: true}}
 	}
 }
 

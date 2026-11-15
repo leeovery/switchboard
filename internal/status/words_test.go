@@ -320,14 +320,29 @@ func TestReasonWords(t *testing.T) {
 			session: "pinned here",
 		},
 		{
-			name:    "the global pin, where the session stayed",
+			name:    "the pool's pin, where the session stayed",
+			reason:  "pinned (pool)",
+			facts:   status.Facts{To: "side"},
+			event:   "pinned to [side]",
+			session: "pinned to [side]",
+		},
+		{
+			name:    "the pool's pin, a forced move to one of its accounts",
+			reason:  "pinned (pool)",
+			facts:   status.Facts{From: "work", To: "side"},
+			event:   "pinned to [side]",
+			routing: "from [work], pinned to [side]",
+			session: "pinned to [side]",
+		},
+		{
+			name:    "the global pin of a line from before pools, read as recorded, where the session stayed",
 			reason:  "pinned (global)",
 			facts:   status.Facts{To: "side"},
 			event:   "pinned to [side]",
 			session: "pinned to [side]",
 		},
 		{
-			name:    "the global pin, a forced move to one of its accounts",
+			name:    "the global pin of a line from before pools, a forced move to one of its accounts",
 			reason:  "pinned (global)",
 			facts:   status.Facts{From: "work", To: "side"},
 			event:   "pinned to [side]",
@@ -335,7 +350,7 @@ func TestReasonWords(t *testing.T) {
 			session: "pinned to [side]",
 		},
 		{
-			name:    "the global pin, its account not given",
+			name:    "the global pin of a line from before pools, its account not given",
 			reason:  "pinned (global)",
 			event:   "pinned",
 			session: "pinned",
@@ -420,6 +435,85 @@ func TestShortWordsSayAForcedMovesWhyWithoutItsAccount(t *testing.T) {
 				t.Errorf("ShortWords(%q) = %q, want %q", tt.reason, got, tt.want)
 			}
 		})
+	}
+}
+
+// The List's routing says each reason in a word or two, after the account
+// the session moved from, " · " between them, as the List's on column names
+// where it went: why alone where it moved from none; a new session's first
+// as "new session", whether or not the choice passed an account over; and
+// any reason not in the dashboard's words as the router gives it, cleaned.
+func TestBriefWordsSayWhereASessionMovedFromAndWhyInAWordOrTwo(t *testing.T) {
+	from := status.Facts{From: "work", To: "side"}
+	tests := []struct {
+		name   string
+		reason string
+		facts  status.Facts
+		want   string
+	}{
+		{name: "at its cap", reason: status.ReasonMovedOff + "work " + status.WhyReserve, facts: from, want: "from [work] · at its cap"},
+		{name: "at its limit", reason: status.ReasonMovedOff + "work " + status.WhyLimit, facts: from, want: "from [work] · at its limit"},
+		{name: "refused", reason: status.ReasonMovedOff + "work " + status.WhyRefused, facts: from, want: "from [work] · refused"},
+		{name: "no room", reason: status.ReasonMovedOff + "work " + status.WhyNoRoom, facts: from, want: "from [work] · no room"},
+		{name: "a move off for a why it has no words for", reason: status.ReasonMovedOff + "work has a new token", facts: from,
+			want: "from [work] · has a new token"},
+		{name: "forced, passing an account over", reason: status.PassingOver(status.ReasonMovedOff+"work "+status.WhyReserve, "personal"), facts: from,
+			want: "from [work] · at its cap"},
+		{name: "passing an account over alone", reason: status.PassingOver(status.ReasonGlobalPin, "personal"), facts: from,
+			want: "from [work] · [personal] under pressure"},
+		{name: "compacted", reason: status.Compacted("side", 0.354), facts: from, want: "from [work] · compacted"},
+		{name: "rescored", reason: status.Rescored(15 * time.Hour), facts: from, want: "from [work] · rescored after {15h} idle"},
+		{name: "its pin yields", reason: status.ReasonPinYields + "side has no room", facts: from, want: "from [work] · pin yields"},
+		{name: "moved by a pin", reason: status.ReasonMovedByPin, facts: from, want: "from [work] · pinned"},
+		{name: "the global pin", reason: status.ReasonGlobalPin, facts: from, want: "from [work] · pinned"},
+		{name: "back where it was", reason: status.ReasonBack, facts: from, want: "from [work] · back where it was"},
+		{name: "pinned here, moving none", reason: status.ReasonPinned, want: "pinned"},
+		{name: "sticky", reason: status.ReasonSticky, want: "sticky"},
+		{name: "kept for its thinking", reason: status.ReasonBound, want: "kept for its thinking"},
+		{name: "a new session", reason: status.ReasonNew, facts: from, want: "new session"},
+		{name: "a new session, passing an account over", reason: status.PassingOver(status.ReasonNew, "personal"), want: "new session"},
+		{name: "as the router gives it, cleaned", reason: "unsessioned\x07", facts: from, want: "from [work] · unsessioned"},
+	}
+	for _, tt := range tests {
+		if got := marked(status.BriefWords(tt.reason, tt.facts)); got != tt.want {
+			t.Errorf("%s: BriefWords(%q) = %q, want %q", tt.name, tt.reason, got, tt.want)
+		}
+	}
+}
+
+// The List's routing says a request sent again after the accounts tried
+// couldn't serve it briefly, as TriedWords says it in full: where it moved
+// its session, always from the account it left, why that account's own
+// where it was tried, else its reason's, in a word or two; where it moved
+// none, the first tried alone.
+func TestBriefTriedWordsSayTheAccountLeftAndWhyInAWordOrTwo(t *testing.T) {
+	limit, refused := status.Tried{Account: "work", Why: status.WhyLimit}, status.Tried{Account: "personal", Why: status.WhyRefused}
+	offWork := func(why string) string { return status.ReasonMovedOff + "work " + why }
+	tests := []struct {
+		name   string
+		reason string
+		from   string
+		tried  []status.Tried
+		want   string
+	}{
+		{name: "none tried", reason: offWork(status.WhyLimit), from: "work"},
+		{name: "after its own limit", reason: offWork(status.WhyLimit), from: "work", tried: []status.Tried{limit}, want: "from [work] · at its limit"},
+		{name: "after its own refusal", reason: status.ReasonMovedOff + "personal " + status.WhyRefused, from: "personal", tried: []status.Tried{refused},
+			want: "from [personal] · refused"},
+		{name: "the account the session left, of two", reason: status.ReasonMovedOff + "personal " + status.WhyRefused, from: "personal",
+			tried: []status.Tried{limit, refused}, want: "from [personal] · refused"},
+		{
+			name: "moved off its account at its cap, another tried hitting its limit", reason: offWork(status.WhyReserve), from: "work",
+			tried: []status.Tried{{Account: "personal", Why: status.WhyLimit}}, want: "from [work] · at its cap",
+		},
+		{name: "a session's first, moving none", reason: status.ReasonNew, tried: []status.Tried{limit, refused}, want: "after [work]'s limit"},
+		{name: "a why it has no words for, cleaned", reason: offWork("has a new token"), from: "work", tried: []status.Tried{{Account: "work", Why: "has a\tnew token"}},
+			want: "from [work] · has a new token"},
+	}
+	for _, tt := range tests {
+		if got := marked(status.BriefTriedWords(tt.reason, status.Facts{From: tt.from, To: "side"}, tt.tried...)); got != tt.want {
+			t.Errorf("%s: BriefTriedWords(%q, from %q, %v) = %q, want %q", tt.name, tt.reason, tt.from, tt.tried, got, tt.want)
+		}
 	}
 }
 
@@ -677,6 +771,12 @@ func TestMovingSaysWhatHoldsTheMoveUp(t *testing.T) {
 		{status.Moving{Stage: status.MoveOlderRouter}, prose.HistoryMoving + ": " + prose.MoveWaitsUpgrade},
 		{status.Moving{Stage: status.MoveFailed, Why: "rename the\nconfig: denied"}, prose.HistoryMoving + ": the router couldn't make it, and tries again in a minute: rename the config: denied"},
 		{status.Moving{Stage: "a stage of a later version"}, prose.HistoryMoving},
+		{status.Moving{Stage: status.MoveRunning, Move: status.MovingIDs}, prose.HistoryMoving + ": the router is making it"},
+		{status.Moving{Stage: status.MoveRunning, Move: status.MovingPools}, prose.HistoryMovingPools + ": the router is making it"},
+		{status.Moving{Stage: status.MoveAwaitingRestart, Move: status.MovingPools}, prose.HistoryMovingPools + ": " + prose.MoveWaitsPools},
+		{status.Moving{Stage: status.MoveNoRouter, Move: status.MovingPools}, prose.HistoryMovingPools + ": " + prose.MoveWaitsRouter},
+		{status.Moving{Stage: status.MoveOlderRouter, Move: status.MovingPools}, prose.HistoryMovingPools + ": " + prose.MoveWaitsPoolsUpgrade},
+		{status.Moving{Stage: status.MoveFailed, Move: status.MovingPools, Why: "denied"}, prose.HistoryMovingPools + ": the router couldn't make it, and tries again in a minute: denied"},
 	}
 	for _, tt := range tests {
 		if got := tt.moving.Said(); got != tt.want {
@@ -689,19 +789,21 @@ func TestMovingAskedTellsWhyNoRouterMakesTheMove(t *testing.T) {
 	running := status.Moving{Stage: status.MoveAwaitingAPI, Account: "work", Why: "HTTP 404"}
 	tests := []struct {
 		name       string
+		move       string
 		moving     status.Moving
 		err        error
 		notRunning bool
 		want       status.Moving
 	}{
-		{"no router listening", status.Moving{}, errors.New("dial unix: connection refused"), true, status.Moving{Stage: status.MoveNoRouter}},
-		{"a router not saying in time", status.Moving{}, context.DeadlineExceeded, false, status.Moving{Stage: status.MoveUntold}},
-		{"a router owing no move", status.Moving{}, nil, false, status.Moving{Stage: status.MoveOlderRouter}},
-		{"a router making it", running, nil, false, running},
+		{"no router listening", status.MovingIDs, status.Moving{}, errors.New("dial unix: connection refused"), true, status.Moving{Stage: status.MoveNoRouter, Move: status.MovingIDs}},
+		{"a router not saying in time", status.MovingIDs, status.Moving{}, context.DeadlineExceeded, false, status.Moving{Stage: status.MoveUntold, Move: status.MovingIDs}},
+		{"a router owing no move", status.MovingIDs, status.Moving{}, nil, false, status.Moving{Stage: status.MoveOlderRouter, Move: status.MovingIDs}},
+		{"a router making it", status.MovingIDs, running, nil, false, running},
+		{"a router of a version before pools, owing no move to them", status.MovingPools, status.Moving{}, nil, false, status.Moving{Stage: status.MoveOlderRouter, Move: status.MovingPools}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := status.MovingAsked(tt.moving, tt.err, tt.notRunning); got != tt.want {
+			if got := status.MovingAsked(tt.move, tt.moving, tt.err, tt.notRunning); got != tt.want {
 				t.Errorf("MovingAsked() = %+v, want %+v", got, tt.want)
 			}
 		})
@@ -728,7 +830,8 @@ func TestRunningWordsSayWhyASessionIsOnItsAccountAndSinceWhen(t *testing.T) {
 		{name: "a move at its compaction, the account it left the event's", reason: status.Compacted("side", 0.354), facts: status.Facts{From: "work", To: "side", At: at, Now: now},
 			want: "moved from [work] 14:31: compacted: [side] would reset with <35%> of its week left"},
 		{name: "its pin yielding: no when", reason: "pin yields: side has no room", facts: status.Facts{At: at, Now: now}, want: "its pin to [side] yields: [side] has no room"},
-		{name: "chosen afresh under the global pin, from nowhere told", reason: status.ReasonGlobalPin, facts: status.Facts{To: "side", At: at, Now: now}, want: "here since 14:31: pinned to [side]"},
+		{name: "chosen afresh under the pool's pin, from nowhere told", reason: status.ReasonPoolPin, facts: status.Facts{To: "side", At: at, Now: now}, want: "here since 14:31: pinned to [side]"},
+		{name: "chosen afresh under the global pin, before pools, from nowhere told", reason: status.ReasonGlobalPin, facts: status.Facts{To: "side", At: at, Now: now}, want: "here since 14:31: pinned to [side]"},
 		{name: "a reason from a later router, cleaned", reason: "balanced\x1b", facts: status.Facts{At: at, Now: now}, want: "here since 14:31: balanced"},
 		{name: "no reason", facts: status.Facts{At: at, Now: now}, want: "here since 14:31"},
 		{name: "no reason, from an account told", facts: status.Facts{From: "work", At: at, Now: now}, want: "moved from [work] 14:31"},

@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/status"
 )
 
@@ -17,16 +18,28 @@ const watchEvery = 3 * time.Second
 // looking every so often: the accounts' token files, which it takes up in
 // place, and its config file, the binary it upgrades from and the system's
 // time zone, which it restarts to take up, but for the tokens of accounts the
-// config file no longer configures, which count as the primary's at once, and
-// the folder it names to export into, which the exports take up at their
-// next round, and the accounts record, which it keeps in step with the
-// accounts configured. It notices the Mac waking from sleep as it looks.
+// config file no longer configures, which count as the primary's at once, the
+// pools and which pool each account is in, which requests are routed within
+// at once, and which it writes back in a config that has lost them, the
+// folder it names to export into, which the exports take up at their next
+// round, and the accounts record, which it keeps in step with the accounts
+// and pools configured. It notices the Mac waking from sleep as it looks.
 type upkeep struct {
 	every    time.Duration
 	tokens   *tokenFiles
 	restarts *restarts
 	wakes    *wakes
-	exports  *exports
+	// pools are the pools requests are routed within, the state's, and heal
+	// gives a config that has lost them its pools back: nil where the router
+	// has no config file or no state directory.
+	pools   *membership
+	heal    *poolHealer
+	exports *exports
+	// started and startedPools are the accounts and pools of the config the
+	// router started on, which it follows till the config file makes
+	// another.
+	started      config.Accounts
+	startedPools config.Pools
 	// record is nil where the router has no state directory.
 	record *accountsRecord
 	// looked closes once upkeep has first looked, as look does.
@@ -42,9 +55,9 @@ type upkeep struct {
 // restart as it falls due, restarting once inFlight counts no request in
 // flight and none of exports runs, and the binary it restarts into, asked as
 // cfg.Check runs it, an upgrade copied in first where it runs a copy of its
-// own, doesn't refuse to start, noticing wakes, and configuring exports as
-// the config file comes to, and keeping record in step with the accounts
-// configured.
+// own, doesn't refuse to start, noticing wakes, routing within the state's
+// pools and configuring exports as the config file comes to, and keeping
+// record in step with the accounts and pools configured.
 func newUpkeep(cfg Config, as accounts, state *state, changes *changes, primer *primer, inFlight *inFlight, wakes *wakes, exports *exports, record *accountsRecord, emit func(Event)) *upkeep {
 	replan := func() {}
 	if primer != nil {
@@ -69,11 +82,15 @@ func newUpkeep(cfg Config, as accounts, state *state, changes *changes, primer *
 			gained: state.tokenGained,
 			lost:   state.tokenLost,
 		},
-		restarts: restarts,
-		wakes:    wakes,
-		exports:  exports,
-		record:   record,
-		looked:   make(chan struct{}),
+		restarts:     restarts,
+		wakes:        wakes,
+		pools:        state.pools,
+		heal:         newPoolHealer(cfg),
+		exports:      exports,
+		started:      cfg.Accounts,
+		startedPools: cfg.Pools,
+		record:       record,
+		looked:       make(chan struct{}),
 	}
 }
 
@@ -100,13 +117,22 @@ func (u *upkeep) run(ctx context.Context) {
 
 // look looks at what the router was started from, once, as run does every so
 // often, taking up in place what the config file has come to make of the
-// accounts' tokens, the folder to export into and the accounts record, where
-// it has changed, and closing firstLook's channel the first time.
+// accounts' tokens, the pools, the folder to export into and the accounts
+// record, where it has changed, giving a config that has lost its pools them
+// back, as heal does, for the look after to take up, the pools of one naming
+// none followed afresh meanwhile, as membership's follow has them, and
+// closing firstLook's channel the first time. The tokens of an account that
+// has left the config go to its pool's primary before the pools are taken up
+// without it, while they still say which pool it was in.
 func (u *upkeep) look() {
 	u.wakes.look()
 	u.tokens.look()
 	u.restarts.look()
-	u.tokens.retire(u.restarts.configured())
+	configured, configuredPools, _ := u.restarts.configuredPools()
+	u.tokens.retire(u.pools.heirs(configured, configuredPools))
+	accounts, pools := u.followed()
+	u.heal.look(pools)
+	u.pools.follow(accounts, pools)
 	if e, changed := u.restarts.configuredExport(); changed {
 		u.exports.configure(e)
 	}
@@ -114,11 +140,22 @@ func (u *upkeep) look() {
 	u.lookedOnce.Do(func() { close(u.looked) })
 }
 
-// keepRecord keeps the accounts record in step with the accounts the config
-// file has come to make, else those the router started with, as
+// followed returns the accounts and pools of the last valid config the
+// config file has made since the router started, else those of the one it
+// started on.
+func (u *upkeep) followed() (config.Accounts, config.Pools) {
+	if accounts, pools, changed := u.restarts.configuredPools(); changed {
+		return accounts, pools
+	}
+	return u.started, u.startedPools
+}
+
+// keepRecord keeps the accounts record in step with the accounts and pools
+// the config file has come to make, else those the router started with, as
 // accountsRecord's look says.
 func (u *upkeep) keepRecord() {
-	u.record.look(u.restarts.configured())
+	accounts, pools, _ := u.restarts.configuredPools()
+	u.record.look(accounts, pools)
 }
 
 // firstLook returns what's closed once upkeep has first looked at what the

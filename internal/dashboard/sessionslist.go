@@ -64,7 +64,8 @@ const (
 )
 
 // listPartFacts are each column's head; its least and its natural, 0 for
-// its least, on's both placeholders for the widest name, as listParts gives
+// its least, on's both placeholders for the widest name, and model's,
+// started's and worth's each raised to its widest said, as listParts gives
 // them; how its words sit; and the turns it narrows and leaves in, 0 never.
 var listPartFacts = [...]struct {
 	head            string
@@ -82,15 +83,25 @@ var listPartFacts = [...]struct {
 	listRouting:  {"routing", routingLeast, 0, alignLeft, 0, routingLeaves},
 }
 
+// listNaturals are the cells the List's columns take whole where they're
+// what the List holds says: on the widest account's name; model the widest
+// model named; started the widest start said; and worth the widest worth
+// said, its + counted.
+type listNaturals struct {
+	on, model, started, worth int
+}
+
 // listParts are the List's columns as flex lays them, listGap apart, each
 // from its least to its natural, holding its natural until it narrows in its
-// turn: on's natural the cells given, its least that, listOnLeast at the
-// most; started at the cells given where they're more than its least; and
-// routing taking what's left to the last column.
+// turn: on's natural as given, its least that, listOnLeast at the most;
+// model, started and worth whole wherever they show, their leasts and
+// naturals the widest given where it's past their own, so routing never
+// shows, nor the session grows past its least, beside one cut; and routing
+// taking what's left to the last column.
 //
-// No natural comes from the rows shown, but started's from the whole log,
-// so the columns hold still as the List scrolls.
-func listParts(on, started int) []flex.Part {
+// No natural comes from the rows shown, but from the whole log, so the
+// columns hold still as the List scrolls.
+func listParts(n listNaturals) []flex.Part {
 	parts := make([]flex.Part, len(listPartFacts))
 	for p, facts := range listPartFacts {
 		parts[p] = flex.Part{
@@ -98,9 +109,11 @@ func listParts(on, started int) []flex.Part {
 			Narrows: facts.narrows, Leaves: facts.leaves, Gap: listGap,
 		}
 	}
-	parts[listOn].Least, parts[listOn].Natural = min(on, listOnLeast), on
-	started = max(started, parts[listStarted].Least)
-	parts[listStarted].Least, parts[listStarted].Natural = started, started
+	parts[listOn].Least, parts[listOn].Natural = min(n.on, listOnLeast), n.on
+	for p, widest := range map[listPart]int{listModel: n.model, listStarted: n.started, listWorth: n.worth} {
+		parts[p].Least = max(parts[p].Least, widest)
+		parts[p].Natural = parts[p].Least
+	}
 	parts[listRouting].Grows = true
 	return parts
 }
@@ -113,16 +126,16 @@ type listColumn struct {
 }
 
 // listColumnsOf are the List's columns shown across a frame width cells
-// wide, on's natural the cells given, at least its head's, and started the
-// cells given, as listParts has them, in two passes of
+// wide, of the naturals given, on's at least its head's, in two passes of
 // flex, as the Log's Requests are: the first decides which of listParts
 // show; the second lays out only those, as flex's Decided has them, so
 // what's past the leasts goes to the session first, then on, in the row's
 // order. Nothing grows but routing, so where it's left, the spare lies at
 // the row's end.
-func listColumnsOf(width, on, started int) []listColumn {
+func listColumnsOf(width int, n listNaturals) []listColumn {
 	room := width - listFrom
-	parts := listParts(max(on, ansi.StringWidth(listPartFacts[listOn].head)), started)
+	n.on = max(n.on, ansi.StringWidth(listPartFacts[listOn].head))
+	parts := listParts(n)
 	decided, _ := flex.Lay(room, parts...)
 	var shown []listPart
 	var kept []flex.Part
@@ -186,20 +199,37 @@ type listed struct {
 // sessions · ▼ 130 more sessions", and for less room, the counts alone.
 var sessionsOut = []outForm{{noun: "session", gap: " · ", inks: keyedOut}, {gap: " · ", inks: keyedOut}}
 
-// LogMeasured are the cells of the widest start the ended sessions of the
-// List's log say, as the watch measures them as it builds the log, and the
-// log it measured, so the List's started column is as wide as the log
-// needs, whatever it scrolls to.
+// LogMeasured are the cells of the widest model, start and worth the ended
+// sessions of the List's log say, as the watch measures them as it builds
+// the log, and the log it measured, so those columns are as wide as the log
+// needs, whatever it scrolls to, and a frame measures only the sessions
+// running, not every session of a long period at every frame.
 type LogMeasured struct {
-	of      *views.SessionLog
-	started int
+	of                    *views.SessionLog
+	model, started, worth int
 }
 
 // MeasureLog measures the ended sessions of the log given at now, as
 // LogMeasured has them.
 func MeasureLog(log *views.SessionLog, now time.Time) LogMeasured {
 	words := sessionWords{now: now}
-	return LogMeasured{of: log, started: words.widest(listStarted, log.Sessions, sessionEnded)}
+	return LogMeasured{
+		of: log, model: words.widest(listModel, log.Sessions, sessionEnded),
+		started: words.widest(listStarted, log.Sessions, sessionEnded), worth: words.widest(listWorth, log.Sessions, sessionEnded),
+	}
+}
+
+// naturals are the List's naturals of the log's sessions given, said as
+// words says them: on's its widest account's name, as widestLabel has it of
+// words' moment; and model's, started's and worth's the widest the sessions
+// say, the ended as measured, those running as they say now.
+func (m LogMeasured) naturals(words sessionWords, sessions []views.PeriodSession) listNaturals {
+	return listNaturals{
+		on:      widestLabel(words.m),
+		model:   max(m.model, words.widest(listModel, sessions, sessionRunning)),
+		started: max(m.started, words.widest(listStarted, sessions, sessionRunning)),
+		worth:   max(m.worth, words.widest(listWorth, sessions, sessionRunning)),
+	}
 }
 
 // Of is what was measured, as of the log given: one views' SessionLog's
@@ -227,9 +257,9 @@ func (f Frame) listForm(doc status.Document, now time.Time) sessionsForm {
 // sessions are out of view, so long as that leaves them a row, the period
 // line a row up over it. Its day rules show where its page has room, as
 // sessionsByDay's within has it. The view's least, leastView, leaves its
-// lines a row under the period line's two at their most. Its started column
-// is as wide as the widest start of the whole log, the ended as measured
-// has them, where it's of the log, and those running as they say now.
+// lines a row under the period line's two at their most. Its model, started
+// and worth columns are as wide as the widest of the whole log says, as
+// LogMeasured's naturals has them, of measured where it's of the log.
 func (f Frame) listing(doc status.Document, now time.Time) listed {
 	m := f.Moment(doc, now)
 	log, words := f.SessionsTab.Log, sessionWords{m: m, now: now}
@@ -237,11 +267,10 @@ func (f Frame) listing(doc status.Document, now time.Time) listed {
 	if measured.of != log {
 		measured = MeasureLog(log, now)
 	}
-	started := max(measured.started, words.widest(listStarted, log.Sessions, sessionRunning))
 	rows := f.Height - underView - f.top()
 	l := listed{
 		f: f, period: log.Period, top: f.top(), foot: periodLine(*log, f.Width),
-		words: words, columns: listColumnsOf(f.Width, widestLabel(m), started),
+		words: words, columns: listColumnsOf(f.Width, measured.naturals(words, log.Sessions)),
 		lines: sessionLines(log.Sessions), width: f.Width, lit: f.SessionsTab.Chosen.Session,
 	}
 	l.page = rows - len(l.foot)
@@ -414,8 +443,9 @@ type sessionWords struct {
 // says is what the column says of the session, in its cells: the session
 // named as sessionIn names it, its id in text.secondary; the model of its
 // latest request, its id less claude-, and its requests counted, in
-// text.muted; its routing in the Log's routing words, cut as the Log cuts
-// them, a move's cost kept whole; and the rest as their own say them.
+// text.muted; its routing in a word or two, as its BriefSaid says it, each
+// account named as the moment names it, cut as the Log cuts its routing, a
+// move's cost kept whole; and the rest as their own say them.
 func (w sessionWords) says(col listColumn, s views.ListedSession) line {
 	switch col.part {
 	case listSession:
@@ -433,7 +463,7 @@ func (w sessionWords) says(col listColumn, s views.ListedSession) line {
 	case listWorth:
 		return worthSays(s)
 	default:
-		return rowWordsIn(routingSaid(s.Routing), col.width)
+		return rowWordsIn(s.Routing.BriefSaid(), func(id string) string { return named(w.m, id) }, col.width)
 	}
 }
 

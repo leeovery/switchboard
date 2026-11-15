@@ -20,7 +20,7 @@ func projectsOf(w accountWorld, period views.Period) views.ProjectsPage {
 	now := worldsNow().now
 	l := w.ledger()
 	today, _, _ := l.Today(ledger.Mark{})
-	days := views.ReadSessionDays(l, now.AddDate(-1, 0, 0), now).Tailed(today, true, nil, nil, now)
+	days := views.ReadSessionDays(l, now.AddDate(-1, 0, 0), now, views.PoolRead{}).Tailed(today, true, nil, nil, now, views.PoolRead{})
 	list := views.ListSessions(views.SessionSources{Running: w.routed(now), Ledger: l, Prices: drawnPrices, Now: now})
 	return days.Projects(views.PeriodInput{
 		Period: period, List: list, Names: status.Names{}, Prices: drawnPrices, WeekStarts: time.Monday, Family: claude.Provider{}.Family, Now: now,

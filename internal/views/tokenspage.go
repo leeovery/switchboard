@@ -68,7 +68,7 @@ type TokenPeriod struct {
 // would only repeat the total, so it has none.
 func (p Past) TokensOver(period Period) TokensPage {
 	today := dayfile.CivilOf(p.in.Now)
-	from := p.counted(period.first(today, p.in.WeekStarts).Format(time.DateOnly))
+	from := p.counted(period.first(today, p.in.WeekStarts)).Format(time.DateOnly)
 	page, held := p.tokensFrom(from, period.last(today, p.in.WeekStarts).Format(time.DateOnly), period.Rows())
 	known := plans{accounts: p.in.Accounts, table: p.in.Prices}
 	whole := tokenPeriodsOf(held, known, p.in.Removed, p.versions(), from, period.shape(today, p.in.WeekStarts))

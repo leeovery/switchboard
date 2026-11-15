@@ -60,7 +60,7 @@ func TestAPlaybackOfTheReadingsHistoryGivesTheRatesAndDemandTheRouterHad(t *test
 	configured[0].Reserve = 0.1
 	clock := &testClock{now: start}
 	live := newState(resolve(configured, tokenstest.Files{"work": workToken, "personal": personalToken, "side": sideToken}.Read, unrecorded),
-		testPolicy, claude.Provider{}.Family, clock.read, unkept, unkept)
+		unpooled(), testPolicy, claude.Provider{}.Family, clock.read, unkept, unkept)
 	var heard []readings.Reading
 	live.history = func(read []readings.Reading) { heard = append(heard, read...) }
 	p := NewPlayback(configured, testPolicy)
@@ -174,6 +174,36 @@ func TestAPlaybackWeighsEachAnswerByItsSessionsTimeOnItsAccountAtItsEnd(t *testi
 	}
 	var want forecast.Hold
 	for _, a := range answers {
+		want = want.Answered(1000, a.onAccount, start.Add(a.after))
+	}
+	if got := p.state.hold; got != want {
+		t.Errorf("the hold curve is %+v, want %+v", got, want)
+	}
+}
+
+func TestAPlaybackWeighsEachAnswerByItsSessionsTimeOnItsAccountInItsPool(t *testing.T) {
+	// Session one comes to work in Default, and is resumed in Acme an hour
+	// on, on personal there, its requests coming from each pool in turn: each
+	// answer weighs its session's time on its account in its own pool, none,
+	// none, then three hours each, neither moving.
+	in := func(l ledger.Line, pool string) ledger.Line {
+		return edited(l, func(l *ledger.Line) { l.Pool = pool })
+	}
+	p := NewPlayback(testConfigured, testPolicy)
+	for _, l := range []ledger.Line{
+		in(answerLine(start, "one", "work", thousandIn, 0), defaultPool),
+		in(answerLine(start.Add(time.Hour), "one", "personal", thousandIn, 0), acmePool),
+		in(answerLine(start.Add(3*time.Hour), "one", "work", thousandIn, 0), defaultPool),
+		in(answerLine(start.Add(4*time.Hour), "one", "personal", thousandIn, 0), acmePool),
+	} {
+		p.Line(l)
+	}
+	p.Document(start.Add(5 * time.Hour))
+
+	var want forecast.Hold
+	for _, a := range []struct{ after, onAccount time.Duration }{
+		{0, 0}, {time.Hour, 0}, {3 * time.Hour, 3 * time.Hour}, {4 * time.Hour, 3 * time.Hour},
+	} {
 		want = want.Answered(1000, a.onAccount, start.Add(a.after))
 	}
 	if got := p.state.hold; got != want {

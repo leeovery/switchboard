@@ -37,7 +37,7 @@ var logger = logs.For("forecasttool")
 func main() {
 	logTo(os.Stderr)
 	status := 0
-	if err := run(os.Args[1:], os.Stdout, os.Stderr, time.Now); err != nil {
+	if err := run(os.Args[1:], os.Stdout, os.Stderr, time.Now, os.UserHomeDir); err != nil {
 		fmt.Fprintln(os.Stderr, "forecasttool:", err)
 		status = 1
 	}
@@ -94,9 +94,10 @@ of the state directory, they say on stderr.
 `
 
 // run scores the forecasts of the history in the state directory args name,
-// of the accounts their config file configures, by now's clock, and prints
-// the scores to stdout: as a table, or as JSON with --json.
-func run(args []string, stdout, stderr io.Writer, now func() time.Time) error {
+// of the accounts their config file configures, read in the home directory
+// homeDir returns, by now's clock, and prints the scores to stdout: as a
+// table, or as JSON with --json.
+func run(args []string, stdout, stderr io.Writer, now func() time.Time, homeDir func() (string, error)) error {
 	o, err := parse(args, stderr)
 	if errors.Is(err, flag.ErrHelp) {
 		return nil
@@ -104,7 +105,7 @@ func run(args []string, stdout, stderr io.Writer, now func() time.Time) error {
 	if err != nil {
 		return err
 	}
-	cfg, err := config.Load(o.config)
+	cfg, err := config.Load(o.config, homeDir)
 	if err != nil {
 		return err
 	}

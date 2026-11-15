@@ -730,7 +730,7 @@ func pageShown(h HeldSessions, id string, m moment) shownPage {
 // of one it reads whole.
 func (w *spread) restingOn() map[string]*ledger.SessionBase {
 	bases := make(map[string]*ledger.SessionBase)
-	for id, from := range w.based.SessionsOf(sessionsIn(w.lines), nil, nil) {
+	for id, from := range w.based.SessionsOf(nil, sessionsIn(w.lines), nil, nil) {
 		if from.Base != nil {
 			bases[id] = from.Base
 		}
@@ -755,12 +755,12 @@ func readingThrough(f *ledger.Follower) reading {
 	}}
 }
 
-func (r reading) Sessions(ids []string, rest func(string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
-	return r.got.noted(r.Ledger.Sessions(ids, r.got.asking(rest), take))
+func (r reading) Sessions(in ledger.RoutedIn, ids []string, rest func(string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
+	return r.got.noted(r.Ledger.Sessions(in, ids, r.got.asking(rest), take))
 }
 
-func (r reading) SessionsOf(ids []string, rest func(string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
-	return r.got.noted(r.Ledger.SessionsOf(ids, r.got.asking(rest), take))
+func (r reading) SessionsOf(in ledger.RoutedIn, ids []string, rest func(string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
+	return r.got.noted(r.Ledger.SessionsOf(in, ids, r.got.asking(rest), take))
 }
 
 // basesGot are what reads of sessions were asked and gave: the state each

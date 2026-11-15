@@ -7,6 +7,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/leeovery/switchboard/internal/dashboard"
+	"github.com/leeovery/switchboard/internal/status"
 )
 
 // pageKey acts on a key of the page, as pressed hands it on: j, k, PgDn and
@@ -141,25 +142,42 @@ type keyListing struct {
 // that scroll it, as keys has them; whether it's a page of toggles, the
 // Overview or Graphs, whose key line sets its groups apart as keyLine has
 // it; whether it lists those that scroll it always, as the Overview, Graphs
-// and the Log do; p, and whether it's listed, as pinKey has it; and whether
-// the dashboard is drawn in colour.
+// and the Log do; p, and whether it's listed, as pinKey has it; whether P
+// is, as turnsPools has it; whether it's the page of a pool with no
+// accounts, which lists none of a view's; and whether the dashboard is
+// drawn in colour.
 type pageKeys struct {
 	own           []keyListing
 	toggles       bool
 	scrollsAlways bool
 	pin           dashboard.Key
 	pinned        bool
+	pool          bool
+	empty         bool
 	coloured      bool
 }
 
-// keys is what lists the page's keys as m stands, its own but those that
-// scroll it in the design's order: the Overview's, Accounts', Projects',
-// Sessions', Runway's, Graphs' and the Log's, as overviewListings,
-// accountsListings, projectsListings, sessionsListings, runwayListings,
-// graphsListings and logListings have them, Detail's SESSIONS listing the
-// sessions running given. A session's page lists its own, as sessionKeys has
-// them, in place of its tab's.
-func (m Model) keys(running []string) pageKeys {
+// keys is what lists the page's keys as m stands, as viewKeys has them, P
+// among them where it turns to another pool, as turnsPools has it; but of a
+// pool with no accounts, as shown, the pool as the page has it, whose page
+// has no view, none of a view's.
+func (m Model) keys(running []string, shown status.ShownPool) pageKeys {
+	keys := pageKeys{empty: true, coloured: m.coloured()}
+	if !shown.Empty() {
+		keys = m.viewKeys(running)
+	}
+	keys.pool = m.turnsPools()
+	return keys
+}
+
+// viewKeys is what lists the page's keys as m stands, its own but those
+// that scroll it in the design's order: the Overview's, Accounts',
+// Projects', Sessions', Runway's, Trends' and the Log's, as
+// overviewListings, accountsListings, projectsListings, sessionsListings,
+// runwayListings, graphsListings and logListings have them, Detail's
+// SESSIONS listing the sessions running given. A session's page lists its
+// own, as sessionKeys has them, in place of its tab's.
+func (m Model) viewKeys(running []string) pageKeys {
 	shown := m.shownView()
 	if shown == dashboard.SessionPage {
 		return m.sessionKeys()
@@ -271,15 +289,18 @@ var scrollKeys = []dashboard.Key{{Key: "j k", Does: "scroll"}, {Key: "PgUp PgDn"
 // else tab views, or the page's own keys that lead in its place, KeysAfter
 // cells after them, as esc back does on a session's page, then the page's
 // own keys that work, in their groups, those it leaves to help aside, then p
-// pin where a pin can be set, and ? help and q quit last; and the note a key
-// left in their place, while that's news. Most pages set p pin apart, a
-// phone's line keeping the page's own keys between those that lead and ?
-// and q quit, but those it leaves to a wider line, or on the Log and
-// Sessions, with no session's page open over it, those logPhoneKeys and
-// sessionsPhoneKeys keep; a page of toggles, the Overview or Trends, sets
-// p pin, ? help and q quit as a group of their own, togglesApart after its
-// toggles, which a phone's line leaves to help, its groups kept to a wider
-// line spare, left out first where the wide line doesn't fit. Each key
+// pin where a pin can be set and P pool where there's another pool, as ends
+// has them, and ? help and q quit last; and the note a key left in their
+// place, while that's news. Most pages set p pin and P pool apart, a phone's
+// line keeping the page's own keys between those that lead and ? and q quit,
+// but those it leaves to a wider line, or on the Log and Sessions, with no
+// session's page open over it, those logPhoneKeys and sessionsPhoneKeys
+// keep, then P pool; a page of toggles, the Overview or Trends, sets p pin,
+// P pool, ? help and q quit as a group of their own, togglesApart after its
+// toggles, which a phone's line leaves to help, keeping P pool alone, its
+// groups kept to a wider line spare, left out first where the wide line
+// doesn't fit; and so does the page of a pool with no accounts, after tab
+// views alone. Each key
 // works as the page drawn as f has it, at now, the moment it was drawn at.
 func (m Model) keyLine(f dashboard.Frame, now time.Time) dashboard.KeyLine {
 	if m.picker.open {
@@ -288,23 +309,22 @@ func (m Model) keyLine(f dashboard.Frame, now time.Time) dashboard.KeyLine {
 	if m.finding() {
 		return dashboard.KeyLine{Groups: [][]dashboard.Key{findKeys()}, Note: m.noted(now)}
 	}
-	keys := m.keys(m.runningIn(f, now))
+	keys := m.keys(m.runningIn(f, now), f.Pool)
 	page := grouped(keys.listings(f.KeysScroll(m.doc, now)))
 	lead, apart := []dashboard.Key{tabViews}, 3
 	if page.lead != nil {
 		lead, apart = page.lead, dashboard.KeysAfter
 	}
 	l := dashboard.KeyLine{Groups: append([][]dashboard.Key{lead}, page.groups...), Lead: apart, PhoneHelp: "keys", Note: m.noted(now)}
-	if keys.toggles {
-		var ends []dashboard.Key
-		if keys.pinned {
-			ends = append(ends, keys.pin)
+	if keys.toggles || keys.empty {
+		l.Lead, l.After, l.Phone = togglesApart, togglesApart, keys.pools()
+		if keys.toggles {
+			l.PhoneHelp = "keys and toggles"
 		}
-		l.Lead, l.After, l.PhoneHelp = togglesApart, togglesApart, "keys and toggles"
 		for _, g := range page.spare {
 			l.Spare = append(l.Spare, 1+g)
 		}
-		l.Groups = append(l.Groups, append(ends, helpKey, dashboard.Quit))
+		l.Groups = append(l.Groups, append(keys.ends(), helpKey, dashboard.Quit))
 		return l
 	}
 	l.Phone = page.phone
@@ -319,11 +339,32 @@ func (m Model) keyLine(f dashboard.Frame, now time.Time) dashboard.KeyLine {
 			l.After = apart
 		}
 	}
-	if keys.pinned {
-		l.Groups = append(l.Groups, []dashboard.Key{keys.pin})
+	l.Phone = append(slices.Clip(l.Phone), keys.pools()...)
+	if ends := keys.ends(); ends != nil {
+		l.Groups = append(l.Groups, ends)
 	}
 	l.Groups = append(l.Groups, []dashboard.Key{helpKey, dashboard.Quit})
 	return l
+}
+
+// ends are p pin, where a pin can be set, and P pool, where there's another
+// pool to turn to, as the key line sets them before ? help and q quit: nil
+// where neither is.
+func (p pageKeys) ends() []dashboard.Key {
+	var ends []dashboard.Key
+	if p.pinned {
+		ends = append(ends, p.pin)
+	}
+	return append(ends, p.pools()...)
+}
+
+// pools is P pool, where there's another pool to turn to, which a phone's
+// line keeps too: nil where there isn't.
+func (p pageKeys) pools() []dashboard.Key {
+	if !p.pool {
+		return nil
+	}
+	return []dashboard.Key{poolKey}
 }
 
 // lineKeys are the page's own keys as the key line sets them: in their
@@ -400,7 +441,8 @@ const togglesApart = 5
 // helpKeys are the keys help lists, where the page's view scrolls or not,
 // worded as the key line words them: tab; every key of the page's own that
 // works, those the key line leaves to help among them; p, where a pin can be
-// set; t, in colour; and R, ? and q.
+// set, and P, where there's another pool, as ends has them; t, in colour; and
+// R, ? and q.
 func (p pageKeys) helpKeys(scrolls bool) []dashboard.Key {
 	keys := []dashboard.Key{tabViews}
 	for _, k := range p.listings(scrolls) {
@@ -408,9 +450,7 @@ func (p pageKeys) helpKeys(scrolls bool) []dashboard.Key {
 			keys = append(keys, k.Key)
 		}
 	}
-	if p.pinned {
-		keys = append(keys, p.pin)
-	}
+	keys = append(keys, p.ends()...)
 	if p.coloured {
 		keys = append(keys, themesKey)
 	}

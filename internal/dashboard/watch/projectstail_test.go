@@ -28,7 +28,7 @@ func projectsLedgerOf(h *harness) *projectsLedger {
 func freshPage(h *harness) views.ProjectsPage {
 	now, m := h.clock.now, h.model
 	l := projectsLedgerOf(h).Ledger
-	days := views.ReadSessionDays(l, m.sessionDays.from, now).Tailed(l.Day(dayfile.DateOf(now)), true, nil, nil, now)
+	days := views.ReadSessionDays(l, m.sessionDays.from, now, views.PoolRead{}).Tailed(l.Day(dayfile.DateOf(now)), true, nil, nil, now, views.PoolRead{})
 	return days.Projects(m.periodInput(now, m.held.List(m.listLive(now, m.traffic.stream(now)))))
 }
 
@@ -215,7 +215,7 @@ func TestTheDaysTheTailsDaysOweAreReadThoughNoReaderWantsThem(t *testing.T) {
 	}
 	early := projectAsks(alphaFirst, "/code/alpha", night.Add(-time.Hour), 3)
 	late := projectAsks(alphaFirst, "/code/alpha", night.Add(59*time.Minute), 1)
-	days := views.ReadSessionDays(ledger.Empty{}, onTheDay(0, 0, 0), night).Tailed(early, true, nil, nil, night)
+	days := views.ReadSessionDays(ledger.Empty{}, onTheDay(0, 0, 0), night, views.PoolRead{}).Tailed(early, true, nil, nil, night, views.PoolRead{})
 	feed := daysFeed{days: days, keeps: true, owed: []string{gone}}
 	fed := feed.fed(tailLines{gained: projectAsks(betaOnly, "/code/beta", turned, 1), afresh: true, days: map[string][]ledger.Held{gone: slices.Concat(early, late)}}, turned)
 	if owed := fed.Owed(turned); len(owed) > 0 {

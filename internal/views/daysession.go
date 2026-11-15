@@ -3,6 +3,7 @@ package views
 import (
 	"cmp"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"maps"
 	"slices"
@@ -68,18 +69,20 @@ func DaySessions(day LogDay) []DaySession {
 	return newDaySessions(true).with(day.records).sessions()
 }
 
-// DaySessionsOn are the sessions of the past day with the given date, as
-// DaySessions gives them of its lines: read from its side, as l's DaySide
-// gives it, where its head stands; else of its lines, as l's Day gives them,
-// as of a day with no head standing, today's among them, and yesterday's
-// until its head is built, or one whose side won't read.
-func DaySessionsOn(l Ledger, date string) []DaySession {
+// DaySessionsOn are the sessions of the past day with the given date in the
+// pool read p, as DaySessions gives them of its lines in the pool, as p's
+// Held has them: read from its side, as l's DaySide gives it, where its head
+// stands, as daySessionsIn reads it of the pool; else of its lines, as l's
+// Day gives them, as of a day with no head standing, today's among them, and
+// yesterday's until its head is built, one whose side won't read, or one a
+// session of whose side recorded lines in the pool and in another.
+func DaySessionsOn(l Ledger, date string, p PoolRead) []DaySession {
 	if side, ok := l.DaySide(date, RowsVersion); ok {
-		if sessions, err := daySessionsIn(side); err == nil {
+		if sessions, err := daySessionsIn(side, p); err == nil {
 			return sessions
 		}
 	}
-	return DaySessions(RecordsOf(l.Day(date)))
+	return DaySessions(RecordsOf(p.Held(l.Day(date))))
 }
 
 // daySessions are the sessions of a day's lines taken in so far, by their
@@ -105,13 +108,15 @@ type daySessions struct {
 }
 
 // foldedSession is a session of a day as daySessions folds it: its record
-// so far; its requests, where its story is to be told of them; and what
-// they spent by the local hour each arrived in, by account, where that's
-// kept.
+// so far; its requests, where its story is to be told of them; what they
+// spent by the local hour each arrived in, by account, where that's kept;
+// and the pools its lines recorded, as ledger.RecordingPool keeps them, ""
+// of those that named none, as a day's side holds them for a pool's read.
 type foldedSession struct {
 	DaySession
 	requests []heldRequest
 	hours    accountHours
+	pools    []string
 }
 
 // accountHours are what requests spent by the local hour each arrived in,
@@ -151,10 +156,11 @@ func newDaySessions(told bool) daySessions {
 // again, as read tells it by its key, as turnKeyOf has it, against those d
 // keeps, so a line the ledger's files hold twice counts as the List and the
 // Log count it: when it arrived in UTC, as the ledger writes it, and a day's
-// side restores it, whatever zone a line edited by hand names; and, of a
-// session's request, as isRequest has it, what it spent, and what names the
-// session. A request of no session, where d keeps loose hours, it takes in
-// there alone, given again or not as a session's is.
+// side restores it, whatever zone a line edited by hand names; the pool it
+// recorded; and, of a session's request, as isRequest has it, what it
+// spent, and what names the session. A request of no session, where d keeps
+// loose hours, it takes in there alone, given again or not as a session's
+// is.
 func (d daySessions) take(r *lineRecord, read *countedOnce) {
 	id := r.countedSession
 	if id == "" && (d.loose == nil || r.kind != RowRequest) {
@@ -182,6 +188,7 @@ func (d daySessions) take(r *lineRecord, read *countedOnce) {
 	s.Lines++
 	s.Last = score.Later(s.Last, r.arrived())
 	s.Dir, s.Project = placeAfter(s.Dir, s.Project, r.dir, r.project)
+	s.pools = ledger.RecordingPool(s.pools, r.pool)
 	if !r.isRequest() {
 		return
 	}
@@ -261,28 +268,38 @@ func (d daySessions) with(records []lineRecord) daySessions {
 
 // copied is a copy of s for a fold to take more in, sharing nothing it
 // changes with s: its hours its own. Its uses are taken in afresh, as
-// usedOn has them, and its requests only appended to.
+// usedOn has them, and its requests and pools only grown past their ends.
 func (s *foldedSession) copied() *foldedSession {
 	c := *s
-	c.requests = slices.Clip(s.requests)
+	c.requests, c.pools = slices.Clip(s.requests), slices.Clip(s.pools)
 	if s.hours != nil {
 		c.hours = s.hours.copied()
 	}
 	return &c
 }
 
-// sessions are the sessions taken in, the last to arrive first, as
+// folded are the sessions taken in, the last to arrive first, as
 // DaySessions orders them, each with its moves, where its story's told.
-func (d daySessions) sessions() []DaySession {
-	sessions := make([]DaySession, 0, len(d.held))
+func (d daySessions) folded() []foldedSession {
+	folded := make([]foldedSession, 0, len(d.held))
 	for _, s := range d.held {
-		day := s.DaySession
+		f := *s
 		if d.told {
-			day.moves = latestMoves(s.requests)
+			f.moves = latestMoves(s.requests)
 		}
-		sessions = append(sessions, day)
+		folded = append(folded, f)
 	}
-	slices.SortFunc(sessions, func(a, b DaySession) int { return cmp.Or(b.Last.Compare(a.Last), strings.Compare(a.ID, b.ID)) })
+	slices.SortFunc(folded, func(a, b foldedSession) int { return cmp.Or(b.Last.Compare(a.Last), strings.Compare(a.ID, b.ID)) })
+	return folded
+}
+
+// sessions are the sessions taken in, as folded orders them.
+func (d daySessions) sessions() []DaySession {
+	folded := d.folded()
+	sessions := make([]DaySession, len(folded))
+	for i, s := range folded {
+		sessions[i] = s.DaySession
+	}
 	return sessions
 }
 
@@ -319,8 +336,9 @@ func dayMoveOf(m *move) dayMove {
 // storedDaySession is a DaySession as a day's side stores it, the side a
 // list of them in DaySessions' order: each time as nanoseconds since the
 // Unix epoch, restored in UTC, as the ledger writes a line's time; what
-// names it, as a stored story holds its sightings; and its moves, as
-// storedDayMove has them; zeros left out. A day's head holds its bounds so
+// names it, as a stored story holds its sightings; its moves, as
+// storedDayMove has them; and the pools its lines recorded, as
+// ledger.StoredPools stores them; zeros left out. A day's head holds its bounds so
 // too, and stands only where they're the day's, so no time a side holds is
 // beyond the years nanoseconds since the epoch hold.
 type storedDaySession struct {
@@ -335,6 +353,7 @@ type storedDaySession struct {
 	Main         storedSighting  `json:"main,omitzero"`
 	Latest       storedSighting  `json:"latest,omitzero"`
 	Moves        []storedDayMove `json:"moves,omitempty"`
+	Pools        []string        `json:"pools,omitempty"`
 }
 
 // storedUse is a SessionUse as a day's side stores it, its spent in its own
@@ -430,27 +449,42 @@ func sideTime(nanos int64) time.Time {
 	return time.Unix(0, nanos).UTC()
 }
 
-// daySideOf is the side of a day of the given sessions, as DaySessions gives
+// daySideOf is the side of a day of the given sessions, as folded gives
 // them, as the day's head holds it. Its error is the ledger's to wrap, with
 // the day's date.
-func daySideOf(sessions []DaySession) (json.RawMessage, error) {
+func daySideOf(sessions []foldedSession) (json.RawMessage, error) {
 	stored := make([]storedDaySession, len(sessions))
 	for i, s := range sessions {
 		stored[i] = s.stored()
+		stored[i].Pools = ledger.StoredPools(s.pools)
 	}
 	return json.Marshal(stored)
 }
 
-// daySessionsIn are the sessions side holds, as daySideOf gave it, failing
-// where it doesn't read as a day's side.
-func daySessionsIn(side json.RawMessage) ([]DaySession, error) {
+// errSplitSession is why a day's side doesn't give its sessions in a pool:
+// one of them recorded lines in the pool and in another, and the side
+// doesn't count its lines in the pool alone.
+var errSplitSession = errors.New("a session of the day recorded lines in the pool read and in another")
+
+// daySessionsIn are the sessions side holds, as daySideOf gave it, in the
+// pool read p: those whose lines it keeps, as p's keeps has it of the pools
+// they recorded, every one where p reads every pool's. It fails where side
+// doesn't read as a day's side, or where p keeps some of a session's lines
+// but not all, as errSplitSession says, so its lines are read instead.
+func daySessionsIn(side json.RawMessage, p PoolRead) ([]DaySession, error) {
 	var stored []storedDaySession
 	if err := json.Unmarshal(side, &stored); err != nil {
 		return nil, fmt.Errorf("a day's side: %w", err)
 	}
-	sessions := make([]DaySession, len(stored))
-	for i, s := range stored {
-		sessions[i] = s.daySession()
+	sessions := make([]DaySession, 0, len(stored))
+	for _, s := range stored {
+		switch some, all := p.keepsOf(ledger.RecordedPools(s.Pools)); {
+		case !some:
+			continue
+		case !all:
+			return nil, errSplitSession
+		}
+		sessions = append(sessions, s.daySession())
 	}
 	return sessions, nil
 }

@@ -29,7 +29,9 @@ import (
 
 // importingConfig is the config of a router of testConfigured's on start's
 // clock, listening on a port of its own, its state directory one of the
-// test's own, short enough to hold its control socket.
+// test's own, short enough to hold its control socket, its accounts record
+// noting the first pool, as one whose history's moves are done, as a router
+// imports only once they are, notes it.
 func importingConfig(t *testing.T) Config {
 	t.Helper()
 	dir, err := os.MkdirTemp("", "sb")
@@ -37,6 +39,12 @@ func importingConfig(t *testing.T) Config {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	if err := identity.NewFile(dir).Update(func(r *identity.Record) error {
+		r.Pools = []identity.PoolEntry{{ID: "q7mt", Added: start, First: true}}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
 	cfg := testConfig(at(start), &stubProber{}, testTokens.Read)
 	cfg.StateDir, cfg.Listen = dir, "127.0.0.1:0"
 	return cfg
@@ -210,24 +218,44 @@ func TestAnImportAskedForWhileOneRunsIsRefusedChangingNothing(t *testing.T) {
 }
 
 func TestAnImportAskedForWhileTheHistoryWaitsOnItsMoveIsRefusedTakingNothingIn(t *testing.T) {
-	logstest.Capture(t)
-	cfg := importingConfig(t)
-	cfg.Move = &answeringMover{answers: []error{idmove.ErrAwaitingRestart}}
-	r := newTestRouterOf(t, cfg)
-	day := start.AddDate(0, 0, -10)
-	staged := readings.Files(readings.Dir(filepath.Join(ImportDir(cfg.StateDir), "1")), logger)
-	stageFile(t, staged.CompressedPath(dayfile.DateOf(day)), gzipOf(t, readingOn(day)))
-	client, _ := runImporting(t, r)
+	tests := []struct {
+		name   string
+		moving func(cfg *Config)
+		said   string
+	}{
+		{
+			name:   "onto the accounts' ids",
+			moving: func(cfg *Config) { cfg.Move = &answeringMover{answers: []error{idmove.ErrAwaitingRestart}} },
+			said:   prose.HistoryMoving,
+		},
+		{
+			name:   "to pools",
+			moving: func(cfg *Config) { cfg.PoolMove = &answeringPoolMover{answers: []error{idmove.ErrAwaitingPools}} },
+			said:   prose.HistoryMovingPools,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			logstest.Capture(t)
+			cfg := importingConfig(t)
+			tt.moving(&cfg)
+			r := newTestRouterOf(t, cfg)
+			day := start.AddDate(0, 0, -10)
+			staged := readings.Files(readings.Dir(filepath.Join(ImportDir(cfg.StateDir), "1")), logger)
+			stageFile(t, staged.CompressedPath(dayfile.DateOf(day)), gzipOf(t, readingOn(day)))
+			client, _ := runImporting(t, r)
 
-	_, err := client.Import(t.Context())
-	if d, ok := errors.AsType[declined](err); !ok || d.status != http.StatusServiceUnavailable || !strings.Contains(d.reason, prose.HistoryMoving) {
-		t.Errorf("Import() while the history waits on its move: %v, want a 503 saying so", err)
-	}
-	if _, err := os.Stat(readings.Files(readings.Dir(cfg.StateDir), logger).CompressedPath(dayfile.DateOf(day))); !errors.Is(err, fs.ErrNotExist) {
-		t.Errorf("the day staged, refused: %v, want it not taken in", err)
-	}
-	if _, err := os.Stat(ImportDir(cfg.StateDir)); !errors.Is(err, fs.ErrNotExist) {
-		t.Errorf("once the import was refused, what was staged: %v, want it removed", err)
+			_, err := client.Import(t.Context())
+			if d, ok := errors.AsType[declined](err); !ok || d.status != http.StatusServiceUnavailable || !strings.Contains(d.reason, tt.said) {
+				t.Errorf("Import() while the history waits on its move: %v, want a 503 saying %q", err, tt.said)
+			}
+			if _, err := os.Stat(readings.Files(readings.Dir(cfg.StateDir), logger).CompressedPath(dayfile.DateOf(day))); !errors.Is(err, fs.ErrNotExist) {
+				t.Errorf("the day staged, refused: %v, want it not taken in", err)
+			}
+			if _, err := os.Stat(ImportDir(cfg.StateDir)); !errors.Is(err, fs.ErrNotExist) {
+				t.Errorf("once the import was refused, what was staged: %v, want it removed", err)
+			}
+		})
 	}
 }
 
@@ -295,14 +323,14 @@ func pastKeeping(t *testing.T) (cfg Config, summary string) {
 	// the days after from their readings, where the readings history covers
 	// them.
 	older := dayfile.DateOf(day.AddDate(0, 0, -10))
-	stageFile(t, ledger.SummaryFile(ledger.Dir(cfg.StateDir), older), []byte(`{"version":6,"day":"`+older+`","lines":0}`+"\n"))
+	stageFile(t, ledger.SummaryFile(ledger.Dir(cfg.StateDir), older), []byte(`{"version":7,"day":"`+older+`","lines":0}`+"\n"))
 	folder := stageOwn(t, cfg.StateDir)
 	stagedReadings := readings.Files(readings.Dir(folder), logger)
 	stageFile(t, stagedReadings.CompressedPath(weekBefore), gzipOf(t, readingOn(day.AddDate(0, 0, -9))))
 	stageFile(t, stagedReadings.CompressedPath(date), gzipOf(t, readingOn(day)))
 	stageFile(t, ledger.Files(ledger.Dir(folder), logger).CompressedPath(date),
 		gzipOf(t, `{"at":"`+day.UTC().Format(time.RFC3339)+`","request":"staged","kind":"message","account":"work","status":200}`+"\n"))
-	stageFile(t, ledger.SummaryFile(ledger.Dir(folder), date), []byte(`{"version":6,"day":"`+date+`","lines":2,"accounts":[{"account":"work"}]}`+"\n"))
+	stageFile(t, ledger.SummaryFile(ledger.Dir(folder), date), []byte(`{"version":7,"day":"`+date+`","lines":2,"accounts":[{"account":"work"}]}`+"\n"))
 	return cfg, ledger.SummaryFile(ledger.Dir(cfg.StateDir), date)
 }
 
@@ -383,6 +411,23 @@ func TestAnImportRetriedAfterOneCutShortTakesTheSummaryStagedOverARoundsBetween(
 func TestAnAccountsRecordStagedThatDisagreesIsAConflict(t *testing.T) {
 	if got := importStatus(fmt.Errorf("nothing was imported, as %w", identity.ErrConflict)); got != http.StatusConflict {
 		t.Errorf("importStatus() of an accounts record that disagrees = %d, want 409", got)
+	}
+}
+
+// A folder exported before pools, where the Mac's record notes no first pool
+// to give it, is the Mac's fault, not the folder's.
+func TestAFolderBeforePoolsWithNoFirstPoolToGiveItIsTheMacsFault(t *testing.T) {
+	cfg := importingConfig(t)
+	if err := identity.NewFile(cfg.StateDir).Update(func(r *identity.Record) error {
+		r.Pools = nil
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	folder := stageOwn(t, cfg.StateDir)
+	_, err := newTestRouterOf(t, cfg).joinStaged([]string{folder})
+	if got := importStatus(err); !errors.Is(err, idmove.ErrNoFirstPool) || got != http.StatusInternalServerError {
+		t.Errorf("joinStaged() = %v, answered %d, want no first pool, 500", err, got)
 	}
 }
 

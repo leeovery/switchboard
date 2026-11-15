@@ -28,20 +28,22 @@ import (
 // its part as partFrom gives it; first doing what during does, where it's
 // set, failing where that fails; giving none of the session refused, where
 // it's handed resting on a base, as a Digester gives none of one whose base
-// it can't restore; and noting each day it's handed, in the order handed, as
-// handedDay tells it. Each day's side it builds as sideOf gives it, and its
-// rows as chunksOf gives them, doing what taking does with each line's
-// request it's handed, where it's set, and what building does as it builds
-// them, failing where that fails; and noting each side built, in the order
-// built, as builtSide tells it.
+// it can't restore, nor of the one refusedIn refuses in its pool; and
+// noting each day it's handed, in the order handed, as handedDay tells it.
+// Each day's side it builds as sideOf gives it, and its rows as chunksOf
+// gives them, doing what taking does with each line's request it's handed,
+// where it's set, and what building does as it builds them, failing where
+// that fails; and noting each side built, in the order built, as builtSide
+// tells it.
 type folding struct {
-	mu       sync.Mutex
-	during   func(ctx context.Context, day ledger.DigestDay) error
-	taking   func(request string)
-	building func(requests []string) error
-	refused  string
-	handed   []handedDay
-	built    []builtSide
+	mu        sync.Mutex
+	during    func(ctx context.Context, day ledger.DigestDay) error
+	taking    func(request string)
+	building  func(requests []string) error
+	refused   string
+	refusedIn refusal
+	handed    []handedDay
+	built     []builtSide
 }
 
 // sideBody is the version of the days' sides the tests' Digester gives.
@@ -183,14 +185,15 @@ func requestsOfSides(built []builtSide) [][]string {
 }
 
 // handedDay is a day as the tests' Digester was handed it: when, by the
-// clock; its date; each session's, by its id, as handedSession tells it; and
-// the lines the builder it was handed to was handed before it, as takenDays
-// notes them.
+// clock; its date; each session's, by its id, as handedSession tells it; the
+// lines the builder it was handed to was handed before it, as takenDays
+// notes them; and its In, where its sessions were handed in a pool alone.
 type handedDay struct {
 	at       time.Time
 	date     string
 	sessions map[string]handedSession
 	taken    takenDays
+	in       ledger.RoutedIn
 }
 
 // handedSession is a session as the tests' Digester was handed it: the date
@@ -235,11 +238,11 @@ func (b *foldingDay) Digest(ctx context.Context, day ledger.DigestDay) (map[stri
 
 // digest notes day as handed, with the lines taken before it, does what
 // during does, where it's set, and gives each of its sessions folded, but
-// the one refused resting on a base: its state, its part, and its part's
-// times, as timesFrom has them.
+// the one refused resting on a base, and the one refusedIn refuses: its
+// state, its part, and its part's times, as timesFrom has them.
 func (f *folding) digest(ctx context.Context, day ledger.DigestDay, taken takenDays) (map[string]ledger.Folded, error) {
 	f.mu.Lock()
-	during, refused := f.during, f.refused
+	during, refused, refusedIn := f.during, f.refused, f.refusedIn
 	handed := handedOf(day)
 	handed.taken = taken
 	f.handed = append(f.handed, handed)
@@ -251,7 +254,7 @@ func (f *folding) digest(ctx context.Context, day ledger.DigestDay, taken takenD
 	}
 	folded := make(map[string]ledger.Folded, len(day.Sessions))
 	for id, s := range day.Sessions {
-		if id == refused && s.Base != nil {
+		if id == refused && s.Base != nil || refusedIn.refuses(id, day) {
 			continue
 		}
 		var base testState
@@ -305,7 +308,7 @@ func partFrom(id, date string, from ledger.SessionFrom) testPart {
 
 // handedOf is day as handedDay tells it, handed now.
 func handedOf(day ledger.DigestDay) handedDay {
-	handed := handedDay{at: time.Now(), date: day.Date, sessions: make(map[string]handedSession, len(day.Sessions))}
+	handed := handedDay{at: time.Now(), date: day.Date, sessions: make(map[string]handedSession, len(day.Sessions)), in: day.In}
 	for id, s := range day.Sessions {
 		handed.sessions[id] = handedSession{base: s.BaseDate(), requests: requestsOf(s.Lines)}
 	}
@@ -347,6 +350,27 @@ func (f *folding) refuse(id string) {
 	f.refused = id
 }
 
+// refusal is a session the tests' Digester gives none of in a pool: its id,
+// and the pool's; none where its id is "".
+type refusal struct {
+	id, pool string
+}
+
+// refuses reports whether the refusal refuses the session with the given id
+// handed in day, as its In tells the pool it's handed in: none handed of
+// every pool's.
+func (r refusal) refuses(id string, day ledger.DigestDay) bool {
+	return r.id != "" && id == r.id && day.In != nil && day.In(r.pool)
+}
+
+// refuseIn has the tests' Digester give none of the session with the given
+// id handed in the pool with the given id, from then on.
+func (f *folding) refuseIn(id, pool string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.refusedIn = refusal{id: id, pool: pool}
+}
+
 // failingOn returns what fails the day with the given date, as the tests'
 // Digester is to, and none of the others.
 func failingOn(date string) func(context.Context, ledger.DigestDay) error {
@@ -359,9 +383,9 @@ func failingOn(date string) func(context.Context, ledger.DigestDay) error {
 }
 
 // opened returns the world's ledger, opened afresh to digest its days with
-// fold.
-func (w *lookupWorld) opened(fold ledger.Digester) *ledger.Ledger {
-	return ledger.Open(w.dir, 400*24*time.Hour, func() time.Time { return w.at }, historyIn(w.history), caps, logs.For("router"), ledger.Digesting(fold))
+// fold, and as the options given say.
+func (w *lookupWorld) opened(fold ledger.Digester, opts ...ledger.Option) *ledger.Ledger {
+	return ledger.Open(w.dir, 400*24*time.Hour, func() time.Time { return w.at }, historyIn(w.history), caps, logs.For("router"), append(opts, ledger.Digesting(fold))...)
 }
 
 // digestEnded has the world's ledger digest each finished day due, as
@@ -450,8 +474,9 @@ func TestFinishedDaysAreDigestedOldestFirstEachOnTheDayBefore(t *testing.T) {
 // A digest is written of the day as its files hold it: its bounds, its
 // summary's lines, as many lines as its files hold, and how many arrived
 // before it began, and after it ended; and each session's entry resting on
-// each day naming it, with the lines its summary counts, pointing at its
-// part, folded on the state it was handed resting on.
+// each day naming it, with the lines its summary counts, its lines naming
+// no pool, pointing at its part, folded on the state it was handed resting
+// on.
 func TestADigestIsWrittenOfTheDayAsItsFilesHoldIt(t *testing.T) {
 	w := newLookupWorld(t)
 	w.file(-3, askedBy("1", "one", on(-3, 9, 0)))
@@ -464,8 +489,8 @@ func TestADigestIsWrittenOfTheDayAsItsFilesHoldIt(t *testing.T) {
 	want := ledger.Digest{
 		Head: ledger.DigestHead{Body: digestBody, Day: dayOf(0), Start: start, End: end, SummaryLines: 3, Lines: 3, Early: 1, Late: 1},
 		Sessions: map[string]ledger.DigestEntry{
-			"one": {RestsOn: map[string]int{dayOf(-3): 1, dayOf(0): 3}, State: json.RawMessage(`{"of":"one@` + dayOf(0) + `","requests":["1","early","2"]}`)},
-			"two": {RestsOn: map[string]int{dayOf(0): 3}, State: json.RawMessage(`{"of":"two@` + dayOf(0) + `","requests":["late"]}`)},
+			"one": {RestsOn: map[string]int{dayOf(-3): 1, dayOf(0): 3}, Pools: []string{""}, State: json.RawMessage(`{"of":"one@` + dayOf(0) + `","requests":["1","early","2"]}`)},
+			"two": {RestsOn: map[string]int{dayOf(0): 3}, Pools: []string{""}, State: json.RawMessage(`{"of":"two@` + dayOf(0) + `","requests":["late"]}`)},
 		},
 	}
 	if got := unparted(w.digestOf(0)); !reflect.DeepEqual(got, want) {
@@ -477,6 +502,54 @@ func TestADigestIsWrittenOfTheDayAsItsFilesHoldIt(t *testing.T) {
 	}
 	if got := w.partsIn(0); !reflect.DeepEqual(got, wantParts) {
 		t.Errorf("the parts of %s are\n%+v\nwant\n%+v", dayOf(0), got, wantParts)
+	}
+}
+
+// A digest's entry names the pools the lines its state was folded from
+// recorded, each once, in the order of their ids, those of every day it
+// rests on: one is Acme's alone, another Default's on its first day and
+// Acme's after, as a session resumed once its directory's fence changes,
+// and a third named none, as before pools; and its own day's digest built
+// again keeps the pools of a session resting on it still.
+func TestADigestsEntryNamesThePoolsOfTheLinesItRestsOn(t *testing.T) {
+	w := newLookupWorld(t)
+	w.file(-3, inPool(askedBy("1", "one", on(-3, 9, 0)), acme), inPool(askedBy("2", "two", on(-3, 10, 0)), first))
+	w.file(-2, inPool(askedBy("3", "two", on(-2, 9, 0)), acme), askedBy("4", "three", on(-2, 10, 0)))
+	w.file(0, inPool(askedBy("5", "one", on(0, 9, 0)), acme), inPool(askedBy("6", "two", on(0, 10, 0)), acme))
+	w.summarise()
+
+	w.digestEnded()
+
+	pooled := func(days int) map[string][]string {
+		got := make(map[string][]string)
+		for id, e := range w.digestOf(days).Sessions {
+			got[id] = e.Pools
+		}
+		return got
+	}
+	for _, tt := range []struct {
+		days int
+		want map[string][]string
+	}{
+		{days: -3, want: map[string][]string{"one": {acme}, "two": {first}}},
+		{days: -2, want: map[string][]string{"two": {first, acme}, "three": {""}}},
+		{days: 0, want: map[string][]string{"one": {acme}, "two": {first, acme}}},
+	} {
+		if got := pooled(tt.days); !reflect.DeepEqual(got, tt.want) {
+			t.Errorf("the entries of %s name the pools %v, want %v", dayOf(tt.days), got, tt.want)
+		}
+	}
+
+	w.fold.days()
+	w.file(-2, inPool(askedBy("late", "two", on(-2, 12, 0)), acme))
+	w.summarise()
+	w.digestEnded()
+	handed := w.fold.days()
+	if i := slices.IndexFunc(handed, func(h handedDay) bool { return h.date == dayOf(0) }); i < 0 || !slices.Equal(slices.Sorted(maps.Keys(handed[i].sessions)), []string{"two"}) {
+		t.Errorf("%s was handed %+v, want two's session alone, one's kept", dayOf(0), handed)
+	}
+	if got, want := pooled(0), map[string][]string{"one": {acme}, "two": {first, acme}}; !reflect.DeepEqual(got, want) {
+		t.Errorf("built again, the entries of %s name the pools %v, want %v, the one kept among them", dayOf(0), got, want)
 	}
 }
 

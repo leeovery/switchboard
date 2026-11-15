@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"maps"
 	"reflect"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -210,12 +211,12 @@ func TestSessionsAreSafeForConcurrentUse(t *testing.T) {
 		k := key{session: fmt.Sprint(i % 2), model: opus}
 		wg.Go(func() { assign(s, k, "", decision{account: "work", reason: reasonNew}, start) })
 		wg.Go(func() { _ = s.lookup(k) })
-		wg.Go(func() { s.setPin(status.Pin{Accounts: []string{"side"}, Since: start}, i%3 == 0) })
-		wg.Go(func() { _, _ = s.unpin(i%3 == 1) })
-		wg.Go(func() { s.pinSession(k.session, "side") })
-		wg.Go(func() { _, _ = s.session(k.session) })
-		wg.Go(func() { _ = s.running(start) })
-		wg.Go(func() { _, _ = s.active(start) })
+		wg.Go(func() { s.setPin(beforePools(), status.Pin{Accounts: []string{"side"}, Since: start}, i%3 == 0) })
+		wg.Go(func() { _, _ = s.unpin(beforePools(), i%3 == 1) })
+		wg.Go(func() { s.pinSession(k.in(), "side") })
+		wg.Go(func() { _, _ = s.session(k.session, anyPool) })
+		wg.Go(func() { _ = s.running(start, anyPool) })
+		wg.Go(func() { _, _ = s.active(start, anyPool) })
 		wg.Go(func() { s.prune(start) })
 	}
 	wg.Wait()
@@ -233,7 +234,7 @@ func TestActiveCountsEachSessionOnceByAccountAndOnceInAll(t *testing.T) {
 	remember("three", opus, "side", start.Add(-time.Hour-time.Second))
 
 	want := map[string]int{"work": 2, "side": 1}
-	byAccount, all := s.active(start)
+	byAccount, all := s.active(start, anyPool)
 	if !maps.Equal(byAccount, want) {
 		t.Errorf("active() by account = %v, want %v: sessions used within the hour, each once an account", byAccount, want)
 	}
@@ -256,10 +257,10 @@ func TestSessionReportsItsPinAndItsAssignmentsTheOneUsedLastFirst(t *testing.T) 
 			{Model: haiku, Account: "side", Reason: "new", AssignedAt: start.Add(-time.Hour), LastSeen: start.Add(-time.Hour)},
 		},
 	}
-	if got, seen := s.session("one"); !seen || !reflect.DeepEqual(got, want) {
+	if got, seen := s.session("one", anyPool); !seen || !reflect.DeepEqual(got.Session, want) {
 		t.Errorf("session() =\n%+v, %v\nwant\n%+v", got, seen, want)
 	}
-	if got, seen := s.session("nope"); seen {
+	if got, seen := s.session("nope", anyPool); seen {
 		t.Errorf("session() of a session never seen = %+v, want none", got)
 	}
 }
@@ -288,12 +289,12 @@ func TestASessionsOwnPin(t *testing.T) {
 			assign(s, key{session: "one", model: opus}, tt.launched[0], decision{account: "work", reason: reasonNew}, start.Add(-time.Minute))
 			assign(s, key{session: "one", model: haiku}, tt.launched[1], decision{account: "work", reason: reasonNew}, start)
 			if tt.given != nil {
-				if _, seen := s.pinSession("one", *tt.given); !seen {
+				if _, seen := s.pinSession(sessionIn{session: "one"}, *tt.given); !seen {
 					t.Fatal("pinSession() = false, want the session found")
 				}
 			}
 
-			if got, _ := s.session("one"); got.Pin != tt.want {
+			if got, _ := s.session("one", anyPool); got.Pin != tt.want {
 				t.Errorf("session's pin = %q, want %q", got.Pin, tt.want)
 			}
 		})
@@ -337,7 +338,7 @@ func TestASessionsAssignmentsSayWhetherItsOwnPinYieldedAndWhenItWasGiven(t *test
 			route: func(s *sessions, clock *testClock, k key) {
 				assign(s, k, "", decision{account: "work", reason: reasonNew}, start.Add(-time.Hour))
 				clock.now = start.Add(-time.Minute)
-				s.pinSession(k.session, "side")
+				s.pinSession(k.in(), "side")
 				assign(s, k, "side", yields, start)
 			},
 			after: time.Minute, wantYielded: true, wantPinnedAt: start.Add(-time.Minute),
@@ -348,7 +349,7 @@ func TestASessionsAssignmentsSayWhetherItsOwnPinYieldedAndWhenItWasGiven(t *test
 			route: func(s *sessions, clock *testClock, k key) {
 				assign(s, k, "side", yields, start.Add(-time.Minute))
 				clock.now = start
-				s.pinSession(k.session, "side")
+				s.pinSession(k.in(), "side")
 			},
 			after: time.Minute, wantPinnedAt: start,
 		},
@@ -369,11 +370,11 @@ func TestASessionsAssignmentsSayWhetherItsOwnPinYieldedAndWhenItWasGiven(t *test
 			tt.route(s, clock, key{session: "one", model: tt.model})
 			clock.now = start.Add(tt.after)
 
-			got, _ := s.session("one")
+			got, _ := s.session("one", anyPool)
 			if a := got.Assignments[0]; a.Yielded != tt.wantYielded || !a.PinnedAt.Equal(tt.wantPinnedAt) {
 				t.Errorf("the session's assignment is %+v, want it yielded: %v, pinned at %v", a, tt.wantYielded, tt.wantPinnedAt)
 			}
-			listed := s.running(clock.now)
+			listed := s.running(clock.now, anyPool)
 			if len(listed) > 0 && !reflect.DeepEqual(listed[0], got) {
 				t.Errorf("running() lists the session as\n%+v\nwant it as session() gives it\n%+v", listed[0], got)
 			}
@@ -384,7 +385,7 @@ func TestASessionsAssignmentsSayWhetherItsOwnPinYieldedAndWhenItWasGiven(t *test
 func TestASessionNeverSeenIsGivenNoPin(t *testing.T) {
 	var changes changeCount
 	s := newSessions(at(start), changes.hear, unkept)
-	if was, seen := s.pinSession("nope", "side"); seen || was != "" {
+	if was, seen := s.pinSession(sessionIn{session: "nope"}, "side"); seen || was != "" {
 		t.Errorf("pinSession() of a session never seen = %q, %v, want no pin, and false", was, seen)
 	}
 	if len(s.own) > 0 || changes > 0 {
@@ -404,7 +405,7 @@ func TestPinningASessionSaysWhatItsOwnPinWas(t *testing.T) {
 		{pin: "work", wantWas: ""},
 	}
 	for _, step := range steps {
-		if was, seen := s.pinSession("one", step.pin); !seen || was != step.wantWas {
+		if was, seen := s.pinSession(sessionIn{session: "one"}, step.pin); !seen || was != step.wantWas {
 			t.Errorf("pinSession(%q) = %q, %v, want %q, the session's own pin before, the one it was launched with first, and true", step.pin, was, seen, step.wantWas)
 		}
 	}
@@ -428,7 +429,7 @@ func TestPinningASessionSaysThePinItsRequestsUsedLastCarried(t *testing.T) {
 			s := newSessions(at(start), unkept, unkept)
 			assign(s, key{session: "one", model: opus}, "work", decision{account: "work", reason: reasonNew}, start)
 			assign(s, key{session: "one", model: haiku}, "side", decision{account: "side", reason: reasonNew}, tt.haikuSeen)
-			if was, seen := s.pinSession("one", ""); !seen || was != tt.want {
+			if was, seen := s.pinSession(sessionIn{session: "one"}, ""); !seen || was != tt.want {
 				t.Errorf("pinSession() = %q, %v, want %q, the pin of the requests used last, and true", was, seen, tt.want)
 			}
 		})
@@ -447,9 +448,9 @@ func TestRunningListsTheSessionsRoutedInTheLastHourTheOneSeenLastFirst(t *testin
 	remember("a-tied", opus, "side", start.Add(-45*time.Minute))
 	remember("an-hour-ago", opus, "work", start.Add(-time.Hour))
 	remember("idle", opus, "work", start.Add(-time.Hour-time.Second))
-	s.pinSession("earlier", "side")
+	s.pinSession(sessionIn{session: "earlier"}, "side")
 
-	got := s.running(start)
+	got := s.running(start, anyPool)
 	ids := make([]string, len(got))
 	for i, session := range got {
 		ids[i] = session.ID
@@ -457,13 +458,13 @@ func TestRunningListsTheSessionsRoutedInTheLastHourTheOneSeenLastFirst(t *testin
 	if want := []string{"latest", "earlier", "a-tied", "b-tied", "an-hour-ago"}; !reflect.DeepEqual(ids, want) {
 		t.Errorf("running() lists %q, want %q: those routed in the last hour, the one seen last first", ids, want)
 	}
-	if want, _ := s.session("latest"); !reflect.DeepEqual(got[0], want) {
+	if want, _ := s.session("latest", anyPool); !reflect.DeepEqual(got[0], want) {
 		t.Errorf("running() lists\n%+v\nwant the session as session() gives it, every model included\n%+v", got[0], want)
 	}
 	if got[1].Pin != "side" {
 		t.Errorf("running() lists %+v, want its own pin with it", got[1])
 	}
-	if got := newSessions(at(start), unkept, unkept).running(start); got == nil || len(got) > 0 {
+	if got := newSessions(at(start), unkept, unkept).running(start, anyPool); got == nil || len(got) > 0 {
 		t.Errorf("running() with no sessions = %#v, want an empty list", got)
 	}
 }
@@ -473,27 +474,29 @@ func TestForceClearsEverySessionsOwnPin(t *testing.T) {
 	tests := []struct {
 		name  string
 		force func(s *sessions) int
-		// wantPin is the global pin once forced.
+		// wantPin is the pool's pin once forced.
 		wantPin status.Pin
 	}{
 		{
-			name: "setting the global pin",
+			name: "setting the pool's pin",
 			force: func(s *sessions) int {
-				return s.setPin(status.Pin{Accounts: []string{"side"}, Since: later, Move: true}, true)
+				cleared := s.setPin(beforePools(), status.Pin{Accounts: []string{"side"}, Since: later, Move: true}, true)
+				return cleared
 			},
 			wantPin: status.Pin{Accounts: []string{"side"}, Since: later, Move: true},
 		},
 		{
-			name: "setting the global pin to several accounts",
+			name: "setting the pool's pin to several accounts",
 			force: func(s *sessions) int {
-				return s.setPin(status.Pin{Accounts: []string{"work", "side"}, Since: later}, true)
+				cleared := s.setPin(beforePools(), status.Pin{Accounts: []string{"work", "side"}, Since: later}, true)
+				return cleared
 			},
 			wantPin: status.Pin{Accounts: []string{"work", "side"}, Since: later},
 		},
 		{
-			name: "clearing the global pin",
+			name: "clearing the pool's pin",
 			force: func(s *sessions) int {
-				_, cleared := s.unpin(true)
+				_, cleared := s.unpin(beforePools(), true)
 				return cleared
 			},
 		},
@@ -503,23 +506,23 @@ func TestForceClearsEverySessionsOwnPin(t *testing.T) {
 			clock := &testClock{now: start}
 			var changes changeCount
 			s := newSessions(clock.read, changes.hear, unkept)
-			s.setPin(status.Pin{Accounts: []string{"work"}, Since: start.Add(-time.Hour)}, false)
+			s.setPin(beforePools(), status.Pin{Accounts: []string{"work"}, Since: start.Add(-time.Hour)}, false)
 			assign(s, key{session: "launched", model: opus}, "work", decision{account: "work", reason: reasonPinned}, start)
 			assign(s, key{session: "given", model: opus}, "", decision{account: "work", reason: reasonNew}, start)
 			assign(s, key{session: "unpinned", model: opus}, "", decision{account: "work", reason: reasonNew}, start)
-			s.pinSession("given", "side")
+			s.pinSession(sessionIn{session: "given"}, "side")
 			clock.now = later
 			changes = 0
 
 			if cleared := tt.force(s); cleared != 2 {
 				t.Errorf("cleared %d sessions' pins, want 2: the one launched with a pin, and the one given one", cleared)
 			}
-			want := map[string]ownPin{"launched": {Since: later}, "given": {Since: later}}
+			want := map[sessionIn]ownPin{{session: "launched"}: {Since: later}, {session: "given"}: {Since: later}}
 			if !maps.Equal(s.own, want) {
 				t.Errorf("sessions' pins = %+v, want %+v: each cleared, the unpinned session's left alone", s.own, want)
 			}
-			if !reflect.DeepEqual(s.pin, tt.wantPin) || changes == 0 {
-				t.Errorf("global pin = %+v, and %d changes to save, want %+v, due to be saved", s.pin, changes, tt.wantPin)
+			if !reflect.DeepEqual(s.pins[""], tt.wantPin) || changes == 0 {
+				t.Errorf("pin = %+v, and %d changes to save, want %+v, due to be saved", s.pins[""], changes, tt.wantPin)
 			}
 			for _, id := range []string{"launched", "given"} {
 				if got := s.lookup(key{session: id, model: opus}); !got.given || got.own.Account != "" {
@@ -536,7 +539,7 @@ func TestUnpinningWithoutAPinOrForceChangesNothing(t *testing.T) {
 	assign(s, key{session: "launched", model: opus}, "work", decision{account: "work", reason: reasonPinned}, start)
 	changes = 0
 
-	if was, cleared := s.unpin(false); !was.IsZero() || cleared != 0 || len(s.own) > 0 || changes > 0 {
+	if was, cleared := s.unpin(beforePools(), false); !was.IsZero() || cleared != 0 || len(s.own) > 0 || changes > 0 {
 		t.Errorf("unpin() = %+v, %d, sessions' pins %+v, and %d changes to save, want nothing changed", was, cleared, s.own, changes)
 	}
 }
@@ -544,16 +547,136 @@ func TestUnpinningWithoutAPinOrForceChangesNothing(t *testing.T) {
 func TestAPinReplacesTheOneBeforeAndUnpinningSaysWhatItWas(t *testing.T) {
 	var changes changeCount
 	s := newSessions(at(start), changes.hear, unkept)
-	s.setPin(status.Pin{Accounts: []string{"work", "side"}, Since: start.Add(-time.Hour), Move: true}, false)
+	s.setPin(beforePools(), status.Pin{Accounts: []string{"work", "side"}, Since: start.Add(-time.Hour), Move: true}, false)
 
 	pin := status.Pin{Accounts: []string{"side"}, Since: start}
-	if cleared := s.setPin(pin, false); cleared != 0 || !reflect.DeepEqual(s.globalPin(), pin) {
-		t.Errorf("setPin() cleared %d sessions' pins, leaving the pin %+v, want none cleared, and %+v alone", cleared, s.globalPin(), pin)
+	if cleared := s.setPin(beforePools(), pin, false); cleared != 0 || !reflect.DeepEqual(s.pins[""], pin) {
+		t.Errorf("setPin() cleared %d sessions' pins, leaving the pin %+v, want none cleared, and %+v alone", cleared, s.pins[""], pin)
 	}
-	if was, cleared := s.unpin(false); !reflect.DeepEqual(was, pin) || cleared != 0 || !s.globalPin().IsZero() {
-		t.Errorf("unpin() = %+v, %d, leaving the pin %+v, want %+v, 0, and no pin", was, cleared, s.globalPin(), pin)
+	if was, cleared := s.unpin(beforePools(), false); !reflect.DeepEqual(was, pin) || cleared != 0 || !s.pins[""].IsZero() {
+		t.Errorf("unpin() = %+v, %d, leaving the pin %+v, want %+v, 0, and no pin", was, cleared, s.pins[""], pin)
 	}
 	if changes != 3 {
 		t.Errorf("%d changes to save, want 3: each pin set, and the unpinning", changes)
+	}
+}
+
+func TestASessionsAssignmentInEachPoolIsItsOwn(t *testing.T) {
+	s := newSessions(at(start), unkept, unkept)
+	assign(s, key{session: "one", pool: defaultPool, model: opus}, "", decision{account: "work", reason: reasonNew}, start.Add(-2*time.Minute))
+	assign(s, key{session: "one", pool: acmePool, model: opus}, "", decision{account: "personal", reason: reasonNew}, start.Add(-time.Minute))
+
+	for pool, want := range map[string]string{defaultPool: "work", acmePool: "personal"} {
+		if got := s.lookup(key{session: "one", pool: pool, model: opus}).current.Account; got != want {
+			t.Errorf("the session's assignment in pool %s is on %q, want %s", pool, got, want)
+		}
+		if got, _ := s.session("one", onlyIn(pool)); got.pool != pool || !slices.Equal(assignedTo(got.Session), []string{want}) {
+			t.Errorf("session() in pool %s = %+v, want the session there, on %s", pool, got, want)
+		}
+		if got := s.running(start, onlyIn(pool)); len(got) != 1 || !slices.Equal(assignedTo(got[0].Session), []string{want}) {
+			t.Errorf("running() in pool %s = %+v, want the session there alone, on %s", pool, got, want)
+		}
+	}
+	if got, _ := s.session("one", anyPool); got.pool != acmePool {
+		t.Errorf("session() in any pool = %+v, want it in Acme, the pool it was routed in last", got)
+	}
+	if got := s.running(start, anyPool); len(got) != 1 || got[0].pool != acmePool {
+		t.Errorf("running() in any pool = %+v, want the session once, in Acme, the pool it was routed in last", got)
+	}
+	byAccount, all := s.active(start, anyPool)
+	if want := map[string]int{"work": 1, "personal": 1}; !maps.Equal(byAccount, want) || all != 1 {
+		t.Errorf("active() = %v, %d, want %v, and the session counted once in all", byAccount, all, want)
+	}
+}
+
+func TestASessionsOwnPinInOnePoolLeavesItsPinInAnother(t *testing.T) {
+	clock := &testClock{now: start}
+	s := newSessions(clock.read, unkept, unkept)
+	inAcme := sessionIn{session: "one", pool: acmePool}
+	assign(s, key{session: "one", pool: defaultPool, model: opus}, "work", decision{account: "work", reason: reasonPinned}, start.Add(-2*time.Minute))
+	assign(s, key{session: "one", pool: acmePool, model: opus}, "", decision{account: "personal", reason: reasonNew}, start.Add(-time.Minute))
+
+	if was, seen := s.pinSession(inAcme, "extra"); !seen || was != "" {
+		t.Errorf("pinSession() in Acme = %q, %v, want no pin before there, and the session found", was, seen)
+	}
+	if got, _ := s.session("one", onlyIn(defaultPool)); got.Pin != "work" {
+		t.Errorf("the session's pin in Default is %q, want work, the one it was launched with there", got.Pin)
+	}
+	clock.now = start.Add(time.Minute)
+	if cleared := s.setPin(poolReadOf(acmePool), status.Pin{Accounts: []string{"personal"}, Since: clock.now}, true); cleared != 1 {
+		t.Errorf("forcing Acme's pin cleared %d sessions' pins, want 1: the session's in Acme", cleared)
+	}
+	if want := map[sessionIn]ownPin{inAcme: {Since: clock.now}}; !maps.Equal(s.own, want) {
+		t.Errorf("sessions' pins = %+v, want %+v: Acme's cleared, the one Default's was launched with left alone", s.own, want)
+	}
+	if was, seen := s.pinSession(sessionIn{session: "one", pool: "z5k2"}, "side"); seen || was != "" {
+		t.Errorf("pinSession() in a pool the session has never been routed in = %q, %v, want nothing done", was, seen)
+	}
+}
+
+// poolReadOf is a read of the pool with the given id, of testPools.
+func poolReadOf(pool string) poolRead {
+	return poolRead{pools: newPoolTable(pooledAccounts(), testPools, defaultPool, sameID), pool: pool}
+}
+
+func TestPruningForgetsASessionInOnePoolWithItsPinThereAlone(t *testing.T) {
+	s := newSessions(at(start), unkept, unkept)
+	inDefault, inAcme := sessionIn{session: "one", pool: defaultPool}, sessionIn{session: "one", pool: acmePool}
+	assign(s, key{session: "one", pool: defaultPool, model: opus}, "", decision{account: "work", reason: reasonNew}, start.Add(-forgetAfter))
+	assign(s, key{session: "one", pool: acmePool, model: opus}, "", decision{account: "personal", reason: reasonNew}, start)
+	s.pinSession(inDefault, "side")
+	s.pinSession(inAcme, "extra")
+
+	s.prune(start)
+	if _, assigned := s.assignments[key{session: "one", pool: defaultPool, model: opus}]; assigned {
+		t.Error("the session's assignment in Default, unused for a week, is kept, want it forgotten")
+	}
+	if want := map[sessionIn]ownPin{inAcme: {Account: "extra", Since: start}}; !maps.Equal(s.own, want) {
+		t.Errorf("sessions' pins = %+v, want %+v: Default's forgotten with its assignment there", s.own, want)
+	}
+}
+
+func TestPooledGivesWhatsKeptFromBeforePoolsTheFirstPool(t *testing.T) {
+	var changes changeCount
+	s := newSessions(at(start), changes.hear, unkept)
+	before := func(session string) key { return key{session: session, model: opus} }
+	first := func(session string) key { return key{session: session, pool: defaultPool, model: opus} }
+	// One is from before pools alone, with its own pin; two's assignment in
+	// the first was used later than the one from before, three's earlier;
+	// four is new, its request yet to be answered.
+	assign(s, before("one"), "", decision{account: "work", reason: reasonNew}, start.Add(-time.Minute))
+	s.pinSession(sessionIn{session: "one"}, "side")
+	assign(s, before("two"), "", decision{account: "work", reason: reasonNew}, start.Add(-2*time.Minute))
+	assign(s, first("two"), "", decision{account: "side", reason: reasonNew}, start.Add(-time.Minute))
+	assign(s, before("three"), "", decision{account: "work", reason: reasonNew}, start.Add(-time.Minute))
+	assign(s, first("three"), "", decision{account: "side", reason: reasonNew}, start.Add(-2*time.Minute))
+	s.remember(Request{ID: "r4", Session: "four", Model: opus}, assignment{}, decision{account: "work", reason: reasonNew}, start)
+	changes = 0
+
+	s.pooled("")
+	if len(s.assignments) != 6 || changes != 0 {
+		t.Fatalf("pooled() of no pool left %d assignments and %d changes to save, want them as they were", len(s.assignments), changes)
+	}
+	s.pooled(defaultPool)
+
+	want := map[key]string{first("one"): "work", first("two"): "side", first("three"): "work", first("four"): "work"}
+	got := make(map[key]string, len(s.assignments))
+	for k, a := range s.assignments {
+		got[k] = a.Account
+		if a.Pool != k.pool {
+			t.Errorf("the assignment kept by %+v names the pool %q, want its key's", k, a.Pool)
+		}
+	}
+	if !maps.Equal(got, want) {
+		t.Errorf("the assignments are kept by %v, want %v: each in the first, the one used later standing", got, want)
+	}
+	if want := map[sessionIn]ownPin{{session: "one", pool: defaultPool}: {Account: "side", Since: start}}; !maps.Equal(s.own, want) {
+		t.Errorf("sessions' pins = %+v, want %+v", s.own, want)
+	}
+	if _, told := s.started(first("four")); !told {
+		t.Error("four's assignment isn't to be told of as started once answered, want it to be, as before")
+	}
+	if changes == 0 {
+		t.Error("nothing is due to be saved, want what pooled() changed")
 	}
 }

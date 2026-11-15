@@ -21,11 +21,11 @@ type sessionsHeld []ledger.Line
 
 // SessionsOf reads as Sessions does: the sessions of the lines given are
 // all there are.
-func (s sessionsHeld) SessionsOf(ids []string, rest func(string) ledger.Rest, take func(date string, l ledger.Line)) map[string]ledger.SessionFrom {
-	return s.Sessions(ids, rest, take)
+func (s sessionsHeld) SessionsOf(in ledger.RoutedIn, ids []string, rest func(string) ledger.Rest, take func(date string, l ledger.Line)) map[string]ledger.SessionFrom {
+	return s.Sessions(in, ids, rest, take)
 }
 
-func (s sessionsHeld) Sessions(_ []string, _ func(string) ledger.Rest, take func(date string, l ledger.Line)) map[string]ledger.SessionFrom {
+func (s sessionsHeld) Sessions(_ ledger.RoutedIn, _ []string, _ func(string) ledger.Rest, take func(date string, l ledger.Line)) map[string]ledger.SessionFrom {
 	got := make(map[string][]ledger.Line)
 	for _, l := range s {
 		if l.Session == "" {
@@ -247,10 +247,11 @@ func TestACostIsKeptWholeWhereTheWordsBeforeItKeepACell(t *testing.T) {
 // label's most, however wide the column, as every column of names does.
 func TestRoutingNamesALabelCutToItsMost(t *testing.T) {
 	label := "work-account-labelled-thirty-c"
-	routing := views.RoutingSaid{Words: status.Words{{Text: "from "}, {Text: label, Kind: status.PartAccount}, {Text: ", at its cap"}}}
+	words := status.Words{{Text: "from "}, {Text: label, Kind: status.PartAccount}, {Text: ", at its cap"}}
+	routing := views.RoutingSaid{Words: words, Brief: words}
 	want := "from " + prose.Cut(label, labelMost) + ", at its cap"
 	for name, said := range map[string]line{
-		"the Log":  rowWordsIn(requestWords(views.RequestRow{Routing: routing}, LogRouting, logLayout{}), 80),
+		"the Log":  rowWordsIn(requestWords(views.RequestRow{Routing: routing}, LogRouting, logLayout{}), func(id string) string { return id }, 80),
 		"the List": sessionWords{}.says(listColumn{part: listRouting, width: 80}, views.ListedSession{Routing: routing}),
 	} {
 		c := newCanvas(80, 1)

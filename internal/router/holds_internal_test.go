@@ -100,16 +100,16 @@ func TestACapEndsAsItsWindowsResetAndIsToldAgainOnceReachedAgain(t *testing.T) {
 	)
 }
 
-func TestAnAccountTheGlobalPinNamesIsntCapped(t *testing.T) {
+func TestAnAccountThePoolsPinNamesIsntCapped(t *testing.T) {
 	k := newTelling(t)
-	k.r.sessions.setPin(status.Pin{Accounts: []string{"work"}, Since: start}, false)
+	k.r.sessions.setPin(beforePools(), status.Pin{Accounts: []string{"work"}, Since: start}, false)
 	k.reads(0.5, 0.5)
 	k.reads(0.5, 0.95)
 	k.expect()
 
 	// Unpinned, its reserve holds it back.
 	k.after(time.Minute)
-	k.r.sessions.unpin(false)
+	k.r.sessions.unpin(beforePools(), false)
 	k.look()
 	k.expect(status.Event{ID: 1, At: k.clock.now, Kind: status.EventCap, Account: "work", Windows: []string{"7d"}, Until: weekEnds, Reserve: 0.1})
 }
@@ -562,7 +562,7 @@ func newTelling(t *testing.T) *telling {
 	clock := &testClock{now: start}
 	reserving := slices.Clone(testConfigured)
 	reserving[0].Reserve = 0.1
-	s := newState(resolve(reserving, testTokens.Read, unrecorded), testPolicy, claude.Provider{}.Family, clock.read, unkept, unkept)
+	s := newState(resolve(reserving, testTokens.Read, unrecorded), unpooled(), testPolicy, claude.Provider{}.Family, clock.read, unkept, unkept)
 	k := &telling{t: t, clock: clock, r: newRecent(s, newSessions(clock.read, unkept, unkept), clock.read)}
 	k.files = fileEvents(t, k.r)
 	t.Cleanup(func() {

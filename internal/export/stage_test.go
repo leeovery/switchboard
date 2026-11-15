@@ -138,15 +138,16 @@ func TestFoldersTakesEachMacsFolderInDirByNamePassingOverTheRest(t *testing.T) {
 }
 
 // A folder of version 1, as a switchboard from before account ids exported
-// one, or one after them before export.json went to version 2, is taken as a
-// folder of this version is.
-func TestFoldersTakesAFolderOfEitherVersion(t *testing.T) {
+// one, or one after them before export.json went to version 2, and one of
+// version 2, from before pools, are taken as a folder of this version is.
+func TestFoldersTakesAFolderOfEveryVersion(t *testing.T) {
 	for _, tc := range []struct {
 		name, manifest string
 	}{
 		{name: "version 1, from before ids", manifest: `{"version":1,"install":"` + installOne + `","exported_at":"2026-10-09T14:42:07Z"}`},
 		{name: "version 1, with ids", manifest: `{"version":1,"install":"` + installOne + `","exported_at":"2026-10-09T14:42:07Z","ids":true,"accounts":true}`},
 		{name: "version 2", manifest: `{"version":2,"install":"` + installOne + `","exported_at":"2026-10-09T14:42:07Z","ids":true,"accounts":true}`},
+		{name: "version 3, since pools", manifest: `{"version":3,"install":"` + installOne + `","exported_at":"2026-10-09T14:42:07Z","ids":true,"accounts":true}`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			dir := t.TempDir()

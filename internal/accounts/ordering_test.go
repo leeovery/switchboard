@@ -76,7 +76,7 @@ func TestAddingWritesTheRecordBeforeTheConfig(t *testing.T) {
 			w.writeRecord(t, tt.record...)
 			tt.fail(t, w)
 
-			_, err := w.unasked(t, &user{}).AddChecked(t.Context(), config.NewAccount{Label: "Side"}, tokenOf(t, sideToken),
+			_, err := w.unasked(t, &user{}).AddChecked(t.Context(), accounts.Adding{Account: config.NewAccount{Label: "Side"}}, tokenOf(t, sideToken),
 				accounts.Checked{Organization: organization}, nil, accounts.Answer{})
 
 			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {

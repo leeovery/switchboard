@@ -102,6 +102,18 @@ func TestAsTheRouterStartsTheNearestWarningATokensYearIsWithinIsToldOfAlone(t *t
 	}
 }
 
+// Once there's a second pool, a token's year is told of led by the label of
+// its account's pool, as every notification is.
+func TestATokensYearIsToldOfLedByItsPoolOnceThereIsASecond(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		h := newYearNotifying(t, config.Notifications{}, localOn(30, 1))
+		pooled := []config.Account{{ID: "1", Label: "one", Pool: "b2n8"}, {ID: "2", Label: "two", Pool: "q7mt"}, {ID: "3", Label: "three", Pool: "b2n8"}}
+		h.state.pools.follow(pooled, config.Pools{{ID: "b2n8", Label: "Default"}, {ID: "q7mt", Label: "Acme", Dirs: []string{"/work/acme"}}})
+		h.start()
+		h.expect("Acme · " + yearSaid("expires 30 Jan 2000 · 30 days left"))
+	})
+}
+
 func TestATokensYearIsToldOfWithEveryNotificationOff(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		h := newYearNotifying(t, config.Notifications{}, localOn(30, 1))
@@ -195,7 +207,7 @@ func newKeptNotifying(t *testing.T, path string, files tokenstest.Files, records
 	years := newYearsTold(changes.note)
 	as := resolve(numbered, files.Read, recordsOf(records))
 	h := newNotifyingIn(t, config.Notifications{}, as, yearZone, years)
-	f := newStateFile(h.n.now, changes, newSessions(h.n.now, changes.note, changes.routine), as, h.state, years)
+	f := newStateFile(h.n.now, changes, newSessions(h.n.now, changes.note, changes.routine), as, h.state, years, heirs{accounts: as.configured()})
 	f.load(path)
 	return h, f
 }

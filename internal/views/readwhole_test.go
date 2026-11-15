@@ -19,12 +19,12 @@ type restNoted struct {
 	asked map[string]ledger.Rest
 }
 
-func (l restNoted) Sessions(ids []string, rest func(string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
-	return l.noted(l.fakeLedger.Sessions(ids, rest, take), rest)
+func (l restNoted) Sessions(in ledger.RoutedIn, ids []string, rest func(string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
+	return l.noted(l.fakeLedger.Sessions(in, ids, rest, take), rest)
 }
 
-func (l restNoted) SessionsOf(ids []string, rest func(string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
-	return l.noted(l.fakeLedger.SessionsOf(ids, rest, take), rest)
+func (l restNoted) SessionsOf(in ledger.RoutedIn, ids []string, rest func(string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
+	return l.noted(l.fakeLedger.SessionsOf(in, ids, rest, take), rest)
 }
 
 // noted is read, each of its sessions noted as rest says of it, by its id:
@@ -99,12 +99,12 @@ type unrestorable struct {
 	restNoted
 }
 
-func (l unrestorable) Sessions(ids []string, rest func(string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
-	return unrestorableUnless(l.restNoted.Sessions(ids, rest, take), rest)
+func (l unrestorable) Sessions(in ledger.RoutedIn, ids []string, rest func(string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
+	return unrestorableUnless(l.restNoted.Sessions(in, ids, rest, take), rest)
 }
 
-func (l unrestorable) SessionsOf(ids []string, rest func(string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
-	return unrestorableUnless(l.restNoted.SessionsOf(ids, rest, take), rest)
+func (l unrestorable) SessionsOf(in ledger.RoutedIn, ids []string, rest func(string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
+	return unrestorableUnless(l.restNoted.SessionsOf(in, ids, rest, take), rest)
 }
 
 // unrestorableUnless is read, each of its sessions rest doesn't ask to be

@@ -167,7 +167,7 @@ func TestSessionsRestOnTheDigestsOfTheDaysBeforeTheNearDays(t *testing.T) {
 			w.by(tt.at)
 			taken := takenDays{}
 
-			got := foundOf(t, w.follower().Sessions([]string{"four"}, nil, taken.take))
+			got := foundOf(t, w.follower().Sessions(nil, []string{"four"}, nil, taken.take))
 
 			isRead(t, tt.at, got, tt.want)
 			if dates := taken.dates(); !slices.Equal(dates, tt.read) {
@@ -187,7 +187,7 @@ func TestANearDaysLineArrivingBeforeItsSessionsBaseEndedLeavesItOnNone(t *testin
 	w.file(1, askedBy("early", "one", on(0, 23, 0)))
 	w.by(on(1, 1, 30))
 
-	got := foundOf(t, w.follower().Sessions(nil, nil, nil))
+	got := foundOf(t, w.follower().Sessions(nil, nil, nil, nil))
 
 	isRead(t, w.at, got, map[string]found{
 		"one":   {requests: []string{"1", "2", "3", "early", "4"}},
@@ -204,7 +204,7 @@ func TestASessionAskedWholeRestsOnNone(t *testing.T) {
 	nearDays(w)
 	w.by(on(1, 1, 30))
 
-	got := foundOf(t, w.follower().Sessions([]string{"four"}, wholeOf("one"), nil))
+	got := foundOf(t, w.follower().Sessions(nil, []string{"four"}, wholeOf("one"), nil))
 
 	isRead(t, w.at, got, map[string]found{
 		"one":   {requests: []string{"1", "2", "3", "4"}},
@@ -223,7 +223,7 @@ func TestSessionsOfGivesThoseAskedForAloneOnTheirDigests(t *testing.T) {
 	w.by(on(1, 1, 30))
 	taken := takenDays{}
 
-	got := foundOf(t, w.follower().SessionsOf([]string{"one", "four"}, nil, taken.take))
+	got := foundOf(t, w.follower().SessionsOf(nil, []string{"one", "four"}, nil, taken.take))
 
 	isRead(t, w.at, got, map[string]found{
 		"one":  {base: stateAt("one", dayOf(0)), requests: []string{"4"}},
@@ -261,7 +261,7 @@ func TestYesterdaysLinesAreTakenWhileItsNearOrASessionReadReadsIt(t *testing.T) 
 			w.by(tt.at)
 			taken := takenDays{}
 
-			w.follower().SessionsOf(tt.ids, wholeOf(tt.whole...), taken.take)
+			w.follower().SessionsOf(nil, tt.ids, wholeOf(tt.whole...), taken.take)
 
 			if dates := taken.dates(); !slices.Equal(dates, tt.read) {
 				t.Errorf("SessionsOf(%q), %q whole, handed take the lines of %q, want those of %q", tt.ids, tt.whole, dates, tt.read)
@@ -281,7 +281,7 @@ func TestAFollowerHoldsADigestsHeadWhileItsFileLooksAsItDid(t *testing.T) {
 	follower := w.follower()
 	read := func() []string {
 		taken := takenDays{}
-		follower.SessionsOf([]string{"four"}, eachWhole, taken.take)
+		follower.SessionsOf(nil, []string{"four"}, eachWhole, taken.take)
 		return taken.dates()
 	}
 	digested := []string{dayOf(-1), dayOf(1)}
@@ -311,7 +311,7 @@ func TestAFollowerOfAnotherVersionRestsNoSessionOnADigest(t *testing.T) {
 	taken := takenDays{}
 	other := ledger.NewFollower(w.state, (&testClock{at: w.at}).now, caps, digestBody+1, logs.For("cli"))
 
-	got := foundOf(t, other.Sessions([]string{"four"}, nil, taken.take))
+	got := foundOf(t, other.Sessions(nil, []string{"four"}, nil, taken.take))
 
 	isRead(t, w.at, got, map[string]found{
 		"one":   {requests: []string{"1", "2", "3", "4"}},
@@ -339,7 +339,7 @@ func TestSessionsRestingOnYesterdaysDigestOpenTodaysFilesAlone(t *testing.T) {
 	}
 	taken := takenDays{}
 
-	got := foundOf(t, w.follower().Sessions(nil, nil, taken.take))
+	got := foundOf(t, w.follower().Sessions(nil, nil, nil, taken.take))
 
 	isRead(t, w.at, got, map[string]found{
 		"long": {base: stateAt("long", dayOf(0)), requests: []string{"long"}},
@@ -374,15 +374,15 @@ func TestAFollowersSessionsAreWhatARawReadGivesOverAGeneratedLedger(t *testing.T
 			for _, at := range turnMoments {
 				clock := &testClock{at: at}
 				rawTaken, wholeTaken := takenDays{}, takenDays{}
-				raw := ledger.NewFollower(g.w.state, clock.now, caps, digestBody+1, logs.For("cli")).Sessions(generatedSessions, eachWhole, rawTaken.take)
+				raw := ledger.NewFollower(g.w.state, clock.now, caps, digestBody+1, logs.For("cli")).Sessions(nil, generatedSessions, eachWhole, rawTaken.take)
 				follower := followerOf(g.w.state, clock, caps)
 
-				whole := follower.Sessions(generatedSessions, eachWhole, wholeTaken.take)
+				whole := follower.Sessions(nil, generatedSessions, eachWhole, wholeTaken.take)
 				if rawOn := rawTaken.on(wholeTaken.dates()); !reflect.DeepEqual(whole, raw) || !reflect.DeepEqual(wholeTaken, rawOn) {
 					t.Errorf("seed %d, at %s: read whole, the sessions are\n%+v\nand take was handed %v; want them as a follower reading no digest gives them\n%+v\nhanded %v of those days",
 						seed, at.Format(time.DateTime), whole, wholeTaken, raw, rawOn)
 				}
-				g.restOnARawRead(at, follower.Sessions(generatedSessions, nil, nil), raw)
+				g.restOnARawRead(at, follower.Sessions(nil, generatedSessions, nil, nil), raw)
 			}
 		})
 	}

@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"maps"
 	"net"
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -99,9 +101,36 @@ func sessionsDepsOf(t *testing.T, days map[string][]ledger.Line) cli.Deps {
 }
 
 // serveSessions answers GET /sessions with sessions on the control socket of
-// the router commands run with deps find, until the test ends.
+// the router commands run with deps find, until the test ends, as a router
+// after the move to pools holding the first pool alone, b2n8, asked of it or
+// of none; and GET /health as one reporting that pool.
 func serveSessions(t *testing.T, deps cli.Deps, sessions []status.Session) {
 	t.Helper()
+	servePooledSessions(t, deps, map[string][]status.Session{"": sessions, "b2n8": sessions})
+}
+
+// servePooledSessions answers GET /sessions asking for each pool, by its id,
+// "" for none, with its sessions, on the control socket of the router
+// commands run with deps find, until the test ends; and GET /health as a
+// router reporting those pools, in their ids' order, none where the one
+// pool is "", each but b2n8 fenced to /work/<id>, as one pool alone can be
+// unfenced. A read of a pool not among them is refused for want of a pool.
+func servePooledSessions(t *testing.T, deps cli.Deps, byPool map[string][]status.Session) {
+	t.Helper()
+	health := router.Health{OK: true}
+	var named []router.PoolNamed
+	for _, id := range slices.Sorted(maps.Keys(byPool)) {
+		if id == "" {
+			continue
+		}
+		p := router.RoutedPool{ID: id, Label: id, Accounts: []string{}}
+		if id != "b2n8" {
+			p.Dirs, p.WrittenDirs = []string{"/work/" + id}, []string{"/work/" + id}
+		}
+		health.Pools = append(health.Pools, p)
+		named = append(named, router.PoolNamed{ID: id, Label: id})
+	}
+	health.ReportsPools = len(health.Pools) > 0
 	path := router.SocketPath(stateDir(t, deps))
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		t.Fatal(err)
@@ -111,7 +140,16 @@ func serveSessions(t *testing.T, deps cli.Deps, sessions []status.Session) {
 		t.Fatal(err)
 	}
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /sessions", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode(health)
+	})
+	mux.HandleFunc("GET /sessions", func(w http.ResponseWriter, req *http.Request) {
+		sessions, ok := byPool[req.URL.Query().Get(router.PoolQuery)]
+		if !ok {
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": "every pool is fenced", "pools": named})
+			return
+		}
 		_ = json.NewEncoder(w).Encode(sessions)
 	})
 	srv := &http.Server{Handler: mux, ReadHeaderTimeout: time.Second}
@@ -129,6 +167,55 @@ const sessionsText = `   session              on    model     state        start
 
 today  3 sessions  ·  5 requests  ·  $0.15+ at API prices
 `
+
+// A config naming no pools after the move takes the router's: sessions
+// lists the first pool's alone, never every pool's together, the session the
+// router lists in the other read from the ledger alone.
+func TestSessionsOfAConfigNamingNoPoolsAreTheRoutersFirstPoolsAlone(t *testing.T) {
+	deps := sessionsDepsOf(t, movingIn("q7mt"))
+	servePooledSessions(t, deps, map[string][]status.Session{"b2n8": routedSessions[:1], "q7mt": routedSessions[1:]})
+
+	got := run(t, deps, "sessions", "--pretty")
+	if got.code != 0 || !strings.HasPrefix(got.stdout, "pool b2n8\n\n") || !strings.Contains(got.stdout, status.ShortID(asking)) || strings.Contains(got.stdout, status.ShortID(moving)) {
+		t.Errorf("switchboard sessions --pretty = %+v, want b2n8's sessions alone, %s among them, and not %s, running in q7mt", got, status.ShortID(asking), status.ShortID(moving))
+	}
+}
+
+// A session's page in a pool named, of one running in another, is refused,
+// as status --session refuses it, never shown as ended or idle there; in its
+// own pool, it's shown running.
+func TestASessionsPageInAnotherPoolThanItRunsInIsRefused(t *testing.T) {
+	deps := sessionsDepsOf(t, movingIn("q7mt"))
+	servePooledSessions(t, deps, map[string][]status.Session{"b2n8": routedSessions[:1], "q7mt": routedSessions[1:]})
+
+	if got := run(t, deps, "sessions", moving, "--pool", "b2n8"); got.code == 0 || !strings.Contains(got.stderr, "the router hasn't seen session "+moving+" in pool b2n8: it runs in another") {
+		t.Errorf("switchboard sessions %s --pool b2n8 = %+v, want it refused: it runs in q7mt", status.ShortID(moving), got)
+	}
+	for _, pool := range []string{"q7mt", ""} {
+		args := []string{"sessions", moving, "--pretty"}
+		if pool != "" {
+			args = append(args, "--pool", pool)
+		}
+		if got := run(t, deps, args...); got.code != 0 || !strings.Contains(got.stdout, "idle 22m") {
+			t.Errorf("switchboard %s = %+v, want its page, running, idle 22m", strings.Join(args, " "), got)
+		}
+	}
+}
+
+// movingIn are sessions' tests' lines, moving's routed in the pool with the
+// given id.
+func movingIn(pool string) map[string][]ledger.Line {
+	days := make(map[string][]ledger.Line, len(sessionLines))
+	for date, lines := range sessionLines {
+		days[date] = slices.Clone(lines)
+		for i, l := range days[date] {
+			if l.Session == moving {
+				days[date][i].Pool = pool
+			}
+		}
+	}
+	return days
+}
 
 func TestSessionsListsTodaysSessions(t *testing.T) {
 	deps := sessionsDeps(t)
@@ -211,14 +298,14 @@ func TestSessionsJSONHoldsItsShape(t *testing.T) {
 	// at is t as the JSON gives it.
 	at := func(t time.Time) string { return t.UTC().Format(time.RFC3339) }
 	want := `{"schema":1,"generated_at":"` + at(ledgerNow) + `","prices_as_of":"2026-10-11","sessions":[` +
-		`{"session":"` + asking + `","dir":"~/Code/api","account":"work","label":"work","model":"claude-opus-5-5","running":true,"last_seen":"` + at(october(7, 13, 10, 0)) + `",` +
+		`{"session":"` + asking + `","dir":"~/Code/api","project":"~/Code/api","account":"work","label":"work","model":"claude-opus-5-5","running":true,"last_seen":"` + at(october(7, 13, 10, 0)) + `",` +
 		`"models":[{"model":"claude-opus-5-5","account":"work","label":"work","reason":"sticky"}],"state":"asking","move_cost":0.80808,` +
 		`"started":"` + at(october(6, 22, 0, 0)) + `","requests":1,"worth":0.03804},` +
-		`{"session":"` + moving + `","dir":"~/Code/cli","account":"side","label":"side","model":"claude-opus-5-5","running":true,"last_seen":"` + at(october(7, 12, 50, 0)) + `",` +
+		`{"session":"` + moving + `","dir":"~/Code/cli","project":"~/Code/cli","account":"side","label":"side","model":"claude-opus-5-5","running":true,"last_seen":"` + at(october(7, 12, 50, 0)) + `",` +
 		`"models":[{"model":"claude-opus-5-5","account":"side","label":"side","reason":"moved: work is at its reserve"}],` +
 		`"started":"` + at(october(7, 10, 15, 0)) + `","requests":2,"worth":0.07608,` +
 		`"moved":{"at":"` + at(october(7, 11, 0, 0)) + `","from":"work","from_label":"work","reason":"moved: work is at its reserve","cost":0.008}},` +
-		`{"session":"` + ended + `","dir":"~/Code/web","account":"work","label":"work","model":"claude-opus-9","ended":"` + at(october(7, 8, 30, 0)) + `",` +
+		`{"session":"` + ended + `","dir":"~/Code/web","project":"~/Code/web","account":"work","label":"work","model":"claude-opus-9","ended":"` + at(october(7, 8, 30, 0)) + `",` +
 		`"started":"` + at(october(7, 8, 0, 0)) + `","requests":2,"worth":0.03804,"unpriced":["claude-opus-9"]}],` +
 		`"today":{"sessions":3,"requests":5,"worth":0.15216,"unpriced":["claude-opus-9"]}}`
 	for _, form := range jsonForms() {
@@ -233,6 +320,41 @@ func TestSessionsJSONHoldsItsShape(t *testing.T) {
 				t.Errorf("switchboard sessions %s printed\n%s\nwant\n%s", strings.Join(form.args, " "), compact.String(), want)
 			}
 		})
+	}
+}
+
+// A session's project is the one its lines name, else its directory's, as
+// the dashboard reads it: a session from before projects were recorded, in a
+// worktree Claude Code made, is its repository's; in any other directory,
+// the directory's.
+func TestSessionsGivesEachSessionsProjectAsTheDashboardReadsIt(t *testing.T) {
+	line := func(request, session, dir, project string, minute int) ledger.Line {
+		return ledger.Line{At: october(7, 9, minute, 0), Request: request, Kind: ledger.KindMessage, Session: session, Dir: dir, Project: project,
+			Model: "claude-opus-5-5", Account: "work", Reason: "new", Status: 200, Attempts: 1, TotalMS: 9000, Usage: json.RawMessage(hourUsage)}
+	}
+	deps := sessionsDepsOf(t, map[string][]ledger.Line{"2026-10-07": {
+		line("p1", asking, "~/Code/api/.claude/worktrees/fix-login", "", 0),
+		line("p2", moving, "~/Code/web/cmd", "", 1),
+		line("p3", ended, "~/Code/cli/internal", "~/Code/cli", 2),
+	}})
+	serveSessions(t, deps, nil)
+	got := run(t, deps, "sessions", "--json")
+	var list struct {
+		Sessions []struct {
+			Session string `json:"session"`
+			Project string `json:"project"`
+		} `json:"sessions"`
+	}
+	if err := json.Unmarshal([]byte(got.stdout), &list); err != nil || got.code != 0 {
+		t.Fatalf("switchboard sessions --json = %+v (%v), want the sessions", got, err)
+	}
+	projects := make(map[string]string)
+	for _, s := range list.Sessions {
+		projects[s.Session] = s.Project
+	}
+	want := map[string]string{asking: "~/Code/api", moving: "~/Code/web/cmd", ended: "~/Code/cli"}
+	if !maps.Equal(projects, want) {
+		t.Errorf("switchboard sessions --json gives the projects %v, want %v", projects, want)
 	}
 }
 

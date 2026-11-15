@@ -210,6 +210,7 @@ func TestEnterSavesTheTokenPasted(t *testing.T) {
 		}
 		h.pressAndDeliver("enter")
 		h.typeIn("team")
+		choosingUltra(h)
 		h.pressAndDeliver("enter")
 		h.hearAll(3)
 		h.pressAndDeliver("p")
@@ -333,6 +334,7 @@ func TestEscClosesThePasteCardSavingNothing(t *testing.T) {
 	h := firstRun(t)
 	h.steps.making = fakeMaking{steps: []setup.Making{privately, approving}, ends: &notMade}
 	h.typeIn("work")
+	choosingUltra(h)
 	h.pressAndDeliver("enter")
 	h.hearAll(3)
 	h.pressAndDeliver("p")

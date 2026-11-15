@@ -233,7 +233,7 @@ func (b backThrough) refiltered(fr filteredRead, f, crossing LogFilter) LogRead 
 	read, held := fr.read, fr.held
 	for _, day := range read.Unserved(f) {
 		var fresh *HeldSessions
-		read, fresh, _ = read.Refiltered(fr.asked, ReadDay(fr.asked, day.Date, read.RefilterThrough(day.Date, f, b.s)), held, b.s, b.now)
+		read, fresh, _ = read.Refiltered(fr.asked, ReadDay(fr.asked, day.Date, read.RefilterThrough(day.Date, f, b.s), PoolRead{}), held, b.s, b.now)
 		if fresh != nil {
 			held = held.With(*fresh)
 		}
@@ -599,7 +599,7 @@ func (b backThrough) toldAcross(read LogRead, f LogFilter) bool {
 			return false
 		}
 	}
-	if slices.ContainsFunc(ReadDay(b.l, filed, f.ThroughOn(rest, filed)).records, func(r lineRecord) bool { return t.filedAs(r.flight) }) {
+	if slices.ContainsFunc(ReadDay(b.l, filed, f.ThroughOn(rest, filed), PoolRead{}).records, func(r lineRecord) bool { return t.filedAs(r.flight) }) {
 		return false
 	}
 	i, _ := read.dayAt(filed)

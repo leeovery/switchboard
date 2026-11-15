@@ -237,10 +237,11 @@ func (p *pageTally) turn(r *sent) {
 }
 
 // lined takes in r, a line of the session's, as its accounts, what keeps its
-// models where they go, its totals and its traces count it.
+// models where they go, its totals and its traces count it. A line of no
+// account, a request switchboard answered itself, tells nothing of where its
+// model goes, as sent has it.
 func (p *pageTally) lined(r *heldRequest) {
-	model, account, reason := r.model.Value(), r.account.Value(), r.reason.Value()
-	if account != "" {
+	if account := r.account.Value(); account != "" {
 		at := r.arrived()
 		i := slices.IndexFunc(p.accounts, func(a accountSums) bool { return a.account == account })
 		if i < 0 {
@@ -249,7 +250,21 @@ func (p *pageTally) lined(r *heldRequest) {
 		a := &p.accounts[i]
 		a.to, a.requests = at, a.requests+1
 		r.spentInto(&a.spent)
+		p.keep(r.model.Value(), account, r.reason.Value())
 	}
+	tokens, _ := r.spend.Tokens()
+	p.totals.requests++
+	r.spentInto(&p.totals.spent)
+	p.totals.read += tokens.CacheRead
+	p.totals.sent += tokens.Input + tokens.CacheRead + tokens.CacheWrite
+	if r.upstream {
+		p.wentUp(r)
+	}
+}
+
+// keep notes, of the model's latest line, on account, for reason, why the
+// model goes there, as keptLines has it.
+func (p *pageTally) keep(model, account, reason string) {
 	was, known := p.kept[model]
 	k := keptLines{account: account, came: was.came}
 	if status.Kept(reason) {
@@ -260,14 +275,6 @@ func (p *pageTally) lined(r *heldRequest) {
 	if !known || was != k {
 		p.owningMaps()
 		p.kept[model] = k
-	}
-	tokens, _ := r.spend.Tokens()
-	p.totals.requests++
-	r.spentInto(&p.totals.spent)
-	p.totals.read += tokens.CacheRead
-	p.totals.sent += tokens.Input + tokens.CacheRead + tokens.CacheWrite
-	if r.upstream {
-		p.wentUp(r)
 	}
 }
 
