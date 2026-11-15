@@ -42,8 +42,8 @@ Find the page for what you want to do. Each line says what the page answers.
     keys every page shares.
   - [The routing card](dashboard/routing-card.md): where new sessions go, set from the dashboard.
   - [On a phone](dashboard/phone.md): how each tab lays itself out on a narrow screen.
-  - [Running it](dashboard/running-it.md): a pool at a time, how it reads the router, and what it
-    remembers.
+  - [Running it](dashboard/running-it.md): a pool at a time, what changes when the config
+    does, and what it remembers.
   - [Themes](dashboard/themes.md): the built-in themes, the picker, and your own.
 - [Commands](commands.md): every command and flag, and what each prints.
 - [Configuration](configuration.md): every key in the config file, and what it changes.
