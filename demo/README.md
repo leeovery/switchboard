@@ -20,7 +20,7 @@ demo/record.sh routing help   # the tapes named
 
 | Tape | Scenario | Size | Art |
 |---|---|---|---|
-| `tour` | `routing` | 160 × 37 | `art/tour.webp`, `.mp4`: the README's lead: a tour of the dashboard's pages |
+| `tour` | `routing` | 160 × 37 | `art/tour.webp`, `.mp4`: the README's lead: a tour of the dashboard's pages, a moment on each, Sessions' List and Trends' YEAR among them |
 | `routing` | `routing` | 160 × 37 | `art/routing.webp`, `.mp4`: the routing card in `docs/dashboard.md`, the Overview, then the card pinning new and running sessions to side |
 | `dashboard` | `dashboard` | 160 × 37 | `art/dashboard.webp`, `.mp4`: one account's Overview, its cards on Trends, then Runway's week |
 | `themes` | `routing` | 160 × 37 | `art/themes.webp`, `.mp4`: the theme picker, previewing the built-ins over the Overview, from tokyo-night |
@@ -119,7 +119,7 @@ frames to `finalize.sh`, which makes the art:
 - **The frames, not a video.** vhs writes every frame it shows to `demo/out/<name>/`, as the
   terminal drew it. A video's compression shifts every pixel a little from frame to frame, which
   an animated WebP then stores whole; from the frames themselves it stores only what changed,
-  losslessly. The lead clip, about 30 seconds at 30 frames a second, is under three quarters of a megabyte.
+  losslessly. The lead clip, about 35 seconds at 30 frames a second, is under three quarters of a megabyte.
 - **The art.** For a clip, an animated WebP, which GitHub shows inline, at the frames' 30 a
   second, and an H.264 MP4 of the same frames; for a still, a lossless WebP of the last frame.
   Each frame is set in a margin of its own canvas, as the theme picker changes it.
