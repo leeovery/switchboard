@@ -454,15 +454,16 @@ func shortestOf(said func(col compareColumn) partForms) func(col compareColumn) 
 }
 
 // turnedGroup draws the group from row y, and returns the row its last
-// column is on: its name, and on its row each of its columns' heads, in
-// text.subtle; then a row each of Compare's columns, no blank between. Its
-// columns share the room from the layout's bars to the frame's edge as the
-// group's spans has them, so every group's line up but where a column's
-// least needs more; each figure is cut the cells its column keeps apart
-// short of the next, as apart has them, and at the frame's edge.
+// column is on: its name, in text.muted, and on its row each of its
+// columns' heads, in text.subtle; then a row each of Compare's columns, no
+// blank between. Its columns share the room from the layout's bars to the
+// frame's edge as the group's spans has them, so every group's line up but
+// where a column's least needs more; each figure is cut the cells its
+// column keeps apart short of the next, as apart has them, and at the
+// frame's edge.
 func (cp compared) turnedGroup(c *canvas, y int, l turnedLayout, g turnedGroup, columns []compareColumn) int {
 	spans := g.spans(cp.f.edge() - l.at)
-	c.line(0, y, line{{g.name, dimInk}})
+	c.line(0, y, line{{g.name, headingInk}})
 	c.heading(y, y+1)
 	for i, head := range g.columns {
 		c.line(l.at+spans[i].At, y, line{{head.head, dimInk}})
@@ -540,7 +541,7 @@ func (s stacked) whole() stack {
 		y, targets = s.sessions(c, y+partsApart)
 	}
 	y += partsApart
-	c.line(0, y, line{{"LATELY", dimInk}})
+	c.line(0, y, line{{"LATELY", headingInk}})
 	c.heading(y, y+1)
 	s.lately(c, y+1, 0, s.f.edge())
 	return stack{c: c, targets: targets, sessions: sessions}
@@ -552,7 +553,7 @@ func (s stacked) whole() stack {
 // tableIn lays it.
 func (s stacked) stackedWeeks(c *canvas, y int) int {
 	if s.id == "" {
-		c.line(0, y, line{{"WEEKS", dimInk}})
+		c.line(0, y, line{{"WEEKS", headingInk}})
 		c.heading(y, y+1)
 		s.tableAt(c, s.tableFrom(0, s.f.edge()), y+1, nil)
 		return y + tableRows(len(s.page.Rows))
@@ -567,7 +568,7 @@ func (s stacked) stackedWeeks(c *canvas, y int) int {
 // never shows it over chart rows alone, whose bars, drawn as ground, read as
 // blank.
 func (s stacked) stackedWorth(c *canvas, y int) int {
-	c.line(0, y, line{{"WORTH", dimInk}})
+	c.line(0, y, line{{"WORTH", headingInk}})
 	c.heading(y, y+1+detailWorthChart)
 	worthAcross(c, s.f.Look, 0, y+1, s.f.edge(), s.row.WorthBy)
 	return y + detailWorthRows
@@ -617,7 +618,7 @@ func (s stacked) named(cells int) line {
 // widest, so neither moves as the windows shown or their words change; its
 // words ending at the frame's edge.
 func (s stacked) usage(c *canvas, y int) int {
-	c.line(0, y, line{{"USAGE", dimInk}})
+	c.line(0, y, line{{"USAGE", headingInk}})
 	c.heading(y, y+1)
 	b := usageBlock{width: s.f.Width, look: s.f.Look}
 	l, _ := detailUsageRow{bar: stackBarLeast, names: s.windowNames(), words: b.widestWords()}.laid(s.f.edge())
@@ -635,7 +636,7 @@ func (s stacked) usage(c *canvas, y int) int {
 // an item, their labels stackLabels cells in text.subtle, each figure cut a
 // cell short of the next column, or of the frame's edge.
 func (s stacked) thisWeek(c *canvas, y int) int {
-	c.line(0, y, line{{s.page.Period.Title(), dimInk}})
+	c.line(0, y, line{{s.page.Period.Title(), headingInk}})
 	c.heading(y, y+1)
 	halves := s.thisWeekItems()
 	for h, items := range halves {
@@ -685,7 +686,7 @@ func (s stacked) thisWeekItems() [][]thisWeekItem {
 // stretch, as Detail's; then the versions it used, each with its
 // share, over the rows under it, as versionsOver has them.
 func (s stacked) byModel(c *canvas, y int) int {
-	c.line(0, y, line{{"BY MODEL", dimInk}})
+	c.line(0, y, line{{"BY MODEL", headingInk}})
 	versions := s.page.Versions
 	stretch := s.stretch()
 	stackedBar(c, s.f.Look, stretch.At, y, splitCells(shareAmounts(s.row, versions), stretch.Size), versionHues(versions))
@@ -733,7 +734,7 @@ var openHang = ansi.StringWidth(views.Peak(0, true)) - ansi.StringWidth(views.Pe
 // and under it Weeks' facts on the weeks reached over, as detailFacts says
 // them, the fullest that fits.
 func (s stacked) weeks(c *canvas, y int) int {
-	c.line(0, y, line{{"WEEKS", dimInk}})
+	c.line(0, y, line{{"WEEKS", headingInk}})
 	spans := s.daysWeeks()
 	for i, p := range lastPeaks(s.row.Peaks, len(spans)) {
 		end := s.l.cx() + spans[i].At + stackPeakCells

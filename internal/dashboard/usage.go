@@ -653,7 +653,7 @@ func (b usageBlock) stacked(c *canvas, y int) laid {
 		if i > 0 {
 			y++
 		}
-		c.line(0, y, line{{strings.ToUpper(w.name), dimInk}})
+		c.line(0, y, line{{strings.ToUpper(w.name), headingInk}})
 		first := y + b.underHeading()
 		section := b.having(i).each(c, first, 2, func(r usageRow, y int) int {
 			c.line(b.nameAt(), y, b.name(r))

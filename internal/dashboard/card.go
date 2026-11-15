@@ -31,7 +31,7 @@ type Opened interface {
 // but one.
 type Card struct {
 	// title is in its top edge, after ╭─, as ROUTING · NEW SESSIONS, in
-	// text.subtle; or, where titled is set, as titled draws it, an account
+	// text.muted; or, where titled is set, as titled draws it, an account
 	// it names in text.primary, as the Log's details name one.
 	title  string
 	titled line
@@ -178,7 +178,7 @@ func (k Card) draw(c *canvas) {
 	inside, content := max(k.width-2, 0), max(k.width-2*cardInset, 0)
 	title := k.titled
 	if title == nil {
-		title = line{{k.title, dimInk}}
+		title = line{{k.title, headingInk}}
 	}
 	title = slices.Concat(line{{"─ ", dimInk}}, title, line{{" ", dimInk}}).fit(inside)
 	c.text(x, y, "╭", dimInk)

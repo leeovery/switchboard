@@ -145,13 +145,13 @@ func (c LogCard) tree(m status.Moment) [3][]cardSection {
 func (c LogCard) title(m status.Moment) line {
 	switch {
 	case c.Event != nil:
-		l := line{{"EVENT · " + prose.ToTheSecond(m.Now, c.Event.Row.At) + " · ", dimInk}}
+		l := line{{"EVENT · " + prose.ToTheSecond(m.Now, c.Event.Row.At) + " · ", headingInk}}
 		for _, p := range c.Event.Headline {
 			if p.Kind == status.PartAccount {
 				l = append(l, span{named(m, p.Text), accountInk})
 				continue
 			}
-			l = append(l, span{p.Text, dimInk})
+			l = append(l, span{p.Text, headingInk})
 		}
 		return l
 	case c.Request != nil:
@@ -160,7 +160,7 @@ func (c LogCard) title(m status.Moment) line {
 		if prose.Clean(r.Session) != "" {
 			title += " · " + sessionNamed(r.Session, r.Dir)
 		}
-		return line{{title, dimInk}}
+		return line{{title, headingInk}}
 	}
 	return nil
 }
@@ -243,7 +243,7 @@ func (c LogCard) keys(content int, scrolls, sessions bool) []Key {
 }
 
 // cardSection is a section of a details card's tree: its heading, in
-// text.subtle, an account it names in text.primary; and its items, a row
+// text.muted, an account it names in text.primary; and its items, a row
 // each.
 type cardSection struct {
 	heading line
@@ -261,7 +261,7 @@ type cardItem struct {
 
 // sectionHeading is a section's heading of words alone.
 func sectionHeading(text string) line {
-	return line{{text, dimInk}}
+	return line{{text, headingInk}}
 }
 
 // row is the item as its section's row width cells wide draws it: ├ in
@@ -401,7 +401,7 @@ func windowsHeading(account string) line {
 	if account == "" {
 		return sectionHeading("WINDOWS AFTER IT")
 	}
-	return line{{strings.ToUpper(account), accountInk}, {"'S WINDOWS AFTER IT", dimInk}}
+	return line{{strings.ToUpper(account), accountInk}, {"'S WINDOWS AFTER IT", headingInk}}
 }
 
 // accountsSaid is words naming accounts as an item says them: each account
@@ -657,7 +657,7 @@ func detailSaid(w views.DetailWords, m status.Moment) line {
 // WORK THEN, the account white: its windows' use; when what the event tells
 // of resets, where that's known; and how many sessions were on it.
 func thenSection(t views.AccountThen, at time.Time, m status.Moment) cardSection {
-	s := cardSection{heading: line{{strings.ToUpper(named(m, t.Account)), accountInk}, {" THEN", dimInk}}}
+	s := cardSection{heading: line{{strings.ToUpper(named(m, t.Account)), accountInk}, {" THEN", headingInk}}}
 	for _, w := range t.Windows {
 		s.items = append(s.items, cardItem{name: w.Name, value: line{windowUse(w.Use)}})
 	}

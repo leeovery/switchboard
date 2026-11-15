@@ -97,7 +97,7 @@ func (d detailDrawn) weeksSection(c *canvas, y int) {
 	case weeksInBands:
 		d.inBands(c, y)
 	case weeksInATable:
-		d.asATable(c, y, line{{"WEEKS", dimInk}})
+		d.asATable(c, y, line{{"WEEKS", headingInk}})
 	default:
 		weeks := d.l.weeksIn(d.l.weeksCells(), d.weeksShown())
 		d.byDay(c, y, weeks)
@@ -200,7 +200,7 @@ func (l detailLayout) weeksIn(room, count int) []flex.Span {
 // the row under them, each week's first day, this week's bold, and at the
 // panel's left, where the weeks reached over don't all show, how many don't.
 func (d detailDrawn) byDay(c *canvas, y int, weeks []flex.Span) {
-	c.line(d.l.panel, y, line{{"BY DAY", dimInk}})
+	c.line(d.l.panel, y, line{{"BY DAY", headingInk}})
 	held := d.row.Days
 	first := max(len(held)-7*len(weeks), 0)
 	coming := len(held) - d.page.ToCome - first
@@ -229,7 +229,7 @@ func dayToCome(cells int) line {
 // given, the latest peak at the last, each as usage's bar draws a share,
 // weekBar cells long, and a cell on, as peakSaid says it.
 func (d detailDrawn) weeks(c *canvas, y int, weeks []flex.Span) {
-	c.line(d.l.panel, y, line{{"WEEKS", dimInk}})
+	c.line(d.l.panel, y, line{{"WEEKS", headingInk}})
 	cells := d.l.weekBar()
 	peaks := d.row.Peaks[max(len(d.row.Peaks)-len(weeks), 0):]
 	for i, p := range peaks {
@@ -273,7 +273,7 @@ func (d detailDrawn) facts(c *canvas, y int) {
 // worth draws WORTH from row y: its heading on the panel's left, and the
 // row's worth from cx to the weeks' edge, as worthAcross draws it.
 func (d detailDrawn) worth(c *canvas, y int) {
-	c.line(d.l.panel, y, line{{"WORTH", dimInk}})
+	c.line(d.l.panel, y, line{{"WORTH", headingInk}})
 	cells := d.l.weeksCells()
 	worthAcross(c, d.f.Look, d.l.cx(), y, cells, d.row.WorthBy)
 }

@@ -94,7 +94,7 @@ func TestTheWaitingTokenCardsInks(t *testing.T) {
 		x, y int
 		want ink
 	}{
-		{name: "its title, as every card's", x: editCardX + 3, y: top, want: dimInk},
+		{name: "its title, as every card's", x: editCardX + 3, y: top, want: headingInk},
 		{name: "the spinner's dot", x: content, y: top + 2, want: nameInk},
 		{name: "the spinner's other cells", x: content + 1, y: top + 2, want: faintInk},
 		{name: "the wait", x: says, y: top + 2, want: titleInk},

@@ -87,7 +87,7 @@ func TestTheEditCardsInks(t *testing.T) {
 		x, y int
 		want ink
 	}{
-		{name: "its title, as every card's", x: editCardX + 3, y: editCardTop, want: dimInk},
+		{name: "its title, as every card's", x: editCardX + 3, y: editCardTop, want: headingInk},
 		{name: "a field's name", x: editCardContent, y: editPlanRow, want: dimInk},
 		{name: "the label not typed in", x: value, y: editLabelRow, want: secondaryInk},
 		{name: "the mark before a choice's option", x: value, y: editPlanRow, want: choiceMarkInk},
@@ -282,7 +282,7 @@ func TestTheAddCardsInks(t *testing.T) {
 		x, y int
 		want ink
 	}{
-		{name: "its title, as every card's", x: editCardX + 3, y: addCardTop, want: dimInk},
+		{name: "its title, as every card's", x: editCardX + 3, y: addCardTop, want: headingInk},
 		{name: "what an account is", x: editCardContent, y: addCardTop + 2, want: mutedInk},
 		{name: "the label typed in", x: value, y: addCardTop + 4, want: typingInk},
 		{name: "the cursor after it", x: value + 4, y: addCardTop + 4, want: caretInk},

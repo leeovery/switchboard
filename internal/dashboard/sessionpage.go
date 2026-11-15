@@ -230,7 +230,7 @@ func (d sessionDrawn) heading(c *canvas) {
 	end := c.right(d.Width, y, back) - ruleGap
 	loading := d.loadingSaid(apart)
 	room := end - loading.width()
-	x := c.text(0, y, "SESSION", dimInk) + apart
+	x := c.text(0, y, "SESSION", headingInk) + apart
 	x = c.text(x, y, status.ShownID(d.page.Session), titleInk)
 	if name := status.DirName(d.page.Dir, room-x-apart); name != "" {
 		x = c.text(x+apart, y, name, titleInk)
@@ -824,7 +824,7 @@ func (d sessionDrawn) turnsHeading(c *canvas) {
 	}
 	totals := firstFit(d.Width-turnsRuleAt-1-ruleGap, all, line{{t.Cents(), strongInk}})
 	end := c.right(d.Width, y, totals) - ruleGap
-	c.text(0, y, "TURNS", dimInk)
+	c.text(0, y, "TURNS", headingInk)
 	c.text(turnsRuleAt, y, rule(end-turnsRuleAt), borderInk)
 }
 

@@ -94,7 +94,7 @@ func TestTheOfferCardsInks(t *testing.T) {
 		x, y, n int
 		ink     ink
 	}{
-		{what: "its title, as every card's", x: offerX + 3, y: offerTop, n: len("ADD A LINE TO ~/.zshrc"), ink: dimInk},
+		{what: "its title, as every card's", x: offerX + 3, y: offerTop, n: len("ADD A LINE TO ~/.zshrc"), ink: headingInk},
 		{what: "what setup can do, text.secondary", x: offerSaysX, y: offerCanRow, n: len(offerCanZshrc), ink: secondaryInk},
 		{what: "the line, accent.mode", x: offerLineX, y: offerLineRow, n: 10, ink: accentInk},
 		{what: "what the line does, muted", x: offerSaysX, y: offerHandRow, n: len(offerHandsOffAll), ink: mutedInk},

@@ -99,7 +99,7 @@ func (f Frame) helpParts() []helpPart {
 }
 
 // helpRows are the parts as help's rows, width cells wide, each part a blank
-// row and then its rows: its heading, in text.subtle; what it says, each
+// row and then its rows: its heading, in text.muted; what it says, each
 // paragraph wrapped to width; and its glyphs, a glyph to a row, drawn as the
 // page draws it, then what it means in text.secondary, wrapped under itself.
 // Every part's glyphs share one column, glyphsGap cells wider than the
@@ -115,7 +115,7 @@ func helpRows(parts []helpPart, width int) []line {
 	for _, part := range parts {
 		rows = append(rows, nil)
 		if part.heading != "" {
-			rows = append(rows, line{{part.heading, dimInk}})
+			rows = append(rows, line{{part.heading, headingInk}})
 		}
 		for _, said := range part.says {
 			rows = append(rows, said.wrap(width)...)

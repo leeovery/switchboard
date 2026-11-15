@@ -194,7 +194,7 @@ func TestGraphsDrawsEachSectionShownsHeadingWhereThePageLaysItOut(t *testing.T) 
 	}
 }
 
-// A heading's name is in text.subtle, its rule in border and its key in
+// A heading's name is in text.muted, its rule in border and its key in
 // bold accent.key, in its last column, as the Overview's.
 func TestGraphsHeadingIsInkedAsTheOverviewsAre(t *testing.T) {
 	nord := Screen(builtin(t, "nord"))
@@ -202,9 +202,9 @@ func TestGraphsHeadingIsInkedAsTheOverviewsAre(t *testing.T) {
 	f.Look = nord
 	cells := screenOf(t, f.Draw(threeRouted(), now))[f.top()]
 	name, ruled, key := cells[0], cells[6], cells[159]
-	subtle, border, accent := shadeOf(nord.theme.Colour(theme.TextSubtle)), shadeOf(nord.theme.Colour(theme.Border)), shadeOf(nord.theme.Colour(theme.AccentKey))
-	if name.fg != subtle || ruled.glyph != '─' || ruled.fg != border || key.glyph != 'w' || key.fg != accent || !key.bold {
-		t.Errorf("WEEK's heading is %s, its rule %s and its key %s; want text.subtle, a rule in border, w in bold accent.key", name, ruled, key)
+	muted, border, accent := shadeOf(nord.theme.Colour(theme.TextMuted)), shadeOf(nord.theme.Colour(theme.Border)), shadeOf(nord.theme.Colour(theme.AccentKey))
+	if name.fg != muted || ruled.glyph != '─' || ruled.fg != border || key.glyph != 'w' || key.fg != accent || !key.bold {
+		t.Errorf("WEEK's heading is %s, its rule %s and its key %s; want text.muted, a rule in border, w in bold accent.key", name, ruled, key)
 	}
 }
 
