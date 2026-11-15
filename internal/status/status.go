@@ -215,8 +215,11 @@ type Document struct {
 	// nothing to play, or it isn't played yet.
 	weeks *weeksAhead
 	// removed are the accounts the accounts record keeps that the document
-	// doesn't hold, as WithRemoved gives them, for its moments to name.
+	// doesn't hold, as WithRemoved gives them, and moved those configured in
+	// another pool than its, as WithMoved gives them, for its moments to
+	// name.
 	removed RemovedAccounts
+	moved   MovedAccounts
 }
 
 // WithRemoved is the document whose moments name the accounts of removed, as
@@ -224,6 +227,15 @@ type Document struct {
 // knows them, from the accounts record, where the document doesn't.
 func (d Document) WithRemoved(removed RemovedAccounts) Document {
 	d.removed = removed
+	return d
+}
+
+// WithMoved is the document whose moments name the accounts of moved, as
+// MovedOf gives them, as Moment's Named does: the reader of a pool's
+// document knows them, from the config, where the document, of its pool's
+// accounts alone, doesn't.
+func (d Document) WithMoved(moved MovedAccounts) Document {
+	d.moved = moved
 	return d
 }
 

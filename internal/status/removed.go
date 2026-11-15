@@ -155,11 +155,15 @@ type AccountName struct {
 	// accounts record keeps it; else its id.
 	Label string `json:"label,omitempty"`
 	// Other is set on an account the accounts record keeps that isn't
-	// configured: one removed, or one only another Mac configures.
+	// configured: one removed, or one only another Mac configures; and on
+	// one configured in another pool than the one read, as MovedOf has it.
 	Other bool `json:"-"`
 	// Removed says when it was removed, as RemovedAccount's Said says: "" of
 	// one never removed.
 	Removed string `json:"-"`
+	// Moved says where it is now, of one in another pool than the one read,
+	// as MovedAccount's Said says: "" of one that isn't.
+	Moved string `json:"-"`
 }
 
 // ConfiguredName names the account configured as a is, as AccountName has
@@ -174,13 +178,15 @@ func namedAs(label, id string) AccountName {
 }
 
 // Said is the account as the verbs' text names it, cleaned, as it's from
-// elsewhere: its label, and of one removed, when, as "team (removed 4 Sep)".
+// elsewhere: its label, and of one removed, when, as "team (removed 4 Sep)",
+// or of one in another pool than the one read, where it is now, as "work
+// (now in Acme)".
 func (n AccountName) Said() string {
 	label := prose.Clean(n.Label)
-	if n.Removed == "" {
-		return label
+	if mark := cmp.Or(n.Moved, n.Removed); mark != "" {
+		return label + " (" + mark + ")"
 	}
-	return label + " (" + n.Removed + ")"
+	return label
 }
 
 // Namer names accounts by their ids, as AccountName has it: a Moment does,
@@ -190,11 +196,13 @@ type Namer interface {
 }
 
 // Names name the configured accounts and the accounts removed, as
-// RemovedAccounts' Named does, for a reader with no document to name them
-// by. Their zero value names every account by its id.
+// RemovedAccounts' Named does, and those configured in another pool than the
+// one read, as MovedAccounts are named, for a reader with no document to
+// name them by. Their zero value names every account by its id.
 type Names struct {
 	configured config.Accounts
 	removed    RemovedAccounts
+	moved      MovedAccounts
 }
 
 // NamesOf are the names of the accounts configured, and of the accounts
@@ -203,8 +211,18 @@ func NamesOf(configured config.Accounts, removed RemovedAccounts) Names {
 	return Names{configured: configured, removed: removed}
 }
 
+// WithMoved are the names, naming the accounts of moved as in another pool
+// than the one read, as MovedOf gives them.
+func (n Names) WithMoved(moved MovedAccounts) Names {
+	n.moved = moved
+	return n
+}
+
 // Named names the account with the given id, as AccountName has it.
 func (n Names) Named(id string) AccountName {
+	if name, ok := n.moved.named(id); ok {
+		return name
+	}
 	return n.removed.Named(n.configured, id)
 }
 
@@ -254,11 +272,14 @@ func (r RemovedAccounts) named(id string) AccountName {
 
 // Named names the account of the moment with the given id, as AccountName
 // has it: configured where its document holds it, else as the accounts
-// removed its document was given, as Document's WithRemoved gives them,
-// ids compared ignoring case.
+// moved and removed its document was given, as Document's WithMoved and
+// WithRemoved give them, ids compared ignoring case.
 func (m Moment) Named(id string) AccountName {
 	if i := slices.IndexFunc(m.Accounts, func(a AccountNow) bool { return strings.EqualFold(a.ID, id) }); i >= 0 {
 		return namedAs(m.Accounts[i].Label, id)
+	}
+	if name, ok := m.doc.moved.named(id); ok {
+		return name
 	}
 	return m.doc.removed.named(id)
 }

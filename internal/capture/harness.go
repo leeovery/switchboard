@@ -159,6 +159,7 @@ func (f Fixture) config(size watch.Size, now func() time.Time) watch.Config {
 		WindowName: status.NameOfKey,
 		Accounts:   f.accounts,
 		Removed:    f.removed,
+		Moved:      f.moved,
 		WeekStarts: framesWeekStarts,
 		WeekWindow: claude.WeekWindow,
 		Family:     claude.Provider{}.Family,

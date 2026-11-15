@@ -165,8 +165,9 @@ func TestNamesFindTheAccountsLabelledSo(t *testing.T) {
 }
 
 // The verbs' text names an account by its label, cleaned, and one removed
-// says when, as Days does: "team (removed 4 Sep)"; one only another Mac
-// configures, never removed, by its label alone.
+// says when, as Days does: "team (removed 4 Sep)"; one moved to another pool
+// than the one read says where it is now, "work (now in Acme)"; one only
+// another Mac configures, never removed, by its label alone.
 func TestAnAccountsNameIsSaidByItsLabelAndWhenItWasRemoved(t *testing.T) {
 	tests := []struct {
 		name status.AccountName
@@ -174,6 +175,7 @@ func TestAnAccountsNameIsSaidByItsLabelAndWhenItWasRemoved(t *testing.T) {
 	}{
 		{name: status.AccountName{Label: "work"}, want: "work"},
 		{name: status.AccountName{Label: "team", Other: true, Removed: "removed 4 Sep"}, want: "team (removed 4 Sep)"},
+		{name: status.AccountName{Label: "work", Other: true, Moved: "now in Acme"}, want: "work (now in Acme)"},
 		{name: status.AccountName{Label: "home", Other: true}, want: "home"},
 		{name: status.AccountName{Label: "side\nproject"}, want: "side project"},
 	}

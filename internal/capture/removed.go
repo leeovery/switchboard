@@ -17,12 +17,14 @@ const (
 	teamRemoved = eightWeeks + 25
 )
 
-// goneAccount is an account removed that a world's accounts record keeps, by
-// the label it showed last, and its days the ledger holds, by day of the
-// year.
+// goneAccount is an account gone from the pool shown whose work the ledger
+// holds there, by day of the year: one removed that a world's accounts
+// record keeps, by the label it showed last; or, where movedTo is set, one
+// moved to another pool, configured there.
 type goneAccount struct {
 	status.RemovedAccount
-	days map[int]ledger.AccountDay
+	days    map[int]ledger.AccountDay
+	movedTo *status.MovedAccount
 }
 
 // removedTeam is the auto world with an account removed on 4 September, as
@@ -34,6 +36,19 @@ func (a accountWorlds) removedTeam() accountWorld {
 	return a.kept("removedTeam", func() accountWorld {
 		w := a.autoOf(a.today().three(true))
 		w.gone = []goneAccount{teamOf(a.now)}
+		return w
+	})
+}
+
+// movedTeam is the removed world as pool Default has it with team moved to
+// Acme on 4 September in place of removed: its work in Default before then
+// stays Default's, so Accounts' Tokens names it.
+func (a accountWorlds) movedTeam() accountWorld {
+	return a.kept("movedTeam", func() accountWorld {
+		w := a.autoOf(a.today().three(true))
+		team := teamOf(a.now)
+		team.movedTo = &status.MovedAccount{ID: teamID, Label: team.Label, Pool: acmePool.ID, PoolLabel: acmePool.Label}
+		w.gone = []goneAccount{team}
 		return w
 	})
 }
@@ -64,9 +79,23 @@ func teamOf(now time.Time) goneAccount {
 func removedOf(gone []goneAccount) status.RemovedAccounts {
 	var removed status.RemovedAccounts
 	for _, g := range gone {
-		removed = append(removed, g.RemovedAccount)
+		if g.movedTo == nil {
+			removed = append(removed, g.RemovedAccount)
+		}
 	}
 	return removed
+}
+
+// movedOf are the accounts of gone moved to another pool, as status.MovedOf
+// gives them of the world's config.
+func movedOf(gone []goneAccount) status.MovedAccounts {
+	var moved status.MovedAccounts
+	for _, g := range gone {
+		if g.movedTo != nil {
+			moved = append(moved, *g.movedTo)
+		}
+	}
+	return moved
 }
 
 // withGone is days, the ledger's days of the year from its first, with the

@@ -43,7 +43,7 @@ func TotalsOn(days LedgerDates, dates []string, now time.Time, prices ledger.Tab
 	var totals []DayTotals
 	for _, s := range days.DaysOn(dates) {
 		// With no account configured, every account's totals are the only ones.
-		all := accountTotalsOf(nil, []Day{{Priced: prices.Priced(s, today)}}, nil, v).Accounts[0]
+		all := accountTotalsOf(nil, []Day{{Priced: prices.Priced(s, today)}}, nil, nil, v).Accounts[0]
 		totals = append(totals, DayTotals{Date: s.Day, Requests: all.Requests, Sessions: all.Sessions, Limits: all.LimitCount(), Worth: all.Worth})
 	}
 	return totals

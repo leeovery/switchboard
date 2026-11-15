@@ -60,10 +60,10 @@ func TestHistorysJSONGivesTheAccountsRemovedItsDaysName(t *testing.T) {
 
 	got := jsonOf(t, views.NewHistory(withRemoved(days, spare, removedTeam, elsewhereHome)))
 	want := `"removed":[{"id":"h7c2","label":"team","removed":` + jsonOf(t, removedTeam.Removed) + `},{"id":"p4m2","label":"home"}]`
-	if !strings.HasSuffix(got, want+"}") {
-		t.Errorf("history's JSON ends\n%s\nwant it to end\n%s}", got[max(0, len(got)-200):], want)
+	if !strings.HasSuffix(got, want+`,"moved":[]}`) {
+		t.Errorf("history's JSON ends\n%s\nwant it to end\n%s,\"moved\":[]}", got[max(0, len(got)-200):], want)
 	}
-	if none := jsonOf(t, views.NewHistory(withRemoved(daysFrom("2026-10-05"), removedTeam))); !strings.HasSuffix(none, `"removed":[]}`) {
+	if none := jsonOf(t, views.NewHistory(withRemoved(daysFrom("2026-10-05"), removedTeam))); !strings.HasSuffix(none, `"removed":[],"moved":[]}`) {
 		t.Errorf("history's JSON of days naming no account removed ends %s, want an empty removed list", none[max(0, len(none)-200):])
 	}
 	upper := daysFrom("2026-10-05", day("2026-10-05", account("H7C2", sent("claude-opus-5-5", 1, inputUsage))))

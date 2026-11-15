@@ -57,8 +57,11 @@ var callsAllowed = []string{
 	"status.Document.AccountsChanged",
 	// The accounts removed, which the watch knows from the accounts record
 	// and the document doesn't, handed to the document as it's read, for its
-	// moments to name them.
+	// moments to name them; and the accounts in another pool than the one
+	// shown, which the watch knows from the config and a pool's document
+	// doesn't, handed to it alike.
 	"status.Document.WithRemoved",
+	"status.Document.WithMoved",
 }
 
 // momentsMade are the functions and methods of viewPackages that work out a

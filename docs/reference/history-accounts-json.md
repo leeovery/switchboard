@@ -1,7 +1,7 @@
 # `history` JSON: the account blocks
 
 The blocks of [`history` JSON](history-json.md) that look at each account: `weeks`, `tokens`,
-`totals`, `plans`, `capacity` and `removed`. They answer how hard each account worked, what it was
+`totals`, `plans`, `capacity`, `removed` and `moved`. They answer how hard each account worked, what it was
 worth, and whether you have the right number of accounts.
 
 ```bash
@@ -84,6 +84,8 @@ Each entry is a calendar week:
 - **`share`** is the part of the use of the account, weighed at API prices. Only versions used are
   listed.
 - **The `all` entry** gives no `left_at_reset` or `ran_out`.
+- **An account in another pool now** that worked in the pool read has an entry of its own, after
+  the pool's accounts and before `all`, so every request `all` counts is in an entry.
 
 ## `plans`
 
@@ -154,3 +156,17 @@ Each removed account that the days name, as the [accounts record](accounts-recor
 
 An account that only another Mac configures, never removed here, has no `removed`. The list is
 empty if the days name no removed account.
+
+## `moved`
+
+Each account the days name that the config has in another pool than the one read, as one moved
+there since:
+
+| Field | Type | Meaning |
+|---|---|---|
+| `id` | string | Its id. |
+| `label` | string | Its label. |
+| `pool` | string | The id of the pool it's in now. |
+| `pool_label` | string | That pool's label. |
+
+The list is empty if the days name no such account, and always is without pools.
