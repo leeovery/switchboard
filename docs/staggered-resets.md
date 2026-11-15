@@ -73,7 +73,7 @@ like this:
 
 The `[prime]` key is in [Configuration](configuration.md), and `status` is in
 [`switchboard status`](commands/status.md). The full rules of the schedule are in
-[How it works](how-it-works.md).
+[Probes and priming](reference/probes-and-priming.md).
 
 ## Related
 

@@ -100,7 +100,7 @@ shows the user. It adds nothing to what Claude is told:
 ```
 
 Otherwise it prints nothing. See
-[A session that isn't going through switchboard](how-it-works.md#a-session-that-isnt-going-through-switchboard).
+[A session that isn't going through switchboard](how-it-works.md).
 
 The state directory holds these files:
 
@@ -113,7 +113,7 @@ The state directory holds these files:
 | `tokens/<id>.taken` | When switchboard took each of the account's latest tokens, with each token's SHA-256 hash. See [When each token was taken](reference/tokens.md). |
 | `accounts.json` | The [accounts record](#the-accounts-record): every account this Mac has had, removed ones among them, kept for good. |
 | `accounts.lock` | The file a change to the accounts record holds a lock on. It's left there, as the lock goes with the process that held it. |
-| `accounts.moved` | Marks the move of the history onto the accounts' ids done, holding when it was. See [Upgrading to account ids](how-it-works.md#upgrading-to-account-ids). |
+| `accounts.moved` | Marks the move of the history onto the accounts' ids done, holding when it was. See [Upgrading to account ids](upgrades-and-restarts.md). |
 | `pools.moved` | Marks the move of the history to pools done, holding when it was: every request line, every event that names its pool (`started`, `moved`, `pin`, `auto`) and every day's summary from before pools given the first pool. |
 | `logs/` | `router.log`, `cli.log` and `launchd.log`. See [The logs](troubleshooting/logs.md). |
 | `history/readings-<date>.jsonl` | The [readings history](#the-readings-history), one file for each day. |
@@ -144,7 +144,7 @@ until the day's summary stands, but its events aren't, so they can go first.
 `accounts.json` in the state directory is this Mac's record of every account it has had, whether
 it's configured now or was removed. Once the move onto the ids is done, the router keeps it in step
 with the config, so an account added or removed on another Mac sharing the config is added, or
-marked removed, here too (see [Several Macs](how-it-works.md#several-macs)). It's written whole,
+marked removed, here too (see [Several Macs](upgrades-and-restarts.md)). It's written whole,
 readable by its owner alone, and kept for good, a few hundred bytes an account:
 
 ```json
@@ -543,14 +543,14 @@ pass over one you don't know. In the forms below, `<id>` is an account's id.
 | `pin` | The pool's pin: the accounts it names, since when, and whether it moved the running sessions. |
 | `router` | The router's health over the last 5 minutes. |
 | `restart` | A restart the router has due, and, as `held`, why the binary it would become refuses to start, where that holds it; as `exporting`, the folder of the export under way that the restart waits for, left out while none does. |
-| `moving` | How the move of the accounts and their history onto the ids switchboard makes stands, while the router owes it, as after the upgrade that made them, then the move of the history to pools that follows it: `move`, `pools` for the move to pools, left out for the move onto the ids; `stage`, `running`, `awaiting api`, `awaiting restart` or `failed`, the move to pools awaiting a restart while the router hasn't taken up the first pool its config now holds, and never the API; and, where it awaits the API, `account`, the account by the id it had, whose token's subscription the API hasn't named, where that's known, and `why`, which is also why it failed. Left out where no move is owed. See [Upgrading to account ids](how-it-works.md#upgrading-to-account-ids). |
+| `moving` | How the move of the accounts and their history onto the ids switchboard makes stands, while the router owes it, as after the upgrade that made them, then the move of the history to pools that follows it: `move`, `pools` for the move to pools, left out for the move onto the ids; `stage`, `running`, `awaiting api`, `awaiting restart` or `failed`, the move to pools awaiting a restart while the router hasn't taken up the first pool its config now holds, and never the API; and, where it awaits the API, `account`, the account by the id it had, whose token's subscription the API hasn't named, where that's known, and `why`, which is also why it failed. Left out where no move is owed. See [Upgrading to account ids](upgrades-and-restarts.md). |
 | `export` | How the router's hourly export into [`[export]`](configuration.md)'s `dir` stands: `dir`, the folder; `at`, when an export last succeeded; `error`, why the last failed, in plain words; and `running`, when the export under way began. Each of `at`, `error` and `running` is left out when there's none, and `export` where `dir` isn't set. |
 | `sessions` | How many sessions the router has routed in the last hour, in the pool. |
 | `events` | What's happened lately, newest first: the pool's sessions' starts and moves and its pins, by the pool each recorded, one naming none the first pool's; what befell an account, by the pool it's in now, or, of an account since removed, the pool the accounts record keeps for it; and the router's own. An event of a pool since removed is in no configured pool's: `events --pool` reads it by that pool's id. |
 | `events_kept` | `{"oldest", "newest"}`: the ids of the oldest and newest events the router keeps, every pool's, so a reader can tell the events it no longer keeps from another pool's, which `events` leaves out. Given wherever the router routes within pools, as `events` are then a pool's: one pool included, and a config naming none but routed by the pools the accounts record keeps. Left out where it routes in no pools, whose `events` are every one it keeps, and from a document built by probing. |
 | `pool` | The room new sessions can go to, summed across the pool's accounts, and their mean use. Each account's room is to its cap, `1 − reserve`, but that of an account the pool's pin names is to its limit, as the pin spends its reserve. Each window gives `of`, how many of the pool's accounts have it, an account not read yet, or without a usable token, counting as having it. The pool keeps a window only where at least two of its accounts have it, or all of them do. |
 | `coming_up` | Each limit, cap or refused token lifting, window running out or resetting, and prime, soonest first. |
-| `demand` | The pool's use as the weeks' forecast takes it (see [Where a week runs out](how-it-works.md#where-a-week-runs-out)), from the router only: `day`, the pool's rate over the last day, in Pro weeks an hour; `hours`, the hours with room it's measured over, 24 at most, and 0 where it's the pool's fast rate instead; `hold`, `[{hours, share}]`, the share of an account's fast rate still on it 1, 3, 6, 12, 24 and 48 hours on; and `learning`, `true` while the router has less than a day of answers, so `hold` is its default, all of an account's use staying on it, left out once it's measured. Left out when the router has read no account. |
+| `demand` | The pool's use as the weeks' forecast takes it (see [Where a week runs out](reference/routing.md)), from the router only: `day`, the pool's rate over the last day, in Pro weeks an hour; `hours`, the hours with room it's measured over, 24 at most, and 0 where it's the pool's fast rate instead; `hold`, `[{hours, share}]`, the share of an account's fast rate still on it 1, 3, 6, 12, 24 and 48 hours on; and `learning`, `true` while the router has less than a day of answers, so `hold` is its default, all of an account's use staying on it, left out once it's measured. Left out when the router has read no account. |
 | `accounts` | Each account, in the pool, in the config's order. See below. |
 
 Each entry in `accounts` holds these:

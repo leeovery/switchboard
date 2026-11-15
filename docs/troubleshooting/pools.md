@@ -51,7 +51,8 @@ the `;` says why for each account, as `account m4zq: …`.
 The message is `this session's account has left pool Client — exit and resume it to carry on in
 the pool its directory is in now`. The account the session started on isn't in that pool any
 more. For example, the primary moved to another pool, or the pool was removed
-(`this session's pool isn't configured`). Claude Code can't change the token while it runs.
+(`this session's pool isn't configured`). Claude Code can't change the token while it runs. What never reaches the router, such as fast mode,
+goes on out on that token until the session exits.
 
 ```bash
 claude --resume    # in the same folder: it starts in the pool of that folder now, on its primary

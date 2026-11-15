@@ -50,6 +50,9 @@ Every 3 seconds, the router looks at its token files and its config, and takes t
 A single look that finds no token, for example while a file is being rewritten, keeps the token the
 account had. A new account waits for the router to restart.
 
+After your Mac wakes, the router sends its requests and probes on fresh connections, because a sleep
+can leave the old ones dead.
+
 ## Restarting in place
 
 The router restarts itself to take up a new config, an upgrade or a new time zone. It replaces
@@ -79,7 +82,8 @@ way.
 6. Save its state.
 7. Replace itself with the copy, handing over its sockets.
 
-Once an export ends, step 3 can run with a request still in flight, and the answer is kept.
+Once an export ends, step 3 can run with a request still in flight, and the answer is kept. No new
+export starts while a restart is due, because the new router exports as it starts.
 
 ### When it goes differently
 

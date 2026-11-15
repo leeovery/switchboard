@@ -41,7 +41,8 @@ switchboard pin q4tx \
 - When you ask, Claude pins new sessions to an account, moves running sessions there, or moves one
   session only.
 - Inside a pool, Claude reads and acts on that pool only. The pool id is in `$SWITCHBOARD_POOL`, and
-  the skill has Claude pass it as `--pool`.
+  the skill has Claude pass it as `--pool`. Outside a pool the variable is empty, and `--pool ""`
+  counts as no flag.
 
 ## Good to know
 

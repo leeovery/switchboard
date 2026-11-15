@@ -26,7 +26,8 @@ switchboard status --json | jq .moving    # the stage, and any account it waits 
 The router routes while it waits on the API. It asks again after 30 seconds, then twice as long
 each time, up to 5 minutes apart. If the API answers but names no organization, for example
 because it refuses the token, the router asks for 10 minutes. Then it gives the account an id at
-random.
+random. An account with no usable token gets a random id at once, unless another Mac sharing the
+config may have moved it already.
 
 ## Two Macs that share a config
 
@@ -64,6 +65,6 @@ name each removed account by id. Put the file right, or move it aside. What it h
 
 ## Related
 
-- [How it works](../how-it-works.md): why accounts have ids, and how the move runs.
+- [Upgrades and restarts](../upgrades-and-restarts.md): how the move onto ids runs.
 - [Exports](exports.md): an export that fails.
 - [Several Macs and backups](../several-macs.md): exporting and importing between Macs.

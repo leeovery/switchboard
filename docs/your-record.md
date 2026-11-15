@@ -27,7 +27,8 @@ The first three don't need the router, because they read the record from its fil
 
 ## What happens
 
-- The router writes a line for each request as the request finishes, into a file a day.
+- The router writes a line for each request as the request finishes, into a file a day. That
+  includes requests the router answers itself, such as a limit refusal.
 - A line holds:
   - the session, the folder and the model;
   - the account, and why the request went there;
@@ -35,8 +36,8 @@ The first three don't need the router, because they read the record from its fil
   - the usage the answer gave, and the names of the tools it called.
 - A line never holds a prompt or a reply. It counts the messages and tools a request carries, but
   holds none of their text, and none of what Claude writes back.
-- The router also records each change in the use of a window. It records its own events too, such
-  as a move or a limit.
+- The router also records each change in the use of a window, and writes nothing while no window
+  moves. It records its own events too, such as a move or a limit.
 - An hour after each day ends, the router writes a summary of the day, which is kept for good.
 - Worth is priced at the API prices switchboard carries, read from Anthropic's pricing page.
   Plan cost comes from the `plan` you give each account.
