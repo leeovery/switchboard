@@ -731,8 +731,9 @@ The subcommands do the following:
   and deletes its token file, then the record of when its token was taken (see
   [When each token was taken](configuration.md#when-each-token-was-taken)).
   - Its history stays. The accounts record keeps the account, marked removed, with the label it
-    had, so History, Accounts and the verbs name it by that label and the day it was removed, as
-    `Team (removed 4 Sep)`, told apart from an account given the same label since. Add its
+    had, so the verbs name it by that label and the day it was removed, as `Team (removed 4 Sep)`,
+    and the dashboard's Accounts' Tokens by that label in faint text, told apart from an account
+    given the same label since. Add its
     subscription again and it comes back under its old id, its history carrying on.
   - Of a token file or a record that's a link, it deletes the link alone, and leaves the file it
     leads to, even where that's at the record's own path. Where the token file led to the
@@ -1541,7 +1542,7 @@ files: upgrade switchboard to import it.
 right accounts. An account is matched by its subscription, and failing that by its id, an
 identical id being the same account unless both subscriptions are known and differ. Matched, its
 days go to this Mac's account, under this Mac's id. An account this Mac has never had is added to
-its record, named by the label the other Mac gives it, so History and the verbs name its days,
+its record, named by the label the other Mac gives it, so Accounts' Tokens and the verbs name its days,
 marked removed where it was removed there. A label changed on the other Mac for an account this
 Mac neither configures nor removed arrives with it.
 

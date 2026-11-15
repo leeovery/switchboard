@@ -31,10 +31,10 @@ func (p TokensPeriod) Name() string {
 // TokensPage is Tokens as the dashboard draws it: its rows, a period each,
 // newest first, those with nothing recorded in them left out; of one of the
 // dial's periods, as Accounts' Tokens shows it, the whole period's row,
-// Total, nil where nothing is recorded in it; the date of the prices their worth is at; and what every plan configured costs
-// over a whole period of the kind its rows are, at today's prices, the most a
-// row's worth is set against, nil where no plan is known or they cost
-// nothing.
+// Total, nil where nothing is recorded in it; the date of the prices their
+// worth is at; and what every plan configured costs over a whole period of
+// the kind its rows are, at today's prices, the most a row's worth is set
+// against, nil where no plan is known or they cost nothing.
 type TokensPage struct {
 	Periods    []TokenPeriod
 	Total      *TokenPeriod

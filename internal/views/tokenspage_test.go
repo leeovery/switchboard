@@ -288,7 +288,7 @@ func TestTokensOverTotalIsAgainstItsPriceAsAccountsHasIt(t *testing.T) {
 // Year's BY MONTH has it: 24 days of October, from the 8th.
 func TestTokensOverTwelveMonthsPricesTheirPartMonthByItsDays(t *testing.T) {
 	in := input(overTheYear)
-	in.From = views.YearFrom(views.YearAsk{}, now, time.Monday)
+	in.From = views.YearFrom(0, now, time.Monday)
 	past := views.NewPast(in, overTheYear)
 	rows := past.TokensOver(views.PeriodTwelveMonths).Periods
 	oldest := rows[len(rows)-1]

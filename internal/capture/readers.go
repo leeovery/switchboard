@@ -58,7 +58,7 @@ type madeDays struct {
 // runs of its accounts' sessions that no lines tell of, as projectRuns has
 // them.
 func (a accountWorlds) recordsOf(w accountWorld) *records {
-	days := a.year.summaries(w.history, w.accounts)
+	days := withGone(a.year.summaries(w.history, w.accounts), w.gone)
 	r := &records{days: days, readings: w.history, caps: ledger.CapsOf(w.accounts, claude.SharedWindows())}
 	if w.traffic {
 		r.lines, r.events = a.traffic()

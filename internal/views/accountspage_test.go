@@ -506,7 +506,7 @@ func TestTwelveMonthsOfTheDaysReadTellARunBegunBeforeThem(t *testing.T) {
 	days := daysFrom("2025-09-01",
 		day("2025-10-03", windowsDay{limits: []ledger.Limit{limit("7d", "2025-10-03", "18:00")}}.of("work")),
 		day("2025-10-08", windowsDay{resets: []ledger.Reset{reset("7d", "2025-10-08", "00:30", 1)}}.of("work")))
-	read := views.DaysFrom(views.YearAsk{}, now, time.Monday).Format(time.DateOnly)
+	read := views.DaysFrom(0, now, time.Monday).Format(time.DateOnly)
 	held := slices.DeleteFunc(slices.Clone(days), func(s ledger.Summary) bool { return s.Day < read })
 	in := input(days)
 	work := views.NewPast(in, held).Accounts(views.PeriodTwelveMonths).Rows[0].Totals

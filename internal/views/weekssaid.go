@@ -9,11 +9,12 @@ import (
 	"github.com/leeovery/switchboard/internal/status"
 )
 
-// What Weeks' verdicts say, each once, as history's text says it: where no whole week can be judged yet; the labels of what the
-// replays found, as the accounts stand, with one fewer, two fewer or one
-// more, and of one account, with a second; what the rest find without an
-// account; and that the verdicts are an estimate, as many accounts' form
-// words it, and as few accounts'.
+// What the capacity verdicts say, each once, as history's text says it:
+// where no whole week can be judged yet; the labels of what the replays
+// found, as the accounts stand, with one fewer, two fewer or one more, and
+// of one account, with a second; what the rest find without an account; and
+// that the verdicts are an estimate, as many accounts' form words it, and as
+// few accounts'.
 const (
 	NotEnoughWeeks           = "not enough weeks yet"
 	ReplayAsNow              = "as now: "

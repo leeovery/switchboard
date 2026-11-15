@@ -44,15 +44,12 @@ func accountLabel(accounts config.Accounts, id string) string {
 }
 
 // cycledAsk is the Year asked shown for the next of what v cycles it
-// through, round, as yearChoices has them of its page, its calendar year
-// as it was, reporting false where that's what it shows already, as with
-// nothing to show alone.
+// through, round, as yearChoices has them of its page, reporting false where
+// that's what it shows already, as with nothing to show alone.
 func cycledAsk(ask views.YearAsk, page views.YearPage) (views.YearAsk, bool) {
-	shown := views.YearAsk{Version: ask.Version, Account: ask.Account}
 	choices := yearChoices(page)
-	next := choices[(slices.Index(choices, shown)+1)%len(choices)]
-	ask.Version, ask.Account = next.Version, next.Account
-	return ask, next != shown
+	next := choices[(slices.Index(choices, ask)+1)%len(choices)]
+	return next, next != ask
 }
 
 // yearChoices are what v cycles the Year through, in turn: all use, then

@@ -1158,14 +1158,12 @@ It remembers:
 - Trends' sections shown
 - the Log's columns.
 
-If the version or account the Year showed is no longer there to show, the Year shows all use again.
-
 It never remembers:
 
 - a focus or a choice
 - a card or help, open
 - a session's page
-- a calendar year, or Runway's week, stepped back to
+- what Trends' `v` shows, which lasts the run, or Runway's week stepped back to
 - the Log's sub-tab or its filters
 - a scroll.
 

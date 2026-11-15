@@ -109,7 +109,7 @@ func (h *harness) lookAt(at time.Time) {
 // weeks starting on Monday; and yesterday is the date of the day before.
 var (
 	todayStart = dayfile.DayStart(start.Local(), 0)
-	yearFrom   = views.DaysFrom(views.YearAsk{}, start, time.Monday)
+	yearFrom   = views.DaysFrom(0, start, time.Monday)
 	yesterday  = dayfile.DateOf(dayfile.DayStart(start.Local(), -1))
 )
 

@@ -73,10 +73,12 @@ type Fixture struct {
 	// saying it's loading, as underWay has them.
 	loading bool
 	// records are what its world's readers serve the watch, and accounts
-	// its world's, as configured, whose plans the pages price against: a
-	// printout has none, and a watch drawn of it reads none.
+	// its world's, as configured, whose plans the pages price against, and
+	// removed those its accounts record keeps removed: a printout has none,
+	// and a watch drawn of it reads none.
 	records  *records
 	accounts config.Accounts
+	removed  status.RemovedAccounts
 	// setup is set for a fixture of setup's screen, drawn by its own model
 	// rather than the watch.
 	setup *setupShown
@@ -318,7 +320,7 @@ func (p page) fixture(worlds accountWorlds) Fixture {
 	}
 	return Fixture{
 		Name: p.name, Size: p.size, now: now, router: router, keys: slices.Clone(p.keys), before: p.before,
-		theme: framesTheme(), records: w.records(), accounts: w.accounts, view: p.view, log: p.log, scale: p.scale, loading: p.loading,
+		theme: framesTheme(), records: w.records(), accounts: w.accounts, removed: removedOf(w.gone), view: p.view, log: p.log, scale: p.scale, loading: p.loading,
 	}
 }
 
@@ -400,7 +402,8 @@ func (p page) fixture(worlds accountWorlds) Fixture {
 // Switchboard on an iPad and its List at 90 × 40; the Log's Requests at 90 ×
 // 40; and d28c's page on an iPad. And over the world of long names, so a
 // cut name shows, the Switchboard, the List and the Log's Requests on an
-// iPad.
+// iPad. And Accounts' Tokens over 12 weeks of the world with team removed on
+// 4 September, its rows named as Tokens names an account removed.
 var pages = []page{
 	{name: "overview-default-160", size: wide(37), world: accountWorlds.auto},
 	{name: "overview-pinned-160", size: wide(37), world: accountWorlds.pinned},
@@ -507,6 +510,7 @@ var pages = []page{
 	{name: "accounts-detail-all-73x61", size: watch.Size{Width: 73, Height: 61}, world: accountWorlds.auto, keys: toAccounts("]")},
 	{name: "accounts-tokens-173x53", size: watch.Size{Width: 173, Height: 53}, world: accountWorlds.auto, keys: toAccounts("]", "]")},
 	{name: "accounts-tokens-73x61", size: watch.Size{Width: 73, Height: 61}, world: accountWorlds.auto, keys: toAccounts("]", "]")},
+	{name: "accounts-tokens-removed-160", size: wide(46), world: accountWorlds.removedTeam, keys: toAccounts("]", "]", ">", ">")},
 	{name: "projects-173x53", size: watch.Size{Width: 173, Height: 53}, world: accountWorlds.auto, keys: toProjects()},
 	{name: "projects-108x44", size: watch.Size{Width: 108, Height: 44}, world: accountWorlds.auto, keys: toProjects()},
 	{name: "projects-73x61", size: watch.Size{Width: 73, Height: 61}, world: accountWorlds.auto, keys: toProjects()},

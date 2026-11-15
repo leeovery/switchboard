@@ -126,7 +126,7 @@ func (m Model) asking() (Model, int) {
 // they begin where it does, which it asks alongside, as beganAsked has it,
 // for yearRead to have them priced knowing it.
 func (m Model) readYear(year int, now time.Time) (Model, tea.Cmd) {
-	from := views.DaysFrom(views.YearAsk{Year: year}, now, m.cfg.WeekStarts)
+	from := views.DaysFrom(year, now, m.cfg.WeekStarts)
 	in := views.HistoryInput{
 		From: from, Now: now, Began: m.past.began, Prices: m.cfg.Prices, Accounts: m.cfg.Accounts, Removed: m.cfg.Removed,
 		WeekStarts: m.cfg.WeekStarts, WeekWindow: m.cfg.WeekWindow, Family: m.cfg.Family,
@@ -308,7 +308,7 @@ func (t pastDays) reaching(year int) (views.Past, bool) {
 	if year == 0 {
 		return t.last.past, t.last.held()
 	}
-	from := views.DaysFrom(views.YearAsk{Year: year}, t.last.to, t.starts)
+	from := views.DaysFrom(year, t.last.to, t.starts)
 	for _, d := range []heldDays{t.last, t.back} {
 		if d.reach(from, t.began) {
 			return d.past, true

@@ -39,13 +39,15 @@ const (
 	limitMark      = "▪"
 )
 
-// The words after a strip's count: a family's share of use; and the widest
-// a count was reckoned at when the strips counted an account's 5-hour limits
-// too, which the count's column keeps, so the strips lie where the design
-// drew them.
+// The words after a strip's count, a family's share of use; and
+// designedCountWords, the widest the count's column was reckoned at in the
+// signed-off design, when the strips counted an account's 5-hour limits too.
+// The column keeps that width so the strips lie where the design drew them:
+// sized by ofUse alone, the narrow form's shares move 7 cells right, as on
+// trends-year-73x61.
 const (
-	ofUse          = " of use"
-	fiveHourLimits = " 5-hour limits"
+	ofUse              = " of use"
+	designedCountWords = " 5-hour limits"
 )
 
 // familyStrips draws BY MODEL's strips, as laid out: a family's each, its
@@ -54,7 +56,7 @@ func (f Frame) familyStrips(c *canvas, l daysLayout) {
 	for i, s := range l.page.ByModel {
 		hue := familyHue(s.Of)
 		named := familyDot(s.Of, secondaryInk)
-		f.daysStrip(c, l, l.familyRow(i), func(room int) line { return named.fit(room) }, shareOfUse(s), func(level int) ink { return stepInk(hue, level) }, s.Days, len(s.Days))
+		f.daysStrip(c, l, l.familyRow(i), func(room int) line { return named.fit(room) }, shareOfUse(s), func(level int) ink { return stepInk(hue, level) }, s.Days)
 	}
 }
 
@@ -182,11 +184,11 @@ func daysParts(p views.DaysPage, narrow bool) []flex.Part {
 	return slices.Concat([]flex.Part{daysLabels(p, len(weeks))}, weeks, []flex.Part{count})
 }
 
-// daysCount is a strip's count, as wide as the widest, so its columns never
-// hang on the data: its number, then its words, a family's share of use or
-// an account's 5-hour limits.
+// daysCount is a strip's count, as wide as the design reckoned it, so its
+// columns never hang on the data: its number, then its words, a family's
+// share of use.
 func daysCount() flex.Part {
-	cells := daysCountCells + max(ansi.StringWidth(ofUse), ansi.StringWidth(fiveHourLimits))
+	cells := daysCountCells + max(ansi.StringWidth(ofUse), ansi.StringWidth(designedCountWords))
 	return flex.Part{Least: cells, Natural: cells}
 }
 
@@ -242,16 +244,16 @@ func initials(c *canvas, from time.Time, x, y int) {
 
 // daysStrip draws a strip along row y, or in the narrow form, its name and count on
 // row y and the strip under it: its name at column 0, as name gives it in
-// the cells the row lays it out in; each of its days shown before the one
-// with index until, in the ink shade gives at the day's level, those to come
-// ··; and its count, its number a figure, cut short of the edge.
-func (f Frame) daysStrip(c *canvas, l daysLayout, y int, name func(room int) line, count []part, shade func(level int) ink, days []views.StripDay, until int) {
+// the cells the row lays it out in; each of its days shown, in the ink shade
+// gives at the day's level, those to come ··; and its count, its number a
+// figure, cut short of the edge.
+func (f Frame) daysStrip(c *canvas, l daysLayout, y int, name func(room int) line, count []part, shade func(level int) ink, days []views.StripDay) {
 	strip := l.stripRow(y)
 	c.line(0, y, name(l.row.name.Size))
 	at := l.row.count.At + daysCountCells - partsWidth(count[:1])
 	c.line(at, y, fitParts(f.edge()-at, count...))
 	coming := len(days) - l.page.ToCome
-	for i := l.first; i < min(until, l.first+7*len(l.row.weeks)); i++ {
+	for i := l.first; i < min(len(days), l.first+7*len(l.row.weeks)); i++ {
 		x := l.dayAt(i)
 		if i >= coming {
 			c.text(x, strip, toCome, faintInk)

@@ -1000,7 +1000,9 @@ formats below; the screens as signed off in Paper (see The screens, below).
 - **The screens:** drawn in Paper from a spike of the build, signed off by the owner before the
   build (Switchboard · Identity, round 1): Runway, the Overview on the phone and wide, the routing
   card, Accounts' Detail, History's Days with a removed account, and setup's table and add card,
-  each without a number or an id.
+  each without a number or an id. History's per-account days went with the tab; an account removed
+  is drawn now on Accounts' Tokens, by its label in faint text, kept as
+  `accounts-tokens-removed-160`.
 
 ## Accounts and tokens
 

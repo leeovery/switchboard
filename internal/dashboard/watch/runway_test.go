@@ -464,7 +464,7 @@ func TestTheLanesAreJudgedByTheLedgersDaysSteppedBackOrBeforeTheReadingsKeep(t *
 	if got, want := summaryDates(r.from.Days), datesFrom(civilDay(-15), civilDay(-2)); !slices.Equal(got, want) {
 		t.Errorf("stepped back to last week, from Sunday 20 September, the lanes were built of the days %q, want %q", got, want)
 	}
-	yearFrom := views.DaysFrom(views.YearAsk{}, start, time.Sunday)
+	yearFrom := views.DaysFrom(0, start, time.Sunday)
 	if !slices.EqualFunc(r.ledger.reads, []time.Time{yearFrom}, time.Time.Equal) {
 		t.Errorf("stepped back, the ledger was read from %v, want once, from the 12 months' first day read, %s, as Accounts and Trends read it", r.ledger.reads, yearFrom)
 	}
