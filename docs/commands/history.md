@@ -176,7 +176,7 @@ the pool now.
 ## Good to know
 
 - The JSON holds the day the prices were read, then the days, the year, months, weeks, tokens,
-  totals, plans and capacity. Every field is in [Reference](../reference.md).
+  totals, plans and capacity. Every field is in [Reference](../reference/history-json.md).
 - An account removed shows as `team (removed 4 Sep)` in the text, and by its id in the JSON.
 - Just after an upgrade that moves the history, `history` refuses until the router has moved it.
 

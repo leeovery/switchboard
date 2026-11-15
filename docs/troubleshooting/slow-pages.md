@@ -55,5 +55,5 @@ Yesterday reads the lines until about an hour after midnight, as today does.
 ## Related
 
 - [Your record and what it's worth](../your-record.md): what the ledger holds.
-- [Reference](../reference.md): the state directory, and the files in the ledger.
+- [Reference](../reference/files.md): the state directory, and the files in the ledger.
 - [Dashboard](../dashboard.md): the Log, and the page of a session.

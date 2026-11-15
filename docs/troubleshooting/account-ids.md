@@ -38,7 +38,7 @@ accounts to the ids the first Mac made. It carries on once the API answers.
 
 The move repairs a compressed day file it finds damaged as it rewrites it. It keeps the lines
 before the damage, sets the old file aside beside it as `<name>.damaged`, and warns of it in the
-log. You don't need to do anything. The files are listed in [Reference](../reference.md).
+log. You don't need to do anything. The files are listed in [Reference](../reference/files.md).
 
 ## An import refused across the upgrade
 
@@ -60,7 +60,7 @@ The folder this Mac exported before the upgrade is taken in as it is.
 `accounts.json` doesn't read, for example after a wrong edit by hand. Switchboard leaves it as it
 is. Adding or removing an account fails and names the file. Meanwhile, History and the commands
 name each removed account by id. Put the file right, or move it aside. What it holds is in
-[Reference](../reference.md).
+[Reference](../reference/accounts-record.md).
 
 ## Related
 

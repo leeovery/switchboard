@@ -60,7 +60,7 @@ counts as the first pool.
 ## Good to know
 
 - The JSON names each account by its id, as the files keep it. Every field is in
-  [Reference](../reference.md).
+  [Reference](../reference/ledger.md).
 - Just after an upgrade that moves the history, `requests` refuses until the router has moved it.
   It says what holds the move up.
 - Once you have a second pool, the text names the pool it read, such as `pool Acme`.
