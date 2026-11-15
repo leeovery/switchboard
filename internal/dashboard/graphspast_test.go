@@ -140,8 +140,19 @@ func TestTrendsYearsTotalsUnderTheGridEndWhereItEnds(t *testing.T) {
 	}
 	for _, width := range []int{73, 108, 138} {
 		y, _ := trendsFrame(t, width, 60, "year").graphsYear()
-		if grid, totals := ends(y); totals != grid {
-			t.Errorf("at %d columns, YEAR's totals end at %d, want where its grid ends, %d", width, totals, grid)
+		columns := y.laid.columns
+		last := columns[len(columns)-1]
+		reckoned := last.x + min(y.columnPart(last.figures).Natural, last.cells)
+		if grid, totals := ends(y); reckoned != grid || totals > grid {
+			t.Errorf("at %d columns, YEAR's totals end at %d at their widest, %d as drawn; want where its grid ends, %d, and none past it", width, reckoned, totals, grid)
+		}
+		for i := 1; i < len(columns); i++ {
+			before := columns[i-1]
+			for _, figure := range before.figures {
+				if end := before.x + figure.drawn(y.form.label(figure), y.form.labelCells, before.cells).width(); end+yearColumnsApart > columns[i].x {
+					t.Errorf("at %d columns, column %d's %s ends at %d, closer than %d cells to column %d at %d", width, i-1, y.form.label(figure), end, yearColumnsApart, i, columns[i].x)
+				}
+			}
 		}
 	}
 	one := trendsFrame(t, 108, 60, "year").yearFor(yearDrawn{page: trendsYear(), apart: true})
@@ -151,6 +162,29 @@ func TestTrendsYearsTotalsUnderTheGridEndWhereItEnds(t *testing.T) {
 	history, _ := yearFrame(t, 108, 60, views.YearAsk{}, trendsYear()).yearDrawn()
 	if grid, totals := ends(history); totals >= grid {
 		t.Errorf("at 108 columns, History's Year's totals end at %d, want them short of its grid's end, %d, unspread", totals, grid)
+	}
+}
+
+// YEAR's totals spread by their figures at their widest, never as drawn, so
+// a busiest day narrower than the widest moves no column.
+func TestTrendsYearsSpreadHoldsStillAsItsFiguresChange(t *testing.T) {
+	for _, width := range []int{108, 138} {
+		var at [][]int
+		for _, busiest := range []string{"2026-09-30", "2026-10-01"} {
+			page := trendsYear()
+			page.Numbers.BusiestDay = busiest
+			f := trendsFrame(t, width, 60, "year")
+			f.Graphs.Year = &page
+			y, _ := f.graphsYear()
+			var xs []int
+			for _, column := range y.laid.columns {
+				xs = append(xs, column.x)
+			}
+			at = append(at, xs)
+		}
+		if !slices.Equal(at[0], at[1]) {
+			t.Errorf("at %d columns, YEAR's totals' columns are at %v with Wed 30 Sep the busiest day, %v with Thu 1 Oct; want them alike", width, at[0], at[1])
+		}
 	}
 }
 
@@ -356,12 +390,13 @@ func TestTrendsLaysOutItsPastOnlyWhileItShowsAndOnceAFrame(t *testing.T) {
 	}
 	columns := func(f Frame) *figureColumn { return &f.pastLaid().year.laid.columns[0] }
 	built := trendsFrame(t, 173, 53, everyTrend...).Built(threeRouted(), now)
-	alike, wider := built, built
-	alike.Scroll, wider.Width = 3, 180
+	alike, wider, relooked := built, built, built
+	alike.Scroll, wider.Width, relooked.Look = 3, 180, Screen(builtin(t, "terminal"))
 	first := columns(built)
-	again, copied, widened := columns(built) == first, columns(alike) == first, columns(wider) == first
-	if !again || !copied || widened {
-		t.Errorf("a frame Built shares its Year's layout across its looks %t, with a copy alike %t, with one wider %t; want true, true and false", again, copied, widened)
+	again, copied, widened, looked := columns(built) == first, columns(alike) == first, columns(wider) == first, columns(relooked) == first
+	if !again || !copied || widened || looked {
+		t.Errorf("a frame Built shares its Year's layout across its looks %t, with a copy alike %t, with one wider %t, with one in another look %t; want true, true, false and false",
+			again, copied, widened, looked)
 	}
 }
 

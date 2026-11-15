@@ -5800,12 +5800,13 @@ heading over a blank row. History's Year and Days draw as they did.
   lays them in its wide form, else under it in as many columns of pairs as fit, on a phone two; where
   some figures don't fit there, they go on a row under the rest, one under each column in turn, each
   column then laid out as wide as every figure it holds, fewer columns where they don't all fit, so
-  none goes unsaid or cut short. Under the grid, the columns spread to end where its last week ends,
-  the cells between them shared evenly, as where the width has room to spare the totals take it;
-  where they reach it already, or one column holds them, they stay. History's Year doesn't spread.
-  The frames at 108 and 73 have them further right than Paper's, which drew them unspread: at 108
-  the second column 10 cells on and the third 20, on the phone the second 17. Its
-  short label for the longest run is `longest`, as History's Year now says too.
+  none goes unsaid or cut short. Under the grid, the columns spread so the last's figures at their
+  widest end where its last week ends, the cells between them shared evenly, as where the width has
+  room to spare the totals take it, and they hold still as the figures change; where they reach it
+  already, or one column holds them, they stay. History's Year doesn't spread. The frames at 108 and
+  73 have them further right than Paper's, which drew them unspread: at 108 the second column 10
+  cells on and the third 20, on the phone the second 16. Its short label for the longest run is
+  `longest`, as History's Year now says too.
 - **`v`** cycles what YEAR and BY MONTH show, as the Year's `v` does: all use, each model version,
   then each account, `←` and `→` stepping between the accounts while one shows. It's the run's alone,
   never kept, and apart from History's, which it leaves as it was; it works while YEAR or BY MONTH

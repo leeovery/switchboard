@@ -17,10 +17,10 @@ F   ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ 
 ■ 0 ■ <350 ■ 350–650 ■ 650–950 ■ >950  requests a day
 
 LAST 12 MONTHS
-requests  212,885                                   worth     $24,736
-sessions  1,688                                     plans     $7,200
-limits    week ×3 · 5-hour ×412                     against   3.4×
-busiest   Wed 30 Sep                                longest   20 days
+requests  212,885                                  worth     $24,736
+sessions  1,688                                    plans     $7,200
+limits    week ×3 · 5-hour ×412                    against   3.4×
+busiest   Wed 30 Sep                               longest   20 days
 
 BY MONTH  ───────────────────────────────────────────────────────────── m
 

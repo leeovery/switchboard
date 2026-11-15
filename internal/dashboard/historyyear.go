@@ -310,22 +310,20 @@ func (y yearDrawn) underColumns(figures [][]yearFigure, kept int) []figureColumn
 	return columns
 }
 
-// spread is the columns given moved apart so the last's figures end at end,
-// the grid's, where the room there would be spare, as the totals take the
-// width the grid does: the cells between them shared evenly by the gaps,
-// the odd ones the first's. Where they reach end already, or one column
-// holds them, they're as they were.
+// spread is the columns given moved apart so the last's figures, at their
+// widest, as columnPart reckons them, end at end, the grid's, where the room
+// there would be spare, as the totals take the width the grid does: the
+// cells between them shared evenly by the gaps, the odd ones the first's.
+// So the columns hold still as the figures change, and a figure narrower
+// than its widest ends short of the grid by what it lacks. Where they reach
+// end already, or one column holds them, they're as they were.
 func (y yearDrawn) spread(columns []figureColumn, end int) []figureColumn {
 	gaps := len(columns) - 1
 	if gaps < 1 {
 		return columns
 	}
 	last := columns[gaps]
-	reach := 0
-	for _, figure := range last.figures {
-		reach = max(reach, figure.drawn(y.form.label(figure), y.form.labelCells, last.cells).width())
-	}
-	spare := end - last.x - reach
+	spare := end - last.x - min(y.columnPart(last.figures).Natural, last.cells)
 	if spare <= 0 {
 		return columns
 	}

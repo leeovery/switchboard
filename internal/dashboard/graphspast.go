@@ -32,24 +32,26 @@ type pastLaid struct {
 	modelsOK bool
 }
 
-// pastKey is all that lays YEAR, BY MONTH and MODELS BY DAY out, so a copy
-// of a frame Built laid them out for that differs in none of it shares what
-// it laid: the frame's width, the sections shown, the pages and what v has
-// YEAR show, and whether the last 12 months are read, which words what it
-// shows.
+// pastKey is all that lays YEAR, BY MONTH and MODELS BY DAY out, and all the
+// Year and the strips laid out read as they're drawn, so a copy of a frame
+// Built laid them out for that differs in none of it shares what it laid:
+// the frame's width and its look, which inks the days and squares them; the
+// sections shown; the pages; what v has YEAR show, and what it's shown for
+// alone, as the accounts' labels and the last 12 months read name it.
 type pastKey struct {
 	width int
+	look  Look
 	shown GraphsSections
 	year  *views.YearPage
 	days  *views.DaysPage
 	split views.YearAsk
-	read  bool
+	alone string
 }
 
 // pastKey is what lays the frame's YEAR, BY MONTH and MODELS BY DAY out.
 func (f Frame) pastKey() pastKey {
 	g := f.Graphs
-	return pastKey{width: f.Width, shown: g.Sections, year: g.Year, days: g.Days, split: g.Split, read: g.Read}
+	return pastKey{width: f.Width, look: f.Look, shown: g.Sections, year: g.Year, days: g.Days, split: g.Split, alone: g.yearShown()}
 }
 
 // pastLaid is YEAR, BY MONTH and MODELS BY DAY as the frame lays them out:
