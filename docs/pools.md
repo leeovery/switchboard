@@ -30,11 +30,13 @@ looking at.
   only the accounts in Acme, wherever the worktree lives.
 - Sessions started anywhere else use the unfenced pool, which holds the rest of your accounts.
   Switchboard makes your first pool for you, labelled `Default`, and it starts unfenced.
+- A `claude` that an Acme session starts, such as a test running `claude -p` in the session's
+  scratchpad, uses Acme too. Outside a repository, it counts as the session's project.
 - Inside a pool, a session keeps its account while the cache is warm, and moves when a limit hits.
+  When every account in the pool is out, work there waits for a reset rather than spill into
+  another pool.
 - Each pool has a primary: the account whose token Claude Code holds there. Artifacts and uploads
   go out on it.
-- When every account in a pool is out, work there waits for a reset rather than spill into another
-  pool.
 - The dashboard shows one pool at a time, and every request is recorded under the pool it ran in.
 
 ## Good to know
@@ -49,8 +51,9 @@ looking at.
   covers whole folder names, so `~/Code/acme` doesn't cover `~/Code/acme-api`.
 - Only one pool can be unfenced. If every pool is fenced, `claude` won't start outside every
   fence. A new pool has no accounts, and `claude` won't start in its folders until you add one.
-- `switchboard run --direct` is refused inside a fence. It would start Claude Code on whichever
-  account Claude Code itself is signed into, which may not be one of the pool.
+- `switchboard run --direct` is refused inside a fence, and inside a session of a fenced pool. It
+  would start Claude Code on whichever account Claude Code itself is signed into, which may not be
+  one of the pool.
 
 ## Reference
 

@@ -46,12 +46,35 @@ routed or recorded.
 | You also pass `--account` | `run` refuses: the two don't go together. |
 | The folder is inside a fenced pool | `run` refuses, because the login may not be an account of the pool. |
 | The folder is a git worktree of a repository inside a fenced pool | `run` refuses, for the same reason. |
+| `claude` starts inside a session of a fenced pool | `run` refuses, for the same reason. |
 
 ## In a pool
 
 A session belongs to the pool of the folder it starts in, for its whole life. In a git worktree, it
 belongs to the pool of its repository. If `run` refuses to start in a folder, see
 [Troubleshooting: pools](../troubleshooting/pools.md).
+
+## Inside another session
+
+A `claude` that a session starts belongs to the pool of that session. So a test that runs
+`claude -p` in the session's scratchpad spends the same pool as the session. A fence still keeps
+its own work:
+
+| If the folder it starts in is | Then it belongs to |
+|---|---|
+| Inside no fence | The pool of the session |
+| Inside the fence of the session's own pool | The pool of the session |
+| Inside a fence, and the session is in the unfenced pool | The fenced pool |
+| Inside a fence, and the session is in another fenced pool | No pool: `run` refuses |
+
+The project follows the same session. If the folder is in a repository, the project is that
+repository. Otherwise the project is the project of the session, rather than the folder.
+
+The session is the one whose `claude` started this `claude`, directly or through other programs.
+`run` finds it in the environment that `claude` inherits. If a tool cleaned that environment,
+`run` looks at the environments of the programs that started `claude`. A session that has ended
+counts as none. So does a session that only started the tmux server a `claude` runs in. Inside a
+session of a fenced pool, `--direct` is refused.
 
 ## Exit status
 

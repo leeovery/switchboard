@@ -57,9 +57,14 @@ type Deps struct {
 	// starts Claude Code in, which it tells the router of.
 	Getwd func() (string, error)
 	// FindProject finds the project a session started in a directory runs
-	// in, as launch.FindProject does, which run tells the router of beside
-	// the directory: nil tells none.
-	FindProject func(dir string) string
+	// in, and whether the directory is in a repository, as launch.FindProject
+	// does, which run tells the router of beside the directory: nil tells
+	// none.
+	FindProject func(dir string) (string, bool)
+	// FindProcess finds what's known of a running process, by its id, as
+	// launch.FindProcess does, so run finds the session a claude is started
+	// within, through the processes that started it: nil finds none.
+	FindProcess func(pid int) (launch.Process, bool)
 	// Executable returns the path of this switchboard binary, as
 	// os.Executable does: what the LaunchAgent runs, and what run passes
 	// over as it looks for claude.

@@ -268,43 +268,72 @@ func (l Launcher) placed(r Route) (place, error) {
 // known while a pool is fenced: it may be inside that pool's fence.
 const unknownDir = "can't tell which pool the directory claude starts in is in"
 
-// sessionPool returns the pool of pools a session started in Dir is in: the
-// fenced pool holding it, as fencesOf finds it; else the unfenced pool.
-// Where it can be in none, it returns why instead: as fencesOf says; two
-// fenced pools hold it, through its links; or none covers it, as where every
-// pool is fenced.
+// ownLoginNever ends why Claude Code doesn't start on its own login in a
+// pool, which would go out on whatever account it's signed into.
+const ownLoginNever = ", where claude never starts on its own login"
+
+// sessionPool returns the pool of pools a session started in Dir is in:
+// within a session whose pool withinPool finds, as linked links that pool
+// and the fenced pool holding Dir; else the fenced pool holding it, as
+// fencesOf finds it; else the unfenced pool. Where it can be in none, it
+// returns why instead: as fencesOf says; two fenced pools hold it, through
+// its links; as linked says; or none covers it, as where every pool is
+// fenced.
 func (l Launcher) sessionPool(pools config.Pools) (config.Pool, string) {
 	f, why := l.fencesOf(pools)
-	if why != "" {
+	switch {
+	case why != "":
 		return config.Pool{}, why
-	}
-	switch len(f.held) {
-	case 0:
-		if p, ok := pools.Unfenced(); ok {
-			return p, ""
-		}
-		return config.Pool{}, "no pool covers " + l.where()
-	case 1:
-		return f.held[0], ""
-	default:
+	case len(f.held) > 1:
 		return config.Pool{}, l.placeSaid(f) + ", as its links lead"
 	}
+	if within, ok := l.withinPool(pools); ok {
+		return l.linked(within, f)
+	}
+	if len(f.held) == 1 {
+		return f.held[0], ""
+	}
+	if p, ok := pools.Unfenced(); ok {
+		return p, ""
+	}
+	return config.Pool{}, "no pool covers " + l.where()
+}
+
+// linked returns the pool a session started in Dir is in, where it's started
+// within a session in the pool within, and f, the fenced pools holding Dir,
+// holds one at most: within, where f holds none, or holds within itself, so
+// what a session's tooling starts outside every fence stays in its pool; and
+// the one f holds, where within is unfenced, as a fence keeps its own work.
+// Where f holds another pool, and within is fenced, it returns why it's in
+// neither instead, naming both, as either way work would cross between them.
+func (l Launcher) linked(within config.Pool, f fencing) (config.Pool, string) {
+	switch {
+	case len(f.held) == 0 || config.SamePool(f.held[0].ID, within.ID):
+		return within, ""
+	case !within.Fenced():
+		return f.held[0], ""
+	}
+	return config.Pool{}, l.placeSaid(f) + ", but the session it's started within is in pool " + poolSaid(within)
 }
 
 // ownLoginBarred says why Claude Code doesn't start on its own login in Dir,
 // of pools, placed as placedInHome places them, which would go out on
 // whatever account it's signed into: a fenced pool holds it, as fencesOf
-// finds it, or fencesOf can't tell; or a pool writes a directory that can't
-// be placed, which may hold Dir. It says "" where it can start so. What a
-// pool writes is redacted, as a token pasted into a pool's directories reads
-// as one that can't be placed.
+// finds it, or fencesOf can't tell; it's started within a session of a
+// fenced pool, which sessionPool keeps it in; or a pool writes a directory
+// that can't be placed, which may hold Dir. It says "" where it can start
+// so. What a pool writes is redacted, as a token pasted into a pool's
+// directories reads as one that can't be placed.
 func (l Launcher) ownLoginBarred(pools config.Pools) string {
 	f, why := l.fencesOf(pools)
 	switch {
 	case why != "":
 		return why
 	case len(f.held) > 0:
-		return l.placeSaid(f) + ", where claude never starts on its own login"
+		return l.placeSaid(f) + ownLoginNever
+	}
+	if within, ok := l.withinPool(pools); ok && within.Fenced() {
+		return l.where() + " is in pool " + poolSaid(within) + ", through the session it's started within" + ownLoginNever
 	}
 	if i := slices.IndexFunc(pools, func(p config.Pool) bool { return len(p.Unplaced) > 0 }); i >= 0 {
 		return "can't tell which pool " + l.where() + " is in: pool " + poolSaid(pools[i]) + "'s directory " + prose.Quoted(redact.Text(pools[i].Unplaced[0])) + " can't be placed"

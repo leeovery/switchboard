@@ -25,11 +25,15 @@ gets these:
 | `ANTHROPIC_CUSTOM_HEADERS` | A line for each switchboard header the router reads, added to any headers you set. |
 | `CLAUDE_CODE_GATEWAY_HINT_HEADERS` | `1`, unless your environment sets it already. |
 | `SWITCHBOARD_POOL` | The id of the pool the session is in, for the skill to name to the verbs. |
+| `SWITCHBOARD_PROJECT` | The path of the project the session runs in. |
 | `SWITCHBOARD_SET` | What `claude` set of these, and the values of yours it replaced. |
 | `SWITCHBOARD_STARTED` | A mark on every `claude` that switchboard starts, routed or not. |
 
 - **`SWITCHBOARD_POOL`** is set on a session that goes direct too, because the session is still in
   its pool. The variable is left out if the config has no pools.
+- **`SWITCHBOARD_PROJECT`** is set on a session that goes direct too. A `claude` started inside
+  the session reads it, with `SWITCHBOARD_POOL` and `SWITCHBOARD_STARTED`, to join the session.
+  See [`switchboard run`](../commands/run.md).
 - **`SWITCHBOARD_SET`** lets a `claude` started inside the session start from your own
   environment.
 - **`SWITCHBOARD_STARTED`** is what the [session hook](session-hook.md) reads.
@@ -45,11 +49,13 @@ that prefix off a request before it goes upstream.
 |---|---|
 | `X-Switchboard-Account` | The id of the account that `--account` pins the session to. |
 | `X-Switchboard-Dir` | The directory `claude` started in, with your home as `~`. |
+| `X-Switchboard-Project` | The project the session runs in, with your home as `~`. |
 | `X-Switchboard-Pool` | The id of the pool the session is in. The router routes its requests within it. |
 
 - **`X-Switchboard-Dir`** percent-encodes only what a header can't carry. That's a control
-  character, a byte past ASCII, a `%`, or a space at either end.
+  character, a byte past ASCII, a `%`, or a space at either end. `X-Switchboard-Project` is
+  encoded the same way.
 - **A request without `X-Switchboard-Pool`** comes from a session started before pools. The router
   routes it in the first pool.
-- **The directory and the pool** go only to a router whose `GET /health` answer says
+- **The directory, the project and the pool** go only to a router whose `GET /health` answer says
   `strips_own_headers`. See [The control API](control-api.md).

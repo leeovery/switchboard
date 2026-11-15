@@ -22,23 +22,24 @@ import (
 // can't place, as a submodule's linked worktree, or a separate git
 // directory's. Each is given by the path dir is given by, as walkedTo has
 // it, where that goes through the repository or a directory it's in; else
-// by its path with every link resolved. Where neither walk finds a .git, or
-// the first found can't be read as a repository, as worktreeAt finds it
-// lost, the project is dir itself, as given. It runs no git. "" for "".
-func FindProject(dir string) string {
+// by its path with every link resolved. It reports whether dir is in a
+// repository: it isn't where neither walk finds a .git, or the first found
+// can't be read as a repository, as worktreeAt finds it lost, and the
+// project is then dir itself, as given. It runs no git. "" for "".
+func FindProject(dir string) (string, bool) {
 	if dir == "" {
-		return ""
+		return "", false
 	}
 	dir = filepath.Clean(dir)
 	for _, from := range resolvedFirst(dir) {
 		if repo, held := repositoryAround(from); held {
 			if repo == "" {
-				return dir
+				return dir, false
 			}
-			return walkedTo(dir, repo)
+			return walkedTo(dir, repo), true
 		}
 	}
-	return dir
+	return dir, false
 }
 
 // resolvedFirst are the paths dir is walked up from: dir with its links

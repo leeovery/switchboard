@@ -14,9 +14,11 @@ ending `— not starting claude`.
 | `no pool covers ~/Code/other` | Start it inside a fence, or leave one pool unfenced. |
 | `~/Code/both is in pools Acme and Client, as its links lead` | Start it in a folder that only one pool holds. |
 | `~/wt/x is in pool Acme, but in its repository it's at ~/Code/web, in pool Default` | Make the worktree in the same pool as its repository. |
+| `~/Code/client/site is in pool Client, but the session it's started within is in pool Acme` | Start it outside the fence of Client, or from a session in Client. |
 | `pool Acme has no accounts` | Add one with `switchboard accounts add "Acme 1" --pool q7mt`. |
 | `pool Acme has no account with a usable token` | Give one a token with `switchboard accounts token m2kp`. |
 | `~/Code/acme is in pool Acme, where claude never starts on its own login` | Start it through the router, or outside the fence. |
+| `/tmp/x is in pool Acme, through the session it's started within, where claude never starts on its own login` | Start it through the router. A `claude` that a session of Acme starts is in Acme, wherever it starts. |
 | `…: add that bare repository to pool Acme's directories` | The worktree's repository is a bare one outside every fence. Add it to the pool's folders, as below. |
 | `can't tell which pool the directory claude starts in is in` | The folder can't be read, for example because it was removed. Start it in a folder that's there. |
 | `can't tell which pool ~/wt/x is in: its .git file at ~/wt/x leads to no repository that can be found` | The worktree's `.git` file is stale. Run `git worktree repair <worktree>` in its repository, or remove the worktree. |
@@ -38,6 +40,9 @@ More on the rows above:
   `commondir` can't be read. A stale `.git` file refuses every folder below it.
 - **The own-login row,** for a worktree of a repository inside a fence, says
   `in its repository, ~/Code/acme-feature is at ~/Code/acme`.
+- **The session rows** come from a `claude` started inside another session, for example by a test
+  the session runs. Inside a session, the session decides the pool, unless a fence holds the
+  folder. See [`switchboard run`](../commands/run.md).
 - **The last row** comes when the config names no pools, so the router's pools are taken.
 
 For a bare repository, give `--dirs` the folders the pool has and the bare repository together,

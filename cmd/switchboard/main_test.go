@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/leeovery/switchboard/internal/testguard"
@@ -21,7 +22,20 @@ func TestTheDepsMainHandsRunFindTheProjectASessionRunsIn(t *testing.T) {
 	if find == nil {
 		t.Fatal("main hands run no FindProject: no session is told its project")
 	}
-	if got := find(filepath.Join(repo, "cmd")); got != repo {
-		t.Errorf("FindProject(api/cmd) = %q, want the repository %q", got, repo)
+	if got, inRepository := find(filepath.Join(repo, "cmd")); got != repo || !inRepository {
+		t.Errorf("FindProject(api/cmd) = %q, %v; want the repository %q", got, inRepository, repo)
+	}
+}
+
+func TestTheDepsMainHandsRunFindTheProcessesASessionRunsIn(t *testing.T) {
+	find := deps().FindProcess
+	if find == nil {
+		t.Fatal("main hands run no FindProcess: no claude is found within the session that started it")
+	}
+	if runtime.GOOS != "darwin" {
+		t.Skip("only macOS's processes are read")
+	}
+	if p, ok := find(os.Getpid()); !ok || p.Parent != os.Getppid() {
+		t.Errorf("FindProcess(this test) = %+v, %v; want it running, started by %d", p, ok, os.Getppid())
 	}
 }

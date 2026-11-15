@@ -54,6 +54,10 @@ puts `pool_label` after it too.
   [the whys](reasons.md).
 - **`dir`** reaches the router in a header the API never sees. A `claude` started inside that
   session other than through switchboard carries the directory too.
+- **`dir` and `project`** are kept whole up to 1024 bytes, the longest folder path macOS gives. A
+  longer `dir` is cut from its start, with `…` for what's cut, and a longer `project` is left out.
+  Lines that v0.9.0 and earlier filed held 200 bytes of each, so a folder in a Claude Code
+  scratchpad often shows cut there, with no `project`.
 
 ### The project of a line
 
@@ -67,7 +71,8 @@ first `.git`, without running git. For example, `~/Code/api` is the project of a
 | A linked worktree | The main repository of the worktree |
 | A worktree of a bare repository | The folder of the bare repository, such as `~/repos/api.git` or `~/.dotfiles` |
 | A worktree inside the folder that holds a bare repository named `.bare` | The folder that holds both: `~/Code/api` for `~/Code/api/.bare` and `~/Code/api/main` |
-| No repository | The directory itself |
+| No repository, in a `claude` started inside another session | The project of that session |
+| No repository otherwise | The directory itself |
 
 Links change the walk as follows:
 
