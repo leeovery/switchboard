@@ -1,4 +1,4 @@
-# Every page: the frame, help and keys every tab shares
+# Every page: learn the keys once, use them on every tab
 
 Every page of the dashboard sits in the same frame, with the same status line, help and keys. Learn
 them once and they work on every tab. This page covers what the frame holds, the keys that work
@@ -121,8 +121,9 @@ probes no account twice in a minute. Without the router, `R` probes every accoun
 - the Log's find;
 - a turn opened on the session page.
 
-With nothing open, `esc` ends a choice. On the Log, with a filter on, it clears the filter.
-Otherwise, on the session page, it goes back to where you opened the page.
+With nothing open, `esc` ends a choice. On the Log, it follows again while the table is paused,
+as `end` does, and otherwise clears a filter. On the session page, it goes back to where you
+opened the page.
 
 ## Scrolling
 

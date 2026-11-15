@@ -98,7 +98,9 @@ new one`.
 ### Moving around Detail
 
 Press `↑` and `↓` to choose an account, then `→` to move into its sessions and `←` to go back.
-In the sessions, `enter` opens the chosen one on [the session page](session-page.md).
+`enter` opens the chosen session on [the session page](session-page.md). In the list, `enter` opens
+the session last chosen there, or else the first one running on the account. The key line says
+`enter its page`.
 
 - The chosen row is lit only where `↑` and `↓` act, in the list or in the sessions.
 - The chosen row of the other is bold, marked `▸`.
@@ -160,8 +162,9 @@ Total and worth always show. The names stay whole until every other column has g
 | `↑` `↓` | In Detail, chooses the account, `all accounts` first. |
 | `→` `←` | In Detail, `→` moves into the sessions of the chosen account, and `←` goes back to the list. |
 | `↑` `↓`, then `enter` | In the sessions on Detail, chooses a session, and opens its page. |
+| `enter` | In the list on Detail, opens the page of the session last chosen, or else of the first one running. |
 | `w` | In Detail, shows or hides the model windows. |
 | `v` | On Tokens, splits each row by account, by model, by both, or not at all. |
-| `j` `k` | Scroll the rows of Compare or Tokens, a row at a time. |
+| `j` `k` | Scroll Compare, Detail or Tokens, a row at a time. |
 
 The keys every page shares are on [Every page](every-page.md).
