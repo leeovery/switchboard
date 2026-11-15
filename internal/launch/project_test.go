@@ -73,7 +73,18 @@ func TestFindProjectWalksUpToTheRepositoryItsDirectoryIsIn(t *testing.T) {
 			start: "app/lib", want: "app/lib",
 		},
 		{name: "in no repository, the directory itself", dirs: []string{"notes/2026"}, start: "notes/2026", want: "notes/2026", inNone: true},
-		{name: "within a bare repository, the directory itself", dirs: []string{"api.git/refs/heads"}, start: "api.git/refs/heads", want: "api.git/refs/heads", inNone: true},
+		{
+			name: "within a bare repository, the directory itself, in the repository", dirs: []string{"api.git/refs/heads"},
+			files: map[string]string{"api.git/config": bareConfig}, start: "api.git/refs/heads", want: "api.git/refs/heads",
+		},
+		{
+			name: "within a folder named as a bare repository that no config says is one, the directory itself", dirs: []string{"api.git/refs/heads"},
+			start: "api.git/refs/heads", want: "api.git/refs/heads", inNone: true,
+		},
+		{
+			name: "beside a bare repository in .bare, the directory itself, in the repository", dirs: []string{"api/.bare/refs", "api/notes"},
+			files: map[string]string{"api/.bare/config": bareConfig}, start: "api/notes", want: "api/notes",
+		},
 		{
 			name: "a worktree of a bare repository, the bare repository", dirs: []string{"api.git/worktrees/fix-login", "fix-login/web"},
 			files: map[string]string{
@@ -475,5 +486,69 @@ func TestAFolderOfNoRepositoryHasNone(t *testing.T) {
 	}
 	if _, ok := launch.RepositoryOf(""); ok {
 		t.Error(`RepositoryOf("") is one, want none`)
+	}
+}
+
+// FindProject says a directory is in a repository where RepositoryOf finds
+// one, and nowhere else: so a session started there, and one whose
+// scratchpad's slug names it once it's gone, are read alike.
+func TestFindProjectIsInARepositoryWhereRepositoryOfFindsOne(t *testing.T) {
+	tests := []struct {
+		name  string
+		dirs  []string
+		files map[string]string
+		links map[string]string
+		// start is the directory asked of, by its path from the root, and
+		// in whether it's in a repository.
+		start string
+		in    bool
+	}{
+		{name: "a subfolder of a repository", dirs: []string{"api/.git", "api/web"}, start: "api/web", in: true},
+		{name: "a folder of no repository", dirs: []string{"notes"}, start: "notes"},
+		{
+			name: "a subfolder of a bare repository", dirs: []string{"api.git/wt"},
+			files: map[string]string{"api.git/config": bareConfig}, start: "api.git/wt", in: true,
+		},
+		{
+			name: "the folder holding a bare repository in .bare", dirs: []string{"api/.bare/refs"},
+			files: map[string]string{"api/.bare/config": bareConfig}, start: "api", in: true,
+		},
+		{
+			name: "a folder beside a bare repository in .bare", dirs: []string{"api/.bare/refs", "api/notes"},
+			files: map[string]string{"api/.bare/config": bareConfig}, start: "api/notes", in: true,
+		},
+		{
+			name: "beside a .bare that no config says is bare", dirs: []string{"api/.bare/refs", "api/notes"},
+			files: map[string]string{"api/.bare/config": notBareConfig}, start: "api/notes",
+		},
+		{
+			name: "a folder whose nearest .git is lost, though a repository holds it", dirs: []string{"api/.git", "api/web/src"},
+			files: map[string]string{"api/web/.git": "gitdir: <root>/gone\n"}, start: "api/web/src",
+		},
+		{
+			name: "a bare repository in a folder whose .git is lost", dirs: []string{"fix/lib.git/refs"},
+			files: map[string]string{"fix/.git": "gitdir: <root>/gone\n", "fix/lib.git/config": bareConfig}, start: "fix/lib.git/refs", in: true,
+		},
+		{
+			name: "through a link into a bare repository", dirs: []string{"api.git/wt"},
+			files: map[string]string{"api.git/config": bareConfig}, links: map[string]string{"wt": "api.git/wt"}, start: "wt", in: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := realDir(t)
+			lay(t, root, tt.dirs, tt.files)
+			for path, target := range tt.links {
+				if err := os.Symlink(filepath.Join(root, target), filepath.Join(root, path)); err != nil {
+					t.Fatal(err)
+				}
+			}
+			start := filepath.Join(root, tt.start)
+			_, found := launch.RepositoryOf(start)
+			_, inRepository := launch.FindProject(start)
+			if found != tt.in || inRepository != tt.in {
+				t.Errorf("of %s, RepositoryOf finds one: %v, FindProject in one: %v; want both %v", tt.start, found, inRepository, tt.in)
+			}
+		})
 	}
 }

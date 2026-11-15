@@ -5243,13 +5243,16 @@ draw it, the tab names in its title row aside, and kept in `testdata/vhs/referen
   - **No project:** a slug naming nothing below the home's parents counts as
     `temporary folders` (`status.TemporaryFolders`). So does one naming only its own start where
     the folder found is in no repository, as of a repository or a volume gone. Else it's the project
-    `launch.RepositoryOf` gives, injected, of the nearest folder up that's one of these:
+    `launch.RepositoryOf` gives, injected, of the nearest folder up that's one of these, walked as
+    `FindProject` walks, its links resolved first:
     - a bare repository's directory: that folder;
     - a folder holding a bare `.bare`: that folder;
-    - a folder holding a `.git`: `FindProject`'s project of it.
+    - a folder holding a `.git`: `FindProject`'s project of it, or none if the `.git` can't be read.
 
     So a worktree removed from inside its repository's folder counts as `FindProject` named it
-    live. A slug can't tell `-` from `/`, so a removed folder whose name begins with a sibling's
+    live. `FindProject` says a directory is in a repository where `RepositoryOf` finds one, so a
+    start there and a removed worktree's scratchpad are read alike (see A session's page, A
+    project). A slug can't tell `-` from `/`, so a removed folder whose name begins with a sibling's
     name and a `-` counts as that sibling: a removed `~/Code/api-v2` as `~/Code/api`. That's
     decided: the deepest existing folder wins.
   - **Temporary folders:** these three alone, each compared with its case folded:
@@ -7381,8 +7384,12 @@ session page · signed off · 7 Oct 2026**, its frames kept as `testdata/vhs/ref
   walk stopping at its own `.git`, where its pool is placed through the worktree it's in, as that
   reading walks every `.git` up. One outside any repository, or where what it finds can't be read
   as one (a `.git` file unreadable or naming nothing, a git or common directory that isn't there),
-  counts as its own directory; but one started within a session (see Which pool a session is in)
-  counts as that session's project, as `SWITCHBOARD_PROJECT` names it, so a `claude` the
+  counts as its own directory. Whether a directory is in a repository is one reading, for a start
+  and a removed worktree's scratchpad alike (see Projects, No project), `launch.RepositoryOf`'s: a
+  folder of a bare repository, or of one holding a bare `.bare`, is in one, though its project is
+  its own directory, and one whose nearest `.git` can't be read is in none. One started within a
+  session (see Which pool a session is in) outside every repository counts as that session's
+  project, as `SWITCHBOARD_PROJECT` names it, so a `claude` the
   session's tooling starts in Claude Code's scratchpad, with no `.git` above it, is the session's
   work, rather than a project of its own each run (the owner's call, 15 November 2026). That holds
   while it's in the session's pool: one a fence takes into another pool, as from a session of the

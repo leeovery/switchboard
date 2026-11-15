@@ -12,8 +12,8 @@ sessions ran there. The list is at the top, and the project you choose shows in 
 
 A project is a repository with its worktrees folded in, or the folder a session started in
 outside any repository. Each one is named by its folder, with the parent folder too if two share
-a name. Four kinds of session count otherwise. The first kind that fits a session decides, as
-[the ledger](../reference/ledger.md) explains:
+a name. Four kinds of session count otherwise, as [the ledger](../reference/ledger.md) explains.
+The first that fits decides:
 
 - **A `claude` that another session starts outside any repository** counts in that session's
   project, unless a fence takes it into another pool.
