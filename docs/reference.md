@@ -124,8 +124,8 @@ The state directory holds these files:
 | `ledger/logday-<date>.json.gz` | Each day's head: every session whose requests the day's lines hold, with the directory it ran in, so the Log's find needn't read every day's lines, and where each chunk of the day's rows lies in its rows file. Its form is switchboard's own too, and it's kept as long as the day's lines. Deleting it is safe: until the router writes it again, the find, the Log and a turn read the day's lines instead. |
 | `ledger/rows-<date>.gz` | Each day's rows, beside its head: a row for each of the day's lines, as the Log shows it, without a price, 256 rows to a gzip stream, each checked against the CRC its head records, so the Log reads a day back, and a turn its own days, without reading the day's lines. Its form is switchboard's own too, and it's kept as long as the day's lines. Deleting it is safe: until the router writes it again with the day's head, the day's lines are read instead. |
 | `ledger/events-<date>.jsonl` | The [router's events](#the-routers-events), one file for each day. |
-| `install-id` | This install's id, 16 lowercase hex characters, which names the Mac's folder an export writes. The first export makes it, and nothing replaces it. See [`export`](commands.md#export). |
-| `import/` | The Macs' folders an import copied in for the router to take in, one a folder, `1/`, `2/` and on, each laid out as the state directory lays out its history. The router removes it once it has taken them in, and the next import removes one an import cut short left. See [`import`](commands.md#import). |
+| `install-id` | This install's id, 16 lowercase hex characters, which names the Mac's folder an export writes. The first export makes it, and nothing replaces it. See [`export`](commands/export.md). |
+| `import/` | The Macs' folders an import copied in for the router to take in, one a folder, `1/`, `2/` and on, each laid out as the state directory lays out its history. The router removes it once it has taken them in, and the next import removes one an import cut short left. See [`import`](commands/import.md). |
 | `import.lock` | The file an import holds a lock on while it runs, so a second is refused. It's left there, as the lock goes with the import that held it. |
 
 Once a day ended two days ago, its files of lines are compressed to `<name>.jsonl.gz`. To read a
@@ -199,7 +199,7 @@ start a new one, whose accounts removed are named by their ids.
 
 ## `export.json`
 
-Each Mac's folder an [export](commands.md#export) writes holds `export.json`, written last, once
+Each Mac's folder an [export](commands/export.md) writes holds `export.json`, written last, once
 every other file has been:
 
 ```json
@@ -223,7 +223,7 @@ The folder's `accounts.json` is a copy of the [accounts record](#the-accounts-re
 first, so the days a sync carries are never ahead of the record that names their accounts. An
 export into a folder an older switchboard exported first removes its `export.json`, so a sync
 cut short never leaves the new days beside one an older switchboard would import. See
-[`import`](commands.md#import) for how a folder from before the ids is taken in.
+[`import`](commands/import.md) for how a folder from before the ids is taken in.
 
 ## The readings history
 
@@ -517,7 +517,7 @@ pass over one you don't know. In the forms below, `<id>` is an account's id.
 
 ## The status document
 
-[`status`](commands.md#status) and [`usage`](commands.md#usage) print this document as JSON:
+[`status`](commands/status.md) and [`usage`](commands.md#usage) print this document as JSON:
 `{"schema", "generated_at", "source", "fallback", "pool_id", "pool_label", "best", "primary",
 "prime", "pin", "router", "restart", "moving", "export", "sessions", "events", "events_kept", "pool",
 "coming_up", "demand", "accounts"}`.

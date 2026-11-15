@@ -321,7 +321,7 @@ sessions from another day's.
 Weeks shows how full each account's own week got over eight weeks. It also says whether there are
 as many accounts as the use needs.
 
-- Its verdict is worded as [`history`](commands.md#history) words it.
+- Its verdict is worded as [`history`](commands/history.md) words it.
 - The verdict comes from replaying the last 7 whole weeks with one account fewer or one more.
 - `v` draws the weeks as columns or as a table, where both fit.
 - As many weeks show as fit. On a narrower screen the oldest go first, so each account's verdict

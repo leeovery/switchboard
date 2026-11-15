@@ -1,0 +1,96 @@
+# `switchboard export`
+
+`export` copies the history of this Mac into a folder of its own inside `<dir>`. Keep `<dir>` where
+Dropbox or iCloud Drive syncs it, and your record outlives the Mac. Switchboard only writes the
+folder: keeping it safe, or carrying it to another Mac, is up to you.
+
+```console
+$ switchboard export ~/Dropbox/switchboard
+exported 31 days to /Users/you/Dropbox/switchboard/mac-0123456789abcdef: 3 written, 28 as they were
+```
+
+```bash
+switchboard export <dir>
+```
+
+`export` takes no flags. A relative `<dir>` is taken from the working directory, and `<dir>` is made
+if it isn't there. To have the router export every hour, set `dir` under `[export]` in the
+[configuration](../configuration.md).
+
+Why you'd export, and how to restore onto a new Mac, is in
+[Several Macs and backups](../several-macs.md).
+
+## The folder of each Mac
+
+The folder is `mac-<id>`, named by the id of this install. Macs that name the same `<dir>`, such as
+through a config kept in a dotfiles repository, never write over each other.
+
+| File | Holds |
+|---|---|
+| `export.json` | Whose folder it is, when it was last exported to, and its format. |
+| `accounts.json` | The accounts record, which names each account by id and label. |
+| `ledger/requests-<date>.jsonl.gz` | The request ledger, one file a day. |
+| `ledger/events-<date>.jsonl.gz` | The events of the router, one file a day. |
+| `ledger/day-<date>.json` | The summary of each day. |
+| `history/readings-<date>.jsonl.gz` | The readings history, one file a day. |
+
+`gzip -dc` reads each compressed file. The format of every file is in [Reference](../reference.md).
+
+The export leaves out what the router builds again, and what isn't history:
+
+- the digests, parts, heads and rows the router makes from the lines;
+- `state.json` and `prefs.json`;
+- the config and the tokens;
+- the logs.
+
+## How it writes
+
+| Rule | What it means |
+|---|---|
+| Only what changed | A day already in the folder, and unchanged since, is left as it is. |
+| Recent days | The last three days aren't compressed yet. They're compressed on the way, and copied again once a line is added. |
+| Never half written | Each file is written beside its place and renamed into it, so a sync never carries half a file. |
+| A line still being written | It's left for the next export. |
+| Nothing removed | Nothing in the folder is removed, a day past keeping included. You remove what you no longer want. |
+| Leftovers | An export cut short can leave hidden files, `.<name>.<digits>`. Each export removes those an hour after they last changed. |
+
+`export` reads the files where they lie, so it doesn't need the router.
+
+## When it fails
+
+| If | Then |
+|---|---|
+| `<dir>` is a file, or can't be made or written | `export` says so and stops there. |
+| A day in the state directory can't be read | `export` exports the rest, names each day it passed over and why, then exits `1`. |
+| The router still owes the move of the history onto account ids | `export` refuses until the move is done, and says what holds it up. |
+
+```
+switchboard: couldn't export the request ledger of 2026-10-30: open /Users/you/.local/state/switchboard/ledger/requests-2026-10-30.jsonl.gz: permission denied
+```
+
+If the hourly export fails, see [Troubleshooting](../troubleshooting.md).
+
+## Disks that keep coarse times
+
+`export` tells an unchanged day by its size and modification time. Some disks keep coarser times
+than macOS does.
+
+| Disk | What happens |
+|---|---|
+| SMB shares, and disks that keep times to the microsecond, 10 ms (exFAT) or the second | Unchanged days are left as they are. |
+| FAT, which keeps times to 2 seconds, or a disk that rounds them | Some unchanged files are written again at each export. |
+
+## The install id
+
+The id of this install is in `install-id`, in the state directory. The first export makes it, and
+nothing replaces it.
+
+A Mac whose state directory was restored from another, for example by Migration Assistant, carries
+the id of the other Mac. It then exports into the folder of that Mac. Remove `install-id` to give it
+an id, and a folder, of its own at its next export.
+
+## Related
+
+- [`import`](import.md): bring the folders back in, on this Mac or another.
+- [Several Macs and backups](../several-macs.md): backups, new Macs and two Macs at once.
+- [Your record](../your-record.md): what the history holds.

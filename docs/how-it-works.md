@@ -306,8 +306,8 @@ to one file a day in `ledger/`.
   and a turn opens, without reading the day's lines. Neither holds a price, and both are kept as
   long as the day's lines. Where either is missing, out of date or damaged, the Log reads the
   day's lines instead, which is slower but shows the same.
-- **Reading it back:** [`requests`](commands.md#requests), [`history`](commands.md#history) and
-  [`sessions`](commands.md#sessions) read it all back, with or without the router.
+- **Reading it back:** [`requests`](commands/requests.md), [`history`](commands/history.md) and
+  [`sessions`](commands/sessions.md) read it all back, with or without the router.
 
 ### The router's events
 
@@ -321,12 +321,12 @@ line for each version of an event. These are the events it files:
 - A restart falling due.
 - The router's own health turning.
 
-[`events`](commands.md#events) reads them back.
+[`events`](commands/events.md) reads them back.
 
 ### An export every hour
 
 With [`[export]`](configuration.md)'s `dir` set, the router exports the history into
-it as it starts and every hour after, as [`export`](commands.md#export) would, each Mac into a
+it as it starts and every hour after, as [`export`](commands/export.md) would, each Mac into a
 folder of its own.
 
 - **Never in routing's way:** each export runs apart from the router, so no request waits on one,
@@ -386,7 +386,7 @@ starts, makes the copy, writes the LaunchAgent afresh to run it, keeping every v
 and restarts into the copy in place, so a request made meanwhile still waits rather than being
 refused. Where it can't, as when it can't write the LaunchAgent, it says why once in its log,
 carries on as it is, and `switchboard service status` says to run `switchboard service install`
-(see [Restarting in place](commands.md#restarting-in-place)).
+(see [Restarting in place](commands/serve.md)).
 
 Before it restarts, the router asks the binary it's about to become whether it can start from your
 config, as a newer version's rules can be stricter than the running one's, such as the 100-character
@@ -413,7 +413,7 @@ upgrade showed.
 With many long sessions, a moment with no request in flight, and no export running, can be hours
 coming. While a restart is due, `switchboard status` and the dashboard say so, `status` naming the
 export it waits for where one runs. To restart now, run `switchboard service restart`, which
-refuses while an export runs. See [`serve`](commands.md#serve).
+refuses while an export runs. See [`serve`](commands/serve.md).
 
 ## Accounts and their ids
 
@@ -546,7 +546,7 @@ whose record names it gives it its label.
 record, so `import` joins its accounts to this Mac's by subscription, and its days land on this
 Mac's ids. This Mac's own folder from before the upgrade is taken in under the ids its accounts
 have now. Another Mac's folder from before is passed over, as its accounts can't be told: export
-it again from that Mac once it's upgraded. See [`import`](commands.md#import).
+it again from that Mac once it's upgraded. See [`import`](commands/import.md).
 
 ## The primary
 
