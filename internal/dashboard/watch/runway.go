@@ -368,7 +368,7 @@ func (m Model) readRunway() (Model, tea.Cmd) {
 	default:
 		return m, nil
 	}
-	read.began = m.past.beganAsked(m.cfg.Ledger)
+	read.began = m.past.beganAsked(m.ledgerStart())
 	t.reading, t.readingLive = true, read.span.is(live)
 	m.runwayTab = t
 	return m, read.cmd(now)

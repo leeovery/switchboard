@@ -407,7 +407,7 @@ func TestTheRouterSummarisesItsLedgersDaysWithItsReadingsHistory(t *testing.T) {
 	}
 	// The request in noon's hour, the rest none.
 	atNoon := `[` + strings.Repeat("0,", 12) + "1" + strings.Repeat(",0", 11) + `]`
-	want := `{"version":6,"day":"` + date + `","lines":1,"bytes":{"plain":` + strconv.Itoa(len(kept[lines])) + `,"compressed":0},` +
+	want := `{"version":7,"day":"` + date + `","lines":1,"bytes":{"plain":` + strconv.Itoa(len(kept[lines])) + `,"compressed":0},` +
 		`"accounts":[{"account":"work","models":[{"model":"claude-opus-5-5","upstream":1,"no_usage":0,"unsent":0,"checks":0,"counts":0,` +
 		`"hours":` + atNoon + `,"sessions":1,"session_ids":["` + sessionID + `"],"usage":{"input_tokens":10,"output_tokens":20}}],` +
 		`"sessions":1,"session_ids":["` + sessionID + `"],` +
@@ -609,11 +609,24 @@ func freeAddress(t testing.TB) string {
 // did, or until the test ends.
 func runRouter(t testing.TB, cfg router.Config) (stop func() error) {
 	t.Helper()
+	return runUntilStopped(t, cfg.StateDir, func(ctx context.Context) error { return router.Run(ctx, cfg) })
+}
+
+// runBuilt runs rt, built with cfg, as runRouter runs a router with cfg.
+func runBuilt(t testing.TB, rt *router.Router, cfg router.Config) (stop func() error) {
+	t.Helper()
+	return runUntilStopped(t, cfg.StateDir, func(ctx context.Context) error { return router.RunRouter(ctx, rt) })
+}
+
+// runUntilStopped has run run the router whose state directory is stateDir,
+// as runRouter says.
+func runUntilStopped(t testing.TB, stateDir string, run func(ctx context.Context) error) (stop func() error) {
+	t.Helper()
 	ctx, cancel := context.WithCancel(t.Context())
 	var err error
 	finished := make(chan struct{})
 	go func() {
-		err = router.Run(ctx, cfg)
+		err = run(ctx)
 		close(finished)
 	}()
 	stop = func() error {
@@ -622,7 +635,7 @@ func runRouter(t testing.TB, cfg router.Config) (stop func() error) {
 		return err
 	}
 	t.Cleanup(func() { _ = stop() })
-	client := router.NewClient(router.SocketPath(cfg.StateDir))
+	client := router.NewClient(router.SocketPath(stateDir))
 	waitUntil(t, "the router answers", func() bool {
 		select {
 		case <-finished:

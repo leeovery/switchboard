@@ -26,6 +26,10 @@ type Frame struct {
 	Look    Look
 	// View is the tab shown.
 	View View
+	// Pool is the pool shown: the title row names it once there's a second,
+	// and one with no accounts draws a page saying so in place of every
+	// view.
+	Pool status.ShownPool
 	// Lost is when the router stopped answering, while its last document
 	// stays on screen, or before any has been read: zero otherwise.
 	Lost time.Time
@@ -245,13 +249,15 @@ func (f Frame) finish(c *canvas) *canvas {
 // page draws the frame's page of doc at now from the top: its title row, its
 // status line, its heading row, the view, the view's state line and the key
 // line, but for the heading row and the view where the terminal is too short
-// for them, as cramped says.
+// for them, as cramped says, as it says of a pool with no accounts, whose
+// page says so in their place, whatever the tab, as emptyPool has it.
 func (f Frame) page(doc status.Document, now time.Time) *canvas {
 	c := newCanvas(f.Width, f.Height)
 	f.title(c, now)
 	f.routerStatus(c, doc, now)
 	f.headingRow(c)
 	f.view(c, doc, now)
+	f.emptyPool(c)
 	f.stateLine(c, now)
 	f.keyLine(c)
 	return c
@@ -458,9 +464,14 @@ func (f Frame) Shown() View {
 // rows and leastView of the view's, or for a session's page, where one is
 // open, as its layout says: the page is then its title row, its status line
 // and its key line alone, but for the Log's find's line while it's open
-// over the Log, as stateLine has it.
+// over the Log, as stateLine has it. So it is of a pool with no accounts,
+// which has no view to draw, whatever the terminal's size, its page saying
+// so as emptyPool has it.
 func (f Frame) cramped() bool {
-	if f.Shown() == SessionPage {
+	switch {
+	case f.Pool.Empty():
+		return true
+	case f.Shown() == SessionPage:
 		return f.pageLayout().chrome
 	}
 	return f.viewRows() < leastView

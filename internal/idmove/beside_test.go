@@ -45,7 +45,7 @@ func (f fixture) configuredIDs(t *testing.T) []string {
 // configured are the accounts the fixture's config configures.
 func (f fixture) configured(t *testing.T) config.Accounts {
 	t.Helper()
-	draft, err := config.Edit(f.config)
+	draft, err := config.Edit(f.config, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -219,13 +219,13 @@ func TestHealingWritesTheNewIDsBackInAConfigPutBackToTheOld(t *testing.T) {
 	if err := os.Symlink(kept, f.config); err != nil {
 		t.Fatal(err)
 	}
-	if healed, err := idmove.Heal(f.config, f.state); err != nil || healed {
+	if healed, err := idmove.Heal(f.config, f.state, nil); err != nil || healed {
 		t.Fatalf("Heal() before the move = %t, %v, want nothing healed", healed, err)
 	}
 	f.moved(t, answering())
 
 	writeFile(t, kept, fixtureConfig)
-	healed, err := idmove.Heal(f.config, f.state)
+	healed, err := idmove.Heal(f.config, f.state, nil)
 	if err != nil || !healed {
 		t.Fatalf("Heal() = %t, %v, want the config healed", healed, err)
 	}
@@ -240,7 +240,7 @@ func TestHealingWritesTheNewIDsBackInAConfigPutBackToTheOld(t *testing.T) {
 			t.Errorf("healed, %s's token = %v, want it read", id, err)
 		}
 	}
-	if healed, err := idmove.Heal(f.config, f.state); err != nil || healed {
+	if healed, err := idmove.Heal(f.config, f.state, nil); err != nil || healed {
 		t.Errorf("Heal() again = %t, %v, want nothing left to heal", healed, err)
 	}
 }
@@ -273,6 +273,39 @@ func TestAConfigMergedMidMoveToNameAnAccountByBothItsIDsKeepsTheOneByItsNew(t *t
 	}
 }
 
+// A config with pools, one fenced to a directory in the home, is healed as
+// any other, read in the home directory given: without one, it can't be.
+func TestHealingReadsAConfigWithPoolsInTheHomeDirectory(t *testing.T) {
+	f := newFixture(t)
+	f.moved(t, answering())
+	home := func() (string, error) { return "/Users/test", nil }
+	pooled := "[[account]]\nid      = \"work\"\nlabel   = \"Work\"\nprimary = true\npool    = \"b2n8\"\n\n" +
+		"[[account]]\nid   = \"personal\"\npool = \"b2n8\"\n\n" +
+		"[[pool]]\nid = \"b2n8\"\n\n[[pool]]\nid   = \"q7mt\"\ndirs = [\"~/Code/acme\"]\n"
+	writeFile(t, f.config, pooled)
+
+	if healed, err := idmove.Heal(f.config, f.state, nil); err == nil || healed {
+		t.Errorf("Heal() with no home = %t, %v, want it to fail, the pool's directory in the home not found", healed, err)
+	}
+	healed, err := idmove.Heal(f.config, f.state, home)
+	if err != nil || !healed {
+		t.Fatalf("Heal() = %t, %v, want the config healed", healed, err)
+	}
+	cfg, err := config.Load(f.config, home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := cfg.Accounts.IDs(), []string{workID, personalID}; !slices.Equal(got, want) {
+		t.Errorf("healed, the config configures %v, want %v", got, want)
+	}
+	if got := cfg.Accounts.InPool("b2n8").IDs(); !slices.Equal(got, []string{workID, personalID}) {
+		t.Errorf("healed, pool b2n8 holds %v, want both accounts still in it", got)
+	}
+	if healed, err := idmove.Heal(f.config, f.state, home); err != nil || healed {
+		t.Errorf("Heal() again = %t, %v, want nothing left to heal", healed, err)
+	}
+}
+
 // A config that names an account by its old id and its new, as a merge of
 // two of its versions leaves it once the move's done, is healed as the move
 // heals one mid-move: the one by its old id dropped, the one by its new id
@@ -284,7 +317,7 @@ func TestHealingDropsAnAccountByItsOldIDWhereItsNewIsConfiguredToo(t *testing.T)
 		"[[account]]\nid = \"personal\"\n\n[[account]]\nid = \"" + workID + "\"\nlabel = \"Work again\"\nplan = \"pro\"\n"
 	writeFile(t, f.config, merged)
 
-	healed, err := idmove.Heal(f.config, f.state)
+	healed, err := idmove.Heal(f.config, f.state, nil)
 	if err != nil || !healed {
 		t.Fatalf("Heal() = %t, %v, want the config healed", healed, err)
 	}
@@ -295,8 +328,114 @@ func TestHealingDropsAnAccountByItsOldIDWhereItsNewIsConfiguredToo(t *testing.T)
 	if got := f.configured(t); !slices.Equal(got, want) {
 		t.Errorf("healed, the config configures %+v, want %+v", got, want)
 	}
-	if healed, err := idmove.Heal(f.config, f.state); err != nil || healed {
+	if healed, err := idmove.Heal(f.config, f.state, nil); err != nil || healed {
 		t.Errorf("Heal() again = %t, %v, want nothing left to heal", healed, err)
+	}
+}
+
+// The account by its new id is its pool's primary after a heal exactly where
+// the one dropped for it was before it, marked or as the first with none
+// marked: marked where the dropped one was, or where it doesn't come first;
+// left as it is where it's the first already, and where the dropped one
+// wasn't the primary, or was another pool's. Another pool's primary keeps
+// its mark. A config without pools is one pool of every account.
+func TestHealingCarriesThePrimaryWithinItsPool(t *testing.T) {
+	const pools = "[[pool]]\nid = \"b2n8\"\n\n[[pool]]\nid   = \"q7mt\"\ndirs = [\"~/Code/acme\"]\n"
+	// acme is an account in Acme, q7mt, never marked.
+	const acme = "m4x9"
+	// account is an account's table, in the pool given, none for "".
+	account := func(id, pool string, marked bool) string {
+		text := "[[account]]\nid   = \"" + id + "\"\n"
+		if pool != "" {
+			text += "pool = \"" + pool + "\"\n"
+		}
+		if marked {
+			text += "primary = true\n"
+		}
+		return text + "\n"
+	}
+	work := func(marked bool) string { return account("work", "q7mt", marked) }
+	// pooled is the config of the accounts given after personal, Default's
+	// primary, marked, in Default and Acme.
+	pooled := func(accounts ...string) string {
+		return account("personal", "b2n8", true) + strings.Join(accounts, "") + pools
+	}
+	tests := []struct {
+		name, config string
+		// marked are the accounts the healed config marks primary, as it's
+		// written, and unmarked those it doesn't.
+		marked, unmarked []string
+		// primaries are each pool's primary, healed, by its id: "" for the
+		// one pool of a config without pools.
+		primaries map[string]string
+	}{
+		{
+			name:   "unmarked first, another account before the new id",
+			config: pooled(work(false), account(acme, "q7mt", false), account(workID, "q7mt", false)),
+			marked: []string{personalID, workID}, unmarked: []string{acme},
+			primaries: map[string]string{"b2n8": personalID, "q7mt": workID},
+		},
+		{
+			name:   "marked first",
+			config: pooled(work(true), account(workID, "q7mt", false), account(acme, "q7mt", false)),
+			marked: []string{personalID, workID}, unmarked: []string{acme},
+			primaries: map[string]string{"b2n8": personalID, "q7mt": workID},
+		},
+		{
+			name:   "unmarked first, the new id right after it",
+			config: pooled(work(false), account(workID, "q7mt", false), account(acme, "q7mt", false)),
+			marked: []string{personalID}, unmarked: []string{workID, acme},
+			primaries: map[string]string{"b2n8": personalID, "q7mt": workID},
+		},
+		{
+			name:   "not the primary",
+			config: pooled(account(acme, "q7mt", false), work(false), account(workID, "q7mt", false)),
+			marked: []string{personalID}, unmarked: []string{workID, acme},
+			primaries: map[string]string{"b2n8": personalID, "q7mt": acme},
+		},
+		{
+			name:   "marked, the new id in another pool",
+			config: pooled(work(true), account(workID, "b2n8", false), account(acme, "q7mt", false)),
+			marked: []string{personalID}, unmarked: []string{workID, acme},
+			primaries: map[string]string{"b2n8": personalID, "q7mt": acme},
+		},
+		{
+			name:   "unmarked first, in a config without pools",
+			config: account("work", "", false) + account("personal", "", false) + account(workID, "", false),
+			marked: []string{workID}, unmarked: []string{personalID},
+			primaries: map[string]string{"": workID},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := newFixture(t)
+			f.moved(t, answering())
+			home := func() (string, error) { return "/Users/test", nil }
+			writeFile(t, f.config, tt.config)
+
+			if healed, err := idmove.Heal(f.config, f.state, home); err != nil || !healed {
+				t.Fatalf("Heal() = %t, %v, want the config healed", healed, err)
+			}
+			draft, err := config.Edit(f.config, home)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, id := range tt.marked {
+				if !draft.MarksPrimaryOf(id) {
+					t.Errorf("healed, the config doesn't mark %s primary, want it marked", id)
+				}
+			}
+			for _, id := range tt.unmarked {
+				if draft.MarksPrimaryOf(id) {
+					t.Errorf("healed, the config marks %s primary, want it unmarked", id)
+				}
+			}
+			for pool, want := range tt.primaries {
+				if got, _ := draft.Config().Accounts.PrimaryOf(pool); got.ID != want {
+					t.Errorf("healed, pool %q's primary is %s, want %s", pool, got.ID, want)
+				}
+			}
+		})
 	}
 }
 

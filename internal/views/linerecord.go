@@ -13,10 +13,11 @@ import (
 // give beyond: its shape's system blocks, max_tokens, effort and whether it
 // asked to stream, nil where it didn't say; its betas, each undated; its
 // answer's id, the model that served it and its blocks, counted by kind, in
-// answerOrder; and the windows its answer read, as claude.KeptWindows keeps
-// them, and its status across them. Every row, details card and sum of a
-// line is of its record alone, so a record restored tells its line as the
-// one decoded of it did.
+// answerOrder; the windows its answer read, as claude.KeptWindows keeps
+// them, and its status across them; and the pool it was routed in, as its
+// line recorded it, "" where it named none, which PoolRead's keeps reads.
+// Every row, details card and sum of a line is of its record alone, so a
+// record restored tells its line as the one decoded of it did.
 type lineRecord struct {
 	rowRecord
 	system, maxTokens int
@@ -27,6 +28,7 @@ type lineRecord struct {
 	blocks            []DetailBlock
 	windows           []claude.KeptWindow
 	limit             quota.Status
+	pool              string
 }
 
 // rowRecord is a line as its row reads it, decoded once: all a held request
@@ -57,7 +59,7 @@ func lineRecordOf(l *ledger.Line) lineRecord {
 	r := lineRecord{
 		rowRecord: rowRecordOf(l), system: l.Shape.System, effort: l.Shape.OutputConfig.Effort, stream: l.Shape.Stream,
 		answer: l.Answer.ID, served: l.Answer.Model, blocks: blocksOf(l.Answer.Blocks), windows: claude.KeptWindows(l.Limits),
-		limit: claude.LimitStatus(l.Limits),
+		limit: claude.LimitStatus(l.Limits), pool: l.Pool,
 	}
 	if most := l.Shape.MaxTokens; most != nil {
 		r.maxTokens = int(*most)
@@ -156,7 +158,7 @@ func (r *lineRecord) summed() uint64 {
 	maphash.WriteComparable(&h, struct {
 		flight
 		dir, model, account, reason, from, class, agentID, geo, prompt, stop string
-		session, countedSession, effort, agent, answer, served               string
+		session, countedSession, effort, agent, answer, served, pool         string
 		kind                                                                 RowKind
 		limit                                                                quota.Status
 		status, attempts, size, messages, system, toolDefs                   int
@@ -167,7 +169,7 @@ func (r *lineRecord) summed() uint64 {
 		spend                                                                uint64
 	}{
 		r.flight, r.dir, r.model, r.account, r.reason, r.from, r.class, r.agentID, r.geo, r.prompt, r.stop,
-		r.session, r.countedSession, r.effort, r.agent, r.answer, r.served, r.kind, r.limit, r.status, r.attempts, r.size, r.messages, r.system, r.toolDefs,
+		r.session, r.countedSession, r.effort, r.agent, r.answer, r.served, r.pool, r.kind, r.limit, r.status, r.attempts, r.size, r.messages, r.system, r.toolDefs,
 		r.maxTokens, r.thinking, firstMS, r.totalMS, r.upstream, r.canceled, r.cutOff, r.broken, answered, stream, streamed,
 		len(r.tools), len(r.tried), len(r.betas), len(r.blocks), len(r.windows), r.spend.Sum(sumsSeed),
 	})

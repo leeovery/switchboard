@@ -50,14 +50,15 @@ type costedMsg struct {
 // line lists p: on a session's page, the session's card, else new sessions';
 // picking what the pin standing names, as picks says, the cursor on the
 // first picked, and m clear. While the router doesn't answer, it opens
-// nothing, the key line saying so in its place; nor on a session's page not
-// yet built, which names no session to route.
+// nothing, the key line saying why in its place, as the document's fallback
+// has it; nor on a session's page not yet built, which names no session to
+// route.
 func (m Model) openRouting() (tea.Model, tea.Cmd) {
 	switch key, listed := m.pinKey(); {
 	case !listed:
 		return m, nil
 	case key.Off:
-		return m.noting(status.ErrNoRouter.Error())
+		return m.noting(m.moment(m.now()).Fallback.Refusal().Error())
 	}
 	var session string
 	if m.shownView() == dashboard.SessionPage {
@@ -301,7 +302,8 @@ func (m Model) moving(sent []string) views.Moving {
 }
 
 // costing has views list the sessions the router lists, pricing their
-// moves, while the routing card wants them: while it's open, m ticked, and
+// moves, of their lines in the pool shown, as the store reads them, while
+// the routing card wants them: while it's open, m ticked, and
 // some session would move, where the sessions listed aren't placed as those
 // it last priced were, as views.SamePlaces compares them, whatever document
 // they came with. It starts none while one runs: the sessions are listed
@@ -316,7 +318,7 @@ func (m Model) costing() (Model, tea.Cmd) {
 	}
 	m.routing.priced.listing = true
 	of := m.sessions
-	src := views.SessionSources{Running: of, Ledger: m.cfg.Ledger, Prices: m.cfg.Prices, Now: m.now()}
+	src := views.SessionSources{Running: of, Ledger: m.ledgerSessions(), Prices: m.cfg.Prices, Now: m.now()}
 	return m, func() tea.Msg {
 		return costedMsg{of: of, listed: views.ListSessions(src).Sessions}
 	}

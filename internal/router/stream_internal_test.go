@@ -850,7 +850,7 @@ func joined(t *testing.T, r *Router) *streamReader {
 // does, writing to a heldWriter, which it returns.
 func reading(r *Router) *heldWriter {
 	w := &heldWriter{header: make(http.Header), flushing: make(chan struct{}), released: make(chan struct{})}
-	go r.serveStream(w, httptest.NewRequest(http.MethodGet, "/stream", nil))
+	go r.serveStream(w, httptest.NewRequest(http.MethodGet, "/stream", nil), poolRead{pools: newPoolTable(nil, nil, "", sameID), every: true})
 	return w
 }
 

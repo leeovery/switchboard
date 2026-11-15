@@ -33,7 +33,7 @@ func TestTheTokensOfAnAccountThatLeftTheConfigAreThePrimarysOnce(t *testing.T) {
 	f.now = clock.read
 	side, _ := f.accounts.byID("side")
 
-	f.retire(withoutWork)
+	f.retire(heirs{accounts: withoutWork})
 	if !side.secret.was(workHash, start) || f.kept != 1 {
 		t.Fatalf("work's token counts as side's: %v, and the state file heard %d changes, want true and 1", side.secret.was(workHash, start), f.kept)
 	}
@@ -44,7 +44,7 @@ func TestTheTokensOfAnAccountThatLeftTheConfigAreThePrimarysOnce(t *testing.T) {
 	// A token work's file comes to hold after it left the config isn't side's.
 	f.files.set(tokenstest.Files{"work": renewedToken, "side": sideToken})
 	f.look()
-	f.retire(withoutWork)
+	f.retire(heirs{accounts: withoutWork})
 	if side.secret.was(renewedHash, start) {
 		t.Error("the token work's file came to hold after it left the config counts as side's, want not")
 	}
@@ -52,7 +52,7 @@ func TestTheTokensOfAnAccountThatLeftTheConfigAreThePrimarysOnce(t *testing.T) {
 	// A week on, work's token is forgotten, and not taken up again.
 	clock.now = start.Add(formerFor)
 	f.accounts.forget(clock.now)
-	f.retire(withoutWork)
+	f.retire(heirs{accounts: withoutWork})
 	if side.secret.was(workHash, clock.now) {
 		t.Error("a week on, work's token counts as side's again, want it forgotten")
 	}
@@ -69,8 +69,8 @@ func TestAnAccountBackInTheConfigHasItsTokensBack(t *testing.T) {
 	work, _ := f.accounts.byID("work")
 
 	// A config caught while it's edited leaves work out; then it's back.
-	f.retire(withoutWork)
-	f.retire(config.Accounts(testConfigured))
+	f.retire(heirs{accounts: withoutWork})
+	f.retire(heirs{accounts: config.Accounts(testConfigured)})
 	if side.secret.was(workHash, start) {
 		t.Error("work's token still counts as side's, want it work's alone once work is configured again")
 	}

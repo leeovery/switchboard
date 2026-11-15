@@ -32,8 +32,8 @@ const (
 // form the reference writes it.
 func reasonForms() []string {
 	return []string{
-		ReasonNew, ReasonPinned, ReasonGlobalPin, ReasonMovedByPin, ReasonSticky, ReasonBound,
-		ReasonUnsessioned, ReasonNoRoom, ReasonClient, ReasonBack,
+		ReasonNew, ReasonPinned, ReasonPoolPin, ReasonGlobalPin, ReasonMovedByPin, ReasonSticky, ReasonBound,
+		ReasonUnsessioned, ReasonNoRoom, ReasonClient, ReasonBack, ReasonTokenLeftPool,
 		ReasonMovedOff + placedID + " " + placedWhy,
 		ReasonPinYields + placedID + " " + placedWhy,
 		ReasonRescored + placedIdle + rescoredIdle,
@@ -43,7 +43,7 @@ func reasonForms() []string {
 }
 
 // whys are every why an account can't take a request.
-var whys = []string{WhyLimit, WhyRefused, WhyNewToken, WhyReserve, WhyNoRoom}
+var whys = []string{WhyLimit, WhyRefused, WhyNewToken, WhyLeftPool, WhyReserve, WhyNoRoom}
 
 // The reasons and whys are stored for years, in the ledger, the events,
 // state.json and /sessions, and read back, so the reference lists every one
@@ -120,7 +120,7 @@ func TestTheRouterGivesNoReasonNorWhyButStatussOwn(t *testing.T) {
 
 // routerPhrasesAllowed are the router's functions whose words are a reason's
 // without being one: the log's "pinned".
-var routerPhrasesAllowed = []string{"internal/router/control.go:Router.pin"}
+var routerPhrasesAllowed = []string{"internal/router/control.go:Router.pinTo"}
 
 const (
 	statusDir    = "internal/status"

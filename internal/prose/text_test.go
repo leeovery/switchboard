@@ -20,6 +20,23 @@ func TestVersion(t *testing.T) {
 	}
 }
 
+func TestAccountNamed(t *testing.T) {
+	tests := []struct{ name, label, id, want string }{
+		{name: "by its label, its id beside", label: "Acme 1", id: "k3f9", want: "Acme 1 (k3f9)"},
+		{name: "labelled by its id", label: "work", id: "work", want: "work"},
+		{name: "labelled by its id in another case", label: "Work", id: "work", want: "work"},
+		{name: "not labelled", id: "k3f9", want: "k3f9"},
+		{name: "each cleaned", label: "Acme\t1\n", id: "k3f9\x1b", want: "Acme 1 (k3f9)"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := prose.AccountNamed(tt.label, tt.id); got != tt.want {
+				t.Errorf("AccountNamed(%q, %q) = %q, want %q", tt.label, tt.id, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestAForeignTokenIsSaidWithWhatPutsItRight(t *testing.T) {
 	tests := []struct{ id, want string }{
 		{"work", "its token is another subscription's: give it its own with switchboard accounts token work, or add that subscription as an account of its own"},

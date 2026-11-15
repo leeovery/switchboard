@@ -139,7 +139,8 @@ func (r *recent) hear(e Event) {
 func (r *recent) take(e Event, now time.Time) {
 	switch e := e.(type) {
 	case SessionStarted:
-		r.add(status.Event{Kind: status.EventStarted, Account: e.Account, Session: bounded(e.Session), Model: bounded(e.Model), Dir: e.Dir, Reason: e.Reason}, now)
+		r.add(status.Event{Kind: status.EventStarted, Account: e.Account, Session: bounded(e.Session), Model: bounded(e.Model), Dir: e.Dir, Reason: e.Reason,
+			Pool: e.Pool}, now)
 	case LimitReached:
 		r.reached(e, now)
 	case Moved:
@@ -161,9 +162,14 @@ func (r *recent) take(e Event, now time.Time) {
 	case RestartHeld:
 		r.add(status.Event{Kind: status.EventRestart, Reason: e.Reason, Held: e.Refusal}, now)
 	case Pinned:
-		r.add(status.Event{Kind: status.EventPin, Accounts: e.Accounts, Account: e.Account, Session: bounded(e.Session), Dir: e.Dir, Move: e.Move, Force: e.Force, By: string(e.By)}, now)
+		r.add(status.Event{
+			Kind: status.EventPin, Accounts: e.Accounts, Account: e.Account, Session: bounded(e.Session), Dir: e.Dir, Move: e.Move, Force: e.Force, By: string(e.By),
+			Pool: e.Pool,
+		}, now)
 	case Unpinned:
-		r.add(status.Event{Kind: status.EventAuto, Accounts: e.Accounts, Account: e.Account, Session: bounded(e.Session), Dir: e.Dir, Force: e.Force, By: string(e.By)}, now)
+		r.add(status.Event{
+			Kind: status.EventAuto, Accounts: e.Accounts, Account: e.Account, Session: bounded(e.Session), Dir: e.Dir, Force: e.Force, By: string(e.By), Pool: e.Pool,
+		}, now)
 	}
 }
 
@@ -216,6 +222,21 @@ func (r *recent) change(do func()) {
 	r.fileMarked()
 }
 
+// pooled gives each event kept of a kind that names its pool, as status has
+// it, that names none the pool with the given id, the first, as the move to
+// pools gives those filed: so one filed again as it changes, as a move
+// waiting for what forced it is, names it too. It marks none to be filed, as
+// the files are the move's to rewrite.
+func (r *recent) pooled(first string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for i := range r.kept {
+		if h := &r.kept[i]; h.Pool == "" && status.KindNamesItsPool(h.Kind) {
+			h.Pool = first
+		}
+	}
+}
+
 // fileTo has the events filed to files from now on, as told by the router
 // that started at started, filing at once those kept before, as they stand.
 func (r *recent) fileTo(files *events.Writer, started time.Time) {
@@ -238,13 +259,24 @@ func (r *recent) fileMarked() {
 
 // events returns the events kept, the newest first.
 func (r *recent) events() []status.Event {
+	events, _ := r.keptWithIDs()
+	return events
+}
+
+// keptWithIDs returns the events kept, the newest first, and the ids of the
+// oldest and the newest of them, read as one: zero where none is kept.
+func (r *recent) keptWithIDs() ([]status.Event, status.EventsKept) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	var events []status.Event
 	for _, h := range slices.Backward(r.kept) {
 		events = append(events, h.event())
 	}
-	return events
+	var kept status.EventsKept
+	if len(r.kept) > 0 {
+		kept = status.EventsKept{Oldest: r.kept[0].ID, Newest: r.kept[len(r.kept)-1].ID}
+	}
+	return events, kept
 }
 
 // newest returns the id of the newest event kept, 0 before any is.
@@ -272,16 +304,17 @@ func (r *recent) run(ctx context.Context) {
 
 // look keeps what the accounts, as they stand now, call for since the last
 // look, as news and capping say, judged as the status document judges them,
-// with the global pin's accounts spending their reserves; and has the
+// the accounts each pool's pin names spending their reserves; and has the
 // router's health judged now, which tells of a turn as it's judged. The moves
 // heard before it reads the accounts, still waiting for the cap or the
 // refusal that forced them, wait no more, as unawaited says.
 func (r *recent) look() {
 	r.judge()
 	now := r.now()
-	pin := r.sessions.globalPin()
+	every := r.state.everyAccount()
+	pin := every.pin(r.sessions.pinsNow(), r.state.accounts)
 	heard := r.newest()
-	accounts := r.state.statuses(now, pin.Accounts)
+	accounts := r.state.statuses(now, every, pin.Accounts)
 	news := r.news(accounts, r.state.standings(now))
 	r.change(func() {
 		for _, e := range news {

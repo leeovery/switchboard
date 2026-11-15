@@ -55,7 +55,7 @@ func configOf(t *testing.T, accounts ...account) string {
 // config at configPath configures.
 func stateOf(t *testing.T, now time.Time, configPath string, read []readings.Reading, lines []*ledger.Line) string {
 	t.Helper()
-	cfg, err := config.Load(configPath)
+	cfg, err := config.Load(configPath, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -106,7 +106,7 @@ func messageOf(at time.Time) *ledger.Line {
 func scoring(t *testing.T, now time.Time, args ...string) string {
 	t.Helper()
 	var stdout, stderr bytes.Buffer
-	if err := run(args, &stdout, &stderr, func() time.Time { return now }); err != nil {
+	if err := run(args, &stdout, &stderr, func() time.Time { return now }, nil); err != nil {
 		t.Fatalf("run(%q) error = %v; stderr:\n%s", args, err, stderr.String())
 	}
 	return stdout.String()
@@ -411,7 +411,7 @@ func TestRefusesToRunWithoutBothTheStateDirectoryAndTheConfig(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var stdout, stderr bytes.Buffer
-			err := run(tt.args, &stdout, &stderr, time.Now)
+			err := run(tt.args, &stdout, &stderr, time.Now, nil)
 			if !errors.Is(err, errUnnamed) || errors.Is(err, fs.ErrNotExist) {
 				t.Errorf("run(%q) error = %v, want it refused for what it names, before reading anything", tt.args, err)
 			}
@@ -426,7 +426,7 @@ func TestFailsOnAStateDirectoryWithoutAReadingsHistory(t *testing.T) {
 	configPath := configOf(t, account{id: "work"})
 
 	var stdout, stderr bytes.Buffer
-	if err := run([]string{"--state", t.TempDir(), "--config", configPath}, &stdout, &stderr, time.Now); err == nil {
+	if err := run([]string{"--state", t.TempDir(), "--config", configPath}, &stdout, &stderr, time.Now, nil); err == nil {
 		t.Errorf("run() printed %q, want it to fail: there's no history to play", stdout.String())
 	}
 }
@@ -438,7 +438,7 @@ func TestSaysWhatTheReadersCantReadOnStderr(t *testing.T) {
 
 	var stdout, stderr bytes.Buffer
 	logTo(&stderr)
-	err := run([]string{"--state", stateDir, "--config", configPath}, &stdout, &stderr, func() time.Time { return now })
+	err := run([]string{"--state", stateDir, "--config", configPath}, &stdout, &stderr, func() time.Time { return now }, nil)
 	logs.Close(0)
 	if err != nil {
 		t.Fatal(err)
@@ -478,7 +478,7 @@ func damageADay(t *testing.T, pattern, damage string) {
 
 func TestItsHelpSaysWhatThePlaybackHasNoneOf(t *testing.T) {
 	var stdout, stderr bytes.Buffer
-	if err := run([]string{"--help"}, &stdout, &stderr, time.Now); err != nil {
+	if err := run([]string{"--help"}, &stdout, &stderr, time.Now, nil); err != nil {
 		t.Fatal(err)
 	}
 	for _, want := range []string{

@@ -22,7 +22,7 @@ func keysTold(keys []dashboard.Key) []string {
 // otherwise in another state after the word it takes in the first.
 func TestEveryPagesKeysAreEachPagesAsItsHelpListsThem(t *testing.T) {
 	want := map[string][]string{
-		"every page": {"tab views", "p pin", "t themes", "R refresh", "? help", "q quit", "j k scroll", "PgUp PgDn page", "wheel scroll"},
+		"every page": {"tab views", "p pin", "P pool", "t themes", "R refresh", "? help", "q quit", "j k scroll", "PgUp PgDn page", "wheel scroll"},
 		"Overview":   {"u usage", "r routing", "s sessions", "c coming up", "l lately", "w models", "b by", "↑↓ scroll"},
 		"Accounts": {
 			"[ ] view", "< > period", "←→ account", "↑↓ account", "↑↓ session", "→ sessions", "← accounts", "enter its page", "esc unfocus", "w models",

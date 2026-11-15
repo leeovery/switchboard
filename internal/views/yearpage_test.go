@@ -280,6 +280,40 @@ func TestACalendarYearsGridIsItsWeeksAndItsNumbersItsDays(t *testing.T) {
 	}
 }
 
+// A pool's Year counts its numbers from the pool's first work: Acme's read
+// holds work's day of 1 September, from before Acme began, its work
+// Default's and emptied, its 5-hour limit kept, as an account's windows are
+// its own; begun on 6 October, Acme's limits are that day's 7-day one alone,
+// and BY MONTH lists October alone.
+func TestAPoolsYearCountsItsNumbersFromItsFirstWork(t *testing.T) {
+	days := daysFrom("2026-09-01",
+		day("2026-09-01", withLimits(usedBy("work", sessionsOf(sent("claude-opus-5-5", 2, inputUsage), sessionA)), "5h")),
+		day("2026-10-06", withLimits(pooled(usedBy("work", sessionsOf(sent("claude-opus-5-5", 3, inputUsage), sessionB)), "q7mt"), "7d")),
+	)
+	past := views.NewPast(input(days), acmeRead.Days(givenDays(days)).Days(on("2026-09-01")))
+	if got := jsonOf(t, past.Year(views.YearAsk{}).Numbers.Limits); got != `{"5h":1,"7d":1}` {
+		t.Fatalf("Acme's Year, its start untold, counts the limits %s, want both, 1 September's held", got)
+	}
+	begun := past.Begun(on("2026-10-06")).Year(views.YearAsk{})
+	if got := jsonOf(t, begun.Numbers.Limits); got != `{"7d":1}` {
+		t.Errorf("Acme's Year, begun on 6 October, counts the limits %s, want its first work's alone", got)
+	}
+	var months []string
+	for _, r := range begun.ByMonth {
+		months = append(months, r.Month.Month)
+	}
+	if want := []string{"2026-10"}; !slices.Equal(months, want) {
+		t.Errorf("Acme's Year, begun on 6 October, lists BY MONTH %q, want %q, none for September's limit", months, want)
+	}
+}
+
+// pooled is the account's day, its work recorded in the pool with the id
+// given.
+func pooled(a ledger.AccountDay, pool string) ledger.AccountDay {
+	a.Pool = pool
+	return a
+}
+
 // A whole year's plans cost 12 months, a 29 February in it or not, as its
 // months' do: the last 12 months, and a calendar year.
 func TestAWholeYearsPlansCostTwelveMonths(t *testing.T) {

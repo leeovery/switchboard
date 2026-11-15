@@ -49,7 +49,7 @@ type Pool struct {
 	Policy score.Policy
 	// Accounts are in the config's order.
 	Accounts []Account
-	// Pinned are the global pin's accounts while one holds, else none.
+	// Pinned are the pool's pin's accounts while one holds, else none.
 	Pinned []string
 	// Day is the pool's day's rate, in Pro weeks an hour.
 	Day float64
@@ -227,7 +227,7 @@ func (p *play) place(t time.Time, rest float64) {
 // gather makes the candidates for a new session at t: the accounts that take
 // requests and have room, each with its week alone, as it stands. One
 // whose week's reset isn't known has no score: Choose sends it new sessions
-// only where the global pin names it and none of the pin's accounts it can
+// only where the pool's pin names it and none of the pin's accounts it can
 // score has room, as the router does.
 func (p *play) gather(t time.Time) {
 	p.candidates, p.takers = p.candidates[:0], p.takers[:0]

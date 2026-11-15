@@ -25,6 +25,10 @@ func TestAnEmptyLedgerReadsAsAFollowerOfAnEmptyStateDirectory(t *testing.T) {
 		if got, want := empty.DaysOn(dates), follower.DaysOn(dates); !reflect.DeepEqual(got, want) {
 			t.Errorf("DaysOn(%q) = %+v, want %+v, as a Follower of an empty state directory gives", dates, got, want)
 		}
+		got, told := empty.DaysHeldOn(dates)
+		if want, wantTold := follower.DaysHeldOn(dates); !reflect.DeepEqual(got, want) || told != wantTold {
+			t.Errorf("DaysHeldOn(%q) = %+v, %t, want %+v, %t, as a Follower of an empty state directory gives", dates, got, told, want, wantTold)
+		}
 	}
 	gotMark, wantMark := ledger.Mark{}, ledger.Mark{}
 	for _, call := range []string{"first", "second"} {
@@ -49,7 +53,7 @@ func TestAnEmptyLedgerReadsAsAFollowerOfAnEmptyStateDirectory(t *testing.T) {
 	if got, want := slices.Collect(empty.Session("5b0e7c1a")), slices.Collect(follower.Session("5b0e7c1a")); len(got) != len(want) {
 		t.Errorf("Session() = %+v, want %+v, as a Follower of an empty state directory gives", got, want)
 	}
-	if got, want := empty.Sessions([]string{"5b0e7c1a"}, nil, nil), follower.Sessions([]string{"5b0e7c1a"}, nil, nil); len(got) != len(want) {
+	if got, want := empty.Sessions(nil, []string{"5b0e7c1a"}, nil, nil), follower.Sessions(nil, []string{"5b0e7c1a"}, nil, nil); len(got) != len(want) {
 		t.Errorf("Sessions() = %+v, want %+v, as a Follower of an empty state directory gives", got, want)
 	}
 }

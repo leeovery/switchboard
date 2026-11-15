@@ -57,11 +57,15 @@ const (
 	headerKey = "header"
 )
 
+// PoolEnv names, in a session's environment, the id of the pool the session
+// is in, for the skill to name to the verbs.
+const PoolEnv = "SWITCHBOARD_POOL"
+
 // markedVars are the variables setEnv names, of those run sets. The token
 // isn't among them: a user's own, which run replaced, can't be written into
 // the mark, and without the value run gave it, a token set since, as by a
 // script, couldn't be told from run's.
-var markedVars = []string{claude.BaseURLEnv, claude.HintHeadersEnv}
+var markedVars = []string{claude.BaseURLEnv, claude.HintHeadersEnv, PoolEnv}
 
 // environ is an environment as os.Environ gives it: "key=value", a variable
 // each. Its methods return a changed copy, leaving it as it was.
@@ -275,6 +279,24 @@ func (e environ) pinnedTo(account string) environ {
 // Any other header stays.
 func (e environ) workingIn(dir string) environ {
 	return e.withHeader(router.DirHeader, router.EncodeDir(dir))
+}
+
+// inPool returns the environment with Claude Code's custom headers naming to
+// the router the pool with the given id, or none for "". A pool the
+// environment names already, such as a session's that this one is started
+// from within, goes: what this launch names is the only pool. Any other
+// header stays.
+func (e environ) inPool(pool string) environ {
+	return e.withHeader(router.PoolHeader, pool)
+}
+
+// poolNamed returns the environment naming the pool with the given id as the
+// session's, in PoolEnv, or naming none for "".
+func (e environ) poolNamed(pool string) environ {
+	if pool == "" {
+		return e.without(PoolEnv)
+	}
+	return e.with(PoolEnv, pool)
 }
 
 // withHeader returns the environment with Claude Code's custom headers

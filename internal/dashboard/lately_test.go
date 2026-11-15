@@ -456,6 +456,8 @@ func TestLATELYSaysWhyItHasNoneWhereverItsDocumentCameFrom(t *testing.T) {
 	stuck.Fallback = status.Fallback{Router: status.RouterUnhealthy, Reason: "no answer within 5s"}
 	asked := probed()
 	asked.Fallback = status.Fallback{}
+	beforePools := probed()
+	beforePools.Fallback = status.Fallback{Router: status.RouterBeforePools}
 	tests := []struct {
 		name     string
 		doc      status.Document
@@ -465,6 +467,7 @@ func TestLATELYSaysWhyItHasNoneWhereverItsDocumentCameFrom(t *testing.T) {
 		{name: "probing, the router not running", doc: probed(), want: "the router isn't running"},
 		{name: "probing, the router not answering as it should", doc: stuck, want: "the router isn't answering"},
 		{name: "probing as asked", doc: asked, want: "none while probing, as asked"},
+		{name: "probing past a router from before pools", doc: beforePools, want: "the router started before pools: restart it"},
 		{name: "a router from before it told of events", doc: threeRouted(), outdated: true, want: "restart the router for recent events"},
 		{name: "a router that has told of none", doc: threeRouted(), want: "nothing lately"},
 		{name: "nothing read yet", doc: status.Document{}, want: ""},

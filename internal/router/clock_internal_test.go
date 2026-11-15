@@ -44,7 +44,7 @@ func TestTheRoutersClockKeepsTheWallsTimeThroughASleep(t *testing.T) {
 		t.Errorf("after two hours asleep, %d sessions are active, want none", got)
 	}
 	for _, id := range []string{"work", "side"} {
-		if !r.state.view(opus, clock.read()).room(id) {
+		if !r.state.view("", opus, clock.read()).room(id) {
 			t.Errorf("after two hours asleep, %s is still barred, want its bar lifted", id)
 		}
 	}

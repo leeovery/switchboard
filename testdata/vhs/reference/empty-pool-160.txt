@@ -1,0 +1,37 @@
+ SWITCHBOARD   Acme    Overview   Accounts   History   Sessions   Runway   Graphs   Log                                                      Thu 1 Oct  14:42:07
+
+● healthy  ·  no accounts
+
+  Acme has no accounts, so a session started in ~/Code/acme doesn't start.
+
+  Add one with switchboard accounts add <label> --pool q7mt, or in switchboard setup.
+  Move one in with switchboard accounts edit <id> --pool q7mt.
+
+  Its directories stay fenced until the pool is removed with switchboard pool remove q7mt.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+tab views     P pool  ? help  q quit

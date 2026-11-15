@@ -114,7 +114,7 @@ func TestAPinSpendsItsAccountsReserve(t *testing.T) {
 	if got := r.ask(t, "one", opus, ""); got != "side" {
 		t.Errorf("once unpinned, the session went to %s, want side, work being at its reserve", got)
 	}
-	waitForLine(t, log, "msg=routed", "session=two", "account=work", `reason="pinned (global)"`)
+	waitForLine(t, log, "msg=routed", "session=two", "account=work", `reason="pinned (pool)"`)
 	waitForLine(t, log, "msg=routed", "session=one", "account=side", `reason="moved: work is at its reserve"`)
 }
 

@@ -9,6 +9,18 @@ func (m *Mover) StopAfter(stop func(step string) error) {
 	m.stop = stop
 }
 
+// StopAfter has the move to pools stop once each step stop fails for is
+// done, as Mover's StopAfter has the move onto the ids stop.
+func (m *PoolMover) StopAfter(stop func(step string) error) {
+	m.stop = stop
+}
+
+// OnEditing has the move to pools call editing as each edit of the config
+// that writes the pools is made, before it's saved.
+func (m *PoolMover) OnEditing(editing func()) {
+	m.editing = editing
+}
+
 // OnLookingAgain has the move call looking with an account's id as it's
 // about to look again at the account's token, as one being written now.
 func (m *Mover) OnLookingAgain(looking func(id string)) {

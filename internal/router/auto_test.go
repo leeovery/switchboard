@@ -26,7 +26,7 @@ type assigned struct {
 // session's next request of the model goes once its own pin is cleared, as
 // picking auto on its routing card clears it: the router's own rule for a
 // session of no pin of its own, which keeps it where it runs while that
-// account has room and a move would cost it something, the global pin
+// account has room and a move would cost it something, the pool's pin
 // counting. Each moment ends with the router reading every account afresh,
 // as a refresh has it do, so the next requests' choices know what the
 // listing knew.
@@ -88,7 +88,7 @@ func TestAutoIsWhereASessionsNextRequestGoesOnceItsPinIsCleared(t *testing.T) {
 			want: map[assigned]string{{"one", opus}: "side"},
 		},
 		{
-			name: "a global pin moving running sessions, set once it ran",
+			name: "a pool's pin moving running sessions, set once it ran",
 			arrange: func(t *testing.T, r *routed, client *router.Client) {
 				r.readsAs(workToken, session, sooner)
 				r.readsAs(sideToken, session, later)
@@ -99,7 +99,7 @@ func TestAutoIsWhereASessionsNextRequestGoesOnceItsPinIsCleared(t *testing.T) {
 			want: map[assigned]string{{"one", opus}: "side"},
 		},
 		{
-			name:      "a global pin naming the account at its cap it runs on, which the pin spends, so it stays",
+			name:      "a pool's pin naming the account at its cap it runs on, which the pin spends, so it stays",
 			configure: []func(*router.Config){workPrimary},
 			arrange: func(t *testing.T, r *routed, client *router.Client) {
 				r.readsAs(workToken, session, sooner)
@@ -112,7 +112,7 @@ func TestAutoIsWhereASessionsNextRequestGoesOnceItsPinIsCleared(t *testing.T) {
 			want: map[assigned]string{{"one", opus}: "work"},
 		},
 		{
-			name: "a global pin moving running sessions, set before they started",
+			name: "a pool's pin moving running sessions, set before they started",
 			arrange: func(t *testing.T, r *routed, client *router.Client) {
 				r.readsAs(workToken, session, sooner)
 				r.readsAs(sideToken, session, later)

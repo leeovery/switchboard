@@ -50,8 +50,11 @@ var callsAllowed = []string{
 	// the one time to share, known by the document it's of.
 	"status.Document.At", "status.Document.HoldAt", "status.HeldMoment.Of",
 	// The watch's read loop, which asks for the next read by the document
-	// as it was read, when it was read, rather than at a moment.
+	// as it was read, when it was read, rather than at a moment; and reads
+	// the pool shown again where a read's accounts are others than the last
+	// read's, by their ids alone, judging nothing of either.
 	"status.Document.IncompleteAsRead", "status.Document.NextFetchAsRead", "status.Document.RereadAfterResetAsRead",
+	"status.Document.AccountsChanged",
 	// The accounts removed, which the watch knows from the accounts record
 	// and the document doesn't, handed to the document as it's read, for its
 	// moments to name them.

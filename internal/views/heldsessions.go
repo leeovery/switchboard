@@ -409,9 +409,9 @@ func (f *feed) read(l LedgerSessions) {
 	if listing {
 		sessions, f.listing = l.Sessions, true
 	}
-	if unrestored := f.holdFound(ids, sessions(ids, f.rest, take), answers); len(unrestored) > 0 {
+	if unrestored := f.holdFound(ids, sessions(nil, ids, f.rest, take), answers); len(unrestored) > 0 {
 		answers, take = f.answering(unrestored)
-		f.holdFound(unrestored, l.SessionsOf(unrestored, eachWhole, take), answers)
+		f.holdFound(unrestored, l.SessionsOf(nil, unrestored, eachWhole, take), answers)
 	}
 }
 

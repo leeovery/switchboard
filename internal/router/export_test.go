@@ -1,6 +1,7 @@
 package router
 
 import (
+	"context"
 	"net/http"
 	"testing"
 
@@ -50,4 +51,19 @@ func (r *Router) InFlightOf(session, model string) []string {
 		}
 	}
 	return ids
+}
+
+// RunRouter runs r as Run runs the router it builds, until ctx ends, for
+// tests that ask r itself as it runs.
+func RunRouter(ctx context.Context, r *Router) error {
+	return r.run(ctx)
+}
+
+// TendHistory has the readings history's writer make its round where its
+// files are due their prune, as its tendNow does, returning once it has, so
+// after the round the writer makes as it starts, which the router may answer
+// before: for tests that hold what they ask of the router to come after that
+// round, as it has for a router running a while.
+func (r *Router) TendHistory(ctx context.Context) error {
+	return r.history.tendNow(ctx)
 }

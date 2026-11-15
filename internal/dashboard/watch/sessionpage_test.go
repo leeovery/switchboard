@@ -27,20 +27,21 @@ import (
 )
 
 // pageLedger is a request ledger of the lines given, by session, each read
-// whole, which notes the ids each read of its sessions asked for.
+// whole, in any pool as of every pool's, which notes the ids each read of
+// its sessions asked for.
 type pageLedger struct {
 	ledger.Empty
 	lines map[string][]ledger.Line
 	asked [][]string
 }
 
-func (l *pageLedger) Sessions(ids []string, _ func(string) ledger.Rest, _ func(string, ledger.Line)) map[string]ledger.SessionFrom {
+func (l *pageLedger) Sessions(_ ledger.RoutedIn, ids []string, _ func(string) ledger.Rest, _ func(string, ledger.Line)) map[string]ledger.SessionFrom {
 	l.asked = append(l.asked, slices.Clone(ids))
 	return ledger.SessionsWhole(l.lines)
 }
 
-func (l *pageLedger) SessionsOf(ids []string, rest func(string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
-	return l.Sessions(ids, rest, take)
+func (l *pageLedger) SessionsOf(in ledger.RoutedIn, ids []string, rest func(string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
+	return l.Sessions(in, ids, rest, take)
 }
 
 // Session gives the session's lines newest first, as a Follower does, as a

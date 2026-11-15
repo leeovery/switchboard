@@ -60,8 +60,9 @@ func newSession(t *testing.T, r *Router, model string) string {
 	return c.Account
 }
 
-// sessionIn is a 5-hour window used as given that resets resetsIn after start.
-func sessionIn(utilization float64, resetsIn time.Duration) quota.Window {
+// sessionWindowIn is a 5-hour window used as given that resets resetsIn after
+// start.
+func sessionWindowIn(utilization float64, resetsIn time.Duration) quota.Window {
 	return quota.Window{Key: "5h", Label: "Session", Utilization: utilization, ResetsAt: start.Add(resetsIn)}
 }
 
@@ -82,14 +83,14 @@ func TestTheBestIsWhereTheRouterSendsANewSession(t *testing.T) {
 	// Spare's week resets first, then side's, then work's: unpinned, spare's
 	// quota most needs using.
 	read := map[string][]quota.Window{
-		"work":  {sessionIn(0.2, 3*time.Hour), weekIn(0.5, 5*day)},
-		"side":  {sessionIn(0.2, 3*time.Hour), weekIn(0.5, 3*day)},
-		"spare": {sessionIn(0.2, 3*time.Hour), weekIn(0.5, day)},
+		"work":  {sessionWindowIn(0.2, 3*time.Hour), weekIn(0.5, 5*day)},
+		"side":  {sessionWindowIn(0.2, 3*time.Hour), weekIn(0.5, 3*day)},
+		"spare": {sessionWindowIn(0.2, 3*time.Hour), weekIn(0.5, day)},
 	}
 	spentFableWeek := fableWeek
 	spentFableWeek.Utilization, spentFableWeek.Status = 1, quota.StatusRejected
 	pin := func(r *Router, ids ...string) {
-		r.sessions.setPin(status.Pin{Accounts: ids, Since: start}, false)
+		r.sessions.setPin(beforePools(), status.Pin{Accounts: ids, Since: start}, false)
 	}
 	tests := []struct {
 		name     string
@@ -107,7 +108,7 @@ func TestTheBestIsWhereTheRouterSendsANewSession(t *testing.T) {
 			name: "one under pressure, its session running out at its rate before it resets",
 			change: func(r *Router, clock *testClock) {
 				clock.now = start.Add(20 * time.Minute)
-				r.state.record("spare", []quota.Window{sessionIn(0.7, 3*time.Hour)}, r.state.mark())
+				r.state.record("spare", []quota.Window{sessionWindowIn(0.7, 3*time.Hour)}, r.state.mark())
 			},
 			want: "side",
 		},
@@ -139,26 +140,26 @@ func TestTheBestIsWhereTheRouterSendsANewSession(t *testing.T) {
 			want: "side",
 		},
 		{
-			name:   "a global pin of one account",
+			name:   "a pool's pin of one account",
 			change: func(r *Router, _ *testClock) { pin(r, "work") },
 			want:   "work",
 		},
 		{
-			name:   "a global pin of two accounts, the best of them",
+			name:   "a pool's pin of two accounts, the best of them",
 			change: func(r *Router, _ *testClock) { pin(r, "work", "side") },
 			want:   "side",
 		},
 		{
-			name: "a global pin of two, the better under pressure",
+			name: "a pool's pin of two, the better under pressure",
 			change: func(r *Router, clock *testClock) {
 				pin(r, "work", "side")
 				clock.now = start.Add(20 * time.Minute)
-				r.state.record("side", []quota.Window{sessionIn(0.7, 3*time.Hour)}, r.state.mark())
+				r.state.record("side", []quota.Window{sessionWindowIn(0.7, 3*time.Hour)}, r.state.mark())
 			},
 			want: "work",
 		},
 		{
-			name:     "a global pin of one at its cap, which the pin spends",
+			name:     "a pool's pin of one at its cap, which the pin spends",
 			reserves: map[string]float64{"work": 0.1},
 			change: func(r *Router, _ *testClock) {
 				r.state.record("work", []quota.Window{weekIn(0.95, 5*day)}, r.state.mark())
@@ -167,7 +168,7 @@ func TestTheBestIsWhereTheRouterSendsANewSession(t *testing.T) {
 			want: "work",
 		},
 		{
-			name:     "a global pin of two, the better at its cap, which the pin spends",
+			name:     "a pool's pin of two, the better at its cap, which the pin spends",
 			reserves: map[string]float64{"work": 0.1},
 			change: func(r *Router, _ *testClock) {
 				r.state.record("work", []quota.Window{weekIn(0.9, 10*time.Hour)}, r.state.mark())
@@ -266,18 +267,18 @@ func TestTheBestOfADocumentBuiltByProbingIsWhereANewSessionGoes(t *testing.T) {
 		{
 			name: "every account open",
 			reads: map[string]quota.Probe{
-				workToken:  probed(shared, sessionIn(0.2, 3*time.Hour), weekIn(0.5, day)),
-				sideToken:  probed(shared, sessionIn(0.1, 4*time.Hour), weekIn(0.5, 5*day)),
-				spareToken: probed(shared, sessionIn(0.1, 4*time.Hour), weekIn(0.5, 6*day)),
+				workToken:  probed(shared, sessionWindowIn(0.2, 3*time.Hour), weekIn(0.5, day)),
+				sideToken:  probed(shared, sessionWindowIn(0.1, 4*time.Hour), weekIn(0.5, 5*day)),
+				spareToken: probed(shared, sessionWindowIn(0.1, 4*time.Hour), weekIn(0.5, 6*day)),
 			},
 			want: "work",
 		},
 		{
 			name: "the best under pressure at its use since its session started",
 			reads: map[string]quota.Probe{
-				workToken:  probed(shared, sessionIn(0.7, 2*time.Hour), weekIn(0.5, day)),
-				sideToken:  probed(shared, sessionIn(0.1, 4*time.Hour), weekIn(0.5, 5*day)),
-				spareToken: probed(shared, sessionIn(0.1, 4*time.Hour), weekIn(0.5, 6*day)),
+				workToken:  probed(shared, sessionWindowIn(0.7, 2*time.Hour), weekIn(0.5, day)),
+				sideToken:  probed(shared, sessionWindowIn(0.1, 4*time.Hour), weekIn(0.5, 5*day)),
+				spareToken: probed(shared, sessionWindowIn(0.1, 4*time.Hour), weekIn(0.5, 6*day)),
 			},
 			want: "side",
 		},

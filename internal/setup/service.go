@@ -69,7 +69,7 @@ func (s *Setup) serviced(ctx context.Context) (Serviced, error) {
 	if err != nil {
 		return Serviced{}, err
 	}
-	draft, err := config.Edit(s.Accounts.ConfigPath)
+	draft, err := config.Edit(s.Accounts.ConfigPath, s.Accounts.HomeDir)
 	switch {
 	case err != nil:
 		return Serviced{}, err

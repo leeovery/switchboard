@@ -699,7 +699,7 @@ func TestSetupsStepsAreSetUpAsTheCLIFindsThem(t *testing.T) {
 	if want := map[string]setup.TokenState{"work": setup.TokenWorking, "personal": setup.NoToken, "side": setup.TokenNotTaken}; !maps.Equal(reviewed, want) {
 		t.Errorf("the accounts were reviewed as %v, want %v", reviewed, want)
 	}
-	written, err := config.Load(s.srv.config)
+	written, err := config.Load(s.srv.config, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

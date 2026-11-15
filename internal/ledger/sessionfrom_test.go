@@ -667,7 +667,7 @@ func TestALookupGivesWhatARawReadGivesOverAGeneratedLedger(t *testing.T) {
 			sessions := g.w.sessionsAsOf(2, generatedSessions...)
 
 			for _, id := range generatedSessions {
-				raw := requestsOf(followerOf(g.w.state, &testClock{at: g.w.at}, caps).SessionsOf([]string{id}, eachWhole, nil)[id].Lines)
+				raw := requestsOf(followerOf(g.w.state, &testClock{at: g.w.at}, caps).SessionsOf(nil, []string{id}, eachWhole, nil)[id].Lines)
 				from, base := sessions[id], ""
 				if from.Base != nil {
 					base = from.Base.Date

@@ -96,26 +96,50 @@ func lineOf[O any](outcome *O, say func(O) Said) (StepLine, bool) {
 }
 
 // said is the accounts' line: how many there are, and how many have
-// working tokens, as counted has it; then the primary, and what's reserved
-// on it for the Claude apps, where any is, or that none is the primary, of
-// two or more. It's a warning where any token isn't working, none is the
-// primary, or there are no accounts.
+// working tokens, as counted has it; then the primary, as primariesSaid has
+// it. It's a warning where any token isn't working, a pool has no primary,
+// or there are no accounts.
 func (r Review) said() Said {
 	if len(r.Accounts) == 0 {
 		return Said{Mark: Warning, Detail: "none"}
 	}
-	said := Said{Mark: Done, Detail: r.counted()}
-	if slices.ContainsFunc(r.Accounts, func(a Reviewed) bool { return !a.Token.Working() }) {
+	said := Said{Mark: Done, Detail: r.counted() + r.primariesSaid()}
+	if r.Unmarked || slices.ContainsFunc(r.Accounts, func(a Reviewed) bool { return !a.Token.Working() }) {
 		said.Mark = Warning
 	}
-	if i := slices.IndexFunc(r.Accounts, func(a Reviewed) bool { return a.Primary }); i >= 0 {
-		said.Detail += " · primary: " + r.Accounts[i].ID
-		if reserve := r.Accounts[i].Reserve; reserve > 0 {
-			said.Detail += ", with " + prose.PercentSet(reserve) + " reserved for the Claude apps"
+	return said
+}
+
+// primariesSaid says the primary, and what's reserved on it for the Claude
+// apps, where any is, or that none is the primary, of two or more: once
+// there's a second pool, each pool's with accounts, in the config's order,
+// by its label, the Claude apps' reserve the first pool's primary's alone.
+func (r Review) primariesSaid() string {
+	if len(r.Pools) < 2 {
+		return primarySaid("primary: ", "none is the primary", r.Accounts, true)
+	}
+	var said strings.Builder
+	for _, p := range r.Pools {
+		in := slices.DeleteFunc(slices.Clone(r.Accounts), func(a Reviewed) bool { return !config.SamePool(a.Pool, p.ID) })
+		if len(in) > 0 {
+			label := prose.Clean(p.Label)
+			said.WriteString(primarySaid(label+"'s primary: ", label+" has no primary", in, config.SamePool(p.ID, r.First)))
 		}
 	}
-	if r.Unmarked {
-		said.Mark, said.Detail = Warning, said.Detail+" · none is the primary"
+	return said.String()
+}
+
+// primarySaid says the primary of accounts, one pool's, after lead, by its
+// id, with what's reserved on it for the Claude apps where apps says
+// they're its, and any is; else none, as given.
+func primarySaid(lead, none string, accounts []Reviewed, apps bool) string {
+	i := slices.IndexFunc(accounts, func(a Reviewed) bool { return a.Primary })
+	if i < 0 {
+		return " · " + none
+	}
+	said := " · " + lead + accounts[i].ID
+	if reserve := accounts[i].Reserve; apps && reserve > 0 {
+		said += ", with " + prose.PercentSet(reserve) + " reserved for the Claude apps"
 	}
 	return said
 }

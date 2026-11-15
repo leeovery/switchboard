@@ -55,7 +55,7 @@ func moving(want status.Moving) func(status.Document) bool {
 }
 
 // running is the move as the router's status says it stands as it runs.
-var running = status.Moving{Stage: status.MoveRunning}
+var running = status.Moving{Stage: status.MoveRunning, Move: status.MovingIDs}
 
 func TestTheRouterSettlesTheMoveBeforeItTakesUpItsState(t *testing.T) {
 	cfg := runConfig(t, "http://127.0.0.1:1")
@@ -102,7 +102,7 @@ func TestTheRoutersStatusSaysWhatHoldsTheMoveUp(t *testing.T) {
 
 	<-mover.history
 	mover.runs <- idmove.ErrUnanswered
-	waitForStatus(t, path, moving(status.Moving{Stage: status.MoveAwaitingAPI}))
+	waitForStatus(t, path, moving(status.Moving{Stage: status.MoveAwaitingAPI, Move: status.MovingIDs}))
 }
 
 func TestTheRoutersStatusSaysTheMoveWaitsForItToRestart(t *testing.T) {
@@ -114,7 +114,54 @@ func TestTheRoutersStatusSaysTheMoveWaitsForItToRestart(t *testing.T) {
 
 	<-mover.history
 	mover.runs <- idmove.ErrAwaitingRestart
-	waitForStatus(t, path, moving(status.Moving{Stage: status.MoveAwaitingRestart}))
+	waitForStatus(t, path, moving(status.Moving{Stage: status.MoveAwaitingRestart, Move: status.MovingIDs}))
+}
+
+// fakePoolMover is a move to pools as the router runs it: each run hands the
+// history's files it's given to history, and whether the router took up the
+// pools as it had it to tookUp, then answers as the test sends on runs.
+type fakePoolMover struct {
+	history chan idmove.History
+	tookUp  chan bool
+	runs    chan error
+}
+
+func newFakePoolMover() *fakePoolMover {
+	return &fakePoolMover{history: make(chan idmove.History, 8), tookUp: make(chan bool, 8), runs: make(chan error)}
+}
+
+func (m *fakePoolMover) RunBeside(ctx context.Context, history idmove.History, takeUp func() bool) error {
+	m.history <- history
+	m.tookUp <- takeUp()
+	select {
+	case err := <-m.runs:
+		return err
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func TestTheRouterMovesTheHistoryToPoolsOnceTheMoveOntoTheIDsIsDone(t *testing.T) {
+	cfg := runConfig(t, "http://127.0.0.1:1")
+	mover, pools := newFakeMover(), newFakePoolMover()
+	cfg.Move, cfg.PoolMove = mover, pools
+	runRouter(t, cfg)
+	path := router.SocketPath(cfg.StateDir)
+
+	<-mover.history
+	waitForStatus(t, path, moving(running))
+	mover.runs <- nil
+
+	h := <-pools.history
+	if h.Ledger == nil || h.Readings == nil || h.Events == nil {
+		t.Fatalf("the move to pools was given the history %+v, want the router's ledger, readings and events", h)
+	}
+	if <-pools.tookUp {
+		t.Error("the move to pools was told the router routes in pools, want not: its config names none")
+	}
+	waitForStatus(t, path, moving(status.Moving{Stage: status.MoveRunning, Move: status.MovingPools}))
+	pools.runs <- idmove.ErrAwaitingPools
+	waitForStatus(t, path, moving(status.Moving{Stage: status.MoveAwaitingRestart, Move: status.MovingPools}))
 }
 
 func TestARouterWithNoMoveOwedSaysNothingOfOne(t *testing.T) {

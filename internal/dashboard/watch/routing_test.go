@@ -11,6 +11,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/router"
@@ -560,10 +561,17 @@ func TestOneAccountsPinIsClearedFromTheCard(t *testing.T) {
 }
 
 func TestPIsFaintAndSaysWhyWhileTheRouterDoesntAnswer(t *testing.T) {
+	beforePools := func(t *testing.T) *harness {
+		doc := document(three()...)
+		doc.Fallback = status.Fallback{Router: status.RouterBeforePools}
+		return newHarness(t, doc)
+	}
 	tests := []struct {
 		name  string
 		h     func(t *testing.T) *harness
 		after func(h *harness)
+		// why is what the key line says in its place.
+		why error
 	}{
 		{
 			name: "showing the router's last document",
@@ -572,11 +580,19 @@ func TestPIsFaintAndSaysWhyWhileTheRouterDoesntAnswer(t *testing.T) {
 				h.stopRouter()
 				h.tickUntilAsked()
 			},
+			why: status.ErrNoRouter,
 		},
 		{
 			name:  "probing, as the router isn't running",
 			h:     func(t *testing.T) *harness { return newHarness(t, probedWithoutTheRouter()) },
 			after: func(*harness) {},
+			why:   status.ErrNoRouter,
+		},
+		{
+			name:  "probing past a router from before pools",
+			h:     beforePools,
+			after: func(*harness) {},
+			why:   status.ErrStartedBeforePools,
 		},
 	}
 	for _, tt := range tests {
@@ -592,13 +608,48 @@ func TestPIsFaintAndSaysWhyWhileTheRouterDoesntAnswer(t *testing.T) {
 			if h.model.open != nothingOpen {
 				t.Fatal("p opened the routing card, want nothing open")
 			}
-			if got, want := h.keyLine(), status.ErrNoRouter.Error(); got != want {
+			if got, want := h.keyLine(), tt.why.Error(); got != want {
 				t.Errorf("the key line reads %q, want %q in its place", got, want)
 			}
 			if lapse, ok := h.pending(noteMsg{}); !ok || lapse.delay != noteFor {
 				t.Errorf("the note lapses after %v (armed %v), want %v", lapse, ok, noteFor)
 			}
 		})
+	}
+}
+
+// On a phone, p's refusal of a router from before pools keeps what to do.
+func TestPSaysWhatToDoOfARouterFromBeforePoolsOnAPhone(t *testing.T) {
+	doc := document(three()...)
+	doc.Fallback = status.Fallback{Router: status.RouterBeforePools}
+	h := newHarness(t, doc)
+	h.start()
+	h.update(tea.WindowSizeMsg{Width: 73, Height: 61})
+	h.keyed("p")
+	if got := h.keyLine(); !strings.Contains(got, "restart it") {
+		t.Errorf("at 73 columns, the key line reads %q, want it to keep %q", got, "restart it")
+	}
+}
+
+// An order from the routing card, opened while the router answered, is
+// refused in the words of how the router's found by the read after: of a
+// router from before pools, that it started before them.
+func TestAnOpenCardsOrderIsRefusedInTheWordsOfARouterFromBeforePools(t *testing.T) {
+	h := routedHarness(t, routerDocument(three()...))
+	h.start()
+	h.keyed("p")
+	if h.model.open != routingOpen {
+		t.Fatal("p opened no routing card")
+	}
+
+	probed := document(three()...)
+	probed.Fallback = status.Fallback{Router: status.RouterBeforePools}
+	h.stopRouter()
+	h.deliver(fetchedMsg{read: status.Read{Probe: true}, doc: probed})
+	h.keyed("@2 enter")
+	if len(h.source.orders) > 0 || h.model.open != routingOpen || h.card().Refused != status.StartedBeforePools {
+		t.Errorf("enter sent %q, the card open %t, saying %q; want nothing sent, the card open, saying %q",
+			h.source.orders, h.model.open == routingOpen, h.card().Refused, status.StartedBeforePools)
 	}
 }
 
@@ -670,20 +721,21 @@ func TestEnterSaysSoInTheCardWhileTheRouterDoesntAnswer(t *testing.T) {
 }
 
 // sessionsLedger is a request ledger of the lines given, by session, each
-// read whole, which counts the times its sessions' lines are read.
+// read whole, in any pool as of every pool's, which counts the times its
+// sessions' lines are read.
 type sessionsLedger struct {
 	ledger.Empty
 	lines map[string][]ledger.Line
 	reads int
 }
 
-func (l *sessionsLedger) Sessions([]string, func(string) ledger.Rest, func(string, ledger.Line)) map[string]ledger.SessionFrom {
+func (l *sessionsLedger) Sessions(ledger.RoutedIn, []string, func(string) ledger.Rest, func(string, ledger.Line)) map[string]ledger.SessionFrom {
 	l.reads++
 	return ledger.SessionsWhole(l.lines)
 }
 
-func (l *sessionsLedger) SessionsOf(ids []string, rest func(string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
-	return l.Sessions(ids, rest, take)
+func (l *sessionsLedger) SessionsOf(in ledger.RoutedIn, ids []string, rest func(string) ledger.Rest, take func(string, ledger.Line)) map[string]ledger.SessionFrom {
+	return l.Sessions(in, ids, rest, take)
 }
 
 // The usages of the priced sessions' answers. hourUsage writes the cache for
@@ -717,6 +769,94 @@ func pricedHarness(t *testing.T) (*harness, *sessionsLedger) {
 	h := gridHarness(t)
 	h.model.cfg.Ledger = l
 	return h, l
+}
+
+// The card prices each move by the session's lines in the pool shown alone,
+// as the store reads them: d28c's last request, writing the cache for an
+// hour, made in Acme's, costs $0.81 to write again in Acme's, and in
+// Default's is none of its, so none of the three moves is priced.
+func TestTheCardPricesTheMovesOfTheSessionsLinesInThePoolShown(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		read views.PoolRead
+		cost string
+	}{
+		{name: "Acme's", read: acmeRead, cost: "$0.81"},
+		{name: "Default's", read: firstRead},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			h, l := pricedHarness(t)
+			l.lines[idD28C][0].Pool = "q7mt"
+			h.model.cfg.PoolRead = tt.read
+
+			h.keyed("p @2")
+			h.keyed("m")
+			got, cost := h.card(), ""
+			if got.Cost != nil {
+				cost = got.Cost.Cents()
+			}
+			if got.Moving != 3 || cost != tt.cost {
+				t.Errorf("m ticked, the card moves %d sessions at %q, want 3 at %q, d28c's of its lines in the pool", got.Moving, cost, tt.cost)
+			}
+		})
+	}
+}
+
+// pricedMoves are the sessions the card moves, m ticked, its routing opened
+// afresh with the second row pinned, and what it prices them at: "" where
+// it prices none.
+func (h *harness) pricedMoves() (int, string) {
+	h.t.Helper()
+	h.keyed("p @2")
+	h.keyed("m")
+	got := h.card()
+	if got.Cost == nil {
+		return got.Moving, ""
+	}
+	return got.Moving, got.Cost.Cents()
+}
+
+// After a turn, the card prices each move by the session's lines in the
+// pool turned to, as the turn reads it, its first pool among it: d28c's
+// last request, writing the cache for an hour, costs $0.81 to write again
+// in its own pool, and nothing once a turn leaves it another's: P to
+// Default, from Acme, where it was made; and, where it named none, Acme put
+// first, the accounts record noting no first pool, so it's Acme's.
+func TestATurnPricesTheCardsMovesInThePoolTurnedTo(t *testing.T) {
+	everyAccount := slices.Concat(defaultAccounts, acmeAccounts)
+	tests := []struct {
+		name   string
+		pool   string
+		opened string
+		turn   func(h *harness, p *poolTurns)
+	}{
+		{name: "P, Acme to Default", pool: "q7mt", opened: "q7mt", turn: func(h *harness, _ *poolTurns) { h.deliver(h.press("P")...) }},
+		{name: "Acme put first, the record noting no first pool", opened: "b2n8", turn: func(h *harness, p *poolTurns) {
+			p.changeConfig(func(p *poolTurns) { p.pools = config.Pools{testPools[1], testPools[0]} })
+			h.deliver(h.press("R")...)
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h, l := pricedHarness(t)
+			l.lines[idD28C][0].Pool = tt.pool
+			pools := newPoolTurns(t, testPools, everyAccount, map[string]Source{"b2n8": h.source, "q7mt": h.source})
+			h.model.cfg = pools.opened(h.model.cfg, tt.opened)
+			if moving, cost := h.pricedMoves(); moving != 3 || cost != "$0.81" {
+				t.Fatalf("before the turn, the card moves %d sessions at %q, want 3 at $0.81, d28c's in its pool", moving, cost)
+			}
+			h.keyed("esc")
+
+			turns := h.model.poolTurns
+			tt.turn(h, pools)
+			if h.model.poolTurns != turns+1 || h.model.cfg.Pool.ID != "b2n8" {
+				t.Fatalf("the turn started the view afresh %d times, on %q; want once, on Default", h.model.poolTurns-turns, h.model.cfg.Pool.ID)
+			}
+			if moving, cost := h.pricedMoves(); moving != 3 || cost != "" {
+				t.Errorf("after the turn, the card moves %d sessions at %q, want 3 at none, d28c's line of another pool", moving, cost)
+			}
+		})
+	}
 }
 
 func TestTheCardPricesTheMovesOnceMIsTicked(t *testing.T) {

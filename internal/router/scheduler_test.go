@@ -237,7 +237,7 @@ func TestASessionPinHeaderOfAnIDAnAccountHadBeforeIsHonoured(t *testing.T) {
 	}
 }
 
-func TestTheGlobalPin(t *testing.T) {
+func TestThePoolsPin(t *testing.T) {
 	log := logstest.Capture(t)
 	r := newRouted(t)
 	client := router.NewClient(serveControl(t, r.rt))
@@ -255,7 +255,7 @@ func TestTheGlobalPin(t *testing.T) {
 	if got := r.ask(t, "new", opus, ""); got != "side" {
 		t.Errorf("a new session went to %s, want side, the pin's", got)
 	}
-	waitForLine(t, log, "msg=routed", "session=new", "account=side", `reason="pinned (global)"`)
+	waitForLine(t, log, "msg=routed", "session=new", "account=side", `reason="pinned (pool)"`)
 	if got := r.ask(t, "running", opus, ""); got != "work" {
 		t.Errorf("the running session went to %s, want work, where it was", got)
 	}
@@ -308,7 +308,7 @@ func TestTheGlobalPin(t *testing.T) {
 	}
 }
 
-func TestTheGlobalPinOnSeveralAccounts(t *testing.T) {
+func TestThePoolsPinOnSeveralAccounts(t *testing.T) {
 	log := logstest.Capture(t)
 	r := newRouted(t, withPersonalToken)
 	client := router.NewClient(serveControl(t, r.rt))
@@ -338,7 +338,7 @@ func TestTheGlobalPinOnSeveralAccounts(t *testing.T) {
 		t.Errorf("the session on personal went to %s, want personal: the pin names it", got)
 	}
 	waitForLine(t, log, "level=INFO", "msg=pinned", "accounts=personal,side", "move=true")
-	waitForLine(t, log, "msg=routed", "session=new", "account=side", `reason="pinned (global)"`)
+	waitForLine(t, log, "msg=routed", "session=new", "account=side", `reason="pinned (pool)"`)
 	waitForLine(t, log, "level=INFO", "msg=moved", `session="on work"`, "from=work", "to=side", `reason="moved by pin"`)
 }
 
@@ -424,7 +424,7 @@ func TestForceClearsEverySessionsOwnPinLaunchPinsIncluded(t *testing.T) {
 		force func(t *testing.T, client *router.Client) status.Document
 		// idle is how long the sessions idle once forced.
 		idle time.Duration
-		// wantPin is the global pin once forced, and wantReason why the
+		// wantPin is the pool's pin once forced, and wantReason why the
 		// sessions go to work on their next requests.
 		wantPin    status.Pin
 		wantReason string
@@ -444,7 +444,7 @@ func TestForceClearsEverySessionsOwnPinLaunchPinsIncluded(t *testing.T) {
 			},
 			idle:       2 * time.Hour,
 			wantPin:    status.Pin{Accounts: []string{"work"}, Since: now.Add(time.Minute)},
-			wantReason: `reason="pinned (global)"`,
+			wantReason: `reason="pinned (pool)"`,
 		},
 		{
 			name: "unpinning",
@@ -480,7 +480,7 @@ func TestForceClearsEverySessionsOwnPinLaunchPinsIncluded(t *testing.T) {
 			r.clock.advance(time.Minute)
 
 			if doc := tt.force(t, client); !reflect.DeepEqual(doc.Pin, tt.wantPin) {
-				t.Errorf("once forced, the global pin = %+v, want %+v", doc.Pin, tt.wantPin)
+				t.Errorf("once forced, the pool's pin = %+v, want %+v", doc.Pin, tt.wantPin)
 			}
 			r.clock.advance(tt.idle)
 			for id, launched := range map[string]string{"launched": "side", "given": ""} {

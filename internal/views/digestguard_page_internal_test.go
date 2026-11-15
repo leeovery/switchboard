@@ -600,7 +600,7 @@ func judgedLater(moment, map[string]openedPage) bool { return false }
 // spoils no state.
 func partsSpoiled(spoil func(w *spread, path string, member ledger.Member)) func(w *spread, now time.Time) (upsetJudged, string) {
 	return func(w *spread, _ time.Time) (upsetJudged, string) {
-		from := w.based.SessionsOf([]string{pageSession}, onPage, nil)[pageSession]
+		from := w.based.SessionsOf(nil, []string{pageSession}, onPage, nil)[pageSession]
 		if len(from.Parts) < 2 {
 			return nil, ""
 		}
@@ -656,7 +656,7 @@ func damageMember(w *spread, path string, member ledger.Member) {
 // day's rests on it again, is held by
 // TestAPageItsPointsCantTakeADayInOnIsFoldedWholeThenRestedOn.
 func (w *spread) takesSplit(now time.Time) (upsetJudged, string) {
-	from := w.based.SessionsOf([]string{pageSession}, onPage, nil)[pageSession]
+	from := w.based.SessionsOf(nil, []string{pageSession}, onPage, nil)[pageSession]
 	base := from.BaseDate()
 	i := slices.IndexFunc(w.lines, func(l ledger.Line) bool {
 		return l.Session == pageSession && l.Model == foldSonnet && l.Limits[sonnetWeek+"-reset"] != "" && w.filedUnder(l) == base

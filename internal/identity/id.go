@@ -51,10 +51,10 @@ func spelledFrom(seed string, free func(id string) bool) string {
 }
 
 // Random returns a random id, for an account whose organization can't be
-// known: idLength characters, spelled from what rand gives, as Derive spells
-// one from a hash, and never one held, as clashes says of the record and the
-// configured accounts' ids. It fails where rand does, and where mostDraws
-// drawn are each held.
+// known, or a pool: idLength characters, spelled from what rand gives, as
+// Derive spells one from a hash, and never one held, as clashes says of the
+// record and the ids configured. It fails where rand does, and where
+// mostDraws drawn are each held.
 func (r Record) Random(rand io.Reader, configured []string) (string, error) {
 	drawn := make([]byte, sha256.Size)
 	for range mostDraws {
@@ -66,6 +66,13 @@ func (r Record) Random(rand io.Reader, configured []string) (string, error) {
 		}
 	}
 	return "", fmt.Errorf("draw a random id: each of %d drawn is held already", mostDraws)
+}
+
+// NewPoolID returns the id of a pool being made: random, as no organization
+// stands behind a pool, as Random draws one, configured being the config's
+// accounts' and pools' ids.
+func (r Record) NewPoolID(rand io.Reader, configured []string) (string, error) {
+	return r.Random(rand, configured)
 }
 
 // Spells reports whether id is the one the given organization spells at its
@@ -81,12 +88,14 @@ func WellFormed(id string) bool {
 	return wellFormed(id)
 }
 
-// clashes reports whether id can't be given to an account: the record holds
-// it, as an account's id or one an account had before switchboard made ids,
-// or it's one of the configured accounts' ids, or it's no id switchboard
+// clashes reports whether id can't be given to an account or a pool: the
+// record holds it, as an account's id, one an account had before
+// switchboard made ids, or a pool's, so an account's id and a pool's are
+// never one; or it's one of the ids configured; or it's no id switchboard
 // makes, as the word pin takes for routing isn't.
 func (r Record) clashes(id string, configured []string) bool {
-	return !wellFormed(id) || containsFold(configured, id) || slices.ContainsFunc(r.Accounts, func(e Entry) bool {
+	_, pooled := r.PoolByID(id)
+	return !wellFormed(id) || pooled || containsFold(configured, id) || slices.ContainsFunc(r.Accounts, func(e Entry) bool {
 		return strings.EqualFold(e.ID, id) || strings.EqualFold(e.Was, id)
 	})
 }

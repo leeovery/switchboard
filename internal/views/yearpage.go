@@ -156,8 +156,9 @@ func (p Past) year(ask YearAsk) YearPage {
 	drawn := yearDays(filter.days(between(p.days, span.earliest(), span.gridLast())))
 	y := yearView{
 		ask: ask, span: span, v: v, plans: shownPlans(ask.Account, p.in.Accounts, p.in.Prices),
-		all: between(p.days, span.first, span.last), shown: between(drawn, span.first, span.last), began: p.began(),
+		all: between(p.days, span.first, span.last), began: p.began(),
 	}
+	y.shown = between(drawn, y.counted(), span.last)
 	cuts := quarterCuts(y.shown.active())
 	page := YearPage{
 		Weeks: span.weeksOf(drawn.requests(), cuts), Cuts: cuts, KeyCuts: keyCuts(cuts, yearKeyRounding), Months: span.labels(),
@@ -379,7 +380,7 @@ func (f yearFilter) days(days []Day) []Day {
 				priced.Accounts = append(priced.Accounts, kept)
 			}
 		}
-		narrowed[i] = f.v.day(priced)
+		narrowed[i] = f.v.day(priced, nil)
 	}
 	return narrowed
 }
@@ -511,9 +512,10 @@ func (days yearDays) versions(v versions) []string {
 }
 
 // yearView is the Year's period as asked for: what it is, the plans of the
-// accounts shown, the period's days, every account's use and as narrowed to
-// what's shown, and the date the ledger began recording on, where it tells
-// it: "" where it doesn't.
+// accounts shown, the period's days, every account's use, and as narrowed to
+// what's shown from the first day counted, as a pool's read holds the days
+// before it began, which aren't its, and the date the ledger began recording
+// on, where it tells it: "" where it doesn't.
 type yearView struct {
 	ask   YearAsk
 	span  yearSpan

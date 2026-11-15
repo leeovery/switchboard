@@ -282,8 +282,8 @@ func TestWhatARequestTheControlAPIAcceptedChangesIsChangedOnceItCloses(t *testin
 		synctest.Wait()
 
 		r.closeControl(control)
-		if got := r.sessions.globalPin().Accounts; !slices.Equal(got, []string{"side"}) {
-			t.Errorf("once the control API closed, the global pin was to %q, want the one asked for as it closed, to side: the state saved then would miss it", got)
+		if got := r.poolPin("").Accounts; !slices.Equal(got, []string{"side"}) {
+			t.Errorf("once the control API closed, the pool's pin was to %q, want the one asked for as it closed, to side: the state saved then would miss it", got)
 		}
 		pinned := func(e status.Event) bool { return e.Kind == status.EventPin && e.Account == "side" }
 		if events := r.recent.events(); !slices.ContainsFunc(events, pinned) {

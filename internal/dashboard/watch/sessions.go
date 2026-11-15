@@ -118,15 +118,16 @@ func (m Model) namesSessions() bool {
 
 // readList reads the List, as a command, once: a store of its own fed as
 // the List wants, which reads whole every session it lists, of the router's
-// listing, priced at the config's prices. It waits till no read of the
-// ledger's tail is under way, and holds the tail's reads off till it lands,
-// as a session's page's read does, so the mark never moves past where its
-// read of today's lines ends, the store yet to take what lies between.
+// listing, in the pool shown alone, priced at the config's prices. It waits
+// till no read of the ledger's tail is under way, and holds the tail's
+// reads off till it lands, as a session's page's read does, so the mark
+// never moves past where its read of today's lines ends, the store yet to
+// take what lies between.
 func (m Model) readList() (Model, tea.Cmd) {
 	if m.tail.reading {
 		return m, nil
 	}
-	l, prices, now := m.cfg.Ledger, m.cfg.Prices, m.now()
+	l, prices, now := m.ledgerSessions(), m.cfg.Prices, m.now()
 	want := views.ListWanted(m.sessions, m.traffic.stream(now))
 	m.sessionsTab.reading, m.tail = true, m.tail.wholeAsked()
 	return m, func() tea.Msg {
@@ -239,18 +240,19 @@ func (m Model) heldAwaiting(f *heldFold) Model {
 	return m
 }
 
-// fed is the store fed, through l, at now, what a read of the ledger's tail
+// fed is the store fed, through r, at now, what a read of the ledger's tail
 // read, as the fold says, wanting the sessions of the Log's lines, logged,
-// too: today's gain, and the late days it reads again; and what the feed
-// changed of each session.
-func (f heldFold) fed(l views.LedgerSessions, read tailLines, logged []string, now time.Time) (views.HeldSessions, views.SessionGains) {
+// too: today's gain, and the late days it reads again, the requests of the
+// pool shown alone, as r's pool takes them, and its sessions as r reads
+// them; and what the feed changed of each session.
+func (f heldFold) fed(r logReaders, read tailLines, logged []string, now time.Time) (views.HeldSessions, views.SessionGains) {
 	days := make(map[string][]ledger.Held, len(f.late))
 	for _, date := range f.late {
 		days[date] = read.days[date]
 	}
 	want := f.want
 	want.Log = logged
-	return f.held.Fed(l, views.Took(read.gained, days), want, now)
+	return f.held.Fed(r.sessions(), r.pool.Took(read.gained, days), want, now)
 }
 
 // noSessionChosen is why enter opens nothing on Sessions while no session

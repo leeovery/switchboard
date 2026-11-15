@@ -225,7 +225,7 @@ func TestTheRecordKeepsUpWithTheAccountsConfigured(t *testing.T) {
 			if labelOf == nil {
 				labelOf = unlabelled
 			}
-			kept := r.KeepUp(tt.configured, labelOf, later)
+			kept := r.KeepUp(identity.Followed{Accounts: tt.configured, AccountLabel: labelOf}, later)
 			if !slices.Equal(r.Accounts, tt.want) {
 				t.Errorf("the record holds\n%+v\nwant\n%+v", r.Accounts, tt.want)
 			}

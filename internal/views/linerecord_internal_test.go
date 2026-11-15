@@ -30,7 +30,8 @@ func recordsOfLines(lines []ledger.Line) []lineRecord {
 // runs give, each now and then, as the seed's r draws it: the client that
 // sent it, its betas, its shape, its answer's id, model and blocks, its
 // client going away, and, where neither its client went nor its router cut
-// it off, its upstream breaking its answer off.
+// it off, its upstream breaking its answer off; and the pool it was routed
+// in, one of two, or none, as before pools.
 func dressed(r *rand.Rand, l *ledger.Line) {
 	l.Agent = []string{"", "claude-cli/2.1.300 (external, cli)", "claude-cli/2.2.0"}[r.IntN(3)]
 	for _, beta := range []string{"claude-code-20250219", "context-1m-2025-08-07", "interleaved-thinking-2025-05-14"} {
@@ -54,6 +55,7 @@ func dressed(r *rand.Rand, l *ledger.Line) {
 	l.Canceled = l.Canceled || r.IntN(20) == 0
 	broken := r.IntN(20) == 0
 	l.Broken = l.Broken || broken && !l.Canceled && !l.CutOff
+	l.Pool = []string{"", "b2n8", "q7mt"}[r.IntN(3)]
 }
 
 // twinOf is l but for what no record of it holds, as the seed's r draws it:
@@ -248,6 +250,7 @@ func recordedLine() ledger.Line {
 		Answer: ledger.Answer{ID: "msg_1", Model: foldOpus, Stop: "tool_use", Tools: []string{"Bash"}, Blocks: map[string]int{"text": 1, "tool_use": 1}},
 		Usage:  json.RawMessage(foldUsages[2]),
 		Limits: map[string]string{"status": "allowed", "5h-utilization": "0.42", "5h-reset": "1791370800", "5h-status": "allowed"},
+		Pool:   "q7mt",
 	}
 }
 
@@ -302,6 +305,7 @@ var recordEdits = map[string]func(r *lineRecord){
 		r.windows = claude.KeptWindows(map[string]string{"5h-utilization": "0.43", "5h-reset": "1791370800"})
 	},
 	"limit": func(r *lineRecord) { r.limit = "allowed_warning" },
+	"pool":  func(r *lineRecord) { r.pool = "b2n8" },
 }
 
 // fieldNames are the names of the fields of the struct type t, those of the

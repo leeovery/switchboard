@@ -15,11 +15,11 @@ func TestALineIsCutToWhatTheLedgerHolds(t *testing.T) {
 	long := strings.Repeat("☃", textMost)
 	longs := slices.Repeat([]string{long}, 2*ListMost)
 	dir := "~/" + long + "/project"
-	got := (&Line{Session: long, Dir: dir, Betas: longs, Tried: slices.Repeat([]Tried{{Account: long, Why: long}}, 2*ListMost),
+	got := (&Line{Session: long, Dir: dir, Pool: long, Betas: longs, Tried: slices.Repeat([]Tried{{Account: long, Why: long}}, 2*ListMost),
 		Shape:  Shape{ServiceTier: long, OutputConfig: OutputConfig{Effort: long}, ContextManagement: ContextManagement{Edits: longs}},
 		Answer: Answer{Error: Error{Type: "overloaded_error", Message: long}}}).written()
 	cut := strings.Repeat("☃", textMost/len("☃"))
-	for name, text := range map[string]string{"a session's id": got.Session, "a service tier": got.Shape.ServiceTier,
+	for name, text := range map[string]string{"a session's id": got.Session, "a pool's id": got.Pool, "a service tier": got.Shape.ServiceTier,
 		"an effort": got.Shape.OutputConfig.Effort, "an error's message": got.Answer.Error.Message} {
 		if text != cut {
 			t.Errorf("%s of %d bytes is written as %d, want %d: cut to %d bytes at the end of a character", name, len(long), len(text), len(cut), textMost)
@@ -61,7 +61,7 @@ func TestARequestUpstreamIsOneCountedTheRouterSentOn(t *testing.T) {
 		}
 		day := make(tally)
 		day.line(l)
-		if got := day.account("").model(keyOf(l)).day.Upstream == 1; got != tt.want {
+		if got := day.account("").pool("").model(keyOf(l)).day.Upstream == 1; got != tt.want {
 			t.Errorf("%s: a day's summary tallies it upstream = %v, want %v, as Upstream says", tt.name, got, tt.want)
 		}
 	}

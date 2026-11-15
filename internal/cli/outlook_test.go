@@ -44,7 +44,11 @@ func TestStatusWorksOutWhatARouterFromBeforeDoesntGive(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// A config without pools, as the router from before reads it,
+			// its health, serveRouter's own, reporting none.
 			srv := newServeSetup(t, "http://127.0.0.1:1", nil)
+			srv.accounts = threeAccounts
+			srv.writeConfig(t)
 			serveRouter(t, srv.socket(), new(atomic.Int64), map[string]http.HandlerFunc{
 				"GET /status": func(w http.ResponseWriter, _ *http.Request) { _ = json.NewEncoder(w).Encode(tt.doc) },
 			})

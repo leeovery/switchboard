@@ -21,32 +21,41 @@ func (l *Ledger) Files() *dayfile.Files {
 	return l.days.files
 }
 
-// RenameDay renames the accounts of the local day with the given date: each
-// of its lines as line makes it, its files rewritten as dayfile's Rewrite
-// rewrites them, then its summary's, each account's id as id gives it, as
-// renameSummary renames them. It holds summarising throughout, so no round
-// summarises the day from lines of one form, knowing no less than a summary
-// of the other, which would count each account twice; and the day's files
-// only as Rewrite holds them. A summary that doesn't read as one is left as
-// it is, for a round to summarise again, as it would.
-func (l *Ledger) RenameDay(date string, line func([]byte) []byte, id func(string) string) error {
+// Renaming is how RenameDay and RenameSummary rename a day's summary: each
+// account's id as Account gives it, nil leaving every one as it is; and the
+// work of the requests that named no pool given the pool Unpooled, by its
+// id, as the pool they were in after all, "" leaving it in none.
+type Renaming struct {
+	Account  func(id string) string
+	Unpooled string
+}
+
+// RenameDay renames the local day with the given date: each of its lines as
+// line makes it, its files rewritten as dayfile's Rewrite rewrites them,
+// then its summary, as rename has it, as renameSummary renames it. It holds
+// summarising throughout, so no round summarises the day from lines of one
+// form, knowing no less than a summary of the other, which would count its
+// work twice; and the day's files only as Rewrite holds them. A summary that
+// doesn't read as one is left as it is, for a round to summarise again, as
+// it would.
+func (l *Ledger) RenameDay(date string, line func([]byte) []byte, rename Renaming) error {
 	l.summarising.Lock()
 	defer l.summarising.Unlock()
 	rewritten, err := l.days.files.Rewrite(date, line)
 	if err != nil {
 		return err
 	}
-	return l.days.renameSummary(date, id, rewritten)
+	return l.days.renameSummary(date, rename, rewritten)
 }
 
-// RenameSummary renames the accounts of the summary of the local day with
-// the given date alone, as RenameDay renames them, its day's files left as
-// they are, as of a day whose files read none of their lines. It holds
-// summarising throughout, as RenameDay does.
-func (l *Ledger) RenameSummary(date string, id func(string) string) error {
+// RenameSummary renames the summary of the local day with the given date
+// alone, as RenameDay renames it, its day's files left as they are, as of a
+// day whose files read none of their lines. It holds summarising
+// throughout, as RenameDay does.
+func (l *Ledger) RenameSummary(date string, rename Renaming) error {
 	l.summarising.Lock()
 	defer l.summarising.Unlock()
-	return l.days.renameSummary(date, id, dayfile.Rewritten{})
+	return l.days.renameSummary(date, rename, dayfile.Rewritten{})
 }
 
 // Rebuild deletes what the ledger built of its days' lines, their digests,
@@ -97,9 +106,10 @@ func removeBuilt(dir string) error {
 	return nil
 }
 
-// renameSummary renames the accounts of the summary of the local day with
-// the given date, where there's one, each account's id as id gives it, its
-// accounts' days kept in the order of their ids, every other field as it's
+// renameSummary renames the summary of the local day with the given date,
+// where there's one, as rename has it: each account's id, its accounts' days
+// kept in the order of their ids, and each one's work in no pool given the
+// pool rename names, as unpooledIn gives it, every other field as it's
 // written; and, where its day's files were rewritten as rewritten says, and
 // it was marked with them as they were, marks it with them as they are, so
 // its lines aren't counted again to tell it stands. It's written only where
@@ -110,25 +120,25 @@ func removeBuilt(dir string) error {
 // that made it from the day's lines under the old ids and its readings under
 // the new while they were renamed, they're merged into one, as mergedDays
 // merges them, so its totals stand whether or not its lines are still there.
-func (d days) renameSummary(date string, id func(string) string, rewritten dayfile.Rewritten) error {
+func (d days) renameSummary(date string, rename Renaming, rewritten dayfile.Rewritten) error {
 	path := SummaryFile(d.files.Dir, date)
 	data, err := os.ReadFile(path)
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
 		return nil
 	case err != nil:
-		return fmt.Errorf("rename the accounts of the request ledger's summary of %s: %w", date, err)
+		return fmt.Errorf("rename the request ledger's summary of %s: %w", date, err)
 	}
-	renamed, changed, err := renamedSummary(data, id, rewritten)
+	renamed, changed, err := renamedSummary(data, rename, rewritten)
 	if err != nil {
-		d.logger.Warn("can't rename the accounts of the request ledger's summary of a day; it's left for a round to summarise again", "day", date, "error", err)
+		d.logger.Warn("can't rename the request ledger's summary of a day; it's left for a round to summarise again", "day", date, "error", err)
 		return nil
 	}
 	if !changed {
 		return nil
 	}
 	if err := atomicfile.Write(path, append(renamed, '\n'), 0o600); err != nil {
-		return fmt.Errorf("rename the accounts of the request ledger's summary of %s: %w", date, err)
+		return fmt.Errorf("rename the request ledger's summary of %s: %w", date, err)
 	}
 	d.stampMarked(date, renamed)
 	return nil
@@ -153,17 +163,17 @@ func (d days) stampMarked(date string, written []byte) {
 	}
 }
 
-// renamedSummary returns summary, as it's written, with its accounts renamed
-// and its bytes marked as renameSummary says, and reports whether that
-// changed it, failing where it doesn't read as a summary.
-func renamedSummary(summary []byte, id func(string) string, rewritten dayfile.Rewritten) ([]byte, bool, error) {
+// renamedSummary returns summary, as it's written, with its accounts' days
+// renamed and its bytes marked as renameSummary says, and reports whether
+// that changed it, failing where it doesn't read as a summary.
+func renamedSummary(summary []byte, rename Renaming, rewritten dayfile.Rewritten) ([]byte, bool, error) {
 	fields, err := fieldsOf(summary)
 	if err != nil {
 		return nil, false, err
 	}
 	changed := false
 	if i := slices.IndexFunc(fields, func(f field) bool { return f.name == "accounts" }); i >= 0 {
-		if fields[i].value, changed, err = renamedAccounts(fields[i].value, id); err != nil {
+		if fields[i].value, changed, err = renamedAccounts(fields[i].value, rename); err != nil {
 			return nil, false, err
 		}
 	}
@@ -189,11 +199,10 @@ type accountDay struct {
 }
 
 // renamedAccounts returns accounts, a summary's accounts' days as they're
-// written, with each one's account renamed as id gives it, every other field
-// as it's written, in the order of their ids, as a summary keeps them, two
-// of one account merged into one, as mergedDays merges them; and reports
-// whether that changed them.
-func renamedAccounts(accounts json.RawMessage, id func(string) string) (json.RawMessage, bool, error) {
+// written, each renamed as renamedDay renames it, in the order of their ids,
+// as a summary keeps them, two of one account merged into one, as mergedDays
+// merges them; and reports whether that changed them.
+func renamedAccounts(accounts json.RawMessage, rename Renaming) (json.RawMessage, bool, error) {
 	var written []json.RawMessage
 	if err := json.Unmarshal(accounts, &written); err != nil {
 		return nil, false, err
@@ -201,7 +210,7 @@ func renamedAccounts(accounts json.RawMessage, id func(string) string) (json.Raw
 	days := make([]accountDay, len(written))
 	changed := false
 	for i, w := range written {
-		day, renamed, err := renamedAccount(w, id)
+		day, renamed, err := renamedDay(w, rename)
 		if err != nil {
 			return nil, false, err
 		}
@@ -226,6 +235,40 @@ func renamedAccounts(accounts json.RawMessage, id func(string) string) (json.Raw
 	}
 	out, err := json.Marshal(renamed)
 	return out, true, err
+}
+
+// renamedDay returns an account's day as a summary writes it, renamed as
+// rename has it: its account, as renamedAccount renames it, then its work in
+// no pool, as pooledDay pools it; and reports whether that changed it.
+func renamedDay(written json.RawMessage, rename Renaming) (accountDay, bool, error) {
+	id := rename.Account
+	if id == nil {
+		id = func(id string) string { return id }
+	}
+	day, renamed, err := renamedAccount(written, id)
+	if err != nil || rename.Unpooled == "" {
+		return day, renamed, err
+	}
+	day, pooled, err := pooledDay(day, rename.Unpooled)
+	return day, renamed || pooled, err
+}
+
+// pooledDay returns an account's day as a summary writes it, its work in no
+// pool given the pool with the given id, as unpooledIn gives it, and
+// reports whether that changed it: written anew, where it did, as an
+// AccountDay marshals, so a field it doesn't know of, as a later version
+// wrote it, isn't kept.
+func pooledDay(day accountDay, pool string) (accountDay, bool, error) {
+	var a AccountDay
+	if err := json.Unmarshal(day.written, &a); err != nil {
+		return accountDay{}, false, err
+	}
+	pooled, changed := a.unpooledIn(pool)
+	if !changed {
+		return day, false, nil
+	}
+	written, err := json.Marshal(pooled)
+	return accountDay{account: day.account, written: written}, true, err
 }
 
 // renamedAccount returns an account's day as a summary writes it, its

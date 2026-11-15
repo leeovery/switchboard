@@ -13,7 +13,7 @@ import (
 
 // recordOfTwo is an accounts record's file holding two accounts, as written.
 const recordOfTwo = `{
-  "version": 1,
+  "version": 2,
   "accounts": [
     {
       "id": "b6s7",
@@ -51,7 +51,7 @@ func TestTheRecordIsWrittenAndReadBack(t *testing.T) {
 		t.Fatal(err)
 	}
 	const want = `{
-  "version": 1,
+  "version": 2,
   "accounts": [
     {
       "id": "b6s7",
@@ -101,7 +101,7 @@ func TestAnEmptyRecordIsWrittenHoldingNone(t *testing.T) {
 	if err := f.Update(func(*identity.Record) error { return nil }); err != nil {
 		t.Fatal(err)
 	}
-	if got, want := readFile(t, f), "{\n  \"version\": 1,\n  \"accounts\": []\n}\n"; got != want {
+	if got, want := readFile(t, f), "{\n  \"version\": 2,\n  \"accounts\": []\n}\n"; got != want {
 		t.Errorf("the record's file holds\n%s\nwant\n%s", got, want)
 	}
 }
@@ -142,7 +142,7 @@ func TestADamagedRecordIsAnErrorAndLeftAsItWas(t *testing.T) {
 		{name: "cut short", data: recordOfTwo[:40]},
 		{name: "not JSON", data: "accounts: b6s7\n"},
 		{name: "empty", data: ""},
-		{name: "of another version", data: `{"version": 2, "accounts": []}`},
+		{name: "of a later version", data: `{"version": 3, "accounts": []}`},
 		{name: "of no version", data: `{"accounts": []}`},
 		{name: "accounts not a list", data: `{"version": 1, "accounts": {"id": "b6s7"}}`},
 		{name: "a time not RFC 3339", data: `{"version": 1, "accounts": [{"id": "b6s7", "added": "1 September 2026"}]}`},

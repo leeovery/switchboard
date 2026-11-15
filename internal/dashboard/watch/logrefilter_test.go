@@ -280,7 +280,7 @@ func comeSince(t *testing.T, h, whole *harness, want int) {
 func TestTheRequestsAreBuiltThroughNoFilterTheirDaysDontServe(t *testing.T) {
 	h, l := refilterLog(t, t.TempDir(), nil)
 	api := views.LogFilter{Sessions: []string{apiSession}}
-	back := views.ReadDay(l, daysBack(refilterBack)[0], api)
+	back := views.ReadDay(l, daysBack(refilterBack)[0], api, views.PoolRead{})
 	read, _ := views.ReadLog(ledger.Pricing).TakenBack(l, back, h.model.held, views.Stream{}, h.clock.now)
 	tab := logTab{page: dashboard.LogPage{Filter: views.LogOpening()}, read: read}
 	if f, ok := tab.requestsFilter(); ok {

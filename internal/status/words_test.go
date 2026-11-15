@@ -320,14 +320,29 @@ func TestReasonWords(t *testing.T) {
 			session: "pinned here",
 		},
 		{
-			name:    "the global pin, where the session stayed",
+			name:    "the pool's pin, where the session stayed",
+			reason:  "pinned (pool)",
+			facts:   status.Facts{To: "side"},
+			event:   "pinned to [side]",
+			session: "pinned to [side]",
+		},
+		{
+			name:    "the pool's pin, a forced move to one of its accounts",
+			reason:  "pinned (pool)",
+			facts:   status.Facts{From: "work", To: "side"},
+			event:   "pinned to [side]",
+			routing: "from [work], pinned to [side]",
+			session: "pinned to [side]",
+		},
+		{
+			name:    "the global pin of a line from before pools, read as recorded, where the session stayed",
 			reason:  "pinned (global)",
 			facts:   status.Facts{To: "side"},
 			event:   "pinned to [side]",
 			session: "pinned to [side]",
 		},
 		{
-			name:    "the global pin, a forced move to one of its accounts",
+			name:    "the global pin of a line from before pools, a forced move to one of its accounts",
 			reason:  "pinned (global)",
 			facts:   status.Facts{From: "work", To: "side"},
 			event:   "pinned to [side]",
@@ -335,7 +350,7 @@ func TestReasonWords(t *testing.T) {
 			session: "pinned to [side]",
 		},
 		{
-			name:    "the global pin, its account not given",
+			name:    "the global pin of a line from before pools, its account not given",
 			reason:  "pinned (global)",
 			event:   "pinned",
 			session: "pinned",
@@ -756,6 +771,12 @@ func TestMovingSaysWhatHoldsTheMoveUp(t *testing.T) {
 		{status.Moving{Stage: status.MoveOlderRouter}, prose.HistoryMoving + ": " + prose.MoveWaitsUpgrade},
 		{status.Moving{Stage: status.MoveFailed, Why: "rename the\nconfig: denied"}, prose.HistoryMoving + ": the router couldn't make it, and tries again in a minute: rename the config: denied"},
 		{status.Moving{Stage: "a stage of a later version"}, prose.HistoryMoving},
+		{status.Moving{Stage: status.MoveRunning, Move: status.MovingIDs}, prose.HistoryMoving + ": the router is making it"},
+		{status.Moving{Stage: status.MoveRunning, Move: status.MovingPools}, prose.HistoryMovingPools + ": the router is making it"},
+		{status.Moving{Stage: status.MoveAwaitingRestart, Move: status.MovingPools}, prose.HistoryMovingPools + ": " + prose.MoveWaitsPools},
+		{status.Moving{Stage: status.MoveNoRouter, Move: status.MovingPools}, prose.HistoryMovingPools + ": " + prose.MoveWaitsRouter},
+		{status.Moving{Stage: status.MoveOlderRouter, Move: status.MovingPools}, prose.HistoryMovingPools + ": " + prose.MoveWaitsPoolsUpgrade},
+		{status.Moving{Stage: status.MoveFailed, Move: status.MovingPools, Why: "denied"}, prose.HistoryMovingPools + ": the router couldn't make it, and tries again in a minute: denied"},
 	}
 	for _, tt := range tests {
 		if got := tt.moving.Said(); got != tt.want {
@@ -768,19 +789,21 @@ func TestMovingAskedTellsWhyNoRouterMakesTheMove(t *testing.T) {
 	running := status.Moving{Stage: status.MoveAwaitingAPI, Account: "work", Why: "HTTP 404"}
 	tests := []struct {
 		name       string
+		move       string
 		moving     status.Moving
 		err        error
 		notRunning bool
 		want       status.Moving
 	}{
-		{"no router listening", status.Moving{}, errors.New("dial unix: connection refused"), true, status.Moving{Stage: status.MoveNoRouter}},
-		{"a router not saying in time", status.Moving{}, context.DeadlineExceeded, false, status.Moving{Stage: status.MoveUntold}},
-		{"a router owing no move", status.Moving{}, nil, false, status.Moving{Stage: status.MoveOlderRouter}},
-		{"a router making it", running, nil, false, running},
+		{"no router listening", status.MovingIDs, status.Moving{}, errors.New("dial unix: connection refused"), true, status.Moving{Stage: status.MoveNoRouter, Move: status.MovingIDs}},
+		{"a router not saying in time", status.MovingIDs, status.Moving{}, context.DeadlineExceeded, false, status.Moving{Stage: status.MoveUntold, Move: status.MovingIDs}},
+		{"a router owing no move", status.MovingIDs, status.Moving{}, nil, false, status.Moving{Stage: status.MoveOlderRouter, Move: status.MovingIDs}},
+		{"a router making it", status.MovingIDs, running, nil, false, running},
+		{"a router of a version before pools, owing no move to them", status.MovingPools, status.Moving{}, nil, false, status.Moving{Stage: status.MoveOlderRouter, Move: status.MovingPools}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := status.MovingAsked(tt.moving, tt.err, tt.notRunning); got != tt.want {
+			if got := status.MovingAsked(tt.move, tt.moving, tt.err, tt.notRunning); got != tt.want {
 				t.Errorf("MovingAsked() = %+v, want %+v", got, tt.want)
 			}
 		})
@@ -807,7 +830,8 @@ func TestRunningWordsSayWhyASessionIsOnItsAccountAndSinceWhen(t *testing.T) {
 		{name: "a move at its compaction, the account it left the event's", reason: status.Compacted("side", 0.354), facts: status.Facts{From: "work", To: "side", At: at, Now: now},
 			want: "moved from [work] 14:31: compacted: [side] would reset with <35%> of its week left"},
 		{name: "its pin yielding: no when", reason: "pin yields: side has no room", facts: status.Facts{At: at, Now: now}, want: "its pin to [side] yields: [side] has no room"},
-		{name: "chosen afresh under the global pin, from nowhere told", reason: status.ReasonGlobalPin, facts: status.Facts{To: "side", At: at, Now: now}, want: "here since 14:31: pinned to [side]"},
+		{name: "chosen afresh under the pool's pin, from nowhere told", reason: status.ReasonPoolPin, facts: status.Facts{To: "side", At: at, Now: now}, want: "here since 14:31: pinned to [side]"},
+		{name: "chosen afresh under the global pin, before pools, from nowhere told", reason: status.ReasonGlobalPin, facts: status.Facts{To: "side", At: at, Now: now}, want: "here since 14:31: pinned to [side]"},
 		{name: "a reason from a later router, cleaned", reason: "balanced\x1b", facts: status.Facts{At: at, Now: now}, want: "here since 14:31: balanced"},
 		{name: "no reason", facts: status.Facts{At: at, Now: now}, want: "here since 14:31"},
 		{name: "no reason, from an account told", facts: status.Facts{From: "work", At: at, Now: now}, want: "moved from [work] 14:31"},

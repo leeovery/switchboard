@@ -96,9 +96,11 @@ func (l Line) valid() bool {
 
 // Files are the router's events' files in dir, the request ledger's
 // directory, as dayfile keeps them, what can't be done with them logged to
-// logger.
+// logger. Two lines alike but for their pool are one event, as an import
+// merges a day: each Mac's move to pools gives the pins and autos from
+// before pools its own first pool.
 func Files(dir string, logger *slog.Logger) *dayfile.Files {
-	return &dayfile.Files{Dir: dir, Prefix: "events", Name: "router's events", LineMax: lineMax, Logger: logger}
+	return &dayfile.Files{Dir: dir, Prefix: "events", Name: "router's events", LineMax: lineMax, Logger: logger, Key: dayfile.Without("pool")}
 }
 
 // Writer writes the lines noted to it to the files, on Run's goroutine, and

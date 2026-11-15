@@ -332,18 +332,18 @@ func deref[T any](p *T) any {
 // read as it would be, the Year stepping back to this calendar year alone.
 func TestALedgerThatFailsToSayWhereItBeginsIsLogged(t *testing.T) {
 	tests := []struct {
-		name   string
-		err    error
-		logged int
+		name, day string
+		err       error
+		logged    int
 	}{
-		{name: "failing", err: errors.New("permission denied"), logged: 1},
-		{name: "holding nothing", err: fs.ErrNotExist},
+		{name: "failing", day: yesterday, err: errors.New("permission denied"), logged: 1},
+		{name: "holding nothing", day: dayfile.DateOf(todayStart), err: fs.ErrNotExist},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			log := logstest.Capture(t)
 			h, l := historyHarness(t, dashboard.History, dashboard.HistoryPage{})
-			l.days[yesterday] = requested(yesterday, 10)
+			l.days[tt.day] = requested(tt.day, 10)
 			h.model.cfg.Ledger = begunOn{daysLedger: l, err: tt.err}
 			h.start()
 			h.typed("<", "<")

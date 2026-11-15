@@ -20,7 +20,7 @@ type PageKeys struct {
 // it takes in any state, whatever is chosen, shown or set, each by its key
 // and what it does alone, once.
 func EveryPagesKeys() []PageKeys {
-	pages := []PageKeys{{Page: "every page", Keys: slices.Concat([]dashboard.Key{tabViews, pinWord, themesKey, refreshKey, helpKey, dashboard.Quit}, scrollKeys)}}
+	pages := []PageKeys{{Page: "every page", Keys: slices.Concat([]dashboard.Key{tabViews, pinWord, poolKey, themesKey, refreshKey, helpKey, dashboard.Quit}, scrollKeys)}}
 	for _, v := range dashboard.Views() {
 		pages = append(pages, PageKeys{Page: v.Title(), Keys: toldOnce(tabListings(v)...)})
 	}

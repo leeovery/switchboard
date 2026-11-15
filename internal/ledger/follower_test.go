@@ -1035,7 +1035,7 @@ func TestSessionsReadsTodaysAndThoseAskedForEachAsSessionReadsOne(t *testing.T) 
 	follower := followerOf(state, clock, caps)
 
 	taken := make(map[string]string)
-	got := follower.Sessions([]string{"old"}, eachWhole, func(date string, l ledger.Line) { taken[l.Request] += date })
+	got := follower.Sessions(nil, []string{"old"}, eachWhole, func(date string, l ledger.Line) { taken[l.Request] += date })
 	want := map[string][]string{"one": {"1", "4", "7"}, "two": {"3", "5", "6"}, "three": {"9"}, "old": {"2"}}
 	if len(got) != len(want) {
 		t.Errorf("Sessions() read %d sessions, want %d: today's, and old, asked for", len(got), len(want))
@@ -1088,7 +1088,7 @@ func TestSessionsOfTakesInTheDaysItReadsSideBySideOldestFirst(t *testing.T) {
 	follower := followerOf(state, &testClock{at: on(0, 12, 0)}, caps)
 
 	var taken []string
-	got := follower.SessionsOf([]string{"one"}, eachWhole, func(_ string, l ledger.Line) { taken = append(taken, l.Request) })
+	got := follower.SessionsOf(nil, []string{"one"}, eachWhole, func(_ string, l ledger.Line) { taken = append(taken, l.Request) })
 	if !slices.Equal(taken, want) {
 		t.Errorf("SessionsOf() handed take %q, want each day's lines in its files' order, the days oldest first, %q", taken, want)
 	}
@@ -1107,7 +1107,7 @@ func TestSessionsReadsNoDayBeforeYesterdayWhereNoSessionIsRead(t *testing.T) {
 	unopenable(t, dir, "*2026-10-03*")
 	follower := followerOf(state, &testClock{at: on(1, 12, 0)}, caps)
 
-	if got := follower.Sessions(nil, eachWhole, nil); len(got) != 0 || opened(log) != 0 {
+	if got := follower.Sessions(nil, nil, eachWhole, nil); len(got) != 0 || opened(log) != 0 {
 		t.Errorf("log reads\n%s\nSessions() = %v, want no session read, nor a day before yesterday opened", log, got)
 	}
 }
@@ -1158,7 +1158,7 @@ func TestASessionsDaysAreFoundWithoutTheReadingsHistory(t *testing.T) {
 			for range f.Session("one") {
 			}
 		}},
-		{name: "by Sessions", read: func(f *ledger.Follower) { f.Sessions([]string{"one"}, eachWhole, nil) }},
+		{name: "by Sessions", read: func(f *ledger.Follower) { f.Sessions(nil, []string{"one"}, eachWhole, nil) }},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1799,5 +1799,79 @@ func TestAFollowerGivesTheDaysAskedForAloneAsDaysGivesThem(t *testing.T) {
 	}
 	if got := follower.DaysOn(nil); got != nil {
 		t.Errorf("DaysOn() of no day = %+v, want none", got)
+	}
+}
+
+// A reader's DaysOn gives the days asked for as its Days gives them, each
+// once, oldest first, but none before the first day the ledger holds or
+// after today's, as a follower's does.
+func TestAReaderGivesTheDaysAskedForAloneAsDaysGivesThem(t *testing.T) {
+	state, dir, history := stateDirs(t)
+	dayOf := func(back int) string { return on(-back, 0, 0).Format(time.DateOnly) }
+	for back := 30; back >= 1; back-- {
+		holdLines(t, dir, dayOf(back), asked(dayOf(back), on(-back, 9, 0)))
+	}
+	holdLines(t, dir, dayOf(0), asked("today", on(0, 9, 0)))
+	summariseAt(dir, history, on(-10, 1, 10))
+	reader := readerAt(state, on(0, 12, 0))
+	every := reader.Days(on(-30, 0, 0))
+
+	got := reader.DaysOn([]string{dayOf(0), dayOf(20), dayOf(31), dayOf(20), dayOf(-1)})
+	want := []ledger.Summary{every[10], every[30]}
+	if !slices.Equal(fullJSON(t, got), fullJSON(t, want)) {
+		t.Errorf("DaysOn() =\n%s\nwant\n%s, 20 days back and today, as Days gives them", strings.Join(fullJSON(t, got), "\n"), strings.Join(fullJSON(t, want), "\n"))
+	}
+	if got := reader.DaysOn(nil); got != nil {
+		t.Errorf("DaysOn() of no day = %+v, want none", got)
+	}
+}
+
+// DaysHeldOn gives the summaries the ledger holds of the days asked for that
+// stand, as Days gives them, each once, oldest first, but none before the
+// first day the ledger holds or after today's, a day with no lines needing
+// none; it tells where one of them has lines but no summary that stands, as
+// today's, a day not summarised yet and one summarised before a line was
+// filed under it, so it summarises none from its lines; and it looks at the
+// files of those days alone.
+func TestAFollowerGivesTheSummariesItHoldsOfTheDaysAskedForWhereTheyStand(t *testing.T) {
+	state, dir, history := stateDirs(t)
+	dayOf := func(back int) string { return on(-back, 0, 0).Format(time.DateOnly) }
+	for back := 30; back >= 1; back-- {
+		if back != 25 {
+			holdLines(t, dir, dayOf(back), asked(dayOf(back), on(-back, 9, 0)))
+		}
+	}
+	holdLines(t, dir, dayOf(0), asked("today", on(0, 9, 0)))
+	summariseAt(dir, history, on(-10, 1, 10))
+	holdLines(t, dir, dayOf(15), asked("late", on(-15, 18, 0)))
+	clock := &testClock{at: on(0, 12, 0)}
+	every := followerOf(state, clock, caps).Days(on(-30, 0, 0))
+	tests := []struct {
+		name   string
+		dates  []string
+		want   []ledger.Summary
+		told   bool
+		looked []string
+	}{
+		{name: "days summarised", dates: []string{dayOf(20), dayOf(26), dayOf(20)}, want: []ledger.Summary{every[4], every[10]}, told: true,
+			looked: []string{dayOf(26), dayOf(20)}},
+		{name: "a day of no lines among them", dates: []string{dayOf(24), dayOf(25), dayOf(26)}, want: []ledger.Summary{every[4], every[6]}, told: true},
+		{name: "days before the first and after today", dates: []string{dayOf(31), dayOf(-1)}, told: true},
+		{name: "no day", told: true},
+		{name: "a day not summarised yet", dates: []string{dayOf(20), dayOf(5)}},
+		{name: "a day summarised before a line was filed under it", dates: []string{dayOf(20), dayOf(15)}},
+		{name: "today", dates: []string{dayOf(20), dayOf(0)}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			follower := followerOf(state, clock, caps)
+			got, told := follower.DaysHeldOn(tt.dates)
+			if !slices.Equal(fullJSON(t, got), fullJSON(t, tt.want)) || told != tt.told {
+				t.Errorf("DaysHeldOn(%q) =\n%s\n%t, want\n%s\n%t", tt.dates, strings.Join(fullJSON(t, got), "\n"), told, strings.Join(fullJSON(t, tt.want), "\n"), tt.told)
+			}
+			if looked := follower.Followed(); tt.looked != nil && !slices.Equal(looked, tt.looked) {
+				t.Errorf("DaysHeldOn(%q) looked at the files of %q, want those of the days given alone", tt.dates, looked)
+			}
+		})
 	}
 }

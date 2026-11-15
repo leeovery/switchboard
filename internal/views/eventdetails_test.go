@@ -188,6 +188,8 @@ func TestEachKindsDetailsSayWhatHappened(t *testing.T) {
 			headline: "0a1b pinned to side", happened: []string{"session: 0a1b", "accounts: side", "set from: the dashboard"}},
 		{name: "the global pin cleared", event: status.Event{Kind: status.EventAuto, Accounts: []string{"personal"}, By: "dashboard"},
 			headline: "new sessions back to the router's choice", happened: []string{"from: personal", "set from: the dashboard"}},
+		{name: "a pool's pin the router dropped as the pools changed", event: status.Event{Kind: status.EventAuto, Accounts: []string{"personal"}, By: "router"},
+			headline: "new sessions back to the router's choice", happened: []string{"from: personal", "cleared by: the router, as the pools changed"}},
 		{name: "a session's own pin cleared", event: status.Event{Kind: status.EventAuto, Account: "side", Session: older},
 			headline: "0a1b back to the router's choice", happened: []string{"session: 0a1b", "from: side"}},
 		{name: "a restart falling due", event: status.Event{Kind: status.EventRestart, Reason: status.RestartForUpgrade},
@@ -214,6 +216,23 @@ func TestEachKindsDetailsSayWhatHappened(t *testing.T) {
 				t.Errorf("the card's headline is %q, its items %q; want %q, %q", d.Headline, got, tt.headline, want)
 			}
 		})
+	}
+}
+
+// A card of a pin set with force, where there are several pools, says it
+// cleared the own pins of its pool's sessions alone, naming it.
+func TestAForcedPinsCardNamesThePoolWhereThereAreSeveral(t *testing.T) {
+	at, run := october(7, 13, 0), october(7, 8, 0)
+	pin := status.Event{ID: 1, At: at, Kind: status.EventPin, Account: "side", Accounts: []string{"side"}, Pool: "q7mt", Force: true, By: "cli"}
+	read := views.ReadEvents(nil, at, at).Look(liveAt([]status.Event{pin}, at), run)
+	acme := func(id string) string { return map[string]string{"q7mt": "Acme"}[id] }
+	table := views.LogEvents(views.LogEventSources{From: at, Events: read, PoolNamed: acme, Now: at})
+	d, ok := table.Details(views.EventKey{Run: run, ID: 1}, views.LogRead{})
+	if !ok {
+		t.Fatal("there are no details of the event")
+	}
+	if got, want := itemsSaid(d.Happened), "own pins: pool Acme's sessions' cleared"; !slices.Contains(got, want) {
+		t.Errorf("the card's items are %q, want %q among them", got, want)
 	}
 }
 

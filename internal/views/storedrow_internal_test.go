@@ -125,6 +125,7 @@ var odds = []struct {
 	{"cut off by its router", func(_ *ledger.Line, r *lineRecord) bool { return r.cutOff }},
 	{"broken off by its upstream", func(_ *ledger.Line, r *lineRecord) bool { return r.broken }},
 	{"its answer's own model", func(_ *ledger.Line, r *lineRecord) bool { return r.served != "" }},
+	{"a pool", func(_ *ledger.Line, r *lineRecord) bool { return r.pool != "" }},
 }
 
 // oddsOf are the names of what the line l, of the record rec, says, as
@@ -309,6 +310,7 @@ var fieldsStored = []fieldStored{
 		want: `{"w":[{"k":"5h","s":"allowed","u":0.42,"r":1791378000},{"k":"7d"}]}`,
 	},
 	{field: "limit", set: func(r *lineRecord) { r.limit = quota.StatusRejected }, want: `{"l":"rejected"}`},
+	{field: "pool", set: func(r *lineRecord) { r.pool = "q7mt" }, want: `{"pl":"q7mt"}`},
 }
 
 // Each fact a record holds is stored by its own key, as the case of its

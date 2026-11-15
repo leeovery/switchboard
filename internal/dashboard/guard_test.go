@@ -23,10 +23,11 @@ var drawingPackages = []string{"internal/dashboard", "internal/dashboard/watch"}
 // chrome are the functions of the page's chrome that choose by its one
 // breakpoint, Phone, by path from the module's root, a colon and the
 // function's name, a method's its receiver's type's then its own: the frame,
-// and the title row, the status line, the view's heading row and the key
-// line, which change at it. chromeSized is the breakpoint itself, which
-// compares the width with the phone's. Each list only shrinks as the
-// breakpoint does: an entry must still be there, and still choose by it.
+// and the title row, the pool's name in it among it, the status line, the
+// view's heading row and the key line, which change at it. chromeSized is
+// the breakpoint itself, which compares the width with the phone's. Each
+// list only shrinks as the breakpoint does: an entry must still be there,
+// and still choose by it.
 var (
 	chrome = []string{
 		"internal/dashboard/frame.go:Frame.phone",
@@ -34,6 +35,7 @@ var (
 		"internal/dashboard/headingrow.go:Frame.headingPieces",
 		"internal/dashboard/keyline.go:Frame.keysAt",
 		"internal/dashboard/statusline.go:Frame.routerStatus",
+		"internal/dashboard/title.go:Frame.poolNameRoom",
 		"internal/dashboard/title.go:Frame.tabsAt",
 	}
 	chromeSized = []string{

@@ -147,6 +147,29 @@ func TestALineIsAnEventAsTheStatusDocumentGivesItWithItsRun(t *testing.T) {
 	}
 }
 
+func TestAPinsLineNamesItsPoolWhereItHasOne(t *testing.T) {
+	pin := events.Line{ID: 3, At: september(10, 9, 0), Kind: "pin", Account: "work", Accounts: []string{"work"}, By: "cli", Run: firstRun}
+	tests := []struct {
+		name, pool, want string
+	}{
+		{name: "of a pool", pool: "q7mt", want: `"accounts":["work"],"pool":"q7mt","by":"cli"`},
+		{name: "of none, as before pools", want: `"accounts":["work"],"by":"cli"`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			line := pin
+			line.Pool = tt.pool
+			filed, err := events.Marshal(line)
+			if err != nil || !strings.Contains(string(filed), tt.want) {
+				t.Fatalf("the pin's line is filed as\n%s (%v)\nwant it holding %s", filed, err, tt.want)
+			}
+			if read, ok := events.In(filed); !ok || read.Pool != tt.pool || !read.Same(line.Event) {
+				t.Errorf("In(%s) = %+v, %v; want the line back, of the pool %q", filed, read, ok, tt.pool)
+			}
+		})
+	}
+}
+
 func TestALineIsFiledAsItWasReadALaterReleasesFieldsIncluded(t *testing.T) {
 	made := limit(firstRun, 7, september(10, 9, 0), 2)
 	filed := `{"a_later_field":{"kept":true},` + strings.TrimPrefix(jsonOf(t, made), "{")
