@@ -454,7 +454,7 @@ waits on the question: it asks on the side, routing all the while, and stopping 
 ends the asking. Turned off, they're turned on again in System Settings → Notifications →
 Switchboard. [`service uninstall`](commands.md#service-uninstall-and-service-status)
 removes the app. See
-[Notifications that don't show](troubleshooting.md#notifications-that-dont-show).
+[Notifications that don't show](troubleshooting/notifications.md).
 
 ### How often notifications go out
 
