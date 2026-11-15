@@ -2192,8 +2192,8 @@ differ, this section holds: frame 4 says only what the service step can know (se
 frame 5's `PATH` line is the shell step's line, and is to be drawn again in Paper; setup's cards are
 the dashboard's card as it's drawn everywhere, their line in `text.subtle` and title in
 `text.muted`, where the frames draw the line in `border` and the title bold `text.secondary`; and
-the status line, the clock and where a card sits follow the rules below. The primary's reserve card is frame 13, drawn after
-the sign-off as one of the calls approved.
+the status line, the clock and where a card sits follow the rules below. The primary's reserve card
+is frame 13, drawn after the sign-off as one of the calls approved.
 
 Setup needs a terminal, the screen being its only way through: without one, it fails
 (`setup.ErrNoTerminal`), saying how each step is taken alone: by the command that takes it, where
@@ -4911,8 +4911,8 @@ where it fits** says, and where they don't fit, it's stacked, as **Stacked** say
   while idle; and when it was last seen, right-aligned in 3, in `text.subtle`. The selected row is
   `bg.selection` from a cell before it to 44 cells on while the focus is on SESSIONS, and bold,
   unlit, while it's on the list, so the one place lit is where `↑` `↓` act; `SESSIONS` is bold
-  `text.primary` while the focus is there, and `text.subtle` while it isn't (the owner's call, 15
-  October 2026). Six rows under `SESSIONS`, two cells in,
+  `text.primary` while the focus is there, and `text.muted`, as every heading is, while it isn't
+  (the owner's call, 15 October 2026). Six rows under `SESSIONS`, two cells in,
   `enter opens d28c's page`, `enter` bold `accent.key` and the rest `text.muted` (see A session's
   page). `→` takes the selection from the list into them, and `←` back; there `↑` `↓` select a
   session, and `enter` opens its page; more sessions than its four rows hold end with `+2 more`
@@ -6827,7 +6827,7 @@ filling in as its line comes (settled in the plan).
   natural 128 cells wide where the screen has that and a cell either side, its tree in its three
   columns, centred, columns 16 to 143 at 160; else the screen's width less those cells, its
   sections stacked. Its title is in its top edge after `╭─ `, in
-  `text.subtle`, ` · ` between its parts: a request's `REQUEST · 14:31:13 · d28c switchboard`, the
+  `text.muted`, ` · ` between its parts: a request's `REQUEST · 14:31:13 · d28c switchboard`, the
   line's time and its session as the table names it; an event's `EVENT · 14:31:03 · work reached
   its cap`, what happened as its `event` item says it. An account a title names is `text.primary`.
 - **Inside,** from column 19: a blank row under the edge; the tree; a request's foot; a blank row;
@@ -6842,9 +6842,10 @@ filling in as its line comes (settled in the plan).
   another, a blank row between. A section's heading is uppercase in `text.muted`, as a group's is
   on every tab, an account it names `text.primary` (`SIDE'S WINDOWS AFTER IT`, `WORK THEN`). Its
   items follow, a row each: `├ ` in `text.faint` (`└ ` for its last), the item's name padded to 13
-  in `text.muted`, its value in `text.secondary`, words around a value in `text.muted`. A value too
-  long for its column's room is cut with `…`, as `req_011CQx…` is. The card's edge frames the tree,
-  so there's no tree line down its left.
+  in `text.subtle`, a label as on every tab, under its heading in `text.muted`, its value in
+  `text.secondary`, words around a value in `text.muted`. A value too long for its column's room
+  is cut with `…`, as `req_011CQx…` is. The card's edge frames the tree, so there's no tree line
+  down its left.
 - **A request's sections,** each item from its line in the ledger (see The request ledger):
 
   | Column | Section | Items |

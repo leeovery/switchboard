@@ -250,9 +250,10 @@ type cardSection struct {
 	items   []cardItem
 }
 
-// cardItem is an item of a section: its name, in text.muted; and its value,
-// in the inks it's said in, blank where it isn't known yet, which a move's
-// cost ends where costs says, kept whole as what comes before it is cut.
+// cardItem is an item of a section: its name, a label, in text.subtle; and
+// its value, in the inks it's said in, blank where it isn't known yet, which
+// a move's cost ends where costs says, kept whole as what comes before it is
+// cut.
 type cardItem struct {
 	name  string
 	value line
@@ -272,7 +273,7 @@ func (it cardItem) row(last bool, width int) line {
 	if last {
 		branch = "└ "
 	}
-	name := line{{it.name, mutedInk}}.fit(itemName - 1)
+	name := line{{it.name, dimInk}}.fit(itemName - 1)
 	lead := slices.Concat(line{{branch, faintInk}}, name, line{spaces(itemName - name.width())})
 	return slices.Concat(lead, costKept(it.value, it.costs, width-itemLead))
 }

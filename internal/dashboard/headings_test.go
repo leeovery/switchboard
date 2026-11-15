@@ -1,6 +1,8 @@
 package dashboard
 
 import (
+	"image/color"
+	"math"
 	"strings"
 	"testing"
 
@@ -10,34 +12,46 @@ import (
 	"github.com/leeovery/switchboard/internal/views"
 )
 
-// A heading is a step over the labels under it and under the values it
-// heads: text.muted, over text.subtle, under text.secondary.
-func TestAHeadingIsAStepOverItsLabelsAndUnderItsValues(t *testing.T) {
-	if headingInk.token != theme.TextMuted || dimInk.token != theme.TextSubtle || headingInk.token+1 != dimInk.token {
-		t.Errorf("headings are in %v and labels in %v, want text.muted, a step over text.subtle", headingInk.token, dimInk.token)
-	}
-	if secondaryInk.token >= headingInk.token {
-		t.Errorf("values are in %v, want them brighter than the headings' %v", secondaryInk.token, headingInk.token)
-	}
-}
-
-// Every built-in that gives the text tokens colours of its own gives
-// text.muted another than text.subtle, so a heading never reads level with
-// its labels.
-func TestEveryBuiltInSetsItsHeadingsApartFromItsLabels(t *testing.T) {
+// In every built-in that gives its text colours of its own, a heading
+// stands further from the canvas than the labels under it, and the values
+// it heads further still, light canvas or dark.
+func TestEveryBuiltInDrawsItsHeadingsBrighterThanItsLabelsAndDimmerThanItsValues(t *testing.T) {
 	for _, th := range theme.Builtins() {
-		if th.Faint(theme.TextMuted) {
+		if !th.Paints() || th.Faint(headingInk.token) {
 			continue
 		}
-		if muted, subtle := shadeOf(th.Colour(theme.TextMuted)), shadeOf(th.Colour(theme.TextSubtle)); muted == subtle {
-			t.Errorf("%s gives text.muted and text.subtle one colour, %s", th.Slug, muted)
+		canvas := th.Colour(theme.Canvas)
+		label, heading, value := contrast(th.Colour(dimInk.token), canvas), contrast(th.Colour(headingInk.token), canvas), contrast(th.Colour(secondaryInk.token), canvas)
+		if heading <= label || value <= heading {
+			t.Errorf("%s stands its labels %.2f, its headings %.2f and its values %.2f from its canvas, want each further than the one before", th.Slug, label, heading, value)
 		}
 	}
 }
 
-// The headings each tab draws its own way are in headingInk, and the
-// labels and a table's column heads under them in dimInk.
-func TestEveryTabsHeadingsAreAStepOverTheirLabels(t *testing.T) {
+// contrast is how far apart two colours stand, as WCAG's contrast ratio
+// has it.
+func contrast(a, b color.Color) float64 {
+	la, lb := luminance(a), luminance(b)
+	return (max(la, lb) + 0.05) / (min(la, lb) + 0.05)
+}
+
+// luminance is c's relative luminance, as WCAG works it out.
+func luminance(c color.Color) float64 {
+	r, g, b, _ := c.RGBA()
+	linear := func(v uint32) float64 {
+		s := float64(v) / 0xffff
+		if s <= 0.03928 {
+			return s / 12.92
+		}
+		return math.Pow((s+0.055)/1.055, 2.4)
+	}
+	return 0.2126*linear(r) + 0.7152*linear(g) + 0.0722*linear(b)
+}
+
+// The Overview's, Detail's, Compare's, a session's page's and a Log
+// details card's headings are in text.muted, and the labels, a card's item
+// names and a table's column heads under them in text.subtle.
+func TestHeadingsAreAStepOverTheirLabelsOnTheOverviewDetailCompareASessionsPageAndALogCard(t *testing.T) {
 	nord := Screen(builtin(t, "nord"))
 	muted, subtle := shadeOf(nord.theme.Colour(theme.TextMuted)), shadeOf(nord.theme.Colour(theme.TextSubtle))
 	overview, sessions, stream := overviewWorld()
@@ -46,6 +60,8 @@ func TestEveryTabsHeadingsAreAStepOverTheirLabels(t *testing.T) {
 	compare.Look = nord
 	session := pageFrame(t, moved(), 160, 32)
 	session.Look = nord
+	card := chosenOn(cardPage(40), 22, 160, 37)
+	card.Look = nord
 	tests := []struct {
 		name     string
 		rows     []string
@@ -73,6 +89,12 @@ func TestEveryTabsHeadingsAreAStepOverTheirLabels(t *testing.T) {
 			name:     "a session's page",
 			rows:     session.Draw(pageDoc(), sessionNow),
 			headings: []string{"SESSION", "TURNS"},
+		},
+		{
+			name:     "a Log details card",
+			rows:     opened(card).Draw(routerDoc("side", 0), logDayNoon),
+			headings: []string{"ROUTED", "ASKED"},
+			labels:   []string{"upstream", "max_tokens"},
 		},
 	}
 	for _, tt := range tests {
