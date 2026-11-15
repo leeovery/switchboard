@@ -241,37 +241,19 @@ func TestDashboardShowsModelsWindowsAsKept(t *testing.T) {
 	}
 }
 
-// History opens on what prefs.json keeps of its views, the Year's account
-// among those the config gives; none kept, as it opens at first.
-func TestDashboardShowsHistoryAsKept(t *testing.T) {
-	kept := `{"history": {"view": "tokens", "year": "side", "weeks": "columns", "tokens": {"period": "month", "split": "model"}}}`
-	tests := []struct {
-		name, prefs string
-		want        dashboard.HistoryPage
-	}{
-		{name: "none kept", prefs: `{}`},
-		{
-			name: "as kept", prefs: kept,
-			want: dashboard.HistoryPage{
-				Shown: dashboard.HistoryTokens, YearAsk: views.YearAsk{Account: "side"}, WeeksShape: dashboard.WeeksColumns,
-				TokensAsk: views.TokensAsk{Period: views.TokensByMonth}, TokensSplit: dashboard.TokensByModel,
-			},
-		},
+// A prefs.json of a build with the History tab, showing it and keeping what
+// its views showed, opens the dashboard on Trends, its pictures' home, and
+// the rest as kept.
+func TestDashboardOpensOnTrendsWhereHistoryWasKept(t *testing.T) {
+	deps := statusDeps(t, fakeClaudeAPI(t), nil)
+	writePrefs(t, deps, `{"tab": "history", "history": {"view": "tokens", "year": "side", "weeks": "columns"}, "models": true}`)
+	cfg := recordWatch(t, &deps)
+	if got := run(t, deps, "dashboard"); got != (result{}) {
+		t.Fatalf("switchboard dashboard = %+v, want exit status 0 and nothing printed", got)
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			upstream := fakeClaudeAPI(t)
-			deps := statusDeps(t, upstream, map[string]string{"SWITCHBOARD_CONFIG": writeConfig(t, fmt.Sprintf("upstream = %q\n", upstream)+threeAccounts)})
-			writePrefs(t, deps, tt.prefs)
-			cfg := recordWatch(t, &deps)
-			run(t, deps, "dashboard")
 
-			got := cfg.History
-			if got.Shown != tt.want.Shown || got.YearAsk != tt.want.YearAsk || got.WeeksShape != tt.want.WeeksShape ||
-				got.TokensAsk != tt.want.TokensAsk || got.TokensSplit != tt.want.TokensSplit {
-				t.Errorf("the dashboard opens History on %+v, want %+v", got, tt.want)
-			}
-		})
+	if cfg.View != dashboard.Graphs || !cfg.Models {
+		t.Errorf("the dashboard opens on %q, models' windows shown %t; want Trends, %q, and them shown, as kept", cfg.View, cfg.Models, dashboard.Graphs)
 	}
 }
 

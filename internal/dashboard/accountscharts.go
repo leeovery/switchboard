@@ -204,3 +204,13 @@ func peakForms(by views.WorthBy, all bool) partForms {
 	}
 	return forms
 }
+
+// groupHead is a group's heading, as Compare's BY MODEL, WEEKS and WORTH, in
+// text.subtle, and after it, but in the narrow form, what it shows, in
+// text.faint.
+func groupHead(name, says string, narrow bool) line {
+	if narrow {
+		return line{{name, dimInk}}
+	}
+	return line{{name, dimInk}, {"  " + says, faintInk}}
+}

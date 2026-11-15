@@ -9,7 +9,7 @@ import (
 )
 
 // Words are a reason the router gives, in the dashboard's words, or a phrase
-// History says: in parts, each account they name, how long a session idled
+// the pages say: in parts, each account they name, how long a session idled
 // and each figure, a part of its own, as the pages draw them apart.
 type Words []Part
 

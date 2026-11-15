@@ -182,7 +182,7 @@ func TestGraphsHelpSaysWhatItsRulesAre(t *testing.T) {
 		{"fewer weeks", "or fewer where fewer are known; with none, the heading says no weeks, and the section nothing recorded yet"},
 		{"the requests it counts", "those that spent quota and went upstream, each in the local hour it arrived in"},
 		{"the clocks changing", "an hour the clocks skip has none that day, and one they repeat counts both"},
-		{"its shades", "The shades are History's"},
+		{"its shades", "The shades are YEAR's"},
 		{"YEAR's span", "A day a square, a week a column, over the last 12 months, as many of the latest weeks as the width holds"},
 		{"YEAR's v", "v shows one model version alone, in four steps of its own colour, or one account, ← and → stepping between the accounts"},
 		{"YEAR's totals", "Its totals sit beside the grid where the width holds both, else under it"},

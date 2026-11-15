@@ -420,7 +420,7 @@ func (r Review) notesOf(a Reviewed) []Note {
 		notes = append(notes, newToken)
 	}
 	if a.Plan == "" {
-		notes = append(notes, Note{Need: NeedPlan, Account: a.ID, Label: a.Label, Says: "has no plan set, so History can't value its usage.", Press: "Press e to set one.", Key: "e"})
+		notes = append(notes, Note{Need: NeedPlan, Account: a.ID, Label: a.Label, Says: "has no plan set, so its usage can't be valued.", Press: "Press e to set one.", Key: "e"})
 	}
 	return notes
 }

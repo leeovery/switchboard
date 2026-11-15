@@ -19,7 +19,7 @@ import (
 // row, all accounts last, where its wide form doesn't fit (CompareWide); and
 // Detail stacked, each part under its heading, where its wide form doesn't
 // (detailIn). Each is drawn whole, then scrolled a row at a time, as
-// History's Year is.
+// Trends is.
 
 // Turned Compare's columns: its names from turnedNameAt, turnedApart before
 // its bars; and its bars turnedBar cells, giving way to turnedBarFloor where
@@ -490,7 +490,7 @@ type stacked struct {
 var stackLayout = detailLayout{into: stackAt, gap: 1}
 
 // stackLaid is the stack's layout in the frame: its days dayCellsWide cells,
-// as History's, where the period's own weeks, as views.Period's WeeksLeast
+// as MODELS BY DAY's, where the period's own weeks, as views.Period's WeeksLeast
 // has them, fit so across the stretch, else dayCellsNarrow, as daysFitting
 // has it; and as many weeks as fit it.
 func (f Frame) stackLaid() detailLayout {

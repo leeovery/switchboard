@@ -40,7 +40,7 @@ func headingRows(f Frame) []int {
 }
 
 // everyGraphsSection are Graphs' own sections, every one shown: WEEK, POOL,
-// GLANCE and WHEN YOU WORK, without those Trends took from History.
+// GLANCE and WHEN YOU WORK, without YEAR, BY MONTH and MODELS BY DAY.
 func everyGraphsSection() GraphsSections {
 	return GraphsSectionsNamed([]string{"week", "pool", "glance", "when"})
 }

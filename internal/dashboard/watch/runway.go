@@ -287,12 +287,12 @@ func civilOf(t time.Time) time.Time {
 	return time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
 }
 
-// runwayYear is the year of the ledger's days History reads that reach back
+// runwayYear is the year of the ledger's days readPast reads that reach back
 // to the day given, as dayfile.Civil gives one, at now, weeks starting on the
 // day given: 0, the last 12 months, where they do, else the calendar year
 // it falls in.
 func runwayYear(first, now time.Time, starts time.Weekday) int {
-	if first.Before(civilOf(views.DaysFrom(views.YearAsk{}, now, starts))) {
+	if first.Before(civilOf(views.DaysFrom(0, now, starts))) {
 		return first.Year()
 	}
 	return 0
@@ -301,8 +301,8 @@ func runwayYear(first, now time.Time, starts time.Weekday) int {
 // runwayYearWanted is the year of the ledger's days the lanes of the tab
 // shown want, Runway's or Graphs', as lanesTimelines has them, those
 // reaching back furthest, as runwayYear has it, reporting false where they
-// want none, as runwayWants says, or neither shows: History's reads read
-// it, and the lanes share what they hold, as Accounts does.
+// want none, as runwayWants says, or neither shows: readPast reads it, and
+// the lanes share what it holds, as Accounts does.
 func (m Model) runwayYearWanted() (int, bool) {
 	now := m.now()
 	var first time.Time
@@ -316,7 +316,7 @@ func (m Model) runwayYearWanted() (int, bool) {
 }
 
 // runwayDays are the summaries of the days the lanes over the timeline tl at
-// now want, as runwayWants has them, as History's reads hold them: none
+// now want, as runwayWants has them, as readPast's reads hold them: none
 // where they want none, or till those reads hold them.
 func (m Model) runwayDays(tl views.Timeline, now time.Time) []ledger.Summary {
 	first, last, ok := m.runwayWants(tl)
@@ -417,7 +417,7 @@ func historyKept(history views.Readings) (time.Time, error) {
 // asked; or a span's stepped back to, held for the run; the first day the
 // history holds, where the read asked, and where it couldn't be said,
 // logged, the first time alone; and where the ledger began, where it asked
-// that, as History learns it.
+// that, as the ledger's days held learn it.
 func (m Model) runwayRead(msg runwayReadMsg) Model {
 	t := m.runwayTab
 	t.reading = false

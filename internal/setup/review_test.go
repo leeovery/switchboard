@@ -200,7 +200,7 @@ func TestReviewOfFrame3(t *testing.T) {
 	notes := []setup.Note{
 		{Need: setup.NeedToken, Account: "side", Label: "Side", Says: "has no working token, so no requests are routed to it.", Press: "Press t to create a new one, approving it in the browser signed in to Side.", Key: "t"},
 		{Need: setup.NeedNewToken, Account: "personal", Label: "Personal", Says: "has a token that expires 17 Nov 2026: 21 days left.", Press: "Press t to create a new one, approving it in the browser signed in to Personal.", Key: "t"},
-		{Need: setup.NeedPlan, Account: "personal", Label: "Personal", Says: "has no plan set, so History can't value its usage.", Press: "Press e to set one.", Key: "e"},
+		{Need: setup.NeedPlan, Account: "personal", Label: "Personal", Says: "has no plan set, so its usage can't be valued.", Press: "Press e to set one.", Key: "e"},
 	}
 	if got := review.Notes(); !slices.Equal(got, notes) {
 		t.Errorf("the notes are\n%+v\nwant\n%+v", got, notes)

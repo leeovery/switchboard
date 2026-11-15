@@ -197,32 +197,29 @@ func TestDetailsLATELYTellsOnlyEventsLATELYTells(t *testing.T) {
 }
 
 // At each of Accounts' hard moments, Detail's WEEKS, its facts and what
-// each account had left at its last reset are History's Weeks' and
-// history's, each as it stands then: Accounts' page and Weeks' built of the
-// days as they were read, as the watch builds them, and stood at the moment;
-// history of the days the ledger holds then, from Weeks' first week. Weeks'
-// eight weeks are the last eight of Detail's, each row's peaks in them
-// theirs and its facts on them their verdict's, and its left at its last
-// reset history's, where history gives one.
+// each account had left at its last reset are history's, each as it stands
+// then: Accounts' page built of the days as they were read, as the watch
+// builds it, and stood at the moment; history of the days the ledger holds
+// then, from the first of Detail's last eight weeks. Over those eight, each
+// row's peaks are history's and its facts history's verdict's, and its left
+// at its last reset history's, where history gives one.
 func TestDetailsWeeksAreHistorysAtTheMoment(t *testing.T) {
+	const judged = 8
 	for _, am := range viewstest.AccountsMoments() {
 		t.Run(am.Name, func(t *testing.T) {
-			page, m := accountsAt(am)
-			weeks := pastOf(am).Weeks().At(m)
-			shown := len(page.Weeks) - len(weeks.Weeks)
-			if shown < 0 || !slices.Equal(page.Weeks[shown:], weeks.Weeks) {
-				t.Fatalf("Detail's weeks are %v, Weeks' %v", page.Weeks, weeks.Weeks)
+			page, _ := accountsAt(am)
+			shown := len(page.Weeks) - judged
+			if shown < 0 {
+				t.Fatalf("Detail's weeks are %v, want %d at least", page.Weeks, judged)
 			}
-			history := heldHistory(am, weeks.Weeks[0])
-			rows := append(slices.Clone(weeks.Accounts), weeks.All)
+			weeks := page.Weeks[shown:]
+			history := heldHistory(am, weeks[0])
 			for i, row := range append(slices.Clone(page.Rows), page.All) {
-				peaks := []string{peaksRead(row.Peaks[shown:]), peaksRead(rows[i].Peaks), peaksRead(historysPeaks(history, i, weeks.Weeks))}
-				if !allSame(peaks) {
-					t.Errorf("row %d's peaks are %s, Weeks' %s, history's %s", i, peaks[0], peaks[1], peaks[2])
+				if peaks, theirs := peaksRead(row.Peaks[shown:]), peaksRead(historysPeaks(history, i, weeks)); peaks != theirs {
+					t.Errorf("row %d's peaks are %s, history's %s", i, peaks, theirs)
 				}
-				facts := []string{factsRead(row.Facts(len(weeks.Weeks))), factsRead(rows[i].AccountVerdict), factsRead(history.Capacity.Accounts[i])}
-				if !allSame(facts) {
-					t.Errorf("row %d's facts are %s, Weeks' %s, history's %s", i, facts[0], facts[1], facts[2])
+				if facts, theirs := factsRead(row.Facts(judged)), factsRead(history.Capacity.Accounts[i]); facts != theirs {
+					t.Errorf("row %d's facts are %s, history's %s", i, facts, theirs)
 				}
 				if i == len(page.Rows) {
 					continue
@@ -264,9 +261,4 @@ func historysPeaks(h views.History, x int, dates []string) []views.WeekPeak {
 		peaks[i].Open = slices.Contains(a.Open, claude.WeekWindow)
 	}
 	return peaks
-}
-
-// allSame reports whether each of said is the first.
-func allSame(said []string) bool {
-	return !slices.ContainsFunc(said, func(s string) bool { return s != said[0] })
 }

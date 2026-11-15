@@ -56,9 +56,9 @@ summarised from its lines, as far as it has gone. Then, where any of those
 days has requests, over them, each account's totals, its plan and its worth
 against it, as the dashboard's Accounts sets them side by side; each week's
 peaks, each account's own week, from one reset of its week to the next,
-placed under the calendar week it began nearest; and the verdicts of
-History's Weeks, from replaying each whole week with an account fewer or
-more. It reads the ledger's files, so it needs no router.
+placed under the calendar week it began nearest; and its verdicts on how
+many accounts the use needs, from replaying each whole week with an account
+fewer or more. It reads the ledger's files, so it needs no router.
 
 --since starts at a day, as 2026-10-01, a time today, as 14:00, or how long
 ago, as 3h or 2d, the day it falls on.
@@ -73,7 +73,7 @@ the ledger holds them, from the first it holds, so the last is today's, each
 model's worth in US dollars added, and what it leaves unpriced, with each
 day's worth by family; then, over those days, the year's grid of requests a
 day, each month's, each week's peaks and its tokens, each account's totals,
-its plan and its worth against it, and the capacity Weeks gives its verdicts
+its plan and its worth against it, and the capacity its verdicts are given
 from, for an agent or a script to read; or, with --windows, each account's
 windows' readings. --json prints the JSON, and --pretty the text, wherever
 stdout is.`,

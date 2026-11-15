@@ -22,33 +22,34 @@ var usedAcrossTwoMonths = daysFrom("2026-09-28",
 	day("2026-10-07", account("work", sent("claude-opus-5-5", 1, inputUsage))),
 )
 
-// Tokens' periods are by day, by week or by month, newest first, those with
-// nothing recorded in them left out, each named by its first day, or its
-// month, with how many versions it used; and the one today is in is so far.
+// Tokens' periods are by day, by week or by month, as the dial's period has
+// them, newest first, those with nothing recorded in them left out, each
+// named by its first day, or its month, with how many versions it used; and
+// the one today is in is so far.
 func TestTokensIsEachPeriodNewestFirstLeavingOutThoseWithNothingRecorded(t *testing.T) {
 	tests := []struct {
 		name     string
-		period   views.TokensPeriod
+		period   views.Period
 		first    []string
 		versions []int
 		soFar    []bool
 	}{
 		{
-			name: "by day", period: views.TokensByDay,
+			name: "by day, over 30 days", period: views.PeriodThirtyDays,
 			first: []string{"2026-10-07", "2026-10-05", "2026-10-03", "2026-09-29"}, versions: []int{1, 1, 2, 1}, soFar: []bool{true, false, false, false},
 		},
 		{
-			name: "by week, as it opens", period: views.TokensByWeek,
+			name: "by week, over 12 weeks", period: views.PeriodTwelveWeeks,
 			first: []string{"2026-10-05", "2026-09-28"}, versions: []int{1, 2}, soFar: []bool{true, false},
 		},
 		{
-			name: "by month", period: views.TokensByMonth,
+			name: "by month, over 12 months", period: views.PeriodTwelveMonths,
 			first: []string{"2026-10", "2026-09"}, versions: []int{2, 1}, soFar: []bool{true, false},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			page := views.NewPast(input(usedAcrossTwoMonths), usedAcrossTwoMonths).Tokens(views.TokensAsk{Period: tt.period})
+			page := views.NewPast(input(usedAcrossTwoMonths), usedAcrossTwoMonths).TokensOver(tt.period)
 			var first []string
 			var versions []int
 			var soFar []bool
@@ -67,7 +68,7 @@ func TestTokensIsEachPeriodNewestFirstLeavingOutThoseWithNothingRecorded(t *test
 // alone, not so far.
 func TestTokensLeavesOutTheRunningPeriodWithNothingRecordedYet(t *testing.T) {
 	days := daysFrom("2026-09-28", day("2026-09-29", account("work", sent("claude-opus-5-5", 1, inputUsage))))
-	page := views.NewPast(input(days), days).Tokens(views.TokensAsk{Period: views.TokensByMonth})
+	page := views.NewPast(input(days), days).TokensOver(views.PeriodTwelveMonths)
 	if len(page.Periods) != 1 || page.Periods[0].First != "2026-09" || page.Periods[0].SoFar {
 		t.Errorf("the periods are %+v, want September's alone, not so far", page.Periods)
 	}
@@ -75,32 +76,32 @@ func TestTokensLeavesOutTheRunningPeriodWithNothingRecordedYet(t *testing.T) {
 
 // A day costs its plans 12/365 of a month, a week 12/52, and a calendar month
 // a month, each as of its first day, the period so far priced whole: work's
-// $200 and side's $20, spare's plan not known. One the days were asked for
-// from part-way through costs its days alone; one the ledger began part-way
-// through, whole.
+// $200 and side's $20, spare's plan not known. One the ledger tells it began
+// part-way through costs its days from then alone; one whose days held begin
+// part-way through, the ledger's start not told, whole.
 func TestTokensPricesEachPeriodAgainstItsShareOfAMonth(t *testing.T) {
 	tests := []struct {
 		name   string
-		period views.TokensPeriod
-		from   string
+		period views.Period
+		began  string
 		costs  string
 	}{
-		{name: "by day", period: views.TokensByDay, from: "2026-01-01", costs: "7.232876712328 7.232876712328 7.232876712328 7.232876712328"},
-		{name: "by week", period: views.TokensByWeek, from: "2026-01-01", costs: "50.769230769231 50.769230769231"},
-		{name: "by month, the ledger begun part-way through September", period: views.TokensByMonth, from: "2026-01-01", costs: "220 220"},
-		{name: "by month, the days asked for from the 29th", period: views.TokensByMonth, from: "2026-09-29", costs: "220 14.465753424658"},
-		{name: "by week, the days asked for from the 29th", period: views.TokensByWeek, from: "2026-09-29", costs: "50.769230769231 43.397260273973"},
+		{name: "by day", period: views.PeriodThirtyDays, costs: "7.232876712328 7.232876712328 7.232876712328 7.232876712328"},
+		{name: "by week", period: views.PeriodTwelveWeeks, costs: "50.769230769231 50.769230769231"},
+		{name: "by month, the days held begun part-way through September", period: views.PeriodTwelveMonths, costs: "220 220"},
+		{name: "by month, the ledger begun on the 29th", period: views.PeriodTwelveMonths, began: "2026-09-29", costs: "220 14.465753424658"},
+		{name: "by week, the ledger begun on the 29th", period: views.PeriodTwelveWeeks, began: "2026-09-29", costs: "50.769230769231 43.397260273973"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			in := input(usedAcrossTwoMonths)
-			in.From = on(tt.from)
 			asked := usedAcrossTwoMonths
-			if i := slices.IndexFunc(asked, func(s ledger.Summary) bool { return s.Day >= tt.from }); i > 0 {
-				asked = asked[i:]
+			if tt.began != "" {
+				in.Began = on(tt.began)
+				asked = asked[slices.IndexFunc(asked, func(s ledger.Summary) bool { return s.Day >= tt.began }):]
 			}
 			var costs []string
-			for _, p := range views.NewPast(in, asked).Tokens(views.TokensAsk{Period: tt.period}).Periods {
+			for _, p := range views.NewPast(in, asked).TokensOver(tt.period).Periods {
 				costs = append(costs, jsonOf(t, p.Cost))
 			}
 			if got := strings.Join(costs, " "); got != tt.costs {
@@ -116,46 +117,26 @@ func TestTokensPricesEachPeriodAgainstItsShareOfAMonth(t *testing.T) {
 func TestTokensPageSaysWhatAWholePeriodCostsThePlans(t *testing.T) {
 	tests := []struct {
 		name     string
-		period   views.TokensPeriod
+		period   views.Period
 		accounts config.Accounts
 		want     string
 	}{
-		{name: "by day", period: views.TokensByDay, accounts: accounts, want: "7.232876712328"},
-		{name: "by week", period: views.TokensByWeek, accounts: accounts, want: "50.769230769231"},
-		{name: "by month", period: views.TokensByMonth, accounts: accounts, want: "220"},
-		{name: "no plan known", period: views.TokensByMonth, accounts: config.Accounts{{ID: "work"}, {ID: "side"}}, want: "null"},
+		{name: "by day", period: views.PeriodThirtyDays, accounts: accounts, want: "7.232876712328"},
+		{name: "by week", period: views.PeriodTwelveWeeks, accounts: accounts, want: "50.769230769231"},
+		{name: "by month", period: views.PeriodTwelveMonths, accounts: accounts, want: "220"},
+		{name: "no plan known", period: views.PeriodTwelveMonths, accounts: config.Accounts{{ID: "work"}, {ID: "side"}}, want: "null"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			in := input(usedAcrossTwoMonths)
 			in.Accounts = tt.accounts
 			for _, days := range [][]ledger.Summary{usedAcrossTwoMonths, nil} {
-				page := views.NewPast(in, days).Tokens(views.TokensAsk{Period: tt.period})
+				page := views.NewPast(in, days).TokensOver(tt.period)
 				if got := jsonOf(t, page.PeriodCost); got != tt.want {
 					t.Errorf("of %d days, a whole period costs %s, want %s", len(days), got, tt.want)
 				}
 			}
 		})
-	}
-}
-
-// Tokens' periods start at the last 12 months' first day, as the Year's do,
-// the days the Year's grid draws before it left out: its oldest month is
-// the Year's BY MONTH's, its worth and its plans' cost, though the days are
-// read from the grid's first.
-func TestTokensOldestMonthIsTheYearsOldestMonth(t *testing.T) {
-	in := input(overTheYear)
-	in.From = views.YearFrom(views.YearAsk{}, now, time.Monday)
-	past := views.NewPast(in, overTheYear)
-	tokens := past.Tokens(views.TokensAsk{Period: views.TokensByMonth}).Periods
-	oldest := tokens[len(tokens)-1]
-	year := past.Year(views.YearAsk{}).ByMonth
-	i := slices.IndexFunc(year, func(m views.MonthRow) bool { return m.Month.Month == oldest.First })
-	if i < 0 {
-		t.Fatalf("Tokens' oldest month is %s, which the Year's BY MONTH doesn't hold", oldest.First)
-	}
-	if got, want := jsonOf(t, []any{oldest.Worth, oldest.Against}), jsonOf(t, []any{year[i].Worth, year[i].Against}); got != want {
-		t.Errorf("Tokens' %s is worth and costs %s, the Year's %s", oldest.First, got, want)
 	}
 }
 
@@ -169,7 +150,7 @@ func TestTokensListsTheAccountsInTheConfigsOrder(t *testing.T) {
 		account("work", sent("claude-opus-5-5", 1, inputUsage))))
 
 	var listed []string
-	for _, a := range views.NewPast(input(days), days).Tokens(views.TokensAsk{}).Periods[0].ByAccount {
+	for _, a := range views.NewPast(input(days), days).TokensOver(views.PeriodThisWeek).Periods[0].ByAccount {
 		listed = append(listed, a.Account)
 	}
 	if want := []string{"work", "side", "", "extra"}; !slices.Equal(listed, want) {
@@ -189,7 +170,7 @@ func TestTokensLabelsEachAccountAsTheConfigDoes(t *testing.T) {
 	in.Accounts = config.Accounts{{ID: "work", Label: "Work laptop"}, {ID: "side"}}
 
 	var labels []string
-	for _, a := range views.NewPast(in, days).Tokens(views.TokensAsk{}).Periods[0].ByAccount {
+	for _, a := range views.NewPast(in, days).TokensOver(views.PeriodThisWeek).Periods[0].ByAccount {
 		labels = append(labels, a.Label)
 	}
 	if want := []string{"Work laptop", "side", "", "extra"}; !slices.Equal(labels, want) {
@@ -205,7 +186,7 @@ func TestAVersionsAccountsAreTheOneItWasWorthMostOnFirst(t *testing.T) {
 		account("side", sent("claude-haiku-4-5", 1, inputUsage)),
 		account("work", sent("claude-haiku-4-5", 1, twice))))
 
-	on := views.NewPast(input(days), days).Tokens(views.TokensAsk{}).Periods[0].ByModel[0].On
+	on := views.NewPast(input(days), days).TokensOver(views.PeriodThisWeek).Periods[0].ByModel[0].On
 	if want := []string{"work", "extra", "side"}; !slices.Equal(on, want) {
 		t.Errorf("Claude Haiku 4.5 ran on %q, want %q", on, want)
 	}
@@ -215,7 +196,7 @@ func TestAVersionsAccountsAreTheOneItWasWorthMostOnFirst(t *testing.T) {
 // price table's date.
 func TestTokensOfNothingRecordedHasNoPeriods(t *testing.T) {
 	days := daysFrom("2026-10-01")
-	page := views.NewPast(input(days), days).Tokens(views.TokensAsk{})
+	page := views.NewPast(input(days), days).TokensOver(views.PeriodThisWeek)
 	if len(page.Periods) != 0 || page.PricesAsOf != ledger.Pricing.AsOf {
 		t.Errorf("Tokens is %+v, want no periods, its prices as of %s", page, ledger.Pricing.AsOf)
 	}
@@ -307,7 +288,7 @@ func TestTokensOverTotalIsAgainstItsPriceAsAccountsHasIt(t *testing.T) {
 // Year's BY MONTH has it: 24 days of October, from the 8th.
 func TestTokensOverTwelveMonthsPricesTheirPartMonthByItsDays(t *testing.T) {
 	in := input(overTheYear)
-	in.From = views.YearFrom(views.YearAsk{}, now, time.Monday)
+	in.From = views.YearFrom(0, now, time.Monday)
 	past := views.NewPast(in, overTheYear)
 	rows := past.TokensOver(views.PeriodTwelveMonths).Periods
 	oldest := rows[len(rows)-1]

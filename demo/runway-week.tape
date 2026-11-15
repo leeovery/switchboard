@@ -31,7 +31,6 @@ Tab
 Tab
 Tab
 Tab
-Tab
 # Runway opens on the week. Shown at 5s, its keycaps gone.
 Sleep 2600ms
 Show

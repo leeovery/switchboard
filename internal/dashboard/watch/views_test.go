@@ -67,12 +67,12 @@ func TestTabShowsTheNextTabAndKeepsIt(t *testing.T) {
 	}
 }
 
-func TestTabTurnsRoundTheEightTabs(t *testing.T) {
+func TestTabTurnsRoundTheSevenTabs(t *testing.T) {
 	h := newHarness(t, calm())
 	h.start()
 
-	if !strings.Contains(h.view(), " Overview   Accounts   Projects   History   Sessions   Runway   Trends   Log ") {
-		t.Errorf("the screen is\n%s\nwant the eight tabs", h.view())
+	if !strings.Contains(h.view(), " Overview   Accounts   Projects   Sessions   Runway   Trends   Log ") {
+		t.Errorf("the screen is\n%s\nwant the seven tabs", h.view())
 	}
 	overview := "USAGE"
 	for _, step := range []struct {
@@ -84,7 +84,6 @@ func TestTabTurnsRoundTheEightTabs(t *testing.T) {
 	}{
 		{key: "tab", want: dashboard.Accounts},
 		{key: "tab", want: dashboard.Projects, wantShows: "PROJECTS  ─"},
-		{key: "tab", want: dashboard.History},
 		{key: "tab", want: dashboard.Sessions},
 		{key: "tab", want: dashboard.Runway, wantShows: "RUNWAY  ─"},
 		{key: "tab", want: dashboard.Graphs},
@@ -111,13 +110,13 @@ func TestAViewTabTurnsToShowsFromItsTop(t *testing.T) {
 	h.typed("tab")
 	h.press("shift+tab")
 	if h.model.scroll != 0 || h.scrolled() != top {
-		t.Errorf("turned to History, scrolled %d, the screen\n%s\nwant its Year from its top", h.model.scroll, h.view())
+		t.Errorf("turned to Trends, scrolled %d, the screen\n%s\nwant its YEAR from its top", h.model.scroll, h.view())
 	}
 	if h.press("j"); h.model.scroll != 1 || h.scrolled() == top {
-		t.Errorf("j scrolled the Year to %d, the screen\n%s\nwant it a row down", h.model.scroll, h.view())
+		t.Errorf("j scrolled Trends to %d, the screen\n%s\nwant it a row down", h.model.scroll, h.view())
 	}
 	if help := helpOver(h.model); !slices.Contains(help, dashboard.Key{Key: "j k", Does: "scroll"}) {
-		t.Errorf("the help lists %+v, want j and k scrolling the Year", help)
+		t.Errorf("the help lists %+v, want j and k scrolling Trends", help)
 	}
 }
 
@@ -261,7 +260,6 @@ func TestWShowsAndHidesModelsWindowsWhereThePageListsThemAndKeepsIt(t *testing.T
 		{name: "Sessions' List", show: func(h *harness) {
 			h.model.view, h.model.sessionsTab.shown.Shown = dashboard.Sessions, dashboard.SessionsList
 		}},
-		{name: "History", show: func(h *harness) { h.model.view = dashboard.History }},
 		{name: "Runway", show: func(h *harness) { h.model.view = dashboard.Runway }},
 		{name: "the Log", show: func(h *harness) { h.model.view = dashboard.Log }},
 		{name: "a session's page", show: func(h *harness) { h.openPage(idD28C) }, works: true},

@@ -297,7 +297,7 @@ func logDayRule(r views.DayRule, cells int) line {
 // daySummary are the parts of a day rule's summary of the day's totals, in
 // order: its requests and sessions, each its figure in text.secondary; the
 // limits its accounts reached, bold state.destructive; and its worth at API
-// prices, bold text.secondary, as History writes it. A part that would say
+// prices, bold text.secondary, as worthSaid writes it. A part that would say
 // none is left out.
 func daySummary(t views.DayTotals) []line {
 	var parts []line

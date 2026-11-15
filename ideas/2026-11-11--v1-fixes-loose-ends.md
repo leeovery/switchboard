@@ -34,8 +34,9 @@ v1.
 - **A broken answer** shows in `requests` alone, as `200 broken off`. The dashboard's Log shows
   canceled, cut off and broken off answers no differently from the rest, and its failed-only filter
   goes by status, so a broken 200 isn't among them.
-- **History's all-accounts row** marks a week where every account with a known peak reached its
-  cap, while the "short on N weeks" beside it counts a week where any did. As signed off (the old
+- **Accounts' all-accounts weeks** (Detail's, once History's Weeks) mark a week where every
+  account with a known peak reached its cap, while the "short on N weeks" beside it counts a week
+  where any did. As signed off (the old
   rule, a mean of 100%, was the same "every"); whether it should mark "any" is the owner's call.
 - **Accounts' WEEKS bar** marks no cap for an account with a reserve, though its figures are inked
   at the cap; the account's own gauges above it draw the reserve's mark.

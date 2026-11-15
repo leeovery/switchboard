@@ -25,17 +25,16 @@ func twelve() status.Document {
 	return document(accounts...)
 }
 
-// yearSize is a terminal History's Year of a month's requests scrolls in, its
-// numbers under the key: 31 rows in a view of 17, so 14 rows at most, and a
-// page of 16 from the top, where BY MONTH's heading is kept off its foot.
+// yearSize is a terminal Trends' YEAR and BY MONTH of a month's requests
+// scroll in.
 var yearSize = tea.WindowSizeMsg{Width: 150, Height: 26}
 
-// yearHarness is a model of the router of three, showing History's Year of
-// the ledger's last 30 days, ten requests each, in a terminal of the size
-// given, started.
+// yearHarness is a model of the router of three, showing Trends' YEAR and
+// BY MONTH of the ledger's last 30 days, ten requests each, in a terminal of
+// the size given, started.
 func yearHarness(t *testing.T, size tea.WindowSizeMsg) *harness {
 	t.Helper()
-	h, l := historyHarness(t, dashboard.History, dashboard.HistoryPage{})
+	h, l := readingHarness(t)
 	for i := range 30 {
 		date := dayfile.DateOf(dayfile.DayStart(start.Local(), -i))
 		l.days[date] = requested(date, 10)
@@ -45,6 +44,20 @@ func yearHarness(t *testing.T, size tea.WindowSizeMsg) *harness {
 	return h
 }
 
+// overTheView is a row of what of the view on screen scrolls, at column 10,
+// failing the test where there's none.
+func (h *harness) overTheView() int {
+	h.t.Helper()
+	f, at := h.model.onScreen()
+	for y := range f.Height {
+		if f.Under(h.model.doc, at, 10, y) == dashboard.UnderView {
+			return y
+		}
+	}
+	h.t.Fatal("nothing on screen scrolls")
+	return 0
+}
+
 // scrolled is the first row of what scrolls the screen shows.
 func (h *harness) scrolled() string {
 	return strings.Split(h.view(), "\n")[h.overTheView()]
@@ -52,8 +65,8 @@ func (h *harness) scrolled() string {
 
 func TestScrollKeysScrollTheViewNoFurtherThanItGoes(t *testing.T) {
 	h := yearHarness(t, yearSize)
-	if got := h.model.scrolling(); got.Most != 14 || got.Page != 16 {
-		t.Fatalf("scrolling() = %+v, want 14 rows at most, a page of 16, its last row saying what's out of view", got)
+	if got := h.model.scrolling(); got.Most != 14 || got.Page != 18 {
+		t.Fatalf("scrolling() = %+v, want 14 rows at most, a page of 18, its last row saying what's out of view", got)
 	}
 	steps := []struct {
 		name string
@@ -471,33 +484,44 @@ func TestTheWheelScrollsUSAGEByRowsWhereverItScrolls(t *testing.T) {
 
 // Where what the view's scroll counts changes, rows where it counted
 // accounts or accounts where it counted rows, the view goes back to its top,
-// as History's does on any change, so no offset is read in the other's
-// unit: History's Days, drawn whole and scrolled by rows on a frame shorter
-// than History's, and by BY ACCOUNT's accounts on one as tall, as a resize
-// turns it.
+// so no offset is read in the other's unit, though it goes as far again in
+// the other: Sessions' Switchboard of ten accounts, two calls each, scrolled
+// an account at a time where every account's lines fit the view, and by
+// rows once a read lists twenty more calls on the last, more than the view
+// holds.
 func TestAViewWhoseScrollChangesWhatItCountsGoesBackToItsTop(t *testing.T) {
-	h, l := historyHarness(t, dashboard.History, dashboard.HistoryPage{Shown: dashboard.HistoryDays})
-	for i := range 30 {
-		date := dayfile.DateOf(dayfile.DayStart(start.Local(), -i))
-		l.days[date] = requested(date, 10)
+	var accounts []status.Account
+	for i := range 10 {
+		id := fmt.Sprintf("acct-%d", i+1)
+		accounts = append(accounts, account(id, id, session(0.25, 3*time.Hour), week(0.5)))
 	}
-	h.deliver(h.update(tea.WindowSizeMsg{Width: 160, Height: 16})...)
+	h := routedHarness(t, routerDocument(accounts...))
+	for i, a := range accounts {
+		for j := range 2 {
+			h.source.sessions = append(h.source.sessions, sessionOn(fmt.Sprintf("%02x%02x0000-0000-4000-8000-000000000000", i, j), opus, a.ID, time.Duration(2*i+j+1)*time.Second))
+		}
+	}
+	h.update(tea.WindowSizeMsg{Width: 160, Height: 20})
 	h.start()
+	h.keys(toSessions...)
 	f, at := h.model.onScreen()
 	wasRows := f.ScrollsRows(h.model.doc, at)
 	for range 2 {
 		h.press("j")
 	}
 	if h.model.scroll != 2 {
-		t.Fatalf("j twice scrolled Days to %d, want 2", h.model.scroll)
+		t.Fatalf("j twice scrolled the Switchboard to %d, want 2", h.model.scroll)
 	}
-	h.deliver(h.update(tea.WindowSizeMsg{Width: 160, Height: 40})...)
+	for j := range 20 {
+		h.source.sessions = append(h.source.sessions, sessionOn(fmt.Sprintf("09%02x0001-0000-4000-8000-000000000000", j), opus, "acct-10", time.Duration(30+j)*time.Second))
+	}
+	h.tickUntilAsked()
 	f, at = h.model.onScreen()
-	if f.ScrollsRows(h.model.doc, at) == wasRows {
-		t.Fatalf("Days scrolls a row at a time %t before and after, want what it counts changed", wasRows)
+	if f.ScrollsRows(h.model.doc, at) == wasRows || h.model.scrolling().Most < 2 {
+		t.Fatalf("the Switchboard scrolls a row at a time %t before and after, %d rows at most; want what it counts changed, as far again", wasRows, h.model.scrolling().Most)
 	}
 	if h.model.scroll != 0 {
-		t.Errorf("Days is scrolled %d, want it at its top", h.model.scroll)
+		t.Errorf("the Switchboard is scrolled %d, want it at its top", h.model.scroll)
 	}
 }
 

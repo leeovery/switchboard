@@ -120,8 +120,7 @@ func GraphsWindows(sections GraphsSections) []views.RunwayWindow {
 // built it; and the pool's room over the week's span, by the window, as
 // GLANCE draws it beside Σ pool, as the watch built it at the last look on
 // Graphs with GLANCE shown, held while it hides, none till it's built it.
-// Split is what v has YEAR show, all use, a version or an account, as on
-// History's Year, never a calendar year; Year is YEAR's and BY MONTH's page,
+// Split is what v has YEAR show, all use, a version or an account; Year is YEAR's and BY MONTH's page,
 // the last 12 months shown as Split asks, and Days MODELS BY DAY's, the last
 // eight weeks, as the watch built them of the ledger's days while they show,
 // nil till it has; and Read is set once the last 12 months are read.

@@ -252,12 +252,12 @@ func TestASessionsPageOverGraphsKeepsWForModels(t *testing.T) {
 	}
 }
 
-// whenHarness is historyHarness on Graphs, its sections those named, every
+// whenHarness is pastHarness on Graphs, its sections those named, every
 // one hidden where none is, the ledger holding work's requests on Monday 21
 // September 2026 at 09:00, a week before the clock starts.
 func whenHarness(t *testing.T, sections ...string) (*harness, *daysLedger) {
 	t.Helper()
-	h, l := historyHarness(t, dashboard.Graphs, dashboard.HistoryPage{})
+	h, l := pastHarness(t, dashboard.Graphs)
 	h.model.graphs = dashboard.GraphsSectionsNamed(append([]string{}, sections...))
 	l.days["2026-09-21"] = hourly("2026-09-21", 9, 8)
 	return h, l
@@ -274,7 +274,7 @@ func hourly(date string, hour, n int) ledger.Summary {
 }
 
 // Graphs reads the ledger's days while WHEN YOU WORK shows, and not
-// otherwise: the last 12 months, once, as History reads them, as h shows it,
+// otherwise: the last 12 months, once, as Accounts reads them, as h shows it,
 // then today alone at each look; its page of them, the 4 weeks before today,
 // Monday's 9 o'clock its 8 requests over the four Mondays; and hidden again,
 // none at a look, and no page.
@@ -310,7 +310,7 @@ func TestGraphsReadsTheLedgersDaysWhileWhenYouWorkShows(t *testing.T) {
 }
 
 // WHEN YOU WORK's page is of the last 12 months' days, never of a calendar
-// year History stepped back to, the page built afresh at a message with
+// year Runway stepped back to, the page built afresh at a message with
 // both held.
 func TestWhenYouWorksPageIsOfTheLast12MonthsNeverACalendarYear(t *testing.T) {
 	h, l := whenHarness(t, "when")

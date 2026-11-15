@@ -7,9 +7,14 @@ import (
 
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/status"
 )
+
+// threeConfigured are three accounts as a config gives them, the first
+// labelled apart from its id.
+var threeConfigured = config.Accounts{{ID: "work", Label: "Work"}, {ID: "personal"}, {ID: "side"}}
 
 // The sample sessions' ids, each a Claude Code session's.
 const (

@@ -18,7 +18,7 @@ import (
 // page- for a page drawn to judge by eye, and the tab's own view, of those
 // dashboard.View's SubViews names, its name says, as a word of it, else the
 // one the tab opens on. A page whose name leads with a tab's own view alone,
-// as page-year's, is of that tab; one whose name says no view, as
+// as page-detail-list-focus's, is of that tab; one whose name says no view, as
 // page-not-answering's, is a view of its own of the Overview, which the
 // watch opens on.
 func drawnView(f Fixture) string {
@@ -270,10 +270,7 @@ func TestAFixturesViewIsWhatItsNameSays(t *testing.T) {
 		{name: "page-routing", want: "routing"},
 		{name: "usage-5h-52", want: "usage"},
 		{name: "session-moved-160", want: "session"},
-		{name: "history-phone-year-52", want: "history year"},
-		{name: "history-weeks-ten-160", want: "history weeks"},
-		{name: "history-tokens-models-160", want: "history tokens"},
-		{name: "page-year-160x24", want: "history year"},
+		{name: "accounts-tokens-73x61", want: "accounts tokens"},
 		{name: "accounts-phone-detail-52", want: "accounts detail"},
 		{name: "page-detail-list-focus", want: "accounts detail"},
 		{name: "sessions-108x44", want: "sessions switchboard"},
@@ -310,7 +307,7 @@ func TestTheSizeSweepsChooseAmongThePagesAlone(t *testing.T) {
 	}{
 		{name: "overview-default-160", want: true},
 		{name: "session-moved-160", want: true},
-		{name: "page-year-160x24", want: true},
+		{name: "page-detail-list-focus", want: true},
 		{name: "page-not-answering", want: true},
 		{name: "routing-auto-160"},
 		{name: "routing-session-160"},

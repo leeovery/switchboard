@@ -27,7 +27,7 @@ func overviewHelp() []helpPart {
 					"recent rate; at cap where its use has reached the cap; and limit while Claude's own " +
 					"limit holds it."),
 				said("Σ pool is the room new sessions can go to now, in accounts' worth: every account's on auto, the pinned accounts' alone " +
-					"when pinned, each to its cap; all accounts, on Accounts and History, counts every account, to its limit. An account out " +
+					"when pinned, each to its cap; all accounts, on Accounts, counts every account, to its limit. An account out " +
 					"of the pool is faint."),
 				said("`b` groups the windows by account instead, a block an account, ROUTING beside each where both fit; elsewhere " +
 					"ROUTING keeps a section of its own. With more accounts than fit, " +
@@ -35,8 +35,8 @@ func overviewHelp() []helpPart {
 					"rows scroll under it, and its last row says how many rows are out of view above and below."),
 				said("`w` shows each model's own window, as Fable's week, here and wherever windows are listed as they stand now: " +
 					"Accounts' Detail, Sessions' Switchboard and a session's page. Hidden, one shows all the same while it nears its limit " +
-					"on any account: held at it, at the cap, or running out or nearing where it would. switchboard usage, History and the " +
-					"Log list every window."),
+					"on any account: held at it, at the cap, or running out or nearing where it would. switchboard usage and the Log list " +
+					"every window."),
 			},
 			glyphs: []glyph{
 				{drawn: line{{paceMark, paceInk}}, means: "even pace: where you would be now, used evenly"},

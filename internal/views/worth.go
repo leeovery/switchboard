@@ -202,7 +202,7 @@ func rewriteSaid(rewrote bool, cost *ledger.Picodollars) string {
 	return ""
 }
 
-// Dollars is the worth to the dollar, as History says it, its thousands set
+// Dollars is the worth to the dollar, as the dashboard says it, its thousands set
 // apart, as "$27,480"; PartUnpriced after it where part of it is unpriced, as
 // "$184+"; "unpriced" where none of it is priced; and "" where there's none.
 func (w Worth) Dollars() string {

@@ -8,8 +8,8 @@ import (
 	"github.com/leeovery/switchboard/internal/ledger"
 )
 
-// Past is History's days, priced once as they're given, which each of its
-// views, the Year, Weeks, Days and Tokens, is built of as a page.
+// Past is the ledger's days, priced once as they're given, which Accounts'
+// and Trends' pages are built of.
 type Past struct {
 	in   HistoryInput
 	days []Day
@@ -100,17 +100,7 @@ func (p Past) Summaries(first, last time.Time) []ledger.Summary {
 	return held
 }
 
-// Weeks is Weeks' page: the eight weeks to this one.
-func (p Past) Weeks() WeeksPage {
-	return p.weeksPage()
-}
-
 // Days is Days' page: the eight weeks to this one, a day at a time.
 func (p Past) Days() DaysPage {
 	return daysPageOf(p.in, p.days)
-}
-
-// Tokens is Tokens' page, as asked for.
-func (p Past) Tokens(ask TokensAsk) TokensPage {
-	return p.tokens(ask)
 }

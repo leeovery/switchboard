@@ -19,8 +19,8 @@ import (
 // on Trends, w, o, g, h, y, m and d show and hide its sections, and v and
 // ← → act, as graphsKey says;
 // on Accounts, its keys act as accountsKey says; on Projects, ↑ ↓, ← →, < >
-// and enter act as projectsKey says; on History, [ ], < >, v and ← → act as
-// historyKey says; on Sessions, its keys act as sessionsKey says;
+// and enter act as projectsKey says; on Sessions, its keys act as
+// sessionsKey says;
 // on Runway, < > and ← → act as runwayKey says; on the Log, [ ], ↑ ↓, end,
 // esc, enter, s, f and / act as logKey says; tab and shift-tab show the next
 // tab and the one before, as turn has it; and t opens the theme picker. esc,
@@ -53,9 +53,6 @@ func (m Model) pageKey(key tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 	if next, cmd, ok := afresh.projectsKey(k); ok {
 		return next, cmd
-	}
-	if next, ok := afresh.historyKey(k); ok {
-		return next, nil
 	}
 	if next, cmd, ok := afresh.sessionsKey(k); ok {
 		return next, cmd
@@ -156,9 +153,9 @@ type pageKeys struct {
 }
 
 // keys is what lists the page's keys as m stands, its own but those that
-// scroll it in the design's order: the Overview's, Accounts', History's,
+// scroll it in the design's order: the Overview's, Accounts', Projects',
 // Sessions', Runway's, Graphs' and the Log's, as overviewListings,
-// accountsListings, historyListings, sessionsListings, runwayListings,
+// accountsListings, projectsListings, sessionsListings, runwayListings,
 // graphsListings and logListings have them, Detail's SESSIONS listing the
 // sessions running given. A session's page lists its own, as sessionKeys has
 // them, in place of its tab's.
@@ -169,7 +166,7 @@ func (m Model) keys(running []string) pageKeys {
 	}
 	toggles := shown == dashboard.Overview || shown == dashboard.Graphs
 	pin, pinned := m.pinKey()
-	own := slices.Concat(m.overviewListings(), m.accountsListings(running), m.projectsListings(), m.historyListings(), m.sessionsListings(), m.runwayListings(), m.graphsListings(), m.logListings())
+	own := slices.Concat(m.overviewListings(), m.accountsListings(running), m.projectsListings(), m.sessionsListings(), m.runwayListings(), m.graphsListings(), m.logListings())
 	scrollsAlways := toggles || shown == dashboard.Log
 	return pageKeys{own: own, toggles: toggles, scrollsAlways: scrollsAlways, pin: pin, pinned: pinned, coloured: m.coloured()}
 }
@@ -267,23 +264,6 @@ func (p pageKeys) listings(scrolls bool) []keyListing {
 // scrollKeys are the keys that scroll a view, as help lists them: j and k,
 // PgUp and PgDn, and the wheel.
 var scrollKeys = []dashboard.Key{{Key: "j k", Does: "scroll"}, {Key: "PgUp PgDn", Does: "page"}, {Key: "wheel", Does: "scroll"}}
-
-// historyListings are History's own keys, each in a group of its own: [ ]
-// view; < > and the period, where the sub-tab shown has one; v and what it
-// has the sub-tab show, where it cycles anything the frame at the size
-// drawn at shows, as its Split has it; and with v, while the Year shows one
-// account alone, ←→ stepping between the accounts. A phone's line keeps
-// [ ] view alone.
-func (m Model) historyListings() []keyListing {
-	history, p := m.shownView() == dashboard.History, m.past.page
-	period, split := p.Period(), m.historySplit()
-	return []keyListing{
-		{Key: dashboard.Key{Key: "[ ]", Does: "view"}, works: history, apart: true},
-		{Key: dashboard.Key{Key: "< >", Does: "period", State: period}, works: history && period != "", apart: true, wide: true},
-		{Key: dashboard.Key{Key: "v", Does: "split", State: split}, works: history && split != "", apart: true, wide: true},
-		{Key: dashboard.Key{Key: "←→", Does: "account"}, works: history && p.Shown == dashboard.HistoryYear && p.YearAsk.Account != "", wide: true},
-	}
-}
 
 // keyLine is the key line as m stands at now, under its page drawn as f:
 // while the theme picker is open, its keys alone, then q quit, a phone's line

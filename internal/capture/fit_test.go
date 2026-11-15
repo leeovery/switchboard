@@ -4,7 +4,6 @@ import (
 	"cmp"
 	"regexp"
 	"slices"
-	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -20,7 +19,7 @@ import (
 
 // The sizes the fit sweep draws a fixture at: widths either side of
 // those a layout changes at, and every height from where the page first has
-// room for a view to where History stops scrolling whole, then a few
+// room for a view through the heights the views scroll at, then a few
 // taller.
 var (
 	sweptWidths  = []int{20, 40, 52, 80, 99, 100, 120, 160, 230}
@@ -36,12 +35,10 @@ const tallest = 60
 // of widths and heights: its title rows, its status line and the row
 // between, and its key line read as those of the same fixture drawn as tall
 // as anything fits, as the height changes none of them, so no view draws on
-// them; and where History's Weeks or Days say how many more accounts are out
-// of view, as drawn and scrolled a row, they show one at least. The whole
-// grid is drawn for one fixture or two of each page's view, as sweptFully
-// chooses them, and the rest at a few sizes, as sweptSizes has them.
-// Setup's screen has a rule of its own, held in setup_test.go.
-func TestNoViewDrawsOnThePagesChromeOrCountsAccountsItCantShow(t *testing.T) {
+// them. The whole grid is drawn for one fixture or two of each page's view,
+// as sweptFully chooses them, and the rest at a few sizes, as sweptSizes has
+// them. Setup's screen has a rule of its own, held in setup_test.go.
+func TestNoViewDrawsOnThePagesChrome(t *testing.T) {
 	full := sweptFully(t, ofAPage)
 	for _, name := range Names() {
 		f := fixture(t, name)
@@ -51,17 +48,16 @@ func TestNoViewDrawsOnThePagesChromeOrCountsAccountsItCantShow(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			m := withNothingOver(t, f.settle(f.Size), f.Size)
-			names := accountNames(f)
 			for _, at := range sweptSizes(f, full[name], fitGrid) {
-				atWidth(t, at.width, func(t *testing.T) { holdsItsChromeAt(t, m, names, at) })
+				atWidth(t, at.width, func(t *testing.T) { holdsItsChromeAt(t, m, at) })
 			}
 		})
 	}
 }
 
 // holdsItsChromeAt holds m, drawn at the width given and each of its
-// heights, to the fit sweep's rules, its accounts drawn by the names given.
-func holdsItsChromeAt(t *testing.T, m watch.Model, names []string, at swept) {
+// heights, to the fit sweep's rules.
+func holdsItsChromeAt(t *testing.T, m watch.Model, at swept) {
 	t.Helper()
 	width := at.width
 	tall := plainRows(m, width, tallest)
@@ -76,13 +72,6 @@ func holdsItsChromeAt(t *testing.T, m watch.Model, names []string, at swept) {
 		}
 		if rows[height-1] != tall[tallest-1] {
 			t.Errorf("at %d×%d, the key line reads\n%q\nwant it as at %d rows\n%q", width, height, rows[height-1], tallest, tall[tallest-1])
-		}
-		if !showsAnAccountItCounts(rows, names) {
-			t.Errorf("at %d×%d, the view counts accounts out of view and shows none:\n%s", width, height, strings.Join(rows, "\n"))
-		}
-		scrolled := deliver(sized, keysOf("j")[0])
-		if rows := plainOf(scrolled.View().Content, height); !showsAnAccountItCounts(rows, names) {
-			t.Errorf("at %d×%d, scrolled a row, the view counts accounts out of view and shows none:\n%s", width, height, strings.Join(rows, "\n"))
 		}
 	}
 }
@@ -117,23 +106,8 @@ func accountNames(f Fixture) []string {
 	return names
 }
 
-// showsAnAccountItCounts reports whether History's rows that say how many
-// more accounts are out of view show an account above that, a row leading
-// with one of the names given, as Weeks and Days draw them: true on
-// another tab, or where no row says it.
-func showsAnAccountItCounts(rows, names []string) bool {
-	history := slices.ContainsFunc(rows, func(row string) bool { return strings.HasPrefix(row, "HISTORY ") })
-	out := slices.IndexFunc(rows, func(row string) bool { return strings.Contains(row, "more account") })
-	if !history || out < 0 {
-		return true
-	}
-	return slices.ContainsFunc(rows[:out], func(row string) bool {
-		return slices.ContainsFunc(names, func(name string) bool { return leadsWith(row, name) })
-	})
-}
-
-// leadsWith reports whether row leads with the account's name given, as
-// Weeks and Days draw it: whole, then the end of the row, two spaces, or its
+// leadsWith reports whether row leads with the account's name given, as the
+// views draw it: whole, then the end of the row, two spaces, or its
 // mark; or cut short to the cells it has, as "w…".
 func leadsWith(row, name string) bool {
 	if rest, ok := strings.CutPrefix(row, name); ok {
@@ -172,12 +146,12 @@ var (
 // Every view the watch draws, at a grid of sizes above the floor, paged down
 // from the top as far as it goes, then back up: no window or section heading
 // is drawn without its first row; and where it pages, no line the paging
-// changes says more lies beyond either end. History's views, the Overview's
-// USAGE, Accounts' views and a phone's Switchboard, once they have two rows
-// to page, reach every row they draw as tall as everything fits, paged down
-// from the top, and up from the foot, so the frame cuts nothing short that
-// they can't scroll to; and say on their first page that more lies below,
-// where they page, but the Year, as its frames draw it. The Log's tables are
+// changes says more lies beyond either end. The Overview's USAGE, Accounts'
+// views and a phone's Switchboard, once they have two rows to page, reach
+// every row they draw as tall as everything fits, paged down from the top,
+// and up from the foot, so the frame cuts nothing short that they can't
+// scroll to; and say on their first page that more lies below, where they
+// page. The Log's tables are
 // held to the last rule alone: they hold no heading, and say where they are
 // on their own status line.
 //
@@ -244,7 +218,7 @@ func pagesThroughAt(t *testing.T, m watch.Model, name string, at swept, walked *
 		if reached == nil || len(reached(w.down[0].rows)) < 2 {
 			continue
 		}
-		if first := w.down[0]; len(w.down) > 1 && !strings.Contains(name, "-year") && !saysMore(first.rows, "▼") {
+		if first := w.down[0]; len(w.down) > 1 && !saysMore(first.rows, "▼") {
 			t.Errorf("at %d×%d, the view pages, but its first page doesn't say more lies below:\n%s", width, height, strings.Join(first.rows, "\n"))
 		}
 		if missing := unreached(reached, w.down, tall, width); len(missing) > 0 {
@@ -295,11 +269,11 @@ type walk struct {
 
 // sweptAs is what the sweep holds a fixture's view to, of the name given,
 // drawn as top draws it at its top and as tall draws it: its kind, as the
-// name leads with it, and whether it's the Year; and how it's drawn. Two
-// fixtures alike in each are paged alike.
+// name leads with it, and how it's drawn. Two fixtures alike in each are
+// paged alike.
 func sweptAs(name string, top watch.Model, tall []string) string {
 	kind, _, _ := strings.Cut(name, "-")
-	return strings.Join(append([]string{kind, strconv.FormatBool(strings.Contains(name, "-year")), top.View().Content}, tall...), "\n")
+	return strings.Join(append([]string{kind, top.View().Content}, tall...), "\n")
 }
 
 // pagedTop is m drawn at the size given, paged up as far as PgUp takes it.
@@ -620,26 +594,19 @@ func saysMore(rows []string, mark string) bool {
 }
 
 // reachOf is what of the fixture's view, by name, at the width given, the
-// sweep holds paged to reach every row of, from its rows as drawn: History's
-// views, from the row under the view's heading, but for their footnote, as
-// beforeFootnote cuts it;
-// the Overview's USAGE under 150 columns, where nothing is drawn beside its
+// sweep holds paged to reach every row of, from its rows as drawn: the
+// Overview's USAGE under 150 columns, where nothing is drawn beside its
 // blocks, and where its windows stack, as it's drawn alike paged and at its
 // tallest, not side by side, which grow to its big bars, from its heading to
 // its key line, or where the page doesn't show that, to the next section's
-// heading;
-// Accounts' views, but for Detail's list and Tokens' footnote; a phone's
-// Switchboard in lanes,
-// from the row under the view's heading to the foot, which gives way where
-// they scroll. Elsewhere it's nil: the rest of the views fold and drop what
-// they show by the room they have, as the design lays them out.
+// heading; Accounts' views, but for Detail's list and Tokens' footnote, as
+// beforeFootnote cuts it; a phone's Switchboard in lanes, from the row under
+// the view's heading to the foot, which gives way where they scroll.
+// Elsewhere it's nil: the rest of the views fold and drop what they show by
+// the room they have, as the design lays them out.
 func reachOf(name string, width int) func(rows []string) []string {
 	chrome := chromeOf(width)
 	switch {
-	case strings.HasPrefix(name, "history-"):
-		return func(rows []string) []string {
-			return shownRows(beforeFootnote(rows[chrome+2 : len(rows)-1]))
-		}
 	case strings.HasPrefix(name, "overview-") && width < 150:
 		return func(rows []string) []string {
 			from := slices.IndexFunc(rows, func(r string) bool { return strings.HasPrefix(r, "USAGE ") })

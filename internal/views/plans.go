@@ -15,7 +15,7 @@ import (
 // as a part of its monthly price.
 type monthPart struct{ num, den int64 }
 
-// The shares of a month Accounts and History price their periods at: a day
+// The shares of a month Accounts and history price their periods at: a day
 // 12/365 of a month, a week 12/52, 30 days or a calendar month a month, 12
 // weeks twelve weeks', and a year, of 365 days or 366, 12 months.
 var (

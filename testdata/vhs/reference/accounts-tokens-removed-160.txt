@@ -1,10 +1,17 @@
- SWITCHBOARD    Overview   Accounts   Projects   History   Sessions   Runway   Trends   Log                                                  Thu 1 Oct  14:42:07
+ SWITCHBOARD    Overview   Accounts   Projects   Sessions   Runway   Trends   Log                                                            Thu 1 Oct  14:42:07
 
 ● healthy  ·  auto  ·  6 sessions  ·  new sessions → ▲ side
 
-HISTORY    Year  Weeks  Days  Tokens  [ ]  ────────────────────────────────────────────────────────────────────────────────────────────────────────  < by week >
+ACCOUNTS    Compare  Detail  Tokens  [ ]  ────────────────────────────────────────────────────────────────────────────────────────────────────────  < 12 weeks >
 
 week          models                 input      output cache write    cache read         total  worth     against its price
+
+12 weeks      6 models               52.7M       36.3M        486M         7.94B         8.51B  $8,192    4.8× its $1,662 12 weeks
+└ work        6 models               22.0M       15.2M        203M         3.31B         3.55B  $3,422
+└ personal    6 models               18.1M       12.5M        167M         2.73B         2.93B  $2,815
+└ side        6 models               10.9M        7.4M        100M         1.63B         1.75B  $1,686
+└ team        1 model                 1.8M        1.2M       16.2M          262M          281M  $270
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 28 Sep        6 models                3.3M        3.4M       33.8M          618M          658M  $635      4.6× its $138 week
 └ work        6 models                0.8M        1.1M        9.1M          177M          188M  $184
@@ -26,12 +33,14 @@ week          models                 input      output cache write    cache read
 └ personal    5 models                1.5M        1.0M       13.3M          216M          231M  $223
 └ side        4 models                1.1M        0.7M        9.8M          158M          170M  $163
 
-31 Aug        6 models                4.4M        2.9M       40.1M          650M          697M  $670      4.8× its $138 week
+31 Aug        6 models                5.0M        3.3M       45.5M          737M          791M  $760      4.8× its $138 week
 └ work        6 models                2.1M        1.4M       19.1M          309M          332M  $319
 └ personal    6 models                1.6M        1.1M       15.0M          242M          260M  $250
 └ side        6 models                0.7M        0.4M        6.1M         98.3M          106M  $102
-▼ 48 more weeks below   ·   j/k to scroll
+└ team        1 model                 0.6M        0.4M        5.4M         87.2M         93.6M  $90
+
+▼ 36 more below   ·   j/k to scroll
 
 worth: what the same tokens would cost through the API, at its prices as of 1 Oct 2026
 
-tab views   [ ] view    < > period: by week    v split: by account    p pin    ? help  q quit
+tab views   [ ] view    < > period: 12 weeks    v split: by account    p pin    ? help  q quit

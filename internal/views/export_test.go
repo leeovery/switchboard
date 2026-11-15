@@ -188,3 +188,10 @@ func (p AccountsPage) Unfiled(m status.Moment) []string {
 	}
 	return filed
 }
+
+// Weeks is the past's WeeksPage over the eight weeks to this one, as
+// weeksOver has it, for the tests to hold what Accounts' WEEKS reaches over
+// to what the weeks hold.
+func (p Past) Weeks() WeeksPage {
+	return p.weeksOver(weeksShown)
+}

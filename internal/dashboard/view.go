@@ -1,6 +1,10 @@
 package dashboard
 
-import "cmp"
+import (
+	"cmp"
+	"slices"
+	"strings"
+)
 
 // View is one of the dashboard's tabs, each a view of the document, as the
 // preferences file keeps the one shown.
@@ -15,8 +19,6 @@ const (
 	// Projects is each project sessions ran in over the period, ranked by
 	// worth, and the one chosen in depth.
 	Projects View = "projects"
-	// History is when: the weeks and days gone, and what used them.
-	History View = "history"
 	// Sessions is the view of where each session's requests go, as a
 	// switchboard draws it: the sessions as calls, the accounts as lines,
 	// and a cord from each call to its line, with requests travelling it.
@@ -42,13 +44,26 @@ const (
 // titles are the tabs' names in the title row, and a session's page's, as
 // help names it.
 var titles = map[View]string{
-	Overview: "Overview", Accounts: "Accounts", Projects: "Projects", History: "History", Sessions: "Sessions", Runway: "Runway", Graphs: "Trends", Log: "Log", SessionPage: "Session",
+	Overview: "Overview", Accounts: "Accounts", Projects: "Projects", Sessions: "Sessions", Runway: "Runway", Graphs: "Trends", Log: "Log", SessionPage: "Session",
 }
 
 // Views are the tabs, in the order the title row shows them and tab moves
 // through them.
 func Views() []View {
-	return []View{Overview, Accounts, Projects, History, Sessions, Runway, Graphs, Log}
+	return []View{Overview, Accounts, Projects, Sessions, Runway, Graphs, Log}
+}
+
+// retiredViews are tabs earlier builds had, by the names the preferences
+// kept them under, each with the tab that took its place: History's, whose
+// pictures over time went to Trends.
+var retiredViews = map[View]View{"history": Graphs}
+
+// ViewKept is the tab the preferences kept by the name given: the one that
+// took its place where it's retired, else the one it names, whether a tab
+// there is or not, as one a later build kept may not be.
+func ViewKept(name string) View {
+	kept := View(name)
+	return cmp.Or(retiredViews[kept], kept)
 }
 
 // headsItself reports whether the tab's sections head themselves, as the
@@ -64,8 +79,6 @@ func (v View) SubViews() []string {
 	switch v {
 	case Accounts:
 		return lowerNames(accountsViews)
-	case History:
-		return historyNames()
 	case Sessions:
 		return lowerNames(sessionsViews)
 	case Log:
@@ -77,4 +90,26 @@ func (v View) SubViews() []string {
 // Title is the tab's name in the title row, such as Overview.
 func (v View) Title() string {
 	return cmp.Or(titles[v], string(v))
+}
+
+// lowerNames are a tab's sub-tabs' names as the preferences keep them, in
+// the heading row's order: lowercase, as "compare".
+func lowerNames(names []string) []string {
+	lowered := make([]string, len(names))
+	for i, name := range names {
+		lowered[i] = strings.ToLower(name)
+	}
+	return lowered
+}
+
+// placeAmong is the place of name among names: the first's, 0, where it's
+// none of them.
+func placeAmong(name string, names []string) int {
+	return max(slices.Index(names, name), 0)
+}
+
+// round is i among n places, round: as far on from the first as i is past
+// the last, or back from the last as it's before the first.
+func round(i, n int) int {
+	return (i%n + n) % n
 }

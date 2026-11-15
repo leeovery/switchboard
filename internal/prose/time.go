@@ -309,7 +309,7 @@ func daysBetween(t, now time.Time) int {
 	return dayfile.DaysBetween(t, now, now.Location())
 }
 
-// Day names the day d by its weekday, date and month, as History and the
+// Day names the day d by its weekday, date and month, as YEAR and the
 // title row name a day, such as "Wed 30 Sep".
 func Day(d time.Time) string {
 	return d.Format(dayLayout)
@@ -353,7 +353,7 @@ func expiresVerb(up bool) string {
 	return "expires"
 }
 
-// Month names the month the day d falls in, as History names a month, such
+// Month names the month the day d falls in, as BY MONTH names a month, such
 // as "Oct", or with its year, "Oct 2026".
 func Month(d time.Time, withYear bool) string {
 	if withYear {

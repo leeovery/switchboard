@@ -1,6 +1,6 @@
 # Dashboard
 
-The dashboard keeps every account's usage on screen, live. It has eight tabs and a page for each
+The dashboard keeps every account's usage on screen, live. It has seven tabs and a page for each
 session, and shows the router's sessions and its record of every request. To open it, run
 `switchboard dashboard`.
 
@@ -8,7 +8,6 @@ session, and shows the router's sessions and its record of every request. To ope
 - [Overview](#overview)
 - [Accounts](#accounts)
 - [Projects](#projects)
-- [History](#history)
 - [Sessions](#sessions-1)
 - [Runway](#runway)
 - [Trends](#trends)
@@ -111,8 +110,8 @@ pool's.
 Each model's own window, such as Fable's week, is hidden until you press `w`. That goes for every
 view that shows the windows as they stand now: USAGE, Accounts' Detail, Sessions' Switchboard and
 a session's page. A hidden window still shows while it nears its limit on any
-account: at the limit, at the cap, running out, or within 10 points of running out. `usage`,
-History and the Log always show every window.
+account: at the limit, at the cap, running out, or within 10 points of running out. `usage`
+and the Log always show every window.
 
 The key line under the block names the marks:
 
@@ -272,9 +271,9 @@ and shows:
   and at least six, as its rule names them: `the last nine weeks`. At 12 months, the latest that
   fit, with how many more there are at the left, `‹ 38 more`.
   - Of an account, a day and a week at a time, and under them the facts on its whole weeks:
-    `limit hit 3 of the last 7 weeks · 9% left at a reset, on average`. The verdict stays in
-    History's Weeks.
-  - Of all accounts, History's Weeks without its verdict: a band of week columns an account,
+    `limit hit 3 of the last 7 weeks · 9% left at a reset, on average`. The verdict on how many
+    accounts you need is `switchboard history`'s.
+  - Of all accounts, a band of week columns an account,
     `all accounts` first, each week's peak under its column and its facts at the right; or, where
     Detail is stacked, as on a phone, or too narrow for a week of bands, a table, a row an
     account, its facts in two columns.
@@ -313,14 +312,18 @@ their worth at API prices against what the plans cost.
   alone.
 - `v` splits each row by account, by model, by both, or not at all.
 - The rows fill the screen down to the footnote, and `j` and `k` scroll them a row at a time.
-- On a narrower screen, the columns give way as History's Tokens' do.
+- On a narrower screen, the columns give way one at a time: the model count first, then cache
+  write, input, output, the worth against the price and cache read. Total and worth always show,
+  and the names stay whole until every other column has gone.
+- An account you've removed keeps its rows while the period holds its days, by the label it had,
+  in faint text, so it's told apart from an account you've given the same label since.
 
 ### The period
 
 `<` and `>` step to a shorter or a longer period, which every view counts over. The periods are
 today, this week, 30 days, 12 weeks and 12 months. They're never billing months: today and this
 week run from their starts, 30 days and 12 months back from today, and 12 weeks over this week and
-the 11 before, and 12 months are the days History's Year counts as its last 12 months. It's one dial for the dashboard,
+the 11 before, and 12 months are the days Trends' YEAR counts as its last 12 months. It's one dial for the dashboard,
 remembered from one run to the next, and Projects and Sessions' List count over it too.
 
 ## Projects
@@ -338,7 +341,7 @@ The list ranks the projects by their worth at API prices, the greatest first. Ea
 - `live`, its sessions running now
 - its sessions, and its worth
 - a bar of its worth against the top project's, split by model family in the families' colours,
-  as History's BY MONTH splits a month's
+  as Trends' BY MONTH splits a month's
 - its requests
 - `last`, when its last request came: `now` while one of its sessions is busy.
 
@@ -375,81 +378,6 @@ On Projects:
 
 The chosen row is lit only where `↑` and `↓` act, in the list or in the sessions. The other's chosen
 row stays bold, marked `▸`.
-
-## History
-
-**History** shows how use has gone over time. It has four views on sub-tabs: Year, Weeks, Days
-and Tokens. `[` and `]` move between them.
-
-<div align="center">
-<img src="../art/history-year.webp" alt="History's Year: a square a day over the last 12 months, shaded by its requests; beside it, 212,885 requests worth $24,736 at API prices against $7,200 of plans; and BY MONTH under it, each month's requests, worth, ratio, limits and use by model family" width="840">
-</div>
-
-### Year
-
-Year is the default view. It draws a square for each day over the last 12 months, with a column
-for each week.
-
-- Each square is shaded by how many requests the day made, never by its worth.
-- A day with nothing on it has a shade of its own. The active days fall into quarters by how much
-  each did.
-
-Beside the grid where the width allows, and under the key otherwise, Year shows the 12 months':
-
-- requests, sessions and limits hit
-- worth, what the plans cost, and the worth against it
-- busiest day and longest run.
-
-Under the squares, BY MONTH has a row for each month. Each row's bar is the month's worth, split by
-model family.
-
-Year's keys:
-
-- `v` chooses what Year shows: all use, one model version alone in four steps of its own colour,
-  or one account.
-- `←` and `→` step to the account before or after, round, while Year shows one account.
-- `<` and `>` step back through each calendar year the ledger holds, and forward again to the last
-  12 months.
-
-Shown for one version, Year counts each of the version's sessions once. There's one exception. A
-day's summary may have been written before the ledger kept a model's sessions by their ids, and the
-day's lines may have gone since. For such a day, Year adds the day's count, as nothing tells those
-sessions from another day's.
-
-### Weeks
-
-Weeks shows how full each account's own week got over eight weeks. It also says whether there are
-as many accounts as the use needs.
-
-- Its verdict is worded as [`history`](commands.md#history) words it.
-- The verdict comes from replaying the last 7 whole weeks with one account fewer or one more.
-- `v` draws the weeks as columns or as a table, where both fit.
-- As many weeks show as fit. On a narrower screen the oldest go first, so each account's verdict
-  still reads whole.
-- Where the table doesn't fit, under 79 columns, the verdict comes first, with the weeks under
-  it and no verdicts beside them.
-
-### Days
-
-Days shows the eight weeks a day at a time:
-
-- each model family's worth, a day at a time
-- how much of its week each account used each day, with the days it hit a 5-hour limit marked.
-
-An account you've removed keeps its row while the eight weeks hold its days, by the label it had,
-with `removed 4 Sep` where its days end, so it's told apart from an account you've given the same
-label since. The Log, a session's page and the verbs name it by that label too.
-
-### Tokens
-
-Tokens is ccusage's report inside switchboard. It shows each period's tokens by kind, and its worth
-at API prices against what its plans cost.
-
-- `<` and `>` set the period each row is: a day, a week or a month.
-- `v` splits each period by account, by model, by both, or not at all.
-- On a narrower screen, the columns give way one at a time: the model count first, then cache
-  write, input, output, the worth against the price and cache read. Total and worth always show,
-  and the names stay whole until every other column has gone.
 
 ## Sessions
 
@@ -583,7 +511,9 @@ live view. A week stepped back to has no COMING UP and no LATELY. A step back is
 sections you turn on and off: first a burn-down card for every account over its week, then
 whichever other charts you show, among them the last 12 months a day at a time, each month's
 worth, and each model's worth a day. Trends has no period: the cards are this week, YEAR and
-BY MONTH the last 12 months, and MODELS BY DAY the last eight weeks.
+BY MONTH the last 12 months, and MODELS BY DAY the last eight weeks. YEAR, BY MONTH and MODELS BY
+DAY were History's, which is no longer a tab: its weeks are on Accounts' Detail, its tokens are
+Accounts' Tokens, and the verdict on how many accounts you need is `switchboard history`'s.
 
 <div align="center">
 <img src="../art/graphs.webp" alt="Trends: a burn-down card for each account, its room over the week, two to a row, work capped till 17:10, personal's and side's weeks running out at their pace, each heading to its ✕, and the pool's room under them" width="840">
@@ -714,6 +644,11 @@ so none goes unsaid.
 `v` shows one model version alone, in four steps of its own colour, or one account, `←` and `→`
 stepping between the accounts; the shades, their key and the totals re-scale to what's shown, and
 BY MONTH with them. The key line says what's shown, as `v split: all`, where the line has room.
+
+Shown for one version, YEAR counts each of the version's sessions once. There's one exception. A
+day's summary may have been written before the ledger kept a model's sessions by their ids, and the
+day's lines may have gone since. For such a day, YEAR adds the day's count, as nothing tells those
+sessions from another day's.
 
 ### BY MONTH
 
@@ -928,8 +863,8 @@ yesterday's, and scrolling back reads them in again.
 
 ### The tabs
 
-`tab` and `shift-tab` move between the eight tabs, in the title row's order: the Overview, Accounts,
-Projects, History, Sessions, Runway, Trends and the Log. The order goes round, from the Log back to the Overview. The
+`tab` and `shift-tab` move between the seven tabs, in the title row's order: the Overview, Accounts,
+Projects, Sessions, Runway, Trends and the Log. The order goes round, from the Log back to the Overview. The
 next dashboard opens on the tab last shown.
 
 ### The status line
@@ -1011,16 +946,16 @@ router answers.
 ## Keys
 
 These keys work on every page. Each page's own keys are under the page:
-[Overview](#keys-on-the-overview), [Accounts](#accounts), [Projects](#projects), [History](#history),
+[Overview](#keys-on-the-overview), [Accounts](#accounts), [Projects](#projects),
 [Sessions](#keys-on-sessions), [Runway](#runway), [Trends](#keys-on-trends),
 [the Log](#keys-on-the-log) and
 [a session's page](#a-sessions-page).
 
 | Key | Does |
 |---|---|
-| `tab` | Moves to the next tab, in the title row's order and round: the Overview, Accounts, Projects, History, Sessions, Runway, Trends and the Log. From a session's page, moves to the tab after the one the page was opened from. |
+| `tab` | Moves to the next tab, in the title row's order and round: the Overview, Accounts, Projects, Sessions, Runway, Trends and the Log. From a session's page, moves to the tab after the one the page was opened from. |
 | `shift-tab` | Moves to the tab before. From a session's page, moves to the tab before the one the page was opened from. |
-| `[` `]` | On Accounts, History, Sessions and the Log, moves to the sub-tab before or after, round. |
+| `[` `]` | On Accounts, Sessions and the Log, moves to the sub-tab before or after, round. |
 | `p` | Opens the routing card. See [The routing card](#the-routing-card). |
 | `R` | Refreshes now. See [Refreshing](#refreshing). |
 | `t` | Opens the theme picker. See [Themes](#themes). |
@@ -1068,26 +1003,22 @@ What scrolls on each page:
   each window's heading on its first row while that window's rows pass under it, and its last row
   says how many rows are out of view above and below. `↑` and `↓` scroll it too.
 - **Accounts:** its view.
-- **History:** the Year, where the screen is shorter than it; Weeks' accounts; Days' BY ACCOUNT,
-  past six accounts; and Tokens' periods.
 - **Sessions:** the List, and the Switchboard's accounts where they don't fit.
 - **Runway:** its lanes.
 - **Trends:** the whole page, where its sections don't fit. `?` lists its scrolling keys always.
 - **The Log:** its table.
 - **A session's page:** its turns, or with a turn open, the turn's requests.
 
-Weeks, Days, the Switchboard on Sessions, and the lanes on Runway scroll an account at a time.
-Tokens scrolls a period at a time. A turn of the wheel scrolls the same.
+The Switchboard on Sessions and the lanes on Runway scroll an account at a time. A turn of the
+wheel scrolls the same.
 
-Where one account or one period doesn't fit, as on a short screen, the view scrolls whole, a row at
-a time. It does the same on History's Weeks and Days below 37 rows, and the Year always scrolls
-so. It then says how many rows are out of view above and below.
+Where one account doesn't fit, as on a short screen, the view scrolls whole, a row at a time. It
+then says how many rows are out of view above and below.
 
 Scrolled a row at a time, a page down starts at the first row the page didn't show, and a page up
 ends just above the first row it showed, so paging either way passes over nothing. The Switchboard
-on Sessions and Tokens on History follow the same rule when they scroll an account or a period at a
-time: a page down starts at the first account or period the page didn't show, and a page up ends
-at the one just above the first it showed.
+on Sessions follows the same rule when it scrolls an account at a time: a page down starts at the
+first account the page didn't show, and a page up ends at the one just above the first it showed.
 
 When a resize or what's read turns a view from one kind of scrolling to the other, the view goes
 back to its top. So does USAGE where `b` groups it the other way, a resize changes how it's laid
@@ -1217,25 +1148,22 @@ dashboard opens with them.
 It remembers:
 
 - the theme, or the pair
-- the tab shown
+- the tab shown: a file from before History left the tabs that kept it opens Trends
 - the Overview's sections shown, and its `b` grouping
 - whether `w` shows each model's own window
 - the period, one dial for the dashboard
-- Accounts' view
-- History's view, what its Year shows, Weeks' shape, and Tokens' period and split
+- Accounts' view, and Tokens' split
 - Sessions' view
 - whether `a` collapsed Runway's labels
 - Trends' sections shown
 - the Log's columns.
-
-If the version or account the Year showed is no longer there to show, the Year shows all use again.
 
 It never remembers:
 
 - a focus or a choice
 - a card or help, open
 - a session's page
-- a calendar year, or Runway's week, stepped back to
+- what Trends' `v` shows, which lasts the run, or Runway's week stepped back to
 - the Log's sub-tab or its filters
 - a scroll.
 
@@ -1332,7 +1260,7 @@ the base tokens.
 | `viz.reserve` | the cap's mark, and the reserve on Trends' cards |
 | `viz.family.1` to `viz.family.4` | the model families: Opus, Sonnet, Fable and Haiku |
 | `viz.version.1` to `viz.version.6` | the model versions: a family's newest in its family's colour, and an older one fainter |
-| `viz.day.0` to `viz.day.4` | History's shades of a day, and WHEN YOU WORK's of an hour, from one with nothing on it to the busiest |
+| `viz.day.0` to `viz.day.4` | YEAR's shades of a day, and WHEN YOU WORK's of an hour, from one with nothing on it to the busiest |
 | `viz.account.1` to `viz.account.4` | the pool's accounts in Trends' POOL, by place; a fifth on takes the colour four before it, fainter |
 
 A key switchboard doesn't know is passed over.

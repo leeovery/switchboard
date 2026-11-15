@@ -28,16 +28,13 @@ var ownersSizes = []watch.Size{
 
 // longNamesViews are the world of long names on each view no fixture draws
 // it on, so a view's cut name shows at the owner's sizes: the Overview with
-// every section shown, Compare, Detail of work, History's four views,
-// Runway, Graphs, the Log's events, and d28c's page.
+// every section shown, Compare, Detail of work, Accounts' Tokens, Runway,
+// Trends, the Log's events, and d28c's page.
 var longNamesViews = []page{
 	{name: "long-names-overview", world: accountWorlds.longNames, keys: keysOf("s")},
 	{name: "long-names-accounts-compare", world: accountWorlds.longNames, keys: toAccounts()},
 	{name: "long-names-accounts-detail", world: accountWorlds.longNames, keys: toDetail(downKey)},
-	{name: "long-names-history-year", world: accountWorlds.longNames, keys: toHistory()},
-	{name: "long-names-history-weeks", world: accountWorlds.longNames, keys: toHistory("]")},
-	{name: "long-names-history-days", world: accountWorlds.longNames, keys: toHistory("]", "]")},
-	{name: "long-names-history-tokens", world: accountWorlds.longNames, keys: toHistory("]", "]", "]")},
+	{name: "long-names-accounts-tokens", world: accountWorlds.longNames, keys: toAccounts("]", "]")},
 	{name: "long-names-runway", world: accountWorlds.longNames, keys: toRunway()},
 	{name: "long-names-graphs", world: accountWorlds.longNames, keys: toGraphs()},
 	{name: "long-names-log-events", world: accountWorlds.longNames, keys: toLog("]")},
@@ -623,9 +620,8 @@ func (d fluidFrame) reach() int {
 // one, as its heading names them.
 var tabs = map[string][]string{
 	"Overview": nil,
-	"Accounts": {"Compare", "Detail"},
+	"Accounts": {"Compare", "Detail", "Tokens"},
 	"Projects": nil,
-	"History":  {"Year", "Weeks", "Days", "Tokens"},
 	"Sessions": {"Switchboard", "List"},
 	"Runway":   nil,
 	"Trends":   nil,
@@ -637,7 +633,7 @@ const sessionPage = "a session's page"
 
 // viewOf names the view m draws at size: a session's page, by its heading;
 // else the tab shown, bold in the title, and of a tab with more than one
-// view, the one bold in its heading, as "History Days".
+// view, the one bold in its heading, as "Accounts Detail".
 func viewOf(t *testing.T, m watch.Model, size watch.Size) string {
 	t.Helper()
 	g, err := parse(deliver(m, tea.WindowSizeMsg{Width: size.Width, Height: size.Height}).View().Content)

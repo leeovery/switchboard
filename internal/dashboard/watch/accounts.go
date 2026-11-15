@@ -14,7 +14,7 @@ import (
 )
 
 // accountsTab is what the watch holds of Accounts: what it shows; the
-// period's page, built of the days History's reads hold, and what it was
+// period's page, built of the ledger's days the watch holds, and what it was
 // built of, as builtOf has it; that page stood at a moment, and what it was
 // stood at, as accountsBuilt stands it; Tokens' page, and what it was built
 // of, as tokensBuilt builds it; the sessions Detail's SESSIONS listed last,
@@ -54,7 +54,7 @@ func (s *stoodAt) holds(doc status.Document, now time.Time, policy score.Policy)
 	return s != nil && s.moment.Of(doc, s.from, policy) && !now.Before(s.from) && now.Before(s.until)
 }
 
-// builtOf is what Accounts' page was built of: the days held, as historyTab
+// builtOf is what Accounts' page was built of: the days held, as pastDays
 // counts them as they change, the period, and the local day it was built on;
 // and of today, the reads of the ledger's tail that told otherwise of the
 // days it fed, as projectsTab counts them, today's worth by the hour being
@@ -96,7 +96,7 @@ func (m Model) accountsEntered() Model {
 // today, the fold has, while Accounts shows: once for each, never a frame at
 // a time, but of today, as its hour turns, too, for its charts to mark the
 // hour now falls in, as accountsEntered has the tail read. Each look reads
-// today's days afresh, as readHistory reads them, so the page follows them
+// today's days afresh, as readPast reads them, so the page follows them
 // from look to look; and past midnight it moves on to the new day before
 // the next look reads it. It's stood at the moment of the message taken in,
 // as views.AccountsPage.At stands it, where it's built afresh, the document
@@ -128,7 +128,7 @@ func (m Model) accountsBuilt() Model {
 // last 12 months' days held, as views.Past.TokensOver builds it over the
 // dial's period, where what it's built of, of, those days, the period and
 // the day, has changed since it was built, while Tokens shows: once for
-// each, never a frame at a time, as History's Tokens is.
+// each, never a frame at a time.
 func (m Model) tokensBuilt(now time.Time, of builtOf) Model {
 	if m.accounts.shown.View() != dashboard.AccountsTokens {
 		return m

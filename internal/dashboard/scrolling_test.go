@@ -89,12 +89,8 @@ func TestEachScrollLineTheDesignGivesIsAFormOfOutOfView(t *testing.T) {
 		{name: "the Switchboard's accounts, above", above: 2, forms: []outForm{boardOut}, want: line{{"▲ 2 more accounts", subtle}}},
 		{name: "SESSIONS' sessions", below: 2, forms: []outForm{runningOut}, want: line{{"+2 more", subtle}}},
 		{
-			name: "Days' accounts", below: 4, forms: historyAccountsOut,
-			want: line{{"▼", key}, {" 4 more accounts below", words}, {"   ·   ", apart}, {"j/k", keys}, {" or the wheel to scroll them", words}},
-		},
-		{
-			name: "Tokens' weeks", below: 3, forms: []outForm{periodsOut("week")},
-			want: line{{"▼", key}, {" 3 more weeks below", words}, {"   ·   ", apart}, {"j/k", keys}, {" to scroll", words}},
+			name: "Tokens' rows", below: 3, forms: rowsOutOfView,
+			want: line{{"▼", key}, {" 3 more below", words}, {"   ·   ", apart}, {"j/k", keys}, {" to scroll", words}},
 		},
 		{name: "the routing card's rows, below", below: 3, forms: []outForm{cardOut}, want: line{{"▼ 3 more", subtle}}},
 		{name: "the routing card's rows, above", above: 2, forms: []outForm{cardOut}, want: line{{"▲ 2 more", subtle}}},
@@ -128,7 +124,7 @@ func TestEachScrollLineTheDesignGivesIsAFormOfOutOfView(t *testing.T) {
 
 // Where nothing is out of view, outOfView says nothing, in any form.
 func TestOutOfViewSaysNothingWhereNothingIsOutOfView(t *testing.T) {
-	for _, forms := range [][]outForm{historyAccountsOut, {periodsOut("week")}, {usageRowsOut}, {boardOut}, {runningOut}, {cardOut}} {
+	for _, forms := range [][]outForm{rowsOutOfView, {usageRowsOut}, {boardOut}, {runningOut}, {cardOut}} {
 		if got := outOfView(0, 0, 160, forms...); got != nil {
 			t.Errorf("with nothing out of view, %+v says %q, want nothing", forms[0], got.plain())
 		}
@@ -150,11 +146,9 @@ func TestEveryScrollLineCountsBothWaysWhereverBothFit(t *testing.T) {
 		{name: "a turn's requests", forms: []outForm{requestsOut}},
 		{name: "Compare's and Detail's panels", forms: []outForm{compareOut}},
 		{name: "USAGE's rows", forms: []outForm{usageRowsOut}},
-		{name: "History's rows", forms: historyRowsOut},
-		{name: "Weeks' and Days' accounts", forms: historyAccountsOut},
+		{name: "Tokens' and setup's rows", forms: rowsOutOfView},
 		{name: "Detail's list", forms: listOut},
 		{name: "Runway's lanes", forms: lanesOut},
-		{name: "Tokens' periods", forms: []outForm{periodsOut("week")}},
 		{name: "the Switchboard's accounts", forms: []outForm{boardOut}, oneWay: true},
 		{name: "the routing card's rows", forms: []outForm{cardOut}, oneWay: true},
 		{name: "a session's accounts", forms: []outForm{accountsOut}, oneWay: true},

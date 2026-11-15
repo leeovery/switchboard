@@ -425,17 +425,13 @@ func (p rowsPaged) said(c *canvas, y, from, to, width int, forms ...outForm) {
 }
 
 // ScrollsRows reports whether the view shown of doc at now scrolls a row at a
-// time, as the Overview's USAGE, History's Year, its Weeks and Days where
-// they scroll whole and Tokens where a period doesn't fit, Sessions' List and
-// a session's page's turns do, rather than a thing at a time: an account, as
-// History's Weeks and Days, Sessions' Switchboard and Runway's lanes do, or a
-// period, as Tokens does.
+// time, as the Overview's USAGE, Sessions' List and a session's page's turns
+// do, rather than a thing at a time: an account, as Sessions' Switchboard and
+// Runway's lanes do.
 func (f Frame) ScrollsRows(doc status.Document, now time.Time) bool {
 	switch f.Shown() {
 	case Runway:
 		return false
-	case History:
-		return f.historyScrollsRows()
 	case Sessions:
 		return f.SessionsTab.Shown == SessionsList || f.sessionsForm(doc, now).byRows
 	}
@@ -505,16 +501,14 @@ func (s *SessionShown) turnsScrolling(l sessionLayout) Scrolling {
 
 // scrollingAt is how far the frame's view of doc scrolls at now, scrolled to
 // each offset given: a session's page's turns, where one is open, as
-// TurnsScrolling has them; History's, of the ledger's days alone, as
-// historyScrolling says; Projects', SESSIONS' lines, as projectsLaid pages
+// TurnsScrolling has them; Projects', SESSIONS' lines, as projectsLaid pages
 // them; Sessions', as sessionsScrolling says; Graphs', as
 // graphsScrolling says; the Overview's, as overviewScrolling says, laid out
 // once for every offset; Accounts', as accountsScrolling says; and Runway's,
 // as runwayScrolling says. A frame too short for the view, as cramped says,
-// never scrolls, nor one of a document of no accounts, but History,
-// Projects and Sessions, whose pages list the ledger's sessions whatever
-// the document holds, Graphs, laid out by the configured accounts, and a
-// session's page.
+// never scrolls, nor one of a document of no accounts, but Projects and
+// Sessions, whose pages list the ledger's sessions whatever the document
+// holds, Graphs, laid out by the configured accounts, and a session's page.
 func (f Frame) scrollingAt(doc status.Document, now time.Time) func(offset int) Scrolling {
 	shown := f.Shown()
 	if shown == SessionPage {
@@ -523,10 +517,8 @@ func (f Frame) scrollingAt(doc status.Document, now time.Time) func(offset int) 
 	}
 	m := f.Moment(doc, now)
 	var s Scrolling
-	switch top := f.top(); {
+	switch {
 	case f.cramped():
-	case shown == History:
-		return f.historyScrolling(top)
 	case shown == Projects:
 		return f.projectsLaying(doc, now).scrolling
 	case shown == Sessions:
@@ -566,14 +558,23 @@ type outForm struct {
 type outInks struct{ mark, space, count, gap, keys, does ink }
 
 var (
-	// keyedOut is how History inks its scroll lines, as the design gives
-	// them: the marks in accent.key, the words in text.muted, the gaps in
+	// keyedOut is how a scroll line under the rows it scrolls is inked, as
+	// the design gives it: the marks in accent.key, the words in text.muted, the gaps in
 	// text.faint, and the keys bold accent.key.
 	keyedOut = outInks{mark: keyMarkInk, space: mutedInk, count: mutedInk, gap: faintInk, keys: keyInk, does: mutedInk}
 	// subtleOut is how a scroll line among the rows it scrolls is inked, as
 	// USAGE's and the routing card's are: all in text.subtle.
 	subtleOut = outInks{mark: dimInk, space: dimInk, count: dimInk, gap: dimInk, keys: dimInk, does: dimInk}
 )
+
+// rowsOutOfView are the forms of the line saying how many of a view's rows
+// are out of view, where it scrolls a row at a time, each shorter than the
+// one before: "▲ 3 more above   ·   ▼ 12 more below   ·   j/k to scroll";
+// and spaced as Compare's is, "▲ 3 more above · ▼ 12 more below · j/k".
+var rowsOutOfView = []outForm{
+	{above: " above", below: " below", gap: "   ·   ", keys: "j/k", does: " to scroll", inks: keyedOut},
+	{above: " above", below: " below", gap: " · ", keys: "j/k", inks: keyedOut},
+}
 
 // outOfView says what's out of view where a view scrolls, above and below,
 // in the first that fits width cells of: both counts with the keys, in each

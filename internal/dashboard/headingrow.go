@@ -130,16 +130,14 @@ func (h heading) leastState() int {
 }
 
 // tabHeading is the heading row of the tab shown: Accounts', as
-// accountsHeading has it; Projects', History's, Sessions', Runway's and the
-// Log's, as theirs have them; else its name alone.
+// accountsHeading has it; Projects', Sessions', Runway's and the Log's, as
+// theirs have them; else its name alone.
 func (f Frame) tabHeading() heading {
 	switch f.Shown() {
 	case Accounts:
 		return f.accountsHeading()
 	case Projects:
 		return f.Projects.heading(f.Period)
-	case History:
-		return f.History.heading()
 	case Sessions:
 		return f.SessionsTab.heading(f.Period)
 	case Runway:

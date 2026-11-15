@@ -28,7 +28,6 @@ func TestEveryPagesKeysAreEachPagesAsItsHelpListsThem(t *testing.T) {
 			"[ ] view", "< > period", "v split", "←→ account", "↑↓ account", "↑↓ session", "→ sessions", "← accounts", "enter its page", "esc unfocus", "w models",
 		},
 		"Projects": {"↑↓ project", "→ its sessions", "↑↓ session", "← projects", "enter its page", "< > period"},
-		"History":  {"[ ] view", "< > period", "v split", "←→ account"},
 		"Runway":   {"←→ week", "a collapse"},
 		"Trends":   {"w week", "o pool", "g glance", "h when", "y year", "m months", "d models", "v split", "←→ account"},
 		"Log": {
@@ -45,7 +44,7 @@ func TestEveryPagesKeysAreEachPagesAsItsHelpListsThem(t *testing.T) {
 			t.Errorf("%s's keys are told %q, want %q", p.Page, keysTold(p.Keys), keys)
 		}
 	}
-	if want := []string{"every page", "Overview", "Accounts", "Projects", "History", "Sessions", "Runway", "Trends", "Log", "a session's page"}; !slices.Equal(named, want) {
+	if want := []string{"every page", "Overview", "Accounts", "Projects", "Sessions", "Runway", "Trends", "Log", "a session's page"}; !slices.Equal(named, want) {
 		t.Errorf("the pages are told in the order %q, want %q", named, want)
 	}
 	sessions := pages[slices.IndexFunc(pages, func(p PageKeys) bool { return p.Page == "Sessions" })]
@@ -73,7 +72,6 @@ func TestEveryKeyHelpListsIsTold(t *testing.T) {
 		{name: "Projects, in its SESSIONS", page: "Projects", show: func(h *harness) {
 			h.model.view, h.model.projects.shown.InSessions = dashboard.Projects, true
 		}},
-		{name: "History", page: "History", show: func(h *harness) { h.model.view = dashboard.History }},
 		{name: "Sessions", page: "Sessions", show: func(h *harness) { h.model.view = dashboard.Sessions }},
 		{name: "Runway", page: "Runway", show: func(h *harness) { h.model.view = dashboard.Runway }},
 		{name: "Trends", page: "Trends", show: func(h *harness) { h.model.view = dashboard.Graphs }},

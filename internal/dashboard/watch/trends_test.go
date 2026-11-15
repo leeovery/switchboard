@@ -12,13 +12,13 @@ import (
 	"github.com/leeovery/switchboard/internal/views"
 )
 
-// trendsHarness is historyHarness opening on Trends, with the sections
+// trendsHarness is pastHarness opening on Trends, with the sections
 // named shown, its preferences kept by the fake it returns, its ledger
 // holding yesterday's requests on work, in a terminal 173 cells wide and 53
 // tall. It has started.
 func trendsHarness(t *testing.T, sections ...string) (*harness, *fakePrefs) {
 	t.Helper()
-	h, l := historyHarness(t, dashboard.Graphs, dashboard.HistoryPage{})
+	h, l := pastHarness(t, dashboard.Graphs)
 	l.days[yesterday] = requested(yesterday, 40)
 	prefs := &fakePrefs{}
 	h.model.cfg.Prefs, h.model.graphs = prefs, dashboard.GraphsSectionsNamed(sections)
@@ -72,7 +72,7 @@ func TestTrendsYearMonthsAndModelsKeysShowOrHideThemAndKeepThem(t *testing.T) {
 }
 
 // Trends builds YEAR's and BY MONTH's page, and MODELS BY DAY's, of the
-// days History's reads hold while one of them shows, and none while none
+// days the watch's reads hold while one of them shows, and none while none
 // does: hidden again, a look reads no days, and what's built is left as it
 // was.
 func TestTrendsBuildsItsPagesOfTheDaysReadWhileTheyShow(t *testing.T) {
@@ -122,11 +122,10 @@ func TestTrendsChecksWhatYearShowsOnlyWhereItsDaysChange(t *testing.T) {
 	}
 }
 
-// v cycles what YEAR shows, all use, each version, then each account, as
-// History's Year does, the key line saying what it shows; with one account
-// shown, ← and → step between the accounts, round, and the key line lists
-// them; History's Year is left as it was. Without YEAR or BY MONTH, v does
-// nothing.
+// v cycles what YEAR shows, all use, each version, then each account, the
+// key line saying what it shows; with one account shown, ← and → step
+// between the accounts, round, and the key line lists them. Without YEAR or
+// BY MONTH, v does nothing.
 func TestTrendsVCyclesWhatYearShowsAndArrowsStepTheAccounts(t *testing.T) {
 	h, _ := trendsHarness(t, "week")
 	h.typed("v")
@@ -160,8 +159,5 @@ func TestTrendsVCyclesWhatYearShowsAndArrowsStepTheAccounts(t *testing.T) {
 		if got := h.model.trends.split.Account; got != step.want {
 			t.Errorf("after %s, YEAR shows %q, want %q", step.key, got, step.want)
 		}
-	}
-	if h.model.past.page.YearAsk != (views.YearAsk{}) {
-		t.Errorf("Trends' v and arrows left History's Year showing %+v, want all use", h.model.past.page.YearAsk)
 	}
 }

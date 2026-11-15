@@ -75,7 +75,7 @@ func TestAShareIsAWholePercentage(t *testing.T) {
 	}
 }
 
-// What History says as views words it is drawn in its ink, each figure among
+// What a page says as views words it is drawn in its ink, each figure among
 // it a figure, so a wrap never breaks it, and the rest words.
 func TestWordsViewsSayAreDrawnTheirFiguresFigures(t *testing.T) {
 	got := saidParts(views.ShortOutOf(6, 7), mutedInk)

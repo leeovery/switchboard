@@ -19,7 +19,7 @@ type trendsPast struct {
 }
 
 // pastOf is what a page of Trends was built of: the last 12 months' days
-// held, as historyTab counts them as they change, and the local day it was
+// held, as pastDays counts them as they change, and the local day it was
 // built on; and of YEAR's, what v had it show.
 type pastOf struct {
 	held  int
@@ -29,8 +29,7 @@ type pastOf struct {
 
 // trendsDaysWanted reports whether Trends wants the ledger's days: while it
 // shows, WHEN YOU WORK, YEAR, BY MONTH or MODELS BY DAY among its sections.
-// History's reads read them, and Trends shares what they hold, as Accounts
-// does.
+// readPast reads them, and Trends shares what it holds, as Accounts does.
 func (m Model) trendsDaysWanted() bool {
 	return m.graphsHoursWanted() || m.yearWanted() || m.modelsWanted()
 }
@@ -79,6 +78,10 @@ func (m Model) trendsBuilt() Model {
 	return m
 }
 
+// trendsSteps are the ways YEAR's ← and → move: to the account before and
+// after.
+var trendsSteps = map[string]int{"left": -1, "right": 1}
+
 // trendsKey acts on v and ← → on Trends, while YEAR or BY MONTH shows,
 // reporting false for another key, or elsewhere: v cycles what YEAR shows,
 // all use, each version, then each account, as dashboard.GraphsShown's
@@ -94,7 +97,7 @@ func (m Model) trendsKey(key string) (Model, bool) {
 	case "v":
 		next, changed = m.graphsShown().Cycled()
 	case "left", "right":
-		next, changed = m.graphsShown().Moved(historySteps[key])
+		next, changed = m.graphsShown().Moved(trendsSteps[key])
 	default:
 		return m, false
 	}

@@ -72,8 +72,8 @@ func TestChangesMadeWhileAWriteIsUnderWayAreKeptAfterItTheLatestStanding(t *test
 	h.deliver(held...)
 
 	got := prefs.file.Read()
-	if prefs.updates != 2 || got.Tab != string(dashboard.History) || got.By != "window" {
-		t.Errorf("written %d times, kept the tab %q, by %q; want twice, the latest of each, history and window", prefs.updates, got.Tab, got.By)
+	if prefs.updates != 2 || got.Tab != string(dashboard.Sessions) || got.By != "window" {
+		t.Errorf("written %d times, kept the tab %q, by %q; want twice, the latest of each, sessions and window", prefs.updates, got.Tab, got.By)
 	}
 }
 

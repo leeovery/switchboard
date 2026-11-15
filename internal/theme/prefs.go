@@ -22,13 +22,15 @@ const prefsName = "prefs.json"
 // the user never needs to write: the themes it's drawn in, the tab it
 // shows, the Overview's sections shown and how its windows are grouped,
 // whether the live views show each model's own window,
-// what Accounts, History's views, Sessions and Runway show, Graphs' sections
-// shown, and the Log's columns.
+// what Accounts, Sessions and Runway show, Graphs' sections shown, and the
+// Log's columns.
 type Prefs struct {
 	Choice
-	// Tab names the tab shown, one of overview, accounts, projects, history,
+	// Tab names the tab shown, one of overview, accounts, projects,
 	// sessions, runway, graphs and log, for a watch to open on: "" for the
-	// default, the Overview, as one it doesn't name reads. Milestone 5 kept its card view
+	// default, the Overview, as one it doesn't name reads. Earlier builds
+	// also kept history, which the dashboard opens as the tab that took its
+	// place. Milestone 5 kept its card view
 	// under "view", as "accounts", which isn't today's Accounts: a file of
 	// then is read as having no tab, its "view" kept as a key these don't
 	// know.
@@ -53,8 +55,6 @@ type Prefs struct {
 	Period string `json:"period,omitempty"`
 	// Accounts is what Accounts shows, as its keys last left it.
 	Accounts AccountsPrefs `json:"accounts,omitzero"`
-	// History is what History's views show, as their keys last left them.
-	History HistoryPrefs `json:"history,omitzero"`
 	// Sessions is what Sessions shows, as its keys last left it.
 	Sessions SessionsPrefs `json:"sessions,omitzero"`
 	// Runway is what Runway shows, as its keys last left it.
@@ -114,26 +114,6 @@ type RunwayPrefs struct {
 	Collapsed bool `json:"collapsed,omitempty"`
 }
 
-// HistoryPrefs are what History's views show, each by its name: the view
-// shown, of year, weeks, days and tokens; what the Year shows, all for all
-// use, a model version by its name, as Opus 5.5, or an account by its id;
-// Weeks' shape, table or columns; and Tokens' period and split. A name the
-// dashboard doesn't know reads as the default, as does a version or an
-// account no longer there to show.
-type HistoryPrefs struct {
-	View   string      `json:"view,omitempty"`
-	Year   string      `json:"year,omitempty"`
-	Weeks  string      `json:"weeks,omitempty"`
-	Tokens TokensPrefs `json:"tokens,omitzero"`
-}
-
-// TokensPrefs are how History's Tokens shows its periods: Period, day, week
-// or month; and Split, account, model, account+model or none.
-type TokensPrefs struct {
-	Period string `json:"period,omitempty"`
-	Split  string `json:"split,omitempty"`
-}
-
 // PrefsFile is the preferences file, prefs.json in the state directory,
 // which the dashboard writes whole as it's used: never the config file,
 // which is the user's, nor in the config directory, often a link into the
@@ -164,8 +144,9 @@ var prefsKeys = func() []string {
 }()
 
 // retiredKeys are keys earlier builds kept that no build reads now, which
-// the next write drops: graphs, the chart the Overview's GRAPHS drew.
-var retiredKeys = []string{"graphs"}
+// the next write drops: graphs, the chart the Overview's GRAPHS drew; and
+// history, what the History tab's views showed.
+var retiredKeys = []string{"graphs", "history"}
 
 // retiredSections are the Overview's sections earlier builds kept shown that
 // it no longer has, which the next write drops: graphs, GRAPHS.

@@ -14,6 +14,29 @@ import (
 	"github.com/leeovery/switchboard/internal/views"
 )
 
+// TokensSplit is how Tokens splits each period, as v cycles it: by account,
+// the default, by model, by account and model, or not at all.
+type TokensSplit int
+
+const (
+	// TokensByAccount is a row an account.
+	TokensByAccount TokensSplit = iota
+	// TokensByModel is a row a model version.
+	TokensByModel
+	// TokensByAccountAndModel is a row an account, its versions nested
+	// under it.
+	TokensByAccountAndModel
+	// TokensUnsplit is the periods alone.
+	TokensUnsplit
+)
+
+// The names the preferences keep Tokens' splits by, in v's order, and the
+// key line's words for them.
+var (
+	tokensSplitNames = []string{"account", "model", "account+model", "none"}
+	tokensSplitWords = []string{"by account", "by model", "by account and model", "none"}
+)
+
 // Tokens' parts across a row, in their order: what names the row; the
 // split's column, the row's versions' count or the accounts it ran on; its
 // counts, as tokensCounts has them; its worth; and its worth against its
@@ -106,22 +129,19 @@ type tokensColumns struct {
 	width int
 }
 
-// tokensTable is Tokens as a tab draws it, History's or Accounts': its page;
-// the period each of its rows is, which names them, heads their column and
-// names the unit against its price says; of one of the dial's periods, as
-// Accounts' has it, that period, which names its total and its unit; how each
-// row is split; the accounts configured, whose labels the names' and the
-// split's columns hold; whether its rows fill the view to its foot, a row at a
-// time, as Accounts' do, rather than a period at a time where each fits whole,
-// as History's do; and the frame's width, its view's rows, and how far it's
-// scrolled.
+// tokensTable is Tokens as Accounts draws it: its page; the period each of
+// its rows is, which names them, heads their column and names the unit
+// against its price says; the dial's period, which names its total and its
+// unit; how each row is split; the accounts configured, whose labels the
+// names' and the split's columns hold; and the frame's width, its view's
+// rows, and how far it's scrolled. Its rows fill the view to its foot, a row
+// at a time.
 type tokensTable struct {
 	page     *views.TokensPage
 	rows     views.TokensPeriod
 	period   views.Period
 	split    TokensSplit
 	accounts config.Accounts
-	fills    bool
 
 	width, viewRows, scroll int
 }
@@ -281,9 +301,8 @@ func (t tokensTable) height(b tokensBlock) int {
 }
 
 // draw draws Tokens from row top: its heads; then its blocks, a blank row
-// between them, as byPeriods or byRows draws them, as each fits whole or not,
-// or as the table fills the view; and the footnote on the view's last rows.
-// With nothing recorded, it says so.
+// between them, as byRows draws them; and the footnote on the view's last
+// rows. With nothing recorded, it says so.
 func (t tokensTable) draw(c *canvas, top int) {
 	if len(t.blocks()) == 0 {
 		c.line(0, top, line{{nothingRecorded, dimInk}}.fit(t.width))
@@ -295,35 +314,8 @@ func (t tokensTable) draw(c *canvas, top int) {
 	for i, l := range note {
 		c.line(0, top+t.viewRows-len(note)+i, l)
 	}
-	switch {
-	case placed.rows < 1:
-	case placed.byRows():
+	if placed.rows > 0 {
 		t.byRows(c, cols, placed)
-	default:
-		t.byPeriods(c, cols, placed)
-	}
-}
-
-// byPeriods draws Tokens' blocks, every one of which fits whole, as placed
-// places them: as many as fit, scrolled as the table has it, a block at a
-// time, and under them how many more periods are below.
-func (t tokensTable) byPeriods(c *canvas, cols tokensColumns, placed tokensPlaced) {
-	blocks := t.blocks()
-	from := min(max(t.scroll, 0), placed.most())
-	shown := placed.shown(from)
-	below := len(blocks) - from - shown
-	out := min(below, 1)
-	body := c.within(bounds{y: placed.first, width: c.width, rows: placed.rows - out})
-	y := placed.first
-	for i, b := range blocks[from : from+shown] {
-		if i > 0 {
-			y++
-		}
-		t.drawBlock(body, cols, y, b)
-		y += t.height(b)
-	}
-	if out > 0 {
-		c.line(0, y, outOfView(0, below, t.width, periodsOut(t.rows.Name())))
 	}
 }
 
@@ -341,7 +333,7 @@ func (t tokensTable) byRows(c *canvas, cols tokensColumns, placed tokensPlaced) 
 		}
 		y += placed.heights[i] + 1
 	}
-	paged.said(c, placed.first, from, to, t.width, historyRowsOut...)
+	paged.said(c, placed.first, from, to, t.width, rowsOutOfView...)
 }
 
 // drawBlock draws the block from row y: its rows, as rowsOf makes them, then,
@@ -660,15 +652,13 @@ func knownForms(k views.PlansKnown) []string {
 }
 
 // tokensPlaced is how Tokens' blocks fit in the rows they have, from row
-// first, a blank row between each and a row under the last shown where more
-// are below: each block's height, as the table has them split; their
-// headings, laid out one after another, as periodHeads has them; and whether
-// they fill the rows, a row at a time, as the table has it.
+// first, a blank row between each: each block's height, as the table has
+// them split; and their headings, laid out one after another, as
+// periodHeads has them.
 type tokensPlaced struct {
 	heights     []int
 	heads       []headed
 	first, rows int
-	fills       bool
 }
 
 // Tokens' parts down its view, in their order: its heads' row, the blank row
@@ -711,7 +701,7 @@ func (t tokensTable) placed(top int) (tokensPlaced, []line) {
 		note = nil
 	}
 	periods := spans[tokensPeriodsRows]
-	p := tokensPlaced{first: top + periods.At, rows: min(periods.Size, t.viewRows-periods.At), fills: t.fills}
+	p := tokensPlaced{first: top + periods.At, rows: min(periods.Size, t.viewRows-periods.At)}
 	y := 0
 	for _, b := range t.blocks() {
 		height := t.height(b)
@@ -720,48 +710,6 @@ func (t tokensTable) placed(top int) (tokensPlaced, []line) {
 		y += height + 1
 	}
 	return p, note
-}
-
-// byRows reports whether Tokens' blocks show a row at a time: wherever they
-// fill the rows they have; else as pagesByRows has it, where one of them
-// doesn't fit whole in the rows they have, with a row under it where more
-// are below; and on up from there, while a block at a time would show less
-// than a row at a time a row shorter.
-func (p tokensPlaced) byRows() bool {
-	return p.fills || pagesByRows(p.rows, p.eachFits, p.wholeRows, func(rows int) rowsPaged {
-		return p.in(rows).paged()
-	})
-}
-
-// in is p placed in rows rows.
-func (p tokensPlaced) in(rows int) tokensPlaced {
-	p.rows = rows
-	return p
-}
-
-// eachFits reports whether each of Tokens' periods fits whole in rows rows,
-// with a row under it where more are below.
-func (p tokensPlaced) eachFits(rows int) bool {
-	for i, height := range p.heights {
-		if i < len(p.heights)-1 {
-			height++
-		}
-		if height > rows {
-			return false
-		}
-	}
-	return true
-}
-
-// wholeRows are the rows the periods that show whole from the first take in
-// rows rows, as shown has them, a blank row between each.
-func (p tokensPlaced) wholeRows(rows int) int {
-	n := p.in(rows).shown(0)
-	taken := max(n-1, 0)
-	for _, height := range p.heights[:n] {
-		taken += height
-	}
-	return taken
 }
 
 // paged is how Tokens' periods page a row at a time in the rows they have,
@@ -815,51 +763,12 @@ func tokensHeight(t views.TokenPeriod, split TokensSplit) int {
 	return 1
 }
 
-// shown is how many periods show scrolled to the one from, whole, with a row
-// for how many more are below where they don't all show: none where the
-// first doesn't fit, as it does wherever byRows says they show a period at
-// a time.
-func (p tokensPlaced) shown(from int) int {
-	used, n := -1, 0
-	for i := from; i < len(p.heights); i++ {
-		need := used + 1 + p.heights[i]
-		if i < len(p.heights)-1 {
-			need++
-		}
-		if need > p.rows {
-			break
-		}
-		used, n = used+1+p.heights[i], n+1
-	}
-	return n
-}
-
-// most is the furthest Tokens scrolls, in periods: the first from which the
-// rest all show.
-func (p tokensPlaced) most() int {
-	used := -1
-	for i, height := range slices.Backward(p.heights) {
-		if used += 1 + height; used > p.rows {
-			return min(i+1, len(p.heights)-1)
-		}
-	}
-	return 0
-}
-
 // scrolling is how far Tokens, from row top, scrolls, scrolled to each
-// offset given: a row at a time, where byRows says so, as paged has it; else
-// a block at a time, as far as most says, and as many blocks at once as show
-// from there, paged as thingsPaged has it.
+// offset given: a row at a time, as paged has it.
 func (t tokensTable) scrolling(top int) func(offset int) Scrolling {
 	placed, _ := t.placed(top)
-	switch {
-	case len(placed.heights) == 0 || placed.rows < 1:
+	if len(placed.heights) == 0 || placed.rows < 1 {
 		return func(int) Scrolling { return Scrolling{} }
-	case placed.byRows():
-		return placed.paged().scrolling
 	}
-	most := placed.most()
-	return func(offset int) Scrolling {
-		return thingsPaged(most, offset, placed.shown)
-	}
+	return placed.paged().scrolling
 }

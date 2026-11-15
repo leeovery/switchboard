@@ -5,7 +5,7 @@ This page describes every switchboard command: what it does, its flags, and what
 | Group | Command | What it does |
 |---|---|---|
 | [Everyday](#everyday) | [`usage`](#usage) | Prints every account's windows as they stand. |
-| | [`dashboard`](#dashboard) | Shows every account's usage full screen, on eight tabs. |
+| | [`dashboard`](#dashboard) | Shows every account's usage full screen, on seven tabs. |
 | | [`pin`](#pin) | Tells the router where to send sessions. |
 | | [`claude`](#claude) | Starts the real Claude Code through the router. |
 | [Setting up](#setting-up) | [`setup`](#setup) | Walks you through setting switchboard up. |
@@ -201,7 +201,7 @@ switchboard usage -r               # have the router read every account it may f
 
 ### `dashboard`
 
-`dashboard` shows every account's usage full screen, on eight tabs, until you press `q`. For its
+`dashboard` shows every account's usage full screen, on seven tabs, until you press `q`. For its
 flags, keys and tabs, see [Dashboard](dashboard.md).
 
 ### `pin`
@@ -731,9 +731,10 @@ The subcommands do the following:
   and deletes its token file, then the record of when its token was taken (see
   [When each token was taken](configuration.md#when-each-token-was-taken)).
   - Its history stays. The accounts record keeps the account, marked removed, with the label it
-    had, so History, Accounts and the verbs name it by that label and the day it was removed, as
-    `Team (removed 4 Sep)`, told apart from an account given the same label since. Add its
-    subscription again and it comes back under its old id, its history carrying on.
+    had, so the verbs name it by that label and the day it was removed, as `Team (removed 4 Sep)`,
+    and the dashboard's Accounts' Tokens by that label in faint text, told apart from an account
+    given the same label since. Add its subscription again and it comes back under its old id,
+    its history carrying on.
   - Of a token file or a record that's a link, it deletes the link alone, and leaves the file it
     leads to, even where that's at the record's own path. Where the token file led to the
     record's own path, and the file there has another name too, the record's path goes with the
@@ -1259,8 +1260,7 @@ To judge whether there are enough accounts, `history` works with weeks as follow
   In the replay, an account without a `plan` counts as the plan most of the accounts have. Where
   no account has one, each counts as one.
 
-The verdict, as the dashboard's [History](dashboard.md#history) words it, is the first of these
-that holds:
+The verdict is the first of these that holds:
 
 | Verdict | When |
 |---|---|
@@ -1542,9 +1542,9 @@ files: upgrade switchboard to import it.
 right accounts. An account is matched by its subscription, and failing that by its id, an
 identical id being the same account unless both subscriptions are known and differ. Matched, its
 days go to this Mac's account, under this Mac's id. An account this Mac has never had is added to
-its record, named by the label the other Mac gives it, so History and the verbs name its days,
-marked removed where it was removed there. A label changed on the other Mac for an account this
-Mac neither configures nor removed arrives with it.
+its record, named by the label the other Mac gives it, so the verbs name its days and Accounts'
+Tokens its weeks, marked removed where it was removed there. A label changed on the other Mac for
+an account this Mac neither configures nor removed arrives with it.
 
 What it takes in:
 

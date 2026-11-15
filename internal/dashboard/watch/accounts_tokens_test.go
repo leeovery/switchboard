@@ -18,7 +18,7 @@ import (
 // each look, which reads today's days, and for a period shown anew. The
 // frame draws it as built.
 func TestAccountsTokensPageIsBuiltWhileTokensShows(t *testing.T) {
-	h, _ := historyHarness(t, dashboard.Accounts, dashboard.HistoryPage{})
+	h, _ := pastHarness(t, dashboard.Accounts)
 	h.start()
 	h.tickUntilAsked()
 	if h.model.accounts.tokens != nil {

@@ -8,7 +8,6 @@ import (
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
-	"github.com/leeovery/switchboard/internal/status"
 )
 
 // WeeksPage is Weeks as the dashboard draws it: the eight weeks to this one,
@@ -41,25 +40,6 @@ type WeeksPage struct {
 
 	// past is what the page was built of, for At to build it afresh.
 	past Past
-}
-
-// At is the page as it stands at the moment m, of the document of its
-// accounts: built afresh of the days as they stand at m, as Past's filedAt
-// files them, where they stand otherwise than as it was built, so its weeks
-// are Accounts' at the same moment; else as it was built.
-func (page WeeksPage) At(m status.Moment) WeeksPage {
-	stood, ok := page.past.filedAt(m)
-	if !ok {
-		return page
-	}
-	return stood.weeksPage()
-}
-
-// Until is when the page, as At stands it at the moment m, next stands
-// otherwise, as Past's standsUntil has it: till then, At stands it alike at
-// every moment of m's document.
-func (page WeeksPage) Until(m status.Moment) time.Time {
-	return page.past.standsUntil(m)
 }
 
 // WeeksRow is an account's row of Weeks, or every account's: its verdict, as
@@ -101,12 +81,6 @@ func Peak(share float64, open bool) string {
 		return prose.Percent(share) + PeakSoFar
 	}
 	return prose.Percent(share)
-}
-
-// weeksPage is Weeks' page: the eight weeks to this one, as weeksOver has
-// them.
-func (p Past) weeksPage() WeeksPage {
-	return p.weeksOver(weeksShown)
 }
 
 // weeksOver is Weeks' page over the n weeks to this one: the accounts' own

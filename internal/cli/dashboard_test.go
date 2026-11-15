@@ -99,11 +99,7 @@ func TestDashboardHelpSaysWhatTheKeysWordsDont(t *testing.T) {
 		{page: "every page", next: "Overview:", says: "w, where it's listed as models, shows and hides each model's own window"},
 		{page: "Overview", next: "Accounts:", says: "b groups the windows by window or by account"},
 		{page: "Overview", next: "Accounts:", says: "↑↓ scrolls USAGE, as j and k do, where it doesn't fit, left to ? as they are"},
-		{page: "Accounts", next: "History:", says: "< and > step the period both views count over"},
-		{page: "History", next: "Sessions:", says: "< and > step the Year back through each calendar year the ledger holds"},
-		{page: "History", next: "Sessions:", says: "Tokens' periods between a day, a week and a month"},
-		{page: "History", next: "Sessions:", says: "v cycles what the Year shows, all use, a model version or an account"},
-		{page: "History", next: "Sessions:", says: "←→ steps the Year shown for one account between the accounts"},
+		{page: "Accounts", next: "Projects:", says: "< and > step the period both views count over"},
 		{page: "Runway", next: "Trends:", says: "← steps back to this week, then a week at a time, and → on again to the live view"},
 		{page: "Trends", next: "Log:", says: "w, o, g, h, y, m and d show and hide WEEK, POOL, GLANCE, WHEN YOU WORK, YEAR, BY MONTH and"},
 		{page: "Log", next: "a session's page:", says: "/ finds a session by its id's start or its directory's name"},
@@ -115,6 +111,15 @@ func TestDashboardHelpSaysWhatTheKeysWordsDont(t *testing.T) {
 		if from < 0 || !strings.Contains(under, tt.says) {
 			t.Errorf("switchboard dashboard --help reads\n%s\nwant it to say %q under %s's keys", got.stdout, tt.says, tt.page)
 		}
+	}
+}
+
+// History is gone as a tab: the dashboard's help names no page of it, nor
+// the tab anywhere.
+func TestDashboardHelpNamesNoHistoryTab(t *testing.T) {
+	got := run(t, testDeps(nil, t.TempDir()), "dashboard", "--help")
+	if strings.Contains(got.stdout, "History") {
+		t.Errorf("switchboard dashboard --help reads\n%s\nwant no History", got.stdout)
 	}
 }
 
@@ -258,10 +263,11 @@ func TestDashboardReadsTheLedgerTheReadingsAndTheEventsInTheStateDirectory(t *te
 	}
 }
 
-// History is given what the history command builds its blocks of: the
-// configured accounts, whose plans its worth is priced against, the day the
-// config starts its weeks on, Claude's week, and Claude's families.
-func TestDashboardGivesHistoryTheAccountsTheWeeksAndTheFamilies(t *testing.T) {
+// The pages built of the ledger's days are given what the history command
+// builds its blocks of: the configured accounts, whose plans their worth is
+// priced against, the day the config starts its weeks on, Claude's week,
+// and Claude's families.
+func TestDashboardGivesThePagesTheAccountsTheWeeksAndTheFamilies(t *testing.T) {
 	path := writeConfig(t, "week_starts = \"sunday\"\n\n[[account]]\nid = \"work\"\nplan = \"max20x\"\n\n[[account]]\nid = \"side\"\n")
 	deps := testDeps(map[string]string{"SWITCHBOARD_CONFIG": path}, t.TempDir())
 	cfg := recordWatch(t, &deps)

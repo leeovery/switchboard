@@ -20,13 +20,13 @@ func trendsYear() views.YearPage {
 
 // trendsFrame is a frame of Trends, in nord, of a terminal the size given,
 // with the sections named shown, YEAR's and BY MONTH's page trendsYear's,
-// MODELS BY DAY's daysWorld's of the frames' accounts, the last 12 months
-// read, its windows named as claude names them.
+// MODELS BY DAY's daysWorld's, the last 12 months read, its windows named
+// as claude names them.
 func trendsFrame(t *testing.T, width, height int, sections ...string) Frame {
 	t.Helper()
 	f := graphsFrame(width, height, GraphsSectionsNamed(sections))
 	f.Look = Screen(builtin(t, "nord"))
-	year, days := trendsYear(), daysWorld(workDays, personalDays, sideDays)
+	year, days := trendsYear(), daysWorld()
 	f.Graphs.Year, f.Graphs.Days, f.Graphs.Read = &year, &days, true
 	f.WindowName = func(key string) string {
 		return map[string]string{"5h": "5-hour", "7d": "Week", "7d_oi": "Fable week"}[key]
@@ -63,10 +63,8 @@ func figureLabels(y yearDrawn) [][]string {
 }
 
 // YEAR's totals sit beside the grid where the width holds both, as at 173;
-// else under it, in History's three columns at 108; and at 73, a phone's,
-// where History's leaves its third column out, in two, the third's figures
-// on a row under the rest, so none goes unsaid, History's own Year left as
-// it was.
+// else under it, in three columns at 108; and at 73, a phone's, in two, the
+// third's figures on a row under the rest, so none goes unsaid.
 func TestTrendsYearsTotalsSitBesideTheGridWhereTheyFitElseUnderIt(t *testing.T) {
 	tests := []struct {
 		width   int
@@ -97,10 +95,6 @@ func TestTrendsYearsTotalsSitBesideTheGridWhereTheyFitElseUnderIt(t *testing.T) 
 			t.Errorf("at %d columns, YEAR's body takes %d rows, laid out in %d, want %d", tt.width, got, pastPlaced(t, f, GraphsYear).rows-sectionHead, tt.rows)
 		}
 	}
-	history, _ := yearFrame(t, 73, 60, views.YearAsk{}, trendsYear()).yearDrawn()
-	if got, want := figureLabels(history), [][]string{{"requests", "sessions", "limits"}, {"worth", "plans", "against"}}; !slices.EqualFunc(got, want, slices.Equal) {
-		t.Errorf("at 73 columns, History's Year's totals are in %q, want %q, its third column left out as it was", got, want)
-	}
 }
 
 // On a phone, the row under YEAR's totals has the busiest day under the
@@ -121,8 +115,7 @@ func TestTrendsYearsRowUnderItsTotalsLinesUpWithTheirColumns(t *testing.T) {
 
 // Under the grid, YEAR's totals spread to end where the grid's last week
 // ends, on a phone as at 108 and 138, the room between their columns shared;
-// where one column holds them, it's left as it is; and History's Year,
-// laid out alike at 108, keeps its columns where they were, short of it.
+// where one column holds them, it's left as it is.
 func TestTrendsYearsTotalsUnderTheGridEndWhereItEnds(t *testing.T) {
 	ends := func(y yearDrawn) (grid, totals int) {
 		c := newCanvas(y.Width, y.daysRows())
@@ -155,13 +148,9 @@ func TestTrendsYearsTotalsUnderTheGridEndWhereItEnds(t *testing.T) {
 			}
 		}
 	}
-	one := trendsFrame(t, 108, 60, "year").yearFor(yearDrawn{page: trendsYear(), apart: true})
+	one := trendsFrame(t, 108, 60, "year").yearFor(yearDrawn{page: trendsYear()})
 	if spread := one.spread(one.laid.columns[:1], one.Width); spread[0].x != 0 {
 		t.Errorf("one column of totals spread moves to %d, want it left at 0", spread[0].x)
-	}
-	history, _ := yearFrame(t, 108, 60, views.YearAsk{}, trendsYear()).yearDrawn()
-	if grid, totals := ends(history); totals >= grid {
-		t.Errorf("at 108 columns, History's Year's totals end at %d, want them short of its grid's end, %d, unspread", totals, grid)
 	}
 }
 
@@ -215,41 +204,30 @@ func TestTrendsYearsFiguresMovedUnderTheRestAreWhole(t *testing.T) {
 	}
 }
 
-// BY MONTH is History's, of the same page: each month's row the same to its
-// bars at every width, but its bars take the width left, the largest
-// month's ending as far short of the edge as a month's name starts in from
-// the left, where History's stop at the house's most.
-func TestTrendsByMonthIsHistorysItsBarsTakingTheWidthLeft(t *testing.T) {
+// BY MONTH's bars take the width left, the largest month's ending as far
+// short of the edge as a month's name starts in from the left.
+func TestTrendsByMonthsBarsTakeTheWidthLeft(t *testing.T) {
 	for _, width := range []int{173, 108, 73} {
 		trends, _ := trendsFrame(t, width, 60, "months").graphsYear()
-		history, _ := yearFrame(t, width, 60, views.YearAsk{}, trendsYear()).yearDrawn()
-		ours, theirs := newCanvas(width, trends.height()), newCanvas(width, history.height())
+		ours := newCanvas(width, trends.height())
 		trends.months(ours, 0)
-		history.months(theirs, 0)
-		a, b := textOf(ours.rows(Look{})), textOf(theirs.rows(Look{}))
+		rows := textOf(ours.rows(Look{}))
 		longest := 0
 		for i := range trends.page.ByMonth {
-			row, was := a[trends.laid.byMonth.first+i], b[history.laid.byMonth.first+i]
-			barX := trends.form.barX
-			if row[:barX] != was[:barX] {
-				t.Errorf("at %d columns, BY MONTH's row reads %q, want History's %q to its bars", width, row[:barX], was[:barX])
-			}
-			if !strings.Contains(row, "so far") {
+			if row := rows[trends.laid.byMonth.first+i]; !strings.Contains(row, "so far") {
 				longest = max(longest, ansi.StringWidth(row))
 			}
 		}
-		if want := width - byMonthNameX; longest != want || history.laid.bar > byMonthBarMost {
-			t.Errorf("at %d columns, BY MONTH's longest bar ends at %d, History's taking %d cells; want it to end at %d, History's at %d at the most",
-				width, longest, history.laid.bar, want, byMonthBarMost)
+		if want := width - byMonthNameX; longest != want {
+			t.Errorf("at %d columns, BY MONTH's longest bar ends at %d, want it to end at %d", width, longest, want)
 		}
 	}
 }
 
-// MODELS BY DAY is Days' first part, of the same page: each family's days in
-// the cells History's Days draws them in, its names' column its families'
-// alone, BY ACCOUNT's names left out; its key Days' but for BY ACCOUNT's
-// mark, a row, wide or narrow.
-func TestTrendsModelsByDayIsDaysFamiliesStrips(t *testing.T) {
+// MODELS BY DAY's names' column is its families' alone; its key a row, wide
+// or narrow: the shades, what they are where it's wide, and the days to
+// come.
+func TestTrendsModelsByDayIsTheFamiliesStrips(t *testing.T) {
 	tests := []struct {
 		width int
 		key   string
@@ -259,24 +237,7 @@ func TestTrendsModelsByDayIsDaysFamiliesStrips(t *testing.T) {
 	}
 	for _, tt := range tests {
 		f := trendsFrame(t, tt.width, 61, "models")
-		history := daysFrame(t, *f.Graphs.Days, tt.width, 61)
-		ours, ok := f.modelsLaid(0)
-		if !ok {
-			t.Fatalf("at %d columns, MODELS BY DAY lays nothing out", tt.width)
-		}
-		theirs := history.layOutDays(*history.History.Days, 0)
-		c, h := newCanvas(f.Width, ours.keyRow+1), newCanvas(f.Width, history.viewRows())
-		f.modelsDrawn(c, f.pastLaid(), 0)
-		history.historyDays(h, 0)
-		for i := range ours.page.ByModel {
-			for day := max(ours.first, theirs.first); day < len(ours.page.ByModel[i].Days); day++ {
-				got := c.at(ours.dayAt(day), ours.stripRow(ours.familyRow(i)))
-				want := h.at(theirs.dayAt(day), theirs.stripRow(theirs.familyRow(i)))
-				if got.glyph != want.glyph || got.ink != want.ink {
-					t.Fatalf("at %d columns, family %d's day %d is %q in %+v, want History's %q in %+v", tt.width, i, day, got.glyph, got.ink, want.glyph, want.ink)
-				}
-			}
-		}
+		ours, c := modelsShown(t, f)
 		if ours.narrow != (tt.width < 100) {
 			t.Errorf("at %d columns, MODELS BY DAY is narrow %t", tt.width, ours.narrow)
 		}
@@ -400,11 +361,50 @@ func TestTrendsLaysOutItsPastOnlyWhileItShowsAndOnceAFrame(t *testing.T) {
 	}
 }
 
-// Trends is the tab's name, in the title row, its key and its place as
-// Graphs' were.
+// Trends is the tab's name, in the title row, its key and its place, after
+// Runway, as Graphs' were.
 func TestTrendsIsTheTabsName(t *testing.T) {
 	f := graphsFrame(173, 53, GraphsSections{})
-	if Graphs.Title() != "Trends" || !strings.Contains(textOf(f.Draw(threeRouted(), now))[0], "   Runway   Trends   Log") || Views()[6] != Graphs {
+	if Graphs.Title() != "Trends" || !strings.Contains(textOf(f.Draw(threeRouted(), now))[0], "   Runway   Trends   Log") || Views()[5] != Graphs {
 		t.Errorf("the tab is titled %q, the title row %q; want Trends, after Runway", Graphs.Title(), textOf(f.Draw(threeRouted(), now))[0])
+	}
+}
+
+// v cycles what YEAR shows from all use through each version its page
+// lists, then each account, and back to all; before its page is built, or
+// with nothing to show alone, nothing.
+func TestTrendsVCyclesWhatYearShows(t *testing.T) {
+	g := GraphsShown{Accounts: threeConfigured, Read: true, Year: &views.YearPage{Versions: []string{"Opus 5.5", "Sonnet 5"}, Accounts: []string{"work", "side"}}}
+	var shown []string
+	for range 6 {
+		g, _ = g.Cycled()
+		shown = append(shown, g.SplitShown())
+	}
+	if want := []string{"Opus 5.5", "Sonnet 5", "Work", "side", "all", "Opus 5.5"}; !slices.Equal(shown, want) {
+		t.Errorf("v cycled YEAR through %q, want %q", shown, want)
+	}
+	for _, g := range []GraphsShown{{}, {Year: &views.YearPage{}}} {
+		if _, ok := g.Cycled(); ok {
+			t.Errorf("v cycled %+v, want nothing", g)
+		}
+	}
+}
+
+// ← and → step YEAR shown for one account between the accounts configured,
+// round; and do nothing where it shows all use or a version.
+func TestTrendsArrowsStepTheYearShownForOneAccount(t *testing.T) {
+	g := GraphsShown{Accounts: threeConfigured, Split: views.YearAsk{Account: "work"}}
+	var stepped []string
+	for _, by := range []int{-1, -1, 1, 1, 1} {
+		g, _ = g.Moved(by)
+		stepped = append(stepped, g.Split.Account)
+	}
+	if want := []string{"side", "personal", "side", "work", "personal"}; !slices.Equal(stepped, want) {
+		t.Errorf("the arrows stepped through %q, want %q", stepped, want)
+	}
+	for _, g := range []GraphsShown{{Accounts: threeConfigured}, {Accounts: threeConfigured, Split: views.YearAsk{Version: "Opus 5.5"}}} {
+		if _, ok := g.Moved(1); ok {
+			t.Errorf("→ moved %+v, want nothing", g)
+		}
 	}
 }

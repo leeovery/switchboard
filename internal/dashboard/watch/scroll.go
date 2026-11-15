@@ -83,8 +83,7 @@ func (m Model) wheeledCard(scroll, way int, msg tea.MouseWheelMsg) int {
 
 // notch is how far a turn of the wheel the way given scrolls the view f
 // shows of doc at at: wheelRows rows, where it scrolls a row at a time; else
-// a thing, as j and k do, as History's Weeks scroll an account at a time,
-// and its Tokens a period.
+// a thing, as j and k do, as Runway's lanes scroll an account at a time.
 func notch(f dashboard.Frame, doc status.Document, at time.Time, way int) scrollStep {
 	if f.ScrollsRows(doc, at) {
 		return scrollStep{rows: way * wheelRows}

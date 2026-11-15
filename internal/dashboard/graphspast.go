@@ -151,24 +151,20 @@ func (f Frame) graphsYear() (yearDrawn, bool) {
 	if g.Year == nil {
 		return yearDrawn{}, false
 	}
-	return f.yearFor(yearDrawn{page: *g.Year, ask: g.Split, alone: g.yearShown(), apart: true}), true
+	return f.yearFor(yearDrawn{page: *g.Year, ask: g.Split, alone: g.yearShown()}), true
 }
 
-// modelsLaid is MODELS BY DAY laid out in the frame from row top: Days'
-// first part, of its page without BY ACCOUNT, which Accounts' Detail draws,
-// so its names' column is its families' alone; wide where its strips and its
-// key fit, as modelsKey has it, else in the narrow form; its key a blank row
-// under the last strip. It reports false before the page is built, or where
-// nothing is recorded in its eight weeks.
+// modelsLaid is MODELS BY DAY laid out in the frame from row top: wide where
+// its strips and its key fit, as modelsKey has it, else in the narrow form;
+// its key a blank row under the last strip. It reports false before the page
+// is built, or where nothing is recorded in its eight weeks.
 func (f Frame) modelsLaid(top int) (daysLayout, bool) {
 	p := f.Graphs.Days
 	if p == nil || !p.Recorded() {
 		return daysLayout{}, false
 	}
-	models := *p
-	models.ByAccount = nil
-	l := f.daysStripped(models, top, !f.daysWideFits(models, f.modelsKey(false)), modelsStripRow)
-	l.keyRows, l.keyRow = 1, l.stripRow(l.familyRow(len(models.ByModel)-1))+2
+	l := f.daysStripped(*p, top, !f.daysWideFits(*p, f.modelsKey(false)), modelsStripRow)
+	l.keyRows, l.keyRow = 1, l.stripRow(l.familyRow(len(p.ByModel)-1))+2
 	return l, true
 }
 

@@ -85,11 +85,10 @@ is. The rest are each page's, as its ? help lists them:
 
 The Overview's sections and b, and Trends' sections, are kept for the next
 dashboard to open with, as is the view each tab shows, its period or columns,
-but a calendar year or a week stepped back to. esc closes the routing card,
-help or the theme picker. A click on a tab shows it; on a key of the key
-line, does what the key does, but p and q; on History, on a view's name
-shows it, and on < or > by its period steps it; and on the Overview and
-Trends, on a section's heading hides it.
+but a week stepped back to. esc closes the routing card, help or the theme
+picker. A click on a tab shows it; on a key of the key line, does what the key
+does, but p and q; on a view's name shows it, and on < or > by a period steps
+it; and on the Overview and Trends, on a section's heading hides it.
 
 While the router runs, it posts the desktop notifications, --probe or not;
 without it, the dashboard posts its own of an account with room again and a
@@ -168,7 +167,7 @@ func (a *app) dashboard(ctx context.Context, out io.Writer, opts dashboardOption
 		WeekWindow:    claude.WeekWindow,
 		Family:        claude.Provider{}.Family,
 		Size:          a.environSize(),
-		View:          dashboard.View(kept.Tab),
+		View:          dashboard.ViewKept(kept.Tab),
 		Sections:      dashboard.SectionsNamed(kept.Sections),
 		By:            keptBy(kept.By, cfg.Usage.By),
 		Models:        kept.Models,
@@ -176,7 +175,6 @@ func (a *app) dashboard(ctx context.Context, out io.Writer, opts dashboardOption
 		AccountsShown: dashboard.AccountsKept(kept.Accounts),
 		SessionsShown: dashboard.SessionsKept(kept.Sessions),
 		RunwayShown:   dashboard.RunwayKept(kept.Runway),
-		History:       dashboard.HistoryKept(kept.History, cfg.Accounts),
 		Graphs:        dashboard.GraphsSectionsNamed(kept.GraphsTab.Sections),
 		Log:           dashboard.LogKept(kept.Log),
 		LedgerKeep:    cfg.Ledger.Keep,

@@ -146,7 +146,7 @@ func TestAccountsTokensAgainstItsPriceNamesEachUnit(t *testing.T) {
 }
 
 // v splits each row, the total's too, by account, by model, by both, or not
-// at all, as History's Tokens does.
+// at all.
 func TestAccountsTokensSplitsEachRowAsVHasIt(t *testing.T) {
 	tests := []struct {
 		split TokensSplit

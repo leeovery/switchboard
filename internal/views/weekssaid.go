@@ -9,12 +9,12 @@ import (
 	"github.com/leeovery/switchboard/internal/status"
 )
 
-// What Weeks' verdicts say, each once, as History's Weeks and history's text
-// both say it: where no whole week can be judged yet; the labels of what the
-// replays found, as the accounts stand, with one fewer, two fewer or one
-// more, and of one account, with a second; what the rest find without an
-// account; and that the verdicts are an estimate, as many accounts' form
-// words it, and as few accounts'.
+// What the capacity verdicts say, each once, as history's text says it:
+// where no whole week can be judged yet; the labels of what the replays
+// found, as the accounts stand, with one fewer, two fewer or one more, and
+// of one account, with a second; what the rest find without an account; and
+// that the verdicts are an estimate, as many accounts' form words it, and as
+// few accounts'.
 const (
 	NotEnoughWeeks           = "not enough weeks yet"
 	ReplayAsNow              = "as now: "
@@ -144,7 +144,7 @@ func ToDrop(name string) string {
 	return name + " is the one to drop"
 }
 
-// DateNamed names the day with the given date, as History names the busiest
+// DateNamed names the day with the given date, as YEAR names the busiest
 // day: "Tue 22 Sep"; "" where the date isn't one.
 func DateNamed(date string) string {
 	day, ok := dayfile.Civil(date)
@@ -154,7 +154,7 @@ func DateNamed(date string) string {
 	return prose.Day(day)
 }
 
-// DaysInARow says how many days in a row there were, as History says the
+// DaysInARow says how many days in a row there were, as YEAR says the
 // longest run: "58 days"; "" for none.
 func DaysInARow(days int) string {
 	if days == 0 {

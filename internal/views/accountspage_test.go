@@ -267,11 +267,6 @@ func TestByDayShadesEachAccountOnItsOwnScale(t *testing.T) {
 		t.Errorf("the 5-hour limits are marked on work's %v, side's %v and every account's %v, want work's second day and every account's",
 			marked(page.Rows[0].Days), marked(page.Rows[1].Days), marked(page.All.Days))
 	}
-	// Days' eight weeks begin two before BY DAY's six.
-	shared := daysOf(daysFrom("2026-08-24", given...)).ByAccount[1].Days[7*2:]
-	if got := levels(shared[:4]); !slices.Equal(got, []int{1, 1, 2, 2}) {
-		t.Errorf("Days' BY ACCOUNT shades side's first days at levels %v, want 1, 1, 2, 2, every account on one scale", got)
-	}
 }
 
 // BY DAY shades the days it draws against each other alone: days out of
@@ -511,7 +506,7 @@ func TestTwelveMonthsOfTheDaysReadTellARunBegunBeforeThem(t *testing.T) {
 	days := daysFrom("2025-09-01",
 		day("2025-10-03", windowsDay{limits: []ledger.Limit{limit("7d", "2025-10-03", "18:00")}}.of("work")),
 		day("2025-10-08", windowsDay{resets: []ledger.Reset{reset("7d", "2025-10-08", "00:30", 1)}}.of("work")))
-	read := views.DaysFrom(views.YearAsk{}, now, time.Monday).Format(time.DateOnly)
+	read := views.DaysFrom(0, now, time.Monday).Format(time.DateOnly)
 	held := slices.DeleteFunc(slices.Clone(days), func(s ledger.Summary) bool { return s.Day < read })
 	in := input(days)
 	work := views.NewPast(in, held).Accounts(views.PeriodTwelveMonths).Rows[0].Totals

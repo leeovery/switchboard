@@ -94,12 +94,10 @@ type Frame struct {
 	// zero while it doesn't.
 	Traffic Traffic
 	// Scroll is how far the view is scrolled down, where it doesn't fit: in
-	// rows, on the Overview USAGE's, within its section; on History, the
-	// Year in rows, Weeks in accounts, Days in accounts too, BY ACCOUNT's,
-	// within it, and Tokens in periods; and on Runway, in accounts, its
-	// lanes'; but in rows wherever ScrollsRows says the view scrolls a row at
-	// a time, as Weeks, Days and Tokens do where what they show one of
-	// doesn't fit. It goes no further than Scrolling says it goes.
+	// rows, on the Overview USAGE's, within its section; and on Runway, in
+	// accounts, its lanes'; but in rows wherever ScrollsRows says the view
+	// scrolls a row at a time. It goes no further than Scrolling says it
+	// goes.
 	Scroll int
 	// Layout is the Overview's layout as the watch keeps it from look to
 	// look, as LayoutOf gave it, so it changes only on a key or a resize, or
@@ -146,9 +144,6 @@ type Frame struct {
 	// Projects is what's chosen on Projects, and its page and the chosen
 	// project's, of the period.
 	Projects ProjectsShown
-	// History is History's sub-tab shown, what each of its views shows, and
-	// their pages.
-	History HistoryPage
 	// SessionsTab is Sessions' sub-tab shown, its Switchboard and its List as
 	// the watch built them at the look, and the row chosen.
 	SessionsTab SessionsShown
@@ -266,7 +261,7 @@ func (f Frame) page(doc status.Document, now time.Time) *canvas {
 // view draws the tab shown of doc at now from row top, where the page has
 // room for it, as cramped says, and nowhere but between the status line and
 // the key line, as body has it: a session's page, where one is open, in its
-// place; else the tab shown: the Overview, Accounts, Projects, History,
+// place; else the tab shown: the Overview, Accounts, Projects,
 // Sessions, Runway, Graphs or the Log.
 func (f Frame) view(c *canvas, doc status.Document, now time.Time) {
 	if f.cramped() {
@@ -283,8 +278,6 @@ func (f Frame) view(c *canvas, doc status.Document, now time.Time) {
 		f.accounts(c, doc, now, top)
 	case Projects:
 		f.projects(c, doc, now)
-	case History:
-		f.history(c, top)
 	case Sessions:
 		f.sessions(c, doc, now, top)
 	case Runway:
@@ -430,9 +423,7 @@ func (f Frame) Under(doc status.Document, now time.Time, x, y int) Under {
 // y, width cells wide and rows tall: on a session's page, where one is open,
 // its turns' rows, across the frame; on the Overview, USAGE's body, as
 // overviewScrolls has it; on Accounts, as accountsScrolls has it; on
-// Projects, SESSIONS' lines, as projectsLaid has them; on
-// History, what of its sub-tab shown does, as historyScrolls has it, across
-// the frame; on Sessions, as sessionsScrolls has it; on Runway, as
+// Projects, SESSIONS' lines, as projectsLaid has them; on Sessions, as sessionsScrolls has it; on Runway, as
 // runwayScrolls has it; on Trends, the view's rows over its legend, as
 // graphsLaid lays them out; on the Log, its table's lines, under its heads;
 // elsewhere, the view's rows.
@@ -447,9 +438,6 @@ func (f Frame) scrolls(doc status.Document, now time.Time) (x, y, width, rows in
 		return f.accountsScrolls(doc, now)
 	case Projects:
 		return f.projectsLaying(doc, now).scrolls()
-	case History:
-		y, rows = f.historyScrolls()
-		return 0, y, f.Width, rows
 	case Sessions:
 		return f.sessionsScrolls(doc, now)
 	case Runway:

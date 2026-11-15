@@ -26,9 +26,10 @@ type goneAccount struct {
 }
 
 // removedTeam is the auto world with an account removed on 4 September, as
-// Paper draws History's Days with one: labelled team, its week rising on the
-// weekdays of the three weeks to then, and two 5-hour limits on Tuesday 25
-// August.
+// Paper drew History's Days with one: labelled team, its week rising on the
+// weekdays of the three weeks to then, with 60 requests of Opus 5.5 worth $18
+// each of those days, so Accounts' Tokens names it, and two 5-hour limits on
+// Tuesday 25 August.
 func (a accountWorlds) removedTeam() accountWorld {
 	return a.kept("removedTeam", func() accountWorld {
 		w := a.autoOf(a.today().three(true))
@@ -44,7 +45,8 @@ func teamOf(now time.Time) goneAccount {
 	days := make(map[int]ledger.AccountDay)
 	for d := eightWeeks + 7; d <= teamRemoved; d++ {
 		if d%7 < 5 {
-			days[d] = ledger.AccountDay{Account: teamID, Rise: map[string]float64{claude.WeekWindow: 0.04 + 0.02*float64(d%3)}}
+			days[d] = ledger.AccountDay{Account: teamID, Rise: map[string]float64{claude.WeekWindow: 0.04 + 0.02*float64(d%3)},
+				Models: []ledger.ModelDay{{Model: "claude-opus-5-5", Upstream: 60, Hours: hoursOf(60, d), Usage: usageWorth(18)}}}
 		}
 	}
 	day := days[limited]
