@@ -89,7 +89,7 @@ account. Every page follows these rules, and a reviewer checks them:
 4. **No fact-chains.** Three or more items make a list. Conditions make an if-then table.
 5. **Name the thing.** At most one "its" a sentence, and only for the subject. Repeat the noun
    rather than leave a pronoun to work out.
-6. **No possessive chains.** One possessive a noun phrase, and under one per 100 words on a page.
+6. **No possessive chains.** One possessive a noun phrase, and under 1.5 per 100 words on a page.
    A single possessive that reads naturally ("the router's choice") beats "the choice of the
    router"; a verb ("the router picks") beats both. Never drop the verb from a second clause.
 7. **Plain words in their usual sense:** "if", not "where"; "only", not "alone"; "because" and
