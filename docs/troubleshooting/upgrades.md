@@ -9,25 +9,35 @@ The new version refuses your config, for example because a rule is stricter. Rat
 into a version that would stop, the router keeps running the old one.
 
 ```bash
-switchboard status                        # shows the restart as held and why, then fails on the config
-switchboard status --json | jq .restart   # restart.held gives the refusal
+# Shows the restart as held and why, then
+# fails on the config
+switchboard status
+# restart.held gives the refusal
+switchboard status --json | jq .restart
 ```
+
+The new version judges the config, so a key it brings doesn't hold the restart. A version too old
+to answer can't judge, so the running version does. If the running version refuses the config,
+that holds the restart too.
 
 The `switchboard` you run is the new version too, so it can't read the config either. Until you put
 the config right, this is what you'll see:
 
 | Where | What you see |
 |---|---|
-| `switchboard status` | The document of the router, with the restart held, then the error in the config. |
+| `switchboard status` | The router's status document, with the restart held, then the config error. |
 | `usage`, or a dashboard you open now | They fail on the config. |
 | A dashboard already open | `restart held (upgraded)` on the status line. |
-| Each `claude` you start | It says it couldn't read the config, and goes through the running router all the same. It starts without switchboard only if the router doesn't answer. |
-| The log of the router | The refusal, at warn. |
+| Each `claude` you start | It says it couldn't read the config, and goes through the router all the same. |
+| The router's log | The refusal, at warn. |
+
+`claude` starts without switchboard only if the router doesn't answer.
 
 `switchboard status` reads `restart due since Mon 14:02 (upgraded), held:`, then the reason.
 The router asks again once you change the config, or the binary changes again.
 
-Put the config right as the error says. The router restarts at its next quiet moment.
+Put the config right as the error says. The router restarts itself at its next quiet moment, once
+no request is in flight. To restart it now, run `switchboard service restart`.
 
 ## An upgrade not taken up because the disk is full
 
@@ -36,7 +46,8 @@ carries on as it is, and `switchboard status` shows `restart due (upgraded)`. It
 once, at warn.
 
 ```bash
-df -h ~    # check for room on the disk
+# Check for room on the disk
+df -h ~
 ```
 
 The router tries the copy again at each moment with no request in flight. Once there's room, it
@@ -57,7 +68,9 @@ can't move over to the router's own copy of switchboard
 To put it right yourself:
 
 ```bash
-switchboard service install   # writes the LaunchAgent afresh, running the copy
+# Writes the LaunchAgent afresh, running the
+# copy
+switchboard service install
 ```
 
 ## `service status` says launchd runs the copy from the next login
@@ -69,7 +82,9 @@ upgrade that landed since may then refuse the config.
 The next login puts it right by itself. To have launchd run the copy now:
 
 ```bash
-switchboard service install   # has launchd load the LaunchAgent afresh; setup runs it too
+# Has launchd load the LaunchAgent afresh;
+# setup runs it too
+switchboard service install
 ```
 
 ## Related

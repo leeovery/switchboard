@@ -9,26 +9,36 @@ The router isn't running, doesn't answer, or doesn't say where it listens. By de
 then starts nothing and says so.
 
 ```bash
-switchboard service status    # is the service installed and loaded, and how does the router answer?
-switchboard service install   # if the service isn't installed or loaded
-switchboard service restart   # if it is, but the router doesn't answer
+# Is the service installed and loaded, and
+# how does the router answer?
+switchboard service status
+# If the service isn't installed or loaded
+switchboard service install
+# If it is, but the router doesn't answer
+switchboard service restart
 ```
 
 An unhealthy router doesn't stop `claude`. It goes through the router all the same, and says so.
 
 | If you want | Then |
 |---|---|
-| Claude Code without the router this once, unrouted and unrecorded | Run `SWITCHBOARD_WHEN_ROUTER_DOWN=direct claude`. |
-| `claude` always to go direct when the router is down | Set `when_router_down = "direct"` in the [config](../configuration.md). |
+| Claude Code without the router, this once | Run `SWITCHBOARD_WHEN_ROUTER_DOWN=direct claude`. |
+| `claude` always to go direct then | Set `when_router_down = "direct"` in the [config](../configuration.md). |
+
+A session that goes direct is neither routed nor recorded.
 
 ## A session went to an account you didn't expect
 
-The log of the router has a line for each request, with the account and why it went there.
+The router's log has a line for each request, with the account and why it went there.
 
 ```bash
-switchboard logs -f          # follow the router as it routes
-switchboard requests         # today's requests, with each account
-switchboard events           # what the router decided: moves, limits, pins and refusals
+# Follow the router as it routes
+switchboard logs -f
+# Today's requests, with each account
+switchboard requests
+# What the router decided: moves, limits,
+# pins and refusals
+switchboard events
 ```
 
 `requests` and `events` reach back over earlier days with `--since`. To learn how the router
@@ -37,10 +47,13 @@ picks, see [Limits and routing](../limits-and-routing.md).
 ## An account still reads out after you reset a limit by hand
 
 The router sends nothing to an account at its limit. So it learns of a reset you made on claude.ai
-only when it next reads the account. To have it read the accounts now:
+only when it next reads the account, which it does every 5 minutes. To have it read the accounts
+now:
 
 ```bash
-switchboard usage -r     # or switchboard status -r, or press R on the dashboard
+# Or switchboard status -r, or press R on
+# the dashboard
+switchboard usage -r
 ```
 
 The command waits up to 10 seconds for the reads, then prints what they found.
@@ -51,8 +64,10 @@ The router stopped or restarted while you pinned, and closed the request without
 have made the pin first.
 
 ```bash
-switchboard status    # shows any pin that holds
-switchboard pin <id>  # pin again if it isn't there
+# Shows any pin that holds
+switchboard status
+# Pin again if it isn't there
+switchboard pin <id>
 ```
 
 ## A request Claude Code sent that the router never saw

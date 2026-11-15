@@ -7,9 +7,13 @@ The logs tell you, after the fact, why something happened:
 - why the dashboard showed what it did.
 
 ```bash
-switchboard logs -f            # follow the log of the router
-switchboard logs cli -n 200    # the last 200 lines of the log every other command shares
-switchboard logs --path        # print where the log is
+# Follow the router's log
+switchboard logs -f
+# The last 200 lines of the log that every
+# other command shares
+switchboard logs cli -n 200
+# Print where the log is
+switchboard logs --path
 ```
 
 The router notes every request it routes, with the account and why it went there. Each record is
@@ -27,7 +31,7 @@ They're in the `logs/` folder of the state directory.
 |---|---|
 | `router.log` | The router. |
 | `cli.log` | Every other command. |
-| `launchd.log` | launchd, with the output of the service, such as a crash. |
+| `launchd.log` | launchd, with the service's output, such as a crash. |
 
 ## How much is logged
 
@@ -48,7 +52,7 @@ service cuts it to the newest 5 MiB as it starts the router.
 
 ## What the logs leave out
 
-- No log holds a token or the label of an account. Accounts appear by id, and anything shaped like
+- No log holds a token or an account's label. Accounts appear by id, and anything shaped like
   a token is replaced with `[redacted]`.
 - No command logs to the terminal, except `serve` run at one. So `--json` and the dashboard stay
   clean.
@@ -58,4 +62,4 @@ service cuts it to the newest 5 MiB as it starts the router.
 
 - [`switchboard logs`](../commands/logs.md): every flag of `logs`.
 - [The router](router.md): why a session went to an account.
-- [Reference](../reference/files.md): the state directory, and what else is in it.
+- [Where the files are](../reference/files.md): the state directory, and what else is in it.

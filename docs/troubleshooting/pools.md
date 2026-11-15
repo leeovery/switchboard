@@ -11,12 +11,17 @@ ending `— not starting claude`.
 
 | If it says | Then |
 |---|---|
-| `no pool covers ~/Code/other` | Every pool is fenced, and none holds the folder. Start it inside a fence, or leave one pool unfenced with `switchboard pool edit <id> --unfence`. |
+| `no pool covers ~/Code/other` | Start it inside a fence, or leave one pool unfenced. |
 | `~/Code/both is in pools Acme and Client, as its links lead` | Start it in a folder that only one pool holds. |
-| `~/wt/x is in pool Acme, but in its repository it's at ~/Code/web, in pool Default` | Make the git worktree outside every fence, or inside the fence of its repository. |
-| `pool Acme has no accounts` | Add one with `switchboard accounts add <label> --pool <id>`. |
-| `pool Acme has no account with a usable token` | Give one a token with `switchboard accounts token <id>`. |
-| `~/Code/acme is in pool Acme, where claude never starts on its own login` | You asked for `--direct` inside a fence. Start it through the router, or outside the fence. |
+| `~/wt/x is in pool Acme, but in its repository it's at ~/Code/web, in pool Default` | Make the worktree in the same pool as its repository. |
+| `pool Acme has no accounts` | Add one with `switchboard accounts add "Acme 1" --pool q7mt`. |
+| `pool Acme has no account with a usable token` | Give one a token with `switchboard accounts token m2kp`. |
+| `~/Code/acme is in pool Acme, where claude never starts on its own login` | Start it through the router, or outside the fence. |
+
+`no pool covers` means every pool is fenced, and none holds the folder. To leave a pool unfenced,
+run `switchboard pool edit q7mt --unfence`. A git worktree belongs in the same fence as its
+repository, or outside every fence with it. The own-login refusal comes from `--direct`, or from a
+start without switchboard, inside a fence. Without switchboard, the message starts with why.
 
 Every message, with what to do, is in [`switchboard claude`](../commands/claude-command.md).
 
@@ -29,33 +34,40 @@ The message is `the router doesn't route by the config's pools (…)`, or
 switchboard service restart
 ```
 
-With two pools or more, `claude` counts the router as down if its pools differ from the config. A
-router from before pools would spread a session across every account. `claude` waits 5 seconds
-for the router to take a change up first. So this is a router from before pools, or one that routes
-no account of a pool yet. Until it restarts, `claude` stops, or goes direct on the accounts of the
-pool, as `when_router_down` says.
+With two pools or more, `claude` counts the router as down if its pools differ from the config.
+That's because a router from before pools would spread a session across every account. `claude`
+first gives the router 5 seconds to take up a change. So a router still refused is one from before
+pools, or one that routes no account of a pool yet. Until it restarts, `claude` stops, or goes
+direct on the pool's accounts, as `when_router_down` says.
 
 ## A request answered `no account in pool Client can take the request`
 
 None of the accounts in the pool can take it, and nothing falls back to another pool. What follows
-the `;` says why for each account, as `account m4zq: …`.
+the `;` says why for each account, for example `account m4zq: …`.
 
 | If an account says | Then |
 |---|---|
-| `taken up when the router restarts` | It was added since the router started. Run `switchboard service restart`. |
+| `taken up when the router restarts` | Wait, or run `switchboard service restart`. |
 | A problem, such as a token | Give the account what it lacks. |
-| A limit | Wait for a window to reset, as with one pool whose accounts are all out. |
+| A limit | Wait for a window to reset. Nothing falls back to another pool. |
+
+An account taken up when the router restarts was added since the router started. The router
+restarts itself to take it up once no request is in flight. `switchboard service restart` does it
+now.
 
 ## A session says its account has left the pool
 
 The message is `this session's account has left pool Client — exit and resume it to carry on in
 the pool its directory is in now`. The account the session started on isn't in that pool any
 more. For example, the primary moved to another pool, or the pool was removed
-(`this session's pool isn't configured`). Claude Code can't change the token while it runs. What never reaches the router, such as fast mode,
-goes on out on that token until the session exits.
+(`this session's pool isn't configured`). Claude Code can't change the token while it runs.
+Until the session exits, what never reaches the router, such as fast mode, still goes out on that
+token.
 
 ```bash
-claude --resume    # in the same folder: it starts in the pool of that folder now, on its primary
+# In the same folder: it starts in the pool
+# that folder is in now
+claude --resume
 ```
 
 ## A client session in a folder you just fenced uses your accounts
@@ -65,13 +77,20 @@ keeps the old pool. Exit each session running there and resume it.
 
 ## The config lost its pools
 
-Once the history has moved to pools, the router gives a config with no pools its pools back, from
+Once the record has moved to pools, the router gives a config with no pools its pools back, from
 the accounts record. It routes by them meanwhile, so no session crosses a fence.
 
 | If | Then |
 |---|---|
-| The router can't write them back, for example because an account added since has no pool to go to | The log says why once, and the router tries again each minute. Give that account a pool, or put the pools back in the config yourself. |
-| The accounts record can't be read either, and the router never routed within a pool | The router refuses every request, saying why, and reports itself unhealthy. `claude` still goes through it rather than go direct past the fences. Put the pools back in the config. |
+| The router can't write them back | Give the new account a pool, or put the pools back yourself. |
+| The accounts record can't be read either | Put the pools back in the config. |
+
+The router can't write them back if, for example, every pool is fenced and an account added since
+has no pool to go to. The log says why once, and the router tries again each minute.
+
+If the accounts record can't be read either, and the router never routed within a pool, it refuses
+every request, saying why. It reports itself unhealthy. `claude` still goes through it, rather
+than go direct past the fences.
 
 ## The move to pools waits, `awaiting restart`
 
