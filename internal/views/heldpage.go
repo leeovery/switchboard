@@ -67,11 +67,12 @@ type lineKey struct {
 // session as the router lists it, or while it doesn't answer, as its last
 // listing had it, as the List has it then, nil where it doesn't; whether no
 // router lists the sessions, as ListLive's Unlisted has it; what the request
-// stream told; and now.
+// stream told; how the session's project is read; and now.
 type PageLive struct {
 	Routed   *status.Session
 	Unlisted bool
 	Stream   Stream
+	Projects status.Projects
 	Now      time.Time
 }
 
@@ -534,7 +535,7 @@ func (h HeldPage) worked(live PageLive) worked {
 	if live.Routed != nil {
 		running = []status.Session{*live.Routed}
 	}
-	w := worked{h: h, rec: rec, live: live, by: newLister(running, live.Unlisted, live.Stream, live.Now)}
+	w := worked{h: h, rec: rec, live: live, by: newLister(running, live.Unlisted, live.Stream, live.Projects, live.Now)}
 	w.told = w.by.h.told[h.id]
 	w.tally = rec.page.told(sentOf(rec.open, w.told, rec.lined))
 	return w

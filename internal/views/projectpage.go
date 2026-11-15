@@ -129,7 +129,7 @@ func periodRows(sessions map[string]*sessionTally, in PeriodInput) []PeriodSessi
 			s.Requests, s.Worth = st.requests, st.worth
 			s.Started = earliestKnown(s.Started, st.firstRequest)
 		} else {
-			s = st.listedEnded(price)
+			s = st.listedEnded(price, in.Projects)
 		}
 		row := PeriodSession{ListedSession: s.named(in.Names)}
 		if !s.Running {
@@ -167,17 +167,17 @@ func earliestKnown(a, b time.Time) time.Time {
 
 // listedEnded is the session as the List lists one that ended, of the days
 // it ran on in the period, as their records tell it: in the directory, and
-// of the project, it last named, as status.ProjectOf reads them together;
+// of the project, it last named, as projects reads them together;
 // its requests and their worth; started at its first request and ended at
 // its last, or of none, its last line; named as names has it of what names
 // it over its days, as no router lists it; and brought to its account, as
 // the List brings one, by its model's latest move, on its last day, where
 // that was onto it, as movedOnto has it, its cost priced as price prices
 // it, marked ▸ where a move brought it there.
-func (st *sessionTally) listedEnded(price pricing) ListedSession {
+func (st *sessionTally) listedEnded(price pricing, projects status.Projects) ListedSession {
 	ended := cmp.Or(st.lastRequest, st.lastLine)
 	s := ListedSession{
-		Session: st.id, Dir: st.dir, Project: status.ProjectOf(st.project, st.dir), Requests: st.requests, Worth: st.worth,
+		Session: st.id, Dir: st.dir, Project: projects.Of(st.project, st.dir), Requests: st.requests, Worth: st.worth,
 		Started: st.firstRequest, Ended: ended, Activity: Activity{Doing: Ended, Since: ended, LastSeen: ended},
 	}
 	s.Account, s.Model = st.naming.names(nil)

@@ -16,7 +16,9 @@ func projectsHelp() []helpPart {
 				said("A project is the repository a session ran in: a session in a worktree or a subdirectory counts as its " +
 					"repository's, and one started outside any repository as its own directory's. Each is named by its folder, " +
 					"its parent too where two share a name; the sessions that didn't start through switchboard's claude, " +
-					"which name no directory, share a row of their own."),
+					"which name no directory, share a row of their own. A session started in a Claude Code scratchpad counts " +
+					"as the project of the session the scratchpad is for; the sessions started in any other temporary folder " +
+					"share a row too, temporary folders."),
 				said("The list ranks each project with a session in the period by its worth at API prices, the greatest " +
 					"first, its bar its worth against the top project's, split by model family in the families' colours, as " +
 					"Trends' BY MONTH splits a month's. Live counts its sessions running now, and last says when its last " +

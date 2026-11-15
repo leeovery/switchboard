@@ -206,8 +206,8 @@ func (d projectDrawn) height(kept int) int {
 }
 
 // head draws the project's head along row y: its name, as the list names
-// it; two cells on, its path, in text.muted, cut from its start as
-// status.DirPath cuts it; and at the right, ● and its sessions running, as
+// it; two cells on, its path, where it has one, in text.muted, cut from its
+// start as status.DirPath cuts it; and at the right, ● and its sessions running, as
 // the live column says them, then running, in text.muted, where any run.
 func (d projectDrawn) head(c *canvas, y int) {
 	var running line
@@ -216,7 +216,7 @@ func (d projectDrawn) head(c *canvas, y int) {
 		c.right(d.f.Width, y, running)
 	}
 	x := c.line(0, y, projectNamed(d.page.ProjectRow)) + listGap
-	if !d.page.NoDirectory() {
+	if !d.page.Pathless() {
 		room := d.f.Width - x - running.width() - listGap
 		c.line(x, y, line{{status.DirPath(d.page.Path, "", room), mutedInk}})
 	}

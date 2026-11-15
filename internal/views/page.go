@@ -176,7 +176,9 @@ type PageSources struct {
 	// Keep is how long the ledger keeps a day's lines, as [ledger] keep
 	// says, as ledgerKept reads it: dayfile.Forever keeps them for good.
 	Keep time.Duration
-	Now  time.Time
+	// Projects reads the session's project.
+	Projects status.Projects
+	Now      time.Time
 }
 
 // SessionsRead is a read of the ledger for a session's page, as ReadSessions
@@ -315,7 +317,7 @@ func (r SessionsRead) Named(running []status.Session) []string {
 // where that state holds sealed what the stream tells of.
 func SessionPageOf(id string, src PageSources) (SessionPage, bool) {
 	held := holdPage(id, src.Read, src.Prices, src.Keep, src.Read.heldFrom(id, src.Now, pinsOf(src.Stream)[id]), src.Now)
-	return held.Page(PageLive{Routed: src.Routed, Unlisted: src.Unlisted, Stream: src.Stream, Now: src.Now})
+	return held.Page(PageLive{Routed: src.Routed, Unlisted: src.Unlisted, Stream: src.Stream, Projects: src.Projects, Now: src.Now})
 }
 
 // KeptUntil says until when the ledger keeps a day's lines, by the date of

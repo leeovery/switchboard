@@ -315,11 +315,12 @@ func listingKeys(list views.SessionList, of func(views.ListedSession) bool) []ru
 
 // periodInput is what a page of the sessions' days is built of at now
 // beside its days: the dial's period, the List given, the accounts' names,
-// the prices, the day weeks start on, how a model's family is read, and
-// where the pool shown's work begins, as the days' reads learned it.
+// the prices, the day weeks start on, how a model's family is read, where
+// the pool shown's work begins, as the days' reads learned it, and how a
+// session's project is read.
 func (m Model) periodInput(now time.Time, list views.SessionList) views.PeriodInput {
 	return views.PeriodInput{
 		Period: m.period, List: list, Names: m.moment(now), Prices: m.cfg.Prices, WeekStarts: m.cfg.WeekStarts, Family: m.cfg.Family, Now: now,
-		Began: m.sessionDays.began,
+		Began: m.sessionDays.began, Projects: m.cfg.Projects,
 	}
 }

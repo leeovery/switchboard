@@ -48,7 +48,7 @@ type Running struct {
 // doing is as last known where live says no router lists them, as known
 // has it.
 func RunningOf(m status.Moment, live ListLive, held HeldSessions) []Running {
-	return runningOf(m, newLister(live.Running, live.Unlisted, live.Stream, m.Now), held)
+	return runningOf(m, newLister(live.Running, live.Unlisted, live.Stream, live.Projects, m.Now), held)
 }
 
 // RunningCountsOf counts the sessions running on each account at the moment

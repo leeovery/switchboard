@@ -98,7 +98,7 @@ func (m Model) builtLogPanel(now time.Time) Model {
 func (m Model) panelFigures(p dashboard.LogPanel, now time.Time) dashboard.LogPanel {
 	src := views.LogSessionSources{
 		Read: m.log.read, Held: m.held, Ticked: p.TickedSessions(), Found: m.foundSessions(), Running: m.sessions, Unlisted: !m.answering(), Stream: m.logStream(now),
-		Now: now,
+		Projects: m.cfg.Projects, Now: now,
 	}
 	if p.Of == dashboard.LogEvents {
 		p.Events = views.LogEvents(m.logEventSources(p.Shows, now)).Today
