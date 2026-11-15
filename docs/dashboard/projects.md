@@ -1,54 +1,89 @@
-# Projects
+# Projects: where your use went
 
-**Projects** shows where the use went: each project the period's sessions ran in, and the one
-chosen in full under the list. A project is the repository a session ran in. A session in a
-worktree or a subdirectory counts as its repository's, and one started outside any repository as
-its own directory's. Each is named by its folder, its parent too where two share a name. The
-sessions that didn't start through switchboard's `claude` name no directory, and share a
-`no directory` row.
+Projects ranks the projects your sessions ran in by what their use was worth, over the period you
+choose. Look at it to see which repository took the most, on which accounts and models, and which
+sessions ran there. The list is at the top, and the project you choose shows in full under it.
 
-The list ranks the projects by their worth at API prices, the greatest first. Each row has:
+<div align="center">
+<img src="../../art/projects.webp" alt="Projects: each project's live sessions, sessions, worth and requests over this week, the chosen one in full under them" width="840">
+</div>
 
-- its name
-- `live`, its sessions running now
-- its sessions, and its worth
-- a bar of its worth against the top project's, split by model family in the families' colours,
-  as Trends' BY MONTH splits a month's
-- its requests
-- `last`, when its last request came: `now` while one of its sessions is busy.
+*Projects over this week, with switchboard chosen.*
 
-`all projects` totals them under a rule, a session counted once. The list takes up to a third of
-the view's rows, and scrolls with the choice past them. As the width runs short, the bar narrows to
-8 cells, then requests and `last` leave, and then the name is cut.
+A project is a repository, with its worktrees folded in, as the [Glossary](../glossary.md) says.
+Each one is named by its folder. If two share a name, the parent folder is named too. Sessions
+that didn't start through the `claude` that switchboard links share one row, `no directory`.
+
+## The list: every project, the greatest first
+
+The list ranks the projects by their worth at API prices. Each row has:
+
+- the name;
+- `live`, the sessions running now;
+- the sessions, and their worth;
+- a bar of the worth against the top project, split by model family in the family colours, as BY
+  MONTH on [Trends](trends.md) splits a month;
+- the requests;
+- `last`, when the last request came, or `now` while a session is busy.
+
+`all projects` totals them under a rule, counting each session once. The list takes up to a third
+of the rows, and scrolls with your choice past them.
+
+## The chosen project
 
 Under the list, the chosen project shows:
 
-- its name, its path and its sessions running
-- its numbers over the period: its sessions, requests and worth, its share of every project's
-  worth, and its tokens
-- WORTH BY, its worth in the finest bucket that fits: today by hour where a column an hour fits,
-  else by two hours; this week by day; 30 days and 12 weeks by day where a column a day fits,
-  else by week; and 12 months by week where a column a week fits, else by month, the peak named
-  under it
-- BY MODEL, each version's share of its worth, those under 1% left out
-- ON ACCOUNTS, each account's share, the greatest first
-- SESSIONS, its sessions over the period in the List's columns: those running first, then the rest
-  under a rule for the day they ended, `ended today`, `ended yesterday`, a weekday within the week
-  or a date before it. Each starts at its first request, with its day where it began on another.
+- **The heading:** the name, the path, and the sessions running.
+- **The numbers** over the period: sessions, requests, worth, the share of the worth of all
+  projects, and tokens.
+- **WORTH BY:** the worth in the finest bucket that fits, with the peak named under it.
+- **BY MODEL:** the share of worth by model version, leaving out those under 1%.
+- **ON ACCOUNTS:** the share on each account, the greatest first.
+- **SESSIONS:** the sessions over the period, in the same columns as the List on
+  [Sessions](sessions.md).
 
-Wide, WORTH BY sits in the left half, with BY MODEL over ON ACCOUNTS in the right. Narrower, WORTH
-BY runs across the width with the two side by side under it, and on a phone they stack. Where rows
-run short, ON ACCOUNTS leaves first, then BY MODEL, then WORTH BY, so SESSIONS keeps three rows at
-least.
+WORTH BY picks its bucket by the period:
 
-The chosen row is lit only where `↑` and `↓` act, in the list or in the sessions. The other's chosen
-row stays bold, marked `▸`.
+| Period | Bucket |
+|---|---|
+| today | an hour, or two hours if a column an hour doesn't fit |
+| this week | a day |
+| 30 days and 12 weeks | a day, or a week if a column a day doesn't fit |
+| 12 months | a week, or a month if a column a week doesn't fit |
+
+SESSIONS lists the running sessions first. The rest follow under a rule for the day they ended:
+`ended today`, `ended yesterday`, a weekday within the week, or a date before that. Each session
+starts at its first request, with the day if it began on another.
+
+Press `→` to move into the sessions, and `enter` to open one on [the session
+page](session-page.md). The chosen row is lit only where `↑` and `↓` act, in the list or in the
+sessions. The chosen row of the other stays bold, marked `▸`.
+
+## Room by size
+
+**Wide,** WORTH BY sits in the left half, with BY MODEL over ON ACCOUNTS on the right. Narrower,
+WORTH BY runs across the width, with the other two side by side under it. On a phone, all three
+stack.
+
+**If rows run short,** the sections leave so that SESSIONS keeps at least three rows:
+
+1. ON ACCOUNTS leaves first.
+2. Then BY MODEL.
+3. Then WORTH BY.
+
+**If the width runs short,** the list gives way in steps:
+
+1. The bar narrows to 8 cells.
+2. The requests and `last` leave.
+3. The name is cut.
 
 ## Keys on Projects
 
 | Key | Does |
 |---|---|
-| `↑` `↓` | Choose the project. |
-| `→` `←` | `→` moves into the chosen project's sessions, and `←` goes back to the list. |
-| `↑` `↓`, then `enter` | In the sessions, `↑` and `↓` choose a session, and `enter` opens its page. |
-| `<` `>` | Step the period, shared with Accounts and Sessions' List. See the period on [Accounts](accounts.md). |
+| `↑` `↓` | Chooses the project. |
+| `→` `←` | `→` moves into the sessions of the chosen project, and `←` goes back to the list. |
+| `↑` `↓`, then `enter` | In the sessions, chooses a session, and opens its page. |
+| `<` `>` | Steps the period, shared with [Accounts](accounts.md) and the List on Sessions. |
+
+The keys every page shares are on [Every page](every-page.md).
