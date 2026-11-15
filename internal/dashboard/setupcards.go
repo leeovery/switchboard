@@ -73,7 +73,7 @@ const (
 	labelName   = "Label"
 	labelHint   = "what every screen calls it"
 	planName    = "Plan"
-	planHint    = "used by History to value usage"
+	planHint    = "used to value usage"
 	primaryName = "Primary"
 	primaryHint = "the account the Claude apps are signed in to"
 	reserveName = "Reserve"

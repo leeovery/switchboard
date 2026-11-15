@@ -17,10 +17,10 @@ func TestAFixturePinsTheTracesScaleAsTheFramesDo(t *testing.T) {
 	}
 }
 
-// A page gives History what the dashboard gives it, of its world: the world's
-// accounts, as configured, the frames' weeks from Monday, Claude's week and
-// Claude's families.
-func TestAPageGivesHistoryItsWorldsAccountsTheWeeksAndTheFamilies(t *testing.T) {
+// A page gives the watch what the dashboard gives it, of its world: the
+// world's accounts, as configured, the frames' weeks from Monday, Claude's
+// week and Claude's families.
+func TestAPageGivesTheWatchItsWorldsAccountsTheWeeksAndTheFamilies(t *testing.T) {
 	now := func() time.Time { return localMoment() }
 	f := page{name: "a page", size: wide(37), world: accountWorlds.auto}.fixture(worldsNow())
 	cfg := f.config(wide(37), now)

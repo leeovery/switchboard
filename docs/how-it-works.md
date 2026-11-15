@@ -247,8 +247,8 @@ dashboard and the commands read it back to look at the past, with or without the
 formats are in the [Reference](reference.md).
 
 It records the requests of the Mac it runs on. Usage and limits come from Anthropic, so use from
-anywhere else, another Mac or the Claude apps, shows in the bars and the limits, but not in History's
-tokens, worth or sessions. Moving to a new Mac, `export` and `import` carry the history over.
+anywhere else, another Mac or the Claude apps, shows in the bars and the limits, but not in the
+tokens, worth or sessions the dashboard counts. Moving to a new Mac, `export` and `import` carry the history over.
 
 ### State that outlasts restarts
 
@@ -445,7 +445,7 @@ takes a character more. So:
   own.
 - **Removing** an account, with `accounts remove <id>` or setup's `r`, takes it out of the config
   and deletes its token, but keeps its history, and the accounts record keeps the account, marked
-  removed, with its label. History, Accounts and the verbs name its days by that label and the day
+  removed, with its label. Accounts and the verbs name its days by that label and the day
   it went, as `Team (removed 4 Sep)`.
 - **Coming back:** add a removed account's subscription again and it comes back under its old id,
   with the label you give it now, its history carrying on after the gap. Where the API names no

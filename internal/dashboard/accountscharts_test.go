@@ -13,10 +13,10 @@ import (
 	"github.com/leeovery/switchboard/internal/views"
 )
 
-// chartedPeaks are each column's peaks in the eight weeks of History's
-// Weeks, 10 August to 28 September, as percentages, this week's so far;
-// and the facts Weeks says of the seven whole: limits hit, or all
-// accounts' weeks short, and what they left at a reset, on average.
+// chartedPeaks are each column's peaks in eight weeks, 10 August to 28
+// September, as percentages, this week's so far; and the facts said of the
+// seven whole: limits hit, or all accounts' weeks short, and what they left
+// at a reset, on average.
 var chartedPeaks = []struct {
 	peaks  []float64
 	limits int

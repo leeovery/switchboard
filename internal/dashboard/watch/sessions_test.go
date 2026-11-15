@@ -177,19 +177,28 @@ func TestSessionsKeysChooseOpenAndTurn(t *testing.T) {
 	}
 }
 
-// ↓ and ↑ on the Switchboard each scroll it to the call they choose, where
-// it's out of view: through every call, down and back up, in a terminal
-// short enough that its lines scroll, with personal's calls above its line
-// and twenty on side, more than the view holds at once.
-func TestChoosingACallScrollsTheSwitchboardToIt(t *testing.T) {
+// twentyOnSide is the router of three on Sessions, in a terminal of the size
+// given, with personal running two calls and side twenty, more than a short
+// terminal's Switchboard holds at once.
+func twentyOnSide(t *testing.T, size tea.WindowSizeMsg) *harness {
+	t.Helper()
 	h := routedHarness(t, routerDocument(three()...))
 	h.source.sessions = []status.Session{sessionOn(idD28C, opus, "personal", time.Second), sessionOn(id7F3A, opus, "personal", 2*time.Second)}
 	for i := range 20 {
 		h.source.sessions = append(h.source.sessions, sessionOn(fmt.Sprintf("%04x0000-0000-4000-8000-000000000000", i), opus, "side", time.Duration(i+3)*time.Second))
 	}
-	h.update(tea.WindowSizeMsg{Width: 160, Height: 14})
+	h.update(size)
 	h.start()
 	h.keys(toSessions...)
+	return h
+}
+
+// ↓ and ↑ on the Switchboard each scroll it to the call they choose, where
+// it's out of view: through every call, down and back up, in a terminal
+// short enough that its lines scroll, with personal's calls above its line
+// and twenty on side, more than the view holds at once.
+func TestChoosingACallScrollsTheSwitchboardToIt(t *testing.T) {
+	h := twentyOnSide(t, tea.WindowSizeMsg{Width: 160, Height: 14})
 	shows := func() bool {
 		chosen := h.model.sessionsTab.shown.Chosen
 		return slices.ContainsFunc(h.targets(), func(t dashboard.Target) bool {

@@ -96,13 +96,28 @@ func pastTokens() *views.TokensPage {
 	}}
 }
 
-// tokensFrame is a frame the size given showing Tokens of pastTokens, split
-// as given.
+// tokensFrame is a frame the size given showing Accounts' Tokens of
+// pastTokens, its rows by week over the last 12 weeks, without the period's
+// total, split as given.
 func tokensFrame(width, height int, split TokensSplit) Frame {
 	f := frameOf(width, height)
-	f.View = History
-	f.History = HistoryPage{Shown: HistoryTokens, TokensSplit: split, Read: true, Tokens: pastTokens()}
+	f.View, f.Period = Accounts, views.PeriodTwelveWeeks
+	f.Accounts = AccountsShown{Shown: AccountsTokens, TokensSplit: split, Tokens: pastTokens()}
 	return f
+}
+
+// tokensPastTheWidth fails the test named where Tokens, drawn on a canvas
+// wider than the frame, draws anything past the frame's width.
+func tokensPastTheWidth(t *testing.T, name string, f Frame) {
+	t.Helper()
+	c := newCanvas(f.Width+80, f.Height)
+	f.accountsTokens().draw(c, f.top())
+	for row, cells := range c.cells {
+		if x := slices.IndexFunc(cells[f.Width:], func(here cell) bool { return here != blank }); x >= 0 {
+			t.Errorf("%s at %d columns draws %q past its width, at column %d of row %d:\n%q",
+				name, f.Width, cells[f.Width+x].glyph, f.Width+x, row, textOf(c.rows(Look{}))[row])
+		}
+	}
 }
 
 // tokensRowsOf are the rows of Tokens the frame draws, from its heads to the
@@ -114,7 +129,7 @@ func tokensRowsOf(f Frame) []string {
 
 // Tokens draws its heads, then each period, newest first, a blank row
 // between them, its rows as split, and its footnote on the view's last row,
-// as history-tokens-160 lays them out; narrower, as its columns leave, one
+// as the frames lay them out; narrower, as its columns leave, one
 // at a time.
 func TestTokensDrawsEachPeriodAsSplit(t *testing.T) {
 	const (
@@ -265,33 +280,32 @@ func TestTokensFootnoteSaysWhatWorthIsAndAsOfWhen(t *testing.T) {
 // plans for the period it is.
 func TestTokensNamesEachPeriodAsItIs(t *testing.T) {
 	tests := []struct {
-		period      views.TokensPeriod
+		period      views.Period
 		first, head string
 		row         string
 	}{
-		{period: views.TokensByWeek, first: "2026-09-28", head: "week", row: "28 Sep        2 models"},
-		{period: views.TokensByDay, first: "2026-10-01", head: "day", row: "Thu 1 Oct     2 models"},
-		{period: views.TokensByMonth, first: "2026-10", head: "month", row: "Oct 2026      2 models"},
+		{period: views.PeriodTwelveWeeks, first: "2026-09-28", head: "week", row: "28 Sep        2 models"},
+		{period: views.PeriodThirtyDays, first: "2026-10-01", head: "day", row: "Thu 1 Oct     2 models"},
+		{period: views.PeriodTwelveMonths, first: "2026-10", head: "month", row: "Oct 2026      2 models"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.head, func(t *testing.T) {
 			f := tokensFrame(160, 37, TokensUnsplit)
-			f.History.TokensAsk.Period = tt.period
-			f.History.Tokens.Periods = f.History.Tokens.Periods[:1]
-			f.History.Tokens.Periods[0].First = tt.first
+			f.Period = tt.period
+			f.Accounts.Tokens.Periods = f.Accounts.Tokens.Periods[:1]
+			f.Accounts.Tokens.Periods[0].First = tt.first
 			rows := tokensRowsOf(f)
 			if !strings.HasPrefix(rows[0], tt.head+" ") || !strings.HasPrefix(rows[2], tt.row) {
 				t.Errorf("Tokens reads %q over %q, want %q over %q", rows[0], rows[2], tt.head, tt.row)
 			}
-			if want := "4.6× its $138 " + tt.period.Name(); !strings.HasSuffix(rows[2], want) {
+			if want := "4.6× its $138 " + tt.period.Rows().Name(); !strings.HasSuffix(rows[2], want) {
 				t.Errorf("the period reads %q, want it to end %q", rows[2], want)
 			}
 		})
 	}
 }
 
-// Tokens names each account as Weeks and Days do, by its label, else
-// its id: its row, split by account, and among those a version ran on, split
+// Tokens names each account by its label, else its id: its row, split by account, and among those a version ran on, split
 // by model; and the requests none answered, no account.
 func TestTokensNamesTheAccountsByTheirLabels(t *testing.T) {
 	tests := []struct {
@@ -303,7 +317,7 @@ func TestTokensNamesTheAccountsByTheirLabels(t *testing.T) {
 	}
 	for _, tt := range tests {
 		f := tokensFrame(160, 37, tt.split)
-		period := &f.History.Tokens.Periods[0]
+		period := &f.Accounts.Tokens.Periods[0]
 		period.ByAccount[0].Label = "Laptop"
 		period.ByAccount[2].Account = ""
 		period.ByModel[0].On = []string{"", "work"}
@@ -316,7 +330,7 @@ func TestTokensNamesTheAccountsByTheirLabels(t *testing.T) {
 	}
 }
 
-// Tokens' inks, as history-tokens-160 draws them: the heads in text.subtle;
+// Tokens' inks, as the frames draw them: the heads in text.subtle;
 // a period bold text.primary, its versions' count text.muted, and against
 // its price bold, state.positive at 1× or more and accent.attention under,
 // then the price in text.subtle; under it, └ faint, an account
@@ -400,7 +414,7 @@ func TestTokensPeriodSoFarBrightensItsFigures(t *testing.T) {
 		})
 	}
 	numbered := tokensFrame(160, 37, TokensByAccount)
-	numbered.History.Tokens.Periods[0].SoFar = false
+	numbered.Accounts.Tokens.Periods[0].SoFar = false
 	for n := range numbered.Numbers(threeRouted(), now) {
 		if n.Kind == NumberTokens || n.Kind == NumberTokensSplit {
 			t.Errorf("%+v is numbered, want no period over numbered", n)
@@ -408,95 +422,12 @@ func TestTokensPeriodSoFarBrightensItsFigures(t *testing.T) {
 	}
 }
 
-// Where the periods don't all fit, as many as fit whole show, the row after
-// the last saying how many more are below; scrolled, a period at a time, the
-// later ones show, and no further than the oldest shows.
-func TestTokensScrollsAPeriodAtATime(t *testing.T) {
-	f := tokensFrame(160, 37, TokensByAccount)
-	page := pastTokens()
-	for range 3 {
-		page.Periods = append(page.Periods, page.Periods[:3]...)
-	}
-	f.History.Tokens = page // 12 periods of 4, 3 and 2 rows
-	top := f.top()
-	scrolling := f.historyTokens().scrolling(top)
-	tests := []struct {
-		name   string
-		scroll int
-		first  string
-		below  string
-		page   int
-	}{
-		{name: "from the newest", scroll: 0, first: "28 Sep", below: "▼ 6 more weeks below   ·   j/k to scroll", page: 6},
-		{name: "scrolled a period", scroll: 1, first: "21 Sep", below: "▼ 5 more weeks below   ·   j/k to scroll", page: 6},
-		{name: "as far as it goes", scroll: 6, first: "28 Sep", page: 6},
-		{name: "past it", scroll: 9, first: "28 Sep", page: 6},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			f.Scroll = tt.scroll
-			rows := tokensRowsOf(f)
-			if !strings.HasPrefix(rows[2], tt.first) {
-				t.Errorf("the first period shown reads %q, want %q", rows[2], tt.first)
-			}
-			below := slices.IndexFunc(rows, func(r string) bool { return strings.HasPrefix(r, "▼") })
-			switch {
-			case tt.below == "" && below >= 0:
-				t.Errorf("row %d reads %q, want none saying more are below", below, rows[below])
-			case tt.below != "" && (below < 0 || rows[below] != tt.below || rows[below-1] == ""):
-				t.Errorf("Tokens reads\n%s\nwant %q under the last period shown", strings.Join(rows, "\n"), tt.below)
-			}
-			if s := scrolling(min(tt.scroll, 6)); s.Most != 6 || s.Page != tt.page {
-				t.Errorf("Tokens scrolls %+v, want as far as 6, %d at once", s, tt.page)
-			}
-		})
-	}
-}
-
-// The footnote keeps the view's last rows while two are left for the periods
-// over it, a period's first and the line saying what's below; where they
-// wouldn't be, on a short terminal, the narrower the sooner as it wraps, it
-// goes, rather than reach for the heads, and the periods take its rows.
-// Where even that leaves them fewer than two, at the view's least, the blank
-// row under the heads goes too, so the periods keep a row and the line
-// saying more lies below.
-func TestTokensFootnoteGoesWhereItWouldLeaveThePeriodsNoRow(t *testing.T) {
-	tests := []struct {
-		width, height int
-		noted         bool
-		first         int
-	}{
-		{width: 160, height: 14, noted: true, first: 2},
-		{width: 160, height: 13, first: 2},
-		{width: 52, height: 18, noted: true, first: 2},
-		{width: 52, height: 17, first: 2},
-		{width: 50, height: 16, first: 2},
-		{width: 40, height: 15, first: 2},
-		{width: 40, height: 14, first: 1},
-		{width: 22, height: 17, first: 2},
-		{width: 160, height: 12, first: 2},
-		{width: 160, height: 11, first: 1},
-	}
-	for _, tt := range tests {
-		f := tokensFrame(tt.width, tt.height, TokensByAccount)
-		rows := tokensRowsOf(f)
-		noted := slices.ContainsFunc(rows, func(row string) bool { return strings.Contains(row, "worth: ") })
-		if !strings.HasPrefix(rows[0], "week") || !strings.HasPrefix(rows[tt.first], "28 Sep") || noted != tt.noted {
-			t.Errorf("at %d×%d, Tokens reads\n%s\nwant its heads, then 28 Sep's row on row %d, the footnote shown: %t", tt.width, tt.height, strings.Join(rows, "\n"), tt.first, tt.noted)
-		}
-		if said := rows[tt.first+1]; tt.first == 1 && !strings.HasPrefix(said, "▼ ") {
-			t.Errorf("at %d×%d, the row under 28 Sep's reads %q, want it saying more lies below", tt.width, tt.height, said)
-		}
-	}
-}
-
-// Where a period doesn't fit whole in the rows its periods have, Tokens shows
-// them a row at a time under its heads, over its footnote: the row after the
-// page says how many rows are out of view, above and below, so a period cut
-// short is never counted as shown; a period's row, or an account's, never
-// ends a page without the first row under it; and scrolled to the end, the
-// last row shows. Where every period fits, they scroll a period at a time.
-func TestTokensScrollsARowAtATimeWhereAPeriodDoesntFit(t *testing.T) {
+// Where its periods don't fit, Tokens shows them a row at a time under its
+// heads, over its footnote: the row after the page says how many rows are
+// out of view, above and below, so a period cut short is never counted as
+// shown; a period's row, or an account's, never ends a page without the
+// first row under it; and scrolled to the end, the last row shows.
+func TestTokensScrollsARowAtATime(t *testing.T) {
 	f := tokensFrame(160, 20, TokensByAccountAndModel)
 	tests := []struct {
 		name   string
@@ -542,16 +473,12 @@ func TestTokensScrollsARowAtATimeWhereAPeriodDoesntFit(t *testing.T) {
 			}
 		})
 	}
-	if tall := tokensFrame(160, 37, TokensByAccountAndModel); tall.ScrollsRows(threeRouted(), now) {
-		t.Error("as tall as the frames, where every period fits, Tokens scrolls a row at a time, want a period at a time")
-	}
 }
 
 // Of a short period before a tall one, 14 Sep's then 28 Sep's of seven
 // accounts and seven versions, by account and by model, from 14 rows, where
 // the footnote shows, to 37: Tokens never shows fewer of its periods' rows a
-// row taller, going on a row at a time past where each period fits while a
-// period at a time would show fewer.
+// row taller.
 func TestTokensNeverShowsFewerRowsAsTheTerminalGrows(t *testing.T) {
 	page := pastTokens()
 	short, tall := page.Periods[2], page.Periods[0]
@@ -569,7 +496,7 @@ func TestTokensNeverShowsFewerRowsAsTheTerminalGrows(t *testing.T) {
 			was := 0
 			for height := 14; height <= 37; height++ {
 				f := tokensFrame(160, height, tt.split)
-				f.History.Tokens = page
+				f.Accounts.Tokens = page
 				if shown := periodRowsShown(tokensRowsOf(f)); shown < was {
 					t.Errorf("at %d rows, Tokens shows %d of its periods' rows, fewer than the %d a row shorter", height, shown, was)
 				} else {
@@ -594,9 +521,9 @@ func periodRowsShown(rows []string) int {
 
 // With nothing recorded, Tokens says so, in text.subtle, at the view's top.
 func TestTokensOfNothingRecordedSaysSo(t *testing.T) {
-	for _, page := range []*views.TokensPage{nil, {PricesAsOf: "2026-10-01"}} {
+	for _, page := range []*views.TokensPage{{PricesAsOf: "2026-10-01"}} {
 		f := tokensFrame(160, 37, TokensByAccount)
-		f.History.Tokens = page
+		f.Accounts.Tokens = page
 		c := f.page(threeRouted(), now)
 		rows := c.rows(Look{})
 		if got := rows[f.top()]; got != "nothing recorded yet" || c.at(0, f.top()).ink != dimInk {
@@ -644,8 +571,8 @@ func TestTokensFiguresAreDrawnWholeOrAsAnEllipsis(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := tokensFrame(tt.width, 37, TokensUnsplit)
-			f.History.Tokens.PeriodCost = usd(12345)
-			f.History.Tokens.Periods[0].Worth, f.History.Tokens.Periods[0].Against = tt.worth, againstAt(14.6, 12345)
+			f.Accounts.Tokens.PeriodCost = usd(12345)
+			f.Accounts.Tokens.Periods[0].Worth, f.Accounts.Tokens.Periods[0].Against = tt.worth, againstAt(14.6, 12345)
 			if got := tokensRowsOf(f)[2]; !strings.HasSuffix(got, tt.want) {
 				t.Errorf("the period reads %q, want it to end %q", got, tt.want)
 			}
@@ -660,7 +587,7 @@ func TestTokensFiguresAreDrawnWholeOrAsAnEllipsis(t *testing.T) {
 	}
 }
 
-// Against its price is the ratio as History writes it, then the price, to
+// Against its price is the ratio as the figures write it, then the price, to
 // the dollar, its thousands set apart, the period named, the ratio and the
 // price its figures; a faint dash where no plan is known.
 func TestAgainstItsPriceAsTokensWritesIt(t *testing.T) {
@@ -778,12 +705,12 @@ func TestTokensColumnsLeaveOneAtATime(t *testing.T) {
 	for _, split := range tokensSplits {
 		for names, accounts := range map[string]config.Accounts{"short": nil, "long": longTokensAccounts} {
 			f := tokensFrame(220, 37, split)
-			f.History.Accounts = accounts
-			natural := f.historyTokens().namesNatural()
+			f.Accounts.Accounts = accounts
+			natural := f.accountsTokens().namesNatural()
 			wasLeft, wasName := 0, natural
 			for width := 220; width >= 40; width-- {
 				f.Width = width
-				cols := f.historyTokens().columns()
+				cols := f.accountsTokens().columns()
 				left, inOrder := tokensLeft(cols)
 				name := cols.spans[tokensName].Size
 				switch {
@@ -826,8 +753,8 @@ func TestTokensShowsTheColumnsThatFit(t *testing.T) {
 	}
 	for _, tt := range tests {
 		f := tokensFrame(tt.width, 37, TokensByAccount)
-		f.History.Accounts = tt.accounts
-		if left, _ := tokensLeft(f.historyTokens().columns()); left != tt.left {
+		f.Accounts.Accounts = tt.accounts
+		if left, _ := tokensLeft(f.accountsTokens().columns()); left != tt.left {
 			t.Errorf("at %d columns, of %d labels configured, %d columns have left, want %d", tt.width, len(tt.accounts), left, tt.left)
 		}
 	}
@@ -860,12 +787,12 @@ func TestTokensNamesNaturalIsOfWhatTheSplitNames(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := tokensFrame(160, 37, tt.split)
-			f.History.Accounts = tt.accounts
-			if got := f.historyTokens().columns().spans[tokensName].Size; got != tt.want {
+			f.Accounts.Accounts = tt.accounts
+			if got := f.accountsTokens().columns().spans[tokensName].Size; got != tt.want {
 				t.Errorf("the names take %d cells, want %d", got, tt.want)
 			}
-			f.History.Tokens.Periods[0].ByAccount[0].Label = strings.Repeat("x", 30)
-			if got := f.historyTokens().columns().spans[tokensName].Size; got != tt.want {
+			f.Accounts.Tokens.Periods[0].ByAccount[0].Label = strings.Repeat("x", 30)
+			if got := f.accountsTokens().columns().spans[tokensName].Size; got != tt.want {
 				t.Errorf("of a label the rows carry, the names take %d cells, want %d still", got, tt.want)
 			}
 		})
@@ -877,8 +804,8 @@ func TestTokensNamesNaturalIsOfWhatTheSplitNames(t *testing.T) {
 func TestTokensDrawsALongLabelWhole(t *testing.T) {
 	for _, width := range []int{73, 108, 109, 138, 173} {
 		f := tokensFrame(width, 37, TokensByAccount)
-		f.History.Accounts = longTokensAccounts
-		f.History.Tokens.Periods[0].ByAccount[2].Label = "side-hustle-consulting"
+		f.Accounts.Accounts = longTokensAccounts
+		f.Accounts.Tokens.Periods[0].ByAccount[2].Label = "side-hustle-consulting"
 		rows := tokensRowsOf(f)
 		if !slices.ContainsFunc(rows, func(row string) bool { return strings.HasPrefix(row, "└ side-hustle-consulting  ") }) {
 			t.Errorf("at %d columns, Tokens reads\n%s\nwant └ side-hustle-consulting whole", width, strings.Join(rows, "\n"))
@@ -893,8 +820,8 @@ func TestTokensDrawsALongLabelWhole(t *testing.T) {
 func TestTokensOnTakesTheAccountsConfigured(t *testing.T) {
 	accounts := append(slices.Clone(longTokensAccounts), config.Account{ID: "lab"})
 	f := tokensFrame(200, 37, TokensByModel)
-	f.History.Accounts = accounts
-	period := &f.History.Tokens.Periods[0]
+	f.Accounts.Accounts = accounts
+	period := &f.Accounts.Tokens.Periods[0]
 	period.ByModel[0].On = []string{"work", "personal", "side", "lab"}
 	for i, a := range accounts[:3] {
 		period.ByAccount[i].Account, period.ByAccount[i].Label = a.ID, a.Label
@@ -904,12 +831,12 @@ func TestTokensOnTakesTheAccountsConfigured(t *testing.T) {
 	if !strings.HasPrefix(rows[3], "└ opus-5-5    "+on+"  ") {
 		t.Errorf("at 200 columns, the version reads %q, want it on %q whole", rows[3], on)
 	}
-	if got := f.historyTokens().columns().spans[tokensOf].Size; got != len(on) {
+	if got := f.accountsTokens().columns().spans[tokensOf].Size; got != len(on) {
 		t.Errorf("on takes %d cells, want its natural %d", got, len(on))
 	}
 	for width := 200; width >= 100; width-- {
 		f.Width = width
-		cols := f.historyTokens().columns()
+		cols := f.accountsTokens().columns()
 		if left, _ := tokensLeft(cols); left > 0 && cols.spans[tokensOf].Size > tokensOfCells {
 			t.Errorf("at %d columns, a column left with on at %d cells, past its least", width, cols.spans[tokensOf].Size)
 		}
@@ -924,11 +851,11 @@ func TestTokensTotalSitsACellAfterTheNamesAlone(t *testing.T) {
 	beside := tokensTotalGap + 10 + tokensWorthGap + tokensWorthCells
 	for _, accounts := range []config.Accounts{nil, longTokensAccounts} {
 		f := tokensFrame(60, 37, TokensByAccount)
-		f.History.Accounts = accounts
-		natural := f.historyTokens().namesNatural()
+		f.Accounts.Accounts = accounts
+		natural := f.accountsTokens().namesNatural()
 		for width := 30; width <= 60; width++ {
 			f.Width = width
-			cols := f.historyTokens().columns()
+			cols := f.accountsTokens().columns()
 			if cols.shows(tokensCacheRead) {
 				continue
 			}
@@ -947,34 +874,34 @@ func TestTokensTotalSitsACellAfterTheNamesAlone(t *testing.T) {
 // at the frame's edge.
 func TestTokensAgainstItsPriceIsNeverCut(t *testing.T) {
 	tests := []struct {
-		period views.TokensPeriod
+		period views.Period
 		cost   float64
 		widest string
 	}{
-		{period: views.TokensByWeek, cost: 138, widest: "99.9× its $138 week"},
-		{period: views.TokensByMonth, cost: 600, widest: "99.9× its $600 month"},
+		{period: views.PeriodTwelveWeeks, cost: 138, widest: "99.9× its $138 week"},
+		{period: views.PeriodTwelveMonths, cost: 600, widest: "99.9× its $600 month"},
 	}
 	for _, tt := range tests {
 		f := tokensFrame(220, 37, TokensUnsplit)
-		f.History.TokensAsk.Period = tt.period
-		f.History.Tokens.PeriodCost = usd(tt.cost)
-		for i := range f.History.Tokens.Periods {
-			f.History.Tokens.Periods[i].Against = againstAt(*f.History.Tokens.Periods[i].Ratio, tt.cost)
+		f.Period = tt.period
+		f.Accounts.Tokens.PeriodCost = usd(tt.cost)
+		for i := range f.Accounts.Tokens.Periods {
+			f.Accounts.Tokens.Periods[i].Against = againstAt(*f.Accounts.Tokens.Periods[i].Ratio, tt.cost)
 		}
 		narrowest := 0
 		for width := 220; width >= 40; width-- {
 			f.Width = width
 			for _, row := range tokensRowsOf(f) {
-				if strings.Contains(row, "× its") && !strings.HasSuffix(row, " "+tt.period.Name()) {
-					t.Errorf("by %s at %d columns, a period reads %q, want against its price whole", tt.period.Name(), width, row)
+				if strings.Contains(row, "× its") && !strings.HasSuffix(row, " "+tt.period.Rows().Name()) {
+					t.Errorf("by %s at %d columns, a period reads %q, want against its price whole", tt.period.Rows().Name(), width, row)
 				}
 			}
-			if f.historyTokens().columns().shows(tokensAgainst) {
+			if f.accountsTokens().columns().shows(tokensAgainst) {
 				narrowest = width
 			}
 		}
 		f.Width = narrowest
-		if at := f.historyTokens().columns().at(tokensAgainst); at+ansi.StringWidth(tt.widest) != narrowest {
+		if at := f.accountsTokens().columns().at(tokensAgainst); at+ansi.StringWidth(tt.widest) != narrowest {
 			t.Errorf("by %s, against its price shows from %d columns, at %d, want it where %q ends at the edge", tt.period.Name(), narrowest, at, tt.widest)
 		}
 	}
@@ -986,12 +913,12 @@ func TestTokensAgainstItsPriceIsNeverCut(t *testing.T) {
 func TestTokensOnCutsEachNameAtLabelMost(t *testing.T) {
 	long := strings.Repeat("r", 30)
 	f := tokensFrame(220, 37, TokensByModel)
-	f.History.Accounts = config.Accounts{{ID: "work", Label: long}, {ID: "side"}}
-	period := &f.History.Tokens.Periods[0]
+	f.Accounts.Accounts = config.Accounts{{ID: "work", Label: long}, {ID: "side"}}
+	period := &f.Accounts.Tokens.Periods[0]
 	period.ByAccount[0].Label = long
 	period.ByModel[0].On = []string{"work", "side"}
 	on := strings.Repeat("r", labelMost-1) + "… side"
-	if got := f.historyTokens().columns().spans[tokensOf].Size; got != ansi.StringWidth(on) {
+	if got := f.accountsTokens().columns().spans[tokensOf].Size; got != ansi.StringWidth(on) {
 		t.Errorf("on takes %d cells, want its natural %d", got, ansi.StringWidth(on))
 	}
 	if row := tokensRowsOf(f)[3]; !strings.HasPrefix(row, "└ opus-5-5    "+on+" ") {
@@ -1005,8 +932,8 @@ func TestTokensOnCutsEachNameAtLabelMost(t *testing.T) {
 func TestTokensOfIsItsLeastWhereItNamesNoAccounts(t *testing.T) {
 	for _, split := range []TokensSplit{TokensByAccount, TokensByAccountAndModel, TokensUnsplit} {
 		f := tokensFrame(220, 37, split)
-		f.History.Accounts = tenConfigured()
-		if got := f.historyTokens().columns().spans[tokensOf].Size; got != tokensOfCells {
+		f.Accounts.Accounts = tenConfigured()
+		if got := f.accountsTokens().columns().spans[tokensOf].Size; got != tokensOfCells {
 			t.Errorf("split %d, of ten accounts, at 220 columns the split's column takes %d cells, want %d", split, got, tokensOfCells)
 		}
 	}
@@ -1033,12 +960,12 @@ func TestTokensAgainstItsPriceOfAHundredfoldIsNeverCut(t *testing.T) {
 	for _, split := range []TokensSplit{TokensUnsplit, TokensByModel} {
 		for ratio, said := range map[float64]string{123.4: "123× its $7 day", 1234.5: "1234× its $7 day"} {
 			f := tokensFrame(220, 37, split)
-			f.History.TokensAsk.Period = views.TokensByDay
-			f.History.Accounts = tenConfigured()
-			f.History.Tokens.PeriodCost = usd(7)
-			period := &f.History.Tokens.Periods[0]
+			f.Period = views.PeriodThirtyDays
+			f.Accounts.Accounts = tenConfigured()
+			f.Accounts.Tokens.PeriodCost = usd(7)
+			period := &f.Accounts.Tokens.Periods[0]
 			period.Against = againstAt(ratio, 7)
-			period.ByModel[0].On = f.History.Accounts.IDs()
+			period.ByModel[0].On = f.Accounts.Accounts.IDs()
 			shown := 0
 			for width := 220; width >= 40; width-- {
 				f.Width = width
@@ -1064,7 +991,25 @@ func TestTokensDrawsNothingPastTheWidth(t *testing.T) {
 		for width := 1; width <= 160; width++ {
 			f := tokensFrame(width, 40, split)
 			f.Scroll = 2
-			historyPastItsEdge(t, fmt.Sprintf("Tokens split %d", split), f, f.Width)
+			tokensPastTheWidth(t, fmt.Sprintf("Tokens split %d", split), f)
 		}
+	}
+}
+
+// Tokens names an account removed by the label it showed last in
+// text.faint, on its row and among the accounts a version ran on.
+func TestTokensNamesAnAccountRemovedInTextFaint(t *testing.T) {
+	removed := views.AccountTokens{Account: "h7c2", Label: "team", Other: true}
+	row := tokensRow{}.ofAccount(removed)
+	if got := row.name[0].said; len(got) != 2 || got[1].text != "team" || got[1].ink != faintInk {
+		t.Errorf("the removed team's row is named %+v, want team in text.faint", got)
+	}
+	if got := (tokensRow{}).ofAccount(views.AccountTokens{Account: "work", Label: "team"}).name[0].said[1].ink; got != secondaryInk {
+		t.Errorf("the configured team's row is named in %+v, want text.secondary", got)
+	}
+	on := tokensRow{}.on([]string{"work", "h7c2"}, tokensAccounts([]views.AccountTokens{{Account: "work", Label: "team"}, removed}))
+	want := line{{"team", dimInk}, {" ", dimInk}, {"team", faintInk}}
+	if got := on.of[0].said; !slices.Equal(got, want) {
+		t.Errorf("a version ran on %+v, want %+v", got, want)
 	}
 }

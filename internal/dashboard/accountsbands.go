@@ -10,14 +10,14 @@ import (
 	"github.com/leeovery/switchboard/internal/views"
 )
 
-// Accounts' weeks an account at a time, History's Weeks without its verdict:
+// Accounts' weeks an account at a time, without a verdict:
 // as bands of week columns, Detail's all accounts' where their rows fit and
-// turned Compare's WEEKS; or as Weeks' table, Detail's all accounts' where
+// turned Compare's WEEKS; or as a table, Detail's all accounts' where
 // they don't, as on a phone.
 
 // A band's rows: its columns bandRows tall, its peaks on the row under them;
 // its name's marks a cell before its columns; and its columns, each
-// columnCells wide, a week's cells apart, as Weeks' columns lie, its facts
+// columnCells wide, a week's cells apart, its facts
 // as far after the last as the next column would start.
 const (
 	bandRows    = 4
@@ -118,7 +118,7 @@ func (b bandsLayout) factsAt() int {
 }
 
 // weekBand is a band as it's drawn: its name; its peaks, the latest of which
-// that fit show; Weeks' facts on them; and the cap it keeps a reserve to,
+// that fit show; its facts on them; and the cap it keeps a reserve to,
 // its share of its week, none where it keeps none.
 type weekBand struct {
 	name  line
@@ -181,7 +181,7 @@ func capKept(a status.AccountNow, known bool) float64 {
 	return a.Cap
 }
 
-// weeksTable is Weeks' table without its verdict: its names from x, names
+// weeksTable is the weeks' table: its names from x, names
 // cells wide; its weeks from the names' end, shown of them, a band's pitch
 // apart, each its first day over its peaks; and after the last, its facts,
 // limits cells, tableApart, then left cells, each column headed.
@@ -227,7 +227,7 @@ func (t weeksTable) leftAt() int {
 }
 
 // tableRow is a row of the table: its name, its peaks, the latest of which
-// that fit show, and Weeks' facts on them.
+// that fit show, and its facts on them.
 type tableRow struct {
 	name  line
 	peaks []views.WeekPeak

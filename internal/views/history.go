@@ -13,11 +13,11 @@ import (
 	"github.com/leeovery/switchboard/internal/status"
 )
 
-// History is what History's views and Accounts' build over the days asked
-// for, block by block, each oldest first, as history prints them: the days,
-// Year's grid, BY MONTH's rows, Weeks' weeks, Tokens' weeks, the accounts'
-// totals and plans, and Weeks' verdicts; and the accounts removed that the
-// days name, each by the label it showed last.
+// History is what history builds over the days asked for, block by block,
+// each oldest first, as it prints them: the days, the year's grid, each
+// month's rows, the weeks' peaks, the weeks' tokens, the accounts' totals
+// and plans, and the weeks' verdicts; and the accounts removed that the days
+// name, each by the label it showed last.
 type History struct {
 	Days     []Day                  `json:"days"`
 	Year     Year                   `json:"year"`

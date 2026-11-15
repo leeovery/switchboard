@@ -554,7 +554,7 @@ func TestARequestTheLogKeepsGoesByTheHourWhileAnotherTabShows(t *testing.T) {
 	}
 }
 
-// The Log keeps up while another tab shows: ten minutes on History, the
+// The Log keeps up while another tab shows: ten minutes on Trends, the
 // requests that came meanwhile, their lines written, and the events the
 // router told of, are on the Log as it shows again, before any read lands.
 func TestTheLogKeepsUpWhileAnotherTabShows(t *testing.T) {
@@ -563,9 +563,9 @@ func TestTheLogKeepsUpWhileAnotherTabShows(t *testing.T) {
 	h := routedHarness(t, routerDocument(three()...))
 	onTheLog(h, state)
 	h.start()
-	h.keys(shiftTabKey, shiftTabKey, shiftTabKey, shiftTabKey)
-	if h.model.view != dashboard.History {
-		t.Fatalf("shift-tab four times from the Log shows %s, want History", h.model.view)
+	h.keys(shiftTabKey)
+	if h.model.view != dashboard.Graphs {
+		t.Fatalf("shift-tab from the Log shows %s, want Trends", h.model.view)
 	}
 
 	doc := routerDocument(three()...)
@@ -581,12 +581,9 @@ func TestTheLogKeepsUpWhileAnotherTabShows(t *testing.T) {
 		want = append(want, id)
 	}
 	h.update(tabKey)
-	h.update(tabKey)
-	h.update(tabKey)
-	h.update(tabKey)
 
 	if h.model.view != dashboard.Log {
-		t.Fatalf("tab four times from History shows %s, want the Log", h.model.view)
+		t.Fatalf("tab from Trends shows %s, want the Log", h.model.view)
 	}
 	if got := shownRequests(h); !slices.Equal(got, want) {
 		t.Errorf("back on the Log, before any read lands, the Requests show %v, want %v", got, want)

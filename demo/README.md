@@ -30,7 +30,7 @@ demo/record.sh routing help   # the tapes named
 | `phone` | `routing` | 52 × 36 | `art/phone.webp`, a still: the Overview at 52 × 36 |
 | `help` | `routing` | 160 × 37 | `art/help.webp`, a still: the Overview's help |
 | `accounts-compare` | fixture `accounts-compare-160` | 160 × 37 | `art/accounts-compare.webp`, a still: Accounts' Compare over this week |
-| `history-year` | fixture `history-year-160` | 160 × 37 | `art/history-year.webp`, a still: History's Year |
+| `trends-year` | fixture `trends-year-173x53` | 173 × 53 | `art/trends-year.webp`, a still: Trends' YEAR, BY MONTH and MODELS BY DAY |
 | `log-requests` | fixture `log-requests-160` | 160 × 37 | `art/log-requests.webp`, a still: the Log's Requests |
 | `session` | fixture `session-turn-opened-160` | 160 × 37 | `art/session.webp`, a still: a session's page, a turn opened into its requests |
 | `overview` | fixture `overview-default-160` | 160 × 37 | `art/overview.webp`, a still: the Overview |
@@ -83,9 +83,9 @@ dashboard through the request stream, the readings and the document's events. Th
 stand as they were, so the Log draws the scenario's requests from the stream alone, without the
 tokens and tools a line would give them, and a session's page draws the world's turns. The tour
 shows the two first, while the stream the Overview holds open has told of every request: a page
-without it, such as Accounts', History's or Runway's, lets the stream go, and a request that ends
+without it, such as Accounts' or Runway's, lets the stream go, and a request that ends
 meanwhile, its line never coming, the Log and a session's page draw as lost, `no answer: the
-router went away`, once it opens again. Their stills, with Accounts' Compare and History's Year,
+router went away`, once it opens again. Their stills, with Accounts' Compare and Trends' YEAR,
 draw the fixtures named after the signed-off frames, `capturetool --fixture`, as capture's tests
 hold them to the frames. A fixture is a moment whose timers never fire, so its tape waits for the
 screen, then shows it.

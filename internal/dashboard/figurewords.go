@@ -13,7 +13,7 @@ import (
 )
 
 // noFigure is a figure the dashboard doesn't know, or doesn't yet, as
-// History's or a bar's: a dash, in text.faint.
+// the Year's or a bar's: a dash, in text.faint.
 var noFigure = span{"—", faintInk}
 
 // The cells the widest of a bounded figure takes, as its format draws it: a
@@ -25,7 +25,7 @@ var (
 	widestShare = ansi.StringWidth(prose.Percent(1))
 )
 
-// worthSaid is a worth as History writes it, as views.Worth.Dollars says it,
+// worthSaid is a worth as the dashboard writes it, as views.Worth.Dollars says it,
 // in the ink given: to the dollar, as "$27,480"; the mark of part of it
 // unpriced faint after it, as "$184+"; unpriced where all of it is; and a
 // dash for none.
@@ -56,7 +56,7 @@ func countedParts(n int, noun string, k ink) []part {
 	return saidParts(views.CountedWords(n, noun), k)
 }
 
-// saidParts are words History says, as views words them, in the ink given:
+// saidParts are words the dashboard says, as views words them, in the ink given:
 // each figure among them a figure, the rest words.
 func saidParts(said status.Words, k ink) []part {
 	parts := make([]part, len(said))
@@ -92,7 +92,7 @@ func shareSaid(share *float64, k ink) line {
 	return line{{prose.Percent(*share), k}}
 }
 
-// familyName is a family's name as History shows it, its first letter
+// familyName is a family's name as the dashboard shows it, its first letter
 // capital: Opus.
 func familyName(family string) string {
 	return capitalised(prose.Clean(family))
@@ -107,37 +107,8 @@ func capitalised(words string) string {
 	return words
 }
 
-// familyDot is a family as History's keys and strips name it: its dot in
+// familyDot is a family as the keys and strips name it: its dot in
 // its hue, then its name in the ink given, as ● Opus.
 func familyDot(family string, name ink) line {
 	return line{{"●", familyHue(family).ink()}, {" " + familyName(family), name}}
-}
-
-// historyAccount is an account as History's rows name it, in the cells given:
-// its name, as labelled gives it, bold text.primary, its label cut to room
-// cells less the ◆'s, and the ◆ after the primary's, in text.tertiary,
-// where there's room for it, at their end, as inColumn lays it.
-func historyAccount(name string, primary bool, room, cells int) line {
-	n := historyName(name, primary)
-	return n.inColumn(room-n.cells(0), cells).fit(cells)
-}
-
-// historyBeside is an account as a row of History says it where no column
-// holds it, in room cells: as historyAccount has it, but its ◆ right after
-// its label.
-func historyBeside(name string, primary bool, room int) line {
-	n := historyName(name, primary)
-	return n.labelIn(room - n.cells(0)).fit(room)
-}
-
-// historyName is an account's name as History has it: ◆ on the primary, and
-// unrouted, as History shows no routing, so no ▲.
-func historyName(name string, primary bool) accountName {
-	return accountName{label: name, primary: primary, unrouted: true}
-}
-
-// historyNamed is an account's name as History's label column holds it,
-// for namesColumn: its name, as labelled gives it, and its mark beside it.
-func historyNamed(name string, primary bool) columnName {
-	return columnName{label: ansi.StringWidth(name), beside: historyName(name, primary).cells(0)}
 }

@@ -24,8 +24,7 @@ type LedgerDays interface {
 }
 
 // LedgerStart tells where the request ledger begins, as a ledger.Follower
-// does: History's Year steps back through the calendar years from its
-// first.
+// does: the pages built of the ledger's days price from its first.
 type LedgerStart interface {
 	// FirstDay gives the start of the first local day the ledger holds, at
 	// now, failing where it holds none.

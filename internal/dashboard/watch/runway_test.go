@@ -49,7 +49,7 @@ type runwayed struct {
 
 // runwayHarness is the router of three, on the tab given, 160 cells wide and
 // 37 tall, its readings history filed holding the readings given, its ledger
-// holding the days from 2024 on, as historyHarness's does, each of no
+// holding the days from 2024 on, as pastHarness's does, each of no
 // requests but as the test puts them there, set up as setup has it, where
 // it's given; it counts Runway's lanes and Graphs' as they're built. It's
 // started.
@@ -221,7 +221,7 @@ func TestRunwayOpensOnTheWeek(t *testing.T) {
 }
 
 func TestRunwaysKeysAreTakenOnRunwayAlone(t *testing.T) {
-	for _, view := range []dashboard.View{dashboard.Overview, dashboard.Accounts, dashboard.History, dashboard.Sessions, dashboard.Log} {
+	for _, view := range []dashboard.View{dashboard.Overview, dashboard.Accounts, dashboard.Sessions, dashboard.Graphs, dashboard.Log} {
 		t.Run(view.Title(), func(t *testing.T) {
 			r := runwayHarness(t, view, nil)
 			r.keyed("left a")
@@ -326,10 +326,10 @@ func TestTheReadingsHistorysTailIsReadAtEachLookWhileRunwayShows(t *testing.T) {
 		t.Errorf("at a look, %d tails were made and read %d times in all, want the one read again, %d times", len(r.filed.starts), r.filed.tails, read+1)
 	}
 
-	other := runwayHarness(t, dashboard.History, nil, inSpan)
+	other := runwayHarness(t, dashboard.Projects, nil, inSpan)
 	other.lookAt(start.Add(interval))
 	if len(other.filed.starts) != 0 || other.filed.tails != 0 {
-		t.Errorf("with History shown, %d tails were made and read %d times, want none", len(other.filed.starts), other.filed.tails)
+		t.Errorf("with Projects shown, %d tails were made and read %d times, want none", len(other.filed.starts), other.filed.tails)
 	}
 }
 
@@ -450,7 +450,7 @@ func TestTheLiveTailIsMadeAfreshAsTheDayTurns(t *testing.T) {
 }
 
 // Stepped back, the lanes are judged by the ledger's days, from a week
-// before the first shown to the last, as History's reads hold them, the
+// before the first shown to the last, as the past's reads hold them, the
 // readings history's live tail joining them; and live, by none, but where
 // they reach back before the first day the readings history holds, as its
 // tail last said, which a day before is drawn from its summary.
@@ -466,7 +466,7 @@ func TestTheLanesAreJudgedByTheLedgersDaysSteppedBackOrBeforeTheReadingsKeep(t *
 	}
 	yearFrom := views.DaysFrom(views.YearAsk{}, start, time.Sunday)
 	if !slices.EqualFunc(r.ledger.reads, []time.Time{yearFrom}, time.Time.Equal) {
-		t.Errorf("stepped back, the ledger was read from %v, want once, from the 12 months' first day read, %s, as History reads it", r.ledger.reads, yearFrom)
+		t.Errorf("stepped back, the ledger was read from %v, want once, from the 12 months' first day read, %s, as Accounts and Trends read it", r.ledger.reads, yearFrom)
 	}
 	r.lookAt(start.Add(interval))
 	if len(r.ledger.reads) != 2 || !r.ledger.reads[1].Equal(dayfile.DayStart(start.Local(), 0)) {

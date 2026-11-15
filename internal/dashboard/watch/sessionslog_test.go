@@ -66,7 +66,7 @@ func TestOneReadServesProjectsAndTheList(t *testing.T) {
 	if h.model.sessionDays.asked != 1 || h.model.projects.shown.Page == nil {
 		t.Fatalf("on Projects, the days were read %d times, its page %v; want once, built", h.model.sessionDays.asked, h.model.projects.shown.Page)
 	}
-	h.keys(tabKey, tabKey)
+	h.keys(tabKey)
 	h.keyed("]")
 	if h.model.sessionDays.asked != 1 || h.model.sessionsTab.shown.Log == nil {
 		t.Errorf("on the List after Projects, the days were read %d times, its log %v; want none again, the log built", h.model.sessionDays.asked, h.model.sessionsTab.shown.Log)
@@ -74,7 +74,7 @@ func TestOneReadServesProjectsAndTheList(t *testing.T) {
 
 	h = listHarness(t, Size{Width: 160, Height: 50})
 	asked := h.model.sessionDays.asked
-	h.keys(shiftTabKey, shiftTabKey)
+	h.keys(shiftTabKey)
 	if h.model.view != dashboard.Projects || h.model.sessionDays.asked != asked || h.model.projects.shown.Page == nil {
 		t.Errorf("on %s after the List, the days were read %d times, its page %v; want Projects, none read again, its page built", h.model.view, h.model.sessionDays.asked-asked, h.model.projects.shown.Page)
 	}

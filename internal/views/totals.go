@@ -11,7 +11,7 @@ import (
 	"github.com/leeovery/switchboard/internal/status"
 )
 
-// Totals are what Accounts and History count over the days: each configured
+// Totals are what Accounts and history count over the days: each configured
 // account's, in the config's order, then every account's.
 type Totals struct {
 	Accounts []AccountTotals `json:"accounts"`

@@ -72,9 +72,9 @@ func TestTodayIsFedFromTheFirstReadOfTheTailThoughProjectsNeverShows(t *testing.
 	}
 	projectsLedgerOf(h).write(projectAsks(betaOnly, "/code/beta", now.Add(time.Second), 1)...)
 	h.tickUntilAsked()
-	h.keys(shiftTabKey, shiftTabKey)
+	h.keys(shiftTabKey)
 	if h.model.view != dashboard.Projects {
-		t.Fatalf("shift+tab twice from Sessions shows %s, want Projects", h.model.view)
+		t.Fatalf("shift+tab from Sessions shows %s, want Projects", h.model.view)
 	}
 	sameAsFresh(t, h, 7, "the tail gained beta's third, then Projects showed")
 	if readToday(h) {
@@ -324,7 +324,7 @@ func TestATailReadUnderWayAsProjectsFirstShowsBuildsItsPageAgain(t *testing.T) {
 	if h.model.sessionDays.asked != 0 {
 		t.Fatal("Projects asked for its days before the read of the tail was asked, want it not yet shown")
 	}
-	h.keys(shiftTabKey, shiftTabKey)
+	h.keys(shiftTabKey)
 	if p := h.model.projects; h.model.view != dashboard.Projects || p.shown.Page == nil || p.shown.Page.All.Requests != 6 {
 		t.Fatalf("shown, on %s, a page built %v; want Projects, its page built of the fold before the read under way, 6 requests", h.model.view, p.shown.Page != nil)
 	}
@@ -376,9 +376,9 @@ func TestALateLineOfTheDayGoneReachesProjectsThroughAnotherReadersRead(t *testin
 	h := projectsHarness(t, dashboard.Projects)
 	h.clock.now = night
 	h.start()
-	h.keys(tabKey, tabKey)
+	h.keys(tabKey)
 	if h.model.view != dashboard.Sessions {
-		t.Fatalf("tab twice from Projects shows %s, want Sessions", h.model.view)
+		t.Fatalf("tab from Projects shows %s, want Sessions", h.model.view)
 	}
 	h.clock.now = onTheDay(24, 0, 10)
 	h.read(routerDocument(three()...))
@@ -401,7 +401,7 @@ func TestALateLineOfTheDayGoneReachesProjectsThroughAnotherReadersRead(t *testin
 	if gone := dayfile.DateOf(night); !slices.Contains(l.days[read:], gone) {
 		t.Fatalf("the looks after the request ended read the days %v whole, want the day gone among them, for the store", l.days[read:])
 	}
-	h.keys(shiftTabKey, shiftTabKey)
+	h.keys(shiftTabKey)
 	sameAsFresh(t, h, 7, "the store read the day gone again for its line, then Projects showed")
 }
 

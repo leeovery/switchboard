@@ -29,7 +29,7 @@ func SharedWindows() []string {
 const FiveHourWindow = "5h"
 
 // WeekWindow is an account's week: the window a week long every model shares,
-// which History's Weeks counts the accounts' weeks by.
+// which Accounts' weeks count the accounts' weeks by.
 const WeekWindow = "7d"
 
 // PerishableWindow is the window an account's perishability is measured on:

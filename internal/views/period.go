@@ -12,7 +12,7 @@ import (
 // < and > step it, one dial they share: today, from midnight; this week, as
 // it opens, from the day weeks start on; the last 30 days, today and the 29
 // before it; the last 12 weeks, this week and the 11 before it; or the last
-// 12 months, the days History's Year counts as LAST 12 MONTHS. Each is
+// 12 months, the days Trends' YEAR counts as LAST 12 MONTHS. Each is
 // rolling, never a billing month, and priced whole while it's still running,
 // but from its first day where the ledger began part-way through it.
 type Period string

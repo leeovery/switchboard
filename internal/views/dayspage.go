@@ -7,61 +7,43 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/claude"
-	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
-	"github.com/leeovery/switchboard/internal/status"
 )
 
-// DaysPage is Days as the dashboard draws it: the eight weeks to this one, a
-// day at a time; BY MODEL's strips, a family each, on one scale; and BY
-// ACCOUNT's, an account each, on another.
+// DaysPage is MODELS BY DAY as Trends draws it: the eight weeks to this
+// one, a day at a time, a strip a family, on one scale.
 type DaysPage struct {
 	// Weeks are the eight weeks' first days' dates, oldest first, this week
 	// last, and ToCome how many of this week's days are still to come.
 	Weeks  []string
 	ToCome int
 	// ByModel are the families used in the eight weeks, a strip each, in the
-	// version table's order; ByAccount the configured accounts, in the
-	// config's, then those removed that the eight weeks record anything of,
-	// in the accounts record's.
-	ByModel   []DaysStrip
-	ByAccount []DaysStrip
+	// version table's order.
+	ByModel []DaysStrip
 }
 
-// DaysStrip is a strip of Days, a family's or an account's: Of, the family's
-// name, as the version table gives it, or the account's id; its days, the
-// eight weeks' from the first, those still to come among them; of a family,
-// Share, its share of the eight weeks' worth; and of an account, Limits, the
-// 5-hour limits it hit; Label, Other and Removed, naming it, as status's
-// AccountName has them; Primary, set on the primary; and Gone, the place
-// among its days of the first after the one it was removed on, or after the
-// last it records anything on where that's later, from which on it has none:
-// len(Days) where that's after them all, or it wasn't removed, and 0 where
-// it's before them.
+// DaysStrip is a family's strip: Of, the family's name, as the version table
+// gives it; its days, the eight weeks' from the first, those still to come
+// among them; and Share, its share of the eight weeks' worth.
 type DaysStrip struct {
-	Of      string
-	Days    []StripDay
-	Share   *float64
-	Limits  int
-	Label   string
-	Other   bool
-	Primary bool
-	Removed string
-	Gone    int
+	Of    string
+	Days  []StripDay
+	Share *float64
 }
 
 // StripDay is a day of a strip: its level, 0 to 4, on the strips' scale; and
-// of an account's, whether it hit a 5-hour limit that day.
+// of an account's, as Accounts' BY DAY draws it, whether it hit a 5-hour
+// limit that day.
 type StripDay struct {
 	Level int
 	Limit bool
 }
 
 // Recorded reports whether anything is recorded in the eight weeks: a
-// family's use, or an account's week rising or its 5-hour limit.
+// family's use.
 func (p DaysPage) Recorded() bool {
-	return len(p.ByModel) > 0 || slices.ContainsFunc(p.ByAccount, DaysStrip.recorded)
+	return len(p.ByModel) > 0
 }
 
 // weekDays are the days of the weeks to this one, as Days and Accounts' BY
@@ -99,10 +81,9 @@ func (w weekDays) index(day time.Time) int {
 func daysPageOf(in HistoryInput, days []Day) DaysPage {
 	w := weekDaysOf(days, in.Now, in.WeekStarts, weeksShown)
 	return DaysPage{
-		Weeks:     weekDates(w.first, weeksShown),
-		ToCome:    len(w.days) - 1 - w.today,
-		ByModel:   w.byFamily(versions{table: in.Prices, family: in.Family}),
-		ByAccount: w.byAccount(in.Accounts, in.Removed, in.WeekWindow),
+		Weeks:   weekDates(w.first, weeksShown),
+		ToCome:  len(w.days) - 1 - w.today,
+		ByModel: w.byFamily(versions{table: in.Prices, family: in.Family}),
 	}
 }
 
@@ -175,68 +156,6 @@ func (w weekDays) addModel(families map[string]*familyDays, v versions, i int, m
 	f.worth[i].addModel(m)
 	f.sum.addModel(m)
 	f.used = f.used || used(m.ModelDay)
-}
-
-// byAccount are BY ACCOUNT's strips: a configured account each, in the
-// config's order, by its label, the primary marked; then each of removed,
-// named as its Named names it, where the eight weeks record anything of it. Each day is the points of its week, the window with
-// the key week, it used that day, every account on one scale; and the
-// 5-hour limits it hit, each day and in all.
-func (w weekDays) byAccount(accounts config.Accounts, removed status.RemovedAccounts, week string) []DaysStrip {
-	strips := make([]DaysStrip, 0, len(accounts)+len(removed))
-	for _, a := range accounts {
-		strips = append(strips, DaysStrip{Of: a.ID, Label: removed.Named(accounts, a.ID).Label, Primary: a.Primary, Gone: len(w.days)})
-	}
-	for _, a := range removed {
-		n := removed.Named(accounts, a.ID)
-		strips = append(strips, DaysStrip{Of: a.ID, Label: n.Label, Other: n.Other, Removed: n.Removed, Gone: w.after(a.Removed)})
-	}
-	rises := make([][]float64, len(strips))
-	limits := make([][]int, len(strips))
-	var active []float64
-	for i, s := range strips {
-		rises[i], limits[i] = w.risesOf(s.Of, week)
-		active = appendActive(active, rises[i])
-	}
-	cuts := quarterCuts(active)
-	for i := range strips {
-		strips[i].Days = levelled(rises[i], cuts)
-		for d, n := range limits[i] {
-			strips[i].Days[d].Limit = n > 0
-			strips[i].Limits += n
-		}
-		strips[i].Gone = max(strips[i].Gone, strips[i].lastRecorded()+1)
-	}
-	return slices.DeleteFunc(strips, func(s DaysStrip) bool { return s.Other && !s.recorded() })
-}
-
-// recorded reports whether the strip records anything of its account: a day
-// its week rose, or a 5-hour limit.
-func (s DaysStrip) recorded() bool {
-	return s.lastRecorded() >= 0
-}
-
-// lastRecorded is the place among the strip's days of the last that records
-// anything of its account, as recorded says: -1 where none does. An account
-// removed here may still have been used on another Mac, whose days were
-// imported, after the day it was removed on.
-func (s DaysStrip) lastRecorded() int {
-	for d, day := range slices.Backward(s.Days) {
-		if day.Level > 0 || day.Limit {
-			return d
-		}
-	}
-	return -1
-}
-
-// after is the place among the weeks' days of the first after the local day
-// of t: len(w.days) where that's after them all, or t is zero, and 0 where
-// it's before them.
-func (w weekDays) after(t time.Time) int {
-	if t.IsZero() {
-		return len(w.days)
-	}
-	return min(max(w.index(dayfile.CivilOf(t))+1, 0), len(w.days))
 }
 
 // risesOf are, of the account with the given id, each day's rise of the

@@ -9,11 +9,6 @@ import (
 	"github.com/leeovery/switchboard/internal/ledger"
 )
 
-// TokensAsk is what Tokens is asked to show: its rows' period.
-type TokensAsk struct {
-	Period TokensPeriod
-}
-
 // TokensPeriod is the period a row of Tokens is, as < and > step it: a day, a
 // week, as it opens, or a month.
 type TokensPeriod string
@@ -36,8 +31,7 @@ func (p TokensPeriod) Name() string {
 // TokensPage is Tokens as the dashboard draws it: its rows, a period each,
 // newest first, those with nothing recorded in them left out; of one of the
 // dial's periods, as Accounts' Tokens shows it, the whole period's row,
-// Total, nil where nothing is recorded in it, and of History's, nil; the
-// date of the prices their worth is at; and what every plan configured costs
+// Total, nil where nothing is recorded in it; the date of the prices their worth is at; and what every plan configured costs
 // over a whole period of the kind its rows are, at today's prices, the most a
 // row's worth is set against, nil where no plan is known or they cost
 // nothing.
@@ -63,17 +57,6 @@ type TokenPeriod struct {
 	ByAccount []AccountTokens
 	ByModel   []ModelTokens
 	SoFar     bool
-}
-
-// tokens is History's Tokens' page, its rows the periods asked for over the
-// last 12 months' days, as the Year's are, the days its grid draws before
-// them left out, counted from the later of their first day, the day the
-// days were asked for from and the day the ledger began on, as tokensFrom
-// counts them.
-func (p Past) tokens(ask TokensAsk) TokensPage {
-	span := yearSpanOf(0, dayfile.CivilOf(p.in.Now), p.in.WeekStarts)
-	page, _ := p.tokensFrom(p.counted(max(span.first, dayfile.DateOf(p.in.From))), span.last, ask.Period)
-	return page
 }
 
 // TokensOver is Accounts' Tokens' page over the dial's period given: its

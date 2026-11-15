@@ -41,7 +41,7 @@ func (w accountWorld) ledger() views.Ledger {
 
 // historyFrom is the History the views build of the world's days from day d
 // of the year to today, through its records' ledger, of its accounts, at the
-// frames' prices, as History and Accounts read it: weeks from Monday, the
+// frames' prices, as switchboard history reads it: weeks from Monday, the
 // accounts' weeks Claude's.
 func historyFrom(w accountWorld, d int) views.History {
 	now := worldsNow().now

@@ -195,7 +195,7 @@ damage kept, and the file set aside beside it as `<name>.damaged`, warned of in 
 ### A damaged accounts record
 
 `accounts.json` that doesn't read, as one edited wrongly by hand, is left as it is: adding or
-removing an account fails, naming it, and History and the verbs name each removed account by its
+removing an account fails, naming it, and the dashboard and the verbs name each removed account by its
 id meanwhile. Put it right, or move it aside: see
 [The accounts record](reference.md#the-accounts-record).
 

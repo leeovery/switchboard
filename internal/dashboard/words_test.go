@@ -30,7 +30,7 @@ func TestAModelIsNamedByItsIDLessClaudeCleaned(t *testing.T) {
 func TestEveryPageNamesAModelAsModelNamedDoes(t *testing.T) {
 	const odd = "  claude-opus-5-5\t"
 	tokens := tokensFrame(160, 37, TokensByModel)
-	tokens.History.Tokens.Periods[0].ByModel[0].Model = odd
+	tokens.Accounts.Tokens.Periods[0].ByModel[0].Model = odd
 	if rows := tokensRowsOf(tokens); !slices.ContainsFunc(rows, func(row string) bool { return strings.HasPrefix(row, "└ opus-5-5 ") }) {
 		t.Errorf("Tokens by model reads\n%s\nwant a row of └ opus-5-5", strings.Join(rows, "\n"))
 	}
@@ -130,5 +130,33 @@ func TestAMovesNamesAreCutTheLongerFirstKeepingTheArrow(t *testing.T) {
 	want := line{{"pers…", secondaryInk}, {" → ", mutedInk}, {"side", secondaryInk}}
 	if got := moveNames("personal", "side", 12, secondaryInk); !slices.Equal(got, want) {
 		t.Errorf("moveNames() is inked %+v, want the names in the ink given and the arrow in text.muted", got)
+	}
+}
+
+// The dashboard names an account wherever it names one by its id, as the
+// Log's rows and heading and Detail's LATELY do, as the moment names it: an
+// account removed by the label it showed last, and in Detail's words in
+// text.faint, as one only another Mac configures; a configured account by its
+// label, in text.muted; and one neither the moment nor the record knows by
+// its id.
+func TestTheDashboardNamesAnAccountRemovedByItsLastLabel(t *testing.T) {
+	removed := status.RemovedAccounts{{ID: "h7c2", Label: "team", Removed: routedAt}, {ID: "p4m2", Label: "home"}}
+	m := status.Document{GeneratedAt: routedAt, Accounts: []status.Account{{ID: "work", Label: "Work"}}}.WithRemoved(removed).At(routedAt, claudeLike)
+	tests := []struct {
+		id   string
+		want span
+	}{
+		{id: "work", want: span{"Work", mutedInk}},
+		{id: "h7c2", want: span{"team", faintInk}},
+		{id: "p4m2", want: span{"home", faintInk}},
+		{id: "zzzz", want: span{"zzzz", mutedInk}},
+	}
+	for _, tt := range tests {
+		if got := named(m, tt.id); got != tt.want.text {
+			t.Errorf("named(%s) = %q, want %q", tt.id, got, tt.want.text)
+		}
+		if got := detailNamed(m, tt.id); got != tt.want {
+			t.Errorf("detailNamed(%s) = %+v, want %+v", tt.id, got, tt.want)
+		}
 	}
 }

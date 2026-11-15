@@ -301,7 +301,6 @@ func TestThePagesShowWhatTheyAreFor(t *testing.T) {
 		{name: "page-sessions-chosen", want: []string{"d28c switchboard              ↑ asking     ▸ from work      ●"}},
 		{name: "page-sessions-short", want: []string{"▲ 1 more above", "side        ▲", "db8a infra"}, wantNoneOf: []string{"○ work", "◉ work", "▼"}},
 		{name: "page-sessions-not-answering", want: []string{"■ the router isn't answering", "c61b mobile                   ↓ answering"}},
-		{name: "page-year-160x24", want: []string{"limits hit   week ×3 · 5-hour ×412", "▲ 3 more above   ·   ▼ 17 more below   ·   j/k to scroll"}},
 		{name: "page-routing-160x16", want: []string{"╭─ ROUTING · NEW SESSIONS ─", "■ auto", "enter apply   esc cancel  │", "╰────"}},
 		{name: "page-detail-list-focus", want: []string{"SESSIONS  now", "▸ ● c61b", "enter opens c61b's page", "↑↓ account  enter its page"}},
 		{name: "page-detail-sessions-focus", want: []string{"▸side", "SESSIONS  now", "▸ ● d28c", "enter opens d28c's page", "↑↓ session  ← accounts  enter its page"}},

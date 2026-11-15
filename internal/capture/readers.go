@@ -50,15 +50,15 @@ type madeDays struct {
 }
 
 // recordsOf are the world's records: the year's days of its accounts,
-// summarised from its readings history, with those of its accounts removed,
-// that history, and its accounts' caps; and, where today's traffic of the
+// summarised from its readings history, that history, and its accounts'
+// caps; and, where today's traffic of the
 // three is the world's, every line the sessions' world holds, or the world's
 // own lines in their place, and the router's events, or, where its records
 // hold its own, those; and, where the lines are the sessions' world's, the
 // runs of its accounts' sessions that no lines tell of, as projectRuns has
 // them.
 func (a accountWorlds) recordsOf(w accountWorld) *records {
-	days := withGone(a.year.summaries(w.history, w.accounts), w.gone)
+	days := a.year.summaries(w.history, w.accounts)
 	r := &records{days: days, readings: w.history, caps: ledger.CapsOf(w.accounts, claude.SharedWindows())}
 	if w.traffic {
 		r.lines, r.events = a.traffic()

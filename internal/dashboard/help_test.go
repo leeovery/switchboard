@@ -293,3 +293,36 @@ func TestHelpWrapsWhatItSaysToTheCardAndAGlyphsMeaningUnderItself(t *testing.T) 
 		t.Errorf("a meaning that fits is drawn %v, want its glyph, then the meaning in text.secondary, in the glyphs' column", got)
 	}
 }
+
+// Help says how each view whose scroll can count rows or things scrolls,
+// and that it goes back to its top as its scroll turns from one to the
+// other: the Overview's USAGE, and Sessions' lanes and lines.
+func TestHelpSaysAViewGoesBackToItsTopAsItsScrollTurns(t *testing.T) {
+	saying := func(parts []helpPart, heading string) string {
+		i := slices.IndexFunc(parts, func(p helpPart) bool { return p.heading == heading })
+		if i < 0 {
+			t.Fatalf("help explains no %s", heading)
+		}
+		var said []string
+		for _, l := range parts[i].says {
+			said = append(said, l.plain())
+		}
+		return strings.Join(said, " ")
+	}
+	sessions := Frame{View: Sessions}.sessionsHelp()
+	tests := []struct {
+		heading, said string
+		want          []string
+	}{
+		{heading: "USAGE", said: saying(overviewHelp(), SectionUsage.heading()), want: []string{"whole, a row at a time", "each window's heading kept", "how many rows are out of view above and below"}},
+		{heading: "CORDS", said: saying(sessions, "CORDS"), want: []string{"an account at a time, or a row at a time", "they go back to their top"}},
+		{heading: "LINES", said: saying(sessions, "LINES"), want: []string{"an account at a time, each shown whole", "they go back to their top"}},
+	}
+	for _, tt := range tests {
+		for _, want := range tt.want {
+			if !strings.Contains(tt.said, want) {
+				t.Errorf("help on %s reads %q, want %q", tt.heading, tt.said, want)
+			}
+		}
+	}
+}

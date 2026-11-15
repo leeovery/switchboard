@@ -149,15 +149,15 @@ func (p setupPage) revealing(rows, width, scroll int) int {
 }
 
 // rowsOut are the forms of the line saying how many of the page's rows are
-// out of view, as History's rows say it; but without its keys while a field
+// out of view, as rowsOutOfView says it; but without its keys while a field
 // of the page's is typed in, as j and k type into the field, and on a page
 // with a table, whose rows they choose.
 func (p setupPage) rowsOut() []outForm {
 	if !p.typing() && p.table == nil {
-		return historyRowsOut
+		return rowsOutOfView
 	}
-	forms := make([]outForm, len(historyRowsOut))
-	for i, form := range historyRowsOut {
+	forms := make([]outForm, len(rowsOutOfView))
+	for i, form := range rowsOutOfView {
 		forms[i] = form.keyless()
 	}
 	return forms

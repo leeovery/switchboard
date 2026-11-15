@@ -67,7 +67,7 @@ type AccountsRow struct {
 	// Label is its label, as the config gives it: "" of every account's.
 	Label string
 	// Totals are its totals over the period, and Plan its plan over it and
-	// its worth against it, as History counts and prices them: the plan
+	// its worth against it, as history counts and prices them: the plan
 	// priced whole for the period, whenever the account began recording, so
 	// an account added part-way shows what was recorded of it against the
 	// whole period's price; but from the ledger's first day where it began

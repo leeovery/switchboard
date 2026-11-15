@@ -33,7 +33,6 @@ Wait+Screen /SWITCHBOARD/
 Tab
 Tab
 Tab
-Tab
 Sleep 2s
 Show
 

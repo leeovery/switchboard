@@ -66,7 +66,7 @@ func TestGraphsBuildsTheWeeksLanesOnceAMessageWhileItShows(t *testing.T) {
 		t.Errorf("a read landing work's week at 60%% left Graphs' week's lanes %+v, want them built of it", lanes)
 	}
 
-	for _, view := range []dashboard.View{dashboard.Runway, dashboard.History} {
+	for _, view := range []dashboard.View{dashboard.Runway, dashboard.Accounts} {
 		other := runwayHarness(t, view, nil)
 		other.update(nudgeMsg{})
 		if len(other.graphsBuilds) != 0 || other.model.graphsTab.shown != nil {
@@ -225,7 +225,7 @@ func TestGraphsLanesAreJudgedByTheReadingsHistoryAndTheLedgersDaysAsRunways(t *t
 	}
 	yearFrom := views.DaysFrom(views.YearAsk{}, start, time.Sunday)
 	if !slices.EqualFunc(keptLater.ledger.reads, []time.Time{yearFrom}, time.Time.Equal) {
-		t.Errorf("the ledger was read from %v, want once, from the 12 months' first day read, %s, as History reads it", keptLater.ledger.reads, yearFrom)
+		t.Errorf("the ledger was read from %v, want once, from the 12 months' first day read, %s, as Accounts and Trends read it", keptLater.ledger.reads, yearFrom)
 	}
 }
 

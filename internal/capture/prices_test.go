@@ -11,7 +11,7 @@ func TestTheFramesPricesAreASampleEveryModelAlike(t *testing.T) {
 	if drawnPrices.AsOf != "2026-10-01" {
 		t.Errorf("the frames' table is as of %s, want 2026-10-01, as the frames were drawn", drawnPrices.AsOf)
 	}
-	// Work's week as History's Tokens draws it: 1.2M input, 0.8M output, 11.0M
+	// Work's week as Accounts' Tokens draws it: 1.2M input, 0.8M output, 11.0M
 	// written to the cache for five minutes and 178M read from it, $184.
 	week := json.RawMessage(`{"input_tokens":1200000,"output_tokens":800000,"cache_creation_input_tokens":11000000,` +
 		`"cache_creation":{"ephemeral_5m_input_tokens":11000000},"cache_read_input_tokens":178000000}`)

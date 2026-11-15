@@ -181,7 +181,7 @@ func (f Frame) detailHelp() helpPart {
 				"worth against its price, and whether its extra usage is on. Below the rule, BY DAY and WEEKS cover the "+
 				"weeks it names, as many as fit across the panel, the period's own at least where they fit, and never "+
 				"fewer than six; at 12 months the newest, saying how many more there are."),
-			said("BY DAY shades each day by how much of its week the account used that day, in History's five shades, on "+
+			said("BY DAY shades each day by how much of its week the account used that day, in YEAR's five shades, on "+
 				"the account's own scale: each a quarter of its active days."),
 			said("WEEKS gives each week's peak, the use read just before the reset that ended it, and this week's, its "+
 				"highest so far. Under them, how many of the period's whole weeks or those shown, whichever are more, it "+

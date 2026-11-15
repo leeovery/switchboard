@@ -19,7 +19,7 @@ func projectsHelp() []helpPart {
 					"which name no directory, share a row of their own."),
 				said("The list ranks each project with a session in the period by its worth at API prices, the greatest " +
 					"first, its bar its worth against the top project's, split by model family in the families' colours, as " +
-					"History's BY MONTH splits a month's. Live counts its sessions running now, and last says when its last " +
+					"Trends' BY MONTH splits a month's. Live counts its sessions running now, and last says when its last " +
 					"request came, now while one of them is busy. All projects totals them, a session counted once."),
 				said("`↑` and `↓` choose the project its page under the list shows; the list scrolls with the choice past " +
 					"a third of the view's rows."),

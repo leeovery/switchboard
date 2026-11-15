@@ -1,7 +1,6 @@
 package dashboard
 
 import (
-	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -264,7 +263,7 @@ func TestAccountsHelpSaysWhatItsFiguresAre(t *testing.T) {
 		{"all accounts' room", "the sum of what each has left of it, to its limit"},
 		{"why it isn't the pool", "It isn't the pool, the accounts new sessions can go to now, each to its cap"},
 		{"Detail's windows", "every window read as switchboard usage reads them"},
-		{"BY DAY's scale", "in History's five shades, on the account's own scale"},
+		{"BY DAY's scale", "in YEAR's five shades, on the account's own scale"},
 		{"WEEKS' peaks", "the use read just before the reset that ended it, and this week's, its highest so far"},
 		{"the weeks an account's facts count", "how many of the period's whole weeks or those shown, whichever are more, it hit its limit in"},
 		{"the weeks all accounts' facts count", "how many of the period's whole weeks or those shown, whichever are more, it hit its limit in, or of all accounts"},
@@ -284,23 +283,8 @@ func TestAccountsHelpOfOneAccountSaysItsViewsShareThePeriod(t *testing.T) {
 	}
 }
 
-// History's help says each verdict at the cuts views judges it by, each word
-// as views words it; Accounts' says none, as Detail gives the facts alone.
-func TestHelpSaysEachVerdictAtViewsCuts(t *testing.T) {
-	verdicts := []string{
-		fmt.Sprintf("%s, in %d or more of the %d;", views.HitsItsLimit, views.LimitWeeks, views.VerdictWeeks),
-		fmt.Sprintf("%s, %d%% or more left at a reset on average;", views.PlentyToSpare, views.PlentyLeft),
-		"else " + views.EndsWithRoom + ".",
-		fmt.Sprintf("%s%s, where the rest would cover it", strings.ToUpper(views.CouldGo[:1]), views.CouldGo[1:]),
-		fmt.Sprintf("used %d%% or less on average;", views.CouldGoUsed),
-		fmt.Sprintf("%s, %d%% or more left at a reset on average.", views.BarelyUsed, views.BarelyLeft),
-	}
-	said := historySaid()
-	for _, verdict := range verdicts {
-		if !strings.Contains(said, verdict) {
-			t.Errorf("History's help reads\n%s\nwant it to say %q", said, verdict)
-		}
-	}
+// Accounts' help says no verdict, as Detail gives the facts alone.
+func TestAccountsHelpSaysNoVerdict(t *testing.T) {
 	for _, shown := range []AccountsShown{threeShown, oneShown} {
 		said := accountsHelpSaid(shown)
 		for _, verdict := range []string{views.HitsItsLimit, views.PlentyToSpare, views.EndsWithRoom, views.RoomToSpare, views.LittleToSpare} {

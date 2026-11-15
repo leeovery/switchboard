@@ -111,7 +111,6 @@ func TestNoTwoKindsOfNumberShareAValue(t *testing.T) {
 		"NumberRouted":        NumberRouted,
 		"NumberYear":          NumberYear,
 		"NumberShareOfUse":    NumberShareOfUse,
-		"NumberLimitsHit":     NumberLimitsHit,
 		"NumberTokens":        NumberTokens,
 		"NumberTokensSplit":   NumberTokensSplit,
 		"NumberMoved":         NumberMoved,

@@ -58,7 +58,6 @@ type accountWorld struct {
 	ownEvents  bool
 	learning   bool
 	records    func() *records
-	gone       []goneAccount
 }
 
 // document is the router's status document of the world at now, read as

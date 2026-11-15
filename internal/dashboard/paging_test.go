@@ -29,7 +29,7 @@ func windowsPaged(accounts, windows, apart, rows int) rowsPaged {
 	return p
 }
 
-// sectionsPaged is a view laid out as History's are, rows tall a page:
+// sectionsPaged is a view laid out as Trends' is, rows tall a page:
 // sections, each a heading, a blank row under it, and lines of its own, none
 // of its headings kept, each shown with its first line.
 func sectionsPaged(sections, lines, rows int) rowsPaged {

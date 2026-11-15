@@ -159,7 +159,7 @@ func (f Frame) whenHelp() helpPart {
 				"hour the clocks skip has none that day, and one they repeat counts both."),
 			said("The grid takes the width, every hour's square growing with it, each as wide as the others, the hours over it following their columns; " +
 				"narrow, an hour is a square alone, with no gap."),
-			said("The shades are History's: an hour with nothing on it has its own, and the active hours are split into " +
+			said("The shades are YEAR's: an hour with nothing on it has its own, and the active hours are split into " +
 				"quarters, on one scale for the grid, the key under it giving each quarter's bounds in requests an hour."),
 		},
 		glyphs: shadesHelp("an hour", "hours", func(level int) line { return line{grid.tile(level, 1)} }),

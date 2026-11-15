@@ -160,22 +160,23 @@ func TestADocumentLandingUnderHelpMovesNothingInIt(t *testing.T) {
 
 func TestHelpListsTheScrollingKeysOfThePageAtTheSizeItsDrawnAt(t *testing.T) {
 	scrolling := []string{"j k", "PgUp PgDn", "wheel"}
-	// History's Year, as the Overview lists its scrolling keys at any size.
-	h := yearHarness(t, tea.WindowSizeMsg{Width: 150, Height: 40})
+	// Sessions' Switchboard, as the Overview and Trends list their scrolling
+	// keys at any size.
+	h := twentyOnSide(t, tea.WindowSizeMsg{Width: 160, Height: 50})
 	h.press("?")
 	if got := listedKeys(h.model.helpCard().Keys); slices.ContainsFunc(scrolling, func(k string) bool { return slices.Contains(got, k) }) {
 		t.Fatalf("help over a page that fits lists %q, want no scrolling keys", got)
 	}
 
-	h.update(tea.WindowSizeMsg{Width: 150, Height: 20})
+	h.update(tea.WindowSizeMsg{Width: 160, Height: 20})
 	if f, doc, at := h.model.screen(h.clock.now); f.Scrolling(doc, at).Most == 0 {
-		t.Fatal("the page behind help doesn't scroll at 150x20, want it to")
+		t.Fatal("the page behind help doesn't scroll at 160x20, want it to")
 	}
 	if got := listedKeys(h.model.helpCard().Keys); !h.inHelp() || !containsInOrder(got, scrolling) {
 		t.Errorf("help over a page shrunk till it scrolls lists %q, open %v; want %q, still open", got, h.inHelp(), scrolling)
 	}
 
-	h.update(tea.WindowSizeMsg{Width: 150, Height: 50})
+	h.update(tea.WindowSizeMsg{Width: 160, Height: 50})
 	if got := listedKeys(h.model.helpCard().Keys); slices.ContainsFunc(scrolling, func(k string) bool { return slices.Contains(got, k) }) {
 		t.Errorf("help over a page grown till it fits again lists %q, want no scrolling keys", got)
 	}

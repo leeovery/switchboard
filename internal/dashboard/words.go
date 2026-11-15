@@ -17,8 +17,8 @@ import (
 const noSessionsRunning = "no sessions running"
 
 // nothingRecorded is what the dashboard says where it draws what the ledger
-// recorded and it holds nothing of it: History's Days and Tokens, and
-// Graphs' WHEN YOU WORK.
+// recorded and it holds nothing of it: Accounts' Tokens, and Trends' WHEN
+// YOU WORK and MODELS BY DAY.
 const nothingRecorded = "nothing recorded yet"
 
 // name is what the dashboard calls an account: its label, which is its id

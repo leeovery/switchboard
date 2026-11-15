@@ -85,7 +85,7 @@ func TestSwitchboardsSessionsKeepTheirWorktreesNames(t *testing.T) {
 }
 
 // Over 12 months the auto world's projects are the design's eight, each with
-// as many sessions as it draws, summing to History's Year, 212,885 requests
+// as many sessions as it draws, summing to the year's, 212,885 requests
 // and $24,736; kit last active on Saturday 13 June, the design's Sunday 14
 // June being a day of no requests, and old-site on 2 March.
 func TestTheProjectsOfTwelveMonthsAreTheDesignsWorld(t *testing.T) {

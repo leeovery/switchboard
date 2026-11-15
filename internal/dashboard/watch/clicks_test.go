@@ -16,7 +16,6 @@ import (
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
-	"github.com/leeovery/switchboard/internal/views"
 )
 
 // targets are the targets of the page on screen.
@@ -96,9 +95,9 @@ func TestAClickOnTheTabShownChangesNothing(t *testing.T) {
 	h.model.cfg.Prefs = prefs
 	h.press("j")
 
-	target := h.tabTarget(dashboard.History)
+	target := h.tabTarget(dashboard.Graphs)
 	h.click(target.X, target.Y)
-	if h.model.view != dashboard.History || h.model.scroll != 1 || prefs.updates != 0 {
+	if h.model.view != dashboard.Graphs || h.model.scroll != 1 || prefs.updates != 0 {
 		t.Errorf("a click on the tab shown showed %q scrolled %d, keeping it %d times; want it as it was, a row down, nothing kept", h.model.view, h.model.scroll, prefs.updates)
 	}
 }
@@ -134,7 +133,7 @@ func TestAClickOffEveryTargetDoesNothing(t *testing.T) {
 func TestATargetTakesTheCellsItSpans(t *testing.T) {
 	targets := []dashboard.Target{
 		{X: 4, Y: 0, Width: 3, On: dashboard.OnTab, Tab: dashboard.Accounts},
-		{X: 7, Y: 0, Width: 2, On: dashboard.OnTab, Tab: dashboard.History},
+		{X: 7, Y: 0, Width: 2, On: dashboard.OnTab, Tab: dashboard.Graphs},
 		{X: 4, Y: 9, Width: 5, On: dashboard.OnKey, Key: "w"},
 	}
 	tests := []struct {
@@ -415,11 +414,6 @@ func TestWhileThePickerIsOpenAClickUnderItDoesNothing(t *testing.T) {
 			return h, pickerOpened(t, h, keys)
 		}
 	}
-	onHistory := func(t *testing.T) (*harness, *fakeThemes) {
-		h, _ := historyHarness(t, dashboard.History, dashboard.HistoryPage{YearAsk: views.YearAsk{Account: "work"}})
-		h.start()
-		return h, pickerOpened(t, h, "")
-	}
 	onAccounts := func(shown dashboard.AccountsShown) func(*testing.T) (*harness, *fakeThemes) {
 		return func(t *testing.T) (*harness, *fakeThemes) {
 			h := accountsHarness(t, shown)
@@ -467,7 +461,6 @@ func TestWhileThePickerIsOpenAClickUnderItDoesNothing(t *testing.T) {
 		target func(dashboard.Target) bool
 	}{
 		{name: "a tab", opened: onTheOverview(""), target: is(dashboard.OnTab, func(t dashboard.Target) bool { return t.Tab == dashboard.Accounts })},
-		{name: "a sub-tab", opened: onHistory, target: onSubTab(dashboard.HistoryTokens)},
 		{name: "a line of the Log's", opened: onTheLogsLines, target: is(dashboard.OnRow, func(t dashboard.Target) bool { return t.Row == 1 })},
 		{name: "a section's heading", opened: onTheOverview(""), target: is(dashboard.OnSection, func(dashboard.Target) bool { return true })},
 		{name: "a Graphs section's heading", opened: onGraphs, target: is(dashboard.OnPress, func(t dashboard.Target) bool { return t.Key == "w" })},
@@ -669,4 +662,14 @@ func TestAClickOnTheLogChoosesALineFollowsAgainAndShowsASubTab(t *testing.T) {
 	if h.model.log.page.Shown != dashboard.LogEvents {
 		t.Error("a click on Events didn't show them")
 	}
+}
+
+// onKey and onStep report whether a target is the key given on the key
+// line, or the heading's < or > stepping the way given.
+func onKey(key string) func(dashboard.Target) bool {
+	return func(t dashboard.Target) bool { return t.On == dashboard.OnKey && t.Key == key }
+}
+
+func onStep(way int) func(dashboard.Target) bool {
+	return func(t dashboard.Target) bool { return t.On == dashboard.OnStep && t.Step == way }
 }

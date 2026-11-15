@@ -1,21 +1,22 @@
-# A still for the README's dashboard tour: History's Year, drawn from the
-# fixture named after its signed-off frame: a square a day over the last 12
-# months, shaded by its requests, the year's totals beside it, and BY MONTH
-# under it, each month's worth against what the plans cost.
+# A still for the README's dashboard tour: Trends' YEAR, drawn from the
+# fixture named after its signed-off frame, every section shown and scrolled
+# to its foot: a square a day over the last 12 months, shaded by its
+# requests, the year's totals beside it, BY MONTH under it, each month's
+# worth against what the plans cost, and MODELS BY DAY.
 #
-# Record it, and make art/history-year.webp:
-#   demo/record.sh history-year
+# Record it, and make art/trends-year.webp:
+#   demo/record.sh trends-year
 
-Output "demo/out/history-year/"
+Output "demo/out/trends-year/"
 
 Set Shell "bash"
 Set FontFamily "JetBrains Mono"
 Set FontSize 17
 Set LetterSpacing 0
 Set LineHeight 1
-# 160 × 37 cells of 10 × 22 px: the frames' size.
-Set Width 1660
-Set Height 858
+# 173 × 53 cells of 10 × 22 px: the design's desktop size.
+Set Width 1790
+Set Height 1210
 Set Padding 16
 Set CursorBlink false
 Set Framerate 30
@@ -24,7 +25,7 @@ Set WaitTimeout 2m
 
 Hide
 # In UTC, as the frames are drawn, whatever the recording machine's zone.
-Type "TZ=UTC demo/out/capturetool --theme tokyo-night --fixture history-year-160"
+Type "TZ=UTC demo/out/capturetool --theme tokyo-night --fixture trends-year-173x53"
 Enter
 Wait+Screen /SWITCHBOARD/
 Sleep 1s

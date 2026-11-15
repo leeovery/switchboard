@@ -12,7 +12,7 @@ type NumberKind int
 
 const (
 	// NumberUsed is how much of a window is used, as its percentage says:
-	// an account's, or the pool's, as History's Weeks gives this week's
+	// an account's, or the pool's, as Accounts' weeks give this week's
 	// peak.
 	NumberUsed NumberKind = iota + 1
 	// NumberAllowance is an account's allowance in a window, as its words
@@ -46,18 +46,14 @@ const (
 	// NumberRouted are the sessions the router has routed in the last hour,
 	// as the status line counts them.
 	NumberRouted
-	// NumberYear is a figure of History's Year a look can change within a
-	// day: one of LAST 12 MONTHS', or a calendar year's, or of BY MONTH's
-	// month so far, which Of names as its label does, after the month's, as
+	// NumberYear is a figure of Trends' YEAR or BY MONTH a look can change
+	// within a day: one of LAST 12 MONTHS', or of BY MONTH's month so far, which Of names as its label does, after the month's, as
 	// 2026-10, and after the version shown's name, its Account the account
 	// shown.
 	NumberYear
-	// NumberShareOfUse is a family's share of what History's Days weighs,
-	// its eight weeks' worth, as in "59%".
+	// NumberShareOfUse is a family's share of what MODELS BY DAY weighs, its
+	// eight weeks' worth, as in "59%".
 	NumberShareOfUse
-	// NumberLimitsHit are the limits of a window an account hit in History's
-	// Days, its eight weeks.
-	NumberLimitsHit
 	// NumberTokens is a figure of Tokens' period still running, by its
 	// column, as "input" or "against".
 	NumberTokens
