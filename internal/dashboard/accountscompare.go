@@ -272,7 +272,7 @@ func wholeName(n accountName) int {
 // weekLabel is WEEK USED's label, and now after it where the period is
 // another than this week, as the week is always as it stands.
 func weekLabel(period views.Period) line {
-	label := line{{"WEEK USED", dimInk}}
+	label := line{{"WEEK USED", headingInk}}
 	if period != views.PeriodThisWeek {
 		label = append(label, span{"  now", faintInk})
 	}
@@ -618,7 +618,7 @@ func (cp compared) body(columns []compareColumn) *canvas {
 	y = cp.worthSection(c, y+groupApart, columns)
 	for _, g := range groups {
 		y += groupApart
-		c.line(0, y, line{{g.name, dimInk}})
+		c.line(0, y, line{{g.name, headingInk}})
 		c.heading(y, y+1)
 		for _, r := range g.rows {
 			y++

@@ -156,7 +156,7 @@ func (a *app) history(ctx context.Context, out io.Writer, given, pool string, as
 	removed, record := removedIn(asked.stateDir, asked.cfg), recordIn(asked.stateDir)
 	history := views.NewHistory(views.HistoryInput{
 		Ledger: days, From: asked.from, Now: asked.now, Began: began, Prices: prices, Accounts: asked.accounts(), Removed: removed,
-		WeekStarts: asked.cfg.WeekStarts, WeekWindow: claude.WeekWindow, Family: claude.Provider{}.Family,
+		Moved: asked.pool.moved(asked.cfg), WeekStarts: asked.cfg.WeekStarts, WeekWindow: claude.WeekWindow, Family: claude.Provider{}.Family,
 		PoolLabel: status.PoolLabels(asked.cfg.Pools, record), OnePool: status.ManyPoolsFiled(asked.cfg.Pools, record),
 	})
 	if asJSON {
@@ -165,7 +165,7 @@ func (a *app) history(ctx context.Context, out io.Writer, given, pool string, as
 	if _, err := io.WriteString(out, asked.pool.heading()); err != nil {
 		return err
 	}
-	return writeHistory(out, history, status.NamesOf(asked.cfg.Accounts, removed), prices, asked.from, asked.now)
+	return writeHistory(out, history, asked.pool.names(asked.cfg, removed), prices, asked.from, asked.now)
 }
 
 // historyWindows prints the windows' readings of each account in the pool

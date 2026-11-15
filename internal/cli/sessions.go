@@ -104,7 +104,7 @@ func (a *app) sessions(ctx context.Context, out, errOut io.Writer, named string,
 		Projects: a.projects(),
 		Now:      now,
 	})
-	list = list.Named(status.NamesOf(cfg.Accounts, readers.removed))
+	list = list.Named(pool.names(cfg, readers.removed))
 	if asJSON {
 		return writeJSON(out, list)
 	}

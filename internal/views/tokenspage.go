@@ -71,7 +71,7 @@ func (p Past) TokensOver(period Period) TokensPage {
 	from := p.counted(period.first(today, p.in.WeekStarts)).Format(time.DateOnly)
 	page, held := p.tokensFrom(from, period.last(today, p.in.WeekStarts).Format(time.DateOnly), period.Rows())
 	known := plans{accounts: p.in.Accounts, table: p.in.Prices}
-	whole := tokenPeriodsOf(held, known, p.in.Removed, p.versions(), from, period.shape(today, p.in.WeekStarts))
+	whole := tokenPeriodsOf(held, known, p.in.names(), p.versions(), from, period.shape(today, p.in.WeekStarts))
 	if len(whole) == 1 && len(whole[0].ByAccount) > 0 {
 		whole[0].SoFar = true
 		page.Total = &whole[0]
@@ -92,7 +92,7 @@ func (p Past) tokensFrom(from, last string, rows TokensPeriod) (TokensPage, []Da
 	today, _ := by.of(dayfile.DateOf(p.in.Now))
 	known := plans{accounts: p.in.Accounts, table: p.in.Prices}
 	days := between(p.days, from, last)
-	all := tokenPeriodsOf(days, known, p.in.Removed, p.versions(), from, by)
+	all := tokenPeriodsOf(days, known, p.in.names(), p.versions(), from, by)
 	var periods []TokenPeriod
 	shown := make(map[string]bool, len(all))
 	for _, t := range slices.Backward(all) {

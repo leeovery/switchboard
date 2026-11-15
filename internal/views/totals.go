@@ -12,7 +12,9 @@ import (
 )
 
 // Totals are what Accounts and history count over the days: each configured
-// account's, in the config's order, then every account's.
+// account's, in the config's order; in history, then each one's the days
+// name that's in another pool than the one read, in the config's order;
+// then every account's.
 type Totals struct {
 	Accounts []AccountTotals `json:"accounts"`
 }
@@ -121,17 +123,25 @@ func ShareSaid(share *float64) (string, bool) {
 	return prose.Percent(*share), true
 }
 
-// accountTotalsOf are the totals over days of the accounts given, and of every
-// account, the days before them, oldest first, telling no more than the runs
-// of their windows that ended among them.
-func accountTotalsOf(before, days []Day, accounts config.Accounts, v versions) Totals {
-	index := make(map[string]int, len(accounts))
-	tallies := make([]*totalling, len(accounts)+1)
-	for i, a := range accounts {
-		index[a.ID], tallies[i] = i, newTotalling(AccountTotals{Account: a.ID, AccountName: status.ConfiguredName(a)})
-		tallies[i].before = accountDays(before, a.ID)
+// accountTotalsOf are the totals over days of the accounts given, then of
+// those moved to another pool than the one read, as their work recorded in
+// it counts in it, and of every account, the days before them, oldest first,
+// telling no more than the runs of their windows that ended among them.
+func accountTotalsOf(before, days []Day, accounts config.Accounts, moved status.MovedAccounts, v versions) Totals {
+	listed := make([]AccountTotals, 0, len(accounts)+len(moved))
+	for _, a := range accounts {
+		listed = append(listed, AccountTotals{Account: a.ID, AccountName: status.ConfiguredName(a)})
 	}
-	all := len(accounts)
+	for _, a := range moved {
+		listed = append(listed, AccountTotals{Account: a.ID, AccountName: a.Name()})
+	}
+	index := make(map[string]int, len(listed))
+	tallies := make([]*totalling, len(listed)+1)
+	for i, a := range listed {
+		index[a.Account], tallies[i] = i, newTotalling(a)
+		tallies[i].before = accountDays(before, a.Account)
+	}
+	all := len(listed)
 	tallies[all] = newTotalling(AccountTotals{All: true})
 	for _, d := range days {
 		requests := make([]int, len(tallies))

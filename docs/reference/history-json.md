@@ -34,6 +34,7 @@ switchboard history --json | jq \
 | `plans` | list of objects | What each plan cost against what it was worth. |
 | `capacity` | object | Whether you have the right number of accounts. |
 | `removed` | list of objects | The removed accounts the days name. |
+| `moved` | list of objects | The accounts the days name that are in another pool now: each one's `id` and `label`, and that pool's `pool` and `pool_label`. |
 
 Each block covers the days asked for, since the ledger began, oldest first, with today last. The
 blocks from `weeks` on are on [a page of their own](history-accounts-json.md). The `[prices]` keys
@@ -51,7 +52,7 @@ The windows of an account are its own, whatever pool it's in.
 
 | Blocks | Begin at |
 |---|---|
-| `days`, `year`, `months`, `tokens` and `removed` | The first day of work in the pool, if that's after the days asked for begin |
+| `days`, `year`, `months`, `tokens`, `removed` and `moved` | The first day of work in the pool, if that's after the days asked for begin |
 | `weeks`, `totals` and `plans` | The first day asked for |
 
 ## `days`

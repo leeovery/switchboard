@@ -886,7 +886,11 @@ func TestCheck(t *testing.T) {
 			w := newWorld(t, strings.Replace(twoAccounts, upstream, newRealAPI(t, tt.answer), 1))
 			log := logstest.Capture(t)
 
-			got, err := realRegistry(w).Check(t.Context(), tokenOf(t, sideToken))
+			registry := patientRegistry
+			if tt.answer.hang {
+				registry = realRegistry
+			}
+			got, err := registry(w).Check(t.Context(), tokenOf(t, sideToken))
 			if got != tt.want || errorText(err) != tt.wantErr {
 				t.Errorf("Check() = %+v, %v, want %+v, %q", got, err, tt.want, tt.wantErr)
 			}

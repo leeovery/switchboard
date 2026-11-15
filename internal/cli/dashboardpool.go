@@ -217,7 +217,8 @@ func (a *app) configStamp() filestate.State {
 // shown is what the dashboard shows of the pool named of the config cfg,
 // its pools as pooled has them, else of the one the verbs act on, as
 // askedPool has it: the pool, as status.PoolShown has it; its accounts, as
-// status.PoolAccounts has them; its source, reading the router's document
+// status.PoolAccounts has them, and those in other pools, as
+// status.MovedOf has them; its source, reading the router's document
 // of it, else probing its accounts; its share of the router's events and the
 // request ledger, as shownFiled has them; how pooled places every account
 // in its pools, as status.Placed has it; and the grounds of its ledger, as
@@ -237,6 +238,7 @@ func (s shownPools) shown(ctx context.Context, cfg, pooled *config.Config, named
 	shown := watch.Pooled{
 		Pool:     status.PoolShown(pooled.Pools, pooled.Accounts, p.ID),
 		Accounts: status.PoolAccounts(pooled.Pools, pooled.Accounts, p.ID),
+		Moved:    status.MovedOf(pooled.Pools, pooled.Accounts, p.ID),
 		Source:   s.a.source(ctx, cfg, s.probe).inPool(p.ID),
 		Placed:   status.Placed(pooled.Pools, pooled.Accounts),
 		Grounds:  groundsOf(cfg, first),

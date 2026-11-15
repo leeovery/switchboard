@@ -349,8 +349,8 @@ func TestRunwayDrawsLatelyInItsColumnOrWhyItHasNone(t *testing.T) {
 					t.Errorf("LATELY's row %d reads %q, want %q", i, got, want)
 				}
 			}
-			if got := c.at(0, fit.lately).ink; got != dimInk {
-				t.Errorf("LATELY's heading is in %+v, want text.subtle", got)
+			if got := c.at(0, fit.lately).ink; got != headingInk {
+				t.Errorf("LATELY's heading is in %+v, want text.muted", got)
 			}
 		})
 	}

@@ -215,8 +215,11 @@ type Document struct {
 	// nothing to play, or it isn't played yet.
 	weeks *weeksAhead
 	// removed are the accounts the accounts record keeps that the document
-	// doesn't hold, as WithRemoved gives them, for its moments to name.
+	// doesn't hold, as WithRemoved gives them, and moved those configured in
+	// another pool than its, as WithMoved gives them, for its moments to
+	// name.
 	removed RemovedAccounts
+	moved   MovedAccounts
 }
 
 // WithRemoved is the document whose moments name the accounts of removed, as
@@ -225,6 +228,23 @@ type Document struct {
 func (d Document) WithRemoved(removed RemovedAccounts) Document {
 	d.removed = removed
 	return d
+}
+
+// WithMoved is the document whose moments name the accounts of moved, as
+// MovedOf gives them, as Moment's Named does: the reader of a pool's
+// document knows them, from the config, where the document, of its pool's
+// accounts alone, doesn't.
+func (d Document) WithMoved(moved MovedAccounts) Document {
+	d.moved = moved
+	return d
+}
+
+// WithMovedOf is the document whose moments name the accounts of
+// configured that pools place in another pool than the document's, as
+// MovedOf gives them, for a reader that hasn't worked them out for the
+// document's pool already, as the dashboard has.
+func (d Document) WithMovedOf(pools config.Pools, configured config.Accounts) Document {
+	return d.WithMoved(MovedOf(pools, configured, d.PoolID))
 }
 
 // The kinds of event the router tells of, as an Event's Kind says.

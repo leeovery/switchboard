@@ -98,7 +98,7 @@ func (a *app) events(ctx context.Context, out io.Writer, opts eventsOptions) err
 		follower, today = a.eventsFollowing(dir, dayfile.DateOf(now))
 	}
 	record := recordIn(dir)
-	printer := a.eventsPrinter(out, opts.form, status.PoolLabels(pooled.Pools, record), poolsNamed(pooled.Pools, record), pool.heading())
+	printer := a.eventsPrinter(out, opts.form, status.PoolLabels(pooled.Pools, record), poolsNamed(pooled.Pools, record), pool.heading(), pool.moved(pooled))
 	held := a.eventsHeld(pool, dir, printer.readFrom(from), startOfDay(now, -1), today)
 	if err := printer.list(held, from, now); err != nil || follower == nil {
 		return err
@@ -140,15 +140,16 @@ type eventsPrinter interface {
 }
 
 // eventsPrinter returns the printer of the form f chooses, printing to out,
-// its text naming accounts as accountNames names them, and pools as named
-// does, as Telling's NamingPools has it, under heading, as filedPool's
-// heading names the pool, its JSON labelling a pool as label does.
-func (a *app) eventsPrinter(out io.Writer, f formFlags, label, named func(pool string) string, heading string) eventsPrinter {
+// its text naming accounts as accountNames names them, those of moved as in
+// another pool than the one read, and pools as named does, as Telling's
+// NamingPools has it, under heading, as filedPool's heading names the pool,
+// its JSON labelling a pool as label does.
+func (a *app) eventsPrinter(out io.Writer, f formFlags, label, named func(pool string) string, heading string, moved status.MovedAccounts) eventsPrinter {
 	if a.printsJSON(f, out) {
 		return eventsJSON{out: out, label: label}
 	}
 	telling := views.NewTelling(status.NameOfKey).NamingPools(named)
-	return &eventsText{out: out, now: a.Now, telling: telling, names: a.accountNames(), heading: heading}
+	return &eventsText{out: out, now: a.Now, telling: telling, names: a.accountNames().WithMoved(moved), heading: heading}
 }
 
 // eventsJSON prints each event as the router files it, its schema first, a

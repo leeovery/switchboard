@@ -26,9 +26,10 @@ import (
 // does; how the config file stood before it was read, as Config's ConfigStamp
 // gives it; how it placed the accounts in the pools, as status's Placed has
 // it; and, as the config read has them, the grounds its request ledger is
-// made on, as Config's LedgerGrounds, NewLedger making one on them, and the
-// accounts removed, as Config's Removed, so nothing the dashboard works out
-// of the config is of one gone. NewLedger is called only where the ledger in
+// made on, as Config's LedgerGrounds, NewLedger making one on them, the
+// accounts removed, as Config's Removed, and those in another pool, as
+// Config's Moved, so nothing the dashboard works out of the config is of one
+// gone. NewLedger is called only where the ledger in
 // use was made on other grounds, as freshIn has it: one made at every turn
 // would read today's lines and the summaries cold. It's required wherever
 // Grounds is set, as Turn gives them: only a Pooled whose grounds are those
@@ -45,6 +46,7 @@ type Pooled struct {
 	Grounds   ledger.Grounds
 	NewLedger func() views.Ledger
 	Removed   status.RemovedAccounts
+	Moved     status.MovedAccounts
 }
 
 // ErrPoolsTold is what the source of a dashboard showing no pool, as its
@@ -241,7 +243,7 @@ func (m Model) freshIn(pooled Pooled) Model {
 	m.stream.end()
 	cfg := m.cfg
 	cfg.Pool, cfg.Accounts, cfg.Source, cfg.Events, cfg.PoolNamed, cfg.Stamp, cfg.Placed = pooled.Pool, pooled.Accounts, pooled.Source, pooled.Events, pooled.PoolNamed, pooled.Stamp, pooled.Placed
-	cfg.Removed, cfg.PoolRead = pooled.Removed, pooled.Read
+	cfg.Removed, cfg.Moved, cfg.PoolRead = pooled.Removed, pooled.Moved, pooled.Read
 	if !pooled.Grounds.Same(cfg.LedgerGrounds) {
 		cfg.Ledger, cfg.LedgerGrounds = pooled.NewLedger(), pooled.Grounds
 	}

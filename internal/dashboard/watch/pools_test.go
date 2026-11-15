@@ -132,6 +132,7 @@ func (p *poolTurns) pooled(id string) Pooled {
 			return &configsLedger{Ledger: p.base}
 		},
 		Removed: p.removed,
+		Moved:   status.MovedOf(p.pools, p.accounts, id),
 	}
 }
 
@@ -254,7 +255,7 @@ func (p *poolTurns) opened(cfg Config, id string) Config {
 	p.base, p.removed = cfg.Ledger, cfg.Removed
 	cfg.Ledger, cfg.LedgerGrounds = &configsLedger{Ledger: p.base}, p.ledgerGrounds()
 	shown := p.pooled(id)
-	cfg.Pool, cfg.Accounts, cfg.Source, cfg.Events, cfg.Turn = shown.Pool, shown.Accounts, shown.Source, shown.Events, p.turn
+	cfg.Pool, cfg.Accounts, cfg.Moved, cfg.Source, cfg.Events, cfg.Turn = shown.Pool, shown.Accounts, shown.Moved, shown.Source, shown.Events, p.turn
 	cfg.ConfigStamp, cfg.Stamp, cfg.Placed, cfg.PoolRead = p.configStamp, shown.Stamp, shown.Placed, shown.Read
 	return cfg
 }

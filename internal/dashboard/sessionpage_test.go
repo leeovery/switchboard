@@ -839,7 +839,7 @@ func TestASessionsHeadingsInks(t *testing.T) {
 		x, end int
 		want   ink
 	}{
-		{name: "SESSION", x: 0, end: 6, want: dimInk},
+		{name: "SESSION", x: 0, end: 6, want: headingInk},
 		{name: "the id", x: 10, end: 13, want: titleInk},
 		{name: "the directory's name", x: 17, end: 27, want: titleInk},
 		{name: "the directory", x: 30, end: 47, want: mutedInk},

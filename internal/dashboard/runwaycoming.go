@@ -21,7 +21,7 @@ const comingApart = 4
 // fit, in the inks of what's out of view of Runway's lanes, as in "▼ 3 more".
 var comingOut = outForm{inks: subtleOut}
 
-// runwayComing draws COMING UP, as laid out: its heading, in text.subtle,
+// runwayComing draws COMING UP, as laid out: its heading, in text.muted,
 // and under it, on the rows it's given, the things Runway's COMING UP lists,
 // as comingLines draws the Overview's, the window a request starts named,
 // the same with the account column collapsed or not, in the columns
@@ -33,7 +33,7 @@ func (f Frame) runwayComing(c *canvas, laid runwayLaid) {
 	if !fit.draws(fit.coming) {
 		return
 	}
-	c.line(columns[0].At, fit.coming, line{{SectionComing.heading(), dimInk}})
+	c.line(columns[0].At, fit.coming, line{{SectionComing.heading(), headingInk}})
 	if fit.lines == 0 {
 		return
 	}

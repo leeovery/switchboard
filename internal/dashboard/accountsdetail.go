@@ -605,13 +605,13 @@ func (d detailDrawn) panel() *canvas {
 	}
 	y, x := d.latelyAt(), d.l.cx()
 	if len(d.running) == 0 {
-		c.line(d.l.panel, y, line{{"LATELY", dimInk}})
+		c.line(d.l.panel, y, line{{"LATELY", headingInk}})
 		d.lately(c, y, x, d.f.edge()-x)
 		return c
 	}
 	d.sessions(c, y)
 	x = d.l.panel + latelyBeside
-	c.line(x, y, line{{"LATELY", dimInk}})
+	c.line(x, y, line{{"LATELY", headingInk}})
 	d.lately(c, y+1, x, d.f.edge()-x)
 	return c
 }
@@ -651,7 +651,7 @@ func (d detailDrawn) stands(c *canvas, x, y int, short bool) {
 // window, laid out as usageWide lays its row from the panel's left to
 // thisWeekApart cells short of THIS WEEK, its words ending there.
 func (d detailDrawn) usage(c *canvas, y int) {
-	c.line(d.l.panel, y, line{{"USAGE", dimInk}})
+	c.line(d.l.panel, y, line{{"USAGE", headingInk}})
 	c.heading(y, y+1)
 	b := usageBlock{width: d.f.Width, look: d.f.Look}
 	end := d.l.thisWeekAt() - thisWeekApart
@@ -706,7 +706,7 @@ func (d detailDrawn) extra() status.AllExtra {
 // part a version in its shade, as Compare's; and from the row under it, the
 // versions with their shares, as versionLines has them.
 func (d detailDrawn) byModel(c *canvas, y int) {
-	c.line(d.l.panel, y, line{{"BY MODEL", dimInk}})
+	c.line(d.l.panel, y, line{{"BY MODEL", headingInk}})
 	versions := d.page.Versions
 	stackedBar(c, d.f.Look, d.l.cx(), y, splitCells(shareAmounts(d.row, versions), d.l.weeksCells()), versionHues(versions))
 	for i, l := range d.versionLines() {
@@ -851,12 +851,12 @@ func (d detailDrawn) session(c *canvas, r views.Running, x, y int, selected bool
 
 // panelHeading is the heading of a part of Detail that holds a choice, as
 // SESSIONS does: bold text.primary while it holds the focus, else
-// text.subtle, as every heading of Accounts is.
+// text.muted, as every heading is.
 func panelHeading(name string, focused bool) span {
 	if focused {
 		return span{name, titleInk}
 	}
-	return span{name, dimInk}
+	return span{name, headingInk}
 }
 
 // chosenRow picks out the chosen row of a part of a view that holds a

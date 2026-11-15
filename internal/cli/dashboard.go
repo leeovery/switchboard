@@ -219,7 +219,7 @@ func (a *app) dashboard(ctx context.Context, out io.Writer, opts dashboardOption
 	if err != nil {
 		return err
 	}
-	wc.Pool, wc.Accounts, wc.Source, wc.Events, wc.PoolNamed, wc.Turn = shown.Pool, shown.Accounts, shown.Source, shown.Events, shown.PoolNamed, pools.turn
+	wc.Pool, wc.Accounts, wc.Moved, wc.Source, wc.Events, wc.PoolNamed, wc.Turn = shown.Pool, shown.Accounts, shown.Moved, shown.Source, shown.Events, shown.PoolNamed, pools.turn
 	wc.ConfigStamp, wc.Stamp, wc.Placed, wc.LedgerGrounds, wc.PoolRead = a.configStamp, shown.Stamp, shown.Placed, shown.Grounds, shown.Read
 	if t.prefs != nil {
 		wc.Prefs = t.prefs

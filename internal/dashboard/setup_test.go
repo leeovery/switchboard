@@ -277,7 +277,7 @@ func TestTheSkillPagesInks(t *testing.T) {
 		x, y, n int
 		k       ink
 	}{
-		{what: "the heading's name, text.subtle", x: 0, y: 4, n: len("SKILL"), k: dimInk},
+		{what: "the heading's name, text.muted", x: 0, y: 4, n: len("SKILL"), k: headingInk},
 		{what: "the heading's rule, the dashboard's border", x: 7, y: 4, n: 153, k: borderInk},
 		{what: "what the step is for, text.secondary", x: 2, y: 6, n: len([]rune(skillPurpose)), k: secondaryInk},
 	} {
