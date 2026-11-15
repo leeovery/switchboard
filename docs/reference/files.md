@@ -114,10 +114,10 @@ change in any release.
 
 | File | What it holds |
 |---|---|
-| `ledger/digest-<date>.json.gz` | Each session the day summary names, as it stood at the end of the day, with its page. |
+| `ledger/digest-<date>.json.gz` | Each session the day summary names, as it stood at the end of the day, with its page. That includes the directory and the project it last named. |
 | `ledger/parts-<date>.gz` | What each session page gained that day: its turns, the subagents it first saw, and when its requests went upstream. |
-| `ledger/logday-<date>.json.gz` | Each session in the lines of the day, with the directory it ran in, for the find of the Log. |
-| `ledger/rows-<date>.gz` | A row for each line of the day, as the Log shows it, without a price. |
+| `ledger/logday-<date>.json.gz` | The head of the day. It holds each session in the lines of the day: its directory, project and pools, its moves, and its requests and tokens by account and model. It also says where each chunk of the rows file lies. The find of the Log, Projects and Sessions' List read it. |
+| `ledger/rows-<date>.gz` | A row for each line of the day, as the Log shows it, without a price. Each row names its pool and its project. The Log and the turns of a session page read it. |
 
 - Each index is kept as long as the lines of its day.
 - Deleting one is safe. Until the router writes it again, the lines of the day are read instead.
