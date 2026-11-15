@@ -47,7 +47,10 @@ func StartedBy(getenv func(string) string) bool {
 // it set, under "set:" and the variable's name, and the user's value it
 // replaced, under "had:", and each line it added to Claude Code's custom
 // headers, under "header", with the user's headers under "had:" where they
-// were set to nothing but blank lines.
+// were set to nothing but blank lines; and, under "claude", the process id
+// of the claude it was made for, so a claude started since in the session's
+// environment, which carries the mark on, isn't taken for the session's (see
+// markedFor).
 const setEnv = "SWITCHBOARD_SET"
 
 // The keys of setEnv's mark.
@@ -55,16 +58,17 @@ const (
 	setKey    = "set:"
 	hadKey    = "had:"
 	headerKey = "header"
+	claudeKey = "claude"
 )
 
 // PoolEnv names, in a session's environment, the id of the pool the session
 // is in, for the skill to name to the verbs, and for a claude started within
-// the session to be in too (see sessionWithin).
+// the session to be in too (see sessionOf).
 const PoolEnv = "SWITCHBOARD_POOL"
 
 // projectEnv names, in a session's environment, the project the session runs
 // in, by its path, links unresolved, for a claude started within the session
-// outside every repository to run in too (see sessionWithin).
+// outside every repository to run in too (see sessionOf).
 const projectEnv = "SWITCHBOARD_PROJECT"
 
 // markedVars are the variables setEnv names, of those run sets. The token
@@ -164,28 +168,29 @@ func (e environ) startedAt(pid int, now time.Time) string {
 	return m.path
 }
 
-// markedAgainst returns the environment marked with what it sets that own,
-// the environment run started from, doesn't (see setEnv), in place of any
-// mark it held: each of markedVars it gives a value own didn't, with own's
-// value where own had one, and each custom header line own didn't hold, with
-// own's custom headers where they were set to nothing but blank lines. The
-// base URL is marked even where own held the same value, as its mark is what
-// says the environment is still routed (see routedByRun); restoring it then
-// changes nothing. The mark sits in the environment of everything the session
-// runs, which never held own's replaced values before, so nothing secret is
-// written into it: a value run set holding anything token-shaped goes
-// unmarked, and stays, and a value of own's holding a secret, as
-// redact.HoldsSecret finds one, such as a gateway's URL with credentials in
-// it, isn't kept, its variable marked as set where the user had none.
-func (e environ) markedAgainst(own environ) environ {
+// markedAgainst returns the environment marked, for the claude whose process
+// id is pid, with what it sets against own, the environment run started from
+// (see setEnv), in place of any mark it held: each of markedVars it gives a
+// value, with own's value where own had one, and each custom header line own
+// didn't hold, with own's custom headers where they were set to nothing but
+// blank lines. A variable own held the same value of is marked too, as a mark
+// says what run set: the base URL's that the environment is still routed
+// (see routedByRun), and the pool's and project's which session it is (see
+// sessionOf), as where a shell names the pool already; restoring it changes
+// nothing. The mark sits in the environment of everything the session runs,
+// which never held own's replaced values before, so nothing secret is written
+// into it: a value run set holding anything token-shaped goes unmarked, and
+// stays, and a value of own's holding a secret, as redact.HoldsSecret finds
+// one, such as a gateway's URL with credentials in it, isn't kept, its
+// variable marked as set where the user had none.
+func (e environ) markedAgainst(own environ, pid int) environ {
 	mark := url.Values{}
 	for _, key := range markedVars {
 		set, isSet := e.lookup(key)
-		had, hadIt := own.lookup(key)
-		unchanged := hadIt && had == set && key != claude.BaseURLEnv
-		if !isSet || unchanged || redact.HoldsToken(set) {
+		if !isSet || redact.HoldsToken(set) {
 			continue
 		}
+		had, hadIt := own.lookup(key)
 		mark.Set(setKey+key, set)
 		if hadIt {
 			keepHad(mark, key, had)
@@ -203,7 +208,15 @@ func (e environ) markedAgainst(own environ) environ {
 	if len(mark) == 0 {
 		return e.without(setEnv)
 	}
+	mark.Set(claudeKey, strconv.Itoa(pid))
 	return e.with(setEnv, mark.Encode())
+}
+
+// markedFor reports whether the environment's mark of what run set was made
+// for the claude whose process id is pid (see setEnv).
+func (e environ) markedFor(pid int) bool {
+	mark, ok := e.mark()
+	return ok && mark.Get(claudeKey) == strconv.Itoa(pid)
 }
 
 // keepHad writes into mark the user's value of key that run replaced, unless
@@ -327,9 +340,9 @@ func (e environ) inPool(pool string) environ {
 	return e.withHeader(router.PoolHeader, pool)
 }
 
-// named returns the environment with key, of a session's, naming value, such
-// as the id of its pool in PoolEnv, or naming none for "".
-func (e environ) named(key, value string) environ {
+// withOrUnset returns the environment with key set to value, such as the id
+// of the session's pool in PoolEnv, or unset for "".
+func (e environ) withOrUnset(key, value string) environ {
 	if value == "" {
 		return e.without(key)
 	}

@@ -61,10 +61,10 @@ type Deps struct {
 	// does, which run tells the router of beside the directory: nil tells
 	// none.
 	FindProject func(dir string) (string, bool)
-	// FindProcess finds what's known of a running process, by its id, as
-	// launch.FindProcess does, so run finds the session a claude is started
-	// within, through the processes that started it: nil finds none.
-	FindProcess func(pid int) (launch.Process, bool)
+	// Processes tells of the processes running, as launch.ProcessTable does,
+	// so run finds the session a claude is started within, through the
+	// processes that started it: nil tells of none.
+	Processes launch.Processes
 	// Executable returns the path of this switchboard binary, as
 	// os.Executable does: what the LaunchAgent runs, and what run passes
 	// over as it looks for claude.

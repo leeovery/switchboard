@@ -56,25 +56,30 @@ belongs to the pool of its repository. If `run` refuses to start in a folder, se
 
 ## Inside another session
 
-A `claude` that a session starts belongs to the pool of that session. So a test that runs
-`claude -p` in the session's scratchpad spends the same pool as the session. A fence still keeps
-its own work:
+A `claude` that a session starts belongs to the session's pool. So a test that runs `claude -p`
+in the session's scratchpad spends the same pool's accounts. A fence still keeps its own work:
 
 | If the folder it starts in is | Then it belongs to |
 |---|---|
-| Inside no fence | The pool of the session |
-| Inside the fence of the session's own pool | The pool of the session |
-| Inside a fence, and the session is in the unfenced pool | The fenced pool |
+| Inside no fence | The session's pool |
+| Inside the fence of the session's own pool | The session's pool |
+| Inside a fence, and the session is in the unfenced pool | The fenced pool, as if no session started it |
 | Inside a fence, and the session is in another fenced pool | No pool: `run` refuses |
 
-The project follows the same session. If the folder is in a repository, the project is that
-repository. Otherwise the project is the project of the session, rather than the folder.
+The project follows the pool:
+
+| If the folder it starts in is | Then its project is |
+|---|---|
+| In a repository | That repository |
+| In no repository, and it belongs to the session's pool | The session's project |
+| In no repository, and a fence takes it into another pool | The folder itself |
 
 The session is the one whose `claude` started this `claude`, directly or through other programs.
-`run` finds it in the environment that `claude` inherits. If a tool cleaned that environment,
-`run` looks at the environments of the programs that started `claude`. A session that has ended
-counts as none. So does a session that only started the tmux server a `claude` runs in. Inside a
-session of a fenced pool, `--direct` is refused.
+`run` looks for that `claude` among the programs that started this one, nearest first. It reads
+the environment that the session's `claude` started with, so a change made since inside the
+session counts for nothing. If that environment can't be read, `run` reads the one this `claude`
+inherits. A session that has ended counts as none, and so does one that only started the tmux
+server a `claude` runs in.
 
 ## Exit status
 

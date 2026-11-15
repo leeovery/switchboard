@@ -12,8 +12,8 @@ sessions ran there. The list is at the top, and the project you choose shows in 
 
 A project is a repository, with its worktrees folded in, or the folder a session started in
 outside any repository, as the [Glossary](../glossary.md) says. A `claude` that a session starts
-outside any repository, such as a test in the session's scratchpad, counts in the project of the
-session.
+outside any repository, such as a test in the session's scratchpad, counts in the session's
+project, unless a fence takes it into another pool.
 Each one is named by its folder. If two share a name, the parent folder is named too. Sessions
 that didn't start through the `claude` that switchboard links share one row, `no directory`.
 

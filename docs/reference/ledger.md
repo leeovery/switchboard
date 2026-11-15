@@ -71,7 +71,7 @@ first `.git`, without running git. For example, `~/Code/api` is the project of a
 | A linked worktree | The main repository of the worktree |
 | A worktree of a bare repository | The folder of the bare repository, such as `~/repos/api.git` or `~/.dotfiles` |
 | A worktree inside the folder that holds a bare repository named `.bare` | The folder that holds both: `~/Code/api` for `~/Code/api/.bare` and `~/Code/api/main` |
-| No repository, in a `claude` started inside another session | The project of that session |
+| No repository, in a `claude` started inside another session and in that session's pool | That session's project |
 | No repository otherwise | The directory itself |
 
 Links change the walk as follows:

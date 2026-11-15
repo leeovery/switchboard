@@ -15,6 +15,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/cli"
 	"github.com/leeovery/switchboard/internal/identity"
+	"github.com/leeovery/switchboard/internal/launch"
 	"github.com/leeovery/switchboard/internal/router"
 )
 
@@ -128,6 +129,70 @@ func TestRunStartsASessionInItsDirectorysPool(t *testing.T) {
 				t.Errorf("cli.log reads\n%s\nwant the launch logged with its pool", log)
 			}
 		})
+	}
+}
+
+// withinPID is the process id of a claude started within a session run
+// started, whose claude keeps run's, testPID.
+const withinPID = 6001
+
+// sessionProcesses are the processes running for a claude started within a
+// session, as launch.Processes tells of them: its own, withinPID, started by
+// the session's claude, testPID, whose environment is env.
+type sessionProcesses struct {
+	env []string
+}
+
+func (s sessionProcesses) Process(pid int) (launch.Process, bool) {
+	switch pid {
+	case withinPID:
+		return launch.Process{Parent: testPID, Started: testNow.Add(time.Minute)}, true
+	case testPID:
+		return launch.Process{Parent: 1, Started: testNow}, true
+	}
+	return launch.Process{}, false
+}
+
+func (s sessionProcesses) Environ(pid int) ([]string, bool) {
+	switch pid {
+	case withinPID:
+		return nil, true
+	case testPID:
+		return slices.DeleteFunc(slices.Clone(s.env), func(v string) bool { return !strings.HasPrefix(v, "SWITCHBOARD_") }), true
+	}
+	return nil, false
+}
+
+// A claude started within a session run started in a fence, in a directory
+// outside every fence and repository, as Claude Code's scratchpads are, is
+// found within the session through the processes run is told of, and starts
+// in its pool, on its account.
+func TestRunWithinASessionStartsInItsPool(t *testing.T) {
+	srv := pooledSetup(t, nil)
+	srv.start(t)
+	first := srv.deps
+	startingIn(t, &first, "Code/acme/api")
+	session := recordHandOffs(t, &first)
+	if got := run(t, first, "run"); got != (result{}) {
+		t.Fatalf("switchboard run, the session = %+v, want exit status 0 and no output", got)
+	}
+	handed := session.only(t)
+	env := []string{markEnv + "=" + handed.mark}
+	for name, value := range handed.env {
+		env = append(env, name+"="+value)
+	}
+
+	nested := srv.deps
+	startingIn(t, &nested, "scratchpad")
+	nested.Environ = func() []string { return env }
+	nested.PID, nested.Processes = withinPID, sessionProcesses{env: env}
+	within := recordHandOffs(t, &nested)
+	if got := run(t, nested, "run"); got != (result{}) {
+		t.Fatalf("switchboard run, within the session = %+v, want exit status 0 and no output", got)
+	}
+	want := map[string]string{"CLAUDE_CODE_OAUTH_TOKEN": "test-token-side", "SWITCHBOARD_POOL": "q7mt"}
+	if got := within.only(t).only(slices.Collect(maps.Keys(want))...); !maps.Equal(got, want) {
+		t.Errorf("handed over within the session with %q, want %q, its pool's", got, want)
 	}
 }
 

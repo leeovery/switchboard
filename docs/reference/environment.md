@@ -31,12 +31,13 @@ gets these:
 
 - **`SWITCHBOARD_POOL`** is set on a session that goes direct too, because the session is still in
   its pool. The variable is left out if the config has no pools.
-- **`SWITCHBOARD_PROJECT`** is set on a session that goes direct too. A `claude` started inside
-  the session reads it, with `SWITCHBOARD_POOL` and `SWITCHBOARD_STARTED`, to join the session.
-  See [`switchboard run`](../commands/run.md).
+- **`SWITCHBOARD_PROJECT`** is set on a session that goes direct too.
 - **`SWITCHBOARD_SET`** lets a `claude` started inside the session start from your own
-  environment.
+  environment. It also names the `claude` it was set for.
 - **`SWITCHBOARD_STARTED`** is what the [session hook](session-hook.md) reads.
+- **A `claude` started inside the session** joins the session through all four `SWITCHBOARD_`
+  variables above, as the session's `claude` started with them. See
+  [`switchboard run`](../commands/run.md).
 - **`CLAUDE_CODE_GATEWAY_HINT_HEADERS`** makes Claude Code send the headers that fill most of the
   hint fields of the [request ledger](ledger.md).
 

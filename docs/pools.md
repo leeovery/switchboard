@@ -31,7 +31,7 @@ looking at.
 - Sessions started anywhere else use the unfenced pool, which holds the rest of your accounts.
   Switchboard makes your first pool for you, labelled `Default`, and it starts unfenced.
 - A `claude` that an Acme session starts, such as a test running `claude -p` in the session's
-  scratchpad, uses Acme too. Outside a repository, it counts as the session's project.
+  scratchpad, uses Acme too.
 - Inside a pool, a session keeps its account while the cache is warm, and moves when a limit hits.
   When every account in the pool is out, work there waits for a reset rather than spill into
   another pool.

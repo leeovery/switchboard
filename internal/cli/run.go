@@ -77,9 +77,9 @@ A claude started within another session, as by a script the session runs,
 is in that session's pool wherever it starts, but where a fenced pool's
 directories hold it, as a fence keeps its own work: there, within a session
 of another fenced pool, it starts nothing. Within a fenced pool's session,
-Claude Code's own login doesn't start either. Outside every repository, it
-runs in that session's project, so a claude started in a scratchpad counts
-as the session's work.
+Claude Code's own login doesn't start either. In that session's pool and
+outside every repository, it runs in that session's project, so a claude
+started in a scratchpad counts as the session's work.
 
 Claude Code's local subcommands, such as doctor, mcp and setup-token, and
 its --version and --help, start as if switchboard weren't there, saying
@@ -144,7 +144,7 @@ func (a *app) run(ctx context.Context, stderr io.Writer, opts runOptions, args [
 		Dir:          dir,
 		Home:         home,
 		Project:      a.FindProject,
-		Process:      a.FindProcess,
+		Processes:    a.Processes,
 		EvalSymlinks: filepath.EvalSymlinks,
 		Worktree:     launch.FindWorktree,
 		InstallPaths: claude.InstallPaths(home),

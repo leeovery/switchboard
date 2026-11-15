@@ -27,15 +27,18 @@ func TestTheDepsMainHandsRunFindTheProjectASessionRunsIn(t *testing.T) {
 	}
 }
 
-func TestTheDepsMainHandsRunFindTheProcessesASessionRunsIn(t *testing.T) {
-	find := deps().FindProcess
-	if find == nil {
-		t.Fatal("main hands run no FindProcess: no claude is found within the session that started it")
+func TestTheDepsMainHandsRunTellOfTheProcessesASessionRunsIn(t *testing.T) {
+	processes := deps().Processes
+	if processes == nil {
+		t.Fatal("main hands run no Processes: no claude is found within the session that started it")
 	}
 	if runtime.GOOS != "darwin" {
 		t.Skip("only macOS's processes are read")
 	}
-	if p, ok := find(os.Getpid()); !ok || p.Parent != os.Getppid() {
-		t.Errorf("FindProcess(this test) = %+v, %v; want it running, started by %d", p, ok, os.Getppid())
+	if p, ok := processes.Process(os.Getpid()); !ok || p.Parent != os.Getppid() {
+		t.Errorf("Process(this test) = %+v, %v; want it running, started by %d", p, ok, os.Getppid())
+	}
+	if _, ok := processes.Environ(os.Getpid()); !ok {
+		t.Error("Environ(this test) found none, want the environment it started in read")
 	}
 }

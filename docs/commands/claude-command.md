@@ -160,7 +160,7 @@ that pool for its whole life. A resumed session gets the pool its folder is in a
   wherever the worktree lives. If the worktree itself lies in a fence, the two must agree.
 - **In a worktree of a bare repository,** it's the pool where the bare repository lies.
 - **A submodule or clone inside a worktree** goes by the worktree.
-- **Inside another session,** it's the pool of that session, unless a fence holds the folder. See
+- **Inside another session,** it's the session's pool, unless a fence holds the folder. See
   [`switchboard run`](run.md).
 
 Inside a pool, the rules above narrow to the pool:

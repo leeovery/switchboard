@@ -18,7 +18,7 @@ ending `— not starting claude`.
 | `pool Acme has no accounts` | Add one with `switchboard accounts add "Acme 1" --pool q7mt`. |
 | `pool Acme has no account with a usable token` | Give one a token with `switchboard accounts token m2kp`. |
 | `~/Code/acme is in pool Acme, where claude never starts on its own login` | Start it through the router, or outside the fence. |
-| `/tmp/x is in pool Acme, through the session it's started within, where claude never starts on its own login` | Start it through the router. A `claude` that a session of Acme starts is in Acme, wherever it starts. |
+| `/tmp/x is in pool Acme, through the session it's started within, where claude never starts on its own login` | Start it through the router. A `claude` that a session of Acme starts outside every fence is in Acme. |
 | `…: add that bare repository to pool Acme's directories` | The worktree's repository is a bare one outside every fence. Add it to the pool's folders, as below. |
 | `can't tell which pool the directory claude starts in is in` | The folder can't be read, for example because it was removed. Start it in a folder that's there. |
 | `can't tell which pool ~/wt/x is in: its .git file at ~/wt/x leads to no repository that can be found` | The worktree's `.git` file is stale. Run `git worktree repair <worktree>` in its repository, or remove the worktree. |
@@ -54,7 +54,9 @@ switchboard pool edit q7mt --dirs ~/Code/acme \
 ```
 
 `--account` with an account of another pool fails, and names the pool each is in:
-`Acme 1 (m2kp) is in pool Acme; this directory is in pool Default`.
+`Acme 1 (m2kp) is in pool Acme; this directory is in pool Default`. If no fence holds the folder,
+and the pool comes from the session that started `claude`, the message ends `, through the
+session it's started within`.
 
 ## `claude` says the router doesn't route by the pools
 

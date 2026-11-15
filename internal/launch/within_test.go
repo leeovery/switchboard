@@ -2,6 +2,7 @@ package launch_test
 
 import (
 	"errors"
+	"maps"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -44,15 +45,30 @@ func repositories(dir string) (string, bool) {
 	return dir, false
 }
 
-// processes are the processes running, by id, as FindProcess reads them.
-type processes map[int]launch.Process
+// processes are the processes running, by id, as ProcessTable tells of them.
+type processes map[int]process
 
-func (p processes) find(pid int) (launch.Process, bool) {
-	found, ok := p[pid]
-	return found, ok
+// process is a process running: the id of the process that started it,
+// when it started, and switchboard's variables of the environment it
+// started in, which can't be read where it's unread.
+type process struct {
+	parent  int
+	started time.Time
+	environ []string
+	unread  bool
 }
 
-// switchboards keeps switchboard's variables of env, as FindProcess reads
+func (p processes) Process(pid int) (launch.Process, bool) {
+	found, ok := p[pid]
+	return launch.Process{Parent: found.parent, Started: found.started}, ok
+}
+
+func (p processes) Environ(pid int) ([]string, bool) {
+	found, ok := p[pid]
+	return found.environ, ok && !found.unread
+}
+
+// switchboards keeps switchboard's variables of env, as ProcessTable reads
 // a process's environment.
 func switchboards(env []string) []string {
 	return slices.DeleteFunc(slices.Clone(env), func(variable string) bool { return !strings.HasPrefix(variable, "SWITCHBOARD_") })
@@ -83,11 +99,12 @@ func configOf(pools config.Pools) *config.Config {
 	return cfg
 }
 
-// session starts a session in dir, on cfg, as a launcher whose process id is
-// pid, and returns the environment its claude runs in, whole.
-func session(t *testing.T, cfg *config.Config, dir string) []string {
+// session starts a session in dir, on cfg, from the environment own, as a
+// launcher whose process id is pid, and returns the environment its claude
+// runs in, whole.
+func session(t *testing.T, cfg *config.Config, dir string, own ...string) []string {
 	t.Helper()
-	h := newHarness(t, "HOME=/home/tester")
+	h := newHarness(t, append([]string{"HOME=/home/tester"}, own...)...)
 	h.launcher.Dir, h.launcher.Project = dir, repositories
 	if err := h.launcher.Run(t.Context(), pooledRoute(cfg, knowing(cfg), ""), nil); err != nil {
 		t.Fatalf("starting the session: Run() error = %v; said %q", err, h.stderr.String())
@@ -95,18 +112,26 @@ func session(t *testing.T, cfg *config.Config, dir string) []string {
 	return h.only(t).inherited()
 }
 
+// sessionTable is the processes running for a claude started within the
+// session whose claude's environment is sessionEnv: its own, withinPID, the
+// shell that started it, and the session's claude, pid, which started a
+// second before its mark says.
+func sessionTable(sessionEnv []string) processes {
+	return processes{
+		withinPID: {parent: shellPID, started: launched.Add(time.Minute)},
+		shellPID:  {parent: pid, started: launched.Add(time.Second)},
+		pid:       {parent: 1, started: launched.Add(-time.Second), environ: switchboards(sessionEnv)},
+	}
+}
+
 // within is a harness for a claude started in dir, in the environment
 // environ, by a shell that the session's claude runs, whose environment is
-// sessionEnv: its own process id is withinPID.
+// sessionEnv, as sessionTable has them: its own process id is withinPID.
 func within(t *testing.T, environ, sessionEnv []string, dir string) *harness {
 	t.Helper()
 	h := newHarness(t, environ...)
 	h.launcher.Dir, h.launcher.Project, h.launcher.PID = dir, repositories, withinPID
-	h.launcher.Process = processes{
-		withinPID: {Parent: shellPID, Started: launched.Add(time.Minute)},
-		shellPID:  {Parent: pid, Started: launched.Add(time.Second)},
-		pid:       {Parent: 1, Started: launched.Add(-time.Second), Environ: switchboards(sessionEnv)},
-	}.find
+	h.launcher.Processes = sessionTable(sessionEnv)
 	return h
 }
 
@@ -124,6 +149,15 @@ func placedIn(t *testing.T, env map[string]string, wantPool, wantToken, wantProj
 	}
 	if !slices.Contains(headers, "X-Switchboard-Project: "+shown) || env["SWITCHBOARD_PROJECT"] != wantProject {
 		t.Errorf("started in the project %q, its headers %q; want %q, the router told it %s", env["SWITCHBOARD_PROJECT"], headers, wantProject, shown)
+	}
+}
+
+// runs runs h's launcher on cfg, routed, failing the test where it doesn't
+// start claude.
+func runs(t *testing.T, h *harness, cfg *config.Config) {
+	t.Helper()
+	if err := h.launcher.Run(t.Context(), pooledRoute(cfg, knowing(cfg), ""), nil); err != nil {
+		t.Fatalf("Run() error = %v; said %q", err, h.stderr.String())
 	}
 }
 
@@ -164,13 +198,18 @@ func TestALaunchWithinASessionIsInItsPoolAndRunsInItsProject(t *testing.T) {
 			wantPool: acmePool.ID, wantToken: acme1Token, wantProject: acmeDir,
 		},
 		{
+			name:  "in no repository in its own pool's fence, from a fenced pool's session: its pool and project",
+			pools: config.Pools{defaultPool, acmePool, clientPool}, from: "/Volumes/Client/notes", dir: "/Volumes/Client/drafts",
+			wantPool: clientPool.ID, wantToken: sideToken, wantProject: "/Volumes/Client/notes",
+		},
+		{
 			name: "in a repository in a fence, from the unfenced pool's session: the fence's pool, as a fence keeps its own work", from: elsewhere, dir: acmeDir + "/web",
 			wantPool: acmePool.ID, wantToken: acme1Token, wantProject: acmeDir,
 		},
 		{
-			name:  "in no repository in a fence, from the unfenced pool's session: the fence's pool, the session's project",
+			name:  "in no repository in a fence, from the unfenced pool's session: placed as if it weren't within it, the fence's pool, its own project",
 			pools: config.Pools{defaultPool, acmePool, clientPool}, from: elsewhere, dir: "/Volumes/Client/drafts",
-			wantPool: clientPool.ID, wantToken: sideToken, wantProject: elsewhere,
+			wantPool: clientPool.ID, wantToken: sideToken, wantProject: "/Volumes/Client/drafts",
 		},
 		{
 			name:  "in a scratchpad, from a fenced pool's session, every pool fenced: its pool, where none covers the scratchpad",
@@ -240,13 +279,105 @@ func TestALaunchWithinASessionDirectIsInItsPoolAndRunsInItsProject(t *testing.T)
 	}
 }
 
+// A shell or direnv that names the pool, or the project, already, as run
+// would set them, leaves run nothing to change: what run set is marked all
+// the same, so a claude started within the session finds them, whether the
+// environment of the session's claude is read or, where it can't be, the
+// one inherited.
+func TestASessionStartedWhereTheEnvironmentNamedItsPoolAlreadyPassesItOn(t *testing.T) {
+	cfg := pooledConfig()
+	for _, tt := range []struct {
+		name string
+		own  []string
+	}{
+		{name: "its pool", own: []string{"SWITCHBOARD_POOL=" + acmePool.ID}},
+		{name: "its pool and project", own: []string{"SWITCHBOARD_POOL=" + acmePool.ID, "SWITCHBOARD_PROJECT=" + acmeDir}},
+	} {
+		for _, read := range []struct {
+			name   string
+			unread bool
+		}{
+			{name: "its claude's environment read"},
+			{name: "its claude's environment unread, the one inherited read", unread: true},
+		} {
+			t.Run(tt.name+", "+read.name, func(t *testing.T) {
+				sessionEnv := session(t, cfg, acmeDir, tt.own...)
+				h := within(t, sessionEnv, sessionEnv, scratchpad)
+				table := sessionTable(sessionEnv)
+				table[pid] = process{parent: 1, started: launched.Add(-time.Second), environ: switchboards(sessionEnv), unread: read.unread}
+				h.launcher.Processes = table
+
+				runs(t, h, cfg)
+				placedIn(t, h.environment(t), acmePool.ID, acme1Token, acmeDir)
+			})
+		}
+	}
+}
+
+// What the session's claude started with is what counts, which nothing run
+// within the session can change: a pool or project changed since in the
+// environment the launch inherits counts for nothing.
+func TestASessionsPoolChangedSinceInTheEnvironmentInheritedIsStillItsPool(t *testing.T) {
+	cfg := configOf(config.Pools{defaultPool, acmePool, clientPool})
+	sessionEnv := session(t, cfg, acmeDir)
+	changed := slices.DeleteFunc(slices.Clone(sessionEnv), func(v string) bool {
+		return strings.HasPrefix(v, "SWITCHBOARD_POOL=") || strings.HasPrefix(v, "SWITCHBOARD_PROJECT=")
+	})
+	h := within(t, append(changed, "SWITCHBOARD_POOL="+clientPool.ID, "SWITCHBOARD_PROJECT=/Volumes/Client/notes"), sessionEnv, scratchpad)
+
+	runs(t, h, cfg)
+	placedIn(t, h.environment(t), acmePool.ID, acme1Token, acmeDir)
+}
+
+// Where the environment the session's claude started in can't be read, the
+// one the launch inherits says what the session is, as run set it: a pool or
+// project changed since there is none of the session's, and a session naming
+// no pool places no launch among pools.
+func TestASessionsClaudeWhoseEnvironmentCantBeReadIsFoundThroughTheOneInherited(t *testing.T) {
+	cfg := pooledConfig()
+	sessionEnv := session(t, cfg, acmeDir)
+	without := func(names ...string) []string {
+		return slices.DeleteFunc(slices.Clone(sessionEnv), func(v string) bool {
+			name, _, _ := strings.Cut(v, "=")
+			return slices.Contains(names, name)
+		})
+	}
+	tests := []struct {
+		name    string
+		environ []string
+		// inSession is whether it's found within the session started in
+		// Acme, rather than placed by its scratchpad alone.
+		inSession bool
+	}{
+		{name: "the session's environment inherited", environ: sessionEnv, inSession: true},
+		{name: "an environment cleaned", environ: []string{"HOME=/home/tester"}},
+		{name: "the session's environment, its pool changed since", environ: append(without("SWITCHBOARD_POOL"), "SWITCHBOARD_POOL="+defaultPool.ID)},
+		{name: "the session's environment, its pool unset since", environ: without("SWITCHBOARD_POOL")},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := within(t, tt.environ, sessionEnv, scratchpad)
+			table := sessionTable(sessionEnv)
+			table[pid] = process{parent: 1, started: launched.Add(-time.Second), unread: true}
+			h.launcher.Processes = table
+
+			runs(t, h, cfg)
+			if tt.inSession {
+				placedIn(t, h.environment(t), acmePool.ID, acme1Token, acmeDir)
+				return
+			}
+			placedIn(t, h.environment(t), defaultPool.ID, workToken, scratchpad)
+		})
+	}
+}
+
 func TestALaunchWithItsEnvironmentCleanedIsFoundWithinItsSessionThroughWhatStartedIt(t *testing.T) {
 	cfg := pooledConfig()
 	sessionEnv := session(t, cfg, acmeDir)
 	tests := []struct {
 		name string
-		// table changes the processes running, as within gives them, where
-		// it isn't nil.
+		// table changes the processes running, as sessionTable gives them,
+		// where it isn't nil.
 		table func(p processes)
 		// inSession is whether it's found within the session started in
 		// Acme, rather than placed by its scratchpad alone.
@@ -256,27 +387,27 @@ func TestALaunchWithItsEnvironmentCleanedIsFoundWithinItsSessionThroughWhatStart
 		{
 			name: "the session's claude one of them, a process between holding the session's environment",
 			table: func(p processes) {
-				p[shellPID] = launch.Process{Parent: pid, Started: launched.Add(time.Second), Environ: switchboards(sessionEnv)}
+				p[shellPID] = process{parent: pid, started: launched.Add(time.Second), environ: switchboards(sessionEnv)}
 			},
 			inSession: true,
 		},
 		{
 			name: "a process that started it holding the environment of a session still running, as a tmux server started within it, but the session's claude not among them",
 			table: func(p processes) {
-				p[shellPID] = launch.Process{Parent: 1, Started: launched.Add(time.Second), Environ: switchboards(sessionEnv)}
+				p[shellPID] = process{parent: 1, started: launched.Add(time.Second), environ: switchboards(sessionEnv)}
 			},
 		},
 		{
 			name: "a process that started it holding the environment of a session that has ended, as a tmux server outliving it",
 			table: func(p processes) {
 				delete(p, pid)
-				p[shellPID] = launch.Process{Parent: 1, Started: launched.Add(time.Second), Environ: switchboards(sessionEnv)}
+				p[shellPID] = process{parent: 1, started: launched.Add(time.Second), environ: switchboards(sessionEnv)}
 			},
 		},
 		{
 			name: "none of the processes that started it within a session",
 			table: func(p processes) {
-				p[shellPID] = launch.Process{Parent: 1, Started: launched.Add(time.Second)}
+				p[shellPID] = process{parent: 1, started: launched.Add(time.Second)}
 			},
 		},
 		{
@@ -289,24 +420,52 @@ func TestALaunchWithItsEnvironmentCleanedIsFoundWithinItsSessionThroughWhatStart
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			h := within(t, []string{"HOME=/home/tester"}, sessionEnv, scratchpad)
-			table := processes{}
-			for _, id := range []int{withinPID, shellPID, pid} {
-				table[id], _ = h.launcher.Process(id)
-			}
+			table := sessionTable(sessionEnv)
 			if tt.table != nil {
 				tt.table(table)
 			}
-			h.launcher.Process = table.find
+			h.launcher.Processes = table
 
-			if err := h.launcher.Run(t.Context(), pooledRoute(cfg, knowing(cfg), ""), nil); err != nil {
-				t.Fatalf("Run() error = %v; said %q", err, h.stderr.String())
-			}
+			runs(t, h, cfg)
 			env := h.environment(t)
 			if tt.inSession {
 				placedIn(t, env, acmePool.ID, acme1Token, acmeDir)
 				return
 			}
 			placedIn(t, env, defaultPool.ID, workToken, scratchpad)
+		})
+	}
+}
+
+// The mark of the claude switchboard started gives the second it started,
+// its fraction cut off, so a session's claude can have started within the
+// second after it says.
+func TestASessionsClaudeStartedWithinTheSecondItsMarkSaysIsItsClaude(t *testing.T) {
+	cfg := pooledConfig()
+	sessionEnv := session(t, cfg, acmeDir)
+	for _, tt := range []struct {
+		name string
+		// after is how long after its mark's second the session's claude
+		// started.
+		after     time.Duration
+		inSession bool
+	}{
+		{name: "half a second after its mark's second", after: 500 * time.Millisecond, inSession: true},
+		{name: "a second and a half after", after: 1500 * time.Millisecond},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			h := within(t, []string{"HOME=/home/tester"}, sessionEnv, scratchpad)
+			table := sessionTable(sessionEnv)
+			table[shellPID] = process{parent: pid, started: launched.Add(10 * time.Second)}
+			table[pid] = process{parent: 1, started: launched.Add(tt.after), environ: switchboards(sessionEnv)}
+			h.launcher.Processes = table
+
+			runs(t, h, cfg)
+			if tt.inSession {
+				placedIn(t, h.environment(t), acmePool.ID, acme1Token, acmeDir)
+				return
+			}
+			placedIn(t, h.environment(t), defaultPool.ID, workToken, scratchpad)
 		})
 	}
 }
@@ -322,35 +481,48 @@ func TestAStaleMarkOfASessionIsNone(t *testing.T) {
 		{
 			name: "its claude has ended, the shell it ran outliving it",
 			change: func(h *harness) {
-				h.launcher.Process = processes{withinPID: {Parent: shellPID}, shellPID: {Parent: 1}}.find
+				h.launcher.Processes = processes{withinPID: {parent: shellPID}, shellPID: {parent: 1}}
 			},
 		},
 		{
 			name: "its claude's process id taken since by a later process, one that started it",
 			change: func(h *harness) {
-				h.launcher.Process = processes{withinPID: {Parent: pid}, pid: {Parent: 1, Started: launched.Add(2 * time.Second)}}.find
+				h.launcher.Processes = processes{
+					withinPID: {parent: pid, started: launched.Add(time.Minute)},
+					pid:       {parent: 1, started: launched.Add(2 * time.Second), environ: switchboards(sessionEnv)},
+				}
+			},
+		},
+		{
+			name: "the id of a process that started it taken, as the processes were read, by its claude, which started after the process it's read as starting",
+			change: func(h *harness) {
+				h.launcher.Processes = processes{
+					withinPID: {parent: shellPID, started: launched.Add(time.Minute)},
+					shellPID:  {parent: pid, started: launched.Add(-2 * time.Second)},
+					pid:       {parent: 1, started: launched.Add(-time.Second), environ: switchboards(sessionEnv)},
+				}
 			},
 		},
 		{
 			name: "its claude running, but not among the processes that started it, as where they're a tmux server's started within the session",
 			change: func(h *harness) {
-				h.launcher.Process = processes{
-					withinPID: {Parent: shellPID},
-					shellPID:  {Parent: 1},
-					pid:       {Parent: 1, Started: launched.Add(-time.Second)},
-				}.find
+				h.launcher.Processes = processes{
+					withinPID: {parent: shellPID},
+					shellPID:  {parent: 1},
+					pid:       {parent: 1, started: launched.Add(-time.Second), environ: switchboards(sessionEnv)},
+				}
 			},
 		},
 		{
 			name: "naming this process, a switchboard started again in its own claude's place",
 			change: func(h *harness) {
 				h.launcher.PID = pid
-				h.launcher.Process = processes{pid: {Parent: 1, Started: launched.Add(-time.Second)}}.find
+				h.launcher.Processes = processes{pid: {parent: 1, started: launched.Add(-time.Second), environ: switchboards(sessionEnv)}}
 			},
 		},
 		{
 			name:   "no way to tell which processes run",
-			change: func(h *harness) { h.launcher.Process = nil },
+			change: func(h *harness) { h.launcher.Processes = nil },
 		},
 	}
 	for _, tt := range tests {
@@ -358,24 +530,93 @@ func TestAStaleMarkOfASessionIsNone(t *testing.T) {
 			h := within(t, sessionEnv, sessionEnv, scratchpad)
 			tt.change(h)
 
-			if err := h.launcher.Run(t.Context(), pooledRoute(cfg, knowing(cfg), ""), nil); err != nil {
-				t.Fatalf("Run() error = %v; said %q", err, h.stderr.String())
+			runs(t, h, cfg)
+			placedIn(t, h.environment(t), defaultPool.ID, workToken, scratchpad)
+		})
+	}
+}
+
+// A claude a local subcommand runs, as Local starts it, carries on the
+// session's mark of what run set, made for the session's claude: it's never
+// a session's claude itself, whether it's started within a session, which
+// is found past it, or where a session's mark lives on without its claude,
+// as in a tmux server started within it.
+func TestAClaudeStartedForALocalSubcommandIsNoSessionsClaude(t *testing.T) {
+	const (
+		localPID  = 8001
+		nestedPID = 9001
+	)
+	cfg := pooledConfig()
+	sessionEnv := session(t, cfg, acmeDir)
+	local := newHarness(t, sessionEnv...)
+	local.launcher.PID = localPID
+	if err := local.launcher.Local([]string{"mcp", "serve"}); err != nil {
+		t.Fatalf("Local() error = %v", err)
+	}
+	localEnv := local.only(t).inherited()
+	tests := []struct {
+		name string
+		// above is the processes above the local claude.
+		above     processes
+		inSession bool
+	}{
+		{
+			name: "within the session",
+			above: processes{
+				shellPID: {parent: pid, started: launched.Add(-time.Second)},
+				pid:      {parent: 1, started: launched.Add(-time.Minute), environ: switchboards(sessionEnv)},
+			},
+			inSession: true,
+		},
+		{
+			name: "in a tmux server's pane, the server started within the session",
+			above: processes{
+				shellPID: {parent: 1, started: launched.Add(-time.Second), environ: switchboards(sessionEnv)},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := newHarness(t, localEnv...)
+			h.launcher.Dir, h.launcher.Project, h.launcher.PID = scratchpad, repositories, nestedPID
+			table := processes{
+				nestedPID: {parent: localPID, started: launched.Add(time.Minute)},
+				localPID:  {parent: shellPID, started: launched, environ: switchboards(localEnv)},
+			}
+			maps.Copy(table, tt.above)
+			h.launcher.Processes = table
+
+			runs(t, h, cfg)
+			if tt.inSession {
+				placedIn(t, h.environment(t), acmePool.ID, acme1Token, acmeDir)
+				return
 			}
 			placedIn(t, h.environment(t), defaultPool.ID, workToken, scratchpad)
 		})
 	}
 }
 
-func TestASessionsPoolChangedSinceRunSetItIsNoneOfItsOwn(t *testing.T) {
-	cfg := pooledConfig()
-	sessionEnv := session(t, cfg, acmeDir)
-	changed := slices.DeleteFunc(slices.Clone(sessionEnv), func(v string) bool { return strings.HasPrefix(v, "SWITCHBOARD_POOL=") })
-	h := within(t, append(changed, "SWITCHBOARD_POOL="+clientPool.ID), sessionEnv, scratchpad)
-
-	if err := h.launcher.Run(t.Context(), pooledRoute(cfg, knowing(cfg), ""), nil); err != nil {
-		t.Fatalf("Run() error = %v; said %q", err, h.stderr.String())
+// chain is the processes running for a claude started in a scratchpad within
+// a session, second, whose environment is secondEnv, that's started within
+// another, first, whose environment is firstEnv.
+func chain(firstEnv, secondEnv []string) processes {
+	return processes{
+		innerWithinPID: {parent: innerShellPID, started: launched.Add(2 * time.Minute)},
+		innerShellPID:  {parent: withinPID, started: launched.Add(time.Minute)},
+		withinPID:      {parent: shellPID, started: launched.Add(-time.Second), environ: switchboards(secondEnv)},
+		shellPID:       {parent: pid, started: launched.Add(-2 * time.Second)},
+		pid:            {parent: 1, started: launched.Add(-3 * time.Second), environ: switchboards(firstEnv)},
 	}
-	placedIn(t, h.environment(t), defaultPool.ID, workToken, acmeDir)
+}
+
+// last is a harness for a claude started in a scratchpad within second, as
+// chain has it.
+func last(t *testing.T, firstEnv, secondEnv []string) *harness {
+	t.Helper()
+	h := newHarness(t, secondEnv...)
+	h.launcher.Dir, h.launcher.Project, h.launcher.PID = innerScratchpad, repositories, innerWithinPID
+	h.launcher.Processes = chain(firstEnv, secondEnv)
+	return h
 }
 
 func TestAChainOfSessionsPassesOnWhatEachWasGiven(t *testing.T) {
@@ -404,24 +645,64 @@ func TestAChainOfSessionsPassesOnWhatEachWasGiven(t *testing.T) {
 			cfg := pooledConfig()
 			first := session(t, cfg, tt.from)
 			second := within(t, first, first, tt.dir)
-			if err := second.launcher.Run(t.Context(), pooledRoute(cfg, knowing(cfg), ""), nil); err != nil {
-				t.Fatalf("starting the second: Run() error = %v; said %q", err, second.stderr.String())
-			}
-			secondEnv := second.only(t).inherited()
-			last := newHarness(t, secondEnv...)
-			last.launcher.Dir, last.launcher.Project, last.launcher.PID = innerScratchpad, repositories, innerWithinPID
-			last.launcher.Process = processes{
-				innerWithinPID: {Parent: innerShellPID, Started: launched.Add(2 * time.Minute)},
-				innerShellPID:  {Parent: withinPID, Started: launched.Add(time.Minute)},
-				withinPID:      {Parent: shellPID, Started: launched.Add(-time.Second), Environ: switchboards(secondEnv)},
-				shellPID:       {Parent: pid, Started: launched.Add(-2 * time.Second)},
-				pid:            {Parent: 1, Started: launched.Add(-3 * time.Second), Environ: switchboards(first)},
-			}.find
+			runs(t, second, cfg)
+			h := last(t, first, second.only(t).inherited())
 
-			if err := last.launcher.Run(t.Context(), pooledRoute(cfg, knowing(cfg), ""), nil); err != nil {
-				t.Fatalf("starting the last: Run() error = %v; said %q", err, last.stderr.String())
+			runs(t, h, cfg)
+			placedIn(t, h.environment(t), tt.wantPool, tt.wantToken, tt.wantProject)
+		})
+	}
+}
+
+// A session that names no pool, as one started while the config had none,
+// places no launch among pools: one started within it on a config with pools
+// is placed through the session around it that names one, its pool and
+// project alike; on a config without, it runs in the nearest's project.
+func TestASessionNamingNoPoolPlacesNoLaunchAmongPools(t *testing.T) {
+	cfg := pooledConfig()
+	first := session(t, cfg, acmeDir)
+	second := within(t, first, first, tool)
+	if err := second.launcher.Run(t.Context(), route(healthy(), ""), nil); err != nil {
+		t.Fatalf("starting the second without pools: Run() error = %v; said %q", err, second.stderr.String())
+	}
+	secondEnv := second.only(t).inherited()
+
+	t.Run("on a config with pools", func(t *testing.T) {
+		h := last(t, first, secondEnv)
+		runs(t, h, cfg)
+		placedIn(t, h.environment(t), acmePool.ID, acme1Token, acmeDir)
+	})
+	t.Run("on a config without", func(t *testing.T) {
+		h := last(t, first, secondEnv)
+		if err := h.launcher.Run(t.Context(), route(healthy(), ""), nil); err != nil {
+			t.Fatalf("Run() error = %v; said %q", err, h.stderr.String())
+		}
+		if got := h.environment(t)["SWITCHBOARD_PROJECT"]; got != tool {
+			t.Errorf("started in the project %q, want the nearest session's, %q", got, tool)
+		}
+	})
+}
+
+// A pin to an account of another pool is refused, saying where the session's
+// pool comes from: through the session it's started within, where nothing
+// else puts it there.
+func TestAPinWithinASessionToAnotherPoolsAccountSaysWhereItsPoolComesFrom(t *testing.T) {
+	cfg := pooledConfig()
+	sessionEnv := session(t, cfg, acmeDir)
+	for _, tt := range []struct {
+		name, dir, wantErr string
+	}{
+		{name: "in a scratchpad", dir: scratchpad, wantErr: "work is in pool Default; this directory is in pool Acme, through the session it's started within"},
+		{name: "in its pool's fence", dir: acmeDir + "/web", wantErr: "work is in pool Default; this directory is in pool Acme"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			h := within(t, sessionEnv, sessionEnv, tt.dir)
+			if err := h.launcher.Run(t.Context(), pooledRoute(cfg, knowing(cfg), "work"), nil); err == nil || err.Error() != tt.wantErr {
+				t.Errorf("Run() error = %v, want %q", err, tt.wantErr)
 			}
-			placedIn(t, last.environment(t), tt.wantPool, tt.wantToken, tt.wantProject)
+			if len(h.starts) > 0 {
+				t.Errorf("started %q, want nothing started", h.starts)
+			}
 		})
 	}
 }

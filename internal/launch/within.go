@@ -6,19 +6,30 @@ import (
 	"github.com/leeovery/switchboard/internal/config"
 )
 
-// Process is what's known of a running process, as FindProcess reads it.
-type Process struct {
-	// Parent is the id of the process that started it, and Started when it
-	// started.
-	Parent  int
-	Started time.Time
-	// Environ is switchboard's variables of the environment it started in,
-	// as os.Environ gives each: never another, which can hold a token.
-	Environ []string
+// Processes tells of the processes running, as ProcessTable does.
+type Processes interface {
+	// Process returns what's known of the running process with the given
+	// id: false where none runs.
+	Process(pid int) (Process, bool)
+	// Environ returns switchboard's variables of the environment the process
+	// with the given id started in, as os.Environ gives each, and never
+	// another, which can hold a token: false where it can't be read.
+	Environ(pid int) ([]string, bool)
 }
 
-// session is the session a launch is started within, as sessionWithin finds
-// it: the process id of its claude, and the id of the pool it's in and the
+// ProcessTable is the system's processes, as Processes tells of them: only
+// macOS's are read.
+type ProcessTable struct{}
+
+// Process is what's known of a running process: the id of the process that
+// started it, and when it started.
+type Process struct {
+	Parent  int
+	Started time.Time
+}
+
+// session is a session a launch is started within, as sessionOf finds it:
+// the process id of its claude, and the id of the pool it's in and the
 // project it runs in, each "" where it names none. The zero session is none.
 type session struct {
 	pid           int
@@ -34,6 +45,34 @@ func (s session) attrs() []any {
 	return []any{"within", s.pid}
 }
 
+// outerSessions are the sessions a launch is started within, as findOuter
+// finds them: the nearest, and the nearest naming a pool, each none where
+// there's no such session.
+type outerSessions struct {
+	nearest, pooled session
+}
+
+// with returns o knowing s, the next session out from those o knows.
+func (o outerSessions) with(s session) outerSessions {
+	if o.nearest.pid == 0 {
+		o.nearest = s
+	}
+	if o.pooled.pid == 0 && s.pool != "" {
+		o.pooled = s
+	}
+	return o
+}
+
+// among returns the session a launch among pools is started within: the
+// nearest naming a pool, where there are pools, as one naming none can't
+// place it among them; else the nearest.
+func (o outerSessions) among(pools config.Pools) session {
+	if len(pools) > 0 {
+		return o.pooled
+	}
+	return o.nearest
+}
+
 // markRounding is how much later than its mark says a claude switchboard
 // started can have started: the mark gives the second, its fraction cut off.
 const markRounding = time.Second
@@ -43,68 +82,68 @@ const markRounding = time.Second
 // that changes as it's read still ends.
 const ancestorsMost = 64
 
-// withinSession returns l knowing the session it's started within, as
-// sessionWithin finds it, so a launch looks once, and every rule it places
-// the session by sees the same.
-func (l Launcher) withinSession() Launcher {
-	l.within = l.sessionWithin()
-	return l
-}
-
-// sessionWithin returns the session a launch is started within, Process
-// telling of the processes running: that of the nearest of the processes
-// that started it, up from its parent, that's a session's claude. A process
-// is one where an environment's mark of the claude switchboard started (see
-// startedEnv) names it, by its id, and it started no later than the mark
-// says, so a process that took the id of a claude since ended isn't; and
-// where that environment holds the session's pool or project as run set
-// them (see setByRun). The environment the launch starts from is looked at
-// first, then the process's own, as it started, so a claude started with its
-// environment cleaned, as a test harness may start it, is found within the
-// session the harness runs in. A session whose claude isn't among the
-// processes that started the launch is none, though its mark lives on, as in
-// a tmux server started within it, which every claude started in it would
-// inherit. None without Process.
-func (l Launcher) sessionWithin() session {
-	if l.Process == nil {
-		return session{}
+// findOuter returns the sessions a launch is started within, as Processes
+// tells of the processes running: those whose claude is among the processes
+// that started it, up from its parent, as sessionOf finds them, until one
+// names a pool. A session whose claude isn't among them is none, though its
+// mark lives on, as in a tmux server started within it, which every claude
+// started in it would inherit. The walk stops at a process that started
+// after the one it started, as no parent does: its id was taken, as the walk
+// went, by a later process. None without Processes.
+func (l Launcher) findOuter() outerSessions {
+	var outer outerSessions
+	if l.Processes == nil {
+		return outer
 	}
-	inherited := environ(l.Environ)
-	p, ok := l.Process(l.PID)
+	child, ok := l.Processes.Process(l.PID)
 	for range ancestorsMost {
-		if !ok || p.Parent <= 1 {
+		if !ok || child.Parent <= 1 || outer.pooled.pid != 0 {
 			break
 		}
-		pid := p.Parent
-		if p, ok = l.Process(pid); !ok {
+		pid := child.Parent
+		parent, running := l.Processes.Process(pid)
+		if !running || parent.Started.After(child.Started) {
 			break
 		}
-		for _, env := range []environ{inherited, environ(p.Environ)} {
-			if s, found := sessionOf(pid, p, env); found {
-				return s
-			}
+		if s, found := l.sessionOf(pid, parent); found {
+			outer = outer.with(s)
 		}
+		child = parent
 	}
-	return session{}
+	return outer
 }
 
-// sessionOf returns the session env names, where p, the process whose id is
-// pid, is its claude, as sessionWithin says, and whether it is.
-func sessionOf(pid int, p Process, env environ) (session, bool) {
-	m, ok := env.started()
-	if !ok || m.pid != pid || p.Started.After(m.at.Add(markRounding)) {
+// sessionOf returns the session whose claude is p, the process whose id is
+// pid, and whether it's one: where its mark of the claude switchboard started
+// (see startedEnv) names it, and it started no later than the mark says, so
+// a process that took the id of a claude since ended isn't; where its mark
+// of what run set was made for it (see markedFor), as a claude started since
+// in the session's environment, as Local starts one, carries on a mark made
+// for another; and where it names the pool or project run set (see
+// setByRun). They're read from the environment p started in, which nothing
+// run within the session can change; else, where that can't be read, from
+// the one the launch starts from, as inherited.
+func (l Launcher) sessionOf(pid int, p Process) (session, bool) {
+	env := environ(l.Environ)
+	if own, read := l.Processes.Environ(pid); read {
+		env = environ(own)
+	}
+	m, marked := env.started()
+	if !marked || m.pid != pid || p.Started.After(m.at.Add(markRounding)) || !env.markedFor(pid) {
 		return session{}, false
 	}
 	s := session{pid: pid, pool: env.setByRun(PoolEnv), project: env.setByRun(projectEnv)}
 	return s, s.pool != "" || s.project != ""
 }
 
-// withinPool returns the pool of pools the session the launch is started
-// within is in: false where it's within none, or that pool isn't one of
-// pools, as where it's been removed since.
-func (l Launcher) withinPool(pools config.Pools) (config.Pool, bool) {
-	if l.within.pool == "" {
-		return config.Pool{}, false
+// outerPool returns the session a launch among pools is started within, as
+// among has it, and its pool of pools: false where it's within none, or that
+// pool isn't one of pools, as where it's been removed since.
+func (l Launcher) outerPool(pools config.Pools) (session, config.Pool, bool) {
+	s := l.outer.among(pools)
+	if s.pool == "" {
+		return session{}, config.Pool{}, false
 	}
-	return pools.ByID(l.within.pool)
+	p, ok := pools.ByID(s.pool)
+	return s, p, ok
 }

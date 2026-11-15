@@ -12,39 +12,61 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// FindProcess returns what the system knows of the running process with the
-// given id: false where none runs. Its environment is switchboard's variables
-// of the one it started in, where the system lets it be read, as of a process
-// of this user's; none otherwise.
-func FindProcess(pid int) (Process, bool) {
+// Process returns what the system knows of the running process with the
+// given id: false where none runs.
+func (ProcessTable) Process(pid int) (Process, bool) {
 	info, err := unix.SysctlKinfoProc("kern.proc.pid", pid)
 	if err != nil || int(info.Proc.P_pid) != pid {
 		return Process{}, false
 	}
 	started := info.Proc.P_starttime
-	p := Process{Parent: int(info.Eproc.Ppid), Started: time.Unix(started.Sec, int64(started.Usec)*int64(time.Microsecond))}
-	if args, err := unix.SysctlRaw("kern.procargs2", pid); err == nil {
-		if _, env, ok := procArgs(args); ok {
-			p.Environ = switchboards(env)
-		}
-	}
-	return p, true
+	return Process{Parent: int(info.Eproc.Ppid), Started: time.Unix(started.Sec, int64(started.Usec)*int64(time.Microsecond))}, true
 }
+
+// Environ returns switchboard's variables of the environment the process
+// with the given id started in, where the system lets it be read, as of a
+// process of this user's: false otherwise.
+func (ProcessTable) Environ(pid int) ([]string, bool) {
+	args, err := unix.SysctlRaw("kern.procargs2", pid)
+	if err != nil {
+		return nil, false
+	}
+	_, env, ok := procArgs(args)
+	if !ok {
+		return nil, false
+	}
+	return switchboards(env), true
+}
+
+// argsAlign is what the system pads the path a process started from to, in
+// kern.procargs2, so its arguments start on a pointer's boundary, counted
+// from the path's start.
+const argsAlign = 8
 
 // procArgs returns the arguments and the environment a process started with,
 // as kern.procargs2 lays them out in args: the count of its arguments, a
 // 32-bit integer in the machine's order; the path it was started from, ended
-// by one NUL or more; then each argument, and each variable of its
-// environment, ended by a NUL, the environment's last followed by an empty
-// string or the end. It reports false where args isn't laid out so.
+// by a NUL, and padded with NULs to argsAlign; then each argument, and each
+// variable of its environment, ended by a NUL, the environment's last
+// followed by an empty string or the end. Only the padding is passed over,
+// so an empty first argument is read as one. It reports false where args
+// isn't laid out so.
 func procArgs(args []byte) (argv, env []string, ok bool) {
 	if len(args) < 4 {
 		return nil, nil, false
 	}
 	argc := int(int32(binary.NativeEndian.Uint32(args)))
-	_, strs, found := bytes.Cut(args[4:], []byte{0})
-	fields := strings.Split(string(bytes.TrimLeft(strs, "\x00")), "\x00")
-	if !found || argc < 0 || argc > len(fields) {
+	strs := args[4:]
+	end := bytes.IndexByte(strs, 0)
+	if end < 0 || argc < 0 {
+		return nil, nil, false
+	}
+	start := end + 1
+	for start < len(strs) && start%argsAlign != 0 && strs[start] == 0 {
+		start++
+	}
+	fields := strings.Split(string(strs[start:]), "\x00")
+	if argc > len(fields) {
 		return nil, nil, false
 	}
 	env = fields[argc:]

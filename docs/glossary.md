@@ -44,9 +44,9 @@ accounts reset one after another rather than together.
 
 **Project.** The repository a session runs in, with its worktrees folded in. A session in a
 worktree or a folder beneath the repository counts as the repository's. A session started outside
-any repository counts as its own folder's, but one started inside another session counts as that
-session's project. `run` records the project as the session starts. See
-[the ledger](reference/ledger.md).
+any repository counts as its own folder's. A session started outside any repository inside
+another session, and in that session's pool, counts as the other session's project. `run` records
+the project as the session starts. See [the ledger](reference/ledger.md).
 
 **Record.** Everything switchboard keeps of your use, on this Mac and from any you import:
 
