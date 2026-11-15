@@ -61,6 +61,7 @@ func (a *app) sessionPage(ctx context.Context, out, errOut io.Writer, given, poo
 		Unlisted: unlisted,
 		Read:     read,
 		Prices:   pricing(cfg),
+		Projects: a.projects(),
 		Keep:     cfg.Ledger.Keep,
 		Now:      now,
 	})

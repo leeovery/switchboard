@@ -14,6 +14,9 @@ A project is a repository, with its worktrees folded in, or the folder a session
 outside any repository, as the [Glossary](../glossary.md) says.
 Each one is named by its folder. If two share a name, the parent folder is named too. Sessions
 that didn't start through the `claude` that switchboard links share one row, `no directory`.
+Sessions started in temporary folders share another faint row, `temporary folders`. A session
+started in a Claude Code scratchpad counts as the project the scratchpad was made for, as
+[the ledger](../reference/ledger.md) explains.
 
 ## The list: every project, the greatest first
 

@@ -44,7 +44,9 @@ accounts reset one after another rather than together.
 
 **Project.** The repository a session runs in, with its worktrees folded in. A session in a
 worktree or a folder beneath the repository counts as the repository's, and one started outside
-any repository as its own folder's. `run` records the project as the session starts. See
+any repository as its own folder's. A session started in a Claude Code scratchpad counts as the
+project the scratchpad was made for. Sessions started in any other temporary folder share one
+project, `temporary folders`. `run` records the project as the session starts. See
 [the ledger](reference/ledger.md).
 
 **Record.** Everything switchboard keeps of your use, on this Mac and from any you import:
@@ -62,6 +64,9 @@ or a direct session can.
 
 **The router.** The program on your Mac that Claude Code sends every request through. It picks
 the account, swaps in its token, and records the request. The service keeps it running.
+
+**Scratchpad.** The temporary folder Claude Code makes for one session, named after the folder the
+session started in. Tools often start `claude -p` there.
 
 **Session.** One conversation in Claude Code, from start to exit. A resumed session carries on the
 same conversation, but starts a new process.

@@ -212,6 +212,7 @@ func (a *app) dashboard(ctx context.Context, out io.Writer, opts dashboardOption
 		LedgerKeep:    cfg.Ledger.Keep,
 		Prices:        pricing(cfg),
 		Home:          home,
+		Projects:      a.projects(),
 	}
 	pools := a.dashboardPools(ctx, &wc, cfg, opts.probe, stamp)
 	shown, err := pools.opened(ctx, cfg, opts.pool)

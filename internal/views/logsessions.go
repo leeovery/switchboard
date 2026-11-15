@@ -53,7 +53,9 @@ type LogSessionSources struct {
 	Unlisted bool
 	// Stream is what the request stream told.
 	Stream Stream
-	Now    time.Time
+	// Projects reads each session's project, as the List's sources say.
+	Projects status.Projects
+	Now      time.Time
 }
 
 // LogSession is a session of today's as the Log's panel lists it, each fact
@@ -125,7 +127,7 @@ func (s LogSession) Doing(now time.Time) (doing LogDoing, since time.Time) {
 // those ended, the latest ended first. Each session's story is the store's,
 // at src's now, as the List's is.
 func LogSessions(src LogSessionSources) []LogSession {
-	by := newLister(src.Running, src.Unlisted, src.Stream, src.Now)
+	by := newLister(src.Running, src.Unlisted, src.Stream, src.Projects, src.Now)
 	counted := countedIDs(src.Lines, src.Events)
 	firsts := src.Read.firstsOn(Today(src.Now))
 	held := src.Held.at(src.Now)

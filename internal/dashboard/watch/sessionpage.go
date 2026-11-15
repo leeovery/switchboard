@@ -300,7 +300,7 @@ func (m Model) pageBasis(live views.PageLive) pageBasis {
 // the router lists it, or while it doesn't answer, as its last listing had
 // it; whether it doesn't; and what the request stream told.
 func (m Model) pageLive(id string, now time.Time) views.PageLive {
-	return views.PageLive{Routed: views.Routed(m.sessions, id), Unlisted: !m.answering(), Stream: m.traffic.stream(now), Now: now}
+	return views.PageLive{Routed: views.Routed(m.sessions, id), Unlisted: !m.answering(), Stream: m.traffic.stream(now), Projects: m.cfg.Projects, Now: now}
 }
 
 // pageFrame is the frame of the page shown alone, at the size m draws at.

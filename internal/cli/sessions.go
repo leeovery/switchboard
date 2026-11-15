@@ -101,6 +101,7 @@ func (a *app) sessions(ctx context.Context, out, errOut io.Writer, named string,
 		Unlisted: unlisted,
 		Ledger:   pool.sessions(readers),
 		Prices:   pricing(cfg),
+		Projects: a.projects(),
 		Now:      now,
 	})
 	list = list.Named(status.NamesOf(cfg.Accounts, readers.removed))
