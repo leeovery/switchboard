@@ -47,7 +47,8 @@ a config change waits too.
 | `switchboard status` | The restart waits for the export. |
 | `switchboard service restart` | `an export into <dir> is under way: try again once it ends` |
 
-Answer the prompt, or allow switchboard in System Settings → Privacy & Security.
+Answer the prompt, or allow switchboard in System Settings → Privacy & Security. A stop of the
+router doesn't wait for the export.
 
 ## The log says a day was passed over
 

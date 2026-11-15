@@ -73,4 +73,4 @@ switchboard service install   # has launchd load the LaunchAgent afresh; setup r
 
 - [Account ids](account-ids.md): the upgrade that moves your accounts onto ids.
 - [`switchboard service`](../commands/service.md): what `install`, `restart` and `status` do.
-- [How it works](../how-it-works.md): how the router restarts in place.
+- [Upgrades and restarts](../upgrades-and-restarts.md): how the router restarts in place.

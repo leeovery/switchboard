@@ -80,7 +80,7 @@ What the router does with each answer that refuses a request:
 | Every account refused the request | Answers 502 with the reason from Anthropic, and tells Claude Code not to retry. |
 
 Every flag is in [Commands](commands.md), and the full rules for choosing an account are in
-[How it works](how-it-works.md). If a session went somewhere you didn't expect, see
+[Routing rules](reference/routing.md). If a session went somewhere you didn't expect, see
 [Troubleshooting: the router](troubleshooting/router.md).
 
 ## Related

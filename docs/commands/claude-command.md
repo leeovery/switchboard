@@ -174,7 +174,9 @@ Inside a pool, the rules of the sections above narrow to the pool:
 | Starting on the login of Claude Code | Refused inside a fence, with `--direct` or without switchboard. That login could go out on any account. |
 
 If the config can't be read, `claude` reads the fences from the config file, for its pools only, or
-else from the running router.
+else from the running router. If neither gives them, it reads them from the accounts record, and
+keeps the login of Claude Code out of those fences. Before the history has moved to pools, it
+starts as if switchboard weren't there instead.
 
 ### A router that doesn't route by your pools
 

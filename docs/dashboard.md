@@ -29,7 +29,7 @@ This page uses these terms throughout:
 
 - **Label:** what every page calls an account, such as `work`. The accounts aren't numbered: they
   keep the config's order. Commands name an account by its id instead. See
-  [Accounts and their ids](how-it-works.md#accounts-and-their-ids).
+  [Accounts and their ids](commands/accounts.md).
 - **Window:** a span Claude counts an account's usage over. Each account has a week that every model
   shares, a 5-hour window, and a model's own week where the model has one. A verified Ultra account
   has no 5-hour window: switchboard learns that from its answers, never from its plan. An account
@@ -37,14 +37,14 @@ This page uses these terms throughout:
 - **Limit:** Claude's own limit on a window. An account at a limit can't take the requests that
   limit counts until it lifts.
 - **Cap:** the point where an account's reserve starts, 1 less its `reserve`. The router passes
-  over an account at its cap. See [Reserves](how-it-works.md#reserves).
+  over an account at its cap. See [Reserves](room-for-the-claude-app.md).
 - **Pool:** the accounts new sessions can go to now. That's every account on auto, or only the
-  pinned accounts while the pin holds. Where the config has [pools](how-it-works.md#pools), the
+  pinned accounts while the pin holds. Where the config has [pools](pools.md), the
   dashboard shows one, and its pool is that pool's.
 - **Pin:** your choice of where sessions go, set with the routing card or with
   [`pin`](commands/pin.md).
 - **The primary:** the account your browser and the Claude apps are signed into. See
-  [The primary](how-it-works.md#the-primary).
+  [The primary](room-for-the-claude-app.md).
 - **Worth at API prices:** what the same tokens would have cost through the API.
 
 ## Overview
@@ -136,7 +136,7 @@ ROUTING says, in words, how each account stands with the router. For example:
 - `○ idle · window starts at its prime, 16:20`
 - `✕ its token is another subscription's · switchboard accounts token b6s7`, where the account's
   token file holds another subscription's token, which USAGE and Runway call `wrong token` (see
-  [A token that's another subscription's](how-it-works.md#a-token-thats-another-subscriptions))
+  [A token that's another subscription's](commands/accounts.md))
 - `● pinned`, on each account the pin names, where it has room beside the account's state, and,
   where the state says when it's back or when its pressure runs out, only where that time fits
   beside the mark too. A prime's time gives way to the mark. Where the mark doesn't fit, a
@@ -515,7 +515,7 @@ The chart:
 - **The room left** is filled solid up to now, each column to the room the window had then.
 - **Where it's heading** is a dotted line from now to the reset, straight to where the week is
   forecast to be, as the router would spread the pool's use (see
-  [Where a week runs out](how-it-works.md#where-a-week-runs-out)). That's the pace Runway's words
+  [Where a week runs out](reference/routing.md)). That's the pace Runway's words
   go by. It falls to where the week runs out, then runs along the floor it meets, its cap or
   empty, to the reset; or it ends at the room the week will have left at its reset.
 - **`✕`** marks where the window runs out. Where its cap or its limit already holds it, `✕` marks
@@ -817,7 +817,7 @@ pool, full screen, until you press `q`. It needs a terminal, and refuses to run 
 reads the router while the router answers, and otherwise probes each account. Just after the
 upgrade that made account ids, while the router moves the history onto them, it says what the move
 waits on, a line each time that changes, and opens once it's done (see
-[Upgrading to account ids](how-it-works.md#upgrading-to-account-ids)), and the same while it moves
+[Upgrading to account ids](upgrades-and-restarts.md)), and the same while it moves
 the history to pools.
 
 ```bash
@@ -845,7 +845,7 @@ switchboard dashboard --pool q7mt   # pool q7mt, whatever pool the verbs act on
 
 ### In a pool
 
-Where the config has [pools](how-it-works.md#pools), the dashboard shows one pool: the one
+Where the config has [pools](pools.md), the dashboard shows one pool: the one
 `--pool` names, else the one the verbs act on, the only pool, else the unfenced one (see
 [Reading a pool](commands.md)). A pool the config doesn't have is refused, naming
 those it does. What it reads from the router is that pool's: its accounts, windows, room, sessions
@@ -907,7 +907,7 @@ While the router answers:
 
 - The dashboard looks at the router's view every 5 seconds. This costs nothing upstream.
 - It doesn't have the router probe each interval. The router reads the idle accounts itself, on its
-  own [rounds](how-it-works.md#the-routers-rounds), each one nothing has read in the last 5 minutes.
+  own [rounds](reference/probes-and-priming.md), each one nothing has read in the last 5 minutes.
 - `R` has the router read them at once.
 
 If the router stops answering, or a read of it fails, the router's last view stays on screen. The

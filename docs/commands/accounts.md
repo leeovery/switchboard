@@ -58,6 +58,14 @@ changes. Every record keys the account by its id, and these commands take it:
 
 `switchboard accounts` lists each id beside its label, and Claude finds it in `switchboard status`.
 
+The id is 4 lowercase letters and digits, a letter first. Switchboard spells it from the
+subscription, which every answer from Anthropic names. So a subscription has the same id on every
+Mac, and after a lost state directory. If two subscriptions spell the same 4 characters, the
+second gets one character more.
+
+Nothing numbers the accounts. They keep the order of the config on every tab, and the routing card
+picks them with `↑`, `↓` and `space`.
+
 ## `add`: register an account
 
 `add` writes an `[[account]]` table to the config, and the token file of the account. It makes the
@@ -164,6 +172,9 @@ which account is the primary now. If its token was usable, sessions may have sta
 If the account was the last in that pool, `edit` says the pool has no accounts now, and how to add
 one. See [Pools](../pools.md).
 
+The move rewrites no history. The work the account did stays under the pool it ran in, and the
+windows of the account go with it.
+
 ### Making an account the primary
 
 `--primary` makes the account the primary of its pool, in place of the one that had it. If the
@@ -253,12 +264,35 @@ Then it deletes the token file, and the record of when the token was taken.
   router takes the change up. That holds while the primary has a usable token, and `remove` says
   if it hasn't.
 
+If Macs share the config, each router keeps the accounts record of its Mac in step with it. An
+account removed on one Mac is marked removed on the other, with its label, and one added back is
+live again. An account that left the config while no router ran is marked removed by its id only.
+The next import that names it gives it its label.
+
 If the token file can't be deleted, `remove` fails. It says the account is out of the config, and
 gives the path of the token file and why it wasn't deleted.
 
 A token file or record that's a link is deleted as a link, and the file it leads to stays. A token
 file can lead to the path of the record, with the file there having another name too. Then the
 record goes with the token, the file stays under its other name, and `remove` says so.
+
+## A token of another subscription
+
+The router holds each account to its subscription. Each probe names the subscription of the token
+it went out on. If that's another subscription than the account has, the account reads
+`wrong token`, for example after a token file was replaced by hand.
+
+- **It takes no requests.** A conversation request goes out on another account instead. If no
+  other account can take it, switchboard answers 503, saying why and what puts it right.
+- **Other requests pass through,** such as an upload, on the token Claude Code started with.
+- **The dashboard shows it** as `wrong token`, and `status` as `its token is another
+  subscription's`. The router files a `foreign` event, and the status document marks the account
+  `token_foreign`.
+- **The finding stays through restarts,** and goes once the account takes up another token.
+
+An account added on another Mac may have no subscription known here yet. Its first probe then
+records the subscription of its token, unless another account has that one. To put a
+`wrong token` right, see [Troubleshooting: tokens](../troubleshooting/tokens.md).
 
 ## Giving a token
 

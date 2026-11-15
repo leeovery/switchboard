@@ -44,3 +44,5 @@ Start with [Reading the JSON](reference/reading-the-json.md): the rules there ho
 | Page | What it holds |
 |---|---|
 | [The control API](reference/control-api.md) | The endpoints on `control.sock`, and how each chooses a pool. |
+| [Routing rules](reference/routing.md) | How the router scores accounts, when a session stays or moves, and how it reads a refusal. |
+| [Probes and priming](reference/probes-and-priming.md) | When the router probes an account, its rounds, and the priming schedule. |

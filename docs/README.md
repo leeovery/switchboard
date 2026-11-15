@@ -5,7 +5,9 @@ Find the page for what you want to do. Each line says what the page answers.
 ## Get started
 
 - [The README](../README.md): what switchboard does, how to install it, and the first commands.
-- [How it works](how-it-works.md): how a request reaches the router, and what the router records.
+- [How it works](how-it-works.md): what switchboard is made of, and the path a request takes.
+- [Upgrades and restarts](upgrades-and-restarts.md): what happens when a new version arrives, or
+  the config changes.
 
 ## Features
 
