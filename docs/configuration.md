@@ -17,18 +17,24 @@ To use another file for one command, pass `--config <file>`.
 ## An example config
 
 ```toml
-week_starts = "monday"      # optional: the day calendar weeks start on
+# optional: the day calendar weeks start on
+week_starts = "monday"
 
 [[account]]
-id      = "b6s7"            # written by switchboard: don't change it
-label   = "Work"            # what every screen shows
-pool    = "d3wn"            # the pool the account is in
-primary = true              # the account your browser and the Claude app are signed into
-reserve = 0.1               # keep 10% of every window for the Claude app
-plan    = "max"             # pro, max or ultra
+# written by switchboard: don't change it
+id      = "b6s7"
+# what every screen shows
+label   = "Work"
+pool    = "d3wn"
+# Claude Code holds this account's token
+primary = true
+# keep 10% of every window for the Claude app
+reserve = 0.1
+# pro, max or ultra
+plan    = "max"
 
 [[account]]
-id    = "q4tx"
+id    = "m2kp"
 label = "Acme 1"
 pool  = "q7mt"
 plan  = "ultra"
@@ -40,13 +46,16 @@ label = "Default"
 [[pool]]
 id    = "q7mt"
 label = "Acme"
-dirs  = ["~/Code/acme"]     # sessions started here use only the accounts of Acme
+# sessions started here use only Acme's accounts
+dirs  = ["~/Code/acme"]
 
 [prime]
-day = "08:00-23:00"         # spread the 5-hour resets over your day
+# spread the 5-hour resets over your day
+day = "08:00-23:00"
 
 [notifications]
-warning = 0.8               # warn when a window passes 80% of its limit
+# warn when a window passes 80% of its limit
+warning = 0.8
 ```
 
 Only `[[account]]` is required. Every other table and key falls back to the default in the tables
@@ -54,13 +63,19 @@ below.
 
 ## When a change takes effect
 
-The router looks at the config every 3 seconds, so you never need to tell it about a change:
+The router looks at the config every 3 seconds:
 
 | If you change | Then |
 |---|---|
-| A pool: its folders, its primary, or which accounts it holds | The router takes it up within about 3 seconds. |
-| Anything else, such as a new account | The router restarts to take it up. The service restarts it by itself once no request is in flight, and `switchboard service restart` does it at once. |
+| A pool, or which pool an account is in | Taken up within about 3 seconds. |
+| `[export] dir` | Taken up within about 3 seconds. The next export goes to the new folder. |
+| Removing an account | Within about 3 seconds, sessions still on its token count as the primary's. |
+| Anything else, such as a new account | Taken up when the router restarts. |
 | The file, and it doesn't load | The router keeps the config it has, and logs a warning. |
+
+The router restarts itself once no request is in flight. `switchboard service restart` does it
+now. A router you run by hand with `serve` only logs that a restart is due. How restarts work is on
+[Upgrades and restarts](upgrades-and-restarts.md).
 
 ## How switchboard reads the config
 
@@ -74,14 +89,22 @@ The router looks at the config every 3 seconds, so you never need to tell it abo
 
 | Key | Default | What it does |
 |---|---|---|
-| `listen` | `127.0.0.1:4747` | The address the router listens on, as `host:port`. The host must be a loopback IP address, `127.0.0.1` or `[::1]`, and never a name such as `localhost`. |
-| `upstream` | `https://api.anthropic.com` | The API the router sends requests to. It must use `https`, unless its host is a loopback IP address. |
-| `week_starts` | `monday` | The day calendar weeks start on in `history` and on the dashboard, named in English, in any case. The weeks of each account still reset when Anthropic resets them. |
-| `when_router_down` | `stop` | What `claude` does when it can't reach the router. `stop` starts nothing and says why. `direct` connects straight to the API, unrouted and unrecorded. |
+| `listen` | `127.0.0.1:4747` | The address the router listens on. |
+| `upstream` | `https://api.anthropic.com` | The API the router sends requests to. |
+| `week_starts` | `monday` | The day calendar weeks start on. |
+| `when_router_down` | `stop` | What `claude` does if it can't reach the router. |
 
-To choose for one launch, run `SWITCHBOARD_WHEN_ROUTER_DOWN=direct claude`, or `=stop`. A direct
-session can spend a reserve, which only the router honours. Every case is on
-[`claude`](commands/claude-command.md).
+- **`listen`** is `host:port`. The host must be a loopback IP address, `127.0.0.1` or `[::1]`,
+  never a name such as `localhost`.
+- **`upstream`** must use `https`, unless its host is a loopback IP address.
+- **`week_starts`** names a day in English, in any case. It sets the calendar weeks in `history`
+  and on the dashboard. Each account still resets its week when Anthropic does.
+- **`when_router_down`** is `stop` or `direct`. With `stop`, `claude` starts nothing and says why.
+  With `direct`, it connects straight to the API, unrouted and unrecorded. A direct session can
+  spend a reserve, which only the router honours.
+
+To choose for one launch, run `SWITCHBOARD_WHEN_ROUTER_DOWN=direct claude`, or `=stop`. Every case
+is on [`claude`](commands/claude-command.md).
 
 ## Accounts: `[[account]]`
 
@@ -91,19 +114,30 @@ or with `accounts edit`.
 
 | Key | Default | What it does |
 |---|---|---|
-| `id` | Written by switchboard | The id that commands and records name the account by. It is also the name of the token file. Don't change it. |
-| `label` | The id | What the account is shown as, at most 100 characters. The `accounts` commands keep each label unique, ignoring case. |
-| `pool` | None | The id of the pool the account is in. Every account needs one if the config has `[[pool]]` tables, and none can have one if it doesn't. |
-| `primary` | The first account in the pool | `true` on the account your browser and the Claude app are signed into. A pool can have one primary at most. |
-| `reserve` | `0` | The share of every window the router leaves unused: `0`, or more than `0` and less than `1`. See [Room for the Claude app](room-for-the-claude-app.md). |
-| `plan` | None | `pro`, `max` or `ultra`. The old names, `max5x` for `max` and `max20x` for `ultra`, still load. |
+| `id` | Written by switchboard | Names the account in commands and records. Don't change it. |
+| `label` | The id | What screens show, at most 100 characters. |
+| `pool` | None | The id of the pool the account is in. |
+| `primary` | The first account in the pool | `true` on the primary of the pool. |
+| `reserve` | `0` | The share of every window the router leaves unused. |
+| `plan` | None | `pro`, `max` or `ultra`. |
+
+- **`id`** is also the name of the token file.
+- **`label`** is kept unique by the `accounts` commands, ignoring case.
+- **`pool`** is needed on every account if the config has `[[pool]]` tables, and allowed on none if
+  it doesn't.
+- **`primary`** marks the account whose token Claude Code holds in the pool: see the
+  [glossary](glossary.md). A pool has one primary at most. Make the primary of your first pool the
+  account your browser and the Claude app are signed into, because artifacts open there.
+- **`reserve`** is `0`, or more than `0` and less than `1`, such as `0.1` for 10%. See
+  [Room for the Claude app](room-for-the-claude-app.md).
+- **`plan`** also loads the old names, `max5x` for `max` and `max20x` for `ultra`.
 
 ### Why set the plan
 
-Switchboard can't read the plan of an account from Anthropic, so `plan` is the only way it knows.
-It uses the plan in three places:
+Switchboard can't read an account's plan from Anthropic, so `plan` is the only way it knows. It
+uses the plan in three places:
 
-- It sets the cost of the plan against what your use was worth at API prices.
+- It sets the plan's cost against what your use was worth at API prices.
 - It sizes the account in the forecast of where a week runs out.
 - It sizes the account when `history` replays a week.
 
@@ -113,7 +147,7 @@ have, or, if none has a plan, every account counts the same.
 
 ### Ids written by hand
 
-The ids switchboard makes are 4 lowercase letters and digits, starting with a letter. They run a
+Switchboard makes ids of 4 lowercase letters and digits, starting with a letter. They run a
 character longer if 4 would clash. An id you write yourself must follow these rules:
 
 - It starts with a letter or digit, followed only by letters, digits, `-` and `_`.
@@ -122,20 +156,26 @@ character longer if 4 would clash. An id you write yourself must follow these ru
 - It isn't `auto`, which `switchboard pin auto` uses.
 - It holds nothing shaped like a token.
 
-A pool id follows the same rules, and is never the id of an account. A config from before
-switchboard made ids still loads, and the router gives the accounts ids as it first starts.
+A pool id follows the same rules, and is never an account id. A config from before switchboard made
+ids still loads, and the router gives the accounts ids as it first starts. See
+[Upgrades and restarts](upgrades-and-restarts.md).
 
 ## Pools: `[[pool]]`
 
 A pool ring-fences a set of accounts to the folders you choose: see [Pools](pools.md). The `pool`
 commands write each table, `id` and all. Edit `label` and `dirs` by hand or with `pool edit`. The
-router makes the first pool, labelled `Default`, as it moves your history onto pools.
+router makes the first pool, labelled `Default`, as it moves your record onto pools.
 
 | Key | Default | What it does |
 |---|---|---|
-| `id` | Written by switchboard | The id that commands and records name the pool by. Don't change it. |
-| `label` | The id | What the pool is shown as, at most 100 characters. `pool add` and `pool edit` keep each label unique, ignoring case. |
-| `dirs` | None (unfenced) | The folders the pool is fenced to, each an absolute path or one starting `~/`. A session started under them, or in a git worktree of a repository there, uses only this pool. |
+| `id` | Written by switchboard | Names the pool in commands and records. Don't change it. |
+| `label` | The id | What screens show, at most 100 characters. |
+| `dirs` | None (unfenced) | The folders the pool is fenced to. |
+
+- **`label`** is kept unique by `pool add` and `pool edit`, ignoring case.
+- **`dirs`** holds absolute paths, or paths starting `~/`. A session started under one of them, or
+  in a git worktree of a repository there, uses only this pool.
+- Write `dirs` on one line. `pool edit --dirs` can't change an array written across lines.
 
 Switchboard checks these rules as it loads the config:
 
@@ -144,44 +184,48 @@ Switchboard checks these rules as it loads the config:
   name at a time, ignoring case.
 - Every account names one of the pools in `pool`.
 
-Write `dirs` on one line. `pool edit --dirs` can't change an array written across lines.
-
 ## Priming: `[prime]`
 
 | Key | Default | What it does |
 |---|---|---|
-| `day` | None (priming off) | Your day, as `HH:MM-HH:MM` in local time, such as `08:00-23:00`. Priming spreads the 5-hour resets over it. An end before the start runs past midnight, and the two must differ. |
+| `day` | None (priming off) | Your day, as `HH:MM-HH:MM` in local time. |
 
-What priming does, and what it costs, is on [Staggered resets](staggered-resets.md).
+Priming spreads the 5-hour resets over your day, such as `08:00-23:00`. An end before the start
+runs past midnight, and the two must differ. What priming does, and what it costs, is on
+[Staggered resets](staggered-resets.md).
 
 ## Notifications: `[notifications]`
 
 | Key | Default | What it turns on |
 |---|---|---|
-| `limits` | `true` | An account hits a limit, with the sessions the limit moved. |
+| `limits` | `true` | An account hits a limit. |
 | `room` | `true` | An account has room again. |
-| `warning` | `0.9` | A window passes this share of its limit: more than `0` and less than `1`. `0` turns the warning off. |
-| `moves` | `false` | Every other session move, such as after an hour idle or by a pin. |
+| `warning` | `0.9` | A window passes this share of its limit. |
+| `moves` | `false` | Every other session move. |
 
-What each notification says, and the app it comes from, are on
-[Notifications](notifications.md).
+`warning` is more than `0` and less than `1`, and `0` turns the warning off. What each
+notification says, and the app it comes from, are on [Notifications](notifications.md).
 
 ## The record: `[history]` and `[ledger]`
 
-| Key | Default | What it does |
+| Key | Default | What it keeps |
 |---|---|---|
-| `[history] keep` | `400d` | How long to keep each day file of window readings, once the day has ended. |
-| `[ledger] keep` | `400d` | How long to keep each day file of request lines and router events, once the day has ended. |
+| `[history] keep` | `400d` | Day files of window readings. |
+| `[ledger] keep` | `400d` | Day files of request lines and router events. |
 
-Each `keep` takes a whole number of days from `8d`, such as `30d`, or `forever`. The summary of
-each day stays whatever `keep` says. What the record holds is on
-[Your record](your-record.md).
+Each `keep` says how long to keep a day file once the day has ended. It takes a whole number of
+days from `8d`, such as `30d`, or `forever`. The summary of each day stays whatever `keep` says.
+What the record holds is on [Your record](your-record.md).
 
 ## Export: `[export]`
 
 | Key | Default | What it does |
 |---|---|---|
-| `dir` | None (no export) | The folder the router exports the history into, as it starts and every hour after. It is an absolute path, or one starting `~/`. Each Mac writes into a folder of its own inside it. Left empty, the router exports nothing. |
+| `dir` | None (no export) | The folder the router exports your record into. |
+
+- The router exports as it starts, and every hour after.
+- `dir` is an absolute path, or one starting `~/`. Left empty, the router exports nothing.
+- Each Mac writes into a folder of its own inside `dir`.
 
 How to use the export for backups and a second Mac is on [Several Macs](several-macs.md).
 
@@ -189,20 +233,24 @@ How to use the export for backups and a second Mac is on [Several Macs](several-
 
 | Key | Default | What it does |
 |---|---|---|
-| `by` | `window` | How `usage` and the dashboard Overview lay out the windows. `window` compares the accounts one window at a time. `account` shows the windows of each account together. |
+| `by` | `window` | How `usage` and the Overview lay out the windows. |
 
-`usage --by` overrides it for one printout. Pressing `b` on the dashboard overrides it from then on.
+`window` compares the accounts one window at a time. `account` shows each account's windows
+together. `usage --by` overrides it for one printout. Pressing `b` on the dashboard overrides it
+from then on.
 
 ## Prices: `[prices]`
 
-Switchboard carries its own prices, read from the Anthropic pricing page. These keys set your own
-in their place, for `history`, `sessions` and the dashboard to price with.
+Switchboard carries its own prices, read from Anthropic's pricing page. These keys set your own in
+their place, for `history`, `sessions` and the dashboard to price with.
 
 ```toml
+# US dollars a month
 [prices.plans]
-max = 90                         # US dollars a month
+max = 90
 
-[prices.models.claude-opus-5-5]  # US dollars a million tokens
+# US dollars a million tokens
+[prices.models.claude-opus-5-5]
 input          = 3.2
 output         = 16
 cache_read     = 0.16
@@ -212,9 +260,13 @@ cache_write_1h = 6.4
 
 | Key | Default | What it does |
 |---|---|---|
-| `[prices.plans]` | Switchboard prices | The price of a plan in US dollars a month, under `pro`, `max` or `ultra`. An old name, `max5x` or `max20x`, loads, but not beside its new name. |
-| `[prices.models.<id>]` | Switchboard prices | The prices of a model in US dollars a million tokens, one for each kind of token. Name the model by its API id, such as `claude-opus-5-5`. |
+| `[prices.plans]` | Switchboard prices | A plan price, in US dollars a month. |
+| `[prices.models.<id>]` | Switchboard prices | Model prices, in US dollars a million tokens. |
 
+- Plans go by `pro`, `max` or `ultra`. An old name, `max5x` or `max20x`, loads, but not beside its
+  new name.
+- Models go by their API id, such as `claude-opus-5-5`. The five kinds of token are `input`,
+  `output`, `cache_read`, `cache_write_5m` and `cache_write_1h`.
 - Each price is a number from `0` to `1000000`.
 - A price you give holds for every day, past days too.
 - A price you leave out keeps the price switchboard carries.
@@ -224,13 +276,16 @@ For a model that switchboard doesn't know:
 
 | If you give | Then |
 |---|---|
-| All five prices | Switchboard prices the model. Web searches get the price switchboard carries, and US-only inference stays unpriced. |
+| All five prices | Switchboard prices the model. |
 | Fewer than five | The model stays unpriced, and the log says so. |
+
+A model priced this way gets the web search price switchboard carries. Its US-only inference stays
+unpriced.
 
 ## Not in the config
 
 - **Tokens:** each account keeps its token in a file of its own, `<state dir>/tokens/<id>`. How
   switchboard reads and writes those files is on [Tokens](reference/tokens.md).
-- **The session hook:** `setup` adds one entry to the `settings.json` of Claude Code, and leaves
-  the rest of that file alone. There is nothing in it to set. What it does is on
-  [How it works](how-it-works.md).
+- **The session hook:** `setup` adds one entry to Claude Code's `settings.json`, and leaves the
+  rest of that file alone. There is nothing in it to set. What it does is on
+  [The session hook](reference/session-hook.md).
