@@ -25,9 +25,9 @@ Most of these blocks hold one entry for each account, in the order of the config
 for every account together. Each account entry has `account` and `label`. The last entry has
 `all: true` in their place.
 
-The blocks don't always hold the same accounts. In a pool, `totals` can also hold an account that
-is in another pool now, which `weeks`, `plans` and `capacity` leave out. To match entries across
-blocks, match them by `account`, not by their place in the list.
+The blocks don't always hold the same accounts. In a pool, `totals` and each week's `by_account`
+can also hold an account that is in another pool now, which `weeks`, `plans` and `capacity` leave
+out. To match entries across blocks, match them by `account`, not by their place in the list.
 
 Every `worth` here is in US dollars, with `unpriced` beside it, as
 [`history` JSON](history-json.md) explains under Worth.
@@ -57,7 +57,7 @@ Each entry is a calendar week:
 | `input`, `output`, `cache_write`, `cache_read`, `total` | number | The tokens of the week, by kind. |
 | `worth` | number | What the tokens were worth. |
 | `cost`, `against`, `plans` | number, number, object | What the plans cost that week, the worth against it, and how many plans are known. |
-| `by_account` | list of objects | The same counts for each account, in the order of the config. |
+| `by_account` | list of objects | The same counts for each account with tokens that week: the config's accounts in its order, then any removed or moved. |
 | `by_model` | list of objects | The same counts for each model version. |
 
 - **Each entry in `by_account`** has `account` and `label`, and its own `by_model`.
@@ -87,11 +87,10 @@ Each entry is a calendar week:
 
 - **`share`** is the part of the use of the account, weighed at API prices. Only versions used are
   listed.
-- **The `all` entry** gives no `left_at_reset` or `ran_out`.
 - **An account in another pool now** that worked in the pool read has an entry of its own, after
   the pool's accounts and before `all`.
-- **The `all` entry** also counts work with no entry of its own: that of removed accounts, and the
-  requests no account answered.
+- **The `all` entry** gives no `left_at_reset` or `ran_out`. It also counts work with no entry of
+  its own: that of removed accounts, and the requests no account answered.
 
 ## `plans`
 
@@ -171,7 +170,7 @@ there since:
 | Field | Type | Meaning |
 |---|---|---|
 | `id` | string | Its id. |
-| `label` | string | Its label, or its id if it has none, as in its `totals` entry. |
+| `label` | string | The account's label, or the id if it has none, as in the `totals` entry. |
 | `pool` | string | The id of the pool it's in now. |
 | `pool_label` | string | That pool's label. |
 

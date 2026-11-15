@@ -87,7 +87,7 @@ func removedOf(gone []goneAccount) status.RemovedAccounts {
 	return removed
 }
 
-// framesPools are the pools' frames' pools as the config has them.
+// framesPools are the pools of the pool frames, as the config has them.
 var framesPools = config.Pools{{ID: defaultPool.ID, Label: defaultPool.Label}, {ID: acmePool.ID, Label: acmePool.Label}}
 
 // movedOf are the accounts of gone moved to another pool than the one with

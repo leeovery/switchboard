@@ -58,7 +58,8 @@ func TestAnAccountMovedToAPoolWithNoLabelSaysItsID(t *testing.T) {
 }
 
 // A document given the config works out the accounts moved for its own pool:
-// Default's names work as now in Acme, Acme's names it as its own.
+// Default's names work as now in Acme, and Acme's names personal as now in
+// Default.
 func TestADocumentGivenTheConfigNamesTheAccountsMovedOutOfItsPool(t *testing.T) {
 	doc := routerDocOf(status.Account{ID: "personal", Label: "personal", TokenSet: true, FetchedAt: built})
 	doc.PoolID = "b2n8"

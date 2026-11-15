@@ -30,7 +30,7 @@ func (a MovedAccount) Said() string {
 // Name is the account as AccountName names it: by its label, not of the
 // pool read, and where it is now.
 func (a MovedAccount) Name() AccountName {
-	return AccountName{Label: a.Label, Other: true, Moved: a.Said()}
+	return AccountName{Label: cmp.Or(a.Label, a.ID), Other: true, Moved: a.Said()}
 }
 
 // MovedAccounts are the accounts configured in another pool than the one
