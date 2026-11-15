@@ -54,14 +54,14 @@ func TestTheReasonsAreTheOnesTheReferenceFixes(t *testing.T) {
 		heading string
 		want    []string
 	}{
-		{heading: "### The reasons", want: reasonForms()},
-		{heading: "### The whys", want: whys},
+		{heading: "## The reasons", want: reasonForms()},
+		{heading: "## The whys", want: whys},
 	}
 	for _, tt := range tests {
 		t.Run(tt.heading, func(t *testing.T) {
 			listed := firstCells(t, reference, tt.heading)
 			if !sameSet(listed, tt.want) {
-				t.Errorf("docs/reference.md's %q lists\n%q\nwant the code's\n%q", tt.heading, listed, tt.want)
+				t.Errorf("docs/reference/reasons.md's %q lists\n%q\nwant the code's\n%q", tt.heading, listed, tt.want)
 			}
 		})
 	}
@@ -73,7 +73,7 @@ func TestTheIdleSpansTheReferenceGivesAreTheOnesIdledFiles(t *testing.T) {
 	rescored := ReasonRescored + placedIdle + rescoredIdle
 	for _, span := range []string{idled(132 * time.Hour), idled(144 * time.Hour), idled(4*time.Hour + 57*time.Minute), idled(7 * time.Minute), idled(0)} {
 		if !strings.Contains(rowOf(reference, rescored), "`"+span+"`") {
-			t.Errorf("docs/reference.md's row of %q doesn't give %q as an <idle>", rescored, span)
+			t.Errorf("docs/reference/reasons.md's row of %q doesn't give %q as an <idle>", rescored, span)
 		}
 	}
 }
@@ -84,14 +84,14 @@ func TestTheIdleSpansTheReferenceGivesAreTheOnesIdledFiles(t *testing.T) {
 // "moved: <id> <why>"; and a why, whole.
 func TestEveryReasonAndWhyStatusDeclaresIsOneTheReferenceFixes(t *testing.T) {
 	reference := readReference(t)
-	reasons, whysListed := firstCells(t, reference, "### The reasons"), firstCells(t, reference, "### The whys")
+	reasons, whysListed := firstCells(t, reference, "## The reasons"), firstCells(t, reference, "## The whys")
 	l, _ := reasonsLoader(t)
 	for name, value := range declaredFrozen(t, l) {
 		switch {
 		case strings.HasPrefix(name, whyPrefix) && !slices.Contains(whysListed, value):
-			t.Errorf("status declares %s, %q, which docs/reference.md's whys don't list", name, value)
+			t.Errorf("status declares %s, %q, which docs/reference/reasons.md's whys don't list", name, value)
 		case strings.HasPrefix(name, reasonPrefix) && !slices.ContainsFunc(reasons, startedBy(value)):
-			t.Errorf("status declares %s, %q, which docs/reference.md's reasons don't list", name, value)
+			t.Errorf("status declares %s, %q, which docs/reference/reasons.md's reasons don't list", name, value)
 		}
 	}
 }
@@ -170,10 +170,10 @@ func opens(text string) func(frozen string) bool {
 	}
 }
 
-// readReference reads docs/reference.md, from the module's root.
+// readReference reads docs/reference/reasons.md, from the module's root.
 func readReference(t *testing.T) string {
 	t.Helper()
-	data, err := os.ReadFile(filepath.Join(sourcecheck.ModuleRoot(t), "docs", "reference.md"))
+	data, err := os.ReadFile(filepath.Join(sourcecheck.ModuleRoot(t), "docs", "reference", "reasons.md"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -186,7 +186,7 @@ func firstCells(t *testing.T, doc, heading string) []string {
 	t.Helper()
 	_, under, ok := strings.Cut(doc, "\n"+heading+"\n")
 	if !ok {
-		t.Fatalf("docs/reference.md has no heading %q", heading)
+		t.Fatalf("docs/reference/reasons.md has no heading %q", heading)
 	}
 	var cells []string
 	for line := range strings.Lines(under) {
