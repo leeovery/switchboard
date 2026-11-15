@@ -272,7 +272,7 @@ func TestCollapsingRunwaysAccountColumnLeavesComingUpAsItIs(t *testing.T) {
 				"18:50  side's 5-hour resets                                    in 4h 08m",
 			},
 		},
-		{name: "cut", height: 24, want: []string{"16:30  personal's 5-hour resets                                in 1h 48m", "▼ 2 more"}},
+		{name: "cut", height: 23, want: []string{"16:30  personal's 5-hour resets                                in 1h 48m", "▼ 2 more"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

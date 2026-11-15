@@ -76,6 +76,16 @@ func (v View) headsItself() bool {
 	return v == Overview || v == Graphs
 }
 
+// blankUnderHeading is the blank rows the tab leaves under its heading row: one,
+// but on Runway, whose axis's first row, holding now alone, keeps its lanes
+// off the heading.
+func (v View) blankUnderHeading() int {
+	if v == Runway {
+		return 0
+	}
+	return 1
+}
+
 // SubViews are the tab's own views, named as its heading row names them, in
 // lower case, the one it opens on first: its sub-tabs;
 // none where it has none.

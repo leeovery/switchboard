@@ -3,7 +3,6 @@
 ● healthy  ·  auto  ·  6 sessions  ·  new sessions → ▲ side
 
 RUNWAY  ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-
                                    now
                       Thu                    Fri                    Sat                   Sun                    Mon                    Tue                    Wed
               ───╵────┬─────╵─────╵────╵─────┬─────╵────╵─────╵─────┬────╵─────╵─────╵────┬─────╵─────╵─────╵────┬─────╵─────╵────╵─────┬─────╵────╵─────╵─────┬────╵─────╵──
@@ -48,6 +47,7 @@ Sun 15:26  side reached its week limit: 2 sessions moved to work           3d 23
 Sun 11:10  side came under pressure: its 5-hour runs out ~Sun 15:30         4d 3h ago
 Sun 02:00  personal open again: its week window reset                      4d 12h ago
 Sat 23:12  personal reached its week limit: 2 sessions moved to side       4d 15h ago
+Sat 19:40  personal came under pressure: its 5-hour runs out ~Sat 23:10    4d 19h ago
 
 █ room    █ room, but it runs out at its pace    ━ at its cap    ━ at its limit    ▂ the pool at its limit    │ its week resets    a column ≈ 63 minutes · the past dimmed
 tab views   ←→ week    a collapse    p pin    ? help  q quit

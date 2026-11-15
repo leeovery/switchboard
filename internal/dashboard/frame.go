@@ -359,15 +359,16 @@ func (f Frame) headingY() int {
 	return f.statusRow() + 2
 }
 
-// top is the row the view starts at: the one after the blank row under the
-// heading row, and on a phone, its period's, where that takes a row of its
-// own; or on a tab whose sections head themselves, as headsItself has it,
-// the heading row's.
+// top is the row the view starts at: the one after the heading row, and on a
+// phone, its period's, where that takes a row of its own, and the blank rows
+// the tab leaves under it, as blankUnderHeading has them; or on a tab whose
+// sections head themselves, as headsItself has it, the heading row's.
 func (f Frame) top() int {
-	if f.Shown().headsItself() {
+	shown := f.Shown()
+	if shown.headsItself() {
 		return f.headingY()
 	}
-	return f.headingY() + f.heading().rows(f.Width, f.phone()) + 1
+	return f.headingY() + f.heading().rows(f.Width, f.phone()) + shown.blankUnderHeading()
 }
 
 // body is the rows between the status line and the key line, across the

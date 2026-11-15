@@ -3372,6 +3372,9 @@ heading row 5, the view starting at row 7, or at row 8 where a period takes row 
 where the tabs take more rows than one, every row after them as many rows lower. **The
 breathing room,** the blank row under the heading row and the row over the key line, never goes as
 rows run short: the view gives up its rows instead, and scrolls within those it keeps where it must.
+Runway alone has no blank row under its heading row: its axis's first row, holding `now` alone,
+gives the lanes that room, so the axis starts on the row under the heading (the owner's call, 15
+November 2026).
 The row over the key line holds a state line only where a view has one, as the Log's following or
 paused, the List's `today` line, or, while a view scrolls, what's out of view; else it's blank
 (settled in the plan). A terminal too short for the fixed rows and three of the view's draws the
@@ -5856,8 +5859,9 @@ request ledger).
   there's no use, the words are always `usage`'s short forms, as the column is never widened for
   the full: `read 14:20` where its last read failed, `not read` before its first, and
   `no token`, or `wrong token` where the token it holds is another subscription's.
-- **The axis:** on row 6, `now`, bold `text.primary`, starting a cell left of now's column; on row
-  7, the labels; on row 8, the ticks, on a rule of `─` in `border`: each midnight ticked `┬`, its
+- **The axis:** on row 5, the row under the heading row, with no blank row between them (see The
+  page), `now`, bold `text.primary`, starting a cell left of now's column; on row 6, the labels; on
+  row 7, the ticks, on a rule of `─` in `border`: each midnight ticked `┬`, its
   weekday over it where that fits, today's bold `text.secondary` and the rest `text.muted`; every
   six hours between, where they're 3 cells apart or more, `╵` in `text.faint`. A day starts where
   the clocks put its midnight: where they went forward over it, at the hour they went forward to,
@@ -6095,10 +6099,10 @@ and the legend. As rows run short, Runway takes the first step whose parts fit (
 The lanes are what Runway is for, so no lane scrolls while the legend or COMING UP shows; a shorter
 terminal never shows more lanes than a taller one, nor the legend or COMING UP where the taller
 doesn't. Two things follow, both accepted (21 October 2026): a row or two can stay blank over the
-key line once COMING UP has left, as at 173 by 22 or 108 by 22, as a shorter frame never shows a
+key line once COMING UP has left, as at 173 by 21 or 108 by 21, as a shorter frame never shows a
 legend a taller one doesn't; and COMING UP can show as many more lines as the legend had rows, at
 the row the legend leaves. The bars stay one row and the pool's lane two at every step, and no
-part grows into spare rows. With a pool's lane, a lane shows from 8 rows of view, 15 rows on a
+part grows into spare rows. With a pool's lane, a lane shows from 8 rows of view, 14 rows on a
 terminal with the title on one row: the axis, the lane and its words, the pool's lane and its
 room, with no blank rows; with one account, from 5. At (f), the lanes scroll as Accounts' do (see
 Accounts): the axis and the pool's foot hold, and the row under the pool's lane says what's out of

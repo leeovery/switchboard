@@ -136,8 +136,8 @@ func TestLatelyRunsFromItsHeadingToTheBlankRowOverTheLegend(t *testing.T) {
 		place latelyPlace
 		row   int
 	}{
-		{width: 159, place: latelySideBySide, row: 23},
-		{width: 158, place: latelyStacked, row: 27},
+		{width: 159, place: latelySideBySide, row: 22},
+		{width: 158, place: latelyStacked, row: 26},
 	}
 	for _, tt := range tests {
 		t.Run(strconv.Itoa(tt.width), func(t *testing.T) {
@@ -164,7 +164,7 @@ func TestLatelyRunsFromItsHeadingToTheBlankRowOverTheLegend(t *testing.T) {
 // row short of that, it goes first, before any part compacts, and COMING UP
 // is alone, as it was before LATELY.
 func TestStackedLatelyShowsWhereItsHeadingAndTwoLinesFitElseGoesFirst(t *testing.T) {
-	const least = 35
+	const least = 34
 	fits := latelyFrame(108, least, 4, 9)
 	fit := fits.runwayFitted(fits.top())
 	if fit.place != latelyStacked || !fit.draws(fit.lately) || fit.latelyLines != latelyLeastLines || fit.step != runwayRoomy {
