@@ -17,8 +17,9 @@ import (
 // History is what history builds over the days asked for, block by block,
 // each oldest first, as it prints them: the days, the year's grid, each
 // month's rows, the weeks' peaks, the weeks' tokens, the accounts' totals
-// and plans, and the weeks' verdicts; and the accounts removed that the days
-// name, each by the label it showed last.
+// and plans, and the weeks' verdicts; the accounts removed that the days
+// name, each by the label it showed last; and those configured in another
+// pool than the one read that the days name, each with the pool it's in now.
 type History struct {
 	Days     []Day                  `json:"days"`
 	Year     Year                   `json:"year"`
@@ -29,6 +30,7 @@ type History struct {
 	Plans    []PlanCost             `json:"plans"`
 	Capacity Capacity               `json:"capacity"`
 	Removed  status.RemovedAccounts `json:"removed"`
+	Moved    status.MovedAccounts   `json:"moved"`
 }
 
 // HistoryInput is what a History is built from.
@@ -48,9 +50,11 @@ type HistoryInput struct {
 	Prices ledger.Table
 	// Accounts are the configured accounts, whose plans the worth is priced
 	// against, and Removed the accounts removed, as status.RemovedOf gives
-	// them, which the days may name too.
+	// them, and Moved those configured in another pool than the one read,
+	// as status.MovedOf gives them, which the days may name too.
 	Accounts config.Accounts
 	Removed  status.RemovedAccounts
+	Moved    status.MovedAccounts
 	// WeekStarts is the day the calendar's weeks start on.
 	WeekStarts time.Weekday
 	// WeekWindow is the key of the window a week long every model shares,
@@ -101,20 +105,39 @@ func NewHistory(in HistoryInput) History {
 		Year:     yearOf(days),
 		Months:   monthsOf(days, p, v, counted, today),
 		Weeks:    weeksOf(placed, in.Accounts),
-		Tokens:   tokensOf(days, p, in.Removed, v, counted, in.WeekStarts),
-		Totals:   accountTotalsOf(before, all, in.Accounts, v),
+		Tokens:   tokensOf(days, p, in.names(), v, counted, in.WeekStarts),
+		Totals:   accountTotalsOf(before, all, in.Accounts, movedNamed(in.Moved, all), v),
 		Plans:    plansOf(all, p, pricedOver(asked, last.Format(time.DateOnly), counted, whole)),
 		Capacity: capacityOf(placed, wholeWeek(all, weekOf(to, in.WeekStarts)), in.Accounts, p, in.WeekWindow),
 		Removed:  removedNamed(in.Removed, days),
+		Moved:    movedNamed(in.Moved, days),
 	}
 }
 
-// removedNamed are the accounts of removed that days name, in removed's
-// order: empty, never nil, where they name none, so the JSON lists none.
+// names name the accounts the days may name: those configured, removed, and
+// in another pool than the one read.
+func (in HistoryInput) names() status.Names {
+	return status.NamesOf(in.Accounts, in.Removed).WithMoved(in.Moved)
+}
+
+// removedNamed are the accounts of removed that days name, as namedIn has
+// them.
 func removedNamed(removed status.RemovedAccounts, days []Day) status.RemovedAccounts {
-	named := status.RemovedAccounts{}
-	for _, a := range removed {
-		if slices.ContainsFunc(days, func(d Day) bool { return d.names(a.ID) }) {
+	return namedIn(removed, func(a status.RemovedAccount) string { return a.ID }, days)
+}
+
+// movedNamed are the accounts of moved that days name, as namedIn has them.
+func movedNamed(moved status.MovedAccounts, days []Day) status.MovedAccounts {
+	return namedIn(moved, func(a status.MovedAccount) string { return a.ID }, days)
+}
+
+// namedIn are the accounts given that days name, each by the id id gives,
+// in their order: empty, never nil, where they name none, so the JSON lists
+// none.
+func namedIn[S ~[]A, A any](accounts S, id func(A) string, days []Day) S {
+	named := S{}
+	for _, a := range accounts {
+		if slices.ContainsFunc(days, func(d Day) bool { return d.names(id(a)) }) {
 			named = append(named, a)
 		}
 	}

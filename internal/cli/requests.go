@@ -181,7 +181,7 @@ func (a *app) requests(ctx context.Context, out io.Writer, opts requestsOptions)
 	if _, err := io.WriteString(out, pool.heading()); err != nil {
 		return err
 	}
-	return writeRequests(out, views.RequestLines(lines, names()), from, now)
+	return writeRequests(out, views.RequestLines(lines, names().WithMoved(pool.moved(read.cfg))), from, now)
 }
 
 // requested are the lines of the files in the state directory dir that

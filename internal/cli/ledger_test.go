@@ -690,7 +690,7 @@ const historyBlocks = `"year":{"cuts":[1,1,4],"days":[{"day":"2026-10-04","reque
 	`"busiest_day":"2026-10-07","longest_run":2}]},` +
 	`"plans":[{"account":"work","label":"work","worth":0.156752,"unpriced":["claude-opus-9"]},{"account":"side","label":"side","worth":0.01502,"unpriced":["no_usage"]},{"all":true,"plans":{"known":0,"of":2}}],` +
 	`"capacity":{"weeks":0,"short":0,"with_one_fewer":0,"with_one_more":0,"accounts":[` +
-	`{"account":"work","label":"work","weeks":0,"limits":0,"without_it":0},{"account":"side","label":"side","weeks":0,"limits":0,"without_it":0},{"all":true,"weeks":0,"limits":0}]},"removed":[]`
+	`{"account":"work","label":"work","weeks":0,"limits":0,"without_it":0},{"account":"side","label":"side","weeks":0,"limits":0,"without_it":0},{"all":true,"weeks":0,"limits":0}]},"removed":[],"moved":[]`
 
 // Each day's accounts name the pool they're read in, the first, as the
 // accounts record notes it once the move to pools is done, its config naming

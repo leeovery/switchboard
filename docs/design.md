@@ -1076,7 +1076,12 @@ read as a pool by its leaving one out (the owner's call, 11 November 2026).
 Moving an account rewrites nothing: the past stands as it was. Views that show accounts go by which
 pool each account is in now: windows, Runway, the day strips, Trends. Views that show work go by the
 pool recorded at the time: the requests and the Log, sessions, Projects, what work was worth, and
-Accounts' totals.
+Accounts' totals. So an account moved out keeps its work in the pool it left, and is named there by
+its label, as a removed account is shown, with where it is now in place of when it was removed: in
+text.faint on the screens that draw a removed account so, and in the verbs' text as `work (now in
+Acme)` (`status.MovedOf`, read through the names of every view and verb). `history`'s totals give
+it a column of its own there, and its JSON lists it under `moved`, with its pool's id and label.
+Accounts' Tokens draws one, kept as `accounts-tokens-moved-160`.
 
 ### Reading a pool
 
