@@ -17,5 +17,6 @@ func (a *app) projects() status.Projects {
 	home, _ := a.HomeDir()
 	return status.NewProjects(status.ProjectsConfig{
 		Root: a.Root, Home: home, TempDir: cmp.Or(a.Getenv("TMPDIR"), "/tmp"), UID: a.UID, Find: a.FindProject,
+		InRepository: a.InRepository,
 	})
 }

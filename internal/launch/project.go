@@ -41,6 +41,28 @@ func FindProject(dir string) string {
 	return dir
 }
 
+// InRepository reports whether the directory dir is in a repository, as
+// FindProject counts one, dir itself or a directory up from it: one holding
+// a .git, as repositoryAt reads it; a bare repository's directory, as
+// isBare reads it, as a worktree may be kept in, and FindProject names a
+// worktree's project by; or a folder holding one named .bare, as projectOf
+// names a .bare layout's. So the folder a worktree since removed was kept
+// in, of any of them, is in a repository. It runs no git, and follows dir
+// as it's given. False for "".
+func InRepository(dir string) bool {
+	if dir == "" {
+		return false
+	}
+	for at := filepath.Clean(dir); ; at = filepath.Dir(at) {
+		if _, held := repositoryAt(at); held || isBare(at) || isBare(filepath.Join(at, bareLayout)) {
+			return true
+		}
+		if filepath.Dir(at) == at {
+			return false
+		}
+	}
+}
+
 // resolvedFirst are the paths dir is walked up from: dir with its links
 // resolved, then dir as it's given, where that differs.
 func resolvedFirst(dir string) []string {

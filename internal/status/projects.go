@@ -33,6 +33,9 @@ type ProjectsConfig struct {
 	// Find is the project of a directory, by its whole path, as
 	// launch.FindProject finds it: nil reads it as ProjectOf does.
 	Find func(dir string) string
+	// InRepository reports whether a directory, by its whole path, is in a
+	// repository, as launch.InRepository has it: nil, that none is.
+	InRepository func(dir string) bool
 }
 
 // Projects reads the project a line, a session or the router names, as
@@ -42,11 +45,11 @@ type ProjectsConfig struct {
 //     one, counts as the project of the directory its slug names, as
 //     claude.SlugDir finds it, by its path as Find has it; but as
 //     TemporaryFolders where the slug names nothing below the home's
-//     parents, or names only the start of itself and no repository holds
-//     what it names, as of a repository or a volume gone;
-//   - a path in a temporary folder counts as TemporaryFolders: under /tmp,
-//     /private/tmp, /var/folders, /private/var/folders or TempDir, or under a
-//     folder holding Claude Code's scratch root, but the home or above it;
+//     parents, or names only the start of itself and what it names is in
+//     no repository, as InRepository has it, as of a repository or a
+//     volume gone;
+//   - a path in a temporary folder, as isTemporary has it, counts as
+//     TemporaryFolders;
 //   - any other path is given in the case its folders have, so a project
 //     named in two cases on a volume that ignores case is one.
 //
@@ -59,32 +62,38 @@ type Projects struct {
 	read *projectsRead
 }
 
-// projectsRead is what Projects reads against; the project of each path it
-// has read, by the path, and of each scratchpad's slug, by the slug; and
-// each whole path it has cased, in the case its folders have, by the path.
+// projectsRead is what Projects reads against, and what it has read once:
+// the project of each path, by the path; of each scratchpad's slug, by the
+// slug; each whole path in the case its folders have, by the path; the
+// names in each folder, by the folder; and whether each folder holds
+// Claude Code's scratch root, by the folder.
 type projectsRead struct {
 	ProjectsConfig
 	temporary           []string
-	paths, slugs, cases readOnce
+	paths, slugs, cases readOnce[string]
+	listed              readOnce[[]string]
+	holds               readOnce[bool]
 }
 
 // readOnce is what each key read reads, by the key.
-type readOnce struct {
+type readOnce[V any] struct {
 	mu   sync.Mutex
-	read map[string]string
+	read map[string]V
 }
 
 // NewProjects returns the Projects reading against c.
 func NewProjects(c ProjectsConfig) Projects {
 	c.Home = strings.TrimSuffix(cleaned(c.Home), "/")
-	temporary := temporaryRoots
-	if dir := strings.TrimSuffix(cleaned(c.TempDir), "/"); dir != "" {
-		temporary = append([]string{dir}, temporaryRoots...)
+	r := &projectsRead{
+		ProjectsConfig: c, temporary: temporaryRoots,
+		paths: readOnce[string]{read: make(map[string]string)}, slugs: readOnce[string]{read: make(map[string]string)},
+		cases: readOnce[string]{read: make(map[string]string)}, listed: readOnce[[]string]{read: make(map[string][]string)},
+		holds: readOnce[bool]{read: make(map[string]bool)},
 	}
-	return Projects{read: &projectsRead{
-		ProjectsConfig: c, temporary: temporary,
-		paths: readOnce{read: make(map[string]string)}, slugs: readOnce{read: make(map[string]string)}, cases: readOnce{read: make(map[string]string)},
-	}}
+	if dir := strings.TrimSuffix(cleaned(c.TempDir), "/"); dir != "" && !r.homeOrAbove(dir) {
+		r.temporary = append([]string{dir}, temporaryRoots...)
+	}
+	return Projects{read: r}
 }
 
 // Of is the project of the project and directory given, as Projects reads
@@ -98,7 +107,7 @@ func (p Projects) Of(project, dir string) string {
 }
 
 // of is what read reads of key, read once.
-func (o *readOnce) of(key string, read func(string) string) string {
+func (o *readOnce[V]) of(key string, read func(string) V) V {
 	o.mu.Lock()
 	got, ok := o.read[key]
 	o.mu.Unlock()
@@ -153,84 +162,92 @@ func (r *projectsRead) find(dir string) string {
 	return cleaned(r.Find(dir))
 }
 
+// inRepository reports whether the directory dir, a whole path, is in a
+// repository, as InRepository has it: not where there's none to ask.
+func (r *projectsRead) inRepository(dir string) bool {
+	return r.InRepository != nil && r.InRepository(dir)
+}
+
 // aboveHome reports whether dir, a whole path, holds the home directory.
 func (r *projectsRead) aboveHome(dir string) bool {
 	return r.Home != "" && dir != r.Home && within(r.Home, dir)
 }
 
 // homeOrAbove reports whether dir, a whole path, is the root, the home
-// directory or a folder holding it.
+// directory or a folder holding it, their case folded.
 func (r *projectsRead) homeOrAbove(dir string) bool {
-	return dir == "/" || r.Home != "" && within(r.Home, dir)
-}
-
-// inRepository reports whether a .git is in the directory dir, a whole
-// path, or a folder above it, but the root.
-func (r *projectsRead) inRepository(dir string) bool {
-	for at := dir; at != "/"; at = path.Dir(at) {
-		if r.exists(path.Join(at, ".git")) {
-			return true
-		}
-	}
-	return false
+	return dir == "/" || r.Home != "" && withinFolded(r.Home, dir)
 }
 
 // isTemporary reports whether the whole path at is a temporary folder or in
-// one: a temporary root, or a folder holding Claude Code's scratch root,
-// as its own temporary files are kept there, but the home or above it.
+// one, its case folded, and none else: a temporary root, or TempDir, where
+// it's below the home; in a folder named for Claude Code's scratch root,
+// whatever holds it; or in a folder holding the scratch root, below the
+// home, as Claude Code keeps its own temporary files there, looked for in
+// the case its folders have. The home and the folders above it are never
+// one.
 func (r *projectsRead) isTemporary(at string) bool {
 	for _, root := range r.temporary {
-		if within(at, root) {
+		if withinFolded(at, root) {
 			return true
 		}
 	}
 	if !path.IsAbs(at) {
 		return false
 	}
-	for dir := at; !r.homeOrAbove(dir); dir = path.Dir(dir) {
-		if r.isDir(path.Join(dir, claude.ScratchRoot(r.UID))) {
+	scratchRoot := claude.ScratchRoot(r.UID)
+	for dir := at; dir != "/"; dir = path.Dir(dir) {
+		if strings.EqualFold(path.Base(dir), scratchRoot) {
+			return true
+		}
+	}
+	for dir := r.cased(at); !r.homeOrAbove(dir); dir = path.Dir(dir) {
+		if r.holds.of(dir, r.holdsScratchRoot) {
 			return true
 		}
 	}
 	return false
 }
 
+// holdsScratchRoot reports whether the folder dir, a whole path, holds
+// Claude Code's scratch root.
+func (r *projectsRead) holdsScratchRoot(dir string) bool {
+	info, err := fs.Stat(r.Root, rooted(path.Join(dir, claude.ScratchRoot(r.UID))))
+	return err == nil && info.IsDir()
+}
+
 // cased is the whole path at, but the root, in the case its folders have:
 // each folder named as its parent names it, as it's cased, else with its
-// case folded; as it's given from the first that's not there.
+// case folded, the first so named; as it's given from the first that's not
+// there.
 func (r *projectsRead) cased(at string) string {
 	return r.cases.of(at, func(at string) string {
 		parent, name := path.Dir(at), path.Base(at)
 		if parent != "/" {
 			parent = r.cased(parent)
 		}
-		entries, err := fs.ReadDir(r.Root, rooted(parent))
-		if err != nil {
-			return path.Join(parent, name)
-		}
 		folded := ""
-		for _, e := range entries {
+		for _, there := range r.listed.of(parent, r.names) {
 			switch {
-			case e.Name() == name:
+			case there == name:
 				return path.Join(parent, name)
-			case folded == "" && strings.EqualFold(e.Name(), name):
-				folded = e.Name()
+			case folded == "" && strings.EqualFold(there, name):
+				folded = there
 			}
 		}
 		return path.Join(parent, cmp.Or(folded, name))
 	})
 }
 
-// exists reports whether anything is at the whole path p.
-func (r *projectsRead) exists(p string) bool {
-	_, err := fs.Stat(r.Root, rooted(p))
-	return err == nil
-}
-
-// isDir reports whether a directory is at the whole path p.
-func (r *projectsRead) isDir(p string) bool {
-	info, err := fs.Stat(r.Root, rooted(p))
-	return err == nil && info.IsDir()
+// names are the names in the folder dir, a whole path, in order: none
+// where it can't be read.
+func (r *projectsRead) names(dir string) []string {
+	entries, _ := fs.ReadDir(r.Root, rooted(dir))
+	names := make([]string, len(entries))
+	for i, e := range entries {
+		names[i] = e.Name()
+	}
+	return names
 }
 
 // rooted is the whole path p as a path of the filesystem from its root.
@@ -262,4 +279,10 @@ func (r *projectsRead) shown(p string) string {
 func within(p, dir string) bool {
 	rest, ok := strings.CutPrefix(p, dir)
 	return ok && (rest == "" || rest[0] == '/')
+}
+
+// withinFolded reports whether the cleaned path p is dir or in it, their
+// case folded.
+func withinFolded(p, dir string) bool {
+	return len(p) >= len(dir) && strings.EqualFold(p[:len(dir)], dir) && (len(p) == len(dir) || p[len(dir)] == '/')
 }

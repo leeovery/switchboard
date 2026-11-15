@@ -60,6 +60,11 @@ type Deps struct {
 	// in, as launch.FindProject does, which run tells the router of beside
 	// the directory: nil tells none.
 	FindProject func(dir string) string
+	// InRepository reports whether a directory is in a repository, as
+	// launch.InRepository does, which a scratchpad's session is read against
+	// where its slug names a folder of a repository since removed: nil, that
+	// none is.
+	InRepository func(dir string) bool
 	// Root is the filesystem from its root, as os.DirFS("/") gives it, which
 	// the project of a session that ran in a Claude Code scratchpad, or a
 	// temporary folder, is read against, as status.Projects reads it: nil

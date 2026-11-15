@@ -39,6 +39,7 @@ func deps() cli.Deps {
 		HomeDir:       os.UserHomeDir,
 		Getwd:         os.Getwd,
 		FindProject:   launch.FindProject,
+		InRepository:  launch.InRepository,
 		Root:          os.DirFS("/"),
 		Executable:    os.Executable,
 		Now:           time.Now,

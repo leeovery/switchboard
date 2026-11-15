@@ -1,11 +1,11 @@
 package status_test
 
 import (
+	"fmt"
 	"io/fs"
 	"path"
 	"slices"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"testing/fstest"
 
@@ -18,11 +18,16 @@ const (
 	scratchTwo = "7e1d2c3b-4a5f-4e6d-8c7b-9a0f1e2d3c4b"
 )
 
+// bareConfig is a bare repository's config, as git writes one.
+const bareConfig = "[core]\n\trepositoryformatversion = 0\n\tbare = true\n"
+
 // machine is a filesystem of a home with three repositories, one with a
-// worktree Claude Code made, its scratch root kept beside another
-// temporary directory than the reader's; and a scratch root of the same
-// user kept in the home, and one kept above it, as a CLAUDE_CODE_TMPDIR of
-// either would keep it.
+// worktree Claude Code made; a bare repository with its worktrees kept in
+// its folder, and one in .bare with its worktrees beside it; two folders
+// whose names differ only in case, as a volume that keeps case can hold;
+// its scratch root kept beside another temporary directory than the
+// reader's; and a scratch root of the same user kept in the home, and one
+// kept above it, as a CLAUDE_CODE_TMPDIR of either would keep it.
 func machine() fstest.MapFS {
 	dir := &fstest.MapFile{Mode: fs.ModeDir}
 	return fstest.MapFS{
@@ -31,11 +36,15 @@ func machine() fstest.MapFS {
 		"Users/shared":                          dir,
 		"Users/you/Code/agentic-workflows/.git": dir,
 		"Users/you/Code/agentic-workflows/.claude/worktrees/leeway-build": dir,
-		"Users/you/Code/api/.git":  dir,
-		"Users/you/Code/api/web":   dir,
-		"Users/you/.dotfiles/.git": dir,
-		"scratch/tmp/claude-501":   dir,
-		"private/tmp/scratch":      dir,
+		"Users/you/Code/api/.git":          dir,
+		"Users/you/Code/api/web":           dir,
+		"Users/you/Code/web.git/config":    &fstest.MapFile{Data: []byte(bareConfig)},
+		"Users/you/Code/site/.bare/config": &fstest.MapFile{Data: []byte(bareConfig)},
+		"Users/you/.dotfiles/.git":         dir,
+		"Users/you/Notes":                  dir,
+		"Users/you/notes":                  dir,
+		"scratch/tmp/claude-501":           dir,
+		"private/tmp/scratch":              dir,
 	}
 }
 
@@ -52,10 +61,36 @@ func gitWalk(fsys fs.FS) func(string) string {
 	}
 }
 
+// inRepository reports whether a directory of fsys is in a repository, as
+// launch.InRepository counts one: at or below a directory holding a .git, a
+// bare repository's directory, or a folder holding one named .bare.
+func inRepository(fsys fs.FS) func(string) bool {
+	bare := func(dir string) bool {
+		config, err := fs.ReadFile(fsys, dir+"/config")
+		return err == nil && string(config) == bareConfig
+	}
+	return func(dir string) bool {
+		for at := dir; at != "/"; at = path.Dir(at) {
+			if _, err := fs.Stat(fsys, at[1:]+"/.git"); err == nil || bare(at[1:]) || bare(at[1:]+"/.bare") {
+				return true
+			}
+		}
+		return false
+	}
+}
+
+// machineProjectsIn reads projects against the machine, its user 501, the
+// reader's temporary directory the one given.
+func machineProjectsIn(fsys fs.FS, tempDir string) status.Projects {
+	return status.NewProjects(status.ProjectsConfig{
+		Root: fsys, Home: "/Users/you", TempDir: tempDir, UID: 501, Find: gitWalk(machine()), InRepository: inRepository(machine()),
+	})
+}
+
 // machineProjects reads projects against the machine, its user 501, the
 // reader's temporary directory /var/run/tmp.
 func machineProjects(fsys fs.FS) status.Projects {
-	return status.NewProjects(status.ProjectsConfig{Root: fsys, Home: "/Users/you", TempDir: "/var/run/tmp/", UID: 501, Find: gitWalk(machine())})
+	return machineProjectsIn(fsys, "/var/run/tmp/")
 }
 
 // scratchpad is the scratchpad of the session given, started in the
@@ -99,6 +134,10 @@ func TestAProjectInAScratchpadIsTheProjectItsSlugNames(t *testing.T) {
 		{name: "a folder no repository holds, named whole, itself", dir: scratchpad("/private/tmp", "-Users-you-Code", scratchOne, ""), want: "~/Code"},
 		{name: "a slug made of a folder named in another case, the folder in its own",
 			dir: scratchpad("/private/tmp", "-Users-you-code-api", scratchOne, ""), want: "~/Code/api"},
+		{name: "a worktree removed since from a bare repository's folder, the bare repository",
+			dir: scratchpad("/private/tmp", "-Users-you-Code-web-git-feature", scratchOne, ""), want: "~/Code/web.git"},
+		{name: "a worktree removed since from beside a bare repository in .bare, the folder holding both",
+			dir: scratchpad("/private/tmp", "-Users-you-Code-site-feature", scratchOne, ""), want: "~/Code/site"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -109,6 +148,10 @@ func TestAProjectInAScratchpadIsTheProjectItsSlugNames(t *testing.T) {
 	}
 }
 
+// A path is temporary in a temporary root, the reader's temporary directory
+// among them; at or under a folder named for Claude Code's scratch root,
+// whatever holds it; or at or under the folder holding the scratch root,
+// below the home. Each is compared with its case folded. Nothing else is.
 func TestAProjectInATemporaryFolderIsTemporaryFolders(t *testing.T) {
 	tests := []struct {
 		name, project, dir, want string
@@ -119,12 +162,21 @@ func TestAProjectInATemporaryFolderIsTemporaryFolders(t *testing.T) {
 		{name: "under /private/var/folders", dir: "/private/var/folders/xy/abc123/T/probe-1", want: status.TemporaryFolders},
 		{name: "under the reader's temporary directory", dir: "/var/run/tmp/call-1", want: status.TemporaryFolders},
 		{name: "the project recorded, under /tmp", project: "/tmp/clone-1", dir: "/tmp/clone-1/web", want: status.TemporaryFolders},
-		{name: "beside Claude Code's scratch root", dir: "/scratch/tmp/call-1", want: status.TemporaryFolders},
-		{name: "the folder holding Claude Code's scratch root", dir: "/scratch/tmp", want: status.TemporaryFolders},
-		{name: "two folders below the one holding the scratch root", dir: "/scratch/tmp/call-1/web", want: status.TemporaryFolders},
+		{name: "under /private/tmp, in another case", dir: "/Private/tmp/build-1", want: status.TemporaryFolders},
+		{name: "under the reader's temporary directory, in another case", dir: "/VAR/run/tmp/call-1", want: status.TemporaryFolders},
 		{name: "in the scratch root, not a scratchpad", dir: "/scratch/tmp/claude-501/tasks", want: status.TemporaryFolders},
+		{name: "in a scratch root kept in the home", dir: "~/claude-501/tasks", want: status.TemporaryFolders},
+		{name: "in a scratch root kept in the home, in another case", dir: "~/Claude-501/tasks", want: status.TemporaryFolders},
+		{name: "a folder whose name begins as the scratch root's, its own", dir: "~/claude-501-tools", want: "~/claude-501-tools"},
+		{name: "the folder holding the scratch root", dir: "/scratch/tmp", want: status.TemporaryFolders},
+		{name: "beside the scratch root", dir: "/scratch/tmp/call-1", want: status.TemporaryFolders},
+		{name: "two folders below the one holding the scratch root", dir: "/scratch/tmp/call-1/web", want: status.TemporaryFolders},
+		{name: "beside the scratch root, in another case", dir: "/Scratch/TMP/call-1", want: status.TemporaryFolders},
+		{name: "the home, holding a scratch root, its own", dir: "~", want: "~"},
 		{name: "beside a scratch root kept in the home, its own", dir: "~/notes", want: "~/notes"},
-		{name: "in a folder beside a scratch root kept above the home, its own", dir: "/Users/shared", want: "/Users/shared"},
+		{name: "beside a scratch root kept in the home, the home in another case, its own", dir: "/users/YOU/notes", want: "~/notes"},
+		{name: "beside a scratch root kept above the home, its own", dir: "/Users/shared", want: "/Users/shared"},
+		{name: "beside a scratch root kept above the home, in another case, its own", dir: "/users/shared", want: "/Users/shared"},
 		{name: "a folder named as a temporary one, elsewhere, its own", dir: "/srv/tmp/call-1", want: "/srv/tmp/call-1"},
 		{name: "a folder whose name begins as /tmp's, its own", dir: "/tmpfiles/call-1", want: "/tmpfiles/call-1"},
 		{name: "a repository in the home, its own", project: "~/Code/api", dir: "~/Code/api/web", want: "~/Code/api"},
@@ -140,6 +192,30 @@ func TestAProjectInATemporaryFolderIsTemporaryFolders(t *testing.T) {
 				t.Errorf("Of(%q, %q) = %q, want %q", tt.project, tt.dir, got, tt.want)
 			}
 		})
+	}
+}
+
+// A reader's temporary directory that's the home, or above it, makes none
+// of the home temporary.
+func TestATemporaryDirectoryOfTheHomeOrAboveIsNoTemporaryRoot(t *testing.T) {
+	for _, tempDir := range []string{"/Users/you", "/users/you/", "/Users", "/"} {
+		p := machineProjectsIn(machine(), tempDir)
+		for dir, want := range map[string]string{"~/Code/api": "~/Code/api", "~": "~", "/Users/shared": "/Users/shared", "/tmp/build-1": status.TemporaryFolders} {
+			if got := p.Of("", dir); got != want {
+				t.Errorf("of the temporary directory %s, Of(%q) = %q, want %q", tempDir, dir, got, want)
+			}
+		}
+	}
+}
+
+// A path is given in the case its folders have: a folder named as one of two
+// a case apart is that one, and one named as neither is the first of them.
+func TestAPathIsGivenAsItsFoldersAreCasedTheExactFirst(t *testing.T) {
+	p := machineProjects(machine())
+	for dir, want := range map[string]string{"~/notes": "~/notes", "~/Notes": "~/Notes", "~/NOTES": "~/Notes", "/users/you/nOtes": "~/Notes"} {
+		if got := p.Of("", dir); got != want {
+			t.Errorf("Of(%q) = %q, want %q", dir, got, want)
+		}
 	}
 }
 
@@ -159,23 +235,42 @@ func TestWithoutFindADecodedDirectoryIsReadAsProjectOfReadsIt(t *testing.T) {
 	}
 }
 
-// openings is a filesystem counting what it opens.
+// openings is a filesystem counting what it opens, by its name.
 type openings struct {
 	fs.FS
-	opened *atomic.Int64
+	mu     *sync.Mutex
+	opened map[string]int
+}
+
+// countingOpens is fsys, counting what it opens.
+func countingOpens(fsys fs.FS) openings {
+	return openings{FS: fsys, mu: new(sync.Mutex), opened: make(map[string]int)}
 }
 
 func (o openings) Open(name string) (fs.File, error) {
-	o.opened.Add(1)
+	o.mu.Lock()
+	o.opened[name]++
+	o.mu.Unlock()
 	return o.FS.Open(name)
 }
 
+// total is how many opens there have been.
+func (o openings) total() int {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	n := 0
+	for _, each := range o.opened {
+		n += each
+	}
+	return n
+}
+
 func TestEachPathAndEachSlugIsReadAgainstTheFilesystemOnce(t *testing.T) {
-	o := openings{FS: machine(), opened: new(atomic.Int64)}
+	o := countingOpens(machine())
 	p := machineProjects(o)
 	dir := scratchpad("/private/tmp", "-Users-you-Code-api", scratchOne, "")
 	p.Of("", dir)
-	once := o.opened.Load()
+	once := o.total()
 	if once == 0 {
 		t.Fatal("reading a scratchpad opened nothing")
 	}
@@ -183,14 +278,35 @@ func TestEachPathAndEachSlugIsReadAgainstTheFilesystemOnce(t *testing.T) {
 		p.Of("", dir)
 		p.Of(dir, dir)
 	}
-	if got := o.opened.Load(); got != once {
+	if got := o.total(); got != once {
 		t.Errorf("reading the scratchpad 200 times more opened %d, want none more than the first's %d", got, once)
 	}
 	if got := p.Of("", scratchpad("/private/tmp", "-Users-you-Code-api", scratchTwo, "/probe")); got != "~/Code/api" {
 		t.Errorf("another session's scratchpad of the same directory is %q's, want ~/Code/api's", got)
 	}
-	if got := o.opened.Load(); got != once {
+	if got := o.total(); got != once {
 		t.Errorf("reading another scratchpad of the same slug opened %d more, want none", got-once)
+	}
+}
+
+// Each folder is listed once, and looked in for the scratch root once,
+// however many of the projects read are in it.
+func TestEachFolderIsListedAndLookedInOnce(t *testing.T) {
+	m := machine()
+	for i := range 50 {
+		m[fmt.Sprintf("Users/you/Code/project-%d/.git", i)] = &fstest.MapFile{Mode: fs.ModeDir}
+	}
+	o := countingOpens(m)
+	p := machineProjects(o)
+	for i := range 50 {
+		if want, got := fmt.Sprintf("~/Code/project-%d", i), p.Of("", fmt.Sprintf("~/code/project-%d", i)); got != want {
+			t.Errorf("Of(~/code/project-%d) = %q, want %q", i, got, want)
+		}
+	}
+	for _, name := range []string{"Users/you/Code", "Users/you/Code/claude-501"} {
+		if got := o.opened[name]; got != 1 {
+			t.Errorf("%s was opened %d times, want once", name, got)
+		}
 	}
 }
 

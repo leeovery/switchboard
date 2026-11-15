@@ -380,3 +380,40 @@ func write(t *testing.T, path, text string) {
 		t.Fatal(err)
 	}
 }
+
+// The folder a worktree since removed was kept in is in a repository, as
+// FindProject counts one, in every layout it reads: a repository's own
+// .git; a bare repository's directory, the worktree kept inside it; and the
+// folder holding a bare repository named .bare. A folder of none isn't.
+func TestTheFolderOfARemovedWorktreeIsInARepositoryInEveryLayout(t *testing.T) {
+	tests := []struct {
+		name  string
+		dirs  []string
+		files map[string]string
+		// left is the folder the removed worktree leaves, by its path from
+		// the root.
+		left string
+		want bool
+	}{
+		{name: "Claude Code's worktrees, in a repository", dirs: []string{"api/.git", "api/.claude/worktrees"}, left: "api/.claude/worktrees", want: true},
+		{name: "a subfolder of a repository, gone", dirs: []string{"api/.git"}, left: "api/web/src", want: true},
+		{name: "a bare repository's directory", dirs: []string{"api.git/refs/heads"}, files: map[string]string{"api.git/config": bareConfig},
+			left: "api.git", want: true},
+		{name: "the folder holding a bare repository in .bare", dirs: []string{"api/.bare/refs/heads"}, files: map[string]string{"api/.bare/config": bareConfig},
+			left: "api", want: true},
+		{name: "a bare repository in a folder named with a dot, as a home's dotfiles", dirs: []string{"home/.dotfiles/refs"},
+			files: map[string]string{"home/.dotfiles/config": bareConfig}, left: "home/.dotfiles", want: true},
+		{name: "the folder holding a .bare no config says is bare", dirs: []string{"api/.bare/refs"}, files: map[string]string{"api/.bare/config": notBareConfig},
+			left: "api"},
+		{name: "a folder of no repository", dirs: []string{"code/old"}, left: "code/old"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := t.TempDir()
+			lay(t, root, tt.dirs, tt.files)
+			if got := launch.InRepository(filepath.Join(root, tt.left)); got != tt.want {
+				t.Errorf("InRepository(%s) = %v, want %v", tt.left, got, tt.want)
+			}
+		})
+	}
+}
