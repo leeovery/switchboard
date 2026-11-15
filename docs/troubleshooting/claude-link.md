@@ -9,15 +9,22 @@ purpose.
 Your shell finds another `claude` before the link that switchboard installs.
 
 ```bash
-switchboard setup    # asks your login shell which claude it runs, and says what it found
-command -v claude    # prints the claude your shell runs now
+# Asks your login shell which claude it runs,
+# and says what it found
+switchboard setup
+# Prints the claude your shell runs now
+command -v claude
 ```
 
 | If | Then |
 |---|---|
-| The line marked `# switchboard` is in your startup file, but another `claude` still runs | Something after that line changes `PATH`. Move the switchboard line to the end of the file, or move what changes `PATH` above it. |
-| You set `PATH` in a file of your own, or a tool writes it | Put `~/.local/share/switchboard/bin` first on `PATH` there. If you set `XDG_DATA_HOME`, the folder is `$XDG_DATA_HOME/switchboard/bin`. |
-| You fixed it while `setup` was open | Press `r` on the `claude` link page of `setup` to check again. |
+| The `# switchboard` line is there, but another `claude` runs | Move the line to the end of the file. |
+| You set `PATH` in a file of your own, or a tool writes it | Put the switchboard bin folder first on `PATH` there. |
+| You fixed it while `setup` was open | Press `r` on `setup`'s `claude` link page to check again. |
+
+If the line is in your startup file but another `claude` still runs, something after the line
+changes `PATH`. You can also move what changes `PATH` above the line instead. The bin folder is
+`~/.local/share/switchboard/bin`, or `$XDG_DATA_HOME/switchboard/bin` if you set `XDG_DATA_HOME`.
 
 ## An alias named `claude` runs something else
 
@@ -38,12 +45,17 @@ letters, digits and `_./:@%+,=-` either. Each of these goes through switchboard 
 ## A session says it isn't going through switchboard
 
 The session was started by a `claude` that isn't switchboard's. Its requests go straight to
-Anthropic on the login of Claude Code, unrouted and unrecorded.
+Anthropic on Claude Code's own login, unrouted and unrecorded.
 
 | If you started it | Then |
 |---|---|
-| From a terminal | Something, such as a changed startup file, put the real `claude` ahead of the link on `PATH`. Run `switchboard setup`, then start the session again in a new terminal. |
-| From an app that runs a Claude Code of its own, such as the Code sessions of the Claude desktop app or the Claude Code bundled with an editor | It can't be routed, and `setup` won't change that. See [How it works](../how-it-works.md) for what doesn't go through the router. |
+| From a terminal | Run `switchboard setup`, then start the session again in a new terminal. |
+| From an app with a Claude Code of its own | It can't be routed, and `setup` won't change that. |
+
+From a terminal, something put the real `claude` ahead of the link on `PATH`, such as a changed
+startup file. The apps with a Claude Code of their own include the Claude desktop app's Code
+sessions, and an editor's bundled Claude Code. See [How it works](../how-it-works.md) for what
+doesn't go through the router.
 
 ## Completions don't work
 
@@ -51,7 +63,7 @@ The switchboard file for your shell loads completions for commands and flags.
 
 | Shell | Completions load if |
 |---|---|
-| zsh | `compinit` has run before the switchboard line. A usual `.zshrc` runs it earlier, and the line goes at the end. |
+| zsh | `compinit` has run before the switchboard line. A usual `.zshrc` does. |
 | bash | The bash-completion package is loaded. |
 | fish | Always. |
 
@@ -60,7 +72,8 @@ The switchboard file for your shell loads completions for commands and flags.
 To start Claude Code on its own login, without the router:
 
 ```bash
-switchboard run --direct    # refused inside a fence
+# Refused inside a fence
+switchboard run --direct
 ```
 
 You can also run the real `claude` by its path. If the switchboard binary itself breaks, every
@@ -70,5 +83,6 @@ new terminal. That takes the switchboard folder off `PATH`.
 ## Related
 
 - [`switchboard setup`](../commands/setup.md): every page of `setup`, the `claude` link among them.
-- [`switchboard claude`](../commands/claude-command.md): what the link does when it starts a session.
+- [`switchboard claude`](../commands/claude-command.md): what the link does when it starts a
+  session.
 - [Setup](setup.md): when the `setup` screen itself goes wrong.

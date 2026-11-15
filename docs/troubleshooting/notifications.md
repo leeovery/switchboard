@@ -1,9 +1,9 @@
 # Troubleshooting: notifications that don't show
 
-Notifications come from an app of switchboard named `Switchboard`, which the router writes out and
-registers with macOS. A release carries the app inside the switchboard binary. The router writes
-it out to `~/.local/share/switchboard`, or `$XDG_DATA_HOME/switchboard` if you set that, and again
-after each upgrade. This page covers notifications that don't show, or show under another name.
+Notifications come from switchboard's own app, `Switchboard`, which the router registers with
+macOS. A release carries the app inside the switchboard binary. The router writes it out to
+`~/.local/share/switchboard`, or `$XDG_DATA_HOME/switchboard` if you set that, and again after
+each upgrade. This page covers notifications that don't show, or show under another name.
 For what they tell you, see [Notifications](../notifications.md).
 
 ## Notifications were turned off
@@ -11,7 +11,7 @@ For what they tell you, see [Notifications](../notifications.md).
 macOS asked once whether `Switchboard` may send notifications, and they were turned off. Turn them
 on in System Settings → Notifications → Switchboard.
 
-Until you do, the log of the router says so at warn, once until a notification goes out:
+Until you do, the router logs a warning, once until a notification goes out:
 
 ```text
 macOS won't let Switchboard post notifications: turn them on in System Settings → Notifications → Switchboard, or, where they're on, switchboard service restart registers its app again
@@ -52,7 +52,8 @@ The log has it at warn as `notification failed`, and the notification is dropped
 again.
 
 ```bash
-grep 'notification failed' "$(switchboard logs router --path)"
+log=$(switchboard logs router --path)
+grep 'notification failed' "$log"
 ```
 
 A notification can also be held back on purpose. Only one about an account goes out each minute,
@@ -61,5 +62,5 @@ unless it tells of a limit or a token.
 ## Related
 
 - [Notifications](../notifications.md): what each notification says, and the keys that tune them.
-- [Logs](logs.md): where the log of the router is.
+- [Logs](logs.md): where the logs are, and how to read them.
 - [`switchboard service`](../commands/service.md): restarting the router.

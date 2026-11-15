@@ -20,14 +20,18 @@ The message is `couldn't read usage: every pool is fenced: …`. The dashboard h
 without being told.
 
 ```bash
-switchboard dashboard --pool q7mt      # open on one pool; press P to turn to the next
-switchboard pool edit q7mt --unfence   # or leave one pool unfenced, to open on it by default
+# Open on one pool; press P to turn to the
+# next
+switchboard dashboard --pool q7mt
+# Or leave one pool unfenced, to open on it
+# by default
+switchboard pool edit q7mt --unfence
 ```
 
 ## A command can't tell which pool to read
 
 The message is `can't tell which pool to read: neither the config, the router nor the accounts
-record names any pools`. The history has moved to pools, but the config names none or can't be
+record names any pools`. The record has moved to pools, but the config names none or can't be
 read. The router isn't running or routes by none, and the accounts record keeps none. Put the pools
 back in the config, or start the router:
 
@@ -37,11 +41,12 @@ switchboard service install
 
 ## A command says there's no pool you removed
 
-The message is `there's no pool "q7mt": name …`. `status`, `usage` and `pin` read the router, which
-routes nothing in a pool the config no longer has. The history of the pool stays.
+The message is `there's no pool "q7mt": name …`. `status`, `usage` and `pin` read the router,
+which routes nothing in a pool the config no longer has. The pool's record stays.
 
 ```bash
-switchboard requests --pool q7mt   # shows it as pool Acme (removed 6 Oct)
+# Shows it as pool Acme (removed 6 Oct)
+switchboard requests --pool q7mt
 ```
 
 `requests`, `history`, `sessions` and `events` read it with `--pool`. They read a pool brought in
@@ -55,10 +60,12 @@ upgrade.
 
 | Command | What it does meanwhile |
 |---|---|
-| `status`, `usage`, the dashboard | They probe the accounts of the pool themselves. |
+| `status`, `usage`, the dashboard | They probe the pool's accounts themselves. |
 | `sessions` | It lists only the sessions in the ledger. |
 | `pin` | It refuses. |
-| `status --session` | It reads the session as before, but refuses `--json` together with `--pool`. |
+| `status --session` | It refuses `--json` with `--pool`. |
+
+`status --session` otherwise reads the session as before. To route by pools:
 
 ```bash
 switchboard service restart
@@ -66,12 +73,12 @@ switchboard service restart
 
 ## `pin` says to pin accounts of one pool
 
-A pin belongs to one pool, so the accounts you name must all be in it. Pin the accounts of each pool
-apart. A session can be pinned only to an account of its own pool.
+A pin belongs to one pool, so the accounts you name must all be in it. Pin each pool's accounts
+separately. A session can be pinned only to an account of its own pool.
 
 ## `pool add` says the config names no pools
 
-The router makes the first pool when it moves the history to pools, the first time it starts on a
+The router makes the first pool when it moves the record to pools, the first time it starts on a
 version with them. Once the config names that pool, add the rest.
 
 ## `pool remove` is refused
@@ -80,14 +87,15 @@ The pool still has accounts, which it names, or it's the last pool. Move or remo
 first:
 
 ```bash
-switchboard accounts edit <id> --pool <id>   # move an account to another pool
-switchboard pool remove <id>
+# Move an account to another pool
+switchboard accounts edit m2kp --pool d3wn
+switchboard pool remove q7mt
 ```
 
 ## `pool edit --dirs` says to set them by hand
 
-The config writes the `dirs` of the pool across several lines, which `pool edit` can't change in
-place. Edit them in the config, or write them on one line.
+If the pool's `dirs` span several lines in the config, `pool edit` can't change them in place. Edit
+them by hand, or put them on one line.
 
 ## The config is refused for its pools
 
@@ -97,7 +105,7 @@ The error names what's wrong. Put the config right as it says.
 |---|---|
 | Two pools without `dirs` | Fence one of them. Only one pool can be unfenced. |
 | Folders that are the same, or one inside another | Give each pool folders of its own. |
-| An account without a `pool`, or with a pool that isn't configured | Give the account a pool that exists. |
+| An account with no `pool`, or an unknown one | Give the account a pool that exists. |
 | Two primaries in one pool | Keep one. |
 
 Every `[[pool]]` key is in [Configuration](../configuration.md).

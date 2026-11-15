@@ -6,8 +6,8 @@ an account whose token belongs to another subscription.
 ## An account reads `wrong token`
 
 The account reads `wrong token`, or `its token is another subscription's`. The API says the token
-in its file is for another subscription than the account. That happens if the file was replaced by
-hand with the token of another account. It also happens if a token was made while the browser was
+in its file is for another subscription than the account's. That happens if the file was replaced
+by hand with another account's token. It also happens if a token was made while the browser was
 signed in to the wrong account.
 
 The router sends nothing on that account. Its sessions go to the other accounts, and what Claude
@@ -16,12 +16,19 @@ Code gets a 503 saying the same.
 
 | If the token was meant | Then |
 |---|---|
-| For this account | Make the account a token of its own, approving it in a browser signed in to that subscription. |
-| For use, on another subscription | Add that subscription as an account of its own, then give this account its own token. |
+| For this account | Make the account a new token. |
+| For use, on another subscription | Add that subscription as an account, then give this one its own token. |
+
+When you make the new token, approve it in a browser signed in to the account's
+subscription.
 
 ```bash
-switchboard accounts token <id>      # makes a new token for the account; or press t in setup
-switchboard accounts add <label>     # adds the subscription the wrong token belongs to
+# Makes a new token for work; or press t in
+# setup
+switchboard accounts token b6s7
+# Adds the subscription the wrong token
+# belongs to
+switchboard accounts add <label>
 ```
 
 `accounts token` refuses a token of another subscription, so it saves only the right one.
@@ -32,8 +39,10 @@ The router keeps the finding in `state.json` until the account takes up another 
 new token within 3 seconds of the file changing.
 
 ```bash
-switchboard status --json   # the account is marked token_foreign
-switchboard events          # a foreign event says when it was found
+# The account is marked token_foreign
+switchboard status --json
+# A foreign event says when it was found
+switchboard events
 ```
 
 ## Related

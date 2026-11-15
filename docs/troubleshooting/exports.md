@@ -1,6 +1,6 @@
 # Troubleshooting: an export that fails
 
-If you set `dir` in `[export]`, the router exports your history into that folder every hour. This
+If you set `dir` in `[export]`, the router exports your record into that folder every hour. This
 page covers how to see where the exports stand, and what to do when one fails.
 
 ```bash
@@ -13,7 +13,7 @@ switchboard status --json | jq .export
 | `error` | Why the last one failed. |
 | `running` | When the export under way began. |
 
-The log of the router has a failure at warn, once until an export succeeds. It also logs the first
+The router's log has a failure at warn, once until an export succeeds. It also logs the first
 export that succeeds after it.
 
 ## The error says `macOS refused access to <dir>`
@@ -27,13 +27,12 @@ in. The error then says to allow that terminal app.
 
 ## The error says `<path> is locked`
 
-A file or folder in the export is locked in the Finder. Unlock it in the Get Info window for that
-file.
+A file or folder in the export is locked in the Finder. Unlock it in its Get Info window.
 
 ## The folder isn't there
 
 The router makes `dir` only if the folder it goes in exists. So a disk that isn't mounted is never
-written onto the disk of the Mac in its place. Mount the disk, or make the folder that `dir` goes
+written onto this Mac's disk in its place. Mount the disk, or make the folder that `dir` goes
 in.
 
 ## An export shows `running` for long
@@ -47,12 +46,12 @@ a config change waits too.
 | `switchboard status` | The restart waits for the export. |
 | `switchboard service restart` | `an export into <dir> is under way: try again once it ends` |
 
-Answer the prompt, or allow switchboard in System Settings → Privacy & Security. A stop of the
+Answer the prompt, or allow switchboard in System Settings → Privacy & Security. Stopping the
 router doesn't wait for the export.
 
 ## The log says a day was passed over
 
-A day file in the state directory can't be read. The log of the router warns of it, as
+A day file in the state directory can't be read. The router's log warns of it, for example
 `couldn't export the request ledger of 2026-10-30; passed over`, and the rest is exported. That
 doesn't fail the export.
 
