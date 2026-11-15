@@ -1,7 +1,9 @@
 # Troubleshooting: notifications that don't show
 
 Notifications come from an app of switchboard named `Switchboard`, which the router writes out and
-registers with macOS. This page covers notifications that don't show, or show under another name.
+registers with macOS. A release carries the app inside the switchboard binary. The router writes
+it out to `~/.local/share/switchboard`, or `$XDG_DATA_HOME/switchboard` if you set that, and again
+after each upgrade. This page covers notifications that don't show, or show under another name.
 For what they tell you, see [Notifications](../notifications.md).
 
 ## Notifications were turned off
