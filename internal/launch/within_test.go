@@ -330,9 +330,9 @@ func TestASessionsPoolChangedSinceInTheEnvironmentInheritedIsStillItsPool(t *tes
 }
 
 // Where the environment the session's claude started in can't be read, or
-// what's read of it holds no mark of the claude naming it, as where a process
-// title was written over it, the one the launch inherits says what the
-// session is, as run set it: a pool or project changed since there is none
+// what's read of it holds no session, as where a process title was written
+// over it, the one the launch inherits says what the session is, as run set
+// it, judged alike: a pool or project changed since there is none
 // of the session's, and a session naming no pool places no launch among
 // pools.
 func TestASessionsClaudeWhoseEnvironmentCantBeReadIsFoundThroughTheOneInherited(t *testing.T) {
@@ -353,6 +353,10 @@ func TestASessionsClaudeWhoseEnvironmentCantBeReadIsFoundThroughTheOneInherited(
 		{name: "its claude's environment unread", claude: process{parent: 1, started: started, unread: true}},
 		{name: "its claude's environment read as none", claude: process{parent: 1, started: started, environ: []string{}}},
 		{name: "its claude's environment read without its mark of the claude", claude: process{parent: 1, started: started, environ: switchboards(without(markEnv))}},
+		{
+			name:   "its claude's environment read as its mark of the claude alone, what run set taken",
+			claude: process{parent: 1, started: started, environ: slices.DeleteFunc(slices.Clone(sessionEnv), func(v string) bool { return !strings.HasPrefix(v, markEnv+"=") })},
+		},
 		{
 			name:   "its claude's environment read with a mark of the claude naming another",
 			claude: process{parent: 1, started: started, environ: switchboards(append(without(markEnv), markEnv+"="+mark(sessionPID, launched, "/opt/claude")))},

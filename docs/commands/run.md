@@ -78,7 +78,7 @@ The session is the one whose `claude` started this `claude`, directly or through
 `run` looks for that `claude` among the programs that started this one, nearest first. It reads
 the environment that the session's `claude` started with, which the programs the session runs
 can't change. Claude Code under Node writes its title over the memory `run` reads, though. If
-`run` can't read that environment whole, it reads the one this `claude` inherits instead.
+`run` finds no session in what it reads there, it reads the one this `claude` inherits instead.
 
 A session counts as none in these cases:
 

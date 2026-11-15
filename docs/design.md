@@ -720,9 +720,9 @@ within, where it's started within one, and the session keeps that pool for its w
     can write over: Claude Code sets its title, and under Node, as npm's `claude` and
     `~/.claude/local/claude` run, libuv writes the title over the arguments and fills the rest of
     them with NULs, so the empty strings past the arguments counted are passed over; a title that
-    ran on over the environment would take its first variables. So what's read counts only where
-    it holds a `SWITCHBOARD_STARTED` naming that process, as every session's `claude` starts with;
-    where it holds none, or can't be read, the environment the `claude` inherits is read in its
+    ran on over the environment would take its first variables, and one ending where
+    `SWITCHBOARD_STARTED` begins would take what `run` set and leave the mark whole. So where what's
+    read holds no session, or can't be read, the environment the `claude` inherits is read in its
     place, judged alike. A process is a session's `claude` where that environment's mark,
     `SWITCHBOARD_STARTED` (see Finding the real `claude`), names it by its process id, and it
     started no later than the mark says, to the second, so a later process that took the id of a

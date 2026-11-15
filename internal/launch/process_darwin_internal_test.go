@@ -3,6 +3,7 @@
 package launch
 
 import (
+	"bytes"
 	"encoding/binary"
 	"os"
 	"slices"
@@ -34,14 +35,27 @@ func laidOut(path string, argv, env []string, follows string) []byte {
 // Node's: the title, then NULs to the arguments' end. A title longer than
 // the arguments goes on over the environment, ended by a NUL.
 func titled(args []byte, path string, argv []string, title string) []byte {
+	start := argsStart(path)
+	return titledTo(args, path, title, start+max(len(strings.Join(argv, "\x00"))+1, len(title)+1))
+}
+
+// titledTo is args, laid out after path as laidOut lays them out, with title
+// written over everything up to end, then NULs.
+func titledTo(args []byte, path, title string, end int) []byte {
+	over := args[argsStart(path):end]
+	clear(over)
+	copy(over, title)
+	return args
+}
+
+// argsStart is where the arguments start in what laidOut lays out after
+// path.
+func argsStart(path string) int {
 	start := 4 + len(path) + 1
 	for (start-4)%argsAlign != 0 {
 		start++
 	}
-	over := args[start : start+max(len(strings.Join(argv, "\x00"))+1, len(title)+1)]
-	clear(over)
-	copy(over, title)
-	return args
+	return start
 }
 
 func TestProcArgsReadsTheArgumentsAndEnvironmentAsTheyreLaidOut(t *testing.T) {
@@ -162,8 +176,8 @@ func (t laidOutTable) Environ(pid int) ([]string, bool) {
 
 // A session's claude that Node runs writes its title over the memory its
 // environment is read from: what of it the title leaves is read, and what
-// the title took, the session's mark of its claude with it, is read from the
-// environment the launch inherits.
+// the title took, the session's mark of its claude, or of what run set, with
+// it, is read from the environment the launch inherits.
 func TestASessionsClaudeWhoseTitleIsWrittenOverWhatsReadIsFound(t *testing.T) {
 	const (
 		sessionPID = 5150
@@ -179,6 +193,12 @@ func TestASessionsClaudeWhoseTitleIsWrittenOverWhatsReadIsFound(t *testing.T) {
 	laid := func(title string) []byte {
 		return titled(laidOut(node, argv, sessionEnv, "\x00ptr_munge=\x00"), node, argv, title)
 	}
+	// toItsMark is the title written over everything ahead of the session's
+	// mark of its claude, which is left whole, and what run set taken.
+	toItsMark := func() []byte {
+		args := laidOut(node, argv, sessionEnv, "\x00ptr_munge=\x00")
+		return titledTo(args, node, "claude", bytes.Index(args, []byte(startedEnv+"=")))
+	}
 	tests := []struct {
 		name string
 		// args is the session's claude's, as kern.procargs2 gives them, and
@@ -193,6 +213,11 @@ func TestASessionsClaudeWhoseTitleIsWrittenOverWhatsReadIsFound(t *testing.T) {
 			args: laid(strings.Repeat("claude ", 40)), inherited: sessionEnv, inSession: true,
 		},
 		{name: "its title written over its environment too, the launch's environment cleaned", args: laid(strings.Repeat("claude ", 40)), inherited: own},
+		{
+			name: "its title written over all its environment ahead of its mark of the claude, the launch inheriting the session's",
+			args: toItsMark(), inherited: sessionEnv, inSession: true,
+		},
+		{name: "its title written over all its environment ahead of its mark of the claude, the launch's environment cleaned", args: toItsMark(), inherited: own},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
