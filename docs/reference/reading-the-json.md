@@ -14,7 +14,7 @@ switchboard status --json | head -4
   "source": "router",
 ```
 
-## Fields are only added
+## Fields are added, never renamed
 
 - A release can add a field to any format. It never renames one.
 - While `schema` stays at 1, the meaning and units of a field never change.
@@ -48,7 +48,7 @@ Some places give ids only:
 - the files, and the stored lines that `requests` and `events` print;
 - the status document, except in its `accounts`;
 - the assignments of `status --session`;
-- the days of `history`, whose `removed` list labels the accounts removed since.
+- the days of `history`. Its top-level `removed` block labels the removed accounts they name.
 
 A removed account is labelled by the label it showed last.
 

@@ -8,7 +8,8 @@ ls ~/.local/state/switchboard
 ```
 
 ```
-accounts.json  control.sock  history  ledger  logs  prefs.json  state.json  tokens
+accounts.json  control.sock  history  ledger
+logs  prefs.json  state.json  tokens
 ```
 
 ## Where each thing lives
@@ -37,8 +38,8 @@ accounts.json  control.sock  history  ledger  logs  prefs.json  state.json  toke
 - **The shell files** are `init.zsh`, `init.bash`, `completion.bash` and `init.fish`.
 - **The router copy** is the switchboard binary the LaunchAgent runs. `service install` makes it.
   A router started from a LaunchAgent written before the copy existed moves over to it.
-- **The notifications app** is written out by each release, and the notifications of the router
-  come from it. See [Notifications](../notifications.md).
+- **The notifications app** is written out by each release, and the router's notifications come
+  from it. See [Notifications](../notifications.md).
 - **`.Switchboard.app.sum`** sits beside the app. It holds the SHA-256 of the zip the app was
   written from, which says whether the app is current.
 - **`.Switchboard.app.lock`** sits beside the app too. Two switchboards writing the app out take
@@ -47,16 +48,17 @@ accounts.json  control.sock  history  ledger  logs  prefs.json  state.json  toke
 
 ## Your shell startup file
 
-`setup` adds one line to the startup file of your shell, marked `# switchboard`, as the last line.
+`setup` adds one line to your shell's startup file, marked `# switchboard`, as the last line.
 The file is the one your shell says it reads:
 
 | Shell | The file |
 |---|---|
 | zsh | `.zshrc` in `$ZDOTDIR`, as zsh reports it, else `~/.zshrc` |
-| bash | The first that exists of `~/.bash_profile`, `~/.bash_login` and `~/.profile`, else `~/.bash_profile` |
+| bash | The first that exists of the three below, else `~/.bash_profile` |
 | fish | `config.fish` in `$__fish_config_dir`, as fish reports it, by default `~/.config/fish` |
 
-For bash, that's the file a login bash reads. Terminals on macOS start a login bash.
+For bash, the three are `~/.bash_profile`, `~/.bash_login` and `~/.profile`, in that order. That's
+the file a login bash reads, and terminals on macOS start a login bash.
 
 ## In the state directory
 
@@ -65,13 +67,13 @@ For bash, that's the file a login bash reads. Terminals on macOS start a login b
 | `state.json` | What the router keeps across a restart. See below. |
 | `control.sock` | The socket of the [control API](control-api.md). |
 | `prefs.json` | What the dashboard remembers. Switchboard's own: its form can change in any release. |
-| `tokens/<id>` | The token of each account. See [Tokens](tokens.md). |
-| `tokens/<id>.taken` | When switchboard took each of the latest tokens of the account, with the SHA-256 hash of each. See [Tokens](tokens.md). |
+| `tokens/<id>` | Each account's token. See [Tokens](tokens.md). |
+| `tokens/<id>.taken` | When switchboard took each of the account's latest tokens, with a hash of each. See [Tokens](tokens.md). |
 | `accounts.json` | The [accounts record](accounts-record.md): every account and pool this Mac has had, kept for good. |
 | `accounts.lock` | The lock a change to the accounts record holds. |
-| `accounts.moved` | Marks the move of the history onto account ids as done, with when it was. |
-| `pools.moved` | Marks the move of the history to pools as done, with when it was. |
-| `logs/` | `router.log`, `cli.log` and `launchd.log`. See [Troubleshooting](../troubleshooting.md). |
+| `accounts.moved` | Marks the move onto account ids as done, with when it was. |
+| `pools.moved` | Marks the move to pools as done, with when it was. |
+| `logs/` | `router.log`, `cli.log` and `launchd.log`. See [The logs](../troubleshooting/logs.md). |
 | `history/readings-<date>.jsonl` | The [readings history](readings.md), a file a day. |
 | `ledger/requests-<date>.jsonl` | The [request ledger](ledger.md), a file a day. |
 | `ledger/day-<date>.json` | The [day summary](day-summary.md) of each day. |
@@ -98,11 +100,11 @@ For bash, that's the file a login bash reads. Terminals on macOS start a login b
   `pin` and `auto`.
 - **`install-id`** names the folder an export writes for this Mac. The first export makes it, and
   nothing replaces it. See [`export`](../commands/export.md).
-- **`import/`** holds one folder for each Mac imported, as `1/`, `2/` and on. Each is laid out as
-  the state directory lays out its history. The router removes `import/` once it has taken it in.
+- **`import/`** holds one folder for each Mac imported, as `1/`, `2/` and on. Each holds its
+  files in the same folders as the state directory. The router removes `import/` once it has taken it in.
   The next import removes one that an import cut short left behind.
 
-How the move onto account ids works is in [How it works](../how-it-works.md).
+How the move onto account ids works is in [Upgrades and restarts](../upgrades-and-restarts.md).
 
 ## Indexes the router builds
 

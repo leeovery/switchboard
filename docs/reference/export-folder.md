@@ -5,7 +5,13 @@ it is and what it holds. This page lists its fields. For what an export copies, 
 see [`export`](../commands/export.md) and [Several Macs](../several-macs.md).
 
 ```json
-{"version": 3, "install": "0123456789abcdef", "exported_at": "2026-11-12T09:00:00Z", "ids": true, "accounts": true}
+{
+  "version": 3,
+  "install": "0123456789abcdef",
+  "exported_at": "2026-11-12T09:00:00Z",
+  "ids": true,
+  "accounts": true
+}
 ```
 
 ## The fields
@@ -45,7 +51,7 @@ If a folder was first exported by an older switchboard, a new export removes the
 `export.json` before it starts. So a sync cut short never leaves the new days beside a manifest an
 older switchboard would import.
 
-## A folder not yet synced whole
+## What `import` does with a folder
 
 | If `export.json` | `import` |
 |---|---|

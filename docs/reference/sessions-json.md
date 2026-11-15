@@ -5,11 +5,18 @@ that session instead. For moving and pinning sessions, see
 [Pinning and moving sessions](../pinning-and-moving.md).
 
 ```bash
-switchboard sessions --json | jq '.sessions[0] | {session, label, running, requests}'
+switchboard sessions --json | jq \
+  '.sessions[0]
+  | {session, label, running, requests}'
 ```
 
 ```json
-{"session": "5f0c2a…", "label": "work", "running": true, "requests": 212}
+{
+  "session": "5f0c2a…",
+  "label": "work",
+  "running": true,
+  "requests": 212
+}
 ```
 
 ## The list
@@ -59,12 +66,13 @@ A running session adds these:
 
 ## The page of a session
 
-`sessions <id> --json` prints one session:
+`sessions <id> --json` prints one session. It has the fields of the list: `session`, `dir`,
+`account`, `label`, `model`, `running`, `last_seen`, `models`, `state`, `move_cost` and `ended`.
+It adds these:
 
 | Field | Type | Meaning |
 |---|---|---|
-| `session`, `dir`, `account`, `label`, `model`, `running`, `last_seen`, `models`, `state`, `move_cost`, `ended` | | As in the list. |
-| `pin` and `pin_label` | string | The own pin of the session, and the label of its account. |
+| `pin` and `pin_label` | string | The session's own pin, and that account's label. |
 | `started` | time | When its first request came. |
 | `resumed` | time | The latest time it came back after an hour or more without a request. |
 | `kept_until` | string | For an ended session, the last day the ledger keeps the lines of its first day. |

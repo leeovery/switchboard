@@ -4,11 +4,17 @@ Each entry in `accounts` of the [status document](status-json.md) is one account
 the order of the config. It says how full each window is, and what holds the account back.
 
 ```bash
-switchboard status --json | jq '.accounts[0] | {id, label, plan, token_set}'
+switchboard status --json | jq \
+  '.accounts[0] | {id, label, plan, token_set}'
 ```
 
 ```json
-{"id": "b6s7", "label": "work", "plan": "max", "token_set": true}
+{
+  "id": "b6s7",
+  "label": "work",
+  "plan": "max",
+  "token_set": true
+}
 ```
 
 ## The account
@@ -17,7 +23,7 @@ switchboard status --json | jq '.accounts[0] | {id, label, plan, token_set}'
 |---|---|---|
 | `id` | string | The id of the account. |
 | `label` | string | Its label. |
-| `primary` | boolean | Set on the primary. |
+| `primary` | boolean | Set on the [primary](../glossary.md). |
 | `reserve` | number | Its reserve, as a fraction. |
 | `plan` | string | `pro`, `max` or `ultra`, as configured. Left out if unknown. |
 | `fetched_at` | time | When its usage was read. |
@@ -63,7 +69,7 @@ Each window holds these:
 
 - **`per`** is `hour` for a window of a day or less, and `day` for a longer one. If the reset comes
   within one of those, `per` is left out and `share` is the total.
-- **An Ultra account** has no `5h` window, once switchboard has read it.
+- **A verified Ultra account** has no `5h` window.
 
 ## What the router adds
 

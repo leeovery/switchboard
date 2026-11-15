@@ -1,6 +1,6 @@
 # The session hook
 
-`setup` adds a SessionStart hook to the settings of Claude Code. It tells you when a session starts
+`setup` adds a SessionStart hook to Claude Code's settings. It tells you when a session starts
 without going through switchboard. For why that happens, see
 [Claude and switchboard](../claude-and-switchboard.md).
 
@@ -19,7 +19,7 @@ without going through switchboard. For why that happens, see
 ## The entry
 
 - The entry is a group of its own under `hooks.SessionStart` in `settings.json`, with no matcher.
-- The path is the one of the switchboard that ran `setup`.
+- The path is the one `setup` ran from.
 - `setup` knows the entry by the shape of its command: the same path in both places, naming a
   binary called `switchboard`.
 

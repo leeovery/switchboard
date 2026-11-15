@@ -6,8 +6,8 @@ it. For why it works this way, see [Limits and routing](../limits-and-routing.md
 ```console
 $ switchboard events
   09:00  18bb2c41  started   work
-  10:00            pressure  work              its 5-hour to run out at 12:30
-  11:40  18bb2c41  moved     work → personal   work reached its limit
+  10:00            pressure  work  …
+  11:40  18bb2c41  moved     work → personal  …
 ```
 
 | Rule | Value |
@@ -27,8 +27,7 @@ set.
 
 ## Choosing an account
 
-The candidates are the accounts with room in every window that the model of the session counts
-against. Each gets a score: the room left in its shared week, divided by the hours until that week
+The candidates are the accounts with room in every window the session's model counts against. Each gets a score: the room left in its shared week, divided by the hours until that week
 resets. So quota that resets tomorrow is used before quota that resets next week. An account with
 little left scores low, unless its week resets soon.
 
@@ -52,6 +51,9 @@ warm turn. So the router keeps each session where it is:
 | The session resumes in its pool | Finds its account again. |
 | The session resumes in another pool | Counts as a new session there. |
 
+A session resumed in another pool keeps its account in the first pool, for the process still
+running there.
+
 A Claude Sonnet 5.5 session never moves for idling or a compaction, because its thinking works only
 on the account that produced it. A pin of one session holds it through a compaction too.
 
@@ -64,7 +66,7 @@ because only the system prompt and tools have to be cached again.
 At the first request after a compaction, the router looks at the account it would pick for a new
 session. The session moves there if both hold:
 
-- the week of that account resets sooner than the week of its own account;
+- that account's week resets before the week of the session's current account;
 - at its recent rate, that week would reset with more than 2% unused, above any reserve.
 
 ## Pressure
@@ -78,9 +80,12 @@ account heading for its limit.
   back, the rate is the use since the window started.
 - **Under pressure:** at that rate, the window would reach the reserve before it resets. For an
   account without a reserve, or a pinned account, the mark is the limit.
-- **What moves:** a new session, a request without a session, a session chosen afresh after an
-  idle hour, and a move after a compaction. Each goes to the best account not under pressure,
-  pinned accounts first.
+- **What moves:** each of these goes to the best account not under pressure, pinned accounts
+  first:
+  - a new session, and a request without a session;
+  - a session chosen afresh after an idle hour;
+  - a move after a compaction;
+  - a session moved off an account that can't serve it, or whose own pin gives way.
 - **What stays:** running sessions, and a session with a pin of its own.
 
 An account without a 5-hour window is never under pressure. When every account is under pressure,
@@ -104,10 +109,10 @@ refusal. These are the finer points:
 ## Where a week runs out
 
 Runway and `status` say when each week runs out, such as `out ~Tue`. Or they say how full it will
-be at its reset, such as `on pace for 92%`. The pace of one account is a poor guide, because the router
-decides where use goes. So switchboard plays the use of the whole pool forward a week, through the
-choices the router would make. The forecast is only for showing: the router routes on its own
-rates.
+be at its reset, such as `on pace for 92%`. The pace of one account is a poor guide, because the
+router decides where use goes. So switchboard plays the use of the whole pool forward a week,
+through the choices the router would make. The forecast is only for showing: the router routes on
+its own rates.
 
 - **How fast the pool is used:** the rate over the last day, plus the gap between that and the last
   hour or so. That gap fades: about a third is left after three hours, and a twentieth after nine.
@@ -126,15 +131,17 @@ A week runs out when its use reaches the reserve before it resets. Without a res
 pin spends the reserve, it runs out at the limit. Otherwise the forecast gives the use at the
 reset, never rounded up: a week heading for 99.6% reads 99%.
 
-Without the rates of the router, for example when `status` probes the accounts itself, a week
-goes at the pace of its use so far. The 5-hour window runs out at its recent rate, as pressure
+Without the router's rates, a week goes at the pace of its use so far. That happens when `status`
+probes the accounts itself, or reads an older router that gives no rates. The 5-hour window runs out at its recent rate, as pressure
 judges it.
 
 | How far off | How the run-out shows |
 |---|---|
 | Within a day | The time, such as `out ~16:05` or `out ~Mon 05:22` |
-| One to six days | The day only, such as `out ~Tue`, because a forecast that far out can miss by a day |
-| Six to seven days, on the same weekday as today | The day and the date, such as `out ~Thu 12 Nov` |
+| One day to under six | The day only, such as `out ~Tue` |
+| Six to seven days, on the weekday of today | The day and the date, such as `out ~Thu 12 Nov` |
+
+Past a day, the run-out shows the day only, because a forecast that far out can miss by a day.
 
 ## Related
 

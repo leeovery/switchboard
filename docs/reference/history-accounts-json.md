@@ -5,13 +5,19 @@ The blocks of [`history` JSON](history-json.md) that look at each account: `week
 worth, and whether you have the right number of accounts.
 
 ```bash
-switchboard history --json | jq '.totals.accounts[] | {account, label, requests, worth}'
+switchboard history --json | jq -c \
+  '.totals.accounts[]
+  | {account, all, requests}'
 ```
 
 ```json
-{"account": "b6s7", "label": "work", "requests": 5120, "worth": 812.4}
-{"requests": 9031, "worth": 1490.25}
+{"account":"b6s7","all":null,"requests":5120}
+{"account":"q4tx","all":null,"requests":3911}
+{"account":null,"all":true,"requests":9031}
 ```
+
+`jq` gives `null` for a field the entry leaves out. The last entry has no `account`, and has
+`all` set.
 
 ## Per account, then all together
 
@@ -126,10 +132,15 @@ Each entry in `capacity.accounts` judges the whole weeks of that account:
 | `left_at_reset` | number | What it had left at a reset, on average: left of its limit, not of its cap. |
 | `without_it` | number | How many weeks the rest would have been short without it. |
 
-| On | `verdict` is one of |
-|---|---|
-| An account | `could go`, `barely used`, `hits its limit most weeks`, `plenty to spare most weeks`, `ends most weeks with room` |
-| The `all` entry | `room to spare together`, `little to spare together` |
+On an account, `verdict` is one of these:
+
+- `could go`
+- `barely used`
+- `hits its limit most weeks`
+- `plenty to spare most weeks`
+- `ends most weeks with room`
+
+On the `all` entry, it's `room to spare together` or `little to spare together`.
 
 ## `removed`
 

@@ -5,11 +5,18 @@ the state directory, a file a day. An event can change, so if one appears more t
 version is how it stands. The Log on the dashboard and `switchboard events` show the same events.
 
 ```bash
-switchboard events --json | tail -1
+switchboard events --json | tail -1 \
+  | jq '{id, kind, from, to, reason}'
 ```
 
 ```json
-{"schema":1,"pool_label":"Acme","id":42,"at":"2026-11-12T14:05:11Z","kind":"moved","pool":"q7mt","session":"5f0c…","model":"claude-opus-5-5","from":"b6s7","to":"t3pz","reason":"moved: b6s7 hit its limit","run":"2026-11-12T08:00:03Z"}
+{
+  "id": 42,
+  "kind": "moved",
+  "from": "b6s7",
+  "to": "q4tx",
+  "reason": "moved: b6s7 hit its limit"
+}
 ```
 
 `events --json` prints each line as it's stored, with `"schema": 1` put first. With pools, it puts
@@ -49,7 +56,7 @@ switchboard events --json | tail -1
 | Field | Type | Meaning |
 |---|---|---|
 | `account` | string | The account the event befell. |
-| `accounts` | list of strings | The accounts a pin of a pool names, in the config order. |
+| `accounts` | list of strings | On a pool's `pin` or `auto`, the accounts its pin names, in the config order. |
 | `pool` | string | The id of the pool the event is of. |
 | `session` | string | The session that started or moved, or whose own pin changed. |
 | `model` | string | The model whose requests started or moved. |
@@ -57,8 +64,9 @@ switchboard events --json | tail -1
 | `from` | string | The account a session moved from. |
 | `to` | string | The account a session moved to. |
 
-- **`account`** on a `pin` event is the first account the pin names. On a session pin or `auto`,
-  it's the account of that pin.
+- **`account`** on the `pin` of a pool is the first account the pin names. On the `pin` or `auto`
+  of one session, it's the account that session pin names. The `auto` of a pool has no `account`,
+  only `accounts`.
 - **`to`** on a `limit`, `cap` or `refused` event is where every session it moved went, if they
   all went to one account.
 - **`dir`** is left out if none was known yet, and on events written before switchboard recorded
@@ -94,7 +102,7 @@ Once the move is done, an event of these kinds without a pool is in the first po
 | `restart` | Why the restart is due, in words for a person. |
 | `health` | Why the router turned unhealthy, in words for a person. |
 
-- **`joined`** shows, for example, the 5-hour window joining a cap on the week of Fable. A window
+- **`joined`** shows, for example, the 5-hour window joining a cap on Fable's week. A window
   it leaves out was held from `at`. It's left out if no window joined.
 - **`until`** is brought forward to the lift if a limit or a refusal lifts early.
 
@@ -107,7 +115,7 @@ Once the move is done, an event of these kinds without a pool is in the first po
 | `forced_by` | number | On `moved`, the `id` of the limit, cap or refusal event that counts this move. |
 | `reserve` | number | On `cap`, the reserve of the account. |
 | `status` | number | On `refused`, the HTTP status the API refused with. |
-| `family` | string | On `refused`, for a request refused alone, the model family the refusal holds back. |
+| `family` | string | On `refused`, if the API refused the request rather than the token, the model family it holds back. |
 | `move` | boolean | On `pin`, set if the pin moves the running sessions too. |
 | `force` | boolean | On `pin` and `auto`, set if the pin cleared the pin of every session. |
 | `by` | string | What set or cleared a pin: `cli`, `dashboard` or `router`. |

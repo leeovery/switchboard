@@ -5,11 +5,16 @@ lines. The summary outlasts the lines: once they go, it's kept for good. `histor
 read it. For what the record is good for, see [Your record](../your-record.md).
 
 ```bash
-jq '{version, day, lines}' ~/.local/state/switchboard/ledger/day-2026-11-12.json
+cd ~/.local/state/switchboard/ledger
+jq '{version, day, lines}' day-2026-11-12.json
 ```
 
 ```json
-{"version": 7, "day": "2026-11-12", "lines": 1840}
+{
+  "version": 7,
+  "day": "2026-11-12",
+  "lines": 1840
+}
 ```
 
 ## The top level
@@ -25,12 +30,12 @@ jq '{version, day, lines}' ~/.local/state/switchboard/ledger/day-2026-11-12.json
 A summary of version 6 or older holds all its work in no pool. A day with no requests, and no
 account read, has no `accounts`.
 
-## The day of an account
+## An account's day
 
 | Field | Type | Meaning |
 |---|---|---|
 | `account` | string | The account, by id only. Left out of the requests no account answered. |
-| `pool` | string | The pool all the work of the account was in that day. |
+| `pool` | string | The pool all the account's work was in that day. |
 | `models` | list of objects | The requests of the account, by the model each asked for. |
 | `sessions` | number | How many sessions the requests were of. |
 | `session_ids` | list of strings | The ids of those sessions. |
@@ -44,7 +49,7 @@ account read, has no `accounts`.
 - the requests were in more than one pool;
 - the account did no work that day.
 
-A pool where the account did no work, such as one named only by a move that moved no session, isn't
+A pool in which the account did no work, such as one named only by a move that moved no session, isn't
 counted.
 
 ## Window fields
@@ -104,7 +109,7 @@ request.
 
 The day of the requests no account answered splits the same way.
 
-Once the move to pools is done, work in no pool is the work of the first pool. That covers requests
+Once the move to pools is done, work in no pool counts as the first pool's. That covers requests
 filed without a pool since, for example by an older release after a downgrade. The first pool is
 the one the [accounts record](accounts-record.md) marks `first`, if the config has it. If not, it's
 the first pool in the config.
@@ -124,7 +129,7 @@ An account gets a day of its own if any of these is true:
 - **A day with requests** gets a summary an hour after it ends.
 - **A day with no requests** gets one if the router read an account, or saw a window reset, that
   day. It waits until the readings history holds the week before. Otherwise a window already at
-  its limit when the history began would read as reaching its limit that day.
+  its limit when the readings history began would read as reaching its limit that day.
 - **A day that ended while the router was stopped** gets one when the router starts again. That
   happens before the readings of the day can go.
 

@@ -5,11 +5,21 @@ the state directory, a file a day. A line keeps everything about a request excep
 what the record is good for, see [Your record](../your-record.md).
 
 ```bash
-switchboard requests --json | head -1
+switchboard requests --json | tail -1 \
+  | jq '{at, kind, model, pool, account,
+         reason, status}'
 ```
 
 ```json
-{"schema":1,"pool_label":"Acme","at":"2026-11-12T09:30:01.204Z","request":"3f2a91c4","kind":"message","session":"5f0c…","dir":"~/Code/acme","pool":"q7mt","model":"claude-opus-5-5","account":"b6s7","reason":"sticky","status":200,"attempts":1,"first_ms":812,"total_ms":9450, …}
+{
+  "at": "2026-11-12T09:30:01.204Z",
+  "kind": "message",
+  "model": "claude-opus-5-5",
+  "pool": "q7mt",
+  "account": "m2kp",
+  "reason": "sticky",
+  "status": 200
+}
 ```
 
 `requests --json` prints each line as it's stored, with `"schema": 1` put first. With pools, it
@@ -27,7 +37,7 @@ puts `pool_label` after it too.
 | Field | Type | Meaning |
 |---|---|---|
 | `at` | time | When the request arrived, in UTC, to the millisecond. |
-| `request` | string | The router id for the request, as the routed line in the log gives it. |
+| `request` | string | The router's id for the request, as its routed line in the log gives it. |
 | `kind` | string | `message`, `check` for a quota check by Claude Code, or `count` for a count of tokens. |
 | `session` | string | The session id of the request. |
 | `dir` | string | The directory `claude` started Claude Code in, with your home as `~`. |
@@ -65,15 +75,15 @@ puts `pool_label` after it too.
 | `attempts` | number | How many times the request went upstream. `0` if the router answered it itself. |
 | `first_ms` | number | Milliseconds from arrival until the first byte of the answer reached the client. |
 | `total_ms` | number | Milliseconds from arrival until the answer ended. |
-| `agent` | string | The user agent of the client. |
+| `agent` | string | The client's user agent. |
 | `betas` | list of strings | The features the request asked the API for beyond its version. |
 
-Only one of `canceled`, `cut_off` and `broken` is set, whichever came first. `first_ms` is left out
+At most one of `canceled`, `cut_off` and `broken` is set: whichever came first. `first_ms` is left out
 if no byte reached the client.
 
 ## Hint fields
 
-These come from the headers of Claude Code. Each is left out if Claude Code sent no such header.
+These come from Claude Code's headers. Each is left out if Claude Code sent no such header.
 
 | Field | Type | Meaning |
 |---|---|---|
