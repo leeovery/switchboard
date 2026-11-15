@@ -114,7 +114,7 @@ cache_write_1h = 6.4
 |---|---|---|
 | `listen` | `127.0.0.1:4747` | The proxy's address, as `host:port`. |
 | `upstream` | `https://api.anthropic.com` | The API's base URL. |
-| `week_starts` | `monday` | The day calendar weeks start on, as [`history`](commands.md#history) counts them. |
+| `week_starts` | `monday` | The day calendar weeks start on, as [`history`](commands/history.md) counts them. |
 | `when_router_down` | `stop` | What `claude` does when the router can't be routed through, as when it isn't running: `stop` or `direct`. |
 
 - **`listen`:** The host must be a loopback IP address: `127.0.0.1`, or `::1` written as
@@ -168,7 +168,7 @@ in three places:
 - It compares what the plan costs with what the account's use was worth at API prices.
 - It sizes the account in the forecast of
   [where a week runs out](how-it-works.md#where-a-week-runs-out).
-- It sizes the account in [`history`](commands.md#history)'s replay of a week.
+- It sizes the account in [`history`](commands/history.md)'s replay of a week.
 
 An account's size is its plan's week, in Pro weeks: Pro 1, Max 5 and Ultra 10.
 
@@ -263,7 +263,7 @@ The day's summary is kept for good, whatever `keep` says.
 ## `[export]` keys
 
 This key sets a folder the router exports the history into, as it starts and every hour after, as
-[`export`](commands.md#export) would. The router makes the folder only where the folder it goes in
+[`export`](commands/export.md) would. The router makes the folder only where the folder it goes in
 is there, so a disk that isn't mounted fails the export. See
 [An export every hour](how-it-works.md#an-export-every-hour).
 
@@ -289,7 +289,7 @@ good.
 ## `[prices]` keys
 
 Switchboard carries its own prices, read from Anthropic's pricing page. These keys set prices in
-their place, for [`history`](commands.md#history), [`sessions`](commands.md#sessions) and the
+their place, for [`history`](commands/history.md), [`sessions`](commands/sessions.md) and the
 [dashboard](dashboard.md) to price with.
 
 - Each price is a number from `0` to `1000000`.

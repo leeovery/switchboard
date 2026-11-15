@@ -6,11 +6,11 @@ This page shows where to look when switchboard doesn't do what you expect, and h
 
 - **Where things stand:** to see how each account stands and why, the router's health, any
   restart the router has due, and a move onto the accounts' ids or to pools it owes, run
-  [`switchboard status`](commands.md#status). To see whether the LaunchAgent is installed and
+  [`switchboard status`](commands/status.md). To see whether the LaunchAgent is installed and
   loaded, run [`switchboard service status`](commands.md#service).
 - **Why a request went where it did:** to follow the router's log, run `switchboard logs -f`. The log
   has a line for each request, with its account and why it went there. To look back over the days,
-  use [`requests`](commands.md#requests) and [`events`](commands.md#events).
+  use [`requests`](commands/requests.md) and [`events`](commands/events.md).
 - **A limit reset by hand:** to have the router read the accounts now, run `switchboard usage -r` or
   `status -r`, or press `R` on the dashboard.
 - **Not routed:** some of what Claude Code sends never reaches the router. See
@@ -108,7 +108,7 @@ This page shows where to look when switchboard doesn't do what you expect, and h
   starts, and where it can't, as when it can't write the LaunchAgent, its log says why at warn
   (`can't move over to the router's own copy of switchboard`). Run
   `switchboard service install` to write the LaunchAgent afresh. See
-  [Restarting in place](commands.md#restarting-in-place).
+  [Restarting in place](commands/serve.md).
 - **`service status` says launchd runs the router's copy from the next login:** launchd reads the
   LaunchAgent only as it loads it, at login, so after the router moved over to its copy, launchd
   starting the router again, as after a crash, starts switchboard itself, as before the copy, until
@@ -341,7 +341,7 @@ log has a failure at warn, once until an export succeeds, and the first that suc
   export, which the router can't remove. That doesn't fail the export. The line names the file:
   check its permissions, and whether it or its folder is locked in the Finder, or remove it by
   hand.
-- **To export now:** run [`switchboard export <dir>`](commands.md#export), which needs no router.
+- **To export now:** run [`switchboard export <dir>`](commands/export.md), which needs no router.
   macOS asks about your terminal apart from the router, so an export that works from the terminal
   says nothing of what the router is allowed.
 
@@ -398,4 +398,4 @@ time=2026-09-28T14:12:00.123+01:00 level=INFO msg=routed component=router pid=42
 - **Never in the way:** no command logs to stdout or stderr, except `serve` at a terminal. So
   `--json` and the dashboard stay clean. No command fails because it couldn't log.
 
-To print and follow the logs, use [`switchboard logs`](commands.md#logs).
+To print and follow the logs, use [`switchboard logs`](commands/logs.md).
