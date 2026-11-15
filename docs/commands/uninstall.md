@@ -26,7 +26,7 @@ The paths it prints are whole. They're written from `~` here.
 
 | Flag | Default | What it does |
 |---|---|---|
-| `--all` | off | Also removes the config, the token files of the accounts, and the recorded history. |
+| `--all` | off | Also removes the config, the accounts' token files, and your record. |
 
 ## What it removes
 
@@ -37,10 +37,9 @@ The paths it prints are whole. They're written from `~` here.
    notifications app.
 2. **The startup line** that `setup` added to your shell startup files, and the shell files that
    the line loads, with the bash completions.
-3. **The session hook,** the entry of switchboard in the SessionStart hooks of Claude Code, in
-   `settings.json`. Every other setting and hook stays as it is.
-4. **The skill,** in the config directory of Claude Code.
-5. **The `claude` link** in the bin directory of switchboard, if it's a link to a `switchboard`.
+3. **The session hook,** the entry `setup` added to the SessionStart hooks in `settings.json`. Every other setting and hook stays as it is.
+4. **The skill,** in the Claude Code config directory.
+5. **The `claude` link** in the switchboard bin directory, if it's a link to a `switchboard`.
    Anything else named `claude` there stays, and `uninstall` says so.
 6. **The bin directory and the data directory,** `~/.local/share/switchboard`, each only if nothing
    else is in it. If something is left in the data directory, `uninstall` says it's kept.
@@ -50,7 +49,7 @@ It never touches the switchboard binary itself, which belongs to Homebrew.
 ## What stays, and what --all removes
 
 Without `--all`, the config, the token files and everything recorded in the state directory stay.
-That's the ledger, the readings, the events, the logs and the state of the router. A reinstall
+That's the ledger, the readings, the events, the logs and the router's state. A reinstall
 carries on where it left off.
 
 `--all` removes them too: the config directory, with any themes of your own, and the state
@@ -68,7 +67,7 @@ directory, wherever the environment puts them. Nothing asks first, because the f
 `uninstall` never touches the export folder, wherever it is. See
 [Several Macs](../several-macs.md) for exports.
 
-The setup tokens of your accounts stay valid on the side of Anthropic until their year is out,
+Your accounts' setup tokens stay valid on Anthropic's side until their year is out,
 whether or not their files are removed. `uninstall` says so.
 
 ## The startup line
@@ -82,8 +81,7 @@ whether or not their files are removed. `uninstall` says so.
 | fish | `~/.config/fish/config.fish`, and `config.fish` where fish says it reads it |
 
 It asks a zsh or fish login shell where it reads its file, the way `setup` does. The `ZDOTDIR` of
-the terminal you run `uninstall` in, such as the one of an editor, may not be the one of a new
-terminal.
+the terminal you run `uninstall` in, an editor's for example, may not be a new terminal's.
 
 - **If the shell can't be asked,** or `$SHELL` isn't set, `uninstall` says it couldn't look there.
   It doesn't say the line isn't there. A line left behind does nothing once the shell files are gone.
@@ -107,13 +105,16 @@ The service line says both if the LaunchAgent went but the notifications app cou
 ## Examples
 
 ```bash
-switchboard uninstall         # keeps the config, the tokens and the history
-switchboard uninstall --all   # removes those too
-brew uninstall switchboard    # last, removes switchboard itself
+# keeps the config, the tokens and your record
+switchboard uninstall
+# removes those too
+switchboard uninstall --all
+# last, removes switchboard itself
+brew uninstall switchboard
 ```
 
 ## Related
 
 - [Setup](setup.md): what `uninstall` takes away.
 - [Service](service.md): remove only the service.
-- [Several Macs and backups](../several-macs.md): keep a copy of your history before `--all`.
+- [Several Macs and backups](../several-macs.md): keep a copy of your record before `--all`.

@@ -130,6 +130,20 @@ A running session keeps the token it started with:
 
 The router keeps none of these tokens, only their SHA-256 hashes.
 
+## How `accounts token` checks the subscription
+
+`switchboard accounts token` saves a token only if it's for the account's own subscription.
+
+| If | Then |
+|---|---|
+| The account's subscription isn't known yet | The token's subscription is taken as the account's own. |
+| The API names no subscription for the token | The token is saved. |
+| The token is for another subscription | Nothing is saved. |
+
+The message for another subscription is `the token is for another subscription, so nothing is
+saved: add it as an account of its own`. It names the account that has the token, if this Mac has
+one.
+
 ## Related
 
 - [Configuration](../configuration.md): the config, which holds no tokens.

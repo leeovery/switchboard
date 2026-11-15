@@ -29,14 +29,16 @@ WEEK
 The bars are drawn in colour, so their fill doesn't show in the text above. The 5-hour window and
 the week of each model follow the week, cut here.
 
-`usage` reads the status document of the router while the router answers. Otherwise it probes
-each account itself. Off a terminal, such as in a pipe or the shell of an agent, it prints the status
+`usage` reads the router's status document while the router answers. Otherwise it probes
+each account itself. Off a terminal, such as in a pipe or an agent's shell, it prints the status
 document as JSON instead, the same as [`status --json`](status.md).
 
 ## Flags
 
 ```bash
-switchboard usage [--5h] [--week] [--<model>] [--by window|account] [--pool <id>] [--probe] [-r] [--json | --pretty]
+switchboard usage [--5h] [--week] [--<model>] \
+  [--by window|account] [--pool <id>] \
+  [--probe] [-r] [--json | --pretty]
 ```
 
 | Flag | Default | What it does |
@@ -68,12 +70,12 @@ From the top, `usage` prints:
 3. The `Σ pool` row, last in each window.
 4. A key line saying what the marks mean.
 
-Each row is an account, in the order the router uses, which is the order of the config once the
+Each row is an account, in the order the router uses, which is config order once the
 router has taken it up.
 
 | Part | What it shows |
 |---|---|
-| Label | The label of the account. `◆` marks the primary, and `▲` the account new sessions go to. |
+| Label | The account's label. `◆` marks the primary, and `▲` the account new sessions go to. |
 | Bar | How much of the window is used. `┃` marks where even use would have put it by now. `╎` marks the cap: 100% less the reserve. |
 | Percentage | How much of the window is used. |
 | Words | The first state in the next table that holds. |
@@ -82,7 +84,7 @@ router has taken it up.
 
 | Words | When they show |
 |---|---|
-| `limit · back 15:54` | The limit of Claude holds the window. |
+| `limit · back 15:54` | Claude's limit holds the window. |
 | `at cap · back 17:10` | The window has reached the cap, so the router holds the account back. |
 | `out ~16:05` | The window runs out before it resets. Within a day, the time shows. |
 | `out ~Sat` | It runs out more than a day ahead, so the day shows only, because a forecast days out can miss by a day. |
@@ -90,7 +92,7 @@ router has taken it up.
 | `no 5-hour limit` | The account has no 5-hour window, such as a verified Ultra account. It shows in place of the bar, or as `no limit` where room is short. |
 | `not started` | The 5-hour window hasn't started yet. |
 | `19%/day till Sun 21:00` | Otherwise, the allowance: how much you can spend an hour or a day and still last to the reset. |
-| `34% till 16:30` | In place of the allowance, under an hour from the reset of the 5-hour window, or under a day from the reset of a week: the room itself. |
+| `34% till 16:30` | In place of the allowance, under an hour from the 5-hour window's reset, or under a day from a week's reset: the room itself. |
 
 A week runs out by its forecast, and the 5-hour window by its recent rate. See
 [Limits and routing](../limits-and-routing.md).
@@ -107,7 +109,7 @@ A week runs out by its forecast, and the 5-hour window by its recent rate. See
 ### The Σ pool row
 
 The `Σ pool` row sums the room of the open accounts: every account in the pool, or only the pinned
-ones while a pin holds. It shows wherever there's more than one account.
+ones while a pin holds. It shows if there's more than one account.
 
 - **Its percentage** is the mean use of those accounts, each as its own row shows it. An account
   without a usable token, never read, or with a refused token, is left out.
@@ -121,7 +123,7 @@ ones while a pin holds. It shows wherever there's more than one account.
 
 Every window shows, used or not. The Fable week shows on every account, at 0% as at 40%.
 
-`usage` learns which windows an account has from the answers of the API, never from its plan. A
+`usage` learns which windows an account has from the API's answers, never from its plan. A
 verified Ultra account reports no 5-hour window. Stacked, a window leaves out an account that
 doesn't have it. A window no account has doesn't show at all. An account not read yet may have
 any window, so it keeps its rows.
@@ -146,18 +148,26 @@ them. Once there's a second pool, the text names the pool it read, such as `pool
 | If | `usage` |
 |---|---|
 | `--pool` names a pool the config no longer has | Refuses it, because the router routes nothing there. |
-| The router still runs from before pools | Probes the accounts of the pool itself, and says `the router doesn't route by pools yet, as it started before them: restart it with switchboard service restart`. |
+| The router still runs from before pools | Probes the pool's accounts itself, and says `the router doesn't route by pools yet, as it started before them: restart it with switchboard service restart`. |
 
 ## How the width shapes it
 
-| Part | Wide terminal | Narrow terminal |
+| Part | Wide | Narrow |
 |---|---|---|
-| By window | The windows sit side by side, a column each. That needs bars of 12 cells and short words: from 86 columns with two windows and short names, or 122 with three. | Each window is a section of its own, stacked. |
-| By account | The name of each account sits beside its first bar, from 60 columns with short names. | The name is on a line of its own, above the bars. |
-| Header | One line, if the date and the whole status fit, every part said in full. That's from 84 columns for a healthy router with short names. | Two lines, so one line never says less than two would. |
-| Key line | One line, if it fits beside the names. | Two lines. The second names the cap, if a bar draws one. |
-| Words | In full. | Short, such as `back 15:54`, `out ~Sat` and `19%/day · Thu`. |
-| Name column | As wide as the longest label, up to 24 cells. | A longer label is cut with `…`. |
+| By window | Windows side by side | Windows stacked |
+| By account | Name beside the first bar | Name on its own line |
+| Header | One line | Two lines |
+| Key line | One line | Two lines |
+| Words | In full | Short, such as `out ~Sat` |
+| Name column | Up to 24 cells | A longer label is cut with `…` |
+
+- **Side by side** needs bars of 12 cells and short words: 86 columns with two windows and short
+  names, or 122 with three.
+- **A name beside its bar** needs 60 columns with short names.
+- **The header** takes one line only if every part fits in full, from 84 columns for a healthy
+  router with short names. So one line never says less than two would.
+- **The second key line** names the cap, if a bar draws one.
+- **Short words** include `back 15:54` and `19%/day · Thu`.
 
 As the terminal narrows, the bars shorten to 12 cells first, then the words go short.
 
@@ -169,7 +179,7 @@ The name column never moves as `▲` moves between accounts.
 
 ## Colour
 
-`usage` draws in the theme of the dashboard, brought down to what the terminal shows, with no
+`usage` draws in the dashboard's theme, brought down to what the terminal shows, with no
 background of its own. See [Dashboard](../dashboard.md) for themes. With `NO_COLOR` set, or on a
 terminal that shows no colour, a bar fills with `█` and leaves its track as spaces. Names and
 percentages stay bold.
@@ -177,11 +187,17 @@ percentages stay bold.
 ## Examples
 
 ```bash
-switchboard usage                  # every window, every account
-switchboard usage --5h             # the 5-hour window only
-switchboard usage --by account     # each account's windows together
-switchboard usage --probe          # read every account from the API, whatever the router says
-switchboard usage -r               # have the router read every account first, after a reset made by hand
+# every window, every account
+switchboard usage
+# the 5-hour window only
+switchboard usage --5h
+# each account's windows together
+switchboard usage --by account
+# read every account from the API
+switchboard usage --probe
+# have the router read every account first,
+# after a reset made by hand
+switchboard usage -r
 ```
 
 ## Related

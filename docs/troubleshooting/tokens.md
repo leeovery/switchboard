@@ -36,6 +36,12 @@ switchboard status --json   # the account is marked token_foreign
 switchboard events          # a foreign event says when it was found
 ```
 
+## An account added on another Mac
+
+An account added on another Mac that shares the config may have no subscription known here yet.
+Its first probe then records its token's subscription as the account's own. If another account has
+that subscription already, it reads `wrong token`.
+
 ## Related
 
 - [`switchboard accounts`](../commands/accounts.md): adding accounts and giving them tokens.
