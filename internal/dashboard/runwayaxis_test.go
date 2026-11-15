@@ -186,3 +186,72 @@ func labelAt(c *canvas, col int) string {
 	}
 	return label.String()
 }
+
+// Runway's axis starts on the row under its heading, as its first row,
+// holding now alone, keeps the lanes off it: with no blank row between, at
+// every size and form, the phone's, the account column collapsed and the
+// lanes scrolled; and while the forecast is learning, the line saying so
+// takes that row, then a blank row, then the axis.
+func TestRunwaysAxisStartsOnTheRowUnderItsHeading(t *testing.T) {
+	learning := []string{learningLine[0].text, "", "now"}
+	tests := []struct {
+		name                          string
+		width, height                 int
+		learning, collapsed, scrolled bool
+		want                          []string
+	}{
+		{name: "wide", width: 160, height: 37, want: []string{"now"}},
+		{name: "wide, learning", width: 160, height: 37, learning: true, want: learning},
+		{name: "wide, collapsed", width: 160, height: 37, collapsed: true, want: []string{"now"}},
+		{name: "wide, its lanes scrolled", width: 160, height: 16, scrolled: true, want: []string{"now"}},
+		{name: "on a phone", width: 52, height: 33, want: []string{"now"}},
+		{name: "on a phone, learning", width: 73, height: 61, learning: true, want: learning},
+		{name: "on a phone, collapsed", width: 52, height: 33, collapsed: true, want: []string{"now"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f, doc, at := runwayFramedAt(t, "the auto world's week view", tt.width, tt.height)
+			lanes := *f.Runway.Lanes
+			lanes.Learning = tt.learning
+			f.Runway.Lanes, f.Runway.Collapsed = &lanes, tt.collapsed
+			fit := f.runwayFitted(f.top())
+			if scrolled := fit.step == runwayScrolled && fit.shown < fit.accounts; scrolled != tt.scrolled {
+				t.Fatalf("at %d by %d, its lanes scroll %t, want %t", tt.width, tt.height, scrolled, tt.scrolled)
+			}
+			rows := textOf(f.Draw(doc, at))
+			heading := slices.IndexFunc(rows, func(r string) bool { return strings.HasPrefix(r, "RUNWAY ") })
+			if heading < 0 || heading+len(tt.want) >= len(rows) {
+				t.Fatalf("the frame reads\n%s\nwant Runway's heading row", strings.Join(rows, "\n"))
+			}
+			got := make([]string, len(tt.want))
+			for i, row := range rows[heading+1 : heading+1+len(tt.want)] {
+				got[i] = strings.TrimSpace(row)
+			}
+			if !slices.Equal(got, tt.want) || fit.axis != heading+len(tt.want) {
+				t.Errorf("under its heading, on row %d, Runway reads %q, its axis fitted on row %d; want %q, the axis on row %d",
+					heading, got, fit.axis, tt.want, heading+len(tt.want))
+			}
+		})
+	}
+}
+
+// Every tab with a heading row but Runway leaves a blank row under it, its
+// view starting on the row after, wide and on a phone; Runway's starts on
+// the row under it.
+func TestEveryTabButRunwayLeavesABlankRowUnderItsHeading(t *testing.T) {
+	for _, width := range []int{160, 52} {
+		for _, v := range Views() {
+			if v.headsItself() {
+				continue
+			}
+			f := Frame{Width: width, Height: 37, View: v}
+			want := f.headingY() + f.heading().rows(f.Width, f.phone()) + 1
+			if v == Runway {
+				want--
+			}
+			if got := f.top(); got != want {
+				t.Errorf("%s at %d columns starts its view on row %d, want %d", v, width, got, want)
+			}
+		}
+	}
+}
