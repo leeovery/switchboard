@@ -275,7 +275,7 @@ func TestAgainstCompactSaysTheRatioOverThePlansKnown(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			page := phonePage(t)
 			page.All.Plan.Plans = tt.known
-			compare := textOf(phoneText(t, 52, 60, AccountsCompare, "", page, nil).Draw(phoneDoc(), routedAt))
+			compare := textOf(phoneText(t, 52, turnedRows, AccountsCompare, "", page, nil).Draw(phoneDoc(), routedAt))
 			if want := " all         $600/mo      $635         " + tt.want; !slices.Contains(compare, want) {
 				t.Errorf("Compare reads\n%s\nwant a row %q", strings.Join(compare, "\n"), want)
 			}
