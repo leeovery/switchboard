@@ -35,6 +35,10 @@ A Mac still on an earlier version finds the config naming ids it has no token fi
 every Mac that shares the config. A Mac that upgrades while the network is down waits to join its
 accounts to the ids the first Mac made. It carries on once the API answers.
 
+The move onto pools works the same way. If another Mac that shares the config moved first, its
+first pool becomes the first pool here. A Mac that moves before that pool reaches its config makes
+a pool of its own, which shows as removed once the configs agree.
+
 ## A day file set aside as damaged
 
 The move repairs a compressed day file it finds damaged as it rewrites it. It keeps the lines
