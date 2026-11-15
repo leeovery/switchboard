@@ -13,10 +13,14 @@ of plans.*
 ## Try it
 
 ```bash
-switchboard history                   # the last 30 days: requests, tokens, sessions and worth, against each plan
-switchboard sessions                  # today's sessions, each with its requests and worth
-switchboard requests --since 14:00    # every request since 14:00, one line each
-switchboard dashboard                 # then press tab to reach History, Sessions or the Log
+# The last 30 days, priced against each plan
+switchboard history
+# Today's sessions, with their requests and worth
+switchboard sessions
+# Every request since 14:00, one line each
+switchboard requests --since 14:00
+# Then press tab for History, Sessions or the Log
+switchboard dashboard
 ```
 
 The first three don't need the router, because they read the record from its files.
@@ -24,15 +28,17 @@ The first three don't need the router, because they read the record from its fil
 ## What happens
 
 - The router writes a line for each request as the request finishes, into a file a day.
-- A line holds the session, the folder it ran in, the model, the account and why the request went
-  there. It also holds the timing, the size and settings of the request, the usage the answer
-  gave, and the names of the tools the answer called.
+- A line holds:
+  - the session, the folder and the model;
+  - the account, and why the request went there;
+  - the timing, size and settings of the request;
+  - the usage the answer gave, and the names of the tools it called.
 - A line never holds a prompt or a reply. It counts the messages and tools a request carries, but
   holds none of their text, and none of what Claude writes back.
-- The router also records each change in the use of a window, and each of its own events, such as a
-  move or a limit.
+- The router also records each change in the use of a window. It records its own events too, such
+  as a move or a limit.
 - An hour after each day ends, the router writes a summary of the day, which is kept for good.
-- Worth is priced at the API prices switchboard carries, read from the pricing page of Anthropic.
+- Worth is priced at the API prices switchboard carries, read from Anthropic's pricing page.
   Plan cost comes from the `plan` you give each account.
 
 ## Good to know
@@ -41,8 +47,8 @@ The first three don't need the router, because they read the record from its fil
   windows in `history/`.
 - Day files are kept for 400 days. Set `keep` under `[ledger]` or `[history]` to a number of days,
   `8d` or more, or to `forever`. The daily summaries stay whatever `keep` says.
-- The record holds only the requests of this Mac. Use from another Mac or the Claude apps shows in
-  the limits, but not in the tokens, worth or sessions.
+- The record holds the requests this Mac routed, and any you import from another Mac. Use from the
+  Claude apps shows in the limits, but not in the tokens, worth or sessions.
 - A model with no known price shows as unpriced, never free. An account without a `plan` has no
   cost to set its worth against.
 
@@ -50,7 +56,7 @@ The first three don't need the router, because they read the record from its fil
 
 | Key | Default | What it sets |
 |---|---|---|
-| `[ledger] keep` | `400d` | How long to keep the request lines and the events of the router. |
+| `[ledger] keep` | `400d` | How long to keep the request lines and the router's events. |
 | `[history] keep` | `400d` | How long to keep the readings of each window. |
 | `plan`, on an account | None | The plan, `pro`, `max` or `ultra`, which prices the account. |
 | `[prices.plans]` | Switchboard's prices | Your own price for a plan, in US dollars a month. |
@@ -59,10 +65,10 @@ The first three don't need the router, because they read the record from its fil
 
 Every flag of `history`, `sessions`, `requests` and `events` is in [Commands](commands.md). Every
 key is in [Configuration](configuration.md), and the file formats are in [Reference](reference.md).
-If an export fails, see [Troubleshooting](troubleshooting.md).
+If an export fails, see [Troubleshooting](troubleshooting/exports.md).
 
 ## Related
 
-- [Several Macs and backups](several-macs.md): export the record, and import it on another Mac.
+- [Several Macs](several-macs.md): export the record, and import it on another Mac.
 - [Dashboard](dashboard.md): what History, Sessions and the Log show.
 - [Claude and switchboard](claude-and-switchboard.md): how Claude reads the record for you.
