@@ -157,17 +157,20 @@ type Config struct {
 	// it's one there is; Sections the Overview's sections they keep shown;
 	// By how they keep its windows grouped, else as the config's [usage] by
 	// has it; Models whether they keep the live views showing each model's
-	// own window; Graphs Graphs' sections they keep shown; and Log the Log's
-	// columns they keep shown, as dashboard.LogKept reads them. Prefs keeps
-	// each as it changes, and the theme picked, one write at a time, never in
-	// Update: nil keeps nothing.
-	View     dashboard.View
-	Sections dashboard.Sections
-	By       dashboard.By
-	Models   bool
-	Graphs   dashboard.GraphsSections
-	Log      dashboard.LogTicks
-	Prefs    Prefs
+	// own window; Graphs Graphs' sections they keep shown, and KeepGraphs
+	// whether the watch keeps those and Graphs as the tab shown as it opens,
+	// as dashboard.GraphsKept reads them; and Log the Log's columns they keep
+	// shown, as dashboard.LogKept reads them. Prefs keeps each as it changes,
+	// and the theme picked, one write at a time, never in Update: nil keeps
+	// nothing.
+	View       dashboard.View
+	Sections   dashboard.Sections
+	By         dashboard.By
+	Models     bool
+	Graphs     dashboard.GraphsSections
+	KeepGraphs bool
+	Log        dashboard.LogTicks
+	Prefs      Prefs
 	// Period is the period the preferences keep the entity tabs counting
 	// over, as dashboard.PeriodKept reads it, which Prefs keeps as it
 	// changes.
@@ -495,6 +498,9 @@ func New(ctx context.Context, cfg Config) Model {
 	m.accounts.shown.Accounts = cfg.Accounts
 	if m.after == nil {
 		m.after = after
+	}
+	if cfg.KeepGraphs {
+		m = m.keepGraphsShown()
 	}
 	return m
 }

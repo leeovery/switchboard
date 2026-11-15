@@ -102,6 +102,25 @@ func projectsShownOf(rows []views.ProjectRow, chosen int, project *views.Project
 	return ProjectsShown{Chosen: rows[chosen].Path, Page: &page, Project: project}
 }
 
+// With no session in the period, the list says so as the List does, the
+// period in its words.
+func TestTheProjectsListOfNoSessionsSaysSoAsTheListDoes(t *testing.T) {
+	for _, tt := range []struct {
+		period views.Period
+		want   string
+	}{
+		{views.PeriodToday, "no sessions today"},
+		{views.PeriodThisWeek, "no sessions this week"},
+		{views.PeriodThirtyDays, "no sessions in the last 30 days"},
+	} {
+		f := frameOf(108, 30)
+		f.View, f.Period, f.Projects = Projects, tt.period, ProjectsShown{Page: &views.ProjectsPage{Period: tt.period}}
+		if got := strings.Join(textOf(f.Draw(threeRouted(), routedAt)), "\n"); !strings.Contains(got, tt.want) {
+			t.Errorf("Projects over %s drew\n%s\nwant %q", tt.period.Name(), got, tt.want)
+		}
+	}
+}
+
 // The list's columns give way as it narrows: the bar narrows to its least
 // first, so wherever a column comes back as the list widens the bar is at
 // its least; requests leave, then last, and only then is the name cut; the
@@ -478,14 +497,15 @@ func TestABarOfEighthsEndsInItsLastPartsBlock(t *testing.T) {
 }
 
 // Projects' help says how its periods run, as Accounts' does, each from
-// where it truly starts, and that the two share them.
+// where it truly starts, and that it shares the period with Accounts and
+// Sessions' List.
 func TestProjectsHelpSaysHowItsPeriodsRun(t *testing.T) {
 	var said []string
 	for _, p := range projectsHelp() {
 		said = append(said, plainLines(p.says)...)
 	}
 	all := strings.Join(said, " ")
-	for _, want := range []string{"today and this week run from their starts, 30 days and 12 months back from today, and 12 weeks over this week and the 11 before", "shared with Accounts: < and > step through today, this week, 30 days, 12 weeks and 12 months"} {
+	for _, want := range []string{"today and this week run from their starts, 30 days and 12 months back from today, and 12 weeks over this week and the 11 before", "< and > step through today, this week, 30 days, 12 weeks and 12 months, the period Accounts and Sessions' List share."} {
 		if !strings.Contains(all, want) {
 			t.Errorf("Projects' help reads\n%s\nwant %q", all, want)
 		}

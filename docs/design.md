@@ -13,8 +13,8 @@ redesigned it, in three views, with themes, and with the router's history, event
 to draw them from. Milestone 6 added the request ledger, a line for each request the router routes
 and a summary of each day, with `requests` and `history` to read them back. Milestone 7 redesigned
 the dashboard again, on what the ledger records: `usage` becomes a printout, `dashboard` the live
-page, in six tabs, a seventh, Trends, once Graphs, added after it, and the data verbs give an agent everything
-either shows. The Dashboard section and The data verbs describe it.
+page, in tabs the dashboard by entity has since made seven, and the data verbs give an agent
+everything either shows. The Dashboard section and The data verbs describe it.
 
 ## What it is
 
@@ -2376,7 +2376,7 @@ order the view's section gives.
   (`markedCells`), and every column of names draws through it: the Overview's USAGE, ROUTING and
   SESSIONS, Detail's list, turned Compare's rows,
   Sessions' Switchboard, a session's stays (`filled`, cutting a label to keep its own marks
-  alone), Runway's label column and Graphs' GLANCE. On the Overview, USAGE, ROUTING and SESSIONS,
+  alone), Runway's label column and Trends' GLANCE. On the Overview, USAGE, ROUTING and SESSIONS,
   which share the name column, start their names at one column, so labels and marks line up
   across them: a cell in wherever any of them shown, folded or not, starts its own a cell in,
   as USAGE's windows stacked under their headings or two rows an account, else column 0
@@ -2604,10 +2604,14 @@ Routing takes keys alone: no click opens the routing card or acts in it, so a st
 moves a session.
 
 **What's remembered.** The preferences file keeps, as they change: the theme or the pair; the tab
-shown, which the dashboard opens on; the Overview's sections shown and its `b`; Graphs'
-sections shown; `w`; the dashboard's period, which the entity tabs share; of each
-view, a view at a time, its sub-tab, its period or window and `v`'s choice; Runway's `a`; and the
-Log's columns.
+shown, which the dashboard opens on; the Overview's sections shown and its `b`; Trends'
+sections shown; `w`; the dashboard's period, which the entity tabs share; Accounts' view and its
+Tokens' `v` split; Sessions' view; Runway's `a`; and the Log's columns.
+A file from before History went as a tab, which kept History as the tab shown, opens Trends with
+YEAR shown too, where History's Year went, the rest of Trends' sections as kept, and keeps Trends
+and its sections so as it opens, as `y` keeps them; History's Tokens' split, which it kept as
+`history.tokens.split`, reads as Accounts' Tokens' where the file keeps none, and the next write
+keeps it there and drops what History kept.
 A file from before the Overview's GRAPHS was removed (see The Overview), which may keep GRAPHS
 among the sections shown and its chart under `graphs`, reads without them, and the next write drops
 them. A page's sections kept, where every name is of none of its sections, as a later build's or one
@@ -5283,8 +5287,8 @@ year, `m` months and `d` models for the three History had. The window drawn is t
 every model shares, as on Runway: a model's own week has no card, and `w` is WEEK's here, where on
 the pages that list windows as they stand it shows the models' own (see Keys). The watch builds the
 lanes of Runway's week view alone for Trends, while WEEK or GLANCE shows. A preferences file that
-keeps `5-hour` among Graphs' sections, as one kept before it went, has it passed over, as any name
-of none of its sections is; where it keeps no other, as where WEEK was hidden, Graphs opens on the
+keeps `5-hour` among Trends' sections, as one kept before it went, has it passed over, as any name
+of none of its sections is; where it keeps no other, as where WEEK was hidden, Trends opens on the
 sections shown at first, never a page with everything hidden.
 
 - **A section's heading** is the Overview's (see The Overview): its name in `text.subtle`; three
@@ -7198,7 +7202,7 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
   models go now and its own pin. All are local, and cost nothing upstream. A router that can't
   list its sessions shows none, never those another router listed.
 - **What moves** at each look, and every second with nothing read, is as What moves says.
-- **The history** behind Graphs' cards is read with each full read, not each look: `GET /history`
+- **The history** behind Trends' cards is read with each full read, not each look: `GET /history`
   (see Control API), each window's over its current length, the 5-hour window at 5-minute steps and
   the weeks at 30-minute steps. Without the router, they draw from the readings history's files,
   read where they lie, and the readings the dashboard takes itself as it probes
@@ -7306,7 +7310,7 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
     back from now falls on where that's earlier, as it is in the hour after midnight for a week
     after the clocks go forward, so it reaches where GLANCE's pool starts its week, each window's
     run from a week before that carried in, is read for what it gained at each look while Runway
-    shows its live view, or a week it holds, or Graphs shows.
+    shows its live view, or a week it holds, or Trends shows.
   - **The Log's Events through some kinds,** which no summary tells the days of, read back no
     further than the earliest of them the router filed: its files of events are read for it first,
     the oldest first and no further than that event, as they're far smaller than the ledger's days
@@ -7524,7 +7528,7 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
   them; and without the status document's new fields, the dashboard works out the allowance, the
   even pace, the pool's room and COMING UP itself, by the functions the router's come from
   (settled in the plan). A router from before milestone 5 has no `GET /history`, `events` or
-  `GET /stream`: Graphs' cards draw from the readings history's files, LATELY and the Log from the events'
+  `GET /stream`: Trends' cards draw from the readings history's files, LATELY and the Log from the events'
   files alone, and nothing travels.
 - **A router from before projects** gives no `project` on its sessions, its stream or its events,
   and takes the project header off unread, so its lines name none: a session's project is then its

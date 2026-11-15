@@ -4,7 +4,7 @@
 #
 # The Overview of work alone at 14:42:07: USAGE, ROUTING's trace, COMING UP
 # with its cap about 16:05, and LATELY; then shift-tab twice, past the Log,
-# to Graphs, work's week as a burn-down card; then shift-tab to
+# to Trends, work's week as a burn-down card; then shift-tab to
 # Runway, work's lane alone across the week, the day past from the
 # readings, with COMING UP and LATELY under it.
 #
@@ -39,7 +39,7 @@ Sleep 6s
 Shift+Tab
 Sleep 300ms
 Shift+Tab
-# Graphs from 6.3s, work's week card.
+# Trends from 6.3s, work's week card.
 Sleep 5s
 Shift+Tab
 # Runway from 11.3s, on the week it opens on.

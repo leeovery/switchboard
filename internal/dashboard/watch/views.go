@@ -70,6 +70,16 @@ func (m Model) toggleGraphs(section dashboard.GraphsSection) Model {
 	return m.keepPrefs("Trends' sections shown", func(p *theme.Prefs) { p.GraphsTab.Sections = names }, "sections", strings.Join(names, ","))
 }
 
+// keepGraphsShown keeps Trends as the tab shown, and its sections shown, as
+// its keys keep them, for the next watch to open with: as it opens in place
+// of a tab the preferences kept that's gone, so they keep it no longer.
+func (m Model) keepGraphsShown() Model {
+	names := m.graphs.Names()
+	return m.keepPrefs("Trends and its sections shown", func(p *theme.Prefs) {
+		p.Tab, p.GraphsTab.Sections = string(dashboard.Graphs), names
+	}, "view", dashboard.Graphs, "sections", strings.Join(names, ","))
+}
+
 // regroup switches how the Overview's windows are grouped, as b does, from by
 // window to by account, and back, and keeps it, for the next watch to open
 // with.

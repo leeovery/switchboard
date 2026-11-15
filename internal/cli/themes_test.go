@@ -242,18 +242,60 @@ func TestDashboardShowsModelsWindowsAsKept(t *testing.T) {
 }
 
 // A prefs.json of a build with the History tab, showing it and keeping what
-// its views showed, opens the dashboard on Trends, its pictures' home, and
-// the rest as kept.
+// its views showed, opens the dashboard on Trends, its pictures' home, with
+// YEAR shown beside Trends' sections kept, to keep so; Accounts' Tokens
+// split as History's Tokens' was, where Accounts' kept none; and the rest as
+// kept.
 func TestDashboardOpensOnTrendsWhereHistoryWasKept(t *testing.T) {
-	deps := statusDeps(t, fakeClaudeAPI(t), nil)
-	writePrefs(t, deps, `{"tab": "history", "history": {"view": "tokens", "year": "side", "weeks": "columns"}, "models": true}`)
-	cfg := recordWatch(t, &deps)
-	if got := run(t, deps, "dashboard"); got != (result{}) {
-		t.Fatalf("switchboard dashboard = %+v, want exit status 0 and nothing printed", got)
+	tests := []struct {
+		name, prefs string
+		sections    []string
+		split       dashboard.TokensSplit
+	}{
+		{
+			name:     "Trends' sections and Accounts' split none",
+			prefs:    `{"tab": "history", "history": {"view": "tokens", "year": "side", "weeks": "columns", "tokens": {"split": "model"}}, "models": true}`,
+			sections: []string{"week", "year"}, split: dashboard.TokensByModel,
+		},
+		{
+			name: "Trends' sections and Accounts' split kept",
+			prefs: `{"tab": "history", "history": {"tokens": {"split": "model"}}, "accounts": {"split": "none"}, ` +
+				`"graphs_tab": {"sections": ["glance"]}, "models": true}`,
+			sections: []string{"glance", "year"}, split: dashboard.TokensUnsplit,
+		},
 	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			deps := statusDeps(t, fakeClaudeAPI(t), nil)
+			writePrefs(t, deps, tt.prefs)
+			cfg := recordWatch(t, &deps)
+			if got := run(t, deps, "dashboard"); got != (result{}) {
+				t.Fatalf("switchboard dashboard = %+v, want exit status 0 and nothing printed", got)
+			}
 
-	if cfg.View != dashboard.Graphs || !cfg.Models {
-		t.Errorf("the dashboard opens on %q, models' windows shown %t; want Trends, %q, and them shown, as kept", cfg.View, cfg.Models, dashboard.Graphs)
+			if cfg.View != dashboard.Graphs || !cfg.Models {
+				t.Errorf("the dashboard opens on %q, models' windows shown %t; want Trends, %q, and them shown, as kept", cfg.View, cfg.Models, dashboard.Graphs)
+			}
+			if got := cfg.Graphs.Names(); !slices.Equal(got, tt.sections) || !cfg.KeepGraphs {
+				t.Errorf("Trends opens showing %q, to keep them %t; want %q, kept", got, cfg.KeepGraphs, tt.sections)
+			}
+			if got := cfg.AccountsShown.TokensSplit; got != tt.split {
+				t.Errorf("Accounts' Tokens opens split %v, want %v", got, tt.split)
+			}
+		})
+	}
+}
+
+// A prefs.json whose tab is no longer History's opens Trends with the
+// sections kept, keeping nothing as it opens.
+func TestDashboardKeepsTrendsAsItOpensOnlyInHistorysPlace(t *testing.T) {
+	deps := statusDeps(t, fakeClaudeAPI(t), nil)
+	writePrefs(t, deps, `{"tab": "graphs", "graphs_tab": {"sections": ["glance"]}}`)
+	cfg := recordWatch(t, &deps)
+	run(t, deps, "dashboard")
+
+	if got := cfg.Graphs.Names(); !slices.Equal(got, []string{"glance"}) || cfg.KeepGraphs {
+		t.Errorf("Trends opens showing %q, to keep them %t; want glance alone, kept already", got, cfg.KeepGraphs)
 	}
 }
 

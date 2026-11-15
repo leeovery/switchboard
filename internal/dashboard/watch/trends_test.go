@@ -9,6 +9,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/dayfile"
+	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
@@ -25,6 +26,30 @@ func trendsHarness(t *testing.T, sections ...string) (*harness, *fakePrefs) {
 	h.start()
 	h.update(tea.WindowSizeMsg{Width: 173, Height: 53})
 	return h, prefs
+}
+
+// Opening in place of a tab kept that's gone, Trends keeps itself as the tab
+// shown and its sections shown, as its keys keep them, so the next watch
+// opens on them though the tab kept is gone; else it keeps nothing as it
+// opens.
+func TestTrendsInPlaceOfAGoneTabKeepsItselfAsItOpens(t *testing.T) {
+	for _, keep := range []bool{true, false} {
+		h := &harness{t: t, clock: &fakeClock{now: start}, source: &fakeSource{doc: calm()}, notifier: &fakeNotifier{}}
+		prefs := &fakePrefs{kept: theme.Prefs{Tab: "history"}}
+		cfg := h.config(Size{Width: 160, Height: 37})
+		cfg.Prefs, cfg.View, cfg.KeepGraphs = prefs, dashboard.Graphs, keep
+		cfg.Graphs = dashboard.GraphsSectionsNamed(nil).Toggled(dashboard.GraphsYear)
+		h.model = New(t.Context(), cfg)
+		h.start()
+
+		want, updates := theme.Prefs{Tab: "history"}, 0
+		if keep {
+			want, updates = theme.Prefs{Tab: "graphs", GraphsTab: theme.GraphsPrefs{Sections: []string{"week", "year"}}}, 1
+		}
+		if prefs.updates != updates || prefs.kept.Tab != want.Tab || !slices.Equal(prefs.kept.GraphsTab.Sections, want.GraphsTab.Sections) {
+			t.Errorf("to keep %t, opening kept %+v in %d writes; want %+v in %d", keep, prefs.kept, prefs.updates, want, updates)
+		}
+	}
 }
 
 // onPage reports whether the heading given is on the page, as the screen

@@ -5,6 +5,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/status"
+	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
@@ -89,6 +90,21 @@ type GraphsSections = shown[GraphsSection]
 // shownNamed reads them.
 func GraphsSectionsNamed(names []string) GraphsSections {
 	return shownNamed[GraphsSection](names)
+}
+
+// GraphsKept are Trends' sections the preferences kept, as
+// GraphsSectionsNamed reads them; and where the tab they kept is History's,
+// which Trends opens in place of, those with YEAR shown too, where History's
+// Year went, and true, for the watch to keep them so.
+func GraphsKept(kept theme.Prefs) (GraphsSections, bool) {
+	sections := GraphsSectionsNamed(kept.GraphsTab.Sections)
+	if View(kept.Tab) != historyView {
+		return sections, false
+	}
+	if !sections.Has(GraphsYear) {
+		sections = sections.Toggled(GraphsYear)
+	}
+	return sections, true
 }
 
 // GraphsWindow is the window Graphs charts, WEEK's cards and GLANCE's

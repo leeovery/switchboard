@@ -28,13 +28,16 @@ var ownersSizes = []watch.Size{
 
 // longNamesViews are the world of long names on each view no fixture draws
 // it on, so a view's cut name shows at the owner's sizes: the Overview with
-// every section shown, Compare, Detail of work, Accounts' Tokens, Runway,
-// Trends, the Log's events, and d28c's page.
+// every section shown, Compare, Detail of work, Accounts' Tokens, Projects'
+// list with its top project's page under it, the next project's page with
+// its SESSIONS chosen, Runway, Trends, the Log's events, and d28c's page.
 var longNamesViews = []page{
 	{name: "long-names-overview", world: accountWorlds.longNames, keys: keysOf("s")},
 	{name: "long-names-accounts-compare", world: accountWorlds.longNames, keys: toAccounts()},
 	{name: "long-names-accounts-detail", world: accountWorlds.longNames, keys: toDetail(downKey)},
 	{name: "long-names-accounts-tokens", world: accountWorlds.longNames, keys: toAccounts("]", "]")},
+	{name: "long-names-projects", world: accountWorlds.longNames, keys: toProjects()},
+	{name: "long-names-project-sessions", world: accountWorlds.longNames, keys: append(toProjects(), downKey, rightKey)},
 	{name: "long-names-runway", world: accountWorlds.longNames, keys: toRunway()},
 	{name: "long-names-graphs", world: accountWorlds.longNames, keys: toGraphs()},
 	{name: "long-names-log-events", world: accountWorlds.longNames, keys: toLog("]")},
@@ -192,6 +195,12 @@ var knownBreaks = []known{
 	{
 		byDesign: "the List's directories at their most", cuts: dirCuts(views.SessionDirMost), rule: cutWithRoom,
 		sizes: []string{"138x30", "138x15", "173x53"}, fixtures: []string{"sessions-list-long-names-108x44"},
+	},
+	// A project's SESSIONS, in the List's columns, so its directories at
+	// their most as the List's, where SESSIONS shows.
+	{
+		byDesign: "a project's SESSIONS' directories at their most, as the List's", cuts: dirCuts(views.SessionDirMost), rule: cutWithRoom,
+		sizes: []string{"138x30", "173x53"}, fixtures: []string{"long-names-projects", "long-names-project-sessions"},
 	},
 	// What's left at the foot where USAGE takes the rows it must, the foot's
 	// blank row among them, short of every folded section's least: of six
