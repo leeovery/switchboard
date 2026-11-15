@@ -8,10 +8,11 @@ import (
 	"github.com/leeovery/switchboard/internal/views"
 )
 
-// GraphsSection is one of Graphs' sections, which its key shows and hides.
+// GraphsSection is one of the sections of Trends, the tab once called
+// Graphs, which its key shows and hides.
 type GraphsSection int
 
-// Graphs' sections, in the order the page draws them.
+// Trends' sections, in the order the page draws them.
 const (
 	// GraphsWeek is WEEK: a burn-down card an account, over its week.
 	GraphsWeek GraphsSection = iota
@@ -24,6 +25,15 @@ const (
 	// GraphsWhen is WHEN YOU WORK: requests by the hour of the day and the
 	// day of the week, over the last four weeks.
 	GraphsWhen
+	// GraphsYear is YEAR: the last 12 months a day a square, a column a
+	// week, and their totals.
+	GraphsYear
+	// GraphsMonths is BY MONTH: a row a month of the last 12, its worth
+	// split by model family.
+	GraphsMonths
+	// GraphsModels is MODELS BY DAY: each model family's worth a day over
+	// the last eight weeks, a strip a family.
+	GraphsModels
 )
 
 // graphsSections are Graphs' sections' words, and those shown at first:
@@ -34,6 +44,9 @@ var graphsSections = sectionList{
 		GraphsPool:   {key: "o", word: "pool", heading: "POOL", name: "pool"},
 		GraphsGlance: {key: "g", word: "glance", heading: "GLANCE", name: "glance"},
 		GraphsWhen:   {key: "h", word: "when", heading: "WHEN YOU WORK", name: "when"},
+		GraphsYear:   {key: "y", word: "year", heading: "YEAR", name: "year"},
+		GraphsMonths: {key: "m", word: "months", heading: "BY MONTH", name: "months"},
+		GraphsModels: {key: "d", word: "models", heading: "MODELS BY DAY", name: "models"},
 	},
 	first: 1 << GraphsWeek,
 }
@@ -92,8 +105,8 @@ func GraphsWindows(sections GraphsSections) []views.RunwayWindow {
 	return nil
 }
 
-// GraphsShown is what the Graphs tab shows: its sections shown, as w, o, g
-// and h show and hide them, and the preferences keep; the configured
+// GraphsShown is what Trends shows: its sections shown, as w, o, g, h, y, m
+// and d show and hide them, and the preferences keep; the configured
 // accounts, in the config's order, which alone, with the frame's size, its
 // look, which words POOL's key, and the sections shown, lay the page out, as
 // layGraphs has it; WHEN YOU WORK's page, whose weeks its heading says, as
@@ -107,6 +120,11 @@ func GraphsWindows(sections GraphsSections) []views.RunwayWindow {
 // built it; and the pool's room over the week's span, by the window, as
 // GLANCE draws it beside Σ pool, as the watch built it at the last look on
 // Graphs with GLANCE shown, held while it hides, none till it's built it.
+// Split is what v has YEAR show, all use, a version or an account, as on
+// History's Year, never a calendar year; Year is YEAR's and BY MONTH's page,
+// the last 12 months shown as Split asks, and Days MODELS BY DAY's, the last
+// eight weeks, as the watch built them of the ledger's days while they show,
+// nil till it has; and Read is set once the last 12 months are read.
 type GraphsShown struct {
 	Sections GraphsSections
 	Accounts config.Accounts
@@ -114,6 +132,10 @@ type GraphsShown struct {
 	Lanes    map[views.RunwayWindow]WindowLanes
 	Pool     views.PoolStack
 	Spans    map[views.RunwayWindow]views.PoolSpan
+	Split    views.YearAsk
+	Year     *views.YearPage
+	Days     *views.DaysPage
+	Read     bool
 }
 
 // graphsNamed are the configured accounts given, in the config's order,
@@ -155,13 +177,12 @@ func (f Frame) graphsTab(c *canvas, doc status.Document, now time.Time, top int)
 // graphsDrawn draws the sections of the moment m as laid out, whole, on c:
 // each heading across its columns, as headSection draws it, saying what
 // graphsSays has it say, under WEEK's, its cards, as burnCards draws them,
-// and under POOL's, GLANCE's and WHEN YOU WORK's, their bodies, as
-// poolDrawn, glanceDrawn and whenDrawn draw them; and the pool's line, where
-// there's one, as poolLine words it.
+// and under the rest, their bodies, as poolDrawn, glanceDrawn, whenDrawn and
+// pastDrawn draw them; and the pool's line, where there's one, as poolLine
+// words it.
 func (f Frame) graphsDrawn(c *canvas, m status.Moment, laid graphsLaid) {
 	for i, s := range laid.sections {
-		says := f.graphsSays(s.section, i == 0)
-		headSection(c, s.head(), s.section.heading(), s.section.Key(), func(cells int) line { return says.fit(cells) })
+		headSection(c, s.head(), s.section.heading(), s.section.Key(), func(cells int) line { return f.graphsSays(s.section, i == 0, cells) })
 		switch s.section {
 		case GraphsWeek:
 			f.burnCards(c, m, laid, s)
@@ -171,6 +192,8 @@ func (f Frame) graphsDrawn(c *canvas, m status.Moment, laid graphsLaid) {
 			f.glanceDrawn(c, m, laid, s)
 		case GraphsWhen:
 			f.whenDrawn(c, s)
+		default:
+			f.pastDrawn(c, s)
 		}
 	}
 	if laid.poolLine >= 0 {
@@ -178,18 +201,20 @@ func (f Frame) graphsDrawn(c *canvas, m status.Moment, laid graphsLaid) {
 	}
 }
 
-// graphsSays is what the section's heading says after its name: on the first
-// heading, while the frame says the page is loading, loading…, in
-// text.subtle, as SESSIONS' says it on the Overview; else WHEN YOU WORK's
-// weeks, as its page words them, in text.faint; and nothing for the rest.
-func (f Frame) graphsSays(s GraphsSection, first bool) line {
+// graphsSays is what the section's heading says after its name, in cells
+// cells: on the first heading, while the frame says the page is loading,
+// loading…, in text.subtle, as SESSIONS' says it on the Overview; else WHEN
+// YOU WORK's weeks, as its page words them, in text.faint, cut to the
+// cells; BY MONTH's and MODELS BY DAY's words, as pastSays has them; and
+// nothing for the rest.
+func (f Frame) graphsSays(s GraphsSection, first bool, cells int) line {
 	switch {
 	case first && f.Loading:
-		return line{{loadingWord, dimInk}}
+		return line{{loadingWord, dimInk}}.fit(cells)
 	case s == GraphsWhen && f.Graphs.Hours != nil && f.Graphs.Hours.Description != "":
-		return line{{f.Graphs.Hours.Description, faintInk}}
+		return line{{f.Graphs.Hours.Description, faintInk}}.fit(cells)
 	}
-	return nil
+	return f.pastSays(s, cells)
 }
 
 // graphsOut is the form of the line saying how many of Graphs' rows are out

@@ -101,7 +101,7 @@ func TestTheWatchOpensGraphsShowingTheSectionsThePreferencesKept(t *testing.T) {
 // views, ? keys and toggles and q quit. Whatever the accounts' windows, it
 // has no f 5-hour.
 func TestGraphsKeyLineIsTheDesigns(t *testing.T) {
-	toggles := "tab views     w week  o pool  g glance  h when     "
+	toggles := "tab views     w week  o pool  g glance  h when  y year  m months  d models     "
 	phone := "tab views   ? keys and toggles   q quit"
 	tests := []struct {
 		name   string
@@ -111,13 +111,17 @@ func TestGraphsKeyLineIsTheDesigns(t *testing.T) {
 		want   string
 		hidden []string
 	}{
-		{name: "three accounts", doc: routerDocument(three()...), width: 160, want: toggles + "p pin  ? help  q quit", hidden: []string{"pool", "glance", "when"}},
-		{name: "WEEK hidden, POOL and WHEN YOU WORK shown", doc: routerDocument(three()...), width: 160, typed: []string{"w", "o", "h"}, want: toggles + "p pin  ? help  q quit", hidden: []string{"week", "glance"}},
-		{name: "one account, with none other to pin to", doc: routerDocument(three()[0]), width: 160, want: toggles + "? help  q quit", hidden: []string{"pool", "glance", "when"}},
-		{name: "the wide chrome's narrowest", doc: routerDocument(three()...), width: 100, want: toggles + "p pin  ? help  q quit", hidden: []string{"pool", "glance", "when"}},
+		{name: "three accounts", doc: routerDocument(three()...), width: 160, want: toggles + "p pin  ? help  q quit", hidden: []string{"pool", "glance", "when", "year", "months", "models"}},
+		{name: "WEEK hidden, POOL and WHEN YOU WORK shown", doc: routerDocument(three()...), width: 160, typed: []string{"w", "o", "h"}, want: toggles + "p pin  ? help  q quit", hidden: []string{"week", "glance", "year", "months", "models"}},
+		{name: "one account, with none other to pin to", doc: routerDocument(three()[0]), width: 160, want: toggles + "? help  q quit", hidden: []string{"pool", "glance", "when", "year", "months", "models"}},
+		{name: "the wide chrome's narrowest", doc: routerDocument(three()...), width: 100, want: toggles + "p pin  ? help  q quit", hidden: []string{"pool", "glance", "when", "year", "months", "models"}},
 		{name: "a phone", doc: routerDocument(three()...), width: 52, want: phone},
-		{name: "every account verified Ultra", doc: routerDocument(verifiedUltra()...), width: 160, want: toggles + "p pin  ? help  q quit", hidden: []string{"pool", "glance", "when"}},
-		{name: "after f", doc: routerDocument(three()...), width: 160, typed: []string{"f"}, want: toggles + "p pin  ? help  q quit", hidden: []string{"pool", "glance", "when"}},
+		{name: "YEAR shown, v and its split in a group of its own", doc: routerDocument(three()...), width: 173, typed: []string{"y"}, want: toggles + "v split: all     p pin  ? help  q quit", hidden: []string{"pool", "glance", "when", "months", "models"}},
+		{name: "BY MONTH shown, v as YEAR's", doc: routerDocument(three()...), width: 173, typed: []string{"m"}, want: toggles + "v split: all     p pin  ? help  q quit", hidden: []string{"pool", "glance", "when", "year", "models"}},
+		{name: "YEAR shown, v left to a wider line where the line doesn't fit", doc: routerDocument(three()...), width: 108, typed: []string{"y"}, want: toggles + "p pin  ? help  q quit", hidden: []string{"pool", "glance", "when", "months", "models"}},
+		{name: "YEAR shown on a phone", doc: routerDocument(three()...), width: 73, typed: []string{"y"}, want: phone},
+		{name: "every account verified Ultra", doc: routerDocument(verifiedUltra()...), width: 160, want: toggles + "p pin  ? help  q quit", hidden: []string{"pool", "glance", "when", "year", "months", "models"}},
+		{name: "after f", doc: routerDocument(three()...), width: 160, typed: []string{"f"}, want: toggles + "p pin  ? help  q quit", hidden: []string{"pool", "glance", "when", "year", "months", "models"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -187,6 +191,7 @@ func TestGraphsHelpListsItsTogglesThenTheSharedKeys(t *testing.T) {
 		{Key: "tab", Does: "views"},
 		{Key: "w", Does: "week"}, {Key: "o", Does: "pool"},
 		{Key: "g", Does: "glance", Hidden: true}, {Key: "h", Does: "when", Hidden: true},
+		{Key: "y", Does: "year", Hidden: true}, {Key: "m", Does: "months", Hidden: true}, {Key: "d", Does: "models", Hidden: true},
 		{Key: "j k", Does: "scroll"}, {Key: "PgUp PgDn", Does: "page"}, {Key: "wheel", Does: "scroll"},
 		{Key: "p", Does: "pin"}, {Key: "R", Does: "refresh"}, {Key: "?", Does: "help"}, {Key: "q", Does: "quit"},
 	}

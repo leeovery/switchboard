@@ -601,7 +601,24 @@ var pages = []page{
 	{name: "graphs-ultra-160x37", size: wide(37), world: accountWorlds.ultra, keys: toGraphs()},
 	{name: "graphs-glance-mixed-108x44", size: watch.Size{Width: 108, Height: 44}, world: accountWorlds.mixed, keys: toGraphs("g")},
 	{name: "graphs-glance-ultra-108x44", size: watch.Size{Width: 108, Height: 44}, world: accountWorlds.ultra, keys: toGraphs("g")},
+	{name: "trends-year-173x53", size: watch.Size{Width: 173, Height: 53}, world: accountWorlds.auto, keys: toTrendsFoot()},
+	{name: "trends-year-108x44", size: watch.Size{Width: 108, Height: 44}, world: accountWorlds.auto, keys: append(toGraphs(everyTrend...), slices.Repeat(keysOf("j"), toYear108)...)},
+	{name: "trends-year-73x61", size: watch.Size{Width: 73, Height: 61}, world: accountWorlds.auto, keys: toTrendsFoot()},
 }
+
+// everyTrend are the keys that show the sections of Trends hidden at first:
+// POOL, GLANCE, WHEN YOU WORK, YEAR, BY MONTH and MODELS BY DAY.
+var everyTrend = []string{"o", "g", "h", "y", "m", "d"}
+
+// toTrendsFoot are the keys that reach Trends with every section shown,
+// scrolled to its foot, a page at a time.
+func toTrendsFoot() []tea.KeyPressMsg {
+	return append(toGraphs(everyTrend...), repeated(tea.KeyPressMsg{Code: tea.KeyPgDown}, 6)...)
+}
+
+// toYear108 are the rows trends-year-108x44 scrolls Trends down by, j a row,
+// to YEAR's heading, as the design's frame is scrolled.
+const toYear108 = 59
 
 // lookedAway are the keys a look at Sessions' Switchboard by before a page's
 // moment pressed: tab four times to reach it, then once more, on to Runway,

@@ -59,7 +59,7 @@ type Prefs struct {
 	Sessions SessionsPrefs `json:"sessions,omitzero"`
 	// Runway is what Runway shows, as its keys last left it.
 	Runway RunwayPrefs `json:"runway,omitzero"`
-	// GraphsTab is what the Graphs tab shows, as its keys last left it: not
+	// GraphsTab is what Trends, once Graphs, shows, as its keys last left it: not
 	// under "graphs", which earlier builds kept the Overview's GRAPHS' chart
 	// under by name, as files they wrote still have it, and which an object
 	// would make them read as corrupt.
@@ -68,8 +68,8 @@ type Prefs struct {
 	Log LogPrefs `json:"log,omitzero"`
 }
 
-// GraphsPrefs are what the Graphs tab shows: Sections, the names of its
-// sections shown, of week, pool, glance and when: nil, as a file
+// GraphsPrefs are what Trends shows: Sections, the names of its sections
+// shown, of week, pool, glance, when, year, months and models: nil, as a file
 // without them reads, for those shown at first, and none, kept as [], for
 // none. A name the dashboard doesn't know, as a later build's section or the
 // 5-hour since dropped, shows nothing; a list naming only such sections opens

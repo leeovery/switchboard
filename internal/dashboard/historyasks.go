@@ -166,16 +166,23 @@ func (f Frame) weeksCycles() bool {
 	return f.weeksWideFits(false) && f.weeksWideFits(true)
 }
 
-// yearShown names what the Year is shown for alone: an account, as label
-// names it, or a version, by its name, as Opus 5.5, once the last 12 months
-// are read, as one kept is checked against those they used; "" for all use,
-// and for a version till then.
+// yearShown names what History's Year is shown for alone, as yearShownOf
+// names it.
 func (p HistoryPage) yearShown() string {
+	return yearShownOf(p.YearAsk, p.Accounts, p.Read)
+}
+
+// yearShownOf names what the Year asked is shown for alone, of the
+// configured accounts given: an account, as accountLabel names it, or a
+// version, by its name, as Opus 5.5, once the last 12 months are read, as
+// read says, as one kept is checked against those they used; "" for all
+// use, and for a version till then.
+func yearShownOf(ask views.YearAsk, accounts config.Accounts, read bool) string {
 	switch {
-	case p.YearAsk.Account != "":
-		return p.label(p.YearAsk.Account)
-	case p.Read:
-		return versionShown(p.YearAsk.Version)
+	case ask.Account != "":
+		return accountLabel(accounts, ask.Account)
+	case read:
+		return versionShown(ask.Version)
 	}
 	return ""
 }
@@ -185,12 +192,19 @@ func versionShown(version string) string {
 	return prose.Clean(version)
 }
 
-// label is the account with the given id as History names it: by its label
-// as the config gives it, as labelled names it.
+// label is the account with the given id as History names it, as
+// accountLabel names it.
 func (p HistoryPage) label(id string) string {
+	return accountLabel(p.Accounts, id)
+}
+
+// accountLabel is the account with the given id, of the configured accounts
+// given, as the Year names it: by its label as the config gives it, as
+// labelled names it.
+func accountLabel(accounts config.Accounts, id string) string {
 	var label string
-	if i := slices.IndexFunc(p.Accounts, func(a config.Account) bool { return a.ID == id }); i >= 0 {
-		label = p.Accounts[i].Label
+	if i := slices.IndexFunc(accounts, func(a config.Account) bool { return a.ID == id }); i >= 0 {
+		label = accounts[i].Label
 	}
 	return labelled(label, id)
 }
@@ -260,11 +274,9 @@ func steppedYear(year, by, earliest, latest int) (int, bool) {
 func (p HistoryPage) Cycled() (HistoryPage, bool) {
 	switch {
 	case p.Shown == HistoryYear && p.Year != nil:
-		shown := views.YearAsk{Version: p.YearAsk.Version, Account: p.YearAsk.Account}
-		choices := yearChoices(*p.Year)
-		next := choices[(slices.Index(choices, shown)+1)%len(choices)]
-		p.YearAsk.Version, p.YearAsk.Account = next.Version, next.Account
-		return p, next != shown
+		var changed bool
+		p.YearAsk, changed = cycledAsk(p.YearAsk, *p.Year)
+		return p, changed
 	case p.Shown == HistoryWeeks:
 		p.WeeksShape = WeeksShape(round(int(p.WeeksShape)+1, len(weeksShapeNames)))
 	case p.Shown == HistoryTokens:
@@ -273,6 +285,18 @@ func (p HistoryPage) Cycled() (HistoryPage, bool) {
 		return p, false
 	}
 	return p, true
+}
+
+// cycledAsk is the Year asked shown for the next of what v cycles it
+// through, round, as yearChoices has them of its page, its calendar year
+// as it was, reporting false where that's what it shows already, as with
+// nothing to show alone.
+func cycledAsk(ask views.YearAsk, page views.YearPage) (views.YearAsk, bool) {
+	shown := views.YearAsk{Version: ask.Version, Account: ask.Account}
+	choices := yearChoices(page)
+	next := choices[(slices.Index(choices, shown)+1)%len(choices)]
+	ask.Version, ask.Account = next.Version, next.Account
+	return ask, next != shown
 }
 
 // yearChoices are what v cycles the Year through, in turn: all use, then
@@ -292,13 +316,25 @@ func yearChoices(page views.YearPage) []views.YearAsk {
 // account by places on from it, among those configured, round, as ← and →
 // step, a place each. It reports false elsewhere.
 func (p HistoryPage) Moved(by int) (HistoryPage, bool) {
-	ids := p.Accounts.IDs()
-	i := slices.Index(ids, p.YearAsk.Account)
-	if p.Shown != HistoryYear || i < 0 || len(ids) < 2 {
+	if p.Shown != HistoryYear {
 		return p, false
 	}
-	p.YearAsk.Account = ids[round(i+by, len(ids))]
-	return p, true
+	var moved bool
+	p.YearAsk, moved = movedAsk(p.YearAsk, p.Accounts, by)
+	return p, moved
+}
+
+// movedAsk is the Year asked, shown for one account, shown for the account
+// by places on from it, among the configured accounts given, round,
+// reporting false where it's shown for none, or there's no other.
+func movedAsk(ask views.YearAsk, accounts config.Accounts, by int) (views.YearAsk, bool) {
+	ids := accounts.IDs()
+	i := slices.Index(ids, ask.Account)
+	if i < 0 || len(ids) < 2 {
+		return ask, false
+	}
+	ask.Account = ids[round(i+by, len(ids))]
+	return ask, true
 }
 
 // round is i among n places, round: as far on from the first as i is past

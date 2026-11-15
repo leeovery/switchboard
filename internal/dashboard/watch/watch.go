@@ -371,10 +371,12 @@ type Model struct {
 	plansAtMost []views.PlanCost
 	// runwayTab is what the watch holds of Runway: what it shows, its lanes
 	// as the last look built them, and the readings history's tail they're
-	// judged by; and graphsTab what it holds of Graphs' lanes, judged by that
-	// tail too.
+	// judged by; graphsTab what it holds of Trends' lanes, judged by that
+	// tail too; and trends what it holds of Trends' pages of the ledger's
+	// days.
 	runwayTab runwayTab
 	graphsTab graphsTab
+	trends    trendsPast
 	// session is the session's page open, drawn in place of the view, or
 	// loading, as pageLoading has it: nil while none is. opening counts the
 	// pages asked to open, each opening once its read lands, but one asked
@@ -550,7 +552,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	tuned, stream := tuned.tune()
 	tuned, past := tuned.readHistory()
 	tuned, projected := tuned.readDays()
-	tuned = tuned.historyBuilt().accountsBuilt().projectsBuilt(msg).followed(msg).sessionsLooked(msg).runwayLooked(msg)
+	tuned = tuned.historyBuilt().accountsBuilt().trendsBuilt().projectsBuilt(msg).followed(msg).sessionsLooked(msg).runwayLooked(msg)
 	tuned, paged := tuned.readPage()
 	tuned, logged := tuned.readLog()
 	tuned, found := tuned.readFind()

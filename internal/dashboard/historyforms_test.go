@@ -109,7 +109,7 @@ func weeksTableForm(f Frame) *canvas {
 func daysReachOf(f Frame) int {
 	for width := 1; ; width++ {
 		f.Width = width
-		if f.daysWideFits(*f.History.Days) {
+		if f.daysWideFits(*f.History.Days, f.wideDaysKey()) {
 			return width
 		}
 	}

@@ -160,7 +160,7 @@ const (
 
 // yearOf is the Year the frame shows, laid out in the form given.
 func yearOf(f Frame, form yearForm) yearDrawn {
-	return yearDrawn{Frame: f, page: *f.History.Year, ask: f.History.YearAsk, form: form}.laidOut()
+	return yearDrawn{Frame: f, page: *f.History.Year, ask: f.History.YearAsk, alone: f.History.yearShown(), form: form}.laidOut()
 }
 
 // Today's month is the current one, its name over the grid in

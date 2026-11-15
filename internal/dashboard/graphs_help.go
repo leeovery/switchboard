@@ -5,12 +5,43 @@ import (
 	"strconv"
 )
 
-// graphsHelp are Graphs' parts as help explains them, after its keys, in the
+// graphsHelp are Trends' parts as help explains them, after its keys, in the
 // page's order: WEEK's burn-down cards, with the pool's line under them;
-// POOL; GLANCE; WHEN YOU WORK; and the room the page gives its sections, and
-// how it scrolls.
+// POOL; GLANCE; WHEN YOU WORK; YEAR; BY MONTH; MODELS BY DAY; and the room
+// the page gives its sections, and how it scrolls.
 func (f Frame) graphsHelp() []helpPart {
-	return []helpPart{f.burnDownsHelp(), f.poolStackHelp(), glanceHelp(), f.whenHelp(), graphsRoomHelp()}
+	return []helpPart{f.burnDownsHelp(), f.poolStackHelp(), glanceHelp(), f.whenHelp(), f.trendsYearHelp(), byMonthHelp(), modelsHelp(), graphsRoomHelp()}
+}
+
+// trendsYearHelp is YEAR as help explains it: its grid over the last 12
+// months, its shades and v; its totals; then its five shades, each drawn as
+// the grid draws a day at its level.
+func (f Frame) trendsYearHelp() helpPart {
+	return helpPart{
+		heading: GraphsYear.heading(),
+		says: []line{
+			said("A day a square, a week a column, over the last 12 months, as many of the latest weeks as the width holds. " +
+				yearShadesSaid),
+			said(yearSplitSaid),
+			said("Its totals sit beside the grid where the width holds both, else under it, the rows the narrowest " +
+				"leaves off going under the rest, so none goes unsaid."),
+		},
+		glyphs: shadesHelp("a day", "days", f.yearDay),
+	}
+}
+
+// modelsHelp is MODELS BY DAY as help explains it: each family's worth a day
+// over eight weeks, on one scale; then the days to come's mark.
+func modelsHelp() helpPart {
+	return helpPart{
+		heading: GraphsModels.heading(),
+		says: []line{
+			said("Eight weeks, the week so far and the seven before it, two cells a day, as many of the latest weeks as the " +
+				"width holds: each family's worth a day at API prices, every account's, in four steps of the family's colour, " +
+				"every family on one scale, and its share of the eight weeks' worth."),
+		},
+		glyphs: []glyph{{drawn: line{{toCome, faintInk}}, means: "a day still to come"}},
+	}
 }
 
 // burnDownsHelp is WEEK's cards as help explains them: what a card charts,
@@ -143,13 +174,15 @@ func graphsRoomHelp() helpPart {
 	return helpPart{
 		heading: "ROOM",
 		says: []line{
-			said("`w`, `o`, `g` and `h` show and hide WEEK, POOL, GLANCE and WHEN YOU WORK, at any size, always in that " +
-				"order, and they're kept for next time: the size decides how much room each gets, never whether it shows."),
+			said("`w`, `o`, `g`, `h`, `y`, `m` and `d` show and hide WEEK, POOL, GLANCE, WHEN YOU WORK, YEAR, BY MONTH and " +
+				"MODELS BY DAY, at any size, always in that order, and they're kept for next time: the size decides how much " +
+				"room each gets, never whether it shows. Trends has no period: the cards are this week, YEAR and BY MONTH " +
+				"the last 12 months, and MODELS BY DAY the last eight weeks."),
 			said("Rows to spare go first to each card's words, a row of their own, then to the charts, the cards' and POOL's, " +
 				"every one the same height, up to " + strconv.Itoa(mostChart) + " rows. Short of room, the page scrolls whole, a row at a time, with `j` " +
 				"and `k`, a page with PgUp and PgDn, three rows with the wheel, the row over the key line saying what's out of " +
-				"view; the legend stays at " +
-				"the foot. The layout changes only on a key, a resize or the config, never as the data does."),
+				"view; the legend stays at the foot. The layout changes only on a key, a resize, " +
+				"the config or the ledger's days read, never as the live data does."),
 			said("The charts move on with the clock: now's column, the room to it and where it's heading, a column at a time " +
 				"as each column's moment passes."),
 		},

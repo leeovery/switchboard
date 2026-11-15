@@ -26,14 +26,17 @@ const (
 )
 
 // graphsGiven is all that lays Graphs out, so the page holds still as reads
-// come, changing only on a key, a resize or the config: the frame's width
-// and its view's rows; the sections shown; the configured accounts, in the
-// config's order; and the look, which words POOL's key.
+// come, changing only on a key, a resize, the config or the ledger's days
+// read: the frame's width and its view's rows; the sections shown; the
+// configured accounts, in the config's order; the look, which words POOL's
+// key; and the bodies of YEAR, BY MONTH and MODELS BY DAY, as their pages lay
+// them out, by the section.
 type graphsGiven struct {
 	width, rows int
 	shown       GraphsSections
 	accounts    config.Accounts
 	look        Look
+	past        map[GraphsSection]pastBody
 }
 
 // graphsStep is a step of the room Graphs' sections take: whether every
@@ -77,9 +80,10 @@ const glanceWhenGap = 10
 // width; POOL as its key words it, as poolKeyed has it; GLANCE's and WHEN YOU
 // WORK's columns where they sit side by side, as glanceBesideWhen lays them,
 // nil where they don't; GLANCE laid out across its columns, as layGlance
-// lays it; the rows WHEN YOU WORK's body takes across its columns; the place
-// of the pool's line among the units, -1 where there's none; the legend's
-// lines; and the rows the sections show in, over the legend.
+// lays it; the rows WHEN YOU WORK's body takes across its columns; the
+// bodies of YEAR, BY MONTH and MODELS BY DAY; the place of the pool's line
+// among the units, -1 where there's none; the legend's lines; and the rows
+// the sections show in, over the legend.
 type graphsShape struct {
 	units    [][]GraphsSection
 	across   []flex.Span
@@ -89,6 +93,7 @@ type graphsShape struct {
 	paired   []flex.Span
 	glance   glanceLaid
 	when     int
+	past     map[GraphsSection]pastBody
 	poolPart int
 	legend   []line
 	room     int
@@ -99,7 +104,7 @@ type graphsShape struct {
 // WEEK shows, the pool's line after it, where there's a pool, and the legend,
 // as burnLegend flows it, keeping the sections a row over it at the least.
 func (g graphsGiven) shape() graphsShape {
-	s := graphsShape{accounts: g.accounts, width: g.width, pool: poolKeyed(g.accounts, g.look), paired: g.paired(), poolPart: -1}
+	s := graphsShape{accounts: g.accounts, width: g.width, pool: poolKeyed(g.accounts, g.look), paired: g.paired(), past: g.past, poolPart: -1}
 	for _, section := range EveryGraphsSection() {
 		switch {
 		case !g.shown.Has(section):
@@ -239,8 +244,9 @@ func whenRows(width int, look Look) int {
 
 // rowsOf are the rows the section takes at the step, its heading's and the
 // blank row under it among them: WEEK's rows of cards, a blank row between
-// two; POOL's chart, its axis and its key; and GLANCE's and WHEN YOU WORK's
-// bodies, each across its columns.
+// two; POOL's chart, its axis and its key; GLANCE's and WHEN YOU WORK's
+// bodies, each across its columns; and the bodies of YEAR, BY MONTH and
+// MODELS BY DAY, as their pages lay them out.
 func (s graphsShape) rowsOf(section GraphsSection, step graphsStep) int {
 	switch section {
 	case GraphsPool:
@@ -249,6 +255,8 @@ func (s graphsShape) rowsOf(section GraphsSection, step graphsStep) int {
 		return sectionHead + s.glance.rows()
 	case GraphsWhen:
 		return sectionHead + s.when
+	case GraphsYear, GraphsMonths, GraphsModels:
+		return sectionHead + s.past[section].rows
 	}
 	down := s.cardsDown()
 	return sectionHead + down*step.cardRows() + max(down-1, 0)
@@ -366,19 +374,23 @@ func layGraphs(g graphsGiven) graphsLaid {
 
 // graphsLaid is Graphs as layGraphs lays it out in the frame's view.
 func (f Frame) graphsLaid() graphsLaid {
-	return layGraphs(graphsGiven{width: f.Width, rows: f.viewRows(), shown: f.Graphs.Sections, accounts: f.Graphs.Accounts, look: f.Look})
+	return layGraphs(graphsGiven{width: f.Width, rows: f.viewRows(), shown: f.Graphs.Sections, accounts: f.Graphs.Accounts, look: f.Look, past: f.pastBodies()})
 }
 
 // paged is how the sections laid out, drawn whole, page a row at a time in
 // the rows over the legend: each heading shown with the first row under its
-// blank row, or not at all, and so GLANCE's head row, its window's name.
+// blank row, or not at all, and so GLANCE's head row, its window's name, and
+// the headings within the bodies of YEAR, BY MONTH and MODELS BY DAY.
 func (l graphsLaid) paged() rowsPaged {
 	var heads []headed
 	for _, s := range l.sections {
-		heads = append(heads, headed{at: s.at, first: s.at + sectionHead})
+		body := s.at + sectionHead
+		heads = append(heads, headed{at: s.at, first: body})
 		if s.section == GraphsGlance {
-			at := s.at + sectionHead
-			heads = append(heads, headed{at: at, first: at + sectionHead})
+			heads = append(heads, headed{at: body, first: body + sectionHead})
+		}
+		for _, h := range l.past[s.section].heads {
+			heads = append(heads, headed{at: body + h.at, first: body + h.first})
 		}
 	}
 	slices.SortStableFunc(heads, func(a, b headed) int { return a.at - b.at })
