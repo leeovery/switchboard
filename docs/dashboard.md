@@ -29,7 +29,7 @@ This page uses these terms throughout:
 
 - **Label:** what every page calls an account, such as `work`. The accounts aren't numbered: they
   keep the config's order. Commands name an account by its id instead. See
-  [Accounts and their ids](how-it-works.md#accounts-and-their-ids).
+  [Accounts and their ids](commands/accounts.md).
 - **Window:** a span Claude counts an account's usage over. Each account has a week that every model
   shares, a 5-hour window, and a model's own week where the model has one. A verified Ultra account
   has no 5-hour window: switchboard learns that from its answers, never from its plan. An account
@@ -37,14 +37,14 @@ This page uses these terms throughout:
 - **Limit:** Claude's own limit on a window. An account at a limit can't take the requests that
   limit counts until it lifts.
 - **Cap:** the point where an account's reserve starts, 1 less its `reserve`. The router passes
-  over an account at its cap. See [Reserves](how-it-works.md#reserves).
+  over an account at its cap. See [Reserves](room-for-the-claude-app.md).
 - **Pool:** the accounts new sessions can go to now. That's every account on auto, or only the
-  pinned accounts while the pin holds. Where the config has [pools](how-it-works.md#pools), the
+  pinned accounts while the pin holds. Where the config has [pools](pools.md), the
   dashboard shows one, and its pool is that pool's.
 - **Pin:** your choice of where sessions go, set with the routing card or with
-  [`pin`](commands.md#pin).
+  [`pin`](commands/pin.md).
 - **The primary:** the account your browser and the Claude apps are signed into. See
-  [The primary](how-it-works.md#the-primary).
+  [The primary](room-for-the-claude-app.md).
 - **Worth at API prices:** what the same tokens would have cost through the API.
 
 ## Overview
@@ -87,7 +87,7 @@ gets:
 
 ### USAGE
 
-USAGE is the block that [`usage`](commands.md#usage) prints: every account's windows, and the
+USAGE is the block that [`usage`](commands/usage.md) prints: every account's windows, and the
 pool's.
 
 - Wherever its windows fit side by side, it's the matrix: from 86 columns with two windows and
@@ -136,7 +136,7 @@ ROUTING says, in words, how each account stands with the router. For example:
 - `○ idle · window starts at its prime, 16:20`
 - `✕ its token is another subscription's · switchboard accounts token b6s7`, where the account's
   token file holds another subscription's token, which USAGE and Runway call `wrong token` (see
-  [A token that's another subscription's](how-it-works.md#a-token-thats-another-subscriptions))
+  [A token that's another subscription's](commands/accounts.md))
 - `● pinned`, on each account the pin names, where it has room beside the account's state, and,
   where the state says when it's back or when its pressure runs out, only where that time fits
   beside the mark too. A prime's time gives way to the mark. Where the mark doesn't fit, a
@@ -210,7 +210,7 @@ columns, its ROUTING beside it. The pool's block comes last.
 |---|---|
 | `u` `r` `s` `c` `l` | Shows or hides a section: USAGE, ROUTING, SESSIONS, COMING UP and LATELY. |
 | `w` | Shows or hides each model's own window, such as Fable's week. They're hidden until you press `w`. `?` lists it; the key line leaves it out. |
-| `b` | Groups the windows by window or by account. Until you press `b`, the grouping follows [`[usage] by`](configuration.md#usage-keys). |
+| `b` | Groups the windows by window or by account. Until you press `b`, the grouping follows [`[usage] by`](configuration.md). |
 | `↑` `↓` | Scroll USAGE a row, as `j` and `k` do, where its accounts don't fit. Like the other scrolling keys, it's left to `?`, which lists it only then. |
 
 ## Accounts
@@ -561,7 +561,7 @@ The chart:
 - **The room left** is filled solid up to now, each column to the room the window had then.
 - **Where it's heading** is a dotted line from now to the reset, straight to where the week is
   forecast to be, as the router would spread the pool's use (see
-  [Where a week runs out](how-it-works.md#where-a-week-runs-out)). That's the pace Runway's words
+  [Where a week runs out](reference/routing.md)). That's the pace Runway's words
   go by. It falls to where the week runs out, then runs along the floor it meets, its cap or
   empty, to the reset; or it ends at the room the week will have left at its reset.
 - **`✕`** marks where the window runs out. Where its cap or its limit already holds it, `✕` marks
@@ -615,7 +615,7 @@ GLANCE.
 ### WHEN YOU WORK
 
 WHEN YOU WORK shows when your requests come: a row for each weekday, from the first day of the
-week as [`week_starts`](configuration.md#top-level-keys) begins weeks, and the day's 24 hours across. Each hour is
+week as [`week_starts`](configuration.md) begins weeks, and the day's 24 hours across. Each hour is
 shaded by its requests, averaged over the four whole weeks before today. The heading says the weeks
 counted, such as `the 4 weeks to Wed 30 Sep`, or fewer, where the ledger holds fewer. With none,
 the heading says no weeks, and the section says `nothing recorded yet`.
@@ -908,7 +908,7 @@ pool, full screen, until you press `q`. It needs a terminal, and refuses to run 
 reads the router while the router answers, and otherwise probes each account. Just after the
 upgrade that made account ids, while the router moves the history onto them, it says what the move
 waits on, a line each time that changes, and opens once it's done (see
-[Upgrading to account ids](how-it-works.md#upgrading-to-account-ids)), and the same while it moves
+[Upgrading to account ids](upgrades-and-restarts.md)), and the same while it moves
 the history to pools.
 
 ```bash
@@ -923,7 +923,7 @@ probes for itself, without the router or with `--probe`:
 
 | Flag | Description |
 |---|---|
-| `--no-notify` | Posts none of the desktop notifications the dashboard posts while it probes without the router. See [Notifications](configuration.md#notifications). |
+| `--no-notify` | Posts none of the desktop notifications the dashboard posts while it probes without the router. See [Notifications](notifications.md). |
 | `--probe` | Probes every account each interval, even while the router runs. With no router read, there's no routing card, and `p` does nothing. |
 | `--pool` | Shows the pool with the id given, as `switchboard pool` lists them, else the one the verbs act on. See [In a pool](#in-a-pool). |
 
@@ -936,9 +936,9 @@ switchboard dashboard --pool q7mt   # pool q7mt, whatever pool the verbs act on
 
 ### In a pool
 
-Where the config has [pools](how-it-works.md#pools), the dashboard shows one pool: the one
+Where the config has [pools](pools.md), the dashboard shows one pool: the one
 `--pool` names, else the one the verbs act on, the only pool, else the unfenced one (see
-[Reading a pool](commands.md#reading-a-pool)). A pool the config doesn't have is refused, naming
+[Reading a pool](commands.md)). A pool the config doesn't have is refused, naming
 those it does. What it reads from the router is that pool's: its accounts, windows, room, sessions
 running and pin, and the router's events, the Overview's and Runway's LATELY and the Log's Events
 among them. Accounts and Trends list the pool's accounts alone. What it reads from the request
@@ -1003,7 +1003,7 @@ While the router answers:
 
 - The dashboard looks at the router's view every 5 seconds. This costs nothing upstream.
 - It doesn't have the router probe each interval. The router reads the idle accounts itself, on its
-  own [rounds](how-it-works.md#the-routers-rounds), each one nothing has read in the last 5 minutes.
+  own [rounds](reference/probes-and-priming.md), each one nothing has read in the last 5 minutes.
 - `R` has the router read them at once.
 
 If the router stops answering, or a read of it fails, the router's last view stays on screen. The
@@ -1137,7 +1137,7 @@ token is refused, one with no token, or one whose token is another subscription'
 
 ### Applying
 
-- `enter` applies the picks, as [`pin`](commands.md#pin) does. The router's event names the
+- `enter` applies the picks, as [`pin`](commands/pin.md) does. The router's event names the
   dashboard as what set them.
 - `esc` closes the card with nothing changed.
 
@@ -1148,7 +1148,7 @@ token is refused, one with no token, or one whose token is another subscription'
   card.
 - With `--probe`, `p pin` isn't listed, and `p` opens nothing, even while the router answers.
 - With one account, there's nothing to pin to, and `p` does nothing. The exception is a pin set
-  with [`pin`](commands.md#pin) that still stands: then `p` opens the card to clear it.
+  with [`pin`](commands/pin.md) that still stands: then `p` opens the card to clear it.
 
 ### A session's own card
 
@@ -1302,7 +1302,7 @@ log has the detail.
 A theme is a file named `<slug>.theme`. The slug is lower-case letters, digits and hyphens.
 
 - Put it in the themes directory, at its top level. See
-  [Where things live](reference.md#where-things-live).
+  [Where things live](reference/files.md).
 - Links are followed.
 - The picker reads the directory again each time it opens.
 - A file can't take a built-in theme's slug.
@@ -1354,7 +1354,7 @@ background to it, and puts it back as it was when the dashboard stops. That's on
 or a terminate signal, or a crash it catches. A terminal that didn't say what its background was is
 reset to its profile's own background instead.
 
-[`usage`](commands.md#usage) paints no background, as it prints into the scrollback:
+[`usage`](commands/usage.md) paints no background, as it prints into the scrollback:
 
 - It asks the terminal what its background is, and takes the light or dark half of the pair to
   match.
