@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/config"
 	"golang.org/x/sys/unix"
 )
 
@@ -26,6 +27,21 @@ func laidOut(path string, argv, env []string, follows string) []byte {
 		args = append(append(args, s...), 0)
 	}
 	return append(args, follows...)
+}
+
+// titled is args, argv and env laid out after path as laidOut lays them out,
+// with title written over its arguments as libuv writes a process title,
+// Node's: the title, then NULs to the arguments' end. A title longer than
+// the arguments goes on over the environment, ended by a NUL.
+func titled(args []byte, path string, argv []string, title string) []byte {
+	start := 4 + len(path) + 1
+	for (start-4)%argsAlign != 0 {
+		start++
+	}
+	over := args[start : start+max(len(strings.Join(argv, "\x00"))+1, len(title)+1)]
+	clear(over)
+	copy(over, title)
+	return args
 }
 
 func TestProcArgsReadsTheArgumentsAndEnvironmentAsTheyreLaidOut(t *testing.T) {
@@ -46,6 +62,11 @@ func TestProcArgsReadsTheArgumentsAndEnvironmentAsTheyreLaidOut(t *testing.T) {
 		{name: "a path padded to nothing", args: laidOut(unpadded, argv, env, "\x00"), wantEnv: env, wantOK: true},
 		{name: "an empty first argument", args: laidOut("/opt/claude", []string{"", "-p"}, env, "\x00"), wantArgv: []string{"", "-p"}, wantEnv: env, wantOK: true},
 		{name: "an empty first argument, after a path padded to nothing", args: laidOut(unpadded, []string{"", "-p"}, env, "\x00"), wantArgv: []string{"", "-p"}, wantEnv: env, wantOK: true},
+		{
+			name:     "a process title written over the arguments, as libuv writes Node's",
+			args:     titled(laidOut("/opt/claude", argv, env, "\x00ptr_munge=\x00"), "/opt/claude", argv, "claude"),
+			wantArgv: []string{"claude", "", "", ""}, wantEnv: env, wantOK: true,
+		},
 		{name: "no environment", args: laidOut("/opt/claude", argv, nil, "\x00"), wantOK: true},
 		{name: "too short for a count", args: []byte{1, 0}},
 		{name: "a path never ended", args: append(binary.NativeEndian.AppendUint32(nil, 1), "/opt/claude"...)},
@@ -114,5 +135,78 @@ func TestProcessTableFindsNoneThatIsntRunning(t *testing.T) {
 	}
 	if _, ok := (ProcessTable{}).Environ(none); ok {
 		t.Errorf("Environ(%d) read one, want none: no process id runs so high", none)
+	}
+}
+
+// laidOutTable is the processes running, as ProcessTable tells of them, each
+// one's environment read from args, as kern.procargs2 gives it.
+type laidOutTable map[int]laidOutProcess
+
+type laidOutProcess struct {
+	Process
+	args []byte
+}
+
+func (t laidOutTable) Process(pid int) (Process, bool) {
+	p, ok := t[pid]
+	return p.Process, ok
+}
+
+func (t laidOutTable) Environ(pid int) ([]string, bool) {
+	p, ok := t[pid]
+	if !ok {
+		return nil, false
+	}
+	return switchboardsOf(p.args)
+}
+
+// A session's claude that Node runs writes its title over the memory its
+// environment is read from: what of it the title leaves is read, and what
+// the title took, the session's mark of its claude with it, is read from the
+// environment the launch inherits.
+func TestASessionsClaudeWhoseTitleIsWrittenOverWhatsReadIsFound(t *testing.T) {
+	const (
+		sessionPID = 5150
+		withinPID  = 6001
+		node       = "/usr/local/bin/node"
+		acme       = "q7mt"
+	)
+	at := time.Date(2026, 9, 28, 13, 12, 0, 0, time.UTC)
+	m := startedMark{pid: sessionPID, at: at, path: "/usr/local/bin/claude"}
+	own := environ{"HOME=/home/tester", "PATH=/usr/bin:/bin"}
+	sessionEnv := own.withOrUnset(PoolEnv, acme).markedAgainst(own, m).startingAt(m)
+	argv := []string{node, "/usr/local/lib/node_modules/@anthropic-ai/claude-code/cli.js", "--resume"}
+	laid := func(title string) []byte {
+		return titled(laidOut(node, argv, sessionEnv, "\x00ptr_munge=\x00"), node, argv, title)
+	}
+	tests := []struct {
+		name string
+		// args is the session's claude's, as kern.procargs2 gives them, and
+		// inherited the environment the launch within it starts from.
+		args      []byte
+		inherited []string
+		inSession bool
+	}{
+		{name: "its title written over its arguments, as libuv writes Node's", args: laid("claude"), inherited: own, inSession: true},
+		{
+			name: "its title written over its environment too, the launch inheriting the session's",
+			args: laid(strings.Repeat("claude ", 40)), inherited: sessionEnv, inSession: true,
+		},
+		{name: "its title written over its environment too, the launch's environment cleaned", args: laid(strings.Repeat("claude ", 40)), inherited: own},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			l := Launcher{PID: withinPID, Environ: tt.inherited, Processes: laidOutTable{
+				withinPID:  {Process: Process{Parent: sessionPID, Started: at.Add(time.Minute)}},
+				sessionPID: {Process: Process{Parent: 1, Started: at}, args: tt.args},
+			}}
+			want := ""
+			if tt.inSession {
+				want = acme
+			}
+			if got := l.findOuter().among(config.Pools{{ID: acme}}); got.pool != want {
+				t.Errorf("found within the session %+v, want one in pool %q", got, want)
+			}
+		})
 	}
 }

@@ -47,10 +47,11 @@ func StartedBy(getenv func(string) string) bool {
 // it set, under "set:" and the variable's name, and the user's value it
 // replaced, under "had:", and each line it added to Claude Code's custom
 // headers, under "header", with the user's headers under "had:" where they
-// were set to nothing but blank lines; and, under "claude", the process id
-// of the claude it was made for, so a claude started since in the session's
-// environment, which carries the mark on, isn't taken for the session's (see
-// markedFor).
+// were set to nothing but blank lines; and, under "claude", the claude it was
+// made for, as the mark of that claude names it (see startedMark's claude),
+// so a claude started since in the session's environment, which carries the
+// mark on, isn't taken for the session's, though it took the id of the
+// session's claude since ended (see markedFor).
 const setEnv = "SWITCHBOARD_SET"
 
 // The keys of setEnv's mark.
@@ -124,11 +125,10 @@ func (e environ) hinting() environ {
 	return e.with(claude.HintHeadersEnv, "1")
 }
 
-// startingAt returns the environment marked as the one the claude at path
-// starts in at now, in the place of the switchboard whose process id is pid,
-// in place of any mark it held.
-func (e environ) startingAt(pid int, now time.Time, path string) environ {
-	return e.with(startedEnv, strconv.Itoa(pid)+":"+strconv.FormatInt(now.Unix(), 10)+":"+path)
+// startingAt returns the environment marked as the one the claude m names
+// starts in (see startedEnv), in place of any mark it held.
+func (e environ) startingAt(m startedMark) environ {
+	return e.with(startedEnv, m.claude()+":"+m.path)
 }
 
 // startedMark is what the mark of a claude switchboard started says (see
@@ -138,6 +138,12 @@ type startedMark struct {
 	pid  int
 	at   time.Time
 	path string
+}
+
+// claude names the claude m marks, as "<pid>:<time>": the process id it
+// keeps, and the second it started.
+func (m startedMark) claude() string {
+	return strconv.Itoa(m.pid) + ":" + strconv.FormatInt(m.at.Unix(), 10)
 }
 
 // started returns what the environment's mark of the claude switchboard
@@ -168,8 +174,8 @@ func (e environ) startedAt(pid int, now time.Time) string {
 	return m.path
 }
 
-// markedAgainst returns the environment marked, for the claude whose process
-// id is pid, with what it sets against own, the environment run started from
+// markedAgainst returns the environment marked, for the claude m marks, with
+// what it sets against own, the environment run started from
 // (see setEnv), in place of any mark it held: each of markedVars it gives a
 // value, with own's value where own had one, and each custom header line own
 // didn't hold, with own's custom headers where they were set to nothing but
@@ -183,7 +189,7 @@ func (e environ) startedAt(pid int, now time.Time) string {
 // stays, and a value of own's holding a secret, as redact.HoldsSecret finds
 // one, such as a gateway's URL with credentials in it, isn't kept, its
 // variable marked as set where the user had none.
-func (e environ) markedAgainst(own environ, pid int) environ {
+func (e environ) markedAgainst(own environ, m startedMark) environ {
 	mark := url.Values{}
 	for _, key := range markedVars {
 		set, isSet := e.lookup(key)
@@ -208,15 +214,15 @@ func (e environ) markedAgainst(own environ, pid int) environ {
 	if len(mark) == 0 {
 		return e.without(setEnv)
 	}
-	mark.Set(claudeKey, strconv.Itoa(pid))
+	mark.Set(claudeKey, m.claude())
 	return e.with(setEnv, mark.Encode())
 }
 
 // markedFor reports whether the environment's mark of what run set was made
-// for the claude whose process id is pid (see setEnv).
-func (e environ) markedFor(pid int) bool {
+// for the claude m marks (see setEnv).
+func (e environ) markedFor(m startedMark) bool {
 	mark, ok := e.mark()
-	return ok && mark.Get(claudeKey) == strconv.Itoa(pid)
+	return ok && mark.Get(claudeKey) == m.claude()
 }
 
 // keepHad writes into mark the user's value of key that run replaced, unless

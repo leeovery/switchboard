@@ -27,14 +27,13 @@ looking at.
 ## What happens
 
 - A session started anywhere under `~/Code/acme`, or in a git worktree of a repository there, uses
-  only the accounts in Acme, wherever the worktree lives.
+  only the accounts in Acme, wherever the worktree lives. When every account in Acme is out, work
+  there waits for a reset rather than spill into another pool.
 - Sessions started anywhere else use the unfenced pool, which holds the rest of your accounts.
   Switchboard makes your first pool for you, labelled `Default`, and it starts unfenced.
 - A `claude` that an Acme session starts, such as a test running `claude -p` in the session's
   scratchpad, uses Acme too.
 - Inside a pool, a session keeps its account while the cache is warm, and moves when a limit hits.
-  When every account in the pool is out, work there waits for a reset rather than spill into
-  another pool.
 - Each pool has a primary: the account whose token Claude Code holds there. Artifacts and uploads
   go out on it.
 - The dashboard shows one pool at a time, and every request is recorded under the pool it ran in.

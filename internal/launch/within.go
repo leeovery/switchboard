@@ -114,26 +114,39 @@ func (l Launcher) findOuter() outerSessions {
 }
 
 // sessionOf returns the session whose claude is p, the process whose id is
-// pid, and whether it's one: where its mark of the claude switchboard started
-// (see startedEnv) names it, and it started no later than the mark says, so
-// a process that took the id of a claude since ended isn't; where its mark
-// of what run set was made for it (see markedFor), as a claude started since
-// in the session's environment, as Local starts one, carries on a mark made
-// for another; and where it names the pool or project run set (see
-// setByRun). They're read from the environment p started in, which nothing
-// run within the session can change; else, where that can't be read, from
-// the one the launch starts from, as inherited.
+// pid, and whether it's one, as environOf reads it: where its mark of the
+// claude switchboard started (see startedEnv) names it, and it started no
+// later than the mark says, so a process that took the id of a claude since
+// ended isn't; where its mark of what run set was made for that claude (see
+// markedFor), as a claude started since in the session's environment, as
+// Local starts one, carries on a mark made for another, though it took the
+// id of the one it was made for; and where it names the pool or project run
+// set (see setByRun).
 func (l Launcher) sessionOf(pid int, p Process) (session, bool) {
-	env := environ(l.Environ)
-	if own, read := l.Processes.Environ(pid); read {
-		env = environ(own)
-	}
+	env := l.environOf(pid)
 	m, marked := env.started()
-	if !marked || m.pid != pid || p.Started.After(m.at.Add(markRounding)) || !env.markedFor(pid) {
+	if !marked || m.pid != pid || p.Started.After(m.at.Add(markRounding)) || !env.markedFor(m) {
 		return session{}, false
 	}
 	s := session{pid: pid, pool: env.setByRun(PoolEnv), project: env.setByRun(projectEnv)}
 	return s, s.pool != "" || s.project != ""
+}
+
+// environOf returns the environment sessionOf judges the process whose id is
+// pid by: the one it started in, which nothing the session runs can change,
+// where it holds a mark of the claude switchboard started (see startedEnv)
+// naming that process; else the one the launch starts from, as inherited.
+// What's read of a process is its memory as it is, which the process can
+// write over, as Claude Code's title does under Node, so a read that holds
+// no such mark, a mark every session's claude starts with, can't be told
+// whole, and is passed over as one that can't be read is.
+func (l Launcher) environOf(pid int) environ {
+	if own, read := l.Processes.Environ(pid); read {
+		if m, marked := environ(own).started(); marked && m.pid == pid {
+			return environ(own)
+		}
+	}
+	return environ(l.Environ)
 }
 
 // outerPool returns the session a launch among pools is started within, as

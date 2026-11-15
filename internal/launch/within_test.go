@@ -329,10 +329,12 @@ func TestASessionsPoolChangedSinceInTheEnvironmentInheritedIsStillItsPool(t *tes
 	placedIn(t, h.environment(t), acmePool.ID, acme1Token, acmeDir)
 }
 
-// Where the environment the session's claude started in can't be read, the
-// one the launch inherits says what the session is, as run set it: a pool or
-// project changed since there is none of the session's, and a session naming
-// no pool places no launch among pools.
+// Where the environment the session's claude started in can't be read, or
+// what's read of it holds no mark of the claude naming it, as where a process
+// title was written over it, the one the launch inherits says what the
+// session is, as run set it: a pool or project changed since there is none
+// of the session's, and a session naming no pool places no launch among
+// pools.
 func TestASessionsClaudeWhoseEnvironmentCantBeReadIsFoundThroughTheOneInherited(t *testing.T) {
 	cfg := pooledConfig()
 	sessionEnv := session(t, cfg, acmeDir)
@@ -341,6 +343,20 @@ func TestASessionsClaudeWhoseEnvironmentCantBeReadIsFoundThroughTheOneInherited(
 			name, _, _ := strings.Cut(v, "=")
 			return slices.Contains(names, name)
 		})
+	}
+	started := launched.Add(-time.Second)
+	reads := []struct {
+		name string
+		// claude is the session's claude, as it's read.
+		claude process
+	}{
+		{name: "its claude's environment unread", claude: process{parent: 1, started: started, unread: true}},
+		{name: "its claude's environment read as none", claude: process{parent: 1, started: started, environ: []string{}}},
+		{name: "its claude's environment read without its mark of the claude", claude: process{parent: 1, started: started, environ: switchboards(without(markEnv))}},
+		{
+			name:   "its claude's environment read with a mark of the claude naming another",
+			claude: process{parent: 1, started: started, environ: switchboards(append(without(markEnv), markEnv+"="+mark(sessionPID, launched, "/opt/claude")))},
+		},
 	}
 	tests := []struct {
 		name    string
@@ -354,20 +370,22 @@ func TestASessionsClaudeWhoseEnvironmentCantBeReadIsFoundThroughTheOneInherited(
 		{name: "the session's environment, its pool changed since", environ: append(without("SWITCHBOARD_POOL"), "SWITCHBOARD_POOL="+defaultPool.ID)},
 		{name: "the session's environment, its pool unset since", environ: without("SWITCHBOARD_POOL")},
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			h := within(t, tt.environ, sessionEnv, scratchpad)
-			table := sessionTable(sessionEnv)
-			table[pid] = process{parent: 1, started: launched.Add(-time.Second), unread: true}
-			h.launcher.Processes = table
+	for _, read := range reads {
+		for _, tt := range tests {
+			t.Run(read.name+", "+tt.name, func(t *testing.T) {
+				h := within(t, tt.environ, sessionEnv, scratchpad)
+				table := sessionTable(sessionEnv)
+				table[pid] = read.claude
+				h.launcher.Processes = table
 
-			runs(t, h, cfg)
-			if tt.inSession {
-				placedIn(t, h.environment(t), acmePool.ID, acme1Token, acmeDir)
-				return
-			}
-			placedIn(t, h.environment(t), defaultPool.ID, workToken, scratchpad)
-		})
+				runs(t, h, cfg)
+				if tt.inSession {
+					placedIn(t, h.environment(t), acmePool.ID, acme1Token, acmeDir)
+					return
+				}
+				placedIn(t, h.environment(t), defaultPool.ID, workToken, scratchpad)
+			})
+		}
 	}
 }
 
@@ -593,6 +611,110 @@ func TestAClaudeStartedForALocalSubcommandIsNoSessionsClaude(t *testing.T) {
 			}
 			placedIn(t, h.environment(t), defaultPool.ID, workToken, scratchpad)
 		})
+	}
+}
+
+// A claude started in a session's environment, as Local starts one, or as an
+// unaided launch passes the session's on, that took the id of the session's
+// claude since ended, carries on a mark of what run set made for that claude,
+// which started at another second: it's none of the session's.
+func TestAClaudeThatTookTheIdOfASessionsClaudeSinceEndedIsNoSessionsClaude(t *testing.T) {
+	const nestedPID = 9001
+	later := launched.Add(time.Hour)
+	tests := []struct {
+		name string
+		// from is where the session starts, and start how the claude that
+		// took the id of its claude starts, in its environment.
+		from  string
+		start func(l launch.Launcher) error
+	}{
+		{name: "for a local subcommand", from: acmeDir, start: func(l launch.Launcher) error { return l.Local([]string{"mcp", "serve"}) }},
+		{
+			name: "unaided, the session's environment passed on", from: elsewhere,
+			start: func(l launch.Launcher) error {
+				return l.Unaided(nil, config.Pools{defaultPool, acmePool}, launch.CouldntReadConfig, errUnread)
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := pooledConfig()
+			sessionEnv := session(t, cfg, tt.from)
+			again := newHarness(t, sessionEnv...)
+			again.launcher.Dir, again.launcher.Now = tt.from, func() time.Time { return later }
+			if err := tt.start(again.launcher); err != nil {
+				t.Fatalf("starting the claude that took the id: error = %v; said %q", err, again.stderr.String())
+			}
+			againEnv := again.only(t).inherited()
+			h := newHarness(t, againEnv...)
+			h.launcher.Dir, h.launcher.Project, h.launcher.PID = scratchpad, repositories, nestedPID
+			h.launcher.Processes = processes{
+				nestedPID: {parent: pid, started: later.Add(time.Minute)},
+				pid:       {parent: shellPID, started: later, environ: switchboards(againEnv)},
+				shellPID:  {parent: 1, started: launched.Add(30 * time.Minute)},
+			}
+
+			runs(t, h, cfg)
+			placedIn(t, h.environment(t), defaultPool.ID, workToken, scratchpad)
+		})
+	}
+}
+
+// A session's mark of what run set names its claude by the second its mark
+// of the claude does, though the clock moves on as run starts it.
+func TestASessionsMarksNameItsClaudeAlike(t *testing.T) {
+	cfg := pooledConfig()
+	h := newHarness(t, "HOME=/home/tester")
+	h.launcher.Dir, h.launcher.Project = acmeDir, repositories
+	now := launched
+	h.launcher.Now = func() time.Time {
+		now = now.Add(time.Second)
+		return now
+	}
+	runs(t, h, cfg)
+	sessionEnv := h.only(t).inherited()
+	nested := within(t, sessionEnv, sessionEnv, scratchpad)
+	table := sessionTable(sessionEnv)
+	table[pid] = process{parent: 1, started: launched, environ: switchboards(sessionEnv)}
+	nested.launcher.Processes = table
+
+	runs(t, nested, cfg)
+	placedIn(t, nested.environment(t), acmePool.ID, acme1Token, acmeDir)
+}
+
+// counted is processes, counting how many processes it's asked about, and
+// finding none past most, so a walk that never ends fails rather than hangs.
+type counted struct {
+	processes
+	asked, most int
+}
+
+func (c *counted) Process(pid int) (launch.Process, bool) {
+	c.asked++
+	if c.asked > c.most {
+		return launch.Process{}, false
+	}
+	return c.processes.Process(pid)
+}
+
+// The walk up through the processes that started a launch ends, 64 past the
+// launch's own at most, though what's read of them runs in a circle, as a
+// process table that changes as it's read can.
+func TestTheWalkThroughTheProcessesThatStartedALaunchEnds(t *testing.T) {
+	cfg := pooledConfig()
+	sessionEnv := session(t, cfg, acmeDir)
+	h := within(t, sessionEnv, sessionEnv, scratchpad)
+	table := &counted{processes: processes{
+		withinPID:     {parent: shellPID},
+		shellPID:      {parent: innerShellPID},
+		innerShellPID: {parent: shellPID},
+	}, most: 1000}
+	h.launcher.Processes = table
+
+	runs(t, h, cfg)
+	placedIn(t, h.environment(t), defaultPool.ID, workToken, scratchpad)
+	if table.asked != 65 {
+		t.Errorf("asked of %d processes, want 65: the launch's own, and 64 that started it", table.asked)
 	}
 }
 

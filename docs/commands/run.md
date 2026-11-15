@@ -76,10 +76,16 @@ The project follows the pool:
 
 The session is the one whose `claude` started this `claude`, directly or through other programs.
 `run` looks for that `claude` among the programs that started this one, nearest first. It reads
-the environment that the session's `claude` started with, so a change made since inside the
-session counts for nothing. If that environment can't be read, `run` reads the one this `claude`
-inherits. A session that has ended counts as none, and so does one that only started the tmux
-server a `claude` runs in.
+the environment that the session's `claude` started with, which the programs the session runs
+can't change. Claude Code under Node writes its title over the memory `run` reads, though. If
+`run` can't read that environment whole, it reads the one this `claude` inherits instead.
+
+A session counts as none in these cases:
+
+- The session has ended.
+- The session only started the tmux server a `claude` runs in.
+- The `claude` started in the background, as `claude -p … &` does, from a shell that exits at
+  once. The `claude` may pass to launchd before `run` looks, and is then placed by its folder.
 
 ## Exit status
 

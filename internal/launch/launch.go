@@ -331,7 +331,7 @@ func (l Launcher) routed(path string, args []string, state routerState, c choice
 		pinnedTo(pin).workingIn(l.told(state, project)).inPool(state.told(in.id())).
 		withOrUnset(PoolEnv, in.id()).withOrUnset(projectEnv, project).hinting()
 	l.routedThrough(state, c, pin, in, path, unread)
-	return l.exec(path, args, env.markedAgainst(own, l.PID))
+	return l.execSession(path, args, env, own)
 }
 
 // routedThrough logs Claude Code starting at path through the router in
@@ -376,7 +376,7 @@ func (l Launcher) connectDirectly(path string, args []string, state routerState,
 	attrs = append(attrs, in.within.attrs()...)
 	logger.Warn("starting claude", append(attrs, "claude", path)...)
 	Notice(l.Stderr, "the router "+state.String()+" — connecting directly on "+title(c.account))
-	return l.exec(path, args, env.markedAgainst(own, l.PID))
+	return l.execSession(path, args, env, own)
 }
 
 // Direct starts Claude Code with args in this process's place, on its own
@@ -625,11 +625,32 @@ func firstLine(err error) string {
 }
 
 // exec starts Claude Code, at path, with args and env, marked as started by
-// this process, in this process's place, without whenDownEnv, which is the
-// launch's it was given to alone: every process the session starts would
-// carry it on. Its arguments are never logged: they can hold a prompt.
+// this process, now, as execMarked starts it.
 func (l Launcher) exec(path string, args []string, env environ) error {
-	env = env.without(whenDownEnv).startingAt(l.PID, l.Now(), path)
+	return l.execMarked(path, args, env, l.starting(path))
+}
+
+// execSession starts Claude Code, at path, with args, in env, as exec does,
+// for a session run starts: env marked with what run set there against own
+// (see markedAgainst), made for the claude it starts, both marks naming it by
+// the same second, read once.
+func (l Launcher) execSession(path string, args []string, env, own environ) error {
+	m := l.starting(path)
+	return l.execMarked(path, args, env.markedAgainst(own, m), m)
+}
+
+// starting is the mark of the claude at path that this process starts in its
+// place now (see startedEnv).
+func (l Launcher) starting(path string) startedMark {
+	return startedMark{pid: l.PID, at: l.Now(), path: path}
+}
+
+// execMarked starts Claude Code, at path, with args and env, marked as m
+// says, in this process's place, without whenDownEnv, which is the launch's
+// it was given to alone: every process the session starts would carry it on.
+// Its arguments are never logged: they can hold a prompt.
+func (l Launcher) execMarked(path string, args []string, env environ, m startedMark) error {
+	env = env.without(whenDownEnv).startingAt(m)
 	if err := l.Exec(path, append([]string{claude.Command}, args...), env); err != nil {
 		return fmt.Errorf("start claude at %s: %w", path, err)
 	}

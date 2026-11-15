@@ -24,13 +24,19 @@ func (ProcessTable) Process(pid int) (Process, bool) {
 }
 
 // Environ returns switchboard's variables of the environment the process
-// with the given id started in, where the system lets it be read, as of a
-// process of this user's: false otherwise.
+// with the given id started in, as switchboardsOf reads them, where the
+// system lets it be read, as of a process of this user's: false otherwise.
 func (ProcessTable) Environ(pid int) ([]string, bool) {
 	args, err := unix.SysctlRaw("kern.procargs2", pid)
 	if err != nil {
 		return nil, false
 	}
+	return switchboardsOf(args)
+}
+
+// switchboardsOf returns switchboard's variables of the environment args
+// lays out, as procArgs reads it: false where it can't.
+func switchboardsOf(args []byte) ([]string, bool) {
 	_, env, ok := procArgs(args)
 	if !ok {
 		return nil, false
@@ -49,8 +55,12 @@ const argsAlign = 8
 // by a NUL, and padded with NULs to argsAlign; then each argument, and each
 // variable of its environment, ended by a NUL, the environment's last
 // followed by an empty string or the end. Only the padding is passed over,
-// so an empty first argument is read as one. It reports false where args
-// isn't laid out so.
+// so an empty first argument is read as one. The memory is read as it is
+// now, which a process title can be written over, as libuv writes Node's:
+// the title, then NULs to the arguments' end, so the empty strings past the
+// arguments counted are passed over too. An environment of none reads so as
+// the system's own strings that follow it, such as ptr_munge=, none of them
+// switchboard's. It reports false where args isn't laid out so.
 func procArgs(args []byte) (argv, env []string, ok bool) {
 	if len(args) < 4 {
 		return nil, nil, false
@@ -70,6 +80,9 @@ func procArgs(args []byte) (argv, env []string, ok bool) {
 		return nil, nil, false
 	}
 	env = fields[argc:]
+	for len(env) > 0 && env[0] == "" {
+		env = env[1:]
+	}
 	if end := slices.Index(env, ""); end >= 0 {
 		env = env[:end]
 	}
