@@ -3,7 +3,6 @@
 ● healthy  ·  auto  ·  6 sessions  ·  new sessions → ▲ side
 
 RUNWAY  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-
                                  now
                       Thu                 Fri                  Sat                  Sun                  Mon                  Tue                  Wed
               ──╵─────┬────╵────╵────╵────┬─────╵────╵────╵────┬─────╵────╵────╵────┬────╵─────╵────╵────┬────╵────╵─────╵────┬────╵────╵─────╵────┬────╵────╵──
@@ -29,6 +28,7 @@ Wed 19:12  personal refused (401): 1 session moved to side         19h 29m ago  
                                                                                         ~Sun       work's week reaches its cap                         in 2d 21h
                                                                                         Sun 21:00  work's week resets                                   in 3d 6h
                                                                                         Mon 10:00  side's week resets                                  in 3d 19h
+
 
 
 

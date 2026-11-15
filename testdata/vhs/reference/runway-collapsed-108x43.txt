@@ -3,7 +3,6 @@
 ● healthy  ·  auto  ·  6 sessions  ·  new sessions → ▲ side
 
 RUNWAY  ────────────────────────────────────────────────────────────────────────────────────────────────────
-
               now
       Thu            Fri            Sat             Sun            Mon             Tue            Wed
 ──╵───┬──╵───╵───╵───┬───╵───╵───╵──┬───╵───╵───╵───┬───╵───╵──╵───┬───╵───╵───╵───┬───╵──╵───╵───┬───╵───╵─
@@ -36,6 +35,7 @@ LATELY
 13:04      personal under pressure: out ~13:50                1h 38m ago
 Wed 23:58  personal open again: its 5-hour window reset      14h 43m ago
 Wed 21:40  side under pressure: out ~Wed 23:50               17h 02m ago
+Wed 19:12  personal at its limit: 1 moved to side            19h 29m ago
 
 █ room    █ room, but it runs out at its pace    ━ at its cap    ━ at its limit    ▂ the pool at its limit
 │ its week resets

@@ -23,10 +23,10 @@ func TestUnderTheViewsRowsIsTheViewAndElsewhereNothing(t *testing.T) {
 			f.View = tt.view
 			rows := textOf(f.Draw(runwayThree(), now))
 
-			first := slices.IndexFunc(rows, func(r string) bool { return strings.HasPrefix(r, strings.ToUpper(tt.view.Title())) }) + 2
+			first := slices.IndexFunc(rows, func(r string) bool { return strings.HasPrefix(r, strings.ToUpper(tt.view.Title())) }) + 1
 			last := len(rows) - 3
 			if first < 2 || first != f.top() || rows[len(rows)-1] == "" {
-				t.Fatalf("the frame reads\n%s\nwant a heading row, the view from row %d, and the key line", strings.Join(rows, "\n"), first+1)
+				t.Fatalf("the frame reads\n%s\nwant a heading row, the view from the row under it, %d, and the key line", strings.Join(rows, "\n"), first+1)
 			}
 			heldUnder(t, f, runwayThree(), rows, first, last)
 		})
