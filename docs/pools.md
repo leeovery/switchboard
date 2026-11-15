@@ -71,5 +71,5 @@ inside a pool, see [Troubleshooting](troubleshooting.md).
 ## Related
 
 - [Glossary](glossary.md): what pool, fence, primary and the other terms mean.
-- [Dashboard](dashboard.md): what each tab shows inside a pool.
+- [Running the dashboard](dashboard/running-it.md): what each tab shows inside a pool.
 - [How it works](how-it-works.md): how switchboard routes and records.

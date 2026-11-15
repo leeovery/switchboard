@@ -42,6 +42,11 @@ signed into the primary.
 **Priming.** Starting an account's 5-hour window at a time switchboard chooses, so your
 accounts reset one after another rather than together.
 
+**Project.** The repository a session runs in, with its worktrees folded in. A session in a
+worktree or a folder beneath the repository counts as the repository's, and one started outside
+any repository as its own folder's. `run` records the project as the session starts. See
+[the ledger](reference/ledger.md).
+
 **Record.** Everything switchboard keeps of your use, on this Mac and from any you import:
 
 - the ledger of requests;

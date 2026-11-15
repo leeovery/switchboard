@@ -29,6 +29,22 @@ Find the page for what you want to do. Each line says what the page answers.
 ## Look things up
 
 - [Dashboard](dashboard.md): what each tab shows, the keys, and the themes.
+  - [Overview](dashboard/overview.md): every account's windows, and how the router stands with
+    each.
+  - [Accounts](dashboard/accounts.md): each account in depth, and every account together.
+  - [Projects](dashboard/projects.md): where the use went, project by project.
+  - [Sessions](dashboard/sessions.md): where each session's requests are going now.
+  - [Runway](dashboard/runway.md): when each account has room, over the week.
+  - [Trends](dashboard/trends.md): the shapes of use over time, as charts.
+  - [The Log](dashboard/log.md): the router's requests and events, as they happen.
+  - [The session page](dashboard/session-page.md): one session, through its whole life.
+  - [Every page](dashboard/every-page.md): the status line, help, the key line, clicks, and the
+    keys every page shares.
+  - [The routing card](dashboard/routing-card.md): where new sessions go, set from the dashboard.
+  - [On a phone](dashboard/phone.md): how each tab lays itself out on a narrow screen.
+  - [Running it](dashboard/running-it.md): a pool at a time, what changes when the config
+    does, and what it remembers.
+  - [Themes](dashboard/themes.md): the built-in themes, the picker, and your own.
 - [Commands](commands.md): every command and flag, and what each prints.
 - [Configuration](configuration.md): every key in the config file, and what it changes.
 - [Reference](reference.md): where switchboard keeps its files, and the JSON its commands print.

@@ -27,7 +27,7 @@ Name each account by the id that `switchboard accounts` lists. To find a session
 `switchboard status`, or `/status` inside Claude Code.
 
 On the dashboard, press `p` to open the routing card. Pick an account with `space`, press `m` to
-move the running sessions too, and press `enter` to apply. On a running session's page, `p` pins
+move the running sessions too, and press `enter` to apply. On the session page of a running session, `p` pins
 only that session.
 
 Or ask Claude, for example "move this session to side" or "send new sessions to work". The
@@ -69,7 +69,7 @@ switchboard skill runs the same `pin` commands for it.
 | `switchboard pin auto --session <session>` | Clears one session's pin. |
 | `switchboard run --account <id>` | Starts a session pinned to that account. |
 
-Every flag is on [`pin`](commands/pin.md), and the routing card is in [Dashboard](dashboard.md).
+Every flag is on [`pin`](commands/pin.md), and the routing card has a page of its own, [The routing card](dashboard/routing-card.md).
 If a pin is refused, see [Troubleshooting](troubleshooting.md).
 
 ## Related

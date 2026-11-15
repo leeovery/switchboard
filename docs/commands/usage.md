@@ -180,7 +180,7 @@ The name column never moves as `▲` moves between accounts.
 ## Colour
 
 `usage` draws in the dashboard's theme, brought down to what the terminal shows, with no
-background of its own. See [Dashboard](../dashboard.md) for themes. With `NO_COLOR` set, or on a
+background of its own. See [Themes](../dashboard/themes.md). With `NO_COLOR` set, or on a
 terminal that shows no colour, a bar fills with `█` and leaves its track as spaces. Names and
 percentages stay bold.
 
