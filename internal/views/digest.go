@@ -27,16 +27,18 @@ func (Digests) Builder() ledger.DigestBuilder {
 }
 
 // RowsVersion is the version of what a day's head holds of the day, and its
-// rows file: its side, each of its sessions as the Log's find reads them, as
-// storedDaySession stores them; and its rows, the record of each line Day
-// gives of it, in its order, as storedRow stores one, in chunks, each with
-// its meta, as storedChunkMeta stores it. A release that keeps either
-// otherwise writes another, and a head of another version doesn't stand,
-// nor its rows: the day's lines are read instead. Every head of this
-// version holds a side, and a row of each of its lines, and names the pools
-// each row, each chunk and each session of its side recorded: none was
-// released without them.
-const RowsVersion = 4
+// rows file: its side, each of its sessions as the Log's find, Projects and
+// the List read them, as storedDaySession stores them; and its rows, the
+// record of each line Day gives of it, in its order, as storedRow stores
+// one, in chunks, each with its meta, as storedChunkMeta stores it. A
+// release that keeps either otherwise writes another, and a head of another
+// version doesn't stand, nor its rows: the day's lines are read instead.
+// Every head of this version holds a side, each of its sessions saved whole,
+// and a row of each of its lines, each naming its project, and names the
+// pools each row, each chunk and each session of its side recorded: none
+// was released without them. Version 4 was two, each holding one of those,
+// so neither stands.
+const RowsVersion = 5
 
 // RowsVersion is the version of the sides and rows of the days' heads the
 // Digests give, RowsVersion.
@@ -47,17 +49,18 @@ func (Digests) RowsVersion() int {
 // Day gives a builder of a finished day's side and rows, as dayBuild has it,
 // none of the day's lines taken in yet.
 func (Digests) Day() ledger.DayBuilder {
-	return &dayBuild{sessions: make(daySessions)}
+	return &dayBuild{sessions: newDaySessions(true), read: countedOnceOf(0)}
 }
 
 // dayBuild is a builder of a finished day's side and rows by the views'
 // Digests, of the record of each line Day gives, in its order: the day's
-// sessions, folded as DaySessions folds them, so DaySessionsOn reads from
-// its side what it would read of the lines; and its rows, as rowsBuild
-// builds them, so a reader of them restores the records of those lines, in
-// order.
+// sessions, folded as DaySessions folds them, of the one read read tells,
+// so DaySessionsOn reads from its side what it would read of the lines;
+// and its rows, as rowsBuild builds them, so a reader of them restores the
+// records of those lines, in order.
 type dayBuild struct {
 	sessions daySessions
+	read     *countedOnce
 	rows     rowsBuild
 }
 
@@ -65,7 +68,7 @@ type dayBuild struct {
 // rowsBuild take it.
 func (b *dayBuild) Take(l ledger.Line) {
 	rec := lineRecordOf(&l)
-	b.sessions.take(&rec)
+	b.sessions.take(&rec, b.read)
 	b.rows.take(&rec)
 }
 

@@ -235,6 +235,17 @@ func (c *canvas) surface(x, y, width int, on hue) {
 	}
 }
 
+// surfaceUnder lays a surface under the width cells from x along row y that
+// have none of their own, as surface does, a cell with one keeping it, as a
+// bar's filled cells do.
+func (c *canvas) surfaceUnder(x, y, width int, on hue) {
+	for i := range width {
+		if here := c.at(x+i, y); here != nil && here.ink.on == (hue{}) {
+			here.ink.on = on
+		}
+	}
+}
+
 // barred marks the cells n long from x along row y, as far as they're drawn,
 // as the bar of the window ref names, which eases to a new reading.
 func (c *canvas) barred(x, y, n int, ref Ref) {

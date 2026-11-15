@@ -1,0 +1,37 @@
+ SWITCHBOARD    Overview   Accounts   Projects   Sessions   Runway   Trends   Log                                                            Thu 1 Oct  14:42:07
+
+● healthy  ·  auto  ·  6 sessions  ·  new sessions → ▲ side
+
+ACCOUNTS    Compare  Detail  Tokens  [ ]  ───────────────────────────────────────────────────────────────────────────────────────────────────────  < 12 months >
+
+ all accounts       │   work   ● at its cap · new sessions go elsewhere
+                    │
+ work          ●    │   USAGE                                                                                                   LAST 12 MONTHS
+                    │   Week                  ▋       ┃                ╎   34%  out ~Sat                                        requests  93,454
+ personal    ◆ ●    │                                                                                                           limits    week ×3
+                    │   5-hour                       ┃                 ╎   95%  at cap · back 17:10                                       5-hour ×253
+ side          ●    │                                                                                                           plan      Ultra
+                    │                                                                                                           worth     $10,900  4.5×
+                    │                                                                                                           extra use off
+ ↑↓ choose          │
+                    │   BY MODEL
+                    │               ● Opus 5.5 19%  ● Opus 5 27%  ● Sonnet 5.5 14%  ● Sonnet 5 36%  ● Fable 5.1 1%  ● Haiku 4.5 3%
+                    │
+                    │   ┄┄ the last 13 weeks ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
+                    │
+                    │   BY DAY      ▪▪▪▪▪    ▪▪▪▪▪    ▪▪▪▪▪    ▪▪▪▪▪    ▪ ▪ ▪    ▪ ▪ ▪    ▪ ▪▪▪    ▪▪▪▪▪    ▪▪▪▪▪    ▪▪▪▪▪    ▪▪▪ ▪    ▪▪▪▪▪     ▪▪ ···
+                    │   ‹ 39 more   6 Jul    13 Jul   20 Jul   27 Jul   3 Aug    10 Aug   17 Aug   24 Aug   31 Aug   7 Sep    14 Sep   21 Sep   28 Sep
+                    │
+                    │   WEEKS        ▋ 79     ▊ 86     ▊ 88     ▊ 88     ▊ 90     ▌ 72     ▊ 88       100    ▉ 94       100    ▋ 81       100   ▋  34
+                    │
+                    │   limit hit 3 of the last 51 weeks · 31% left at a reset, on average
+                    │
+                    │   WORTH                                                                                               ▄ ▁ ▂   ▄ ▂
+                    │                                                                             ▃ ▂ ▂ ▃ ▁ ▄ ▂ ▁ ▃ ▂ ▄ ▅ ▆             ▄ ▆
+                    │                                                   ▁ ▂ ▃ ▃ ▄ ▄ ▄ ▄ ▃ ▅ ▇ ▇ ▆                                           ▁
+                    │                   ▁ ▁ ▁ ▄ ▄ ▄ ▆         ▂ ▅ ▅ ▇ ▇
+                    │
+                    │               ▄
+                    │               Oct       Nov     Dec       Jan     Feb     Mar       Apr     May     Jun       Jul     Aug       Sep
+                        ▼ 12 more below · j/k
+tab views   [ ] view    < > period: 12 months    ↑↓ account  enter its page    p pin    ? help  q quit

@@ -156,12 +156,12 @@ func TestThePageDrawsEachPartOnItsRow(t *testing.T) {
 	}{
 		{name: "the Overview, whose sections head themselves", width: 160, view: Overview, status: 2, heading: -1, top: 4, first: "USAGE"},
 		{name: "the Log", width: 160, view: Log, status: 2, heading: 4, top: 6, first: "  at        session"},
-		{name: "the Overview on a phone", width: 60, view: Overview, tabs: 1, status: 3, heading: -1, top: 5, first: "USAGE"},
-		{name: "the Log on a phone", width: 60, view: Log, tabs: 1, status: 3, heading: 5, top: 7, first: "  at        session"},
+		{name: "the Overview on a phone", width: 70, view: Overview, tabs: 1, status: 3, heading: -1, top: 5, first: "USAGE"},
+		{name: "the Log on a phone", width: 70, view: Log, tabs: 1, status: 3, heading: 5, top: 7, first: "  at        session"},
 		{name: "a phone of 99 columns", width: 99, view: Log, tabs: 1, status: 3, heading: 5, top: 7, first: "  at        session"},
 		{name: "a phone whose tabs take two rows", width: 52, view: Log, tabs: 2, status: 4, heading: 6, top: 8, first: "  at        session"},
 		{name: "the Overview on a phone whose tabs take two rows", width: 52, view: Overview, tabs: 2, status: 4, heading: -1, top: 6, first: "USAGE"},
-		{name: "a phone whose tabs take three rows", width: 28, view: Overview, tabs: 3, status: 5, heading: -1, top: 7, first: "USAGE"},
+		{name: "a phone whose tabs take three rows", width: 30, view: Overview, tabs: 3, status: 5, heading: -1, top: 7, first: "USAGE"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -272,10 +272,10 @@ func TestATerminalOfAFewRowsDrawsWhatFits(t *testing.T) {
 		{width: 160, height: 2, want: []string{"title", "keys"}},
 		{width: 160, height: 3, want: []string{"title", "", "keys"}},
 		{width: 160, height: 4, want: []string{"title", "", "status", "keys"}},
-		{width: 60, height: 2, want: []string{"title", "tabs"}},
-		{width: 60, height: 3, want: []string{"title", "tabs", "keys"}},
-		{width: 60, height: 4, want: []string{"title", "tabs", "", "keys"}},
-		{width: 60, height: 5, want: []string{"title", "tabs", "", "status", "keys"}},
+		{width: 70, height: 2, want: []string{"title", "tabs"}},
+		{width: 70, height: 3, want: []string{"title", "tabs", "keys"}},
+		{width: 70, height: 4, want: []string{"title", "tabs", "", "keys"}},
+		{width: 70, height: 5, want: []string{"title", "tabs", "", "status", "keys"}},
 		{width: 52, height: 3, want: []string{"title", "tabs", "tabs"}},
 		{width: 52, height: 4, want: []string{"title", "tabs", "tabs", "keys"}},
 		{width: 52, height: 5, want: []string{"title", "tabs", "tabs", "", "keys"}},

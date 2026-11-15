@@ -72,7 +72,7 @@ func pageFigures(page views.AccountsPage) viewstest.Figures {
 	}
 	return viewstest.Figures{
 		viewstest.FigureRecorded: recorded,
-		viewstest.FigureWeeks:    strings.Join(page.Weeks, " "),
+		viewstest.FigureWeeks:    strings.Join(lastOf(page.Weeks, 6), " "),
 		viewstest.FigureToCome:   strconv.Itoa(page.ToCome),
 	}
 }
@@ -96,8 +96,8 @@ func rowFigures(t *testing.T, am viewstest.AccountsMoment, page views.AccountsPa
 		viewstest.FigurePlan:     planRead(row),
 		viewstest.FigureWorth:    cmpOrDash(totals.Dollars()),
 		viewstest.FigureAgainst:  againstRead(row.Plan.Against),
-		viewstest.FigurePeaks:    peaksRead(row.Peaks),
-		viewstest.FigureVerdict:  verdictRead(row.Verdict),
+		viewstest.FigurePeaks:    peaksRead(lastOf(row.Peaks, 6)),
+		viewstest.FigureFacts:    factsRead(row.Facts(weeksJudged)),
 		viewstest.FigureWeekUsed: weekUsedRead(m, id),
 		viewstest.FigureRunning:  runningRead(m, am, id),
 		viewstest.FigureLately:   latelyRead(views.AccountLately(m, id, 3, views.SessionDirs{})),
@@ -108,8 +108,6 @@ func rowFigures(t *testing.T, am viewstest.AccountsMoment, page views.AccountsPa
 	if id == "" {
 		known, of := page.All.Plan.Plans.Known, page.All.Plan.Plans.Of
 		f[viewstest.FigurePlansOf] = fmt.Sprintf("%d of %d", known, of)
-		most, least, _ := page.Ends()
-		f[viewstest.FigureMostLeft], f[viewstest.FigureLeastLeft] = most.Totals.Account, least.Totals.Account
 	}
 	return f
 }

@@ -50,8 +50,8 @@ func TestGraphsHelpListsItsKeysThenEachSectionInThePagesOrder(t *testing.T) {
 		{Key: "t", Does: "themes"}, {Key: "R", Does: "refresh"}, helpQuit[0], helpQuit[1],
 	}
 	card := graphsHelping(160, Look{}, keys...)
-	if card.title != "HELP · GRAPHS" {
-		t.Errorf("help is titled %q, want HELP · GRAPHS", card.title)
+	if card.title != "HELP · TRENDS" {
+		t.Errorf("help is titled %q, want HELP · TRENDS", card.title)
 	}
 	opens := []string{
 		"tab views   w week   o pool   g glance   h when   j k scroll   PgUp PgDn page   p pin   t themes   R refresh   ? help",
@@ -61,7 +61,7 @@ func TestGraphsHelpListsItsKeysThenEachSectionInThePagesOrder(t *testing.T) {
 	if got := plainLines(card.body[:len(opens)]); !slices.Equal(got, opens) {
 		t.Errorf("help opens\n%s\nwant its keys, then a blank row\n%s", strings.Join(got, "\n"), strings.Join(opens, "\n"))
 	}
-	if got, want := helpHeadings(card), []string{"WEEK", "POOL", "GLANCE", "WHEN YOU WORK", "ROOM"}; !slices.Equal(got, want) {
+	if got, want := helpHeadings(card), []string{"WEEK", "POOL", "GLANCE", "WHEN YOU WORK", "YEAR", "BY MONTH", "MODELS BY DAY", "ROOM"}; !slices.Equal(got, want) {
 		t.Errorf("help explains %q, want %q, each headed in text.subtle after a blank row", got, want)
 	}
 }
@@ -182,14 +182,19 @@ func TestGraphsHelpSaysWhatItsRulesAre(t *testing.T) {
 		{"fewer weeks", "or fewer where fewer are known; with none, the heading says no weeks, and the section nothing recorded yet"},
 		{"the requests it counts", "those that spent quota and went upstream, each in the local hour it arrived in"},
 		{"the clocks changing", "an hour the clocks skip has none that day, and one they repeat counts both"},
-		{"its shades", "The shades are History's"},
-		{"the toggles", "w, o, g and h show and hide WEEK, POOL, GLANCE and WHEN YOU WORK, at any size"},
+		{"its shades", "The shades are YEAR's"},
+		{"YEAR's span", "A day a square, a week a column, over the last 12 months, as many of the latest weeks as the width holds"},
+		{"YEAR's v", "v shows one model version alone, in four steps of its own colour, or one account, ← and → stepping between the accounts"},
+		{"YEAR's totals", "Its totals sit beside the grid where the width holds both, else under it"},
+		{"MODELS BY DAY", "each family's worth a day at API prices, every account's, in four steps of the family's colour, every family on one scale"},
+		{"the toggles", "w, o, g, h, y, m and d show and hide WEEK, POOL, GLANCE, WHEN YOU WORK, YEAR, BY MONTH and MODELS BY DAY, at any size"},
+		{"no period", "Trends has no period: the cards are this week, YEAR and BY MONTH the last 12 months, and MODELS BY DAY the last eight weeks"},
 		{"the toggles kept", "they're kept for next time"},
 		{"rows to spare", "Rows to spare go first to each card's words, a row of their own, then to the charts"},
 		{"the tallest chart", "up to 19 rows"},
 		{"scrolling", "the page scrolls whole, a row at a time, with j and k"},
 		{"the legend held", "the legend stays at the foot"},
-		{"the layout held", "The layout changes only on a key, a resize or the config, never as the data does"},
+		{"the layout held", "The layout changes only on a key, a resize, the config or the ledger's days read, never as the live data does"},
 		{"the clock", "The charts move on with the clock"},
 	} {
 		if !strings.Contains(said, tc.want) {

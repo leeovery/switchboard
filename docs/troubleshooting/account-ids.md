@@ -79,9 +79,9 @@ its sync isn't done. The folder this Mac exported before the upgrade is taken in
 ## Adding or removing an account fails on the accounts record
 
 `accounts.json` doesn't read, for example after a wrong edit by hand. Switchboard leaves it as it
-is. Adding or removing an account fails and names the file. Meanwhile, History and the commands
-name each removed account by id. Put the file right, or move it aside. What it holds is in
-[The accounts record](../reference/accounts-record.md).
+is. Adding or removing an account fails and names the file. Meanwhile, the dashboard and the
+commands name each removed account by id. Put the file right, or move it aside. What it holds is
+in [The accounts record](../reference/accounts-record.md).
 
 ## Related
 

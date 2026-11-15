@@ -33,8 +33,9 @@ switchboard history [--since <when>] \
 | `--json` | Off a terminal | Prints the blocks as JSON, even on a terminal. |
 | `--pretty` | On a terminal | Prints the text, even off a terminal. |
 
-What worth means, and why it matters, is in [Your record](../your-record.md). The same
-numbers show on the History tab of the [dashboard](../dashboard.md).
+What worth means, and why it matters, is in [Your record](../your-record.md). On the
+[dashboard](../dashboard.md), Trends shows the year and the months. Accounts shows the weeks, the
+tokens and, over 12 months, the totals. The verdict on how many accounts you need shows only here.
 
 ## The days
 
@@ -74,6 +75,7 @@ same way the dashboard does.
 | A week | 12/52 of a month |
 | 30 days | A month |
 | 12 weeks | 12 × 12/52 of a month |
+| 12 months | 12 months, whether they hold 365 days or 366 |
 
 | If | Then |
 |---|---|

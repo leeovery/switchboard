@@ -67,9 +67,6 @@ var sizedAllowed = []string{
 	"internal/dashboard/routing.go:Frame.routingBesideUsage",
 	"internal/dashboard/usage.go:usageBlock.wordCells",
 	"internal/dashboard/usagewords.go:usageWords.pick",
-	// The design's figure of History's frames, 37 rows, historyRows:
-	// shorter, Days and Weeks are drawn whole and scrolled a row at a time.
-	"internal/dashboard/historypage.go:Frame.shortOfHistory",
 	// The design's figure of the frame's least, the fixed rows and
 	// leastView, three of the view's: shorter, the frame is cramped, which
 	// many views choose by.

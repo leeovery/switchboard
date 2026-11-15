@@ -183,9 +183,12 @@ func (h happenings) today(hour, minute, second int) time.Time {
 
 // started is the session's start on the account, its first request, of opus,
 // having come at the time given, and why it went there, in its directory, as
-// dirOf gives it.
+// dirOf gives it, the root of its project.
 func (h happenings) started(at time.Time, session, account, reason string) status.Event {
-	return status.Event{Kind: status.EventStarted, At: at.Add(startedAfter), Account: account, Session: session, Model: opus, Dir: dirOf(session), Reason: reason}
+	return status.Event{
+		Kind: status.EventStarted, At: at.Add(startedAfter), Account: account, Session: session, Model: opus, Dir: dirOf(session), Project: dirOf(session),
+		Reason: reason,
+	}
 }
 
 // dirOf is the directory the frames' session with the given id runs in, as
@@ -211,9 +214,13 @@ func (h happenings) primed(at time.Time, account string, resets time.Time) statu
 }
 
 // moved is the session's requests of opus moving from one account to another
-// at the time given, and why.
+// at the time given, and why, in its directory and project, as started has
+// them.
 func (h happenings) moved(at time.Time, session, from, to, reason string) status.Event {
-	return status.Event{Kind: status.EventMoved, At: at, Session: session, Model: opus, Dir: dirOf(session), From: from, To: to, Reason: reason}
+	return status.Event{
+		Kind: status.EventMoved, At: at, Session: session, Model: opus, Dir: dirOf(session), Project: dirOf(session), From: from, To: to,
+		Reason: reason,
+	}
 }
 
 // forcedOff is the session's move, as moved says, forced by the newest cap,

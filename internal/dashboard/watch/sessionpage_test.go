@@ -325,7 +325,7 @@ func TestASessionsPageLeavesForTheTabItWasOpenedOverOrAnother(t *testing.T) {
 		{name: "esc on the key line", leave: click(keyTarget("esc")), view: dashboard.Overview, scroll: 2},
 		{name: "tab", leave: press(tea.KeyPressMsg{Code: tea.KeyTab}), view: dashboard.Accounts},
 		{name: "shift-tab", leave: press(tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift}), view: dashboard.Log},
-		{name: "a click on History's tab", leave: click(dashboard.Target{On: dashboard.OnTab, Tab: dashboard.History}), view: dashboard.History},
+		{name: "a click on Runway's tab", leave: click(dashboard.Target{On: dashboard.OnTab, Tab: dashboard.Runway}), view: dashboard.Runway},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -353,7 +353,7 @@ func TestTheNumberKeysMAndItsTabsOwnKeysDoNothingOnASessionsPage(t *testing.T) {
 	}{
 		{over: dashboard.Overview, keys: "u g r s c l b"},
 		{over: dashboard.Log, keys: "] f / s", also: []tea.KeyPressMsg{end}},
-		{over: dashboard.History, keys: "] < v", also: []tea.KeyPressMsg{left}},
+		{over: dashboard.Accounts, keys: "] < v", also: []tea.KeyPressMsg{left}},
 		{over: dashboard.Runway, keys: "w"},
 		{over: dashboard.Graphs, keys: "w f o g h"},
 	}
@@ -458,13 +458,13 @@ func TestASessionsPageReadsTheStreamWhileTheRouterAnswers(t *testing.T) {
 		page, gone bool
 		want       bool
 	}{
-		{name: "its page open over History", page: true, want: true},
-		{name: "History alone"},
+		{name: "its page open over Runway", page: true, want: true},
+		{name: "Runway alone"},
 		{name: "its page open, the router gone", page: true, gone: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m := Model{view: dashboard.History, asRead: asRead{routed: true}}
+			m := Model{view: dashboard.Runway, asRead: asRead{routed: true}}
 			if tt.page {
 				m.session = &sessionShown{}
 			}

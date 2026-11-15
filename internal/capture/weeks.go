@@ -9,8 +9,8 @@ import (
 )
 
 // The year's days, counted as the frames' generator counts them: day 0 is
-// Monday 29 September 2025, the first day History's Year draws; the eight
-// weeks Weeks and Days draw start on day 315, Monday 10 August 2026; this week
+// Monday 29 September 2025, the first day Trends' YEAR draws; the eight
+// weeks MODELS BY DAY draws start on day 315, Monday 10 August 2026; this week
 // on day 364, Monday 28 September; and today is day 367, Thursday 1 October.
 const (
 	eightWeeks = 315
@@ -98,7 +98,7 @@ type weekClock struct {
 
 // weekResets are when each account's week resets, as the frames have it, but
 // spare's: the Overview's frames reset it on Thursdays at 18:00 with their
-// even pace two days in, and History's frame of ten draws its peak of the
+// even pace two days in, and the frames of ten draw its peak of the
 // week of 21 September, which it can't have ended by now where its week runs
 // to a Thursday evening, so it resets on Tuesdays at 14:00.
 var weekResets = map[string]weekClock{

@@ -65,7 +65,7 @@ func TestTheEditCardIsFrame6s(t *testing.T) {
 		editCardTop + 1:    "│" + blanks(78) + "│",
 		editLabelRow:       "│  Label     Personal" + blanks(58) + "│",
 		editPlanRow:        "│  Plan      □ Pro    ■ Max    □ Ultra    □ not set" + blanks(28) + "│",
-		editPlanRow + 1:    "│            used by History to value usage" + blanks(36) + "│",
+		editPlanRow + 1:    "│            used to value usage" + blanks(47) + "│",
 		editPrimaryRow:     "│  Primary   ■ no    □ yes" + blanks(53) + "│",
 		editPrimaryRow + 1: "│            the account the Claude apps are signed in to" + blanks(22) + "│",
 		editReserveRow:     "│  Reserve   none                      usage kept back for the Claude apps     │",

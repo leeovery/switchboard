@@ -1,6 +1,7 @@
 package router_test
 
 import (
+	"maps"
 	"net/http"
 	"reflect"
 	"slices"
@@ -130,20 +131,79 @@ func TestASessionWhoseThinkingIsBoundStaysOnItsAccountUntilItMustMove(t *testing
 	}
 }
 
-// Each event naming a session carries the directory the session ran in as
-// its assignment held it when the router told of it: its start; a move
-// forced by a limit, by a request naming none, as the assignment keeps its
-// last; a move by choice, by a request naming another; and its own pin set
-// and cleared, the directory of its model seen last to name one: its opus's
-// as it's pinned, then its sonnet's, asked since in another directory, as
-// it's unpinned.
-func TestTheEventsOfASessionCarryItsDirectory(t *testing.T) {
+// Each event naming a session carries the directory the session ran in, and
+// its project, as its assignment held them when the router told of it: its
+// start; a move forced by a limit, by a request naming none, as the
+// assignment keeps its last; a move by choice, by a request naming another;
+// and its own pin set and cleared, the place of its model seen last to name
+// a directory: its opus's as it's pinned, then its sonnet's, asked since in
+// another directory, as it's unpinned. The status document tells each so.
+func TestTheEventsOfASessionCarryItsDirectoryAndProject(t *testing.T) {
 	r := newRouted(t)
+	client := router.NewClient(serveControl(t, r.rt))
+	api := place{dir: "~/Code/api/cmd", project: "~/Code/api"}
+	web := place{dir: "~/Code/web/.claude/worktrees/fix-login", project: "~/Code/web"}
+	docs := place{dir: "~/Code/docs", project: "~/Code/docs"}
+
+	r.startedAndMovedTwice(t, api, web)
+	if _, err := client.PinSession(t.Context(), "one", "side", router.ByDashboard); err != nil {
+		t.Fatalf("PinSession() error = %v", err)
+	}
+	r.clock.advance(time.Minute)
+	if got := r.askIn(t, "one", sonnet, "", docs); got != "side" {
+		t.Fatalf("pinned to side, the session's first sonnet request went to %s, want side", got)
+	}
+	if _, err := client.UnpinSession(t.Context(), "one", router.ByDashboard); err != nil {
+		t.Fatalf("UnpinSession() error = %v", err)
+	}
+
+	want := append(movedTwice(api, web),
+		router.Pinned{Account: "side", Session: "one", Dir: web.dir, Project: web.project, By: router.ByDashboard},
+		router.SessionStarted{Session: "one", Model: sonnet, Account: "side", Reason: status.ReasonPinned, Dir: docs.dir, Project: docs.project},
+		router.Unpinned{Account: "side", Session: "one", Dir: docs.dir, Project: docs.project, By: router.ByDashboard},
+	)
+	if got := r.sessionEvents(); !reflect.DeepEqual(got, want) {
+		t.Errorf("events =\n%+v\nwant\n%+v", got, want)
+	}
+	toldAt := make(map[place]int)
+	for _, e := range r.rt.Status().Events {
+		if e.Session != "" {
+			toldAt[place{e.Dir, e.Project}]++
+		}
+	}
+	if want := map[place]int{api: 2, web: 2, docs: 2}; !maps.Equal(toldAt, want) {
+		t.Errorf("the status document tells the session's events in %v, want %v: a start and a move, a move and a pin, a start and an unpin", toldAt, want)
+	}
+}
+
+// A move and a pin after a request that named a directory alone, as a run
+// from before projects tells one, carry that directory and no project: a
+// project goes only with the directory named with it.
+func TestTheEventsAfterARequestNamingADirectoryAloneCarryNoProject(t *testing.T) {
+	r := newRouted(t)
+	client := router.NewClient(serveControl(t, r.rt))
+	api, site := place{dir: "~/Code/api/cmd", project: "~/Code/api"}, place{dir: "~/Code/site"}
+
+	r.startedAndMovedTwice(t, api, site)
+	if _, err := client.PinSession(t.Context(), "one", "side", router.ByDashboard); err != nil {
+		t.Fatalf("PinSession() error = %v", err)
+	}
+
+	want := append(movedTwice(api, site), router.Pinned{Account: "side", Session: "one", Dir: site.dir, By: router.ByDashboard})
+	if got := r.sessionEvents(); !reflect.DeepEqual(got, want) {
+		t.Errorf("events =\n%+v\nwant\n%+v", got, want)
+	}
+}
+
+// startedAndMovedTwice sends the requests of session one's opus the events
+// tests start with: one in first, which starts the session on work; one
+// naming no place at work's limit, which moves it to side; and, two hours
+// idle, one in then, which moves it back to work, rescored.
+func (r *routed) startedAndMovedTwice(t *testing.T, first, then place) {
+	t.Helper()
 	r.readsAs(workToken, session, weekOf(0.5, 5*24*time.Hour))
 	r.readsAs(sideToken, session, weekOf(0.99, 24*time.Hour))
-	client := router.NewClient(serveControl(t, r.rt))
-
-	r.askIn(t, "one", opus, "", "~/Code/api")
+	r.askIn(t, "one", opus, "", first)
 	r.api.script(workToken, limitReached("You've hit your limit", sessionSpent, weekOf(0.5, 5*24*time.Hour)))
 	if got := r.ask(t, "one", opus, ""); got != "side" {
 		t.Fatalf("at work's limit, the session's request went to %s, want side", got)
@@ -151,44 +211,35 @@ func TestTheEventsOfASessionCarryItsDirectory(t *testing.T) {
 	r.readsAs(workToken, session, weekOf(0, 7*24*time.Hour))
 	r.readsAs(sideToken, session, weekOf(0.99, 24*time.Hour))
 	r.clock.advance(2 * time.Hour)
-	if got := r.askIn(t, "one", opus, "", "~/Code/web"); got != "work" {
+	if got := r.askIn(t, "one", opus, "", then); got != "work" {
 		t.Fatalf("two hours idle, the session's request went to %s, want work, rescored", got)
 	}
-	if _, err := client.PinSession(t.Context(), "one", "side", router.ByDashboard); err != nil {
-		t.Fatalf("PinSession() error = %v", err)
-	}
-	r.clock.advance(time.Minute)
-	if got := r.askIn(t, "one", sonnet, "", "~/Code/docs"); got != "side" {
-		t.Fatalf("pinned to side, the session's first sonnet request went to %s, want side", got)
-	}
-	if _, err := client.UnpinSession(t.Context(), "one", router.ByDashboard); err != nil {
-		t.Fatalf("UnpinSession() error = %v", err)
-	}
+}
 
-	want := []router.Event{
-		router.SessionStarted{Session: "one", Model: opus, Account: "work", Reason: status.ReasonNew, Dir: "~/Code/api"},
-		router.Moved{Session: "one", Model: opus, From: "work", To: "side", Reason: "moved: work hit its limit", Held: router.HeldByLimit, Limit: 1, Dir: "~/Code/api"},
-		router.Moved{Session: "one", Model: opus, From: "side", To: "work", Reason: "rescored after 2h idle", Dir: "~/Code/web"},
-		router.Pinned{Account: "side", Session: "one", Dir: "~/Code/web", By: router.ByDashboard},
-		router.SessionStarted{Session: "one", Model: sonnet, Account: "side", Reason: status.ReasonPinned, Dir: "~/Code/docs"},
-		router.Unpinned{Account: "side", Session: "one", Dir: "~/Code/docs", By: router.ByDashboard},
+// movedTwice are the events startedAndMovedTwice brings about, as the
+// session's assignment places it: its start and the limit's move in first,
+// the request at the limit naming none, and the move by choice in then.
+func movedTwice(first, then place) []router.Event {
+	return []router.Event{
+		router.SessionStarted{Session: "one", Model: opus, Account: "work", Reason: status.ReasonNew, Dir: first.dir, Project: first.project},
+		router.Moved{
+			Session: "one", Model: opus, From: "work", To: "side", Reason: "moved: work hit its limit", Held: router.HeldByLimit, Limit: 1,
+			Dir: first.dir, Project: first.project,
+		},
+		router.Moved{Session: "one", Model: opus, From: "side", To: "work", Reason: "rescored after 2h idle", Dir: then.dir, Project: then.project},
 	}
-	got := slices.DeleteFunc(r.events.heard(), func(e router.Event) bool {
+}
+
+// sessionEvents are the events heard so far, but those of a limit reached
+// or lifted.
+func (r *routed) sessionEvents() []router.Event {
+	return slices.DeleteFunc(r.events.heard(), func(e router.Event) bool {
 		switch e.(type) {
 		case router.LimitReached, router.LimitLifted:
 			return true
 		}
 		return false
 	})
-	if !reflect.DeepEqual(got, want) {
-		t.Errorf("events =\n%+v\nwant\n%+v", got, want)
-	}
-	told := r.rt.Status().Events
-	for _, e := range told {
-		if e.Session != "" && e.Dir == "" {
-			t.Errorf("the status document tells %+v without the session's directory", e)
-		}
-	}
 }
 
 func TestTheSessionPinHeader(t *testing.T) {
@@ -623,15 +674,16 @@ func (r *routed) readsAs(token string, windows ...quota.Window) {
 // which may be held there yet.
 func (r *routed) ask(t *testing.T, session, model, pin string) string {
 	t.Helper()
-	return r.askIn(t, session, model, pin, "")
+	return r.askIn(t, session, model, pin, place{})
 }
 
-// askIn is ask, run telling the router the request's directory, dir: none
-// for "".
-func (r *routed) askIn(t *testing.T, session, model, pin, dir string) string {
+// askIn is ask, run telling the router where the request ran, at: its
+// directory and its project, none for "".
+func (r *routed) askIn(t *testing.T, session, model, pin string, at place) string {
 	t.Helper()
 	before := r.rt.InFlightOf(session, model)
-	header := with(with(with(claudeCode(workToken), claude.SessionHeader, session), "X-Switchboard-Account", pin), router.DirHeader, router.EncodeDir(dir))
+	header := with(with(claudeCode(workToken), claude.SessionHeader, session), "X-Switchboard-Account", pin)
+	header = with(with(header, router.DirHeader, router.EncodeDir(at.dir)), router.ProjectHeader, router.EncodeDir(at.project))
 	readAll(t, send(t, http.MethodPost, r.proxy+"/v1/messages", header, strings.NewReader(messageFor(model))))
 	waitUntil(t, "the router is done with the request", func() bool {
 		return !slices.ContainsFunc(r.rt.InFlightOf(session, model), func(id string) bool { return !slices.Contains(before, id) })

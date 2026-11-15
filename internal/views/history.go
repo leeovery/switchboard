@@ -14,11 +14,11 @@ import (
 	"github.com/leeovery/switchboard/internal/status"
 )
 
-// History is what History's views and Accounts' build over the days asked
-// for, block by block, each oldest first, as history prints them: the days,
-// Year's grid, BY MONTH's rows, Weeks' weeks, Tokens' weeks, the accounts'
-// totals and plans, and Weeks' verdicts; and the accounts removed that the
-// days name, each by the label it showed last.
+// History is what history builds over the days asked for, block by block,
+// each oldest first, as it prints them: the days, the year's grid, each
+// month's rows, the weeks' peaks, the weeks' tokens, the accounts' totals
+// and plans, and the weeks' verdicts; and the accounts removed that the days
+// name, each by the label it showed last.
 type History struct {
 	Days     []Day                  `json:"days"`
 	Year     Year                   `json:"year"`
@@ -129,19 +129,16 @@ func (d Day) names(id string) bool {
 
 // countedFrom is the date of the first day counted of the days asked for
 // from the one with the date asked, days being those of them the ledger
-// gives: the latest of it, the first the ledger holds, as the ledger gives
-// every day from the later of the two, and the day work began, began's,
-// where it's known, as a pool's work begins after the ledger does, as
-// PoolRead's Start tells it.
+// gives: the later of it and the first the ledger holds, as the ledger
+// gives every day from the later of the two, or the day work began, at
+// began, where that's known and later, as begunOn has it, as a pool's work
+// begins after the ledger does, as PoolRead's Start tells it.
 func countedFrom(asked string, days []Day, began time.Time) string {
 	counted := asked
 	if len(days) > 0 {
 		counted = max(counted, days[0].Day)
 	}
-	if !began.IsZero() {
-		counted = max(counted, dayfile.DateOf(began))
-	}
-	return counted
+	return begunOn(counted, began)
 }
 
 // splitAt splits days, in order, at the one with the given date: those

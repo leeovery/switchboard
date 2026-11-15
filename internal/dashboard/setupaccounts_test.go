@@ -230,7 +230,7 @@ func TestTheReviewsNotes(t *testing.T) {
 		"  Press t to create a new one, approving it in the browser signed in to Side.",
 		"",
 		"  Personal has a token that expires 19 Oct 2026: 21 days left. Press t to create a new one, approving it in the browser signed in to Personal.",
-		"  Personal has no plan set, so History can't value its usage. Press e to set one.",
+		"  Personal has no plan set, so its usage can't be valued. Press e to set one.",
 	}
 	for i, w := range want {
 		if got := rowOf(c, accountsNotesRow+i); got != w {

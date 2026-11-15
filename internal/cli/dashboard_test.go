@@ -95,17 +95,14 @@ func TestDashboardHelpSaysWhatTheKeysWordsDont(t *testing.T) {
 		{page: "every page", next: "Overview:", says: "t, p and P work where they apply: t not under NO_COLOR, p neither with one account"},
 		{page: "every page", next: "Overview:", says: "nor with --probe"},
 		{page: "every page", next: "Overview:", says: "j, k, PgDn, PgUp and the wheel scroll a view where it doesn't fit: the Overview's USAGE"},
-		{page: "every page", next: "Overview:", says: "Runway's lanes, Graphs' page, the Log's table"},
+		{page: "every page", next: "Overview:", says: "Accounts' views, a project's SESSIONS, Sessions' List"},
+		{page: "every page", next: "Overview:", says: "Runway's lanes, Trends' page, the Log's table"},
 		{page: "every page", next: "Overview:", says: "w, where it's listed as models, shows and hides each model's own window"},
 		{page: "Overview", next: "Accounts:", says: "b groups the windows by window or by account"},
 		{page: "Overview", next: "Accounts:", says: "↑↓ scrolls USAGE, as j and k do, where it doesn't fit, left to ? as they are"},
-		{page: "Accounts", next: "History:", says: "< and > step the period both views count over"},
-		{page: "History", next: "Sessions:", says: "< and > step the Year back through each calendar year the ledger holds"},
-		{page: "History", next: "Sessions:", says: "Tokens' periods between a day, a week and a month"},
-		{page: "History", next: "Sessions:", says: "v cycles what the Year shows, all use, a model version or an account"},
-		{page: "History", next: "Sessions:", says: "←→ steps the Year shown for one account between the accounts"},
-		{page: "Runway", next: "Graphs:", says: "← steps back to this week, then a week at a time, and → on again to the live view"},
-		{page: "Graphs", next: "Log:", says: "w, o, g and h show and hide WEEK, POOL, GLANCE and WHEN YOU WORK"},
+		{page: "Accounts", next: "Projects:", says: "< and > step the period Compare, Detail and Tokens count over, the one Projects and Sessions' List share"},
+		{page: "Runway", next: "Trends:", says: "← steps back to this week, then a week at a time, and → on again to the live view"},
+		{page: "Trends", next: "Log:", says: "w, o, g, h, y, m and d show and hide WEEK, POOL, GLANCE, WHEN YOU WORK, YEAR, BY MONTH and"},
 		{page: "Log", next: "a session's page:", says: "/ finds a session by its id's start or its directory's name"},
 		{page: "a session's page", next: "The Overview's sections", says: "esc goes back where the page was opened from"},
 	}
@@ -115,6 +112,15 @@ func TestDashboardHelpSaysWhatTheKeysWordsDont(t *testing.T) {
 		if from < 0 || !strings.Contains(under, tt.says) {
 			t.Errorf("switchboard dashboard --help reads\n%s\nwant it to say %q under %s's keys", got.stdout, tt.says, tt.page)
 		}
+	}
+}
+
+// History is gone as a tab: the dashboard's help names no page of it, nor
+// the tab anywhere.
+func TestDashboardHelpNamesNoHistoryTab(t *testing.T) {
+	got := run(t, testDeps(nil, t.TempDir()), "dashboard", "--help")
+	if strings.Contains(got.stdout, "History") {
+		t.Errorf("switchboard dashboard --help reads\n%s\nwant no History", got.stdout)
 	}
 }
 
@@ -258,10 +264,11 @@ func TestDashboardReadsTheLedgerTheReadingsAndTheEventsInTheStateDirectory(t *te
 	}
 }
 
-// History is given what the history command builds its blocks of: the
-// configured accounts, whose plans its worth is priced against, the day the
-// config starts its weeks on, Claude's week, and Claude's families.
-func TestDashboardGivesHistoryTheAccountsTheWeeksAndTheFamilies(t *testing.T) {
+// The pages built of the ledger's days are given what the history command
+// builds its blocks of: the configured accounts, whose plans their worth is
+// priced against, the day the config starts its weeks on, Claude's week,
+// and Claude's families.
+func TestDashboardGivesThePagesTheAccountsTheWeeksAndTheFamilies(t *testing.T) {
 	path := writeConfig(t, "week_starts = \"sunday\"\n\n[[account]]\nid = \"work\"\nplan = \"max20x\"\n\n[[account]]\nid = \"side\"\n")
 	deps := testDeps(map[string]string{"SWITCHBOARD_CONFIG": path}, t.TempDir())
 	cfg := recordWatch(t, &deps)

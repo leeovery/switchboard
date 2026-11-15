@@ -204,12 +204,15 @@ func (s section) mostRows() int {
 }
 
 // viewsBuilt are the Overview's sections of a frame and Accounts' form, as
-// Built builds them, of a document at a moment: each built once, the first
-// time it's asked for.
+// Built builds them, of a document at a moment; and Trends' YEAR, BY MONTH
+// and MODELS BY DAY laid out, of no moment, for frames alike as pastOf has
+// them: each built once, the first time it's asked for.
 type viewsBuilt struct {
 	at       *status.HeldMoment
 	sections func() []section
 	accounts func() accountsForm
+	pastOf   pastKey
+	past     func() pastLaid
 }
 
 // Built is the frame with the Overview's sections and Accounts' form of doc
@@ -220,7 +223,9 @@ type viewsBuilt struct {
 // at now, as At has it, so a copy whose Layout, KeyLine, Brightened, Card or
 // View change draws them as a frame built afresh would, as they draw none of
 // those, and a copy changed otherwise draws them as they were built. A look
-// at another moment, or of another document, builds them afresh.
+// at another moment, or of another document, builds them afresh. Trends'
+// YEAR, BY MONTH and MODELS BY DAY are laid out once too, for every look
+// at a frame alike, as pastLaid has it.
 func (f Frame) Built(doc status.Document, now time.Time) Frame {
 	f = f.At(doc, now)
 	of := f
@@ -228,6 +233,8 @@ func (f Frame) Built(doc status.Document, now time.Time) Frame {
 		at:       f.held,
 		sections: sync.OnceValue(func() []section { return of.buildSections(doc, now) }),
 		accounts: sync.OnceValue(func() accountsForm { return of.buildAccountsForm(doc, now) }),
+		pastOf:   of.pastKey(),
+		past:     sync.OnceValue(of.layPast),
 	}
 	return f
 }

@@ -1,6 +1,7 @@
 package prose
 
 import (
+	"strings"
 	"time"
 	"unicode/utf8"
 
@@ -237,6 +238,46 @@ func Past(now, t time.Time) string {
 // yesterday leads a time on the day before now's, as Past says it.
 const yesterday = "yesterday "
 
+// DayGone names the day t falls on, before now, in now's time zone, as a
+// rule over what ended that day names it: "today"; "yesterday"; its weekday
+// within the six days before today, as "Tue"; else its weekday and date, as
+// Day names it, "Mon 21 Sep".
+func DayGone(now, t time.Time) string {
+	return dayBefore(now, t, "today", Day)
+}
+
+// Begun says when t was, before now, in now's time zone, as a session's
+// start is said beside the rules DayGone words: its time of day today, as
+// "14:12"; else after the day as DayGone names it, as "yesterday 15:08",
+// "Tue 09:12" or "Mon 21 Sep 09:12".
+func Begun(now, t time.Time) string {
+	return strings.TrimSpace(dayBefore(now, t, "", Day) + " " + TimeOfDay(now, t))
+}
+
+// Lately says when t was, before now, in now's time zone, as briefly as a
+// column of last requests has room for: its time of day today, as "14:12";
+// "yesterday"; its weekday within the six days before today, as "Tue"; else
+// its date, as DayMonth names it, "3 Oct".
+func Lately(now, t time.Time) string {
+	return dayBefore(now, t, TimeOfDay(now, t), DayMonth)
+}
+
+// dayBefore names the day t falls on, before now, in now's time zone: today
+// as given; "yesterday"; its weekday within the six days before today; else
+// as before names it.
+func dayBefore(now, t time.Time, today string, before func(time.Time) string) string {
+	t = t.In(now.Location())
+	switch days := daysBetween(t, now); {
+	case days <= 0:
+		return today
+	case days == 1:
+		return strings.TrimSpace(yesterday)
+	case WithinWeek(now, t):
+		return Weekday(t.Weekday())
+	}
+	return before(t)
+}
+
 // PastWidest shows t, in now's time zone, as Past does in its widest form,
 // the day before's, such as "yesterday 15:08", whatever day it falls on: as
 // what says it is measured, so the measure holds as the clock moves t's day
@@ -268,7 +309,7 @@ func daysBetween(t, now time.Time) int {
 	return dayfile.DaysBetween(t, now, now.Location())
 }
 
-// Day names the day d by its weekday, date and month, as History and the
+// Day names the day d by its weekday, date and month, as YEAR and the
 // title row name a day, such as "Wed 30 Sep".
 func Day(d time.Time) string {
 	return d.Format(dayLayout)
@@ -312,7 +353,7 @@ func expiresVerb(up bool) string {
 	return "expires"
 }
 
-// Month names the month the day d falls in, as History names a month, such
+// Month names the month the day d falls in, as BY MONTH names a month, such
 // as "Oct", or with its year, "Oct 2026".
 func Month(d time.Time, withYear bool) string {
 	if withYear {

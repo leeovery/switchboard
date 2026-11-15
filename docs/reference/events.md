@@ -61,6 +61,7 @@ switchboard events --json | tail -1 \
 | `session` | string | The session that started or moved, or whose own pin changed. |
 | `model` | string | The model whose requests started or moved. |
 | `dir` | string | The directory the session ran in, with your home as `~`. |
+| `project` | string | The repository that directory is in, as the [request ledger](ledger.md) gives it. |
 | `from` | string | The account a session moved from. |
 | `to` | string | The account a session moved to. |
 
@@ -69,8 +70,8 @@ switchboard events --json | tail -1 \
   only `accounts`.
 - **`to`** on a `limit`, `cap` or `refused` event is where every session it moved went, if they
   all went to one account.
-- **`dir`** is left out if none was known yet, and on events written before switchboard recorded
-  it.
+- **`dir` and `project`** are each left out if none was known yet, and on events written before
+  switchboard recorded them.
 
 ### The pool of an event
 

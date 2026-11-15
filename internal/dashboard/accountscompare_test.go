@@ -81,7 +81,7 @@ func (f compareFramed) row() views.AccountsRow {
 
 // comparedPage is Accounts' page over the period given of the rows given,
 // the last every account's, using each of the versions given.
-func comparedPage(period views.AccountsPeriod, versions []ledger.Version, rows ...compareFramed) views.AccountsPage {
+func comparedPage(period views.Period, versions []ledger.Version, rows ...compareFramed) views.AccountsPage {
 	page := views.AccountsPage{Period: period, Recorded: true, Versions: versions}
 	for _, f := range rows[:len(rows)-1] {
 		page.Rows = append(page.Rows, f.row())
@@ -176,7 +176,7 @@ var threeFramed = config.Accounts{{ID: "work"}, {ID: "personal", Primary: true},
 func compareFrame(t *testing.T, configured config.Accounts, page views.AccountsPage) Frame {
 	f := frameOf(160, 37)
 	f.View, f.Look, f.WeekWindow, f.VersionNameCells = Accounts, Screen(builtin(t, "nord")), "7d", views.VersionNameCells(ledger.Pricing)
-	f.Accounts = AccountsShown{Period: page.Period, Accounts: configured, Page: &page}
+	f.Period, f.Accounts = page.Period, AccountsShown{Accounts: configured, Page: &page}
 	return f
 }
 
@@ -191,7 +191,7 @@ func extraOff(d *status.Document) {
 // threeCompared is Compare of the auto world's three accounts this week, as
 // text alone, of a terminal the size given.
 func threeCompared(t *testing.T, width, height int) (Frame, status.Document) {
-	f := compareFrame(t, threeFramed, comparedPage(views.AccountsThisWeek, comparedVersions(t), compareWork, comparePersonal, compareSide, compareAll))
+	f := compareFrame(t, threeFramed, comparedPage(views.PeriodThisWeek, comparedVersions(t), compareWork, comparePersonal, compareSide, compareAll))
 	f.Width, f.Height, f.Look = width, height, Look{}
 	return f, usageWorld(extraOff)
 }
@@ -199,7 +199,7 @@ func threeCompared(t *testing.T, width, height int) (Frame, status.Document) {
 // tenOnCompare is Compare of ten accounts this week, as text alone, of a
 // terminal the size given, its columns from the first shown given.
 func tenOnCompare(t *testing.T, width, height, first int) (Frame, status.Document) {
-	f := compareFrame(t, tenFramed, comparedPage(views.AccountsThisWeek, comparedVersions(t), tenRows()...))
+	f := compareFrame(t, tenFramed, comparedPage(views.PeriodThisWeek, comparedVersions(t), tenRows()...))
 	f.Width, f.Height, f.Look = width, height, Look{}
 	f.Accounts.First = first
 	return f, usageWorld(tenCompared, extraOff)
@@ -253,9 +253,11 @@ func TestCompareShowsAColumnAnAccountAsManyAsFitAllAccountsLast(t *testing.T) {
 
 // Where Compare shows fewer accounts than there are, the heading says which,
 // that ←→ moves along them and that all accounts stays put, dropping its
-// last clause where it hasn't the room, as at 100 columns and at 83, the
-// narrowest ten accounts' Compare is drawn wide at, its period on a row of
-// its own under a phone's chrome; where it shows every account, nothing.
+// last clause where it hasn't the room, as at 100 columns, or of ten, 101,
+// and at 83, the narrowest ten accounts' Compare is drawn wide at, its
+// period on a row of its own under a phone's chrome; saying which alone,
+// never cut, where neither clause fits, as of ten at 100; where it shows
+// every account, nothing.
 func TestComparesHeadingSaysWhichAccountsItShowsOfMoreThanFit(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -274,8 +276,13 @@ func TestComparesHeadingSaysWhichAccountsItShowsOfMoreThanFit(t *testing.T) {
 			want:  "accounts 1–2 of 3  ·  ←→ moves along them",
 		},
 		{
-			name:  "ten at 100 from the ninth, its last clause dropped",
+			name:  "ten at 100 from the ninth, which alone",
 			frame: func(t *testing.T) (Frame, status.Document) { return tenOnCompare(t, 100, 37, 8) },
+			want:  "accounts 9–10 of 10",
+		},
+		{
+			name:  "ten at 101 from the ninth, its last clause dropped",
+			frame: func(t *testing.T) (Frame, status.Document) { return tenOnCompare(t, 101, 37, 8) },
 			want:  "accounts 9–10 of 10  ·  ←→ moves along them",
 		},
 		{
@@ -288,7 +295,7 @@ func TestComparesHeadingSaysWhichAccountsItShowsOfMoreThanFit(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			f, doc := tt.frame(t)
 			heading := f.Draw(doc, routedAt)[f.headingY()]
-			_, state, _ := strings.Cut(heading, "Detail")
+			_, state, _ := strings.Cut(heading, "Tokens")
 			state, _, _ = strings.Cut(state, "<")
 			if got := strings.Trim(state, "─ []"); got != tt.want {
 				t.Errorf("the heading's state is %q, want %q, in %q", got, tt.want, heading)
@@ -333,7 +340,7 @@ func TestComparesColumnsScrollToShowTheFocusNoFurtherThanTheyMust(t *testing.T) 
 // dash, its label alone.
 func TestComparesHeadsKeepToTheirColumns(t *testing.T) {
 	configured := append(slices.Clone(tenFramed[:9]), config.Account{ID: "added"})
-	f, doc := tenOnCompare(t, 160, 37, 4)
+	f, doc := tenOnCompare(t, 160, 54, 4)
 	f.Accounts.Accounts = configured
 	rows := f.Draw(doc.WorkedOut(claudeLike), routedAt)
 	tests := []struct {
@@ -343,7 +350,7 @@ func TestComparesHeadsKeepToTheirColumns(t *testing.T) {
 		{row: 6, column: 121, want: "added              "},
 		{row: 7, column: 121, want: "○ not read         "},
 		{row: 9, column: 121, want: "              —    "},
-		{row: 31, column: 121, want: "—                  "},
+		{row: 48, column: 121, want: "—                  "},
 	}
 	for _, tt := range tests {
 		if got := ansi.Cut(rows[tt.row], tt.column, tt.column+ansi.StringWidth(tt.want)); got != tt.want {
@@ -497,7 +504,7 @@ func TestAllAccountsExtraUsageCountsTheConfiguredAccounts(t *testing.T) {
 	}
 	const want = "on for 1 of 4"
 
-	compare, _ := threeCompared(t, 200, 37)
+	compare, _ := threeCompared(t, 200, 52)
 	compare.Accounts.Accounts = added
 	rows := textOf(compare.Draw(usageWorld(extraOff, workOn), routedAt))
 	x := columnOf(rows[6], "all accounts")
@@ -556,7 +563,7 @@ func TestComparesFocusedColumnsHeadsAreSelected(t *testing.T) {
 // short names, extra usage on alone, against its price its ratio alone; all
 // accounts' to the frame's edge, its full forms whole.
 func TestComparesValuesTakeTheFullestFormTheirColumnsHold(t *testing.T) {
-	f, doc := tenOnCompare(t, 122, 37, 0)
+	f, doc := tenOnCompare(t, 122, 54, 0)
 	account("work", func(a *status.Account) { a.Extra = quota.ExtraUsage{Status: quota.StatusAllowed} })(&doc)
 	f.Accounts.Page.Rows[0].Totals.Limits = map[string]int{"5h": 2, "7d": 1}
 	rows := f.Draw(doc.WorkedOut(claudeLike), routedAt)
@@ -564,12 +571,12 @@ func TestComparesValuesTakeTheFullestFormTheirColumnsHold(t *testing.T) {
 		row, column int
 		want        string
 	}{
-		{row: 25, column: 26, want: "week ×1 · 5h ×2    n"},
-		{row: 31, column: 26, want: "on                 o"},
-		{row: 31, column: 102, want: "on for 1 of 10"},
-		{row: 30, column: 102, want: "$1,700/mo · 10 plans"},
-		{row: 33, column: 26, want: "4.0× its $46 week  "},
-		{row: 33, column: 102, want: "3.4× its $392 week"},
+		{row: 42, column: 26, want: "week ×1 · 5h ×2    n"},
+		{row: 48, column: 26, want: "on                 o"},
+		{row: 48, column: 102, want: "on for 1 of 10"},
+		{row: 47, column: 102, want: "$1,700/mo · 10 plans"},
+		{row: 50, column: 26, want: "4.0× its $46 week  "},
+		{row: 50, column: 102, want: "3.4× its $392 week"},
 	}
 	for _, tt := range tests {
 		if got := ansi.Cut(rows[tt.row], tt.column, tt.column+ansi.StringWidth(tt.want)); got != tt.want {
@@ -599,15 +606,15 @@ func TestCompareScrollsItsRowsUnderItsHeadsHeld(t *testing.T) {
 	}{
 		{
 			name: "at the top",
-			want: map[int]string{6: "                          work", 9: "WEEK USED", 26: "  at cap or limit", 27: "▼ 7 more below · j/k"},
+			want: map[int]string{6: "                          work", 9: "WEEK USED", 19: "WEEKS", 27: "▼ 24 more below · j/k"},
 		},
 		{
-			name: "scrolled to the foot", scroll: 7,
-			want: map[int]string{6: "                          work", 9: "  ● Fable 5.1", 26: "  against its price", 27: "▲ 7 more above · j/k"},
+			name: "scrolled to the foot", scroll: 24,
+			want: map[int]string{6: "                          work", 26: "  against its price", 27: "▲ 24 more above · j/k"},
 		},
 		{
-			name: "past the foot, as far as it goes", scroll: 12,
-			want: map[int]string{9: "  ● Fable 5.1", 27: "▲ 7 more above · j/k"},
+			name: "past the foot, as far as it goes", scroll: 30,
+			want: map[int]string{26: "  against its price", 27: "▲ 24 more above · j/k"},
 		},
 	}
 	for _, tt := range tests {
@@ -623,15 +630,15 @@ func TestCompareScrollsItsRowsUnderItsHeadsHeld(t *testing.T) {
 		})
 	}
 	f, doc := threeCompared(t, 160, 29)
-	if got, want := f.Scrolling(doc, routedAt), (Scrolling{Most: 7, Page: 18}); got != want {
+	if got, want := f.Scrolling(doc, routedAt), (Scrolling{Most: 24, Page: 18}); got != want {
 		t.Errorf("Compare at 29 rows scrolls %+v, want %+v", got, want)
 	}
 	if x, y, width, rows := f.At(doc, routedAt).scrolls(doc, routedAt); x != 0 || y != 9 || width != 160 || rows != 18 {
 		t.Errorf("what scrolls is %d rows from column %d along row %d, %d wide, want 18 from column 0 along row 9, 160 wide", rows, x, y, width)
 	}
-	f.Height = 37
-	if rows := f.Draw(doc, routedAt); strings.TrimSpace(rows[35]) != "" {
-		t.Errorf("with room for every row, the row over the key line is %q, want it blank", rows[35])
+	f.Height = 54
+	if rows := f.Draw(doc, routedAt); strings.TrimSpace(rows[52]) != "" {
+		t.Errorf("with room for every row, the row over the key line is %q, want it blank", rows[52])
 	}
 }
 
@@ -679,17 +686,17 @@ func TestCompareDrawsItsHeadsAndWEEKUSEDTillItsDaysAreRead(t *testing.T) {
 // and say what they are: on a fresh install no week has ended yet.
 func TestAPeriodWithNothingRecordedSaysADashForEachOfItsFigures(t *testing.T) {
 	dashes := map[int]string{
-		20: "  requests                —                                 —                                —                                —",
-		21: "  sessions served         —                                 —                                —                                —",
-		22: "  sessions moved          —                                 —                                —                                —",
-		25: "  limits hit              —                                 —                                —                                —",
-		26: "  at cap or limit         —                                 —                                —                                —",
-		32: "  worth at API prices     —                                 —                                —                                —",
-		33: "  against its price       —                                 —                                —                                —",
+		37: "  requests                —                                 —                                —                                —",
+		38: "  sessions served         —                                 —                                —                                —",
+		39: "  sessions moved          —                                 —                                —                                —",
+		42: "  limits hit              —                                 —                                —                                —",
+		43: "  at cap or limit         —                                 —                                —                                —",
+		49: "  worth at API prices     —                                 —                                —                                —",
+		50: "  against its price       —                                 —                                —                                —",
 	}
 	theirOwn := map[int]string{
-		30: "  plan                    Ultra · $200/mo                   Ultra · $200/mo                  Ultra · $200/mo                  $600/mo · 3 plans",
-		31: "  extra usage             off                               off                              off                              off on all",
+		47: "  plan                    Ultra · $200/mo                   Ultra · $200/mo                  Ultra · $200/mo                  $600/mo · 3 plans",
+		48: "  extra usage             off                               off                              off                              off on all",
 	}
 	tests := []struct {
 		name string
@@ -706,13 +713,13 @@ func TestAPeriodWithNothingRecordedSaysADashForEachOfItsFigures(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			f, doc := threeCompared(t, 160, 37)
+			f, doc := threeCompared(t, 160, 54)
 			f.Accounts.Page.Recorded = false
 			tt.page(f.Accounts.Page)
 			rows := f.Draw(doc, routedAt)
 			want := maps.Clone(dashes)
 			maps.Copy(want, theirOwn)
-			want[27] = tt.left
+			want[44] = tt.left
 			for y, want := range want {
 				if got := strings.TrimRight(rows[y], " "); got != want {
 					t.Errorf("row %d is\n%q, want\n%q", y, got, want)
@@ -788,7 +795,7 @@ func TestWEEKUSEDFillsEveryAccountsWeekShownOrNot(t *testing.T) {
 // dash or none, which says there's no figure: with nothing recorded, but
 // the plan and left at its last reset, which are no figures of the period.
 func TestComparesNumbersAreWhatALookReads(t *testing.T) {
-	f, doc := threeCompared(t, 160, 37)
+	f, doc := threeCompared(t, 160, 54)
 	got := f.Numbers(doc, routedAt)
 	delete(got, Number{Kind: NumberRouted})
 	period := make(map[Number]string)
@@ -904,7 +911,7 @@ func TestComparesBarsGrowWithTheirColumnsToTheMost(t *testing.T) {
 // cells after it, and a version's name past it is cut to it.
 func TestComparesLabelsColumnHoldsItsLabelsAndCutsAVersionsName(t *testing.T) {
 	f, doc := threeCompared(t, 160, 60)
-	f.Accounts.Period = views.AccountsThirtyDays
+	f.Period = views.PeriodThirtyDays
 	f.Accounts.Page.Versions[0].Name = "Opus 5.5 with a name long past the most"
 	rows := f.Draw(doc, routedAt)
 	labels := compareLabels()

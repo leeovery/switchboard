@@ -1,0 +1,61 @@
+ SWITCHBOARD                                          Thu 1 Oct  14:42:07
+ Overview  Accounts  Projects  Sessions  Runway  Trends  Log
+
+● healthy · auto · 6 sessions · new → ▲ side
+
+YEAR  ───────────────────────────────────────────────────────────────── y
+
+        Mar     Apr       May     Jun     Jul       Aug     Sep     Oct
+M   ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■
+    ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■
+W   ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■
+    ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■
+F   ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■
+    ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■
+    ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■
+
+■ 0 ■ <350 ■ 350–650 ■ 650–950 ■ >950  requests a day
+
+LAST 12 MONTHS
+requests  212,885                                  worth     $24,736
+sessions  1,688                                    plans     $7,200
+limits    week ×3 · 5-hour ×412                    against   3.4×
+busiest   Wed 30 Sep                               longest   20 days
+
+BY MONTH  ───────────────────────────────────────────────────────────── m
+
+            worth     against   by model
+ Oct 2025   $1,180    2.0×      ▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅
+ Nov        $1,340    2.2×      ▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅
+ Dec        $1,210    2.0×      ▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅
+ Jan        $1,560    2.6×      ▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅
+ Feb        $1,720    2.9×      ▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅
+ Mar        $1,980    3.3×      ▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅
+ Apr        $2,150    3.6×      ▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅
+ May        $2,330    3.9×      ▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅
+ Jun        $2,470    4.1×      ▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅
+ Jul        $2,690    4.5×      ▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅
+ Aug        $2,860    4.8×      ▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅
+ Sep        $3,120    5.2×      ▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅▅
+ Oct        $126      —         ▅▅  so far
+
+                                ● Opus   ● Sonnet   ● Fable   ● Haiku
+
+MODELS BY DAY   every account, weighed at API prices, on one scale ──── d
+
+7 Sep          14 Sep         21 Sep         28 Sep
+                                             M T W T F S S
+
+● Opus                                    55% of use
+                                                     ······
+● Sonnet                                  41% of use
+                                                     ······
+● Fable                                    2% of use
+                                                     ······
+● Haiku                                    2% of use
+                                                     ······
+
+less                more   ·· days to come
+▆▆ room left   ⠂⠄⡀ where it's heading   ✕ runs out   ⠠ ⠠ reserve
+▲ 69 more above
+tab views   ? keys and toggles   q quit

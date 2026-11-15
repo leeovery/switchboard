@@ -21,7 +21,7 @@ ACCOUNTS  ───────────────────────�
   Press t to create a new one, approving│                                                                              │
                                         │  Setup then creates a token with claude setup-token. You approve it in       │
   Personal has a token that expires 17 N│  the browser while signed in to this subscription. Tokens last a year.       │signed in to Personal.
-  Personal has no plan set, so History c│                                                                              │
+  Personal has no plan set, so its usage│                                                                              │
                                         │                                  tab next   enter create token   esc cancel  │
                                         ╰──────────────────────────────────────────────────────────────────────────────╯
 

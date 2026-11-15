@@ -14,18 +14,24 @@ import (
 )
 
 // accountsTab is what the watch holds of Accounts: what it shows; the
-// period's page, built of the days History's reads hold, and what it was
+// period's page, built of the ledger's days the watch holds, and what it was
 // built of, as builtOf has it; that page stood at a moment, and what it was
-// stood at, as accountsBuilt stands it; and the sessions Detail's SESSIONS
-// listed last, by id, in their order, for its selection to follow, as
-// followed has it.
+// stood at, as accountsBuilt stands it; Tokens' page, and what it was built
+// of, as tokensBuilt builds it; the sessions Detail's SESSIONS listed last,
+// by id, in their order, for its selection to follow, as followed has it;
+// and where SESSIONS lay when the view was last scrolled to show them, as
+// sessionsKept has it.
 type accountsTab struct {
-	shown   dashboard.AccountsShown
-	page    *views.AccountsPage
-	of      builtOf
-	stood   *views.AccountsPage
-	at      *stoodAt
-	running []string
+	shown    dashboard.AccountsShown
+	page     *views.AccountsPage
+	of       builtOf
+	stood    *views.AccountsPage
+	at       *stoodAt
+	tokens   *views.TokensPage
+	tokensOf builtOf
+	running  []string
+	today    bool
+	placed   dashboard.SessionsPlace
 }
 
 // stoodAt is what a page was stood at: the moment, held, and its time; and
@@ -48,32 +54,66 @@ func (s *stoodAt) holds(doc status.Document, now time.Time, policy score.Policy)
 	return s != nil && s.moment.Of(doc, s.from, policy) && !now.Before(s.from) && now.Before(s.until)
 }
 
-// builtOf is what Accounts' page was built of: the days held, as historyTab
-// counts them as they change, the period, and the local day it was built on.
+// builtOf is what Accounts' page was built of: the days held, as pastDays
+// counts them as they change, the period, and the local day it was built on;
+// and of today, the reads of the ledger's tail that told otherwise of the
+// days it fed, as projectsTab counts them, today's worth by the hour being
+// its fold's, and the hour, as todayHour has it.
 type builtOf struct {
 	held   int
-	period views.AccountsPeriod
+	period views.Period
 	day    string
+	fed    int
+	hour   int
+}
+
+// accountsToday reports whether Accounts shows today on a view that charts
+// its worth by the hour of the tail's fold: Compare or Detail, never Tokens,
+// which reads the days held alone.
+func (m Model) accountsToday() bool {
+	return m.shownView() == dashboard.Accounts && m.period == views.PeriodToday &&
+		m.accounts.shown.View() != dashboard.AccountsTokens
+}
+
+// accountsEntered is m with a read of the ledger's tail due at once where
+// Accounts has come to show today since the last message, on a view that
+// folds the tail, as accountsToday has it, where none is under way, as
+// projectsWaiting asks one: the tail isn't followed while Accounts shows
+// another period, Tokens, or another tab shows, so its fold may be behind.
+func (m Model) accountsEntered() Model {
+	today := m.accountsToday()
+	if today && !m.accounts.today {
+		m.tail.due = m.tail.due || !m.tail.busy()
+	}
+	m.accounts.today = today
+	return m
 }
 
 // accountsBuilt is m with Accounts' page built afresh at now of the last 12
-// months' days held, as views.Past.Accounts builds it over the period shown,
-// where those days, the period or the day have changed since it was built,
-// while Accounts shows: once for each, never a frame at a time. Each look
-// reads today's days afresh, as readHistory reads them, so the page follows
-// them from look to look; and past midnight it moves on to the new day
-// before the next look reads it. It's stood at the moment of the message
-// taken in, as views.AccountsPage.At stands it, where it's built afresh, the
-// document or the policy is another, or the page stands otherwise since, as
-// its Until has it: never a frame at a time.
+// months' days held, as views.Past.Accounts builds it over the dial's period,
+// today's worth by the hour of the tail's fold, as its Hourly has it, where
+// those days, the period or the day have changed since it was built, or, of
+// today, the fold has, while Accounts shows: once for each, never a frame at
+// a time, but of today, as its hour turns, too, for its charts to mark the
+// hour now falls in, as accountsEntered has the tail read. Each look reads
+// today's days afresh, as readPast reads them, so the page follows them
+// from look to look; and past midnight it moves on to the new day before
+// the next look reads it. It's stood at the moment of the message taken in,
+// as views.AccountsPage.At stands it, where it's built afresh, the document
+// or the policy is another, or the page stands otherwise since, as its
+// Until has it: never a frame at a time.
 func (m Model) accountsBuilt() Model {
+	m = m.accountsEntered()
 	if m.view != dashboard.Accounts || !m.past.last.held() {
 		return m
 	}
 	now := m.now()
-	of := builtOf{held: m.past.held, period: m.accounts.shown.Period, day: dayfile.DateOf(now)}
+	of := builtOf{held: m.past.held, period: m.period, day: dayfile.DateOf(now), hour: todayHour(m.period, now)}
+	if of.period == views.PeriodToday {
+		of.fed = m.sessionDays.fed
+	}
 	if m.accounts.page == nil || m.accounts.of != of {
-		page := m.past.last.past.Since(nil, now).Accounts(of.period)
+		page := m.past.last.past.Since(nil, now).Accounts(of.period).Hourly(m.sessionDays.tailed)
 		m.accounts.page, m.accounts.of, m.accounts.at = &page, of, nil
 	}
 	if !m.accounts.at.holds(m.doc, now, m.cfg.Policy) {
@@ -81,38 +121,56 @@ func (m Model) accountsBuilt() Model {
 		m.accounts.stood = new(m.accounts.page.At(mo))
 		m.accounts.at = stoodTill(mo, m.accounts.page.Until(mo))
 	}
+	return m.tokensBuilt(now, builtOf{held: of.held, period: of.period, day: of.day})
+}
+
+// tokensBuilt is m with Accounts' Tokens' page built afresh at now of the
+// last 12 months' days held, as views.Past.TokensOver builds it over the
+// dial's period, where what it's built of, of, those days, the period and
+// the day, has changed since it was built, while Tokens shows: once for
+// each, never a frame at a time.
+func (m Model) tokensBuilt(now time.Time, of builtOf) Model {
+	if m.accounts.shown.View() != dashboard.AccountsTokens {
+		return m
+	}
+	if m.accounts.tokens == nil || m.accounts.tokensOf != of {
+		page := m.past.last.past.Since(nil, now).TokensOver(of.period)
+		m.accounts.tokens, m.accounts.tokensOf = &page, of
+	}
 	return m
 }
 
 // standing is Accounts as the frame f shows it: its page as accountsBuilt
-// last stood it, none till the days are read; Compare's columns scrolled to
-// show its focus at f's size, as CompareFirst has them, and Detail's list
-// to show the account it shows, as DetailListScroll has it, each from as far
-// along as it was left, so a frame smaller than the one it was scrolled in
-// still shows it.
+// last stood it, and Tokens' as tokensBuilt last built it, none till the
+// days are read; Compare's columns scrolled to show its focus at f's size,
+// as CompareFirst has them, and Detail's list to show the account it shows,
+// as DetailListScroll has it, each from as far along as it was left, so a
+// frame smaller than the one it was scrolled in still shows it.
 func (t accountsTab) standing(f dashboard.Frame) dashboard.AccountsShown {
 	s := t.shown
-	s.Page = t.stood
+	s.Page, s.Tokens = t.stood, t.tokens
 	s.First, s.ListScroll = f.CompareFirst(s.Focus), f.DetailListScroll(s.Account())
 	return s
 }
 
-// showAccounts shows Accounts as given: another sub-tab or period from the
-// view's top; Compare's columns and Detail's list as far along as the frame
-// scrolls them to show the focus and the account shown, as standing has
-// them. It keeps what the preferences keep of it, where that's changed, for
-// the next watch to open with: the sub-tab and the period, its page built
-// afresh as accountsBuilt has it.
+// showAccounts shows Accounts as given: another sub-tab from the view's top;
+// Compare's columns and Detail's list as far along as the frame scrolls them
+// to show the focus and the account shown, as standing has them. It keeps
+// what the preferences keep of it, where that's changed, for the next watch
+// to open with: the sub-tab and Tokens' split, Tokens back at its top as
+// its split changes.
 func (m Model) showAccounts(s dashboard.AccountsShown) Model {
 	was := m.accounts.shown
-	if s.View() != was.View() || s.Period != was.Period {
+	if s.View() != was.View() || s.TokensSplit != was.TokensSplit {
 		m.scroll = 0
 	}
 	m.accounts.shown = s
 	drawn := m.frame(m.now()).Accounts
 	m.accounts.shown.First, m.accounts.shown.ListScroll = drawn.First, drawn.ListScroll
 	if kept := s.Kept(); kept != was.Kept() {
-		m = m.keepPrefs("what Accounts shows", func(prefs *theme.Prefs) { prefs.Accounts = kept }, "accounts", kept)
+		m = m.keepPrefs("what Accounts shows", func(prefs *theme.Prefs) {
+			prefs.Accounts.View, prefs.Accounts.Split = kept.View, kept.Split
+		}, "accounts", kept.View, "split", kept.Split)
 	}
 	return m
 }
@@ -163,9 +221,14 @@ func (m Model) detailsSessions() bool {
 // running on the account it shows, as Following has it, from those it listed
 // last to those it lists now, kept for the next: while Detail shows, but for
 // a frame, which takes nothing in; while it doesn't, the selection holds as
-// it was, for the run.
+// it was, for the run, and where SESSIONS lay is forgotten, so coming back
+// shows them, as sessionsKept has it.
 func (m Model) followed(msg tea.Msg) Model {
-	if _, frame := msg.(frameMsg); frame || !m.detailShown() {
+	if _, frame := msg.(frameMsg); frame {
+		return m
+	}
+	if !m.detailShown() {
+		m.accounts.placed = dashboard.SessionsPlace{}
 		return m
 	}
 	is := m.running(m.now())
@@ -173,18 +236,59 @@ func (m Model) followed(msg tea.Msg) Model {
 	return m
 }
 
+// sessionsHeld reports whether Detail shows with its SESSIONS kept in view
+// for the focus, as sessionsKept keeps them.
+func (m Model) sessionsHeld() bool {
+	return m.detailShown() && m.accounts.placed != dashboard.SessionsPlace{}
+}
+
+// sessionsKept is m, and page, built at now, with the view scrolled as far
+// as shows Detail's SESSIONS while they hold the focus, taken there by →, or
+// with one account by ↑ or ↓, wherever they lie otherwise than when the view
+// last showed them, as DetailSessions has them: so whatever moves them, the
+// focus coming into them or moving along them, the session selected ending,
+// a part above them growing or shrinking as its page is read, its period
+// steps or the document changes, or the terminal resized, they stay in view;
+// and j and k, which scroll the view and move them nowhere, are never
+// undone. Detail left clears where they lay, as followed has it, so coming
+// back shows them. A session's page open over Detail leaves both as they
+// are, so closing it shows Detail as it was left. Where they lie is read of
+// page's form, which drawing page reads besides; page is built afresh only
+// where the view's scrolled.
+func (m Model) sessionsKept(page dashboard.Frame, now time.Time) (Model, dashboard.Frame) {
+	s := m.accounts.shown
+	switch {
+	case !m.detailShown() || m.session != nil:
+		return m, page
+	case !s.InSessions && (!s.Alone() || s.Selected == ""):
+		m.accounts.placed = dashboard.SessionsPlace{}
+		return m, page
+	}
+	placed, scroll := page.DetailSessions(m.doc, now)
+	if placed == m.accounts.placed {
+		return m, page
+	}
+	m.accounts.placed = placed
+	if scroll == m.scroll {
+		return m, page
+	}
+	m.scroll = scroll
+	return m, m.frame(now).Built(m.doc, now)
+}
+
 // accountsSteps are the ways Accounts' keys move: back, -1, or on, 1.
 var accountsSteps = map[string]int{"[": -1, "]": 1, "<": -1, ">": 1, "left": -1, "right": 1, "up": -1, "down": 1}
 
 // accountsKey acts on a key of Accounts', reporting false for a key it
 // doesn't take, or on another tab, and the command it starts, if any: [ and
-// ] turn the sub-tab, and < and > step the period, as Turned and Stepped have
-// them; ← and → move Compare's focus, or Detail's ↑ and ↓ between its list
-// and its SESSIONS, as Moved has it; ↑ and ↓ choose in Detail, as Choosing
-// has it; enter opens what's focused or selected, as entered has it; and esc
-// ends Compare's focus, as Unfocused has it. A key that changes what's shown
-// shows it as showAccounts has it. Where Compare draws no focus, turned,
-// its focus keys do nothing, as focusless has it.
+// ] turn the sub-tab, as Turned has it, and < and > step the period, as
+// periodStepped has it; ← and → move Compare's focus, or Detail's ↑ and ↓
+// between its list and its SESSIONS, as Moved has it; ↑ and ↓ choose in Detail, as Choosing
+// has it; enter opens what's focused or selected, as entered has it; esc
+// ends Compare's focus, as Unfocused has it; and v cycles Tokens' split, as
+// Cycled has it. A key that changes what's shown shows it as showAccounts
+// has it. Where Compare draws no focus, turned, its focus keys do nothing,
+// as focusless has it.
 func (m Model) accountsKey(key string) (Model, tea.Cmd, bool) {
 	if m.shownView() != dashboard.Accounts {
 		return m, nil, false
@@ -199,7 +303,7 @@ func (m Model) accountsKey(key string) (Model, tea.Cmd, bool) {
 	case "[", "]":
 		next, changed = s.Turned(by)
 	case "<", ">":
-		next, changed = s.Stepped(by)
+		return m.periodStepped(by), nil, true
 	case "left", "right":
 		next, changed = s.Moved(by, m.running(now))
 	case "up", "down":
@@ -209,6 +313,8 @@ func (m Model) accountsKey(key string) (Model, tea.Cmd, bool) {
 		return opened, cmd, true
 	case "esc":
 		next, changed = s.Unfocused()
+	case "v":
+		next, changed = s.Cycled()
 	default:
 		return m, nil, false
 	}
@@ -263,12 +369,12 @@ func (m Model) entered(running []string) (Model, tea.Cmd) {
 // doesn't: no column of Compare focused; all accounts chosen in Detail's
 // list, which no session runs on alone; or an account no session runs on.
 // It's "" with one account, whose key line has no enter while none runs on
-// it.
+// it, and on Tokens, whose key line has none.
 func unopened(s dashboard.AccountsShown) string {
 	switch {
 	case s.View() == dashboard.AccountsCompare:
 		return "no account is focused"
-	case s.Alone():
+	case s.Alone(), s.View() == dashboard.AccountsTokens:
 		return ""
 	case s.Account() == "":
 		return "all accounts lists no sessions"

@@ -19,7 +19,7 @@ import (
 	"github.com/leeovery/switchboard/internal/views"
 )
 
-// namedKeys are the keys the routing card and History take that the
+// namedKeys are the keys the routing card and the tabs take that the
 // terminal sends by name, as a test names them.
 var namedKeys = map[string]tea.KeyPressMsg{
 	"up": upKey, "down": downKey, "space": spaceKey, "esc": escKey, "enter": {Code: tea.KeyEnter}, "right": {Code: tea.KeyRight}, "left": {Code: tea.KeyLeft},

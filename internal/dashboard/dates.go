@@ -5,7 +5,7 @@ import (
 	"github.com/leeovery/switchboard/internal/prose"
 )
 
-// monthName is the month, as views names it, as History names it: Oct, or
+// monthName is the month, as views names it, as BY MONTH names it: Oct, or
 // with its year, Oct 2025; as it is where it isn't a month.
 func monthName(month string, withYear bool) string {
 	first, ok := dayfile.MonthStart(month)

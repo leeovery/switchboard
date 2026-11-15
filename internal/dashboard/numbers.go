@@ -12,7 +12,7 @@ type NumberKind int
 
 const (
 	// NumberUsed is how much of a window is used, as its percentage says:
-	// an account's, or the pool's, as History's Weeks gives this week's
+	// an account's, or the pool's, as Accounts' weeks give this week's
 	// peak.
 	NumberUsed NumberKind = iota + 1
 	// NumberAllowance is an account's allowance in a window, as its words
@@ -46,18 +46,14 @@ const (
 	// NumberRouted are the sessions the router has routed in the last hour,
 	// as the status line counts them.
 	NumberRouted
-	// NumberYear is a figure of History's Year a look can change within a
-	// day: one of LAST 12 MONTHS', or a calendar year's, or of BY MONTH's
-	// month so far, which Of names as its label does, after the month's, as
+	// NumberYear is a figure of Trends' YEAR or BY MONTH a look can change
+	// within a day: one of LAST 12 MONTHS', or of BY MONTH's month so far, which Of names as its label does, after the month's, as
 	// 2026-10, and after the version shown's name, its Account the account
 	// shown.
 	NumberYear
-	// NumberShareOfUse is a family's share of what History's Days weighs,
-	// its eight weeks' worth, as in "59%".
+	// NumberShareOfUse is a family's share of what MODELS BY DAY weighs, its
+	// eight weeks' worth, as in "59%".
 	NumberShareOfUse
-	// NumberLimitsHit are the limits of a window an account hit in History's
-	// Days, its eight weeks.
-	NumberLimitsHit
 	// NumberTokens is a figure of Tokens' period still running, by its
 	// column, as "input" or "against".
 	NumberTokens
@@ -71,8 +67,14 @@ const (
 	// NumberPeriod is a figure of the period Accounts counts over, a look
 	// reading today's days: of a row of Compare's groups or THIS WEEK, which
 	// Of names as its label does, as "requests", every figure of the row one
-	// number; or a version's share of use, after its name, as "Opus 5.5
-	// share". Its Account is the account's id, "" for all accounts'.
+	// number; a version's share of use, after its name, as "Opus 5.5
+	// share"; or a figure of Tokens' total by its column, after "tokens",
+	// as "tokens input", or of a row the total is split into, after "tokens
+	// split" and the id of the version it's of, where it's of one, as
+	// "tokens split claude-opus-5-5 input", so the total's own never shares
+	// a number with the row of the requests no account answered, whose
+	// Account is "" too. Its Account is the account's id, "" for all
+	// accounts'.
 	NumberPeriod
 	// NumberPoints are the points of an account's window a session took, on
 	// its page, as in "≈ 41", which Of names by the window's key.

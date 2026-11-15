@@ -11,7 +11,7 @@ import (
 )
 
 // AccountsView is one of Accounts' views, its sub-tabs: Compare, the
-// default, and Detail.
+// default, Detail and Tokens.
 type AccountsView int
 
 const (
@@ -21,21 +21,22 @@ const (
 	// AccountsDetail shows one account in full, or all of them, chosen from
 	// a list.
 	AccountsDetail
+	// AccountsTokens is the period's tokens, a row a day, a week or a month,
+	// led by the whole period's, as ccusage reports them, split by account.
+	AccountsTokens
 )
 
 // accountsViews are Accounts' sub-tabs' names, in the heading row's order.
-var accountsViews = []string{"Compare", "Detail"}
+var accountsViews = []string{"Compare", "Detail", "Tokens"}
 
-// AccountsShown is Accounts as the watch gives it: the sub-tab shown and the
-// period both count over, which the preferences keep; Compare's focus and
-// the columns it shows; Detail's choice, its list's scroll, and the session
-// selected in its SESSIONS, which hold for the run alone; and the period's
-// page, built of the ledger's days.
+// AccountsShown is Accounts as the watch gives it: the sub-tab shown, and how
+// Tokens splits its rows, which the preferences keep; Compare's focus and the
+// columns it shows; Detail's choice, its list's scroll, and the session
+// selected in its SESSIONS, which hold for the run alone; and the pages of
+// the dial's period, built of the ledger's days.
 type AccountsShown struct {
-	// Shown is the sub-tab shown, as View has it, and Period the period
-	// both count over.
-	Shown  AccountsView
-	Period views.AccountsPeriod
+	// Shown is the sub-tab shown, as View has it.
+	Shown AccountsView
 	// Accounts are the configured accounts, in the config's order: Compare's
 	// columns and Detail's list.
 	Accounts config.Accounts
@@ -59,23 +60,27 @@ type AccountsShown struct {
 	// Page is the period's page, stood at the moment drawn, as
 	// views.AccountsPage.At stands it: nil till the days are read.
 	Page *views.AccountsPage
+	// TokensSplit is how Tokens splits each row, as v cycles it; and Tokens
+	// is its page over the period: nil till the days are read, and while
+	// Tokens isn't shown.
+	TokensSplit TokensSplit
+	Tokens      *views.TokensPage
 }
 
-// AccountsKept is Accounts as the preferences kept it: the sub-tab and the
-// period, each by its name. What names neither, as a later build's, shows
-// as Accounts opens: Compare, this week.
+// AccountsKept is Accounts as the preferences kept it: the sub-tab and
+// Tokens' split, each by its name. What names none, as a later build's,
+// shows as Accounts opens: Compare, split by account.
 func AccountsKept(kept theme.AccountsPrefs) AccountsShown {
-	s := AccountsShown{Shown: AccountsView(placeAmong(kept.View, lowerNames(accountsViews)))}
-	if period := views.AccountsPeriod(kept.Period); period.Known() {
-		s.Period = period
+	return AccountsShown{
+		Shown:       AccountsView(placeAmong(kept.View, lowerNames(accountsViews))),
+		TokensSplit: TokensSplit(placeAmong(kept.Split, tokensSplitNames)),
 	}
-	return s
 }
 
 // Kept is what the preferences keep of Accounts, as AccountsKept reads it:
-// the sub-tab shown and the period, never what's chosen.
+// the sub-tab shown and Tokens' split, never what's chosen.
 func (s AccountsShown) Kept() theme.AccountsPrefs {
-	return theme.AccountsPrefs{View: lowerNames(accountsViews)[s.Shown], Period: string(s.Period)}
+	return theme.AccountsPrefs{View: lowerNames(accountsViews)[s.Shown], Split: tokensSplitNames[s.TokensSplit]}
 }
 
 // Alone reports whether there's one account, which all accounts would only
@@ -84,9 +89,19 @@ func (s AccountsShown) Alone() bool {
 	return len(s.Accounts) == 1
 }
 
-// View is the sub-tab drawn: Shown, but Detail where there's one account.
-func (s AccountsShown) View() AccountsView {
+// views are the sub-tabs drawn, in the heading row's order: Compare, Detail
+// and Tokens, but Compare going where there's one account.
+func (s AccountsShown) views() []AccountsView {
 	if s.Alone() {
+		return []AccountsView{AccountsDetail, AccountsTokens}
+	}
+	return []AccountsView{AccountsCompare, AccountsDetail, AccountsTokens}
+}
+
+// View is the sub-tab drawn: Shown, but Detail in Compare's place where
+// there's one account.
+func (s AccountsShown) View() AccountsView {
+	if s.Alone() && s.Shown == AccountsCompare {
 		return AccountsDetail
 	}
 	return s.Shown
@@ -101,39 +116,35 @@ func (s AccountsShown) Account() string {
 	return s.Chosen
 }
 
-// heading is Accounts' heading row: its name and its sub-tabs, the one drawn
-// picked out, Detail alone where there's one account; and at its right, the
-// period between < and >.
-func (s AccountsShown) heading() heading {
-	h := heading{
-		name: strings.ToUpper(Accounts.Title()), subTabs: accountsViews, shown: int(s.View()),
-		period: s.Period.Name(), widest: widestOf(accountsPeriodNames()),
+// heading is Accounts' heading row: its name and its sub-tabs drawn, as
+// views has them, the one drawn picked out; and at its right, the period
+// given between < and >, as periodDial has it.
+func (s AccountsShown) heading(period views.Period) heading {
+	h := heading{name: strings.ToUpper(Accounts.Title())}
+	for i, v := range s.views() {
+		h.subTabs = append(h.subTabs, accountsViews[v])
+		if v == s.View() {
+			h.shown = i
+		}
 	}
-	if s.Alone() {
-		h.subTabs, h.shown = accountsViews[AccountsDetail:], 0
-	}
+	h.period, h.widest = periodDial(period)
 	return h
-}
-
-// accountsPeriodNames are the names of the periods Accounts steps through.
-func accountsPeriodNames() []string {
-	var names []string
-	for _, period := range views.AccountsPeriods() {
-		names = append(names, period.Name())
-	}
-	return names
 }
 
 // accountsHeading is the frame's heading row on Accounts, as its heading has
 // it, and after [ ], on Compare, which of its accounts it shows, in the forms
 // compareState says it in.
 func (f Frame) accountsHeading() heading {
-	h := f.Accounts.heading()
+	h := f.Accounts.heading(f.Period)
 	if f.Accounts.View() != AccountsCompare {
 		return h
 	}
 	if forms := f.compareState(); len(forms) > 0 {
 		h.state, h.shorter = forms[0], forms[1:]
+		// The least is held at the clause, so a phone's heading lays out as
+		// it did before the bare form: the bare form is a wide heading's
+		// last resort, never what keeps a phone's state beside its sub-tabs.
+		h.least = forms[1].plain()
 	}
 	return h
 }
@@ -152,16 +163,73 @@ func (f Frame) cueState(c *canvas, id string, x, y, width int) {
 // accountsForm is Accounts' view shown as its form draws it: what it draws
 // from row top; how far it scrolls, scrolled to each offset; what of it
 // scrolls, from column x along row y, width cells wide and rows tall; the
-// zones a click acts on; and how much of each bar it draws it fills, as
-// Filled has them. Each is nothing where it's nil: it draws nothing, never
-// scrolls, its view scrolls whole, nothing takes a click, and it fills no
-// bar.
+// zones a click acts on; how much of each bar it draws it fills, as Filled
+// has them; and where it lays Detail's SESSIONS out, as detailSessions has
+// it. Each is nothing where it's nil: it draws nothing, never scrolls, its
+// view scrolls whole, nothing takes a click, it fills no bar, and it has no
+// SESSIONS.
 type accountsForm struct {
 	draw      func(c *canvas, top int)
 	scrolling func(offset int) Scrolling
 	scrolls   func() (x, y, width, rows int)
 	targets   func() []Target
 	filled    func() map[Ref]float64
+	sessions  func() detailSessions
+}
+
+// detailSessions is where a form lays Detail's SESSIONS out in the rows it
+// scrolls, as sessionsAt has them, none where none run, and the session
+// selected among them, by its id; and how those rows page in the tab's
+// view, as tabViewRows has it, a session's page open over it or not.
+type detailSessions struct {
+	rows     []int
+	selected string
+	paged    rowsPaged
+}
+
+// SessionsPlace is where Detail's SESSIONS lie in the rows its view
+// scrolls, as its form lays them out at the frame's size, whatever it's
+// scrolled to: the rows of its enter line, its heading and the session
+// selected, and Detail's view's rows, a session's page open over it or not;
+// and the session selected, by its id. The zero place is SESSIONS without
+// the focus, or with none running.
+type SessionsPlace struct {
+	Enter, Heading, Selected, View int
+	Session                        string
+}
+
+// DetailSessions is where Accounts' view shown of doc at now lays Detail's
+// SESSIONS, as SessionsPlace has it, while they hold the focus, and how far
+// the view is scrolled, from as far as the frame has it, to show them: its
+// heading, the session selected and what enter opens, each revealed in turn
+// as sessionsAt orders them, as the List keeps its choice in view. Anything
+// above them that moves them a row, or a size that lays them out otherwise,
+// places them elsewhere, and scrolling places them nowhere new. Where they
+// don't hold the focus or none run, the place is the zero place and the
+// view scrolled as far as it is. Both are of the one layout, the form's
+// where the frame is built.
+func (f Frame) DetailSessions(doc status.Document, now time.Time) (SessionsPlace, int) {
+	laid, ok := f.detailSessionsOf(doc, now)
+	if !ok {
+		return SessionsPlace{}, f.Scroll
+	}
+	at := f.Scroll
+	for _, r := range laid.rows {
+		at = laid.paged.revealing(at, r)
+	}
+	return SessionsPlace{Enter: laid.rows[0], Heading: laid.rows[1], Selected: laid.rows[2], View: laid.paged.rows, Session: laid.selected}, at
+}
+
+// detailSessionsOf is where Accounts' view shown of doc at now lays Detail's
+// SESSIONS out, reporting false where they don't hold the focus or none
+// run.
+func (f Frame) detailSessionsOf(doc status.Document, now time.Time) (detailSessions, bool) {
+	form := f.accountsForm(doc, now)
+	if form.sessions == nil || !f.Accounts.sessionsFocused() {
+		return detailSessions{}, false
+	}
+	laid := form.sessions()
+	return laid, len(laid.rows) > 0
 }
 
 // accountsForm is the form Accounts' view shown is drawn in, of doc at now:
@@ -175,10 +243,14 @@ func (f Frame) accountsForm(doc status.Document, now time.Time) accountsForm {
 
 // buildAccountsForm builds the form Accounts' view shown is drawn in, of doc
 // at now: Compare's, as compareForm has it, or Detail's, as detailForm has
-// it, each choosing its own form by its parts.
+// it, each choosing its own form by its parts; or Tokens', as tokensForm has
+// it.
 func (f Frame) buildAccountsForm(doc status.Document, now time.Time) accountsForm {
-	if f.Accounts.View() == AccountsCompare {
+	switch f.Accounts.View() {
+	case AccountsCompare:
 		return f.compareForm(doc, now)
+	case AccountsTokens:
+		return f.tokensForm()
 	}
 	return f.detailForm(doc, now)
 }

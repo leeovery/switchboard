@@ -1,5 +1,5 @@
  SWITCHBOARD   Acme                                   Thu 1 Oct  14:42:07
- Overview  Accounts  History  Sessions  Runway  Graphs  Log
+ Overview  Accounts  Projects  Sessions  Runway  Trends  Log
 
 ● healthy · auto · 6 sessions · new → ▲ Acme 3
 

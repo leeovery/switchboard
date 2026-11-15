@@ -59,17 +59,17 @@ func TestAYoungLedgersPlansArePricedFromItsFirstDayEverywhere(t *testing.T) {
 		// empty is a ledger holding no day, its days those a read of it
 		// gives, where it begins as ledger.Begins says.
 		empty  bool
-		period views.AccountsPeriod
+		period views.Period
 		want   string
 	}{
-		{name: "this week, the ledger holding no day yet", began: "2026-10-09", empty: true, period: views.AccountsThisWeek,
+		{name: "this week, the ledger holding no day yet", began: "2026-10-09", empty: true, period: views.PeriodThisWeek,
 			want: "21.698630136986"},
-		{name: "this week, begun on its Wednesday", began: "2026-10-07", period: views.AccountsThisWeek, want: "36.164383561644"},
-		{name: "this week, begun on its first day, whole", began: "2026-10-05", period: views.AccountsThisWeek, want: "50.769230769231"},
-		{name: "today, begun today, whole", began: "2026-10-09", period: views.AccountsToday, want: "7.232876712328"},
-		{name: "the last 30 days, begun on the Wednesday, its 3 days to today", began: "2026-10-07", period: views.AccountsThirtyDays,
+		{name: "this week, begun on its Wednesday", began: "2026-10-07", period: views.PeriodThisWeek, want: "36.164383561644"},
+		{name: "this week, begun on its first day, whole", began: "2026-10-05", period: views.PeriodThisWeek, want: "50.769230769231"},
+		{name: "today, begun today, whole", began: "2026-10-09", period: views.PeriodToday, want: "7.232876712328"},
+		{name: "the last 30 days, begun on the Wednesday, its 3 days to today", began: "2026-10-07", period: views.PeriodThirtyDays,
 			want: "21.698630136986"},
-		{name: "the last 12 weeks, begun a month before, its days to this week's end", began: "2026-09-09", period: views.AccountsTwelveWeeks,
+		{name: "the last 12 weeks, begun a month before, its days to this week's end", began: "2026-09-09", period: views.PeriodTwelveWeeks,
 			want: "238.684931506849"},
 	}
 	for _, tt := range tests {
@@ -88,7 +88,7 @@ func TestAYoungLedgersPlansArePricedFromItsFirstDayEverywhere(t *testing.T) {
 				"history":  jsonOf(t, views.NewHistory(in).Plans[len(in.Accounts)].Cost),
 			}
 			want := map[string]string{"Accounts": tt.want, "history": tt.want}
-			if tt.period == views.AccountsThisWeek {
+			if tt.period == views.PeriodThisWeek {
 				tokens := views.NewHistory(in).Tokens
 				got["Tokens"], want["Tokens"] = jsonOf(t, tokens[len(tokens)-1].Cost), tt.want
 			}
@@ -105,7 +105,7 @@ func TestAYoungLedgersPlansArePricedFromItsFirstDayEverywhere(t *testing.T) {
 // Their totals are alike.
 func TestOnAWeeksFirstDayHistoryFromTodayIsThisWeekNotAccountsToday(t *testing.T) {
 	am := accountsMoment(t, onceItsReFiled)
-	am.Period = views.AccountsToday
+	am.Period = views.PeriodToday
 	page, _ := accountsAt(am)
 	history := historySince(am, am.Period.From(am.Now, am.WeekStarts))
 	if got, want := jsonOf(t, page.All.Totals), jsonOf(t, history.Totals.Accounts[len(history.Totals.Accounts)-1]); got != want {
@@ -196,32 +196,30 @@ func TestDetailsLATELYTellsOnlyEventsLATELYTells(t *testing.T) {
 	}
 }
 
-// At each of Accounts' hard moments, Detail's WEEKS, its verdicts and what
-// each account had left at its last reset are History's Weeks' and
-// history's, each as it stands then: Accounts' page and Weeks' built of the
-// days as they were read, as the watch builds them, and stood at the moment;
-// history of the days the ledger holds then, from Weeks' first week. Its six
-// weeks are the last six of Weeks' eight, each row's peaks and verdict
-// theirs, and its left at its last reset history's, where history gives one.
+// At each of Accounts' hard moments, Detail's WEEKS, its facts and what
+// each account had left at its last reset are history's, each as it stands
+// then: Accounts' page built of the days as they were read, as the watch
+// builds it, and stood at the moment; history of the days the ledger holds
+// then, from the first of Detail's last eight weeks. Over those eight, each
+// row's peaks are history's and its facts history's verdict's, and its left
+// at its last reset history's, where history gives one.
 func TestDetailsWeeksAreHistorysAtTheMoment(t *testing.T) {
+	const judged = 8
 	for _, am := range viewstest.AccountsMoments() {
 		t.Run(am.Name, func(t *testing.T) {
-			page, m := accountsAt(am)
-			weeks := pastOf(am).Weeks().At(m)
-			shown := len(weeks.Weeks) - len(page.Weeks)
-			if shown < 0 || !slices.Equal(page.Weeks, weeks.Weeks[shown:]) {
-				t.Fatalf("Detail's weeks are %v, Weeks' %v", page.Weeks, weeks.Weeks)
+			page, _ := accountsAt(am)
+			shown := len(page.Weeks) - judged
+			if shown < 0 {
+				t.Fatalf("Detail's weeks are %v, want %d at least", page.Weeks, judged)
 			}
-			history := heldHistory(am, weeks.Weeks[0])
-			rows := append(slices.Clone(weeks.Accounts), weeks.All)
+			weeks := page.Weeks[shown:]
+			history := heldHistory(am, weeks[0])
 			for i, row := range append(slices.Clone(page.Rows), page.All) {
-				peaks := []string{peaksRead(row.Peaks), peaksRead(rows[i].Peaks[shown:]), peaksRead(historysPeaks(history, i, page.Weeks))}
-				if !allSame(peaks) {
-					t.Errorf("row %d's peaks are %s, Weeks' %s, history's %s", i, peaks[0], peaks[1], peaks[2])
+				if peaks, theirs := peaksRead(row.Peaks[shown:]), peaksRead(historysPeaks(history, i, weeks)); peaks != theirs {
+					t.Errorf("row %d's peaks are %s, history's %s", i, peaks, theirs)
 				}
-				verdicts := []string{verdictRead(row.Verdict), verdictRead(rows[i].AccountVerdict), verdictRead(history.Capacity.Accounts[i])}
-				if !allSame(verdicts) {
-					t.Errorf("row %d's verdict is %s, Weeks' %s, history's %s", i, verdicts[0], verdicts[1], verdicts[2])
+				if facts, theirs := factsRead(row.Facts(judged)), factsRead(history.Capacity.Accounts[i]); facts != theirs {
+					t.Errorf("row %d's facts are %s, history's %s", i, facts, theirs)
 				}
 				if i == len(page.Rows) {
 					continue
@@ -263,9 +261,4 @@ func historysPeaks(h views.History, x int, dates []string) []views.WeekPeak {
 		peaks[i].Open = slices.Contains(a.Open, claude.WeekWindow)
 	}
 	return peaks
-}
-
-// allSame reports whether each of said is the first.
-func allSame(said []string) bool {
-	return !slices.ContainsFunc(said, func(s string) bool { return s != said[0] })
 }

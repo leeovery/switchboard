@@ -227,11 +227,16 @@ func (m Model) shownAfresh(pooled Pooled) (Model, tea.Cmd) {
 // moment or read of the pool before, its request stream ended. What it
 // keeps is the screen's and the user's, not the pool's: the terminal's size
 // and background, the theme and the picker, the preferences being kept, the
-// tab shown, under a session's page where one is open, and what each tab
-// shows as the preferences keep it; and the request ledger, what it holds
-// of the days read, where pooled's is on the grounds it was made on, else
-// one made on pooled's. poolTurns counts the pools shown, so what the
-// commands of the one before send back is dropped, as turns has it.
+// tab shown, under a session's page where one is open, what each tab shows
+// as the preferences keep it, and the dial's period, Trends' sections and
+// the tab taken from History's once as the watch opened, as KeepGraphs has
+// it, kept as they stand; and the request ledger, what it holds of the days
+// read, where pooled's is on the grounds it was made on, else one made on
+// pooled's. So the sessions' days Projects and the List are built of, the
+// days Accounts, Runway and Trends are, their pages, Projects' chosen
+// project and the List's log go with the pool before. poolTurns counts the
+// pools shown, so what the commands of the one before send back is
+// dropped, as turns has it.
 func (m Model) freshIn(pooled Pooled) Model {
 	m.stream.end()
 	cfg := m.cfg
@@ -241,10 +246,10 @@ func (m Model) freshIn(pooled Pooled) Model {
 		cfg.Ledger, cfg.LedgerGrounds = pooled.NewLedger(), pooled.Grounds
 	}
 	cfg.Size, cfg.View, cfg.Sections, cfg.By, cfg.Models, cfg.Graphs = m.size, m.view, m.sections, m.by, m.models, m.graphs
+	cfg.Period, cfg.KeepGraphs = m.period, false
 	cfg.AccountsShown = dashboard.AccountsKept(m.accounts.shown.Kept())
 	cfg.SessionsShown = dashboard.SessionsKept(m.sessionsTab.shown.Kept())
 	cfg.RunwayShown = dashboard.RunwayKept(m.runwayTab.shown.Kept())
-	cfg.History = dashboard.HistoryKept(m.past.page.Kept(), cfg.Accounts)
 	cfg.Log = m.log.page.Columns
 	fresh := New(m.ctx, cfg)
 	fresh.choice, fresh.pair, fresh.showing, fresh.backdrop, fresh.picker = m.choice, m.pair, m.showing, m.backdrop, m.picker

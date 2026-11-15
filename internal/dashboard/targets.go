@@ -15,7 +15,8 @@ import (
 // account, by its id, Account, or Compare's column of one, "" for all
 // accounts; a session, by its id, Session, and on Sessions' Switchboard, the
 // account its call's row is on, Account; a turn of a session's page, by its
-// number, Turn; or a request of its turn open, by its index among them, Row.
+// number, Turn; a request of its turn open, by its index among them, Row;
+// or a project of Projects' list, by its path, Project.
 type Target struct {
 	X, Y, Width int
 	On          Clicked
@@ -28,6 +29,7 @@ type Target struct {
 	Account     string
 	Session     string
 	Turn        int
+	Project     string
 }
 
 // Clicked is what a click lands on.
@@ -55,9 +57,10 @@ const (
 	OnSection
 	// OnAccount is an account's row in Detail's list, which chooses it.
 	OnAccount
-	// OnSession is a session's row, which opens its page; in Detail's
-	// SESSIONS, it selects it, and opens the one selected; and on Sessions,
-	// a call or a row of the List, it chooses it, and opens the one chosen.
+	// OnSession is a session's row, which opens its page; in Detail's and
+	// Projects' SESSIONS, it selects it, and opens the one selected; and on
+	// Sessions, a call or a row of the List, it chooses it, and opens the
+	// one chosen.
 	OnSession
 	// OnTurn is a turn's row on a session's page, which chooses it.
 	OnTurn
@@ -67,6 +70,8 @@ const (
 	// OnColumn is a column's heads in Compare, by its account's id, "" for
 	// all accounts, which moves the focus to it.
 	OnColumn
+	// OnProject is a project's row in Projects' list, which chooses it.
+	OnProject
 )
 
 // Targets are the zones of the frame's page of doc at now a click acts on,
@@ -74,7 +79,8 @@ const (
 // tabs; the heading row's sub-tabs, and < and > by its period or window; a
 // session's page's, where one is open, as sessionTargets has them, else the
 // Overview's, as overviewTargets has them, Accounts', as accountsTargets
-// has them, Sessions', as sessionsTargets has them, Graphs', as
+// has them, Projects', as projectsLaid has them, Sessions', as
+// sessionsTargets has them, Graphs', as
 // graphsTargets has them, or the Log's, as logTargets has them; and the key
 // line's keys, as keyTargets has them.
 func (f Frame) Targets(doc status.Document, now time.Time) []Target {
@@ -92,7 +98,7 @@ func (f Frame) Targets(doc status.Document, now time.Time) []Target {
 
 // viewTargets are the zones of what the frame shows of doc at now a click
 // acts on, as Targets lays them out: a session's page's, the Overview's,
-// Accounts', Sessions', Graphs' and the Log's.
+// Accounts', Projects', Sessions', Graphs' and the Log's.
 func (f Frame) viewTargets(doc status.Document, now time.Time) []Target {
 	switch f.Shown() {
 	case SessionPage:
@@ -101,6 +107,8 @@ func (f Frame) viewTargets(doc status.Document, now time.Time) []Target {
 		return f.At(doc, now).overviewTargets(doc, now)
 	case Accounts:
 		return f.At(doc, now).accountsTargets(doc, now)
+	case Projects:
+		return f.At(doc, now).projectsLaying(doc, now).targets()
 	case Sessions:
 		return f.At(doc, now).sessionsTargets(doc, now)
 	case Graphs:

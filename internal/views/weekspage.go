@@ -8,7 +8,6 @@ import (
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/prose"
-	"github.com/leeovery/switchboard/internal/status"
 )
 
 // WeeksPage is Weeks as the dashboard draws it: the eight weeks to this one,
@@ -43,25 +42,6 @@ type WeeksPage struct {
 	past Past
 }
 
-// At is the page as it stands at the moment m, of the document of its
-// accounts: built afresh of the days as they stand at m, as Past's filedAt
-// files them, where they stand otherwise than as it was built, so its weeks
-// are Accounts' at the same moment; else as it was built.
-func (page WeeksPage) At(m status.Moment) WeeksPage {
-	stood, ok := page.past.filedAt(m)
-	if !ok {
-		return page
-	}
-	return stood.weeksPage()
-}
-
-// Until is when the page, as At stands it at the moment m, next stands
-// otherwise, as Past's standsUntil has it: till then, At stands it alike at
-// every moment of m's document.
-func (page WeeksPage) Until(m status.Moment) time.Time {
-	return page.past.standsUntil(m)
-}
-
 // WeeksRow is an account's row of Weeks, or every account's: its verdict, as
 // Capacity gives it, and its peak in each of the eight weeks, as Weeks lists
 // them. Of an account, its verdict's AccountName names it, and Primary
@@ -72,6 +52,10 @@ type WeeksRow struct {
 	Primary bool
 	Used    *float64
 	Peaks   []WeekPeak
+
+	// told is what each of the page's weeks tells of it, as its peaks are
+	// placed, as Weeks' facts sum them: none of a week not whole.
+	told []told
 }
 
 // WeekPeak is how full an account's week got: Share, its peak, from 0 to 1,
@@ -86,26 +70,28 @@ type WeekPeak struct {
 	AtCap bool
 }
 
-// peakSoFar marks a peak so far, of a week still running, after it.
-const peakSoFar = "…"
+// PeakSoFar marks a peak so far, of a week still running: after it, or
+// under its column, where Compare's WEEKS charts it.
+const PeakSoFar = "…"
 
 // Peak says a week's peak, share, as a whole percentage, as "60%"; and of a
 // week still running, open, as its peak so far, as "34%…".
 func Peak(share float64, open bool) string {
 	if open {
-		return prose.Percent(share) + peakSoFar
+		return prose.Percent(share) + PeakSoFar
 	}
 	return prose.Percent(share)
 }
 
-// weeksPage is Weeks' page: the eight weeks to this one, the accounts' own
+// weeksOver is Weeks' page over the n weeks to this one: the accounts' own
 // weeks placed under them as Weeks places them, the resets of the days
 // lookBack before them telling the week still running as they begin; and
-// the capacity verdict over those of them that are whole.
-func (p Past) weeksPage() WeeksPage {
+// the capacity verdict over those of them that are whole. Weeks' own page
+// is of eight; Compare's WEEKS reaches over as many as its period has.
+func (p Past) weeksOver(n int) WeeksPage {
 	in := p.in
 	today := dayfile.CivilOf(in.Now)
-	this, first := weekOf(today, in.WeekStarts), weeksTo(today, in.WeekStarts, weeksShown)
+	this, first := weekOf(today, in.WeekStarts), weeksTo(today, in.WeekStarts, n)
 	before, days := splitAt(p.days, first.Format(time.DateOnly))
 	_, before = splitAt(before, first.AddDate(0, 0, -lookBack).Format(time.DateOnly))
 	placed := weeklyOf(in.WeekWindow, in.WeekStarts, in.Now).placedWeeks(before, days, in.Accounts)
@@ -113,7 +99,7 @@ func (p Past) weeksPage() WeeksPage {
 	pl := plans{accounts: in.Accounts, table: in.Prices}
 	j := judgingOf(placed, isWhole, in.Accounts, pl, in.WeekWindow)
 	page := WeeksPage{
-		Weeks:    weekDates(first, weeksShown),
+		Weeks:    weekDates(first, n),
 		Capacity: j.capacity(),
 		Window:   in.WeekWindow,
 		past:     p,
@@ -122,17 +108,49 @@ func (p Past) weeksPage() WeeksPage {
 	for _, w := range weeksOf(placed, in.Accounts) {
 		byWeek[w.Week] = w
 	}
+	tells := page.toldOf(placed, isWhole, j.r)
 	for x, a := range in.Accounts {
-		row := WeeksRow{AccountVerdict: page.Capacity.Accounts[x], Primary: a.Primary, Peaks: page.peaksOf(byWeek, x)}
+		row := WeeksRow{AccountVerdict: page.Capacity.Accounts[x], Primary: a.Primary, Peaks: page.peaksOf(byWeek, x), told: tells[x]}
 		if rec := j.records[x]; rec.weeks > 0 {
 			used := meanOf(rec.used, rec.weeks)
 			row.Used = &used
 		}
 		page.Accounts = append(page.Accounts, row)
 	}
-	page.All = WeeksRow{AccountVerdict: page.Capacity.Accounts[len(in.Accounts)], Peaks: page.peaksOf(byWeek, len(in.Accounts))}
+	all := len(in.Accounts)
+	page.All = WeeksRow{AccountVerdict: page.Capacity.Accounts[all], Peaks: page.peaksOf(byWeek, all), told: tells[all]}
 	page.judge(j.r, pl, dayfile.DateOf(in.Now))
 	return page
+}
+
+// toldOf is what each of the page's weeks tells of each account, in the
+// config's order, then of every account together, of the weeks placed that
+// isWhole reports are whole, as the replay r judges them: of an account, its
+// record in it, as recordOf has it; of every account, what toldOf tells of
+// a week the replay judges. A week not whole, or not placed, tells nothing.
+func (page WeeksPage) toldOf(placed []placedWeek, isWhole func(week string) bool, r replay) [][]told {
+	accounts := len(r.caps)
+	byWeek := make(map[string]placedWeek, len(placed))
+	for _, w := range placed {
+		byWeek[w.week] = w
+	}
+	tells := make([][]told, accounts+1)
+	for x := range tells {
+		tells[x] = make([]told, len(page.Weeks))
+	}
+	for i, date := range page.Weeks {
+		w, ok := byWeek[date]
+		if !ok || !isWhole(date) {
+			continue
+		}
+		for x := range accounts {
+			tells[x][i] = w.recordOf(x, r.caps[x], page.Window).told()
+		}
+		if week, judged := w.judged(accounts, page.Window); judged {
+			tells[accounts][i] = r.toldOf(week)
+		}
+	}
+	return tells
 }
 
 // peaksOf are the peaks of the account with index x among the weeks' own,

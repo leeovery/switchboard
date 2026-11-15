@@ -9,19 +9,18 @@ import (
 	"github.com/leeovery/switchboard/internal/status"
 )
 
-// What Weeks' verdicts say, each once, as History's Weeks and history's text
-// both say it: where no whole week can be judged yet; the labels of what the
-// replays found, as the accounts stand, with one fewer, two fewer or one
-// more, and of one account, with a second; what the rest find without an
-// account; and that the verdicts are an estimate, as many accounts' form
-// words it, and as few accounts'.
+// What the capacity verdicts say, each once, as history's text says it:
+// where no whole week can be judged yet; the labels of what the replays
+// found, as the accounts stand, with one fewer, two fewer or one more; what
+// the rest find without an account; and
+// that the verdicts are an estimate, as many accounts' form words it, and as
+// few accounts'.
 const (
 	NotEnoughWeeks           = "not enough weeks yet"
 	ReplayAsNow              = "as now: "
 	ReplayOneFewer           = "with one fewer: "
 	ReplayTwoFewer           = "with two fewer: "
 	ReplayOneMore            = "with one more: "
-	ReplayASecond            = "with a second: "
 	WithoutTheRest           = "without it, the rest: "
 	EstimateOfReplays        = "an estimate, from replaying these weeks"
 	EstimateOfOneFewerOrMore = EstimateOfReplays + " with one account fewer or more"
@@ -58,29 +57,7 @@ func shortCount(n int) status.Part {
 // ShortOfWeeks says how many of the weeks judged were short, n of them:
 // "short on 3 of 7 weeks", or "short on none of 7 weeks", its counts figures.
 func ShortOfWeeks(n, weeks int) status.Words {
-	return shortOf(n, " of ", weeks)
-}
-
-// ShortOfTheLastWeeks says how many of the last weeks were short, n of them,
-// as ShortOfWeeks does: "short on 3 of the last 7 weeks".
-func ShortOfTheLastWeeks(n, weeks int) status.Words {
-	return shortOf(n, " of the last ", weeks)
-}
-
-// shortOf says how many of the weeks judged were short, n of them, of as
-// given between the two counts.
-func shortOf(n int, of string, weeks int) status.Words {
-	return slices.Concat(ShortOn(n), status.Words{status.Plain(of)}, CountedWords(weeks, "week"))
-}
-
-// ShortOutOf says how many of the weeks judged were short, n of them, as a
-// replay finds them: "short on 6 of 7", its counts figures, or "short on
-// none".
-func ShortOutOf(n, weeks int) status.Words {
-	if n == 0 {
-		return ShortOn(n)
-	}
-	return slices.Concat(status.Words{status.Plain("short on ")}, OutOf(n, weeks))
+	return slices.Concat(ShortOn(n), status.Words{status.Plain(" of ")}, CountedWords(weeks, "week"))
 }
 
 // OutOf says n of a count of, both figures: "6 of 7".
@@ -107,6 +84,25 @@ func limitHit(limits int, of string, weeks int) status.Words {
 		CountedWords(weeks, "week"))
 }
 
+// LimitHitOutOf says how many of an account's weeks it hit its limit in, as
+// Compare's WEEKS says it: "limit hit 3 of 51", its counts figures.
+func LimitHitOutOf(limits, weeks int) status.Words {
+	return slices.Concat(status.Words{status.Plain("limit hit ")}, OutOf(limits, weeks))
+}
+
+// ShortOnOutOf says how many of the weeks judged were short, n of them, as
+// Compare's WEEKS says it of every account: "short on 3 of 51", or "short
+// on none of 51", its counts figures.
+func ShortOnOutOf(n, weeks int) status.Words {
+	return slices.Concat(ShortOn(n), status.Words{status.Plain(" of "), status.Figure(prose.Grouped(weeks))})
+}
+
+// Left says what an account's weeks left at a reset, on average, short, as
+// Compare's WEEKS says it where LeftAtAReset doesn't fit: "21% left".
+func Left(share float64) status.Words {
+	return status.Words{status.Figure(prose.Percent(share)), status.Plain(" left")}
+}
+
 // LeftOnAverage says what an account's weeks left at a reset, on average, as
 // LeftAtAReset says it: "9% left at a reset, on average".
 func LeftOnAverage(share float64) status.Words {
@@ -125,7 +121,7 @@ func ToDrop(name string) string {
 	return name + " is the one to drop"
 }
 
-// DateNamed names the day with the given date, as History names the busiest
+// DateNamed names the day with the given date, as YEAR names the busiest
 // day: "Tue 22 Sep"; "" where the date isn't one.
 func DateNamed(date string) string {
 	day, ok := dayfile.Civil(date)
@@ -135,7 +131,7 @@ func DateNamed(date string) string {
 	return prose.Day(day)
 }
 
-// DaysInARow says how many days in a row there were, as History says the
+// DaysInARow says how many days in a row there were, as YEAR says the
 // longest run: "58 days"; "" for none.
 func DaysInARow(days int) string {
 	if days == 0 {

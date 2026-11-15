@@ -12,7 +12,7 @@ type Plan struct {
 	// Name names it as the views show it, as Ultra.
 	Name string
 	// Size is how big its week is, in Pro weeks, as Anthropic publishes each
-	// plan's weekly usage against Pro's: what the forecast and History's
+	// plan's weekly usage against Pro's: what the forecast and history's
 	// replay of a week weigh an account on it by, as Sizes has them.
 	Size int64
 	// Prices are what it costs a month, each from the day it took effect,

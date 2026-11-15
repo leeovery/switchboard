@@ -43,10 +43,13 @@ type Launcher struct {
 	// Dir is the directory Claude Code starts in, as os.Getwd gives it, and
 	// Home the user's home directory, as os.UserHomeDir does, each "" where
 	// it isn't known: through a router that keeps it from the API, Claude
-	// Code's requests tell it Dir, from Home where it's within it, as
-	// ~/Code/api.
+	// Code's requests tell it Dir, and the project Dir is in, as Project
+	// finds it, each from Home where it's within it, as ~/Code/api.
 	Dir  string
 	Home string
+	// Project finds the project a session started in a directory runs in, as
+	// FindProject does: nil for none.
+	Project func(dir string) string
 	// EvalSymlinks resolves the links in a path, as filepath.EvalSymlinks
 	// does, so the pool Dir is in is the pool of where it leads.
 	EvalSymlinks func(path string) (string, error)
@@ -117,21 +120,21 @@ type Route struct {
 // Run starts Claude Code with args in this process's place. While the router
 // answers saying where its proxy listens, healthy or not, Claude Code sends
 // its requests there, to that address, whatever the config says, telling it
-// the directory Claude Code starts in, where it keeps that from the API, its
-// conversation pinned when an account is, on the primary's token, whichever
-// account the conversation goes to: what isn't the conversation goes out on
-// Claude Code's own token, and so lands on the primary. Claude Code tells the
-// router too what it tells the API of each request, such as the prompt it
-// serves, unless the environment says already whether to. Stderr hears of a
-// router that isn't healthy, whose failures a direct connection would meet
-// all the same. Otherwise, as whenDown says, it starts nothing, failing with
-// ErrNotStarted, or sends them straight to the API, on the pinned account's
-// token, else the primary's; either way, Stderr hears why. Routed or direct,
-// failing those, it starts on the first account's with a usable token, and
-// with none, Unaided. A pin that can't be kept, to an account not configured
-// or without a usable token, fails: it's the command line's mistake. It
-// starts from the environment as the user set it (see own), and marks what it
-// sets there (see setEnv).
+// the directory Claude Code starts in and its project, where it keeps them
+// from the API, its conversation pinned when an account is, on the primary's
+// token, whichever account the conversation goes to: what isn't the
+// conversation goes out on Claude Code's own token, and so lands on the
+// primary. Claude Code tells the router too what it tells the API of each
+// request, such as the prompt it serves, unless the environment says already
+// whether to. Stderr hears of a router that isn't healthy, whose failures a
+// direct connection would meet all the same. Otherwise, as whenDown says, it
+// starts nothing, failing with ErrNotStarted, or sends them straight to the
+// API, on the pinned account's token, else the primary's; either way, Stderr
+// hears why. Routed or direct, failing those, it starts on the first
+// account's with a usable token, and with none, Unaided. A pin that can't be
+// kept, to an account not configured or without a usable token, fails: it's
+// the command line's mistake. It starts from the environment as the user set
+// it (see own), and marks what it sets there (see setEnv).
 //
 // In a config with pools, the session is in the pool the directory it starts
 // in is in, for its whole life (see placed), and every account above is that
@@ -306,7 +309,7 @@ func (l Launcher) routeUnread(path string, args []string, r Route, state routerS
 func (l Launcher) routed(path string, args []string, state routerState, c choice, pin string, in place, unread error) error {
 	own := l.own()
 	env := own.with(claude.BaseURLEnv, "http://"+state.listen).with(claude.TokenEnv, c.token.Reveal()).
-		pinnedTo(pin).workingIn(state.told(l.shownDir())).inPool(state.told(in.id())).poolNamed(in.id()).hinting()
+		pinnedTo(pin).workingIn(l.told(state)).inPool(state.told(in.id())).poolNamed(in.id()).hinting()
 	l.routedThrough(state, c, pin, in.id(), path, unread)
 	return l.exec(path, args, env.markedAgainst(own))
 }
@@ -343,7 +346,7 @@ func (l Launcher) routedThrough(state routerState, c choice, pin, pool, path str
 // says: Stderr hears so.
 func (l Launcher) connectDirectly(path string, args []string, state routerState, c choice, in place) error {
 	own := l.own()
-	env := own.without(claude.BaseURLEnv).with(claude.TokenEnv, c.token.Reveal()).pinnedTo("").workingIn("").inPool("").poolNamed(in.id())
+	env := own.without(claude.BaseURLEnv).with(claude.TokenEnv, c.token.Reveal()).pinnedTo("").workingIn("", "").inPool("").poolNamed(in.id())
 	attrs := []any{"mode", "direct", "router", state.name, "reason", state.reason, "asked", state.asked, "account", c.account.ID, "chosen", c.why}
 	if in.pooled() {
 		attrs = append(attrs, "pool", in.id())
@@ -374,10 +377,10 @@ func (l Launcher) Direct(args []string, pools config.Pools) error {
 
 // OwnLogin returns env, an environment as os.Environ gives it, as Claude Code
 // starts on its own login, as Direct starts it: as the user set it (see own),
-// without the token, the base URL, a pin, the directory or the pool told the
-// router, nor the pool's id, nor any mark of switchboard's.
+// without the token, the base URL, a pin, the directory, project or pool told
+// the router, nor the pool's id, nor any mark of switchboard's.
 func OwnLogin(env []string) []string {
-	return environ(env).unmarked().without(claude.TokenEnv, claude.BaseURLEnv, startedEnv, whenDownEnv, PoolEnv).pinnedTo("").workingIn("").inPool("")
+	return environ(env).unmarked().without(claude.TokenEnv, claude.BaseURLEnv, startedEnv, whenDownEnv, PoolEnv).pinnedTo("").workingIn("", "").inPool("")
 }
 
 // Local starts Claude Code with args, which run one of its local
@@ -614,6 +617,22 @@ func (l Launcher) find() (string, error) {
 		logger.Info("started again in place of the claude it started; looking past it", "claude", after)
 	}
 	return claude.FindAfter(after, env.get("PATH"), l.InstallPaths, l.Executable)
+}
+
+// told returns the directory the router in state is told Claude Code starts
+// in, as shownDir has it, and the project it runs in, as Project finds it,
+// none without Project, as shown shows it, where the router takes every
+// header of switchboard's own off what it sends upstream: neither for one
+// that doesn't, which would send them on to the API, as routerState's told
+// has it, nor where Dir isn't known.
+func (l Launcher) told(state routerState) (dir, project string) {
+	if !state.strips || l.Dir == "" {
+		return "", ""
+	}
+	if l.Project == nil {
+		return l.shownDir(), ""
+	}
+	return l.shownDir(), l.shown(l.Project(l.Dir))
 }
 
 // shownDir returns Dir as the router is told it, as shown shows it.

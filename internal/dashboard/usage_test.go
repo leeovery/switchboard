@@ -537,8 +537,8 @@ func TestAColumnsMarksEndACellBeforeWhatFollows(t *testing.T) {
 	}
 }
 
-// The helpers Detail's list, History's rows, turned Compare's rows and a
-// session's stays draw their names with lay them out as a column of names
+// The helpers Detail's list, turned Compare's rows and a session's stays
+// draw their names with lay them out as a column of names
 // does, their marks right-aligned to end a cell before what follows it,
 // nameGap after the label's room, or turned Compare's turnedApart; the
 // stays' cutting a label to keep its own marks alone, as before. The frames
@@ -550,7 +550,6 @@ func TestEveryColumnOfNamesRightAlignsItsMarks(t *testing.T) {
 		got  line
 		want string
 	}{
-		{name: "History's", got: historyAccount("personal", true, 12, markedCells(12+nameGap, 0)), want: "personal    ◆"},
 		{name: "turned Compare's, a primary shorter than another's", got: turnedName(compareColumn{account: status.AccountNow{ID: "work", Label: "work", Primary: true}}, 10), want: "work      ◆"},
 		{name: "a session's stays", got: n.filled(14), want: "personal    ◆"},
 		{name: "a session's stays, cut", got: accountName{label: "personal-research", primary: true}.filled(12), want: "persona…  ◆"},

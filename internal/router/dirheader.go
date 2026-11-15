@@ -35,8 +35,16 @@ func dirOf(h http.Header) string {
 	return ledger.LineDir(DecodeDir(h.Get(DirHeader)))
 }
 
-// DecodeDir returns the directory a DirHeader value names, as EncodeDir
-// encodes it: "" for one that doesn't decode, which run never sends.
+// projectOf returns the project a request's header h names, in the form the
+// request ledger gives it: "" for none, as for one that doesn't decode, or
+// runs too long for a line to hold.
+func projectOf(h http.Header) string {
+	return ledger.LineProject(DecodeDir(h.Get(ProjectHeader)))
+}
+
+// DecodeDir returns the directory a DirHeader or ProjectHeader value names,
+// as EncodeDir encodes it: "" for one that doesn't decode, which run never
+// sends.
 func DecodeDir(value string) string {
 	dir, err := url.PathUnescape(value)
 	if err != nil {

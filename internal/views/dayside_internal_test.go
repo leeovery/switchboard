@@ -2,6 +2,7 @@ package views
 
 import (
 	"bytes"
+	"cmp"
 	"encoding/json"
 	"fmt"
 	"maps"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/score"
 )
 
@@ -143,7 +145,9 @@ func TestADaysSideIsItsSessionsReadRaw(t *testing.T) {
 // line by line, is byte for byte the side of the lines themselves, as
 // sessionsOfLines folds them: over the generated worlds' days, and a day of
 // lines edited by hand, one in another zone to the nanosecond, one at no
-// time at all, a quota check, a count of tokens and a line of no kind.
+// time at all, a quota check, a count of tokens, a line of no kind, one
+// naming a directory alone after one named a project, and lines routed in
+// pools beside one naming none.
 func TestADaysSideOfItsRecordsIsTheSideOfItsLines(t *testing.T) {
 	var days [][]ledger.Held
 	for _, w := range chainWorlds {
@@ -159,10 +163,11 @@ func TestADaysSideOfItsRecordsIsTheSideOfItsLines(t *testing.T) {
 	}
 	at := time.Date(2026, 10, 8, 9, 0, 0, 0, time.UTC)
 	days = append(days, []ledger.Held{
-		{At: at.In(time.FixedZone("east", 5*60*60+30*60)).Add(123_456_789), Session: "s", Kind: ledger.KindMessage, Dir: "/code/app"},
+		{At: at.In(time.FixedZone("east", 5*60*60+30*60)).Add(123_456_789), Session: "s", Kind: ledger.KindMessage, Dir: "/code/app/web", Project: "/code/app"},
 		{At: at.Add(time.Minute), Session: "s", Kind: ledger.KindCheck, Dir: "/code/check"},
 		{At: at.Add(2 * time.Minute), Session: "s", Kind: ledger.KindCount, Pool: "q7mt"},
-		{At: at.Add(3 * time.Minute), Session: "t", Dir: "/code/other", Pool: "b2n8"},
+		{At: at.Add(3 * time.Minute), Session: "t", Dir: "/code/other/.claude/worktrees/fix", Project: "/code/other", Pool: "b2n8"},
+		{At: at.Add(4 * time.Minute), Session: "t", Kind: ledger.KindMessage, Dir: "/code/elsewhere"},
 		{Session: "u", Kind: ledger.KindMessage},
 	})
 	for i, day := range days {
@@ -182,31 +187,70 @@ func TestADaysSideOfItsRecordsIsTheSideOfItsLines(t *testing.T) {
 // them, folded of each line as it is, its record undecoded, with the pools
 // each's lines recorded: the find's fold before it folded records, kept as
 // the reference a side of records is held to.
-func sessionsOfLines(day []ledger.Held) []daySession {
-	sessions := make(daySessions)
+func sessionsOfLines(day []ledger.Held) []foldedSession {
+	sessions := newDaySessions(false)
+	requests := make(map[string][]heldRequest)
 	for i := range day {
 		l := &day[i].Line
 		id := l.CountedSession()
 		if id == "" {
 			continue
 		}
-		s, ok := sessions[id]
+		s, ok := sessions.held[id]
 		if !ok {
-			s = &daySession{ID: id}
-			sessions[id] = s
+			s = &foldedSession{ID: id}
+			sessions.held[id] = s
 		}
 		s.Lines++
-		s.Last = score.Later(s.Last, l.At.UTC())
-		if l.Dir != "" {
-			s.Dir = l.Dir
+		at := l.At.UTC()
+		s.Last = score.Later(s.Last, at)
+		if l.Dir != "" || l.Project != "" {
+			s.Dir, s.Project = cmp.Or(l.Dir, s.Dir), l.Project
 		}
 		s.pools = append(s.pools, l.Pool)
+		if !isRequest(l) {
+			continue
+		}
+		if s.FirstRequest.IsZero() || at.Before(s.FirstRequest) {
+			s.FirstRequest = at
+		}
+		s.LastRequest = score.Later(s.LastRequest, at)
+		s.naming.see(l.Model, l.Account, l.Class, at)
+		s.Uses = usedOfLine(s.Uses, l)
+		requests[id] = append(requests[id], heldRequestOf(l))
 	}
-	for _, s := range sessions {
+	for _, s := range sessions.held {
 		slices.Sort(s.pools)
 		s.pools = slices.Compact(s.pools)
 	}
-	return sessions.folded()
+	folded := sessions.folded()
+	for i := range folded {
+		folded[i].moves = latestMoves(requests[folded[i].ID])
+	}
+	return folded
+}
+
+// usedOfLine is uses with the line l's request among them, as a session's
+// record holds them, of the line itself, its record undecoded.
+func usedOfLine(uses []SessionUse, l *ledger.Line) []SessionUse {
+	i := slices.IndexFunc(uses, func(u SessionUse) bool { return u.Account == l.Account && u.Model == l.Model })
+	if i < 0 {
+		uses = append(uses, SessionUse{Account: l.Account, Model: l.Model})
+		slices.SortFunc(uses, func(a, b SessionUse) int {
+			return cmp.Or(cmp.Compare(a.Account, b.Account), cmp.Compare(a.Model, b.Model))
+		})
+		i = slices.IndexFunc(uses, func(u SessionUse) bool { return u.Account == l.Account && u.Model == l.Model })
+	}
+	u := &uses[i]
+	u.Requests++
+	u.Spent.Add(l.Model, l.Shape.InferenceGeo, ledger.SpendOf(l))
+	if tokens, ok := l.Tokens(); ok {
+		u.Tokens.Input += tokens.Input
+		u.Tokens.Output += tokens.Output
+		u.Tokens.CacheRead += tokens.CacheRead
+		u.Tokens.CacheWrite += tokens.CacheWrite
+	}
+	return uses
 }
 
 // filedDates are the dates of the local days lines arrived on, oldest first.
@@ -227,7 +271,7 @@ func TestTheFindReadsADaysSideOnlyWhereItStands(t *testing.T) {
 	lines := []ledger.Held{{At: time.Date(2026, 10, 8, 9, 0, 0, 0, time.UTC), Session: "s", Kind: ledger.KindMessage, Dir: "/code/app"}}
 	raw := DaySessions(RecordsOf(lines))
 	stale := []DaySession{{ID: "s", Dir: "/code/old", Lines: 7, Last: time.Date(2026, 10, 8, 8, 0, 0, 0, time.UTC)}}
-	staleSide, err := daySideOf([]daySession{{DaySession: stale[0]}})
+	staleSide, err := daySideOf([]foldedSession{{DaySession: stale[0]}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -279,6 +323,39 @@ func (d dayHeld) Day(date string) []ledger.Held {
 	return d.lines
 }
 
+// A day's side holds each session's project as its last line to name a
+// directory or a project named it: a line naming a project, then one naming
+// a directory alone, as from a run before projects, leaves it none; and one
+// naming neither keeps it.
+func TestADaysSideHoldsTheProjectTheLastLineToNameAPlaceNamed(t *testing.T) {
+	at := time.Date(2026, 10, 8, 9, 0, 0, 0, time.UTC)
+	b := Digests{}.Day()
+	for _, l := range []ledger.Line{
+		{At: at, Session: "s", Kind: ledger.KindMessage, Dir: "/code/app/web", Project: "/code/app"},
+		{At: at.Add(time.Minute), Session: "s", Kind: ledger.KindMessage, Dir: "/code/elsewhere"},
+		{At: at.Add(2 * time.Minute), Session: "t", Kind: ledger.KindMessage, Dir: "/code/site/.claude/worktrees/fix", Project: "/code/site"},
+		{At: at.Add(3 * time.Minute), Session: "t", Kind: ledger.KindCount},
+	} {
+		b.Take(l)
+	}
+	built, err := b.Built()
+	if err != nil {
+		t.Fatal(err)
+	}
+	sessions, err := daySessionsIn(built.Side, PoolRead{})
+	var got []DaySession
+	for _, s := range sessions {
+		got = append(got, DaySession{ID: s.ID, Dir: s.Dir, Project: s.Project, Lines: s.Lines, Last: s.Last})
+	}
+	want := []DaySession{
+		{ID: "t", Dir: "/code/site/.claude/worktrees/fix", Project: "/code/site", Lines: 2, Last: at.Add(3 * time.Minute)},
+		{ID: "s", Dir: "/code/elsewhere", Lines: 2, Last: at.Add(time.Minute)},
+	}
+	if err != nil || !reflect.DeepEqual(got, want) {
+		t.Errorf("the day's side %s holds\n%+v (%v)\nwant\n%+v", built.Side, got, err, want)
+	}
+}
+
 // A day's session restored from its stored form is the one stored, its last
 // line's arrival to the nanosecond, in UTC, whatever zone it was given in.
 func TestADaysSessionRestoresExactly(t *testing.T) {
@@ -287,13 +364,18 @@ func TestADaysSessionRestoresExactly(t *testing.T) {
 		name string
 		s    DaySession
 	}{
-		{name: "to the nanosecond, in another zone", s: DaySession{ID: "s", Dir: "/code/app", Lines: 3, Last: time.Date(2026, 10, 8, 9, 0, 0, 123_456_789, east)}},
+		{
+			name: "to the nanosecond, in another zone",
+			s:    DaySession{ID: "s", Dir: "/code/app/web", Project: "/code/app", Lines: 3, Last: time.Date(2026, 10, 8, 9, 0, 0, 123_456_789, east)},
+		},
+		{name: "no project", s: DaySession{ID: "s", Dir: "/code/app", Lines: 3, Last: time.Date(2026, 10, 8, 9, 0, 0, 0, time.UTC)}},
 		{name: "no directory", s: DaySession{ID: "s", Lines: 1, Last: time.Date(2026, 10, 8, 23, 59, 59, 999_999_999, time.UTC)}},
 		{name: "all but its id zero", s: DaySession{ID: "s"}},
+		{name: "its requests, what names it and its moves", s: usedSession(time.Date(2026, 10, 8, 9, 0, 0, 123_456_789, time.UTC))},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			side, err := daySideOf([]daySession{{DaySession: tt.s}})
+			side, err := daySideOf([]foldedSession{{DaySession: tt.s}})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -305,5 +387,35 @@ func TestADaysSessionRestoresExactly(t *testing.T) {
 				t.Errorf("%+v, stored as %s, restores as %+v (%v), want %+v", tt.s, side, got, err, want)
 			}
 		})
+	}
+}
+
+// usedSession is a day's session of requests on two accounts, one of a
+// model the table doesn't know in a geo, named by its main thread and its
+// latest request, at at: its opus model moved from side to work, after
+// side's limit, writing its context again there.
+func usedSession(at time.Time) DaySession {
+	opus := ledger.Line{Model: foldOpus, Usage: json.RawMessage(`{"input_tokens":3,"cache_creation_input_tokens":2000,"cache_read_input_tokens":90000,"output_tokens":400}`)}
+	other := ledger.Line{Model: "claude-opus-9", Usage: json.RawMessage(`{"input_tokens":8,"output_tokens":1,"server_tool_use":{"web_search_requests":1}}`)}
+	other.Shape.InferenceGeo = "us"
+	var onWork, onSide, rewrite ledger.Spent
+	onWork.Add(foldOpus, "", ledger.SpendOf(&opus))
+	onSide.Add("claude-opus-9", "us", ledger.SpendOf(&other))
+	rewrite.AddCacheWrites(foldOpus, "", ledger.SpendOf(&opus))
+	return DaySession{
+		ID: "s", Dir: "/code/app/web", Project: "/code/app", Lines: 4, Last: at.Add(3 * time.Minute),
+		FirstRequest: at, LastRequest: at.Add(2 * time.Minute),
+		Uses: []SessionUse{
+			{Account: "side", Model: "claude-opus-9", Requests: 1, Spent: onSide, Tokens: quota.Tokens{Input: 8, Output: 1}},
+			{Account: "work", Model: foldOpus, Requests: 2, Spent: onWork, Tokens: quota.Tokens{Input: 3, Output: 400, CacheRead: 90_000, CacheWrite: 2000}},
+		},
+		naming: naming{
+			main:   sighting{model: foldOpus, account: "work", at: at.Add(time.Minute)},
+			latest: sighting{model: "claude-opus-9", account: "side", at: at.Add(2 * time.Minute)},
+		},
+		moves: []dayMove{{
+			at: at.Add(time.Minute), model: foldOpus, from: "side", to: "work", reason: "moved: side hit its limit",
+			tried: []ledger.Tried{{Account: "side", Why: "hit its limit"}}, rewrite: &rewrite,
+		}},
 	}
 }

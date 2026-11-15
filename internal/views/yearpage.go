@@ -13,11 +13,9 @@ import (
 	"github.com/leeovery/switchboard/internal/ledger"
 )
 
-// YearAsk is what the Year is asked to show: the last 12 months, or a
-// calendar year; and all use, or a version's alone, or an account's.
+// YearAsk is what the Year of the last 12 months is asked to show: all use,
+// or a version's alone, or an account's.
 type YearAsk struct {
-	// Year is the calendar year shown, as 2025: 0 for the last 12 months.
-	Year int
 	// Version is the version shown alone, by its name as the version table
 	// gives it, as Opus 5.5, and Account the account, by its id: neither for
 	// all use.
@@ -26,8 +24,7 @@ type YearAsk struct {
 
 // YearPage is the Year as the dashboard draws it: its grid of days, a column
 // a week, and the cuts between their shades; the months' names over it;
-// LAST 12 MONTHS' numbers, or a calendar year's; BY MONTH's rows; and what v
-// cycles through.
+// LAST 12 MONTHS' numbers; BY MONTH's rows; and what v cycles through.
 type YearPage struct {
 	// Weeks are the grid's columns, oldest first, each a week from its first
 	// day, as week_starts sets it.
@@ -66,8 +63,7 @@ type GridWeek struct {
 }
 
 // GridDay is a day of the Year's grid: its requests and its level, and
-// whether it's left out, as a day still to come is, or one outside the
-// calendar year shown.
+// whether it's left out, as a day still to come is.
 type GridDay struct {
 	YearDay
 	LeftOut bool
@@ -120,9 +116,11 @@ type MonthsBefore struct {
 	Then     string
 }
 
-// MostYearWeeks is the most weeks the Year's grid holds, of any span it
-// shows: a calendar year of 366 days whose 1 January falls on its weeks'
-// last day, as 2028's does with weeks from Sunday, reaches into 54.
+// MostYearWeeks is the most weeks a year's span reaches into: a calendar
+// year of 366 days whose 1 January falls on its weeks' last day, as 2028's
+// does with weeks from Sunday, reaches into 54. YEAR's numbers sit after
+// that many weeks, as the design places them, though the 12 months' grid
+// holds 53.
 const MostYearWeeks = 54
 
 // The Year's grid and its key.
@@ -140,23 +138,52 @@ const (
 	yearKeyRounding = 50
 )
 
-// YearFrom is the first day the Year asked for at now reads, weeks starting
-// on the day given, at its local midnight: the earlier of its grid's first
-// day and its period's, from which the ledger's days are read for it.
-func YearFrom(ask YearAsk, now time.Time, weekStarts time.Weekday) time.Time {
-	first, _ := dayfile.Civil(yearSpanOf(ask.Year, dayfile.CivilOf(now), weekStarts).earliest())
-	return time.Date(first.Year(), first.Month(), first.Day(), 0, 0, 0, 0, time.Local)
+// YearFrom is the first day the year given reads at now, 0 for the last 12
+// months, else a calendar year, weeks starting on the day given, at its
+// local midnight: the earlier of its grid's first day and its period's, from
+// which the ledger's days are read for it.
+func YearFrom(year int, now time.Time, weekStarts time.Weekday) time.Time {
+	first, _ := dayfile.Civil(yearSpanOf(year, dayfile.CivilOf(now), weekStarts).earliest())
+	return localMidnight(first)
 }
 
-// year is the Year's page asked for, of the days held.
+// DaysFrom is the first day of the ledger's days read for the year given
+// at now, 0 for the last 12 months, else the calendar year Runway's lanes
+// step back into, weeks starting on the day given, at its local midnight:
+// where YearFrom has it; and of the last 12 months, which Accounts' page is
+// built of too, the earlier of that and lookBack days before the first day
+// of any period, so a period counted over them knows the run its first day
+// began in, as history --since does.
+func DaysFrom(year int, now time.Time, weekStarts time.Weekday) time.Time {
+	from := YearFrom(year, now, weekStarts)
+	if year != 0 {
+		return from
+	}
+	today := dayfile.CivilOf(now)
+	for _, p := range periods {
+		if first := localMidnight(p.first(today, weekStarts).AddDate(0, 0, -lookBack)); first.Before(from) {
+			from = first
+		}
+	}
+	return from
+}
+
+// localMidnight is the local midnight of the day given, as dayfile.Civil
+// gives one.
+func localMidnight(day time.Time) time.Time {
+	return time.Date(day.Year(), day.Month(), day.Day(), 0, 0, 0, 0, time.Local)
+}
+
+// year is the Year's page of the last 12 months asked for, of the days
+// held.
 func (p Past) year(ask YearAsk) YearPage {
 	v := p.versions()
-	span := yearSpanOf(ask.Year, dayfile.CivilOf(p.in.Now), p.in.WeekStarts)
+	span := yearSpanOf(0, dayfile.CivilOf(p.in.Now), p.in.WeekStarts)
 	filter := yearFilter{YearAsk: ask, v: v}
 	drawn := yearDays(filter.days(between(p.days, span.earliest(), span.gridLast())))
 	y := yearView{
 		ask: ask, span: span, v: v, plans: shownPlans(ask.Account, p.in.Accounts, p.in.Prices),
-		all: between(p.days, span.first, span.last), began: p.began(),
+		all: between(p.days, span.first, span.last), began: p.in.Began,
 	}
 	y.shown = between(drawn, y.counted(), span.last)
 	cuts := quarterCuts(y.shown.active())
@@ -514,8 +541,8 @@ func (days yearDays) versions(v versions) []string {
 // yearView is the Year's period as asked for: what it is, the plans of the
 // accounts shown, the period's days, every account's use, and as narrowed to
 // what's shown from the first day counted, as a pool's read holds the days
-// before it began, which aren't its, and the date the ledger began recording
-// on, where it tells it: "" where it doesn't.
+// before it began, which aren't its, and where the ledger began recording,
+// where it tells it: zero where it doesn't.
 type yearView struct {
 	ask   YearAsk
 	span  yearSpan
@@ -523,7 +550,7 @@ type yearView struct {
 	plans plans
 	all   yearDays
 	shown yearDays
-	began string
+	began time.Time
 }
 
 // totals are the shown days' totals, as Accounts counts every account's:
@@ -563,9 +590,10 @@ func (y yearView) against() Against {
 }
 
 // counted is the date of the first day of the period counted: the later of
-// its first and the day the ledger began, where it's told.
+// its first and the day the ledger began, where it's told, as begunOn has
+// it.
 func (y yearView) counted() string {
-	return max(y.span.first, y.began)
+	return begunOn(y.span.first, y.began)
 }
 
 // months are BY MONTH's rows of all use, or an account's: each against what
@@ -575,7 +603,7 @@ func (y yearView) months() []MonthRow {
 	months := monthsOf(y.shown, y.plans, y.v, y.counted(), y.span.today)
 	rows := make([]MonthRow, len(months))
 	for i, m := range months {
-		rows[i] = MonthRow{Month: m, From: y.span.partWay(m.Month, y.began), SoFar: y.span.running(m.Month)}
+		rows[i] = MonthRow{Month: m, From: y.span.partWay(m.Month, beganOn(y.began)), SoFar: y.span.running(m.Month)}
 	}
 	return rows
 }

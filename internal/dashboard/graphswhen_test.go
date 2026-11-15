@@ -191,7 +191,7 @@ func TestWhenYouWorkDrawsAWeekdayARowAndEveryThirdHourOverIt(t *testing.T) {
 }
 
 // In a look that draws no shades of its own, each tile is its level's
-// glyph, by its density, as History's shades are: the grid's and the key's.
+// glyph, by its density, as YEAR's shades are: the grid's and the key's.
 func TestWhenYouWorksTilesAreTheirLevelsGlyphsWhereTheLookDrawsNoShades(t *testing.T) {
 	p := hoursSample("20", "50", "90")
 	for _, look := range []Look{Screen(builtin(t, "terminal")), NoColour()} {

@@ -25,20 +25,20 @@ func TestTheTitleRowNamesThePoolShownOnceThereIsASecond(t *testing.T) {
 		want  []string
 	}{
 		{name: "one of two, as overview-acme-160 draws it", width: 160, pool: acme, want: []string{
-			" SWITCHBOARD   Acme    Overview   Accounts   History   Sessions   Runway   Graphs   Log " + blanks(52) + "Mon 28 Sep  13:12:00",
+			" SWITCHBOARD   Acme    Overview   Accounts   Projects   Sessions   Runway   Trends   Log " + blanks(51) + "Mon 28 Sep  13:12:00",
 		}},
 		{name: "the only pool: unnamed", width: 160, pool: status.ShownPool{ID: "b2n8", Label: "Default", Accounts: 3, Pools: 1}, want: []string{
-			" SWITCHBOARD    Overview   Accounts   History   Sessions   Runway   Graphs   Log " + blanks(59) + "Mon 28 Sep  13:12:00",
+			" SWITCHBOARD    Overview   Accounts   Projects   Sessions   Runway   Trends   Log " + blanks(58) + "Mon 28 Sep  13:12:00",
 		}},
 		{name: "none shown, every pool fenced: unnamed", width: 160, pool: status.ShownPool{Pools: 2}, want: []string{
-			" SWITCHBOARD    Overview   Accounts   History   Sessions   Runway   Graphs   Log " + blanks(59) + "Mon 28 Sep  13:12:00",
+			" SWITCHBOARD    Overview   Accounts   Projects   Sessions   Runway   Trends   Log " + blanks(58) + "Mon 28 Sep  13:12:00",
 		}},
 		{name: "on a phone, as overview-acme-73x61 draws it", width: 73, pool: acme, want: []string{
 			" SWITCHBOARD   Acme" + blanks(34) + "Mon 28 Sep  13:12:00",
-			" Overview  Accounts  History  Sessions  Runway  Graphs  Log",
+			" Overview  Accounts  Projects  Sessions  Runway  Trends  Log",
 		}},
 		{name: "at the narrowest width off a phone, a long label cut to leave the tabs whole", width: 100, pool: status.ShownPool{ID: "q7mt", Label: "Acme Corporation Research", Accounts: 1, Pools: 2}, want: []string{
-			" SWITCHBOARD   Acme Corporatio…    Overview   Accounts   History   Sessions   Runway   Graphs   Log",
+			" SWITCHBOARD   Acme Corporati…    Overview   Accounts   Projects   Sessions   Runway   Trends   Log",
 		}},
 	}
 	for _, tt := range tests {

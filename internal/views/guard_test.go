@@ -79,9 +79,13 @@ var (
 		"claude.KeptWindows", "claude.WindowsReadOf",
 		"ledger.Failing", "ledger.Line.Upstream",
 		"ledger.Reply.CacheLife", "ledger.Reply.Tokens", "ledger.Spend.CacheLife", "ledger.Spend.Tokens", "ledger.SpendOf", "ledger.Spent.Add",
+		"ledger.Spent.AddCacheWrites",
 		"ledger.Table.CacheWrite", "ledger.Table.CacheWriteSpend", "ledger.Table.Priced", "ledger.Table.Request", "ledger.Table.Rewrite",
 		"ledger.Table.RewriteSpend", "ledger.Table.SamePrices", "ledger.Table.Summed", "ledger.Table.SummedSpend", "ledger.Table.SummedSpent",
 		"ledger.Table.Worth",
+		// A session's or a line's project: the one run told, else its
+		// directory's.
+		"status.ProjectOf",
 	}
 	// absorbed are what a rule's one owner took the place of, each with its
 	// owner: a drawing package calls none, but its owner.
@@ -141,6 +145,13 @@ var (
 		// known.
 		"views.AccountTotals.MinutesAtCap":   "views.AccountTotals.AtCapOrLimit",
 		"views.AccountTotals.MinutesAtLimit": "views.AccountTotals.AtCapOrLimit",
+		// A project's name, its parents too where two share it, and what
+		// its sessions spent, worked out once over the period, as Projects
+		// lists them and a project's page totals them.
+		"status.ProjectNames":           "views.ProjectsPage",
+		"views.DaySession.Uses":         "views.ProjectsPage",
+		"views.DaySession.FirstRequest": "views.PeriodSession",
+		"views.DaySession.LastRequest":  "views.PeriodSession",
 	}
 	// absorbedIn are the packages, by directory from the module's root, what
 	// absorbed names is absorbed in, where it isn't in every drawing package.
@@ -171,6 +182,9 @@ var (
 		"views.HeldPage.Closing", "views.HeldPage.Found", "views.HeldPage.Held", "views.HeldPage.Joined", "views.HeldPage.Opening", "views.HeldPage.ReadTurn", "views.HeldPage.TurnOf", "views.HeldPage.Turned", "views.ReadPage",
 		"views.SessionsWanted.Paging", "views.HeldSessions.Len",
 		"views.HeldPage.On",
+		"views.ReadSessionDays", "views.SessionDays.Tailed", "views.SessionDays.Projects", "views.ProjectsPage.Project",
+		"views.SessionDays.SessionLog", "views.SessionDays.Joined", "views.SessionDays.Without", "views.SessionDays.Owed", "views.SessionDays.Told",
+		"views.SessionDays.TodayAlone", "views.AccountsPage.Hourly",
 	}
 )
 

@@ -177,19 +177,28 @@ func TestSessionsKeysChooseOpenAndTurn(t *testing.T) {
 	}
 }
 
-// ↓ and ↑ on the Switchboard each scroll it to the call they choose, where
-// it's out of view: through every call, down and back up, in a terminal
-// short enough that its lines scroll, with personal's calls above its line
-// and twenty on side, more than the view holds at once.
-func TestChoosingACallScrollsTheSwitchboardToIt(t *testing.T) {
+// twentyOnSide is the router of three on Sessions, in a terminal of the size
+// given, with personal running two calls and side twenty, more than a short
+// terminal's Switchboard holds at once.
+func twentyOnSide(t *testing.T, size tea.WindowSizeMsg) *harness {
+	t.Helper()
 	h := routedHarness(t, routerDocument(three()...))
 	h.source.sessions = []status.Session{sessionOn(idD28C, opus, "personal", time.Second), sessionOn(id7F3A, opus, "personal", 2*time.Second)}
 	for i := range 20 {
 		h.source.sessions = append(h.source.sessions, sessionOn(fmt.Sprintf("%04x0000-0000-4000-8000-000000000000", i), opus, "side", time.Duration(i+3)*time.Second))
 	}
-	h.update(tea.WindowSizeMsg{Width: 160, Height: 14})
+	h.update(size)
 	h.start()
 	h.keys(toSessions...)
+	return h
+}
+
+// ↓ and ↑ on the Switchboard each scroll it to the call they choose, where
+// it's out of view: through every call, down and back up, in a terminal
+// short enough that its lines scroll, with personal's calls above its line
+// and twenty on side, more than the view holds at once.
+func TestChoosingACallScrollsTheSwitchboardToIt(t *testing.T) {
+	h := twentyOnSide(t, tea.WindowSizeMsg{Width: 160, Height: 14})
 	shows := func() bool {
 		chosen := h.model.sessionsTab.shown.Chosen
 		return slices.ContainsFunc(h.targets(), func(t dashboard.Target) bool {
@@ -310,7 +319,7 @@ func TestSessionsChoiceFollowsItsSessionAtEachLook(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			h := streamingHarness(t)
-			h.withLines(promptedLines(2, start.Add(-10*time.Minute)))
+			followLines(t, h, promptedLines(2, start.Add(-10*time.Minute)))
 			h.keys(toSessions...)
 			if tt.list {
 				h.keyed("]")
@@ -326,6 +335,19 @@ func TestSessionsChoiceFollowsItsSessionAtEachLook(t *testing.T) {
 			}
 		})
 	}
+}
+
+// followLines has the model follow a ledger of its own, in a state
+// directory of its own, holding the lines given, each a request of its own,
+// as the List's log reads its sessions' days from it.
+func followLines(t *testing.T, h *harness, lines []ledger.Line) {
+	t.Helper()
+	state := t.TempDir()
+	for i, line := range lines {
+		line.Request = fmt.Sprintf("r%d", i+1)
+		writeLines(t, state, ledger.Held{Line: line})
+	}
+	h.model.cfg.Ledger = ledger.NewFollower(state, h.clock.Now, ledger.Caps{Shared: policy.Shared}, views.DigestVersion, logs.For("watch"))
 }
 
 // A view keeps the row chosen in view, scrolling no further than it must:
@@ -474,7 +496,7 @@ func TestTheListIsReadOnceAsSessionsFirstShowsThenFedByTheTail(t *testing.T) {
 	}
 	h.keys(toSessions...)
 	requests := func() int {
-		list := h.model.sessionsTab.shown.List.Sessions
+		list := heldList(h).Sessions
 		if i := slices.IndexFunc(list, func(s views.ListedSession) bool { return s.Session == idD28C }); i >= 0 {
 			return list[i].Requests
 		}
@@ -544,7 +566,7 @@ func TestAViewNamingTheSessionsRunningReadsTheListAndNamesThemByIt(t *testing.T)
 // listedOf is the session with the given id as the List Sessions holds lists
 // it, reporting false where it doesn't.
 func listedOf(h *harness, id string) (views.ListedSession, bool) {
-	list := h.model.sessionsTab.shown.List.Sessions
+	list := heldList(h).Sessions
 	if i := slices.IndexFunc(list, func(s views.ListedSession) bool { return s.Session == id }); i >= 0 {
 		return list[i], true
 	}
@@ -646,7 +668,7 @@ func endedToday(n int) []ledger.Line {
 // sub-tab, the row chosen, and how far it's scrolled to show it.
 func TestEscFromASessionsPageComesBackToSessionsAsItWasLeft(t *testing.T) {
 	h := streamingHarness(t)
-	h.withLines(endedToday(30))
+	followLines(t, h, endedToday(30))
 	h.update(tea.WindowSizeMsg{Width: 160, Height: 20})
 	h.keys(toSessions...)
 	h.keyed("] up")
@@ -671,16 +693,17 @@ func TestEscFromASessionsPageComesBackToSessionsAsItWasLeft(t *testing.T) {
 // sessionsOnTheLedger is a model of the router of three, listing d28c on
 // work, reading the request ledger in the state directory given, as
 // daysCounted counts its reads, started at the time given on Sessions, the
-// List read and held, the Log never shown.
+// List read and held, the Log never shown, nor Projects, whose reads of the
+// days it would count.
 func sessionsOnTheLedger(t *testing.T, state string, now time.Time) (*harness, *daysCounted) {
 	t.Helper()
 	h := routedHarness(t, routerDocument(three()...))
 	h.source.sessions = []status.Session{sessionOn(idD28C, opus, "work", 0)}
 	l := onTheLog(h, state)
-	h.model.view = dashboard.Overview
+	h.model.view = dashboard.Runway
 	h.clock.now = now
 	h.start()
-	h.keys(toSessions...)
+	h.keys(shiftTabKey)
 	if !h.model.sessionsTab.listed {
 		t.Fatal("Sessions shown, the List isn't held")
 	}
@@ -714,13 +737,20 @@ func TestATailReadLandingOnAnEmptyStoreKeepsItPriced(t *testing.T) {
 	writeLines(t, state, line)
 	h.clock.now = h.clock.now.Add(time.Second)
 	h.read(routerDocument(three()...))
-	got, want := h.model.sessionsTab.shown.List, builtAfresh(h, l)
+	got, want := heldList(h), builtAfresh(h, l)
 	if len(want.Sessions) == 0 || want.Sessions[0].Amount == nil {
 		t.Fatalf("the List built afresh is %+v, want a session worth what it cost", want)
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("the List is\n%+v\nwant it as built afresh of every line, priced\n%+v", got, want)
 	}
+}
+
+// heldList is today's List as the store the watch holds builds it at the
+// clock's time, as the List's log is built of it.
+func heldList(h *harness) views.SessionList {
+	now := h.clock.now
+	return h.model.held.List(h.model.listLive(now, h.model.traffic.stream(now)))
 }
 
 // builtAfresh is the List built afresh of every line the ledger l holds, at
@@ -767,7 +797,7 @@ func TestTheListTakesInTheDayBeforeAsTheDayTurns(t *testing.T) {
 	if want := []string{yesterday, yesterday}; !slices.Equal(l.days, want) {
 		t.Errorf("the days %v were read whole, want %v: the day before at the turn, then as the stream told its request ended", l.days, want)
 	}
-	if got, want := h.model.sessionsTab.shown.List, builtAfresh(h, l); !reflect.DeepEqual(got, want) {
+	if got, want := heldList(h), builtAfresh(h, l); !reflect.DeepEqual(got, want) {
 		t.Errorf("the List is\n%+v\nwant it as built afresh of every line\n%+v", got, want)
 	}
 }

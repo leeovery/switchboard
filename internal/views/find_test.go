@@ -301,8 +301,13 @@ func TestASessionFoundByItsIDOnItsDaysSummaryStaysFoundOnceItsDayIsRead(t *testi
 
 // A day's sessions are those of its lines but quota checks, as its summary
 // names them, each once, the last to arrive first: its directory as those
-// lines last named it, how many they are, and when the last came.
+// lines last named it, its project as the last to name either named it, how
+// many they are, and when the last came.
 func TestADaysSessionsAreThoseItsSummaryNames(t *testing.T) {
+	of := func(project string, l ledger.Line) ledger.Line {
+		l.Project = project
+		return l
+	}
 	check := line(quiet, haiku, "work", "new", october(6, 8, 0), "")
 	check.Kind = ledger.KindCheck
 	count := line(early, opus, "work", "sticky", october(6, 11, 0), "")
@@ -312,8 +317,8 @@ func TestADaysSessionsAreThoseItsSummaryNames(t *testing.T) {
 	day := []ledger.Held{
 		{Line: checkOfEarly},
 		{Line: check},
-		{Line: in("~/Code/api", line(older, opus, "work", "new", october(6, 9, 0), smallUsage))},
-		{Line: in("~/Code/web", line(early, opus, "work", "new", october(6, 10, 0), smallUsage))},
+		{Line: of("~/Code/api", in("~/Code/api", line(older, opus, "work", "new", october(6, 9, 0), smallUsage)))},
+		{Line: of("~/Code/web", in("~/Code/web/.claude/worktrees/fix", line(early, opus, "work", "new", october(6, 10, 0), smallUsage)))},
 		{Line: line(older, opus, "work", "sticky", october(6, 10, 30), smallUsage)},
 		{Line: line("", opus, "work", "new", october(6, 10, 45), smallUsage)},
 		{Line: count},
@@ -321,11 +326,11 @@ func TestADaysSessionsAreThoseItsSummaryNames(t *testing.T) {
 	}
 	got := views.DaySessions(views.RecordsOf(day))
 	want := []views.DaySession{
-		{ID: early, Dir: "~/Code/web", Lines: 2, Last: october(6, 11, 0)},
+		{ID: early, Dir: "~/Code/web/.claude/worktrees/fix", Project: "~/Code/web", Lines: 2, Last: october(6, 11, 0)},
 		{ID: older, Dir: "~/Code/api-v2", Lines: 3, Last: october(6, 10, 50)},
 	}
 	if !slices.EqualFunc(got, want, func(a, b views.DaySession) bool {
-		return a.ID == b.ID && a.Dir == b.Dir && a.Lines == b.Lines && a.Last.Equal(b.Last)
+		return a.ID == b.ID && a.Dir == b.Dir && a.Project == b.Project && a.Lines == b.Lines && a.Last.Equal(b.Last)
 	}) {
 		t.Errorf("DaySessions() = %+v, want %+v", got, want)
 	}

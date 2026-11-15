@@ -5,6 +5,11 @@ import "time"
 // Command is the name the Claude Code CLI runs by.
 const Command = "claude"
 
+// WorktreesDir is where, within a repository, Claude Code makes the linked
+// worktrees its sessions run in, one a directory, as
+// <repo>/.claude/worktrees/<name>.
+const WorktreesDir = ".claude/worktrees"
+
 // The variables Claude Code reads from its environment that decide where its
 // requests go, on what, and what they tell of themselves.
 const (

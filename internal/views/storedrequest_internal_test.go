@@ -101,7 +101,7 @@ func restoredOtherwise(l *ledger.Line) string {
 // calling tools, every name a held request decodes given.
 func sumLine() ledger.Line {
 	return ledger.Line{
-		At: time.Date(2026, 10, 7, 20, 0, 0, 123e6, time.UTC), Request: "r1", Kind: ledger.KindMessage, Session: "s", Dir: "/code/app",
+		At: time.Date(2026, 10, 7, 20, 0, 0, 123e6, time.UTC), Request: "r1", Kind: ledger.KindMessage, Session: "s", Dir: "/code/app/web", Project: "/code/app",
 		Model: foldOpus, Account: "side", Reason: "moved: work hit its limit", From: "work", Tried: []ledger.Tried{{Account: "work", Why: "hit its limit"}},
 		Status: 200, Attempts: 1, TotalMS: 3000, Class: ledger.ClassMain, AgentID: "a1", Prompt: "p1", Shape: ledger.Shape{InferenceGeo: "us"},
 		Usage:  json.RawMessage(foldUsages[2]),
@@ -123,6 +123,8 @@ func TestAHeldRequestSumsAllItDecodes(t *testing.T) {
 		{name: "when it arrived", edit: func(l *ledger.Line) { l.At = l.At.Add(time.Nanosecond) }},
 		{name: "when it ended", edit: func(l *ledger.Line) { l.TotalMS++ }},
 		{name: "its directory", edit: func(l *ledger.Line) { l.Dir = "/code/other" }},
+		{name: "its project", edit: func(l *ledger.Line) { l.Project = "/code/other" }},
+		{name: "no project, as a line from before projects gives", edit: func(l *ledger.Line) { l.Project = "" }},
 		{name: "its model", edit: func(l *ledger.Line) { l.Model = foldSonnet }},
 		{name: "its account", edit: func(l *ledger.Line) { l.Account = "personal" }},
 		{name: "why it went there", edit: func(l *ledger.Line) { l.Reason = "sticky" }},
@@ -177,7 +179,7 @@ func TestAHeldRequestsStoredFormIsWhatItDecodes(t *testing.T) {
 	l := sumLine()
 	r := heldRequestOf(&l).pricedOn(ledger.Pricing, "2026-10-07")
 	got, err := json.Marshal(r.stored())
-	want := `{"r":"r1","a":{"s":1791403200,"n":123000000},"e":{"s":1791403203,"n":123000000},"d":"/code/app","m":"claude-opus-5-5",` +
+	want := `{"r":"r1","a":{"s":1791403200,"n":123000000},"e":{"s":1791403203,"n":123000000},"d":"/code/app/web","pj":"/code/app","m":"claude-opus-5-5",` +
 		`"ac":"side","rs":"moved: work hit its limit","f":"work","c":"main","ag":"a1","g":"us","p":"p1","st":"tool_use","tl":["Read","Edit"],` +
 		`"u":true,"t":[{"a":"work","w":"hit its limit"}],"sp":{"i":10,"1h":1000,"r":100000,"o":500,"w":1000,"b":1000,"d":true,"c":true}}`
 	if err != nil || string(got) != want {

@@ -35,6 +35,11 @@ type KeyLine struct {
 	// theme picker's, is laid out on a phone as on a wider terminal.
 	Phone     []Key
 	PhoneHelp string
+	// Spare are the groups, by their places among Groups, the wide line
+	// leaves out where it doesn't fit whole, one at a time, in their order,
+	// before a phone's line takes its place, as a page of toggles leaves its
+	// keys kept to a line wider than a phone's.
+	Spare []int
 	// Note says what the last key did, or why it couldn't, in the line's
 	// place, while that's news: "" otherwise.
 	Note string
@@ -116,10 +121,10 @@ func (f Frame) keyLineRow() (y int, keys []keyAt, ok bool) {
 
 // keysAt are the key line's keys as it lays them out from column 0, each
 // where its words start, as many as fit whole in the frame's width: on a
-// phone, or wherever the wide line doesn't fit whole, as phone chooses them,
-// else as wide sets them apart.
+// phone, or wherever the wide line doesn't fit whole even without its spare
+// groups, as phone chooses them, else as fitting sets them apart.
 func (f Frame) keysAt() []keyAt {
-	keys := f.KeyLine.wide()
+	keys := f.KeyLine.fitting(f.Width)
 	if f.KeyLine.PhoneHelp != "" && (f.phone() || widthOf(keys) > f.Width) {
 		keys = f.KeyLine.phone(f.Width)
 	}
@@ -153,6 +158,23 @@ func (l KeyLine) wide() []spaced {
 		if i == 0 {
 			gap = l.Lead
 		}
+	}
+	return keys
+}
+
+// fitting is the line as wide sets it, width cells wide: where it doesn't
+// fit whole, its Spare groups left out, one at a time, in their order, till
+// it does or none is left.
+func (l KeyLine) fitting(width int) []spaced {
+	keys := l.wide()
+	spared := l
+	spared.Groups = slices.Clone(l.Groups)
+	for _, g := range l.Spare {
+		if widthOf(keys) <= width {
+			break
+		}
+		spared.Groups[g] = nil
+		keys = spared.wide()
 	}
 	return keys
 }

@@ -28,16 +28,16 @@ var ownersSizes = []watch.Size{
 
 // longNamesViews are the world of long names on each view no fixture draws
 // it on, so a view's cut name shows at the owner's sizes: the Overview with
-// every section shown, Compare, Detail of work, History's four views,
-// Runway, Graphs, the Log's events, and d28c's page.
+// every section shown, Compare, Detail of work, Accounts' Tokens, Projects'
+// list with its top project's page under it, the next project's page with
+// its SESSIONS chosen, Runway, Trends, the Log's events, and d28c's page.
 var longNamesViews = []page{
 	{name: "long-names-overview", world: accountWorlds.longNames, keys: keysOf("s")},
 	{name: "long-names-accounts-compare", world: accountWorlds.longNames, keys: toAccounts()},
 	{name: "long-names-accounts-detail", world: accountWorlds.longNames, keys: toDetail(downKey)},
-	{name: "long-names-history-year", world: accountWorlds.longNames, keys: toHistory()},
-	{name: "long-names-history-weeks", world: accountWorlds.longNames, keys: toHistory("]")},
-	{name: "long-names-history-days", world: accountWorlds.longNames, keys: toHistory("]", "]")},
-	{name: "long-names-history-tokens", world: accountWorlds.longNames, keys: toHistory("]", "]", "]")},
+	{name: "long-names-accounts-tokens", world: accountWorlds.longNames, keys: toAccounts("]", "]")},
+	{name: "long-names-projects", world: accountWorlds.longNames, keys: toProjects()},
+	{name: "long-names-project-sessions", world: accountWorlds.longNames, keys: append(toProjects(), downKey, rightKey)},
 	{name: "long-names-runway", world: accountWorlds.longNames, keys: toRunway()},
 	{name: "long-names-graphs", world: accountWorlds.longNames, keys: toGraphs()},
 	{name: "long-names-log-events", world: accountWorlds.longNames, keys: toLog("]")},
@@ -78,7 +78,11 @@ const leastView = 6
 // names it, with why: a view added here with its reason is the rule
 // working, not a loosening. The cards are never judged: the sweep closes
 // what's open over the page.
-var natural = map[string]string{}
+var natural = map[string]string{
+	"Sessions List": "its columns at their most from 138 on, laid out of the whole log, never the rows shown, so they " +
+		"hold still as it scrolls, routing growing to the edge and blank on a row whose session wasn't moved: " +
+		"a page of the log with none moved, as scrolled into the days gone, reaches its worth alone",
+}
 
 // known is what the design draws that the sweep would take for a rule the
 // views of the fixtures named break at the owner's sizes given, as "73x61":
@@ -175,21 +179,28 @@ var knownBreaks = []known{
 	},
 	{
 		byDesign: "Detail's LATELY's directories, as the Log cuts them", cuts: logDirCuts(), rule: cutWithRoom,
-		sizes:    []string{"73x61", "73x36", "108x44", "173x53", "109x53"},
+		sizes:    []string{"73x61", "108x44", "173x53", "109x53"},
 		fixtures: []string{"long-names-accounts-detail"},
 	},
 	// Detail's list, which gives way first, its names cut to what the panel
 	// leaves them, down to 14 cells, before its weeks narrow (the owner's call,
-	// 15 October 2026).
+	// 15 October 2026): at 108, eight weeks of one-cell days take 70 cells,
+	// THIS WEEK's title row blank past it.
 	{
-		byDesign: "Detail's list giving way at 109", cuts: []string{"personal-rese…"}, rule: cutWithRoom,
-		sizes: []string{"109x53"}, fixtures: []string{"long-names-accounts-detail"},
+		byDesign: "Detail's list giving way at 108", cuts: []string{"work-team-pl…"}, rule: cutWithRoom,
+		sizes: []string{"108x44", "108x24"}, fixtures: []string{"long-names-accounts-detail"},
 	},
 	// The List's directories at their most, where the session's column is
 	// whole and the rows end blank.
 	{
 		byDesign: "the List's directories at their most", cuts: dirCuts(views.SessionDirMost), rule: cutWithRoom,
 		sizes: []string{"138x30", "138x15", "173x53"}, fixtures: []string{"sessions-list-long-names-108x44"},
+	},
+	// A project's SESSIONS, in the List's columns, so its directories at
+	// their most as the List's, where SESSIONS shows.
+	{
+		byDesign: "a project's SESSIONS' directories at their most, as the List's", cuts: dirCuts(views.SessionDirMost), rule: cutWithRoom,
+		sizes: []string{"138x30", "173x53"}, fixtures: []string{"long-names-projects", "long-names-project-sessions"},
 	},
 	// What's left at the foot where USAGE takes the rows it must, the foot's
 	// blank row among them, short of every folded section's least: of six
@@ -569,22 +580,30 @@ var (
 	// named is a row and what it leads with, as an account's name leads its
 	// row.
 	named = regexp.MustCompile(`^ *(\S.*)$`)
+	// pastShown is a row of what Trends shows of the last 12 months: YEAR's
+	// days or its totals, a month of BY MONTH, or a family's strip of MODELS
+	// BY DAY, as its share of use ends its row or its name's.
+	pastShown = regexp.MustCompile(`■ ■|^requests +[0-9]|^ {1,2}[A-Z][a-z]{2}(?: [0-9]{4})?  +\S|[0-9]% of use$`)
 )
 
 // drawsWhatItsFor reports whether the view named draws what it's for, of the
-// names given: Runway a lane, a session's page a turn, and the Overview and
-// Graphs an account; any other view, whatever it draws.
+// names given: Runway a lane, a session's page a turn, the Overview an
+// account, and Trends an account or what it shows of the last 12 months, as
+// pastShown has it; any other view, whatever it draws.
 func (d fluidFrame) drawsWhatItsFor(view string, names []string) bool {
+	account := func(row string) bool {
+		m := named.FindStringSubmatch(row)
+		return m != nil && slices.ContainsFunc(names, func(name string) bool { return leadsWith(m[1], name) })
+	}
 	switch view {
 	case "Runway":
 		return slices.ContainsFunc(d.body(), laneShown.MatchString)
 	case sessionPage:
 		return slices.ContainsFunc(d.body(), turnShown.MatchString)
-	case "Overview", "Graphs":
-		return slices.ContainsFunc(d.body(), func(row string) bool {
-			m := named.FindStringSubmatch(row)
-			return m != nil && slices.ContainsFunc(names, func(name string) bool { return leadsWith(m[1], name) })
-		})
+	case "Overview":
+		return slices.ContainsFunc(d.body(), account)
+	case "Trends":
+		return slices.ContainsFunc(d.body(), func(row string) bool { return account(row) || pastShown.MatchString(row) })
 	}
 	return true
 }
@@ -618,11 +637,11 @@ func (d fluidFrame) reach() int {
 // one, as its heading names them.
 var tabs = map[string][]string{
 	"Overview": nil,
-	"Accounts": {"Compare", "Detail"},
-	"History":  {"Year", "Weeks", "Days", "Tokens"},
+	"Accounts": {"Compare", "Detail", "Tokens"},
+	"Projects": nil,
 	"Sessions": {"Switchboard", "List"},
 	"Runway":   nil,
-	"Graphs":   nil,
+	"Trends":   nil,
 	"Log":      {"Requests", "Events"},
 }
 
@@ -631,7 +650,7 @@ const sessionPage = "a session's page"
 
 // viewOf names the view m draws at size: a session's page, by its heading;
 // else the tab shown, bold in the title, and of a tab with more than one
-// view, the one bold in its heading, as "History Days".
+// view, the one bold in its heading, as "Accounts Detail".
 func viewOf(t *testing.T, m watch.Model, size watch.Size) string {
 	t.Helper()
 	g, err := parse(deliver(m, tea.WindowSizeMsg{Width: size.Width, Height: size.Height}).View().Content)
@@ -752,6 +771,12 @@ func TestTheFluidSweepFindsWhatItSweepsFor(t *testing.T) {
 		{name: "the Overview with an account", view: "Overview", rows: []string{"USAGE", across, " personal ◆   ┃   66%"}},
 		{name: "the Overview with an account cut", view: "Overview", rows: []string{"USAGE", " work-team-…" + strings.Repeat(" ", 105) + "34%"}},
 		{name: "the Overview without an account", view: "Overview", rows: []string{"USAGE", across, "WEEK", "", "", ""}, want: []fluidRule{nothingDrawn}},
+		{name: "Trends with an account", view: "Trends", rows: []string{"WEEK", across, "work ◆", "", "", ""}},
+		{name: "Trends with a family's strip", view: "Trends", rows: []string{"MODELS BY DAY", across, "● Opus" + strings.Repeat(" ", 36) + "55% of use", "", "", ""}},
+		{name: "Trends with a month", view: "Trends", rows: []string{"BY MONTH", across, " Oct 2025   $1,180    2.0×", "", "", ""}},
+		{name: "Trends with YEAR's days", view: "Trends", rows: []string{"YEAR", across, "M   ■ ■ ■ ■", "", "", ""}},
+		{name: "Trends with YEAR's totals", view: "Trends", rows: []string{"LAST 12 MONTHS", across, "requests     212,885", "", "", ""}},
+		{name: "Trends with nothing under its heading", view: "Trends", rows: []string{"YEAR", across, "", "", "", ""}, want: []fluidRule{nothingDrawn}},
 		{name: "the empty pool's page", view: "Overview", rows: emptyPage, emptyPool: true},
 		{name: "the empty pool's words where its pool isn't empty", view: "Overview", rows: emptyPage, want: []fluidRule{nothingDrawn, wastedThird}},
 		{

@@ -37,14 +37,15 @@ var pooledToday = []ledger.Held{
 	ofSession(arrived("0a000005", "k3f9", -10*time.Minute), id9E21, "q7mt"),
 }
 
-// listedRequests are the requests of each session the List lists, by its
+// listedRequests are the requests of each session the List draws, by its
 // id.
 func listedRequests(h *harness) map[string]int {
-	requests := make(map[string]int)
-	for _, s := range h.model.sessionsTab.shown.List.Sessions {
-		requests[s.Session] = s.Requests
+	h.t.Helper()
+	log := h.model.sessionsTab.shown.Log
+	if log == nil {
+		h.t.Fatal("the List built no log")
 	}
-	return requests
+	return periodRequests(log.Sessions)
 }
 
 // Sessions lists the sessions of the pool shown alone, each with its
@@ -73,6 +74,7 @@ func TestSessionsAndAPageHoldThePoolShownsWorkAlone(t *testing.T) {
 			h.start()
 
 			h.keys(toSessions...)
+			h.keyed("] <")
 			if got := listedRequests(h); !maps.Equal(got, tt.listed) {
 				t.Errorf("Sessions lists %v, want %v, the pool's requests alone", got, tt.listed)
 			}
@@ -89,7 +91,7 @@ func TestSessionsAndAPageHoldThePoolShownsWorkAlone(t *testing.T) {
 	}
 }
 
-// requestsHeld counts the requests of the days History's reads hold, as
+// requestsHeld counts the requests of the days Accounts' reads hold, as
 // their summaries count them.
 func requestsHeld(h *harness) int {
 	now := h.clock.Now()
@@ -104,11 +106,11 @@ func requestsHeld(h *harness) int {
 	return n
 }
 
-// History, and Graphs' WHEN YOU WORK, which share its reads, read the days
+// Accounts, and Trends' WHEN YOU WORK, which share its reads, read the days
 // of the pool shown's work alone: its requests of the day before and today,
 // Acme's two, Default's three, one of them naming none, and every pool's
 // five.
-func TestTheDaysHistoryAndGraphsReadAreThePoolShowns(t *testing.T) {
+func TestTheDaysAccountsAndTrendsReadAreThePoolShowns(t *testing.T) {
 	lines := []ledger.Held{
 		pooledArrived("0b000001", "k3f9", "q7mt", -day), pooledArrived("0b000002", "work", "b2n8", -day+time.Minute),
 		pooledArrived("0b000003", "work", "", -day+2*time.Minute),
@@ -123,7 +125,7 @@ func TestTheDaysHistoryAndGraphsReadAreThePoolShowns(t *testing.T) {
 		{name: "Default's", read: firstRead, requests: 3},
 		{name: "every pool's", read: views.PoolRead{}, requests: 5},
 	}
-	for _, view := range []dashboard.View{dashboard.History, dashboard.Graphs} {
+	for _, view := range []dashboard.View{dashboard.Accounts, dashboard.Graphs} {
 		for _, tt := range tests {
 			t.Run(string(view)+", "+tt.name, func(t *testing.T) {
 				state := t.TempDir()
@@ -148,7 +150,7 @@ func TestTheDaysHistoryAndGraphsReadAreThePoolShowns(t *testing.T) {
 // A pool added to a ledger weeks old begins where its work begins: Acme,
 // whose first request was ten days ago, Default working every day of five
 // weeks. WHEN YOU WORK counts Acme's ten days alone, two weeks, none of the
-// days before it as days of none, and History begins on its first day;
+// days before it as days of none, and Accounts begins on its first day;
 // Default's and every pool's count the four weeks, beginning where the
 // ledger began.
 func TestAPoolsDaysBeginWhereItsWorkBegins(t *testing.T) {
@@ -180,7 +182,7 @@ func TestAPoolsDaysBeginWhereItsWorkBegins(t *testing.T) {
 			h.start()
 
 			if want := dayfile.DayStart(past(-time.Duration(tt.began)*day).Local(), 0); !h.model.past.began.Equal(want) {
-				t.Errorf("History begins %v, want %v, where the pool's work begins", h.model.past.began, want)
+				t.Errorf("Accounts begins %v, want %v, where the pool's work begins", h.model.past.began, want)
 			}
 			hours := h.model.past.last.past.Hours()
 			known := 0
@@ -233,8 +235,8 @@ func digestedAsTheRouter(t *testing.T, h *harness, state, first string) {
 
 // A turn, P or a fresh start as the config changes, has every tab read the
 // pool turned to, as the turn reads it, its first pool among it, through the
-// ledger in use after it: History's days and where they begin, which Runway,
-// Accounts and Graphs share, Sessions, and a session's page, whose reads the
+// ledger in use after it: Accounts' days and where they begin, which Runway
+// and Trends share, Sessions, and a session's page, whose reads the
 // routing card prices its moves by, never those of the pool or the first
 // pool before. The lines naming none, 7f3a's five days ago and today, and
 // 9e21's beside Default's yesterday, are the first pool's: Default's, till
@@ -245,7 +247,7 @@ func digestedAsTheRouter(t *testing.T, h *harness, state, first string) {
 // lines whole, its page in Default its Default request of yesterday and of
 // today alone. And the summaries of those days hold their work in no pool
 // as Default's, as a summary keeps the first pool it was made with (see
-// Pools' What pools can't hold): History's days before today are Default's
+// Pools' What pools can't hold): Accounts' days before today are Default's
 // still, today's as the ledger the turn made, on Acme first, summarises
 // them.
 func TestATurnReadsEveryTabOfThePoolTurnedTo(t *testing.T) {
@@ -308,7 +310,7 @@ func TestATurnReadsEveryTabOfThePoolTurnedTo(t *testing.T) {
 			if tt.noPool {
 				h.model.cfg.PoolRead = views.NoPool()
 			}
-			h.model.view = dashboard.History
+			h.model.view = dashboard.Accounts
 			h.start()
 
 			turns := h.model.poolTurns
@@ -317,12 +319,13 @@ func TestATurnReadsEveryTabOfThePoolTurnedTo(t *testing.T) {
 				t.Fatalf("the turn started the view afresh %d times, on %q; want once, on %q", h.model.poolTurns-turns, h.model.cfg.Pool.ID, tt.pool)
 			}
 			if got := requestsHeld(h); got != tt.requests {
-				t.Errorf("History's days hold %d requests, want %d, the pool's", got, tt.requests)
+				t.Errorf("Accounts' days hold %d requests, want %d, the pool's", got, tt.requests)
 			}
 			if want := dayfile.DayStart(past(-tt.began).Local(), 0); !h.model.past.began.Equal(want) {
-				t.Errorf("History begins %v, want %v, where the pool's work begins", h.model.past.began, want)
+				t.Errorf("Accounts begins %v, want %v, where the pool's work begins", h.model.past.began, want)
 			}
-			h.keys(tabKey)
+			h.keys(tabKey, tabKey)
+			h.keyed("] <")
 			if got := listedRequests(h); !maps.Equal(got, tt.listed) {
 				t.Errorf("Sessions lists %v, want %v, the pool's requests alone", got, tt.listed)
 			}

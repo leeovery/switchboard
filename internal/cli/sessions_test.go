@@ -298,14 +298,14 @@ func TestSessionsJSONHoldsItsShape(t *testing.T) {
 	// at is t as the JSON gives it.
 	at := func(t time.Time) string { return t.UTC().Format(time.RFC3339) }
 	want := `{"schema":1,"generated_at":"` + at(ledgerNow) + `","prices_as_of":"2026-10-11","sessions":[` +
-		`{"session":"` + asking + `","dir":"~/Code/api","account":"work","label":"work","model":"claude-opus-5-5","running":true,"last_seen":"` + at(october(7, 13, 10, 0)) + `",` +
+		`{"session":"` + asking + `","dir":"~/Code/api","project":"~/Code/api","account":"work","label":"work","model":"claude-opus-5-5","running":true,"last_seen":"` + at(october(7, 13, 10, 0)) + `",` +
 		`"models":[{"model":"claude-opus-5-5","account":"work","label":"work","reason":"sticky"}],"state":"asking","move_cost":0.80808,` +
 		`"started":"` + at(october(6, 22, 0, 0)) + `","requests":1,"worth":0.03804},` +
-		`{"session":"` + moving + `","dir":"~/Code/cli","account":"side","label":"side","model":"claude-opus-5-5","running":true,"last_seen":"` + at(october(7, 12, 50, 0)) + `",` +
+		`{"session":"` + moving + `","dir":"~/Code/cli","project":"~/Code/cli","account":"side","label":"side","model":"claude-opus-5-5","running":true,"last_seen":"` + at(october(7, 12, 50, 0)) + `",` +
 		`"models":[{"model":"claude-opus-5-5","account":"side","label":"side","reason":"moved: work is at its reserve"}],` +
 		`"started":"` + at(october(7, 10, 15, 0)) + `","requests":2,"worth":0.07608,` +
 		`"moved":{"at":"` + at(october(7, 11, 0, 0)) + `","from":"work","from_label":"work","reason":"moved: work is at its reserve","cost":0.008}},` +
-		`{"session":"` + ended + `","dir":"~/Code/web","account":"work","label":"work","model":"claude-opus-9","ended":"` + at(october(7, 8, 30, 0)) + `",` +
+		`{"session":"` + ended + `","dir":"~/Code/web","project":"~/Code/web","account":"work","label":"work","model":"claude-opus-9","ended":"` + at(october(7, 8, 30, 0)) + `",` +
 		`"started":"` + at(october(7, 8, 0, 0)) + `","requests":2,"worth":0.03804,"unpriced":["claude-opus-9"]}],` +
 		`"today":{"sessions":3,"requests":5,"worth":0.15216,"unpriced":["claude-opus-9"]}}`
 	for _, form := range jsonForms() {
@@ -320,6 +320,41 @@ func TestSessionsJSONHoldsItsShape(t *testing.T) {
 				t.Errorf("switchboard sessions %s printed\n%s\nwant\n%s", strings.Join(form.args, " "), compact.String(), want)
 			}
 		})
+	}
+}
+
+// A session's project is the one its lines name, else its directory's, as
+// the dashboard reads it: a session from before projects were recorded, in a
+// worktree Claude Code made, is its repository's; in any other directory,
+// the directory's.
+func TestSessionsGivesEachSessionsProjectAsTheDashboardReadsIt(t *testing.T) {
+	line := func(request, session, dir, project string, minute int) ledger.Line {
+		return ledger.Line{At: october(7, 9, minute, 0), Request: request, Kind: ledger.KindMessage, Session: session, Dir: dir, Project: project,
+			Model: "claude-opus-5-5", Account: "work", Reason: "new", Status: 200, Attempts: 1, TotalMS: 9000, Usage: json.RawMessage(hourUsage)}
+	}
+	deps := sessionsDepsOf(t, map[string][]ledger.Line{"2026-10-07": {
+		line("p1", asking, "~/Code/api/.claude/worktrees/fix-login", "", 0),
+		line("p2", moving, "~/Code/web/cmd", "", 1),
+		line("p3", ended, "~/Code/cli/internal", "~/Code/cli", 2),
+	}})
+	serveSessions(t, deps, nil)
+	got := run(t, deps, "sessions", "--json")
+	var list struct {
+		Sessions []struct {
+			Session string `json:"session"`
+			Project string `json:"project"`
+		} `json:"sessions"`
+	}
+	if err := json.Unmarshal([]byte(got.stdout), &list); err != nil || got.code != 0 {
+		t.Fatalf("switchboard sessions --json = %+v (%v), want the sessions", got, err)
+	}
+	projects := make(map[string]string)
+	for _, s := range list.Sessions {
+		projects[s.Session] = s.Project
+	}
+	want := map[string]string{asking: "~/Code/api", moving: "~/Code/web/cmd", ended: "~/Code/cli"}
+	if !maps.Equal(projects, want) {
+		t.Errorf("switchboard sessions --json gives the projects %v, want %v", projects, want)
 	}
 }
 

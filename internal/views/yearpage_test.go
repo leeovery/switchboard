@@ -224,62 +224,6 @@ func TestTheMonthTheGridBeginsPartWayThroughIsNamedWhereThereIsRoom(t *testing.T
 	}
 }
 
-// A calendar year's grid runs from the week of 1 January to the week of 31
-// December, the days outside it left out, and its numbers count its days
-// alone, against its plans priced to its end, though it's still running,
-// from the day the ledger began where it began in the year.
-func TestACalendarYearsGridIsItsWeeksAndItsNumbersItsDays(t *testing.T) {
-	// 1 January 2025 is a Wednesday, and 31 December too; 1 January 2026 is
-	// a Thursday.
-	sinceLastYear := daysFrom("2024-12-30", busy("2024-12-31", 9), busy("2025-01-01", 7), busy("2025-12-31", 5), busy("2026-01-02", 2))
-	tests := []struct {
-		name        string
-		days        []ledger.Summary
-		began       string
-		year        int
-		first, last string
-		months      string
-		requests    int
-		cost        string
-	}{
-		{
-			name: "last year", days: sinceLastYear, began: "2024-12-30", year: 2025,
-			first: "2024-12-30 --40000", last: "2025-12-29 002----", months: "2025-01@0 … 2025-12@48", requests: 12, cost: "2640",
-		},
-		{
-			name: "this year, so far", days: sinceLastYear, began: "2024-12-30", year: 2026,
-			first: "2025-12-29 ---0400", last: "2026-12-28 -------", months: "2026-01@0 … 2026-12@48", requests: 2, cost: "2640",
-		},
-		{
-			// The days before the ledger began are empty squares, like any
-			// other; its plans cost from 6 October to 31 December, 87 ×
-			// 12/365 of $220.
-			name: "the year the ledger began in", days: overTheYear, began: "2025-10-06", year: 2025,
-			first: "2024-12-30 --00000", last: "2025-12-29 000----", months: "2025-01@0 … 2025-12@48", requests: 910, cost: "629.260273972603",
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			page := yearBegun(tt.days, tt.began, views.YearAsk{Year: tt.year})
-
-			grid := gridOf(page.Weeks)
-			if len(grid) != 53 || grid[0] != tt.first || grid[len(grid)-1] != tt.last {
-				t.Errorf("the grid's %d weeks run %q to %q, want 53, %q to %q", len(grid), grid[0], grid[len(grid)-1], tt.first, tt.last)
-			}
-			first, last := page.Months[0], page.Months[len(page.Months)-1]
-			if got := fmt.Sprintf("%s@%d … %s@%d", first.Month, first.Week, last.Month, last.Week); got != tt.months {
-				t.Errorf("the months' names run %s, want %s", got, tt.months)
-			}
-			if page.Numbers.Requests != tt.requests {
-				t.Errorf("the year's requests are %d, want %d", page.Numbers.Requests, tt.requests)
-			}
-			if got := jsonOf(t, page.Numbers.Cost); got != tt.cost {
-				t.Errorf("the year's plans cost %s, want %s", got, tt.cost)
-			}
-		})
-	}
-}
-
 // A pool's Year counts its numbers from the pool's first work: Acme's read
 // holds work's day of 1 September, from before Acme began, its work
 // Default's and emptied, its 5-hour limit kept, as an account's windows are
@@ -314,22 +258,20 @@ func pooled(a ledger.AccountDay, pool string) ledger.AccountDay {
 	return a
 }
 
-// A whole year's plans cost 12 months, a 29 February in it or not, as its
-// months' do: the last 12 months, and a calendar year.
+// The 12 months' plans cost 12 months, a 29 February in them or not, as
+// their months' do.
 func TestAWholeYearsPlansCostTwelveMonths(t *testing.T) {
 	tests := []struct {
 		name string
 		now  time.Time
-		year int
 	}{
-		{name: "the last 12 months, across a 29 February", now: time.Date(2028, 3, 10, 12, 0, 0, 0, time.Local)},
-		{name: "a leap calendar year", now: time.Date(2029, 1, 10, 12, 0, 0, 0, time.Local), year: 2028},
-		{name: "a calendar year of 365 days", now: time.Date(2027, 1, 10, 12, 0, 0, 0, time.Local), year: 2026},
+		{name: "across a 29 February", now: time.Date(2028, 3, 10, 12, 0, 0, 0, time.Local)},
+		{name: "of 365 days", now: time.Date(2027, 1, 10, 12, 0, 0, 0, time.Local)},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ask := views.YearAsk{Year: tt.year}
-			from := views.YearFrom(ask, tt.now, time.Monday)
+			ask := views.YearAsk{}
+			from := views.YearFrom(0, tt.now, time.Monday)
 			days := daysTo(from.Format(time.DateOnly), tt.now, day(from.AddDate(0, 0, 7).Format(time.DateOnly), usedBy("work", sessionsOf(sent("claude-opus-5-5", 10, inputUsage), sessionA))))
 			in := input(days)
 			in.From, in.Now = from, tt.now
@@ -659,18 +601,42 @@ func TestAnEmptyLedgersYearIsAllLevelZero(t *testing.T) {
 func TestTheYearIsReadFromItsGridsFirstDay(t *testing.T) {
 	tests := []struct {
 		name   string
-		ask    views.YearAsk
+		year   int
 		now    time.Time
 		starts time.Weekday
 		want   string
 	}{
 		{name: "the last 12 months", now: now, starts: time.Monday, want: "2025-10-06"},
 		{name: "weeks starting on Sunday", now: now, starts: time.Sunday, want: "2025-10-05"},
-		{name: "a calendar year", ask: views.YearAsk{Year: 2025}, now: now, starts: time.Monday, want: "2024-12-30"},
+		{name: "a calendar year", year: 2025, now: now, starts: time.Monday, want: "2024-12-30"},
 		{name: "the 12 months before the grid", now: onAt("2028-03-06", "10:00"), starts: time.Monday, want: "2027-03-07"},
 	}
 	for _, tt := range tests {
-		if got, want := views.YearFrom(tt.ask, tt.now, tt.starts), on(tt.want); !got.Equal(want) {
+		if got, want := views.YearFrom(tt.year, tt.now, tt.starts), on(tt.want); !got.Equal(want) {
+			t.Errorf("%s: read from %v, want %v", tt.name, got, want)
+		}
+	}
+}
+
+// The days read for the last 12 months begin the week before the first day
+// of any period counted over them, the 12 months' own, where that's before
+// the Year's grid; a calendar year's begin where the Year reads them.
+func TestTheDaysReadReachTheWeekBeforeEveryPeriod(t *testing.T) {
+	tests := []struct {
+		name   string
+		year   int
+		now    time.Time
+		starts time.Weekday
+		want   string
+	}{
+		{name: "the last 12 months", now: now, starts: time.Monday, want: "2025-10-01"},
+		{name: "weeks starting on Sunday", now: now, starts: time.Sunday, want: "2025-10-01"},
+		{name: "a calendar year", year: 2025, now: now, starts: time.Monday, want: "2024-12-30"},
+		{name: "12 months from a 29 February", now: onAt("2028-02-29", "10:00"), starts: time.Monday, want: "2027-02-22"},
+		{name: "12 months before the grid", now: onAt("2028-03-06", "10:00"), starts: time.Monday, want: "2027-02-28"},
+	}
+	for _, tt := range tests {
+		if got, want := views.DaysFrom(tt.year, tt.now, tt.starts), on(tt.want); !got.Equal(want) {
 			t.Errorf("%s: read from %v, want %v", tt.name, got, want)
 		}
 	}
@@ -693,7 +659,7 @@ func TestTheTwelveMonthsBeginTheDayAfterTodaysDateAYearBack(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			read := views.YearFrom(views.YearAsk{}, tt.now, time.Monday)
+			read := views.YearFrom(0, tt.now, time.Monday)
 			today := tt.now.Format(time.DateOnly)
 			days := daysTo(read.Format(time.DateOnly), tt.now, busy(tt.first, 5), busy(today, 2))
 			in := input(days)

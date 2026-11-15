@@ -1,9 +1,9 @@
 package dashboard
 
 import (
-	"strconv"
 	"strings"
 
+	"github.com/leeovery/switchboard/internal/prose"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -11,22 +11,51 @@ import (
 // accountsHelp are Accounts' parts as help explains them, after its keys, in
 // the design's order: Compare, its columns and how each row is counted; the
 // value of the period's use, worth and against its price; what all accounts
-// counts; and Detail. With one account, Compare and all accounts go, as they
-// do from the page.
+// counts; Detail; and Tokens. With one account, Compare and all accounts go,
+// as they do from the page.
 func (f Frame) accountsHelp() []helpPart {
 	if f.Accounts.Alone() {
-		return []helpPart{f.valueHelp(), f.detailHelp()}
+		return []helpPart{f.valueHelp(), f.detailHelp(), tokensHelp()}
 	}
-	return []helpPart{f.compareHelp(), f.valueHelp(), allAccountsHelp(), f.detailHelp()}
+	return []helpPart{f.compareHelp(), f.valueHelp(), allAccountsHelp(), f.detailHelp(), tokensHelp()}
+}
+
+// tokensHelp is Accounts' Tokens as help explains it: the period's total and
+// its rows, as each period has them; its columns; v's splits; and how its
+// rows fill the screen and scroll.
+func tokensHelp() helpPart {
+	return helpPart{
+		heading: accountsHeading(AccountsTokens),
+		says: []line{
+			said("The period's tokens as ccusage reports them, split by what ccusage can't split by: the account. The whole " +
+				"period's row leads, named for it, its figures its rows' summed, but its models, each counted once, and its " +
+				"worth set against what the plans cost over the period. Under it come its rows, newest first: a day each over " +
+				"this week and 30 days, a week each over 12 weeks and a month each over 12 months, each set against what the " +
+				"plans cost over it, as its words name it: a whole day's, week's or month's price, but for one that begins " +
+				"part-way through, as the oldest month at 12 months or the one the ledger began in, priced by its days from " +
+				"then. Today is the period's row alone."),
+			said("Its columns are ccusage's: input; output; cache write, both lifetimes' writes together; cache read; and " +
+				"total, the four kinds. Worth and against its price are as VALUE has them, and against its price is over the " +
+				"plans known where some aren't, as it says. A model of quota checks alone wasn't used, so has no row."),
+			said("`v` splits each row by account, by model, each version at its own price, by both, or not at all. The rows " +
+				"fill the screen to the footnote, scrolling a row at a time."),
+		},
+	}
 }
 
 // compareHelp is Compare as help explains it: its columns and heads, and
-// their focus, but where Compare is turned, as CompareWide has it, drawing
-// none; each group and how each row is counted; and a key to the states its
-// heads say.
+// their focus, but where Compare is turned, as CompareWide has it, holding
+// none; its charts; each group and how each row is counted; and a key to the
+// states its heads say.
 func (f Frame) compareHelp() helpPart {
 	focus := " `←` and `→` move the focus along the columns, scrolling them past as many as fit, all accounts staying " +
 		"put at the right; `enter` opens the account focused in Detail, and `esc` ends the focus."
+	charts := " WEEKS is how full each of its weeks got, at least the last eight, or every week the period begins where " +
+		"there are more, a month its fullest week at 12 months; a dotted line marks the cap of an account that keeps " +
+		"a reserve, and the axis marks this week, so far. Under them, how many of those weeks it hit its limit in, " +
+		"and what they had left at a reset, on average; all accounts says how many weeks some account was short. " +
+		"WORTH is what its use was worth at API prices over the period, in the finest buckets that fit, its peak " +
+		"under it: the accounts share one scale, so their columns compare, and all accounts has its own."
 	if !f.CompareWide() {
 		focus = ""
 	}
@@ -38,7 +67,7 @@ func (f Frame) compareHelp() helpPart {
 			said("WEEK USED is each account's week window as switchboard usage draws it, its cap and even pace marked, and " +
 				"always as it stands now, whatever the period. BY MODEL is each account's share of use over the period, a " +
 				"row a version, its tokens weighed as worth weighs them, so cache reads, which run to millions and cost " +
-				"little, count for little."),
+				"little, count for little." + charts),
 			said("ACTIVITY counts the period's requests; the sessions served, each counted once, however many days and " +
 				"accounts it ran on; and the sessions moved onto each account and off it. LIMITS counts the limits each hit, " +
 				"by window; the time it spent at its cap or at a limit; and what its week had left as it last reset, 100% " +
@@ -59,13 +88,17 @@ func statesHelp() []glyph {
 	return glyphs
 }
 
+// periodsRun is how the periods run, as Accounts' and Projects' helps say it.
+const periodsRun = "The periods are never billing months, as switchboard knows no renewal date: today and this week run " +
+	"from their starts, 30 days and 12 months back from today, and 12 weeks over this week and the 11 before."
+
 // valueHelp is what the period's use was worth as help explains it: worth at
 // API prices, as of the price table's date where the page is read; against
 // its price, how a period is priced, and how all accounts sums the plans,
-// where there's more than one account; extra usage; and a key to their
-// marks.
+// where there's more than one account; extra usage; the periods, each view
+// drawn sharing them; and a key to their marks.
 func (f Frame) valueHelp() helpPart {
-	asOf, plans, shared := "", " An account without a plan has none.", "."
+	asOf, plans := "", " An account without a plan has none."
 	if page := f.Accounts.Page; page != nil {
 		asOf = " as of " + pricesDated(page.PricesAsOf)
 	}
@@ -73,8 +106,12 @@ func (f Frame) valueHelp() helpPart {
 		plans = " An account without a plan has none, and all accounts sums the plans it knows, its ratio counting only " +
 			"their accounts' worth and saying how many plans it knows where it doesn't know them all, as the worth " +
 			"beside it is every account's."
-		shared = ", Compare and Detail sharing the period."
 	}
+	var drawn []string
+	for _, v := range f.Accounts.views() {
+		drawn = append(drawn, accountsViews[v])
+	}
+	shared := ", " + prose.List(drawn) + " sharing the period, the one Projects and Sessions' List share."
 	more, less := 4.0, 0.6
 	return helpPart{
 		heading: "VALUE",
@@ -84,12 +121,12 @@ func (f Frame) valueHelp() helpPart {
 				"of a model the price table doesn't know or of requests that went upstream without their usage; unpriced, " +
 				"all of it."),
 			said("Against its price is that worth over what the plans cost over the same period, a plan's price a month " +
-				"prorated: a day 12/365 of a month, a week 12/52, 30 days a month, and 12 weeks twelve weeks', a period still " +
+				"prorated: a day 12/365 of a month, a week 12/52, 30 days a month, 12 weeks twelve weeks' and 12 months twelve " +
+				"months', a period still " +
 				"running priced whole, and one the ledger began part-way through priced from its first day." + plans +
 				" An account added part-way shows what was recorded of it, priced against the whole period."),
 			said("Extra usage is on where Claude bills past the plan's limit, and off where the limit holds."),
-			said("The periods are rolling, never billing months, as switchboard knows no renewal date: `<` and `>` step " +
-				"through today, this week, the last 30 days and the last 12 weeks" + shared),
+			said(periodsRun + " `<` and `>` step through " + prose.List(views.PeriodNames()) + shared),
 		},
 		glyphs: []glyph{
 			{drawn: line{{"$184", secondaryInk}, {views.PartUnpriced, faintInk}}, means: "worth, part of it unpriced"},
@@ -113,16 +150,17 @@ func allAccountsHelp() helpPart {
 				"counting as open."),
 			said("It isn't the pool, the accounts new sessions can go to now, each to its cap, which only the Overview " +
 				"shows: an account's state on Accounts is its own."),
-			said("In Detail, its days are every account's together, marked where any hit a 5-hour limit, and each week's " +
-				"peak the mean of theirs. Its verdict is " + views.RoomToSpare + " where their weeks left " +
-				strconv.Itoa(views.RoomLeft) + "% or more at a reset, on average, else " + views.LittleToSpare + ", naming " +
-				"the accounts that end weeks with the most and the least left."),
+			said("In Detail, it has no BY DAY, and WEEKS gives a band of each account's week peaks, all accounts' first, " +
+				"each week's peak the mean of theirs, the cap's level marked where an account keeps a reserve; at each " +
+				"band's right, how many of the period's whole weeks or those shown, whichever are more, it hit its limit in, " +
+				"or of all accounts how many some account was short, and what they left at a reset, on average. Where " +
+				"Detail is stacked, as on a phone, a table gives the same, a row an account."),
 		},
 	}
 }
 
 // detailHelp is Detail as help explains it: the list, where there's more
-// than one account; the panel, above the rule and below it; the verdict;
+// than one account; the panel, above the rule and below it; WORTH and LATELY;
 // SESSIONS; and a key to BY DAY's shades and marks and WEEKS'.
 func (f Frame) detailHelp() helpPart {
 	var says []line
@@ -141,12 +179,16 @@ func (f Frame) detailHelp() helpPart {
 				"is now, every window read as switchboard usage reads them; THIS WEEK, named for the period, and BY MODEL "+
 				"are the period's, THIS WEEK counting its requests and the limits it hit, by window, beside its plan, its "+
 				"worth against its price, and whether its extra usage is on. Below the rule, BY DAY and WEEKS cover the "+
-				"weeks it names, the last six where they fit."),
-			said("BY DAY shades each day by how much of its week the account used that day, in History's five shades, on "+
+				"weeks it names, as many as fit across the panel, the period's own at least where they fit, and never "+
+				"fewer than six; at 12 months the newest, saying how many more there are."),
+			said("BY DAY shades each day by how much of its week the account used that day, in YEAR's five shades, on "+
 				"the account's own scale: each a quarter of its active days."),
 			said("WEEKS gives each week's peak, the use read just before the reset that ended it, and this week's, its "+
-				"highest so far. Under them, the verdict on the last 7 whole weeks, as History's Weeks gives it: "+
-				accountVerdictsMean()),
+				"highest so far. Under them, how many of the period's whole weeks or those shown, whichever are more, it "+
+				"hit its limit in, and what they left at a reset, on average."),
+			said("WORTH is what its use was worth at API prices over the period, across the panel, in the finest buckets "+
+				"that fit, its peak under it. LATELY tells every event the router has for the account, newest first, "+
+				"down to the key line, and the rest scrolls."),
 			said(sessions),
 		),
 		glyphs: append(shadesHelp("a day", "days", f.byDaySwatch),

@@ -66,8 +66,8 @@ var labelWorlds = []struct {
 
 // labelledViews are the views that name an account, each named for what it
 // shows: the Overview with every section, the routing card open, Compare,
-// Detail of work and of all, History's four views, the Switchboard and the
-// List, Runway, Graphs, the Log's requests and events, d28c's page, and its
+// Detail of work and of all, Accounts' Tokens, the Switchboard and the
+// List, Runway, Trends, the Log's requests and events, d28c's page, and its
 // turn opened.
 var labelledViews = []page{
 	{name: "overview", keys: keysOf("s")},
@@ -75,10 +75,7 @@ var labelledViews = []page{
 	{name: "accounts-compare", keys: toAccounts()},
 	{name: "accounts-detail", keys: toDetail(downKey)},
 	{name: "accounts-detail-all", keys: toAccounts("]")},
-	{name: "history-year", keys: toHistory()},
-	{name: "history-weeks", keys: toHistory("]")},
-	{name: "history-days", keys: toHistory("]", "]")},
-	{name: "history-tokens", keys: toHistory("]", "]", "]")},
+	{name: "accounts-tokens", keys: toAccounts("]", "]")},
 	{name: "sessions", keys: toSessions()},
 	{name: "sessions-list", keys: toSessions("]")},
 	{name: "runway", keys: toRunway()},
@@ -93,10 +90,12 @@ var labelledViews = []page{
 // with %s where the label stands: the status line's best account; the
 // legend's cap; Compare's verdict; Detail's picker and its head; and a line
 // of LATELY's or a session's story beside the list, as "came from work: work
-// came under pressure".
+// came under pressure", "side primed: its 5-hour window started" or "infra
+// moved personal → work: personal came under pressure".
 var sayings = []string{
 	`new( sessions)? → ▲ %s`, `cap: %s at `, `time %s alone`, `^\s*%s alone`, `◂ %s ▸`, `│ +%s +●`,
 	`%s reached its cap`, `%s came under`, `moved to %s`, `started on %s,`, `came from %s:`,
+	`%s primed`, `moved %s → `, ` → %s:`,
 }
 
 // unsaid is the row with each saying of the label given taken out.

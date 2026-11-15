@@ -147,9 +147,10 @@ type Config struct {
 	// PoolRead is how the dashboard reads the pool shown's work of the
 	// request ledger, by its id, as the verbs read a pool's: the Log's lines,
 	// the sessions the store holds, for Sessions, a session's page and the
-	// Log alike, and the days History, Accounts, Runway and Graphs read. The
-	// zero PoolRead reads every pool's, as of a config without pools alone;
-	// views.NoPool none, as where no pool is shown.
+	// Log alike, the days Accounts, Runway and Trends read, and the sessions'
+	// days Projects and the List read. The zero PoolRead reads every pool's,
+	// as of a config without pools alone; views.NoPool none, as where no
+	// pool is shown.
 	PoolRead views.PoolRead
 	// ConfigStamp says how the config file stands, and Stamp how it stood
 	// as the pool shown was read: a read that finds it changed since reads
@@ -161,17 +162,17 @@ type Config struct {
 	Stamp       filestate.State
 	Placed      status.Placement
 	// Accounts are the configured accounts of the pool shown, as status's
-	// PoolAccounts has them, which Accounts lists and whose plans History
-	// prices its worth against, and WeekStarts the day its calendar weeks
+	// PoolAccounts has them, which Accounts lists and whose plans the pages
+	// price their worth against, and WeekStarts the day its calendar weeks
 	// start on.
 	// Removed are the accounts removed, as status.RemovedOf gives them, which
-	// every document read names, as status's Moment Named does, and History
-	// by the label each showed last.
+	// every document read names, as status's Moment Named does, and the
+	// pages by the label each showed last.
 	Accounts   config.Accounts
 	WeekStarts time.Weekday
 	Removed    status.RemovedAccounts
 	// WeekWindow is the key of the window a week long every model shares,
-	// the accounts' own weeks, which History's Weeks counts; and Family reads
+	// the accounts' own weeks, which Accounts' weeks count; and Family reads
 	// a model's family from its id, for one the version table doesn't name.
 	WeekWindow string
 	Family     func(model string) string
@@ -190,19 +191,24 @@ type Config struct {
 	// it's one there is; Sections the Overview's sections they keep shown;
 	// By how they keep its windows grouped, else as the config's [usage] by
 	// has it; Models whether they keep the live views showing each model's
-	// own window; History what they keep History's views
-	// showing, as dashboard.HistoryKept reads it; Graphs Graphs' sections
-	// they keep shown; and Log the Log's columns they keep shown, as
-	// dashboard.LogKept reads them. Prefs keeps each as it changes, and the
-	// theme picked, one write at a time, never in Update: nil keeps nothing.
-	View     dashboard.View
-	Sections dashboard.Sections
-	By       dashboard.By
-	Models   bool
-	History  dashboard.HistoryPage
-	Graphs   dashboard.GraphsSections
-	Log      dashboard.LogTicks
-	Prefs    Prefs
+	// own window; Graphs Graphs' sections they keep shown, and KeepGraphs
+	// whether the watch keeps those and Graphs as the tab shown as it opens,
+	// as dashboard.GraphsKept reads them; and Log the Log's columns they keep
+	// shown, as dashboard.LogKept reads them. Prefs keeps each as it changes,
+	// and the theme picked, one write at a time, never in Update: nil keeps
+	// nothing.
+	View       dashboard.View
+	Sections   dashboard.Sections
+	By         dashboard.By
+	Models     bool
+	Graphs     dashboard.GraphsSections
+	KeepGraphs bool
+	Log        dashboard.LogTicks
+	Prefs      Prefs
+	// Period is the period the preferences keep the entity tabs counting
+	// over, as dashboard.PeriodKept reads it, which Prefs keeps as it
+	// changes.
+	Period views.Period
 	// AccountsShown is what the preferences keep Accounts showing, as
 	// dashboard.AccountsKept reads it, SessionsShown Sessions, as
 	// dashboard.SessionsKept reads it, and RunwayShown Runway, as
@@ -360,17 +366,25 @@ type Model struct {
 	// changing.
 	layout dashboard.Layout
 	// scroll is how far the view shown is scrolled down, where it doesn't
-	// fit, as the frame's Scroll has it: rows, or things, as History's
+	// fit, as the frame's Scroll has it: rows, or things, as Runway's
 	// accounts, where it scrolls a thing at a time; and readIn the form it
 	// was read in, as rescrolled noted it.
 	scroll int
 	readIn scrollRead
+	// period is the period the entity tabs count over, one dial they share,
+	// as < and > step it.
+	period views.Period
 	// accounts is what the watch holds of Accounts: what it shows, and its
-	// page, built of the days past holds.
+	// page, built of the days past holds over the period.
 	accounts accountsTab
-	// past is what the watch holds of History: its page, the ledger's days
-	// it's built of, and the reads of them, which Accounts shares.
-	past historyTab
+	// past is the ledger's days the watch holds, and the reads of them, which
+	// Accounts, Runway and Trends share.
+	past pastDays
+	// projects is what the watch holds of Projects: what it shows, and its
+	// pages. sessionDays are the sessions' days it's built of, as Sessions'
+	// List is, one read of the period serving both.
+	projects    projectsTab
+	sessionDays periodDays
 	// sessionsTab is what the watch holds of Sessions: what it shows, its
 	// Switchboard and its List as the last look built them, and whether the
 	// List is held. held are the sessions its readers want, the store
@@ -395,10 +409,12 @@ type Model struct {
 	plansAtMost []views.PlanCost
 	// runwayTab is what the watch holds of Runway: what it shows, its lanes
 	// as the last look built them, and the readings history's tail they're
-	// judged by; and graphsTab what it holds of Graphs' lanes, judged by that
-	// tail too.
+	// judged by; graphsTab what it holds of Trends' lanes, judged by that
+	// tail too; and trends what it holds of Trends' pages of the ledger's
+	// days.
 	runwayTab runwayTab
 	graphsTab graphsTab
+	trends    trendsPast
 	// session is the session's page open, drawn in place of the view, or
 	// loading, as pageLoading has it: nil while none is. opening counts the
 	// pages asked to open, each opening once its read lands, but one asked
@@ -526,15 +542,18 @@ func New(ctx context.Context, cfg Config) Model {
 	m := Model{
 		ctx: ctx, cfg: cfg, after: cfg.After, size: cfg.Size, plan: plan{interval: cfg.Interval}, fetching: true,
 		choice: cfg.Choice, pair: cfg.Pair, view: opening(cfg.View), sections: cfg.Sections, by: cfg.By, models: cfg.Models, graphs: cfg.Graphs,
-		accounts: accountsTab{shown: cfg.AccountsShown}, past: historyTab{page: cfg.History, starts: cfg.WeekStarts},
+		period: cfg.Period, accounts: accountsTab{shown: cfg.AccountsShown}, past: pastDays{starts: cfg.WeekStarts},
 		sessionsTab: sessionsTab{shown: cfg.SessionsShown}, runwayTab: runwayTab{shown: cfg.RunwayShown}, log: openingLog(cfg.Log),
 		traffic: traffic{heard: new(views.Hearing)}, held: views.HoldSessions(cfg.Prices), versionNameCells: views.VersionNameCells(cfg.Prices),
 		plansAtMost: views.PlansAtMost(cfg.Accounts, cfg.Prices),
 		keeping:     keeping{gate: new(prefsGate)},
 	}
-	m.accounts.shown.Accounts, m.past.page.Accounts = cfg.Accounts, cfg.Accounts
+	m.accounts.shown.Accounts = cfg.Accounts
 	if m.after == nil {
 		m.after = after
+	}
+	if cfg.KeepGraphs {
+		m = m.keepGraphsShown()
 	}
 	return m
 }
@@ -565,10 +584,10 @@ func (m Model) started() tea.Cmd {
 // readers have taken in, as letGo has it, building the session's page open
 // afresh, as relived says, and closing a session's card it leaves no p for,
 // as closing says, then has the watch read the router's request stream
-// while it wants it, and the ledger's days for History, Accounts, Runway,
-// Graphs, a session's page, the Log and its find, and Sessions, as they want
-// them, History's and Accounts' pages built of them as historyBuilt and
-// accountsBuilt have it, Detail's selection following its sessions, as
+// while it wants it, and the ledger's days for Accounts, Runway, Graphs, a
+// session's page, the Log and its find, and Sessions, as they want them,
+// Accounts' and Trends' pages built of them as accountsBuilt and trendsBuilt
+// have it, Detail's selection following its sessions, as
 // followed has it, Sessions, Runway and Graphs built at the look, as
 // sessionsLooked and runwayLooked have it, the ledger's tail followed
 // whatever shows, as followTail has it, and the Log's page built of what it
@@ -593,8 +612,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	next, cmd := m.take(msg)
 	tuned, closed := next.(Model).letGo().relived(msg, now).closing()
 	tuned, stream := tuned.tune()
-	tuned, past := tuned.readHistory()
-	tuned = tuned.historyBuilt().accountsBuilt().followed(msg).sessionsLooked(msg).runwayLooked(msg)
+	tuned, past := tuned.readPast()
+	tuned, projected := tuned.readDays()
+	tuned = tuned.accountsBuilt().trendsBuilt().projectsBuilt(msg).followed(msg).sessionsLooked(msg).runwayLooked(msg)
 	tuned, paged := tuned.readPage()
 	tuned, logged := tuned.readLog()
 	tuned, found := tuned.readFind()
@@ -611,11 +631,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if _, frame := msg.(frameMsg); !frame {
 		tuned = tuned.keepLayout(page, now)
 		tuned, page = tuned.rescrolled(page, now)
+		tuned, page = tuned.sessionsKept(page, now)
 	}
 	tuned = tuned.compared(page, now)
 	tuned, frames := tuned.startFrames(page, now)
 	tuned.taking = taking{}
-	return tuned, tea.Batch(cmd, closed, stream, past, paged, logged, found, listed, ran, lately, tailing, costs, keeps, waits, frames)
+	return tuned, tea.Batch(cmd, closed, stream, past, projected, paged, logged, found, listed, ran, lately, tailing, costs, keeps, waits, frames)
 }
 
 // taking is a message as Update takes it in: when it came, which every look
@@ -649,7 +670,7 @@ type scrollRead struct {
 // afresh where the form it's read in has changed since the last message
 // noted it, as b, a section's key, a resize or a read can change it, so an
 // offset is never read in a form it wasn't taken in: the view back to its
-// top, as where History's Weeks turn from accounts to rows, or the
+// top, as where Sessions' Switchboard turns from accounts to rows, or the
 // Overview's USAGE is laid out afresh; and its page built afresh. A session's page open over
 // the tab scrolls its own, leaving the tab's as it is.
 func (m Model) rescrolled(page dashboard.Frame, now time.Time) (Model, dashboard.Frame) {
@@ -725,7 +746,7 @@ func (m Model) render() Model {
 // take takes in a message: a key, a paste, a click, the wheel, a resize, the
 // terminal's background, the themes listed for the picker, the choice kept
 // as it stands, or the preferences kept, a read, the router's history, the
-// ledger's days read for History, the router carrying out an order, the
+// ledger's days read, the router carrying out an order, the
 // sessions listed to price the routing card's moves, the request stream
 // opening, telling of requests or falling due to be asked for again, a tick,
 // a frame, a session's page read, or what's shown of the pool P turned to.
@@ -765,6 +786,8 @@ func (m Model) take(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.yearRead(msg), nil
 	case sinceMsg:
 		return m.sinceRead(msg), nil
+	case daysReadMsg:
+		return m.daysRead(msg), nil
 	case tailedMsg:
 		return m.tailed(msg), nil
 	case logReadMsg:
@@ -980,7 +1003,7 @@ func (m Model) uncover() (Model, tea.Cmd) {
 // and its layout as kept, what Runway shows, the sessions listed, what the
 // request stream tells of their requests, the List held, whose lines name
 // them, how far the view is scrolled, and what
-// Accounts, as standing has it, and History show; and while the theme picker
+// Accounts shows, as standing has it; and while the theme picker
 // is open, the cells it covers at the right, so the traces keep now's end in
 // view.
 // It holds the one moment of the document at now, as At has it, for its
@@ -998,10 +1021,11 @@ func (m Model) frame(now time.Time) dashboard.Frame {
 		WeekWindow:       m.cfg.WeekWindow,
 		VersionNameCells: m.versionNameCells,
 		PlansAtMost:      m.plansAtMost,
+		Period:           m.period,
 		Accounts:         m.accounts.shown,
+		Projects:         m.projects.shown,
 		Runway:           m.runwayTab.shown,
 		Graphs:           m.graphsShown(),
-		History:          m.past.page,
 		Session:          m.session.frame(),
 		Loading:          m.loading(now),
 		Log:              m.log.page,
@@ -1091,14 +1115,15 @@ func fetchFrom(ctx context.Context, source Source, r status.Read, policy score.P
 // found the router gone leaves the last read's why standing, as nothing new
 // was found. Each read starts a new chain of ticks at the pace it calls for,
 // lets a look at the router's document asked for while it was under way go
-// ahead, and as any look does, asks for the ledger's days since History's were
-// read, as readHistory reads them while History or Accounts shows, Runway's
-// lanes want them or Graphs shows WHEN YOU WORK, and what the readings history
-// gained, as readRunway reads it while Runway shows. Where the read finds the
-// config file changed, or the accounts other than the last document's, as
-// status's AccountsChanged has it, or the pools told, as ErrPoolsTold says,
-// where they couldn't be, but not again once that was in vain, as
-// toldInVain has it, it reads the pool shown again, as followConfig has it.
+// ahead, and as any look does, asks for the ledger's days since those held
+// were read, as readPast reads them while Accounts shows, Runway's lanes
+// want them or Trends shows a section drawn of them, and what the
+// readings history gained, as readRunway reads it while Runway shows. Where
+// the read finds the config file changed, or the accounts other than the
+// last document's, as status's AccountsChanged has it, or the pools told,
+// as ErrPoolsTold says, where they couldn't be, but not again once that was
+// in vain, as toldInVain has it, it reads the pool shown again, as
+// followConfig has it.
 func (m Model) fetched(msg fetchedMsg) (tea.Model, tea.Cmd) {
 	now := m.now()
 	m.fetching, m.past.due, m.tail.due, m.runwayTab.due = false, true, true, true

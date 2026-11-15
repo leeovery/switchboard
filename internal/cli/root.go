@@ -56,6 +56,10 @@ type Deps struct {
 	// Getwd returns the working directory, as os.Getwd does: the one run
 	// starts Claude Code in, which it tells the router of.
 	Getwd func() (string, error)
+	// FindProject finds the project a session started in a directory runs
+	// in, as launch.FindProject does, which run tells the router of beside
+	// the directory: nil tells none.
+	FindProject func(dir string) string
 	// Executable returns the path of this switchboard binary, as
 	// os.Executable does: what the LaunchAgent runs, and what run passes
 	// over as it looks for claude.

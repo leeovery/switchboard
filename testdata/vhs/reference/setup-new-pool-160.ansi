@@ -29,7 +29,7 @@
 [48;2;46;52;64m  [m[38;2;147;158;178;48;2;46;52;64mPress t to create a new one, approving it in the browser signed in to Side.                                                                                   [m
 [48;2;46;52;64m                                                                                                                                                                [m
 [48;2;46;52;64m  [m[1;38;2;236;239;244;48;2;46;52;64mPersonal [m[38;2;147;158;178;48;2;46;52;64mhas a token that expires 17 Nov 2026: 21 days left. Press t to create a new one, approving it in the browser signed in to Personal.                  [m
-[48;2;46;52;64m  [m[1;38;2;236;239;244;48;2;46;52;64mPersonal [m[38;2;147;158;178;48;2;46;52;64mhas no plan set, so History can't value its usage. Press e to set one.                                                                               [m
+[48;2;46;52;64m  [m[1;38;2;236;239;244;48;2;46;52;64mPersonal [m[38;2;147;158;178;48;2;46;52;64mhas no plan set, so its usage can't be valued. Press e to set one.                                                                                   [m
 [48;2;46;52;64m                                                                                                                                                                [m
 [48;2;46;52;64m                                                                                                                                                                [m
 [48;2;46;52;64m                                                                                                                                                                [m

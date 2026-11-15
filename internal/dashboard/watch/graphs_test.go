@@ -101,7 +101,7 @@ func TestTheWatchOpensGraphsShowingTheSectionsThePreferencesKept(t *testing.T) {
 // views, ? keys and toggles and q quit. Whatever the accounts' windows, it
 // has no f 5-hour.
 func TestGraphsKeyLineIsTheDesigns(t *testing.T) {
-	toggles := "tab views     w week  o pool  g glance  h when     "
+	toggles := "tab views     w week  o pool  g glance  h when  y year  m months  d models     "
 	phone := "tab views   ? keys and toggles   q quit"
 	tests := []struct {
 		name   string
@@ -111,13 +111,17 @@ func TestGraphsKeyLineIsTheDesigns(t *testing.T) {
 		want   string
 		hidden []string
 	}{
-		{name: "three accounts", doc: routerDocument(three()...), width: 160, want: toggles + "p pin  ? help  q quit", hidden: []string{"pool", "glance", "when"}},
-		{name: "WEEK hidden, POOL and WHEN YOU WORK shown", doc: routerDocument(three()...), width: 160, typed: []string{"w", "o", "h"}, want: toggles + "p pin  ? help  q quit", hidden: []string{"week", "glance"}},
-		{name: "one account, with none other to pin to", doc: routerDocument(three()[0]), width: 160, want: toggles + "? help  q quit", hidden: []string{"pool", "glance", "when"}},
-		{name: "the wide chrome's narrowest", doc: routerDocument(three()...), width: 100, want: toggles + "p pin  ? help  q quit", hidden: []string{"pool", "glance", "when"}},
+		{name: "three accounts", doc: routerDocument(three()...), width: 160, want: toggles + "p pin  ? help  q quit", hidden: []string{"pool", "glance", "when", "year", "months", "models"}},
+		{name: "WEEK hidden, POOL and WHEN YOU WORK shown", doc: routerDocument(three()...), width: 160, typed: []string{"w", "o", "h"}, want: toggles + "p pin  ? help  q quit", hidden: []string{"week", "glance", "year", "months", "models"}},
+		{name: "one account, with none other to pin to", doc: routerDocument(three()[0]), width: 160, want: toggles + "? help  q quit", hidden: []string{"pool", "glance", "when", "year", "months", "models"}},
+		{name: "the wide chrome's narrowest", doc: routerDocument(three()...), width: 100, want: toggles + "p pin  ? help  q quit", hidden: []string{"pool", "glance", "when", "year", "months", "models"}},
 		{name: "a phone", doc: routerDocument(three()...), width: 52, want: phone},
-		{name: "every account verified Ultra", doc: routerDocument(verifiedUltra()...), width: 160, want: toggles + "p pin  ? help  q quit", hidden: []string{"pool", "glance", "when"}},
-		{name: "after f", doc: routerDocument(three()...), width: 160, typed: []string{"f"}, want: toggles + "p pin  ? help  q quit", hidden: []string{"pool", "glance", "when"}},
+		{name: "YEAR shown, v and its split in a group of its own", doc: routerDocument(three()...), width: 173, typed: []string{"y"}, want: toggles + "v split: all     p pin  ? help  q quit", hidden: []string{"pool", "glance", "when", "months", "models"}},
+		{name: "BY MONTH shown, v as YEAR's", doc: routerDocument(three()...), width: 173, typed: []string{"m"}, want: toggles + "v split: all     p pin  ? help  q quit", hidden: []string{"pool", "glance", "when", "year", "models"}},
+		{name: "YEAR shown, v left to a wider line where the line doesn't fit", doc: routerDocument(three()...), width: 108, typed: []string{"y"}, want: toggles + "p pin  ? help  q quit", hidden: []string{"pool", "glance", "when", "months", "models"}},
+		{name: "YEAR shown on a phone", doc: routerDocument(three()...), width: 73, typed: []string{"y"}, want: phone},
+		{name: "every account verified Ultra", doc: routerDocument(verifiedUltra()...), width: 160, want: toggles + "p pin  ? help  q quit", hidden: []string{"pool", "glance", "when", "year", "months", "models"}},
+		{name: "after f", doc: routerDocument(three()...), width: 160, typed: []string{"f"}, want: toggles + "p pin  ? help  q quit", hidden: []string{"pool", "glance", "when", "year", "months", "models"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -187,6 +191,7 @@ func TestGraphsHelpListsItsTogglesThenTheSharedKeys(t *testing.T) {
 		{Key: "tab", Does: "views"},
 		{Key: "w", Does: "week"}, {Key: "o", Does: "pool"},
 		{Key: "g", Does: "glance", Hidden: true}, {Key: "h", Does: "when", Hidden: true},
+		{Key: "y", Does: "year", Hidden: true}, {Key: "m", Does: "months", Hidden: true}, {Key: "d", Does: "models", Hidden: true},
 		{Key: "j k", Does: "scroll"}, {Key: "PgUp PgDn", Does: "page"}, {Key: "wheel", Does: "scroll"},
 		{Key: "p", Does: "pin"}, {Key: "R", Does: "refresh"}, {Key: "?", Does: "help"}, {Key: "q", Does: "quit"},
 	}
@@ -247,12 +252,12 @@ func TestASessionsPageOverGraphsKeepsWForModels(t *testing.T) {
 	}
 }
 
-// whenHarness is historyHarness on Graphs, its sections those named, every
+// whenHarness is pastHarness on Graphs, its sections those named, every
 // one hidden where none is, the ledger holding work's requests on Monday 21
 // September 2026 at 09:00, a week before the clock starts.
 func whenHarness(t *testing.T, sections ...string) (*harness, *daysLedger) {
 	t.Helper()
-	h, l := historyHarness(t, dashboard.Graphs, dashboard.HistoryPage{})
+	h, l := pastHarness(t, dashboard.Graphs)
 	h.model.graphs = dashboard.GraphsSectionsNamed(append([]string{}, sections...))
 	l.days["2026-09-21"] = hourly("2026-09-21", 9, 8)
 	return h, l
@@ -269,7 +274,7 @@ func hourly(date string, hour, n int) ledger.Summary {
 }
 
 // Graphs reads the ledger's days while WHEN YOU WORK shows, and not
-// otherwise: the last 12 months, once, as History reads them, as h shows it,
+// otherwise: the last 12 months, once, as Accounts reads them, as h shows it,
 // then today alone at each look; its page of them, the 4 weeks before today,
 // Monday's 9 o'clock its 8 requests over the four Mondays; and hidden again,
 // none at a look, and no page.
@@ -305,7 +310,7 @@ func TestGraphsReadsTheLedgersDaysWhileWhenYouWorkShows(t *testing.T) {
 }
 
 // WHEN YOU WORK's page is of the last 12 months' days, never of a calendar
-// year History stepped back to, the page built afresh at a message with
+// year Runway stepped back to, the page built afresh at a message with
 // both held.
 func TestWhenYouWorksPageIsOfTheLast12MonthsNeverACalendarYear(t *testing.T) {
 	h, l := whenHarness(t, "when")

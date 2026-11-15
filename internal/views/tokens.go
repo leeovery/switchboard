@@ -206,18 +206,31 @@ func (t modelTally) add(v versions, m ledger.PricedModel, tokens quota.Tokens, a
 	if m.Model == "" || !used(m.ModelDay) {
 		return
 	}
-	id, rank := v.of(m.Model)
-	model, ok := t[id]
-	if !ok {
-		model = &rankedModel{Model: id, rank: rank, on: make(map[string]Worth)}
-		t[id] = model
+	var w Worth
+	w.addModel(m)
+	t.worth(v, m.Model, w, tokens, account)
+}
+
+// worth adds what requests of the model with the given id were worth, w,
+// their tokens given, to its version's, and to the version's on the account
+// they ran on, where one's given: none of requests that name no model, as
+// their bodies couldn't be read, so they spent nothing.
+func (t modelTally) worth(v versions, model string, w Worth, tokens quota.Tokens, account string) {
+	if model == "" {
+		return
 	}
-	model.count(tokens)
-	model.addModel(m)
+	id, rank := v.of(model)
+	ranked, ok := t[id]
+	if !ok {
+		ranked = &rankedModel{Model: id, rank: rank, on: make(map[string]Worth)}
+		t[id] = ranked
+	}
+	ranked.count(tokens)
+	ranked.add(w)
 	if account != "" {
-		on := model.on[account]
-		on.addModel(m)
-		model.on[account] = on
+		on := ranked.on[account]
+		on.add(w)
+		ranked.on[account] = on
 	}
 }
 

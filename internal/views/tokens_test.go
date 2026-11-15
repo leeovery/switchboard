@@ -111,7 +111,7 @@ func TestAModelOfQuotaChecksAloneIsListedNowhere(t *testing.T) {
 		account("spare", checks), account("work", sent("claude-opus-5-5", 1, inputUsage), checks)))
 	in := input(days)
 	history, past := views.NewHistory(in), views.NewPast(in, days)
-	tokens := past.Tokens(views.TokensAsk{}).Periods[0]
+	tokens := past.TokensOver(views.PeriodThisWeek).Periods[0]
 	totals := history.Totals.Accounts
 
 	got := map[string][]string{

@@ -1,6 +1,7 @@
 package theme
 
 import (
+	"cmp"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -22,13 +23,15 @@ const prefsName = "prefs.json"
 // the user never needs to write: the themes it's drawn in, the tab it
 // shows, the Overview's sections shown and how its windows are grouped,
 // whether the live views show each model's own window,
-// what Accounts, History's views, Sessions and Runway show, Graphs' sections
-// shown, and the Log's columns.
+// what Accounts, Sessions and Runway show, Graphs' sections shown, and the
+// Log's columns.
 type Prefs struct {
 	Choice
-	// Tab names the tab shown, one of overview, accounts, history, sessions,
-	// runway, graphs and log, for a watch to open on: "" for the default, the
-	// Overview, as one it doesn't name reads. Milestone 5 kept its card view
+	// Tab names the tab shown, one of overview, accounts, projects,
+	// sessions, runway, graphs and log, for a watch to open on: "" for the
+	// default, the Overview, as one it doesn't name reads. Earlier builds
+	// also kept history, which the dashboard opens as the tab that took its
+	// place, Trends with YEAR shown. Milestone 5 kept its card view
 	// under "view", as "accounts", which isn't today's Accounts: a file of
 	// then is read as having no tab, its "view" kept as a key these don't
 	// know.
@@ -46,15 +49,18 @@ type Prefs struct {
 	// Fable's week, as w last left it: unset, as a file without it reads,
 	// hides them.
 	Models bool `json:"models,omitempty"`
+	// Period is the period the entity tabs count over, one dial they share,
+	// by its name, as < and > last left it: today, "" for this week, 30-days,
+	// 12-weeks or 12-months. "" reads the one Accounts.Period keeps, where a
+	// build from before the dial was shared kept it.
+	Period string `json:"period,omitempty"`
 	// Accounts is what Accounts shows, as its keys last left it.
 	Accounts AccountsPrefs `json:"accounts,omitzero"`
-	// History is what History's views show, as their keys last left them.
-	History HistoryPrefs `json:"history,omitzero"`
 	// Sessions is what Sessions shows, as its keys last left it.
 	Sessions SessionsPrefs `json:"sessions,omitzero"`
 	// Runway is what Runway shows, as its keys last left it.
 	Runway RunwayPrefs `json:"runway,omitzero"`
-	// GraphsTab is what the Graphs tab shows, as its keys last left it: not
+	// GraphsTab is what Trends, once Graphs, shows, as its keys last left it: not
 	// under "graphs", which earlier builds kept the Overview's GRAPHS' chart
 	// under by name, as files they wrote still have it, and which an object
 	// would make them read as corrupt.
@@ -63,8 +69,8 @@ type Prefs struct {
 	Log LogPrefs `json:"log,omitzero"`
 }
 
-// GraphsPrefs are what the Graphs tab shows: Sections, the names of its
-// sections shown, of week, pool, glance and when: nil, as a file
+// GraphsPrefs are what Trends shows: Sections, the names of its sections
+// shown, of week, pool, glance, when, year, months and models: nil, as a file
 // without them reads, for those shown at first, and none, kept as [], for
 // none. A name the dashboard doesn't know, as a later build's section or the
 // 5-hour since dropped, shows nothing; a list naming only such sections opens
@@ -82,11 +88,16 @@ type LogPrefs struct {
 }
 
 // AccountsPrefs are what Accounts shows, each by its name: the view shown,
-// compare or detail; and the period both count over, today, "" for this
-// week, 30-days or 12-weeks. A name the dashboard doesn't know reads as the
-// default. What's chosen in a view is the run's alone.
+// compare, detail or tokens; and Tokens' split, account, model,
+// account+model or none, read, where it keeps none, from History's Tokens'
+// in builds that had the tab, as historySplit has it. A name the dashboard
+// doesn't know reads as the default. What's chosen in a view is the run's
+// alone. Period is where builds from before the dial was shared kept it, as
+// Accounts' own: read where Prefs.Period keeps none, and dropped as the
+// period is next kept.
 type AccountsPrefs struct {
 	View   string `json:"view,omitempty"`
+	Split  string `json:"split,omitempty"`
 	Period string `json:"period,omitempty"`
 }
 
@@ -104,26 +115,6 @@ type SessionsPrefs struct {
 // the week alone now, so it's read as nothing and the next write drops it.
 type RunwayPrefs struct {
 	Collapsed bool `json:"collapsed,omitempty"`
-}
-
-// HistoryPrefs are what History's views show, each by its name: the view
-// shown, of year, weeks, days and tokens; what the Year shows, all for all
-// use, a model version by its name, as Opus 5.5, or an account by its id;
-// Weeks' shape, table or columns; and Tokens' period and split. A name the
-// dashboard doesn't know reads as the default, as does a version or an
-// account no longer there to show.
-type HistoryPrefs struct {
-	View   string      `json:"view,omitempty"`
-	Year   string      `json:"year,omitempty"`
-	Weeks  string      `json:"weeks,omitempty"`
-	Tokens TokensPrefs `json:"tokens,omitzero"`
-}
-
-// TokensPrefs are how History's Tokens shows its periods: Period, day, week
-// or month; and Split, account, model, account+model or none.
-type TokensPrefs struct {
-	Period string `json:"period,omitempty"`
-	Split  string `json:"split,omitempty"`
 }
 
 // PrefsFile is the preferences file, prefs.json in the state directory,
@@ -155,9 +146,10 @@ var prefsKeys = func() []string {
 	return keys
 }()
 
-// retiredKeys are keys earlier builds kept that no build reads now, which
-// the next write drops: graphs, the chart the Overview's GRAPHS drew.
-var retiredKeys = []string{"graphs"}
+// retiredKeys are keys earlier builds kept that no build reads now, but as
+// read says, which the next write drops: graphs, the chart the Overview's
+// GRAPHS drew; and history, what the History tab's views showed.
+var retiredKeys = []string{"graphs", "history"}
 
 // retiredSections are the Overview's sections earlier builds kept shown that
 // it no longer has, which the next write drops: graphs, GRAPHS.
@@ -174,7 +166,8 @@ func (f PrefsFile) Read() Prefs {
 
 // read reads the preferences as Read does, and the keys of the file they
 // don't know, as a newer build's preferences, as they're written there: but
-// none of what's retired, as retiredKeys and retiredSections name it.
+// none of what's retired, as retiredKeys and retiredSections name it, once
+// Accounts' Tokens' split is read from History's where it keeps none.
 func (f PrefsFile) read() (Prefs, map[string]json.RawMessage) {
 	data, err := os.ReadFile(f.path)
 	switch {
@@ -194,11 +187,27 @@ func (f PrefsFile) read() (Prefs, map[string]json.RawMessage) {
 		f.setAside(err)
 		return Prefs{}, nil
 	}
+	p.Accounts.Split = cmp.Or(p.Accounts.Split, historySplit(others["history"]))
 	for _, key := range slices.Concat(prefsKeys, retiredKeys) {
 		delete(others, key)
 	}
 	p.Sections = withoutRetired(p.Sections)
 	return p, others
+}
+
+// historySplit is the split History's Tokens kept, as history.tokens.split,
+// in builds that had the tab, of the history key given: "" where it keeps
+// none, or can't be read.
+func historySplit(history json.RawMessage) string {
+	var kept struct {
+		Tokens struct {
+			Split string `json:"split"`
+		} `json:"tokens"`
+	}
+	if json.Unmarshal(history, &kept) != nil {
+		return ""
+	}
+	return kept.Tokens.Split
 }
 
 // withoutRetired are the Overview's sections kept, those retiredSections

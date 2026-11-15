@@ -285,8 +285,8 @@ func TestPTurnsToTheNextPoolReadingItAfresh(t *testing.T) {
 		t.Errorf("after P, the screen is\n%s\nwant Acme named, and its accounts alone", view)
 	}
 	m := h.model
-	if got := []string{m.accounts.shown.Accounts.IDs()[0], m.past.page.Accounts.IDs()[0], m.plansAtMost[0].Account}; len(m.accounts.shown.Accounts) != 1 || len(m.past.page.Accounts) != 1 || len(m.plansAtMost) != 2 || !slices.Equal(got, []string{"k3f9", "k3f9", "k3f9"}) {
-		t.Errorf("after P, Accounts lists %v, History %v, and the plans priced are %+v; want Acme's k3f9 alone", m.accounts.shown.Accounts.IDs(), m.past.page.Accounts.IDs(), m.plansAtMost)
+	if got := []string{m.accounts.shown.Accounts.IDs()[0], m.graphsShown().Accounts.IDs()[0], m.plansAtMost[0].Account}; len(m.accounts.shown.Accounts) != 1 || len(m.graphsShown().Accounts) != 1 || len(m.plansAtMost) != 2 || !slices.Equal(got, []string{"k3f9", "k3f9", "k3f9"}) {
+		t.Errorf("after P, Accounts lists %v, Trends %v, and the plans priced are %+v; want Acme's k3f9 alone", m.accounts.shown.Accounts.IDs(), m.graphsShown().Accounts.IDs(), m.plansAtMost)
 	}
 	h.deliver(h.press("tab")...)
 	if view := h.view(); !strings.Contains(view, "Acme 1") || strings.Contains(view, "Personal") || strings.Contains(view, "Work") {
@@ -606,8 +606,8 @@ func TestPTurnsToASecondPoolAddedToAConfigOfOne(t *testing.T) {
 }
 
 // An empty pool given an account, the router routing it, lists it at the
-// next read, as the config changed: its views drawn, Accounts, History and
-// Graphs listing it, and p, with two, opening the routing card. One whose
+// next read, as the config changed: its views drawn, Accounts and Trends
+// listing it, and p, with two, opening the routing card. One whose
 // last account is taken out draws the empty page at the next.
 func TestAnEmptyPoolGivenAnAccountListsItAtTheNextRead(t *testing.T) {
 	h, acme, pools := pooledHarness(t, nil)
@@ -624,7 +624,7 @@ func TestAnEmptyPoolGivenAnAccountListsItAtTheNextRead(t *testing.T) {
 		t.Errorf("once Acme 1 and 2 are added and read, the screen is\n%s\nwant Acme's views, Acme 1 among them", view)
 	}
 	m := h.model
-	for name, listed := range map[string]config.Accounts{"Accounts": m.accounts.shown.Accounts, "History": m.past.page.Accounts, "Graphs": m.graphsShown().Accounts} {
+	for name, listed := range map[string]config.Accounts{"Accounts": m.accounts.shown.Accounts, "Trends": m.graphsShown().Accounts} {
 		if !slices.Equal(listed.IDs(), two.IDs()) {
 			t.Errorf("once Acme 1 and 2 are added and read, %s lists %v, want %v", name, listed.IDs(), two.IDs())
 		}
@@ -850,7 +850,7 @@ func TestAnAccountOfThePoolShownChangedIsFollowedAtTheNextRead(t *testing.T) {
 			h.deliver(h.press("R")...)
 			want := pools.accounts[:3]
 			m := h.model
-			if m.poolTurns != turns+1 || !slices.Equal(m.cfg.Accounts, want) || !slices.Equal(m.accounts.shown.Accounts, want) || !slices.Equal(m.past.page.Accounts, want) {
+			if m.poolTurns != turns+1 || !slices.Equal(m.cfg.Accounts, want) || !slices.Equal(m.accounts.shown.Accounts, want) || !slices.Equal(m.graphsShown().Accounts, want) {
 				t.Errorf("an account %s, the pool shown started afresh %v, listing %+v; want it started afresh, listing %+v", tt.name, m.poolTurns != turns, m.accounts.shown.Accounts, want)
 			}
 			plan := func(p views.PlanCost) string { return p.Account + " " + p.Plan }
@@ -1006,8 +1006,8 @@ func TestAnAccountMovedToTheOtherPoolIsPlacedAnewAtTheNextRead(t *testing.T) {
 	if got := latelySaid(m); slices.Contains(got, "side reached its 5-hour limit") || !slices.Contains(got, "work reached its 5-hour limit") {
 		t.Errorf("side moved to Acme, Default's LATELY tells %q, want work's limit, and side's no more", got)
 	}
-	if want := []string{"work", "personal"}; !slices.Equal(m.accounts.shown.Accounts.IDs(), want) || !slices.Equal(m.past.page.Accounts.IDs(), want) {
-		t.Errorf("side moved to Acme, Accounts lists %v and History %v; want %v", m.accounts.shown.Accounts.IDs(), m.past.page.Accounts.IDs(), want)
+	if want := []string{"work", "personal"}; !slices.Equal(m.accounts.shown.Accounts.IDs(), want) || !slices.Equal(m.graphsShown().Accounts.IDs(), want) {
+		t.Errorf("side moved to Acme, Accounts lists %v and Trends %v; want %v", m.accounts.shown.Accounts.IDs(), m.graphsShown().Accounts.IDs(), want)
 	}
 
 	h.deliver(h.press("P")...)

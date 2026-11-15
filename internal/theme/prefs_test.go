@@ -343,35 +343,60 @@ func TestWhetherRunwaysAccountColumnIsCollapsedIsKeptAndItsWindowDropped(t *test
 	}
 }
 
-// What History's views show is kept under a key of its own, each choice by
-// its name, beside the rest and the keys of another build, and left out
-// where none is made.
-func TestHistorysViewsAreKeptUnderAKeyOfTheirOwn(t *testing.T) {
+// A file of a build with the History tab, which kept what its views showed
+// under "history", reads without error, its tab as kept, for the watch to
+// open the tab that took its place; its Tokens' split read as Accounts'
+// Tokens', which kept none, the rest of History's fields as nothing; and the
+// next write keeps the split as Accounts' and drops History's, keeping the
+// rest and the keys of another build.
+func TestAFileWithHistorysViewsReadsAndTheNextWriteDropsThem(t *testing.T) {
 	state := t.TempDir()
 	path := filepath.Join(state, "prefs.json")
-	write(t, path, `{"theme": "amber", "pane": {"split": 0.5}}`)
+	write(t, path, `{"history": {"view": "tokens", "year": "Opus 5.5", "weeks": "columns", "tokens": {"period": "month", "split": "account+model"}}, `+
+		`"pane": {"split": 0.5}, "tab": "history", "theme": "amber"}`)
 	prefs := theme.NewPrefsFile(state, clock)
-	history := theme.HistoryPrefs{View: "tokens", Year: "Opus 5.5", Weeks: "columns", Tokens: theme.TokensPrefs{Period: "month", Split: "account+model"}}
 
-	if err := prefs.Update(func(p *theme.Prefs) { p.History = history }); err != nil {
-		t.Fatal(err)
-	}
-	if got, want := prefs.Read(), (theme.Prefs{Choice: theme.One("amber"), History: history}); !reflect.DeepEqual(got, want) {
+	want := theme.Prefs{Choice: theme.One("amber"), Tab: "history", Accounts: theme.AccountsPrefs{Split: "account+model"}}
+	if got := prefs.Read(); !reflect.DeepEqual(got, want) {
 		t.Errorf("Read() = %+v, want %+v", got, want)
 	}
-	data, err := os.ReadFile(path)
-	want := "{\n  \"history\": {\n    \"view\": \"tokens\",\n    \"year\": \"Opus 5.5\",\n    \"weeks\": \"columns\",\n" +
-		"    \"tokens\": {\n      \"period\": \"month\",\n      \"split\": \"account+model\"\n    }\n  },\n" +
-		"  \"pane\": {\n    \"split\": 0.5\n  },\n  \"theme\": \"amber\"\n}\n"
-	if err != nil || string(data) != want {
-		t.Errorf("prefs.json holds\n%s\nwant\n%s", data, want)
+	if _, err := os.Stat(path); err != nil {
+		t.Errorf("the file is gone after a read, %v; want it read cleanly, not set aside", err)
 	}
-
-	if err := prefs.Update(func(p *theme.Prefs) { p.History = theme.HistoryPrefs{} }); err != nil {
+	if err := prefs.Update(func(p *theme.Prefs) { p.Tab = "graphs" }); err != nil {
 		t.Fatal(err)
 	}
-	if data, err := os.ReadFile(path); err != nil || strings.Contains(string(data), "history") {
-		t.Errorf("prefs.json holds %s, %v; want no choice of History's kept", data, err)
+	written := "{\n  \"accounts\": {\n    \"split\": \"account+model\"\n  },\n  \"pane\": {\n    \"split\": 0.5\n  },\n  \"tab\": \"graphs\",\n  \"theme\": \"amber\"\n}\n"
+	if data, err := os.ReadFile(path); err != nil || string(data) != written {
+		t.Errorf("after the next write, prefs.json holds\n%s\nwant\n%s", data, written)
+	}
+}
+
+// Accounts' Tokens' split, where a file keeps one, stands over History's
+// Tokens' split the same file keeps, whether the dashboard knows it or not;
+// and a history key that isn't History's views, as no build wrote, reads as
+// no split, the file read cleanly.
+func TestHistorysSplitIsReadOnlyWhereAccountsKeepsNone(t *testing.T) {
+	tests := []struct {
+		name, file, want string
+	}{
+		{name: "Accounts' own", file: `{"accounts": {"split": "model"}, "history": {"tokens": {"split": "account"}}}`, want: "model"},
+		{name: "Accounts' own, unknown", file: `{"accounts": {"split": "a-later-split"}, "history": {"tokens": {"split": "account"}}}`, want: "a-later-split"},
+		{name: "History's without a split", file: `{"history": {"view": "tokens"}}`, want: ""},
+		{name: "History's not its views", file: `{"history": "tokens"}`, want: ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			state := t.TempDir()
+			path := filepath.Join(state, "prefs.json")
+			write(t, path, tt.file)
+			if got := theme.NewPrefsFile(state, clock).Read().Accounts.Split; got != tt.want {
+				t.Errorf("Read() keeps Accounts' split %q, want %q", got, tt.want)
+			}
+			if _, err := os.Stat(path); err != nil {
+				t.Errorf("the file is gone after a read, %v; want it read cleanly, not set aside", err)
+			}
+		})
 	}
 }
 

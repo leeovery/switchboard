@@ -241,50 +241,76 @@ func TestDashboardShowsModelsWindowsAsKept(t *testing.T) {
 	}
 }
 
-// History opens on what prefs.json keeps of its views, the Year's account
-// among those the config gives; none kept, as it opens at first.
-func TestDashboardShowsHistoryAsKept(t *testing.T) {
-	kept := `{"history": {"view": "tokens", "year": "side", "weeks": "columns", "tokens": {"period": "month", "split": "model"}}}`
+// A prefs.json of a build with the History tab, showing it and keeping what
+// its views showed, opens the dashboard on Trends, its pictures' home, with
+// YEAR shown beside Trends' sections kept, to keep so; Accounts' Tokens
+// split as History's Tokens' was, where Accounts' kept none; and the rest as
+// kept.
+func TestDashboardOpensOnTrendsWhereHistoryWasKept(t *testing.T) {
 	tests := []struct {
 		name, prefs string
-		want        dashboard.HistoryPage
+		sections    []string
+		split       dashboard.TokensSplit
 	}{
-		{name: "none kept", prefs: `{}`},
 		{
-			name: "as kept", prefs: kept,
-			want: dashboard.HistoryPage{
-				Shown: dashboard.HistoryTokens, YearAsk: views.YearAsk{Account: "side"}, WeeksShape: dashboard.WeeksColumns,
-				TokensAsk: views.TokensAsk{Period: views.TokensByMonth}, TokensSplit: dashboard.TokensByModel,
-			},
+			name:     "Trends' sections and Accounts' split none",
+			prefs:    `{"tab": "history", "history": {"view": "tokens", "year": "side", "weeks": "columns", "tokens": {"split": "model"}}, "models": true}`,
+			sections: []string{"week", "year"}, split: dashboard.TokensByModel,
+		},
+		{
+			name: "Trends' sections and Accounts' split kept",
+			prefs: `{"tab": "history", "history": {"tokens": {"split": "model"}}, "accounts": {"split": "none"}, ` +
+				`"graphs_tab": {"sections": ["glance"]}, "models": true}`,
+			sections: []string{"glance", "year"}, split: dashboard.TokensUnsplit,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			upstream := fakeClaudeAPI(t)
-			deps := statusDeps(t, upstream, map[string]string{"SWITCHBOARD_CONFIG": writeConfig(t, fmt.Sprintf("upstream = %q\n", upstream)+threeAccounts)})
+			deps := statusDeps(t, fakeClaudeAPI(t), nil)
 			writePrefs(t, deps, tt.prefs)
 			cfg := recordWatch(t, &deps)
-			run(t, deps, "dashboard")
+			if got := run(t, deps, "dashboard"); got != (result{}) {
+				t.Fatalf("switchboard dashboard = %+v, want exit status 0 and nothing printed", got)
+			}
 
-			got := cfg.History
-			if got.Shown != tt.want.Shown || got.YearAsk != tt.want.YearAsk || got.WeeksShape != tt.want.WeeksShape ||
-				got.TokensAsk != tt.want.TokensAsk || got.TokensSplit != tt.want.TokensSplit {
-				t.Errorf("the dashboard opens History on %+v, want %+v", got, tt.want)
+			if cfg.View != dashboard.Graphs || !cfg.Models {
+				t.Errorf("the dashboard opens on %q, models' windows shown %t; want Trends, %q, and them shown, as kept", cfg.View, cfg.Models, dashboard.Graphs)
+			}
+			if got := cfg.Graphs.Names(); !slices.Equal(got, tt.sections) || !cfg.KeepGraphs {
+				t.Errorf("Trends opens showing %q, to keep them %t; want %q, kept", got, cfg.KeepGraphs, tt.sections)
+			}
+			if got := cfg.AccountsShown.TokensSplit; got != tt.split {
+				t.Errorf("Accounts' Tokens opens split %v, want %v", got, tt.split)
 			}
 		})
 	}
 }
 
-// Accounts opens on the sub-tab and the period prefs.json keeps; none kept,
-// as it opens at first: Compare, this week.
+// A prefs.json whose tab is no longer History's opens Trends with the
+// sections kept, keeping nothing as it opens.
+func TestDashboardKeepsTrendsAsItOpensOnlyInHistorysPlace(t *testing.T) {
+	deps := statusDeps(t, fakeClaudeAPI(t), nil)
+	writePrefs(t, deps, `{"tab": "graphs", "graphs_tab": {"sections": ["glance"]}}`)
+	cfg := recordWatch(t, &deps)
+	run(t, deps, "dashboard")
+
+	if got := cfg.Graphs.Names(); !slices.Equal(got, []string{"glance"}) || cfg.KeepGraphs {
+		t.Errorf("Trends opens showing %q, to keep them %t; want glance alone, kept already", got, cfg.KeepGraphs)
+	}
+}
+
+// Accounts opens on the sub-tab prefs.json keeps, and the dial on its period,
+// kept in its own place or, by a build from before, under Accounts; none
+// kept, as it opens at first: Compare, this week.
 func TestDashboardShowsAccountsAsKept(t *testing.T) {
 	tests := []struct {
 		name, prefs string
 		wantView    dashboard.AccountsView
-		wantPeriod  views.AccountsPeriod
+		wantPeriod  views.Period
 	}{
 		{name: "none kept", prefs: `{}`},
-		{name: "as kept", prefs: `{"accounts": {"view": "detail", "period": "12-weeks"}}`, wantView: dashboard.AccountsDetail, wantPeriod: views.AccountsTwelveWeeks},
+		{name: "as kept", prefs: `{"period": "12-months", "accounts": {"view": "detail"}}`, wantView: dashboard.AccountsDetail, wantPeriod: views.PeriodTwelveMonths},
+		{name: "as a build from before kept it", prefs: `{"accounts": {"view": "detail", "period": "12-weeks"}}`, wantView: dashboard.AccountsDetail, wantPeriod: views.PeriodTwelveWeeks},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -293,8 +319,8 @@ func TestDashboardShowsAccountsAsKept(t *testing.T) {
 			cfg := recordWatch(t, &deps)
 			run(t, deps, "dashboard")
 
-			if got := cfg.AccountsShown; got.Shown != tt.wantView || got.Period != tt.wantPeriod {
-				t.Errorf("the dashboard opens Accounts on %+v, want %d over %q", got, tt.wantView, tt.wantPeriod)
+			if got := cfg.AccountsShown; got.Shown != tt.wantView || cfg.Period != tt.wantPeriod {
+				t.Errorf("the dashboard opens Accounts on %+v over %q, want %d over %q", got, cfg.Period, tt.wantView, tt.wantPeriod)
 			}
 		})
 	}

@@ -78,15 +78,19 @@ func (f Frame) sessionsHelp() []helpPart {
 		{
 			heading: strings.ToUpper(sessionsViews[SessionsList]),
 			says: []line{
-				said("Today's sessions, a row each, even one on two accounts: those running first, in the order they started, a new " +
-					"one at their foot; then those ended today, the newest end first. A row moves only as its session ends, or as " +
-					"it asks again, so rows never slide from under the choice. Its mark says it's asking or answering, or that it " +
-					"moved to the account it's on."),
-				said("On is the account its latest request went to, and model that request's model. Requests counts its requests " +
-					"today that spend quota, and worth is theirs at API prices, at today's; routing says how it came to the account " +
-					"it's on, and what writing its context again there cost. A session ends an hour after its last request, as the " +
-					"router stops listing it, and runs again as it asks again."),
-				said("The today line sums today's sessions, running and ended: their requests today, and their worth."),
+				said("Every session of the period the dial shows, a row each, even one on two accounts: those running first, in the " +
+					"order they started, a new one at their foot; then those ended, the newest end first, under a rule for the day " +
+					"they ended. A row moves only as its session ends, or as it asks again, so rows never slide from under the " +
+					"choice. Its mark says it's asking or answering, or that it moved to the account it's on. `<` and `>` step the " +
+					"period, the one Accounts and Projects share."),
+				said("On is the account its latest request went to, and model that request's model. State says when it ended, on the " +
+					"day its rule names, and started when it began, with its day where that was another. Requests counts its " +
+					"requests in the period that spend quota, and worth is theirs at API prices, at today's; routing says how it " +
+					"came to the account it's on, and what writing its context again there cost. A session ends an hour after its " +
+					"last request, as the router stops listing it, and runs again as it asks again."),
+				said("The period line, at the foot, sums the period's sessions, running and ended: their requests, and their worth. " +
+					"Where they don't all fit, the row under it says how many are out of view, and a day's rule stays at the top " +
+					"while its sessions scroll under it."),
 			},
 		},
 	}

@@ -53,8 +53,10 @@ type assignment struct {
 	// last routed, or "" when it named none.
 	Pin string `json:"pin,omitempty"`
 	// Dir is the directory the session's last request to name one was
-	// started in, as the request ledger gives it, or "" while none has.
-	Dir string `json:"dir,omitempty"`
+	// started in, as the request ledger gives it, or "" while none has; and
+	// Project the project its last request to name either named, or "".
+	Dir     string `json:"dir,omitempty"`
+	Project string `json:"project,omitempty"`
 	// Pool is the id of the pool the assignment is in, as its key names it:
 	// "" in a config from before pools, or as the state file kept it from a
 	// router that didn't know pools, which counts as the first pool, as a
@@ -85,6 +87,16 @@ func (a assignment) dirAfter(req Request) string {
 	return cmp.Or(req.Dir, a.Dir)
 }
 
+// projectAfter is the project the assignment names once req is noted on it:
+// req's, where it names a directory or a project, so a project is always
+// that of the directory named with it; else the one it named.
+func (a assignment) projectAfter(req Request) string {
+	if req.Dir == "" && req.Project == "" {
+		return a.Project
+	}
+	return req.Project
+}
+
 // forgotten reports whether the assignment has gone unused for forgetAfter
 // at now.
 func (a assignment) forgotten(now time.Time) bool {
@@ -98,9 +110,9 @@ func (a assignment) same(b assignment) bool {
 }
 
 // usedAgain reports whether a is b used again, and nothing more: the same
-// assignment, with the same pin, directory, pool and reason.
+// assignment, with the same pin, directory, project, pool and reason.
 func (a assignment) usedAgain(b assignment) bool {
-	return a.same(b) && a.Pin == b.Pin && a.Dir == b.Dir && a.Pool == b.Pool && a.Reason == b.Reason
+	return a.same(b) && a.Pin == b.Pin && a.Dir == b.Dir && a.Project == b.Project && a.Pool == b.Pool && a.Reason == b.Reason
 }
 
 // inUTC is the assignment with its times in UTC.
@@ -121,6 +133,7 @@ func (e entry) export() status.Assignment {
 		Model:      e.model,
 		Account:    e.Account,
 		Dir:        e.Dir,
+		Project:    e.Project,
 		Pinned:     e.Pin != "" && e.Pin == e.Account,
 		Reason:     e.Reason,
 		AssignedAt: e.AssignedAt,
@@ -274,7 +287,7 @@ func (s *sessions) remember(req Request, was assignment, d decision, now time.Ti
 		a.Reason = d.reason
 	}
 	a.Pin, a.Pool, a.LastSeen, a.by = req.Pin, req.Pool, now, req.ID
-	a.Dir = a.dirAfter(req)
+	a.Dir, a.Project = a.dirAfter(req), a.projectAfter(req)
 	s.assignments[k] = a.inUTC()
 	if a.usedAgain(found) {
 		s.usedAgain()
@@ -664,10 +677,11 @@ func ofSession(id string) func(k key) bool {
 	return func(k key) bool { return k.session == id }
 }
 
-// dirIn is the directory the session in runs in, in its pool: that of its
-// model used last to name one, as the dashboard reads it off the session's
-// listing; "" where none does, as for a session never seen there.
-func (s *sessions) dirIn(in sessionIn) string {
+// placeIn is the directory the session in runs in, in its pool, and its
+// project: those of its model used last to name a directory, as the
+// dashboard reads it off the session's listing; "" where none does, as for
+// a session never seen there.
+func (s *sessions) placeIn(in sessionIn) (dir, project string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	var last entry
@@ -676,7 +690,7 @@ func (s *sessions) dirIn(in sessionIn) string {
 			last = e
 		}
 	}
-	return last.Dir
+	return last.Dir, last.Project
 }
 
 // byUse orders a session's entries the one used last first, then by model,

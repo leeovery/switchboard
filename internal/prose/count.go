@@ -52,7 +52,7 @@ func inTenths(n int, unit string) string {
 	return strconv.Itoa(n/10) + "." + strconv.Itoa(n%10) + unit
 }
 
-// Millions writes a count of tokens as History's Tokens counts them: under
+// Millions writes a count of tokens as Accounts' Tokens counts them: under
 // 100 million in millions to one place, as "4.2M"; then in whole millions, as
 // "615M"; and from a billion in billions to two places, as "1.06B".
 func Millions(n int) string {

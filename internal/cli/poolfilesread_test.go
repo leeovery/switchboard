@@ -310,12 +310,12 @@ dirs  = ["/work/acme"]
 
 // history --pool of a pool whose first work falls after the days asked for
 // begin, in a later month than the first of them, counts its plans, months
-// and tokens from that first day, as the dashboard's History tab counts
-// them, its Past begun where the pool's read's Start tells it begins: the
-// verb's plans as the tab's Accounts over its 30 days, the days the verb
-// reads by default, its months as the Year's BY MONTH, every one, and its
-// weeks' tokens as Tokens' weeks. Its days, Year, months and tokens list no
-// period before the pool worked, as the tab's Year and Tokens list none.
+// and tokens from that first day, as the dashboard counts them, its Past
+// begun where the pool's read's Start tells it begins: the verb's plans as
+// Accounts over its 30 days, the days the verb reads by default, its months
+// as Trends' BY MONTH, every one, and its weeks' tokens as Accounts' Tokens'
+// weeks. Its days, Year, months and tokens list no period before the pool
+// worked, as Trends' YEAR and Accounts' Tokens list none.
 func TestHistoryOfAPoolCountsItsDaysFromItsFirstWork(t *testing.T) {
 	deps := pooledDeps(t, false)
 	path, err := config.Path(deps.Getenv, deps.HomeDir)
@@ -356,15 +356,15 @@ func TestHistoryOfAPoolCountsItsDaysFromItsFirstWork(t *testing.T) {
 	} {
 		want, before := asJSON(t, figures.of(tab)), asJSON(t, figures.of(unbegun))
 		if reflect.DeepEqual(want, before) {
-			t.Fatalf("the History tab's %s are alike counted from Acme's first work and from the first day it shows, so they can't tell where it counted from", figures.name)
+			t.Fatalf("the dashboard's %s are alike counted from Acme's first work and from the first day it shows, so they can't tell where it counted from", figures.name)
 		}
 		if !reflect.DeepEqual(printed[figures.name], want) {
-			t.Errorf("switchboard history --pool q7mt --json gave the %s\n%v\nwant those counted from Acme's first work, 7 October, as the History tab counts them\n%v", figures.name, printed[figures.name], want)
+			t.Errorf("switchboard history --pool q7mt --json gave the %s\n%v\nwant those counted from Acme's first work, 7 October, as the dashboard counts them\n%v", figures.name, printed[figures.name], want)
 		}
 	}
 }
 
-// dashboardsPast is the Past the dashboard's History tab reads of the pool
+// dashboardsPast is the Past the dashboard's Accounts and Trends read of the pool
 // with the given id, of the files in deps' state directory, as the watch
 // reads the last 12 months, begun where the pool's read's Start tells it
 // begins, which must be at want; and that Past not begun, as it stands
@@ -378,7 +378,7 @@ func dashboardsPast(t *testing.T, deps cli.Deps, pool string, want time.Time) (b
 	if err != nil || !began.Equal(want) {
 		t.Fatalf("pool %s's work begins %v, %v, as the dashboard reads it, want %v", pool, began, err, want)
 	}
-	from := views.YearFrom(views.YearAsk{}, now, cfg.WeekStarts)
+	from := views.YearFrom(0, now, cfg.WeekStarts)
 	in := views.HistoryInput{
 		From: from, Now: now, Prices: ledger.Pricing, Accounts: cfg.Accounts.InPool(pool),
 		WeekStarts: cfg.WeekStarts, WeekWindow: claude.WeekWindow, Family: claude.Provider{}.Family,
@@ -387,10 +387,10 @@ func dashboardsPast(t *testing.T, deps cli.Deps, pool string, want time.Time) (b
 	return unbegun.Begun(began), unbegun
 }
 
-// pastPlans are the plans the History tab's Accounts prices over its 30
+// pastPlans are the plans the dashboard's Accounts prices over its 30
 // days, each account's and every account's, as history's JSON gives them.
 func pastPlans(p views.Past) any {
-	page := p.Accounts(views.AccountsThirtyDays)
+	page := p.Accounts(views.PeriodThirtyDays)
 	var plans []views.PlanCost
 	for _, row := range page.Rows {
 		plans = append(plans, row.Plan)
@@ -398,7 +398,7 @@ func pastPlans(p views.Past) any {
 	return append(plans, page.All.Plan)
 }
 
-// pastMonths are the months of the Year's BY MONTH, every one, as
+// pastMonths are the months of Trends' BY MONTH, every one, as
 // history's JSON gives them.
 func pastMonths(p views.Past) any {
 	rows := p.Year(views.YearAsk{}).ByMonth
@@ -409,10 +409,10 @@ func pastMonths(p views.Past) any {
 	return months
 }
 
-// pastTokens are the weeks of Tokens with anything recorded, oldest first,
-// as history's JSON gives them.
+// pastTokens are the weeks of Accounts' Tokens over 12 weeks with anything
+// recorded, oldest first, as history's JSON gives them.
 func pastTokens(p views.Past) any {
-	periods := p.Tokens(views.TokensAsk{Period: views.TokensByWeek}).Periods
+	periods := p.TokensOver(views.PeriodTwelveWeeks).Periods
 	weeks := make([]views.TokenWeek, 0, len(periods))
 	for _, t := range slices.Backward(periods) {
 		weeks = append(weeks, views.TokenWeek{Week: t.First, Tokens: t.Tokens, Worth: t.Worth, Against: t.Against, ByAccount: t.ByAccount, ByModel: t.ByModel})

@@ -5,6 +5,8 @@ import (
 	"unicode/utf8"
 
 	"github.com/leeovery/switchboard/internal/dashboard/watch"
+	"github.com/leeovery/switchboard/internal/prose"
+	"github.com/leeovery/switchboard/internal/views"
 )
 
 // keysColumns is the width the dashboard's help wraps its keys to.
@@ -18,24 +20,23 @@ var keysSaid = map[string]string{
 		"only where the config has pools, listed where there's more than one. p opens the routing card, which picks " +
 		"the accounts new sessions go to and changes nothing until enter. P turns to the next pool, the pools " +
 		"read afresh, starting the view afresh, or says there's one alone. j, k, PgDn, PgUp and the wheel scroll " +
-		"a view where it doesn't fit: the Overview's USAGE, Accounts' views, History's Year, Weeks' accounts, " +
-		"Days' BY ACCOUNT and Tokens' periods, Sessions' List and lanes, Runway's lanes, Graphs' page, the Log's " +
-		"table, and a session's turns, or an open turn's requests. w, where it's listed as models, shows and hides " +
-		"each model's own window; one near its limit shows either way.",
+		"a view where it doesn't fit: the Overview's USAGE, Accounts' views, a project's SESSIONS, " +
+		"Sessions' List and lanes, Runway's lanes, Trends' page, the Log's table, and a session's " +
+		"turns, or an open turn's requests. w, where it's listed as models, shows and hides each model's own " +
+		"window; one near its limit shows either way.",
 	"Overview": "u, r, s, c and l show and hide USAGE, ROUTING, SESSIONS, COMING UP and LATELY; " +
 		"b groups the windows by window or by account, as the config's [usage] by has them until b is pressed; " +
 		"and ↑↓ scrolls USAGE, as j and k do, where it doesn't fit, left to ? as they are.",
-	"Accounts": "< and > step the period both views count over: today, this week, 30 days and 12 weeks. " +
+	"Accounts": "< and > step the period Compare, Detail and Tokens count over, the one Projects and Sessions' List " +
+		"share: " + prose.List(views.PeriodNames()) + ". " +
 		"←→ moves along Compare's accounts, and enter opens one in Detail; there ↑↓ chooses an account, " +
 		"→ moves into its SESSIONS and ← back, and enter opens the session chosen.",
-	"History": "< and > step the Year back through each calendar year the ledger holds and forward again, " +
-		"and Tokens' periods between a day, a week and a month; v cycles what the Year shows, all use, a model " +
-		"version or an account, Weeks' shape, and how Tokens splits each period; and ←→ steps the Year shown " +
-		"for one account between the accounts.",
 	"Runway": "← steps back to this week, then a week at a time, and → on again to the live view; and a " +
 		"collapses the lanes' labels to each account's marks and use, giving the lanes more room, and expands " +
 		"them again.",
-	"Graphs": "w, o, g and h show and hide WEEK, POOL, GLANCE and WHEN YOU WORK.",
+	"Trends": "w, o, g, h, y, m and d show and hide WEEK, POOL, GLANCE, WHEN YOU WORK, YEAR, BY MONTH and " +
+		"MODELS BY DAY; v cycles what YEAR shows, all use, a model version or an account; and ←→ steps YEAR " +
+		"shown for one account between the accounts.",
 	"Log": "end, or esc, follows the newest line again while the table is paused; enter opens the chosen " +
 		"line's details, and s its session's page; f sets the columns and which lines show; / finds a session " +
 		"by its id's start or its directory's name; and esc, with a filter on, clears it.",

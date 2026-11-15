@@ -226,7 +226,7 @@ func TestWhatNamesTheSessionsRunningSaysItsLoadingTillTheListLands(t *testing.T)
 		{name: "Accounts' Detail of an account sessions run on", shown: func(h *harness) {
 			h.model.view = dashboard.Accounts
 			h.model.accounts.shown = dashboard.AccountsShown{Accounts: threeConfigured, Shown: dashboard.AccountsDetail, Chosen: "work"}
-		}, said: "Detail  [ ]   " + loadingSaid},
+		}, said: "Tokens  [ ]   " + loadingSaid},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

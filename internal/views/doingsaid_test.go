@@ -60,3 +60,27 @@ func TestWhatASessionIsDoingIsSaidInEachForm(t *testing.T) {
 		})
 	}
 }
+
+// A session's state under its day's rule says when it ended by the clock
+// alone, whatever day, as its rule names the day; else as State says it.
+func TestADaysStateSaysWhenItEndedByTheClockAlone(t *testing.T) {
+	now := local(14, 42, 7)
+	tests := []struct {
+		name string
+		a    views.Activity
+		want string
+	}{
+		{name: "ended today", a: views.Activity{Doing: views.Ended, Since: local(11, 21, 0)}, want: "ended 11:21"},
+		{name: "ended yesterday", a: views.Activity{Doing: views.Ended, Since: local(18, 47, 0).AddDate(0, 0, -1)}, want: "ended 18:47"},
+		{name: "ended a fortnight back", a: views.Activity{Doing: views.Ended, Since: local(9, 5, 0).AddDate(0, 0, -14)}, want: "ended 09:05"},
+		{name: "idle", a: views.Activity{Since: now.Add(-34 * time.Second)}, want: "idle 34s"},
+		{name: "answering", a: views.Activity{Doing: views.Answering}, want: "answering"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.a.DayState(now); got != tt.want {
+				t.Errorf("DayState = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}

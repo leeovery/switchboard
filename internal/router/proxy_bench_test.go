@@ -51,7 +51,8 @@ func benchmarkProxy(b *testing.B, asked string, answer http.HandlerFunc, body st
 	cfg.Prober = readingEvery(session, week)
 	runRouter(b, cfg)
 	proxy := "http://" + cfg.Listen + "/v1/messages"
-	header := hinted(with(claudeCode(workToken), router.DirHeader, router.EncodeDir("~/Code/project")),
+	placed := with(with(claudeCode(workToken), router.DirHeader, router.EncodeDir("~/Code/project")), router.ProjectHeader, router.EncodeDir("~/Code/project"))
+	header := hinted(placed,
 		map[string]string{claude.PromptHeader: promptID, claude.ClassHeader: "main", claude.ToolTimesHeader: "Bash=742;Read=9"})
 	// The session's first request, which chooses its account, goes untimed.
 	postAsking(proxy, asked, header)

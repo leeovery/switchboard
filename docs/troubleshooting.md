@@ -30,7 +30,7 @@ order, then find your symptom in the table below.
 | An account reads `wrong token` | [An account with the wrong token](troubleshooting/tokens.md) |
 | An export fails, or shows `running` for long | [An export that fails](troubleshooting/exports.md) |
 | Notifications don't show, or show as Script Editor | [Notifications that don't show](troubleshooting/notifications.md) |
-| The Log, or a session's page, is slow to open | [The dashboard is slow to look back](troubleshooting/slow-pages.md) |
+| The Log, or the session page, is slow to open | [The dashboard is slow to look back](troubleshooting/slow-pages.md) |
 | You want to read the logs, or change how much they hold | [The logs](troubleshooting/logs.md) |
 
 Every command and flag is in [Commands](commands.md), and every file switchboard keeps is in

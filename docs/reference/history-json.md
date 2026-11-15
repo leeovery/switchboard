@@ -1,8 +1,8 @@
 # `history` JSON
 
 `history --json` prints the days of the ledger in a pool, priced, and the blocks built over them.
-It holds what the History tab of the dashboard shows. For what the record is worth to you, see
-[Your record](../your-record.md).
+On the dashboard, Trends shows the same year and months. Accounts shows the weeks and the tokens, over the period you choose.
+For what the record is worth to you, see [Your record](../your-record.md).
 
 ```bash
 switchboard history --json | jq \
@@ -26,7 +26,7 @@ switchboard history --json | jq \
 | `prices_as_of` | string | The date the prices were read. |
 | `prices_from_config` | boolean | Set if `[prices]` in the config prices a model or a plan. |
 | `days` | list of objects | The summary of each day, priced. See below. |
-| `year` | object | The grid of the Year view. |
+| `year` | object | The grid that Trends shows as YEAR. |
 | `months` | list of objects | A row for each month. |
 | `weeks` | list of objects | The peak use of each account, week by week. |
 | `tokens` | list of objects | The tokens of each week. |

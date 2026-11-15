@@ -33,8 +33,8 @@ var longDirs = map[string]string{
 // longNames is the scene's world with long names, so a view's cut name shows
 // in its frame: each account labelled as longLabels has it, and each
 // session, as the router lists it, as the ledger holds its lines and as the
-// router records its events, in the directory longDirs gives in place of its
-// own, so an event's directory agrees with its session's lines.
+// router records its events, in the directory and project longDirs gives in
+// place of its own, so an event's directory agrees with its session's lines.
 func (a accountWorlds) longNames() accountWorld {
 	return a.kept("longNames", func() accountWorld {
 		w := a.scene()
@@ -46,7 +46,7 @@ func (a accountWorlds) longNames() accountWorld {
 		w.lines = func(now time.Time) []ledger.Line {
 			lines := sessionsLines(now)
 			for i := range lines {
-				lines[i].Dir = longDir(lines[i].Dir)
+				lines[i].Dir, lines[i].Project = longDir(lines[i].Dir), longDir(lines[i].Project)
 			}
 			return lines
 		}
@@ -55,22 +55,22 @@ func (a accountWorlds) longNames() accountWorld {
 	})
 }
 
-// eventsInLongDirs are the events given, each in the directory longDir gives
-// in place of its own.
+// eventsInLongDirs are the events given, each in the directory and project
+// longDir gives in place of its own.
 func eventsInLongDirs(told []status.Event) []status.Event {
 	long := slices.Clone(told)
 	for i := range long {
-		long[i].Dir = longDir(long[i].Dir)
+		long[i].Dir, long[i].Project = longDir(long[i].Dir), longDir(long[i].Project)
 	}
 	return long
 }
 
-// inLongDirs are the sessions given, each assignment in the directory
-// longDir gives in place of its own.
+// inLongDirs are the sessions given, each assignment in the directory and
+// project longDir gives in place of its own.
 func inLongDirs(sessions []status.Session) []status.Session {
 	for _, s := range sessions {
 		for i := range s.Assignments {
-			s.Assignments[i].Dir = longDir(s.Assignments[i].Dir)
+			s.Assignments[i].Dir, s.Assignments[i].Project = longDir(s.Assignments[i].Dir), longDir(s.Assignments[i].Project)
 		}
 	}
 	return sessions

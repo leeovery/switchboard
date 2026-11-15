@@ -89,7 +89,8 @@ func (r routing) made(data []byte, now time.Time, lines []ledger.Line) []ledger.
 }
 
 // line is the made line as the ledger holds it, at its time on the day before
-// now's or on now's, of the session it names, but its route.
+// now's or on now's, of the session it names, in the project at its
+// directory's root, but its route.
 func (m madeLine) line(now time.Time) ledger.Line {
 	clock, err := time.Parse(time.TimeOnly, m.At)
 	if err != nil {
@@ -100,6 +101,7 @@ func (m madeLine) line(now time.Time) ledger.Line {
 		Model: "claude-" + m.Model, Account: m.Account, Status: cmp.Or(m.Status, 200), Attempts: 1, TotalMS: m.Took, Agent: claudeCodeAgent,
 	}
 	l.Session, l.Dir = m.session()
+	l.Project = l.Dir
 	if m.First > 0 {
 		l.FirstMS = &m.First
 	}

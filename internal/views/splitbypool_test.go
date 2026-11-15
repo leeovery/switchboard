@@ -79,9 +79,10 @@ func summarisedDays(t *testing.T, lines []ledger.Line, read []readings.Reading, 
 	return days
 }
 
-// Every view of History reads the same of days split by pool as of the same
-// days before pools: each account's day holds its work in every pool
-// together, which they read, whatever pools it was in.
+// Every view of the days, Accounts', Trends' and history's, reads the same
+// of days split by pool as of the same days before pools: each account's day
+// holds its work in every pool together, which they read, whatever pools it
+// was in.
 func TestHistoryReadsTheSameWhicheverWayItsDaysSplitByPool(t *testing.T) {
 	lines, read := splitDays()
 	whole := summarisedDays(t, lines, read, func(ledger.Line) string { return "" })
@@ -101,10 +102,10 @@ func TestHistoryReadsTheSameWhicheverWayItsDaysSplitByPool(t *testing.T) {
 		"Weeks":                  func(p views.Past) any { return p.Weeks() },
 		"the Year":               func(p views.Past) any { return p.Year(views.YearAsk{}) },
 		"the Year of an account": func(p views.Past) any { return p.Year(views.YearAsk{Account: "work"}) },
-		"Tokens":                 func(p views.Past) any { return p.Tokens(views.TokensAsk{}) },
+		"Tokens":                 func(p views.Past) any { return p.TokensOver(views.PeriodTwelveWeeks) },
 		"WHEN YOU WORK":          func(p views.Past) any { return p.Hours() },
-		"Accounts, today":        func(p views.Past) any { return p.Accounts(views.AccountsToday) },
-		"Accounts, this week":    func(p views.Past) any { return p.Accounts(views.AccountsThisWeek) },
+		"Accounts, today":        func(p views.Past) any { return p.Accounts(views.PeriodToday) },
+		"Accounts, this week":    func(p views.Past) any { return p.Accounts(views.PeriodThisWeek) },
 		"the lanes' summaries":   func(p views.Past) any { return windowsOf(p.Summaries(on("2026-10-05"), now)) },
 	}
 	// A page is held to what it gives, as its JSON says: some keep the Past

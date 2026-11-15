@@ -63,7 +63,7 @@ folder you run it in never chooses. Press `P` to turn to the next pool.
   accounts instead, and says to run `switchboard service restart`. `p` refuses until
   then.
 
-See [Pools](../pools.md) for what each tab shows in a pool.
+See [Running it](../dashboard/running-it.md) for what each tab shows in a pool.
 
 ## After an upgrade
 

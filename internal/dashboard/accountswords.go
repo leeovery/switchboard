@@ -372,76 +372,28 @@ func againstCompact(row views.AccountsRow) []part {
 	return said
 }
 
-// verdictParts say Weeks' verdict on a row of Detail's, as WEEKS' verdict
-// line does: the verdict, bold in its colour, as verdictInk has it, then
-// three cells on, in text.muted, its record, as verdictRecord says it; "not
-// enough weeks yet", in text.subtle, where no week can be judged.
-func verdictParts(page views.AccountsPage, row views.AccountsRow) []part {
-	v := row.Verdict
-	if v.Verdict == "" {
-		return []part{wordsIn(views.NotEnoughWeeks, dimInk)}
+// detailFacts are Weeks' facts on an account's weeks as Detail's line under
+// WEEKS says them, its verdict's words unsaid, in text.muted, in their
+// forms: how many of its whole weeks it hit its limit in, and what they left
+// at a reset, on average, "limit hit 3 of the last 7 weeks · 9% left at a
+// reset, on average"; then shorter, "limit hit 3 of 7 weeks · 9% left at a
+// reset"; then the limits alone. "not enough weeks yet", in text.subtle,
+// where no whole week is judged.
+func detailFacts(v views.AccountVerdict) partForms {
+	if v.Weeks == 0 {
+		return partForms{{wordsIn(views.NotEnoughWeeks, dimInk)}}
 	}
-	return append([]part{wordsIn(v.Verdict, verdictInk(v.Verdict)), wordsIn("   ", mutedInk)}, verdictRecord(page, row)...)
-}
-
-// verdictRecord is the record of a row of Detail's over the last weeks, in
-// text.muted: of an account, the weeks it hit its limit in and what they
-// left at a reset, on average, "limit hit 3 of the last 7 weeks · 9% left at
-// a reset, on average"; of every account's, what their weeks left at a reset,
-// on average, then which account ends them with the most left and which the
-// least, "30% left at a reset, on average · side ends weeks with 59% left,
-// work with 9%", or with one account known, "work ends weeks with 9% left".
-func verdictRecord(page views.AccountsPage, row views.AccountsRow) []part {
-	v := row.Verdict
-	var record []part
-	if !v.All {
-		record = saidParts(views.LimitHitOfTheLast(v.Limits, v.Weeks), mutedInk)
+	full := saidParts(views.LimitHitOfTheLast(v.Limits, v.Weeks), mutedInk)
+	short := saidParts(views.LimitHit(v.Limits, v.Weeks), mutedInk)
+	if v.LeftAtReset == nil {
+		return partForms{full, short}
 	}
-	if v.LeftAtReset != nil {
-		record = joinedParts(span{accountsApart, mutedInk}, record, saidParts(views.LeftOnAverage(*v.LeftAtReset), mutedInk))
+	apart := span{accountsApart, mutedInk}
+	return partForms{
+		joinedParts(apart, full, saidParts(views.LeftOnAverage(*v.LeftAtReset), mutedInk)),
+		joinedParts(apart, short, saidParts(views.LeftAtAReset(*v.LeftAtReset), mutedInk)),
+		short,
 	}
-	if v.All {
-		record = joinedParts(span{accountsApart, mutedInk}, record, endsParts(page))
-	}
-	return record
-}
-
-// endsParts say which account ends its weeks with the most left at a reset,
-// on average, and which the least, as Ends names them, each by its label, as
-// labelled has it, in text.muted: "side ends weeks with 59% left, work with
-// 9%"; the one alone where they're one; none where no account's weeks are
-// known.
-func endsParts(page views.AccountsPage) []part {
-	most, least, ok := page.Ends()
-	if !ok {
-		return nil
-	}
-	left := func(row views.AccountsRow) part { return figureIn(prose.Percent(*row.Verdict.LeftAtReset), mutedInk) }
-	name := func(row views.AccountsRow) string { return labelled(row.Label, row.Totals.Account) }
-	ends := []part{wordsIn(name(most)+" ends weeks with ", mutedInk), left(most), wordsIn(" left", mutedInk)}
-	if least.Totals.Account == most.Totals.Account {
-		return ends
-	}
-	return append(ends, wordsIn(", "+name(least)+" with ", mutedInk), left(least))
-}
-
-// verdictShort are verdictParts' two rows, as stacked Detail's WEEKS has them: the
-// verdict alone, then its record without ", on average": of an account,
-// "limit hit 3 of 7 weeks · 9% left at a reset", and of every account's,
-// "30% left at a reset"; or "not enough weeks yet" alone.
-func verdictShort(row views.AccountsRow) [][]part {
-	v := row.Verdict
-	if v.Verdict == "" {
-		return [][]part{{wordsIn(views.NotEnoughWeeks, dimInk)}}
-	}
-	var record []part
-	if !v.All {
-		record = saidParts(views.LimitHit(v.Limits, v.Weeks), mutedInk)
-	}
-	if v.LeftAtReset != nil {
-		record = joinedParts(span{accountsApart, mutedInk}, record, saidParts(views.LeftAtAReset(*v.LeftAtReset), mutedInk))
-	}
-	return [][]part{{wordsIn(v.Verdict, verdictInk(v.Verdict))}, record}
 }
 
 // shareParts say a version's share of a row's use over the period, as

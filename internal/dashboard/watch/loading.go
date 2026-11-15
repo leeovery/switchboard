@@ -32,32 +32,38 @@ type pageLoadingMsg struct {
 }
 
 // awaiting reports whether the tab shown waits on a read of the files it's
-// drawn of: Accounts and History on the ledger's days, and Detail's
-// SESSIONS, listing a session, as followed held them for the message, on
-// the List held, as the Overview's SESSIONS and Sessions do, which names
-// their sessions, till its first read lands, as listAwaited has it; Runway
-// on the readings history; Graphs on its live tail, while it reads lanes,
-// POOL or GLANCE's pool's room of it, as graphsReadsHistory has it, never on
-// a span Runway stepped back to, and on the ledger's days while WHEN YOU
-// WORK shows; and the Log on its lines
-// and events, from as it first shows till its first read lands, whether or
-// not that read has begun, as it waits for another read of the ledger to
-// land first. A session's page says its own, as pageLoading has it.
+// drawn of: Accounts on the ledger's days; Projects on the
+// sessions' days, read for it and of the ledger's tail, while it has no
+// page to draw, as daysReady has it, and the List held, which
+// names its sessions running, as listAwaited has it; and Detail's SESSIONS,
+// listing a session, as followed held them for the message, on the List
+// held, as the Overview's SESSIONS and Sessions do, which names their
+// sessions, till its first read lands, as listAwaited has it, and Sessions'
+// List on the sessions' days too, as Projects does, while it has no log to
+// draw; Runway on the
+// readings history; Graphs on its live
+// tail, while it reads lanes, POOL or GLANCE's pool's room of it, as
+// graphsReadsHistory has it, never on a span Runway stepped back to, and on
+// the ledger's days while it shows a section drawn of them, as
+// trendsDaysWanted has it; and the Log on its lines and
+// events, from as it first shows till its first read lands, whether or not
+// that read has begun, as it waits for another read of the ledger to land
+// first. A session's page says its own, as pageLoading has it.
 func (m Model) awaiting() bool {
 	switch m.shownView() {
 	case dashboard.Overview:
 		return m.sections.Has(dashboard.SectionSessions) && m.listAwaited()
 	case dashboard.Accounts:
 		return m.past.reading || m.detailShown() && len(m.accounts.running) > 0 && m.listAwaited()
-	case dashboard.History:
-		return m.past.reading
+	case dashboard.Projects:
+		return m.cfg.Ledger != nil && m.projects.shown.Page == nil || m.listAwaited()
 	case dashboard.Sessions:
-		return m.listAwaited()
+		return m.listAwaited() || m.listShown() && m.cfg.Ledger != nil && m.sessionsTab.shown.Log == nil
 	case dashboard.Runway:
 		return m.runwayTab.reading
 	case dashboard.Graphs:
 		return m.graphsReadsHistory() && m.runwayTab.reading && m.runwayTab.readingLive ||
-			m.graphsHoursWanted() && m.past.reading
+			m.trendsDaysWanted() && m.past.reading
 	case dashboard.Log:
 		return m.log.reading || m.cfg.Ledger != nil && !m.log.opened
 	}

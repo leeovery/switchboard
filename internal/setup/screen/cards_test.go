@@ -76,7 +76,7 @@ func TestEOpensTheChosenAccountsEditCard(t *testing.T) {
 		"  Label     Personal",
 		"",
 		"  Plan      □ Pro    □ Max    □ Ultra    ■ not set",
-		"            used by History to value usage",
+		"            used to value usage",
 		"",
 		"  Primary   ■ no    □ yes",
 		"            the account the Claude apps are signed in to",

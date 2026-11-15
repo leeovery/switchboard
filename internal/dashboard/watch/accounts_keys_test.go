@@ -46,10 +46,10 @@ func (h *harness) offKeys() []string {
 
 // Accounts' key lines are the design's: Compare's ←→ and enter, faint till
 // a column is focused, and esc while one is; Detail's list's ↑↓ and enter, faint where no session
-// runs on the account chosen; its SESSIONS' ↑↓, ← and enter; with one
-// account, no [ ] view, ↑↓ and enter joining while sessions run on it, and
-// p pin where a pin set from the command line stands; and a phone's keeping
-// [ ] view alone.
+// runs on the account chosen; its SESSIONS' ↑↓, ← and enter; Tokens' v and
+// its split; with one account, ↑↓ and enter joining on Detail while sessions
+// run on it, and p pin where a pin set from the command line stands; and a
+// phone's keeping [ ] view alone.
 func TestAccountsKeyLinesAreTheDesigns(t *testing.T) {
 	const (
 		head    = "tab views   [ ] view    < > period: this week    "
@@ -65,6 +65,7 @@ func TestAccountsKeyLinesAreTheDesigns(t *testing.T) {
 		doc      status.Document
 		sessions bool
 		shown    dashboard.AccountsShown
+		period   views.Period
 		width    int
 		want     string
 		wantOff  []string
@@ -75,8 +76,12 @@ func TestAccountsKeyLinesAreTheDesigns(t *testing.T) {
 			want: head + "←→ account  enter its page  esc unfocus" + ends,
 		},
 		{
-			name: "Compare over the last 30 days", shown: dashboard.AccountsShown{Accounts: threeConfigured, Period: views.AccountsThirtyDays},
+			name: "Compare over the last 30 days", shown: dashboard.AccountsShown{Accounts: threeConfigured}, period: views.PeriodThirtyDays,
 			want: "tab views   [ ] view    < > period: 30 days    ←→ account  enter its page" + ends, wantOff: []string{"enter"},
+		},
+		{
+			name: "Detail over the last 12 months", sessions: true, shown: dashboard.AccountsShown{Accounts: threeConfigured, Shown: dashboard.AccountsDetail},
+			period: views.PeriodTwelveMonths, want: "tab views   [ ] view    < > period: 12 months    ↑↓ account  enter its page" + ends, wantOff: []string{"enter"},
 		},
 		{
 			name: "Compare, Detail's SESSIONS left as they were", sessions: true,
@@ -93,15 +98,25 @@ func TestAccountsKeyLinesAreTheDesigns(t *testing.T) {
 			name: "Detail's SESSIONS, its sessions ended", shown: dashboard.AccountsShown{Accounts: threeConfigured, Shown: dashboard.AccountsDetail, Chosen: "work", InSessions: true},
 			want: list, wantOff: []string{"enter"},
 		},
+		{name: "Tokens, split by account", sessions: true, shown: dashboard.AccountsShown{Accounts: threeConfigured, Shown: dashboard.AccountsTokens}, want: head + "v split: by account" + ends},
+		{
+			name: "Tokens over 12 weeks, split by model", shown: dashboard.AccountsShown{Accounts: threeConfigured, Shown: dashboard.AccountsTokens, TokensSplit: dashboard.TokensByModel},
+			period: views.PeriodTwelveWeeks, want: "tab views   [ ] view    < > period: 12 weeks    v split: by model" + ends,
+		},
 		{
 			name: "one account, sessions running on it", doc: routerDocument(three()[0]), sessions: true, shown: dashboard.AccountsShown{Accounts: one},
-			want: "tab views   < > period: this week    ↑↓ session  enter its page    ? help  q quit",
+			want: "tab views   [ ] view    < > period: this week    ↑↓ session  enter its page    ? help  q quit",
 		},
-		{name: "one account, none running on it", doc: routerDocument(three()[0]), shown: dashboard.AccountsShown{Accounts: one}, want: "tab views   < > period: this week    ? help  q quit"},
-		{name: "one account, pinned from the command line", doc: pinned, shown: dashboard.AccountsShown{Accounts: one}, want: "tab views   < > period: this week    p pin    ? help  q quit"},
+		{name: "one account, none running on it", doc: routerDocument(three()[0]), shown: dashboard.AccountsShown{Accounts: one}, want: "tab views   [ ] view    < > period: this week    ? help  q quit"},
+		{name: "one account, pinned from the command line", doc: pinned, shown: dashboard.AccountsShown{Accounts: one}, want: "tab views   [ ] view    < > period: this week    p pin    ? help  q quit"},
+		{
+			name: "one account's Tokens, sessions running on it", doc: routerDocument(three()[0]), sessions: true, shown: dashboard.AccountsShown{Accounts: one, Shown: dashboard.AccountsTokens},
+			want: "tab views   [ ] view    < > period: this week    v split: by account    ? help  q quit",
+		},
 		{name: "a phone on Compare, a column focused", shown: dashboard.AccountsShown{Accounts: threeConfigured, Focused: true}, width: 52, want: "tab views   [ ] view   ? keys   q quit"},
 		{name: "a phone", sessions: true, shown: dashboard.AccountsShown{Accounts: threeConfigured, Shown: dashboard.AccountsDetail, Chosen: "work"}, width: 52, want: "tab views   [ ] view   ? keys   q quit"},
-		{name: "a phone of one account", doc: routerDocument(three()[0]), sessions: true, shown: dashboard.AccountsShown{Accounts: one}, width: 52, want: "tab views   ? keys   q quit"},
+		{name: "a phone of one account", doc: routerDocument(three()[0]), sessions: true, shown: dashboard.AccountsShown{Accounts: one}, width: 52, want: "tab views   [ ] view   ? keys   q quit"},
+		{name: "a phone on Tokens", shown: dashboard.AccountsShown{Accounts: threeConfigured, Shown: dashboard.AccountsTokens}, width: 73, want: "tab views   [ ] view   ? keys   q quit"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -110,6 +125,7 @@ func TestAccountsKeyLinesAreTheDesigns(t *testing.T) {
 				doc = routerDocument(three()...)
 			}
 			h := accountsKeysHarness(t, doc, tt.sessions, tt.shown, tt.width)
+			h.model.period = tt.period
 			rows := strings.Split(h.view(), "\n")
 			if got := strings.TrimRight(rows[len(rows)-1], " "); got != tt.want {
 				t.Errorf("the key line reads\n%q\nwant\n%q", got, tt.want)

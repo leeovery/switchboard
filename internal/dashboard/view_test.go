@@ -11,8 +11,28 @@ func TestTheSevenTabsInTheirOrder(t *testing.T) {
 	for _, v := range Views() {
 		titles = append(titles, v.Title())
 	}
-	if want := []string{"Overview", "Accounts", "History", "Sessions", "Runway", "Graphs", "Log"}; !slices.Equal(titles, want) {
+	if want := []string{"Overview", "Accounts", "Projects", "Sessions", "Runway", "Trends", "Log"}; !slices.Equal(titles, want) {
 		t.Errorf("the tabs are %q, want %q", titles, want)
+	}
+	if slices.Contains(Views(), "history") {
+		t.Error("the tabs hold history, want it gone")
+	}
+}
+
+// A tab the preferences kept is the tab of that name, whether there is one
+// or not, as a later build may keep one this one doesn't have; but
+// History, retired, is kept as Trends, which took its place.
+func TestATabKeptIsTheOneThatTookItsPlace(t *testing.T) {
+	for kept, want := range map[string]View{
+		"history":     Graphs,
+		"graphs":      Graphs,
+		"runway":      Runway,
+		"":            "",
+		"a-later-tab": "a-later-tab",
+	} {
+		if got := ViewKept(kept); got != want {
+			t.Errorf("ViewKept(%q) = %q, want %q", kept, got, want)
+		}
 	}
 }
 
@@ -24,8 +44,8 @@ func TestEachTabsSubViewsInTheirOrder(t *testing.T) {
 		want []string
 	}{
 		{view: Overview},
-		{view: Accounts, want: []string{"compare", "detail"}},
-		{view: History, want: []string{"year", "weeks", "days", "tokens"}},
+		{view: Accounts, want: []string{"compare", "detail", "tokens"}},
+		{view: Projects},
 		{view: Sessions, want: []string{"switchboard", "list"}},
 		{view: Runway},
 		{view: Graphs},

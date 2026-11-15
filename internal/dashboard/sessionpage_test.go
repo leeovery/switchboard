@@ -934,7 +934,7 @@ func TestASessionsPageTargetsItsTurnsShown(t *testing.T) {
 	shown := moved()
 	shown.Scroll = 2
 	f := pageFrame(t, shown, 160, 37)
-	f.View = History
+	f.View = Accounts
 	var turns []Target
 	for _, target := range f.Targets(pageDoc(), sessionNow) {
 		switch target.On {

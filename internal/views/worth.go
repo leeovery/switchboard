@@ -122,14 +122,26 @@ func (w Worth) Cents() string {
 	return w.centsAt(w.amount().ToTheCent())
 }
 
+// GroupedCents is the worth to the cent as Cents says it, its thousands set
+// apart, as a sum over a period is said: "$3,257.86".
+func (w Worth) GroupedCents() string {
+	return w.saidAt(w.amount().ToTheCent(), ledger.Picodollars.GroupedCents)
+}
+
 // centsAt says the worth as Cents does, its amount to the cent the one
 // given, as a part's is where its rounding is reconciled to a whole's, as
 // toTheCent reconciles it: "<$0.01" where that's none but the worth is more.
 func (w Worth) centsAt(rounded ledger.Picodollars) string {
+	return w.saidAt(rounded, ledger.Picodollars.Cents)
+}
+
+// saidAt says the worth as centsAt does, its amount to the cent the one
+// given shown as shown has it.
+func (w Worth) saidAt(rounded ledger.Picodollars, shown func(ledger.Picodollars) string) string {
 	if w.Amount == nil && len(w.Unpriced) > 0 {
 		return unpriced
 	}
-	said := rounded.Cents()
+	said := shown(rounded)
 	if w.amount() > 0 && rounded == 0 {
 		said = underACent
 	}
@@ -190,7 +202,7 @@ func rewriteSaid(rewrote bool, cost *ledger.Picodollars) string {
 	return ""
 }
 
-// Dollars is the worth to the dollar, as History says it, its thousands set
+// Dollars is the worth to the dollar, as the dashboard says it, its thousands set
 // apart, as "$27,480"; PartUnpriced after it where part of it is unpriced, as
 // "$184+"; "unpriced" where none of it is priced; and "" where there's none.
 func (w Worth) Dollars() string {
@@ -203,6 +215,16 @@ func (w Worth) Dollars() string {
 		return w.Amount.GroupedDollars() + PartUnpriced
 	}
 	return w.Amount.GroupedDollars()
+}
+
+// Rounded is the worth as a list ranked by worth says it, as Projects' does:
+// under $100 to the cent, as Cents says it, "$98.10"; from $100 to the
+// dollar, as Dollars says it, "$221".
+func (w Worth) Rounded() string {
+	if w.amount().ToTheCent() < 100*ledger.Dollar {
+		return w.Cents()
+	}
+	return w.Dollars()
 }
 
 // amount is what the priced requests cost: none where none was priced.

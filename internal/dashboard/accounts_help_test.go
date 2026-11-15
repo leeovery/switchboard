@@ -1,7 +1,6 @@
 package dashboard
 
 import (
-	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -35,9 +34,9 @@ func accountsHelpSaid(shown AccountsShown) string {
 }
 
 // accountsHelpGlyphs are the glyphs Accounts' help explains under the part
-// headed heading, in the look given.
+// headed heading, in the look given, 160 columns wide.
 func accountsHelpGlyphs(look Look, heading string) []line {
-	parts := Frame{View: Accounts, Accounts: threeShown, Look: look}.accountsHelp()
+	parts := Frame{Width: 160, View: Accounts, Accounts: threeShown, Look: look}.accountsHelp()
 	var drawn []line
 	if i := slices.IndexFunc(parts, func(p helpPart) bool { return p.heading == heading }); i >= 0 {
 		for _, g := range parts[i].glyphs {
@@ -65,8 +64,8 @@ func TestAccountsHelpListsItsKeysThenEachPartInTheDesignsOrder(t *testing.T) {
 		shown AccountsShown
 		want  []string
 	}{
-		{"three accounts", threeShown, []string{"COMPARE", "VALUE", "ALL ACCOUNTS", "DETAIL"}},
-		{"one account, Compare and all accounts gone from the page", oneShown, []string{"VALUE", "DETAIL"}},
+		{"three accounts", threeShown, []string{"COMPARE", "VALUE", "ALL ACCOUNTS", "DETAIL", "TOKENS"}},
+		{"one account, Compare and all accounts gone from the page", oneShown, []string{"VALUE", "DETAIL", "TOKENS"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			card := accountsHelping(160, tc.shown, Look{}, tabViews, helpQuit[0], helpQuit[1])
@@ -166,26 +165,31 @@ func TestAccountsHelpDrawsBYDAYAndWEEKSAsDetailDoes(t *testing.T) {
 
 // BY DAY's key draws a day as many cells wide as Detail draws its days, of
 // the moment the frame holds, as the watch draws help, over a frame it never
-// builds, from Compare as from Detail: the limit's ▪ in its middle cell, the
-// first of two, and a day to come a · a cell. Two with the list at 160, three
-// at 200 and 220, where the days grow; three with one account at 160, two at
-// 120, where they don't yet, and two where it's stacked, as on a phone.
+// builds, from Compare as from Detail: the limit's ▪ in its first cell, and a
+// day to come a · a cell. Two where the period's own weeks fit so, wide or
+// stacked, whatever the width past it; one where they don't, as at 12 weeks
+// beside the list, or stacked on a phone.
 func TestAccountsHelpDrawsADayAsWideAsDetailDrawsItsDays(t *testing.T) {
 	look := Screen(builtin(t, "nord"))
 	compared := threeShown
 	compared.Shown = AccountsCompare
 	tests := []struct {
-		name  string
-		shown AccountsShown
-		width int
-		cells int
+		name   string
+		shown  AccountsShown
+		period views.Period
+		width  int
+		cells  int
 	}{
 		{name: "three accounts, the list beside the panel", shown: threeShown, width: 160, cells: 2},
-		{name: "three accounts, from Compare, its days grown", shown: compared, width: 220, cells: 3},
-		{name: "three accounts, on Detail, its days grown", shown: threeShown, width: 200, cells: 3},
-		{name: "one account, wide", shown: oneShown, width: 160, cells: 3},
-		{name: "one account, its days not yet grown", shown: oneShown, width: 120, cells: 2},
-		{name: "one account on a phone", shown: oneShown, width: 52, cells: 2},
+		{name: "three accounts, from Compare, wider", shown: compared, width: 220, cells: 2},
+		{name: "three accounts, on Detail, wider", shown: threeShown, width: 200, cells: 2},
+		{name: "one account, wide", shown: oneShown, width: 160, cells: 2},
+		{name: "one account, 120 wide", shown: oneShown, width: 120, cells: 2},
+		{name: "three accounts at 12 weeks, the list beside the panel", shown: threeShown, period: views.PeriodTwelveWeeks, width: 173, cells: 1},
+		{name: "one account at 12 weeks, wider", shown: oneShown, period: views.PeriodTwelveWeeks, width: 220, cells: 2},
+		{name: "one account at 100, its period's weeks too many for two-cell days", shown: oneShown, width: 100, cells: 1},
+		{name: "three accounts stacked, 105 wide", shown: threeShown, width: 105, cells: 2},
+		{name: "one account on a phone", shown: oneShown, width: 52, cells: 1},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -195,13 +199,13 @@ func TestAccountsHelpDrawsADayAsWideAsDetailDrawsItsDays(t *testing.T) {
 			}
 			on := ink{on: dayInk(2).hue()}
 			limited := line{{"▪", ink{token: theme.StateDestructive, on: on.on}}, {" ", on}}
-			if tt.cells == 3 {
-				limited = slices.Concat(line{{" ", on}}, limited)
+			if tt.cells == 1 {
+				limited = limited[:1]
 			}
 			want = append(want, limited, line{{strings.Repeat("·", tt.cells), faintInk}})
 			doc := usageWorld(extraOff)
-			parts := Frame{Width: tt.width, Height: 37, View: Accounts, Accounts: tt.shown, Look: look, Policy: claudeLike}.At(doc, routedAt).accountsHelp()
-			glyphs := parts[len(parts)-1].glyphs
+			parts := Frame{Width: tt.width, Height: 37, View: Accounts, Accounts: tt.shown, Period: tt.period, Look: look, Policy: claudeLike}.At(doc, routedAt).accountsHelp()
+			glyphs := parts[slices.IndexFunc(parts, func(p helpPart) bool { return p.heading == "DETAIL" })].glyphs
 			var got []line
 			for _, g := range glyphs[:len(glyphs)-1] {
 				got = append(got, g.drawn)
@@ -244,15 +248,26 @@ func TestAccountsHelpSaysWhatItsFiguresAre(t *testing.T) {
 		{"left at its last reset", "what its week had left as it last reset, 100% less the peak of the week that ended last"},
 		{"worth at API prices", "what the same tokens would have cost through the API, each version at its own prices"},
 		{"why worth is unpriced", "of a model the price table doesn't know or of requests that went upstream without their usage"},
-		{"how a period is priced", "a day 12/365 of a month, a week 12/52, 30 days a month, and 12 weeks twelve weeks'"},
+		{"how a period is priced", "a day 12/365 of a month, a week 12/52, 30 days a month, 12 weeks twelve weeks' and 12 months twelve months'"},
+		{"how the periods run", "today and this week run from their starts, 30 days and 12 months back from today, and 12 weeks over this week and the 11 before"},
+		{"the periods stepped through", "through today, this week, 30 days, 12 weeks and 12 months, Compare, Detail and Tokens sharing the period, the one Projects and Sessions' List share."},
+		{"Tokens' total", "The whole period's row leads, named for it, its figures its rows' summed, but its models, each counted once"},
+		{"Tokens' rows", "a day each over this week and 30 days, a week each over 12 weeks and a month each over 12 months"},
+		{"a part-way row priced by its days", "but for one that begins part-way through, as the oldest month at 12 months or the one the ledger began in, priced by its days from then"},
+		{"Tokens over today", "Today is the period's row alone."},
+		{"Tokens' splits", "v splits each row by account, by model, each version at its own price, by both, or not at all"},
+		{"Tokens' rows filling the screen", "The rows fill the screen to the footnote, scrolling a row at a time."},
 		{"a period priced whole", "a period still running priced whole"},
 		{"all accounts' plans", "sums the plans it knows, its ratio counting only their accounts' worth"},
 		{"what all accounts counts", "Every configured account, always, whatever is pinned, at its limit or refused"},
 		{"all accounts' room", "the sum of what each has left of it, to its limit"},
 		{"why it isn't the pool", "It isn't the pool, the accounts new sessions can go to now, each to its cap"},
 		{"Detail's windows", "every window read as switchboard usage reads them"},
-		{"BY DAY's scale", "in History's five shades, on the account's own scale"},
+		{"BY DAY's scale", "in YEAR's five shades, on the account's own scale"},
 		{"WEEKS' peaks", "the use read just before the reset that ended it, and this week's, its highest so far"},
+		{"the weeks an account's facts count", "how many of the period's whole weeks or those shown, whichever are more, it hit its limit in"},
+		{"the weeks all accounts' facts count", "how many of the period's whole weeks or those shown, whichever are more, it hit its limit in, or of all accounts"},
+		{"all accounts' table", "Where Detail is stacked, as on a phone, a table gives the same"},
 	} {
 		if !strings.Contains(said, tc.want) {
 			t.Errorf("help reads\n%s\nwant it to explain %s, %q", said, tc.what, tc.want)
@@ -260,31 +275,21 @@ func TestAccountsHelpSaysWhatItsFiguresAre(t *testing.T) {
 	}
 }
 
-// History's help and Accounts' say each verdict at the cuts views judges it
-// by, each word as views words it.
-func TestHelpSaysEachVerdictAtViewsCuts(t *testing.T) {
-	accountsVerdicts := []string{
-		fmt.Sprintf("%s, in %d or more of the %d;", views.HitsItsLimit, views.LimitWeeks, views.VerdictWeeks),
-		fmt.Sprintf("%s, %d%% or more left at a reset on average;", views.PlentyToSpare, views.PlentyLeft),
-		"else " + views.EndsWithRoom + ".",
-		fmt.Sprintf("%s%s, where the rest would cover it", strings.ToUpper(views.CouldGo[:1]), views.CouldGo[1:]),
-		fmt.Sprintf("used %d%% or less on average;", views.CouldGoUsed),
-		fmt.Sprintf("%s, %d%% or more left at a reset on average.", views.BarelyUsed, views.BarelyLeft),
+// With one account, Compare gone, help says Detail and Tokens share the
+// period, with Projects and Sessions' List.
+func TestAccountsHelpOfOneAccountSaysItsViewsShareThePeriod(t *testing.T) {
+	if said, want := accountsHelpSaid(oneShown), "12 weeks and 12 months, Detail and Tokens sharing the period, the one Projects and Sessions' List share."; !strings.Contains(said, want) {
+		t.Errorf("help reads\n%s\nwant it to say %q", said, want)
 	}
-	for _, tc := range []struct {
-		name string
-		said string
-		want []string
-	}{
-		{"History's", historySaid(), accountsVerdicts},
-		{"Accounts'", accountsHelpSaid(threeShown), append(accountsVerdicts,
-			fmt.Sprintf("%s where their weeks left %d%% or more at a reset", views.RoomToSpare, views.RoomLeft),
-			"else "+views.LittleToSpare+",",
-		)},
-	} {
-		for _, verdict := range tc.want {
-			if !strings.Contains(tc.said, verdict) {
-				t.Errorf("%s help reads\n%s\nwant it to say %q", tc.name, tc.said, verdict)
+}
+
+// Accounts' help says no verdict, as Detail gives the facts alone.
+func TestAccountsHelpSaysNoVerdict(t *testing.T) {
+	for _, shown := range []AccountsShown{threeShown, oneShown} {
+		said := accountsHelpSaid(shown)
+		for _, verdict := range []string{views.HitsItsLimit, views.PlentyToSpare, views.EndsWithRoom, views.RoomToSpare, views.LittleToSpare} {
+			if strings.Contains(said, verdict) {
+				t.Errorf("Accounts' help reads\n%s\nwant no verdict, but it says %q", said, verdict)
 			}
 		}
 	}
@@ -319,6 +324,20 @@ func TestAccountsHelpExplainsComparesFocusWhereItsDrawn(t *testing.T) {
 		said := strings.Join(plainLines(accountsHelping(tc.width, threeShown, Look{}).body), " ")
 		if got := strings.Contains(said, focus); got != tc.want {
 			t.Errorf("at %d columns, help reads\n%s\nwant %q said %v", tc.width, said, focus, tc.want)
+		}
+	}
+}
+
+// Compare's charts, WEEKS and WORTH, are explained at every width, wide or
+// turned, as both draw them.
+func TestAccountsHelpExplainsComparesChartsWhereTheyreDrawn(t *testing.T) {
+	charts := []string{"WEEKS is how full each of its weeks got", "WORTH is what its use was worth"}
+	for _, width := range []int{160, 83, 82, 52} {
+		said := strings.Join(plainLines(accountsHelping(width, threeShown, Look{}).body), " ")
+		for _, chart := range charts {
+			if !strings.Contains(said, chart) {
+				t.Errorf("at %d columns, help reads\n%s\nwant %q said", width, said, chart)
+			}
 		}
 	}
 }

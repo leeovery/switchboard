@@ -73,7 +73,7 @@ type Fixture struct {
 	// saying it's loading, as underWay has them.
 	loading bool
 	// records are what its world's readers serve the watch, and accounts
-	// its world's, as configured, whose plans History prices against, and
+	// its world's, as configured, whose plans the pages price against, and
 	// removed those its accounts record keeps removed: a printout has none,
 	// and a watch drawn of it reads none.
 	records  *records
@@ -343,13 +343,7 @@ func (p page) fixture(worlds accountWorlds) Fixture {
 // account; and the routing card opened
 // on auto, with two picked, with one picked and m ticked, and over routing's
 // world of a limit, with side picked, and over the mixed world, where work
-// and personal have no 5-hour limit. History's frames, each reached from
-// the Overview with tab twice, then the keys to its view: the Year, and
-// filtered to Opus 5.5; Weeks, its table and its columns, and of ten
-// accounts; Days, of ten, and with an account removed; Tokens by account,
-// and by model; and the Year on a phone; and where no frame draws it, to
-// judge by eye, the Year at
-// 160×24, scrolled down three rows with j. Then the page as stage 6 builds
+// and personal have no 5-hour limit. Then the page as stage 6 builds
 // it, over the auto world, where no frame draws it, to judge by eye: the
 // routing card over the Overview, two accounts picked and m ticked, at
 // 160×40, and on a phone, one picked and m ticked; and as it opens at
@@ -383,8 +377,14 @@ func (p page) fixture(worlds accountWorlds) Fixture {
 // and → and ↓ into its SESSIONS, d28c selected; side's SESSIONS, d28c
 // selected, opening on Accounts, so the stream first opens there, telling
 // each request in flight as it went; Detail alone, over work alone's
-// world; and on a phone, Compare, and Detail of work. Then Sessions' frames, each reached from the
-// Overview with tab three times: the Switchboard and, with ], the List, over
+// world; and on a phone, Compare, and Detail of work. Then Projects'
+// frames, each reached from the Overview with tab twice, over the auto
+// world, switchboard chosen as it opens on the top row: this week on a
+// MacBook, an iPad and a phone, the list holding the choice; on the phone,
+// with →, the choice in switchboard's sessions; on the iPad with its
+// keyboard up, the sections leaving as rows run short; and on the MacBook,
+// with > three times, the last 12 months. Then Sessions' frames, each
+// reached from the Overview with tab three times: the Switchboard and, with ], the List, over
 // the scene's world, wide and on a phone; the Switchboard over the mixed
 // world; and, each as a later look has it,
 // the Switchboard kept from a look before its moment that saw its sessions
@@ -403,14 +403,16 @@ func (p page) fixture(worlds accountWorlds) Fixture {
 // world of all three verified Ultra. Among each view's, at the owner's
 // sizes, each named for its size, the frames a fluid layout is checked by:
 // the Overview on a phone, an iPad and a phone on its side; Accounts'
-// Compare on a phone and Detail of work on its side; History's Year and
-// Days on its side; Runway on its side, on an iPad, on a phone and on a
+// Compare on a phone and Detail of work on its side;
+// Runway on its side, on an iPad, on a phone and on a
 // desktop, LATELY beside COMING UP or under it; Sessions'
 // Switchboard on an iPad and its List at 90 × 40; the Log's Requests at 90 ×
 // 40; and d28c's page on an iPad. And over the world of long names, so a
 // cut name shows, the Switchboard, the List and the Log's Requests on an
 // iPad. And over the world of sizable values, the List at 200 columns, a
 // worth past $100 with its +, sonnet-5-5 and a compaction's move among it.
+// And Accounts' Tokens over 12 weeks of the world with team removed on 4
+// September, its rows named as Tokens names an account removed.
 var pages = []page{
 	{name: "overview-default-160", size: wide(37), world: accountWorlds.auto},
 	{name: "overview-pinned-160", size: wide(37), world: accountWorlds.pinned},
@@ -444,22 +446,6 @@ var pages = []page{
 	{name: "routing-move-160", size: wide(37), world: accountWorlds.auto, keys: slices.Concat(keysOf("p"), tickBelow(2), keysOf("m"))},
 	{name: "routing-limit-160", size: wide(37), world: accountWorlds.limit, keys: slices.Concat(keysOf("p"), tickBelow(3))},
 	{name: "routing-mixed-160", size: wide(37), world: accountWorlds.mixed, keys: keysOf("p")},
-	{name: "history-year-160", size: wide(37), world: accountWorlds.auto, keys: toHistory()},
-	{name: "history-year-opus-160", size: wide(37), world: accountWorlds.auto, keys: toHistory("v")},
-	{name: "history-year-plan-unknown-160", size: wide(37), world: accountWorlds.sidesPlanUnknown, keys: toHistory()},
-	{name: "history-weeks-160", size: wide(37), world: accountWorlds.auto, keys: toHistory("]")},
-	{name: "history-weeks-columns-160", size: wide(37), world: accountWorlds.auto, keys: toHistory("]", "v")},
-	{name: "history-weeks-ten-160", size: wide(37), world: manyAccounts(10), keys: toHistory("]")},
-	{name: "history-days-160", size: wide(37), world: accountWorlds.auto, keys: toHistory("]", "]")},
-	{name: "history-days-ten-160", size: wide(37), world: manyAccounts(10), keys: toHistory("]", "]")},
-	{name: "history-days-removed-160", size: wide(37), world: accountWorlds.removedTeam, keys: toHistory("]", "]")},
-	{name: "history-tokens-160", size: wide(37), world: accountWorlds.auto, keys: toHistory("]", "]", "]")},
-	{name: "history-tokens-models-160", size: wide(37), world: accountWorlds.auto, keys: toHistory("]", "]", "]", "v")},
-	{name: "history-tokens-plan-unknown-160", size: wide(37), world: accountWorlds.sidesPlanUnknown, keys: toHistory("]", "]", "]")},
-	{name: "history-phone-year-52", size: watch.Size{Width: 52, Height: 35}, world: accountWorlds.auto, keys: toHistory()},
-	{name: "history-year-138x30", size: watch.Size{Width: 138, Height: 30}, world: accountWorlds.auto, keys: toHistory()},
-	{name: "history-days-138x30", size: watch.Size{Width: 138, Height: 30}, world: accountWorlds.auto, keys: toHistory("]", "]")},
-	{name: "page-year-160x24", size: wide(24), world: accountWorlds.auto, keys: toHistory("j", "j", "j")},
 	{name: "page-routing", size: watch.Size{Width: 160, Height: 40}, world: accountWorlds.auto, keys: slices.Concat(keysOf("p"), tickBelow(2), tickBelow(1), keysOf("m"))},
 	{name: "page-routing-phone", size: watch.Size{Width: 52, Height: 36}, world: accountWorlds.auto, keys: slices.Concat(keysOf("p"), tickBelow(2), keysOf("m"))},
 	{name: "page-routing-160x16", size: wide(16), world: accountWorlds.auto, keys: keysOf("p")},
@@ -501,11 +487,14 @@ var pages = []page{
 	{name: "page-session-loading", size: wide(37), world: accountWorlds.auto, keys: toSession("d28c"), scale: storyScale, loading: true},
 	{name: "accounts-compare-160", size: wide(37), world: accountWorlds.auto, keys: toAccounts()},
 	{name: "accounts-compare-month-160", size: wide(37), world: accountWorlds.auto, keys: toAccounts(">")},
+	{name: "accounts-compare-12-months-160", size: wide(37), world: accountWorlds.auto, keys: toAccounts(">", ">", ">")},
+	{name: "accounts-compare-12-months-173x53", size: watch.Size{Width: 173, Height: 53}, world: accountWorlds.auto, keys: toAccounts(">", ">", ">")},
 	{name: "accounts-compare-plan-unknown-160", size: wide(37), world: accountWorlds.sidesPlanUnknown, keys: toAccounts()},
 	{name: "accounts-compare-ten-160", size: wide(37), world: manyAccounts(10), keys: toAccounts()},
 	{name: "accounts-compare-bad-hour-160", size: wide(37), world: accountWorlds.badHour, keys: toAccounts()},
 	{name: "accounts-detail-all-160", size: wide(37), world: accountWorlds.auto, keys: toAccounts("]")},
 	{name: "accounts-detail-work-160", size: wide(37), world: accountWorlds.auto, keys: toDetail(downKey)},
+	{name: "accounts-detail-12-months-160", size: wide(37), world: accountWorlds.auto, keys: toDetail(append(keysOf(">", ">", ">"), downKey)...)},
 	{name: "accounts-detail-limit-160", size: wide(37), world: accountWorlds.badHour, keys: toDetail(downKey, downKey)},
 	{name: "accounts-detail-mixed-160", size: wide(37), world: accountWorlds.mixed, keys: toDetail(downKey)},
 	{name: "accounts-detail-token-160", size: wide(37), world: accountWorlds.tokensEnding, keys: toDetail(downKey)},
@@ -515,7 +504,7 @@ var pages = []page{
 		keys: slices.Concat(keysOf("]"), repeated(downKey, 3), []tea.KeyPressMsg{rightKey, downKey}),
 	},
 	{
-		name: "page-detail-list-focus", size: wide(37), world: accountWorlds.auto, view: dashboard.Accounts,
+		name: "page-detail-list-focus", size: wide(53), world: accountWorlds.auto, view: dashboard.Accounts,
 		keys: slices.Concat(keysOf("]"), repeated(downKey, 3)),
 	},
 	{
@@ -529,6 +518,18 @@ var pages = []page{
 	{name: "accounts-phone-detail-plan-unknown-52", size: watch.Size{Width: 52, Height: 41}, world: accountWorlds.sidesPlanUnknown, keys: toDetail()},
 	{name: "accounts-compare-73x61", size: watch.Size{Width: 73, Height: 61}, world: accountWorlds.auto, keys: toAccounts()},
 	{name: "accounts-detail-138x30", size: watch.Size{Width: 138, Height: 30}, world: accountWorlds.auto, keys: toDetail(downKey)},
+	{name: "accounts-detail-all-173x53", size: watch.Size{Width: 173, Height: 53}, world: accountWorlds.auto, keys: toAccounts("]")},
+	{name: "accounts-detail-work-12-weeks-173x53", size: watch.Size{Width: 173, Height: 53}, world: accountWorlds.auto, keys: toDetail(append(keysOf(">", ">"), downKey)...)},
+	{name: "accounts-detail-all-73x61", size: watch.Size{Width: 73, Height: 61}, world: accountWorlds.auto, keys: toAccounts("]")},
+	{name: "accounts-tokens-173x53", size: watch.Size{Width: 173, Height: 53}, world: accountWorlds.auto, keys: toAccounts("]", "]")},
+	{name: "accounts-tokens-73x61", size: watch.Size{Width: 73, Height: 61}, world: accountWorlds.auto, keys: toAccounts("]", "]")},
+	{name: "accounts-tokens-removed-160", size: wide(46), world: accountWorlds.removedTeam, keys: toAccounts("]", "]", ">", ">")},
+	{name: "projects-173x53", size: watch.Size{Width: 173, Height: 53}, world: accountWorlds.auto, keys: toProjects()},
+	{name: "projects-108x44", size: watch.Size{Width: 108, Height: 44}, world: accountWorlds.auto, keys: toProjects()},
+	{name: "projects-73x61", size: watch.Size{Width: 73, Height: 61}, world: accountWorlds.auto, keys: toProjects()},
+	{name: "projects-sessions-73x61", size: watch.Size{Width: 73, Height: 61}, world: accountWorlds.auto, keys: append(toProjects(), rightKey)},
+	{name: "projects-108x24", size: watch.Size{Width: 108, Height: 24}, world: accountWorlds.auto, keys: toProjects()},
+	{name: "projects-12-months-173x53", size: watch.Size{Width: 173, Height: 53}, world: accountWorlds.auto, keys: toProjects(">", ">", ">")},
 	{name: "sessions-switchboard-160", size: wide(37), world: accountWorlds.scene, keys: toSessions()},
 	{name: "sessions-list-160", size: wide(37), world: accountWorlds.scene, keys: toSessions("]")},
 	{name: "sessions-switchboard-mixed-160", size: wide(37), world: accountWorlds.mixed, keys: toSessions()},
@@ -538,6 +539,12 @@ var pages = []page{
 	{name: "sessions-list-90x40", size: watch.Size{Width: 90, Height: 40}, world: accountWorlds.scene, keys: toSessions("]")},
 	{name: "sessions-switchboard-long-names-108x44", size: watch.Size{Width: 108, Height: 44}, world: accountWorlds.longNames, keys: toSessions()},
 	{name: "sessions-list-long-names-108x44", size: watch.Size{Width: 108, Height: 44}, world: accountWorlds.longNames, keys: toSessions("]")},
+	{name: "sessions-list-30-days-173x53", size: watch.Size{Width: 173, Height: 53}, world: accountWorlds.scene, keys: toSessions("]", ">")},
+	{name: "sessions-list-30-days-73x61", size: watch.Size{Width: 73, Height: 61}, world: accountWorlds.scene, keys: toSessions("]", ">")},
+	{
+		name: "sessions-list-30-days-108x44", size: watch.Size{Width: 108, Height: 44}, world: accountWorlds.scene,
+		keys: append(toSessions("]", ">"), slices.Repeat(keysOf("j"), toTuesday22)...),
+	},
 	{name: "sessions-list-sizable-200", size: watch.Size{Width: 200, Height: 37}, world: accountWorlds.sizableValues, keys: toSessions("]")},
 	{
 		name: "sessions-ten-accounts-160", size: wide(37), world: accountWorlds.ten, before: lookedAway(time.Minute), keys: cameBack,
@@ -591,7 +598,24 @@ var pages = []page{
 	{name: "graphs-ultra-160x37", size: wide(37), world: accountWorlds.ultra, keys: toGraphs()},
 	{name: "graphs-glance-mixed-108x44", size: watch.Size{Width: 108, Height: 44}, world: accountWorlds.mixed, keys: toGraphs("g")},
 	{name: "graphs-glance-ultra-108x44", size: watch.Size{Width: 108, Height: 44}, world: accountWorlds.ultra, keys: toGraphs("g")},
+	{name: "trends-year-173x53", size: watch.Size{Width: 173, Height: 53}, world: accountWorlds.auto, keys: toTrendsFoot()},
+	{name: "trends-year-108x44", size: watch.Size{Width: 108, Height: 44}, world: accountWorlds.auto, keys: append(toGraphs(everyTrend...), slices.Repeat(keysOf("j"), toYear108)...)},
+	{name: "trends-year-73x61", size: watch.Size{Width: 73, Height: 61}, world: accountWorlds.auto, keys: toTrendsFoot()},
 }
+
+// everyTrend are the keys that show the sections of Trends hidden at first:
+// POOL, GLANCE, WHEN YOU WORK, YEAR, BY MONTH and MODELS BY DAY.
+var everyTrend = []string{"o", "g", "h", "y", "m", "d"}
+
+// toTrendsFoot are the keys that reach Trends with every section shown,
+// scrolled to its foot, a page at a time.
+func toTrendsFoot() []tea.KeyPressMsg {
+	return append(toGraphs(everyTrend...), repeated(tea.KeyPressMsg{Code: tea.KeyPgDown}, 6)...)
+}
+
+// toYear108 are the rows trends-year-108x44 scrolls Trends down by, j a row,
+// to YEAR's heading, as the design's frame is scrolled.
+const toYear108 = 59
 
 // lookedAway are the keys a look at Sessions' Switchboard by before a page's
 // moment pressed: tab three times to reach it, then once more, on to Runway,
@@ -604,6 +628,12 @@ func lookedAway(by time.Duration) earlier {
 // lookedAway has it: shift-tab, back to Sessions, its stream opening again.
 var cameBack = []tea.KeyPressMsg{{Code: tea.KeyTab, Mod: tea.ModShift}}
 
+// toTuesday22 are the rows sessions-list-30-days-108x44 scrolls the List
+// down by, j a row, a day's rule passed over being no row of its own, to
+// the sessions that ended on Tuesday 22 September under their rule, as the
+// design's frame is scrolled.
+const toTuesday22 = 51
+
 // keysOf are the keys pressed as the text given, a key a character.
 func keysOf(text ...string) []tea.KeyPressMsg {
 	var keys []tea.KeyPressMsg
@@ -613,16 +643,16 @@ func keysOf(text ...string) []tea.KeyPressMsg {
 	return keys
 }
 
-// toHistory are the keys that reach History from the Overview, tab twice,
-// then the text given, a key a character.
-func toHistory(text ...string) []tea.KeyPressMsg {
-	return append([]tea.KeyPressMsg{{Code: tea.KeyTab}, {Code: tea.KeyTab}}, keysOf(text...)...)
-}
-
 // toAccounts are the keys that reach Accounts from the Overview, tab, then
 // the text given, a key a character.
 func toAccounts(text ...string) []tea.KeyPressMsg {
 	return append([]tea.KeyPressMsg{{Code: tea.KeyTab}}, keysOf(text...)...)
+}
+
+// toProjects are the keys that reach Projects from the Overview, tab twice,
+// then the text given, a key a character.
+func toProjects(text ...string) []tea.KeyPressMsg {
+	return append(repeated(tabKey, 2), keysOf(text...)...)
 }
 
 // toDetail are the keys that reach Accounts' Detail from the Overview, tab

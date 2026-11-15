@@ -68,7 +68,7 @@ type movePlan struct {
 }
 
 // sessionPlan is a session as a session's page's generator samples it: its
-// id and directory; its first minute, and, where its started event says, its
+// id and directory, the root of its project; its first minute, and, where its started event says, its
 // first request; its turns, the accounts it ran on and its moves; the
 // requests of a turn given as they're drawn, by its number from 1; and, of
 // one whose newest turn is still going, when the request in flight now went
@@ -120,7 +120,7 @@ func (p sessionPlan) lines() []ledger.Line {
 	routed := make(map[string]string)
 	for i, t := range p.turns {
 		for _, l := range p.turn(i+1, t) {
-			l.Session, l.Dir, l.Kind, l.Status, l.Attempts, l.Agent = p.id, p.dir, ledger.KindMessage, 200, 1, claudeCodeAgent
+			l.Session, l.Dir, l.Project, l.Kind, l.Status, l.Attempts, l.Agent = p.id, p.dir, p.dir, ledger.KindMessage, 200, 1, claudeCodeAgent
 			l.Request = cmp.Or(l.Request, requestID(p.id, len(lines)))
 			l.Prompt = fmt.Sprintf("%s-prompt-%d", p.id[:8], i+1)
 			p.route(&l, routed)

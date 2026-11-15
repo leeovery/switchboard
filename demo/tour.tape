@@ -4,10 +4,11 @@
 #
 # The Overview of the auto world at 14:42:07; then shift-tab, back round the
 # tabs: the Log's Requests, where ↑ chooses the newest line, db8a's, sent at
-# 7s, the next at 8s, and s opens db8a's page; Graphs, its burn-down cards;
-# Runway; Sessions' Switchboard, its cords carrying the requests; History's
-# Year; Accounts' Compare; and the Overview, b3e9 started on side since the
-# look by 5s.
+# 7s, the next at 8s, and s opens db8a's page; Trends, its burn-down cards,
+# then y and w, YEAR shown and WEEK hidden, YEAR alone over the last 12
+# months; Runway; Sessions' Switchboard, its cords carrying the requests,
+# then ], its List; Projects, each project's worth over the week; Accounts'
+# Compare; and the Overview, b3e9 started on side since the look by 5s.
 #
 # The Log and the session's page come first, while the request stream the
 # Overview holds open has told of every request: a page without it, such as
@@ -51,8 +52,11 @@ Up
 Sleep 700ms
 Type "s"
 Sleep 3500ms
-# Graphs, from the page over the Log: WEEK's cards.
+# Trends, from the page over the Log: WEEK's cards.
 Shift+Tab
+Sleep 3s
+# YEAR shown and WEEK hidden: YEAR alone, its totals under it.
+Type "yw"
 Sleep 3s
 # Runway.
 Shift+Tab
@@ -60,7 +64,10 @@ Sleep 3s
 # Sessions' Switchboard, requests travelling the cords.
 Shift+Tab
 Sleep 4s
-# History's Year.
+# Its List, this week's sessions as a log.
+Type "]"
+Sleep 3s
+# Projects, this week's worth a project.
 Shift+Tab
 Sleep 3s
 # Accounts' Compare.

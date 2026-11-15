@@ -28,16 +28,19 @@ func TestLimitsHitInThreeWindowsTakeTheFullestFormThatFits(t *testing.T) {
 		{width: 220, want: "week ×1 · 5-hour ×2 · Fable week ×1"},
 	}
 	for _, tt := range tests {
-		page := comparedPage(views.AccountsThisWeek, comparedVersions(t), work, comparePersonal, compareSide, compareAll)
-		f := phoneText(t, tt.width, 60, AccountsCompare, "", &page, nil)
+		page := comparedPage(views.PeriodThisWeek, comparedVersions(t), work, comparePersonal, compareSide, compareAll)
+		f := phoneText(t, tt.width, turnedRows, AccountsCompare, "", &page, nil)
 		rows := f.Draw(phoneDoc().WorkedOut(claudeLike), routedAt)
 		label := "  limits hit"
 		if !f.CompareWide() {
 			label = " work"
 		}
 		limits := slices.IndexFunc(rows, func(row string) bool { return strings.HasPrefix(row, "LIMITS") })
+		if limits < 0 {
+			t.Fatalf("at %d columns, no LIMITS in\n%s", tt.width, strings.Join(rows, "\n"))
+		}
 		at := slices.IndexFunc(rows[limits:], func(row string) bool { return strings.HasPrefix(row, label) })
-		if limits < 0 || at < 0 {
+		if at < 0 {
 			t.Fatalf("at %d columns, no LIMITS row of work's in\n%s", tt.width, strings.Join(rows, "\n"))
 		}
 		row := rows[limits+at]

@@ -11,7 +11,7 @@ import (
 // HoursPage is WHEN YOU WORK as the Graphs tab draws it: when the requests
 // come over the four whole weeks before today, the 28 days ending yesterday,
 // a row a weekday and a tile an hour of the day, each shaded by its requests
-// a day, as History's five shades shade a day.
+// a day, as YEAR's five shades shade a day.
 //
 // A day counts where the ledger knows its hours, as dayHours says; one it
 // doesn't is left out of its weekday's divisor, never counted as none. Where
@@ -70,7 +70,7 @@ const (
 // within them, as Past's counted has it.
 func (p Past) Hours() HoursPage {
 	today := dayfile.CivilOf(p.in.Now)
-	first := p.counted(today.AddDate(0, 0, -hoursWeeks*weekdays).Format(time.DateOnly))
+	first := p.counted(today.AddDate(0, 0, -hoursWeeks*weekdays)).Format(time.DateOnly)
 	last := today.AddDate(0, 0, -1).Format(time.DateOnly)
 	var tally hoursTally
 	for _, d := range between(p.days, first, last) {

@@ -13,8 +13,8 @@ redesigned it, in three views, with themes, and with the router's history, event
 to draw them from. Milestone 6 added the request ledger, a line for each request the router routes
 and a summary of each day, with `requests` and `history` to read them back. Milestone 7 redesigned
 the dashboard again, on what the ledger records: `usage` becomes a printout, `dashboard` the live
-page, in six tabs, a seventh, Graphs, added after it, and the data verbs give an agent everything
-either shows. The Dashboard section and The data verbs describe it.
+page, in tabs the dashboard by entity has since made seven, and the data verbs give an agent
+everything either shows. The Dashboard section and The data verbs describe it.
 
 ## What it is
 
@@ -592,7 +592,7 @@ dirs  = ["~/Code/acme"]    # one or more, written absolute or from ~; none: the 
   a pool by its id, as they name an account by its. The accounts record keeps every pool this Mac
   has had, with its label once it's removed, as it keeps every account, kept in step with the
   config by the router as Account identity keeps accounts, on a change to the pools alone too, so
-  History names a removed pool. A pool is known as an account is, rather than by a name the user
+  the verbs name a removed pool. A pool is known as an account is, rather than by a name the user
   types, so a pool can be relabelled and its history holds (the owner's call, 11 November 2026).
 - **The first pool** is made by setup as it adds the first account, on a new install, and by the
   move to pools on an install from before them (see What's recorded). It's labelled `Default`, and
@@ -1014,9 +1014,9 @@ read as a pool by its leaving one out (the owner's call, 11 November 2026).
   adds to what's held.
 
 Moving an account rewrites nothing: the past stands as it was. Views that show accounts go by which
-pool each account is in now: windows, Runway, the day strips, Graphs. Views that show work go by the
-pool recorded at the time: the requests and the Log, sessions, what work was worth, and History's
-totals.
+pool each account is in now: windows, Runway, the day strips, Trends. Views that show work go by the
+pool recorded at the time: the requests and the Log, sessions, Projects, what work was worth, and
+Accounts' totals.
 
 ### Reading a pool
 
@@ -1065,10 +1065,10 @@ totals.
   neither the config nor the record keeps, `can't tell which pool to read: the newest request names
   pool "x9z9", …`, and where the record places an account in one, `… account left is in pool
   "x9z9", …`. `history` counts its days from where the pool's work begins (`views.PoolRead`'s
-  Start), as the dashboard does, its days, months and tokens listing none before, as Year and
-  Tokens list none, nor the accounts removed that only those days name, so a verb and the dashboard
-  price a pool over the same days; the accounts' weeks and totals are over every day asked for, as
-  Weeks and Accounts are. What a verb reads of the recorded files is read in one place, through the
+  Start), as the dashboard does, its days, months and tokens listing none before, as Trends' YEAR
+  and Accounts' Tokens list none, nor the accounts removed that only those days name, so a verb and
+  the dashboard price a pool over the same days; the accounts' weeks and totals are over every day
+  asked for, as Accounts' are. What a verb reads of the recorded files is read in one place, through the
   pool's read (`cli/poolfiles.go`), where the verbs' readers of the ledger, the readings and the
   events are made too, held by a guard (`cli/poolfiles_guard_test.go`) that bans making, handing
   on or reading one elsewhere. Its
@@ -1151,95 +1151,108 @@ totals.
 
 ### The dashboard in a pool
 
-- **A dashboard shows one pool,** the one `--pool` names, or without it the pool the verbs act on;
-  a pool the config doesn't configure is refused, naming those it does. Where every pool is
-  fenced, with no `--pool` to name one, it reads no pool's accounts: the router refuses its reads,
-  its status line says it couldn't read usage, as every pool is fenced, naming the pools, trying
-  again at each read, the pages drawn from the router's document stay empty, it reads none of the
-  router's events, it lists no accounts, and `P` turns to the first pool. The accounts it lists,
-  on Accounts, History and Graphs, are the pool shown's alone (`status.PoolAccounts`), none with
-  no pool shown. The Log tells of the pool shown alone, one pool among them, its requests, each
-  day's figures and its find read through the pool's read, by its id, as the verbs read a pool's,
-  each day's rows naming their lines' pools (see The Log's In a pool, and The request ledger's
-  Rows a day). What it builds from the day digests and summaries is the pool shown's alone too,
-  read through the same read: Sessions, each session's requests, worth and tokens those it made in
-  the pool; a session's page, its points those of its requests in the pool, every pool's requests
-  on an account sharing its windows' rises as ever; History, its Year among them; Graphs; and the
-  worth and tokens on Accounts. Each digest's entry names the pools of the lines its session's
-  state was folded from, and holds a session split between pools in each of them apart, so a
-  pool's read rests every session on a state of its own work alone (see The request ledger's In a
-  pool). The days begin where the pool's work begins, its first day whose summary holds work in
-  it (`views.PoolRead`'s Start), so a pool added to a ledger months old counts no day before it as
-  a day of none: History's months, WHEN YOU WORK's weekday averages, Accounts' periods and
-  Runway's lanes begin there, where every pool's begin where the ledger does. A pool that has
-  worked on no day before today begins with today, asked again at each fresh start of the pool
-  shown, a `P` or a config's turn, and not at each read, which would read every summary each
-  time; no pool shown begins with today, reading none. No page adds pools together:
-  a pool's room can never serve another pool's sessions, so a merged view has nothing to add up.
-  A page across pools waits until one is needed (the owner's call, 11 November 2026).
-- **`P` cycles the pools,** on every tab, once a second pool exists, in the config's order, round.
-  Changing pool starts the dashboard's view afresh, as a router change does, so nothing it
-  remembered of one pool carries into the next: its pages, cursors, a session's page, the routing
-  card, the notifications it posted, the moments and the sessions it held. What's kept for the
-  next dashboard to open with, the tab, its sections and each tab's view, carries on. Each `P`
-  reads the pools as they stand, the pool's accounts, the router's events of the pool turned to
-  and the pools that name them afresh, so a pool added or removed while it's open shows at the
-  next. What a command of the pool before sends back once `P` has turned is dropped, each of the
-  watch's own messages stamped with the pool shown as its command was given. A second `P` while a
-  turn is under way does nothing, and a turn that can't read the config keeps the pool shown, the
-  key line giving the first line of why. The key line lists `P pool` once a second pool exists,
-  on a phone too, and help gives it. With one pool, `P` isn't listed, but reads the pools afresh
-  all the same: it turns to a second added since, else the key line says there's one pool.
+- **A dashboard shows one pool,** the one `--pool` names, or without it the pool the verbs act on; a
+  pool the config doesn't configure is refused, naming those it does. Where every pool is fenced,
+  with no `--pool` to name one, it reads no pool's accounts: the router refuses its reads, its
+  status line says it couldn't read usage, as every pool is fenced, naming the pools, trying again
+  at each read, the pages drawn from the router's document stay empty, it reads none of the router's
+  events, it lists no accounts, and `P` turns to the first pool. The accounts it lists, on Accounts,
+  its Compare, Detail and Tokens, and Trends, are the pool shown's alone (`status.PoolAccounts`),
+  none with no pool shown; a project's page lists the accounts the pool's work in it ran on, named
+  as the pool shown names them. The Log tells of the pool shown alone, one pool among them, its
+  requests, each day's figures and its find read through the pool's read, by its id, as the verbs
+  read a pool's, each day's rows naming their lines' pools (see The Log's In a pool, and The request
+  ledger's Rows a day). What it builds from the day digests, the days' heads and summaries is the
+  pool shown's alone too, read through the same read: Sessions, each session's requests, worth and
+  tokens those it made in the pool; the List and Projects, every project, a project's page and its
+  SESSIONS, over every period of the dial, of the sessions' days read in the pool alone
+  (`views.ReadSessionDays`, `views.DaySessionsOn`), each day's head's sessions naming the pools
+  their lines recorded, so a day whose sessions are one pool's, or none of it, is read from its
+  head, and one with a session split between the pool and another is read from its lines through the
+  pool's read; their sessions running those the router lists in the pool shown; so a project worked
+  on in two pools shows each pool's work in it alone; a session's page, its points those of its
+  requests in the pool, every pool's requests on an account sharing its windows' rises as ever;
+  Trends, its YEAR among them; and the worth and tokens on Accounts. Each digest's entry names the
+  pools of the lines its session's state was folded from, and holds a session split between pools in
+  each of them apart, so a pool's read rests every session on a state of its own work alone (see The
+  request ledger's In a pool). The days begin where the pool's work begins, its first day whose
+  summary holds work in it (`views.PoolRead`'s Start), so a pool added to a ledger months old counts
+  no day before it as a day of none: Trends' months, WHEN YOU WORK's weekday averages, Accounts'
+  periods, its WORTH and Tokens among them, the List's and Projects' periods, a project's WORTH BY
+  among them, 12 months among them, and Runway's lanes begin there, where every pool's begin where
+  the ledger does, each page's first day counted the later of its period's and that one, one rule
+  for every page, `history` and the Year among them (`views.begunOn`). A pool that has worked on no
+  day before today begins with today, asked again at each fresh start of the pool shown, a `P` or a
+  config's turn, and not at each read, which would read every summary each time; no pool shown
+  begins with today, reading none. No page adds pools together: a pool's room can never serve
+  another pool's sessions, so a merged view has nothing to add up. A page across pools waits until
+  one is needed (the owner's call, 11 November 2026).
+- **`P` cycles the pools,** on every tab, Projects and the List among them, once a second pool
+  exists, in the config's order, round. Changing pool starts the dashboard's view afresh, as a
+  router change does, so nothing it remembered of one pool carries into the next: its pages,
+  cursors, a session's page, the routing card, the notifications it posted, the moments and the
+  sessions it held, the sessions' days read for the List and Projects, where they begin and the
+  tail's fold of them, Projects' page and the project chosen, the List's log and what was measured
+  of it, and Accounts' pages. What's kept for the next dashboard to open with, the tab, its
+  sections, each tab's view and the dial's period, carries on. Each `P` reads the pools as they
+  stand, the pool's accounts, the router's events of the pool turned to and the pools that name them
+  afresh, so a pool added or removed while it's open shows at the next. What a command of the pool
+  before sends back once `P` has turned is dropped, each of the watch's own messages stamped with
+  the pool shown as its command was given. A second `P` while a turn is under way does nothing, and
+  a turn that can't read the config keeps the pool shown, the key line giving the first line of why.
+  The key line lists `P pool` once a second pool exists, on a phone too, and help gives it. With one
+  pool, `P` isn't listed, but reads the pools afresh all the same: it turns to a second added since,
+  else the key line says there's one pool.
 - **A change to the config starts the pool shown afresh,** as `P` does, so nothing it holds of the
   pool, its label, directories, accounts, the pools counted, the router's events as they're placed,
-  the pools that name them, History, Accounts' page and its choices and the Log's rows, nor the
-  request ledger, summarised with the caps of the accounts configured, nor the accounts removed,
-  which name those taken out by their labels, is ever of a config gone. The ledger's reader is made
-  afresh only where its grounds change (`ledger.Grounds`: the caps, or the first pool): else the one
-  in use is kept, with the days it holds, as at a `P`, so a turn reads nothing cold; and nothing
-  holds one the dashboard no longer reads, not the turn, which keeps none, nor Bubble Tea, which
-  keeps the model it started with till it stops, through which only the latest is reached
-  (`backdrop.Run`). What counts is anything of the pools or the accounts as the pools stand
-  (`status.Placement`): any pool's id, label or directories, the pools counted and their order, and
-  any account's id, label, plan, primary mark, reserve or pool, in any pool, and their order, as the
-  router's events of every pool are placed by them. A change to nothing of those, a comment or
-  another table, starts nothing. It's one path with `P`'s: the watch asks its `Turn` for the pool
-  shown again (`watch.SamePool`, `status.PoolAgain`), started afresh on it, or where it's gone, on
-  the first, as `P` would turn to from it; the tab, size, theme and each tab's kept view carry over,
-  as at a turn. It's asked only where a read finds the config file the dashboard reads, the one
-  `--config` names, changed since the pool was read, by the router's own rule for its config
-  (`filestate.State.Same`: another file, or one written since), or the accounts of the router's
-  document other than the last read's (`status.Document.AccountsChanged`), as an account the router
-  took up as it restarted, which finds the config as it was and starts nothing. It's asked alike
-  where the dashboard opened on no pool, in a config without pools or where the pools couldn't be
-  told, so the first config that names pools, or one they can be told of, starts it afresh on the
-  pool the verbs act on (`config.Pools.Implicit`), every tab that pool's alone, or on none where
-  every pool is fenced: a dashboard opened on no pool and left open never shows every pool's work
-  together once there are pools. Its first pool, for its ledger's grounds and its pool's read, is
-  taken afresh at each turn, as its ledger takes it at each ask (`idmove.FirstOf` of the one the
-  accounts record notes), so a pool put ahead of the first never takes its work in no pool. What it
-  costs a read, with pools or without, is a stat of the config file and a comparison of two lists
-  of ids. The stamp is taken as the ask goes out, so a config changed while a turn is under way is
-  asked for at the next read; an accounts change found then is dropped, harmlessly, as with the
-  config as it was the ask would start nothing; a config that can't be read is logged, with
-  nothing on the key line, and asked again once it changes again. A dashboard opened on no pool
-  as its pools couldn't be told lists no accounts, its source reading none, as where every pool is
-  fenced, its status line saying why; a read still asks the router's health, and once the router
-  answers with the pools it routes for, the read fails with `watch.ErrPoolsTold` and the pool
-  shown is asked for again, as at a change to the config, starting afresh on the pool the verbs
-  act on.
+  the pools that name them, Accounts' pages and its choices, Trends' pages, the List's and Projects'
+  sessions' days and the Log's rows, nor the request ledger, summarised with the caps of the
+  accounts configured, nor the accounts removed, which name those taken out by their labels, is ever
+  of a config gone. The ledger's reader is made afresh only where its grounds change
+  (`ledger.Grounds`: the caps, or the first pool): else the one in use is kept, with the days it
+  holds, as at a `P`, so a turn reads nothing cold; and nothing holds one the dashboard no longer
+  reads, not the turn, which keeps none, nor Bubble Tea, which keeps the model it started with till
+  it stops, through which only the latest is reached (`backdrop.Run`). What counts is anything of
+  the pools or the accounts as the pools stand (`status.Placement`): any pool's id, label or
+  directories, the pools counted and their order, and any account's id, label, plan, primary mark,
+  reserve or pool, in any pool, and their order, as the router's events of every pool are placed by
+  them. A change to nothing of those, a comment or another table, starts nothing. It's one path with
+  `P`'s: the watch asks its `Turn` for the pool shown again (`watch.SamePool`, `status.PoolAgain`),
+  started afresh on it, or where it's gone, on the first, as `P` would turn to from it; the tab,
+  size, theme and each tab's kept view carry over, as at a turn. It's asked only where a read finds
+  the config file the dashboard reads, the one `--config` names, changed since the pool was read, by
+  the router's own rule for its config (`filestate.State.Same`: another file, or one written since),
+  or the accounts of the router's document other than the last read's
+  (`status.Document.AccountsChanged`), as an account the router took up as it restarted, which finds
+  the config as it was and starts nothing. It's asked alike where the dashboard opened on no pool,
+  in a config without pools or where the pools couldn't be told, so the first config that names
+  pools, or one they can be told of, starts it afresh on the pool the verbs act on
+  (`config.Pools.Implicit`), every tab that pool's alone, or on none where every pool is fenced: a
+  dashboard opened on no pool and left open never shows every pool's work together once there are
+  pools. Its first pool, for its ledger's grounds and its pool's read, is taken afresh at each turn,
+  as its ledger takes it at each ask (`idmove.FirstOf` of the one the accounts record notes), so a
+  pool put ahead of the first never takes its work in no pool. What it costs a read, with pools or
+  without, is a stat of the config file and a comparison of two lists of ids. The stamp is taken as
+  the ask goes out, so a config changed while a turn is under way is asked for at the next read; an
+  accounts change found then is dropped, harmlessly, as with the config as it was the ask would
+  start nothing; a config that can't be read is logged, with nothing on the key line, and asked
+  again once it changes again. A dashboard opened on no pool as its pools couldn't be told lists no
+  accounts, its source reading none, as where every pool is fenced, its status line saying why; a
+  read still asks the router's health, and once the router answers with the pools it routes for, the
+  read fails with `watch.ErrPoolsTold` and the pool shown is asked for again, as at a change to the
+  config, starting afresh on the pool the verbs act on.
 - **The title row names the pool shown,** by its label after the badge, once a second pool exists,
   at every size, cut short before the tabs where it's long. The pool's accounts keep the config's
   order, unnumbered, as every screen has them (see Account identity).
-- **A pool with no accounts** draws a page that says so on every tab, its status line `● healthy ·
-  no accounts`, with the restart the router has due, which takes up any the config gives it: a
-  session started in its directories, or for an unfenced pool outside every fence, doesn't start;
-  how to add an account to it or move one in; and that its directories stay fenced until it's
-  removed. Its key line is `tab views  P pool  ? help  q quit`. Empty means none to route
-  (`status.ShownPool.AsRead`): none in the router's document of the pool, once one is read, its pool
-  id the pool shown's; else none in the config. A probed document, whose accounts are the config's,
-  or one of no pool, as a router that can't tell its pools answers, leaves it to the config. A pool
-  the router doesn't know, as one added since it started, whose reads it refuses
+- **A pool with no accounts** draws a page that says so on every tab, Projects among them, its
+  status line `● healthy · no accounts`, with the restart the router has due, which takes up any the
+  config gives it: a session started in its directories, or for an unfenced pool outside every
+  fence, doesn't start; how to add an account to it or move one in; and that its directories stay
+  fenced until it's removed. Its key line is `tab views  P pool  ? help  q quit`. Empty means none
+  to route (`status.ShownPool.AsRead`): none in the router's document of the pool, once one is read,
+  its pool id the pool shown's; else none in the config. A probed document, whose accounts are the
+  config's, or one of no pool, as a router that can't tell its pools answers, leaves it to the
+  config. A pool the router doesn't know, as one added since it started, whose reads it refuses
   (`router.PoolNeeded`, naming the pool shown), routes none in it alike
   (`status.ShownPool.Refused`): no read that failed, but the router answering, so it's lost no more,
   and the status line says how it stands, healthy or not, and the restart it has due, as its health
@@ -1383,8 +1396,9 @@ Accepted as the second phase was built, each failing safe, with nothing crossing
 - **Once the noted first pool is removed,** and the config's first takes work in no pool on (see
   The request ledger's In a pool):
   - work in no pool summarised before stays the old first pool's on the tabs that read the
-    summaries: History, Graphs, the worth and tokens on Accounts, and the Log's day figures;
-  - the Log's rows, Sessions and a session's page read the lines, by the new first;
+    summaries: Trends, the worth and tokens on Accounts, and the Log's day figures;
+  - the Log's rows, Sessions, a session's page, the List and Projects read the lines, or the days'
+    heads, whose sessions name the pools their lines recorded, by the new first;
   - a split session holding such lines walks back, exactly, at each read till a later day it runs
     on is built, which heals it;
   - one that never runs again walks back each time its page opens, for as long as its days are
@@ -1399,7 +1413,7 @@ Accepted as the second phase was built, each failing safe, with nothing crossing
 - **An accounts record that can't be read** is warned of at each turn, once for each read of it:
   the accounts removed, the pools removed and the first pool are each read of it afresh.
 - **Downgrading to v0.7.2:**
-  - the second phase's files, the rows of version 4 and the digests of envelope 3 with their
+  - the second phase's files, the rows of version 5 and the digests of envelope 3 with their
     parts, are derived, so v0.7.2 builds them again in its own versions, and the second phase
     builds them again on the way back up;
   - v0.7.2 can't read a config with pools, so a pools router still running holds its restart, as
@@ -1511,7 +1525,7 @@ from its readings, the readings history's two newest days taken up as it starts:
 **Accounts' sizes.** Use moves between accounts in Pro weeks, each account's week as big as the
 price table makes its plan's: a Pro week is 1, a Max week 5 and an Ultra week 10 (see The request
 ledger). An account whose plan isn't known counts as the plan most of the accounts have, the larger
-of two that tie, and where none has one, every account counts as one: History's replay sizes them
+of two that tie, and where none has one, every account counts as one: the capacity verdict's replay sizes them
 alike. Where every account is on one plan, its size makes no difference to where the weeks run out.
 
 **Where the use goes,** stepped every 10 minutes for a week from when the status document was
@@ -1823,7 +1837,7 @@ formats below; the screens as signed off in Paper (see The screens, below).
   does, the record is left as it is, logged once: the router, restarting onto that config, writes
   the new ids back in it first (`Heal`), and keeps the record in step from then.
 - **Removing:** `accounts remove <id>` takes the account out of the config and deletes its token, as
-  today, and the accounts record keeps it, marked removed, with its label. History, Accounts and
+  today, and the accounts record keeps it, marked removed, with its label. Accounts and
   the verbs name it by that label, marked removed, as the Paper frames draw it, so it's told apart
   from a configured account given the same label since.
 - **Moving to ids made, once** (`internal/idmove`): the history is rewritten under the new ids
@@ -1943,7 +1957,9 @@ formats below; the screens as signed off in Paper (see The screens, below).
 - **The screens:** drawn in Paper from a spike of the build, signed off by the owner before the
   build (Switchboard · Identity, round 1): Runway, the Overview on the phone and wide, the routing
   card, Accounts' Detail, History's Days with a removed account, and setup's table and add card,
-  each without a number or an id.
+  each without a number or an id. History's per-account days went with the tab; an account removed
+  is drawn now on Accounts' Tokens, by its label in faint text, kept as
+  `accounts-tokens-removed-160`.
 
 ## Accounts and tokens
 
@@ -2262,8 +2278,8 @@ show.
    - **Notes,** two blank rows under `+ add an account`, a blank row apart: each account missing
      something, its label bold `text.primary`, what it's missing and the key that sees to it: `Side
      has no working token, so no requests are routed to it.`, then `Press t to create a new one,
-     approving it in the browser signed in to Side.`; `Personal has no plan set, so History can't
-     value its usage. Press e to set one.`; a token's year within 30 days, with `t`. With two
+     approving it in the browser signed in to Side.`; `Personal has no plan set, so its usage
+     can't be valued. Press e to set one.`; a token's year within 30 days, with `t`. With two
      accounts or more, and none the primary, a note says one must be, and `p` marks it: `enter`
      waits for one.
    - **A first run,** with no account: `No accounts yet. Add each Claude subscription you want
@@ -2290,10 +2306,10 @@ show.
      doesn't answer for is kept, saying so. Nothing is asked of an account already set up: a note
      says what's missing, and a key sees to it. Its keys: `↑↓ select`, `t new token`, `e edit`, `r
      remove`, `p make primary`. `enter` all the way through changes nothing.
-   - **Edit** (`e`, frame 6), the card `EDIT PERSONAL`: Label; Plan, `used by History to value
-     usage`, `not set` among its options only for an account the config gives no plan; Pool, once
-     there's a second pool (see Setup with pools); Primary, `no` or `yes`, `the account the Claude
-     apps are signed in to`; and Reserve, `usage kept back for the Claude apps`, a percentage, as
+   - **Edit** (`e`, frame 6), the card `EDIT PERSONAL`: Label; Plan, `used to value usage`,
+     `not set` among its options only for an account the config gives no plan; Pool, once there's
+     a second pool (see Setup with pools); Primary, `no` or `yes`, `the account the Claude apps
+     are signed in to`; and Reserve, `usage kept back for the Claude apps`, a percentage, as
      `accounts edit` takes it, or `none`, so cleared on an account with none, it writes nothing.
      Once there's a second pool, Primary's and Reserve's hints are of the pool chosen (see Setup
      with pools). Its keys: `tab next`, `←→ select`, `enter save`, `esc cancel`. It saves through
@@ -2936,7 +2952,7 @@ argument Claude Code's own, so `claude --help` is Claude Code's (see Launching).
 | `usage [--5h] [--week] [--<model>] [--by window\|account] [--probe] [--refresh] [--json \| --pretty]` | Every account's windows as they stand, printed once into the scrollback with the time they were read, to hold against one printed earlier: see `usage`, the printout. `--by` lays them out by window, each window's rows together, or by account, each account's windows together, over `[usage] by` (see Config); by window where neither says. `--5h`, `--week`, and a flag for each model's own window, named for its model, as `--fable` is for Fable's week, print the windows given alone, with the header and the key line. Its JSON is the status document, as `status --json` prints it, read as its flags say (see The data verbs). It reads the router while it answers; `--probe` probes instead. `-r`, `--refresh` has the router first read every account it may, as the dashboard's `R` does, and waits for it, ten seconds at most; without the router, or with `--probe`, every account is probed anyway |
 | `dashboard [interval] [--no-notify] [--probe]` | The dashboard, full screen until `q`: see Dashboard. It needs a terminal, and refuses without one. It reads the router while it answers, which reads idle accounts itself, on its rounds, and `R` has it read them at once (see Live updates). Without the router, or with `--probe`, it probes every account instead, each interval: 30m unless given, 5m at the least, as a duration, such as `15m`, or a number of minutes. `--no-notify` has it post none of the notifications it posts while it probes without the router (see Notifications) |
 | `requests [--session <id>] [--account <id>] [--since <when>] [--json \| --pretty]` | The request ledger's lines (see The request ledger): today's, unless `--since` reaches further back, oldest first, under the day each arrived on, a line each with the time, the session's id cut short, the model, the account, the status, `canceled`, `cut off` or `broken off` after it where its line says so, the tokens in and out, and how long the request took. `--session` keeps a session's own, by its id or as much of it as is unique among the sessions read, failing, listing them, for as much as starts several; `--account` keeps an account's own, by its id in any case, refusing a label, the refusal naming the id of each account it labels, configured or removed; `--since` starts at a day (`2026-10-01`), a time today (`14:00`), as the clocks first read it that day, so `00:00` is the day's first instant, or a duration ago (`3h`, `2d`, a day being 24 hours), and one still to come is refused. Its JSON is each line as the ledger holds it with `"schema": 1` put first, a JSON object a line, fields a later release added included (see The data verbs). It reads the ledger's files, so it needs no router |
-| `history [--since <when>] [--windows] [--json \| --pretty]` | The request ledger's days: the last 30 unless `--since` says otherwise, from the day it falls on; of each with requests, a row for each account and model with its requests, those that went upstream and those the router answered itself (see The request ledger), its tokens, sessions and worth, at today's prices, then each account's sessions, moves, limits reached, weeks reset, as `week reset 10:00`, and windows' highest use, of an account that served no request that day only where it reached a limit, or one of its weeks reset; today's from its lines, as far as it's gone. Then, where any of those days has requests, over them, the totals Accounts and History count, each account's plan and its worth against it, each week's peaks, Weeks' verdicts on the accounts (see Accounts, History), and the prices worth is at; where none has, `no requests since <day>`, then the days with notes. `--windows` prints in their place each account's windows' use over those days, a line each time a window's use, its reset or its status changed, as the readings history holds it (see Files). Its JSON (see The data verbs) is `{"schema": 1, "prices_as_of": "2026-10-07", "days": [{"version": 7, "day": "2026-10-05", "lines": 424, "bytes": {"plain": 0, "compressed": 41208}, "accounts": […]}], "year": {…}, "months": […], "weeks": […], "tokens": […], "totals": {…}, "plans": […], "capacity": {…}}`, `prices_as_of` the day the price table was read from Anthropic's pricing page, `prices_from_config` true where the config prices a model or a plan in the table's place and left out otherwise, and each day's summary as the ledger holds it, every day asked for from the first the ledger holds, so the last is today's, one of no requests, the readings history telling of no account that day, without `accounts`, with each model's `worth` in US dollars added, exactly, left out where the model is unpriced, and beside it `unpriced`, the counts in its `usage` the worth leaves out, and `no_usage` where requests went upstream without usage, and `too_large` where the worth passes what it's counted in, where there are any (see The request ledger). It reads the ledger's files and the readings history's, so it needs no router |
+| `history [--since <when>] [--windows] [--json \| --pretty]` | The request ledger's days: the last 30 unless `--since` says otherwise, from the day it falls on; of each with requests, a row for each account and model with its requests, those that went upstream and those the router answered itself (see The request ledger), its tokens, sessions and worth, at today's prices, then each account's sessions, moves, limits reached, weeks reset, as `week reset 10:00`, and windows' highest use, of an account that served no request that day only where it reached a limit, or one of its weeks reset; today's from its lines, as far as it's gone. Then, where any of those days has requests, over them, the totals Accounts counts, each account's plan and its worth against it, each week's peaks, the capacity verdict on the accounts (see Accounts, The capacity verdict), and the prices worth is at; where none has, `no requests since <day>`, then the days with notes. `--windows` prints in their place each account's windows' use over those days, a line each time a window's use, its reset or its status changed, as the readings history holds it (see Files). Its JSON (see The data verbs) is `{"schema": 1, "prices_as_of": "2026-10-07", "days": [{"version": 7, "day": "2026-10-05", "lines": 424, "bytes": {"plain": 0, "compressed": 41208}, "accounts": […]}], "year": {…}, "months": […], "weeks": […], "tokens": […], "totals": {…}, "plans": […], "capacity": {…}}`, `prices_as_of` the day the price table was read from Anthropic's pricing page, `prices_from_config` true where the config prices a model or a plan in the table's place and left out otherwise, and each day's summary as the ledger holds it, every day asked for from the first the ledger holds, so the last is today's, one of no requests, the readings history telling of no account that day, without `accounts`, with each model's `worth` in US dollars added, exactly, left out where the model is unpriced, and beside it `unpriced`, the counts in its `usage` the worth leaves out, and `no_usage` where requests went upstream without usage, and `too_large` where the worth passes what it's counted in, where there are any (see The request ledger). It reads the ledger's files and the readings history's, so it needs no router |
 | `sessions [<id>] [--json \| --pretty]` | Today's sessions, as Sessions' List has them: those running, the oldest started first, then those that ended today, the latest ended first, a line each with its id cut short and its directory, the account it's on, its model, what it's doing, asking, answering or idle since it was last seen, or when it ended, when it started, its requests and their worth today, and how it came to its account; then a line summing them. `<id>`, a session's id or as much of it as is unique among the sessions read, as `requests --session` takes it, prints that session as its page has it: where it runs and why, each account it ran on, its turns, newest first, and its totals (see A session's page). Its JSON: see The data verbs. It reads the ledger's files, and the router's sessions where it answers |
 | `events [--since <when>] [-f] [--json \| --pretty]` | The router's events, as the Log's Events have them (see The Log): today's, unless `--since` reaches further back, as `requests` takes it, oldest first, under the day each happened on, a line each, each event once, as it last stood, with the time, the session, if any, cut short, the kind, the account, and what happened. `-f`, `--follow` then prints a line each time the router files one, a changed event again, until interrupted, as `logs --follow` follows a log. Its JSON: see The data verbs. It reads the events' files, which outlast a restart (see The router's events), so it needs no router |
 | `logs [router\|cli] [-n N] [-f] [--path]` | Print a log's last lines (`-n`, `--lines`: 50), or follow it (`-f`, `--follow`), or print where it is (`--path`): see Logging |
@@ -3013,17 +3029,17 @@ what switchboard knows of one thing, in a form for a person to read or for an ag
     `status`, with `events` for when a limit or a cap began.
   - **A day Runway steps back to:** `history --windows`, over the day; and the day's limits and
     highest use, `history`'s days.
-  - **Graphs:** its burn-downs and GLANCE, `history --windows` from each window's start, and POOL
+  - **Trends:** its burn-downs and GLANCE, `history --windows` from each window's start, and POOL
     from a day before now, as Runway's week view, with `status` for the windows'
-    projections and words; WHEN YOU WORK, `history`'s days, their requests by hour (see Graphs).
+    projections and words; WHEN YOU WORK, `history`'s days, their requests by hour (see Trends).
   - **The traces and a session's story:** `requests`, a line a request, counted a minute at a time,
     by account or by session, as the traces count them.
   - **The Overview's SESSIONS, Accounts' Detail's sessions, and Sessions' Switchboard and List:**
     `sessions`, with `status` for the lines; the routing card's cost of a move, `sessions`'
     `move_cost`.
-  - **Accounts' Compare and Detail, and History's Year, Weeks, Days and Tokens:** `history`, its
-    blocks: days, year, months, weeks, tokens, totals, plans and capacity, with `status` for each
-    account's windows and state now, and its extra usage.
+  - **Accounts' Compare, Detail and Tokens, and Trends' YEAR, BY MONTH and MODELS BY DAY:**
+    `history`, its blocks: days, year, months, weeks, tokens, totals, plans and capacity, with
+    `status` for each account's windows and state now, and its extra usage.
   - **LATELY, the Log's Events, and Detail's LATELY:** `events`.
   - **The Log's Requests:** `requests`, and its day rule, `history`'s days.
   - **A session's page:** `sessions <id>`, and its requests, `requests --session <id>`.
@@ -3048,22 +3064,22 @@ what switchboard knows of one thing, in a form for a person to read or for an ag
     and `--by` shape its printout alone (settled in the plan).
   - **`requests`:** a JSON object a line, each request's line as the ledger holds it with
     `"schema": 1` put first, fields a later release added included.
-  - **`history`:** one object, as Commands gives it, holding every block History's view and
-    Accounts' build, over the days asked for, so an agent asks for a period by its first day
+  - **`history`:** one object, as Commands gives it, holding every block Accounts' and
+    Trends' views build, over the days asked for, so an agent asks for a period by its first day
     (settled in the plan), as each view builds it: `prices_as_of`, and `days`, each day's summary as
-    the ledger holds it, priced, with its worth by family, as Days draws it; then:
-    - `year` and `months`: Year's grid, each day's requests and the level its shade is drawn at,
+    the ledger holds it, priced, with its worth by family, as MODELS BY DAY draws it; then:
+    - `year` and `months`: YEAR's grid, each day's requests and the level its shade is drawn at,
       with the key's cuts, and BY MONTH's rows, each month's requests, worth, plans' cost, limits
-      and worth by family (see History).
+      and worth by family (see Trends).
     - `tokens`: Tokens' rows, a week each, its tokens by kind, `input`, `output`, `cache_write`,
       `cache_read` and `total`, its worth and against its price, by account and by model (see
-      History).
+      Accounts' Tokens).
     - `totals`, for all accounts and for each: `requests`; `sessions`, each once, by the
       summaries' session ids; `moved_on` and `moved_off`; `limits`, by window; `minutes_at_cap`
       and `minutes_at_limit`; `left_at_reset`, each window's share left at its last reset;
       `worth`, with `unpriced` beside it; `by_model`, each model version's `share` of use, weighed
-      at API prices, and its `worth`; and `busiest_day` and `longest_run`: as Accounts and History
-      count them (see Accounts, History).
+      at API prices, and its `worth`; and `busiest_day` and `longest_run`: as Accounts and Trends
+      count them (see Accounts, Trends).
     - `plans`: each account's `plan` (see Config) and its `price` a month, from the dated table
       (see The request ledger), with what it cost over those days, `cost`, prorated, from the
       ledger's first day where it began after the first asked for, and the worth `against` it, a
@@ -3071,15 +3087,17 @@ what switchboard knows of one thing, in a form for a person to read or for an ag
       over the accounts whose plans are known alone, and says how many those are of how many
       accounts there are, `"plans": {"known": 2, "of": 3}`, as each of `months`' and `tokens`'
       against its price does too (the owner's call, 15 October 2026).
-    - `weeks`: each week those days span, from the day `week_starts` names: each account's
-      `peaks`, its own week's highest use of each window, placed as Weeks places it, and its
-      `limits`; and `all accounts`' peaks: every account's, whatever was pinned (see History).
-    - `capacity`: Weeks' verdicts over those weeks: how many were `short`, a week some account hit
-      its limit, as the accounts stand, `with_one_fewer` and `with_one_more`, and the account to
-      `drop`, where Weeks names one, with `with_two_fewer`, with three accounts or more, the weeks
-      short without it and another; and each account's `verdict`, in Weeks' words, with how many
-      weeks it hit its limit, the share it had left at a reset, on average, and how many weeks the
-      rest would have been short `without_it`, then every account's together, marked `all`.
+    - `weeks`: each week those days span, from the day `week_starts` names: each account's `peaks`,
+      its own week's highest use of each window, placed as the capacity verdict places them, and its
+      `limits`; and `all accounts`' peaks: every account's, whatever was pinned (see The capacity
+      verdict).
+    - `capacity`: the capacity verdict over those weeks (see The capacity verdict): how many were
+      `short`, a week some account hit its limit, as the accounts stand, `with_one_fewer` and
+      `with_one_more`, and the account to `drop`, where it names one, with `with_two_fewer`, with
+      three accounts or more, the weeks short without it and another; and each account's `verdict`,
+      in the verdict's words, with how many weeks it hit its limit, the share it had left at a
+      reset, on average, and how many weeks the rest would have been short `without_it`, then every
+      account's together, marked `all`.
   - **`history --windows`:** one object, `{"windows": [{account, window, readings}]}`, printed in
     place of the blocks (settled in the plan): each account's every window's readings over the days
     asked for, each `{at, utilization, resets_at, status, source}`, as the readings history holds
@@ -3088,7 +3106,8 @@ what switchboard knows of one thing, in a form for a person to read or for an ag
     `{"generated_at": …, "prices_as_of": …, "sessions": […], "today": {…}}` (settled in the plan).
     - `sessions` are the List's, in its order, each with `session`, its whole id; `dir`, its
       directory as the router or its lines give it, the home shown as `~`, left out where neither
-      names one; and `account` and `model`, the account its latest request went to and that
+      names one; `project`, its project from the same place, left out where that names none; and
+      `account` and `model`, the account its latest request went to and that
       request's model, as the List's `on` and `model` show them, its last line's once it has ended.
     - `running` is set while the router lists it. One running also has `last_seen`; `models`, each
       model, the account it goes to now and why, `[{model, account, reason}]`; `state`, what its
@@ -3135,6 +3154,64 @@ what switchboard knows of one thing, in a form for a person to read or for an ag
   it, it lists today's sessions from the ledger alone, none as running (settled in the plan), and
   says on stderr that the router isn't running.
 
+### The capacity verdict
+
+`history` judges whether there are as many accounts as the use needs, over the last 7 whole weeks,
+in the words History's Weeks gave it till the dashboard by entity left the verdict to the verb alone
+(see History); Accounts' Detail shows each account's weeks without it. `views` works it out
+(`views.VerdictWeeks`, 7).
+
+**Short** is a week in which some account hit its week's limit, its peak at its cap, where the
+router stops sending it new sessions: 100% less its reserve, the reserve the config has now, as a
+week's own isn't recorded beyond the moments an account was held at its cap, and 100% without one.
+What a week had left at its reset is left of its limit, not of its cap: the window's own reading.
+The verdict takes its form for many accounts where it can name one to drop, one fewer being short on
+no more weeks than now; otherwise its form for few.
+
+- **An account's weeks** each run from one reset of its week window to the next, as the days'
+  `resets` give them, placed under the first day of the calendar week it began nearest: a week's
+  peak is the use read just before its reset, and this week's its highest use so far. Until a whole
+  week is recorded, the verdict says `not enough weeks yet`.
+- **The verdict,** three parts:
+  - The headline, bold: `<n> is one more than you need`, in `state.positive`, where one fewer would
+    be short on no more weeks than now, as `ten is one more than you need`; `<n> is one too few`, in
+    `accent.attention`, where now is short on 4 or more of the 7 and one more would halve that; `<n>
+    is too few`, in `accent.attention`, where now is short on 4 or more of the 7 and one more
+    wouldn't halve that, the row under it saying how short one more would still be; else `<n> is
+    about right`, in `state.positive`, as `three is about right`. The count is a word to ten, then
+    figures (settled in the plan).
+  - Then `as now: ` and how many of the last 7 whole weeks were short, and who was short each time,
+    `short on 3 of the last 7 weeks, each time work alone`; `   ·   with one fewer: ` and how many a
+    replay with one account fewer finds, `short on 6 of 7`; and `   ·   with one more: `, `short on
+    none`. The labels are `text.subtle` and the counts `text.muted`, the worst of them bold
+    `accent.attention`. Where one fewer would be short on no more weeks than now, `with one fewer`
+    says so, `short on 4 of 7, the same weeks`, `with two fewer` takes `with one more`'s place, and
+    the third row names the account to drop, `spare is the one to drop: $100/mo, 5% used on average,
+    and nothing ran short without it`, in `text.muted`. With one account, the row reads `as now:
+    short on 3 of the last 7 weeks   ·   a second would have cleared them` where one more would
+    leave none short (settled in the plan).
+  - Last, `an estimate, from replaying these weeks with one account fewer or more`, in `text.faint`,
+    with few accounts; with many, `an estimate, from replaying these weeks`, three spaces after the
+    line naming the account to drop.
+- **The replay** treats each of the last 7 whole weeks alone. Without an account, its peak, times
+  its plan's size, is shared among the rest by their sizes, each one's peak rising by its share;
+  with one more, of the plan most of the accounts have, every peak falls in proportion, the same use
+  over more room. A replayed week is short where any account would reach its cap. `with one fewer`
+  drops the account whose loss makes the fewest weeks short, and of those that tie, the one used
+  least over the weeks shown. Plans' sizes are in Pro weeks, `pro` 1, `max` 5 and `ultra` 10 (see
+  The request ledger); an account without a `plan` counts as the plan most of the accounts have, the
+  larger of two that tie, and where none has one, every account counts as one (settled in the plan),
+  as the forecast sizes them too (see Forecasting run-outs).
+- **An account's verdict,** over the last 7 whole weeks: `hits its limit most weeks`, in
+  `state.destructive`, where it hit its limit in 3 or more of them; else `plenty to spare most
+  weeks`, in `state.positive`, where its weeks ended with 40% or more left on average; else `ends
+  most weeks with room`, in `text.secondary`. Where it could go, `could go: ` bold
+  `accent.attention`, then `5% used, no limit ever` in `text.muted`; where it's barely used, `barely
+  used: ` and `80% left at a reset`; each alone in its cell. An account could go where the rest
+  would cover it with no more weeks short, and it hit no limit in the 7 weeks and used 10% or less
+  on average; it's barely used where its weeks ended with 75% or more left on average (settled in
+  the plan).
+
 ## Dashboard
 
 **Milestone 7: designed.** This section is the dashboard as its owner redesigned it after 0.1.0,
@@ -3163,17 +3240,18 @@ A person has two views of their accounts:
     (see The Overview);
   - **Accounts:** each account in depth, and all of them together: what each is, what it does,
     what it costs and whether it pays (see Accounts);
-  - **History:** when: the weeks and days gone, and what used them (see History);
+  - **Projects:** where the use went, each project the period's sessions ran in, and the one
+    chosen in full (see Projects);
   - **Sessions:** where each running session's requests are going now, as a switchboard and as a
     list (see Sessions);
   - **Runway:** when each account has room, as a timeline (see Runway);
-  - **Graphs:** every account's room drawn, a burn-down each, and the other charts its user turns
-    on (see Graphs);
+  - **Trends:** every account's room drawn, a burn-down each, and the other charts its user turns
+    on (see Trends);
   - **Log:** every request and every event the router tells of, as they happen, followed or paused
     (see The Log).
 
-  History the past, the Overview now, Runway the future; Accounts who, Sessions where; Graphs
-  every account at once. Beside the tabs, **a session's page** follows one session through its
+  The Overview now, Runway the future; Accounts who, Sessions where; Trends every account at once
+  and use over time. Beside the tabs, **a session's page** follows one session through its
   whole life, opened from any row that
   names a session (see A session's page), and the **routing card** changes where new sessions, or
   one session, go (see Routing by hand). The page, Keys and What moves give what every page shares.
@@ -3204,7 +3282,7 @@ Every view speaks as `usage` does:
   `◆` marks the primary, and `▲` the account new sessions go to now.
 - **The pool** is the accounts new sessions can go to now: every account on auto, only those the
   global pin names when pinned. `Σ pool` totals them on the Overview, in `usage` and on Runway;
-  `all accounts`, on Accounts and History, is every account, whatever is pinned. The two count room
+  `all accounts`, on Accounts, is every account, whatever is pinned. The two count room
   apart: the pool to each account's cap, the room new sessions can take, and `all accounts` to each
   account's limit.
 - **A session is named by the first 4 characters of its id,** and, where switchboard knows it, the
@@ -3264,10 +3342,9 @@ order the view's section gives.
   cells wherever its names start, and a label cut short keeps its marks there.
   One form lays it out (`accountName`'s `inColumn`), where its marks end worked out once
   (`markedCells`), and every column of names draws through it: the Overview's USAGE, ROUTING and
-  SESSIONS, Detail's list, turned Compare's rows, History's Weeks and wide Days
-  (`historyAccount`; narrow Days, its count beside the name, keeps the mark beside the label),
+  SESSIONS, Detail's list, turned Compare's rows,
   Sessions' Switchboard, a session's stays (`filled`, cutting a label to keep its own marks
-  alone), Runway's label column and Graphs' GLANCE. On the Overview, USAGE, ROUTING and SESSIONS,
+  alone), Runway's label column and Trends' GLANCE. On the Overview, USAGE, ROUTING and SESSIONS,
   which share the name column, start their names at one column, so labels and marks line up
   across them: a cell in wherever any of them shown, folded or not, starts its own a cell in,
   as USAGE's windows stacked under their headings or two rows an account, else column 0
@@ -3284,7 +3361,7 @@ order the view's section gives.
   terminal's size or the config does.
 - **The figures the design itself decides stay figures,** each in its view's section: ROUTING
   beside USAGE by account from 150 columns; `usage`'s words in full from 70 columns in the
-  views that give its bars rows of their own; History's frames, 37 rows; the Switchboard's lines,
+  views that give its bars rows of their own; the Switchboard's lines,
   74 columns; `usage --by account`'s window labels, 10 cells at the name column, which the
   Switchboard's lines take; the frame's least, the fixed rows and three of the view's; a model's
   family padded to 8 cells in Detail's SESSIONS, and its selection, 45 cells from a cell before
@@ -3319,12 +3396,12 @@ where none of those fits, and never says less as the width grows.
 
 - **The badge,** ` SWITCHBOARD ` with a space each side, in bold `canvas` on `accent.primary`, at
   column 0.
-- **The tabs,** from two cells after it, a cell apart: ` Overview `, ` Accounts `, ` History `,
-  ` Sessions `, ` Runway `, ` Graphs `, ` Log `. The one shown is bold `text.primary` on
+- **The tabs,** from two cells after it, a cell apart: ` Overview `, ` Accounts `, ` Projects `,
+  ` Sessions `, ` Runway `, ` Trends `, ` Log `. The one shown is bold `text.primary` on
   `bg.selection`; the rest are `text.subtle`. No hint follows them: the tabs are clickable and the
   key line says `tab views`, so `tab ⇥` left the row to give the seventh tab room (the owner's
   call, 25 October 2026). Where the row is short, the clock's date gives way, leaving the clock its
-  two cells. The tabs end at column 81, so the date shows from 102 columns, and under that the time
+  two cells. The tabs end at column 82, so the date shows from 103 columns, and under that the time
   alone, a cell more where the day has two digits (left to the design by the owner, 25 October
   2026).
 - **The clock,** ending at the last column: the date, `Thu 1 Oct  `, in `text.muted`, then the time,
@@ -3332,12 +3409,12 @@ where none of those fits, and never says less as the width grows.
   is with no card open, not faded with the page, which stands still behind the card, so a card left
   open never reads as a dashboard that's stopped (the owner's call, 17 October 2026).
 - **On a phone,** the clock stays on row 0, and the tabs take row 1 from column 0 with no space
-  between them: the seven fill 60 columns exactly. Where they don't fit one row,
+  between them: the seven fill 61 columns exactly. Where they don't fit one row,
   they take the fewest rows they fit on, each name whole, each row from column 0, shared as evenly
   as their order allows, the widest row as narrow as it can be, so a tab moves between rows only as
-  the count of rows changes: under 60, two, ` Overview `, ` Accounts `, ` History ` on row 1, 29
-  columns, and ` Sessions `, ` Runway `, ` Graphs `, ` Log ` on row 2, 31; under 31, three,
-  ` Overview ` ` Accounts ` 20 columns, ` History ` ` Sessions ` 19 and ` Runway ` ` Graphs ` ` Log `
+  the count of rows changes: under 61, two, ` Overview `, ` Accounts `, ` Projects ` on row 1, 30
+  columns, and ` Sessions `, ` Runway `, ` Trends `, ` Log ` on row 2, 31; under 31, three,
+  ` Overview ` ` Accounts ` 20 columns, ` Projects ` ` Sessions ` 20 and ` Runway ` ` Trends ` ` Log `
   21; and so on, a row more each time the widest no longer fits, down to a tab a row, under whose
   widest name, 10 columns, the rows cut at the edge, as every part narrower than its least is. Each
   row the tabs take beyond the first moves every row under them down one (left to the design by the
@@ -3381,19 +3458,19 @@ long leaves out the sessions, then where new sessions go; the state and the mode
 router's states shortened to `■ no router since 14:40` and `○ probed` (settled in the plan).
 
 **The heading row** (row 4; a phone's row 5) is the tab's own, under the status line, on every tab
-but the Overview and Graphs, whose sections head themselves (see The Overview, and Graphs); a
+but the Overview and Trends, whose sections head themselves (see The Overview, and Trends); a
 session's page has its own heading there, ending in `esc back` (see A session's page). From column
 0:
 
-- **The tab's name** in capitals, `ACCOUNTS`, `HISTORY`, `SESSIONS`, `RUNWAY`, `LOG`, in
+- **The tab's name** in capitals, `ACCOUNTS`, `SESSIONS`, `RUNWAY`, `LOG`, in
   `text.subtle`.
 - **Its sub-tabs,** where it has them: three spaces, then each as ` Compare `, the one shown in bold
   `text.primary` on `bg.subtle`, the rest in `text.subtle`; then a space and `[ ]` in `text.faint`.
-  Accounts has Compare and Detail; History, Year, Weeks, Days and Tokens; Sessions, Switchboard and
+  Accounts has Compare, Detail and Tokens; Sessions, Switchboard and
   List; the Log, Requests and Events.
 - **State the screen can't otherwise show,** and only that: three spaces, then the state in
-  `text.faint`, a key within it, as Compare's `←→` or History's `v`, in bold `accent.key` as
-  everywhere, as the accounts Compare shows of more than fit, a filter on History or the Log, or
+  `text.faint`, a key within it, as Compare's `←→`, in bold `accent.key` as
+  everywhere, as the accounts Compare shows of more than fit, a filter on the Log, or
   Runway's week stepped back (`Mon 28 Sep – Sun 4 Oct`). No description follows a name: the tab and the sub-tab
   name the view, and `?` explains it.
 - **A read under way** that's taken longer than 150 ms, as a tab's first read of a long ledger or
@@ -3413,19 +3490,15 @@ session's page has its own heading there, ending in `esc back` (see A session's 
   `< 5-hour >`; or the Log's count and its `f` (see The Log).
 
 On a phone, as every phone frame draws it, a tab with sub-tabs has no `[ ]` and no rule, and what
-sits at its right, its period or its line, as History's `eight weeks` on Weeks and Days, sits at
+sits at its right, its period or its line, as Accounts' period, sits at
 the right of row 5 wherever the name, the sub-tabs, the state at its least and it fit whole there;
 where they don't, it goes to row 6, right-aligned, the view then starting at row 8. The state is
 never cut below its least: where even the name, the sub-tabs and the state at its least don't fit
 row 5, the state starts row 6, what's at the right ending it, left out only where the two don't fit
-there. Whether they fit is decided by the width, the period's widest form, as
-`< last 12 months >` for the Year, and the state's least: `loading…` whole, whether it shows or not,
-as a read can start at any moment, or the state's shortest form where that's wider: the Year's
-filter to a version, `Opus 5.5 only`, whether the year is read yet or not, and to an account, the
-widest configured account's, `personal only`, as `←` `→` step through them. Only `v` moves the
-heading between one row and two, as it changes what the Year is filtered to; neither stepping the
-period nor stepping the account does, nor a read, save one that finds a kept version or account the
-last 12 months didn't use, which drops the filter as `v` would. Beside the period, the state
+there. Whether they fit is decided by the width, the period's widest form, and the state's
+least: `loading…` whole, whether it shows or not, as a read can start at any moment, or the state's
+shortest form where that's wider. Neither stepping the period nor a read moves the heading between
+one row and two. Beside the period, the state
 takes the room left, two cells short of it, in the first of its forms that fits. A state of free
 text, the Log's filter, whose length is its data's, holds nothing of itself whole, so the heading's
 rows never hang on what it keeps: it's cut to the room left, as `only d28c swi…`. `loading…`'s room
@@ -3444,8 +3517,8 @@ Overview).
 - `t`, the theme picker, and `R`, refresh, work on every page and are never on the key line: `?`
   lists them.
 - `w`, each model's own window shown or hidden, works wherever windows are listed as they stand:
-  the Overview, Accounts' Detail, Sessions' Switchboard and a session's page. Graphs, which draws
-  the windows every model shares, as Runway does, takes `w` for its WEEK (see Graphs). It's never
+  the Overview, Accounts' Detail, Sessions' Switchboard and a session's page. Trends, which draws
+  the windows every model shares, as Runway does, takes `w` for its WEEK (see Trends). It's never
   on the key line: `?` and the keys-and-toggles card list it, its word `models` faint while they're
   hidden. It's set once and remembered, so it doesn't earn the 10 cells it would cost every other
   key: on the Overview's line, they'd have it fall to a phone's below 117 columns, where it fits
@@ -3494,7 +3567,7 @@ Overview's SESSIONS):
   chooses it, as the arrows would, and on the one already chosen, opens it, as `enter` does; a row
   of the Overview's SESSIONS opens its session's page at once, as the Overview has nothing to
   choose;
-- on the Overview and Graphs, on a section's heading or its key, it hides the section;
+- on the Overview and Trends, on a section's heading or its key, it hides the section;
 - on the Log's `▼ 214 new`, it follows again, and on a tick in its `f` panel, it ticks it;
 - the wheel scrolls what's under the pointer, where that scrolls.
 
@@ -3502,10 +3575,14 @@ Routing takes keys alone: no click opens the routing card or acts in it, so a st
 moves a session.
 
 **What's remembered.** The preferences file keeps, as they change: the theme or the pair; the tab
-shown, which the dashboard opens on; the Overview's sections shown and its `b`; Graphs'
-sections shown; `w`; of each
-view, a view at a time, its sub-tab, its period or window and `v`'s choice; Runway's `a`; and the
-Log's columns.
+shown, which the dashboard opens on; the Overview's sections shown and its `b`; Trends'
+sections shown; `w`; the dashboard's period, which the entity tabs share; Accounts' view and its
+Tokens' `v` split; Sessions' view; Runway's `a`; and the Log's columns.
+A file from before History went as a tab, which kept History as the tab shown, opens Trends with
+YEAR shown too, where History's Year went, the rest of Trends' sections as kept, and keeps Trends
+and its sections so as it opens, as `y` keeps them; History's Tokens' split, which it kept as
+`history.tokens.split`, reads as Accounts' Tokens' where the file keeps none, and the next write
+keeps it there and drops what History kept.
 A file from before the Overview's GRAPHS was removed (see The Overview), which may keep GRAPHS
 among the sections shown and its chart under `graphs`, reads without them, and the next write drops
 them. A page's sections kept, where every name is of none of its sections, as a later build's or one
@@ -3820,8 +3897,8 @@ last token's line where it has any, with no blank line after it, as a shell's pr
   the live views alone, display and nothing else: USAGE by window and by account, the Switchboard's
   lines, a session's page and Accounts' Detail, its figures of now. Runway's `<` `>` step between
   the week and the 5-hour alone, where an account has one, and the routing card shows those two, so
-  neither has a model's window to hide. `usage`'s printout keeps every window, as do History's
-  records, the Log, Accounts' records (limits hit, past weeks) and every JSON; routing and scoring
+  neither has a model's window to hide. `usage`'s printout keeps every window, as do the
+  records Trends draws, the Log, Accounts' records (limits hit, past weeks) and every JSON; routing and scoring
   never read it. The moment's `Listed(models)` owns which windows a live view lists, with `w`'s
   state; the views guard holds drawing packages from asking the policy which windows are shared.
 - **The order of care:** the week, the 5-hour window, then each model's own week (the owner's call,
@@ -3830,7 +3907,7 @@ last token's line where it has any, with no blank line after it, as a shell's pr
   quota's order. `status.CompareWindows` owns it, and the moment's `Listed` lists the windows by
   it; every tab and verb that lists windows to the owner reads it there: USAGE by window and by
   account, Runway's `<` `>`, the Switchboard's lines, the routing card, a
-  session's page, the Accounts tab's and History's limits and resets, the Log's request and event
+  session's page, the Accounts tab's and Trends' limits and resets, the Log's request and event
   cards, `usage`'s flags, `status`'s text, and `history`'s text, its days' highest use and
   `--windows`' readings. The JSON keeps quota's order, shortest first, as it's for agents and the
   order carries nothing there, and so does what's recorded. The views guard holds it: no drawing
@@ -3960,8 +4037,8 @@ Then, as only the Overview has them:
   between blocks; then the blank rows under its heading and its windows' headings; then its key
   line, with the blank row over it. The pool keeps its rule's row, and its other blank rows stay:
   between windows stacked, and between a block's windows by account.
-- **Many accounts:** past what fits, USAGE scrolls whole within its section, a row at a time, as
-  History's views do, each window's heading kept (the owner's call, 21 October 2026). It's one
+- **Many accounts:** past what fits, USAGE scrolls whole within its section, a row at a time,
+  each window's heading kept (the owner's call, 21 October 2026). It's one
   scroll over all its rows in the form the step it takes has, as Room has it: its windows', their
   pools', which scroll with the rest, and its key line's, where it keeps one, the last of them.
   - **Each window's heading is kept** on the section's first row while the scroll is among that
@@ -3970,7 +4047,7 @@ Then, as only the Overview has them:
     takes the row, and the blank row between two windows is neither's. By window from 150
     columns, the windows side by side share one heading row, kept over them all; by account, no
     heading is kept. A page never ends on a heading without the first row under it.
-  - **The last row says what's out of view,** in rows, in `text.subtle`, as History's do:
+  - **The last row says what's out of view,** in rows, in `text.subtle`:
     `▲ 3 more above · ▼ 12 more below`, each part only while any are. At 138 × 15, three accounts
     show under `WEEK`, and the 12 rows below are its pool's, the 5-hour's block and the key line.
   - **`j`/`k` scroll it a row, PgUp and PgDn a page, and the wheel three rows.** A page down
@@ -3995,7 +4072,7 @@ Then, as only the Overview has them:
 every account's and the pool's beside their blocks, `g` showing it and `v` flipping its charts
 between the burn-up and the burn-down, was removed by the owner on 26 October 2026, for the Graphs
 page: "I don't like them. I don't think they're effective. … lean into having the graphs page for
-graphs, at least for now." Every account's room in each window is drawn on Graphs (see Graphs),
+graphs, at least for now." Every account's room in each window is drawn on Trends (see Trends),
 and the pool's room then is judged there, as POOL says. The focus GRAPHS followed went with it:
 `↑` and `↓` scroll USAGE where it scrolls (see Many accounts).
 
@@ -4400,9 +4477,12 @@ doing; and LATELY's marks.
 ### Accounts
 
 Each account in depth, and every account together: what each is, what it does, what it costs and
-whether it pays. The Overview says how each account stands now, History when the accounts were used,
-and Runway when they'll have room; Accounts says who. It has two views, as sub-tabs: **Compare**, a
-column an account, and **Detail**, one account, or all of them, in full. They're drawn in the Paper
+whether it pays. The Overview says how each account stands now, Trends how use has gone over time,
+and Runway when they'll have room; Accounts says who. It has three views, as sub-tabs: **Compare**,
+a column an account; **Detail**, one account, or all of them, in full; and **Tokens**, its tokens as ccusage reports them,
+over the dial's period, drawn in the Paper file
+*Switchboard · Entities*, page p-2-0, and kept as `accounts-tokens-173x53` and
+`accounts-tokens-73x61`. Compare and Detail are drawn in the Paper
 file *Switchboard · Accounts*, on its page **FINAL · accounts · signed off 5 Oct 2026 · revised 6
 Oct**, and kept in `testdata/vhs/reference/` as `accounts-compare-160`, `accounts-compare-ten-160`,
 `accounts-compare-month-160`, `accounts-compare-bad-hour-160`, `accounts-detail-all-160`,
@@ -4410,14 +4490,16 @@ Oct**, and kept in `testdata/vhs/reference/` as `accounts-compare-160`, `account
 `accounts-detail-one-160`, `accounts-detail-mixed-160` (work without a 5-hour window),
 `accounts-phone-compare-52` and `accounts-phone-detail-52`: 160 columns by 37, and a phone's 52. The
 frames show the keys from before the sweep of 7 and 8 October 2026, `p` for the period and
-`0 auto  1-3 pin  m move`; where they and this section differ, this section holds.
+`0 auto  1-3 pin  m move`; where they and this section differ, this section holds. Detail filling
+its space, and turned Compare's WEEKS and WORTH, are drawn in round 2 of the dashboard by entity,
+and kept as `accounts-detail-all-173x53`, all accounts' bands, `accounts-detail-work-12-weeks-173x53`,
+an account over 12 weeks, and `accounts-detail-all-73x61`, all accounts' table on a phone.
 
-**Rules Accounts and History share:**
+**Accounts' rules,** which Trends' YEAR, BY MONTH and MODELS BY DAY keep too:
 
-- **The heading row** is the page's (see The page): `ACCOUNTS` or `HISTORY`, the sub-tabs, and at
+- **The heading row** is the page's (see The page): `ACCOUNTS`, the sub-tabs, and at
   the right the period between its keys, `< this week >`. The state after `[ ]` is only what the
-  screen can't show otherwise, as which accounts Compare shows of more than fit, or what History's
-  Year is filtered to. On a phone, the sub-tabs follow the tab's name after two spaces, each
+  screen can't show otherwise, as which accounts Compare shows of more than fit. On a phone, the sub-tabs follow the tab's name after two spaces, each
   ` Name ` with a space either side, as wider, so the highlight sits centred on its name (the
   owner's call, 17 October 2026), with no `[ ]` or rule, and the period at the right of the heading
   row where it fits beside, else on row 6 (see The page).
@@ -4437,7 +4519,7 @@ frames show the keys from before the sweep of 7 and 8 October 2026, `p` for the 
   its reserve (see `usage`, the printout). With one account,
   `all accounts` goes, as does anything that would only repeat that account. The pool, the accounts
   new sessions can go to now, is routing, which only the Overview shows (see The Overview): Accounts
-  and History show no routing, the status line carrying it onto every page. An account's own state,
+  shows no routing, the status line carrying it onto every page. An account's own state,
   open, at its cap, at its limit or refused, is the account's, and shows.
 - **Its accounts' states counted,** wherever an account's state goes for `all accounts`:
   `2 open · 1 at cap`, `1 open · 1 limit · 1 refused`, in the order open, pressure, at cap, limit,
@@ -4462,9 +4544,10 @@ frames show the keys from before the sweep of 7 and 8 October 2026, `p` for the 
   millions and cost little, count for little.
 - **Against its price:** worth over what the plans cost for the same period, a plan's monthly price
   prorated, a day being 12/365 of a month (settled in the plan), a week 12/52 of a month, 30 days a
-  month and 12 weeks twelve weeks' (settled in the plan), and a period so far priced whole. A period
+  month, 12 weeks twelve weeks' (settled in the plan) and 12 months twelve months', whole whether
+  they hold 365 days or 366, as Trends' YEAR prices them, and a period so far priced whole. A period
   the ledger began part-way through, as a fresh install's week, is priced from the ledger's first
-  day, a day each to the period's end, or today's for today and 30 days, as `history` and History
+  day, a day each to the period's end, or today's for today and 30 days, as `history` and Trends
   price it, as there's no worth for the days before to set against it (the owner's call, 15 October
   2026): Ultra's week from a Wednesday costs $33, not its whole week's $46. A ledger that holds no
   day yet begins today, for its plans' prices as for a read of its days, and the dashboard asks
@@ -4482,13 +4565,18 @@ frames show the keys from before the sweep of 7 and 8 October 2026, `p` for the 
   it` and `against`, on Compare, in its last column, and on Detail, 15 cells from column 36, say it
   compact, `4.4× · 2/3`, and the ratio alone with every plan known (the owner's call, 15 October
   2026).
-- **Periods are rolling,** never billing months, as switchboard knows no renewal date: today, from
+- **Periods are never billing months,** as switchboard knows no renewal date: today, from
   midnight; this week, from its first day, as `week_starts` sets it (see Config); 30 days, today and
-  the 29 before it; and 12 weeks, this week and the 11 before it, `<` and `>` stepping through them
-  in that order, Compare and Detail sharing the period (settled in the plan).
+  the 29 before it; 12 weeks, this week and the 11 before it; and 12 months, the days Trends' YEAR
+  counts as LAST 12 MONTHS, from the day after today's date a year back, 1 March where today is 29
+  February, to today. `<` and `>` step through them in that order, staying put at either end. It's
+  one dial, the dashboard's period, shared by every tab that counts over a period: Compare, Detail
+  and Tokens, Projects, and, as it comes, Sessions' List (the owner's call, 13 November 2026). The
+  preferences file keeps it as `period`, by its name, `today`, `30-days`, `12-weeks` or
+  `12-months`, none for this week; where it keeps none, it reads `accounts.period`, where a build
+  from before the dial was shared kept it, till the period is next kept, which drops it.
 - **Keys:** `[` and `]` move between the sub-tabs, and a click on one shows it; `<` and `>` step the
-  period, `<` to a shorter and `>` to a longer, or on History's Year, `<` back a year and `>`
-  forward; `v` cycles a view's shape, where it has more than one. The preferences file remembers
+  period, `<` to a shorter and `>` to a longer; `v` cycles a view's shape, where it has more than one. The preferences file remembers
   each choice, a view at a time (see Themes). `p` opens new sessions' routing picker, whatever is
   chosen (see Routing by hand); `t`, the theme picker, and `R`, refresh, work as on every page, and
   neither is on the key line; `?` opens help for the page shown, and `q` quits.
@@ -4501,10 +4589,11 @@ frames show the keys from before the sweep of 7 and 8 October 2026, `p` for the 
   account's head and a cell where that's more, its name whole at most 24 cells with its marks, so
   no name is cut where another account's column would show it whole; or, where it's more, the
   widest of its rows' shortest forms and a cell, each figure at its stated bound over the longest
-  period, so no figure is cut at a column's least, whatever the period. As many accounts show as
-  fit, at least two, as a comparison needs two, the last giving way first: six of ten at 160
-  columns, every one of three at 108, two of three with long names. The columns shown share the
-  rest alike, the odd cells `all accounts`' and then the first's, `all accounts`' values running
+  period, so no figure is cut at a column's least, whatever the period: the sessions moved by
+  their count alone, as a move counts once a session a day, so its requests bound it. As many
+  accounts show as fit, at least two, as a comparison needs two, the last giving way first: six
+  of ten at 160 columns, every one of three at 108, two of three with long names. The columns
+  shown share the rest alike, the odd cells `all accounts`' and then the first's, `all accounts`' values running
   to the frame's edge. Past them, `←` and `→` move the
   focus along the accounts, the columns scrolling to keep it in view and `all accounts` staying put
   at the right, and the heading's state says which show:
@@ -4536,6 +4625,50 @@ frames show the keys from before the sweep of 7 and 8 October 2026, `p` for the 
   shade from column 2 and the version's name in `text.secondary`, cut to the labels' column, and in
   each column its share, right-aligned in 4, `—` in `text.faint` for none, and `<1%` for a share
   that rounds to nothing (settled in the plan).
+- **WEEKS,** a blank row under BY MODEL, `each week at its peak` after it in `text.faint`, and at
+  12 months `, a month its fullest`: how full each column's weeks got, the weeks' own peaks and facts
+  over the period's reach, as `views.AccountsRow`'s `Reached` and `Reaching` give them, worked out
+  once, by `views`' `weeksOver`, never again for Compare.
+  - **Its reach:** the weeks that begin in the period, this one last, never fewer than eight:
+    eight at today, this week and 30 days, and 12 at 12 weeks. At 12 months, a column a month, the
+    13 months the period touches, each its fullest week of those beginning in it; a month no week
+    has begun in yet, as on the 1st, is empty, so the months stand over WORTH's.
+  - **Its columns,** 5 rows tall at a full week, drawn up the ramp in
+    `viz.ramp`, this week's dimmer, its top cell in eighths. They're laid across the column less a
+    cell as WORTH BY lays its buckets: at 12 months a cell apart where each has a cell, as at
+    160 and 173 columns, touching narrower, as at 100. Where the account keeps a
+    reserve, its cap's level is marked `┄` in `text.subtle` along the row its cap falls in, under
+    the columns. The axis names a month where it starts, and at 12 months each month, giving way
+    from the last back, as WORTH BY's does, the last bold; under this week's column, so far, `…`
+    in `text.secondary`, in place of its name, where its columns are weeks: at 12 months none,
+    as a month's column isn't this week's, though its fullest week may be.
+  - **Under it,** the weeks' facts on the reach's whole weeks, never its verdict's words, which stay in
+    `switchboard history`: `limit hit 3 of 7 · 9% left at a reset`, in `text.subtle`, its last
+    part giving way to `9% left`, then going; `all accounts`, the pool's peaks the mean of the
+    accounts', `short on 3 of 7 · 32% left at a reset`, `short on 3 of 7` bold `text.secondary`.
+    A dash where no whole week is judged yet.
+- **WORTH,** a blank row under WEEKS, `at API prices, by day` after it, naming the bucket: what
+  each column's requests were worth over the period, 4 rows tall in `accent.primary`, in the
+  finest bucket that fits the narrowest column, as Projects' WORTH BY takes its, one rule
+  (`views.WorthCharts`): today's by the hour, or by two hours where 24 don't fit; this week's by
+  day; 30 days' and 12 weeks' by day, or by week where their days don't fit; and 12 months' by
+  week, or by month. Every period's coarsest has 13 buckets at most (`views.BucketsMost`), which
+  a column at its least holds a cell each, so no chart is ever crushed. Today's hours are the
+  tail's fold's, each account's worth by the local hour its requests arrived in, those of no
+  session among them, kept apart from the sessions so Projects charts sessions alone, priced as
+  the fold prices today, all accounts' every account's (`AccountsPage.Hourly`), so each column's
+  hours sum to its worth: the summaries keep no hours. While Accounts shows today, the tail is
+  read at each look, and at once as it comes to show today, so its hours keep up; till its first
+  read of the day, today is by the day. Today's page, Accounts' and Projects' alike, is built
+  afresh as the local hour turns too, so the hour marked now's moves with nothing arriving. At
+  173 columns with three accounts that's an hour a column today, a day at this week and 30 days,
+  a week at 12 weeks and a month at 12 months; with four, 30 days are by week. The accounts share one scale, the highest bucket of
+  every configured account's, shown or not, so their columns compare; `all accounts` has its
+  own. Its axis is WORTH BY's, and under it its peak, `peak Wed $148`, two hours by their span,
+  `peak 12:00–14:00 $36`, and a month with its year where the period touches two of its name,
+  `peak Oct 2026 $310`; `all accounts`' adding ` · its own scale` in `text.subtle`.
+- **At 12 months** each column holds the 12 months' totals, and against its price names them:
+  `3.4× its $2,400 12 months`.
 - **Three groups** follow, a blank row before each, every value from its column's first cell in
   `text.secondary`, `—` and `none` in `text.faint`, and `all accounts`' bold:
   - **ACTIVITY:** `requests`, `1,204`; `sessions served`, `9`, each session counted once, however
@@ -4557,9 +4690,8 @@ frames show the keys from before the sweep of 7 and 8 October 2026, `p` for the 
   - **Each value in its forms,** fullest first, taking the fullest its column holds, less a cell:
     words give way, never a figure. The shortest are turned Compare's words, one owner of each.
     `sessions moved` says how many moves, the in and out summed, `21`, and for `all accounts` its
-    moves, `5`, in the column's ink, as `all accounts` says its count of limits; wide Compare's
-    least holds the moves in full, so only turned Compare's `moved` says the count, where the full
-    doesn't fit a cell short of the next column. `limits hit` names its windows short,
+    moves, `5`, in the column's ink, as `all accounts` says its count of limits, wide or turned,
+    where the full doesn't fit a cell short of the next column. `limits hit` names its windows short,
     `week ×1 · 5h ×2`, then says how many, `3`, in the column's ink, as `all accounts` says its
     count; turned Compare's `hit` takes the same forms but the full, the fullest its column holds,
     so three windows read `4` there. `left at its last reset` drops the day, `0%`; `plan` drops the
@@ -4577,8 +4709,21 @@ frames show the keys from before the sweep of 7 and 8 October 2026, `p` for the 
   or the period changes; its focus, help and the key line follow the form drawn, so where it's
   turned they have no focus. The phone's chrome takes no part in it.
 - **Turned,** Compare is a group at a time, an account a row, its name from column 1, and
-  `all` last. More accounts than its height holds scroll with `j/k`, the last row saying
+  `all` last. More rows than its height holds scroll with `j/k`, the last row saying
   `▼ 2 more below · j/k` (settled in the plan).
+  - **WEEKS and WORTH,** after BY MODEL, are bands, a band a column, as Detail's `all accounts`
+    draws its weeks. WEEKS' heading as wide Compare's, then a blank row and its bands back to back,
+    each 4 rows of week columns and a row of peaks: its name and marks from column 1; from where
+    the bars start, the reach's latest weeks that fit, a column 5 cells wide, 3 apart, in USAGE's
+    ink for its level, the cap's level marked across it where its account keeps a reserve; each
+    peak, `72%`, centred under its column, this week's `34%…`; on the first band's peaks' row,
+    where the reach's weeks don't all show, `‹ 4 more` in `text.subtle`; and at its right,
+    ending at the frame's edge, the weeks' facts on the reach, a part a row, `limit hit 3 of 7` then
+    `9% left at a reset`, `all` saying `short on 3 of 7`. WORTH's heading names its bucket, then a
+    band each column, a blank row before each: its name on its chart's top row, and from where the
+    bars start to the frame's edge its worth over the period in the finest bucket that fits there,
+    4 rows tall, the accounts on one scale and `all` on its own, its axis under it and its peak
+    under that, `peak Wed $148`, `all`'s saying `· its own scale`.
   - Its parts, laid by flex across the width: the names at their widest whole, at least 8 and at
     most 24 cells, its marks among them; 2 cells on, the bars, at 20, at most 40, giving way to a
     floor of 10; and a cell after them, the figures' column. It holds the widest largest version
@@ -4622,9 +4767,10 @@ frames show the keys from before the sweep of 7 and 8 October 2026, `p` for the 
     heads on the group's heading row in `text.subtle`, a row an account under it, with no blank
     rows.
 
-**Detail** shows one account in full, or all of them, chosen from a list at its left. The panel's
-top half is now and the period; a rule, `the last six weeks`, heads the rest. The rows and columns
-below are the frames' at 160 columns; its parts across the width are laid by flex, as **Wide, from
+**Detail** shows one account in full, or all of them, chosen from a list at its left, and fills
+its space. The panel's top half is now and the period; a rule, `the last seven weeks`, heads the
+weeks section, and WORTH and LATELY follow it down to the key line. The rows and columns below
+are the frames' at 160 columns, of an account; its parts across the width are laid by flex, as **Wide, from
 where it fits** says, and where they don't fit, it's stacked, as **Stacked** says.
 
 - **The list,** columns 0 to 19 with the sample's names, a chooser and nothing else: from row 6, 2
@@ -4635,7 +4781,7 @@ where it fits** says, and where they don't fit, it's stacked, as **Stacked** say
   column 0 before it, as SESSIONS marks its chosen row, bold alone barely showing on a bold name
   (the owner's call, 15 October 2026). Two rows under the last,
   `↑↓ choose`, `↑↓` bold `accent.key` and `choose` in `text.subtle`. A `│` in `border` at column 20,
-  rows 6 to 32, or 33 with sessions; the panel starts at column 24. More accounts than it holds
+  from row 6 down the view's rows; the panel starts at column 24. More accounts than it holds
   scroll with the choice (settled in the plan).
 - **The list's name column fits the names,** by a rule of its own: the widest number, label and
   `◆`, with no cells kept for `▲`, which the list doesn't draw, and a gap of two
@@ -4643,10 +4789,11 @@ where it fits** says, and where they don't fit, it's stacked, as **Stacked** say
   with it, and the list gives way first (the owner's call, 15 October 2026): it takes what the
   panel leaves it, a long label cut with `…` to that. The panel takes its natural, six weeks at a
   gap of 4 and 2-cell days, before the names take more than 14 cells, at 141 columns; the names
-  narrow to 14 before the panel narrows; and past 141 they take up to 24 before the days grow.
-  Cells the weeks leave at their edge, as the 2 at 138 columns, go to the names before they're
-  cut. As the panel is laid with the names at 24, whatever the labels, its layout follows the
-  width alone.
+  narrow to 14 before the panel narrows; and past 141 they take up to 24, as their labels need,
+  before the weeks take more. The weeks take what the names leave of their cells, so with short
+  labels they reach further: seven at 151 columns with the sample's names, six with long ones.
+  Cells the weeks leave at their edge, as the 2 at 138 columns, go to the names where they're
+  cut. So the panel's layout follows the width and the labels.
 - **The panel's head,** row 6: the account's name and marks, three spaces, then its state in
   ROUTING's words without its `back …` time, saying where new sessions go (see The Overview): `● at
   its cap · new sessions go elsewhere`, `■ limit reached · new sessions go elsewhere`, `■ refused
@@ -4675,11 +4822,11 @@ where it fits** says, and where they don't fit, it's stacked, as **Stacked** say
   - Its column is its labels and its figures' cells, at least 10, and as many as its widest
     bounded part takes, so each reads whole on a row of its own: a limit's hits of any window
     the moment lists, or any the period's page records a limit of, by its short name and
-    counted as often as the window can be hit over the longest period, twelve weeks, once a
-    window, `5h ×403`, `Fable wk ×12`, 12 cells; and `all accounts`' extra use on for one fewer
-    than every account, `on for 2 of 3`, 13 cells. So 23 with three accounts. It's the same
-    whichever account is chosen, so nothing moves as the choice does, and it ends at the weeks'
-    edge, column 140 at 160.
+    counted as often as the window can be hit over the longest period, 12 months of 366 days,
+    once a window, a part of one at each end among them, `5h ×1,758`, `Fable wk ×54`, 12
+    cells; and `all accounts`' extra use on for one fewer than every account, `on for 2 of 3`,
+    13 cells. So 23 with three accounts. It's the same whichever account is chosen, so nothing
+    moves as the choice does, and it ends at the weeks' edge, column 140 at 160.
   - A figure's parts, between its ` · `, go on one row where they fit; where they don't, each
     part goes on a row of its own, under the one before, in full where it fits, else short: a
     limit's window by its short name, `5h ×2`, and the plans known as `2 of 3 plans`, or `2/3`.
@@ -4696,40 +4843,66 @@ where it fits** says, and where they don't fit, it's stacked, as **Stacked** say
   row under it, as the stack's, the smallest that don't fit that row left out and `+2 more` in
   `text.subtle` ending it (settled in the plan). A second row moves the rule and all under it down
   a row.
-- **The rule,** row 18: `┄┄ ` in `border`, the weeks shown, counted, `the last six weeks`, or `the
-  last four weeks`, in `text.faint`, then `┄` in `border` to the weeks' edge. Above it, the windows
-  are now, and THIS WEEK and BY MODEL the period; below it, BY DAY and WEEKS cover the weeks it
-  names.
+- **The rule,** row 18: `┄┄ ` in `border`, the weeks shown, counted, `the last seven weeks`, or
+  `the last 13 weeks`, in `text.faint`, then `┄` in `border` to the weeks' edge. Above it, the
+  windows are now, and THIS WEEK and BY MODEL the period; below it, the weeks section covers the
+  weeks it names, then WORTH the period again, and LATELY.
 - **BY DAY,** row 20: the weeks' days, from `cx`, `dw` cells a day and `gap` cells between weeks, 2
   and 4 at 160, so `step = 7 × dw + gap` is 18: each day the points of its week the account used,
-  in History's five shades on the account's own scale (see History); a red `▪`, in
-  `state.destructive`, in the middle of a day it hit a 5-hour limit; and `··` in `text.faint` for
-  days still to come. On row 21, under each week, its first day, `24 Aug`, a `step` apart, this
-  week's bold `text.secondary` and the rest `text.faint`. For `all accounts`, every account's days
-  together, marked where any hit a limit.
+  in the five shades (see Trends' Five shades) on the account's own scale, the quarters of the active days among those
+  drawn and no others, so a heavy month out of view dims none of them (`views.ShadedDays`); a
+  red `▪`, in `state.destructive`, in the middle of a day it hit a 5-hour limit, its one cell at
+  1-cell days; and `··` in `text.faint` for days still to come. On row 21, under each week, its
+  first day, `24 Aug`, a `step` apart, this week's bold `text.secondary` and the rest
+  `text.faint`; and where the weeks the period reaches over don't all show, as at 12 months, at
+  the panel's left, before them, how many more there are, `‹ 38 more`, in `text.subtle`.
+  `all accounts` has no BY DAY.
 - **WEEKS,** row 23: the weeks' peaks, a `step` apart from `cx`, each `usage`'s bar of the week's
   peak, `7 × dw − 5` wide, 9 cells at 160, and a cell on, the peak, `text.muted`, or at its cap bold
-  `state.destructive`; for `all accounts`, each week the mean of the accounts' peaks. On row 25,
-  from the panel's left, the verdict, as History's Weeks gives it (see History), bold in its colour,
-  then `   limit hit 3 of the last 7 weeks · 9% left at a reset, on average` in `text.muted`, to the
-  weeks' edge; where that doesn't fit, as at 108 columns, the stack's shorter words on its one
-  row, `   limit hit 3 of 7 weeks · 9% left at a reset`. As it fits to the weeks' edge, never the
-  frame's, its form follows the width alone, whatever the list's names. For
-  `all accounts`, `room to spare together`, in `state.positive`, or `little to spare together`, in
-  `accent.attention`, the first where its weeks left 25% or more at a reset on average
-  (settled in the plan), then
-  `   30% left at a reset, on average · side ends weeks with 59% left, work with 9%`, the accounts
-  that end weeks with the most and the least left.
-- **LATELY,** row 27: the account's last three events, newest first, from `cx`, in LATELY's marks,
+  `state.destructive`. On row 25, from the panel's left, the weeks' facts alone, never the verdict's
+  words, which `history` alone gives (see The capacity verdict): on the whole weeks among those the section reaches over,
+  the period's or those shown, whichever are more, `limit hit 3 of the last 7 weeks · 9% left at
+  a reset, on average` in `text.muted`, to the weeks' edge; where that doesn't fit, `limit hit 3
+  of 7 weeks · 9% left at a reset`, then the limits alone; and `not enough weeks yet`, in
+  `text.subtle`, where none is whole. As it fits to the weeks' edge, never the frame's, its form
+  follows the layout alone.
+- **All accounts' weeks** are every account's weeks as the capacity verdict counts them, without it, in bands in the wide form,
+  and as its table in the stack, or in the wide form where not a week of bands fits across.
+  - **The bands,** from a blank row under the rule: `all accounts`' band first, then each
+    account's, back to back, each 4 rows of week columns and a row of peaks, as turned Compare's
+    WEEKS draws them: its name and marks at the panel's left, in a column as wide as the widest
+    and a cell; then as many weeks as fit to the weeks' edge, a column 5 cells wide, 3 apart, in
+    USAGE's ink for its level, the cap's level marked across them where its account keeps a
+    reserve; each peak centred under its column, `72%`, this week's `34%…`, `all accounts`' each
+    week the mean of the accounts' peaks; on `all accounts`' peaks' row, where the weeks reached
+    over don't all show, `‹ 6 more` in `text.subtle`; and at its right, the weeks' facts on the weeks
+    reached over, a part a row: `limit hit 3 of 14`, `text.subtle`, or `all accounts`'
+    `short on 3 of 14`, bold `text.secondary`, then `31% left at a reset`. The bands are drawn
+    wherever a week of them fits across the wide form, however short the view, the panel
+    scrolling past them, so a shorter view never draws a form a taller one wouldn't (the owner's
+    call, 14 November 2026).
+  - **The table,** in the stack, as on a phone, or wide where not a week of bands fits: `WEEKS`
+    on its heads' row, or where the weeks reached over don't all show, `‹ 6 more`; the weeks' first days right-aligned over their
+    columns, 8 apart, and the facts' two columns headed `limits` and `at a reset`, in
+    `text.faint`; `all accounts`' row, a blank row, then a row an account: its peaks, `72%`, this
+    week's `34%…` bold `text.secondary`, and its facts, `limit hit 3 of 6` and `9% left`. The
+    facts' columns are as wide as 53 weeks' facts take, so they hold still as the weeks change.
+- **WORTH,** a blank row under the weeks section: `WORTH` at the panel's left on its chart's top
+  row, and from `cx` to the weeks' edge what the account's use, or every account's, was worth
+  over the period at API prices, in the finest bucket that fits, as Compare's WORTH has it, 6 rows
+  tall against its own peak; its axis under it, and under that its peak, `peak Wed $148`.
+- **LATELY,** a blank row under WORTH, row 36: the account's events, newest first, every one
+  the document carries, filling the rows down to the key line, the rest scrolling, as the
+  panel's `▼ 12 more below` says, from `cx`, in LATELY's marks,
   but told from the account's side, which they leave unnamed:
   `14:31  ╎ reached its cap: 3 sessions moved to side`; a move onto it, `▸ 3 sessions came from
   work: work reached its cap`; `14:12  ▲ api started here`, or, where it started on the router's
   best, `api started here, the best`; `◔ came under pressure: out ~16:05 at this pace`; a pin
   naming it with others, `● pinned with side, by hand`; and `12:10  ◇ primed: its 5-hour window
-  started`. For `all accounts`, the last three of every account's, each naming its account, as the
-  Overview's LATELY does: `api started on side, the best`.
+  started`. For `all accounts`, every account's, each naming its account, as the Overview's LATELY
+  does: `api started on side, the best`.
 - **With sessions running** on the chosen account: `SESSIONS`, and `now` in `text.faint`, at the
-  panel's left on row 27, and from row 28 a row a session: `▸`, bold `accent.key`, before the one
+  panel's left on LATELY's row, and from the row under it a row a session: `▸`, bold `accent.key`, before the one
   selected; `●` while busy, in `state.positive`, or `○`, in `text.subtle`; the id, bold,
   `text.primary` while busy and `text.muted` while idle; a space and its project, in `text.muted`,
   in a column of 12, as the Overview's SESSIONS has it; two spaces and the model, padded to 8, in
@@ -4738,54 +4911,70 @@ where it fits** says, and where they don't fit, it's stacked, as **Stacked** say
   `bg.selection` from a cell before it to 44 cells on while the focus is on SESSIONS, and bold,
   unlit, while it's on the list, so the one place lit is where `↑` `↓` act; `SESSIONS` is bold
   `text.primary` while the focus is there, and `text.subtle` while it isn't (the owner's call, 15
-  October 2026). On row 33, two cells in,
+  October 2026). Six rows under `SESSIONS`, two cells in,
   `enter opens d28c's page`, `enter` bold `accent.key` and the rest `text.muted` (see A session's
   page). `→` takes the selection from the list into them, and `←` back; there `↑` `↓` select a
-  session, and `enter` opens its page; more sessions than rows 28 to 31 hold end with `+2 more`
-  (settled in the plan). LATELY moves beside them, 48 columns into the panel, at column 72, its rows
-  from row 28 and its words cut short of the frame's edge.
+  session, and `enter` opens its page; more sessions than its four rows hold end with `+2 more`
+  (settled in the plan). While they hold the focus, the view scrolls as little as shows
+  SESSIONS' heading, the session selected and its `enter` line, as the List keeps its choice in
+  view, wide and stacked alike, whenever they come to lie otherwise in the panel laid out at the
+  screen's size (`DetailSessions`): as the focus moves into them or another session is selected,
+  and whatever above them grows or shrinks, as the page is read, the period steps or the
+  document changes, or the screen is resized; and on coming back to Detail. `j` `k` scroll the
+  view without moving them, so they're never undone, and a session's page opened from them and
+  closed leaves Detail as it was left. LATELY moves
+  beside them, 48 columns into the panel, at column 72, its rows from the row under its heading,
+  every event still, and its words cut short of the frame's edge.
 - **With one account,** there's no list and no Compare: the panel from column 0, `cx` 12, laid as
-  with the list. At 160 its days are 3 cells, so `step` is 25, and the weeks, BY MODEL and THIS
-  WEEK end at column 158.
+  with the list. At 160, nine weeks of 2-cell days at a gap of 2, so `step` is 16, and the weeks,
+  BY MODEL and THIS WEEK end at column 154.
 - **Wide, from where it fits.** Flex lays the wide form's parts across the frame, and where their
   leasts don't fit, Detail is stacked, under the phone's chrome as under the wide: one account's,
   with no list, is wide from 81 columns. The wide form's start
-  follows from the weeks' least: the fewest cells of weeks, as they're laid, that reach as far
-  past `cx` as USAGE's row at its leasts, a cell, and THIS WEEK. Where that's 68 or fewer, four
-  weeks at a gap of 4 reach it, and with the list Detail is wide from 105 columns, whatever its
-  names: so with up to nine accounts and the windows' names within 8 cells, THIS WEEK 23. Where
-  it's 69 to 78, five weeks at a gap of 2 do, and it's from 115: so with ten accounts or more,
-  `on for 9 of 10` making THIS WEEK 24, or a window named past 8 cells, `Sonnet wk`, widening
-  USAGE's names. The parts, in order:
+  follows from the weeks' least: the fewest cells of weeks, as they're laid with days of either
+  width, so the form holds as the dial turns, that reach as far past `cx` as USAGE's row at its
+  leasts, a cell, and THIS WEEK. Where that's 68, four 2-cell weeks at a gap of 4 reach it, but
+  1-cell weeks take eight at a gap of 2, 70 cells, and with the list Detail is wide from 107
+  columns, whatever its names: so with up to nine accounts and the windows' names within 8 cells,
+  THIS WEEK 23. Where it's 69 to 77, five 2-cell weeks at a gap of 2, 78 cells, reach it, and
+  it's from 115: so with ten accounts or more, `on for 9 of 10` making THIS WEEK 24, or a window
+  named past 8 cells, `Sonnet wk`, widening USAGE's names. The parts, in order:
   - with more than one account, the list: a cell, the name column, from 14 cells to 24, narrowing
     first, and 9 cells past it to the panel;
   - the panel's headings' column, 12 cells, to `cx`;
   - the weeks, at their natural, six at a gap of 4, 104 cells, narrowing after the names, to the
-    fewest cells whose weeks, as they're laid, end where USAGE's row at its leasts, a cell, and
-    THIS WEEK after it reach: 68 cells, four weeks at a gap of 4, with THIS WEEK 23 cells; 78,
-    five at a gap of 2, with 24;
-  - past their natural, the weeks growing into what's left once the names have 24.
-  - In the weeks' room, as many weeks as fit, six at most, the latest kept: their gap 4, narrowing
-    to 3 and then 2 before a week leaves. So six at 138 columns, a gap of 3, and four at 108, a gap
-    of 4. Past six at a gap of 4, the days' cells grow, a whole cell at a time, where six weeks at
-    a gap of 4 have room for them: 3 cells from 193 columns. What's left past the weeks, less than
-    a cell more for each of their 42 days, stays blank at the right, or goes to the names where
+    fewest cells whose weeks, laid with days of either width, end where USAGE's row at its
+    leasts, a cell, and THIS WEEK after it reach: 70 cells with THIS WEEK 23 cells; 78 with 24;
+  - past their natural, the weeks growing into what's left once the names have what they need,
+    to 24.
+  - In the weeks' room, as many weeks as fit at a gap of 2, the latest kept, their gap the widest
+    from 4 they still fit at; their days 2 cells where the period's own weeks fit so, else 1, as
+    many as `views.Period`'s `WeeksLeast` counts: six at today, this week and 30 days, 12 at 12
+    weeks and 52 at 12 months. So beside the list, this week, eight weeks of 1-cell days at 107
+    columns, six of 2-cell days at a gap of 3 at 138, seven at a gap of 4 at 160 and eight at a
+    gap of 3 at 173; at 12 weeks, 13 of 1-cell days at 160 and 15 at 173. What's left past the
+    weeks, less than a week and a gap, stays blank at the right, or goes to the names where
     they're cut.
   - THIS WEEK, the rule and BY MODEL's bar end at the weeks' edge, and USAGE's row ends a cell
     before THIS WEEK, its bars at most 40, so they don't grow past that.
-  - The layout follows the width, the configured accounts, the windows the moment lists and the
-    limits the period's page records alone, never the figures in view. The rows under BY MODEL
-    move down with its second row, and with THIS WEEK's rows where they reach past USAGE's.
+  - The layout follows the width, the period, the configured accounts and their labels, the
+    windows the moment lists and the limits the period's page records alone, never the figures
+    in view. The rows under BY MODEL move down with its second row, and with THIS WEEK's rows
+    where they reach past USAGE's; those under the weeks section with its form, as all accounts'
+    bands or table take more rows than an account's weeks, whether the page is read or not.
 - **Stacked,** where the wide form doesn't fit, each part under its heading, a blank row between: on
   the view's first row, `◂ 1 work ▸`, `◂` and `▸` bold `accent.key`, a picker that takes any number
   of accounts (settled in the plan), and at the right `↑↓ an account, or all` in `text.subtle`;
   under it, the state, its glyph and words; USAGE, every window, a blank row between windows; THIS
   WEEK in two columns of three, 26 apart, labels 10 wide: `requests`, `limits` and `plan`, then
-  `worth`, `extra use` and `against`; BY MODEL, its versions over two rows; BY DAY, 2 cells a day,
-  with their first days under them, 15 apart; WEEKS, its peaks as percentages, right-aligned in 5
-  cells, 6 apart, `34%…` this week's; the verdict, and under it
-  `limit hit 3 of 7 weeks · 9% left at a reset`, its two rows; and LATELY. No rule. Its parts are
-  laid across the width by flex, the same at every width it's drawn at, under either chrome:
+  `worth`, `extra use` and `against`; BY MODEL, its versions over two rows; BY DAY, its days 2
+  cells where the period's own weeks fit so, else 1, with their first days under them, and where
+  the weeks reached over don't all show, `‹ 1 more` at the left on their row; WEEKS, its peaks as
+  percentages, one under each of BY DAY's weeks, `34%…` this week's, and the weeks' facts under it,
+  `limit hit 3 of 7 weeks · 9% left at a reset`, on one row; WORTH, across the frame; and LATELY,
+  down to the key line. `all accounts` has no BY DAY: its WEEKS is the weeks' table, from column
+  0, as many weeks as fit, none at 52 columns. No rule. Its parts are laid across the width by
+  flex, the same at every width it's drawn at, under either chrome:
   - USAGE's row: the windows' names, as wide as the widest of every window listed, shown or not,
     at least 8 cells and at most 24; a cell on, the bars, all one width; a cell on, the
     percentage, in 4; and two cells on, `usage`'s words, in the cells of their form at its widest:
@@ -4800,21 +4989,102 @@ where it fits** says, and where they don't fit, it's stacked, as **Stacked** say
     words (accuracy first, 21 October 2026).
   - BY MODEL's bar runs on the heading's row from column 10 to the frame's edge, 62 at 73: a share
     across the row, not a bar beside words, so the most of 40 doesn't hold it.
-  - BY DAY shows the latest weeks that fit from column 10 to the frame's edge, a week 14 cells and
-    a cell between: two at 52 columns, four at 73, all six from 100.
-  - WEEKS shows the latest peaks the account has that fit from column 10, keeping a cell at the
-    edge for this week's `…`, every one of the six from 47 columns. This week's `%` is in line with
-    the others', its `…` a cell past. They aren't aligned to BY DAY's weeks.
+  - BY DAY shows the latest weeks that fit from column 10 to the frame's edge, a week 14 cells,
+    or 7 of 1-cell days, and a cell between: five of 1-cell days at 52 columns, seven at 73, and
+    six of 2-cell days where they fit, from 100.
+  - WEEKS takes BY DAY's weeks: under each, its peak right-aligned in 5 cells from the week's
+    first day, so one `‹ 1 more` holds for both. This week's `%` is in line with the others', its
+    `…` a cell past.
   - LATELY's lines are whole where they fit, cut at the frame's edge where they don't.
-  - Bars stay one row; the stack ends where its parts end, and the rows to spare stay blank above
-    the key line.
+  - Bars stay one row; the stack ends where LATELY's every event ends, filling the rows to the
+    key line and scrolling on past it.
 
-**Keys.** `tab` views; `[ ]` view; `<` `>` the period, on both views; `←` `→` the focus along
+**Tokens** is ccusage's report, inside switchboard, split by what ccusage can't split by: the
+account, over the dial's period. It was History's Tokens, and keeps its columns, the order they give
+way in, its splits and its footnote.
+
+- **Columns,** their heads on the view's first row in `text.subtle`, laid out as parts by flex, in
+  this order: the names, under `week`; two cells on, `models` (or `on`), to the first count's; the
+  counts, each right-aligned in its cells, those to its left keeping it apart from the column
+  before, `input` in 10, `output` and `cache write` in 12, `cache read` in 14 and 3 after it that
+  keep `total` apart, which leave with it, and a cell on, `total` in 10; two cells on, `worth`, in
+  9; and a cell on, `against its price`, which takes the rest of the row. `cache write` is both
+  lifetimes' writes together, and `total` the four kinds. So at 160 columns, of short labels,
+  `models` is at 14 and `against its price` at 106.
+- **The names** are a column of labels, as every view's are: at least 8 cells, or their natural
+  where that's fewer, as it never is, their natural what the split names, never under 12, which
+  holds a period's name and a version's id, `└ sonnet-5-5`. By account, it's the widest account
+  configured, after its `└ `, each at 24 cells at the most; by model, or none, no account's, as no
+  row names one; by account and model, both, and 2 more, for a version nested under its account.
+  It's worked out from the config and the split, never the rows shown, so the columns don't move
+  with the data.
+- **`models` (or `on`)** is 18 cells at the least. Split by model, where it names the accounts a
+  version ran on, its natural is every account configured, a space apart, each at 24 cells at the
+  most, as each is drawn, a longer one cut with `…`: it takes that before `against its price` grows,
+  and narrows to 18 before any column leaves.
+- **`against its price` is never cut.** Its least is what it says at its widest for what every plan
+  configured costs over a whole period, at today's prices (`views` works that out), the ratio at
+  `99.9×`, as `99.9× its $138 week`, 5 cells, the most a ratio takes up to 9999× as it's written
+  whole from 100×; or its head where no plan is known. Where that doesn't fit, it leaves in its
+  turn. Past it, the plans known take the longest form that fits, or none.
+- **Narrower, the columns leave one at a time,** never all at once, and never by a switch at a
+  width: `models` first, then `cache write`, `input`, `output`, `against its price` and `cache
+  read`; `total` and `worth` stay. The names hold their natural until every one of those has left,
+  so a detail column leaves before a name is cut, and only then narrow to their least. A wider frame
+  never shows fewer columns, nor a shorter name. Where `against its price` has left, worth runs to
+  the frame's width. So at 108 and 120 every column shows but `models`, of short labels; by account
+  and model, whose names take 2 more, `models` leaves 2 columns sooner than by account, as the names
+  come first, where it used to show at the widest the old fixed form needed; and at 73, `cache
+  read`, `total`, `worth` and `against its price`. Where `models` leaves moves with the names
+  configured and the digits of what the plans cost.
+- **Counts:** under 100 million in millions to one place, `4.2M`, `0.8M`, `75.4M`; then in whole
+  millions, `615M`; and from a billion in billions to two places, `1.06B`. Worth is to the dollar,
+  `$635`.
+- **Its rows** are the period's, newest first, those with nothing recorded left out: a day each over
+  this week and 30 days, this week from the day weeks start on, as the dial's is everywhere; a week
+  each over 12 weeks; a month each over 12 months, the first priced from the 12 months' first day
+  where it begins part-way through, as Trends' BY MONTH has it. The names' head is what a row is,
+  `day`, `week` or `month`. Each row's against its price is over its period, its unit named, `5.6×
+  its $20 day`, `its $138 week`, `its $600 month`: priced whole, but where the 12 months or the
+  ledger begin part-way through it, by its days from then, as Against its price says.
+- **The period's total leads:** a row for the whole period, split as the rows are, named by the
+  dial's words, `this week`, in a row's head's ink. Its tokens and worth are its rows' summed, and
+  its models count the versions the period used, each once, never a sum. Its against its price is
+  Compare's all accounts' over the period, the one figure (`views` works it out once), its unit the
+  period's, `4.6× its $138 week`, `3.4× its $2,400 12 months`. A rule in `border.subtle` runs under
+  it as far as the heads run, to `against its price`'s end, or `worth`'s where that's left, then a
+  blank row. Over today the period is one row, so the total stands alone, with no rule and no row
+  repeating it.
+- **`v` splits each row,** the total's too: **by account,** the default, a row each, `└ ` in
+  `text.faint` and the account in `text.secondary` at 0, its versions' count at 14 in `text.subtle`,
+  and its counts and worth in `text.muted`; **by model,** a row each version, `└ opus-5-5`, its id
+  without `claude-`, as ccusage names it, and at 14 the accounts it ran `on`, each version's worth
+  at its own prices; **by account and model,** each account's versions nested under it, `└ work`,
+  then `  └ opus-5-5` (settled in the plan); or **none,** the periods alone. The split is Accounts'
+  own, kept in the preferences file as `accounts.split`, by name, `account`, `model`,
+  `account+model` or `none`.
+- **The rows fill the view** to a blank row over the footnote, always a row at a time, never a page
+  of whole rows with blank rows under them: where they don't fit, the last shown is cut where its
+  split rows don't fit, and the row after says `▼ 9 more below   ·   j/k to scroll`. `j` and `k`
+  scroll a row, PgUp and PgDn a page.
+- **Its figures** are the ledger's days held, built once for the days held, the period and the day,
+  while Tokens shows. Those of the row today is in brighten as a look changes them; the total's are
+  figures of the period Accounts counts over.
+- **The footnote,** under the rows, in `text.faint`: `worth: what the same tokens would cost through
+  the API, at its prices as of 7 Oct 2026`, the price table's date, 7 Oct 2026 for the built-in
+  table and 1 Oct 2026 in the frames, whose fixtures inject a table dated as they were drawn, and
+  split by model, `, each version at its own price` after it. The heads, the rows a row under them
+  and the footnote a row under the rows are laid down the view as parts by flex: where the rows
+  would have fewer than 2, a row's first and the line saying what's below, the footnote gives way;
+  and where they still would, at the view's least, the blank row under the heads gives way too, the
+  rows starting on the row under them (settled in the plan).
+
+**Keys.** `tab` views; `[ ]` view; `<` `>` the period, on every view; `←` `→` the focus along
 Compare's accounts; `↑` `↓` the account in Detail's list, or the session in its SESSIONS; `enter`
-opens, from Compare, the account in Detail, and from a session row, the session's page; `p` new
-sessions' routing picker; `?` help; `q` quit. A click picks a sub-tab, an account, a column or a
-session. The key lines, where the frames draw the keys from before the sweep of 7 and 8 October 2026
-(settled in the plan):
+opens, from Compare, the account in Detail, and from a session row, the session's page; `v` Tokens'
+split; `p` new sessions' routing picker; `?` help; `q` quit. A click picks a sub-tab, an account, a
+column or a session. The key lines, where the frames draw the keys from before the sweep of 7 and 8
+October 2026 (settled in the plan):
 
 - Compare:
   `tab views   [ ] view    < > period: this week    ←→ account  enter its page    p pin    ? help  q quit`.
@@ -4822,10 +5092,12 @@ session. The key lines, where the frames draw the keys from before the sweep of 
   `tab views   [ ] view    < > period: this week    ↑↓ account  enter its page    p pin    ? help  q quit`,
   and in its SESSIONS `↑↓ session  ← accounts  enter its page` in place of
   `↑↓ account  enter its page` (settled in the plan).
-- With one account, with no sub-tabs and so no `[ ] view`:
-  `tab views   < > period: this week    ? help  q quit`, `↑↓ session  enter its page` joining it
-  while it has sessions; no page shows `p pin` with one account, unless a pin set from the command
-  line stands (see Routing by hand).
+- Tokens:
+  `tab views   [ ] view    < > period: this week    v split: by account    p pin    ? help  q quit`.
+- With one account, Compare gone and its sub-tabs Detail and Tokens:
+  `tab views   [ ] view    < > period: this week    ? help  q quit` on Detail, `↑↓ session  enter
+  its page` joining it while it has sessions, and Tokens' `v split` on Tokens; no page shows `p pin`
+  with one account, unless a pin set from the command line stands (see Routing by hand).
 - On a phone: `tab views   [ ] view   ? keys   q quit`.
 
 **A token's year.** Accounts tells of an account whose token's year is up within 30 days, or is up,
@@ -4855,8 +5127,10 @@ the wheel among them; then it explains each part in turn: Compare's groups and h
 counted, a session served once however many days and accounts it ran on, the time at cap or limit,
 what its week had left at its last reset; worth at API prices and the price table's date; against
 its price and how a period is priced; what `all accounts` counts, and why it isn't the pool;
-Detail's windows, read as `usage` reads them, BY DAY's shades and its red `▪`, and WEEKS' peaks and
-what each verdict means.
+Detail's windows, read as `usage` reads them, BY DAY's shades and its red `▪`, WEEKS' peaks and
+their facts, how many weeks show, `all accounts`' bands and table, WORTH and LATELY; Compare's
+WEEKS and WORTH, wide or turned; and Tokens' total and rows, its columns, `v`'s splits, and how its
+rows fill the screen.
 
 **Its figures.** The states, the windows, WEEK USED, extra usage, LATELY and SESSIONS are live, read
 as the Overview reads them: the status document, the router's events, `GET /sessions` and the
@@ -4876,446 +5150,152 @@ of its own figures: requests, sessions, moves, limits, time at cap or limit, wor
 `left at its last reset`, of the six weeks, `plan`, from the config, and `extra usage`, live, are
 no figures of the period, and show as they are (the owner's decision, 14 Oct 2026).
 
+### Projects
+
+Where the use went: each project the period's sessions ran in, and the one chosen in full. Its data
+is built (`views.ProjectsPage`) and drawn, as the Paper frames of round 1 of the redesign by entity
+draw it, the tab names in its title row aside, and kept in `testdata/vhs/reference/` as
+`projects-173x53`, `projects-108x44`, `projects-73x61`, `projects-sessions-73x61`,
+`projects-108x24` and `projects-12-months-173x53`.
+
+- **A session's project** is `status.ProjectOf`'s, the project its lines name, else, of a line from
+  before they named one, its directory's, a Claude Code worktree counting as its repository, as the
+  List's sessions carry it (`views.ListedSession`'s `Project`), `sessions`' JSON among them. Inside
+  a project a session keeps its own directory's name, so a worktree's session reads `fix-login`.
+  A session is one project's, the one of where its latest day ran, as its story places it, so one
+  whose days name it two ways, as across the upgrade that began recording projects, counts once.
+  Sessions of no directory make one `no directory` row. Projects are named as `status.ProjectNames`
+  names them, by their folders, their parents too where two share one.
+- **What it reads:** each closed day's sessions as the day's side holds them (see The request
+  ledger), read once for the period's days and kept, and today's, of the held sessions and today's
+  lines as each read of the ledger's tail gives them, folded by the hour, a line the ledger's files
+  hold twice counted once, as the List and the Log count it. Projects never reads today's lines
+  whole: its reads read the days before today alone, joined to those the tail fed
+  (`SessionDays.Joined`), today's the tail's, so a read landing after a read of the tail keeps what
+  the tail gave meanwhile, and of each day gone both hold, the copy read whole later, an owed one
+  never; as a read of Projects' lands, and at each read of the tail, the tail's days let go of each
+  day the read holds of a later read, and of each before the first it read (`SessionDays.Without`),
+  so they hold only the days since it. A day that turns keeps what today held as that day's, owed a
+  read of its lines whole, and every day slept through owed too, till the tail's read of the days
+  it followed no further gives them (`SessionDays.Owed` names them, and `Tailed` takes every date
+  read, so a day read of no lines is owed no more), so no line is lost or counted twice. The watch
+  builds no page of a fold whose day has gone: till the tail is read on the day, as past midnight or
+  after a night asleep, Projects keeps the page it built, drawn as it was, and asks the tail's read
+  at once; with no page of the period to keep, it awaits it, as before its first read. The read of the tail
+  that finds the day turned reads them, once for every reader that wants a day; and every day any
+  read of the tail reads again whole is taken in too, so the line of a request across midnight,
+  filed on the day gone after the turn's read, comes as the List's read for it finds it. Till
+  Projects first asks for its own days, the tail's keep today's alone, the
+  days gone let go of and none read again for them, as that first read reads every day gone it
+  shows: so a watch that never shows Projects reads no day more than it did. The List says which
+  are running. Worth is priced as it's read, at the prices Past and the List price at.
+- **The list:** a row a project with a session in the period, by worth, greatest first, then by
+  name: its name and path; its sessions running now; its sessions, requests and worth, and worth by
+  family; and when its last request arrived. Then `all projects`, every project's totals.
+- **The chosen project:** its row; its share of every project's worth; its tokens; WORTH BY, by
+  the hour today, or by two hours, the hours to come counted, by the day this week, by the day and
+  by the week over 30 days and 12 weeks, and by the week, or the month, over 12 months, each
+  bucket labelled and the peak, the first greatest, named, a month with its year where the period
+  touches two of its name; BY MODEL, Accounts' reckoning by version, greatest first, under 1% left
+  out; ON ACCOUNTS, each account's share by its label, of the worth of the requests that went to an
+  account, so the shares make the whole; and SESSIONS, in the List's row form and order, running
+  first, each ended one with the day it ended, its model, account, mark and the move that brought
+  it there as the List says an ended session's, and each started at its first request wherever it
+  fell: before the period, as the days read give it, walking back day by day from the first read,
+  31 days at most, while the session ran on the day after.
+- **The drawing:** the list across the width over the chosen project, at every size. The list
+  takes up to a third of the view's rows, two at the fewest, and scrolls with the choice past
+  them, a line saying how many more; its columns lie as flex lays them, the bar narrowing to 8
+  cells first, then requests and `last` leaving, and only then the name cut, to 10 cells. Its
+  bar is its worth in eighths of a cell against the top project's, split by family as BY MONTH
+  splits a month's; `last` is `now` while a session of it is busy, as `Activity.Busy` has it.
+  Worth reads to the cent under $100 and to the dollar from it (`Worth.Rounded`). Under the list,
+  a blank row between, the head, the numbers, the sections and SESSIONS. The sections lie wide,
+  WORTH BY in the left half and BY MODEL over ON ACCOUNTS in the right, where a week's days'
+  columns of 8 cells, 2 apart, fit the half, whatever the period, so a MacBook's frame stays wide as
+  the dial turns, and the two fit the right half whole; middling, WORTH BY across and the two side
+  by side under it, where each fits a half whole; else stacked. In whichever cells WORTH BY takes as
+  the sections lie, its columns narrow to fit, as middling draws them. As rows run short, ON
+  ACCOUNTS leaves first, then BY MODEL, then WORTH BY, so SESSIONS keeps three rows. WORTH BY
+  today is by the hour where a column a cell wide fits each hour in the cells it takes, the left
+  half where it lies wide, else by two hours; over 30 days and 12 weeks, by day where one fits
+  each day, else by week; over 12 months, by week where one fits each week, else by month. Its
+  axis names buckets from the last back, the one now falls in bold, and weeks by the month of
+  their first day in the period, where it's another than the week before's. SESSIONS is the
+  List's columns, the session's from 11 cells to its whole, then model, started and requests leaving as the width runs
+  short; its rules read `ended today`, `ended yesterday`, a weekday within the week, else the day
+  and its date, each session's state its end by the clock alone and its start, where it began on
+  another day than the one it ended on, as the List's (see Sessions). Its columns are as wide as the widest each says of all
+  the project's sessions, so they hold still as it scrolls; the ended sessions are measured once,
+  as the watch builds the project's page (`dashboard.MeasureSessions`), and only those running at
+  each frame. Where rows run shorter than its least, a page of one line shows no rule, a rule
+  showing only with the session under it, and where no line fits, SESSIONS shows nothing, its
+  heading never alone. BY MODEL draws a version as Compare's BY MODEL does, ON
+  ACCOUNTS its names as Detail's column of names, marks and all. The chosen row is lit where `↑`
+  and `↓` act, in the list or SESSIONS, the other's bold, marked `▸`, a bar's own surface kept.
+- **What the watch holds:** the sessions' days before today, read off the update loop once
+  Projects or Sessions' List first shows, one read serving both, from the period's first day, and
+  again only where the dial reaches further back; and today's, folded off the loop at every read of
+  the ledger's tail from the first, whether or not either has shown, with each day turned since one
+  first asked for its own. By the
+  end of a day of 25,000 requests the fold holds some 2 MB, nearly all of it the keys of the lines
+  taken, kept so a line given again counts once, its spend by the hour by account, of each
+  session and of the requests of none, 24 sums for each account, small beside them; and as the
+  fold is a value, a read that gains a line copies those keys whole, so a read costs what the day
+  holds, under a millisecond by its end, not what it gained, and holds about twice the 2 MB while a copy is under way. No page is built
+  for a period the days held don't reach, nor before the tail's first read of the day, so a step
+  further back draws what the first read draws, loading only while there's no page to draw, till
+  its read lands, and then returns
+  to where the user was, in the list or SESSIONS, scrolled as far as it was, the session selected
+  kept in view, but where the project chosen left the list; without a ledger, the page is built
+  of the sessions running alone, as the List's are, and says `no sessions` where none runs. A
+  step of the dial on Projects keeps SESSIONS' scroll, where every other tab's view goes back to
+  its top, and each rebuild scrolls it no further than it then goes. The page is built again only
+  as the days read, the period, the day or the List's sessions running change, or a read of the
+  tail tells otherwise of the days it fed (`SessionDays.Told`): today another day, its fold taking
+  a line of today in or begun afresh, or a day it keeps read again; never lines all of another day,
+  nor a day read whole for another reader that it lets go of. Whether it's to be built is judged
+  before the days are joined, joined only to build it. While another tab shows, such a change
+  leaves it stale, built as Projects next shows, never a frame at a time; and the chosen project's
+  as the page or the choice does. The project shown is held as chosen once any
+  key or click moves the choice, the top row's included, else the top row is chosen as the list
+  ranks afresh. The choice is kept by path, and the session selected by id, across a rebuild, and
+  where the session selected showed, it's kept in view; a project that leaves the list leaves the
+  top row chosen, the list with the choice, no session selected and SESSIONS from its top.
+
 ### History
 
-When: how use has gone over time, by day across a year, week by week against the accounts' limits,
-day by day by model and by account, and in tokens as ccusage reports them. It has four views, as
-sub-tabs: **Year**, **Weeks**, **Days** and **Tokens**. The rules Accounts and History share hold
-here (see Accounts): the heading row, no description after a heading, the labels, `all accounts`,
-versions in tables and families in charts, worth at API prices, against its price, the periods and
-the keys. It reads the ledger's days alone, so it needs no router (see The request ledger). It's
-drawn in the Paper file *Switchboard · History*, on its page **FINAL · history · signed off 5 Oct
-2026 · revised 6 Oct**, and kept in `testdata/vhs/reference/` as `history-year-160`,
-`history-year-opus-160`, `history-weeks-160`, `history-weeks-columns-160`, `history-weeks-ten-160`,
-`history-days-160`, `history-days-ten-160`, `history-tokens-160`, `history-tokens-models-160` and
-`history-phone-year-52`: 160 columns by 37, and a phone's 52. The frames show the keys from before
-the sweep of 7 and 8 October 2026, `p` for the period; where they and this section differ, this
-section holds.
-
-**Five shades.** Days are drawn in five levels, far enough apart that neighbours can be told apart:
-
-- **Level 0,** a day with nothing on it, in `viz.day.0`.
-- **Levels 1 to 4,** the active days split into quarters by how much each did, on one scale for
-  everything a view shows together: the cuts are the active days' values in order, taken a quarter,
-  a half and three quarters of the way along (of `n` active days, the values at `n × q // 4`, `q`
-  from 1 to 3), and a day's level is 1 more than the cuts it reaches. They're `viz.day.1` to
-  `viz.day.4` (see Themes).
-- **A family's strips,** and Year filtered to a version, take its own colour in four steps instead:
-  `viz.day.0` mixed 40% and 70% toward it, the colour itself, and the colour mixed 55% toward white,
-  or toward black on a light canvas (settled in the plan).
-- **The Year shades requests,** how busy a day was, never its worth, which shifts with the models
-  used and their prices. A request is a ledger line, so the grid needs nothing priced.
-
-**Year** is the default view. It's drawn in its wide form, laid out below, where that form's parts
-fit: its key whole after the days' names, reckoned with every cut at four figures and its unit
-without the use shown, so the form never hangs on the data or a label's length, as from 99 columns.
-Narrower, it's drawn in its narrow form (Narrower, below). In the wide form, the numbers sit beside
-the grid only where the most weeks a span holds and the numbers, at their reckoned width, fit beside
-it, else under the key (the owner's call, 21 October 2026, over fewer weeks with the numbers
-beside); in the narrow form, they're always under the key. Where they sit is decided by the width
-alone, never by what's shown, so `v` and `<` `>` never move BY MONTH (settled 21 October 2026).
-
-- **The grid:** the latest weeks that fit, the period's at most: the last 12 months' 53, to this
-  week, or a calendar year's 53 or 54, as its span falls across the weeks: as many as end, with
-  their months' names over them, short of the frame's margin, as all 53 from 122 columns. A column
-  a week, 2 cells apart, from column 14; a row a day, rows 7 to 13, from the week's first day as
-  `week_starts` sets it (see Config), each day `■` in its level's shade; days still to come this
-  week left out. A day before the ledger recorded anything is an empty square like any other, with
-  no line saying when it began. The first, third and fifth days' names, `Mon`, `Wed` and `Fri`, at
-  column 0 in `text.subtle`; on row 6, each month's name over the column of its first week, in
-  `text.faint`, the current month's in `text.secondary`.
-- **The key,** row 15, from column 14: each shade's `■` and its bounds in requests a day, the cuts
-  rounded to 50, in `text.subtle`, `■ none   ■ under 450   ■ 450–750   ■ 750–1,000   ■ over 1,000`,
-  then two spaces and `requests a day` in `text.faint`.
-- **The numbers,** beside the grid, 6 cells after the most weeks a year's span holds, 54, at column
-  128, where they fit there at their reckoned width, whatever's shown: their labels, then the widest
-  any figure's format draws, as a day, a run of days or a share, or limits hit in two windows of
-  four figures, `week ×9,999 · 5-hour ×9,999`; from 168 columns. There, `LAST 12 MONTHS` on row 6,
-  or after the use shown, its name cut, never the period, `THE-RESEARCH-TE… · 12 MONTHS`, the
-  period alone where not even the name's ellipsis fits before it; with all use shown, `LAST` is
-  never cut and leaves whole, so it reads `12 MONTHS` from 9 to 13 columns and `LAST 12 MONTHS`
-  from 14; then from row 7 a row each, a figure longer than its column takes its shorter forms,
-  limits leaving off windows whole. Where they don't fit there, `LAST 12 MONTHS` on row 17, under
-  the key, at column 0, and under it the numbers in columns of three, 4 cells apart, each as wide
-  as its widest figure whole: the counts, the money, then the busiest day and the longest run.
-  Where the room is short, a figure takes its shorter forms before any whole figure leaves: the
-  second column narrows to its figures' shortest forms, against it over the plans known compact,
-  then alone; then the columns past the second leave, the last first; then the first narrows,
-  limits leaving off their windows whole; then the second leaves. The last column shown takes the
-  row's cells to the frame's width. Labels 13
-  wide in `text.subtle` and values in `text.secondary`: `requests`, `236,410`; `sessions`, `1,688`,
-  each counted once; `limits hit`, `5-hour ×402`, in `state.destructive`, those of more than one
-  window joined by ` · `, `week ×3 · 5-hour ×402` (settled in the plan; in the order of care); `worth`, `$27,480`;
-  `plans cost`, `$7,200`, the plans' monthly prices over the months, from the ledger's first day
-  where it began part-way through them, as Against its price prices a young ledger's period (see
-  Accounts); `against it`, `3.8×`, bold, in `state.positive` at 1× or more and `accent.attention`
-  under, then, where any account's plan isn't known, ` · 2 of 3 plans known` in `text.subtle`, as
-  Against its price says it, ` · 2 of 3 plans` where that doesn't fit, ` · 2/3` where neither does,
-  and the ratio alone where none does; `busiest day`, the day of the most requests, `Tue 22 Sep`;
-  and `longest run`, the most days in a row with any request, `58 days`.
-- **BY MONTH,** row 17, or where the numbers are under the key, row 22,
-  `worth at API prices; against what the plans cost that month` after it in
-  `text.faint`, and, where any account's plan isn't known, ` · 2 of 3 plans known` after that, once
-  for the table, short where only that fits, `· 2 of 3 plans`, compact where only that does,
-  `· 2/3`, and none where none does, left out of the room the Year's form takes. On the row under,
-  its columns' heads in `text.subtle`: `requests` at 14, `worth` at 26, `against` at 38, `limits`
-  at 48 and `by model` at 60. From the row under that, a row a month, oldest first, its name at
-  column 2, the first with its year, `Oct 2025`, the current month's bold; values in
-  `text.secondary`; `against` bold, coloured as against its price is, the month the ledger began
-  recording in priced from its first day, as the numbers price it (the owner's call, 15 October
-  2026), and `—` in `text.faint` for the month so far; `limits` in `state.destructive`. At column
-  60, a bar as long as the month's worth against the largest month's, the bars taking the room
-  after the columns, 40 cells at most, the house's most for a bar beside words, and 1 at least.
-  Where a part month's bar would leave its note no room after it, the most is lowered till it does,
-  so a part month never reads as a whole one and each bar stays its share of the largest; but to
-  half of it at least, past which the note leaves and the most holds. Split by family, each cell
-  `▅` in its family's colour, or in `text.muted` for a family with no colour of its own, as one the
-  version table doesn't know (settled in the plan), so bars on neighbouring rows don't merge; two
-  cells after a part month's bar, `so far`, or `from the 16th` for the month the ledger began
-  recording in, in `text.faint`, where it fits. Two rows under the last month, from column 60, the
-  families' dots, each with its name in `text.subtle`, `● Opus   ● Sonnet   ● Fable   ● Haiku`:
-  the bars' key, headed by its column's `by model`, flowed onto as many rows as it takes from that
-  column, a family never cut.
-- **`v`** cycles what the grid and its numbers show: all use, the default; then each model version
-  used in the 12 months, in the version table's order (see The request ledger); then each account;
-  and round. The heading's state names it,
-  `Opus 5.5 only, every account  ·  v for all, a model or an account`, with `v` bold `accent.key`,
-  and where that doesn't fit, `Opus 5.5 only`.
-  The shades and their key re-scale to what's shown, the key's unit naming it,
-  `Opus 5.5 requests a day`, and a version's grid takes its shade in four steps.
-  - Filtered to a version, the numbers are headed `OPUS 5.5 · 12 MONTHS`: `requests`, `sessions`,
-    `worth`, `of all use`, its share of the year's worth, `first used`, the first day it was used in
-    the 12 months, `Mon 22 Jun`, and `busiest day`. BY MONTH,
-    `Opus 5.5 only: its worth at API prices, and its share of the month`, heads `requests` at 14,
-    `worth` at 26 and `share` at 38, with `worth` over the bars at 60; a row a month it was used,
-    its bar in its shade, as long as the room allows, 40 cells at most, against its largest
-    month, and `from the 22nd` after the bar of the month it was first used in, where that was
-    part-way through; and above them a row for
-    the months before it, `Oct 2025 – May` at column 2 and `none: Opus 5 then` at 26, naming its
-    family's version used before it, both in `text.faint`.
-  - Filtered to an account, `work only, every model`, the numbers, BY MONTH and the shades are the
-    account's alone, plans cost its own plan's, and `←` `→` step to the next account, `←→ account`
-    joining the key line; `v` passes over versions with no use in the 12 months
-    (settled in the plan).
-- **`<` and `>`** step from the last 12 months back through each calendar year the ledger holds, and
-  forward again: a year's grid runs from the week of 1 January to the week of 31 December, the days
-  outside it left out, and its numbers are headed by the year, `2025` (settled in the plan).
-- **Shorter than the Year,** the view scrolls whole, the grid, the key, the numbers and BY MONTH
-  together, a row at a time, and the row over the key line says what's out of view,
-  `▲ 3 more above   ·   ▼ 10 more below   ·   j/k to scroll`, shorter where the width is, as Tokens
-  says it where a period doesn't fit; a Year that fits says nothing (the owner's call, 15 October
-  2026).
-- **Narrower:** under the period's row, the latest weeks that fit, as wide, from column 4 under
-  their months' names, `M`, `W` and `F` at column 0, as 33 at 73 columns; a blank row, and the key
-  cut short, `■ 0 ■ <450 ■ 450–750 ■ 750–1k ■ >1k  requests a day`; a blank row, `LAST 12 MONTHS`
-  and its numbers under it in columns, laid out as wide, labels 10 wide and short: `requests`,
-  `sessions` and `limits`, then `worth`, `plans` and `against`, then `busiest` and `run`, the third
-  column only where it fits whole, as from 76 columns where limits read `week ×3 · 5-hour ×412`;
-  then a
-  blank row and BY MONTH, its heads on its heading's row, `worth` at 12, `against` at 22 and
-  `by model` at 32, and every month under them, the first with its year, their names at column 1
-  and their bars from column 32, taking the room to 40 cells at most, with `so far` or
-  `from the 16th` after a part month's bar, as wide; and two rows under the last month, from column
-  32, the families' dots, flowed as wide.
-
-**Weeks** is how full each account's week got, and whether there are as many accounts as the use
-needs. **Short** is a week in which some account hit its week's limit, its peak at its cap, where the
-router stops sending it new sessions: 100% less its reserve, the reserve the config has now, as a
-week's own isn't recorded beyond the moments an account was held at its cap, and 100% without one.
-What a week had left at its reset is left of its limit, not of its cap: the window's own reading.
-Weeks takes its form for many accounts, as `history-weeks-ten-160` draws it, where the verdict can
-name one to drop, one fewer being short on no more weeks than now; otherwise its form for few.
-
-- **The capacity verdict** leads, rows 6 to 8:
-  - The headline, bold: `<n> is one more than you need`, in `state.positive`, where one fewer would
-    be short on no more weeks than now, as `ten is one more than you need`; `<n> is one too few`, in
-    `accent.attention`, where now is short on 4 or more of the 7 and one more would halve that;
-    `<n> is too few`, in `accent.attention`, where now is short on 4 or more of the 7 and one more
-    wouldn't halve that, the row under it saying how short one more would still be; else
-    `<n> is about right`, in `state.positive`, as `three is about right`. The count is a word to
-    ten, then figures (settled in the plan).
-  - Then `as now: ` and how many of the last 7 whole weeks were short, and who was short each time,
-    `short on 3 of the last 7 weeks, each time work alone`; `   ·   with one fewer: ` and how many a
-    replay with one account fewer finds, `short on 6 of 7`; and `   ·   with one more: `,
-    `short on none`. The labels are `text.subtle` and the counts `text.muted`, the worst of them
-    bold `accent.attention`. Where one fewer would be short on no more weeks than now,
-    `with one fewer` says so, `short on 4 of 7, the same weeks`, `with two fewer` takes
-    `with one more`'s place, and the third row names the account to drop,
-    `spare is the one to drop: $100/mo, 5% used on average, and nothing ran short without it`, in
-    `text.muted`. With one account, the row reads
-    `as now: short on 3 of the last 7 weeks   ·   a second would have cleared them` where one more
-    would leave none short (settled in the plan).
-  - Last, `an estimate, from replaying these weeks with one account fewer or more`, in `text.faint`,
-    with few accounts; with many, `an estimate, from replaying these weeks`, three spaces after the
-    line naming the account to drop.
-- **The replay** treats each of the last 7 whole weeks alone. Without an account, its peak, times
-  its plan's size, is shared among the rest by their sizes, each one's peak rising by its share;
-  with one more, of the plan most of the accounts have, every peak falls in proportion, the same use
-  over more room. A replayed week is short where any account would reach its cap. `with one fewer`
-  drops the account whose loss makes the fewest weeks short, and of those that tie, the one used
-  least over the weeks shown. Plans' sizes are in Pro weeks, `pro` 1, `max` 5 and `ultra` 10 (see
-  The request ledger); an account without a `plan` counts as the plan most of the accounts have,
-  the larger of two that tie, and where none has one, every account counts as one (settled in the
-  plan), as the forecast sizes them too (see Forecasting run-outs).
-- **Its form.** Weeks is drawn wide, in the shape `v` gives it, where that shape's parts fit at
-  their leasts short of the frame's margin and its legend reads whole on one row; else in the other
-  shape, where that fits, as `v` then has no shape to change to; else in its narrow form (below).
-  Neither hangs on the data, so the form changes once as the width grows, from the narrow to the
-  table's at 79 columns; with the columns chosen, once more, to theirs at 126, where their wider
-  legend fits.
-- **A row's parts,** laid out across the width the same for every row, so its columns come from the
-  width and the accounts configured alone, never from the rows in view:
-  - **the label column,** as Days' is: its widest name, `all accounts` or any account's with its
-    marks, not only those shown, and a gap of 2, as The page has a column of names; 14 in the
-    frames;
-  - **the weeks,** 6 cells each, 2 apart: the latest that fit, up to the eight, the oldest giving way
-    first, the last never;
-  - **the verdict,** a cell after the last week shown: its natural the widest an account's verdict
-    is worded, its counts at `views.VerdictWeeks`, 7, and its shares at 100%, as
-    `plenty to spare most weeks  100% left  without it: short 7 of 7` in the table and
-    `limit hit 7 of 7 weeks · 100% left at a reset, on average` in columns; its least the widest
-    verdict alone, `plenty to spare most weeks`.
-
-  Weeks give way one at a time before a verdict is cut below its natural, so wherever a week can
-  give way, every account's verdict reads whole; the verdict narrows only once the last week alone
-  is left, and is cut at the edge there, never to less than its least; and the label column
-  narrows only once the verdict has. What else sits beside the weeks, `over the last 7 weeks`,
-  every account's `short on 3 of 7 weeks`, and in columns the capacity verdict's rows beside
-  `all accounts`, isn't counted in the verdict's natural: it's held to the frame's edge, cut there
-  where it's wider.
-- **The table,** `v`'s first shape and the default. On row 10, the weeks' first days, `10 Aug`,
-  each right-aligned in its week, in `text.faint`, this week's bold `text.secondary`, and in the
-  verdict's column `over the last 7 weeks` in `text.faint`. On row 12, `all accounts`, bold
-  `text.secondary`, each week the mean of the accounts' peaks, and in the verdict's column
-  `short on 3 of 7 weeks`, bold `text.secondary`, and with many accounts `   with ten accounts`
-  after it, in `text.subtle`. From row 14, a row an account: its name and marks at column 0; each
-  week's peak, right-aligned in the week's first 5 cells, in its level's colour, as `usage`
-  colours a percentage, but bold only at its cap, in `state.destructive`; and this week's so far,
-  `34%…`, bold `text.secondary`. In the verdict's column, the account's verdict, bold, then, with
-  few accounts, `  9% left` and `  without it: short 6 of 7`, in `text.subtle`, and with many,
-  `   9% left at a reset`, with no `without it`.
-- **An account's verdict,** over the last 7 whole weeks: `hits its limit most weeks`, in
-  `state.destructive`, where it hit its limit in 3 or more of them; else
-  `plenty to spare most weeks`, in `state.positive`, where its weeks ended with 40% or more left on
-  average; else `ends most weeks with room`, in `text.secondary`. Where it could go, `could go: `
-  bold `accent.attention`, then `5% used, no limit ever` in `text.muted`; where it's barely used,
-  `barely used: ` and `80% left at a reset`; each alone in its cell. An account could go where the
-  rest would cover it with no more weeks short, and it hit no limit in the 7 weeks and used 10% or
-  less on average; it's barely used where its weeks ended with 75% or more left on average
-  (settled in the plan).
-- **The columns,** `v`'s second shape: a block an account, `all accounts` first, 6 rows apart, the
-  name at column 0 on the block's first row. Each week shown is a column 5 wide and 3 rows tall, at
-  the start of its week's cells, filled from the bottom to its peak, its top cell in eighths, each row in
-  the ramp's colour at its height (`viz.ramp.1`–`viz.ramp.4`, as a bar's cells take it) mixed 75%
-  from the canvas toward it, and 45% for this week; a week with no use is `▁▁▁▁▁` in `text.faint`.
-  Under each column, its peak centred in its week's 6 cells, `text.muted`, at its cap bold
-  `state.destructive`, and this week's, `59%…`, in `text.secondary`. Beside each block, in the
-  verdict's column: for `all accounts`, the
-  headline, then `as now: …`, then `with one fewer: …   with one more: …`, then the estimate's line;
-  for an account, its verdict, then `limit hit 3 of 7 weeks · 9% left at a reset, on average` in
-  `text.muted`, then `without it, the rest: ` in `text.subtle` and `short on 6 of 7` in
-  `text.muted`. The weeks' first days go under the last block.
-- **The legend,** row 34:
-  `each week at its peak   ·   at its cap: limit hit   ·   34%… this week, so far`, each mark as
-  it's drawn and the words in `text.faint`; under the columns,
-  `short: a week some account hit its limit   ·   ` leads it. A peak is at its cap where it hit
-  its limit as Weeks counts one, as `views` marks it; `all accounts`' where every account's known
-  that week is.
-- **Each column is one of the account's own weeks,** from one reset of its week window to the next,
-  placed under the first day of the calendar week it began nearest. More accounts than fit scroll,
-  `j/k` or the wheel.
-- **Narrower,** where the wide form doesn't fit, Weeks shows the capacity verdict, a part a row,
-  wrapped to the width, then the table with no verdicts beside it: its label column and the latest
-  weeks that fit, laid out as the wide form's, the label column narrowing only once the last week
-  alone is left; seven at 73 columns, all eight from 77. Weeks leave only where the form changes, as
-  the verdicts take their room.
-
-**Days** is eight weeks, the week so far and the seven before it, a day at a time. It's drawn in its
-wide form, laid out below, where that form's parts fit short of the frame's margin: a strip's row,
-its label column and a week at least, and its key whole on one row, so the form never hangs on the
-data, as from 118 columns. Narrower, each strip's name takes the row over it (Narrower, below).
-
-- **A strip's row** is laid out as parts, across the width, the same for every strip, so its
-  columns come from the width and the accounts alone, never from the strips in view:
-  - **the label column,** its widest name, a family's or any account's with its marks, not only
-    those shown, and a gap of 2, as The page has a column of names; 12 in the frames
-    (`personal ◆`). It narrows only once every week but the last has given way, so its
-    names read whole before another week shows;
-  - **the weeks,** 15 cells each, a day's 2 cells and the cell after a week's days: the latest that
-    fit, up to the eight, the oldest giving way first, the last never, as seven at 138 columns and
-    all eight from 153;
-  - **the count,** 4 cells after the last week's last day, so it reads with its strip, never at the
-    edge: its number right-aligned in 4, then its words, as wide as the widest, ` 5-hour limits`.
-- **The weeks:** on row 6, each week shown headed by its first day, `10 Aug`, in `text.faint`, this
-  week's bold `text.secondary`; on row 7, over this week's days, their initials, `M T W T F S S`, in
-  `text.faint`. A day still to come is `··`, in `text.faint`. The heading row's `eight weeks` names
-  the period Days reads, however many weeks fit; the dates over the weeks say which are shown.
-- **BY MODEL,** row 8, `every account, weighed at API prices, on one scale` after it in
-  `text.faint`: from row 10, two rows apart, a strip a family used in the eight weeks, never a
-  version (settled in the plan), `●` in its colour and its name in `text.secondary` at column 0,
-  each day the family's worth that day, every account's, in the family's own steps, the strips on
-  one scale; its count its share of the eight weeks' worth, bold `text.secondary`, then ` of use` in
-  `text.subtle`, `59% of use`.
-- **BY ACCOUNT,** three rows after the last family, `the share of its week each day used, on one
-  scale` after it: two rows apart, a strip an account, its name and marks at column 0, each day the
-  points of its week it used that day, in `viz.day.1` to `viz.day.4`, every account on one scale,
-  and a red `▪`, `state.destructive`, in the middle of a day it hit a 5-hour limit; its count how
-  many it hit, bold `state.destructive`, or `text.faint` at none, then ` 5-hour limits` in
-  `text.subtle`. They're history, as the ledger recorded them. A verified Ultra account keeps the
-  count and red marks of the days before it lost its 5-hour window, as every limit History counts
-  elsewhere is kept. Past six accounts it scrolls within itself, with `j/k` or the wheel, and the
-  row over the key says what's out of view: `▼ 4 more accounts below   ·   j/k or the wheel to
-  scroll them`, `▼` in `accent.key`, the words in `text.muted`, `j/k` bold `accent.key`. Shorter
-  than History's frames, 37 rows, Days is drawn whole and scrolls a row at a time over its key;
-  where everything fits, as at 138 by 30, nothing scrolls. Where holding the key on the view's last
-  rows would leave the strips fewer than 2 rows over it, a strip's first and the line saying what's
-  below, as at a phone's least, the key scrolls with them instead, a blank row under the last strip
-  (settled in the plan).
-- **The key,** on the view's last row: `less `, the five shades as 2-cell swatches 3 apart, `more`,
-  in `text.subtle`, then `  each shade a quarter of the active days` in `text.faint`; then a swatch
-  of `viz.day.2` holding the red `▪`, and `a day it hit a 5-hour limit`; then `··` and
-  ` days to come`.
-- **Narrower,** where the wide form doesn't fit, each strip's name and its count share the row over
-  its days. The days are the latest weeks that fit the whole width, from column 0, the blank after
-  the last week's days needing no room: two from 30 columns, three from 45, four from 60 and seven
-  from 105. The count, as wide as the widest, ends where the last week shown ends its days, so it
-  reads with its strip; the name takes what's left before it, a blank cell between, and is cut where
-  the two don't fit, not the count. The name keeps two cells at least, of the name as drawn, its
-  marks among them: `w…`, `●…`, or for the primary its mark alone, ` ◆`. Where that doesn't fit
-  before the weeks' end, narrower than 30 columns, the count ends at the frame's edge instead, and
-  narrower than 22 it's cut there, `33 5-hour lim…`. The headings drop their words, and the key
-  takes two rows, the shades on the first with nothing said of them.
-
-**Tokens** is ccusage's weekly report, inside switchboard, split by what ccusage can't split by: the
-account.
-
-- **Columns,** their heads on the view's first row in `text.subtle`, laid out as parts by flex, in
-  this order: the names, under `week`; two cells on, `models` (or `on`), to the first count's; the
-  counts, each right-aligned in its cells, those to its left keeping it apart from the column
-  before, `input` in 10, `output` and `cache write` in 12, `cache read` in 14 and 3 after it that
-  keep `total` apart, which leave with it, and a cell on, `total` in 10; two cells on, `worth`, in
-  9; and a cell on, `against its price`, which takes the rest of the row. `cache write` is both
-  lifetimes' writes together, and `total` the four kinds. So at 160 columns, of short labels,
-  `models` is at 14 and `against its price` at 106.
-- **The names** are a column of labels, as every view's are: at least 8 cells, or their natural
-  where that's fewer, as it never is, their natural what
-  the split names, never under 12, which holds a period's name and a version's id, `└ sonnet-5-5`.
-  By account, it's the widest account configured, after its `└ `, each at 24 cells at the most; by
-  model, or none, no account's, as no row names one; by account and model, both, and 2 more, for a
-  version nested under its account. It's worked out from the config and the split, never the rows
-  shown, so the columns don't move with the data.
-- **`models` (or `on`)** is 18 cells at the least. Split by model, where it names the accounts a
-  version ran on, its natural is every account configured, a space apart, each at 24 cells at the
-  most, as each is drawn, a longer one cut with `…`: it takes that before `against its price` grows,
-  and narrows to 18 before any column leaves.
-- **`against its price` is never cut.** Its least is what it says at its widest for what every plan
-  configured costs over a whole period, at today's prices (`views` works that out), the ratio at
-  `99.9×`, as `99.9× its $138 week`, 5 cells, the most a ratio takes up to 9999× as it's written
-  whole from 100×; or its head where no plan is known. Where that doesn't fit, it
-  leaves in its turn. Past it, the plans known take the longest form that fits, or none.
-- **Narrower, the columns leave one at a time,** never all at once, and never by a switch at a
-  width: `models` first, then `cache write`, `input`, `output`, `against its price` and `cache
-  read`; `total` and `worth` stay. The names hold their natural until every one of those has left,
-  so a detail column leaves before a name is cut, and only then narrow to their least. A wider frame
-  never shows fewer columns, nor a shorter name. Where `against its price` has left, worth runs to
-  the frame's width. So at 108 and 120 every column shows but `models`, of short labels; by account
-  and model, whose names take 2 more, `models` leaves 2 columns sooner than by account, as the names
-  come first, where it used to show at the widest the old fixed form needed; and at 73, `cache
-  read`, `total`, `worth` and `against its price`. Where `models` leaves moves with the names
-  configured and the digits of what the plans cost.
-- **A period a row,** newest first, from row 8, a blank row between periods: named by its first day,
-  `28 Sep`, by day its day, `Thu 1 Oct`, and by month its month, `Oct 2026` (settled in the plan),
-  this week as any other, bold `text.primary`; how many model versions it used, `6 models`, in
-  `text.muted`; its counts and worth, bold `text.primary`; and against its price,
-  `4.6× its $138 week`, the period a young ledger began in priced from its first day, and over the
-  plans known where any account's isn't, `4.4× its $92 week · 2 of 3 plans known`, as Accounts says
-  it (the owner's call, 15 October 2026).
-- **`v` splits each period:** **by account,** the default, a row each, `└ ` in `text.faint` and the
-  account in `text.secondary` at 0, its versions' count at 14 in `text.subtle`, and its counts and
-  worth in `text.muted`; **by model,** a row each version, `└ opus-5-5`, its id without `claude-`,
-  as ccusage names it, and at 14 the accounts it ran `on`, each version's worth at its own prices;
-  **by account and model,** each account's versions nested under it, `└ work`, then `  └ opus-5-5`
-  (settled in the plan); or **none,** the periods alone.
-- **Counts:** under 100 million in millions to one place, `4.2M`, `0.8M`, `75.4M`; then in whole
-  millions, `615M`; and from a billion in billions to two places, `1.06B`. Worth is to the dollar,
-  `$635`.
-- **`<` `>`:** by day, by week, the default, and by month. Older periods scroll, `j/k`, the row
-  after the last shown saying `▼ 3 more weeks below   ·   j/k to scroll`, `▼` in `accent.key`, the
-  words in `text.muted`, `j/k` bold `accent.key`. A page down starts at the first period the page
-  didn't show, and a page up ends at the one above the first it showed, by the one paging rule
-  (see the Overview's USAGE).
-- **The footnote,** row 34, in `text.faint`:
-  `worth: what the same tokens would cost through the API, at its prices as of 7 Oct 2026`, the
-  price table's date, 7 Oct 2026 for the built-in table and 1 Oct 2026 in the frames, whose fixtures
-  inject a table dated as they were drawn, and split by model, `, each version at its own price`
-  after it. The heads, the periods a row under them and the footnote a row under the periods are
-  laid down the view as parts by flex: where the periods would have fewer than 2 rows, a period's
-  first and the line saying what's below, the footnote gives way; and where they still would, at
-  the view's least, the blank row under the heads gives way too, the periods starting on the row
-  under them (settled in the plan).
-
-**Keys.** `tab` views; `[ ]` view; `<` `>` the period, on Year and Tokens; `v` the shape or split,
-on Year, Weeks and Tokens; `j/k` and the wheel scroll, where a view runs past the screen; `p` new
-sessions' routing picker; `?` help; `q` quit. A click picks a sub-tab, a period or a split. Weeks
-and Days keep to eight weeks, which the heading row's right shows, `eight weeks`, in `text.muted`,
-without `<` and `>` (settled in the plan). The key lines, where the frames draw the keys from before
-the sweep of 7 and 8 October 2026 (settled in the plan):
-
-- Year:
-  `tab views   [ ] view    < > period: last 12 months    v split: all    p pin    ? help  q quit`,
-  the split naming what's shown, `v split: Opus 5.5`.
-- Weeks: `tab views   [ ] view    v split: table    p pin    ? help  q quit`, or `v split: columns`.
-- Days: `tab views   [ ] view    p pin    ? help  q quit`.
-- Tokens:
-  `tab views   [ ] view    < > period: by week    v split: by account    p pin    ? help  q quit`.
-- With one account, no line shows `p pin`, unless a pin set from the command line stands (see
-  Routing by hand); on a phone: `tab views   [ ] view   ? keys   q quit`.
-
-**`?` help** (see The page), `HELP · HISTORY`, lists the page's keys first, `t`, `R`, `j`/`k` and
-the wheel among them; then it explains each part in turn: the five shades, each a quarter of the
-active days, and that the Year counts requests; BY MONTH's bars and against what the plans cost;
-what a week's peak is, what short means, how the replay estimates a week with an account fewer or
-more, and what each verdict means; Days' two scales and its red `▪`; and Tokens' columns, as
-ccusage's, and the price table's date. With them, how each view scrolls: the Year a row at a time,
-saying what's out of view; Weeks and Days an account at a time, or a row at a time where they're
-drawn whole; Tokens a period at a time, or a row at a time where a period doesn't fit, and on up
-from there while a period at a time would show fewer rows than a row at a time a row shorter, as
-the Switchboard's step 5 has it; and that a view goes back to its top as its scroll turns from one
-to the other.
-
-**Its figures,** every one from the ledger's days (see The request ledger), read with no router:
-requests a day, by version and by account; sessions, the distinct ids of the days' `session_ids`;
-limits, the days' `limits`, by window; worth, the days' usage priced at today's prices; tokens, by
-kind, the days' usage; plans cost, from each account's `plan` (see Config). An account's weeks run
-from one reset of its week window to the next, as the days' `resets` give them: a week's peak is the
-use read just before its reset, and this week's its highest use so far; Days' BY ACCOUNT is each
-day's `rise` of the week window. History starts the day switchboard first recorded; nothing is
-filled in from before, as from Claude Code's own transcripts, which can't tell the accounts apart.
-Days before today are read once and kept; today's lines are read as they're added, from where the
-last read ended. An empty history draws the grid's squares all at level 0 and the numbers `—`; Weeks
-says `not enough weeks yet` until a whole week is recorded, and Days and Tokens
-`nothing recorded yet` (settled in the plan).
+History was a tab till the dashboard by entity spread its parts over the tabs they belong to (round
+4, phase 4): Weeks to Accounts' Detail, Tokens to Accounts' Tokens, the Year's totals to Compare at
+12 months, and the Year's grid, BY MONTH and Days' strips to Trends; the account-count verdict stays
+in `switchboard history` alone (see The capacity verdict).
 
 ### Sessions
 
 Where each session's requests are going, now, in two views on sub-tabs: **Switchboard**, the
 default, the sessions down the left as calls and the accounts down the right as lines, `usage`'s
-rows, with a cord from each call to its account and its requests travelling it; and **List**, one
-table of today's sessions, those running, then those ended. The frames are in the Paper file
+rows, with a cord from each call to its account and its requests travelling it; and **List**, a
+log of every session in the dial's period, those running, then those ended, a rule a day. The
+Switchboard stays live, with no dial. The frames are in the Paper file
 *Switchboard · Sessions and Runway*, on the page **FINAL · Sessions and Runway · signed off · 8 Oct
 2026**; the references are `testdata/vhs/reference/sessions-*`: `sessions-switchboard-160`,
 `sessions-refused-160`, `sessions-moved-160`, `sessions-pinned-160`, `sessions-ten-accounts-160`,
 `sessions-one-account-160`, `sessions-list-160`, `sessions-phone-52`, `sessions-list-phone-52` and
-`sessions-switchboard-mixed-160` (work and personal without a 5-hour window). Columns and rows are
-at 160 by 37 unless they say otherwise.
+`sessions-switchboard-mixed-160` (work and personal without a 5-hour window). The List as a log is
+in the Paper file *Switchboard · Entities*, on page `p-3-0` (round 3, signed off 13 November 2026),
+and its references are `sessions-list-30-days-173x53`, `sessions-list-30-days-73x61` and
+`sessions-list-30-days-108x44`, scrolled to `ended Tue 22 Sep`. Columns and rows are at 160 by 37
+unless they say otherwise.
 
 **The heading row,** row 4: `SESSIONS` in `text.subtle`; three spaces; the sub-tabs, `Switchboard`
 and `List`, each with a space either side, the one shown bold `text.primary` on `bg.subtle` and the
 other `text.subtle`; a space and `[ ]` in `text.faint`; two spaces, and a rule of `─` in `border` to
 the last column. `SESSIONS` takes 0–7, `Switchboard` with its spaces 11–23, `List` with its spaces
-24–29 and `[ ]` 31–33, and the rule starts at 36. The view starts on row 6, and the row over the
-key line holds its state line, where it has one (see The page). The sub-tab shown is kept in the
-preferences file (settled in the plan).
+24–29 and `[ ]` 31–33, and the rule starts at 36. While the List shows, the dial sits at the
+row's right, `< 30 days >`, the rule ending two cells before it, as Accounts' and Projects' do: the
+one period the entity tabs share, which `<` and `>` step there; it leaves with the Switchboard. The
+view starts on row 6, and the row over the key line holds its state line, where it has one (see The
+page). The sub-tab shown is kept in the preferences file (settled in the plan).
 
 **The Switchboard.** A call's parts run from column 0: its session id and directory, what it's
 doing, and where it moved from; then its cord's plug. At 160 columns, of the accounts `work`,
@@ -5625,39 +5605,27 @@ October 2026).
 - **The heading:** `SESSIONS` in `text.subtle`, two spaces and the sub-tabs, with no `[ ]` and no
   rule, as on the Log's phone (see The Log).
 
-**The List.** Today's sessions in one table, a row each, even one whose models are on two accounts
-(settled in the plan); an earlier day's are found through the Log's `/` (see The Log). Its heads are
-on row 6 in `text.subtle`, each at its column's start, or right-aligned where its column is, and its
-rows run from row 7 (settled in the plan). Its columns run from column 2, two cells apart, in this
-order, each at least its least and at most its natural:
+**The List.** Every session of the dial's period in one table, a row each, even one whose models are
+on two accounts (settled in the plan; the period the owner's call of 13 November 2026, round 3):
+today's List over today, row for row, and over a longer period, every day's under its own rule:
+those running and those with requests in the period, as the List lists those running and those
+with requests today. Its rows are a
+project's SESSIONS rows on Projects, the same function's (`SessionDays.SessionLog`, of the tallies
+`SessionDays.Projects` keeps), so a session reads alike on either. Its heads are on row 6 in
+`text.subtle`, each at its column's start, or right-aligned where its column is, and its rows run
+from row 7 (settled in the plan). Its columns run from column 2, two cells apart, in this order,
+each at least its least and at most its natural:
 
 | Column | Least | Natural | Shows |
 |---|---|---|---|
 | `session` | 11 | 29 | The id, cut to 4, in `text.secondary`; a space and the directory, cut with `…` to the rest, in `text.muted`: at its least 6 of the directory, at its natural its most, 24 |
 | `on` | Its natural, 14 at the most | The widest account's name configured, 24 at the most | The account its latest request went to, in `text.primary` |
-| `model` | 9, or the widest the List names where wider | Its least | The model of its latest request, its id less `claude-`, as `opus-5-5` or `sonnet-5-5`, in `text.muted`; never cut |
-| `state` | 11 | 11 | `asking` or `answering`, bold `accent.key`; `✕ 429`, bold `state.destructive`; `idle 34s` in `text.muted`; once over, `ended 11:21` in `text.muted` |
-| `started` | 15 | 15 | When its first request came: `12:47` today, `yesterday 15:08`, `Tue 15:08` within the week, `28 Sep 15:08` before it (settled in the plan), in `text.muted` |
-| `requests` | 8 | 8, right-aligned | Its requests today, as `1,240`, in `text.muted` |
-| `worth` | 7, or the widest the List says where wider, its `+` counted | Its least, right-aligned | Theirs at API prices, as `$17.86` or `$126.75+`, in `text.muted`; unpriced as the Log shows it; never cut |
+| `model` | 9, or the widest the log names where wider | Its least | The model of its latest request, its id less `claude-`, as `opus-5-5` or `sonnet-5-5`, in `text.muted`; never cut. As wide as the widest of the whole log, measured as `started` is |
+| `state` | 11 | 11 | `asking` or `answering`, bold `accent.key`; `✕ 429`, bold `state.destructive`; `idle 34s` in `text.muted`; once over, when it ended by the clock on the day its rule names, `ended 11:21`, in `text.muted` |
+| `started` | The log's widest, 15 at least | Its least | When its first request came: by the clock alone, `12:47`, on the day its rule names, or today while it runs; else after its day as the rules name days, `yesterday 15:08`, `Tue 09:12` within the six days before today, `Mon 21 Sep 09:12` before them (yesterday never by its weekday, round 3's frames; one rule for the List and Projects' SESSIONS). As wide as the widest of the whole log says, the ended sessions measured once as the watch builds the log (`dashboard.MeasureLog`), so it holds still as the List scrolls; in `text.muted` |
+| `requests` | 8 | 8, right-aligned | Its requests in the period, as `1,240`, in `text.muted`: today's over today |
+| `worth` | 7, or the widest the log says where wider, its `+` counted | Its least, right-aligned | Theirs at API prices, as `$17.86` or `$126.75+`, in `text.muted`; unpriced as the Log shows it; never cut. As wide as the widest of the whole log, measured as `started` is |
 | `routing` | 24 | To the last column | How it came to the account it's on, in a word or two, as the table below has it: `from ` in `text.muted`, the account it left by its label in `text.secondary`, ` · at its cap` in `text.muted`, two spaces, and in `accent.attention` what writing its context again cost, `$1.82`; `pinned` in `text.muted` for a session pinned on its own; blank where it started there. `on` names where it went; the full reason stays on the session's page and in the Log |
-
-- **Routing's short form,** status's `BriefWords`, beside each reason's other forms: `from <the
-  account it left> · ` and why, by the reason's kind; why alone where it moved from none.
-
-  | Reason | Why |
-  |---|---|
-  | Moved off an account at its cap, its limit, refused, with no room | `at its cap`, `at its limit`, `refused`, `no room` |
-  | Moved off for a why the dashboard has no words for | The why, as the router gives it |
-  | Compacted | `compacted` |
-  | Rescored | `rescored after 15h idle` |
-  | Moved by a pin, the global pin, or pinned on its own | `pinned` |
-  | Its pin yields | `pin yields` |
-  | Back where it was | `back where it was` |
-  | Passing an account over, unforced | `personal under pressure` |
-  | Forced, passing an account over | The forced move's alone |
-  | Sent again after the accounts tried couldn't serve it | Where it moved, why the account it left couldn't, where it was tried, else its reason's; where it moved none, the first tried alone, `after work's limit` |
-  | A reason the dashboard doesn't know | As the router gives it |
 
 - **One narrowing,** from the widest to a phone's 52, with no phone list (the owner's call on the
   spike, 21 October 2026), laid out in two passes, as the Log's Requests are. The first decides
@@ -5703,35 +5671,51 @@ order, each at least its least and at most its natural:
   it asks; `↓` in `accent.key` while it's answering; `▸` in `accent.key` where it moved to the
   account it's on. Else none.
 - **The order:** the running sessions first, in the order they started, the oldest first, a new one
-  joining their foot; then `ended today` in `text.subtle` from column 2, two cells, and a rule of
-  `─` in `border` to the last column; under it, today's ended sessions, the newest end first. The
-  order stays still, never reshuffled by activity, as rows would slide from under the cursor: a row
-  moves only as its session ends, from running to the top of ended, or as it asks again, back to its
-  place by start among the running. The rule shows with the first session under it or not at all,
-  so a List of one row, at its least, shows no `ended today` rule, the ended sessions following the
-  running, each saying it ended (settled in the plan).
-- **The `today` line,** on the row over the key line, from column 0, as the key line and the Log's
+  joining their foot, with no rule; then the rest, every one the router doesn't list, under a rule
+  for the day each ended, as its last request's day has it, as of one the stream told of before the
+  router lists it, the newest end first: the day's words in `text.subtle` from column 2, two cells,
+  and a rule of `─` in `border` to the last column. The rules read `ended today`, `ended yesterday`,
+  the weekday within the six days before today, `ended Tue`, and the weekday and date beyond,
+  `ended Mon 21 Sep`, as Projects' SESSIONS reads them. The order stays still, never reshuffled by
+  activity, as rows would slide from under the cursor: a row moves only as its session ends, from
+  running to the top of ended, or as it asks again, back to its place by start among the running. A
+  rule shows with the first session under it or not at all, so a List of one row, at its least,
+  shows no rule, the ended sessions following the running, each saying it ended (settled in the
+  plan).
+- **The period line,** on the row over the key line, from column 0, as the key line and the Log's
   state line are, so it reads as words, not keys (the owner's call on the spike, 21 October 2026):
-  `today  14 sessions · 1,240 requests · $126.02 at API prices`, `today` in `text.subtle`, the
-  counts in `text.secondary`, the worth bold `text.secondary`, and the rest in `text.muted`. It sums
-  today's sessions, running and ended, their requests today and their worth, so it carries the
-  day's worth where `worth` has left. Where it doesn't fit its row, it breaks after `requests`, the
-  worth on the row over the key line and the rest on the row above; but where those two rows would
-  leave the table no row, at its least, the worth gives way, and the rest takes the row over the
-  key line alone (settled in the plan). Where the sessions fit their
-  rows, the rows left over lie between the last session and it: every session shows, and nothing
-  folds. Where they don't, the table scrolls (below).
-- **Past a screen,** the table scrolls, its heads held, the row above the `today` line blank and the
-  line held, as the Log's table does (settled in the plan).
+  `30 days  150 sessions · 33,010 requests · $3,257.86 at API prices`, the period's name in
+  `text.subtle`, as `today` over today, the counts in `text.secondary`, the worth bold
+  `text.secondary`, its thousands set apart, and the rest in `text.muted`. It sums the period's
+  sessions, running and ended, their requests in it and their worth, as Projects' every project's
+  row does, so it carries the period's worth where `worth` has left. Where it doesn't fit its row,
+  it breaks after `requests`, the worth on the row under the rest; the view's least, three rows,
+  always leaves the table a row over the two, so the worth never gives way. The sessions run down
+  to it; where they fit, the rows left over lie between the last session and it: every session
+  shows, and nothing folds.
+- **Past a screen,** the table scrolls a row at a time, its heads held, and the row over the key
+  line says how many sessions are out of view, as Detail's list says its accounts: `▲ 12 more
+  sessions · ▼ 130 more sessions` from column 2, the marks in `accent.key`, the counts in
+  `text.muted` and the gap in `text.faint`, the counts alone where that doesn't fit; the period
+  line moves up a row over it. A page that would leave a single row to the sessions says nothing of
+  what's out of view. A day's rule is held on the first row while any of its sessions shows under
+  it, its last or a day's only one among them, the sessions under it a row fewer, so it hides none
+  of them and the day always shows (round 3). `↑` and `↓` scroll to the row chosen from its place,
+  never trying page after page, and a step of the dial keeps it in view where the new period lists
+  it, else shows the List from its top.
 
 **Keys.** Where a reference's key row differs from these, these hold:
 
 | Where | Key line |
 |---|---|
-| Both sub-tabs | `tab views   [ ] view    ↑↓ session  enter its page    p pin    ? help  q quit` |
-| A phone | `↑↓ session   enter open   [ ] view   ? keys   q quit` |
+| The Switchboard | `tab views   [ ] view    ↑↓ session  enter its page    p pin    ? help  q quit` |
+| The List | `tab views   [ ] view   < > period: 30 days   ↑↓ session   enter its page   p pin   ? help  q quit` |
+| A phone, the Switchboard | `↑↓ session   enter open   [ ] view   ? keys   q quit` |
+| A phone, the List | `tab views   ↑↓ session   [ ] view   < > period   ? keys   q quit` |
 
 - `[` and `]` switch between Switchboard and List.
+- `<` and `>` step the dial's period on the List, the shared one Accounts and Projects step, the
+  List from its top; on the Switchboard they do nothing.
 - `↑` and `↓` choose a session, a call on the Switchboard or a row on the List, on `bg.selection`:
   a row on the List, or a session's row in lanes, across the width; a call over its own columns
   alone, from the row's first through its id, name, state and `from`, to the cell before its plug,
@@ -5741,7 +5725,8 @@ order, each at least its least and at most its natural:
   2026). A session with a row in two groups is chosen on either (settled in the plan). Where the
   call or row chosen is out of view, the view scrolls no further than shows it.
 - `enter` opens the chosen session's page (see A session's page), the tab staying lit, and `esc`
-  comes back. An ended session's page is as ended, with no `p` (settled in the plan).
+  comes back, whether it runs or ended on a day the period reaches. An ended session's page is as
+  ended, with no `p` (settled in the plan).
 - `p` opens new sessions' picker, whatever is chosen (see Routing by hand); a session's own routing
   is set from its page, `enter` then `p`. With one account, `p` does nothing and no key line shows
   `p pin`, unless a pin set from the command line holds, when `p` opens the picker to clear it.
@@ -5793,11 +5778,21 @@ order, each at least its least and at most its natural:
 - **The lines, their state, and `● pinned`:** the status document, as `usage` and the Overview read
   it, and its `pin`.
 - **The List's requests, worth, start, end and routing:** the request ledger, read where it lies,
-  with no router (see The request ledger). A session's requests are its lines today that spend
-  quota; its worth, theirs priced by the dated table at today's prices; its start, its first line,
-  on the first day the summaries' session ids give it; its end, its last line's. A session ends as
+  with no router (see The request ledger). A session's requests are its lines in the period that
+  spend quota; its worth, theirs priced by the dated table at today's prices; its start, its first
+  line, wherever it fell, as Projects walks back for it; its end, its last line's. A session ends as
   `GET /sessions` stops listing it, an hour after its last request, and runs again as it asks again
   (settled in the plan). Today's lines are read as they're appended, never afresh at each look.
+- **The period's days:** the sessions' days Projects holds, one read of the period serving both
+  tabs (see Projects): each closed day's sessions as its side holds them, read once, as Projects or
+  the List first shows, and again only where the dial reaches further back, today's of the
+  ledger's tail. SPEC round 3 has a long period read its days as the List scrolls to them; reading
+  the period at once meets that, as a year of sides, ten sessions a day, reads in about 36 ms, and the
+  log of 12 months of them builds in about 16 ms more (an M1 Max, loaded, 14 November 2026), so
+  the List reads them whole. Till they're read, the List draws no
+  log, its heading saying `loading…`, as Projects does; once read, a step back within them draws at
+  once, and past midnight it keeps the log it built till the tail's first read of the day. The log
+  is built again only as the days read, the period, the day or today's List's sessions change.
 - **Agents** read the same through the data verbs: `sessions` lists the running sessions and today's
   ended ones, the List's own function (see The data verbs).
 
@@ -5971,7 +5966,7 @@ blank row; with two, on the row after its words.
 
 - **Its columns,** two rows of them, a column for each of the lanes': how many of the pool's
   accounts have room, the column's height `with room ÷ accounts`, its full cells background and its
-  top cell part-filled, as Graphs' cards fill theirs (see Graphs). They're coloured as `usage`
+  top cell part-filled, as Trends' cards fill theirs (see Trends). They're coloured as `usage`
   colours a use, by `1 − with room ÷ accounts`: green under 70%, yellow from 70% and red from
   90%; the past dimmed. An account at its cap or its limit counts without room; one running out at
   its pace has room until it does. A column where none has room, the pool at its limit, is `▂`, a
@@ -6205,11 +6200,30 @@ stepping back and how far it reaches, the minutes a column, COMING UP, and LATEL
 - **Agents** read the room, the even pace, the pool's room and COMING UP in the status document,
   through the data verbs (see The data verbs).
 
-### Graphs
+### Trends
 
-Every account's room drawn at once, on a page its user makes their own: sections toggled as the
-Overview's are, first a burn-down for every account over its week, as v0.1's cards drew them, then
-whichever other charts are turned on (the owner's calls, 24 and 25 October 2026). Graphs charts the
+The shapes of use over time, across every account, on a page its user makes their own: sections
+toggled as the Overview's are, first a burn-down for every account over its week, as v0.1's cards
+drew them, then whichever other charts are turned on (the owner's calls, 24 and 25 October 2026). It
+was Graphs till the dashboard by entity renamed it Trends and gave it the pictures over time History
+drew, YEAR, BY MONTH and MODELS BY DAY, by the code that drew them there (round 4, phase 4's first
+slice), History going as a tab in its second (see History); the code keeps the name Graphs, its
+types and files, its place among the tabs, its key and the preferences' `graphs_tab`. Trends isn't
+an entity tab and has no dial: the cards are this week, YEAR and BY MONTH the last 12 months, and
+MODELS BY DAY the last eight weeks; the Year's stepping back through calendar years is dropped (the
+owner can say if he misses it). Round 4's frames are in the mock generator's `entities4`,
+`trends-173x53-year`, `trends-108x44-year` and `trends-73x61-year`, the build's
+`testdata/vhs/reference/trends-year-*`; where they differ, this section holds:
+
+- **The legend** stays at the view's foot as the page scrolls, as on Graphs; the frames drop it once
+  the cards scroll out of view, so at the page's foot they show a row more above it. A legend that
+  comes and goes breaks the rule that a page up shows every row a page down shows.
+- **MODELS BY DAY's heading** shows only with its first row, as every heading does; the frame at 108
+  draws it on the view's last row alone.
+- **MODELS BY DAY's names column** is as wide as the families' names, 10 cells with the sample's;
+  the frames give it 12, as History's Days gave its accounts' names.
+
+**As Graphs,** Trends charts the
 week alone: the owner dropped its 5-hour, the 5-HOUR section, GLANCE's 5-HOUR column and the pool
 line's 5-hour part, as he never used them and most accounts have no 5-hour window now, the Overview's
 5-HOUR and COMING UP and Runway still showing it (the owner's call, 12 November 2026). Its frames are in
@@ -6248,16 +6262,20 @@ for each row more its tabs take), in an order that never changes, a section hidd
 | POOL | `o` | no | The pool's room over Runway's week, each account's stacked |
 | GLANCE | `g` | no | A row an account and the pool: the week's room as a sparkline, and `usage`'s words |
 | WHEN YOU WORK | `h` | no | Requests by the hour of the day and the day of the week, over the last four weeks |
+| YEAR | `y` | no | The last 12 months a square a day, and their totals |
+| BY MONTH | `m` | no | A row a month of the last 12, its worth split by model family |
+| MODELS BY DAY | `d` | no | Each model family's worth a day over the last eight weeks, a strip a family |
 
 The sections are the owner's pick of round 1's charts, for now (25 October 2026); the rest, a
 burn-up, the burn rate, the week by day, sessions over the day, the model mix and worth against the
 plan, are drawn on round 1's page in Paper, not taken up. The keys were left to the design by the
-owner (25 October 2026): `w` week, `o` pool, `g` glance, `h` hours. The window drawn is the week
+owner (25 October 2026): `w` week, `o` pool, `g` glance, `h` hours; round 4's frames chose `y`
+year, `m` months and `d` models for the three History had. The window drawn is the week
 every model shares, as on Runway: a model's own week has no card, and `w` is WEEK's here, where on
 the pages that list windows as they stand it shows the models' own (see Keys). The watch builds the
-lanes of Runway's week view alone for Graphs, while WEEK or GLANCE shows. A preferences file that
-keeps `5-hour` among Graphs' sections, as one kept before it went, has it passed over, as any name
-of none of its sections is; where it keeps no other, as where WEEK was hidden, Graphs opens on the
+lanes of Runway's week view alone for Trends, while WEEK or GLANCE shows. A preferences file that
+keeps `5-hour` among Trends' sections, as one kept before it went, has it passed over, as any name
+of none of its sections is; where it keeps no other, as where WEEK was hidden, Trends opens on the
 sections shown at first, never a page with everything hidden.
 
 - **A section's heading** is the Overview's (see The Overview): its name in `text.subtle`; three
@@ -6434,9 +6452,9 @@ burn-down a row high:
   every third hour, `00`, `03`, to `21`, in `text.faint`.
 - **Where no day of the four weeks is known,** as before the ledger has recorded any hours, it has
   no grid: its first row says `nothing recorded yet` in `text.subtle`, and its heading no weeks.
-- **Its shades** are History's (see History, Five shades): `viz.day.0` for an hour with nothing on
+- **Its shades** are YEAR's (see Five shades, below): `viz.day.0` for an hour with nothing on
   it; the active hours split into quarters for `viz.day.1` to `viz.day.4`, on one scale for the
-  grid. Its key under it, as the Year's: each shade's tile and its bounds, each cut rounded on its
+  grid. Its key under it, as YEAR's: each shade's tile and its bounds, each cut rounded on its
   own, a half up, to the coarsest of 10, 1, a tenth and a hundredth it isn't under; cuts that differ
   but would then read the same, or out of order, each a step finer till none do; each written with
   no trailing zeros, `▆ none   ▆ under 20   ▆ 20–50   ▆ 50–90   ▆ over 90`, in `text.subtle`, then
@@ -6454,22 +6472,191 @@ burn-down a row high:
   requests by the hour, comes through `history`'s days, each model's `hours` in the day's summary
   (see The request ledger), so the section reads 28 summaries rather than 28 days of lines.
 
+**YEAR, BY MONTH and MODELS BY DAY** are the pictures over time History drew, its Year and the first
+part of its Days, drawn by the code that drew them there, never a copy, of pages the watch builds of
+the ledger's days, the last 12 months, while one of them shows; till those are read, each is its
+heading over a blank row. History's frames `history-year-160` and `history-days-160`, signed off 5
+October 2026 in the Paper file *Switchboard · History*, set their numbers.
+
+**Five shades.** Days are drawn in five levels, far enough apart that neighbours can be told apart:
+
+- **Level 0,** a day with nothing on it, in `viz.day.0`.
+- **Levels 1 to 4,** the active days split into quarters by how much each did, on one scale for
+  everything a view shows together: the cuts are the active days' values in order, taken a quarter,
+  a half and three quarters of the way along (of `n` active days, the values at `n × q // 4`, `q`
+  from 1 to 3), and a day's level is 1 more than the cuts it reaches. They're `viz.day.1` to
+  `viz.day.4` (see Themes).
+- **A family's strips,** and YEAR filtered to a version, take its own colour in four steps instead:
+  `viz.day.0` mixed 40% and 70% toward it, the colour itself, and the colour mixed 55% toward white,
+  or toward black on a light canvas (settled in the plan).
+- **YEAR shades requests,** how busy a day was, never its worth, which shifts with the models used
+  and their prices. A request is a ledger line, so the grid needs nothing priced.
+
+**YEAR** is drawn in its wide form, laid out below, where that form's parts fit: its key whole after
+the days' names, reckoned with every cut at four figures and its unit without the use shown, so the
+form never hangs on the data or a label's length, as from 99 columns. Narrower, it's drawn in its
+narrow form (Narrower, below). In the wide form, the numbers sit beside the grid only where the most
+weeks a span holds and the numbers, at their reckoned width, fit beside it, else under the key (the
+owner's call, 21 October 2026, over fewer weeks with the numbers beside); in the narrow form,
+they're always under the key. Where they sit is decided by the width alone, never by what's shown,
+so `v` never moves BY MONTH (settled 21 October 2026).
+
+- **The grid:** the latest weeks that fit, the last 12 months' 53 at most, to this week: as many as
+  end, with their months' names over them, short of the frame's margin, as all 53 from 122 columns.
+  A column a week, 2 cells apart, from column 14; a row a day, under the months' names, from the
+  week's first day as `week_starts` sets it (see Config), each day `■` in its level's shade; days
+  still to come this week left out. A day before the ledger recorded anything is an empty square
+  like any other, with no line saying when it began. The first, third and fifth days' names, `Mon`,
+  `Wed` and `Fri`, at column 0 in `text.subtle`; on the row over the days, each month's name over
+  the column of its first week, in `text.faint`, the current month's in `text.secondary`.
+- **The key,** a blank row under the days, from column 14: each shade's `■` and its bounds in
+  requests a day, the cuts rounded to 50, in `text.subtle`, `■ none   ■ under 450   ■ 450–750   ■
+  750–1,000   ■ over 1,000`, then two spaces and `requests a day` in `text.faint`.
+- **The numbers,** beside the grid, 6 cells after the most weeks a span holds, 54, at column 128,
+  where they fit there at their reckoned width, whatever's shown: their labels, then the widest any
+  figure's format draws, as a day, a run of days or a share, or limits hit in two windows of four
+  figures, `week ×9,999 · 5-hour ×9,999`; from 168 columns. There, `LAST 12 MONTHS` on the months'
+  row, or after the use shown, its name cut, never the period, `THE-RESEARCH-TE… · 12 MONTHS`, the
+  period alone where not even the name's ellipsis fits before it; with all use shown, `LAST` is
+  never cut and leaves whole, so it reads `12 MONTHS` from 9 to 13 columns and `LAST 12 MONTHS` from
+  14; then from the row under it, a row each, a figure longer than its column takes its shorter
+  forms, limits leaving off windows whole. Where they don't fit there, `LAST 12 MONTHS` a blank row
+  under the key, at column 0, and under it the numbers in as many columns of pairs as fit, 4 cells
+  apart at the least, on a phone two: the counts, the money, then the busiest day and the longest
+  run. A figure takes its shorter forms before it moves: the second column's its shortest, against
+  it over the plans known compact, then alone, and limits leave off their windows whole; where some
+  figures still don't fit, they go on a row under the rest, one under each column in turn, each
+  column then laid out as wide as every figure it holds, fewer columns where they don't all fit, so
+  none goes unsaid or cut short. The columns spread so the last's figures at their widest end where
+  its last week ends, the cells between them shared evenly, as where the width has room to spare the
+  totals take it, and they hold still as the figures change; where they reach it already, or one
+  column holds them, they stay. The frames at 108 and 73 have them further right than Paper's, which
+  drew them unspread: at 108 the second column 10 cells on and the third 20, on the phone the second
+  16. Labels 13 wide in `text.subtle` and values in `text.secondary`: `requests`, `236,410`;
+  `sessions`, `1,688`, each counted once; `limits hit`, `5-hour ×402`, in `state.destructive`, those
+  of more than one window joined by ` · `, `week ×3 · 5-hour ×402` (settled in the plan; in the
+  order of care); `worth`, `$27,480`; `plans cost`, `$7,200`, the plans' monthly prices over the
+  months, from the ledger's first day where it began part-way through them, as Against its price
+  prices a young ledger's period (see Accounts); `against it`, `3.8×`, bold, in `state.positive` at
+  1× or more and `accent.attention` under, then, where any account's plan isn't known, ` · 2 of 3
+  plans known` in `text.subtle`, as Against its price says it, ` · 2 of 3 plans` where that doesn't
+  fit, ` · 2/3` where neither does, and the ratio alone where none does; `busiest day`, the day of
+  the most requests, `Tue 22 Sep`; and `longest run`, the most days in a row with any request, `58
+  days`.
+- **BY MONTH,** its own section, its heading's words `worth at API prices; against what the plans
+  cost that month`, said whole or not at all, in `text.faint`, and, where any account's plan isn't
+  known, ` · 2 of 3 plans known` after that, once for the table, short where only that fits, `· 2 of
+  3 plans`, compact where only that does, `· 2/3`, and none where none does, left out of the room
+  YEAR's form takes. On the row under, its columns' heads in `text.subtle`: `requests` at 14,
+  `worth` at 26, `against` at 38, `limits` at 48 and `by model` at 60. From the row under that, a
+  row a month, oldest first, its name at column 2, the first with its year, `Oct 2025`, the current
+  month's bold; values in `text.secondary`; `against` bold, coloured as against its price is, the
+  month the ledger began recording in priced from its first day, as the numbers price it (the
+  owner's call, 15 October 2026), and `—` in `text.faint` for the month so far; `limits` in
+  `state.destructive`. At column 60, a bar as long as the month's worth against the largest month's,
+  the bars taking the room after the columns to two cells short of the edge, and 1 at least. Where a
+  part month's bar would leave its note no room after it, the most is lowered till it does, so a
+  part month never reads as a whole one and each bar stays its share of the largest; but to half of
+  it at least, past which the note leaves and the most holds. Split by family, each cell `▅` in its
+  family's colour, or in `text.muted` for a family with no colour of its own, as one the version
+  table doesn't know (settled in the plan), so bars on neighbouring rows don't merge; two cells
+  after a part month's bar, `so far`, or `from the 16th` for the month the ledger began recording
+  in, in `text.faint`, where it fits. Two rows under the last month, from column 60, the families'
+  dots, each with its name in `text.subtle`, `● Opus   ● Sonnet   ● Fable   ● Haiku`: the bars' key,
+  headed by its column's `by model`, flowed onto as many rows as it takes from that column, a family
+  never cut.
+- **`v`** cycles what YEAR and BY MONTH show: all use, the default; then each model version used in
+  the 12 months, in the version table's order (see The request ledger); then each account; and
+  round. The heading's state names it, `Opus 5.5 only, every account  ·  v for all, a model or an
+  account`, with `v` bold `accent.key`, and where that doesn't fit, `Opus 5.5 only`. The shades and
+  their key re-scale to what's shown, the key's unit naming it, `Opus 5.5 requests a day`, and a
+  version's grid takes its shade in four steps. It's the run's alone, never kept, and works while
+  YEAR or BY MONTH shows.
+  - Filtered to a version, the numbers are headed `OPUS 5.5 · 12 MONTHS`: `requests`, `sessions`,
+    `worth`, `of all use`, its share of the year's worth, `first used`, the first day it was used in
+    the 12 months, `Mon 22 Jun`, and `busiest day`. BY MONTH, `Opus 5.5 only: its worth at API
+    prices, and its share of the month`, heads `requests` at 14, `worth` at 26 and `share` at 38,
+    with `worth` over the bars at 60; a row a month it was used, its bar in its shade, as long as
+    the room allows, to two cells short of the edge, against its largest month, and `from the 22nd`
+    after the bar of the month it was first used in, where that was part-way through; and above them
+    a row for the months before it, `Oct 2025 – May` at column 2 and `none: Opus 5 then` at 26,
+    naming its family's version used before it, both in `text.faint`.
+  - Filtered to an account, `work only, every model`, the numbers, BY MONTH and the shades are the
+    account's alone, plans cost its own plan's, and `←` `→` step to the next account, `←→ account`
+    joining the key line; `v` passes over versions with no use in the 12 months (settled in the
+    plan).
+- **Narrower:** under the months' names, the latest weeks that fit, as wide, from column 4 under
+  their months' names, `M`, `W` and `F` at column 0, as 33 at 73 columns; a blank row, and the key
+  cut short, `■ 0 ■ <450 ■ 450–750 ■ 750–1k ■ >1k  requests a day`; a blank row, `LAST 12 MONTHS`
+  and its numbers under it in columns, laid out as wide, labels 10 wide and short: `requests`,
+  `sessions` and `limits`, then `worth`, `plans` and `against`, then `busiest` and `longest`, the
+  third column only where it fits whole, as from 76 columns where limits read `week ×3 · 5-hour
+  ×412`; then a blank row and BY MONTH, its heads on its heading's row, `worth` at 12, `against` at
+  22 and `by model` at 32, and every month under them, the first with its year, their names at
+  column 1 and their bars from column 32, taking the room to two cells short of the edge, with `so
+  far` or `from the 16th` after a part month's bar, as wide; and two rows under the last month, from
+  column 32, the families' dots, flowed as wide.
+
+**MODELS BY DAY** is the eight weeks, the week so far and the seven before it, every model family's
+worth a day, a strip a family, on one scale; each account's week a day is on Accounts' Detail (BY
+DAY), so it has no strips here. It's drawn in its wide form where its own rows, its names and its
+key fit short of the frame's margin, as from 85 columns, so the form never hangs on the data;
+narrower, each strip's name takes the row over it (Narrower, below).
+
+- **A strip's row** is laid out as parts, across the width, the same for every strip, so its columns
+  come from the width and the families alone, never from the strips in view:
+  - **the names' column,** its widest family's name and a gap of 2, as The page has a column of
+    names; 10 cells with the sample's, where the frames give it 12;
+  - **the weeks,** 15 cells each, a day's 2 cells and the cell after a week's days: the latest that
+    fit, up to the eight, the oldest giving way first, the last never, as seven at 138 columns and
+    all eight from 152;
+  - **the share,** 4 cells after the last week's last day, so it reads with its strip, never at the
+    edge: its figure right-aligned in 4, then ` of use`.
+- **The weeks:** each week shown headed by its first day, `10 Aug`, in `text.faint`, this week's
+  bold `text.secondary`; on the row under, over this week's days, their initials, `M T W T F S S`,
+  in `text.faint`. A day still to come is `··`, in `text.faint`.
+- **The strips,** two rows apart, a strip a family used in the eight weeks, never a version (settled
+  in the plan), `●` in its colour and its name in `text.secondary` at column 0, each day the
+  family's worth that day, every account's, in the family's own steps (see Five shades), the strips
+  on one scale; its share of the eight weeks' worth, bold `text.secondary`, then ` of use` in
+  `text.subtle`, `59% of use`, and `—` for a family wholly unpriced.
+- **The key,** under the strips: `less `, the five shades as 2-cell swatches 3 apart, `more`, in
+  `text.subtle`, then `  each shade a quarter of the active days` in `text.faint` where it fits;
+  then `··` and ` days to come`.
+- **Narrower,** where the wide form doesn't fit, each strip's name and its share take the row over
+  its days. The days are the latest weeks that fit the whole width, from column 0, the blank after
+  the last week's days needing no room: two from 30 columns, three from 45, four from 60, and a week
+  more each 15 columns on. The share, as wide as the widest, ends where the last week shown ends its
+  days, so it reads with its strip; the name takes what's left before it, a blank cell between, and
+  is cut where the two don't fit, not the share. A blank row follows the days' initials. The key
+  takes two rows, the shades on the first with nothing said of them.
+
+**Their figures,** every one from the ledger's days (see The request ledger), read with no router:
+requests a day, by version and by account; sessions, the distinct ids of the days' `session_ids`;
+limits, the days' `limits`, by window; worth, the days' usage priced at today's prices; plans cost,
+from each account's `plan` (see Config). The ledger starts the day switchboard first recorded;
+nothing is filled in from before, as from Claude Code's own transcripts, which can't tell the
+accounts apart. An empty ledger draws YEAR's squares all at level 0 and its numbers `—`, and MODELS
+BY DAY `nothing recorded yet` (settled in the plan).
+
 **Room.** The page is laid down the rows by flex, as every view is (see The page):
 
 - **Each section's least:** WEEK, its heading, the blank row and its rows of cards,
   each card's words on its label's row and its chart 5 rows; POOL, its chart 5 rows, its axis's three
-  and its key's; GLANCE and WHEN YOU WORK as they are, as neither grows down.
+  and its key's; GLANCE, WHEN YOU WORK, YEAR, BY MONTH and MODELS BY DAY as they are, as none
+  grows down.
 - **Rows to spare** go first to the cards' words, a row of their own and the blank row before each
   chart, in every card at once; then to the charts, the cards' and POOL's, every one
   the same height, a row at a time, to 19, as a taller chart distorts; the rest is blank at the
   foot, over the legend.
-- **Short of every least,** the page scrolls whole, a row at a time, as History's views do, its
+- **Short of every least,** the page scrolls whole, a row at a time, its
   sections never folding, so a section turned on always shows: `j`/`k` a row, PgUp and PgDn a page
   and the wheel three rows, and the row over the key line saying what's out of view, `▲ 3 more above
   · ▼ 12 more below`, in `text.subtle`. The legend stays at the foot (left to the design by the
-  owner, 25 October 2026).
-- **The layout changes only on a key, a resize or the config,** never as the data does, so the page
-  holds still as reads come.
+  owner, 25 October 2026). A heading shows only with the first row under it, GLANCE's head row and
+  those within YEAR, BY MONTH and MODELS BY DAY among them.
+- **The layout changes only on a key, a resize, the config or the ledger's days read,** never as the
+  data does, so the page holds still as reads come.
 
 So at 160 by 37, with three accounts and WEEK shown, two cards a row, each card's words have a row
 of their own and the charts 8 rows; at 108 by 44, 12; on a phone of 73 by 61, a card a row, 11; and
@@ -6478,8 +6665,11 @@ with four accounts on that phone, 7.
 **The key line:**
 
 - **Wide:** `tab views`, five spaces; each toggle as its key and word, two spaces apart, `w week  o
-  pool  g glance  h when`, a key in bold `accent.key` and its word in `text.muted` while its
-  section shows, else `text.faint`; five spaces; then `p pin  ? help  q quit`.
+  pool  g glance  h when  y year  m months  d models`, a key in bold `accent.key` and its word in
+  `text.muted` while its section shows, else `text.faint`; five spaces; while YEAR or BY MONTH shows,
+  `v split: all`, saying what's shown, and `←→ account` while one
+  account shows, then five spaces; then `p pin  ? help  q quit`. Where the line doesn't fit the
+  width, `v`'s group goes first, as at 108; where it still doesn't, a phone's line.
 - **On a phone:** `tab views   ? keys and toggles   q quit`.
 - **Everything hidden,** the first row of the view says how to bring it back, as the Overview's does:
   `every section is hidden:` in `text.faint`, then the toggles as the key line words them.
@@ -6487,12 +6677,14 @@ with four accounts on that phone, 7.
 **Its charts move on with the clock,** as Runway's lanes do: now's column, the room to it and where
 it's heading, a column at a time as each column's moment passes. Nothing travels.
 
-**`?` help,** `HELP · GRAPHS`, lists every key first, the toggles, `j`/`k`, PgUp, PgDn, `p`, `t` and
-`R` among them, the scroll keys always, as the page can scroll at any size; then each section: a
-card's room, how the cards lie two a row, where it's heading and why its line is straight, to where
-the week's forecast takes it, `✕`, the reserve, the week's ink and each card's own clock; the pool's
-line; POOL's stack and its faint heading; GLANCE's sparklines, words and width; and WHEN YOU WORK's
-width, shades, the weeks it counts and the requests it counts.
+**`?` help,** `HELP · TRENDS`, lists every key first, the toggles, `v`, `←→`, `j`/`k`, PgUp, PgDn,
+`p`, `t` and `R` among them, the scroll keys always, as the page can scroll at any size; then each
+section: a card's room, how the cards lie two a row, where it's heading and why its line is
+straight, to where the week's forecast takes it, `✕`, the reserve, the week's ink and each card's
+own clock; the pool's line; POOL's stack and its faint heading; GLANCE's sparklines, words and
+width; WHEN YOU WORK's width, shades, the weeks it counts and the requests it counts; YEAR's grid,
+shades, totals and `v`; BY MONTH's bars and against what the plans cost; and MODELS BY DAY's strips,
+scale and shares; then the room, that Trends has no period.
 
 ### The Log
 
@@ -6512,7 +6704,7 @@ foot. The Log is drawn in the Paper file *Switchboard · Session and Log*, on it
   state line and the key line, and 5 of its table at the least.
 - **The heading row:** `LOG` in `text.subtle`; three spaces; the sub-tabs, ` Requests ` and
   ` Events `, the one shown bold `text.primary` on `bg.subtle`, the other `text.subtle`; a space and
-  `[ ]` in `text.faint`, as Accounts' and History's sub-tabs are drawn (see The page). While a
+  `[ ]` in `text.faint`, as Accounts' and Sessions' sub-tabs are drawn (see The page). While a
   filter is on, three spaces and what it keeps, in `text.faint`: `only d28c switchboard`, several
   named after `only`, ` · ` between (`only d28c switchboard · side · failed`), and cut with `…`
   where they run long (settled in the plan). Nothing else describes the page, nor a column shown: a
@@ -6843,7 +7035,7 @@ across the table, with no mark, a night's quiet unfolded (settled in the plan):
   prices` in `text.muted`;
 - two spaces, a rule of `─` in `border`, two spaces, and ending at the last column the day that
   began, bold `text.primary` (`Thu 1 Oct`).
-- **Its figures** are the day's summary's, as History reads it: requests as the ledger counts them
+- **Its figures** are the day's summary's, as `history` reads it: requests as the ledger counts them
   (see The request ledger), the limits its accounts reached, its sessions, each once, and its worth
   at today's prices, exactly, with no `≈`. Today, and any day not summarised since lines came to be
   filed under it, is summarised from its lines as it's read.
@@ -7024,7 +7216,7 @@ one:
 One session, its whole life: what it's doing now and where it runs; how busy it's been, from its
 first request to now; which accounts it ran on and what it took of each; and its turns, newest
 first, each opening into its requests. The Overview shows every account now, Accounts who used them
-and History when; a session's page follows one session. It's a full page, not a tab, and draws no
+and Trends when; a session's page follows one session. It's a full page, not a tab, and draws no
 projection. It's drawn in the Paper file *Switchboard · Session and Log*, on its page **FINAL ·
 session page · signed off · 7 Oct 2026**, its frames kept as `testdata/vhs/reference/session-*`,
 `session-mixed-160` and `session-mixed-ultra-160` among them, of a session on an account with a
@@ -7047,6 +7239,45 @@ session page · signed off · 7 Oct 2026**, its frames kept as `testdata/vhs/ref
   directory, as one not started through `run`, or under a router from before `dir`, is named by its
   id alone; a long directory is cut from its start with `…`, keeping its name; one resumed in
   another directory shows the latest (settled in the plan).
+- **A project:** the repository a session ran in, keyed by the repository's path, as `run` tells the
+  router and the ledger keeps it beside its directory (`project`). `run` finds it as it starts the
+  session, walking up from the directory it starts in to the first `.git`, to the filesystem's root
+  at most, and running no git, twice where the directory's path goes through a link, as Which pool a
+  session is in looks at it both ways: first with its links resolved, so a link into a
+  repository's subdirectory counts as that repository's; then, where that finds no `.git`, as it's
+  given, so a link inside a repository or a worktree that leads outside every repository counts as
+  the repository it's in. A session in a subdirectory counts as its
+  repository's, and one in a linked worktree as its main repository's, the worktree's `.git` file
+  naming its git directory, whose `commondir` leads there. Git writes those paths with every link
+  resolved, so the main repository is given by the path the walk took: under the deepest directory
+  up from the session's that is it, or a directory it's in, the rest of its path, as from a worktree
+  within it or beside it, else as git wrote it. A repository in a folder reached through a link, as
+  `~/Code` leading to another volume, stays one project, its worktrees beside it in that folder too.
+  Two layouts still split, as git gives the walk no way to join them: a repository folder that is
+  itself a link, as `~/Code/api` leading to `/Volumes/X/api`, with a worktree beside it; and
+  worktrees kept outside the linked folder, as `~/wt/api-fix`. A worktree's project is its
+  repository's, as its pool is (the owner's call, merging pools and projects): each `.git` is read
+  as Which pool a session is in reads it (`launch.worktreeAt`), so a `commondir` not named `.git` of
+  a bare repository, as git reads `core.bare`, counts as the bare repository's directory, its
+  worktrees one project, `~/repos/api.git` or `~/.dotfiles`; but in a `.bare` layout, a bare
+  repository's directory named `.bare` whose worktree lies inside the folder holding it, its links
+  resolved, as that folder, `~/Code/api`, as a project is named by its folder's name and `.bare`
+  would name every such project alike. One of no bare repository, a separate git directory's or a
+  submodule's worktree, counts as the worktree's own directory. One case parts a project from its
+  pool, accepted: a submodule or a clone nested inside a linked worktree is its own project, the
+  walk stopping at its own `.git`, where its pool is placed through the worktree it's in, as that
+  reading walks every `.git` up. One outside any repository, or where what it finds can't be read
+  as one (a `.git` file unreadable or naming nothing, a git or common directory that isn't there),
+  counts as its own directory. `run` finds it through a seam of its own (`cli.Deps.FindProject`),
+  never through the pools' worktree lookup, so a config with no fenced pool still looks for no
+  worktree. Lines and sessions from before carry none:
+  a `dir` of the form `<repo>/.claude/worktrees/<name>`, a worktree Claude Code made, counts as
+  `<repo>`, any other as itself, and no `dir` as no project (`status.ProjectOf`, which no drawing
+  package or command calls), each path cleaned, so one written two ways is one project. A project is
+  named by its folder's name, `switchboard`, and two with one name by as many of their parents' as
+  tell them apart, `client/api` and `own/api`, or `a/x/api` and `b/x/api`, cut as `status.DirName`
+  cuts (`status.ProjectNames`); within it, a session keeps its own directory's name. Nothing drawn
+  names a project yet (the owner's call, 13 November 2026).
 - **Its rows,** at 160×37: the title row (0) and the status line (2), as every page has them (see
   The page); the heading (4); now (6 and 7); STORY (9 to 17): its heading (9), a move's label (10),
   its columns (11 to 15), the ribbon (16) and the axis (17); the accounts it ran on, a row each,
@@ -7290,7 +7521,7 @@ first ran on them. A row's parts, two cells apart, as flex lays them at every wi
   TURNS', the worths to the cent too: TURNS' total is their sum worked out once, exactly, then
   rounded to the cent, and each row's is the cents its running sum, the rows above it with it, comes
   to, less those of the sum before it, as a stacked bar shares its cells among its parts (see
-  History's BY MONTH). So a row can say a cent off what it would alone: f41a's `$14.08` on side and
+  Trends' BY MONTH). So a row can say a cent off what it would alone: f41a's `$14.08` on side and
   `$114.11` on personal, which alone would be `$114.10`, add up to TURNS' `$128.19` (the owner's
   call, 15 October 2026). A row's worth said elsewhere, as a turn's, or the Log's requests', is
   rounded on its own, so the same requests can read a cent apart there. A request the router
@@ -7749,16 +7980,18 @@ that work there (see The page); `?` lists every one, with what it does.
 | `u` `r` `s` `c` `l` | Overview | Show or hide USAGE, ROUTING, SESSIONS, COMING UP, LATELY |
 | `b` | Overview | By window, or by account |
 | `↑` `↓` | Overview, where USAGE scrolls | Scroll USAGE a row, as `j` `k` do |
-| `[` `]` | Accounts, History, Sessions, the Log | The sub-tab before or after |
-| `<` `>` | Accounts, History | A shorter period, a longer one; on History's Year, the year before, the one after |
-| `v` | History | The next shape or split of the view |
+| `[` `]` | Accounts, Sessions, the Log | The sub-tab before or after |
+| `<` `>` | Accounts, Projects | A shorter period, a longer one |
+| `v` | Accounts' Tokens; Trends, while YEAR or BY MONTH shows | The next split of Tokens' rows; the next of what YEAR and BY MONTH show |
 | `←` `→` | Accounts' Compare | Move the focus along the accounts' columns |
-| `←` `→` | History's Year, filtered to an account | The account before or after |
+| `←` `→` | Trends' YEAR and BY MONTH, filtered to an account | The account before or after |
 | `↑` `↓` | Accounts' Detail | Choose an account in the list, all accounts first; or, in its SESSIONS, a session |
 | `→` `←` | Accounts' Detail | Into the account's SESSIONS, and back to the list |
+| `↑` `↓` | Projects | Choose a project in the list; or, in its SESSIONS, a session |
+| `→` `←` | Projects | Into the project's SESSIONS, and back to the list |
 | `←` `→` | Runway | Step back to this week, then a week at a time; step forward, to the live view (the owner's call, 12 November 2026) |
 | `a` | Runway | Collapse the account column to each account's use, the lanes from column 0, or expand it (the owner's calls, 17 October and 12 November 2026) |
-| `w` `o` `g` `h` | Graphs | Show or hide WEEK, POOL, GLANCE, WHEN YOU WORK |
+| `w` `o` `g` `h` | Trends | Show or hide WEEK, POOL, GLANCE, WHEN YOU WORK |
 | `↑` `↓` | Sessions | Choose a session, a call on the Switchboard or a row on the List |
 | `↑` `↓` | The Log | Choose a line; from following, `↑` chooses the newest and pauses; with its details open, the line before or after |
 | `end` | The Log | Follow again, the newest line at the foot and nothing chosen |
@@ -7767,7 +8000,7 @@ that work there (see The page); `?` lists every one, with what it does.
 | `f` | The Log | What it shows: the panel |
 | `/` | The Log | Find a session by its id's start or its directory's name, today's first, then back a day at a time; `↑↓` and `enter` pick one, filtering both tables to it |
 | `↑` `↓` | A session's page | Choose a turn; with one open, a request of it |
-| `enter` | Accounts, Sessions, the Log, a session's page | Open what's chosen: from Compare, the account in Detail; a session's row, its page; a line of the Log, its details; a turn, its requests, in place |
+| `enter` | Accounts, Projects, Sessions, the Log, a session's page | Open what's chosen: from Compare, the account in Detail; a session's row, its page; a line of the Log, its details; a turn, its requests, in place |
 | `↑` `↓`, `space`, `m`, `enter`, `esc` | The routing card | Move, pick, move the sessions running too, apply, cancel (see Routing by hand) |
 | `←` `→`, `↑` `↓`, `space`, `enter`, `esc` | The Log's panel | A side, a row, tick, apply, cancel (see The Log) |
 | `↑` `↓`, `enter`, `d`, `l`, `y` `n`, `esc` | The theme picker | Preview, set one theme, set the dark or light half, answer, put back (see Themes) |
@@ -7785,8 +8018,8 @@ alone act, and `esc` closes it; so do the theme picker's while it's open, as The
 
 **Keys that mean one thing on one page and another elsewhere** are kept apart by the page: `r` and
 `s` hide sections on the Overview, where `R` refreshes on every page, and `s` opens a session's page
-on the Log; `g` shows GLANCE on Graphs, and Requests from an event's details on the Log; `w` shows
-each model's own window where windows are listed as they stand, and WEEK on Graphs; and `f` opens
+on the Log; `g` shows GLANCE on Trends, and Requests from an event's details on the Log; `w` shows
+each model's own window where windows are listed as they stand, and WEEK on Trends; and `f` opens
 the Log's panel.
 
 ### What moves
@@ -7817,7 +8050,7 @@ distracts most. What matters reads when still: nothing is said by motion alone.
 Each page's own motion is in its section, within this budget: the Log's table moving up a line as
 a line joins its foot (see The Log); a session's story stepping a minute at a time, and its newest
 turn growing (see A session's page); Runway's lanes moving on with the clock (see Runway), and
-Graphs' charts with them (see Graphs).
+Trends' charts with them (see Trends).
 
 **Frames** are drawn only for what moves on screen: never for what's scrolled out of view, under a
 card or under `?`, so nothing new is drawn while nothing happens. They come at most 30 a second, a
@@ -7845,17 +8078,17 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
   | `viz.track` | A bar's track: the background of the cells its fill doesn't reach (settled in the plan) | `bg.subtle` |
   | `viz.pace` | The even-pace mark | `text.primary` |
   | `viz.reserve` | The cap's mark on a bar, and its line on a chart: where an account's reserve starts (settled in the plan) | `accent.attention` |
-  | `viz.family.1`–`viz.family.4` | The model families' hues, in the version table's order: Opus, Sonnet, Fable, Haiku (see The request ledger) (settled in the plan). History's charts draw a family in its hue, and Days' strips in its hue's shades | `accent.key`, `accent.mode`, `accent.primary`, `text.tertiary` |
+  | `viz.family.1`–`viz.family.4` | The model families' hues, in the version table's order: Opus, Sonnet, Fable, Haiku (see The request ledger) (settled in the plan). Trends' BY MONTH draws a family in its hue, and MODELS BY DAY's strips in its hue's shades | `accent.key`, `accent.mode`, `accent.primary`, `text.tertiary` |
   | `viz.version.1`–`viz.version.6` | The model versions' shades, which the version table gives them, a family's newest first (settled in the plan). A table names a version in its shade | A family's newest version, its family's hue; an older one, its family's hue mixed 30% toward `canvas` |
-  | `viz.day.0`–`viz.day.4` | A day's shade by how busy it was, from a day with nothing on it to the busiest quarter of the active days (see History) (settled in the plan) | `bg.subtle`, then the ramp of shades below with `accent.key` as its hue |
-  | `viz.account.1`–`viz.account.4` | An account's hue in Graphs' POOL, by its place among the pool's accounts; a fifth on takes the hue four before it, mixed 30% toward `canvas`, the ninth no further (see Graphs) (left to the design by the owner, 25 October 2026) | `state.positive`, `accent.primary`, `accent.key`, `text.tertiary` |
+  | `viz.day.0`–`viz.day.4` | A day's shade by how busy it was, from a day with nothing on it to the busiest quarter of the active days (see Trends' Five shades) (settled in the plan) | `bg.subtle`, then the ramp of shades below with `accent.key` as its hue |
+  | `viz.account.1`–`viz.account.4` | An account's hue in Trends' POOL, by its place among the pool's accounts; a fifth on takes the hue four before it, mixed 30% toward `canvas`, the ninth no further (see Trends) (left to the design by the owner, 25 October 2026) | `state.positive`, `accent.primary`, `accent.key`, `text.tertiary` |
 
   So a theme missing a base token is rejected, and a theme without any `viz.*` still draws every
   chart. `viz.track` and `viz.reserve` keep the keys they had, so a theme file that sets them still
   loads, with the meanings and defaults above; `viz.series.1`–`viz.series.6` are gone, with the
   built-ins' values of them, as the cords take their state's colour (see Sessions), and a file that
   still sets them loads, the keys unknown (settled in the plan). Every ramp of shades, the days' and
-  each family's strips' on History's Days, is drawn by default by one rule, as `nord` alone sets its
+  each family's strips' on Trends' MODELS BY DAY, is drawn by default by one rule, as `nord` alone sets its
   day shades explicitly: from `viz.day.0`, 40% and then 70% of the way to its hue, then the hue
   itself, then the hue mixed 55% toward white, or toward black on a light canvas
   (settled in the plan). The days' hue is `accent.key`, and a family's strips' its family's. A
@@ -7993,7 +8226,7 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
   models go now and its own pin. All are local, and cost nothing upstream. A router that can't
   list its sessions shows none, never those another router listed.
 - **What moves** at each look, and every second with nothing read, is as What moves says.
-- **The history** behind Graphs' cards is read with each full read, not each look: `GET /history`
+- **The history** behind Trends' cards is read with each full read, not each look: `GET /history`
   (see Control API), each window's over its current length, the 5-hour window at 5-minute steps and
   the weeks at 30-minute steps. Without the router, they draw from the readings history's files,
   read where they lie, and the readings the dashboard takes itself as it probes
@@ -8063,7 +8296,8 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
     never the day. A file found replaced, or shorter than where the last read ended, is read again
     from its start. The tail is read at each look whatever tab shows, while a reader holds today's
     lines, as the Log once shown, the List once read and a session's page open do, or the stream
-    awaits a line, so each keeps up while another tab shows; and once after the stream opens, for
+    awaits a line, so each keeps up while another tab shows, and while Accounts shows today, its
+    worth by the hour being the tail's fold's; and once after the stream opens, for
     the traces, whether a reader holds them or not. The tail alone asks the follower for today's
     lines, with its one mark. A line one read finds, of today or of a day before read again whole,
     every reader takes in, the store of sessions once for them all (settled in the plan). The
@@ -8094,13 +8328,13 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
     its four weeks read once, as the first reader that wants it shows, `loading…` while they are,
     or, resting on a digest, only the days since it; never again while a reader wants it (settled
     in the plan).
-  - **A period, or a week stepped back to,** as Accounts', History's and Runway's are, is read once
-    as it's shown, then held; History's year is a year of summaries, read once a run.
+  - **A period, or a week stepped back to,** as Accounts' and Runway's are, is read once
+    as it's shown, then held; Trends' year is a year of summaries, read once a run.
   - **The readings history's live tail,** from the day a week before today's, or the day a week
     back from now falls on where that's earlier, as it is in the hour after midnight for a week
     after the clocks go forward, so it reaches where GLANCE's pool starts its week, each window's
     run from a week before that carried in, is read for what it gained at each look while Runway
-    shows its live view, or a week it holds, or Graphs shows.
+    shows its live view, or a week it holds, or Trends shows.
   - **The Log's Events through some kinds,** which no summary tells the days of, read back no
     further than the earliest of them the router filed: its files of events are read for it first,
     the oldest first and no further than that event, as they're far smaller than the ledger's days
@@ -8320,8 +8554,13 @@ written by the user as `.theme` files, and chosen in a picker drawn over the pag
   them; and without the status document's new fields, the dashboard works out the allowance, the
   even pace, the pool's room and COMING UP itself, by the functions the router's come from
   (settled in the plan). A router from before milestone 5 has no `GET /history`, `events` or
-  `GET /stream`: Graphs' cards draw from the readings history's files, LATELY and the Log from the events'
+  `GET /stream`: Trends' cards draw from the readings history's files, LATELY and the Log from the events'
   files alone, and nothing travels.
+- **A router from before projects** gives no `project` on its sessions, its stream or its events,
+  and takes the project header off unread, so its lines name none: a session's project is then its
+  directory's, as a line from before projects has it (see A session's page, A project). An older
+  reader of a newer router's sessions, stream, events, lines or `state.json` passes `project`
+  over, as every reader passes over a field it doesn't know.
 
 ### Kept from the dashboard before milestone 5
 
@@ -8488,7 +8727,7 @@ a notification's size they were lost.
 
 The readings history says how each window's use changed; the request ledger says what used it. It
 holds a line for each request the router routes, written as the request ends, and a summary of each
-day once the day is over. History, Accounts, a session's page, the Log, Sessions' List and the
+day once the day is over. Accounts, Trends, a session's page, the Log, Sessions' List and the
 traces look back through it, as agents do through the data verbs (see The data verbs). It records
 from the first day a router that has it runs, so nothing before then is in it.
 
@@ -8502,7 +8741,7 @@ from the first day a router that has it runs, so nothing before then is in it.
   object:
 
   ```json
-  {"at": "2026-10-06T13:12:00.123Z", "request": "3f2a91c4", "kind": "message", "session": "5b0e…", "dir": "~/Code/project", "model": "claude-opus-5-5", "account": "work", "reason": "sticky", "status": 200, "attempts": 1, "first_ms": 812, "total_ms": 14230, "agent": "claude-cli/2.1.0 (external, cli)", "betas": ["context-1m-2025-08-07"], "shape": {"bytes": 482113, "messages": 214, "system": 3, "tools": 31, "max_tokens": 32000, "thinking": {"type": "enabled", "budget_tokens": 31999}, "stream": true}, "answer": {"id": "req_011C…", "model": "claude-opus-5-5", "stop": "tool_use", "blocks": {"thinking": 1, "text": 1, "tool_use": 2}, "tools": ["Bash", "Read"]}, "usage": {"input_tokens": 12, "cache_creation_input_tokens": 3120, "cache_read_input_tokens": 182340, "cache_creation": {"ephemeral_5m_input_tokens": 0, "ephemeral_1h_input_tokens": 3120}, "output_tokens": 845, "service_tier": "standard"}, "limits": {"status": "allowed", "5h-utilization": "0.23", "5h-reset": "1791320400", "7d-utilization": "0.41", "7d-reset": "1791590400"}}
+  {"at": "2026-10-06T13:12:00.123Z", "request": "3f2a91c4", "kind": "message", "session": "5b0e…", "dir": "~/Code/project", "project": "~/Code/project", "model": "claude-opus-5-5", "account": "work", "reason": "sticky", "status": 200, "attempts": 1, "first_ms": 812, "total_ms": 14230, "agent": "claude-cli/2.1.0 (external, cli)", "betas": ["context-1m-2025-08-07"], "shape": {"bytes": 482113, "messages": 214, "system": 3, "tools": 31, "max_tokens": 32000, "thinking": {"type": "enabled", "budget_tokens": 31999}, "stream": true}, "answer": {"id": "req_011C…", "model": "claude-opus-5-5", "stop": "tool_use", "blocks": {"thinking": 1, "text": 1, "tool_use": 2}, "tools": ["Bash", "Read"]}, "usage": {"input_tokens": 12, "cache_creation_input_tokens": 3120, "cache_read_input_tokens": 182340, "cache_creation": {"ephemeral_5m_input_tokens": 0, "ephemeral_1h_input_tokens": 3120}, "output_tokens": 845, "service_tier": "standard"}, "limits": {"status": "allowed", "5h-utilization": "0.23", "5h-reset": "1791320400", "7d-utilization": "0.41", "7d-reset": "1791590400"}}
   ```
 
   - `at`: when it arrived, before its body was read, in UTC, to the millisecond.
@@ -8518,10 +8757,14 @@ from the first day a router that has it runs, so nothing before then is in it.
     environment, and with it the headers `run` set: its lines carry the directory of the session it
     was started within, as its requests carry that session's pin; the router can't tell the
     difference. It's the directory `claude` was started in, which a session doesn't keep: one
-    resumed elsewhere carries the new one from then on. `model`: the model it asked for. Each is
-    cut to 200 bytes once anything shaped like a token in it is hidden: a session's id and a
-    model's at their end, as the request stream cuts them, and a directory at its start, `…`
-    standing for what's cut, so it keeps its own name.
+    resumed elsewhere carries the new one from then on. `project`: the repository that directory
+    is in, as `run` found it and tells the router beside it, written as `dir` is, as
+    `~/Code/api` for a session in `~/Code/api/.claude/worktrees/fix-login` (see A session's page,
+    A project); left out where a request names none, as every line from before it was told does.
+    `model`: the model it asked for. Each is cut to 200 bytes once anything shaped like a token in
+    it is hidden: a session's id and a model's at their end, as the request stream cuts them, and
+    a directory at its start, `…` standing for what's cut, so it keeps its own name; a project
+    longer than that is left out, as one cut would name another.
   - `account`: the account whose answer the client got, by its id. `reason` and `from` say how
     that account was chosen: `reason` why, as the `routed` line gives it (`sticky`, `new`,
     `pinned`, `moved: personal hit its limit`), and `from` the account the request's session was
@@ -8605,7 +8848,7 @@ from the first day a router that has it runs, so nothing before then is in it.
   alone, never by a token or a label. Fields may be added to a line, never renamed, and a reader
   passes over those it doesn't know.
 - **Writing never holds a request up.** The request hands its line to a queue of 8,192 lines at
-  most, longer than the readings history's, as a line dropped is a request History never counts,
+  most, longer than the readings history's, as a line dropped is a request the ledger never counts,
   and goes on. A goroutine of the ledger's own writes the lines to the day's file, as the readings
   history writes its own (see Files). A line past the queue's end is dropped, logged once until the
   queue catches up; a write that fails is logged once until one succeeds, and its lines go
@@ -8640,7 +8883,7 @@ from the first day a router that has it runs, so nothing before then is in it.
 
   - `version`: the summaries' version: 7 since pools, which splits each account's day's work by the
     pool its requests were in, as its `pool` and `pools` give it (see Pools); 6 since the Graphs
-    tab, which adds each model's `hours`, its requests by the hour, for WHEN YOU WORK (see Graphs);
+    tab, which adds each model's `hours`, its requests by the hour, for WHEN YOU WORK (see Trends);
     5 since the loose ends after milestone 7,
     which leaves Claude Code's quota checks' usage out of each model's `usage`, as nothing prices it
     (see Worth; the owner's call, 15 October 2026); 4 since milestone 7's stage 8, which added each
@@ -8691,7 +8934,7 @@ from the first day a router that has it runs, so nothing before then is in it.
     their turn, and is tried, and warned of, once a pass of rounds made back to back, as it was once
     a round before, but again before a prune that takes its readings. The digesting waits for the
     last of them: a round kicks it only once it leaves no day for a later one. Until a day's turn
-    comes, History and `history` read it from its lines, as below, with the same figures, at the
+    comes, Accounts, Trends and `history` read it from its lines, as below, with the same figures, at the
     cost of the read. A reader that meets
     an older version's summary, its lines kept, summarises the day from its
     lines, as it does today's; and one whose lines are gone it takes as it stands, whatever its
@@ -8728,7 +8971,7 @@ from the first day a router that has it runs, so nothing before then is in it.
     an error gives none, so what they spent is unknown, and their worth unpriced, never taken for
     none (see Worth); since version 6, `hours` counts those `upstream` counts by the local hour each
     arrived in, as its `at` gives it, 24 counts from midnight's on, which sum to it, for WHEN YOU
-    WORK (see Graphs): an hour the clocks skip has none, and one they repeat counts both; they're
+    WORK (see Trends): an hour the clocks skip has none, and one they repeat counts both; they're
     left out where they were never counted, as in a summary of an older version, never given as
     none; `unsent` counts those the router answered itself, never sending them; `checks` counts
     Claude Code's quota checks, and `counts` the counts of tokens, however each went; `sessions`
@@ -8910,12 +9153,12 @@ from the first day a router that has it runs, so nothing before then is in it.
   sealed (see Live updates). A reader rests a session on the newest digest that stands for it, and
   reads raw only the days after. Of each session it holds:
   - **Its state:** its story, whether it has begun, its first and last request, what names it, the
-    directory it last named, its last request whose answer gave usage and its last such of its own
-    conversation, whether a request of it said its class, each move a request of it made, settled
-    or not, the request that wrote the session's context again among it, and of each of its threads
-    when its last request ended and how long its writes to the cache last; and how many of its
-    requests arrived on each day, by date, so a day read again whole is placed. None of its
-    requests but those its story names, no flights, and nothing held open.
+    directory and project it last named, its last request whose answer gave usage and its last
+    such of its own conversation, whether a request of it said its class, each move a request of it
+    made, settled or not, the request that wrote the session's context again among it, and of each
+    of its threads when its last request ended and how long its writes to the cache last; and how
+    many of its requests arrived on each day, by date, so a day read again whole is placed. None of
+    its requests but those its story names, no flights, and nothing held open.
   - **Its page,** carried in its state, as the store's page of it would hold it sealed at the
     day's end, all but what grows with every day it runs: whether it has begun, its first and last
     request, its idle gaps folded and when it last came back after one, its stretches on each
@@ -9002,13 +9245,15 @@ from the first day a router that has it runs, so nothing before then is in it.
   answer read the `claude` package's, and a session's state, its part and the part's times the
   views', which the ledger carries as it's given and never reads. The envelope's version is 3,
   since its entries name their pools and hold a split session's states apart, and
-  `views.DigestVersion` 2, from phase 2 of the digests
-  (see Milestones). Version 3 builds every day's digest again once, oldest first, as each rests
+  `views.DigestVersion` 3, since a session's state and its requests hold their project beside
+  their directory (2 from phase 2 of the digests; see Milestones): a digest of another version
+  of either is read past, its sessions read raw, and the router digests its day again. The
+  envelope's 3 builds every day's digest again once, oldest first, as each rests
   on the day before's: on the busy world, 5,000 requests a day, some 0.4 s of CPU a day, as before
   it, each digest a quarter of a percent larger, so a year of days is some 2½ minutes of CPU,
   paced to half a core, some 5 minutes as the router runs (13 November 2026, race detector off,
   on a busy Mac). Until a day's digest is built again, its sessions are read from their lines,
-  slower and exact, as of any digest of another version. Released beside the rows' version 4,
+  slower and exact, as of any digest of another version. Released beside the rows' version 5,
   as each pass builds the heads due after the digests (see A head a day's Who writes it), the
   Log's heads are built again only once every digest is, their days read raw till then.
 
@@ -9159,20 +9404,31 @@ from the first day a router that has it runs, so nothing before then is in it.
   directories (settled in the plan, 19 October 2026): once a day has ended and its summary stands,
   the router writes the day's head beside its digest, `logday-<local date>.json.gz`, holding the
   day's side: each session the day's lines count toward, but Claude Code's quota checks, with its
-  whole id, the directory its lines last named, how many they are and when the last arrived, as
-  the find holds it, and the pools they recorded, for a pool's find, left out where they named
-  none (see The Log's In a pool); and where the day's rows lie in its rows file (below). It's
-  built of exactly the lines the Log reads of the day, in their order, by the one read of a day's
-  lines both share, the day's own files and those either side of it, as a change of time zone
-  files a line under a date beside its own, every line handed to the views' builder through the
-  same `ledger.Digester` seam, the side its JSON and each chunk of rows its JSON lines, which the
-  ledger carries as they're given and never reads.
+  whole id, the directory its lines last named, the project the last to name either named, how
+  many they are and when the last arrived, as the find holds it, and the pools they recorded, for
+  a pool's find, left out where they named none (see The Log's In a pool); and, for Projects and
+  the List, when its first and last request that day arrived, its requests and what they spent by
+  account and model, as usage, never dollars, so a day is priced as it's read, at the prices Past
+  and the List price at, what names its model and account as the List names an ended session's,
+  and each model's latest move that day, from where, to where, why and what the move wrote again,
+  as the List words it; no hours, today's being the only day drawn by the hour, of the held
+  sessions and today's lines (settled in the plan, 13 November 2026). A session running over
+  midnight has one a day, started its first request on its first day and ended its last on its
+  last. And where the day's rows lie in its rows file (below). It's built of exactly
+  the lines the Log reads of the day, in their order, by the one read of a day's lines both share,
+  the day's own files and those either side of it, as a change of time zone files a line under a
+  date beside its own, every line handed to the views' builder through the same `ledger.Digester`
+  seam, the side its JSON and each chunk of rows its JSON lines, which the ledger carries as
+  they're given and never reads.
   - **Its head says what it was built from,** as a digest's does: the version of its envelope, the
-    ledger's, 3, and of its side and rows, the views' (`views.RowsVersion`, 4); its day, and the
-    day's start and end in the time zone it was built in, as nanoseconds; the `lines` of the summary
-    it was built against; how many lines the day's read gave; `rests_on`, each day beside it whose
-    files gave it a line, as a change of time zone files one, with the lines the ledger kept of
-    that day before the read, as a digest's entry keeps the days it rests on; and its rows' table:
+    ledger's, 3, and of its side and rows, the views' (`views.RowsVersion`, 5, since a row and a
+    side's session hold their project beside their directory and name the pools their lines
+    recorded, each of which was version 4 alone, so a head of 4 is built again); its day, and the
+    day's start and end in the time zone it was built in, as nanoseconds; the `lines` of the
+    summary it was built against; how many lines the day's read gave; `rests_on`, each day beside
+    it whose files gave it a line, as a change of time zone files one, with the lines the ledger
+    kept of that day before the read, as a digest's entry keeps the days it rests on; and its
+    rows' table:
     the rows file's size, how many rows it holds, and each chunk's place in it, its offset, length
     and CRC, its rows and its meta (below). It's JSON, gzipped, its zeros left out, its side and
     then its chunks last, written whole, 0600, beside where it goes and renamed into place, and
@@ -9323,7 +9579,7 @@ from the first day a router that has it runs, so nothing before then is in it.
     priced by none, and a summary leaves it out (see `version`; the owner's call, 15 October
     2026). Its tokens are shown as they are where the check is. A model whose day on an account
     holds quota checks or counts of tokens alone wasn't used: no list of the models, versions or
-    families used names it, nor counts it, as BY MODEL, Tokens, the Year's `v` and `history` list
+    families used names it, nor counts it, as BY MODEL, Tokens, YEAR's `v` and `history` list
     them, nor lists among Tokens' accounts one that sent them alone. A day summarised before
     version 5 keeps its checks' few tokens, priced, in its sums alone.
   - Every request the router routes runs at standard speed and the standard service tier, so the
@@ -9338,8 +9594,8 @@ from the first day a router that has it runs, so nothing before then is in it.
     prompts up to 100,000, the owner's call (11 October 2026), until how the table is kept is
     settled (see Backlog: keeping the price table current).
   - **Plans:** beside the models, the table prices the plans a subscription is on, each a month, in
-    US dollars, with its size in Pro weeks, which the forecast and History's replay of a week weigh
-    an account by (see Forecasting run-outs and History): `pro`, Pro, $20 and 1; `max`, Max, $100
+    US dollars, with its size in Pro weeks, which the forecast and the capacity verdict's replay of a week
+    weigh an account by (see Forecasting run-outs and The capacity verdict): `pro`, Pro, $20 and 1; `max`, Max, $100
     and 5; and `ultra`, Ultra, $200 and 10. The sizes are the weekly usage Anthropic publishes for
     each plan against Pro's, Max five times it and Ultra ten (the owner's call, 10 November 2026);
     Max 20x's 20 named its 5-hour allowance, not its week's. Max and Ultra were Max 5x and Max 20x
@@ -9368,7 +9624,7 @@ from the first day a router that has it runs, so nothing before then is in it.
 - **Requests,** wherever a view or a command counts them, are a summary's `upstream` and `unsent`
   together: every message, the kind of request that spends quota, whether it went upstream or the
   router answered it itself. Claude Code's quota checks and the counts of tokens, which spend
-  nothing, are counted apart, as `checks` and `counts`, and never among the requests, so History,
+  nothing, are counted apart, as `checks` and `counts`, and never among the requests, so Trends,
   Accounts, the Log and `history` give a day the same number.
 - **Reading needs no router.** The dashboard and the read commands read the ledger's files where
   they lie, through one package, `internal/ledger`, given the state directory and a clock, and the
@@ -9401,7 +9657,7 @@ from the first day a router that has it runs, so nothing before then is in it.
   there is given, so the last is today, one of no requests as a summary of the accounts the
   readings history tells of alone, of none where it tells of none, or doesn't cover the day's
   reach: none from before the ledger began. A session's page reads the lines of its own days
-  after the newest digest it rests on, and that digest's state and parts; History and Accounts
+  after the newest digest it rests on, and that digest's state and parts; Accounts and Trends
   read the summaries.
 
 ## Export and import
@@ -9417,7 +9673,7 @@ Switchboard never talks to a cloud. Export and import are built, and the export 
 Each Mac's history is its own: no history is read across several Macs at once (the owner's call,
 10 November 2026). A Mac records the requests it routes; usage and limits are Anthropic's, read off
 every answer and probe, so another Mac's use on the same accounts shows in the bars and routing
-sees it, as it sees the Claude apps', while History's tokens, worth and sessions count only this
+sees it, as it sees the Claude apps', while Accounts' and Trends' tokens, worth and sessions count only this
 Mac's. Reading each other's exports would mend that only while two Macs run at once, at the cost of
 sync lag, duplicates and sessions claimed twice.
 
@@ -9548,7 +9804,7 @@ and so does one whose every folder was passed over.
 - **Days past keeping:** a day's lines past the Mac's `[ledger] keep`, or its readings past
   `[history] keep`, aren't taken in, as the next round would remove them; their summaries are, as
   summaries are kept for good.
-- **Then** the router runs a round at once, so History, Accounts and the data verbs have the days
+- **Then** the router runs a round at once, so Accounts, Trends and the data verbs have the days
   within minutes, and answers `{"folders": 1, "days": {"added": 27, "merged": 3, "past_keep": 12},
   "lines": 1204, "summaries": 27}`, `lines` those added to days both held, a day that gained nothing counting for none, so an import
   repeated adds nothing, telling only of the days past keeping again. The command prints
@@ -10237,14 +10493,14 @@ Claude Code's own token is the primary's, so what isn't routed lands there.
 | `internal/forecast` | The weeks' forecast (see Forecasting run-outs): the fast and day's rates and the hold curve, each kept as readings and answers arrive, and the pool's use played forward through `internal/score`'s choice of account, to where each week runs out. Pure functions and values handed the clock, as `internal/score`'s are; the router keeps the rates and the curve, `cmd/forecasttool` replays them, and `internal/status` forecasts with them |
 | `internal/prime` | The priming schedule: each account's slot from the day and the accounts, and when a prime is due. Pure functions of the day, the accounts, the window a request starts, which the `score.Policy` names, the readings and a clock |
 | `internal/status` | The status document, each window's allowance and even pace, the pool's room and COMING UP among what it holds, and building it by probing every account; what the router says of a session; and their words: `status`'s text, the countdowns, clocks, titles and state words the dashboard shares, and one map from the router's reasons to the dashboard's words; and a token's year, its one owner: when it was taken and is up, whether it's up within a span, its days left and the share of it gone, which setup, the Accounts tab, `usage` and the router's notifications read |
-| `internal/views` | Each view's data, built by one function from what's read, the status document, the router's sessions and what its request stream tells, the ledger's, the readings history's and the events' readers, the price table and a clock: what a page of the dashboard draws, and its data verb prints, so the two never disagree (see The data verbs); and the one store of sessions the dashboard's readers of the ledger share, fed once a read of its tail, each session's story told on as its lines come, from a digest's state or whole (see Live updates); and a session's state as a day's digest stores it, its page's carried state, its points and its part of each day among it, restored by the store's own steps, and `Digests`, the builder the ledger digests its days with, each day's answers taken once, small, as the ledger's read hands their lines, as a page's read takes them too, each session's page given those of the days after its base, and each day's side, the sessions the Log's find reads of it (see The request ledger). It opens nothing itself; it reads through the readers it's given |
-| `internal/dashboard` | Rendering the dashboard as frames (Lip Gloss): the page's chrome, its title row, status line, heading row and key line; the Overview, Accounts, History, Sessions, Runway, Graphs, the Log and a session's page, each drawn from what `internal/views` builds; the usage block, which `usage` prints and the Overview's USAGE draws; the card a routing picker or a line's details is drawn in, over the page faded; the theme picker; `?`'s help for each page; and setup's full screen, `dashboard.Setup`, a page in the dashboard's chrome drawn from setup's outcomes, its cards placed by the card's rule over the page unfaded |
+| `internal/views` | Each view's data, built by one function from what's read, the status document, the router's sessions and what its request stream tells, the ledger's, the readings history's and the events' readers, the price table and a clock: what a page of the dashboard draws, and its data verb prints, so the two never disagree (see The data verbs); and the one store of sessions the dashboard's readers of the ledger share, fed once a read of its tail, each session's story told on as its lines come, from a digest's state or whole (see Live updates); and a session's state as a day's digest stores it, its page's carried state, its points and its part of each day among it, restored by the store's own steps, and `Digests`, the builder the ledger digests its days with, each day's answers taken once, small, as the ledger's read hands their lines, as a page's read takes them too, each session's page given those of the days after its base, and each day's side, the sessions the Log's find and Projects read of it (see The request ledger), which `SessionDays` reads once for a period, joins to the days the tail fed, and carries across midnight. It opens nothing itself; it reads through the readers it's given |
+| `internal/dashboard` | Rendering the dashboard as frames (Lip Gloss): the page's chrome, its title row, status line, heading row and key line; the Overview, Accounts, Projects, Sessions, Runway, Trends, the Log and a session's page, each drawn from what `internal/views` builds; the usage block, which `usage` prints and the Overview's USAGE draws; the card a routing picker or a line's details is drawn in, over the page faded; the theme picker; `?`'s help for each page; and setup's full screen, `dashboard.Setup`, a page in the dashboard's chrome drawn from setup's outcomes, its cards placed by the card's rule over the page unfaded |
 | `internal/dashboard/watch` | The live dashboard (Bubble Tea): when to read the router or probe; the ledger's, the readings history's and the events' files, read as they grow through small interfaces it's given, which its tests and the capture harness fake; the history and the request stream; the pages and the stack `esc` goes back through, their keys and clicks, the routing pickers' orders, scrolling, easing and what moves; the theme picker; the preferences; and its desktop notifications while it probes without the router |
 | `internal/theme` | Themes: the tokens, the built-ins, loading `.theme` files, working out `viz.*`, the families', versions' and days' shades among them, picking the light or dark half by the terminal's background, and the preferences file |
 | `internal/capture` | The capture harness's fixtures, a fixture a frame, each a moment of the dashboard or a printout of `usage`: the specs' sample worlds; a fake router serving them, with its history and request stream; fakes of the ledger's, the readings history's and the events' readers, holding a year of days, a session's lines and the router's events, and of the price table; and the real watch model built through `watch.New` with every seam faked, or `usage`'s printout drawn through a path of its own, from its fake router's status document, read as `usage` reads the router's, so it never dials the router, probes, runs a program, or reads or writes the real config, themes, state, ledger, preferences or tokens; and setup's full screen's fixtures, a moment of it each, built through `internal/setup/screen` with its `Steps` faked. Imported by `cmd/capturetool` alone |
 | `internal/router` | The proxy and its replays, the scheduler, live account state, and its playback of a readings history and request ledger through that state, for `cmd/forecasttool`, priming, the state file, keeping the readings history, in the lines `internal/readings` owns, each routed request's line handed to the request ledger, and the readings it summarises its days with, the router's health, the events it emits, filed through `internal/events` so they outlast a restart, and the notifications it posts, the control API and its client, and looking after itself: taking up the token files as they change, and restarting in place for a config change, an upgrade or a new time zone, or when asked |
 | `internal/handover` | Handing listening sockets over across `exec`: holding them open as their listeners close, making them survive `exec`, naming them in `SWITCHBOARD_LISTENERS`, and taking up, on the other side, those it names that are listening sockets; and asking the binary first whether it could start (`--check`), telling its refusal apart from a binary that can't answer |
-| `internal/launch` | `run`'s hand-over to `claude`, the real one, as `internal/claude` finds it on the `PATH` Claude Code starts with, and how a notice reads on stderr |
+| `internal/launch` | `run`'s hand-over to `claude`, the real one, as `internal/claude` finds it on the `PATH` Claude Code starts with, telling the router the directory it starts in and its project, found by walking up to the repository's `.git` (`FindProject`), and how a notice reads on stderr |
 | `internal/setup` | `setup`'s steps, the `claude` link in switchboard's bin directory among them, with switchboard's line in the shell's startup file and the login shell's answer, which it takes from `internal/shell`: the situation each step finds, and the actions that act on an answer, each returning a typed outcome saying itself as the screen's rows, which `internal/setup/screen` calls (see Setup) |
 | `internal/setup/screen` | Setup's full screen (Bubble Tea), shaped as `internal/dashboard/watch` is: the screen's state alone, the step it's on, its cards and fields, keys and copying; the steps called through the `Steps` interface it declares, which `*setup.Setup` satisfies and `internal/capture` fakes; and long work, making a token, asking the login shell and the service step, on goroutines it owns, cancelled and waited for before it returns |
 | `internal/setuptoken` | Making an account's setup token (#187): running `claude setup-token` on a pseudo-terminal of its own, wide enough that the token is drawn whole; its shim, the script `BROWSER` names, in a private directory of its own, which writes the sign-in address to a file there for it to read, so switchboard is never run as the browser; opening the address as its caller chooses, in the default browser as it is or in a private window of one whose command line can open one; and taking the token from what setup-token draws once it says it's made. It draws nothing itself: its caller words each step it reports. Setup's full screen and `accounts token` call it, through `setup.MakeToken` |
@@ -10470,8 +10726,8 @@ hiding it behind the provider would take a wider interface than it's worth:
   config directory, `$CLAUDE_CONFIG_DIR`, else `~/.claude`, which `setup` adds or puts right,
   leaving the rest of the file as it is (see The session hook).
 - **The capture harness,** in the repository: `testdata/vhs/`, where the dashboard is checked
-  against its frames. `reference/` keeps them, 82 of them, named by their
-  stems: `usage-*` (9), `overview-*` (15), `accounts-*` (11), `history-*` (10), `routing-*` (5),
+  against its frames. `reference/` keeps them, 72 of them, named by their
+  stems: `usage-*` (9), `overview-*` (15), `accounts-*` (11), `routing-*` (5),
   `session-*` (6), `log-*` (9), `sessions-*` (9) and `runway-*` (8). Each is the tests' snapshot
   of the live view: the text and ANSI that the fixture of `internal/capture`'s with the same
   name draws, written by `go run ./cmd/capturetool --frames testdata/vhs/reference [names…]`, which
@@ -10589,9 +10845,9 @@ fails as it is; one that parses has every problem reported at once:
   it's set, an empty `dir` as unset (see Export and import).
 - **`week_starts`** is a day of the week, by its name in English, in any case, as `monday` or
   `Sunday`; `monday` unless given. It's the day the dashboard's calendar weeks start on: the weeks
-  History and Accounts count by, in History's grid, weeks, days and tokens and Accounts' this week
-  and its days, and the weeks Runway steps back to. Runway's live week runs from a day before now,
-  so isn't one of them (see History, Accounts and Runway). A window's own week, which resets when
+  Accounts and Trends count by, in Trends' YEAR and MODELS BY DAY and Accounts' this week, its days
+  and tokens, and the weeks Runway steps back to. Runway's live week runs from a day before now,
+  so isn't one of them (see Accounts, Trends and Runway). A window's own week, which resets when
   Anthropic resets it, is never moved by it.
 - **`when_router_down`** is `stop` or `direct`, in any case; `stop` unless given. It's what `run`
   does when the router isn't running, can't be routed through or can't be found: start nothing, or
@@ -10599,8 +10855,8 @@ fails as it is; one that parses has every problem reported at once:
   all the same; `SWITCHBOARD_WHEN_ROUTER_DOWN` overrides it for one launch (see Launching).
 - **`plan`,** on an account, is `pro`, `max` or `ultra`: the subscription it's on, which
   switchboard can't read from Anthropic. It prices the account against its worth, and sizes it for
-  the forecast of where its week runs out and History's replay of a week (see The request ledger).
-  Without it, the account's plan is unknown: Accounts and History show `—` for it, price nothing
+  the forecast of where its week runs out and the capacity verdict's replay of a week (see The request
+  ledger). Without it, the account's plan is unknown: Accounts and Trends show `—` for it, price nothing
   against it, and size it as the plan most of the accounts have (see Forecasting run-outs). The
   plans' old names, `max5x` for `max` and `max20x` for `ultra`, still load as the new, so nothing
   past loading sees them; the file keeps the old name till an edit sets that account's plan, which
@@ -10655,6 +10911,12 @@ fails as it is; one that parses has every problem reported at once:
   end the header's line; each byte of a character past ASCII; a space at either end, which would
   be trimmed off; and a percent sign. One that doesn't decode is passed over, and the request's
   line names no directory.
+- `X-Switchboard-Project: <project>`, set by `run` beside the directory, names the project that
+  directory is in, the repository's path (see A session's page, A project), encoded as the
+  directory is. One that's missing, doesn't decode, or runs past the 200 bytes a line holds is
+  passed over, never refusing the request, and the request names no project: its session's
+  project is then its directory's, as a line from before projects has it. It's read as cheaply as
+  the directory, from the header alone.
 - A routed request's `Accept-Encoding` is narrowed to the encodings the router can read a copy of
   its answer in, to count it for the request stream (see Control API): gzip, deflate and identity,
   in the order the client gave them, or identity where it offered none of those. A request passed
@@ -10678,12 +10940,12 @@ HTTP over `control.sock` (mode 0600, so file permissions are the authentication)
 |---|---|
 | `GET /health` | `{ok, reason, listen, version, pid, started_at, strips_own_headers, reports_pools, pools, moving, restart}`: the router is alive, and `ok` is its health, the judgment the status document's `router.healthy` gives, `false` while it's unhealthy, with a `reason` (see Health). `listen` is the address its proxy listens on. `strips_own_headers`, `true`, says it takes every `X-Switchboard-…` header off a request going upstream (see Proxy rules); a router from before leaves it out. `run` sends sessions to a router that gives `listen`, `ok` or not, and tells the directory a session starts in only to one that says `strips_own_headers`; `usage`, `status` and `dashboard` read the document of any router that answers at all. `reports_pools`, `true`, says it reports the pools it routes for, as `pools`, a router from before leaving both out: in the config's order, each `{id, label, dirs, written_dirs, accounts, primary}`, `dirs` its directories absolute and clean and `written_dirs` as the config writes them, both left out for the unfenced pool, `accounts` the ids of those of its accounts the router has, one the config added since it started left out, and `primary` its primary among them, left out where it has none; `pools` is left out in a config without pools, and by a router that routes nothing, as one that can't tell the pools, which answers `ok` `false`. `run` compares them with the config's (see Launching in a pool). `moving` is how the moves of the history stand, as the status document's `moving`, given here as it's no pool's. `restart` is the restart it has due, as the status document's `restart`, left out where none is, given here for a pool it can't give a document of, as one added since it started, which waits on that restart: the dashboard says it on such a pool's status line |
 | `GET /status` | The status document, as `status --json` prints it but for the `"schema": 1` the verbs put first: see below. It, `GET /sessions`, `GET /history`, `GET /stream`, `POST /refresh` and `DELETE /pin` take `?pool=<id>`, and answer for that pool, else the one the verbs act on, refusing with a 400 `{error, pools, named}` where there's none, or the pool named isn't configured (see Reading a pool); `POST /pin` takes its pool from the accounts it names; and `GET /sessions/{id}` and a session's pin take `?pool=<id>` as they say. Each stream event names its request's `pool`, where there are pools |
-| `GET /sessions/{id}` | For statuslines and the dashboard: `{"session": "<id>", "pin": "<id>", "assignments": [{model, family, account, auto, dir, in_flight, pinned, yielded, pinned_at, reason, assigned_at, last_seen}], "account": {…}}`. `pin` is the session's own pin, left out when it has none: the one `pin --session` gave it, else the one `run --account` did, as its requests last carried it. `assignments` are the session's, a model each, the one used last first, each naming its model's family, such as `opus`, and its account by id; `auto`, the account auto would send the model's next request to, by id, as the routing card names it on its `auto` line (see Routing by hand): where the router's own rule sends a request with the session's own pin passed over and the global pin counting, on what the router knows, probing none (see Choosing an account), and left out where no account has room for the request; `dir`, the directory the session's last request of the model named, as the request ledger keeps it, the home as `~` and cut as a line's is (see The request ledger), kept with the assignment in `state.json`, and left out where none has named one; `in_flight`, what a request of its model in flight is doing, as the request stream tells of it: `answering` while an answer streams to one, else `asking` while one waits for its answer's first byte, and left out while none is in flight, so one read says what each running session is doing, as the request stream's first events don't say when they're all in; `yielded` set while the session's own pin has yielded, the account it names having had no room for a request of it, and it stays where it went; and `pinned_at` when it was given its own pin as it ran, left out for the one it was launched with, and while it has none. `account` at the top is the whole status of the account the last used went to, as the document gives it. With `?pool=<id>`, it answers for the session in that pool, a 404 where it was never seen there; without, for the pool it was routed in last, as a session resumed in another pool has work in each. 404 for a session never seen |
+| `GET /sessions/{id}` | For statuslines and the dashboard: `{"session": "<id>", "pin": "<id>", "assignments": [{model, family, account, auto, dir, project, in_flight, pinned, yielded, pinned_at, reason, assigned_at, last_seen}], "account": {…}}`. `pin` is the session's own pin, left out when it has none: the one `pin --session` gave it, else the one `run --account` did, as its requests last carried it. `assignments` are the session's, a model each, the one used last first, each naming its model's family, such as `opus`, and its account by id; `auto`, the account auto would send the model's next request to, by id, as the routing card names it on its `auto` line (see Routing by hand): where the router's own rule sends a request with the session's own pin passed over and the global pin counting, on what the router knows, probing none (see Choosing an account), and left out where no account has room for the request; `dir`, the directory the session's last request of the model named, as the request ledger keeps it, the home as `~` and cut as a line's is (see The request ledger), kept with the assignment in `state.json`, and left out where none has named one; `project`, the project its last request of the model to name a directory or a project named, kept and left out alike, so it's always that of the directory named with it, and left out by a router from before; `in_flight`, what a request of its model in flight is doing, as the request stream tells of it: `answering` while an answer streams to one, else `asking` while one waits for its answer's first byte, and left out while none is in flight, so one read says what each running session is doing, as the request stream's first events don't say when they're all in; `yielded` set while the session's own pin has yielded, the account it names having had no room for a request of it, and it stays where it went; and `pinned_at` when it was given its own pin as it ran, left out for the one it was launched with, and while it has none. `account` at the top is the whole status of the account the last used went to, as the document gives it. With `?pool=<id>`, it answers for the session in that pool, a 404 where it was never seen there; without, for the pool it was routed in last, as a session resumed in another pool has work in each. 404 for a session never seen |
 | `GET /sessions` | The sessions routed in the last hour, the one seen last first, each as `/sessions/{id}` gives it but for `account`. `status` lists them, and `pin --session` and `status --session` find a session from part of its id here |
 | `POST /sessions/{id}/pin`, `DELETE /sessions/{id}/pin` | Set (`{"account": "work", "by": "dashboard"}`) or clear (`?by=dashboard`) one session's own pin, answering as `/sessions/{id}` does. `by`, `cli` or `dashboard`, says who did, for the `pin` or `auto` event it's told as (see The router's events); without it, the event names no one, and a router from before passes it over. Each acts in one pool: the one `?pool=<id>` names, a 404 for a session never seen there; else, for a pin, the account's pool, where the session runs there, routed within the hour; else the pool the session was routed in last, where a pin to an account outside it is a 400 (see Pinning in a pool). 404 for a session never seen; pinning to an account nothing can go out on is a 400 |
 | `POST /pin`, `DELETE /pin` | Set (`{"accounts": ["work", "side"], "move": false, "force": false, "by": "cli"}`) or clear (`?by=cli`, with `&force=true` to clear every session's own pin too) the global pin, answering with the status document. `account`, naming one account, is taken as well, as a switchboard from before pins named several sends it, and sent beside `accounts` with a pin of one account, as such a router reads a pin, one still running between an upgrade and its restart. `by`, `cli` or `dashboard`, says who did, for the `pin` or `auto` event it's told as (see The router's events); without it, the event names no one, and a router from before passes it over. Pinning no account, or any account nothing can go out on, is a 400, saying why (see Pinning), and pins nothing |
 | `GET /history?window=<key>&step=<duration>` | Every account's use of a window over its current length, from the readings history and the readings since: `{"window": "7d", "step": "30m", "accounts": [{"id": "work", "start": …, "points": [{at, utilization}]}]}`, `start` when the account's window started, its reset less its length, or its `restarted_at`, and a point each step from it to now, at most 1,000, each the last reading at or before it, left out where none was; an account whose window isn't running, or wasn't read, has no points, and one whose window has reset since it was read has no `start` either. A window whose length can't be read, or a step that isn't a duration, isn't more than 0, or would take more than 1,000 steps over the window's whole length, is a 400, saying what to give, the least step included. The dashboard's charts ask for `5h` at 5-minute steps and the weeks at 30-minute steps, with each full read |
-| `GET /stream` | The requests as they happen, for the dashboard's views of what's in flight: the Overview's ROUTING and SESSIONS, Accounts' Detail, Sessions, the Log and a session's page. Held open, `application/x-ndjson`, a line of JSON an event, every one `{at, kind, request, attempt, session, dir, model, account, prompt, class, agent_id}` and what its kind adds, `request` the router's id for the request, counting up from a random start, and unique while it runs, `attempt` which time it went upstream, `session` and `model` cut to 200 bytes, `dir` the directory the request's session was started in, as its line in the ledger will give it, the home as `~` and cut as a line's is (see The request ledger), left out where the request names none, `account` the account it goes out on, or, of `first` and `done`, the one whose answer the client got, and `prompt`, `class` and `agent_id` as its line in the ledger will give them, each left out where the request carries none, so a session's page counts a request into its turn as it's sent (see A session's page). It opens with an `inflight` for each request already in flight, adding `sent_at`, `first_at` and `chars`, and `verdict`, the last of `limited`, `throttled` or `refused` told of it on the account it went out on last, with that answer's `status`; then `sent` as one goes upstream; `first` at its answer's first byte; `progress`, with `chars`, the characters of its text, thinking and tool input so far, a quarter second after its answer streams more, then every quarter second while it does, as the API counts tokens only as an answer ends; `done` as it ends, told before the router has finished with the request, with `status`, its final `chars`, `tokens`, the closing usage's counts, `{input, output, cache_read, cache_write}`, left out without one, and `broken: true` where the upstream broke its answer off after it began, as its line in the ledger will give it; `limited`, a 429 at a limit, `throttled`, a 429 sent again on the account, and `refused`, a 401 or 403, each with `status`; and `moved`, with `from`, `to` and `reason`, its `account` the `to`, which a request every account refused tells as it takes its session back, `back where it was before its request`. `limited` and `refused` are told once the router has judged the answer a limit or a refusal of the account: a 429 from before a reset made by hand, which goes out again on the same account, or a 401 to a token replaced since, which goes out again on it once, then on another, are neither. A request the router knows for Claude Code's quota check carries `check: true`. A token count carries `count: true`. Requests that never go upstream, and those passed through, aren't on it. Reading the counts reads a copy of the answer's stream as it passes, decoded where it's gzip or deflate, as the request asked for one of those alone (see Proxy rules), never changing or holding the bytes passed on; an answer in another encoding goes uncounted, its bytes untouched. A reader that falls 256 events behind is dropped, and reconnects, and one that takes more than 10 seconds over a write is cut off. A stream ends as the control API closes; a restart in place ends it first, after its drain, once each reader has written what it was told of, waiting half a second at most, so its readers see the requests the router finished, and the dashboard reconnects to the router it becomes, while one that can't replace itself, and exits for launchd to start it again, ends it as the control API closes, as stopping does, its readers writing what they were told of within the second the control API gives the requests it accepted (see The router looking after itself) |
+| `GET /stream` | The requests as they happen, for the dashboard's views of what's in flight: the Overview's ROUTING and SESSIONS, Accounts' Detail, Sessions, the Log and a session's page. Held open, `application/x-ndjson`, a line of JSON an event, every one `{at, kind, request, attempt, session, dir, project, model, account, prompt, class, agent_id}` and what its kind adds, `request` the router's id for the request, counting up from a random start, and unique while it runs, `attempt` which time it went upstream, `session` and `model` cut to 200 bytes, `dir` the directory the request's session was started in, as its line in the ledger will give it, the home as `~` and cut as a line's is (see The request ledger), left out where the request names none, `project` the project that directory is in, as its line will give it, left out alike, `account` the account it goes out on, or, of `first` and `done`, the one whose answer the client got, and `prompt`, `class` and `agent_id` as its line in the ledger will give them, each left out where the request carries none, so a session's page counts a request into its turn as it's sent (see A session's page). It opens with an `inflight` for each request already in flight, adding `sent_at`, `first_at` and `chars`, and `verdict`, the last of `limited`, `throttled` or `refused` told of it on the account it went out on last, with that answer's `status`; then `sent` as one goes upstream; `first` at its answer's first byte; `progress`, with `chars`, the characters of its text, thinking and tool input so far, a quarter second after its answer streams more, then every quarter second while it does, as the API counts tokens only as an answer ends; `done` as it ends, told before the router has finished with the request, with `status`, its final `chars`, `tokens`, the closing usage's counts, `{input, output, cache_read, cache_write}`, left out without one, and `broken: true` where the upstream broke its answer off after it began, as its line in the ledger will give it; `limited`, a 429 at a limit, `throttled`, a 429 sent again on the account, and `refused`, a 401 or 403, each with `status`; and `moved`, with `from`, `to` and `reason`, its `account` the `to`, which a request every account refused tells as it takes its session back, `back where it was before its request`. `limited` and `refused` are told once the router has judged the answer a limit or a refusal of the account: a 429 from before a reset made by hand, which goes out again on the same account, or a 401 to a token replaced since, which goes out again on it once, then on another, are neither. A request the router knows for Claude Code's quota check carries `check: true`. A token count carries `count: true`. Requests that never go upstream, and those passed through, aren't on it. Reading the counts reads a copy of the answer's stream as it passes, decoded where it's gzip or deflate, as the request asked for one of those alone (see Proxy rules), never changing or holding the bytes passed on; an answer in another encoding goes uncounted, its bytes untouched. A reader that falls 256 events behind is dropped, and reconnects, and one that takes more than 10 seconds over a write is cut off. A stream ends as the control API closes; a restart in place ends it first, after its drain, once each reader has written what it was told of, waiting half a second at most, so its readers see the requests the router finished, and the dashboard reconnects to the router it becomes, while one that can't replace itself, and exits for launchd to start it again, ends it as the control API closes, as stopping does, its readers writing what they were told of within the second the control API gives the requests it accepted (see The router looking after itself) |
 | `GET /import` | `{"running": true}` while an import runs, else `false`, which `import` asks before it stages (see Export and import) |
 | `POST /import` | Take in the history `import` copied into `<state dir>/import/`, between the router's rounds, then run a round, answering with what it took in, `{"folders", "days": {"added", "merged", "past_keep"}, "lines", "summaries"}`, and removing `import/`; a 409 while another import runs (see Export and import) |
 | `POST /refresh` | Probe the accounts nothing has been read of for longer than `{"max_age": "30m"}`, and those that can take no request anyway, however lately they were read, but for those whose 5-hour window has lapsed and that can take a request (see Priming), sharing the probes choices and the router's rounds make and waiting a minute after one ended, as they do; wait 10 seconds at most for them, and answer with the status document. The dashboard asks on `R`, and a minute after a window on screen resets |
@@ -10758,10 +11020,11 @@ verbs).
 - **An event** is `{id, at, kind}` and the fields its kind needs, each left out where it doesn't.
   Each event naming a `session` carries `dir`, the directory the session ran in as the router
   wrote the event, as its assignment holds it and the request ledger gives one, left out where
-  none was known yet; LATELY and the Log's card name the session by it, so a line's name never
-  changes as the session cools. Where the config has pools, `started`, `moved`, `pin` and `auto`
-  carry `pool`, the id of the pool they're of, as What's recorded says under Pools; a `pin` or
-  `auto` the router files as the pools drop a pin gives `by` as `router`:
+  none was known yet, and `project`, its project, as its assignment holds it beside `dir`, left
+  out alike, and by a router from before; LATELY and the Log's card name the session by `dir`, so
+  a line's name never changes as the session cools. Where the config has pools, `started`,
+  `moved`, `pin` and `auto` carry `pool`, the id of the pool they're of, as What's recorded says
+  under Pools; a `pin` or `auto` the router files as the pools drop a pin gives `by` as `router`:
   - `started`: a session first remembered, as Choosing an account remembers one, told as its first
     answer of success comes, so never a quota check's: `session` and `model`; `account` the account
     whose answer started it; and `reason` why the session is there, as its assignment says, while
@@ -10919,12 +11182,15 @@ verbs).
   health doesn't say `strips_own_headers`: a router from before, which took the pin off alone and
   would send the directory on to the API, serves on after an upgrade until it restarts in place, at
   a moment with no request in flight, and one run by hand with `serve` until it's run again (see
-  Proxy rules). It sets `CLAUDE_CODE_GATEWAY_HINT_HEADERS=1`, too, which has Claude Code send a base
-  URL the headers it sends the API directly, the prompt each request serves and its class among
-  them, which the router records (see The request ledger); but where the environment sets it
-  already, as to `0`, which turns them off, it's left as it is, though not where it's set empty,
-  which Claude Code reads as unset (settled in the plan). An unhealthy router is routed through
-  exactly as a healthy one is, the token, pin, directory and hints alike, and `run` says so in a
+  Proxy rules). The project header goes with it, and only with it, naming the repository that
+  directory is in, which `run` finds by walking up from it, as A project says, shown from home
+  alike, as `~/Code/api`. It sets `CLAUDE_CODE_GATEWAY_HINT_HEADERS=1`, too, which has Claude Code
+  send a base URL the headers it sends the API directly, the prompt each request serves and its
+  class among them, which the router records (see The request ledger); but where the environment
+  sets it already, as to `0`, which turns them off, it's left as it is, though not where it's set
+  empty, which Claude Code reads as unset (settled in the plan). An unhealthy router is routed
+  through exactly as a healthy one is, the token, pin, directory, project and hints alike, and
+  `run` says so in a
   line on stderr: `switchboard: the router is unhealthy (5 of the 8 requests in the last 5 minutes
   failed) — starting claude through it all the same`, logging `starting claude` at warn with
   `mode=routed` and the router's reason. Its failures are upstream, which a direct connection would
@@ -10946,12 +11212,12 @@ verbs).
   stepping aside, local or `--direct`, so no launch passes it on. Any other value of it stops,
   saying it takes `stop` or `direct`; a router that can be routed through, healthy or not, routes
   whatever it says. Going direct, `run` connects directly, on `--account`'s token, else the
-  primary's, else the first account's with a usable token, without the base URL, the pin or the
-  directory, and says why in a line on stderr: `switchboard: the router isn't running — connecting
-  directly on work · Work`. Either way, and with `--direct`, a pin or a directory inherited from the
-  environment, as from a session this one is started within, goes: what this launch pins is the only
-  pin, and the directory it names the only directory. `--direct` removes the token and the base URL,
-  so Claude Code uses its own login.
+  primary's, else the first account's with a usable token, without the base URL, the pin, the
+  directory or the project, and says why in a line on stderr: `switchboard: the router isn't
+  running — connecting directly on work · Work`. Either way, and with `--direct`, a pin, a
+  directory or a project inherited from the environment, as from a session this one is started
+  within, goes: what this launch pins is the only pin, and the directory and project it names the
+  only ones. `--direct` removes the token and the base URL, so Claude Code uses its own login.
 - **Without the config:** where `run` can't read its config, as when an upgrade's rules refuse the
   one the running router took, and the router holds its restart (see The router looking after
   itself), it locates the state directory, as it can without a config, and asks the router as it
@@ -11013,8 +11279,8 @@ verbs).
   already, as the user set it, so dropping every base URL with a path would lose most gateways on
   stepping aside, to keep from the mark what every process already reads (decided in the cleanliness
   release's review, 26 October 2026). A session started before the mark has none, and its
-  environment goes on as it is, but for the pin and directory a routed or direct launch takes off
-  (built in the cleanliness release, 26 October 2026).
+  environment goes on as it is, but for the pin, directory and project a routed or direct launch
+  takes off (built in the cleanliness release, 26 October 2026).
 - **Never in the way:** switchboard never stands between the user and `claude` but for the router
   being down, as Stopped says. A config it can't read doesn't keep it out while the router answers:
   `run` routes through the running router all the same, as Without the config says (the owner's
@@ -11028,12 +11294,13 @@ verbs).
   Unaided, `claude` starts in its environment as the user
   set it, or a session's still routed as it is (see What `run` set), and its arguments untouched,
   but for the mark every `claude` it starts carries (see Finding the real `claude`) and
-  `SWITCHBOARD_WHEN_ROUTER_DOWN`, which no launch passes on, a pin or directory inherited from a
-  session before the mark included, saying why in one line on stderr: `switchboard: couldn't read
-  the config (…) — starting claude without it`, or, where a session's routing goes on, `… —
-  starting claude through this session's router`. `run` fails only when the router is down and it
-  stops, when `claude` can't be found or can't start, or on a misused command line, such as
-  `--account` naming an account that isn't configured, or has no usable token.
+  `SWITCHBOARD_WHEN_ROUTER_DOWN`, which no launch passes on, a pin, directory or project
+  inherited from a session before the mark included, saying why in one line on stderr:
+  `switchboard: couldn't read the config (…) — starting claude without it`, or, where a
+  session's routing goes on, `… — starting claude through this session's router`. `run` fails
+  only when the router is down and it stops, when `claude` can't be found or can't start, or on a
+  misused command line, such as `--account` naming an account that isn't configured, or has no
+  usable token.
 - **An API key:** with `ANTHROPIC_API_KEY` or `ANTHROPIC_AUTH_TOKEN` set, Claude Code may use the
   key in place of the token `run` gives it, and its requests would go unrouted, billed to the key.
   So `run`, and with it `claude`, starts Claude Code as if switchboard weren't there, its
@@ -11046,14 +11313,13 @@ verbs).
   `mcp`, `plugin`, `plugins`, `auth`, `import`, `project`, `auto-mode` and `gateway` look after
   Claude Code on this machine, or set up its login, and `--version`, `-v`, `--help` and `-h` print
   its version or its help, as a tool checking it asks; switchboard has no part in them, and they
-  go ahead with the router down. When the
-  first of Claude Code's arguments names one, `run` starts `claude` as if switchboard weren't there,
-  environment and arguments untouched but for that mark and `SWITCHBOARD_WHEN_ROUTER_DOWN`, an
-  inherited pin or directory included, and says nothing; the log notes it at debug. `--direct` still
-  starts it on Claude Code's own login. Only the first argument counts: `claude -p doctor` is a
-  prompt. Everything else goes through `run` as any session does, background sessions (`claude
-  --bg`), `agents`, `attach`, `respawn` and `ultrareview` among them. `internal/claude` keeps the
-  list.
+  go ahead with the router down. When the first of Claude Code's arguments names one, `run` starts
+  `claude` as if switchboard weren't there, environment and arguments untouched but for that mark
+  and `SWITCHBOARD_WHEN_ROUTER_DOWN`, an inherited pin, directory or project included, and says
+  nothing; the log notes it at debug. `--direct` still starts it on Claude Code's own login. Only
+  the first argument counts: `claude -p doctor` is a prompt. Everything else goes through `run` as
+  any session does, background sessions (`claude --bg`), `agents`, `attach`, `respawn` and
+  `ultrareview` among them. `internal/claude` keeps the list.
 - **Finding the real `claude`:** `run` looks along `PATH`, then where its installers put it
   (`~/.local/bin`, `/opt/homebrew/bin`, `/usr/local/bin`, `~/.claude/local`), for a file that can
   be run, passing over any `claude` that's switchboard, which would start it again: one that
@@ -11869,8 +12135,8 @@ was dropped binds a later choice, the design proper says so.
 | Runway's holds shorter than a column, drawn or named whatever the width | open: to discuss with its owner | [runway-short-holds](../ideas/2026-10-21--runway-short-holds.md) |
 | Judgments with Jev, beside or in place of fixed rules | to storm | [judgments-with-jev](../ideas/2026-09-30--judgments-with-jev.md) |
 | A billing month: each account's renewal day in the config, so Accounts' periods can follow its bill | later, after milestone 7 | [billing-month](../ideas/2026-10-08--billing-month.md) |
-| Detail's token line: an account's tokens, and the share read from the cache, on Accounts' Detail, a key from History's Tokens for it | later, after milestone 7 | [detail-token-line](../ideas/2026-10-08--detail-token-line.md) |
-| History's Days in strips per model version, beside its strips per family | later, after milestone 7 | [days-strips-per-version](../ideas/2026-10-08--days-strips-per-version.md) |
+| Detail's token line: an account's tokens, and the share read from the cache, on Accounts' Detail, a key from Accounts' Tokens for it | later, after milestone 7 | [detail-token-line](../ideas/2026-10-08--detail-token-line.md) |
+| Trends' MODELS BY DAY in strips per model version, beside its strips per family | later, after milestone 7 | [days-strips-per-version](../ideas/2026-10-08--days-strips-per-version.md) |
 | TOON for the data verbs' long tables, beside their JSON | later, after milestone 7 | [toon-tables](../ideas/2026-10-08--toon-tables.md) |
 | A notice when a session moves, through a hook | deferred | [move-notice](../ideas/2026-09-30--move-notice.md) |
 | The Max and Ultra build's loose ends: the improvements and the edges past ordinary use, failing safe, its reviews accepted | open: any time | [max-ultra-loose-ends](../ideas/2026-11-03--max-ultra-loose-ends.md) |

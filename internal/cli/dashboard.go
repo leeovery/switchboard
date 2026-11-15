@@ -75,10 +75,11 @@ naming those it does. Where every pool is fenced and none is named, it opens
 on none, listing no accounts, its status line saying it can't read usage as
 every pool is fenced, naming them, and P turns to the first.
 
-Accounts lists the pool's accounts alone. Where there's more than one pool,
-the title row names the one shown, and P turns to the next, in the config's
-order, the pools read afresh, so one added or removed since shows: the view
-starts afresh, nothing of the pool before carried over. With one pool, P
+Accounts and Trends list the pool's accounts alone. Where there's more than
+one pool, the title row names the one shown, and P turns to the next, on
+every tab, in the config's order, the pools read afresh, so one added or
+removed since shows: the view starts afresh, nothing of the pool before
+carried over, keeping the tab and the period the dial shows. With one pool, P
 reads them afresh all the same, turning to a second added since, else
 saying there's one. A change to the pools or the accounts in the config
 starts the view afresh on the pool shown, as P does, the config file read
@@ -89,9 +90,10 @@ the config names pools, none where every pool is fenced. A pool with no
 accounts the router routes says so on every tab, with how to add one, or
 where the config gives it some the router hasn't taken up, as a pool added
 since it started, that switchboard service restart takes them up. Every tab
-tells of the pool's work alone: the Log's requests and its find, Sessions
-and a session's page, History, Graphs, and the worth and tokens on Accounts,
-work recorded before pools the first pool's.
+tells of the pool's work alone: the Log's requests and its find, Projects
+and a project's page, Sessions, its List and a session's page, Trends, and
+the worth and tokens on Accounts, work recorded before pools the first
+pool's, the periods beginning no earlier than the pool's first work.
 
 It reads the router's usage every few seconds, which the router keeps
 current itself, reading every account nothing has read in the last 5
@@ -110,13 +112,12 @@ is. The rest are each page's, as its ? help lists them:
 
 ` + keysPlace + `
 
-The Overview's sections and b, and Graphs' sections, are kept for the next
+The Overview's sections and b, and Trends' sections, are kept for the next
 dashboard to open with, as is the view each tab shows, its period or columns,
-but a calendar year or a week stepped back to. esc closes the routing card,
-help or the theme picker. A click on a tab shows it; on a key of the key
-line, does what the key does, but p and q; on History, on a view's name
-shows it, and on < or > by its period steps it; and on the Overview and
-Graphs, on a section's heading hides it.
+but a week stepped back to. esc closes the routing card, help or the theme
+picker. A click on a tab shows it; on a key of the key line, does what the key
+does, but p and q; on a view's name shows it, and on < or > by a period steps
+it; and on the Overview and Trends, on a section's heading hides it.
 
 While the router runs, it posts the desktop notifications, --probe or not;
 without it, the dashboard posts its own of an account with room again and a
@@ -184,6 +185,7 @@ func (a *app) dashboard(ctx context.Context, out io.Writer, opts dashboardOption
 	kept := t.kept()
 	// Without a home directory, a session's directory shows whole.
 	home, _ := a.HomeDir()
+	graphs, keepGraphs := dashboard.GraphsKept(kept)
 	wc := watch.Config{
 		ProbeOnly:     opts.probe,
 		Notifier:      notifier,
@@ -196,14 +198,16 @@ func (a *app) dashboard(ctx context.Context, out io.Writer, opts dashboardOption
 		WeekWindow:    claude.WeekWindow,
 		Family:        claude.Provider{}.Family,
 		Size:          a.environSize(),
-		View:          dashboard.View(kept.Tab),
+		View:          dashboard.ViewKept(kept.Tab),
 		Sections:      dashboard.SectionsNamed(kept.Sections),
 		By:            keptBy(kept.By, cfg.Usage.By),
 		Models:        kept.Models,
+		Period:        dashboard.PeriodKept(kept),
 		AccountsShown: dashboard.AccountsKept(kept.Accounts),
 		SessionsShown: dashboard.SessionsKept(kept.Sessions),
 		RunwayShown:   dashboard.RunwayKept(kept.Runway),
-		Graphs:        dashboard.GraphsSectionsNamed(kept.GraphsTab.Sections),
+		Graphs:        graphs,
+		KeepGraphs:    keepGraphs,
 		Log:           dashboard.LogKept(kept.Log),
 		LedgerKeep:    cfg.Ledger.Keep,
 		Prices:        pricing(cfg),
@@ -216,7 +220,6 @@ func (a *app) dashboard(ctx context.Context, out io.Writer, opts dashboardOption
 	}
 	wc.Pool, wc.Accounts, wc.Source, wc.Events, wc.PoolNamed, wc.Turn = shown.Pool, shown.Accounts, shown.Source, shown.Events, shown.PoolNamed, pools.turn
 	wc.ConfigStamp, wc.Stamp, wc.Placed, wc.LedgerGrounds, wc.PoolRead = a.configStamp, shown.Stamp, shown.Placed, shown.Grounds, shown.Read
-	wc.History = dashboard.HistoryKept(kept.History, wc.Accounts)
 	if t.prefs != nil {
 		wc.Prefs = t.prefs
 	}

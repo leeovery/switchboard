@@ -67,6 +67,13 @@ func (p Picodollars) Cents() string {
 	return fmt.Sprintf("%s$%d.%02d", p.sign(), cents/100, cents%100)
 }
 
+// GroupedCents shows the amount to the nearest cent, as Cents does, its
+// thousands set apart, as "$3,257.86".
+func (p Picodollars) GroupedCents() string {
+	cents := p.wholeCents()
+	return fmt.Sprintf("%s$%s.%02d", p.sign(), prose.Grouped(int(cents/100)), cents%100)
+}
+
 // ToTheCent is the amount to the nearest cent, as Cents shows it, a half
 // cent away from none: toward none within a cent of what Picodollars hold,
 // as the cent away from it passes it.

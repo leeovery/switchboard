@@ -39,7 +39,8 @@ func headingRows(f Frame) []int {
 	return rows
 }
 
-// everyGraphsSection are Graphs' sections, every one shown.
+// everyGraphsSection are Graphs' own sections, every one shown: WEEK, POOL,
+// GLANCE and WHEN YOU WORK, without YEAR, BY MONTH and MODELS BY DAY.
 func everyGraphsSection() GraphsSections {
 	return GraphsSectionsNamed([]string{"week", "pool", "glance", "when"})
 }
@@ -53,6 +54,9 @@ func TestGraphsSectionsAreKeyedAndWordedAsTheDesignHasThem(t *testing.T) {
 		{section: GraphsPool, key: "o", word: "pool", heading: "POOL"},
 		{section: GraphsGlance, key: "g", word: "glance", heading: "GLANCE"},
 		{section: GraphsWhen, key: "h", word: "when", heading: "WHEN YOU WORK"},
+		{section: GraphsYear, key: "y", word: "year", heading: "YEAR"},
+		{section: GraphsMonths, key: "m", word: "months", heading: "BY MONTH"},
+		{section: GraphsModels, key: "d", word: "models", heading: "MODELS BY DAY"},
 	}
 	var order []GraphsSection
 	for _, tt := range tests {
@@ -70,6 +74,31 @@ func TestGraphsSectionsAreKeyedAndWordedAsTheDesignHasThem(t *testing.T) {
 	for _, key := range []string{"f", "u", "v", "W", ""} {
 		if _, ok := GraphsSectionKeyed(key); ok {
 			t.Errorf("GraphsSectionKeyed(%q) names a section, want none", key)
+		}
+	}
+}
+
+// Trends' sections kept are read as kept, to keep no more; but where the tab
+// kept is History's, which Trends opens in place of, with YEAR shown too,
+// where History's Year went, the rest as kept, to keep so.
+func TestGraphsKeptShowYEARWhereTheTabKeptIsHistorys(t *testing.T) {
+	tests := []struct {
+		name     string
+		kept     theme.Prefs
+		want     []string
+		wantKeep bool
+	}{
+		{name: "Trends kept, its sections none", kept: theme.Prefs{Tab: "graphs"}, want: []string{"week"}},
+		{name: "another tab kept, its sections kept", kept: theme.Prefs{Tab: "log", GraphsTab: theme.GraphsPrefs{Sections: []string{"pool"}}}, want: []string{"pool"}},
+		{name: "History kept, Trends' sections none", kept: theme.Prefs{Tab: "history"}, want: []string{"week", "year"}, wantKeep: true},
+		{name: "History kept, Trends' sections kept", kept: theme.Prefs{Tab: "history", GraphsTab: theme.GraphsPrefs{Sections: []string{"when", "pool"}}}, want: []string{"pool", "when", "year"}, wantKeep: true},
+		{name: "History kept, YEAR kept shown", kept: theme.Prefs{Tab: "history", GraphsTab: theme.GraphsPrefs{Sections: []string{"year"}}}, want: []string{"year"}, wantKeep: true},
+		{name: "History kept, Trends' sections kept as none", kept: theme.Prefs{Tab: "history", GraphsTab: theme.GraphsPrefs{Sections: []string{}}}, want: []string{"year"}, wantKeep: true},
+	}
+	for _, tt := range tests {
+		got, keep := GraphsKept(tt.kept)
+		if !slices.Equal(got.Names(), tt.want) || keep != tt.wantKeep {
+			t.Errorf("%s: Trends shows %q, to keep %t; want %q, %t", tt.name, got.Names(), keep, tt.want, tt.wantKeep)
 		}
 	}
 }
@@ -116,6 +145,9 @@ func TestGraphsTogglesAreTheKeyLinesWithAHiddenSectionsWordFaint(t *testing.T) {
 		{Key: "o", Does: "pool", Hidden: true},
 		{Key: "g", Does: "glance"},
 		{Key: "h", Does: "when", Hidden: true},
+		{Key: "y", Does: "year", Hidden: true},
+		{Key: "m", Does: "months", Hidden: true},
+		{Key: "d", Does: "models", Hidden: true},
 	}
 	if !slices.Equal(got, want) {
 		t.Errorf("Graphs' toggles are %+v, want %+v", got, want)
@@ -223,8 +255,8 @@ func TestGraphsEverySectionHiddenTheFirstRowSaysHowToBringThemBack(t *testing.T)
 		width int
 		want  []string
 	}{
-		{width: 160, want: []string{"every section is hidden:  w week  o pool  g glance  h when"}},
-		{width: 52, want: []string{"every section is hidden:  w week  o pool  g glance", "h when"}},
+		{width: 160, want: []string{"every section is hidden:  w week  o pool  g glance  h when  y year  m months  d models"}},
+		{width: 52, want: []string{"every section is hidden:  w week  o pool  g glance", "h when  y year  m months  d models"}},
 	}
 	for _, tt := range tests {
 		f := graphsFrame(tt.width, 40, GraphsSectionsNamed([]string{}))

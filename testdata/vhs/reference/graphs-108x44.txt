@@ -1,4 +1,4 @@
- SWITCHBOARD    Overview   Accounts   History   Sessions   Runway   Graphs   Log         Thu 1 Oct  14:42:07
+ SWITCHBOARD    Overview   Accounts   Projects   Sessions   Runway   Trends   Log        Thu 1 Oct  14:42:07
 
 ● healthy  ·  auto  ·  6 sessions  ·  new sessions → ▲ side
 
@@ -41,4 +41,4 @@ side ▲
 Σ pool   week 1.2 of 3 left
 ▆▆ room left   ⠂⠄⡀ where it's heading   ✕ runs out   ⠠ ⠠ reserve
 
-tab views     w week  o pool  g glance  h when     p pin  ? help  q quit
+tab views     w week  o pool  g glance  h when  y year  m months  d models     p pin  ? help  q quit

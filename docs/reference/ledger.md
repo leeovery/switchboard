@@ -41,6 +41,7 @@ puts `pool_label` after it too.
 | `kind` | string | `message`, `check` for a quota check by Claude Code, or `count` for a count of tokens. |
 | `session` | string | The session id of the request. |
 | `dir` | string | The directory `claude` started Claude Code in, with your home as `~`. |
+| `project` | string | The repository that directory is in, with your home as `~`. See below. |
 | `pool` | string | The id of the pool the request was routed within. |
 | `model` | string | The model the request asked for. |
 | `account` | string | The account whose answer the client got, by id only. |
@@ -53,6 +54,34 @@ puts `pool_label` after it too.
   [the whys](reasons.md).
 - **`dir`** reaches the router in a header the API never sees. A `claude` started inside that
   session other than through switchboard carries the directory too.
+
+### The project of a line
+
+`claude` finds the repository as it starts the session. It walks up from the directory to the
+first `.git`, without running git. For example, `~/Code/api` is the project of a session in
+`~/Code/api/web`, and of one in `~/Code/api/.claude/worktrees/fix-login`.
+
+| If the directory is in | `project` is |
+|---|---|
+| A repository | That repository |
+| A linked worktree | The main repository of the worktree |
+| A worktree of a bare repository | The folder of the bare repository, such as `~/repos/api.git` or `~/.dotfiles` |
+| A worktree inside the folder that holds a bare repository named `.bare` | The folder that holds both: `~/Code/api` for `~/Code/api/.bare` and `~/Code/api/main` |
+| No repository | The directory itself |
+
+Links change the walk as follows:
+
+- **The walk resolves links first.** So a link into a folder inside a repository counts as that
+  repository.
+- **If that finds no `.git`,** the walk goes up the directory as given. So a link inside a
+  repository that leads outside every repository counts as the repository the link is in.
+- **A worktree goes by the path the walk took.** So a repository in a folder reached through a
+  link stays one project, with the worktrees beside it in that folder.
+- **A repository folder that is itself a link** counts as one project, and a worktree beside it as
+  another. So do worktrees kept outside the linked folder.
+
+A line from before switchboard recorded `project` has none. Then a `dir` in
+`<repo>/.claude/worktrees/<name>` counts as `<repo>`, and any other `dir` as itself.
 
 ### The pool of a line
 

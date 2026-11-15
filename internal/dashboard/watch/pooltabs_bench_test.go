@@ -47,8 +47,8 @@ func (d digestsMovedOn) Version() int {
 // the first time, till its List's first read lands; enter on a session in
 // Accounts' Detail till its page shows its lines, of the session that ran
 // every day of the four weeks, or, in Acme's pool, of one that ran the last
-// three; History shown the first time, till its 12 months' read lands; and
-// Graphs alike, WEEK and WHEN YOU WORK shown. Of a world of one pool, and of
+// three; Accounts shown the first time, till its 12 months' read lands; and
+// Trends alike, WEEK and WHEN YOU WORK shown. Of a world of one pool, and of
 // one of two, read every pool's, as they read before they read the pool
 // shown's alone, then each pool's, by its id, as the dashboard reads it.
 // And the first pass of a ledger opened afresh, as the router's once it
@@ -87,15 +87,15 @@ func BenchmarkThePooledTabs(b *testing.B) {
 				h.entered(on.session)
 			}
 		})
-		b.Run(on.name+"/opening History", func(b *testing.B) {
+		b.Run(on.name+"/opening Accounts", func(b *testing.B) {
 			h := on.w.harnessIn(b, on.read)
 			fresh := h.model
 			for b.Loop() {
 				h.model, h.timers, h.waits = fresh, nil, nil
-				h.firstShown(dashboard.History, func(m Model) bool { return m.past.last.held() })
+				h.firstShown(dashboard.Accounts, func(m Model) bool { return m.past.last.held() })
 			}
 		})
-		b.Run(on.name+"/opening Graphs", func(b *testing.B) {
+		b.Run(on.name+"/opening Trends", func(b *testing.B) {
 			h := on.w.harnessIn(b, on.read)
 			h.model.graphs = dashboard.GraphsSectionsNamed([]string{"week", "when"})
 			fresh := h.model

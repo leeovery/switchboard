@@ -6,7 +6,7 @@ import (
 	"github.com/leeovery/switchboard/internal/ledger"
 )
 
-// DayTotals are a day's figures, as the Log's day rule says them, as History
+// DayTotals are a day's figures, as the Log's day rule says them, as history
 // reads the day's summary: its every account's totals over the day alone.
 type DayTotals struct {
 	// Date is the local day's date.
@@ -34,7 +34,7 @@ type LedgerDates interface {
 // ledger holds one that stands, else, as of today, and of a day not
 // summarised since lines came to be filed under it, the day summarised from
 // its lines as it's read; none of a date it holds no day of. Each is worked
-// out as History's totals are, priced at the prices of now's day.
+// out as history's totals are, priced at the prices of now's day.
 func TotalsOn(days LedgerDates, dates []string, now time.Time, prices ledger.Table) []DayTotals {
 	if len(dates) == 0 {
 		return nil

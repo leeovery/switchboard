@@ -92,7 +92,7 @@ func (s *scheduler) Answered(req Request, account, reason string) {
 	if a.Account != account {
 		a.Account, a.Reason = account, reason
 	}
-	s.emit(SessionStarted{Session: req.Session, Model: req.Model, Account: a.Account, Reason: a.Reason, Pool: a.Pool, Dir: a.Dir})
+	s.emit(SessionStarted{Session: req.Session, Model: req.Model, Account: a.Account, Reason: a.Reason, Pool: a.Pool, Dir: a.Dir, Project: a.Project})
 }
 
 func (s *scheduler) Forget(req Request) (string, bool) {
@@ -270,8 +270,10 @@ func (s *scheduler) remember(on situation, d decision) (first bool, from string)
 	case found.Account != "" && found.Account != d.account:
 		logger.Info("moved", "session", status.ShortID(req.Session), "model", req.Model,
 			"from", found.Account, "to", d.account, "reason", d.reason)
-		s.emit(Moved{Session: req.Session, Model: req.Model, From: found.Account, To: d.account, Reason: d.reason, Held: d.held, Limit: d.limit,
-			Pool: on.accounts.pool, Dir: found.dirAfter(req)})
+		s.emit(Moved{
+			Session: req.Session, Model: req.Model, From: found.Account, To: d.account, Reason: d.reason, Held: d.held, Limit: d.limit,
+			Pool: on.accounts.pool, Dir: found.dirAfter(req), Project: found.projectAfter(req),
+		})
 		from = found.Account
 	}
 	return noted && !on.assigned, from

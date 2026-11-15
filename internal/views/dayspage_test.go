@@ -6,9 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/ledger"
-	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
@@ -63,7 +61,7 @@ func TestDaysIsTheWeekSoFarAndTheSevenBeforeIt(t *testing.T) {
 			if !slices.Equal(got.Weeks, tt.weeks) || got.ToCome != tt.toCome {
 				t.Errorf("the weeks are %q, %d days to come; want %q, %d", got.Weeks, got.ToCome, tt.weeks, tt.toCome)
 			}
-			for _, s := range got.ByAccount {
+			for _, s := range got.ByModel {
 				if len(s.Days) != 56 {
 					t.Errorf("%s's strip has %d days, want the eight weeks' 56", s.Of, len(s.Days))
 				}
@@ -97,106 +95,10 @@ func TestDaysByModelIsAStripAFamilyOnOneScaleOfWorth(t *testing.T) {
 	}
 	for i := range want {
 		g, w := got[i], want[i]
-		if g.Of != w.Of || !reflect.DeepEqual(g.Days, w.Days) || !sharesNear(g.Share, w.Share) || g.Limits != 0 {
+		if g.Of != w.Of || !reflect.DeepEqual(g.Days, w.Days) || !sharesNear(g.Share, w.Share) {
 			t.Errorf("strip %d is %+v (share %v), want %+v (share %v)", i, g, deref(g.Share), w, deref(w.Share))
 		}
 	}
-}
-
-// BY ACCOUNT is a strip a configured account, in the config's order, by its
-// id and the config's label, the primary marked, each day
-// the rise of its week on one scale, every account's, and the 5-hour limits
-// it hit.
-func TestDaysByAccountIsAStripAnAccountOnOneScaleOfItsWeek(t *testing.T) {
-	days := daysFrom("2026-08-10",
-		day("2026-08-16", rose("work", map[string]float64{"7d": 0.9}, limit("5h", "2026-08-16", "10:00"))),
-		day("2026-08-17", rose("work", map[string]float64{"7d": 0.1, "5h": 0.9})),
-		day("2026-10-06",
-			rose("old", map[string]float64{"7d": 0.5}),
-			rose("work", map[string]float64{"7d": 0.3}, limit("5h", "2026-10-06", "10:00"), limit("5h", "2026-10-06", "15:00"), limit("7d", "2026-10-06", "16:00"))),
-		day("2026-10-07", rose("side", map[string]float64{"7d": 0.2}, limit("5h", "2026-10-07", "11:00"))),
-	)
-	in := input(days)
-	in.Accounts = config.Accounts{{ID: "work", Label: "Work", Primary: true}, {ID: "side"}, {ID: "spare", Label: "Spare"}}
-	want := []views.DaysStrip{
-		{Of: "work", Label: "Work", Primary: true, Days: stripDays(map[int]int{0: 2, 50: 4}, 50), Limits: 2, Gone: 56},
-		{Of: "side", Label: "side", Days: stripDays(map[int]int{51: 3}, 51), Limits: 1, Gone: 56},
-		{Of: "spare", Label: "Spare", Days: stripDays(nil), Gone: 56},
-	}
-	if got := views.NewPast(in, days).Days().ByAccount; !reflect.DeepEqual(got, want) {
-		t.Errorf("BY ACCOUNT is\n%+v\nwant\n%+v", got, want)
-	}
-}
-
-// BY ACCOUNT strips an account removed after the configured, where the eight
-// weeks record anything of it, by the label it showed last, said removed by
-// the local day it was removed on, told apart from a configured account
-// given that label since; its days after that day its own none. One only
-// another Mac configures is stripped alike, by its label, never removed. One
-// not configured that the eight weeks record nothing of has no strip.
-func TestDaysByAccountStripsAnAccountRemovedByItsLastLabel(t *testing.T) {
-	zone := time.FixedZone("UTC-10", -10*60*60)
-	inZone(t, zone)
-	days := daysFrom("2026-08-10",
-		day("2026-08-20", rose("h7c2", map[string]float64{"7d": 0.2})),
-		day("2026-09-03", rose("h7c2", map[string]float64{"7d": 0.4}, limit("5h", "2026-09-03", "10:00"))),
-		day("2026-10-06", rose("work", map[string]float64{"7d": 0.5}), rose("p4m2", map[string]float64{"7d": 0.1})),
-	)
-	in := input(days)
-	in.Accounts = config.Accounts{{ID: "work", Label: "team"}}
-	in.Removed = status.RemovedAccounts{
-		// Late on the 4th here, the 5th in UTC.
-		{ID: "h7c2", Label: "team", Removed: time.Date(2026, 9, 4, 23, 30, 0, 0, zone).UTC()},
-		{ID: "p4m2", Label: "home"},
-		{ID: "k3f9", Label: "spare", Removed: onAt("2026-09-10", "09:00").UTC()},
-	}
-
-	got := views.NewPast(in, days).Days().ByAccount
-	if len(got) != 3 {
-		t.Fatalf("BY ACCOUNT is %+v, want work's strip, then the removed team's, then home's", got)
-	}
-	if work := got[0]; work.Of != "work" || work.Label != "team" || work.Other || work.Removed != "" || work.Gone != 56 || work.Days[50].Level == 0 {
-		t.Errorf("BY ACCOUNT's first strip is %+v, want work's, labelled team, configured", work)
-	}
-	team := got[1]
-	// The eight weeks start on 17 Aug: 20 Aug is their 4th day, 3 Sep their
-	// 18th, and 5 Sep, the day after the one team was removed on, their 20th.
-	if team.Of != "h7c2" || team.Label != "team" || !team.Other || team.Removed != "removed 4 Sep" || team.Gone != 19 || team.Limits != 1 {
-		t.Errorf("the removed team's strip is %+v, want it labelled team, removed 4 Sep, gone from the 20th day, with 1 5-hour limit", team)
-	}
-	if team.Days[3].Level == 0 || team.Days[17].Level == 0 || !team.Days[17].Limit {
-		t.Errorf("the removed team's days are %+v, want its week's rises on the 4th and 18th, its limit on the 18th", team.Days)
-	}
-	if home := got[2]; home.Of != "p4m2" || home.Label != "home" || !home.Other || home.Removed != "" || home.Gone != 56 || home.Days[50].Level == 0 {
-		t.Errorf("BY ACCOUNT's last strip is %+v, want home's, labelled home, not configured, never removed", home)
-	}
-}
-
-// An account removed here that another Mac still used after, whose days were
-// imported, has its strip run to the last day it records anything on.
-func TestDaysRunsARemovedAccountsStripToItsLastDayUsed(t *testing.T) {
-	days := daysFrom("2026-08-10",
-		day("2026-09-03", rose("h7c2", map[string]float64{"7d": 0.4})),
-		day("2026-09-10", rose("h7c2", map[string]float64{"7d": 0.2})),
-		day("2026-10-06", rose("work", map[string]float64{"7d": 0.5})),
-	)
-	in := input(days)
-	in.Accounts = config.Accounts{{ID: "work"}}
-	in.Removed = status.RemovedAccounts{{ID: "h7c2", Label: "team", Removed: onAt("2026-09-04", "16:00").UTC()}}
-
-	got := views.NewPast(in, days).Days().ByAccount
-	// The eight weeks start on 17 Aug: 10 Sep is their 25th day.
-	if len(got) != 2 || got[1].Gone != 25 || got[1].Days[24].Level == 0 {
-		t.Errorf("BY ACCOUNT is %+v, want the removed team's strip gone from the 26th day, after 10 Sep, its last used", got)
-	}
-}
-
-// inZone has the test's local time zone the one given until it ends. A test
-// that calls it mustn't run in parallel.
-func inZone(t *testing.T, zone *time.Location) {
-	was := time.Local
-	time.Local = zone
-	t.Cleanup(func() { time.Local = was })
 }
 
 func TestDaysSaysWhetherAnythingIsRecordedInItsWeeks(t *testing.T) {
@@ -208,8 +110,8 @@ func TestDaysSaysWhetherAnythingIsRecordedInItsWeeks(t *testing.T) {
 		{name: "the empty ledger", days: daysFrom("2026-10-07")},
 		{name: "a request before the eight weeks", days: daysFrom("2026-08-01", day("2026-08-16", account("work", sent("claude-opus-5-5", 1, inputUsage))))},
 		{name: "a request", days: daysFrom("2026-10-07", day("2026-10-07", account("work", sent("claude-opus-5-5", 1, inputUsage)))), want: true},
-		{name: "an account's week rising", days: daysFrom("2026-10-07", day("2026-10-07", rose("work", map[string]float64{"7d": 0.1}))), want: true},
-		{name: "a 5-hour limit", days: daysFrom("2026-10-07", day("2026-10-07", rose("work", nil, limit("5h", "2026-10-07", "10:00")))), want: true},
+		{name: "an account's week rising alone", days: daysFrom("2026-10-07", day("2026-10-07", rose("work", map[string]float64{"7d": 0.1})))},
+		{name: "a 5-hour limit alone", days: daysFrom("2026-10-07", day("2026-10-07", rose("work", nil, limit("5h", "2026-10-07", "10:00"))))},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
