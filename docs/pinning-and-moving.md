@@ -69,7 +69,7 @@ switchboard skill runs the same `pin` commands for it.
 | `switchboard pin auto --session <session>` | Clears one session's pin. |
 | `switchboard run --account <id>` | Starts a session pinned to that account. |
 
-Every flag is on [`pin`](commands/pin.md), and the routing card is in [Dashboard](dashboard.md).
+Every flag is on [`pin`](commands/pin.md), and the routing card has a page of its own, [The routing card](dashboard/routing-card.md).
 If a pin is refused, see [Troubleshooting](troubleshooting.md).
 
 ## Related

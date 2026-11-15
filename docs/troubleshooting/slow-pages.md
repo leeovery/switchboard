@@ -70,4 +70,4 @@ it.
 
 - [Your record and what it's worth](../your-record.md): what the ledger holds.
 - [Where the files are](../reference/files.md): the state directory, and the files in the ledger.
-- [Dashboard](../dashboard.md): the Log, and a session's page.
+- [The Log](../dashboard/log.md) and [a session's page](../dashboard/session-page.md): where the dashboard reads the ledger.

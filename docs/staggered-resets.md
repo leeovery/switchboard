@@ -79,4 +79,4 @@ The `[prime]` key is in [Configuration](configuration.md), and `status` is in
 
 - [Limits and routing](limits-and-routing.md): how the router picks an account and moves a session.
 - [Glossary](glossary.md): what window, priming and room mean.
-- [Dashboard](dashboard.md): COMING UP on the Overview lists the next resets and primes.
+- [Overview](dashboard/overview.md): COMING UP on the Overview lists the next resets and primes.
