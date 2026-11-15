@@ -61,13 +61,13 @@ func (m Model) toggle(section dashboard.Section) Model {
 	return m.keepPrefs("the sections shown", func(p *theme.Prefs) { p.Sections = names }, "sections", strings.Join(names, ","))
 }
 
-// toggleGraphs shows Graphs' section given where it's hidden, and hides it
+// toggleGraphs shows Trends' section given where it's hidden, and hides it
 // where it shows, as its key does, and keeps the sections shown, for the
 // next watch to open with.
 func (m Model) toggleGraphs(section dashboard.GraphsSection) Model {
 	m.graphs = m.graphs.Toggled(section)
 	names := m.graphs.Names()
-	return m.keepPrefs("Graphs' sections shown", func(p *theme.Prefs) { p.GraphsTab.Sections = names }, "sections", strings.Join(names, ","))
+	return m.keepPrefs("Trends' sections shown", func(p *theme.Prefs) { p.GraphsTab.Sections = names }, "sections", strings.Join(names, ","))
 }
 
 // regroup switches how the Overview's windows are grouped, as b does, from by

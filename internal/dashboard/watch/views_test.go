@@ -71,7 +71,7 @@ func TestTabTurnsRoundTheEightTabs(t *testing.T) {
 	h := newHarness(t, calm())
 	h.start()
 
-	if !strings.Contains(h.view(), " Overview   Accounts   Projects   History   Sessions   Runway   Graphs   Log ") {
+	if !strings.Contains(h.view(), " Overview   Accounts   Projects   History   Sessions   Runway   Trends   Log ") {
 		t.Errorf("the screen is\n%s\nwant the eight tabs", h.view())
 	}
 	overview := "USAGE"

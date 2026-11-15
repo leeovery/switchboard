@@ -44,7 +44,8 @@ type pageLoadingMsg struct {
 // readings history; Graphs on its live
 // tail, while it reads lanes, POOL or GLANCE's pool's room of it, as
 // graphsReadsHistory has it, never on a span Runway stepped back to, and on
-// the ledger's days while WHEN YOU WORK shows; and the Log on its lines and
+// the ledger's days while it shows a section drawn of them, as
+// trendsDaysWanted has it; and the Log on its lines and
 // events, from as it first shows till its first read lands, whether or not
 // that read has begun, as it waits for another read of the ledger to land
 // first. A session's page says its own, as pageLoading has it.
@@ -64,7 +65,7 @@ func (m Model) awaiting() bool {
 		return m.runwayTab.reading
 	case dashboard.Graphs:
 		return m.graphsReadsHistory() && m.runwayTab.reading && m.runwayTab.readingLive ||
-			m.graphsHoursWanted() && m.past.reading
+			m.trendsDaysWanted() && m.past.reading
 	case dashboard.Log:
 		return m.log.reading || m.cfg.Ledger != nil && !m.log.opened
 	}

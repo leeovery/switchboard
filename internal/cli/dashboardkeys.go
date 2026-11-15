@@ -19,7 +19,7 @@ var keysSaid = map[string]string{
 		"unless a pin set from the command line stands, nor with --probe. p opens the routing card, which picks " +
 		"the accounts new sessions go to and changes nothing until enter. j, k, PgDn, PgUp and the wheel scroll " +
 		"a view where it doesn't fit: the Overview's USAGE, Accounts' views, History's Year, Weeks' accounts, " +
-		"Days' BY ACCOUNT and Tokens' periods, Sessions' List and lanes, Runway's lanes, Graphs' page, the Log's " +
+		"Days' BY ACCOUNT and Tokens' periods, Sessions' List and lanes, Runway's lanes, Trends' page, the Log's " +
 		"table, and a session's turns, or an open turn's requests. w, where it's listed as models, shows and hides " +
 		"each model's own window; one near its limit shows either way.",
 	"Overview": "u, r, s, c and l show and hide USAGE, ROUTING, SESSIONS, COMING UP and LATELY; " +
@@ -35,7 +35,9 @@ var keysSaid = map[string]string{
 	"Runway": "← steps back to this week, then a week at a time, and → on again to the live view; and a " +
 		"collapses the lanes' labels to each account's marks and use, giving the lanes more room, and expands " +
 		"them again.",
-	"Graphs": "w, o, g and h show and hide WEEK, POOL, GLANCE and WHEN YOU WORK.",
+	"Trends": "w, o, g, h, y, m and d show and hide WEEK, POOL, GLANCE, WHEN YOU WORK, YEAR, BY MONTH and " +
+		"MODELS BY DAY; v cycles what YEAR shows, all use, a model version or an account; and ←→ steps YEAR " +
+		"shown for one account between the accounts.",
 	"Log": "end, or esc, follows the newest line again while the table is paused; enter opens the chosen " +
 		"line's details, and s its session's page; f sets the columns and which lines show; / finds a session " +
 		"by its id's start or its directory's name; and esc, with a filter on, clears it.",

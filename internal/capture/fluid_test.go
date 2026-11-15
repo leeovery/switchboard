@@ -566,22 +566,30 @@ var (
 	// named is a row and what it leads with, as an account's name leads its
 	// row.
 	named = regexp.MustCompile(`^ *(\S.*)$`)
+	// pastShown is a row of what Trends shows of the last 12 months: YEAR's
+	// days or its totals, a month of BY MONTH, or a family's strip of MODELS
+	// BY DAY, as its share of use ends its row or its name's.
+	pastShown = regexp.MustCompile(`■ ■|^requests +[0-9]|^ {1,2}[A-Z][a-z]{2}(?: [0-9]{4})?  +\S|[0-9]% of use$`)
 )
 
 // drawsWhatItsFor reports whether the view named draws what it's for, of the
-// names given: Runway a lane, a session's page a turn, and the Overview and
-// Graphs an account; any other view, whatever it draws.
+// names given: Runway a lane, a session's page a turn, the Overview an
+// account, and Trends an account or what it shows of the last 12 months, as
+// pastShown has it; any other view, whatever it draws.
 func (d fluidFrame) drawsWhatItsFor(view string, names []string) bool {
+	account := func(row string) bool {
+		m := named.FindStringSubmatch(row)
+		return m != nil && slices.ContainsFunc(names, func(name string) bool { return leadsWith(m[1], name) })
+	}
 	switch view {
 	case "Runway":
 		return slices.ContainsFunc(d.body(), laneShown.MatchString)
 	case sessionPage:
 		return slices.ContainsFunc(d.body(), turnShown.MatchString)
-	case "Overview", "Graphs":
-		return slices.ContainsFunc(d.body(), func(row string) bool {
-			m := named.FindStringSubmatch(row)
-			return m != nil && slices.ContainsFunc(names, func(name string) bool { return leadsWith(m[1], name) })
-		})
+	case "Overview":
+		return slices.ContainsFunc(d.body(), account)
+	case "Trends":
+		return slices.ContainsFunc(d.body(), func(row string) bool { return account(row) || pastShown.MatchString(row) })
 	}
 	return true
 }
@@ -620,7 +628,7 @@ var tabs = map[string][]string{
 	"History":  {"Year", "Weeks", "Days", "Tokens"},
 	"Sessions": {"Switchboard", "List"},
 	"Runway":   nil,
-	"Graphs":   nil,
+	"Trends":   nil,
 	"Log":      {"Requests", "Events"},
 }
 
@@ -748,6 +756,12 @@ func TestTheFluidSweepFindsWhatItSweepsFor(t *testing.T) {
 		{name: "the Overview with an account", view: "Overview", rows: []string{"USAGE", across, " personal ◆   ┃   66%"}},
 		{name: "the Overview with an account cut", view: "Overview", rows: []string{"USAGE", " work-team-…" + strings.Repeat(" ", 105) + "34%"}},
 		{name: "the Overview without an account", view: "Overview", rows: []string{"USAGE", across, "WEEK", "", "", ""}, want: []fluidRule{nothingDrawn}},
+		{name: "Trends with an account", view: "Trends", rows: []string{"WEEK", across, "work ◆", "", "", ""}},
+		{name: "Trends with a family's strip", view: "Trends", rows: []string{"MODELS BY DAY", across, "● Opus" + strings.Repeat(" ", 36) + "55% of use", "", "", ""}},
+		{name: "Trends with a month", view: "Trends", rows: []string{"BY MONTH", across, " Oct 2025   $1,180    2.0×", "", "", ""}},
+		{name: "Trends with YEAR's days", view: "Trends", rows: []string{"YEAR", across, "M   ■ ■ ■ ■", "", "", ""}},
+		{name: "Trends with YEAR's totals", view: "Trends", rows: []string{"LAST 12 MONTHS", across, "requests     212,885", "", "", ""}},
+		{name: "Trends with nothing under its heading", view: "Trends", rows: []string{"YEAR", across, "", "", "", ""}, want: []fluidRule{nothingDrawn}},
 		{
 			name: "content short of two thirds, but for a rule and its key", view: "Log Requests",
 			rows: []string{"LOG", strings.Repeat("■", 79), "ROUTING   auto " + strings.Repeat("─", 103) + " r", strings.Repeat("┄", 120)},

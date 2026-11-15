@@ -39,7 +39,8 @@ func headingRows(f Frame) []int {
 	return rows
 }
 
-// everyGraphsSection are Graphs' sections, every one shown.
+// everyGraphsSection are Graphs' own sections, every one shown: WEEK, POOL,
+// GLANCE and WHEN YOU WORK, without those Trends took from History.
 func everyGraphsSection() GraphsSections {
 	return GraphsSectionsNamed([]string{"week", "pool", "glance", "when"})
 }
@@ -53,6 +54,9 @@ func TestGraphsSectionsAreKeyedAndWordedAsTheDesignHasThem(t *testing.T) {
 		{section: GraphsPool, key: "o", word: "pool", heading: "POOL"},
 		{section: GraphsGlance, key: "g", word: "glance", heading: "GLANCE"},
 		{section: GraphsWhen, key: "h", word: "when", heading: "WHEN YOU WORK"},
+		{section: GraphsYear, key: "y", word: "year", heading: "YEAR"},
+		{section: GraphsMonths, key: "m", word: "months", heading: "BY MONTH"},
+		{section: GraphsModels, key: "d", word: "models", heading: "MODELS BY DAY"},
 	}
 	var order []GraphsSection
 	for _, tt := range tests {
@@ -116,6 +120,9 @@ func TestGraphsTogglesAreTheKeyLinesWithAHiddenSectionsWordFaint(t *testing.T) {
 		{Key: "o", Does: "pool", Hidden: true},
 		{Key: "g", Does: "glance"},
 		{Key: "h", Does: "when", Hidden: true},
+		{Key: "y", Does: "year", Hidden: true},
+		{Key: "m", Does: "months", Hidden: true},
+		{Key: "d", Does: "models", Hidden: true},
 	}
 	if !slices.Equal(got, want) {
 		t.Errorf("Graphs' toggles are %+v, want %+v", got, want)
@@ -223,8 +230,8 @@ func TestGraphsEverySectionHiddenTheFirstRowSaysHowToBringThemBack(t *testing.T)
 		width int
 		want  []string
 	}{
-		{width: 160, want: []string{"every section is hidden:  w week  o pool  g glance  h when"}},
-		{width: 52, want: []string{"every section is hidden:  w week  o pool  g glance", "h when"}},
+		{width: 160, want: []string{"every section is hidden:  w week  o pool  g glance  h when  y year  m months  d models"}},
+		{width: 52, want: []string{"every section is hidden:  w week  o pool  g glance", "h when  y year  m months  d models"}},
 	}
 	for _, tt := range tests {
 		f := graphsFrame(tt.width, 40, GraphsSectionsNamed([]string{}))

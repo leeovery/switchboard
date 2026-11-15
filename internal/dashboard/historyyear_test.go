@@ -160,7 +160,7 @@ const (
 
 // yearOf is the Year the frame shows, laid out in the form given.
 func yearOf(f Frame, form yearForm) yearDrawn {
-	return yearDrawn{Frame: f, page: *f.History.Year, ask: f.History.YearAsk, form: form}.laidOut()
+	return yearDrawn{Frame: f, page: *f.History.Year, ask: f.History.YearAsk, alone: f.History.yearShown(), form: form}.laidOut()
 }
 
 // Today's month is the current one, its name over the grid in
@@ -698,7 +698,7 @@ func TestTheNumbersUnderTheKeyAreInColumnsThatFit(t *testing.T) {
 			name: "narrow with room for a third", width: 76, limits: two,
 			want: []string{
 				"requests  236,410                  worth     $27,480    busiest   Tue 22 Sep",
-				"sessions  1,688                    plans     $7,200     run       58 days",
+				"sessions  1,688                    plans     $7,200     longest   58 days",
 				"limits    week ×3 · 5-hour ×412    against   3.8×",
 			},
 		},
@@ -730,7 +730,7 @@ func TestTheNumbersUnderTheKeyAreInColumnsThatFit(t *testing.T) {
 			name: "plans unknown, against compact before a column leaves", width: 80, limits: two, plans: views.PlansKnown{Known: 2, Of: 3},
 			want: []string{
 				"requests  236,410                  worth     $27,480        busiest   Tue 22 Sep",
-				"sessions  1,688                    plans     $7,200         run       58 days",
+				"sessions  1,688                    plans     $7,200         longest   58 days",
 				"limits    week ×3 · 5-hour ×412    against   3.8× · 2/3",
 			},
 		},
@@ -738,7 +738,7 @@ func TestTheNumbersUnderTheKeyAreInColumnsThatFit(t *testing.T) {
 			name: "plans unknown, against its ratio alone before a column leaves", width: 66, limits: map[string]int{"5h": 412}, plans: views.PlansKnown{Known: 2, Of: 3},
 			want: []string{
 				"requests  236,410        worth     $27,480    busiest   Tue 22 Sep",
-				"sessions  1,688          plans     $7,200     run       58 days",
+				"sessions  1,688          plans     $7,200     longest   58 days",
 				"limits    5-hour ×412    against   3.8×",
 			},
 		},

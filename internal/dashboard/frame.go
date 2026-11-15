@@ -433,7 +433,7 @@ func (f Frame) Under(doc status.Document, now time.Time, x, y int) Under {
 // Projects, SESSIONS' lines, as projectsLaid has them; on
 // History, what of its sub-tab shown does, as historyScrolls has it, across
 // the frame; on Sessions, as sessionsScrolls has it; on Runway, as
-// runwayScrolls has it; on Graphs, the view's rows over its legend, as
+// runwayScrolls has it; on Trends, the view's rows over its legend, as
 // graphsLaid lays them out; on the Log, its table's lines, under its heads;
 // elsewhere, the view's rows.
 func (f Frame) scrolls(doc status.Document, now time.Time) (x, y, width, rows int) {

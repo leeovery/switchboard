@@ -96,8 +96,8 @@ type beginning struct {
 
 // readHistory has the watch read the ledger's days for History and
 // Accounts while either is shown, for Runway or Graphs while its lanes want
-// them, as runwayYearWanted says, and for Graphs while WHEN YOU WORK shows,
-// as graphsHoursWanted says, as they want them, one read at a time, what's
+// them, as runwayYearWanted says, and for Trends while it shows a section
+// drawn of them, as trendsDaysWanted says, as they want them, one read at a time, what's
 // wanted meanwhile waiting for it to land, all sharing every read and the
 // days it holds: the last 12 months, once a run, as any is first shown;
 // while History shows, a calendar year the Year steps back to that the days
@@ -107,7 +107,7 @@ type beginning struct {
 func (m Model) readHistory() (Model, tea.Cmd) {
 	history := m.view == dashboard.History
 	runwayYear, runway := m.runwayYearWanted()
-	shown := history || m.view == dashboard.Accounts || runway || m.graphsHoursWanted()
+	shown := history || m.view == dashboard.Accounts || runway || m.trendsDaysWanted()
 	if !shown || m.past.reading || m.cfg.Ledger == nil {
 		return m, nil
 	}
@@ -259,10 +259,18 @@ func (t historyTab) learned(b beginning) historyTab {
 // last 12 months didn't use, as one kept from a run since may be.
 func (t historyTab) checked() dashboard.HistoryPage {
 	p := t.page
-	if v := p.YearAsk.Version; v != "" && !slices.Contains(t.last.past.Versions(), v) {
-		p.YearAsk.Version = ""
-	}
+	p.YearAsk = usedAsk(p.YearAsk, t.last.past)
 	return p
+}
+
+// usedAsk is what the Year's ask shows of the days given: all use where it
+// asks for a version they didn't use, as one kept from a run since may; else
+// what it asks.
+func usedAsk(ask views.YearAsk, past views.Past) views.YearAsk {
+	if v := ask.Version; v != "" && !slices.Contains(past.Versions(), v) {
+		ask.Version = ""
+	}
+	return ask
 }
 
 // sinceRead takes in the days read since those held were read to, and where
@@ -294,7 +302,7 @@ func (m Model) sinceRead(msg sinceMsg) Model {
 	case dashboard.Runway, dashboard.Graphs:
 		was = m
 		m.past = m.past.since(msg.days, msg.at, now)
-		m = m.lanesBuilt()
+		m = m.lanesBuilt().trendsBuilt()
 	default:
 		m.past = m.past.since(msg.days, msg.at, now)
 		return m

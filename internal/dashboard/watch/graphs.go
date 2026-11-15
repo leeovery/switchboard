@@ -24,11 +24,15 @@ func (m Model) graphsHours() *views.HoursPage {
 	return new(m.past.last.past.Since(nil, m.now()).Hours())
 }
 
-// graphsShown is what the Graphs tab shows: its sections shown; the
-// configured accounts, which lay its page out; and what graphsBuilt built
-// at the last look, its lanes, POOL's stack, GLANCE's pool's room over the
-// week's span and WHEN YOU WORK's page.
+// graphsShown is what Trends shows: its sections shown; the configured
+// accounts, which lay its page out; what graphsBuilt built at the last look,
+// its lanes, POOL's stack, GLANCE's pool's room over the week's span and
+// WHEN YOU WORK's page; and what v has YEAR show, and the pages trendsBuilt
+// built of the ledger's days, once the last 12 months are read.
 func (m Model) graphsShown() dashboard.GraphsShown {
-	t := m.graphsTab
-	return dashboard.GraphsShown{Sections: m.graphs, Accounts: m.cfg.Accounts, Lanes: t.shown, Hours: t.hours, Pool: t.pool, Spans: t.spans}
+	t, p := m.graphsTab, m.trends
+	return dashboard.GraphsShown{
+		Sections: m.graphs, Accounts: m.cfg.Accounts, Lanes: t.shown, Hours: t.hours, Pool: t.pool, Spans: t.spans,
+		Split: p.split, Year: p.year, Days: p.days, Read: m.past.last.held(),
+	}
 }

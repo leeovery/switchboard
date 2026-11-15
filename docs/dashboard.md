@@ -11,7 +11,7 @@ session, and shows the router's sessions and its record of every request. To ope
 - [History](#history)
 - [Sessions](#sessions-1)
 - [Runway](#runway)
-- [Graphs](#graphs)
+- [Trends](#trends)
 - [The Log](#the-log)
 - [A session's page](#a-sessions-page)
 - [On a phone](#on-a-phone)
@@ -577,19 +577,21 @@ the labels are collapsed. Runway remembers which you left it on.
 To look back, `←` goes back to this week, then a week at a time, and `→` steps forward, on to the
 live view. A week stepped back to has no COMING UP and no LATELY. A step back is never kept.
 
-## Graphs
+## Trends
 
-**Graphs** draws every account's room at once, as charts. It's a page of sections you turn on and
-off: first a burn-down card for every account over its week, then whichever other charts you
-show.
+**Trends** draws the shapes of use over time, across every account, as charts. It's a page of
+sections you turn on and off: first a burn-down card for every account over its week, then
+whichever other charts you show, among them the last 12 months a day at a time, each month's
+worth, and each model's worth a day. Trends has no period: the cards are this week, YEAR and
+BY MONTH the last 12 months, and MODELS BY DAY the last eight weeks.
 
 <div align="center">
-<img src="../art/graphs.webp" alt="Graphs: a burn-down card for each account, its room over the week, two to a row, work capped till 17:10, personal's and side's weeks running out at their pace, each heading to its ✕, and the pool's room under them" width="840">
+<img src="../art/graphs.webp" alt="Trends: a burn-down card for each account, its room over the week, two to a row, work capped till 17:10, personal's and side's weeks running out at their pace, each heading to its ✕, and the pool's room under them" width="840">
 </div>
 
-### Sections on Graphs
+### Sections on Trends
 
-Graphs has four sections, always in this order. Each key shows or hides its section, at any size,
+Trends has seven sections, always in this order. Each key shows or hides its section, at any size,
 and the dashboard remembers which show.
 
 | Section | Key | At first | What it is |
@@ -598,8 +600,11 @@ and the dashboard remembers which show.
 | POOL | `o` | hidden | The pool's room over Runway's week, each account's stacked |
 | GLANCE | `g` | hidden | A row for each account and the pool: its week's room as a sparkline, with `usage`'s words |
 | WHEN YOU WORK | `h` | hidden | Requests by the hour of the day and the day of the week, over the last four weeks |
+| YEAR | `y` | hidden | The last 12 months a day a square, a week a column, and their totals |
+| BY MONTH | `m` | hidden | A row a month: its requests, worth, worth against what the plans cost, limits, and its worth by model family |
+| MODELS BY DAY | `d` | hidden | Each model family's worth a day over the last eight weeks, a strip a family |
 
-Graphs charts the week every model shares, as on Runway: a model's own week has no card, and the
+Trends charts the week every model shares, as on Runway: a model's own week has no card, and the
 5-hour window, which the Overview shows and Runway counts, has none here. With every section hidden, the
 page's first row says which keys bring them back.
 
@@ -646,11 +651,11 @@ Under the cards, `Σ pool` gives the pool's room in the week, such as `week 1.2 
 one account there's no pool, and no line. At the foot, over the key line, a legend names the marks.
 
 <div align="center">
-<img src="../art/dashboard.webp" alt="One account's dashboard: work alone on the Overview, its usage, routing trace and LATELY, then its week's card on Graphs, then Runway, its lane across the week, with COMING UP and LATELY under it" width="840">
+<img src="../art/dashboard.webp" alt="One account's dashboard: work alone on the Overview, its usage, routing trace and LATELY, then its week's card on Trends, then Runway, its lane across the week, with COMING UP and LATELY under it" width="840">
 </div>
 
 The animation shows one account, `work`, alone: the Overview, with its usage, its routing trace
-and LATELY; then Graphs, its week's card; then Runway, its lane across the week, with COMING UP
+and LATELY; then Trends, its week's card; then Runway, its lane across the week, with COMING UP
 and LATELY under it.
 
 ### POOL
@@ -689,29 +694,67 @@ cells over left blank at the row's end, and the hours over the grid follow their
 narrow screen, an hour is a square alone, with no gap.
 
 It counts the requests that spend quota and went upstream, each in the local hour it arrived in.
-The shades are History's: one for an hour with nothing on it, and four for the quarters of the
+The shades are YEAR's: one for an hour with nothing on it, and four for the quarters of the
 active hours, their bounds in the key under the grid.
 
-### Room on Graphs
+### YEAR
+
+YEAR is the last 12 months a day at a time: a square a day, a column a week, each day shaded by
+how many requests it made, never by its worth, which shifts with the models used and their prices.
+A day with nothing on it has a shade of its own, and the active days are split into quarters, the
+key under the grid giving each quarter's bounds. The grid shows as many of the latest weeks as the
+width holds.
+
+Its totals, LAST 12 MONTHS, sit beside the grid where the width holds both, else under it: the
+requests, sessions and limits hit; the worth at API prices, what the plans cost, and the worth
+against it; and the busiest day and the longest run of days in a row. Under the grid, they spread
+to end where the grid ends. On a phone, the totals the width leaves off go on a row under the rest,
+so none goes unsaid.
+
+`v` shows one model version alone, in four steps of its own colour, or one account, `←` and `→`
+stepping between the accounts; the shades, their key and the totals re-scale to what's shown, and
+BY MONTH with them. The key line says what's shown, as `v split: all`, where the line has room.
+
+### BY MONTH
+
+BY MONTH is a row for each of the last 12 months: its requests, its worth at API prices, its worth
+against what the plans cost that month, and the limits reached; then a bar, the month's worth
+against the largest month's, split by model family, each in its colour, the bars taking the width
+left. The month still running says `so far` after its bar, and the month the ledger began recording
+in the day it began, as `from the 16th`. Where some accounts' plans aren't known, against is over
+those known, as the heading says. Shown for one version, its share of the month stands in
+against's place.
+
+### MODELS BY DAY
+
+MODELS BY DAY is eight weeks, the week so far and the seven before it, two cells a day: each
+model family's worth a day at API prices, every account's, in four steps of the family's colour,
+every family on one scale, and its share of the eight weeks' worth. It shows as many of the latest
+weeks as the width holds; on a narrow screen, each family's name goes on the row over its strip.
+Each account's own days are on Accounts' Detail.
+
+### Room on Trends
 
 The terminal's size never decides which sections show, only how much room each gets. At their
 least, each card's words share its label's row, and each chart is 5 rows. Spare rows go first to
 the cards' words, a row of their own, then to the charts, the cards' and POOL's, every one the same
 height, up to 19 rows. Where the sections don't fit even at their least, the page scrolls whole, a
 row at a time, and the row over the key line says what's out of view, such as
-`▲ 3 more above · ▼ 12 more below`. The legend stays at the foot. The layout changes only on a key,
-a resize or the config, never as the numbers move. The charts move on with the clock, a column at
-a time.
+`▲ 3 more above · ▼ 12 more below`. The legend stays at the foot. A heading shows only with the
+first row under it. The layout changes only on a key, a resize, the config or the ledger's days
+read, never as the numbers move. The charts move on with the clock, a column at a time.
 
 So at 160 by 37, with three accounts, the cards lie two to a row, each card's words have a row of
 their own and the charts take 8 rows; at 108 by 44, 12. On a phone, the cards stack, one to a row,
 with charts of 11 rows, or 7 with four accounts.
 
-### Keys on Graphs
+### Keys on Trends
 
 | Key | Does |
 |---|---|
-| `w` `o` `g` `h` | Shows or hides a section: WEEK, POOL, GLANCE and WHEN YOU WORK. |
+| `w` `o` `g` `h` `y` `m` `d` | Shows or hides a section: WEEK, POOL, GLANCE, WHEN YOU WORK, YEAR, BY MONTH and MODELS BY DAY. |
+| `v` | While YEAR or BY MONTH shows, cycles what they show: all use, each model version, then each account. The key line lists it where it has room. |
+| `←` `→` | While YEAR or BY MONTH shows one account, steps to the account before or after; it works with BY MONTH shown alone too. |
 | `j` `k`, `PgDn` `PgUp`, the wheel | Scrolls the page, where its sections don't fit. |
 
 ## The Log
@@ -854,8 +897,8 @@ switches at one width: under 100 columns, it takes its phone form.
   wherever one row doesn't fit, under 83 columns with a name column of 16.
 - LATELY comes under COMING UP, as it does wherever the two don't fit side by side, under 95
   columns.
-- Graphs' cards stack, one to a row, each card's words beside its label where rows run short. See
-  [Room on Graphs](#room-on-graphs).
+- Trends' cards stack, one to a row, each card's words beside its label where rows run short. See
+  [Room on Trends](#room-on-trends).
 - Projects' sections stack, WORTH BY, then BY MODEL, then ON ACCOUNTS, and its list and SESSIONS
   give way column by column as they do wherever the width runs short. See [Projects](#projects).
 - Accounts' `against it` and `against` give `all accounts`' ratio alone, but where an account has
@@ -871,14 +914,14 @@ Every page is one frame. From top to bottom, it has:
 
 1. The title row, with the tabs and the clock.
 2. The status line.
-3. On every tab but the Overview and Graphs, which head their own sections, the tab's heading row:
+3. On every tab but the Overview and Trends, which head their own sections, the tab's heading row:
    its name and a rule.
 4. The view.
 5. The key line. See [The key line](#the-key-line).
 
 When a tab reads a lot, as Sessions or the Log first showing a long ledger, its heading row says
 `loading…` until the read lands. On the Overview, which has no heading row, SESSIONS' heading says
-it, and on Graphs, its first section's heading. A quick read says nothing. Once the Log, Sessions' List or a session's page has read the
+it, and on Trends, its first section's heading. A quick read says nothing. Once the Log, Sessions' List or a session's page has read the
 ledger, it keeps reading what the ledger gains while another tab shows, so it's up to date when you
 come back to it. The Log keeps only the days it shows: once today's lines fill it, it lets go of
 yesterday's, and scrolling back reads them in again.
@@ -886,7 +929,7 @@ yesterday's, and scrolling back reads them in again.
 ### The tabs
 
 `tab` and `shift-tab` move between the eight tabs, in the title row's order: the Overview, Accounts,
-Projects, History, Sessions, Runway, Graphs and the Log. The order goes round, from the Log back to the Overview. The
+Projects, History, Sessions, Runway, Trends and the Log. The order goes round, from the Log back to the Overview. The
 next dashboard opens on the tab last shown.
 
 ### The status line
@@ -969,13 +1012,13 @@ router answers.
 
 These keys work on every page. Each page's own keys are under the page:
 [Overview](#keys-on-the-overview), [Accounts](#accounts), [Projects](#projects), [History](#history),
-[Sessions](#keys-on-sessions), [Runway](#runway), [Graphs](#keys-on-graphs),
+[Sessions](#keys-on-sessions), [Runway](#runway), [Trends](#keys-on-trends),
 [the Log](#keys-on-the-log) and
 [a session's page](#a-sessions-page).
 
 | Key | Does |
 |---|---|
-| `tab` | Moves to the next tab, in the title row's order and round: the Overview, Accounts, Projects, History, Sessions, Runway, Graphs and the Log. From a session's page, moves to the tab after the one the page was opened from. |
+| `tab` | Moves to the next tab, in the title row's order and round: the Overview, Accounts, Projects, History, Sessions, Runway, Trends and the Log. From a session's page, moves to the tab after the one the page was opened from. |
 | `shift-tab` | Moves to the tab before. From a session's page, moves to the tab before the one the page was opened from. |
 | `[` `]` | On Accounts, History, Sessions and the Log, moves to the sub-tab before or after, round. |
 | `p` | Opens the routing card. See [The routing card](#the-routing-card). |
@@ -1029,7 +1072,7 @@ What scrolls on each page:
   past six accounts; and Tokens' periods.
 - **Sessions:** the List, and the Switchboard's accounts where they don't fit.
 - **Runway:** its lanes.
-- **Graphs:** the whole page, where its sections don't fit. `?` lists its scrolling keys always.
+- **Trends:** the whole page, where its sections don't fit. `?` lists its scrolling keys always.
 - **The Log:** its table.
 - **A session's page:** its turns, or with a turn open, the turn's requests.
 
@@ -1131,12 +1174,13 @@ place, for 4 seconds.
 The Overview's key line lists its section toggles, each word faint while its section is hidden.
 Then come `b by: window` and `p pin  ? help  q quit`.
 
-Graphs' key line lists its toggles the same way, `w week  o pool  g glance  h when`,
-then `p pin  ? help  q quit`.
+Trends' key line lists its toggles the same way, `w week  o pool  g glance  h when  y year  m months
+d models`; then, while YEAR or BY MONTH shows, `v split: all`; then `p pin  ? help  q quit`. Where
+the line doesn't fit whole, `v split` goes first.
 
 On a phone, or wherever the line doesn't fit whole:
 
-- `? keys` and `q quit` end it. On the Overview and Graphs, it's `? keys and toggles`.
+- `? keys` and `q quit` end it. On the Overview and Trends, it's `? keys and toggles`.
 - `tab views` leads it, while it fits.
 
 ## Clicks
@@ -1150,7 +1194,7 @@ iTerm2 and Terminal.app, and Shift in most others.
 | `<` or `>` by a period | Steps it. |
 | a key on the key line | Does what the key does. For a pair, such as `[ ]` or `< >`, it does what the second key does. A click doesn't act on `p pin` or `q quit`. |
 | a row that names an account, a project, a session, a line or a turn, or a Compare column's head | Chooses it, as the arrows would. On the one already chosen, opens it, as `enter` does. |
-| a section's heading, on the Overview or Graphs | Hides the section. |
+| a section's heading, on the Overview or Trends | Hides the section. |
 | `▼ 214 new`, on the Log | Follows again. |
 | a tick in the Log's `f` panel | Ticks it. |
 
@@ -1181,7 +1225,7 @@ It remembers:
 - History's view, what its Year shows, Weeks' shape, and Tokens' period and split
 - Sessions' view
 - whether `a` collapsed Runway's labels
-- Graphs' sections shown
+- Trends' sections shown
 - the Log's columns.
 
 If the version or account the Year showed is no longer there to show, the Year shows all use again.
@@ -1282,14 +1326,14 @@ the base tokens.
 
 | Token | Colours |
 |---|---|
-| `viz.ramp.1` to `viz.ramp.4` | a bar's fill, first cell to last; the first, a window that lasts to its reset, on Runway and Graphs |
+| `viz.ramp.1` to `viz.ramp.4` | a bar's fill, first cell to last; the first, a window that lasts to its reset, on Runway and Trends |
 | `viz.track` | a bar's track |
 | `viz.pace` | the even-pace mark |
-| `viz.reserve` | the cap's mark, and the reserve on Graphs' cards |
+| `viz.reserve` | the cap's mark, and the reserve on Trends' cards |
 | `viz.family.1` to `viz.family.4` | the model families: Opus, Sonnet, Fable and Haiku |
 | `viz.version.1` to `viz.version.6` | the model versions: a family's newest in its family's colour, and an older one fainter |
 | `viz.day.0` to `viz.day.4` | History's shades of a day, and WHEN YOU WORK's of an hour, from one with nothing on it to the busiest |
-| `viz.account.1` to `viz.account.4` | the pool's accounts in Graphs' POOL, by place; a fifth on takes the colour four before it, fainter |
+| `viz.account.1` to `viz.account.4` | the pool's accounts in Trends' POOL, by place; a fifth on takes the colour four before it, fainter |
 
 A key switchboard doesn't know is passed over.
 

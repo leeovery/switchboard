@@ -23,34 +23,34 @@ func TestTheTitleRow(t *testing.T) {
 		wantRows int
 	}{
 		{name: "the badge at the first column, the eight tabs two cells after it, and the clock ending at the last", width: 160, shown: Overview, want: []string{
-			" SWITCHBOARD    Overview   Accounts   Projects   History   Sessions   Runway   Graphs   Log " + blanks(48) + "Mon 28 Sep  13:12:00",
+			" SWITCHBOARD    Overview   Accounts   Projects   History   Sessions   Runway   Trends   Log " + blanks(48) + "Mon 28 Sep  13:12:00",
 		}, wantRows: 1},
 		{name: "the clock at the frame's Clock, where it's set", width: 160, shown: Overview, clock: now.Add(10 * time.Minute), want: []string{
-			" SWITCHBOARD    Overview   Accounts   Projects   History   Sessions   Runway   Graphs   Log " + blanks(48) + "Mon 28 Sep  13:22:00",
+			" SWITCHBOARD    Overview   Accounts   Projects   History   Sessions   Runway   Trends   Log " + blanks(48) + "Mon 28 Sep  13:22:00",
 		}, wantRows: 1},
 		{name: "the clock two cells clear of the tabs, where its date just fits", width: 114, shown: Overview, want: []string{
-			" SWITCHBOARD    Overview   Accounts   Projects   History   Sessions   Runway   Graphs   Log   Mon 28 Sep  13:12:00",
+			" SWITCHBOARD    Overview   Accounts   Projects   History   Sessions   Runway   Trends   Log   Mon 28 Sep  13:12:00",
 		}, wantRows: 1},
 		{name: "the date giving way first, where a date of two digits leaves too little room for the time", width: 113, shown: Overview, want: []string{
-			" SWITCHBOARD    Overview   Accounts   Projects   History   Sessions   Runway   Graphs   Log " + blanks(13) + "13:12:00",
+			" SWITCHBOARD    Overview   Accounts   Projects   History   Sessions   Runway   Trends   Log " + blanks(13) + "13:12:00",
 		}, wantRows: 1},
 		{name: "the date kept a cell narrower, where the day has one digit", width: 113, shown: Overview, clock: oneDigitDay, want: []string{
-			" SWITCHBOARD    Overview   Accounts   Projects   History   Sessions   Runway   Graphs   Log   Sat 3 Oct  13:12:00",
+			" SWITCHBOARD    Overview   Accounts   Projects   History   Sessions   Runway   Trends   Log   Sat 3 Oct  13:12:00",
 		}, wantRows: 1},
 		{name: "the time alone, two cells clear of the tabs", width: 102, shown: Overview, clock: oneDigitDay, want: []string{
-			" SWITCHBOARD    Overview   Accounts   Projects   History   Sessions   Runway   Graphs   Log   13:12:00",
+			" SWITCHBOARD    Overview   Accounts   Projects   History   Sessions   Runway   Trends   Log   13:12:00",
 		}, wantRows: 1},
 		{name: "the tabs alone at the narrowest widths off a phone, too narrow for the time", width: 101, shown: Overview, want: []string{
-			" SWITCHBOARD    Overview   Accounts   Projects   History   Sessions   Runway   Graphs   Log",
+			" SWITCHBOARD    Overview   Accounts   Projects   History   Sessions   Runway   Trends   Log",
 		}, wantRows: 1},
 		{name: "on a phone, the clock on row 0, and the tabs filling a row of their own, touching", width: 70, shown: Sessions, want: []string{
 			" SWITCHBOARD" + blanks(38) + "Mon 28 Sep  13:12:00",
-			" Overview  Accounts  Projects  History  Sessions  Runway  Graphs  Log",
+			" Overview  Accounts  Projects  History  Sessions  Runway  Trends  Log",
 		}, wantRows: 2},
 		{name: "on a phone too narrow for one row of tabs, two, as even as their order allows", width: 69, shown: Overview, want: []string{
 			" SWITCHBOARD" + blanks(37) + "Mon 28 Sep  13:12:00",
 			" Overview  Accounts  Projects  History",
-			" Sessions  Runway  Graphs  Log",
+			" Sessions  Runway  Trends  Log",
 		}, wantRows: 3},
 		{name: "on a phone just wide enough for the date", width: 35, shown: Overview, want: []string{
 			" SWITCHBOARD" + blanks(3) + "Mon 28 Sep  13:12:00",
@@ -65,7 +65,7 @@ func TestTheTitleRow(t *testing.T) {
 			" SWITCHBOARD" + blanks(10) + "13:12:00",
 			" Overview  Accounts",
 			" Projects  History  Sessions",
-			" Runway  Graphs  Log",
+			" Runway  Trends  Log",
 		}, wantRows: 4},
 		{name: "on a phone too narrow for the time, the badge alone", width: 20, shown: Overview, want: []string{
 			" SWITCHBOARD ",
@@ -93,7 +93,7 @@ var oneDigitDay = time.Date(2026, 10, 3, 13, 12, 0, 0, now.Location())
 // over another: the tabs, then, where its time fits, at least two blank
 // cells and the clock ending at the last column, its date where it shows.
 func TestTheTitleRowsPartsNeverOverlap(t *testing.T) {
-	tabs := " SWITCHBOARD    Overview   Accounts   Projects   History   Sessions   Runway   Graphs   Log "
+	tabs := " SWITCHBOARD    Overview   Accounts   Projects   History   Sessions   Runway   Trends   Log "
 	timeFits := len(tabs) + 2 + len("13:12:00")
 	rest := regexp.MustCompile(`^  +([A-Z][a-z]{2} [0-9]{1,2} [A-Z][a-z]{2}  )?13:12:00$`)
 	for _, clock := range []time.Time{now, oneDigitDay} {

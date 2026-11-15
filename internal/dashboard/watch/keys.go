@@ -16,7 +16,8 @@ import (
 // window, where the page lists windows, as listsModels says, as
 // toggleModels has it; on the Overview, u, r, s, c and l show and hide its
 // sections and b switches how its windows are grouped, as overviewKey says;
-// on Graphs, w, o, g and h show and hide its sections, as graphsKey says;
+// on Trends, w, o, g, h, y, m and d show and hide its sections, and v and
+// ← → act, as graphsKey says;
 // on Accounts, its keys act as accountsKey says; on Projects, ↑ ↓, ← →, < >
 // and enter act as projectsKey says; on History, [ ], < >, v and ← → act as
 // historyKey says; on Sessions, its keys act as sessionsKey says;
@@ -109,16 +110,16 @@ func (m Model) overviewScroll(key string) (scrollStep, bool) {
 	return scrollStep{}, false
 }
 
-// graphsKey acts on a key of Graphs', reporting false for a key it doesn't
+// graphsKey acts on a key of Trends', reporting false for a key it doesn't
 // take, or on another tab: a section's key shows or hides it, as
-// toggleGraphs has it.
+// toggleGraphs has it; and v and ← → act as trendsKey says.
 func (m Model) graphsKey(key string) (Model, bool) {
 	if m.shownView() != dashboard.Graphs {
 		return m, false
 	}
 	section, ok := dashboard.GraphsSectionKeyed(key)
 	if !ok {
-		return m, false
+		return m.trendsKey(key)
 	}
 	return m.toggleGraphs(section), true
 }
@@ -191,15 +192,21 @@ func (m Model) overviewListings() []keyListing {
 	)
 }
 
-// graphsListings are Graphs' own keys: the toggles of its sections, each
-// word faint where its section is hidden.
+// graphsListings are Trends' own keys: the toggles of its sections, each
+// word faint where its section is hidden; and while YEAR or BY MONTH shows,
+// in a group of its own, which a line wider than a phone's alone keeps, v
+// and what it has YEAR show, and with v, while YEAR shows one account
+// alone, ←→ stepping between the accounts.
 func (m Model) graphsListings() []keyListing {
-	graphs := m.shownView() == dashboard.Graphs
+	graphs, year := m.shownView() == dashboard.Graphs, m.yearWanted()
 	var own []keyListing
 	for _, k := range m.graphs.Toggles() {
 		own = append(own, keyListing{Key: k, works: graphs})
 	}
-	return own
+	return append(own,
+		keyListing{Key: dashboard.Key{Key: "v", Does: "split", State: m.graphsShown().SplitShown()}, works: year, apart: true, wide: true},
+		keyListing{Key: dashboard.Key{Key: "←→", Does: "account"}, works: year && m.trends.split.Account != "", wide: true},
+	)
 }
 
 // accountsListings are Accounts' own keys, each move with enter in a group
@@ -289,10 +296,11 @@ func (m Model) historyListings() []keyListing {
 // phone's line keeping the page's own keys between those that lead and ?
 // and q quit, but those it leaves to a wider line, or on the Log and
 // Sessions, with no session's page open over it, those logPhoneKeys and
-// sessionsPhoneKeys keep; a page of toggles, the Overview or Graphs, sets
+// sessionsPhoneKeys keep; a page of toggles, the Overview or Trends, sets
 // p pin, ? help and q quit as a group of their own, togglesApart after its
-// toggles, which a phone's line leaves to help. Each key works as the page drawn as f has
-// it, at now, the moment it was drawn at.
+// toggles, which a phone's line leaves to help, its groups kept to a wider
+// line spare, left out first where the wide line doesn't fit. Each key
+// works as the page drawn as f has it, at now, the moment it was drawn at.
 func (m Model) keyLine(f dashboard.Frame, now time.Time) dashboard.KeyLine {
 	if m.picker.open {
 		return dashboard.KeyLine{Groups: [][]dashboard.Key{m.picker.keys(), {dashboard.Quit}}, Lead: dashboard.KeysAfter, Note: m.noted(now)}
@@ -313,6 +321,9 @@ func (m Model) keyLine(f dashboard.Frame, now time.Time) dashboard.KeyLine {
 			ends = append(ends, keys.pin)
 		}
 		l.Lead, l.After, l.PhoneHelp = togglesApart, togglesApart, "keys and toggles"
+		for _, g := range page.spare {
+			l.Spare = append(l.Spare, 1+g)
+		}
 		l.Groups = append(l.Groups, append(ends, helpKey, dashboard.Quit))
 		return l
 	}
@@ -336,18 +347,22 @@ func (m Model) keyLine(f dashboard.Frame, now time.Time) dashboard.KeyLine {
 }
 
 // lineKeys are the page's own keys as the key line sets them: in their
-// groups; those that lead it, in tab views' place; and those a phone's line
-// keeps, as it words them.
+// groups, and by their places among them, those whose keys a line wider than
+// a phone's alone keeps; those that lead it, in tab views' place; and those
+// a phone's line keeps, as it words them.
 type lineKeys struct {
 	groups      [][]dashboard.Key
+	spare       []int
 	lead, phone []dashboard.Key
 }
 
 // grouped are the keys listed that work, as the key line sets them, those it
 // leaves to help aside: each with those before it, but one set apart, which
-// starts a group of its own, and those that lead it.
+// starts a group of its own, and those that lead it. A group whose every key
+// a phone's line leaves is spare.
 func grouped(listed []keyListing) lineKeys {
 	var keys lineKeys
+	var narrow []bool
 	for _, k := range listed {
 		switch {
 		case !k.works || k.helpful:
@@ -355,12 +370,18 @@ func grouped(listed []keyListing) lineKeys {
 			keys.lead = append(keys.lead, k.Key)
 		default:
 			if k.apart || len(keys.groups) == 0 {
-				keys.groups = append(keys.groups, nil)
+				keys.groups, narrow = append(keys.groups, nil), append(narrow, false)
 			}
-			keys.groups[len(keys.groups)-1] = append(keys.groups[len(keys.groups)-1], k.Key)
+			last := len(keys.groups) - 1
+			keys.groups[last] = append(keys.groups[last], k.Key)
 			if !k.wide {
-				keys.phone = append(keys.phone, k.phoned())
+				keys.phone, narrow[last] = append(keys.phone, k.phoned()), true
 			}
+		}
+	}
+	for i, kept := range narrow {
+		if !kept {
+			keys.spare = append(keys.spare, i)
 		}
 	}
 	return keys

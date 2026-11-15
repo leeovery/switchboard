@@ -18,32 +18,14 @@ func (f Frame) historyHelp() []helpPart {
 			heading: subTabHeading(HistoryYear),
 			says: []line{
 				said("A day a square, a week a column, over the last 12 months, or a calendar year, which `<` and `>` step through. " +
-					"A day is shaded by how many requests it made, never by its worth, which shifts with the models used and their " +
-					"prices. A day with nothing on it has a shade of its own, and the active days are split into quarters by how much " +
-					"each did, on one scale for everything shown together, the key giving each quarter's bounds."),
-				said("`v` shows one model version alone, in four steps of its own colour, or one account, `←` and `→` stepping " +
-					"between the accounts; the shades, their key and the numbers re-scale to what's shown."),
+					yearShadesSaid),
+				said(yearSplitSaid),
 				said("On a screen shorter than it, the Year scrolls a row at a time, its last row saying how many rows are out " +
 					"of view above and below."),
 			},
 			glyphs: shadesHelp("a day", "days", f.yearDay),
 		},
-		{
-			heading: "BY MONTH",
-			says: []line{
-				said("Each month's requests, its worth at API prices, what the plans cost that month and its worth against it, " +
-					"and the limits reached. Against is bold, in the theme's positive colour at 1× or more, the plans more than " +
-					"paid for, and its attention colour under. A bar is a month's worth against the largest month's, split by " +
-					"family, each in its colour, as the dots under the bars name them. The month still running says so far after " +
-					"its bar, and the month the ledger began recording in the day it began, as from the 16th, its plans priced " +
-					"from then. Where some accounts' plans aren't known, against is over those known, as the heading says, " +
-					"with the worth of their accounts alone."),
-			},
-			glyphs: []glyph{
-				{drawn: familyBar(), means: "a month's worth, by family"},
-				{drawn: line{noFigure}, means: "against, for the month so far"},
-			},
-		},
+		byMonthHelp(),
 		{
 			heading: subTabHeading(HistoryWeeks),
 			says: []line{
@@ -97,6 +79,40 @@ func (f Frame) historyHelp() []helpPart {
 				said("The periods scroll a period at a time, or a row at a time where one doesn't fit; turned from one to the " +
 					"other, as a resize or what's read can turn them, they go back to their top."),
 			},
+		},
+	}
+}
+
+// yearShadesSaid and yearSplitSaid say, as help says it, how the Year shades
+// a day, and what v and ← and → have it show, alike on History's Year and
+// Trends' YEAR.
+const (
+	yearShadesSaid = "A day is shaded by how many requests it made, never by its worth, which shifts with the models used and " +
+		"their prices. A day with nothing on it has a shade of its own, and the active days are split into quarters by how " +
+		"much each did, on one scale for everything shown together, the key giving each quarter's bounds."
+	yearSplitSaid = "`v` shows one model version alone, in four steps of its own colour, or one account, `←` and `→` " +
+		"stepping between the accounts; the shades, their key and the numbers re-scale to what's shown."
+)
+
+// byMonthHelp is BY MONTH as help explains it, alike on History's Year and
+// Trends: each month's columns and its bar, the month
+// so far and the one the ledger began in, and plans not known; then its
+// bar's and its so far's marks.
+func byMonthHelp() helpPart {
+	return helpPart{
+		heading: "BY MONTH",
+		says: []line{
+			said("Each month's requests, its worth at API prices, what the plans cost that month and its worth against it, " +
+				"and the limits reached. Against is bold, in the theme's positive colour at 1× or more, the plans more than " +
+				"paid for, and its attention colour under. A bar is a month's worth against the largest month's, split by " +
+				"family, each in its colour, as the dots under the bars name them. The month still running says so far after " +
+				"its bar, and the month the ledger began recording in the day it began, as from the 16th, its plans priced " +
+				"from then. Where some accounts' plans aren't known, against is over those known, as the heading says, " +
+				"with the worth of their accounts alone."),
+		},
+		glyphs: []glyph{
+			{drawn: familyBar(), means: "a month's worth, by family"},
+			{drawn: line{noFigure}, means: "against, for the month so far"},
 		},
 	}
 }
