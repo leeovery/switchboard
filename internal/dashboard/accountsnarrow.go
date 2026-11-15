@@ -112,15 +112,14 @@ func largestIn(used versionUsed, cells int) line {
 
 // Stacked Detail's columns: USAGE's bars at least stackBarLeast cells;
 // THIS WEEK's two columns stackHalf apart, their labels stackLabels cells;
-// and from stackAt, BY MODEL's bar, BY DAY's weeks and WEEKS' peaks, the
-// peaks each right-aligned in stackPeakCells, stackPeakGap between.
+// and from stackAt, BY MODEL's bar, BY DAY's weeks and WEEKS' peaks, each
+// peak right-aligned in stackPeakCells from its week's first day.
 const (
 	stackBarLeast  = 18
 	stackHalf      = 26
 	stackLabels    = 10
 	stackAt        = 10
 	stackPeakCells = 5
-	stackPeakGap   = 1
 )
 
 // The parts of Detail's USAGE row, stacked or wide, in the order
@@ -185,10 +184,12 @@ func (f Frame) detailStackedBody(doc status.Document, now time.Time) accountsFor
 }
 
 // stack is a view stacked and drawn whole: its rows, on a canvas the frame's
-// width; and the zones of them a click acts on, by their rows on it.
+// width; the zones of them a click acts on, by their rows on it; and where
+// its SESSIONS lie, as sessionsAt has it, nowhere where it has none.
 type stack struct {
-	c       *canvas
-	targets []Target
+	c        *canvas
+	targets  []Target
+	sessions detailSessions
 }
 
 // stackForm is the form of the stack drawn whole as drawn draws it, drawn
@@ -203,7 +204,16 @@ func (f Frame) stackForm(drawn func() stack, filled func() map[Ref]float64) acco
 		scrolling: func(offset int) Scrolling { return pagedWhole(drawn().c, f.viewRows()).scrolling(offset) },
 		targets:   func() []Target { return f.stackTargets(drawn()) },
 		filled:    filled,
+		sessions:  func() detailSessions { return f.stackSessions(drawn()) },
 	}
+}
+
+// stackSessions is where the stack lays its SESSIONS out, as its sessions
+// has them, none where it has none; and how the stack pages.
+func (f Frame) stackSessions(s stack) detailSessions {
+	laid := s.sessions
+	laid.paged = pagedWhole(s.c, f.tabViewRows())
+	return laid
 }
 
 // drawStack draws the stack's rows the view shows from row top, and over the
@@ -239,8 +249,8 @@ func (f Frame) turned(doc status.Document, now time.Time) compared {
 }
 
 // turnedWhole is turned Compare drawn whole, laid out as turnedLaid lays
-// it: WEEK USED; then, once the period's page is read, BY MODEL, ACTIVITY,
-// LIMITS and VALUE, a blank row before each.
+// it: WEEK USED; then, once the period's page is read, BY MODEL, WEEKS,
+// WORTH, ACTIVITY, LIMITS and VALUE, a blank row before each.
 func (cp compared) turnedWhole() stack {
 	c := growing(cp.f.Width)
 	columns := cp.columns()
@@ -248,6 +258,8 @@ func (cp compared) turnedWhole() stack {
 	y := cp.turnedWeek(c, 0, l, columns)
 	if cp.page != nil {
 		y = cp.turnedByModel(c, y+partsApart, l, columns)
+		y = cp.turnedWeeks(c, y+partsApart, l, columns)
+		y = cp.turnedWorth(c, y+partsApart, l, columns)
 		for _, g := range cp.turnedGroups() {
 			y = cp.turnedGroup(c, y+partsApart, l, g, columns)
 		}
@@ -468,29 +480,48 @@ func (cp compared) turnedGroup(c *canvas, y int, l turnedLayout, g turnedGroup, 
 }
 
 // stacked is stacked Detail of a moment: Detail as detailDrawn has it,
-// laid out as stackLayout, its parts stacked down the frame.
+// laid out as stackLaid lays it, its parts stacked down the frame.
 type stacked struct {
 	detailDrawn
 }
 
 // stackLayout is Detail stacked: no list; BY MODEL, BY DAY and WEEKS from
-// stackAt; and its days swatchCells wide, as History's, its weeks a cell
-// apart.
-var stackLayout = detailLayout{into: stackAt, dw: dayCellsLeast, gap: 1}
+// stackAt; and its weeks a cell apart, their days as stackLaid fits them.
+var stackLayout = detailLayout{into: stackAt, gap: 1}
+
+// stackLaid is the stack's layout in the frame: its days dayCellsWide cells,
+// as History's, where the period's own weeks, as views.Period's WeeksLeast
+// has them, fit so across the stretch, else dayCellsNarrow, as daysFitting
+// has it; and as many weeks as fit it.
+func (f Frame) stackLaid() detailLayout {
+	l, room := stackLayout, f.stackStretch().Size
+	l.dw = daysFitting(room, f.Period.WeeksLeast(), l.gap)
+	l.weeks = weeksFitting(room, 7*l.dw, l.gap)
+	return l
+}
+
+// stackStretch is where a row of the stack runs from stackAt to the frame's
+// edge, after the headings' column, as flex lays it: BY MODEL's bar, and
+// the room BY DAY's weeks and WEEKS' peaks lie in; no cells where the frame
+// is narrower.
+func (f Frame) stackStretch() flex.Span {
+	spans, _ := flex.Lay(f.edge(), flex.Part{Least: stackAt, Natural: stackAt}, flex.Part{Grows: true})
+	return spans[1]
+}
 
 // stackedOf is stacked Detail of doc at now: of the account the frame's
 // Accounts shows, else all accounts, as detailDrawn has it.
 func (f Frame) stackedOf(doc status.Document, now time.Time) stacked {
-	return stacked{f.detailDrawn(doc, now, stackLayout)}
+	return stacked{f.detailDrawn(doc, now, f.stackLaid())}
 }
 
 // whole is stacked Detail drawn whole, each part under its heading, a
 // blank row between: the picker, and under it how the account stands, short,
 // as stands has it, and its token line, as note draws it; USAGE; once the
-// period's page is read, THIS WEEK, BY MODEL, BY DAY, and WEEKS with the
-// verdict under it; SESSIONS, as Detail
-// draws it, where sessions run on the account; and LATELY, its words uncut,
-// each line cut at the frame's edge.
+// period's page is read, THIS WEEK, BY MODEL, the weeks, as stackedWeeks
+// has them, and WORTH; SESSIONS, as Detail draws it, where sessions run on
+// the account; and LATELY, its words uncut, each line cut at the frame's
+// edge, as many as fit to the view's foot.
 func (s stacked) whole() stack {
 	c := growing(s.f.Width)
 	s.picker(c, 0)
@@ -498,19 +529,48 @@ func (s stacked) whole() stack {
 	y := s.usage(c, s.note(c, 1)+partsApart)
 	if s.page != nil {
 		y = s.thisWeek(c, y+partsApart)
-		y = s.byModel(c, y+partsApart) + partsApart
-		s.byDay(c, y, s.daysWeeks())
-		y = s.weeks(c, y+1+partsApart)
+		y = s.byModel(c, y+partsApart)
+		y = s.stackedWeeks(c, y+partsApart)
+		y = s.stackedWorth(c, y+partsApart)
 	}
 	var targets []Target
+	var sessions detailSessions
 	if len(s.running) > 0 {
+		sessions = s.sessionsAt(y + partsApart)
 		y, targets = s.sessions(c, y+partsApart)
 	}
 	y += partsApart
 	c.line(0, y, line{{"LATELY", dimInk}})
 	c.heading(y, y+1)
 	s.lately(c, y+1, 0, s.f.edge())
-	return stack{c: c, targets: targets}
+	return stack{c: c, targets: targets, sessions: sessions}
+}
+
+// stackedWeeks draws the weeks from row y, and returns their last row: of
+// an account, BY DAY, and WEEKS with its facts under it; of all accounts,
+// WEEKS, and under it their table, from the frame's left to its edge, as
+// tableIn lays it.
+func (s stacked) stackedWeeks(c *canvas, y int) int {
+	if s.id == "" {
+		c.line(0, y, line{{"WEEKS", dimInk}})
+		c.heading(y, y+1)
+		s.tableAt(c, s.tableFrom(0, s.f.edge()), y+1, nil)
+		return y + tableRows(len(s.page.Rows))
+	}
+	s.byDay(c, y, s.daysWeeks())
+	return s.weeks(c, y+1+partsApart)
+}
+
+// stackedWorth draws WORTH from row y, and returns its last row: its
+// heading, and under it the row's worth across the frame, as worthAcross
+// draws it, the heading paged with the chart down to its axis, so a page
+// never shows it over chart rows alone, whose bars, drawn as ground, read as
+// blank.
+func (s stacked) stackedWorth(c *canvas, y int) int {
+	c.line(0, y, line{{"WORTH", dimInk}})
+	c.heading(y, y+1+detailWorthChart)
+	worthAcross(c, s.f.Look, 0, y+1, s.f.edge(), s.row.WorthBy)
+	return y + detailWorthRows
 }
 
 // note draws the account's token line from the row under row y, where it
@@ -649,18 +709,16 @@ func versionsOver(used []versionUsed, width int) []line {
 	return slices.DeleteFunc(rows, func(l line) bool { return len(l) == 0 })
 }
 
-// stretch is where the row runs from cx to the frame's edge, after the
-// headings' column, as flex lays it: BY MODEL's bar, and the room BY DAY's
-// weeks and WEEKS' peaks lie in; no cells where the frame is narrower.
+// stretch is where the row runs from cx to the frame's edge, as
+// stackStretch lays it.
 func (s stacked) stretch() flex.Span {
-	spans, _ := flex.Lay(s.f.edge(), flex.Part{Least: s.l.cx(), Natural: s.l.cx()}, flex.Part{Grows: true})
-	return spans[1]
+	return s.f.stackStretch()
 }
 
-// daysWeeks are BY DAY's weeks shown, the latest that fit the stretch, as
-// weeksIn lays them.
+// daysWeeks are BY DAY's weeks shown, as many as the layout fits of those
+// the page holds, as weeksIn lays them across the stretch.
 func (s stacked) daysWeeks() []flex.Span {
-	return s.l.weeksIn(s.stretch().Size, len(s.page.Weeks))
+	return s.l.weeksIn(s.stretch().Size, s.weeksShown())
 }
 
 // openHang are the cells an open week's peak says past a closed one's, its
@@ -668,29 +726,25 @@ func (s stacked) daysWeeks() []flex.Span {
 // in line with the others'.
 var openHang = ansi.StringWidth(views.Peak(0, true)) - ansi.StringWidth(views.Peak(0, false))
 
-// weeks draws WEEKS along row y, and returns the verdict's last row: its
-// heading; across the stretch, keeping openHang cells at its end, the latest
-// weeks' peaks that fit, as latestFitting lays them, each as peakPart has
-// it, this week's bold text.secondary, right-aligned in stackPeakCells,
-// stackPeakGap between, an open week's … past them; and under it the
-// verdict, as verdictShort has it, a row each of its parts.
+// weeks draws WEEKS along row y, and returns the facts' row: its heading;
+// under each of BY DAY's weeks, its peak, as peakPart has it, this week's
+// bold text.secondary, right-aligned in stackPeakCells from the week's
+// first day, an open week's … past it, so BY DAY's ‹ 1 more holds for both;
+// and under it Weeks' facts on the weeks reached over, as detailFacts says
+// them, the fullest that fits.
 func (s stacked) weeks(c *canvas, y int) int {
 	c.line(0, y, line{{"WEEKS", dimInk}})
-	stretch := s.stretch()
-	spans := latestFitting(stretch.Size-openHang, len(s.row.Peaks), stackPeakCells, stackPeakGap)
-	peaks := s.row.Peaks[len(s.row.Peaks)-len(spans):]
-	for i, p := range peaks {
-		end := stretch.At + spans[i].At + spans[i].Size
+	spans := s.daysWeeks()
+	for i, p := range lastPeaks(s.row.Peaks, len(spans)) {
+		end := s.l.cx() + spans[i].At + stackPeakCells
 		if p.Open && p.Share != nil {
 			end += openHang
 		}
 		c.rightFit(end, s.f.edge(), y, peakPart(p, strongInk, Number{}))
 	}
-	for _, parts := range verdictShort(s.row) {
-		y++
-		c.line(0, y, fitParts(s.f.edge(), parts...))
-	}
-	return y
+	cells := s.f.edge()
+	c.line(0, y+1, fitParts(cells, detailFacts(s.row.Facts(s.reach())).fitting(cells)...))
+	return y + 1
 }
 
 // sessions draws SESSIONS from row y as Detail draws it, and returns the row

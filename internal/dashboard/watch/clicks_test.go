@@ -394,7 +394,9 @@ func pickerOpened(t *testing.T, h *harness, keys string) *fakeThemes {
 // open its details as enter does, neither choose it nor open them; on
 // Accounts, two on any of its targets, its sub-tabs, Compare's columns, or
 // Detail's accounts and sessions, which focus, choose and select what they
-// land on, and open it the second time, do none of it. No < or > by a period
+// land on, and open it the second time, do none of it: Detail drawn tall
+// enough to show SESSIONS with its list focused, or its session selected by
+// → and ↓, which bring SESSIONS into view. No < or > by a period
 // lies left of the picker. Nor does a Graphs section's heading, or the Log's
 // ▼ N new, each of which presses a key, hide the section or follow again,
 // nor press their key into the picker, which would clear its note.
@@ -422,6 +424,13 @@ func TestWhileThePickerIsOpenAClickUnderItDoesNothing(t *testing.T) {
 		return func(t *testing.T) (*harness, *fakeThemes) {
 			h := accountsHarness(t, shown)
 			return h, pickerOpened(t, h, "")
+		}
+	}
+	onDetail := func(rows int, keys string) func(*testing.T) (*harness, *fakeThemes) {
+		return func(t *testing.T) (*harness, *fakeThemes) {
+			h := accountsHarness(t, dashboard.AccountsShown{Shown: dashboard.AccountsDetail, Chosen: "work"})
+			h.deliver(h.update(tea.WindowSizeMsg{Width: 160, Height: rows})...)
+			return h, pickerOpened(t, h, keys)
 		}
 	}
 	onTheLogsLines := func(t *testing.T) (*harness, *fakeThemes) {
@@ -488,12 +497,12 @@ func TestWhileThePickerIsOpenAClickUnderItDoesNothing(t *testing.T) {
 		},
 		{
 			name:   "a session of Detail's SESSIONS",
-			opened: onAccounts(dashboard.AccountsShown{Shown: dashboard.AccountsDetail, Chosen: "work"}),
+			opened: onDetail(53, ""),
 			target: is(dashboard.OnSession, func(t dashboard.Target) bool { return t.Session == id7F3A }),
 		},
 		{
 			name:   "Detail's selected session",
-			opened: onAccounts(dashboard.AccountsShown{Shown: dashboard.AccountsDetail, Chosen: "work", InSessions: true, Selected: id9E21}),
+			opened: onDetail(37, "right down"),
 			target: is(dashboard.OnSession, func(t dashboard.Target) bool { return t.Session == id9E21 }),
 		},
 	}

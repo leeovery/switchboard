@@ -256,19 +256,32 @@ Where the rows don't all fit, Compare scrolls them under the accounts' names wit
 opens the focused account in Detail.
 
 Where two accounts' columns and `all accounts`' don't fit side by side, as on a phone, Compare
-turns: a group at a time, an account a row. Turned, it has no focus, and no WEEKS or WORTH yet.
+turns: a group at a time, an account a row. Turned, it has no focus, and its WEEKS and WORTH are
+bands, a band an account: WEEKS its week columns, each peak under its column and its facts at the
+right; WORTH its chart across the screen, with its peak under it.
 
 ### Detail
 
-Detail shows one account, or all of them, chosen from a list at its left. It shows:
+Detail shows one account, or all of them, chosen from a list at its left. It fills the screen,
+and shows:
 
 - the account's windows now
 - the period's requests, limits, plan, worth and extra usage
 - its use by model
-- the last weeks, six where they fit, as its rule names them, a day and a week at a time
-- its verdict, as History's Weeks gives it
+- its weeks, as many as fit across the screen, never fewer than the period's own where they fit,
+  and at least six, as its rule names them: `the last nine weeks`. At 12 months, the latest that
+  fit, with how many more there are at the left, `‹ 38 more`.
+  - Of an account, a day and a week at a time, and under them the facts on its whole weeks:
+    `limit hit 3 of the last 7 weeks · 9% left at a reset, on average`. The verdict stays in
+    History's Weeks.
+  - Of all accounts, History's Weeks without its verdict: a band of week columns an account,
+    `all accounts` first, each week's peak under its column and its facts at the right; or, where
+    Detail is stacked, as on a phone, or too narrow for a week of bands, a table, a row an
+    account, its facts in two columns.
+- WORTH: what its use was worth at API prices over the period, across the screen, and its peak
 - its SESSIONS now
-- its LATELY.
+- its LATELY, every event the router reports, filling the screen down to the key line; the rest
+  scrolls, as `▼ 12 more below` says.
 
 An account whose token expires within 30 days, or has expired, says so on a line under its state,
 with the command that makes a new one: `token expires 17 Nov 2026 · 21 days left — switchboard
@@ -278,7 +291,8 @@ In Detail:
 
 - `↑` and `↓` choose the account in the list, `all accounts` first.
 - `→` moves into the chosen account's sessions, and `←` goes back to the list.
-- In the sessions, `↑` and `↓` choose a session, and `enter` opens its page.
+- In the sessions, `↑` and `↓` choose a session, and `enter` opens its page. The screen scrolls to
+  keep the sessions and the chosen one in view.
 
 The chosen row is lit only where `↑` and `↓` act, in the list or in the sessions. The other's chosen
 row stays bold, marked `▸`, and `SESSIONS` is bright while you're in them. The list widens to fit

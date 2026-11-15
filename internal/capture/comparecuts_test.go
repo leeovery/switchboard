@@ -78,14 +78,19 @@ var turnedCutsWorlds = []string{
 // name cut short, as a name may be and its share never.
 var turnedShare = regexp.MustCompile(`…( \d+%)$`)
 
+// turnedSoFar is this week's peak in WEEKS' bands, so far, its … saying the
+// week still runs, never a cut.
+var turnedSoFar = regexp.MustCompile(`(\d+%)…`)
+
 // turnedTall is a height every row of turned Compare shows at, ten
 // accounts' among them, so none is scrolled out of view.
-const turnedTall = 120
+const turnedTall = 260
 
 // Compare turned cuts no figure at any width from 40 columns to where it
 // turns wide, over every period, in each world it's drawn in: past its
 // names' column, from WEEK USED to VALUE's last row, nothing is cut but a
-// largest version's name, and never its share.
+// largest version's name, and never its share: this week's peak in WEEKS,
+// 34%…, is so far, not cut.
 func TestCompareTurnedCutsNoFigure(t *testing.T) {
 	t.Parallel()
 	for _, name := range turnedCutsWorlds {
@@ -129,7 +134,7 @@ func turnedCuts(t *testing.T, rows []string) []string {
 	for y := week; y <= value+accounts; y++ {
 		past := strings.TrimRight(ansi.Cut(rows[y], at, ansi.StringWidth(rows[y])), " ")
 		if y > byModel && y < activity {
-			past = turnedShare.ReplaceAllString(past, "$1")
+			past = turnedSoFar.ReplaceAllString(turnedShare.ReplaceAllString(past, "$1"), "$1")
 		}
 		if strings.Contains(past, "…") {
 			cut = append(cut, rows[y])
