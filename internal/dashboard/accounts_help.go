@@ -111,7 +111,7 @@ func (f Frame) valueHelp() helpPart {
 	for _, v := range f.Accounts.views() {
 		drawn = append(drawn, accountsViews[v])
 	}
-	shared := ", " + prose.List(drawn) + " sharing the period."
+	shared := ", " + prose.List(drawn) + " sharing the period, the one Projects and Sessions' List share."
 	more, less := 4.0, 0.6
 	return helpPart{
 		heading: "VALUE",

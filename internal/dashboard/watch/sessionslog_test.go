@@ -9,6 +9,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/leeovery/switchboard/internal/dashboard"
+	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
@@ -163,6 +164,27 @@ func TestTheListsLogIsBuiltOnlyAsWhatItsBuiltOfChanges(t *testing.T) {
 	h.keyed("<")
 	if got := h.model.sessionsTab.logs; got != logs+1 {
 		t.Errorf("the period stepped, the log was built %d times more, want once", got-logs)
+	}
+}
+
+// A session running pinned to the account it's on reads "pinned here" on
+// the List as the router lists the pin, though no line of the ledger tells
+// of it; unpinned, it no longer does, as soon.
+func TestAPinOfASessionRunningIsDrawnAsTheRouterListsIt(t *testing.T) {
+	h := listHarness(t, Size{Width: 160, Height: 50})
+	running(h, alphaSecond, "/code/alpha")
+	fed := h.model.sessionDays.fed
+	for _, step := range []struct {
+		reason string
+		pinned bool
+	}{{status.ReasonPinned, true}, {status.ReasonSticky, false}} {
+		runningAs(h, alphaSecond, "/code/alpha", "work", step.reason, "")
+		if got := h.model.sessionDays.fed; got != fed {
+			t.Fatalf("the tail fed the days %d times, want none, the pin told by the router alone", got-fed)
+		}
+		if pinned := strings.Contains(h.view(), "pinned here"); pinned != step.pinned {
+			t.Errorf("the router listing it %q, the List says pinned here %t, want %t:\n%s", step.reason, pinned, step.pinned, h.view())
+		}
 	}
 }
 

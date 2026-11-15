@@ -250,7 +250,7 @@ func TestAccountsHelpSaysWhatItsFiguresAre(t *testing.T) {
 		{"why worth is unpriced", "of a model the price table doesn't know or of requests that went upstream without their usage"},
 		{"how a period is priced", "a day 12/365 of a month, a week 12/52, 30 days a month, 12 weeks twelve weeks' and 12 months twelve months'"},
 		{"how the periods run", "today and this week run from their starts, 30 days and 12 months back from today, and 12 weeks over this week and the 11 before"},
-		{"the periods stepped through", "through today, this week, 30 days, 12 weeks and 12 months, Compare, Detail and Tokens sharing"},
+		{"the periods stepped through", "through today, this week, 30 days, 12 weeks and 12 months, Compare, Detail and Tokens sharing the period, the one Projects and Sessions' List share."},
 		{"Tokens' total", "The whole period's row leads, named for it, its figures its rows' summed, but its models, each counted once"},
 		{"Tokens' rows", "a day each over this week and 30 days, a week each over 12 weeks and a month each over 12 months"},
 		{"a part-way row priced by its days", "but for one that begins part-way through, as the oldest month at 12 months or the one the ledger began in, priced by its days from then"},
@@ -276,9 +276,9 @@ func TestAccountsHelpSaysWhatItsFiguresAre(t *testing.T) {
 }
 
 // With one account, Compare gone, help says Detail and Tokens share the
-// period.
+// period, with Projects and Sessions' List.
 func TestAccountsHelpOfOneAccountSaysItsViewsShareThePeriod(t *testing.T) {
-	if said, want := accountsHelpSaid(oneShown), "12 weeks and 12 months, Detail and Tokens sharing the period."; !strings.Contains(said, want) {
+	if said, want := accountsHelpSaid(oneShown), "12 weeks and 12 months, Detail and Tokens sharing the period, the one Projects and Sessions' List share."; !strings.Contains(said, want) {
 		t.Errorf("help reads\n%s\nwant it to say %q", said, want)
 	}
 }

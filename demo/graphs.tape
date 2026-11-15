@@ -1,4 +1,4 @@
-# A still for the README's grid: Graphs, drawn from the fixture named after
+# A still for the README's grid: Trends, drawn from the fixture named after
 # its signed-off frame: the burn-down cards, a card an account over its own
 # week, two a row: work at its cap till 17:10, personal's and side's weeks
 # running out at their pace, and the pool's room under them.

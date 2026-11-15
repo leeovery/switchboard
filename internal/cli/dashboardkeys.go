@@ -18,13 +18,15 @@ var keysSaid = map[string]string{
 	"every page": "t and p work where they apply: t not under NO_COLOR, and p neither with one account, " +
 		"unless a pin set from the command line stands, nor with --probe. p opens the routing card, which picks " +
 		"the accounts new sessions go to and changes nothing until enter. j, k, PgDn, PgUp and the wheel scroll " +
-		"a view where it doesn't fit: the Overview's USAGE, Accounts' views, Sessions' List and lanes, Runway's " +
-		"lanes, Trends' page, the Log's table, and a session's turns, or an open turn's requests. w, where it's " +
-		"listed as models, shows and hides each model's own window; one near its limit shows either way.",
+		"a view where it doesn't fit: the Overview's USAGE, Accounts' views, a project's SESSIONS, " +
+		"Sessions' List and lanes, Runway's lanes, Trends' page, the Log's table, and a session's " +
+		"turns, or an open turn's requests. w, where it's listed as models, shows and hides each model's own " +
+		"window; one near its limit shows either way.",
 	"Overview": "u, r, s, c and l show and hide USAGE, ROUTING, SESSIONS, COMING UP and LATELY; " +
 		"b groups the windows by window or by account, as the config's [usage] by has them until b is pressed; " +
 		"and ↑↓ scrolls USAGE, as j and k do, where it doesn't fit, left to ? as they are.",
-	"Accounts": "< and > step the period both views count over: " + prose.List(views.PeriodNames()) + ". " +
+	"Accounts": "< and > step the period Compare, Detail and Tokens count over, the one Projects and Sessions' List " +
+		"share: " + prose.List(views.PeriodNames()) + ". " +
 		"←→ moves along Compare's accounts, and enter opens one in Detail; there ↑↓ chooses an account, " +
 		"→ moves into its SESSIONS and ← back, and enter opens the session chosen.",
 	"Runway": "← steps back to this week, then a week at a time, and → on again to the live view; and a " +

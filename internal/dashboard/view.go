@@ -53,10 +53,14 @@ func Views() []View {
 	return []View{Overview, Accounts, Projects, Sessions, Runway, Graphs, Log}
 }
 
+// historyView is the History tab, by the name the preferences kept it under
+// in builds that had it.
+const historyView View = "history"
+
 // retiredViews are tabs earlier builds had, by the names the preferences
 // kept them under, each with the tab that took its place: History's, whose
 // pictures over time went to Trends.
-var retiredViews = map[View]View{"history": Graphs}
+var retiredViews = map[View]View{historyView: Graphs}
 
 // ViewKept is the tab the preferences kept by the name given: the one that
 // took its place where it's retired, else the one it names, whether a tab

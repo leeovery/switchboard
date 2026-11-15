@@ -99,8 +99,16 @@ func withDelta(h *harness) *harness {
 // given, from now, its look at it taken in.
 func running(h *harness, id, project string) {
 	h.t.Helper()
+	runningAs(h, id, project, "work", "", "")
+}
+
+// runningAs is the router listing the session given running in the project
+// given, on the account given, there for the reason given, and its request
+// in flight as given, "" where none is, seen now, its look at it taken in.
+func runningAs(h *harness, id, project, account, reason, inFlight string) {
+	h.t.Helper()
 	h.source.sessions = []status.Session{{ID: id, Assignments: []status.Assignment{
-		{Model: opus, Account: "work", Dir: project, Project: project, AssignedAt: h.clock.now, LastSeen: h.clock.now},
+		{Model: opus, Account: account, Dir: project, Project: project, Reason: reason, AssignedAt: h.clock.now, LastSeen: h.clock.now, InFlight: inFlight},
 	}}}
 	h.tickUntilAsked()
 }
@@ -361,6 +369,101 @@ func TestProjectsPagesAreBuiltOnlyAsWhatTheyreBuiltOfChanges(t *testing.T) {
 	built(2, 3, "<")
 	running(h, betaOnly, "/code/beta")
 	built(3, 4, "a session started running")
+}
+
+// periodTabs are the tabs built of the sessions' days, each opened and
+// started: how many times its page has been built; and what's drawn of
+// what the session with the given id is doing, its project's row's too on
+// Projects, the top row, chosen.
+var periodTabs = []struct {
+	name   string
+	open   func(t *testing.T) *harness
+	builds func(m Model) int
+	doing  func(m Model, id string) []views.Doing
+}{
+	{
+		name:   "Projects",
+		open:   func(t *testing.T) *harness { h := projectsHarness(t, dashboard.Projects); h.start(); return h },
+		builds: func(m Model) int { return m.projects.pages },
+		doing: func(m Model, id string) []views.Doing {
+			doing := []views.Doing{m.projects.shown.Page.Rows[0].Activity.Doing}
+			return append(doing, doingOf(m.projects.shown.Project.Sessions, id)...)
+		},
+	},
+	{
+		name:   "the List",
+		open:   func(t *testing.T) *harness { return listHarness(t, Size{Width: 160, Height: 50}) },
+		builds: func(m Model) int { return m.sessionsTab.logs },
+		doing:  func(m Model, id string) []views.Doing { return doingOf(m.sessionsTab.shown.Log.Sessions, id) },
+	},
+}
+
+// doingOf is what the session with the given id is doing, of the rows
+// given, as many times as they row it.
+func doingOf(rows []views.PeriodSession, id string) []views.Doing {
+	var doing []views.Doing
+	for _, s := range rows {
+		if s.Session == id {
+			doing = append(doing, s.Activity.Doing)
+		}
+	}
+	return doing
+}
+
+// What a session running is doing reaches what Projects and the List draw
+// of it, and of its project, without either built again: asking as its
+// request goes out, and idle again as it's answered.
+func TestWhatASessionRunningDoesIsDrawnWithoutABuild(t *testing.T) {
+	for _, tt := range periodTabs {
+		t.Run(tt.name, func(t *testing.T) {
+			h := tt.open(t)
+			running(h, alphaSecond, "/code/alpha")
+			builds := tt.builds(h.model)
+			for _, step := range []struct {
+				inFlight string
+				doing    views.Doing
+				asking   bool
+			}{{status.Asking, views.Asking, true}, {"", views.Idle, false}} {
+				runningAs(h, alphaSecond, "/code/alpha", "work", "", step.inFlight)
+				if got := tt.builds(h.model); got != builds {
+					t.Errorf("as the router listed it %q in flight, the page was built %d times more, want none", step.inFlight, got-builds)
+				}
+				doing := tt.doing(h.model, alphaSecond)
+				if len(doing) == 0 || slices.ContainsFunc(doing, func(d views.Doing) bool { return d != step.doing }) {
+					t.Errorf("as the router listed it %q in flight, what's drawn of it does %v, want each %v", step.inFlight, doing, step.doing)
+				}
+				if asking := strings.Contains(h.view(), status.Asking); asking != step.asking {
+					t.Errorf("as the router listed it %q in flight, the screen says asking %t, want %t:\n%s", step.inFlight, asking, step.asking, h.view())
+				}
+			}
+		})
+	}
+}
+
+// A session starting, moving to another project or another account, or
+// ending builds Projects and the List again, once each.
+func TestASessionStartingMovingOrEndingBuildsThePeriodAgain(t *testing.T) {
+	steps := []struct {
+		name   string
+		change func(h *harness)
+	}{
+		{"started running", func(h *harness) { runningAs(h, betaOnly, "/code/beta", "work", "", "") }},
+		{"moved to another project", func(h *harness) { runningAs(h, betaOnly, "/code/alpha", "work", "", "") }},
+		{"moved to another account", func(h *harness) { runningAs(h, betaOnly, "/code/alpha", "side", "", "") }},
+		{"ended", func(h *harness) { h.source.sessions = nil; h.tickUntilAsked() }},
+	}
+	for _, tt := range periodTabs {
+		t.Run(tt.name, func(t *testing.T) {
+			h := tt.open(t)
+			for _, step := range steps {
+				builds := tt.builds(h.model)
+				step.change(h)
+				if got := tt.builds(h.model) - builds; got != 1 {
+					t.Errorf("as a session %s, the page was built %d times, want once", step.name, got)
+				}
+			}
+		})
+	}
 }
 
 // The project chosen and the session selected are kept, by path and by id,

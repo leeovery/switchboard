@@ -22,11 +22,11 @@ demo/record.sh routing help   # the tapes named
 |---|---|---|---|
 | `tour` | `routing` | 160 × 37 | `art/tour.webp`, `.mp4`: the README's lead: a tour of the dashboard's pages |
 | `routing` | `routing` | 160 × 37 | `art/routing.webp`, `.mp4`: the routing card in `docs/dashboard.md`, the Overview, then the card pinning new and running sessions to side |
-| `dashboard` | `dashboard` | 160 × 37 | `art/dashboard.webp`, `.mp4`: one account's Overview, its cards on Graphs, then Runway's week |
+| `dashboard` | `dashboard` | 160 × 37 | `art/dashboard.webp`, `.mp4`: one account's Overview, its cards on Trends, then Runway's week |
 | `themes` | `routing` | 160 × 37 | `art/themes.webp`, `.mp4`: the theme picker, previewing the built-ins over the Overview, from tokyo-night |
 | `repatch` | `repatch` | 160 × 37 | `art/repatch.webp`, `.mp4`: Sessions as personal reaches its limit |
 | `runway-week` | `routing` | 160 × 37 | `art/runway-week.webp`, a still: Runway over the week |
-| `graphs` | fixture `graphs-160x37` | 160 × 37 | `art/graphs.webp`, a still: Graphs' burn-down cards, a card an account over its week, two a row |
+| `graphs` | fixture `graphs-160x37` | 160 × 37 | `art/graphs.webp`, a still: Trends' burn-down cards, a card an account over its week, two a row |
 | `phone` | `routing` | 52 × 36 | `art/phone.webp`, a still: the Overview at 52 × 36 |
 | `help` | `routing` | 160 × 37 | `art/help.webp`, a still: the Overview's help |
 | `accounts-compare` | fixture `accounts-compare-160` | 160 × 37 | `art/accounts-compare.webp`, a still: Accounts' Compare over this week |

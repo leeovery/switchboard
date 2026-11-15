@@ -202,6 +202,14 @@ func MeasureLog(log *views.SessionLog, now time.Time) LogMeasured {
 	return LogMeasured{of: log, started: words.widest(listStarted, log.Sessions, sessionEnded)}
 }
 
+// Of is what was measured, as of the log given: one views' SessionLog's
+// Live told afresh of the log measured, its sessions ended saying what they
+// said.
+func (m LogMeasured) Of(log *views.SessionLog) LogMeasured {
+	m.of = log
+	return m
+}
+
 // listForm is Sessions' List as its form draws it, of doc at now, once the
 // watch has built its log of the period: nothing before, as its heading
 // says it's loading.
@@ -272,10 +280,10 @@ func periodWorth(w views.Worth) line {
 	return append(said, span{" at API prices", mutedInk})
 }
 
-// noSessionsIn are the List's words where it has no session of the period
-// to list, in place of its rows, the period as its Within says it: "no
-// sessions today", "no sessions this week" or "no sessions in the last 30
-// days".
+// noSessionsIn are the List's words, and Projects', where it has no session
+// of the period to list, in place of its rows, the period as its Within says
+// it: "no sessions today", "no sessions this week" or "no sessions in the
+// last 30 days".
 func noSessionsIn(p views.Period) line {
 	return line{{prose.SessionCount(0) + " " + p.Within(), faintInk}}
 }

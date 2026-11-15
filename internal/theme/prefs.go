@@ -1,6 +1,7 @@
 package theme
 
 import (
+	"cmp"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -30,7 +31,7 @@ type Prefs struct {
 	// sessions, runway, graphs and log, for a watch to open on: "" for the
 	// default, the Overview, as one it doesn't name reads. Earlier builds
 	// also kept history, which the dashboard opens as the tab that took its
-	// place. Milestone 5 kept its card view
+	// place, Trends with YEAR shown. Milestone 5 kept its card view
 	// under "view", as "accounts", which isn't today's Accounts: a file of
 	// then is read as having no tab, its "view" kept as a key these don't
 	// know.
@@ -88,10 +89,12 @@ type LogPrefs struct {
 
 // AccountsPrefs are what Accounts shows, each by its name: the view shown,
 // compare, detail or tokens; and Tokens' split, account, model,
-// account+model or none. A name the dashboard doesn't know reads as the
-// default. What's chosen in a view is the run's alone. Period is where
-// builds from before the dial was shared kept it, as Accounts' own: read
-// where Prefs.Period keeps none, and dropped as the period is next kept.
+// account+model or none, read, where it keeps none, from History's Tokens'
+// in builds that had the tab, as historySplit has it. A name the dashboard
+// doesn't know reads as the default. What's chosen in a view is the run's
+// alone. Period is where builds from before the dial was shared kept it, as
+// Accounts' own: read where Prefs.Period keeps none, and dropped as the
+// period is next kept.
 type AccountsPrefs struct {
 	View   string `json:"view,omitempty"`
 	Split  string `json:"split,omitempty"`
@@ -143,9 +146,9 @@ var prefsKeys = func() []string {
 	return keys
 }()
 
-// retiredKeys are keys earlier builds kept that no build reads now, which
-// the next write drops: graphs, the chart the Overview's GRAPHS drew; and
-// history, what the History tab's views showed.
+// retiredKeys are keys earlier builds kept that no build reads now, but as
+// read says, which the next write drops: graphs, the chart the Overview's
+// GRAPHS drew; and history, what the History tab's views showed.
 var retiredKeys = []string{"graphs", "history"}
 
 // retiredSections are the Overview's sections earlier builds kept shown that
@@ -163,7 +166,8 @@ func (f PrefsFile) Read() Prefs {
 
 // read reads the preferences as Read does, and the keys of the file they
 // don't know, as a newer build's preferences, as they're written there: but
-// none of what's retired, as retiredKeys and retiredSections name it.
+// none of what's retired, as retiredKeys and retiredSections name it, once
+// Accounts' Tokens' split is read from History's where it keeps none.
 func (f PrefsFile) read() (Prefs, map[string]json.RawMessage) {
 	data, err := os.ReadFile(f.path)
 	switch {
@@ -183,11 +187,27 @@ func (f PrefsFile) read() (Prefs, map[string]json.RawMessage) {
 		f.setAside(err)
 		return Prefs{}, nil
 	}
+	p.Accounts.Split = cmp.Or(p.Accounts.Split, historySplit(others["history"]))
 	for _, key := range slices.Concat(prefsKeys, retiredKeys) {
 		delete(others, key)
 	}
 	p.Sections = withoutRetired(p.Sections)
 	return p, others
+}
+
+// historySplit is the split History's Tokens kept, as history.tokens.split,
+// in builds that had the tab, of the history key given: "" where it keeps
+// none, or can't be read.
+func historySplit(history json.RawMessage) string {
+	var kept struct {
+		Tokens struct {
+			Split string `json:"split"`
+		} `json:"tokens"`
+	}
+	if json.Unmarshal(history, &kept) != nil {
+		return ""
+	}
+	return kept.Tokens.Split
 }
 
 // withoutRetired are the Overview's sections kept, those retiredSections

@@ -41,16 +41,14 @@ const (
 	nameNarrows
 )
 
-// The list's words: its heads, but the bar's, which has none; the words of
-// the sessions with no directory, and of every project's row; and what it
-// says with no project to list.
+// The list's words: its heads, but the bar's, which has none; and the words
+// of the sessions with no directory, and of every project's row.
 var (
 	projectHeads = map[projectsPart]string{
 		listedName: "project", listedLive: "live", listedSessions: "sessions", listedWorth: "worth", listedRequests: "requests", listedLast: "last",
 	}
 	noDirectory = "no directory"
 	allProjects = "all projects"
-	noProjects  = line{{"no sessions", faintInk}}
 	projectsOut = []outForm{{noun: "project", gap: " · ", inks: keyedOut}, {gap: " · ", inks: keyedOut}}
 )
 
@@ -65,7 +63,8 @@ type projectColumn struct {
 // in its look, width cells wide: its rows, the one chosen among them, and
 // every project's; its columns; whether ↑ and ↓ act in it, lighting its
 // chosen row; and how many of its projects it shows from the first shown,
-// as far as it's scrolled to show the one chosen.
+// as far as it's scrolled to show the one chosen; and the period it counts
+// over.
 type projectsList struct {
 	rows    []views.ProjectRow
 	chosen  int
@@ -77,6 +76,7 @@ type projectsList struct {
 	width   int
 	look    Look
 	now     time.Time
+	period  views.Period
 }
 
 // listedProject is a row of the list: what names it, its totals, and its
@@ -94,7 +94,7 @@ type listedProject struct {
 // row lit where lit says.
 func projectsListOf(f Frame, rows int, lit bool, now time.Time) projectsList {
 	s := f.Projects
-	l := projectsList{rows: s.rows(), chosen: s.chosenAt(), lit: lit, width: f.Width, look: f.Look, now: now}
+	l := projectsList{rows: s.rows(), chosen: s.chosenAt(), lit: lit, width: f.Width, look: f.Look, now: now, period: f.Period}
 	if s.Page != nil {
 		l.all = s.Page.All
 	}
@@ -184,10 +184,11 @@ func (l projectsList) linesShown() int {
 // bar; its projects shown, as row draws each; the line saying how many more
 // there are above and below, as Detail's list says them; the rule across the
 // list, in border.subtle; and every project's row. It returns the row after
-// it. Of no project, it says there's none.
+// it. Of no project, it says there's no session of the period, as the List
+// says it.
 func (l projectsList) draw(c *canvas, y int) int {
 	if len(l.rows) == 0 {
-		c.line(listFrom, y, noProjects)
+		c.line(listFrom, y, noSessionsIn(l.period).fit(l.width-listFrom))
 		return y + 1
 	}
 	for _, col := range l.columns {

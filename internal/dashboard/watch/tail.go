@@ -295,7 +295,8 @@ func readLines(l views.Ledger, mark ledger.Mark, late []string) (tailLines, ledg
 
 // tailed takes in what a read of the ledger's tail found: the tail read to
 // its mark; the sessions' days as it fed them, as tailFed has it, whatever
-// shows; the store as the read fed it, with the sessions taken into it
+// shows, bounded to the dial's period on the day it was read, as bounded
+// has it; the store as the read fed it, with the sessions taken into it
 // as the read was under way, as heldWith keeps them, and none the read let
 // go; each reader grown by it, where it was read for one, as logGrown and
 // pageTaken have them, the page taking its session from the store; today's
@@ -304,7 +305,7 @@ func readLines(l views.Ledger, mark ledger.Mark, late []string) (tailLines, ledg
 // lined has it, for letGo.
 func (m Model) tailed(msg tailedMsg) Model {
 	m.tail = m.tail.read(msg.tailRead)
-	m.sessionDays = m.sessionDays.tailFed(msg.days)
+	m.sessionDays = m.sessionDays.tailFed(msg.days).bounded(m.period.From(msg.at, m.cfg.WeekStarts), dayfile.DateOf(msg.at))
 	m = m.traced(msg.lines.gained)
 	if msg.held != nil {
 		m = m.holding(msg.held.With(m.merged), msg.retells || m.mergedAny)

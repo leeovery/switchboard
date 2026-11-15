@@ -206,6 +206,62 @@ func (d SessionDays) Without(read SessionDays) SessionDays {
 	return d
 }
 
+// From is d, the days read, as ReadSessionDays reads them, first reading
+// from's day, where that's later than the first d reads: none of the days
+// before it held, and begun the first requests of the sessions that ran on
+// the day before it, as d and tailed, the days the ledger's tail fed,
+// joined hold that day, each the earliest the joined days hold before it
+// or d's walk back found, as startedBefore has them, so a session running
+// into the first day still starts at its first request. That can be
+// earlier than a read from from's day finds, which walks back 31 days at
+// most, and no further than a session ran every day: the truer start, so
+// it's kept. d as it is otherwise. tailed lets go of the days before it
+// once Without is given the result.
+func (d SessionDays) From(from time.Time, tailed SessionDays) SessionDays {
+	first := dayfile.DateOf(from)
+	if first <= d.first {
+		return d
+	}
+	joined := tailed.Joined(d)
+	started := joined.startedBefore(first)
+	d.begun = make(map[string]time.Time)
+	for _, id := range joined.ranOn(dayfile.DateOf(dayfile.DayStart(from, -1))) {
+		if at, ok := started[id]; ok {
+			d.begun[id] = at
+		}
+	}
+	d.days = slices.DeleteFunc(slices.Clone(d.days), func(day sessionDay) bool { return day.date < first })
+	d.first = first
+	return d
+}
+
+// ranOn are the ids of the sessions d holds of the day with the given date:
+// of the day its fold of the tail is of, as the fold holds them, else of a
+// day gone, as its records hold them.
+func (d SessionDays) ranOn(date string) []string {
+	if date == d.today.Date {
+		return slices.Collect(maps.Keys(d.held.held))
+	}
+	i, found := dayAt(d.days, date)
+	if !found {
+		return nil
+	}
+	ids := make([]string, len(d.days[i].sessions))
+	for j, s := range d.days[i].sessions {
+		ids[j] = s.ID
+	}
+	return ids
+}
+
+// Dates are the dates of the days gone d holds, oldest first.
+func (d SessionDays) Dates() []string {
+	dates := make([]string, len(d.days))
+	for i, day := range d.days {
+		dates[i] = day.date
+	}
+	return dates
+}
+
 // readLater reports whether d holds the day of day's date read whole later
 // than day was.
 func (d SessionDays) readLater(day sessionDay) bool {

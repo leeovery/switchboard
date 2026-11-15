@@ -18,8 +18,9 @@ import (
 // sessions' days the ledger's tail fed, today's at every read of it from
 // the first, whether or not either has shown, and each day gone since one
 // first asked for its own, as daysFeed has it, and how many reads told
-// otherwise of them; and whether a read is under way, and how many were
-// asked, a read another overtook passed over.
+// otherwise of them; whether a read is under way, and how many were asked,
+// a read another overtook passed over; and the date of the day they were
+// last bounded on, or read on, as bounded has it.
 type periodDays struct {
 	days    *views.SessionDays
 	from    time.Time
@@ -28,14 +29,17 @@ type periodDays struct {
 	fed     int
 	reading bool
 	asked   int
+	boundOn string
 }
 
 // daysReadMsg is a read of the sessions' days, the asked'th: the days from
-// the start of the day from to the day before now's, as readDays read them.
+// the start of the day from to the day before now's, as readDays read them,
+// and the date of now's day.
 type daysReadMsg struct {
 	asked int
 	days  views.SessionDays
 	from  time.Time
+	on    string
 }
 
 // readsDays reports whether what the watch shows is built of the sessions'
@@ -71,23 +75,46 @@ func (m Model) readDays() (Model, tea.Cmd) {
 	m.sessionDays.reading = true
 	asked := m.sessionDays.asked
 	return m, func() tea.Msg {
-		return daysReadMsg{asked: asked, days: views.ReadSessionDays(l, from, now), from: from}
+		return daysReadMsg{asked: asked, days: views.ReadSessionDays(l, from, now), from: from, on: dayfile.DateOf(now)}
 	}
 }
 
 // daysRead takes in a read of the sessions' days, but one another overtook:
 // held in place of those held before, the days the tail fed letting go of
 // those it stands for, as withoutRead has it, for what's built of them to
-// be built afresh.
+// be built afresh, bounded next on a day after the one it was read on, as
+// bounded has it.
 func (m Model) daysRead(msg daysReadMsg) Model {
 	if msg.asked != m.sessionDays.asked {
 		return m
 	}
 	m.sessionDays.reading = false
-	m.sessionDays.days, m.sessionDays.from = &msg.days, msg.from
+	m.sessionDays.days, m.sessionDays.from, m.sessionDays.boundOn = &msg.days, msg.from, msg.on
 	m.sessionDays.tailed = m.sessionDays.withoutRead(m.sessionDays.tailed)
 	m.sessionDays.read++
 	return m
+}
+
+// bounded is d holding no more days than the period from from's day draws,
+// once on each day, the one with the given date: where days read are held,
+// none under way, the days read before from's let go of, as views'
+// SessionDays' From has it, and the tail's with them, as withoutRead has
+// it, so a dashboard left open holds no more as the days turn. A dial
+// stepped further back than that reads them again, as readDays has it.
+// None is counted read: what's built of them is of the period's days alone,
+// and built afresh as the day turns anyway, as periodBuiltOf has it.
+func (d periodDays) bounded(from time.Time, on string) periodDays {
+	if d.days == nil || d.reading || d.boundOn == on {
+		return d
+	}
+	d.boundOn = on
+	if !d.from.Before(from) {
+		return d
+	}
+	days := d.days.From(from, d.tailed)
+	d.days, d.from = &days, from
+	d.tailed = d.withoutRead(d.tailed)
+	return d
 }
 
 // withoutRead is days, as the ledger's tail fed them, without those the
@@ -221,11 +248,16 @@ func (b periodBuiltOf) same(o periodBuiltOf) bool {
 }
 
 // runningKey is a session the List lists, by what of it a page of the
-// sessions' days draws and is built of, but what changes as its answer
-// streams: its id, where it runs, its account and model, its mark, and what
-// it's doing.
+// sessions' days is built of: its id, whether it runs, where, its account
+// and model, and what its routing says, as a pin the router lists alone
+// changes it; and its mark and what it's doing where it doesn't run, its
+// row's words measured once as the page is built. What one running is
+// doing, and its mark, which shows it, are told afresh without a build, as
+// the page's Live tells them.
 type runningKey struct {
 	id, dir, project, account, model string
+	routing, routingCost             string
+	running                          bool
 	mark                             views.RowMark
 	doing                            views.Doing
 	since                            time.Time
@@ -234,17 +266,21 @@ type runningKey struct {
 }
 
 // listingKeys are the sessions of the List given that of says, in its order, by
-// what's drawn of each, as runningKey has it.
+// what a page is built of of each, as runningKey has it.
 func listingKeys(list views.SessionList, of func(views.ListedSession) bool) []runningKey {
 	var keys []runningKey
 	for _, s := range list.Sessions {
-		if of(s) {
-			a := s.Activity
-			keys = append(keys, runningKey{
-				id: s.Session, dir: s.Dir, project: s.Project, account: s.Account, model: s.Model, mark: s.Mark,
-				doing: a.Doing, since: a.Since, status: a.Status, stale: a.Stale,
-			})
+		if !of(s) {
+			continue
 		}
+		k := runningKey{
+			id: s.Session, dir: s.Dir, project: s.Project, account: s.Account, model: s.Model,
+			routing: s.Routing.Words.String(), routingCost: s.Routing.CostSaid(), running: s.Running,
+		}
+		if a := s.Activity; !s.Running {
+			k.mark, k.doing, k.since, k.status, k.stale = s.Mark, a.Doing, a.Since, a.Status, a.Stale
+		}
+		keys = append(keys, k)
 	}
 	return keys
 }

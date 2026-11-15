@@ -78,6 +78,31 @@ func TestGraphsSectionsAreKeyedAndWordedAsTheDesignHasThem(t *testing.T) {
 	}
 }
 
+// Trends' sections kept are read as kept, to keep no more; but where the tab
+// kept is History's, which Trends opens in place of, with YEAR shown too,
+// where History's Year went, the rest as kept, to keep so.
+func TestGraphsKeptShowYEARWhereTheTabKeptIsHistorys(t *testing.T) {
+	tests := []struct {
+		name     string
+		kept     theme.Prefs
+		want     []string
+		wantKeep bool
+	}{
+		{name: "Trends kept, its sections none", kept: theme.Prefs{Tab: "graphs"}, want: []string{"week"}},
+		{name: "another tab kept, its sections kept", kept: theme.Prefs{Tab: "log", GraphsTab: theme.GraphsPrefs{Sections: []string{"pool"}}}, want: []string{"pool"}},
+		{name: "History kept, Trends' sections none", kept: theme.Prefs{Tab: "history"}, want: []string{"week", "year"}, wantKeep: true},
+		{name: "History kept, Trends' sections kept", kept: theme.Prefs{Tab: "history", GraphsTab: theme.GraphsPrefs{Sections: []string{"when", "pool"}}}, want: []string{"pool", "when", "year"}, wantKeep: true},
+		{name: "History kept, YEAR kept shown", kept: theme.Prefs{Tab: "history", GraphsTab: theme.GraphsPrefs{Sections: []string{"year"}}}, want: []string{"year"}, wantKeep: true},
+		{name: "History kept, Trends' sections kept as none", kept: theme.Prefs{Tab: "history", GraphsTab: theme.GraphsPrefs{Sections: []string{}}}, want: []string{"year"}, wantKeep: true},
+	}
+	for _, tt := range tests {
+		got, keep := GraphsKept(tt.kept)
+		if !slices.Equal(got.Names(), tt.want) || keep != tt.wantKeep {
+			t.Errorf("%s: Trends shows %q, to keep %t; want %q, %t", tt.name, got.Names(), keep, tt.want, tt.wantKeep)
+		}
+	}
+}
+
 // Graphs shows WEEK at first; each key shows its section where it's hidden
 // and hides it where it shows; and the preferences keep them by name, nil for
 // those shown at first, none kept as none, a name of no section passed over,

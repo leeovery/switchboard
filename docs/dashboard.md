@@ -1003,6 +1003,7 @@ What scrolls on each page:
   each window's heading on its first row while that window's rows pass under it, and its last row
   says how many rows are out of view above and below. `↑` and `↓` scroll it too.
 - **Accounts:** its view.
+- **Projects:** a project's SESSIONS. The list follows the project chosen, by `↑` and `↓`.
 - **Sessions:** the List, and the Switchboard's accounts where they don't fit.
 - **Runway:** its lanes.
 - **Trends:** the whole page, where its sections don't fit. `?` lists its scrolling keys always.
@@ -1148,11 +1149,13 @@ dashboard opens with them.
 It remembers:
 
 - the theme, or the pair
-- the tab shown: a file from before History left the tabs that kept it opens Trends
+- the tab shown: a file from before History left the tabs that kept it opens Trends, with YEAR
+  shown too, and keeps it so
 - the Overview's sections shown, and its `b` grouping
 - whether `w` shows each model's own window
 - the period, one dial for the dashboard
-- Accounts' view, and Tokens' split
+- Accounts' view, and Tokens' split, which takes History's Tokens' split from a file from before
+  History left the tabs, where it keeps none of its own
 - Sessions' view
 - whether `a` collapsed Runway's labels
 - Trends' sections shown

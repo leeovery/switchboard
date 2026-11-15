@@ -153,6 +153,7 @@ func (a *app) dashboard(ctx context.Context, out io.Writer, opts dashboardOption
 	kept := t.kept()
 	// Without a home directory, a session's directory shows whole.
 	home, _ := a.HomeDir()
+	graphs, keepGraphs := dashboard.GraphsKept(kept)
 	wc := watch.Config{
 		Source:        a.source(cfg, opts.probe),
 		ProbeOnly:     opts.probe,
@@ -175,7 +176,8 @@ func (a *app) dashboard(ctx context.Context, out io.Writer, opts dashboardOption
 		AccountsShown: dashboard.AccountsKept(kept.Accounts),
 		SessionsShown: dashboard.SessionsKept(kept.Sessions),
 		RunwayShown:   dashboard.RunwayKept(kept.Runway),
-		Graphs:        dashboard.GraphsSectionsNamed(kept.GraphsTab.Sections),
+		Graphs:        graphs,
+		KeepGraphs:    keepGraphs,
 		Log:           dashboard.LogKept(kept.Log),
 		LedgerKeep:    cfg.Ledger.Keep,
 		Prices:        pricing(cfg),

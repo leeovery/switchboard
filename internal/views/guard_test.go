@@ -182,6 +182,8 @@ var (
 		"views.SessionsWanted.Paging", "views.HeldSessions.Len",
 		"views.HeldPage.On",
 		"views.ReadSessionDays", "views.SessionDays.Tailed", "views.SessionDays.Projects", "views.ProjectsPage.Project",
+		"views.SessionDays.SessionLog", "views.SessionDays.Joined", "views.SessionDays.Without", "views.SessionDays.Owed", "views.SessionDays.Told",
+		"views.SessionDays.TodayAlone", "views.AccountsPage.Hourly",
 	}
 )
 
