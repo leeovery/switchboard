@@ -5,43 +5,53 @@ The words switchboard uses in a sense of its own. Every page uses them in this s
 **Account.** One Claude subscription that you've added to switchboard. You see it by its label,
 such as `work`, and commands name it by the id switchboard gives it, such as `b6s7`.
 
-**Cap.** The point where the reserve of an account begins. With a reserve of 10%, the cap is at
+**Cap.** The point where an account's reserve begins. With a reserve of 10%, the cap is at
 90% of each window.
 
 **Direct.** A session that starts without the router. `switchboard run --direct` starts one on
 the account Claude Code itself is signed into. If you set `when_router_down = "direct"`, a session
-started while the router is down goes direct on an account of its pool.
+started while the router is down goes direct on its pool's primary.
 
-**Fence.** The folders a pool is tied to. A session started in one of them, in a folder beneath
-it, or in a git worktree of a repository there, belongs to that pool.
+**Fence.** The folders a pool is tied to. A session belongs to that pool if it starts in one of
+those folders, in a folder beneath one, or in a git worktree of a repository inside one.
 
 **Label.** The name you give an account or a pool, shown on every screen. You can change it
 whenever you like.
 
-**Ledger.** The record of every request the router handles, without its content. It's kept as a
-file a day, for 400 days unless you set another length.
+**Ledger.** Every request the router handles, kept without its content in a file a day. The ledger is
+part of the record, kept for 400 days unless you set another length.
 
 **Limit.** The most of a window that Claude lets an account use. An account at a limit can't take
 more requests in that window until it resets.
 
 **Open accounts.** The accounts new sessions can go to right now: every account in the pool, or
 only the pinned ones while a pin holds. The dashboard and `usage` still call these the pool, for
-example in `Σ pool`. That's a second meaning of the word, and this term replaces it.
+example in `Σ pool`. This term replaces that second meaning of the word.
 
 **Pin.** Your choice of account for new sessions, or for one running session, in place of the
-choice of the router. A pin gives way when its account hits a limit.
+router's choice. A pin gives way when its account hits a limit.
 
 **Pool.** A set of accounts that sessions are routed across. Every account is in exactly one
 pool, and nothing crosses from one pool to another. See [Pools](pools.md).
 
-**Primary.** The account that sessions in a pool start on. Artifacts and uploads go out on it, so
-they open in a browser signed into that account. Each pool has one.
+**Primary.** The account whose token Claude Code holds in a pool. Each pool has one. The router
+picks the account for each conversation. What Claude Code sends outside the conversation goes out
+on the primary, for example artifacts, uploads and web fetches. So artifacts open in a browser
+signed into the primary.
 
-**Priming.** Starting the 5-hour window of an account at a time switchboard chooses, so your
+**Priming.** Starting an account's 5-hour window at a time switchboard chooses, so your
 accounts reset one after another rather than together.
 
+**Record.** Everything switchboard keeps of your use, on this Mac and from any you import:
+
+- the ledger of requests;
+- the readings of each window;
+- the router's events;
+- a summary of each day.
+
 **Reserve.** A share of every window that the router leaves unused on an account, for you to use
-outside switchboard, for example in the Claude apps. The router never spends it, but a pin can.
+outside switchboard, for example in the Claude apps. The router never spends it, but a pin
+or a direct session can.
 
 **Room.** How much of a window an account has left before its limit or its cap.
 
@@ -53,10 +63,13 @@ same conversation, but starts a new process.
 
 **The service.** The LaunchAgent that runs the router at login and restarts it when needed.
 
-**The unfenced pool.** The pool with no fence. There's at most one, and it takes every session
+**The unfenced pool.** The pool with no fence. A config holds at most one, and it takes every session
 started outside all the fences. If every pool is fenced, a session started outside them doesn't
 start.
 
 **Window.** A span of time Claude counts usage over. Each account has a week. Pro and Max
-accounts have a 5-hour window too, and Ultra accounts don't. Some models also have a week of their own. When a window resets, its usage
-starts again from zero.
+accounts have a 5-hour window too. A verified Ultra account doesn't. Some models also have a week
+of their own. When a window resets, its usage starts again from zero.
+
+**Worth.** What a request would have cost at Anthropic's API prices. Switchboard sets it against
+what your plans cost.

@@ -38,10 +38,10 @@ resumes on a cold cache.
   out at your pace and when it has room again. [Dashboard](docs/dashboard.md)
 - **Every request, priced.** The record keeps 400 days of requests, and sets what they'd cost at
   API prices against what your plans cost. [Your record](docs/your-record.md)
-- **Resets arrive one at a time.** If your accounts have a 5-hour window, switchboard starts each
-  at its own time, so one is back soon. [Staggered resets](docs/staggered-resets.md)
+- **Resets arrive one at a time.** Give switchboard your working day, and it starts the 5-hour
+  window of each account at a different time. [Staggered resets](docs/staggered-resets.md)
 
-Also: [Notifications](docs/notifications.md) · [Room for the Claude app](docs/room-for-the-claude-app.md) · [Pinning and moving sessions](docs/pinning-and-moving.md) · [Several Macs and backups](docs/several-macs.md)
+Also: [Notifications](docs/notifications.md) · [Room for the Claude app](docs/room-for-the-claude-app.md) · [Pinning and moving](docs/pinning-and-moving.md) · [Several Macs and backups](docs/several-macs.md)
 
 **With one account,** everything but the replay still works, because a replay needs a second
 account to move to.
@@ -71,22 +71,26 @@ go install github.com/leeovery/switchboard/cmd/switchboard@latest
 ```
 
 To remove it, run `switchboard uninstall`, then `brew uninstall switchboard`. Your config, tokens
-and history stay for a reinstall unless you add `--all`. See [Commands](docs/commands.md).
+and record stay for a reinstall unless you add `--all`. See [Commands](docs/commands.md).
 
 ## Quick start
 
 ```bash
-switchboard setup       # add your accounts and install the rest
-claude                  # Claude Code, routed
-switchboard usage       # what every account has left
-switchboard dashboard   # the live dashboard
+# Add your accounts and install the rest
+switchboard setup
+# Start Claude Code, routed
+claude
+# See what every account has left
+switchboard usage
+# Open the live dashboard
+switchboard dashboard
 ```
 
 `setup` walks you through each step full screen, and makes the token for each account with
 `claude setup-token` as it goes.
 
-**Upgrading?** The router moves your accounts and history onto the new layout by itself, once,
-while it keeps routing. See [How it works](docs/how-it-works.md).
+**Upgrading?** Run `brew upgrade switchboard`. The router restarts into the new version by itself
+once no request is in flight. If it can't, see [Troubleshooting](docs/troubleshooting/upgrades.md).
 
 ## Questions you may have
 
@@ -97,7 +101,8 @@ while it keeps routing. See [How it works](docs/how-it-works.md).
 - **Does moving a session cost me?** A move starts on a cold cache, so a session stays on its
   account while the cache is warm. [Limits and routing](docs/limits-and-routing.md)
 - **Can I still use the Claude app?** Yes. Give an account a reserve, and the router leaves that
-  share of every window unused. [Room for the Claude app](docs/room-for-the-claude-app.md)
+  share of every window for you. Only a pin you set, or a session started without the router,
+  spends it. [Room for the Claude app](docs/room-for-the-claude-app.md)
 - **Is it macOS only?** Yes, for now. [How it works](docs/how-it-works.md)
 
 ## Where next

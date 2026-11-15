@@ -14,40 +14,24 @@ Find the page for what you want to do. Each line says what the page answers.
 - [Pools](pools.md): how to keep client work on its own accounts.
 - [Claude and switchboard](claude-and-switchboard.md): how Claude reads your limits and paces its
   work.
-- [Your record and what it's worth](your-record.md): what switchboard keeps, and what your use
-  would cost at API prices.
+- [Your record](your-record.md): what switchboard keeps, and what your use would cost at API
+  prices.
 - [Staggered resets](staggered-resets.md): how your accounts come back one at a time.
 - [Room for the Claude app](room-for-the-claude-app.md): how to keep a share of an account for
   the Claude apps.
 - [Notifications](notifications.md): which alerts you get, and how to choose them.
-- [Pinning and moving sessions](pinning-and-moving.md): how to send sessions to the account you
-  choose.
-- [Several Macs and backups](several-macs.md): how to export your history, and bring it to
+- [Pinning and moving](pinning-and-moving.md): how to send sessions to the account you choose.
+- [Several Macs and backups](several-macs.md): how to export your record, and bring it to
   another Mac.
 
-## The dashboard
+## Look things up
 
 - [Dashboard](dashboard.md): what each tab shows, the keys, and the themes.
-
-## Commands
-
 - [Commands](commands.md): every command and flag, and what each prints.
-
-## Configuration
-
 - [Configuration](configuration.md): every key in the config file, and what it changes.
-
-## Reference
-
 - [Reference](reference.md): where switchboard keeps its files, and the JSON its commands print.
-
-## Troubleshooting
-
 - [Troubleshooting](troubleshooting.md): what to check when something goes wrong, and where the
   logs are.
-
-## Glossary
-
 - [Glossary](glossary.md): what pool, primary, reserve and the other terms mean.
 
 ## Design, for contributors
