@@ -3888,11 +3888,12 @@ where it fits** says, and where they don't fit, it's stacked, as **Stacked** say
   session, and `enter` opens its page; more sessions than its four rows hold end with `+2 more`
   (settled in the plan). While they hold the focus, the view scrolls as little as shows
   SESSIONS' heading, the session selected and its `enter` line, as the List keeps its choice in
-  view, wide and stacked alike (`DetailSessionsScroll`), whenever they come to lie otherwise in
-  the panel laid out at the screen's size (`DetailSessionsPlace`): as the focus moves into them
-  or another session is selected, and whatever above them grows or shrinks, as the page is read,
-  the period steps or the document changes, or the screen is resized; and on coming back to
-  Detail. `j` `k` scroll the view without moving them, so they're never undone. LATELY moves
+  view, wide and stacked alike, whenever they come to lie otherwise in the panel laid out at the
+  screen's size (`DetailSessions`): as the focus moves into them or another session is selected,
+  and whatever above them grows or shrinks, as the page is read, the period steps or the
+  document changes, or the screen is resized; and on coming back to Detail. `j` `k` scroll the
+  view without moving them, so they're never undone, and a session's page opened from them and
+  closed leaves Detail as it was left. LATELY moves
   beside them, 48 columns into the panel, at column 72, its rows from the row under its heading,
   every event still, and its words cut short of the frame's edge.
 - **With one account,** there's no list and no Compare: the panel from column 0, `cx` 12, laid as

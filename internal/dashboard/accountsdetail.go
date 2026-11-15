@@ -463,7 +463,7 @@ func (d detailDrawn) laidSessions() detailSessions {
 	if len(d.running) > 0 {
 		laid = d.sessionsAt(d.latelyAt())
 	}
-	laid.paged = pagedWhole(d.drawn(), d.f.viewRows())
+	laid.paged = pagedWhole(d.drawn(), d.f.tabViewRows())
 	return laid
 }
 

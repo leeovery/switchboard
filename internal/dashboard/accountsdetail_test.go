@@ -215,7 +215,8 @@ func sixOnSide() []status.Session {
 // at 160x37 and stacked at 73 and 52 columns, from the view's top, the enter
 // line coming to rest on the view's last row, as from its foot, the heading
 // on its first, or not at all where the foot shows them, whichever session
-// is selected; and while the list holds it, the view stays where it is.
+// is selected; where they lie is Detail's own with a session's page open
+// over it; and while the list holds it, the view stays where it is.
 func TestDetailScrollsToSESSIONSWhileTheyHoldTheFocus(t *testing.T) {
 	wide := detailFrame(Look{}, framedAccounts, "side", "", detailsPage(t), sixOnSide())
 	wide.Height = 37
@@ -247,7 +248,7 @@ func TestDetailScrollsToSESSIONSWhileTheyHoldTheFocus(t *testing.T) {
 						return rowWith(view, "SESSIONS  now") >= 0 && rowWith(view, "enter opens "+id+"'s page") >= 0
 					}
 					wasShown := shown(textOf(f.Draw(doc, routedAt))[f.top() : f.top()+f.viewRows()])
-					f.Scroll = f.DetailSessionsScroll(doc, routedAt)
+					_, f.Scroll = f.DetailSessions(doc, routedAt)
 					rows := textOf(f.Draw(doc, routedAt))
 					view := rows[f.top() : f.top()+f.viewRows()]
 					for _, want := range []string{"SESSIONS  now", "enter opens " + id + "'s page"} {
@@ -270,10 +271,19 @@ func TestDetailScrollsToSESSIONSWhileTheyHoldTheFocus(t *testing.T) {
 				})
 			}
 		}
+		t.Run(name+", a session's page open over it", func(t *testing.T) {
+			f := f
+			f.Accounts.InSessions, f.Accounts.Selected = true, running[5].Session
+			bare, _ := f.DetailSessions(doc, routedAt)
+			f.Session = &SessionShown{}
+			if placed, _ := f.DetailSessions(doc, routedAt); placed != bare {
+				t.Errorf("with a session's page open over Detail, SESSIONS lie at %+v, want them where Detail lays them, %+v", placed, bare)
+			}
+		})
 		t.Run(name+", the list focused", func(t *testing.T) {
 			f := f
 			f.Scroll = 3
-			if got := f.DetailSessionsScroll(doc, routedAt); got != 3 {
+			if _, got := f.DetailSessions(doc, routedAt); got != 3 {
 				t.Errorf("with the list focused, the view is scrolled to %d, want it left at 3", got)
 			}
 		})

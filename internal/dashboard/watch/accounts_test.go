@@ -975,6 +975,54 @@ func TestDetailOfOneAccountShowsSESSIONSOnceASessionIsSelected(t *testing.T) {
 	showsSESSIONS(t, h, "the first ↓")
 }
 
+// A session's page opened from SESSIONS, and closed by esc, leaves Detail's
+// view where k scrolled it off SESSIONS, wide and stacked: neither the page
+// opening nor its closing moves SESSIONS, so neither shows them.
+func TestASessionsPageOpenedAndClosedLeavesDetailsViewWhereItWasLeft(t *testing.T) {
+	for _, size := range []tea.WindowSizeMsg{{Width: 52, Height: 37}, {Width: 138, Height: 30}} {
+		t.Run(fmt.Sprintf("%dx%d", size.Width, size.Height), func(t *testing.T) {
+			h, _ := sessionsHarness(t, accountsMoment(t, "six sessions on the account shown").Accounts)
+			h.deliver(h.update(size)...)
+			h.keys(rightKey)
+			if h.model.scroll == 0 {
+				t.Fatal("→ left the view at its top, so k can't scroll it off SESSIONS")
+			}
+			for range 40 {
+				h.keyed("k")
+			}
+			left, scrolled := h.view(), h.model.scroll
+			h.keys(enterKey)
+			if h.pageOpen() == "" {
+				t.Fatalf("enter on SESSIONS opened no page:\n%s", h.view())
+			}
+			if h.model.scroll != scrolled {
+				t.Errorf("the page opening scrolled Detail to %d, want it left at %d", h.model.scroll, scrolled)
+			}
+			h.keys(escKey)
+			if h.model.scroll != scrolled || h.view() != left {
+				t.Errorf("esc came back to Detail scrolled %d, drawn\n%s\nwant it as it was left, scrolled %d, drawn\n%s", h.model.scroll, h.view(), scrolled, left)
+			}
+		})
+	}
+}
+
+// < on Detail with its list holding the focus shows the view from its top,
+// SESSIONS running below all the same.
+func TestAPeriodStepOnDetailWithItsListFocusedShowsTheViewFromItsTop(t *testing.T) {
+	h, _ := sessionsHarness(t, accountsMoment(t, "six sessions on the account shown").Accounts)
+	h.deliver(h.press("R")...)
+	for range 4 {
+		h.keyed("j")
+	}
+	if h.model.scroll == 0 || h.model.accounts.shown.InSessions {
+		t.Fatalf("j scrolled the view to %d, SESSIONS focused %v; want it scrolled, the list focused", h.model.scroll, h.model.accounts.shown.InSessions)
+	}
+	h.keyed("<")
+	if h.model.scroll != 0 {
+		t.Errorf("< scrolled the view to %d, want it shown from its top", h.model.scroll)
+	}
+}
+
 // enter on a session in Detail opens its page as a session's page opens
 // anywhere: drawn in Detail's place once its lines are read, those waiting
 // on a read of the ledger's tail under way, Detail showing and acting as it

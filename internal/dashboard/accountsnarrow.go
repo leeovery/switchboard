@@ -212,7 +212,7 @@ func (f Frame) stackForm(drawn func() stack, filled func() map[Ref]float64) acco
 // has them, none where it has none; and how the stack pages.
 func (f Frame) stackSessions(s stack) detailSessions {
 	laid := s.sessions
-	laid.paged = pagedWhole(s.c, f.viewRows())
+	laid.paged = pagedWhole(s.c, f.tabViewRows())
 	return laid
 }
 

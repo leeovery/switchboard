@@ -219,10 +219,10 @@ func (m Model) detailsSessions() bool {
 
 // followed is m with Detail's SESSIONS' selection following the sessions
 // running on the account it shows, as Following has it, from those it listed
-// last to those it lists now, kept for the next, and the view on SESSIONS,
-// as sessionsKept keeps it: while Detail shows, but for a frame, which takes
-// nothing in; while it doesn't, the selection holds as it was, for the run,
-// and where SESSIONS lay is forgotten, so coming back shows them.
+// last to those it lists now, kept for the next: while Detail shows, but for
+// a frame, which takes nothing in; while it doesn't, the selection holds as
+// it was, for the run, and where SESSIONS lay is forgotten, so coming back
+// shows them, as sessionsKept has it.
 func (m Model) followed(msg tea.Msg) Model {
 	if _, frame := msg.(frameMsg); frame {
 		return m
@@ -233,7 +233,7 @@ func (m Model) followed(msg tea.Msg) Model {
 	}
 	is := m.running(m.now())
 	m.accounts.shown, m.accounts.running = m.accounts.shown.Following(m.accounts.running, is), is
-	return m.sessionsKept()
+	return m
 }
 
 // sessionsHeld reports whether Detail shows with its SESSIONS kept in view
@@ -242,30 +242,38 @@ func (m Model) sessionsHeld() bool {
 	return m.detailShown() && m.accounts.placed != dashboard.SessionsPlace{}
 }
 
-// sessionsKept is m with the view scrolled as far as shows Detail's
-// SESSIONS, as DetailSessionsScroll has it, while they hold the focus, taken
-// there by →, or with one account by ↑ or ↓, wherever they lie otherwise
-// than when the view last showed them, as DetailSessionsPlace lays them out
-// before the view's scrolled: so whatever moves them, the focus coming into
-// them or moving along them, the session selected ending, a part above them
-// growing or shrinking as its page is read, its period steps or the
-// document changes, or the terminal resized, they stay in view; and j and k,
-// which scroll the view and move them nowhere, are never undone. Detail
-// left clears where they lay, as followed has it, so coming back shows them.
-func (m Model) sessionsKept() Model {
+// sessionsKept is m, and page, built at now, with the view scrolled as far
+// as shows Detail's SESSIONS while they hold the focus, taken there by →, or
+// with one account by ↑ or ↓, wherever they lie otherwise than when the view
+// last showed them, as DetailSessions has them: so whatever moves them, the
+// focus coming into them or moving along them, the session selected ending,
+// a part above them growing or shrinking as its page is read, its period
+// steps or the document changes, or the terminal resized, they stay in view;
+// and j and k, which scroll the view and move them nowhere, are never
+// undone. Detail left clears where they lay, as followed has it, so coming
+// back shows them. A session's page open over Detail leaves both as they
+// are, so closing it shows Detail as it was left. Where they lie is read of
+// page's form, which drawing page reads besides; page is built afresh only
+// where the view's scrolled.
+func (m Model) sessionsKept(page dashboard.Frame, now time.Time) (Model, dashboard.Frame) {
 	s := m.accounts.shown
-	if !s.InSessions && (!s.Alone() || s.Selected == "") {
+	switch {
+	case !m.detailShown() || m.session != nil:
+		return m, page
+	case !s.InSessions && (!s.Alone() || s.Selected == ""):
 		m.accounts.placed = dashboard.SessionsPlace{}
-		return m
+		return m, page
 	}
-	now := m.now()
-	f := m.frame(now)
-	placed := f.DetailSessionsPlace(m.doc, now)
+	placed, scroll := page.DetailSessions(m.doc, now)
 	if placed == m.accounts.placed {
-		return m
+		return m, page
 	}
-	m.accounts.placed, m.scroll = placed, f.DetailSessionsScroll(m.doc, now)
-	return m
+	m.accounts.placed = placed
+	if scroll == m.scroll {
+		return m, page
+	}
+	m.scroll = scroll
+	return m, m.frame(now).Built(m.doc, now)
 }
 
 // accountsSteps are the ways Accounts' keys move: back, -1, or on, 1.

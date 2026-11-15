@@ -179,7 +179,8 @@ type accountsForm struct {
 
 // detailSessions is where a form lays Detail's SESSIONS out in the rows it
 // scrolls, as sessionsAt has them, none where none run, and the session
-// selected among them, by its id; and how those rows page.
+// selected among them, by its id; and how those rows page in the tab's
+// view, as tabViewRows has it, a session's page open over it or not.
 type detailSessions struct {
 	rows     []int
 	selected string
@@ -189,41 +190,34 @@ type detailSessions struct {
 // SessionsPlace is where Detail's SESSIONS lie in the rows its view
 // scrolls, as its form lays them out at the frame's size, whatever it's
 // scrolled to: the rows of its enter line, its heading and the session
-// selected, and the view's rows; and the session selected, by its id. The
-// zero place is SESSIONS without the focus, or with none running.
+// selected, and Detail's view's rows, a session's page open over it or not;
+// and the session selected, by its id. The zero place is SESSIONS without
+// the focus, or with none running.
 type SessionsPlace struct {
 	Enter, Heading, Selected, View int
 	Session                        string
 }
 
-// DetailSessionsPlace is where Accounts' view shown of doc at now lays
-// Detail's SESSIONS, as SessionsPlace has it, while they hold the focus:
-// anything above them that moves them a row, or a size that lays them out
-// otherwise, places them elsewhere, and scrolling places them nowhere new.
-func (f Frame) DetailSessionsPlace(doc status.Document, now time.Time) SessionsPlace {
+// DetailSessions is where Accounts' view shown of doc at now lays Detail's
+// SESSIONS, as SessionsPlace has it, while they hold the focus, and how far
+// the view is scrolled, from as far as the frame has it, to show them: its
+// heading, the session selected and what enter opens, each revealed in turn
+// as sessionsAt orders them, as the List keeps its choice in view. Anything
+// above them that moves them a row, or a size that lays them out otherwise,
+// places them elsewhere, and scrolling places them nowhere new. Where they
+// don't hold the focus or none run, the place is the zero place and the
+// view scrolled as far as it is. Both are of the one layout, the form's
+// where the frame is built.
+func (f Frame) DetailSessions(doc status.Document, now time.Time) (SessionsPlace, int) {
 	laid, ok := f.detailSessionsOf(doc, now)
 	if !ok {
-		return SessionsPlace{}
-	}
-	return SessionsPlace{Enter: laid.rows[0], Heading: laid.rows[1], Selected: laid.rows[2], View: f.viewRows(), Session: laid.selected}
-}
-
-// DetailSessionsScroll is how far Accounts' view shown of doc at now is
-// scrolled, from as far as the frame has it, to show Detail's SESSIONS while
-// they hold the focus, as its form lays them out: its heading, the session
-// selected and what enter opens, each revealed in turn as sessionsAt
-// orders them, as the List keeps its choice in view; as far as it is where
-// they don't hold the focus or none run.
-func (f Frame) DetailSessionsScroll(doc status.Document, now time.Time) int {
-	laid, ok := f.detailSessionsOf(doc, now)
-	if !ok {
-		return f.Scroll
+		return SessionsPlace{}, f.Scroll
 	}
 	at := f.Scroll
 	for _, r := range laid.rows {
 		at = laid.paged.revealing(at, r)
 	}
-	return at
+	return SessionsPlace{Enter: laid.rows[0], Heading: laid.rows[1], Selected: laid.rows[2], View: laid.paged.rows, Session: laid.selected}, at
 }
 
 // detailSessionsOf is where Accounts' view shown of doc at now lays Detail's
