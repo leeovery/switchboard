@@ -1,73 +1,152 @@
-# Runway
+# Runway: when each account has room, over the week
 
-**Runway** shows when each account has room, with a lane for each account.
+Runway draws the week as a lane for each account. Each lane shows when that account has room,
+reaches its cap or runs out. Look at it before a long piece of work, or to see when an account
+that's out comes back.
 
 <div align="center">
-<img src="../../art/runway-week.webp" alt="Runway over the week: a lane an account to next Wednesday, work at its cap till 17:10, personal's and side's weeks running out at their pace before they reset, and the pool's room under them" width="840">
+<img src="../../art/runway-week.webp" alt="Runway over the week: a lane an account to next Wednesday, work at its cap till 17:10, personal's and side's weeks running out at their pace before they reset, and the room of the open accounts under them" width="840">
 </div>
 
-Runway shows the week, from a day before now. Every window every model shares counts, the 5-hour
-among them, so a lane is without room wherever any of them holds its account back.
+*Runway at 160 columns: work is at its cap till 17:10, and personal and side run out before they
+reset.*
 
-Each column of a lane is one cell, showing room, at its cap, or at its limit. The past is dimmed.
+## Reading a lane
 
-Until the router has a day of your sessions, as on a new install, its forecast takes the use on
-each account to stay there, so a run-out may come earlier than it will. Runway says so under its
-heading, `run-outs firm up once switchboard has a day of your sessions`, where the screen has room.
+The lanes cover a week, starting a day before now. Each column is one cell, and the legend at
+the foot says how long a column lasts, such as `a column ≈ 69 minutes`.
 
-Words under a lane say where a stretch without room starts and when the account is back. For
-example, `capped 14:31  ·  back 17:10` at its cap, `out 13:58  ·  back 15:30` at its limit, or,
-ahead, `out ~16:05` where it runs out and `caps ~15:45` where it reaches its cap, `~` marking a
-time projected at its pace: more than a day ahead, its day alone, `out ~Sat`, or dated on today's
-weekday, `out ~Thu 12 Nov`. Where a cap or a run-out ends as the window resets, room returning
-then, the words say `resets Sun 01:00` in place of `back`; a limit always says `back`, as it lifts
-whenever it does. Where one hold runs straight into another, the first says
-when it lifts, and only the last says when the account is back:
-`out 14:00  ·  lifts 19:00  capped 14:00  ·  back Mon 21:00`. Words that don't fit from where a
-stretch starts shift left until they do, never over the words before, and drop parts from the end
-where even that can't fit them.
+| Cell | Means |
+|---|---|
+| `█` | The account has room. |
+| `█` in the attention colour | It has room, but runs out at its pace before the reset. |
+| `━` | It's at its cap. |
+| `━` in red | It's at its limit. |
+| `│` | Its week resets. |
 
-With more than one account, the pool's lane sits under the others. It shows how many accounts have
-room, a column at a time, and draws a low red bar along its foot where none has. `Σ pool` names it,
-as an account's name heads its lane, with the pool's room in the week under it, such as
-`week 1.2 of 3 left`, out of the accounts that have the window. Where fewer than two have it, and
-not all, there's no pool's lane.
+- The past is dimmed.
+- Under each name is how much of its week the account has used, such as `week 34%`.
+- Every window that all models share counts, the 5-hour among them. A lane shows no room wherever
+  any of those windows holds the account back.
 
-COMING UP lists what happens next, soonest first, and LATELY what befell each account over the
-week gone, newest first: a cap, a limit, a refused token, coming under pressure, and room again,
-the sessions each moved said in its line, and how long ago at its end, such as `11m ago`. It
-reads the whole week off the router's files of events once, as Runway first shows, and keeps it
-as the router restarts; till then it shows the router's newest events. Where the screen is wide
-enough for both, from 159 columns, and has the rows for COMING UP's every line in one column,
-LATELY sits at the left and COMING UP at the right, the past and what's coming as the lanes lie,
-each down to the legend. Else COMING UP sits under the pool's lane with LATELY under it, wherever
-LATELY's heading and two lines fit: COMING UP in two columns where they fit, from 148 columns,
-and LATELY across the screen under them; else the two in one column, as wide as their lines need
-to read whole, from 72 columns to the screen's width. Shorter still, or narrower, COMING UP shows
-alone. LATELY only takes the rows the lanes and COMING UP leave empty, so it never squeezes them.
-Where COMING UP's lines don't all fit, its last says how many more, such as `▼ 3 more`. The legend sits at the foot,
-over the key line. On a short screen, as with a phone's keyboard up, LATELY under COMING UP goes
-first; then COMING UP is cut to the lines that fit; then the legend gives way, then COMING UP, then the
-blank row under the axis; only then do the lanes scroll with `j` and `k`, down to one lane over
-the pool's lane at the shortest.
+Until the router has a day of your sessions, for example on a new install, it assumes the use on
+each account stays where it is. A run-out may then show earlier than it will come. If the
+screen has room, Runway says so under its heading: `run-outs firm up once switchboard has a day of
+your sessions`.
 
-The labels beside the lanes take as many columns as the widest needs, up to 24 cells of label,
-and the lanes take the rest. `a` collapses the labels, to give the lanes more room: the lanes
-start at the left edge, with no names and no marks, as the status line already says where new
-sessions go. Under the start of each lane is its use, such as `66%`, faint for an account out of
-the pool, and under the pool's lane its room, short, such as `1.2/3`. The words under a lane
-still start under their stretch, but where that would run into the use, they start two cells
-after it, as in `100%  out Tue 17:54  ·  back Sun 01:00`. COMING UP stays as it is, each line
-naming its account. `a` again expands them; the key line says `a collapse`, its word faint while
+## Words under a lane
+
+Words under a lane say when a stretch without room starts, and when the account is back:
+
+| Words | Means |
+|---|---|
+| `capped 14:31  ·  back 17:10` | At its cap from 14:31, open again at 17:10. |
+| `out 13:58  ·  back 15:30` | At its limit from 13:58, back at 15:30. |
+| `out ~16:05` | Forecast to run out at 16:05. |
+| `caps ~15:45` | Forecast to reach its cap at 15:45. |
+| `resets Sun 01:00` | Room comes back as the window resets. |
+| `lifts 19:00` | One hold ends here, and another follows straight on. |
+
+- `~` marks a time forecast at the account's pace. How the router forecasts a week is in
+  [Routing rules](../reference/routing.md).
+- A time more than a day ahead shows its day only, such as `out ~Sat`. If that day is today's
+  weekday, the time carries the date, such as `out ~Thu 12 Nov`.
+- If a cap or a run-out ends as the window resets, the words say `resets` in place of `back`.
+- A limit always says `back`, whenever it lifts.
+- If one hold runs straight into another, only the last says when the account is back:
+  `out 14:00  ·  lifts 19:00  capped 14:00  ·  back Mon 21:00`.
+
+## The `Σ pool` lane
+
+With more than one account, a lane for the open accounts sits under the others, labelled
+`Σ pool`.
+
+- Each column shows how many accounts have room.
+- A low red bar along its foot, `▂`, marks where none has.
+- Under the label is the room left in the week, such as `week 1.2 of 3 left`. It counts the
+  accounts that have the week.
+
+## COMING UP and LATELY
+
+COMING UP and LATELY sit under the lanes:
+
+- **COMING UP** lists what happens next, soonest first: resets, an account back from its cap, and
+  run-outs. If its lines don't all fit, the last says how many more, such as `▼ 3 more`.
+- **LATELY** lists what happened to each account over the past week, newest first: a cap, a limit,
+  a refused token, pressure, and room again. Each line names the sessions it moved, and ends with
+  how long ago, such as `11m ago`.
+
+LATELY reads the whole week from the router's event files once, when Runway first shows. It keeps
+that week as the router restarts. Until it has read the files, it shows the router's newest events.
+
+## Collapsing the labels
+
+The labels beside the lanes take as many columns as the widest needs, up to 24. Press `a` to
+collapse them and give the lanes the width:
+
+- The lanes start at the left edge, with no names and no marks. The status line still says where
+  new sessions go.
+- Under the start of each lane is its use, such as `66%`. It's faint for an account outside the
+  open accounts.
+- Under the `Σ pool` lane is its room, short, such as `1.2/3`.
+- The words under a lane still start under their stretch. If they would run into the use, they
+  start two cells after it, as in `100%  out Tue 17:54  ·  back Sun 01:00`.
+- COMING UP doesn't change, because each line names its account.
+
+Press `a` again to expand the labels. The key line says `a collapse`, and the word is faint while
 the labels are collapsed. Runway remembers which you left it on.
 
-To look back, `←` goes back to this week, then a week at a time, and `→` steps forward, on to the
-live view. A week stepped back to has no COMING UP and no LATELY. A step back is never kept.
+## Looking back a week
+
+Press `←` to see this week, then again to step back a week at a time. Press `→` to step forward,
+on to the live view. A week you step back to:
+
+- names its dates in the heading, such as `Mon 21 Sep – Sun 27 Sep`;
+- shows the week's highest use under each name;
+- has no COMING UP and no LATELY.
+
+The dashboard never keeps a step back: the next run opens on the live view.
 
 ## Keys on Runway
 
 | Key | Does |
 |---|---|
 | `a` | Collapses the labels beside the lanes, or expands them again. |
-| `←` `→` | `←` goes back to this week, then a week at a time, and `→` steps forward, on to the live view. |
-| `j` `k` | Scroll the lanes, where they don't fit. |
+| `←` `→` | `←` shows this week, then steps back a week at a time. `→` steps forward, on to the live view. |
+| `j` `k` | Scroll the lanes, if they don't fit. |
+
+## Small and wide screens
+
+COMING UP and LATELY take the room the screen gives them:
+
+| If the screen | Then |
+|---|---|
+| is 159 columns or wider, with rows for all of COMING UP in one column | LATELY sits at the left and COMING UP at the right, each down to the legend. |
+| is 148 columns or wider | COMING UP takes two columns under the lanes, and LATELY runs across the screen under them. |
+| is narrower | COMING UP and LATELY share one column, as wide as their lines need to read whole, from 72 columns up to the width of the screen. |
+| is too short or too narrow for LATELY | COMING UP shows alone. |
+
+LATELY shows under COMING UP only if its heading and two lines fit. It takes only the rows that
+the lanes and COMING UP leave empty, so it never squeezes them.
+
+On a short screen, for example a phone with its keyboard up, parts give way in this order:
+
+1. LATELY, if it sits under COMING UP.
+2. The lines of COMING UP that don't fit.
+3. The legend.
+4. COMING UP.
+5. The blank row under the axis.
+
+Only then do the lanes scroll with `j` and `k`. At the shortest, one lane shows over the `Σ pool`
+lane.
+
+Words that don't fit from where their stretch starts shift left until they do, never over the
+words before. If even that can't fit them, they drop parts from the end.
+
+If fewer than two accounts have a week, and not every account does, there's no `Σ pool` lane.
+
+## Related
+
+- [Trends](trends.md): a burn-down card for each account, from the same forecast.
+- [Overview](overview.md): every window of every account, now.
+- [Limits and routing](../limits-and-routing.md): what the router does when an account runs out.

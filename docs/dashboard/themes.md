@@ -1,11 +1,16 @@
-# Themes
+# Themes: colour the dashboard to suit your terminal
+
+The dashboard comes with nine themes, and takes your own. Press `t` to open the picker, and the
+dashboard redraws in each theme as you reach it. You can set one theme for every terminal, or a
+pair: one for a light background and one for a dark one.
 
 <div align="center">
 <img src="../../art/themes.webp" alt="The theme picker over the Overview, the dashboard redrawn in each theme the cursor reaches: tokyo-night-day, terminal, nord-wave, nord, horizon, gitlab-dark-grey, exchange and amber, then tokyo-night again" width="840">
 </div>
 
-The dashboard is drawn in a theme. A theme names its colours by what they mean and how prominent
-they are, never by hue.
+*The picker over the Overview, the dashboard redrawn in each theme the cursor reaches.*
+
+A theme names its colours by what they mean and how prominent they are, never by hue.
 
 ## Built-in themes
 
@@ -17,28 +22,17 @@ they are, never by hue.
 | <img src="../../art/theme-amber.webp" alt="The Overview in amber" width="420"><br>`amber`<br>An amber CRT. | <img src="../../art/theme-exchange.webp" alt="The Overview in exchange" width="420"><br>`exchange`<br>A telephone exchange's brass and walnut. |
 | <img src="../../art/theme-terminal.webp" alt="The Overview in terminal" width="420"><br>`terminal`<br>For a terminal with a transparent or image background. It paints no background, and draws in the terminal's own sixteen colours: here, a Tokyo Night terminal's. | |
 
-## One theme, or a pair
-
-You can choose one theme for every terminal, or a pair: one for a light background and one for a
-dark one.
-
-- As it starts, the dashboard asks the terminal what its background is. It takes a terminal that
-  doesn't say for a dark one.
-- If you choose nothing, you get the pair of `tokyo-night-day` and `nord`.
-
 ## The picker
 
-`t` opens the theme picker, a panel at the right, over the dashboard. It lists every theme.
+Press `t` to open the theme picker, a panel at the right, over the dashboard. It lists every
+theme.
 
-- `↑` and `↓` move through the themes. The dashboard is redrawn in each theme as you reach it.
-- `enter` sets the one theme.
-- `d` and `l` set the dark and the light half of the pair. If a single theme is set, they ask first,
-  with `y` or `n`, whether to clear it.
-- `esc` closes the picker, putting back the theme in force.
-
-While the picker is open, a trace it would cover, in ROUTING or SESSIONS, drops its oldest minutes
-instead, so it keeps now and its rate in view. On a narrow screen, where the picker covers the whole
-trace, the trace stays under it.
+| Key | Does |
+|---|---|
+| `↑` `↓` | Move through the themes. The dashboard is redrawn in each theme as you reach it. |
+| `enter` | Sets the one theme. |
+| `d` `l` | Set the dark or the light half of the pair. If one theme is set, they first ask whether to clear it, and you answer `y` or `n`. |
+| `esc` | Closes the picker, and puts back the theme in force. |
 
 A badge says what each theme fills:
 
@@ -49,8 +43,19 @@ A badge says what each theme fills:
 | `● dark` | the dark half of the pair |
 | `● both` | both halves of the pair |
 
-A theme file that doesn't load is listed with why, such as `bad colour` or `missing tokens`. The
-log has the detail.
+- A theme file that doesn't load is listed with why, such as `bad colour` or `missing tokens`.
+  The log has the detail.
+- While the picker is open, a trace in ROUTING or SESSIONS that it would cover drops its oldest
+  minutes instead. That keeps now and the rate in view.
+- On a narrow screen, if the picker covers the whole trace, the trace stays under it.
+
+## One theme, or a pair
+
+If you set a pair, the dashboard picks the half to match your terminal:
+
+- As it starts, the dashboard asks the terminal what its background is.
+- If the terminal doesn't say, the dashboard takes it for a dark one.
+- If you choose nothing, you get the pair of `tokyo-night-day` and `nord`.
 
 ## Your own themes
 
@@ -80,7 +85,7 @@ A theme gives all 19 base tokens, or it doesn't load:
 - `canvas`, `bg.selection`, `bg.attention` and `bg.subtle`
 - `border`.
 
-The charts have tokens of their own. Where a file leaves one out, the dashboard works it out from
+The charts have tokens of their own. If a file leaves one out, the dashboard works it out from
 the base tokens.
 
 | Token | Colours |
@@ -92,14 +97,15 @@ the base tokens.
 | `viz.family.1` to `viz.family.4` | the model families: Opus, Sonnet, Fable and Haiku |
 | `viz.version.1` to `viz.version.6` | the model versions: a family's newest in its family's colour, and an older one fainter |
 | `viz.day.0` to `viz.day.4` | YEAR's shades of a day, and WHEN YOU WORK's of an hour, from one with nothing on it to the busiest |
-| `viz.account.1` to `viz.account.4` | the pool's accounts in Trends' POOL, by place; a fifth on takes the colour four before it, fainter |
+| `viz.account.1` to `viz.account.4` | the accounts in POOL on Trends, by place; a fifth on takes the colour four before it, fainter |
 
 A key switchboard doesn't know is passed over.
 
 ## Where the choice is kept
 
-The dashboard keeps your choice in `prefs.json` in the state directory. The dashboard writes this
-file, and you never need to. If the file can't be read, it's set aside as
+The dashboard keeps your choice in `prefs.json` in the state directory, with the other choices
+it remembers (see [Running it](running-it.md)). The dashboard writes this file, and you never
+need to. If the file can't be read, it's set aside as
 `prefs.json.corrupt-<unix time>`, and the defaults stand. The newest three set aside are kept.
 
 ## The background
@@ -109,7 +115,7 @@ background to it, and puts it back as it was when the dashboard stops. That's on
 or a terminate signal, or a crash it catches. A terminal that didn't say what its background was is
 reset to its profile's own background instead.
 
-[`usage`](../commands/usage.md) paints no background, as it prints into the scrollback:
+[`usage`](../commands/usage.md) paints no background, because it prints into the scrollback:
 
 - It asks the terminal what its background is, and takes the light or dark half of the pair to
   match.
@@ -126,5 +132,10 @@ With `NO_COLOR` set to anything:
 - `t` does nothing.
 
 `usage` has no colour either, with `NO_COLOR` set or on a terminal that shows no colour. Its bars
-are then filled in `█`. Printed off a terminal, as `usage --pretty` prints it, it has no colour
-unless `CLICOLOR_FORCE` asks for it.
+are then filled in `█`. Printed off a terminal with `usage --pretty`, it has no colour unless
+`CLICOLOR_FORCE` asks for it.
+
+## Related
+
+- [`switchboard usage`](../commands/usage.md): the same windows, printed once, in your theme.
+- [Running it](running-it.md): what else the dashboard remembers.
