@@ -32,8 +32,8 @@ type PeriodInput struct {
 	Now        time.Time
 }
 
-// ProjectsPage is Projects' list, as the dashboard draws it and a verb gives
-// it: a row for each project with a session in the period, by its path,
+// ProjectsPage is Projects' list, as the dashboard draws it: a row for each
+// project with a session of the period, as inPeriod has it, by its path,
 // the sessions with no directory one row of their own, the one worth most
 // first; and every project's together. A session's project is the one
 // status.ProjectOf reads of what its lines named, and of what the router
@@ -88,41 +88,39 @@ func (d SessionDays) Projects(in PeriodInput) ProjectsPage {
 }
 
 // SessionLog is Sessions' List over the period, as the dashboard draws it:
-// every session of the period the List would list, as SESSIONS rows a
+// every session of the period, as inPeriod has it, as SESSIONS rows a
 // project's, those running first, then those ended, by the day they ended,
 // the latest first, as periodRows orders them; and what they come to
-// together, as every project's together on Projects, counting the sessions
-// it lists.
+// together, as every project's together on Projects. list is the List it
+// was built of, as Live tells it afresh.
 type SessionLog struct {
 	Period   Period
 	Sessions []PeriodSession
 	All      ProjectTotals
+
+	list SessionList
 }
 
 // SessionLog is Sessions' List over in's period, as SessionLog has it, of
 // the days d holds at in's Now, each project tallied as tallied has it, so
-// it rows every session alike with Projects' pages: but as the List lists
-// those running and those with requests, none that neither runs nor made a
-// request in the period.
+// it rows every session alike with Projects' pages.
 func (d SessionDays) SessionLog(in PeriodInput) SessionLog {
 	t := d.tallied(in)
 	sessions := make(map[string]*sessionTally)
 	for _, p := range t.all {
 		maps.Copy(sessions, p.sessions)
 	}
-	rows := slices.DeleteFunc(periodRows(sessions, in), func(s PeriodSession) bool { return !s.Running && s.Requests == 0 })
-	all := t.totals()
-	all.Sessions = len(rows)
-	return SessionLog{Period: in.Period, Sessions: rows, All: all}
+	return SessionLog{Period: in.Period, Sessions: periodRows(sessions, in), All: t.totals(), list: in.List}
 }
 
 // tallied are the projects of in's period, each tallied of the days d holds
 // at in's Now, as each has it: the days of the period gone, and the day d's
 // fold of the tail is of, today's or, where the day turned since the tail
 // was last read, the day it turned from; with the sessions in's List lists
-// running. Each session is one project's, the one of where it last ran, as
-// sessionPlaces has it, and started at its first request wherever it fell,
-// as startedBefore has it of the days before the period's.
+// running; each session of the period alone, as inPeriod has it. Each
+// session is one project's, the one of where it last ran, as sessionPlaces
+// has it, and started at its first request wherever it fell, as
+// startedBefore has it of the days before the period's.
 func (d SessionDays) tallied(in PeriodInput) projectTallies {
 	today := dayfile.CivilOf(in.Now)
 	first := in.Period.first(today, in.WeekStarts).Format(time.DateOnly)
@@ -136,11 +134,14 @@ func (d SessionDays) tallied(in PeriodInput) projectTallies {
 			p.hourly(s.hours, t.price)
 		}
 	})
+	running := make(map[string]bool)
 	for _, s := range in.List.Sessions {
 		if s.Running {
 			t.of(places[s.Session]).run(s)
+			running[s.Session] = true
 		}
 	}
+	t.ofPeriod(running)
 	t.started(d.startedBefore(first))
 	return t
 }
@@ -247,6 +248,26 @@ func (t projectTallies) of(ran sessionPlace) *projectTally {
 	return p
 }
 
+// ofPeriod lets go of each session the tallies hold that isn't of the
+// period, as inPeriod has it, those running given by their ids, and of each
+// project left with none.
+func (t projectTallies) ofPeriod(running map[string]bool) {
+	for path, p := range t.all {
+		maps.DeleteFunc(p.sessions, func(id string, st *sessionTally) bool { return !st.inPeriod(running[id]) })
+		if len(p.sessions) == 0 {
+			delete(t.all, path)
+		}
+	}
+}
+
+// inPeriod reports whether the session is one of the period, as Projects,
+// a project's SESSIONS and the List count and row them: running now, as
+// running says, or with a request in it. One that doesn't run, whose lines
+// in it are all token counts, isn't.
+func (st *sessionTally) inPeriod(running bool) bool {
+	return running || st.requests > 0
+}
+
 // started has each session the tallies hold start at its first request
 // before the period, where started gives one, by its id.
 func (t projectTallies) started(started map[string]time.Time) {
@@ -265,7 +286,7 @@ func (t projectTallies) page(in PeriodInput) ProjectsPage {
 	names := status.ProjectNames(paths, math.MaxInt)
 	page := ProjectsPage{Period: in.Period, All: t.totals(), PricesAsOf: in.Prices.AsOf, tallies: t.all, in: in}
 	for _, p := range t.all {
-		page.Rows = append(page.Rows, p.row(names[p.path], t.v))
+		page.Rows = append(page.Rows, p.row(names[p.path], in.List, t.v))
 	}
 	slices.SortFunc(page.Rows, func(a, b ProjectRow) int {
 		return cmp.Or(cmp.Compare(b.amount(), a.amount()), strings.Compare(a.Name, b.Name), strings.Compare(a.Path, b.Path))
@@ -290,8 +311,7 @@ func (t projectTallies) totals() ProjectTotals {
 }
 
 // projectTally is a project's use over the period as it's taken in: its
-// path; its sessions, by their ids; how many of them run now, and the
-// busiest's activity; its requests,
+// path; its sessions, by their ids; how many of them run now; its requests,
 // their worth and tokens; its worth by family, by model version and by the
 // account it ran on; and by day, by date, and today by the local hour; and
 // when its last request arrived.
@@ -299,7 +319,6 @@ type projectTally struct {
 	path     string
 	sessions map[string]*sessionTally
 	live     int
-	activity Activity
 	requests int
 	worth    Worth
 	tokens   Tokens
@@ -388,15 +407,27 @@ func (p *projectTally) hourly(hours accountHours, price pricing) {
 // run takes in s, a session of today's List the router lists running.
 func (p *projectTally) run(s ListedSession) {
 	p.live++
-	p.activity = p.activity.with(s.Activity)
 	p.session(s.Session)
 }
 
-// row is the project's row, named as given.
-func (p *projectTally) row(name string, v versions) ProjectRow {
+// row is the project's row, named as given, its sessions running doing as
+// list tells, as doingIn has it.
+func (p *projectTally) row(name string, list SessionList, v versions) ProjectRow {
 	return ProjectRow{
 		Path: p.path, Name: name,
 		Live: p.live, Sessions: len(p.sessions), Requests: p.requests, Worth: p.worth,
-		ByFamily: v.byFamily(p.families), Last: p.last, Activity: p.activity,
+		ByFamily: v.byFamily(p.families), Last: p.last, Activity: p.doingIn(list),
 	}
+}
+
+// doingIn is what the project's sessions list lists running are doing, the
+// busiest's, as with has it, taken in list's order: Idle where none runs.
+func (p *projectTally) doingIn(list SessionList) Activity {
+	var doing Activity
+	for _, s := range list.Sessions {
+		if _, ours := p.sessions[s.Session]; ours && s.Running {
+			doing = doing.with(s.Activity)
+		}
+	}
+	return doing
 }
