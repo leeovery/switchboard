@@ -649,37 +649,60 @@ func TestASessionStartsAtItsFirstRequestBeforeThePeriod(t *testing.T) {
 	}
 }
 
-// The days read from a later day hold none before it, as though read from
-// it, those the tail fed letting go of theirs once Without is given them:
-// what's built of them over the period from that day is built alike, a
-// session running into it started at its first request, before it,
-// wherever that was held. From an earlier day, they're as they were.
-func TestTheDaysReadFromALaterDayAreAsThoughReadFromIt(t *testing.T) {
+// tailedSince are the days the ledger's tail fed of l, from the day of
+// from, read at noon each day, and today at now, each day gone read again
+// whole the day after, as a watch reading the tail feeds them.
+func tailedSince(l linesLedger, from time.Time) views.SessionDays {
+	at := dayfile.DayStart(from, 0).Add(12 * time.Hour)
+	tailed := views.SessionDays{}.Tailed(l.days[dayfile.DateOf(at)], true, nil, nil, at)
+	for today := dayfile.DateOf(now); dayfile.DateOf(at) < today; {
+		gone := dayfile.DateOf(at)
+		if at = at.AddDate(0, 0, 1); dayfile.DateOf(at) == today {
+			at = now
+		}
+		tailed = tailed.Tailed(l.days[dayfile.DateOf(at)], true, []string{gone}, map[string][]ledger.Held{gone: l.days[gone]}, at)
+	}
+	return tailed
+}
+
+// The days read from a later day hold none before it, those the tail fed
+// letting go of theirs once Without is given them, and what's built of them
+// over the period from that day is built as of the days held before: a
+// session running into it started at its first request before it, whether
+// the day before it was among the days read or those the tail fed. From an
+// earlier day, they're as they were.
+func TestTheDaysReadFromALaterDayHoldNoneBeforeIt(t *testing.T) {
 	saturday := projectAsk(worktreeSession, "/code/switchboard", "", "work", opus, october(3, 22, 0))
 	sunday := projectAsk(worktreeSession, "/code/switchboard", "", "work", opus, october(4, 22, 0))
 	monday := projectAsk(worktreeSession, "/code/switchboard", "", "work", opus, october(5, 9, 0))
 	l := ledgerOfLines(slices.Concat([]ledger.Held{saturday, sunday, monday}, projectsWorld())...)
-	read := views.ReadSessionDays(l, october(1, 0, 0), october(5, 12, 0))
-	tailed := views.SessionDays{}.Tailed(l.days["2026-10-05"], true, nil, nil, october(5, 12, 0)).
-		Tailed(l.days["2026-10-06"], true, []string{"2026-10-05"}, map[string][]ledger.Held{"2026-10-05": l.days["2026-10-05"]}, october(6, 12, 0)).
-		Tailed(l.days["2026-10-07"], true, []string{"2026-10-06"}, map[string][]ledger.Held{"2026-10-06": l.days["2026-10-06"]}, now)
-	monday0 := october(5, 0, 0)
-	bounded := read.From(monday0, tailed)
-	if got := slices.Concat(bounded.Dates(), tailed.Without(bounded).Dates()); !slices.Equal(got, []string{"2026-10-05", "2026-10-06"}) {
-		t.Fatalf("read from Monday, the days held are %v, want Monday's and Tuesday's alone", got)
-	}
-	in := projectsIn(views.PeriodThisWeek, now)
-	got, want := tailed.Without(bounded).Joined(bounded).Projects(in), tailed.Joined(read).Projects(in)
-	if !reflect.DeepEqual(got.Rows, want.Rows) || !reflect.DeepEqual(got.All, want.All) {
-		t.Errorf("the week's page of the days read from Monday is\n%+v\nwant it as of the days read before,\n%+v", got.Rows, want.Rows)
-	}
-	project, _ := got.Project("/code/switchboard")
-	wantProject, _ := want.Project("/code/switchboard")
-	if !reflect.DeepEqual(project.Sessions, wantProject.Sessions) {
-		t.Errorf("switchboard's sessions read from Monday are\n%+v\nwant them as of the days read before, the worktree's started on Saturday,\n%+v", project.Sessions, wantProject.Sessions)
-	}
-	if earlier := read.From(october(1, 0, 0).AddDate(0, 0, -1), tailed); !slices.Equal(earlier.Dates(), read.Dates()) {
-		t.Errorf("read from an earlier day, the days held are %v, want them as they were, %v", earlier.Dates(), read.Dates())
+	for _, tt := range []struct {
+		name   string
+		readOn time.Time
+	}{{"the day before among the days read", october(5, 12, 0)}, {"the day before among those the tail fed", october(3, 12, 0)}} {
+		t.Run(tt.name, func(t *testing.T) {
+			read, tailed := views.ReadSessionDays(l, october(1, 0, 0), tt.readOn), tailedSince(l, tt.readOn)
+			bounded := read.From(october(5, 0, 0), tailed)
+			if got := slices.Concat(bounded.Dates(), tailed.Without(bounded).Dates()); !slices.Equal(got, []string{"2026-10-05", "2026-10-06"}) {
+				t.Fatalf("read from Monday, the days held are %v, want Monday's and Tuesday's alone", got)
+			}
+			in := projectsIn(views.PeriodThisWeek, now)
+			got, want := tailed.Without(bounded).Joined(bounded).Projects(in), tailed.Joined(read).Projects(in)
+			if !reflect.DeepEqual(got.Rows, want.Rows) || !reflect.DeepEqual(got.All, want.All) {
+				t.Errorf("the week's page of the days read from Monday is\n%+v\nwant it as of the days read before,\n%+v", got.Rows, want.Rows)
+			}
+			project, _ := got.Project("/code/switchboard")
+			wantProject, _ := want.Project("/code/switchboard")
+			if !reflect.DeepEqual(project.Sessions, wantProject.Sessions) {
+				t.Errorf("switchboard's sessions read from Monday are\n%+v\nwant them as of the days read before,\n%+v", project.Sessions, wantProject.Sessions)
+			}
+			if i := slices.IndexFunc(project.Sessions, func(s views.PeriodSession) bool { return s.Session == worktreeSession }); i < 0 || !project.Sessions[i].Started.Equal(october(3, 22, 0)) {
+				t.Errorf("switchboard's sessions read from Monday are %+v, want the worktree's started on Saturday at 22:00", project.Sessions)
+			}
+			if earlier := read.From(october(1, 0, 0).AddDate(0, 0, -1), tailed); !slices.Equal(earlier.Dates(), read.Dates()) {
+				t.Errorf("read from an earlier day, the days held are %v, want them as they were, %v", earlier.Dates(), read.Dates())
+			}
+		})
 	}
 }
 
