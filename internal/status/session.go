@@ -25,7 +25,7 @@ const (
 // The reasons the router gives for where a session's requests go, as an
 // Assignment's Reason, an Event's and a ledger line's give them, that the
 // dashboard reads too. They're stored for years, and read back, so they're
-// never reworded: docs/reference.md lists every one, as the reasons' guard
+// never reworded: docs/reference/reasons.md lists every one, as the reasons' guard
 // holds it to, and a new one is only ever added.
 const (
 	// ReasonNew is a new session's first account.

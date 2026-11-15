@@ -78,6 +78,46 @@ go build ./...
   state directory, ledger, readings or tokens, and never run the real router, dashboard or
   `claude` to see what changed: use the capture harness below.
 
+## Writing the docs
+
+The README and `docs/` are written for people running Claude Code on more than one Claude
+account. Every page follows these rules, and a reviewer checks them:
+
+1. **One idea a sentence.** Fewer than 5% of a page's sentences run over 25 words.
+2. **One topic a paragraph,** its point first, 3 to 5 sentences. No paragraph runs over 100 words.
+3. **Example first, rule after.** Show the command and what it prints, then explain.
+4. **No fact-chains.** Three or more items make a list. Conditions make an if-then table.
+5. **Name the thing.** At most one "its" a sentence, and only for the subject. Repeat the noun
+   rather than leave a pronoun to work out.
+6. **No possessive chains.** One possessive a noun phrase, and under 1.5 per 100 words on a page.
+   A single possessive that reads naturally ("the router's choice") beats "the choice of the
+   router"; a verb ("the router picks") beats both. Never drop the verb from a second clause.
+7. **Plain words in their usual sense:** "if", not "where"; "only", not "alone"; "because" and
+   "for example", not "as".
+8. **One term, one meaning.** Each term is defined once, in `docs/glossary.md`, and never used for
+   anything else.
+9. **Headings that inform,** the first two words carrying it. H3 at most.
+10. **The main path on the page.** Edge cases go one level down, in Reference or Troubleshooting,
+    behind a clear link.
+11. **Link to whole pages.** Never link to a heading in another file: the GitHub phone app opens
+    such a link at the top of the page.
+12. **Benefits first, and specific:** a number or something you'll see, never praise.
+13. **"You" and the active voice.** Give a condition before the instruction it governs.
+
+A feature page runs 300 to 700 words, with headings no deeper than H2, in this order:
+
+- **Title:** the benefit in your words, for example "Pools: ring-fence client work to its own
+  accounts".
+- **Opening:** 40 to 60 words on what it does for you and when you'd want it.
+- **The moment:** one still or clip, with a one-line caption, once one exists in `art/`.
+- **Try it:** two to four commands, before any rule. Each comment goes on its own line above its
+  command, and no line runs past 52 columns, a phone's width.
+- **What happens:** 3 to 6 one-sentence bullets on what you'll notice.
+- **Good to know:** 2 to 4 bullets of limits, costs and objections.
+- **Reference:** a table of 8 rows at most, or links to the command, configuration and
+  troubleshooting pages.
+- **Related:** 2 or 3 links to other pages.
+
 ## Test isolation
 
 No test touches the real network, environment, home directory, config, state, binaries or
