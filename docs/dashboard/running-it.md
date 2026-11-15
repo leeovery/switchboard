@@ -25,7 +25,7 @@ the one the verbs act on. Each tab shows only that pool:
 | Accounts | The accounts, and the worth and tokens of the work done in the pool. |
 | Projects | The work on each project, the chosen project and its SESSIONS among it. |
 | Sessions | The requests, worth and tokens of each session, and the List over every period. |
-| The session page | The work the session did in the pool, its STORY and TURNS among it. |
+| The session page | The work the session did in the pool, in STORY and in TURNS. |
 | Trends | The accounts, and the work in YEAR. |
 | The Log | Today's requests and each day read back, with the figures for each day, and the router's events. Find finds only the pool's sessions. |
 
