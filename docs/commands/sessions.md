@@ -42,8 +42,13 @@ latest first. A last line adds them up.
 | Worth | What they'd have cost through the API. A `+` means some were unpriced. |
 | Routing | How it came to its account, such as `from work, at its cap`, and what writing its context again there cost. |
 
-`sessions` reads the record from its files, and asks the router which sessions are running. If the
-router is down, it lists the sessions from the record only, none as running, and says so.
+`sessions` reads the record from its files, and asks the router which sessions are running.
+
+| If the router | Then `sessions` |
+|---|---|
+| Runs, and routes by pools | Shows the sessions it's running as running. |
+| Is down | Lists the sessions from the record only, none as running, and says so. |
+| Started before pools, in a config that has them | Lists the sessions from the record only, none as running, and says to restart the router. |
 
 ## A session page
 
@@ -84,7 +89,7 @@ counts as the first pool.
 |---|---|
 | `--pool <id>` | The sessions of that pool, including a removed pool or one an import brought. |
 | `<id>` without `--pool` | The session, found in whatever pool it's in. The page is its work in the pool of its newest request. |
-| `<id>` with `--pool` | The session in that pool only. The page is its work there. |
+| `<id>` with `--pool` | The session in that pool only. The page is its work there. A session with no work there isn't found. |
 
 A session resumed in another pool can have work in both. Once you have a second pool, the text
 names the pool it read, such as `pool Acme`.

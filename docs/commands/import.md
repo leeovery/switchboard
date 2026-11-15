@@ -45,12 +45,22 @@ and again after, adds nothing the second time.
 The accounts record of each folder joins the record of this Mac, so each day lands on the right
 account.
 
+`import` matches each account in the folder to one here, by the first rule that holds:
+
+1. In the folder of this Mac, an account matches the account here with the same id.
+2. An account matches the account here with the same subscription.
+3. An account matches the account here with the same id, unless both subscriptions are known and
+   differ.
+
 | If the account | Then |
 |---|---|
-| Matches an account here by its subscription | Its days go to the account here, under the id this Mac gives it. |
-| Has no subscription to match, but the same id | It's the same account, unless both subscriptions are known and differ. |
-| Is new to this Mac | It's added, named by its label on the other Mac, and marked removed if it was removed there. |
-| Was relabelled on the other Mac, and this Mac neither has nor removed it | It takes the new label. |
+| Matches an account here | Its days go to the account here, under the id this Mac gives it. |
+| Matches none, but this config has its id | It's that account, added to the record here. |
+| Matches none otherwise | It's added, named by its label on the other Mac, and marked removed if it was removed there. |
+| Was relabelled on the other Mac, and this Mac neither configures nor removed it | It takes the new label. |
+
+An added account whose id is taken here already gets a new id, made from the install and the old
+id. It gets the same id at every import.
 
 A pool from another Mac keeps its history here. Read it with `--pool` and its id.
 

@@ -54,8 +54,13 @@ counts as the first pool.
 | If you pass | Then you get |
 |---|---|
 | `--pool <id>` | The requests of that pool, including a removed pool or one an import brought. |
-| `--session` without `--pool` | The requests of the session in the pool it's in now, the pool of its newest request. |
+| `--session` without `--pool` | The requests of the session in the pool of its newest request. |
+| `--session` with `--pool` | The requests of the session in that pool. A session with no work there isn't found. |
 | `--account` without `--pool` | The requests of the account in the pool it's in now. |
+| `--account` for an account an import brought | The requests in the pool of its newest request, because no pool here holds the account. |
+
+A session resumed in another pool has work in both, and `requests` shows one pool at a time. The
+pool an account is in now comes from the config, or from the accounts record for a removed account.
 
 ## Good to know
 
