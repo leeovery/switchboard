@@ -2232,10 +2232,10 @@ placeholder accounts `work`, `personal` and `side`. The calls the frames left op
 the owner on 28 October 2026, and are written here as decided. Where the frames and this section
 differ, this section holds: frame 4 says only what the service step can know (see Service, below);
 frame 5's `PATH` line is the shell step's line, and is to be drawn again in Paper; setup's cards are
-the dashboard's card as it's drawn everywhere, their line and title in `text.subtle`, where the
-frames draw the line in `border` and the title bold `text.secondary`; and the status line, the clock
-and where a card sits follow the rules below. The primary's reserve card is frame 13, drawn after
-the sign-off as one of the calls approved.
+the dashboard's card as it's drawn everywhere, their line in `text.subtle` and title in
+`text.muted`, where the frames draw the line in `border` and the title bold `text.secondary`; and
+the status line, the clock and where a card sits follow the rules below. The primary's reserve card
+is frame 13, drawn after the sign-off as one of the calls approved.
 
 Setup needs a terminal, the screen being its only way through: without one, it fails
 (`setup.ErrNoTerminal`), saying how each step is taken alone: by the command that takes it, where
@@ -2261,7 +2261,7 @@ show.
   `text.subtle` and `router not running yet`, or `nothing set up yet` with no account and no router;
   the words `text.secondary`. The accounts' part counts them and their working tokens, `3 accounts,
   2 working`, or `all working`, in `text.muted`.
-- **The heading row,** row 4, as the dashboard heads a section: the step's heading in `text.subtle`,
+- **The heading row,** row 4, as the dashboard heads a section: the step's heading in `text.muted`,
   a rule in `border` to the edge, and at its right what's said of it, as `3 accounts`, in
   `text.muted`. A line under it, from column 2, says what the step is for.
 - **A row a fact:** a page says what its step found and did a row each, two rows apart, from column
@@ -3505,7 +3505,8 @@ session's page has its own heading there, ending in `esc back` (see A session's 
 0:
 
 - **The tab's name** in capitals, `ACCOUNTS`, `SESSIONS`, `RUNWAY`, `LOG`, in
-  `text.subtle`.
+  `text.muted`, as every heading is: a step over the labels under it, in `text.subtle`, and under
+  the values it heads (the owner's call, 15 November 2026).
 - **Its sub-tabs,** where it has them: three spaces, then each as ` Compare `, the one shown in bold
   `text.primary` on `bg.subtle`, the rest in `text.subtle`; then a space and `[ ]` in `text.faint`.
   Accounts has Compare, Detail and Tokens; Sessions, Switchboard and
@@ -3735,7 +3736,7 @@ a matrix of one.
 
 **By window, stacked,** where the matrix doesn't fit:
 
-- **Each window is a section:** its heading at column 0, in `text.subtle`; a blank line; then a row
+- **Each window is a section:** its heading at column 0, in `text.muted`; a blank line; then a row
   an account with a blank line under each, and the pool last, under its rule. A blank line
   separates each section from the next, as it does the key line from the last.
 - **A row:** the account's name at column 1, a cell in from the heading; the bar from the
@@ -4022,7 +4023,7 @@ never changes, a section hidden taking no room:
 A blank row separates two sections, but none separates two folded ones; a blank row comes before
 the key line, which is the last row.
 
-**A section's heading:** its name in `text.subtle`; three spaces and its description, where it has
+**A section's heading:** its name in `text.muted`; three spaces and its description, where it has
 one; a space, a rule of `─` in `border`, and a space; then the key that hides it, in bold
 `accent.key`, in the section's last column. With no description, the rule starts two cells after
 the name. Below the heading, a blank row, then the body. A description says only what the screen
@@ -4549,7 +4550,7 @@ an account over 12 weeks, and `accounts-detail-all-73x61`, all accounts' table o
   and what a view is, and how to read it, is for `?` help. A dim line says only what the screen
   can't: a key to an encoding, as to the shades or the dots; a rule the eye can't see, as that worth
   is priced as the API prices it, and as of when, or that a verdict is an estimate; or state.
-- **Labels:** a group's heading is uppercase in `text.subtle` (`ACTIVITY`, `BY MODEL`), its items
+- **Labels:** a group's heading is uppercase in `text.muted` (`ACTIVITY`, `BY MODEL`), its items
   lowercase in `text.secondary`, two cells in (`requests`).
 - **No numbers:** Compare's heads and Detail's list and panel name each account by its label and
   marks alone, and `all accounts` by its words, with no number before either (see Account
@@ -4952,8 +4953,8 @@ where it fits** says, and where they don't fit, it's stacked, as **Stacked** say
   while idle; and when it was last seen, right-aligned in 3, in `text.subtle`. The selected row is
   `bg.selection` from a cell before it to 44 cells on while the focus is on SESSIONS, and bold,
   unlit, while it's on the list, so the one place lit is where `↑` `↓` act; `SESSIONS` is bold
-  `text.primary` while the focus is there, and `text.subtle` while it isn't (the owner's call, 15
-  October 2026). Six rows under `SESSIONS`, two cells in,
+  `text.primary` while the focus is there, and `text.muted`, as every heading is, while it isn't
+  (the owner's call, 15 October 2026). Six rows under `SESSIONS`, two cells in,
   `enter opens d28c's page`, `enter` bold `accent.key` and the rest `text.muted` (see A session's
   page). `→` takes the selection from the list into them, and `←` back; there `↑` `↓` select a
   session, and `enter` opens its page; more sessions than its four rows hold end with `+2 more`
@@ -5329,7 +5330,7 @@ and its references are `sessions-list-30-days-173x53`, `sessions-list-30-days-73
 `sessions-list-30-days-108x44`, scrolled to `ended Tue 22 Sep`. Columns and rows are at 160 by 37
 unless they say otherwise.
 
-**The heading row,** row 4: `SESSIONS` in `text.subtle`; three spaces; the sub-tabs, `Switchboard`
+**The heading row,** row 4: `SESSIONS` in `text.muted`; three spaces; the sub-tabs, `Switchboard`
 and `List`, each with a space either side, the one shown bold `text.primary` on `bg.subtle` and the
 other `text.subtle`; a space and `[ ]` in `text.faint`; two spaces, and a rule of `─` in `border` to
 the last column. `SESSIONS` takes 0–7, `Switchboard` with its spaces 11–23, `List` with its spaces
@@ -5644,7 +5645,7 @@ October 2026).
   three windows and six calls at 73 columns, the windows stack from 41 rows of terminal, go side by
   side from 29, take the least gaps from 25, and scroll under that.
 - **No cords, no travel:** the state words carry the motion, bold while the session works.
-- **The heading:** `SESSIONS` in `text.subtle`, two spaces and the sub-tabs, with no `[ ]` and no
+- **The heading:** `SESSIONS` in `text.muted`, two spaces and the sub-tabs, with no `[ ]` and no
   rule, as on the Log's phone (see The Log).
 
 **The List.** Every session of the dial's period in one table, a row each, even one whose models are
@@ -5852,7 +5853,7 @@ accounts without a 5-hour window, `runway-ultra-160`, every account on a verifie
 `runway-mixed-160`, side alone keeping its 5-hour. Columns and rows are at 160 by 37 unless they
 say otherwise.
 
-**The heading row,** row 4: `RUNWAY` in `text.subtle`, and a rule of `─` in `border` from two cells
+**The heading row,** row 4: `RUNWAY` in `text.muted`, and a rule of `─` in `border` from two cells
 after it to the frame's last column, as Sessions' runs, with nothing at its right (the owner's call,
 12 November 2026). Stepped back, `RUNWAY` is followed by three spaces and the week shown,
 `Mon 28 Sep – Sun 4 Oct`, in `text.faint`, the rule starting a cell after it.
@@ -6043,7 +6044,7 @@ doesn't say it is (settled in the plan). The legend is one line where that fits 
 at every width, a phone's too; else the keys on as many lines as they take, each key whole, and
 what a column is on the lines after them, wrapped at its ` · `.
 
-**COMING UP and LATELY,** each a heading in `text.subtle` and its lines under it: what happens next,
+**COMING UP and LATELY,** each a heading in `text.muted` and its lines under it: what happens next,
 soonest first, and what befell the accounts, newest first, the past on the left and the future on
 the right, as the timeline lies (the owner's call, 12 November 2026). Where they go is worked out
 once, in Runway's layout, from the Overview's own columns. LATELY never costs the lanes or COMING
@@ -6320,7 +6321,7 @@ keeps `5-hour` among Trends' sections, as one kept before it went, has it passed
 of none of its sections is; where it keeps no other, as where WEEK was hidden, Trends opens on the
 sections shown at first, never a page with everything hidden.
 
-- **A section's heading** is the Overview's (see The Overview): its name in `text.subtle`; three
+- **A section's heading** is the Overview's (see The Overview): its name in `text.muted`; three
   spaces and its description, where it has one; a space, a rule of `─` in `border` and a space;
   then its key in bold `accent.key`, in the section's last column; the rule starting two cells after
   the name where there's no description. A blank row comes under it. WHEN YOU WORK alone has a
@@ -6744,7 +6745,7 @@ foot. The Log is drawn in the Paper file *Switchboard · Session and Log*, on it
   at the least: the ten around the table, and five of it (settled in the plan). Below 15 rows, it
   keeps its 6 fixed rows, the title row, the status line, the heading row, the column heads, the
   state line and the key line, and 5 of its table at the least.
-- **The heading row:** `LOG` in `text.subtle`; three spaces; the sub-tabs, ` Requests ` and
+- **The heading row:** `LOG` in `text.muted`; three spaces; the sub-tabs, ` Requests ` and
   ` Events `, the one shown bold `text.primary` on `bg.subtle`, the other `text.subtle`; a space and
   `[ ]` in `text.faint`, as Accounts' and Sessions' sub-tabs are drawn (see The page). While a
   filter is on, three spaces and what it keeps, in `text.faint`: `only d28c switchboard`, several
@@ -6868,7 +6869,7 @@ filling in as its line comes (settled in the plan).
   natural 128 cells wide where the screen has that and a cell either side, its tree in its three
   columns, centred, columns 16 to 143 at 160; else the screen's width less those cells, its
   sections stacked. Its title is in its top edge after `╭─ `, in
-  `text.subtle`, ` · ` between its parts: a request's `REQUEST · 14:31:13 · d28c switchboard`, the
+  `text.muted`, ` · ` between its parts: a request's `REQUEST · 14:31:13 · d28c switchboard`, the
   line's time and its session as the table names it; an event's `EVENT · 14:31:03 · work reached
   its cap`, what happened as its `event` item says it. An account a title names is `text.primary`.
 - **Inside,** from column 19: a blank row under the edge; the tree; a request's foot; a blank row;
@@ -6880,12 +6881,13 @@ filling in as its line comes (settled in the plan).
   where it fits neither under its line nor over it, the table scrolls the line up until it fits
   under (settled in the plan).
 - **The tree,** in three columns, from columns 19, 69 and 94, each holding sections one under
-  another, a blank row between. A section's heading is uppercase in `text.subtle`, as a group's is
+  another, a blank row between. A section's heading is uppercase in `text.muted`, as a group's is
   on every tab, an account it names `text.primary` (`SIDE'S WINDOWS AFTER IT`, `WORK THEN`). Its
   items follow, a row each: `├ ` in `text.faint` (`└ ` for its last), the item's name padded to 13
-  in `text.muted`, its value in `text.secondary`, words around a value in `text.muted`. A value too
-  long for its column's room is cut with `…`, as `req_011CQx…` is. The card's edge frames the tree,
-  so there's no tree line down its left.
+  in `text.subtle`, a label as on every tab, under its heading in `text.muted`, its value in
+  `text.secondary`, words around a value in `text.muted`. A value too long for its column's room
+  is cut with `…`, as `req_011CQx…` is. The card's edge frames the tree, so there's no tree line
+  down its left.
 - **A request's sections,** each item from its line in the ledger (see The request ledger):
 
   | Column | Section | Items |
@@ -6954,7 +6956,7 @@ cursor's on alone. Its title, in its top edge: `LOG · REQUESTS · WHAT IT SHOWS
 
 - **Requests:**
   - row 9: `Pick the columns it shows, and which of today's 1,275 lines.` in `text.secondary`;
-  - row 11: `COLUMNS` at `x` and `ONLY` at `x+40`, in `text.subtle`;
+  - row 11: `COLUMNS` at `x` and `ONLY` at `x+40`, in `text.muted`;
   - **COLUMNS,** from row 12, where the cursor starts (settled in the plan), a tick each: `■` bold
     `accent.key` and the name in `text.primary`, shown, or `□` in `text.subtle` and the name in
     `text.muted`, hidden. Those shown come first, in the table's order, six to a column at `x` and
@@ -6990,7 +6992,8 @@ cursor's on alone. Its title, in its top edge: `LOG · REQUESTS · WHAT IT SHOWS
     `1,275` bold, ` lines, in `, `11` bold, ` columns.`.
 - **Events:**
   - row 9: `Pick which events it shows.`;
-  - row 11: `EVENTS` at `x`, `today` at `x+14` and `ONLY` at `x+58`, in `text.subtle`;
+  - row 11: `EVENTS` at `x` and `ONLY` at `x+58`, in `text.muted`, and `today` at `x+14`, in
+    `text.subtle`;
   - rows 12 to 24, a kind each, in this order: its tick and name; today's count right-aligned in 5
     from `x+14`, in `text.secondary`, `text.faint` at 0; and at `x+21` what it is, in `text.muted`:
     `started` a session first seen; `moved` a session moved to another account; `pressure` an
@@ -7112,7 +7115,7 @@ files hold, to its last event filed.
 **On a phone** (52×33), Requests alone:
 
 - rows 0, 1 and 3: the title, the tabs and the status line, as every page's phone has them;
-- row 5, the heading: `LOG` in `text.subtle`, two spaces, the sub-tabs as wide; at the right `35
+- row 5, the heading: `LOG` in `text.muted`, two spaces, the sub-tabs as wide; at the right `35
   hidden` in `text.muted`, two spaces, `f` bold `accent.key`; no `[ ]` and no rule;
 - row 7, the heads, in `text.subtle`, and rows 8 to 29, the newest 22 lines: the table at its
   narrowest, as the one narrowing leaves it (above), its columns two cells apart: the mark at 0;
@@ -7383,7 +7386,7 @@ session page · signed off · 7 Oct 2026**, its frames kept as `testdata/vhs/ref
   the heading, now, TURNS, its heads, the turn open with a request and its foot, and how many
   more.
 
-**The heading** (row 4): `SESSION` in `text.subtle`; three spaces; the session's id cut to 4, as the
+**The heading** (row 4): `SESSION` in `text.muted`; three spaces; the session's id cut to 4, as the
 dashboard shows ids, bold `text.primary`; three spaces; its directory's last part, bold
 `text.primary`; two spaces; the directory as the ledger holds it, the home as `~`
 (`~/Code/switchboard`), in `text.muted`, the tone of a heading's quieter words (the owner's call,
@@ -7730,7 +7733,7 @@ page), the page heads itself shorter, and its story has no heading; the rest is 
 each form taken where its parts fit, as the wide page's rules give way:
 
 - **Rows 0, 1 and 3:** the title, the tabs and the status line, as every page's phone has them.
-- **Row 5, the heading:** `SESSION` in `text.subtle`, two spaces, the id and the directory's name,
+- **Row 5, the heading:** `SESSION` in `text.muted`, two spaces, the id and the directory's name,
   bold `text.primary`, two spaces apart, and while it loads, two spaces and `loading…`; `esc back`
   at the right. No path and no rule.
 - **Rows 7 and 8,** the now rows' short form, as the wide one doesn't fit: `↑ asking  on side ▲
@@ -7843,10 +7846,10 @@ On the Overview, `r` hides ROUTING, which touches no routing.
   for its line and two more inside it, so its content is from 3 in. Its natural is its rows' parts
   on one line (below, "The choices"), and those 3 cells either side: 81 cells with the sample's
   names, its content 75.
-- **Its title in its top edge,** after `╭─ `, in `text.subtle`, the line running on after it:
-  `ROUTING · NEW SESSIONS`, which becomes `ROUTING · NEW AND RUNNING SESSIONS` while `m` is ticked
-  (not all sessions: one pinned on its own keeps its pin); `ROUTING · THIS SESSION` on a session's
-  page.
+- **Its title in its top edge,** after `╭─ `, in `text.muted`, the line, in `text.subtle`, running
+  on after it: `ROUTING · NEW SESSIONS`, which becomes `ROUTING · NEW AND RUNNING SESSIONS` while
+  `m` is ticked (not all sessions: one pinned on its own keeps its pin); `ROUTING · THIS SESSION`
+  on a session's page.
 - **The page behind it, faded:** every cell's colours, foreground and background, mixed 80% of the
   way to `canvas`, nothing bold, even pace's marks among them, but the title row's clock's. A
   terminal draws it by drawing the page again in those colours. The page behind stands still while

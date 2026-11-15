@@ -173,7 +173,7 @@ func TestTheHeadingRowsInks(t *testing.T) {
 		x    int
 		want ink
 	}{
-		{name: "the name", x: 0, want: dimInk},
+		{name: "the name", x: 0, want: headingInk},
 		{name: "a sub-tab not shown", x: 11, want: tabInk},
 		{name: "the sub-tab shown", x: 20, want: shownSubTabInk},
 		{name: "[ ]", x: 29, want: faintInk},
