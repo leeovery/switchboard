@@ -81,7 +81,7 @@ The router looks at the config every 3 seconds, so you never need to tell it abo
 
 To choose for one launch, run `SWITCHBOARD_WHEN_ROUTER_DOWN=direct claude`, or `=stop`. A direct
 session can spend a reserve, which only the router honours. Every case is on
-[`claude`](commands/claude.md).
+[`claude`](commands/claude-command.md).
 
 ## Accounts: `[[account]]`
 

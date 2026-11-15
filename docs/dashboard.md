@@ -42,7 +42,7 @@ This page uses these terms throughout:
   pinned accounts while the pin holds. Where the config has [pools](how-it-works.md#pools), the
   dashboard shows one, and its pool is that pool's.
 - **Pin:** your choice of where sessions go, set with the routing card or with
-  [`pin`](commands.md#pin).
+  [`pin`](commands/pin.md).
 - **The primary:** the account your browser and the Claude apps are signed into. See
   [The primary](how-it-works.md#the-primary).
 - **Worth at API prices:** what the same tokens would have cost through the API.
@@ -87,7 +87,7 @@ gets:
 
 ### USAGE
 
-USAGE is the block that [`usage`](commands.md#usage) prints: every account's windows, and the
+USAGE is the block that [`usage`](commands/usage.md) prints: every account's windows, and the
 pool's.
 
 - Wherever its windows fit side by side, it's the matrix: from 86 columns with two windows and
@@ -847,7 +847,7 @@ switchboard dashboard --pool q7mt   # pool q7mt, whatever pool the verbs act on
 
 Where the config has [pools](how-it-works.md#pools), the dashboard shows one pool: the one
 `--pool` names, else the one the verbs act on, the only pool, else the unfenced one (see
-[Reading a pool](commands.md#reading-a-pool)). A pool the config doesn't have is refused, naming
+[Reading a pool](commands.md)). A pool the config doesn't have is refused, naming
 those it does. What it reads from the router is that pool's: its accounts, windows, room, sessions
 running and pin, and the router's events, the Overview's and Runway's LATELY and the Log's Events
 among them. Accounts lists the pool's accounts alone. What it reads from the request ledger is
@@ -1044,7 +1044,7 @@ token is refused, one with no token, or one whose token is another subscription'
 
 ### Applying
 
-- `enter` applies the picks, as [`pin`](commands.md#pin) does. The router's event names the
+- `enter` applies the picks, as [`pin`](commands/pin.md) does. The router's event names the
   dashboard as what set them.
 - `esc` closes the card with nothing changed.
 
@@ -1055,7 +1055,7 @@ token is refused, one with no token, or one whose token is another subscription'
   card.
 - With `--probe`, `p pin` isn't listed, and `p` opens nothing, even while the router answers.
 - With one account, there's nothing to pin to, and `p` does nothing. The exception is a pin set
-  with [`pin`](commands.md#pin) that still stands: then `p` opens the card to clear it.
+  with [`pin`](commands/pin.md) that still stands: then `p` opens the card to clear it.
 
 ### A session's own card
 
@@ -1260,7 +1260,7 @@ background to it, and puts it back as it was when the dashboard stops. That's on
 or a terminate signal, or a crash it catches. A terminal that didn't say what its background was is
 reset to its profile's own background instead.
 
-[`usage`](commands.md#usage) paints no background, as it prints into the scrollback:
+[`usage`](commands/usage.md) paints no background, as it prints into the scrollback:
 
 - It asks the terminal what its background is, and takes the light or dark half of the pair to
   match.

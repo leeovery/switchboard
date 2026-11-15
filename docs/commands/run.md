@@ -16,7 +16,7 @@ switchboard run [--account <id>] [--direct] [-- <claude args>]
 | `--account <id>` | None | Pins the conversation of the session to account `<id>`. |
 | `--direct` | Off | Starts Claude Code on its own login, without the router or a token, for what needs that login. |
 
-How `claude` starts, and what it does when the router is down, is in [`claude`](claude.md).
+How `claude` starts, and what it does when the router is down, is in [`claude`](claude-command.md).
 
 ## Pinning with `--account`
 
@@ -47,7 +47,7 @@ routed or recorded.
 
 A session belongs to the pool of the folder it starts in, for its whole life. In a git worktree, it
 belongs to the pool of its repository. If `run` refuses to start in a folder, see
-[`claude`](claude.md).
+[`claude`](claude-command.md).
 
 ## Exit status
 
@@ -64,6 +64,6 @@ switchboard run --direct
 
 ## Related
 
-- [`claude`](claude.md): what starts Claude Code through switchboard.
+- [`claude`](claude-command.md): what starts Claude Code through switchboard.
 - [Pinning and moving sessions](../pinning-and-moving.md): pins, and how they give way.
 - [Pools](../pools.md): which pool a folder belongs to.

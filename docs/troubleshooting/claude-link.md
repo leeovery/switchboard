@@ -70,5 +70,5 @@ new terminal. That takes the switchboard folder off `PATH`.
 ## Related
 
 - [`switchboard setup`](../commands/setup.md): every page of `setup`, the `claude` link among them.
-- [`switchboard claude`](../commands/claude.md): what the link does when it starts a session.
+- [`switchboard claude`](../commands/claude-command.md): what the link does when it starts a session.
 - [Setup](setup.md): when the `setup` screen itself goes wrong.

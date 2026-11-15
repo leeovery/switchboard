@@ -18,7 +18,7 @@ ending `— not starting claude`.
 | `pool Acme has no account with a usable token` | Give one a token with `switchboard accounts token <id>`. |
 | `~/Code/acme is in pool Acme, where claude never starts on its own login` | You asked for `--direct` inside a fence. Start it through the router, or outside the fence. |
 
-Every message, with what to do, is in [`switchboard claude`](../commands/claude.md).
+Every message, with what to do, is in [`switchboard claude`](../commands/claude-command.md).
 
 ## `claude` says the router doesn't route by the pools
 
