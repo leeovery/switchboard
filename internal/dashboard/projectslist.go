@@ -42,14 +42,16 @@ const (
 )
 
 // The list's words: its heads, but the bar's, which has none; and the words
-// of the sessions with no directory, and of every project's row.
+// of the sessions with no directory, of those of temporary folders, and of
+// every project's row.
 var (
 	projectHeads = map[projectsPart]string{
 		listedName: "project", listedLive: "live", listedSessions: "sessions", listedWorth: "worth", listedRequests: "requests", listedLast: "last",
 	}
-	noDirectory = "no directory"
-	allProjects = "all projects"
-	projectsOut = []outForm{{noun: "project", gap: " · ", inks: keyedOut}, {gap: " · ", inks: keyedOut}}
+	noDirectory      = "no directory"
+	temporaryFolders = "temporary folders"
+	allProjects      = "all projects"
+	projectsOut      = []outForm{{noun: "project", gap: " · ", inks: keyedOut}, {gap: " · ", inks: keyedOut}}
 )
 
 // projectColumn is a column of the list as it's laid out: which it is, from
@@ -283,10 +285,14 @@ func (l projectsList) says(p projectsPart, lp listedProject) line {
 }
 
 // projectNamed is the project's name, as the list and the head name it, in
-// bold text.primary; the sessions with no directory's words in text.subtle.
+// bold text.primary; the words of the sessions with no directory, and of
+// those of temporary folders, in text.subtle.
 func projectNamed(r views.ProjectRow) line {
-	if r.NoDirectory() {
+	switch {
+	case r.NoDirectory():
 		return line{{noDirectory, dimInk}}
+	case r.Temporary():
+		return line{{temporaryFolders, dimInk}}
 	}
 	return line{{r.Name, titleInk}}
 }

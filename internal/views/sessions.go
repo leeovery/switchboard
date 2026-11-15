@@ -32,9 +32,11 @@ type ListedSession struct {
 	// Dir is the directory it runs in, as the router gives it, else as its
 	// lines last name it, the home as ~: "" where neither names one.
 	Dir string `json:"dir,omitempty"`
-	// Project is its project, as status.ProjectOf reads it from where Dir
+	// Project is its project, as status.Projects reads it from where Dir
 	// comes from: the repository named with Dir, else Dir's, as a line from
-	// before projects were recorded has it; "" where neither names one.
+	// before projects were recorded has it, then read through a scratchpad
+	// to the project it was made for, or status.TemporaryFolders; "" where
+	// neither names one.
 	Project string `json:"project,omitempty"`
 	// Account and Model name it, following its main thread: the model of its
 	// latest main request, and the account that model goes to now, as the
@@ -135,17 +137,20 @@ type SessionSources struct {
 	Ledger Ledger
 	// Prices are the price table worth is priced by.
 	Prices ledger.Table
-	Now    time.Time
+	// Projects reads each session's project.
+	Projects status.Projects
+	Now      time.Time
 }
 
 // ListLive is what the List is built of beside its lines: the sessions the
 // router lists, as GET /sessions gives them, none without the router;
 // whether no router lists them, as SessionSources' Unlisted has it; what the
-// request stream told; and now.
+// request stream told; how each session's project is read; and now.
 type ListLive struct {
 	Running  []status.Session
 	Unlisted bool
 	Stream   Stream
+	Projects status.Projects
 	Now      time.Time
 }
 
@@ -156,7 +161,7 @@ type ListLive struct {
 // held afresh of that one read, as the watch's first read of it holds it.
 func ListSessions(src SessionSources) SessionList {
 	held, _ := HoldSessions(src.Prices).Fed(src.Ledger, Taken{}, ListWanted(src.Running, src.Stream), src.Now)
-	return held.List(ListLive{Running: src.Running, Unlisted: src.Unlisted, Stream: src.Stream, Now: src.Now})
+	return held.List(ListLive{Running: src.Running, Unlisted: src.Unlisted, Stream: src.Stream, Projects: src.Projects, Now: src.Now})
 }
 
 // Named is the List with every account it gives named as n names it.
@@ -240,25 +245,27 @@ func listedIDs(told map[string]*story, routed map[string]status.Session) []strin
 // router lists, by their ids; those that run, where their models go now, as
 // the router lists them and the request stream has moved them since, in the
 // order placed has them, and by their ids; whether no router lists them;
-// what the stream told, as h hears it; and now.
+// what the stream told, as h hears it; how a session's project is read; and
+// now.
 type lister struct {
 	routed   map[string]status.Session
 	running  []status.Session
 	goes     map[string][]status.Assignment
 	unlisted bool
 	h        hearing
+	projects status.Projects
 	now      time.Time
 }
 
 // newLister returns the lister of the sessions running, as the router lists
 // them, unlisted saying no router does, the request stream s telling of
-// them, at now: those that run, as runningNow has them, every model of each,
-// as the Switchboard reads them, whether the listing is fresh or the last the
-// watch holds.
-func newLister(running []status.Session, unlisted bool, s Stream, now time.Time) lister {
+// them, each session's project read as projects reads it, at now: those that
+// run, as runningNow has them, every model of each, as the Switchboard reads
+// them, whether the listing is fresh or the last the watch holds.
+func newLister(running []status.Session, unlisted bool, s Stream, projects status.Projects, now time.Time) lister {
 	by := lister{
 		routed: make(map[string]status.Session, len(running)), goes: make(map[string][]status.Assignment),
-		unlisted: unlisted, h: s.hearing(), now: now,
+		unlisted: unlisted, h: s.hearing(), projects: projects, now: now,
 	}
 	by.running = runningNow(s.placed(running, by.h), now)
 	for _, session := range by.running {
@@ -301,7 +308,7 @@ func (by lister) dir(id string, s *story) string {
 // place is the directory the session with the given id runs in, and its
 // project, its story s telling of its lines, as listedPlace has them.
 func (by lister) place(id string, s *story) (dir, project string) {
-	return listedPlace(by.routed[id], s.dir, s.project)
+	return listedPlace(by.routed[id], s.dir, s.project, by.projects)
 }
 
 // listedDir is the directory a session runs in as the List names it: as the
@@ -313,14 +320,14 @@ func listedDir(routed status.Session, lines string) string {
 }
 
 // listedPlace is the directory a session runs in, as listedDir has it, and
-// its project, from the same place, as status.ProjectOf reads them together:
-// of the router's listing where it names a directory, else as its lines last
-// named them.
-func listedPlace(routed status.Session, dir, project string) (string, string) {
+// its project, from the same place, as projects reads them together: of the
+// router's listing where it names a directory, else as its lines last named
+// them.
+func listedPlace(routed status.Session, dir, project string, projects status.Projects) (string, string) {
 	if a, ok := routedAt(routed); ok {
 		dir, project = a.Dir, a.Project
 	}
-	return dir, status.ProjectOf(project, dir)
+	return dir, projects.Of(project, dir)
 }
 
 // routedDir is the directory the session s runs in as the router lists it:

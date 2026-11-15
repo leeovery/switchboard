@@ -60,6 +60,16 @@ type Deps struct {
 	// in, as launch.FindProject does, which run tells the router of beside
 	// the directory: nil tells none.
 	FindProject func(dir string) string
+	// RepositoryOf returns the project of the repository a directory is in,
+	// and whether it's in one, as launch.RepositoryOf does, which a
+	// scratchpad's session is read against where its slug names a worktree
+	// since removed: nil, that none is.
+	RepositoryOf func(dir string) (string, bool)
+	// Root is the filesystem from its root, as os.DirFS("/") gives it, which
+	// the project of a session that ran in a Claude Code scratchpad, or a
+	// temporary folder, is read against, as status.Projects reads it: nil
+	// reads every project as status.ProjectOf does.
+	Root fs.FS
 	// Executable returns the path of this switchboard binary, as
 	// os.Executable does: what the LaunchAgent runs, and what run passes
 	// over as it looks for claude.

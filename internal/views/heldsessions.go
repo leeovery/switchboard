@@ -1003,7 +1003,7 @@ func (h HeldSessions) List(live ListLive) SessionList {
 	for id, s := range h.sessions {
 		stories[id] = s.story
 	}
-	return listOf(stories, newLister(live.Running, live.Unlisted, live.Stream, live.Now), h.prices)
+	return listOf(stories, newLister(live.Running, live.Unlisted, live.Stream, live.Projects, live.Now), h.prices)
 }
 
 // Awaited are the dates of the days before the day live's now falls on that

@@ -44,7 +44,9 @@ accounts reset one after another rather than together.
 
 **Project.** The repository a session runs in, with its worktrees folded in. A session in a
 worktree or a folder beneath the repository counts as the repository's, and one started outside
-any repository as its own folder's. `run` records the project as the session starts. See
+any repository as its own folder's. A session started in a Claude Code scratchpad counts as the
+project the scratchpad was made for. A session started in any other temporary folder has no
+project: it counts under `temporary folders`. `run` records the project as the session starts. See
 [the ledger](reference/ledger.md).
 
 **Record.** Everything switchboard keeps of your use, on this Mac and from any you import:
@@ -63,10 +65,26 @@ or a direct session can.
 **The router.** The program on your Mac that Claude Code sends every request through. It picks
 the account, swaps in its token, and records the request. The service keeps it running.
 
+**Scratchpad.** The temporary folder Claude Code makes for one session, named by the slug of the
+folder the session started in. Tools often start `claude -p` there.
+
 **Session.** One conversation in Claude Code, from start to exit. A resumed session carries on the
 same conversation, but starts a new process.
 
 **The service.** The LaunchAgent that runs the router at login and restarts it when needed.
+
+**Slug.** The name Claude Code makes from a folder's path, with every character but an ASCII
+letter or digit turned into `-`. For example, `-Users-you-Code-api` is the slug of
+`/Users/you/Code/api`.
+
+**Temporary folders.** The row of the Projects list for sessions that have no project:
+
+- sessions started in a temporary folder outside a scratchpad, such as one under `/tmp`;
+- sessions started in a scratchpad whose slug names nothing a project can be: a repository since
+  removed, a volume that isn't mounted, or a folder above your home folder.
+
+It isn't a project. In `sessions --json`, these sessions give `temporary folders` as `project`,
+which isn't a path.
 
 **The unfenced pool.** The pool with no fence. A config holds at most one, and it takes every session
 started outside all the fences. If every pool is fenced, a session started outside them doesn't

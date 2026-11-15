@@ -41,6 +41,36 @@ func FindProject(dir string) string {
 	return dir
 }
 
+// RepositoryOf returns the project of the repository the directory dir is
+// in, as FindProject named a worktree kept there while it was, and whether
+// dir is in one: of the nearest directory, dir itself or one up from it,
+// that's a bare repository's directory, as isBare reads it, that
+// directory; that holds a bare repository named .bare, that folder, as
+// projectOf names a .bare layout's; or that holds a .git, as repositoryAt
+// reads it, the project FindProject finds of dir. So the folder a worktree
+// since removed was kept in, in any of those, gives the project the
+// worktree had, though FindProject finds the folder its own. It runs no git.
+// It walks up dir as it's given, links unresolved, to the nearest such
+// directory; FindProject, for a .git, resolves them. False for "".
+func RepositoryOf(dir string) (string, bool) {
+	if dir == "" {
+		return "", false
+	}
+	for at := filepath.Clean(dir); ; at = filepath.Dir(at) {
+		switch _, held := repositoryAt(at); {
+		case isBare(at):
+			return at, true
+		case isBare(filepath.Join(at, bareLayout)):
+			return at, true
+		case held:
+			return FindProject(dir), true
+		}
+		if filepath.Dir(at) == at {
+			return "", false
+		}
+	}
+}
+
 // resolvedFirst are the paths dir is walked up from: dir with its links
 // resolved, then dir as it's given, where that differs.
 func resolvedFirst(dir string) []string {

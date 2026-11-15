@@ -24,7 +24,8 @@ import (
 // is read from its id, for one the table doesn't name; now; and Began, the
 // start of the first day of the work the days are of, a pool's first day of
 // work of a pool's, as PoolRead's Start tells it, for a page's charts to
-// begin there, as worthCharts has it: zero where it's unknown.
+// begin there, as worthCharts has it: zero where it's unknown; and how a
+// session's project is read, as the List reads it.
 type PeriodInput struct {
 	Period     Period
 	List       SessionList
@@ -34,14 +35,16 @@ type PeriodInput struct {
 	Family     func(model string) string
 	Now        time.Time
 	Began      time.Time
+	Projects   status.Projects
 }
 
 // ProjectsPage is Projects' list, as the dashboard draws it: a row for each
 // project with a session of the period, as inPeriod has it, by its path,
-// the sessions with no directory one row of their own, the one worth most
-// first; and every project's together. A session's project is the one
-// status.ProjectOf reads of what its lines named, and of what the router
-// lists, of a session running. Project gives each one's page.
+// the sessions with no directory one row of their own, and those of
+// temporary folders another, the one worth most first; and every project's
+// together. A session's project is the one in's Projects reads of what its
+// lines named, and of what the router lists, of a session running. Project
+// gives each one's page.
 type ProjectsPage struct {
 	Period Period
 	Rows   []ProjectRow
@@ -63,10 +66,11 @@ type ProjectTotals struct {
 	Worth
 }
 
-// ProjectRow is a project's row of the list: its path, as status.ProjectOf
-// gives it, "" of the sessions with no directory; its name, by its path's
-// last part, and its parents' too where two share it, as
-// status.ProjectNames names them, uncut, "" of no directory; its totals; its
+// ProjectRow is a project's row of the list: its path, as status.Projects
+// reads it, "" of the sessions with no directory, status.TemporaryFolders of
+// those of temporary folders; its name, by its path's last part, and its
+// parents' too where two share it, as status.ProjectNames names them, uncut,
+// "" of either of those; its totals; its
 // worth by model family, in the version table's order of families, as BY
 // MONTH splits a month's; when its last request arrived, in UTC, zero
 // where none did; and what its sessions running are doing, the busiest's,
@@ -83,6 +87,17 @@ type ProjectRow struct {
 // NoDirectory reports whether the row is of the sessions with no directory.
 func (r ProjectRow) NoDirectory() bool {
 	return r.Path == ""
+}
+
+// Temporary reports whether the row is of the sessions of temporary folders.
+func (r ProjectRow) Temporary() bool {
+	return r.Path == status.TemporaryFolders
+}
+
+// Pathless reports whether the row is of no project's path: of the sessions
+// with no directory, or of those of temporary folders.
+func (r ProjectRow) Pathless() bool {
+	return r.NoDirectory() || r.Temporary()
 }
 
 // Projects is Projects' page over in's period, as ProjectsPage has it, of
@@ -129,7 +144,10 @@ func (d SessionDays) tallied(in PeriodInput) projectTallies {
 	today := dayfile.CivilOf(in.Now)
 	first := in.Period.first(today, in.WeekStarts).Format(time.DateOnly)
 	todayDate := today.Format(time.DateOnly)
-	t := projectTallies{all: make(map[string]*projectTally), price: pricing{prices: in.Prices, date: todayDate}, v: versions{table: in.Prices, family: in.Family}}
+	t := projectTallies{
+		all: make(map[string]*projectTally), price: pricing{prices: in.Prices, date: todayDate}, v: versions{table: in.Prices, family: in.Family},
+		projects: in.Projects,
+	}
 	places := d.sessionPlaces(first, todayDate, in.List)
 	d.each(first, todayDate, func(date string, s *foldedSession) {
 		p := t.of(places[s.ID])
@@ -232,17 +250,19 @@ func (p ProjectsPage) Project(path string) (ProjectPage, bool) {
 }
 
 // projectTallies are each project's tally, by its path, as the page's days
-// are taken in, priced and named as price and v have them.
+// are taken in, priced and named as price and v have them, each session's
+// project read as projects reads it.
 type projectTallies struct {
-	all   map[string]*projectTally
-	price pricing
-	v     versions
+	all      map[string]*projectTally
+	price    pricing
+	v        versions
+	projects status.Projects
 }
 
 // of is the tally of the project a session that ran where given is of, as
-// status.ProjectOf reads it: begun where none is yet.
+// the tallies' projects reads it: begun where none is yet.
 func (t projectTallies) of(ran sessionPlace) *projectTally {
-	path := status.ProjectOf(ran.project, ran.dir)
+	path := t.projects.Of(ran.project, ran.dir)
 	p, ok := t.all[path]
 	if !ok {
 		p = &projectTally{path: path, sessions: make(map[string]*sessionTally), families: familySums{}, models: modelTally{},
@@ -286,7 +306,7 @@ func (t projectTallies) started(started map[string]time.Time) {
 
 // page is the list of the tallies, as Projects has it.
 func (t projectTallies) page(in PeriodInput) ProjectsPage {
-	paths := slices.Collect(maps.Keys(t.all))
+	paths := slices.DeleteFunc(slices.Collect(maps.Keys(t.all)), func(p string) bool { return p == status.TemporaryFolders })
 	names := status.ProjectNames(paths, math.MaxInt)
 	page := ProjectsPage{Period: in.Period, All: t.totals(), PricesAsOf: in.Prices.AsOf, tallies: t.all, in: in}
 	for _, p := range t.all {

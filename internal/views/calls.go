@@ -28,7 +28,7 @@ type Call struct {
 // directory and the account it came from, as it tells of its lines.
 func CallsOf(m status.Moment, live ListLive, sessions HeldSessions) []Call {
 	held := sessions.at(m.Now)
-	by := newLister(live.Running, live.Unlisted, live.Stream, m.Now)
+	by := newLister(live.Running, live.Unlisted, live.Stream, live.Projects, m.Now)
 	running := runningOf(m, by, held)
 	calls := make([]Call, len(running))
 	for i, r := range running {

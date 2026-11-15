@@ -83,6 +83,54 @@ Links change the walk as follows:
 A line from before switchboard recorded `project` has none. Then a `dir` in
 `<repo>/.claude/worktrees/<name>` counts as `<repo>`, and any other `dir` as itself.
 
+Switchboard works out the project shown when it reads a line, and never rewrites the line. A
+request keeps the pool it was recorded in. Switchboard works out the project of each folder and
+each slug the first time a line names it, and keeps that project while the dashboard or a command
+runs. A folder made in the meantime is still found for a slug read later.
+
+| If the project, or the `dir` of a line with no project, is | The project shown is |
+|---|---|
+| In a Claude Code scratchpad, `<temp>/claude-<uid>/<slug>/<session>/scratchpad` | The project of the folder the slug names |
+| In `/tmp`, `/private/tmp`, `/var/folders` or `/private/var/folders`, or in your `TMPDIR` if that isn't your home folder or above it | `temporary folders` |
+| In a folder named `claude-<uid>`, wherever that folder is | `temporary folders` |
+| The folder that holds `claude-<uid>`, or in it, if that folder isn't your home folder or above it | `temporary folders` |
+| Any other folder | That folder, in the case its name has on disk |
+
+Each rule compares paths without regard to case, so `/Private/tmp/x` counts as `/private/tmp/x`.
+Your home folder is never temporary, even when it holds `claude-<uid>`.
+
+Claude Code names a scratchpad by the [slug](../glossary.md) of the folder its session started
+in. For example, `-Users-you-Code-api--claude-worktrees-fix` is the slug of
+`/Users/you/Code/api/.claude/worktrees/fix`. Switchboard finds the deepest folder on this Mac
+whose slug begins that slug, then walks up to the repository as `claude` does. So a scratchpad
+of that worktree counts as `~/Code/api`, even once the worktree is gone.
+
+- **A session started in another session's scratchpad** counts as the project of the first
+  session.
+- **A slug that names your home folder** counts as `~`.
+- **A slug that names a repository since removed** counts as `temporary folders`. Only the folder
+  that held the repository is left, and that folder isn't in any repository. A slug of a volume
+  that isn't mounted counts the same way.
+- **A slug that names a worktree since removed** counts as the worktree's repository, if the
+  worktree was kept inside that repository's folder. That holds for these worktrees:
+  - a worktree in `.claude/worktrees`;
+  - a worktree beside a bare repository in `.bare`;
+  - a worktree kept inside the folder of a bare repository.
+- **A slug that names a removed worktree kept outside the repository** counts as
+  `temporary folders`. For example, a worktree made with `git worktree add ../feature` leaves no
+  folder of the repository behind.
+- **A removed folder whose name begins with a sibling's name and a `-`** counts as that sibling.
+  A slug can't tell `-` from `/`, and the deepest folder still on this Mac wins. For example:
+  - a removed `~/Code/api-v2` counts as `~/Code/api`;
+  - a removed worktree made with `git worktree add ../api-feature` from `~/Code/api` counts as
+    `~/Code/api`;
+  - a removed `~/Code/web-fix` counts as `~/Code/web`, even if the two are unrelated.
+- **A slug that names no folder, or only a folder above your home folder,** counts as
+  `temporary folders`.
+- **A slug or a `dir` in another case,** such as `~/code` for `~/Code`, counts as the folder on
+  disk.
+- **A long `dir` recorded cut short,** with a leading `…`, still counts by its slug.
+
 ### The pool of a line
 
 | If | `pool` is |

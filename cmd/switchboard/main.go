@@ -39,6 +39,8 @@ func deps() cli.Deps {
 		HomeDir:       os.UserHomeDir,
 		Getwd:         os.Getwd,
 		FindProject:   launch.FindProject,
+		RepositoryOf:  launch.RepositoryOf,
+		Root:          os.DirFS("/"),
 		Executable:    os.Executable,
 		Now:           time.Now,
 		ClaudeVersion: claude.InstalledVersion(os.Getenv, os.UserHomeDir, os.Executable),

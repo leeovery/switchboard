@@ -84,8 +84,8 @@ var (
 		"ledger.Table.RewriteSpend", "ledger.Table.SamePrices", "ledger.Table.Summed", "ledger.Table.SummedSpend", "ledger.Table.SummedSpent",
 		"ledger.Table.Worth",
 		// A session's or a line's project: the one run told, else its
-		// directory's.
-		"status.ProjectOf",
+		// directory's, read through a scratchpad or a temporary folder.
+		"status.ProjectOf", "status.Projects.Of", "claude.ScratchpadSlug", "claude.SlugDir", "claude.Slug",
 	}
 	// absorbed are what a rule's one owner took the place of, each with its
 	// owner: a drawing package calls none, but its owner.

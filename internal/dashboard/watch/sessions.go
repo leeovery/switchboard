@@ -87,7 +87,7 @@ func (m Model) sessionsLooked(msg tea.Msg) Model {
 // them, as the Switchboard draws them then; whether it doesn't; and what the
 // request stream told, s.
 func (m Model) listLive(now time.Time, s views.Stream) views.ListLive {
-	return views.ListLive{Running: m.sessions, Unlisted: m.unlisted(), Stream: s, Now: now}
+	return views.ListLive{Running: m.sessions, Unlisted: m.unlisted(), Stream: s, Projects: m.cfg.Projects, Now: now}
 }
 
 // logBuilt is m with the List's log, while the List shows, built afresh at

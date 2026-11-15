@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/ledger"
+	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -535,5 +536,48 @@ func TestTheChosenRowIsLitOnlyWhereUpAndDownAct(t *testing.T) {
 				t.Errorf("the chosen project's row isn't bold, want it, SESSIONS lit")
 			}
 		})
+	}
+}
+
+// A project's row names it by its name, bold; the sessions with no
+// directory's, and those of temporary folders, by their words, faint.
+func TestARowOfNoPathIsNamedByItsWordsFaint(t *testing.T) {
+	tests := []struct {
+		name string
+		row  views.ProjectRow
+		want line
+	}{
+		{name: "a project", row: projectRowOf("api", 1, 1, 100), want: line{{"api", titleInk}}},
+		{name: "no directory", row: views.ProjectRow{}, want: line{{noDirectory, dimInk}}},
+		{name: "temporary folders", row: views.ProjectRow{Path: status.TemporaryFolders}, want: line{{temporaryFolders, dimInk}}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := projectNamed(tt.row); !slices.Equal(got, tt.want) {
+				t.Errorf("projectNamed = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+// The chosen project's head gives its path, but temporary folders', which
+// has none, as no directory's has none.
+func TestTheHeadOfTemporaryFoldersGivesNoPath(t *testing.T) {
+	temporary := views.ProjectRow{Path: status.TemporaryFolders, Sessions: 4, Requests: 4, Worth: worthOf(400)}
+	rows := append(projectRows(2), temporary)
+	page := chosenPage(nil)
+	page.ProjectRow = temporary
+	c := projectsFrame(t, 173, 60, rows, 2, &page).page(framedDoc(nil, nil), routedAt)
+	drawn := textOf(c.rows(Look{}))
+	listed := rowWith(drawn, "▸ "+temporaryFolders)
+	if listed < 0 {
+		t.Fatalf("no row of temporary folders chosen in the list:\n%s", strings.Join(drawn, "\n"))
+	}
+	head := slices.IndexFunc(drawn[listed+1:], func(r string) bool { return strings.HasPrefix(strings.TrimSpace(r), temporaryFolders) })
+	if head < 0 {
+		t.Fatalf("no head of temporary folders under the list:\n%s", strings.Join(drawn, "\n"))
+	}
+	if got := drawn[listed+1+head]; strings.Count(got, temporaryFolders) != 1 {
+		t.Errorf("the head reads %q, want temporary folders named once, with no path", got)
 	}
 }
