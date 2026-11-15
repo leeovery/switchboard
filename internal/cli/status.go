@@ -83,7 +83,7 @@ switchboard service install (or switchboard serve).
 			if a.printsJSON(form, out) {
 				err = writeJSON(out, doc)
 			} else {
-				m := a.withRemoved(doc).At(a.Now(), claude.Policy())
+				m := a.withOthers(cmd.Context(), doc).At(a.Now(), claude.Policy())
 				_, err = io.WriteString(out, a.unrouted()+a.momentHeading(cmd.Context(), m)+m.Text(a.running(cmd.Context(), m)...))
 			}
 			return cmp.Or(err, unread)
@@ -176,16 +176,20 @@ func (a *app) session(ctx context.Context, client *router.Client, names status.N
 	return client.InPool(pool).Session(ctx, id)
 }
 
-// withRemoved is doc, its moments naming the accounts removed that the
+// withOthers is doc, its moments naming the accounts removed that the
 // accounts record keeps, as removedHere gives them, so its text names a
-// session on one by the label it showed last: doc as it is where the config
-// can't be loaded, as where the router's document is printed in its place.
-func (a *app) withRemoved(doc status.Document) status.Document {
+// session on one by the label it showed last; and those the config, its
+// pools as they stand, places in another pool than doc's, as status.MovedOf
+// has them, so it names a session still on one moved out by its label and
+// where it is now: doc as it is where the config can't be loaded, as where
+// the router's document is printed in its place.
+func (a *app) withOthers(ctx context.Context, doc status.Document) status.Document {
 	cfg, err := a.loadConfig()
 	if err != nil {
 		return doc
 	}
-	return doc.WithRemoved(a.removedHere(cfg))
+	pooled := a.standing(ctx, cfg)
+	return doc.WithRemoved(a.removedHere(cfg)).WithMovedOf(pooled.Pools, pooled.Accounts)
 }
 
 // sessionError is err, from asking the router after a session, marked

@@ -681,6 +681,28 @@ func TestATurnWorksOutTheAccountsRemovedOfTheConfigRead(t *testing.T) {
 	}
 }
 
+// The dashboard opens on a pool, and turns to another, with the accounts the
+// config places in any other pool than it, each with the pool it's in now,
+// so its moments name one moved out by its label and where it is.
+func TestTheDashboardsPoolReadGivesTheAccountsInAnotherPool(t *testing.T) {
+	deps := pooledDeps(t, false)
+	cfg := recordWatch(t, &deps)
+	if got := run(t, deps, "dashboard", "--pool", "q7mt"); got != (result{}) {
+		t.Fatalf("switchboard dashboard --pool q7mt = %+v, want exit status 0 and nothing printed", got)
+	}
+	inDefault := status.MovedAccounts{{ID: "side", Label: "Side", Pool: "b2n8", PoolLabel: "Default"}}
+	if !slices.Equal(cfg.Moved, inDefault) {
+		t.Errorf("opened on Acme, the dashboard has the accounts moved %+v, want %+v", cfg.Moved, inDefault)
+	}
+	turned, err := cfg.Turn(t.Context(), "q7mt", watch.NextPool)
+	if err != nil {
+		t.Fatalf("Turn() to the next pool failed: %v", err)
+	}
+	if inAcme := (status.MovedAccounts{{ID: "work", Label: "Work", Pool: "q7mt", PoolLabel: "Acme"}}); !slices.Equal(turned.Moved, inAcme) {
+		t.Errorf("turned to Default, the dashboard has the accounts moved %+v, want %+v", turned.Moved, inAcme)
+	}
+}
+
 // sideAtItsCap are today's readings of side's 5-hour window at 95%, from
 // 10:00 to the clock's 13:12: 192 minutes at a cap of 90%.
 var sideAtItsCap = []readings.Reading{

@@ -180,6 +180,9 @@ the pool now.
   from then too, as on the dashboard.
 - A removed pool, or one an import brought, is read by its id too.
 - Once you have a second pool, the text names the pool it read, such as `pool Acme`.
+- An account moved to another pool keeps its work in the pool it left. There, the totals give it
+  a column of its own, named with where it is now, such as `work (now in Acme)`, and the JSON
+  lists it under `moved`.
 
 ## Good to know
 

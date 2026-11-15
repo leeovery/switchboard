@@ -284,13 +284,15 @@ func TestHistoryShowsThePoolsWorkAsRecordedAndNamesItsPoolByIDAndLabel(t *testin
 // A pin cleared with force in a pool of several cleared the own pins of that
 // pool's sessions alone, so events names the pool, as it still does once the
 // other is removed, the files holding the work of both; where there never
-// was another pool, it says every session's.
+// was another pool, it says every session's. Once Acme is removed, work,
+// moved to Default first, is named as in Default now.
 func TestEventsNameThePoolAForcedPinClearedTheOwnPinsOf(t *testing.T) {
 	deps := pooledDeps(t, false)
 	fileEvent(t, deps, "2026-10-07", eventLine(runOne, 6, status.Event{At: october(7, 12, 30, 0), Kind: status.EventAuto, Accounts: []string{"work"}, Pool: "q7mt", Force: true, By: "cli"}))
 	fileEvent(t, deps, "2026-10-07", eventLine(runOne, 7, status.Event{At: october(7, 12, 40, 0), Kind: status.EventAuto, Accounts: []string{"side"}, Pool: "b2n8", Force: true, By: "cli"}))
 	const (
 		inAcme    = "new sessions back from Work to the router's choice, the own pins of pool Acme's sessions cleared too, set from the command line"
+		inRemoved = "new sessions back from Work (now in Default) to the router's choice, the own pins of pool Acme's sessions cleared too, set from the command line"
 		inDefault = "new sessions back from Side to the router's choice, the own pins of pool Default's sessions cleared too, set from the command line"
 		everyOne  = "new sessions back from Side to the router's choice, every session's own pin cleared too, set from the command line"
 	)
@@ -305,7 +307,7 @@ func TestEventsNameThePoolAForcedPinClearedTheOwnPinsOf(t *testing.T) {
 	checkSaid("with two pools", []string{"events"}, inDefault)
 
 	onePoolLeft(t, deps, acmeRemovedEntry)
-	checkSaid("once Acme is removed", []string{"events", "--pool", "q7mt"}, inAcme)
+	checkSaid("once Acme is removed", []string{"events", "--pool", "q7mt"}, inRemoved)
 	checkSaid("once Acme is removed", []string{"events"}, inDefault)
 
 	onePoolLeft(t, deps)

@@ -109,6 +109,20 @@ func (p filedPool) heading() string {
 	return poolHeading(p.named)
 }
 
+// moved are the accounts cfg places in another pool than p, as
+// status.MovedOf has them: none of every pool's read.
+func (p filedPool) moved(cfg *config.Config) status.MovedAccounts {
+	return status.MovedOf(cfg.Pools, cfg.Accounts, p.ID)
+}
+
+// names are the names of the accounts cfg configures and of those removed
+// given, as status.NamesOf has them, those in another pool than p named as
+// moved has them, so a verb names the work they did in p by their labels
+// and where they are now.
+func (p filedPool) names(cfg *config.Config, removed status.RemovedAccounts) status.Names {
+	return status.NamesOf(cfg.Accounts, removed).WithMoved(p.moved(cfg))
+}
+
 // poolHeading is the paragraph of a line a verb's text starts with naming a
 // pool, named as poolNamed names it: "" where named is.
 func poolHeading(named string) string {

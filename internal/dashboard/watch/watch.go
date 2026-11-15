@@ -167,10 +167,13 @@ type Config struct {
 	// start on.
 	// Removed are the accounts removed, as status.RemovedOf gives them, which
 	// every document read names, as status's Moment Named does, and the
-	// pages by the label each showed last.
+	// pages by the label each showed last; and Moved those configured in
+	// another pool than the one shown, as status.MovedOf gives them, named
+	// alike, by their labels and the pools they're in now.
 	Accounts   config.Accounts
 	WeekStarts time.Weekday
 	Removed    status.RemovedAccounts
+	Moved      status.MovedAccounts
 	// WeekWindow is the key of the window a week long every model shares,
 	// the accounts' own weeks, which Accounts' weeks count; and Family reads
 	// a model's family from its id, for one the version table doesn't name.
@@ -1150,7 +1153,7 @@ func (m Model) fetched(msg fetchedMsg) (tea.Model, tea.Cmd) {
 		logger.Warn("usage read failed", "error", msg.err, "next", m.plan.due)
 		m = m.lose(now)
 	default:
-		msg.doc = msg.doc.WithRemoved(m.cfg.Removed)
+		msg.doc = msg.doc.WithRemoved(m.cfg.Removed).WithMoved(m.cfg.Moved)
 		look := msg.doc.At(now, m.cfg.Policy)
 		changed = msg.doc.AccountsChanged(m.doc)
 		m.plan = m.plan.landed(msg.read, msg.doc, look.Routed, now)

@@ -74,11 +74,13 @@ type Fixture struct {
 	loading bool
 	// records are what its world's readers serve the watch, and accounts
 	// its world's, as configured, whose plans the pages price against, and
-	// removed those its accounts record keeps removed: a printout has none,
+	// removed those its accounts record keeps removed, and moved those
+	// configured in another pool than the one it shows: a printout has none,
 	// and a watch drawn of it reads none.
 	records  *records
 	accounts config.Accounts
 	removed  status.RemovedAccounts
+	moved    status.MovedAccounts
 	// pool is the pool it shows, as the title row names it once there's a
 	// second, and a pool with no accounts draws its page: none, as before
 	// pools, where it's unset.
@@ -326,7 +328,7 @@ func (p page) fixture(worlds accountWorlds) Fixture {
 	}
 	return Fixture{
 		Name: p.name, Size: p.size, now: now, router: router, keys: slices.Clone(p.keys), before: p.before,
-		theme: framesTheme(), records: w.records(), accounts: w.accounts, removed: removedOf(w.gone), view: p.view, log: p.log, scale: p.scale, loading: p.loading,
+		theme: framesTheme(), records: w.records(), accounts: w.accounts, removed: removedOf(w.gone), moved: movedOf(w.gone, p.pool.ID), view: p.view, log: p.log, scale: p.scale, loading: p.loading,
 		pool: p.pool,
 	}
 }
@@ -412,7 +414,8 @@ func (p page) fixture(worlds accountWorlds) Fixture {
 // iPad. And over the world of sizable values, the List at 200 columns, a
 // worth past $100 with its +, sonnet-5-5 and a compaction's move among it.
 // And Accounts' Tokens over 12 weeks of the world with team removed on 4
-// September, its rows named as Tokens names an account removed.
+// September, its rows named as Tokens names an account removed; and of pool
+// Default with team moved to Acme then in place of removed, named alike.
 var pages = []page{
 	{name: "overview-default-160", size: wide(37), world: accountWorlds.auto},
 	{name: "overview-pinned-160", size: wide(37), world: accountWorlds.pinned},
@@ -524,6 +527,7 @@ var pages = []page{
 	{name: "accounts-tokens-173x53", size: watch.Size{Width: 173, Height: 53}, world: accountWorlds.auto, keys: toAccounts("]", "]")},
 	{name: "accounts-tokens-73x61", size: watch.Size{Width: 73, Height: 61}, world: accountWorlds.auto, keys: toAccounts("]", "]")},
 	{name: "accounts-tokens-removed-160", size: wide(46), world: accountWorlds.removedTeam, keys: toAccounts("]", "]", ">", ">")},
+	{name: "accounts-tokens-moved-160", size: wide(46), world: accountWorlds.movedTeam, keys: toAccounts("]", "]", ">", ">"), pool: defaultPool},
 	{name: "projects-173x53", size: watch.Size{Width: 173, Height: 53}, world: accountWorlds.auto, keys: toProjects()},
 	{name: "projects-108x44", size: watch.Size{Width: 108, Height: 44}, world: accountWorlds.auto, keys: toProjects()},
 	{name: "projects-73x61", size: watch.Size{Width: 73, Height: 61}, world: accountWorlds.auto, keys: toProjects()},
