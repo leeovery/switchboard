@@ -196,32 +196,33 @@ func TestDetailsLATELYTellsOnlyEventsLATELYTells(t *testing.T) {
 	}
 }
 
-// At each of Accounts' hard moments, Detail's WEEKS, its verdicts and what
+// At each of Accounts' hard moments, Detail's WEEKS, its facts and what
 // each account had left at its last reset are History's Weeks' and
 // history's, each as it stands then: Accounts' page and Weeks' built of the
 // days as they were read, as the watch builds them, and stood at the moment;
-// history of the days the ledger holds then, from Weeks' first week. Its six
-// weeks are the last six of Weeks' eight, each row's peaks and verdict
-// theirs, and its left at its last reset history's, where history gives one.
+// history of the days the ledger holds then, from Weeks' first week. Weeks'
+// eight weeks are the last eight of Detail's, each row's peaks in them
+// theirs and its facts on them their verdict's, and its left at its last
+// reset history's, where history gives one.
 func TestDetailsWeeksAreHistorysAtTheMoment(t *testing.T) {
 	for _, am := range viewstest.AccountsMoments() {
 		t.Run(am.Name, func(t *testing.T) {
 			page, m := accountsAt(am)
 			weeks := pastOf(am).Weeks().At(m)
-			shown := len(weeks.Weeks) - len(page.Weeks)
-			if shown < 0 || !slices.Equal(page.Weeks, weeks.Weeks[shown:]) {
+			shown := len(page.Weeks) - len(weeks.Weeks)
+			if shown < 0 || !slices.Equal(page.Weeks[shown:], weeks.Weeks) {
 				t.Fatalf("Detail's weeks are %v, Weeks' %v", page.Weeks, weeks.Weeks)
 			}
 			history := heldHistory(am, weeks.Weeks[0])
 			rows := append(slices.Clone(weeks.Accounts), weeks.All)
 			for i, row := range append(slices.Clone(page.Rows), page.All) {
-				peaks := []string{peaksRead(row.Peaks), peaksRead(rows[i].Peaks[shown:]), peaksRead(historysPeaks(history, i, page.Weeks))}
+				peaks := []string{peaksRead(row.Peaks[shown:]), peaksRead(rows[i].Peaks), peaksRead(historysPeaks(history, i, weeks.Weeks))}
 				if !allSame(peaks) {
 					t.Errorf("row %d's peaks are %s, Weeks' %s, history's %s", i, peaks[0], peaks[1], peaks[2])
 				}
-				verdicts := []string{verdictRead(row.Verdict), verdictRead(rows[i].AccountVerdict), verdictRead(history.Capacity.Accounts[i])}
-				if !allSame(verdicts) {
-					t.Errorf("row %d's verdict is %s, Weeks' %s, history's %s", i, verdicts[0], verdicts[1], verdicts[2])
+				facts := []string{factsRead(row.Facts(len(weeks.Weeks))), factsRead(rows[i].AccountVerdict), factsRead(history.Capacity.Accounts[i])}
+				if !allSame(facts) {
+					t.Errorf("row %d's facts are %s, Weeks' %s, history's %s", i, facts[0], facts[1], facts[2])
 				}
 				if i == len(page.Rows) {
 					continue

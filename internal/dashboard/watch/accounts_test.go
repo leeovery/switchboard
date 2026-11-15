@@ -19,6 +19,7 @@ import (
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/logs"
 	"github.com/leeovery/switchboard/internal/prose"
+	"github.com/leeovery/switchboard/internal/quota"
 	"github.com/leeovery/switchboard/internal/router"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/theme"
@@ -384,7 +385,7 @@ func TestTurnedComparesPlansAreSizedByTheConfigsPlansAtTheirMost(t *testing.T) {
 		All:  priced("", true, 400*ledger.Dollar),
 	}
 	f := m.frame(h.clock.now)
-	f.Width, f.Height, f.View, f.Accounts.Page = 40, 60, dashboard.Accounts, &page
+	f.Width, f.Height, f.View, f.Accounts.Page = 40, 120, dashboard.Accounts, &page
 	rows := f.Draw(probedWithoutTheRouter(), h.clock.now)
 	i := slices.IndexFunc(rows, func(row string) bool { return strings.HasPrefix(ansi.Strip(row), "VALUE") })
 	if i < 0 {
@@ -420,8 +421,8 @@ func TestEachLookStandsAccountsPageAtItsMoment(t *testing.T) {
 
 // History's Weeks is stood at each look's moment, as Accounts' page is: a
 // week reset before the router reads it again closes that week in both, so
-// each account's peaks over Accounts' six weeks, and its verdict, and every
-// account's, are drawn alike on each.
+// each account's peaks over Weeks' weeks, and Weeks' facts on them, and
+// every account's, are drawn alike on each.
 func TestHistorysWeeksTellTheAccountsWeeksAsAccountsAtTheMoment(t *testing.T) {
 	mo := resetBeforeTheReread(t)
 	h := momentHarness(t, mo, dashboard.History)
@@ -432,14 +433,14 @@ func TestHistorysWeeksTellTheAccountsWeeksAsAccountsAtTheMoment(t *testing.T) {
 	if weeks == nil || page == nil {
 		t.Fatalf("Weeks is %v drawn, Accounts' page %v; want both", weeks, page)
 	}
-	shown := len(weeks.Weeks) - len(page.Weeks)
+	judged := len(weeks.Weeks)
 	rows := append(slices.Clone(weeks.Accounts), weeks.All)
 	for i, row := range append(slices.Clone(page.Rows), page.All) {
-		if got, want := rows[i].Peaks[shown:], row.Peaks; !reflect.DeepEqual(got, want) {
+		if got, want := rows[i].Peaks, row.Peaks[len(row.Peaks)-judged:]; !reflect.DeepEqual(got, want) {
 			t.Errorf("row %d's peaks are drawn %v on Weeks, %v on Accounts", i, peaksOf(got), peaksOf(want))
 		}
-		if got, want := rows[i].AccountVerdict, row.Verdict; !reflect.DeepEqual(got, want) {
-			t.Errorf("row %d's verdict is drawn %s on Weeks, %s on Accounts", i, verdictSaid(got), verdictSaid(want))
+		if got, want := factsSaid(rows[i].AccountVerdict), factsSaid(row.Facts(judged)); got != want {
+			t.Errorf("row %d's facts are drawn %s on Weeks, %s on Accounts", i, got, want)
 		}
 	}
 }
@@ -526,16 +527,15 @@ func peaksOf(peaks []views.WeekPeak) []string {
 	return read
 }
 
-// verdictSaid says a verdict, its limits over its weeks, the share left on
-// average and the weeks short without its account, where known, as "hits
-// its limit most weeks 3/7 19% short 2".
-func verdictSaid(v views.AccountVerdict) string {
-	said := fmt.Sprintf("%s %d/%d", v.Verdict, v.Limits, v.Weeks)
+// factsSaid says Weeks' facts, its limits over its weeks and the share left
+// on average, where known, as "3/7 19%", of every account's "all 3/7 42%".
+func factsSaid(v views.AccountVerdict) string {
+	said := fmt.Sprintf("%d/%d", v.Limits, v.Weeks)
+	if v.All {
+		said = "all " + said
+	}
 	if v.LeftAtReset != nil {
 		said += " " + prose.Percent(*v.LeftAtReset)
-	}
-	if v.WithoutIt != nil {
-		said += fmt.Sprintf(" short %d", *v.WithoutIt)
 	}
 	return said
 }
@@ -792,7 +792,9 @@ func TestDetailsKeysChooseAnAccountAndOpenTheSelectedSessionsPage(t *testing.T) 
 	}
 	for _, step := range steps {
 		h.model.scroll = 1
-		h.keys(step.keys...)
+		h.keys(step.keys[:len(step.keys)-1]...)
+		left := h.model.scroll
+		h.keys(step.keys[len(step.keys)-1])
 		step.want.Shown, step.want.Accounts = dashboard.AccountsDetail, threeConfigured
 		if got := h.model.accounts.shown; h.pageOpen() != step.opened || !reflect.DeepEqual(got, step.want) {
 			t.Fatalf("after %s, %q's page is open, Accounts shows %+v; want %q's, over %+v", step.name, h.pageOpen(), got, step.opened, step.want)
@@ -801,9 +803,223 @@ func TestDetailsKeysChooseAnAccountAndOpenTheSelectedSessionsPage(t *testing.T) 
 			continue
 		}
 		h.keys(escKey)
-		if got := h.model.accounts.shown; h.model.session != nil || h.model.view != dashboard.Accounts || !reflect.DeepEqual(got, step.want) || h.model.scroll != 1 {
-			t.Fatalf("esc left %q's page open, %s showing %+v, scrolled %d; want Accounts as left, %+v, scrolled 1", h.pageOpen(), h.model.view, got, h.model.scroll, step.want)
+		if got := h.model.accounts.shown; h.model.session != nil || h.model.view != dashboard.Accounts || !reflect.DeepEqual(got, step.want) || h.model.scroll != left {
+			t.Fatalf("esc left %q's page open, %s showing %+v, scrolled %d; want Accounts as left, %+v, scrolled %d", h.pageOpen(), h.model.view, got, h.model.scroll, step.want, left)
 		}
+	}
+}
+
+// At 160x37, where WORTH and the weeks push Detail's SESSIONS past the
+// view's foot, → taking ↑↓ into them and ↓ selecting the next each scroll
+// the view as far as shows SESSIONS' heading, the session selected and what
+// enter opens, as the key line says ↑↓ act on them there.
+func TestDetailsSESSIONSShowAsTheyTakeTheFocus(t *testing.T) {
+	h := accountsHarness(t, dashboard.AccountsShown{Shown: dashboard.AccountsDetail})
+	h.keys(downKey)
+	if strings.Contains(h.view(), "SESSIONS") {
+		t.Fatalf("SESSIONS shows with the list focused, so the test shows nothing:\n%s", h.view())
+	}
+	for _, step := range []struct {
+		key      tea.KeyPressMsg
+		selected string
+	}{{key: rightKey, selected: "d28c"}, {key: downKey, selected: "9e21"}} {
+		h.keys(step.key)
+		view := strings.Split(h.view(), "\n")
+		for _, want := range []string{"SESSIONS  now", "enter opens " + step.selected + "'s page"} {
+			if !slices.ContainsFunc(view, func(r string) bool { return strings.Contains(r, want) }) {
+				t.Errorf("the view shows no %q:\n%s", want, strings.Join(view, "\n"))
+			}
+		}
+		if !slices.ContainsFunc(view, func(r string) bool { return strings.Contains(r, "▸ ") && strings.Contains(r, " "+step.selected+" ") }) {
+			t.Errorf("the view shows no ▸ on %s:\n%s", step.selected, strings.Join(view, "\n"))
+		}
+	}
+}
+
+// showsSESSIONS fails the test where the view doesn't show Detail's
+// SESSIONS with the session selected, as the watch resolves it: its heading,
+// ▸ on the session, and what enter opens.
+func showsSESSIONS(t *testing.T, h *harness, after string) {
+	t.Helper()
+	s := h.model.accounts.shown
+	selected := status.ShownID(s.Selection(h.model.accounts.running))
+	view := strings.Split(h.view(), "\n")
+	shows := func(want func(string) bool) bool { return slices.ContainsFunc(view, want) }
+	if !shows(func(r string) bool { return strings.Contains(r, "SESSIONS  now") }) ||
+		!shows(func(r string) bool { return strings.Contains(r, "enter opens "+selected+"'s page") }) ||
+		!shows(func(r string) bool { return strings.Contains(r, "▸ ") && strings.Contains(r, " "+selected+" ") }) {
+		t.Errorf("after %s, the view doesn't show SESSIONS with %s selected:\n%s", after, selected, strings.Join(view, "\n"))
+	}
+}
+
+// sessionsHarness is the moment of six sessions running on side, Accounts
+// showing Detail on side among the accounts given, stacked at 52x37:
+// started on the Overview, so the period's page isn't read till Accounts
+// shows, which it does once the harness is returned.
+func sessionsHarness(t *testing.T, accounts config.Accounts) (*harness, viewstest.AccountsMoment) {
+	t.Helper()
+	mo := accountsMoment(t, "six sessions on the account shown")
+	h := momentHarness(t, mo, dashboard.Overview)
+	h.source.sessions = mo.Sessions
+	h.model.accounts.shown = dashboard.AccountsShown{Shown: dashboard.AccountsDetail, Accounts: accounts, Chosen: "side"}
+	h.deliver(h.update(tea.WindowSizeMsg{Width: 52, Height: 37})...)
+	h.start()
+	h.model.view = dashboard.Accounts
+	return h, mo
+}
+
+// withWindow is the document with a window more on the account with the
+// given id, as one more of its windows read.
+func withWindow(doc status.Document, id string, w quota.Window) status.Document {
+	doc.Accounts = slices.Clone(doc.Accounts)
+	for i, a := range doc.Accounts {
+		if a.ID == id {
+			doc.Accounts[i].Windows = append(slices.Clone(a.Windows), w)
+		}
+	}
+	return doc
+}
+
+// Stacked at 52 columns, SESSIONS stay in view while they hold the focus,
+// wherever what's above them or the size lays them: the period's page read
+// once → has taken the focus there, pushing them down past the foot; the
+// period stepped; a window more in USAGE, which moves them down; the
+// terminal resized; and the session selected ending, the selection falling
+// to the one in its place, with the view scrolled off them. k, and a look
+// where nothing moved them, leave the view where it is.
+func TestDetailsSESSIONSStayInViewAsWhatPlacesThemChanges(t *testing.T) {
+	h, mo := sessionsHarness(t, accountsMoment(t, "six sessions on the account shown").Accounts)
+	reading := h.update(rightKey)
+	if h.model.accounts.stood != nil || !h.model.accounts.shown.InSessions {
+		t.Fatal("the period's page is read before → takes the focus to SESSIONS, so the test reads none arriving")
+	}
+	unread := h.model.scroll
+	h.deliver(reading...)
+	if h.model.accounts.stood == nil || h.model.scroll == unread {
+		t.Fatalf("with the period's page read, the view is scrolled %d, as before it was read, want it moved", h.model.scroll)
+	}
+	showsSESSIONS(t, h, "the period's page read")
+
+	h.keyed("<")
+	showsSESSIONS(t, h, "< stepped the period")
+
+	was := h.model.scroll
+	week := quota.Window{Key: claude.WeekWindow, Label: "Week", Utilization: 0.3, ResetsAt: mo.Now.Add(72 * time.Hour)}
+	h.source.router = new(withWindow(mo.Doc, "side", week))
+	h.tickUntilAsked()
+	if h.model.scroll == was {
+		t.Errorf("a window more in USAGE left the view scrolled %d, want it following SESSIONS down", was)
+	}
+	showsSESSIONS(t, h, "a window more in USAGE")
+
+	h.deliver(h.update(tea.WindowSizeMsg{Width: 52, Height: 30})...)
+	showsSESSIONS(t, h, "a resize to 52x30")
+
+	h.keyed("k")
+	scrolled := h.model.scroll
+	h.deliver(h.press("R")...)
+	if h.model.scroll != scrolled {
+		t.Errorf("a look after k scrolled the view to %d, want it left at %d", h.model.scroll, scrolled)
+	}
+
+	h.keys(downKey, downKey)
+	selected := h.model.accounts.shown.Selection(h.model.accounts.running)
+	h.source.sessions = slices.DeleteFunc(slices.Clone(mo.Sessions), func(s status.Session) bool { return s.ID == selected })
+	h.model.scroll = 0
+	h.deliver(h.press("R")...)
+	if h.model.accounts.shown.Selection(h.model.accounts.running) == selected {
+		t.Fatalf("%s is still selected once it ended", status.ShownID(selected))
+	}
+	showsSESSIONS(t, h, status.ShownID(selected)+" ended")
+
+	h.model.scroll = 0
+	h.deliver(h.press("R")...)
+	if h.model.scroll != 0 {
+		t.Errorf("a look where nothing moved SESSIONS scrolled the view to %d, want it left at 0", h.model.scroll)
+	}
+}
+
+// Leaving Detail with SESSIONS focused and coming back, by ] and [ or by tab
+// and shift-tab, each showing it from its top, shows SESSIONS again, stacked
+// at 52 columns.
+func TestDetailsSESSIONSShowAgainComingBackToDetail(t *testing.T) {
+	for _, keys := range [][]string{{"]", "["}, {"tab", "shift+tab"}} {
+		t.Run(strings.Join(keys, " "), func(t *testing.T) {
+			h, _ := sessionsHarness(t, accountsMoment(t, "six sessions on the account shown").Accounts)
+			h.keys(rightKey)
+			showsSESSIONS(t, h, "→")
+			for _, key := range keys {
+				h.keyed(key)
+			}
+			if h.model.view != dashboard.Accounts || !h.model.detailShown() || !h.model.accounts.shown.InSessions {
+				t.Fatalf("after %v, %s shows, Detail %v, SESSIONS focused %v; want Detail back, SESSIONS focused", keys, h.model.view, h.model.detailShown(), h.model.accounts.shown.InSessions)
+			}
+			showsSESSIONS(t, h, strings.Join(keys, " "))
+		})
+	}
+}
+
+// With one account, SESSIONS hold ↑↓ from the start, but Detail opens at its
+// top all the same; the first ↓, selecting the next session, scrolls the
+// view as far as shows SESSIONS.
+func TestDetailOfOneAccountShowsSESSIONSOnceASessionIsSelected(t *testing.T) {
+	h, _ := sessionsHarness(t, config.Accounts{{ID: "side"}})
+	h.deliver(h.press("R")...)
+	if h.model.scroll != 0 {
+		t.Errorf("Detail of one account opened scrolled to %d, want its top", h.model.scroll)
+	}
+	h.keys(downKey)
+	if h.model.accounts.shown.Selected == "" || h.model.scroll == 0 {
+		t.Fatalf("↓ selected %q, the view scrolled to %d; want a session selected and the view on SESSIONS", h.model.accounts.shown.Selected, h.model.scroll)
+	}
+	showsSESSIONS(t, h, "the first ↓")
+}
+
+// A session's page opened from SESSIONS, and closed by esc, leaves Detail's
+// view where k scrolled it off SESSIONS, wide and stacked: neither the page
+// opening nor its closing moves SESSIONS, so neither shows them.
+func TestASessionsPageOpenedAndClosedLeavesDetailsViewWhereItWasLeft(t *testing.T) {
+	for _, size := range []tea.WindowSizeMsg{{Width: 52, Height: 37}, {Width: 138, Height: 30}} {
+		t.Run(fmt.Sprintf("%dx%d", size.Width, size.Height), func(t *testing.T) {
+			h, _ := sessionsHarness(t, accountsMoment(t, "six sessions on the account shown").Accounts)
+			h.deliver(h.update(size)...)
+			h.keys(rightKey)
+			if h.model.scroll == 0 {
+				t.Fatal("→ left the view at its top, so k can't scroll it off SESSIONS")
+			}
+			for range 40 {
+				h.keyed("k")
+			}
+			left, scrolled := h.view(), h.model.scroll
+			h.keys(enterKey)
+			if h.pageOpen() == "" {
+				t.Fatalf("enter on SESSIONS opened no page:\n%s", h.view())
+			}
+			if h.model.scroll != scrolled {
+				t.Errorf("the page opening scrolled Detail to %d, want it left at %d", h.model.scroll, scrolled)
+			}
+			h.keys(escKey)
+			if h.model.scroll != scrolled || h.view() != left {
+				t.Errorf("esc came back to Detail scrolled %d, drawn\n%s\nwant it as it was left, scrolled %d, drawn\n%s", h.model.scroll, h.view(), scrolled, left)
+			}
+		})
+	}
+}
+
+// < on Detail with its list holding the focus shows the view from its top,
+// SESSIONS running below all the same.
+func TestAPeriodStepOnDetailWithItsListFocusedShowsTheViewFromItsTop(t *testing.T) {
+	h, _ := sessionsHarness(t, accountsMoment(t, "six sessions on the account shown").Accounts)
+	h.deliver(h.press("R")...)
+	for range 4 {
+		h.keyed("j")
+	}
+	if h.model.scroll == 0 || h.model.accounts.shown.InSessions {
+		t.Fatalf("j scrolled the view to %d, SESSIONS focused %v; want it scrolled, the list focused", h.model.scroll, h.model.accounts.shown.InSessions)
+	}
+	h.keyed("<")
+	if h.model.scroll != 0 {
+		t.Errorf("< scrolled the view to %d, want it shown from its top", h.model.scroll)
 	}
 }
 

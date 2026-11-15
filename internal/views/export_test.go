@@ -177,3 +177,14 @@ func NewSinceHeld(t, all LogTable) int {
 	}
 	return n
 }
+
+// Unfiled are the resets At files among the page's days at the moment m, as
+// unfiled has them, each its account's id and its window's key, for the
+// tests to hold At to filing the accounts' own weeks alone.
+func (p AccountsPage) Unfiled(m status.Moment) []string {
+	var filed []string
+	for _, r := range (Past{in: p.in, days: p.days}).unfiled(m) {
+		filed = append(filed, r.account+" "+r.reset.Window)
+	}
+	return filed
+}

@@ -385,6 +385,13 @@ func (f Frame) viewRows() int {
 	return f.Height - underView - f.top()
 }
 
+// tabViewRows is how many rows the tab's view has, as viewRows has them of the
+// tab drawn, whether or not a session's page is open over it.
+func (f Frame) tabViewRows() int {
+	f.Session = nil
+	return f.viewRows()
+}
+
 // Under is what of the frame is under a cell, for the wheel to scroll.
 type Under int
 

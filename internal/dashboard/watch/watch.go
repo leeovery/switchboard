@@ -569,6 +569,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if _, frame := msg.(frameMsg); !frame {
 		tuned = tuned.keepLayout(page, now)
 		tuned, page = tuned.rescrolled(page, now)
+		tuned, page = tuned.sessionsKept(page, now)
 	}
 	tuned = tuned.compared(page, now)
 	tuned, frames := tuned.startFrames(page, now)

@@ -512,7 +512,7 @@ var pages = []page{
 		keys: slices.Concat(keysOf("]"), repeated(downKey, 3), []tea.KeyPressMsg{rightKey, downKey}),
 	},
 	{
-		name: "page-detail-list-focus", size: wide(37), world: accountWorlds.auto, view: dashboard.Accounts,
+		name: "page-detail-list-focus", size: wide(53), world: accountWorlds.auto, view: dashboard.Accounts,
 		keys: slices.Concat(keysOf("]"), repeated(downKey, 3)),
 	},
 	{
@@ -526,6 +526,9 @@ var pages = []page{
 	{name: "accounts-phone-detail-plan-unknown-52", size: watch.Size{Width: 52, Height: 41}, world: accountWorlds.sidesPlanUnknown, keys: toDetail()},
 	{name: "accounts-compare-73x61", size: watch.Size{Width: 73, Height: 61}, world: accountWorlds.auto, keys: toAccounts()},
 	{name: "accounts-detail-138x30", size: watch.Size{Width: 138, Height: 30}, world: accountWorlds.auto, keys: toDetail(downKey)},
+	{name: "accounts-detail-all-173x53", size: watch.Size{Width: 173, Height: 53}, world: accountWorlds.auto, keys: toAccounts("]")},
+	{name: "accounts-detail-work-12-weeks-173x53", size: watch.Size{Width: 173, Height: 53}, world: accountWorlds.auto, keys: toDetail(append(keysOf(">", ">"), downKey)...)},
+	{name: "accounts-detail-all-73x61", size: watch.Size{Width: 73, Height: 61}, world: accountWorlds.auto, keys: toAccounts("]")},
 	{name: "accounts-tokens-173x53", size: watch.Size{Width: 173, Height: 53}, world: accountWorlds.auto, keys: toAccounts("]", "]")},
 	{name: "accounts-tokens-73x61", size: watch.Size{Width: 73, Height: 61}, world: accountWorlds.auto, keys: toAccounts("]", "]")},
 	{name: "projects-173x53", size: watch.Size{Width: 173, Height: 53}, world: accountWorlds.auto, keys: toProjects()},
