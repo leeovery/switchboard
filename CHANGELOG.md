@@ -5,6 +5,38 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - 2026-11-15
+
+Dashboard reorganised around projects, a shared period dial and a Trends tab, so you can see where your use went over any period.
+
+## ✨ Added
+
+- Projects tab — ranks every project (repository) with sessions in the period by worth at API prices, with live sessions, requests, a per-model-family bar, and a page for the chosen project showing WORTH BY, BY MODEL, ON ACCOUNTS and its sessions.
+- One period dial shared by Accounts, Projects and Sessions' List — `<` and `>` step today, this week, 30 days, 12 weeks and 12 months, and the choice is kept for next time.
+- 12 months period — the new longest period on the dial.
+- Sessions' List covers the whole period — sessions are grouped under a rule for the day they ended, with started times and a period total at the foot.
+- Accounts' Tokens view — ccusage-style tokens split by account, model or both, now over the dial's period with a total row, cycled with `v`.
+- WEEKS and WORTH charts on Compare — each account's weekly peaks and its worth over the period in finest-fit buckets, with cap markers and limit counts.
+- Detail's weeks section — shows as many weeks as fit (at least the period's own), with WORTH, and with all accounts shown as bands or a table.
+- Sessions now record the project they ran in — `switchboard run` finds the repository (including worktrees) and tells the router.
+- Trends' YEAR, BY MONTH and MODELS BY DAY sections — toggled with `y`, `m` and `d`; `v` and ←→ choose what YEAR shows.
+
+## 🔧 Changed
+
+- Graphs is now Trends — an existing History or Graphs tab choice opens Trends with YEAR shown.
+- Detail's LATELY lists every router event for the account, filling the view, and the list divider runs the full height.
+- Key line drops optional key groups first when it doesn't fit, before falling back to the phone layout.
+- Weeks' verdict wording is replaced by limit-hit and left-at-reset facts — "limit hit 3 of the last 7 weeks · 9% left at a reset".
+- Pool switching with `P` keeps the tab and the period shown.
+
+## 🗑️ Removed
+
+- History tab — its Year, BY MONTH and Days moved to Trends, Tokens to Accounts, and its Weeks verdicts and BY ACCOUNT strips are gone.
+
+## 🐛 Fixed
+
+- Detail's SESSIONS stay in view as the focus moves, the period steps or a page above them changes size.
+
 ## [0.8.1] - 2026-11-15
 
 🐛 Fixed
