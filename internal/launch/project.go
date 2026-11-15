@@ -49,8 +49,9 @@ func FindProject(dir string) string {
 // projectOf names a .bare layout's; or that holds a .git, as repositoryAt
 // reads it, the project FindProject finds of dir. So the folder a worktree
 // since removed was kept in, in any of those, gives the project the
-// worktree had, though FindProject finds the folder its own. It runs no git,
-// and follows dir as it's given. False for "".
+// worktree had, though FindProject finds the folder its own. It runs no git.
+// It walks up dir as it's given, links unresolved, to the nearest such
+// directory; FindProject, for a .git, resolves them. False for "".
 func RepositoryOf(dir string) (string, bool) {
 	if dir == "" {
 		return "", false

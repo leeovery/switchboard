@@ -84,8 +84,9 @@ A line from before switchboard recorded `project` has none. Then a `dir` in
 `<repo>/.claude/worktrees/<name>` counts as `<repo>`, and any other `dir` as itself.
 
 Switchboard works out the project shown when it reads a line, and never rewrites the line. A
-request keeps the pool it was recorded in. Switchboard looks at each folder on this Mac the first
-time a line names it, and keeps the answer while the dashboard or a command runs.
+request keeps the pool it was recorded in. Switchboard works out the project of each folder and
+each slug the first time a line names it, and keeps that project while the dashboard or a command
+runs. A folder made in the meantime is still found for a slug read later.
 
 | If the project, or the `dir` of a line with no project, is | The project shown is |
 |---|---|
@@ -110,13 +111,20 @@ of that worktree counts as `~/Code/api`, even once the worktree is gone.
 - **A slug that names a repository since removed** counts as `temporary folders`. Only the folder
   that held the repository is left, and that folder isn't in any repository. A slug of a volume
   that isn't mounted counts the same way.
-- **A slug that names a worktree since removed** counts as the repository of the worktree, if
-  the worktree was kept inside the folder of that repository. That holds for a worktree in
-  `.claude/worktrees`, for a worktree beside a bare repository in `.bare`, and for a worktree
-  kept inside the folder of a bare repository.
-- **A slug that names a worktree since removed, kept outside the folder of its repository,**
-  counts as `temporary folders`. For example, a worktree made with `git worktree add ../feature`
-  leaves no folder of the repository behind.
+- **A slug that names a worktree since removed** counts as the worktree's repository, if the
+  worktree was kept inside that repository's folder. That holds for these worktrees:
+  - a worktree in `.claude/worktrees`;
+  - a worktree beside a bare repository in `.bare`;
+  - a worktree kept inside the folder of a bare repository.
+- **A slug that names a removed worktree kept outside the repository** counts as
+  `temporary folders`. For example, a worktree made with `git worktree add ../feature` leaves no
+  folder of the repository behind.
+- **A removed folder whose name begins with a sibling's name and a `-`** counts as that sibling.
+  A slug can't tell `-` from `/`, and the deepest folder still on this Mac wins. For example:
+  - a removed `~/Code/api-v2` counts as `~/Code/api`;
+  - a removed worktree made with `git worktree add ../api-feature` from `~/Code/api` counts as
+    `~/Code/api`;
+  - a removed `~/Code/web-fix` counts as `~/Code/web`, even if the two are unrelated.
 - **A slug that names no folder, or only a folder above your home folder,** counts as
   `temporary folders`.
 - **A slug or a `dir` in another case,** such as `~/code` for `~/Code`, counts as the folder on

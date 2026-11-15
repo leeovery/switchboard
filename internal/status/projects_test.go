@@ -159,10 +159,10 @@ func TestAProjectInAScratchpadIsTheProjectItsSlugNames(t *testing.T) {
 }
 
 // A path is temporary in a temporary root, the reader's temporary directory
-// among them where it isn't the home or above it; at or under a folder named for Claude Code's scratch root,
-// whatever holds it; or at or under the folder holding the scratch root,
-// where that holder isn't the home or above it. Each is compared with its
-// case folded. Nothing else is.
+// among them where it isn't the home or above it; at or under a folder
+// named for Claude Code's scratch root, whatever holds it; or at or under
+// the folder holding the scratch root, where that holder isn't the home or
+// above it. Each is compared with its case folded. Nothing else is.
 func TestAProjectInATemporaryFolderIsTemporaryFolders(t *testing.T) {
 	tests := []struct {
 		name, project, dir, want string
@@ -300,9 +300,9 @@ func TestEachPathAndEachSlugIsReadAgainstTheFilesystemOnce(t *testing.T) {
 	}
 }
 
-// Each folder is listed once, and looked in for the scratch root once,
-// however many of the projects read, and of the scratchpads' slugs
-// decoded, are in it.
+// Each folder is listed once for its case, and looked in for the scratch
+// root once, however many of the projects read are in it. A slug's walk
+// keeps no listing: it's decoded against the folders as they are then.
 func TestEachFolderIsListedAndLookedInOnce(t *testing.T) {
 	m := machine()
 	for i := range 50 {
@@ -315,14 +315,41 @@ func TestEachFolderIsListedAndLookedInOnce(t *testing.T) {
 		if got := p.Of("", fmt.Sprintf("~/code/project-%d", i)); got != want {
 			t.Errorf("Of(~/code/project-%d) = %q, want %q", i, got, want)
 		}
-		if got := p.Of("", scratchpad("/private/tmp", fmt.Sprintf("-Users-you-Code-project-%d", i), scratchOne, "")); got != want {
-			t.Errorf("a scratchpad of project-%d is %q's, want %q's", i, got, want)
-		}
 	}
 	for _, name := range []string{".", "Users", "Users/you", "Users/you/Code", "Users/you/Code/claude-501"} {
 		if got := o.opened[name]; got != 1 {
 			t.Errorf("%s was opened %d times, want once", name, got)
 		}
+	}
+}
+
+// A slug is decoded against the folders there as it's first read, however
+// long the Projects reading it has run: a folder made since its parent was
+// first read is found, and a worktree removed since is gone, its folder
+// left giving its repository's project.
+func TestASlugIsDecodedAgainstTheFoldersThereAsItsRead(t *testing.T) {
+	m := machine()
+	m["Users/you/Code/web.git/wt/feature"] = &fstest.MapFile{Mode: fs.ModeDir}
+	p := status.NewProjects(status.ProjectsConfig{Root: m, Home: "/Users/you", UID: 501, Find: gitWalk(m), Repository: repositoryOf(m)})
+	for dir, want := range map[string]string{"~/Code/api": "~/Code/api", "~/Code/web.git/wt/other": "~/Code/web.git/wt/other"} {
+		if got := p.Of("", dir); got != want {
+			t.Fatalf("Of(%q) = %q, want %q", dir, got, want)
+		}
+	}
+	m["Users/you/Code/newproj/.git"] = &fstest.MapFile{Mode: fs.ModeDir}
+	delete(m, "Users/you/Code/web.git/wt/feature")
+	tests := []struct {
+		name, slug, want string
+	}{
+		{name: "a repository made since its parent was read", slug: "-Users-you-Code-newproj", want: "~/Code/newproj"},
+		{name: "a worktree removed since its parent was read, its repository", slug: "-Users-you-Code-web-git-wt-feature", want: "~/Code/web.git"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := p.Of("", scratchpad("/private/tmp", tt.slug, scratchOne, "")); got != tt.want {
+				t.Errorf("a scratchpad of %s is %q's, want %q's", tt.slug, got, tt.want)
+			}
+		})
 	}
 }
 

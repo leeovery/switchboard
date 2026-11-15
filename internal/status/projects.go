@@ -55,12 +55,12 @@ type ProjectsConfig struct {
 //   - any other path is given in the case its folders have, so a project
 //     named in two cases on a volume that ignores case is one.
 //
-// Each is given home as ~. Each path, each slug, each folder's listing,
-// claude.SlugDir's among them, and each folder's look for the scratch root
-// is read once, the first time it's asked of, and kept for every read
-// after, so a view of a thousand scratchpads looks at the filesystem only as
-// first built, and a directory gone since leaves the project it named. The
-// zero Projects reads as ProjectOf alone.
+// Each is given home as ~. Each path and each slug is decoded once, against
+// the filesystem as it is the first time it's asked of, and kept for every
+// read after, so a view of a thousand scratchpads looks at the filesystem
+// only as first built, and a directory gone since leaves the project it
+// named. Each folder is listed once for its case, and looked in once for the
+// scratch root. The zero Projects reads as ProjectOf alone.
 type Projects struct {
 	read *projectsRead
 }
@@ -68,8 +68,8 @@ type Projects struct {
 // projectsRead is what Projects reads against, and what it has read once:
 // the project of each path, by the path; of each scratchpad's slug, by the
 // slug; each whole path in the case its folders have, by the path; what's
-// in each folder, by the folder; and whether each folder holds Claude
-// Code's scratch root, by the folder.
+// in each folder, by the folder, for its case alone; and whether each folder
+// holds Claude Code's scratch root, by the folder.
 type projectsRead struct {
 	ProjectsConfig
 	temporary           []string
@@ -136,7 +136,7 @@ func (r *projectsRead) project(at string) string {
 // slugged is the project of the directory the scratchpad's slug names, as
 // Projects reads it.
 func (r *projectsRead) slugged(slug string) string {
-	named := claude.SlugDir(listedFS{r}, slug)
+	named := claude.SlugDir(r.Root, slug)
 	if named.Dir == "" || r.aboveHome(named.Dir) {
 		return TemporaryFolders
 	}
@@ -260,20 +260,6 @@ func (r *projectsRead) listing(dir string) []fs.DirEntry {
 		entries, _ := fs.ReadDir(r.Root, rooted(dir))
 		return entries
 	})
-}
-
-// listedFS is Root, each folder's listing read once, as the read's listing
-// has it, as claude.SlugDir walks it.
-type listedFS struct {
-	r *projectsRead
-}
-
-func (l listedFS) Open(name string) (fs.File, error) {
-	return l.r.Root.Open(name)
-}
-
-func (l listedFS) ReadDir(name string) ([]fs.DirEntry, error) {
-	return l.r.listing(path.Join("/", name)), nil
 }
 
 // rooted is the whole path p as a path of the filesystem from its root.
