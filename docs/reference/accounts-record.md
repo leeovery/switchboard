@@ -109,3 +109,8 @@ account as the config would be given back.
 
 To fix it, put the file right, or move it aside to start a new one. A new record names the
 accounts removed before by their ids.
+
+## An account removed while no router ran
+
+An account that left the config while no router ran is marked removed by its id only, with no
+label. The next import that names it gives it its label.

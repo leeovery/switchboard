@@ -17,13 +17,39 @@ ending `— not starting claude`.
 | `pool Acme has no accounts` | Add one with `switchboard accounts add "Acme 1" --pool q7mt`. |
 | `pool Acme has no account with a usable token` | Give one a token with `switchboard accounts token m2kp`. |
 | `~/Code/acme is in pool Acme, where claude never starts on its own login` | Start it through the router, or outside the fence. |
+| `…: add that bare repository to pool Acme's directories` | The worktree's repository is a bare one outside every fence. Add it to the pool's folders, as below. |
+| `can't tell which pool the directory claude starts in is in` | The folder can't be read, for example because it was removed. Start it in a folder that's there. |
+| `can't tell which pool ~/wt/x is in: its .git file at ~/wt/x leads to no repository that can be found` | The worktree's `.git` file is stale. Run `git worktree repair <worktree>` in its repository, or remove the worktree. |
+| `can't tell which pool ~/wt/x is in: its worktree at ~/wt/x is a submodule's or a separate git directory's, which can't be placed` | Switchboard can't place either. Work in a checkout instead. |
+| `can't tell which pool ~/Code/x is in: pool Acme's directory "…" can't be placed` | The config writes a pool folder that can't be placed. Put the folder right in the config. |
+| `can't tell which pool ~/Code/x is in: neither the config, the router nor the accounts record names any pools` | Nothing names any pools, so any folder may be fenced. Put the pools back in the config. |
+| `the router routes no account of pool Acme yet: any the config gives it waits for the router to restart` | Wait for the router to restart itself, or run `switchboard service restart`. |
 
 `no pool covers` means every pool is fenced, and none holds the folder. To leave a pool unfenced,
 run `switchboard pool edit q7mt --unfence`. A git worktree belongs in the same fence as its
 repository, or outside every fence with it. The own-login refusal comes from `--direct`, or from a
 start without switchboard, inside a fence. Without switchboard, the message starts with why.
 
-Every message, with what to do, is in [`switchboard claude`](../commands/claude-command.md).
+More on the rows above:
+
+- **The worktree row** fits a worktree nested inside another worktree of a fenced repository
+  too, saying `lies in pool Acme, through the worktree ~/wt`. If every pool is fenced, it says `in no pool`.
+- **The `.git` file is stale** if it can't be read, names a git directory that's gone, or its
+  `commondir` can't be read. A stale `.git` file refuses every folder below it.
+- **The own-login row,** for a worktree of a repository inside a fence, says
+  `in its repository, ~/Code/acme-feature is at ~/Code/acme`.
+- **The last row** comes when the config names no pools, so the router's pools are taken.
+
+For a bare repository, give `--dirs` the folders the pool has and the bare repository together,
+because `--dirs` replaces them:
+
+```bash
+switchboard pool edit q7mt --dirs ~/Code/acme \
+  --dirs ~/repos/app.git
+```
+
+`--account` with an account of another pool fails, and names the pool each is in:
+`Acme 1 (m2kp) is in pool Acme; this directory is in pool Default`.
 
 ## `claude` says the router doesn't route by the pools
 

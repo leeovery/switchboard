@@ -34,7 +34,7 @@ place. They point you to `switchboard logs router` and `launchd.log` for why.
 ## `install`: write the LaunchAgent
 
 `install` writes `~/Library/LaunchAgents/io.github.leeovery.switchboard.plist`. launchd loads it in
-place of any copy loaded before, once the router of that copy has finished its requests in flight.
+place of any copy loaded before, once that copy's router has finished its requests in flight.
 The LaunchAgent marks the router as an interactive job, so launchd doesn't throttle it the way it
 can a job of no stated kind. Every Claude Code request waits on the router.
 
@@ -109,16 +109,35 @@ What happens depends on the router:
 
 | The router | What `restart` does |
 |---|---|
-| Answering | Asks the router to restart. The router finishes its requests in flight, for up to 30 seconds, then gives those it cuts off 5 more to unwind. Then it restarts in place. |
-| Answering, but can't replace itself | Asks the router to restart, and launchd starts it again. It says `…, then launchd starts it again`. |
-| Run by hand | The router refuses, and `restart` says why. |
-| Answering, with a config that isn't valid | The router refuses, because it couldn't start again from that config. After an upgrade, the new version judges the config instead, so a config only the new version takes doesn't hold the restart. |
-| Answering, with a new binary that refuses to start | The router asks the binary it would become first. If that refuses, as a newer version can refuse a config the running one takes, the router refuses too, in the words of the binary. |
-| Answering, mid-upgrade | If the binary is missing for a moment, or the config or the binary changes during the check, the router refuses. `restart` names what changed and says to try again. |
-| Answering, with an upgrade it can't copy in | If the router can't copy the upgrade beside its own copy, as on a full disk, it refuses, and `restart` says why. |
-| Answering, mid-export | The router never restarts in place over an export on a schedule, so it refuses: `an export into <dir> is under way: try again once it ends`. |
-| From before routers restarted in place | The router stops as if signalled, and launchd starts it again. |
-| Not answering | launchd starts the service afresh at once. |
+| Answering | Asks it to restart in place. |
+| Answering, but can't replace itself | Asks it to restart, and launchd starts it again. |
+| From before routers restarted in place | Stops it, and launchd starts it again. |
+| Not answering | Has launchd start the service afresh at once. |
+| Run by hand | Nothing: the router refuses. |
+
+A router asked to restart finishes its requests in flight first, for up to 30 seconds. It gives
+those it cuts off 5 more seconds to unwind. For a router that can't replace itself, `restart` says
+`…, then launchd starts it again`.
+
+### When the router refuses to restart
+
+An answering router refuses, and `restart` says why, in these cases:
+
+| If | Then |
+|---|---|
+| The config isn't valid | Put the config right. |
+| The binary it would become refuses to start | Put right what the binary names. |
+| The binary or config changes during the check | Try again in a moment. |
+| It can't copy the upgrade in | Free some disk space, then try again. |
+| An export on a schedule is under way | Try again once the export ends. |
+
+- **The config** is judged by the new version after an upgrade, so a config only the new version
+  takes doesn't hold the restart.
+- **The binary** is asked first because a newer version can refuse a config the running one takes.
+- **The binary may be missing** for a moment while an upgrade moves it. `restart` names what changed.
+- **The router copies an upgrade** in beside its own copy, which fails on a full disk.
+- **The export message** is `an export into <dir> is under way: try again once it ends`. The router
+  never restarts in place over an export.
 
 `restart` asks the router at two places: where the LaunchAgent keeps its state, and where your
 shell does. It starts the service afresh only when neither answers. The first router to answer
@@ -189,4 +208,4 @@ switchboard service status
 
 - [Setup](setup.md): installs the service as one of its steps.
 - [serve](serve.md): the router the service runs, and how it restarts in place.
-- [Troubleshooting](../troubleshooting.md): when the router won't start or answer.
+- [Troubleshooting: the router](../troubleshooting/router.md): when the router won't start or answer.

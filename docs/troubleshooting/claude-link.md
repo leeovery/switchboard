@@ -80,6 +80,48 @@ You can also run the real `claude` by its path. If the switchboard binary itself
 `claude` breaks with it. Remove the line marked `# switchboard` from your startup file, then open a
 new terminal. That takes the switchboard folder off `PATH`.
 
+## Which startup file gets the line
+
+`setup` offers to add one line, marked `# switchboard`, to the end of your shell's startup file:
+
+| Shell | The startup file |
+|---|---|
+| zsh | `.zshrc` where zsh reads it: `$ZDOTDIR`, or your home |
+| bash | The first of `~/.bash_profile`, `~/.bash_login` and `~/.profile` that exists |
+| fish | `config.fish` where fish reads it |
+| Any other | None |
+
+For bash with none of those files, `setup` makes `~/.bash_profile`. For another shell, it shows
+the bin directory to put first on `PATH` yourself. A startup file that's a link, such as one into
+your dotfiles, is written where the link leads. `setup` adds the line only once, ever.
+
+`init.bash` is plain POSIX shell, so a `~/.profile` that `sh` reads too can load it. Its
+completions are in `completion.bash` beside it.
+
+## `setup` shows the line but doesn't add it
+
+| If | Then |
+|---|---|
+| `setup` couldn't ask your shell | It names the file the line usually goes in. Add it there. |
+| zsh names a `$ZDOTDIR` with no `.zshrc`, and your home has one | `setup` names both files. Add the line to the one a new terminal reads. |
+
+A `ZDOTDIR` set in `.zshenv` or `.zprofile` is the one a new macOS terminal reads, because it starts
+a login shell. One set in `.zshrc` or later isn't.
+
+## `setup` says something else changes `PATH`
+
+| If `setup` says | Then |
+|---|---|
+| The line is last, but something read after the file changes `PATH` | Something such as `.zlogin` runs later. Put the line there, after what changes `PATH`. |
+| The line reads another switchboard's file | Put the line `setup` shows in its place. |
+| Your shell exited without answering | The startup file may start something that needs a terminal, such as tmux. |
+
+## An alias that runs a path
+
+An alias that runs a `claude` by its path goes through switchboard only if the path is the link,
+with no `PATH` set before it. The path must be clean, with no trailing `/` and no `.` or `..` in
+it. For example, Claude Code's old `~/.claude/local/claude` doesn't go through switchboard.
+
 ## Related
 
 - [`switchboard setup`](../commands/setup.md): every page of `setup`, the `claude` link among them.

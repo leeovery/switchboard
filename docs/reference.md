@@ -14,6 +14,7 @@ Start with [Reading the JSON](reference/reading-the-json.md): the rules there ho
 | [The session hook](reference/session-hook.md) | The entry `setup` adds to the settings of Claude Code, and what it prints. |
 | [What `claude` sets](reference/environment.md) | The variables and headers a routed session starts with. |
 | [Tokens](reference/tokens.md) | Where the token of each account is kept, and the record of when it was taken. |
+| [Account labels and config edits](reference/account-labels.md) | How `accounts` tidies and refuses a label, and how it writes the config. |
 
 ## The record
 
