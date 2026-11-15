@@ -1,4 +1,4 @@
-# `switchboard history`
+# `switchboard history`: what your use was worth
 
 `history` sums up each day of your record, prices it at API prices, and sets that against what your
 plans cost. It then judges whether you have as many accounts as your use needs. It covers the last
@@ -20,14 +20,16 @@ Weeks: two is one more than you need
 ```
 
 ```bash
-switchboard history [--since <when>] [--windows] [--pool <id>] [--json | --pretty]
+switchboard history [--since <when>] \
+  [--windows] [--pool <id>] \
+  [--json | --pretty]
 ```
 
 | Flag | Default | What it does |
 |---|---|---|
 | `--since <when>` | The last 30 days | Starts on the day of `<when>`: a day (`2026-10-01`), a time today (`14:00`), or a while ago (`3h`, `2d`). |
 | `--windows` | Off | Prints every reading of every window over those days, in place of the days. |
-| `--pool <id>` | The only pool, else the unfenced one | Sums up the history of that pool. See below. |
+| `--pool <id>` | The only pool, else the unfenced one | Sums up the work of that pool. See below. |
 | `--json` | Off a terminal | Prints the blocks as JSON, even on a terminal. |
 | `--pretty` | On a terminal | Prints the text, even off a terminal. |
 
@@ -63,7 +65,7 @@ says so, then shows those notes without totals.
 
 ## Plan prices
 
-Each account has the price a month of its `plan` in the config. `history` prorates that price the
+Each account has a monthly price, set by its `plan` in the config. `history` prorates that price the
 same way the dashboard does.
 
 | Period | Priced at |
@@ -71,7 +73,7 @@ same way the dashboard does.
 | A day | 12/365 of a month |
 | A week | 12/52 of a month |
 | 30 days | A month |
-| 12 weeks | Twelve weeks |
+| 12 weeks | 12 × 12/52 of a month |
 
 | If | Then |
 |---|---|
@@ -92,22 +94,24 @@ Under the days, `history` shows totals over all of them:
 
 ### Weeks, and when a week is short
 
-To judge your accounts, `history` looks at each week of each account, from one reset of its week
-to the next.
+To judge your accounts, `history` looks at the weeks of each account. A week runs from one reset to
+the next.
 
 | Term | What it means |
 |---|---|
 | Peak | The use just before the reset that ended the week. A reset you made by hand counts. |
-| Placing | A week goes under the calendar week it began in, up to half-way in. Otherwise it goes under the next. `week_starts` sets the calendar. |
+| Placing | A week goes under the calendar week it began in, up to half-way in, or else the next. |
 | The running week | Always this week. Its peak is its highest so far, read from before the days asked for if its week began earlier. |
 | A short week | A week in which some account hit its cap: 100% less its `reserve`, at the reserve it has now. |
-| A whole week | One in which the week of every account is known and has ended. Only whole weeks are judged. |
+| A whole week | One in which every account's week is known and has ended. Only whole weeks are judged. |
+
+`week_starts` in the config sets the day calendar weeks begin on.
 
 ### The replay
 
 Each whole week is replayed twice, to see what another account, or one fewer, would change:
 
-- **With one fewer:** the use of the dropped account is shared out among the rest, by the sizes
+- **With one fewer:** the dropped account's use is shared out among the rest, by the sizes
   of their plans.
 - **With one more:** the new account has the plan most of your accounts have, and every peak falls
   in proportion.
@@ -126,21 +130,22 @@ The verdict is the first row that holds:
 | `one more than you need` | Fewer than 4 of every 7 weeks are short, and one fewer account would add no short week. It names the account to drop. |
 | `about right` | None of the above. |
 
-With three accounts or more, `one more than you need` also says how many weeks would be short
-without a second account. If no whole week can be judged yet, `history` says
+With three accounts or more, `one more than you need` also says `with two fewer:`. That's how many
+weeks would be short without the account it names and the next it would drop. If no whole week can be judged yet, `history` says
 `Weeks: not enough weeks yet`.
 
 Each account also gets a verdict over its own whole weeks, the first row that holds:
 
 | Account verdict | When |
 |---|---|
-| `could go` | The verdict is `one more than you need`, the account hit no limit, used 10% or less on average, and the rest cover it. |
+| `could go` | The verdict is `one more than you need`, and the rest cover this account. See below. |
 | `barely used` | It had 75% or more left at a reset, on average. |
 | `hits its limit most weeks` | It hit its limit in 3 or more of every 7 weeks. |
 | `plenty to spare most weeks` | It had 40% or more left at a reset, on average. |
 | `ends most weeks with room` | None of the above. |
 
-What a week had left is measured to its limit, not its cap. Every account together gets one more
+An account `could go` only if it hit no limit and used 10% or less on average. What a week had
+left is measured to its limit, not its cap. Every account together gets one more
 verdict:
 
 | Verdict on every account | When |
@@ -150,11 +155,12 @@ verdict:
 
 ## Windows
 
-`--windows` prints, in place of the days, a line each time the use, the reset or the status of a
-window changed.
+`--windows` prints, in place of the days, a line each time a window changed its use, its reset or
+its status.
 
 ```console
-$ switchboard history --windows --since 10:00
+$ switchboard history --windows \
+    --since 10:00
 work  Week
   Wed 7 Oct 09:00  41%  resets Mon 12 Oct 10:00  allowed  answer
 
@@ -164,8 +170,8 @@ work  5-hour
 
 ## History in a pool
 
-`--pool` reads the work of one pool, by the pool each request was routed in at the time. Work from
-before pools counts as the first pool. The windows, plans and weeks are those of the accounts in
+`--pool` reads one pool's work, by the pool each request was routed in at the time. Work from
+before pools counts as the first pool. It takes the windows, plans and weeks from the accounts in
 the pool now.
 
 - The days, months and tokens start on the first day of work in the pool. The plans are priced
@@ -178,15 +184,18 @@ the pool now.
 - The JSON holds the day the prices were read, then the days, the year, months, weeks, tokens,
   totals, plans and capacity. Every field is in [Reference](../reference/history-json.md).
 - An account removed shows as `team (removed 4 Sep)` in the text, and by its id in the JSON.
-- Just after an upgrade that moves the history, `history` refuses until the router has moved it.
+- Just after an upgrade that moves your record, `history` refuses until the router has moved it.
 
 ## Examples
 
 ```bash
 switchboard history --since 7d
-switchboard history --json | jq '.days[-1]'      # today, as far as it has gone
-switchboard history --json | jq '.capacity'      # whether you have as many accounts as you need
-switchboard history --windows --since 14:00      # every reading of every window today
+# today, as far as it has gone
+switchboard history --json | jq '.days[-1]'
+# whether you have as many accounts as you need
+switchboard history --json | jq '.capacity'
+# every reading of every window today
+switchboard history --windows --since 14:00
 ```
 
 ## Related

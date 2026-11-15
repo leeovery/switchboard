@@ -1,7 +1,7 @@
-# `switchboard requests`
+# `switchboard requests`: every request, one line each
 
 `requests` lists the requests the router has recorded, one line each: today's, unless `--since`
-reaches further back. It reads the record from its files, so it works without the router.
+reaches further back. It reads your record from its files, so it works without the router.
 
 ```console
 $ switchboard requests --since 10:00
@@ -12,15 +12,18 @@ Wed 7 Oct 2026, so far
 ```
 
 ```bash
-switchboard requests [--session <id>] [--account <id>] [--since <when>] [--pool <id>] [--json | --pretty]
+switchboard requests \
+  [--session <id>] [--account <id>] \
+  [--since <when>] [--pool <id>] \
+  [--json | --pretty]
 ```
 
 | Flag | Default | What it does |
 |---|---|---|
-| `--session <id>` | Every session | Keeps the requests of that session. Give its id, or as much of it as is unique. |
-| `--account <id>` | Every account | Keeps the requests of that account, by its id in any case. A label is refused, and the refusal names the id. |
+| `--session <id>` | Every session | Keeps only that session. Give its id, or as much of it as is unique. |
+| `--account <id>` | Every account | Keeps only that account, by its id in any case. A label is refused, and the refusal names the id. |
 | `--since <when>` | The start of today | Starts at a day (`2026-10-01`), a time today (`14:00`), or a while ago (`3h`, `2d`). |
-| `--pool <id>` | The only pool, else the unfenced one | Keeps the requests of that pool. See below. |
+| `--pool <id>` | The only pool, else the unfenced one | Keeps only that pool. See below. |
 | `--json` | Off a terminal | Prints each line as the ledger holds it, with `"schema": 1` first: one JSON object a line. |
 | `--pretty` | On a terminal | Prints the text, even off a terminal. |
 
@@ -51,13 +54,13 @@ The requests are listed oldest first, under the day each arrived on.
 Each request is kept under the pool it was routed in at the time. A request from before pools
 counts as the first pool.
 
-| If you pass | Then you get |
+| If you pass | You get the requests of |
 |---|---|
-| `--pool <id>` | The requests of that pool, including a removed pool or one an import brought. |
-| `--session` without `--pool` | The requests of the session in the pool of its newest request. |
-| `--session` with `--pool` | The requests of the session in that pool. A session with no work there isn't found. |
-| `--account` without `--pool` | The requests of the account in the pool it's in now. |
-| `--account` for an account an import brought | The requests in the pool of its newest request, because no pool here holds the account. |
+| `--pool <id>` | That pool, including a removed pool or one an import brought. |
+| `--session` without `--pool` | The session, in the pool its newest request was routed in. |
+| `--session` with `--pool` | The session, in that pool only. A session with no work there isn't found. |
+| `--account` without `--pool` | The account, in the pool it's in now. |
+| `--account` for an account an import brought | The account, in the pool its newest request was routed in. No pool here holds it. |
 
 A session resumed in another pool has work in both, and `requests` shows one pool at a time. The
 pool an account is in now comes from the config, or from the accounts record for a removed account.
@@ -66,7 +69,7 @@ pool an account is in now comes from the config, or from the accounts record for
 
 - The JSON names each account by its id, as the files keep it. Every field is in
   [Reference](../reference/ledger.md).
-- Just after an upgrade that moves the history, `requests` refuses until the router has moved it.
+- Just after an upgrade that moves your record, `requests` refuses until the router has moved it.
   It says what holds the move up.
 - Once you have a second pool, the text names the pool it read, such as `pool Acme`.
 
@@ -74,7 +77,8 @@ pool an account is in now comes from the config, or from the accounts record for
 
 ```bash
 switchboard requests --since 14:00
-switchboard requests --session 18bb --json | jq '.usage'
+switchboard requests --session 18bb --json \
+  | jq '.usage'
 ```
 
 ## Related

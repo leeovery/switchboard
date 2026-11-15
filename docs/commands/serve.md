@@ -1,4 +1,4 @@
-# `switchboard serve`
+# `switchboard serve`: run the router yourself
 
 `serve` runs the router in the foreground until you stop it. The service normally runs it for you,
 so you'd only run it by hand to watch it, or if you haven't installed the service.
@@ -31,24 +31,29 @@ routed until one has. As it starts, it:
 
 - makes the `tokens`, `history` and `ledger` folders private;
 - takes up the readings it recorded, so the rates behind pressure and the week forecasts carry on;
-- brings the skill for Claude up to date.
+- brings the Claude skill up to date.
 
 ## Changes it takes up at once
 
-Every 3 seconds, the router looks at its token files and its config, and takes these up in place:
+Every 3 seconds, the router looks at its token files and its config. It takes these up within about
+3 seconds, with no restart:
 
 | Change | What the router does |
 |---|---|
-| A token file holds a new token | The account goes out on the new token. |
+| A token file holds a new token | The account goes out on the new token. Sessions holding the old one stay routed for a week. |
 | An account without a token gains one | The account starts taking requests. |
 | A token file holds no usable token at two looks in a row | The account has nothing to send on until a token is back. |
 | A `wrong token` account gets another token | It takes requests again, and the finding goes. |
 | A pool is added, edited or removed, or an account moves pool | Sessions are routed by the new pools. |
 | `[export] dir` changes | The next export goes to the new folder. |
-| An account leaves the config | Sessions still holding its token go on being routed, as if they held the token of the primary. |
+| An account leaves the config | Sessions still holding its token stay routed as the primary's sessions, for a week. |
 
 A single look that finds no token, for example while a file is being rewritten, keeps the token the
-account had. A new account waits for the router to restart.
+account had.
+
+Any other config change, such as a new account, is taken up when the router restarts itself, once
+no request is in flight. `switchboard service restart` does it now. A router you run by hand with
+`serve` only logs that a restart is due.
 
 After your Mac wakes, the router sends its requests and probes on fresh connections, because a sleep
 can leave the old ones dead.
@@ -56,13 +61,14 @@ can leave the old ones dead.
 ## Restarting in place
 
 The router restarts itself to take up a new config, an upgrade or a new time zone. It replaces
-itself in place and hands over the sockets it listens on, so no request is refused.
+itself in place and hands over the sockets it listens on, so no request is refused. Why it waits,
+and how upgrades move your record, is in [Upgrades and restarts](../upgrades-and-restarts.md).
 
 | The router watches | And restarts when |
 |---|---|
 | Its config file, following links | The file makes another valid config. |
 | The binary it upgrades from | The link leads to another binary, for example after `brew upgrade`. |
-| `/etc/localtime` | The time zone of the Mac changes. |
+| `/etc/localtime` | The Mac changes time zone. |
 
 The service runs the router from a copy of its own. The binary it upgrades from is the Homebrew
 link that `service install` ran from. Run by hand, the router upgrades from the binary it started as.
@@ -90,9 +96,9 @@ export starts while a restart is due, because the new router exports as it start
 | If | Then |
 |---|---|
 | The config isn't valid at two looks in a row | The change is logged at warn and refused. The router carries on as it was. |
-| The new binary refuses to start, for example a newer version refusing the config | The restart is held. The router carries on, and says why in its log, its events and `restart` in `status --json`. |
+| The new binary refuses to start, for example a newer version refusing the config | The restart is held, and the router carries on. It says why in its log, its events and `status --json`. |
 | A held restart then sees the config or binary change | The router asks again. |
-| The binary is from before this check | It can't answer, so the router restarts into it. |
+| The binary is from before this check | It can't answer. The router restarts into it, unless the running version refuses the config, which holds the restart. |
 | The upgrade can't be copied in, for example on a full disk | It's logged once at warn. The restart stays due, and the router tries again at the next quiet moment. |
 | The binary isn't there, for example while `brew upgrade` moves the link | The router tries again for a couple of seconds, then exits. launchd starts it again. |
 | The router is told to stop while it waits | It stops then and there. |
