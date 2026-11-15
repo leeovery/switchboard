@@ -10,10 +10,13 @@ Switchboard is written in Go, for macOS. Before you change anything, read two fi
 Every change passes these gates before it merges:
 
 ```bash
-gofmt -l .               # must print nothing
+# Must print nothing
+gofmt -l .
 go vet ./...
-scripts/test-isolated    # every test, in a sandbox
-golangci-lint run        # the linters in .golangci.yml
+# Every test, in a sandbox
+scripts/test-isolated
+# The linters in .golangci.yml
+golangci-lint run
 go build ./...
 ```
 
