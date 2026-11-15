@@ -341,7 +341,7 @@ folder of its own.
   disk not mounted fails the export rather than having it written onto the Mac's own disk.
 - **How it stands:** the status document's `export` says when the last export succeeded, why the
   last failed, and when the one under way began. A failure is logged once, until an export
-  succeeds. See [An export that fails](troubleshooting.md#an-export-that-fails).
+  succeeds. See [An export that fails](troubleshooting/exports.md).
 
 ## Looking after itself
 
@@ -478,7 +478,7 @@ token file was replaced by hand with another account's token, the account shows 
 The finding outlasts a restart, kept in `state.json`, and goes as soon as the account takes up
 another token. Where the account's subscription isn't known yet, as for one added on another Mac,
 the first probe's organization is recorded as its own, unless another account has it. See
-[A `wrong token` account](troubleshooting.md#a-wrong-token-account).
+[A `wrong token` account](troubleshooting/tokens.md).
 
 ### Upgrading to account ids
 
@@ -520,7 +520,7 @@ one, as one put back from a dotfiles repository, is put right as the router star
 `switchboard status` names the account it waits on and why, as `the history waits on its move onto
 the accounts' new ids: the API hasn't named the organization of work's token, which makes its id,
 so the router asks again a while later: …`. See
-[A move onto the ids that waits](troubleshooting.md#a-move-onto-the-ids-that-waits).
+[A move onto the ids that waits](troubleshooting/account-ids.md).
 
 ### Several Macs
 
@@ -737,7 +737,7 @@ from the accounts record, and each account in the pool it was in. An account add
 the unfenced pool, never a fenced one; where every pool is fenced, the config is left as it is, and
 tried again each minute. Whether or not the config can be written, the router routes as though it
 were, and `claude` reads the pools from the router, else from the accounts record, so no session
-crosses a fence meanwhile. See [Pools](troubleshooting.md#pools).
+crosses a fence meanwhile. See [Pools](troubleshooting/pools.md).
 
 **Several Macs** sharing a config should upgrade together, as for the ids: the first to move writes
 the first pool, and the others take it from the config. A Mac that moves before the first pool has

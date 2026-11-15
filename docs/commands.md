@@ -486,7 +486,7 @@ With pools, `claude` starts nothing, exits with status 1, and says why on stderr
 | `pool Acme has no account with a usable token` | None of the pool's accounts has a token switchboard can use, and Claude Code's own login could go out on another pool's account. | Give one a token with [`accounts token`](#accounts). |
 | `~/Code/acme is in pool Acme, where claude never starts on its own login` | `--direct`, or a start without switchboard, inside a fence, or, as `in its repository, ~/Code/acme-feature is at ~/Code/acme, in pool Acme, …`, in a worktree of a repository inside one. | Start it through the router, or outside the pool's directories and the worktrees of repositories in them. |
 | `can't tell which pool ~/Code/x is in: pool Acme's directory "…" can't be placed` | On Claude Code's own login, the config file writes a pool's directory that can't be placed, which may hold the directory. | Put the directory right in the config. |
-| `can't tell which pool ~/Code/x is in: neither the config, the router nor the accounts record names any pools` | Once the history has moved to pools, the config names none, nor does the router or the accounts record, so any directory may be in a fence. | Put the config's pools back, or see [Pools](troubleshooting.md#pools). |
+| `can't tell which pool ~/Code/x is in: neither the config, the router nor the accounts record names any pools` | Once the history has moved to pools, the config names none, nor does the router or the accounts record, so any directory may be in a fence. | Put the config's pools back, or see [Pools](troubleshooting/pools.md). |
 | `the router routes no account of pool Acme yet: any the config gives it waits for the router to restart` | The config names no pools, so the router's are taken, and it routes none of this pool's accounts yet. | `switchboard service restart`. |
 
 `--account` naming an account of another pool fails, saying which pool each is in: `Acme 1 (k3f9)
@@ -1759,7 +1759,7 @@ folder, of its own at its next export.
 
 To have the router export every hour, set [`[export]`](configuration.md)'s `dir`. How
 its exports stand is the status document's `export`: see
-[An export that fails](troubleshooting.md#an-export-that-fails).
+[An export that fails](troubleshooting/exports.md).
 
 Example:
 
