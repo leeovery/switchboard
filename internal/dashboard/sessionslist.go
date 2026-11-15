@@ -273,10 +273,9 @@ func periodWorth(w views.Worth) line {
 }
 
 // noSessionsIn are the List's words, and Projects', where it has no session
-// of the period to list, in place of its rows, the period as its Within
-// says it: "no
-// sessions today", "no sessions this week" or "no sessions in the last 30
-// days".
+// of the period to list, in place of its rows, the period as its Within says
+// it: "no sessions today", "no sessions this week" or "no sessions in the
+// last 30 days".
 func noSessionsIn(p views.Period) line {
 	return line{{prose.SessionCount(0) + " " + p.Within(), faintInk}}
 }

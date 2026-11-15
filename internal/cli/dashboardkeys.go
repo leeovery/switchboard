@@ -18,8 +18,8 @@ var keysSaid = map[string]string{
 	"every page": "t and p work where they apply: t not under NO_COLOR, and p neither with one account, " +
 		"unless a pin set from the command line stands, nor with --probe. p opens the routing card, which picks " +
 		"the accounts new sessions go to and changes nothing until enter. j, k, PgDn, PgUp and the wheel scroll " +
-		"a view where it doesn't fit: the Overview's USAGE, Accounts' views, Projects' list and a project's " +
-		"SESSIONS, Sessions' List and lanes, Runway's lanes, Trends' page, the Log's table, and a session's " +
+		"a view where it doesn't fit: the Overview's USAGE, Accounts' views, a project's SESSIONS, " +
+		"Sessions' List and lanes, Runway's lanes, Trends' page, the Log's table, and a session's " +
 		"turns, or an open turn's requests. w, where it's listed as models, shows and hides each model's own " +
 		"window; one near its limit shows either way.",
 	"Overview": "u, r, s, c and l show and hide USAGE, ROUTING, SESSIONS, COMING UP and LATELY; " +

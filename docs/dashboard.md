@@ -1003,7 +1003,7 @@ What scrolls on each page:
   each window's heading on its first row while that window's rows pass under it, and its last row
   says how many rows are out of view above and below. `↑` and `↓` scroll it too.
 - **Accounts:** its view.
-- **Projects:** the list, and a project's SESSIONS.
+- **Projects:** a project's SESSIONS. The list follows the project chosen, by `↑` and `↓`.
 - **Sessions:** the List, and the Switchboard's accounts where they don't fit.
 - **Runway:** its lanes.
 - **Trends:** the whole page, where its sections don't fit. `?` lists its scrolling keys always.
