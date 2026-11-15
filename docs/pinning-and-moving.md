@@ -70,7 +70,7 @@ switchboard skill runs the same `pin` commands for it.
 | `switchboard run --account <id>` | Starts a session pinned to that account. |
 
 Every flag is on [`pin`](commands/pin.md), and the routing card is in [Dashboard](dashboard.md).
-If a pin is refused, see [Troubleshooting](troubleshooting/router.md).
+If a pin is refused, see [Troubleshooting](troubleshooting.md).
 
 ## Related
 
