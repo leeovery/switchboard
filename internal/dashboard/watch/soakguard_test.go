@@ -257,6 +257,10 @@ func TestTheStoreHoldsOnlyWhatTheListShows(t *testing.T) {
 	s := newSoak(t, soakSetup{start: guardStart, days: guardDays, pace: guardPace, guard: g})
 	s.show("projects")
 	s.typed(">", "<", ">")
+	s.show("trends")
+	if s.h.model.trends.year == nil || s.h.model.trends.days == nil {
+		t.Fatal("Trends shows YEAR, BY MONTH and MODELS BY DAY, but built no page of their days")
+	}
 	s.show("sessions")
 	if !s.h.model.sessionsTab.listed {
 		t.Fatal("Sessions shows no List held, its first read landed")

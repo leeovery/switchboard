@@ -753,7 +753,7 @@ with charts of 11 rows, or 7 with four accounts.
 |---|---|
 | `w` `o` `g` `h` `y` `m` `d` | Shows or hides a section: WEEK, POOL, GLANCE, WHEN YOU WORK, YEAR, BY MONTH and MODELS BY DAY. |
 | `v` | While YEAR or BY MONTH shows, cycles what they show: all use, each model version, then each account. The key line lists it where it has room. |
-| `←` `→` | While YEAR shows one account, steps to the account before or after. |
+| `←` `→` | While YEAR or BY MONTH shows one account, steps to the account before or after; it works with BY MONTH shown alone too. |
 | `j` `k`, `PgDn` `PgUp`, the wheel | Scrolls the page, where its sections don't fit. |
 
 ## The Log

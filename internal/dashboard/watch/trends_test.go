@@ -8,6 +8,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/leeovery/switchboard/internal/dashboard"
+	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/views"
 )
 
@@ -72,7 +73,8 @@ func TestTrendsYearMonthsAndModelsKeysShowOrHideThemAndKeepThem(t *testing.T) {
 
 // Trends builds YEAR's and BY MONTH's page, and MODELS BY DAY's, of the
 // days History's reads hold while one of them shows, and none while none
-// does.
+// does: hidden again, a look reads no days, and what's built is left as it
+// was.
 func TestTrendsBuildsItsPagesOfTheDaysReadWhileTheyShow(t *testing.T) {
 	h, _ := trendsHarness(t, "week")
 	if h.model.trends.year != nil || h.model.trends.days != nil {
@@ -85,6 +87,38 @@ func TestTrendsBuildsItsPagesOfTheDaysReadWhileTheyShow(t *testing.T) {
 	}
 	if got := g.Year.Numbers.Requests; got != 40 {
 		t.Errorf("YEAR's page counts %d requests, want the 40 the ledger holds", got)
+	}
+
+	h.typed("m", "d")
+	l, built := h.model.cfg.Ledger.(*daysLedger), h.model.trends
+	reads := len(l.reads)
+	today := dayfile.DateOf(start)
+	l.days[today] = requested(today, 7)
+	h.lookAt(start.Add(interval))
+	h.update(frameMsg{gen: h.model.frames})
+	if len(l.reads) != reads || h.model.trends.year != built.year || h.model.trends.days != built.days {
+		t.Errorf("BY MONTH and MODELS BY DAY hidden again, a look read the ledger %d times more and built YEAR's page afresh %t, MODELS BY DAY's %t; want no read and neither built",
+			len(l.reads)-reads, h.model.trends.year != built.year, h.model.trends.days != built.days)
+	}
+}
+
+// A frame with nothing YEAR is built of changed builds nothing and asks the
+// days for none of their versions: a version v shows that the days didn't
+// use is left as it is, where a check would show all use; once the days
+// held change, it's checked, and YEAR shows all use.
+func TestTrendsChecksWhatYearShowsOnlyWhereItsDaysChange(t *testing.T) {
+	h, _ := trendsHarness(t, "year")
+	unused := views.YearAsk{Version: "never-used"}
+	h.model.trends.split, h.model.trends.yearOf.split = unused, unused
+	built := h.model.trends.year
+	h.update(frameMsg{gen: h.model.frames})
+	if h.model.trends.split != unused || h.model.trends.year != built {
+		t.Fatalf("a frame with nothing changed left YEAR showing %+v, built afresh %t; want %+v left as it was, nothing built", h.model.trends.split, h.model.trends.year != built, unused)
+	}
+	h.model.past.held++
+	h.update(frameMsg{gen: h.model.frames})
+	if h.model.trends.split != (views.YearAsk{}) || h.model.trends.year == built {
+		t.Errorf("the days held changed, YEAR shows %+v, built afresh %t; want all use, built afresh", h.model.trends.split, h.model.trends.year != built)
 	}
 }
 

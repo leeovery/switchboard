@@ -1,8 +1,6 @@
 package watch
 
 import (
-	"slices"
-
 	"github.com/leeovery/switchboard/internal/dashboard"
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/views"
@@ -54,26 +52,27 @@ func (m Model) modelsWanted() bool {
 // and BY MONTH's, as views.Past.Year builds it shown as v has it, showing
 // all use where v had it show a version the days don't use; and MODELS BY
 // DAY's, as views.Past.Days builds it. Once for each, never a frame at a
-// time.
+// time: where nothing it's built of has changed, the days aren't touched.
 func (m Model) trendsBuilt() Model {
-	if !m.past.last.held() || !m.yearWanted() && !m.modelsWanted() {
+	if !m.past.last.held() {
 		return m
 	}
 	now := m.now()
-	of := pastOf{held: m.past.held, day: dayfile.DateOf(now)}
-	past := m.past.last.past.Since(nil, now)
-	t := m.trends
-	if m.yearWanted() {
-		if v := t.split.Version; v != "" && !slices.Contains(past.Versions(), v) {
-			t.split.Version = ""
-		}
-		yearOf := of
-		yearOf.split = t.split
-		if t.year == nil || t.yearOf != yearOf {
-			t.year, t.yearOf = new(past.Year(t.split)), yearOf
-		}
+	t, of := m.trends, pastOf{held: m.past.held, day: dayfile.DateOf(now)}
+	yearOf := of
+	yearOf.split = t.split
+	year := m.yearWanted() && (t.year == nil || t.yearOf != yearOf)
+	models := m.modelsWanted() && (t.days == nil || t.daysOf != of)
+	if !year && !models {
+		return m
 	}
-	if m.modelsWanted() && (t.days == nil || t.daysOf != of) {
+	past := m.past.last.past.Since(nil, now)
+	if year {
+		t.split = usedAsk(t.split, past)
+		yearOf.split = t.split
+		t.year, t.yearOf = new(past.Year(t.split)), yearOf
+	}
+	if models {
 		t.days, t.daysOf = new(past.Days()), of
 	}
 	m.trends = t

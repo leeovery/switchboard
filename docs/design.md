@@ -5798,8 +5798,9 @@ heading over a blank row. History's Year and Days draw as they did.
 - **YEAR** is the Year's grid of days, its key under it, across the section's width, the latest weeks
   it holds, and its totals, LAST 12 MONTHS: beside the grid where the width holds both, as the Year
   lays them in its wide form, else under it in as many columns of pairs as fit, on a phone two; where
-  some figures don't fit there, they go on a row under the rest, one under each column in turn, so
-  none goes unsaid. Its short label for the longest run is `longest`, as History's Year now says
+  some figures don't fit there, they go on a row under the rest, one under each column in turn, each
+  column then laid out as wide as every figure it holds, fewer columns where they don't all fit, so
+  none goes unsaid or cut short. Its short label for the longest run is `longest`, as History's Year now says
   too.
 - **`v`** cycles what YEAR and BY MONTH show, as the Year's `v` does: all use, each model version,
   then each account, `←` and `→` stepping between the accounts while one shows. It's the run's alone,

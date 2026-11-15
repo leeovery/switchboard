@@ -119,6 +119,33 @@ func TestTrendsYearsRowUnderItsTotalsLinesUpWithTheirColumns(t *testing.T) {
 	}
 }
 
+// Where YEAR's totals leave a column, its figures go under the columns that
+// stay, each laid out as wide as every figure it then holds, so none is cut
+// short: in a quiet year, whose short figures size narrow columns, and in
+// one whose moved figures are the widest of all.
+func TestTrendsYearsFiguresMovedUnderTheRestAreWhole(t *testing.T) {
+	quiet, slight := trendsYear(), trendsYear()
+	quiet.Numbers = views.YearNumbers{Requests: 1234, Sessions: 56, Amount: usd(140), Cost: usd(7200), Ratio: ratioOf(140, 7200), BusiestDay: "2026-09-22", LongestRun: 120}
+	slight.Numbers = views.YearNumbers{Requests: 12, Sessions: 3, Amount: usd(4), Cost: usd(7200), Ratio: ratioOf(4, 7200), BusiestDay: "2026-09-22", LongestRun: 1200}
+	for _, tt := range []struct {
+		name    string
+		page    views.YearPage
+		longest string
+	}{{"a quiet year", quiet, "120 days"}, {"the moved figures the widest", slight, "1,200 days"}} {
+		for _, width := range []int{46, 52, 60, 73} {
+			f := trendsFrame(t, width, 60, "year")
+			f.Graphs.Year = &tt.page
+			y, _ := f.graphsYear()
+			c := newCanvas(f.Width, y.daysRows())
+			y.days(c, 0)
+			totals := strings.Join(textOf(c.rows(Look{}))[yearNumbersRow+1:], "\n")
+			if strings.Contains(totals, "…") || !strings.Contains(totals, "Tue 22 Sep") || !strings.Contains(totals, tt.longest) {
+				t.Errorf("%s at %d columns, YEAR's totals read\n%s\nwant every figure whole, the busiest day and the longest run, %s, among them", tt.name, width, totals, tt.longest)
+			}
+		}
+	}
+}
+
 // BY MONTH is History's, of the same page: each month's row the same to its
 // bars at every width, but its bars take the width left, the largest
 // month's ending as far short of the edge as a month's name starts in from
@@ -170,7 +197,7 @@ func TestTrendsModelsByDayIsDaysFamiliesStrips(t *testing.T) {
 		}
 		theirs := history.layOutDays(*history.History.Days, 0)
 		c, h := newCanvas(f.Width, ours.keyRow+1), newCanvas(f.Width, history.viewRows())
-		f.modelsDrawn(c, 0)
+		f.modelsDrawn(c, f.pastLaid(), 0)
 		history.historyDays(h, 0)
 		for i := range ours.page.ByModel {
 			for day := max(ours.first, theirs.first); day < len(ours.page.ByModel[i].Days); day++ {
@@ -271,6 +298,35 @@ func TestTrendsScrollsToEachSectionOverTheLegend(t *testing.T) {
 			t.Errorf("%s: the view's top reads %q, the row under its sections %q, the state row %q; want %q first, the legend, then %q",
 				tt.name, text[f.top()], text[f.top()+laid.room], text[foot], tt.top, tt.state)
 		}
+	}
+}
+
+// YEAR, BY MONTH and MODELS BY DAY are laid out only while they show, YEAR's
+// Year while YEAR or BY MONTH does; and a frame Built lays them out once,
+// every look at it, or at a copy alike, sharing what it laid, where a copy
+// of another width lays them afresh.
+func TestTrendsLaysOutItsPastOnlyWhileItShowsAndOnceAFrame(t *testing.T) {
+	for _, tt := range []struct {
+		sections     []string
+		year, models bool
+	}{
+		{sections: []string{"week", "when"}},
+		{sections: []string{"months"}, year: true},
+		{sections: []string{"models"}, models: true},
+		{sections: everyTrend, year: true, models: true},
+	} {
+		if p := trendsFrame(t, 173, 53, tt.sections...).layPast(); p.yearOK != tt.year || p.modelsOK != tt.models {
+			t.Errorf("with %q shown, YEAR's Year is laid out %t and MODELS BY DAY %t, want %t and %t", tt.sections, p.yearOK, p.modelsOK, tt.year, tt.models)
+		}
+	}
+	columns := func(f Frame) *figureColumn { return &f.pastLaid().year.laid.columns[0] }
+	built := trendsFrame(t, 173, 53, everyTrend...).Built(threeRouted(), now)
+	alike, wider := built, built
+	alike.Scroll, wider.Width = 3, 180
+	first := columns(built)
+	again, copied, widened := columns(built) == first, columns(alike) == first, columns(wider) == first
+	if !again || !copied || widened {
+		t.Errorf("a frame Built shares its Year's layout across its looks %t, with a copy alike %t, with one wider %t; want true, true and false", again, copied, widened)
 	}
 }
 

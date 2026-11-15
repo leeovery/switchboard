@@ -280,9 +280,29 @@ func (y yearDrawn) reckonedNumbers() int {
 // after them that grows, and the last column shown reads to its end, so its
 // figures take their longest forms that fit. Drawn apart, the figures of
 // the columns that leave go on rows under the rest, as rowsUnder has them,
-// so none goes unsaid.
+// so none goes unsaid, and the columns left are laid out again, each as
+// wide as every figure it then holds, as many of them as fit, the last
+// column's figures going under the others while they don't.
 func (y yearDrawn) figureColumns() []figureColumn {
 	figures := slices.Collect(slices.Chunk(y.figures(), yearFiguresDown))
+	columns, kept, _ := y.laidColumns(figures, true)
+	if !y.apart || kept == len(figures) {
+		return columns
+	}
+	for ; kept > 1; kept-- {
+		if columns, _, fits := y.laidColumns(rowsUnder(figures, kept), false); fits {
+			return columns
+		}
+	}
+	columns, _, _ = y.laidColumns(rowsUnder(figures, 1), false)
+	return columns
+}
+
+// laidColumns are the columns of figures given, as flex lays them across
+// the frame, and how many show: where leaving has it, as figureColumns
+// orders them to narrow and leave; else each narrowing as it would, none
+// leaving, reporting whether they fit.
+func (y yearDrawn) laidColumns(figures [][]yearFigure, leaving bool) ([]figureColumn, int, bool) {
 	n := len(figures)
 	parts := make([]flex.Part, n, n+1)
 	for i, column := range figures {
@@ -295,38 +315,38 @@ func (y yearDrawn) figureColumns() []figureColumn {
 		default:
 			parts[i].Leaves = n + 1 - i
 		}
+		if !leaving {
+			parts[i].Leaves = 0
+		}
 		if i > 0 {
 			parts[i].Gap = yearColumnsApart
 		}
 	}
-	s, _ := flex.Lay(y.Width, append(parts, flex.Part{Grows: true})...)
+	s, fits := flex.Lay(y.Width, append(parts, flex.Part{Grows: true})...)
 	end := s[n].At + s[n].Size
 	var columns []figureColumn
-	var left []yearFigure
 	for i, column := range figures {
-		if s[i].Left {
-			left = append(left, column...)
-			continue
+		if !s[i].Left {
+			columns = append(columns, figureColumn{figures: column, x: s[i].At, row: yearNumbersRow + 1, cells: min(s[i].Size, y.Width-s[i].At)})
 		}
-		columns = append(columns, figureColumn{figures: column, x: s[i].At, row: yearNumbersRow + 1, cells: min(s[i].Size, y.Width-s[i].At)})
 	}
 	last := &columns[len(columns)-1]
 	// Where even the first column's least doesn't fit, flex lays the row past
 	// the frame, and the clamp holds the column to it.
 	last.cells = min(end, y.Width) - last.x
-	if y.apart {
-		return rowsUnder(columns, left)
-	}
-	return columns
+	return columns, len(columns), fits
 }
 
-// rowsUnder are the columns given with the figures given under them, a
-// figure a column, from the first, in their order, on as many rows as they
-// take.
-func rowsUnder(columns []figureColumn, figures []yearFigure) []figureColumn {
-	for i, figure := range figures {
-		column := &columns[i%len(columns)]
-		column.figures = append(column.figures, figure)
+// rowsUnder are the first kept columns of figures given with the figures of
+// the rest under them, a figure a column, from the first, in their order, on
+// as many rows as they take.
+func rowsUnder(figures [][]yearFigure, kept int) [][]yearFigure {
+	columns := make([][]yearFigure, kept)
+	for i := range columns {
+		columns[i] = slices.Clone(figures[i])
+	}
+	for i, figure := range slices.Concat(figures[kept:]...) {
+		columns[i%kept] = append(columns[i%kept], figure)
 	}
 	return columns
 }

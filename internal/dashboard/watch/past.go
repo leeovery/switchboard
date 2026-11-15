@@ -259,10 +259,18 @@ func (t historyTab) learned(b beginning) historyTab {
 // last 12 months didn't use, as one kept from a run since may be.
 func (t historyTab) checked() dashboard.HistoryPage {
 	p := t.page
-	if v := p.YearAsk.Version; v != "" && !slices.Contains(t.last.past.Versions(), v) {
-		p.YearAsk.Version = ""
-	}
+	p.YearAsk = usedAsk(p.YearAsk, t.last.past)
 	return p
+}
+
+// usedAsk is what the Year's ask shows of the days given: all use where it
+// asks for a version they didn't use, as one kept from a run since may; else
+// what it asks.
+func usedAsk(ask views.YearAsk, past views.Past) views.YearAsk {
+	if v := ask.Version; v != "" && !slices.Contains(past.Versions(), v) {
+		ask.Version = ""
+	}
+	return ask
 }
 
 // sinceRead takes in the days read since those held were read to, and where
