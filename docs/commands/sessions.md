@@ -1,7 +1,7 @@
-# `switchboard sessions`
+# `switchboard sessions`: what each session did, and what it cost
 
-`sessions` lists the sessions of today, with what each did and what it was worth. Give it a
-session, and it shows the page of that session: each turn, and each account it ran on.
+`sessions` lists today's sessions, with what each did and what it was worth. Give it a session,
+and it shows that session's page: each turn, and each account it ran on.
 
 ```console
 $ switchboard sessions
@@ -14,13 +14,14 @@ today  3 sessions  ·  5 requests  ·  $0.15+ at API prices
 ```
 
 ```bash
-switchboard sessions [<id>] [--pool <id>] [--json | --pretty]
+switchboard sessions [<id>] [--pool <id>] \
+  [--json | --pretty]
 ```
 
 | Argument or flag | Default | What it does |
 |---|---|---|
-| `<id>` | None | Shows the page of that session. See below. |
-| `--pool <id>` | The only pool, else the unfenced one | Lists the sessions of that pool. See below. |
+| `<id>` | None | Shows that session's page. See below. |
+| `--pool <id>` | The only pool, else the unfenced one | Lists only that pool. See below. |
 | `--json` | Off a terminal | Prints the sessions, or the page, as JSON, even on a terminal. |
 | `--pretty` | On a terminal | Prints the text, even off a terminal. |
 
@@ -35,14 +36,14 @@ latest first. A last line adds them up.
 |---|---|
 | Session | The session id, cut short, and its folder. |
 | On | The account the session is on. |
-| Model | The model of the session. |
+| Model | The model the session uses. |
 | State | What it's doing: asking, answering, idle, or when it ended. |
 | Started | When it started. |
 | Requests | Its requests today. |
 | Worth | What they'd have cost through the API. A `+` means some were unpriced. |
 | Routing | How it came to its account, such as `from work, at its cap`, and what writing its context again there cost. |
 
-`sessions` reads the record from its files, and asks the router which sessions are running.
+`sessions` reads your record from its files, and asks the router which sessions are running.
 
 | If the router | Then `sessions` |
 |---|---|
@@ -77,7 +78,7 @@ The points are an estimate. A window counts every session of its account. So eac
 window between two answers is shared out among the requests that ended between them, by their
 tokens.
 
-Without the router, the page comes from the record only, and the session shows as not running. It
+Without the router, the page comes from your record only, and the session shows as not running. It
 shows as idle if its last request came within the hour, and as ended if not.
 
 ## Sessions in a pool
@@ -85,10 +86,10 @@ shows as idle if its last request came within the hour, and as ended if not.
 Each session is listed under the pool its requests were routed in. A session from before pools
 counts as the first pool.
 
-| If you pass | Then you get |
+| If you pass | You get |
 |---|---|
-| `--pool <id>` | The sessions of that pool, including a removed pool or one an import brought. |
-| `<id>` without `--pool` | The session, found in whatever pool it's in. The page is its work in the pool of its newest request. |
+| `--pool <id>` | Only that pool, including a removed pool or one an import brought. |
+| `<id>` without `--pool` | The session, found in whatever pool it's in. The page is its work in the pool its newest request was routed in. |
 | `<id>` with `--pool` | The session in that pool only. The page is its work there. A session with no work there isn't found. |
 
 A session resumed in another pool can have work in both. Once you have a second pool, the text
@@ -99,14 +100,18 @@ names the pool it read, such as `pool Acme`.
 - The JSON names each account by its id, with its label beside it. Every field is in
   [Reference](../reference/sessions-json.md).
 - An account removed shows as `team (removed 4 Sep)` in the text.
-- Just after an upgrade that moves the history, `sessions` refuses until the router has moved it.
+- Just after an upgrade that moves your record, `sessions` refuses until the router has moved it.
 
 ## Examples
 
 ```bash
 switchboard sessions
-switchboard sessions --json | jq '.sessions[] | select(.running)'   # those running now
-switchboard sessions 5b0e --json | jq '.turns[0]'                    # its newest turn
+# those running now
+switchboard sessions --json \
+  | jq '.sessions[] | select(.running)'
+# the newest turn of session 5b0e
+switchboard sessions 5b0e --json \
+  | jq '.turns[0]'
 ```
 
 ## Related
