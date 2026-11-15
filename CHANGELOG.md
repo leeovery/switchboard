@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - 2026-11-15
+
+Choose which Claude accounts work on which projects, by fencing pools of accounts to directories.
+
+💥 Breaking
+- Sessions started inside a fenced pool's directories now use that pool's accounts alone, and refuse to start rather than fall back to Claude's own login or another pool's account — fence only what you mean to, and add an account to a pool with `switchboard accounts add --pool`.
+
+✨ Added
+- Pools of accounts fenced to project directories, which apply to every folder beneath and to git worktrees of repositories inside them, so a session only ever uses its own pool's accounts.
+- `switchboard pool` lists pools, and `pool add`, `pool edit` and `pool remove` make, fence, relabel and remove them.
+- `--pool` on `accounts add` and `accounts edit` puts an account in a pool or moves it between pools, with a new-pool option on setup's add and edit cards.
+- `--pool` on `status`, `usage`, `history`, `requests`, `sessions`, `events`, `pin` and `dashboard` reads or acts on one pool; the pool defaults to the only one, else the unfenced one.
+- Each pool has its own primary, pin, sessions, history and priming schedule, and its work never shows on another pool's screens.
+- Press `P` on the dashboard to turn to the next pool; the title row names the pool shown, and a pool with no accounts says so with how to add one.
+- Pool labels now appear in `accounts` output, JSON output, notifications and event text once there is a second pool.
+- On first start, the router moves your history and accounts into a single `Default` pool, once, by itself.
+- Setup's sign-in addresses open in a private window for every account but the first pool's primary.
+
+🔧 Changed
+- The browser and Claude apps are signed in to the first pool's primary alone; other pools' primaries serve only their own sessions.
+- Setup's add card now asks you to choose a plan rather than defaulting to none.
+- Runway lanes draw an account at its limit with a heavier mark.
+
+🐛 Fixed
+- The dashboard releases screens it has left behind instead of holding them in memory.
+
 ## [0.7.2] - 2026-11-13
 
 🔧 Changed
