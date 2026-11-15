@@ -5,11 +5,21 @@ The lines go in `history/readings-<date>.jsonl` in the state directory, a file a
 window is, see [Limits and routing](../limits-and-routing.md).
 
 ```bash
-gzip -dc ~/.local/state/switchboard/history/readings-2026-11-12.jsonl.gz | head -1
+cd ~/.local/state/switchboard/history
+gzip -dc readings-2026-11-12.jsonl.gz \
+  | head -1 | jq .
 ```
 
 ```json
-{"at":"2026-11-12T09:30:02Z","account":"b6s7","window":"7d","utilization":0.42,"resets_at":"2026-11-16T18:00:00Z","status":"allowed","source":"answer"}
+{
+  "at": "2026-11-12T09:30:02Z",
+  "account": "b6s7",
+  "window": "7d",
+  "utilization": 0.42,
+  "resets_at": "2026-11-16T18:00:00Z",
+  "status": "allowed",
+  "source": "answer"
+}
 ```
 
 ## The fields

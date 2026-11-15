@@ -5,11 +5,17 @@ now, and what the router is doing. It's what an agent reads to see where usage s
 dashboard draws from it, see [Dashboard](../dashboard.md).
 
 ```bash
-switchboard status --json | jq '{source, pool_label, best, sessions}'
+switchboard status --json \
+  | jq '{source, pool_label, best, sessions}'
 ```
 
 ```json
-{"source": "router", "pool_label": "Acme", "best": "b6s7", "sessions": 4}
+{
+  "source": "router",
+  "pool_label": "Acme",
+  "best": "m2kp",
+  "sessions": 4
+}
 ```
 
 ## General rules
@@ -21,8 +27,8 @@ switchboard status --json | jq '{source, pool_label, best, sessions}'
   the verbs act on. See [`status`](../commands/status.md).
 - In a document of one pool, the accounts, `best`, `primary`, `pin`, `pool`, `sessions` and
   `demand` are of that pool only.
-- The document of every pool shares the parts that are no pool's own. Those are the health of the
-  router, its restart, the moves, the export, and the events of no pool.
+- The document of every pool shares the parts that are no pool's own. Those are the router's
+  health, its restart, the moves, the export, and the events of no pool.
 
 The entries of `accounts` have [a page of their own](status-accounts.md).
 
@@ -41,21 +47,23 @@ The entries of `accounts` have [a page of their own](status-accounts.md).
 
 | `fallback.router` | Meaning |
 |---|---|
-| `not running` | Nothing answers on the socket of the router. |
+| `not running` | Nothing answers on the router's socket. |
 | `unhealthy` | Something answers, but not as a router does. `reason` says why. |
-| `before pools` | The router reports no pools, but the config has them. The document is of every account, never of one pool. |
+| `before pools` | The router reports no pools, but the config has them. |
+
+A document that falls back for `before pools` is of every account, never of one pool.
 
 ## Where new sessions go
 
 | Field | Type | Meaning |
 |---|---|---|
 | `best` | string | The account new sessions go to next. Left out if there's none. |
-| `primary` | string | The id of the primary of the pool. |
-| `pin` | object | The pin of the pool, as `{accounts, since, move}`. Left out if there's none. |
+| `primary` | string | The id of the pool's [primary](../glossary.md). |
+| `pin` | object | The pool's pin, as `{accounts, since, move}`. Left out if there's none. |
 | `pool` | object | The room new sessions can go to, summed across the open accounts. See below. |
 | `prime` | object | The priming schedule. Left out if priming is off. |
 | `coming_up` | list of objects | What happens next to the accounts, soonest first. |
-| `demand` | object | The use of the pool as the week forecast takes it. From the router only. |
+| `demand` | object | The pool's use, as the week forecast takes it. From the router only. |
 | `sessions` | number | How many sessions the router has routed in the pool in the last hour. |
 
 - **`pin.move`** is `true` if the pin moved the running sessions too.
@@ -88,7 +96,7 @@ the pin names. Its `windows` hold one entry for each window:
 | `slots` | list of objects | The daily prime of each account, as `{account, at, next}`. |
 
 `at` is the local time of day, such as `03:50`. `next` is when the router next primes the account.
-An account without that window, such as an Ultra account, has no slot. See
+An account without that window, such as a verified Ultra account, has no slot. See
 [Staggered resets](../staggered-resets.md).
 
 ### `coming_up`
@@ -109,9 +117,9 @@ prime, and of an account held back from every request.
 
 | Field | Type | Meaning |
 |---|---|---|
-| `day` | number | The rate of the pool over the last day, in Pro weeks an hour. |
+| `day` | number | The pool's rate over the last day, in Pro weeks an hour. |
 | `hours` | number | The hours with room that `day` is measured over, 24 at most. |
-| `hold` | list of objects | The share of the fast rate of an account still on it after so many hours, as `{hours, share}`. |
+| `hold` | list of objects | The share of an account's fast rate still on it after so many hours, as `{hours, share}`. |
 | `learning` | boolean | `true` while the router has less than a day of answers. |
 
 - **`hours` is 0** if `day` is the fast rate of the pool instead.
@@ -119,15 +127,15 @@ prime, and of an account held back from every request.
 - **While `learning`**, `hold` is the default: all the use of an account stays on it.
 - **`demand` is left out** if the router has read no account.
 
-How the week forecast uses these is in [How it works](../how-it-works.md).
+How the week forecast uses these is in [Routing rules](routing.md).
 
 ## The router
 
 | Field | Type | Meaning |
 |---|---|---|
-| `router` | object | The health of the router over the last 5 minutes. |
+| `router` | object | The router's health over the last 5 minutes. |
 | `restart` | object | A restart the router has due. Left out if none is. |
-| `moving` | object | How a move of the history stands. Left out if no move is owed. |
+| `moving` | object | How a move of the record stands. Left out if no move is owed. |
 | `export` | object | How the hourly export stands. Left out if `[export] dir` isn't set. |
 | `events` | list of objects | What has happened lately, newest first. |
 | `events_kept` | object | The ids of the oldest and newest events the router keeps, as `{oldest, newest}`. |
@@ -151,13 +159,14 @@ The router owes a move after the upgrade that made account ids, and then the mov
 
 | `moving` field | Meaning |
 |---|---|
-| `move` | `pools` for the move to pools. Left out for the move onto account ids. |
+| `move` | `ids` for the move onto account ids, `pools` for the move to pools. |
 | `stage` | `running`, `awaiting api`, `awaiting restart` or `failed`. |
 | `account` | While it awaits the API, the account whose subscription the API hasn't named, by the id it had. |
 | `why` | Why it awaits the API, or why it failed. |
 
 The move to pools never awaits the API. It awaits a restart while the router hasn't taken up the
-first pool its config now holds. See [How it works](../how-it-works.md).
+first pool its config now holds. A router from before pools leaves `move` out. See
+[Upgrades and restarts](../upgrades-and-restarts.md).
 
 ### `export`
 
@@ -176,7 +185,7 @@ pools by id only. A document of one pool holds these events:
 - the starts and moves of its sessions, and its pins, by the pool each recorded;
 - what befell an account, by the pool it's in now, or the pool the accounts record keeps for a
   removed account;
-- the events of the router itself.
+- the router's own events.
 
 An event that names no pool counts as the first pool. An event of a removed pool is in no
 configured pool: `events --pool` reads it by the id of that pool.
@@ -186,6 +195,10 @@ configured pool: `events --pool` reads it by the id of that pool.
 | If the router | `events_kept` is |
 |---|---|
 | Routes within pools, one pool included | Given |
-| Routes on a config that names none, by the pools the accounts record keeps | Given |
-| Routes in no pools, so `events` are every event it keeps | Left out |
-| Didn't build the document, because it was built by probing | Left out |
+| Routes by the pools the accounts record keeps | Given |
+| Routes in no pools | Left out |
+| Didn't build the document | Left out |
+
+- **The accounts record keeps the pools** if the config names none.
+- **With no pools,** `events` are every event the router keeps.
+- **A document built by probing** has no `events_kept`.

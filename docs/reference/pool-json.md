@@ -11,8 +11,34 @@ switchboard pool --json
 {
   "schema": 1,
   "pools": [
-    {"pool": "q7mt", "pool_label": "Acme", "dirs": ["~/Code/acme"], "accounts": [{"account": "b6s7", "label": "Acme 1", "primary": true}]},
-    {"pool": "h2kd", "pool_label": "Personal", "dirs": [], "accounts": [{"account": "t3pz", "label": "personal"}]}
+    {
+      "pool": "d3wn",
+      "pool_label": "Default",
+      "dirs": [],
+      "accounts": [
+        {
+          "account": "b6s7",
+          "label": "work",
+          "primary": true
+        },
+        {
+          "account": "h8rc",
+          "label": "personal"
+        }
+      ]
+    },
+    {
+      "pool": "q7mt",
+      "pool_label": "Acme",
+      "dirs": ["~/Code/acme"],
+      "accounts": [
+        {
+          "account": "m2kp",
+          "label": "Acme 1",
+          "primary": true
+        }
+      ]
+    }
   ]
 }
 ```

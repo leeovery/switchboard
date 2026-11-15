@@ -11,9 +11,9 @@ Start with [Reading the JSON](reference/reading-the-json.md): the rules there ho
 | Page | What it holds |
 |---|---|
 | [Where the files are](reference/files.md) | Every file and folder switchboard keeps, where it lives, and how long it stays. |
-| [The session hook](reference/session-hook.md) | The entry `setup` adds to the settings of Claude Code, and what it prints. |
+| [The session hook](reference/session-hook.md) | The entry `setup` adds to Claude Code's settings, and what it prints. |
 | [What `claude` sets](reference/environment.md) | The variables and headers a routed session starts with. |
-| [Tokens](reference/tokens.md) | Where the token of each account is kept, and the record of when it was taken. |
+| [Tokens](reference/tokens.md) | Where each account's token is kept, and the `.taken` file that says when it was taken. |
 | [Account labels and config edits](reference/account-labels.md) | How `accounts` tidies and refuses a label, and how it writes the config. |
 
 ## The record

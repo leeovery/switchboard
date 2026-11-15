@@ -5,11 +5,17 @@ It holds what the History tab of the dashboard shows. For what the record is wor
 [Your record](../your-record.md).
 
 ```bash
-switchboard history --json | jq '{prices_as_of, days: (.days | length), verdict: .capacity.verdict}'
+switchboard history --json | jq \
+  '{prices_as_of, days: (.days | length),
+    verdict: .capacity.verdict}'
 ```
 
 ```json
-{"prices_as_of": "2026-11-01", "days": 30, "verdict": "about right"}
+{
+  "prices_as_of": "2026-11-01",
+  "days": 30,
+  "verdict": "about right"
+}
 ```
 
 ## The top level
@@ -66,7 +72,7 @@ Each day is its [day summary](day-summary.md), with these added:
   pool. That's the case with two pools or more, or if the accounts record keeps a pool the config
   doesn't.
 
-A day of no requests, where the readings history tells of no account, has no `accounts`. An account
+A day with no requests has no `accounts` if the readings history tells of no account. An account
 has a day if its quota checks, its counts of tokens or the readings history give it one.
 
 ## `year`
@@ -118,7 +124,25 @@ priced. Every share is exact too.
 `history --windows --json` prints the readings of each window of each account in the pool:
 
 ```json
-{"schema": 1, "windows": [{"account": "b6s7", "label": "work", "window": "7d", "readings": [{"at": "…", "utilization": 0.42, "resets_at": "…", "status": "allowed", "source": "answer"}]}]}
+{
+  "schema": 1,
+  "windows": [
+    {
+      "account": "b6s7",
+      "label": "work",
+      "window": "7d",
+      "readings": [
+        {
+          "at": "…",
+          "utilization": 0.42,
+          "resets_at": "…",
+          "status": "allowed",
+          "source": "answer"
+        }
+      ]
+    }
+  ]
+}
 ```
 
 Each reading has the fields of the [readings history](readings.md), less `account` and `window`.

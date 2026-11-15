@@ -6,7 +6,7 @@ This page lists them. For how a session reaches the router, see
 
 ```bash
 # inside a routed session
-env | grep -E '^(ANTHROPIC_BASE_URL|SWITCHBOARD_POOL)='
+env | grep -E 'BASE_URL|SWITCHBOARD_POOL'
 ```
 
 ```

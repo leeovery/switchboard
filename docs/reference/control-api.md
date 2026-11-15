@@ -5,11 +5,18 @@ its owner can read the socket. Every answer is JSON. The verbs are the stable wa
 for anyone who'd ask the router directly.
 
 ```bash
-curl -s --unix-socket ~/.local/state/switchboard/control.sock http://router/health | jq '{ok, version, reports_pools}'
+cd ~/.local/state/switchboard
+curl -s --unix-socket control.sock \
+  http://router/health \
+  | jq '{ok, version, reports_pools}'
 ```
 
 ```json
-{"ok": true, "version": "0.8.0", "reports_pools": true}
+{
+  "ok": true,
+  "version": "0.8.0",
+  "reports_pools": true
+}
 ```
 
 ## The endpoints
@@ -21,11 +28,11 @@ curl -s --unix-socket ~/.local/state/switchboard/control.sock http://router/heal
 | `GET /sessions` | The sessions routed in a pool in the last hour. |
 | `GET /sessions/{id}` | Where one session sends its requests, as [`status --session` JSON](status-session-json.md). |
 | `POST /sessions/{id}/pin` | Pins a session to an account, given as `{"account": "b6s7"}`. |
-| `DELETE /sessions/{id}/pin` | Clears the own pin of a session. |
+| `DELETE /sessions/{id}/pin` | Clears a session's own pin. |
 | `POST /pin` | Pins a pool, given as `{"accounts": ["b6s7"], "move": false, "force": false}`. |
-| `DELETE /pin` | Clears the pin of a pool. |
+| `DELETE /pin` | Clears a pool's pin. |
 | `POST /refresh` | Probes the accounts whose usage is older than `{"max_age": "30m"}`. |
-| `GET /history` | The use of a window by each account over its current length, for the charts. |
+| `GET /history` | Each account's use of a window over its current length, for the charts. |
 | `GET /stream` | Each routed request as it happens, a JSON object a line, held open. |
 | `POST /restart` | Restarts the router now, without waiting for a quiet moment. |
 | `GET /import` and `POST /import` | Whether an import is running, and taking in a staged import. |
@@ -51,7 +58,7 @@ curl -s --unix-socket ~/.local/state/switchboard/control.sock http://router/heal
 | `strips_own_headers` | boolean | `true` from a router that takes every `X-Switchboard-` header off before going upstream. |
 | `reports_pools` | boolean | `true` from a router that reports the pools it routes for. |
 | `pools` | list of objects | The pools the router routes for now, in the order of the config. |
-| `moving` | object | How the moves of the history stand, as `moving` in the status document. |
+| `moving` | object | How the moves of the record stand, as `moving` in the status document. |
 | `restart` | object | The restart the router has due, as `restart` in the status document. Left out if none is. |
 
 - **`listen`** may differ from the address the config names now. It's empty until the proxy
@@ -78,9 +85,10 @@ left out of `accounts`.
 |---|---|
 | The config has pools | Given |
 | The config has no pools | Left out |
-| The router routes nothing, because the config lost its pools and the accounts record can't say them | Left out, with `ok` `false` and `reports_pools` set |
+| The router routes nothing | Left out, with `ok` `false` and `reports_pools` set |
 
-That last case is described in [The accounts record](accounts-record.md).
+The router routes nothing if the config lost its pools and the accounts record can't say them.
+That case is described in [The accounts record](accounts-record.md).
 
 ## Choosing a pool
 
@@ -111,4 +119,6 @@ A session resumed in another pool runs in both, and the work in each is its own.
 | `?pool=` names a pool | The session in that pool, or a 404 if it was never seen there |
 | No pool is named, for `GET` or `DELETE` | The pool the session was routed in last |
 | No pool is named, for `POST` | The pool of the account pinned to, if the session runs there |
-| No pool is named, for `POST`, and the session doesn't run in the pool of that account | The pool the session was routed in last, where an account of another pool is refused |
+| No pool is named, for `POST`, and the session doesn't run in that pool | The pool the session was routed in last |
+
+In that last case, a pin to an account of another pool is refused.
