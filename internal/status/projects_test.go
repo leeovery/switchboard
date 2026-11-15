@@ -3,6 +3,8 @@ package status_test
 import (
 	"io/fs"
 	"path"
+	"slices"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"testing/fstest"
@@ -18,17 +20,22 @@ const (
 
 // machine is a filesystem of a home with three repositories, one with a
 // worktree Claude Code made, its scratch root kept beside another
-// temporary directory than the reader's.
+// temporary directory than the reader's; and a scratch root of the same
+// user kept in the home, and one kept above it, as a CLAUDE_CODE_TMPDIR of
+// either would keep it.
 func machine() fstest.MapFS {
 	dir := &fstest.MapFile{Mode: fs.ModeDir}
 	return fstest.MapFS{
-		"Users/you/Code/agentic-workflows/.git":                           dir,
+		"Users/you/claude-501":                  dir,
+		"Users/claude-501":                      dir,
+		"Users/shared":                          dir,
+		"Users/you/Code/agentic-workflows/.git": dir,
 		"Users/you/Code/agentic-workflows/.claude/worktrees/leeway-build": dir,
-		"Users/you/Code/api/.git":                                         dir,
-		"Users/you/Code/api/web":                                          dir,
-		"Users/you/.dotfiles/.git":                                        dir,
-		"scratch/tmp/claude-501":                                          dir,
-		"private/tmp/scratch":                                             dir,
+		"Users/you/Code/api/.git":  dir,
+		"Users/you/Code/api/web":   dir,
+		"Users/you/.dotfiles/.git": dir,
+		"scratch/tmp/claude-501":   dir,
+		"private/tmp/scratch":      dir,
 	}
 }
 
@@ -85,6 +92,13 @@ func TestAProjectInAScratchpadIsTheProjectItsSlugNames(t *testing.T) {
 			want: status.TemporaryFolders},
 		{name: "a slug naming a temporary folder, temporary folders", dir: scratchpad("/private/tmp", "-private-tmp-scratch", scratchOne, ""),
 			want: status.TemporaryFolders},
+		{name: "a repository removed since, held by no repository, temporary folders, not the folder that held it",
+			dir: scratchpad("/private/tmp", "-Users-you-Code-old-site", scratchOne, ""), want: status.TemporaryFolders},
+		{name: "a volume not mounted, temporary folders, not the folder of volumes",
+			dir: scratchpad("/private/tmp", "-Volumes-Projects-api", scratchOne, ""), want: status.TemporaryFolders},
+		{name: "a folder no repository holds, named whole, itself", dir: scratchpad("/private/tmp", "-Users-you-Code", scratchOne, ""), want: "~/Code"},
+		{name: "a slug made of a folder named in another case, the folder in its own",
+			dir: scratchpad("/private/tmp", "-Users-you-code-api", scratchOne, ""), want: "~/Code/api"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -106,10 +120,17 @@ func TestAProjectInATemporaryFolderIsTemporaryFolders(t *testing.T) {
 		{name: "under the reader's temporary directory", dir: "/var/run/tmp/call-1", want: status.TemporaryFolders},
 		{name: "the project recorded, under /tmp", project: "/tmp/clone-1", dir: "/tmp/clone-1/web", want: status.TemporaryFolders},
 		{name: "beside Claude Code's scratch root", dir: "/scratch/tmp/call-1", want: status.TemporaryFolders},
-		{name: "below a folder beside the scratch root, its own", dir: "/scratch/tmp/call-1/web", want: "/scratch/tmp/call-1/web"},
+		{name: "the folder holding Claude Code's scratch root", dir: "/scratch/tmp", want: status.TemporaryFolders},
+		{name: "two folders below the one holding the scratch root", dir: "/scratch/tmp/call-1/web", want: status.TemporaryFolders},
+		{name: "in the scratch root, not a scratchpad", dir: "/scratch/tmp/claude-501/tasks", want: status.TemporaryFolders},
+		{name: "beside a scratch root kept in the home, its own", dir: "~/notes", want: "~/notes"},
+		{name: "in a folder beside a scratch root kept above the home, its own", dir: "/Users/shared", want: "/Users/shared"},
 		{name: "a folder named as a temporary one, elsewhere, its own", dir: "/srv/tmp/call-1", want: "/srv/tmp/call-1"},
 		{name: "a folder whose name begins as /tmp's, its own", dir: "/tmpfiles/call-1", want: "/tmpfiles/call-1"},
 		{name: "a repository in the home, its own", project: "~/Code/api", dir: "~/Code/api/web", want: "~/Code/api"},
+		{name: "a folder named in another case, in its own", dir: "~/code", want: "~/Code"},
+		{name: "a repository named in another case, in its own", project: "~/code/API", dir: "~/code/API", want: "~/Code/api"},
+		{name: "a folder not there, in its own case as far as there are folders", dir: "~/code/gone/Web", want: "~/Code/gone/Web"},
 		{name: "temporary folders, read again, temporary folders", project: status.TemporaryFolders, dir: "/tmp/build-1", want: status.TemporaryFolders},
 		{name: "no directory, none"},
 	}
@@ -170,5 +191,31 @@ func TestEachPathAndEachSlugIsReadAgainstTheFilesystemOnce(t *testing.T) {
 	}
 	if got := o.opened.Load(); got != once {
 		t.Errorf("reading another scratchpad of the same slug opened %d more, want none", got-once)
+	}
+}
+
+// Projects is read from several goroutines at once, as the watch's reads
+// and its event loop read it, each getting the one project.
+func TestProjectsIsReadFromSeveralGoroutinesAtOnce(t *testing.T) {
+	p := machineProjects(machine())
+	dirs := []string{
+		scratchpad("/private/tmp", "-Users-you-Code-api", scratchOne, ""), scratchpad("/private/tmp", "-Users-you-Code-api", scratchTwo, "/probe"),
+		"/scratch/tmp/call-1", "~/code/api", "~/Code/api",
+	}
+	want := []string{"~/Code/api", "~/Code/api", status.TemporaryFolders, "~/Code/api", "~/Code/api"}
+	var wg sync.WaitGroup
+	got := make([][]string, 8)
+	for g := range got {
+		wg.Go(func() {
+			for _, dir := range dirs {
+				got[g] = append(got[g], p.Of("", dir))
+			}
+		})
+	}
+	wg.Wait()
+	for g, read := range got {
+		if !slices.Equal(read, want) {
+			t.Errorf("goroutine %d read %v, want %v", g, read, want)
+		}
 	}
 }

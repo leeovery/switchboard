@@ -117,12 +117,22 @@ func isScratchRootAt(parts []string, i int) bool {
 	return named != left && strings.HasSuffix(scratchRootPrefix, named)
 }
 
+// SlugMatch is the directory a slug names, as SlugDir finds it: by its path
+// from the root, as "/Users/you/Code/api", in the case its folders have, ""
+// where none but the root does; and whether its own slug is the whole slug,
+// rather than only its start.
+type SlugMatch struct {
+	Dir   string
+	Whole bool
+}
+
 // SlugDir returns the directory the slug, as Slug gives it, names among
-// those of fsys, a filesystem from the root, by its path from the root, as
-// "/Users/you/Code/api": the deepest whose slug is slug, or begins it up to
-// a "-", so a directory since gone names the one that held it; and whether
-// any but the root does. Links aren't followed.
-func SlugDir(fsys fs.FS, slug string) (string, bool) {
+// those of fsys, a filesystem from the root: the deepest whose slug is
+// slug, or begins it up to a "-", so a directory since gone names the one
+// that held it. Each slug is matched as it's cased, else with its case
+// folded, as a session started in a folder named in another case than its
+// own makes it on a volume that ignores case. Links aren't followed.
+func SlugDir(fsys fs.FS, slug string) SlugMatch {
 	var found named
 	for walk := []string{"."}; len(walk) > 0; {
 		dir := walk[len(walk)-1]
@@ -136,33 +146,53 @@ func SlugDir(fsys fs.FS, slug string) (string, bool) {
 				continue
 			}
 			at := named{dir: "/" + path.Join(dir, e.Name())}
-			if own := Slug(at.dir); own == slug || strings.HasPrefix(slug, own+"-") {
-				at.slugged = len(own)
+			if own := Slug(at.dir); begins(slug, own) {
+				at.slugged, at.cased = len(own), slug[:len(own)] == own
 				found = deeper(found, at)
 				walk = append(walk, at.dir[1:])
 			}
 		}
 	}
-	return found.dir, found.dir != ""
+	return SlugMatch{Dir: found.dir, Whole: found.dir != "" && found.slugged == len(slug)}
 }
 
-// named is a directory a slug names, by its path from the root, and how
-// much of the slug its own slug is: none where dir is "".
+// begins reports whether own, a directory's slug, is slug or begins it up
+// to a "-", their case folded.
+func begins(slug, own string) bool {
+	return len(own) <= len(slug) && strings.EqualFold(slug[:len(own)], own) && (len(own) == len(slug) || slug[len(own)] == '-')
+}
+
+// named is a directory a slug names, by its path from the root; how much of
+// the slug its own slug is; and whether that's as the slug cases it: none
+// where dir is "".
 type named struct {
 	dir     string
 	slugged int
+	cased   bool
 }
 
 // deeper is whichever of found and at names more of the slug: else the one
-// with more parts to its path, else the one whose path sorts first.
+// as the slug cases it, else the one with more parts to its path, else the
+// one whose path sorts first.
 func deeper(found, at named) named {
 	if found.dir == "" {
 		return at
 	}
-	more := cmp.Or(cmp.Compare(at.slugged, found.slugged), cmp.Compare(strings.Count(at.dir, "/"), strings.Count(found.dir, "/")),
-		strings.Compare(found.dir, at.dir))
+	more := cmp.Or(cmp.Compare(at.slugged, found.slugged), compareTrue(at.cased, found.cased),
+		cmp.Compare(strings.Count(at.dir, "/"), strings.Count(found.dir, "/")), strings.Compare(found.dir, at.dir))
 	if more > 0 {
 		return at
 	}
 	return found
+}
+
+// compareTrue compares a and b, true the greater.
+func compareTrue(a, b bool) int {
+	switch {
+	case a == b:
+		return 0
+	case a:
+		return 1
+	}
+	return -1
 }

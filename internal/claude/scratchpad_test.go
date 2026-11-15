@@ -80,7 +80,8 @@ func TestAScratchpadIsKnownByItsShapeAndGivesItsSessionsSlug(t *testing.T) {
 
 // home is a filesystem of a home's folders: two repositories, one with a
 // worktree Claude Code made and a folder whose name a dash ends the other's
-// in, a dotfolder, and a link.
+// in, a dotfolder, two folders whose names differ only in case, as a volume
+// that keeps case can hold, and a link.
 func home() fstest.MapFS {
 	dir := &fstest.MapFile{Mode: fs.ModeDir}
 	return fstest.MapFS{
@@ -91,6 +92,8 @@ func home() fstest.MapFS {
 		"Users/you/.dotfiles":                                             dir,
 		"Users/you/a-b":                                                   dir,
 		"Users/you/a/b":                                                   dir,
+		"Users/you/Notes":                                                 dir,
+		"Users/you/notes":                                                 dir,
 		"Users/you/linked":                                                &fstest.MapFile{Mode: fs.ModeSymlink, Data: []byte("Code/api")},
 	}
 }
@@ -98,27 +101,32 @@ func home() fstest.MapFS {
 func TestASlugNamesTheDeepestDirectoryThereWhoseSlugBeginsIt(t *testing.T) {
 	tests := []struct {
 		name, slug, want string
+		whole            bool
 	}{
 		{name: "a worktree Claude Code made, there", slug: "-Users-you-Code-agentic-workflows--claude-worktrees-leeway-build",
-			want: "/Users/you/Code/agentic-workflows/.claude/worktrees/leeway-build"},
-		{name: "a worktree Claude Code made, removed, the folder that held it",
+			want: "/Users/you/Code/agentic-workflows/.claude/worktrees/leeway-build", whole: true},
+		{name: "a worktree Claude Code made, removed, the folder that held it, in part",
 			slug: "-Users-you-Code-agentic-workflows--claude-worktrees-gone", want: "/Users/you/Code/agentic-workflows/.claude/worktrees"},
-		{name: "a repository, removed, the folder that held it", slug: "-Users-you-Code-old-site", want: "/Users/you/Code"},
-		{name: "a folder in a repository, removed, the repository", slug: "-Users-you-Code-api-web-src", want: "/Users/you/Code/api"},
-		{name: "a name a dash ends another's in, the one it is", slug: "-Users-you-Code-agentic-workflows", want: "/Users/you/Code/agentic-workflows"},
-		{name: "the shorter of names a dash parts, where it's the one there", slug: "-Users-you-Code-agentic-tools", want: "/Users/you/Code/agentic"},
+		{name: "a repository, removed, the folder that held it, in part", slug: "-Users-you-Code-old-site", want: "/Users/you/Code"},
+		{name: "a folder in a repository, removed, the repository, in part", slug: "-Users-you-Code-api-web-src", want: "/Users/you/Code/api"},
+		{name: "a name a dash ends another's in, the one it is", slug: "-Users-you-Code-agentic-workflows", want: "/Users/you/Code/agentic-workflows",
+			whole: true},
+		{name: "the shorter of names a dash parts, where it's the one there, in part", slug: "-Users-you-Code-agentic-tools", want: "/Users/you/Code/agentic"},
 		{name: "a name another's begins with no dash between, not the other's", slug: "-Users-you-Code-apiary", want: "/Users/you/Code"},
-		{name: "a dotfolder", slug: "-Users-you--dotfiles", want: "/Users/you/.dotfiles"},
-		{name: "the home folder", slug: "-Users-you", want: "/Users/you"},
-		{name: "two as deep, the one with more parts", slug: "-Users-you-a-b", want: "/Users/you/a/b"},
+		{name: "a dotfolder", slug: "-Users-you--dotfiles", want: "/Users/you/.dotfiles", whole: true},
+		{name: "the home folder", slug: "-Users-you", want: "/Users/you", whole: true},
+		{name: "two as deep, the one with more parts", slug: "-Users-you-a-b", want: "/Users/you/a/b", whole: true},
 		{name: "a link, not followed", slug: "-Users-you-linked", want: "/Users/you"},
+		{name: "a slug in another case, the folder in its own", slug: "-Users-you-code-api", want: "/Users/you/Code/api", whole: true},
+		{name: "a slug in another case, in part, the folder in its own", slug: "-users-you-code-api-web", want: "/Users/you/Code/api"},
+		{name: "two folders a case apart, the one as the slug cases it", slug: "-Users-you-Notes", want: "/Users/you/Notes", whole: true},
+		{name: "two folders a case apart, the other as the slug cases it", slug: "-Users-you-notes", want: "/Users/you/notes", whole: true},
 		{name: "none there but the root", slug: "-srv-api"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, ok := claude.SlugDir(home(), tt.slug)
-			if got != tt.want || ok != (tt.want != "") {
-				t.Errorf("SlugDir(%q) = %q, %v, want %q", tt.slug, got, ok, tt.want)
+			if got, want := claude.SlugDir(home(), tt.slug), (claude.SlugMatch{Dir: tt.want, Whole: tt.whole}); got != want {
+				t.Errorf("SlugDir(%q) = %+v, want %+v", tt.slug, got, want)
 			}
 		})
 	}

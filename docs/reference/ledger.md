@@ -83,14 +83,16 @@ Links change the walk as follows:
 A line from before switchboard recorded `project` has none. Then a `dir` in
 `<repo>/.claude/worktrees/<name>` counts as `<repo>`, and any other `dir` as itself.
 
-Two kinds of folder are read again each time switchboard reads the ledger. The lines stay as they
-were written, and a request keeps the pool it was recorded in.
+Switchboard works out the project shown when it reads a line, and never rewrites the line. A
+request keeps the pool it was recorded in. Switchboard looks at each folder on this Mac the first
+time a line names it, and keeps the answer while the dashboard or a command runs.
 
 | If the project, or the `dir` of a line with no project, is | The project shown is |
 |---|---|
 | In a Claude Code scratchpad, `<temp>/claude-<uid>/<slug>/<session>/scratchpad` | The project of the folder the slug names |
 | In `/tmp`, `/private/tmp`, `/var/folders`, `/private/var/folders` or your `TMPDIR` | `temporary folders` |
-| Directly in the folder that holds Claude Code's `claude-<uid>` folder | `temporary folders` |
+| The folder that holds Claude Code's `claude-<uid>` folder, or in it | `temporary folders` |
+| Any other folder | That folder, in the case its name has on disk |
 
 Claude Code names a scratchpad by a slug of the folder its session started in. The slug is the
 path with every character but a letter or a digit turned into `-`. For example,
@@ -101,10 +103,14 @@ the worktree is gone.
 
 - **A session started in another session's scratchpad** counts as the project of the first session.
 - **A slug that names your home folder** counts as `~`.
+- **A slug that names a repository since removed** counts as `temporary folders`, because no
+  repository holds the folder left. So does a slug of a volume that isn't mounted.
 - **A slug that names no folder, or only a folder above your home folder,** counts as
   `temporary folders`.
+- **A slug or a `dir` in another case,** such as `~/code` for `~/Code`, counts as the folder on
+  disk.
 - **A long `dir` recorded cut short,** with a leading `…`, still counts by its slug.
-- **Each folder is read once** while the dashboard or a command runs.
+- **Your home folder never counts as temporary,** even if Claude Code keeps `claude-<uid>` in it.
 
 ### The pool of a line
 

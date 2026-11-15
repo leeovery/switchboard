@@ -1,6 +1,7 @@
 package views_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/fs"
 	"reflect"
@@ -9,6 +10,7 @@ import (
 	"testing/fstest"
 	"time"
 
+	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
@@ -110,13 +112,55 @@ func TestTheListReadsAScratchpadsSessionAsItsProjects(t *testing.T) {
 	}
 }
 
-// Projects' page over a week of many scratchpads' sessions, the first
-// read and each after it, of a Projects that read every path before.
+// A day's head keeps each session's directory and project as its lines named
+// them, so Projects read of the heads of days gone counts a scratchpad's
+// sessions as it counts them read of their lines, through the rule as it
+// reads now: which is why the rule needs no new version of the heads.
+func TestTheHeadsOfDaysGoneCountAScratchpadsSessionsAsTheirLinesDo(t *testing.T) {
+	lines := scratchWorld(9, 2)
+	build := views.Digests{}.Day()
+	for _, l := range lines {
+		build.Take(l.Line)
+	}
+	built, err := build.Built()
+	if err != nil {
+		t.Fatal(err)
+	}
+	day := dayfile.DateOf(lines[0].At)
+	headed := views.ReadSessionDays(sidedLedger{sides: map[string]json.RawMessage{day: built.Side}}, now.AddDate(-1, 0, 0), now, views.PoolRead{})
+	in := projectsIn(views.PeriodThisWeek, now)
+	in.Projects = scratchMachine()
+	rowsOf := func(page views.ProjectsPage) []string {
+		var rows []string
+		for _, r := range page.Rows {
+			rows = append(rows, fmt.Sprintf("%s %d sessions", r.Path, r.Sessions))
+		}
+		return rows
+	}
+	got, read := rowsOf(headed.Projects(in)), rowsOf(heldDays(now, lines...).Projects(in))
+	if want := []string{"~/Code/api 10 sessions", status.TemporaryFolders + " 2 sessions"}; !reflect.DeepEqual(got, want) || !reflect.DeepEqual(read, want) {
+		t.Errorf("of the day's head, the rows are %v, and of its lines %v, want %v", got, read, want)
+	}
+}
+
+// Projects' page over a week of many scratchpads' sessions, each read after
+// the first, of a Projects that has read every path already.
 func BenchmarkProjectsOfManyScratchpads(b *testing.B) {
 	days := heldDays(now, scratchWorld(3000, 300)...)
 	in := projectsIn(views.PeriodThisWeek, now)
 	in.Projects = scratchMachine()
 	for b.Loop() {
+		days.Projects(in)
+	}
+}
+
+// Projects' page over the same week, each read of a Projects that has read
+// nothing yet, as the first read of the dashboard or a command is.
+func BenchmarkProjectsOfManyScratchpadsReadFirst(b *testing.B) {
+	days := heldDays(now, scratchWorld(3000, 300)...)
+	in := projectsIn(views.PeriodThisWeek, now)
+	for b.Loop() {
+		in.Projects = scratchMachine()
 		days.Projects(in)
 	}
 }

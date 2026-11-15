@@ -5158,24 +5158,34 @@ draw it, the tab names in its title row aside, and kept in `testdata/vhs/referen
 `projects-173x53`, `projects-108x44`, `projects-73x61`, `projects-sessions-73x61`,
 `projects-108x24` and `projects-12-months-173x53`.
 
-- **A session's project** is `status.Projects`', the project its lines name, else, of a line from
-  before they named one, its directory's, a Claude Code worktree counting as its repository, as
-  `status.ProjectOf` reads them, as the List's sessions carry it (`views.ListedSession`'s
-  `Project`), `sessions`' JSON among them. Then, as the record is read, never rewritten: a path in
-  a Claude Code scratchpad, `…/claude-<digits>/<slug>/<session id>/scratchpad` at any root, a
-  folder in it, or such a path a line cut from its front after `…`, counts as the project of the
-  deepest directory on the machine whose slug, Claude Code's (`claude.Slug`, every character but an
-  ASCII letter or digit as `-`), begins the slug at a `-` or is it (`claude.SlugDir`), found as
-  `launch.FindProject` finds a directory's, the home as `~`; a slug of a scratchpad itself, of a
-  session started in another's, unwraps to the other's first (`claude.ScratchpadSlug`). A path in
-  a temporary folder, under `/tmp`, `/private/tmp`, `/var/folders`, `/private/var/folders` or the
-  reader's `TMPDIR`, or directly in the folder holding Claude Code's `claude-<uid>`, and a
-  scratchpad whose slug names nothing below the home's parents, count as `temporary folders`
-  (`status.TemporaryFolders`), a row of its own drawn faint, as `no directory`'s is, no path in
-  its head. Each path and each slug is read once a process, on the first read to ask, and kept: a
-  directory gone since leaves the project it named. The day's heads keep each session's directory
-  and project as their lines named them, so the rule needs no new version of them. Inside
-  a project a session keeps its own directory's name, so a worktree's session reads `fix-login`.
+- **A session's project** is `status.Projects`'. It starts from `status.ProjectOf`: the project
+  its lines name, else, of a line from before they named one, its directory's, a Claude Code
+  worktree counting as its repository. The List's sessions carry it (`views.ListedSession`'s
+  `Project`), `sessions`' JSON among them. It's worked out as the record is read, and the record
+  is never rewritten.
+  - **A scratchpad:** a path in `…/claude-<digits>/<slug>/<session id>/scratchpad` at any root, a
+    folder in it, or such a path a line cut from its front after `…` (`claude.ScratchpadSlug`). A
+    slug of a scratchpad itself, of a session started in another's, unwraps to the other's first.
+  - **Its project:** the deepest directory on the machine whose slug (`claude.Slug`, every
+    character but an ASCII letter or digit as `-`) is the slug or begins it at a `-`, matched as
+    cased, else case folded (`claude.SlugDir`). Its project is found as `launch.FindProject` finds
+    a directory's, the home as `~`.
+  - **No project:** a slug naming nothing below the home's parents, or naming only its own start
+    where no `.git` is at or above the folder found, as of a repository or a volume gone, counts
+    as `temporary folders` (`status.TemporaryFolders`).
+  - **Temporary folders:** a path under `/tmp`, `/private/tmp`, `/var/folders`,
+    `/private/var/folders` or the reader's `TMPDIR` counts as `temporary folders`. So does the
+    folder holding Claude Code's `claude-<uid>`, and anything under it, but the home or above.
+    The row is drawn faint, as `no directory`'s is, with no path in its head.
+  - **Case:** any other project is given in the case its folders have on disk, each part matched
+    as cased, else case folded, so `~/code` and `~/Code` are one.
+  - **Read once:** each path, slug and folder is read once a process, on the first read to ask,
+    and kept. A directory gone since leaves the project it named.
+  - **No new version:** the day's heads and digests keep each session's directory and project as
+    its lines named them, so the rule needs no new version of either.
+
+  Inside a project a session keeps its own directory's name, so a worktree's session reads
+  `fix-login`.
   A session is one project's, the one of where its latest day ran, as its story places it, so one
   whose days name it two ways, as across the upgrade that began recording projects, counts once.
   Sessions of no directory make one `no directory` row. Projects are named as `status.ProjectNames`

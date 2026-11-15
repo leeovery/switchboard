@@ -41,7 +41,7 @@ routed within. A session from before pools is in the first pool.
 |---|---|---|
 | `session` | string | The whole id of the session. |
 | `dir` | string | The directory it runs in, with your home as `~`. |
-| `project` | string | The repository it runs in, as Projects on the dashboard reads it. See below. |
+| `project` | string | The repository it runs in, or `temporary folders`, as Projects on the dashboard reads it. See below. |
 | `account` and `label` | string | The account its main thread is on now. |
 | `model` | string | The model of its latest main request. |
 | `running` | boolean | Set while the router lists it. |
@@ -60,9 +60,14 @@ A running session adds these:
 | `state` | string | `answering` or `asking`, while a request is in flight. |
 | `move_cost` | number | What moving it now would cost, in US dollars. |
 
-- **`project`** is the one its lines or the router name. A session from before switchboard
-  recorded it takes the project of `dir`, so `<repo>/.claude/worktrees/<name>` gives `<repo>`. See
-  [The request ledger](ledger.md).
+- **`project`** is worked out when switchboard reads the session, from what its lines or the
+  router name:
+  - A session from before switchboard recorded a project takes the project of `dir`, so
+    `<repo>/.claude/worktrees/<name>` gives `<repo>`.
+  - A session in a Claude Code scratchpad takes the project the scratchpad was made for.
+  - A session in a temporary folder gives `temporary folders`, which isn't a path.
+
+  See [The request ledger](ledger.md).
 - **`move_cost`** is left out if the cache would have run out anyway, or the cost isn't known.
 - **`moved`** holds `{at, from, from_label, reason, cost}`. `from` is the account it left. `cost`
   is what writing its context again there cost.
