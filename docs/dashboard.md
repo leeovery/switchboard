@@ -220,7 +220,7 @@ sub-tabs, Compare, Detail and Tokens, and `[` and `]` move between them. With on
 goes, and `[` and `]` move between Detail and Tokens.
 
 <div align="center">
-<img src="../art/accounts-compare.webp" alt="Accounts' Compare over this week: a column each for work, personal and side and one for all accounts, each with its week used, its use by model version, its requests, sessions and moves, its limits and time at its cap, and what its plan costs against the worth of its use at API prices, 4.0× to 5.2×" width="840">
+<img src="../art/accounts-compare.webp" alt="Accounts' Compare over this week: a column each for work, personal and side and one for all accounts, each with its week used, its use by model version, its last seven weeks each at its peak with the limits hit, and its worth at API prices by day" width="840">
 </div>
 
 ### Compare

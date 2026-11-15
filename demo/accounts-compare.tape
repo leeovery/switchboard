@@ -1,8 +1,8 @@
 # A still for the README's dashboard tour: Accounts' Compare, drawn from the
 # fixture named after its signed-off frame: a column an account and one for
 # all of them, over this week: the week used, the use by model version, the
-# requests and sessions, the limits, and what each plan costs against what
-# its use was worth at API prices.
+# weeks each at its peak with the limits hit, and the worth at API prices by
+# day.
 #
 # Record it, and make art/accounts-compare.webp:
 #   demo/record.sh accounts-compare

@@ -19,7 +19,7 @@ Switchboard is a local router for Claude Code. With more than one Claude subscri
 
 <br>
 
-<img src="art/tour.webp" alt="A tour of the dashboard: the Overview as a new session arrives, Accounts, Sessions with requests travelling their cords, Runway, Trends' burn-down cards, the Log and a session's page" width="840">
+<img src="art/tour.webp" alt="A tour of the dashboard: the Overview as a new session arrives, Accounts, Projects ranked by their worth, Sessions with requests travelling their cords, Runway, Trends' burn-down cards, the Log and a session's page" width="840">
 
 </div>
 
@@ -65,6 +65,7 @@ See [Pools](docs/how-it-works.md#pools) for how a session finds its pool, [Upgra
 |  |  |
 |:---:|:---:|
 | <a href="docs/dashboard.md#overview"><img src="art/overview.webp" alt="The Overview: every account's usage, routing, sessions, COMING UP and LATELY" width="420"></a><br>**Overview**<br>Every account's usage, and how the router stands | <a href="docs/dashboard.md#accounts"><img src="art/accounts-compare.webp" alt="Accounts' Compare: a column for each account and one for all of them" width="420"></a><br>**Accounts**<br>Each account in depth, side by side |
+| <a href="docs/dashboard.md#projects"><img src="art/projects.webp" alt="Projects: each project's live sessions, sessions, worth and requests over this week, the chosen one in full under them" width="420"></a><br>**Projects**<br>Where your use went, a project at a time | <a href="docs/dashboard.md#the-list"><img src="art/sessions-list.webp" alt="Sessions' List: this week's sessions, those running first, then those ended under a rule for each day" width="420"></a><br>**Sessions' List**<br>Every session of the period, as a log |
 | <a href="docs/dashboard.md#trends"><img src="art/trends-year.webp" alt="Trends' YEAR: a square a day over the last 12 months, BY MONTH under it" width="420"></a><br>**Trends' year**<br>How your use has gone over the year | <a href="docs/dashboard.md#sessions-1"><img src="art/sessions.webp" alt="Sessions' Switchboard: each session corded to the account it runs on" width="420"></a><br>**Sessions**<br>Where each session's requests are going |
 | <a href="docs/dashboard.md#runway"><img src="art/runway-week.webp" alt="Runway over the week: a lane for each account, showing when it has room" width="420"></a><br>**Runway**<br>When each account has room | <a href="docs/dashboard.md#trends"><img src="art/graphs.webp" alt="Trends: a burn-down card for each account, its room over the week, and where it's heading" width="420"></a><br>**Trends**<br>Every account's burn-down, and use over time |
 | <a href="docs/dashboard.md#the-log"><img src="art/log-requests.webp" alt="The Log's Requests: a line for each request the router routes" width="420"></a><br>**The Log**<br>Every request and router decision, live | <a href="docs/dashboard.md#a-sessions-page"><img src="art/session.webp" alt="A session's page: its requests over time, its move between accounts, and its turns" width="420"></a><br>**A session's page**<br>One session's whole story |

@@ -5,8 +5,9 @@
 # The Overview of the auto world at 14:42:07; then shift-tab, back round the
 # tabs: the Log's Requests, where ↑ chooses the newest line, db8a's, sent at
 # 7s, the next at 8s, and s opens db8a's page; Trends, its burn-down cards;
-# Runway; Sessions' Switchboard, its cords carrying the requests; Accounts'
-# Compare; and the Overview, b3e9 started on side since the look by 5s.
+# Runway; Sessions' Switchboard, its cords carrying the requests; Projects,
+# each project's worth over the week; Accounts' Compare; and the Overview,
+# b3e9 started on side since the look by 5s.
 #
 # The Log and the session's page come first, while the request stream the
 # Overview holds open has told of every request: a page without it, such as
@@ -59,8 +60,10 @@ Sleep 3s
 # Sessions' Switchboard, requests travelling the cords.
 Shift+Tab
 Sleep 4s
-# Accounts' Compare, passing over Projects.
+# Projects, this week's worth a project.
 Shift+Tab
+Sleep 3s
+# Accounts' Compare.
 Shift+Tab
 Sleep 3s
 # Round to the Overview, as the clip began.

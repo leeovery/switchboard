@@ -36,6 +36,8 @@ demo/record.sh routing help   # the tapes named
 | `overview` | fixture `overview-default-160` | 160 × 37 | `art/overview.webp`, a still: the Overview |
 | `sessions` | fixture `sessions-switchboard-160` | 160 × 37 | `art/sessions.webp`, a still: Sessions' Switchboard |
 | `pools` | fixture `overview-acme-160` | 160 × 37 | `art/pools.webp`, a still: the Overview of Acme, a client's pool, its title row naming it |
+| `projects` | fixture `projects-173x53` | 173 × 53 | `art/projects.webp`, a still: Projects over this week, the chosen project in full under the list |
+| `sessions-list` | fixture `sessions-list-160` | 160 × 37 | `art/sessions-list.webp`, a still: Sessions' List, this week's sessions as a log |
 | `theme-picker` | `routing` | 160 × 37 | `art/theme-picker.webp`, a still: the theme picker over the Overview, previewing tokyo-night-day |
 | `theme-tokyo-night` | fixture `overview-default-160` | 160 × 37 | `art/theme-tokyo-night.webp`, a still: the Overview in `tokyo-night` |
 | `theme-tokyo-night-day` | fixture `overview-default-160` | 160 × 37 | `art/theme-tokyo-night-day.webp`, a still: the Overview in `tokyo-night-day` |
@@ -86,10 +88,10 @@ tokens and tools a line would give them, and a session's page draws the world's 
 shows the two first, while the stream the Overview holds open has told of every request: a page
 without it, such as Accounts' or Runway's, lets the stream go, and a request that ends
 meanwhile, its line never coming, the Log and a session's page draw as lost, `no answer: the
-router went away`, once it opens again. Their stills, with Accounts' Compare and Trends' YEAR,
-draw the fixtures named after the signed-off frames, `capturetool --fixture`, as capture's tests
-hold them to the frames. A fixture is a moment whose timers never fire, so its tape waits for the
-screen, then shows it.
+router went away`, once it opens again. Their stills, with Accounts' Compare, Projects,
+Sessions' List and Trends' YEAR, draw the fixtures named after the signed-off frames,
+`capturetool --fixture`, as capture's tests hold them to the frames. A fixture is a moment whose
+timers never fire, so its tape waits for the screen, then shows it.
 
 The dashboard runs as it does live: its clock reads the scenario's start as it starts and runs on
 in real time, and its timers fire, so bars ease, pulses travel the cords and highlights fade. A
@@ -117,7 +119,7 @@ frames to `finalize.sh`, which makes the art:
 - **The frames, not a video.** vhs writes every frame it shows to `demo/out/<name>/`, as the
   terminal drew it. A video's compression shifts every pixel a little from frame to frame, which
   an animated WebP then stores whole; from the frames themselves it stores only what changed,
-  losslessly. The lead clip, about 29 seconds at 30 frames a second, is under three quarters of a megabyte.
+  losslessly. The lead clip, about 30 seconds at 30 frames a second, is under three quarters of a megabyte.
 - **The art.** For a clip, an animated WebP, which GitHub shows inline, at the frames' 30 a
   second, and an H.264 MP4 of the same frames; for a still, a lossless WebP of the last frame.
   Each frame is set in a margin of its own canvas, as the theme picker changes it.
