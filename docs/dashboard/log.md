@@ -65,8 +65,8 @@ You type in it as in the fields of `switchboard setup`:
 - `backspace` and `delete` take out a character;
 - a paste goes in at the cursor.
 
-Then `↑`, `↓` and `enter` pick a session, and both tables filter to it. With the filter on and
-nothing open, `esc` clears it.
+Then `↑`, `↓` and `enter` pick a session, and both tables filter to it. To clear the filter, press
+`esc` with nothing open while the table follows.
 
 ## Keys on the Log
 
@@ -79,6 +79,6 @@ nothing open, `esc` clears it.
 | `g` | On the details of an event, shows Requests, paused at the moment of the event. |
 | `f` | Opens the panel that sets what the Log shows. |
 | `/` | Finds a session. |
-| `esc` | With a filter on and nothing open, clears the filter. |
+| `esc` | With nothing open: while the table is paused, follows again, as `end` does. Otherwise, with a filter on, clears the filter. |
 
 The keys every page shares are on [Every page](every-page.md).

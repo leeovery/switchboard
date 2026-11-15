@@ -29,9 +29,10 @@ are on the page for [`switchboard dashboard`](commands/dashboard.md).
 - [Runway](dashboard/runway.md): when each account has room, over the week.
 - [Trends](dashboard/trends.md): the shapes of use over time, as charts.
 - [The Log](dashboard/log.md): the router's requests and events, as they happen.
-- [The session page](dashboard/session-page.md): one session, through its whole life.
-
 ## Across the tabs
+
+- [The session page](dashboard/session-page.md): one session, through its whole life, opened
+  from any tab that lists sessions.
 
 - [Every page](dashboard/every-page.md): the frame, the status line, help, the key line, clicks,
   and the keys every page shares.

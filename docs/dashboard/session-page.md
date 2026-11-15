@@ -78,6 +78,7 @@ shows fewer, down to one.
 | `↑` `↓` | Chooses a turn, or with a turn open, a request in it. |
 | `enter` | Opens the chosen turn into its requests. With a turn open, opens the details of the chosen request. |
 | `esc` | Closes the open turn, or goes back. |
+| `w` | Shows or hides the model windows. |
 | `p` | While the session runs, opens the routing card for this session, to pin it. See [The routing card](routing-card.md). |
 | `tab` `shift-tab` | Moves to the tab after or before the one the page was opened from. |
 

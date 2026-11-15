@@ -10,7 +10,8 @@ ran earlier. It has two views on sub-tabs, the Switchboard and the List.
 
 *The Switchboard as personal reaches its limit: its sessions are re-patched to side.*
 
-Press `[` and `]` to move between the views. The Switchboard shows first.
+Press `[` and `]` to move between the views. The Switchboard shows the first time. After that,
+Sessions opens on the view you showed last, from one run of the dashboard to the next.
 
 ## The Switchboard: sessions corded to accounts
 

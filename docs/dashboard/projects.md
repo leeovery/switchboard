@@ -10,7 +10,8 @@ sessions ran there. The list is at the top, and the project you choose shows in 
 
 *Projects over this week, with switchboard chosen.*
 
-A project is a repository, with its worktrees folded in, as the [Glossary](../glossary.md) says.
+A project is a repository, with its worktrees folded in, or the folder a session started in
+outside any repository, as the [Glossary](../glossary.md) says.
 Each one is named by its folder. If two share a name, the parent folder is named too. Sessions
 that didn't start through the `claude` that switchboard links share one row, `no directory`.
 

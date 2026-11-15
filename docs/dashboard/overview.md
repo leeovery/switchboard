@@ -2,7 +2,8 @@
 
 The Overview shows how much of each window every account has used, and how the router stands with
 each account. Look at it to see which account takes new sessions, which is near a limit, and what
-resets next. The page fits on one screen and never scrolls.
+resets next. The page fits on one screen: only USAGE scrolls, within itself, if its accounts don't
+fit.
 
 <div align="center">
 <img src="../../art/overview.webp" alt="The Overview: every account's usage, routing, sessions, COMING UP and LATELY" width="840">
@@ -14,7 +15,7 @@ The page has five sections, always in this order:
 
 1. **USAGE:** the windows of every account.
 2. **ROUTING:** how the router stands with each account.
-3. **SESSIONS:** the sessions running now, hidden until you press `s`.
+3. **SESSIONS:** the sessions the router has routed in the last hour, hidden until you press `s`.
 4. **COMING UP:** what happens next.
 5. **LATELY:** what the router has done.
 
@@ -35,7 +36,8 @@ The key line under the block names the marks:
 
 - **The marks** `◆` and `▲` stand at the end of the name column, so they line up down the list.
   ROUTING and SESSIONS line their marks up under them. Every list of accounts in a column does the same.
-- **A pinned-out account,** one that isn't open while a pin holds, is drawn faint.
+- **A pinned-out account,** one outside the open accounts while a pin holds, is drawn faint.
+  ROUTING may still show it as `● open`.
 - **The `Σ pool` row** counts only the accounts that have the window, for example `1.2 of 3 left`.
   If fewer than two accounts have the window, and not all of them, the row shows nothing for it.
 - **With one account** there's no `Σ pool` row. The heading says the room left in each window
@@ -105,7 +107,7 @@ is tighter on some rows:
 | The mark doesn't fit, but the state can say it | Says it in the state, for example `● at its cap · pinned`. |
 | Neither fits | Names the pinned accounts only in the heading. |
 
-## SESSIONS: what's running now
+## SESSIONS: what ran in the last hour
 
 SESSIONS lists the sessions the router has routed in the last hour. The account whose sessions
 send the most requests a minute comes first, with all its sessions together, the busiest first.
@@ -118,7 +120,7 @@ Each session shows:
 - why it's on its account, such as `moved from work 14:31: work reached its cap`;
 - its own trace, lined up with the traces in ROUTING.
 
-To open a session page, click a session row.
+To open the session page, click a session row.
 
 ### Rows that stay put
 
@@ -180,7 +182,7 @@ as those in the stills.
 
 | Part | Wide | Narrow |
 |---|---|---|
-| USAGE | Windows side by side from 86 columns with two windows, each bar at least 12 cells. With rows to spare, the windows stack instead, a section each at the full width. | The windows stack, as `usage` stacks them. |
+| USAGE | Windows side by side from 84 columns with two windows, each bar at least 12 cells. With rows to spare, the windows stack instead, a section each at the full width. | The windows stack, as `usage` stacks them. |
 | ROUTING and SESSIONS | One row an account and one row a session, from 83 columns with a name column of 16. | Two rows each. |
 | COMING UP and LATELY | Side by side, from 95 columns. | LATELY goes under COMING UP. |
 
