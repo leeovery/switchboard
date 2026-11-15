@@ -24,6 +24,9 @@ the config right, this is what you'll see:
 | Each `claude` you start | It says it couldn't read the config, and goes through the running router all the same. It starts without switchboard only if the router doesn't answer. |
 | The log of the router | The refusal, at warn. |
 
+`switchboard status` reads `restart due since Mon 14:02 (upgraded), held:`, then the reason.
+The router asks again once you change the config, or the binary changes again.
+
 Put the config right as the error says. The router restarts at its next quiet moment.
 
 ## An upgrade not taken up because the disk is full
