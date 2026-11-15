@@ -4,7 +4,6 @@
 ● healthy · auto · 6 sessions · new → ▲ side
 
 RUNWAY  ─────────────────────────────────────────────────────────────────
-
                      now
                  Thu     Fri      Sat     Sun     Mon      Tue     Wed
               ───┬───────┬────────┬───────┬───────┬────────┬───────┬─────
@@ -54,6 +53,7 @@ Mon 22:18  personal at its limit: 2 moved to side             2d 16h ago
 Mon 17:35  work open again: its 5-hour window reset           2d 21h ago
 Mon 16:48  work at its cap: 2 moved to personal               2d 21h ago
 Mon 14:05  work refused (401): 1 session moved to personal        3d ago
+Mon 10:00  side open again: its week window reset              3d 4h ago
 
 █ room    █ room, but it runs out at its pace    ━ at its cap
 ━ at its limit    ▂ the pool at its limit    │ its week resets

@@ -234,8 +234,8 @@ func TestSigmaPoolHeadsThePoolsLaneWithNoRuleOverIt(t *testing.T) {
 		over     string
 		sigma    string
 	}{
-		{name: "three, after the last lane's blank row", accounts: 3, pool: 19, sigma: "Σ pool"},
-		{name: "ten, after the last lane's words", accounts: 10, pool: 30, over: "  week", sigma: "Σ pool"},
+		{name: "three, after the last lane's blank row", accounts: 3, pool: 18, sigma: "Σ pool"},
+		{name: "ten, after the last lane's words", accounts: 10, pool: 29, over: "  week", sigma: "Σ pool"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -422,12 +422,12 @@ func TestThePoolsRoomIsUsagesWordsForThePoolInTheWeek(t *testing.T) {
 		width, row int
 		want       string
 	}{
-		{name: "live", doc: doc, shown: live, width: 160, row: 21, want: "  week 1.2 of 3 left"},
-		{name: "pinned to two", doc: pinned, shown: live, width: 160, row: 21, want: "  week 0.6 of 2 left · pinned"},
-		{name: "this week stepped back to", doc: doc, shown: today, width: 160, row: 21, want: "  week 1.2 of 3 left"},
-		{name: "a week gone stepped back to", doc: doc, shown: gone, width: 160, row: 21, want: ""},
-		{name: "on a phone", doc: doc, shown: phone, width: 52, row: 23, want: "  week 1.2 of 3 left"},
-		{name: "pinned to two, on a phone", doc: pinned, shown: phone, width: 52, row: 23, want: "  week 0.6 of 2 left · pinned"},
+		{name: "live", doc: doc, shown: live, width: 160, row: 20, want: "  week 1.2 of 3 left"},
+		{name: "pinned to two", doc: pinned, shown: live, width: 160, row: 20, want: "  week 0.6 of 2 left · pinned"},
+		{name: "this week stepped back to", doc: doc, shown: today, width: 160, row: 20, want: "  week 1.2 of 3 left"},
+		{name: "a week gone stepped back to", doc: doc, shown: gone, width: 160, row: 20, want: ""},
+		{name: "on a phone", doc: doc, shown: phone, width: 52, row: 22, want: "  week 1.2 of 3 left"},
+		{name: "pinned to two, on a phone", doc: pinned, shown: phone, width: 52, row: 22, want: "  week 0.6 of 2 left · pinned"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
