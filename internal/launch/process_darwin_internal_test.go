@@ -3,7 +3,6 @@
 package launch
 
 import (
-	"bytes"
 	"encoding/binary"
 	"os"
 	"slices"
@@ -14,49 +13,6 @@ import (
 	"github.com/leeovery/switchboard/internal/config"
 	"golang.org/x/sys/unix"
 )
-
-// laidOut lays argv and env out as kern.procargs2 does, after the path the
-// process started from, padded with NULs as the system pads it, followed by
-// what follows.
-func laidOut(path string, argv, env []string, follows string) []byte {
-	args := binary.NativeEndian.AppendUint32(nil, uint32(len(argv)))
-	args = append(append(args, path...), 0)
-	for (len(args)-4)%argsAlign != 0 {
-		args = append(args, 0)
-	}
-	for _, s := range slices.Concat(argv, env) {
-		args = append(append(args, s...), 0)
-	}
-	return append(args, follows...)
-}
-
-// titled is args, argv and env laid out after path as laidOut lays them out,
-// with title written over its arguments as libuv writes a process title,
-// Node's: the title, then NULs to the arguments' end. A title longer than
-// the arguments goes on over the environment, ended by a NUL.
-func titled(args []byte, path string, argv []string, title string) []byte {
-	start := argsStart(path)
-	return titledTo(args, path, title, start+max(len(strings.Join(argv, "\x00"))+1, len(title)+1))
-}
-
-// titledTo is args, laid out after path as laidOut lays them out, with title
-// written over everything up to end, then NULs.
-func titledTo(args []byte, path, title string, end int) []byte {
-	over := args[argsStart(path):end]
-	clear(over)
-	copy(over, title)
-	return args
-}
-
-// argsStart is where the arguments start in what laidOut lays out after
-// path.
-func argsStart(path string) int {
-	start := 4 + len(path) + 1
-	for (start-4)%argsAlign != 0 {
-		start++
-	}
-	return start
-}
 
 func TestProcArgsReadsTheArgumentsAndEnvironmentAsTheyreLaidOut(t *testing.T) {
 	argv := []string{"claude", "-p", "SWITCHBOARD_POOL=an argument, not a variable", ""}
@@ -71,17 +27,17 @@ func TestProcArgsReadsTheArgumentsAndEnvironmentAsTheyreLaidOut(t *testing.T) {
 		wantArgv, wantEnv []string
 		wantOK            bool
 	}{
-		{name: "ending at an empty string", args: laidOut("/opt/claude", argv, env, "\x00ptr_munge=\x00"), wantEnv: env, wantOK: true},
-		{name: "ending at the end", args: laidOut("/opt/claude", argv, env, ""), wantEnv: env, wantOK: true},
-		{name: "a path padded to nothing", args: laidOut(unpadded, argv, env, "\x00"), wantEnv: env, wantOK: true},
-		{name: "an empty first argument", args: laidOut("/opt/claude", []string{"", "-p"}, env, "\x00"), wantArgv: []string{"", "-p"}, wantEnv: env, wantOK: true},
-		{name: "an empty first argument, after a path padded to nothing", args: laidOut(unpadded, []string{"", "-p"}, env, "\x00"), wantArgv: []string{"", "-p"}, wantEnv: env, wantOK: true},
+		{name: "ending at an empty string", args: LaidOut("/opt/claude", argv, env, "\x00ptr_munge=\x00"), wantEnv: env, wantOK: true},
+		{name: "ending at the end", args: LaidOut("/opt/claude", argv, env, ""), wantEnv: env, wantOK: true},
+		{name: "a path padded to nothing", args: LaidOut(unpadded, argv, env, "\x00"), wantEnv: env, wantOK: true},
+		{name: "an empty first argument", args: LaidOut("/opt/claude", []string{"", "-p"}, env, "\x00"), wantArgv: []string{"", "-p"}, wantEnv: env, wantOK: true},
+		{name: "an empty first argument, after a path padded to nothing", args: LaidOut(unpadded, []string{"", "-p"}, env, "\x00"), wantArgv: []string{"", "-p"}, wantEnv: env, wantOK: true},
 		{
 			name:     "a process title written over the arguments, as libuv writes Node's",
-			args:     titled(laidOut("/opt/claude", argv, env, "\x00ptr_munge=\x00"), "/opt/claude", argv, "claude"),
+			args:     Titled(LaidOut("/opt/claude", argv, env, "\x00ptr_munge=\x00"), "/opt/claude", argv, "claude"),
 			wantArgv: []string{"claude", "", "", ""}, wantEnv: env, wantOK: true,
 		},
-		{name: "no environment", args: laidOut("/opt/claude", argv, nil, "\x00"), wantOK: true},
+		{name: "no environment", args: LaidOut("/opt/claude", argv, nil, "\x00"), wantOK: true},
 		{name: "too short for a count", args: []byte{1, 0}},
 		{name: "a path never ended", args: append(binary.NativeEndian.AppendUint32(nil, 1), "/opt/claude"...)},
 		{name: "more arguments counted than there are", args: append(binary.NativeEndian.AppendUint32(nil, 99), "/opt/claude\x00claude\x00"...)},
@@ -132,6 +88,9 @@ func TestProcessTableFindsThisProcess(t *testing.T) {
 	p, ok := ProcessTable{}.Process(os.Getpid())
 	if !ok || p.Parent != os.Getppid() || p.Started.IsZero() || p.Started.After(time.Now()) {
 		t.Errorf("Process(this process) = %v, parent %d, started %v; want it running, started by %d before now", ok, p.Parent, p.Started, os.Getppid())
+	}
+	if p.Owner != os.Geteuid() {
+		t.Errorf("Process(this process) runs as the user %d, want %d, the one it runs as", p.Owner, os.Geteuid())
 	}
 	env, ok := ProcessTable{}.Environ(os.Getpid())
 	if !ok {
@@ -191,13 +150,12 @@ func TestASessionsClaudeWhoseTitleIsWrittenOverWhatsReadIsFound(t *testing.T) {
 	sessionEnv := own.withOrUnset(PoolEnv, acme).markedAgainst(own, m).startingAt(m)
 	argv := []string{node, "/usr/local/lib/node_modules/@anthropic-ai/claude-code/cli.js", "--resume"}
 	laid := func(title string) []byte {
-		return titled(laidOut(node, argv, sessionEnv, "\x00ptr_munge=\x00"), node, argv, title)
+		return Titled(LaidOut(node, argv, sessionEnv, "\x00ptr_munge=\x00"), node, argv, title)
 	}
 	// toItsMark is the title written over everything ahead of the session's
 	// mark of its claude, which is left whole, and what run set taken.
 	toItsMark := func() []byte {
-		args := laidOut(node, argv, sessionEnv, "\x00ptr_munge=\x00")
-		return titledTo(args, node, "claude", bytes.Index(args, []byte(startedEnv+"=")))
+		return TitledAhead(LaidOut(node, argv, sessionEnv, "\x00ptr_munge=\x00"), node, "claude", startedEnv)
 	}
 	tests := []struct {
 		name string

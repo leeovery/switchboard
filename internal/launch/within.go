@@ -22,10 +22,11 @@ type Processes interface {
 type ProcessTable struct{}
 
 // Process is what's known of a running process: the id of the process that
-// started it, and when it started.
+// started it, when it started, and the id of the user it runs as.
 type Process struct {
 	Parent  int
 	Started time.Time
+	Owner   int
 }
 
 // session is a session a launch is started within, as sessionOf finds it:
@@ -87,15 +88,18 @@ const ancestorsMost = 64
 // that started it, up from its parent, as sessionOf finds them, until one
 // names a pool. A session whose claude isn't among them is none, though its
 // mark lives on, as in a tmux server started within it, which every claude
-// started in it would inherit. The walk stops at a process that started
-// after the one it started, as no parent does: its id was taken, as the walk
-// went, by a later process. None without Processes.
+// started in it would inherit. A process another user runs is never a
+// session's claude, as only the environment the launch inherits could name
+// it, as through sudo -E. The walk stops at a process that started after the
+// one it started, as no parent does: its id was taken, as the walk went, by
+// a later process. None without Processes.
 func (l Launcher) findOuter() outerSessions {
 	var outer outerSessions
 	if l.Processes == nil {
 		return outer
 	}
-	child, ok := l.Processes.Process(l.PID)
+	self, ok := l.Processes.Process(l.PID)
+	child := self
 	for range ancestorsMost {
 		if !ok || child.Parent <= 1 || outer.pooled.pid != 0 {
 			break
@@ -105,7 +109,7 @@ func (l Launcher) findOuter() outerSessions {
 		if !running || parent.Started.After(child.Started) {
 			break
 		}
-		if s, found := l.sessionOf(pid, parent); found {
+		if s, found := l.sessionOf(pid, parent, self.Owner); found {
 			outer = outer.with(s)
 		}
 		child = parent
@@ -114,19 +118,39 @@ func (l Launcher) findOuter() outerSessions {
 }
 
 // sessionOf returns the session whose claude is p, the process whose id is
-// pid, and whether it's one, as sessionIn finds it in the environment p
-// started in, which nothing the session runs can change; else in the one the
-// launch starts from, as inherited. What's read of a process is its memory
-// as it is, which the process can write over, as Claude Code's title does
-// under Node, so a read that holds no session, as one whose title took what
-// run set, is passed over as one that can't be read is.
-func (l Launcher) sessionOf(pid int, p Process) (session, bool) {
-	if own, read := l.Processes.Environ(pid); read {
-		if s, found := sessionIn(environ(own), pid, p); found {
-			return s, true
-		}
+// pid, and whether it's one: none where a user other than owner runs p; else
+// as sessionIn finds it in the environment p started in, which nothing the
+// session runs can change; else in the one the launch starts from, as
+// inherited, which also gives the pool where the one p started in names
+// none. What's read of a process is its memory as it is, which the process
+// can write over, as Claude Code's title does under Node, so a read that
+// holds no session, as one whose title took what run set, is passed over as
+// one that can't be read is, and one that lost the pool alone, as one whose
+// title took the variables ahead of the project, takes the inherited one's.
+func (l Launcher) sessionOf(pid int, p Process, owner int) (session, bool) {
+	if p.Owner != owner {
+		return session{}, false
 	}
-	return sessionIn(environ(l.Environ), pid, p)
+	inherited, inherits := sessionIn(environ(l.Environ), pid, p)
+	s, found := l.ownSession(pid, p)
+	switch {
+	case !found:
+		return inherited, inherits
+	case s.pool == "" && inherits:
+		s.pool = inherited.pool
+	}
+	return s, true
+}
+
+// ownSession returns the session sessionIn finds in the environment p, the
+// process whose id is pid, started in: false where it holds none, or can't
+// be read.
+func (l Launcher) ownSession(pid int, p Process) (session, bool) {
+	own, read := l.Processes.Environ(pid)
+	if !read {
+		return session{}, false
+	}
+	return sessionIn(environ(own), pid, p)
 }
 
 // sessionIn returns the session env says p, the process whose id is pid, is

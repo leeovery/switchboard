@@ -26,9 +26,8 @@ looking at.
 
 ## What happens
 
-- A session started anywhere under `~/Code/acme`, or in a git worktree of a repository there, uses
-  only the accounts in Acme, wherever the worktree lives. When every account in Acme is out, work
-  there waits for a reset rather than spill into another pool.
+- A session started under `~/Code/acme`, or in a worktree of a repository there, uses only Acme's
+  accounts, waiting for a reset when all are out.
 - Sessions started anywhere else use the unfenced pool, which holds the rest of your accounts.
   Switchboard makes your first pool for you, labelled `Default`, and it starts unfenced.
 - A `claude` that an Acme session starts, such as a test running `claude -p` in the session's

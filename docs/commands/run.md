@@ -56,13 +56,14 @@ belongs to the pool of its repository. If `run` refuses to start in a folder, se
 
 ## Inside another session
 
-A `claude` that a session starts belongs to the session's pool. So a test that runs `claude -p`
-in the session's scratchpad spends the same pool's accounts. A fence still keeps its own work:
+A `claude` that a session starts belongs to the same pool as the session. So a test that runs
+`claude -p` in the session's scratchpad spends accounts in that pool. A fence still keeps its own
+work:
 
 | If the folder it starts in is | Then it belongs to |
 |---|---|
-| Inside no fence | The session's pool |
-| Inside the fence of the session's own pool | The session's pool |
+| Inside no fence | The same pool as the session |
+| Inside the fence of the pool the session is in | The same pool as the session |
 | Inside a fence, and the session is in the unfenced pool | The fenced pool, as if no session started it |
 | Inside a fence, and the session is in another fenced pool | No pool: `run` refuses |
 
@@ -71,21 +72,22 @@ The project follows the pool:
 | If the folder it starts in is | Then its project is |
 |---|---|
 | In a repository | That repository |
-| In no repository, and it belongs to the session's pool | The session's project |
+| In no repository, and in the same pool as the session | The same project as the session |
 | In no repository, and a fence takes it into another pool | The folder itself |
 
 The session is the one whose `claude` started this `claude`, directly or through other programs.
 `run` looks for that `claude` among the programs that started this one, nearest first. It reads
-the environment that the session's `claude` started with, which the programs the session runs
-can't change. Claude Code under Node writes its title over the memory `run` reads, though. If
-`run` finds no session in what it reads there, it reads the one this `claude` inherits instead.
+the environment that `claude` started with, which the programs the session runs can't change.
+Claude Code under Node writes its title over the memory `run` reads, though. If `run` finds no
+session in what it reads there, it reads the environment this `claude` inherits instead.
 
-A session counts as none in these cases:
+No session is found if:
 
 - The session has ended.
 - The session only started the tmux server a `claude` runs in.
-- The `claude` started in the background, as `claude -p … &` does, from a shell that exits at
-  once. The `claude` may pass to launchd before `run` looks, and is then placed by its folder.
+- The `claude` started in the background from a shell that exits at once, for example with
+  `claude -p … &`. The `claude` may pass to launchd before `run` looks, and is then placed by its
+  folder.
 
 ## Exit status
 

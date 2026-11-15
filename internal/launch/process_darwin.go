@@ -13,14 +13,19 @@ import (
 )
 
 // Process returns what the system knows of the running process with the
-// given id: false where none runs.
+// given id, its owner the user it runs as, effectively: false where none
+// runs.
 func (ProcessTable) Process(pid int) (Process, bool) {
 	info, err := unix.SysctlKinfoProc("kern.proc.pid", pid)
 	if err != nil || int(info.Proc.P_pid) != pid {
 		return Process{}, false
 	}
 	started := info.Proc.P_starttime
-	return Process{Parent: int(info.Eproc.Ppid), Started: time.Unix(started.Sec, int64(started.Usec)*int64(time.Microsecond))}, true
+	return Process{
+		Parent:  int(info.Eproc.Ppid),
+		Started: time.Unix(started.Sec, int64(started.Usec)*int64(time.Microsecond)),
+		Owner:   int(info.Eproc.Ucred.Uid),
+	}, true
 }
 
 // Environ returns switchboard's variables of the environment the process

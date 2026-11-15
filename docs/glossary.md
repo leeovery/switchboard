@@ -43,10 +43,10 @@ signed into the primary.
 accounts reset one after another rather than together.
 
 **Project.** The repository a session runs in, with its worktrees folded in. A session in a
-worktree or a folder beneath the repository counts as the repository's. A session started outside
-any repository counts as its own folder's. A `claude` that another session starts outside any
-repository counts as that session's project, while it's in that session's pool. `run` records the
-project as the session starts. See [the ledger](reference/ledger.md).
+worktree or a folder beneath the repository counts in that repository. A session started outside
+any repository runs in a project of its own: the folder it started in. A `claude` that another
+session starts outside any repository joins that session's project, while it runs in the same
+pool. `run` records the project as the session starts. See [the ledger](reference/ledger.md).
 
 **Record.** Everything switchboard keeps of your use, on this Mac and from any you import:
 

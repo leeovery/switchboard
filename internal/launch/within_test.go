@@ -49,18 +49,20 @@ func repositories(dir string) (string, bool) {
 type processes map[int]process
 
 // process is a process running: the id of the process that started it,
-// when it started, and switchboard's variables of the environment it
-// started in, which can't be read where it's unread.
+// when it started, the id of the user it runs as, and switchboard's
+// variables of the environment it started in, which can't be read where it's
+// unread.
 type process struct {
 	parent  int
 	started time.Time
+	owner   int
 	environ []string
 	unread  bool
 }
 
 func (p processes) Process(pid int) (launch.Process, bool) {
 	found, ok := p[pid]
-	return launch.Process{Parent: found.parent, Started: found.started}, ok
+	return launch.Process{Parent: found.parent, Started: found.started, Owner: found.owner}, ok
 }
 
 func (p processes) Environ(pid int) ([]string, bool) {
@@ -492,6 +494,40 @@ func TestASessionsClaudeStartedWithinTheSecondItsMarkSaysIsItsClaude(t *testing.
 	}
 }
 
+// A process another user runs is never a session's claude, though the
+// environment the launch inherits names it, as through sudo -E, where what
+// that process started with can't be read.
+func TestAProcessAnotherUserRunsIsNoSessionsClaude(t *testing.T) {
+	const user, other = 501, 502
+	cfg := pooledConfig()
+	sessionEnv := session(t, cfg, acmeDir)
+	for _, tt := range []struct {
+		name string
+		// owner runs the session's claude, and user the rest.
+		owner     int
+		inSession bool
+	}{
+		{name: "the session's claude run by the launch's user", owner: user, inSession: true},
+		{name: "the session's claude run by another user", owner: other},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			h := within(t, sessionEnv, sessionEnv, scratchpad)
+			h.launcher.Processes = processes{
+				withinPID: {parent: shellPID, started: launched.Add(time.Minute), owner: user},
+				shellPID:  {parent: pid, started: launched.Add(time.Second), owner: user},
+				pid:       {parent: 1, started: launched.Add(-time.Second), owner: tt.owner, unread: true},
+			}
+
+			runs(t, h, cfg)
+			if tt.inSession {
+				placedIn(t, h.environment(t), acmePool.ID, acme1Token, acmeDir)
+				return
+			}
+			placedIn(t, h.environment(t), defaultPool.ID, workToken, scratchpad)
+		})
+	}
+}
+
 func TestAStaleMarkOfASessionIsNone(t *testing.T) {
 	cfg := pooledConfig()
 	sessionEnv := session(t, cfg, acmeDir)
@@ -810,20 +846,33 @@ func TestASessionNamingNoPoolPlacesNoLaunchAmongPools(t *testing.T) {
 }
 
 // A pin to an account of another pool is refused, saying where the session's
-// pool comes from: through the session it's started within, where nothing
-// else puts it there.
+// pool comes from: through the session it's started within, where that
+// session alone decides it, its pool fenced and no fence holding the
+// directory.
 func TestAPinWithinASessionToAnotherPoolsAccountSaysWhereItsPoolComesFrom(t *testing.T) {
 	cfg := pooledConfig()
-	sessionEnv := session(t, cfg, acmeDir)
 	for _, tt := range []struct {
-		name, dir, wantErr string
+		// from is where the session starts, dir where the claude within it
+		// does, pinned to account.
+		name, from, dir, account, wantErr string
 	}{
-		{name: "in a scratchpad", dir: scratchpad, wantErr: "work is in pool Default; this directory is in pool Acme, through the session it's started within"},
-		{name: "in its pool's fence", dir: acmeDir + "/web", wantErr: "work is in pool Default; this directory is in pool Acme"},
+		{
+			name: "in a scratchpad, within a fenced pool's session", from: acmeDir, dir: scratchpad, account: "work",
+			wantErr: "work is in pool Default; this directory is in pool Acme, through the session it's started within",
+		},
+		{
+			name: "in its pool's fence, within a fenced pool's session", from: acmeDir, dir: acmeDir + "/web", account: "work",
+			wantErr: "work is in pool Default; this directory is in pool Acme",
+		},
+		{
+			name: "in a scratchpad, within the unfenced pool's session, where it would be anyway", from: elsewhere, dir: scratchpad, account: "acme1",
+			wantErr: "Acme 1 (acme1) is in pool Acme; this directory is in pool Default",
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
+			sessionEnv := session(t, cfg, tt.from)
 			h := within(t, sessionEnv, sessionEnv, tt.dir)
-			if err := h.launcher.Run(t.Context(), pooledRoute(cfg, knowing(cfg), "work"), nil); err == nil || err.Error() != tt.wantErr {
+			if err := h.launcher.Run(t.Context(), pooledRoute(cfg, knowing(cfg), tt.account), nil); err == nil || err.Error() != tt.wantErr {
 				t.Errorf("Run() error = %v, want %q", err, tt.wantErr)
 			}
 			if len(h.starts) > 0 {

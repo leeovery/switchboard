@@ -55,7 +55,7 @@ switchboard pool edit q7mt --dirs ~/Code/acme \
 
 `--account` with an account of another pool fails, and names the pool each is in:
 `Acme 1 (m2kp) is in pool Acme; this directory is in pool Default`. If no fence holds the folder,
-and the pool comes from the session that started `claude`, the message ends `, through the
+and the session that started `claude` puts it in a fenced pool, the message ends `, through the
 session it's started within`.
 
 ## `claude` says the router doesn't route by the pools
