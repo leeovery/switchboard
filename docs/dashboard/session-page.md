@@ -5,7 +5,7 @@ each cost. Open it to see why a session moved, what a move cost in cache, or whi
 most.
 
 <div align="center">
-<img src="../../art/session.webp" alt="A session's page for d28c in ~/Code/switchboard: its STORY of requests a minute, its move from work to side at 14:31 marked with the $1.82 its cache cost, its time and worth on each account, and its turns, the one that moved it opened into its requests" width="840">
+<img src="../../art/session.webp" alt="The session page for d28c in ~/Code/switchboard: its STORY of requests a minute, its move from work to side at 14:31 marked with the $1.82 its cache cost, its time and worth on each account, and its turns, the one that moved it opened into its requests" width="840">
 </div>
 
 *The page for d28c: a move from work to side at 14:31, and the turn that moved it opened.*

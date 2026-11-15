@@ -9,7 +9,7 @@ switchboard dashboard
 ```
 
 <div align="center">
-<img src="../art/tour.webp" alt="A tour of the dashboard: the Overview as a new session arrives, the Log and a session's page, Trends' burn-down cards and its year, Runway, Sessions with requests travelling their cords and its List of the week's sessions, Projects ranked by their worth, and Accounts" width="840">
+<img src="../art/tour.webp" alt="A tour of the dashboard: the Overview as a new session arrives, the Log and the session page, Trends' burn-down cards and its year, Runway, Sessions with requests travelling their cords and its List of the week's sessions, Projects ranked by their worth, and Accounts" width="840">
 </div>
 
 *A tour of the tabs, from the Overview to Accounts.*
@@ -37,6 +37,6 @@ are on the page for [`switchboard dashboard`](commands/dashboard.md).
   and the keys every page shares.
 - [The routing card](dashboard/routing-card.md): where new sessions go, set from the dashboard.
 - [On a phone](dashboard/phone.md): how each tab lays itself out on a narrow screen.
-- [Running it](dashboard/running-it.md): one pool at a time, how the dashboard reads the router,
-  and what it remembers.
+- [Running it](dashboard/running-it.md): one pool at a time, what changes when the config does,
+  and what the dashboard remembers.
 - [Themes](dashboard/themes.md): the built-in themes, the picker, and your own.

@@ -13,14 +13,14 @@ Each of these is worked out from the lines of one day. They're in
 | File | What it holds |
 |---|---|
 | `digest-<date>.json.gz` | Where each session stood at the end of the day. |
-| `parts-<date>.gz` | The part of each session in that day, read by a session's page. |
+| `parts-<date>.gz` | The part of each session in that day, read by the session page. |
 | `logday-<date>.json.gz` | The day's head, read by the Log's find. |
 | `rows-<date>.gz` | The day's rows, read by the Log and by a turn. |
 
 All four are safe to delete. The router writes them again on its next round, or when it next
 starts. Until then, the dashboard reads the lines instead, which is slower but shows the same.
 
-## A session's page is slow to open
+## The session page is slow to open
 
 A parts file is damaged, but the size didn't change, so nothing notices until a page reads it. The
 page then rests on an older digest, or reads the session's days whole, at every open. To have
@@ -70,4 +70,4 @@ it.
 
 - [Your record and what it's worth](../your-record.md): what the ledger holds.
 - [Where the files are](../reference/files.md): the state directory, and the files in the ledger.
-- [The Log](../dashboard/log.md) and [a session's page](../dashboard/session-page.md): where the dashboard reads the ledger.
+- [The Log](../dashboard/log.md) and [the session page](../dashboard/session-page.md): where the dashboard reads the ledger.

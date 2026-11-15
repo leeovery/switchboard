@@ -37,7 +37,7 @@ Find the page for what you want to do. Each line says what the page answers.
   - [Runway](dashboard/runway.md): when each account has room, over the week.
   - [Trends](dashboard/trends.md): the shapes of use over time, as charts.
   - [The Log](dashboard/log.md): the router's requests and events, as they happen.
-  - [A session's page](dashboard/session-page.md): one session, through its whole life.
+  - [The session page](dashboard/session-page.md): one session, through its whole life.
   - [Every page](dashboard/every-page.md): the status line, help, the key line, clicks, and the
     keys every page shares.
   - [The routing card](dashboard/routing-card.md): where new sessions go, set from the dashboard.
