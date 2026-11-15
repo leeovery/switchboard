@@ -16,7 +16,7 @@ Simply start `claude` as normal: nothing about how you work changes. Behind it, 
 
 [Docs](docs/README.md) · [Pools](docs/pools.md) · [Commands](docs/commands.md) · [Configuration](docs/configuration.md) · [Troubleshooting](docs/troubleshooting.md)
 
-<img src="art/tour.webp" alt="A tour of the dashboard: the Overview as a new session arrives, Accounts, Projects ranked by their worth, Sessions with requests travelling their cords, Runway, Trends' burn-down cards, the Log and a session's page" width="840">
+<img src="art/tour.webp" alt="A tour of the dashboard: the Overview as a new session arrives, the Log and a session's page, Trends' burn-down cards and its year, Runway, Sessions with requests travelling their cords and its List of the week's sessions, Projects ranked by their worth, and Accounts" width="840">
 
 </div>
 
