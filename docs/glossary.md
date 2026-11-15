@@ -57,6 +57,6 @@ same conversation, but starts a new process.
 started outside all the fences. If every pool is fenced, a session started outside them doesn't
 start.
 
-**Window.** A span of time Claude counts usage over. Each account has a week, and most have a
-5-hour window too. Some models also have a week of their own. When a window resets, its usage
+**Window.** A span of time Claude counts usage over. Each account has a week. Pro and Max
+accounts have a 5-hour window too, and Ultra accounts don't. Some models also have a week of their own. When a window resets, its usage
 starts again from zero.
