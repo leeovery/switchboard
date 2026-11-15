@@ -17,10 +17,10 @@ A theme names its colours by what they mean and how prominent they are, never by
 |  |  |
 |:---:|:---:|
 | <img src="../../art/theme-tokyo-night.webp" alt="The Overview in tokyo-night" width="420"><br>`tokyo-night`<br>Tokyo Night. | <img src="../../art/theme-tokyo-night-day.webp" alt="The Overview in tokyo-night-day" width="420"><br>`tokyo-night-day`<br>Tokyo Night, for a light terminal. |
-| <img src="../../art/theme-nord.webp" alt="The Overview in nord" width="420"><br>`nord`<br>The dashboard's palette from the start. | <img src="../../art/theme-nord-wave.webp" alt="The Overview in nord-wave" width="420"><br>`nord-wave`<br>Nord on a neutral near-black. |
-| <img src="../../art/theme-horizon.webp" alt="The Overview in horizon" width="420"><br>`horizon`<br>Horizon's pink and peach on a cool blue-grey. | <img src="../../art/theme-gitlab-dark-grey.webp" alt="The Overview in gitlab-dark-grey" width="420"><br>`gitlab-dark-grey`<br>GitLab's Dark Grey: neutral greys with a violet selection. |
-| <img src="../../art/theme-amber.webp" alt="The Overview in amber" width="420"><br>`amber`<br>An amber CRT. | <img src="../../art/theme-exchange.webp" alt="The Overview in exchange" width="420"><br>`exchange`<br>A telephone exchange's brass and walnut. |
-| <img src="../../art/theme-terminal.webp" alt="The Overview in terminal" width="420"><br>`terminal`<br>For a terminal with a transparent or image background. It paints no background, and draws in the terminal's own sixteen colours: here, a Tokyo Night terminal's. | |
+| <img src="../../art/theme-nord.webp" alt="The Overview in nord" width="420"><br>`nord`<br>The first palette the dashboard had. | <img src="../../art/theme-nord-wave.webp" alt="The Overview in nord-wave" width="420"><br>`nord-wave`<br>Nord on a neutral near-black. |
+| <img src="../../art/theme-horizon.webp" alt="The Overview in horizon" width="420"><br>`horizon`<br>Horizon: pink and peach on a cool blue-grey. | <img src="../../art/theme-gitlab-dark-grey.webp" alt="The Overview in gitlab-dark-grey" width="420"><br>`gitlab-dark-grey`<br>GitLab Dark Grey: neutral greys with a violet selection. |
+| <img src="../../art/theme-amber.webp" alt="The Overview in amber" width="420"><br>`amber`<br>An amber CRT. | <img src="../../art/theme-exchange.webp" alt="The Overview in exchange" width="420"><br>`exchange`<br>The brass and walnut of a telephone exchange. |
+| <img src="../../art/theme-terminal.webp" alt="The Overview in terminal" width="420"><br>`terminal`<br>For a terminal with a transparent or image background. It paints no background, and draws in the sixteen colours of the terminal: here, a Tokyo Night terminal. | |
 
 ## The picker
 
@@ -65,7 +65,7 @@ A theme is a file named `<slug>.theme`. The slug is lower-case letters, digits a
   [Where things live](../reference/files.md).
 - Links are followed.
 - The picker reads the directory again each time it opens.
-- A file can't take a built-in theme's slug.
+- A file can't take the slug of a built-in theme.
 
 Each line is `key = #RRGGBB`. A line starting `#` is a comment. Each key appears once.
 
@@ -90,13 +90,13 @@ the base tokens.
 
 | Token | Colours |
 |---|---|
-| `viz.ramp.1` to `viz.ramp.4` | a bar's fill, first cell to last; the first, a window that lasts to its reset, on Runway and Trends |
-| `viz.track` | a bar's track |
+| `viz.ramp.1` to `viz.ramp.4` | the fill of a bar, first cell to last; the first, a window that lasts to its reset, on Runway and Trends |
+| `viz.track` | the track of a bar |
 | `viz.pace` | the even-pace mark |
-| `viz.reserve` | the cap's mark, and the reserve on Trends' cards |
+| `viz.reserve` | the mark for the cap, and the reserve on the cards on Trends |
 | `viz.family.1` to `viz.family.4` | the model families: Opus, Sonnet, Fable and Haiku |
-| `viz.version.1` to `viz.version.6` | the model versions: a family's newest in its family's colour, and an older one fainter |
-| `viz.day.0` to `viz.day.4` | YEAR's shades of a day, and WHEN YOU WORK's of an hour, from one with nothing on it to the busiest |
+| `viz.version.1` to `viz.version.6` | the model versions: the newest in a family in the colour of that family, and an older one fainter |
+| `viz.day.0` to `viz.day.4` | the shades of a day in YEAR, and of an hour in WHEN YOU WORK, from one with nothing on it to the busiest |
 | `viz.account.1` to `viz.account.4` | the accounts in POOL on Trends, by place; a fifth on takes the colour four before it, fainter |
 
 A key switchboard doesn't know is passed over.
@@ -113,14 +113,14 @@ need to. If the file can't be read, it's set aside as
 The dashboard paints the theme's background on every cell. It also sets the terminal's own
 background to it, and puts it back as it was when the dashboard stops. That's on `q`, an interrupt
 or a terminate signal, or a crash it catches. A terminal that didn't say what its background was is
-reset to its profile's own background instead.
+reset to the background its profile sets instead.
 
 [`usage`](../commands/usage.md) paints no background, because it prints into the scrollback:
 
 - It asks the terminal what its background is, and takes the light or dark half of the pair to
   match.
 - If you chose one theme, it prints in that theme only on a background as dark or as light as the
-  theme's own. Otherwise it uses the default pair's half for that background.
+  theme's own. Otherwise it uses the half of the default pair for that background.
 
 ## Fewer colours, and none
 

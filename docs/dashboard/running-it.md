@@ -5,8 +5,7 @@ follows your config as you change it, and opens where you left it last time. Thi
 pools, config changes and what the dashboard remembers.
 
 ```bash
-# Open the dashboard on the pool the verbs
-# act on
+# Open it on the pool the verbs act on
 switchboard dashboard
 # Open it on the pool with id q7mt
 switchboard dashboard --pool q7mt
@@ -24,9 +23,9 @@ the one the verbs act on. Each tab shows only that pool:
 |---|---|
 | Overview, Runway | The accounts, their windows and room, the sessions running, the pin, and the router's events in LATELY. |
 | Accounts | The accounts, and the worth and tokens of the work done in the pool. |
-| Projects | The work on each project, the project page and its SESSIONS among it. |
+| Projects | The work on each project, the chosen project and its SESSIONS among it. |
 | Sessions | The requests, worth and tokens of each session, and the List over every period. |
-| The session page | The work the session did in the pool, its points among it. |
+| The session page | The work the session did in the pool, its STORY and TURNS among it. |
 | Trends | The accounts, and the work in YEAR. |
 | The Log | Today's requests and each day read back, with the figures for each day, and the router's events. Find finds only the pool's sessions. |
 
@@ -59,7 +58,7 @@ Turning to another pool starts the view afresh, as when another router answers:
 | Carries over | Starts afresh |
 |---|---|
 | The tab shown | The pages, and what's chosen on them |
-| The period the dial shows | A project page or a session page that's open |
+| The period the dial shows | The chosen project on Projects, or the session page if it's open |
 | What each tab shows, as the dashboard remembers it | The routing card, and its notifications |
 
 With one pool, `P` isn't listed, but it still reads the pools afresh. Once you add a second pool,
@@ -80,7 +79,7 @@ The tab and what each tab shows stay as they were. A change to none of those, su
 starts nothing. If the pool shown is removed, the dashboard turns to the first pool.
 
 A dashboard opened on a config without pools does the same, and so does one that couldn't tell
-the pools. Once the config names pools, the view starts afresh on the pool the commands act on.
+the pools. Once the config names pools, the view starts afresh on the pool the verbs act on.
 
 ## A pool with no accounts
 
@@ -132,7 +131,7 @@ It never remembers:
 
 - a focus or a choice;
 - an open card, or help;
-- an open session page;
+- the session page, if it's open;
 - what `v` shows on Trends, which lasts the run;
 - a week you stepped back to on Runway;
 - the sub-tab on the Log, or its filters;
