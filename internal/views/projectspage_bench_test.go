@@ -83,3 +83,46 @@ func BenchmarkSessionLogOverTwelveMonths(b *testing.B) {
 		days.SessionLog(in)
 	}
 }
+
+// busyLists are two Lists of the year's sessions of today, as yearOfSides
+// names them, running, the first asking in one and idle in the other, so
+// each tells otherwise than the other of what it's doing.
+func busyLists(now time.Time) [2]views.SessionList {
+	var listed []views.ListedSession
+	for s := range 10 {
+		listed = append(listed, listedRunning(fmt.Sprintf("%s-%02d", now.Format(time.DateOnly), s), fmt.Sprintf("/code/project-%d", s%8), ""))
+	}
+	asking := relisted(listed, listed[0].Session, views.Activity{Doing: views.Asking, Since: now, LastSeen: now})
+	return [2]views.SessionList{{Sessions: listed}, {Sessions: asking}}
+}
+
+// Projects' page over the last 12 months, and its first project's page,
+// told what a session running is doing, as the watch tells them in place of
+// building them again.
+func BenchmarkProjectsLiveOverTwelveMonths(b *testing.B) {
+	now := october(7, 13, 12)
+	days := views.ReadSessionDays(yearOfSides(b, now), now.AddDate(-1, 0, 0), now)
+	lists := busyLists(now)
+	page := days.Projects(projectsIn(views.PeriodTwelveMonths, now, lists[0].Sessions...))
+	project, _ := page.Project(page.Rows[0].Path)
+	i := 0
+	for b.Loop() {
+		i++
+		page, _ = page.Live(lists[i%2])
+		project = page.ProjectLive(project)
+	}
+}
+
+// Sessions' log over the last 12 months told what a session running is
+// doing, as the watch tells it in place of building it again.
+func BenchmarkSessionLogLiveOverTwelveMonths(b *testing.B) {
+	now := october(7, 13, 12)
+	days := views.ReadSessionDays(yearOfSides(b, now), now.AddDate(-1, 0, 0), now)
+	lists := busyLists(now)
+	log := days.SessionLog(projectsIn(views.PeriodTwelveMonths, now, lists[0].Sessions...))
+	i := 0
+	for b.Loop() {
+		i++
+		log, _ = log.Live(lists[i%2])
+	}
+}

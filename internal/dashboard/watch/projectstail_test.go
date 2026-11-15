@@ -420,6 +420,45 @@ func TestAReadFurtherBackKeepsTheLinesTheTailGaveMeanwhile(t *testing.T) {
 	sameAsFresh(t, h, 8, "the read over 30 days landed after the tail gained beta's third")
 }
 
+// heldDates are the dates of the days gone the watch holds of the sessions'
+// days, read and fed by the tail alike, oldest first.
+func heldDates(h *harness) []string {
+	d := h.model.sessionDays
+	return slices.Sorted(slices.Values(slices.Concat(d.days.Dates(), d.tailed.Dates())))
+}
+
+// Left open for days, the watch holds no more of the sessions' days than
+// the dial's period draws, as each day turns: those read over 30 days, then
+// those the tail fed, let go of as this week passes them, each day's page
+// what a read afresh builds, and nothing read again for it. A step further
+// back than the days held reads them again.
+func TestTheDaysHeldAreBoundedToThePeriodAsTheDaysTurn(t *testing.T) {
+	h := projectsHarness(t, dashboard.Projects)
+	h.start()
+	h.keyed("> <")
+	asked := h.model.sessionDays.asked
+	for day := 1; day <= 9; day++ {
+		at := start.AddDate(0, 0, day)
+		projectsLedgerOf(h).write(projectAsks(betaOnly, "/code/beta", at.Add(-time.Hour), 1)...)
+		h.clock.now = at
+		h.read(routerDocument(three()...))
+		first := dayfile.DateOf(views.PeriodThisWeek.From(at, time.Monday))
+		if held := heldDates(h); len(held) > 0 && held[0] < first {
+			t.Errorf("on %s, the days held are %v, want none before this week's first, %s", dayfile.DateOf(at), held, first)
+		}
+		if got, want := drawnOf(*h.model.projects.shown.Page), drawnOf(freshPage(h)); !reflect.DeepEqual(got, want) {
+			t.Errorf("on %s, the page's projects are\n%+v\nwant those of the days read afresh\n%+v", dayfile.DateOf(at), got, want)
+		}
+	}
+	if got := h.model.sessionDays.asked; got != asked {
+		t.Errorf("as the days turned, the days were read %d times, want none", got-asked)
+	}
+	h.keyed(">")
+	if got := h.model.sessionDays.asked; got != asked+1 {
+		t.Errorf("a step back to 30 days read the days %d times, want once", got-asked)
+	}
+}
+
 // While another tab shows, a read of the tail that gains a line leaves
 // Projects' page stale, unbuilt; shown again, it's built once, of the line.
 func TestProjectsHiddenIsBuiltOnShow(t *testing.T) {

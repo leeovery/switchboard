@@ -53,6 +53,14 @@ func MeasureSessions(page *views.ProjectPage, m status.Moment, now time.Time) Se
 	return SessionsMeasured{of: page, widest: widest}
 }
 
+// Of is what was measured, as of the page given: one views' ProjectsPage's
+// ProjectLive told afresh of the page measured, its sessions ended saying
+// what they said.
+func (m SessionsMeasured) Of(page *views.ProjectPage) SessionsMeasured {
+	m.of = page
+	return m
+}
+
 // sessionEnded reports whether the session has ended.
 func sessionEnded(s views.PeriodSession) bool {
 	return s.EndedOn != ""

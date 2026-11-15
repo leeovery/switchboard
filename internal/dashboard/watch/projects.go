@@ -48,7 +48,8 @@ func runningOf(list views.SessionList) []runningKey {
 
 // projectsBuilt is m with Projects' page, while Projects shows, built afresh
 // where the days it's built of are ready, as daysReady has it, and what
-// it's built of has changed, as projectsRebuilt has it, and shown, as
+// it's built of has changed, as projectsRebuilt has it, else telling what
+// its sessions running are doing, as projectsLive has it, and shown, as
 // projectsShown has it. Where there are no days to build it of, it waits, as
 // projectsWaiting has it. Never a frame at a time, which takes nothing in.
 func (m Model) projectsBuilt(msg tea.Msg) Model {
@@ -59,7 +60,12 @@ func (m Model) projectsBuilt(msg tea.Msg) Model {
 	if !m.daysReady(now) {
 		return m.projectsWaiting(now)
 	}
-	return m.projectsShown(now, m.projectsRebuilt(now))
+	list := m.held.List(m.listLive(now, m.traffic.stream(now)))
+	built := m.projectsRebuilt(now, list)
+	if built == nil {
+		m = m.projectsLive(list)
+	}
+	return m.projectsShown(now, built)
 }
 
 // projectsBuild is a page of Projects built afresh, and what it's built of.
@@ -69,18 +75,37 @@ type projectsBuild struct {
 }
 
 // projectsRebuilt is Projects' page built afresh at now of the days it's
-// built of, as joinedDays has them, where what it's built of has changed
-// since it was built, as periodBuiltOf has it: the days read, those the
-// ledger's tail fed, the period, the day, or the sessions the List lists
-// running, so a change while another tab shows builds it only as Projects
-// shows again; nil where it hasn't.
-func (m Model) projectsRebuilt(now time.Time) *projectsBuild {
-	list := m.held.List(m.listLive(now, m.traffic.stream(now)))
+// built of, as joinedDays has them, and today's List given, where what it's
+// built of has changed since it was built, as periodBuiltOf has it: the
+// days read, those the ledger's tail fed, the period, the day, or the
+// sessions the List lists running, so a change while another tab shows
+// builds it only as Projects shows again; nil where it hasn't.
+func (m Model) projectsRebuilt(now time.Time, list views.SessionList) *projectsBuild {
 	of := m.daysBuiltOf(now, runningOf(list))
 	if m.projects.shown.Page != nil && m.projects.pageOf.same(of) {
 		return nil
 	}
 	return &projectsBuild{page: m.joinedDays().Projects(m.periodInput(now, list)), of: of}
+}
+
+// projectsLive is m with Projects' page, and the chosen project's, telling
+// what the sessions today's List given lists running are doing, as views'
+// ProjectsPage's Live has it, where it tells otherwise than the page: built
+// afresh of nothing, so a request starting or ending builds nothing. The
+// chosen project's page keeps what was measured of its sessions ended,
+// whose words Live never changes.
+func (m Model) projectsLive(list views.SessionList) Model {
+	s := &m.projects.shown
+	page, changed := s.Page.Live(list)
+	if !changed {
+		return m
+	}
+	s.Page = &page
+	if s.Project != nil {
+		project := page.ProjectLive(*s.Project)
+		s.Project, s.Measured = &project, s.Measured.Of(&project)
+	}
+	return m
 }
 
 // projectsShown is m with Projects' page shown at now: the page built,

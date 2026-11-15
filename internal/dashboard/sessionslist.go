@@ -202,6 +202,14 @@ func MeasureLog(log *views.SessionLog, now time.Time) LogMeasured {
 	return LogMeasured{of: log, started: words.widest(listStarted, log.Sessions, sessionEnded)}
 }
 
+// Of is what was measured, as of the log given: one views' SessionLog's
+// Live told afresh of the log measured, its sessions ended saying what they
+// said.
+func (m LogMeasured) Of(log *views.SessionLog) LogMeasured {
+	m.of = log
+	return m
+}
+
 // listForm is Sessions' List as its form draws it, of doc at now, once the
 // watch has built its log of the period: nothing before, as its heading
 // says it's loading.

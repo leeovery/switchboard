@@ -156,3 +156,91 @@ func TestASessionNeitherRunningNorEndedIsRuledByItsLastRequestsDay(t *testing.T)
 		t.Errorf("the log lists\n%v\nwant\n%v", got, want)
 	}
 }
+
+// Projects, a project's SESSIONS and the log count the same sessions of the
+// period: each running now, whether or not it made a request in it, and
+// each with a request in it; never one that doesn't run whose lines in it
+// are all token counts. A project of such sessions alone has no row.
+func TestProjectsAndTheLogCountTheSameSessionsOfThePeriod(t *testing.T) {
+	days := heldDays(now, slices.Concat(
+		projectAsks(repoSession, "/code/switchboard", "/code/switchboard", "work", october(7, 9, 0)),
+		heldOf(counted(countOnlySession, "/code/switchboard", october(7, 9, 30)), counted(yesterdaysSession, "/code/client", october(7, 8, 0))),
+		heldOf(counted(ownSession, "/code/own", october(7, 10, 0))),
+	)...)
+	in := projectsIn(views.PeriodToday, now, listedRunning(ownSession, "/code/own", "/code/own"), listedRunning(clientSession, "/code/idle", "/code/idle"))
+	page, log := days.Projects(in), days.SessionLog(in)
+	counts := make(map[string]int)
+	for _, r := range page.Rows {
+		counts[r.Path] = r.Sessions
+		if project, _ := page.Project(r.Path); len(project.Sessions) != r.Sessions {
+			t.Errorf("%q's SESSIONS rows %d, want its row's %d", r.Path, len(project.Sessions), r.Sessions)
+		}
+	}
+	if want := map[string]int{"/code/switchboard": 1, "/code/own": 1, "/code/idle": 1}; !reflect.DeepEqual(counts, want) {
+		t.Errorf("Projects counts the sessions %v, want %v: none of token counts alone, each running", counts, want)
+	}
+	var ids []string
+	for _, s := range log.Sessions {
+		ids = append(ids, s.Session)
+	}
+	slices.Sort(ids)
+	if want := []string{ownSession, repoSession, clientSession}; !reflect.DeepEqual(ids, want) {
+		t.Errorf("the log lists %v, want %v", ids, want)
+	}
+	if page.All.Sessions != 3 || !reflect.DeepEqual(log.All, page.All) {
+		t.Errorf("Projects totals %+v and the log %+v, want both three sessions, alike", page.All, log.All)
+	}
+}
+
+// relisted are the sessions given, the one with the given id doing as a
+// says.
+func relisted(listed []views.ListedSession, id string, a views.Activity) []views.ListedSession {
+	listed = slices.Clone(listed)
+	for i := range listed {
+		if listed[i].Session == id {
+			listed[i].Activity = a
+		}
+	}
+	return listed
+}
+
+// Live tells what a session running is doing as a build of the List afresh
+// would, on the page, a project's page and the log; and changes nothing
+// where the List tells alike of each, however far its answer has streamed.
+func TestLiveTellsWhatASessionRunningDoesAsABuildWould(t *testing.T) {
+	days := heldDays(now, projectsWorld()...)
+	listed := []views.ListedSession{listedRunning(repoSession, "/code/switchboard", "/code/switchboard"), listedRunning(ownSession, "/code/own/api", "/code/own/api")}
+	asking := relisted(listed, repoSession, views.Activity{Doing: views.Asking, Since: october(7, 9, 2), LastSeen: october(7, 9, 2)})
+	built := projectsIn(views.PeriodThisWeek, now, listed...)
+	page, log := days.Projects(built), days.SessionLog(built)
+	project, _ := page.Project("/code/switchboard")
+	fresh := projectsIn(views.PeriodThisWeek, now, asking...)
+	wantPage, wantLog := days.Projects(fresh), days.SessionLog(fresh)
+	wantProject, _ := wantPage.Project("/code/switchboard")
+
+	lived, changed := page.Live(fresh.List)
+	if !changed || !reflect.DeepEqual(lived.Rows, wantPage.Rows) || !reflect.DeepEqual(lived.All, wantPage.All) {
+		t.Errorf("Live told the page, changed %t, as\n%+v\nwant it changed, as a build would,\n%+v", changed, lived.Rows, wantPage.Rows)
+	}
+	if got := lived.ProjectLive(project); !reflect.DeepEqual(got, wantProject) {
+		t.Errorf("the project's page told live is\n%+v\nwant it as a build would,\n%+v", got, wantProject)
+	}
+	if got, _ := lived.Project("/code/switchboard"); !reflect.DeepEqual(got, wantProject) {
+		t.Errorf("the project's page built of the page told live is\n%+v\nwant it as a build would,\n%+v", got, wantProject)
+	}
+	logLived, changed := log.Live(fresh.List)
+	if !changed || !reflect.DeepEqual(logLived.Sessions, wantLog.Sessions) || !reflect.DeepEqual(logLived.All, wantLog.All) {
+		t.Errorf("Live told the log, changed %t, as\n%+v\nwant it changed, as a build would,\n%+v", changed, logLived.Sessions, wantLog.Sessions)
+	}
+
+	streamed := views.SessionList{Sessions: relisted(asking, repoSession, views.Activity{Doing: views.Answering, Since: october(7, 9, 2), LastSeen: october(7, 9, 2), Chars: 400})}
+	streamedOn := views.SessionList{Sessions: relisted(asking, repoSession, views.Activity{Doing: views.Answering, Since: october(7, 9, 2), LastSeen: october(7, 9, 2), Chars: 4000})}
+	lived, _ = lived.Live(streamed)
+	logLived, _ = logLived.Live(streamed)
+	if _, changed := lived.Live(streamedOn); changed {
+		t.Error("the page told live changed again as an answer streamed on, want it unchanged")
+	}
+	if _, changed := logLived.Live(streamedOn); changed {
+		t.Error("the log told live changed again as an answer streamed on, want it unchanged")
+	}
+}

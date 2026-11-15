@@ -95,7 +95,8 @@ func (m Model) listLive(now time.Time, s views.Stream) views.ListLive {
 // List, once that's held or there's no ledger: where the days are ready, as
 // daysReady has it, and what it's built of has changed, as periodBuiltOf
 // has it, every session today's List lists among it, so a session ending
-// builds it afresh. Where the days aren't ready, it waits, as daysWaited has
+// builds it afresh; else telling what its sessions running are doing, as
+// logLive has it. Where the days aren't ready, it waits, as daysWaited has
 // it, its log kept or let go, for its heading to say it's loading.
 func (m Model) logBuilt(now time.Time, s views.Stream) Model {
 	t := m.sessionsTab
@@ -112,11 +113,26 @@ func (m Model) logBuilt(now time.Time, s views.Stream) Model {
 	list := m.held.List(m.listLive(now, s))
 	of := m.daysBuiltOf(now, listingKeys(list, func(views.ListedSession) bool { return true }))
 	if t.shown.Log != nil && t.logOf.same(of) {
-		return m
+		return m.logLive(list)
 	}
 	log := m.joinedDays().SessionLog(m.periodInput(now, list))
 	m.sessionsTab.shown.Log, m.sessionsTab.shown.Measured, m.sessionsTab.logOf = &log, dashboard.MeasureLog(&log, now), of
 	m.sessionsTab.logs++
+	return m
+}
+
+// logLive is m with the List's log telling what the sessions today's List
+// given lists running are doing, as views' SessionLog's Live has it, where
+// it tells otherwise than the log: built afresh of nothing, so a request
+// starting or ending builds nothing, and keeping what was measured of its
+// sessions ended, whose words Live never changes.
+func (m Model) logLive(list views.SessionList) Model {
+	s := &m.sessionsTab.shown
+	log, changed := s.Log.Live(list)
+	if !changed {
+		return m
+	}
+	s.Log, s.Measured = &log, s.Measured.Of(&log)
 	return m
 }
 
