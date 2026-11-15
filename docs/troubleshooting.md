@@ -122,7 +122,7 @@ This page shows where to look when switchboard doesn't do what you expect, and h
   see whether the LaunchAgent is installed and loaded and how the router answers, then `switchboard
   service install` or `switchboard service restart`. To start Claude Code without the router this
   once, unrouted and unrecorded, run `SWITCHBOARD_WHEN_ROUTER_DOWN=direct claude`; to have it do so
-  always, set [`when_router_down = "direct"`](configuration.md#top-level-keys).
+  always, set [`when_router_down = "direct"`](configuration.md).
 - **A pin that may or may not have been made:** a router stopping or restarting as `pin`, or a pin
   on the dashboard, asks it closes without answering, though it may have made the pin first. Run
   `switchboard status` to see whether it did, and pin again if not.
@@ -274,7 +274,7 @@ are.
 - **The config is refused for its pools:** the error names what's wrong: two pools without `dirs`,
   as only one can be unfenced; directories that are the same, or one inside another; an account
   without a `pool`, or naming one that isn't configured; two primaries in one pool. Put the config
-  right as it says. See [`[[pool]]` keys](configuration.md#pool-keys).
+  right as it says. See [`[[pool]]` keys](configuration.md).
 - **A config put back without its pools:** once the history has moved to pools, the router gives a
   config that names no pools its pools back from the accounts record, and routes by them
   meanwhile, whether or not it can write them, so no session crosses a fence. Where it can't, as
@@ -312,7 +312,7 @@ other account can take a request, Claude Code gets a 503 saying the same.
 
 ## An export that fails
 
-With [`[export]`](configuration.md#export-keys)'s `dir` set, the router exports every hour. To see
+With [`[export]`](configuration.md)'s `dir` set, the router exports every hour. To see
 how its exports stand, run `switchboard status --json | jq .export`: `at` is when the last
 succeeded, `error` why the last failed, and `running` when the one under way began. The router's
 log has a failure at warn, once until an export succeeds, and the first that succeeds after it.
@@ -348,7 +348,7 @@ log has a failure at warn, once until an export succeeds, and the first that suc
 ## Notifications that don't show
 
 Notifications come from switchboard's own app, `Switchboard` (see
-[Switchboard's own notifications](configuration.md#switchboards-own-notifications)).
+[Switchboard's own notifications](notifications.md)).
 
 - **Turned off:** macOS asked once whether `Switchboard` may send notifications, and they were
   turned off. Turn them on in System Settings → Notifications → Switchboard. Until you do, the
@@ -367,7 +367,7 @@ Notifications come from switchboard's own app, `Switchboard` (see
   why, and it posts through `osascript` until it next starts. A switchboard built from source has
   no app, and always does.
 - **A notification that fails:** the router's log has it at warn as `notification failed`, and
-  drops it. See [How often notifications go out](configuration.md#how-often-notifications-go-out).
+  drops it. See [How often notifications go out](notifications.md).
 
 ## The logs
 

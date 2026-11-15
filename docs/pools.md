@@ -40,6 +40,8 @@ looking at.
   once no request is in flight, and `switchboard service restart` does it at once.
 - Fences can't overlap: two pools can't share a folder, or hold one inside the other. A fence
   covers whole folder names, so `~/Code/acme` doesn't cover `~/Code/acme-api`.
+- Only one pool can be unfenced. If every pool is fenced, `claude` won't start outside every
+  fence. Nor will it start inside the fence of a pool with no accounts.
 - `switchboard run --direct` is refused inside a fence. It would start Claude Code on whichever
   account Claude Code itself is signed into, which may not be one of the pool.
 

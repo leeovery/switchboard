@@ -267,7 +267,7 @@ Switchboard appends each reading that changes how one of an account's windows re
 file in `history/`. When nothing moved, it writes nothing. The history is there for you to look
 back at how the accounts were used.
 
-- **How long it's kept:** 400 days, unless [`[history]`](configuration.md#history-keys) sets another
+- **How long it's kept:** 400 days, unless [`[history]`](configuration.md) sets another
   length. That can be `forever`.
 - **At startup:** the router takes up the readings of the two newest days, so the recent rates,
   and the rates the weeks' forecast goes by, outlast a restart.
@@ -279,7 +279,7 @@ The router writes a line for each request it routes, when it finishes with the r
 includes requests that the router answered itself, as well as those it sent upstream. The lines go
 to one file a day in `ledger/`.
 
-- **How long it's kept:** 400 days, unless [`[ledger]`](configuration.md#ledger-keys) sets another
+- **How long it's kept:** 400 days, unless [`[ledger]`](configuration.md) sets another
   length. That can be `forever`. A day's file is never pruned before the day's summary is written.
 - **What a line holds:** everything about a request except its content. That is the request's
   session, model and account, why it went there, its timing, its shape and settings, and the
@@ -325,7 +325,7 @@ line for each version of an event. These are the events it files:
 
 ### An export every hour
 
-With [`[export]`](configuration.md#export-keys)'s `dir` set, the router exports the history into
+With [`[export]`](configuration.md)'s `dir` set, the router exports the history into
 it as it starts and every hour after, as [`export`](commands.md#export) would, each Mac into a
 folder of its own.
 
@@ -609,7 +609,7 @@ directories given, and `pool edit` and `pool remove` change and remove one. `acc
 puts an account in a pool, and `accounts edit --pool` moves one. [`setup`](commands.md#setup)
 does both: its add card's Pool chooses an account's pool, or makes a new one with it, and its
 edit card's moves one. Each pool's table is in the config: see
-[`[[pool]]` keys](configuration.md#pool-keys).
+[`[[pool]]` keys](configuration.md).
 
 - **One unfenced pool at most:** it serves every session started outside every fence. Where every
   pool is fenced, a session started outside them all doesn't start.
@@ -796,7 +796,7 @@ resets five hours later.
 Left alone, an account's first window starts with the day's first request on it. So an 08:00–23:00
 day meets three of the account's windows, and accounts started together come back together.
 
-With a day set in [`[prime]`](configuration.md#prime-keys), switchboard starts each account's window
+With a day set in [`[prime]`](configuration.md), switchboard starts each account's window
 at a time of its own, so the accounts come back one at a time. Once all are spent, the wait for the
 next is at most 5 hours ÷ the number of accounts. Starting an account's window this way is called
 priming it.

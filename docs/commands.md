@@ -146,7 +146,7 @@ switchboard usage [--5h] [--week] [--<model>] [--by window|account] [--pool <id>
 |---|---|
 | `--5h`, `--week` | Print that window alone, with the header and the key line. Given together, they print the windows given, in the order of care: the week, the 5-hour window, then each model's own. |
 | `--<model>` | Print a model's own window, as `--week` does the week. There's a flag for each model with a window of its own, named for it: `--fable` is for Fable's week. A flag for a window no account reports fails, naming the windows there are, as `--5h` does where every account is on a verified Ultra plan. An unverified Ultra account keeps its 5-hour window, and `--5h` works. |
-| `--by window\|account` | Lay the windows out by window, comparing the accounts one window at a time, or by account, keeping each account's windows together. Overrides [`[usage] by`](configuration.md#usage-keys). Where neither says, it's by window. |
+| `--by window\|account` | Lay the windows out by window, comparing the accounts one window at a time, or by account, keeping each account's windows together. Overrides [`[usage] by`](configuration.md). Where neither says, it's by window. |
 | `--pool <id>` | Print that pool's accounts. See [Reading a pool](#reading-a-pool). |
 | `--probe` | Probe every account, even while the router runs. |
 | `-r`, `--refresh` | Have the router first read every account it may, as the dashboard's `R` does, and wait for it, ten seconds at most. Without the router, or with `--probe`, every account is probed anyway. |
@@ -903,7 +903,7 @@ The subcommands do the following:
     `--paste`.
 - **`remove`** removes an account's table from the config, with the comments directly above it,
   and deletes its token file, then the record of when its token was taken (see
-  [When each token was taken](configuration.md#when-each-token-was-taken)).
+  [When each token was taken](reference/tokens.md)).
   - Its history stays. The accounts record keeps the account, marked removed, with the label it
     had, so History, Accounts and the verbs name it by that label and the day it was removed, as
     `Team (removed 4 Sep)`, told apart from an account given the same label since. Add its
@@ -1087,7 +1087,7 @@ in flight, and waits up to 5 seconds for the router to answer.
 - **Notifications.** In a release, the router writes out switchboard's own app as it starts, and
   macOS asks, the first time, whether `Switchboard` may send notifications. A switchboard built
   from source has no app, and macOS asks nothing. See
-  [Notifications](configuration.md#switchboards-own-notifications).
+  [Notifications](notifications.md).
 - **Once it has begun.** From writing the file to launchd loading it, nothing stops `install`, a
   Ctrl-C included, so the router is never left with nothing to start it: a Ctrl-C then says it's
   finishing first, which can take a minute or two while the old router finishes its requests, and
@@ -1107,7 +1107,7 @@ on the router:
 | Answering, with a binary that refuses to start | The router asks the binary it would become first. Where that refuses, as a newer version can refuse a config the running one takes, the router refuses too, and `restart` says why, in the binary's words. |
 | Answering, mid-upgrade | Where the binary isn't there, as for a moment while an upgrade moves it, or the config or the binary changes as the router checks whether it could restart, the router refuses, and `restart` names what changed and says to try again. |
 | Answering, with an upgrade it can't copy in | Where the router can't copy the upgrade due in beside its own copy, as on a full disk, it refuses, and `restart` says why. |
-| Answering, mid-export | Where an [export on a schedule](configuration.md#export-keys) is under way, the router refuses, as it never restarts in place over one, and `restart` says `an export into <dir> is under way: try again once it ends`. |
+| Answering, mid-export | Where an [export on a schedule](configuration.md) is under way, the router refuses, as it never restarts in place over one, and `restart` says `an export into <dir> is under way: try again once it ends`. |
 | From before routers restarted in place | The router stops as at a signal, and launchd starts it again. |
 | Not answering | launchd starts the service afresh at once. `restart` asks the router where the LaunchAgent keeps its state, and the one where your shell does, and starts the service afresh only when neither answers; the first to answer then, at either, is the one launchd started. |
 
@@ -1209,7 +1209,7 @@ nothing else is in it, as it may hold other files of yours. The history
 nothing can bring back goes only when you ask: nothing asks first either way, as the flag is the
 asking.
 
-`uninstall` never touches the [export's folder](configuration.md#export-keys), wherever it is. Where
+`uninstall` never touches the [export's folder](configuration.md), wherever it is. Where
 it's inside a directory `--all` removes, however its path names it, through a link included, it's
 kept, with the directories on the way to it, and `uninstall` says so; where it's the directory
 itself, the directory is kept whole. A config or state directory that's a link, as to your
@@ -1309,7 +1309,7 @@ document as JSON instead. The document holds:
   forecast goes by: each account's windows' fast rates, and the pool's use as the forecast takes it;
 - what's coming up, soonest first: each limit or cap lifting, window running out or resetting, and
   prime; and
-- how the router's hourly export stands, where [`[export]`](configuration.md#export-keys) sets a
+- how the router's hourly export stands, where [`[export]`](configuration.md) sets a
   folder: when one last succeeded, why the last failed, and when the one under way began.
 
 [The status document](reference.md#the-status-document) lists its fields.
@@ -1441,7 +1441,7 @@ Each day has a row for each account and model, with these columns:
 | Requests | The requests the account served with the model. |
 | Tokens | Their tokens. |
 | Sessions | Their sessions. |
-| Worth | What they'd have cost through the API. Switchboard prices them at the prices it carries, read from Anthropic's pricing page, or at the config's, in [`[prices]`](configuration.md#prices-keys). |
+| Worth | What they'd have cost through the API. Switchboard prices them at the prices it carries, read from Anthropic's pricing page, or at the config's, in [`[prices]`](configuration.md). |
 
 Under the rows come each account's notes for the day:
 
@@ -1468,7 +1468,7 @@ These rules hold for what's counted:
 
 #### Plan prices
 
-Each account's plan, the [`plan`](configuration.md#account-keys) the config gives it, has a price
+Each account's plan, the [`plan`](configuration.md) the config gives it, has a price
 a month. `history` prorates it as the dashboard prices its periods:
 
 | Period | Priced at |
@@ -1502,13 +1502,13 @@ To judge whether there are enough accounts, `history` works with weeks as follow
   history saw them, a reset by hand among them. Its peak is the use read just before the reset
   that ended it.
 - **Placing a week:** an account's week is placed by the date it began on. It goes under its
-  calendar week, from the config's [`week_starts`](configuration.md#top-level-keys), where it began
+  calendar week, from the config's [`week_starts`](configuration.md), where it began
   up to half the week in, as a Thursday is in a week from Monday. Otherwise, it goes under the next
   calendar week.
 - **The week still running** is always this week's, and its peak is its highest so far. Where the
   reset that began it came before the days asked for, it's read from the week before them.
 - **A short week** is one in which some account hit its week's limit: its peak reached its cap,
-  100% less its [`reserve`](configuration.md#account-keys), where it has one. It's the reserve the
+  100% less its [`reserve`](configuration.md), where it has one. It's the reserve the
   config has now, as a week's own isn't recorded beyond the moments an account was held at its cap.
   What a week had left at its reset is left of its limit, not of its cap. A replayed week is short
   where any account would reach its cap.
@@ -1757,7 +1757,7 @@ replaced. A Mac whose state directory was restored from another's, as Migration 
 it, carries the other's id, and exports to its folder. Remove `install-id` to give it an id, and a
 folder, of its own at its next export.
 
-To have the router export every hour, set [`[export]`](configuration.md#export-keys)'s `dir`. How
+To have the router export every hour, set [`[export]`](configuration.md)'s `dir`. How
 its exports stand is the status document's `export`: see
 [An export that fails](troubleshooting.md#an-export-that-fails).
 
@@ -1822,8 +1822,8 @@ What it takes in:
 - **A day's summary** is copied in where this Mac holds no line of the day, and either no summary
   of it, or one that counts no line, as of a day it only probed, where the folder's counts some.
   Otherwise this Mac's stands, and the router summarises again each day that gained lines.
-- **Days past keeping:** a day's lines older than [`[ledger] keep`](configuration.md#ledger-keys),
-  or its readings older than [`[history] keep`](configuration.md#history-keys), are left out, as
+- **Days past keeping:** a day's lines older than [`[ledger] keep`](configuration.md),
+  or its readings older than [`[history] keep`](configuration.md), are left out, as
   the router would remove them. Their summaries are taken in, as summaries are kept for good.
 
 It needs the router, which writes the history, and fails without it. It copies the folders' files
@@ -1962,7 +1962,7 @@ the times don't, as on a disk that keeps coarser times, by their bytes. One that
 an upgrade made while launchd started it again, has an upgrade due from the start. `service
 install` compares them the same way, and leaves a copy that matches as it is. To restart, it:
 
-1. Waits until no [export](configuration.md#export-keys) is running, and for a moment with no
+1. Waits until no [export](configuration.md) is running, and for a moment with no
    request in flight.
 2. For an upgrade, copies the binary the link leads to in beside its own copy, hidden, while no
    request is in flight.

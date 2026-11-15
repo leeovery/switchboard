@@ -106,11 +106,11 @@ The state directory holds these files:
 
 | File | Holds |
 |---|---|
-| `state.json` | The router's state that outlasts a restart: each session's account, the pins, each account's last readings, how long use stays on its account, which the weeks' forecast goes by, and the SHA-256 hashes of the account's token and of the tokens it replaced. See [Tokens](configuration.md#tokens). |
+| `state.json` | The router's state that outlasts a restart: each session's account, the pins, each account's last readings, how long use stays on its account, which the weeks' forecast goes by, and the SHA-256 hashes of the account's token and of the tokens it replaced. See [Tokens](reference/tokens.md). |
 | `control.sock` | The router's control API, which the commands and the dashboard talk to. |
 | `prefs.json` | What the dashboard remembers. It's the dashboard's own file, and its form can change with any release. See [`dashboard`](dashboard.md) and [Themes](dashboard.md#themes). |
-| `tokens/<id>` | Each account's token. See [Tokens](configuration.md#tokens). |
-| `tokens/<id>.taken` | When switchboard took each of the account's latest tokens, with each token's SHA-256 hash. See [When each token was taken](configuration.md#when-each-token-was-taken). |
+| `tokens/<id>` | Each account's token. See [Tokens](reference/tokens.md). |
+| `tokens/<id>.taken` | When switchboard took each of the account's latest tokens, with each token's SHA-256 hash. See [When each token was taken](reference/tokens.md). |
 | `accounts.json` | The [accounts record](#the-accounts-record): every account this Mac has had, removed ones among them, kept for good. |
 | `accounts.lock` | The file a change to the accounts record holds a lock on. It's left there, as the lock goes with the process that held it. |
 | `accounts.moved` | Marks the move of the history onto the accounts' ids done, holding when it was. See [Upgrading to account ids](how-it-works.md#upgrading-to-account-ids). |
@@ -135,7 +135,7 @@ file itself is set aside beside it as `<name>.jsonl.gz.damaged`, then `.damaged-
 whoever would recover more of it. It's removed with its day, once the day's past keeping.
 
 Each file of lines is kept as long as its `keep` setting says. See
-[`[history]` keys](configuration.md#history-keys) and [`[ledger]` keys](configuration.md#ledger-keys).
+[`[history]` keys](configuration.md) and [`[ledger]` keys](configuration.md).
 The events are kept as long as `[ledger] keep` says too. A day's ledger lines past it are kept
 until the day's summary stands, but its events aren't, so they can go first.
 
@@ -544,7 +544,7 @@ pass over one you don't know. In the forms below, `<id>` is an account's id.
 | `router` | The router's health over the last 5 minutes. |
 | `restart` | A restart the router has due, and, as `held`, why the binary it would become refuses to start, where that holds it; as `exporting`, the folder of the export under way that the restart waits for, left out while none does. |
 | `moving` | How the move of the accounts and their history onto the ids switchboard makes stands, while the router owes it, as after the upgrade that made them, then the move of the history to pools that follows it: `move`, `pools` for the move to pools, left out for the move onto the ids; `stage`, `running`, `awaiting api`, `awaiting restart` or `failed`, the move to pools awaiting a restart while the router hasn't taken up the first pool its config now holds, and never the API; and, where it awaits the API, `account`, the account by the id it had, whose token's subscription the API hasn't named, where that's known, and `why`, which is also why it failed. Left out where no move is owed. See [Upgrading to account ids](how-it-works.md#upgrading-to-account-ids). |
-| `export` | How the router's hourly export into [`[export]`](configuration.md#export-keys)'s `dir` stands: `dir`, the folder; `at`, when an export last succeeded; `error`, why the last failed, in plain words; and `running`, when the export under way began. Each of `at`, `error` and `running` is left out when there's none, and `export` where `dir` isn't set. |
+| `export` | How the router's hourly export into [`[export]`](configuration.md)'s `dir` stands: `dir`, the folder; `at`, when an export last succeeded; `error`, why the last failed, in plain words; and `running`, when the export under way began. Each of `at`, `error` and `running` is left out when there's none, and `export` where `dir` isn't set. |
 | `sessions` | How many sessions the router has routed in the last hour, in the pool. |
 | `events` | What's happened lately, newest first: the pool's sessions' starts and moves and its pins, by the pool each recorded, one naming none the first pool's; what befell an account, by the pool it's in now, or, of an account since removed, the pool the accounts record keeps for it; and the router's own. An event of a pool since removed is in no configured pool's: `events --pool` reads it by that pool's id. |
 | `events_kept` | `{"oldest", "newest"}`: the ids of the oldest and newest events the router keeps, every pool's, so a reader can tell the events it no longer keeps from another pool's, which `events` leaves out. Given wherever the router routes within pools, as `events` are then a pool's: one pool included, and a config naming none but routed by the pools the accounts record keeps. Left out where it routes in no pools, whose `events` are every one it keeps, and from a document built by probing. |
@@ -608,7 +608,7 @@ after the days asked for begin, while `weeks`, `totals` and `plans` cover every 
 ### `prices_as_of`
 
 The day the prices were read. Beside it, `prices_from_config` is set where the config's
-[`[prices]`](configuration.md#prices-keys) price a model or a plan.
+[`[prices]`](configuration.md) price a model or a plan.
 
 ### `days`
 

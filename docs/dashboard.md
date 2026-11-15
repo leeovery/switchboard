@@ -210,7 +210,7 @@ columns, its ROUTING beside it. The pool's block comes last.
 |---|---|
 | `u` `r` `s` `c` `l` | Shows or hides a section: USAGE, ROUTING, SESSIONS, COMING UP and LATELY. |
 | `w` | Shows or hides each model's own window, such as Fable's week. They're hidden until you press `w`. `?` lists it; the key line leaves it out. |
-| `b` | Groups the windows by window or by account. Until you press `b`, the grouping follows [`[usage] by`](configuration.md#usage-keys). |
+| `b` | Groups the windows by window or by account. Until you press `b`, the grouping follows [`[usage] by`](configuration.md). |
 | `↑` `↓` | Scroll USAGE a row, as `j` and `k` do, where its accounts don't fit. Like the other scrolling keys, it's left to `?`, which lists it only then. |
 
 ## Accounts
@@ -569,7 +569,7 @@ GLANCE.
 ### WHEN YOU WORK
 
 WHEN YOU WORK shows when your requests come: a row for each weekday, from the first day of the
-week as [`week_starts`](configuration.md#top-level-keys) begins weeks, and the day's 24 hours across. Each hour is
+week as [`week_starts`](configuration.md) begins weeks, and the day's 24 hours across. Each hour is
 shaded by its requests, averaged over the four whole weeks before today. The heading says the weeks
 counted, such as `the 4 weeks to Wed 30 Sep`, or fewer, where the ledger holds fewer. With none,
 the heading says no weeks, and the section says `nothing recorded yet`.
@@ -832,7 +832,7 @@ probes for itself, without the router or with `--probe`:
 
 | Flag | Description |
 |---|---|
-| `--no-notify` | Posts none of the desktop notifications the dashboard posts while it probes without the router. See [Notifications](configuration.md#notifications). |
+| `--no-notify` | Posts none of the desktop notifications the dashboard posts while it probes without the router. See [Notifications](notifications.md). |
 | `--probe` | Probes every account each interval, even while the router runs. With no router read, there's no routing card, and `p` does nothing. |
 | `--pool` | Shows the pool with the id given, as `switchboard pool` lists them, else the one the verbs act on. See [In a pool](#in-a-pool). |
 
