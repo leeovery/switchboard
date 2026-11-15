@@ -36,7 +36,7 @@ pool, and nothing crosses from one pool to another. See [Pools](pools.md).
 
 **Primary.** The account whose token Claude Code holds in a pool. Each pool has one. The router
 picks the account for each conversation. What Claude Code sends outside the conversation goes out
-on the primary, for example artifacts, uploads and web fetches. So artifacts open in a browser
+on the primary, for example artifacts, uploads and the site checks of WebFetch. So artifacts open in a browser
 signed into the primary.
 
 **Priming.** Starting an account's 5-hour window at a time switchboard chooses, so your

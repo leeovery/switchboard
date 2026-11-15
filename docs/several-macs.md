@@ -79,7 +79,7 @@ What an export holds, in its `mac-<id>` folder:
 | `accounts.json` | The accounts record, naming each account by id and label. |
 | `export.json` | Which Mac the folder belongs to, and when it last exported. |
 
-The logs and the dashboard settings stay behind too. Every flag is in
+An export leaves the logs and the dashboard settings behind. Every flag is in
 [`switchboard export`](commands/export.md) and [`switchboard import`](commands/import.md), and
 each file is in [Reference](reference.md). If an export fails, see
 [Troubleshooting](troubleshooting/exports.md).
