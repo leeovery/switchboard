@@ -99,16 +99,16 @@ func withDelta(h *harness) *harness {
 // given, from now, its look at it taken in.
 func running(h *harness, id, project string) {
 	h.t.Helper()
-	runningAs(h, id, project, "work", "")
+	runningAs(h, id, project, "work", "", "")
 }
 
 // runningAs is the router listing the session given running in the project
-// given, on the account given, its request in flight as given, "" where
-// none is, seen now, its look at it taken in.
-func runningAs(h *harness, id, project, account, inFlight string) {
+// given, on the account given, there for the reason given, and its request
+// in flight as given, "" where none is, seen now, its look at it taken in.
+func runningAs(h *harness, id, project, account, reason, inFlight string) {
 	h.t.Helper()
 	h.source.sessions = []status.Session{{ID: id, Assignments: []status.Assignment{
-		{Model: opus, Account: account, Dir: project, Project: project, AssignedAt: h.clock.now, LastSeen: h.clock.now, InFlight: inFlight},
+		{Model: opus, Account: account, Dir: project, Project: project, Reason: reason, AssignedAt: h.clock.now, LastSeen: h.clock.now, InFlight: inFlight},
 	}}}
 	h.tickUntilAsked()
 }
@@ -424,7 +424,7 @@ func TestWhatASessionRunningDoesIsDrawnWithoutABuild(t *testing.T) {
 				doing    views.Doing
 				asking   bool
 			}{{status.Asking, views.Asking, true}, {"", views.Idle, false}} {
-				runningAs(h, alphaSecond, "/code/alpha", "work", step.inFlight)
+				runningAs(h, alphaSecond, "/code/alpha", "work", "", step.inFlight)
 				if got := tt.builds(h.model); got != builds {
 					t.Errorf("as the router listed it %q in flight, the page was built %d times more, want none", step.inFlight, got-builds)
 				}
@@ -447,9 +447,9 @@ func TestASessionStartingMovingOrEndingBuildsThePeriodAgain(t *testing.T) {
 		name   string
 		change func(h *harness)
 	}{
-		{"started running", func(h *harness) { runningAs(h, betaOnly, "/code/beta", "work", "") }},
-		{"moved to another project", func(h *harness) { runningAs(h, betaOnly, "/code/alpha", "work", "") }},
-		{"moved to another account", func(h *harness) { runningAs(h, betaOnly, "/code/alpha", "side", "") }},
+		{"started running", func(h *harness) { runningAs(h, betaOnly, "/code/beta", "work", "", "") }},
+		{"moved to another project", func(h *harness) { runningAs(h, betaOnly, "/code/alpha", "work", "", "") }},
+		{"moved to another account", func(h *harness) { runningAs(h, betaOnly, "/code/alpha", "side", "", "") }},
 		{"ended", func(h *harness) { h.source.sessions = nil; h.tickUntilAsked() }},
 	}
 	for _, tt := range periodTabs {

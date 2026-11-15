@@ -248,13 +248,15 @@ func (b periodBuiltOf) same(o periodBuiltOf) bool {
 }
 
 // runningKey is a session the List lists, by what of it a page of the
-// sessions' days is built of: its id, whether it runs, where, and its
-// account and model; and its mark and what it's doing where it doesn't
-// run, its row's words measured once as the page is built. What one
-// running is doing, and its mark, which shows it, are told afresh without
-// a build, as the page's Live tells them.
+// sessions' days is built of: its id, whether it runs, where, its account
+// and model, and what its routing says, as a pin the router lists alone
+// changes it; and its mark and what it's doing where it doesn't run, its
+// row's words measured once as the page is built. What one running is
+// doing, and its mark, which shows it, are told afresh without a build, as
+// the page's Live tells them.
 type runningKey struct {
 	id, dir, project, account, model string
+	routing, routingCost             string
 	running                          bool
 	mark                             views.RowMark
 	doing                            views.Doing
@@ -271,7 +273,10 @@ func listingKeys(list views.SessionList, of func(views.ListedSession) bool) []ru
 		if !of(s) {
 			continue
 		}
-		k := runningKey{id: s.Session, dir: s.Dir, project: s.Project, account: s.Account, model: s.Model, running: s.Running}
+		k := runningKey{
+			id: s.Session, dir: s.Dir, project: s.Project, account: s.Account, model: s.Model,
+			routing: s.Routing.Words.String(), routingCost: s.Routing.CostSaid(), running: s.Running,
+		}
 		if a := s.Activity; !s.Running {
 			k.mark, k.doing, k.since, k.status, k.stale = s.Mark, a.Doing, a.Since, a.Status, a.Stale
 		}

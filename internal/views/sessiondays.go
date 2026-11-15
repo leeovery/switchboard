@@ -206,15 +206,17 @@ func (d SessionDays) Without(read SessionDays) SessionDays {
 	return d
 }
 
-// From is d, the days read, as ReadSessionDays reads them, as though read
-// from from's day, where that's later than the first d reads: none of the
-// days before it held, and begun the first requests of the sessions that
-// ran on the day before it, as d and tailed, the days the ledger's tail
-// fed, joined hold that day, each the earliest the joined days hold before
-// it or the walk back found, as startedBefore has them, so a session
-// running into the first day still starts at its first request. d as it is
-// otherwise. tailed lets go of the days before it once Without is given
-// the result.
+// From is d, the days read, as ReadSessionDays reads them, first reading
+// from's day, where that's later than the first d reads: none of the days
+// before it held, and begun the first requests of the sessions that ran on
+// the day before it, as d and tailed, the days the ledger's tail fed,
+// joined hold that day, each the earliest the joined days hold before it
+// or d's walk back found, as startedBefore has them, so a session running
+// into the first day still starts at its first request. That can be
+// earlier than a read from from's day finds, which walks back 31 days at
+// most, and no further than a session ran every day: the truer start, so
+// it's kept. d as it is otherwise. tailed lets go of the days before it
+// once Without is given the result.
 func (d SessionDays) From(from time.Time, tailed SessionDays) SessionDays {
 	first := dayfile.DateOf(from)
 	if first <= d.first {
