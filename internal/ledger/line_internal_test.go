@@ -33,11 +33,19 @@ func TestALineIsCutToWhatTheLedgerHolds(t *testing.T) {
 	if len(got.Tried) != ListMost || got.Tried[0] != (Tried{Account: cut, Why: cut}) {
 		t.Errorf("%d accounts tried are written as %d, the first's %d and %d bytes, want %d, each cut", 2*ListMost, len(got.Tried), len(got.Tried[0].Account), len(got.Tried[0].Why), ListMost)
 	}
-	if want := "…" + strings.Repeat("☃", (textMost-len("…/project"))/len("☃")) + "/project"; got.Dir != want {
-		t.Errorf("a directory of %d bytes is written as %q, want %q: its end, its own name, in %d bytes, an ellipsis for the rest", len(dir), got.Dir, want, textMost)
+	if got.Dir != dir || got.Project != dir {
+		t.Errorf("a directory and a project of %d bytes are written as %q and %q, want each whole: a line holds %d bytes of a path", len(dir), got.Dir, got.Project, pathMost)
+	}
+}
+
+func TestALinesPathPastWhatTheLedgerHoldsIsCut(t *testing.T) {
+	dir := "~/" + strings.Repeat("☃", pathMost) + "/project"
+	got := (&Line{Dir: dir, Project: dir}).written()
+	if want := "…" + strings.Repeat("☃", (pathMost-len("…/project"))/len("☃")) + "/project"; got.Dir != want {
+		t.Errorf("a directory of %d bytes is written as %q, want %q: its end, its own name, in %d bytes, an ellipsis for the rest", len(dir), got.Dir, want, pathMost)
 	}
 	if got.Project != "" {
-		t.Errorf("a project of %d bytes is written as %q, want it left out: past %d bytes, a cut one would name another", len(dir), got.Project, textMost)
+		t.Errorf("a project of %d bytes is written as %q, want it left out: past %d bytes, a cut one would name another", len(dir), got.Project, pathMost)
 	}
 }
 
@@ -156,9 +164,10 @@ func TestTheLongestLineIsReadBack(t *testing.T) {
 	}
 }
 
-// longest is a line with every text, list and count longer than the ledger
-// holds, and its usage and project as long as it holds, as a longer project
-// is left out, each character of every text one JSON escapes in six bytes.
+// longest is a line with every text, path, list and count longer than the
+// ledger holds, and its usage and project as long as it holds, as a longer
+// project is left out, each character of every text one JSON escapes in six
+// bytes.
 func longest() *Line {
 	text := strings.Repeat("\x00", 4*textMost)
 	texts := slices.Repeat([]string{text}, 2*ListMost)
@@ -171,7 +180,7 @@ func longest() *Line {
 	}
 	usage := `{"x":"` + strings.Repeat("<", usageMost-len(`{"x":""}`)) + `"}`
 	return &Line{
-		At: time.Now(), Request: text, Kind: text, Session: text, Dir: text, Project: strings.Repeat("\x00", textMost), Pool: text, Model: text, Account: text, Reason: text, From: text,
+		At: time.Now(), Request: text, Kind: text, Session: text, Dir: strings.Repeat("\x00", 2*pathMost), Project: strings.Repeat("\x00", pathMost), Pool: text, Model: text, Account: text, Reason: text, From: text,
 		Tried: slices.Repeat([]Tried{{Account: text, Why: text}}, 2*ListMost), Agent: text, Betas: texts,
 		Prompt: text, Class: text, AgentID: text, ParentAgentID: text, AgentType: text, Compaction: text, Compacted: text,
 		ToolMS: slices.Repeat([]ToolTime{{Tool: text, MS: math.MaxInt64}}, 2*ListMost),

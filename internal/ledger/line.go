@@ -26,6 +26,11 @@ const (
 	// textMost is how many bytes of a text a line holds, cut at the end of a
 	// character, as the request stream cuts a session's id and a model's.
 	textMost = 200
+	// pathMost is how many bytes of a directory or a project a line holds:
+	// macOS's PATH_MAX, the longest working directory the system gives, so a
+	// line keeps whole every path a session starts in, while a header
+	// claiming a longer one can't run a line past lineMax.
+	pathMost = 1024
 	// ListMost is how many of a list's entries a line holds, or kinds of a
 	// count's: what reads a list for a line need keep no more.
 	ListMost = 32
@@ -308,9 +313,9 @@ type Error struct {
 }
 
 // written returns the line as it's written: at in UTC, to the millisecond,
-// each of its texts cut to textMost bytes, a directory from its front, so it
-// keeps its own name, and a project left out, as LineProject has it, and
-// each of its lists and counts to its most, so no line runs past lineMax.
+// each of its texts cut to textMost bytes, but a directory and a project,
+// which LineDir and LineProject bound, and each of its lists and counts to its
+// most, so no line runs past lineMax.
 func (l *Line) written() *Line {
 	w := *l
 	w.At = l.At.UTC().Truncate(time.Millisecond)
@@ -377,19 +382,20 @@ func cut(s string) string {
 	return prose.TruncateBytes(redact.Text(s), textMost)
 }
 
-// LineDir is the directory dir as a line gives it: cut as cut cuts a text,
-// but from its front, an ellipsis standing for what's cut, so it keeps its
-// own name. The router's sessions and request stream give a directory so too.
+// LineDir is the directory dir as a line gives it, once anything shaped like
+// a token in it is hidden: whole, up to pathMost bytes, and past that cut from
+// its front, an ellipsis standing for what's cut, so it keeps its own name.
+// The router's sessions and request stream give a directory so too.
 func LineDir(dir string) string {
-	return prose.TruncateBytesFront(redact.Text(dir), textMost)
+	return prose.TruncateBytesFront(redact.Text(dir), pathMost)
 }
 
 // LineProject is the project a line gives, a directory, as LineDir gives one,
-// but none where it runs past what a line holds of a text: a project is
-// known by its whole path, which a cut one would no longer name. The
-// router's sessions and request stream give a project so too.
+// but none where it runs past pathMost bytes: a project is known by its whole
+// path, which a cut one would no longer name. The router's sessions and
+// request stream give a project so too.
 func LineProject(project string) string {
-	if project = redact.Text(project); len(project) > textMost {
+	if project = redact.Text(project); len(project) > pathMost {
 		return ""
 	}
 	return project
