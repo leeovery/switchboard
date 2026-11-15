@@ -328,7 +328,7 @@ func (p page) fixture(worlds accountWorlds) Fixture {
 	}
 	return Fixture{
 		Name: p.name, Size: p.size, now: now, router: router, keys: slices.Clone(p.keys), before: p.before,
-		theme: framesTheme(), records: w.records(), accounts: w.accounts, removed: removedOf(w.gone), moved: movedOf(w.gone), view: p.view, log: p.log, scale: p.scale, loading: p.loading,
+		theme: framesTheme(), records: w.records(), accounts: w.accounts, removed: removedOf(w.gone), moved: movedOf(w.gone, p.pool.ID), view: p.view, log: p.log, scale: p.scale, loading: p.loading,
 		pool: p.pool,
 	}
 }

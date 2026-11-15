@@ -57,6 +57,31 @@ func TestAnAccountMovedToAPoolWithNoLabelSaysItsID(t *testing.T) {
 	}
 }
 
+// A document given the config works out the accounts moved for its own pool:
+// Default's names work as now in Acme, Acme's names it as its own.
+func TestADocumentGivenTheConfigNamesTheAccountsMovedOutOfItsPool(t *testing.T) {
+	doc := routerDocOf(status.Account{ID: "personal", Label: "personal", TokenSet: true, FetchedAt: built})
+	doc.PoolID = "b2n8"
+	want := status.AccountName{Label: "work", Other: true, Moved: "now in Acme"}
+	if got := doc.WithMovedOf(movedPools, movedAccounts).At(built, policy).Named("work"); got != want {
+		t.Errorf("Default's moment names work %+v, want %+v", got, want)
+	}
+	acme := routerDocOf(status.Account{ID: "work", Label: "work", TokenSet: true, FetchedAt: built})
+	acme.PoolID = "q7mt"
+	if got := acme.WithMovedOf(movedPools, movedAccounts).At(built, policy).Named("personal"); got.Moved != "now in Default" {
+		t.Errorf("Acme's moment names personal %+v, want it now in Default", got)
+	}
+}
+
+// An account moved with no label is labelled by its id, as a configured one
+// is named, so the JSON's label and the name agree.
+func TestAnAccountMovedWithNoLabelIsLabelledByItsID(t *testing.T) {
+	moved := status.MovedOf(movedPools, config.Accounts{{ID: "k3f9", Pool: "q7mt"}}, "b2n8")
+	if len(moved) != 1 || moved[0].Label != "k3f9" || moved[0].Name().Label != "k3f9" {
+		t.Errorf("MovedOf() = %+v, want k3f9 labelled by its id", moved)
+	}
+}
+
 // Seen from the pool it left, an account moved is named by its label, set
 // apart as other, saying where it is now, alike by names and by a moment of
 // the pool's document, which holds the pool's accounts alone; seen from the

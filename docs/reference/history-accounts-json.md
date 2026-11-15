@@ -1,8 +1,8 @@
 # `history` JSON: the account blocks
 
 The blocks of [`history` JSON](history-json.md) that look at each account: `weeks`, `tokens`,
-`totals`, `plans`, `capacity`, `removed` and `moved`. They answer how hard each account worked, what it was
-worth, and whether you have the right number of accounts.
+`totals`, `plans`, `capacity`, `removed` and `moved`. They answer how hard each account worked,
+what it was worth, and whether you have the right number of accounts.
 
 ```bash
 switchboard history --json | jq -c \
@@ -24,6 +24,10 @@ switchboard history --json | jq -c \
 Most of these blocks hold one entry for each account, in the order of the config, then one more
 for every account together. Each account entry has `account` and `label`. The last entry has
 `all: true` in their place.
+
+The blocks don't always hold the same accounts. In a pool, `totals` can also hold an account that
+is in another pool now, which `weeks`, `plans` and `capacity` leave out. To match entries across
+blocks, match them by `account`, not by their place in the list.
 
 Every `worth` here is in US dollars, with `unpriced` beside it, as
 [`history` JSON](history-json.md) explains under Worth.
@@ -85,7 +89,9 @@ Each entry is a calendar week:
   listed.
 - **The `all` entry** gives no `left_at_reset` or `ran_out`.
 - **An account in another pool now** that worked in the pool read has an entry of its own, after
-  the pool's accounts and before `all`, so every request `all` counts is in an entry.
+  the pool's accounts and before `all`.
+- **The `all` entry** also counts work with no entry of its own: that of removed accounts, and the
+  requests no account answered.
 
 ## `plans`
 
@@ -165,7 +171,7 @@ there since:
 | Field | Type | Meaning |
 |---|---|---|
 | `id` | string | Its id. |
-| `label` | string | Its label. |
+| `label` | string | Its label, or its id if it has none, as in its `totals` entry. |
 | `pool` | string | The id of the pool it's in now. |
 | `pool_label` | string | That pool's label. |
 

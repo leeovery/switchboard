@@ -239,6 +239,14 @@ func (d Document) WithMoved(moved MovedAccounts) Document {
 	return d
 }
 
+// WithMovedOf is the document whose moments name the accounts of
+// configured that pools place in another pool than the document's, as
+// MovedOf gives them, for a reader that hasn't worked them out for the
+// document's pool already, as the dashboard has.
+func (d Document) WithMovedOf(pools config.Pools, configured config.Accounts) Document {
+	return d.WithMoved(MovedOf(pools, configured, d.PoolID))
+}
+
 // The kinds of event the router tells of, as an Event's Kind says.
 const (
 	// EventStarted is a session first remembered on an account, for its

@@ -12,10 +12,14 @@ import (
 )
 
 // The moved accounts' pools: Default, which work left for Acme, keeping
-// personal.
+// personal; and Acme, where acme-1 comes before work in the config.
 var (
 	movedPools   = config.Pools{{ID: "b2n8", Label: "Default"}, {ID: "q7mt", Label: "Acme"}}
-	poolAccounts = config.Accounts{{ID: "work", Label: "work", Pool: "q7mt"}, {ID: "personal", Label: "personal", Pool: "b2n8"}}
+	poolAccounts = config.Accounts{
+		{ID: "acme1", Label: "acme-1", Pool: "q7mt"},
+		{ID: "work", Label: "work", Pool: "q7mt"},
+		{ID: "personal", Label: "personal", Pool: "b2n8"},
+	}
 )
 
 // seenFrom is the input of the days given read in the pool with the given
@@ -47,9 +51,9 @@ func totalsBy(h views.History) map[string]views.AccountTotals {
 
 // Seen from the pool it left, an account moved keeps its work there: the
 // totals give it a column of its own, after the pool's accounts and before
-// every account's, named by its label and where it is now, so every
-// request every account's counts is counted in a column; and its tokens
-// name it so.
+// every account's, named by its label and where it is now, so each of
+// these days' 15 requests is in a column; acme-1, which did no work there,
+// has none; and its tokens name it so.
 func TestTheTotalsOfThePoolAnAccountLeftGiveItAColumn(t *testing.T) {
 	h := views.NewHistory(seenFrom("b2n8", movedDays()))
 	var ids []string
@@ -75,11 +79,21 @@ func TestTheTotalsOfThePoolAnAccountLeftGiveItAColumn(t *testing.T) {
 }
 
 // Seen from the pool it's in now, an account moved is one of the pool's: its
-// column comes in the config's order, named by its label alone, with the
-// work it did there; and the History lists no account moved.
+// column comes in the config's order, after acme-1 though the days name it
+// first, named by its label alone, with the work it did there; and the
+// History lists no account moved.
 func TestTheTotalsOfThePoolAnAccountJoinedGiveItAColumnAsItsOwn(t *testing.T) {
-	days := daysFrom("2026-10-05", day("2026-10-05", account("work", sent("claude-opus-5-5", 5, inputUsage))))
+	days := daysFrom("2026-10-05", day("2026-10-05",
+		account("work", sent("claude-opus-5-5", 5, inputUsage)),
+		account("acme1", sent("claude-opus-5-5", 3, inputUsage))))
 	h := views.NewHistory(seenFrom("q7mt", days))
+	var ids []string
+	for _, a := range h.Totals.Accounts {
+		ids = append(ids, a.Account)
+	}
+	if !slices.Equal(ids, []string{"acme1", "work", ""}) {
+		t.Errorf("Acme's totals are of %q, want acme1, then work, in the config's order, then every account's", ids)
+	}
 	if got := totalsBy(h)["work"]; got.AccountName != (status.AccountName{Label: "work"}) || got.Requests != 5 {
 		t.Errorf("work's totals in Acme are named %+v, of %d requests; want work, configured, of 5", got.AccountName, got.Requests)
 	}

@@ -2,8 +2,10 @@ package cli_test
 
 import (
 	"encoding/json"
+	"net/http"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/leeovery/switchboard/internal/cli"
@@ -103,5 +105,32 @@ func TestHistoryOfThePoolAnAccountLeftGivesItAColumn(t *testing.T) {
 	}
 	if want := []status.MovedAccount{{ID: "work", Label: "Work", Pool: "q7mt", PoolLabel: "Acme"}}; !slices.Equal(doc.Moved, want) {
 		t.Errorf("Default's history gives the accounts moved %+v, want %+v", doc.Moved, want)
+	}
+}
+
+// status names a session the router still lists on an account moved out of
+// the pool read, as it does till the session's next request, by the
+// account's label and where it is now, never by its id.
+func TestStatusNamesASessionOnAnAccountMovedOutByItsLabelAndWhereItIsNow(t *testing.T) {
+	srv := newServeSetup(t, fakeClaudeAPI(t), nil)
+	srv.accounts = pooledAccounts
+	srv.writeConfig(t)
+	health := pooledHealth(t, srv.deps)
+	doc := status.Document{
+		GeneratedAt: testNow, Source: status.SourceRouter, Router: status.Health{Healthy: true}, PoolID: "b2n8", PoolLabel: "Default",
+		Accounts: []status.Account{{ID: "work", Label: "Work", TokenSet: true, FetchedAt: testNow}, {ID: "personal", Label: "Personal", TokenSet: true, FetchedAt: testNow}},
+	}
+	onSide := []status.Session{{ID: sessionOne, Assignments: []status.Assignment{
+		{Model: "claude-haiku-4-5-20251001", Family: "haiku", Account: "side", Reason: "new", AssignedAt: testNow, LastSeen: testNow},
+	}}}
+	serveRouter(t, srv.socket(), new(atomic.Int64), map[string]http.HandlerFunc{
+		"GET /health":   func(w http.ResponseWriter, _ *http.Request) { _ = json.NewEncoder(w).Encode(health) },
+		"GET /status":   func(w http.ResponseWriter, _ *http.Request) { _ = json.NewEncoder(w).Encode(doc) },
+		"GET /sessions": func(w http.ResponseWriter, _ *http.Request) { _ = json.NewEncoder(w).Encode(onSide) },
+	})
+
+	got := run(t, srv.deps, "status", "--pretty", "--pool", "b2n8")
+	if want := "haiku on Side (now in Acme)"; got.code != 0 || !strings.Contains(got.stdout, want) {
+		t.Errorf("switchboard status --pool b2n8 = %+v, want it naming %q", got, want)
 	}
 }

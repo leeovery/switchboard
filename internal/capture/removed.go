@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/leeovery/switchboard/internal/claude"
+	"github.com/leeovery/switchboard/internal/config"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/status"
 )
@@ -19,12 +20,12 @@ const (
 
 // goneAccount is an account gone from the pool shown whose work the ledger
 // holds there, by day of the year: one removed that a world's accounts
-// record keeps, by the label it showed last; or, where movedTo is set, one
-// moved to another pool, configured there.
+// record keeps, by the label it showed last; or, where movedTo names the
+// pool by its id, one moved to another pool, configured there.
 type goneAccount struct {
 	status.RemovedAccount
 	days    map[int]ledger.AccountDay
-	movedTo *status.MovedAccount
+	movedTo string
 }
 
 // removedTeam is the auto world with an account removed on 4 September, as
@@ -47,7 +48,7 @@ func (a accountWorlds) movedTeam() accountWorld {
 	return a.kept("movedTeam", func() accountWorld {
 		w := a.autoOf(a.today().three(true))
 		team := teamOf(a.now)
-		team.movedTo = &status.MovedAccount{ID: teamID, Label: team.Label, Pool: acmePool.ID, PoolLabel: acmePool.Label}
+		team.movedTo = acmePool.ID
 		w.gone = []goneAccount{team}
 		return w
 	})
@@ -79,23 +80,27 @@ func teamOf(now time.Time) goneAccount {
 func removedOf(gone []goneAccount) status.RemovedAccounts {
 	var removed status.RemovedAccounts
 	for _, g := range gone {
-		if g.movedTo == nil {
+		if g.movedTo == "" {
 			removed = append(removed, g.RemovedAccount)
 		}
 	}
 	return removed
 }
 
-// movedOf are the accounts of gone moved to another pool, as status.MovedOf
-// gives them of the world's config.
-func movedOf(gone []goneAccount) status.MovedAccounts {
-	var moved status.MovedAccounts
+// framesPools are the pools' frames' pools as the config has them.
+var framesPools = config.Pools{{ID: defaultPool.ID, Label: defaultPool.Label}, {ID: acmePool.ID, Label: acmePool.Label}}
+
+// movedOf are the accounts of gone moved to another pool than the one with
+// the id shown, as status.MovedOf gives them of the config placing each in
+// the pool it moved to.
+func movedOf(gone []goneAccount, shown string) status.MovedAccounts {
+	var placed config.Accounts
 	for _, g := range gone {
-		if g.movedTo != nil {
-			moved = append(moved, *g.movedTo)
+		if g.movedTo != "" {
+			placed = append(placed, config.Account{ID: g.ID, Label: g.Label, Pool: g.movedTo})
 		}
 	}
-	return moved
+	return status.MovedOf(framesPools, placed, shown)
 }
 
 // withGone is days, the ledger's days of the year from its first, with the

@@ -12,8 +12,8 @@ import (
 // MovedAccount is an account configured in another pool than the one read,
 // as one moved out of it: its work recorded in the pool read stays that
 // pool's, as every request is recorded under the pool it ran in, and is
-// shown as its, by its label and the pool it's in now, by that pool's id
-// and label.
+// shown as its, by its label, else its id, as MovedOf gives it, and the
+// pool it's in now, by that pool's id and label.
 type MovedAccount struct {
 	ID        string `json:"id"`
 	Label     string `json:"label"`
@@ -27,10 +27,10 @@ func (a MovedAccount) Said() string {
 	return "now in " + prose.Clean(a.PoolLabel)
 }
 
-// Name is the account as AccountName names it: by its label, else its id,
-// not of the pool read, and where it is now.
+// Name is the account as AccountName names it: by its label, not of the
+// pool read, and where it is now.
 func (a MovedAccount) Name() AccountName {
-	return AccountName{Label: cmp.Or(a.Label, a.ID), Other: true, Moved: a.Said()}
+	return AccountName{Label: a.Label, Other: true, Moved: a.Said()}
 }
 
 // MovedAccounts are the accounts configured in another pool than the one
@@ -38,8 +38,9 @@ func (a MovedAccount) Name() AccountName {
 type MovedAccounts []MovedAccount
 
 // MovedOf are the accounts of configured, in its order, that are in another
-// pool than the one with the given id, ids compared ignoring case, each with
-// the pool it's in, labelled as pools label it, else by its id: none where
+// pool than the one with the given id, ids compared ignoring case, each by
+// its label, else its id, as a configured account is named, with the pool
+// it's in, labelled as pools label it, else by its id: none where
 // pools are none or the id is "", as a read of every pool's work has none
 // elsewhere, nor an account that names no pool.
 func MovedOf(pools config.Pools, configured config.Accounts, pool string) MovedAccounts {
@@ -55,7 +56,7 @@ func MovedOf(pools config.Pools, configured config.Accounts, pool string) MovedA
 		if p, ok := pools.ByID(a.Pool); ok {
 			label = cmp.Or(p.Label, p.ID)
 		}
-		moved = append(moved, MovedAccount{ID: a.ID, Label: a.Label, Pool: a.Pool, PoolLabel: label})
+		moved = append(moved, MovedAccount{ID: a.ID, Label: cmp.Or(a.Label, a.ID), Pool: a.Pool, PoolLabel: label})
 	}
 	return moved
 }

@@ -59,9 +59,11 @@ var callsAllowed = []string{
 	// and the document doesn't, handed to the document as it's read, for its
 	// moments to name them; and the accounts in another pool than the one
 	// shown, which the watch knows from the config and a pool's document
-	// doesn't, handed to it alike.
+	// doesn't, handed to it alike, or the config given, for status to work
+	// them out of for the document's pool, as the status verb does.
 	"status.Document.WithRemoved",
 	"status.Document.WithMoved",
+	"status.Document.WithMovedOf",
 }
 
 // momentsMade are the functions and methods of viewPackages that work out a
