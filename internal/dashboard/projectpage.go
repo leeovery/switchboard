@@ -296,7 +296,7 @@ func (d projectDrawn) section(c *canvas, section, x, y, width int) int {
 // against its peak's; and its peak, as worthPeak says it. It returns the
 // row after it.
 func (d projectDrawn) worthBy(c *canvas, x, y, width int) int {
-	c.line(x, y, line{{"WORTH BY " + strings.ToUpper(bucketWord[d.worth.Unit]), dimInk}})
+	c.line(x, y, line{{"WORTH BY " + strings.ToUpper(bucketWord[d.worth.Unit]), headingInk}})
 	worthChart(c, d.f.Look, x, y+1, width, worthRows, d.worth, peakWorth(d.worth))
 	c.line(x, y+1+worthRows+1, worthPeak(d.worth))
 	return y + worthTaken
@@ -307,7 +307,7 @@ func (d projectDrawn) worthBy(c *canvas, x, y, width int) int {
 // project's worth after the widest name, right-aligned in percentCells, in
 // text.secondary. It returns the row after it.
 func (d projectDrawn) byModel(c *canvas, x, y, width int) int {
-	c.line(x, y, line{{"BY MODEL", dimInk}})
+	c.line(x, y, line{{"BY MODEL", headingInk}})
 	cells := d.versionCells()
 	for i, v := range d.page.ByModel {
 		versionHead(c, x, y+1+i, v.Version, cells)
@@ -324,7 +324,7 @@ func (d projectDrawn) byModel(c *canvas, x, y, width int) int {
 // its share, right-aligned in percentCells, in text.secondary. It returns the
 // row after it.
 func (d projectDrawn) onAccounts(c *canvas, x, y, width int) int {
-	c.line(x, y, line{{"ON ACCOUNTS", dimInk}})
+	c.line(x, y, line{{"ON ACCOUNTS", headingInk}})
 	names := d.namesCells()
 	bar := width - labelIndent - names - listGap - percentCells
 	for i, a := range d.page.OnAccounts {

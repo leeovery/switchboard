@@ -132,14 +132,14 @@ func (s projectSessions) paged() rowsPaged {
 	return rowsPaged{rows: s.rows - 2, content: len(s.lines), heads: s.heads()}
 }
 
-// draw draws SESSIONS from its top: its heading, in text.subtle; its heads,
+// draw draws SESSIONS from its top: its heading, in text.muted; its heads,
 // as the List's; and its lines in view, as far as it's scrolled, as drawPage
 // draws them; nothing where no line fits under its heading and heads.
 func (s projectSessions) draw(c *canvas) {
 	if s.paged().page() == 0 {
 		return
 	}
-	c.line(0, s.top, line{{"SESSIONS", dimInk}})
+	c.line(0, s.top, line{{"SESSIONS", headingInk}})
 	columnHeads(c, s.top+1, s.columns)
 	s.drawPage(c, s.top+2, s.paged(), s.scroll)
 }

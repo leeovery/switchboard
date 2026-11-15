@@ -180,6 +180,11 @@ var (
 	// boldPositiveInk is what's gone well, as alertInk is what hasn't: a
 	// worth against its price at 1× or more, and a verdict of enough.
 	boldPositiveInk = ink{token: theme.StatePositive, bold: true}
+
+	// headingInk is every heading's, a tab's, a page's, a section's, a
+	// card's and a setup step's: a step over the labels under it, which are
+	// dimInk, and under the values.
+	headingInk = ink{token: theme.TextMuted}
 )
 
 // render draws text in the ink, as the look draws it.

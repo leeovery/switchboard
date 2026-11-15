@@ -624,13 +624,13 @@ func (y yearDrawn) heading(c *canvas, x, row int) {
 	if y.shown() != "" {
 		name, apart, least = strings.ToUpper(y.shown()), " · ", 1
 	}
-	width, lead, tail := y.Width-x, line{{name, dimInk}}, line{{apart, dimInk}, {period, dimInk}}
+	width, lead, tail := y.Width-x, line{{name, headingInk}}, line{{apart, headingInk}, {period, headingInk}}
 	s, _ := flex.Lay(width, flex.Part{Least: least, Natural: lead.width(), Leaves: 1}, flex.Part{Least: tail.width(), Natural: tail.width()})
 	if !s[0].Left {
 		c.line(x, row, append(lead.fit(s[0].Size), tail...))
 		return
 	}
-	c.line(x, row, fitParts(width, figureIn(period, dimInk)))
+	c.line(x, row, fitParts(width, figureIn(period, headingInk)))
 }
 
 // yearFigure is one of the Year's numbers: its label, and the narrow form's, what it

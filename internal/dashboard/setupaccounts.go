@@ -189,7 +189,7 @@ func (t reviewTable) draw(c *canvas, y, width int) (next int, kept []keptHeading
 	accounts, headings, add := t.laid()
 	c.heading(y, first)
 	for _, h := range headings {
-		c.line(cols[reviewAccount].At, rowAt(h.slot), poolHeading(h.pool).fit(width-cols[reviewAccount].At))
+		c.line(cols[reviewAccount].At, rowAt(h.slot), poolLabel(h.pool).fit(width-cols[reviewAccount].At))
 	}
 	for i, a := range t.review.Accounts {
 		t.row(c, rowAt(accounts[i]), width, cols, i, a)
@@ -244,10 +244,10 @@ func (t reviewTable) laid() (accounts []int, headings []poolHeaded, add int) {
 	return accounts, headings, slot
 }
 
-// poolHeading is a pool's heading over its accounts: its label, in
-// text.subtle, as the table's heads are, and two cells on, where its
-// sessions start, as setup.Places says it, muted.
-func poolHeading(p config.Pool) line {
+// poolLabel is a pool's label over its accounts, a label as the table's
+// heads are: its name, in text.subtle, and two cells on, where its sessions
+// start, as setup.Places says it, muted.
+func poolLabel(p config.Pool) line {
 	return line{{prose.Clean(p.Label), dimInk}, spaces(2), {setup.Places(p), mutedInk}}
 }
 

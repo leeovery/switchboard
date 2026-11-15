@@ -145,13 +145,13 @@ func (c LogCard) tree(m status.Moment) [3][]cardSection {
 func (c LogCard) title(m status.Moment) line {
 	switch {
 	case c.Event != nil:
-		l := line{{"EVENT · " + prose.ToTheSecond(m.Now, c.Event.Row.At) + " · ", dimInk}}
+		l := line{{"EVENT · " + prose.ToTheSecond(m.Now, c.Event.Row.At) + " · ", headingInk}}
 		for _, p := range c.Event.Headline {
 			if p.Kind == status.PartAccount {
 				l = append(l, span{named(m, p.Text), accountInk})
 				continue
 			}
-			l = append(l, span{p.Text, dimInk})
+			l = append(l, span{p.Text, headingInk})
 		}
 		return l
 	case c.Request != nil:
@@ -160,7 +160,7 @@ func (c LogCard) title(m status.Moment) line {
 		if prose.Clean(r.Session) != "" {
 			title += " · " + sessionNamed(r.Session, r.Dir)
 		}
-		return line{{title, dimInk}}
+		return line{{title, headingInk}}
 	}
 	return nil
 }
@@ -243,16 +243,17 @@ func (c LogCard) keys(content int, scrolls, sessions bool) []Key {
 }
 
 // cardSection is a section of a details card's tree: its heading, in
-// text.subtle, an account it names in text.primary; and its items, a row
+// text.muted, an account it names in text.primary; and its items, a row
 // each.
 type cardSection struct {
 	heading line
 	items   []cardItem
 }
 
-// cardItem is an item of a section: its name, in text.muted; and its value,
-// in the inks it's said in, blank where it isn't known yet, which a move's
-// cost ends where costs says, kept whole as what comes before it is cut.
+// cardItem is an item of a section: its name, a label, in text.subtle; and
+// its value, in the inks it's said in, blank where it isn't known yet, which
+// a move's cost ends where costs says, kept whole as what comes before it is
+// cut.
 type cardItem struct {
 	name  string
 	value line
@@ -261,7 +262,7 @@ type cardItem struct {
 
 // sectionHeading is a section's heading of words alone.
 func sectionHeading(text string) line {
-	return line{{text, dimInk}}
+	return line{{text, headingInk}}
 }
 
 // row is the item as its section's row width cells wide draws it: ├ in
@@ -272,7 +273,7 @@ func (it cardItem) row(last bool, width int) line {
 	if last {
 		branch = "└ "
 	}
-	name := line{{it.name, mutedInk}}.fit(itemName - 1)
+	name := line{{it.name, dimInk}}.fit(itemName - 1)
 	lead := slices.Concat(line{{branch, faintInk}}, name, line{spaces(itemName - name.width())})
 	return slices.Concat(lead, costKept(it.value, it.costs, width-itemLead))
 }
@@ -401,7 +402,7 @@ func windowsHeading(account string) line {
 	if account == "" {
 		return sectionHeading("WINDOWS AFTER IT")
 	}
-	return line{{strings.ToUpper(account), accountInk}, {"'S WINDOWS AFTER IT", dimInk}}
+	return line{{strings.ToUpper(account), accountInk}, {"'S WINDOWS AFTER IT", headingInk}}
 }
 
 // accountsSaid is words naming accounts as an item says them: each account
@@ -657,7 +658,7 @@ func detailSaid(w views.DetailWords, m status.Moment) line {
 // WORK THEN, the account white: its windows' use; when what the event tells
 // of resets, where that's known; and how many sessions were on it.
 func thenSection(t views.AccountThen, at time.Time, m status.Moment) cardSection {
-	s := cardSection{heading: line{{strings.ToUpper(named(m, t.Account)), accountInk}, {" THEN", dimInk}}}
+	s := cardSection{heading: line{{strings.ToUpper(named(m, t.Account)), accountInk}, {" THEN", headingInk}}}
 	for _, w := range t.Windows {
 		s.items = append(s.items, cardItem{name: w.Name, value: line{windowUse(w.Use)}})
 	}

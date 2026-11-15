@@ -117,7 +117,7 @@ func (f Frame) latelyShown(fit runwayFit) []views.Sentence {
 }
 
 // runwayLately draws LATELY, where the fit gives it a row: its heading, in
-// text.subtle, and under it, on the rows it's given, the sentences Runway's
+// text.muted, and under it, on the rows it's given, the sentences Runway's
 // LATELY tells, as runwayLatelyLines lays them, in its column as laid out;
 // or, where there are none, why there are none, as the Overview's LATELY
 // says it.
@@ -126,7 +126,7 @@ func (f Frame) runwayLately(c *canvas, laid runwayLaid) {
 	if !fit.draws(fit.lately) {
 		return
 	}
-	c.line(column.At, fit.lately, line{{SectionLately.heading(), dimInk}})
+	c.line(column.At, fit.lately, line{{SectionLately.heading(), headingInk}})
 	if fit.latelyLines == 0 {
 		return
 	}
