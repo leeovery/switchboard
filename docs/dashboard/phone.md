@@ -23,7 +23,7 @@ Only the frame around the page switches at one width. Under 100 columns, it take
 What a phone shows follows from its width. Each of these happens at that width in any window:
 
 - **Overview, USAGE:** the windows sit side by side if every part of a row fits at its least. With
-  two windows and names such as `personal`, that's from 86 columns. Narrower, they stack. As the
+  two windows and names such as `personal`, that's from 84 columns. Narrower, they stack. As the
   room runs short, the parts give way in turn:
   1. the bars, down to 12 cells;
   2. the words, to their short form;

@@ -19,9 +19,9 @@ Press `p` on any tab. The card opens over the page, showing what's set now. It h
 
 Each account row shows:
 
-- whether it's open;
+- its state, `open` or `closed`;
 - its week and 5-hour window, or `no 5-hour limit` for an account without one;
-- why it's closed, such as `at its cap till 17:10`, or else its sessions running.
+- why it's `closed`, such as `at its cap till 17:10`, or else its sessions running.
 
 ## Picking
 
@@ -52,7 +52,7 @@ You can't pick an account that can't take a session. That's an account:
 | You ran the dashboard with `--probe` | `p pin` isn't listed, and `p` opens nothing, even while the router answers. |
 | There's one account | `p` does nothing, because there's nothing to pin to. If a pin set with [`switchboard pin`](../commands/pin.md) still stands, `p` opens the card to clear it. |
 
-Outside the card, `m` does nothing, so a stray key moves no session.
+`m` never moves a session outside the card, so a stray key moves nothing.
 
 ## A session's own card
 
