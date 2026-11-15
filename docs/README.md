@@ -1,14 +1,56 @@
-# Switchboard's docs
+# Switchboard docs
 
-The user's guide, a page for each subject:
+Find the page for what you want to do. Each line says what the page answers.
 
-- [Pools](pools.md): ring-fence client work to its own accounts
-- [Dashboard](dashboard.md): every page, its keys, and themes
-- [How it works](how-it-works.md): routing, what's recorded, accounts and their ids, pools, the primary, reserves and priming
-- [Commands](commands.md): every command and flag
-- [Configuration](configuration.md): every config key, tokens and notifications
-- [Reference](reference.md): where switchboard keeps its files, their formats, and the JSON its commands print
-- [Troubleshooting](troubleshooting.md): what to check first, and the logs
-- [Glossary](glossary.md): what switchboard's own terms mean
+## Get started
 
-[The design](design.md) is how switchboard is built and why: what it does, the calls behind it, and the backlog's index.
+- [The README](../README.md): what switchboard does, how to install it, and the first commands.
+- [How it works](how-it-works.md): how a request reaches the router, and what the router records.
+
+## Features
+
+- [Limits and routing](limits-and-routing.md): how a session picks an account, and carries on
+  when a limit hits.
+- [Pools](pools.md): how to keep client work on its own accounts.
+- [Claude and switchboard](claude-and-switchboard.md): how Claude reads your limits and paces its
+  work.
+- [Your record and what it's worth](your-record.md): what switchboard keeps, and what your use
+  would cost at API prices.
+- [Staggered resets](staggered-resets.md): how your accounts come back one at a time.
+- [Room for the Claude app](room-for-the-claude-app.md): how to keep a share of an account for
+  the Claude apps.
+- [Notifications](notifications.md): which alerts you get, and how to choose them.
+- [Pinning and moving sessions](pinning-and-moving.md): how to send sessions to the account you
+  choose.
+- [Several Macs and backups](several-macs.md): how to export your history, and bring it to
+  another Mac.
+
+## The dashboard
+
+- [Dashboard](dashboard.md): what each tab shows, the keys, and the themes.
+
+## Commands
+
+- [Commands](commands.md): every command and flag, and what each prints.
+
+## Configuration
+
+- [Configuration](configuration.md): every key in the config file, and what it changes.
+
+## Reference
+
+- [Reference](reference.md): where switchboard keeps its files, and the JSON its commands print.
+
+## Troubleshooting
+
+- [Troubleshooting](troubleshooting.md): what to check when something goes wrong, and where the
+  logs are.
+
+## Glossary
+
+- [Glossary](glossary.md): what pool, primary, reserve and the other terms mean.
+
+## Design, for contributors
+
+- [The design](design.md): how switchboard is built, the calls behind it, and the backlog.
+- [Contributing](../CONTRIBUTING.md): the gates every change passes.
