@@ -88,7 +88,7 @@ The JSON is what Claude and scripts read. It holds:
 - what's coming up, soonest first: limits lifting, windows running out or resetting, and primes;
 - how the hourly export stands, if `[export]` sets a folder.
 
-Every field is in [Reference](../reference.md).
+Every field is in [Reference](../reference/status-json.md).
 
 ## One session: `--session`
 

@@ -455,7 +455,7 @@ takes a character more. So:
   and when it was last seen.
 
 The accounts record is `accounts.json` in the state directory: see
-[The accounts record](reference.md#the-accounts-record).
+[The accounts record](reference/accounts-record.md).
 
 ### A token that's another subscription's
 
@@ -700,7 +700,7 @@ account rewrites nothing: the past stands as it was.
 So the views go two ways. Those that show accounts go by the pool each account is in now: its
 windows, Runway, the day strips and Graphs. Those that show work go by the pool recorded at the
 time: the requests and the Log, the sessions, what work was worth, and History's totals. See
-[The request ledger](reference.md#the-request-ledger).
+[The request ledger](reference/ledger.md).
 
 ### Upgrading to pools
 

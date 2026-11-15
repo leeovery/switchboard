@@ -58,4 +58,4 @@ service cuts it to the newest 5 MiB as it starts the router.
 
 - [`switchboard logs`](../commands/logs.md): every flag of `logs`.
 - [The router](router.md): why a session went to an account.
-- [Reference](../reference.md): the state directory, and what else is in it.
+- [Reference](../reference/files.md): the state directory, and what else is in it.

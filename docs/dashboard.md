@@ -1208,7 +1208,7 @@ log has the detail.
 A theme is a file named `<slug>.theme`. The slug is lower-case letters, digits and hyphens.
 
 - Put it in the themes directory, at its top level. See
-  [Where things live](reference.md#where-things-live).
+  [Where things live](reference/files.md).
 - Links are followed.
 - The picker reads the directory again each time it opens.
 - A file can't take a built-in theme's slug.

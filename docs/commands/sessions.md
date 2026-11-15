@@ -97,7 +97,7 @@ names the pool it read, such as `pool Acme`.
 ## Good to know
 
 - The JSON names each account by its id, with its label beside it. Every field is in
-  [Reference](../reference.md).
+  [Reference](../reference/sessions-json.md).
 - An account removed shows as `team (removed 4 Sep)` in the text.
 - Just after an upgrade that moves the history, `sessions` refuses until the router has moved it.
 

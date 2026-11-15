@@ -68,7 +68,7 @@ So does an event of another Mac that an import brought.
 ## Good to know
 
 - `events -f` exits `0` when you interrupt it.
-- Every kind of event, and its fields, is in [Reference](../reference.md).
+- Every kind of event, and its fields, is in [Reference](../reference/events.md).
 - Just after an upgrade that moves the history, `events` refuses until the router has moved it.
 
 ## Examples

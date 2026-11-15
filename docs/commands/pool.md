@@ -30,7 +30,7 @@ switchboard pool remove <id>
 | `--label <label>` | | `edit`: shows the pool as `<label>`. |
 | `--dirs <dir>` | | `edit`: fences the pool to the folders given, one for each `--dirs`, in place of the folders it has. |
 | `--unfence` | | `edit`: takes the folders of the pool away, making it the unfenced pool. Not with `--dirs`. |
-| `--json` | off a terminal | Prints the pools as JSON, even on a terminal. The fields are in [Reference](../reference.md). |
+| `--json` | off a terminal | Prints the pools as JSON, even on a terminal. The fields are in [Reference](../reference/pool-json.md). |
 | `--pretty` | on a terminal | Prints the text, even off a terminal. |
 
 ## `add`: make a pool
