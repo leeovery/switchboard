@@ -707,8 +707,9 @@ width holds.
 
 Its totals, LAST 12 MONTHS, sit beside the grid where the width holds both, else under it: the
 requests, sessions and limits hit; the worth at API prices, what the plans cost, and the worth
-against it; and the busiest day and the longest run of days in a row. On a phone, the totals the
-width leaves off go on a row under the rest, so none goes unsaid.
+against it; and the busiest day and the longest run of days in a row. Under the grid, they spread
+to end where the grid ends. On a phone, the totals the width leaves off go on a row under the rest,
+so none goes unsaid.
 
 `v` shows one model version alone, in four steps of its own colour, or one account, `←` and `→`
 stepping between the accounts; the shades, their key and the totals re-scale to what's shown, and

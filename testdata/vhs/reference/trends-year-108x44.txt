@@ -16,9 +16,9 @@ Fri           ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ �
               ■ none   ■ under 350   ■ 350–650   ■ 650–950   ■ over 950  requests a day
 
 LAST 12 MONTHS
-requests     212,885                  worth        $24,736    busiest day  Wed 30 Sep
-sessions     1,688                    plans cost   $7,200     longest run  20 days
-limits hit   week ×3 · 5-hour ×412    against it   3.4×
+requests     212,885                            worth        $24,736              busiest day  Wed 30 Sep
+sessions     1,688                              plans cost   $7,200               longest run  20 days
+limits hit   week ×3 · 5-hour ×412              against it   3.4×
 
 BY MONTH   worth at API prices; against what the plans cost that month ─────────────────────────────────── m
 

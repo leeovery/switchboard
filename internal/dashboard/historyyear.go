@@ -199,7 +199,7 @@ func (y yearDrawn) layOut() yearLaid {
 		l.numbersX, l.beside = beside.At, true
 		l.columns = []figureColumn{{figures: y.figures(), x: beside.At, row: 1, cells: beside.Size}}
 	} else {
-		l.numbersRow, l.columns = yearNumbersRow, y.figureColumns()
+		l.numbersRow, l.columns = yearNumbersRow, y.figureColumns(l.weeks)
 	}
 	l.byMonth = y.placed(l.beside)
 	if y.apart {
@@ -282,19 +282,62 @@ func (y yearDrawn) reckonedNumbers() int {
 // the columns that leave go on rows under the rest, as rowsUnder has them,
 // so none goes unsaid, and the columns left are laid out again, each as
 // wide as every figure it then holds, as many of them as fit, the last
-// column's figures going under the others while they don't.
-func (y yearDrawn) figureColumns() []figureColumn {
+// column's figures going under the others while they don't; and the
+// columns spread to end where the grid of the weeks given ends, as spread
+// has them.
+func (y yearDrawn) figureColumns(weeks int) []figureColumn {
 	figures := slices.Collect(slices.Chunk(y.figures(), yearFiguresDown))
 	columns, kept, _ := y.laidColumns(figures, true)
-	if !y.apart || kept == len(figures) {
+	if !y.apart {
 		return columns
 	}
+	if kept < len(figures) {
+		columns = y.underColumns(figures, kept)
+	}
+	return y.spread(columns, y.form.gridX+2*(weeks-1)+1)
+}
+
+// underColumns are the first kept columns of figures given, the rest's
+// figures under them, laid out again, as many as fit, as figureColumns has
+// them.
+func (y yearDrawn) underColumns(figures [][]yearFigure, kept int) []figureColumn {
 	for ; kept > 1; kept-- {
 		if columns, _, fits := y.laidColumns(rowsUnder(figures, kept), false); fits {
 			return columns
 		}
 	}
-	columns, _, _ = y.laidColumns(rowsUnder(figures, 1), false)
+	columns, _, _ := y.laidColumns(rowsUnder(figures, 1), false)
+	return columns
+}
+
+// spread is the columns given moved apart so the last's figures end at end,
+// the grid's, where the room there would be spare, as the totals take the
+// width the grid does: the cells between them shared evenly by the gaps,
+// the odd ones the first's. Where they reach end already, or one column
+// holds them, they're as they were.
+func (y yearDrawn) spread(columns []figureColumn, end int) []figureColumn {
+	gaps := len(columns) - 1
+	if gaps < 1 {
+		return columns
+	}
+	last := columns[gaps]
+	reach := 0
+	for _, figure := range last.figures {
+		reach = max(reach, figure.drawn(y.form.label(figure), y.form.labelCells, last.cells).width())
+	}
+	spare := end - last.x - reach
+	if spare <= 0 {
+		return columns
+	}
+	moved := 0
+	for i := 1; i <= gaps; i++ {
+		moved += spare / gaps
+		if i <= spare%gaps {
+			moved++
+		}
+		columns[i].x += moved
+	}
+	columns[gaps].cells -= spare
 	return columns
 }
 

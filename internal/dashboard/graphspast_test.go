@@ -119,6 +119,41 @@ func TestTrendsYearsRowUnderItsTotalsLinesUpWithTheirColumns(t *testing.T) {
 	}
 }
 
+// Under the grid, YEAR's totals spread to end where the grid's last week
+// ends, on a phone as at 108 and 138, the room between their columns shared;
+// where one column holds them, it's left as it is; and History's Year,
+// laid out alike at 108, keeps its columns where they were, short of it.
+func TestTrendsYearsTotalsUnderTheGridEndWhereItEnds(t *testing.T) {
+	ends := func(y yearDrawn) (grid, totals int) {
+		c := newCanvas(y.Width, y.daysRows())
+		y.days(c, 0)
+		rows := textOf(c.rows(Look{}))
+		for i, row := range rows {
+			end := ansi.StringWidth(strings.TrimRight(row, " "))
+			if i < yearKeyRow && strings.Contains(row, "■") {
+				grid = max(grid, end)
+			} else if i > yearNumbersRow {
+				totals = max(totals, end)
+			}
+		}
+		return grid, totals
+	}
+	for _, width := range []int{73, 108, 138} {
+		y, _ := trendsFrame(t, width, 60, "year").graphsYear()
+		if grid, totals := ends(y); totals != grid {
+			t.Errorf("at %d columns, YEAR's totals end at %d, want where its grid ends, %d", width, totals, grid)
+		}
+	}
+	one := trendsFrame(t, 108, 60, "year").yearFor(yearDrawn{page: trendsYear(), apart: true})
+	if spread := one.spread(one.laid.columns[:1], one.Width); spread[0].x != 0 {
+		t.Errorf("one column of totals spread moves to %d, want it left at 0", spread[0].x)
+	}
+	history, _ := yearFrame(t, 108, 60, views.YearAsk{}, trendsYear()).yearDrawn()
+	if grid, totals := ends(history); totals >= grid {
+		t.Errorf("at 108 columns, History's Year's totals end at %d, want them short of its grid's end, %d, unspread", totals, grid)
+	}
+}
+
 // Where YEAR's totals leave a column, its figures go under the columns that
 // stay, each laid out as wide as every figure it then holds, so none is cut
 // short: in a quiet year, whose short figures size narrow columns, and in
