@@ -32,10 +32,10 @@ func TestTheDepsMainHandsTheCommandsReadScratchpadsAgainstTheMachine(t *testing.
 		t.Fatal(err)
 	}
 	d := deps()
-	if d.Root == nil || d.InRepository == nil {
-		t.Fatalf("main hands the commands Root %v and InRepository %v: no scratchpad's session reads its project", d.Root != nil, d.InRepository != nil)
+	if d.Root == nil || d.RepositoryOf == nil {
+		t.Fatalf("main hands the commands Root %v and RepositoryOf %v: no scratchpad's session reads its project", d.Root != nil, d.RepositoryOf != nil)
 	}
-	if !d.InRepository(filepath.Join(repo, "gone")) {
-		t.Errorf("InRepository(api/gone) = false, want it in the repository %q", repo)
+	if got, ok := d.RepositoryOf(filepath.Join(repo, "gone")); got != repo || !ok {
+		t.Errorf("RepositoryOf(api/gone) = %q, %v, want the repository %q", got, ok, repo)
 	}
 }

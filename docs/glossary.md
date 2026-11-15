@@ -74,7 +74,8 @@ same conversation, but starts a new process.
 **The service.** The LaunchAgent that runs the router at login and restarts it when needed.
 
 **Slug.** The name Claude Code makes from a folder's path, with every character but an ASCII
-letter or digit turned into `-`. For example, `-Users-you-Code-api` is the slug of `/Users/you/Code/api`.
+letter or digit turned into `-`. For example, `-Users-you-Code-api` is the slug of
+`/Users/you/Code/api`.
 
 **Temporary folders.** The row of the Projects list for sessions that have no project:
 

@@ -39,6 +39,8 @@ func machine() fstest.MapFS {
 		"Users/you/Code/api/.git":          dir,
 		"Users/you/Code/api/web":           dir,
 		"Users/you/Code/web.git/config":    &fstest.MapFile{Data: []byte(bareConfig)},
+		"Users/you/Code/web.git/hooks":     dir,
+		"Users/you/Code/web.git/wt":        dir,
 		"Users/you/Code/site/.bare/config": &fstest.MapFile{Data: []byte(bareConfig)},
 		"Users/you/.dotfiles/.git":         dir,
 		"Users/you/Notes":                  dir,
@@ -61,21 +63,25 @@ func gitWalk(fsys fs.FS) func(string) string {
 	}
 }
 
-// inRepository reports whether a directory of fsys is in a repository, as
-// launch.InRepository counts one: at or below a directory holding a .git, a
-// bare repository's directory, or a folder holding one named .bare.
-func inRepository(fsys fs.FS) func(string) bool {
+// repositoryOf is the project of the repository a directory of fsys is in,
+// and whether it's in one, as launch.RepositoryOf has them: of the nearest
+// directory up from it that's a bare repository's directory, that; that
+// holds one named .bare, that; or that holds a .git, the repository's.
+func repositoryOf(fsys fs.FS) func(string) (string, bool) {
 	bare := func(dir string) bool {
 		config, err := fs.ReadFile(fsys, dir+"/config")
 		return err == nil && string(config) == bareConfig
 	}
-	return func(dir string) bool {
+	return func(dir string) (string, bool) {
 		for at := dir; at != "/"; at = path.Dir(at) {
-			if _, err := fs.Stat(fsys, at[1:]+"/.git"); err == nil || bare(at[1:]) || bare(at[1:]+"/.bare") {
-				return true
+			if bare(at[1:]) || bare(at[1:]+"/.bare") {
+				return at, true
+			}
+			if _, err := fs.Stat(fsys, at[1:]+"/.git"); err == nil {
+				return at, true
 			}
 		}
-		return false
+		return "", false
 	}
 }
 
@@ -83,7 +89,7 @@ func inRepository(fsys fs.FS) func(string) bool {
 // reader's temporary directory the one given.
 func machineProjectsIn(fsys fs.FS, tempDir string) status.Projects {
 	return status.NewProjects(status.ProjectsConfig{
-		Root: fsys, Home: "/Users/you", TempDir: tempDir, UID: 501, Find: gitWalk(machine()), InRepository: inRepository(machine()),
+		Root: fsys, Home: "/Users/you", TempDir: tempDir, UID: 501, Find: gitWalk(machine()), Repository: repositoryOf(machine()),
 	})
 }
 
@@ -136,6 +142,10 @@ func TestAProjectInAScratchpadIsTheProjectItsSlugNames(t *testing.T) {
 			dir: scratchpad("/private/tmp", "-Users-you-code-api", scratchOne, ""), want: "~/Code/api"},
 		{name: "a worktree removed since from a bare repository's folder, the bare repository",
 			dir: scratchpad("/private/tmp", "-Users-you-Code-web-git-feature", scratchOne, ""), want: "~/Code/web.git"},
+		{name: "a worktree removed since from a subfolder of a bare repository, the bare repository, not the subfolder",
+			dir: scratchpad("/private/tmp", "-Users-you-Code-web-git-wt-feature", scratchOne, ""), want: "~/Code/web.git"},
+		{name: "a worktree removed since, named as a bare repository's folder begins, the bare repository, not the folder",
+			dir: scratchpad("/private/tmp", "-Users-you-Code-web-git-hooks-fix", scratchOne, ""), want: "~/Code/web.git"},
 		{name: "a worktree removed since from beside a bare repository in .bare, the folder holding both",
 			dir: scratchpad("/private/tmp", "-Users-you-Code-site-feature", scratchOne, ""), want: "~/Code/site"},
 	}
@@ -149,9 +159,10 @@ func TestAProjectInAScratchpadIsTheProjectItsSlugNames(t *testing.T) {
 }
 
 // A path is temporary in a temporary root, the reader's temporary directory
-// among them; at or under a folder named for Claude Code's scratch root,
+// among them where it isn't the home or above it; at or under a folder named for Claude Code's scratch root,
 // whatever holds it; or at or under the folder holding the scratch root,
-// below the home. Each is compared with its case folded. Nothing else is.
+// where that holder isn't the home or above it. Each is compared with its
+// case folded. Nothing else is.
 func TestAProjectInATemporaryFolderIsTemporaryFolders(t *testing.T) {
 	tests := []struct {
 		name, project, dir, want string
@@ -290,7 +301,8 @@ func TestEachPathAndEachSlugIsReadAgainstTheFilesystemOnce(t *testing.T) {
 }
 
 // Each folder is listed once, and looked in for the scratch root once,
-// however many of the projects read are in it.
+// however many of the projects read, and of the scratchpads' slugs
+// decoded, are in it.
 func TestEachFolderIsListedAndLookedInOnce(t *testing.T) {
 	m := machine()
 	for i := range 50 {
@@ -299,11 +311,15 @@ func TestEachFolderIsListedAndLookedInOnce(t *testing.T) {
 	o := countingOpens(m)
 	p := machineProjects(o)
 	for i := range 50 {
-		if want, got := fmt.Sprintf("~/Code/project-%d", i), p.Of("", fmt.Sprintf("~/code/project-%d", i)); got != want {
+		want := fmt.Sprintf("~/Code/project-%d", i)
+		if got := p.Of("", fmt.Sprintf("~/code/project-%d", i)); got != want {
 			t.Errorf("Of(~/code/project-%d) = %q, want %q", i, got, want)
 		}
+		if got := p.Of("", scratchpad("/private/tmp", fmt.Sprintf("-Users-you-Code-project-%d", i), scratchOne, "")); got != want {
+			t.Errorf("a scratchpad of project-%d is %q's, want %q's", i, got, want)
+		}
 	}
-	for _, name := range []string{"Users/you/Code", "Users/you/Code/claude-501"} {
+	for _, name := range []string{".", "Users", "Users/you", "Users/you/Code", "Users/you/Code/claude-501"} {
 		if got := o.opened[name]; got != 1 {
 			t.Errorf("%s was opened %d times, want once", name, got)
 		}

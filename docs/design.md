@@ -5171,24 +5171,25 @@ draw it, the tab names in its title row aside, and kept in `testdata/vhs/referen
     cased, else case folded (`claude.SlugDir`). Its project is found as `launch.FindProject` finds
     a directory's, the home as `~`.
   - **No project:** a slug naming nothing below the home's parents counts as
-    `temporary folders` (`status.TemporaryFolders`). So does one naming only its own start where the folder
-    found is in no repository, as `launch.InRepository` counts one, injected: as of a repository
-    or a volume gone. `launch.InRepository` counts a `.git`, a bare repository's directory and a
-    folder holding a bare `.bare`, so a removed worktree of every layout reaches its project.
+    `temporary folders` (`status.TemporaryFolders`). So does one naming only its own start where
+    the folder found is in no repository, as of a repository or a volume gone. Else it's the project
+    `launch.RepositoryOf` gives, injected: of the nearest folder up that's a bare repository's
+    directory, that; that holds a bare `.bare`, that; that holds a `.git`, `FindProject`'s. So a
+    worktree removed from inside its repository's folder counts as `FindProject` named it live.
   - **Temporary folders:** these three alone, each compared with its case folded:
     - at or under `/tmp`, `/private/tmp`, `/var/folders`, `/private/var/folders` or the reader's
       `TMPDIR`, a `TMPDIR` of the home or above it left out;
     - at or under a folder named `claude-<uid>`, whatever holds it, but a scratchpad;
     - at or under the folder holding `claude-<uid>`, found in the case its folders have, where
-      that holder is below the home.
+      that holder isn't the home or above it.
 
     The home, and a folder in it outside those, is never temporary. The row is drawn faint, as
     `no directory`'s is, with no path in its head.
   - **Case:** any other project is given in the case its folders have on disk, each part matched
     as cased, else case folded, so `~/code` and `~/Code` are one.
-  - **Read once:** each path, each slug, each folder's listing and each folder's look for
-    `claude-<uid>` is read once a process, on the first read to ask, and kept. A directory gone
-    since leaves the project it named.
+  - **Read once:** each path, each slug, each folder's listing, `claude.SlugDir`'s walk among
+    them, and each folder's look for `claude-<uid>` is read once a process, on the first read to
+    ask, and kept. A directory gone since leaves the project it named.
   - **No new version:** the day's heads and digests keep each session's directory and project as
     its lines named them, so the rule needs no new version of either.
 

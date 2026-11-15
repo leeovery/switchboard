@@ -41,24 +41,31 @@ func FindProject(dir string) string {
 	return dir
 }
 
-// InRepository reports whether the directory dir is in a repository, as
-// FindProject counts one, dir itself or a directory up from it: one holding
-// a .git, as repositoryAt reads it; a bare repository's directory, as
-// isBare reads it, as a worktree may be kept in, and FindProject names a
-// worktree's project by; or a folder holding one named .bare, as projectOf
-// names a .bare layout's. So the folder a worktree since removed was kept
-// in, of any of them, is in a repository. It runs no git, and follows dir
-// as it's given. False for "".
-func InRepository(dir string) bool {
+// RepositoryOf returns the project of the repository the directory dir is
+// in, as FindProject named a worktree kept there while it was, and whether
+// dir is in one: of the nearest directory, dir itself or one up from it,
+// that's a bare repository's directory, as isBare reads it, that
+// directory; that holds a bare repository named .bare, that folder, as
+// projectOf names a .bare layout's; or that holds a .git, as repositoryAt
+// reads it, the project FindProject finds of dir. So the folder a worktree
+// since removed was kept in, in any of those, gives the project the
+// worktree had, though FindProject finds the folder its own. It runs no git,
+// and follows dir as it's given. False for "".
+func RepositoryOf(dir string) (string, bool) {
 	if dir == "" {
-		return false
+		return "", false
 	}
 	for at := filepath.Clean(dir); ; at = filepath.Dir(at) {
-		if _, held := repositoryAt(at); held || isBare(at) || isBare(filepath.Join(at, bareLayout)) {
-			return true
+		switch _, held := repositoryAt(at); {
+		case isBare(at):
+			return at, true
+		case isBare(filepath.Join(at, bareLayout)):
+			return at, true
+		case held:
+			return FindProject(dir), true
 		}
 		if filepath.Dir(at) == at {
-			return false
+			return "", false
 		}
 	}
 }

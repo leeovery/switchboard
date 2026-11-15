@@ -33,9 +33,10 @@ type ProjectsConfig struct {
 	// Find is the project of a directory, by its whole path, as
 	// launch.FindProject finds it: nil reads it as ProjectOf does.
 	Find func(dir string) string
-	// InRepository reports whether a directory, by its whole path, is in a
-	// repository, as launch.InRepository has it: nil, that none is.
-	InRepository func(dir string) bool
+	// Repository is the project of the repository a directory, by its
+	// whole path, is in, and whether it's in one, as launch.RepositoryOf
+	// has them: nil, that none is.
+	Repository func(dir string) (string, bool)
 }
 
 // Projects reads the project a line, a session or the router names, as
@@ -45,33 +46,35 @@ type ProjectsConfig struct {
 //     one, counts as the project of the directory its slug names, as
 //     claude.SlugDir finds it, by its path as Find has it; but as
 //     TemporaryFolders where the slug names nothing below the home's
-//     parents, or names only the start of itself and what it names is in
-//     no repository, as InRepository has it, as of a repository or a
-//     volume gone;
+//     parents; and where it names only the start of itself, as of a
+//     worktree, a repository or a volume gone, as the project of the
+//     repository what it names is in, as Repository has it, else as
+//     TemporaryFolders;
 //   - a path in a temporary folder, as isTemporary has it, counts as
 //     TemporaryFolders;
 //   - any other path is given in the case its folders have, so a project
 //     named in two cases on a volume that ignores case is one.
 //
-// Each is given home as ~. Each path, each slug and each folder is read
-// once, the first time it's asked of, and kept for every read after, so a
-// view of a thousand scratchpads looks at the filesystem only as first
-// built, and a directory gone since leaves the project it named. The zero
-// Projects reads as ProjectOf alone.
+// Each is given home as ~. Each path, each slug, each folder's listing,
+// claude.SlugDir's among them, and each folder's look for the scratch root
+// is read once, the first time it's asked of, and kept for every read
+// after, so a view of a thousand scratchpads looks at the filesystem only as
+// first built, and a directory gone since leaves the project it named. The
+// zero Projects reads as ProjectOf alone.
 type Projects struct {
 	read *projectsRead
 }
 
 // projectsRead is what Projects reads against, and what it has read once:
 // the project of each path, by the path; of each scratchpad's slug, by the
-// slug; each whole path in the case its folders have, by the path; the
-// names in each folder, by the folder; and whether each folder holds
-// Claude Code's scratch root, by the folder.
+// slug; each whole path in the case its folders have, by the path; what's
+// in each folder, by the folder; and whether each folder holds Claude
+// Code's scratch root, by the folder.
 type projectsRead struct {
 	ProjectsConfig
 	temporary           []string
 	paths, slugs, cases readOnce[string]
-	listed              readOnce[[]string]
+	listed              readOnce[[]fs.DirEntry]
 	holds               readOnce[bool]
 }
 
@@ -87,7 +90,7 @@ func NewProjects(c ProjectsConfig) Projects {
 	r := &projectsRead{
 		ProjectsConfig: c, temporary: temporaryRoots,
 		paths: readOnce[string]{read: make(map[string]string)}, slugs: readOnce[string]{read: make(map[string]string)},
-		cases: readOnce[string]{read: make(map[string]string)}, listed: readOnce[[]string]{read: make(map[string][]string)},
+		cases: readOnce[string]{read: make(map[string]string)}, listed: readOnce[[]fs.DirEntry]{read: make(map[string][]fs.DirEntry)},
 		holds: readOnce[bool]{read: make(map[string]bool)},
 	}
 	if dir := strings.TrimSuffix(cleaned(c.TempDir), "/"); dir != "" && !r.homeOrAbove(dir) {
@@ -133,11 +136,18 @@ func (r *projectsRead) project(at string) string {
 // slugged is the project of the directory the scratchpad's slug names, as
 // Projects reads it.
 func (r *projectsRead) slugged(slug string) string {
-	named := claude.SlugDir(r.Root, slug)
-	if named.Dir == "" || r.aboveHome(named.Dir) || !named.Whole && !r.inRepository(named.Dir) {
+	named := claude.SlugDir(listedFS{r}, slug)
+	if named.Dir == "" || r.aboveHome(named.Dir) {
 		return TemporaryFolders
 	}
-	return r.settled(r.shown(r.find(named.Dir)))
+	if named.Whole {
+		return r.settled(r.shown(r.find(named.Dir)))
+	}
+	project, ok := r.repository(named.Dir)
+	if !ok {
+		return TemporaryFolders
+	}
+	return r.settled(r.shown(cleaned(project)))
 }
 
 // settled is the project at, in the case its folders have: TemporaryFolders
@@ -162,10 +172,14 @@ func (r *projectsRead) find(dir string) string {
 	return cleaned(r.Find(dir))
 }
 
-// inRepository reports whether the directory dir, a whole path, is in a
-// repository, as InRepository has it: not where there's none to ask.
-func (r *projectsRead) inRepository(dir string) bool {
-	return r.InRepository != nil && r.InRepository(dir)
+// repository is the project of the repository the directory dir, a whole
+// path, is in, and whether it's in one, as Repository has them: none where
+// there's none to ask.
+func (r *projectsRead) repository(dir string) (string, bool) {
+	if r.Repository == nil {
+		return "", false
+	}
+	return r.Repository(dir)
 }
 
 // aboveHome reports whether dir, a whole path, holds the home directory.
@@ -181,11 +195,11 @@ func (r *projectsRead) homeOrAbove(dir string) bool {
 
 // isTemporary reports whether the whole path at is a temporary folder or in
 // one, its case folded, and none else: a temporary root, or TempDir, where
-// it's below the home; in a folder named for Claude Code's scratch root,
-// whatever holds it; or in a folder holding the scratch root, below the
-// home, as Claude Code keeps its own temporary files there, looked for in
-// the case its folders have. The home and the folders above it are never
-// one.
+// it isn't the home or above it; in a folder named for Claude Code's
+// scratch root, whatever holds it; or in a folder holding the scratch root,
+// where that isn't the home or above it, as Claude Code keeps its own
+// temporary files there, looked for in the case its folders have. The home
+// and the folders above it are never one.
 func (r *projectsRead) isTemporary(at string) bool {
 	for _, root := range r.temporary {
 		if withinFolded(at, root) {
@@ -227,8 +241,8 @@ func (r *projectsRead) cased(at string) string {
 			parent = r.cased(parent)
 		}
 		folded := ""
-		for _, there := range r.listed.of(parent, r.names) {
-			switch {
+		for _, e := range r.listing(parent) {
+			switch there := e.Name(); {
 			case there == name:
 				return path.Join(parent, name)
 			case folded == "" && strings.EqualFold(there, name):
@@ -239,15 +253,27 @@ func (r *projectsRead) cased(at string) string {
 	})
 }
 
-// names are the names in the folder dir, a whole path, in order: none
-// where it can't be read.
-func (r *projectsRead) names(dir string) []string {
-	entries, _ := fs.ReadDir(r.Root, rooted(dir))
-	names := make([]string, len(entries))
-	for i, e := range entries {
-		names[i] = e.Name()
-	}
-	return names
+// listing is what's in the folder dir, a whole path, in order, read once:
+// nothing where it can't be read.
+func (r *projectsRead) listing(dir string) []fs.DirEntry {
+	return r.listed.of(dir, func(dir string) []fs.DirEntry {
+		entries, _ := fs.ReadDir(r.Root, rooted(dir))
+		return entries
+	})
+}
+
+// listedFS is Root, each folder's listing read once, as the read's listing
+// has it, as claude.SlugDir walks it.
+type listedFS struct {
+	r *projectsRead
+}
+
+func (l listedFS) Open(name string) (fs.File, error) {
+	return l.r.Root.Open(name)
+}
+
+func (l listedFS) ReadDir(name string) ([]fs.DirEntry, error) {
+	return l.r.listing(path.Join("/", name)), nil
 }
 
 // rooted is the whole path p as a path of the filesystem from its root.

@@ -381,39 +381,97 @@ func write(t *testing.T, path, text string) {
 	}
 }
 
-// The folder a worktree since removed was kept in is in a repository, as
-// FindProject counts one, in every layout it reads: a repository's own
-// .git; a bare repository's directory, the worktree kept inside it; and the
-// folder holding a bare repository named .bare. A folder of none isn't.
-func TestTheFolderOfARemovedWorktreeIsInARepositoryInEveryLayout(t *testing.T) {
+// The folder a worktree since removed was kept in gives the project
+// FindProject found of the worktree while it was there, in every layout it
+// reads: Claude Code's worktrees, and a subfolder, of a repository; a bare
+// repository with a worktree in a subfolder of it, and one named as a
+// folder of it begins; a bare repository in .bare, with a .git naming it in
+// the folder holding both and without; and a bare repository in a folder
+// named with a dot, as a home's dotfiles.
+func TestARemovedWorktreeIsTheProjectFindProjectFoundOfItLive(t *testing.T) {
 	tests := []struct {
 		name  string
 		dirs  []string
 		files map[string]string
-		// left is the folder the removed worktree leaves, by its path from
-		// the root.
-		left string
-		want bool
+		// worktree is where it's kept, and left the folder its removal
+		// leaves the deepest a scratchpad's slug names, by their paths
+		// from the root.
+		worktree, left string
 	}{
-		{name: "Claude Code's worktrees, in a repository", dirs: []string{"api/.git", "api/.claude/worktrees"}, left: "api/.claude/worktrees", want: true},
-		{name: "a subfolder of a repository, gone", dirs: []string{"api/.git"}, left: "api/web/src", want: true},
-		{name: "a bare repository's directory", dirs: []string{"api.git/refs/heads"}, files: map[string]string{"api.git/config": bareConfig},
-			left: "api.git", want: true},
-		{name: "the folder holding a bare repository in .bare", dirs: []string{"api/.bare/refs/heads"}, files: map[string]string{"api/.bare/config": bareConfig},
-			left: "api", want: true},
-		{name: "a bare repository in a folder named with a dot, as a home's dotfiles", dirs: []string{"home/.dotfiles/refs"},
-			files: map[string]string{"home/.dotfiles/config": bareConfig}, left: "home/.dotfiles", want: true},
-		{name: "the folder holding a .bare no config says is bare", dirs: []string{"api/.bare/refs"}, files: map[string]string{"api/.bare/config": notBareConfig},
-			left: "api"},
-		{name: "a folder of no repository", dirs: []string{"code/old"}, left: "code/old"},
+		{
+			name: "Claude Code's worktree of a repository", dirs: []string{"api/.git/worktrees/fix", "api/.claude/worktrees/fix"},
+			files: map[string]string{
+				"api/.claude/worktrees/fix/.git": "gitdir: <root>/api/.git/worktrees/fix\n", "api/.git/worktrees/fix/commondir": commonDir,
+			},
+			worktree: "api/.claude/worktrees/fix", left: "api/.claude/worktrees",
+		},
+		{name: "a subfolder of a repository", dirs: []string{"api/.git", "api/web/src"}, worktree: "api/web/src", left: "api/web"},
+		{
+			name: "a worktree in a subfolder of a bare repository", dirs: []string{"api.git/hooks", "api.git/worktrees/feature", "api.git/wt/feature"},
+			files: map[string]string{
+				"api.git/config": bareConfig, "api.git/wt/feature/.git": "gitdir: <root>/api.git/worktrees/feature\n",
+				"api.git/worktrees/feature/commondir": commonDir,
+			},
+			worktree: "api.git/wt/feature", left: "api.git/wt",
+		},
+		{
+			name: "a worktree of a bare repository named as a folder of it begins", dirs: []string{"api.git/hooks", "api.git/worktrees/hooks-fix", "api.git/hooks-fix"},
+			files: map[string]string{
+				"api.git/config": bareConfig, "api.git/hooks-fix/.git": "gitdir: <root>/api.git/worktrees/hooks-fix\n",
+				"api.git/worktrees/hooks-fix/commondir": commonDir,
+			},
+			worktree: "api.git/hooks-fix", left: "api.git/hooks",
+		},
+		{
+			name: "a worktree beside a bare repository in .bare", dirs: []string{"api/.bare/worktrees/main", "api/main"},
+			files: map[string]string{
+				"api/.bare/config": bareConfig, "api/main/.git": "gitdir: <root>/api/.bare/worktrees/main\n", "api/.bare/worktrees/main/commondir": commonDir,
+			},
+			worktree: "api/main", left: "api",
+		},
+		{
+			name: "a worktree beside a bare repository in .bare, a .git naming it beside them", dirs: []string{"api/.bare/worktrees/main", "api/main"},
+			files: map[string]string{
+				"api/.git": "gitdir: ./.bare\n", "api/.bare/config": bareConfig, "api/main/.git": "gitdir: <root>/api/.bare/worktrees/main\n",
+				"api/.bare/worktrees/main/commondir": commonDir,
+			},
+			worktree: "api/main", left: "api",
+		},
+		{
+			name: "a worktree in a bare repository in a folder named with a dot", dirs: []string{"home/.dotfiles/worktrees/main", "home/.dotfiles/wt/main"},
+			files: map[string]string{
+				"home/.dotfiles/config": bareConfig, "home/.dotfiles/wt/main/.git": "gitdir: <root>/home/.dotfiles/worktrees/main\n",
+				"home/.dotfiles/worktrees/main/commondir": commonDir,
+			},
+			worktree: "home/.dotfiles/wt/main", left: "home/.dotfiles/wt",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			root := t.TempDir()
 			lay(t, root, tt.dirs, tt.files)
-			if got := launch.InRepository(filepath.Join(root, tt.left)); got != tt.want {
-				t.Errorf("InRepository(%s) = %v, want %v", tt.left, got, tt.want)
+			live := launch.FindProject(filepath.Join(root, tt.worktree))
+			if err := os.RemoveAll(filepath.Join(root, tt.worktree)); err != nil {
+				t.Fatal(err)
+			}
+			if got, ok := launch.RepositoryOf(filepath.Join(root, tt.left)); got != live || !ok {
+				t.Errorf("removed, RepositoryOf(%s) = %q, %v, want %q, as FindProject found it live", tt.left, got, ok, live)
 			}
 		})
+	}
+}
+
+// A folder of no repository, and one beside a .bare no config says is
+// bare, is in none.
+func TestAFolderOfNoRepositoryHasNone(t *testing.T) {
+	root := t.TempDir()
+	lay(t, root, []string{"code/old", "api/.bare/refs"}, map[string]string{"api/.bare/config": notBareConfig})
+	for _, left := range []string{"code/old", "api"} {
+		if got, ok := launch.RepositoryOf(filepath.Join(root, left)); ok {
+			t.Errorf("RepositoryOf(%s) = %q, true, want none", left, got)
+		}
+	}
+	if _, ok := launch.RepositoryOf(""); ok {
+		t.Error(`RepositoryOf("") is one, want none`)
 	}
 }
