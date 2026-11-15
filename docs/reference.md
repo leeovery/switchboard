@@ -310,7 +310,7 @@ line keeps everything about a request except its content. It never holds any of 
 The fields from `prompt` to `tool_ms` are what Claude Code's own headers say of the request. Each
 is left out where Claude Code sends no such header. Claude Code always sends the router the agents'
 ids, `agent_id` and `parent_agent_id`. It sends the rest because `run` has it send them, with `CLAUDE_CODE_GATEWAY_HINT_HEADERS=1`.
-See [`claude`](commands.md#claude).
+See [`claude`](commands/claude.md).
 
 ## The day's summary
 
@@ -517,7 +517,7 @@ pass over one you don't know. In the forms below, `<id>` is an account's id.
 
 ## The status document
 
-[`status`](commands.md#status) and [`usage`](commands.md#usage) print this document as JSON:
+[`status`](commands.md#status) and [`usage`](commands/usage.md) print this document as JSON:
 `{"schema", "generated_at", "source", "fallback", "pool_id", "pool_label", "best", "primary",
 "prime", "pin", "router", "restart", "moving", "export", "sessions", "events", "events_kept", "pool",
 "coming_up", "demand", "accounts"}`.
@@ -526,7 +526,7 @@ pass over one you don't know. In the forms below, `<id>` is an account's id.
 - Utilizations are fractions, and can pass 1.
 - A field only the router knows is left out of a document built by probing.
 - Once the config has pools, each document is one pool's, as `--pool` names it, else the pool the
-  verbs act on (see [Reading a pool](commands.md#reading-a-pool)): its accounts, best, primary, pin,
+  verbs act on (see [Reading a pool](commands.md)): its accounts, best, primary, pin,
   room, sessions and demand are that pool's alone. The router's health, its restart, the moves,
   the export and the events that are no pool's are the same in every pool's.
 

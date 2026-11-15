@@ -129,14 +129,14 @@ cache_write_1h = 6.4
   too. With `direct`, Claude Code connects straight to the API on an account's token, unrouted and
   unrecorded, and it can spend the primary's reserve, which only the router honours.
   `SWITCHBOARD_WHEN_ROUTER_DOWN=direct` or `=stop` overrides the key for the one launch it's given
-  to, as in `SWITCHBOARD_WHEN_ROUTER_DOWN=direct claude`. See [`claude`](commands.md#claude).
+  to, as in `SWITCHBOARD_WHEN_ROUTER_DOWN=direct claude`. See [`claude`](commands/claude.md).
   With pools, a session that goes direct goes out on its pool's accounts alone, and with two pools
   or more, a router that doesn't route by the config's pools counts as down.
 
 ## `[[account]]` keys
 
 The config has one `[[account]]` table for each subscription, and at least one. Add and remove
-accounts with [`setup`](commands.md#setup) or [`accounts`](commands.md#accounts), which write the
+accounts with [`setup`](commands/setup.md) or [`accounts`](commands/accounts.md), which write the
 table, its `id` among it: switchboard makes each account's id from its subscription (see
 [Accounts and their ids](how-it-works.md#accounts-and-their-ids)). The other keys are yours to
 edit, by hand or with `accounts edit`.
@@ -147,7 +147,7 @@ edit, by hand or with `accounts edit`.
 | `label` | Required | What the account is shown as, at most 100 characters, and no other account's, ignoring case. It can't hold anything shaped like a token. A config edited by hand without one still loads, the account shown by its id. |
 | `pool` | Required where the config has pools | The id of the pool the account is in. `accounts edit <id> --pool <id>` moves it. A config without `[[pool]]` tables has none, and an account naming one there is an error. |
 | `primary` | The pool's first account | Marks the account the browser and the Claude apps are signed into: [the primary](how-it-works.md#the-primary), one for each pool. At most one account in a pool can set it. |
-| `reserve` | `0` | The share of every window the router leaves unused: `0`, or more than `0` and less than `1`. [`accounts edit <id> --reserve <percent>`](commands.md#accounts) sets it, as a percentage. See [Reserves](how-it-works.md#reserves). |
+| `reserve` | `0` | The share of every window the router leaves unused: `0`, or more than `0` and less than `1`. [`accounts edit <id> --reserve <percent>`](commands/accounts.md) sets it, as a percentage. See [Reserves](how-it-works.md#reserves). |
 | `plan` | None (unknown) | The plan the account's subscription is on: `pro`, `max` or `ultra`. The names the plans had before Anthropic renamed them, `max5x` for `max` and `max20x` for `ultra`, still load. |
 
 The ids switchboard makes are 4 lowercase letters and digits, a letter first, or a character
@@ -162,7 +162,7 @@ rules:
 - It holds nothing shaped like a token.
 
 Switchboard can't read an account's plan from Anthropic, so `plan` is the only way it knows the
-plan. [`accounts edit <id> --plan <plan>`](commands.md#accounts) sets it. Switchboard uses the plan
+plan. [`accounts edit <id> --plan <plan>`](commands/accounts.md) sets it. Switchboard uses the plan
 in three places:
 
 - It compares what the plan costs with what the account's use was worth at API prices.
@@ -181,7 +181,7 @@ A pool is a set of accounts that sessions are routed across, fenced to directori
 [Pools](how-it-works.md#pools). Once the router has moved the history to pools, the config has a
 `[[pool]]` table for each pool, and at least one: the router makes the first, labelled `Default`, as
 it moves (see [Upgrading to pools](how-it-works.md#upgrading-to-pools)). Make, edit and remove
-pools with [`pool`](commands.md#pool), which write the table, its `id` among it. The other keys are
+pools with [`pool`](commands/pool.md), which write the table, its `id` among it. The other keys are
 yours to edit, by hand or with `pool edit`.
 
 | Key | Default | Description |
@@ -273,7 +273,7 @@ is there, so a disk that isn't mounted fails the export. See
 
 ## `[usage]` keys
 
-This key sets how [`usage`](commands.md#usage) and the dashboard's [**Overview**](dashboard.md#overview)
+This key sets how [`usage`](commands/usage.md) and the dashboard's [**Overview**](dashboard.md#overview)
 lay out the windows.
 
 | Key | Default | Description |
@@ -452,7 +452,7 @@ release. The dashboard, posting without the router, asks too, before its first n
 Notifications wait for your answer, up to 5 minutes, then go on through the app. The router never
 waits on the question: it asks on the side, routing all the while, and stopping or restarting it
 ends the asking. Turned off, they're turned on again in System Settings → Notifications →
-Switchboard. [`service uninstall`](commands.md#service-uninstall-and-service-status)
+Switchboard. [`service uninstall`](commands/service.md)
 removes the app. See
 [Notifications that don't show](troubleshooting.md#notifications-that-dont-show).
 

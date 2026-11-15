@@ -7,7 +7,7 @@ This page shows where to look when switchboard doesn't do what you expect, and h
 - **Where things stand:** to see how each account stands and why, the router's health, any
   restart the router has due, and a move onto the accounts' ids or to pools it owes, run
   [`switchboard status`](commands.md#status). To see whether the LaunchAgent is installed and
-  loaded, run [`switchboard service status`](commands.md#service).
+  loaded, run [`switchboard service status`](commands/service.md).
 - **Why a request went where it did:** to follow the router's log, run `switchboard logs -f`. The log
   has a line for each request, with its account and why it went there. To look back over the days,
   use [`requests`](commands.md#requests) and [`events`](commands.md#events).
@@ -118,7 +118,7 @@ This page shows where to look when switchboard doesn't do what you expect, and h
   too.
 - **`claude` won't start, the router down:** with the router not running, not answering, or not
   saying where it listens, `claude` starts nothing and says so. An unhealthy router doesn't stop it:
-  `claude` goes through it, saying so. Run [`switchboard service status`](commands.md#service) to
+  `claude` goes through it, saying so. Run [`switchboard service status`](commands/service.md) to
   see whether the LaunchAgent is installed and loaded and how the router answers, then `switchboard
   service install` or `switchboard service restart`. To start Claude Code without the router this
   once, unrouted and unrecorded, run `SWITCHBOARD_WHEN_ROUTER_DOWN=direct claude`; to have it do so
@@ -211,7 +211,7 @@ are.
   pool's fence and its repository in another pool, a worktree's repository can't be found, or
   it's a submodule's or a separate git directory's worktree, the pool has no accounts, or none of
   them has a usable token, or it's inside a fence and would start on Claude Code's own login.
-  Each is in [`claude`](commands.md#claude)'s table, with what to do.
+  Each is in [`claude`](commands/claude.md)'s table, with what to do.
 - **`the router doesn't route by the config's pools (…)`:** or `the router routes by other pools
   (…)`, where the pools come from the router or the accounts record. With two pools or more,
   `claude` counts a router down where its pools, their directories, accounts or primaries aren't
@@ -235,7 +235,7 @@ are.
 - **A verb says `every pool is fenced: name a pool, q7mt (Acme) or r2d4 (Client), with --pool`:**
   with every pool fenced, there's no pool to read without being told. Pass `--pool <id>`. A verb
   never takes its pool from the directory you run it in. See
-  [Reading a pool](commands.md#reading-a-pool).
+  [Reading a pool](commands.md).
 - **A verb says `can't tell which pool to read: neither the config, the router nor the accounts
   record names any pools`:** once the history has moved to pools, the config names none, or can't
   be read, the router isn't running or routes by none, and the accounts record keeps none, so no
@@ -246,7 +246,7 @@ are.
   stays: `requests`, `history`, `sessions` and `events` read it with `--pool q7mt`, naming it
   `pool Acme (removed 6 Oct)`. They read a pool another Mac's history brought in by `import` so
   too, naming it `not configured here`, as `pool Client (not configured here)`.
-  See [Reading a pool](commands.md#reading-a-pool).
+  See [Reading a pool](commands.md).
 - **`status` says `probed directly: the router doesn't route by pools yet`,** or the dashboard
   `○ probed · router started before pools`: the config has pools and the router reports none, as
   one from before pools still running after an upgrade, so its document and sessions are every
@@ -355,10 +355,10 @@ Notifications come from switchboard's own app, `Switchboard` (see
   router's log says so at warn, once until a notification goes out:
   `macOS won't let Switchboard post notifications: turn them on in System Settings → Notifications → Switchboard, or, where they're on, switchboard service restart registers its app again`.
 - **On, but not allowed all the same:** macOS can lose track of the app. Run
-  [`switchboard service restart`](commands.md#service-restart): the router registers the app again
+  [`switchboard service restart`](commands/service.md): the router registers the app again
   as it starts.
 - **Never asked:** macOS asks when the router first starts on a release with the app. Run
-  [`switchboard service restart`](commands.md#service-restart) to have it ask. Where the question
+  [`switchboard service restart`](commands/service.md) to have it ask. Where the question
   can't be put, the router's log says
   `can't ask macOS whether Switchboard may post notifications; posting through its app all the same`,
   with macOS's reason.

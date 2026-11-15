@@ -43,7 +43,7 @@ to your shell's startup file, which sources a file of switchboard's own for your
 puts the bin directory first on `PATH`, ahead of the real `claude`, and loads switchboard's
 completions. Where you keep `PATH` another way, put the bin directory first on it yourself. `setup`
 asks your login shell which `claude` it runs, and is done with this once that's the link. See
-[`setup`](commands.md#setup).
+[`setup`](commands/setup.md).
 
 When switchboard runs by the name `claude`, it starts the real Claude Code connected to the router.
 This works wherever `claude` runs: from a shell, a tmux pane, a script, or a tool that runs
@@ -239,7 +239,7 @@ set a pin in these ways:
 - The dashboard's **routing card** sets the same pins.
 - Claude sets them when you ask.
 
-Every pin yields at a limit rather than failing. For the details, see [`pin`](commands.md#pin).
+Every pin yields at a limit rather than failing. For the details, see [`pin`](commands/pin.md).
 
 ## What it records
 
@@ -372,7 +372,7 @@ sockets it listens on. A request made meanwhile waits a moment rather than being
 
 The service's router runs a copy of switchboard of its own, at a path that never changes, so what
 you allow it, such as a folder it writes into, holds through upgrades (see
-[`service install`](commands.md#service-install)). After `brew upgrade`, the router copies the new
+[`service install`](commands/service.md)). After `brew upgrade`, the router copies the new
 version in beside its copy, asks it first, as below, and puts it in place of the copy only as it
 restarts into it: a new version that refuses is removed, so the copy is always the version that
 last ran or was cleared to, and launchd starting the router again after a crash starts one that
@@ -437,7 +437,7 @@ to it. The id is spelled from it, so a subscription has the same id on every Mac
 state directory; and, in the rare case two organizations spell the same 4 characters, the second
 takes a character more. So:
 
-- **Adding** an account, with [`accounts add <label>`](commands.md#accounts) or setup's
+- **Adding** an account, with [`accounts add <label>`](commands/accounts.md) or setup's
   `+ add an account`, always makes and checks its token first. A subscription this Mac has never
   had gets a new id; one an account has already is refused. Where the API doesn't answer, nothing
   is added, as the id can't be known: try again.
@@ -567,7 +567,7 @@ One account is the primary: the one your browser and the Claude apps are signed 
 Artifacts live on the primary. In every routed session, Claude Code's own token is the primary's,
 whichever account the conversation goes to. That includes a pinned session, because a pin moves the
 conversation alone. While the primary's token isn't usable, Claude Code's own token is another
-account's: see [`claude`](commands.md#claude).
+account's: see [`claude`](commands/claude.md).
 
 So what Claude Code sends that isn't the conversation goes out on the primary, such as publishing an
 artifact or uploading a file. Every session's artifacts open in a browser signed into the primary.
@@ -604,9 +604,9 @@ With pools, it's the room of the pool shown, as a pool's room can never serve an
 
 ### Making pools
 
-[`switchboard pool add Client ~/Code/client`](commands.md#pool) makes a pool, fenced to the
+[`switchboard pool add Client ~/Code/client`](commands/pool.md) makes a pool, fenced to the
 directories given, and `pool edit` and `pool remove` change and remove one. `accounts add --pool`
-puts an account in a pool, and `accounts edit --pool` moves one. [`setup`](commands.md#setup)
+puts an account in a pool, and `accounts edit --pool` moves one. [`setup`](commands/setup.md)
 does both: its add card's Pool chooses an account's pool, or makes a new one with it, and its
 edit card's moves one. Each pool's table is in the config: see
 [`[[pool]]` keys](configuration.md#pool-keys).
@@ -655,7 +655,7 @@ pool for its whole life:
   before.
 
 The commands never choose a pool by the directory you run them in: they read the only pool, else
-the unfenced one, else ask for `--pool` (see [Reading a pool](commands.md#reading-a-pool)).
+the unfenced one, else ask for `--pool` (see [Reading a pool](commands.md)).
 
 ### Each pool's primary
 
@@ -688,7 +688,7 @@ that pool's accounts as the whole set:
   session starts in the pool its directory is in then, on that pool's primary.
 - **A router that doesn't route by the pools counts as down,** with two pools or more, as one from
   before pools would spread a session across every account. `claude` waits 5 seconds for it to
-  take the pools up first (see [`claude`](commands.md#claude)).
+  take the pools up first (see [`claude`](commands/claude.md)).
 
 ### What's recorded
 
@@ -843,7 +843,7 @@ The Fable request falls back to the previous Fable when the newest doesn't answe
 - **No window to prime:** an account whose answers carry no 5-hour window, as a verified Ultra
   account's, gets no slot. The router works the schedule out again for the others, and logs
   `no window to prime` for the prime that finds the window gone. Where every account is on Ultra,
-  [`setup`](commands.md#setup) skips its Priming step and says why.
+  [`setup`](commands/setup.md) skips its Priming step and says why.
 - **A window already running:** an account whose window is already running, as after a late night,
   gets no prime. Its slot shifts for the day.
 - **A prime that fails:** a prime that reads nothing, or doesn't start the window, is logged as a
@@ -946,7 +946,7 @@ Claude Code's own token is the primary's, so what isn't routed lands on the prim
   the account it goes out on.
 - **Claude Code with an API key:** with `ANTHROPIC_API_KEY` or `ANTHROPIC_AUTH_TOKEN` set, Claude
   Code may use the key rather than an account's token. So `claude` starts without switchboard, and
-  its requests go out on the key. See [`claude`](commands.md#claude).
+  its requests go out on the key. See [`claude`](commands/claude.md).
 
 ### A session that isn't going through switchboard
 
@@ -982,7 +982,7 @@ The full design, including the cache facts it rests on, is in [the design docume
 ## Claude and switchboard
 
 `setup` installs a Claude Code skill that tells Claude what switchboard does under `claude`. So no
-session needs it explained. See [`setup`](commands.md#setup).
+session needs it explained. See [`setup`](commands/setup.md).
 
 - **Claude reads the limits itself:** `switchboard status` gives Claude every account's windows. For
   each window, it says how much is used, where it's heading and when it runs out, and when it
@@ -994,7 +994,7 @@ session needs it explained. See [`setup`](commands.md#setup).
 - **Claude looks back:** `sessions`, `requests`, `history` and `events` give Claude your sessions,
   their requests, your days and what the router did, with what each was worth.
 - **Claude steers when you ask:** it pins new sessions to an account with
-  [`pin`](commands.md#pin). It moves running sessions there with `--move`, or pins one session alone
+  [`pin`](commands/pin.md). It moves running sessions there with `--move`, or pins one session alone
   with `--session`. Inside a session, `$CLAUDE_CODE_SESSION_ID` holds the session's own id, and
   `switchboard status --session` names the account the session is on.
 - **JSON without asking:** when an agent runs `status`, `usage`, `sessions`, `requests`, `history`
