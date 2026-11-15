@@ -170,7 +170,7 @@ func TestTheListsLogIsBuiltOnlyAsWhatItsBuiltOfChanges(t *testing.T) {
 }
 
 // routingOf is what the List draws in its routing column on the row of the
-// session with the id given: "" where it draws no such row.
+// session with the id given, failing the test where it draws no such row.
 func routingOf(h *harness, id string) string {
 	h.t.Helper()
 	screen := h.view()
@@ -178,7 +178,11 @@ func routingOf(h *harness, id string) string {
 	if !found {
 		h.t.Fatalf("the List draws no routing column:\n%s", screen)
 	}
-	row := []rune(ansi.Strip(rowWith(screen, id[:4]+" ")))
+	drawn := rowWith(screen, id[:4]+" ")
+	if drawn == "" {
+		h.t.Fatalf("the List draws no row of %s:\n%s", id[:4], screen)
+	}
+	row := []rune(ansi.Strip(drawn))
 	if x := utf8.RuneCountInString(before); x < len(row) {
 		return strings.TrimSpace(string(row[x:]))
 	}

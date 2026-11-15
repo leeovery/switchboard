@@ -87,6 +87,29 @@ func TestFindProjectWalksUpToTheRepositoryItsDirectoryIsIn(t *testing.T) {
 			start: "api/main/web", want: "api",
 		},
 		{
+			name: "a worktree outside the folder holding a bare repository in .bare, the bare repository", dirs: []string{"api/.bare/worktrees/main", "wt/main"},
+			files: map[string]string{
+				"wt/main/.git": "gitdir: <root>/api/.bare/worktrees/main\n", "api/.bare/worktrees/main/commondir": commonDir, "api/.bare/config": bareConfig,
+			},
+			start: "wt/main", want: "api/.bare",
+		},
+		{
+			name: "a worktree of a bare repository in a folder named with a dot, not .bare, the bare repository, as a home's dotfiles",
+			dirs: []string{"home/.dotfiles/worktrees/main", "wt/main"},
+			files: map[string]string{
+				"wt/main/.git": "gitdir: <root>/home/.dotfiles/worktrees/main\n", "home/.dotfiles/worktrees/main/commondir": commonDir, "home/.dotfiles/config": bareConfig,
+			},
+			start: "wt/main", want: "home/.dotfiles",
+		},
+		{
+			name: "a worktree beside a bare repository in a folder named with a dot, not .bare, the bare repository, never the folder holding both",
+			dirs: []string{"repos/.api/worktrees/main", "repos/api-main"},
+			files: map[string]string{
+				"repos/api-main/.git": "gitdir: <root>/repos/.api/worktrees/main\n", "repos/.api/worktrees/main/commondir": commonDir, "repos/.api/config": bareConfig,
+			},
+			start: "repos/api-main", want: "repos/.api",
+		},
+		{
 			name:  "a worktree whose common directory, not .git, no config says is bare, the worktree's own",
 			dirs:  []string{"api.git/worktrees/fix-login", "fix-login/web"},
 			files: map[string]string{"fix-login/.git": "gitdir: <root>/api.git/worktrees/fix-login\n", "api.git/worktrees/fix-login/commondir": commonDir},
@@ -161,12 +184,23 @@ func TestFindProjectWalksUpToTheRepositoryItsDirectoryIsIn(t *testing.T) {
 			start: "fix-login", want: "fix-login",
 		},
 		{
-			name: "started through a link into a repository's subdirectory, its links resolved as a pool's are: the repository, by the path given",
+			name: "started through a link into a repository's subdirectory, walked with its links resolved first: the repository, by the path given",
 			dirs: []string{"api/.git", "api/cmd"}, links: map[string]string{"cmd": "api/cmd"},
 			start: "cmd", want: "api",
 		},
 		{
-			name: "started through a link into a worktree's subdirectory, its links resolved as a pool's are: the worktree's repository, as its pool is",
+			name: "started through a link within a repository leading outside every one, walked as given where resolved finds none: the repository, as its pool is",
+			dirs: []string{"api/.git", "other/lib"}, links: map[string]string{"api/lib": "other/lib"},
+			start: "api/lib", want: "api",
+		},
+		{
+			name: "started through a link within a worktree leading outside every repository, walked as given where resolved finds none: the worktree's repository",
+			dirs: []string{"code/acme/.git/worktrees/x", "wt/x", "dropbox/docs"}, links: map[string]string{"wt/x/docs": "dropbox/docs"},
+			files: map[string]string{"wt/x/.git": "gitdir: <root>/code/acme/.git/worktrees/x\n", "code/acme/.git/worktrees/x/commondir": commonDir},
+			start: "wt/x/docs", want: "code/acme",
+		},
+		{
+			name: "started through a link into a worktree's subdirectory, walked with its links resolved first: the worktree's repository, as its pool is",
 			dirs: []string{"code/acme/.git/worktrees/x", "wt/x/web"}, links: map[string]string{"acme-web": "wt/x/web"},
 			files: map[string]string{"wt/x/.git": "gitdir: <root>/code/acme/.git/worktrees/x\n", "code/acme/.git/worktrees/x/commondir": commonDir},
 			start: "acme-web", want: "code/acme",

@@ -6,7 +6,6 @@ import (
 
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
-	"github.com/leeovery/switchboard/internal/score"
 )
 
 // Past is the ledger's days, priced once as they're given, which Accounts'
@@ -73,15 +72,6 @@ func (p Past) versions() versions {
 	return versions{table: p.in.Prices, family: p.in.Family}
 }
 
-// began is the date the ledger began recording on, as the input tells it:
-// "" where it doesn't.
-func (p Past) began() string {
-	if p.in.Began.IsZero() {
-		return ""
-	}
-	return dayfile.DateOf(p.in.Began)
-}
-
 // counted is the first day the Past counts of the days from first, as
 // dayfile.Civil gives a day, as begunFrom has it, the ledger having begun
 // where the input tells it.
@@ -90,15 +80,34 @@ func (p Past) counted(first time.Time) time.Time {
 }
 
 // begunFrom is the first day counted of the days from first, as
-// dayfile.Civil gives a day, the work they're of having begun at began:
-// began's day, where that's later, so nothing counts or charts a day before
-// it, as a pool's days hold none of its work before; first where began is
-// zero, as where it isn't known.
+// dayfile.Civil gives a day, as begunOn has it of their dates.
 func begunFrom(first, began time.Time) time.Time {
 	if began.IsZero() {
 		return first
 	}
-	return score.Later(first, dayfile.CivilOf(began))
+	// Both dates begunOn compares are written from times, so the later
+	// parses.
+	day, _ := dayfile.Civil(begunOn(first.Format(time.DateOnly), began))
+	return day
+}
+
+// begunOn is the date of the first day counted of the days from the one
+// with the date first, the work they're of having begun at began: began's
+// date, as beganOn has it, where that's later, so nothing counts or charts
+// a day before it, as a pool's days hold none of its work before; first
+// where began is zero, as where it isn't known. It's the one rule of where
+// counting begins, every page's and history's.
+func begunOn(first string, began time.Time) string {
+	return max(first, beganOn(began))
+}
+
+// beganOn is the date of the day work began, at began: "" where began is
+// zero, as where it isn't known.
+func beganOn(began time.Time) string {
+	if began.IsZero() {
+		return ""
+	}
+	return dayfile.DateOf(began)
 }
 
 // Summaries are the summaries of the days the Past holds from first to last,

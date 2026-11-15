@@ -1180,13 +1180,13 @@ Accounts' totals.
   no day before it as a day of none: Trends' months, WHEN YOU WORK's weekday averages, Accounts'
   periods, its WORTH and Tokens among them, the List's and Projects' periods, a project's WORTH BY
   among them, 12 months among them, and Runway's lanes begin there, where every pool's begin where
-  the ledger does, each chart's first day the later of its period's and that one
-  (`views.begunFrom`). A pool that has worked on no day before today
-  begins with today, asked again at each fresh start of the pool shown, a `P` or a config's turn,
-  and not at each read, which would read every summary each time; no pool shown begins with today,
-  reading none. No page adds pools together: a pool's room can never serve another pool's sessions,
-  so a merged view has nothing to add up. A page across pools waits until one is needed (the owner's
-  call, 11 November 2026).
+  the ledger does, each page's first day counted the later of its period's and that one, one rule
+  for every page, `history` and the Year among them (`views.begunOn`). A pool that has worked on no
+  day before today begins with today, asked again at each fresh start of the pool shown, a `P` or a
+  config's turn, and not at each read, which would read every summary each time; no pool shown
+  begins with today, reading none. No page adds pools together: a pool's room can never serve
+  another pool's sessions, so a merged view has nothing to add up. A page across pools waits until
+  one is needed (the owner's call, 11 November 2026).
 - **`P` cycles the pools,** on every tab, Projects and the List among them, once a second pool
   exists, in the config's order, round. Changing pool starts the dashboard's view afresh, as a
   router change does, so nothing it remembered of one pool carries into the next: its pages,
@@ -7237,10 +7237,12 @@ session page · signed off · 7 Oct 2026**, its frames kept as `testdata/vhs/ref
   another directory shows the latest (settled in the plan).
 - **A project:** the repository a session ran in, keyed by the repository's path, as `run` tells the
   router and the ledger keeps it beside its directory (`project`). `run` finds it as it starts the
-  session, walking up from the directory it starts in, its links resolved as Which pool a session is
-  in resolves them, so a project and a pool agree on where a directory lies, a link into a
-  repository's subdirectory counting as that repository's, to the first `.git`, to the
-  filesystem's root at most, and running no git: a session in a subdirectory counts as its
+  session, walking up from the directory it starts in to the first `.git`, to the filesystem's root
+  at most, and running no git, twice where the directory's path goes through a link, as Which pool a
+  session is in looks at it both ways: first with its links resolved, so a link into a
+  repository's subdirectory counts as that repository's; then, where that finds no `.git`, as it's
+  given, so a link inside a repository or a worktree that leads outside every repository counts as
+  the repository it's in. A session in a subdirectory counts as its
   repository's, and one in a linked worktree as its main repository's, the worktree's `.git` file
   naming its git directory, whose `commondir` leads there. Git writes those paths with every link
   resolved, so the main repository is given by the path the walk took: under the deepest directory
@@ -7253,17 +7255,18 @@ session page · signed off · 7 Oct 2026**, its frames kept as `testdata/vhs/ref
   repository's, as its pool is (the owner's call, merging pools and projects): each `.git` is read
   as Which pool a session is in reads it (`launch.worktreeAt`), so a `commondir` not named `.git` of
   a bare repository, as git reads `core.bare`, counts as the bare repository's directory, its
-  worktrees one project, `~/repos/api.git`; but where that directory's name starts with a dot, as a
-  `.bare` layout's, as the folder holding it, `~/Code/api`, as a project is named by its folder's
-  name and `.bare` would name every such project alike. One of no bare repository, a separate git
-  directory's or a submodule's worktree, counts as the worktree's own directory. One case parts a
-  project from its pool, accepted: a submodule or a clone nested inside a linked worktree is its own
-  project, the walk stopping at its own `.git`, where its pool is placed through the worktree it's
-  in, as that reading walks every `.git` up. One outside any
-  repository, or where what it finds can't be read as one (a `.git` file unreadable or naming
-  nothing, a git or common directory that isn't there), counts as its own directory. `run` finds it
-  through a seam of its own (`cli.Deps.FindProject`), never through the pools' worktree lookup, so a
-  config with no fenced pool still looks for no worktree. Lines and sessions from before carry none:
+  worktrees one project, `~/repos/api.git` or `~/.dotfiles`; but in a `.bare` layout, a bare
+  repository's directory named `.bare` whose worktree lies inside the folder holding it, its links
+  resolved, as that folder, `~/Code/api`, as a project is named by its folder's name and `.bare`
+  would name every such project alike. One of no bare repository, a separate git directory's or a
+  submodule's worktree, counts as the worktree's own directory. One case parts a project from its
+  pool, accepted: a submodule or a clone nested inside a linked worktree is its own project, the
+  walk stopping at its own `.git`, where its pool is placed through the worktree it's in, as that
+  reading walks every `.git` up. One outside any repository, or where what it finds can't be read
+  as one (a `.git` file unreadable or naming nothing, a git or common directory that isn't there),
+  counts as its own directory. `run` finds it through a seam of its own (`cli.Deps.FindProject`),
+  never through the pools' worktree lookup, so a config with no fenced pool still looks for no
+  worktree. Lines and sessions from before carry none:
   a `dir` of the form `<repo>/.claude/worktrees/<name>`, a worktree Claude Code made, counts as
   `<repo>`, any other as itself, and no `dir` as no project (`status.ProjectOf`, which no drawing
   package or command calls), each path cleaned, so one written two ways is one project. A project is

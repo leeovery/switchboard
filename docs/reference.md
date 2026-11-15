@@ -289,16 +289,19 @@ line keeps everything about a request except its content. It never holds any of 
 - **`dir`:** `run` tells the router the directory in a header the API never sees. A `claude`
   started within that session other than through `run` carries the directory too.
 - **`project`:** `run` finds the repository as it starts the session, walking up from the
-  directory, its links resolved as its pool's are, to the first `.git`, without running git, so a
-  link into a repository's subdirectory counts as that repository's. A linked worktree counts as
-  its main repository's, by the path the walk took where it went through it or a folder it's in,
-  so a repository in a folder reached through a link stays one project, its worktrees beside it in
-  that folder too. A repository folder that is itself a link, with a worktree beside it, and
-  worktrees kept outside the linked folder, still count as two. A worktree of a bare repository
-  counts as the bare repository's folder, `~/repos/api.git`, or, where that folder's name starts
-  with a dot, as a `.bare` layout's, as the folder holding it, `~/Code/api`. A directory in no
-  repository counts as itself. On a line without it, a `dir` in `<repo>/.claude/worktrees/<name>`
-  counts as `<repo>`, and any other `dir` as itself.
+  directory to the first `.git`, without running git: first with the directory's links resolved,
+  so a link into a repository's subdirectory counts as that repository's, then, where that finds
+  no `.git`, as the directory is given, so a link inside a repository that leads outside every one
+  counts as the repository it's in. A linked worktree counts as its main repository's, by the path
+  the walk took where it went through it or a folder it's in, so a repository in a folder reached
+  through a link stays one project, its worktrees beside it in that folder too. A repository
+  folder that is itself a link, with a worktree beside it, and worktrees kept outside the linked
+  folder, still count as two. A worktree of a bare repository counts as the bare repository's
+  folder, `~/repos/api.git` or `~/.dotfiles`; in a `.bare` layout, a bare repository in a folder
+  named `.bare` with the worktree inside the folder holding it, it counts as that folder,
+  `~/Code/api` for `~/Code/api/.bare` and `~/Code/api/main`. A directory in no repository counts
+  as itself. On a line without it, a `dir` in `<repo>/.claude/worktrees/<name>` counts as
+  `<repo>`, and any other `dir` as itself.
 - **`agent_id` and `parent_agent_id`:** Claude Code's id for a subagent is random. For a member of
   an agent team, the id comes from its name.
 

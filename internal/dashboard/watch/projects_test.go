@@ -15,6 +15,7 @@ import (
 	"github.com/leeovery/switchboard/internal/dayfile"
 	"github.com/leeovery/switchboard/internal/ledger"
 	"github.com/leeovery/switchboard/internal/logs"
+	"github.com/leeovery/switchboard/internal/logs/logstest"
 	"github.com/leeovery/switchboard/internal/status"
 	"github.com/leeovery/switchboard/internal/views"
 )
@@ -194,28 +195,82 @@ func (l *beginsFlaky) FirstDay(time.Time) (time.Time, error) {
 }
 
 // A read of the sessions' days the ledger fails to say where it begins for
-// reads from the period's start, and the next read asks again: once one
-// tells it, the days are read from there, where the period begins before,
-// and no read asks again.
+// reads from the period's start, and the next read asks again, a second
+// failure logged no more than the first: once one tells it, the days are
+// read from there, where the period begins before, and no read asks again.
 func TestTheSessionsDaysAskWhereTheLedgerBeginsTillItSays(t *testing.T) {
+	log := logstest.Capture(t)
 	h := projectsHarness(t, dashboard.Projects)
 	began := dayfile.DayStart(start.Local(), -10)
-	l := &beginsFlaky{projectsLedger: h.model.cfg.Ledger.(*projectsLedger), began: began, fails: 1}
+	l := &beginsFlaky{projectsLedger: h.model.cfg.Ledger.(*projectsLedger), began: began, fails: 2}
 	h.model.cfg.Ledger = l
 	h.start()
 	from := func(p views.Period) time.Time { return p.From(h.clock.now, time.Monday) }
-	if d := h.model.sessionDays; l.asked != 1 || !d.began.IsZero() || !d.from.Equal(from(views.PeriodThisWeek)) {
-		t.Fatalf("asked %d times, the days begin %v, read from %v; want asked once, unknown, read from the week's start %v", l.asked, d.began, d.from, from(views.PeriodThisWeek))
+	steps := []struct {
+		name         string
+		asked        int
+		began, reads time.Time
+	}{
+		{name: "this week", asked: 1, reads: from(views.PeriodThisWeek)},
+		{name: "30 days", asked: 2, reads: from(views.PeriodThirtyDays)},
+		{name: "12 weeks", asked: 3, began: began, reads: began},
+		{name: "12 months", asked: 3, began: began, reads: began},
 	}
-
-	h.deliver(h.press(">")...)
-	if d := h.model.sessionDays; l.asked != 2 || !d.began.Equal(began) || !d.from.Equal(began) {
-		t.Fatalf("over 30 days, asked %d times, the days begin %v, read from %v; want asked again, beginning and read from %v", l.asked, d.began, d.from, began)
+	for i, s := range steps {
+		if i > 0 {
+			h.deliver(h.press(">")...)
+		}
+		if d := h.model.sessionDays; l.asked != s.asked || !d.began.Equal(s.began) || !d.from.Equal(s.reads) {
+			t.Fatalf("over %s, asked %d times, the days begin %v, read from %v; want asked %d, beginning %v, read from %v",
+				s.name, l.asked, d.began, d.from, s.asked, s.began, s.reads)
+		}
 	}
+	if got := beginningsUntold(log); got != 1 {
+		t.Errorf("the log reads\n%s\nwant one warning that the ledger couldn't say where it begins, of two failures", log)
+	}
+}
 
-	h.deliver(h.press(">")...)
-	if d := h.model.sessionDays; l.asked != 2 || d.asked != 2 || !d.from.Equal(began) {
-		t.Errorf("over 12 weeks, asked %d times, the days read %d times, from %v; want asked twice, read twice, from %v", l.asked, d.asked, d.from, began)
+// startOn is a ledger that tells it begins on the day it holds.
+type startOn time.Time
+
+func (s startOn) FirstDay(time.Time) (time.Time, error) {
+	return time.Time(s), nil
+}
+
+// Where the work begins, as each reader of the ledger holds it, the
+// sessions' days' and Accounts' alike, is asked by each read till a read
+// tells a day: while it's unknown; after a failure to say, logged the once
+// however many fail; and while the ledger holds no day yet, as on a fresh
+// install. A read that didn't ask leaves it as it was. The sessions' days
+// can't show asking again while the ledger holds no day: that answer bounds
+// every period at today, so no later read comes till a turn starts afresh.
+func TestWhereTheWorkBeginsIsAskedTillADayIsTold(t *testing.T) {
+	log := logstest.Capture(t)
+	ledgerStart := startOn(start)
+	failed := beginning{err: errors.New("too many open files")}
+	steps := []struct {
+		name string
+		told beginning
+		asks bool
+	}{
+		{name: "failing to say", told: failed, asks: true},
+		{name: "failing again", told: failed, asks: true},
+		{name: "holding no day yet", told: beginning{began: todayStart, none: true}, asks: true},
+		{name: "telling a day", told: beginning{began: dayfile.DayStart(start.Local(), -3)}, asks: false},
+		{name: "a read that didn't ask", told: beginning{}, asks: false},
+	}
+	var b begun
+	if b.beganAsked(ledgerStart) == nil {
+		t.Fatal("unknown, where the work begins isn't asked")
+	}
+	for _, s := range steps {
+		b = b.told(s.told)
+		if asks := b.beganAsked(ledgerStart) != nil; asks != s.asks {
+			t.Errorf("after %s, asked %t, want %t", s.name, asks, s.asks)
+		}
+	}
+	if got := beginningsUntold(log); got != 1 {
+		t.Errorf("the log reads\n%s\nwant one warning that the ledger couldn't say where it begins, of two failures", log)
 	}
 }
 
