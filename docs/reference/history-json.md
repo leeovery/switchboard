@@ -1,8 +1,8 @@
 # `history` JSON
 
 `history --json` prints the days of the ledger in a pool, priced, and the blocks built over them.
-It holds what the History tab of the dashboard shows. For what the record is worth to you, see
-[Your record](../your-record.md).
+On the dashboard, Trends shows the same year and months, and Accounts the same weeks and tokens.
+For what the record is worth to you, see [Your record](../your-record.md).
 
 ```bash
 switchboard history --json | jq \

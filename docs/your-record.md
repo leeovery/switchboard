@@ -5,9 +5,9 @@ can look back over a year of sessions, tokens and limits. You can also see what 
 cost at API prices, against what your plans cost. You'd look when you wonder whether a plan pays
 for itself, or where a week went.
 
-<p align="center"><img src="../art/history-year.webp" alt="History's Year: a square a day over the last 12 months, shaded by its requests; beside it, 212,885 requests worth $24,736 at API prices against $7,200 of plans; and BY MONTH under it, each month's requests, worth, ratio, limits and use by model family" width="840"></p>
+<p align="center"><img src="../art/trends-year.webp" alt="Trends' YEAR: a square a day over the last 12 months, shaded by its requests; beside it, 212,885 requests worth $24,736 at API prices against $7,200 of plans; BY MONTH under it, each month's requests, worth, ratio, limits and use by model family; and MODELS BY DAY, each family's worth a day" width="840"></p>
 
-*History on the dashboard: a year of 212,885 requests, worth $24,736 at API prices, against $7,200
+*Trends on the dashboard: a year of 212,885 requests, worth $24,736 at API prices, against $7,200
 of plans.*
 
 ## Try it
@@ -19,7 +19,8 @@ switchboard history
 switchboard sessions
 # Every request since 14:00, one line each
 switchboard requests --since 14:00
-# Then press tab for History, Sessions or the Log
+# Then press tab for Trends, Sessions or the Log
+# On Trends, y shows the year
 switchboard dashboard
 ```
 
@@ -71,5 +72,5 @@ If an export fails, see [Troubleshooting](troubleshooting/exports.md).
 ## Related
 
 - [Several Macs](several-macs.md): export the record, and import it on another Mac.
-- [Dashboard](dashboard.md): what History, Sessions and the Log show.
+- [Dashboard](dashboard.md): what Trends, Sessions and the Log show.
 - [Claude and switchboard](claude-and-switchboard.md): how Claude reads the record for you.
