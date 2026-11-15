@@ -107,6 +107,8 @@ session, and why each went where it did.
 | The account was removed since | It names the old label, and when the account was removed. |
 | Nothing names the account | It prints the account id. |
 | You pass `--probe` or `--refresh` | It refuses: `--session` only asks the router. |
+| The router started before pools | It reads the session by its id, as before, with `--pool` or without. |
+| The router started before pools, and you pass `--json` with `--pool` | It refuses, and says to restart the router. |
 
 Name the session by its id, or by as much of it as is unique.
 
